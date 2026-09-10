@@ -71,12 +71,76 @@ export type HxFrameMessage =
 	| { type: 'idea:ready'; schemaVersion: number }
 	| { type: 'idea:change'; field: string; value: string | boolean }
 	| { type: 'idea:image'; field: string; name: string; bytes: string }
+	| { type: 'idea:image-remove'; field: string }
+	| { type: 'idea:image-caption'; field: string; caption: string }
 	| { type: 'idea:height'; px: number };
+
+/**
+ * WHAT AN IMAGE LOOKS LIKE ON THE WAY BACK DOWN, AND IT IS NOT WHAT CAME UP.
+ *
+ * BYTES GO FRAME-TO-PARENT ONLY, NEVER BACK. An `idea:image` carries a
+ * base64 payload up; what returns is a URL the parent minted by putting those
+ * bytes through the ORDINARY submission-file path. Three reasons, and the
+ * third is the one that would not be obvious:
+ *
+ *   1. A reload would otherwise have to re-send every photograph a student
+ *      ever attached, through `postMessage`, on a phone -- the state message
+ *      for a six-module worksheet with three pictures in it is megabytes.
+ *   2. The stored artefact is a `classroom_submission_files` row like every
+ *      other hand-in, so it is one thing to grade, one thing to export and one
+ *      thing to delete. A base64 blob echoed back down is none of those.
+ *   3. `img-src data: blob:` in the served CSP admits a data URI, so a
+ *      round-tripped byte string WOULD render -- which is exactly why the
+ *      restriction has to be written down rather than left to fail loudly. It
+ *      would work, and it would quietly make the document the system of record
+ *      for a student's photograph.
+ *
+ * `caption` IS THE STUDENT'S OWN WORDS and is stored beside the file, never in
+ * the filename. `name` is what the document called it, for display only.
+ */
+export interface HxImageState {
+	/** Where the parent put it. Same-origin proxy URL, never a data URI. */
+	url: string;
+	/** What the document called the file. Display only. */
+	name: string;
+	/** The student's caption, or '' when they have not written one. */
+	caption: string;
+}
 
 /** Messages the parent may send. */
 export type HxParentMessage =
-	| { type: 'idea:state'; values: Record<string, string | boolean>; readOnly: boolean }
-	| { type: 'idea:saved'; at: string; ok: boolean };
+	| {
+			type: 'idea:state';
+			values: Record<string, string | boolean>;
+			/**
+			 * KEYED BY FIELD, like `values`, because the document knows its own
+			 * field names and has never been told a block id. A field with no
+			 * image simply has no key here.
+			 */
+			images: Record<string, HxImageState>;
+			readOnly: boolean;
+	  }
+	| {
+			type: 'idea:saved';
+			at: string;
+			ok: boolean;
+			/**
+			 * THE SCHEMA VERSION RIDES THE ACKNOWLEDGEMENT, NOT ONLY THE
+			 * HANDSHAKE. `idea:ready` is the document telling the parent what it
+			 * speaks; this is the parent answering, on every save, so a document
+			 * that was served from a stale cache learns it is talking to a parent
+			 * on a different contract at the first write rather than never.
+			 */
+			schemaVersion: typeof HX_SCHEMA_VERSION;
+			/**
+			 * WHY IT DID NOT SAVE, PRESENT ONLY WHEN `ok` IS FALSE. A document
+			 * shows the student something; "not saved" with no reason is the
+			 * failure this repository already refuses to ship on its own
+			 * surfaces (`Upload failed` is never the whole message), and a
+			 * document cannot ask a follow-up question.
+			 */
+			reason?: string;
+	  };
 
 /**
  * What an ACCEPTED message becomes. Note that `change` and `image` carry a
@@ -87,6 +151,8 @@ export type HxAccepted =
 	| { kind: 'ready'; schemaVersion: number }
 	| { kind: 'change'; blockId: string; field: string; value: string | boolean }
 	| { kind: 'image'; blockId: string; field: string; name: string; bytes: string }
+	| { kind: 'image-remove'; blockId: string; field: string }
+	| { kind: 'image-caption'; blockId: string; field: string; caption: string }
 	| { kind: 'height'; px: number };
 
 /**
@@ -102,6 +168,7 @@ export type HxDropReason =
 	| 'schema'
 	| 'field'
 	| 'value'
+	| 'caption'
 	| 'height';
 
 export type HxVerdict =
@@ -152,6 +219,15 @@ export interface HxGate {
  * not ask for and give nobody a reason to look; the drop is reported.
  */
 export const HX_MAX_HEIGHT_PX = 40_000;
+
+/**
+ * A CAPTION IS A LABEL UNDER A PICTURE. 500 characters is several sentences and
+ * far past anything a student writes under a photograph of a bench; a document
+ * sending more is broken or hostile either way, and the refusal is reported
+ * rather than truncated -- silently storing half of what somebody typed is the
+ * worse outcome of the two.
+ */
+export const HX_MAX_CAPTION_CHARS = 500;
 
 /**
  * WHAT `event.origin` MUST BE, AND THE ANSWER IS `"null"` -- MEASURED, NOT
@@ -300,6 +376,59 @@ export function hxReceive(incoming: HxIncoming, gate: HxGate): HxVerdict {
 			};
 		}
 
+		/**
+		 * REMOVING A PICTURE IS ITS OWN MESSAGE, NOT AN `idea:image` WITH EMPTY
+		 * BYTES. An empty byte string is a legitimate-looking payload that would
+		 * have to be special-cased in the upload path -- which is where a
+		 * zero-byte file would then be created and immediately deleted -- and it
+		 * gives a document two spellings for one intent. A distinct type means
+		 * the parent's handler for it is a delete and can be nothing else.
+		 */
+		case 'idea:image-remove': {
+			const field = data.field;
+			if (typeof field !== 'string' || field === '') {
+				return { ok: false, reason: 'shape', detail: 'idea:image-remove without a non-empty field' };
+			}
+			const blockId = resolveField(field, gate);
+			if (blockId === null) {
+				return { ok: false, reason: 'field', detail: `no block declares the field ${JSON.stringify(field)}` };
+			}
+			return { ok: true, message: { kind: 'image-remove', blockId, field } };
+		}
+
+		/**
+		 * A CAPTION IS A SEPARATE MESSAGE FROM THE BYTES BECAUSE IT IS A
+		 * SEPARATE EDIT. A student retypes a caption far more often than they
+		 * replace the photograph; folding the two together would mean re-sending
+		 * the image on every keystroke of the caption.
+		 *
+		 * IT IS CAPPED HERE RATHER THAN AT THE DATABASE. A caption is a label
+		 * under a picture, so a document sending a novel is either broken or
+		 * hostile, and the refusal is reported like every other drop.
+		 */
+		case 'idea:image-caption': {
+			const field = data.field;
+			if (typeof field !== 'string' || field === '') {
+				return { ok: false, reason: 'shape', detail: 'idea:image-caption without a non-empty field' };
+			}
+			const caption = data.caption;
+			if (typeof caption !== 'string') {
+				return { ok: false, reason: 'shape', detail: 'idea:image-caption caption is not a string' };
+			}
+			if (caption.length > HX_MAX_CAPTION_CHARS) {
+				return {
+					ok: false,
+					reason: 'caption',
+					detail: `caption is ${caption.length} characters, above the ${HX_MAX_CAPTION_CHARS} ceiling`
+				};
+			}
+			const blockId = resolveField(field, gate);
+			if (blockId === null) {
+				return { ok: false, reason: 'field', detail: `no block declares the field ${JSON.stringify(field)}` };
+			}
+			return { ok: true, message: { kind: 'image-caption', blockId, field, caption } };
+		}
+
 		case 'idea:height': {
 			const px = data.px;
 			if (typeof px !== 'number' || !Number.isFinite(px) || px <= 0) {
@@ -355,13 +484,45 @@ function resolveField(field: string, gate: HxGate): string | null {
  */
 export const hxPostTarget = '*';
 
+/**
+ * THE WHOLE STATE A DOCUMENT OPENS ON, INCLUDING ITS PICTURES.
+ *
+ * `images` IS REQUIRED RATHER THAN OPTIONAL, and that is deliberate. An
+ * optional field is one a caller forgets, and forgetting it here means a
+ * student reloads a worksheet and their photographs are gone from it -- which
+ * looks exactly like the upload never worked. An empty object is the honest
+ * answer for a document with no images and costs one pair of braces.
+ */
 export function hxStateMessage(
 	values: Record<string, string | boolean>,
+	images: Record<string, HxImageState>,
 	readOnly: boolean
 ): HxParentMessage {
-	return { type: 'idea:state', values, readOnly };
+	return { type: 'idea:state', values, images, readOnly };
 }
 
-export function hxSavedMessage(at: string, ok: boolean): HxParentMessage {
-	return { type: 'idea:saved', at, ok };
+/**
+ * THE ACKNOWLEDGEMENT, AND `reason` IS ONLY EVER PRESENT ON A FAILURE.
+ *
+ * A `reason` beside `ok: true` would be a document rendering an explanation for
+ * something that worked, so the key is omitted rather than set to null or the
+ * empty string: absence is the mechanism, exactly as it is for an omitted
+ * transport. A failure with no reason given falls back to one sentence rather
+ * than to nothing, because "not saved" alone is the message this repository
+ * already refuses to ship.
+ */
+export function hxSavedMessage(
+	at: string,
+	ok: boolean,
+	reason?: string | null
+): HxParentMessage {
+	if (ok) return { type: 'idea:saved', at, ok: true, schemaVersion: HX_SCHEMA_VERSION };
+	const said = (reason ?? '').trim();
+	return {
+		type: 'idea:saved',
+		at,
+		ok: false,
+		schemaVersion: HX_SCHEMA_VERSION,
+		reason: said === '' ? 'The answer could not be saved. It is still on screen; try again.' : said
+	};
 }

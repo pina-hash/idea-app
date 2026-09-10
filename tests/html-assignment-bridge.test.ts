@@ -363,16 +363,47 @@ describe('the payload shapes', () => {
 
 describe('what the parent sends down', () => {
 	it('builds the two contract messages and nothing else', () => {
-		expect(hxStateMessage({ teamName: 'Kestrel' }, true)).toEqual({
+		expect(hxStateMessage({ teamName: 'Kestrel' }, {}, true)).toEqual({
 			type: 'idea:state',
 			values: { teamName: 'Kestrel' },
+			images: {},
 			readOnly: true
 		});
-		expect(hxSavedMessage('2026-09-10T03:00:00Z', false)).toEqual({
+		expect(hxSavedMessage('2026-09-10T03:00:00Z', true)).toEqual({
 			type: 'idea:saved',
 			at: '2026-09-10T03:00:00Z',
-			ok: false
+			ok: true,
+			schemaVersion: 3
 		});
+	});
+
+	// A DOCUMENT SHOWS THE STUDENT SOMETHING, AND "not saved" WITH NO REASON IS
+	// the message this repository already refuses to ship on its own surfaces.
+	// A document cannot ask a follow-up question, so a failure that names
+	// nothing is a dead end for whoever is looking at it.
+	it('carries a reason on a failure and none at all on a success', () => {
+		const bad = hxSavedMessage('2026-09-10T03:00:00Z', false, 'The class is closed for grading.');
+		expect(bad).toEqual({
+			type: 'idea:saved',
+			at: '2026-09-10T03:00:00Z',
+			ok: false,
+			schemaVersion: 3,
+			reason: 'The class is closed for grading.'
+		});
+		// A success has no `reason` KEY at all, not a null one: absence is the
+		// mechanism, so a document cannot render an explanation for something
+		// that worked.
+		expect('reason' in hxSavedMessage('2026-09-10T03:00:00Z', true)).toBe(false);
+	});
+
+	// A failure the caller could not explain still says something, because
+	// falling back to nothing is falling back to the case above.
+	it('falls back to one sentence rather than to silence', () => {
+		for (const empty of [undefined, null, '', '   ']) {
+			const msg = hxSavedMessage('2026-09-10T03:00:00Z', false, empty as string | null | undefined);
+			expect(msg).toHaveProperty('reason');
+			expect((msg as { reason: string }).reason.length).toBeGreaterThan(10);
+		}
 	});
 
 	// `'*'` LOOKS WRONG AND IS FORCED. `postMessage`'s targetOrigin is a refusal

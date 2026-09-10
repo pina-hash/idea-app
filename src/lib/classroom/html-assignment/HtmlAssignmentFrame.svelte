@@ -44,6 +44,7 @@
 		hxSavedMessage,
 		hxStateMessage,
 		type HxAccepted,
+		type HxImageState,
 		type HxDropReason,
 		type HxVerdict
 	} from './bridge.ts';
@@ -64,14 +65,27 @@
 		    names). The route translates from block ids, which is the direction the
 		    manifest already runs. */
 		values = {},
+		/**
+		 * THE PICTURES ALREADY STORED, KEYED BY FIELD, AS URLS AND NEVER AS
+		 * BYTES. See `HxImageState` in `bridge.ts` for why the return trip is a
+		 * URL: bytes go frame-to-parent only. Required in the message and
+		 * defaulted here, so a caller with no images sends `{}` rather than
+		 * omitting the key -- an absent key would leave a reloaded worksheet
+		 * showing no photographs, which reads as an upload that never worked.
+		 */
+		images = {},
 		readOnly = false,
-		/** The last save acknowledgement to hand down, or null for none yet. */
+		/** The last save acknowledgement to hand down, or null for none yet. A
+		    failed one carries WHY: a document can show a student a sentence and
+		    cannot ask a follow-up question. */
 		saved = null,
 		/** Height before the document has reported one, and the floor thereafter. */
 		minHeight = 320,
 		onready,
 		onchange,
 		onimage,
+		onimageremove,
+		onimagecaption,
 		onheight,
 		/**
 		 * EVERY DROPPED MESSAGE IS REPORTED. Silence would make a renamed field
@@ -86,12 +100,15 @@
 		title: string;
 		fieldToBlockId: Readonly<Record<string, string>>;
 		values?: Record<string, string | boolean>;
+		images?: Record<string, HxImageState>;
 		readOnly?: boolean;
-		saved?: { at: string; ok: boolean } | null;
+		saved?: { at: string; ok: boolean; reason?: string | null } | null;
 		minHeight?: number;
 		onready?: (schemaVersion: number) => void;
 		onchange?: (change: { blockId: string; field: string; value: string | boolean }) => void;
 		onimage?: (image: { blockId: string; field: string; name: string; bytes: string }) => void;
+		onimageremove?: (image: { blockId: string; field: string }) => void;
+		onimagecaption?: (image: { blockId: string; field: string; caption: string }) => void;
 		onheight?: (px: number) => void;
 		ondropped?: (drop: { reason: HxDropReason; detail: string }) => void;
 	} = $props();
@@ -142,7 +159,7 @@
 				// The document is listening now, so the state it should open on goes
 				// down immediately. Sent BEFORE the callback could change anything, so
 				// a document always receives a state message and never has to ask.
-				postState(values, readOnly);
+				postState(values, images, readOnly);
 				break;
 			case 'change':
 				onchange?.({ blockId: message.blockId, field: message.field, value: message.value });
@@ -153,6 +170,16 @@
 					field: message.field,
 					name: message.name,
 					bytes: message.bytes
+				});
+				break;
+			case 'image-remove':
+				onimageremove?.({ blockId: message.blockId, field: message.field });
+				break;
+			case 'image-caption':
+				onimagecaption?.({
+					blockId: message.blockId,
+					field: message.field,
+					caption: message.caption
 				});
 				break;
 			case 'height':
@@ -242,23 +269,27 @@
 	 * that looks like it is just sending a message. The snapshot is a no-op on a
 	 * plain object, so it costs nothing in the case that already worked.
 	 */
-	function postState(nextValues: Record<string, string | boolean>, nextReadOnly: boolean) {
-		post(hxStateMessage($state.snapshot(nextValues), nextReadOnly));
+	function postState(
+		nextValues: Record<string, string | boolean>,
+		nextImages: Record<string, HxImageState>,
+		nextReadOnly: boolean
+	) {
+		post(hxStateMessage($state.snapshot(nextValues), $state.snapshot(nextImages), nextReadOnly));
 	}
 
 	/** State down, whenever it moves and the document is listening. A document
 	    that has not said `idea:ready` has no listener yet, so a send would go
 	    nowhere and the `ready` branch above covers the first one. */
 	$effect(() => {
-		const snapshot = { values, readOnly, ready };
+		const snapshot = { values, images, readOnly, ready };
 		if (!snapshot.ready) return;
-		postState(snapshot.values, snapshot.readOnly);
+		postState(snapshot.values, snapshot.images, snapshot.readOnly);
 	});
 
 	$effect(() => {
 		const ack = saved;
 		if (!ready || !ack) return;
-		post(hxSavedMessage(ack.at, ack.ok));
+		post(hxSavedMessage(ack.at, ack.ok, ack.reason ?? null));
 	});
 </script>
 
