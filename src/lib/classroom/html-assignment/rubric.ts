@@ -48,9 +48,14 @@
  * under the positional `<module>-r<n>` it used to generate. A manifest has no
  * such state: `HtmlCriterion.id` is required and, by the contract, permanent --
  * the same rule and the same reason as `HtmlBlock.id`, which becomes
- * `block_id`. So the positional form is never generated here, `previous` could
- * only ever match itself, and passing one would be a no-op on every manifest
- * input while suggesting a stability mechanism that is really the contract's.
+ * `block_id`. So the positional form is never generated here, and a `previous`
+ * could only ever DEVIATE from the contract's own ids rather than stabilise
+ * them: `rubricFromSpec` keeps an existing id whenever it is one the generator
+ * could have produced, INCLUDING the positional form, so a previous rubric
+ * carrying `<module>-r1` at a slot survives into a manifest-derived rubric
+ * whose criterion is named something else -- measured, and not the no-op an
+ * earlier draft of this paragraph claimed. `stagedRubricAfterManifest` at the
+ * foot of this file is where that matters and where it is asserted.
  * What DOES orphan scores is an author renaming a criterion id between
  * revisions, and nothing in this file can detect that -- the rubric simply
  * arrives with a criterion nobody has scored beside one nobody can reach. It is
@@ -65,6 +70,7 @@ import {
 	type AssignmentSpec,
 	type RubricCriterion
 } from '$lib/classroom/assignment-spec';
+import { stagedRubricAfterSpec } from '$lib/classroom/composer-staging';
 
 // ---------------------------------------------------------------------------
 // The manifest, as the contract states it.
@@ -131,7 +137,12 @@ export interface HtmlAssignmentManifest {
 	 * against the original contract: invent a 0-point module to hold them, which
 	 * WOULD have rendered in the grading console as a criterion worth nothing.
 	 */
-	header: HtmlBlock[];
+	// OPTIONAL, matching the canonical copy in `manifest.ts` exactly. It is not
+	// read anywhere in this file -- a header block cannot become a criterion by
+	// any path -- and a required copy here made every manifest the VALIDATOR
+	// returns unassignable to every function below, which is the whole cost of
+	// keeping the contract's types written down twice.
+	header?: HtmlBlock[];
 	modules: HtmlModule[];
 }
 
@@ -365,4 +376,124 @@ export function manifestRubricIssues(manifest: HtmlAssignmentManifest): string[]
  */
 export function manifestRubricTotal(manifest: HtmlAssignmentManifest): number {
 	return rubricTotal(manifestToRubric(manifest));
+}
+
+// ---------------------------------------------------------------------------
+// What happens to the rubric when a document is staged, and when a newer one
+// replaces it.
+// ---------------------------------------------------------------------------
+
+/**
+ * IS THIS STORED RUBRIC STILL THE ONE THAT MANIFEST PRODUCED?
+ *
+ * `derived` is composer STATE while a post is being written, and there is no
+ * column anywhere that remembers it -- `classroom_rubrics` stores criteria and
+ * nothing about where they came from. So on a RE-UPLOAD, where the composer's
+ * state is long gone and all anybody holds is the stored rubric and the
+ * document being replaced, the question has to be answered by COMPARISON: a
+ * rubric that is byte-for-byte what the OUTGOING manifest produced has not been
+ * touched, and a rubric that differs by any field has.
+ *
+ * IT IS DELIBERATELY THE OUTGOING MANIFEST, NOT THE INCOMING ONE. Comparing
+ * against the new document would answer "does the stored rubric already match
+ * what we are about to write", which is a different question with the same
+ * shape: it says NO for every real re-upload (that is what a re-upload is for)
+ * and would therefore read every one of them as hand-edited and refuse to
+ * update the rubric at all.
+ *
+ * A MISSING PREVIOUS MANIFEST IS NOT DERIVED. Nothing establishes the rubric
+ * came from a document, so the safe answer is the one that leaves somebody's
+ * work alone; a stale rubric is visible on the grading console and an eaten one
+ * is not recoverable.
+ *
+ * IT COMPARES A CANONICAL PROJECTION, NOT THE TWO OBJECTS, AND THAT IS FORCED
+ * BY THE COLUMN RATHER THAN CHOSEN. What comes back out of `classroom_rubrics`
+ * has been through `_classroom_normalize_rubric`, which STAMPS `incomplete`
+ * from its own check, and through `jsonb`, which stores an object as a sorted
+ * key set and does not keep insertion order -- measured, a level written
+ * `points,label,descriptor,short` comes back `label,short,points,descriptor`.
+ * So a stringified comparison against `manifestToRubric`'s output answers NO
+ * for every stored rubric, including one nobody has touched, which would make
+ * every re-upload read as hand-edited and leave every rubric stale. The
+ * projection is the fields the AUTHOR controls, in a fixed order; a field
+ * neither side of the write can differ on is not evidence of an edit.
+ */
+function canonicalRubric(criteria: RubricCriterion[]): string {
+	return JSON.stringify(
+		criteria.map((c) => [
+			c.id,
+			c.criterion,
+			Number(criterionMax(c)),
+			(c.levels ?? []).map((l) => [
+				Number(l.points),
+				l.label ?? '',
+				l.descriptor ?? '',
+				l.short?.trim() ?? ''
+			])
+		])
+	);
+}
+
+export function manifestRubricIsDerived(
+	previous: HtmlAssignmentManifest | null | undefined,
+	stored: RubricCriterion[] | null | undefined
+): boolean {
+	if (!previous || !stored?.length) return false;
+	const was = manifestToRubric(previous);
+	return was.length > 0 && canonicalRubric(was) === canonicalRubric(stored);
+}
+
+/**
+ * WHAT THE STAGED RUBRIC BECOMES WHEN A DOCUMENT IS STAGED -- the manifest's
+ * half of `stagedRubricAfterSpec`, and it CALLS that function rather than
+ * restating it.
+ *
+ * The decision is four rules, every one of which belongs to the composer's
+ * staging set and none of which is this lane's to re-decide: nothing is staged
+ * where a rubric cannot be written at all; a rubric somebody BUILT is never
+ * replaced; a rubric that came from a document IS replaced when a corrected
+ * document is uploaded over it (leaving the old one puts a rubric on screen
+ * that silently disagrees with the assignment beside it); and a document with
+ * no criteria stages NULL rather than `[]`, because `classroom_set_rubric`
+ * refuses an empty rubric and staging one would turn a valid post into a named
+ * failure over something nobody asked for.
+ *
+ * SO THE GATE IS `stagedRubricAfterSpec`'s, ASKED THROUGH THE PROJECTION, and
+ * the CRITERIA ARE `manifestToRubric`'s. The second half is not tidiness: the
+ * `previous` argument `stagedRubricAfterSpec` passes into `rubricFromSpec`
+ * keeps the id already in play for a SLOT whenever that id is one the generator
+ * could have produced -- including the POSITIONAL `<module>-r<n>` form. A
+ * manifest never generates a positional id (a criterion id is required and
+ * permanent by the contract), so for manifest input that argument can only ever
+ * deviate: measured, a staged spec-derived rubric carrying `m1-r1` at slot 0,
+ * followed by a document whose module `m1` names criterion `c1`, keeps `m1-r1`
+ * and produces a rubric whose ids are NOT `manifestCriterionId`'s -- the join
+ * key the whole file is written around, wrong, silently, on the one input where
+ * both surfaces are in play at once. So the decision comes from there and the
+ * rows come from here, and `tests/html-assignment-rubric.test.ts` puts exactly
+ * that hostile previous to it in both directions.
+ */
+export function stagedRubricAfterManifest(
+	manifest: HtmlAssignmentManifest | null,
+	canStageRubric: boolean,
+	current: { rubric: RubricCriterion[] | null; derived: boolean }
+): { rubric: RubricCriterion[] | null; derived: boolean } {
+	const decided = stagedRubricAfterSpec(
+		manifest ? specForRubric(manifest) : null,
+		canStageRubric,
+		current
+	);
+	// NOTHING WAS GENERATED, SO THERE IS NOTHING TO RE-KEY -- and the
+	// discriminator is that the gate HANDS THE CALLER'S OWN OBJECT BACK when it
+	// refuses (both its early returns are `return current`), where a decision it
+	// actually made is a fresh one. `derived` is not that discriminator and
+	// reading it as one was wrong twice over: a refusal returns the caller's
+	// flag unchanged, so a caller holding `{ rubric: null, derived: true }` --
+	// which is exactly what this function leaves behind once a document's rubric
+	// has landed -- is derived and empty at once, and a caller holding a derived
+	// rubric on a surface that may not write one had it re-derived anyway.
+	if (decided === current || !decided.derived || !decided.rubric?.length || !manifest) {
+		return decided;
+	}
+	return { rubric: manifestToRubric(manifest), derived: true };
 }

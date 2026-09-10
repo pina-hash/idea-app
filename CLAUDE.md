@@ -693,6 +693,139 @@ AUTHORIZATION and the ROW, never the payload. That is what moved the cap from
     deployment with no Google credentials, refusing a file it never needed Drive
     to serve.
 
+### PORTED HTML ASSIGNMENTS -- a second origin split, and the ONE rule that outranks the rest
+
+**A PORTED HTML ASSIGNMENT IS A WHOLE DOCUMENT A STUDENT WORKS INSIDE**, served
+by `src/routes/hx/[docId]/+server.ts` from `classroom_html_assignments` (0195),
+framed by `HtmlAssignmentFrame.svelte`, and spoken to only through
+`bridge.ts`. An item is one when `classroom_items.assignment_schema_version` is
+`3`, and `$lib/classroom/html-assignment/mount.ts` is the ONE place that
+question is answered -- two spellings of "is this a ported document" is how a
+student gets a worksheet and an instructor gets a blank spec panel.
+
+**A BLOCK ID IS PERMANENT, BECAUSE IT IS THE JOIN KEY FOR EVERY ANSWER EVER
+STORED UNDER IT.** A renamed `block_id` orphans them and the answer silently
+stops rendering -- no error, no empty row, just a worksheet that has quietly
+lost a term of work. Ids are fixed at import and nothing may rewrite one
+afterwards. **The `field` is the document author's own name for an input and IS
+renameable**; the two are deliberately different strings in every fixture, so a
+lookup that is the identity function cannot pass for a working mapping. The
+charset is `^[A-Za-z0-9_-]{1,40}$`, which is 0086's rule for
+`classroom_responses.block_id` and therefore not negotiable -- **the contract
+never wrote it down, and a port shipped 63 dotted ids nothing would accept**
+(`docs/decisions/entries/22-*`).
+
+**THE ORIGIN SPLIT IS THE SAME ARGUMENT AS FOUNDRY'S AND THE TWO MUST NOT BE
+CONFLATED.** `PUBLIC_HX_SANDBOX_ORIGIN` is where documents are served from;
+unset means the route answers on ANY host, which is dev and preview.
+`PUBLIC_HX_PORTAL_ORIGIN` becomes `frame-ancestors`, resolved by `hxPortalOrigin`
+rather than read. **On a preview leave BOTH unset**: naming one origin there
+makes `frame-ancestors` name a host that is not doing the framing, and the
+browser refuses to embed the document at all, which reads as a broken feature.
+
+**THE CSP CARRIES A `sandbox` DIRECTIVE AND THAT IS WHAT COVERS A DIRECT
+NAVIGATION.** The iframe `sandbox` attribute governs a document the portal
+FRAMED; a student who types or pastes `/hx/<docId>` reaches the same bytes with
+no frame and therefore no attribute. With `PUBLIC_HX_SANDBOX_ORIGIN` unset the
+route answers on `ideabosco.com`, where the session cookies live and where
+`@supabase/ssr` writes them `httpOnly: false` so `document.cookie` can read
+them. **`HX_SANDBOX_FLAGS` in `bridge.ts` is the ONE spelling**, imported by
+both the element and `hxDocumentCsp`; a second literal is a framed document and
+a navigated one drifting apart with nothing able to compare them. Measured by
+DIRECT NAVIGATION in the container's Chromium, with a cookie planted on the
+serving origin as a positive control: `window.origin` is `"null"`,
+`document.cookie` and `localStorage` throw `SecurityError`, and a credentialed
+`fetch` refuses; remove the directive and all three reach, reading the planted
+token back.
+  - **`allow-same-origin` MUST NEVER JOIN `allow-scripts` HERE, and this is the
+    one place Foundry's conditional grant does NOT transfer.** Foundry grants it
+    when the bundle origin and the portal origin differ, which its own host gate
+    guarantees. This route has no such guarantee -- with the sandbox origin
+    unset it answers on the portal host itself -- so the strict set is the only
+    correct answer and the condition Foundry can assert is one this route
+    cannot.
+  - **`connect-src 'none'` IS AN INDEPENDENT LEVER AND NEITHER IS EVIDENCE
+    ABOUT THE OTHER.** A fetch from inside the document is refused with either
+    one in force. The discriminator, measured: open `connect-src` with the
+    sandbox intact and the credentialed fetch still refuses; drop the sandbox
+    too and it answers 200.
+  - **`PUBLIC_HX_SANDBOX_ORIGIN` IS DEFENCE IN DEPTH NOW, NOT A PREREQUISITE**,
+    and is still the stronger deployment: a second host's cookies are not merely
+    unreadable, they are not there, and an absence cannot regress.
+
+**BYTES GO FRAME-TO-PARENT ONLY, NEVER BACK.** `idea:image` carries base64 up;
+what returns in `idea:state` is a URL the parent minted through the ORDINARY
+submission-file path. `img-src data: blob:` would happily render a
+round-tripped data URI, which is exactly why this is written down rather than
+left to fail loudly: it would work, and it would quietly make the document the
+system of record for a student's photograph. **A restored picture therefore
+cannot render inside the document at all** -- the URL is a portal proxy the CSP
+admits no host for, and the request would arrive credential-free -- so restored
+images belong in PARENT CHROME beside the frame, where Submit already is. Do
+not weaken the CSP to move them inside.
+
+**SUBMIT IS A PARENT CONTROL IN PARENT CHROME**, and the completeness check is
+the parent's, from the manifest's `minSentences`. A Submit inside the document
+would be a button whose handler the document itself wrote.
+
+**THE RUBRIC IS GENERATED FROM THE MANIFEST AT IMPORT AND AT EVERY RE-UPLOAD**,
+by `manifestToRubric`, which DELEGATES to `rubricFromSpec` so byte equality with
+a spec-derived rubric is structural rather than coincidental. A second
+implementation flattens the levels, and a rubric imported without them is not
+partially imported, it is broken. `stagedRubricAfterManifest` takes the
+DECISION from `stagedRubricAfterSpec` and the ROWS from `manifestToRubric`,
+because the gate passes the current rubric in as `previous` and that preserves a
+positional `<module>-r<n>` id a manifest can never generate -- an id that is not
+the join key. A hand-edited rubric is never re-derived. **The grading console is
+handed `spec = null`**, which is a ported assignment's normal state and not a
+degraded one: `levelShort` answers from rung one for every manifest level,
+because the contract requires a `short` and the validator refuses an empty one.
+
+**THE WRITE GATE IS ONE FUNCTION WIDENED, NEVER A SECOND WRITE PATH (0197), AND
+THIS RULE USED TO SAY THE GATE WAS SHUT.** `classroom_save_response` is still
+the only function in the schema that writes `classroom_responses`, and
+`classroom_add_submission_file` is still the only one that hangs a file off a
+block. Both used to read `classroom_assignment_specs`, raise 'This assignment
+has no interactive spec.' without a row, and resolve the block id AGAINST that
+spec -- with a type gate accepting `textField`, `table`, `checklist` where a
+manifest declares `text`, `longText`, `checkbox`, `radio`, `image`, `table`, an
+overlap of ONE. `0197` adds one branch to each: `_classroom_html_manifest(item)`
+answers the manifest when `classroom_items.assignment_schema_version` is 3 and
+null otherwise, and `_classroom_html_block(manifest, id)` resolves the id across
+the header AND the modules. Signatures unchanged, so there is no deploy
+ordering.
+  - **THE DISCRIMINATOR IS THE ITEM'S OWN COLUMN, the same one
+    `htmlAssignmentMount` reads.** An item carrying BOTH a manifest and a spec
+    is a legal state and the MANIFEST decides, which is the order every
+    rendering surface already takes; deciding the other way is 0134's Surface A
+    bug, where an item renders one document and records against another.
+  - **NOT A COMPANION SPEC ROW GENERATED FROM THE MANIFEST**, which is the
+    cheap-looking fix and manufactures exactly that bug on purpose. **NOT A
+    SECOND WRITE FUNCTION** either: `IDEA_CLASSROOM_REBUILD_PLAN.md` decision 12
+    refused a second scoring path beside `classroom_grade_submission` and the
+    FACTS export, and a second definition of what an ANSWER is fails one step
+    earlier for the same reason.
+  - **THE MANIFEST ARM HAS NO APPROVAL GATE AND REFUSES `@declaration`**, and
+    both absences are deliberate. `_classroom_check_html_manifest` validates
+    neither key, so honouring one would let an unchecked field decide whether a
+    student may write.
+  - **A SPEC-BACKED ASSIGNMENT ANSWERS EXACTLY AS IT DID**, refusal text and
+    refusal ORDER included, and that is proven rather than argued:
+    `tests/db/html-assignment-spec-path-unchanged.test.ts` puts a corpus of
+    twenty-six calls to the DEPLOYED functions, applies 0197 over the same
+    database, and compares case for case, with two ported calls as the positive
+    control that a no-op apply cannot pass.
+  - `tests/db/html-assignment-write-gate.test.ts` was the probe that measured
+    the shut gate, written to be DELETED rather than inverted once it moved. It
+    has been.
+
+**THE CLIENT ANSWER PATH IS STILL NOT WIRED, AND THAT IS NOW A CLIENT FACT
+RATHER THAN A DATABASE ONE.** No route supplies the import or answer transports,
+so nothing creates a schema-3 item and one would render read-only. **A worksheet
+that takes typing and saves nothing is the one failure worth avoiding here**,
+which is why read-only is structural -- no answers controller means no callback
+is handed down -- rather than a flag.
+
 ### THE ORIGIN SPLIT -- read this before touching anything that serves a bundle
 
 **A STUDENT BUNDLE NEVER EXECUTES ON THE ORIGIN THAT HOLDS A SESSION.** Bundles
@@ -1334,7 +1467,7 @@ build and the page degrades gracefully): `PUBLIC_FSP_APPS_SCRIPT_URL`,
 bundle; a missing value degrades to a clear "not configured" response, never a
 build break):
 
-- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly FOUR places: the GREENLINE
+- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly FIVE places: the GREENLINE
   community-track publish endpoint (which must run the game's real track
   validation in Node before any row is written), the tournament push sender,
   the anonymous feedback route (`src/routes/api/feedback/+server.ts`, the only
@@ -1349,7 +1482,15 @@ build break):
   function collapsed that split, and a second reader should not come back. It
   exists because `foundry-bundles` carries no storage policy at all, which makes
   `service_role` the only role that reaches it, and it re-checks explicitly
-  every rule RLS would otherwise have enforced. Nothing else may read it, and
+  every rule RLS would otherwise have enforced. **The FIFTH is
+  `src/lib/server/html-assignment-document.ts`**, which resolves a ported HTML
+  assignment for `/hx/<docId>` -- the same shape and the same reason as
+  Foundry's: the document host holds no session, so no policy can be satisfied
+  there, and the route re-checks on every request what RLS would have enforced
+  (the handle is a uuid, the row exists, the item is a live assignment). This
+  line said FOUR until 2026-09-10 and the count is the kind of figure that goes
+  stale the moment a sixth surface needs a credential, so **move it in the same
+  edit that adds one**. Nothing else may read it, and
   **it must never gain a `PUBLIC_` prefix**. Unset, the feedback
   route answers a structured `not_configured` refusal rather than a retryable
   failure: a missing environment variable does not fix itself in eight seconds

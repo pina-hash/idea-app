@@ -9,6 +9,11 @@ import {
 	mergeInstructorMaterials
 } from '$lib/classroom/transports';
 import type { AssignmentSpec, RubricCriterion } from '$lib/classroom/assignment-spec';
+import {
+	isHtmlAssignment,
+	withHtmlAssignmentVersion,
+	type HtmlAssignmentData
+} from '$lib/classroom/html-assignment/mount';
 import { validateReferenceSpec, type ReferenceSpec } from '$lib/classroom/reference-spec';
 import type { PageServerLoad } from './$types';
 
@@ -103,6 +108,79 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	 */
 	const deck = await loadItemDeck(supabase, item.id);
 
+	/**
+	 * WHICH ENGINE THIS ASSIGNMENT IS, AND ITS DOCUMENT IF IT IS A PORTED ONE
+	 * (0195). A TWO-RUNG LADDER, WIDEST FIRST, REPORTING WHETHER IT COULD TELL.
+	 *
+	 * ITS OWN QUERIES RATHER THAN COLUMNS ON THE SHARED ITEM SELECT, which is
+	 * the same deploy-ordering rule the reference spec and the public flag above
+	 * are written to: PostgREST refuses an ENTIRE select for one unknown column,
+	 * so naming `assignment_schema_version` in `ITEM_SELECT` would blank every
+	 * classroom read on every surface until 0195 landed. Failing soft here costs
+	 * this one page its knowledge of the engine and nothing else.
+	 *
+	 * RUNG 1 IS THE NARROWEST POSSIBLE PROBE -- one scalar column, no embed --
+	 * so "this deployment has 0195" is the only thing its answer can mean. RUNG
+	 * 2 is the document row, and it is a SEPARATE capability rather than a
+	 * widening of the first: an item that is not schema 3 must never pay for a
+	 * table read, and the version alone is what every other surface branches on.
+	 *
+	 * `htmlAssignmentReady` STARTS FALSE AND IS TURNED ON ONLY BY A RUNG THAT
+	 * ACTUALLY ANSWERED, because "cannot tell" must never render as "this is a
+	 * ported assignment". It is true when the probe said this is NOT one, and
+	 * when it said it is AND the document came back; it stays false when either
+	 * read could not answer, which `htmlAssignmentMount` renders as its own
+	 * stated absence rather than as either engine.
+	 *
+	 * THE DOCUMENT COLUMN IS NOT SELECTED, and that is a rule rather than a
+	 * saving. `/hx/<document_id>` serves the bytes under the sandbox CSP, on the
+	 * sandbox origin; putting them in this payload would carry an uploaded
+	 * document into the portal origin's own HTML, which is the one thing the
+	 * split exists to prevent, and double the transfer on the way.
+	 */
+	let htmlAssignment: HtmlAssignmentData | null = null;
+	let htmlAssignmentReady = false;
+	if (item.kind === 'assignment') {
+		const versionRes = await supabase
+			.from('classroom_items')
+			.select('assignment_schema_version')
+			.eq('id', item.id)
+			.maybeSingle();
+		if (!versionRes.error) {
+			item = withHtmlAssignmentVersion(
+				item,
+				(versionRes.data as { assignment_schema_version?: unknown } | null)
+					?.assignment_schema_version
+			);
+			if (!isHtmlAssignment(item)) {
+				// The probe answered, and the answer is that this is a v1 spec
+				// assignment. Knowing that IS the capability.
+				htmlAssignmentReady = true;
+			} else {
+				const docRes = await supabase
+					.from('classroom_html_assignments')
+					.select('document_id, manifest, filename, updated_at')
+					.eq('item_id', item.id)
+					.maybeSingle();
+				const row = docRes.data as {
+					document_id?: unknown;
+					manifest?: unknown;
+					filename?: unknown;
+					updated_at?: unknown;
+				} | null;
+				if (!docRes.error && row && typeof row.document_id === 'string') {
+					htmlAssignment = {
+						documentId: row.document_id,
+						manifest: row.manifest ?? null,
+						filename: typeof row.filename === 'string' ? row.filename : '',
+						updatedAt: typeof row.updated_at === 'string' ? row.updated_at : null
+					};
+					htmlAssignmentReady = true;
+				}
+			}
+		}
+	}
+
 	let engine: Awaited<ReturnType<typeof loadStudentEngineData>> = null;
 	let instructorCopy: Awaited<ReturnType<typeof loadInstructorCopy>> = null;
 	let spec: AssignmentSpec | null = null;
@@ -151,6 +229,18 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		instructorCopy,
 		spec,
 		rubric,
-		referenceSpec
+		referenceSpec,
+		htmlAssignment,
+		/**
+		 * WHETHER THIS READ COULD TELL WHICH ENGINE THIS ASSIGNMENT IS. Not read
+		 * by the item page, which acts on `htmlAssignmentMount`'s three-way
+		 * answer instead -- that is the same fact in the form a renderer can
+		 * mount something from. It is returned because the ladder rule asks a
+		 * capability to report itself, and because a surface that needs to
+		 * OFFER something (an import control, a conversion) has to know the
+		 * difference between "this is a v1 assignment" and "this deployment
+		 * could not say".
+		 */
+		htmlAssignmentReady
 	};
 };
