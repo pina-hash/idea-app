@@ -79,7 +79,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	// `$lib/gauntlet/board-selects` because 0194 is applied by hand -- a
 	// deployment between this code and the migration would otherwise report an
 	// empty board on every Speedrun page.
-	const { rows: mine, rankStateReady } = await readBoard<{
+	const { rows: mine } = await readBoard<{
 		challenge_id: string;
 		score_metric: number | null;
 		rank: number | null;
@@ -151,9 +151,14 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		userName: profile?.full_name ?? claims.email ?? 'Signed in',
 		userRole: profile?.role ?? 'student',
 		challenges: list,
-		series: (series ?? []) as GauntletSeries[],
-		// FALSE means this deployment cannot tell a held run from a ranked one,
-		// so the list says nothing about holding rather than guessing.
-		rankStateReady
+		series: (series ?? []) as GauntletSeries[]
+		// `rankStateReady` IS DELIBERATELY NOT RETURNED. The ladder above still
+		// uses it to pick a rung, but this page has no branch that needs it: a
+		// held run has no board row at all on a pre-0194 deployment, so
+		// `rankState` is null and the tile falls to its "cleared, no rank to
+		// show" branch, which is the true, narrower sentence for that state.
+		// Returning a flag nothing reads is the dormant fallback this codebase
+		// keeps paying for. The DETAIL page does read it, because there the
+		// chip is a thing that would otherwise be guessed at.
 	};
 };
