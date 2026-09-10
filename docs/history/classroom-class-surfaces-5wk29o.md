@@ -193,10 +193,27 @@ family sets; noted in the file rather than changed.
 - `svelte-check`: **0 errors / 37 warnings** (31 `state_referenced_locally`,
   5 `css_unused_selector`, 1 `perf_avoid_nested_class`) on the merged tree,
   re-derived after `svelte-kit sync` with the two `PUBLIC_SUPABASE_*`
-  placeholders exported. [FINAL FIGURE FILLED IN BELOW]
-- Full suite: [FILLED IN BELOW].
-- Browser, `npm run verify:readme` on the committed merged tree: [FILLED IN
-  BELOW].
+  placeholders exported -- the baseline the prompt states, unmoved.
+- Full suite, `npm test` on the merged tree: **354 files / 6983 tests**,
+  369.9s, with 6 failures in 2 files at that run and both accounted for: five
+  in `tests/derived-numbers.test.ts`, the measured README region being stale
+  against the 11 specs this bundle added (cleared by the browser pass below;
+  18 of 18 green afterwards), and one in `tests/classroom-item-page-load.test.ts`,
+  which pinned the item page's reads of `classroom_items` at two and measured
+  three -- the new widest rung refused on a world without 0193, then the units
+  rung answering. That is the ladder's documented cost and not a defect; the
+  test now states it, and a new world carrying 0135, 0159 and 0193 asserts the
+  other direction: the rung answers first time, two reads, `item.layout`
+  attached, against `undefined` one migration back (27 of 27 green).
+- Browser, `npm run verify:readme` on the committed merged tree at `8cf256a`
+  (`dirty: false`), Vite pre-started on 5199 and reused: **169 of 169 specs
+  covered, 338 route/width runs, 5834 measurements, 0 outside threshold,
+  865.0s**, `--selftest` 70 controls (36 negative, 34 positive), 0 instrument
+  failures. The previous measured region (main, `18b1d33`) carried two
+  outside-threshold rows on `/dev/notebook`; prompt 0119 closed those on
+  `main` and this run confirms the list is empty over the whole tree, the 11
+  new specs included. Static region: 169 specs over 69 routes, 96 `/dev`
+  pages, 338 runs.
 - The tools harness `/dev/classroom-tools` at 375 and 1440: 0px horizontal
   overflow, four triggers smallest 343x44 at 375 and 330x44 at 1440, chip
   contrast 5.91:1 (teal on the plate) to 7.91:1, an announce on the page bus

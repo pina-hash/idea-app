@@ -27,7 +27,7 @@
 - Lands on: `integration`. If it writes `0193`, it stops at its branch and does
   NOT merge to `main`: a migration is applied by hand in the Supabase SQL editor
   first, and this container cannot reach the production database.
-- Status: issued
+- Status: pushed
 - Branch: `claude/classroom-class-surfaces-5wk29o`, branched from `origin/main`
   at `b03a9410`.
 - Notes: four lanes run beside this one and none overlaps its ownership: 0117
@@ -43,3 +43,10 @@
   item's attachments genuinely needs persistence; if written it is NOT applied
   from here, and its `tests/db/` test and the SQL-editor verification query are
   reported with it.
+
+  OUTCOME: `0193` WAS WRITTEN (`supabase/migrations/0193_classroom_resource_layout.sql`,
+  its db test at `tests/db/classroom-attachment-layout.test.ts`, the
+  verification query in the file's own header), so this branch STOPS AT
+  ITSELF and does not merge to `main`. `origin/main` (`131aeec2`, prompts
+  0119 and 0121) was merged in without conflict. The record is
+  `docs/history/classroom-class-surfaces-5wk29o.md`.
