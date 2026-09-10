@@ -1108,6 +1108,24 @@ async function downloadHTML(){
   clone.querySelectorAll('input[type="checkbox"]').forEach(el=>el.removeAttribute('checked'));
   ['mfg-body','changes-body','steps-body'].forEach(id=>{const el=clone.querySelector('#'+id);if(el)el.innerHTML='';});
   ['pq-container','wo-container'].forEach(id=>{const el=clone.querySelector('#'+id);if(el)el.innerHTML='';});
+  /*
+     THE EXPORT IS A BLANK TEMPLATE PLUS ITS DATA, NEVER A TEMPLATE PLUS ITS
+     DATA PLUS A PICTURE OF ITS DATA. Same repair as idea100-blade-01 and
+     idea113-blade-03, and deliberately the same shape rather than a third one.
+     #asm-photos is built by renderImgs() from _imgs on every open, so cloning
+     the LIVE document writes each photo into the file as markup and then
+     loadData() builds it AGAIN. It is INVISIBLE, because renderImgs opens with
+     c.innerHTML='' and throws its own copy away -- the only symptom is a file
+     twice the size it needs to be. Measured over a real file:// round trip:
+     two photos in, four base64 payloads out.
+     The lightbox is the same defect with a different cause: its <img src> is a
+     reflected attribute, so a student who zoomed one photo before exporting
+     serialized a THIRD copy of it. Nothing rebuilds it and nothing needs it.
+     The row thumbnails need no reset here: they live inside #mfg-body, which
+     is already emptied above.
+  */
+  const asm=clone.querySelector('#asm-photos');if(asm)asm.innerHTML='';
+  const cloneLb=clone.querySelector('#lightbox-img');if(cloneLb)cloneLb.setAttribute('src','');
   clone.querySelectorAll('#__ib04_data__').forEach(el=>el.remove());
   const sc=document.createElement('script');sc.id='__ib04_data__';sc.type='application/json';sc.textContent=JSON.stringify(data);clone.querySelector('head').appendChild(sc);
   const html='<!DOCTYPE html>\n'+clone.outerHTML;const blob=new Blob([html],{type:'text/html'});const url=URL.createObjectURL(blob);

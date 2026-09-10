@@ -764,15 +764,28 @@
 		</button>
 
 		<!-- SIBLINGS of the disclosure, never inside it: a button nested in a
-		     button is invalid markup and its clicks would toggle the row. The
-		     group sits in .row, which renders in BOTH states, so filing, pinning
-		     and copying are one click away collapsed or expanded.
+		     button is invalid markup and its clicks would toggle the row.
+
+		     ON THE OPEN ENTRY ONLY (prompt 0119), which REVERSES the rule this
+		     comment used to state: the group sat in .row "so filing, pinning
+		     and copying are one click away collapsed or expanded". That was
+		     written when it was three controls; it is six now (folder, turn in
+		     or move to drafts, pin, copy, rename, delete), each with its own
+		     word, and measured on the phone feed at 375 the strip was 133px of
+		     a 229px collapsed row -- nine entries ran to 2641px, most of it
+		     buttons for entries nobody had opened. A collapsed entry is a ROW
+		     in a list, on every width: the desktop `row` variant already
+		     carries no tools at all and keeps them on the open entry, and the
+		     phone feed now does the same, one tap away rather than none.
+		     Bulk select (the checkbox above) stays on the collapsed row, because
+		     selecting a run of entries to re-file is done from the list.
 
 		     EVERY CONTROL HERE CARRIES ITS OWN VISIBLE WORD. Pin and copy used
 		     to be bare glyphs with a `title`, which means the only way to learn
 		     what they do is to hover one -- unavailable on the phones most of
 		     these students are on, and invisible to anyone who never thinks to
 		     try. The icon is the shorthand you learn second, not the label. -->
+		{#if !collapsed}
 		<div class="tools">
 			{#if copyNote}
 				<span class="tool-note" class:ok={copied} role="status">{copyNote}</span>
@@ -932,6 +945,7 @@
 				</button>
 			{/if}
 		</div>
+		{/if}
 	</div>
 
 	<!-- Outside .row, so a move started from a COLLAPSED entry can still report
@@ -1815,7 +1829,12 @@
 		overflow: visible;
 	}
 	.entry-row .row-name {
-		flex: 1 1 auto;
+		/* SHRINKS BUT DOES NOT GROW: the chips sit right after the title
+		   rather than at the far end of the line, which matters once the feed
+		   lays a single pinned row across a 1376px pane with nothing open
+		   (NotebookView's full-width columns). A long title still gives way
+		   and ellipsises, because shrink is 1 and the floor below is small. */
+		flex: 0 1 auto;
 		min-width: 2.5rem;
 		white-space: nowrap;
 		overflow: hidden;
@@ -1899,11 +1918,12 @@
 	}
 
 	/*
-	 * Below this width three labelled controls and a readable title cannot
-	 * share one line, so the group takes its own. A DELIBERATE TRADE: a
-	 * collapsed row on a phone is taller than it was, and in exchange filing,
-	 * pinning and copying are legible rather than three grey glyphs. Shrinking
-	 * the words back out is what created the problem this pass exists to fix.
+	 * Below this width six labelled controls and a readable title cannot
+	 * share one line, so the group takes its own. The words stay: shrinking
+	 * them back out to grey glyphs is what created the problem the labels
+	 * fixed. What changed (prompt 0119) is that the group renders on the OPEN
+	 * entry only, so the height it costs is paid once, on the card somebody
+	 * is looking at, and never on a collapsed row in the list.
 	 */
 	@media (max-width: 42rem) {
 		.row {
