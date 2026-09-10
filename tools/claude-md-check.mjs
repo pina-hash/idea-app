@@ -120,6 +120,11 @@ export const ABSENT_BY_DESIGN = [
 	{ token: 'COIN_API_KEY', where: 'source', why: 'retired; Supabase is the sole ledger' },
 	{ token: 'COIN_LEDGER_URL', where: 'source', why: 'retired; Supabase is the sole ledger' },
 	{
+		token: 'tests/db/html-assignment-write-gate.test.ts',
+		where: 'path',
+		why: "the probe 0134 wrote to measure the shut HTML-assignment write gate, written to be DELETED rather than inverted once 0197 widened it; the document names it to record that it went"
+	},
+	{
 		token: 'IDEA_Design_System.md',
 		where: 'path',
 		why: 'retired 2026-08-25 and absorbed into `IDEA_CLAUDE_DESIGN_STANDARDS.md`; the document names it to say it does not resolve'

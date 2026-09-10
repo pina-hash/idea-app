@@ -138,7 +138,7 @@ describe('the exemption tables', () => {
 	});
 
 	it('every ABSENT_BY_DESIGN entry carries a kind and a reason', () => {
-		expect(ABSENT_BY_DESIGN.length).toBe(13);
+		expect(ABSENT_BY_DESIGN.length).toBe(14);
 		for (const a of ABSENT_BY_DESIGN) {
 			expect(['path', 'source', 'sql', 'symbol']).toContain(a.where);
 			expect(a.why.length).toBeGreaterThan(20);
