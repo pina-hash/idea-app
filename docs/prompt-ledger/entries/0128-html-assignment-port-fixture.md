@@ -14,7 +14,7 @@
   `src/routes/hx/**`.
 - Migration permitted: no. Claims: none.
 - Lands on: `integration`, via the branch below. Not `main`.
-- Status: issued
+- Status: pushed
 - Branch: `claude/html-assignment-manifest-contract-8xazmp`, branched from
   `origin/integration` at `fd8e136e`.
 - Notes: a porting bundle whose real deliverable is a findings list.
