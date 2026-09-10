@@ -81,6 +81,19 @@ export interface HtmlCriterion {
 
 export type HtmlBlockType = 'text' | 'longText' | 'checkbox' | 'radio' | 'image' | 'table';
 
+/**
+ * A TABLE IS ONE BLOCK, AND THAT IS A CORRECTION RATHER THAN A SIMPLIFICATION.
+ *
+ * `type: 'table'` means the block's value is a JSON string of rows, and the
+ * document serialises the WHOLE table whenever any cell changes. There is no
+ * per-cell `data-field`, and a document that mints one is refused BY NAME here:
+ * ledger 0128's real port had an `addMfgRow()` that minted `mfg-06-p` at
+ * runtime, a field no manifest names, which the parent could only drop
+ * silently. That is the orphaning the id/field split exists to prevent, arriving
+ * through a door the split did not cover -- and the undeclared-`[data-field]`
+ * refusal below is what closes it.
+ */
+
 export interface HtmlBlock {
 	/** BECOMES block_id in classroom_responses. Permanent. */
 	id: string;
@@ -106,6 +119,19 @@ export interface HtmlAssignmentManifest {
 	title: string;
 	course: string;
 	points: number;
+	/**
+	 * IDENTITY FIELDS: student name, team, date. They carry no points and never
+	 * reach the rubric, which is exactly why they are here rather than in a
+	 * module -- ledger 0128 had to invent a 0-POINT MODULE to hold them against
+	 * the first contract, and a 0-point module renders in the grading console as
+	 * something to score.
+	 *
+	 * They are blocks in every other respect. A header id is a `block_id` like
+	 * any other, unique across the WHOLE manifest, and a header field has to be
+	 * in the document like any other -- a student's name is an answer, stored
+	 * the same way, and losing it to a renamed id loses it just as silently.
+	 */
+	header?: HtmlBlock[];
 	modules: HtmlModule[];
 }
 
@@ -391,6 +417,81 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 	let blockCount = 0;
 	let modulePointsSum = 0;
 
+	/**
+	 * ONE BLOCK CHECK, SHARED BY THE HEADER AND EVERY MODULE.
+	 *
+	 * A header block is a block: same id pattern, same uniqueness across the
+	 * whole manifest, same field correspondence. The ONLY thing the header does
+	 * differently is carry no points, and points are not a block's business
+	 * anyway -- so a second copy of this for the header would differ from this
+	 * one in nothing except which of them somebody remembers to fix.
+	 */
+	const checkBlock = (rawBlock: unknown, where: string) => {
+		const b = rawBlock as Record<string, unknown>;
+		blockCount += 1;
+		const bid = String(b.id ?? '');
+		if (!HTML_ID_RE.test(bid)) {
+			errors.push(`${where} needs an id (letters, digits, - and _, up to 40 characters).`);
+		} else if (blockIds.has(bid)) {
+			// The one that orphans student work. It is refused ANYWHERE in the
+			// manifest, header included, not just inside one module, because
+			// block_id is unique per (item, student) across the whole document.
+			errors.push(
+				`Duplicate block id "${bid}". Block ids key every stored answer, so two blocks sharing one would write to the same row.`
+			);
+		} else {
+			blockIds.add(bid);
+		}
+		const field = String(b.field ?? '').trim();
+		if (!field) {
+			errors.push(`${where} needs a field naming the document's data-field attribute.`);
+		} else if (fieldOwner.has(field)) {
+			errors.push(
+				`Blocks "${fieldOwner.get(field)}" and "${bid || where}" both claim the field "${field}". One input cannot answer two blocks.`
+			);
+		} else {
+			fieldOwner.set(field, bid || where);
+		}
+		if (!HTML_BLOCK_TYPES.includes(b.type as HtmlBlockType)) {
+			errors.push(
+				`${where} has type ${JSON.stringify(b.type) ?? 'none'}; it must be one of ${HTML_BLOCK_TYPES.join(', ')}.`
+			);
+		}
+		const min = b.minSentences;
+		if (min != null && (!isWholeNumber(min) || (min as number) < 0 || (min as number) > 100)) {
+			errors.push(`${where} minSentences must be a whole number between 0 and 100.`);
+		}
+		if (min != null && b.type !== 'longText' && b.type !== 'text') {
+			warnings.push(
+				`${where} sets minSentences on a ${String(b.type)} block, where nothing counts sentences.`
+			);
+		}
+	};
+
+	// THE HEADER FIRST, so its ids and fields are claimed before any module's --
+	// which makes a module block colliding with an identity field name the
+	// header's block rather than the other way round, and reads better than a
+	// collision reported against whichever happened to be walked first.
+	const header = m.header;
+	if (header != null) {
+		if (!Array.isArray(header)) {
+			errors.push('The manifest header must be an array of blocks when present.');
+		} else {
+			header.forEach((b, i) => checkBlock(b, `Header block ${i + 1}`));
+			// Points are a MODULE's business. An identity field that declared
+			// points would be scored by nothing and would not appear in any sum,
+			// which is the 0-point module problem in a smaller costume.
+			header.forEach((b, i) => {
+				const points = (b as Record<string, unknown>)?.points;
+				if (points != null) {
+					errors.push(
+						`Header block ${i + 1} declares points. Identity fields carry none and never reach the rubric; move it into a module if it is worth marks.`
+					);
+				}
+			});
+		}
+	}
+
 	modules.forEach((rawModule, mi) => {
 		const mod = rawModule as Record<string, unknown>;
 		const where = `Module ${mi + 1}`;
@@ -422,48 +523,7 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 		if (!Array.isArray(blocks)) {
 			errors.push(`Module "${name}" needs a blocks array.`);
 		} else {
-			blockCount += blocks.length;
-			blocks.forEach((rawBlock, bi) => {
-				const b = rawBlock as Record<string, unknown>;
-				const bWhere = `Module "${name}" block ${bi + 1}`;
-				const bid = String(b.id ?? '');
-				if (!HTML_ID_RE.test(bid)) {
-					errors.push(`${bWhere} needs an id (letters, digits, - and _, up to 40 characters).`);
-				} else if (blockIds.has(bid)) {
-					// The one that orphans student work. It is refused ANYWHERE in
-					// the manifest, not just inside one module, because block_id is
-					// unique per (item, student) across the whole document.
-					errors.push(
-						`Duplicate block id "${bid}". Block ids key every stored answer, so two blocks sharing one would write to the same row.`
-					);
-				} else {
-					blockIds.add(bid);
-				}
-				const field = String(b.field ?? '').trim();
-				if (!field) {
-					errors.push(`${bWhere} needs a field naming the document's data-field attribute.`);
-				} else if (fieldOwner.has(field)) {
-					errors.push(
-						`Blocks "${fieldOwner.get(field)}" and "${bid || bWhere}" both claim the field "${field}". One input cannot answer two blocks.`
-					);
-				} else {
-					fieldOwner.set(field, bid || bWhere);
-				}
-				if (!HTML_BLOCK_TYPES.includes(b.type as HtmlBlockType)) {
-					errors.push(
-						`${bWhere} has type ${JSON.stringify(b.type) ?? 'none'}; it must be one of ${HTML_BLOCK_TYPES.join(', ')}.`
-					);
-				}
-				const min = b.minSentences;
-				if (min != null && (!isWholeNumber(min) || (min as number) < 0 || (min as number) > 100)) {
-					errors.push(`${bWhere} minSentences must be a whole number between 0 and 100.`);
-				}
-				if (min != null && b.type !== 'longText' && b.type !== 'text') {
-					warnings.push(
-						`${bWhere} sets minSentences on a ${String(b.type)} block, where nothing counts sentences.`
-					);
-				}
-			});
+			blocks.forEach((b, bi) => checkBlock(b, `Module "${name}" block ${bi + 1}`));
 		}
 
 		// --- criteria -------------------------------------------------------
@@ -525,23 +585,34 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 					return;
 				}
 
-				// THE SHARED RULE. criterionIssues is assignment-spec.ts's own --
-				// the count, the strict descent, the bottom at 0, the top at the
-				// maximum, a label and a descriptor on every level. It is CALLED
-				// rather than mirrored so a change to what a leveled criterion
-				// means reaches the spec importer, the rubric builder and this in
-				// the same commit.
 				const asCriterion: RubricCriterion = {
 					id: cid || `c${ci + 1}`,
 					criterion: text || `criterion ${ci + 1}`,
 					points: top as number,
 					levels: levels as RubricLevel[]
 				};
-				for (const issue of criterionIssues(asCriterion)) errors.push(`${cWhere}: ${issue}`);
 
 				// POINTS, WAY ONE OF THREE: a criterion's declared points are its
 				// top level's. criterionMax is the one place that is decided.
 				const max = criterionMax(asCriterion);
+
+				// A criterion worth less than the number of levels above its bottom
+				// cannot carry that many DISTINCT whole values, so a 1-point criterion
+				// cannot have three levels.
+				//
+				// IT IS REPORTED BEFORE THE SHARED RULE BELOW, and the order is the
+				// whole value of the check. Levels are whole numbers and the bottom is
+				// 0, so [1, 1, 0] is the only three-level shape a 1-point criterion can
+				// take -- which means the descent rule fires on it too, and an author
+				// reading "level 2 must be worth less than the level above it" FIRST
+				// goes and rewrites levels that were never the problem. The problem is
+				// that the criterion has no room, and that is what leads.
+				const needed = levels.length - 1;
+				if (max < needed) {
+					errors.push(
+						`${cWhere} is worth ${max} but carries ${levels.length} levels, which need ${needed} distinct values above zero. Give it at least ${needed} points, or merge it into another criterion.`
+					);
+				}
 				if (c.points != null && Number(c.points) !== max) {
 					errors.push(`${cWhere} declares ${String(c.points)} points but its top level is worth ${max}.`);
 				}
@@ -549,18 +620,12 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 					errors.push(`${cWhere} needs a points value (it is the top level's, ${max}).`);
 				}
 
-				// A criterion worth less than 2 cannot carry three DISTINCT values
-				// above zero, because maxima are whole numbers and the bottom level
-				// is 0. Three levels need [max, mid, 0] with max > mid > 0, so max
-				// is at least 2; four need at least 3. Without this the criterion
-				// fails on the descent rule instead, which sends an author to
-				// rewrite levels that were never the problem.
-				const needed = levels.length - 1;
-				if (max < needed) {
-					errors.push(
-						`${cWhere} is worth ${max} but carries ${levels.length} levels, which need ${needed} distinct values above zero. Give it at least ${needed} points, or merge it into another criterion.`
-					);
-				}
+				// THE SHARED RULE. criterionIssues is assignment-spec.ts's own -- the
+				// count, the strict descent, the bottom at 0, the top at the maximum, a
+				// label and a descriptor on every level. It is CALLED rather than
+				// mirrored so a change to what a leveled criterion means reaches the
+				// spec importer, the rubric builder and this in the same commit.
+				for (const issue of criterionIssues(asCriterion)) errors.push(`${cWhere}: ${issue}`);
 
 				levels.forEach((rawLevel, li) => {
 					const l = rawLevel as Record<string, unknown>;
@@ -657,15 +722,22 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
  */
 export function fieldBlockMap(manifest: HtmlAssignmentManifest): Map<string, string> {
 	const map = new Map<string, string>();
-	for (const mod of manifest.modules ?? []) {
-		for (const b of mod.blocks ?? []) {
-			if (!map.has(b.field)) map.set(b.field, b.id);
-		}
+	for (const b of manifestBlocks(manifest)) {
+		if (!map.has(b.field)) map.set(b.field, b.id);
 	}
 	return map;
 }
 
-/** Every block in the manifest, flattened, in document order. */
+/**
+ * Every block in the manifest, flattened, in document order -- THE HEADER
+ * INCLUDED, and that inclusion is the whole reason this is a function rather
+ * than two `flatMap`s at the call sites. A student's name is an answer stored
+ * under a block id like any other; a mapping that skipped the header would
+ * accept the identity fields from the frame and drop every one of them.
+ */
 export function manifestBlocks(manifest: HtmlAssignmentManifest): HtmlBlock[] {
-	return (manifest.modules ?? []).flatMap((mod) => mod.blocks ?? []);
+	return [
+		...(manifest.header ?? []),
+		...(manifest.modules ?? []).flatMap((mod) => mod.blocks ?? [])
+	];
 }

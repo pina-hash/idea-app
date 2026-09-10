@@ -175,9 +175,17 @@ export function stageHtmlDocument(filename: string, html: string): HtmlImportRes
 export function stagedHtmlSummary(staged: StagedHtmlAssignment): string {
 	const m = staged.manifest;
 	const modules = m.modules?.length ?? 0;
+	// HEADER BLOCKS ARE COUNTED SEPARATELY, not folded in. They are identity
+	// fields (name, team, date) that carry no points and never reach the rubric,
+	// so counting them as answer blocks would make the figure beside the points
+	// disagree with what the grading console will show.
 	const blocks = (m.modules ?? []).reduce((n, mod) => n + (mod.blocks?.length ?? 0), 0);
+	const identity = m.header?.length ?? 0;
 	const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-	return `${plural(modules, 'module')}, ${plural(blocks, 'answer block')}, ${m.points} points`;
+	const parts = [plural(modules, 'module'), plural(blocks, 'answer block')];
+	if (identity) parts.push(plural(identity, 'identity field'));
+	parts.push(`${m.points} points`);
+	return parts.join(', ');
 }
 
 /**

@@ -225,6 +225,7 @@ set search_path = ''
 as $$
 declare
 	v_modules jsonb;
+	v_header jsonb;
 	v_mod jsonb;
 	v_blocks jsonb;
 	v_block jsonb;
@@ -280,6 +281,59 @@ begin
 		raise exception 'At most 40 modules per document.';
 	end if;
 
+	-- --- the header -------------------------------------------------------
+	--
+	-- IDENTITY FIELDS: student name, team, date. No points, never in the rubric.
+	-- They exist because ledger 0128's real port had to invent a 0-POINT MODULE
+	-- to hold them, and a 0-point module renders in the grading console as
+	-- something to score.
+	--
+	-- A HEADER BLOCK IS A BLOCK IN EVERY OTHER RESPECT. Its id lands in
+	-- classroom_responses.block_id exactly as a module block's does, so it takes
+	-- the same pattern and joins the same manifest-wide uniqueness -- a student's
+	-- name is an answer, and a renamed id loses it just as silently.
+	--
+	-- IT IS WALKED FIRST so its ids and fields are claimed before any module's,
+	-- which makes a collision report the header's block rather than depending on
+	-- which was reached first.
+	v_header := p_manifest->'header';
+	if v_header is not null and jsonb_typeof(v_header) <> 'null' then
+		if jsonb_typeof(v_header) <> 'array' then
+			raise exception 'The manifest header must be an array of blocks when present.';
+		end if;
+		v_block_count := v_block_count + jsonb_array_length(v_header);
+		for v_block in select * from jsonb_array_elements(v_header) loop
+			v_id := v_block->>'id';
+			if v_id is null or v_id !~ '^[A-Za-z0-9_-]{1,40}$' then
+				raise exception 'Every header block needs an id of letters, digits, - and _ (up to 40 characters).';
+			end if;
+			if v_id = any (v_block_ids) then
+				raise exception 'Duplicate block id "%". Block ids key every stored answer, so two blocks sharing one would write to the same row.', v_id;
+			end if;
+			v_block_ids := v_block_ids || v_id;
+
+			v_field := btrim(coalesce(v_block->>'field', ''));
+			if v_field = '' then
+				raise exception 'Header block "%" needs a field naming the document''s data-field attribute.', v_id;
+			end if;
+			if v_field = any (v_fields) then
+				raise exception 'Two blocks both claim the field "%". One input cannot answer two blocks.', v_field;
+			end if;
+			v_fields := v_fields || v_field;
+
+			v_type := v_block->>'type';
+			if v_type is null or v_type not in ('text', 'longText', 'checkbox', 'radio', 'image', 'table') then
+				raise exception 'Header block "%" has an unknown type "%".', v_id, coalesce(v_type, '(none)');
+			end if;
+			-- Points are a MODULE's business. An identity field declaring points
+			-- would be scored by nothing and appear in no sum, which is the
+			-- 0-point module problem in a smaller costume.
+			if v_block->'points' is not null and jsonb_typeof(v_block->'points') <> 'null' then
+				raise exception 'Header block "%" declares points. Identity fields carry none and never reach the rubric; move it into a module if it is worth marks.', v_id;
+			end if;
+		end loop;
+	end if;
+
 	for v_mod in select * from jsonb_array_elements(v_modules) loop
 		v_id := v_mod->>'id';
 		-- 0086's authored-id pattern, and it is not this format's to choose:
@@ -316,6 +370,11 @@ begin
 		end if;
 
 		-- --- blocks -------------------------------------------------------
+		--
+		-- The header above and every module here go through the SAME walk, held
+		-- in the two arrays this function carries: a block id is unique across
+		-- the whole manifest because it is a response row's key, and a field is
+		-- unique for the same reason one input cannot answer two blocks.
 		v_blocks := v_mod->'blocks';
 		if v_blocks is null or jsonb_typeof(v_blocks) <> 'array' then
 			raise exception 'Module "%" needs a blocks array.', v_name;
@@ -326,8 +385,6 @@ begin
 			if v_id is null or v_id !~ '^[A-Za-z0-9_-]{1,40}$' then
 				raise exception 'Module "%": every block needs an id of letters, digits, - and _ (up to 40 characters).', v_name;
 			end if;
-			-- ACROSS THE WHOLE MANIFEST, not within the module: a block id is a
-			-- response row's key, and two blocks sharing one write to one row.
 			if v_id = any (v_block_ids) then
 				raise exception 'Duplicate block id "%". Block ids key every stored answer, so two blocks sharing one would write to the same row.', v_id;
 			end if;

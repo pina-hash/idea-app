@@ -330,6 +330,50 @@ def check_manifest(manifest, name, html=None):
     positional = re.compile(r"^[cfrmtz]\d{1,2}$", re.I)
     stale = []
 
+    def check_block(b, where):
+        """ONE BLOCK CHECK, shared by the header and every module.
+
+        A header block is a block: same id pattern, same uniqueness across the
+        WHOLE manifest, same field correspondence. The only thing the header
+        does differently is carry no points, and points are not a block's
+        business anyway."""
+        bid = b.get("id", "?")
+        if not HTML_ID.match(str(bid)):
+            E(f'{where} id "{bid}" is not [A-Za-z0-9_-] up to 40 characters. '
+              f"It becomes block_id in classroom_responses.")
+        if bid in block_ids:
+            E(f'duplicate block id "{bid}" -- block ids key every stored '
+              f"answer, so two blocks sharing one write to the same row")
+        block_ids.append(bid)
+        if positional.match(str(bid)):
+            stale.append(bid)
+        f = str(b.get("field") or "").strip()
+        if not f:
+            E(f"{where} has no field")
+        elif f in fields:
+            E(f'blocks "{fields[f]}" and "{bid}" both claim the field "{f}"')
+        else:
+            fields[f] = bid
+        if b.get("type") not in HTML_BLOCK_TYPES:
+            E(f'{where} type is {b.get("type")!r}, '
+              f"expected one of {', '.join(HTML_BLOCK_TYPES)}")
+
+    # THE HEADER: identity fields (name, team, date) that carry no points and
+    # never reach the rubric. Ledger 0128's real port had to invent a 0-POINT
+    # MODULE to hold them, and a 0-point module renders in the grading console
+    # as something to score. Walked FIRST so its ids and fields are claimed
+    # before any module's.
+    header = manifest.get("header") or []
+    if not isinstance(header, list):
+        E("manifest header must be a list of blocks when present")
+        header = []
+    for i, b in enumerate(header):
+        check_block(b, f"header block {i + 1}")
+        if b.get("points") is not None:
+            E(f"header block {i + 1} declares points. Identity fields carry "
+              f"none and never reach the rubric; move it into a module if it "
+              f"is worth marks.")
+
     for m in modules:
         mid = m.get("id", "?")
         if not HTML_ID.match(str(mid)):
@@ -353,26 +397,7 @@ def check_manifest(manifest, name, html=None):
             E(f'module "{mid}" audience is {aud!r}, expected team or individual')
 
         for b in m.get("blocks") or []:
-            bid = b.get("id", "?")
-            if not HTML_ID.match(str(bid)):
-                E(f'module "{mid}" block id "{bid}" is not [A-Za-z0-9_-] up to '
-                  f"40 characters. It becomes block_id in classroom_responses.")
-            if bid in block_ids:
-                E(f'duplicate block id "{bid}" -- block ids key every stored '
-                  f"answer, so two blocks sharing one write to the same row")
-            block_ids.append(bid)
-            if positional.match(str(bid)):
-                stale.append(bid)
-            f = str(b.get("field") or "").strip()
-            if not f:
-                E(f'module "{mid}" block "{bid}" has no field')
-            elif f in fields:
-                E(f'blocks "{fields[f]}" and "{bid}" both claim the field "{f}"')
-            else:
-                fields[f] = bid
-            if b.get("type") not in HTML_BLOCK_TYPES:
-                E(f'module "{mid}" block "{bid}" type is {b.get("type")!r}, '
-                  f"expected one of {', '.join(HTML_BLOCK_TYPES)}")
+            check_block(b, f'module "{mid}" block "{b.get("id", "?")}"')
 
         criteria = m.get("criteria") or []
         if not criteria:
@@ -434,6 +459,17 @@ def check_manifest(manifest, name, html=None):
         for trap, why in SANDBOX_TRAPS:
             if trap in html:
                 W(f"document reaches for {trap}: {why}")
+        # A TABLE IS ONE BLOCK: its value is a JSON string of rows and the
+        # document serialises the whole table on any change. A document that
+        # MINTS a data-field at runtime (ledger 0128's addMfgRow, which produced
+        # `mfg-06-p`) names a field no manifest can declare, so the parent can
+        # only drop it silently. The undeclared-field refusal above catches the
+        # ones present in the markup; this catches the generator.
+        if re.search(r"""(setAttribute\(\s*['"]data-field|data-field\s*=\s*[`'"][^`'"]*\$\{)""", html):
+            E("document builds a data-field at runtime. A table is ONE block "
+              "whose value is a JSON string of rows; a minted per-cell field "
+              "names nothing in the manifest and a student's answer there is "
+              "dropped silently.")
         if "allow-same-origin" in html:
             E("document mentions allow-same-origin. With allow-scripts that "
               "pair lets the frame remove its own sandbox attribute.")

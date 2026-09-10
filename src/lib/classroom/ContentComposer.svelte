@@ -2284,11 +2284,22 @@
 					It is checked here before anything is posted, and every problem is named at once.
 					Capped at {Math.floor(HTML_DOCUMENT_MAX_BYTES / 1024 / 1024)} MB.
 				</p>
+				<!--
+					NO `accept`, AND THAT IS THE REPO'S RULE RATHER THAN AN OVERSIGHT
+					(`tests/classroom-attachment-mime.test.ts` sweeps for one). The
+					deck input is exempt BY ITS OWN TESTID so a new picker cannot
+					inherit the exemption by accident, and this one deliberately does
+					not take that exemption: `stagedHtmlIssue` refuses a non-HTML file
+					the instant it is picked, by extension AND by declared type, with a
+					sentence saying what to upload instead. That is a better gate than
+					an `accept` filter, which every OS dialog lets a person switch off
+					anyway -- so a picker resting on one still needs the check, and this
+					one is the check.
+				-->
 				<input
 					type="file"
 					class="file-input"
 					data-testid="staged-html-input"
-					accept=".html,.htm,text/html"
 					onchange={pickHtml}
 				/>
 			{/if}
