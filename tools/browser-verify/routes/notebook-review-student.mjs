@@ -88,6 +88,19 @@ export default {
 		{ selector: '.back-strip', label: 'StudentReviewBackStrip', expectPresent: 1, maxPresent: 1 },
 		{ selector: '.nb-root', label: 'NotebookView mounted (read-only)', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="staff-deleted-zone"]', label: 'staff Deleted section', expectPresent: 1, maxPresent: 1 },
+		/*
+			AND NO APPLICATION FRAME, WHICH THE `staff-deleted-zone` ROW ABOVE IS
+			HALF OF. This page keeps the notebook's masthead but is NOT the whole
+			page: the back strip is above the room and the Deleted section is
+			below it. `masthead` alone would have given it `cr-app`, and measured
+			at 1440 with the frame on, `.nb-root` was a 900px viewport box
+			starting at y=127 inside a 1463px document, with the Deleted section
+			at y=1051 -- reachable only by scrolling the document past a
+			full-viewport frame whose own panes were scrolling. It passes
+			`ownsPage={false}`. The positive control is the same selector on
+			`/dev/notebook`, where exactly one frame is required.
+		*/
+		{ selector: '.nb-root.cr-app', label: 'the application frame (must NOT be taken: chrome above AND below this room)', expectPresent: 0 },
 		{ selector: '[data-testid="staff-deleted-meta"]', label: 'per-row attribution line (one per deleted entry)', expectPresent: 4, maxPresent: 4 },
 		{ selector: '[data-testid="staff-restore-entry"]', label: 'Restore control (one per deleted entry, whoever removed it)', expectPresent: 4, maxPresent: 4 },
 		/*

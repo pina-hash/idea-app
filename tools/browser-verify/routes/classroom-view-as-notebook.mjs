@@ -24,6 +24,21 @@ export default {
 	presence: [
 		{ selector: '.cr-root', label: 'classroom room wrapper (this mounts inside ClassroomShell, not bare)', expectPresent: 1 },
 		{ selector: '.nb-root', label: 'NotebookView mounted (read-only)', expectPresent: 1, maxPresent: 1 },
+		/*
+			NO APPLICATION FRAME HERE, AND THIS IS THE HALF THAT MATTERS. The
+			notebook takes `cr-app` -- a viewport-height frame whose panes own
+			their own scroll -- only when it OWNS the page, which `masthead` says.
+			This mount is inside the classroom's own shell and impersonation
+			banner, so a frame would be 100dvh of notebook starting BELOW that
+			chrome and would clip the bottom of the list by exactly its height,
+			silently, on a surface only an admin ever opens. `scroll="fill"` then
+			resolves against an auto height and degrades to page-flow by
+			construction, which is what this row proves is still happening.
+			Its positive control is the same selector on `/dev/notebook`, where
+			exactly one is required.
+		*/
+		{ selector: '.nb-root.cr-app', label: 'the application frame (must NOT be taken under somebody else\'s shell)', expectPresent: 0 },
+		{ selector: '.cr-app-body', label: 'the frame body class (absent for the same reason)', expectPresent: 0 },
 		{ selector: '[data-testid="filter-deleted"]', label: 'Recently deleted chip (must NOT render: no list behind it)', expectPresent: 0, expectVisible: 0 },
 		{ selector: '[data-testid="deleted-list"]', label: 'the deleted pane that chip led to', expectPresent: 0, expectVisible: 0 },
 		/*

@@ -400,9 +400,14 @@ describe('the shell is shared, not copied', () => {
 		// panes at the height of the box the caller put the split in, which is
 		// measured rather than assumed.
 		const surfaces = {
-			// Mounted under somebody else's shell in view-as, so it cannot bound
-			// itself at ALL: only the document knows how tall it is.
-			'src/lib/notebook/NotebookView.svelte': 'page',
+			// An application frame of its own (`cr-app`) -- but only when it OWNS
+			// the page, which is what `masthead` already says. Under view-as it
+			// is mounted inside the classroom's own shell and impersonation
+			// banner, takes no frame, and `fill` then resolves `height: 100%`
+			// against an auto height and degrades to page-flow by construction.
+			// One `scroll` value, one conditional class, no branch on the mount:
+			// see the conditional-frame assertion below.
+			'src/lib/notebook/NotebookView.svelte': 'fill',
 			// An application frame of its own (`cr-app`), so its parent has a real
 			// height to hand down and both panes can scroll inside it.
 			'src/lib/notebook/ReviewConsole.svelte': 'fill'
@@ -425,6 +430,105 @@ describe('the shell is shared, not copied', () => {
 		// ...and the classroom keeps the default, being the surface the default
 		// is correct for.
 		expect(read('src/routes/classroom/[sectionId]/+layout.svelte')).not.toContain('scroll=');
+	});
+
+	/*
+	 * THE FRAME IS CONDITIONAL AND THE SCROLL MODE IS NOT, WHICH IS THE WHOLE
+	 * SHAPE. `scroll="fill"` needs a bounded parent; `cr-app` is that parent and
+	 * it is keyed on `masthead`, the one prop that already says whether this
+	 * component owns the page. So the view-as mount is answered by the ABSENCE
+	 * of the frame rather than by a second `scroll` value or an `{#if}` around
+	 * the split -- split.css's own words for what `fill` does without a bounded
+	 * parent are "degrades to exactly page-flow".
+	 *
+	 * A BARE `class="nb-root cr-app"` IS THE REGRESSION THIS CATCHES: it reads
+	 * as correct, it is correct on /notebook, and it puts a viewport-height
+	 * frame under the classroom's shell on the admin preview, clipping the
+	 * notebook by exactly that chrome's height.
+	 */
+	it('the application frame is a prop, is never unconditional, and both elements read ONE answer', () => {
+		const src = read('src/lib/notebook/NotebookView.svelte');
+		// ONE derived, read twice. Two independent expressions is how a wrapper
+		// that is a viewport frame ends up around a body that is not.
+		expect(src).toMatch(/const framed = \$derived\(ownsPage \?\? masthead\)/);
+		expect(src).toMatch(/class:cr-app=\{framed\}/);
+		expect(src).toMatch(/class:cr-app-body=\{framed\}/);
+		// Never the bare class on either element.
+		expect(src).not.toMatch(/class="[^"]*\bcr-app\b[^"]*"/);
+		expect(src).not.toMatch(/class="[^"]*\bcr-app-body\b[^"]*"/);
+		// The review console IS the page always, so it takes the bare class --
+		// the positive control on the two negatives above.
+		expect(read('src/lib/notebook/ReviewConsole.svelte')).toMatch(
+			/class="[^"]*\bcr-app\b[^"]*"/
+		);
+	});
+
+	/*
+	 * EVERY MOUNT THAT IS NOT THE WHOLE PAGE SAYS SO, and the two say it
+	 * differently on purpose. `masthead={false}` already means "I am inside
+	 * somebody else's bar", so the view-as tree needs nothing beyond what it
+	 * already passes and the default carries it. The per-student review page is
+	 * the case the default cannot reach: it KEEPS the masthead and still has a
+	 * back strip above the room and a staff Deleted section below it, so it
+	 * states `ownsPage={false}` -- measured, with the frame on, as a 900px
+	 * viewport box starting 127px down a 1463px document at 1440.
+	 *
+	 * A NEW MOUNT IS THE THING THIS CATCHES. The frame is the default for
+	 * anything that keeps its masthead, so a page that wraps this component in
+	 * chrome and forgets the prop gets a viewport frame in the middle of a
+	 * scrolling document -- which looks deliberate.
+	 */
+	it('every NotebookView mount that is not the whole page says so', () => {
+		const mounts = [
+			// name, file, what it must pass
+			{
+				file: 'src/routes/notebook/+page.svelte',
+				owns: true,
+				why: 'the student notebook IS the page'
+			},
+			{
+				file: 'src/routes/notebook/review/student/[studentEmail]/+page.svelte',
+				owns: false,
+				why: 'a back strip above the room and the staff Deleted section below it'
+			},
+			{
+				file: 'src/routes/classroom/view-as/[studentEmail]/notebook/+page.svelte',
+				owns: false,
+				why: 'mounted under ClassroomShell; masthead={false} already carries it'
+			}
+		];
+		for (const m of mounts) {
+			const src = read(m.file);
+			// ON THE TAG, NOT ANYWHERE IN THE FILE. Both of these props are named
+			// in the comments that explain them, in backticks, so a file-wide
+			// match is satisfied by the prose that describes the attribute and
+			// survives the attribute being deleted -- measured: removing
+			// `ownsPage={false}` from the review page left this test green. It is
+			// the same trap the scroll-mode assertion above learned by mutation.
+			const tag = src.match(/<NotebookView[\s\S]*?\/>/)?.[0];
+			expect(tag, `${m.file} no longer mounts NotebookView`).toBeDefined();
+			const suppressed = /masthead=\{false\}/.test(tag!);
+			const stated = /ownsPage=\{false\}/.test(tag!);
+			expect(suppressed || stated, `${m.file}: ${m.why}`).toBe(!m.owns);
+		}
+	});
+
+	/*
+	 * THE PANE'S HEAD IS PINNED BY BEING A FLEX SIBLING OF A SCROLLING BODY,
+	 * never by `position: sticky` with a hand-written offset: the head wraps at
+	 * narrow widths and any offset a stylesheet writes down is a constant that
+	 * is wrong the first time it does. This is split.css's own documented
+	 * mechanism for a fill-height nav pane (`> .cr-nav > * { max-height: 100% }`
+	 * -- "what lets a surface keep a header on screen while its BODY scrolls").
+	 */
+	it('the list pane pins its head with a bounded column, not with viewport arithmetic', () => {
+		const src = read('src/lib/notebook/NotebookView.svelte');
+		expect(src).toContain('<div class="list-head">');
+		expect(src).toContain('<div class="list-body">');
+		expect(src).toMatch(/\.list-body\s*\{[^}]*overflow-y:\s*auto/);
+		expect(src).toMatch(/\.nb-pane-card\s*\{[^}]*flex-direction:\s*column/);
+		// No sticky head, and no offset for one.
+		expect(src).not.toMatch(/\.list-head\s*\{[^}]*position:\s*sticky/);
 	});
 
 	it('fill-height names no viewport height, which is the whole point of it', () => {
@@ -565,6 +669,17 @@ describe('bringing the detail pane into view', () => {
 	 * their own height, so the detail column does not start halfway down a
 	 * document. ReviewConsole is `fill` and reveals anyway -- harmless, and the
 	 * named assertion above keeps covering it either way.
+	 *
+	 * AND `NotebookView` IS NOW THE CASE THIS STATIC SWEEP CANNOT CLASSIFY,
+	 * WHICH IS SAID HERE RATHER THAN LEFT AS A GAP. Its literal is `fill`, so
+	 * it left the page-flow population -- but its frame is conditional
+	 * (`class:cr-app={masthead}`), and the view-as mount takes no frame and is
+	 * page-flow AT RUNTIME. A literal is all a file sweep can read. So the
+	 * cost is paid explicitly: the assertion below names that file and requires
+	 * it to reveal and bind exactly as a page-flow caller must, and the
+	 * positive control no longer counts it toward the population. Deleting
+	 * either would leave the one mount whose page-flow-ness is a prop entirely
+	 * unchecked.
 	 * -------------------------------------------------------------------- */
 
 	/** Every `.svelte` file under src/, so a new split cannot arrive uncovered. */
@@ -643,11 +758,34 @@ describe('bringing the detail pane into view', () => {
 	];
 
 	it('sweeps something -- a page-flow split exists to be checked', () => {
-		const pageFlow = splitMounts().filter((m) => m.scroll === 'page');
+		const mounts = splitMounts();
+		const pageFlow = mounts.filter((m) => m.scroll === 'page');
 		// The positive control. A walker that found no files, or a tag regex that
 		// stopped matching, would otherwise pass every assertion below vacuously.
-		expect(pageFlow.length).toBeGreaterThanOrEqual(KNOWN_UNREVEALED.length + 1);
-		expect(splitMounts().some((m) => m.scroll !== 'page')).toBe(true);
+		//
+		// IT USED TO READ `+ 1`, AND THE +1 WAS `NotebookView`. It is `fill` now
+		// (a conditional frame, see the header above), so the population is the
+		// three exempt files and the sweep would go quiet if this were left as
+		// it was -- which is exactly why the walker's own reach is asserted
+		// separately below rather than inferred from this count.
+		expect(pageFlow.length).toBeGreaterThanOrEqual(KNOWN_UNREVEALED.length);
+		expect(mounts.some((m) => m.scroll !== 'page')).toBe(true);
+		// The walker reaches well past the exemption list, so "no offenders"
+		// below means it looked and found none rather than that it looked at
+		// three files.
+		expect(mounts.length).toBeGreaterThan(KNOWN_UNREVEALED.length + 3);
+	});
+
+	it('the one split whose page-flow-ness is a PROP reveals anyway', () => {
+		// `NotebookView` is `scroll="fill"` with a conditional frame, so under
+		// view-as (`masthead={false}`) it is page-flow at runtime and the reveal
+		// is exactly as load-bearing as it is for any file on the list above. A
+		// static sweep reads the literal and cannot see that, so it is named.
+		const mount = splitMounts().find((m) => m.file === 'src/lib/notebook/NotebookView.svelte');
+		expect(mount, 'NotebookView no longer mounts a split').toBeDefined();
+		expect(mount!.scroll).toBe('fill');
+		expect(mount!.reveals, 'the view-as mount is page-flow and needs the reveal').toBe(true);
+		expect(mount!.binds, 'revealDetailPane needs the pane it was handed').toBe(true);
 	});
 
 	it('every page-flow split reveals its detail pane, except the pinned six', () => {

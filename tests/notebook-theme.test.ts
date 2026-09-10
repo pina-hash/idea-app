@@ -38,6 +38,7 @@ import {
 	NOTEBOOK_THEME_SHORT,
 	NOTEBOOK_THEMES,
 	notebookDefaultNote,
+	notebookPickerName,
 	notebookPlate,
 	notebookThemeAttrFor,
 	readStoredNotebookTheme
@@ -203,6 +204,45 @@ describe('the notebook plate registry', () => {
 		expect(notebookPlate('idea', 'matrix')).toBe('idea');
 		expect(notebookPlate('matrix', 'idea')).toBe('matrix');
 		expect(notebookPlate('matrix', 'matrix')).toBe('matrix');
+	});
+
+	/*
+	 * THE INPUT IS `<html data-theme>`, NOT THE PREFERENCE STORE, AND THESE ARE
+	 * THE SHAPES THE ATTRIBUTE REALLY TAKES. `ThemeRoot` REMOVES the attribute
+	 * when the theme is off or there is no session, so `null` (nothing read
+	 * yet, which is the server render and the first frame) and `undefined`
+	 * (read, and absent) are both ordinary answers and both mean "no site
+	 * theme". A function that answered 'matrix' for either would paint a black
+	 * notebook on a page that is not black.
+	 */
+	it('an absent or unread site attribute is "no site theme" in both spellings', () => {
+		for (const absent of [null, undefined, '', 'idea', 'MATRIX', 'matrix ']) {
+			expect(notebookPlate('default', absent), JSON.stringify(absent)).toBe('default');
+			expect(notebookDefaultNote(absent), JSON.stringify(absent)).not.toContain('Matrix');
+		}
+		// positive control on the sweep above: the one value that IS the theme
+		expect(notebookPlate('default', 'matrix')).toBe('matrix');
+		expect(notebookDefaultNote('matrix')).toContain('Matrix');
+	});
+
+	/*
+	 * THE TRIGGER'S NAME CARRIES THE PAINTED PLATE ONLY WHEN IT DIFFERS from
+	 * the chosen one. The visible word stays the CHOSEN state because the menu
+	 * it opens ticks that row; the name is where the other half is said, so a
+	 * reader looking at a black notebook is not told only "Default".
+	 */
+	it("the picker's accessible name names the painted plate exactly when it differs", () => {
+		expect(notebookPickerName('default', 'matrix')).toBe('Appearance: Default, showing Matrix');
+		expect(notebookPickerName('default', undefined)).toBe('Appearance: Default');
+		expect(notebookPickerName('matrix', 'matrix')).toBe('Appearance: Matrix');
+		expect(notebookPickerName('light', 'matrix')).toBe('Appearance: Light');
+		for (const t of NOTEBOOK_THEMES) {
+			for (const site of ['matrix', undefined]) {
+				const name = notebookPickerName(t, site);
+				expect(name, `${t}/${site}`).toContain(NOTEBOOK_THEME_LABELS[t]);
+				expect(name, `${t}/${site}`).not.toMatch(/—/);
+			}
+		}
 	});
 
 	it("the default row's note says what it follows right now", () => {
@@ -549,11 +589,26 @@ describe('the toggle', () => {
 	it('lists every state from the registry, says what Default follows, and exposes the painted plate', () => {
 		expect(toggle).toContain('{#each NOTEBOOK_THEMES as option (option)}');
 		expect(toggle).toContain('notebookDefaultNote(');
-		expect(toggle).toContain('siteTheme()');
 		expect(toggle).toContain('data-plate=');
 		expect(toggle).toContain('notebookPlate(');
+		expect(toggle).toContain('notebookPickerName(');
 		// The site theme is READ, never written, from this control.
 		expect(toggle).not.toContain('setSiteTheme');
+	});
+
+	/*
+	 * IT FOLLOWS `<html data-theme>` AND MUST NOT READ THE PREFERENCE STORE.
+	 * The two answer different questions -- the store is what a student chose,
+	 * the attribute is what `ThemeRoot`'s session gate decided -- and the
+	 * cascade paints from the attribute, so a mirror of the cascade fed by the
+	 * store can tell a student their black notebook is following "the same
+	 * surfaces as your classes". Measured in Chromium before this changed.
+	 */
+	it('reads the site theme off the document and never off the preference store', () => {
+		expect(toggle).toContain('watchSiteThemeOnDocument()');
+		expect(toggle).toContain('siteThemeOnDocument()');
+		expect(toggle).not.toContain("from '$lib/theme.svelte'");
+		expect(toggle).not.toMatch(/\bsiteTheme\(\)/);
 	});
 
 	it('has a glyph branch for every non-default state (a fourth row without a mark reads as broken)', () => {

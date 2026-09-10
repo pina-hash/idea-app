@@ -5,20 +5,25 @@
 		NOTEBOOK_THEME_NOTES,
 		NOTEBOOK_THEME_SHORT,
 		notebookDefaultNote,
+		notebookPickerName,
 		notebookPlate,
 		notebookTheme,
 		setNotebookTheme,
+		siteThemeOnDocument,
+		watchSiteThemeOnDocument,
 		type NotebookTheme
 	} from '$lib/notebook/notebook-theme.svelte';
-	import { siteTheme } from '$lib/theme.svelte';
 
 	/**
 	 * The notebook's appearance control, mounted in the masthead of both
 	 * notebook screens (the student feed and the review console) so the choice
 	 * is reachable wherever the theme applies.
 	 *
-	 * Presentation only: the preference lives in the store and the PALETTES
-	 * live in the token layer -- this knows neither.
+	 * Presentation only: the notebook's own preference lives in the store and
+	 * the PALETTES live in the token layer -- this WRITES neither. What it does
+	 * read, besides that preference, is the document's own site-theme
+	 * attribute, and only so it can say which plate is painted; see the last
+	 * paragraph below.
 	 *
 	 * IT IS A MENU, WHERE IT USED TO BE A CYCLE, and the third palette is what
 	 * forced that. Cycling three states was already borderline, and -- worse --
@@ -32,20 +37,34 @@
 	 *
 	 * THE DEFAULT ROW SAYS WHAT IT FOLLOWS RIGHT NOW. The default plate defers
 	 * to the SITE theme (notebook-theme.css's matrix block), so its note is
-	 * `notebookDefaultNote(siteTheme())` rather than the static sentence --
-	 * a student who picked Matrix on the site can read here why the notebook
-	 * already looks like it, and which row would pin it. The site theme is
-	 * READ only; this control never writes it. The trigger also carries
-	 * `data-plate`, the plate actually painted, beside the chosen state, so a
-	 * harness can tell "default, following Matrix" from "Matrix, chosen".
+	 * `notebookDefaultNote(...)` rather than the static sentence -- a student
+	 * who picked Matrix on the site can read here why the notebook already
+	 * looks like it, and which row would pin it. The site theme is READ only;
+	 * this control never writes it. The trigger also carries `data-plate`, the
+	 * plate actually painted, beside the chosen state, so a harness can tell
+	 * "default, following Matrix" from "Matrix, chosen".
+	 *
+	 * AND IT READS THE ANSWER OFF `<html data-theme>`, NOT OFF THE SITE THEME
+	 * STORE. The two are different questions -- the store is the preference and
+	 * the attribute is `ThemeRoot`'s decision, with a session gate between them
+	 * -- and the cascade paints from the attribute, so the attribute is what a
+	 * mirror of the cascade has to read. Measured with the attribute set and
+	 * the store untouched, the store-fed version reported `data-plate="default"`
+	 * and "the same surfaces as your classes" against a black notebook; see
+	 * `notebook-theme.ts`'s own header for the numbers.
 	 */
 
 	const theme = $derived(notebookTheme());
 	const short = $derived(NOTEBOOK_THEME_SHORT[theme]);
-	const label = $derived(NOTEBOOK_THEME_LABELS[theme]);
-	const plate = $derived(notebookPlate(theme, siteTheme()));
+	/* Follows the attribute for as long as this control is mounted. The watcher
+	   writes one piece of state and reads none, so the effect it is called from
+	   takes no dependency on what it sets. */
+	$effect(() => watchSiteThemeOnDocument());
+	const siteAttr = $derived(siteThemeOnDocument());
+	const plate = $derived(notebookPlate(theme, siteAttr));
+	const pickerName = $derived(notebookPickerName(theme, siteAttr));
 	const noteFor = (option: NotebookTheme) =>
-		option === 'default' ? notebookDefaultNote(siteTheme()) : NOTEBOOK_THEME_NOTES[option];
+		option === 'default' ? notebookDefaultNote(siteAttr) : NOTEBOOK_THEME_NOTES[option];
 
 	let open = $state(false);
 	let rootEl = $state<HTMLDivElement | null>(null);
@@ -128,8 +147,8 @@
 	<button
 		type="button"
 		class="nb-theme"
-		title="Appearance: {label}. Click to change."
-		aria-label="Appearance: {label}"
+		title="{pickerName}. Click to change."
+		aria-label={pickerName}
 		aria-haspopup="menu"
 		aria-expanded={open}
 		data-testid="nb-theme-toggle"

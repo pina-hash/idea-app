@@ -38,6 +38,16 @@ export default {
 		{ selector: '.nb-root[data-nb-theme]', label: 'no explicit notebook plate (must be absent)', expectPresent: 0 },
 		{ selector: '[data-testid="nb-theme-toggle"][data-plate="matrix"]', label: 'the picker reports MATRIX as painted', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="nb-theme-toggle"][data-theme-state="default"]', label: 'the picker reports DEFAULT as chosen', expectPresent: 1, maxPresent: 1 },
+		/* THE NAME CARRIES THE PAINTED PLATE, and this row is what proves the
+		   picker is reading `<html data-theme>` rather than the preference
+		   store. The two are different questions -- the store is what a student
+		   chose, the attribute is what ThemeRoot's session gate decided -- and
+		   a store-fed picker told a student "Following the site theme: the same
+		   surfaces as your classes" against a black notebook (measured in
+		   Chromium with the attribute set and the store untouched, which is
+		   what a signed-out page is). `data-plate` above says the same thing to
+		   a machine; this says it to a person. */
+		{ selector: '[data-testid="nb-theme-toggle"][aria-label="Appearance: Default, showing Matrix"]', label: 'the picker NAMES the painted plate to a reader', expectPresent: 1, maxPresent: 1 },
 		/* No rain in this room: the classroom hides the shell's `.bg-fx` and so
 		   does the notebook, and the room is opaque. A canvas here would be the
 		   site theme reaching into a room it does not own. */
