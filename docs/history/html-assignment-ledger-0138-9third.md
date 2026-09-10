@@ -182,6 +182,21 @@ two ways over `0197`: the comment portion of every line (`awk` on the text after
 on code lines in 7 balanced pairs. The verification query at the foot is
 entirely inside `--` comments and contains no `$` at all.
 
+## The numbers
+
+svelte-check 0 errors / 37 warnings at 31 `state_referenced_locally`, 5
+`css_unused_selector`, 1 `perf_avoid_nested_class` -- exactly baseline, and
+re-derived rather than read off `CLAUDE.md`. Full suite **368 files / 7319
+tests**, all passed, against a baseline of 368 / 7314: one file deleted
+(`html-assignment-write-gate`), one added (`html-assignment-spec-path-unchanged`),
+five net tests. `npm run verify:readme` **362 runs / 6310 measurements / 0
+outside threshold / 925.9s on `983ccec`**, against 360 / 6282 / 0 -- the two
+extra runs and twenty-eight extra measurements are the new worksheet route spec
+at 375 and 1440. It was regenerated once, at the end, on a clean committed tree,
+with Vite started by hand on 5199 and all 156 harness URLs warmed first (155 at
+HTTP 200; `/dev/foundry-admin/refusal` answers 403, which is that fixture's own
+subject).
+
 ## What was NOT verified
 
 - **0197 IS NOT APPLIED.** This container cannot reach the production database:

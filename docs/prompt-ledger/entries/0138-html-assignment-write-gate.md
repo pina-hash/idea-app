@@ -86,10 +86,18 @@
   the file sit on code lines in 7 balanced pairs. The verification query is
   entirely inside `--` comments and carries no `$` at all.
 
-  **MEASURED.** svelte-check 0 errors / 37 warnings / 31-5-1, exactly baseline.
-  Full suite 368 files / 7319 tests (baseline 368 / 7314: one file deleted, one
-  added, five net tests). `npm run verify:readme` regenerated once at the end on
-  a clean committed tree.
+  **MEASURED.** svelte-check 0 errors / 37 warnings / 31-5-1, exactly baseline,
+  re-derived after `npx svelte-kit sync` with the two `PUBLIC_SUPABASE_*`
+  placeholders exported. Full suite 368 files / 7319 tests, all passed (baseline
+  368 / 7314: one file deleted, one added, five net tests).
+  `npm run verify:readme` **362 runs / 6310 measurements / 0 outside threshold /
+  925.9s on `983ccec`** (baseline 360 / 6282 / 0; the +2 runs and +28
+  measurements are the new worksheet route spec at both widths), regenerated
+  once at the end on a clean committed tree with Vite started by hand on 5199
+  and every one of its 156 URLs warmed to HTTP 200 first -- 155 of 156, the one
+  exception being `/dev/foundry-admin/refusal`, whose 403 is that fixture's own
+  subject. `--selftest` 70 controls (36 negative, 34 positive), 0 instrument
+  failures. `derived-numbers` green afterwards.
 
   **NOT VERIFIED. 0197 IS NOT APPLIED**, and this container cannot apply it: the
   agent proxy accepts a CONNECT to 5432 and carries no bytes. No Docker daemon
