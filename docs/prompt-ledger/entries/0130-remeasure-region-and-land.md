@@ -12,7 +12,9 @@
   necessary is a STOP.
 - Migration permitted: no. Claims: none. `0193` is Mr. Pina's, applied by hand
   before ledger 0125 was issued.
-- Lands on: `main`.
+- Lands on: `main` (cycle 1, at `7f1bcc57`, deploy read back from production).
+  **Cycle 2 did NOT land: `integration` is red on a nondeterministic test in
+  ledger 0120's bundle, which this bundle does not own.**
 - Status: issued
 - Branch: `claude/ledger-0130-derived-numbers-b629zb`, branched from
   `origin/integration` at `97475435`.
@@ -80,6 +82,22 @@
   region (regenerated, never taken from a side) and `CLAUDE.md` (both sides kept
   -- separate blocks at different anchors, zero lines of either removed, so no
   stop fired).
+
+  **THE STOP, AND IT IS THE PROMPT'S OWN RULE RATHER THAN A JUDGEMENT CALL.**
+  CI on `2fed3777bd54a3518106a460795c81bfd08cd1e4` read `check: success`,
+  `test: FAILURE`, `vanguard-changelog: success`, `history-verify: success`. The
+  failing file is `tests/db/gauntlet-verification-floor.test.ts`, ledger 0120's.
+  Fixing it is a source change and this bundle owns no source file, so it stops
+  and reports. **It was not re-run for a green**: the mechanism is in the
+  fixture -- two runs seeded with the same nominal `HONEST_MS`, whose stored
+  `elapsed_ms` each carry an independent round-trip drift, so the `created_at`
+  tiebreak the assertion depends on never runs and either student can take seat
+  1. Measured at 1 failure in 16 standalone runs on the merged tree and load
+  dependent, which is why CI hit it and a quiet container mostly does not. The
+  history entry carries the full account and the one-line fix, left unapplied.
+  `integration` is left WITH 0120 merged rather than reverted, because reverting
+  a merge would make git treat 0120's commits as already integrated and silently
+  drop them on the next attempt.
 
   **CONFLICT POLICY.** Resolved on `integration`, never on `main`. The counts
   block was this bundle's outright, so it was REGENERATED rather than resolved.

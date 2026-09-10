@@ -180,6 +180,56 @@ and it is why **text on every one of these runs is measured in the fallback
 stack**. `prefers-reduced-motion` is `no-preference` throughout, so that path is
 not exercised by any of these numbers.
 
+## THE STOP: LEDGER 0120'S OWN TEST IS NONDETERMINISTIC, AND `integration` IS RED ON IT
+
+**`integration` was NOT merged into `main` on cycle 2, and this is why.** CI on
+`2fed3777bd54a3518106a460795c81bfd08cd1e4` came back `check: success`,
+`test: FAILURE`, `vanguard-changelog: success`, `history-verify: success`. The
+failing file is `tests/db/gauntlet-verification-floor.test.ts`, which belongs to
+ledger 0120, and this bundle owns no source file -- so the rule is stop and
+report, not repair.
+
+**IT IS NOT A FLAKE AND IT WAS NOT RE-RUN FOR A GREEN.** Re-running until the
+coin lands right is exactly the move that puts a nondeterministic test on `main`,
+so the mechanism was found instead, and it is in the FIXTURE rather than in
+`0194`:
+
+* `runFor` produces a run of a chosen length by backdating the token:
+  `started_at = now() - elapsedMs`, in its own statement. `gauntlet_macro_submit`
+  then computes `elapsed_ms` as `now() - started_at` in a LATER statement. So the
+  stored time is `elapsedMs + drift`, where the drift is the gap between the two
+  statements' transaction timestamps -- scheduling noise, independent per call.
+* The fixture gives Ben and Cleo the SAME nominal time, `HONEST_MS` 187_004, and
+  the test asserts Ben is rank 1 and the ranked seats are `[1, 2]`.
+* `0194`'s `rank()` window is perfectly deterministic --
+  `is_correct desc, score_metric asc, tiebreak asc, created_at asc` -- and that
+  final `created_at asc` is evidently what the fixture was relying on to hand the
+  tie to Ben, who is seeded first. **It never gets to run.** The two
+  `score_metric` values are not equal, because each carries its own drift, so
+  whichever of the two round trips was quicker takes seat 1. When Cleo's is
+  quicker, Ben is rank 2 and the record view has no rank-1 row for him -- which
+  is exactly the pair of assertions that failed.
+
+**Measured**: 1 failure in 16 standalone runs of that file on the merged tree
+(~6%), 0 in 6 on 0120's branch tip `b6a1d918` alone -- a sample far too small to
+call it merge-induced, and the mechanism says it is not: nothing in the merge
+touches the clock. It is load-dependent, which is why it hit GitHub's shared
+runner on its first full-suite run while a quiet container mostly passes. The
+first full local suite (357 files, 7026 tests) passed, and that is precisely how
+a test like this reaches `main`.
+
+**The fix is one line and it is 0120's, not this bundle's**: give Cleo a
+distinctly slower honest time (`HONEST_MS + 5_000`, say) so the seat order is
+decided by the value under test instead of by jitter. Left unapplied.
+
+**`integration` IS LEFT AT `2fed3777` WITH 0120 MERGED, DELIBERATELY, RATHER
+THAN REVERTED.** Reverting a merge commit is not neutral: git would then treat
+0120's commits as already integrated, and the next attempt to merge that branch
+would silently bring in nothing. The merge itself is correct and wanted -- `0194`
+is applied in production and Mr. Pina cannot reach the schema without the UI on
+that branch -- so what is red is one assertion, not the bundle. `main` is
+unaffected and green.
+
 ## VERIFICATION
 
 * `npx vitest run tests/derived-numbers.test.ts` -- **18 passed**, from 5 failed
@@ -189,6 +239,16 @@ not exercised by any of these numbers.
   region already agreed with the tree and was not rewritten.
 * `npm ci`, never `npm install`; `git status` was clean afterwards, so the
   lockfile's two-space indentation was not reformatted into a 4,649-line diff.
+* Cycle 1 CI on `df0e185d0ed3e553c671f22de9d95371aad37c5a` and on
+  `173a6746faf48357b1cae83d48d2365f08d27cc1`: all four aggregator outcomes
+  `success` both times, read off the aggregator step rather than the rolled-up
+  conclusion (`ci.yml` runs its steps `continue-on-error: true`, which is what
+  once made a red run look green in the API).
+* Cycle 1 landed: `main` merged `--no-ff` at `7f1bcc57`, and the deploy was READ
+  back from production rather than inferred -- the footer stamp on
+  `/assignments/IDEA-Blade_Rulebook_v2_2` went from
+  `Assignments v1.14 · f1b6a30 · Sep 9, 2026` to
+  `Assignments v1.14 · 7f1bcc5 · Sep 10, 2026`.
 
 ## WHAT WAS NOT VERIFIED
 
@@ -202,6 +262,17 @@ output is recorded verbatim in this bundle's report; its exit 1 was not treated
 as a stop, because the evidence gate 4 exists to produce came from production
 through the person who ran it, which is the only channel available. The probe's
 own rule is unchanged: `CANNOT SAY` is never a pass.
+
+Also not verified: `0194`'s four values. Mr. Pina applied
+`supabase/migrations/0194_gauntlet_verification_floor.sql` by hand on 2026-09-10
+and reported `floor_ms` 30000, `held_rows` 0, `held_with_a_seat` 0 and
+`reported_by_console` 0, the third being the migration's own safety property. **I
+verified none of them**, for the same reason as `0193`'s eight. `0194`'s
+committed file was deliberately NOT edited: it carries a `do $chk$` inside two
+`--` comment lines that the SQL editor's client-side splitter cannot handle, so
+the file as committed cannot be pasted even though every non-comment line is
+byte-identical to what was applied. That is a later bundle's lint, not this
+bundle's file.
 
 Also not verified: any signed-in surface. The harness covers `/dev` routes only,
 and a real route needs a Bosco Tech Google session no automated run in this
