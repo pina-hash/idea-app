@@ -36,6 +36,16 @@
 	 * do nothing (and the module progress chip stops counting them, so it can
 	 * still reach complete).
 	 *
+	 * IT IS THE v1 SPEC ENGINE'S SURFACE AND KNOWS NOTHING ABOUT SCHEMA 3, ON
+	 * PURPOSE. A ported HTML assignment (0195) branches AHEAD of this in
+	 * ItemDetail, through `htmlAssignmentMount`, so this component is only ever
+	 * mounted for an item the spec engine owns -- and its `spec` prop is
+	 * required, which a ported item has no row for. DO NOT ADD A SECOND
+	 * `assignment_schema_version` TEST HERE: two spellings of "is this a ported
+	 * document" is the thing that module exists to prevent, and the working copy
+	 * has no ported counterpart to branch to anyway (0128's instructor responses
+	 * are keyed on spec block ids).
+	 *
 	 * THE KEY. One copy per item can be designated the answer key, and every
 	 * instructor on the item can then read it. When somebody ELSE'S copy is the
 	 * key it renders BELOW this one, read-only and labelled with whose it is --

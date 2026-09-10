@@ -2314,3 +2314,128 @@ export function createBulkGradingTransports(supabase: SupabaseClient): BulkGradi
 		}
 	};
 }
+
+// ---------------------------------------------------------------------------
+// THE PORTED HTML ASSIGNMENT (0195).
+//
+// Two functions, and neither of them is a new write path. An answer typed into
+// a ported document is an ordinary `classroom_responses` row and a photograph
+// attached inside one is an ordinary `classroom_submission_files` row, so the
+// engine transports above ARE the write path and this region only names them
+// for the surface that mounts a frame. See
+// `$lib/classroom/html-assignment/answers.ts` for what does the naming, and for
+// the measured reason a save through them currently raises.
+// ---------------------------------------------------------------------------
+
+// AT THE HEAD OF THIS REGION RATHER THAN AT THE TOP OF THE FILE, which is the
+// convention `assignment-spec.ts` already uses twice: an `import` is hoisted
+// wherever it is written, so keeping a region's dependencies beside the region
+// means a reader knows what belongs to what, and an edit here touches nothing
+// above it.
+import type { HxAnswerTransports } from '$lib/classroom/html-assignment/answers';
+import {
+	HTML_MANIFEST_KIND,
+	HTML_MANIFEST_SCHEMA_VERSION,
+	type HtmlAssignmentManifest
+} from '$lib/classroom/html-assignment/manifest';
+
+/**
+ * The stored document's HANDLE and MANIFEST for one item.
+ *
+ * NOT THE DOCUMENT ITSELF. The bytes are served from the sandbox origin by
+ * `/hx/<document id>` and never travel through the portal's own payloads --
+ * that separation is the whole point of the second origin, and a loader that
+ * carried the markup would put a student's uploaded document into a page that
+ * holds a session.
+ */
+export const HTML_ASSIGNMENT_SELECT = 'item_id, document_id, manifest, filename, updated_at';
+
+export interface HtmlAssignmentRead {
+	documentId: string;
+	manifest: HtmlAssignmentManifest;
+	filename: string;
+	updatedAt: string | null;
+}
+
+/**
+ * Does this jsonb blob have the shape the parent maps through.
+ *
+ * A STRUCTURAL CHECK, NEVER A SECOND VALIDATOR. `_classroom_check_html_manifest`
+ * is the boundary and `validateHtmlManifest` is the importer's own rule; a third
+ * opinion here would be the copy that drifts. What this answers is only "can the
+ * field map be built from this at all", which is what separates a stored
+ * manifest from a null column and from a deployment answering something else
+ * entirely.
+ */
+function htmlManifestShaped(value: unknown): value is HtmlAssignmentManifest {
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+	const m = value as Record<string, unknown>;
+	return (
+		m.schemaVersion === HTML_MANIFEST_SCHEMA_VERSION &&
+		m.kind === HTML_MANIFEST_KIND &&
+		Array.isArray(m.modules)
+	);
+}
+
+/**
+ * The HTML document attached to one item, or null.
+ *
+ * FAILS SOFT TO NULL, WHICH IS A CAPABILITY AND NOT AN ERROR. 0195 is applied
+ * by hand, so a deployment that does not have the table yet is a real state and
+ * PostgREST answers a whole select with an error for an unknown relation. An
+ * assignment page must not be lost over a feature that has not landed; null
+ * means "this item has no ported document", which is also the honest answer for
+ * every assignment that genuinely has none.
+ *
+ * The read is RLS-scoped with NO student filter, as every read here is: the
+ * policy ("the document follows its item") is the boundary, and a second copy
+ * of it written as a filter is the thing that stops matching.
+ */
+export async function loadHtmlAssignmentDocument(
+	supabase: SupabaseClient,
+	itemId: string
+): Promise<HtmlAssignmentRead | null> {
+	const { data, error } = await supabase
+		.from('classroom_html_assignments')
+		.select(HTML_ASSIGNMENT_SELECT)
+		.eq('item_id', itemId)
+		.maybeSingle();
+	if (error || !data) return null;
+	const row = data as unknown as {
+		document_id?: unknown;
+		manifest?: unknown;
+		filename?: unknown;
+		updated_at?: unknown;
+	};
+	if (typeof row.document_id !== 'string' || !htmlManifestShaped(row.manifest)) return null;
+	return {
+		documentId: row.document_id,
+		manifest: row.manifest,
+		filename: typeof row.filename === 'string' ? row.filename : 'assignment.html',
+		updatedAt: typeof row.updated_at === 'string' ? row.updated_at : null
+	};
+}
+
+/**
+ * THE TRANSPORTS `HxAnswers` TAKES, WHICH ARE THE ENGINE'S OWN.
+ *
+ * A PROJECTION, NOT AN IMPLEMENTATION. Every function here is the identical
+ * object `createEngineTransports` already returns; this exists so the HTML
+ * surface has one named thing to hand the controller and so the absence of a
+ * SECOND RPC caller is visible in one line rather than argued for. Writing a
+ * private `saveResponse` for ported documents would be a second definition of
+ * what an answer is, which is the one thing 0195's additive design rests on not
+ * happening.
+ *
+ * The surface hands NULL instead of calling this when the assignment is not
+ * open to the caller, and every write then structurally does not exist.
+ */
+export function createHtmlAnswerTransports(supabase: SupabaseClient): HxAnswerTransports {
+	const engine = createEngineTransports(supabase);
+	return {
+		saveResponse: engine.saveResponse,
+		uploadSubmissionFile: engine.uploadSubmissionFile,
+		deleteSubmissionFile: engine.deleteSubmissionFile,
+		setFileCaption: engine.setFileCaption
+	};
+}

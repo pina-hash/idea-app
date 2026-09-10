@@ -41,6 +41,8 @@ import {
 	type HtmlAssignmentManifest,
 	type ManifestValidation
 } from '$lib/classroom/html-assignment/manifest';
+import { stagedRubricAfterManifest } from '$lib/classroom/html-assignment/rubric';
+import type { RubricCriterion } from '$lib/classroom/assignment-spec';
 
 /**
  * THE DOCUMENT CAP, and it is the DATABASE's rather than the platform's.
@@ -209,6 +211,25 @@ export interface HtmlAssignmentTransports {
 	 * season hands the transport to an admin and to nobody else.
 	 */
 	setHtmlAssignment: SetHtmlAssignment | null;
+	/**
+	 * THE RUBRIC WRITE, and it is `classroom_set_rubric` -- the SAME RPC a spec's
+	 * rubric and a hand-built one go through. There is no HTML-assignment rubric
+	 * table and there must never be one: what `manifestToRubric` produces is a
+	 * `RubricCriterion[]` indistinguishable from either.
+	 *
+	 * ABSENCE REMOVES THE WRITE, exactly as every other optional transport in
+	 * this codebase removes what it drives -- the result then carries no rubric
+	 * fields at all and this function behaves precisely as it did before it had
+	 * any. That is not a licence to omit it: the rubric a ported assignment is
+	 * graded against is a pure function of its manifest, so a surface that
+	 * writes a manifest without writing the rubric beside it leaves the OLD
+	 * document's rubric on the item -- which stores fine, renders fine, and is
+	 * wrong only on the grading console. Every surface that uploads a document
+	 * passes this.
+	 */
+	setRubric?:
+		| ((itemId: string, criteria: RubricCriterion[] | null) => Promise<{ ok: boolean; message?: string }>)
+		| null;
 }
 
 export interface HtmlApplyResult {
@@ -218,6 +239,28 @@ export interface HtmlApplyResult {
 	staged: StagedHtmlAssignment | null;
 	/** The revision the write produced, when the RPC reported one. */
 	revision: number | null;
+	/**
+	 * THE RUBRIC THAT DID NOT LAND, still needing a write -- the same shape as
+	 * `staged` one field up, and for the same reason. Null when it landed, and
+	 * null when there was nothing to write.
+	 *
+	 * A FAILED RUBRIC WRITE CANNOT BE RETRIED THROUGH THIS FUNCTION, which is why
+	 * it comes back rather than staying here: the document itself DID land, so
+	 * re-applying the document to retry the rubric would mint a second revision
+	 * of a document nobody changed. What the caller does with it is stage it as
+	 * an ordinary rubric -- `applyStagedExtras` writes exactly that on the next
+	 * save, through the same RPC.
+	 *
+	 * THE THREE RUBRIC FIELDS ARE PRESENT EXACTLY WHEN `setRubric` WAS, which is
+	 * what keeps a caller that does not write rubrics reading the result it has
+	 * always read. Undefined is "not this call's business"; null is "nothing left
+	 * unwritten".
+	 */
+	rubric?: RubricCriterion[] | null;
+	/** What the caller's `derived` flag becomes: true once a document owns it. */
+	rubricDerived?: boolean;
+	/** True when this call actually wrote one, for the caller's "also landed" note. */
+	rubricWritten?: boolean;
 }
 
 /**
@@ -229,18 +272,67 @@ export interface HtmlApplyResult {
  * belongs to the composer's own staging set and this is a fourth thing on a
  * different lane's timetable; the SEMANTICS are deliberately identical, and a
  * later bundle folding the two together should keep these.
+ *
+ * IT WRITES THE RUBRIC TOO, AND THAT IS WHY THE WRITE IS HERE RATHER THAN AT
+ * THE CALL SITES. The rubric a ported assignment is graded against is a pure
+ * function of the manifest, so it has to be rewritten at EVERY revision -- the
+ * import and every re-upload after it. Left to each caller, a second upload
+ * surface would store a new document beside the OLD document's rubric, which
+ * stores fine, renders fine, and is wrong only on the grading console: exactly
+ * the silent shape this module exists to stop. Inside, one transport is all a
+ * new upload surface has to hand over, and the decision, the translation and
+ * the retry semantics come with it.
+ *
+ * A MISSING `setRubric` REMOVES THE WRITE SILENTLY, which is the ordinary
+ * optional-transport rule and is the one place here that can still go wrong by
+ * omission. It is that way because this function answered three fields long
+ * before it answered six, and a caller that has nothing to do with rubrics must
+ * keep reading the result it has always read rather than a failure list with a
+ * refusal in it on every post.
+ *
+ * `currentRubric` IS THE CALLER'S OWN `{ rubric, derived }` STATE, defaulted to
+ * "nothing, not derived" so every call written before this keeps compiling and
+ * keeps deriving. `derived` is what stops a re-upload eating a rubric somebody
+ * corrected by hand; a caller that cannot remember the flag across a page load
+ * -- which is every re-upload surface -- recovers it with
+ * `manifestRubricIsDerived(outgoing manifest, stored rubric)`.
  */
 export async function applyStagedHtmlAssignment(
 	itemId: string,
 	staged: StagedHtmlAssignment | null,
-	transports: HtmlAssignmentTransports
+	transports: HtmlAssignmentTransports,
+	currentRubric: { rubric: RubricCriterion[] | null; derived: boolean } = {
+		rubric: null,
+		derived: false
+	}
 ): Promise<HtmlApplyResult> {
-	if (!staged) return { failures: [], staged: null, revision: null };
+	// THE RUBRIC HALF OF EVERY RESULT, PRESENT ONLY WHEN THERE IS A TRANSPORT TO
+	// WRITE ONE. With no `setRubric` this function returns exactly the three
+	// fields it always returned, so a caller that has nothing to do with rubrics
+	// reads the result it has always read -- absence removing the behaviour AND
+	// the report of it, which is the same mechanism every other optional
+	// transport here uses.
+	const rubricHalf = (
+		rubric: RubricCriterion[] | null,
+		derived: boolean,
+		written: boolean
+	): Partial<HtmlApplyResult> =>
+		transports.setRubric ? { rubric, rubricDerived: derived, rubricWritten: written } : {};
+
+	if (!staged) {
+		return {
+			failures: [],
+			staged: null,
+			revision: null,
+			...rubricHalf(null, currentRubric.derived, false)
+		};
+	}
 	if (!transports.setHtmlAssignment) {
 		return {
 			failures: ['HTML assignment: uploading one is not available here'],
 			staged,
-			revision: null
+			revision: null,
+			...rubricHalf(null, currentRubric.derived, false)
 		};
 	}
 	let res: { ok: boolean; message?: string; revision?: number | null };
@@ -250,13 +342,55 @@ export async function applyStagedHtmlAssignment(
 		res = { ok: false, message: (e as Error).message || 'Save failed.' };
 	}
 	if (!res.ok) {
+		// A RUBRIC IS NEVER WRITTEN FOR A DOCUMENT THAT DID NOT LAND: it would
+		// belong to an assignment nobody can see, and the retry re-writes the
+		// document and re-decides this from scratch.
 		return {
 			failures: [`HTML assignment "${staged.filename}": ${res.message ?? 'could not be attached'}`],
 			staged,
-			revision: null
+			revision: null,
+			...rubricHalf(null, currentRubric.derived, false)
 		};
 	}
-	return { failures: [], staged: null, revision: res.revision ?? null };
+
+	const revision = res.revision ?? null;
+	if (!transports.setRubric) return { failures: [], staged: null, revision };
+
+	// THE DOCUMENT LANDED, SO ITS RUBRIC IS NOW THE ONE TO GRADE AGAINST -- and
+	// the decision about whether to write it is `stagedRubricAfterManifest`'s,
+	// which is `stagedRubricAfterSpec`'s gate over `manifestToRubric`'s rows. A
+	// rubric somebody BUILT comes back unchanged and nothing is written; a
+	// document with no criteria produces null, which `manifestRubricIssues`
+	// refuses at pick time long before anybody gets here.
+	const next = stagedRubricAfterManifest(staged.manifest, true, currentRubric);
+	if (!next.derived || !next.rubric) {
+		// Nothing of this call's to write: the rubric on the item is somebody's
+		// own, or the document carries no criteria. `rubric` is null because null
+		// means "nothing left unwritten", never "there is no rubric".
+		return {
+			failures: [],
+			staged: null,
+			revision,
+			...rubricHalf(null, next.derived, false)
+		};
+	}
+	let rubricRes: { ok: boolean; message?: string };
+	try {
+		rubricRes = await transports.setRubric(itemId, next.rubric);
+	} catch (e) {
+		rubricRes = { ok: false, message: (e as Error).message || 'Save failed.' };
+	}
+	if (!rubricRes.ok) {
+		return {
+			failures: [
+				`the rubric from "${staged.filename}": ${rubricRes.message ?? 'could not be attached'}`
+			],
+			staged: null,
+			revision,
+			...rubricHalf(next.rubric, true, false)
+		};
+	}
+	return { failures: [], staged: null, revision, ...rubricHalf(null, true, true) };
 }
 
 /**

@@ -38,11 +38,15 @@ import {
 } from '../src/lib/classroom/assignment-spec';
 import {
 	manifestCriterionId,
+	manifestRubricIsDerived,
 	manifestRubricIssues,
 	manifestRubricTotal,
 	manifestToRubric,
+	stagedRubricAfterManifest,
 	type HtmlAssignmentManifest
 } from '../src/lib/classroom/html-assignment/rubric';
+import { stagedRubricAfterSpec } from '../src/lib/classroom/composer-staging';
+import { applyStagedHtmlAssignment } from '../src/lib/classroom/html-assignment/store';
 
 // ---------------------------------------------------------------------------
 // One assignment, written twice: once as a manifest, once as a spec.
@@ -406,8 +410,10 @@ describe('contract amendment 1: header blocks, and no half points', () => {
 		// module to hold them, which WOULD have become a criterion worth nothing.
 		expect(MANIFEST.header).toHaveLength(3);
 		const rubric = manifestToRubric(MANIFEST);
-		const headerIds = MANIFEST.header.map((b) => b.id);
-		const headerFields = MANIFEST.header.map((b) => b.field);
+		// `header` is optional on the type (a document may declare none), and the
+		// assertion above is what establishes this fixture has three.
+		const headerIds = (MANIFEST.header ?? []).map((b) => b.id);
+		const headerFields = (MANIFEST.header ?? []).map((b) => b.field);
 		expect(rubric).toHaveLength(4);
 		for (const c of rubric) {
 			expect(headerIds.some((id) => c.id.includes(id))).toBe(false);
@@ -657,5 +663,351 @@ describe('manifestRubricIssues says first what the database would refuse', () =>
 		];
 		expect(kinds).toHaveLength(3);
 		expect(kinds.every((k) => k.length > 0)).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// STAGING: what the rubric becomes when a document arrives, and when a
+// corrected one arrives over the top of it.
+// ---------------------------------------------------------------------------
+
+/**
+ * THE SAME ASSIGNMENT, CORRECTED. One criterion is repointed and one `short`
+ * rewritten, which is what a re-upload actually is: the ids do not move (the
+ * contract makes them permanent) and the content does.
+ */
+const CORRECTED: HtmlAssignmentManifest = {
+	...MANIFEST,
+	modules: MANIFEST.modules.map((mod, i) =>
+		i > 0
+			? mod
+			: {
+					...mod,
+					criteria: mod.criteria.map((c, j) =>
+						j > 0
+							? c
+							: {
+									...c,
+									levels: c.levels.map((l, k) =>
+										k > 0 ? l : { ...l, short: 'Staged in order, guard fitted.' }
+									)
+								}
+					)
+				}
+	)
+};
+
+/** A rubric somebody typed: the ids are the manifest's, one criterion is not. */
+const HAND_BUILT: RubricCriterion[] = manifestToRubric(MANIFEST).map((c, i) =>
+	i === 0 ? { ...c, criterion: 'Bench setup: the way I actually grade this' } : c
+);
+
+describe('stagedRubricAfterManifest: the gate is the spec path, the rows are the manifest', () => {
+	test('a document with nothing staged yet brings its own rubric', () => {
+		const next = stagedRubricAfterManifest(MANIFEST, true, { rubric: null, derived: false });
+		expect(next.derived).toBe(true);
+		expect(next.rubric).toEqual(manifestToRubric(MANIFEST));
+		expect(next.rubric).toHaveLength(4);
+	});
+
+	test('A HAND-BUILT RUBRIC SURVIVES A RE-UPLOAD, and the control re-derives', () => {
+		// The whole point: re-pasting a corrected document must not eat what
+		// somebody typed.
+		const kept = stagedRubricAfterManifest(CORRECTED, true, {
+			rubric: HAND_BUILT,
+			derived: false
+		});
+		expect(kept.derived).toBe(false);
+		expect(kept.rubric).toEqual(HAND_BUILT);
+		expect(kept.rubric?.[0].criterion).toBe('Bench setup: the way I actually grade this');
+
+		// THE POSITIVE CONTROL, on the identical input with one flag moved: a
+		// DERIVED rubric is replaced, so "survives" above cannot be passing
+		// because the function does nothing at all.
+		const replaced = stagedRubricAfterManifest(CORRECTED, true, {
+			rubric: manifestToRubric(MANIFEST),
+			derived: true
+		});
+		expect(replaced.derived).toBe(true);
+		expect(replaced.rubric).toEqual(manifestToRubric(CORRECTED));
+		expect(replaced.rubric).not.toEqual(manifestToRubric(MANIFEST));
+		expect(replaced.rubric?.[0].levels[0].short).toBe('Staged in order, guard fitted.');
+	});
+
+	test('nowhere to write one leaves everything exactly as it was', () => {
+		// IDENTITY, not equality: the gate signals a refusal by handing the
+		// caller's own object back, and that is what tells "refused" apart from
+		// "decided" here. A DERIVED current is the case that got this wrong --
+		// re-deriving on a surface that may not write a rubric at all.
+		const built = { rubric: HAND_BUILT, derived: false };
+		expect(stagedRubricAfterManifest(MANIFEST, false, built)).toBe(built);
+		expect(stagedRubricAfterManifest(null, false, built)).toBe(built);
+		const derived = { rubric: manifestToRubric(MANIFEST), derived: true };
+		expect(stagedRubricAfterManifest(CORRECTED, false, derived)).toBe(derived);
+		// And the state this function leaves behind once a rubric has landed:
+		// derived and empty at once, which must not read as "generate one".
+		const landed = { rubric: null, derived: true };
+		expect(stagedRubricAfterManifest(CORRECTED, false, landed)).toBe(landed);
+	});
+
+	test('a document with no criteria stages NULL, never an empty rubric', () => {
+		// `classroom_set_rubric` refuses `[]` ("A rubric needs at least one
+		// criterion"), so staging one would turn a valid post into a named
+		// failure over something nobody asked for.
+		const empty: HtmlAssignmentManifest = { ...MANIFEST, modules: [] };
+		const next = stagedRubricAfterManifest(empty, true, { rubric: null, derived: false });
+		expect(next).toEqual({ rubric: null, derived: false });
+		// And removing the document clears a rubric that came from one.
+		const removed = stagedRubricAfterManifest(null, true, {
+			rubric: manifestToRubric(MANIFEST),
+			derived: true
+		});
+		expect(removed).toEqual({ rubric: null, derived: false });
+	});
+
+	test('THE DECISION AGREES WITH stagedRubricAfterSpec IN EVERY STATE', () => {
+		// The gate is called rather than copied, so this is a property of
+		// construction -- and it is asserted anyway, because the day somebody
+		// re-implements it here is the day it stops being one. Same assignment,
+		// written as a manifest and as a spec; the DECISION must match in all
+		// four states, and the ROWS must match wherever one was generated.
+		const states = [
+			{ rubric: null, derived: false },
+			{ rubric: manifestToRubric(MANIFEST), derived: true },
+			{ rubric: HAND_BUILT, derived: false },
+			{ rubric: null, derived: true }
+		];
+		let generated = 0;
+		for (const can of [true, false]) {
+			for (const current of states) {
+				const fromManifest = stagedRubricAfterManifest(MANIFEST, can, current);
+				const fromSpec = stagedRubricAfterSpec(SPEC, can, current);
+				expect(fromManifest.derived).toBe(fromSpec.derived);
+				expect(fromManifest.rubric).toEqual(fromSpec.rubric);
+				// GENERATED, not merely `derived`: the gate hands the caller's own
+				// state back when it refuses, flag included, so counting the flag
+				// would count four refusals as work done.
+				if (fromManifest.rubric && fromManifest.rubric !== current.rubric) generated += 1;
+			}
+		}
+		// The sweep has cases, and both outcomes are in it: three of the eight
+		// pairs really generated a rubric and five really refused to.
+		expect(states).toHaveLength(4);
+		expect(generated).toBe(3);
+	});
+
+	test('THE HOSTILE PREVIOUS: a positional id cannot survive into a manifest rubric', () => {
+		// `rubricFromSpec` keeps an id already in play for a slot when it is one
+		// the generator COULD have produced -- including the positional
+		// `<module>-r<n>` form. A manifest never generates that form, so passing
+		// its `previous` through could only ever DEVIATE from
+		// `manifestCriterionId`, which is the join key the whole module is
+		// written around. This is why the decision comes from the spec path and
+		// the rows come from `manifestToRubric`.
+		const positional: RubricCriterion[] = manifestToRubric(MANIFEST).map((c, i) =>
+			i === 0 ? { ...c, id: 'setup-r1' } : c
+		);
+		const next = stagedRubricAfterManifest(MANIFEST, true, {
+			rubric: positional,
+			derived: true
+		});
+		expect(next.rubric?.[0].id).toBe(manifestCriterionId('setup', 'quality'));
+		expect(next.rubric?.map((c) => c.id)).toEqual(
+			manifestToRubric(MANIFEST).map((c) => c.id)
+		);
+
+		// THE POSITIVE CONTROL, and it is what makes the assertion above mean
+		// something: the same hostile previous handed to `rubricFromSpec` with
+		// the spec REALLY DOES keep `setup-r1`. The deviation is real, measured
+		// here, not a hypothetical this guard was written against.
+		expect(rubricFromSpec(SPEC, positional)[0].id).toBe('setup-r1');
+	});
+});
+
+describe('manifestRubricIsDerived: recovering the flag a re-upload cannot remember', () => {
+	test('the rubric that manifest produced is derived; one field of drift is not', () => {
+		expect(manifestRubricIsDerived(MANIFEST, manifestToRubric(MANIFEST))).toBe(true);
+		expect(manifestRubricIsDerived(MANIFEST, HAND_BUILT)).toBe(false);
+		// A `short` rewritten by hand is exactly the edit `derived` exists to
+		// protect, and it is one string deep inside a level.
+		const tweaked = manifestToRubric(MANIFEST).map((c, i) =>
+			i === 0
+				? { ...c, levels: c.levels.map((l, j) => (j === 0 ? { ...l, short: 'Mine.' } : l)) }
+				: c
+		);
+		expect(manifestRubricIsDerived(MANIFEST, tweaked)).toBe(false);
+	});
+
+	test('THE STORED SHAPE IS STILL DERIVED: reordered keys and a stamped flag', () => {
+		// What comes back out of `classroom_rubrics` has been through
+		// `_classroom_normalize_rubric` (which stamps `incomplete`) and through
+		// `jsonb` (which sorts an object's keys and does not keep insertion
+		// order -- measured in the db file: `points,label,descriptor,short` goes
+		// in and `label,short,points,descriptor` comes out). A comparison that
+		// cannot see past either answers NO for every stored rubric, which reads
+		// every re-upload as hand-edited and leaves every rubric stale.
+		const asStored = manifestToRubric(MANIFEST).map((c) => ({
+			incomplete: false,
+			levels: c.levels.map((l) => ({
+				label: l.label,
+				short: l.short,
+				points: l.points,
+				descriptor: l.descriptor
+			})),
+			points: c.points,
+			criterion: c.criterion,
+			id: c.id
+		})) as unknown as RubricCriterion[];
+		expect(JSON.stringify(asStored)).not.toBe(JSON.stringify(manifestToRubric(MANIFEST)));
+		expect(manifestRubricIsDerived(MANIFEST, asStored)).toBe(true);
+
+		// THE CONTROL: the same stored shape with one authored field moved is
+		// NOT derived, so the tolerance above is about key order and stamped
+		// fields only and has not been widened into ignoring an edit.
+		const edited = asStored.map((c, i) =>
+			i === 0 ? { ...c, criterion: 'Bench setup: mine' } : c
+		);
+		expect(manifestRubricIsDerived(MANIFEST, edited)).toBe(false);
+	});
+
+	test('it asks about the OUTGOING document, and answers no when it cannot know', () => {
+		// The incoming one would answer "no" for every real re-upload -- that is
+		// what a re-upload is -- and every re-upload would then read as
+		// hand-edited and refuse to update the rubric at all.
+		expect(manifestRubricIsDerived(MANIFEST, manifestToRubric(CORRECTED))).toBe(false);
+		expect(manifestRubricIsDerived(CORRECTED, manifestToRubric(CORRECTED))).toBe(true);
+		// Nothing to compare against fails towards leaving work alone.
+		expect(manifestRubricIsDerived(null, manifestToRubric(MANIFEST))).toBe(false);
+		expect(manifestRubricIsDerived(MANIFEST, null)).toBe(false);
+		expect(manifestRubricIsDerived(MANIFEST, [])).toBe(false);
+	});
+});
+
+describe('applyStagedHtmlAssignment writes the rubric beside the document', () => {
+	const staged = { filename: 'blade-log.html', html: '<!doctype html>', manifest: MANIFEST };
+	const ok = async () => ({ ok: true as const });
+
+	test('a document that lands takes its rubric with it', async () => {
+		const wrote: { itemId: string; criteria: RubricCriterion[] | null }[] = [];
+		const res = await applyStagedHtmlAssignment('item-1', staged, {
+			setHtmlAssignment: async () => ({ ok: true, revision: 3 }),
+			setRubric: async (itemId, criteria) => {
+				wrote.push({ itemId, criteria });
+				return { ok: true };
+			}
+		});
+		expect(res.failures).toEqual([]);
+		expect(res.staged).toBeNull();
+		expect(res.revision).toBe(3);
+		expect(res.rubricWritten).toBe(true);
+		expect(res.rubric).toBeNull();
+		expect(wrote).toHaveLength(1);
+		expect(wrote[0].itemId).toBe('item-1');
+		expect(wrote[0].criteria).toEqual(manifestToRubric(MANIFEST));
+	});
+
+	test('A DOCUMENT THAT DID NOT LAND WRITES NO RUBRIC', async () => {
+		// The rubric would belong to an assignment nobody can see, and the retry
+		// re-writes the document and re-decides this from scratch.
+		let called = 0;
+		const res = await applyStagedHtmlAssignment('item-1', staged, {
+			setHtmlAssignment: async () => ({ ok: false, message: 'Refused.' }),
+			setRubric: async () => {
+				called += 1;
+				return { ok: true };
+			}
+		});
+		expect(called).toBe(0);
+		expect(res.rubricWritten).toBe(false);
+		expect(res.staged).toBe(staged);
+		expect(res.failures[0]).toContain('blade-log.html');
+	});
+
+	test('a rubric that did not land comes BACK, because retrying the document cannot fix it', async () => {
+		const res = await applyStagedHtmlAssignment('item-1', staged, {
+			setHtmlAssignment: async () => ({ ok: true, revision: 1 }),
+			setRubric: async () => ({ ok: false, message: 'A rubric needs at least one criterion.' })
+		});
+		// The document landed, so it is NOT staged again -- re-applying it would
+		// mint a second revision of a document nobody changed.
+		expect(res.staged).toBeNull();
+		expect(res.rubricWritten).toBe(false);
+		expect(res.rubric).toEqual(manifestToRubric(MANIFEST));
+		expect(res.rubricDerived).toBe(true);
+		expect(res.failures).toHaveLength(1);
+		expect(res.failures[0]).toContain('A rubric needs at least one criterion');
+	});
+
+	test('NO setRubric TRANSPORT REMOVES THE WRITE AND EVERY TRACE OF IT', async () => {
+		// Absence is the mechanism, exactly as it is for every other optional
+		// transport in this codebase: a caller with nothing to do with rubrics
+		// gets back the three fields this function has always returned, with no
+		// rubric key at all -- not `rubric: null`, which would mean "nothing left
+		// unwritten" and be a claim about a decision that was never made.
+		const res = await applyStagedHtmlAssignment('item-1', staged, {
+			setHtmlAssignment: async () => ({ ok: true, revision: 1 })
+		});
+		expect(res).toEqual({ failures: [], staged: null, revision: 1 });
+		expect('rubric' in res).toBe(false);
+		expect('rubricWritten' in res).toBe(false);
+
+		// THE POSITIVE CONTROL: the same call WITH a transport really does write
+		// one, so the absence above is the transport gating it and not this input
+		// having nothing to write.
+		let called = 0;
+		const control = await applyStagedHtmlAssignment('item-1', staged, {
+			setHtmlAssignment: async () => ({ ok: true, revision: 1 }),
+			setRubric: async () => {
+				called += 1;
+				return ok();
+			}
+		});
+		expect(called).toBe(1);
+		expect(control.rubricWritten).toBe(true);
+	});
+
+	test('a hand-built rubric is left alone, and nothing is written', async () => {
+		let called = 0;
+		const res = await applyStagedHtmlAssignment(
+			'item-1',
+			staged,
+			{
+				setHtmlAssignment: async () => ({ ok: true, revision: 1 }),
+				setRubric: async () => {
+					called += 1;
+					return ok();
+				}
+			},
+			{ rubric: HAND_BUILT, derived: false }
+		);
+		expect(called).toBe(0);
+		expect(res.failures).toEqual([]);
+		expect(res.rubricWritten).toBe(false);
+		expect(res.rubricDerived).toBe(false);
+		// Null means "nothing left unwritten", never "there is no rubric".
+		expect(res.rubric).toBeNull();
+	});
+
+	test('nothing staged writes nothing at all', async () => {
+		let called = 0;
+		const res = await applyStagedHtmlAssignment('item-1', null, {
+			setHtmlAssignment: async () => {
+				called += 1;
+				return { ok: true };
+			},
+			setRubric: async () => {
+				called += 1;
+				return ok();
+			}
+		});
+		expect(called).toBe(0);
+		expect(res).toEqual({
+			failures: [],
+			staged: null,
+			revision: null,
+			rubric: null,
+			rubricDerived: false,
+			rubricWritten: false
+		});
 	});
 });

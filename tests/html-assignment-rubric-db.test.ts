@@ -28,10 +28,12 @@
 import { beforeAll, afterAll, describe, expect, test } from 'vitest';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
 import {
+	manifestRubricIsDerived,
 	manifestRubricIssues,
 	manifestToRubric,
 	type HtmlAssignmentManifest
 } from '../src/lib/classroom/html-assignment/rubric';
+import { applyStagedHtmlAssignment } from '../src/lib/classroom/html-assignment/store';
 import type { RubricCriterion } from '../src/lib/classroom/assignment-spec';
 
 const MIGRATIONS = [
@@ -386,5 +388,144 @@ describe('the id collision, from the normalizer itself', () => {
 		);
 		expect(message).toContain('needs an id (letters, digits, - and _ only)');
 		expect(manifestRubricIssues(spaced).some((i) => i.includes('"set up-quality"'))).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// THE RE-UPLOAD, against the real `classroom_set_rubric`.
+//
+// A ported assignment's rubric is a pure function of its manifest, so a
+// corrected document has to REWRITE it -- and must not rewrite one an
+// instructor corrected by hand. Both halves fail silently: a stale rubric
+// stores fine, renders fine, and is wrong only on the grading console, and an
+// eaten one is not recoverable from anywhere.
+//
+// The DOCUMENT write is stubbed here and the RUBRIC write is real. That is the
+// half this file answers -- `classroom_set_html_assignment` and its own
+// revisions are 0195's, tested in `tests/db/html-assignment-manifest.test.ts`
+// -- and the claim under test is what ends up in `classroom_rubrics` after a
+// second upload.
+// ---------------------------------------------------------------------------
+
+/** The same assignment, corrected: one criterion repointed, one short rewritten. */
+const CORRECTED: HtmlAssignmentManifest = {
+	...MANIFEST,
+	modules: MANIFEST.modules.map((mod, i) =>
+		i > 0
+			? mod
+			: {
+					...mod,
+					criteria: mod.criteria.map((c, j) =>
+						j > 0
+							? c
+							: { ...c, text: 'Bench is set up as the revised procedure specifies' }
+					)
+				}
+	)
+};
+
+function transportsFor(userId: string, ok = true) {
+	return {
+		setHtmlAssignment: async () => ({ ok, revision: 2 }),
+		setRubric: async (itemId: string, criteria: unknown) => {
+			try {
+				await setRubric(userId, itemId, criteria);
+				return { ok: true };
+			} catch (error) {
+				return { ok: false, message: (error as { message?: string }).message ?? 'failed' };
+			}
+		}
+	};
+}
+
+describe('a re-upload rewrites the rubric, unless somebody edited it', () => {
+	let reItem: string;
+
+	beforeAll(async () => {
+		reItem = (
+			await rpc<{ item_id: string }>(
+				teacherA.id,
+				`public.classroom_create_item('assignment', $1::uuid[], $2, 'Log the build.', 20, null, null, true, '[]'::jsonb, false)`,
+				[[p1], 'Blade Design Log, ported']
+			)
+		).item_id;
+	});
+
+	test('the import writes the manifest rubric through the real RPC', async () => {
+		const res = await applyStagedHtmlAssignment(
+			reItem,
+			{ filename: 'blade.html', html: '<!doctype html>', manifest: MANIFEST },
+			transportsFor(teacherA.id)
+		);
+		expect(res.failures).toEqual([]);
+		expect(res.rubricWritten).toBe(true);
+		const stored = await readCriteria(reItem);
+		expect(stored).toHaveLength(4);
+		// `_classroom_normalize_rubric` stamps `points` and `incomplete` itself,
+		// so the comparison that means something is the criteria and their levels.
+		expect(stored.map((c) => c.id)).toEqual(manifestToRubric(MANIFEST).map((c) => c.id));
+		expect(stored.map((c) => c.criterion)).toEqual(
+			manifestToRubric(MANIFEST).map((c) => c.criterion)
+		);
+		// And the flag a re-upload has to recover is recoverable FROM THE COLUMN.
+		expect(manifestRubricIsDerived(MANIFEST, stored)).toBe(true);
+	});
+
+	test('a corrected document replaces it, criterion text and all', async () => {
+		const stored = await readCriteria(reItem);
+		const res = await applyStagedHtmlAssignment(
+			reItem,
+			{ filename: 'blade-v2.html', html: '<!doctype html>', manifest: CORRECTED },
+			transportsFor(teacherA.id),
+			{ rubric: stored, derived: manifestRubricIsDerived(MANIFEST, stored) }
+		);
+		expect(res.failures).toEqual([]);
+		expect(res.rubricWritten).toBe(true);
+		const after = await readCriteria(reItem);
+		expect(after[0].criterion).toBe('Bench setup: Bench is set up as the revised procedure specifies');
+		expect(after.map((c) => c.id)).toEqual(manifestToRubric(CORRECTED).map((c) => c.id));
+	});
+
+	test('A HAND-EDITED RUBRIC SURVIVES THE NEXT UPLOAD, and the column proves it', async () => {
+		// An instructor rewrites one criterion in the builder. This is the write
+		// the whole `derived` flag exists to protect, and here it is the real
+		// `classroom_set_rubric` doing it.
+		const mine = manifestToRubric(CORRECTED).map((c, i) =>
+			i === 0 ? { ...c, criterion: 'Bench setup: the way I actually grade this' } : c
+		);
+		await setRubric(teacherA.id, reItem, mine);
+		const stored = await readCriteria(reItem);
+		expect(manifestRubricIsDerived(CORRECTED, stored)).toBe(false);
+
+		let called = 0;
+		const res = await applyStagedHtmlAssignment(
+			reItem,
+			{ filename: 'blade-v3.html', html: '<!doctype html>', manifest: MANIFEST },
+			{
+				setHtmlAssignment: async () => ({ ok: true, revision: 3 }),
+				setRubric: async () => {
+					called += 1;
+					return { ok: true };
+				}
+			},
+			{ rubric: stored, derived: manifestRubricIsDerived(CORRECTED, stored) }
+		);
+		expect(called).toBe(0);
+		expect(res.rubricWritten).toBe(false);
+		const after = await readCriteria(reItem);
+		expect(after[0].criterion).toBe('Bench setup: the way I actually grade this');
+
+		// THE POSITIVE CONTROL, on the same item and the same document: told the
+		// rubric is derived, the identical call DOES rewrite it. So "survives"
+		// above is the flag working, not the write path being inert.
+		const control = await applyStagedHtmlAssignment(
+			reItem,
+			{ filename: 'blade-v3.html', html: '<!doctype html>', manifest: MANIFEST },
+			transportsFor(teacherA.id),
+			{ rubric: stored, derived: true }
+		);
+		expect(control.rubricWritten).toBe(true);
+		const rewritten = await readCriteria(reItem);
+		expect(rewritten[0].criterion).toBe('Bench setup: Bench is set up as specified');
 	});
 });

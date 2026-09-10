@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Avatar from '$lib/Avatar.svelte';
 	import { rosterSubject } from '$lib/avatars';
-	import { tick, untrack } from 'svelte';
+	import { tick, untrack, type Snippet } from 'svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
 	import { SaveState, type SaveOutcome } from '$lib/save-state.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
@@ -90,10 +90,24 @@
 		rubric = null,
 		transports,
 		basePath = '/classroom',
-		bulk = null
+		bulk = null,
+		htmlWork = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
+		/**
+		 * NULL IS A PORTED HTML ASSIGNMENT'S NORMAL STATE, NOT A DEGRADED ONE
+		 * (0195, schema 3). A ported document has no spec and never will -- the
+		 * document IS the assignment -- so the mounting surface hands this
+		 * `null`, and everything that reads it here is already written for that:
+		 * the unmet list is empty (there is no spec to check against), the
+		 * approval gate does not render, the export marks completeness "No spec",
+		 * and `levelShort` answers from RUNG ONE, its own stored `short`, which
+		 * the manifest contract makes REQUIRED and non-empty on every level for
+		 * exactly this reason. Rung two -- the spec paired on the descriptor --
+		 * is never reached and never needed. What DOES change is the work column:
+		 * see `htmlWork`.
+		 */
 		spec: AssignmentSpec | null;
 		rubric: RubricCriterion[] | null;
 		transports: AssignmentTeacherTransports;
@@ -111,6 +125,26 @@
 		 * not a mode.
 		 */
 		bulk?: BulkGradingTransports | null;
+		/**
+		 * THE WORK COLUMN FOR AN ASSIGNMENT WITH NO SPEC, AND ABSENCE IS THE
+		 * MECHANISM (0195, schema 3).
+		 *
+		 * With a spec, this column renders `SpecRenderer` read-only: the student
+		 * view, through the SAME render path, which is the repo's rule about an
+		 * instructor's view of student-facing content. A ported HTML assignment
+		 * has no spec to render, and the honest equivalent is the DOCUMENT
+		 * itself, read-only, with the student's answers in it -- again the same
+		 * path the student had. This console does not mount that frame: which
+		 * document, which revision and whether it may be framed at all are the
+		 * mounting surface's decisions, so the surface hands the finished view in
+		 * and this places it exactly where `SpecRenderer` would have gone.
+		 *
+		 * Omitted -- which is every spec-engine assignment -- there is no second
+		 * work view to fall out of date, and the column reads exactly as it did.
+		 * A snippet rather than a flag because a flag could only ever produce a
+		 * placeholder saying what the grader is not being shown.
+		 */
+		htmlWork?: Snippet<[StudentWork]> | null;
 	} = $props();
 
 	let data = $state<GradingData | null>(null);
@@ -1150,7 +1184,7 @@
 			<section class="card warn-card">
 				<p class="warn-line">
 					This assignment has no rubric yet, so nothing can be scored. Build one on the
-					assignment page (or generate it from the spec), then come back.
+					assignment page{#if spec} (or generate it from the spec){/if}, then come back.
 				</p>
 			</section>
 		{/if}
@@ -1660,6 +1694,16 @@
 										readonly
 										approved={gateApproved(spec, selected.approvals)}
 									/>
+								{/key}
+							{:else if htmlWork}
+								<!--
+									NO SPEC, AND A DOCUMENT INSTEAD. Keyed on the student for
+									the same reason the spec render is: moving between two
+									students must not hand the second one the first one's view.
+								-->
+								<h3 class="section-label responses-label">Responses</h3>
+								{#key selected.email}
+									{@render htmlWork(selected)}
 								{/key}
 							{:else if !selected.files.length}
 								<p class="note card">Nothing handed in yet.</p>
