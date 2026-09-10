@@ -1,0 +1,171 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "unit": 4,
+    "theme": "idea-green",
+    "title": "IDEA-Blade 03 - CAD Design Package",
+    "course": "IDEA100",
+    "dueDate": "2026-09-15",
+    "totalPoints": 30,
+    "assignmentId": "idea100-blade-03",
+    "buildVersion": "v1",
+    "headerFields": [
+      "studentName",
+      "date"
+    ],
+    "gradingCategory": "IDEA-Blade"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "cad-assembly",
+      "title": "Team Assembly - Pack and Go Zip",
+      "blocks": [
+        {
+          "id": "cad-assembly-zip",
+          "type": "imageZone",
+          "points": 10,
+          "captions": false,
+          "minImages": 1
+        }
+      ],
+      "points": 10,
+      "rubric": [
+        {
+          "id": "assembly-zip",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Opens complete, nothing missing",
+              "points": 10,
+              "descriptor": "A Pack and Go zip that opens with no missing references and holds the body, the blade and the three standard parts, with the standard parts unedited."
+            },
+            {
+              "label": "Proficient",
+              "short": "Opens, a part missing",
+              "points": 7,
+              "descriptor": "The zip opens, but a part is missing, a reference is broken, or a standard part has been edited."
+            },
+            {
+              "label": "Developing",
+              "short": "Not a Pack and Go zip",
+              "points": 4,
+              "descriptor": "A single file or loose files are uploaded instead of a Pack and Go zip, or the zip does not open."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing uploaded",
+              "points": 0,
+              "descriptor": "No assembly file is uploaded."
+            }
+          ],
+          "criterion": "Team assembly"
+        }
+      ],
+      "aiLevel": 3
+    },
+    {
+      "id": "cad-my-part",
+      "title": "My Part - SolidWorks Files",
+      "blocks": [
+        {
+          "id": "cad-my-part-files",
+          "type": "imageZone",
+          "points": 15,
+          "captions": false,
+          "minImages": 1
+        }
+      ],
+      "points": 15,
+      "rubric": [
+        {
+          "id": "my-part-files",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Owned part, on template, material set",
+              "points": 15,
+              "descriptor": "The .SLDPRT file for every part this student's role owns is uploaded, each is built on the template's construction sketch, and each has a material assigned."
+            },
+            {
+              "label": "Proficient",
+              "short": "Part present, material or template missing",
+              "points": 10,
+              "descriptor": "The owned part is uploaded, but it has no material assigned or is not built on the template's construction sketch."
+            },
+            {
+              "label": "Developing",
+              "short": "Wrong part or wrong file",
+              "points": 5,
+              "descriptor": "A file is uploaded, but it is not a part this student's role owns, or it is not a .SLDPRT."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing uploaded",
+              "points": 0,
+              "descriptor": "No part file is uploaded."
+            }
+          ],
+          "criterion": "My part"
+        }
+      ],
+      "aiLevel": 3
+    },
+    {
+      "id": "cad-mfg",
+      "title": "Manufacturing Files - .3mf or .dxf",
+      "blocks": [
+        {
+          "id": "cad-mfg-files",
+          "type": "imageZone",
+          "points": 5,
+          "captions": false,
+          "minImages": 1
+        },
+        {
+          "type": "instructions",
+          "content": "### Sources\n\n- IDEA-Blade Rulebook v3.0, sections 01 Design Specifications and 05 Inspection.\n- IDEA100 Syllabus, Fall 2026, Project 4 IDEA-Blade."
+        }
+      ],
+      "points": 5,
+      "rubric": [
+        {
+          "id": "mfg-files",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Right type, matches the part",
+              "points": 5,
+              "descriptor": "A .3mf for each printed part or a .dxf for each cut part this student owns, matching the part file uploaded above."
+            },
+            {
+              "label": "Proficient",
+              "short": "Right type, does not match",
+              "points": 3,
+              "descriptor": "The file type is right for the process, but it does not match the current part file."
+            },
+            {
+              "label": "Developing",
+              "short": "Wrong file type",
+              "points": 1,
+              "descriptor": "A file is uploaded, but it is the wrong type for the process."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing uploaded",
+              "points": 0,
+              "descriptor": "No manufacturing file is uploaded."
+            }
+          ],
+          "criterion": "Manufacturing file"
+        }
+      ],
+      "aiLevel": 3
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
