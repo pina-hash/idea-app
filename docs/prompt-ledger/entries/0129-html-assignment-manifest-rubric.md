@@ -14,7 +14,7 @@
   `assignment-spec.ts` or `transports.ts`.
 - Migration permitted: no. Claims: none.
 - Lands on: `integration`. Not `main`.
-- Status: issued
+- Status: pushed
 - Branch: `claude/html-assignment-manifest-contract-r8gphu`, branched from
   `origin/integration` at `fd8e136e`.
 - Notes: ONE JOB. `manifestToRubric(manifest)` produces exactly what
