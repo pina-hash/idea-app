@@ -45,7 +45,8 @@ import {
 	NOTEBOOK_THEME_KEY,
 	notebookThemeAttrFor,
 	readStoredNotebookTheme,
-	type NotebookTheme
+	type NotebookTheme,
+	type SiteThemeAttr
 } from './notebook-theme';
 
 export {
@@ -56,10 +57,12 @@ export {
 	NOTEBOOK_THEME_NOTES,
 	NOTEBOOK_THEME_SHORT,
 	notebookDefaultNote,
+	notebookPickerName,
 	notebookPlate,
 	notebookThemeAttrFor,
 	readStoredNotebookTheme,
-	type NotebookTheme
+	type NotebookTheme,
+	type SiteThemeAttr
 } from './notebook-theme';
 
 function read(): NotebookTheme {
@@ -106,4 +109,60 @@ export function setNotebookTheme(next: NotebookTheme) {
 	} catch {
 		// A blocked or full store costs the persistence, never the choice.
 	}
+}
+
+/* ==========================================================================
+   THE SITE THEME, AS THE DOCUMENT CARRIES IT
+   ========================================================================== */
+
+/**
+ * `<html data-theme>`, followed rather than asked for. `null` until an
+ * observer has read it (the server render and the first frame), `undefined`
+ * once read and absent, which is what the default IDEA palette is.
+ *
+ * OFF THE DOCUMENT, NEVER OFF `$lib/theme.svelte.ts`. That store is the
+ * PREFERENCE; whether it is APPLIED is `ThemeRoot`'s session gate, and the
+ * cascade paints from the attribute. Reading the store here would put a second
+ * copy of that gate in this file, and `notebook-theme.ts`'s own header carries
+ * the measurement of the two disagreeing.
+ */
+let siteAttr = $state<string | null | undefined>(null);
+
+export function siteThemeOnDocument(): string | null | undefined {
+	return siteAttr;
+}
+
+/**
+ * Start following the attribute; returns the teardown, so a caller is a single
+ * effect whose body is a call to this and whose cleanup is what it returns.
+ * (Spelled out rather than written as code: `tests/classroom-composer-effect-
+ * reactivity.test.ts` has a scope tripwire that reddens on the LITERAL rune in
+ * any `.svelte.ts` module, deliberately, because such a module running an
+ * effect is outside its sweep. This file runs none, and a comment must not be
+ * able to say otherwise.)
+ *
+ * IT WRITES ONE PIECE OF STATE AND READS NONE, which is what makes it safe to
+ * call straight from an effect: the effect takes no dependency on `siteAttr`,
+ * so the write cannot re-trigger the effect that made it (the
+ * `effect_update_depth_exceeded` shape). The picker READS the value through
+ * `siteThemeOnDocument()` in a `$derived`, which is a different consumer.
+ *
+ * A second caller shares the state and gets its own observer, so two pickers
+ * on one page -- the feed and the console never mount together, but a harness
+ * can -- neither fight nor tear each other down.
+ *
+ * NO OBSERVER, NO CRASH: on the server, and in any environment without
+ * `MutationObserver`, this is a no-op returning a no-op and the value stays
+ * `null`, which `notebookPlate` reads as "no site theme".
+ */
+export function watchSiteThemeOnDocument(): () => void {
+	if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return () => {};
+	const el = document.documentElement;
+	const readAttr = () => {
+		siteAttr = el.getAttribute('data-theme') ?? undefined;
+	};
+	readAttr();
+	const mo = new MutationObserver(readAttr);
+	mo.observe(el, { attributes: true, attributeFilter: ['data-theme'] });
+	return () => mo.disconnect();
 }

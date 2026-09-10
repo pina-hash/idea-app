@@ -58,6 +58,15 @@
 	<NotebookNoAccountNotice displayName={data.student.display_name} email={data.student.email} />
 {/if}
 
+<!--
+	`ownsPage={false}`: NOT THE WHOLE PAGE. A back strip sits above this room and
+	the staff Deleted section sits below it, so the application frame `masthead`
+	would otherwise imply is wrong here. Measured with the frame on at 1440:
+	`.nb-root` was a 900px viewport box starting 127px down the page, inside a
+	1463px document, with the Deleted section at y=1051 reachable only by
+	scrolling past a full-viewport frame whose panes were scrolling too. Page
+	flow is the right shape for a surface with chrome on both sides of it.
+-->
 <NotebookView
 	entries={data.entries}
 	sessions={data.sessions}
@@ -65,6 +74,7 @@
 	activity={data.activity}
 	sectionLabel={data.sectionLabel}
 	canReview={false}
+	ownsPage={false}
 	uploadReady={false}
 	readOnly
 	homeHref="/notebook/review"
