@@ -109,7 +109,11 @@
   `src/lib/legacy/index.ts` is not this bundle's file, so it was left alone.
 
   **MEASURED.** svelte-check 0 errors / 37 warnings / 31-5-1, exactly baseline.
-  Full suite: see the report. The template is 1575 lines against a target of
+  Full suite **368 files / 7315 tests, all passed**, against a baseline of
+  368 / 7314. The one extra test is not a new file: `standards-version-header`
+  runs `it.each` over every document in `docs/standards/` carrying a version
+  header, so registering `IDEA_HTML_ASSIGNMENT_TEMPLATE.md` adds exactly one
+  case to that sweep (21 to 22 in the file). The template is 1575 lines against a target of
   about 1200; the overrun is the verbatim CSS (459 lines) plus the comments the
   template exists to carry, and compressing the CSS would have made it stop
   matching the assignments it was copied from.
