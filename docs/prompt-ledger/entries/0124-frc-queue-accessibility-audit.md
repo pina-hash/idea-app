@@ -14,7 +14,7 @@
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0192
 - Lands on: `integration` only. `main` is ledger 0123's, and this lane does not
   merge there.
-- Status: issued
+- Status: pushed
 - Branch: `claude/frc-queue-accessibility-audit-bk0ch8`, from
   `origin/integration` at `21b0801d`, because two of the three items exist only
   there.
