@@ -93,8 +93,21 @@ const DENSITY_G_CM3 = 2.7;
 
 /** Comfortably under the 30s default: the run the board holds. */
 const SUB_FLOOR_MS = 4_312;
-/** Comfortably over it: the run the board ranks. */
+/** Comfortably over it: the run the board ranks. Ben's -- the faster of the
+ *  two honest runs, so he holds rank 1 regardless of insertion order. */
 const HONEST_MS = 187_004;
+/**
+ * Cleo's honest run. Distinctly slower than Ben's `HONEST_MS`, and the gap
+ * (nearly six seconds) is deliberate: `runFor` backdates `started_at` in one
+ * statement and `gauntlet_macro_submit` computes `elapsed_ms` from `now()` in
+ * a later one, so the stored metric is `elapsedMs + drift` with an
+ * independent drift per call. Two equal nominal times therefore land as two
+ * unpredictably different stored ones, and the ranking that decides Ben's
+ * seat 1 depends on the ORDER of those two numbers, not on a tiebreak this
+ * fixture cannot make deterministic. The gap must outlast any plausible
+ * drift, not merely the drift measured on one quiet machine.
+ */
+const CLEO_HONEST_MS = 192_881;
 
 let db: TestDb;
 let ana: SeededUser;   // sub-floor only
@@ -141,7 +154,7 @@ beforeAll(async () => {
 	// field a hand-written row would get wrong.
 	await runFor(ana, SUB_FLOOR_MS);
 	await runFor(ben, HONEST_MS);
-	await runFor(cleo, HONEST_MS);
+	await runFor(cleo, CLEO_HONEST_MS);
 	await runFor(cleo, SUB_FLOOR_MS);
 }, 300_000);
 
@@ -332,7 +345,7 @@ describe('0194: a sub-floor run reaches the review console', () => {
 		expect(cleos[0].rank_state).toBe('ranked');
 		expect(cleos[0].rank).not.toBeNull();
 		// Her HONEST time, not her 4.3-second one.
-		expect(Number(cleos[0].score_metric)).toBeCloseTo(HONEST_MS / 1000, 1);
+		expect(Number(cleos[0].score_metric)).toBeCloseTo(CLEO_HONEST_MS / 1000, 1);
 	});
 
 	it('keeps a held run out of the published per-drawing record', async () => {
