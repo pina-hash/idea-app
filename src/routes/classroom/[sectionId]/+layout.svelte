@@ -21,6 +21,7 @@
 		createReferenceTransports,
 		createTeacherEngineTransports,
 		createHallPassTransports,
+		createHtmlAssignmentTransports,
 		createLayoutTransports,
 		createSongQueueTransports,
 		createUnitTransports,
@@ -102,6 +103,34 @@
 	// svelte-ignore state_referenced_locally
 	const layoutTransports = createLayoutTransports(data.supabase);
 	const liveLayoutTransports = $derived(data.layoutReady ? layoutTransports : null);
+
+	/**
+	 * THE PORTED-DOCUMENT IMPORT (0195/0197), AND THE ADMIN GATE IS THE ABSENCE.
+	 *
+	 * Upload is admin-only for the first season -- a recorded decision, not a
+	 * placeholder -- and `classroom_set_html_assignment` raises on `is_admin()`
+	 * inside itself, so the database is the boundary here as everywhere else.
+	 * What this decides is only whether a CONTROL is offered, and it decides it
+	 * the way every other optional transport on this form decides its own: a
+	 * non-admin is handed NULL and the whole panel is structurally absent.
+	 *
+	 * SO A NON-ADMIN NEVER READS THE REFUSAL EITHER. `ContentComposer` renders
+	 * `HTML_ASSIGNMENT_ADMIN_ONLY` only where a caller deliberately hands the
+	 * transport to somebody who may not use it -- a mount that wants to explain
+	 * the rule. This one does not: a teacher who has not been told the control
+	 * exists should not be shown a sentence about being refused it. Both props
+	 * therefore read the same flag, which is what keeps the two from drifting
+	 * into the one combination that renders a refusal nobody asked for.
+	 *
+	 * `navIsAdmin` COMES FROM `/classroom`'s OWN LAYOUT LOAD, which already
+	 * calls `is_admin()` once for the switcher; layout data merges down, so this
+	 * costs no second round trip and cannot disagree with the nav about who is
+	 * an admin.
+	 */
+	// svelte-ignore state_referenced_locally
+	const htmlAssignmentTransports = createHtmlAssignmentTransports(data.supabase);
+	const isAdmin = $derived(data.navIsAdmin === true);
+	const liveHtmlAssignmentTransports = $derived(isAdmin ? htmlAssignmentTransports : null);
 
 	/**
 	 * THE ONE CLOCK ON THIS SURFACE.
@@ -424,6 +453,8 @@
 			instructorAttachmentsEnabled={data.instructorAttachmentsEnabled}
 			checkInTransports={liveCheckInTransports}
 			layoutTransports={liveLayoutTransports}
+			htmlAssignmentTransports={liveHtmlAssignmentTransports}
+			htmlAssignmentAdmin={isAdmin}
 			screen
 			onsaved={composerSaved}
 			ondirtychange={(d) => (composerDirty = d)}

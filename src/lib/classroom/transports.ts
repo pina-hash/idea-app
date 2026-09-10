@@ -2338,6 +2338,7 @@ import {
 	HTML_MANIFEST_SCHEMA_VERSION,
 	type HtmlAssignmentManifest
 } from '$lib/classroom/html-assignment/manifest';
+import type { HtmlAssignmentTransports } from '$lib/classroom/html-assignment/store';
 
 /**
  * The stored document's HANDLE and MANIFEST for one item.
@@ -2366,8 +2367,16 @@ export interface HtmlAssignmentRead {
  * field map be built from this at all", which is what separates a stored
  * manifest from a null column and from a deployment answering something else
  * entirely.
+ *
+ * EXPORTED BECAUSE THE ITEM PAGE ASKS THE SAME QUESTION. `HtmlAssignmentData`
+ * carries its manifest as `unknown` -- the load stores what the column held and
+ * judges none of it -- so a surface building an answer CONTROLLER out of it has
+ * to narrow first, and the alternative to reusing this is a second structural
+ * check in a route. Failing it hands down no controller, which `ItemDetail`
+ * already renders as a read-only document: fail-closed, and the same answer a
+ * deployment with no 0195 gets.
  */
-function htmlManifestShaped(value: unknown): value is HtmlAssignmentManifest {
+export function htmlManifestShaped(value: unknown): value is HtmlAssignmentManifest {
 	if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
 	const m = value as Record<string, unknown>;
 	return (
@@ -2437,5 +2446,57 @@ export function createHtmlAnswerTransports(supabase: SupabaseClient): HxAnswerTr
 		uploadSubmissionFile: engine.uploadSubmissionFile,
 		deleteSubmissionFile: engine.deleteSubmissionFile,
 		setFileCaption: engine.setFileCaption
+	};
+}
+
+/**
+ * THE WRITE SIDE OF A PORTED DOCUMENT: what `ContentComposer`'s import panel
+ * hands `applyStagedHtmlAssignment`.
+ *
+ * ONE RPC AND ONE BORROWED ONE. `classroom_set_html_assignment` stores the
+ * document and its manifest in a single statement (0195), and the rubric goes
+ * through `classroom_set_rubric` -- the SAME call a spec's rubric and a
+ * hand-built one already take. There is no HTML-assignment rubric table and
+ * `createTeacherEngineTransports` already holds that write, so this delegates
+ * to it rather than spelling a second `supabase.rpc('classroom_set_rubric')`.
+ *
+ * `setRubric` IS FILLED IN HERE EVEN THOUGH THE COMPOSER WOULD FILL IT IN
+ * ITSELF, because `HtmlAssignmentTransports` says every surface that uploads a
+ * document passes one: the rubric a ported assignment is graded against is a
+ * pure function of its manifest, so a re-upload that writes a document without
+ * rewriting the rubric beside it leaves the OLD document's criteria on the
+ * item -- which stores fine, renders fine, and is wrong only on the grading
+ * console. The composer's own fallback stays as defence in depth for a mount
+ * that hands this object over without one.
+ *
+ * IT IS NOT THE AUTHORIZATION BOUNDARY AND MUST NOT BE READ AS ONE. Upload is
+ * admin-only for the first season and 0195 raises on `is_admin()` inside the
+ * function; a caller that hands this to a non-admin gets the database's
+ * refusal, not a control that quietly worked. What the caller decides is only
+ * whether a CONTROL is offered -- see `htmlAssignmentAdmin` on the composer.
+ */
+export function createHtmlAssignmentTransports(supabase: SupabaseClient): HtmlAssignmentTransports {
+	const teacher = createTeacherEngineTransports(supabase);
+	return {
+		async setHtmlAssignment(itemId, document, manifest, filename) {
+			const { data, error } = await supabase.rpc('classroom_set_html_assignment', {
+				p_item_id: itemId,
+				p_document: document,
+				p_manifest: manifest,
+				p_filename: filename
+			});
+			if (error) return { ok: false, message: error.message ?? 'Something went wrong.' };
+			// The RPC answers `{ok, item_id, document_id, revision}`. `revision` is
+			// null when the upload was byte-identical to what is stored, which is
+			// the no-op guard doing its job rather than a failure -- so it is
+			// carried through as null and never turned into a refusal.
+			const row = (data ?? {}) as { ok?: boolean; revision?: number | null };
+			if (row.ok === false) return { ok: false, message: 'That document could not be attached.' };
+			return { ok: true, revision: row.revision ?? null };
+		},
+		async setRubric(itemId, criteria) {
+			const res = await teacher.setRubric(itemId, criteria);
+			return res.ok ? { ok: true } : { ok: false, message: res.message };
+		}
 	};
 }
