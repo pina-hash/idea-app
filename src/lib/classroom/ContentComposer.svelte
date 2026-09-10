@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onDestroy, tick, untrack } from 'svelte';
+	import Pending from '$lib/Pending.svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
+	import { pendingLabel } from '$lib/pending';
 	import { EditBaseline } from '$lib/edit-baseline.svelte';
 	import { SaveState } from '$lib/save-state.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
@@ -49,6 +51,15 @@
 		RubricCriterion
 	} from '$lib/classroom/assignment-spec';
 	import type { ReferenceSpec, ReferenceTransports } from '$lib/classroom/reference-spec';
+	import {
+		HTML_ASSIGNMENT_ADMIN_ONLY,
+		HTML_DOCUMENT_MAX_BYTES,
+		applyStagedHtmlAssignment,
+		readStagedHtml,
+		stagedHtmlSummary,
+		type HtmlAssignmentTransports,
+		type StagedHtmlAssignment
+	} from '$lib/classroom/html-assignment/store';
 	import {
 		ITEM_KINDS,
 		courseCategorySuggestions,
@@ -133,6 +144,8 @@
 		teacherTransports = null,
 		referenceTransports = null,
 		checkInTransports = null,
+		htmlAssignmentTransports = null,
+		htmlAssignmentAdmin = false,
 		attachmentsEnabled = true,
 		instructorAttachmentsEnabled = true,
 		compact = false,
@@ -172,6 +185,21 @@
 		 * removes the control, not a flag beside it.
 		 */
 		checkInTransports?: ClassCheckInTransports | null;
+		/**
+		 * A PORTED HTML ASSIGNMENT: the whole document a student works inside,
+		 * uploaded instead of an interactive spec. Null on every surface that
+		 * does not offer it, and its ABSENCE removes the control -- the same rule
+		 * the four above follow.
+		 */
+		htmlAssignmentTransports?: HtmlAssignmentTransports | null;
+		/**
+		 * WHETHER THIS VIEWER MAY UPLOAD ONE. Upload is admin-only for the first
+		 * season, which is one of the four decisions this format was designed
+		 * against; 0195 raises on it and the database is the boundary. This flag
+		 * is what keeps the panel off a non-admin's screen, so the refusal is
+		 * something they never have to read.
+		 */
+		htmlAssignmentAdmin?: boolean;
 		/** False when Drive is unconfigured: the file controls hide entirely. */
 		attachmentsEnabled?: boolean;
 		/**
@@ -362,6 +390,28 @@
 	/** The shared drop target's feedback for the staged-deck picker below. */
 	let deckDragActive = $state(false);
 
+	/**
+	 * A STAGED HTML ASSIGNMENT: the fifth create-only attachable, and the only
+	 * one that is VALIDATED IN FULL AT PICK TIME.
+	 *
+	 * Everything else here defers what it can to the save. A ported document
+	 * cannot: it IS the assignment, so a refusal after Post is a refusal after
+	 * the only work anybody did -- and the validation is pure, local and
+	 * instant, so there is nothing to gain by waiting. The measured shape not to
+	 * repeat is the deck picker's, which checks SIZE ONLY and never type, so a
+	 * PNG stages happily, reports ready, and fails server-side after Post.
+	 *
+	 * `htmlIssues` is a LIST because a document fails in several ways at once
+	 * and an author fixing one refusal per upload round trip abandons the
+	 * format. Rendered verbatim, in the same problem list as every other
+	 * problem, never re-toned.
+	 */
+	let stagedHtml = $state<StagedHtmlAssignment | null>(null);
+	let htmlIssues = $state<string[]>([]);
+	let htmlWarnings = $state<string[]>([]);
+	let htmlReading = $state(false);
+	let htmlDragActive = $state(false);
+
 	/** Which setter a staged document goes through, from the item's own kind. */
 	const specKind = $derived(stagedSpecKind(editingKind));
 	const canStageSpec = $derived(
@@ -374,6 +424,17 @@
 		mode === 'create' && specKind === 'assignment' && !!teacherTransports
 	);
 	const canStageDeck = $derived(mode === 'create' && !!deckTransports);
+	/**
+	 * Assignment-only, create-only, admin-only, and the transport has to be
+	 * there. Any one missing removes the whole block: there is no control to
+	 * press and therefore no write to refuse.
+	 */
+	const canStageHtml = $derived(
+		mode === 'create' &&
+			specKind === 'assignment' &&
+			!!htmlAssignmentTransports?.setHtmlAssignment &&
+			htmlAssignmentAdmin
+	);
 	/**
 	 * A STAGED CHECK-IN (0120): the third attachable, on the same create-only
 	 * terms as the other two. On an EDIT the item page owns it -- that is where
@@ -447,6 +508,48 @@
 	}
 
 	/**
+	 * READ AND VALIDATE A PICKED DOCUMENT, whichever way it arrived.
+	 *
+	 * The judgement is `readStagedHtml`'s, out in store.ts with the rest of the
+	 * import rules, for the reason composer-staging.ts gives about itself: a
+	 * document that staged when it should not have looks exactly like one that
+	 * should, and neither shows up in a type check.
+	 *
+	 * `htmlReading` is cleared in `finally`. A throw mid-read would otherwise
+	 * leave the picker disabled with nothing on screen saying why.
+	 */
+	async function stageHtmlFile(file: File) {
+		htmlReading = true;
+		try {
+			const result = await readStagedHtml(file);
+			stagedHtml = result.staged;
+			htmlIssues = result.errors;
+			htmlWarnings = result.warnings;
+		} finally {
+			htmlReading = false;
+		}
+	}
+
+	function pickHtml(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0] ?? null;
+		input.value = '';
+		if (!file) return;
+		void stageHtmlFile(file);
+	}
+
+	function onHtmlDropFiles(files: File[]) {
+		const file = files[0];
+		if (file) void stageHtmlFile(file);
+	}
+
+	function clearStagedHtml() {
+		stagedHtml = null;
+		htmlIssues = [];
+		htmlWarnings = [];
+	}
+
+	/**
 	 * A STAGED SPEC IS DROPPED WHEN THE KIND CHANGES, because it can no longer
 	 * be applied: an assignment spec and a reference document are written
 	 * through different RPCs and validated by different rules, and an
@@ -463,6 +566,10 @@
 			stagedRubric = null;
 			stagedRubricDerived = false;
 		}
+		// And the document, for the same reason and more sharply: it can only be
+		// written onto an assignment, so carrying one across the toggle would
+		// mean posting a material with a whole assignment quietly discarded.
+		if (!canStageHtml && (stagedHtml || htmlIssues.length)) clearStagedHtml();
 	});
 
 	// --- Attachments ------------------------------------------------------
@@ -1156,7 +1263,24 @@
 	 * unmount it, so whoever owns its lifetime asks the question. Kept as one
 	 * derived + one effect so the answer can never lag the fields it reads.
 	 */
-	const dirty = $derived(baseline.changed(composerDraftSignature(draft)));
+	/**
+	 * A STAGED HTML DOCUMENT COUNTS AS UNSAVED WORK, and it is OR'd in here
+	 * rather than added to the draft.
+	 *
+	 * `composerDraftSignature` builds its object key by key, so a field added to
+	 * `ComposerDraft` that it does not read would be silently ignored -- and
+	 * `ComposerDraft` is not this lane's file to change. The document exists
+	 * NOWHERE but this browser's memory until the save writes it, exactly as a
+	 * staged File handle does, so a guard that cannot see it lets somebody walk
+	 * away from a whole uploaded assignment with nothing on screen saying so.
+	 * It clears itself on a successful write, which is what makes this term
+	 * false again at the right moment.
+	 *
+	 * WHEN THE TWO ARE FOLDED TOGETHER, this belongs in the signature as
+	 * `htmlAssignment: draft.htmlAssignment ? 1 : 0` beside `deck` and `spec`,
+	 * and this clause goes.
+	 */
+	const dirty = $derived(baseline.changed(composerDraftSignature(draft)) || !!stagedHtml);
 	$effect(() => {
 		// `dirty` tracked, the notification untracked: `ondirtychange` belongs to
 		// whoever mounted this form and may read or write state of its own.
@@ -1339,6 +1463,7 @@
 		const hadSpec = stagedSpec != null;
 		const hadCheckIn = stagedCheckIn != null;
 		const hadRubric = stagedRubric != null;
+		const hadHtml = stagedHtml != null;
 		const failures: string[] = [];
 
 		// The save route had to fall back past the rich body to get through, so
@@ -1490,6 +1615,31 @@
 			failures.push(...extras.failures);
 		}
 
+		/**
+		 * THE DOCUMENT, on exactly the terms of everything above it: attempted
+		 * independently, named when it fails, and STILL STAGED when it does --
+		 * so saving again retries the upload rather than sending a teacher to
+		 * find the same file twice.
+		 *
+		 * Its own call rather than a fifth member of `applyStagedExtras` because
+		 * that module is the composer's own staging set and this arrived on a
+		 * different lane. The semantics are deliberately identical, and a bundle
+		 * that folds the two together should keep them.
+		 */
+		if (stagedHtml && htmlAssignmentTransports) {
+			const applied = await applyStagedHtmlAssignment(
+				itemId,
+				stagedHtml,
+				htmlAssignmentTransports
+			);
+			stagedHtml = applied.staged;
+			if (applied.staged == null) {
+				htmlIssues = [];
+				htmlWarnings = [];
+			}
+			failures.push(...applied.failures);
+		}
+
 		if (failures.length) {
 			// The content DID save. Saying so and naming what did not is the
 			// honest report; claiming the whole thing failed would send a
@@ -1517,6 +1667,7 @@
 			hadDeck ? 'Deck uploaded.' : '',
 			hadSpec ? (specKind === 'reference' ? 'Document attached.' : 'Spec attached.') : '',
 			hadRubric ? 'Rubric attached.' : '',
+			hadHtml ? 'Document attached.' : '',
 			hadCheckIn ? 'Check-in scheduled.' : ''
 		].filter(Boolean);
 		const attachNote = alsoLanded.length ? ` ${alsoLanded.join(' ')}` : '';
@@ -2079,6 +2230,110 @@
 				<div class="deck-drop-overlay" aria-hidden="true">Drop files here</div>
 			{/if}
 		</div>
+	{/if}
+
+	<!--
+		THE PORTED DOCUMENT SITS WITH THE DECK AND THE SPEC, because it is the same
+		kind of thing: what this assignment IS, not a decision about where or when
+		it goes. It is the ALTERNATIVE to a spec rather than an addition to one --
+		an assignment is a spec-driven worksheet or a ported document, never both --
+		which is why the panel says so rather than leaving a teacher to find out by
+		attaching two.
+	-->
+	{#if canStageHtml}
+		<div
+			class="attach-editor"
+			class:is-drop-active={htmlDragActive}
+			data-testid="staged-html"
+			use:dropTarget={{
+				onfiles: onHtmlDropFiles,
+				onactive: (a) => (htmlDragActive = a),
+				disabled: !!stagedHtml || htmlReading || busy
+			}}
+		>
+			<span class="mini-label">Ported HTML assignment</span>
+			{#if stagedHtml}
+				<p class="spec-line">
+					<span class="ok-dot"></span>
+					Document ready:
+					<strong>{stagedHtml.manifest.title}</strong>
+					<span class="spec-meta">{stagedHtmlSummary(stagedHtml)} &middot; saves on post</span>
+				</p>
+				<p class="hint">
+					From <strong>{stagedHtml.filename}</strong>. Students work inside the document;
+					every answer is stored against this assignment and graded here, the same as any
+					other. Correcting it later means uploading the document again, which keeps the
+					old one as a revision.
+				</p>
+				<span class="tool-actions">
+					<button
+						type="button"
+						class="btn secondary tiny"
+						data-testid="staged-html-remove"
+						onclick={clearStagedHtml}
+					>
+						Remove document
+					</button>
+				</span>
+			{:else if htmlReading}
+				<Pending label={pendingLabel('Checking the document')} />
+			{:else}
+				<p class="hint">
+					One self-contained .html document with its styles and script inline, carrying an
+					<code>idea-manifest</code> block that declares its modules, answer blocks and rubric.
+					It is checked here before anything is posted, and every problem is named at once.
+					Capped at {Math.floor(HTML_DOCUMENT_MAX_BYTES / 1024 / 1024)} MB.
+				</p>
+				<input
+					type="file"
+					class="file-input"
+					data-testid="staged-html-input"
+					accept=".html,.htm,text/html"
+					onchange={pickHtml}
+				/>
+			{/if}
+			<!--
+				RENDERED VERBATIM, EACH ON ITS OWN LINE. The same sentence is produced
+				by this check and by 0195's own raise, and the next thing that happens
+				to a refusal is being pasted back into whatever generated the document
+				-- so nothing here shortens, re-tones or summarises one, and a count
+				stands in front of the list rather than in place of it.
+			-->
+			{#if htmlIssues.length}
+				<div class="feedback error" data-testid="staged-html-issues">
+					<p>
+						This document was not attached. {htmlIssues.length}
+						{htmlIssues.length === 1 ? 'problem' : 'problems'} to fix:
+					</p>
+					<ul>
+						{#each htmlIssues as issue}
+							<li>{issue}</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
+			{#if htmlWarnings.length}
+				<div class="feedback" data-testid="staged-html-warnings">
+					<ul>
+						{#each htmlWarnings as warning}
+							<li>{warning}</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
+			{#if htmlDragActive}
+				<div class="deck-drop-overlay" aria-hidden="true">Drop files here</div>
+			{/if}
+		</div>
+	{:else if mode === 'create' && specKind === 'assignment' && !!htmlAssignmentTransports && !htmlAssignmentAdmin}
+		<!--
+			THE REFUSAL, and it renders ONLY where a caller deliberately handed the
+			transport to somebody who may not use it. A surface that hands no
+			transport shows nothing at all, which is the ordinary case and the
+			reason a teacher never reads a sentence about a control they have not
+			been told about.
+		-->
+		<p class="hint" data-testid="staged-html-refusal">{HTML_ASSIGNMENT_ADMIN_ONLY}</p>
 	{/if}
 
 	<!--

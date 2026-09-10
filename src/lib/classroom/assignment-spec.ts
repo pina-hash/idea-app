@@ -554,7 +554,17 @@ export function validateSpec(raw: unknown): {
 		errors.push('kind must be "assignment" or "reference" when present.');
 		return fail();
 	}
-	if (spec.schemaVersion !== 1) {
+	// THE SCHEMA GATE. v3 IS NAMED, because it is a real document somebody has
+	// in their hand rather than a typo. A ported HTML assignment carries its
+	// manifest at schemaVersion 3 inside the document itself, and a teacher who
+	// pulls that manifest out and pastes it into the spec importer is doing the
+	// obvious wrong thing with the right file -- "Unsupported schemaVersion"
+	// tells them nothing about which importer to use instead.
+	if (spec.schemaVersion === 3) {
+		errors.push(
+			'That is the manifest from a ported HTML assignment (schemaVersion 3), not an interactive spec. Upload the .html document itself on the assignment; the manifest is read out of it.'
+		);
+	} else if (spec.schemaVersion !== 1) {
 		errors.push('Unsupported schemaVersion (this engine reads schema v1).');
 	}
 
