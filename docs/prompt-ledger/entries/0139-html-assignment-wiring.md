@@ -91,6 +91,21 @@
   stand-in does what the sign and record routes do and nothing else -- what is
   proven is the ARITY and the round trip, never the sign-and-PUT hop.
 
+  **ONE FINDING, REPORTED RATHER THAN FIXED, BECAUSE FIXING IT MEANS RESHAPING
+  A SURFACE FIVE LANES PROVED.** A ported worksheet has NO durability net.
+  `SaveState.attach()` is what wires visibilitychange and pagehide, and five
+  other save surfaces call it from an `$effect` -- `AssignmentEngine`,
+  `ContentComposer`, `GradingConsole`, `InstructorCopy`, `SpecTextEditor`.
+  `HxAnswers` never calls it and exposes no `attach` of its own, and it builds
+  its `SaveState` machines LAZILY per block, so nothing outside it can attach
+  them either: a controller handed in from a route cannot close this from the
+  outside. The cost is narrow and real -- closing the tab inside the 800ms
+  debounce loses the last keystroke burst, on a ported worksheet and on no
+  other surface. The fix is an `attach` on `HxAnswers` that also covers machines
+  made after it was called, which is a change to a module this bundle was told
+  not to reshape. Named here, in the item page's own comment, and in the history
+  entry's deferred section.
+
   **MEASURED.** svelte-check 0 errors / 37 warnings / 31-5-1, exactly baseline,
   re-derived after `npx svelte-kit sync` with the two `PUBLIC_SUPABASE_*`
   placeholders exported. Full suite **371 files / 7339 tests**, all passed

@@ -105,12 +105,11 @@ exists should not be shown a sentence about being refused it.
 answer controller. Three decisions in it are load-bearing:
 
 1. **It is memoized on a key, not rebuilt per read.** The controller owns one
-   `SaveState` per block -- live debounce timers, backoff, and the
-   visibilitychange/pagehide net -- so rebuilding it because `data` changed
-   identity would silently drop whatever those machines still owed. The key is
-   the item and the document, which is exactly what has to change for the
-   controller to be the wrong one; `invalidateAll()` after a manager's write
-   gets the same object back.
+   `SaveState` per block -- live debounce timers and backoff -- so rebuilding it
+   because `data` changed identity would silently drop whatever those machines
+   still owed. The key is the item and the document, which is exactly what has
+   to change for the controller to be the wrong one; `invalidateAll()` after a
+   manager's write gets the same object back.
 2. **`data.engine` is the seed, not the truth.** The stored rows are read only
    on the run that constructs, so a reload of the page data cannot overwrite
    what a student has typed since.
@@ -219,15 +218,45 @@ as a student.
 `0193` through `0197` were taken as applied on the prompt's word. Nothing here
 touched the live project, and no migration was written.
 
+## The finding: a ported worksheet has no durability net
+
+Wiring the controller up meant reading what it owns, and what it does not own
+turned out to be the interesting half. **`HxAnswers` never calls
+`SaveState.attach()`.**
+
+`attach()` is what wires `visibilitychange` and `pagehide`, and its own header
+says to call it from an `$effect` and return the teardown. Five surfaces in this
+codebase do exactly that -- `AssignmentEngine`, `ContentComposer`,
+`GradingConsole`, `InstructorCopy`, `SpecTextEditor`. `HxAnswers` does not, and
+it exposes no `attach` of its own, and it builds its machines LAZILY on the
+first change to each block. So a route holding the controller cannot close this
+from the outside either: there is nothing to attach at mount, and machines
+appear later.
+
+The cost is narrow and it is real: closing the tab inside the 800ms debounce
+loses the last keystroke burst, on a ported worksheet and on no other save
+surface in the app. The fix is an `attach` on `HxAnswers` that covers machines
+made after it was called -- which is a change to the shape of a module this
+bundle was explicitly told not to rework, so it is reported rather than done.
+It is written down in three places on purpose: here, in ledger 0139, and in the
+item page's own comment beside the controller, which is where somebody wiring
+the next surface will be looking.
+
+An earlier draft of this entry and of the ledger asserted the opposite -- that
+the machines carried the net. They did not, and the correction is recorded
+rather than quietly made, because the wrong version was the reason the
+navigation guard below looked less important than it is.
+
 ## Deferred, deliberately
 
 **A navigation guard on the item page.** `HxAnswers` exposes `dirty` and
 `flush()`, and `HxAnswersStore` forwards both, but nothing on the item page
-wires them to `guardSaveNavigation`. A page UNLOAD is already covered -- the
-per-block `SaveState` carries the shared visibilitychange/pagehide net -- so
-what is uncovered is a client-side navigation inside the app within the debounce
-window. It is a surface decision with its own answer for `alsoUnsaved` and for
-what a refused flush should ask, and it is not wiring.
+wires them to `guardSaveNavigation`. With the durability net missing too, a
+client-side navigation inside the debounce window and a tab close inside it lose
+the same keystroke burst. Both belong in the bundle that gives `HxAnswers` an
+`attach`, since one of them cannot be fixed without touching that module and
+fixing only the other would leave the page half-protected in a way nothing on
+screen reports.
 
 **No export ping on the document write.** `createTeacherEngineTransports` calls
 `pingClassroomExport` after a spec or rubric write; `setHtmlAssignment` does

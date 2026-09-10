@@ -82,12 +82,25 @@
 	 * stored document, and on a deployment whose engine read could not answer.
 	 *
 	 * THE CONTROLLER IS MEMOIZED ON A KEY RATHER THAN REBUILT PER READ. It owns
-	 * one `SaveState` per block -- live debounce timers, backoff, and the
-	 * visibilitychange/pagehide net -- so rebuilding it because `data` changed
-	 * identity would silently drop whatever those machines still owed. The key
-	 * is the item and the document, which is precisely what has to change for
-	 * the controller to be the wrong one: `invalidateAll()` after a manager's
-	 * write re-runs this and gets the SAME object back.
+	 * one `SaveState` per block -- live debounce timers and backoff -- so
+	 * rebuilding it because `data` changed identity would silently drop whatever
+	 * those machines still owed. The key is the item and the document, which is
+	 * precisely what has to change for the controller to be the wrong one:
+	 * `invalidateAll()` after a manager's write re-runs this and gets the SAME
+	 * object back.
+	 *
+	 * WHAT THOSE MACHINES DO **NOT** HAVE IS THE DURABILITY NET, AND THAT IS A
+	 * FINDING RATHER THAN A DECISION MADE HERE. `SaveState.attach()` is what
+	 * wires visibilitychange and pagehide, and every other save surface in this
+	 * codebase calls it from an `$effect` (`AssignmentEngine`, `ContentComposer`,
+	 * `GradingConsole`, `InstructorCopy`, `SpecTextEditor`). `HxAnswers` never
+	 * calls it, exposes no `attach` of its own, and builds its machines LAZILY
+	 * per block -- so nothing outside it can attach them either. Closing the tab
+	 * inside the 800ms debounce therefore loses the last keystroke burst on a
+	 * ported worksheet and on no other surface. Fixing it means giving
+	 * `HxAnswers` an `attach` that also covers machines made later, which is a
+	 * change to a module this bundle was told not to reshape; it is written up
+	 * in ledger 0139 and in this bundle's history entry.
 	 *
 	 * AND `data.engine` IS THE SEED, NOT THE TRUTH. Once mounted the controller
 	 * owns the answers -- a reload of the page data must not overwrite what a
