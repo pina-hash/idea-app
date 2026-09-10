@@ -17,6 +17,16 @@
 	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
+	import HtmlAssignmentFrame from '$lib/classroom/html-assignment/HtmlAssignmentFrame.svelte';
+	import {
+		htmlAssignmentMount,
+		htmlAssignmentSrc,
+		htmlFieldToBlockId,
+		HTML_ASSIGNMENT_UNAVAILABLE,
+		type HtmlAssignmentAnswers,
+		type HtmlAssignmentData
+	} from '$lib/classroom/html-assignment/mount';
+	import { env as publicEnv } from '$env/dynamic/public';
 	import SpecTextEditor from '$lib/classroom/SpecTextEditor.svelte';
 	import { uploadClassroomFile } from '$lib/classroom/file-upload';
 	import { checkInDuplicateRefusal } from '$lib/classroom/nav';
@@ -132,7 +142,9 @@
 		revisionTransports = null,
 		checkIns = [],
 		checkInTransports = null,
-		layoutTransports = null
+		layoutTransports = null,
+		htmlAssignment = null,
+		htmlAnswers = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -203,6 +215,22 @@
 		 * control is never offered whose save would be refused.
 		 */
 		layoutTransports?: ClassroomLayoutTransports | null;
+		/**
+		 * THE PORTED DOCUMENT (0195), when this item is one and the load could
+		 * read it. Null covers three different things -- a v1 spec assignment, a
+		 * deployment without the migration, and a schema-3 item whose row could
+		 * not be read -- and `htmlAssignmentMount` is what tells the last of those
+		 * apart from the first two, because only it also looks at the item.
+		 */
+		htmlAssignment?: HtmlAssignmentData | null;
+		/**
+		 * THE ANSWER PATH, injected. Its ABSENCE renders the worksheet read only:
+		 * there is no write to execute rather than one that is hidden, which is
+		 * what an instructor's read-only view wants and what a student gets on a
+		 * deployment where the answer lane has not landed. A worksheet that takes
+		 * typing and saves nothing is the outcome this must never produce.
+		 */
+		htmlAnswers?: HtmlAssignmentAnswers | null;
 	} = $props();
 
 	/**
@@ -214,6 +242,66 @@
 	 * the class is looking at and the other is an obligation.
 	 */
 	const layout = $derived(itemLayoutOf(item));
+
+	/**
+	 * WHICH ASSIGNMENT ENGINE THIS ITEM IS (0195), asked ONCE, through the one
+	 * predicate. A second `=== 3` written out at a mount site is how a student
+	 * gets a worksheet and an instructor gets a blank spec panel, which is why
+	 * the whole decision is a module.
+	 */
+	const htmlMount = $derived(htmlAssignmentMount(item, htmlAssignment));
+
+	/**
+	 * THE FRAME'S URL. The sandbox origin is read HERE and nowhere else on this
+	 * path, the way `FoundryDetail` owns the one read of its own origin: the
+	 * `src` and anything else that ever names that host have to agree, and two
+	 * independent reads of one variable is how they come to differ. Unset means
+	 * same origin, which is what makes dev and every preview work.
+	 */
+	const htmlSrc = $derived(
+		htmlAssignment
+			? htmlAssignmentSrc(publicEnv.PUBLIC_HX_SANDBOX_ORIGIN, htmlAssignment.documentId)
+			: ''
+	);
+
+	/**
+	 * `field` -> `block_id`, FROM THE MANIFEST STORED AT IMPORT. Derived here
+	 * rather than shipped down beside it so there is one construction of the map
+	 * in the payload's whole life, and derived from the LOAD's copy rather than
+	 * from anything the frame sends -- a frame naming a block id directly is a
+	 * frame writing to an arbitrary row.
+	 */
+	const htmlFields = $derived(htmlFieldToBlockId(htmlAssignment?.manifest ?? null));
+
+	/**
+	 * THE WRITE CALLBACKS, WRAPPED RATHER THAN PASSED THROUGH.
+	 *
+	 * Handing `htmlAnswers.onchange` to the frame directly would drop `this` for
+	 * a controller written as a class, and a controller factory is exactly the
+	 * shape that might be one. Calling through the object costs a closure and
+	 * removes the question. It also puts the read-only decision in ONE place:
+	 * null here is null everywhere below, so read-only and "no write path" are
+	 * the same fact rather than two that can disagree.
+	 */
+	const htmlWrites = $derived.by(() => {
+		const answers = htmlAnswers;
+		if (!answers) return null;
+		return {
+			onchange: (change: { blockId: string; field: string; value: string | boolean }) =>
+				answers.onchange(change),
+			onimage: answers.onimage
+				? (image: { blockId: string; field: string; name: string; bytes: string }) =>
+						answers.onimage?.(image)
+				: undefined,
+			onimageremove: answers.onimageremove
+				? (image: { blockId: string; field: string }) => answers.onimageremove?.(image)
+				: undefined,
+			onimagecaption: answers.onimagecaption
+				? (image: { blockId: string; field: string; caption: string }) =>
+						answers.onimagecaption?.(image)
+				: undefined
+		};
+	});
 
 	let editing = $state(false);
 	/**
@@ -1427,7 +1515,58 @@
 		student would read it.
 	-->
 	{#if item.kind === 'assignment'}
-		{#if canManage}
+		{#if htmlMount === 'html' && htmlAssignment}
+			<!--
+				A PORTED HTML ASSIGNMENT (0195) TAKES THE SAME SLOT, in the same
+				reading position, for a student and for a manager alike. It is
+				branched AHEAD of every spec branch below on purpose: an item
+				converted from the v1 engine keeps its old
+				`classroom_assignment_specs` row, so a schema-3 item can have BOTH,
+				and asking the spec first would render the superseded one.
+
+				ONE MOUNT FOR BOTH ROLES, and read-only is the absence of a write
+				path rather than a flag. A manager gets no `htmlAnswers` -- there is
+				no instructor working copy for a ported document, because 0128's
+				machinery is spec-shaped -- so `htmlWrites` is null, no callback is
+				handed down, and the frame is told `readOnly` so the DOCUMENT stops
+				accepting input too. A student on a deployment whose answer path has
+				not landed gets exactly the same thing, which is the honest state:
+				a worksheet that took typing and saved nothing would be the one
+				failure worth avoiding here.
+
+				NO `{#key}`. The frame's own mount is what starts the document
+				loading, and it already keys everything it holds off `src`; keying
+				on the item id would tear down and refetch a running worksheet on
+				any unrelated re-render of this page.
+			-->
+			<section class="engine-host">
+				<h2 class="section-label">{htmlAnswers ? 'Your work' : 'Assignment'}</h2>
+				<HtmlAssignmentFrame
+					src={htmlSrc}
+					title={itemTitle(item)}
+					fieldToBlockId={htmlFields}
+					values={htmlAnswers?.values ?? {}}
+					images={htmlAnswers?.images ?? {}}
+					saved={htmlAnswers?.saved ?? null}
+					readOnly={!htmlWrites}
+					onchange={htmlWrites?.onchange}
+					onimage={htmlWrites?.onimage}
+					onimageremove={htmlWrites?.onimageremove}
+					onimagecaption={htmlWrites?.onimagecaption}
+				/>
+			</section>
+		{:else if htmlMount === 'unavailable'}
+			<!-- THE THIRD ANSWER. This item IS a ported document and there is
+			     nothing to point the frame at. Neither engine may absorb that: the
+			     spec branch would tell a student this assignment has no online
+			     hand-in, which is false, and rendering nothing at all leaves an
+			     assignment card with a hole in it. A control absent for a reason
+			     says the reason. -->
+			<section class="card engine-slot">
+				<h2 class="section-label">Your work</h2>
+				<p class="note">{HTML_ASSIGNMENT_UNAVAILABLE}</p>
+			</section>
+		{:else if canManage}
 			{#if spec && instructorCopy && instructorCopyTransports}
 				<!--
 					THE WORKING COPY (0128) TAKES THE SAME SLOT, in the same reading

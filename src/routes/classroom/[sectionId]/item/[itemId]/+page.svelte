@@ -61,6 +61,20 @@
 	);
 
 	/**
+	 * THE PORTED WORKSHEET'S ANSWER PATH IS NOT WIRED HERE YET, AND ITS ABSENCE
+	 * IS WHAT MAKES THAT SAFE.
+	 *
+	 * `htmlAssignment` is handed down, so a schema-3 item renders its real
+	 * document through the real frame (0195). No `htmlAnswers` controller is
+	 * passed, so ItemDetail hands the frame no write callbacks and tells it
+	 * `readOnly` -- a student can READ the worksheet and cannot type into
+	 * something that would discard what they typed. When the answer controller
+	 * lands it is built here, beside the other transports, and passed as
+	 * `htmlAnswers`; nothing else on this page or in ItemDetail changes, because
+	 * the seam is a prop and absence is the mechanism.
+	 */
+
+	/**
 	 * THE CHECK-IN TRANSPORTS THIS DEPLOYMENT CAN ACTUALLY EXECUTE.
 	 *
 	 * `createCheckInTransports` always builds all three writes -- it is a factory
@@ -114,6 +128,7 @@
 	checkIns={itemCheckIns}
 	checkInTransports={liveCheckInTransports}
 	layoutTransports={liveLayoutTransports}
+	htmlAssignment={data.htmlAssignment}
 	gradeHref={data.canManage ? `/classroom/${data.section.id}/item/${data.item.id}/grade` : null}
 	onchanged={() => invalidateAll()}
 	ondeleted={() => goto(`/classroom/${data.section.id}`)}
