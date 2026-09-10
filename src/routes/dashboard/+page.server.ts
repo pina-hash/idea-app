@@ -3,7 +3,9 @@ import { loadProgressForUsers } from '$lib/frc/progression';
 import { loadPendingSubmissions } from '$lib/frc/gate-submissions';
 import { GREENLINE_DECALS_BUCKET, loadPendingDecals } from '$lib/greenline/decals';
 import { loadGreenlinePending } from '$lib/greenline/moderation';
-import { isAdmin } from '$lib/server/admin';
+import { isAdmin, isOwner } from '$lib/server/admin';
+import { driveConfigured, driveConnectReady } from '$lib/server/notebook-drive';
+import type { AdminRow } from '$lib/admin';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
@@ -11,6 +13,12 @@ import type { Actions, PageServerLoad } from './$types';
  * the role editor, student contact data and three moderation queues. An
  * ordinary @boscotech.edu teacher is redirected to `/` like anyone else.
  * (hooks.server.ts already redirects anonymous users off `/dashboard`.)
+ *
+ * SINCE LEDGER 0117 IT IS ALSO THE WHOLE OF WHAT `/admin` USED TO LOAD: the
+ * admin roster (`admin_list`, and whether the caller is the owner, which is
+ * what decides whether the grant/revoke controls render) and the two Drive
+ * booleans. Booleans only, never the credentials, which stay inside
+ * `$lib/server/notebook-drive.ts`. `/admin` itself now forwards here.
  */
 export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
 	if (!claims) {
@@ -97,6 +105,14 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		(r) => r.status === 'new'
 	).length;
 
+	// The admin roster panel (was /admin). Fails soft to an empty roster if
+	// 0067 is not applied yet -- the isAdmin gate above already refused anyone
+	// the old rule would have let in.
+	const [{ data: adminRows }, owner] = await Promise.all([
+		supabase.rpc('admin_list'),
+		isOwner(supabase)
+	]);
+
 	return {
 		profile,
 		email: claims.email ?? profile?.email ?? null,
@@ -109,7 +125,14 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		greenlineDecalQueue,
 		greenlineDecalReady,
 		greenlinePending,
-		feedbackNewCount
+		feedbackNewCount,
+		admins: (adminRows ?? []) as AdminRow[],
+		isOwner: owner,
+		myEmail: claims.email ?? null,
+		notebookDrive: {
+			connectReady: driveConnectReady(),
+			configured: driveConfigured()
+		}
 	};
 };
 

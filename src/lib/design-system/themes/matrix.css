@@ -98,7 +98,11 @@
      - Every scoped room's own declarations (.frc-root, .gt-root, .glb,
        .tnm-root, .fsp-root, .fg-root, .cd-root, .nb-root). Those sit BELOW
        :root and win for their own subtree by the ordinary cascade -- there is
-       no exclusion list here because there does not need to be one.
+       no exclusion list here because there does not need to be one. THE ONE
+       EXCEPTION is the block after the measurements: under the theme, the
+       classroom and the Foundry let the shell
+       layer (and so the rain) show, by two declarations per room and no
+       token. See that block for which rooms and why not the others.
    ========================================================================== */
 
 :root[data-theme='matrix'] {
@@ -130,7 +134,9 @@
 }
 
 /* --------------------------------------------------------------------------
-   THE RAIN, AND THE THREE NON-TOKEN RULES IN THIS FILE.
+   THE RAIN, AND THE NON-TOKEN RULES IN THIS FILE (three for the shell and
+   the landing page here, four more for the rooms in the block after the
+   measurements).
 
    THE RAIN IS NOT IN THIS FILE. It is `$lib/MatrixRain.svelte`, a canvas of
    falling glyphs that `ThemeRoot` mounts inside `.bg-fx` while the theme is
@@ -163,7 +169,8 @@
    theme is for. Both rules are keyed on the theme root, both are the only
    way to reach an element this file does not otherwise touch, and
    `tests/theme-tokens.test.ts` pins the list of non-root selectors a theme
-   may carry at exactly these three, with the reason beside each.
+   may carry -- these three plus the four room rules below -- with the reason
+   beside each.
 
    NOTHING HERE ANIMATES. There is no `animation` declaration left in this
    file: the motion is the canvas's, it is gated on
@@ -187,6 +194,73 @@
 
 :root[data-theme='matrix'] .legacy-index #bg-canvas {
 	display: none;
+}
+
+/* --------------------------------------------------------------------------
+   THE ROOMS THE RAIN REACHES INTO, AND THE ONES IT DOES NOT (ledger 0117,
+   report 25: "I want to see the matrix rain background working on many more
+   pages").
+
+   `MatrixRain.svelte`'s own header says a room that paints an opaque plate is
+   a room the rain does not belong in, and that a room suppressing `.bg-fx`
+   suppresses the rain in the same declaration. Measured with this theme on,
+   through the harness at 1440 with `data-theme='matrix'` set: `.bg-fx` was
+   `display: none` on /dev/classroom, /dev/classroom-reference,
+   /dev/spec-table, /dev/notebook, /dev/foundry-gallery and /dev/foundry-admin,
+   and on every one of them the element under the page's centre had an opaque
+   `.cr-root`, `.nb-root` or `.fg-root` behind it. That is every classroom
+   page, the public reference viewer, the notebook and the whole Foundry -- the
+   pages a student spends the day on. The rule was written for the DEFAULT
+   look, where scanlines under sustained reading are a cost nobody asked for;
+   a person who has chosen this theme has asked for the rain, so under the
+   theme the classroom and the Foundry let it through (the notebook: below).
+
+   TWO DECLARATIONS PER ROOM AND NOTHING ELSE. `display: block` puts `.bg-fx`
+   (and the canvas inside it) back under the document; `background-color:
+   transparent` on the room's wrapper lets it show. The room's CARDS keep
+   their fills -- `.cr-root`'s `--surface-1` cards and the forge's
+   `--fg-surface` panels sit on their own opaque grounds -- so copy INSIDE a card is unchanged, and copy on the
+   bare plate sits over the rain's content band exactly as the landing page's
+   does (see `matrix-rain.ts`: inside the centred band the head is drawn in
+   the trail colour and every text tier this theme paints holds 4.5:1 at the
+   worst frame). The classroom's 92rem split is wider than the 1100px band,
+   so its outer columns get the film rather than the whisper; what sits there
+   is card, not copy.
+
+   THE NOTEBOOK IS NOT REACHED, AND THIS BUNDLE FIRST WROTE THE PAIR FOR IT.
+   Ledger 0119 landed on `integration` the same day with a Matrix plate of
+   the notebook's own (`.nb-root[data-nb-theme='matrix']`, and the default
+   plate following the site theme), whose header says in its own words that
+   the falling code stays on the portal pages and that the room's `.bg-fx`
+   suppression is what it relies on. A site theme reaching past a decision
+   the room's owner wrote down that morning is two lanes shipping opposite
+   answers into one surface, so the notebook pair was withdrawn before this
+   landed and the question -- should the notebook's Matrix plate carry the
+   rain -- is Mr. Pina's, recorded in this bundle's history entry. Adding it
+   back is two rules and two test entries, once he answers.
+
+   NOT REACHED, DELIBERATELY: `.gt-root` (GAUNTLET), `.glb` (GREENLINE),
+   VANGUARD and `.frc-root` (FRC) have design systems of their own and the
+   prompt names all four; `.tnm-root` (Tournaments) is an emerald room with a
+   one-emerald-per-screen rule, whose plate is not a page with cards on it;
+   `.fsp-root` is archived and deliberately not IDEA; and the coin desk, the
+   maps viewer, the feedback console and every `.legacy-index` page already
+   showed the rain before this block existed (`.bg-fx` measured `block` and
+   nothing opaque under the centre). `tests/theme-tokens.test.ts` pins these
+   four selectors and what each may declare.
+   -------------------------------------------------------------------------- */
+:root[data-theme='matrix'] body:has(.cr-root) .bg-fx {
+	display: block;
+}
+:root[data-theme='matrix'] .cr-root {
+	background-color: transparent;
+}
+
+:root[data-theme='matrix'] body:has(.fg-root) .bg-fx {
+	display: block;
+}
+:root[data-theme='matrix'] .fg-root {
+	background-color: transparent;
 }
 
 /* ==========================================================================

@@ -1,42 +1,28 @@
-import { error } from '@sveltejs/kit';
-import { isAdmin, isOwner } from '$lib/server/admin';
-import { driveConfigured, driveConnectReady } from '$lib/server/notebook-drive';
-import type { AdminRow } from '$lib/admin';
+import { error, redirect } from '@sveltejs/kit';
+import { isAdmin } from '$lib/server/admin';
 import type { PageServerLoad } from './$types';
 
 /**
- * The admin roster page (0067). Any admin may SEE who else can administer the
- * site; only the pinned owner may change the list, which admin_grant /
- * admin_revoke enforce inside the function -- this load only decides what to
- * render.
+ * `/admin` IS THE CONSOLE'S OLD FRONT DOOR, AND IT FORWARDS (ledger 0117,
+ * report 26). The admin roster, the IDEA Coin links, the short-link entry and
+ * the Drive connection that used to render here are panels on `/dashboard`
+ * now; this load exists so a link printed, bookmarked or written into another
+ * surface's header before the merge still lands on the roster panel.
  *
- * A non-admin gets 404 rather than a redirect, the /greenline/moderation rule:
- * it tells someone probing the URL nothing about whether the page exists.
+ * THE 404 IS UNCHANGED AND IT COMES FIRST. A non-admin gets 404 rather than a
+ * redirect, the /greenline/moderation rule: it tells someone probing the URL
+ * nothing about whether the page exists, and the redirect below is reached
+ * only by a caller who could already open the console. `/admin` is still
+ * deliberately NOT in hooks.server.ts `authedPrefixes` for the same reason --
+ * an anonymous visitor gets the same 404 as a signed-in student.
  *
- * /admin is deliberately NOT in hooks.server.ts authedPrefixes: an anonymous
- * visitor should get the same 404 as a signed-in student, not a redirect that
- * confirms the path is real.
+ * NO `+page.svelte` BESIDE THIS FILE, deliberately: every branch of the load
+ * ends in an error or a redirect, so a component here could never render.
+ * Measured on a throwaway dev route that a server load with no page
+ * component answers its redirect (303) rather than 500.
  */
 export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
 	if (!claims) error(404, 'Not found');
 	if (!(await isAdmin(supabase, claims.sub))) error(404, 'Not found');
-
-	const [{ data: rows }, owner] = await Promise.all([
-		supabase.rpc('admin_list'),
-		isOwner(supabase)
-	]);
-
-	return {
-		// Fails soft to an empty roster if 0067 is not applied yet (the isAdmin
-		// fallback would have let a teacher in on the old rule).
-		admins: (rows ?? []) as AdminRow[],
-		isOwner: owner,
-		myEmail: claims.email ?? null,
-		// Booleans only, never the credentials themselves (which stay inside
-		// src/lib/server/notebook-drive.ts).
-		notebookDrive: {
-			connectReady: driveConnectReady(),
-			configured: driveConfigured()
-		}
-	};
+	redirect(303, '/dashboard#panel-admins');
 };

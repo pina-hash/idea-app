@@ -117,6 +117,7 @@ type Viewer =
 	| 'staff-no-sections'
 	| 'admin-not-teacher'
 	| 'student-no-classes'
+	| 'visitor-with-class'
 	| 'signed-out';
 
 function homeData(viewer: Viewer) {
@@ -155,7 +156,11 @@ function homeData(viewer: Viewer) {
 	const sections = [section('s1', TEACHER)];
 	const email = viewer === 'teacher-of-record' ? TEACHER : STUDENT;
 	const role =
-		viewer === 'teacher-of-record' || viewer === 'staff-no-sections' ? 'teacher' : 'student';
+		viewer === 'teacher-of-record' || viewer === 'staff-no-sections'
+			? 'teacher'
+			: viewer === 'visitor-with-class'
+				? 'visitor'
+				: 'student';
 	return {
 		classroomReady: true,
 		feedSections: sections,
@@ -199,6 +204,7 @@ const ALL_VIEWERS: Viewer[] = [
 	'staff-no-sections',
 	'admin-not-teacher',
 	'student-no-classes',
+	'visitor-with-class',
 	'signed-out'
 ];
 
@@ -216,17 +222,26 @@ describe('home page: which block comes first', () => {
 		expect(o.apps).toBeLessThan(o.classes);
 	});
 
-	it('leaves the student order alone: Your Classes first', () => {
-		// The one thing the feed does that nothing else does is deep-link a
-		// student into the exact item that is due. It keeps the top.
-		//
-		// THIS IS THE ASSERTION THAT REFUSES THE REPORTED REMEDY. The report
-		// behind this bundle was "apps should be above classes"; measured at
-		// 375px on /dev/home-order, a student's block grows 616px per class
-		// (first app card at 1.76 / 2.53 / 3.30 / 4.07 screens for one through
-		// four classes), so flipping it would not remove that scroll, it would
-		// move it onto the deep links. A student WITH a class keeps this order.
+	it('puts Apps FIRST for a student, classes or no classes (ledger 0117, report 21)', () => {
+		// THIS ASSERTION USED TO REFUSE THE REPORTED REMEDY, and the measurement
+		// it rested on is still true: at 375px on /dev/home-order a student's
+		// class block grows 616px per class, so putting Apps first moves that
+		// scroll onto the feed's deep links rather than removing it. Mr. Pina
+		// asked a second time, in his own words, with the cost known. A student
+		// WITH a class now gets the launcher first; the page's own comment keeps
+		// the figure as the price of the decision.
 		const o = order(drawHome('student'));
+		expect(o.apps).toBeLessThan(o.classes);
+	});
+
+	it('keys the student order on the ROLE, so a visitor with a class is not a student', () => {
+		// A `visitor` account (any non-school domain) manages nothing and is not a
+		// student, so it keeps the content-earned rule: Your Classes first while
+		// there is a class in it. This is the positive control for the student
+		// assertion above -- the same payload, one field different, the opposite
+		// order -- so a predicate keyed on "does not manage" rather than on the
+		// role passes that test and fails this one.
+		const o = order(drawHome('visitor-with-class'));
 		expect(o.classes).toBeLessThan(o.apps);
 	});
 
@@ -266,15 +281,19 @@ describe('home page: which block comes first', () => {
 		const empty = order(drawHome('student-no-classes'));
 		expect(empty.apps, 'signed-in student with no classes').toBeLessThan(empty.classes);
 
-		const enrolled = order(drawHome('student'));
-		expect(enrolled.classes, 'signed-in student WITH a class').toBeLessThan(enrolled.apps);
+		// The enrolled half of the pair is a VISITOR since 0117: a student with a
+		// class gets Apps first by role, so the student payload can no longer
+		// show the feed-keyed order flipping. The visitor is on the same rule the
+		// student used to be on.
+		const enrolled = order(drawHome('visitor-with-class'));
+		expect(enrolled.classes, 'signed-in visitor WITH a class').toBeLessThan(enrolled.apps);
 	});
 
-	it('keys on what the viewer MANAGES, not on their role', () => {
-		// Staff who teach no section manage nothing, so their feed is a student's
-		// feed and it keeps the top -- even though their profile role is
-		// `teacher`, which the email domain grants automatically and which on its
-		// own grants nothing (CLAUDE.md, ADMIN TIER).
+	it('keys the STAFF order on what the viewer MANAGES, not on their role', () => {
+		// Staff who teach no section manage nothing, so their feed keeps the top
+		// -- even though their profile role is `teacher`, which the email domain
+		// grants automatically and which on its own grants nothing (CLAUDE.md,
+		// ADMIN TIER). Only a STUDENT's order is keyed on the role (0117).
 		const staff = order(drawHome('staff-no-sections'));
 		expect(staff.classes).toBeLessThan(staff.apps);
 
@@ -543,8 +562,10 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		expect(foundry).not.toContain(`--acc-primary: ${GREEN};`);
 
 		// The census this is protecting, so a reader can see what "a fifth
-		// green" meant: four cards already spend one.
-		const greens = ['gauntlet', 'vanguard', 'greenline', 'admin'].filter((id) =>
+		// green" meant: four cards already spend one. The fourth was the
+		// `admin` card until ledger 0117 merged it into `dashboard`, which
+		// carries the same pair, so the census still counts four.
+		const greens = ['gauntlet', 'vanguard', 'greenline', 'dashboard'].filter((id) =>
 			/--acc-primary:\s*(#00ff41|#2ae57e|#78b870)/.test(ruleFor(id))
 		);
 		expect(greens).toHaveLength(4);

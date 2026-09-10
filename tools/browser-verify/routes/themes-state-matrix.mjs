@@ -90,7 +90,7 @@ export default {
 			expectPresent: BOARD_CELLS,
 			maxPresent: BOARD_CELLS
 		},
-		{ selector: '.launcher .app-card', label: 'launcher cards', expectPresent: 13, maxPresent: 13 },
+		{ selector: '.launcher .app-card', label: 'launcher cards', expectPresent: 12, maxPresent: 12 },
 		/* Exactly one canvas, inside the shell layer, and running. A second one
 		   would be two loops painting one field; none would be the theme
 		   silently back to a hatch. */

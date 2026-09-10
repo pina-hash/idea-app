@@ -5,7 +5,7 @@ export const order = 4;
 
 export default {
 	path: '/dev/home-order?role=student&classes=1&rows=3',
-	label: 'Home page section order, non-managing student (Classes above Apps)',
+	label: 'Home page section order, student with a class (Apps above Classes, ledger 0117)',
 	/* Mounts the REAL src/routes/+page.svelte (see the route's own +page.ts
 	   for why its fixture items are dated off Date.now() rather than a
 	   frozen clock). A prior vitest probe asserted `managesAnySection` as a
@@ -31,11 +31,17 @@ export default {
 		{ selector: '[data-tour="classes"] .assignment-item.linked', label: 'rendered due-soon rows', expectPresent: 1, expectVisible: 1 },
 		{ selector: '.launcher .app-card', label: 'rendered app cards', expectPresent: 1, expectVisible: 1 }
 	],
+	/* SINCE LEDGER 0117 A STUDENT GETS APPS FIRST, CLASSES OR NO CLASSES. This
+	   row used to assert the opposite ("Classes precedes Apps for a viewer who
+	   manages nothing") on the strength of a 375px scroll measurement; Mr. Pina
+	   asked a second time with that cost known, and the page keys a student's
+	   order on the ROLE now. The staff rule is unchanged and is measured by
+	   the teacher spec beside this one. */
 	domOrder: [
 		{
-			before: '[data-tour="classes"]',
-			after: '.launcher',
-			label: 'Classes precedes Apps for a viewer who manages nothing'
+			before: '.launcher',
+			after: '[data-tour="classes"]',
+			label: 'Apps precedes Classes for a student, even with a class to show'
 		}
 	],
 	contrast: [{ selector: '[data-tour="classes"] .assignment-name', label: 'feed row title', min: 4.5 }],

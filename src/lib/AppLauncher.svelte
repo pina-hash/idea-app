@@ -13,7 +13,6 @@
 	import TournamentMark from '$lib/marks/TournamentMark.svelte';
 	import CoinDeskMark from '$lib/marks/CoinDeskMark.svelte';
 	import DashboardMark from '$lib/marks/DashboardMark.svelte';
-	import AdminMark from '$lib/marks/AdminMark.svelte';
 	import FoundryMark from '$lib/marks/FoundryMark.svelte';
 	import MapsMark from '$lib/marks/MapsMark.svelte';
 	// Official FRC icon (triangle/circle/diamond emblem only, no wordmark), the
@@ -292,8 +291,6 @@
 		<CoinDeskMark />
 	{:else if id === 'dashboard'}
 		<DashboardMark />
-	{:else if id === 'admin'}
-		<AdminMark />
 	{:else if id === 'foundry'}
 		<FoundryMark />
 	{:else if id === 'maps'}
@@ -900,8 +897,9 @@
 		--acc-primary: #40e3b1;
 		--acc-secondary: var(--gold);
 	}
-	.app-card[data-app='dashboard'],
-	.app-card[data-app='admin'] {
+	/* One admin card since ledger 0117 (the Site Admins card merged into it);
+	   the pair is unchanged. */
+	.app-card[data-app='dashboard'] {
 		--acc-primary: #78b870;
 		--acc-secondary: #5abda8;
 	}
