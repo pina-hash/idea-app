@@ -89,6 +89,61 @@ they stopped being tap-REACHES (a pseudo-element hit area, which has to be
 hit-tested) and became real boxes that own their row, which is the `.tap-44`
 mechanism rather than `.tap-reach-44`.
 
+## IT HAPPENED AGAIN WHILE THIS BUNDLE RAN, TWICE, WHICH IS THE EVIDENCE
+
+The loop this bundle was given is not belt-and-braces. Both extra cycles were
+the SAME defect, and the second one is the one worth reading.
+
+**Cycle 2, first collision.** Ledger 0122 landed on `integration` at `9f531764`
+carrying its own regenerated region. The merge resolved cleanly again -- and this
+time MY copy survived and 0122's was discarded, which is the mirror image of what
+happened to ledger 0118. `tests/derived-numbers.test.ts` stayed GREEN through it,
+correctly and unhelpfully: 0122 added no route spec, so the covered SET still
+matched the tree and the test's rule (unmeasured specs AND `outside === 0`) had
+nothing to bite on. But 0122 EDITED four route specs and six notebook source
+files, so the surviving region's `outside: 0` was a claim about a tree without
+the notebook pane, scroll and picker rework in it. **A green test is not evidence
+the region is honest** -- the covered-set rule catches an added spec and cannot
+see an edited one.
+
+**Cycle 2, second collision.** Ledger 0120's branch
+`claude/gauntlet-verification-floor-oclq47` (migration `0194`) had been left
+standing by `integrate.yml` because it CONFLICTED, and the conflict was exactly
+this region -- four hunks, all four inside the generated markers, no prose
+conflict. It also adds a route spec (`gauntlet-rank-state.mjs`), taking the tree
+from 175 specs to 176. **Resolved by regenerating, never by taking a side**: the
+static half rewritten in the merge commit, the measured half from a full pass on
+the merge commit itself.
+
+Its `CLAUDE.md` conflict resolved itself -- 0120's new GAUNTLET section and
+`integration`'s edits are separate blocks at different anchors, so git took both
+and removed zero lines of either. Verified by diffing against `origin/integration`
+and counting deletions: 0. Had the two sides touched the same lines that would
+have been a stop, not a resolution.
+
+An in-flight cycle-2 pass was STOPPED rather than finished once 0120's branch
+came into scope: it was measuring a tree that was about to gain a spec, so its
+region would have been stale on arrival. The harness processes were killed by
+pid with the Vite pid explicitly excluded; `pkill -f` was not used.
+
+### The second pass, on the fully merged tree
+
+Cycle 2's pass, on merge commit `8d13ad87` with ledgers 0122 and 0120 both in,
+clean tree, `dirty:false`.
+
+| | |
+| --- | --- |
+| Route specs covered | 176 (against the static region's 176), `gauntlet-rank-state.mjs` included |
+| Route/width runs | 352 |
+| Measurements | 6130 |
+| Measurements outside threshold | **0** |
+| Wall clock | 899.3s |
+| `--selftest` controls | 70 (36 negative, 34 positive), 0 instrument failures |
+
+All 6130 check lines came back `ok`. Again no row to name, and again nothing
+widened, deleted or hand-edited. Server boot was **70ms** on this pass -- the
+same Vite process reused across both.
+
 ## THE INSTRUMENT, AND WHY THE BOOT WAS TAKEN OUT OF ITS HANDS
 
 `startDevServer` gives a cold `vite dev` a 180-second window and polls

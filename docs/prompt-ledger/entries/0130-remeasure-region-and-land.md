@@ -65,6 +65,22 @@
   `supabase/migrations/0193_classroom_resource_layout.sql` at every check. Any
   other migration is a STOP; prompt 0120 claims `0194`.
 
+  **`0194` JOINED THE PERMITTED SET MID-BUNDLE, ON MR. PINA'S WORD.** He
+  applied `supabase/migrations/0194_gauntlet_verification_floor.sql` by hand on
+  2026-09-10 and reported `floor_ms` 30000, `held_rows` 0, `held_with_a_seat` 0
+  and `reported_by_console` 0, the last being the migration's own safety
+  property. **I verified none of those four values either.** The stop rule for
+  the rest of the bundle became: `0193` and `0194` permitted, anything else a
+  stop. `0194`'s committed file was NOT touched -- it carries a `do $chk$`
+  inside two `--` comments that the SQL editor's splitter cannot handle, which a
+  later bundle closes with a lint; it is not this bundle's file.
+
+  **LEDGER 0120'S BRANCH WAS MERGED HERE RATHER THAN BY `integrate.yml`**, which
+  had left it standing because it conflicted. The conflict was two files: this
+  region (regenerated, never taken from a side) and `CLAUDE.md` (both sides kept
+  -- separate blocks at different anchors, zero lines of either removed, so no
+  stop fired).
+
   **CONFLICT POLICY.** Resolved on `integration`, never on `main`. The counts
   block was this bundle's outright, so it was REGENERATED rather than resolved.
   `classroom-updates.json` is AT THE REPO ROOT, not under `static/`, and is
