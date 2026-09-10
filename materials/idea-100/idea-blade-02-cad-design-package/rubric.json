@@ -1,0 +1,98 @@
+[
+  {
+    "id": "cad-assembly-assembly-zip",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Opens complete, nothing missing",
+        "points": 10,
+        "descriptor": "A Pack and Go zip that opens with no missing references and holds the body, the blade and the three standard parts, with the standard parts unedited."
+      },
+      {
+        "label": "Proficient",
+        "short": "Opens, a part missing",
+        "points": 7,
+        "descriptor": "The zip opens, but a part is missing, a reference is broken, or a standard part has been edited."
+      },
+      {
+        "label": "Developing",
+        "short": "Not a Pack and Go zip",
+        "points": 4,
+        "descriptor": "A single file or loose files are uploaded instead of a Pack and Go zip, or the zip does not open."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing uploaded",
+        "points": 0,
+        "descriptor": "No assembly file is uploaded."
+      }
+    ],
+    "points": 10,
+    "criterion": "Team Assembly - Pack and Go Zip: Team assembly",
+    "incomplete": false
+  },
+  {
+    "id": "cad-my-part-my-part-files",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Owned part, on template, material set",
+        "points": 15,
+        "descriptor": "The .SLDPRT file for every part this student's role owns is uploaded, each is built on the template's construction sketch, and each has a material assigned."
+      },
+      {
+        "label": "Proficient",
+        "short": "Part present, material or template missing",
+        "points": 10,
+        "descriptor": "The owned part is uploaded, but it has no material assigned or is not built on the template's construction sketch."
+      },
+      {
+        "label": "Developing",
+        "short": "Wrong part or wrong file",
+        "points": 5,
+        "descriptor": "A file is uploaded, but it is not a part this student's role owns, or it is not a .SLDPRT."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing uploaded",
+        "points": 0,
+        "descriptor": "No part file is uploaded."
+      }
+    ],
+    "points": 15,
+    "criterion": "My Part - SolidWorks Files: My part",
+    "incomplete": false
+  },
+  {
+    "id": "cad-mfg-mfg-files",
+    "levels": [
+      {
+        "label": "Complete",
+        "short": "Right type, matches the part",
+        "points": 5,
+        "descriptor": "A .3mf for each printed part or a .dxf for each cut part this student owns, matching the part file uploaded above."
+      },
+      {
+        "label": "Proficient",
+        "short": "Right type, does not match",
+        "points": 3,
+        "descriptor": "The file type is right for the process, but it does not match the current part file."
+      },
+      {
+        "label": "Developing",
+        "short": "Wrong file type",
+        "points": 1,
+        "descriptor": "A file is uploaded, but it is the wrong type for the process."
+      },
+      {
+        "label": "Absent",
+        "short": "Nothing uploaded",
+        "points": 0,
+        "descriptor": "No manufacturing file is uploaded."
+      }
+    ],
+    "points": 5,
+    "criterion": "Manufacturing Files - .3mf or .dxf: Manufacturing file",
+    "incomplete": false
+  }
+]
