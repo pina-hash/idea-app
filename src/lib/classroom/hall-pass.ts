@@ -541,3 +541,77 @@ export function hallPassLimitSummary(state: HallPassState | null): string | null
 export function hallPassOverrideLabel(entry: HallPassEntry): string | null {
 	return entry.opened_by ? `sent out by ${entry.opened_by}` : null;
 }
+
+/*
+ * ----------------------------------------------------------------------------
+ * THE TOOL SHAPE (prompt 0118, items SIX and TEN): the card folded into a
+ * trigger and a dialog, and the live notice that keeps the trigger's chip
+ * honest while the dialog is shut.
+ *
+ * TWO OF THE HELPERS BELOW ARE NOT ABOUT THE HALL PASS AT ALL, and they are
+ * here anyway: `CLASSROOM_LIVE_DEBOUNCE_MS` and `classroomLivePausedLine` are
+ * read by `SongQueue.svelte` as well. They belong in `$lib/classroom/live.ts`
+ * beside the bus they describe, but that module is shared and owned outside
+ * this bundle, and `song-queue.ts` is read-only for it -- so the choice was one
+ * copy here, imported by both components, or two literals that would stop
+ * agreeing (a 250 in one file and a 300 in the other is how one tool answers a
+ * notice a beat after its neighbour). One copy wins; moving it is a rename.
+ * ----------------------------------------------------------------------------
+ */
+
+/**
+ * HOW LONG A LIVE NOTICE WAITS BEFORE RE-ASKING THE SERVER.
+ *
+ * A burst of writes (an instructor approving three songs in a row) is three
+ * notices inside a second, and three re-reads would answer with the same rows
+ * three times. A quarter second folds the burst into one read and is still far
+ * inside the "feels immediate" band; the poll (45s / 90s) stays as the floor
+ * underneath, exactly as before any notice existed.
+ */
+export const CLASSROOM_LIVE_DEBOUNCE_MS = 250;
+
+/**
+ * THE ONE QUIET SENTENCE A STALLED CHANNEL EARNS. Nothing is said for
+ * `connecting` (every page starts there) or `live` (the ordinary case needs no
+ * announcement). It names the poll interval, in seconds, because "paused" with
+ * no number in it reads as "broken" -- the point of the sentence is that the
+ * card is still going to be right, just later.
+ */
+export function classroomLivePausedLine(pollMs: number): string {
+	const seconds = Math.max(1, Math.round(pollMs / 1000));
+	// Unreachable with the two real polls (45s, 90s), but it is a sentence a
+	// person reads, so it agrees with itself at one second too.
+	return `Live updates paused, still checking every ${seconds} second${seconds === 1 ? '' : 's'}.`;
+}
+
+/** What the trigger's chip paints: a tone for the hue and a word for everything else. */
+export interface HallPassToolChip {
+	tone: 'free' | 'taken' | 'mine' | 'out' | 'idle';
+	word: string;
+}
+
+/**
+ * THE STATUS CHIP ON THE TRIGGER, which is all a student reads before deciding
+ * whether to open the dialog at all.
+ *
+ * A PEER'S PASS IS "Taken", NEVER A NAME AND NEVER A DURATION -- the same rule
+ * `hallPassStatusLine` follows, one word shorter. The caller's own pass carries
+ * its own elapsed time ("Yours · 6 min"), which is a fact about themselves. An
+ * instructor's chip names who is out, because their payload already does and a
+ * chip reading "1 out" on a door an instructor is standing at is a chip they
+ * have to open to use.
+ *
+ * NO CLOCK IS READ HERE: `nowMs` is the layout's, threaded down, so the chip
+ * and the status line inside the dialog cannot disagree in one paint.
+ */
+export function hallPassToolChip(state: HallPassState, nowMs: number): HallPassToolChip {
+	if (state.scope === 'manager') {
+		if (!state.open) return { tone: 'idle', word: 'Nobody out' };
+		return { tone: 'out', word: `1 out · ${state.open.student_name}` };
+	}
+	if (state.taken && state.mine && state.opened_at) {
+		return { tone: 'mine', word: `Yours · ${hallPassElapsedLabel(state.opened_at, nowMs)}` };
+	}
+	if (state.taken) return { tone: 'taken', word: 'Taken' };
+	return { tone: 'free', word: 'Free' };
+}

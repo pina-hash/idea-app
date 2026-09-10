@@ -1,5 +1,6 @@
 import { error, redirect } from '@sveltejs/kit';
 import { normalizeItemRow } from '$lib/classroom/classroom';
+import { withItemLayout } from '$lib/classroom/attachments';
 import {
 	selectItemsWithDoc,
 	loadItemDeck,
@@ -135,7 +136,16 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	}
 
 	return {
-		item,
+		/**
+		 * WITH ITS LAYOUT ATTACHED (0193), from the same row the item was
+		 * normalized from. Attached at the END, after every reassignment above,
+		 * because `normalizeItemRow` names its fields and would have dropped the
+		 * two columns, and the `{ ...item }` spreads between here and there are
+		 * the kind of line that quietly loses a field a later edit adds. Absent
+		 * when the read could not tell (a pre-0193 project), and the page reads
+		 * absence as "offer no layout controls" rather than as the default.
+		 */
+		item: withItemLayout(item, itemRow as unknown as Record<string, unknown>),
 		deck,
 		engine,
 		instructorCopy,

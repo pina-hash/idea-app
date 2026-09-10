@@ -20,6 +20,7 @@
 	import SpecTextEditor from '$lib/classroom/SpecTextEditor.svelte';
 	import { uploadClassroomFile } from '$lib/classroom/file-upload';
 	import { checkInDuplicateRefusal } from '$lib/classroom/nav';
+	import { COMPOSER_DISCARD_WARNING } from '$lib/classroom/composer-staging';
 	import type { EditableSpec } from '$lib/classroom/spec-text';
 	import type { ReferenceSpec, ReferenceTransports } from '$lib/classroom/reference-spec';
 	import { flagReasonLabel } from '$lib/notebook';
@@ -66,6 +67,7 @@
 		type LinkPreview
 	} from '$lib/classroom/classroom';
 	import { itemInspector, toggleItemInspector } from '$lib/classroom/inspector.svelte';
+	import { itemLayoutOf, type ClassroomLayoutTransports } from '$lib/classroom/attachments';
 
 	/**
 	 * One classroom item in full: an assignment, a material, or an announcement
@@ -129,7 +131,8 @@
 		deckTransports = null,
 		revisionTransports = null,
 		checkIns = [],
-		checkInTransports = null
+		checkInTransports = null,
+		layoutTransports = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -192,9 +195,41 @@
 		 * is there, read-only.
 		 */
 		checkInTransports?: ClassCheckInTransports | null;
+		/**
+		 * THE 0193 WRITES (placement, file order, rename), handed straight to the
+		 * edit composer. Null on a deployment without the migration and for
+		 * anyone who cannot manage the class; the page passes it only when the
+		 * item's own read answered the layout rung (`itemLayoutKnown`), so a
+		 * control is never offered whose save would be refused.
+		 */
+		layoutTransports?: ClassroomLayoutTransports | null;
 	} = $props();
 
+	/**
+	 * WHERE THIS ITEM'S FILES AND LINKS SIT (0193). Read through the one
+	 * reader, which answers the default for a row that could not say -- a
+	 * pre-0193 read renders exactly as every item always has, links then
+	 * files under the body. `top` moves that card ABOVE the body disclosure,
+	 * after the deck and the check-ins, which stay first because one is what
+	 * the class is looking at and the other is an obligation.
+	 */
+	const layout = $derived(itemLayoutOf(item));
+
 	let editing = $state(false);
+	/**
+	 * WHETHER THE EDITOR HOLDS WORK THE ITEM DOES NOT, reported by the composer
+	 * itself (`ondirtychange`) and asked before any close discards it. The
+	 * editor is a full-viewport layer now, so ONE keypress -- Escape, which the
+	 * layer wires to `oncancel` -- and the Close control and the toggle below
+	 * all end it; before the layer, the inline form had no Escape path at all.
+	 * The layout's create composer already asks this exact question in
+	 * `closeComposer`; a save clears it through the composer's own teardown.
+	 */
+	let editDirty = $state(false);
+	function closeEditor() {
+		if (editDirty && !window.confirm(`${COMPOSER_DISCARD_WARNING}\n\nDiscard it?`)) return;
+		editing = false;
+	}
 	let armDelete = $state(false);
 	/**
 	 * THIS COMPONENT'S OWN ACKNOWLEDGEMENT THAT IT DELETED THE ITEM, and it is
@@ -584,6 +619,34 @@
 	<title>{itemTitle(item)} // {sectionTitle(section)}</title>
 </svelte:head>
 
+{#snippet linksCard()}
+	{#if item.links.length}
+		<section class="card" data-testid="item-links-card" data-placement={layout.links}>
+			<h2 class="section-label">Links</h2>
+			<div class="link-list">
+				{#each item.links as l (l.id ?? l.url)}
+					<LinkPreviewCard link={l} {fetchPreview} />
+				{/each}
+			</div>
+		</section>
+	{/if}
+{/snippet}
+
+{#snippet filesCard()}
+	{#if listedAttachments.length}
+		<section class="card" data-testid="item-files-card" data-placement={layout.files}>
+			<h2 class="section-label">Files</h2>
+			<!-- `figureRefs` is the manage gate, and it is the ONLY thing that
+			     changes about this list for a teacher: the same component, the same
+			     rows, plus one affordance. `listedAttachments` is `item.attachments`
+			     minus whatever a figure in the spec above already rendered inline --
+			     see `specProse` -- so a file authored as a figure is not also a
+			     download row for the same image. -->
+			<AttachmentList attachments={listedAttachments} figureRefs={canManage} />
+		</section>
+	{/if}
+{/snippet}
+
 <!--
 	NO MASTHEAD HERE. Every /classroom page renders inside the persistent shell
 	(src/routes/classroom/+layout.svelte), which owns the logo, the section
@@ -653,6 +716,20 @@
 				below. Its point is that this row is on screen whether the tools
 				are open or shut, so reaching the console costs neither an
 				expansion nor a scroll.
+
+				"INSTRUCTOR TOOLS" AND "EDIT POST" STAY TWO CONTROLS (prompt 0118,
+				item EIGHT, decided by the orchestrator). Folding them into one was
+				considered and rejected: they open two DIFFERENT regions -- item
+				management (deck, spec, rubric, check-ins, history, delete) against
+				the document editor -- and a reader told one control opens "the
+				tools" would not know which of the two panels it is about to get.
+				Two tests outside this bundle's ownership (`tests/dom/item-detail-*`)
+				also pin the strip, its "Instructor tools" label, `inspector-toggle`
+				and the Delete control living INSIDE the inspector. What changed is
+				what Edit post opens: the editor is a full-viewport layer now
+				(`screen` on ContentComposer) rather than a form folded into this
+				pane, and the layer mounts inside `item-edit-direct` below so the
+				`aria-controls` here keeps naming a real region.
 			-->
 			<!--
 				`aria-controls` ONLY WHILE THE REGION IS THERE, which is a fix to a
@@ -742,7 +819,7 @@
 								aria-expanded={editing}
 								aria-controls="item-edit-direct"
 								disabled={busy}
-								onclick={() => (editing = !editing)}
+								onclick={() => (editing ? closeEditor() : (editing = true))}
 							>
 								{editing ? 'Close editor' : 'Edit post'}
 							</button>
@@ -784,6 +861,15 @@
 					{/if}
 					{#if editing}
 						{#key item.id}
+							<!-- `screen`, NOT `compact`: the whole authoring form as a
+							     full-viewport layer rather than a card folded into the
+							     detail pane (item EIGHT). It is rendered HERE, inside
+							     `item-edit-direct`, so the region the Edit post control
+							     names is where its editor lives; the layer itself is
+							     `position: fixed` and escapes this pane's box. The spec
+							     and the reference document ride in as figure sources so
+							     a rename that would break a figure is refused before
+							     the round trip, in the database's own words. -->
 							<ContentComposer
 								mode="edit"
 								{item}
@@ -791,9 +877,12 @@
 								transports={transports!}
 								{attachmentsEnabled}
 								{instructorAttachmentsEnabled}
-								compact
+								screen
+								{layoutTransports}
+								figureSources={[spec, referenceSpec]}
 								onsaved={saved}
-								oncancel={() => (editing = false)}
+								ondirtychange={(d) => (editDirty = d)}
+								oncancel={closeEditor}
 							/>
 						{/key}
 					{/if}
@@ -1276,6 +1365,13 @@
 		their own, so the panel simply stays open for them -- which is the rule
 		playing out, not a second rule written for them.
 	-->
+	<!-- ABOVE THE BODY when the author placed them there (0193): after the deck
+	     and the check-ins, before the writing. Same snippets, same rows, same
+	     `data-testid`s as the default position, so a reader and a spec can tell
+	     the two apart only by where the card sits. -->
+	{#if layout.links === 'top'}{@render linksCard()}{/if}
+	{#if layout.files === 'top'}{@render filesCard()}{/if}
+
 	{#if item.body.trim()}
 		<section class="card">
 			<Disclosure
@@ -1301,29 +1397,11 @@
 		</section>
 	{/if}
 
-	{#if item.links.length}
-		<section class="card">
-			<h2 class="section-label">Links</h2>
-			<div class="link-list">
-				{#each item.links as l (l.id ?? l.url)}
-					<LinkPreviewCard link={l} {fetchPreview} />
-				{/each}
-			</div>
-		</section>
-	{/if}
-
-	{#if listedAttachments.length}
-		<section class="card">
-			<h2 class="section-label">Files</h2>
-			<!-- `figureRefs` is the manage gate, and it is the ONLY thing that
-			     changes about this list for a teacher: the same component, the same
-			     rows, plus one affordance. `listedAttachments` is `item.attachments`
-			     minus whatever a figure in the spec above already rendered inline --
-			     see `specProse` -- so a file authored as a figure is not also a
-			     download row for the same image. -->
-			<AttachmentList attachments={listedAttachments} figureRefs={canManage} />
-		</section>
-	{/if}
+	<!-- BELOW THE BODY is the default and what every item before 0193 renders;
+	     the two cards are snippets so the same markup can sit ABOVE it when the
+	     author said so (see `layout`, and the two renders before the body). -->
+	{#if layout.links === 'bottom'}{@render linksCard()}{/if}
+	{#if layout.files === 'bottom'}{@render filesCard()}{/if}
 
 	<!--
 		THE ENGINE SLOT: a student's own hand-in, or -- same slot, same position

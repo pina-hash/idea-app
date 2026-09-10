@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
 	applyStagedExtras,
 	composerHasWork,
+	composerDraftSignature,
 	saveTarget,
 	stagedDeckIssue,
 	stagedRubricAfterSpec,
@@ -631,5 +632,79 @@ describe('the rubric inside a staged spec', () => {
 	it('a cleared spec clears the rubric it derived', () => {
 		const first = stagedRubricAfterSpec(LEVELED_SPEC, true, { rubric: null, derived: false });
 		expect(stagedRubricAfterSpec(null, true, first)).toEqual({ rubric: null, derived: false });
+	});
+});
+
+/**
+ * WHERE THE FILES AND LINKS SIT, AND IN WHAT ORDER (0193, prompt 0118).
+ *
+ * Both are work the navigation guard has to see -- a placement is a decision
+ * somebody made and a rearrangement is one too -- and neither types a word
+ * or stages a byte, so nothing the signature already read would notice them.
+ * They were added to `ComposerDraft` as OPTIONAL fields, and this block pins
+ * the two consequences of that: a draft that never had them serializes
+ * exactly as one carrying the default (so no composer that predates the
+ * control starts reporting itself dirty), and a value off the default moves
+ * the signature (so the control is not decoration).
+ */
+describe('where the files and links sit, and in what order (0193)', () => {
+	const empty: ComposerDraft = {
+		title: '',
+		bodyText: '',
+		files: 0,
+		instructorFiles: 0,
+		links: [],
+		instructorLinks: [],
+		deck: null,
+		spec: null,
+		checkIn: null,
+		rubric: null
+	};
+
+	it('the default placement is not work, and reads as no placement at all', () => {
+		expect(composerHasWork({ ...empty, layout: { files: 'bottom', links: 'bottom' } })).toBe(false);
+		expect(composerDraftSignature({ ...empty, layout: { files: 'bottom', links: 'bottom' } })).toBe(
+			composerDraftSignature(empty)
+		);
+		expect(composerDraftSignature({ ...empty, layout: null })).toBe(composerDraftSignature(empty));
+	});
+
+	it('a placement off the default is a decision, and counts', () => {
+		expect(composerHasWork({ ...empty, layout: { files: 'top', links: 'bottom' } })).toBe(true);
+		expect(composerHasWork({ ...empty, layout: { files: 'bottom', links: 'top' } })).toBe(true);
+		// The two groups are two answers: moving one is not moving the other.
+		expect(composerDraftSignature({ ...empty, layout: { files: 'top', links: 'bottom' } })).not.toBe(
+			composerDraftSignature({ ...empty, layout: { files: 'bottom', links: 'top' } })
+		);
+	});
+
+	it('an absent or empty file order is the same absence', () => {
+		expect(composerDraftSignature({ ...empty, existingOrder: [] })).toBe(composerDraftSignature(empty));
+		expect(composerDraftSignature({ ...empty, existingOrder: null })).toBe(composerDraftSignature(empty));
+	});
+
+	it('the same files in a different order is a different draft', () => {
+		const ab = composerDraftSignature({ ...empty, existingOrder: ['a', 'b'] });
+		const ba = composerDraftSignature({ ...empty, existingOrder: ['b', 'a'] });
+		expect(ab).not.toBe(ba);
+		expect(composerDraftSignature({ ...empty, existingOrder: ['a', 'b'] })).toBe(ab);
+	});
+
+	/**
+	 * THE INSTRUCTOR LIST IS ITS OWN ORDER. It is written by its own RPC on
+	 * save, so a rearrangement of it is work in exactly the sense the
+	 * student-facing one is -- and it is a different field, so moving one list
+	 * cannot read as moving the other.
+	 */
+	it('the instructor-only files carry their own order, under the same rule', () => {
+		expect(composerDraftSignature({ ...empty, instructorExistingOrder: [] })).toBe(
+			composerDraftSignature(empty)
+		);
+		expect(composerDraftSignature({ ...empty, instructorExistingOrder: null })).toBe(
+			composerDraftSignature(empty)
+		);
+		const ab = composerDraftSignature({ ...empty, instructorExistingOrder: ['a', 'b'] });
+		expect(ab).not.toBe(composerDraftSignature({ ...empty, instructorExistingOrder: ['b', 'a'] }));
+		expect(ab).not.toBe(composerDraftSignature({ ...empty, existingOrder: ['a', 'b'] }));
 	});
 });

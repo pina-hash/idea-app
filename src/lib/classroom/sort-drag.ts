@@ -27,6 +27,20 @@
  * write the reorder. The consumer's own Move up / Move down menu items may
  * stay as a second, discoverable spelling of the same thing.
  *
+ * A DROP ZONE IS A SECOND KIND OF RELEASE, NOT A SECOND DRAG. With `zones`
+ * set (a selector, e.g. `.group-card`), every move also asks
+ * `document.elementFromPoint` what is under the pointer and walks up to the
+ * nearest zone; a zone OTHER than the one this list sits in is marked
+ * `data-sort-zone-active="true"` (the room's CSS draws it) and, on release,
+ * gets `ondropzone(from, zone)` INSTEAD of `ondrop`. That is how a row is
+ * filed into another unit by dragging it there: the same pointerdown, the
+ * same follow, one different commit. The dragged item is given
+ * `pointer-events: none` for the duration, because it sits under the pointer
+ * by construction and `elementFromPoint` would otherwise answer the row being
+ * dragged -- whose nearest zone is always the home one -- for the whole drag.
+ * Pointer capture is on the handle and is unaffected: a captured pointer's
+ * events are delivered to the capturing element without a hit test.
+ *
  * WHAT IT DOES NOT DO. It never reorders the DOM: it paints transforms during
  * the drag, clears them on release, and hands `(from, to)` to `ondrop`. The
  * consumer's own state is what reorders the list (and a keyed `{#each}` is
@@ -95,6 +109,23 @@ export function movedList<T>(list: readonly T[], from: number, to: number): T[] 
 	return next;
 }
 
+/**
+ * The zone a release over `hit` lands in, or null when the pointer is over
+ * this list's own zone (or over nothing). Pure over the `closest` contract so
+ * it is assertable without a document: `hit` is whatever `elementFromPoint`
+ * answered, `home` is the zone the sortable list itself sits in.
+ */
+export function foreignZone<E extends { closest(selector: string): E | null }>(
+	hit: E | null,
+	zones: string,
+	home: E | null
+): E | null {
+	if (!hit) return null;
+	const zone = hit.closest(zones);
+	if (!zone || zone === home) return null;
+	return zone;
+}
+
 export interface SortDragOptions {
 	/** Selector for the sortable items, matched anywhere under the node. */
 	items: string;
@@ -109,6 +140,14 @@ export interface SortDragOptions {
 	onend?: () => void;
 	/** ArrowUp / ArrowDown on a focused handle. On by default. */
 	keyboard?: boolean;
+	/**
+	 * Selector for DROP ZONES (filing by drag). A release over a zone other
+	 * than the one this list sits in calls `ondropzone` instead of `ondrop`;
+	 * while dragging, the zone under the pointer carries
+	 * `data-sort-zone-active="true"`. Absent: the list only reorders itself.
+	 */
+	zones?: string;
+	ondropzone?: (from: number, zone: HTMLElement) => void;
 }
 
 const EDGE_PX = 40;
@@ -144,6 +183,12 @@ export function sortDrag(node: HTMLElement, initial: SortDragOptions) {
 		scroller: HTMLElement | null;
 		scrollStart: number;
 		edgeTimer: ReturnType<typeof setInterval> | null;
+		/** The pointer's last client position, so an edge-scroll tick and the
+		 *  release can re-ask what is under it without a new event. */
+		lastX: number;
+		lastY: number;
+		/** The foreign zone currently marked under the pointer, if any. */
+		zone: HTMLElement | null;
 	} | null = null;
 
 	const itemsOf = () => Array.from(node.querySelectorAll<HTMLElement>(opts.items));
@@ -174,10 +219,40 @@ export function sortDrag(node: HTMLElement, initial: SortDragOptions) {
 			item.style.transform = '';
 			item.style.zIndex = '';
 			item.style.position = '';
+			item.style.pointerEvents = '';
 			item.classList.remove('is-dragging');
 			delete item.dataset.sortShifted;
 		}
 		node.classList.remove('is-sorting');
+		markZone(null);
+	}
+
+	/** Mark exactly one zone, or none: the previous mark is always cleared
+	 *  first, so a fast pointer can never leave two cards lit. */
+	function markZone(zone: HTMLElement | null) {
+		if (!dragging) return;
+		if (dragging.zone === zone) return;
+		if (dragging.zone) delete dragging.zone.dataset.sortZoneActive;
+		dragging.zone = zone;
+		if (zone) zone.dataset.sortZoneActive = 'true';
+	}
+
+	/**
+	 * What is under the pointer, as a zone. `elementFromPoint` is asked on
+	 * every move rather than on release alone, because the mark is what tells
+	 * the person where the row will land before they let go; a release-only
+	 * read would file silently. Null outside the viewport (the DOM's own
+	 * answer), and null where the environment has no hit testing at all
+	 * (happy-dom), which fails closed to an ordinary reorder.
+	 */
+	function zoneUnder(clientX: number, clientY: number): HTMLElement | null {
+		if (!opts.zones) return null;
+		if (typeof document.elementFromPoint !== 'function') return null;
+		const hit = document.elementFromPoint(clientX, clientY);
+		// `elementFromPoint` answers `Element`; a zone matched by a class
+		// selector in a document is an HTMLElement, and the dataset write that
+		// marks it needs that type.
+		return foreignZone(hit, opts.zones, node.closest(opts.zones)) as HTMLElement | null;
 	}
 
 	function stopEdge() {
@@ -187,9 +262,11 @@ export function sortDrag(node: HTMLElement, initial: SortDragOptions) {
 		}
 	}
 
-	function moveTo(clientY: number) {
+	function moveTo(clientX: number, clientY: number) {
 		if (!dragging) return;
 		const d = dragging;
+		d.lastX = clientX;
+		d.lastY = clientY;
 		const scrolled = d.scroller ? d.scroller.scrollTop - d.scrollStart : 0;
 		const dy = clientY - d.startY + scrolled;
 		if (!d.started) {
@@ -200,6 +277,9 @@ export function sortDrag(node: HTMLElement, initial: SortDragOptions) {
 			item.classList.add('is-dragging');
 			item.style.position = 'relative';
 			item.style.zIndex = '3';
+			// See the header: the dragged row is what is under the pointer, so
+			// it has to stop answering hit tests for a zone to be readable.
+			if (opts.zones) item.style.pointerEvents = 'none';
 			opts.onstart?.(d.from);
 		}
 		const item = d.items[d.from];
@@ -210,6 +290,7 @@ export function sortDrag(node: HTMLElement, initial: SortDragOptions) {
 			d.to = to;
 			paint();
 		}
+		markZone(zoneUnder(clientX, clientY));
 		// Near the scroll container's edge, keep the pane moving under the
 		// pointer. A timer rather than an animation frame (CLAUDE.md: rAF alone
 		// never ticks on a throttled tab).
@@ -219,11 +300,10 @@ export function sortDrag(node: HTMLElement, initial: SortDragOptions) {
 			const down = box.bottom - clientY < EDGE_PX;
 			if ((up || down) && !d.edgeTimer) {
 				const dir = up ? -1 : 1;
-				const lastY = clientY;
 				d.edgeTimer = setInterval(() => {
 					if (!dragging || !dragging.scroller) return stopEdge();
 					dragging.scroller.scrollTop += dir * EDGE_STEP_PX;
-					moveTo(lastY);
+					moveTo(dragging.lastX, dragging.lastY);
 				}, EDGE_TICK_MS);
 			} else if (!up && !down) {
 				stopEdge();
@@ -237,6 +317,10 @@ export function sortDrag(node: HTMLElement, initial: SortDragOptions) {
 		stopEdge();
 		const started = d.started;
 		const { from, to } = d;
+		// Read before clearPaint, which unmarks it. A zone wins over a reorder:
+		// a row released over another card was being filed, whatever index it
+		// happened to pass through in its own list on the way there.
+		const zone = commit && started ? d.zone : null;
 		clearPaint();
 		try {
 			if (typeof d.handle.releasePointerCapture === 'function') {
@@ -252,14 +336,15 @@ export function sortDrag(node: HTMLElement, initial: SortDragOptions) {
 		dragging = null;
 		if (started) {
 			opts.onend?.();
-			if (commit && from !== to) opts.ondrop(from, to);
+			if (zone && opts.ondropzone) opts.ondropzone(from, zone);
+			else if (commit && from !== to) opts.ondrop(from, to);
 		}
 	}
 
 	function onMove(e: PointerEvent) {
 		if (!dragging || e.pointerId !== dragging.pointerId) return;
 		e.preventDefault();
-		moveTo(e.clientY);
+		moveTo(e.clientX, e.clientY);
 	}
 	function onUp(e: PointerEvent) {
 		if (!dragging || e.pointerId !== dragging.pointerId) return;
@@ -302,7 +387,10 @@ export function sortDrag(node: HTMLElement, initial: SortDragOptions) {
 			started: false,
 			scroller,
 			scrollStart: scroller?.scrollTop ?? 0,
-			edgeTimer: null
+			edgeTimer: null,
+			lastX: e.clientX,
+			lastY: e.clientY,
+			zone: null
 		};
 		try {
 			if (typeof handle.setPointerCapture === 'function') handle.setPointerCapture(e.pointerId);

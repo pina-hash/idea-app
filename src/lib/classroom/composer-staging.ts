@@ -25,6 +25,7 @@ import type { CheckInDraft } from '$lib/classroom/class-check-ins';
 import { rubricFromSpec } from '$lib/classroom/assignment-spec';
 import type { AssignmentSpec, RubricCriterion } from '$lib/classroom/assignment-spec';
 import { deckUploadSizeIssue, type DeckTransports, type DeckUploadProgress } from '$lib/classroom/deck';
+import { DEFAULT_ITEM_LAYOUT, sameLayout, type ItemLayout } from '$lib/classroom/attachments';
 
 /**
  * WHERE A SAVE SHOULD GO, and the reason this is a decision rather than an
@@ -431,6 +432,31 @@ export interface ComposerDraft {
 	checkIn: CheckInDraft | null;
 	/** A staged rubric (0139): typed work, so it counts. */
 	rubric: RubricCriterion[] | null;
+	/**
+	 * WHERE THE FILES AND LINKS SIT (0193), or absent where the composer holds
+	 * no such control. OPTIONAL, and that is a compatibility decision rather
+	 * than a shrug: every draft built before placement existed -- in the
+	 * component's own history and in the tests that pin it -- keeps compiling,
+	 * and an absent placement reads the same as the default one, so nothing
+	 * that never offered the control starts reporting itself dirty.
+	 */
+	layout?: ItemLayout | null;
+	/**
+	 * THE ORDER OF THE FILES THE ITEM ALREADY CARRIES (0193), by id. A reorder
+	 * moves no bytes and types no words, so nothing else in this draft would
+	 * see it -- and the navigation guard would then let somebody walk away from
+	 * a rearrangement they made on purpose. Absent on a create, where there is
+	 * nothing existing to order.
+	 *
+	 * NULL UNLESS IT HAS MOVED. The composer hands the list in only when the
+	 * rows still present sit in a different order from what the database
+	 * holds -- the same comparison its save makes -- because the list also
+	 * SHRINKS when a row is removed, and a removal is an immediate write that
+	 * has already landed. A raw id list here read that as unsaved work.
+	 */
+	existingOrder?: string[] | null;
+	/** The instructor-only list's order, under the same rule. */
+	instructorExistingOrder?: string[] | null;
 }
 
 /**
@@ -468,7 +494,21 @@ export function composerDraftSignature(draft: ComposerDraft): string {
 		deck: draft.deck ? 1 : 0,
 		spec: draft.spec != null ? 1 : 0,
 		checkIn: draft.checkIn ? 1 : 0,
-		rubric: draft.rubric ? 1 : 0
+		rubric: draft.rubric ? 1 : 0,
+		// THE DEFAULT PLACEMENT READS AS NO PLACEMENT, on purpose. `composerHasWork`
+		// asks whether this differs from an EMPTY draft, and an empty draft has
+		// no placement -- so a composer that opened on the default and was never
+		// touched must serialize identically to one that never had the control.
+		// A placement OFF the default is a decision somebody made, and counts.
+		layout:
+			draft.layout && !sameLayout(draft.layout, DEFAULT_ITEM_LAYOUT)
+				? `${draft.layout.files}/${draft.layout.links}`
+				: null,
+		// An empty list and an absent one are the same absence: nothing to order.
+		existingOrder: draft.existingOrder?.length ? draft.existingOrder.join(',') : null,
+		instructorExistingOrder: draft.instructorExistingOrder?.length
+			? draft.instructorExistingOrder.join(',')
+			: null
 	});
 }
 

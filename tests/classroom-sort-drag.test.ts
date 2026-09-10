@@ -6,7 +6,13 @@
 // reports as a bug and everybody works around, so it is pinned here.
 
 import { describe, expect, it } from 'vitest';
-import { movedList, sortDropIndex, sortShifts, type SortRect } from '../src/lib/classroom/sort-drag';
+import {
+	foreignZone,
+	movedList,
+	sortDropIndex,
+	sortShifts,
+	type SortRect
+} from '../src/lib/classroom/sort-drag';
 
 /** Five 40px rows with an 8px gap, starting at y=100. */
 function rows(n = 5, height = 40, gap = 8, top = 100): SortRect[] {
@@ -101,5 +107,53 @@ describe('the two halves agree: a drop index computed from a shifted centre land
 				expect(sortDropIndex(r, from, target), `from ${from} to ${to}`).toBe(to);
 			}
 		}
+	});
+});
+
+/**
+ * FILING BY DRAG (prompt 0118, item SEVEN): which zone a release lands in.
+ *
+ * `foreignZone` is the one decision between "reorder in this list" and "file
+ * into that card", and it is pure over the `closest` contract -- so a fake
+ * element that answers `closest` the way the DOM does is enough to pin it
+ * here, with no document. The action's own use of it (marking the zone under
+ * the pointer, calling `ondropzone` instead of `ondrop`) is what
+ * `tests/dom/classroom-organizer-mount.test.ts` drives through real events.
+ */
+describe('foreignZone: a release over another zone is a filing, over the home zone or nothing is not', () => {
+	interface FakeEl {
+		name: string;
+		zone: FakeEl | null;
+		closest(selector: string): FakeEl | null;
+	}
+	function zone(name: string): FakeEl {
+		const z: FakeEl = { name, zone: null, closest: () => z };
+		return z;
+	}
+	function inside(z: FakeEl | null, name: string): FakeEl {
+		return { name, zone: z, closest: () => z };
+	}
+	const home = zone('home');
+	const other = zone('other');
+
+	it('answers the OTHER zone for an element inside it', () => {
+		expect(foreignZone(inside(other, 'row'), '.zone', home)).toBe(other);
+		expect(foreignZone(other, '.zone', home)).toBe(other);
+	});
+
+	it('answers null over the home zone -- that is a reorder, not a filing', () => {
+		expect(foreignZone(inside(home, 'row'), '.zone', home)).toBeNull();
+		expect(foreignZone(home, '.zone', home)).toBeNull();
+	});
+
+	it('answers null over nothing (outside the viewport, or no zone up the tree)', () => {
+		expect(foreignZone(null, '.zone', home)).toBeNull();
+		expect(foreignZone(inside(null, 'loose'), '.zone', home)).toBeNull();
+	});
+
+	it('with no home zone at all, any zone under the pointer is foreign', () => {
+		// A sortable list that does not itself sit in a zone (the unit manager
+		// inside a card that is not a group) still files into one it is over.
+		expect(foreignZone(inside(other, 'row'), '.zone', null)).toBe(other);
 	});
 });

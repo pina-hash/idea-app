@@ -1,7 +1,10 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import {
+		CLASSROOM_LIVE_DEBOUNCE_MS,
 		HALL_PASS_POLL_MS,
+		classroomLivePausedLine,
 		hallPassBlockedReason,
 		hallPassCanClose,
 		hallPassCanOpen,
@@ -12,11 +15,13 @@
 		hallPassOverrideLabel,
 		hallPassRefusalMessage,
 		hallPassStatusLine,
+		hallPassToolChip,
 		hallPassUsageLine,
 		type HallPassRefusal,
 		type HallPassState,
 		type HallPassTransports
 	} from '$lib/classroom/hall-pass';
+	import type { ClassroomLive, ClassroomLiveStatus } from '$lib/classroom/live';
 
 	/**
 	 * THE DIGITAL BATHROOM PASS, at the top of the class pane.
@@ -27,6 +32,14 @@
 	 * the class page IS this pane, so first-in-the-pane means zero scrolling and
 	 * one tap from opening the class. Anywhere further down is a scroll on the
 	 * one surface where scrolling is the cost.
+	 *
+	 * TWO SHAPES, ONE CARD (prompt 0118). `tool={false}` is the card, exactly as
+	 * it has always been. `tool={true}` folds the SAME card into a trigger and a
+	 * native `<dialog>`: the trigger is one 44px control carrying the glyph, the
+	 * word and a live status chip, and the dialog holds the identical markup
+	 * (same `data-testid`s, same controls) behind one tap. The card is a snippet
+	 * rendered in both places precisely so there is one copy of it -- a second
+	 * "compact" rendering would be the thing that quietly stops matching.
 	 *
 	 * PRESENTATION PLUS INJECTED TRANSPORTS, the ReviewConsole convention. It is
 	 * not a boundary and could not be one: `0143` decides who may open, who may
@@ -47,7 +60,9 @@
 		sectionId,
 		state: serverState,
 		transports,
-		now
+		now,
+		live = null,
+		tool = false
 	}: {
 		sectionId: string;
 		/** The layout load's answer. Null is not a state this component renders --
@@ -64,6 +79,17 @@
 		 * at a pinned one.
 		 */
 		now: number;
+		/**
+		 * THE LIVE NOTICE BUS (`$lib/classroom/live`). Omitted, the card is what it
+		 * was: polled at `HALL_PASS_POLL_MS` and nothing else. Present, a notice
+		 * for the `hall-pass` topic re-asks the server after a short debounce, and
+		 * every successful write here announces one. THE POLL STAYS EITHER WAY --
+		 * it is the floor, and a write made outside this app (the SQL editor)
+		 * announces nothing.
+		 */
+		live?: ClassroomLive | null;
+		/** `true` renders the trigger-and-dialog shape; `false` the card as today. */
+		tool?: boolean;
 	} = $props();
 
 	/**
@@ -80,12 +106,12 @@
 		void serverState;
 		local = null;
 	});
-	const live = $derived(local ?? serverState);
+	const view = $derived(local ?? serverState);
 
-	const canOpen = $derived(!!transports && hallPassCanOpen(live, now));
-	const canClose = $derived(!!transports && hallPassCanClose(live));
-	const blocked = $derived(hallPassBlockedReason(live, now));
-	const manager = $derived(live.scope === 'manager' ? live : null);
+	const canOpen = $derived(!!transports && hallPassCanOpen(view, now));
+	const canClose = $derived(!!transports && hallPassCanClose(view));
+	const blocked = $derived(hallPassBlockedReason(view, now));
+	const manager = $derived(view.scope === 'manager' ? view : null);
 
 	/**
 	 * `0174`. THE COUNT IS SHOWN BEFORE ANYBODY TAPS, which is the half of the
@@ -93,8 +119,8 @@
 	 * spend a pass finding out. Null on a deployment without the migration --
 	 * there is no rule to describe, so the card says nothing about one.
 	 */
-	const usage = $derived(hallPassUsageLine(live));
-	const limitSummary = $derived(hallPassLimitSummary(live));
+	const usage = $derived(hallPassUsageLine(view));
+	const limitSummary = $derived(hallPassLimitSummary(view));
 
 	/**
 	 * THE OVERRIDE CONTROL EXISTS ONLY WHEN ALL THREE HALVES DO: the transport
@@ -109,11 +135,14 @@
 
 	/** Glyph AND word, never the hue alone. */
 	const chip = $derived.by(() => {
-		if (live.taken && live.scope === 'student' && live.mine)
+		if (view.taken && view.scope === 'student' && view.mine)
 			return { tone: 'mine', glyph: '◐', word: 'You are out' };
-		if (live.taken) return { tone: 'taken', glyph: '◐', word: 'Taken' };
+		if (view.taken) return { tone: 'taken', glyph: '◐', word: 'Taken' };
 		return { tone: 'free', glyph: '○', word: 'Free' };
 	});
+
+	/** The trigger's own chip, one word shorter than the status line and named nobody a student may not see. */
+	const toolChip = $derived(hallPassToolChip(view, now));
 
 	async function refresh(): Promise<void> {
 		if (!transports) return;
@@ -133,6 +162,11 @@
 	 * and listener callbacks run outside the tracking scope, so the work they do
 	 * takes no dependency on the state it writes -- which is what would otherwise
 	 * re-arm the interval on every tick.
+	 *
+	 * IT STAYS AT COMPONENT LEVEL IN BOTH SHAPES, deliberately: in tool mode the
+	 * card is only mounted while the dialog is open, but the chip on the trigger
+	 * is read all period long, so the thing that keeps the chip honest cannot
+	 * live inside the dialog.
 	 */
 	$effect(() => {
 		if (!transports) return;
@@ -147,6 +181,63 @@
 			document.removeEventListener('visibilitychange', tick);
 		};
 	});
+
+	/**
+	 * THE LIVE NOTICE. A notice carries no payload -- it means "re-ask the
+	 * server", never "apply this row" (read `live.ts`'s header for why) -- so the
+	 * whole of what it does here is call the same `refresh()` the poll calls,
+	 * after a short debounce that folds a burst into one read.
+	 *
+	 * TRACK THE INPUTS, UNTRACK THE CALL. `live` and `sectionId` are read
+	 * tracked at the top so a new bus or a new section re-subscribes; the
+	 * `subscribe` call itself is INJECTED CODE -- whoever mounts this component
+	 * wrote it, and the memory bus a harness hands in reads and writes reactive
+	 * state before it returns -- so it goes inside `untrack`, or everything it
+	 * touches joins this effect's dependency set and the mount spins with
+	 * `effect_update_depth_exceeded`. The callbacks it is handed run later,
+	 * outside any tracking context, and need no wrapping.
+	 */
+	let liveStatus = $state<ClassroomLiveStatus | null>(null);
+	$effect(() => {
+		const bus = live;
+		const section = sectionId;
+		if (!bus) {
+			liveStatus = null;
+			return;
+		}
+		let debounce: ReturnType<typeof setTimeout> | null = null;
+		const unsubscribe = untrack(() =>
+			bus.subscribe(
+				section,
+				(topic) => {
+					if (topic !== 'hall-pass') return;
+					if (debounce) clearTimeout(debounce);
+					debounce = setTimeout(() => {
+						debounce = null;
+						void refresh();
+					}, CLASSROOM_LIVE_DEBOUNCE_MS);
+				},
+				(status) => {
+					liveStatus = status;
+				}
+			)
+		);
+		return () => {
+			if (debounce) clearTimeout(debounce);
+			unsubscribe();
+		};
+	});
+
+	/**
+	 * SAY THAT THIS CLIENT JUST WROTE. Fire-and-forget by the bus's own contract;
+	 * a notice that does not get through costs the other viewers one poll
+	 * interval, which is what they had before this existed. Called ONLY after a
+	 * result the server said yes to -- a refusal changed nothing, so there is
+	 * nothing to announce.
+	 */
+	function announce(): void {
+		live?.announce(sectionId, 'hall-pass');
+	}
 
 	/**
 	 * THE REFUSAL'S DETAIL IS CARRIED, NOT DROPPED (`0174`). A `cooldown` whose
@@ -200,7 +291,9 @@
 		busy = true;
 		notice = null;
 		try {
-			report(await transports.open(sectionId), 'You are signed out. Sign back in when you return.');
+			const res = await transports.open(sectionId);
+			report(res, 'You are signed out. Sign back in when you return.');
+			if (res.ok) announce();
 		} catch {
 			// The transport turns an RPC refusal into a result, so reaching here
 			// means the request never completed. SAYING SO MATTERS MORE THAN
@@ -234,13 +327,13 @@
 	 * one. `closeMine` passes the section and the database resolves the person
 	 * from the session.
 	 *
-	 * THE SNAPSHOT IS TAKEN ONCE, before the await. Reading `live` again after
+	 * THE SNAPSHOT IS TAKEN ONCE, before the await. Reading `view` again after
 	 * it would be reading whatever the poll has since replaced it with, which is
 	 * the same stale-intent bug one level up.
 	 */
 	async function signIn(): Promise<void> {
 		if (busy || !transports || !canClose) return;
-		const snapshot = live;
+		const snapshot = view;
 		const target = snapshot.scope === 'manager' ? snapshot.open : null;
 		// `canClose` already requires a manager to have an open pass, so this is
 		// unreachable rather than defensive -- but a close with nothing to name
@@ -259,6 +352,7 @@
 					? `Signed ${res.data.student_name} back in.`
 					: 'Signed back in.'
 			);
+			if (res.ok) announce();
 		} catch {
 			notice = 'Could not reach the class. Check your connection and try again.';
 		} finally {
@@ -292,7 +386,10 @@
 		try {
 			const res = await send(sectionId, target);
 			report(res, res.ok ? `Sent ${res.data.student_name} out.` : '');
-			if (res.ok) overrideEmail = '';
+			if (res.ok) {
+				overrideEmail = '';
+				announce();
+			}
 		} catch {
 			notice = 'Could not reach the class. Check your connection and try again.';
 		} finally {
@@ -300,155 +397,337 @@
 			await refresh();
 		}
 	}
+
+	/*
+	 * ------------------------------------------------------------------------
+	 * THE TOOL SHAPE: a trigger and a native <dialog>.
+	 *
+	 * A NATIVE <dialog> WITH showModal(), NOT A STYLED OVERLAY DIV, for the
+	 * reasons `PhotoViewer.svelte` already gives: the browser owns the top
+	 * layer, the focus trap, Escape and the inert-ness of everything behind it,
+	 * and every one of those is a thing a hand-rolled overlay gets subtly wrong.
+	 * The element is MOUNTED ONLY WHILE OPEN -- so "no dialog at rest" is a
+	 * structural absence a spec can count, and the card inside it (its poll-free
+	 * markup, its Disclosure) costs nothing while the dialog is shut.
+	 *
+	 * THREE CLOSE PATHS, ONE HANDLER. The Close control, Escape and a press on
+	 * the backdrop all land in `closeDialog()`, which is idempotent, so the
+	 * browser's own cancel arriving beside ours is harmless. Escape is handled
+	 * on keydown as well as left to the browser: the DOM project has no native
+	 * close-request handling, so a test of that path would otherwise be
+	 * asserting nothing, and in a real browser both roads reach the same line.
+	 * The backdrop press is `pointerdown`, not `click`, on the DIALOG ELEMENT
+	 * ITSELF: the panel inside it fills every pixel the dialog owns, so a press
+	 * whose target IS the dialog is by construction a press on the backdrop --
+	 * and a drag that starts inside and ends outside never produces one.
+	 *
+	 * FOCUS GOES TO THE CARD'S OWN CONTROL ON OPEN and back to the trigger on
+	 * close. The dialog exists to do one thing, and that thing is the card's
+	 * button; landing on Close first would put the exit one Tab ahead of the
+	 * reason anybody opened it. Close is one Shift+Tab away and always on
+	 * screen. A card with nothing to press (read-only, an instructor with nobody
+	 * out) falls back to Close.
+	 *
+	 * ALL THREE LISTENERS ARE ATTACHED WITH addEventListener in the effect that
+	 * opens the dialog, not as Svelte attributes: `close` does not bubble (HTML
+	 * spec) so a delegated attribute never fires, and keeping the other two
+	 * beside it means one place says what the dialog listens for.
+	 * ------------------------------------------------------------------------
+	 */
+	let open = $state(false);
+	let dialogEl = $state<HTMLDialogElement | null>(null);
+	let triggerEl = $state<HTMLButtonElement | null>(null);
+
+	function openDialog(): void {
+		if (open) return;
+		open = true;
+	}
+
+	function closeDialog(): void {
+		if (!open) return;
+		open = false;
+		// CLOSE THE NATIVE DIALOG BEFORE MOVING FOCUS. While a modal dialog is
+		// open everything outside it is inert, and `focus()` on an inert element
+		// is refused silently -- measured: focus landed on `body` and the trigger
+		// read `aria-expanded="false"` with nothing focused. `close()` lifts the
+		// inertness synchronously (the `close` event is queued, and `open` is
+		// already false so its handler returns early); the `{#if open}` block
+		// then unmounts the element on the next flush.
+		const el = dialogEl;
+		if (el?.open) el.close();
+		triggerEl?.focus();
+	}
+
+	$effect(() => {
+		const el = dialogEl;
+		if (!el) return;
+		if (!el.open) el.showModal();
+		const onClose = () => closeDialog();
+		const onKeydown = (e: KeyboardEvent) => {
+			if (e.key !== 'Escape') return;
+			e.preventDefault();
+			closeDialog();
+		};
+		const onPointerdown = (e: PointerEvent) => {
+			if (e.target === el) closeDialog();
+		};
+		el.addEventListener('close', onClose);
+		el.addEventListener('keydown', onKeydown);
+		el.addEventListener('pointerdown', onPointerdown);
+		const first =
+			el.querySelector<HTMLElement>(
+				'.ctool-body button:not([disabled]), .ctool-body select:not([disabled]), .ctool-body input, .ctool-body a[href]'
+			) ?? el.querySelector<HTMLElement>('.ctool-close');
+		first?.focus();
+		return () => {
+			el.removeEventListener('close', onClose);
+			el.removeEventListener('keydown', onKeydown);
+			el.removeEventListener('pointerdown', onPointerdown);
+			if (el.open) el.close();
+		};
+	});
 </script>
 
-<section class="hp-card" data-testid="hall-pass" data-scope={live.scope}>
-	<div class="hp-head">
-		<h2 class="hp-title">Hall pass</h2>
-		<span class="hp-chip" data-tone={chip.tone} data-testid="hall-pass-chip">
-			<span class="hp-glyph" aria-hidden="true">{chip.glyph}</span>{chip.word}
-		</span>
-	</div>
-
-	<p class="hp-status" data-testid="hall-pass-status">{hallPassStatusLine(live, now)}</p>
-
-	{#if usage}
-		<!--
-			`0174`. THE COUNT BEFORE THE TAP, not only in the refusal after it. A
-			student who can see "2 of 3" coming does not spend the third finding
-			out what the rule is.
-		-->
-		<p class="hp-usage" data-testid="hall-pass-usage">{usage}</p>
-	{/if}
-
-	{#if transports}
-		<div class="hp-actions">
-			{#if canClose}
-				<button
-					type="button"
-					class="btn tap-44 hp-action"
-					data-testid="hall-pass-close"
-					disabled={busy}
-					onclick={signIn}
-				>
-					Sign back in
-				</button>
-			{:else if live.scope === 'student'}
-				<!--
-					OFFERED EVEN WHEN THE PASS IS TAKEN, on purpose. The alternative --
-					removing the control -- leaves a student staring at a card with no
-					affordance and no account of why, and "the pass is taken" is a
-					sentence they are entitled to whether or not they can act on it.
-					`aria-disabled` is what lets it say so; a real `disabled` would eat
-					the tap. The in-flight half IS a real `disabled`: a tap during a
-					request has nothing to be told.
-				-->
-				<button
-					type="button"
-					class="btn tap-44 hp-action"
-					data-testid="hall-pass-open"
-					disabled={busy}
-					aria-disabled={!canOpen}
-					onclick={signOut}
-				>
-					Sign out
-				</button>
-			{/if}
+{#snippet card()}
+	<section class="hp-card" class:hp-in-dialog={tool} data-testid="hall-pass" data-scope={view.scope} data-live={liveStatus}>
+		<div class="hp-head">
+			<h2 class="hp-title">Hall pass</h2>
+			<span class="hp-chip" data-tone={chip.tone} data-testid="hall-pass-chip">
+				<span class="hp-glyph" aria-hidden="true">{chip.glyph}</span>{chip.word}
+			</span>
 		</div>
-	{/if}
 
-	{#if notice}
-		<p class="hp-notice" role="status" data-testid="hall-pass-notice">{notice}</p>
-	{/if}
+		<p class="hp-status" data-testid="hall-pass-status">{hallPassStatusLine(view, now)}</p>
 
-	{#if manager && canOverride}
-		<!--
-			`0174`. THE OVERRIDE, WHICH IS WHAT KEEPS THE LIMIT FROM BEING WORKED
-			AROUND. A rule with no override becomes a rule an instructor routes
-			around some other way, and a bathroom is not a place to be rigid --
-			so the person who knows the situation can send a student out past the
-			cooldown and the cap, and the row records that they did.
+		{#if usage}
+			<!--
+				`0174`. THE COUNT BEFORE THE TAP, not only in the refusal after it. A
+				student who can see "2 of 3" coming does not spend the third finding
+				out what the rule is.
+			-->
+			<p class="hp-usage" data-testid="hall-pass-usage">{usage}</p>
+		{/if}
 
-			ONE ROW, NOT A PANEL. This sits on a card an instructor reads while a
-			student is standing in front of them: a select and a button, no
-			disclosure to open, nothing to scroll past.
-		-->
-		<div class="hp-override" data-testid="hall-pass-override">
-			<label class="hp-override-label" for={`hp-send-${sectionId}`}>Send a student out</label>
-			<select
-				id={`hp-send-${sectionId}`}
-				class="hp-override-select tap-44"
-				bind:value={overrideEmail}
-				disabled={busy}
-				data-testid="hall-pass-override-select"
-			>
-				<option value="">Choose a student</option>
-				{#each overrideRoster as person (person.student_email)}
-					<option value={person.student_email}>{person.student_name}</option>
-				{/each}
-			</select>
-			<button
-				type="button"
-				class="btn tap-44 hp-override-go"
-				data-testid="hall-pass-override-go"
-				disabled={busy}
-				aria-disabled={!overrideEmail}
-				onclick={sendOut}
-			>
-				Send out
-			</button>
-			{#if limitSummary}
-				<p class="hp-override-note">{limitSummary}</p>
-			{/if}
-		</div>
-	{/if}
+		{#if transports}
+			<div class="hp-actions">
+				{#if canClose}
+					<button
+						type="button"
+						class="btn tap-44 hp-action"
+						data-testid="hall-pass-close"
+						disabled={busy}
+						onclick={signIn}
+					>
+						Sign back in
+					</button>
+				{:else if view.scope === 'student'}
+					<!--
+						OFFERED EVEN WHEN THE PASS IS TAKEN, on purpose. The alternative --
+						removing the control -- leaves a student staring at a card with no
+						affordance and no account of why, and "the pass is taken" is a
+						sentence they are entitled to whether or not they can act on it.
+						`aria-disabled` is what lets it say so; a real `disabled` would eat
+						the tap. The in-flight half IS a real `disabled`: a tap during a
+						request has nothing to be told.
+					-->
+					<button
+						type="button"
+						class="btn tap-44 hp-action"
+						data-testid="hall-pass-open"
+						disabled={busy}
+						aria-disabled={!canOpen}
+						onclick={signOut}
+					>
+						Sign out
+					</button>
+				{/if}
+			</div>
+		{/if}
 
-	{#if manager}
-		<!--
-			THE HISTORY IS INSTRUCTOR ONLY AND IS NOT A SECOND READ. It arrives on
-			the same payload, from the manager branch of `classroom_hall_pass_state`
-			-- so there is no surface a student could reach that answers this
-			question emptily and has to be kept empty.
-		-->
-		<Disclosure
-			label="Recent passes"
-			scope={`hall-pass:${sectionId}`}
-			testId="hall-pass-history"
-			bodyClass="hp-history-body"
-		>
-			{#if manager.history.length === 0}
-				<p class="hp-empty">Nobody has taken the pass in this class yet.</p>
-			{:else}
-				<ul class="hp-history">
-					{#each manager.history as entry (entry.pass_id)}
-						<li class="hp-entry">
-							<span class="hp-who">{entry.student_name}</span>
-							<span class="hp-when">
-								{hallPassClockLabel(entry.opened_at)}
-								{#if entry.closed_at}
-									to {hallPassClockLabel(entry.closed_at)} &middot; {hallPassDurationLabel(entry)}
-								{:else}
-									&middot; still out, {hallPassElapsedLabel(entry.opened_at, now)}
-								{/if}
-								<!--
-									`0174`. AN OVERRIDE IS READABLE AS ONE, or the history
-									cannot tell "went four times" from "went once and I sent
-									them three times" -- and a limit whose overrides leave no
-									trace is a limit nobody can check.
-								-->
-								{#if hallPassOverrideLabel(entry)}
-									&middot; <span class="hp-sent"
-										>{hallPassOverrideLabel(entry)}</span
-									>
-								{/if}
-							</span>
-						</li>
+		{#if notice}
+			<p class="hp-notice" role="status" data-testid="hall-pass-notice">{notice}</p>
+		{/if}
+
+		{#if liveStatus === 'stalled'}
+			<!--
+				ONE QUIET SENTENCE, ONLY FOR A CHANNEL THAT REPORTED A FAULT. Nothing
+				is said while connecting (every page starts there) or once live. It
+				names the poll interval because the point is that the card is still
+				going to be right, just later -- "paused" alone reads as "broken".
+			-->
+			<p class="hp-live" data-testid="hall-pass-live">
+				{classroomLivePausedLine(HALL_PASS_POLL_MS)}
+			</p>
+		{/if}
+
+		{#if manager && canOverride}
+			<!--
+				`0174`. THE OVERRIDE, WHICH IS WHAT KEEPS THE LIMIT FROM BEING WORKED
+				AROUND. A rule with no override becomes a rule an instructor routes
+				around some other way, and a bathroom is not a place to be rigid --
+				so the person who knows the situation can send a student out past the
+				cooldown and the cap, and the row records that they did.
+
+				ONE ROW, NOT A PANEL. This sits on a card an instructor reads while a
+				student is standing in front of them: a select and a button, no
+				disclosure to open, nothing to scroll past.
+
+				THE SELECT IS `cr-select` (item TEN): the shared redrawn native select
+				in classroom.css, 44px, with a dark open list. The label stays a real
+				`<label for>` and stays visible -- a picker with only a placeholder
+				option for a name is a picker whose purpose vanishes once a name is
+				picked. `min-height` is restated on the local rule so the floor holds
+				on a harness that mounts the card outside `.cr-root`.
+			-->
+			<div class="hp-override" data-testid="hall-pass-override">
+				<label class="hp-override-label" for={`hp-send-${sectionId}`}>Send a student out</label>
+				<select
+					id={`hp-send-${sectionId}`}
+					class="hp-override-select cr-select"
+					bind:value={overrideEmail}
+					disabled={busy}
+					data-testid="hall-pass-override-select"
+				>
+					<option value="">Choose a student</option>
+					{#each overrideRoster as person (person.student_email)}
+						<option value={person.student_email}>{person.student_name}</option>
 					{/each}
-				</ul>
-			{/if}
-		</Disclosure>
-	{/if}
-</section>
+				</select>
+				<button
+					type="button"
+					class="btn tap-44 hp-override-go"
+					data-testid="hall-pass-override-go"
+					disabled={busy}
+					aria-disabled={!overrideEmail}
+					onclick={sendOut}
+				>
+					Send out
+				</button>
+				{#if limitSummary}
+					<p class="hp-override-note">{limitSummary}</p>
+				{/if}
+			</div>
+		{/if}
+
+		{#if manager}
+			<!--
+				THE HISTORY IS INSTRUCTOR ONLY AND IS NOT A SECOND READ. It arrives on
+				the same payload, from the manager branch of `classroom_hall_pass_state`
+				-- so there is no surface a student could reach that answers this
+				question emptily and has to be kept empty.
+			-->
+			<Disclosure
+				label="Recent passes"
+				scope={`hall-pass:${sectionId}`}
+				testId="hall-pass-history"
+				bodyClass="hp-history-body"
+			>
+				{#if manager.history.length === 0}
+					<p class="hp-empty">Nobody has taken the pass in this class yet.</p>
+				{:else}
+					<ul class="hp-history">
+						{#each manager.history as entry (entry.pass_id)}
+							<li class="hp-entry">
+								<span class="hp-who">{entry.student_name}</span>
+								<span class="hp-when">
+									{hallPassClockLabel(entry.opened_at)}
+									{#if entry.closed_at}
+										to {hallPassClockLabel(entry.closed_at)} &middot; {hallPassDurationLabel(entry)}
+									{:else}
+										&middot; still out, {hallPassElapsedLabel(entry.opened_at, now)}
+									{/if}
+									<!--
+										`0174`. AN OVERRIDE IS READABLE AS ONE, or the history
+										cannot tell "went four times" from "went once and I sent
+										them three times" -- and a limit whose overrides leave no
+										trace is a limit nobody can check.
+									-->
+									{#if hallPassOverrideLabel(entry)}
+										&middot; <span class="hp-sent"
+											>{hallPassOverrideLabel(entry)}</span
+										>
+									{/if}
+								</span>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</Disclosure>
+		{/if}
+	</section>
+{/snippet}
+
+{#if tool}
+	<div class="ctool" data-testid="hall-pass-tool-root" data-live={liveStatus}>
+		<!--
+			THE TRIGGER: glyph, word, and a live chip. The word is always there
+			(every control carries a visible word, not only a glyph); the chip is
+			the one thing on this trigger that moves, and it moves from the same
+			`view` the card reads -- the poll and the live notice keep it honest
+			while the dialog is shut, which is why neither lives inside the dialog.
+		-->
+		<button
+			bind:this={triggerEl}
+			type="button"
+			class="ctool-trigger"
+			data-testid="hall-pass-tool"
+			aria-haspopup="dialog"
+			aria-expanded={open}
+			onclick={openDialog}
+		>
+			<svg class="ctool-glyph" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+				<path
+					d="M4 2.5h8.5v15H4z M12.5 5.5l3.5-1v11l-3.5-1"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.6"
+					stroke-linejoin="round"
+				/>
+				<circle cx="10" cy="10.2" r="1.15" fill="currentColor" />
+			</svg>
+			<span class="ctool-word">Hall pass</span>
+			<span class="ctool-chip" data-tone={toolChip.tone} data-testid="hall-pass-tool-chip"
+				>{toolChip.word}</span
+			>
+		</button>
+		{#if liveStatus === 'stalled'}
+			<!--
+				THE STALLED SENTENCE, OUTSIDE THE DIALOG. The card's own copy sits
+				inside the snippet, which in tool mode is mounted only while the
+				dialog is open -- so with the dialog shut the only trace of a stalled
+				channel was the `data-live` attribute, which nobody reads. The chip is
+				what a student reads all period, and this is the sentence that says
+				the chip is still going to be right, just later. The card keeps its
+				copy for the reader inside the dialog; this one is for everyone else.
+			-->
+			<p class="ctool-live" data-testid="hall-pass-tool-live">
+				{classroomLivePausedLine(HALL_PASS_POLL_MS)}
+			</p>
+		{/if}
+		{#if open}
+			<dialog bind:this={dialogEl} class="ctool-dialog" aria-label="Hall pass">
+				<div class="ctool-panel">
+					<div class="ctool-head">
+						<span class="ctool-title">Hall pass</span>
+						<button
+							type="button"
+							class="btn ctool-close"
+							data-testid="hall-pass-tool-close"
+							onclick={closeDialog}
+						>
+							Close
+						</button>
+					</div>
+					<div class="ctool-body">
+						{@render card()}
+					</div>
+				</div>
+			</dialog>
+		{/if}
+	</div>
+{:else}
+	{@render card()}
+{/if}
 
 <style>
 	/*
@@ -471,6 +750,14 @@
 		/* A grid/flex child's automatic minimum is its min-content, so without
 		   this the history row's times push the pane wider than the viewport. */
 		min-width: 0;
+	}
+	/* Inside the dialog the panel is the card's edge, so the card draws none
+	   of its own and keeps no outer margin. */
+	.hp-card.hp-in-dialog {
+		border: 0;
+		border-radius: 0;
+		margin: 0;
+		padding: 0;
 	}
 	.hp-head {
 		display: flex;
@@ -552,6 +839,15 @@
 		font-family: var(--font-mono);
 		font-size: 0.8rem;
 	}
+	/* The stalled-channel sentence: the same quiet register as the usage line.
+	   Not `--amber` -- a stalled socket is not a warning about the pass. */
+	.hp-live {
+		margin: 0;
+		color: var(--text-2);
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		line-height: 1.4;
+	}
 	.hp-override {
 		display: flex;
 		flex-wrap: wrap;
@@ -630,5 +926,167 @@
 		font-family: var(--font-mono);
 		font-size: 0.76rem;
 		letter-spacing: 0.04em;
+	}
+
+	/*
+	 * THE TOOL SHELL (`ctool-`). THESE RULES ARE MIRRORED BYTE FOR BYTE IN
+	 * `SongQueue.svelte`, AND THAT IS A KNOWN DUPLICATION, NOT A SECOND DESIGN.
+	 * The two tools have to look like two of one thing on one row, so the
+	 * trigger and the dialog are one set of rules -- but a shared stylesheet or
+	 * a shell component is a file outside this bundle's ownership, so for now
+	 * the second copy lives beside the first with this note on both. The right
+	 * home is one `class-tools.css` (or a `ClassTool.svelte` shell) that both
+	 * import; whoever makes that move deletes both copies in the same change.
+	 */
+	.ctool {
+		/* The trigger sits in the `.class-tools` row and takes its share of it;
+		   the dialog is top-layer and takes no room in the row at all, which is
+		   what "no layout shift on the page" means here. A column, because the
+		   stalled sentence, when there is one, sits BENEATH the trigger. */
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		min-width: 0;
+		flex: 1 1 12rem;
+	}
+	.ctool-trigger {
+		/* One control, 44px, the whole row's width on a phone. `min-height`,
+		   never a height, so a chip that wraps grows the box instead of
+		   clipping. */
+		display: inline-flex;
+		align-items: center;
+		gap: 0.6rem;
+		min-height: 44px;
+		min-width: 0;
+		width: 100%;
+		padding: 0.5rem 0.9rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card, 10px);
+		background: var(--surface-1);
+		color: var(--text-1);
+		font-family: var(--font-mono);
+		font-size: 0.82rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		text-align: left;
+		cursor: pointer;
+	}
+	.ctool-trigger:hover {
+		border-color: var(--green);
+	}
+	.ctool-trigger:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
+	}
+	.ctool-trigger[aria-expanded='true'] {
+		border-color: var(--green);
+	}
+	.ctool-glyph {
+		flex: none;
+		color: var(--green);
+	}
+	.ctool-word {
+		flex: none;
+	}
+	.ctool-chip {
+		/* The chip carries a WORD in every state and a hue in most; the word is
+		   the signal and the hue is the second one. Pushed to the trailing edge
+		   so the word and the status read as two columns across both tools. */
+		margin-left: auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 0.74rem;
+		letter-spacing: 0.06em;
+		text-transform: none;
+		color: var(--text-2);
+	}
+	.ctool-chip[data-tone='free'],
+	.ctool-chip[data-tone='approved'] {
+		color: var(--green);
+	}
+	.ctool-chip[data-tone='taken'],
+	.ctool-chip[data-tone='mine'],
+	.ctool-chip[data-tone='out'],
+	.ctool-chip[data-tone='pending'] {
+		color: var(--teal);
+	}
+	.ctool-live {
+		/* The stalled-channel sentence beneath the trigger: the quiet metadata
+		   register, never `--amber` -- a stalled socket is not a warning about
+		   the room. Same register as the card's own copy. */
+		margin: 0;
+		padding-inline: 0.2rem;
+		color: var(--text-2);
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		line-height: 1.4;
+	}
+	.ctool-dialog {
+		/* The dialog owns no padding: the panel inside it fills every pixel it
+		   has, so a pointerdown whose target is the dialog itself is a press on
+		   the backdrop and nothing else. */
+		padding: 0;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card, 10px);
+		background: var(--surface-1);
+		color: var(--text-1);
+		width: 100%;
+		max-width: min(100% - 2rem, 34rem);
+		max-height: calc(100dvh - 2rem);
+		box-sizing: border-box;
+		overflow: hidden;
+	}
+	.ctool-dialog::backdrop {
+		background: rgba(4, 6, 5, 0.72);
+	}
+	.ctool-panel {
+		display: flex;
+		flex-direction: column;
+		max-height: calc(100dvh - 2rem);
+		min-width: 0;
+	}
+	.ctool-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		padding: var(--space-3) var(--space-4);
+		border-bottom: 1px solid var(--boundary);
+		flex: none;
+	}
+	.ctool-title {
+		font-family: var(--font-mono);
+		font-size: 0.82rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	.ctool-close {
+		flex: none;
+		min-height: 44px;
+	}
+	.ctool-body {
+		padding: var(--space-4);
+		overflow: auto;
+		min-width: 0;
+		min-height: 0;
+	}
+	@media (max-width: 640px) {
+		/* FULL-HEIGHT-ISH ON A PHONE: the dialog takes the whole viewport less a
+		   thumb's worth of margin, so the card's controls sit where a thumb
+		   already is rather than floating in the middle of a dark screen. */
+		.ctool-dialog,
+		.ctool-panel {
+			max-height: calc(100dvh - 1rem);
+		}
+		.ctool-dialog {
+			max-width: calc(100% - 1rem);
+			height: calc(100dvh - 1rem);
+		}
+		.ctool-panel {
+			height: 100%;
+		}
 	}
 </style>
