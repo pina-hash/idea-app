@@ -609,66 +609,59 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
   "title": "IDEA-BLADE Assignment 01: Concept and Role Charter",
   "course": "IDEA-100",
   "points": 50,
-  "modules": [
+  "header": [
     {
-      "id": "package",
-      "title": "Submission Package",
-      "points": 0,
-      "audience": "individual",
-      "blocks": [
-        {
-          "id": "package.student-name",
-          "field": "student-name",
-          "type": "text"
-        },
-        {
-          "id": "package.team-name",
-          "field": "team-name",
-          "type": "text"
-        },
-        {
-          "id": "package.team-members",
-          "field": "team-members",
-          "type": "text"
-        },
-        {
-          "id": "package.date",
-          "field": "student-date",
-          "type": "text"
-        },
-        {
-          "id": "package.rulebook-ack",
-          "field": "rulebook-ack",
-          "type": "checkbox"
-        },
-        {
-          "id": "package.declaration",
-          "field": "declaration",
-          "type": "checkbox"
-        },
-        {
-          "id": "package.check-sketches",
-          "field": "check-sketches",
-          "type": "checkbox"
-        },
-        {
-          "id": "package.check-rulebook",
-          "field": "check-rulebook-done",
-          "type": "checkbox"
-        },
-        {
-          "id": "package.check-declaration",
-          "field": "check-decl",
-          "type": "checkbox"
-        },
-        {
-          "id": "package.check-owners",
-          "field": "check-owners",
-          "type": "checkbox"
-        }
-      ],
-      "criteria": []
+      "id": "package-student-name",
+      "field": "student-name",
+      "type": "text"
     },
+    {
+      "id": "package-team-name",
+      "field": "team-name",
+      "type": "text"
+    },
+    {
+      "id": "package-team-members",
+      "field": "team-members",
+      "type": "text"
+    },
+    {
+      "id": "package-date",
+      "field": "student-date",
+      "type": "text"
+    },
+    {
+      "id": "package-rulebook-ack",
+      "field": "rulebook-ack",
+      "type": "checkbox"
+    },
+    {
+      "id": "package-declaration",
+      "field": "declaration",
+      "type": "checkbox"
+    },
+    {
+      "id": "package-check-sketches",
+      "field": "check-sketches",
+      "type": "checkbox"
+    },
+    {
+      "id": "package-check-rulebook",
+      "field": "check-rulebook-done",
+      "type": "checkbox"
+    },
+    {
+      "id": "package-check-declaration",
+      "field": "check-decl",
+      "type": "checkbox"
+    },
+    {
+      "id": "package-check-owners",
+      "field": "check-owners",
+      "type": "checkbox"
+    }
+  ],
+  "modules": [
     {
       "id": "identity",
       "title": "Blade Identity",
@@ -676,33 +669,33 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
       "audience": "team",
       "blocks": [
         {
-          "id": "identity.name",
+          "id": "identity-name",
           "field": "blade-name",
           "type": "text"
         },
         {
-          "id": "identity.tagline",
+          "id": "identity-tagline",
           "field": "blade-tagline",
           "type": "text"
         },
         {
-          "id": "identity.theme",
+          "id": "identity-theme",
           "field": "blade-theme",
           "type": "text"
         },
         {
-          "id": "identity.inspiration",
+          "id": "identity-inspiration",
           "field": "blade-inspiration",
           "type": "longText",
           "minSentences": 2
         },
         {
-          "id": "identity.mood",
+          "id": "identity-mood",
           "field": "blade-mood",
           "type": "text"
         },
         {
-          "id": "identity.personality",
+          "id": "identity-personality",
           "field": "blade-personality",
           "type": "longText",
           "minSentences": 2
@@ -710,7 +703,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
       ],
       "criteria": [
         {
-          "id": "identity.naming",
+          "id": "identity-naming",
           "text": "Name and tagline are present and considered, not placeholder text like \"Blade 1\" or \"TBD\"",
           "points": 2,
           "levels": [
@@ -735,7 +728,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
           ]
         },
         {
-          "id": "identity.theme-specific",
+          "id": "identity-theme-specific",
           "text": "Theme declaration is specific, naming a clear concept rather than a vague one",
           "points": 2,
           "levels": [
@@ -760,7 +753,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
           ]
         },
         {
-          "id": "identity.inspiration",
+          "id": "identity-inspiration",
           "text": "Theme inspiration shows genuine reasoning for the choice, minimum 2 sentences met",
           "points": 2,
           "levels": [
@@ -785,18 +778,18 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
           ]
         },
         {
-          "id": "identity.mood",
+          "id": "identity-mood",
           "text": "Visual mood uses specific descriptive language, not generic words like \"cool\" or \"good\"",
-          "points": 1,
+          "points": 2,
           "levels": [
             {
-              "points": 1,
+              "points": 2,
               "label": "Complete",
               "short": "Three to five specific words",
               "descriptor": "The mood is given in specific, picturable words such as \"jagged, ancient, burning\"."
             },
             {
-              "points": 0.5,
+              "points": 1,
               "label": "Developing",
               "short": "Generic words only",
               "descriptor": "Words are present but generic, such as \"cool\" or \"good\", and do not describe a look."
@@ -810,27 +803,21 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
           ]
         },
         {
-          "id": "identity.personality",
+          "id": "identity-personality",
           "text": "Combat personality describes a fighting style and connects it to the theme, minimum 2 sentences met",
-          "points": 3,
+          "points": 2,
           "levels": [
             {
-              "points": 3,
+              "points": 2,
               "label": "Complete",
               "short": "Style described, theme connected",
               "descriptor": "Describes how the blade fights and ties that fighting character back to the declared theme. Two-sentence minimum met."
             },
             {
-              "points": 2,
-              "label": "Proficient",
-              "short": "Style described, theme loose",
-              "descriptor": "Describes a fighting style clearly, but the connection to the theme is asserted rather than explained."
-            },
-            {
               "points": 1,
               "label": "Developing",
-              "short": "Style only, no theme",
-              "descriptor": "Names a fighting style with no reference to the theme, or falls short of the two-sentence minimum."
+              "short": "Style described, theme missing",
+              "descriptor": "Describes a fighting style clearly, but the connection to the theme is asserted rather than explained, or is absent. Includes an answer that falls short of the two-sentence minimum."
             },
             {
               "points": 0,
@@ -849,19 +836,19 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
       "audience": "team",
       "blocks": [
         {
-          "id": "rationale.characteristics",
+          "id": "rationale-characteristics",
           "field": "rationale-characteristics",
           "type": "longText",
           "minSentences": 3
         },
         {
-          "id": "rationale.form",
+          "id": "rationale-form",
           "field": "rationale-form",
           "type": "longText",
           "minSentences": 4
         },
         {
-          "id": "rationale.blind-test",
+          "id": "rationale-blind-test",
           "field": "rationale-blindtest",
           "type": "longText",
           "minSentences": 2
@@ -869,7 +856,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
       ],
       "criteria": [
         {
-          "id": "rationale.characteristics",
+          "id": "rationale-characteristics",
           "text": "Step 1: three or more distinct characteristics listed and described with enough detail to be actionable, minimum 3 sentences met",
           "points": 3,
           "levels": [
@@ -900,7 +887,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
           ]
         },
         {
-          "id": "rationale.form",
+          "id": "rationale-form",
           "text": "Step 2: specific geometry named, each choice directly linked to a characteristic from Step 1, minimum 4 sentences met",
           "points": 4,
           "levels": [
@@ -931,7 +918,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
           ]
         },
         {
-          "id": "rationale.blind-test",
+          "id": "rationale-blind-test",
           "text": "Step 3: honest self-assessment with reasoning, identifying what communicates the theme and acknowledging what does not, minimum 2 sentences met",
           "points": 3,
           "levels": [
@@ -970,13 +957,13 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
       "audience": "individual",
       "blocks": [
         {
-          "id": "momentum.distribution",
+          "id": "momentum-distribution",
           "field": "mass-distribution",
           "type": "longText",
           "minSentences": 3
         },
         {
-          "id": "momentum.effect",
+          "id": "momentum-effect",
           "field": "mass-effect",
           "type": "longText",
           "minSentences": 3
@@ -984,7 +971,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
       ],
       "criteria": [
         {
-          "id": "momentum.distribution",
+          "id": "momentum-distribution",
           "text": "Mass distribution names specific parts or regions of the design and explains the reasoning behind the placement, minimum 3 sentences met",
           "points": 5,
           "levels": [
@@ -1015,7 +1002,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
           ]
         },
         {
-          "id": "momentum.trade-offs",
+          "id": "momentum-trade-offs",
           "text": "Trade-offs address both what the distribution gains and what it costs, minimum 3 sentences met",
           "points": 5,
           "levels": [
@@ -1054,14 +1041,14 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
       "audience": "individual",
       "blocks": [
         {
-          "id": "sketches.images",
+          "id": "sketches-images",
           "field": "sketch-images",
           "type": "image"
         }
       ],
       "criteria": [
         {
-          "id": "sketches.top-view",
+          "id": "sketches-top-view",
           "text": "Top view is present and legible, with blade geometry and overall shape readable rather than just an outline",
           "points": 3,
           "levels": [
@@ -1092,7 +1079,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
           ]
         },
         {
-          "id": "sketches.side-view",
+          "id": "sketches-side-view",
           "text": "Side view is present and legible, with height profile and proportions visible",
           "points": 3,
           "levels": [
@@ -1123,7 +1110,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
           ]
         },
         {
-          "id": "sketches.annotation",
+          "id": "sketches-annotation",
           "text": "At least one sketch includes dimensions or annotations calling out key measurements or features",
           "points": 2,
           "levels": [
@@ -1148,7 +1135,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
           ]
         },
         {
-          "id": "sketches.intent",
+          "id": "sketches-intent",
           "text": "Design intent is clear from the sketches alone, without reading the other modules",
           "points": 2,
           "levels": [
@@ -1181,123 +1168,129 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
       "audience": "team",
       "blocks": [
         {
-          "id": "manufacturing.row-01.process",
+          "id": "manufacturing-row-01-process",
           "field": "mfg-01-p",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-01.component",
+          "id": "manufacturing-row-01-component",
           "field": "mfg-01-c",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-01.owner",
+          "id": "manufacturing-row-01-owner",
           "field": "mfg-01-o",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-01.why",
+          "id": "manufacturing-row-01-why",
           "field": "mfg-01-w",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-02.process",
+          "id": "manufacturing-row-02-process",
           "field": "mfg-02-p",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-02.component",
+          "id": "manufacturing-row-02-component",
           "field": "mfg-02-c",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-02.owner",
+          "id": "manufacturing-row-02-owner",
           "field": "mfg-02-o",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-02.why",
+          "id": "manufacturing-row-02-why",
           "field": "mfg-02-w",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-03.process",
+          "id": "manufacturing-row-03-process",
           "field": "mfg-03-p",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-03.component",
+          "id": "manufacturing-row-03-component",
           "field": "mfg-03-c",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-03.owner",
+          "id": "manufacturing-row-03-owner",
           "field": "mfg-03-o",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-03.why",
+          "id": "manufacturing-row-03-why",
           "field": "mfg-03-w",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-04.process",
+          "id": "manufacturing-row-04-process",
           "field": "mfg-04-p",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-04.component",
+          "id": "manufacturing-row-04-component",
           "field": "mfg-04-c",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-04.owner",
+          "id": "manufacturing-row-04-owner",
           "field": "mfg-04-o",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-04.why",
+          "id": "manufacturing-row-04-why",
           "field": "mfg-04-w",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-05.process",
+          "id": "manufacturing-row-05-process",
           "field": "mfg-05-p",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-05.component",
+          "id": "manufacturing-row-05-component",
           "field": "mfg-05-c",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-05.owner",
+          "id": "manufacturing-row-05-owner",
           "field": "mfg-05-o",
           "type": "text"
         },
         {
-          "id": "manufacturing.row-05.why",
+          "id": "manufacturing-row-05-why",
           "field": "mfg-05-w",
           "type": "text"
         }
       ],
       "criteria": [
         {
-          "id": "manufacturing.processes",
-          "text": "Each named process is real and mapped to a specific named component, not \"various parts\"",
-          "points": 2,
+          "id": "manufacturing-processes",
+          "text": "Each named process is real and mapped to a specific named component, and each justification names a real property of the process rather than restating the choice",
+          "points": 3,
           "levels": [
             {
-              "points": 2,
+              "points": 3,
               "label": "Complete",
-              "short": "Real processes, named components",
-              "descriptor": "Every listed process is a real manufacturing process and each names the specific component it will produce."
+              "short": "Real processes, named, justified",
+              "descriptor": "Every listed process is a real manufacturing process, each names the specific component it will produce, and each justification gives a real property of the process, such as \"it can make complex internal shapes\"."
+            },
+            {
+              "points": 2,
+              "label": "Proficient",
+              "short": "Mapped, one justification circular",
+              "descriptor": "Processes are real and mapped to named components, but at least one justification is circular, such as \"because it is the right process\"."
             },
             {
               "points": 1,
               "label": "Developing",
-              "short": "Real process, vague component",
-              "descriptor": "Processes are real, but at least one names its component only in general terms such as \"various parts\"."
+              "short": "Vague component or none justified",
+              "descriptor": "Processes are real, but at least one names its component only in general terms such as \"various parts\", or the justification column is empty."
             },
             {
               "points": 0,
@@ -1308,32 +1301,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
           ]
         },
         {
-          "id": "manufacturing.justification",
-          "text": "Justifications are specific and reasonable, naming a real property of the process rather than restating the choice",
-          "points": 1,
-          "levels": [
-            {
-              "points": 1,
-              "label": "Complete",
-              "short": "Specific, reasonable justification",
-              "descriptor": "Each justification gives a real property of the process, such as \"it can make complex internal shapes\"."
-            },
-            {
-              "points": 0.5,
-              "label": "Developing",
-              "short": "Present but circular",
-              "descriptor": "A justification is written for each row, but at least one is circular, such as \"because it is the right process\"."
-            },
-            {
-              "points": 0,
-              "label": "Absent",
-              "short": "No justification given",
-              "descriptor": "The justification column is empty."
-            }
-          ]
-        },
-        {
-          "id": "manufacturing.ownership",
+          "id": "manufacturing-ownership",
           "text": "Every team member appears as an Owner on at least one row",
           "points": 2,
           "levels": [
@@ -1366,13 +1334,13 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
       "audience": "individual",
       "blocks": [
         {
-          "id": "contact.surfaces",
+          "id": "contact-surfaces",
           "field": "contact-surfaces",
           "type": "longText",
           "minSentences": 2
         },
         {
-          "id": "contact.force",
+          "id": "contact-force",
           "field": "contact-force",
           "type": "longText",
           "minSentences": 2
@@ -1380,7 +1348,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
       ],
       "criteria": [
         {
-          "id": "contact.surfaces",
+          "id": "contact-surfaces",
           "text": "Contact surfaces are specifically identified and located on the design with enough detail to assess compliance, minimum 2 sentences met",
           "points": 2,
           "levels": [
@@ -1405,7 +1373,7 @@ canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; d
           ]
         },
         {
-          "id": "contact.force",
+          "id": "contact-force",
           "text": "Force transfer is explained using the contact rule's standard, describing how the geometry grips rather than deflects and what force effect results, minimum 2 sentences met",
           "points": 3,
           "levels": [

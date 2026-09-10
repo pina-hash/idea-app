@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import {
+	HTML_ID_RE,
+	manifestBlocks,
+	validateHtmlManifest
+} from '../src/lib/classroom/html-assignment/manifest.ts';
 
 /**
  * THE PORTED FIXTURE'S SILENT GUARANTEES.
@@ -42,7 +47,22 @@ function manifestOf(html: string): Manifest {
 }
 
 const manifest = manifestOf(fixture);
-const blocks = manifest.modules.flatMap((m) => m.blocks);
+/*
+	`manifestBlocks` RATHER THAN A SECOND FLATTEN, AND THE DIFFERENCE IS
+	`header`. This read used to be `manifest.modules.flatMap((m) => m.blocks)`,
+	which was every block there was while identity fields lived in a 0-point
+	module. They live in `header` now, where the contract puts them so a grading
+	console does not render a student's name as something to score -- and the
+	hand-written flatten silently stopped seeing ten of them. It did not fail as
+	"ten blocks are missing"; it failed as "ten fields in the document have no
+	block", which reads as a defect in the DOCUMENT.
+
+	The shipped helper is what every real caller uses to answer "what blocks does
+	this manifest have", so asking it here is what keeps the test and the
+	importer answering the same question. A second flatten is the thing that
+	stops matching.
+*/
+const blocks = manifestBlocks(manifest);
 const criteria = manifest.modules.flatMap((m) => m.criteria);
 
 /**
@@ -144,6 +164,75 @@ describe('the frame is sandboxed and must stay that way', () => {
 		// parent maps `field` through the manifest it stored at import.
 		const code = fixture.replace(/\/\*[\s\S]*?\*\//g, '');
 		expect(code).not.toMatch(/block_id|blockId/);
+	});
+});
+
+/*
+	THE ASSERTION WHOSE ABSENCE LET A FIXTURE SHIP THAT THE IMPORTER REFUSES.
+
+	Twenty-six checks in this file described the fixture accurately and every one
+	of them passed while `validateHtmlManifest` -- the function the import path
+	actually calls -- reported SIXTY-SIX errors on the same bytes. The checks were
+	hand-written expectations about what a good port looks like; none of them was
+	the shipped gate, and the two had drifted apart on the one rule nobody had
+	written down (the id charset) and on level arithmetic.
+
+	CLAUDE.md's rule is that a test's expected value must not come from the thing
+	it is testing. The mirror of it is this: where a real gate exists, the fixture
+	goes THROUGH it, or the file is a description of the fixture rather than a
+	check on it.
+*/
+describe('the fixture is one the shipped importer accepts', () => {
+	it('passes the real validator with no errors at all', () => {
+		const v = validateHtmlManifest(fixture);
+		expect(v.errors, v.errors.join('\n')).toEqual([]);
+		expect(v.manifest, 'a manifest with no errors parses').not.toBeNull();
+	});
+
+	/*
+		The positive control: the validator this test leans on can still find a
+		fault. Without it, a validator that returned `{ errors: [] }` for
+		everything would make the assertion above pass over any bytes at all.
+	*/
+	it('and that validator still refuses a manifest it should', () => {
+		const broken = fixture.replace(/"schemaVersion": 3/, '"schemaVersion": 2');
+		expect(broken).not.toBe(fixture);
+		expect(validateHtmlManifest(broken).errors.length).toBeGreaterThan(0);
+	});
+
+	/*
+		THE ID CHARSET, PINNED AGAINST THE RULE THE DATABASE ENFORCES. Migration
+		0195 is applied to production and refuses any id outside
+		`^[A-Za-z0-9_-]{1,40}$` -- the same rule 0086 set for
+		`classroom_responses.block_id`. This port carried dotted ids
+		(`identity.mood`), which no surface in this repository would have accepted.
+		A block id is PERMANENT because it is the join key for stored answers, so
+		the moment one document is imported this is no longer a fixture question.
+	*/
+	it('gives every id the charset the applied migration enforces', () => {
+		const ids = [
+			...manifestBlocks(manifest).map((b) => b.id),
+			...manifest.modules.map((m) => m.id),
+			...criteria.map((c) => c.id)
+		];
+		expect(ids.length).toBeGreaterThan(50);
+		for (const id of ids) expect(HTML_ID_RE.test(id), `id ${JSON.stringify(id)}`).toBe(true);
+		// The control: the rule that admits every id above genuinely refuses a dot.
+		expect(HTML_ID_RE.test('identity.mood')).toBe(false);
+	});
+
+	/*
+		IDENTITY FIELDS LIVE IN `header`, NOT IN A 0-POINT MODULE. A 0-point module
+		renders in the grading console as something to score, which is what the
+		contract added `header` to end. Asserted in both directions so a later port
+		cannot quietly put them back.
+	*/
+	it('carries its identity fields in header and grades no 0-point module', () => {
+		expect((manifest.header ?? []).length).toBeGreaterThan(0);
+		for (const m of manifest.modules) {
+			expect(m.points, `module ${m.id} carries points`).toBeGreaterThan(0);
+			expect(m.criteria.length, `module ${m.id} has criteria`).toBeGreaterThan(0);
+		}
 	});
 });
 
