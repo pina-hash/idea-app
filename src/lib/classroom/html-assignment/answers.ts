@@ -24,26 +24,30 @@
  * is an ordinary `classroom_responses` row, which is the whole reason grading,
  * the Grades tab, extra credit and the FACTS export need no HTML branch at all.
  *
- * **MEASURED, AND IT IS THE FINDING THIS FILE EXISTS TO REPORT:
- * `classroom_save_response` CANNOT CURRENTLY WRITE AN ANSWER FOR A PORTED
- * DOCUMENT.** Its first statement reads `classroom_assignment_specs` for the
- * item and raises `This assignment has no interactive spec.` when there is
- * none, and then resolves the block id against THAT SPEC's modules. A ported
- * assignment carries a MANIFEST in `classroom_html_assignments` and no spec, so
- * every save raises. `classroom_add_submission_file` has the identical gate on
- * the `p_block_id` path, so a block-bound image upload raises too. Verified
- * against a real embedded Postgres with the real migration chain applied, in
- * `tests/db/html-assignment-round-trip.test.ts`, which prints the refusal.
+ * **THE WRITE GATE THIS FILE ONCE REPORTED AS CLOSED IS NOW OPEN, AND 0197 IS
+ * WHAT OPENED IT.** This paragraph used to read that
+ * `classroom_save_response` COULD NOT write an answer for a ported document:
+ * its first statement read `classroom_assignment_specs` for the item and
+ * raised `This assignment has no interactive spec.` when there was none, then
+ * resolved the block id against THAT SPEC's modules, and
+ * `classroom_add_submission_file` carried the identical gate. All of that was
+ * measured and all of it was true. `0197_classroom_html_assignment_write_gate`
+ * is the repair, in the shape this file said it should take: ONE branch in
+ * each of those two functions, resolving the block against the stored MANIFEST
+ * when the item is stamped schema 3, and against the spec otherwise. No second
+ * write function, no shadow spec row, no signature change.
  *
- * THAT IS A DATABASE GAP AND IT IS NOT CLOSED FROM HERE. The shape of the
- * repair is one branch in 0086's own function -- resolve the block against the
- * manifest when the item carries an HTML assignment, exactly as it resolves it
- * against the spec otherwise -- which is a migration, and a migration is
- * somebody's deliberate act rather than a side effect of a client lane. **Do
- * not answer it with a second write path here.** A private RPC for HTML
- * answers is a second definition of what an answer is, and 0195's own header
- * gives the reason that would be wrong: the feature is additive precisely
+ * **DO NOT ANSWER ANYTHING HERE WITH A SECOND WRITE PATH**, which is the half
+ * of the old paragraph that was never about the gate. A private RPC for HTML
+ * answers would be a second definition of what an answer IS, and 0195's own
+ * header gives the reason that is wrong: the feature is additive precisely
  * because nothing about an answer moves.
+ *
+ * **IT IS APPLIED BY HAND, SO A DEPLOYMENT MAY NOT HAVE IT YET.** The widening
+ * is additive in both directions -- both arms answer throughout and no
+ * signature moved -- so there is no deploy ordering to respect; what a
+ * deployment short of 0197 does is raise the old sentence, which arrives here
+ * as an ordinary considered refusal and is reported once rather than retried.
  *
  * ---------------------------------------------------------------------------
  * DEBOUNCED PER BLOCK, ON THE ONE SAVE STATE

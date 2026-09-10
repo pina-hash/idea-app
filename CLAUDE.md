@@ -781,22 +781,50 @@ handed `spec = null`**, which is a ported assignment's normal state and not a
 degraded one: `levelShort` answers from rung one for every manifest level,
 because the contract requires a `short` and the validator refuses an empty one.
 
-**THE ANSWER PATH IS NOT FINISHED, AND THE REASON IS A DATABASE GATE.**
-`classroom_save_response` is the only function in the schema that writes
-`classroom_responses`. It reads `classroom_assignment_specs` and raises without
-one, it resolves the block id AGAINST that spec, and its type gate accepts
-`textField`, `table`, `checklist` where a manifest declares `text`, `longText`,
-`checkbox`, `radio`, `image`, `table` -- an overlap of ONE.
-`classroom_add_submission_file` carries the identical gate. So a ported
-assignment cannot save an answer or attach an image, and giving the item a
-companion spec is not a repair either.
-`tests/db/html-assignment-write-gate.test.ts` is the standing measurement;
-**delete it rather than invert it** if the gate is ever widened. Until then the
-feature is INERT ON PURPOSE: no route supplies the import or answer transports,
-so nothing can create a schema-3 item and a schema-3 item would render
-read-only. **A worksheet that takes typing and saves nothing is the one failure
-worth avoiding here**, which is why read-only is structural -- no answers
-controller means no callback is handed down -- rather than a flag.
+**THE WRITE GATE IS ONE FUNCTION WIDENED, NEVER A SECOND WRITE PATH (0197), AND
+THIS RULE USED TO SAY THE GATE WAS SHUT.** `classroom_save_response` is still
+the only function in the schema that writes `classroom_responses`, and
+`classroom_add_submission_file` is still the only one that hangs a file off a
+block. Both used to read `classroom_assignment_specs`, raise 'This assignment
+has no interactive spec.' without a row, and resolve the block id AGAINST that
+spec -- with a type gate accepting `textField`, `table`, `checklist` where a
+manifest declares `text`, `longText`, `checkbox`, `radio`, `image`, `table`, an
+overlap of ONE. `0197` adds one branch to each: `_classroom_html_manifest(item)`
+answers the manifest when `classroom_items.assignment_schema_version` is 3 and
+null otherwise, and `_classroom_html_block(manifest, id)` resolves the id across
+the header AND the modules. Signatures unchanged, so there is no deploy
+ordering.
+  - **THE DISCRIMINATOR IS THE ITEM'S OWN COLUMN, the same one
+    `htmlAssignmentMount` reads.** An item carrying BOTH a manifest and a spec
+    is a legal state and the MANIFEST decides, which is the order every
+    rendering surface already takes; deciding the other way is 0134's Surface A
+    bug, where an item renders one document and records against another.
+  - **NOT A COMPANION SPEC ROW GENERATED FROM THE MANIFEST**, which is the
+    cheap-looking fix and manufactures exactly that bug on purpose. **NOT A
+    SECOND WRITE FUNCTION** either: `IDEA_CLASSROOM_REBUILD_PLAN.md` decision 12
+    refused a second scoring path beside `classroom_grade_submission` and the
+    FACTS export, and a second definition of what an ANSWER is fails one step
+    earlier for the same reason.
+  - **THE MANIFEST ARM HAS NO APPROVAL GATE AND REFUSES `@declaration`**, and
+    both absences are deliberate. `_classroom_check_html_manifest` validates
+    neither key, so honouring one would let an unchecked field decide whether a
+    student may write.
+  - **A SPEC-BACKED ASSIGNMENT ANSWERS EXACTLY AS IT DID**, refusal text and
+    refusal ORDER included, and that is proven rather than argued:
+    `tests/db/html-assignment-spec-path-unchanged.test.ts` puts a corpus of
+    twenty-six calls to the DEPLOYED functions, applies 0197 over the same
+    database, and compares case for case, with two ported calls as the positive
+    control that a no-op apply cannot pass.
+  - `tests/db/html-assignment-write-gate.test.ts` was the probe that measured
+    the shut gate, written to be DELETED rather than inverted once it moved. It
+    has been.
+
+**THE CLIENT ANSWER PATH IS STILL NOT WIRED, AND THAT IS NOW A CLIENT FACT
+RATHER THAN A DATABASE ONE.** No route supplies the import or answer transports,
+so nothing creates a schema-3 item and one would render read-only. **A worksheet
+that takes typing and saves nothing is the one failure worth avoiding here**,
+which is why read-only is structural -- no answers controller means no callback
+is handed down -- rather than a flag.
 
 ### THE ORIGIN SPLIT -- read this before touching anything that serves a bundle
 
