@@ -16,6 +16,7 @@
 	import type { ClassroomDeck, DeckTransports } from '$lib/classroom/deck';
 	import type { ReferenceTransports } from '$lib/classroom/reference-spec';
 	import type { RevisionTransports } from '$lib/classroom/revisions';
+	import type { ClassroomLayoutTransports, WithItemLayout } from '$lib/classroom/attachments';
 
 	/**
 	 * THE INSTRUCTOR INSPECTOR, mounted as the REAL ItemDetail -- never a copy of
@@ -109,6 +110,20 @@
 		publish_at: FAR_FUTURE,
 		pinned: true,
 		postings: [{ section_id: 's-1' }, { section_id: 's-2' }],
+		/**
+		 * TWO STUDENT-FACING FILES, NEITHER A PICTURE, so the edit composer's
+		 * existing-file list has rows for the 0193 order and rename controls to
+		 * appear on -- and none of them asks the attachment proxy for a
+		 * thumbnail this placeholder-.env server cannot serve.
+		 */
+		attachments: [
+			{ id: 'a-1', filename: 'truss-drawing.pdf', mime_type: 'application/octet-stream', size_bytes: 91200, sort_order: 1 },
+			{ id: 'a-2', filename: 'span-table.xlsx', mime_type: 'application/octet-stream', size_bytes: 20480, sort_order: 2 }
+		],
+		links: [
+			{ id: 'l-1', label: 'Truss calculator', url: 'https://example.org/truss' },
+			{ id: 'l-2', label: 'Span reference', url: 'https://example.org/span' }
+		],
 		instructorAttachments: [
 			{ id: 'ia-1', filename: 'bridge-answer-key.pdf', mime_type: 'application/octet-stream', size_bytes: 184320 }
 		],
@@ -243,6 +258,21 @@
 		restore: () => Promise.resolve({ ok: false as const, message: 'Stub.' })
 	};
 
+	/**
+	 * THE 0193 WRITES, resolving without doing anything, exactly like every
+	 * other stub here. Handed to ItemDetail only under `?layout=1`, which is
+	 * what lets one spec assert the placement controls PRESENT and another
+	 * assert them ABSENT against the identical fixture -- both directions, as
+	 * every gating claim in this repo is measured.
+	 */
+	const layoutTransports: ClassroomLayoutTransports = {
+		setItemLayout: () => ok(undefined),
+		setAttachmentOrder: () => ok(undefined),
+		renameAttachment: (_id, filename) => ok({ filename }),
+		setInstructorAttachmentOrder: () => ok(undefined),
+		renameInstructorAttachment: (_id, filename) => ok({ filename })
+	};
+
 	let sessionSeq = 0;
 	const checkInTransports: ClassCheckInTransports = {
 		createForItem: () => Promise.resolve({ ok: true, sessionId: `ns-harness-${++sessionSeq}` }),
@@ -260,9 +290,23 @@
 
 	const current = $derived<Case>((page.url.searchParams.get('case') as Case) ?? 'assignment');
 	const wantOpen = $derived(page.url.searchParams.get('open') === '1');
+	/** `?layout=1` hands the 0193 transports in; anything else hands null. */
+	const wantLayout = $derived(page.url.searchParams.get('layout') === '1');
 
-	const item = $derived(
+	/**
+	 * `?placement=top` attaches a 0193 layout putting BOTH the links and the
+	 * files above the body, so the render path ItemDetail takes for an author's
+	 * "above the text" is on screen for a spec to order-check against the
+	 * default -- which, with no `layout` attached, is what every other state of
+	 * this harness renders and what every pre-0193 row renders.
+	 */
+	const wantPlacement = $derived(page.url.searchParams.get('placement') === 'top');
+
+	const caseItem = $derived(
 		current === 'material' ? MATERIAL : current === 'sparse' ? SPARSE : ASSIGNMENT
+	);
+	const item = $derived<WithItemLayout<ClassroomItem>>(
+		wantPlacement ? { ...caseItem, layout: { files: 'top', links: 'top' } } : caseItem
 	);
 	const manage = $derived(current !== 'student');
 	const isAssignment = $derived(current === 'assignment');
@@ -321,7 +365,7 @@
 			</p>
 		{/snippet}
 		{#snippet children()}
-			{#key `${current}-${wantOpen}`}
+			{#key `${current}-${wantOpen}-${wantLayout}-${wantPlacement}`}
 				<ItemDetail
 					section={SECTION}
 					{item}
@@ -340,6 +384,7 @@
 					revisionTransports={isSparse ? null : revisionTransports}
 					checkIns={isAssignment ? [CHECK_IN] : []}
 					checkInTransports={isAssignment ? checkInTransports : null}
+					layoutTransports={manage && wantLayout ? layoutTransports : null}
 				/>
 			{/key}
 		{/snippet}

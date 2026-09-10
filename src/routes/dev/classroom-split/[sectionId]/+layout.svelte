@@ -17,6 +17,20 @@
 	}
 
 	/**
+	 * `?state=selected` SEEDS A SELECTION by ticking the first row's own
+	 * checkbox after mount -- through the real control, never by reaching
+	 * into ClassView's state -- so the filing controls that exist only while
+	 * something is ticked ("File here" on every open group, the bulk bar's
+	 * File into...) are on screen for a hand-driven look. The browser spec
+	 * reaches the same state by clicking the checkbox itself, exactly as a
+	 * teacher does; this is for a person at the URL bar. Not latched: a state
+	 * is asked for once.
+	 */
+	export function harnessState(url: URL): string | null {
+		return url.searchParams.get('state');
+	}
+
+	/**
 	 * THE COMPOSER'S OWN LEDGER, at module scope so it survives navigation
 	 * between items -- which is exactly the span the composer is meant to
 	 * survive, so a counter that reset with the page would prove nothing.
@@ -37,6 +51,18 @@
 		 *  bundle needs to measure that a DROP produced the id array it
 		 *  should, not only that dragging itself moves something on screen. */
 		orders: [] as string[][],
+		/** Every `setItemUnit` write (filing by drag, by File here, by the
+		 *  menu's Unit picker, by the bulk bar), in call order -- what the
+		 *  filing-by-drag spec reads to prove a release over another card
+		 *  FILED rather than reordered. */
+		filed: [] as { itemId: string; unitId: string | null }[],
+		/** Every `setUnitOrder` write (UnitManager's drag or arrow-key
+		 *  reorder), in call order: the full id list each time. */
+		unitOrders: [] as string[][],
+		/** The 0193 layout writes (placement, attachment order, rename), so the
+		 *  row editor's composer can be driven against a transport that
+		 *  answers rather than the null that removes its controls. */
+		layout: [] as { fn: string; args: unknown[] }[],
 		/**
 		 * Guidance prompts written against a check-in (0123), in call order.
 		 *
@@ -78,6 +104,7 @@
 		ClassroomUnitTransports,
 		TxResult
 	} from '$lib/classroom/classroom';
+	import type { ClassroomLayoutTransports } from '$lib/classroom/attachments';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: import('svelte').Snippet } = $props();
@@ -91,6 +118,7 @@
 	 * exists to avoid.
 	 */
 	const manage = $derived(harnessManage(page.url));
+	const seededState = $derived(harnessState(page.url));
 
 	const ok = <T,>(value: T): Promise<TxResult<T>> => Promise.resolve({ ok: true, data: value });
 
@@ -246,10 +274,67 @@
 	const unitTransports: ClassroomUnitTransports = {
 		upsertUnit: () => ok({ unitId: 'u-new', created: true, duplicate: false }),
 		deleteUnit: () => ok({ unfiled: 0 }),
-		setUnitOrder: () => ok(undefined),
+		setUnitOrder: (_courseId, ids) => {
+			composeLog.unitOrders = [...composeLog.unitOrders, ids];
+			logCall('setUnitOrder', { ids });
+			return ok(undefined);
+		},
 		reloadUnits: () => ok(data.units),
-		setItemUnit: () => ok({ ok: true })
+		setItemUnit: (itemId, unitId) => {
+			composeLog.filed = [...composeLog.filed, { itemId, unitId }];
+			logCall('setItemUnit', { itemId, unitId });
+			return ok({ ok: true });
+		}
 	};
+
+	/**
+	 * THE 0193 WRITES, answered in memory and logged. Handed to ClassView (and
+	 * so to its row editor) under `?manage=1`, which is the state the real
+	 * layout reaches once its probe confirms the columns exist.
+	 */
+	const layoutTransports: ClassroomLayoutTransports = {
+		setItemLayout: (itemId, layout) => {
+			composeLog.layout = [...composeLog.layout, { fn: 'setItemLayout', args: [itemId, layout] }];
+			return ok(undefined);
+		},
+		setAttachmentOrder: (itemId, ids) => {
+			composeLog.layout = [...composeLog.layout, { fn: 'setAttachmentOrder', args: [itemId, ids] }];
+			return ok(undefined);
+		},
+		renameAttachment: (id, filename) => {
+			composeLog.layout = [...composeLog.layout, { fn: 'renameAttachment', args: [id, filename] }];
+			return ok({ filename });
+		},
+		setInstructorAttachmentOrder: (itemId, ids) => {
+			composeLog.layout = [
+				...composeLog.layout,
+				{ fn: 'setInstructorAttachmentOrder', args: [itemId, ids] }
+			];
+			return ok(undefined);
+		},
+		renameInstructorAttachment: (id, filename) => {
+			composeLog.layout = [
+				...composeLog.layout,
+				{ fn: 'renameInstructorAttachment', args: [id, filename] }
+			];
+			return ok({ filename });
+		}
+	};
+
+	/**
+	 * The seeded selection (`?state=selected`), pressed through the real
+	 * checkbox on a timeout rather than an animation frame (CLAUDE.md: rAF
+	 * alone never ticks on a throttled tab). Idempotent: a checkbox already
+	 * ticked is left alone.
+	 */
+	$effect(() => {
+		if (seededState !== 'selected' || !manage) return;
+		const timer = setTimeout(() => {
+			const box = document.querySelector<HTMLInputElement>('[data-testid="row-select-i-1"]');
+			if (box && !box.checked) box.click();
+		}, 50);
+		return () => clearTimeout(timer);
+	});
 
 	/**
 	 * The harness's own path rewritten to the real one, so `locateClassroom`,
@@ -382,6 +467,9 @@
 			specs: [...composeLog.specs],
 			checkIns: [...composeLog.checkIns],
 			orders: composeLog.orders.map((ids) => [...ids]),
+			filed: composeLog.filed.map((f) => ({ ...f })),
+			unitOrders: composeLog.unitOrders.map((ids) => [...ids]),
+			layout: composeLog.layout.map((l) => ({ fn: l.fn, args: [...l.args] })),
 			calls: composeLog.calls.map((c) => c.fn),
 			fail: { ...composeLog.fail }
 		});
@@ -399,6 +487,9 @@
 			composeLog.specs = [];
 			composeLog.checkIns = [];
 			composeLog.orders = [];
+			composeLog.filed = [];
+			composeLog.unitOrders = [];
+			composeLog.layout = [];
 			composeLog.fail.deck = false;
 			composeLog.fail.spec = false;
 			composeLog.fail.checkIn = false;
@@ -419,6 +510,7 @@
 		canManage={manage}
 		transports={manage ? transports : null}
 		unitTransports={manage ? unitTransports : null}
+		layoutTransports={manage ? layoutTransports : null}
 		{composing}
 		onCompose={manage ? toggleComposer : null}
 		notice={composeNotice}

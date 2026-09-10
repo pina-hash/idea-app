@@ -230,6 +230,26 @@ async function sectionSongQueue(
 }
 
 /**
+ * CAN THIS DATABASE HOLD WHERE AN ITEM'S FILES AND LINKS SIT (0193)?
+ *
+ * THE NARROWEST POSSIBLE PROBE, per the select-ladder rule: one scalar column,
+ * no embed, `limit(1)`. PostgREST refuses an ENTIRE select over one unknown
+ * column, so the question "does `files_placement` exist" is answered by
+ * whether this select errors -- and by nothing about its rows. RLS may hand a
+ * student zero rows and that is still a yes; the column is what is being
+ * asked about, not the data. False removes the placement, order and rename
+ * controls everywhere in this class, which is the honest state of a
+ * deployment where the migration has not been pasted yet.
+ */
+async function sectionLayoutReady(supabase: SupabaseClient): Promise<boolean> {
+	const { error: probeError } = await supabase
+		.from('classroom_items')
+		.select('files_placement')
+		.limit(1);
+	return !probeError;
+}
+
+/**
  * THE CLASS ITSELF, loaded ONCE for every route under /classroom/<section>.
  *
  * IT IS A LAYOUT LOAD BECAUSE THE CLASS CONTENT IS NAVIGATION, not a page. The
@@ -298,7 +318,7 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 	 */
 	const today = laCalendarDay(new Date());
 
-	const [{ data: manages }, content, checkInRows, hallPass, songQueue] = await Promise.all([
+	const [{ data: manages }, content, checkInRows, hallPass, songQueue, layoutReady] = await Promise.all([
 		supabase.rpc('classroom_manages_section', { p_section_id: params.sectionId }),
 		itemsForSection(supabase, params.sectionId),
 		sectionCheckIns(supabase, params.sectionId),
@@ -308,7 +328,10 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		sectionHallPass(supabase, params.sectionId),
 		// 0145, alongside it for the same reason and at the same cost: one small
 		// RPC, and both cards sit at the top of the class pane.
-		sectionSongQueue(supabase, params.sectionId)
+		sectionSongQueue(supabase, params.sectionId),
+		// 0193's capability probe, beside the others so it costs no extra round
+		// trip of its own.
+		sectionLayoutReady(supabase)
 	]);
 
 	const section = normalizeSectionRow(sectionRow as Record<string, unknown>);
@@ -636,6 +659,14 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		 * of the value.
 		 */
 		songQueue,
-		sectionOutstanding
+		sectionOutstanding,
+		/**
+		 * 0193. Whether `classroom_items` carries the placement columns, from
+		 * the probe above. The layout hands the 0193 transports down only when
+		 * this is true, so a control is never offered whose save would be
+		 * refused; the item page asks its own read (`itemLayoutKnown`) instead,
+		 * because that read already answers the question for free.
+		 */
+		layoutReady
 	};
 };

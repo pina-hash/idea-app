@@ -24,7 +24,8 @@ import {
 	isImageFilename,
 	resolveFigureSrc,
 	sanitizeAttachmentFilename,
-	type ClassroomAttachment
+	type ClassroomAttachment,
+	type TxResult
 } from '$lib/classroom/classroom';
 
 /** The `attachment:` scheme, spelled once. `resolveFigureSrc` owns the reading
@@ -189,4 +190,220 @@ export function imageChoices(input: ImageChoiceInput): ImageChoice[] {
 export function isOfferedRef(choices: ImageChoice[], ref: string): boolean {
 	const wanted = (ref ?? '').trim();
 	return wanted !== '' && choices.some((c) => c.ref === wanted);
+}
+
+// ---------------------------------------------------------------------------
+// WHERE AN ITEM'S FILES AND LINKS SIT, AND IN WHAT ORDER (0193).
+//
+// Two decisions an author makes about resources, and neither is content: the
+// PLACEMENT (files above the writing or below it, links likewise) and the
+// ORDER of the files. Links were already ordered -- `classroom_item_resources`
+// is a full-set replacement whose array order is the stored sort -- and had no
+// control to change it; files carried a `sort_order` set on insert and nothing
+// that could move one. Placement had nowhere to live at all.
+//
+// THE COLUMNS CANNOT RIDE ON `ClassroomItem` THROUGH THE NORMALIZER.
+// `normalizeItemRow` builds its object field by field, so a column it does not
+// name is dropped -- and it is not this module's to widen. The layout is
+// therefore ATTACHED beside the item by the readers this module's callers own
+// (`withItemLayout`), and read back through `itemLayoutOf`, which accepts the
+// attached shape and the raw row alike. Absent means "this read could not
+// tell" (a project without 0193, or a read that did not ask), exactly as an
+// absent `body_doc` does, and every surface treats absent as the default.
+// ---------------------------------------------------------------------------
+
+export type ResourcePlacement = 'top' | 'bottom';
+
+export const RESOURCE_PLACEMENTS: readonly ResourcePlacement[] = ['top', 'bottom'];
+
+export interface ItemLayout {
+	files: ResourcePlacement;
+	links: ResourcePlacement;
+}
+
+export const DEFAULT_ITEM_LAYOUT: Readonly<ItemLayout> = Object.freeze({
+	files: 'bottom',
+	links: 'bottom'
+});
+
+/** The column names 0193 adds to `classroom_items`, spelled once. */
+export const ITEM_LAYOUT_COLUMNS = ['files_placement', 'links_placement'] as const;
+
+/** A value read back from anywhere: unrecognised is DROPPED to the default,
+ *  the preferences rule -- a stored value can never put a surface in a state
+ *  no branch renders. */
+export function placementOf(value: unknown): ResourcePlacement {
+	return value === 'top' ? 'top' : 'bottom';
+}
+
+export type WithItemLayout<T> = T & { layout?: ItemLayout };
+
+/** Did this row's select include the placement columns at all? */
+export function layoutColumnsPresent(row: Record<string, unknown> | null | undefined): boolean {
+	return !!row && ITEM_LAYOUT_COLUMNS.every((c) => c in row);
+}
+
+/**
+ * Attach the layout a raw row carries onto the normalized item, or nothing
+ * when the row did not carry the columns. Absent stays absent: a reader that
+ * could not tell must not claim the default as a fact.
+ */
+export function withItemLayout<T extends object>(
+	item: T,
+	row: Record<string, unknown> | null | undefined
+): WithItemLayout<T> {
+	if (!layoutColumnsPresent(row)) return item;
+	return Object.assign(item, {
+		layout: {
+			files: placementOf(row!.files_placement),
+			links: placementOf(row!.links_placement)
+		}
+	});
+}
+
+/**
+ * The layout of anything that might carry one: an item with `layout` attached,
+ * a raw row with the columns, or nothing recognisable (the default). Never
+ * throws and never answers a value outside the union.
+ */
+export function itemLayoutOf(source: unknown): ItemLayout {
+	if (!source || typeof source !== 'object') return { ...DEFAULT_ITEM_LAYOUT };
+	const rec = source as Record<string, unknown>;
+	const attached = rec.layout;
+	if (attached && typeof attached === 'object') {
+		const l = attached as Record<string, unknown>;
+		return { files: placementOf(l.files), links: placementOf(l.links) };
+	}
+	if (layoutColumnsPresent(rec)) {
+		return { files: placementOf(rec.files_placement), links: placementOf(rec.links_placement) };
+	}
+	return { ...DEFAULT_ITEM_LAYOUT };
+}
+
+/** Could this read tell? False for a pre-0193 row, where the default is a
+ *  guess rather than an answer. */
+export function itemLayoutKnown(source: unknown): boolean {
+	if (!source || typeof source !== 'object') return false;
+	const rec = source as Record<string, unknown>;
+	return (!!rec.layout && typeof rec.layout === 'object') || layoutColumnsPresent(rec);
+}
+
+export function sameLayout(a: ItemLayout, b: ItemLayout): boolean {
+	return a.files === b.files && a.links === b.links;
+}
+
+/** Move one id from one index to another; pure, and a no-op on a bad index. */
+export function reorderIds(ids: readonly string[], from: number, to: number): string[] {
+	const next = [...ids];
+	if (from < 0 || from >= next.length || to < 0 || to >= next.length || from === to) return next;
+	const [moved] = next.splice(from, 1);
+	next.splice(to, 0, moved);
+	return next;
+}
+
+/** Are two id lists the same list in the same order. */
+export function sameOrder(a: readonly string[], b: readonly string[]): boolean {
+	return a.length === b.length && a.every((id, i) => id === b[i]);
+}
+
+/**
+ * THE WRITES 0193 ADDS, as their own transport object rather than five more
+ * methods on `ClassroomComposerTransports` -- that interface lives in
+ * `classroom.ts`, and more to the point ABSENCE IS THE MECHANISM: a caller
+ * that hands a surface `null` here removes every ordering, placement and
+ * rename control at once, which is both the read-only case and the honest
+ * state of a deployment where 0193 has not been applied by hand yet.
+ *
+ * Every method is a thin caller of a SECURITY DEFINER RPC that re-checks the
+ * caller inside its own body; nothing here is a boundary.
+ */
+export interface ClassroomLayoutTransports {
+	setItemLayout(itemId: string, layout: ItemLayout): Promise<TxResult<undefined>>;
+	/** The FULL list, in its new order: the RPC refuses a partial one. */
+	setAttachmentOrder(itemId: string, attachmentIds: string[]): Promise<TxResult<undefined>>;
+	/** Answers the name the row now carries, which is the sanitized form. */
+	renameAttachment(attachmentId: string, filename: string): Promise<TxResult<{ filename: string }>>;
+	setInstructorAttachmentOrder(itemId: string, attachmentIds: string[]): Promise<TxResult<undefined>>;
+	renameInstructorAttachment(
+		attachmentId: string,
+		filename: string
+	): Promise<TxResult<{ filename: string }>>;
+}
+
+/**
+ * The refusals the two rename RPCs answer with, as sentences. ONE vocabulary:
+ * the transport maps the structured `{ok:false, reason}` onto these, and the
+ * composer's own pre-check (`renameBlockedReason`) uses the same words, so a
+ * teacher reads the identical sentence whether the client or the database was
+ * the one that said no.
+ */
+export const RENAME_REFUSALS = {
+	referenced:
+		'This file is used as a picture in the text or as a figure in the document. Remove that first, then rename the file.',
+	taken: 'Another file on this item already has that name.',
+	empty: 'Give the file a name.'
+} as const;
+
+export type RenameRefusal = keyof typeof RENAME_REFUSALS;
+
+/**
+ * The name the row WILL carry for a name somebody typed -- the same rule the
+ * record route applies to an uploaded file's name, so a renamed file and an
+ * uploaded one cannot disagree about what a name becomes.
+ */
+export function renamedAttachmentFilename(raw: string): string | null {
+	if (!raw.trim()) return null;
+	return recordedAttachmentFilename(raw);
+}
+
+const REF_MENTION_CHARS = /[.*+?^${}()|[\]\\]/g;
+
+/**
+ * Does any string anywhere in this value mention `attachment:<filename>` as a
+ * whole reference -- a spec's markdown figure, a body document's image src,
+ * anything else that stores the alias as text. Case-insensitive, because the
+ * resolver matches the filename case-insensitively (`resolveFigureSrc`), so a
+ * mention that differs only by case is a mention that resolves.
+ */
+export function attachmentRefMentionedIn(value: unknown, filename: string): boolean {
+	const name = filename.trim();
+	if (!name) return false;
+	const re = new RegExp(
+		`${ATTACHMENT_REF_PREFIX}\\s*${name.replace(REF_MENTION_CHARS, '\\$&')}(?![^\\s)\\]"'<>,;])`,
+		'i'
+	);
+	const seen = new Set<object>();
+	const walk = (v: unknown): boolean => {
+		if (typeof v === 'string') return re.test(v);
+		if (!v || typeof v !== 'object') return false;
+		if (seen.has(v)) return false;
+		seen.add(v);
+		if (Array.isArray(v)) return v.some(walk);
+		return Object.values(v as Record<string, unknown>).some(walk);
+	};
+	return walk(value);
+}
+
+/**
+ * Why a rename would leave something broken, or null when it would not.
+ * Asked by the composer BEFORE the RPC, on what it holds in memory (the body
+ * document the editor is showing, which the database cannot see until it is
+ * saved), and asked again by the database on what IT holds. Two askers, one
+ * vocabulary.
+ */
+export function renameBlockedReason(
+	filename: string,
+	context: { referencedIn?: unknown[]; siblings?: readonly string[] }
+): RenameRefusal | null {
+	for (const doc of context.referencedIn ?? []) {
+		if (attachmentRefMentionedIn(doc, filename)) return 'referenced';
+	}
+	return null;
+}
+
+/** Would the NEW name collide with a sibling on the same item (first match
+ *  wins on the alias, so two rows with one name cannot be told apart). */
+export function renameCollides(next: string, siblings: readonly string[], self?: string): boolean {
+	const wanted = next.trim().toLowerCase();
+	return siblings.some((s) => s !== self && s.trim().toLowerCase() === wanted);
 }

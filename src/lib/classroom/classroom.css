@@ -551,3 +551,157 @@ body:has(.cr-root) {
 		grid-column: 2;
 	}
 }
+
+/* --- Form controls the organizer and the tools share (prompt 0118) ---------
+   A checkbox and a select used to be the browser's own: an 18px native box
+   in a column of them, and an OS dropdown painted white on the dark class
+   pane (the hall pass's "Send a student out" picker). Both are drawn here
+   ONCE, in the room's own tokens, and every classroom surface that wants one
+   adds the class -- a second copy per component is how the row checkbox and
+   the group checkbox stop matching.
+
+   `.cr-check` KEEPS THE NATIVE INPUT AND REDRAWS IT: `appearance: none` on
+   the real `<input type="checkbox">`, so `checked`, `indeterminate`, the
+   label association, the keyboard and assistive tech are all the browser's.
+   The tick is a `::after` rule in THIS global sheet on purpose -- Svelte
+   prunes a scoped `::after` it cannot see used (CLAUDE.md), which is exactly
+   why the tap-reach classes live in app.css rather than in a component.
+   20px, over the 18px native and short of a control that owns its row: the
+   `<label>` around it is the 44px target, as `.row-select-hit` already is.
+
+   `.cr-select` IS THE SAME MOVE FOR A SELECT. The chevron is two gradients
+   rather than an SVG data URI so it reads the room's `--text-2` instead of a
+   colour literal nobody re-measures when the plate changes; `color-scheme:
+   dark` is what makes the OPEN list dark too, which no amount of styling the
+   closed box reaches. 44px minimum: the hall pass picker is a phone control
+   on a student-facing pane. */
+.cr-root .cr-check {
+	appearance: none;
+	-webkit-appearance: none;
+	flex: none;
+	width: 20px;
+	height: 20px;
+	margin: 0;
+	display: inline-grid;
+	place-items: center;
+	border: 2px solid var(--boundary);
+	border-radius: 4px;
+	background: var(--surface-2);
+	cursor: pointer;
+	position: relative;
+}
+.cr-root .cr-check::after {
+	content: '';
+	width: 6px;
+	height: 11px;
+	margin-top: -2px;
+	border: solid var(--surface-0);
+	border-width: 0 2.5px 2.5px 0;
+	transform: rotate(45deg) scale(0);
+	transition: transform 90ms ease-out;
+}
+.cr-root .cr-check:checked {
+	background: var(--green);
+	border-color: var(--green);
+}
+.cr-root .cr-check:checked::after {
+	transform: rotate(45deg) scale(1);
+}
+.cr-root .cr-check:indeterminate {
+	border-color: var(--green);
+}
+.cr-root .cr-check:indeterminate::after {
+	width: 10px;
+	height: 0;
+	margin-top: 0;
+	border-width: 0 0 2.5px 0;
+	border-color: var(--green);
+	transform: none;
+}
+.cr-root .cr-check:focus-visible {
+	outline: 2px solid var(--green);
+	outline-offset: 2px;
+}
+.cr-root .cr-check:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+	.cr-root .cr-check::after {
+		transition: none;
+	}
+}
+
+.cr-root .cr-select {
+	appearance: none;
+	-webkit-appearance: none;
+	min-height: 44px;
+	padding: 0.45rem 2.4rem 0.45rem 0.8rem;
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card);
+	background-color: var(--surface-2);
+	background-image:
+		linear-gradient(45deg, transparent 50%, var(--text-2) 50%),
+		linear-gradient(135deg, var(--text-2) 50%, transparent 50%);
+	background-position:
+		calc(100% - 1.25rem) 50%,
+		calc(100% - 0.85rem) 50%;
+	background-size: 0.4rem 0.4rem;
+	background-repeat: no-repeat;
+	color: var(--text-1);
+	color-scheme: dark;
+	font-family: var(--font-display);
+	font-size: 0.95rem;
+	line-height: 1.2;
+	cursor: pointer;
+	max-width: 100%;
+	min-width: 0;
+}
+.cr-root .cr-select:focus-visible {
+	outline: 2px solid var(--green);
+	outline-offset: 2px;
+	border-color: var(--green);
+}
+.cr-root .cr-select:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+.cr-root .cr-select option {
+	background: var(--surface-2);
+	color: var(--text-1);
+}
+
+/* --- Drag to reorder: the painted half of $lib/classroom/sort-drag ---------
+   The action paints `translateY` transforms on the rows a drag passes and
+   marks the list `.is-sorting` and the dragged row `.is-dragging`; the EASE
+   on the passing rows is what makes the list look reordered under the finger
+   rather than snapping, and it is here rather than in the action so a room
+   decides how its own rows move. The dragged row itself takes no transition
+   -- it follows the pointer, and an eased follower lags it.
+   Behind `prefers-reduced-motion`, like everything that moves. */
+.cr-root .is-sorting [data-sort-item] {
+	will-change: transform;
+}
+@media (prefers-reduced-motion: no-preference) {
+	.cr-root .is-sorting [data-sort-item]:not(.is-dragging) {
+		transition: transform 140ms ease-out;
+	}
+}
+.cr-root .is-sorting .is-dragging {
+	box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+	background: var(--surface-2);
+	cursor: grabbing;
+}
+.cr-root .is-sorting,
+.cr-root .is-sorting * {
+	user-select: none;
+	-webkit-user-select: none;
+}
+/* A list that is also a drop zone for a row from ANOTHER list (filing by
+   drag): the action marks the zone under the pointer. Green is the room's
+   colour for the active target, and a dashed rule is the shape every drop
+   zone in the classroom already wears. */
+.cr-root [data-sort-zone-active='true'] {
+	outline: 2px dashed var(--green);
+	outline-offset: -2px;
+}

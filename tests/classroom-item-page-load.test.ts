@@ -89,6 +89,25 @@ const FULL = [
 	'0137_anon_execute_sweep.sql'
 ] as const;
 
+/**
+ * RUNG 0 (0193): the widest read of all, with `files_placement` and
+ * `links_placement`. 0193 refuses to apply over a chain without 0135 and 0159
+ * (it re-creates `classroom_duplicate_item` from 0159's body), so this world
+ * carries the segment between 0133 and 0193 that the layout db test boots,
+ * with 0137 still LAST per the harness note. Every other chain below stays
+ * exactly as it was, which is what makes the cost of the new rung on a
+ * pre-0193 project MEASURABLE here rather than assumed: one refused read.
+ */
+const WITH_LAYOUT = [
+	...FULL.filter((f) => !f.startsWith('0137')),
+	'0134_classroom_submission_open_race.sql',
+	'0135_classroom_instructor_storage_and_public_attachments.sql',
+	'0159_classroom_duplicate_carries_the_spec.sql',
+	'0176_classroom_item_images.sql',
+	'0193_classroom_resource_layout.sql',
+	'0137_anon_execute_sweep.sql'
+] as unknown as string[];
+
 const without = (...drop: string[]) =>
 	FULL.filter((f) => !drop.some((d) => f.startsWith(d))) as unknown as string[];
 
@@ -423,6 +442,7 @@ async function ok(w: World, who: SeededUser, sectionId: string, itemId: string):
 }
 
 let full: World;
+let withLayout: World;
 let noUnits: World;
 let noScheduled: World;
 let noRich: World;
@@ -434,6 +454,7 @@ beforeAll(async () => {
 	// Sequential rather than Promise.all: they share one cluster, and a burst of
 	// migration chains against it buys nothing over running them in order.
 	full = await buildWorld(FULL);
+	withLayout = await buildWorld(WITH_LAYOUT);
 	noUnits = await buildWorld(NO_UNITS);
 	noScheduled = await buildWorld(NO_SCHEDULED);
 	noRich = await buildWorld(NO_RICH);
@@ -443,7 +464,7 @@ beforeAll(async () => {
 }, 600_000);
 
 afterAll(async () => {
-	for (const w of [full, noUnits, noScheduled, noRich, noDeckNoCopy, noStorage, preEngine]) {
+	for (const w of [full, withLayout, noUnits, noScheduled, noRich, noDeckNoCopy, noStorage, preEngine]) {
 		await w?.db?.stop();
 	}
 });
@@ -581,7 +602,13 @@ describe('a manager opening the same assignment', () => {
 		const manager = await ok(full, full.teacher, full.p1, full.material);
 		expect(manager.data.referenceSpec).toMatchObject({ kind: 'reference' });
 		expect(manager.data.item.is_public).toBe(true);
-		expect(manager.tables.filter((t) => t === 'classroom_items')).toHaveLength(2);
+		// THREE reads of the item table on THIS world, not two: the ladder's
+		// widest rung (0193's placement columns) is refused here, the units rung
+		// answers, and the manager's `is_public` read is the third. The refused
+		// round trip is the documented cost of a rung on a project that lacks
+		// it; the world that HAS 0193 reads twice (the rung-0 test below).
+		expect(manager.tables.filter((t) => t === 'classroom_items')).toHaveLength(3);
+		expect((manager.data.item as { layout?: unknown }).layout).toBeUndefined();
 
 		const student = await ok(full, full.alice, full.p1, full.material);
 		expect(student.data.referenceSpec).toMatchObject({ kind: 'reference' });
@@ -590,7 +617,8 @@ describe('a manager opening the same assignment', () => {
 		// that is genuinely public. Asserted so nobody reads a student payload's
 		// false as "this material is private".
 		expect(student.data.item.is_public).toBe(false);
-		expect(student.tables.filter((t) => t === 'classroom_items')).toHaveLength(1);
+		// The refused rung and the one that answered; no `is_public` read.
+		expect(student.tables.filter((t) => t === 'classroom_items')).toHaveLength(2);
 	});
 
 	test('an assignment asks for no reference spec at all', async () => {
@@ -651,6 +679,29 @@ describe('an item framed under a class it was never posted to', () => {
 // 4. THE DEGRADE RUNGS, EACH NAMED
 // ---------------------------------------------------------------------------
 describe('the item select ladder, rung by rung', () => {
+	test('rung 0 (0193): the layout rides beside the item, and the read costs no retry', async () => {
+		const manager = await ok(withLayout, withLayout.teacher, withLayout.p1, withLayout.material);
+		const item = manager.data.item as ClassroomItem & { layout?: { files: string; links: string } };
+		// Attached BESIDE the item (`withItemLayout`), never through the
+		// normalizer, and the default every pre-0193 row reads.
+		expect(item.layout).toEqual({ files: 'bottom', links: 'bottom' });
+		// The material is not filed (only the assignment is seeded into a unit),
+		// so the widest rung answers NULL here -- a filed decision the rung
+		// carried, never the `undefined` a narrower rung would leave.
+		expect(item.unit_id).toBeNull();
+		expect(Array.isArray(item.body_doc)).toBe(true);
+		// The widest rung answered first time: one item read plus `is_public`.
+		expect(manager.tables.filter((t) => t === 'classroom_items')).toHaveLength(2);
+		const student = await ok(withLayout, withLayout.alice, withLayout.p1, withLayout.material);
+		expect((student.data.item as { layout?: unknown }).layout).toEqual({ files: 'bottom', links: 'bottom' });
+		expect(student.tables.filter((t) => t === 'classroom_items')).toHaveLength(1);
+		// THE OTHER DIRECTION, on the same fixture shape one migration back: a
+		// world without 0193 answers no layout at all -- undefined, "could not
+		// tell", never a default claimed as a fact.
+		const older = await ok(full, full.alice, full.p1, full.material);
+		expect((older.data.item as { layout?: unknown }).layout).toBeUndefined();
+	});
+
 	test('rung 1 (0111): the widest read carries unit_id, publish_at and body_doc', async () => {
 		const item = (await ok(full, full.alice, full.p1, full.assignment)).data.item;
 		expect(item.unit_id).toEqual(expect.any(String));
