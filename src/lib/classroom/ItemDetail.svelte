@@ -1,4 +1,6 @@
 <script lang="ts">
+	import BladeEditor from '$lib/ideacad/BladeEditor.svelte';
+	import { ideacadMount, IDEACAD_UNAVAILABLE } from '$lib/ideacad/mount';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import AssignmentEngine from '$lib/classroom/AssignmentEngine.svelte';
 	import InstructorCopy from '$lib/classroom/InstructorCopy.svelte';
@@ -154,7 +156,8 @@
 		htmlAnswers = null,
 		htmlInstructorAnswers = null,
 		htmlAssignmentTransports = null,
-		htmlAssignmentAdmin = false
+		htmlAssignmentAdmin = false,
+		ideacad = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -283,6 +286,7 @@
 		    raises on `is_admin()` inside the function -- this only decides
 		    whether a CONTROL is offered. */
 		htmlAssignmentAdmin?: boolean;
+		ideacad?: any;
 	} = $props();
 
 	/**
@@ -302,6 +306,7 @@
 	 * the whole decision is a module.
 	 */
 	const htmlMount = $derived(htmlAssignmentMount(item, htmlAssignment));
+	const ideacadMountState = $derived(ideacadMount(item, ideacad));
 
 	/**
 	 * THE FRAME'S URL. The sandbox origin is read HERE and nowhere else on this
@@ -1623,7 +1628,11 @@
 		student would read it.
 	-->
 	{#if item.kind === 'assignment'}
-		{#if htmlMount === 'html' && htmlAssignment}
+		{#if ideacadMountState === 'ideacad' && ideacad}
+			<section class="engine-host"><h2 class="section-label">{canManage ? 'Assignment' : 'Your work'}</h2><BladeEditor tree={ideacad.concepts?.find((c: any) => c.id === ideacad.document?.active_concept_id)?.features ?? ideacad.config.defaultFeatures} config={ideacad.config} readOnly={canManage} conceptName={ideacad.concepts?.find((c: any) => c.id === ideacad.document?.active_concept_id)?.name ?? 'Concept 1'} /></section>
+		{:else if ideacadMountState === 'unavailable'}
+			<section class="card engine-slot"><p class="note">{IDEACAD_UNAVAILABLE}</p></section>
+		{:else if htmlMount === 'html' && htmlAssignment}
 			<!--
 				A PORTED HTML ASSIGNMENT (0195) TAKES THE SAME SLOT, in the same
 				reading position, for a student and for a manager alike. It is

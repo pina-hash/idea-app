@@ -34,8 +34,7 @@ import type { HxImageState } from '$lib/classroom/html-assignment/bridge';
 
 /**
  * The value `classroom_items.assignment_schema_version` carries for a ported
- * document (0195). NULL and 1 are the v1 spec engine of 0086; the column's own
- * CHECK constraint admits nothing else.
+ * document (0195). NULL and 1 are the v1 spec engine of 0086; the column's own CHECK constraint also admits schema 4 for IdeaCAD.
  */
 export const HTML_ASSIGNMENT_SCHEMA_VERSION = 3;
 

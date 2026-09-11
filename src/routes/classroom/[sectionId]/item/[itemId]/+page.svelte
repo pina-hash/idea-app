@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { createIdeacadTransports } from '$lib/ideacad/transports';
 	import { onDestroy, untrack } from 'svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import ItemDetail from '$lib/classroom/ItemDetail.svelte';
@@ -37,6 +38,7 @@
 	// it once is the intent here, not a missed reactive read.
 	// svelte-ignore state_referenced_locally
 	const transports = createClassroomTransports(data.supabase);
+	const ideacadTransports = createIdeacadTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	// svelte-ignore state_referenced_locally
 	const engineTransports = createEngineTransports(data.supabase);
@@ -479,6 +481,7 @@
 	checkInTransports={liveCheckInTransports}
 	layoutTransports={liveLayoutTransports}
 	htmlAssignment={data.htmlAssignment}
+	ideacad={data.ideacad}
 	{htmlAnswers}
 	{htmlInstructorAnswers}
 	htmlAssignmentTransports={data.canManage && data.navIsAdmin === true
