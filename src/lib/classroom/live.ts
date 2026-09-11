@@ -1,6 +1,6 @@
 /**
  * LIVE CHANGE NOTICES FOR THE CLASS PANE'S TWO TOOLS (the hall pass, the song
- * queue), and nothing else.
+ * queue) AND FOR STUDENT WORK ARRIVING ON THE GRADING CONSOLE.
  *
  * WHY THIS IS A BROADCAST AND NOT `postgres_changes`. Both tables behind the
  * tools -- `classroom_hall_passes` (0143) and `classroom_song_requests` (0145)
@@ -18,6 +18,33 @@
  * would have told them a poll later. That is the ReviewConsole rule (a change
  * means re-read the grid, never patch a local copy from events that can
  * arrive out of order) applied where the event cannot even carry a row.
+ *
+ * `responses` IS THE THIRD TOPIC AND IT REACHES THE SAME CONCLUSION BY A
+ * DIFFERENT ROUTE, WHICH IS WHY IT IS WRITTEN DOWN RATHER THAN ASSUMED.
+ * `classroom_responses` is NOT the shut-table case above: 0086 gives it
+ * `grant select ... to authenticated` and an own-row-or-reviewer policy, so a
+ * grader genuinely could SELECT the rows a `postgres_changes` event would
+ * carry. Measured on the real chain rather than reasoned about -- the census
+ * is in this bundle's history entry -- two things are nevertheless true of it:
+ *
+ *   1. NO MIGRATION PUTS IT IN THE `supabase_realtime` PUBLICATION. Three
+ *      files in this repo add a table to that publication (0006, 0017, 0043)
+ *      and none of them is this one, so `postgres_changes` on
+ *      `classroom_responses` delivers nothing to anybody today. Adding it is a
+ *      migration, and this bundle's one migration is spent.
+ *   2. EVEN PUBLISHED, THE EVENT WOULD BE A SECOND READ PATH. A row event
+ *      carries the answer's `value` straight down a socket, where the console
+ *      reads through `loadGrading`'s role-scoped projection -- and 0138's
+ *      manager exclusion, which decides that a person who can manage the
+ *      section is not a student row in it, lives in that projection and not in
+ *      the table. A grader patching a local copy from raw rows would be
+ *      reading answers the console's own read had deliberately reshaped. That
+ *      is the same rule the two tools follow, and it does not depend on the
+ *      grant.
+ *
+ * So the third topic is the identical payload-free notice: a grading console
+ * that hears `responses` re-runs `loadGrading`, and learns exactly what a poll
+ * would have told it.
  *
  * WHAT IT COSTS, STATED. A broadcast channel is public to any client holding
  * the anon key, so a signed-in student could send notices for a section and
@@ -40,9 +67,29 @@
  */
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 
-export type ClassroomLiveTopic = 'hall-pass' | 'song-queue';
+export type ClassroomLiveTopic = 'hall-pass' | 'song-queue' | 'responses';
 
-export const CLASSROOM_LIVE_TOPICS: readonly ClassroomLiveTopic[] = ['hall-pass', 'song-queue'];
+export const CLASSROOM_LIVE_TOPICS: readonly ClassroomLiveTopic[] = [
+	'hall-pass',
+	'song-queue',
+	'responses'
+];
+
+/**
+ * THE GRADING CONSOLE'S POLL, WHICH IS THE FLOOR AND NOT THE SPEED.
+ *
+ * The notice above makes the ordinary case immediate; this is what makes every
+ * case eventually right, including the ones no notice is ever sent for -- a row
+ * written from the SQL editor, a student whose socket never joined, a stalled
+ * channel. Both existing tools keep a poll for exactly that reason and this one
+ * does too.
+ *
+ * 60s, between the hall pass's 45 and the song queue's 90. A grading console is
+ * open for a period at a time with one payload per re-read, and the thing being
+ * waited for is a student finishing a worksheet, which is minutes rather than
+ * seconds of work. It is not tuned to feel live -- the notice does that.
+ */
+export const GRADING_POLL_MS = 60_000;
 
 /**
  * `connecting` until the channel joins; `live` once it has; `stalled` when the

@@ -20,6 +20,7 @@
 	import HtmlAssignmentFrame from '$lib/classroom/html-assignment/HtmlAssignmentFrame.svelte';
 	import Progress from '$lib/classroom/html-assignment/Progress.svelte';
 	import { htmlManifestShaped } from '$lib/classroom/transports';
+	import { assignmentLockState } from '$lib/classroom/html-assignment/lock';
 	import {
 		htmlAssignmentMount,
 		htmlAssignmentServed,
@@ -1599,6 +1600,19 @@
 						images={htmlAnswers.images}
 					/>
 				{/if}
+				<!--
+					WHY THE WORKSHEET IS SHUT, WHEN IT IS (0198). `readOnly` above
+					already stops the document taking input for a manager and on a
+					deployment whose answer path has not landed; what this adds is the
+					SENTENCE, for the one case where a student who could type
+					yesterday cannot type today. A student who finds their work frozen
+					with no explanation reports it as a bug, and they are right to.
+
+					READ OFF THE STUDENT'S OWN ROW through the one predicate, so this
+					is null -- and renders nothing -- for a manager, who has no
+					submission of their own and whose read-only pane is read-only for
+					an entirely different reason.
+				-->
 				<HtmlAssignmentFrame
 					src={htmlSrc}
 					title={itemTitle(item)}
@@ -1606,6 +1620,7 @@
 					values={htmlAnswers?.values ?? {}}
 					images={htmlAnswers?.images ?? {}}
 					saved={htmlAnswers?.saved ?? null}
+					lock={engine ? assignmentLockState(engine.submission) : null}
 					readOnly={!htmlWrites}
 					onchange={htmlWrites?.onchange}
 					onimage={htmlWrites?.onimage}

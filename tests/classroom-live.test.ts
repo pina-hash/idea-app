@@ -18,11 +18,24 @@ import {
 } from '../src/lib/classroom/live';
 
 describe('the topic vocabulary', () => {
-	it('is exactly the two tools, and nothing else parses as one', () => {
-		expect([...CLASSROOM_LIVE_TOPICS]).toEqual(['hall-pass', 'song-queue']);
-		expect(isClassroomLiveTopic('hall-pass')).toBe(true);
-		expect(isClassroomLiveTopic('song-queue')).toBe(true);
+	// GENERALIZED IN 0143, NOT DELETED. This spelled the list out as
+	// `['hall-pass', 'song-queue']`, which a legitimate third topic necessarily
+	// breaks -- and the thing worth asserting was never the NUMBER of topics but
+	// that the constant and the type predicate cannot drift apart, and that
+	// nothing outside the list parses as one. `responses` (the grading console's
+	// notice) is the third; the rule below takes a fourth without an edit.
+	it('is the declared list and nothing else parses as one', () => {
+		// The two originals are still named, in order, at the head: a bundle that
+		// removed one would redden here rather than quietly shrinking the list.
+		expect([...CLASSROOM_LIVE_TOPICS].slice(0, 2)).toEqual(['hall-pass', 'song-queue']);
+		expect(new Set(CLASSROOM_LIVE_TOPICS).size).toBe(CLASSROOM_LIVE_TOPICS.length);
+		for (const topic of CLASSROOM_LIVE_TOPICS) {
+			expect(isClassroomLiveTopic(topic)).toBe(true);
+		}
+		// THE NEGATIVE CONTROL, so "every declared topic parses" cannot pass
+		// because the predicate says true to everything.
 		expect(isClassroomLiveTopic('roster')).toBe(false);
+		expect(isClassroomLiveTopic('')).toBe(false);
 		expect(isClassroomLiveTopic(undefined)).toBe(false);
 	});
 

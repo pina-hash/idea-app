@@ -13,6 +13,8 @@
 	} from '$lib/classroom/html-assignment/mount';
 	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import { createTeacherEngineTransports, htmlManifestShaped } from '$lib/classroom/transports';
+	import { createClassroomLive } from '$lib/classroom/live';
+	import { assignmentLockState } from '$lib/classroom/html-assignment/lock';
 	import { itemTitle } from '$lib/classroom/classroom';
 	import type { StudentWork } from '$lib/classroom/assignment-spec';
 	import type { PageData } from './$types';
@@ -22,6 +24,23 @@
 	// One stable client for the session (the item page's convention).
 	// svelte-ignore state_referenced_locally
 	const transports = createTeacherEngineTransports(data.supabase);
+
+	/**
+	 * THE LIVE BUS, BUILT ONCE BESIDE THE TRANSPORTS AND FOR THE SAME REASON.
+	 *
+	 * `createClassroomLive` holds one channel per section, reference counted, so
+	 * it has to be the session's one instance rather than something a derived
+	 * rebuilds -- a second bus would open a second socket channel and leave the
+	 * first one joined with nobody listening.
+	 *
+	 * The console POLLS whether or not this exists; what the bus buys is that a
+	 * student finishing a worksheet shows up here without a reload. Nothing is
+	 * announced FROM this page: an instructor grading does not change a
+	 * student's answers, and the one thing this page does write -- a close -- is
+	 * something every open copy of this console learns from its own next read.
+	 */
+	// svelte-ignore state_referenced_locally
+	const live = createClassroomLive(data.supabase);
 
 	/**
 	 * WHICH ENGINE THIS ITEM IS, asked with `htmlAssignmentMount` and not with
@@ -84,6 +103,8 @@
 	spec={htmlMount === 'spec' ? data.spec : null}
 	rubric={data.rubric}
 	{transports}
+	{live}
+	close={transports.closeAssignment}
 	htmlWork={htmlMount === 'spec' ? null : htmlWork}
 />
 
@@ -139,6 +160,13 @@
 		<p class="note card">{HTML_ASSIGNMENT_NOT_LIVE}</p>
 	{:else if htmlMount === 'html' && data.htmlAssignment}
 		{@const seed = seedFor(student)}
+		<!--
+			THE LOCK IS SHOWN HERE TOO, and it is not decoration on a pane that is
+			already read-only. A grader looking at a worksheet needs to know
+			whether the student could still be editing it: "this is what they have
+			so far" and "this is final, I closed it" are different things to be
+			reading, and the frame is where the work is.
+		-->
 		<HtmlAssignmentFrame
 			src={htmlSrc}
 			title={itemTitle(data.item)}
@@ -146,6 +174,7 @@
 			values={seed.values}
 			images={seed.images}
 			saved={null}
+			lock={assignmentLockState(student.submission)}
 			readOnly
 		/>
 	{:else}

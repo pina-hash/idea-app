@@ -26,6 +26,8 @@
 	// behind it paints the portal plate while claiming to be the classroom,
 	// which is a worse fixture than no wrapper at all.
 	import '$lib/classroom/classroom.css';
+	import { createMemoryClassroomLive, type ClassroomLive } from '$lib/classroom/live';
+	import { assignmentLockState } from '$lib/classroom/html-assignment/lock';
 
 	/** `empty` selects the student with nothing stored; `broken` points the one
 	    photo at a URL that cannot decode, so the fallback row is measurable. */
@@ -34,6 +36,20 @@
 	const viewState = $derived(page.url.searchParams.get('state') ?? '');
 	const wantEmpty = $derived(viewState === 'empty');
 	const broken = $derived(viewState === 'broken');
+	/**
+	 * `closed` PUTS ALICE'S ROW IN THE ONE STATE ONLY AN INSTRUCTOR CAN WRITE
+	 * (0198): `submitted` with NO `submitted_at`.
+	 *
+	 * That pair is the whole discriminator -- a student's own hand-in always
+	 * stamps the column -- and on a ported assignment it is the only way the row
+	 * can reach `submitted` at all, because there is no turn-in here. It is the
+	 * state that makes the roster chip read "Closed" rather than "Submitted",
+	 * puts the notice above the document, and shuts the frame.
+	 */
+	const closed = $derived(viewState === 'closed');
+	/** `live=stalled` makes the bus report the one status the memory twin never
+	    produces on its own, which is the one that earns a sentence. */
+	const liveStalled = $derived(page.url.searchParams.get('live') === 'stalled');
 
 	const ITEM_ID = 'i-hx-smoke';
 	const SECTION_ID = 's-hx';
@@ -254,7 +270,26 @@
 				ok: true,
 				data: {
 					roster: ROSTER,
-					submissions: SUBMISSIONS,
+					/*
+						THE CLOSED STATE IS APPLIED HERE AND NOT IN THE FIXTURE CONST,
+						for the same reason the empty state is: `loadGrading` runs per
+						load, so a query-string change re-reads it, where a `$derived`
+						read inside a module-scope `const` is evaluated exactly once and
+						the fixture would silently keep whatever state the page first
+						mounted with.
+
+						0198's instructor lock is `submitted` with NO `submitted_at`.
+						Both halves matter: the stamp is the whole discriminator between
+						a close and a student's own hand-in, and stamping it here would
+						make this fixture measure the wrong one of the two.
+					*/
+					submissions: closed
+						? SUBMISSIONS.map((r) =>
+								r.student_email === 'alice@boscotech.net'
+									? { ...r, state: 'submitted' as const, submitted_at: null }
+									: r
+							)
+						: SUBMISSIONS,
 					// The empty state is the SAME fixture with the stored rows taken
 					// away, so the only difference on screen is the one being measured.
 					responses: wantEmpty ? [] : RESPONSES,
@@ -265,6 +300,34 @@
 				}
 			};
 		}
+	};
+
+	/**
+	 * THE CLOSE TRANSPORT, IN MEMORY. It writes nothing -- this page holds no
+	 * Supabase client -- and exists so the CONTROL is mounted and measurable.
+	 * `classroom_close_assignment` is proved against real Postgres in
+	 * `tests/db/html-assignment-close.test.ts`; what a browser pass settles is
+	 * that the two-step confirm is on screen, reachable and legible.
+	 */
+	async function closeAssignment(itemId: string, studentEmail: string | null, shut: boolean) {
+		note(`closeAssignment ${itemId} ${studentEmail ?? 'ALL'} closed=${shut}`);
+		return { ok: true, data: { ok: true, total: 2, changed: shut ? 2 : 1, refused: 0 } };
+	}
+
+	/**
+	 * THE LIVE BUS. The memory twin is a REAL implementation of the interface,
+	 * not a stub of it, so the console's subscribe/unsubscribe path is the
+	 * shipping one. `?live=stalled` reports the one status the twin never
+	 * reaches on its own, which is the one that earns a sentence.
+	 */
+	const bus = createMemoryClassroomLive();
+	const live: ClassroomLive = {
+		subscribe(sectionId, onChange, onStatus) {
+			const off = bus.subscribe(sectionId, onChange, onStatus);
+			if (liveStalled) onStatus?.('stalled');
+			return off;
+		},
+		announce: (sectionId, topic) => bus.announce(sectionId, topic)
 	};
 
 	const htmlSrc = $derived(htmlAssignmentSrc('', 'worksheet'));
@@ -290,22 +353,29 @@
 			<a class="hx-state" class:is-on={viewState === ''} href="/dev/html-assignment-grading">work</a>
 			<a class="hx-state" class:is-on={wantEmpty} href="/dev/html-assignment-grading?state=empty">no answers</a>
 			<a class="hx-state" class:is-on={broken} href="/dev/html-assignment-grading?state=broken">photo will not decode</a>
+			<a class="hx-state" class:is-on={closed} href="/dev/html-assignment-grading?state=closed">closed by the teacher</a>
+			<a class="hx-state" class:is-on={liveStalled} href="/dev/html-assignment-grading?live=stalled">live stalled</a>
 		</nav>
 	</header>
 
-	{#key viewState}
+	{#key `${viewState}|${liveStalled}`}
 		<GradingConsole
 			section={SECTION}
 			item={ITEM}
 			spec={null}
 			rubric={RUBRIC}
 			{transports}
+			{live}
+			close={closeAssignment}
 			{htmlWork}
 		/>
 	{/key}
 
 	{#snippet htmlWork(student: StudentWork)}
 		{@const seed = seedFor(student)}
+		<!-- THE LOCK IS HANDED DOWN HERE EXACTLY AS THE REAL GRADE ROUTE HANDS IT,
+		     off the student's own row through the one predicate, so the harness
+		     measures the same expression production renders. -->
 		<HtmlAssignmentFrame
 			src={htmlSrc}
 			title={ITEM.title ?? 'Assignment'}
@@ -313,6 +383,7 @@
 			values={seed.values}
 			images={seed.images}
 			saved={null}
+			lock={assignmentLockState(student.submission)}
 			readOnly
 		/>
 	{/snippet}
