@@ -180,6 +180,68 @@ first.
 land, and the fact that this bundle discovered the defect BY being merged and
 deleted by it is the argument for that, not against it.
 
+## THE PREREQUISITE HAS LANDED. THE DECISION HAS NOT, AND THIS ENTRY STAYS OPEN
+
+Written by the session on `claude/cool-cori-0vzwcz` (prompt 0163), which was sent at the
+half above and only at that half. **`Status` is deliberately unchanged.** What this entry
+asks is whether the merged-tree suite becomes a GATE on the push or stays the report it is
+today, and in particular what return code 2 should do -- and the entry's own argument is
+that this is Mr. Pina's rather than a lane's, because a bad edit here cannot be fixed on a
+branch. None of that is answered by what follows. What follows is the thing the section
+above named as having to go FIRST.
+
+**THE DEFECT IS FIXED AND IT WAS REPRODUCED BEFORE IT WAS TOUCHED.** `merged_suite` now
+runs `npx svelte-kit sync` between `npm ci` and `npm test`. Reproduced on a fresh
+`npm ci` checkout of this repository, with the exact instrument the section above
+describes: with no `.svelte-kit`, `npm test` exits 1 having printed
+`[RESOLVE_ERROR] Could not resolve 'node:module' ... Tsconfig not found`, with **0 `FAIL`
+lines and 0 `Tests` summary lines** -- so `findings` is empty and the function takes its
+`unrun` branch, unconditionally, on any tree. After one `svelte-kit sync` the same tree
+runs (`tests/workflows.test.ts`, 59 passed).
+
+**IT DIFFERS FROM THE PROPOSAL IN MECHANISM, NOT IN OUTCOME, AND THAT IS SAID HERE RATHER
+THAN LEFT TO BE FOUND.** The section above proposed treating a sync failure "the way an
+`npm ci` failure is already treated (return 2)". The line added does not carry its own
+guard: a failed sync is reported to stderr and left to the suite, which then reaches no
+test body and is answered by the `unrun` branch that already exists for exactly that. The
+RETURN CODE IS 2 either way and is proved so; what a caller loses is the more specific
+sentence, and what it costs is one suite run before the same verdict. The fix was kept to
+one line on purpose, because this function's stdout is its verdict and every extra path
+through it is a path that can print on the wrong stream.
+
+**THREE STATES, ALL THREE PROVED, WHICH IS THE PART THAT WAS MISSING.**
+`tools/integrate-gate-proof.sh` cuts the real function out of the workflow and drives it;
+it reported green, red and unrun before this bundle too, and that is precisely the problem
+the section above describes one level up: its stub `npm test` ran regardless of any
+generated directory, so the harness was modelling a function the workflow did not have.
+The stub now mirrors the real toolchain -- `npm ci` REMOVES `.svelte-kit`, `npx svelte-kit
+sync` is the only thing that creates it, and `npm test` reproduces the startup error's
+shape (non-zero, nothing named) when it is absent. **And the control is the real one:**
+cases 72c and 72d re-cut the same region with the sync line deleted and re-run the two
+trees that cases 61 and 63 tell apart; without the line both collapse to `unrun`, with it
+they come back `green` and `red`. Case 72a covers a sync that fails. 98 of 98 cases pass,
+exit 0.
+
+**A SECOND DEFECT WAS FOUND IN THE HARNESS WHILE DOING IT, AND IT IS THE SAME SPECIES.**
+Cases 80 and 81 -- the standards-version half of the cross-branch gate -- stood RED on
+`origin/integration`, measured on a pristine worktree of it before anything was changed
+(91 passed, 2 failed). The cause is not the gate: the harness sources the cut text under
+`set -u` and never supplied `AGENT_BRANCH_PREFIXES`, which the workflow declares once in
+its job-level `env:`, so the region aborted at its first use and the two cases observed
+`MERGE MERGE` where the real gate skips. The harness now reads that value OUT OF THE
+WORKFLOW rather than writing a second copy of it down. So the standards-version contest
+gate was unproven for as long as those cases were red, which is the other half of why a
+standing failure is worse than no check.
+
+**WHAT REMAINS, UNCHANGED BY THIS.** The reordering, the branch on the return code, and
+the fail-closed-versus-fail-open answer for code 2. The entry's own safe order puts one
+more step before them: **watch one Integrate run report a real verdict.** No Integrate run
+has done that yet at the time of writing -- this bundle's fix is not on `main`, and
+`workflow_run` runs the copy of the workflow on the DEFAULT BRANCH, so the first real
+verdict cannot arrive until it lands there. Until one does, the claim that the gate now
+speaks rests on the cut-text proof and the local reproduction, both of which are stated
+above, and not on a production run.
+
 ## Context
 
 - `.github/workflows/integrate.yml` -- the `merged_suite` block and its "AFTER THE PUSH

@@ -113,6 +113,24 @@
   taken from the entry: all four items 0122 says it brought across by content are present.
   Nothing was deleted.
 
+  **VERIFICATION, AGAINST BASELINES READ OFF `origin/integration` AT BRANCH TIME.**
+  Gate proof 98/98, exit 0, against a 91/2/93 baseline on a pristine worktree of
+  `origin/integration`. `npm test` 389 of 390 files, 7600 of 7604 tests, 382.52s -- the
+  four failures are `tests/grant-surface.test.ts` and are INHERITED, measured on that same
+  pristine worktree as 4 failed / 11 passed, identical, and structurally impossible to be
+  mine (`git diff --name-only origin/integration...HEAD` touches 0 files under `supabase/`
+  and 0 under `tests/` that file reads). They are `0201`'s grant hole, which ledger 0161's
+  `0202` repairs. `svelte-check` 0 errors / 40 warnings / 22 files (34/5/1).
+  `tools/claude-md-check.mjs` agrees. `npm run history:verify` lossless.
+  `npm run verify:browser` deliberately not run: no `src/` file.
+
+  **NOT MERGED TO `main`, AND THE STOP IS NOT THIS BUNDLE'S.** Gate 1 met (exit 0). Gate 2
+  UNMET: this branch is not in `origin/integration` yet. Gate 4 CANNOT SAY, and ledger
+  0114's substitution does not rescue it because the range carries TWO migrations (`0199`
+  and `0201`). Gate 5 UNMET: `0201` is unapplied on production, its own header says "deploy
+  migration first", and ledger 0161 established it should not be applied as written. This
+  is ledger 0159's stop, still standing.
+
   **NOT VERIFIED, AND SAID RATHER THAN LEFT SILENT.** `https://ideabosco.com/` is
   UNREACHABLE from this container -- `curl: (56) CONNECT tunnel failed, response 403`, and
   the agent proxy records it as `connect_rejected`, "gateway answered 403 to CONNECT
