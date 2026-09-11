@@ -1,10 +1,15 @@
 name: Integrate
 
+# Canonical agent branch-prefix registry. Every branch guard in this workflow
+# reads this list; the status and migration tools mirror it and their tests pin parity.
+env:
+  AGENT_BRANCH_PREFIXES: 'claude/ codex/'
+
 # Collects finished session branches onto ONE long-lived branch, `integration`,
 # so a person merges once instead of nine times.
 #
 # The shape:
-#   1. CI passes on a `claude/**` branch.
+#   1. CI passes on a `claude/**` or `codex/**` branch.
 #   2. This workflow merges `main` into `integration` (main advances all day on
 #      its own -- the classroom GitHub export pushes `materials/` commits with
 #      no human involved), then merges the green branch into `integration`.
@@ -79,7 +84,7 @@ on:
 # WORTH KNOWING: GitHub queues at most ONE pending run per group -- a third
 # arrival cancels the one already pending. That would silently drop a merge if
 # this job only ever handled its own trigger, so it does not: the job sweeps
-# EVERY eligible `claude/**` branch, and a cancelled queue entry therefore costs
+# EVERY eligible `claude/**` or `codex/**` branch, and a cancelled queue entry therefore costs
 # nothing but a little latency. Whatever it would have merged, the next run
 # merges.
 concurrency:
@@ -87,7 +92,7 @@ concurrency:
   cancel-in-progress: false
 
 # LEAST PRIVILEGE. Two scopes, and nothing else is granted:
-#   contents: write -- push `integration`, and delete a `claude/**` ref.
+#   contents: write -- push `integration`, and delete a `claude/**` or `codex/**` ref.
 #                      (This is also what `main` is protected from by the
 #                      refusal above rather than by a token scope. If this repo
 #                      ever gains a branch protection rule on `main`, that is a
@@ -145,7 +150,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-      - name: Merge main, then every green claude/** branch, into integration
+      - name: Merge main, then every green claude/** or codex/** branch, into integration
         env:
           # The CI workflow's FILENAME, which is what the Actions API keys on.
           # Rename ci.yml and this lookup 404s -- which fails CLOSED (every
@@ -432,8 +437,8 @@ jobs:
           # document to the same version string.
           #
           # THIS IS THE ONE QUESTION NO BRANCH CAN ANSWER FOR ITSELF, which is
-          # why it is here and not a test. A `claude/**` branch cannot see
-          # another `claude/**` branch and neither can its CI: `ci.yml` checks
+          # why it is here and not a test. A `claude/**` or `codex/**` branch cannot see
+          # another agent branch and neither can its CI: `ci.yml` checks
           # out one ref, shallow, with no sibling branch refs, so every check in
           # this repository that relates two files is green on each side of a
           # collision and red only where both edits first exist. Prompt 0075
@@ -485,7 +490,7 @@ jobs:
             # THE TOOL IS ASKED FOR BRANCH NAMES AND NOT FOR JSON. A shell loop
             # that parses JSON is a second parser of the tool's own output, and
             # `--contested-branches` exists so there is one. Its filters -- only
-            # `claude/**` holders, and two DISTINCT ones -- are argued in
+            # agent-branch holders, and two DISTINCT ones -- are argued in
             # `contestedBranches` in `tools/migration-claims.mjs`; the important
             # one is that the sweep runner's own working tree is `integration`
             # mid-merge and would otherwise contest with the branch that wrote
@@ -558,12 +563,12 @@ jobs:
             local refs ref branch path mine theirs blob rows=''
             local -a fields=()
             local n i
-            refs="$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/claude 2>/dev/null)" || return 1
+            refs="$(git for-each-ref --format='%(refname:short)' refs/remotes/origin 2>/dev/null)" || return 1
             [ -n "$refs" ] || return 0
             while IFS= read -r ref; do
               [ -n "$ref" ] || continue
               branch="${ref#origin/}"
-              case "$branch" in claude/*) ;; *) continue ;; esac
+              case " $AGENT_BRANCH_PREFIXES " in *" ${branch%%/*}/ "*) ;; *) continue ;; esac
 
               # NUL-DELIMITED AND NEVER THROUGH `$(...)`, for the reason written
               # out at `ledger_gate`: command substitution DROPS NUL bytes, so a
@@ -676,11 +681,11 @@ jobs:
           # the way the post-merge delete must.
           #
           # THREE REFS ARE NEVER DELETED WHATEVER THE CONTAINMENT ANSWER, and
-          # the loop's own `claude/*` filter is not treated as sufficient: this
+          # the loop's own agent-prefix filter is not treated as sufficient: this
           # is the one place in the file that removes a ref nothing merged, so
           # it names `main` (every push to which deploys ideabosco.com),
           # `integration` and $TARGET itself explicitly, and refuses anything
-          # that is not a `claude/` branch, before it looks at containment at
+          # that is not an agent branch, before it looks at containment at
           # all.
           #
           # It is a FUNCTION and between markers for `ledger_gate`'s reason: it
@@ -696,7 +701,7 @@ jobs:
           # outstanding tip left, a red branch left (by the ORDERING above, which
           # is asserted by line number: the gate alone would say delete, and the
           # loop never asks it), and `main`, `integration`, the target by name
-          # and a non-`claude/` branch all refused whatever the containment
+          # and a non-agent branch all refused whatever the containment
           # answer -- plus the single-delete-loop shape below, and a negative
           # control confirming the cut refuses to run, loudly, when the markers
           # are renamed. That harness belongs beside
@@ -717,8 +722,8 @@ jobs:
             case "$branch" in
               main | integration | "$target") return 1 ;;
             esac
-            case "$branch" in
-              claude/*) ;;
+            case " $AGENT_BRANCH_PREFIXES " in
+              *" ${branch%%/*}/ "*) ;;
               *) return 1 ;;
             esac
 
@@ -1471,8 +1476,8 @@ jobs:
 
           for ref in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin); do
             branch="${ref#origin/}"
-            case "$branch" in
-              claude/*) ;;
+            case " $AGENT_BRANCH_PREFIXES " in
+              *" ${branch%%/*}/ "*) ;;
               *) continue ;;
             esac
 

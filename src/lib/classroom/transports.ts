@@ -21,6 +21,7 @@ import {
 	normalizeSubmissionRow,
 	type AssignmentEngineTransports,
 	type AssignmentTeacherTransports,
+	type CloseAssignmentResult,
 	type EngineOpResult,
 	type GradingData,
 	type InstructorCopyData,
@@ -1520,6 +1521,30 @@ export function createTeacherEngineTransports(
 			const { data: res, error } = await supabase.rpc('classroom_grade_submission', payload);
 			if (error) return fail(error);
 			return opResult(res);
+		},
+		/**
+		 * CLOSING AN ASSIGNMENT (0198), AND IT IS ONE RPC FOR BOTH SHAPES.
+		 *
+		 * `studentEmail` null closes every student the caller may review on this
+		 * item, which is the end-of-unit act; a named address is the single
+		 * student. The database decides both -- `classroom_close_assignment` asks
+		 * `classroom_can_review_submission` per row, which is the same per-student
+		 * gate every grading RPC here already asks -- so there is no second
+		 * authorization question for this transport to get wrong.
+		 *
+		 * A REFUSAL COMES BACK INSIDE `data`, not as a failure: a co-posted item
+		 * legitimately carries students of a class this caller does not manage,
+		 * and the function reports them rather than raising. Only a transport
+		 * failure is `ok: false`.
+		 */
+		async closeAssignment(itemId, studentEmail, closed) {
+			const { data: res, error } = await supabase.rpc('classroom_close_assignment', {
+				p_item_id: itemId,
+				p_student_email: studentEmail,
+				p_closed: closed
+			});
+			if (error) return fail(error);
+			return { ok: true, data: (res ?? { ok: false }) as CloseAssignmentResult };
 		},
 		async approveModule(itemId, studentEmail, moduleId, approved) {
 			const { error } = await supabase.rpc('classroom_approve_module', {

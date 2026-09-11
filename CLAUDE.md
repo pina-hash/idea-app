@@ -4154,6 +4154,16 @@ shadows. Raise a field-size or fidelity cap only behind a measurement.
   its session's ledger entry still reads `Status: issued`, or its merge into
   `integration` conflicted -- and is worth naming in the same report a still-open
   branch already gets.
+
+**TWO AGENTS, ONE REPOSITORY.** As of 2026-09-10, GPT-6 Astra works here as Codex
+cloud tasks beside Claude Code sessions. `AGENTS.md` points here and carries no rule
+of its own. Codex tasks push `codex/**` branches; `integrate.yml`,
+`tools/idea-status.py`, `tools/migration-claims.mjs` and the ledger README enumerate
+`claude/**` and `codex/**` alike, and a guard that enumerates only one is a defect. A
+Codex task lands a pull request against `integration`, never merges `main`, and cannot
+reach the production database; `docs/CODEX_ENVIRONMENT.md` says what its container
+has. `ultracode` is a Claude Code setting and is never written into a Codex prompt.
+
   - **WHAT "CI GOES GREEN" MEANS IS THE WORKFLOW'S OWN DEFINITION, IT HAS
     MOVED, AND IT IS NOT RESTATED HERE.** `integrate.yml` decides what it
     checks before it merges, and `ci.yml`'s header explains why `integration`

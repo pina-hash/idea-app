@@ -201,6 +201,33 @@ export const AI_LEVELS: Record<number, { label: string; blurb: string }> = {
 
 export type SubmissionState = 'draft' | 'submitted' | 'returned';
 
+/**
+ * WHAT `classroom_close_assignment` ANSWERS: the bulk shape every batch RPC in
+ * this schema uses, so one student's refusal never obscures whether the rest
+ * landed. `refused` is a student the caller may not review -- the only refusal
+ * this can produce -- and is reported rather than skipped, because a roster
+ * that quietly lost a name is how a class gets closed with one student still
+ * able to write.
+ */
+export interface CloseAssignmentResult {
+	ok: boolean;
+	/** `not_enrolled` when a named address is on no roster for the item. */
+	reason?: string;
+	closed?: boolean;
+	total?: number;
+	changed?: number;
+	unchanged?: number;
+	refused?: number;
+	results?: {
+		student_email: string;
+		ok: boolean;
+		reason?: string;
+		state?: string;
+		changed?: boolean;
+		was?: string;
+	}[];
+}
+
 export interface SubmissionRow {
 	id: string;
 	item_id: string;
@@ -1439,6 +1466,20 @@ export interface AssignmentTeacherTransports {
 		 */
 		extraCredit?: number | null
 	): Promise<TxResult<EngineOpResult>>;
+	/**
+	 * CLOSE OR REOPEN AN ASSIGNMENT (0198). `studentEmail` null is every student
+	 * the caller may review on the item; `closed` false reopens only what a
+	 * close put there, never a student's own hand-in.
+	 *
+	 * OPTIONAL, because absence is how a surface declines to offer the control
+	 * at all -- a read-only mount and the dev harness hand nothing down and have
+	 * no close to execute.
+	 */
+	closeAssignment?(
+		itemId: string,
+		studentEmail: string | null,
+		closed: boolean
+	): Promise<TxResult<CloseAssignmentResult>>;
 	approveModule(
 		itemId: string,
 		studentEmail: string,

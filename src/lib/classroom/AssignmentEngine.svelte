@@ -20,6 +20,12 @@
 		type SubmissionFileRow
 	} from '$lib/classroom/assignment-spec';
 	import type { ClassroomItem } from '$lib/classroom/classroom';
+	import {
+		assignmentLockNotice,
+		assignmentLockState,
+		ASSIGNMENT_LOCK_CHIP,
+		ASSIGNMENT_LOCK_NOTICE
+	} from '$lib/classroom/html-assignment/lock';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
 	import { SaveState } from '$lib/save-state.svelte';
 	import { guardSaveNavigation } from '$lib/save-guard.svelte';
@@ -107,6 +113,17 @@
 			: []
 	);
 	const returned = $derived(subState === 'returned');
+	/**
+	 * WHICH KIND OF LOCKED THIS IS (0198), through the ONE predicate.
+	 *
+	 * `submitted` used to mean exactly one thing on this surface -- the student
+	 * turned their own work in -- because nothing else could write it. An
+	 * instructor can close an assignment now, which writes the same state and
+	 * leaves `submitted_at` null, and every sentence below that assumed the
+	 * first reading is wrong for the second: a student who was closed never
+	 * submitted anything and has no unsubmit to press.
+	 */
+	const lock = $derived(assignmentLockState(submission));
 
 	// ------------------------------------------------------------------
 	// AUTOSAVE, on the shared SaveState primitive.
@@ -146,7 +163,11 @@
 
 	function refusalText(reason: string | undefined): string {
 		return reason === 'locked'
-			? 'This is submitted, so edits are locked. Unsubmit to keep working.'
+			? // WHICH KIND, from the row rather than from a guess. Telling a
+				// student whose teacher closed the assignment to "unsubmit to keep
+				// working" sends them looking for a control that is not there.
+				(assignmentLockNotice(submission) ??
+					'This assignment is not accepting work right now, so that change was not saved.')
 			: reason === 'approval_pending'
 				? 'That module is still locked, ask your teacher to approve your earlier work.'
 				: 'That change was not saved.';
@@ -578,7 +599,13 @@
 			notice =
 				res.data.reason === 'graded'
 					? 'Your teacher has started grading this, so it can no longer be unsubmitted.'
-					: 'This is not currently submitted.';
+					: // 0198's refusal. It can only be reached by a student who had the
+						// control on screen when their teacher closed the assignment
+						// underneath them, so it says what happened rather than
+						// "this is not currently submitted", which would read as a bug.
+						res.data.reason === 'closed'
+						? ASSIGNMENT_LOCK_NOTICE.closed
+						: 'This is not currently submitted.';
 			return;
 		}
 		notice = 'Unsubmitted. You can keep working and submit again.';
@@ -591,8 +618,15 @@
 <div class="engine">
 	<!-- Status -->
 	<div class="status-row">
-		<span class="state-chip {subState ?? 'none'}">{submissionStateLabel(subState)}</span>
-		{#if submission?.submitted_at && subState === 'submitted'}
+		<!-- THE WORD FOLLOWS THE ROW, not the state column alone: "Submitted" over
+		     an assignment the student never handed in is a claim about them that
+		     is not true. -->
+		<span class="state-chip {lock === 'closed' ? 'closed' : (subState ?? 'none')}">
+			{lock === 'closed' ? ASSIGNMENT_LOCK_CHIP.closed : submissionStateLabel(subState)}
+		</span>
+		<!-- GATED ON THE STAMP, which a close never writes, so the line cannot
+		     print "Submitted <date>" for an assignment nobody submitted. -->
+		{#if submission?.submitted_at && lock === 'turned-in'}
 			<span class="status-meta">
 				Submitted {new Date(submission.submitted_at).toLocaleString(undefined, {
 					month: 'short',
@@ -685,7 +719,15 @@
 		</section>
 	{/if}
 
-	{#if subState === 'submitted'}
+	<!--
+		TWO DIFFERENT FACTS, TWO CARDS, AND ONLY ONE OF THEM OFFERS A WAY BACK.
+		A control whose only possible outcome is a refusal must not be offered, so
+		a closed assignment gets the sentence and no button: 0198's
+		`classroom_unsubmit_assignment` refuses a close, deliberately, and a
+		student pressing it would be told no by the server for something they
+		never did.
+	-->
+	{#if lock === 'turned-in'}
 		<section class="card locked-card">
 			<p class="locked-line">
 				Your work is in. Editing is locked while it waits for grading.
@@ -693,6 +735,10 @@
 			<button type="button" class="btn secondary tiny" disabled={busy} onclick={unsubmit}>
 				Unsubmit to keep working
 			</button>
+		</section>
+	{:else if lock === 'closed'}
+		<section class="card locked-card" data-testid="closed-card">
+			<p class="locked-line">{ASSIGNMENT_LOCK_NOTICE.closed}</p>
 		</section>
 	{/if}
 
@@ -851,6 +897,13 @@
 	.state-chip.returned {
 		color: var(--green);
 		border-color: var(--line-strong);
+	}
+	/* The same pair the grading console's roster gives a closed row, so the two
+	   surfaces read the same. --violet through --violet-ink, which is the
+	   corrected value the register keeps for a word painted in violet. */
+	.state-chip.closed {
+		color: var(--violet-ink);
+		border-color: var(--violet-ink);
 	}
 	.status-meta {
 		font-family: var(--font-mono);

@@ -154,6 +154,7 @@ import {
 	type HtmlAssignmentManifest,
 	type HtmlBlock
 } from './manifest';
+import { ASSIGNMENT_LOCK_NOTICE } from './lock';
 
 /**
  * WHAT ONE ANSWER MAY WEIGH, AND IT IS THE DATABASE'S NUMBER.
@@ -201,7 +202,25 @@ export interface HxSavedAck {
  * no approval gate to be pending on -- there is no branch to reach it.
  */
 export const HX_REFUSALS = {
-	locked: 'This is submitted, so edits are locked. Unsubmit to keep working.',
+	/**
+	 * THE ONLY THING `locked` CAN MEAN ON THIS SURFACE IS AN INSTRUCTOR'S
+	 * CLOSE, AND THE SENTENCE USED TO SAY THE OPPOSITE.
+	 *
+	 * It read 'This is submitted, so edits are locked. Unsubmit to keep
+	 * working.' -- borrowed from the spec engine, where both readings are
+	 * possible. On a PORTED document neither half is true: there is no turn-in
+	 * (finishing the work IS the hand-in), so the student never submitted
+	 * anything, and there is no unsubmit control anywhere on this surface for
+	 * them to press. `classroom_save_response` answers `locked` on exactly one
+	 * state, `submitted`, and since 0198 the only thing that can put a ported
+	 * item's row into it is `classroom_close_assignment`.
+	 *
+	 * IT IS THE SAME STRING `lock.ts` HANDS THE PROACTIVE NOTICE, imported
+	 * rather than retyped: a student who reads one sentence on the frame before
+	 * they type and a different one from the save state afterwards has been told
+	 * two things about one event.
+	 */
+	locked: ASSIGNMENT_LOCK_NOTICE.closed,
 	readOnly: 'This assignment is not open for editing, so nothing was saved.',
 	tooLarge: `That answer is longer than the ${HX_MAX_ANSWER_BYTES.toLocaleString('en-US')} character limit for one field, so it was not saved.`,
 	fallback: 'That change was not saved. It is still on screen; try again.'
