@@ -235,9 +235,21 @@ Measured after, all three real documents:
 
 | document | TypeScript | python |
 | --- | --- | --- |
-| `tests/fixtures/hx-smoke-test.html` | 0 errors | PASS |
+| `tests/fixtures/hx-smoke-test.html` | 0 errors, 0 warnings | PASS |
 | `_TEMPLATE.html` | refused: never sends `idea:ready` | FAIL, same sentence |
 | `idea100-blade-01.ported.html` | 0 errors | FAIL (a real mint -- see FOUR) |
+
+**A second defect in this bundle's own first draft.** The mirrored trap scan
+warned "the frame has no reach into the parent document" on the smoke test AND
+on the ported Blade fixture -- because every correct ported document reaches the
+classroom through `window.parent.postMessage` and checks
+`e.source !== window.parent`, which IS the bridge contract. A warning false on
+every working document is not a warning, it is a thing authors learn to scroll
+past, and it would have cost the four traps beside it that are real. The two
+bridge idioms are taken out before the scan runs; a document reading
+`window.parent.document` still warns, and both directions are pinned. After:
+the smoke test and the Blade port warn about **nothing at all**, and the
+template keeps its one true `localStorage` warning.
 
 **The `localStorage` warning is one of five mirrored traps.** Python already
 shipped `SANDBOX_TRAPS`; a one-entry TypeScript list against a five-entry python

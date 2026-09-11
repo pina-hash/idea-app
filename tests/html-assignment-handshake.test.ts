@@ -111,20 +111,42 @@ describe('the opaque-origin warnings', () => {
 		expect(v.errors.some((e) => e.includes('localStorage'))).toBe(false);
 	});
 
-	it('says nothing about a trap the document does not reach for', () => {
-		// The positive control for the sweep: the smoke document touches no
-		// storage at all, so an empty warning list here is a real answer rather
-		// than a scan that found nothing because it was reading the wrong text.
-		const v = validateHtmlManifest(SMOKE);
-		expect(v.warnings.some((w) => w.includes('localStorage'))).toBe(false);
+	it('says NOTHING AT ALL about a correctly ported document', () => {
+		// THE ONE THAT MATTERS, AND IT FAILED IN THIS BUNDLE'S FIRST DRAFT. Every
+		// correct ported document reaches the classroom through
+		// `window.parent.postMessage` and checks `e.source !== window.parent`,
+		// because that is the bridge contract -- so a scan that merely looked for
+		// `window.parent` warned "the frame has no reach into the parent
+		// document" about the smoke test, the Blade port, and every document
+		// anybody will ever write correctly. A warning false on every working
+		// document is a thing authors learn to scroll past, which costs the four
+		// real traps beside it.
+		for (const [name, html] of [
+			['the smoke test', SMOKE],
+			['the ported Blade fixture', PORTED]
+		] as const) {
+			expect(validateHtmlManifest(html).warnings, `${name} should warn about nothing`).toEqual(
+				[]
+			);
+		}
+	});
+
+	it('STILL warns when the parent is reached for something the bridge is not', () => {
+		// The other half of that control: taking the idioms out must not take the
+		// trap out. A document reading the parent's DOM is exactly what throws.
+		const v = validateHtmlManifest(
+			SMOKE.replace('<script>', '<script>\nvar t = window.parent.document.title;\n')
+		);
 		expect(v.warnings.some((w) => w.includes('window.parent'))).toBe(true);
 	});
 
 	it('names every trap it carries, so a silent list cannot pass', () => {
 		expect(HX_SANDBOX_TRAPS.length).toBeGreaterThan(0);
 		for (const trap of HX_SANDBOX_TRAPS) {
+			// `.foo` so a parent trap is a genuine reach rather than one of the two
+			// bridge idioms, which are taken out before the scan runs.
 			const v = validateHtmlManifest(
-				SMOKE.replace('<script>', `<script>\nvar probe = ${trap.name};\n`)
+				SMOKE.replace('<script>', `<script>\nvar probe = ${trap.name}.foo;\n`)
 			);
 			expect(
 				v.warnings.some((w) => w.includes(trap.name)),

@@ -315,6 +315,33 @@ export function documentScripts(html: string): string {
  * python one to each other. The two SCANS are not identical and the test says
  * so: this one reads `documentScripts`, the python tool reads the raw bytes.
  */
+/**
+ * THE TWO THINGS A SANDBOXED DOCUMENT MAY LEGITIMATELY DO WITH ITS PARENT, TAKEN
+ * OUT BEFORE THE TRAP SCAN RUNS.
+ *
+ * `window.parent.postMessage(...)` IS THE BRIDGE. It is the one reach across the
+ * boundary an opaque origin permits, it is how every correct ported document
+ * talks to the classroom, and the first version of this scan warned
+ * "the frame has no reach into the parent document" about it -- on the smoke
+ * test, on the ported Blade fixture, and on every document anybody will ever
+ * write correctly. A warning that is false on every working document is not a
+ * warning, it is a thing authors learn to scroll past, which costs the four
+ * traps beside it that are real.
+ *
+ * `e.source !== window.parent` IS THE PROVENANCE CHECK the bridge contract
+ * REQUIRES of a document, for the same reason.
+ *
+ * This is why the TypeScript scan and the python one differ in more than their
+ * input (see `HX_SANDBOX_TRAPS` below): python matches the raw bytes and warns
+ * on both of these. `tests/html-assignment-manifest-parity.test.ts` holds the
+ * two lists to each other by NAME and says so.
+ */
+function withoutBridgeIdioms(scripts: string): string {
+	return scripts
+		.replace(/(?:window\s*\.\s*)?parent\s*\.\s*postMessage/g, ' ')
+		.replace(/[!=]==?\s*(?:window\s*\.\s*)?parent\b/g, ' ');
+}
+
 export const HX_SANDBOX_TRAPS: readonly { readonly name: string; readonly why: string }[] = [
 	{
 		name: 'localStorage',
@@ -800,8 +827,9 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 				`The document never sends ${HX_READY_TYPE}. Without that handshake the page around it never seeds the document and never records an answer, so everything a student types is lost. Post {"type":"${HX_READY_TYPE}","schemaVersion":${HTML_MANIFEST_SCHEMA_VERSION}} to the parent once the document has loaded.`
 			);
 		}
+		const reaches = withoutBridgeIdioms(scripts);
 		for (const trap of HX_SANDBOX_TRAPS) {
-			if (scripts.includes(trap.name)) {
+			if (reaches.includes(trap.name)) {
 				warnings.push(`The document reaches for ${trap.name}: ${trap.why}.`);
 			}
 		}
