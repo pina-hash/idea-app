@@ -63,7 +63,12 @@ import {
 import type { HtmlAssignmentManifest } from '../../src/lib/classroom/html-assignment/manifest';
 
 /** The classroom chain through 0197, in production order. 0128 is in it because
-    the instructor-copy gate is measured at the end of this file. */
+    `classroom_set_html_assignment` runs over a schema this file seeds through
+    the real classroom RPCs, and the chain is kept whole rather than pruned to
+    what one assertion happens to touch. The INSTRUCTOR-COPY gate that used to
+    be probed at the foot of this file has moved to
+    `tests/db/html-assignment-instructor-gate.test.ts`, which measures it
+    against 0199 rather than recording that it was shut. */
 const CHAIN = [
 	'0001_profiles.sql',
 	'0003_profile_section.sql',
@@ -163,16 +168,6 @@ describe('0154: re-uploading a ported HTML assignment over stored answers', () =
 			const { rows } = await q<{ result: T }>(`select ${call} as result`, params);
 			return rows[0].result;
 		});
-	}
-
-	/** The refusal an RPC raised, or null. The MESSAGE is the measurement. */
-	async function refusal(user: SeededUser, call: string, params: unknown[] = []) {
-		try {
-			await rpc(user, call, params);
-			return null;
-		} catch (e) {
-			return (e as Error).message;
-		}
 	}
 
 	async function createAssignment(title: string): Promise<string> {
@@ -490,89 +485,5 @@ describe('0154: re-uploading a ported HTML assignment over stored answers', () =
 		// The positive control: a manifest it CAN walk answers a diff, so the
 		// four nulls above are not this function answering null for everything.
 		expect(htmlManifestDiff(manifest(['b-one']), manifest(['b-one']))).not.toBeNull();
-	});
-
-	// -----------------------------------------------------------------------
-	// THE INSTRUCTOR COPY'S WRITE GATE, MEASURED AND RECORDED (ledger 0154).
-	// -----------------------------------------------------------------------
-	describe('the instructor working copy on a ported assignment', () => {
-		let item: string;
-		beforeAll(async () => {
-			item = await createAssignment('Bench setup (instructor copy)');
-			await upload(item, manifest(['b-setup', 'b-reading']), 'bench-v1.html');
-		}, 300000);
-
-		/**
-		 * THIS IS A PROBE, AND IT IS WRITTEN TO BE DELETED RATHER THAN INVERTED,
-		 * exactly as `tests/db/html-assignment-write-gate.test.ts` was before
-		 * 0197 moved the student gate.
-		 *
-		 * 0197 widened `classroom_save_response` and
-		 * `classroom_add_submission_file` with a manifest arm and did NOT touch
-		 * `classroom_save_instructor_response` (0128), which still reads
-		 * `classroom_assignment_specs`, raises without a row, and resolves the
-		 * block id against that spec with a type gate of
-		 * `textField|table|checklist` against a manifest's
-		 * `text|longText|checkbox|radio|image|table`.
-		 *
-		 * SO AN INSTRUCTOR CANNOT FILL IN A PORTED ASSIGNMENT, and a surface that
-		 * handed them a writable frame anyway would be a worksheet that takes
-		 * typing and saves nothing -- the one failure this feature's own rules
-		 * name as worth avoiding. Ledger 0154 carried no migration, so the
-		 * surface was not built and this records why. The day the function gains
-		 * the same branch 0197 gave the other two, this `it` goes.
-		 */
-		it('is refused by the database, which is why no writable surface was built', async () => {
-			const message = await refusal(
-				teacher,
-				'public.classroom_save_instructor_response($1::uuid,$2,$3::jsonb)',
-				[item, 'b-setup', JSON.stringify({ text: 'The vise was square.' })]
-			);
-			say(`classroom_save_instructor_response on a schema-3 item => ${message ?? 'ACCEPTED'}`);
-			expect(message).toBe('This assignment has no interactive spec.');
-			const { rows } = await db.sql(
-				'select block_id from public.classroom_instructor_responses where item_id = $1',
-				[item]
-			);
-			expect(rows).toHaveLength(0);
-
-			// THE POSITIVE CONTROL: the same call on a SPEC-BACKED item is
-			// accepted, so the refusal above is about the ported item and not
-			// about this caller, this section or this fixture.
-			const specItem = await createAssignment('A v1 spec assignment');
-			await rpc(teacher, 'public.classroom_set_assignment_spec($1::uuid,$2::jsonb)', [
-				specItem,
-				JSON.stringify({
-					schemaVersion: 1,
-					meta: { assignmentId: 'v1', title: 'A v1 spec assignment', totalPoints: 2 },
-					modules: [
-						{
-							id: 'm1',
-							title: 'Step 1',
-							points: 2,
-							blocks: [{ type: 'textField', id: 'b-setup', prompt: 'Step 1', minSentences: 1 }],
-							rubric: [
-								{
-									id: 'm1-c',
-									criterion: 'Step 1',
-									levels: [
-										{ points: 2, label: 'Complete', descriptor: 'Done.' },
-										{ points: 1, label: 'Developing', descriptor: 'Partly done.' },
-										{ points: 0, label: 'Absent', descriptor: 'Not attempted.' }
-									]
-								}
-							]
-						}
-					]
-				})
-			]);
-			const ok = await refusal(
-				teacher,
-				'public.classroom_save_instructor_response($1::uuid,$2,$3::jsonb)',
-				[specItem, 'b-setup', JSON.stringify({ text: 'The vise was square.' })]
-			);
-			say(`the same call on a v1 spec item => ${ok ?? 'ACCEPTED'}`);
-			expect(ok).toBeNull();
-		});
 	});
 });
