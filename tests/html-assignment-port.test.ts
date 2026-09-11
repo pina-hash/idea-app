@@ -151,22 +151,48 @@ describe('nothing that touches an opaque origin survives the port', () => {
 });
 
 describe('the frame is sandboxed and must stay that way', () => {
-	it('grants exactly allow-scripts, and allow-same-origin in no configuration', () => {
-		// The ATTRIBUTE's own token set, not the absence of a string in the file:
-		// the paragraph above this assertion says `allow-same-origin` out loud, and
-		// a sweep that could not tell a warning from a grant would be reporting on
-		// its own comments.
-		const attrs = [...harness.matchAll(/<iframe[^>]*\ssandbox="([^"]*)"/g)].map((m) => m[1]);
-		// Scoped to the <iframe> element, because the prose above it also spells the
-		// attribute out and a file-wide match would be counting the explanation.
-		expect(attrs.length, 'the harness frames the fixture exactly once').toBe(1);
-		const tokens = attrs[0].split(/\s+/).filter(Boolean);
-		expect(tokens).toEqual(['allow-scripts']);
-		// Together the pair lets the frame remove its own sandbox attribute. There
-		// is no configuration of this fixture in which it is correct.
-		expect(tokens).not.toContain('allow-same-origin');
-		expect(tokens).not.toContain('allow-top-navigation');
-		expect(tokens).not.toContain('allow-popups-to-escape-sandbox');
+	/*
+		THIS ASSERTS THAT THE HARNESS READS THE CONSTANT. IT DOES NOT RESTATE THE
+		RULE, AND THAT DISTINCTION IS THE WHOLE OF WHAT CHANGED HERE.
+
+		It used to read the harness's own `sandbox="allow-scripts"` literal and
+		assert `toEqual(['allow-scripts'])` plus `not.toContain(
+		'allow-popups-to-escape-sandbox')`. Every one of those passed, and the
+		file was STRICTER than the frame students actually work in -- so it failed
+		safe, and said nothing at all when `HX_SANDBOX_FLAGS` was widened with
+		`allow-popups allow-popups-to-escape-sandbox` on Mr. Pina's decision of
+		2026-09-11. What it had become was a rule about the feature that was
+		merely a fact about one dev page, and the two stopped agreeing silently.
+
+		WHICH FLAGS MAY BE IN THAT STRING IS ASSERTED ON THE CONSTANT ITSELF, in
+		`tests/html-assignment-bridge.test.ts` -- the exact token set, the three
+		refused flags, and the pairing that makes `allow-popups` useful. Repeating
+		any of it here would be a second copy of the rule, which is the thing that
+		stops matching. What is left here is the one question that file cannot
+		answer: does the harness frame its document under the SAME sandbox the
+		portal does, or under a second spelling of it?
+	*/
+	it('binds the frame to HX_SANDBOX_FLAGS rather than a second literal', () => {
+		// Scoped to the <iframe> element in both directions, because the prose
+		// above it also spells the attribute out and a file-wide match would be
+		// reporting on the explanation rather than on the grant.
+		const bound = [...harness.matchAll(/<iframe[^>]*\ssandbox=\{([^}]*)\}/g)].map((m) =>
+			m[1].trim()
+		);
+		const literal = [...harness.matchAll(/<iframe[^>]*\ssandbox="([^"]*)"/g)].map((m) => m[1]);
+		expect(bound, 'the harness frames the fixture exactly once, from the constant').toEqual([
+			'HX_SANDBOX_FLAGS'
+		]);
+		// The control: a hardcoded token set on the frame is exactly the defect
+		// this replaced, and it is green under every assertion above.
+		expect(literal, 'a second literal on the frame is what this refuses').toEqual([]);
+		// And the binding has to resolve to the real constant, not to a local of
+		// the same name -- a `const HX_SANDBOX_FLAGS = 'allow-scripts'` in the
+		// harness would satisfy both assertions above and reintroduce the defect.
+		expect(harness).toMatch(
+			/import\s*\{[^}]*\bHX_SANDBOX_FLAGS\b[^}]*\}\s*from\s*'\$lib\/classroom\/html-assignment\/bridge/
+		);
+		expect(harness).not.toMatch(/\b(?:const|let|var)\s+HX_SANDBOX_FLAGS\b/);
 	});
 
 	it('the document addresses its parent as a parent and never names a block id', () => {

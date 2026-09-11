@@ -14,6 +14,16 @@
 	"entries": [
 		{
 			"date": "2026-09-11",
+			"title": "Check the captions on your Module 04 sketches",
+			"body": "Until today, sketches you uploaded to Module 04 could end up in a different order than the one you picked them in, which meant a caption could end up typed under the wrong picture. That is fixed for anything you upload from now on. What the fix cannot do is sort out work that was already saved: your pictures are still stored in the order they went in, so if yours were shuffled they are still shuffled, and a caption that landed on the wrong picture is still on it. Nothing is lost and nothing is wrong with your work. Please open Module 04, read each caption against the picture above it, and fix any that do not match.",
+			"tags": [
+				"Assignments",
+				"IDEA100",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-11",
 			"title": "Your class page fills the screen properly again",
 			"body": "On a wide screen your class page lays its units out in columns. Until now those columns worked like a table: a short unit sitting next to a long one left a tall band of nothing beside it, so on some classes almost everything was squashed into the right half of the page with a big empty stripe down the left. The units now flow down one column and on into the next, so both sides fill up and the units read in order from the top. Nothing about your work, your units or what is in them has changed, only where the panels sit.",
 			"tags": [
@@ -1324,6 +1334,27 @@
 				"classroom",
 				"assignments",
 				"worksheets",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-11",
+			"title": "Your teacher can see your worksheet answers when grading",
+			"body": "If you handed in one of the new online worksheets, your teacher's grading page was showing an empty panel where your answers should have been. It now shows your worksheet filled in with everything you wrote and every picture you uploaded, exactly as you left it, and read only so nothing they do can change your answers. You do not need to hand anything in again. If a worksheet of yours was marked \"In progress\" and came back without comments, it is worth asking your teacher to take another look.",
+			"tags": [
+				"Assignments",
+				"Grades",
+				"worksheets",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-11",
+			"title": "Full screen in the Foundry gives a phone more of the screen",
+			"body": "Putting a Foundry app in full screen on a phone used to spend part of the screen on the bar across the top, and how much depended on how long the app's name was: a well named app pushed the bar onto a second line and took a chunk of the app with it. The bar is one line now whatever the app is called, and a long name is shortened instead. The bottom edge of the app should also sit above your browser's toolbars rather than behind them. Stop app and the way out of full screen are both still on screen the whole time.",
+			"tags": [
+				"foundry",
+				"phone",
 				"fix"
 			]
 		}
