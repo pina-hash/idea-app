@@ -6,7 +6,7 @@
   `tests/legacy-assignments*`, `docs/prompt-ledger/entries/0150-*`, and its own
   `docs/history/` entry
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0198
-- Status: issued
+- Status: pushed
 - Branch: claude/quirky-euler-w4qqzt
 - Notes: THIS FILE IS LIVE -- IDEA100 students are working in it and their answers are in
   `localStorage` keyed to it, so `STORAGE_KEY` does not move, nothing is restructured and
