@@ -18,6 +18,8 @@
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import HtmlAssignmentFrame from '$lib/classroom/html-assignment/HtmlAssignmentFrame.svelte';
+	import Progress from '$lib/classroom/html-assignment/Progress.svelte';
+	import { htmlManifestShaped } from '$lib/classroom/transports';
 	import {
 		htmlAssignmentMount,
 		htmlAssignmentServed,
@@ -281,6 +283,16 @@
 	 * manager reading their own unpublished draft.
 	 */
 	const htmlServed = $derived(htmlAssignmentServed(item));
+
+	/**
+	 * THE MANIFEST THE PROGRESS RAIL READS, narrowed by the same structural
+	 * check the item page uses to build the answer controller. `manifest`
+	 * arrives as `unknown`; a blob this cannot narrow gets no rail, which is
+	 * also the case where the page hands down no `htmlAnswers` at all.
+	 */
+	const htmlProgressManifest = $derived(
+		htmlAssignment && htmlManifestShaped(htmlAssignment.manifest) ? htmlAssignment.manifest : null
+	);
 
 	/**
 	 * THE WRITE CALLBACKS, WRAPPED RATHER THAN PASSED THROUGH.
@@ -1571,6 +1583,22 @@
 					-->
 					<p class="note">{HTML_ASSIGNMENT_NOT_LIVE}</p>
 				{:else}
+				{#if htmlAnswers && htmlProgressManifest}
+					<!--
+						THE PROGRESS RAIL (0142). Parent chrome above the frame, so every
+						worksheet gets it and no author builds one. It reads the SAME two
+						records the frame is seeded from -- the controller's `values` and
+						`images` -- so the bar and the document cannot disagree about what
+						is filled in. A manager has no `htmlAnswers` and gets no rail: there
+						is nothing of theirs to measure, and a rail reading 0% over a
+						teacher's own read of the document would be a number about nobody.
+					-->
+					<Progress
+						manifest={htmlProgressManifest}
+						values={htmlAnswers.values}
+						images={htmlAnswers.images}
+					/>
+				{/if}
 				<HtmlAssignmentFrame
 					src={htmlSrc}
 					title={itemTitle(item)}
