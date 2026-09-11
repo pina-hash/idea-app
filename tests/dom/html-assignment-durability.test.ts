@@ -28,6 +28,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { HxAnswersStore } from '$lib/classroom/html-assignment/answers-store.svelte';
+import { SaveState } from '$lib/save-state.svelte';
 import type { HxAnswerTransports } from '$lib/classroom/html-assignment/answers';
 import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 
@@ -74,8 +75,8 @@ function recorder() {
  * net at all. The window has to still be open when the tab goes away, which is
  * the defect being measured.
  */
-function store(transports: HxAnswerTransports) {
-	return new HxAnswersStore({ itemId: 'item-1', manifest: MANIFEST, transports });
+function store(transports: HxAnswerTransports, ondirty?: () => void) {
+	return new HxAnswersStore({ itemId: 'item-1', manifest: MANIFEST, transports, ondirty });
 }
 
 /** Let the microtask queue drain. No timer is advanced: the point is that the
@@ -187,5 +188,64 @@ describe('the durability net over a ported worksheet', () => {
 		expect(saves).toHaveLength(1);
 		off1();
 		off2();
+	});
+});
+
+describe('the navigation guard\'s handle', () => {
+	/**
+	 * THE DEFECT THIS PINS IS INVISIBLE AND WAS SHIPPED IN A DRAFT OF THIS VERY
+	 * BUNDLE.
+	 *
+	 * `guardSaveNavigation` takes ONE `SaveState` and this surface has one per
+	 * block, so the item page gives it an `autosave: false` handle whose
+	 * `save()` calls `flush()`. `SaveState.saveNow()` RETURNS EARLY on a machine
+	 * that is clean with nothing pending -- so a handle nothing ever marks dirty
+	 * has the guard cancel the navigation, flush NOTHING, re-ask, find the work
+	 * still outstanding and put a `window.confirm` in front of the student.
+	 * Both halves of what the guard exists to prevent, and nothing on screen or
+	 * in a type check says so.
+	 */
+	it('is armed the moment a block owes a write', async () => {
+		const { transports } = recorder();
+		let armed = 0;
+		const s = store(transports, () => (armed += 1));
+		expect(armed, 'nothing is owed before anything is typed').toBe(0);
+		s.change({ blockId: 'm1-setup', field: 'setup', value: 'typed' });
+		expect(armed).toBe(1);
+		s.change({ blockId: 'm1-later', field: 'later', value: 'also typed' });
+		expect(armed).toBe(2);
+	});
+
+	it('a guard handle armed that way actually FLUSHES, and a clean one does not', async () => {
+		const { saves, transports } = recorder();
+		const handle = new SaveState({
+			autosave: false,
+			fallbackMessage: 'unsaved',
+			save: async () => {
+				await s.flush();
+				return { ok: true };
+			}
+		});
+		const s = store(transports, () => handle.markDirty());
+
+		// THE NEGATIVE CONTROL FIRST, on a handle nothing armed: this is the
+		// draft that shipped, and it writes nothing.
+		const clean = new SaveState({
+			autosave: false,
+			fallbackMessage: 'unsaved',
+			save: async () => {
+				await s.flush();
+				return { ok: true };
+			}
+		});
+		s.change({ blockId: 'm1-setup', field: 'setup', value: 'the bench is clear' });
+		await clean.saveNow();
+		expect(saves, 'a clean handle no-ops and the work is still owed').toHaveLength(0);
+		expect(s.dirty).toBe(true);
+
+		// And the armed one, which is the fix.
+		await handle.saveNow();
+		expect(saves).toHaveLength(1);
+		expect(s.dirty).toBe(false);
 	});
 });

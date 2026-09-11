@@ -118,6 +118,34 @@
 	// svelte-ignore state_referenced_locally
 	const htmlAnswerTransports = createHtmlAnswerTransports(data.supabase);
 
+	/**
+	 * THE NAVIGATION GUARD'S HANDLE, DECLARED BEFORE THE CONTROLLER THAT ARMS IT.
+	 *
+	 * `guardSaveNavigation` takes ONE `SaveState` and this surface has one per
+	 * block, so this is the `MapsEditor` shape: an `autosave: false` machine
+	 * that schedules nothing and writes nothing itself, existing only so the
+	 * guard has something to hold, whose `save()` calls the controller's own
+	 * `flush()`. It is not a second save path -- `HxAnswers.flush` remains the
+	 * one implementation of "write everything owed".
+	 *
+	 * IT MUST BE MARKED DIRTY OR ITS FLUSH NEVER RUNS, which is the whole reason
+	 * `ondirty` exists. `SaveState.saveNow()` returns early on a machine that is
+	 * clean with nothing pending, so a handle nothing ever arms would have the
+	 * guard cancel the navigation, flush NOTHING, find the work still
+	 * outstanding and put a confirm in front of the student -- the loss the
+	 * guard exists to prevent, plus a question people learn to click through.
+	 * `autosave: false` is what keeps arming it from scheduling a write of its
+	 * own; the per-block machines still own the actual debounce.
+	 */
+	const htmlGuardState = new SaveState({
+		autosave: false,
+		fallbackMessage: HX_UNSAVED_WARNING,
+		async save() {
+			await heldHtmlAnswers?.store.flush();
+			return { ok: true };
+		}
+	});
+
 	/** The memo cell. A plain local, never `$state`: it is read and written only
 	    inside the derived below, and making it reactive would make that derived
 	    depend on its own output. */
@@ -150,7 +178,11 @@
 				// exactly those rows behind and there is no field to put them in.
 				values: hxValuesFromResponses(manifest, engine.responses),
 				images: hxImagesFromFiles(manifest, engine.files),
-				fileIds: hxFileIdsByField(manifest, engine.files)
+				fileIds: hxFileIdsByField(manifest, engine.files),
+				// ARMS THE GUARD'S HANDLE the moment a block owes a write. See
+				// `htmlGuardState` above for why a handle nothing marks dirty makes
+				// the guard ask a question instead of flushing.
+				ondirty: () => htmlGuardState.markDirty()
 			})
 		};
 		return heldHtmlAnswers.store;
@@ -210,14 +242,6 @@
 	 * conditional one would be a guard that exists only on the render where the
 	 * condition first held.
 	 */
-	const htmlGuardState = new SaveState({
-		autosave: false,
-		fallbackMessage: HX_UNSAVED_WARNING,
-		async save() {
-			await heldHtmlAnswers?.store.flush();
-			return { ok: true };
-		}
-	});
 	$effect(() => htmlGuardState.attach());
 	guardSaveNavigation(htmlGuardState, {
 		enabled: () => !!heldHtmlAnswers,

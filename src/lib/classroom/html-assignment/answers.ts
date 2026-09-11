@@ -544,6 +544,23 @@ export interface HxAnswersOptions {
 	onimages?: (images: Record<string, HxImageState>) => void;
 	/** Every settled write, success or failure. What goes down as `idea:saved`. */
 	onsaved?: (ack: HxSavedAck) => void;
+	/**
+	 * WORK IS NOW OWED. Called the moment a change arms a block's debounce, so a
+	 * surface holding a NAVIGATION GUARD can arm its own handle.
+	 *
+	 * IT EXISTS BECAUSE `SaveState.saveNow()` RETURNS EARLY ON A CLEAN MACHINE.
+	 * `guardSaveNavigation` takes one `SaveState` and this controller has one per
+	 * block, so the item page gives the guard an `autosave: false` handle whose
+	 * `save()` calls `flush()` -- and a handle nothing ever marks dirty is a
+	 * handle whose `saveNow()` no-ops, which would leave the guard cancelling the
+	 * navigation, flushing NOTHING, finding the work still outstanding and asking
+	 * a question instead. That is both halves of the defect the guard exists to
+	 * prevent: the loss, and a confirm people learn to click through.
+	 *
+	 * `dirty` CANNOT SERVE INSTEAD. It is a question asked at a moment -- the
+	 * machines are not runes -- so nothing downstream can observe it CHANGING.
+	 */
+	ondirty?: () => void;
 }
 
 /**
@@ -651,6 +668,7 @@ export class HxAnswers {
 		this.#values = { ...this.#values, [message.field]: message.value };
 		this.#opts.onvalues?.(this.#values);
 		this.#machine(message.blockId, message.field).markDirty();
+		this.#opts.ondirty?.();
 	}
 
 	/**

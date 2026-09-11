@@ -178,6 +178,20 @@ the real ones, with `alsoUnsaved` reporting `HxAnswers.dirty`. It is built
 unconditionally and gated by `enabled`, because `beforeNavigate` is a
 component-init call.
 
+**A defect in this bundle's own first draft, caught before it shipped and pinned
+so it cannot come back.** `SaveState.saveNow()` RETURNS EARLY on a machine that
+is clean with nothing pending -- so the `autosave: false` guard handle, which
+nothing ever marked dirty, would have had the guard cancel the navigation, flush
+NOTHING, re-ask, find the work still outstanding and put a `window.confirm` in
+front of the student. Both halves of what the guard exists to prevent, with
+nothing on screen or in a type check to say so. `HxAnswers` gained an `ondirty`
+callback, fired where a block's debounce is armed, and the item page passes
+`() => htmlGuardState.markDirty()`. `dirty` could not serve instead: the
+machines are not runes, so it is a question asked at a moment and nothing
+downstream can observe it CHANGING. The test carries the broken handle as its
+own negative control -- a clean one writes nothing and leaves `dirty` true; the
+armed one writes the row and clears it.
+
 `tests/dom/html-assignment-durability.test.ts` proves both directions, with the
 defect itself asserted so that deleting `attach()` cannot look like a
 refactor: with `attach()`, hiding the tab inside the debounce writes the row;
