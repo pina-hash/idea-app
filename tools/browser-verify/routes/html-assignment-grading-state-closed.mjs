@@ -45,13 +45,19 @@ export default {
 					'aboveFrame=' + (nb && fb ? nb.bottom <= fb.top : false),
 					/*
 						THE PROPERTY, NOT THE PIXEL. The first draft of this row
-						reported `noticeHeight=<px>` and the harness correctly called it
-						a finding: it is 83px at 375 and 62px at 1440, so no single
-						`expected` value can be right at both widths, and pinning two
-						would be pinning the font metrics of the fallback stack the
-						harness measures in. What is worth asserting is that the notice
-						is not a ZERO BOX -- present in the DOM and invisible on screen
-						is exactly how a sentence nobody reads gets shipped.
+						reported the notice's height in pixels and the harness correctly
+						called it a finding: it measured 83px at 375 and 62px at 1440,
+						so no single expected value can be right at both widths, and
+						pinning two would be pinning the font metrics of the fallback
+						stack the harness measures in. What is worth asserting is that
+						the notice is not a ZERO BOX: present in the DOM and invisible
+						on screen is exactly how a sentence nobody reads gets shipped.
+
+						NOTE FOR ANYONE EDITING THIS BLOCK -- it lives inside a TEMPLATE
+						LITERAL, so a backtick in a comment here ends the string and the
+						module stops parsing. That is how the first attempt at this very
+						comment failed, with a SyntaxError naming an identifier three
+						lines away.
 					*/
 					'noticeHasHeight=' + (nb ? nb.height > 0 : false),
 					/* The document is still there -- a closed worksheet is read only,
