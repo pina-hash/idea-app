@@ -157,6 +157,97 @@ export default {
 			   selector that stopped matching cannot report "1 distinct height"
 			   over an empty list. */
 			expected: [3, 1]
+		},
+		/*
+			THE LINK POPOVER MUST NOT BE CLIPPED OFF THE EDITOR, AT ANY WIDTH.
+
+			Reported from production 2026-09-11 on /classroom/<section> at
+			narrower windows: the popover opened with a URL field, an Add button
+			and a second button sliced past the container's right edge.
+			`.rt-editor` carries `overflow: hidden`, and the panel was
+			`position: absolute` at `left: 0` of the LINK BUTTON -- so how far it
+			ran past the editor was a function of where the toolbar had put that
+			button, not of the viewport. Measured on this route, editor right
+			edge against panel right edge: 487.0 vs 591.2 at 520px (Add and
+			Cancel both gone) and 667.0 vs 693.2 at 700px (Cancel sliced down the
+			middle). A `@media (max-width: 30rem)` rule had fixed the phone case
+			and left a clipped band from 481px to about 740px where nothing was
+			looking, which is why this row measures BOXES rather than adding a
+			third threshold.
+
+			It reports, per control, whether the control's own box is inside the
+			viewport AND whether a hit test at its centre reaches it -- a panel
+			can be on screen and still be covered. Every string in it was present
+			the whole time the defect shipped.
+
+			THE FIRST ROW IS WHAT MAKES THIS BITE AT THE TWO WIDTHS THE HARNESS
+			DRIVES, and it is the reason the row is not three lines of geometry
+			alone. 375 and 1440 are the two widths that were NEVER broken: the
+			old `@media (max-width: 30rem)` rule covered the phone, and at 1440
+			the editor is wide enough to hold the panel wherever the button sits.
+			The clipped band was 481px to about 740px. So a geometry-only check
+			here would have been green on the shipped defect -- the same way
+			every content check on this surface already was. What is true at
+			EVERY width is the mechanism: the panel is positioned against the
+			viewport by `use:anchored`, which is how it escapes `.rt-editor`'s
+			`overflow: hidden` instead of being trimmed by it. Put the old
+			`position: absolute` back and this row reddens at both widths, which
+			is the mutation this bundle ran.
+
+			IT ALSO NARROWS THE EDITOR before measuring, so the three geometry
+			rows are asked in the regime that broke rather than in the one that
+			happened to be safe: a panel wider than the box it hangs off is
+			exactly the case, and under the fix it stays whole because it is
+			clamped to the VIEWPORT and not to the editor. The width is restored
+			before the probe returns.
+
+			IT DRIVES THE `text` CASE, NOT THE FIRST EDITOR ON THE PAGE. The
+			`picker` case renders its picture popover ALREADY OPEN, and a popover
+			is `position: fixed` now precisely so it escapes its editor's
+			`overflow: hidden` -- so on this one harness page, which stacks three
+			editors, that open panel floats over the editor above it and every
+			control here reads "covered". That is the harness's own arrangement,
+			not the app's: a composer has one editor and opens one popover.
+		*/
+		{
+			label: 'every control in the link popover is on screen and reachable',
+			evaluate: `async () => {
+				const ed = document.querySelector('[data-editor-case="text"] .rt-editor');
+				if (!ed) return ['no editor'];
+				ed.scrollIntoView({ block: 'center', behavior: 'instant' });
+				await new Promise((r) => setTimeout(r, 200));
+				const trigger = [...ed.querySelectorAll('.rt-toolbar button')].find((b) => b.textContent.trim() === 'Link');
+				if (!trigger) return ['no Link control'];
+				trigger.click();
+				await new Promise((r) => setTimeout(r, 450));
+				const pop = ed.querySelector('.link-pop');
+				if (!pop) return ['the popover did not open'];
+				const widthWas = ed.style.maxWidth;
+				ed.style.maxWidth = '420px';
+				window.dispatchEvent(new Event('resize'));
+				await new Promise((r) => setTimeout(r, 250));
+				const out = [
+					getComputedStyle(pop).position === 'fixed'
+						? 'positioned against the viewport, so the editor cannot clip it'
+						: 'positioned inside the editor, which clips it'
+				];
+				for (const el of pop.querySelectorAll('input, button')) {
+					const b = el.getBoundingClientRect();
+					const name = (el.textContent || '').trim() || el.type;
+					const onScreen = b.left >= -0.5 && b.right <= window.innerWidth + 0.5 && b.top >= -0.5 && b.bottom <= window.innerHeight + 0.5;
+					const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+					const reachable = !!(hit && (hit === el || el.contains(hit)));
+					out.push(name + ': ' + (onScreen && reachable ? 'whole and reachable' : (onScreen ? 'covered' : 'off screen')));
+				}
+				ed.style.maxWidth = widthWas;
+				return out;
+			}`,
+			expected: [
+				'positioned against the viewport, so the editor cannot clip it',
+				'url: whole and reachable',
+				'Add: whole and reachable',
+				'Cancel: whole and reachable'
+			]
 		}
 	],
 	tapTargets: [
