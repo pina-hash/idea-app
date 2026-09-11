@@ -6,6 +6,7 @@
 		createClassroomTransports,
 		createEngineTransports,
 		createHtmlAnswerTransports,
+		createHtmlAssignmentTransports,
 		createInstructorCopyTransports,
 		createReferenceTransports,
 		createRevisionTransports,
@@ -117,6 +118,69 @@
 	 */
 	// svelte-ignore state_referenced_locally
 	const htmlAnswerTransports = createHtmlAnswerTransports(data.supabase);
+
+	/**
+	 * THE RE-UPLOAD PATH (0154): the writes that let a posted ported assignment
+	 * be CHANGED, which until now it could not be.
+	 *
+	 * `createHtmlAssignmentTransports` is the existing factory and is unchanged.
+	 * What is added beside it is the ORPHAN COUNT, and it is built here rather
+	 * than folded into that factory because the EDIT path is the only caller
+	 * there is: the create-mode composer is mounted by the class layout and has
+	 * no stored document to diff against, so a counter there would be dead. The
+	 * day a second surface needs one, this moves into `transports.ts` beside the
+	 * factory -- there is exactly one implementation either way.
+	 *
+	 * WHY IT IS A COUNT AND NOT AN ESTIMATE. A `classroom_responses` row names
+	 * an item and a `block_id`; a re-upload whose manifest renames an id leaves
+	 * those rows in the database and out of the worksheet, silently. The teacher
+	 * about to do that is told how many rows it is, read from the table, for
+	 * this item, now.
+	 *
+	 * TWO READS, NEVER ONE INFERRED FROM THE OTHER. A dropped IMAGE block
+	 * orphans an uploaded photograph exactly as a dropped text block orphans a
+	 * sentence, and counting only responses would understate the loss on the
+	 * block type where the work is hardest to redo.
+	 *
+	 * RLS-SCOPED WITH NO IDENTITY FILTER, as every read here is. The policy is
+	 * the boundary; the caller is a manager of this item, which is the same
+	 * question the grading console's own reads ask.
+	 *
+	 * A FAILURE IS REPORTED, NEVER SWALLOWED. `{ ok: false }` reaches
+	 * `assessHtmlReupload`, which treats "could not count" as a reason to
+	 * require the confirmation rather than as a zero -- "cannot tell" must never
+	 * render as "nothing at risk".
+	 */
+	// svelte-ignore state_referenced_locally
+	const htmlAssignmentTransports = {
+		...createHtmlAssignmentTransports(data.supabase),
+		async countOrphanedAnswers(itemId: string, blockIds: string[]) {
+			if (!blockIds.length) return { ok: true as const, responses: 0, files: 0 };
+			const [responses, files] = await Promise.all([
+				data.supabase
+					.from('classroom_responses')
+					.select('block_id')
+					.eq('item_id', itemId)
+					.in('block_id', blockIds),
+				data.supabase
+					.from('classroom_submission_files')
+					.select('block_id, classroom_submissions!inner(item_id)')
+					.eq('classroom_submissions.item_id', itemId)
+					.in('block_id', blockIds)
+			]);
+			if (responses.error) {
+				return { ok: false as const, message: responses.error.message ?? 'the answers could not be counted' };
+			}
+			if (files.error) {
+				return { ok: false as const, message: files.error.message ?? 'the uploaded files could not be counted' };
+			}
+			return {
+				ok: true as const,
+				responses: responses.data?.length ?? 0,
+				files: files.data?.length ?? 0
+			};
+		}
+	};
 
 	/**
 	 * THE NAVIGATION GUARD'S HANDLE, DECLARED BEFORE THE CONTROLLER THAT ARMS IT.
@@ -305,6 +369,10 @@
 	layoutTransports={liveLayoutTransports}
 	htmlAssignment={data.htmlAssignment}
 	{htmlAnswers}
+	htmlAssignmentTransports={data.canManage && data.navIsAdmin === true
+		? htmlAssignmentTransports
+		: null}
+	htmlAssignmentAdmin={data.navIsAdmin === true}
 	gradeHref={data.canManage ? `/classroom/${data.section.id}/item/${data.item.id}/grade` : null}
 	onchanged={() => invalidateAll()}
 	ondeleted={() => goto(`/classroom/${data.section.id}`)}
