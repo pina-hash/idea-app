@@ -54,16 +54,22 @@
 	import {
 		HTML_ASSIGNMENT_ADMIN_ONLY,
 		HTML_DOCUMENT_MAX_BYTES,
+		HTML_REUPLOAD_HELD,
 		applyStagedHtmlAssignment,
+		assessHtmlReupload,
 		readStagedHtml,
 		stagedHtmlSummary,
 		type HtmlAssignmentTransports,
+		type HtmlReuploadRisk,
 		type StagedHtmlAssignment
 	} from '$lib/classroom/html-assignment/store';
 	import {
+		manifestRubricIsDerived,
 		manifestRubricTotal,
 		manifestToRubric
 	} from '$lib/classroom/html-assignment/rubric';
+	import type { HtmlAssignmentData } from '$lib/classroom/html-assignment/mount';
+	import { htmlManifestShaped } from '$lib/classroom/transports';
 	import {
 		ITEM_KINDS,
 		courseCategorySuggestions,
@@ -150,6 +156,8 @@
 		checkInTransports = null,
 		htmlAssignmentTransports = null,
 		htmlAssignmentAdmin = false,
+		htmlAssignment = null,
+		htmlCurrentRubric = null,
 		attachmentsEnabled = true,
 		instructorAttachmentsEnabled = true,
 		compact = false,
@@ -204,6 +212,33 @@
 		 * something they never have to read.
 		 */
 		htmlAssignmentAdmin?: boolean;
+		/**
+		 * THE DOCUMENT ALREADY ON THIS ITEM, WHICH IS WHAT MAKES AN EDIT A
+		 * RE-UPLOAD RATHER THAN A CONVERSION.
+		 *
+		 * Handed down only on an EDIT of an item that already carries one. Its
+		 * presence is the whole edit-mode gate (see `canReplaceHtml`), and its
+		 * `manifest` is what the new document is diffed against -- so a surface
+		 * that cannot supply it offers no replace control at all rather than one
+		 * that would write blind. `manifest` is `unknown` because it is jsonb
+		 * nothing has re-validated since import; `htmlManifestDiff` is what
+		 * decides whether it can be walked, and answers null when it cannot.
+		 */
+		htmlAssignment?: HtmlAssignmentData | null;
+		/**
+		 * THE RUBRIC CURRENTLY ON THE ITEM, and it is here to stop a re-upload
+		 * eating one somebody corrected by hand.
+		 *
+		 * `stagedRubricAfterManifest` replaces a DERIVED rubric and leaves a
+		 * BUILT one alone, and the flag telling them apart cannot survive a page
+		 * load -- so `manifestRubricIsDerived(stored manifest, stored rubric)`
+		 * recovers it, which is exactly what store.ts's own header says a
+		 * re-upload surface must do. Without this the composer would arrive at
+		 * every edit holding `{ rubric: null, derived: false }`, which
+		 * `stagedRubricAfterManifest` reads as "there is nothing of anybody's
+		 * here" and overwrites.
+		 */
+		htmlCurrentRubric?: RubricCriterion[] | null;
 		/** False when Drive is unconfigured: the file controls hide entirely. */
 		attachmentsEnabled?: boolean;
 		/**
@@ -415,6 +450,51 @@
 	let htmlWarnings = $state<string[]>([]);
 	let htmlReading = $state(false);
 	let htmlDragActive = $state(false);
+	/**
+	 * WHAT A RE-UPLOAD WOULD DO TO THE ANSWERS ALREADY STORED (0154), and
+	 * whether posting it needs a second, explicit press.
+	 *
+	 * A BLOCK ID IS THE JOIN KEY FOR EVERY STORED ANSWER, so a new document that
+	 * renames one leaves the rows under the old id in the database and out of
+	 * the worksheet -- no error, no empty row, just work that has quietly
+	 * stopped rendering. `assessHtmlReupload` diffs the manifests and COUNTS the
+	 * rows actually at risk; this holds its answer between the pick and the
+	 * post.
+	 *
+	 * NULL IS NOT "NOTHING AT RISK". It is "not asked", which on a create is the
+	 * honest state (there is no stored document to diff against) and on an edit
+	 * is either still in flight or a failure -- which is why
+	 * `assessStagedReupload` fills this in on its own catch rather than leaving
+	 * it null, and why the post gate below reads `canReplaceHtml` as well.
+	 */
+	/**
+	 * THE STORED MANIFEST, NARROWED, OR NULL. `htmlManifestShaped` is the ONE
+	 * structural check for a manifest arriving as jsonb nothing has
+	 * re-validated, and ItemDetail already reads the same one -- so what the
+	 * composer and the render path each believe the stored document is cannot
+	 * drift. Null is the honest "could not tell", and every consumer below
+	 * treats it as a reason to leave something alone rather than to overwrite.
+	 */
+	const htmlStoredManifest = $derived(
+		htmlAssignment && htmlManifestShaped(htmlAssignment.manifest) ? htmlAssignment.manifest : null
+	);
+	let htmlRisk = $state<HtmlReuploadRisk | null>(null);
+	let htmlRiskPending = $state(false);
+	/** The second press. Retracted by any new pick and by Remove document, so it
+	    can never stand for a document other than the one on screen. */
+	let htmlOrphansConfirmed = $state(false);
+	/**
+	 * WHY POST IS HELD, OR NULL. One derived predicate read by the gate in
+	 * `submit` AND by the control's own disabled state -- two spellings of "is
+	 * this ready" is what produces a click that does nothing.
+	 */
+	const htmlReuploadHold = $derived.by(() => {
+		if (!canReplaceHtml || !stagedHtml) return null;
+		if (htmlRiskPending) return 'Still checking what this document would do to the stored answers.';
+		if (!htmlRisk) return HTML_REUPLOAD_HELD;
+		if (htmlRisk.needsConfirmation && !htmlOrphansConfirmed) return HTML_REUPLOAD_HELD;
+		return null;
+	});
 
 	/** Which setter a staged document goes through, from the item's own kind. */
 	const specKind = $derived(stagedSpecKind(editingKind));
@@ -429,12 +509,38 @@
 	);
 	const canStageDeck = $derived(mode === 'create' && !!deckTransports);
 	/**
-	 * Assignment-only, create-only, admin-only, and the transport has to be
-	 * there. Any one missing removes the whole block: there is no control to
-	 * press and therefore no write to refuse.
+	 * Assignment-only, admin-only, and the transport has to be there. Any one
+	 * missing removes the whole block: there is no control to press and
+	 * therefore no write to refuse.
+	 *
+	 * IT IS NO LONGER CREATE-ONLY, AND THAT IS THE WHOLE OF WHAT LEDGER 0154
+	 * CHANGES IN THIS FILE. A posted ported assignment could not be changed at
+	 * all: this read `mode === 'create'`, so on an edit the panel did not render
+	 * and there was no path to replace a document -- a typo in a worksheet a
+	 * class was already working in was permanent. Decision 10's recorded
+	 * narrowing is that the instructor edit path IS re-upload producing a new
+	 * revision, because a sandboxed document cannot be edited in place, and
+	 * 0195's `classroom_set_html_assignment` already upserts onto the SAME
+	 * `document_id` and snapshots the old one as a revision. No migration is
+	 * involved.
+	 *
+	 * THE EDIT ARM IS NARROWER THAN THE CREATE ARM ON PURPOSE, AND
+	 * `htmlAssignment` IS THE NARROWING. It offers a REPLACEMENT for a document
+	 * that is already there, never a CONVERSION of a v1 spec assignment into a
+	 * ported one -- which is a different decision, with a spec and a rubric and
+	 * a term of spec-keyed answers on the other side of it, and is not this
+	 * lane's to make. An assignment with no stored document therefore shows
+	 * nothing here on an edit, exactly as it did before.
 	 */
+	const canReplaceHtml = $derived(
+		mode === 'edit' &&
+			specKind === 'assignment' &&
+			!!htmlAssignmentTransports?.setHtmlAssignment &&
+			htmlAssignmentAdmin &&
+			!!htmlAssignment
+	);
 	const canStageHtml = $derived(
-		mode === 'create' &&
+		(mode === 'create' || canReplaceHtml) &&
 			specKind === 'assignment' &&
 			!!htmlAssignmentTransports?.setHtmlAssignment &&
 			htmlAssignmentAdmin
@@ -529,8 +635,54 @@
 			stagedHtml = result.staged;
 			htmlIssues = result.errors;
 			htmlWarnings = result.warnings;
+			// A NEW PICK RETRACTS THE OLD CONFIRMATION, ALWAYS. The sentence
+			// somebody read named a count for a document that is no longer the one
+			// staged; carrying the tick across would post a second document under
+			// the first one's consent.
+			htmlRisk = null;
+			htmlOrphansConfirmed = false;
+			if (result.staged && canReplaceHtml && htmlAssignment) {
+				await assessStagedReupload(result.staged, htmlAssignment.manifest);
+			}
 		} finally {
 			htmlReading = false;
+		}
+	}
+
+	/**
+	 * WHAT REPLACING THE DOCUMENT WOULD COST, ASKED BEFORE ANYTHING IS WRITTEN.
+	 *
+	 * The judgement and every sentence are `assessHtmlReupload`'s, out in
+	 * store.ts with the rest of the import rules; what is here is the state it
+	 * lands in and the fact that a failure to ASK is itself a held state. A
+	 * throw would otherwise leave `htmlRisk` null, which the post gate below
+	 * reads as "nothing to confirm" -- the one way this could quietly write the
+	 * thing it exists to hold.
+	 */
+	async function assessStagedReupload(staged: StagedHtmlAssignment, previous: unknown) {
+		if (!item) return;
+		htmlRiskPending = true;
+		try {
+			htmlRisk = await assessHtmlReupload(
+				item.id,
+				previous,
+				staged.manifest,
+				htmlAssignmentTransports?.countOrphanedAnswers ?? null
+			);
+		} catch (e) {
+			htmlRisk = {
+				diff: null,
+				counts: null,
+				needsConfirmation: true,
+				lines: [
+					'What this document would do to the answers already stored could not be worked out ' +
+						`here (${(e as Error).message || 'unknown error'}). Any answer block whose id changed ` +
+						'will leave the answers under it in the database and out of the worksheet.'
+				],
+				confirmLabel: 'Replace the document without knowing what it orphans'
+			};
+		} finally {
+			htmlRiskPending = false;
 		}
 	}
 
@@ -551,6 +703,8 @@
 		stagedHtml = null;
 		htmlIssues = [];
 		htmlWarnings = [];
+		htmlRisk = null;
+		htmlOrphansConfirmed = false;
 	}
 
 	/**
@@ -1403,6 +1557,25 @@
 
 	async function submit(publish: boolean) {
 		if (busy) return;
+		/**
+		 * THE RE-UPLOAD HOLD, AND IT IS REFUSED HERE RATHER THAN ONLY DISABLED.
+		 *
+		 * The control below is `aria-disabled` and not `disabled`, because a
+		 * genuinely disabled control swallows the pointer event a cue would have
+		 * to fire from -- so the press reaches this function and this is where it
+		 * is answered. ONE predicate drives both (`htmlReuploadHold`); two
+		 * spellings of "is this ready" is what produces a click that does
+		 * nothing and says nothing.
+		 *
+		 * It refuses the WHOLE post, not just the document. The alternative --
+		 * posting the title and body and skipping the upload -- would leave the
+		 * teacher looking at a saved item and an unreplaced worksheet, which is
+		 * the same silence this whole gate exists to end.
+		 */
+		if (htmlReuploadHold) {
+			msg = { ok: false, text: htmlReuploadHold };
+			return;
+		}
 		busy = true;
 		msg = null;
 		pendingPublish = publish;
@@ -1468,6 +1641,9 @@
 		const hadCheckIn = stagedCheckIn != null;
 		const hadRubric = stagedRubric != null;
 		const hadHtml = stagedHtml != null;
+		/** A re-upload rather than a first import, captured before the staged
+		    document is cleared, so the acknowledgement can say which it was. */
+		const wasReplacement = hadHtml && canReplaceHtml;
 		const failures: string[] = [];
 
 		// The save route had to fall back past the rich body to get through, so
@@ -1656,7 +1832,27 @@
 				// `stagedRubricAfterSpec`'s. A rubric staged in the builder was
 				// already written by `applyStagedExtras` above, so the two cannot
 				// both write: whichever owns it, the other returns nothing to do.
-				{ rubric: stagedRubric, derived: stagedRubricDerived }
+				//
+				// ON A RE-UPLOAD THE FLAG IS RECOVERED RATHER THAN REMEMBERED, and
+				// that is store.ts's own instruction to a surface like this one.
+				// `stagedRubricDerived` cannot survive a page load, so an edit
+				// always arrives here holding `false` -- which
+				// `stagedRubricAfterManifest` reads as "nothing of anybody's is
+				// here" and overwrites, eating a rubric somebody corrected by hand.
+				// `manifestRubricIsDerived` asks the only question that actually
+				// decides it: is the rubric on the item byte-for-byte what the
+				// STORED document would have generated? If it is, it is the
+				// document's and the new document may replace it; if it is not,
+				// somebody edited it and it is left alone.
+				// somebody edited it and it is left alone. A stored manifest this
+				// cannot read answers false, which leaves the rubric alone -- the
+				// safe direction, and the one the note below then reports.
+				canReplaceHtml
+					? {
+							rubric: htmlCurrentRubric,
+							derived: manifestRubricIsDerived(htmlStoredManifest, htmlCurrentRubric)
+						}
+					: { rubric: stagedRubric, derived: stagedRubricDerived }
 			);
 			stagedHtml = applied.staged;
 			if (applied.staged == null) {
@@ -1705,7 +1901,17 @@
 			hadDeck ? 'Deck uploaded.' : '',
 			hadSpec ? (specKind === 'reference' ? 'Document attached.' : 'Spec attached.') : '',
 			hadRubric || htmlRubricWritten ? 'Rubric attached.' : '',
-			hadHtml ? 'Document attached.' : '',
+			// A REPLACEMENT SAYS SO, and says what became of the rubric, because
+			// those are the two things the teacher came here to change and the
+			// second one can legitimately not move. A re-upload that left a
+			// hand-edited rubric alone is correct and is also the one case where
+			// the rubric on the grading console no longer matches the document --
+			// so it is stated rather than left to be discovered there.
+			hadHtml ? (wasReplacement ? 'Document replaced.' : 'Document attached.') : '',
+			hadHtml && wasReplacement && !htmlRubricWritten
+				? 'The rubric was left as it is: it is not the one the old document generated, so it ' +
+					'looks hand-edited. Check it against the new document.'
+				: '',
 			hadCheckIn ? 'Check-in scheduled.' : ''
 		].filter(Boolean);
 		const attachNote = alsoLanded.length ? ` ${alsoLanded.join(' ')}` : '';
@@ -1828,10 +2034,21 @@
 	report is exactly that. The top one is the same press without the scroll.
 -->
 {#snippet actions(place: 'top' | 'bottom')}
+	<!--
+		HELD, NOT DISABLED, WHILE A RE-UPLOAD IS UNCONFIRMED (0154).
+		`aria-disabled` and never `disabled`: a genuinely disabled control
+		swallows the pointer event, so it can never explain itself, and the whole
+		point of the hold is that there IS a reason and the teacher has to be
+		able to reach it. The press lands in `submit`, which reads the SAME
+		`htmlReuploadHold` predicate and renders the sentence in the form's own
+		message line. `busy` stays a real `disabled`, because a second submit
+		mid-flight has nothing to explain.
+	-->
 	<button
 		class="btn"
 		type="button"
 		disabled={busy}
+		aria-disabled={htmlReuploadHold ? 'true' : undefined}
 		data-testid="composer-publish-{place}"
 		onclick={() => submit(true)}
 	>
@@ -1845,6 +2062,7 @@
 		class="btn secondary"
 		type="button"
 		disabled={busy}
+		aria-disabled={htmlReuploadHold ? 'true' : undefined}
 		data-testid="composer-draft-{place}"
 		onclick={() => submit(false)}
 	>
@@ -2289,7 +2507,23 @@
 				disabled: !!stagedHtml || htmlReading || busy
 			}}
 		>
-			<span class="mini-label">Ported HTML assignment</span>
+			<span class="mini-label">
+				{canReplaceHtml ? 'Replace the ported document' : 'Ported HTML assignment'}
+			</span>
+			{#if canReplaceHtml && htmlAssignment && !stagedHtml}
+				<!--
+					WHAT IS ALREADY THERE, NAMED, BEFORE ANYTHING IS PICKED. An edit
+					surface whose only content is an empty file input does not say
+					which document it is about to replace, and the filename is the
+					only thing on this screen that identifies it.
+				-->
+				<p class="spec-line" data-testid="staged-html-current">
+					On this assignment now: <strong>{htmlAssignment.filename}</strong>
+					{#if htmlStoredManifest}
+						<span class="spec-meta">{htmlStoredManifest.title}</span>
+					{/if}
+				</p>
+			{/if}
 			{#if stagedHtml}
 				<p class="spec-line">
 					<span class="ok-dot"></span>
@@ -2306,6 +2540,63 @@
 					A rubric you build yourself here is left alone. Correcting it later means uploading
 					the document again, which keeps the old one as a revision.
 				</p>
+				{#if canReplaceHtml}
+					<!--
+						=========================================================
+						WHAT REPLACING THIS DOCUMENT COSTS (0154)
+						=========================================================
+
+						A BLOCK ID IS THE JOIN KEY FOR EVERY STORED ANSWER. A new
+						document that renames one does not move the answers under the
+						old id and does not delete them: the rows stay in
+						`classroom_responses` and simply stop being reachable, because
+						no block in the new document carries that id. Measured against
+						real Postgres -- the re-upload is accepted, a revision is
+						minted, and the orphaned row is still sitting there.
+
+						NOTHING ELSE ANYWHERE REPORTS THAT, so this is the only place
+						it can be said, and it is said BEFORE the write with the REAL
+						counts rather than after it with an apology. The sentences are
+						`assessHtmlReupload`'s and are rendered VERBATIM -- a surface
+						that re-tones a refusal is a surface whose wording drifts from
+						the rule that produced it.
+					-->
+					<div class="reupload" data-testid="staged-html-diff">
+						{#if htmlRiskPending}
+							<Pending label={pendingLabel('Checking the stored answers')} />
+						{:else if htmlRisk}
+							<ul class="reupload-lines">
+								{#each htmlRisk.lines as line}
+									<li>{line}</li>
+								{/each}
+							</ul>
+							{#if htmlRisk.needsConfirmation}
+								<!--
+									THE SECOND, EXPLICIT PRESS, and it is a CHECKBOX rather
+									than an armed button because what it records is a state
+									that has to survive everything else on this form -- a
+									teacher confirms the cost, then goes back to fix the
+									title, then posts. An arm-then-confirm pair would have
+									to be re-armed after every unrelated keystroke, which is
+									how a confirmation becomes a thing people click twice
+									without reading.
+
+									IT NAMES THE COUNT. "Are you sure?" is the sentence
+									this repository refuses to ship; `confirmLabel` carries
+									the figure the database actually returned.
+								-->
+								<label class="reupload-confirm tap-44">
+									<input
+										type="checkbox"
+										data-testid="staged-html-confirm"
+										bind:checked={htmlOrphansConfirmed}
+									/>
+									<span>{htmlRisk.confirmLabel}</span>
+								</label>
+							{/if}
+						{/if}
+					</div>
+				{/if}
 				<span class="tool-actions">
 					<button
 						type="button"
@@ -2313,7 +2604,7 @@
 						data-testid="staged-html-remove"
 						onclick={clearStagedHtml}
 					>
-						Remove document
+						{canReplaceHtml ? 'Cancel the replacement' : 'Remove document'}
 					</button>
 				</span>
 			{:else if htmlReading}
@@ -2325,6 +2616,23 @@
 					It is checked here before anything is posted, and every problem is named at once.
 					Capped at {Math.floor(HTML_DOCUMENT_MAX_BYTES / 1024 / 1024)} MB.
 				</p>
+				{#if canReplaceHtml}
+					<!--
+						THE ONE SENTENCE THAT DECIDES WHETHER A REPLACEMENT IS SAFE, and
+						it is said BEFORE the pick rather than only after it. By the time
+						the diff below names an orphaned block the teacher has already
+						exported the wrong document; what they need first is the rule
+						they can act on while they are still in the tool that generated
+						it.
+					-->
+					<p class="hint">
+						The new document keeps every answer stored under an answer block id it still
+						carries, and the old document is kept as a revision. KEEP THE BLOCK IDS THE
+						SAME. An id that changes leaves the answers stored under the old one in the
+						database and out of the worksheet, with nothing on any screen saying so -- this
+						will count them and ask before posting.
+					</p>
+				{/if}
 				<!--
 					NO `accept`, AND THAT IS THE REPO'S RULE RATHER THAN AN OVERSIGHT
 					(`tests/classroom-attachment-mime.test.ts` sweeps for one). The
@@ -2363,6 +2671,15 @@
 						{/each}
 					</ul>
 				</div>
+			{/if}
+			{#if htmlReuploadHold && stagedHtml && !htmlRiskPending}
+				<!--
+					WHY POST IS NOT GOING TO WORK YET, SAID WHERE THE WORK IS. The
+					post control is `aria-disabled` and explains itself when pressed;
+					this is the same sentence standing where the document is, so
+					nobody has to press a control to find out why it is held.
+				-->
+				<p class="hint" data-testid="staged-html-hold">{htmlReuploadHold}</p>
 			{/if}
 			{#if htmlWarnings.length}
 				<div class="feedback" data-testid="staged-html-warnings">
@@ -2666,6 +2983,56 @@
 {/if}
 
 <style>
+	/* --- The re-upload cost report (0154) --------------------------------
+	   Amber, which is this register's WARNING and not its error: replacing a
+	   document is a legitimate act with a cost, never a refusal. `--crimson` is
+	   reserved for live/rec/error and would read as "this failed". */
+	.reupload {
+		margin: 0.6rem 0 0;
+		padding: 0.6rem 0.7rem;
+		border: 1px solid var(--amber);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
+	}
+	.reupload-lines {
+		margin: 0;
+		padding-left: 1.1rem;
+		font-size: 0.84rem;
+		color: var(--text-2);
+	}
+	.reupload-lines li + li {
+		margin-top: 0.35rem;
+	}
+	/*
+	   `label.reupload-confirm`, NOT `.reupload-confirm`, AND THE EXTRA TAG IS
+	   LOAD-BEARING. This form's own `label { display: flex; flex-direction:
+	   column }` -- every other label here puts its caption above its input --
+	   has specificity (0,1,1) and beat a bare class at (0,1,0), so the checkbox
+	   rendered CENTRED ON ITS OWN LINE above the sentence, overflowing a box
+	   that still measured 44px tall. Measured in Chromium: `flex-direction`
+	   came back `column` with the input at x=711 and the span at x=586 on the
+	   line below it. `flex-direction: row` is therefore stated rather than left
+	   to the default, because the default is not what this element inherits.
+	   The 44px floor is a `min-height` and never a height, so a sentence that
+	   wraps on a phone still grows the target.
+	*/
+	label.reupload-confirm {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		gap: 0.5rem;
+		margin-top: 0.6rem;
+		margin-bottom: 0;
+		min-height: 44px;
+		font-size: 0.86rem;
+		color: var(--text-1);
+	}
+	.reupload-confirm input {
+		flex: 0 0 auto;
+		width: 1.1rem;
+		height: 1.1rem;
+	}
+
 	/* The TOP copy of the actions row. It is sticky rather than merely first,
 	   because a long form scrolled halfway is exactly when it is wanted and a
 	   control that scrolled away with the rest would be the bottom row again.

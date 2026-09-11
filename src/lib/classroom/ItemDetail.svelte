@@ -20,6 +20,7 @@
 	import HtmlAssignmentFrame from '$lib/classroom/html-assignment/HtmlAssignmentFrame.svelte';
 	import Progress from '$lib/classroom/html-assignment/Progress.svelte';
 	import { htmlManifestShaped } from '$lib/classroom/transports';
+	import type { HtmlAssignmentTransports } from '$lib/classroom/html-assignment/store';
 	import { assignmentLockState } from '$lib/classroom/html-assignment/lock';
 	import {
 		htmlAssignmentMount,
@@ -149,7 +150,9 @@
 		checkInTransports = null,
 		layoutTransports = null,
 		htmlAssignment = null,
-		htmlAnswers = null
+		htmlAnswers = null,
+		htmlAssignmentTransports = null,
+		htmlAssignmentAdmin = false
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -236,6 +239,28 @@
 		 * typing and saves nothing is the outcome this must never produce.
 		 */
 		htmlAnswers?: HtmlAssignmentAnswers | null;
+		/**
+		 * THE RE-UPLOAD PATH'S WRITES (0154), AND THEY GO NOWHERE BUT THE EDIT
+		 * COMPOSER.
+		 *
+		 * A posted ported assignment could not be changed at all: the composer's
+		 * upload panel was create-only, so a typo in a worksheet a class was
+		 * already working in was permanent. Decision 10's recorded narrowing is
+		 * that the instructor edit path IS re-upload producing a new revision,
+		 * which 0195's own RPC already does -- what was missing was a surface.
+		 *
+		 * NOTHING ON THIS PAGE READS THESE. They are handed straight to
+		 * ContentComposer, whose `canReplaceHtml` gate is where absence removes
+		 * the panel; this component neither offers a control of its own nor
+		 * decides who may use one. Null on every mount that does not supply them,
+		 * which is the ordinary optional-transport rule and is what keeps the
+		 * replace panel off a surface that never asked for it.
+		 */
+		htmlAssignmentTransports?: HtmlAssignmentTransports | null;
+		/** Upload and replacement are admin-only for the first season, and 0195
+		    raises on `is_admin()` inside the function -- this only decides
+		    whether a CONTROL is offered. */
+		htmlAssignmentAdmin?: boolean;
 	} = $props();
 
 	/**
@@ -997,6 +1022,10 @@
 								{instructorAttachmentsEnabled}
 								screen
 								{layoutTransports}
+								{htmlAssignmentTransports}
+								{htmlAssignmentAdmin}
+								{htmlAssignment}
+								htmlCurrentRubric={rubric}
 								figureSources={[spec, referenceSpec]}
 								onsaved={saved}
 								ondirtychange={(d) => (editDirty = d)}
