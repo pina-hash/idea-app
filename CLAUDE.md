@@ -834,12 +834,67 @@ ordering.
     the shut gate, written to be DELETED rather than inverted once it moved. It
     has been.
 
-**THE CLIENT ANSWER PATH IS STILL NOT WIRED, AND THAT IS NOW A CLIENT FACT
-RATHER THAN A DATABASE ONE.** No route supplies the import or answer transports,
-so nothing creates a schema-3 item and one would render read-only. **A worksheet
-that takes typing and saves nothing is the one failure worth avoiding here**,
-which is why read-only is structural -- no answers controller means no callback
-is handed down -- rather than a flag.
+**AND `classroom_save_instructor_response` IS THE THIRD, WIDENED THE SAME WAY BY
+0199.** 0197's census was the two functions that write a STUDENT answer; 0128's
+instructor working copy writes `classroom_instructor_responses` and was outside
+it, so it went on raising 'This assignment has no interactive spec.' on every
+schema-3 item with a type gate overlapping a manifest's vocabulary by the single
+word `table`. **The cost of that was the whole feature**: nobody could open a
+ported worksheet and confirm it saves before a class used it, so the first person
+to find a broken document was a student. 0199 gives it 0197's branch --
+`_classroom_html_manifest` and `_classroom_html_block`, CALLED and not
+reimplemented -- and touches nothing else.
+  - **THE SIX-TYPE VOCABULARY IS NOW STATED IN TWO FUNCTIONS**, deliberately,
+    against the alternative of replacing the live student write function to
+    share a predicate. `tests/db/html-assignment-instructor-gate.test.ts` puts
+    all six types plus a control to BOTH on one database and reddens if either
+    admits or refuses a type the other does not; 0199's own apply-time check
+    reads the deployed `classroom_save_response` back off `prosrc` and refuses
+    to apply over a narrower student gate. A test that runs every suite run is
+    the durable half of that pin.
+  - **THE ANSWER-KEY FUNCTIONS NEEDED NO CHANGE AND MUST NOT GET ONE.**
+    `classroom_designate_instructor_key` keys on the PRESENCE of a row, never on
+    a block type, so a ported copy becomes designatable the moment the save
+    lands one.
+  - **AN INSTRUCTOR STILL CANNOT ATTACH A PHOTOGRAPH, and 0199 did not change
+    that.** There is no counterpart to `classroom_submission_files` for an
+    instructor, so `hxInstructorAnswerTransports` projects `saveResponse` ALONE
+    and the three file transports are absent -- which `HxAnswerTransports` now
+    admits, each one optional. Handing the ENGINE's uploader over instead is the
+    tempting one-line fix and is much worse than nothing: it opens a
+    `classroom_submissions` row for its caller, so a teacher pressing a camera
+    in their own working copy would acquire a hand-in on their own assignment.
+    **Each absence settles a REFUSAL rather than dropping the message**, because
+    a camera control that silently does nothing is the failure this lane exists
+    to prevent.
+
+**THE CLIENT ANSWER PATH IS WIRED ON BOTH SIDES NOW, AND THIS RULE USED TO SAY
+IT WAS WIRED ON NEITHER.** It read "No route supplies the import or answer
+transports, so nothing creates a schema-3 item and one would render read-only",
+which stopped being true of the STUDENT half when the item route started
+building an `HxAnswersStore` over `createHtmlAnswerTransports`, and of the
+INSTRUCTOR half with 0199. `ContentComposer`'s import panel creates a schema-3
+item and re-uploads over one.
+  - **A WORKSHEET THAT TAKES TYPING AND SAVES NOTHING IS STILL THE ONE FAILURE
+    WORTH AVOIDING HERE**, and that has not moved an inch: read-only is
+    structural on every surface that has no write path -- no answers controller
+    means no callback is handed down -- rather than a flag. `HtmlInstructorCopy`
+    inverts the same rule to the same end: its `answers` prop is REQUIRED, so
+    there is no way to mount the working copy in a read-only shape at all, and a
+    surface that cannot build a controller renders the ordinary frame instead.
+  - **THE GRADING CONSOLE'S VIEW OF A STUDENT'S WORKSHEET STAYS READ-ONLY, and
+    it is now TWO sweeps rather than one.** `tests/html-assignment-instructor-readonly.test.ts`
+    checks that the grading mount hands down none of the four write callbacks
+    AND that it mounts no `HtmlInstructorCopy` -- the second sweep is not
+    redundant, because that component mounts the frame inside ITSELF, so the
+    callback sweep cannot see it.
+  - **A MANAGER GETS THE WORKING COPY, NEVER THE STUDENT CONTROLLER.**
+    `htmlAnswers` and `htmlInstructorAnswers` are two props for two RPCs writing
+    two tables, and a single prop whose meaning turned on `canManage` is exactly
+    how a teacher's answers would one day land in `classroom_responses` as a
+    student hand-in. The working copy REPLACES the read-only frame rather than
+    joining it: two mounts of one document are two worksheets a teacher can type
+    into, and the one that records nothing looks identical.
 
 ### THE ORIGIN SPLIT -- read this before touching anything that serves a bundle
 

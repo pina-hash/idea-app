@@ -177,11 +177,31 @@ export const HX_MAX_ANSWER_BYTES = 100_000;
  * transport does everywhere else in this codebase. A read-only view of a ported
  * assignment -- graded, or somebody else's -- is then structural: there is no
  * write to execute rather than a flag saying not to.
+ *
+ * AND THE THREE FILE WRITES ARE INDIVIDUALLY OPTIONAL, WHICH IS THE INSTRUCTOR
+ * COPY'S SHAPE (0199). An instructor filling a ported worksheet in writes
+ * through `classroom_save_instructor_response` into
+ * `classroom_instructor_responses`, and there is NO instructor counterpart to
+ * `classroom_submission_files` -- 0128 says so of itself and 0199 did not
+ * change it. So the answer path exists and the picture path does not, which a
+ * single all-or-nothing `transports` could not express: handing the instructor
+ * the engine's own uploader would attach their photograph to a SUBMISSION,
+ * which is the one row an instructor must never acquire.
+ *
+ * THE ABSENCE IS ANSWERED OUT LOUD, NOT DROPPED. `image`, `imageRemove` and
+ * `imageCaption` each settle a refusal naming the reason when their transport
+ * is missing, exactly as they do when `transports` is null altogether. A
+ * document whose camera control silently does nothing is the failure this whole
+ * lane is written against, and it is worse here than for a student: the
+ * instructor is the person checking whether the worksheet works.
  */
-export type HxAnswerTransports = Pick<
-	AssignmentEngineTransports,
-	'saveResponse' | 'uploadSubmissionFile' | 'deleteSubmissionFile' | 'setFileCaption'
->;
+export type HxAnswerTransports = Pick<AssignmentEngineTransports, 'saveResponse'> &
+	Partial<
+		Pick<
+			AssignmentEngineTransports,
+			'uploadSubmissionFile' | 'deleteSubmissionFile' | 'setFileCaption'
+		>
+	>;
 
 /** The last acknowledgement, in the shape `HtmlAssignmentFrame` takes. */
 export interface HxSavedAck {
@@ -222,6 +242,20 @@ export const HX_REFUSALS = {
 	 */
 	locked: ASSIGNMENT_LOCK_NOTICE.closed,
 	readOnly: 'This assignment is not open for editing, so nothing was saved.',
+	/**
+	 * THE ANSWER PATH IS OPEN AND THE PICTURE PATH IS NOT, which is only ever an
+	 * instructor's own working copy (0199): there is no instructor counterpart
+	 * to `classroom_submission_files`, so a photograph has nowhere to go.
+	 *
+	 * IT IS THE SAME CLAIM `INSTRUCTOR_COPY_UPLOAD_NOTE` MAKES ON THE v1 SPEC
+	 * SURFACE and deliberately not the same STRING. That one is a label rendered
+	 * ON a block, in the third person, before anybody presses anything; this is
+	 * what comes back INSIDE the document at the moment of a press, so it says
+	 * what happened to the thing that was just done. A shared string would have
+	 * to read as both and reads as neither.
+	 */
+	noInstructorFiles:
+		'Photographs are not captured in an instructor copy, so that picture was not attached. Everything you type is still saved.',
 	tooLarge: `That answer is longer than the ${HX_MAX_ANSWER_BYTES.toLocaleString('en-US')} character limit for one field, so it was not saved.`,
 	fallback: 'That change was not saved. It is still on screen; try again.'
 } as const;
@@ -703,6 +737,13 @@ export class HxAnswers {
 	}): Promise<void> {
 		const transports = this.#opts.transports;
 		if (!transports) return this.#settle(false, HX_REFUSALS.readOnly);
+		// THE ANSWER PATH WITHOUT THE PICTURE PATH (0199). Refused with its own
+		// sentence rather than the read-only one: this worksheet IS taking
+		// typing, and telling an instructor it is not open for editing would be
+		// false in the one direction that matters to them.
+		if (!transports.uploadSubmissionFile) {
+			return this.#settle(false, HX_REFUSALS.noInstructorFiles);
+		}
 		let file: File;
 		try {
 			file = hxFileFromBase64(message.bytes, message.name);
@@ -742,6 +783,9 @@ export class HxAnswers {
 	async imageRemove(message: { blockId: string; field: string }): Promise<void> {
 		const transports = this.#opts.transports;
 		if (!transports) return this.#settle(false, HX_REFUSALS.readOnly);
+		if (!transports.deleteSubmissionFile) {
+			return this.#settle(false, HX_REFUSALS.noInstructorFiles);
+		}
 		const fileId = this.#fileIds.get(message.field);
 		// NOTHING TO REMOVE IS NOT A FAILURE. A document asking twice, or asking
 		// about a field whose picture another tab already removed, has got what
@@ -765,6 +809,9 @@ export class HxAnswers {
 	}): Promise<void> {
 		const transports = this.#opts.transports;
 		if (!transports) return this.#settle(false, HX_REFUSALS.readOnly);
+		if (!transports.setFileCaption) {
+			return this.#settle(false, HX_REFUSALS.noInstructorFiles);
+		}
 		const fileId = this.#fileIds.get(message.field);
 		if (!fileId) {
 			return this.#settle(false, 'There is no picture on this field to caption.');
