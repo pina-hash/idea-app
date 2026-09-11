@@ -441,3 +441,73 @@ describe('changing what the stage is pointed at stops what is running', () => {
 		}
 	});
 });
+
+/* -------------------------------- the bar's height is not the title's to set */
+
+/*
+ * WHY THIS IS HERE AND WHAT IT DELIBERATELY DOES NOT CLAIM.
+ *
+ * The defect behind it was a student's, on an iPhone in landscape: full screen
+ * handed the app less of the screen than it should have, because the bar wrapped
+ * to a second row whenever "Running <title>" did not fit beside the two
+ * controls. Measured on the real gallery at 390x844 before the fix: a 104px bar,
+ * against 52px at 607x320 where the same label happened to fit. So the height of
+ * the full-screen chrome was a function of how long a student named their app,
+ * and a 52px row is a sixth of a phone held sideways.
+ *
+ * THE FIX IS A STYLESHEET RULE and `verify:browser` is what measures it -- this
+ * file has no layout engine and any box it read would be zero (see
+ * `tests/dom/README.md`). What is asserted here is the STRUCTURE that rule
+ * needs: the label's text in an element of its own for the ellipsis to live in.
+ * Written inline as a bare text node, as it was, `text-overflow` has no box to
+ * apply to and the rule silently does nothing -- which is the kind of regression
+ * that renders perfectly and only shows up on somebody's phone.
+ */
+describe('the running label is its own element, so the row can truncate it', () => {
+	it('puts the label text in .fdy-running-label, beside the dot and inside the live region', async () => {
+		const { m } = launched({ runningLabel: 'Running Deflector Drill Championship Edition' });
+		try {
+			const region = m.one('.fdy-running');
+			expect(region.getAttribute('aria-live')).toBe('polite');
+
+			const label = m.all('.fdy-running-label');
+			expect(label).toHaveLength(1);
+			expect(label[0].textContent?.trim()).toBe(
+				'Running Deflector Drill Championship Edition'
+			);
+			// It is INSIDE the live region, not beside it: the region is what
+			// announces, and a label announced from somewhere else is a second
+			// answer to the same question.
+			expect(region.contains(label[0])).toBe(true);
+
+			// The dot is still there and still hidden: colour is never the only
+			// signal, which is why the word beside it has to survive.
+			const dot = m.one('.fdy-dot');
+			expect(dot.getAttribute('aria-hidden')).toBe('true');
+
+			// AND THE REGION HOLDS NOTHING ELSE. A stray text node beside the
+			// span is exactly the shape the fix removed: it cannot be truncated,
+			// so it would wrap the row again with every rule still in place.
+			const strays = Array.from(region.childNodes).filter(
+				(n) => n.nodeType === 3 && (n.textContent ?? '').trim() !== ''
+			);
+			expect(strays).toHaveLength(0);
+		} finally {
+			await m.stop();
+		}
+	});
+
+	it('falls back to the bare word inside the same element when no label is given', async () => {
+		// POSITIVE CONTROL for the assertion above: the element is not merely
+		// present when a caller supplies a label. `/dev` mounts and the gallery
+		// both pass one; the review queue passes the version's. A default that
+		// escaped the span would reintroduce the untruncatable text node on the
+		// one path nobody looks at.
+		const { m } = launched({ runningLabel: '' });
+		try {
+			expect(m.one('.fdy-running-label').textContent?.trim()).toBe('Running');
+		} finally {
+			await m.stop();
+		}
+	});
+});
