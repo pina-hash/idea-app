@@ -11,7 +11,14 @@
  */
 import vanguardHtmlRaw from './vanguard/index.html?raw';
 
-const modules = import.meta.glob('./assignments/*.html', {
+// A LEADING UNDERSCORE MEANS "NOT A ROUTE".
+// The glob took every `.html` in the directory, so `_TEMPLATE.html` -- the blank
+// authoring template -- resolved at `/assignments/_TEMPLATE` and served
+// "IDEA-000 / Assignment 00 / Placeholder prompt" to anyone who found the URL.
+// It is the only file in there whose name starts with an underscore, and the
+// convention is worth more than a one-off exclusion: a future scaffold or
+// fragment is kept off the public routes by its filename alone.
+const modules = import.meta.glob('./assignments/[!_]*.html', {
 	query: '?raw',
 	import: 'default'
 }) as Record<string, () => Promise<string>>;
