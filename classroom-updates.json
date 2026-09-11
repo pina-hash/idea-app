@@ -14,6 +14,16 @@
 	"entries": [
 		{
 			"date": "2026-09-11",
+			"title": "Your class page fills the screen properly again",
+			"body": "On a wide screen your class page lays its units out in columns. Until now those columns worked like a table: a short unit sitting next to a long one left a tall band of nothing beside it, so on some classes almost everything was squashed into the right half of the page with a big empty stripe down the left. The units now flow down one column and on into the next, so both sides fill up and the units read in order from the top. Nothing about your work, your units or what is in them has changed, only where the panels sit.",
+			"tags": [
+				"Classes",
+				"Stream",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-11",
 			"title": "Your teacher can close an assignment when a unit ends",
 			"body": "When a unit is finished, your teacher can close an assignment so no more work lands on it. If that happens to one of yours, the worksheet says so at the top and goes read only. Everything you already saved is still there, and you do not need to do anything. A closed assignment is not a missing one. If you get a grade back after that, the assignment opens up again so you can act on the comments.",
 			"tags": [
@@ -1304,6 +1314,17 @@
 				"classroom",
 				"assignments",
 				"worksheets"
+			]
+		},
+		{
+			"date": "2026-09-11",
+			"title": "Online worksheets use the whole page, and their links open in a new tab",
+			"body": "An assignment that opens as a full worksheet now gets the entire width of the page instead of the narrow reading column posts use. Worksheets built with side-by-side sections, wide picture strips or big grids were being squeezed into about half the room they were drawn for, and everything in them was smaller than it should have been. Two smaller fixes go with it: a worksheet no longer shows its own scroll bar down the side when there is nothing to scroll to, and a button or link inside a worksheet that points somewhere else, like a set of slides, now opens properly in a new tab instead of doing nothing. Everything else on the page, and every other kind of post, looks exactly as it did.",
+			"tags": [
+				"classroom",
+				"assignments",
+				"worksheets",
+				"fix"
 			]
 		}
 	]

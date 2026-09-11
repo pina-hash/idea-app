@@ -20,6 +20,7 @@
 	import HtmlAssignmentFrame from '$lib/classroom/html-assignment/HtmlAssignmentFrame.svelte';
 	import Progress from '$lib/classroom/html-assignment/Progress.svelte';
 	import { htmlManifestShaped } from '$lib/classroom/transports';
+	import type { HtmlAssignmentTransports } from '$lib/classroom/html-assignment/store';
 	import { assignmentLockState } from '$lib/classroom/html-assignment/lock';
 	import {
 		htmlAssignmentMount,
@@ -149,7 +150,9 @@
 		checkInTransports = null,
 		layoutTransports = null,
 		htmlAssignment = null,
-		htmlAnswers = null
+		htmlAnswers = null,
+		htmlAssignmentTransports = null,
+		htmlAssignmentAdmin = false
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -236,6 +239,28 @@
 		 * typing and saves nothing is the outcome this must never produce.
 		 */
 		htmlAnswers?: HtmlAssignmentAnswers | null;
+		/**
+		 * THE RE-UPLOAD PATH'S WRITES (0154), AND THEY GO NOWHERE BUT THE EDIT
+		 * COMPOSER.
+		 *
+		 * A posted ported assignment could not be changed at all: the composer's
+		 * upload panel was create-only, so a typo in a worksheet a class was
+		 * already working in was permanent. Decision 10's recorded narrowing is
+		 * that the instructor edit path IS re-upload producing a new revision,
+		 * which 0195's own RPC already does -- what was missing was a surface.
+		 *
+		 * NOTHING ON THIS PAGE READS THESE. They are handed straight to
+		 * ContentComposer, whose `canReplaceHtml` gate is where absence removes
+		 * the panel; this component neither offers a control of its own nor
+		 * decides who may use one. Null on every mount that does not supply them,
+		 * which is the ordinary optional-transport rule and is what keeps the
+		 * replace panel off a surface that never asked for it.
+		 */
+		htmlAssignmentTransports?: HtmlAssignmentTransports | null;
+		/** Upload and replacement are admin-only for the first season, and 0195
+		    raises on `is_admin()` inside the function -- this only decides
+		    whether a CONTROL is offered. */
+		htmlAssignmentAdmin?: boolean;
 	} = $props();
 
 	/**
@@ -800,7 +825,7 @@
 		</footer>
 	</main>
 {:else}
-<main class="classroom-page">
+<main class="classroom-page" class:page-wide={htmlMount === 'html'}>
 	<!--
 		THE INSPECTOR: every instructor-only affordance on this page, in one
 		region, above the content and visually apart from it.
@@ -997,6 +1022,10 @@
 								{instructorAttachmentsEnabled}
 								screen
 								{layoutTransports}
+								{htmlAssignmentTransports}
+								{htmlAssignmentAdmin}
+								{htmlAssignment}
+								htmlCurrentRubric={rubric}
 								figureSources={[spec, referenceSpec]}
 								onsaved={saved}
 								ondirtychange={(d) => (editDirty = d)}
@@ -1720,6 +1749,36 @@
 		max-width: var(--cr-measure, var(--measure-reading));
 		margin: 0 auto;
 		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
+	}
+
+	/*
+		A PORTED DOCUMENT IS AN APPLICATION, NOT PROSE, SO IT GETS THE ROOM.
+
+		The measure above is a READING column and is correct for every item kind
+		that is writing: a post, a material, a reference doc, a spec assignment
+		whose input tables share the body's own scroll column. A schema-3 item is
+		none of those. It is a whole document an author laid out for the width
+		they were given -- IDEA100 Blade CAD 01 has a two-column header, a wide
+		slides strip and a four-limit grid -- and penning it into 46rem draws all
+		of that into a gutter with dead space either side. Measured at 1440 before
+		this rule: 896px of frame in 1382px of available page.
+
+		SCOPED, NOT REMOVED, AND THE BRANCH IS `htmlMount` RATHER THAN A SECOND
+		`=== 3`. `htmlAssignmentMount` is the one place the question "is this a
+		ported document" is answered (a second spelling is how a student gets a
+		worksheet and an instructor gets a blank spec panel), and `html` is its
+		answer for an item that is one AND has a document to mount. The
+		`unavailable` arm is deliberately NOT widened: it renders one sentence,
+		and a sentence does not want 1900px.
+
+		WHAT IT COSTS, SAID RATHER THAN HIDDEN: the title, the instructions
+		disclosure and the hand-in copy on a ported item widen with the frame,
+		because this is one page-level constraint and the frame is not its only
+		child. That is the trade this rule makes -- the document is the reason the
+		page was opened, and it is the thing that was unusable.
+	*/
+	.classroom-page.page-wide {
+		max-width: none;
 	}
 	/* The app-shell `.hero` is the LANDING hero: centred, with 4rem of air above
 	   it. This is a document opening inside a pane, so it reads from the left

@@ -190,8 +190,19 @@ export default {
 					THE ONE STRING THIS WHOLE LANE RESTS ON. If a change ever adds
 					`allow-same-origin` here, this row reddens before any containment
 					probe does -- and it reddens with the reason written out.
+
+					THE TWO POPUP FLAGS ARE A DELIBERATE WIDENING (0153, Mr. Pina's
+					decision of 2026-09-11), so a document can open a link in a new
+					tab -- IDEA100 Blade CAD 01's Open slides button. Measured, and
+					the numbers are in the standard's security section: the opened tab
+					is a separate context at its own origin that cannot read the
+					opener, the opener's parent or the opener's top, and cannot
+					navigate either of them. The row pins the WHOLE set, so dropping
+					the escape flag reddens here too -- `allow-popups` alone opens a
+					tab that inherits this sandbox, at an opaque origin, which is a tab
+					Slides cannot run in.
 				*/
-				'sandbox=allow-scripts',
+				'sandbox=allow-scripts allow-popups allow-popups-to-escape-sandbox',
 				/*
 					`"null"`, NOT THE DOCUMENT ORIGIN, AND THAT IS MEASURED. The
 					sandbox makes the document's origin opaque and `postMessage`
@@ -204,6 +215,38 @@ export default {
 				'listening=yes',
 				'frames=1'
 			]
+		},
+		{
+			label: 'the frame is as tall inside as the height it was told',
+			/*
+				THE 2px THE BORDER USED TO EAT. `box-sizing: border-box` is global,
+				so a border on the `<iframe>` made the applied height an OUTER height
+				and left the content box 2px short of what the document had just
+				reported -- which a document long enough to fill its box answers with
+				a full-length inner scrollbar over a 2px overflow. The border lives on
+				`.hx-frame-box` now and the frame carries none, so the applied height
+				IS the content height.
+
+				MEASURED RATHER THAN ASSERTED AS A PASS: the row reports the three
+				numbers. `delta=0` is the property; `border=0px` is the mechanism, and
+				pinning it too is what tells a later reader WHICH of the two drifted.
+				The box is 2px taller than the frame, which is the border being
+				somewhere -- a box equal to the frame would mean the edge had been
+				dropped rather than moved.
+			*/
+			evaluate: `() => {
+				const f = document.querySelector('iframe[data-hx-frame]');
+				if (!f) return ['frame=absent'];
+				const box = f.closest('.hx-frame-box');
+				const applied = Math.round(parseFloat(f.style.height || '0'));
+				return [
+					'applied>0=' + (applied > 0),
+					'delta=' + (f.clientHeight - applied),
+					'border=' + getComputedStyle(f).borderTopWidth,
+					'box-minus-frame=' + Math.round(box.getBoundingClientRect().height - f.getBoundingClientRect().height)
+				];
+			}`,
+			expected: ['applied>0=true', 'delta=0', 'border=0px', 'box-minus-frame=2']
 		},
 		{
 			label: 'the malformed messages the document sent all got nowhere',
@@ -261,9 +304,11 @@ export default {
 		{
 			selector: '[data-testid="sandbox"]',
 			label: 'the sandbox attribute on screen',
-			must: ['allow-scripts'],
+			must: ['allow-scripts', 'allow-popups-to-escape-sandbox'],
 			/* Colour is never the only signal and neither is a passing check: the
-			   one forbidden flag is named here so a reader of the page sees it too. */
+			   one forbidden flag is named here so a reader of the page sees it too.
+			   `allow-same-origin` is a SUBSTRING of nothing else in the set, so this
+			   stays a real refusal after the popup flags joined it. */
 			mustNot: ['allow-same-origin']
 		},
 		{

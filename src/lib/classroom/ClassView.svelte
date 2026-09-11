@@ -1822,24 +1822,80 @@
 	   arithmetic is floor((content + 24) / (356 + 24)), and the split's own
 	   92rem cap puts four out of reach).
 
-	   `auto-fit`, NOT `auto-fill`: a class with two units must not lay itself
-	   out in two columns and a void where a third would go. Empty tracks
-	   collapse and the groups that exist share the width.
+	   COLUMNS, NOT A GRID, AND THE DIFFERENCE IS A ROW. This was
+	   `grid-template-columns: repeat(auto-fit, minmax(min(<col>, 100%), 1fr))`,
+	   which lays the groups out in ROWS -- and a grid row is as tall as its
+	   tallest member, so one long unit beside a short one leaves the short
+	   one's column dead for the whole height of the long one. That is not a
+	   corner case, it is what a real class looks like: one unit carries a term
+	   of posts and the next carries three. Measured on /dev/classroom-stream at
+	   Mr. Pina's own 1196x1304 (report of 2026-09-09), two 529px columns: Unit 1
+	   ended at y=364.5 and the next card in that column started at y=1077.8,
+	   so **713.3px of the left column, its full 529px width, was dead** while
+	   Unit 2's 902.5px panel filled the right. That is the whole of "a large
+	   empty column runs down the left while every unit panel is crammed into
+	   the right half".
 
-	   `min(..., 100%)` is what keeps the track from overflowing a pane
-	   narrower than one column -- a bare `minmax(22.25rem, 1fr)` in a 356px
-	   pane is a 356px box with a 22.25rem minimum inside it.
+	   A multi-column container has no rows to lock: each group is an
+	   unbreakable box, they fill down one column and on into the next, and
+	   `column-fill: balance` (the default) picks the shortest height that
+	   holds them. The void that is left is the ordinary ragged bottom of a
+	   newspaper column rather than a hole in the middle of the page. Measured
+	   on the same fixture at the same width after the change: the largest
+	   run of empty column drops from 713.3px to 0px mid-page.
+
+	   `column-width`, NOT `column-count`: the count is then the SAME
+	   arithmetic `auto-fit` was doing -- as many 356px columns as fit, with
+	   the same 24px between them -- so the breakpoints do not move and a pane
+	   narrower than one column still gets one column rather than an overflow.
+
+	   IT ALSO PUTS THE GROUPS IN READING ORDER. The grid ran left-right-
+	   left-right, so Unit 1 and Unit 3 were the left column and Unit 2 and
+	   "Documents and References" the right; columns run top to bottom, which
+	   is the order the units are numbered in.
 
 	   ONE GROUP TAKES THE READING MEASURE rather than the whole 1300px, since
 	   there is nothing to put beside it and a row stretched that far puts its
-	   due date a screen away from its title. */
+	   due date a screen away from its title. `columns: 1` is explicit there
+	   and is load-bearing: a lone unbreakable card in a multi-column container
+	   sits in the FIRST column at one column's width, so without this the
+	   single-group case would have gone from the 46rem measure to 356px. */
 	.stream {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(min(var(--cr-stream-col), 100%), 1fr));
-		gap: var(--space-3) var(--space-5);
-		align-items: start;
+		column-width: var(--cr-stream-col);
+		column-gap: var(--space-5);
+	}
+	.stream > :global(*) {
+		/* A card must never be split down a column boundary: half a unit at the
+		   foot of one column and the rest at the head of the next is
+		   unreadable, and the group header would be on only one of the two
+		   halves. The gap BETWEEN them is `.group-card`'s own bottom margin
+		   further down -- it has to be, because `.group-card { margin: 0 }` is
+		   in this same sheet below here and would win the tie. */
+		break-inside: avoid;
+	}
+	/* A CLASS WITH TWO UNITS MUST NOT LAY ITSELF OUT IN TWO COLUMNS AND A VOID
+	   WHERE A THIRD WOULD GO. That was `auto-fit`'s job -- it COLLAPSES a track
+	   nothing was placed in and lets the rest share the width -- and multicol
+	   has no equivalent: `column-width` alone cuts three 426px columns at
+	   1440px and simply leaves the third one, 450px of it, empty at the right.
+	   Measured, two groups at 1440 before this rule: x=57 and x=507, both
+	   426px, against the 1326px the stream had to spend.
+
+	   `columns: <width> <count>` is the fix, and the COUNT IS A CEILING rather
+	   than a demand: with both set the used count is
+	   min(count, floor((width + gap) / (col + gap))), so two groups share the
+	   whole measure where there is room and still drop to one column in a pane
+	   too narrow for two. Only 1 and 2 need capping -- the split's own 92rem
+	   means the stream is never wider than 1326px, which is three columns, so
+	   a class with three or more groups can never out-run the tracks.
+
+	   The one-group rule is LAST because a class with one group also matches
+	   the two-group selector, and the two carry the same specificity. */
+	.stream:not(:has(> :nth-child(3))) {
+		columns: var(--cr-stream-col) 2;
 	}
 	.stream:not(:has(> :nth-child(2))) {
+		columns: 1;
 		max-width: var(--measure-reading);
 	}
 	/* --- The pane header ---------------------------------------------------
@@ -2039,7 +2095,11 @@
 	   rows that were already ellipsising their titles. 32px reads the same and
 	   gives the title 16px back. */
 	.group-card {
-		margin: 0;
+		/* THE BOTTOM MARGIN IS THE STREAM'S ROW GAP, and it is a margin rather
+		   than a `gap` because the stream is a multi-column container now (see
+		   `.stream`) and multicol has no row gap of its own. Same 12px the grid
+		   spent. */
+		margin: 0 0 var(--space-3);
 		padding: var(--space-2) var(--space-4);
 	}
 	/* A real button, in the tab order, with aria-expanded -- the collapse used to

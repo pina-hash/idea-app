@@ -424,6 +424,11 @@
 		grid-template-rows: auto minmax(0, 1fr) auto;
 		gap: var(--space-3);
 		overflow: hidden;
+		/* THE ROW HEADER'S WIDTH, NAMED ONCE. `.name-col`'s own `min-width` and
+		   `.table-scroll`'s `scroll-padding-left` are the same measurement
+		   asked two different ways -- see the scroll-padding rule for why the
+		   second one exists. */
+		--nb-grid-name-col: 11rem;
 	}
 	.grid-head {
 		display: flex;
@@ -478,6 +483,27 @@
 	.table-scroll {
 		overflow: auto;
 		min-height: 0;
+		/*
+		 * A SCROLL DOES NOT KNOW THE STICKY COLUMN IS THERE, AND WITHOUT THIS
+		 * THE COLUMN PARKS CELLS UNDERNEATH ITSELF.
+		 *
+		 * `scrollIntoView({ inline: 'nearest' })` -- which the cursor effect
+		 * above calls on every arrow key, and which a scripted click calls for
+		 * itself -- brings a cell to the SCROLLPORT's left edge. The sticky
+		 * row header overlays that edge, so the cell lands behind it: before
+		 * `z-index` was put on `.name-col` the cell painted on top and was
+		 * merely covering the student's name, and the moment the column
+		 * correctly paints over the cells instead, the same cell becomes
+		 * unreachable. Measured: the review console's own `.cell.late` at 375px
+		 * refused six scripted click attempts, having been scrolled under the
+		 * header by the click's own scroll.
+		 *
+		 * `scroll-padding-left` is the one thing that tells a scroll about an
+		 * overlay. It is the SAME width as the column, through the same
+		 * property, because a second literal here is a column and a padding
+		 * that stop agreeing the first time either moves.
+		 */
+		scroll-padding-left: var(--nb-grid-name-col);
 	}
 	table {
 		border-collapse: collapse;
@@ -506,8 +532,31 @@
 		position: sticky;
 		left: 0;
 		background: var(--surface-1);
-		min-width: 11rem;
+		min-width: var(--nb-grid-name-col);
 		font-weight: 400;
+		/*
+		 * THE STUDENT'S NAME WAS BEING PAINTED OVER BY THE CELLS, AND THE COLUMN
+		 * WAS NEVER TOO NARROW FOR IT.
+		 *
+		 * `position: sticky` makes this a POSITIONED box, and so is every
+		 * `.cell` in the row (`position: relative`, for the count badge and the
+		 * not-reviewed dot). With `z-index: auto` on both, positioned siblings
+		 * paint in TREE order -- and every cell comes after the row header -- so
+		 * the moment the table was scrolled horizontally the cells slid on TOP
+		 * of the sticky column instead of under it. Measured on
+		 * /dev/notebook-review at 375px, scrolled to the end: 28.3% of "Newcomer,
+		 * Dana" and 26.4% of "Okafor, Ben" were covered by a chip, and a
+		 * hit test across the name's own text landed on a `button.cell` at 3 of
+		 * 13 points -- so the name was unreadable AND the link under it was
+		 * taking the wrong taps. It reads as "Abundiz, <chip>mma".
+		 *
+		 * The opaque `background` above was always there and was always doing
+		 * nothing about it: a background only covers what paints BENEATH it.
+		 * One stacking level over the cells is the whole fix, and it has to stay
+		 * BELOW the two `thead` levels -- the header row scrolls over this
+		 * column vertically for the same reason and in the same direction.
+		 */
+		z-index: 1;
 	}
 	thead .name-col {
 		z-index: 3;
