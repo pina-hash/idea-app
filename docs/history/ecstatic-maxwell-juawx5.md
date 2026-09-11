@@ -148,22 +148,31 @@ way went from 2 reddened measurements to 3.
 
 ## Reported to other lanes, not fixed here
 
-- **`tests/grant-surface.test.ts` is RED on `origin/integration` and stays red here, 4
-  failures, identical before and after this bundle** (measured in a worktree at the branch
-  point). `0201` leaves all four `ideacad_*` tables granted to `anon` AND `authenticated`
-  with `select, insert, update, delete, truncate, references, trigger`, which is both an
-  `anon` read of every IdeaCAD row and a direct client write path on a feature table -- the
-  doctrine this repo states as zero client write grants. Production is repaired by hand;
-  the migration CHAIN is not, and **ledger 0161 carries that repair as `0202`**. This
-  bundle owns no migration and no `supabase/` file, so it is reported and left.
-- `tests/db/migration-0177-tombstone.test.ts`, 1 failure, also identical at the branch
-  point: hole `0200` is unaccounted for (ledger 0152's claim). Its message also names this
-  branch as holding `0190` and `0191`; that is the claims tool attributing ledger entries
-  0092, 0093, 0098 and 0099 -- which this branch merely CARRIES -- to whatever ref it reads
-  them on. This bundle claims no migration number and writes no `supabase/` file.
+- **`tests/grant-surface.test.ts` was RED at this branch's point and is GREEN now, and the
+  fix was somebody else's.** At `87ba98a` it failed 4 tests, measured identical before and
+  after this bundle's own changes in a worktree at the branch point: `0201` left all four
+  `ideacad_*` tables granted to `anon` AND `authenticated` with
+  `select, insert, update, delete, truncate, references, trigger` -- an `anon` read of every
+  IdeaCAD row and a direct client write path on a feature table, against the doctrine of
+  zero client write grants. **Ledger 0161 landed `0202_ideacad_anon_grant_repair.sql` while
+  this bundle was running**, and ledger 0162 merged it to `integration` ahead of the main
+  landing for exactly that reason. Merging `integration` back into this branch takes the
+  repair with it and the file is green here. This bundle owns no `supabase/` file and wrote
+  none; the finding is recorded because it was measured independently here and because
+  `0201`'s grant shape is the thing to check when the next IdeaCAD migration is written.
+- **A STALE LOCAL REF VIEW FAILS `tests/db/migration-0177-tombstone.test.ts` AND LOOKS
+  EXACTLY LIKE A REAL HOLE.** It reported migration `0200` as "a hole nothing accounts for"
+  and named THIS branch as holding `0190` and `0191`. Neither was true. The test reads
+  claims across `refs/remotes/origin/*`, and a cloud session that has only run
+  `git fetch origin main integration` has no `origin/claude/**` refs at all -- so every
+  in-flight claim is invisible and every hole reads as unaccounted. `git fetch origin
+  '+refs/heads/*:refs/remotes/origin/*'` and the same file passes 4 of 4, unchanged, which
+  is also why CI (which fetches everything) was green on `integration` while the identical
+  tree failed locally. The `0190`/`0191` attribution is the other half of the same artifact:
+  the tool credits a claim to whatever ref carries the ledger entry, and this branch merely
+  CARRIES entries 0092, 0093, 0098 and 0099. **This bundle claims no migration number.**
 - `tests/derived-numbers.test.ts` was red at the branch point too, 3 failures, on a stale
-  counts region. Regenerating both regions here fixed those three as well, so the suite
-  ends **5 failed of 7618** rather than the branch point's 8.
+  counts region. Both regions are regenerated here.
 - `CLAUDE.md`'s verification baseline says 0 errors and 37 warnings. Measured on
   `origin/integration` at branch time with the two `$env/static/public` values exported:
   **0 errors, 40 warnings in 22 files** (34 `state_referenced_locally`, 5
@@ -171,7 +180,7 @@ way went from 2 reddened measurements to 3.
   warnings in 21 files** -- the two `state_referenced_locally` warnings 0145 left in
   `BladeEditor.svelte` are gone, because every seed that captures a prop once now says so
   with `untrack`. `CLAUDE.md` is not this bundle's surface, so the line is reported rather
-  than corrected.
+  than corrected. Ledgers 0161 and 0162 measured the same 40 independently.
 
 ## For the next IdeaCAD bundle
 

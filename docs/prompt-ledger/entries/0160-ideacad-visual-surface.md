@@ -60,14 +60,21 @@ measurements, three states, two widths, 0 outside threshold), mutation-proved bo
 with the file restored byte-identical. One full `verify:readme` on the clean committed tree at
 `51a1c98`: **388 runs, 6790 measurements, 0 outside threshold, 1027.0s**.
 
-**Reported to other lanes, not fixed.** `tests/grant-surface.test.ts` is red on
-`origin/integration` and stays red, 4 failures measured identical at the branch point: `0201`
-leaves all four `ideacad_*` tables granted to `anon` and `authenticated` with
-`select, insert, update, delete, truncate, references, trigger`. **That is ledger 0161's `0202`
-to fix**, and this bundle owns no `supabase/` file. `tests/db/migration-0177-tombstone.test.ts`
-is red for hole `0200` (ledger 0152's claim), also identical at the branch point.
-`tests/derived-numbers.test.ts` was red at the branch point too and is green here, so the suite
-ends **5 failed of 7618** rather than the branch point's 8.
+**Reported to other lanes, and one of them fixed it mid-flight.**
+`tests/grant-surface.test.ts` failed 4 tests at this branch's point, measured identical
+before and after this bundle's changes in a worktree at `87ba98a`: `0201` left all four
+`ideacad_*` tables granted to `anon` and `authenticated` with
+`select, insert, update, delete, truncate, references, trigger`. **Ledger 0161 landed
+`0202_ideacad_anon_grant_repair.sql` while this session ran** and ledger 0162 merged it
+ahead of the main landing; merging `integration` back in takes the repair and the file is
+green here. This bundle wrote no `supabase/` file.
+`tests/db/migration-0177-tombstone.test.ts` reported hole `0200` and named this branch as
+holding `0190` and `0191`: **a stale local ref view, not a finding.** A session that has
+fetched only `main` and `integration` has no `origin/claude/**` refs, so every in-flight
+claim is invisible; `git fetch origin '+refs/heads/*:refs/remotes/origin/*'` and the file
+passes 4 of 4 unchanged, which is why CI was green on the identical tree.
+`tests/derived-numbers.test.ts` was red at the branch point on a stale counts region and is
+green here. **The suite on the merged tree ends at 0 failures of 7632.**
 
 **Not verified:** no frame-time p95 (PART 4's 300-frame drag has no canvas, no camera and no
 controls binding to drag); nothing signed in; no production database; web fonts blocked by the
