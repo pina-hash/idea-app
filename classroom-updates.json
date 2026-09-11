@@ -1287,6 +1287,16 @@
 				"posts",
 				"files"
 			]
+		},
+		{
+			"date": "2026-09-11",
+			"title": "A progress bar at the top of every online worksheet",
+			"body": "Assignments that open as a full worksheet now show a bar above the page with a percentage of how much you have filled in. It is weighted by what each part of the assignment is worth, so a bigger section moves the bar further than a small one, and it turns from red to green as you go. Under it, one line names the next thing to answer and each section shows what is left. It measures how much you have filled in, not how well: reaching 100% means every answer is in, and your teacher still grades the work.",
+			"tags": [
+				"classroom",
+				"assignments",
+				"worksheets"
+			]
 		}
 	]
 }
