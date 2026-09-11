@@ -270,6 +270,10 @@ sections D and E, the second default-privileges probe, the sequence-and-view
 positive control, and 7 in
 `tests/db/grant-sequence-sweep-control.test.ts`.
 
+Run TWICE on the branch, the second time on the committed tree after the last
+comment-only edits, and the two agree exactly: 391 / 7623 / 4 at 379.07s and
+391 / 7623 / 4 at 380.01s, the same four assertions failing in both.
+
 **The 4 failures are the same 4 in both runs, and none of them is this
 bundle's.** They are `grant-surface.test.ts` sections A, B, C and the anon-count
 control, naming `ideacad_editors`, `ideacad_documents`, `ideacad_concepts` and
