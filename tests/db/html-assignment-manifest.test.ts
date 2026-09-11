@@ -153,6 +153,15 @@ function documentFor(manifest: Json, fields: string[] = ['total', 'why']): strin
 		`    ${inputs}`,
 		'  </form>',
 		`  <script type="application/json" id="idea-manifest">${JSON.stringify(manifest)}<\/script>`,
+		/*
+			THE HANDSHAKE, BECAUSE THIS FIXTURE STANDS FOR A DOCUMENT THAT WORKS.
+			`validateHtmlManifest` (and the import gate behind it) refuses a
+			document that never sends `idea:ready`: without it the parent posts no
+			`idea:state`, nothing is seeded, and every answer arrives before
+			anything is listening. Until ledger 0141 nothing checked, and this
+			builder emitted a document with no bridge code in it at all.
+		*/
+		`  <script>parent.postMessage({ type: 'idea:ready', schemaVersion: 3 }, '*');<\/script>`,
 		'</body></html>'
 	].join('\n');
 }

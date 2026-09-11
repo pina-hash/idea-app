@@ -66,9 +66,23 @@ export const HX_SCHEMA_VERSION = 3;
  */
 export const HX_SANDBOX_FLAGS = 'allow-scripts';
 
+/**
+ * THE HANDSHAKE'S OWN NAME, WRITTEN DOWN ONCE.
+ *
+ * A document that never sends this is not a worksheet: the parent posts no
+ * `idea:state`, so nothing is seeded, and every `idea:change` the document
+ * might send arrives before the parent has agreed to listen. It is a CONSTANT
+ * rather than a literal because the manifest validator refuses a document that
+ * does not contain it, and a refusal keyed on one spelling of a token defined
+ * somewhere else under another spelling is a refusal that quietly stops
+ * biting. `HxFrameMessage` names it through `typeof`, so the union and the
+ * scan cannot drift.
+ */
+export const HX_READY_TYPE = 'idea:ready';
+
 /** Messages the document may send. */
 export type HxFrameMessage =
-	| { type: 'idea:ready'; schemaVersion: number }
+	| { type: typeof HX_READY_TYPE; schemaVersion: number }
 	| { type: 'idea:change'; field: string; value: string | boolean }
 	| { type: 'idea:image'; field: string; name: string; bytes: string }
 	| { type: 'idea:image-remove'; field: string }

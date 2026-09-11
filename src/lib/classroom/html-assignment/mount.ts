@@ -27,6 +27,9 @@
  */
 
 import { fieldBlockMap, type HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
+// The go-live condition is the classroom's, not this module's. A second
+// spelling of it here would be a sentence that disagrees with the gate.
+import { isScheduled } from '$lib/classroom/classroom';
 import type { HxImageState } from '$lib/classroom/html-assignment/bridge';
 
 /**
@@ -118,6 +121,49 @@ export function htmlAssignmentMount(
  */
 export const HTML_ASSIGNMENT_UNAVAILABLE =
 	'This assignment could not be opened. Nothing you have done is lost. Tell your teacher, and they can check the upload.';
+
+/**
+ * WHY THE FRAME IS EMPTY ON AN ITEM NOBODY CAN SEE YET, SAID IN WORDS.
+ *
+ * `/hx/<docId>` refuses a document whose item is unpublished or scheduled, with
+ * a BODYLESS 404 -- deliberately, because the route answers on a host that
+ * holds no session and every refusal there is indistinguishable from every
+ * other one. That gate is correct and is not loosened by any of this.
+ *
+ * WHAT IT COSTS IS ON THIS SIDE: only a MANAGER can open an item that is not
+ * live, so the only person who ever meets that 404 is the teacher, and what
+ * they got was an empty box with nothing to explain it -- which reads as a
+ * broken upload, on the surface where they were about to decide whether to
+ * publish. A control absent for a reason says the reason.
+ *
+ * IT NAMES PUBLISHING AND NOT THE ROUTE, because the reader's next action is to
+ * publish, not to debug a host gate.
+ */
+export const HTML_ASSIGNMENT_NOT_LIVE =
+	'The worksheet is served only once this assignment is published, so there is nothing to show here yet. Publish it to see the document.';
+
+/**
+ * WHETHER `/hx/<docId>` WILL ANSWER FOR THIS ITEM, asked on the client with the
+ * SAME CONDITION the server gate uses.
+ *
+ * `published`, and either no `publish_at` or one that has passed, which is
+ * `_classroom_item_live` in SQL and `published && !isScheduled(...)` in
+ * `$lib/server/html-assignment-document.ts`. It is DISPLAY ONLY, exactly as
+ * `isScheduled` is: what is actually served is decided by the route at the
+ * moment of the request, so a page left open past a go-live moment can be wrong
+ * about a sentence and never about access.
+ *
+ * A READ THAT COULD NOT SELECT `publish_at` READS AS LIVE, which is `isScheduled`'s
+ * own rule and is what an item authored before scheduling existed is. The cost
+ * of being wrong that way is one sentence not shown; the cost of the other way
+ * is a sentence claiming an item is unpublished when it is live.
+ */
+export function htmlAssignmentServed(
+	item: { published: boolean; publish_at?: string | null },
+	now: Date = new Date()
+): boolean {
+	return item.published && !isScheduled(item, now);
+}
 
 /**
  * `field` -> `block_id` AS A PLAIN RECORD, FROM THE STORED MANIFEST, for the

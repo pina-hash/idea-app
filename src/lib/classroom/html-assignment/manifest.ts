@@ -53,6 +53,10 @@ import {
 	type RubricCriterion,
 	type RubricLevel
 } from '$lib/classroom/assignment-spec';
+// THE HANDSHAKE'S NAME COMES FROM THE BRIDGE, which is the module that defines
+// it and the module that answers it. A literal here would be a refusal keyed on
+// this file's idea of what the token is called.
+import { HX_READY_TYPE } from '$lib/classroom/html-assignment/bridge';
 
 // ---------------------------------------------------------------------------
 // The contract's types, verbatim.
@@ -255,6 +259,73 @@ export function documentText(html: string): string {
 }
 
 const MANIFEST_SCRIPT_RE = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
+
+/**
+ * THE DOCUMENT'S OWN JAVASCRIPT, AND NOTHING ELSE.
+ *
+ * Every `<script>` body except the manifest block, with JS comments taken out,
+ * joined into one string. `stripInertRegions` is the exact opposite projection
+ * -- it removes scripts so a `data-field` written as a STRING is not counted as
+ * an input -- and the two are deliberately complementary rather than one
+ * function with a flag: a reader asking "what does this scan see" gets the
+ * answer from the name.
+ *
+ * THE COMMENTS COME OUT BECAUSE ONE OF THE CALLERS IS A REFUSAL. A document
+ * whose only mention of the handshake is `// TODO: send idea:ready` cannot talk
+ * to the classroom, and a scan over raw bytes would wave it through -- which is
+ * not hypothetical, because the file most likely to carry that comment is the
+ * TEMPLATE this refusal exists to catch. A warning could afford the false
+ * positive; a refusal cannot afford the false NEGATIVE.
+ *
+ * REGEX RATHER THAN A PARSE, for `documentFields`'s reason and with its
+ * consequences: this runs in the composer, in a node test and at import, and
+ * all three have to agree exactly. A string containing `//` inside a script is
+ * therefore truncated to end of line, which can only ever make this scan see
+ * LESS -- so the refusal below can produce a false positive on a document that
+ * hides its handshake inside such a string, and never a false negative on one
+ * that genuinely has none.
+ */
+export function documentScripts(html: string): string {
+	const bodies: string[] = [];
+	for (const m of (html ?? '').matchAll(MANIFEST_SCRIPT_RE)) {
+		const attrs = m[1] ?? '';
+		const type = (attributeValue(attrs, 'type') ?? '').toLowerCase();
+		const id = attributeValue(attrs, 'id') ?? '';
+		if (type === 'application/json' && id === HTML_MANIFEST_SCRIPT_ID) continue;
+		bodies.push(m[2] ?? '');
+	}
+	return bodies
+		.join('\n')
+		.replace(/\/\*[\s\S]*?\*\//g, ' ')
+		.replace(/\/\/[^\n]*/g, ' ');
+}
+
+/**
+ * WHAT AN OPAQUE ORIGIN TAKES AWAY, AS A LIST, MIRRORING THE PYTHON TOOL'S
+ * `SANDBOX_TRAPS`.
+ *
+ * Each of these is code that runs perfectly on an author's own filesystem and
+ * THROWS, or silently reaches nothing, inside `sandbox="allow-scripts"`. They
+ * are WARNINGS rather than refusals because a document may legitimately guard
+ * one in a `try` and fall back to the bridge -- which is what a correctly
+ * ported document does -- so refusing would refuse the fixed version along
+ * with the broken one.
+ *
+ * `tests/html-assignment-manifest-parity.test.ts` holds this list and the
+ * python one to each other. The two SCANS are not identical and the test says
+ * so: this one reads `documentScripts`, the python tool reads the raw bytes.
+ */
+export const HX_SANDBOX_TRAPS: readonly { readonly name: string; readonly why: string }[] = [
+	{
+		name: 'localStorage',
+		why: 'localStorage throws in an opaque origin; autosave goes through the bridge (idea:change)'
+	},
+	{ name: 'sessionStorage', why: 'sessionStorage throws in an opaque origin' },
+	{ name: 'document.cookie', why: 'there are no cookies on the sandbox origin' },
+	{ name: 'window.parent', why: 'the frame has no reach into the parent document' },
+	{ name: 'window.top', why: 'the frame has no reach into the parent document' }
+];
+
 
 function attributeValue(attrs: string, name: string): string | null {
 	const re = new RegExp(`\\b${name}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s"'\`=<>]+))`, 'i');
@@ -700,6 +771,40 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 			);
 		}
 		errors.push(...copyIssues('The document', documentText(html)));
+
+		// --- and the document has to be able to SAY any of it -------------------
+		//
+		// THE HANDSHAKE IS WHAT MAKES A DOCUMENT A WORKSHEET, AND ITS ABSENCE WAS
+		// ACCEPTED IN SILENCE. Every check above this line reads the manifest and
+		// the markup; none of them reads a line of the document's JavaScript, so a
+		// document with a perfect manifest, perfect `[data-field]` correspondence
+		// and NO BRIDGE CODE AT ALL validated with zero errors -- and importing it
+		// would have produced a worksheet that takes typing and stores nothing,
+		// which is the one failure this whole feature is written to avoid.
+		// Measured on `src/lib/legacy/assignments/_TEMPLATE.html`, which is exactly
+		// that document and which passed.
+		//
+		// IT IS A REFUSAL AND NOT A WARNING because there is no partial outcome: a
+		// parent that never receives `idea:ready` never posts `idea:state`, so the
+		// document is never seeded and every answer it might report arrives before
+		// anything is listening. Nothing about that degrades gracefully.
+		//
+		// IT ASKS FOR THE HANDSHAKE AND NOT FOR `idea:change`, deliberately. A
+		// READ-ONLY document -- a reference sheet ported into the same frame -- is
+		// a legitimate shape that sends `idea:ready` and never a change; refusing
+		// one would refuse a document that works. The handshake is the part no
+		// working document can omit.
+		const scripts = documentScripts(html);
+		if (!scripts.includes(HX_READY_TYPE)) {
+			errors.push(
+				`The document never sends ${HX_READY_TYPE}. Without that handshake the page around it never seeds the document and never records an answer, so everything a student types is lost. Post {"type":"${HX_READY_TYPE}","schemaVersion":${HTML_MANIFEST_SCHEMA_VERSION}} to the parent once the document has loaded.`
+			);
+		}
+		for (const trap of HX_SANDBOX_TRAPS) {
+			if (scripts.includes(trap.name)) {
+				warnings.push(`The document reaches for ${trap.name}: ${trap.why}.`);
+			}
+		}
 	}
 
 	if (errors.length) return fail();

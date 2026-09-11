@@ -101,6 +101,18 @@ function documentFor(manifest: Json | string, fields: string[] = ['total', 'why'
 		'  <h1>Tolerance stack</h1>',
 		`  <form>\n    ${inputs}\n  </form>`,
 		`  <script type="application/json" id="idea-manifest">${json}<\/script>`,
+		/*
+			THE HANDSHAKE, BECAUSE THIS FIXTURE STANDS FOR A DOCUMENT THAT WORKS.
+			`validateHtmlManifest` refuses a document that never sends
+			`idea:ready` -- without it the parent never posts `idea:state`, so
+			nothing is seeded and every answer arrives before anything is
+			listening. Until ledger 0141 nothing checked, and this builder emitted
+			a document with no bridge code in it at all: every test below was
+			therefore asserting the manifest rules against a worksheet that could
+			not have stored a single answer. Adding it is not appeasing the new
+			check, it is the fixture becoming what it always claimed to be.
+		*/
+		`  <script>parent.postMessage({ type: 'idea:ready', schemaVersion: 3 }, '*');<\/script>`,
 		'</body></html>'
 	].join('\n');
 }
