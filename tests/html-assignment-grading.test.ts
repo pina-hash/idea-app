@@ -236,6 +236,20 @@ describe('the wiring, swept as source', () => {
 		expect(s).toContain('readOnly');
 	});
 
+	it('withholds a leftover spec from a ported item, so one engine renders', () => {
+		// A schema-3 item may carry a spec row from before its conversion, and
+		// `GradingConsole` branches `{#if spec}` first -- so handing both down
+		// would render the superseded engine in the grading console while the
+		// student's own page renders the document. The manifest decides, which is
+		// the order every other rendering surface takes.
+		const s = src(GRADE_PAGE);
+		expect(s).toContain("spec={htmlMount === 'spec' ? data.spec : null}");
+		expect(s, 'the two props read ONE expression').toContain(
+			"htmlWork={htmlMount === 'spec' ? null : htmlWork}"
+		);
+		expect(s, 'never the raw spec').not.toContain('spec={data.spec}');
+	});
+
 	it('both loads share ONE ladder rather than each carrying a copy', () => {
 		// The cheaper-looking fix was a second copy in the grade load. The probe's
 		// failure mode is a `ready` flag that has to start false, and two

@@ -58,6 +58,16 @@ accepting input -- a worksheet a grader can type into is a grader editing a
 student's answers. The test asserts the four absences by name rather than
 asserting `readOnly` alone.
 
+**A stale spec is withheld, which is 0134's Surface A bug answered.** A schema-3
+item may carry a `classroom_assignment_specs` row from before its conversion --
+carrying both is a legal state -- and `GradingConsole`'s work column branches
+`{#if spec}` FIRST. Handing it both would have rendered the superseded engine in
+the grading console while the student's own item page rendered the document: an
+item that renders one thing and is graded against another. The manifest decides,
+which is the order every other rendering surface already takes, and the two
+props are one expression so they cannot drift. `spec = null` is a ported
+assignment's NORMAL state, not a degraded one.
+
 ### Rasterizing found a defect a content check could not
 
 The first version put the document BESIDE the rubric, in the two-column

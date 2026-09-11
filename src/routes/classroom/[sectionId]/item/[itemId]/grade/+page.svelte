@@ -81,11 +81,29 @@
 <GradingConsole
 	section={data.section}
 	item={data.item}
-	spec={data.spec}
+	spec={htmlMount === 'spec' ? data.spec : null}
 	rubric={data.rubric}
 	{transports}
 	htmlWork={htmlMount === 'spec' ? null : htmlWork}
 />
+
+<!--
+	THE TWO PROPS ARE ONE DECISION, READ OFF ONE EXPRESSION, AND THAT IS 0134'S
+	SURFACE A BUG ANSWERED.
+
+	A schema-3 item may carry a leftover `classroom_assignment_specs` row from
+	before its conversion -- carrying BOTH is a legal state, and CLAUDE.md's rule
+	is that the MANIFEST decides, which is the order every rendering surface
+	already takes. `GradingConsole`'s work column branches `{#if spec}` FIRST, so
+	handing it a stale spec beside the document would render the superseded
+	engine HERE while the student's own item page renders the document: an item
+	that renders one thing and is graded against another.
+
+	`spec = null` IS A PORTED ASSIGNMENT'S NORMAL STATE, not a degraded one --
+	`levelShort` answers from the manifest level's own `short`, the unmet list is
+	empty because there is no spec to check against, and the approval gate does
+	not render. That is what the console was built for in 0195.
+-->
 
 {#snippet htmlWork(student: StudentWork)}
 	<!--
