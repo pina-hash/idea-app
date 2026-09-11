@@ -8,7 +8,7 @@
   `docs/prompt-ledger/entries/0163-*`, and its own `docs/history/` entry. NO MIGRATION.
   NO FILE UNDER `src/`.
 - Migration permitted: no. Claims: none. Highest on origin/integration at issue: 0201
-- Status: issued
+- Status: pushed
 - Branch: `claude/cool-cori-0vzwcz`, branched from `origin/integration` at `7c45d30c`
 - Runs in parallel with: ledger 0160 (`src/lib/ideacad/**`) and ledger 0161
   (`supabase/migrations/0202_*`, `tests/db/ideacad-grants*`, `CLAUDE.md` ONE paragraph).
