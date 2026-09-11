@@ -1762,6 +1762,29 @@ service_role=X/postgres` and **`anon` is true**.
 - **A NEW FUNCTION IS NOT COVERED BY 0137 AND MUST REVOKE FOR ITSELF.** The
   sweep is a one-time repair of what was already there; anything created after
   it arrives granted to `anon` again unless its own migration names the roles.
+- **`0166` IS THE SHAPE. COPY IT; DO NOT INVENT ANOTHER, AND `0201` IS WHY THAT
+  IS A RULE RATHER THAN A PREFERENCE.** A migration revokes from `anon` BY NAME
+  -- `revoke all on function f(...) from public, anon, authenticated;` then a
+  grant naming exactly who should hold it -- because `revoke ... from public` is
+  not sufficient on this project: the default privileges above write a DIRECT
+  `anon` grant that the `public` entry's removal never touches.
+  `0166_short_link_reserve_maps.sql` carries that shape with its reasoning in
+  its own header, and `0196` through `0199` all follow it. `0201` invented its
+  own -- `revoke ... from public` then `grant ... to authenticated` -- and all
+  ten of its functions came out anon-executable on production (measured
+  2026-09-11, against `classroom_save_response`,
+  `classroom_save_instructor_response` and `classroom_close_assignment` as the
+  controls, all three `anon false`). It is the first file in this repo to depart
+  from `0166` and `0202_ideacad_anon_grant_repair.sql` is the repair. **THE
+  IDENTICAL BOOTSTRAP CARRIES `grant all on tables`, so the table half is the
+  same decision and `0201` lost both**: its four tables arrived holding all
+  seven privileges for both client roles, and RLS covers none of TRUNCATE,
+  REFERENCES or TRIGGER. A migration creating a table revokes and grants back
+  the one privilege it means, exactly as it does for a function. **Neither half
+  is trusted to review**: `tests/db/ideacad-grants-anon-execute-surface.test.ts`
+  sweeps every non-extension function in `public` after the whole chain and
+  reconciles the anon-executable set against a named allowlist with a reason per
+  entry, and `tests/grant-surface.test.ts` does the same for tables and views.
 - **DO NOT SWEEP THE GRANTS BLIND.** The partition is the whole job and 0137's
   header carries it: 18 functions are granted to `anon` DELIBERATELY (the public
   coin ledger, the public reference viewer and its attachments, short links, the
