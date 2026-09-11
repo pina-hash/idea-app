@@ -155,3 +155,76 @@
 
   **CONFLICT POLICY.** No merge was attempted in either direction, so nothing
   was resolved anywhere, and in particular nothing was resolved on `main`.
+
+  **CI CAME BACK AND `integration` IS RED ON ITS CURRENT TIP, WHICH IS A SECOND
+  AND INDEPENDENT REASON NOT TO MERGE.** The aggregator's four outcomes, read
+  out of the job log rather than off the rolled-up conclusion, for run
+  **34625280462**:
+
+  > ref tested:         87ba98a3adaa469cf996757520efcaaa3b4b8b3d (HEAD)
+  > check:              success
+  > test:               failure
+  > vanguard-changelog: success
+  > history-verify:     success
+
+  **2 test files failed, 7 tests of 7604, suite duration 278.29s.** Run
+  **34625147207**, on `43a71b2d` -- the same `integration` one commit earlier,
+  before PR #92 -- reports `test: success` and all four green. So the redness
+  arrived with the IdeaCAD merge and is isolated to it by a paired reading, not
+  inferred.
+
+  **THE `continue-on-error` COERCION IS NOT THEORETICAL AND IT BIT HERE.** The
+  jobs API reports the `Test suite` step's `conclusion` as `success`; its
+  `outcome` is `failure`. A session reading step conclusions out of the API --
+  or the run's rolled-up conclusion -- would have called this tree green. Only
+  the aggregator's own echoed lines say otherwise, which is why `CLAUDE.md`
+  says to read them.
+
+  **WHAT FAILED IS `tests/grant-surface.test.ts`, AND IT IS THE DOCTRINE TEST
+  CATCHING A REAL HOLE IN `0201` RATHER THAN A FIXTURE ARTEFACT.** Five of the
+  seven failures are its assertions A, B, C and the non-empty-surface guard:
+
+  > anon: the thirteen tournament tables, the six IDEA Maps tables, and
+  > fsp_frc_interest.: expected 24 to be 20
+  > `anon` is the public internet. An object here holds a privilege no entry in
+  > ANON_SURFACE claims -- expected [ ...(28) ] to deeply equal []
+  > The doctrine is zero client write grants on feature tables -- expected
+  > [ ...(16) ] to deeply equal []
+  > Nothing in supabase/migrations grants REFERENCES or TRIGGER to a client
+  > role, so every occurrence is an inherited default -- expected [ ...(16) ]
+  > to deeply equal []
+
+  Every named object is one of `0201`'s four: `ideacad_editors`,
+  `ideacad_documents`, `ideacad_concepts`, `ideacad_predictions`. `anon` holds
+  select, insert, update, delete, truncate, references and trigger on all four.
+
+  **THE CAUSE IS THE TRAP `CLAUDE.md` ALREADY DOCUMENTS, IN BOTH ITS FORMS.**
+  This project's default privileges write DIRECT grants to `anon`,
+  `authenticated` and `service_role` into every new object at creation time, so
+  a new object must revoke for itself -- `0137` was a one-time repair and does
+  not cover anything created after it. `0201` does neither half:
+
+  * **Its function revoke names only `public`** -- `revoke all on function ...
+    from public` -- where `0198` and `0199` both write `from public, anon,
+    authenticated`. Measured by extracting the revoke clause from all three
+    files. `CLAUDE.md`: "A NARROWING MUST NAME THE ROLES".
+  * **It carries no table-level revoke at all**, measured as zero occurrences,
+    while granting `select` to `authenticated`. So the inherited `anon` DML on
+    all four tables is untouched.
+
+  RLS is enabled on all four with select-only policies, which refuses the row
+  DML -- but **TRUNCATE is not subject to RLS**, so the inherited grant is not
+  fully mitigated by the policies, and in any case the doctrine test's whole
+  point is that an inherited privilege nobody wrote down is the thing to
+  revoke rather than to reason about.
+
+  **THIS IS REPORTED, NOT FIXED. IT IS NOT THIS BUNDLE'S TO TOUCH** -- `0201`
+  belongs to ledger 0145 and this lane owns no source file and no migration.
+  It is written down here because it changes what "apply 0201 by hand" means:
+  **the file should not be applied to production as written.**
+
+  The seventh failure is in a second file, at `expect(verifyStatic(readme,
+  live)).toEqual([])` -- the `tools/browser-verify/README.md` generated counts
+  not covering the `ideacad*.mjs` route specs the same bundle added. That
+  README is mine only if a MERGE conflicts inside its generated regions; no
+  merge was attempted, so it is ledger 0145's to regenerate.

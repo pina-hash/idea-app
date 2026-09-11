@@ -87,6 +87,74 @@ in ledger 0140's position, not ledger 0146's. Reachability has now differed
 across three sessions, so it is a thing to CHECK at the top of a landing lane
 rather than a property of "these containers".
 
+## The second reason, which arrived after the stop was already taken
+
+CI came back while this entry was being written, and `integration` is RED on
+its current tip. The aggregator's four outcomes, read out of the job log rather
+than off the rolled-up conclusion, run **34625280462**:
+
+```
+ref tested:         87ba98a3adaa469cf996757520efcaaa3b4b8b3d (HEAD)
+check:              success
+test:               failure
+vanguard-changelog: success
+history-verify:     success
+```
+
+2 test files, 7 tests of 7604, 278.29s. The paired reading is what makes it an
+isolation rather than an observation: run **34625147207** on `43a71b2d` -- the
+same branch one commit earlier, before PR #92 -- reports `test: success` and
+all four green. The redness arrived with the IdeaCAD merge.
+
+**The `continue-on-error` coercion bit here, exactly as written down.** The
+jobs API reports the `Test suite` step's `conclusion` as `success`; its
+`outcome` is `failure`. A session reading step conclusions from the API, or the
+run's rolled-up conclusion, calls this tree green. Only the aggregator's echoed
+lines say otherwise.
+
+### What failed is the grant-surface doctrine test, and it is right
+
+Five of the seven failures are `tests/grant-surface.test.ts` assertions A, B, C
+and its non-empty-surface guard. Every object named is one of `0201`'s four:
+`ideacad_editors`, `ideacad_documents`, `ideacad_concepts`,
+`ideacad_predictions`. `anon` -- the public internet -- holds select, insert,
+update, delete, truncate, references and trigger on all four.
+
+> `anon` is the public internet. An object here holds a privilege no entry in
+> ANON_SURFACE claims -- almost certainly inherited from the project default
+> privileges rather than granted by anyone.
+
+The test's own guess is correct, and it is the trap `CLAUDE.md` already carries
+under "`revoke ... FROM public` DOES NOT CLOSE A FUNCTION ON THIS PROJECT".
+The hosted project's default privileges write DIRECT grants to `anon`,
+`authenticated` and `service_role` into every new object at creation, so a new
+object must revoke for itself; `0137` was a one-time repair and covers nothing
+created after it. `0201` misses both halves, measured against its siblings:
+
+* **Its function revoke names only `public`** -- `revoke all on function ...
+  from public` -- where `0198` and `0199` both write
+  `from public, anon, authenticated`.
+* **It carries no table-level revoke at all** (zero occurrences), while
+  granting `select` to `authenticated`, so the inherited `anon` DML stands.
+
+RLS is on for all four tables with select-only policies, which refuses the row
+DML. **TRUNCATE is not subject to RLS**, so the policies do not fully stand in
+for the missing revoke -- and the doctrine is that an inherited privilege
+nobody wrote down gets revoked rather than reasoned about.
+
+**None of this was fixed here.** `0201` belongs to ledger 0145; this lane owns
+no source file and no migration. It is recorded because it changes what
+"apply 0201 by hand" means: the file should not be applied to production as
+written. The seventh failure is separate -- the `tools/browser-verify/README.md`
+generated counts not covering the `ideacad*.mjs` specs the same bundle added,
+which is also 0145's.
+
+**The order matters and is worth stating plainly: the stop was taken on the
+unlisted migration alone, before any of this was known.** The rule fired on a
+file whose contents nobody had looked at yet, and the contents then turned out
+to justify it. That is the argument for a rule that fires on a category rather
+than on a judgement.
+
 ## What was measured
 
 * Duplicate check for `docs/prompt-ledger/entries/0159-*`: swept every
@@ -107,6 +175,11 @@ rather than a property of "these containers".
   `origin/claude/inspiring-planck-gp601z`. It is not in the range; the `0200`
   stop condition did not fire.
 * `node tools/deploy-probe.mjs` -> exit 1, `DEPLOY_PROBE_URL is not set`.
+* CI, paired: `43a71b2d` all four outcomes `success`; `87ba98a3`
+  `test: failure` with 2 files / 7 tests of 7604 red, the rest `success`.
+* `0201`'s function revoke clause names `public` alone; `0198`'s and `0199`'s
+  name `public, anon, authenticated`. `0201` contains zero table-level
+  revokes.
 
 ## What is explicitly NOT verified
 
@@ -124,6 +197,13 @@ rather than a property of "these containers".
   as a gate on anything here.
 * **The deploy stamp was never read**, because nothing was deployed and the
   host is blocked from here regardless.
+* **The grant hole was measured in CI's fixture, not on production.** No
+  session here reaches the production database, so what is established is that
+  `0201` AS WRITTEN leaves the inherited privileges in place on a database with
+  this project's default privileges -- which the fixture carries deliberately.
+  Whether production's catalog agrees was not and could not be read from here.
+* **No local test run.** `npm test` and `svelte-check` were not run in this
+  container; the suite figures above are CI's.
 
 ## Deferred
 
