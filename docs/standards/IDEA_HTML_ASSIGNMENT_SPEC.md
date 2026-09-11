@@ -526,10 +526,11 @@ opaque, the popup is not, so they are cross-origin. It CAN navigate the popup
 Neither adds anything: it could have opened that URL directly.
 
 **A POPUP AT THE PORTAL'S OWN ORIGIN IS AN ORDINARY PORTAL PAGE, AND THAT IS NOT A
-CAPABILITY THE DOCUMENT GAINS.** Opened at `ideabosco.com`, the popup is same-origin with
-the portal tab and can walk `opener.parent` into it -- measured, it read the parent page's
-title. That is OUR page reading OUR page. The document cannot script it (every read above
-is refused across the opaque boundary) and cannot inject anything into it.
+CAPABILITY THE DOCUMENT GAINS.** Opened at the portal's own origin (measured against the
+dev portal origin, not against production), the popup is same-origin with the portal tab
+and can walk `opener.parent` into it -- measured, it read the parent page's title. That is
+OUR page reading OUR page. The document cannot script it (every read above is refused
+across the opaque boundary) and cannot inject anything into it.
 
 **WHAT IT COSTS, STATED PLAINLY RATHER THAN REASSURINGLY.** An uploaded document can now
 open a normal, unsandboxed tab at any URL it chooses. **That is a stronger phishing surface
