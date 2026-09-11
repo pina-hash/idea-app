@@ -10,7 +10,7 @@
   README, `docs/prompt-ledger/entries/0148-*`, and its own `docs/history/`
   entry.
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0198
-- Status: issued
+- Status: pushed
 - Branch: `claude/lucid-mccarthy-88p4bl`, branched from `origin/integration` at
   `7be051f6`.
 - Notes:
