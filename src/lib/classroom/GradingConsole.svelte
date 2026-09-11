@@ -65,6 +65,18 @@
 		type PostGradeChange
 	} from '$lib/classroom/grading-export';
 	import { buildXlsx } from '$lib/xlsx';
+	import { CLASSROOM_LIVE_DEBOUNCE_MS, classroomLivePausedLine } from '$lib/classroom/hall-pass';
+	import {
+		GRADING_POLL_MS,
+		type ClassroomLive,
+		type ClassroomLiveStatus
+	} from '$lib/classroom/live';
+	import {
+		assignmentLockState,
+		ASSIGNMENT_CLOSE_ORDER_NOTE,
+		ASSIGNMENT_LOCK_CHIP,
+		type AssignmentLockState
+	} from '$lib/classroom/html-assignment/lock';
 
 	/**
 	 * The grading console for one assignment in one section: the roster with
@@ -91,7 +103,9 @@
 		transports,
 		basePath = '/classroom',
 		bulk = null,
-		htmlWork = null
+		htmlWork = null,
+		live = null,
+		close = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -145,7 +159,51 @@
 		 * placeholder saying what the grader is not being shown.
 		 */
 		htmlWork?: Snippet<[StudentWork]> | null;
+		/**
+		 * LIVE NOTICES, AND THE POLL UNDERNEATH THEM IS NOT OPTIONAL WITH IT.
+		 *
+		 * Before this the only way to see newer work was to reload the page.
+		 * Handed a bus, the console re-runs its own `load()` when somebody
+		 * announces `responses` for this section -- a notice that CARRIES NO
+		 * PAYLOAD, so what arrives is exactly what a poll would have said. See
+		 * `live.ts`'s header for why `classroom_responses` gets the same
+		 * treatment as the two shut tables even though its grants differ.
+		 *
+		 * OMITTED, THE POLL STILL RUNS. That is the opposite of the usual
+		 * absence-is-the-mechanism rule here and it is deliberate: the poll is
+		 * the FLOOR, and a console that stopped refreshing because nobody handed
+		 * it a socket would be worse than the reload it replaces, not better.
+		 */
+		live?: ClassroomLive | null;
+		/**
+		 * CLOSING THE ASSIGNMENT, AND ABSENCE REMOVES THE CONTROL.
+		 *
+		 * `0198`'s `classroom_close_assignment`, for one student or for the whole
+		 * item. A surface that does not hand this down renders no close control
+		 * at all, so there is no write to execute -- which is what keeps the dev
+		 * harness and any read-only mount structurally unable to shut a class out
+		 * of its own work.
+		 */
+		close?: CloseAssignmentTransport | null;
 	} = $props();
+
+	/**
+	 * WHAT A CLOSE ANSWERS. The bulk shape every batch RPC in this schema uses,
+	 * so one student's refusal never obscures whether the rest landed.
+	 */
+	interface CloseResult {
+		ok: boolean;
+		reason?: string;
+		total?: number;
+		changed?: number;
+		unchanged?: number;
+		refused?: number;
+	}
+	type CloseAssignmentTransport = (
+		itemId: string,
+		studentEmail: string | null,
+		closed: boolean
+	) => Promise<{ ok: boolean; message?: string; data?: CloseResult }>;
 
 	let data = $state<GradingData | null>(null);
 	let loadError = $state<string | null>(null);
@@ -341,6 +399,67 @@
 		// lesson): the transport writes state synchronously before its first
 		// await in the dev harness.
 		queueMicrotask(() => void load());
+	});
+
+	// -----------------------------------------------------------------------
+	// SEEING NEWER WORK WITHOUT A RELOAD.
+	//
+	// Two mechanisms and the SLOWER ONE IS THE GUARANTEE. The poll is
+	// unconditional and runs whether or not a bus was handed in; the notice just
+	// makes the ordinary case immediate. A write made outside the app -- the SQL
+	// editor, a student on a wedged socket -- announces nothing, which is
+	// exactly what the poll is underneath for.
+	//
+	// A RE-READ, NEVER A PATCH. `load()` is the same function the first render
+	// ran, through the same role-scoped transport, so nothing here can show a
+	// grader a row their own read would not have given them. That is the
+	// ReviewConsole rule and it is why the notice may carry no payload.
+	// -----------------------------------------------------------------------
+	let liveStatus = $state<ClassroomLiveStatus | null>(null);
+
+	$effect(() => {
+		// TRACKED: the bus and the section are what a new subscription is FOR.
+		const bus = live;
+		const sectionId = section.id;
+		if (!bus) {
+			liveStatus = null;
+			return;
+		}
+		let debounce: ReturnType<typeof setTimeout> | null = null;
+		// UNTRACKED: `subscribe` is caller-supplied code, and everything it
+		// touches reactively before it returns would otherwise join this effect's
+		// dependency set. The memory bus in the harness appends to a `$state`
+		// array, which is a non-terminating loop written exactly this way.
+		const unsubscribe = untrack(() =>
+			bus.subscribe(
+				sectionId,
+				(topic) => {
+					if (topic !== 'responses') return;
+					// A burst of saves from one student is several notices inside a
+					// second and one answer; the debounce folds them into one read.
+					if (debounce) clearTimeout(debounce);
+					debounce = setTimeout(() => {
+						debounce = null;
+						void load();
+					}, CLASSROOM_LIVE_DEBOUNCE_MS);
+				},
+				(status) => {
+					liveStatus = status;
+				}
+			)
+		);
+		return () => {
+			if (debounce) clearTimeout(debounce);
+			unsubscribe();
+		};
+	});
+
+	$effect(() => {
+		// THE FLOOR, and it depends on nothing: no bus, no section, no status.
+		// An interval that re-ran whenever the channel changed state would stop
+		// being a floor at exactly the moment the channel is unreliable.
+		const timer = setInterval(() => void load(), GRADING_POLL_MS);
+		return () => clearInterval(timer);
 	});
 
 	// -----------------------------------------------------------------------
@@ -553,7 +672,14 @@
 	 */
 	function handedIn(s: StudentWork): boolean {
 		const state = s.submission?.state ?? null;
-		return state === 'submitted' || state === 'returned';
+		// A CLOSE IS NOT A HAND-IN, AND 0198 IS WHY THIS SENTENCE GREW A CLAUSE.
+		// `state === 'submitted'` used to be enough because only a student could
+		// produce it. An instructor's close produces it too now, and counting one
+		// as handed-in work would put the unfinished-work mark against every
+		// student on the roster the moment an assignment was closed -- including
+		// the ones who never opened it, which is the case the mark exists to make
+		// findable.
+		return state === 'returned' || lockOf(s) === 'turned-in';
 	}
 
 	/** How many spec checks this student's handed-in work leaves unmet. 0 = none. */
@@ -577,12 +703,30 @@
 		});
 	}
 
+	/**
+	 * THE LOCK STATE OF ONE ROW, through the ONE predicate. `submitted` means two
+	 * different things and the console must not print one word for both: a
+	 * student handed their work in, or an instructor closed the assignment on
+	 * them. See `lock.ts` for why `submitted_at` is what tells them apart.
+	 */
+	function lockOf(s: StudentWork): AssignmentLockState {
+		return assignmentLockState(s.submission);
+	}
+
 	function statusChip(s: StudentWork): { label: string; cls: string } {
 		const state = s.submission?.state ?? null;
 		if (state === 'returned') {
 			return { label: `Returned · ${s.submission?.score ?? '—'}/${outOf}`, cls: 'returned' };
 		}
-		if (state === 'submitted') return { label: 'Submitted', cls: 'submitted' };
+		if (state === 'submitted') {
+			// TWO WORDS FOR TWO FACTS. Printing "Submitted" over a row the
+			// instructor closed would tell them a student handed something in when
+			// what actually happened is that they shut the assignment.
+			const lock = lockOf(s);
+			return lock === 'closed'
+				? { label: ASSIGNMENT_LOCK_CHIP.closed, cls: 'closed' }
+				: { label: ASSIGNMENT_LOCK_CHIP['turned-in'], cls: 'submitted' };
+		}
 		if (s.responses.length || s.files.length) return { label: 'In progress', cls: 'progress' };
 		return { label: 'Not submitted', cls: 'none' };
 	}
@@ -645,8 +789,14 @@
 						: 'The grade was refused.';
 				return { ok: false, retryable: false, message: gradeError };
 			}
+			// RETURNING RE-OPENS THE WORK, AND THE SENTENCE SAYS SO.
+			// 0086 defines `returned` as graded and released, EDITABLE AGAIN, and
+			// that is the half of this that keeps a grade from locking a student
+			// out of their own work. It also means a release undoes a close on
+			// that student, which a teacher cannot be expected to infer from two
+			// features -- so the acknowledgement says it where the act happened.
 			gradeNotice = release
-				? `Returned to ${selected.displayName} -- they can see the score and comment now.`
+				? `Returned to ${selected.displayName} -- they can see the score and comment now, and can keep working on it.`
 				: 'Draft saved. Nothing is released until you return it.';
 			// WHAT IS ON SCREEN IS NOW WHAT IS STORED, so it is the new baseline:
 			// switching students after a save must not ask about work that landed.
@@ -658,6 +808,68 @@
 			// `{ok:false}` otherwise left every control on the console disabled,
 			// with a filled-in rubric and no way to save it but a reload.
 			busy = false;
+		}
+	}
+
+	// -----------------------------------------------------------------------
+	// CLOSING THE ASSIGNMENT (0198).
+	//
+	// The act is "no more work lands on this item", which is the end of a unit.
+	// It is PER ITEM: a unit-wide close is a later bundle, and this control must
+	// not grow to imply one.
+	//
+	// TWO STEPS, because it changes what a whole class can do and the mistake is
+	// one press. Arm, then confirm, in the pattern the delete controls on this
+	// surface already use -- and the confirm NAMES THE COUNT, from the roster in
+	// front of the grader rather than from anything the server reported.
+	// -----------------------------------------------------------------------
+	let armedClose = $state<null | { closed: boolean }>(null);
+	let closeBusy = $state(false);
+	let closeNotice = $state<string | null>(null);
+	let closeError = $state<string | null>(null);
+
+	/** How many rows on screen the instructor has closed. Live off `data`, so a
+	    poll or a notice moves it without anything here remembering a total. */
+	const closedCount = $derived(students.filter((s) => lockOf(s) === 'closed').length);
+	const openCount = $derived(students.filter((s) => lockOf(s) === 'open').length);
+
+	async function runClose(closed: boolean): Promise<void> {
+		if (!close) return;
+		closeBusy = true;
+		closeError = null;
+		closeNotice = null;
+		try {
+			const res = await close(item.id, null, closed);
+			if (!res.ok) {
+				closeError = res.message ?? 'That did not go through. Try again.';
+				return;
+			}
+			const body = res.data;
+			if (body && body.ok === false) {
+				closeError =
+					body.reason === 'not_enrolled'
+						? 'Nobody is enrolled on this assignment yet.'
+						: 'The close was refused.';
+				return;
+			}
+			// THE REFUSED COUNT IS REPORTED RATHER THAN SWALLOWED. On a co-posted
+			// item the roster legitimately carries students of a section this
+			// caller does not manage, and a close that silently skipped them would
+			// leave a class half open with nothing on screen saying so.
+			const changed = body?.changed ?? 0;
+			const refused = body?.refused ?? 0;
+			const verb = closed ? 'Closed' : 'Reopened';
+			closeNotice =
+				`${verb} for ${changed} student${changed === 1 ? '' : 's'}.` +
+				(refused
+					? ` ${refused} ${refused === 1 ? 'is' : 'are'} in a class you do not manage and ${refused === 1 ? 'was' : 'were'} left open.`
+					: '');
+			await load();
+		} finally {
+			// IN A `finally`, the same reason `grade` clears `busy` there: a
+			// transport that throws rather than resolving otherwise leaves the
+			// control disabled with no way back but a reload.
+			closeBusy = false;
 		}
 	}
 
@@ -1226,6 +1438,101 @@
 						Export CSV
 					</button>
 				</div>
+				{#if close}
+					<!--
+						CLOSING THE ASSIGNMENT (0198), IN THE ROSTER RATHER THAN BESIDE
+						ONE STUDENT'S RUBRIC.
+
+						It acts on the whole item, so it belongs where the whole item is
+						on screen. Put next to the rubric it would read as something
+						done to the student who happens to be open.
+
+						IT SAYS THE ORDER, ALWAYS, NOT ONLY WHEN ARMED. Returning a
+						grade writes `returned`, which is editable again by 0086's own
+						definition -- so releasing a grade re-opens that student and
+						undoes the close for them. Both halves are Mr. Pina's decisions
+						of 2026-09-10 and they meet on exactly this cell; a teacher
+						cannot be expected to infer it from two features.
+					-->
+					<div class="close-tool" data-testid="close-tool">
+						<p class="close-label">
+							Closing this assignment
+							<span class="close-counts" data-testid="close-counts">
+								{openCount} open · {closedCount} closed
+							</span>
+						</p>
+						<p class="close-order">{ASSIGNMENT_CLOSE_ORDER_NOTE}</p>
+						{#if armedClose}
+							<!-- THE CONFIRM NAMES THE REAL COUNT, off the roster on screen. -->
+							<p class="close-confirm" data-testid="close-confirm">
+								{armedClose.closed
+									? `Close this assignment for ${openCount} student${openCount === 1 ? '' : 's'}? They will not be able to save any more work on it.`
+									: `Reopen this assignment for ${closedCount} student${closedCount === 1 ? '' : 's'}? Anyone who turned their own work in stays as they are.`}
+							</p>
+							<span class="close-actions">
+								<button
+									type="button"
+									class="btn tiny"
+									disabled={closeBusy}
+									data-testid="close-confirm-go"
+									onclick={() => {
+										const closed = armedClose?.closed ?? true;
+										armedClose = null;
+										void runClose(closed);
+									}}
+								>
+									{armedClose.closed ? 'Close it' : 'Reopen it'}
+								</button>
+								<button
+									type="button"
+									class="btn secondary tiny"
+									disabled={closeBusy}
+									onclick={() => (armedClose = null)}
+								>
+									Cancel
+								</button>
+							</span>
+						{:else}
+							<span class="close-actions">
+								<button
+									type="button"
+									class="btn secondary tiny"
+									disabled={closeBusy || openCount === 0}
+									data-testid="close-arm"
+									onclick={() => (armedClose = { closed: true })}
+								>
+									Close assignment
+								</button>
+								{#if closedCount > 0}
+									<!-- OFFERED ONLY WHEN THERE IS SOMETHING TO REOPEN, so the
+									     control is never one whose only outcome is nothing
+									     happening. -->
+									<button
+										type="button"
+										class="btn secondary tiny"
+										disabled={closeBusy}
+										data-testid="close-reopen"
+										onclick={() => (armedClose = { closed: false })}
+									>
+										Reopen
+									</button>
+								{/if}
+							</span>
+						{/if}
+						{#if closeBusy}<Pending label="Closing" />{/if}
+						{#if closeError}<p class="feedback error">{closeError}</p>{/if}
+						{#if closeNotice}<p class="feedback ok" data-testid="close-notice">{closeNotice}</p>{/if}
+					</div>
+				{/if}
+				{#if liveStatus === 'stalled'}
+					<!-- THE ONE QUIET SENTENCE A STALLED CHANNEL EARNS, in the same
+					     words the hall pass and the song queue use, naming the poll so
+					     "paused" does not read as "broken". Nothing is said for
+					     `connecting` (every page starts there) or `live`. -->
+					<p class="live-note" data-testid="grading-live-note">
+						{classroomLivePausedLine(GRADING_POLL_MS)}
+					</p>
+				{/if}
 				<!--
 					THE GRADED-WORK EXPORTS, BESIDE THE CSV RATHER THAN INSTEAD OF IT.
 					The CSV is a gradebook import and is four columns wide on purpose;
@@ -2654,6 +2961,66 @@
 	.roster-chip.progress {
 		color: var(--teal);
 		border-color: var(--teal);
+	}
+	/* CLOSED IS NOT SUBMITTED AND MUST NOT LOOK LIKE IT. --cyan is this file's
+	   "the student handed it in"; a close is an act of the instructor's, so it
+	   takes --violet through --violet-ink, which is the corrected value the
+	   register keeps for a word painted in violet (the raw accent measures 2.88
+	   / 2.45 / 2.30 as text on the three portal grounds -- unreadable, not a
+	   near miss). The WORD is what carries the meaning either way. */
+	.roster-chip.closed {
+		color: var(--violet-ink);
+		border-color: var(--violet-ink);
+	}
+	.close-tool {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2, 0.5rem);
+		margin-bottom: var(--space-3, 0.75rem);
+		padding: var(--space-2, 0.5rem);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-sm, 4px);
+		background: var(--surface-2);
+	}
+	.close-label {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		align-items: baseline;
+		justify-content: space-between;
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.close-counts {
+		font-size: 0.7rem;
+		text-transform: none;
+		letter-spacing: 0;
+		color: var(--text-2);
+	}
+	.close-order,
+	.close-confirm {
+		margin: 0;
+		font-size: 0.8125rem;
+		line-height: 1.45;
+		color: var(--text-2);
+	}
+	.close-confirm {
+		color: var(--text-1);
+	}
+	.close-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2, 0.5rem);
+	}
+	.live-note {
+		margin: 0 0 var(--space-2, 0.5rem);
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2);
 	}
 	/* --gold, and the two tokens it is NOT are the argument.
 

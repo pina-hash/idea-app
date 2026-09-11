@@ -48,6 +48,11 @@
 		type HxDropReason,
 		type HxVerdict
 	} from './bridge.ts';
+	import {
+		assignmentLockState,
+		ASSIGNMENT_LOCK_NOTICE,
+		type AssignmentLockState
+	} from './lock.ts';
 
 	let {
 		/** The document's URL on the sandbox origin: `<sandbox origin>/hx/<docId>`. */
@@ -75,6 +80,22 @@
 		 */
 		images = {},
 		readOnly = false,
+		/**
+		 * WHY THE WORKSHEET IS SHUT, WHEN IT IS, AND IT IS TOLD BEFORE THE
+		 * STUDENT TYPES RATHER THAN AFTER.
+		 *
+		 * `readOnly` alone is a document that quietly stops taking input, which a
+		 * student reads as the page being broken and reports as a bug. This is
+		 * the sentence beside it, from `assignmentLockState` -- the one predicate
+		 * over the stored row that the database's own guard mirrors -- so the
+		 * frame never decides for itself what a locked assignment is.
+		 *
+		 * `null` IS THE ORDINARY CASE and renders nothing. The notice is not a
+		 * status bar that says "open" when it is open: a permanent line saying
+		 * everything is fine is a line people stop reading, which costs the one
+		 * time it says something else.
+		 */
+		lock = null,
 		/** The last save acknowledgement to hand down, or null for none yet. A
 		    failed one carries WHY: a document can show a student a sentence and
 		    cannot ask a follow-up question. */
@@ -102,6 +123,7 @@
 		values?: Record<string, string | boolean>;
 		images?: Record<string, HxImageState>;
 		readOnly?: boolean;
+		lock?: AssignmentLockState | null;
 		saved?: { at: string; ok: boolean; reason?: string | null } | null;
 		minHeight?: number;
 		onready?: (schemaVersion: number) => void;
@@ -115,6 +137,25 @@
 
 	let frame = $state<HTMLIFrameElement | null>(null);
 	let ready = $state(false);
+
+	/**
+	 * THE DOCUMENT IS SHUT IF EITHER SAYS SO, AND THAT IS BELT AND BRACES ON
+	 * PURPOSE RATHER THAN A SECOND RULE.
+	 *
+	 * Absence is still the mechanism: a surface that must not write hands down
+	 * no `onchange`, and there is then no write to execute whatever this says.
+	 * What `readOnly` adds is that the DOCUMENT stops accepting keystrokes, so a
+	 * student is not typing into a box that will never save -- and a locked
+	 * assignment is exactly that case. Folding the lock in here means a caller
+	 * cannot pass `lock` and forget `readOnly` and leave a worksheet that takes
+	 * typing and drops it.
+	 */
+	const shut = $derived(readOnly || lock === 'closed' || lock === 'turned-in');
+
+	/** The sentence, or null when there is nothing to say. */
+	const lockNotice = $derived(
+		lock && lock !== 'open' ? ASSIGNMENT_LOCK_NOTICE[lock] : null
+	);
 
 	/**
 	 * THE HEIGHT IS DERIVED, NOT SEEDED, AND THAT IS NOT ONLY ABOUT A WARNING.
@@ -159,7 +200,7 @@
 				// The document is listening now, so the state it should open on goes
 				// down immediately. Sent BEFORE the callback could change anything, so
 				// a document always receives a state message and never has to ask.
-				postState(values, images, readOnly);
+				postState(values, images, shut);
 				break;
 			case 'change':
 				onchange?.({ blockId: message.blockId, field: message.field, value: message.value });
@@ -281,9 +322,9 @@
 	    that has not said `idea:ready` has no listener yet, so a send would go
 	    nowhere and the `ready` branch above covers the first one. */
 	$effect(() => {
-		const snapshot = { values, images, readOnly, ready };
+		const snapshot = { values, images, shut, ready };
 		if (!snapshot.ready) return;
-		postState(snapshot.values, snapshot.images, snapshot.readOnly);
+		postState(snapshot.values, snapshot.images, snapshot.shut);
 	});
 
 	$effect(() => {
@@ -333,6 +374,19 @@
 </script>
 
 <div class="hx-frame-wrap" data-hx-ready={ready ? 'yes' : 'no'} data-hx-listening={listening ? 'yes' : 'no'}>
+	<!--
+		ABOVE THE DOCUMENT, NOT BELOW IT. A student scrolling a worksheet reads
+		downward from the top, and a sentence explaining why nothing is saving
+		belongs before the thing that is not saving rather than after it.
+
+		`role="status"` AND NOT AN ALERT. It is a standing fact about the
+		assignment, present from the first frame, not an event that just
+		happened -- an assertive live region would interrupt a reader on every
+		render for something that is not urgent.
+	-->
+	{#if lockNotice}
+		<p class="hx-lock" role="status" data-hx-lock={lock}>{lockNotice}</p>
+	{/if}
 	<!--
 		`referrerpolicy="no-referrer"`: the request for a document carries no record
 		of which page of ours the viewer came from. It is a cross-site request
@@ -411,6 +465,24 @@
 </div>
 
 <style>
+	/*
+		A NOTICE, NOT A WARNING. Nothing has gone wrong -- an instructor closed an
+		assignment at the end of a unit, which is the feature working -- so it
+		takes the room's own boundary and secondary ink rather than `--amber` or
+		`--crimson`, which mean warning and error and would tell a student their
+		work is in trouble.
+	*/
+	.hx-lock {
+		margin: 0 0 var(--space-2, 0.5rem);
+		padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-sm, 4px);
+		background: var(--surface-2);
+		color: var(--text-2);
+		font-size: 0.9375rem;
+		line-height: 1.45;
+	}
+
 	.hx-frame-wrap {
 		display: flex;
 		flex-direction: column;
