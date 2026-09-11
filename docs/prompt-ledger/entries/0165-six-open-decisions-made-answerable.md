@@ -5,7 +5,7 @@
 - Owns: `docs/decisions/entries/20-*`, `22-*`, `23-*`, `24-*`, `25-*`, `26-*`,
   `docs/prompt-ledger/entries/0165-*`, and its own `docs/history/` entry
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0198
-- Status: issued
+- Status: pushed
 - Branch: `claude/awesome-cannon-83mfjf`, branched from `origin/integration` at `7c45d30c`
 - Notes: THIS BUNDLE DECIDES NOTHING. Six decision entries are open because they cannot be
   read in a sitting: each is rewritten to carry, in order, the question in one sentence,
