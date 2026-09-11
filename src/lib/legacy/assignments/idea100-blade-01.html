@@ -1359,7 +1359,7 @@ function loadData(data){
     });
   });
   if (data._images && Array.isArray(data._images)){
-    data._images.forEach(i => { images.push(i); renderImageItem(i.dataUrl, i.name, i.caption || ''); });
+    data._images.forEach(i => { images.push(i); renderImageItem(i); });
   }
   updateImageCount();
   updateScoreAndDots();
@@ -1530,22 +1530,33 @@ function updateImageCount(){
   updateScoreAndDots();
 }
 
-function renderImageItem(dataUrl, name, caption){
+/*
+   THE ROW HOLDS THE IMAGE OBJECT ITSELF, NEVER A SEARCH BY dataUrl (D2).
+   Both handlers found their row again with images.findIndex(i => i.dataUrl
+   === dataUrl), which is the SAME string for two copies of one picture -- so
+   a student who uploaded the same file twice edited or removed the FIRST one
+   whichever row they clicked. Measured before this fix: a caption typed on
+   the second of two identical rows landed on images[0], and deleting the
+   second row removed images[0] as well. Module 04 is worth 10 of 50 points
+   and is graded on the captions, so this is a grading-accuracy defect rather
+   than a cosmetic one. Closing over the object is exact and is also less
+   code.
+*/
+function renderImageItem(imgObj){
   const preview = document.getElementById('sketch-preview');
   const wrapper = document.createElement('div');
   wrapper.className = 'preview-item';
   const img = document.createElement('img');
-  img.src = dataUrl;
-  img.onclick = () => openLightbox(dataUrl);
+  img.src = imgObj.dataUrl;
+  img.onclick = () => openLightbox(imgObj.dataUrl);
   const cap = document.createElement('input');
   cap.type = 'text';
   cap.className = 'preview-caption';
   cap.placeholder = 'Caption (e.g. Top View)';
-  cap.value = caption || '';
+  cap.value = imgObj.caption || '';
   cap.onclick = e => e.stopPropagation();
   cap.oninput = () => {
-    const idx = images.findIndex(i => i.dataUrl === dataUrl);
-    if (idx !== -1) images[idx].caption = cap.value;
+    imgObj.caption = cap.value;
     saveToStorage();
   };
   const btn = document.createElement('button');
@@ -1553,7 +1564,7 @@ function renderImageItem(dataUrl, name, caption){
   btn.textContent = '\u00D7';
   btn.onclick = e => {
     e.stopPropagation();
-    const idx = images.findIndex(i => i.dataUrl === dataUrl);
+    const idx = images.indexOf(imgObj);
     if (idx !== -1) images.splice(idx, 1);
     wrapper.remove();
     updateImageCount();
@@ -1607,21 +1618,33 @@ function downscaleDataUrl(dataUrl){
   });
 }
 
-function addImageFiles(files){
-  Array.from(files).forEach(file => {
-    if (!file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = e => {
-      downscaleDataUrl(e.target.result).then(dataUrl => {
-        const imgObj = {name: file.name, caption: '', dataUrl: dataUrl};
-        images.push(imgObj);
-        renderImageItem(imgObj.dataUrl, imgObj.name, '');
-        updateImageCount();
-        saveToStorage();
-      });
-    };
-    reader.readAsDataURL(file);
-  });
+/*
+   ONE FILE AT A TIME, IN THE ORDER THEY WERE PICKED (D3).
+   This started a FileReader per file and pushed from each callback, so the
+   order the pictures ended up in was the order they happened to finish
+   DECODING, not the order they were chosen. Measured on two PNGs picked in
+   one multi-select as "top, side": they came back side-first, and the student
+   who then captions the rows top-to-bottom has labelled both pictures wrong
+   -- in the stored data and in the exported file they hand in. Awaiting each
+   file costs nothing a person can feel and makes the order the one they
+   chose.
+*/
+async function addImageFiles(files){
+  for (const file of Array.from(files)){
+    if (!file.type.startsWith('image/')) continue;
+    const raw = await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    });
+    if (!raw) continue;
+    const imgObj = {name: file.name, caption: '', dataUrl: await downscaleDataUrl(raw)};
+    images.push(imgObj);
+    renderImageItem(imgObj);
+    updateImageCount();
+    saveToStorage();
+  }
 }
 
 /* -------- LIGHTBOX -------- */
