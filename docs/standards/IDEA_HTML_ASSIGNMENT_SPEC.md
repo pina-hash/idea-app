@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.0 - 2026-09-10**
+**Version 1.1 - 2026-09-11**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -271,21 +271,36 @@ corrupt a ROW: ids, uniqueness, the level rules and the arithmetic.
 
 ## 5. The security boundary
 
-**`allow-scripts` WITHOUT `allow-same-origin` IS THE WHOLE MODEL.** Everything else in
-this section is defence in depth around that one pair.
+**SCRIPTS WITHOUT `allow-same-origin` IS THE WHOLE MODEL.** Everything else in this
+section is defence in depth around that one absence.
 
-An `<iframe sandbox="allow-scripts">` with no `allow-same-origin` puts the document in a
-unique OPAQUE ORIGIN. It has no parent DOM, no cookies, no credentialed fetch, and none
-of `ideabosco.com`'s `localStorage`. It therefore cannot write to the database and cannot
+The flag set is `HX_SANDBOX_FLAGS`:
+
+```
+allow-scripts allow-popups allow-popups-to-escape-sandbox
+```
+
+An `<iframe>` sandboxed without `allow-same-origin` puts the document in a unique OPAQUE
+ORIGIN. It has no parent DOM, no cookies, no credentialed fetch, and none of
+`ideabosco.com`'s `localStorage`. It therefore cannot write to the database and cannot
 learn anything about the session. Everything it wants to record it says in a
 `postMessage`, and the PARENT decides what -- if anything -- that means.
+
+**THE TWO POPUP FLAGS ARE A DELIBERATE WIDENING, AND SECTION 5.6 STATES WHAT THEY COST.**
+They do not touch the absence above; they let the document open a link in a new tab, which
+without them it cannot do at all.
+
+**TWO FLAGS ARE REFUSED IN EVERY CONFIGURATION**, because neither is about what a document
+may do to ITSELF: `allow-top-navigation` (a redirect out of the worksheet, in the tab the
+student is working in) and `allow-forms` (a form inside the document submitting somewhere,
+which `form-action 'none'` refuses a second way).
 
 **THE PAIR CANCELS THE SANDBOX OUTRIGHT.** A document that is same-origin with its parent
 can reach `parent.document`, strip the `sandbox` attribute off its own `<iframe>` element
 and reload with full rights. Measured in the container's Chromium against the real route
-(ledger 0126): under `allow-scripts` alone, `parent.document`, `document.cookie` and
-`localStorage` each throw `SecurityError`; add `allow-same-origin` and all three succeed,
-with `localStorage` handing back a value the PARENT wrote.
+(ledger 0126, re-run in full by ledger 0153): under this set, `parent.document`,
+`document.cookie` and `localStorage` each throw `SecurityError`; add `allow-same-origin`
+and all three succeed, with `localStorage` handing back a value the PARENT wrote.
 
 **`HX_SANDBOX_FLAGS` in `bridge.ts` IS THE ONE SPELLING.** `HtmlAssignmentFrame.svelte`
 writes it into the element and `hxDocumentCsp` writes it into the header. A second literal
@@ -313,7 +328,7 @@ body -- it is NOT the `hooks.server.ts` host branch that cost Foundry two lanes.
 `hxDocumentCsp(portalOrigin)` in `src/routes/hx/_headers.ts`:
 
 ```
-sandbox allow-scripts;
+sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox;
 default-src 'none';
 script-src 'unsafe-inline';
 style-src 'unsafe-inline';
@@ -323,7 +338,10 @@ form-action 'none';
 frame-ancestors <portal origin>
 ```
 
-- **`sandbox`** -- section 5.3.
+- **`sandbox`** -- sections 5.3 (why the directive exists) and 5.6 (the popup flags).
+  **A popup is a NEW browsing context with its own policy**, so nothing else in this list
+  is weakened by them: `connect-src`, `form-action` and `frame-ancestors` still govern
+  THIS document exactly as they did.
 - **`script-src` / `style-src` `'unsafe-inline'`** -- a ported document is one file with
   its script and its style inline. **No host is admitted on either**, deliberately: there
   is no CDN reach here, and that is the difference between this and a Foundry bundle.
@@ -367,6 +385,32 @@ is `"null"`, `document.cookie` and `localStorage` throw `SecurityError`, and a c
 token back; open `connect-src` with the sandbox intact and the fetch still refuses; drop
 both and it answers 200.
 
+**RE-RUN IN FULL BY LEDGER 0153 AGAINST THE WIDENED FLAG SET, because the widening changes
+the thing 0134 proved.** Same instrument, same planted cookie
+(`hx_proof_sentinel=PARENT-SECRET-0153` on the serving origin, read back from an ordinary
+page on that origin first, so the control is known live). Both halves, because the two
+mechanisms are different and each is meaningless where the other applies:
+
+| probe | (A) direct navigation | (B) framed |
+| --- | --- | --- |
+| `window.origin` | `"null"` | `"null"` |
+| `document.cookie` | REFUSED `SecurityError` | REFUSED `SecurityError` |
+| `localStorage` | REFUSED `SecurityError` | REFUSED `SecurityError` |
+| `window.parent.document` | n/a, parent is self | REFUSED `SecurityError` |
+| `window.top.location` | n/a, top is self | REFUSED `SecurityError` |
+| credentialed `fetch` | REFUSED `TypeError` | REFUSED `TypeError` |
+
+0 of 5 reached in either half, and `location.href` was asserted unchanged afterwards so
+the refusals are the document's and not an error page's.
+
+**ONE INSTRUMENT NOTE, BECAUSE IT COST A WRONG READING FIRST TIME.** The direct-navigation
+half must NOT use the hostile `/hx/probe` fixture. On a direct hit `window.top` IS the
+document's own window, so the probe's `window.top.location = 'https://example.com/'` line
+NAVIGATES THE PAGE AWAY, and every reading taken afterwards is taken on a
+`chrome-error://chromewebdata/` page -- which reports `document.cookie` as refused for
+entirely the wrong reason and reports `parent.document` as REACHED. Use an ordinary
+document and assert `location.href`.
+
 **`PUBLIC_HX_SANDBOX_ORIGIN` IS DEFENCE IN DEPTH NOW, NOT A PREREQUISITE**, and remains
 the stronger deployment: a second host's cookies are not merely unreadable, they are not
 there.
@@ -374,8 +418,8 @@ there.
 **FOUNDRY'S CONDITIONAL `allow-same-origin` GRANT DOES NOT TRANSFER HERE.** Foundry grants
 the flag when the bundle origin and the portal origin differ, which its own host gate
 guarantees. This route has no such guarantee -- with the sandbox origin unset it answers
-on the portal host itself -- so the strict set is the only correct answer and the
-condition Foundry can assert is one this route cannot.
+on the portal host itself -- so withholding it unconditionally is the only correct answer
+and the condition Foundry can assert is one this route cannot.
 
 ### 5.4 `frame-ancestors` is resolved, not written out
 
@@ -423,6 +467,83 @@ item's document.** The frame renders empty and reads as a broken upload. The ans
 that has to close is a second read on the PORTAL origin that gates on who is asking, not
 a looser gate here -- a flag on `hxStoredDocument` would put one boolean between every
 unpublished document and the open internet.
+
+---
+
+### 5.6 The popup flags: what they buy, what they cost, and what was measured
+
+**DECIDED BY MR. PINA ON 2026-09-11, SHIPPED BY LEDGER 0153.** The set gained
+`allow-popups allow-popups-to-escape-sandbox`. This is a WIDENING of the boundary the rest
+of this section describes, and it is recorded as one rather than as housekeeping.
+
+**WHAT IT BUYS.** Without the flags a ported document cannot open a link in a new tab at
+all: `window.open` returns `null` and a `target="_blank"` anchor does nothing. IDEA100
+Blade CAD 01 ships an Open slides button, which is inert without them and works the moment
+they land.
+
+**BOTH FLAGS ARE REQUIRED, AND THE SECOND IS NOT POLISH. MEASURED, NOT ASSUMED.** A popup
+opened under `allow-popups` alone INHERITS this sandbox:
+
+| flags on the frame | `window.open` returns | popup `window.origin` | popup `document.cookie` | popup `localStorage` |
+| --- | --- | --- | --- | --- |
+| `allow-scripts` (pre-0153) | `null` -- blocked | no popup | no popup | no popup |
+| `+ allow-popups` | a `Window` | `"null"` (opaque) | REFUSED `SecurityError` | REFUSED `SecurityError` |
+| `+ allow-popups-to-escape-sandbox` | a `Window` | the URL's real origin | the popup origin's own | the popup origin's own |
+
+Google Slides cannot run in an opaque origin with no storage, so `allow-popups` alone
+would leave the Open slides button opening a blank tab -- which reads as a broken link
+rather than as a policy. **A later edit that trims the second flag as redundant reverts the
+feature to that.**
+
+**WHAT THE POPUP CAN ACTUALLY DO.** Measured in the container's Chromium (141.0.7390.37)
+by ledger 0153, from a REAL TRUSTED CLICK inside the framed document -- a
+`page.evaluate(() => window.open())` is refused by the popup blocker for lack of a user
+gesture and would read as the sandbox refusing it. The popup was opened at an origin
+GENUINELY FOREIGN to the portal, which is what a hostile document would do
+(`localhost:5199` and `127.0.0.1:5199` are the same server at different origins, which is
+the shape needed without leaving the container):
+
+| from the popup | result |
+| --- | --- |
+| `window.origin` | its own real origin -- a normal browsing context, not opaque |
+| `window.opener` | present, a cross-origin `Window` proxy to the sandboxed frame |
+| `opener.document` | REFUSED `SecurityError` |
+| `opener.parent.document` | REFUSED `SecurityError` |
+| `opener.top.document` | REFUSED `SecurityError` |
+| `opener.location` read / write | REFUSED `SecurityError` |
+| `opener.top.location` read / write | REFUSED `SecurityError` |
+| `opener.postMessage` | does not throw; the bridge drops it (`hxReceive` requires `event.source` to be the frame's own `contentWindow`) |
+
+**And confirmed from OUTSIDE the popup rather than on its own say-so:** after both write
+attempts the parent tab was still at its own URL and the document frame was still at
+`/hx/worksheet`. **So the widening did NOT buy top navigation by proxy** -- the flag the
+frame is denied is not reachable through a window it opens.
+
+**WHAT THE DOCUMENT CAN DO TO ITS OWN POPUP**, the other direction: `popup.document`,
+`popup.location` (read) and `popup.origin` are all REFUSED `SecurityError` -- the frame is
+opaque, the popup is not, so they are cross-origin. It CAN navigate the popup
+(`popup.location.href = ...` took effect, measured from outside) and `postMessage` to it.
+Neither adds anything: it could have opened that URL directly.
+
+**A POPUP AT THE PORTAL'S OWN ORIGIN IS AN ORDINARY PORTAL PAGE, AND THAT IS NOT A
+CAPABILITY THE DOCUMENT GAINS.** Opened at `ideabosco.com`, the popup is same-origin with
+the portal tab and can walk `opener.parent` into it -- measured, it read the parent page's
+title. That is OUR page reading OUR page. The document cannot script it (every read above
+is refused across the opaque boundary) and cannot inject anything into it.
+
+**WHAT IT COSTS, STATED PLAINLY RATHER THAN REASSURINGLY.** An uploaded document can now
+open a normal, unsandboxed tab at any URL it chooses. **That is a stronger phishing surface
+than the same fake form drawn inline in the worksheet**, because the new tab carries a real
+address bar and a real lock icon, which a reader has been taught to believe. A document
+that draws a Google sign-in box inside the frame is obviously inside a worksheet; one that
+opens a convincing page in its own tab is not.
+
+**THE MITIGATION ON RECORD IS THAT IMPORT IS ADMIN-ONLY**, a first-season decision. There
+is no content scan, no URL allowlist and no interstitial: the person who uploads a document
+is trusted, and that trust is the whole of the control. If documents are ever accepted from
+a wider set of authors than admins, **this is the decision that has to be revisited first**,
+and the narrower answer is to drop `allow-popups-to-escape-sandbox` (accepting that slide
+links stop working) rather than to add a scanner.
 
 ---
 
@@ -1118,6 +1239,28 @@ Both variables are documented in `.env.example`.
 
 ## Changelog
 
+- **1.1 (2026-09-11).** Records ledger 0153's widening of the security boundary and the
+  measurements behind it. The sandbox set gained `allow-popups
+  allow-popups-to-escape-sandbox` (Mr. Pina's decision of 2026-09-11), so a ported document
+  can open a link in a new tab -- without them IDEA100 Blade CAD 01's Open slides button is
+  inert. **Section 5.6 is new** and states what the widening costs rather than reassuring
+  about it: an uploaded document can now open a normal unsandboxed tab at any URL, which is
+  a stronger phishing surface than the same form drawn inline because the tab carries a real
+  address bar, and the mitigation on record is that import is admin-only. It also carries
+  the measured popup table -- `allow-popups` ALONE opens a tab that inherits the sandbox at
+  an opaque origin where Slides cannot run, so both flags are required; and a popup cannot
+  read the opener, the opener's parent or the opener's top, and cannot navigate either of
+  them, confirmed from outside the popup rather than on its own say-so, so the widening did
+  not buy top navigation by proxy. **Section 5.3 gains 0134's proof re-run in full** against
+  the new set, by direct navigation and framed, with a planted cookie as the positive
+  control: 0 of 5 reached in both halves and `window.origin` still `"null"`. That
+  sub-section also now records an instrument trap that cost a wrong reading -- the hostile
+  `/hx/probe` fixture must not be used for the direct-navigation half, because on a direct
+  hit `window.top` is the document's own window and the probe navigates the page away, so
+  every later reading is taken on a browser error page. Sections 5, 5.2 and 5.3 are updated
+  for the new flag string; two flags (`allow-top-navigation`, `allow-forms`) are now named
+  as refused in every configuration. No manifest, bridge, validation or storage rule
+  changed.
 - **1.0 (2026-09-10).** First mirrored specification, written from the tree at
   `origin/integration` `b2581959` after ledgers 0126, 0127, 0128, 0129 and 0134 had shipped
   the subsystem and migrations 0195 and 0196 had been applied.

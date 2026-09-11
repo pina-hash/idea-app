@@ -1,7 +1,8 @@
 /**
  * THE PARENT SIDE OF THE HTML-ASSIGNMENT BRIDGE, AS PURE FUNCTIONS.
  *
- * A ported HTML assignment runs inside an `<iframe sandbox="allow-scripts">`,
+ * A ported HTML assignment runs inside an `<iframe>` sandboxed WITHOUT
+ * `allow-same-origin` (see `HX_SANDBOX_FLAGS` for the exact set),
  * which puts it in a unique OPAQUE ORIGIN: no parent DOM, no cookies, no
  * credentialed fetch, none of `ideabosco.com`'s `localStorage`. The document
  * therefore cannot write to the database and cannot learn anything about the
@@ -50,21 +51,58 @@ export const HX_SCHEMA_VERSION = 3;
 /**
  * THE FLAGS THE FRAME IS GIVEN, WRITTEN DOWN ONCE.
  *
- * `allow-scripts` ALONE. `allow-same-origin` must never join it: the pair
- * cancels the sandbox outright, because a document that is same-origin with its
- * parent can reach `parent.document`, strip the `sandbox` attribute off its own
- * `<iframe>` element and reload with full rights. Measured in this container's
- * Chromium against the real serving route (see the negative controls in
- * `tests/html-assignment-bridge-sandbox.test.ts` and the browser-verify route):
- * under `allow-scripts` alone, `parent.document`, `document.cookie` and
- * `localStorage` each throw `SecurityError`; add `allow-same-origin` and all
- * three succeed, with `localStorage` handing back a value the PARENT wrote.
+ * `allow-same-origin` MUST NEVER JOIN THIS LIST, IN ANY CONFIGURATION. The pair
+ * with `allow-scripts` cancels the sandbox outright, because a document that is
+ * same-origin with its parent can reach `parent.document`, strip the `sandbox`
+ * attribute off its own `<iframe>` element and reload with full rights.
+ * Measured in this container's Chromium against the real serving route: under
+ * this set, `parent.document`, `document.cookie` and `localStorage` each throw
+ * `SecurityError`; add `allow-same-origin` and all three succeed, with
+ * `localStorage` handing back a value the PARENT wrote. Foundry grants that flag
+ * conditionally because its bundles answer on a host that is by construction not
+ * the portal; this route has no such guarantee -- with `PUBLIC_HX_SANDBOX_ORIGIN`
+ * unset it answers on the portal host itself -- so the condition Foundry can
+ * assert is one this route cannot.
+ *
+ * THE TWO POPUP FLAGS ARE A DELIBERATE WIDENING OF THE BOUNDARY, decided by
+ * Mr. Pina on 2026-09-11, and they are not housekeeping. Without them a document
+ * cannot open a link in a new tab at all: IDEA100 Blade CAD 01 ships an Open
+ * slides button, and under `allow-scripts` alone `window.open` returns null and
+ * a `target="_blank"` anchor does nothing.
+ *
+ *   allow-popups                       the document may open a new browsing
+ *                                      context at all.
+ *   allow-popups-to-escape-sandbox     the opened context is NOT sandboxed.
+ *
+ * BOTH ARE REQUIRED AND THE SECOND IS NOT OPTIONAL POLISH. A popup opened under
+ * `allow-popups` alone INHERITS this sandbox, so it lands in an opaque origin
+ * with no cookies and no storage -- and Google Slides, which is the thing the
+ * button opens, cannot run there. Measured rather than assumed: see the popup
+ * table in `docs/standards/IDEA_HTML_ASSIGNMENT_SPEC.md`.
+ *
+ * WHAT THE WIDENING COSTS, STATED PLAINLY. An uploaded document can now open a
+ * normal, unsandboxed tab at any URL it likes. That is a STRONGER phishing
+ * surface than the same fake form drawn inline in the worksheet, because the new
+ * tab carries a real address bar a reader will believe. It buys nothing else:
+ * the popup is a separate browsing context at its own origin and cannot read
+ * this document, the parent, or the session -- measured, and written down in the
+ * standard. The mitigation on record is that import is admin-only.
+ *
+ * TWO FLAGS STAY REFUSED, because neither is about what a document may do to
+ * ITSELF: `allow-top-navigation` (a redirect out of a student's worksheet onto
+ * anywhere, in the tab they are working in) and `allow-forms` (a form inside the
+ * document submitting somewhere, which `form-action 'none'` refuses a second way).
  *
  * It is a constant rather than a prop for the same reason the Foundry frame's
  * flags are a function rather than a literal in the component: one string, read
  * by everything that needs to agree about it, so a second spelling cannot drift.
+ * BOTH READERS ARE HERE: `HtmlAssignmentFrame` writes it into the `<iframe>`
+ * attribute and `hxDocumentCsp` writes it into the served document's CSP
+ * `sandbox` directive, so a framed document and a directly navigated one cannot
+ * drift apart. Changing this string changes both.
  */
-export const HX_SANDBOX_FLAGS = 'allow-scripts';
+export const HX_SANDBOX_FLAGS =
+	'allow-scripts allow-popups allow-popups-to-escape-sandbox';
 
 /**
  * THE HANDSHAKE'S OWN NAME, WRITTEN DOWN ONCE.

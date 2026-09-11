@@ -101,7 +101,7 @@ export default {
 			expected: [
 				/* If a change ever adds `allow-same-origin`, this reddens on the
 				   ordinary document too, not only on the probe. */
-				'sandbox=allow-scripts',
+				'sandbox=allow-scripts allow-popups allow-popups-to-escape-sandbox',
 				/* `"null"`: an opaque origin serializes to that string through
 				   postMessage, which is what the parent compares against. */
 				'expectedOrigin=null',
