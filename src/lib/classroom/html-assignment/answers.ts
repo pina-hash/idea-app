@@ -207,6 +207,19 @@ export const HX_REFUSALS = {
 	fallback: 'That change was not saved. It is still on screen; try again.'
 } as const;
 
+/**
+ * WHAT A NAVIGATION COSTS WHEN THE FLUSH COULD NOT LAND, in the student's own
+ * terms. No table name, no block id, no mention of a debounce: the only thing
+ * worth saying is which work is at stake and that leaving now ends it.
+ *
+ * ONE STRING, because the navigation guard reads it in three places -- the
+ * handle's `fallbackMessage`, the guard's `warning` and its `alsoUnsaved` --
+ * and three spellings of one sentence is how a student is told two different
+ * things about one move.
+ */
+export const HX_UNSAVED_WARNING =
+	'Some of your answers on this worksheet are not saved yet. Leaving now loses them.';
+
 // ---------------------------------------------------------------------------
 // THE VALUE CODEC. Two types on the wire, one closed union in the column.
 // ---------------------------------------------------------------------------
@@ -337,6 +350,35 @@ export function hxImagesFromFiles(
 		};
 	}
 	return images;
+}
+
+/**
+ * BOTH HALVES OF `idea:state` FROM ONE STUDENT'S STORED ROWS, for a surface
+ * that renders a worksheet it will not write to.
+ *
+ * The student's own item page needs the THIRD projection as well
+ * (`hxFileIdsByField`, so a remove or a caption edit names a row) and builds a
+ * controller around all three; a READ-ONLY mount has no writes to name a row
+ * for, so it needs exactly these two. This exists so the grading console does
+ * not call them as a pair written out at its own call site -- the pair is the
+ * seed, and a surface that called only one of them would render a student's
+ * answers with their photographs missing and look entirely correct.
+ *
+ * A MANIFEST THIS CANNOT MAP IS `null` AND THE SEED IS EMPTY, which renders the
+ * untouched document. That is the honest answer: with no field map there is
+ * nothing a stored row could be keyed back to, and a guessed mapping would show
+ * a grader one student's answer under another student's question.
+ */
+export function hxFrameSeed(
+	manifest: HtmlAssignmentManifest | null,
+	responses: readonly HxResponseRow[],
+	files: readonly SubmissionFileRow[]
+): { values: Record<string, string | boolean>; images: Record<string, HxImageState> } {
+	if (!manifest) return { values: {}, images: {} };
+	return {
+		values: hxValuesFromResponses(manifest, responses),
+		images: hxImagesFromFiles(manifest, files)
+	};
 }
 
 /** The file id currently standing for one field, so a remove or a caption edit
@@ -502,6 +544,23 @@ export interface HxAnswersOptions {
 	onimages?: (images: Record<string, HxImageState>) => void;
 	/** Every settled write, success or failure. What goes down as `idea:saved`. */
 	onsaved?: (ack: HxSavedAck) => void;
+	/**
+	 * WORK IS NOW OWED. Called the moment a change arms a block's debounce, so a
+	 * surface holding a NAVIGATION GUARD can arm its own handle.
+	 *
+	 * IT EXISTS BECAUSE `SaveState.saveNow()` RETURNS EARLY ON A CLEAN MACHINE.
+	 * `guardSaveNavigation` takes one `SaveState` and this controller has one per
+	 * block, so the item page gives the guard an `autosave: false` handle whose
+	 * `save()` calls `flush()` -- and a handle nothing ever marks dirty is a
+	 * handle whose `saveNow()` no-ops, which would leave the guard cancelling the
+	 * navigation, flushing NOTHING, finding the work still outstanding and asking
+	 * a question instead. That is both halves of the defect the guard exists to
+	 * prevent: the loss, and a confirm people learn to click through.
+	 *
+	 * `dirty` CANNOT SERVE INSTEAD. It is a question asked at a moment -- the
+	 * machines are not runes -- so nothing downstream can observe it CHANGING.
+	 */
+	ondirty?: () => void;
 }
 
 /**
@@ -515,6 +574,15 @@ export class HxAnswers {
 	readonly #opts: HxAnswersOptions;
 	readonly #fieldToBlock: Map<string, string>;
 	readonly #machines = new Map<string, SaveState>();
+	/**
+	 * The durability net's teardowns, one per ATTACHED machine, and the flag that
+	 * says a machine made from now on should be attached as it is made. Both are
+	 * needed and neither is redundant: the machines are built LAZILY on first
+	 * write, so a net wired once over whatever existed at mount would cover
+	 * exactly the blocks nobody had typed in yet.
+	 */
+	readonly #detach = new Map<string, () => void>();
+	#attached = false;
 	#values: Record<string, string | boolean>;
 	#images: Record<string, HxImageState>;
 	#fileIds: Map<string, string>;
@@ -600,6 +668,7 @@ export class HxAnswers {
 		this.#values = { ...this.#values, [message.field]: message.value };
 		this.#opts.onvalues?.(this.#values);
 		this.#machine(message.blockId, message.field).markDirty();
+		this.#opts.ondirty?.();
 	}
 
 	/**
@@ -692,6 +761,51 @@ export class HxAnswers {
 	}
 
 	/**
+	 * THE DURABILITY NET, AND IT COVERS MACHINES THIS CONTROLLER HAS NOT MADE
+	 * YET.
+	 *
+	 * `SaveState.attach()` wires visibilitychange and pagehide so a tab closed
+	 * inside the 800ms debounce still writes; every other save surface in this
+	 * codebase calls it from an `$effect` (`AssignmentEngine`, `ContentComposer`,
+	 * `GradingConsole`, `InstructorCopy`, `SpecTextEditor`, and the maps and
+	 * notebook surfaces). THIS CONTROLLER NEVER DID, measured: zero `.attach()`
+	 * calls in this file, no `attach` on its own surface, so nothing outside it
+	 * could reach the machines either. Closing the tab mid-debounce lost the last
+	 * keystroke burst on a ported worksheet and on no other surface in the app.
+	 *
+	 * WHY IT IS NOT ONE PAIR OF LISTENERS OVER `flush()`. That is the shape this
+	 * wanted to be and it would be a SECOND implementation of the net -- a second
+	 * idea of which events count and of what "still owed" means, sitting beside
+	 * the one in `save-state.svelte.ts` and free to stop agreeing with it. Each
+	 * machine gets the real net instead, and the only thing added here is
+	 * bookkeeping over WHICH machines have one.
+	 *
+	 * THE LAZY HALF IS THE WHOLE DIFFICULTY. `#machine` builds on first write, so
+	 * `attach()` cannot be a loop over `#machines` and be done: the interesting
+	 * block is the one the student is about to type in. `#attached` is therefore
+	 * read by `#machine`, which wires a new machine as it makes it.
+	 *
+	 * THE RETURNED TEARDOWN IS `destroy()`'s SHAPE, so a surface hands it
+	 * straight back from an `$effect`. `SaveState.attach()`'s own teardown
+	 * destroys the machine it attached, which is why this one clears the map
+	 * afterwards rather than destroying a second time.
+	 */
+	attach(): () => void {
+		this.#attached = true;
+		for (const [blockId, machine] of this.#machines) {
+			if (!this.#detach.has(blockId)) this.#detach.set(blockId, machine.attach());
+		}
+		return () => {
+			this.#attached = false;
+			for (const off of this.#detach.values()) off();
+			this.#detach.clear();
+			// Everything the teardowns above did not reach: a machine made while
+			// this controller was never attached at all still owns a timer.
+			this.destroy();
+		};
+	}
+
+	/**
 	 * Write everything still owed, now, and wait for it to settle. What a
 	 * navigation guard flushes and what Submit calls before it asks the server:
 	 * the correct answer to "you have unsaved work" is "then save it".
@@ -705,6 +819,12 @@ export class HxAnswers {
 	destroy(): void {
 		for (const machine of this.#machines.values()) machine.destroy();
 		this.#machines.clear();
+		// The listeners go with the machines. Leaving a teardown behind for a
+		// machine that no longer exists is a listener held on a destroyed object
+		// for the life of the document.
+		for (const off of this.#detach.values()) off();
+		this.#detach.clear();
+		this.#attached = false;
 	}
 
 	#dropImage(field: string): void {
@@ -759,6 +879,11 @@ export class HxAnswers {
 		if (this.#opts.wait) options.wait = this.#opts.wait;
 		const made = new SaveState(options);
 		this.#machines.set(blockId, made);
+		// THE NET GOES ON AT BIRTH WHEN THE SURFACE IS ATTACHED. A machine made
+		// after `attach()` ran is the ordinary case, not the edge one: these are
+		// built on FIRST WRITE, so every machine that has ever held unsaved work
+		// was made after the mount that attached the controller.
+		if (this.#attached) this.#detach.set(blockId, made.attach());
 		return made;
 	}
 

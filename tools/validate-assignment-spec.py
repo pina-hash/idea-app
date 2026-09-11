@@ -50,6 +50,12 @@ BRITISH = (r"\b(centre[sd]?|colour[s]?|behaviour[s]?|organis\w+|"
 HTML_ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 HTML_BLOCK_TYPES = ("text", "longText", "checkbox", "radio", "image", "table")
 MANIFEST_SCRIPT_ID = "idea-manifest"
+
+# THE HANDSHAKE A WORKSHEET CANNOT OMIT. Mirrors HX_READY_TYPE in
+# src/lib/classroom/html-assignment/bridge.ts, which is where the parent's own
+# gate reads it; tests/html-assignment-manifest-parity.test.ts holds the two to
+# each other.
+READY_TYPE = "idea:ready"
 # Statements a spec would never make and a ported document reaches for, from
 # the sandbox's own costs. `localStorage` THROWS in an opaque origin.
 SANDBOX_TRAPS = (
@@ -299,6 +305,33 @@ def document_fields(html):
     return out
 
 
+JS_BLOCK_COMMENT_RE = re.compile(r"/\*[\s\S]*?\*/")
+JS_LINE_COMMENT_RE = re.compile(r"//[^\n]*")
+
+
+def document_scripts(html):
+    """Every <script> body except the manifest block, with JS comments out.
+
+    The exact complement of _inert_stripped, which removes scripts so that a
+    data-field written as a STRING is not counted as an input. This keeps the
+    other half.
+
+    THE COMMENTS COME OUT BECAUSE THE CALLER IS A REFUSAL. A document whose only
+    mention of the handshake is `// TODO: send idea:ready` cannot talk to the
+    classroom, and a scan over raw bytes would wave it through -- which is not
+    hypothetical, since the file most likely to carry that comment is the
+    TEMPLATE the refusal exists to catch."""
+    bodies = []
+    for m in SCRIPT_RE.finditer(html or ""):
+        attrs = m.group(1)
+        if ((_attr(attrs, "type") or "").lower() == "application/json"
+                and (_attr(attrs, "id") or "") == MANIFEST_SCRIPT_ID):
+            continue
+        bodies.append(m.group(2))
+    joined = "\n".join(bodies)
+    return JS_LINE_COMMENT_RE.sub(" ", JS_BLOCK_COMMENT_RE.sub(" ", joined))
+
+
 def document_text(html):
     return re.sub(r"\s+", " ", TAG_RE.sub(" ", _inert_stripped(html))).strip()
 
@@ -456,6 +489,32 @@ def check_manifest(manifest, name, html=None):
         if undeclared:
             E(f"document has [data-field] attributes the manifest does not "
               f"declare: {undeclared}. A student's answer there is dropped.")
+        # THE HANDSHAKE IS WHAT MAKES A DOCUMENT A WORKSHEET, and its absence
+        # was accepted in silence by both validators. Every check above reads
+        # the manifest and the markup and none reads a line of the document's
+        # JavaScript, so a document with a perfect manifest, perfect data-field
+        # correspondence and NO BRIDGE CODE AT ALL passed -- and importing it
+        # would produce a worksheet that takes typing and stores nothing.
+        # Measured on src/lib/legacy/assignments/_TEMPLATE.html, which is
+        # exactly that document and which passed.
+        #
+        # A REFUSAL, NOT A WARNING: a parent that never receives the handshake
+        # never posts idea:state, so the document is never seeded and every
+        # answer it might report arrives before anything is listening.
+        #
+        # IT ASKS FOR THE HANDSHAKE AND NOT FOR idea:change: a read-only
+        # document is a legitimate shape that sends one and never the other.
+        if READY_TYPE not in document_scripts(html):
+            E(f"document never sends {READY_TYPE}. Without that handshake the "
+              f"page around it never seeds the document and never records an "
+              f"answer, so everything a student types is lost. Post "
+              f'{{"type":"{READY_TYPE}","schemaVersion":3}} to '
+              f"the parent once the document has loaded.")
+        # THE TRAP SCAN READS THE RAW BYTES AND THE TYPESCRIPT ONE READS
+        # document_scripts. That difference is deliberate rather than drift:
+        # these are WARNINGS, where a mention in prose costs a sentence, and
+        # this scan predates the split. The REFUSAL above is script-scoped on
+        # both sides because a refusal a comment can satisfy is not a refusal.
         for trap, why in SANDBOX_TRAPS:
             if trap in html:
                 W(f"document reaches for {trap}: {why}")
@@ -465,7 +524,19 @@ def check_manifest(manifest, name, html=None):
         # `mfg-06-p`) names a field no manifest can declare, so the parent can
         # only drop it silently. The undeclared-field refusal above catches the
         # ones present in the markup; this catches the generator.
-        if re.search(r"""(setAttribute\(\s*['"]data-field|data-field\s*=\s*[`'"][^`'"]*\$\{)""", html):
+        # THE SECOND ALTERNATIVE REQUIRES LEADING WHITESPACE, and that one
+        # character is the whole difference between a MINT and a LOOKUP. It
+        # used to read `data-field\s*=\s*[`'"][^`'"]*\$\{` with nothing in
+        # front, which matched
+        # `querySelector(`[data-field="${f}"]`)` -- a CSS attribute selector
+        # reading a field that already exists -- and refused every ported
+        # document that has one, including the Blade fixture this tool is run
+        # against. A minted attribute is written into MARKUP, so it follows the
+        # whitespace after a tag name (`<input data-field="${id}">`); a
+        # selector follows `[`. The leading `\s` is also exactly what
+        # DATA_FIELD_RE above requires, so the two checks now agree about what
+        # an attribute looks like instead of disagreeing by one character.
+        if re.search(r"""(setAttribute\(\s*['"]data-field|\sdata-field\s*=\s*[`'"][^`'"]*\$\{)""", html):
             E("document builds a data-field at runtime. A table is ONE block "
               "whose value is a JSON string of rows; a minted per-cell field "
               "names nothing in the manifest and a student's answer there is "

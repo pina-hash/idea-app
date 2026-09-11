@@ -14,6 +14,7 @@ import {
 	withHtmlAssignmentVersion,
 	type HtmlAssignmentData
 } from '$lib/classroom/html-assignment/mount';
+import { loadHtmlAssignment } from '$lib/classroom/html-assignment/load';
 import { validateReferenceSpec, type ReferenceSpec } from '$lib/classroom/reference-spec';
 import type { PageServerLoad } from './$types';
 
@@ -138,48 +139,12 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	 * document into the portal origin's own HTML, which is the one thing the
 	 * split exists to prevent, and double the transfer on the way.
 	 */
-	let htmlAssignment: HtmlAssignmentData | null = null;
-	let htmlAssignmentReady = false;
-	if (item.kind === 'assignment') {
-		const versionRes = await supabase
-			.from('classroom_items')
-			.select('assignment_schema_version')
-			.eq('id', item.id)
-			.maybeSingle();
-		if (!versionRes.error) {
-			item = withHtmlAssignmentVersion(
-				item,
-				(versionRes.data as { assignment_schema_version?: unknown } | null)
-					?.assignment_schema_version
-			);
-			if (!isHtmlAssignment(item)) {
-				// The probe answered, and the answer is that this is a v1 spec
-				// assignment. Knowing that IS the capability.
-				htmlAssignmentReady = true;
-			} else {
-				const docRes = await supabase
-					.from('classroom_html_assignments')
-					.select('document_id, manifest, filename, updated_at')
-					.eq('item_id', item.id)
-					.maybeSingle();
-				const row = docRes.data as {
-					document_id?: unknown;
-					manifest?: unknown;
-					filename?: unknown;
-					updated_at?: unknown;
-				} | null;
-				if (!docRes.error && row && typeof row.document_id === 'string') {
-					htmlAssignment = {
-						documentId: row.document_id,
-						manifest: row.manifest ?? null,
-						filename: typeof row.filename === 'string' ? row.filename : '',
-						updatedAt: typeof row.updated_at === 'string' ? row.updated_at : null
-					};
-					htmlAssignmentReady = true;
-				}
-			}
-		}
-	}
+	// `loadHtmlAssignment` IS THE ONE LADDER and the grading console's load calls
+	// the same function. The comment above says why the probe and the document
+	// read are two rungs; the module says why they are not written out twice.
+	const hx = await loadHtmlAssignment(supabase, item, item.kind);
+	const { htmlAssignment, htmlAssignmentReady } = hx;
+	item = hx.item;
 
 	let engine: Awaited<ReturnType<typeof loadStudentEngineData>> = null;
 	let instructorCopy: Awaited<ReturnType<typeof loadInstructorCopy>> = null;

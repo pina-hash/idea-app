@@ -2,6 +2,7 @@ import { error, redirect } from '@sveltejs/kit';
 import { normalizeItemRow, normalizeSectionRow } from '$lib/classroom/classroom';
 import { SECTION_SELECT, selectItemsWithDoc } from '$lib/classroom/transports';
 import type { AssignmentSpec, RubricCriterion } from '$lib/classroom/assignment-spec';
+import { loadHtmlAssignment } from '$lib/classroom/html-assignment/load';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -39,10 +40,39 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		supabase.from('classroom_rubrics').select('criteria').eq('item_id', item.id).maybeSingle()
 	]);
 
+	/**
+	 * WHETHER THIS IS A PORTED DOCUMENT, AND WHICH ONE -- THE SAME LADDER THE
+	 * STUDENT'S ITEM PAGE RUNS, through the same function.
+	 *
+	 * WITHOUT IT THIS CONSOLE COULD NOT GRADE A SCHEMA-3 ASSIGNMENT AT ALL.
+	 * `classroom_assignment_specs` has no row for a ported item, so `spec` came
+	 * back null, and with no spec and no document the work column fell through
+	 * every branch it has: the roster read "In progress", the rubric rendered,
+	 * and the pane where the student's answers belong was EMPTY. Measured in
+	 * production at `89b8154` on 2026-09-10.
+	 *
+	 * IT IS NOT A SECOND COPY OF THE LADDER, deliberately -- see
+	 * `loadHtmlAssignment`'s own header. The probe's failure mode is a `ready`
+	 * flag that has to start false, and two spellings of that are two answers.
+	 *
+	 * THE CONSOLE STILL GETS `spec` UNCONDITIONALLY. A schema-3 item may carry a
+	 * leftover spec row from before its conversion, and `GradingConsole` already
+	 * branches spec-first for the WORK COLUMN; what decides which engine renders
+	 * is the same thing every other surface reads, and this load's job is only
+	 * to make the document available for it to read.
+	 */
+	const { htmlAssignment, htmlAssignmentReady } = await loadHtmlAssignment(
+		supabase,
+		item,
+		item.kind
+	);
+
 	return {
 		section: normalizeSectionRow(sectionRow as Record<string, unknown>),
 		item,
 		spec: (specRes.data?.spec as AssignmentSpec | undefined) ?? null,
-		rubric: (rubricRes.data?.criteria as RubricCriterion[] | undefined) ?? null
+		rubric: (rubricRes.data?.criteria as RubricCriterion[] | undefined) ?? null,
+		htmlAssignment,
+		htmlAssignmentReady
 	};
 };

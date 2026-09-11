@@ -20,8 +20,10 @@
 	import HtmlAssignmentFrame from '$lib/classroom/html-assignment/HtmlAssignmentFrame.svelte';
 	import {
 		htmlAssignmentMount,
+		htmlAssignmentServed,
 		htmlAssignmentSrc,
 		htmlFieldToBlockId,
+		HTML_ASSIGNMENT_NOT_LIVE,
 		HTML_ASSIGNMENT_UNAVAILABLE,
 		type HtmlAssignmentAnswers,
 		type HtmlAssignmentData
@@ -272,6 +274,13 @@
 	 * frame writing to an arbitrary row.
 	 */
 	const htmlFields = $derived(htmlFieldToBlockId(htmlAssignment?.manifest ?? null));
+
+	/**
+	 * WHETHER `/hx/` WILL ANSWER FOR THIS ITEM. Always true for a student, who
+	 * cannot reach a non-live item in the first place; the branch exists for the
+	 * manager reading their own unpublished draft.
+	 */
+	const htmlServed = $derived(htmlAssignmentServed(item));
 
 	/**
 	 * THE WRITE CALLBACKS, WRAPPED RATHER THAN PASSED THROUGH.
@@ -1549,6 +1558,19 @@
 			-->
 			<section class="engine-host">
 				<h2 class="section-label">{htmlAnswers ? 'Your work' : 'Assignment'}</h2>
+				{#if !htmlServed}
+					<!--
+						THE FRAME WOULD 404, AND ONLY A MANAGER CAN BE HERE TO SEE IT.
+						`/hx/<docId>` refuses a document whose item is unpublished or
+						scheduled, with a bodyless 404 by design; a student cannot open a
+						non-live item at all, so the only reader who ever meets that
+						refusal is the person deciding whether to publish -- and what
+						they got was an empty box with nothing to explain it. The gate is
+						not loosened: the frame is simply not mounted where it is known
+						it would answer nothing.
+					-->
+					<p class="note">{HTML_ASSIGNMENT_NOT_LIVE}</p>
+				{:else}
 				<HtmlAssignmentFrame
 					src={htmlSrc}
 					title={itemTitle(item)}
@@ -1562,6 +1584,7 @@
 					onimageremove={htmlWrites?.onimageremove}
 					onimagecaption={htmlWrites?.onimagecaption}
 				/>
+				{/if}
 			</section>
 		{:else if htmlMount === 'unavailable'}
 			<!-- THE THIRD ANSWER. This item IS a ported document and there is

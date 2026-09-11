@@ -197,6 +197,35 @@
 	const gateModule = $derived(spec?.approvalGate?.afterModule ?? null);
 
 	/**
+	 * THE WORK COLUMN IS A WHOLE DOCUMENT, NOT A FORM, AND THAT CHANGES THE
+	 * ARRANGEMENT RATHER THAN A NUMBER.
+	 *
+	 * With a spec, the work column and the rubric sit SIDE BY SIDE: a spec
+	 * render is short fields and reads fine in half the row. A ported HTML
+	 * assignment's work column is a page, and it does not fit -- MEASURED, in
+	 * the real console at two viewport widths: `main.cr-console` caps itself at
+	 * 960px (nav.ts's `console` measure), so the roster takes 320 and the work
+	 * split gets 562 AT 1440 AND AT 1920 ALIKE. Split `1.05fr : 1fr` that is
+	 * 280px of document, at every width there will ever be, with the worksheet's
+	 * own headings wrapping over three lines inside it.
+	 *
+	 * SO THE WIDE ARRANGEMENT NEVER HAS ROOM, and the answer is to drop it here
+	 * rather than lower a ratio into two columns too narrow to read. Withholding
+	 * `has-rubric` is the whole change: `.work-split` is already a flex COLUMN
+	 * without it and `:not(.has-rubric)` already carries the app frame's
+	 * single-scroller rules, so the document takes the full 562 and the rubric
+	 * stacks under it down a path that was measured before this existed. A
+	 * modifier class would have been a second arrangement to keep in step with
+	 * the first.
+	 *
+	 * IT ASKS THE SAME CONDITION THE RENDER BRANCH ASKS (`!spec && htmlWork`),
+	 * read off the same two values, because a layout that disagreed with the
+	 * branch it is laying out is how the rubric ends up beside a pane that is
+	 * not there.
+	 */
+	const documentWork = $derived(!spec && !!htmlWork);
+
+	/**
 	 * DID THIS WORK CHANGE AFTER IT WAS GRADED. Derived per student through the
 	 * ONE implementation in grading-export.ts, which the export also reads, so a
 	 * chip on screen and a cell in a spreadsheet cannot disagree about the same
@@ -1608,7 +1637,7 @@
 						being scored. Below ~900px this collapses to one stacked column
 						(the .console.split breakpoint's own convention).
 					-->
-					<div class="work-split" class:has-rubric={!!rubric?.length}>
+					<div class="work-split" class:has-rubric={!!rubric?.length && !documentWork}>
 						<!--
 							THE ONE SCROLL REGION WITH NOTHING FOCUSABLE IN IT. Above the
 							breakpoint this column scrolls on its own, and its content is a

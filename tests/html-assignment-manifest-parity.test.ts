@@ -16,6 +16,14 @@
 // throws, neither type-checks, and the only symptom is an author being told two
 // different things about one file.
 //
+// WHAT THIS FILE DOES **NOT** CLAIM: that the two sides SCAN the same text.
+// The opaque-origin trap warnings read `documentScripts` in TypeScript and the
+// raw bytes in python, which is a deliberate difference rather than drift --
+// those are WARNINGS, where a mention in prose costs a sentence, and the python
+// scan predates the split. The handshake REFUSAL is script-scoped on both
+// sides, and the test below pins that, because a refusal a comment can satisfy
+// is not a refusal.
+//
 // IT READS THE PYTHON SOURCE AS TEXT, deliberately: the point is to compare the
 // SHIPPED lists, not two copies of a fixture. A positive control sits under each
 // comparison, because a regex that stopped matching the file would otherwise
@@ -29,10 +37,12 @@ import {
 	HTML_BLOCK_TYPES,
 	HTML_ID_RE,
 	HTML_MANIFEST_SCRIPT_ID,
+	HX_SANDBOX_TRAPS,
 	HTML_SHORT_MAX_WORDS,
 	WEEKDAYS
 } from '../src/lib/classroom/html-assignment/manifest';
 import { MIN_LEVELS, MAX_LEVELS } from '../src/lib/classroom/assignment-spec';
+import { HX_READY_TYPE } from '../src/lib/classroom/html-assignment/bridge';
 
 const PY = readFileSync(
 	fileURLToPath(new URL('../tools/validate-assignment-spec.py', import.meta.url)),
@@ -115,6 +125,26 @@ describe('the manifest rules that exist in two languages', () => {
 		// The python tool spells the cap inline in its message and its test.
 		expect(PY).toContain('words, maximum 6');
 		expect(PY).toContain('len(sh.split()) > 6');
+	});
+
+	it('asks for the same handshake, by the same name', () => {
+		// A refusal keyed on one spelling of a token the other side calls
+		// something else is a refusal that bites in one language only, and the
+		// author is then told two different things about one file.
+		expect(HX_READY_TYPE).toBe('idea:ready');
+		expect(PY).toContain(`READY_TYPE = "${HX_READY_TYPE}"`);
+		// And the python side scans SCRIPTS for it, not raw bytes -- a refusal a
+		// comment can satisfy is not a refusal.
+		expect(PY).toContain('if READY_TYPE not in document_scripts(html)');
+	});
+
+	it('warns about the same opaque-origin traps, in the same order', () => {
+		const py = pySource('SANDBOX_TRAPS');
+		const names = [...py.matchAll(/\(\s*"([^"]+)"/g)].map((m) => m[1]);
+		// The positive control: a regex that stopped matching the file would
+		// otherwise report an empty list equal to an empty list.
+		expect(names.length, 'the python trap list should not read as empty').toBeGreaterThan(3);
+		expect(names).toEqual(HX_SANDBOX_TRAPS.map((t) => t.name));
 	});
 
 	it('takes the level count from assignment-spec, not from a third number', () => {
