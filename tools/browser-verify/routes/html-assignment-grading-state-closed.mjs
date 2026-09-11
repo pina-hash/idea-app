@@ -43,7 +43,17 @@ export default {
 					'kind=' + (notice?.getAttribute('data-hx-lock') ?? 'absent'),
 					/* RASTERIZED, not DOM order: the claim is what a student sees. */
 					'aboveFrame=' + (nb && fb ? nb.bottom <= fb.top : false),
-					'noticeHeight=' + (nb ? Math.round(nb.height) : 0),
+					/*
+						THE PROPERTY, NOT THE PIXEL. The first draft of this row
+						reported `noticeHeight=<px>` and the harness correctly called it
+						a finding: it is 83px at 375 and 62px at 1440, so no single
+						`expected` value can be right at both widths, and pinning two
+						would be pinning the font metrics of the fallback stack the
+						harness measures in. What is worth asserting is that the notice
+						is not a ZERO BOX -- present in the DOM and invisible on screen
+						is exactly how a sentence nobody reads gets shipped.
+					*/
+					'noticeHasHeight=' + (nb ? nb.height > 0 : false),
 					/* The document is still there -- a closed worksheet is read only,
 					   never removed. Everything the student wrote is still on screen,
 					   which is what the sentence promises. */
@@ -53,7 +63,14 @@ export default {
 					'role=' + (notice?.getAttribute('role') ?? 'absent')
 				];
 			}`,
-			expected: ['notices=1', 'kind=closed', 'aboveFrame=true', 'frames=1', 'role=status']
+			expected: [
+				'notices=1',
+				'kind=closed',
+				'aboveFrame=true',
+				'noticeHasHeight=true',
+				'frames=1',
+				'role=status'
+			]
 		},
 		{
 			label: 'the roster says Closed, not Submitted',
