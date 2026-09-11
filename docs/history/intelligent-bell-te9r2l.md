@@ -232,8 +232,17 @@ column in the shape `classroom_instructor_responses` holds.
   against the baseline's 3220. **The sync is not optional after adding a route**:
   without it this tree reported 2 phantom `Cannot find module './$types'` errors
   in two files the change never touched.
-- **Full suite: 393 files, 7601 tests, all passing.** Baseline on
-  `origin/integration` at branch time was 385 files / 7575 tests.
+- **Full suite: 387 files, 7595 tests, all passing.** Baseline on
+  `origin/integration` at branch time was 385 files / 7575 tests, re-measured
+  here rather than taken from a prompt. The two new files account for both
+  deltas: +2 files, and +25 tests net after the 0154 probe's single `it` was
+  deleted.
+  **It went red once, on `tests/derived-numbers.test.ts`, and that was correct.**
+  A new browser-verify spec makes the README's MEASURED counts region a claim
+  about a set missing a measurement, and that pair is exactly what `npm test`
+  is written to redden on. `npm run verify:counts` said so by name before the
+  suite did. Fixed by the one `npm run verify:readme` pass below, not by editing
+  a number.
 - **`tests/db/html-assignment-instructor-gate.test.ts`: 8 passed.** Read off the
   verbose per-test output rather than the summary, because a `startTestDb` that
   never booted reports the file as passing nothing: 21 spec-path cases printed
@@ -258,7 +267,13 @@ column in the shape `classroom_instructor_responses` holds.
   that document under the real policy, not something the harness introduced, so
   it is named by pattern (which the runner still prints) rather than left to fail
   a threshold about our own page.
+- **`npm run verify:readme`, once, on a clean committed tree: 382 runs, 6682
+  measurements, 0 outside threshold, 1003.2s, measured on `3d01eca`.** The whole
+  harness, not just this lane's route -- which is what that region is a claim
+  about.
 - **`node tools/claude-md-check.mjs`: agrees with the tree.**
+- **`npm run history:verify`: the split is lossless**, 168 entries, byte-identical
+  against the pre-split record.
 
 ## What was NOT verified
 
