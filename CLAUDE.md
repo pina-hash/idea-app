@@ -2366,7 +2366,8 @@ inside the function fails closed rather than falling through to a weaker path.
   the coin desk's logging form) passes `hasDetail` and simply never collapses.
   **The list is then responsible for USING the width** -- a fixed-width column
   centred in the room it was just given is the same defect one level in. ClassView
-  lays its unit groups out in `auto-fit` columns for exactly this.
+  lays its unit groups out in COLUMNS for exactly this (see the column rule
+  below for why they are multi-column and not a grid).
 - **A BREAKPOINT INSIDE A NESTED PANE IS DEAD CODE UNTIL IT IS MEASURED THERE,
   and nothing warns.** A container query whose threshold the container never
   reaches simply never fires: no unused-selector notice, no `svelte-check`
@@ -2380,9 +2381,36 @@ inside the function fails closed rather than falling through to a weaker path.
 - **A column count comes from measuring the content, not from round numbers.**
   Drive the pane across a range and count what actually breaks (ellipsised titles,
   wrapped rows); the column is the width above which the content stops gaining.
-  Prefer `auto-fit` over `auto-fill` so a class with two units gets two columns
-  rather than two and a void, and `minmax(min(<col>, 100%), 1fr)` so the same rule
-  is the single narrow column with no breakpoint of its own.
+  A class with two units must get two columns and not two plus a void where a
+  third would go, and the same rule must be the single narrow column with no
+  breakpoint of its own.
+- **PANELS OF UNEQUAL HEIGHT LAID SIDE BY SIDE GO IN A MULTI-COLUMN CONTAINER,
+  NEVER IN A GRID, AND THIS RULE USED TO SAY THE OPPOSITE.** It prescribed
+  `repeat(auto-fit, minmax(min(<col>, 100%), 1fr))`, which is right for a row of
+  comparable things and wrong for a stack of panels: **a grid ROW is as tall as
+  its tallest member**, so one long panel beside a short one kills the short
+  one's column for the whole height of the long one, and nothing on screen or in
+  any type check reports it. Measured on ClassView's stream at 1196x1304, the
+  width it was reported at: **713.3px of the left column, its full 529px width,
+  dead** between one unit's end and the next card in that column, while an
+  902.5px unit filled the right. Columns have no rows to lock -- each panel is
+  `break-inside: avoid`, they fill down one column and on into the next, and
+  `column-fill: balance` picks the shortest height that holds them -- so the
+  only void left is the ordinary ragged bottom of the last column.
+  - **`column-width`, NEVER `column-count` ALONE:** the count is then the same
+    arithmetic `auto-fit` was doing, so the breakpoints do not move and a pane
+    narrower than one column still gets one.
+  - **BUT THE COUNT IS STILL NEEDED AS A CEILING, because multicol has no
+    `auto-fit`.** `auto-fit` COLLAPSES a track nothing was placed in; multicol
+    cuts every column the width holds and leaves the spare one empty. Two panels
+    at 1440px sat in two 426px columns with 450px of measure dead beside them
+    until `columns: <width> <count>` capped it -- with both set the used count is
+    `min(count, floor((width + gap) / (col + gap)))`, so panels share the whole
+    measure where there is room and still drop to one column in a narrow pane.
+    Cap every count the content can fall short of.
+  - **THE ROW GAP IS A MARGIN ON THE PANEL**, because multicol has no row gap;
+    and the reading order changes from row-major to column-major, which for an
+    ordered list of units is the order they are numbered in.
 - **Opening something must not read as a page change.** Where a selection changes
   the geometry, ease the change (~180ms) rather than snapping the screen.
   `grid-template-columns` interpolates ONLY when both states list the same number
@@ -2898,6 +2926,23 @@ inside the function fails closed rather than falling through to a weaker path.
 - **A pre-save preview shows the CONTENT, at `object-fit: contain`.** A filename says
   nothing about whether the page is in frame, and cropping to fill hides the cut-off
   edge the preview exists to catch.
+- **A POPOVER ANCHORED TO SOMETHING INSIDE A CLIPPING BOX USES
+  `$lib/shell/anchored`, NEVER AN OFFSET MEASURED OFF ITS OWN WRAPPER.** An
+  absolutely-positioned panel is trimmed by any ancestor's `overflow`, and how
+  far past that ancestor it runs is a function of WHERE ITS TRIGGER SITS, not of
+  the viewport -- so a media query can only ever fix the widths somebody thought
+  to look at. `RichTextEditor`'s link popover was the last hand-rolled copy: a
+  `@media (max-width: 30rem)` rule fixed the phone and left it clipped from
+  481px to about 740px, where it opened with its Cancel sliced off inside
+  `.rt-editor`'s `overflow: hidden` (measured: editor right edge 667.0 against
+  panel right edge 693.2 at 700px, and 487.0 against 591.2 at 520px with Add and
+  Cancel both gone). The action writes `position: fixed` plus two coordinates,
+  so the panel escapes the clip entirely and flips and clamps against the
+  viewport; `anchorPosition` beside it is the pure arithmetic, testable with no
+  DOM. The one thing the action cannot do is cap a panel WIDER than the viewport
+  -- clamping keeps its start on screen and lets the far edge run off -- so the
+  panel's own stylesheet keeps a `max-width`, and its absolute rules stay as the
+  fallback that prints and paints before the first placement.
 - **A disclosure is a real `<button>` with `aria-expanded`/`aria-controls`**, never a
   div plus a document-level click listener -- that is mouse-only and invisible to
   assistive tech, and it double-toggles against any control added later.
@@ -3159,6 +3204,32 @@ These have each cost a debugging session. They are not hypothetical.
   is DECLARED**, and inherits that resolved value down. Re-declare every such token
   inside each palette block, or a themed surface silently keeps the base theme's
   colour.
+- **A STICKY ROW OR COLUMN HEADER NEEDS A `z-index` AND A `scroll-padding`, AND
+  MISSING EITHER ONE IS INVISIBLE UNTIL SOMEBODY SCROLLS.** `position: sticky`
+  makes a box POSITIONED, and so does the `position: relative` that any cell
+  carrying an absolutely-placed badge needs -- with `z-index: auto` on both,
+  positioned siblings paint in TREE order, so the cells (later in the row) paint
+  straight over the header that is supposed to slide under them. An opaque
+  `background` does nothing about it: a background only covers what paints
+  BENEATH it. The notebook's compliance grid shipped this, and what it looked
+  like in production was a student's name with a status chip on top of it
+  ("Abundiz, <chip>mma") -- a name being covered is a correctness defect, not a
+  cosmetic one. Measured at 375px scrolled to the end: 28.3% of one name under a
+  chip, and 3 of 13 hit-test points across the name's own text landing on the
+  `button.cell` instead of the link.
+  - **FIXING THE STACKING CREATES THE SECOND HALF, EVERY TIME.** The moment the
+    header correctly paints over the cells, a cell brought to the scrollport's
+    left edge by `scrollIntoView({ inline: 'nearest' })` -- which arrow-key
+    navigation and every scripted click call -- lands BEHIND the header and
+    cannot be clicked. `scroll-padding-left` on the SCROLL CONTAINER is the one
+    thing that tells a scroll an overlay is there, and it takes the same value
+    as the header's width through the same custom property, because two literals
+    are a column and a padding that stop agreeing the first time either moves.
+  - **NEITHER HALF CAN BE ASSERTED WITHOUT A REAL BROWSER, AND A PRESENCE CHECK
+    IS GREEN ON BOTH DEFECTS** -- every string is present the whole time. The
+    instrument is a HIT TEST across the covered element's own text box, in
+    `npm run verify:browser`; `tests/dom/` has no layout engine and would read
+    zero.
 - **A genuinely `disabled` control swallows pointer events**, so a "why is this
   disabled" cue can never fire from it. Use `aria-disabled` when the control must
   still explain itself.

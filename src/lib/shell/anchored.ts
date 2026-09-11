@@ -27,13 +27,19 @@
  * returning a placement, so every edge case is testable with no DOM at all.
  * The action is the thin part: measure, call it, write two numbers.
  *
- * SHAPED FOR A SECOND CONSUMER. RichTextEditor's link popover
- * (src/lib/classroom/RichTextEditor.svelte) is a hand-rolled copy of this same
- * problem -- an absolutely positioned panel measured off its own offset parent
- * -- and is deliberately NOT converted in this pass. It needs an anchor that is
- * a RANGE rather than an element, which is why `anchorPosition` takes a plain
- * box rather than an element: a `Range`'s own `getBoundingClientRect()` is
- * already the right shape to hand it.
+ * SHAPED FOR A SECOND CONSUMER, AND IT HAS ONE NOW. RichTextEditor's link and
+ * picture popovers (src/lib/classroom/RichTextEditor.svelte) were the
+ * hand-rolled copy of this same problem -- an absolutely positioned panel
+ * measured off its own offset parent -- and this comment said they were
+ * deliberately not converted. They are: the panel was being clipped off the
+ * right of `.rt-editor`'s `overflow: hidden` at every width between about 481px
+ * and 740px, with its Cancel sliced in half, and no media query could fix that
+ * because how far it runs over depends on where the toolbar put the button.
+ * They pass the trigger BUTTON as the anchor.
+ *
+ * `anchorPosition` still takes a plain box rather than an element, and that is
+ * still for the case this file was shaped around: an anchor that is a RANGE,
+ * whose own `getBoundingClientRect()` is already the right shape to hand it.
  */
 
 /** A rectangle in VIEWPORT coordinates -- exactly what `getBoundingClientRect` returns. */

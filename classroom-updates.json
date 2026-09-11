@@ -14,6 +14,16 @@
 	"entries": [
 		{
 			"date": "2026-09-11",
+			"title": "Your class page fills the screen properly again",
+			"body": "On a wide screen your class page lays its units out in columns. Until now those columns worked like a table: a short unit sitting next to a long one left a tall band of nothing beside it, so on some classes almost everything was squashed into the right half of the page with a big empty stripe down the left. The units now flow down one column and on into the next, so both sides fill up and the units read in order from the top. Nothing about your work, your units or what is in them has changed, only where the panels sit.",
+			"tags": [
+				"Classes",
+				"Stream",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-11",
 			"title": "Your teacher can close an assignment when a unit ends",
 			"body": "When a unit is finished, your teacher can close an assignment so no more work lands on it. If that happens to one of yours, the worksheet says so at the top and goes read only. Everything you already saved is still there, and you do not need to do anything. A closed assignment is not a missing one. If you get a grade back after that, the assignment opens up again so you can act on the comments.",
 			"tags": [

@@ -8,6 +8,7 @@
 	} from '$lib/classroom/classroom-doc';
 	import { isOfferedRef, type ImageChoice } from '$lib/classroom/attachments';
 	import { ITEM_SCHEMA_OPTIONS } from '$lib/rich-text-schema';
+	import { anchored } from '$lib/shell/anchored';
 	import type { Editor } from '@tiptap/core';
 
 	/**
@@ -295,6 +296,16 @@
 	let linkValue = $state('');
 	let linkInput = $state<HTMLInputElement | null>(null);
 	let linkWrap = $state<HTMLElement | null>(null);
+	/**
+	 * THE TRIGGER BUTTONS, as ANCHORS for `use:anchored`.
+	 *
+	 * Separate from the two wrappers above, which stay what they were: the
+	 * wrapper is what outside-dismiss asks `contains()` about, and once the
+	 * popover is positioned `fixed` the wrapper's own box is the button's
+	 * anyway. Binding the button is what makes that not a coincidence.
+	 */
+	let linkBtn = $state<HTMLElement | null>(null);
+	let imageBtn = $state<HTMLElement | null>(null);
 
 	function normalizeHref(raw: string): string | null {
 		const trimmed = raw.trim();
@@ -539,6 +550,7 @@
 		<span class="link-wrap" bind:this={linkWrap}>
 			<button
 				type="button"
+				bind:this={linkBtn}
 				class:on={active.link}
 				aria-pressed={active.link}
 				aria-expanded={linkOpen}
@@ -547,7 +559,12 @@
 				onclick={openLink}>Link</button
 			>
 			{#if linkOpen}
-				<span class="link-pop" role="group" aria-label="Link address">
+				<span
+					class="link-pop"
+					role="group"
+					aria-label="Link address"
+					use:anchored={{ anchor: linkBtn, open: linkOpen, prefer: 'below', align: 'start', gap: 4 }}
+				>
 					<input
 						bind:this={linkInput}
 						bind:value={linkValue}
@@ -565,13 +582,19 @@
 		<span class="link-wrap" bind:this={imageWrap}>
 			<button
 				type="button"
+				bind:this={imageBtn}
 				aria-expanded={imageOpen}
 				title="Add a picture from this item's files"
 				disabled={disabled || !editor}
 				onclick={openImage}>Image</button
 			>
 			{#if imageOpen}
-				<span class="link-pop image-pop" role="group" aria-label="Picture">
+				<span
+					class="link-pop image-pop"
+					role="group"
+					aria-label="Picture"
+					use:anchored={{ anchor: imageBtn, open: imageOpen, prefer: 'below', align: 'start', gap: 4 }}
+				>
 					{#if picking}
 						{#if choices.length}
 							<!-- A radio GROUP, not a listbox and not a select: exactly one
@@ -737,15 +760,48 @@
 		position: relative;
 		display: inline-flex;
 	}
+	/**
+	 * THE POPOVER WAS BEING CLIPPED OFF THE EDITOR'S RIGHT EDGE, and it was two
+	 * things at once.
+	 *
+	 * It was `position: absolute` measured from `.link-wrap` -- i.e. from the
+	 * Link button, which sits wherever the toolbar puts it -- with a fixed
+	 * `left: 0` and a 15rem field beside two buttons. So the further right the
+	 * button is, the further past the editor the panel runs; and `.rt-editor`
+	 * carries `overflow: hidden`, which CUTS what runs past rather than letting
+	 * it show. Measured on /dev/item-images, editor right edge against panel
+	 * right edge: 487.0 vs 591.2 at 520px wide (104.2px over, Add and Cancel
+	 * both entirely gone) and 667.0 vs 693.2 at 700px (26.2px over, Cancel
+	 * sliced down the middle) -- which is the report exactly: a URL field, an
+	 * Add, and a second button clipped past the edge.
+	 *
+	 * `use:anchored` on the element is the fix and it is the SHARED one --
+	 * $lib/shell/anchored.ts, which InfoTip and the grading console already use,
+	 * and whose own header names this popover as the hand-rolled copy of it. It
+	 * writes `position: fixed` plus two coordinates, so the panel escapes
+	 * `overflow: hidden` entirely rather than being trimmed by it, and it flips
+	 * and clamps against the VIEWPORT, so there is no width at which it can
+	 * leave the screen.
+	 *
+	 * WHAT IS LEFT HERE IS THE FALLBACK, and it has to stay: the action only
+	 * writes while the panel is open, so these rules are what print and what
+	 * paints in the frame before the first placement. `max-width` is NOT part
+	 * of the fallback -- it is the one thing the action cannot do for itself,
+	 * because clamping keeps a panel's START on screen and lets a panel WIDER
+	 * than the viewport run off the far edge. Capping it at the viewport is
+	 * what makes that unreachable.
+	 */
 	.link-pop {
 		position: absolute;
 		top: calc(100% + 0.25rem);
 		left: 0;
 		z-index: 5;
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--space-1);
 		padding: var(--space-1);
+		max-width: min(30rem, calc(100vw - 1rem));
 		background: var(--surface-1);
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
@@ -777,10 +833,11 @@
 	/* Two fields and a sentence, so the popover wraps where the link one does
 	   not. Same anchor rules apply -- the narrow-screen block below moves both,
 	   because they share `.link-pop`. */
-	.image-pop {
-		flex-wrap: wrap;
-		max-width: min(30rem, 92vw);
-	}
+	/* `.link-pop` carries the wrap and the cap now, and this rule's own pair
+	   said the same thing twice with a different vw figure. What is left is the
+	   note that the picture panel is the one that genuinely NEEDS two rows --
+	   two fields, a picker and a sentence -- where the link panel wraps only
+	   when it has to. */
 	/* THE PICKER. A full-width row inside the popover so the names have room to
 	   be read: a file called `IMG_4821.jpg` beside `IMG_4822.jpg` is exactly the
 	   case where a truncated label is no help at all. */
@@ -897,25 +954,25 @@
 		border-color: var(--green);
 	}
 	/**
-	 * NARROW SCREENS ANCHOR TO THE TOOLBAR, NOT TO THE BUTTON.
+	 * NARROW SCREENS SIZE THE FIELD TO THE PANEL, and that is ALL that is left
+	 * of this block.
 	 *
-	 * The toolbar WRAPS at phone width, so the Link button can sit anywhere
-	 * along it -- and a popover anchored to that button runs off whichever edge
-	 * the button happens to be near. Measured at 375px before this rule: left
-	 * -82px, i.e. unreachable and not even scrollable to. (The same trap the
-	 * notebook's theme picker hit, and the same fix: drop the wrapper out of the
-	 * positioning chain so the containing block becomes something that spans the
-	 * width, and measure the insets from THAT.)
+	 * It used to do the POSITIONING too -- `.link-wrap { position: static }` so
+	 * the panel measured its insets from the toolbar rather than from a Link
+	 * button that the wrapping toolbar could put anywhere. That was the right
+	 * fix for the phone (measured at 375px before it: left -82px, unreachable
+	 * and not even scrollable to) and it was a MEDIA QUERY for a problem that
+	 * is not about the viewport: whether the panel clears the editor depends on
+	 * where the button sits in the toolbar and how wide the toolbar is, which
+	 * is why the same defect came back between 481px and about 740px where no
+	 * rule was looking. `use:anchored` measures the real boxes and covers every
+	 * width, so the positioning half is gone and must not come back as a third
+	 * threshold.
+	 *
+	 * The SIZING half stays: a 15rem field plus two buttons does not fit a
+	 * phone, so below this the field flexes and the panel wraps to two rows.
 	 */
 	@media (max-width: 30rem) {
-		.link-wrap {
-			position: static;
-		}
-		.link-pop {
-			left: 0.35rem;
-			right: 0.35rem;
-			flex-wrap: wrap;
-		}
 		.link-input {
 			width: auto;
 			max-width: none;
