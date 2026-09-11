@@ -101,7 +101,9 @@ passed every threshold and were found by rasterizing and looking:
 
 `tools/browser-verify/routes/ideacad.mjs`, `ideacad-role-student-state-three.mjs` and
 `ideacad-role-student-state-compare.mjs`: 108 measurements over three states at two widths,
-0 outside threshold. The geometry verdicts are built on the harness PAGE
+0 outside threshold. The one full-pass `verify:readme` at the end, on the clean committed
+tree at `51a1c98`: **388 route/width runs, 6790 measurements, 0 outside threshold**, 1027.0s
+-- the whole harness, not just this bundle's three specs. The geometry verdicts are built on the harness PAGE
 (`__ideacadVerdicts`), not in the specs, so a probe that stops running shortens the array
 and reddens. Contrast, measured against each element's real ground: readout label and value
 15.42:1, PASS 7.91:1, **FAIL 5.12:1** (`rgb(217, 95, 95)` on `rgb(16, 19, 18)` -- the first
@@ -155,7 +157,13 @@ way went from 2 reddened measurements to 3.
   the migration CHAIN is not, and **ledger 0161 carries that repair as `0202`**. This
   bundle owns no migration and no `supabase/` file, so it is reported and left.
 - `tests/db/migration-0177-tombstone.test.ts`, 1 failure, also identical at the branch
-  point: hole `0200` is unaccounted for (ledger 0152's claim).
+  point: hole `0200` is unaccounted for (ledger 0152's claim). Its message also names this
+  branch as holding `0190` and `0191`; that is the claims tool attributing ledger entries
+  0092, 0093, 0098 and 0099 -- which this branch merely CARRIES -- to whatever ref it reads
+  them on. This bundle claims no migration number and writes no `supabase/` file.
+- `tests/derived-numbers.test.ts` was red at the branch point too, 3 failures, on a stale
+  counts region. Regenerating both regions here fixed those three as well, so the suite
+  ends **5 failed of 7618** rather than the branch point's 8.
 - `CLAUDE.md`'s verification baseline says 0 errors and 37 warnings. Measured on
   `origin/integration` at branch time with the two `$env/static/public` values exported:
   **0 errors, 40 warnings in 22 files** (34 `state_referenced_locally`, 5
