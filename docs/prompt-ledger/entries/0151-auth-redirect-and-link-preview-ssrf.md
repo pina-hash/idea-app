@@ -16,7 +16,7 @@
 - Migration permitted: NONE. None was written, and nothing in this bundle
   touches `supabase/migrations/`.
 - Claims: none.
-- Status: issued
+- Status: pushed
 - Branch: `claude/blissful-ritchie-sk8orl`, branched from `origin/integration`
   at `7be051f6`.
 - Notes:
