@@ -1,0 +1,4 @@
+import type { Evaluation } from './blade/evaluate';
+/** The renderer's only static three.js import surface. */
+import { BufferGeometry, CylinderGeometry, EdgesGeometry, ExtrudeGeometry, LatheGeometry, Shape, Vector2 } from 'three';
+export function evaluationGeometries(e:Evaluation):{body:BufferGeometry;hex:BufferGeometry;blade:BufferGeometry;edges:BufferGeometry;instances:number}{const points=e.geometry.stations.map(s=>new Vector2(s.r,s.z));const body=new LatheGeometry(points,128);const hex=new CylinderGeometry(e.geometry.hexAcrossFlats/Math.sqrt(3),e.geometry.hexAcrossFlats/Math.sqrt(3),e.geometry.hexHeight,6);hex.rotateY(Math.PI/6);const shape=new Shape();e.geometry.bladePolygon.forEach((p,i)=>i?shape.lineTo(p.x,p.y):shape.moveTo(p.x,p.y));shape.closePath();const blade=new ExtrudeGeometry(shape,{depth:.125,bevelEnabled:false});return{body,hex,blade,edges:new EdgesGeometry(blade,30),instances:e.geometry.bladeCount}}

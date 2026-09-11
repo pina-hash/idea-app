@@ -47,6 +47,12 @@ SHIPPED** and this line called it "a later bundle" until 2026-09-06 --
 writes through the `is_admin()` RLS policies with `maps_publish` as the one RPC
 per 0161's own header), and the portal shell
 (`/`, `/dashboard`, `/admin`).
+
+**IDEACAD IS CLASSROOM'S SCHEMA-4 NATIVE CAD ENGINE.** Its four tables are
+`ideacad_editors`, `ideacad_documents`, `ideacad_concepts` and
+`ideacad_predictions`. The feature tree is the document and every geometry and physics
+readout is derived from it. Realtime broadcast is only the speed layer: the database poll
+is the floor, frames are roster- and revision-filtered, and no frame can write state.
   - **THE `/maps/edit` GATE IS THE AREA'S `+layout.server.ts`**, hoisted there
     the moment there was a second page, so a third cannot ship ungated by
     somebody forgetting to copy a check. The editor page keeps its own identical
