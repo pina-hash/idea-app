@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.25 - 2026-09-09**
+**Version 4.26 - 2026-09-10**
 
 ## These Instructions Evolve
 
@@ -736,6 +736,7 @@ between two rows, round up.
 | Bounded and fully specified, one file surface, nothing to investigate: a locator swap set, a copy pass, a portal update from settled text, a standards push with its fork check | Sonnet 5 | medium |
 | The default build row. Any well-scoped bundle of any size within one owned surface: surgical edits with subtle correctness, a migration with its test, a harness spec, an audit phase whose questions have answers in the tree, a read-only audit | Opus 5 | high |
 | The session must decide something the chat could not specify: an undocumented or unfamiliar subsystem, a port of a shape between repos, a repo-wide conformance or sweep, first-draft architecture, an irreversible operation | Fable 5.1 | high; `xhigh` only for the irreversible or repo-wide case. `ultracode` is NOT a higher rung than either and is never chosen on severity; see the override below |
+| High-volume work stated completely as data, formulas, tests and file surfaces, where nothing is left for the session to decide: a migration with its tests, pure modules with closed-form tests, transports, harness specs, records, a parity or conformance sweep with a fixed list | GPT-6 Astra, as a Codex cloud task | Codex's own reasoning setting, `high`. Chosen for cost and speed on volume, per Mr. Pina on 2026-09-10, not on a claim about which model is better. The prompt is written for Codex; see "Two agents, one repository" |
 
 **The header carries the minimum too**, in the shape the chat-side standard uses:
 `MODEL: Opus 5 (min: Sonnet 5) | EFFORT: high - row 3`, or `MODEL: Fable 5.1 (min: Opus 5)`
@@ -1781,6 +1782,49 @@ The router chat's half of the same rule: **do not tell a session to quote someth
 file unless you have read that file.** A prompt written from a report is a prompt written
 from a tree the reader cannot see.
 
+### Two agents, one repository
+
+**As of 2026-09-10, GPT-6 Astra works in `pina-hash/idea-app` beside Claude Code, as
+Codex cloud tasks connected to GitHub that return pull requests.** Mr. Pina's decision:
+Astra for the high-volume, fully specified technical work where cost and speed matter;
+Fable 5.1 where it is better; the design in the chat. Everything in this section exists
+so that the second agent inherits every control the first one earned, because a guard
+that enumerates one agent's branches is a guard the other agent walks around without
+noticing.
+
+- **One rulebook.** `AGENTS.md` is a pointer to `CLAUDE.md` and never a second set of
+  rules. A rule that lives in one file and not the other is a rule one agent does not
+  have.
+- **Two branch prefixes, and every guard names both.** Claude Code sessions push
+  `claude/**`; Codex tasks push `codex/**`. `integrate.yml`, `tools/idea-status.py`,
+  `tools/migration-claims.mjs` and the ledger README enumerate both. Established
+  2026-09-10, when all four enumerated `claude/**` alone, so a Codex branch holding a
+  migration number was invisible to the collision check and was never swept.
+- **One prompt, one session, whichever agent.** The ledger entry is the first commit for
+  both agents, its `Branch:` line carries the prefix, and the duplicate check reads both
+  prefixes. Numbers are allocated by the router chat regardless of agent.
+- **Migrations are applied by Mr. Pina regardless of agent.** A Codex cloud task has no
+  route to the production database either, and its agent phase runs with internet off
+  by default. No prompt for either agent plans around a session applying its own
+  migration.
+- **A prompt is written for the agent that will run it.** The audit phase, the claims
+  sentence, the duplicate check, the ledger entry, the session-control rules and the
+  ending are the same for both. What differs: `ultracode` is a Claude Code setting and is
+  never written into a Codex prompt (Codex has its own multi-agent mode, and the
+  split-inside-a-lane rule applies to it unchanged); the Codex ending lands a pull
+  request against `integration` and never merges to `main`; the Codex environment is
+  `docs/CODEX_ENVIRONMENT.md`, and a prompt that needs the suite or the browser pass says
+  the environment must be the one that document describes.
+- **Division of labor, decided per bundle by the router chat and written into the
+  routing header.** Astra: the routing row above. Fable 5.1: read-only audits of the
+  other agent's branch before Mr. Pina merges it (an audit collides with nothing, and a
+  second model is the cheapest independent reviewer there is), design passes on shipped
+  surfaces, and anything the chat could not specify. Nothing here ranks the two models
+  on quality; both vendors claim the same strengths, and the routing follows cost, speed
+  and tooling fit until a measurement says otherwise.
+- **Mr. Pina merges by pull request for both agents.** That was already the standing
+  rule; a Codex task's natural output is the same shape.
+
 ---
 
 ## Claude Design Prompting
@@ -2770,6 +2814,16 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-09-10 (4.26)** - Two agents, one repository. GPT-6 Astra joins the repo as Codex
+  cloud tasks by Mr. Pina's decision of 2026-09-10; new subsection under Claude Code
+  Prompting with the seven rules that let a second agent inherit every control (one
+  rulebook through `AGENTS.md`, two branch prefixes named by every guard, one prompt one
+  session, migrations applied by hand for both, prompts written for the agent that runs
+  them, division of labor by cost and tooling fit, merges by pull request). Added the
+  Astra row to the model routing table. Established the same day, when `integrate.yml`,
+  `tools/idea-status.py`, `tools/migration-claims.mjs` and the ledger README were found
+  to enumerate `claude/**` alone.
 
 - **2026-09-09 (4.25)** - Four corrections, all verified against Anthropic's live Claude
   Code model-configuration documentation on 2026-09-09, the previous check being

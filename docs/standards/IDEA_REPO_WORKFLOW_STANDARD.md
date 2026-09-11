@@ -1,5 +1,5 @@
 # IDEA Repo Workflow Standard
-**Version 1.1 - 2026-09-02**
+**Version 1.2 - 2026-09-10**
 
 One development workflow across the three repositories this project ships from:
 `pina-hash/idea-app`, `pina-hash/fll-app`, and `FRC-Team-5669-Techmen/frc-app`.
@@ -122,7 +122,8 @@ renumbered; it is frozen as the foundation and every new file is numbered above 
 
 ## 3. Branches and merging, identical across repos
 
-Sessions push `claude/**` branches. `integrate.yml` merges `main` into `integration`,
+Claude Code sessions push `claude/**` branches and Codex tasks push `codex/**`
+branches, and every guard that enumerates candidate branches enumerates both. `integrate.yml` merges `main` into `integration`,
 then every green branch into `integration`, and deletes what it merged. `main` moves only
 through `deploy.yml`, pressed by a person who has typed that the migrations are applied.
 Migrations that a session can apply commit straight to `main` with their test; migrations
@@ -137,7 +138,8 @@ The canned opening block, the audit phase, the claims sentence, the duplicate ch
 ledger entry text, the canned ending, and the routing header are identical for all three
 repos. The only per-repo content in a prompt is the file surface it owns and a sentence
 naming the repo's migration apply path, copied from that repo's `CLAUDE.md` rather than
-from memory.
+from memory. A prompt is written for the agent that runs
+it; `IDEA_instructions.md` 4.26, "Two agents, one repository", owns the differences.
 
 ---
 
@@ -161,6 +163,7 @@ date; a session verifies it against the tree before building on it.
 | Numbered migrations | 0001 to 0169 | 0001 to 0025, 0026 on a branch | none; `supabase/*.sql` and `sql/*.sql`, applied by hand in the SQL editor |
 | Migration apply path declared | hand-apply, no ledger, `db push` forbidden | `db push` with CLI ledger; `scripts/land-migration.sh` on a branch, never run end to end | hand-apply; not written as a paragraph |
 | Standing branches | none at audit | four: two unmerged (`merge-branches-migration-script-0w3t1u`, `notebook-write-permissions-sbwtjq`), two already merged and deletable | none |
+| Second-agent parity: AGENTS.md, both prefixes in every guard | yes, 2026-09-10 (0144) | no | no |
 
 Two conformance prompts were issued the same day, one per repo, each opening with its
 own audit phase because every row above is a claim.
@@ -186,6 +189,11 @@ own audit phase because every row above is a claim.
 ---
 
 ## Changelog
+
+- **1.2 (2026-09-10)** - Second-agent parity. Section 3 names both branch prefixes and
+  requires every guard to enumerate both; section 4 routes prompt differences to
+  `IDEA_instructions.md` 4.26; section 5 gains the parity row, `idea-app` yes as of this
+  date and the other two repos no. Aligned to `IDEA_instructions.md` 4.26.
 
 - **1.1 (2026-09-02)** - Corrects the `frc-app` `integrate.yml` row, which said "yes,
   inert" and was wrong in the direction that matters. That workflow was not keyed on a

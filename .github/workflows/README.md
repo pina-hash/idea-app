@@ -5,7 +5,7 @@ that passed; `deploy.yml` is the one path that writes `main`.
 
 ## The short version
 
-- **Session branches (`claude/**`) disappear on their own now. That is correct,
+- **Session branches (`claude/**` and `codex/**`) disappear on their own now. That is correct,
   not a mistake.** When CI goes green on one, `integrate.yml` merges it into
   `integration` and deletes it. The commits are on `integration`; nothing is
   lost.
@@ -32,7 +32,7 @@ that passed; `deploy.yml` is the one path that writes `main`.
   the gate.** You type it only when the probe cannot answer -- no
   `DEPLOY_PROBE_URL` secret, or a migration it has no probe for. It can never
   override a migration the probe read as NOT applied.
-- **A `claude/**` branch that is still sitting there is a signal, not a
+- **A `claude/**` or `codex/**` branch that is still sitting there is a signal, not a
   leftover.** It means one of: its CI failed, its CI has not finished, its
   merge into `integration` conflicted, or its ledger entry still reads
   `Status: issued`, which is the sweep being told the session is still running.
@@ -292,7 +292,7 @@ refuse -- correctly, fail-closed -- while the assertion reported it as a defect
 in the tool. `main` was red for it on 2026-09-06 (run 34060552250).
 
 `tools/integrate-gate-proof.sh` cases 76-87 prove it against
-throwaway repositories with two real `claude/**` branches on a real bare
+throwaway repositories with two real `claude/**` and `codex/**` branches on a real bare
 remote, including case 82, which reads the merged blob back and confirms git
 really does take that header line silently.
 
@@ -472,7 +472,7 @@ normally underneath that red X; the summary is what tells you which is which.
 
 ## Two properties worth knowing before they surprise you
 
-- **A `claude/**` branch is merged as soon as CI is green on its tip.** There is
+- **A `claude/**` or `codex/**` branch is merged as soon as CI is green on its tip.** There is
   no "done" flag. If a session pushes a work-in-progress commit and CI passes,
   that commit is integrated and the branch is deleted. Push when you are
   finished. (Pushing again afterwards simply re-creates the branch, and only the

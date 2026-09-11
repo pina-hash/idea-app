@@ -2410,3 +2410,22 @@ describe('the canned lane ending and the tools agree', () => {
 		expect(three).toMatch(/backfill did the right thing/);
 	});
 });
+
+describe('the canonical agent branch-prefix registry', () => {
+	it('admits claude and codex at all three sweep sites, but not feature', () => {
+		const workflow = src('integrate.yml');
+		const registry = /AGENT_BRANCH_PREFIXES:\s*'([^']+)'/.exec(workflow)?.[1].split(/\s+/) ?? [];
+		expect(registry).toEqual(['claude/', 'codex/']);
+		expect(registry.some((prefix) => 'claude/example'.startsWith(prefix))).toBe(true);
+		expect(registry.some((prefix) => 'codex/example'.startsWith(prefix))).toBe(true);
+		expect(registry.some((prefix) => 'feature/example'.startsWith(prefix))).toBe(false);
+		expect(workflow.match(/AGENT_BRANCH_PREFIXES \" in/g)).toHaveLength(3);
+		expect(workflow).not.toContain('refs/remotes/origin/claude');
+		for (const file of ['tools/idea-status.py', 'tools/migration-claims.mjs', 'docs/prompt-ledger/README.md']) {
+			const mirror = readFileSync(fileURLToPath(new URL(`../${file}`, import.meta.url)), 'utf8');
+			expect(mirror, `${file} does not mirror the canonical registry`).toContain('claude/');
+			expect(mirror, `${file} does not mirror the canonical registry`).toContain('codex/');
+		}
+
+	});
+});

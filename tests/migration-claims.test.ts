@@ -39,6 +39,7 @@ import {
 	claimMap,
 	classify,
 	contestedBranches,
+	AGENT_BRANCH_PREFIXES,
 	inFlightHoles,
 	migrationNumber,
 	normaliseStatus,
@@ -597,4 +598,16 @@ describe('the committed corpus', () => {
 		}
 		expect([...fixture.entries()].filter(([, who]) => who.length > 1).map(([n]) => n)).toEqual([190]);
 	});
+	it('treats a codex branch as a held-number owner and mirrors the canonical prefixes', () => {
+		expect(AGENT_BRANCH_PREFIXES).toEqual(['claude/', 'codex/']);
+		const result = classify(inventory({
+			branches: [
+				{ branch: 'claude/lane-a', migrations: ['0186_a.sql'] },
+				{ branch: 'codex/lane-b', migrations: ['0186_b.sql'] }
+			]
+		}));
+		expect(contestedBranches(result)).toEqual(['claude/lane-a', 'codex/lane-b']);
+		expect(result.claimed.find((row) => row.number === 186)?.holders.map((h) => h.branch)).toContain('codex/lane-b');
+	});
+
 });
