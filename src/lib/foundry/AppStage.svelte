@@ -67,6 +67,15 @@
 	 * paths produce the same layout because they are the same class. There is no
 	 * async gap in which nothing has happened.
 	 *
+	 * WHICH IS WHY A REPORT OF "doesn't full screen on mobile good" IS NOT ABOUT
+	 * THE API, AND THAT IS WORTH WRITING DOWN BECAUSE IT IS THE FIRST PLACE
+	 * ANYBODY LOOKS. The absent API is handled above and is measured: with
+	 * `requestFullscreen` deleted from the page the stage is still
+	 * `position: fixed` at the exact viewport box and the exit control still
+	 * hit-tests to itself. What a phone gets wrong is the SIZE of that box and
+	 * how much of it the chrome takes, and both of those are in the stylesheet
+	 * below rather than here.
+	 *
 	 * NO rAF ANYWHERE ON THIS PATH, FOR THE REASON THE STOP CONTROL DOCUMENTS: a
 	 * wedged bundle stops the parent's animation frames arriving while leaving
 	 * its task queue alive. Every transition here is a synchronous state change
@@ -468,9 +477,16 @@
 >
 	{#if running && src}
 		<div class="fdy-stage-bar">
+			<!--
+				THE LABEL'S TEXT IS ITS OWN ELEMENT SO IT CAN BE TRUNCATED RATHER
+				THAN WRAP THE ROW. In the full state the bar is one row (see the
+				stylesheet), and an app title is a string a student chose: without
+				somewhere to put an ellipsis, a long one pushes the two controls
+				onto a second row and spends 52px of a phone's screen on a label.
+			-->
 			<span class="fdy-running" aria-live="polite">
 				<span class="fdy-dot" aria-hidden="true"></span>
-				{runningLabel || 'Running'}
+				<span class="fdy-running-label">{runningLabel || 'Running'}</span>
 			</span>
 			<!--
 				TWO REAL BUTTONS WITH WORDS ON THEM, not glyphs and not a corner X.
@@ -555,6 +571,33 @@
 		position: fixed;
 		inset: 0;
 		/*
+			THE HEIGHT IS STATED, AND `inset: 0` ALONE IS NOT ENOUGH ON A PHONE.
+
+			`inset: 0` sizes this against the INITIAL CONTAINING BLOCK, which is
+			the viewport -- but which viewport is the engine's choice, and WebKit
+			on iOS resolves it against the LARGE one, the viewport as it would be
+			with the browser's toolbars retracted. With the toolbars up, the
+			bottom of this element is therefore behind them: the bar and its two
+			controls are at the top and stay visible, and what is cut off is the
+			bottom edge of the running app. That reads as a full screen that does
+			not quite fit rather than as a browser chrome problem, which is what
+			the report this came from said.
+
+			`100dvh` is the DYNAMIC viewport -- what is visible right now -- so it
+			tracks the toolbars as they come and go. The `100vh` line before it is
+			the fallback for an engine that does not know the unit, and the pair
+			is the same shape `src/routes/fsp/live/+page.svelte` already uses. It
+			is over-constrained with `top` and `bottom` both at 0, which CSS
+			resolves by IGNORING `bottom`, so the height wins and nothing else
+			here has to change.
+
+			THIS IS NOT VERIFIED ON iOS. No WebKit build exists in this container,
+			so what is measured is only that it changes nothing in Chromium, where
+			the dynamic and large viewports are the same box.
+		*/
+		height: 100vh;
+		height: 100dvh;
+		/*
 			Above the masthead, which sits at `z-index: 1` in the same stacking
 			context as `main`. This is the only thing in the app that deliberately
 			covers the whole page, so it does not have to negotiate with anything
@@ -578,8 +621,47 @@
 		padding: 0 var(--space-2, 0.5rem);
 	}
 
+	/*
+		IN THE FULL STATE THE BAR IS EXACTLY ONE ROW, AND THE TITLE IS WHAT GIVES.
+
+		Every other state can afford a wrapped bar; this one cannot. A second row
+		costs 52px -- the 44px tap floor plus the gap -- and on a phone held
+		sideways that is a sixth of the screen, spent on a label rather than on
+		the app the viewer just asked to see more of. Measured on the real
+		gallery before this rule: 104px at 390x844 against 52px at 607x320, the
+		difference being entirely whether "Running <title>" happened to fit
+		beside the two controls. So the height of the full-screen chrome was a
+		function of how long a student named their app.
+
+		THE LABEL TRUNCATES RATHER THAN DISAPPEARING. Hiding it would be simpler
+		and it is the thing that is redundant here -- the app is the whole screen
+		-- but it is also the only place the bar says WHICH app is running, which
+		the review queue depends on (`runningLabel` names the version there). An
+		ellipsis keeps the sentence and spends no row on it.
+
+		THE CONTROLS DO NOT SHRINK. They are the guarantee on the overlay path,
+		where Escape is a convenience and the visible control is the way out, so
+		the label is what absorbs a narrow viewport and never a button.
+	*/
 	.fdy-stage.is-full .fdy-stage-bar {
 		padding-top: var(--space-2, 0.5rem);
+		flex-wrap: nowrap;
+	}
+
+	.fdy-stage.is-full .fdy-running {
+		/* An item's automatic minimum is its min-content, so without this the
+		   label refuses to shrink and the row overflows instead. */
+		min-width: 0;
+	}
+
+	.fdy-stage.is-full .fdy-running-label {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.fdy-stage.is-full .fdy-stage-bar .btn {
+		flex: 0 0 auto;
 	}
 
 	.fdy-stage-bar {
