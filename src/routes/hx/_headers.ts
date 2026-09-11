@@ -150,14 +150,21 @@ export function hxPortalOriginIsRequestHost(
  * literal here is a framed document and a navigated one that drift apart with
  * nothing able to compare them.
  *
- * `allow-scripts` ALONE, AND `allow-same-origin` MUST NEVER JOIN IT. The pair
+ * `allow-same-origin` MUST NEVER JOIN THE SET. The pair with `allow-scripts`
  * cancels the sandbox: a document same-origin with its parent reaches
  * `parent.document`, strips the attribute off its own `<iframe>` and reloads
  * with full rights. Foundry grants the flag conditionally because its bundles
  * answer on a host that is by construction not the portal; this route has no
  * such guarantee -- with the sandbox origin unset it answers on the portal
- * host itself -- so the strict set is the only correct answer here and the
- * condition Foundry can assert is one this route cannot.
+ * host itself -- so the condition Foundry can assert is one this route cannot.
+ *
+ * THE SET DOES CARRY `allow-popups allow-popups-to-escape-sandbox`, and this
+ * directive is where that reaches a DIRECTLY NAVIGATED document -- the same
+ * widening, on the same string, by construction. `bridge.ts` carries the
+ * decision and what it costs. It does not touch anything below: a popup is a
+ * new browsing context with its own policy, so `connect-src 'none'`,
+ * `form-action 'none'` and `frame-ancestors` still govern THIS document exactly
+ * as they did.
  *
  * WHAT IT DOES NOT REPLACE. `PUBLIC_HX_SANDBOX_ORIGIN` stays supported and
  * remains the stronger deployment: a second host carries no session cookie at

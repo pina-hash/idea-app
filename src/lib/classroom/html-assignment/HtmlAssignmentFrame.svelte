@@ -9,19 +9,24 @@
 	 * same, and the only difference is that a student's uploaded document is now
 	 * running with the rights of the page around it.
 	 *
-	 * `allow-scripts` WITHOUT `allow-same-origin`. That pair gives the document a
-	 * unique OPAQUE ORIGIN: no parent DOM, no cookies, no credentialed fetch,
-	 * none of `ideabosco.com`'s `localStorage`. NEVER add `allow-same-origin`
-	 * beside `allow-scripts` -- together they let the frame reach
-	 * `parent.document`, remove its own `sandbox` attribute from the `<iframe>`
-	 * element and reload unsandboxed. If a change appears to need it, the change
-	 * is wrong.
+	 * WITHOUT `allow-same-origin`, which is the half that matters. That gives the
+	 * document a unique OPAQUE ORIGIN: no parent DOM, no cookies, no credentialed
+	 * fetch, none of `ideabosco.com`'s `localStorage`. NEVER add
+	 * `allow-same-origin` beside `allow-scripts` -- together they let the frame
+	 * reach `parent.document`, remove its own `sandbox` attribute from the
+	 * `<iframe>` element and reload unsandboxed. If a change appears to need it,
+	 * the change is wrong.
 	 *
-	 * WHAT THAT COSTS, SO NOBODY DISCOVERS IT: `localStorage` THROWS in an opaque
-	 * origin, so a ported document's autosave has to go through the bridge;
-	 * downloads do not fire without `allow-downloads`; and the document cannot
-	 * upload a file itself, so image bytes come up as `idea:image` and the PARENT
-	 * uploads them.
+	 * THE SET ALSO CARRIES THE TWO POPUP FLAGS, deliberately, so a document can
+	 * open a link in a new tab -- `bridge.ts` carries the decision, what it costs
+	 * and what was measured. The opened tab is a separate browsing context at its
+	 * own origin and reaches nothing of this one.
+	 *
+	 * WHAT THE SANDBOX STILL COSTS, SO NOBODY DISCOVERS IT: `localStorage` THROWS
+	 * in an opaque origin, so a ported document's autosave has to go through the
+	 * bridge; downloads do not fire without `allow-downloads`; and the document
+	 * cannot upload a file itself, so image bytes come up as `idea:image` and the
+	 * PARENT uploads them.
 	 *
 	 * THIS COMPONENT OWNS THE ELEMENT AND THE LISTENER. IT OWNS NO RULES. Every
 	 * decision about whether a message counts is `hxReceive` in `bridge.ts`,
@@ -398,24 +403,52 @@
 		frame never loads in a pane that does not fire IntersectionObserver, and
 		every assertion about it then passes vacuously.)
 	-->
-	{#if listening}
-		<iframe
-			bind:this={frame}
-			{src}
-			{title}
-			class="hx-frame"
-			style="height: {height}px;"
-			sandbox={HX_SANDBOX_FLAGS}
-			referrerpolicy="no-referrer"
-			loading="eager"
-			data-hx-frame
-		></iframe>
-	{:else}
-		<!-- Not a pending state to dress up: it lasts one frame after hydration
-		     and a spinner here would be a flash on every load. The box holds its
-		     height so nothing below it moves when the frame arrives. -->
-		<div class="hx-frame hx-frame-placeholder" style="height: {height}px;" aria-hidden="true"></div>
-	{/if}
+	<!--
+		THE BORDER IS ON THIS BOX AND NOT ON THE FRAME, AND THAT IS ARITHMETIC
+		RATHER THAN TASTE. `box-sizing: border-box` is global, so a 1px border on
+		the `<iframe>` made `height: {height}px` an OUTER height and left the
+		content box 2px short of the height the document had just reported.
+		Measured on the old geometry at 1440: applied 726px, `clientHeight` 724.
+		A document LONG ENOUGH TO FILL ITS BOX answers that with a full-length
+		inner scrollbar over a 2px overflow -- put to a 1000px document, the
+		content box came out 998 against a `scrollHeight` of 1000, and 1000
+		against 1000 once the border moved here. (The short dev worksheet does
+		NOT show the symptom: `documentElement.scrollHeight` is never less than
+		the viewport, so a document that does not fill its box cannot overflow in
+		either geometry. The defect is in the box model either way.)
+
+		A WRAPPER RATHER THAN ADDING 2 TO THE APPLIED HEIGHT. Both fix the
+		scrollbar; only one of them has no second copy of the border width in it.
+		`height + 2` puts the number in the template and the `1px` in the
+		stylesheet, so the day somebody restyles the edge the arithmetic goes
+		quietly wrong again and nothing on screen says so. With the border out
+		here the frame has no border and no padding, so its border-box height IS
+		its content height and there is nothing to keep in step.
+
+		`overflow: hidden` is what makes the radius clip a frame that has none of
+		its own; the box is `display: flex` in one column so it takes exactly the
+		frame's height and adds nothing of its own.
+	-->
+	<div class="hx-frame-box">
+		{#if listening}
+			<iframe
+				bind:this={frame}
+				{src}
+				{title}
+				class="hx-frame"
+				style="height: {height}px;"
+				sandbox={HX_SANDBOX_FLAGS}
+				referrerpolicy="no-referrer"
+				loading="eager"
+				data-hx-frame
+			></iframe>
+		{:else}
+			<!-- Not a pending state to dress up: it lasts one frame after hydration
+			     and a spinner here would be a flash on every load. The box holds its
+			     height so nothing below it moves when the frame arrives. -->
+			<div class="hx-frame hx-frame-placeholder" style="height: {height}px;" aria-hidden="true"></div>
+		{/if}
+	</div>
 
 	{#if imageList.length}
 		<section class="hx-images" aria-label="Photos attached to this worksheet">
@@ -581,12 +614,24 @@
 		overflow-wrap: anywhere;
 	}
 
+	/* The edge, the corners and the clip. See the comment on the element for
+	   why they are not on the frame itself. */
+	.hx-frame-box {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-md, 8px);
+		overflow: hidden;
+	}
+
 	.hx-frame {
 		display: block;
 		width: 100%;
 		min-width: 0;
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-md, 8px);
+		/* NO BORDER AND NO PADDING, which is what makes the applied height the
+		   content height under the global `box-sizing: border-box`. */
+		border: 0;
 		/*
 			A ported document draws its own page. Painting one here would show
 			through wherever the document does not, and it would be OUR colour on
