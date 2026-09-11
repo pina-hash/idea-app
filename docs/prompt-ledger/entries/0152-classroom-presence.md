@@ -16,7 +16,7 @@
   its own `docs/history/` entry.
 - Migration permitted: exactly one. Claims: 0200. Highest on origin/main at
   issue: 0198.
-- Status: issued
+- Status: pushed
 - Branch: `claude/inspiring-planck-gp601z`, branched from `origin/integration`
   at `7be051f6`.
 - Notes:
