@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import ported from './idea100-blade-01.ported.html?raw';
+	import { HX_SANDBOX_FLAGS } from '$lib/classroom/html-assignment/bridge.ts';
 
 	/**
 	 * THE CONTRACT'S CSP, VERBATIM, MINUS THE ONE DIRECTIVE A META TAG CANNOT
@@ -88,7 +89,7 @@
 	<header>
 		<h1>idea100-blade-01, ported</h1>
 		<p>
-			A stub bridge listener answering a real <code>sandbox="allow-scripts"</code> frame over a
+			A stub bridge listener answering a real <code>sandbox="{HX_SANDBOX_FLAGS}"</code> frame over a
 			<code>blob:</code> URL, which is an opaque origin. Nothing here writes to a database.
 		</p>
 		<div class="controls">
@@ -101,8 +102,17 @@
 	<div class="split">
 		<section class="doc">
 			{#if src}
-				<!-- allow-scripts WITHOUT allow-same-origin. Never add the second. -->
-				<iframe bind:this={frame} {src} sandbox="allow-scripts" title="Ported assignment"></iframe>
+				<!--
+					THE REAL FRAME'S OWN FLAGS, NOT A SECOND SPELLING OF THEM. This used to
+					be the literal `sandbox="allow-scripts"`, which was green and STRICTER
+					than `HtmlAssignmentFrame`, so it failed safe and said nothing when the
+					constant was widened with the two popup flags. A harness that frames a
+					document under a different sandbox from the one the portal uses is a
+					harness measuring something nobody ships. The RULE about which flags
+					may be in that string lives on the constant, in
+					`tests/html-assignment-bridge.test.ts`.
+				-->
+				<iframe bind:this={frame} {src} sandbox={HX_SANDBOX_FLAGS} title="Ported assignment"></iframe>
 			{/if}
 		</section>
 		<section class="log" data-bridge-log>

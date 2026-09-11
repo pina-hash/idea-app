@@ -1548,6 +1548,7 @@ function renderImageItem(imgObj){
   wrapper.className = 'preview-item';
   const img = document.createElement('img');
   img.src = imgObj.dataUrl;
+  img.alt = imgObj.name || 'Uploaded image';
   img.onclick = () => openLightbox(imgObj.dataUrl);
   const cap = document.createElement('input');
   cap.type = 'text';
