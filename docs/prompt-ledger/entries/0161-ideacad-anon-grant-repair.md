@@ -59,4 +59,13 @@
   (34 `state_referenced_locally`, 5 `css_unused_selector`, 1 `perf_avoid_nested_class`),
   where `CLAUDE.md` still states 37 in a 31/5/1 breakdown. The drift is entirely
   `state_referenced_locally` and predates this branch. Unchanged by this work.
+  A THIRD OBJECT CLASS IS OPEN AND WAS MEASURED, NOT GUESSED, AND THIS LANE'S ONE MIGRATION
+  IS SPENT. The same bootstrap carries `grant all on sequences`. The chain creates none
+  explicitly but three implicitly, through `bigint generated always as identity` keys
+  (`gauntlet_run_events` 0035, `tournament_match_events` 0062, `tournament_reward_ledger`
+  0063), and each comes out `anon=rwU` on the full chain -- SELECT, UPDATE and USAGE, which
+  is `nextval` and `setval`. `setval` is in `pg_catalog` rather than `public`, so PostgREST
+  offers no route to it; the containment is the gateway's, not the grant's, exactly like the
+  TRUNCATE finding above. Needs its own migration and its own reconciliation (`relkind = 'S'`,
+  no allowlist -- nothing here hands a client role a sequence on purpose).
   No `classroom-updates.json` entry: nothing a student sees changes.
