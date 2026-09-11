@@ -407,10 +407,15 @@
 		THE BORDER IS ON THIS BOX AND NOT ON THE FRAME, AND THAT IS ARITHMETIC
 		RATHER THAN TASTE. `box-sizing: border-box` is global, so a 1px border on
 		the `<iframe>` made `height: {height}px` an OUTER height and left the
-		content box 2px short of the height the document had just reported --
-		which every worksheet answered with a full-length inner scrollbar over a
-		2px overflow. Measured before this box existed, at 1440: reported 1116,
-		`clientHeight` 1114, `scrollHeight` 1116.
+		content box 2px short of the height the document had just reported.
+		Measured on the old geometry at 1440: applied 726px, `clientHeight` 724.
+		A document LONG ENOUGH TO FILL ITS BOX answers that with a full-length
+		inner scrollbar over a 2px overflow -- put to a 1000px document, the
+		content box came out 998 against a `scrollHeight` of 1000, and 1000
+		against 1000 once the border moved here. (The short dev worksheet does
+		NOT show the symptom: `documentElement.scrollHeight` is never less than
+		the viewport, so a document that does not fill its box cannot overflow in
+		either geometry. The defect is in the box model either way.)
 
 		A WRAPPER RATHER THAN ADDING 2 TO THE APPLIED HEIGHT. Both fix the
 		scrollbar; only one of them has no second copy of the border width in it.
