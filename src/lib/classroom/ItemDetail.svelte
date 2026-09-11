@@ -800,7 +800,7 @@
 		</footer>
 	</main>
 {:else}
-<main class="classroom-page">
+<main class="classroom-page" class:page-wide={htmlMount === 'html'}>
 	<!--
 		THE INSPECTOR: every instructor-only affordance on this page, in one
 		region, above the content and visually apart from it.
@@ -1720,6 +1720,36 @@
 		max-width: var(--cr-measure, var(--measure-reading));
 		margin: 0 auto;
 		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
+	}
+
+	/*
+		A PORTED DOCUMENT IS AN APPLICATION, NOT PROSE, SO IT GETS THE ROOM.
+
+		The measure above is a READING column and is correct for every item kind
+		that is writing: a post, a material, a reference doc, a spec assignment
+		whose input tables share the body's own scroll column. A schema-3 item is
+		none of those. It is a whole document an author laid out for the width
+		they were given -- IDEA100 Blade CAD 01 has a two-column header, a wide
+		slides strip and a four-limit grid -- and penning it into 46rem draws all
+		of that into a gutter with dead space either side. Measured at 1440 before
+		this rule: 896px of frame in 1382px of available page.
+
+		SCOPED, NOT REMOVED, AND THE BRANCH IS `htmlMount` RATHER THAN A SECOND
+		`=== 3`. `htmlAssignmentMount` is the one place the question "is this a
+		ported document" is answered (a second spelling is how a student gets a
+		worksheet and an instructor gets a blank spec panel), and `html` is its
+		answer for an item that is one AND has a document to mount. The
+		`unavailable` arm is deliberately NOT widened: it renders one sentence,
+		and a sentence does not want 1900px.
+
+		WHAT IT COSTS, SAID RATHER THAN HIDDEN: the title, the instructions
+		disclosure and the hand-in copy on a ported item widen with the frame,
+		because this is one page-level constraint and the frame is not its only
+		child. That is the trade this rule makes -- the document is the reason the
+		page was opened, and it is the thing that was unusable.
+	*/
+	.classroom-page.page-wide {
+		max-width: none;
 	}
 	/* The app-shell `.hero` is the LANDING hero: centred, with 4rem of air above
 	   it. This is a document opening inside a pane, so it reads from the left

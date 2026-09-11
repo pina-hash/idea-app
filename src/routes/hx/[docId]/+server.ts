@@ -30,9 +30,9 @@ import type { RequestHandler } from './$types';
  * exactly the question.
  *
  * THE SANDBOX IS THE OTHER HALF AND IT IS SENT TWO WAYS, WHICH IS NOT
- * REDUNDANCY. The frame attribute is `sandbox="allow-scripts"` with no
- * `allow-same-origin`, which is what puts a FRAMED document in an opaque
- * origin; the CSP carries the SAME flags as a `sandbox` DIRECTIVE, which is
+ * REDUNDANCY. The frame attribute is `HX_SANDBOX_FLAGS` -- scripts and popups,
+ * with no `allow-same-origin` -- which is what puts a FRAMED document in an
+ * opaque origin; the CSP carries the SAME flags as a `sandbox` DIRECTIVE, which is
  * what puts a DIRECTLY NAVIGATED one there too. 0126 shipped without the
  * directive and measured the gap: a student who types or pastes a `/hx/` URL
  * reached the real origin rather than an opaque one, and with

@@ -99,14 +99,55 @@ function fromFrame(data: unknown, over: { origin?: string; source?: unknown } = 
 }
 
 describe('the sandbox flags are one string and allow-same-origin is not in it', () => {
-	it('is allow-scripts and nothing else', () => {
-		expect(HX_SANDBOX_FLAGS).toBe('allow-scripts');
+	/*
+		THE SET IS PINNED AS A TOKEN LIST RATHER THAN AS A STRING, and the two
+		are not the same assertion. A string equality reddens for a reordering
+		that grants nothing, and -- worse -- it says nothing about WHICH token
+		moved when it does redden. The list says the membership, which is the
+		security property; `toEqual` on a sorted array says it without also
+		pinning an order no browser reads.
+	*/
+	it('grants exactly scripts and the two popup flags', () => {
+		expect(HX_SANDBOX_FLAGS.split(/\s+/).filter(Boolean).sort()).toEqual([
+			'allow-popups',
+			'allow-popups-to-escape-sandbox',
+			'allow-scripts'
+		]);
 	});
 
 	// The pair is what cancels the sandbox outright. This is the assertion that
 	// reddens if a later change "just needs" the flag.
 	it('never grants allow-same-origin', () => {
 		expect(HX_SANDBOX_FLAGS).not.toContain('allow-same-origin');
+	});
+
+	/*
+		THE TWO STILL REFUSED, NAMED, because neither is about what a document
+		may do to ITSELF. `allow-top-navigation` would redirect the tab the
+		student is working in; `allow-forms` would let a form inside the document
+		submit somewhere, which `form-action 'none'` refuses a second way.
+		Measured: a popup CANNOT navigate its opener or its opener's top (both
+		SecurityError, and neither actually moved when read from outside), so the
+		popup widening did not buy top navigation by proxy.
+	*/
+	it('still refuses top navigation and forms', () => {
+		expect(HX_SANDBOX_FLAGS).not.toContain('allow-top-navigation');
+		expect(HX_SANDBOX_FLAGS).not.toContain('allow-forms');
+	});
+
+	/*
+		BOTH POPUP FLAGS OR NEITHER, AND THIS IS NOT PEDANTRY. `allow-popups`
+		alone opens a popup that INHERITS this sandbox: measured in this
+		container's Chromium, `window.origin` in it reads `null` and both
+		`document.cookie` and `localStorage` throw `SecurityError`, which is a
+		tab Google Slides cannot run in. A later edit that trims the second flag
+		as redundant would leave the Open slides button opening a blank,
+		storage-less tab -- which looks like a broken link, not a policy.
+	*/
+	it('carries the escape flag whenever it carries allow-popups', () => {
+		expect(HX_SANDBOX_FLAGS.includes('allow-popups-to-escape-sandbox')).toBe(
+			HX_SANDBOX_FLAGS.includes('allow-popups')
+		);
 	});
 });
 
@@ -458,7 +499,8 @@ describe('the served document: frame-ancestors', () => {
 	// identically.
 	it('produces exactly the contract policy in production', () => {
 		expect(hxDocumentCsp(HX_PORTAL_ORIGIN)).toBe(
-			"sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; " +
+			'sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox; ' +
+				"default-src 'none'; script-src 'unsafe-inline'; " +
 				"style-src 'unsafe-inline'; " +
 				"img-src data: blob:; connect-src 'none'; form-action 'none'; " +
 				'frame-ancestors https://ideabosco.com'
@@ -487,7 +529,7 @@ describe('the served document: frame-ancestors', () => {
 
 	it('keeps every non-negotiable directive whatever the portal origin is', () => {
 		const csp = hxDocumentCsp('http://127.0.0.1:5199');
-		expect(csp).toContain('sandbox allow-scripts');
+		expect(csp).toContain(`sandbox ${HX_SANDBOX_FLAGS}`);
 		expect(csp).toContain("connect-src 'none'");
 		expect(csp).toContain("default-src 'none'");
 		expect(csp).toContain("form-action 'none'");

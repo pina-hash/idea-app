@@ -737,13 +737,28 @@ serving origin as a positive control: `window.origin` is `"null"`,
 `document.cookie` and `localStorage` throw `SecurityError`, and a credentialed
 `fetch` refuses; remove the directive and all three reach, reading the planted
 token back.
-  - **`allow-same-origin` MUST NEVER JOIN `allow-scripts` HERE, and this is the
+  - **`allow-same-origin` MUST NEVER JOIN THE SET HERE, and this is the
     one place Foundry's conditional grant does NOT transfer.** Foundry grants it
     when the bundle origin and the portal origin differ, which its own host gate
     guarantees. This route has no such guarantee -- with the sandbox origin
-    unset it answers on the portal host itself -- so the strict set is the only
-    correct answer and the condition Foundry can assert is one this route
-    cannot.
+    unset it answers on the portal host itself -- so withholding it
+    unconditionally is the only correct answer and the condition Foundry can
+    assert is one this route cannot.
+  - **THE SET DOES CARRY `allow-popups allow-popups-to-escape-sandbox`, ON
+    MR. PINA'S DECISION OF 2026-09-11, AND THAT IS A WIDENING RATHER THAN
+    HOUSEKEEPING.** Without them a document cannot open a link in a new tab at
+    all -- `window.open` returns null -- and IDEA100 Blade CAD 01 has an Open
+    slides button. `allow-popups` ALONE is not enough and this was measured, not
+    assumed: the popup inherits the sandbox, lands at an opaque origin and
+    throws on `document.cookie` and `localStorage`, which is a tab Slides cannot
+    run in. **What it costs is a stronger phishing surface than the same form
+    drawn inline**, because the new tab carries a real address bar; the
+    mitigation on record is that import is admin-only.
+    `docs/standards/IDEA_HTML_ASSIGNMENT_SPEC.md` section 5.6 carries the
+    measured table -- a popup cannot read the opener, the opener's parent or the
+    opener's top, and cannot navigate either of them, so the widening did NOT
+    buy `allow-top-navigation` by proxy. **`allow-top-navigation` and
+    `allow-forms` stay refused in every configuration.**
   - **`connect-src 'none'` IS AN INDEPENDENT LEVER AND NEITHER IS EVIDENCE
     ABOUT THE OTHER.** A fetch from inside the document is refused with either
     one in force. The discriminator, measured: open `connect-src` with the
