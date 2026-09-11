@@ -119,6 +119,22 @@ export class HxAnswersStore implements HtmlAssignmentAnswers {
 		return this.#answers.flush();
 	}
 
+	/**
+	 * The durability net over every block, including the blocks whose machines
+	 * do not exist yet. Handed straight back from an `$effect` by the mounting
+	 * surface, exactly as `AssignmentEngine` and the other five do -- see
+	 * `HxAnswers.attach` for why it cannot be one pair of listeners.
+	 *
+	 * NOT CALLED FROM AN `$effect` IN HERE. This module deliberately runs no
+	 * effect (see the header): a `.svelte.ts` is outside
+	 * `tests/classroom-composer-effect-reactivity.test.ts`'s sweep, and that gap
+	 * is a tripwire rather than an omission. The LIFECYCLE belongs to whoever
+	 * mounts this, which is the same rule `destroy` already follows.
+	 */
+	attach(): () => void {
+		return this.#answers.attach();
+	}
+
 	/** Every machine's listeners and timers down. The mount owns calling this. */
 	destroy(): void {
 		this.#answers.destroy();

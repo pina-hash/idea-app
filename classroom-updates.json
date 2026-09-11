@@ -13,6 +13,14 @@
 	],
 	"entries": [
 		{
+			"date": "2026-09-11",
+			"title": "Worksheet answers are safer if you close the tab quickly",
+			"body": "On the assignments that open as a worksheet in the page, your answers save a moment after you stop typing. If you closed the tab or clicked away inside that moment, the last thing you typed could be lost. It now saves when you leave, so the words you just wrote go with you. Nothing about how you work changes, and there is still no button to press when you are finished: finishing the work is handing it in.",
+			"tags": [
+				"assignments"
+			]
+		},
+		{
 			"date": "2026-09-10",
 			"title": "Some assignments now open as a worksheet you fill in on the page",
 			"body": "A few assignments are a whole worksheet: you read it, type into it, tick things off and add a photo, all in one page rather than downloading a file and sending it back. If you get one of these, it opens under \"Your work\" the same way every other assignment does, and there is nothing extra to install or sign in to. Everything you type is saved as you go, so you can close the tab and come back and it will still be there. A photo you add stays on the question you took it for, and you can write a caption for it. If something cannot be saved, the worksheet says so at the time instead of losing it quietly. Turning it in works exactly as it always has, and it is marked against the same rubric you can see on the assignment. Nothing changes for any assignment that is not one of these.",

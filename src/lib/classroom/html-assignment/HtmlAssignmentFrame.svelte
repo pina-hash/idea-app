@@ -291,6 +291,45 @@
 		if (!ready || !ack) return;
 		post(hxSavedMessage(ack.at, ack.ok, ack.reason ?? null));
 	});
+
+	/**
+	 * THE RESTORED PHOTOGRAPHS, AS PARENT CHROME, BECAUSE THEY CANNOT GO INSIDE.
+	 *
+	 * `idea:state` carries an image's URL down to the document and the document
+	 * CANNOT RENDER IT: the URL is a portal proxy the sandbox CSP admits no host
+	 * for, and the request would arrive credential-free off an opaque origin
+	 * anyway. Weakening the CSP to let it in is the rejected fix -- `img-src
+	 * data:` would happily render a round-tripped data URI, which would quietly
+	 * make a student's document the system of record for their photograph. So a
+	 * restored picture belongs BESIDE the frame, in chrome we own.
+	 *
+	 * IT LIVES IN THIS COMPONENT AND NOT AT EITHER CALL SITE, and that is the
+	 * repo's parity rule rather than convenience: an instructor's view of
+	 * student-facing content is the student view plus edit affordances, THROUGH
+	 * THE SAME RENDER PATH. A strip built in the grading console would be a
+	 * second view of a student's evidence that the student cannot see, free to
+	 * drift from theirs; built here, the item page and the grading console get
+	 * one implementation because both mount this.
+	 *
+	 * SORTED BY FIELD so two graders reading one hand-in read it in one order.
+	 * `Object.entries` follows insertion order, which is whatever order the rows
+	 * came back in.
+	 */
+	const imageList = $derived(
+		Object.entries(images)
+			.map(([field, state]) => ({ field, ...state }))
+			.sort((a, b) => a.field.localeCompare(b.field))
+	);
+
+	/**
+	 * A THUMBNAIL THAT WILL NOT DECODE FALLS BACK TO ITS ROW, never to a broken
+	 * image icon. The proxy answers `application/octet-stream` with an
+	 * attachment disposition, which an `<img>` decodes perfectly (measured in
+	 * Chromium, CLAUDE.md's classroom-files section) -- but the object may be a
+	 * `.SLDPRT` a document called a photo, or a file whose bytes never landed,
+	 * and the honest answer then is the name and a marker.
+	 */
+	let undecodable = $state<Record<string, true>>({});
 </script>
 
 <div class="hx-frame-wrap" data-hx-ready={ready ? 'yes' : 'no'} data-hx-listening={listening ? 'yes' : 'no'}>
@@ -323,6 +362,52 @@
 		     height so nothing below it moves when the frame arrives. -->
 		<div class="hx-frame hx-frame-placeholder" style="height: {height}px;" aria-hidden="true"></div>
 	{/if}
+
+	{#if imageList.length}
+		<section class="hx-images" aria-label="Photos attached to this worksheet">
+			<h3 class="hx-images-head">Photos</h3>
+			<ul class="hx-image-list">
+				{#each imageList as image (image.field)}
+					<li class="hx-image">
+						{#if undecodable[image.field]}
+							<!-- A control absent for a reason says the reason. -->
+							<span class="hx-image-missing" aria-hidden="true">!</span>
+						{:else}
+							<!-- `loading="eager"`: a lazy image never requests in a pane that
+							     does not fire IntersectionObserver, and every assertion about
+							     it then passes vacuously. -->
+							<img
+								class="hx-image-thumb"
+								src={image.url}
+								alt={image.caption || image.name}
+								loading="eager"
+								onerror={() => (undecodable = { ...undecodable, [image.field]: true })}
+							/>
+						{/if}
+						<div class="hx-image-meta">
+							<span class="hx-image-field">{image.field}</span>
+							<span class="hx-image-name">{image.name}</span>
+							{#if image.caption}
+								<span class="hx-image-caption">{image.caption}</span>
+							{/if}
+							{#if undecodable[image.field]}
+								<!-- ITS OWN LINE, NOT AN `{:else}` ON THE CAPTION, and that was
+								     the first shape. A student who wrote a caption still gets a
+								     file that will not decode, and folding the two together
+								     meant the only row that needed the explanation -- the one
+								     with a caption -- was the one that did not get it. A
+								     control absent for a reason says the reason, whatever else
+								     is on the row. -->
+								<span class="hx-image-caption hx-image-undecodable"
+									>This file could not be shown as a picture.</span
+								>
+							{/if}
+						</div>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
 </div>
 
 <style>
@@ -335,6 +420,93 @@
 	.hx-frame-placeholder {
 		/* The same box, so the frame arriving moves nothing. */
 		background: var(--surface-1, var(--bg1));
+	}
+
+	.hx-images {
+		margin-top: var(--space-3, 0.9rem);
+	}
+
+	.hx-images-head {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--text-2);
+		margin: 0 0 var(--space-2, 0.6rem);
+	}
+
+	.hx-image-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		/* `auto-fit` so one photo takes the row rather than leaving a void beside
+		   it, and `min()` so the same rule is the single narrow column at 375px
+		   with no breakpoint of its own. */
+		grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
+		gap: var(--space-2, 0.6rem);
+	}
+
+	.hx-image {
+		display: flex;
+		gap: var(--space-2, 0.6rem);
+		align-items: flex-start;
+		/* An item's automatic minimum is its min-content, so a long filename
+		   would otherwise push the whole grid wider than the viewport. */
+		min-width: 0;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-md, 8px);
+		padding: var(--space-2, 0.6rem);
+		background: var(--surface-1, var(--bg1));
+	}
+
+	.hx-image-thumb {
+		width: 5rem;
+		height: 5rem;
+		flex: none;
+		object-fit: cover;
+		border-radius: var(--radius-sm, 4px);
+		background: var(--surface-2, var(--bg2));
+	}
+
+	.hx-image-missing {
+		width: 5rem;
+		height: 5rem;
+		flex: none;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-family: var(--font-mono);
+		font-size: 1.4rem;
+		color: var(--amber);
+		border: 1px dashed var(--boundary);
+		border-radius: var(--radius-sm, 4px);
+	}
+
+	.hx-image-meta {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		min-width: 0;
+	}
+
+	.hx-image-field {
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		color: var(--text-2);
+		overflow-wrap: anywhere;
+	}
+
+	.hx-image-name {
+		font-size: 0.85rem;
+		color: var(--text-1);
+		overflow-wrap: anywhere;
+	}
+
+	.hx-image-caption {
+		font-size: 0.8rem;
+		color: var(--text-2);
+		overflow-wrap: anywhere;
 	}
 
 	.hx-frame {

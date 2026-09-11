@@ -1072,15 +1072,21 @@ This applies to every change. Prompts do not need to restate it.
     npx svelte-check`, and read the count off its own summary line -- the sync
     first, because stale generated route types report phantom errors (see the
     toolchain traps).
-  - **A CHECKOUT WITH NO `.env` REPORTS 13 PHANTOM ERRORS, AND THEY ARE NOT A
+  - **A CHECKOUT WITH NO `.env` REPORTS 14 PHANTOM ERRORS, AND THEY ARE NOT A
     REGRESSION.** `$env/static/public` is generated from the environment, so
     with no `.env` present -- which is every fresh cloud session, since `.env`
     is gitignored -- `svelte-kit sync` writes a module exporting nothing and
-    **13** `has no exported member 'PUBLIC_SUPABASE_URL'`/`_ANON_KEY` errors
-    land across **10** files that no change touched. **This line said eleven
-    across eight until 2026-09-06**, and prompts 0071 and 0074 each measured 13
-    independently before either said so, which is the same failure as the
-    warning count below and the reason both are re-measured rather than read. **Export the two values
+    **14** `has no exported member 'PUBLIC_SUPABASE_URL'`/`_ANON_KEY` errors
+    land across **11** files that no change touched. **This line said eleven
+    across eight until 2026-09-06 and thirteen across ten until 2026-09-11**,
+    and prompts 0071 and 0074 each measured 13 independently before either said
+    so, which is the same failure as the warning count below and the reason both
+    are re-measured rather than read. **THE NUMBER GROWS WITH THE TREE, WHICH IS
+    WHY IT KEEPS BEING WRONG**: the eleventh file is
+    `src/lib/server/html-assignment-document.ts`, which 0195 added AFTER the
+    thirteen was measured, so the figure went stale the moment a new module read
+    `$env/static/public` -- prefer the instrument (export the two values, then
+    sync, then read the summary line) to the number. **Export the two values
     (any placeholder will do) BEFORE the sync** and the count returns to 0
     errors / 37 warnings with the 31/5/1 breakdown intact, measured. The
     warnings are unaffected either way, which is the tell: a real regression

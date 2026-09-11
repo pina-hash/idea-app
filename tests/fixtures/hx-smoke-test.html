@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HX Smoke Test</title>
+<script type="application/json" id="idea-manifest">
+{
+  "schemaVersion": 3,
+  "kind": "html-assignment",
+  "title": "HX Smoke Test",
+  "course": "IDEA100",
+  "points": 10,
+  "header": [
+    { "id": "smoke-student-name", "field": "studentName", "type": "text" }
+  ],
+  "modules": [
+    {
+      "id": "smoke-writing",
+      "title": "Writing",
+      "points": 5,
+      "audience": "individual",
+      "blocks": [
+        { "id": "smoke-writing-line", "field": "oneLine", "type": "text" },
+        { "id": "smoke-writing-reflection", "field": "reflection", "type": "longText", "minSentences": 2 },
+        { "id": "smoke-writing-choice", "field": "choice", "type": "radio" }
+      ],
+      "criteria": [
+        {
+          "id": "writing",
+          "text": "Every writing field answered",
+          "points": 5,
+          "levels": [
+            { "points": 5, "label": "Complete", "short": "All three answered", "descriptor": "The line, the two-sentence reflection and the choice are all filled." },
+            { "points": 3, "label": "Developing", "short": "One or two answered", "descriptor": "One or two of the three are filled." },
+            { "points": 0, "label": "Absent", "short": "Nothing answered", "descriptor": "None of the three are filled." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "smoke-evidence",
+      "title": "Evidence",
+      "points": 5,
+      "audience": "team",
+      "blocks": [
+        { "id": "smoke-evidence-check", "field": "confirmed", "type": "checkbox" },
+        { "id": "smoke-evidence-table", "field": "measurements", "type": "table" },
+        { "id": "smoke-evidence-photo", "field": "photo", "type": "image" }
+      ],
+      "criteria": [
+        {
+          "id": "evidence",
+          "text": "Checkbox, table and photo all present",
+          "points": 5,
+          "levels": [
+            { "points": 5, "label": "Complete", "short": "All three present", "descriptor": "The box is checked, every table row is filled and a photo is attached." },
+            { "points": 3, "label": "Developing", "short": "One or two present", "descriptor": "One or two of the three are present." },
+            { "points": 0, "label": "Absent", "short": "Nothing present", "descriptor": "None of the three are present." }
+          ]
+        }
+      ]
+    }
+  ]
+}
+</script>
+<style>
+  body { font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; padding: 16px; color: #111; background: #fff; }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 24px 0 8px; border-bottom: 2px solid #1d7a46; padding-bottom: 4px; }
+  label { display: block; font-weight: 600; margin: 12px 0 4px; }
+  input[type="text"], textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 8px; min-height: 44px; border: 1px solid #888; border-radius: 4px; }
+  textarea { min-height: 96px; }
+  .opts label, .check { font-weight: 400; display: flex; align-items: center; gap: 8px; min-height: 44px; margin: 0; }
+  .opts input, .check input { width: 22px; height: 22px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #888; padding: 4px; text-align: left; }
+  td input { border: 0; min-height: 40px; }
+  #status { position: sticky; top: 0; background: #eef6f0; border: 1px solid #1d7a46; padding: 6px 10px; font-size: 14px; border-radius: 4px; }
+  #status.bad { background: #fdecec; border-color: #b3261e; }
+  button { font: inherit; min-height: 44px; padding: 0 14px; }
+  .muted { color: #555; font-size: 14px; }
+  body.is-readonly { background: #f4f4f4; }
+</style>
+</head>
+<body>
+<div id="status">Connecting...</div>
+<h1>HX Smoke Test</h1>
+<p class="muted">A test of the HTML assignment system. Every field here should save on its own and come back after a reload.</p>
+
+<label for="f-name">Student name</label>
+<input type="text" id="f-name" data-field="studentName">
+
+<h2>01 Writing</h2>
+<label for="f-line">One line about your blade</label>
+<input type="text" id="f-line" data-field="oneLine">
+
+<label for="f-reflection">Two sentences: what did you model today?</label>
+<textarea id="f-reflection" data-field="reflection"></textarea>
+<div class="muted" id="count">0 / 2 sentences</div>
+
+<label>Which part do you own?</label>
+<div class="opts">
+  <label><input type="radio" name="choice" value="body" data-field="choice"> Body</label>
+  <label><input type="radio" name="choice" value="blade" data-field="choice"> Blade</label>
+  <label><input type="radio" name="choice" value="both" data-field="choice"> Both</label>
+</div>
+
+<h2>02 Evidence</h2>
+<label class="check"><input type="checkbox" data-field="confirmed"> My files are saved in one folder</label>
+
+<label>Measurements</label>
+<table data-field="measurements">
+  <thead><tr><th>Limit</th><th>Measured</th></tr></thead>
+  <tbody>
+    <tr><td>Diameter (in)</td><td><input type="text" aria-label="Diameter"></td></tr>
+    <tr><td>Full height (in)</td><td><input type="text" aria-label="Full height"></td></tr>
+    <tr><td>Mass (g)</td><td><input type="text" aria-label="Mass"></td></tr>
+  </tbody>
+</table>
+
+<label for="f-photo">One photo or screenshot</label>
+<input type="file" id="f-photo" accept="image/*" data-field="photo">
+<div class="muted" id="photo-state">No photo attached.</div>
+<label for="f-caption">Caption</label>
+<input type="text" id="f-caption">
+<button type="button" id="photo-remove">Remove photo</button>
+
+<script>
+(function () {
+  var SCHEMA = 3;
+  var readOnly = false;
+  var statusEl = document.getElementById('status');
+
+  function send(msg) { try { window.parent.postMessage(msg, '*'); } catch (e) {} }
+  function change(field, value) { if (!readOnly) send({ type: 'idea:change', field: field, value: value }); }
+  function setStatus(text, bad) { statusEl.textContent = text; statusEl.className = bad ? 'bad' : ''; }
+
+  function tableRows() {
+    return Array.prototype.map.call(document.querySelectorAll('table[data-field="measurements"] tbody tr'), function (tr) {
+      return { limit: tr.cells[0].textContent, measured: tr.querySelector('input').value };
+    });
+  }
+  function countSentences(t) { var m = t.trim().match(/[^.!?]+[.!?]+/g); return m ? m.length : 0; }
+  function updateCount() {
+    var n = countSentences(document.getElementById('f-reflection').value);
+    document.getElementById('count').textContent = n + ' / 2 sentences';
+  }
+
+  document.querySelectorAll('input[type="text"][data-field], textarea[data-field]').forEach(function (el) {
+    el.addEventListener('input', function () { change(el.getAttribute('data-field'), el.value); if (el.id === 'f-reflection') updateCount(); });
+  });
+  document.querySelectorAll('input[type="radio"][data-field]').forEach(function (el) {
+    el.addEventListener('change', function () { if (el.checked) change('choice', el.value); });
+  });
+  document.querySelector('input[type="checkbox"][data-field]').addEventListener('change', function (e) { change('confirmed', e.target.checked); });
+  document.querySelectorAll('table[data-field="measurements"] input').forEach(function (el) {
+    el.addEventListener('input', function () { change('measurements', JSON.stringify(tableRows())); });
+  });
+
+  document.getElementById('f-photo').addEventListener('change', function (e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file || readOnly) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      send({ type: 'idea:image', field: 'photo', name: file.name, bytes: String(reader.result) });
+      document.getElementById('photo-state').textContent = 'Sending ' + file.name + '...';
+    };
+    reader.readAsDataURL(file);
+  });
+  document.getElementById('f-caption').addEventListener('input', function (e) {
+    if (!readOnly) send({ type: 'idea:image-caption', field: 'photo', caption: e.target.value });
+  });
+  document.getElementById('photo-remove').addEventListener('click', function () {
+    if (readOnly) return;
+    send({ type: 'idea:image-remove', field: 'photo' });
+    document.getElementById('photo-state').textContent = 'No photo attached.';
+    document.getElementById('f-caption').value = '';
+  });
+
+  function applyState(m) {
+    readOnly = !!m.readOnly;
+    var v = m.values || {};
+    document.querySelectorAll('input[type="text"][data-field], textarea[data-field]').forEach(function (el) {
+      var f = el.getAttribute('data-field');
+      if (typeof v[f] === 'string') el.value = v[f];
+    });
+    document.querySelectorAll('input[type="radio"][data-field]').forEach(function (el) { el.checked = v.choice === el.value; });
+    var cb = document.querySelector('input[type="checkbox"][data-field]');
+    cb.checked = v.confirmed === true;
+    if (typeof v.measurements === 'string' && v.measurements) {
+      try {
+        var rows = JSON.parse(v.measurements);
+        var inputs = document.querySelectorAll('table[data-field="measurements"] input');
+        rows.forEach(function (r, i) { if (inputs[i]) inputs[i].value = r.measured || ''; });
+      } catch (e) {}
+    }
+    var img = (m.images || {}).photo;
+    document.getElementById('photo-state').textContent = img ? ('Attached: ' + img.name) : 'No photo attached.';
+    document.getElementById('f-caption').value = img ? (img.caption || '') : '';
+    document.querySelectorAll('input, textarea, button').forEach(function (el) { el.disabled = readOnly; });
+    document.body.classList.toggle('is-readonly', readOnly);
+    updateCount();
+    setStatus(readOnly ? 'Read only.' : 'Connected. Answers save as you type.', false);
+  }
+
+  window.addEventListener('message', function (e) {
+    if (e.source !== window.parent) return;
+    var m = e.data;
+    if (!m || typeof m.type !== 'string') return;
+    if (m.type === 'idea:state') applyState(m);
+    if (m.type === 'idea:saved') {
+      if (m.ok) setStatus('Saved at ' + new Date(m.at).toLocaleTimeString(), false);
+      else setStatus('Not saved: ' + (m.reason || 'the save was refused.'), true);
+    }
+  });
+
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () { send({ type: 'idea:height', px: Math.ceil(document.documentElement.scrollHeight) }); }).observe(document.body);
+  }
+  send({ type: 'idea:ready', schemaVersion: SCHEMA });
+})();
+</script>
+</body>
+</html>

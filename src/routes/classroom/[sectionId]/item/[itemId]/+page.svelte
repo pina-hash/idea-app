@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import ItemDetail from '$lib/classroom/ItemDetail.svelte';
 	import {
@@ -23,6 +23,9 @@
 		hxValuesFromResponses
 	} from '$lib/classroom/html-assignment/answers';
 	import { HxAnswersStore } from '$lib/classroom/html-assignment/answers-store.svelte';
+	import { HX_UNSAVED_WARNING } from '$lib/classroom/html-assignment/answers';
+	import { guardSaveNavigation } from '$lib/save-guard.svelte';
+	import { SaveState } from '$lib/save-state.svelte';
 	import { itemLayoutKnown } from '$lib/classroom/attachments';
 	import type { PageData } from './$types';
 
@@ -89,18 +92,17 @@
 	 * `invalidateAll()` after a manager's write re-runs this and gets the SAME
 	 * object back.
 	 *
-	 * WHAT THOSE MACHINES DO **NOT** HAVE IS THE DURABILITY NET, AND THAT IS A
-	 * FINDING RATHER THAN A DECISION MADE HERE. `SaveState.attach()` is what
-	 * wires visibilitychange and pagehide, and every other save surface in this
-	 * codebase calls it from an `$effect` (`AssignmentEngine`, `ContentComposer`,
-	 * `GradingConsole`, `InstructorCopy`, `SpecTextEditor`). `HxAnswers` never
-	 * calls it, exposes no `attach` of its own, and builds its machines LAZILY
-	 * per block -- so nothing outside it can attach them either. Closing the tab
-	 * inside the 800ms debounce therefore loses the last keystroke burst on a
-	 * ported worksheet and on no other surface. Fixing it means giving
-	 * `HxAnswers` an `attach` that also covers machines made later, which is a
-	 * change to a module this bundle was told not to reshape; it is written up
-	 * in ledger 0139 and in this bundle's history entry.
+	 * THOSE MACHINES NOW HAVE THE DURABILITY NET, AND THEY DID NOT UNTIL LEDGER
+	 * 0141. `SaveState.attach()` is what wires visibilitychange and pagehide,
+	 * and every other save surface in this codebase calls it from an `$effect`
+	 * (`AssignmentEngine`, `ContentComposer`, `GradingConsole`,
+	 * `InstructorCopy`, `SpecTextEditor`). `HxAnswers` called it ZERO times,
+	 * exposed no `attach` of its own, and builds its machines LAZILY per block
+	 * -- so nothing outside it could attach them either, and closing the tab
+	 * inside the 800ms debounce lost the last keystroke burst on a ported
+	 * worksheet and on no other surface in the app. The two halves of the fix
+	 * are `HxAnswers.attach`, which covers machines made after it was called,
+	 * and the `$effect` plus `guardSaveNavigation` below.
 	 *
 	 * AND `data.engine` IS THE SEED, NOT THE TRUTH. Once mounted the controller
 	 * owns the answers -- a reload of the page data must not overwrite what a
@@ -115,6 +117,34 @@
 	 */
 	// svelte-ignore state_referenced_locally
 	const htmlAnswerTransports = createHtmlAnswerTransports(data.supabase);
+
+	/**
+	 * THE NAVIGATION GUARD'S HANDLE, DECLARED BEFORE THE CONTROLLER THAT ARMS IT.
+	 *
+	 * `guardSaveNavigation` takes ONE `SaveState` and this surface has one per
+	 * block, so this is the `MapsEditor` shape: an `autosave: false` machine
+	 * that schedules nothing and writes nothing itself, existing only so the
+	 * guard has something to hold, whose `save()` calls the controller's own
+	 * `flush()`. It is not a second save path -- `HxAnswers.flush` remains the
+	 * one implementation of "write everything owed".
+	 *
+	 * IT MUST BE MARKED DIRTY OR ITS FLUSH NEVER RUNS, which is the whole reason
+	 * `ondirty` exists. `SaveState.saveNow()` returns early on a machine that is
+	 * clean with nothing pending, so a handle nothing ever arms would have the
+	 * guard cancel the navigation, flush NOTHING, find the work still
+	 * outstanding and put a confirm in front of the student -- the loss the
+	 * guard exists to prevent, plus a question people learn to click through.
+	 * `autosave: false` is what keeps arming it from scheduling a write of its
+	 * own; the per-block machines still own the actual debounce.
+	 */
+	const htmlGuardState = new SaveState({
+		autosave: false,
+		fallbackMessage: HX_UNSAVED_WARNING,
+		async save() {
+			await heldHtmlAnswers?.store.flush();
+			return { ok: true };
+		}
+	});
 
 	/** The memo cell. A plain local, never `$state`: it is read and written only
 	    inside the derived below, and making it reactive would make that derived
@@ -148,7 +178,11 @@
 				// exactly those rows behind and there is no field to put them in.
 				values: hxValuesFromResponses(manifest, engine.responses),
 				images: hxImagesFromFiles(manifest, engine.files),
-				fileIds: hxFileIdsByField(manifest, engine.files)
+				fileIds: hxFileIdsByField(manifest, engine.files),
+				// ARMS THE GUARD'S HANDLE the moment a block owes a write. See
+				// `htmlGuardState` above for why a handle nothing marks dirty makes
+				// the guard ask a question instead of flushing.
+				ondirty: () => htmlGuardState.markDirty()
 			})
 		};
 		return heldHtmlAnswers.store;
@@ -159,6 +193,60 @@
 	onDestroy(() => {
 		heldHtmlAnswers?.store.destroy();
 		heldHtmlAnswers = null;
+	});
+
+	/**
+	 * THE TAB-CLOSING NET, WIRED THE WAY THE OTHER SIX SURFACES WIRE IT.
+	 *
+	 * `htmlAnswers` IS READ TRACKED AND THE CALL IS `untrack`ed, which is the
+	 * repo's rule for an effect that invokes code it did not write. The tracked
+	 * read is the dependency this effect exists for -- a NEW controller needs a
+	 * new net, and the old one's teardown is what takes the previous listeners
+	 * off -- and the memo above returns the SAME object across an
+	 * `invalidateAll()`, so a manager's write does not silently re-arm anything.
+	 * `attach()` touches only `document`, `window` and its own machines today;
+	 * untracking it anyway is the shape rule, not a claim about what it does.
+	 *
+	 * RETURNING THE TEARDOWN IS DELIBERATE AND IS NOT A SECOND `destroy()`. It
+	 * runs only when this effect re-runs or the page goes away, which is exactly
+	 * when the controller it attached is finished with; `onDestroy` above stays
+	 * because a controller superseded by a KEY CHANGE is disposed there, and the
+	 * two cover different moments.
+	 */
+	$effect(() => {
+		const answers = htmlAnswers;
+		if (!answers) return;
+		return untrack(() => answers.attach());
+	});
+
+	/**
+	 * AND THE NAVIGATION HALF, WHICH THE NET ABOVE DOES NOT COVER.
+	 *
+	 * `visibilitychange` and `pagehide` do not fire on a CLIENT-SIDE navigation
+	 * -- clicking the next item in the class stream is not the tab going away --
+	 * so the 800ms debounce is just as lossy there, and it is the case
+	 * `save-guard.svelte.ts`'s own header names as the reported defect that
+	 * produced it.
+	 *
+	 * THE GUARD TAKES A `SaveState` AND THIS SURFACE HAS ONE PER BLOCK, so it
+	 * gets the `MapsEditor` shape: one `autosave: false` machine that schedules
+	 * nothing and exists only as the guard's handle, whose `save()` flushes the
+	 * real ones. It is NOT a second save path -- it writes nothing itself, and
+	 * `HxAnswers.flush` is the one implementation of "write everything owed".
+	 * `alsoUnsaved` is what reports work the handle cannot see, because
+	 * `HxAnswers.dirty` is a question asked at a moment rather than a rune the
+	 * guard could read off this machine.
+	 *
+	 * BUILT UNCONDITIONALLY AND GATED BY `enabled`, because `guardSaveNavigation`
+	 * registers a `beforeNavigate` and that is a component-init call: a
+	 * conditional one would be a guard that exists only on the render where the
+	 * condition first held.
+	 */
+	$effect(() => htmlGuardState.attach());
+	guardSaveNavigation(htmlGuardState, {
+		enabled: () => !!heldHtmlAnswers,
+		warning: HX_UNSAVED_WARNING,
+		alsoUnsaved: () => (heldHtmlAnswers?.store.dirty ? HX_UNSAVED_WARNING : null)
 	});
 
 	/**
