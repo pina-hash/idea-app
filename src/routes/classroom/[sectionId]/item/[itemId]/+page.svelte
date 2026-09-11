@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { createIdeacadTransports } from '$lib/ideacad/transports';
 	import { onDestroy, untrack } from 'svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import ItemDetail from '$lib/classroom/ItemDetail.svelte';
@@ -24,6 +25,7 @@
 		hxValuesFromResponses
 	} from '$lib/classroom/html-assignment/answers';
 	import { HxAnswersStore } from '$lib/classroom/html-assignment/answers-store.svelte';
+	import { hxInstructorAnswerTransports } from '$lib/classroom/html-assignment/instructor';
 	import { HX_UNSAVED_WARNING } from '$lib/classroom/html-assignment/answers';
 	import { guardSaveNavigation } from '$lib/save-guard.svelte';
 	import { SaveState } from '$lib/save-state.svelte';
@@ -36,6 +38,7 @@
 	// it once is the intent here, not a missed reactive read.
 	// svelte-ignore state_referenced_locally
 	const transports = createClassroomTransports(data.supabase);
+	const ideacadTransports = createIdeacadTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	// svelte-ignore state_referenced_locally
 	const engineTransports = createEngineTransports(data.supabase);
@@ -206,6 +209,7 @@
 		fallbackMessage: HX_UNSAVED_WARNING,
 		async save() {
 			await heldHtmlAnswers?.store.flush();
+			await heldHtmlInstructor?.store.flush();
 			return { ok: true };
 		}
 	});
@@ -214,6 +218,87 @@
 	    inside the derived below, and making it reactive would make that derived
 	    depend on its own output. */
 	let heldHtmlAnswers: { key: string; store: HxAnswersStore } | null = null;
+
+	/**
+	 * THE MANAGER'S OWN ANSWER PATH ON A PORTED ASSIGNMENT (0199), built exactly
+	 * the way the student's is and kept rigorously apart from it.
+	 *
+	 * `hxInstructorAnswerTransports` PROJECTS 0128's OWN `saveResponse` and
+	 * nothing else, so `idea:change` from an instructor's frame reaches
+	 * `classroom_save_instructor_response` and lands in
+	 * `classroom_instructor_responses` -- never `classroom_save_response`, which
+	 * would put a teacher's answers in the student table where the grading
+	 * console, the Grades tab, the FACTS export and every roster read treat a row
+	 * as a student's hand-in.
+	 *
+	 * THE THREE FILE TRANSPORTS ARE ABSENT AND THAT IS NOT AN OMISSION. There is
+	 * no instructor counterpart to `classroom_submission_files`; handing the
+	 * engine's uploader over would attach a teacher's photograph to a
+	 * `classroom_submissions` row opened in their own name. The controller
+	 * answers each absence with its own sentence, which travels back into the
+	 * document, rather than dropping the message.
+	 *
+	 * NULL IS THE ORDINARY ANSWER for a student, for a v1 assignment, for a
+	 * deployment whose working-copy read came back empty and for a manifest that
+	 * could not be narrowed -- and null leaves `ItemDetail` rendering exactly the
+	 * read-only frame it rendered before this existed.
+	 */
+	const htmlInstructorTransports = $derived(
+		data.canManage && data.instructorCopy
+			? hxInstructorAnswerTransports(
+					createInstructorCopyTransports(data.supabase, data.instructorCopy.myEmail)
+				)
+			: null
+	);
+
+	/** The instructor controller's memo cell. A plain local, for the same reason
+	    `heldHtmlAnswers` is one: it is read and written only inside the derived
+	    below, and making it reactive would make that derived depend on its own
+	    output. */
+	let heldHtmlInstructor: { key: string; store: HxAnswersStore } | null = null;
+
+	const htmlInstructorAnswers = $derived.by(() => {
+		const doc = data.htmlAssignment;
+		const copy = data.instructorCopy;
+		const transports = htmlInstructorTransports;
+		const manifest = doc && htmlManifestShaped(doc.manifest) ? doc.manifest : null;
+		// THE KEY CARRIES THE INSTRUCTOR'S OWN EMAIL as well as the item and the
+		// document, because the rows this controller is seeded from are theirs
+		// alone. On a shared staff machine a sign-out and a sign-in changes who
+		// the copy belongs to without changing the item, and a controller
+		// memoized on the item would go on writing the previous instructor's
+		// answers into the new one's session.
+		const key =
+			!doc || !manifest || !copy || !transports || !data.canManage
+				? ''
+				: `${data.item.id}:${doc.documentId}:${copy.myEmail}`;
+		if (heldHtmlInstructor && heldHtmlInstructor.key === key) return heldHtmlInstructor.store;
+		heldHtmlInstructor?.store.destroy();
+		heldHtmlInstructor = null;
+		if (!key || !manifest || !copy || !transports) return null;
+		heldHtmlInstructor = {
+			key,
+			store: new HxAnswersStore({
+				itemId: data.item.id,
+				manifest,
+				transports,
+				// `mine` IS ALREADY THE CALLER'S OWN ROWS -- `loadInstructorCopy`
+				// filters by email in the load, because RLS legitimately returns the
+				// key author's rows through the same policy and attribution is not
+				// authorization. `hxValuesFromResponses` takes them unchanged: a row
+				// is `{ block_id, value }` whichever table it came out of.
+				values: hxValuesFromResponses(manifest, copy.mine),
+				// NO IMAGES AND NO FILE IDS, because there is no instructor file
+				// table for either to come from. Empty rather than omitted, so a
+				// document opens on `{}` and shows no photograph rather than opening
+				// on nothing and showing whatever it had.
+				images: {},
+				fileIds: new Map(),
+				ondirty: () => htmlGuardState.markDirty()
+			})
+		};
+		return heldHtmlInstructor.store;
+	});
 
 	const htmlAnswers = $derived.by(() => {
 		const doc = data.htmlAssignment;
@@ -257,6 +342,8 @@
 	onDestroy(() => {
 		heldHtmlAnswers?.store.destroy();
 		heldHtmlAnswers = null;
+		heldHtmlInstructor?.store.destroy();
+		heldHtmlInstructor = null;
 	});
 
 	/**
@@ -279,6 +366,23 @@
 	 */
 	$effect(() => {
 		const answers = htmlAnswers;
+		if (!answers) return;
+		return untrack(() => answers.attach());
+	});
+
+	/**
+	 * AND THE SAME NET OVER THE INSTRUCTOR'S CONTROLLER (0199). Its own effect
+	 * rather than a second statement inside the one above: the two controllers
+	 * are never both live -- one is built for a manager and the other for a
+	 * student -- but an effect reading both would re-run and re-attach one
+	 * because the OTHER moved, which is the kind of coupling that is invisible
+	 * until the day both are non-null.
+	 *
+	 * A teacher checking a worksheet closes the tab exactly as a student does,
+	 * and the debounce is just as lossy for them.
+	 */
+	$effect(() => {
+		const answers = htmlInstructorAnswers;
 		if (!answers) return;
 		return untrack(() => answers.attach());
 	});
@@ -308,9 +412,18 @@
 	 */
 	$effect(() => htmlGuardState.attach());
 	guardSaveNavigation(htmlGuardState, {
-		enabled: () => !!heldHtmlAnswers,
+		// ONE GUARD OVER BOTH CONTROLLERS, never two. `guardSaveNavigation`
+		// registers a `beforeNavigate`, and two of them on one page race to
+		// cancel the same navigation and ask two questions about one move -- the
+		// defect `save-guard.svelte.ts` names in its own header. Only one of the
+		// two controllers is ever live, so the handle's `save()` flushing both
+		// flushes exactly the one that exists.
+		enabled: () => !!heldHtmlAnswers || !!heldHtmlInstructor,
 		warning: HX_UNSAVED_WARNING,
-		alsoUnsaved: () => (heldHtmlAnswers?.store.dirty ? HX_UNSAVED_WARNING : null)
+		alsoUnsaved: () =>
+			heldHtmlAnswers?.store.dirty || heldHtmlInstructor?.store.dirty
+				? HX_UNSAVED_WARNING
+				: null
 	});
 
 	/**
@@ -368,7 +481,9 @@
 	checkInTransports={liveCheckInTransports}
 	layoutTransports={liveLayoutTransports}
 	htmlAssignment={data.htmlAssignment}
+	ideacad={data.ideacad}
 	{htmlAnswers}
+	{htmlInstructorAnswers}
 	htmlAssignmentTransports={data.canManage && data.navIsAdmin === true
 		? htmlAssignmentTransports
 		: null}

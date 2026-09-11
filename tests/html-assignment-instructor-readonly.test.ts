@@ -88,17 +88,61 @@ describe('the grading console hands down no write path for a ported worksheet', 
 		expect(found.sort()).toEqual([...WRITE_PROPS].sort());
 	});
 
-	it('the item page gates all four on the answers controller, so a manager gets none', () => {
+	it('the item page gates all four on the answers controller, so a manager gets none THERE', () => {
 		// THE STUDENT SLICE IS NEVER LOADED FOR A MANAGER, so `htmlWrites` is
 		// null on their page and `readOnly={!htmlWrites}` is true. Asserted on
 		// the markup because that is where the gate is: every callback reads
 		// through the same optional chain, so there is one condition rather than
 		// four that could drift apart.
+		//
+		// "A MANAGER GETS NONE" IS NOW ABOUT THIS MOUNT AND NOT ABOUT THE PAGE.
+		// Since 0199 a manager may get a writable worksheet through
+		// `HtmlInstructorCopy`, which writes `classroom_instructor_responses`
+		// through 0128's RPC and is a different component in a different branch.
+		// What must stay true of THIS mount -- the one seeded from the student
+		// slice, writing `classroom_responses` -- is exactly what it always was.
 		const [mount] = frameMounts(ITEM_DETAIL);
 		for (const p of WRITE_PROPS) {
 			expect(mount, `${p} must be gated on htmlWrites`).toContain(`${p}={htmlWrites?.`);
 		}
 		expect(mount).toContain('readOnly={!htmlWrites}');
+	});
+
+	it('and the grading console mounts no instructor working copy either', () => {
+		// 0199 ADDED A SECOND WAY TO GET A WRITABLE FRAME, so this file's own
+		// claim needed a second sweep or it would have gone quietly narrow:
+		// `HtmlInstructorCopy` requires an answers controller, so mounting it
+		// anywhere is handing down a write path, and the four-callback sweep
+		// above would not see it because that component mounts the frame inside
+		// ITSELF.
+		const grading = readFileSync(resolve(ROOT, GRADING_ROUTE), 'utf8');
+		expect(grading).not.toContain('HtmlInstructorCopy');
+		expect(grading).not.toContain('htmlInstructorAnswers');
+		console.log('    [readonly] grading route: 0 HtmlInstructorCopy mount(s)');
+
+		// THE POSITIVE CONTROL, same `includes`, same run: the item page DOES
+		// mount it, so "not found" is the grading route and not a broken search.
+		const item = readFileSync(resolve(ROOT, ITEM_DETAIL), 'utf8');
+		expect(item).toContain('<HtmlInstructorCopy');
+		console.log('    [readonly] item page: 1 HtmlInstructorCopy mount');
+	});
+
+	it('the working copy cannot be mounted without a write path, by its own type', () => {
+		// ABSENCE IS THE MECHANISM EVERYWHERE ELSE IN THIS LANE, and here it is
+		// inverted on purpose: `HtmlInstructorCopy`'s `answers` prop is REQUIRED,
+		// so there is no way to mount the component in a read-only shape at all.
+		// A surface that cannot build a controller renders the ordinary frame
+		// instead. Read off the props declaration rather than argued, because
+		// making it optional is the one-character edit that would reintroduce the
+		// worksheet that takes typing and saves nothing.
+		const copy = readFileSync(
+			resolve(ROOT, 'src/lib/classroom/html-assignment/HtmlInstructorCopy.svelte'),
+			'utf8'
+		);
+		expect(copy).toContain('answers: HtmlAssignmentAnswers;');
+		expect(copy).not.toContain('answers?: HtmlAssignmentAnswers');
+		expect(copy).not.toContain('answers: HtmlAssignmentAnswers | null');
+		console.log('    [readonly] HtmlInstructorCopy declares `answers` required');
 	});
 
 	it('the four swept names are the four the frame actually accepts', () => {

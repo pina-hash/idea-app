@@ -146,6 +146,18 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	const { htmlAssignment, htmlAssignmentReady } = hx;
 	item = hx.item;
 
+	let ideacad: unknown = null;
+	let ideacadReady = false;
+	if (item.kind === 'assignment' && (item as { assignment_schema_version?: number }).assignment_schema_version === 4) {
+		if (canManage) {
+			const result = await supabase.from('ideacad_editors').select('config').eq('item_id', item.id).maybeSingle();
+			if (!result.error) { ideacadReady = true; ideacad = result.data ? { config: result.data.config, concepts: [], document: null } : null; }
+		} else {
+			const result = await supabase.rpc('ideacad_open_document', { p_item_id: item.id });
+			if (!result.error) { ideacadReady = true; ideacad = result.data; }
+		}
+	} else if ((item as { assignment_schema_version?: number }).assignment_schema_version !== 4) ideacadReady = true;
+
 	let engine: Awaited<ReturnType<typeof loadStudentEngineData>> = null;
 	let instructorCopy: Awaited<ReturnType<typeof loadInstructorCopy>> = null;
 	let spec: AssignmentSpec | null = null;
@@ -159,18 +171,32 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 			spec = (specRes.data?.spec as AssignmentSpec | undefined) ?? null;
 			rubric = (rubricRes.data?.criteria as RubricCriterion[] | undefined) ?? null;
 			/**
-			 * THE MANAGER'S OWN WORKING COPY (0128), and only when there is a spec
-			 * to fill in -- an assignment with no interactive spec has no blocks to
-			 * answer, and the save RPC refuses one. Its own query, failing soft to
-			 * null, for the deploy-ordering reason every other read here documents:
-			 * a deployment sitting between 0127 and 0128 is a real state, and the
-			 * manager's item page must not break over it.
+			 * THE MANAGER'S OWN WORKING COPY (0128), and only when there is
+			 * something to fill in. Its own query, failing soft to null, for the
+			 * deploy-ordering reason every other read here documents: a deployment
+			 * sitting between 0127 and 0128 is a real state, and the manager's item
+			 * page must not break over it.
 			 *
 			 * NEVER LOADED FOR A NON-MANAGER, and it would answer nothing if it
 			 * were -- the RLS policy admits no student at all. The branch is here
 			 * so a student's payload provably cannot carry the key.
+			 *
+			 * A PORTED DOCUMENT COUNTS AS SOMETHING TO FILL IN NOW (0199), AND IT
+			 * USED NOT TO. The condition was `if (spec)` alone, on the reasoning
+			 * that an assignment with no interactive spec has no blocks to answer
+			 * and the save RPC refuses one -- both true of a v1 item and both
+			 * FALSE of a schema-3 one, which carries its blocks in a manifest and
+			 * whose saves `classroom_save_instructor_response` accepts since 0199.
+			 * Left as it was, the payload would have been null for exactly the
+			 * assignments this lane exists for and the surface would never have
+			 * mounted.
+			 *
+			 * THE TWO ARMS SHARE ONE READ because they share one table: 0128's
+			 * rows are keyed on `(item, instructor, block)` whatever produced the
+			 * block id, so there is no ported variant of `loadInstructorCopy` and
+			 * there must not be one.
 			 */
-			if (spec) {
+			if (spec || htmlAssignment) {
 				instructorCopy = await loadInstructorCopy(supabase, item.id, claims.email ?? '');
 			}
 		} else {
@@ -196,6 +222,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		rubric,
 		referenceSpec,
 		htmlAssignment,
+		ideacad,
+		ideacadReady,
 		/**
 		 * WHETHER THIS READ COULD TELL WHICH ENGINE THIS ASSIGNMENT IS. Not read
 		 * by the item page, which acts on `htmlAssignmentMount`'s three-way

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import BladeEditor from '$lib/ideacad/BladeEditor.svelte';
+	import { ideacadMount, IDEACAD_UNAVAILABLE } from '$lib/ideacad/mount';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import AssignmentEngine from '$lib/classroom/AssignmentEngine.svelte';
 	import InstructorCopy from '$lib/classroom/InstructorCopy.svelte';
@@ -18,6 +20,7 @@
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import HtmlAssignmentFrame from '$lib/classroom/html-assignment/HtmlAssignmentFrame.svelte';
+	import HtmlInstructorCopy from '$lib/classroom/html-assignment/HtmlInstructorCopy.svelte';
 	import Progress from '$lib/classroom/html-assignment/Progress.svelte';
 	import { htmlManifestShaped } from '$lib/classroom/transports';
 	import type { HtmlAssignmentTransports } from '$lib/classroom/html-assignment/store';
@@ -151,8 +154,10 @@
 		layoutTransports = null,
 		htmlAssignment = null,
 		htmlAnswers = null,
+		htmlInstructorAnswers = null,
 		htmlAssignmentTransports = null,
-		htmlAssignmentAdmin = false
+		htmlAssignmentAdmin = false,
+		ideacad = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -240,6 +245,26 @@
 		 */
 		htmlAnswers?: HtmlAssignmentAnswers | null;
 		/**
+		 * THE MANAGER'S OWN ANSWER PATH ON A PORTED ASSIGNMENT (0199), and its
+		 * absence is what leaves the read-only frame exactly as it was.
+		 *
+		 * It is the instructor-side twin of `htmlAnswers` and is deliberately a
+		 * SECOND prop rather than the same one handed down for a manager: the two
+		 * write to different tables through different RPCs, and a single prop
+		 * whose meaning turned on `canManage` is precisely how a teacher's
+		 * working copy would one day land in `classroom_responses` as a student
+		 * hand-in. The page supplies this only when it has BOTH a controller and
+		 * the working-copy payload beside it; null for a student, for a
+		 * deployment without 0128 or 0199, and for a manifest that could not be
+		 * narrowed.
+		 *
+		 * WHEN IT IS PRESENT THE WORKING COPY REPLACES THE READ-ONLY FRAME rather
+		 * than sitting beside it. Two mounts of one document on one page would be
+		 * two worksheets a teacher could type into, only one of which records
+		 * anything.
+		 */
+		htmlInstructorAnswers?: HtmlAssignmentAnswers | null;
+		/**
 		 * THE RE-UPLOAD PATH'S WRITES (0154), AND THEY GO NOWHERE BUT THE EDIT
 		 * COMPOSER.
 		 *
@@ -261,6 +286,7 @@
 		    raises on `is_admin()` inside the function -- this only decides
 		    whether a CONTROL is offered. */
 		htmlAssignmentAdmin?: boolean;
+		ideacad?: any;
 	} = $props();
 
 	/**
@@ -280,6 +306,7 @@
 	 * the whole decision is a module.
 	 */
 	const htmlMount = $derived(htmlAssignmentMount(item, htmlAssignment));
+	const ideacadMountState = $derived(ideacadMount(item, ideacad));
 
 	/**
 	 * THE FRAME'S URL. The sandbox origin is read HERE and nowhere else on this
@@ -357,6 +384,33 @@
 				: undefined
 		};
 	});
+
+	/**
+	 * WHETHER THIS MANAGER GETS A WRITABLE WORKING COPY OF A PORTED DOCUMENT
+	 * (0199), ASKED ONCE AND ASKED FOR ALL THREE THINGS AT ONE TIME.
+	 *
+	 * Three things have to be true together, and the derived is what keeps them
+	 * from being checked in two places with two answers: the caller manages the
+	 * class, the page could build an instructor answer controller, and the
+	 * working-copy payload came back. Any one missing leaves the read-only frame
+	 * exactly as it was before this existed, which is the honest fallback -- a
+	 * writable frame over a missing save path is the worksheet that takes typing
+	 * and stores nothing, and a save path with no payload has no answer key row
+	 * to render a designation from.
+	 *
+	 * IT DOES NOT ALSO ASK `htmlMount`. The whole block below is already inside
+	 * the `html` arm, so asking again here would be the second spelling of "is
+	 * this a ported document" that `mount.ts` exists to prevent.
+	 */
+	const htmlWorkingCopy = $derived(
+		canManage && htmlInstructorAnswers && instructorCopy && instructorCopyTransports
+			? {
+					answers: htmlInstructorAnswers,
+					data: instructorCopy,
+					transports: instructorCopyTransports
+				}
+			: null
+	);
 
 	let editing = $state(false);
 	/**
@@ -1574,7 +1628,11 @@
 		student would read it.
 	-->
 	{#if item.kind === 'assignment'}
-		{#if htmlMount === 'html' && htmlAssignment}
+		{#if ideacadMountState === 'ideacad' && ideacad}
+			<section class="engine-host"><h2 class="section-label">{canManage ? 'Assignment' : 'Your work'}</h2><BladeEditor tree={ideacad.concepts?.find((c: any) => c.id === ideacad.document?.active_concept_id)?.features ?? ideacad.config.defaultFeatures} config={ideacad.config} readOnly={canManage} conceptName={ideacad.concepts?.find((c: any) => c.id === ideacad.document?.active_concept_id)?.name ?? 'Concept 1'} /></section>
+		{:else if ideacadMountState === 'unavailable'}
+			<section class="card engine-slot"><p class="note">{IDEACAD_UNAVAILABLE}</p></section>
+		{:else if htmlMount === 'html' && htmlAssignment}
 			<!--
 				A PORTED HTML ASSIGNMENT (0195) TAKES THE SAME SLOT, in the same
 				reading position, for a student and for a manager alike. It is
@@ -1583,15 +1641,24 @@
 				`classroom_assignment_specs` row, so a schema-3 item can have BOTH,
 				and asking the spec first would render the superseded one.
 
-				ONE MOUNT FOR BOTH ROLES, and read-only is the absence of a write
-				path rather than a flag. A manager gets no `htmlAnswers` -- there is
-				no instructor working copy for a ported document, because 0128's
-				machinery is spec-shaped -- so `htmlWrites` is null, no callback is
-				handed down, and the frame is told `readOnly` so the DOCUMENT stops
-				accepting input too. A student on a deployment whose answer path has
-				not landed gets exactly the same thing, which is the honest state:
-				a worksheet that took typing and saved nothing would be the one
-				failure worth avoiding here.
+				READ-ONLY IS THE ABSENCE OF A WRITE PATH RATHER THAN A FLAG. A
+				manager never gets `htmlAnswers` -- the student slice is not loaded
+				for them and never writes an instructor's answer into
+				`classroom_responses` -- so on that prop alone `htmlWrites` is null,
+				no callback is handed down, and the frame is told `readOnly` so the
+				DOCUMENT stops accepting input too. A student on a deployment whose
+				answer path has not landed gets exactly the same thing, which is the
+				honest state: a worksheet that took typing and saved nothing would
+				be the one failure worth avoiding here.
+
+				WHAT A MANAGER MAY GET INSTEAD IS THEIR OWN WORKING COPY (0199),
+				through `htmlInstructorAnswers` and 0128's own table, which is a
+				different prop for a different RPC writing a different row. This
+				rule used to read "there is no instructor working copy for a ported
+				document, because 0128's machinery is spec-shaped"; that was true
+				until `classroom_save_instructor_response` gained the manifest arm,
+				and the cost of it was that nobody could open a ported worksheet and
+				confirm it saves before a class used it.
 
 				NO `{#key}`. The frame's own mount is what starts the document
 				loading, and it already keys everything it holds off `src`; keying
@@ -1599,7 +1666,9 @@
 				any unrelated re-render of this page.
 			-->
 			<section class="engine-host">
-				<h2 class="section-label">{htmlAnswers ? 'Your work' : 'Assignment'}</h2>
+				<h2 class="section-label">
+					{#if htmlWorkingCopy}Your working copy{:else if htmlAnswers}Your work{:else}Assignment{/if}
+				</h2>
 				{#if !htmlServed}
 					<!--
 						THE FRAME WOULD 404, AND ONLY A MANAGER CAN BE HERE TO SEE IT.
@@ -1619,9 +1688,12 @@
 						worksheet gets it and no author builds one. It reads the SAME two
 						records the frame is seeded from -- the controller's `values` and
 						`images` -- so the bar and the document cannot disagree about what
-						is filled in. A manager has no `htmlAnswers` and gets no rail: there
-						is nothing of theirs to measure, and a rail reading 0% over a
-						teacher's own read of the document would be a number about nobody.
+						is filled in. A manager gets no rail, on the read-only frame AND on
+						their own working copy (0199): a rail reading 0% over a teacher's
+						read of the document is a number about nobody, and a completion
+						meter over a copy that is never graded and never handed in measures
+						progress towards nothing. Checking that the worksheet RECORDS is
+						what a working copy is for, and a block saving is what says so.
 					-->
 					<Progress
 						manifest={htmlProgressManifest}
@@ -1642,20 +1714,50 @@
 					submission of their own and whose read-only pane is read-only for
 					an entirely different reason.
 				-->
-				<HtmlAssignmentFrame
-					src={htmlSrc}
-					title={itemTitle(item)}
-					fieldToBlockId={htmlFields}
-					values={htmlAnswers?.values ?? {}}
-					images={htmlAnswers?.images ?? {}}
-					saved={htmlAnswers?.saved ?? null}
-					lock={engine ? assignmentLockState(engine.submission) : null}
-					readOnly={!htmlWrites}
-					onchange={htmlWrites?.onchange}
-					onimage={htmlWrites?.onimage}
-					onimageremove={htmlWrites?.onimageremove}
-					onimagecaption={htmlWrites?.onimagecaption}
-				/>
+				{#if htmlWorkingCopy}
+					<!--
+						THE MANAGER'S OWN WORKING COPY (0199), IN THE SAME SLOT AND THE
+						SAME READING POSITION a student's worksheet takes -- which is
+						0128's rule for the v1 surface and is what makes "what does a
+						student see" answerable by looking at one place.
+
+						IT REPLACES THE READ-ONLY FRAME RATHER THAN JOINING IT. Two
+						mounts of one document would be two worksheets a teacher can
+						type into, one of which records nothing, and the one that
+						records nothing is the one that looks identical.
+
+						UNTIL 0199 THIS BRANCH COULD NOT EXIST AT ALL:
+						`classroom_save_instructor_response` raised 'This assignment has
+						no interactive spec.' on a schema-3 item, so a writable frame
+						here would have been the takes-typing-and-saves-nothing failure.
+						The gate is what licenses the surface, which is why the surface
+						is gated on a transport the page only builds when it has one.
+					-->
+					<HtmlInstructorCopy
+						itemId={item.id}
+						src={htmlSrc}
+						title={itemTitle(item)}
+						fieldToBlockId={htmlFields}
+						answers={htmlWorkingCopy.answers}
+						data={htmlWorkingCopy.data}
+						transports={htmlWorkingCopy.transports}
+					/>
+				{:else}
+					<HtmlAssignmentFrame
+						src={htmlSrc}
+						title={itemTitle(item)}
+						fieldToBlockId={htmlFields}
+						values={htmlAnswers?.values ?? {}}
+						images={htmlAnswers?.images ?? {}}
+						saved={htmlAnswers?.saved ?? null}
+						lock={engine ? assignmentLockState(engine.submission) : null}
+						readOnly={!htmlWrites}
+						onchange={htmlWrites?.onchange}
+						onimage={htmlWrites?.onimage}
+						onimageremove={htmlWrites?.onimageremove}
+						onimagecaption={htmlWrites?.onimagecaption}
+					/>
+				{/if}
 				{/if}
 			</section>
 		{:else if htmlMount === 'unavailable'}

@@ -34,8 +34,7 @@ import type { HxImageState } from '$lib/classroom/html-assignment/bridge';
 
 /**
  * The value `classroom_items.assignment_schema_version` carries for a ported
- * document (0195). NULL and 1 are the v1 spec engine of 0086; the column's own
- * CHECK constraint admits nothing else.
+ * document (0195). NULL and 1 are the v1 spec engine of 0086; the column's own CHECK constraint also admits schema 4 for IdeaCAD.
  */
 export const HTML_ASSIGNMENT_SCHEMA_VERSION = 3;
 
@@ -295,6 +294,22 @@ export interface HtmlAssignmentAnswers {
 	/** Required: a controller that cannot take a change is not an answer path,
 	    and offering one would produce the writable-but-unsaving worksheet. */
 	change: (change: { blockId: string; field: string; value: string | boolean }) => void;
+	/*
+		WRITE EVERYTHING STILL OWED AND WAIT FOR IT TO SETTLE.
+
+		OPTIONAL, LIKE THE THREE BELOW, AND FOR THE SAME REASON: this interface
+		describes what a MOUNT may rely on, and the student mount relies on none
+		of it -- the page's navigation guard holds the controller itself and calls
+		`flush()` through that, never through this prop.
+
+		WHAT NEEDS IT IS AN ACTION ON THE SURFACE THAT PUBLISHES THE ANSWERS
+		(0199): designating an instructor copy as the answer key has to land the
+		last thing typed before the server is asked to publish it, or the key is
+		published one debounce short of what is on screen. That is
+		`InstructorCopy`'s own `await save.saveNow()` rule, expressed for a
+		controller whose machines are per block.
+	*/
+	flush?: () => Promise<void>;
 	image?: (image: { blockId: string; field: string; name: string; bytes: string }) => void;
 	imageRemove?: (image: { blockId: string; field: string }) => void;
 	imageCaption?: (image: { blockId: string; field: string; caption: string }) => void;

@@ -1,0 +1,2 @@
+<script lang="ts">import BladeEditor from '$lib/ideacad/BladeEditor.svelte';import {DEFAULT_BLADE_TREE} from '$lib/ideacad/blade/materials';let role='student';if(typeof window!=='undefined')role=new URLSearchParams(location.search).get('role')??'student';</script>
+<svelte:head><title>IdeaCAD harness</title></svelte:head><BladeEditor tree={DEFAULT_BLADE_TREE} readOnly={role==='teacher'} conceptName={role==='teacher'?'Student concept':'Concept 1'}/>

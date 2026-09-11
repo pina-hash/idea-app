@@ -1,0 +1,2 @@
+import type { BladeConfig } from './blade/materials'; import { validateBladeTree } from './blade/validate';
+export function bladeConfigShaped(value:unknown): value is BladeConfig {if(!value||typeof value!=='object')return false;const x=value as Partial<BladeConfig>;return Array.isArray(x.materials)&&Array.isArray(x.stock)&&Array.isArray(x.standardParts)&&!!x.launcher&&typeof x.tipHeightIn==='number'&&!!x.rules&&!!x.defaultFeatures&&validateBladeTree(x.defaultFeatures as never).length===0;}

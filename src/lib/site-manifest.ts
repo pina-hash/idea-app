@@ -120,6 +120,11 @@ export const APPS: SiteApp[] = [
 		]
 	},
 	{
+		id: 'ideacad',
+		label: 'IdeaCAD',
+		prefixes: ['src/lib/ideacad/', 'src/routes/dev/ideacad/']
+	},
+	{
 		id: 'classroom',
 		label: 'Classroom',
 		prefixes: [
