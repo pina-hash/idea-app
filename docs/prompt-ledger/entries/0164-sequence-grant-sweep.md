@@ -6,7 +6,7 @@
   `docs/prompt-ledger/entries/0164-*`, and its own `docs/history/` entry. NO FILE UNDER
   `src/`.
 - Migration permitted: exactly one. Claims: 0203. Highest on origin/integration at issue: 0201
-- Status: issued
+- Status: pushed, NOT merged -- carries a migration
 - Branch: `claude/hopeful-edison-pd3p6r`, branched from `origin/integration` at `7c45d30c`
 - Runs in parallel with: ledgers 0160, 0162 and 0163. `0202` is ledger 0161's, on
   `claude/relaxed-goodall-lsudr8`, and had NOT reached `origin/integration` at branch time --
@@ -48,3 +48,12 @@
   `tests/db/ideacad-grants-anon-execute-surface.test.ts`; a second implementation is the
   thing that stops matching.
   `0203` IS NOT APPLIED BY THIS SESSION and this branch is NOT merged to `main`.
+  FINAL: full suite 391 files / 7623 tests, 4 failed, against a baseline of 390 / 7604 / 4
+  measured on a clean worktree at `origin/integration` `7c45d30c`. The 4 are the same 4 in
+  both runs -- `grant-surface.test.ts` A, B, C and its anon-count control, naming only the
+  four IdeaCAD tables -- so THIS BRANCH'S CI CANNOT GO GREEN UNTIL `0202` (ledger 0161)
+  LANDS ON `integration`, and that is not this bundle's to fix. svelte-check 0 errors / 40
+  warnings (34 `state_referenced_locally`, 5 `css_unused_selector`, 1
+  `perf_avoid_nested_class`), identical on the `integration` worktree, so `CLAUDE.md`'s
+  stated 37 / 31-5-1 is STALE and was already stale before this branch. `CLAUDE.md` is not
+  in this entry's owned surface, so the correction is reported rather than made.

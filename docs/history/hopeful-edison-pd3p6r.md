@@ -257,19 +257,25 @@ PRESENT.
 
 ## The numbers
 
-**Full suite on this branch: 391 files / 7615 tests, 4 failed.** Against a
-baseline of **390 / 7604 / 4 failed**, measured on a clean `git worktree` at
-`origin/integration` `7c45d30c` rather than on this tree -- the first attempt
-was run in place and could have imported `grant-surface.test.ts` after `0203`
-was already on disk, which would have put the file under test into its own
-baseline. It was discarded for that reason.
+**Full suite on this branch: 391 files / 7623 tests, 4 failed, 379.07s.**
+Against a baseline of **390 files / 7604 tests / 4 failed / 392.17s**, measured
+on a clean `git worktree` at `origin/integration` `7c45d30c` rather than on this
+tree -- a first attempt was run in place and could have imported
+`grant-surface.test.ts` after `0203` was already on disk, which would have put
+the file under test into its own baseline. It was killed and discarded for that
+reason, and the number above is from the worktree.
+
+The delta is **+1 file and +19 tests**, which accounts for exactly: 10 in
+sections D and E, the second default-privileges probe, the sequence-and-view
+positive control, and 7 in
+`tests/db/grant-sequence-sweep-control.test.ts`.
 
 **The 4 failures are the same 4 in both runs, and none of them is this
 bundle's.** They are `grant-surface.test.ts` sections A, B, C and the anon-count
 control, naming `ideacad_editors`, `ideacad_documents`, `ideacad_concepts` and
 `ideacad_predictions` and NO other object. That is `0202`'s territory, on ledger
 0161's branch, which had not reached `origin/integration` at branch time. Every
-one of the eleven new assertions in sections D and E passes, and
+one of the twelve new assertions in `grant-surface.test.ts` passes, and
 `tests/db/grant-sequence-sweep-control.test.ts` passes 7 of 7.
 
 **So this branch's CI cannot go green until `0202` lands on `integration`.**
