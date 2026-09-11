@@ -473,10 +473,10 @@
 		work is in trouble.
 	*/
 	.hx-lock {
-		margin: 0 0 var(--space-2, 0.5rem);
-		padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+		margin: 0 0 var(--space-2);
+		padding: var(--space-2) var(--space-3);
 		border: 1px solid var(--boundary);
-		border-radius: var(--radius-sm, 4px);
+		border-radius: var(--radius-card);
 		background: var(--surface-2);
 		color: var(--text-2);
 		font-size: 0.9375rem;

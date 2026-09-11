@@ -2975,11 +2975,11 @@
 	.close-tool {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-2, 0.5rem);
-		margin-bottom: var(--space-3, 0.75rem);
-		padding: var(--space-2, 0.5rem);
+		gap: var(--space-2);
+		margin-bottom: var(--space-3);
+		padding: var(--space-2);
 		border: 1px solid var(--boundary);
-		border-radius: var(--radius-sm, 4px);
+		border-radius: var(--radius-card);
 		background: var(--surface-2);
 	}
 	.close-label {
@@ -3014,10 +3014,10 @@
 	.close-actions {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--space-2, 0.5rem);
+		gap: var(--space-2);
 	}
 	.live-note {
-		margin: 0 0 var(--space-2, 0.5rem);
+		margin: 0 0 var(--space-2);
 		font-family: var(--font-mono);
 		font-size: 0.7rem;
 		color: var(--text-2);
@@ -3620,7 +3620,7 @@
 		background: var(--surface-2);
 		color: var(--text-1);
 		border: 1px solid var(--boundary);
-		border-radius: var(--radius-sm, 4px);
+		border-radius: var(--radius-card);
 		padding: 0.25rem 0.5rem;
 	}
 	.ec-note,

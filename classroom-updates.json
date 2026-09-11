@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-09-11",
+			"title": "Your teacher can close an assignment when a unit ends",
+			"body": "When a unit is finished, your teacher can close an assignment so no more work lands on it. If that happens to one of yours, the worksheet says so at the top and goes read only. Everything you already saved is still there, and you do not need to do anything. A closed assignment is not a missing one. If you get a grade back after that, the assignment opens up again so you can act on the comments.",
+			"tags": [
+				"Assignments"
+			]
+		},
+		{
+			"date": "2026-09-11",
 			"title": "Worksheet answers are safer if you close the tab quickly",
 			"body": "On the assignments that open as a worksheet in the page, your answers save a moment after you stop typing. If you closed the tab or clicked away inside that moment, the last thing you typed could be lost. It now saves when you leave, so the words you just wrote go with you. Nothing about how you work changes, and there is still no button to press when you are finished: finishing the work is handing it in.",
 			"tags": [
