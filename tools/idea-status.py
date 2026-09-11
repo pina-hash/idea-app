@@ -23,8 +23,8 @@ Print order is urgency order, so the most urgent thing is at the top:
 
     [0]  DECISIONS OWED        docs/decisions/entries/*.md with Status: open, from origin/main
     [0a] PROMPTS IN FLIGHT     docs/prompt-ledger/entries/*.md not yet deployed, read across
-                               origin/main, origin/integration and every claude/** branch
-    [1]  STANDING BRANCHES     claude/** branches still on the remote, and why each stands
+                               origin/main, origin/integration and every claude/** and every codex/** branch
+    [1]  STANDING BRANCHES     claude/** and codex/** branches still on the remote, and why each stands
     [2]  MAIN vs INTEGRATION   both directions
     [3]  MIGRATIONS LANDED     at or above --since, with the date each landed on main
     [3a] APPLIED-STATE PROBES  the catalog query that answers which of [3] are APPLIED
@@ -64,6 +64,7 @@ MIG_DIR = "supabase/migrations"
 LEDGER_DIR = "docs/prompt-ledger/entries"
 DECISIONS_DIR = "docs/decisions/entries"
 HARNESS_README = "tools/browser-verify/README.md"
+AGENT_BRANCH_PREFIXES = ("claude/", "codex/")  # Mirrors integrate.yml AGENT_BRANCH_PREFIXES.
 COUNTS_BEGIN = "<!-- counts:begin -->"
 COUNTS_END = "<!-- counts:end -->"
 
@@ -171,7 +172,9 @@ def ledger_refs(repo):
     for r in ("origin/main", "origin/integration"):
         if git_ok(repo, "rev-parse", "--verify", "--quiet", r):
             refs.append(r)
-    refs += [r for r in remote_refs(repo) if r.startswith("origin/claude/")]
+    refs += [r for r in remote_refs(repo) if any(r.startswith(f"origin/{p}") for p in AGENT_BRANCH_PREFIXES)]
+    if not refs and git_ok(repo, "rev-parse", "--verify", "--quiet", "HEAD"):
+        refs.append("HEAD")
     return refs
 
 
@@ -204,7 +207,7 @@ def prompts(repo):
 def branches(repo):
     out = []
     refs = git(repo, "for-each-ref", "--format=%(refname:short)|%(objectname)|%(committerdate:iso8601)|%(contents:subject)",
-               "refs/remotes/origin/claude")
+               *[f"refs/remotes/origin/{p.rstrip('/')}" for p in AGENT_BRANCH_PREFIXES])
     has_integration = git_ok(repo, "rev-parse", "--verify", "--quiet", "origin/integration")
     for line in [l for l in refs.splitlines() if l.strip()]:
         name, sha, date, subj = line.split("|", 3)
@@ -586,7 +589,7 @@ def report(repo_name, since, data):
             print(f"        unblocks: {r['unblocks']}")
 
     inflight = data["prompts_in_flight"]
-    print(f"\n[0a] PROMPTS IN FLIGHT (Status not deployed, across main, integration and claude/**): {len(inflight)}")
+    print(f"\n[0a] PROMPTS IN FLIGHT (Status not deployed, across main, integration and claude/** and codex/**): {len(inflight)}")
     if not data["prompts_all"]:
         print(f"    No {LEDGER_DIR}/ on any ref.")
     elif not inflight:
@@ -598,7 +601,9 @@ def report(repo_name, since, data):
         print(f"        Status: {r['status']}   Branch: {r['branch']}   (read from {r['ref']})")
 
     br = data["branches"]
-    print(f"\n[1] STANDING claude/** BRANCHES: {len(br)}")
+    per_prefix = {p: sum(b["name"].startswith(p) for b in br) for p in AGENT_BRANCH_PREFIXES}
+    counts = ", ".join(f"{p}**: {n}" for p, n in per_prefix.items())
+    print(f"\n[1] STANDING claude/** and codex/** BRANCHES: {len(br)} total ({counts})")
     if not br:
         print("    None. The sweep has drained the queue.")
     for b in br:

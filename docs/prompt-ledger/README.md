@@ -141,7 +141,7 @@ reading it afterwards. Every LATER transition is still confirmed by reading the 
 and no session ever writes one of those about itself.
 
 **`.github/workflows/integrate.yml` reads this line, which is why it is not decoration.**
-A `claude/**` branch is NOT SWEPT while an entry it ADDED still reads `issued`: the workflow
+A `claude/**` or `codex/**` branch is NOT SWEPT while an entry it ADDED still reads `issued`: the workflow
 skips it and records the reason in its job summary.
 
 **An entry the branch ADDED, and never one it merely modified**, and the difference is not
@@ -189,6 +189,8 @@ question a later chat asks is "has this been done", and a removed entry answers 
 
 ## Who writes the entry, and where the check reads
 
+**The `Branch:` line names the complete branch and its prefix (`claude/` or `codex/`).** The canonical prefix registry is `AGENT_BRANCH_PREFIXES` in `.github/workflows/integrate.yml`; tools mirror that named list and parity tests prevent drift.
+
 **The session writes the entry, not the chat, as its first commit on its branch.** A chat
 cannot push. So the entry text travels inside the prompt, and the session that receives
 it commits and pushes the entry before touching anything else, on the branch the harness
@@ -196,7 +198,7 @@ gave it. An entry that exists only in project knowledge is invisible to every ot
 chat; an entry pushed first is visible to any chat that fetches after it.
 
 **The check reads entries across `origin/main`, `origin/integration` and every
-`claude/**` branch**, not `main` alone. An entry on an unmerged branch is exactly the
+`claude/**` and `codex/**` branch**, not `main` alone. An entry on an unmerged branch is exactly the
 in-flight work the check exists to find: it was pushed minutes ago by a session that has
 not finished, and `main` will not carry it until the branch is swept and deployed.
 `tools/idea-status.py` performs that read (its PROMPTS IN FLIGHT section), deduping by

@@ -22,7 +22,7 @@
  *
  * So this tool reads the two things a landed-file sweep cannot:
  *
- *   1. MIGRATION FILES ON EVERY `claude/**` BRANCH, not just the landed refs.
+ *   1. MIGRATION FILES ON EVERY `claude/**` AND `codex/**` BRANCH, not just the landed refs.
  *      A file on an unmerged branch is a number somebody is already using.
  *   2. THE `Migration permitted` LINE OF EVERY LEDGER ENTRY, on every ref,
  *      whose `Status` is not terminal. That line is written in the session's
@@ -64,6 +64,8 @@ import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+
+export const AGENT_BRANCH_PREFIXES = ['claude/', 'codex/']; // Mirrors integrate.yml AGENT_BRANCH_PREFIXES.
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(HERE, '..');
@@ -397,8 +399,8 @@ export function classify(inventory) {
 }
 
 /**
- * THE BRANCHES A SWEEP MUST LEAVE ALONE: every `claude/**` branch holding a
- * migration number that ANOTHER `claude/**` branch also holds.
+ * THE BRANCHES A SWEEP MUST LEAVE ALONE: every `claude/**` or `codex/**` branch holding a
+ * migration number that ANOTHER agent branch also holds.
  *
  * This is the half of the collision problem no branch can see for itself.
  * `integrate.yml` is the first moment in the system where two branches are in
@@ -408,15 +410,15 @@ export function classify(inventory) {
  *
  * TWO FILTERS, AND BOTH ARE LOAD-BEARING RATHER THAN TIDINESS:
  *
- *   * ONLY `claude/**` HOLDERS COUNT. `collect()` deliberately treats the
+ *   * ONLY `claude/**` AND `codex/**` HOLDERS COUNT. `collect()` deliberately treats the
  *     WORKING TREE as a holder, because the person running the tool by hand is
  *     usually the session that is holding the number. On the sweep runner the
  *     working tree is `integration` mid-merge, so every number `integration`
  *     carries would otherwise read as a second holder and contest with the
  *     very branch that wrote it. Measured against nothing -- it is arithmetic:
- *     one claude branch plus one working tree is `holders.length === 2`, which
+ *     one agent branch plus one working tree is `holders.length === 2`, which
  *     is `contested`, which would skip a branch nobody is contesting.
- *   * TWO DISTINCT CLAUDE BRANCHES, not two holders. A row whose only claude
+ *   * TWO DISTINCT AGENT BRANCHES, not two holders. A row whose only claude
  *     holder appears twice (an entry AND a file, which is the ordinary shape
  *     for a session that has written its migration) is one branch, not two.
  *
@@ -434,7 +436,7 @@ export function contestedBranches(result) {
 	const out = new Set();
 	for (const row of result?.contested ?? []) {
 		const branches = [
-			...new Set((row?.holders ?? []).map((h) => String(h?.branch ?? '')).filter((b) => b.startsWith('claude/')))
+			...new Set((row?.holders ?? []).map((h) => String(h?.branch ?? '')).filter((b) => AGENT_BRANCH_PREFIXES.some((p) => b.startsWith(p))))
 		];
 		if (branches.length < 2) continue;
 		for (const b of branches) out.add(b);
@@ -709,9 +711,9 @@ export function formatReport(result) {
 	out.push(`  next free           ${pad(result.next)}`);
 	out.push('');
 	if (!result.refsVisible) {
-		out.push('  NO `origin/claude/**` REFS ARE VISIBLE FROM THIS CHECKOUT, so no branch');
+		out.push('  NO `origin/claude/**` OR `origin/codex/**` REFS ARE VISIBLE FROM THIS CHECKOUT, so no branch');
 		out.push('  claim could be read and this answer is INCOMPLETE. On a shallow clone:');
-		out.push("    git fetch --depth=1 origin '+refs/heads/claude/*:refs/remotes/origin/claude/*'");
+		out.push("    git fetch --depth=1 origin '+refs/heads/claude/*:refs/remotes/origin/claude/*' '+refs/heads/codex/*:refs/remotes/origin/codex/*'");
 		out.push('');
 	}
 

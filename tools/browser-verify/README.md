@@ -142,6 +142,18 @@ No measurement was outside its threshold on that run.
 
 <!-- counts:end -->
 
+## Codex cloud measurement, 2026-09-11
+
+This Codex agent container does **not** contain Chromium at any resolution candidate.
+`node tools/browser-verify/run.mjs --only /dev/animated-logo` reached Vite and then
+reported every candidate missing. The resolution order remains
+`chromium.executablePath()`, `CHROMIUM_PATH`, the versioned and unversioned
+`/opt/pw-browsers` paths, `/usr/bin/chromium`, and `/usr/bin/google-chrome`.
+Install Chromium during the network-enabled setup phase with
+`npx --yes playwright@1.56.1 install chromium`; the first resolution candidate then
+finds Playwright's managed browser. The older measurement below describes a different
+Claude Code container and must not be inferred to describe Codex cloud.
+
 ## What this container actually has
 
 Measured 2026-08-27, not assumed:

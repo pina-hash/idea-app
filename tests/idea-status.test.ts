@@ -191,6 +191,22 @@ beforeAll(() => {
 	git('commit', '--quiet', '-m', 'entry on a branch');
 	git('update-ref', 'refs/remotes/origin/claude/in-flight', git('rev-parse', 'HEAD'));
 	git('checkout', '--quiet', 'main');
+
+	git('checkout', '--quiet', '-b', 'codex/in-flight');
+	write(
+		'docs/prompt-ledger/entries/0003-codex-in-flight.md',
+		'# 0003 Codex work in flight\n' +
+			'- Issued: 2026-09-11\n' +
+			'- By: a Codex task\n' +
+			'- Owns: `tools/example`\n' +
+			'- Migration permitted: none.\n' +
+			'- Status: pushed\n' +
+			'- Branch: `codex/in-flight`\n'
+	);
+	git('add', '-A');
+	git('commit', '--quiet', '-m', 'entry on a codex branch');
+	git('update-ref', 'refs/remotes/origin/codex/in-flight', git('rev-parse', 'HEAD'));
+	git('checkout', '--quiet', 'main');
 });
 
 afterAll(() => {
@@ -285,12 +301,20 @@ describe('tools/idea-status.py against a fixture repository', () => {
 		expect(ids).toContain('0002');
 		// ...and the deployed one on main is not, though it WAS read.
 		expect(ids).not.toContain('0001');
-		expect(d.prompts_all.map((r: { id: string }) => r.id).sort()).toEqual(['0001', '0002']);
+		expect(d.prompts_all.map((r: { id: string }) => r.id).sort()).toEqual(['0001', '0002', '0003']);
 
 		const row = d.prompts_in_flight.find((r: { id: string }) => r.id === '0002');
 		expect(row.ref).toBe('origin/claude/in-flight');
 		expect(row.owns).toBe('`src/lib/somewhere/**`');
 		expect(row.migration).toContain('yes, exactly one, 0155');
+	});
+
+	it('finds an in-flight entry that exists only on a codex/** branch', () => {
+		const d = runTool('--since', '151');
+		const row = d.prompts_in_flight.find((r: { id: string }) => r.id === '0003');
+		expect(row.ref).toBe('origin/codex/in-flight');
+		expect(row.branch).toContain('codex/in-flight');
+		expect(d.branches.map((b: { name: string }) => b.name)).toContain('codex/in-flight');
 	});
 
 	it('exits 1 when an object in range has two authors, and 0 when it does not', () => {
