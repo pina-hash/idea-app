@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { createIdeacadTransports } from '$lib/ideacad/transports';
+	import { createIdeacadStore, type IdeacadStoreState } from '$lib/ideacad/store';
+	import { IDEACAD_UNAVAILABLE, isIdeaCad, type IdeacadEditorWrites } from '$lib/ideacad/mount';
 	import { onDestroy, untrack } from 'svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import ItemDetail from '$lib/classroom/ItemDetail.svelte';
@@ -40,8 +42,8 @@
 	// it once is the intent here, not a missed reactive read.
 	// svelte-ignore state_referenced_locally
 	const transports = createClassroomTransports(data.supabase);
-	const ideacadTransports = createIdeacadTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
+	const ideacadTransports = createIdeacadTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const engineTransports = createEngineTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
@@ -459,6 +461,99 @@
 	const itemCheckIns = $derived(checkInsForItem(data.checkIns ?? [], data.item.id));
 
 	/**
+	 * THE IDEACAD DOCUMENT'S WIRE (0178), AND IT IS THE SAME OMISSION 0152 LEFT
+	 * ONE FEATURE OVER. `createIdeacadTransports` was called on line 43 from the
+	 * day it existed and the result was passed NOWHERE: the only route to
+	 * `BladeEditor` is `ItemDetail.svelte`, which ledger 0171 did not own, so
+	 * everything 0167, 0170 and 0171 built mounted in a real assignment and
+	 * wrote nothing. A student could model a blade for an hour and lose all of
+	 * it on reload, with a "Saved" indicator on screen the whole time.
+	 *
+	 * ONE STORE FOR THE PAGE, OPENED PER ITEM. `createIdeacadStore` owns the
+	 * 750ms debounce, the serialized writes and the terminal `conflict` state
+	 * (`store.ts`, ledger 0170); nothing here re-implements any of it and there
+	 * is no second throttle. The `key` below is what re-opens it on a
+	 * client-side navigation to another schema-4 assignment.
+	 *
+	 * A STUDENT ONLY. `ideacad_open_document` resolves its subject through
+	 * `_classroom_engine_student`, which RAISES for a manager -- so the gate is
+	 * `!data.canManage`, which is the same branch the load itself takes when it
+	 * decides whether to call that RPC or read `ideacad_editors` instead. A
+	 * teacher opening this page is handed no writes at all, and absence is what
+	 * makes their editor read-only.
+	 *
+	 * IT COSTS ONE DUPLICATE READ AND THAT IS WRITTEN DOWN RATHER THAN HIDDEN.
+	 * `+page.server.ts` already calls `ideacad_open_document` for the payload,
+	 * and `open()` calls it again from the browser, because the store's only
+	 * entry point is that method -- it is what puts the document id, the concept
+	 * ids and the revisions in the machine that writes them. A `seed()` on the
+	 * store would close it in one call; `store.ts` is ledger 0170's file and not
+	 * this bundle's, so the cost is paid and named here instead of by editing
+	 * somebody else's module from this lane.
+	 */
+	const ideacadStore = createIdeacadStore(ideacadTransports);
+	let ideacadDoc = $state<IdeacadStoreState | null>(null);
+	let ideacadOpenRefusal = $state<string | null>(null);
+	/** The item this page should have an IdeaCAD document open for, or null. The
+	 *  load's own payload is the gate -- `isIdeaCad` reads the item's schema
+	 *  version through the ONE predicate, and `data.ideacad` being null is a
+	 *  deployment whose read could not answer. */
+	const ideacadItemId = $derived(
+		!data.canManage && data.ideacad && isIdeaCad(data.item) ? data.item.id : null
+	);
+	/**
+	 * `ideacadItemId` IS READ TRACKED AND THE CALLS ARE `untrack`ed, which is
+	 * this repo's rule for an effect that invokes code it did not write. The
+	 * store's `open` reaches a transport, and a transport is written by whoever
+	 * mounts the surface -- here that is this file, but the shape is the rule.
+	 */
+	$effect(() => {
+		const itemId = ideacadItemId;
+		if (!itemId) return;
+		untrack(() => {
+			ideacadOpenRefusal = null;
+			const stop = ideacadStore.subscribe((state) => (ideacadDoc = state));
+			ideacadStore.open(itemId).catch(() => {
+				// The slot says so rather than mounting an editor that writes
+				// nowhere. IDEACAD_UNAVAILABLE is the existing sentence for
+				// exactly this and is not restated here.
+				ideacadOpenRefusal = IDEACAD_UNAVAILABLE;
+			});
+			return stop;
+		});
+	});
+	/** The last flush. `destroy()` writes whatever the debounce still holds
+	 *  before it stops the timer, which is the one moment a tab closing mid-edit
+	 *  is recoverable at all. */
+	onDestroy(() => void ideacadStore.destroy());
+	/**
+	 * THE WRITE BOUNDARY HANDED TO `ItemDetail`, WHICH IS A PROJECTION OF THE
+	 * STORE AND NOT A SECOND COPY OF ANYTHING. Built only for the caller the
+	 * store was opened for: null for a manager, so the editor they read has no
+	 * write path to forget to disable.
+	 */
+	const ideacadWrites = $derived<IdeacadEditorWrites | null>(
+		ideacadItemId
+			? {
+					edit: (features) => ideacadStore.edit(features),
+					create: async (name, features) => {
+						const row = await ideacadStore.create(name, features);
+						return { id: row.id, name: row.name };
+					},
+					rename: (conceptId, name) => ideacadStore.rename(conceptId, name),
+					reposition: (conceptId, position) => ideacadStore.reposition(conceptId, position),
+					remove: async (conceptId) => {
+						await ideacadStore.delete(conceptId);
+						return { activeConceptId: ideacadStore.state.activeConceptId ?? conceptId };
+					},
+					activate: (conceptId) => ideacadStore.setActive(conceptId),
+					setPrediction: (conceptId, rationale) => ideacadStore.setPrediction(conceptId, rationale),
+					commit: (conceptId) => ideacadStore.commit(conceptId)
+				}
+			: null
+	);
+
+	/**
 	 * THE PRESENCE HEARTBEAT'S WIRE (0200), AND IT IS THE ONE 0152 COULD NOT
 	 * MAKE. Everything else in that bundle shipped -- the migration, both RPCs,
 	 * the retention, the pure modules, the instructor surface -- and this file
@@ -542,6 +637,9 @@
 	layoutTransports={liveLayoutTransports}
 	htmlAssignment={data.htmlAssignment}
 	ideacad={data.ideacad}
+	{ideacadDoc}
+	{ideacadWrites}
+	{ideacadOpenRefusal}
 	{htmlAnswers}
 	{htmlInstructorAnswers}
 	htmlAssignmentTransports={data.canManage && data.navIsAdmin === true

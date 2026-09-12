@@ -1,6 +1,14 @@
 <script lang="ts">
 	import BladeEditor from '$lib/ideacad/BladeEditor.svelte';
-	import { ideacadMount, IDEACAD_UNAVAILABLE } from '$lib/ideacad/mount';
+	import {
+		ideacadMount,
+		ideacadEditorSeed,
+		ideacadSaveLabel,
+		IDEACAD_UNAVAILABLE,
+		type IdeacadEditorWrites
+	} from '$lib/ideacad/mount';
+	import type { IdeacadStoreState } from '$lib/ideacad/store';
+	import Pending from '$lib/Pending.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import AssignmentEngine from '$lib/classroom/AssignmentEngine.svelte';
 	import InstructorCopy from '$lib/classroom/InstructorCopy.svelte';
@@ -157,7 +165,10 @@
 		htmlInstructorAnswers = null,
 		htmlAssignmentTransports = null,
 		htmlAssignmentAdmin = false,
-		ideacad = null
+		ideacad = null,
+		ideacadDoc = null,
+		ideacadWrites = null,
+		ideacadOpenRefusal = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -287,6 +298,26 @@
 		    whether a CONTROL is offered. */
 		htmlAssignmentAdmin?: boolean;
 		ideacad?: any;
+		/**
+		 * THE LIVE IDEACAD DOCUMENT, WHICH IS NOT `ideacad`. The load's payload
+		 * decides whether a Blade editor mounts at all (`ideacadMount`); this is
+		 * the STORE's snapshot, and only a student ever has one -- the store is
+		 * built around `ideacad_open_document`, which raises for a manager.
+		 */
+		ideacadDoc?: IdeacadStoreState | null;
+		/**
+		 * THE DOCUMENT'S WRITES, AND THE ONE REASON THIS PROP EXISTS. Until
+		 * ledger 0178 the classroom page built `createIdeacadTransports` and
+		 * handed the result nowhere, so a student edited a blade in a real
+		 * assignment and nothing was ever written. Absence still removes the
+		 * write path entirely: a manager gets no writes and therefore a
+		 * structurally read-only editor, exactly as the HTML assignment surfaces
+		 * next door do it.
+		 */
+		ideacadWrites?: IdeacadEditorWrites | null;
+		/** Set when the document could not be opened, so the slot says so rather
+		 *  than mounting an editor that writes nowhere. */
+		ideacadOpenRefusal?: string | null;
 	} = $props();
 
 	/**
@@ -307,6 +338,9 @@
 	 */
 	const htmlMount = $derived(htmlAssignmentMount(item, htmlAssignment));
 	const ideacadMountState = $derived(ideacadMount(item, ideacad));
+	/** One projection of the store's rows into the editor's vocabulary; null
+	 *  until `open` lands, which is what keeps a half-empty editor off screen. */
+	const ideacadSeed = $derived(ideacadEditorSeed(ideacadDoc));
 
 	/**
 	 * THE FRAME'S URL. The sandbox origin is read HERE and nowhere else on this
@@ -1629,7 +1663,60 @@
 	-->
 	{#if item.kind === 'assignment'}
 		{#if ideacadMountState === 'ideacad' && ideacad}
-			<section class="engine-host"><h2 class="section-label">{canManage ? 'Assignment' : 'Your work'}</h2><BladeEditor tree={ideacad.concepts?.find((c: any) => c.id === ideacad.document?.active_concept_id)?.features ?? ideacad.config.defaultFeatures} config={ideacad.config} readOnly={canManage} conceptName={ideacad.concepts?.find((c: any) => c.id === ideacad.document?.active_concept_id)?.name ?? 'Concept 1'} /></section>
+			<!--
+				THE BLADE EDITOR, AND THE THREE MOUNTS ARE THREE DIFFERENT ANSWERS
+				RATHER THAN ONE MOUNT WITH FLAGS.
+
+				A MANAGER READS, AND SO DOES ANY MOUNT THAT WAS HANDED NO WRITES.
+				`ideacad_open_document` resolves its subject
+				through `_classroom_engine_student` and RAISES for a manager, so
+				there is no document for a teacher to hold and no store is built
+				for one -- the payload's `config` and the roster are what a teacher
+				has. The editor is read-only because it was handed no writes, not
+				because a flag says so, which is the same mechanism every other
+				surface in this file uses.
+
+				A STUDENT WRITES, ONCE THE DOCUMENT IS OPEN. `{#key}` on the
+				document id so a client-side navigation to another assignment
+				rebuilds the working copy instead of handing the previous
+				document's concepts a new set of ids.
+
+				AND A STUDENT WHOSE DOCUMENT HAS NOT OPENED YET GETS NEITHER.
+				Mounting the read-only editor here would put a full set of
+				controls in front of a student and persist nothing they did with
+				them, which is exactly the defect ledger 0178 exists to end -- so
+				the slot reports what it is doing and waits.
+			-->
+			<section class="engine-host">
+				<h2 class="section-label">{canManage ? 'Assignment' : 'Your work'}</h2>
+				{#if canManage || !ideacadWrites}
+					<BladeEditor
+						tree={ideacad.concepts?.find((c: any) => c.id === ideacad.document?.active_concept_id)?.features ??
+							ideacad.config.defaultFeatures}
+						config={ideacad.config}
+						readOnly={true}
+						conceptName={ideacad.concepts?.find((c: any) => c.id === ideacad.document?.active_concept_id)?.name ??
+							'Concept 1'}
+					/>
+				{:else if ideacadSeed && ideacadWrites}
+					{#key ideacadDoc?.document?.id}
+						<BladeEditor
+							concepts={ideacadSeed.concepts as any}
+							activeConceptId={ideacadSeed.activeConceptId}
+							config={(ideacadSeed.config ?? ideacad.config) as any}
+							prediction={ideacadSeed.prediction}
+							writes={ideacadWrites}
+							saveLabel={ideacadSaveLabel(ideacadDoc?.phase)}
+							setPrediction={(conceptId, rationale) => ideacadWrites.setPrediction(conceptId, rationale)}
+							commitConceptCard={(conceptId) => ideacadWrites.commit(conceptId)}
+						/>
+					{/key}
+				{:else if ideacadOpenRefusal}
+					<p class="note">{ideacadOpenRefusal}</p>
+				{:else}
+					<Pending label="Opening your blade document" />
+				{/if}
+			</section>
 		{:else if ideacadMountState === 'unavailable'}
 			<section class="card engine-slot"><p class="note">{IDEACAD_UNAVAILABLE}</p></section>
 		{:else if htmlMount === 'html' && htmlAssignment}

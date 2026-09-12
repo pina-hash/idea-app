@@ -23,6 +23,7 @@
 		setStations
 	} from './ui/feature-model';
 	import { UNDO_DEPTH, UndoStack, undoKeyFor } from './ui/undo';
+	import { IDEACAD_WRITE_REFUSED, type IdeacadEditorWrites } from './mount';
 
 	let {
 		tree = DEFAULT_BLADE_TREE,
@@ -31,9 +32,12 @@
 		readOnly = false,
 		openCompare = false,
 		concepts: seedConcepts = undefined,
+		activeConceptId = null,
 		prediction = null,
 		commitConceptCard = undefined,
 		setPrediction = undefined,
+		writes = undefined,
+		saveLabel = undefined,
 		onFrame = undefined,
 		onViewportReady = undefined
 	}: {
@@ -43,13 +47,28 @@
 		readOnly?: boolean;
 		openCompare?: boolean;
 		concepts?: { id: string; name: string; features: BladeTree; committed?: boolean }[];
+		/** Which seeded concept opens active. Without it the FIRST card opens, so
+		 *  a document whose active concept is not first could only be seeded by
+		 *  reordering the strip -- which is a student's own ordering and not the
+		 *  mount's to rewrite. */
+		activeConceptId?: string | null;
 		/** A prediction ALREADY RECORDED for this document. Its presence is what
-		 *  unlocks the comparative physics on a later visit -- a gate that asked
-		 *  again would make a student predict twice about one document, and the
-		 *  second answer would overwrite the one they are being taught by. */
+		 *  puts the recorded line on screen instead of the form -- a form that
+		 *  asked again would make a student predict twice about one document, and
+		 *  the second answer would overwrite the one they are being taught by. It
+		 *  GATES NOTHING; see the prediction block below. */
 		prediction?: { conceptId: string; rationale: string; at?: string | null } | null;
 		commitConceptCard?: (conceptId: string) => Promise<unknown>;
 		setPrediction?: (conceptId: string, rationale: string) => Promise<unknown>;
+		/** THE DOCUMENT'S WRITE PATH. Handed in by the classroom item page and by
+		 *  nothing else; its ABSENCE is what makes this a local working copy that
+		 *  persists nothing, which is exactly what the dev harness wants and what
+		 *  the real page had until ledger 0178. See `mount.ts`. */
+		writes?: IdeacadEditorWrites | null;
+		/** The store's own phase in words. Replaces the local indicator entirely
+		 *  when supplied: two sources for one line is how a surface comes to read
+		 *  "Saved" over a write that failed. */
+		saveLabel?: string | null;
 		onFrame?: (ms: number) => void;
 		onViewportReady?: (probe: ViewportProbe) => void;
 	} = $props();
@@ -67,7 +86,12 @@
 				})) ?? [{ id: 'c1', name: conceptName, features: structuredClone(tree), committed: false }]
 		)
 	);
-	let activeId = $state(untrack(() => seedConcepts?.[0]?.id ?? 'c1'));
+	let activeId = $state(
+		untrack(() => {
+			const seeded = activeConceptId && seedConcepts?.some((c) => c.id === activeConceptId) ? activeConceptId : null;
+			return seeded ?? seedConcepts?.[0]?.id ?? 'c1';
+		})
+	);
 	const active = $derived(concepts.find((c) => c.id === activeId) ?? concepts[0]);
 	function clone(t: BladeTree): BladeTree {
 		return structuredClone($state.snapshot(t) as BladeTree);
@@ -81,23 +105,61 @@
 	let compare = $state(untrack(() => openCompare));
 	let rationale = $state(untrack(() => prediction?.rationale ?? ''));
 	let predicted = $state(untrack(() => prediction?.conceptId ?? ''));
-	// The prediction gate is PEDAGOGICAL, not a security boundary: it exists so a student
-	// commits to an answer before the comparative physics is shown. Nothing behind it is
-	// secret, and `revealed` is deliberately a separate flag from the rationale field --
-	// keyed on the field itself, the physics unlocked on the first keystroke.
-	//
-	// IT IS SET ONLY AFTER THE WRITE COMES BACK. Set before the await, a rejected
-	// `ideacad_set_prediction` left the physics on screen with nothing recorded, so
-	// the one thing the gate exists to collect was the one thing that did not survive.
-	let revealed = $state(untrack(() => !!prediction));
-	let revealing = $state(false);
+	/**
+	 * THERE IS NO PREDICTION GATE, ON MR. PINA'S DECISION OF 2026-09-12
+	 * (`docs/decisions/entries/26-*`). Rotational inertia and radius of gyration
+	 * render from the first frame, in the Rules rail and in every compare column,
+	 * with nothing hidden and no prediction required. His reasoning: IDEA100 is a
+	 * rotation class, there is no time to teach the mathematics behind rotational
+	 * inertia, and visible numbers help students build maximally competitive
+	 * designs.
+	 *
+	 * THE PREDICTION ITSELF STAYS, AND `recorded` IS NOT A LOCK. A student still
+	 * says which concept they think spins longest and why, and
+	 * `ideacad_set_prediction` still stores it; `recorded` decides only whether
+	 * the FORM or the RECORDED LINE is on screen, so nobody is asked twice about
+	 * one document and no second answer overwrites the first.
+	 *
+	 * DO NOT REINTRODUCE A LOCK KEYED ON THIS FLAG. Ledger 0160 fixed a
+	 * one-keystroke leak in the gate and ledger 0171 fixed it opening on the
+	 * press rather than on the write; both were correct against their prompts,
+	 * and the prompts predated his answer.
+	 */
+	let recorded = $state(untrack(() => !!prediction));
+	let recording = $state(false);
 	let predictionRefusal = $state('');
 	let renaming = $state(false);
 	let renameTo = $state('');
 	let armedDelete = $state('');
-	let accepted = $state(untrack(() => structuredClone($state.snapshot(concepts[0].features) as BladeTree)));
-	let draft = $state(untrack(() => structuredClone($state.snapshot(concepts[0].features) as BladeTree)));
+	/* SEEDED FROM THE ACTIVE CONCEPT, NEVER FROM `concepts[0]`. With
+	   `activeConceptId` pointing anywhere but the first card, seeding index 0
+	   opens the editor showing one concept's geometry under another's name. */
+	const seedFeatures = () => {
+		const start = untrack(() => concepts.find((c) => c.id === activeId) ?? concepts[0]);
+		return structuredClone($state.snapshot(start.features) as BladeTree);
+	};
+	let accepted = $state(seedFeatures());
+	let draft = $state(seedFeatures());
 	let saved = $state('Saved');
+	/** The last refused write, if any. One line for every write path: a student
+	 *  needs to know a change did not land, not which RPC it was. */
+	let writeRefusal = $state('');
+	/** The store's phase wins whenever a store is there to have one. */
+	const savedLine = $derived(saveLabel ?? saved);
+	/** Run one document write, and keep the refusal where the student is working.
+	 *  The local copy is NEVER rolled back: what is on screen is the student's
+	 *  work, and taking it away because the network said no loses the thing the
+	 *  message is telling them to retry. */
+	async function persist<T>(run: () => Promise<T>): Promise<T | null> {
+		try {
+			const out = await run();
+			writeRefusal = '';
+			return out;
+		} catch {
+			writeRefusal = IDEACAD_WRITE_REFUSED;
+			return null;
+		}
+	}
 	/**
 	 * Undo and redo over ACCEPTED edits, 50 deep. The stack is a plain object in
 	 * `$state` so a push does not re-render anything by itself; `historyTick` is
@@ -132,7 +194,7 @@
 	const panelId = $derived(selected.startsWith('station-') ? 'body-revolve' : selected);
 	const panel = $derived(panelFor(draft, panelId, cfg));
 	const featureIndex = $derived(draft.features.findIndex((f) => f.id === panelId));
-	const canReveal = $derived(!!predicted && rationale.trim().length > 0);
+	const canPredict = $derived(!!predicted && rationale.trim().length > 0);
 
 	function accept() {
 		if (readOnly || !dirty) return;
@@ -192,12 +254,39 @@
 		if (which === 'undo') undo();
 		else redo();
 	}
+	/**
+	 * THE ACTIVE CONCEPT'S FEATURES, INTO THE LIST AND INTO THE AUTOSAVE. Every
+	 * path that changes the working copy already came through here -- Accept,
+	 * undo, redo, and every concept switch -- so this is the ONE place the edit
+	 * enters `store.edit`, and there is no second throttle beside the store's
+	 * own 750ms: `edit` is synchronous by contract and the debounce is the
+	 * store's. A surface with no `writes` keeps exactly the local behaviour it
+	 * has always had.
+	 */
 	function writeActive() {
 		const i = concepts.findIndex((c) => c.id === activeId);
-		if (i >= 0) concepts[i] = { ...concepts[i], features: clone(draft) };
+		if (i < 0) return;
+		const features = clone(draft);
+		concepts[i] = { ...concepts[i], features };
+		if (!writes || readOnly) return;
+		try {
+			writes.edit(features);
+			writeRefusal = '';
+		} catch {
+			writeRefusal = IDEACAD_WRITE_REFUSED;
+		}
 	}
 	function load(id: string) {
 		writeActive();
+		// The selection is local and immediate; the write follows it. A refusal
+		// leaves the two disagreeing until the next reload, where the server's
+		// answer wins -- which is the honest outcome and is said out loud.
+		if (writes && !readOnly) void persist(() => writes.activate(id));
+		loadLocal(id);
+	}
+	/** The selection half of `load`, with no `setActive` behind it, for the paths
+	 *  where the database has already chosen (create, and delete's own answer). */
+	function loadLocal(id: string) {
 		activeId = id;
 		const c = concepts.find((x) => x.id === id);
 		if (!c) return;
@@ -217,46 +306,89 @@
 		while (concepts.some((c) => c.id === `c${n}`)) n++;
 		return `c${n}`;
 	}
-	function newConcept() {
+	/**
+	 * A CONCEPT IS CREATED BY THE DATABASE WHEN THERE IS ONE, AND THE ID COMES
+	 * BACK FROM IT. `nextId` mints `c2`, `c3` and so on, which is right for a
+	 * surface persisting nothing and wrong the moment one is: every other write
+	 * is keyed on the concept id, so a locally invented one would address a row
+	 * that does not exist. The card is appended only AFTER the row lands.
+	 */
+	async function add(name: string, features: BladeTree) {
 		writeActive();
-		const id = nextId();
-		concepts = [...concepts, { id, name: `Concept ${concepts.length + 1}`, features: clone(cfg.defaultFeatures), committed: false }];
-		load(id);
+		if (!writes || readOnly) {
+			const id = nextId();
+			concepts = [...concepts, { id, name, features, committed: false }];
+			load(id);
+			return;
+		}
+		const row = await persist(() => writes.create(name, features));
+		if (!row) return;
+		concepts = [...concepts, { id: row.id, name: row.name, features, committed: false }];
+		// `ideacad_new_concept` activates the row it wrote, so the selection is
+		// already the server's; `load` must not send a second `setActive` for it.
+		loadLocal(row.id);
+	}
+	function newConcept() {
+		void add(`Concept ${concepts.length + 1}`, clone(cfg.defaultFeatures));
 	}
 	function duplicate() {
-		writeActive();
-		const id = nextId();
-		concepts = [...concepts, { id, name: `${active.name} copy`, features: clone(active.features), committed: false }];
-		load(id);
+		void add(`${active.name} copy`, clone(active.features));
 	}
 	function startRename() {
 		renameTo = active.name;
 		renaming = true;
 	}
-	function commitRename() {
+	async function commitRename() {
 		const name = renameTo.trim();
-		if (name) {
-			const i = concepts.findIndex((c) => c.id === activeId);
-			if (i >= 0) concepts[i] = { ...concepts[i], name };
-		}
+		const id = activeId;
 		renaming = false;
+		if (!name) return;
+		if (writes && !readOnly && !(await persist(() => writes.rename(id, name).then(() => true)))) return;
+		const i = concepts.findIndex((c) => c.id === id);
+		if (i >= 0) concepts[i] = { ...concepts[i], name };
 	}
 	// The last concept is never deletable: a document with no concept has nothing to load.
-	function removeConcept() {
+	/** `ideacad_delete_concept` refuses the last one itself and names the concept
+	 *  it selected next, so the local list follows the database rather than
+	 *  guessing -- the guess (`rest[0]`) is right only while the strip's order and
+	 *  the stored `position` agree, and reordering is exactly what breaks that. */
+	async function removeConcept() {
 		if (concepts.length < 2) return;
-		const rest = concepts.filter((c) => c.id !== activeId);
+		const id = activeId;
+		if (writes && !readOnly) {
+			const out = await persist(() => writes.remove(id));
+			if (!out) return;
+			const rest = concepts.filter((c) => c.id !== id);
+			concepts = rest;
+			armedDelete = '';
+			loadLocal(rest.some((c) => c.id === out.activeConceptId) ? out.activeConceptId : rest[0].id);
+			return;
+		}
+		const rest = concepts.filter((c) => c.id !== id);
 		concepts = rest;
 		armedDelete = '';
 		load(rest[0].id);
 	}
-	/** The strip's order is the student's; it changes no geometry and no number. */
-	function moveConcept(direction: -1 | 1) {
+	/** The strip's order is the student's; it changes no geometry and no number.
+	 *  `0201` stores a 1-BASED `position` and `ideacad_open_document` orders by
+	 *  it, so a swap is two writes and the indices are offset by one. */
+	async function moveConcept(direction: -1 | 1) {
 		const from = concepts.findIndex((c) => c.id === activeId);
 		const to = from + direction;
 		if (from < 0 || to < 0 || to >= concepts.length) return;
+		const moved = concepts[from];
+		const displaced = concepts[to];
+		if (writes && !readOnly) {
+			const ok = await persist(async () => {
+				await writes.reposition(moved.id, to + 1);
+				await writes.reposition(displaced.id, from + 1);
+				return true;
+			});
+			if (!ok) return;
+		}
 		const next = [...concepts];
-		next[from] = concepts[to];
-		next[to] = concepts[from];
+		next[from] = displaced;
+		next[to] = moved;
 		concepts = next;
 	}
 	/**
@@ -304,21 +436,23 @@
 		if (i >= 0) concepts[i] = { ...concepts[i], committed: true };
 	}
 	/**
-	 * The gate opens on the WRITE, not on the press. A refusal keeps it closed and
-	 * says so, because a student who saw the physics after a failed save has been
-	 * taught the lesson and had the evidence of it thrown away.
+	 * The recorded line replaces the form on the WRITE, not on the press. A
+	 * refusal leaves the form standing with what was typed still in it, because a
+	 * student told their prediction was recorded when it was not has had the one
+	 * thing this collects thrown away. The physics is on screen either way now,
+	 * so a refusal costs the record and nothing else.
 	 */
-	async function reveal() {
-		if (!canReveal || revealing) return;
-		revealing = true;
+	async function record() {
+		if (!canPredict || recording) return;
+		recording = true;
 		predictionRefusal = '';
 		try {
 			await setPrediction?.(predicted, rationale.trim());
-			revealed = true;
+			recorded = true;
 		} catch {
-			predictionRefusal = 'Your prediction did not save, so the physics stays closed. Try Reveal again.';
+			predictionRefusal = 'Your prediction did not save. Try Record prediction again.';
 		} finally {
-			revealing = false;
+			recording = false;
 		}
 	}
 	/** Each concept's own numbers, for the compare columns. `evaluate` throws on a
@@ -345,8 +479,16 @@
 				<button class="hist" aria-disabled={!canUndo} title="Undo (Ctrl+Z)" onclick={undo}>Undo</button>
 				<button class="hist" aria-disabled={!canRedo} title="Redo (Ctrl+Y)" onclick={redo}>Redo</button>
 			{/if}
-			<div class="save" aria-live="polite">{saved}</div>
+			<div class="save" aria-live="polite">{savedLine}</div>
 		</div>
+		<!-- INSIDE THE HEADER, ON ITS OWN WRAPPED LINE. `.ideacad` is a three-row
+		     grid (header, stage, concept strip); a fourth child would take an
+		     implicit row and steal height from the viewport. The header already
+		     wraps, so `flex-basis: 100%` puts this under the indicator it belongs
+		     to at every width. -->
+		{#if writeRefusal}
+			<p class="refusal write" role="status">{writeRefusal}</p>
+		{/if}
 	</header>
 	<div class="stage">
 		<aside class="tree" aria-label={editing && panel ? 'PropertyManager' : 'FeatureManager'}>
@@ -431,6 +573,23 @@
 				</div>
 			{/each}
 			<div class="metric"><span>Center of mass</span><strong>{result.comHeightIn.toFixed(2)} in</strong></div>
+			<!-- THE PHYSICS IS HERE, FROM THE FIRST FRAME, and that is decision 26's
+			     answer rather than a convenience. Rotational inertia and radius of
+			     gyration used to live behind the prediction gate in the compare
+			     sheet; Mr. Pina's call of 2026-09-12 is that they are always
+			     visible, because IDEA100 is a rotation class with no room to teach
+			     the mathematics and a student building for the competition needs
+			     the number they are competing on.
+
+			     `result.rules.slice(0, 4)` ABOVE DROPS THE FIFTH RULE
+			     (`engagement`) DELIBERATELY. Decision 26 recorded that as a
+			     measured defect; it is not one -- engagement is not being enforced
+			     this rotation, and `evaluate` still returns it, so a rail that
+			     printed PASS/FAIL on it would be quoting a limit nobody is
+			     holding students to. Widening the slice is a decision, not a
+			     one-character fix. -->
+			<div class="metric"><span>Rotational inertia</span><strong>{result.inertiaGcm2.toFixed(1)} g·cm²</strong></div>
+			<div class="metric"><span>Radius of gyration</span><strong>{result.radiusOfGyrationCm.toFixed(2)} cm</strong></div>
 			{#if !configOk}<p class="notice">CONFIG UNREADABLE, SHOWING DEFAULT LIMITS</p>{/if}
 			{#if result.unverifiedStandardParts}<p class="notice">UNVERIFIED STANDARD PARTS</p>{/if}
 		</aside>
@@ -459,20 +618,20 @@
 	{#if compare}
 		<section class="compare" aria-label="Compare concepts">
 			<h3>Compare concepts</h3>
-			{#if !revealed}
+			{#if !recorded}
 				<p>Which of your concepts spins longest? Pick one and say why.</p>
 				<select value={predicted} onchange={(e) => (predicted = e.currentTarget.value)} aria-label="Pick a concept">
 					<option value="">Pick a concept</option>
 					{#each concepts as concept (concept.id)}<option value={concept.id}>{concept.name}</option>{/each}
 				</select>
 				<input bind:value={rationale} placeholder="Say why" aria-label="Say why" />
-				<button aria-disabled={!canReveal || revealing} onclick={reveal}>Reveal physics</button>
+				<button aria-disabled={!canPredict || recording} onclick={record}>Record prediction</button>
 				{#if predictionRefusal}
 					<p class="refusal" role="status">{predictionRefusal}</p>
-				{:else if !canReveal}
-					<p class="note">Pick a concept and say why before the physics is revealed.</p>
+				{:else if !canPredict}
+					<p class="note">Pick a concept and say why to record your prediction.</p>
 				{:else}
-					<p class="note">Reveal records your prediction, then unlocks the physics for every concept.</p>
+					<p class="note">Your prediction is recorded once and cannot be changed afterwards.</p>
 				{/if}
 			{:else}
 				<p class="said">
@@ -480,10 +639,9 @@
 					{#if prediction?.at}<i>&nbsp;recorded {prediction.at}</i>{/if}
 				</p>
 			{/if}
-			<!-- ONE COLUMN PER CONCEPT, and the physics is the only locked part of
-			     it. Decision 26's default is to lock comparative physics ONLY:
-			     diameter, height, hex extension and mass stay visible, because a
-			     student needs them to build a legal concept at all. -->
+			<!-- ONE COLUMN PER CONCEPT, AND NOTHING IN IT IS LOCKED. Decision 26 is
+			     answered: the comparative physics reads beside the rules for every
+			     concept whether or not a prediction has been made. -->
 			<div class="cols">
 				{#each columns as column (column.concept.id)}
 					<article class:active={column.concept.id === activeId}>
@@ -501,16 +659,14 @@
 									</li>
 								{/each}
 							</ul>
-							{#if revealed}
-								<dl>
-									<dt>I</dt>
-									<dd>{column.reading.e.inertiaGcm2.toFixed(1)} g·cm²</dd>
-									<dt>k</dt>
-									<dd>{column.reading.e.radiusOfGyrationCm.toFixed(2)} cm</dd>
-									<dt>COM</dt>
-									<dd>{column.reading.e.comHeightIn.toFixed(2)} in</dd>
-								</dl>
-							{/if}
+							<dl>
+								<dt>I</dt>
+								<dd>{column.reading.e.inertiaGcm2.toFixed(1)} g·cm²</dd>
+								<dt>k</dt>
+								<dd>{column.reading.e.radiusOfGyrationCm.toFixed(2)} cm</dd>
+								<dt>COM</dt>
+								<dd>{column.reading.e.comHeightIn.toFixed(2)} in</dd>
+							</dl>
 						{:else}
 							<p class="broken">This concept cannot be rebuilt.</p>
 						{/if}
@@ -797,6 +953,10 @@
 	}
 	.refusal {
 		color: var(--amber);
+	}
+	.refusal.write {
+		flex-basis: 100%;
+		margin: 0;
 	}
 	.said i {
 		font-style: normal;

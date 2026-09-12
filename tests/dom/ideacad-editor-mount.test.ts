@@ -13,16 +13,21 @@
 //      the FIRST KEYSTROKE, with no concept picked and the Reveal control never
 //      pressed. Measured in Chromium before the fix: one character typed into
 //      "Say why" rendered `I 1626.6 g-cm2 / k 2.97 cm` under the heading
-//      `Prediction: . h`. The gate is the whole pedagogical point of the
-//      compare surface -- the student commits to an answer before the answer is
-//      shown -- and it was open.
+//      `Prediction: . h`.
+//
+//      THERE IS NO GATE ANY MORE, ON MR. PINA'S DECISION OF 2026-09-12, and the
+//      first block below is now the inverse of what this paragraph describes.
+//      The history is kept rather than deleted because it is the reason the
+//      inverse assertions are written out at all: a leak nobody could see once
+//      cost two bundles, and an absent test would leave the removal looking like
+//      the same leak coming back.
 //   2. New, Duplicate, Rename, Delete and Commit as concept card carried NO
 //      handler at all. Five controls that look like controls and do nothing is
 //      worse than five absent ones, and this repo's own rule is that an omitted
 //      transport REMOVES the control it drives.
 //
 // So the assertions below are written as the RULE rather than as the two bugs:
-// the physics stays hidden through every path that is not the deliberate press,
+// the physics is visible on every path and the prediction is still collected,
 // and each strip control is asserted by what it does to the concept list.
 //
 // WHAT THIS FILE DELIBERATELY DOES NOT ASSERT: any width, any ratio, any tap
@@ -63,55 +68,99 @@ const button = (m: ReturnType<typeof open>, label: string) =>
 const cardNames = (m: ReturnType<typeof open>) =>
 	m.all('.concepts .card').map((b) => (b.querySelector('small')?.previousSibling?.textContent ?? b.textContent ?? '').trim());
 
-describe('IdeaCAD: the prediction gate', () => {
-	it('is closed when the compare surface opens', async () => {
+describe('IdeaCAD: the physics is never gated, and the prediction is still collected', () => {
+	// MR. PINA DECIDED ON 2026-09-12 THAT PHYSICS IS ALWAYS VISIBLE
+	// (`docs/decisions/entries/26-*`). IDEA100 is a rotation class, there is no
+	// time to teach the mathematics behind rotational inertia, and visible
+	// numbers help students build maximally competitive designs.
+	//
+	// THIS BLOCK IS THE INVERSE OF THE ONE IT REPLACES, deliberately and on the
+	// record. What it used to assert -- closed on open, closed while typing,
+	// closed on a press with half an answer, open only on the deliberate press
+	// -- was correct against ledgers 0160 and 0171, whose prompts predated his
+	// answer. Every one of those assertions is now a statement that the feature
+	// is broken, so each is asserted the other way round rather than deleted:
+	// an absent test would leave nothing saying the gate was removed on purpose.
+
+	it('shows the comparative physics the moment the compare sheet opens, with no prediction anywhere', async () => {
 		const m = open({ openCompare: true });
 		expect(m.all('.compare').length).toBe(1); // positive control: the sheet IS rendered
-		expect(physicsShown(m)).toBe(false);
+		expect(physicsShown(m)).toBe(true);
+		// One block per concept, so the sheet is comparative rather than showing
+		// the active concept's numbers alone.
+		expect(m.all('.compare dl').length).toBe(3);
+		expect(m.one('.compare').textContent).toContain('g·cm²');
 		await m.stop();
 	});
 
-	it('stays closed while the rationale is typed, which is the defect that shipped', async () => {
-		const m = open({ openCompare: true });
-		const field = m.one<HTMLInputElement>('.compare input');
-		field.value = 'because the rim carries the mass';
-		field.dispatchEvent(new Event('input', { bubbles: true }));
-		m.flush();
-		expect(physicsShown(m)).toBe(false);
+	it('renders inertia and radius of gyration in the Rules rail from the first frame, with no compare sheet open', async () => {
+		const m = open();
+		// THE RAIL, NOT THE SHEET. The compare surface is a thing a student opens;
+		// the rail is what is on screen when the editor mounts, which is where
+		// "from the first frame" has to be true.
+		expect(m.all('.compare').length).toBe(0);
+		const rail = m.one('.readouts').textContent ?? '';
+		expect(rail).toContain('Rotational inertia');
+		expect(rail).toContain('Radius of gyration');
+		expect(rail).toMatch(/g·cm²/);
 		await m.stop();
 	});
 
-	it('stays closed on a press with no concept picked, and the control says it is not ready', async () => {
-		const m = open({ openCompare: true });
-		const field = m.one<HTMLInputElement>('.compare input');
-		field.value = 'because the rim carries the mass';
-		field.dispatchEvent(new Event('input', { bubbles: true }));
-		m.flush();
-		const reveal = button(m, 'Reveal physics')!;
-		// `aria-disabled`, never `disabled`, so the control can still explain itself --
-		// which means the HANDLER has to refuse too. A real click reaches it.
-		expect(reveal.getAttribute('aria-disabled')).toBe('true');
-		reveal.click();
-		m.flush();
-		expect(physicsShown(m)).toBe(false);
-		await m.stop();
-	});
-
-	it('stays closed on a picked concept with no press', async () => {
-		const m = open({ openCompare: true });
-		const pick = m.one<HTMLSelectElement>('.compare select');
-		pick.value = 'c2';
-		pick.dispatchEvent(new Event('change', { bubbles: true }));
-		m.flush();
-		expect(physicsShown(m)).toBe(false);
-		await m.stop();
-	});
-
-	it('opens only on the deliberate press with both halves, and records the prediction', async () => {
+	it('still asks for a prediction, and records it through the transport', async () => {
 		const seen: string[] = [];
 		const m = open({
 			openCompare: true,
 			setPrediction: async (conceptId: string, rationale: string) => void seen.push(`${conceptId}:${rationale}`)
+		});
+		expect(m.one('.compare').textContent).toContain('Which of your concepts spins longest?');
+		const pick = m.one<HTMLSelectElement>('.compare select');
+		pick.value = 'c2';
+		pick.dispatchEvent(new Event('change', { bubbles: true }));
+		const field = m.one<HTMLInputElement>('.compare input');
+		field.value = 'because the rim carries the mass';
+		field.dispatchEvent(new Event('input', { bubbles: true }));
+		m.flush();
+		const record = button(m, 'Record prediction')!;
+		expect(record.getAttribute('aria-disabled')).toBe('false');
+		record.click();
+		await m.settle();
+		expect(seen).toEqual(['c2:because the rim carries the mass']);
+		// The form is replaced by what was said, so nobody is asked twice about
+		// one document -- and the physics was, and stays, on screen throughout.
+		expect(button(m, 'Record prediction')).toBeUndefined();
+		expect(m.one('.compare').textContent).toContain('Wide four');
+		expect(physicsShown(m)).toBe(true);
+		await m.stop();
+	});
+
+	it('refuses an incomplete prediction without ever touching the physics', async () => {
+		const seen: string[] = [];
+		const m = open({
+			openCompare: true,
+			setPrediction: async (conceptId: string, rationale: string) => void seen.push(`${conceptId}:${rationale}`)
+		});
+		const field = m.one<HTMLInputElement>('.compare input');
+		field.value = 'because the rim carries the mass';
+		field.dispatchEvent(new Event('input', { bubbles: true }));
+		m.flush();
+		const record = button(m, 'Record prediction')!;
+		// `aria-disabled`, never `disabled`, so the control can still explain
+		// itself -- which means the HANDLER has to refuse too, and a real click
+		// is what asks it.
+		expect(record.getAttribute('aria-disabled')).toBe('true');
+		record.click();
+		await m.settle();
+		expect(seen).toEqual([]);
+		expect(physicsShown(m)).toBe(true);
+		await m.stop();
+	});
+
+	it('keeps the form standing when the write is refused, so what was typed is not lost', async () => {
+		const m = open({
+			openCompare: true,
+			setPrediction: async () => {
+				throw new Error('no');
+			}
 		});
 		const pick = m.one<HTMLSelectElement>('.compare select');
 		pick.value = 'c2';
@@ -120,17 +169,26 @@ describe('IdeaCAD: the prediction gate', () => {
 		field.value = 'because the rim carries the mass';
 		field.dispatchEvent(new Event('input', { bubbles: true }));
 		m.flush();
-		const reveal = button(m, 'Reveal physics')!;
-		expect(reveal.getAttribute('aria-disabled')).toBe('false');
-		reveal.click();
+		button(m, 'Record prediction')!.click();
 		await m.settle();
+		expect(button(m, 'Record prediction')).toBeDefined();
+		expect(m.one('.compare .refusal').textContent).toContain('did not save');
 		expect(physicsShown(m)).toBe(true);
-		expect(m.one('.compare').textContent).toContain('Wide four');
-		expect(seen).toEqual(['c2:because the rim carries the mass']);
 		await m.stop();
 	});
 
-	it('lists every live concept in the picker, so the gate cannot name one that is gone', async () => {
+	it('shows a prediction already recorded instead of asking again', async () => {
+		const m = open({
+			openCompare: true,
+			prediction: { conceptId: 'c3', rationale: 'the narrow one', at: '2026-09-12' }
+		});
+		expect(button(m, 'Record prediction')).toBeUndefined();
+		expect(m.one('.compare').textContent).toContain('Concept 3');
+		expect(physicsShown(m)).toBe(true);
+		await m.stop();
+	});
+
+	it('lists every live concept in the picker, so a prediction cannot name one that is gone', async () => {
 		const m = open({ openCompare: true });
 		const options = m.all<HTMLOptionElement>('.compare option').map((o) => o.value);
 		expect(options).toEqual(['', 'c1', 'c2', 'c3']);
