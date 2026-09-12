@@ -1,4 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+	createIdeacadAssemblyTransports,
+	type IdeacadAssemblyTransports
+} from './assembly';
 import { createIdeacadLive, type IdeacadLive } from './live';
 import {
 	ideacadRoleFromPayload,
@@ -126,6 +130,24 @@ export interface IdeacadTransports {
 	/** What has been shared WITH the caller on one item: their only way to learn a document id. */
 	sharedWithMe?: (itemId: string) => Promise<IdeacadSharedDocument[]>;
 
+	// -----------------------------------------------------------------------
+	// ASSEMBLY AND CHECKOUT (0207). An IDEA-Blade is several parts and one
+	// person holds a part at a time; the owner reassigns live.
+	//
+	// IT IS ONE OPTIONAL FIELD RATHER THAN NINE, and that is the deliberate
+	// difference from the sharing region above. `assembly.ts` already declares
+	// `IdeacadAssemblyTransports` as a closed boundary with its own factory,
+	// written self-contained because that lane could not touch this file; a
+	// nine-field spread here would be a SECOND spelling of the same nine RPC
+	// names. The whole object is present or absent, which is all any surface
+	// needs: `0207` is applied as one migration, so there is no deployment that
+	// has `ideacad_claim_part` and not `ideacad_release_part`.
+	//
+	// ABSENCE IS STILL THE MECHANISM. Undefined removes the parts panel
+	// entirely, exactly as an omitted `shareDocument` removes the share form.
+	// -----------------------------------------------------------------------
+	assembly?: IdeacadAssemblyTransports;
+
 	uploadSubmissionFile?: (
 		itemId: string,
 		file: File,
@@ -216,6 +238,12 @@ export function createIdeacadTransports(
 		},
 		sharedWithMe: (itemId) => rpc('ideacad_shared_with_me', { p_item_id: itemId }),
 
+		// The assembly boundary, BUILT BY ITS OWN FACTORY rather than restated
+		// here. `assembly.ts` is the one place the nine `0207` RPC names are
+		// written down, and a second copy in this file is exactly the drift the
+		// "do not duplicate a rule" convention exists to prevent.
+		assembly: createIdeacadAssemblyTransports(supabase),
+
 		uploadSubmissionFile
 	};
 }
@@ -260,5 +288,43 @@ export function withoutIdeacadSharing(transports: IdeacadTransports): IdeacadTra
 		sharedWithMe: _mine,
 		...rest
 	} = transports;
+	return rest;
+}
+
+/**
+ * The same question for `0207`, asked the same way and answered on the same
+ * code.
+ *
+ * `ideacad_assembly` IS THE PROBE BECAUSE IT IS THE READ THE PANEL WANTS
+ * ANYWAY. The sharing probe spends a round trip purely to find out; this one
+ * does not have to, so the caller passes the document it is about to show and
+ * gets the payload back when the answer is yes. A pre-`0207` deployment answers
+ * `PGRST202` and the parts panel is removed rather than mounted over a function
+ * that is not there.
+ *
+ * IT DEGRADES ON `PGRST202` ALONE, for the reason the sharing probe states: any
+ * other error is a real failure inside a function that DOES exist -- a caller
+ * who may not read the assembly raises `You cannot open this assembly.` -- and
+ * treating that as "not deployed" would turn a refusal into a silently missing
+ * feature.
+ */
+export async function probeIdeacadAssembly(
+	supabase: SupabaseClient,
+	documentId: string
+): Promise<{ available: boolean; code: string | null; payload: unknown }> {
+	const { data, error } = await supabase.rpc('ideacad_assembly', { p_document_id: documentId });
+	if (!error) return { available: true, code: null, payload: data };
+	const code = (error as { code?: string }).code ?? null;
+	return { available: code !== 'PGRST202', code, payload: null };
+}
+
+/**
+ * Strip the assembly boundary off, so a pre-`0207` deployment mounts a surface
+ * with NO parts panel rather than one whose every control throws when pressed.
+ * ABSENCE IS THE MECHANISM; this is the one place it is applied, exactly as
+ * `withoutIdeacadSharing` is for `0205`.
+ */
+export function withoutIdeacadAssembly(transports: IdeacadTransports): IdeacadTransports {
+	const { assembly: _assembly, ...rest } = transports;
 	return rest;
 }
