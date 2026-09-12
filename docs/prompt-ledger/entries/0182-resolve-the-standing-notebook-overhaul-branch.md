@@ -6,7 +6,7 @@
   `integration`, whatever files that merge touches,
   `docs/prompt-ledger/entries/0182-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0203
-- Status: issued
+- Status: pushed
 - Branch: claude/affectionate-newton-xkuftf (cut from origin/integration
   `b0a8101d`, which is level with `origin/main`)
 - Notes: `claude/notebook-ui-theme-overhaul-0gnx0f` is ledger 0119's LOSING
