@@ -250,8 +250,8 @@ does not break the splitter.
 ## Numbers
 
 - **Full suite, baseline on `origin/integration` `62ef6bc7` before any edit: 443
-  files, 8469 tests, 0 failed, 452.36 s.** After: see the ledger entry's closing
-  figures; the delta is exactly the one new file.
+  files, 8469 tests, 0 failed, 452.36 s.** After: **444 files, 8477 tests, 0
+  failed, 441.89 s.** Delta +1 file and +8 tests, which is exactly the new file.
 - **`svelte-check`: 0 errors, 37 warnings in 20 files**, breaking down 31
   `state_referenced_locally` / 5 `css_unused_selector` / 1
   `perf_avoid_nested_class`. **Measured at the branch point with the new test
@@ -285,3 +285,29 @@ does not break the splitter.
 - **The browser pass.** `npm run verify:browser` was not run: this bundle adds no
   component, no route and no stylesheet. `verify:readme` was not run, per the
   prompt.
+
+## The merge was not taken, and the reason moved while the bundle ran
+
+The prompt granted the merge against the six-item checklist with ledger 0114's
+substitution applying. **0114's substitution is conditional on the migration
+range being EMPTY, and it is not.** At branch time `origin/integration` carried
+`0209_ideacad_history.sql`, which ledger 0189's own entry records as *"Not
+applied anywhere"*; by the end of the session it also carried
+`0210_notebook_note_grid.sql`. Merging would deploy `src/lib/ideacad/history.ts`
+and its callers to `ideabosco.com` against a schema production does not have.
+
+Gate 2 is unmet independently: the newest CI run on `integration` is for
+`88f0f26f`, and the tip is `843b3860`. There is no run for the current tip, and
+the checklist asks for the conclusion of the run for that exact sha.
+
+So the checklist stops at gates 2, 4 and 5, which is the outcome the rule is for
+rather than a failure of this bundle. The branch is pushed; `integrate.yml` will
+sweep it into `integration` when its CI goes green.
+
+## No classroom update-log entry, and that is a decision
+
+`classroom-updates.json` takes an entry from any session that changes
+classroom-facing behaviour. This one changes none: it ships a SQL file for Mr.
+Pina to paste and a database test. The material names and notes a student would
+notice move when the file is PASTED, not when this commit deploys, so the entry
+belongs to whoever pastes it. Ledger 0191 shipped the same shape and added none.
