@@ -496,24 +496,36 @@ describe('tools/browser-verify/README.md counts regions', () => {
 		expect(Object.keys(raw).sort()).toEqual(['controls', 'failures', 'negative', 'positive', 'schema']);
 	});
 
-	it('a store measured at two different instants renders a SPAN, not one instant', () => {
-		// THE STATE A PARTIAL RE-MEASURE PRODUCES, and the one the committed
-		// tree does not currently carry: a store seeded by a full pass and
-		// then updated for one spec has no single measurement instant, and
-		// claiming one would be the lie this region exists to prevent. The
-		// branch is otherwise unreachable from this tree's own data, so it is
-		// driven here rather than left to the next partial pass to discover.
+	it('a store renders a SPAN when its measurements span two instants, and one instant when they do not', () => {
+		// THE STATE A PARTIAL RE-MEASURE PRODUCES. A store seeded by a full
+		// pass and then updated for one spec has no single measurement
+		// instant, and claiming one would be the lie this region exists to
+		// prevent. BOTH branches are driven from patched data rather than
+		// from whichever state the committed store happens to be in: this
+		// control asserted `oldest === date` on the committed block for one
+		// commit, which is a claim about the repository rather than about the
+		// renderer, and it failed on the first real partial re-measure -- the
+		// ratchet shape, exactly as CLAUDE.md names it.
 		const { data } = parseMeasured(readme);
-		expect(data.oldest).toBe(data.date); // the committed store IS one pass
+		const one = '2026-02-02T00:00:00.000Z';
+		const older = '2026-01-01T00:00:00.000Z';
 
-		const mixed = renderMeasured({ ...data, oldest: '2026-01-01T00:00:00.000Z' });
-		expect(mixed).toContain('measurements were taken between 2026-01-01T00:00:00.000Z and ');
-		expect(mixed).not.toContain(`measurements were taken at ${data.date}`);
+		const span = renderMeasured({ ...data, oldest: older, date: one });
+		expect(span).toContain(`measurements were taken between ${older} and ${one}`);
+		expect(span).not.toContain(`measurements were taken at ${one}`);
 
-		// NEGATIVE HALF: the single-instant store renders the single-instant
-		// sentence, so the assertion above is the span branch and not the
-		// renderer ignoring what it is handed.
-		expect(renderMeasured(data)).toContain(`measurements were taken at ${data.date}`);
+		const single = renderMeasured({ ...data, oldest: one, date: one });
+		expect(single).toContain(`measurements were taken at ${one}`);
+		expect(single).not.toContain('measurements were taken between');
+
+		// AND THE COMMITTED BLOCK SAYS WHICHEVER ITS OWN DATA IMPLIES, which
+		// is the half that ties the renderer to the file rather than to a
+		// fixture.
+		expect(parseMeasured(readme).block).toContain(
+			data.oldest === data.date
+				? `measurements were taken at ${data.date}`
+				: `measurements were taken between ${data.oldest} and ${data.date}`
+		);
 	});
 
 	it('verifyMeasured reddens a block that disagrees with the store, and says to run the cheap command', () => {
