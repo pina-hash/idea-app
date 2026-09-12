@@ -417,6 +417,9 @@ here must pass in any order.
   comment) reads 0 on way 1 and 1 on way 2**, which is what proves the two ways
   are independent rather than two spellings of one; control D (a lone `$`) reads
   1 only on the bare-dollar scan.
+- **The verification query at the foot of the file returns 13 rows, every `ok`
+  column `t`** -- measured by extracting it from the file's own comment block and
+  running it against the real chain on embedded Postgres, not predicted.
 - `tools/claude-md-check.mjs`: agrees with the tree. `npm run history:verify`:
   the split is lossless.
 - `verify:readme` NOT run, per the prompt.
