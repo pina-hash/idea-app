@@ -1,10 +1,15 @@
-# 07 Foundry telemetry: make the two owner-only metrics public
+# 07 Foundry telemetry: the owner-only metrics go public, and so does a student's own playtime
 - Raised: 2026-08-31  By: chat "Managing multiple FRC platform projects"
 - Status: decided 2026-09-12. FULLY PUBLIC, in two layers. The DECISION is closed; the BUILD is open, see the Build line.
 - Decision: 2026-09-12, Mr. Pina: fully public, in two layers. Each student sees
   their OWN playtime and stats for any app they played; TOTALS across everyone are
   public. His words: "if I play twenty hours of cookie clicker I should see my
   playstats."
+- Title corrected 2026-09-12: it read "make the two owner-only metrics public" and
+  there are THREE (`players`, `seconds_played`, `last_played_at`). The body below has
+  always named three; the heading had not, and prompt 0176 raised the same
+  discrepancy independently. The FILENAME is unchanged so every citation by slug
+  still resolves.
 - Against the default: plainly, yes. The default below was "not public; add them to
   the owner's own dashboard". He reversed both halves -- the totals go public, and
   a figure this assistant proposed showing only to an app's AUTHOR is now also owed

@@ -190,6 +190,12 @@ both were carried into decision 07 rather than left in a history file:
   `foundry_play_counts` returns are already public to a signed-in caller and already
   on the gallery cards, so "make the totals public" is really "move the owner gate on
   `foundry_app_play_stats`". There is no read-path-only half to ship.
+- **The entry's own title said "the two owner-only metrics" and there are three.**
+  `players`, `seconds_played` and `last_played_at` are all behind the owner gate;
+  the body had always named three and the heading had not. 0176 raised the same
+  discrepancy independently, which is the tell that it was a real drift rather than
+  a reading. The heading is corrected and the FILENAME is untouched, so every
+  citation by slug still resolves.
 - **`service_role` holds SELECT on `student_app_plays`**, measured `true`, against
   0139's own comment saying it "gets nothing either, and that is deliberate". The
   statement below that comment is
