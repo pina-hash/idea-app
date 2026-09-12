@@ -12,9 +12,11 @@ and nothing else: no migration, no file under `src/`, no test, no workflow. Ever
 default a predecessor had written into the entry, the entry now says so plainly
 rather than quietly adopting the new answer as though it had always been the plan.
 
-Open decisions went from eight to four. What is left is entry 13, which is
-explained below, and the three IdeaCAD entries 24, 25 and 26, which he did not
-reach.
+**Open decisions went from EIGHTEEN to FOUR**, measured by running
+`tools/idea-status.py`'s own parser over every entry on `origin/integration` before
+the bundle and over the tree after it. What is left is entry 13, which is explained
+below, and the three IdeaCAD entries 24, 25 and 26, which he did not reach. One of
+the eighteen was only there by accident: entry 17 (see "Reported, not fixed").
 
 ## What was recorded, and the three shapes it came in
 

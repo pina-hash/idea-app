@@ -79,8 +79,9 @@ both, which is the expected answer since nothing outside `docs/` was touched.
 ancestor of both and `git diff --name-only eef6e85 origin/main` is EMPTY. There is no
 overlap of any kind with what moved.
 
-**Outcome.** Fifteen entries written. Open decisions go from 8 to 4: 13, and the three
-IdeaCAD entries 24, 25 and 26. Two findings came out of the measuring and are the part
+**Outcome.** Fifteen entries written. Open decisions go from EIGHTEEN to FOUR,
+measured with `tools/idea-status.py`'s own parser over `origin/integration` before and
+the tree after: what is left is 13 and the three IdeaCAD entries 24, 25 and 26. Two findings came out of the measuring and are the part
 worth reading:
 
 - **DECISION 05 HAD ALREADY BEEN BUILT ON THE DEFAULT HE JUST REVERSED.** Prompt 0015
