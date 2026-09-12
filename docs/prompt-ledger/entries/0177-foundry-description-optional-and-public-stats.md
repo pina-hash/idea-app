@@ -8,7 +8,7 @@
   `docs/decisions/entries/05-*` and `07-*`, `docs/prompt-ledger/entries/0177-*`, and its own
   `docs/history/` entry.
 - Migration permitted: exactly one, 0204. Claims: 0204. Highest landed at issue: 0203.
-- Status: issued
+- Status: pushed
 - Branch: `claude/busy-newton-trto6y`, branched from `origin/integration` at `8241494f`
 - Runs after: ledger 0174, which quoted `0204` in prose and RELEASED it unused, and ledger
   0176, which stopped at its audit and named this bundle's whole remit.
@@ -44,3 +44,36 @@
   Separately, a `git ls-tree` scan of all 55 refs for `supabase/migrations/0204*`: **zero
   hits**, and `origin/main` and `origin/integration` both top out at
   `0203_sequence_anon_grant_sweep.sql`.
+
+## Outcome
+
+**All three answers implemented; `0204` written, applied to the test fixture
+only, and awaiting a hand paste.** The description requirement is removed from
+both SQL places and from the client; all three (not two) play metrics are public
+behind the population gate; `foundry_my_play_stats(p_app_id uuid)` is the
+caller-scoped read and takes no identity parameter. The n=1 acceptance is
+recorded in decision 07 in a paragraph written to stop it being re-raised.
+
+**Also closed:** `service_role` held SELECT on `student_app_plays` against
+`0139`'s own comment. Measured, confirmed, revoked in section 4, and the test
+that had the same blind spot as the migration is widened.
+
+**Measured.** Full suite 407 files / 7848 tests / 0 failures / 409.72s, the
+delta reconciling exactly against ledger 0176's 405/7819 plus ledger 0174.
+`svelte-check` 0 errors, 38 warnings in 21 files at 32/5/1, identical to the
+branch point re-derived in a clean worktree; `CLAUDE.md`'s stale 40-in-22 is
+corrected in place. Browser: 4 route/width runs, 28 measurements, 0 outside
+threshold on the two specs driving `FoundryMine`. Paste trap zero, two ways,
+against three planted controls. Mutation proof: four permissive mutants, each
+reddening a named assertion, restored from a `cp` copy and md5-verified.
+
+**Not done, deliberately.** No surface renders the now-public stats: the only
+place that could is `FoundryDetail`, the gallery detail view, which ledger 0175
+owns and which was `Status: issued` and not contained in `origin/integration` at
+branch time. No thumbnail gate was added -- the answer names one but none exists
+in the schema, and creating one is a narrowing outside this bundle's grant.
+`npm run verify:readme` was NOT run because it rewrites 0175's measured files
+and README regions.
+
+**Branch stops here and is NOT merged to `main`,** because it carries a
+migration that must be applied by hand first.
