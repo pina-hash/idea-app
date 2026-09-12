@@ -7,7 +7,7 @@
   DECISION ENTRY. This bundle changes nothing: it reads, measures, and writes one
   document. A finding is REPORTED with file and line, never fixed.
 - Migration permitted: no. Claims: none.
-- Status: issued
+- Status: pushed
 - Branch: `claude/gallant-mendel-xsgp0w`, branched from `origin/integration` at `7f5ca8f0`.
 - Notes: A read-only audit collides with nothing and can run beside every other lane.
   Five questions: (1) what a lane said it would not do, each item re-checked against the
