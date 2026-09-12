@@ -40,9 +40,12 @@ name: Backup
 # pull-request run, but a workflow that never runs on a pull request at all
 # cannot be reasoned about wrongly. Do not add one.
 #
-# `permissions: {}` for the same reason: this job reads the database and talks
-# to Google. It has no business with the repository beyond checking itself out,
-# which `actions/checkout` does with the token it is handed.
+# `permissions: contents: read` for the same reason: this job reads the database
+# and talks to Google, and its only business with the repository is checking
+# itself out. It is deliberately not `permissions: {}` -- that reads as tidier
+# and would hand `actions/checkout` a token with no scopes at all, which is a
+# way for the FIRST run to fail at the first step, and this workflow is one
+# nobody can rehearse.
 #
 # ---------------------------------------------------------------------------
 # THE HOUR IS CHOSEN. 09:00 UTC is 02:00 Pacific in summer and 01:00 in winter,
@@ -65,7 +68,8 @@ concurrency:
   group: backup
   cancel-in-progress: false
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   backup:
@@ -198,9 +202,21 @@ jobs:
 
           # AND IT MUST ACTUALLY BE A COMPLETE GZIP AND A COMPLETE DUMP. A run
           # killed mid-write leaves a file that exists and has a size.
+          #
+          # The marker is read into a variable rather than piped into `grep -q`:
+          # under `pipefail`, a `grep -q` that exits on its match can SIGPIPE
+          # whatever is feeding it, and the step would then fail for finding
+          # what it was looking for.
           gzip -t "$file"
-          gzip -dc "$file" | tail -5 | grep -q 'PostgreSQL database dump complete' \
-            || { echo "the dump does not end with pg_dump's own completion marker" >&2; exit 1; }
+          # 20 rather than 5: measured, the marker sits 4 lines from the end
+          # on pg_dump 16.13 because of the trailing `\unrestrict` line, and a
+          # window that tight turns one more trailing line in a future pg_dump
+          # into a nightly failure with a misleading message.
+          last=$(gzip -dc "$file" | tail -20)
+          case "$last" in
+            *'PostgreSQL database dump complete'*) ;;
+            *) echo "the dump does not end with pg_dump's own completion marker" >&2; exit 1 ;;
+          esac
           echo "$file: $bytes bytes gzipped, $plain uncompressed"
 
       - name: Store it in Drive and prune to the retention window

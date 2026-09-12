@@ -223,6 +223,20 @@ morning). `CLAUDE.md` is corrected in this bundle, as its own rule requires.
 - `tools/backup/roundtrip.sh`: green, five times over, at three data scales.
 - `node tools/backup/drive-upload.mjs --selftest`: 17 assertions green,
   including two negative controls.
+- `node tools/backup/drive-upload.mjs --selftest-transport`: 13 green. The
+  network half -- token exchange, the two-step resumable handshake, 3 MB
+  arriving byte-identical at the session URL, paging followed to the end, and
+  exactly the chosen deletes -- driven against a loopback server that asserts
+  what it receives rather than answering blindly.
+- The workflow's two shell gates were extracted and driven against fixtures,
+  since a workflow cannot be rehearsed here: the secret-presence check answers
+  1/0/1 for none set, all set and one missing, naming only the missing one; and
+  the dump validation refuses a 21-byte file, refuses a large file with no
+  completion marker, refuses a truncated gzip, and accepts a large file with the
+  marker. `permissions` is `contents: read` rather than `{}` for the same
+  untestable-first-run reason, and the marker is read out of a variable rather
+  than piped into `grep -q`, which under `pipefail` can fail a step for finding
+  what it was looking for.
 - `node tools/claude-md-check.mjs`: agrees with the tree.
 
 ### What was NOT verified
