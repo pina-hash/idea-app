@@ -35,9 +35,12 @@ with the correction stated as a correction rather than a quiet edit.
 
 The live definition is
 `supabase/migrations/0125_notebook_run_text_parity.sql:206`. Nothing after 0125
-redefines it -- 0137 touches only its grants -- and twelve write RPCs across
-0078, 0088, 0094, 0114, 0116, 0118, 0119 and 0129 each call it as
-`if not public._notebook_note_content_ok(p_content) then raise`. Its block loop
+redefines it -- 0137 touches only its grants -- and **three write RPCs**
+(`notebook_add_note`, `notebook_edit_note`, `notebook_create_note_entry`) each
+call it as `if not public._notebook_note_content_ok(p_content) then raise`,
+across twelve call sites in 0078, 0088, 0094, 0114, 0116, 0118, 0119 and 0129,
+those being successive redefinitions of the same three rather than twelve
+separate functions. Its block loop
 ends:
 
 ```sql
