@@ -1,4 +1,16 @@
 -- ---------------------------------------------------------------------------
+-- SUPERSEDED BY supabase/data/0194-material-citation-model.sql. PASTE THAT ONE.
+--
+-- This file is still safe to paste -- unedited it writes zero rows, which was
+-- its whole design -- but its citations are the ones 0194 corrects. Ledger 0194
+-- found the defect is upstream of the missing numbers: ASTM A240 is a
+-- procurement specification and states no density at all, so the row cited a
+-- document that does not contain the figure attributed to it, and A653, A36 and
+-- B209 have the same shape. 0194 carries this file's density form forward
+-- unchanged, so nothing here is lost by going there instead.
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
 -- 0191  MATERIAL DENSITY VERIFICATION -- THE FORM, NOT THE ANSWERS.
 --
 -- THIS FILE SUPPLIES NO DENSITY. Ledger 0191 could not reach a published source
