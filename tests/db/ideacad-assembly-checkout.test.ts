@@ -325,7 +325,48 @@ describe('property 2: the assembly OWNER can force a reassignment at any time', 
 		});
 	});
 
+	it('TELLS A HOLDER WHOSE PART WAS TAKEN AND GIVEN BACK, which is the case the identity check alone cannot see', async () => {
+		// FOUND BY A MUTANT. Removing `hold_revision <> p_hold_revision` from
+		// ideacad_beat_part left every assertion in this file green, because the
+		// case above discriminates on IDENTITY: the displaced holder is no
+		// longer `held_by`, so an identity-only gate answers `lost` for the
+		// right reason by accident.
+		//
+		// This is the case that needs the generation. The owner takes the part
+		// off `mate` and gives it straight back, so `held_by` is `mate` again --
+		// identical to what their client believed -- while the generation has
+		// moved twice. Somebody else could have held it in between and changed
+		// the tree, so a client editing from before the interruption has to
+		// re-read rather than carry on.
+		await resetHolds();
+		const mine = await claim(mate, partA);
+		const myRevision = mine.holdRevision as number;
+		await assign(owner, partA, other.email);
+		await assign(owner, partA, mate.email);
+		const row = await holdRow(partA);
+		expect(row.held_by).toBe(mate.email);
+		expect(row.hold_revision).toBe(myRevision + 2);
+		// Same holder, stale generation.
+		await expect(beat(mate, partA, myRevision)).resolves.toMatchObject({
+			ok: false,
+			reason: 'lost',
+			heldBy: mate.email
+		});
+		// POSITIVE CONTROL: the same caller, same part, at the CURRENT
+		// generation, is accepted -- so `lost` is not simply what a same-holder
+		// heartbeat always gets.
+		await expect(beat(mate, partA, row.hold_revision)).resolves.toMatchObject({
+			ok: true,
+			reason: 'beating'
+		});
+	});
+
 	it('clears a part with a null email, and reports unchanged when nothing moved', async () => {
+		// Seeds its own holder rather than inheriting one: a case that depends
+		// on what the case above it left behind fails when either is reordered,
+		// and every file here must pass in any order.
+		await resetHolds();
+		await claim(other, partA);
 		const cleared = await assign(owner, partA, null);
 		expect(cleared).toMatchObject({ ok: true, reason: 'cleared', previousHolder: other.email });
 		expect((await holdRow(partA)).held_by).toBeNull();

@@ -184,7 +184,7 @@ intention is recorded and is visible in `ideacad_assembly`.
 
 ## The four properties, each in both directions
 
-`tests/db/ideacad-assembly-checkout.test.ts`, 22 cases.
+`tests/db/ideacad-assembly-checkout.test.ts`, 23 cases.
 
 1. **A second holder is REFUSED while a part is held.** `{ok:false,
    reason:'held', heldBy:<holder>}`, and the refusal is inert: the holder and the
@@ -272,7 +272,9 @@ cross-table lookup out inline. That is `0205`'s first measured lesson: an inline
 table which looks back, is mutual recursion and Postgres answers
 `infinite recursion detected in policy` on the first read a grantee makes.
 
-### One file goes red on this branch, it is the blocker ledger 0179 already diagnosed, and it is not this bundle's to fix
+### Two files go red on this branch, and neither is this bundle's to fix
+
+#### 1. `0202`'s guard -- the blocker ledger 0179 already diagnosed
 
 `tests/db/ideacad-grants-anon-execute-surface.test.ts` fails in `beforeAll` with
 
@@ -310,8 +312,91 @@ anon-executable ideacad function -- because 0205 measured that a sweep over
 0202 on purpose so that "0202 closes them" is a measured difference rather than a
 claim about a file.
 
+#### 2. The migration-series contiguity walk, on a hole at `0206`
+
+`tests/db/migration-0177-tombstone.test.ts` fails one case:
+
+```
+the migration series has a hole nothing accounts for.
+Holes a branch IS holding: 190 (claude/amazing-bohr-qxhly9); 191 (same);
+204 (claude/busy-newton-trto6y); 205 (claude/great-bell-ppysbn).
+expected [ 206 ] to deeply equal []
+```
+
+That walk accounts for a hole a `claude/**` branch is HOLDING and fails an
+unexplained one -- its own header says a held hole "is the system working" and
+"is not this session's to fix". `0204` and `0205` are accounted for because
+their lanes have pushed. **`0206` is not, because ledger 0181's lane has pushed
+nothing at all:** no branch carries the file and no ref carries the ledger entry
+that would claim it. This branch is the first to sit above that hole, so it is
+the first to see it.
+
+**Diagnosed rather than argued with, and confirmed in both directions.** A local
+simulation of ledger 0181's first commit -- one scratch ledger entry reading
+`Claims: 0206`, which is exactly what that lane pushes before any work -- makes
+the walk pass 4 of 4 with **no other change to this tree**; removing it again
+reproduces the failure exactly. So the case resolves the moment ledger 0181
+pushes its entry, and there is nothing here to fix. The scratch file was
+deleted; `git status` is clean of it.
+
+Renumbering to `0206` is the wrong answer and was not taken: the router chat is
+the allocator, this prompt states `Claims: 0207`, and taking `0206` would
+collide with the lane that owns it. Writing `0206` into this bundle's own ledger
+entry would be a false claim on a number it does not hold.
+
+## Nine mutants, and the one that found a real gap
+
+Every mutant was applied to `0207` itself, the file copied FIRST and restored
+FROM THE COPY rather than with `git checkout --` (which is a discard-to-HEAD and
+has cost three sessions their uncommitted work), and the restore md5-checked
+byte-identical at the end of the run. Each mutation was asserted to have
+actually changed the file, so a replace that silently missed could not read as a
+pass -- **two of them did miss on the first attempt and said so** rather than
+reporting a green mutant.
+
+| mutant | detected by |
+| --- | --- |
+| the select policy becomes `using (true)` | 1 assertion |
+| `ideacad_claim_part` drops the held-and-live refusal | 3 assertions |
+| `ideacad_claim_part` skips the writer gate | 4 assertions, across two files |
+| `ideacad_release_part` drops the `not_yours` gate | 1 assertion |
+| `ideacad_assign_part` drops the owner gate | 1 assertion |
+| `ideacad_assign_part` bumps the generation when nothing changed | 1 assertion |
+| the trigger fills `part_id` from any part instead of refusing on ambiguity | 1 assertion |
+| `_ideacad_hold_window()` becomes 30 minutes | **the file's own self-check refused the apply** |
+| `ideacad_beat_part` stops comparing the generation | **NOTHING -- see below** |
+
+**THE LAST ONE PASSED, AND IT WAS A REAL HOLE IN THE TESTS RATHER THAN A WEAK
+MUTANT.** Removing `hold_revision <> p_hold_revision` from `ideacad_beat_part`
+left all 22 assertions green, because the case that exercised it discriminated on
+IDENTITY: the displaced holder is no longer `held_by`, so an identity-only gate
+answers `lost` for the right reason by accident.
+
+The case that needs the generation is the owner taking a part off somebody and
+giving it straight BACK: `held_by` is then identical to what that client
+believed, while the generation has moved twice, and somebody else could have held
+it in between and changed the tree. That case is now asserted -- with its
+positive control, that the same caller at the CURRENT generation is accepted --
+and the mutant is detected.
+
+Adding it also exposed an order dependency: the case after it had been inheriting
+the holder its predecessor left behind. It seeds its own now, because every file
+here must pass in any order.
+
 ## The numbers
 
+- **Full suite on this branch: 414 files, 412 passed / 2 failed; 7971 passed + 1
+  failed + 14 skipped = 7986 tests; 339.91s.** Against a baseline of **410 files
+  / 7935 tests / 0 failed / 330.88s**, measured on a clean `git worktree` at
+  `origin/integration` `b0a8101d`. **The arithmetic reconciles exactly:** 7935 +
+  this bundle's 51 new tests = 7986. Delta **+4 files**, all four this bundle's.
+  Every one of the 51 passes. The 1 failure and the 14 skips are the two files
+  above, neither of them this bundle's.
+  - The branch run was done TWICE, and the first one is discarded rather than
+    reported: it overlapped the mutation runs, which rewrite `0207` on disk, so
+    the suite may have applied a mutant. A suite reading a file another process
+    is editing is not a measurement of anything. The number above is from the
+    clean run, with nothing else touching the tree.
 - **svelte-check: 0 errors, 37 warnings in 20 files -- 31 `state_referenced_locally`,
   5 `css_unused_selector`, 1 `perf_avoid_nested_class`.** Byte-identical to the
   baseline measured on a clean `git worktree` at `origin/integration`
