@@ -31,7 +31,7 @@
 // reports.
 
 import { afterEach, describe, expect, it } from 'vitest';
-import FoundryCard from '../../src/lib/foundry/FoundryCard.svelte';
+import FoundryCard, { type FoundryCardApp } from '../../src/lib/foundry/FoundryCard.svelte';
 import FoundryGallery from '../../src/lib/foundry/FoundryGallery.svelte';
 import {
 	FOUNDRY_COVER_ASPECT,
@@ -50,8 +50,21 @@ const OWNER = {
 	owner_class: 'Engineering I Honors'
 };
 
-function app(over: Partial<Record<string, unknown>> & { id: string; slug: string; title: string }) {
-	return { ...OWNER, cover_path: null, ...over } as never;
+/**
+ * The fixture row. Typed as what the CARD actually reads rather than as
+ * `FoundryAppSummary`, because that is the type the component asks for and it
+ * is the intersection both real callers can satisfy -- the gallery holds
+ * summaries and `/foundry/mine` holds full `FoundryApp` rows, and neither is a
+ * subtype of the other.
+ *
+ * NOT `as never`: an earlier draft returned that, which type-checks at the
+ * mount site and makes every `FIXTURE.id` in this file a property access on
+ * `never`. The tests passed and `svelte-check` reported three errors.
+ */
+function app(
+	over: Partial<FoundryCardApp> & { id: string; slug: string; title: string }
+): FoundryCardApp {
+	return { ...OWNER, cover_path: null, ...over };
 }
 
 /** A cover path that `foundryCoverObjectKey` would accept, mapped by the caller. */
@@ -240,9 +253,9 @@ describe('the gallery mounts the card and owns the ranking', () => {
 
 	it('under Recent NO card shows a count; under a play ranking the ranked ones do', () => {
 		const counts = {
-			[WITH_COVER.id as string]: { plays: 42, plays7d: 5 },
-			[NO_COVER.id as string]: { plays: 3, plays7d: 3 },
-			[BAD_KEY.id as string]: { plays: 0, plays7d: 0 }
+			[WITH_COVER.id]: { plays: 42, plays7d: 5 },
+			[NO_COVER.id]: { plays: 3, plays7d: 3 },
+			[BAD_KEY.id]: { plays: 0, plays7d: 0 }
 		};
 		const c = gallery({ playCounts: counts });
 		// Recent is the default, and a number on every card of a gallery nobody
