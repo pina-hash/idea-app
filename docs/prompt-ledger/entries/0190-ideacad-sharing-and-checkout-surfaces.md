@@ -11,7 +11,7 @@
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0208.
   `0205` through `0208` are all applied and landed; this bundle renders what
   `0205` and `0207` already give and adds no database object.
-- Status: issued
+- Status: pushed
 - Branch: `claude/eager-dijkstra-ewfopc`, branched from `origin/integration` at
   `7f5ca8f0`.
 - Notes: the pure layers exist and are untouched -- `src/lib/ideacad/sharing.ts`
