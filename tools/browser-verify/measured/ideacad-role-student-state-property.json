@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "ideacad-role-student-state-property.mjs",
-	"date": "2026-09-12T19:47:45.346Z",
-	"sha": "3101186ed82b828bf4139e349a6123f024f7dd00",
-	"dirty": true,
+	"date": "2026-09-12T20:54:48.349Z",
+	"sha": "9ee0110002731de23a601608b0cd7803fae4f357",
+	"dirty": false,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 60,
 	"outsideRows": [],
-	"ms": 9213
+	"ms": 6722
 }
