@@ -6,15 +6,16 @@
 // mounted. What is here is the half that only exists once the component is
 // wired: a keystroke reaching the right handler, a pane genuinely REPLACED
 // rather than hidden, a preview that moves before an accept and a readout that
-// does not, and a gate that opens on a WRITE rather than on a press.
+// does not, and a prediction whose FORM closes on a WRITE rather than on a press.
 //
 // THE ONE THAT WOULD REGRESS SILENTLY, and is therefore the reason this file
-// exists rather than a harness note: `reveal()` used to set `revealed` BEFORE
-// awaiting `ideacad_set_prediction`. A rejected write then left the comparative
-// physics on screen with nothing recorded -- the student is taught the lesson
-// and the evidence of their prediction is gone. Nothing on screen says so, and
-// the happy path is identical either way, so only a transport that REJECTS can
-// tell the two apart.
+// exists rather than a harness note: `reveal()` used to set its flag BEFORE
+// awaiting `ideacad_set_prediction`, so a rejected write told the student their
+// prediction was in. The GATE that flag once drove is gone (decision 26, Mr.
+// Pina, 2026-09-12) and the physics is never hidden now, but the flag still
+// decides whether the form or the recorded line is on screen -- so the same
+// defect is still reachable and only a transport that REJECTS can tell the two
+// apart.
 //
 // WHAT THIS FILE DELIBERATELY DOES NOT ASSERT: any width, any ratio, any tap
 // target. happy-dom has no layout engine, so every one of those reads zero and
@@ -508,7 +509,7 @@ describe('the concept strip', () => {
 	});
 });
 
-describe('the prediction gate opens on the WRITE, never on the press', () => {
+describe('the prediction is recorded on a write, and it gates nothing', () => {
 	const physics = (m: M) => m.all('.compare dl').length;
 
 	function pick(m: M) {
@@ -519,28 +520,38 @@ describe('the prediction gate opens on the WRITE, never on the press', () => {
 		m.flush();
 	}
 
-	it('stays closed when the recording transport REJECTS, and says so', async () => {
+	// DECISION 26 IS ANSWERED AND THE GATE IS GONE (Mr. Pina, 2026-09-12). What
+	// survives here is the half that is still a real guarantee: the write is
+	// awaited, a refusal is said out loud, and the form is replaced only once the
+	// record actually landed. The physics is no longer evidence of any of that --
+	// it is on screen throughout -- so each case asserts the FORM instead, which
+	// is the thing whose state the write now decides.
+
+	it('keeps the form standing when the recording transport REJECTS, and says so', async () => {
 		const m = open({ openCompare: true, setPrediction: async () => Promise.reject(new Error('offline')) });
 		pick(m);
-		button(m, 'Reveal physics')!.click();
+		button(m, 'Record prediction')!.click();
 		await m.settle();
-		expect(physics(m)).toBe(0);
+		expect(button(m, 'Record prediction')).toBeDefined();
 		expect(m.one('.compare .refusal').textContent).toContain('did not save');
+		// And the numbers were never the thing being withheld.
+		expect(physics(m)).toBe(3);
 		await m.stop();
 	});
 
-	it('opens once the identical press is recorded, which is the positive control for the line above', async () => {
+	it('replaces the form once the identical press is recorded, which is the positive control for the line above', async () => {
 		const seen: string[] = [];
 		const m = open({ openCompare: true, setPrediction: async (id: string, why: string) => void seen.push(`${id}:${why}`) });
 		pick(m);
-		button(m, 'Reveal physics')!.click();
+		button(m, 'Record prediction')!.click();
 		await m.settle();
 		expect(seen).toEqual(['c2:because the rim carries the mass']);
+		expect(button(m, 'Record prediction')).toBeUndefined();
 		expect(physics(m)).toBe(3); // one physics block per concept
 		await m.stop();
 	});
 
-	it('opens on a prediction ALREADY recorded, so a student is never asked twice about one document', async () => {
+	it('shows a prediction ALREADY recorded, so a student is never asked twice about one document', async () => {
 		const m = open({ openCompare: true, prediction: { conceptId: 'c3', rationale: 'the narrow one', at: '2026-09-12' } });
 		expect(physics(m)).toBe(3);
 		expect(m.one('.compare .said').textContent).toContain('Concept 3');
@@ -550,15 +561,15 @@ describe('the prediction gate opens on the WRITE, never on the press', () => {
 		await m.stop();
 	});
 
-	it('shows every concept’s rule readouts while it is closed, and only the physics is locked', async () => {
-		// Decision 26's default: lock comparative physics ONLY. A student needs the
-		// rules to build a legal concept at all, so a gate over those would be a
-		// gate over the work rather than over the answer.
+	it('shows every concept’s rule readouts AND its physics with no prediction made', async () => {
+		// Decision 26, answered: nothing is locked. The rules a student needs to
+		// build a legal concept and the physics they are competing on read side by
+		// side from the first frame.
 		const m = open({ openCompare: true });
 		expect(m.all('.compare .cols article')).toHaveLength(3);
 		expect(m.all('.compare .cols li')).toHaveLength(12); // four rules per concept
-		expect(physics(m)).toBe(0);
-		expect(m.one('.compare').textContent).not.toContain('g·cm²');
+		expect(physics(m)).toBe(3);
+		expect(m.one('.compare').textContent).toContain('g·cm²');
 		await m.stop();
 	});
 

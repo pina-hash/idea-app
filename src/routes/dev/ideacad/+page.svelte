@@ -4,9 +4,10 @@
 	 * States by query string, per the bundle's own verification plan:
 	 *   role=student                    one seeded concept (default)
 	 *   role=student&state=three        three concepts, one failing diameter
-	 *   role=student&state=compare      the compare surface open, gate CLOSED
-	 *   role=student&state=revealed     the compare surface with the gate OPEN,
-	 *                                   from a prediction already recorded
+	 *   role=student&state=compare      the compare surface open, no prediction
+	 *                                   made, the physics on screen anyway
+	 *   role=student&state=predicted    the compare surface with a prediction
+	 *                                   already recorded, so the form is gone
 	 *   role=student&state=property     the PropertyManager open on the BODY,
 	 *                                   which is the panel with the station
 	 *                                   table and the profile preview in it
@@ -54,19 +55,20 @@
 	const concepts =
 		state === 'three'
 			? [many[1], many[0], many[2]]
-			: state === 'compare' || state === 'revealed' || state === 'committed'
+			: state === 'compare' || state === 'predicted' || state === 'committed'
 				? many
 				: undefined;
 	const commits: string[] = [];
 
 	/**
-	 * A prediction ALREADY RECORDED, which is what unlocks the comparative
-	 * physics on a later visit. The real page reads it from `ideacad_predictions`
-	 * through the document payload; here it is a literal, because what this state
-	 * measures is the SHEET with the physics on screen, not the read that found it.
+	 * A prediction ALREADY RECORDED, which is what puts the recorded line on
+	 * screen instead of the form. It unlocks NOTHING -- decision 26 is answered
+	 * and the physics is always visible -- so what this state measures is the
+	 * sheet in its OTHER arrangement, which is the one a student sees on every
+	 * visit after the first.
 	 */
 	const prediction =
-		state === 'revealed'
+		state === 'predicted'
 			? { conceptId: 'c2', rationale: 'the wide one carries its mass further out', at: '2026-09-12' }
 			: null;
 
@@ -251,55 +253,69 @@
 		return out;
 	}
 	/**
-	 * LEDGER 0160'S OWN EXPERIMENT, RUN AGAINST THE FIXED GATE.
+	 * LEDGER 0160'S OWN EXPERIMENT, RUN AGAINST A SURFACE WITH NO GATE IN IT.
 	 *
-	 * 0160 measured the broken one like this: one character typed into "Say why",
-	 * with NO concept picked and Reveal never pressed, rendered
-	 * `I 1626.6 g-cm2 / k 2.97 cm` under the heading `Prediction: . h`. The lock
-	 * was `{#if !prediction}` over `bind:value={prediction}`, so the comparative
-	 * physics unlocked on the first keystroke.
+	 * 0160 measured the broken gate like this: one character typed into "Say
+	 * why", with NO concept picked and Reveal never pressed, rendered
+	 * `I 1626.6 g-cm2 / k 2.97 cm` under the heading `Prediction: . h`.
 	 *
-	 * This runs the identical keystrokes in the same order and reports what is on
-	 * screen after each, and it ends with a POSITIVE CONTROL: the deliberate press
-	 * with both halves present, which must open the gate. Without that last step
-	 * every absence here is satisfied by a sheet that never renders physics at
-	 * all -- which is how this measurement would pass on a page with the compare
-	 * surface deleted.
+	 * MR. PINA DECIDED ON 2026-09-12 THAT PHYSICS IS ALWAYS VISIBLE
+	 * (`docs/decisions/entries/26-*`), so the SAME keystrokes now have to leave
+	 * the physics on screen at every step rather than off it, and the claim that
+	 * used to be the leak is the claim that the feature works. The steps are
+	 * kept in 0160's order deliberately: this is the same experiment with its
+	 * expected answers inverted, which is what makes the reversal auditable.
+	 *
+	 * THE NEGATIVE CONTROL IS THE ONE THAT MATTERS NOW, and it is the last step:
+	 * with the gate gone, every "the physics is visible" claim would also be
+	 * satisfied by a sheet that rendered physics and nothing else, so the probe
+	 * ends by checking the PREDICTION is still being collected and recorded.
+	 * That is the half Mr. Pina kept.
 	 *
 	 * It runs on the PAGE rather than in the route spec so the numbers come off
-	 * the real component at whichever width the harness is driving, and so a step
-	 * that stops running shortens the array and reddens.
+	 * the real component at whichever width the harness is driving, and so a
+	 * step that stops running shortens the array and reddens.
 	 */
-	async function gateProbe(): Promise<string[]> {
+	async function physicsProbe(): Promise<string[]> {
 		const out: string[] = [];
 		const say = (claim: string, ok: boolean) => out.push(`${claim} ${ok ? 'ok' : 'FAILED'}`);
 		const physics = () => document.querySelectorAll('.compare dl').length;
 		const sheet = () => document.querySelector('.compare')?.textContent ?? '';
 		const tick = () => new Promise((res) => setTimeout(res, 60));
+		const rail = () => document.querySelector('.readouts')?.textContent ?? '';
 		const field = document.querySelector('.compare input') as HTMLInputElement | null;
 		const picker = document.querySelector('.compare select') as HTMLSelectElement | null;
-		const reveal = [...document.querySelectorAll('.compare button')].find(
-			(b) => b.textContent?.trim() === 'Reveal physics'
+		const record = [...document.querySelectorAll('.compare button')].find(
+			(b) => b.textContent?.trim() === 'Record prediction'
 		) as HTMLButtonElement | null;
-		if (!field || !picker || !reveal) {
-			say('the gate surface is on screen to be measured', false);
+
+		/* THE RAIL FIRST, because "from the first frame" is a claim about what is
+		   on screen when the editor mounts, and the compare sheet is a thing a
+		   student opens. */
+		say('the Rules rail carries the rotational inertia', /Rotational inertia/.test(rail()));
+		say('and the radius of gyration beside it', /Radius of gyration/.test(rail()));
+		say('with a real figure rather than a label alone', /g·cm²/.test(rail()));
+
+		if (!field || !picker || !record) {
+			say('the prediction form is on screen to be measured', false);
 			return out;
 		}
-		say('the sheet opens with the physics locked', physics() === 0);
+		say('the sheet opens with the physics already on it', physics() === 3);
 
 		/* 0160's exact keystroke: ONE character, nothing picked, nothing pressed. */
 		field.value = 'h';
 		field.dispatchEvent(new Event('input', { bubbles: true }));
 		await tick();
-		say('one character typed into Say why leaves it locked', physics() === 0);
-		say('and no inertia figure is anywhere on the sheet', !/g·cm²|g-cm2/.test(sheet()));
+		say('one character typed into Say why changes nothing about the physics', physics() === 3);
+		say('and the inertia figure is on the sheet', /g·cm²/.test(sheet()));
 
 		/* The press with only half the answer. The control is `aria-disabled` and
 		   not `disabled`, so it can explain itself -- which means the HANDLER has
 		   to refuse too, and a real click is what asks it. */
-		reveal.click();
+		record.click();
 		await tick();
-		say('a press with no concept picked leaves it locked', physics() === 0);
+		say('a press with no concept picked records nothing', !/Prediction:/.test(sheet()));
+		say('and still leaves the physics where it was', physics() === 3);
 
 		/* The other half alone. */
 		picker.value = 'c2';
@@ -307,20 +323,20 @@
 		field.value = '';
 		field.dispatchEvent(new Event('input', { bubbles: true }));
 		await tick();
-		say('a concept picked with no reason leaves it locked', physics() === 0);
-		reveal.click();
+		record.click();
 		await tick();
-		say('and a press on that half leaves it locked too', physics() === 0);
+		say('a concept picked with no reason records nothing either', !/Prediction:/.test(sheet()));
 
-		/* THE POSITIVE CONTROL. Both halves, then the deliberate press. */
+		/* THE NEGATIVE CONTROL. The prediction is the half that stayed, so a
+		   sheet that only ever shows physics has to fail here. */
 		field.value = 'the wide one carries its mass further out';
 		field.dispatchEvent(new Event('input', { bubbles: true }));
 		await tick();
-		say('both halves present still leaves it locked until the press', physics() === 0);
-		reveal.click();
+		record.click();
 		await tick();
-		say('the deliberate press opens it, one block per concept', physics() === 3);
-		say('and the inertia figure is on screen once it is open', /g·cm²/.test(sheet()));
+		say('the deliberate press records the prediction', /Prediction:/.test(sheet()));
+		say('and the form is gone, so nobody is asked twice', !document.querySelector('.compare select'));
+		say('and the physics never moved', physics() === 3);
 		return out;
 	}
 
@@ -536,7 +552,7 @@
 		w.__ideacadCamera = () => probe;
 		w.__ideacadOpenPropertyManager = openPropertyManager;
 		w.__ideacadPaneVerdicts = paneVerdicts;
-		w.__ideacadGateProbe = gateProbe;
+		w.__ideacadPhysicsProbe = physicsProbe;
 	}
 </script>
 
@@ -546,7 +562,7 @@
 	config={DEFAULT_BLADE_CONFIG}
 	{concepts}
 	{prediction}
-	openCompare={state === 'compare' || state === 'revealed'}
+	openCompare={state === 'compare' || state === 'predicted'}
 	readOnly={role === 'teacher'}
 	conceptName={role === 'teacher' ? 'Student concept' : 'Concept 1'}
 	commitConceptCard={role === 'teacher' ? undefined : async (id: string) => void commits.push(id)}

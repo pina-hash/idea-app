@@ -169,8 +169,11 @@ describe('the editor mounts the real viewport, not a picture of one', () => {
 		await m.settle();
 		const notices = m.all('.readouts .notice').map((n) => n.textContent ?? '');
 		expect(notices.some((n) => /CONFIG UNREADABLE/.test(n))).toBe(true);
-		/* And still renders every rule, because the defaults are real limits. */
-		expect(m.all('.readouts .metric').length).toBe(5);
+		/* And still renders every rule, because the defaults are real limits:
+		   four rules, the centre of mass, and -- since decision 26 was answered --
+		   the rotational inertia and the radius of gyration, which are computed
+		   from the tree and the default config exactly as the rules are. */
+		expect(m.all('.readouts .metric').length).toBe(7);
 		await m.stop();
 	});
 
