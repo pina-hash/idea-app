@@ -315,14 +315,17 @@ guidance is decision 08's own "second decision and not a free consequence", and
   both numbers and the breakdown. **`CLAUDE.md` states exactly this and is
   correct**, which is the first time in five corrections it has been; no edit was
   needed and none was made.
-- **Full suite green: 443 files, 8,463 tests, 0 failures.** The baseline read at
-  the branch point, `origin/integration` at `7f5ca8f0`, was **433 files, 8,318
-  tests, 0 failures** -- exactly the figure the prompt gives, which it attributes
-  to `247dfc4a` (that is `main`; integration at `7f5ca8f0` contains it and
-  measures the same). The branch then MERGED `origin/integration` again at
-  `20a17d12`, so the delta is this bundle's three test files plus everything
-  ledgers 0189, 0191 and 0193 landed in between; the baseline is re-derived below
-  at the merged base rather than subtracted.
+- **Full suite green: 443 files, 8,463 tests, 0 failures**, against a baseline
+  RE-DERIVED at the merged base in a clean `git worktree` -- `origin/integration`
+  at `20a17d12`: **440 files, 8,414 tests, 0 failures**. The delta is exactly this
+  bundle's three test files and 49 tests (18 + 16 + 15). The baseline read at the
+  ORIGINAL branch point, `7f5ca8f0`, was **433 files, 8,318 tests** -- exactly the
+  figure the prompt gives, which it attributes to `247dfc4a` (that is `main`;
+  integration at `7f5ca8f0` contains it and measures the same). It is re-derived
+  rather than subtracted because the branch merged `integration` again mid-session
+  and everything ledgers 0189, 0191 and 0193 landed sits between the two readings.
+  **Measured in a worktree and not on the tree under test**, which is ledger
+  0177's rule: a baseline measured on the tree under test is not a baseline.
 - **`npm run verify:browser -- --route notebook-sheet`**: 62 measurements, 0
   outside threshold, both widths. `--probe` first: Chromium 141.0.7390.37,
   screenshots work, rAF fires, `IntersectionObserver` fires, `ResizeObserver`

@@ -75,7 +75,10 @@
   without the node, handed a mirrored document with one, does not throw and
   discards the WHOLE document, paragraphs included (measured).
 
-  Full suite **443 files / 8,463 tests, 0 failures**. `svelte-check` 0 errors / 37
+  Full suite **443 files / 8,463 tests, 0 failures**, against a baseline
+  re-derived in a clean `git worktree` at the merged base (`origin/integration`
+  at `20a17d12`): **440 files / 8,414 tests / 0 failures**. The delta is exactly
+  this bundle's three test files and 49 tests. `svelte-check` 0 errors / 37
   warnings in 20 files (31/5/1), identical to the baseline re-derived in a clean
   `git worktree` at the branch point, and **`CLAUDE.md` states exactly that and is
   correct** -- the first time in five corrections, so no edit was needed and none
