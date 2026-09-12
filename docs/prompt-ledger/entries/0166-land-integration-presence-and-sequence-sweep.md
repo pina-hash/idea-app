@@ -133,6 +133,22 @@
   container can answer is which migration files are in the range, which is the
   half answered above, twice.
 
+  **THE DEPLOY IS CONFIRMED, WHICH THE PROMPT WARNED IT MIGHT NOT BE.**
+  Production was polled from the moment `main` moved and the stamp went
+  `dcbb741` -> `870e063` -- this lane's own merge commit -- confirmed by a live
+  read afterwards. The fourteen-hour stall was specific to `8e834ba6`, for which
+  Vercel created no deployment at all, and is not a standing fault. The merge
+  and the deploy are still separate facts and were confirmed separately.
+
+  **THE FIRST INTEGRATE RUN WITH `cool-cori`'s FIX SAYS NOTHING ABOUT THE
+  SUITE.** Run 827, the first to execute the fixed workflow, is red on a
+  CONFLICT: "1 branch(es) conflicted with integration and were left untouched.
+  integration did not move this run." A notebook-theme branch conflicts across
+  ten paths. Nothing merged, so there was no merged tree and `merged_suite()`
+  returned no verdict -- the fix is in place and still unexercised. The
+  conflict predates it: runs 823 and 825 failed identically under the old
+  workflow. Resolving that branch is outside this lane.
+
   **CONFLICT POLICY.** Nothing was resolved on `main`. The merge into `main`
   was `--no-ff` and `main` was never force-pushed, with `--force`,
   `--force-with-lease` or otherwise.
