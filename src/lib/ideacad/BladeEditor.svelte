@@ -818,11 +818,20 @@
 	.readouts {
 		border-left: 1px solid var(--boundary);
 	}
+	/* 0.5rem, NOT 0.7rem, AND THE NUMBER IS MEASURED RATHER THAN CHOSEN. The two
+	   physics rows decision 26 added took the rail's content to 555px inside a
+	   515px box at 1440 -- 40px of overflow, with the last row (the UNVERIFIED
+	   STANDARD PARTS notice) below a fold this container's Chromium draws no
+	   scrollbar for. 0.7 to 0.45 is 8px per row over eight rows, 64px; 0.5
+	   cleared the overflow to EXACTLY zero, which is not a margin, and the row
+	   heights here are content-driven. Measured at 0.45rem: content 502px in a
+	   515px box, 13px spare, and 0px overflow. Below 1024 the rail is
+	   `overflow: visible` in a stacked column and never had the problem. */
 	.metric {
 		display: grid;
 		grid-template-columns: 1fr auto;
 		gap: 0.35rem;
-		padding: 0.7rem 0;
+		padding: 0.45rem 0;
 		border-bottom: 1px solid var(--hairline);
 	}
 	.metric b {
