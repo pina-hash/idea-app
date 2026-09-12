@@ -251,28 +251,46 @@ describe('the gallery mounts the card and owns the ranking', () => {
 		expect(ul.getAttribute('style')).toContain('--fdy-cols: 3');
 	});
 
-	it('under Recent NO card shows a count; under a play ranking the ranked ones do', () => {
+	/**
+	 * THE RULE IS ABOUT THE ORDER IN FORCE, NOT ABOUT WHICH ORDER IS THE
+	 * DEFAULT, AND THIS TEST USED TO CONFLATE THE TWO.
+	 *
+	 * It read "under Recent NO card shows a count", mounted with nothing
+	 * pressed, and relied on `recent` being the initial state -- so it asserted
+	 * the count rule and the default together, and decision 04 moving the
+	 * default to `played` (2026-09-12) broke it for a reason that has nothing to
+	 * do with what it was written to protect. Generalised rather than deleted:
+	 * it now PRESSES each order and reads the cards, so it says the same thing
+	 * about the count rule under any default. Which order the gallery opens on
+	 * is `tests/dom/foundry-sort.test.ts`'s claim and is made in one place.
+	 */
+	it('a play ranking shows counts on the ranked cards; Recent shows none', () => {
 		const counts = {
 			[WITH_COVER.id]: { plays: 42, plays7d: 5 },
 			[NO_COVER.id]: { plays: 3, plays7d: 3 },
 			[BAD_KEY.id]: { plays: 0, plays7d: 0 }
 		};
 		const c = gallery({ playCounts: counts });
-		// Recent is the default, and a number on every card of a gallery nobody
-		// ordered by plays reads as a verdict on the work.
-		expect(c.querySelectorAll('[data-testid="fdy-card-plays"]')).toHaveLength(0);
+		const press = (id: string) => {
+			(
+				[...c.querySelectorAll('.fdy-gal-sort-btn')].find(
+					(b) => b.getAttribute('data-sort') === id
+				) as HTMLButtonElement
+			).click();
+			live!.flush();
+		};
 
-		// THE POSITIVE CONTROL, on the same mount and the same fixture: press
-		// Most played and the counts appear. Without it the assertion above is
-		// also what a gallery that rendered no cards at all would report.
-		const mostPlayed = [...c.querySelectorAll('.fdy-gal-sort-btn')].find(
-			(b) => b.getAttribute('data-sort') === 'played'
-		) as HTMLButtonElement;
-		mostPlayed.click();
-		live!.flush();
-		// Two of three: the third app has zero plays and `playCountLabel`
-		// renders nothing for zero, which is the assertion as much as the two.
+		// Under a play ranking: two of three. The third app has zero plays and
+		// `playCountLabel` renders nothing for zero, which is the assertion as
+		// much as the two.
+		press('played');
 		expect(c.querySelectorAll('[data-testid="fdy-card-plays"]')).toHaveLength(2);
+
+		// Under Recent: none at all. A number on every card of a gallery nobody
+		// ordered by plays reads as a verdict on the work. The line above is the
+		// POSITIVE CONTROL for this one, on the same mount and the same fixture.
+		press('recent');
+		expect(c.querySelectorAll('[data-testid="fdy-card-plays"]')).toHaveLength(0);
 	});
 });
 

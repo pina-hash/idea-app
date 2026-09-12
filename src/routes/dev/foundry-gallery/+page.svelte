@@ -21,7 +21,11 @@
 	import FoundryShell from '$lib/foundry/FoundryShell.svelte';
 	import ReviewQueue from '$lib/foundry/ReviewQueue.svelte';
 	import { queueOrder } from '$lib/foundry/review';
-	import type { FoundryPlayCounts, FoundryPlayStats } from '$lib/foundry/telemetry';
+	import type {
+		FoundryMyPlayStats,
+		FoundryPlayCounts,
+		FoundryPlayStats
+	} from '$lib/foundry/telemetry';
 	import type {
 		FoundryGalleryTransports,
 		FoundryReviewTransports
@@ -80,6 +84,40 @@
 		[data.apps[2].id]: { plays: 0, players: 0, seconds_played: 0, last_played_at: null }
 	});
 
+	/**
+	 * THE VIEWER'S OWN TIME, FOR ONE APP OF THE THREE AND DELIBERATELY NOT THE
+	 * OTHER TWO.
+	 *
+	 * THE ABSENT CASE IS THE ONE WORTH A FIXTURE. A student who has never played
+	 * an app must see its TOTALS AND NO PERSONAL ROW, and an absence is only
+	 * provable with a present one beside it -- so app A carries a real personal
+	 * row under real public totals (42 plays, 11 people) and app B carries real
+	 * public totals (3 plays, 2 people) and nothing of its own. A drive reads 1
+	 * personal block on A and 0 on B, and neither number can be right by
+	 * accident.
+	 *
+	 * IT AGREES WITH THE PUBLIC FIXTURE ABOVE, which is not decoration: six of
+	 * one person's sessions inside an app's forty-two is a coherent page, and a
+	 * personal row larger than the total it sits under would be a fixture
+	 * teaching a reader to distrust the pair. The playfield app is 0/0 in both,
+	 * for the same reason.
+	 *
+	 * THE n=1 CASE IS NOT HERE and is covered in `tests/dom/` instead, where it
+	 * can be built without disturbing the zero in `playCounts` above that the
+	 * no-chip assertion depends on. It is ACCEPTED rather than mitigated: Mr.
+	 * Pina was asked precisely whether totals identifying a single player are
+	 * acceptable and said they are, so nothing anywhere rounds, floors or
+	 * thresholds them.
+	 */
+	const myPlayStatsFixture: Record<string, FoundryMyPlayStats> = $derived({
+		[data.apps[0].id]: {
+			plays: 6,
+			seconds_played: 1325,
+			first_played_at: '2026-08-19T08:15:00Z',
+			last_played_at: '2026-08-26T15:30:00Z'
+		}
+	});
+
 	const liveApps = $derived(
 		data.apps
 			.filter((a) => !removed.includes(a.id))
@@ -101,6 +139,26 @@
 	});
 
 	const galleryTransports: FoundryGalleryTransports = {};
+
+	/**
+	 * THE GALLERY'S TWO STATS READS, AS THE ROUTE HANDS THEM OVER. They are props
+	 * rather than members of the transports object above, exactly as on /foundry,
+	 * because the transports object is the play recorder and goes down to
+	 * `AppStage`.
+	 *
+	 * A CONTROL TURNS THE PERSONAL ONE OFF, so the harness can produce BOTH the
+	 * signed-in-and-played state and the state of a viewer whose deployment has
+	 * no 0204 -- where `foundry_my_play_stats` answers `PGRST202`, the transport
+	 * returns null and no personal block renders. An absence nobody can produce
+	 * is an absence nobody has checked.
+	 */
+	let galleryHasMine = $state(true);
+	async function galleryPlayStats(appId: string) {
+		return playStatsFixture[appId] ?? null;
+	}
+	async function galleryMyPlayStats(appId: string) {
+		return myPlayStatsFixture[appId] ?? null;
+	}
 
 	/**
 	 * THE STAFF DOOR, DRIVEN FROM BOTH SIDES.
@@ -245,6 +303,15 @@
 			>
 				{galleryIsAdmin ? 'viewing as admin' : 'viewing as student'}
 			</button>
+			<button
+				type="button"
+				class="hbtn"
+				data-testid="gallery-mine"
+				aria-pressed={galleryHasMine}
+				onclick={() => (galleryHasMine = !galleryHasMine)}
+			>
+				{galleryHasMine ? 'own playtime on' : 'own playtime off'}
+			</button>
 		</h2>
 		<!-- The harness has no PUBLIC_FOUNDRY_APPS_ORIGIN to read, and an unset one
 		     correctly removes the frame AND the share link -- which would leave
@@ -256,6 +323,8 @@
 			onSelect={(slug) => (gallerySlug = slug)}
 			appsOrigin="https://apps.ideabosco.com"
 			staffHref={galleryStaffHref}
+			playStats={galleryPlayStats}
+			myPlayStats={galleryHasMine ? galleryMyPlayStats : undefined}
 			{playCounts}
 		/>
 	</section>
