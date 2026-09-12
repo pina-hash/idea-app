@@ -19,7 +19,15 @@
 	 * said, which a 44px glyph does not have.
 	 */
 	import type { Station } from '../blade/tree';
-	import { MAX_STATIONS, MIN_STATIONS, stationsCanAdd, stationsCanRemove, type PmPanel } from './feature-model';
+	import {
+		FEATURE_DELETE_REFUSAL,
+		FEATURE_RENAME_REFUSAL,
+		MAX_STATIONS,
+		MIN_STATIONS,
+		stationsCanAdd,
+		stationsCanRemove,
+		type PmPanel
+	} from './feature-model';
 	import ProfilePreview from './ProfilePreview.svelte';
 
 	let {
@@ -206,6 +214,17 @@
 			<ProfilePreview {stations} />
 		</div>
 	{/if}
+
+	<!-- THE STANDING REFUSALS GO LAST, AND THE ORDER IS THE POINT. Put above the
+	     fields they pushed the station table and the profile preview past a
+	     514.6px pane's fold at 1440, where this container's Chromium paints no
+	     scrollbar at all -- so the prose explaining two controls that do not
+	     exist was displacing the controls that do. Explanation is what a student
+	     scrolls to; parameters are what they came for. -->
+	{#if !readOnly && reorderable}
+		<p class="note standing">{FEATURE_DELETE_REFUSAL}</p>
+		<p class="note">{FEATURE_RENAME_REFUSAL}</p>
+	{/if}
 </form>
 
 <style>
@@ -304,6 +323,11 @@
 	}
 	.refusal {
 		color: var(--amber);
+	}
+	.standing {
+		margin-top: 1rem;
+		padding-top: 0.75rem;
+		border-top: 1px solid var(--hairline);
 	}
 	table {
 		width: 100%;

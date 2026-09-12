@@ -15,7 +15,6 @@
 		addStation,
 		applyField,
 		applyStation,
-		featureLabel,
 		moveFeature,
 		panelFor,
 		profilePolyline,
@@ -380,7 +379,6 @@
 						editing = true;
 					}}
 				/>
-				<p class="hint">Double-click a row, or press Enter on it, to edit {featureLabel(panelId)}.</p>
 			{/if}
 		</aside>
 		<section class="viewport" aria-label="3D viewport">
@@ -411,7 +409,13 @@
 				</ul>
 			{/if}
 			<Viewport bind:this={viewport} evaluation={result} rotation={draft.rotation} {onFrame} onReady={onViewportReady} />
-			{#if !readOnly}
+			<!-- ONE CONFIRM PAIR ON SCREEN AT A TIME. The PropertyManager carries its
+			     own green check and red X, which is where SolidWorks puts them and
+			     what 0145 PART 5 asks for; rendering this pair beside it put TWO
+			     Accepts on a 1440px screen, measured, with nothing saying which
+			     one a student should press. They are the same two functions, so
+			     the answer is which one is visible, not which one exists. -->
+			{#if !readOnly && !editing}
 				<footer>
 					<button class="accept" onclick={accept} aria-disabled={!dirty}>✓ <span>Accept</span></button>
 					<button class="cancel" onclick={cancel} aria-disabled={!dirty}>× <span>Cancel</span></button>
@@ -472,8 +476,8 @@
 				{/if}
 			{:else}
 				<p class="said">
-					Prediction: {predictedName}. {rationale || prediction?.rationale}{#if prediction?.at}
-						<i>{prediction.at}</i>{/if}
+					Prediction: {predictedName}. {rationale || prediction?.rationale}
+					{#if prediction?.at}<i>&nbsp;recorded {prediction.at}</i>{/if}
 				</p>
 			{/if}
 			<!-- ONE COLUMN PER CONCEPT, and the physics is the only locked part of
@@ -559,8 +563,7 @@
 	.eyebrow,
 	.save,
 	.metric span,
-	.notice,
-	.hint {
+	.notice {
 		font: 12px 'Share Tech Mono', monospace;
 		letter-spacing: 0.08em;
 	}
@@ -601,11 +604,6 @@
 	}
 	.hist {
 		padding: 0 0.7rem;
-	}
-	.hint {
-		margin: 0.75rem 0 0;
-		line-height: 1.5;
-		color: var(--text-2);
 	}
 	.notice {
 		color: var(--copper);

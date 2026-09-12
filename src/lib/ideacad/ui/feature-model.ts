@@ -103,17 +103,34 @@ export function moveFeature(
  * reason.
  */
 export const FEATURE_DELETE_REFUSAL =
-	'The six features are what a blade is. None can be deleted; edit its parameters instead.';
+	'The six features are what a blade is, so none of them can be deleted or renamed. Change one by editing its parameters, and rename your CONCEPT in the strip below.';
 
 /**
- * RENAME IS REFUSED FOR THE SAME KIND OF REASON AND A DIFFERENT ONE.
- * A `BladeFeature` carries no name field, so a typed name would live only in
- * this browser's memory and be gone at the next load -- which is worse than no
- * control, because the student would not be told. What IS the student's to name
- * is the concept, and the sentence says so rather than leaving a gap.
+ * THE TREE'S OWN LINE IS TWO LINES, AND THE LENGTH IS MEASURED RATHER THAN
+ * COMPOSED. The pane at 1440 is 514.6px and holds eight 44px rows and a
+ * heading; the full refusal above ran it 66px past the fold, and this
+ * container's Chromium paints OVERLAY scrollbars -- measured, the pane's
+ * offsetWidth and clientWidth differ by the 1px border and nothing else -- so
+ * everything past the fold was invisible with no cue at all. The reason lives
+ * in the PropertyManager, which is where a student is when they want to change
+ * a feature; this line is what the tree has room to say.
  */
-export const FEATURE_RENAME_REFUSAL =
-	'A feature keeps the name the part gives it. Rename your concept instead, in the strip below.';
+export const FEATURE_TREE_NOTE = 'Features cannot be renamed or deleted. Double-click a row to edit it.';
+
+/**
+ * RENAME IS REFUSED FOR A SECOND REASON, FOLDED INTO THE SENTENCE ABOVE.
+ * A `BladeFeature` carries no name field, so a typed name would live only in
+ * this browser's memory and be gone at the next load -- worse than no control,
+ * because the student would not be told. What IS the student's to name is the
+ * concept, which the refusal points at.
+ *
+ * THE TWO SENTENCES ARE ONE PARAGRAPH AND ONE AFFORDANCE LINE, MEASURED RATHER
+ * THAN COMPOSED. As two full refusals they were 4 lines, and the tree pane at
+ * 1440 (514.6px, eight rows and a heading) cut the second one off mid-word with
+ * no scrollbar painted -- a sentence that answers "where is the delete control"
+ * and cannot be read is the same as no sentence.
+ */
+export const FEATURE_RENAME_REFUSAL = 'A feature keeps the name the part gives it; your concept is yours to name.';
 
 /** A station may be removed only while `validateBladeTree`'s 3 to 8 still holds. */
 export const MIN_STATIONS = 3;

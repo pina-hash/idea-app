@@ -21,7 +21,7 @@
 // passes vacuously (`tests/dom/README.md`). They are measured against a real
 // Chromium in `tools/browser-verify/routes/ideacad*.mjs`.
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { Component } from 'svelte';
 import BladeEditor from '$lib/ideacad/BladeEditor.svelte';
 import { DEFAULT_BLADE_CONFIG, DEFAULT_BLADE_TREE } from '$lib/ideacad/blade/materials';
@@ -35,13 +35,29 @@ const THREE = [
 	{ id: 'c3', name: 'Concept 3', features: structuredClone(DEFAULT_BLADE_TREE) }
 ];
 
+/**
+ * EVERY MOUNT IS UNMOUNTED, EVEN WHEN ITS TEST THROWS, AND THAT IS NOT TIDINESS.
+ * `BladeEditor` listens for its undo keystrokes on the DOCUMENT, so a mount a
+ * failed assertion left standing keeps handling them -- and it calls
+ * `preventDefault`, which the NEXT test's editor correctly reads as "the
+ * viewport already claimed this" and ignores. Measured: two genuine failures in
+ * this file turned three unrelated keyboard tests red, which is a cascade that
+ * points at the wrong line.
+ */
+const live: { stop(): Promise<void> }[] = [];
+afterEach(async () => {
+	while (live.length) await live.pop()!.stop();
+});
+
 function open(props: Record<string, unknown> = {}) {
-	return mountInto(Editor, {
+	const m = mountInto(Editor, {
 		tree: DEFAULT_BLADE_TREE,
 		config: DEFAULT_BLADE_CONFIG,
 		concepts: structuredClone(THREE),
 		...props
 	});
+	live.push(m);
+	return m;
 }
 
 type M = ReturnType<typeof open>;
@@ -61,14 +77,13 @@ const press = (m: M, key: string, mods: Record<string, boolean> = {}) => {
 };
 
 describe('the FeatureManager tree', () => {
-	it('lists the six features in build order, the body stations under the body, and the two read nodes', async () => {
+	it('lists the six features in build order plus the two read nodes, with the body collapsed', async () => {
+		// COLLAPSED IS THE MEASURED DEFAULT. Expanded, the four station rows push
+		// Materials and Standard Parts off the bottom of a 566.6px pane at 1440 --
+		// two nodes 0145 PART 5 names, gone, with nothing on screen saying so.
 		const m = open();
 		expect(rows(m).map((b) => b.querySelector('.name')?.textContent?.split('  ')[0])).toEqual([
 			'Body Revolve',
-			'Station 1',
-			'Station 2',
-			'Station 3',
-			'Station 4',
 			'Hex Extension',
 			'Blade Sketch',
 			'Blade Extrude',
@@ -77,6 +92,37 @@ describe('the FeatureManager tree', () => {
 			'Materials',
 			'Standard Parts'
 		]);
+		await m.stop();
+	});
+
+	it('shows the body’s stations as child rows once the body is expanded, and hides them again', async () => {
+		const m = open();
+		const twist = m.one<HTMLButtonElement>('.tree .twist');
+		expect(twist.getAttribute('aria-expanded')).toBe('false');
+		twist.click();
+		m.flush();
+		expect(twist.getAttribute('aria-expanded')).toBe('true');
+		const names = rows(m).map((b) => b.querySelector('.name')?.textContent?.split('  ')[0]);
+		expect(names.slice(0, 6)).toEqual(['Body Revolve', 'Station 1', 'Station 2', 'Station 3', 'Station 4', 'Hex Extension']);
+		// The two read nodes are still there, which is the thing collapsing bought.
+		expect(names.at(-1)).toBe('Standard Parts');
+		twist.click();
+		m.flush();
+		expect(rows(m)).toHaveLength(8);
+		await m.stop();
+	});
+
+	it('expands and collapses the body from the keyboard, which is the tree pattern’s own pair', async () => {
+		const m = open();
+		const list = m.one('.tree [role="tree"]');
+		const arrow = (key: string) => {
+			list.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+			m.flush();
+		};
+		arrow('ArrowRight');
+		expect(rows(m)).toHaveLength(12);
+		arrow('ArrowLeft');
+		expect(rows(m)).toHaveLength(8);
 		await m.stop();
 	});
 
@@ -136,11 +182,9 @@ describe('the FeatureManager tree', () => {
 		await m.stop();
 	});
 
-	it('says why it offers no rename and no delete, rather than leaving a gap where a control would be', async () => {
+	it('says the two verbs it does not offer, rather than leaving a gap where a control would be', async () => {
 		const m = open();
-		const why = m.all('.tree .why').map((p) => p.textContent);
-		expect(why.join(' ')).toContain('None can be deleted');
-		expect(why.join(' ')).toContain('Rename your concept instead');
+		expect(m.one('.tree .why').textContent).toContain('cannot be renamed or deleted');
 		await m.stop();
 	});
 });
@@ -266,14 +310,33 @@ describe('the PropertyManager', () => {
 		expect(m.one('.pm .refusal').textContent).toContain('built on Blade Sketch');
 		m.one<HTMLButtonElement>('.pm .back').click();
 		m.flush();
-		expect(rows(m).map((b) => b.querySelector('.name')?.textContent).join('|')).toContain('Blade Sketch');
-		expect(rows(m)[6].textContent).toContain('Blade Sketch'); // unmoved
+		// Unmoved: the build order is exactly what it was.
+		expect(rows(m).map((b) => b.querySelector('.name')?.textContent?.split('  ')[0])).toEqual([
+			'Body Revolve',
+			'Hex Extension',
+			'Blade Sketch',
+			'Blade Extrude',
+			'Circular Pattern',
+			'Blade Mount',
+			'Materials',
+			'Standard Parts'
+		]);
 		await m.stop();
 	});
 
 	it('offers no reorder pair on Materials or Standard Parts, which are not in the build order', async () => {
 		const m = editing('Materials');
 		expect(m.all('.pm .reorder')).toHaveLength(0);
+		await m.stop();
+	});
+
+	it('carries the REASON for those two absences, where a student is when they want one', async () => {
+		// The tree has room for a line; the reason lives here, because the pane at
+		// 1440 is 514.6px and eight 44px rows and a heading fill it.
+		const m = open();
+		rowNamed(m, 'Circular Pattern')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		m.flush();
+		expect(m.one('.pm .standing').textContent).toContain('none of them can be deleted or renamed');
 		await m.stop();
 	});
 

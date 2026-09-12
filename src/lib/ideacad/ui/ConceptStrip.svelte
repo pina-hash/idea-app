@@ -13,6 +13,14 @@
 	 * is still the right thing for the concept CARD that gets committed, which is
 	 * a 1600x1000 PNG and a different surface.
 	 *
+	 * THE CARDS AND THE CONTROLS ARE TWO ROWS, AND THAT IS A MEASURED DECISION.
+	 * On one row the strip ran off a 1440px window with "Commit as concept card"
+	 * sliced in half -- it scrolls, so no threshold could see it, and a student
+	 * has no reason to think there is anything to the right of the edge. The
+	 * cards keep the horizontal scroll, because a document can hold many and a
+	 * card is a fixed size; the controls WRAP, because there is a known number of
+	 * them and every one has to be reachable without a gesture.
+	 *
 	 * A CARD THAT CANNOT BE EVALUATED SAYS SO RATHER THAN TAKING THE STRIP DOWN.
 	 * `evaluate` reads all six features by type and throws on the first missing
 	 * one, so one malformed concept in a document would otherwise blank every
@@ -95,6 +103,7 @@
 </script>
 
 <section class="concepts" aria-label="Concepts">
+	<div class="cards">
 	{#each concepts as concept (concept.id)}
 		{@const card = cardOf(concept.id)}
 		<button class="card" class:active={concept.id === activeId} onclick={() => onload(concept.id)}>
@@ -110,6 +119,8 @@
 			{/if}
 		</button>
 	{/each}
+	</div>
+	<div class="controls">
 	{#if !readOnly}
 		{#if renaming}
 			<input class="rename" bind:value={renameTo} placeholder="Concept name" aria-label="Concept name" />
@@ -137,16 +148,29 @@
 			{#if canCommit}<button onclick={oncommit}>Commit as concept card</button>{/if}
 		{/if}
 	{/if}
+	</div>
 </section>
 
 <style>
 	.concepts {
-		display: flex;
+		display: grid;
 		gap: 0.5rem;
-		overflow: auto;
 		padding: 0.75rem;
 		border-top: 1px solid var(--boundary);
+	}
+	.cards {
+		display: flex;
+		gap: 0.5rem;
+		overflow-x: auto;
 		scroll-snap-type: x mandatory;
+	}
+	.controls {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.controls:empty {
+		display: none;
 	}
 	button {
 		flex: 0 0 auto;
