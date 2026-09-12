@@ -30,11 +30,40 @@
  * TAP TARGETS ARE MEASURED WITH NO 24px EXCEPTION. This is a student surface at
  * every width, so `IDEA_INTERFACE_STANDARDS` 10's floor is 44 and the
  * instructor-console relief does not apply and must not be claimed.
+ *
+ * THERE IS A REAL 3D VIEWPORT BEHIND THIS NOW, which there was not when the
+ * file above was written. Ledger 0160 measured no canvas, no `WebGLRenderer`,
+ * no camera and no controls anywhere in the tree, and could not take PART 4's
+ * frame-time p95 at all because there was nothing to drag. So the second verdict
+ * block below drives a REAL 300-frame middle-drag through the real controls and
+ * reports two clocks: the cost of issuing a frame, which is this repository's
+ * to answer for and is held to the 60 fps budget, and the presented cadence,
+ * which belongs to a host that has no GPU and falls back to a software
+ * rasteriser, and is reported beside an idle control rather than thresholded.
+ * Holding SwiftShader to 60 fps would redden this harness for the machine it
+ * runs on.
+ *
+ * WEBGL IS AVAILABLE UNDER THIS HARNESS'S OWN LAUNCH ARGS, measured rather than
+ * assumed: `--disable-gpu` with no swiftshader flag still yields a WebGL2
+ * context through ANGLE's SwiftShader device. No launch change was needed and
+ * none was made.
  */
 export default {
 	path: '/dev/ideacad',
 	label: 'IdeaCAD: the Blade editor console',
-	prepare: [{ waitFor: '() => typeof window.__ideacadVerdicts === "function"' }],
+	prepare: [
+		{ waitFor: '() => typeof window.__ideacadVerdicts === "function"' },
+		/* The renderer is loaded dynamically inside `onMount`, so the camera
+		   probe appears a tick after the markup does. Waiting on the PROBE
+		   rather than on a timer is what keeps this honest on a slow run. */
+		{ waitFor: '() => !!window.__ideacadCamera?.()' },
+		/* PART 4's 300-frame middle-drag, run ONCE here so its numbers land in
+		   the output, with the verdict block below comparing the claims off the
+		   same reading. The probe restores the pre-drag view through the real
+		   Previous control, so every layout measurement after it is taken at the
+		   pose the page opened on. */
+		{ evaluate: '() => window.__ideacadRunFrameProbe()' }
+	],
 	orderResult: [
 		{
 			label: 'the console, the viewport and the view toolbar are where they claim to be',
@@ -50,13 +79,40 @@ export default {
 				'every view control is on screen rather than clipped ok',
 				'the confirm pair clears the reference triad ok',
 				'the confirm pair clears the concept strip ok',
-				'the readouts rail shows its last row ok'
+				'the readouts rail shows its last row ok',
+				/* The canvas, and the rig behind it. A pane with real width was
+				   already measured; a pane holding a canvas that draws nothing is
+				   the next way for this surface to be wrong while every threshold
+				   passes, which is how the last two defects here got through. */
+				'the canvas fills the viewport pane ok',
+				'the canvas has a backing store ok',
+				'the backing store matches the pane at the clamped pixel ratio ok',
+				'the renderer issued draw calls ok',
+				'the model has triangles in it ok',
+				'the world point under a pixel survives a zoom ok',
+				'the model is inside the pane at the zoom it fits to ok',
+				'the model fills the pane it was fitted to ok'
+			]
+		},
+		{
+			label: 'a 300-frame middle-drag, through the real controls',
+			evaluate: '() => window.__ideacadFrameVerdicts()',
+			expected: [
+				'a 300-frame middle-drag reaches the renderer ok',
+				'the cost of issuing a frame is inside the 60 fps budget ok'
 			]
 		}
 	],
 	presence: [
 		{ selector: '[data-testid="ideacad-editor"]', label: 'the editor console', expectPresent: 1, expectVisible: 1 },
 		{ selector: '.viewport', label: 'the 3D viewport pane', expectPresent: 1, expectVisible: 1 },
+		{ selector: 'canvas[data-testid="ideacad-canvas"]', label: 'the WebGL canvas', expectPresent: 1, expectVisible: 1 },
+		/* The no-WebGL refusal, as an ABSENCE with its own positive control: the
+		   canvas above IS present, so a machine that could not draw would show
+		   this panel instead of leaving the pane blank. */
+		{ selector: '.nogl', label: 'the cannot-draw-3D notice, absent on a machine that can', expectPresent: 0 },
+		/* The orientation popover is closed until its control is pressed. */
+		{ selector: '.orient', label: 'the standard-view list, closed', expectPresent: 0 },
 		/* Six features plus Materials plus Standard Parts. A count, not a
 		   presence check: a tree that renders one row looks fine to a selector. */
 		{ selector: '.tree button', label: 'FeatureManager rows', expectPresent: 8, expectVisible: 8 },
@@ -78,9 +134,12 @@ export default {
 		{ selector: '.eyebrow', label: 'the IDEACAD / BLADE eyebrow', min: 4.5 },
 		{ selector: '.save', label: 'the saved-state word', min: 4.5 },
 		/* Over the viewport ground rather than the rail's: the triad and the view
-		   name are the only copy painted on the graphics area. */
-		{ selector: '.triad', label: 'the reference triad over the viewport', min: 4.5 },
-		{ selector: '.viewport > p', label: 'the current view name', min: 4.5 }
+		   name are the only copy painted on the graphics area. The triad is an
+		   SVG overlay driven by the camera quaternion now, so its marks paint
+		   `currentColor` and a reading of `color` is the colour on screen --
+		   asked of `.triad text`, because an SVG root has no text of its own. */
+		{ selector: '.triad text', label: 'a reference-triad axis letter over the viewport', min: 4.5, all: true },
+		{ selector: '.view', label: 'the current view name', min: 4.5 }
 	],
 	tapTargets: [
 		{ selector: '.viewport nav button', label: 'a view toolbar control' },
