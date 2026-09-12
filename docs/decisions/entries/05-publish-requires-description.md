@@ -1,41 +1,57 @@
 # 05 Foundry: publishing requires a description
 - Raised: 2026-08-31  By: chat "Managing multiple FRC platform projects"
-- Status: decided 2026-09-12, AGAINST the requirement. A REVERSAL is now owed; see the Build line.
-- Decision: 2026-09-12, Mr. Pina: no. Minimize requirements: name, thumbnail,
-  contents. Students are responsible for telling users what they need.
-- Against the default: plainly, yes -- and the default had already been BUILT.
-  The default below was a schema narrowing on `description`. Prompt 0015 shipped
-  exactly that on 2026-09-02 while this entry was still `open` with a blank
-  Decision line, so the requirement is in the tree on this assistant's DEFAULT and
-  never on his answer. His answer reverses it.
-- Build: OPEN, and it is a reversal in three places, measured 2026-09-12. All line
-  numbers are in `0173_foundry_section_gate_description_and_trust.sql`.
-  (a) **line 283**, the trigger `_foundry_published_version_check`, which raises
-  "Write a description before publishing." whenever the publication MOVES. It is
-  careful about existing work -- it fires only when the column genuinely changes, so
-  an app already published without one keeps serving and stays rollable.
-  (b) **line 498**, inside `foundry_submit_version`, which raises "Write a
-  description before submitting." So the requirement bites EARLIER than publication:
-  a student cannot send a build for review at all without one.
-  (c) `src/lib/foundry/surface.ts` lines 129 to 142, `foundryPublishBlockers`, the
-  client sentence that names the requirement before the database refuses.
-  Undoing (a) and (b) is a NEW migration: 0173 is an applied record and is not
-  rewritten.
-- Not established: whether 0173 is APPLIED to production, which is the one thing
-  the reversal's urgency turns on. `docs/migrations-applied/` holds no record of it,
-  a cloud container cannot reach the production database, and no file in this repo
-  records applied state. If it is applied, a student cannot SUBMIT a build without a
-  description right now, let alone publish one. If it is not, the reversal is a
-  source change plus a migration nobody has to hurry. `tools/idea-status.py` prints
-  the probe to paste.
-- Note: the three things he named are already required or already possible. The
-  name is `student_apps.title`, NOT NULL and 1 to 120 characters since 0130. The
-  contents are the bundle, which `foundry_submit_version` already refuses with no
-  files. The thumbnail is `cover_path`, which is OPTIONAL today. Whether
-  "thumbnail" in his sentence makes the cover required is NOT settled here, and it
-  is bound up with decision 03 (foundry-launcher-card-colours), where the card IS
-  the thumbnail -- a gallery of thumbnails has nothing to draw for an app without
-  one. Raise it there rather than reading it into this answer.
+- Status: closed 2026-09-12 (prompt 0177, `claude/busy-newton-trto6y`).
+  ANSWERED **NO**, against the default below and REVERSING work already shipped.
+  `0204` removes the requirement from both places it was enforced.
+- Decision: **Mr. Pina, 2026-09-12: publishing needs a name, a thumbnail and the
+  app. A DESCRIPTION IS OPTIONAL.**
+
+  **This decision was answered AFTER the work it governs had already shipped,
+  which is the thing worth recording here.** Ledger 0015 built the requirement on
+  2026-09-02 and `0173` applied it, while this entry sat `open` with a blank
+  `Decision:` line and a `Default this assistant would pick` that reads exactly
+  like the thing that got built. So the default was implemented as though it were
+  the answer. Nothing about that was caught by a test, a review or a check,
+  because the code was internally consistent and well argued; what would have
+  caught it is this line having been read before the build rather than after.
+
+  **Where it was enforced, measured on the file rather than taken from a report**
+  (the production database is unreachable from a cloud container, permanently, so
+  the file is the only available authority):
+
+  * `0173_foundry_section_gate_description_and_trust.sql` line 283 -- the
+    publication TRIGGER, `_foundry_published_version_check`, which is the gate all
+    four publish paths meet at.
+  * the same file line 498 -- inside `foundry_submit_version`, so a student could
+    not even SUBMIT FOR REVIEW without one. This is the half that hurt: the gate
+    decision 05 asked about was PUBLISHING, and it had reached the submit.
+  * `src/lib/foundry/surface.ts` lines 129-142 -- `foundryPublishBlockers`, the
+    client half that named the requirement before refusing.
+
+  **What `0204` did with each.** The trigger goes back to `0130`'s body, which is
+  a byte claim rather than a reconstruction: `0173`'s body is `0130`'s plus the
+  `v_moved` declaration, its assignment and the raise, and removing those three
+  leaves the two files' text identical. The submit function is `0173`'s line for
+  line apart from those four lines, so decision 06's trusted-publisher arm rides
+  through untouched -- re-signing it from `0130` instead would have silently
+  deleted that, and a test asserts it behaviourally as well as textually.
+  `foundryPublishBlockers` and `foundryCanSubmit` are DELETED rather than left
+  returning an empty list, because a predicate that can only answer one way is a
+  dormant second idea of "is this ready" beside the real one.
+
+  **A THUMBNAIL IS NOT A GATE AND WAS NOT MADE ONE.** The answer names one, but
+  nothing in the schema requires a cover today. Measured across all 202 migration
+  files, `cover_path` is named in exactly two places that could be a gate and
+  neither is one: `0130` line 169 is
+  `check (cover_path is null or _classroom_deck_path_ok(cover_path))`, which
+  constrains the SHAPE of a path and explicitly admits null, and `0136` line 252
+  is the delete sweep. There is no `raise`, no `not null` and no publication
+  check. **Making one is a NARROWING outside this bundle's grant** -- 0204 does
+  three things and nothing else -- and it needs its own bundle with its own
+  answer for the apps already published without a cover, counted at apply time
+  the way `0173` counted the blank descriptions. It must not come back as a
+  client-side check, which is what `0204` just removed: the surfaces were never
+  the boundary.
 - Default this assistant would pick: A schema narrowing on the existing `description` column with a migration and a client message; a client-only check is bypassed by the next tool that writes rows.
 - Why it is blocked on him: Which field is required, and whether an already-published app with no description is grandfathered or unpublished, is a policy call about student work already live.
 - What it unblocks: A one-migration Foundry lane with its own answer for the rows already stored.

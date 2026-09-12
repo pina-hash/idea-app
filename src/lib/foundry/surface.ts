@@ -106,53 +106,31 @@ export function draftIsSubmittable(version: FoundryVersion): boolean {
 	return version.status === 'draft' && version.file_count > 0;
 }
 
-/**
- * WHAT AN APP STILL NEEDS BEFORE IT CAN BE PUBLISHED (0173, decision 05).
+/*
+ * DECISION 05 IS REVERSED AND ITS CLIENT HALF IS REMOVED, NOT NEUTERED
+ * (0204, on Mr. Pina's answer of 2026-09-12).
  *
- * A DESCRIPTION IS THE ONE REQUIREMENT AND IT IS THE DATABASE'S. 0173 refuses
- * a publication of an app with a blank description at the trigger, and
- * `foundry_submit_version` refuses the submit ahead of it so the person who
- * can fix it hears it while they are looking at it. This is neither of those:
- * it is what lets a surface SAY the requirement before it refuses, which is
- * the whole of what decision 05's client half asks for.
+ * `foundryPublishBlockers` and `foundryCanSubmit` stood here. Publishing
+ * needs a name, a thumbnail and the app; a description is optional, so there
+ * is nothing left for either of them to say. THEY ARE DELETED RATHER THAN
+ * LEFT RETURNING AN EMPTY LIST, because a predicate that can only answer one
+ * way is a second, dormant idea of "is this ready" sitting beside the real
+ * one -- and `CLAUDE.md` is explicit that a retired path is removed rather
+ * than left as a dormant fallback.
  *
- * IT MIRRORS THE RULE, IT DOES NOT RESTATE IT. The predicate is the same
- * `_foundry_norm(description) = ''` the database asks -- an emptiness gate
- * that must agree with a person's idea of empty, so `trim()` and not a length
- * check, because a description of newlines is empty to whoever typed it and
- * empty to the column.
+ * `draftIsSubmittable` ABOVE IS NOW THE WHOLE PREDICATE, and it is still read
+ * by the control and by the handler alike, which is the property
+ * `foundryCanSubmit` existed to carry. It never had anything to do with
+ * decision 05: a draft whose upload did not finish unpacking is refused for a
+ * reason that has not changed.
  *
- * IT RETURNS THE MISSING THINGS RATHER THAN A BOOLEAN, so a surface can name
- * them. A boolean would put the sentence back at the call site, which is
- * where two spellings of one requirement come from.
+ * IF A REQUIREMENT IS EVER ADDED BACK -- a thumbnail is the obvious candidate,
+ * and there is no gate for one in the schema today -- it is a NARROWING and
+ * needs its own migration with its own answer for the apps already published
+ * without one. It does not come back as a client-side check: the surfaces
+ * were never the boundary, and a client-only gate is bypassed by the next
+ * thing that calls the RPC.
  */
-export function foundryPublishBlockers(app: {
-	description?: string | null;
-}): { field: 'description'; sentence: string; fix: string }[] {
-	const blockers: { field: 'description'; sentence: string; fix: string }[] = [];
-	if ((app.description ?? '').trim() === '') {
-		blockers.push({
-			field: 'description',
-			sentence:
-				'This app needs a description before it can be published. It is what somebody reading the gallery sees before they open it.',
-			fix: 'Add one under Name and description.'
-		});
-	}
-	return blockers;
-}
-
-/**
- * ONE PREDICATE FOR "IS THIS READY TO SEND", read by the control AND by the
- * handler. Two spellings of that question is what produces a press that does
- * nothing, which is the same argument `reviewCanSend` makes on the review
- * console.
- */
-export function foundryCanSubmit(
-	app: { description?: string | null },
-	version: FoundryVersion
-): boolean {
-	return draftIsSubmittable(version) && foundryPublishBlockers(app).length === 0;
-}
 
 /**
  * WHETHER A VERSION CAN BE DELETED ON ITS OWN, as one predicate the control's

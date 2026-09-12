@@ -615,7 +615,8 @@
 	<section class="fdy-insp-section">
 		<!--
 			THE SAME COMPONENT /foundry/mine MOUNTS FOR THE AUTHOR, with the same
-			four scalars, because `foundry_app_play_stats` answers the owner and an
+			four scalars, because `foundry_app_play_stats` answers (since 0204,
+			decision 07) anybody who can see the app -- not just the owner and an
 			admin identically. Staff see MORE APPS, never more detail about one:
 			there is no per-player read for any caller, so "which students played
 			it" has no answer on this surface either.

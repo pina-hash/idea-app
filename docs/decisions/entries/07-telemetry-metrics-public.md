@@ -1,77 +1,58 @@
-# 07 Foundry telemetry: the owner-only metrics go public, and so does a student's own playtime
+# 07 Foundry telemetry: make the two owner-only metrics public
 - Raised: 2026-08-31  By: chat "Managing multiple FRC platform projects"
-- Status: decided 2026-09-12. FULLY PUBLIC, in two layers. The DECISION is closed; the BUILD is open, see the Build line.
-- Decision: 2026-09-12, Mr. Pina: fully public, in two layers. Each student sees
-  their OWN playtime and stats for any app they played; TOTALS across everyone are
-  public. His words: "if I play twenty hours of cookie clicker I should see my
-  playstats."
-- Title corrected 2026-09-12: it read "make the two owner-only metrics public" and
-  there are THREE (`players`, `seconds_played`, `last_played_at`). The body below has
-  always named three; the heading had not, and prompt 0176 raised the same
-  discrepancy independently. The FILENAME is unchanged so every citation by slug
-  still resolves.
-- Against the default: plainly, yes. The default below was "not public; add them to
-  the owner's own dashboard". He reversed both halves -- the totals go public, and
-  a figure this assistant proposed showing only to an app's AUTHOR is now also owed
-  to every PLAYER about themselves.
-- Build: OPEN, two layers, no collection change -- but BOTH LAYERS ARE A MIGRATION
-  and there is no read-path-only half to ship. Measured against
-  `supabase/migrations/0139_foundry_telemetry.sql` on 2026-09-12, and independently
-  by prompt 0176 (`docs/history/inspiring-dirac-wtoe9z.md`) the same day, which
-  audited this table against a real Postgres and reached the same split answer: the
-  DATA exists and the READ PATH cannot be widened without SQL. Read that entry before
-  starting; it carries the four-function census and the three no-migration routes it
-  refused (a client select, a service-role route, client-side accumulation).
-- Layer one, the public totals: `plays` and `plays_7d` are ALREADY readable by any
-  signed-in caller through `foundry_play_counts(boolean, boolean)` (0139 line 384),
-  which is what the gallery counts come from. What is still owner-or-admin is the
-  other three, and they are all in `foundry_app_play_stats(uuid)`: `players`,
-  `seconds_played` and `last_played_at`, gated at 0139 lines 448-450, which returns
-  NULL for anybody else so an id cannot be probed. So "make the totals public" is
-  really "move the owner gate on `foundry_app_play_stats`", which is a migration --
-  the two counts a student can already see are on the gallery cards today, so there
-  is nothing to expose there. It is not new data either way.
-- Layer two, a student's own playtime: THE DATA ALREADY EXISTS AND IS ALREADY
-  BEING COLLECTED. Nothing has to start recording. `student_app_plays` (0139 lines
-  183-195) carries `player`, `app_id`, `started_at` and `last_seen_at`, and the
-  duration is `last_seen_at - started_at` -- the same arithmetic
-  `foundry_app_play_stats` already sums, only unfiltered by player. The index for
-  the query is even already there: `student_app_plays_resume_idx` (line 208) is
-  `(player, app_id, last_seen_at desc)`, built for the resume lookup and exactly
-  what a per-caller read wants.
-- What is missing is a READ, and only that: `student_app_plays` has RLS enabled
-  with NO policy and NO grant to `anon` or `authenticated` (line 229, and 0139's
-  own header calls it "two refusals rather than one"), and no function, view or
-  grant returns a per-player figure to any client. So layer two is ONE new
-  SECURITY DEFINER function, and per CLAUDE.md it takes NO identity parameter --
-  the caller is `auth.uid()`, so "can only see their own" is a property of the
-  signature. It must also revoke from `anon` BY NAME in 0166's shape, because 0137
-  does not cover a function created after it.
-- Two things the build must carry, or the number lies: (a) every figure is plays
-  THROUGH THE PORTAL. A play started from an app's own address `/a/<appId>/` is
-  structurally uncounted -- no iframe, no portal chrome, no session -- so twenty
-  hours of cookie clicker played from a shared link is zero hours here.
-  `FOUNDRY_PLAY_COVERAGE_NOTE` in `src/lib/foundry/telemetry.ts` is the one
-  statement of that and CLAUDE.md requires it beside every figure, zero included.
-  (b) `player` is `references auth.users on delete set null`, so a departed
-  student's hours stay in the app's total and stop being anybody's own -- which is
-  correct, and is why `count(distinct player)` counts players and not plays.
-- Also reported by 0176, and it belongs here because this is where somebody reads
-  about this table's access: `service_role` HOLDS SELECT on `student_app_plays`,
-  measured `true`. 0139's own comment says "`service_role` gets nothing either, and
-  that is deliberate", but the statement below it is
-  `revoke all on public.student_app_plays from anon, authenticated;` -- which does
-  not name `service_role`, while all five of the file's FUNCTION revokes do. The
-  hosted bootstrap's `grant all on tables` therefore survives, and the file's
-  self-check cannot see it because it asserts only `anon` and `authenticated`. It is
-  the table half of the defect `CLAUDE.md` records for `0201`. Nothing in `src/`
-  reads through it -- the four readers all call the RPCs -- so the practical exposure
-  is small; the comment claiming a closed door that is open is the cost.
-- Not widened by this, and worth saying so: he answered what a student sees about
-  THEMSELVES and what everyone sees in AGGREGATE. Neither is a per-player read of
-  somebody else. CLAUDE.md's "NO PER-PLAYER READ OF PLAY DATA EXISTS FOR ANYONE,
-  ADMIN INCLUDED" survives this answer intact: what an admin has that an author
-  does not is other apps, never more detail about who played one.
+- Status: closed 2026-09-12 (prompt 0177, `claude/busy-newton-trto6y`).
+  ANSWERED **PUBLIC**, against the default below. `0204` opens all three metrics
+  and adds the caller-scoped read. The audit behind it is ledger 0176
+  (`docs/history/inspiring-dirac-wtoe9z.md`), which stopped without a migration
+  because it had no number allocated.
+- Decision: **Mr. Pina, 2026-09-12: make the owner-only metrics public, and let
+  every student see their OWN stats for any app they played** -- "if I play
+  twenty hours of cookie clicker I should see my playstats."
+
+  **THE TITLE OF THIS ENTRY SAYS TWO METRICS AND THERE ARE THREE.** Ledger 0176
+  measured it. `foundry_app_play_stats` returns FOUR scalars, of which `plays`
+  was never owner-only -- `foundry_play_counts` has answered it to any signed-in
+  caller since `0139` and it is on the gallery cards. The owner-only set is
+  **`players`, `seconds_played` and `last_played_at`**. Widening two and leaving
+  one is the failure mode here, and it is a quiet one: it passes any assertion
+  phrased over the returned object as a whole, because the object still carries
+  all four keys either way. `tests/foundry-telemetry.test.ts` therefore names
+  each of the three separately, against its own known-correct number, on a
+  fixture with two players of deliberately different durations so a wrong figure
+  cannot coincidentally agree with the right one.
+
+  **THE n=1 CASE IS ACCEPTED. THIS IS THE PART THAT EXISTS SO NOBODY REOPENS
+  IT.** On an app one person has played, the public aggregate IS that person's
+  figure: "1 player, last played 3:47pm" says when that student played. Ledger
+  0176 raised this precisely, as the case where a straight gate widening fails
+  the aggregate-only boundary, and **Mr. Pina was asked precisely this question
+  and said it is fine.**
+
+  So: **do not add a threshold, a floor, a minimum player count, a rounding
+  scheme or a suppression rule to protect the n=1 case, and do not raise it
+  again as a finding.** It is a decision that has been made with the consequence
+  in front of the person making it, not an oversight waiting to be caught. A
+  session that believes it has found this should read this paragraph and stop.
+
+  **THE BOUNDARY THAT STILL HOLDS, and it is the only one left on this table:
+  PUBLIC MEANS AGGREGATE.** A student may read how much an APP has been played.
+  A student may never read how much ANOTHER NAMED STUDENT has played it. In
+  `0204` that is two structural properties rather than two checks: the aggregate
+  function has no shape in which it could name a person, and the caller-scoped
+  function `foundry_my_play_stats(p_app_id uuid)` takes NO IDENTITY PARAMETER,
+  so there is no call anybody can write that asks about somebody else. Both are
+  gated on `_foundry_app_in_population`, so an unpublished app is still its
+  author's alone, a hidden one still an admin's, and an app outside the
+  population answers identically to one that does not exist.
+
+  **WHAT WAS FOUND ON THE WAY AND CLOSED IN THE SAME FILE.** `0139`'s own comment
+  says `service_role` "gets nothing either, and that is deliberate"; its table
+  revoke then names `anon, authenticated` and stops, while all five of its
+  FUNCTION revokes name `service_role` too. So the role held SELECT on
+  `student_app_plays` from `0139` until `0204` -- the `0201` defect one table
+  over. The reason nothing reported it for that whole period is that the test
+  asserting the table answers nobody checked the two CLIENT roles only, which is
+  the same blind spot in the test as in the migration. Both are widened.
 - Default this assistant would pick: Not public; add them to the owner's own dashboard.
 - Why it is blocked on him: Widening a public payload is a disclosure decision (`CLAUDE.md`, "Widening a public or preview payload is a DISCLOSURE DECISION"), and it is his.
 - What it unblocks: Either nothing, or a small owner-dashboard lane.
