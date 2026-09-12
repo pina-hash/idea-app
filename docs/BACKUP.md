@@ -92,6 +92,10 @@ PostgreSQL 16:
 | the schema alone, 6 rows of data | **261,886 bytes** | 1,681,727 bytes |
 | + 40,000 narrow rows | 1,406,789 bytes | 8,577,147 bytes |
 
+(The first figure moves by a few bytes between runs: modern `pg_dump` writes a
+random token into each dump's `\restrict` lines, and the header carries a
+timestamp. Readings across several runs sat between 261,866 and 261,894.)
+
 So the fixed cost of 201 migrations' worth of schema is about **262 KB**, and a
 narrow row (a coin transaction, a notebook entry) costs about **29 gzipped
 bytes** on top -- measured twice, at two scales, and linear between them

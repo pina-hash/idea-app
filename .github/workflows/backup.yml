@@ -138,6 +138,14 @@ jobs:
           BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
         run: |
           set -euo pipefail
+          # The runner image ships a Postgres client, but this is the FIRST
+          # thing the first run does and nothing here can be rehearsed, so a
+          # missing `psql` gets installed rather than ending the run with
+          # "command not found".
+          command -v psql >/dev/null || {
+            echo "no psql on this runner; installing the distro client"
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          }
           num=$(psql "$BACKUP_DATABASE_URL" -Atqc 'show server_version_num')
           major=$((num / 10000))
           echo "server is PostgreSQL $major (server_version_num $num)"
@@ -191,9 +199,9 @@ jobs:
           # A DUMP THAT IS TOO SMALL IS THE ONE FAILURE THAT LOOKS LIKE A
           # SUCCESS. A credential that can connect but reads nothing, or a
           # `--schema` that matched nothing, both produce a valid, uploadable,
-          # WORTHLESS file. The floor is the schema alone, measured by
-          # `tools/backup/roundtrip.sh` at 261,893 bytes over an empty
-          # database, so anything under 100,000 bytes did not dump this
+          # WORTHLESS file. The floor is the schema alone, which
+          # `tools/backup/roundtrip.sh` measures at about 262,000 bytes over an
+          # empty database, so anything under 100,000 bytes did not dump this
           # schema and this run is a failure.
           if [ "$bytes" -lt 100000 ]; then
             echo "the dump is $bytes bytes; the schema alone is about 260,000. Refusing to upload it." >&2
