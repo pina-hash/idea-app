@@ -69,3 +69,10 @@ positive control that races the roster's render -- the roster appears between
 300ms and 700ms after `load` and the spec carries no wait -- so it reads
 `present 0` where `integration`'s block records `outside: 0` on identical
 code. Neither file is this bundle's surface.
+
+**One follow-up after the merge.** The region's own heading still read
+"Measured -- from a full harness run", which stopped being true the moment the
+table became a sum over `measured/` -- an inaccuracy this bundle introduced,
+in the one file whose whole subject is not lying about itself. It reads
+"Measured -- summed from `measured/`, one file per route spec" now, landed on
+the same branch and through the same gates.
