@@ -70,6 +70,36 @@
 //      brand-new object even if somebody adds that object to A and B for a
 //      reason that sounded good.
 //
+//   D. SEQUENCES, exhaustively, and the declared list is EMPTY. Added after
+//      0203. The identical bootstrap carries `grant all on sequences`, so a
+//      sequence arrives holding USAGE, SELECT and UPDATE -- `nextval`,
+//      `currval` and `setval` -- for both client roles, and a `bigserial` or
+//      `generated always as identity` column creates one with nobody writing a
+//      line for it. Three had been open since 0035, 0062 and 0063:
+//      `gauntlet_run_events_id_seq`, `tournament_match_events_id_seq` and
+//      `tournament_reward_ledger_id_seq`.
+//      A, B and C could not see any of it -- `heldBy` reads
+//      `relkind in ('r','v','m','p')`, and a sequence is `'S'` -- which is the
+//      same one-object-class-over vacuum this file's own header describes for
+//      tables and 0137 for functions. Nothing in this repository has ever
+//      wanted a client sequence grant: every writer of every sequence-owning
+//      table is a SECURITY DEFINER function running as the owner. So the
+//      allowlist is empty ON PURPOSE and any entry added to it is a decision
+//      somebody has to write a reason for.
+//
+//   E. VIEWS, exhaustively, in BOTH directions and including `authenticated`
+//      SELECT. This is the one gap A, B and C leave open by design: B says
+//      `authenticated` SELECT is "the ordinary case on ~100 objects and is
+//      deliberately not enumerated". That is right for a table, whose RLS is
+//      the boundary, and WRONG for a view -- an owner-privileged view (one
+//      without `security_invoker`) bypasses the RLS of everything underneath
+//      it, so its SELECT grant IS the boundary and CLAUDE.md requires it to
+//      carry its own explicit row predicate instead. There are seven, which is
+//      few enough to declare in full, and each entry states which of the two
+//      kinds it is. That claim is CHECKED against `reloptions` rather than
+//      merely written down, so a view that silently loses `security_invoker`
+//      in a later `create or replace` reddens here.
+//
 // A future migration's `create table` inherits all seven privileges and so
 // reddens all three at once, which is the point: the next instance of this will
 // be an object that does not exist yet, and none of the three lists names it.
@@ -85,6 +115,16 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { readdirSync } from 'node:fs';
 import { startTestDb, type TestDb } from './db/harness';
+import {
+	SEQUENCE_PRIVILEGES,
+	sequenceCount,
+	sequencesHeldBy,
+	describeSeq,
+	viewFacts,
+	type SeqHeld,
+	type SequencePrivilege,
+	type ViewFact
+} from './db/grant-sweeps';
 
 /**
  * The whole chain, in file order, over a database carrying the hosted
@@ -344,6 +384,148 @@ const AUTHENTICATED_WRITE_SURFACE: Readonly<Record<string, SurfaceEntry>> = {
 /** Pinned so an entry added silently fails. */
 const AUTHENTICATED_WRITE_SURFACE_SIZE = 21;
 
+// ---------------------------------------------------------------------------
+// D. THE SEQUENCE SURFACE.
+//
+// Empty on purpose. See the header: no migration in this repository has ever
+// granted a client role anything on a sequence, and every one that was open
+// got there through the project's `alter default privileges ... grant all on
+// sequences`. 0203 narrowed the three that had.
+//
+// An entry added here is a real decision and needs a real reason, which is
+// exactly the same bar section A sets for a new anonymous surface. What it
+// would have to argue is that a client role should be able to call `nextval`,
+// `currval` or `setval` DIRECTLY -- not through the definer RPC that owns the
+// table, which runs as the owner and is unaffected by any of this.
+// ---------------------------------------------------------------------------
+
+interface SequenceEntry {
+	/** Exactly the privileges `anon` may hold. Order-insensitive. */
+	readonly anon: readonly SequencePrivilege[];
+	/** Exactly the privileges `authenticated` may hold. Order-insensitive. */
+	readonly authenticated: readonly SequencePrivilege[];
+	readonly reason: string;
+}
+
+const SEQUENCE_SURFACE: Readonly<Record<string, SequenceEntry>> = {};
+
+/** Pinned so an entry added silently fails. Zero is the correct value. */
+const SEQUENCE_SURFACE_SIZE = 0;
+
+// ---------------------------------------------------------------------------
+// E. THE VIEW SURFACE.
+//
+// All seven, both roles, and the security model of each. `ownerPrivileged` is
+// the thing that decides whether the SELECT grant beside it is a convenience
+// or a boundary: a `security_invoker` view adds no reach at all and is filtered
+// by the RLS of its own base tables, while an owner-privileged one bypasses
+// that RLS entirely and has to carry a row predicate in its own body.
+// ---------------------------------------------------------------------------
+
+interface ViewEntry {
+	/** Exactly the table privileges `anon` may hold. Empty on all seven. */
+	readonly anon: readonly Privilege[];
+	/** Exactly the table privileges `authenticated` may hold. */
+	readonly authenticated: readonly Privilege[];
+	/** True when the view has NO `security_invoker` reloption. Checked, not claimed. */
+	readonly ownerPrivileged: boolean;
+	readonly reason: string;
+}
+
+const VIEW_SURFACE: Readonly<Record<string, ViewEntry>> = {
+	coin_balances: {
+		anon: [],
+		authenticated: ['select'],
+		ownerPrivileged: false,
+		reason:
+			'A balance is a sum() over coin_transactions and is never stored (CLAUDE.md, State ' +
+			'modelling). 0096 drops and recreates it `with (security_invoker = true)`, so it adds no ' +
+			'reach of its own: a caller sees exactly the ledger rows coin_transactions\' own RLS ' +
+			'would have shown them, summed. The SELECT grant is therefore a convenience and not a ' +
+			'boundary, which is the whole reason the invoker flag is asserted beside it rather than ' +
+			'described in a comment. 0149 took the inherited writes off it; the SELECT is the one ' +
+			'privilege its own migration asked for.'
+	},
+	coin_contract_status: {
+		anon: [],
+		authenticated: ['select'],
+		ownerPrivileged: true,
+		reason:
+			'OWNER-PRIVILEGED, and that is the decision 0077 section 3 states in its own header: it ' +
+			'exists as a view rather than an RPC precisely so that a student can see how full a ' +
+			'contract is while coin_contract_claims\' own RLS stays narrow. What it projects is a ' +
+			'COUNT and a derived state word, never a claimant -- the aggregate is the row predicate, ' +
+			'so no email, no user id and no per-claim row can come out of it however it is queried. ' +
+			'anon holds nothing: the contract list a signed-out visitor reads is coin_public_contracts, ' +
+			'a definer RPC, which is one of 0137\'s eighteen deliberate public surfaces and is not ' +
+			'this view.'
+	},
+	gauntlet_leaderboard: {
+		anon: [],
+		authenticated: ['select'],
+		ownerPrivileged: true,
+		reason:
+			'OWNER-PRIVILEGED DELIBERATELY, and 0060\'s header is the statement of it: a board that ' +
+			'ran as the invoker would show each student only their own runs, which is a functional ' +
+			'break rather than a narrowing -- the point of a leaderboard is other people\'s rows. The ' +
+			'row predicate is the projection itself: a seat, a display name and a time. 0194 rebuilt ' +
+			'it for the plausibility floor and added `rank_state`, which is the reason it is worth ' +
+			'pinning here -- a `create or replace view` preserves reloptions, so a rebuild cannot ' +
+			'quietly change the security model, and this entry is what would catch it if one did. ' +
+			'anon holds nothing, which 0060 asserted at apply time for exactly this view.'
+	},
+	gauntlet_room_board: {
+		anon: [],
+		authenticated: ['select'],
+		ownerPrivileged: true,
+		reason:
+			'The per-room board, owner-privileged for the same reason as gauntlet_leaderboard and ' +
+			'named in the same sentence of 0060\'s header. 0060 exists because the two room views ' +
+			'were returning rows from rooms the caller was not in: the fix was an explicit row ' +
+			'predicate in the body (the caller must be a participant in, or the host of, the room), ' +
+			'which is what CLAUDE.md requires of an owner-privileged view and what replaces the RLS ' +
+			'it bypasses. anon holds nothing.'
+	},
+	gauntlet_room_roster: {
+		anon: [],
+		authenticated: ['select'],
+		ownerPrivileged: true,
+		reason:
+			'The other half of the same 0060 fix, on the same decision and with the same explicit ' +
+			'room-membership predicate in its body. It is the more sensitive of the pair -- a roster ' +
+			'is a list of people -- which is why the scoping bug it was written to close is worth the ' +
+			'entry. anon holds nothing.'
+	},
+	gauntlet_speedrun_attempt_history: {
+		anon: [],
+		authenticated: ['select'],
+		ownerPrivileged: false,
+		reason:
+			'`security_invoker = true`, set by 0033 at creation and called out approvingly in 0060\'s ' +
+			'header as the one GAUNTLET view that SHOULD have it, "because that one is deliberately ' +
+			'own-rows-only". A student reads their own attempt history and nobody else\'s, and the ' +
+			'thing enforcing that is the RLS on the base table rather than anything in the view. ' +
+			'Losing the flag here would silently turn a private history into a public one with no ' +
+			'other symptom, which is what this entry is for.'
+	},
+	notebook_entry_activity: {
+		anon: [],
+		authenticated: ['select'],
+		ownerPrivileged: false,
+		reason:
+			'`security_invoker = true`, rebuilt at 0129 for the autosave coalescing change. This is ' +
+			'the view section B\'s own comment already singles out: it is AUTO-UPDATABLE ' +
+			'(information_schema reports is_updatable = YES), so before 0149 a client role held ' +
+			'INSERT, UPDATE and DELETE on it by inheritance and only the invoker reloption stood ' +
+			'between that and a write into the notebook. B still asserts no write on any view; this ' +
+			'entry adds the half B does not cover, which is that the SELECT is the only thing left ' +
+			'and the flag that makes it harmless is still set.'
+	}
+};
+
+/** Pinned so an entry added silently fails. */
+const VIEW_SURFACE_SIZE = 7;
+
 const WRITE_PRIVILEGES = ['insert', 'update', 'delete', 'truncate'] as const;
 
 interface Held {
@@ -378,11 +560,15 @@ describe('grant surface: the migrations against the catalog', () => {
 	let db: TestDb;
 	let anonHeld: Held[];
 	let authedHeld: Held[];
+	let seqHeld: SeqHeld[];
+	let views: ViewFact[];
 
 	beforeAll(async () => {
 		db = await startTestDb([FIXTURE_COMPLETION, ...ALL_MIGRATIONS]);
 		anonHeld = await heldBy(db, 'anon');
 		authedHeld = await heldBy(db, 'authenticated');
+		seqHeld = [...(await sequencesHeldBy(db, 'anon')), ...(await sequencesHeldBy(db, 'authenticated'))];
+		views = await viewFacts(db);
 	}, 300_000);
 
 	afterAll(async () => {
@@ -428,6 +614,37 @@ describe('grant surface: the migrations against the catalog', () => {
 	});
 
 	// -----------------------------------------------------------------------
+	// The same guard, one object class over, and section D needs it MORE than
+	// section A needs the one above -- because D's declared list is EMPTY, so
+	// every one of its assertions is an absence over an absence. Without the
+	// `alter default privileges ... grant all on sequences` line in
+	// tests/db/supabase-stub.sql, a sequence created here comes out holding
+	// nothing for `anon`, D passes on a fixture that cannot reproduce the
+	// defect, and the three sequences 0203 narrowed would never have shown up
+	// in the first place.
+	// -----------------------------------------------------------------------
+	it('the fixture carries the hosted default privileges for SEQUENCES too', async () => {
+		await db.sql(`create sequence if not exists public.zz_default_privilege_probe_seq`);
+		try {
+			const { rows } = await db.sql<{ priv: string; held: boolean }>(
+				`select p.priv, has_sequence_privilege('anon', 'public.zz_default_privilege_probe_seq', p.priv) as held
+				   from unnest($1::text[]) as p(priv)`,
+				[[...SEQUENCE_PRIVILEGES]]
+			);
+			const missing = rows.filter((r) => !r.held).map((r) => r.priv);
+			expect(
+				missing,
+				'A sequence created here must inherit USAGE, SELECT and UPDATE for `anon`, the way it ' +
+					'does on a hosted project. If this fails, the `alter default privileges ... grant ' +
+					'all on sequences` line in tests/db/supabase-stub.sql has been moved, narrowed or ' +
+					'lost, and every assertion in section D is vacuous.'
+			).toEqual([]);
+		} finally {
+			await db.sql(`drop sequence if exists public.zz_default_privilege_probe_seq`);
+		}
+	});
+
+	// -----------------------------------------------------------------------
 	// POSITIVE CONTROLS. Every reconciliation below is an ABSENCE assertion, and
 	// an absence assertion over a sweep that swept nothing is green for the
 	// wrong reason. These report the counts the sweep actually saw, so "no
@@ -462,6 +679,21 @@ describe('grant surface: the migrations against the catalog', () => {
 				'authenticated: the fourteen declared write exceptions.'
 			).toBe(AUTHENTICATED_WRITE_SURFACE_SIZE);
 			expect(authedHeld.filter((h) => h.privilege === 'select').length, 'The ordinary case, deliberately not enumerated -- but it must be there.').toBeGreaterThan(50);
+		});
+
+		it('found the sequences and the views it is about to reconcile', async () => {
+			// Section D's declared list is EMPTY and section E's is seven long.
+			// An absence assertion over a sweep that found no objects at all is
+			// green for the wrong reason, so both counts are reported here and
+			// neither section may be read without them.
+			const n = await sequenceCount(db);
+			expect(
+				n,
+				'Measured at 3: gauntlet_run_events_id_seq, tournament_match_events_id_seq and ' +
+					'tournament_reward_ledger_id_seq. Every other key in this schema is a uuid. If this ' +
+					'is 0 the catalog query stopped matching and section D proves nothing.'
+			).toBeGreaterThan(0);
+			expect(views.length, 'Section E declares all of them by name.').toBe(VIEW_SURFACE_SIZE);
 		});
 	});
 
@@ -596,6 +828,160 @@ describe('grant surface: the migrations against the catalog', () => {
 					'the check that still fires on a brand-new object after somebody has added that ' +
 					'object to ANON_SURFACE or AUTHENTICATED_WRITE_SURFACE for a reason that sounded good.'
 			).toEqual([]);
+		});
+	});
+
+	// -----------------------------------------------------------------------
+	// D. Sequences.
+	// -----------------------------------------------------------------------
+	describe('D. what a client role reaches on a SEQUENCE', () => {
+		it('holds nothing this file does not declare, and the declared list is empty', () => {
+			const undeclared = seqHeld.filter((h) => !SEQUENCE_SURFACE[h.name]);
+			expect(
+				undeclared.map(describeSeq),
+				'A sequence privilege is USAGE (nextval), SELECT (currval, last_value) or UPDATE ' +
+					'(setval), and no migration in this repository has ever granted one to a client ' +
+					'role. Every occurrence is inherited from `alter default privileges ... grant all ' +
+					'on sequences`, which a `bigserial` or `generated always as identity` column trips ' +
+					'without anybody writing a line. 0203 narrowed the three that had been open since ' +
+					'0035, 0062 and 0063. Revoke it ' +
+					'in a migration on 0203\'s shape -- `revoke all on sequence ... from public, anon, ' +
+					'authenticated` BY NAME, because `from public` alone removes an entry these ' +
+					'sequences do not have -- or add it to SEQUENCE_SURFACE with the reason a client ' +
+					'should be able to call setval directly. Note the definer RPC that writes the ' +
+					'owning table runs as the OWNER and needs none of this.'
+			).toEqual([]);
+		});
+
+		it('holds exactly the declared privileges on each declared sequence', () => {
+			const drift: string[] = [];
+			for (const [name, entry] of Object.entries(SEQUENCE_SURFACE)) {
+				for (const role of ['anon', 'authenticated'] as const) {
+					const actual = seqHeld
+						.filter((h) => h.name === name && h.role === role)
+						.map((h) => h.privilege)
+						.sort();
+					const expected = [...entry[role]].sort();
+					if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+						drift.push(
+							`${name} (${role}): declared [${expected.join(', ')}], holds [${actual.join(', ')}]`
+						);
+					}
+				}
+			}
+			expect(drift, 'Drift in either direction is a finding, exactly as in A.').toEqual([]);
+		});
+
+		it('declares a non-empty reason for every entry', () => {
+			const thin = Object.entries(SEQUENCE_SURFACE)
+				.filter(([, e]) => e.reason.trim().length < 40)
+				.map(([n]) => n);
+			expect(thin, 'An entry without a real reason is a hole with a line drawn over it.').toEqual(
+				[]
+			);
+		});
+
+		it('pins the list length so an entry added silently fails', () => {
+			expect(
+				Object.keys(SEQUENCE_SURFACE).length,
+				'Zero is the correct value and the only one anybody has ever needed. If this moved, ' +
+					'the entry above it is the thing to read.'
+			).toBe(SEQUENCE_SURFACE_SIZE);
+		});
+	});
+
+	// -----------------------------------------------------------------------
+	// E. Views.
+	// -----------------------------------------------------------------------
+	describe('E. what a client role reaches on a VIEW', () => {
+		it('declares every view in the schema, and declares no view that is gone', () => {
+			const present = views.map((v) => v.name).sort();
+			const declared = Object.keys(VIEW_SURFACE).sort();
+			const undeclared = present.filter((n) => !VIEW_SURFACE[n]);
+			const stale = declared.filter((n) => !views.some((v) => v.name === n));
+			expect(
+				undeclared,
+				'A new view is a new read path, and unlike a table its SELECT grant can be the whole ' +
+					'boundary. Declare it with the reason its migration gives, and say which of the two ' +
+					'kinds it is.'
+			).toEqual([]);
+			expect(
+				stale,
+				'A declared view that no longer exists means this list is describing a surface that is ' +
+					'gone, which is how a reader comes to trust a reason for something nobody can read.'
+			).toEqual([]);
+		});
+
+		it('holds exactly the declared privileges on each view, for both client roles', () => {
+			const drift: string[] = [];
+			for (const [name, entry] of Object.entries(VIEW_SURFACE)) {
+				for (const [role, held] of [
+					['anon', anonHeld],
+					['authenticated', authedHeld]
+				] as const) {
+					const actual = held
+						.filter((h) => h.name === name)
+						.map((h) => h.privilege)
+						.sort();
+					const expected = [...entry[role]].sort();
+					if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+						drift.push(
+							`${name} (${role}): declared [${expected.join(', ')}], holds [${actual.join(', ')}]`
+						);
+					}
+				}
+			}
+			expect(
+				drift,
+				'This is the assertion A and B do not make: B enumerates only WRITES for ' +
+					'`authenticated`, on the stated grounds that its SELECT is the ordinary case on ~100 ' +
+					'objects. For a VIEW it is not ordinary -- an owner-privileged one bypasses the RLS ' +
+					'of every table beneath it -- so all seven are enumerated in both directions.'
+			).toEqual([]);
+		});
+
+		it('agrees with the catalog about which views are owner-privileged', () => {
+			const wrong: string[] = [];
+			for (const v of views) {
+				const entry = VIEW_SURFACE[v.name];
+				if (!entry) continue; // the previous test is the one that reports an undeclared view
+				if (entry.ownerPrivileged !== v.ownerPrivileged) {
+					wrong.push(
+						`${v.name}: declared ownerPrivileged=${entry.ownerPrivileged}, catalog says ${v.ownerPrivileged}`
+					);
+				}
+			}
+			expect(
+				wrong,
+				'`create or replace view` PRESERVES reloptions, so a rebuild cannot change this by ' +
+					'accident -- but a drop-and-recreate can, silently, and an invoker view that ' +
+					'quietly became owner-privileged is a private history turned public with no other ' +
+					'symptom. 0060 is the precedent: it found three GAUNTLET views returning rows from ' +
+					'rooms the caller was not in. Read off `reloptions`, so the entry beside it cannot ' +
+					'be merely a claim.'
+			).toEqual([]);
+		});
+
+		it('grants `anon` nothing on any view, with no exceptions', () => {
+			const found = anonHeld.filter((h) => h.kind === 'v' || h.kind === 'm');
+			expect(
+				found.map(describeHeld),
+				'Every public surface in this codebase is a definer RPC that projects the address and ' +
+					'the identity away inside the database -- CLAUDE.md: "A public surface over an ' +
+					'email-keyed schema uses `anon`-granted RPCs ... never a table grant, never a ' +
+					'`security_invoker` view." A view here would be the second way in.'
+			).toEqual([]);
+		});
+
+		it('declares a non-empty reason for every entry', () => {
+			const thin = Object.entries(VIEW_SURFACE)
+				.filter(([, e]) => e.reason.trim().length < 40)
+				.map(([n]) => n);
+			expect(thin).toEqual([]);
+		});
+
+		it('pins the list length so an entry added silently fails', () => {
+			expect(Object.keys(VIEW_SURFACE).length).toBe(VIEW_SURFACE_SIZE);
 		});
 	});
 
