@@ -1,7 +1,10 @@
 # 11 Mr. Cosso: Unit 1 checkpoints need the mechanism image and problem statement
 - Raised: 2026-08-31  By: chat "Managing multiple FRC platform projects"
-- Status: open
-- Decision:
+- Status: withdrawn 2026-09-12. Stale.
+- Decision: 2026-09-12, Mr. Pina: forget it. It is stale. Closed.
+- Note: closed by editing this file and not by deleting it, per this directory's
+  own rule -- a removed entry answers "was this ever raised" wrongly. It was
+  raised, it went stale, and that is the answer.
 - Default this assistant would pick: Not a decision for a session; recorded here so it stops being lost, and routed to an IDEA209H materials chat.
 - Why it is blocked on him: It is a materials fix to the spec, which is authored in chat and published by hand, not app work a session can pick up.
 - What it unblocks: An IDEA209H materials chat.

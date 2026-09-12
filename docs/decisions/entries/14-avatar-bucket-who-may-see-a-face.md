@@ -1,7 +1,22 @@
 # 14 The avatars bucket is closed to strangers; who may see whose face is still open
 - Raised: 2026-09-05  By: prompt 0052, `claude/avatar-bucket-exposure-wa1f7b`
-- Status: open
-- Decision:
+- Status: decided 2026-09-12. KEEP. Nothing is owed and nothing is built.
+- Decision: 2026-09-12, Mr. Pina: keep the photos. Anyone signed in sees anyone's
+  photo. His reasoning, in his terms: it makes students responsible for what they
+  upload.
+- What this settles: the tier is DELIBERATE, which is the one outcome this entry's
+  own default priced at "one line in `CLAUDE.md` recording that the tier is
+  deliberate". 0181 stands exactly as shipped -- the bucket private, one read
+  policy `to authenticated`, every avatar through `/api/avatar/<key>` -- and
+  nothing narrows. It answers three of the four questions below: the GAUNTLET
+  leaderboard keeps showing faces; a student may upload a photograph of themselves,
+  and the responsibility for it is theirs; and there is no section-scoped
+  visibility.
+- Still open: question 4 alone, and it is NOT closed by this. What happens to a
+  face when a student leaves is a retention question rather than a visibility one,
+  and his answer is about who may see a face. Nothing in the schema expires an
+  object. It is left below rather than promoted to its own entry, because nobody
+  has raised it as a decision in its own right.
 - Default this assistant would pick: keep 0181 as shipped -- the bucket private, one read
   policy `to authenticated`, every avatar asked for through `/api/avatar/<key>` -- and
   treat the remaining question (which signed-in people may see which student's face)

@@ -114,8 +114,22 @@ export default {
 		/* The orientation popover is closed until its control is pressed. */
 		{ selector: '.orient', label: 'the standard-view list, closed', expectPresent: 0 },
 		/* Six features plus Materials plus Standard Parts. A count, not a
-		   presence check: a tree that renders one row looks fine to a selector. */
-		{ selector: '.tree button', label: 'FeatureManager rows', expectPresent: 8, expectVisible: 8 },
+		   presence check: a tree that renders one row looks fine to a selector.
+		   The BODY'S STATIONS ARE CHILD ROWS AND START COLLAPSED (0171), which is
+		   measured rather than preferred: expanded, the four station rows pushed
+		   Materials and Standard Parts past the fold of a 514.6px pane, and this
+		   container's Chromium paints OVERLAY scrollbars -- the pane's offsetWidth
+		   and clientWidth differ by its 1px border and nothing else -- so two rows
+		   0145 PART 5 names were invisible with no cue at all. */
+		{ selector: '.tree [role="treeitem"]', label: 'FeatureManager rows', expectPresent: 8, expectVisible: 8 },
+		{ selector: '.tree button', label: 'FeatureManager rows and the body’s expander', expectPresent: 9, expectVisible: 9 },
+		/* The stations, ABSENT, with the expander present beside them as the
+		   positive control that the tree rendered at all. */
+		{ selector: '.tree .child', label: 'the body’s station rows, collapsed', expectPresent: 0 },
+		{ selector: '.tree .twist', label: 'the body’s expander', expectPresent: 1, expectVisible: 1 },
+		/* The PropertyManager is not open on this state, which is what makes the
+		   `footer button` pair below the only confirm pair on screen. */
+		{ selector: '[data-testid="ideacad-property-manager"]', label: 'the PropertyManager, closed', expectPresent: 0 },
 		{ selector: '.viewport nav button', label: 'view toolbar controls', expectPresent: 5, expectVisible: 5 },
 		{ selector: '.readouts .metric', label: 'rule readouts and the centre of mass', expectPresent: 5, expectVisible: 5 },
 		/* The gate, as an ABSENCE with its own positive control beside it: the
@@ -130,7 +144,8 @@ export default {
 		{ selector: '.readouts .metric span', label: 'a readout label on the rail ground', min: 4.5 },
 		{ selector: '.readouts .metric strong', label: 'a readout value on the rail ground', min: 4.5 },
 		{ selector: '.readouts .metric b', label: 'the PASS word on the rail ground', min: 4.5 },
-		{ selector: '.tree button', label: 'a FeatureManager row', min: 4.5 },
+		{ selector: '.tree [role="treeitem"]', label: 'a FeatureManager row', min: 4.5 },
+		{ selector: '.tree .why', label: 'the sentence saying what the tree does not offer', min: 4.5 },
 		{ selector: '.eyebrow', label: 'the IDEACAD / BLADE eyebrow', min: 4.5 },
 		{ selector: '.save', label: 'the saved-state word', min: 4.5 },
 		/* Over the viewport ground rather than the rail's: the triad and the view
@@ -145,6 +160,7 @@ export default {
 		{ selector: '.viewport nav button', label: 'a view toolbar control' },
 		{ selector: '.tree button', label: 'a FeatureManager row' },
 		{ selector: '.concepts button', label: 'a concept strip control' },
+		{ selector: 'header .hist', label: 'Undo and Redo' },
 		{ selector: 'footer button', label: 'Accept and Cancel' }
 	]
 };
