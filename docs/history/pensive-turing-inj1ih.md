@@ -185,7 +185,26 @@ transports, the concepts, the active concept and the prediction down, and ledger
 
 **`store.ts` was not on `origin/integration` when this branch was cut** -- a sweep of
 every remote ref found no such file anywhere -- so this bundle built against the
-transports' own shapes and invented no second store, per its prompt.
+transports' own shapes and invented no second store, per its prompt. **It landed
+while this bundle was running**, as `codex/build-state-layer-in-store.ts` (PR #93,
+ledger 0170), and is on the merged tree here. **The two halves fit**:
+`IdeacadStoreState` exposes `concepts`, `activeConceptId`, `prediction`, `config`
+and a `phase`, which is exactly the set `BladeEditor` takes. What the mount site
+owes is a field rename and nothing more -- 0170's `IdeacadPredictionRow` is
+`{ predicted_concept_id, rationale, made_at }` against this component's
+`{ conceptId, rationale, at }` -- and the rename belongs at the mount rather than in
+the component, for the same reason the `concepts` prop is not a row shape either: a
+presentation component takes state via props and does not learn the database's
+column names. `phase` is what should drive the header's save word, which is a literal
+here because nothing writes.
+
+**The merged tree's counts region was regenerated rather than resolved by hand**,
+which is the procedure `tools/browser-verify/README.md` states for exactly this
+conflict: it is a pure function of the tree, so it produces the merged tree's own
+answer whatever either side wrote. The store then reads 199 specs, 398 runs, 7022
+measurements, **0 outside threshold** -- the one finding this bundle's own pre-merge
+run carried (`/dev/presence?presence=off`) is gone because ledger 0172 re-measured
+that spec on `integration`.
 
 **A `readOnly` teacher can open the PropertyManager and read it.** That is role
 parity rather than an oversight: one component, gated by `readOnly` and by which
