@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "ideacad-team-role-viewer.mjs",
+	"date": "2026-09-12T22:49:28.956Z",
+	"sha": "3467bd632f995cc6f14e6a6af99d7a902eea8a31",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 38,
+	"outsideRows": [],
+	"ms": 4819
+}
