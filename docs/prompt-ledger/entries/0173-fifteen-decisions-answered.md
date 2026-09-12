@@ -5,7 +5,7 @@
 - Owns: `docs/decisions/entries/**`, `docs/prompt-ledger/entries/0173-*`, and its own
   `docs/history/` entry. NO MIGRATION. NO FILE UNDER `src/`, no test, no workflow.
 - Migration permitted: no. Claims: none.
-- Status: issued
+- Status: pushed
 - Branch: `claude/charming-noether-orxz1v`, branched from `origin/integration` at `eef6e85`
 - Notes: Mr. Pina answered fifteen open decisions on 2026-09-12. This bundle RECORDS
   them: `- Status:` set and `- Decision:` written in HIS words, not the session's, with
@@ -64,8 +64,14 @@ nothing to confirm and ledger 0114's gate-4 substitution applies as written.
 **Baselines, read off `origin/integration` at branch time**, before any edit: full
 suite **405 files / 7819 tests / 0 failures** in 365.8s, and `svelte-check` **0 errors
 / 38 warnings / 21 files** (32 `state_referenced_locally`, 5 `css_unused_selector`,
-1 `perf_avoid_nested_class`). Both re-run after the edits and unchanged -- which is
-the expected answer, since nothing outside `docs/` was touched.
+1 `perf_avoid_nested_class`). Both re-run after the edits: suite **405 / 7819 / 0** in
+374.2s, `svelte-check` **0 / 38 / 21** with the same 32/5/1 breakdown. Unchanged in
+both, which is the expected answer since nothing outside `docs/` was touched.
+
+**`main` and `integration` went level at `01723427` while this bundle ran** -- ledger
+0172's presence heartbeat landed on `main` -- so the branch point `eef6e85` is now an
+ancestor of both and `git diff --name-only eef6e85 origin/main` is EMPTY. There is no
+overlap of any kind with what moved.
 
 **Outcome.** Fifteen entries written. Open decisions go from 8 to 4: 13, and the three
 IdeaCAD entries 24, 25 and 26. Two findings came out of the measuring and are the part
