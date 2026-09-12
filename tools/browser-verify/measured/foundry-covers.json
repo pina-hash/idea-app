@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "foundry-covers.mjs",
-	"date": "2026-09-12T15:42:34.662Z",
-	"sha": "1c29061ab851f4850c21090345cd20ea059d61c9",
-	"dirty": false,
+	"date": "2026-09-12T19:38:01.282Z",
+	"sha": "7a8331499ab901cb6799bd12f076a3d2ecc2a98f",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 44,
 	"outsideRows": [],
-	"ms": 5748
+	"ms": 6464
 }

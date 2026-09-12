@@ -36,6 +36,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 import FoundryGallery from '../../src/lib/foundry/FoundryGallery.svelte';
+import FoundryPage from '../../src/routes/foundry/+page.svelte';
 import FoundryPlayStats from '../../src/lib/foundry/FoundryPlayStats.svelte';
 import {
 	FOUNDRY_PLAY_COVERAGE_NOTE,
@@ -394,5 +395,112 @@ describe('the absence rule, as pure arithmetic', () => {
 		expect(formatPlayStamp('')).toBe('not yet');
 		expect(formatPlayStamp('not a date')).toBe('not yet');
 		expect(formatPlayStamp('2026-08-23T11:02:00Z')).not.toBe('not yet');
+	});
+});
+
+
+/**
+ * THE ROUTE ITSELF, BECAUSE THE GAP BETWEEN THE ROUTE AND THE COMPONENT IS
+ * EXACTLY THE DEFECT THIS BUNDLE FIXES -- AND A MUTATION PROOF SAID SO.
+ *
+ * Every assertion above mounts `FoundryGallery` directly and hands it the two
+ * transports. That proves the component does the right thing with them and
+ * proves NOTHING about whether the route supplies them, which is the whole of
+ * what was wrong: `0204` opened the figures, `/foundry/mine` and
+ * `/foundry/review` had a transport, and this page did not. Deleting the two
+ * props from `src/routes/foundry/+page.svelte` left every test in this file
+ * green, measured -- seven of eight mutants reddened and this was the eighth.
+ *
+ * SO THIS MOUNTS THE REAL ROUTE COMPONENT, not a copy of it and not a grep over
+ * its source. The only thing standing in is `data`, which SvelteKit's load
+ * would supply -- including a `supabase` whose `rpc` RECORDS what it was
+ * called with, so the two RPC NAMES are asserted here rather than being a
+ * string nothing checks. A route that named `foundry_play_counts` twice, or
+ * passed a player id, would be visible.
+ */
+describe('the route hands the detail pane its two reads', () => {
+	let live: Mounted | null = null;
+	afterEach(async () => {
+		await live?.stop();
+		live = null;
+	});
+
+	function routePage() {
+		const calls: { fn: string; args: unknown }[] = [];
+		live = mountInto(FoundryPage as never, {
+			data: {
+				apps: [SUMMARY],
+				selected: DETAIL,
+				playCounts: {},
+				isAdmin: false,
+				supabase: {
+					rpc: async (fn: string, args: unknown) => {
+						calls.push({ fn, args });
+						if (fn === 'foundry_app_play_stats') return { data: TOTALS, error: null };
+						if (fn === 'foundry_my_play_stats') return { data: MINE, error: null };
+						return { data: null, error: null };
+					}
+				}
+			}
+		});
+		return { live: live as Mounted, calls };
+	}
+
+	it('mounts both blocks on the real page, from the real RPC names', async () => {
+		const { live: m, calls } = routePage();
+		await m.settle();
+
+		expect(m.target.querySelectorAll('[data-testid="foundry-play-stats"]')).toHaveLength(1);
+		expect(m.target.querySelectorAll('[data-testid="foundry-my-play-stats"]')).toHaveLength(1);
+		expect(m.one('[data-testid="fdy-plays"]').textContent).toBe('42');
+		expect(m.one('[data-testid="fdy-my-plays"]').textContent).toBe('6');
+
+		const named = calls.map((c) => c.fn).sort();
+		expect(named).toEqual(['foundry_app_play_stats', 'foundry_my_play_stats']);
+	});
+
+	/**
+	 * THE BOUNDARY AT THE ONE PLACE THIS SIDE CAN STATE IT. 0204's personal
+	 * function takes the app and nothing else, so the caller is `auth.uid()` and
+	 * no other student can be named -- and what this side can check is that the
+	 * route sends exactly `p_app_id`. A second key appearing in that payload
+	 * would be the one change here capable of asking a wider question.
+	 */
+	it('sends the app id and nothing else to the personal read', async () => {
+		const { live: m, calls } = routePage();
+		await m.settle();
+		const mine = calls.find((c) => c.fn === 'foundry_my_play_stats');
+		expect(mine).toBeDefined();
+		expect(mine!.args).toEqual({ p_app_id: APP_ID });
+		expect(Object.keys(mine!.args as object)).toEqual(['p_app_id']);
+	});
+
+	/**
+	 * A DEPLOYMENT WITHOUT 0204, DRIVEN THROUGH THE ROUTE'S OWN ERROR HANDLING
+	 * RATHER THAN THROUGH A TRANSPORT THAT RETURNS NULL. PostgREST answers
+	 * `PGRST202` for a function that is not there; the page must render the
+	 * totals it still has and simply carry no personal row.
+	 */
+	it('a PGRST202 on the personal read leaves the page standing', async () => {
+		live = mountInto(FoundryPage as never, {
+			data: {
+				apps: [SUMMARY],
+				selected: DETAIL,
+				playCounts: {},
+				isAdmin: false,
+				supabase: {
+					rpc: async (fn: string) => {
+						if (fn === 'foundry_app_play_stats') return { data: TOTALS, error: null };
+						if (fn === 'foundry_my_play_stats') {
+							return { data: null, error: { code: 'PGRST202', message: 'not found' } };
+						}
+						return { data: null, error: null };
+					}
+				}
+			}
+		});
+		await live.settle();
+		expect(live.target.querySelectorAll('[data-testid="foundry-play-stats"]')).toHaveLength(1);
+		expect(live.target.querySelectorAll('[data-testid="foundry-my-play-stats"]')).toHaveLength(0);
 	});
 });
