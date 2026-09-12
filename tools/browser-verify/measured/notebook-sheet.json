@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "notebook-sheet.mjs",
+	"date": "2026-09-12T22:38:11.295Z",
+	"sha": "031d90157efc9410735bdc1e5e2a3969cb061ca5",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 62,
+	"outsideRows": [],
+	"ms": 8980
+}

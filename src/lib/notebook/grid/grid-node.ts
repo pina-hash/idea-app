@@ -177,6 +177,18 @@ export const NotebookGrid = Node.create({
 					// it would put a document in the editor that cannot be saved
 					// with nothing anywhere saying so.
 					if (gridProblem(grid) !== null) return false;
+					// BOUNDS FIRST, BECAUSE `nodeAt` THROWS RATHER THAN RETURNING
+					// NULL FOR A POSITION OUTSIDE THE DOCUMENT. Measured:
+					// `RangeError: Position 14 outside of fragment`. That is not
+					// a hypothetical -- a commit is dispatched from a cell's BLUR
+					// handler, and a blur races a delete of the grid or of the
+					// content above it, so the position this command is handed
+					// can genuinely be stale by the time it arrives. A throw
+					// there escapes into an event handler and takes the editor
+					// down, which on this surface is a student's note becoming
+					// unreadable. A refusal is the correct answer to a stale
+					// position, and the guard is what makes it one.
+					if (!Number.isInteger(pos) || pos < 0 || pos > tr.doc.content.size) return false;
 					const node = tr.doc.nodeAt(pos);
 					if (!node || node.type.name !== GRID_NODE_NAME) return false;
 					if (dispatch) tr.setNodeAttribute(pos, 'rows', grid.rows);

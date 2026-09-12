@@ -317,13 +317,35 @@
 		overflow-y: visible;
 		scrollbar-gutter: stable;
 		/*
-			AND THE FAR EDGE IS MARKED. A grid wider than its pane is the case
-			ledger 0171 lost rows to; a fade at the trailing edge says there is
-			more without pretending to be a control (CLAUDE.md: "A gradient says
-			there is more; it is not a control"), and the scroller itself keeps its
-			real scrollbar for anyone whose platform paints one.
+			THERE IS NO EDGE FADE HERE, AND THERE WAS ONE. It read
+			`mask-image: linear-gradient(to right, #000 calc(100% - 18px),
+			transparent)` -- a trailing fade meant to say "there is more" in a
+			raster this Chromium paints no scrollbar into (ledger 0186, proven with
+			a magenta-on-green control).
+
+			THE 1440px RASTER IS WHAT KILLED IT. A `mask-image` is unconditional,
+			so with the grid FITTING its pane -- measured, scrollWidth 949 against
+			clientWidth 949 -- the last 18px of the D column were faded anyway. A
+			gradient that says there is more where there is not is worse than no
+			gradient: `CLAUDE.md`'s rule is that a gradient SAYS there is more, and
+			one that says it unconditionally is not saying anything. It also dimmed
+			real content to do it.
+
+			WHAT REPLACES IT IS NOT DECORATION. Reachability is MEASURED rather
+			than hinted at -- `tools/browser-verify/routes/notebook-sheet.mjs`
+			scrolls this element to its far end and counts the cells still outside
+			its box, and hit-tests the sticky row header at the same moment -- and
+			the always-true, always-rasterizable statement of how much grid there
+			is is the `n x m` readout below. The platform's own scrollbar is the
+			affordance for a real viewer; that a screenshot cannot capture it is a
+			limitation of the INSTRUMENT, and building a decorative workaround for
+			an instrument is how a surface acquires a falsehood.
+
+			`scrollbar-gutter: stable` STAYS, and it is the half that was always
+			load-bearing: it reserves the track whether or not anything is painted
+			in it, so the layout does not move when the grid crosses its pane's
+			width.
 		*/
-		mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
 	}
 	.nb-grid-table {
 		border-collapse: collapse;

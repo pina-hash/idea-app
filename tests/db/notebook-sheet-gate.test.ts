@@ -195,6 +195,35 @@ describe('0210 over the notebook note gate', () => {
 	beforeAll(async () => {
 		db = await startTestDb(PRE_CHAIN);
 		student = await createUser(db, 'ramona.pike@boscotech.net', 'Ramona Pike');
+
+		/**
+		 * REAL STORED ROWS, WRITTEN THROUGH THE REAL RPC, so the migration's own
+		 * apply-time survey has something to survey. Without them it counts over
+		 * an empty table and its refusal can never fire, which makes it a
+		 * statement rather than a guard.
+		 *
+		 * THE LAST ONE IS THE ONE THAT MATTERS AND IT LOOKS LIKE A MISTAKE. A
+		 * `{"type":"ul"}` block with NO `items` key is ACCEPTED by the deployed
+		 * gate -- 0078's `<>` trap, which 0122 and 0125 each deliberately
+		 * preserved -- so it is a shape that can genuinely be in production
+		 * today. It is seeded here precisely so that a version of 0210 which
+		 * "tidied" that trap on the way past would be caught by the SURVEY, at
+		 * apply time, against stored rows, and not only by this file's corpus
+		 * comparison. Measured: without this row the survey counts 0 under that
+		 * mutation and applies happily; with it the migration refuses.
+		 */
+		await db.asUser(student.id, async (q) => {
+			const write = (doc: unknown) =>
+				q('select public.notebook_create_note_entry($1::jsonb)', [JSON.stringify(doc)]);
+			await write([{ type: 'p', runs: [{ text: 'a plain stored note' }] }]);
+			await write([{ type: 'ul', items: [[{ text: 'a stored list' }]] }]);
+			await write([
+				{ type: 'p', runs: [{ text: 'nested' }] },
+				{ type: 'ul', items: [[{ text: 'a' }, { type: 'ul', items: [[{ text: 'b' }]] }]] }
+			]);
+			await write([{ type: 'p', runs: [{ text: 'has an itemless list' }] }, { type: 'ul' }]);
+		});
+
 		before = new Map();
 		for (const { label, doc } of CORPUS) before.set(label, await gate(doc));
 	}, 180_000);
@@ -238,7 +267,12 @@ describe('0210 over the notebook note gate', () => {
 	describe('applied over the same database', () => {
 		it('applies without raising, and its own survey counts 0 rows that change answer', async () => {
 			// The file's section 3 raises if any stored revision moves. Reaching
-			// here at all is that survey passing against real seeded rows.
+			// here at all is that survey passing against FOUR real seeded rows,
+			// one of which is the 0078 `<>` shape a careless tidy-up would strand.
+			const { rows } = await db.sql<{ n: string }>(
+				'select count(*)::text as n from public.notebook_entry_notes'
+			);
+			expect(Number(rows[0].n)).toBeGreaterThanOrEqual(4);
 			await expect(db.sql(MIGRATION_0210)).resolves.toBeTruthy();
 		});
 
