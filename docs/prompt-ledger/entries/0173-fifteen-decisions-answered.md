@@ -57,9 +57,15 @@ suffix.
 **Production reachability**, checked before the merge: `https://ideabosco.com/`
 **200** in 0.68s; `https://ideabosco.com/coins/` **308** and
 `https://idea-app-sage.vercel.app/` **308**, both of which are the documented
-redirects. `DEPLOY_PROBE_URL` is UNSET in this container, so the applied set is CANNOT
-SAY and never "applied"; this bundle carries no migration, so gates 4 and 5 have
-nothing to confirm and ledger 0114's gate-4 substitution applies as written.
+redirects.
+
+**Gate 4, verbatim.** `node tools/deploy-probe.mjs --ref origin/integration` exits
+**1** with: `deploy-probe: DEPLOY_PROBE_URL is not set, so production's applied set
+cannot be read. This is "cannot confirm", never "applied".` Both `DEPLOY_PROBE_URL`
+and `IDEA_MIGRATION_URL` are UNSET here. `git diff --name-only
+origin/main...origin/integration -- supabase/migrations/` is EMPTY, so there is
+nothing for gate 4 to prove and gate 5 has no migration to name: ledger 0114's gate-4
+substitution applies exactly as written, and the probe's failure is not a stop.
 
 **Baselines, read off `origin/integration` at branch time**, before any edit: full
 suite **405 files / 7819 tests / 0 failures** in 365.8s, and `svelte-check` **0 errors

@@ -3,6 +3,10 @@
 - Status: decided 2026-09-12. YES, BLOCK. The DECISION is closed; the BUILD is open, see the Build line.
 - Decision: 2026-09-12, Mr. Pina: yes, block. A failing merged suite stops the push
   rather than warning.
+- With the default, not against it: this entry already recommended failing closed on
+  return code 2, so his answer agrees with it. What was missing was never the advice;
+  it was that the signal a gate would read was structurally never green. See the next
+  line.
 - Build: OPEN, and it is still the single-lane bundle this entry already said it
   had to be -- `.github/workflows/integrate.yml` is the file every lane depends on
   to land, so the change runs alone and merges nothing else with it.

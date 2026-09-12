@@ -27,13 +27,21 @@ requires a description NO. 02 the coin ledger test RLS policy REMOVE IT. 23
 link-preview DNS pinning LEAVE AS IS. 11 the Cosso Unit 1 checkpoint image STALE. 21
 the blocking merge gate YES, BLOCK.
 
-Four of those twelve are reversals of this assistant's own stated default: 04 (which
-proposed keeping Recent), 05 (which proposed the narrowing), 07 (which proposed not
-public at all, and which he widened in a second direction the entry had not even
-raised -- a figure proposed for an app's AUTHOR is now owed to every PLAYER about
-themselves), and 21. Each entry names the reversal in an `- Against the default:`
-line, because an entry that silently absorbs a correction is one nobody can later
-read as a correction.
+**Three of those twelve are reversals of this assistant's own stated default** -- 04,
+which proposed keeping Recent; 05, which proposed the narrowing; and 07, which
+proposed not public at all and which he widened in a second direction the entry had
+not even raised, since a figure proposed for an app's AUTHOR is now owed to every
+PLAYER about themselves. Each of the three names the reversal in an
+`- Against the default:` line, because an entry that silently absorbs a correction is
+one nobody can later read as a correction.
+
+**21 is not one of them, and it would have been easy to write it as one.** That entry
+already recommended failing closed -- "THE ORDERING CHANGE PROPOSED ABOVE MUST NOT
+LAND FIRST ... this entry recommends failing closed on return code 2" -- so his "yes,
+block" AGREES with it. What was missing was never the recommendation, it was that the
+signal the gate would read was structurally never green until ledger 0163 fixed the
+missing `svelte-kit sync`. His answer settles the trade the entry priced; it does not
+overturn its advice.
 
 **Two closures are not decisions and are labelled as neither.** 01 closed as
 already-done: `0173_foundry_section_gate_description_and_trust.sql` section 1 shipped
