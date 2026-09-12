@@ -1367,6 +1367,14 @@
 				"phone",
 				"fix"
 			]
+		},
+		{
+			"date": "2026-09-12",
+			"title": "You no longer need a description to publish an app in the Foundry",
+			"body": "Publishing an app needs a name, a thumbnail and the app itself. A description is optional now. Before this, you could not even send an app for review without writing one, which was not the intention. If you have an app that was stuck on that, you can submit it as it is. A description is still worth writing when you have something to say: it is what somebody reading the gallery sees before they open your app.",
+			"tags": [
+				"foundry"
+			]
 		}
 	]
 }

@@ -161,9 +161,15 @@ export function formatPlayers(players: number): string {
 }
 
 /**
- * THE AUTHOR'S ROLL-UP ACROSS EVERY APP THEY HAVE (0173's bundle, decision
- * 07): "owner-only telemetry does not become public; build the owner
- * dashboard instead."
+ * THE AUTHOR'S ROLL-UP ACROSS EVERY APP THEY HAVE.
+ *
+ * IT WAS BUILT UNDER AN ANSWER TO DECISION 07 THAT HAS SINCE BEEN REVERSED,
+ * AND IT SURVIVES THE REVERSAL UNCHANGED. 0173's bundle built it on "owner-only
+ * telemetry does not become public; build the owner dashboard instead"; Mr.
+ * Pina answered decision 07 PUBLIC on 2026-09-12 and 0204 opened all three
+ * metrics. Nothing here had to move, because this was never the gate -- it is
+ * one student's own shelf summarised, and a student wanting that has not
+ * stopped wanting it because the per-app numbers are now public.
  *
  * IT NEEDS NO NEW SQL AND MUST NOT GET ANY. `foundry_play_counts()` already
  * answers plays and 7-day plays for every app in the CALLER'S OWN population,
@@ -176,8 +182,10 @@ export function formatPlayers(players: number): string {
  * figure in the input, so there is none in the output and none that could be
  * widened into one -- the same property the gallery's cards have. `players`,
  * `seconds_played` and `last_played_at` stay where they are, on
- * `foundry_app_play_stats`, which returns NULL to anybody but the author and
- * an admin.
+ * `foundry_app_play_stats`, which since 0204 answers any signed-in caller who
+ * can SEE the app rather than the author and an admin alone. That widening
+ * changed which apps may be asked about and not what comes back, so the
+ * sentence above still holds: counts over apps, never over people.
  *
  * THE COVERAGE NOTE TRAVELS WITH THE FIGURE, zero included, because a zero is
  * exactly when somebody reads a count as "nobody opened it".

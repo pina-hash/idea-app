@@ -533,14 +533,38 @@ show.
     that regresses silently: adding a transport "for consistency" does not throw,
     does not fail a type check and does not look wrong on screen, which is why it
     has a sweep with a positive control.
-  - **NO PER-PLAYER READ OF PLAY DATA EXISTS FOR ANYONE, ADMIN INCLUDED, AND
-    THAT IS TWO INDEPENDENT REFUSALS.** `student_app_plays` has RLS enabled with
-    NO POLICY and NO GRANT to `anon` or `authenticated`; either alone denies
-    every select. There is no function, view, policy or grant that returns a play
-    ROW to any client. The three read paths answer counts and four scalars, never
-    who -- `foundry_app_play_stats` returns NULL for a non-owner, which is the
-    same answer a nonexistent app gives, so an id cannot be probed. What an admin
-    has that an author does not is OTHER APPS, never more detail about one.
+  - **NOBODY READS ANOTHER NAMED STUDENT'S PLAY DATA, ADMIN INCLUDED, AND THAT
+    IS TWO INDEPENDENT REFUSALS.** `student_app_plays` has RLS enabled with NO
+    POLICY and NO GRANT to `anon`, `authenticated` or `service_role`; either
+    alone denies every select. There is no function, view, policy or grant that
+    returns another person's play ROW to any client. **This rule used to say NO
+    PER-PLAYER READ EXISTS FOR ANYONE and that `foundry_app_play_stats` returns
+    NULL for a non-owner. `0204` ended both halves on Mr. Pina's answer to
+    decisions 05 and 07**, and the sentence that replaces them is narrower and
+    is the one to hold on to: **PUBLIC MEANS AGGREGATE.**
+    - **`foundry_app_play_stats` IS GATED ON THE POPULATION NOW, NOT ON THE
+      OWNER.** All three formerly owner-only metrics -- `players`,
+      `seconds_played`, `last_played_at` -- answer any signed-in caller who can
+      see the app. (`plays`, the fourth scalar, was never owner-only;
+      `foundry_play_counts` has answered it since 0139.) **Decision 07's title
+      says "the two owner-only metrics" and there are THREE**, which is the
+      thing to check against before touching this: widening two and leaving one
+      passes every assertion phrased over the object as a whole. The gate is
+      `_foundry_app_in_population(..., true, true)`, so an UNPUBLISHED app is
+      still its author's alone and a HIDDEN one still an admin's, and an app
+      outside the population answers identically to one that does not exist.
+    - **`foundry_my_play_stats(p_app_id)` IS THE ONLY CALLER-SCOPED DOOR AND IT
+      TAKES NO IDENTITY PARAMETER**, so "can only read their own" is a property
+      of the SIGNATURE rather than a check that could be got wrong. A parameter
+      added there is the whole boundary, not a convenience.
+    - **THE n=1 CASE IS ACCEPTED, EXPLICITLY, AND IS NOT TO BE REOPENED.** On an
+      app one person has played, "1 player, last played 3:47pm" identifies when
+      that student played. Mr. Pina was asked precisely this on 2026-09-12 and
+      said it is fine. **Do not add a threshold, a floor or a rounding scheme**;
+      `docs/decisions/entries/07-*` carries the acceptance so the next session
+      does not raise it again.
+    - What an admin has that an author does not is still OTHER APPS, never more
+      detail about one person.
   - **THE RESUME WINDOW IS THE RATE LIMIT, AND IT IS WRITTEN DOWN ONCE** --
     `_foundry_play_window()`, thirty minutes. The START resumes inside it and the
     PING refuses outside it, because they are the same rule about what one
@@ -1142,7 +1166,7 @@ This applies to every change. Prompts do not need to restate it.
 
 **Always:**
 
-- **`svelte-check` at the baseline: 0 errors, 40 warnings in 22 files.** Any
+- **`svelte-check` at the baseline: 0 errors, 38 warnings in 21 files.** Any
   change to either number is a finding to report, not something to leave
   unmentioned.
   - **RE-DERIVE IT, NEVER TRUST THIS LINE ALONE.** `npx svelte-kit sync &&
@@ -1174,9 +1198,18 @@ This applies to every change. Prompts do not need to restate it.
     being trusted rather than measured looks like. **It then said 37 against a
     tree measuring 40**, and ledger 0161 and prompt 0163 each measured 40 in 22
     files independently before either said so -- the same shape a third time,
-    and the drift is entirely `state_referenced_locally`, 31 to 34. **A session
-    that measures a different number CORRECTS THIS LINE in the same change**,
-    and says in its history entry which warning moved.
+    and the drift is entirely `state_referenced_locally`, 31 to 34. **And then
+    it said 40 in 22 against a tree measuring 38 in 21 -- a FOURTH time, and the
+    first in the DOWNWARD direction**, which is the one that matters most: a
+    figure that is too HIGH is a budget a session can spend without noticing,
+    so two real new warnings would have read as the baseline holding. Ledger
+    0176 measured 38 in 21 at 32/5/1, and two lanes after it measured the same
+    before any of them said so. Corrected here by ledger 0177, which re-derived
+    it in a clean `git worktree` at the branch point rather than on its own
+    tree, because a baseline measured on the tree under test is not a baseline.
+    The drift is again entirely `state_referenced_locally`, 34 to 32. **A
+    session that measures a different number CORRECTS THIS LINE in the same
+    change**, and says in its history entry which warning moved.
   - **A FRESH `npm ci` CHECKOUT HAS NO `.svelte-kit`, AND `npm test` REPORTS A
     MISLEADING ROLLDOWN/TSCONFIG ERROR FOR IT.** Vitest's dependency
     optimisation step fails on startup with `[RESOLVE_ERROR] Could not resolve
@@ -1187,8 +1220,8 @@ This applies to every change. Prompts do not need to restate it.
     and the same fresh checkout runs clean. This bites in the same first five
     minutes as the missing-`.env` phantom errors above and for the same root
     cause: nothing has generated the `.svelte-kit` output yet.
-  - The 40 break down as 34 `state_referenced_locally`, 5
-    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 22 files. The
+  - The 38 break down as 32 `state_referenced_locally`, 5
+    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 21 files. The
     breakdown is the diagnostic: it says WHICH kind moved when the total does,
     and a total that holds while the mix changes is still a finding. Read it
     with `npx svelte-check --output human 2>&1 | grep -o "svelte.dev/e/[a-z_]*"

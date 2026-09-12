@@ -39,8 +39,6 @@
 		FOUNDRY_PREVIEW_STORAGE_NOTE,
 		deleteAppCostLine,
 		draftIsSubmittable,
-		foundryCanSubmit,
-		foundryPublishBlockers,
 		metadataIsLive,
 		rollbackTargets,
 		versionIsDeletable,
@@ -376,7 +374,8 @@
 				world rather than about building it.
 
 				THE SAME COMPONENT THE REVIEW INSPECTOR MOUNTS, and the same four
-				scalars: `foundry_app_play_stats` admits the owner and `is_admin()`
+				scalars: since 0204 `foundry_app_play_stats` admits anybody who can
+				see the app; before it, the owner and `is_admin()`
 				and answers both identically. What staff have that a student does not
 				is other people's apps, never more detail about one -- and there is no
 				per-player read for anybody, so "who played it" has no answer here for
@@ -580,14 +579,15 @@
 								{/if}
 
 								{#if v.status === 'draft' && transports.submitVersion}
-									{@const canSend = foundryCanSubmit(app, v)}
-									{@const blockers = foundryPublishBlockers(app)}
+									{@const canSend = draftIsSubmittable(v)}
 									<!--
-										THE CONTROL AND THE HANDLER READ ONE PREDICATE.
-										`foundryCanSubmit` is both clauses -- the upload
-										unpacked, and the app has the description 0173 requires
-										-- so the button and the press cannot disagree about
-										what ready means.
+										THE CONTROL AND THE HANDLER READ ONE PREDICATE, which
+										since 0204 is `draftIsSubmittable` alone: the upload
+										unpacked. The description clause is GONE -- Mr. Pina
+										answered decision 05 on 2026-09-12 and a description is
+										optional, so `foundryCanSubmit` and
+										`foundryPublishBlockers` were deleted rather than left
+										answering one way forever.
 
 										`aria-disabled`, NOT `disabled`, WHERE THERE IS
 										SOMETHING TO EXPLAIN. A genuinely disabled control
@@ -610,21 +610,16 @@
 									>
 										Submit for review
 									</button>
-									{#if !draftIsSubmittable(v)}
+									<!--
+										THE ONE REASON LEFT, and it still says itself rather
+										than leaving a control off with nothing in its place.
+										There is no second branch here any more because there
+										is no second reason: an app with no description is
+										submittable, which is the whole of decision 05's
+										answer.
+									-->
+									{#if !canSend}
 										<span class="fdy-hint">This upload did not finish unpacking.</span>
-									{:else}
-										<!--
-											SAID BEFORE IT REFUSES, which is decision 05's client
-											half in one line: a student reads what is missing and
-											where to fix it, rather than pressing and being told.
-											The sentence is `foundryPublishBlockers`'s, so it
-											cannot drift from the rule the database enforces.
-										-->
-										{#each blockers as blocker (blocker.field)}
-											<span class="fdy-hint fdy-hint-block">
-												{blocker.sentence} {blocker.fix}
-											</span>
-										{/each}
 									{/if}
 								{/if}
 
@@ -1102,15 +1097,12 @@
 		align-items: center;
 	}
 
-	/* A BLOCKING requirement reads differently from a note about a failed
-	   upload: it is something the student can go and fix now, so it takes the
-	   heat ink rather than the muted one and sits on its own line. */
-	.fdy-hint-block {
-		color: var(--fg-heat-ink, var(--text-1));
-		display: block;
-		flex-basis: 100%;
-	}
-
+	/* `.fdy-hint-block` stood here and is deleted with decision 05 (0204): it
+	   styled a BLOCKING requirement, and there is no blocking requirement on
+	   this surface any more. A scoped rule nothing selects is not inert --
+	   Svelte reports it as an unused selector and it moves the project's
+	   warning baseline, which is the number a later session reads to tell a
+	   real regression from noise. */
 	.fdy-hint {
 		font-size: 0.85rem;
 		color: var(--text-2);

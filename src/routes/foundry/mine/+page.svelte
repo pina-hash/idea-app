@@ -126,8 +126,10 @@
 		},
 
 		/**
-		 * `foundry_app_play_stats` for this student's OWN app, which is what the
-		 * function's own gate admits (the owner, or `is_admin()`).
+		 * `foundry_app_play_stats` for this student's own app. Since 0204 the
+		 * function's gate is the POPULATION rather than the owner, so on this
+		 * page -- which lists the caller's own apps -- it admits exactly what it
+		 * always did, including their unpublished drafts.
 		 *
 		 * FOUR SCALARS AND NEVER A ROW. There is no per-player detail to ask for
 		 * and no parameter through which one could be requested; a student

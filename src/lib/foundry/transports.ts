@@ -129,10 +129,11 @@ export interface FoundryMineTransports {
 	/** Re-read one app after a write, so the surface never renders a stale row. */
 	refresh?: (slug: string) => Promise<FoundryApp | null>;
 	/**
-	 * `foundry_app_play_stats` for the student's OWN app. Aggregates only: how
-	 * many plays, how many people, how long, and when last. Never which people
-	 * and never when a named person played -- the function has no shape in
-	 * which it could say.
+	 * `foundry_app_play_stats`. Aggregates only: how many plays, how many
+	 * people, how long, and when last. Never which people and never when a
+	 * named person played -- the function has no shape in which it could say,
+	 * which is what made 0204's widening (decision 07, answered public) a
+	 * change to WHICH APPS may be asked about rather than to what comes back.
 	 */
 	playStats?: FoundryPlayStatsTransport;
 }

@@ -4,7 +4,8 @@
 	 *
 	 * THE AUTHOR MOUNTS IT ON /foundry/mine AND AN ADMIN MOUNTS IT IN THE REVIEW
 	 * INSPECTOR, and they render the IDENTICAL thing -- because they are allowed
-	 * to see the identical thing. `foundry_app_play_stats` admits the owner of
+	 * to see the identical thing. Since 0204 `foundry_app_play_stats` admits
+	 * anybody who can SEE the app (decision 07, answered public), not the owner of
 	 * the app and `is_admin()`, and returns the same four scalars to both. There
 	 * is no staff branch in this file and there must not be one: what an admin
 	 * gets that an author does not is OTHER APPS, never more detail about one.
