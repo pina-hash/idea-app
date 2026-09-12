@@ -75,12 +75,19 @@
   without the node, handed a mirrored document with one, does not throw and
   discards the WHOLE document, paragraphs included (measured).
 
-  Full suite 439 files / 8,382 tests, 0 failures, against a 433 / 8,318 baseline
-  read off `origin/integration` at `7f5ca8f0`. `svelte-check` 0 errors / 37
-  warnings in 20 files (31/5/1), identical before and after, and `CLAUDE.md`
-  states exactly that and is correct for the first time in five corrections -- no
-  edit was needed. Browser pass at 375 and 1440: 62 measurements, 0 outside
-  threshold. Fourteen mutants plus a positive control, four files md5-restored;
-  two survived on the first attempt and both were the mutant's fault, redone and
-  killed. **0210 IS NOT APPLIED** -- no live project is reachable from this
-  container.
+  Full suite **443 files / 8,463 tests, 0 failures**. `svelte-check` 0 errors / 37
+  warnings in 20 files (31/5/1), identical to the baseline re-derived in a clean
+  `git worktree` at the branch point, and **`CLAUDE.md` states exactly that and is
+  correct** -- the first time in five corrections, so no edit was needed and none
+  was made. Browser pass at 375 and 1440: 62 measurements, 0 outside threshold.
+  Fourteen mutants plus a positive control, four files md5-restored; two survived
+  on the first attempt and both were the mutant's fault, redone and killed.
+
+  **THE BRANCH WAS CUT FROM `origin/integration` AT `7f5ca8f0` AND MERGED IT
+  AGAIN AT `20a17d12`**, because ledger 0189 landed `0209_ideacad_history.sql`
+  mid-session. Until it did, `tests/db/migration-0177-tombstone.test.ts` failed on
+  this branch with a hole at 0209 that no ref accounted for -- the exact cost the
+  ledger README names for allocating a number with a gap, and it closed itself the
+  moment 0189's file landed rather than needing anything here.
+
+  **0210 IS NOT APPLIED** -- no live project is reachable from this container.

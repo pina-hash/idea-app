@@ -315,10 +315,14 @@ guidance is decision 08's own "second decision and not a free consequence", and
   both numbers and the breakdown. **`CLAUDE.md` states exactly this and is
   correct**, which is the first time in five corrections it has been; no edit was
   needed and none was made.
-- **Full suite green.** Baseline on `origin/integration` at `7f5ca8f0`:
-  **433 files, 8,318 tests, 0 failures**. (The prompt attributes that figure to
-  `247dfc4a`, which is `main`; integration at `7f5ca8f0` contains it and measures
-  the same.)
+- **Full suite green: 443 files, 8,463 tests, 0 failures.** The baseline read at
+  the branch point, `origin/integration` at `7f5ca8f0`, was **433 files, 8,318
+  tests, 0 failures** -- exactly the figure the prompt gives, which it attributes
+  to `247dfc4a` (that is `main`; integration at `7f5ca8f0` contains it and
+  measures the same). The branch then MERGED `origin/integration` again at
+  `20a17d12`, so the delta is this bundle's three test files plus everything
+  ledgers 0189, 0191 and 0193 landed in between; the baseline is re-derived below
+  at the merged base rather than subtracted.
 - **`npm run verify:browser -- --route notebook-sheet`**: 62 measurements, 0
   outside threshold, both widths. `--probe` first: Chromium 141.0.7390.37,
   screenshots work, rAF fires, `IntersectionObserver` fires, `ResizeObserver`
@@ -329,6 +333,19 @@ guidance is decision 08's own "second decision and not a free consequence", and
 - **`node tools/claude-md-check.mjs`**: agrees with the tree.
 - **Rasterized and looked at**, both widths, which is how the edge-fade defect was
   found -- every content check passed over it.
+
+**AND THE BRANCH HAD TO MERGE `integration` MID-SESSION, WHICH IS WORTH
+RECORDING BECAUSE IT WAS A TEST FAILURE FIRST.** It was cut from `7f5ca8f0`, and
+the router chat allocated `0210` with a deliberate one-number gap because ledger
+0189 was in flight holding `0209`. Until 0189 landed, this branch's migration
+series had a hole at 0209 that no ref could account for, and
+`tests/db/migration-0177-tombstone.test.ts` failed on exactly that -- one failing
+test in an otherwise green suite, for a reason entirely outside this bundle. It
+is the documented cost of allocating a number ahead of the file, and it closed
+itself when `0209_ideacad_history.sql` landed on `origin/integration` at
+`20a17d12`, which this branch then merged. **The right response was to wait and
+merge, never to take 0209 or to edit that test** -- the first would be the
+collision the ledger exists to prevent and the second is a ratchet.
 
 ## What was NOT verified, and why
 
