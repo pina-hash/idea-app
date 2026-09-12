@@ -324,6 +324,26 @@ can read the file.
 other than `postgres`. The connection string from the **Connect** panel is the
 right one.
 
+**`ERROR: must be member of role "pg_database_owner"`** -- the file carries
+`ALTER SCHEMA public OWNER TO pg_database_owner`, and the role you are connected
+as is not a member of it. Nothing was written (`--single-transaction`), so drop
+that one line and run it again:
+
+```
+gunzip -c idea-app-2026-09-12.sql.gz \
+  | grep -v 'OWNER TO pg_database_owner' \
+  | psql -v ON_ERROR_STOP=1 --single-transaction "$URL"
+```
+
+That changes who owns the schema and nothing else -- every table, function and
+policy inside it keeps the owner the file gives it, which is what matters,
+because a `SECURITY DEFINER` function runs as ITS owner.
+
+**`ERROR: role "something" does not exist`** -- a grant in the file names a role
+the new project does not have. Create it with no privileges
+(`create role something nologin noinherit;`) in the SQL editor and restore
+again; the file's own `GRANT` statements then give it exactly what it had.
+
 ### When the nightly run goes red
 
 Open **Actions -> Backup** and read the newest run's summary.

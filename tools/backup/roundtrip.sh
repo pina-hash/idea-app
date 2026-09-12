@@ -241,7 +241,16 @@ psql -d restored -c 'drop schema if exists public cascade' >/dev/null
 # --single-transaction: a restore that stops half way through 127 tables and
 # leaves the rest behind is a database somebody then has to reason about at the
 # worst possible moment. All or nothing.
-gzip -dc "$OUT" | "$BIN/psql" -v ON_ERROR_STOP=1 --single-transaction -q -d restored >/dev/null 2>"$WORK/restore.log" || {
+# `ROUNDTRIP_STRIP_SCHEMA_OWNER=1` runs the artefact through the filter
+# `docs/BACKUP.md` offers for `ERROR: must be member of role
+# "pg_database_owner"`. Offering a workaround nobody has run is how a person
+# ends up following a broken instruction at the worst moment, so the harness can
+# take the same path and every comparison below still has to pass.
+if [ "${ROUNDTRIP_STRIP_SCHEMA_OWNER:-0}" = "1" ]; then
+	echo "restoring through the documented ALTER SCHEMA OWNER filter"
+fi
+gzip -dc "$OUT" | { if [ "${ROUNDTRIP_STRIP_SCHEMA_OWNER:-0}" = "1" ]; then grep -v 'OWNER TO pg_database_owner'; else cat; fi; } \
+	| "$BIN/psql" -v ON_ERROR_STOP=1 --single-transaction -q -d restored >/dev/null 2>"$WORK/restore.log" || {
 	echo "RESTORE FAILED" >&2
 	tail -40 "$WORK/restore.log" >&2
 	exit 1

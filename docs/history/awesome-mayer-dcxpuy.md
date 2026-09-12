@@ -223,6 +223,11 @@ morning). `CLAUDE.md` is corrected in this bundle, as its own rule requires.
 - `tools/backup/roundtrip.sh`: green, five times over, at three data scales.
 - `node tools/backup/drive-upload.mjs --selftest`: 17 assertions green,
   including two negative controls.
+- `ROUNDTRIP_STRIP_SCHEMA_OWNER=1 bash tools/backup/roundtrip.sh`: green. That
+  flag runs the artefact through the `grep -v 'OWNER TO pg_database_owner'`
+  filter `docs/BACKUP.md` offers for one of its troubleshooting cases, so the
+  workaround is one that has been run rather than one that reads plausibly --
+  127 tables, 201 policies and the function ACL hash all still match through it.
 - `node tools/backup/drive-upload.mjs --selftest-transport`: 13 green. The
   network half -- token exchange, the two-step resumable handshake, 3 MB
   arriving byte-identical at the session URL, paging followed to the end, and
