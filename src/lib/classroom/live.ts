@@ -46,6 +46,38 @@
  * that hears `responses` re-runs `loadGrading`, and learns exactly what a poll
  * would have told it.
  *
+ * `presence` IS THE FOURTH, AND IT IS THE SHUT-TABLE CASE AGAIN RATHER THAN
+ * `responses`' ONE -- which is worth saying, because the two arrived one bundle
+ * apart and the obvious reading is that the newer topic follows the newer
+ * precedent. `classroom_presence` (0200) DOES carry a select grant and a select
+ * policy, so unlike the hall pass a client genuinely can read a row: its OWN.
+ * That is exactly the wrong row for a `postgres_changes` subscription, and the
+ * reasons stack rather than compete:
+ *
+ *   1. THE SUBSCRIBER IS THE WRONG PERSON. Realtime delivers a row event only
+ *      to a subscriber who could SELECT that row. The policy admits a student to
+ *      their own row and an instructor to their students' -- so an event stream
+ *      would carry a student their own heartbeats, which they wrote, and nothing
+ *      else. The audience for presence is the instructor, and their subscription
+ *      would be to thirty other people's rows.
+ *   2. IT IS NOT IN THE PUBLICATION, and adding a table to `supabase_realtime`
+ *      is a migration; this bundle's one migration is spent.
+ *   3. A ROW EVENT WOULD BE A SECOND READ PATH, exactly as it would for
+ *      `responses`. `classroom_presence_state` reaches its rows THROUGH the
+ *      roster -- a join to `classroom_enrollments` under a managed posting -- so
+ *      a row whose enrollment is gone is not in the projection. A console
+ *      patching a local copy from raw rows would be drawing a student its own
+ *      read had deliberately left out.
+ *
+ * AND THE NOTICE IS WORTH LESS HERE THAN ANYWHERE ELSE, which is said rather
+ * than left to be discovered. Presence changes on a CLOCK as well as on a
+ * write: a student who closes the tab announces nothing, and the thing an
+ * instructor most wants to see -- somebody going away -- is precisely the
+ * transition no notice can ever be sent for. So the poll is not the floor here,
+ * it is most of the mechanism, and `PRESENCE_POLL_MS` is 30 seconds rather than
+ * `GRADING_POLL_MS`' 60 for that reason. The notice only makes a student
+ * SITTING DOWN immediate.
+ *
  * WHAT IT COSTS, STATED. A broadcast channel is public to any client holding
  * the anon key, so a signed-in student could send notices for a section and
  * make every open page there re-ask the server: one cheap RPC each, answered
@@ -67,12 +99,13 @@
  */
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 
-export type ClassroomLiveTopic = 'hall-pass' | 'song-queue' | 'responses';
+export type ClassroomLiveTopic = 'hall-pass' | 'song-queue' | 'responses' | 'presence';
 
 export const CLASSROOM_LIVE_TOPICS: readonly ClassroomLiveTopic[] = [
 	'hall-pass',
 	'song-queue',
-	'responses'
+	'responses',
+	'presence'
 ];
 
 /**
