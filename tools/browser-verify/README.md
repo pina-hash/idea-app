@@ -25,27 +25,48 @@ is the only writer. Quote the block, never a number from prose, and if prose
 elsewhere in this file carries a count, the block wins.
 
 **There are TWO regions, with two costs and two freshness rules**, and the
-split is what stops this file serialising every branch.
+split is what stops this file serialising every branch. **BOTH ARE A TREE
+READ NOW**: since prompt 0168 the measurement itself lives in
+[`measured/`](measured/), one committed file per route spec, and the measured
+table is the sum over that directory -- so `npm run verify:counts` writes both
+regions in under a second, and the browser is needed only to TAKE a
+measurement, never to render one.
 
 | | Static | Measured |
 | --- | --- | --- |
-| Written by | `npm run verify:counts` | `npm run verify:readme` |
-| Costs | a tree read, under a second | a browser and about six minutes |
-| Run it after | adding or removing a route spec or a `/dev` page, and after resolving a merge here | a deliberate visual pass |
-| Checked against | **this tree, on every `npm test`** | its own data line, and the tree's SPEC FILE LIST |
-| Carries a date and a sha | no, on purpose | yes |
+| Derived from | `routes/*.mjs` and `src/routes/dev` | `measured/*.json`, one file per route spec |
+| Rendered by | `npm run verify:counts` | `npm run verify:counts` -- the same tree read |
+| Filled by | nothing; it is a directory listing | `npm run verify:readme`, a browser and ~17 minutes for the whole tree, seconds for one spec |
+| Rendering costs | a tree read, under a second | a tree read, under a second |
+| Run `verify:readme` after | never; it does not write this | a deliberate visual pass, or adding a route spec |
+| Checked against | **this tree, on every `npm test`** | **`measured/`, on every `npm test`**, plus the tree's SPEC FILE LIST |
+| Carries a date and a sha | no, on purpose | yes, per measurement file |
 
-`npm run verify:counts -- --check` exits non-zero when the static region
-disagrees with the tree; `npm run verify:readme -- --check` runs the harness
-and exits non-zero when either region disagrees with a fresh run.
+`npm run verify:counts -- --check` exits non-zero when either region disagrees
+with the tree; `npm run verify:readme -- --check` runs the harness and exits
+non-zero when either region disagrees with a fresh run.
 `tests/derived-numbers.test.ts` reddens when a route spec landed without
-regenerating the static region, and when a digit in either table was edited by
-hand -- with no browser anywhere in that path.
+regenerating, when the block and `measured/` disagree, and when a digit in
+either table was edited by hand -- with no browser anywhere in that path.
+
+**MEASURING ONE SPEC IS A FIRST-CLASS OPERATION, AND IT IS WHAT A BUNDLE THAT
+ADDED A ROUTE SPEC RUNS:**
+
+```bash
+npm run verify:readme -- --route <your spec>    # seconds, one file written
+```
+
+It writes that spec's file and leaves all 193 others exactly as they were.
+Before 0168 the narrowest thing that could write the measured half was a full
+pass over every route -- the writer threw on anything less -- so adding one
+spec cost about seventeen minutes of browser time to record a number about one
+route.
 
 **THE MEASURED HALF IS ALLOWED TO BE STALE, AND SINCE PROMPT 0046 IT IS NOT
 ALLOWED TO BE STALE AND SAY NOTHING IS THERE.** Those are different things and
-this file used to conflate them. Staleness is the price of keeping a six-minute
-browser run out of `npm test`, and it is fine right up to the moment the block
+this file used to conflate them. Staleness is the price of keeping a
+seventeen-minute browser run out of `npm test`, and it is fine right up to the
+moment the block
 prints `Measurements outside threshold: 0` for a route the run never visited --
 at which point the one generated place a reader consults is telling them a
 finding does not exist. That happened: the spec measuring the classroom spec
@@ -54,10 +75,14 @@ measured at `4dc9df8`, which predates it, and the finding was invisible in this
 file for a day while sitting in a code comment, a route file's prose and a
 ledger entry.
 
-So the measured region records `covered`: the route spec files that run actually
-visited.
+So the measured region records `covered`: the route spec files that have a
+measurement under `measured/`. It is derived from that directory and is
+therefore a second copy of a directory listing, kept deliberately, because
+`tools/idea-status.py` prints this block out of `origin/main` with no access
+to the repository's own files -- a block that dropped `covered` would lose the
+one fact that tool needs to say which routes the numbers are about.
 
-* **A reader compares two rows.** `Route specs the run covered`, in the
+* **A reader compares two rows.** `Route specs measured`, in the
   measured table, against `Route specs`, in the static table directly above
   it. The static region is checked against this tree on every `npm test`, so it
   is the fresh number; if the two differ, every figure in the measured table --
@@ -74,8 +99,9 @@ visited.
   control for each.
 * **`npm run verify:counts` says so too**, because that sub-second command is
   what a bundle that just added a spec runs, and that is the moment the measured
-  half goes stale. It cannot fix it -- it has no browser and no report -- so it
-  prints which specs went unmeasured and stops there.
+  half goes stale. It cannot fix it -- a spec with no measurement file has never
+  been measured and no tree read can invent one -- so it names the specs and
+  prints the `verify:readme -- --route ...` line that measures exactly those.
 
 **WHY IT IS SPLIT, AND WHY THE STATIC REGION CARRIES NO TIMESTAMP.** It was one
 region written by one all-or-nothing run: the generator demanded a measured
@@ -98,8 +124,48 @@ browser:
 npm run verify:counts     # on the merged tree, then commit
 ```
 
-The measured region is untouched by a branch that only adds a spec, so it stops
-appearing in those diffs at all.
+**AND SINCE PROMPT 0168 THAT SENTENCE IS TRUE OF BOTH HALVES, BECAUSE THE
+MEASUREMENT IS A DIRECTORY.** The 2026-09-03 split fixed the STATIC half's
+share of the problem and left the measured half as a single shared write
+point, which went on losing races: on 2026-09-11 it went stale at least four
+times in one day, and two sessions each spent a ~17-minute browser pass on the
+same staleness, one of which was discarded as redundant when another lane
+landed an equivalent pass mid-run.
+
+It failed in the shape nothing warns about -- **green parents, red merge** --
+and `integration` takes no push-triggered CI run, so nobody saw it until a
+landing bundle dispatched one by hand. Two lanes each add a route spec:
+
+* **Neither re-measures.** Both regenerate the static region correctly for
+  their own tree, both write `195`, git takes the identical edit on both sides
+  with no conflict at all, and the merged tree holds `196`. Reproduced on
+  `ebf23dc`: 196 spec files on disk under a region claiming 195.
+* **Both re-measure.** The date, the sha and the covered list differ, the one
+  line conflicts, and `integrate.yml`'s resolver takes the TARGET's side inside
+  the markers -- which throws one lane's seventeen minutes away. Ledger 0147
+  named this: `integration` sat at a measurement claiming zero outside
+  threshold over a set missing first one spec and then two.
+
+So the measurement is `measured/<spec file>.json`, keyed on the filename
+`routes.mjs` already derives from a spec's own `path` and already refuses to
+let two specs share. Two lanes measuring two different specs write two
+different files and share no line, so the merge is **additive** and the merged
+store describes the merged tree by construction. The rendered block is a pure
+function of that directory, so the sub-second command above now resolves both
+halves, and `tests/derived-numbers.test.ts` reddens when the block and the
+directory disagree.
+
+**WHAT THAT DOES NOT FIX, stated here rather than discovered later.** The
+rendered block is still ONE region and is still behind on the merged tree
+until somebody regenerates it. What changed is the cost and the loudness: the
+fix is a tree read rather than a browser pass, nobody's measurement is thrown
+away to get it, and `npm test` says so on the branch instead of the block
+quietly describing a set that is not this tree's. `integrate.yml`'s
+`counts_refresh` already runs `readme-counts.mjs --static` on every merged
+tree, which now rewrites both halves -- but it commits only when the STATIC
+data line also moved, so a merge that moved only the measurement leaves the
+block behind until the next branch's CI says so. Closing that is a change to
+`integrate.yml`, which this directory does not own.
 
 <!-- counts:begin -->
 
@@ -122,22 +188,24 @@ appearing in those diffs at all.
 ### Measured -- from a full harness run
 
 <!-- counts:measured:begin -->
-**Generated by `npm run verify:readme`; do not edit by hand.** Measured 2026-09-12T06:19:17.550Z on commit `05d7055` by a full run of `tools/browser-verify/run.mjs` in this container. It needs a browser and about six minutes, so it is regenerated deliberately and not on every branch; a stale-but-honest measured half is a supported state.
+**Generated by `npm run verify:counts` from `measured/`; do not edit by hand.** Every route spec carries its OWN measurement file there, written by `npm run verify:readme` -- which needs a browser and about seventeen minutes for the whole tree, and seconds for one spec with `-- --route <spec>`. This table is the sum over those files, so it is a tree read like the static region above and costs nothing to regenerate on a merged tree. The newest measurement here was taken on commit `2940ef5` (a working tree was dirty at measurement); measurements were taken between 2026-09-12T05:18:26.073Z and 2026-09-12T05:39:57.552Z. A stale-but-honest measured half is a supported state.
 
-**Is this measured against this tree? Compare `Route specs the run covered` below against `Route specs` in the static region above.** If they differ, every number here -- the outside-threshold count included -- was measured over a different set of routes than this tree has, and a zero is a zero for that set and not for this one. The commit is recorded too, but on its own it is a WEAK signal: a stale measurement's commit is still an ancestor of HEAD and reads as perfectly plausible. `tests/derived-numbers.test.ts` names the unmeasured specs.
+**Is this measured against this tree? Compare `Route specs measured` below against `Route specs` in the static region above.** If they differ, every number here -- the outside-threshold count included -- was measured over a different set of routes than this tree has, and a zero is a zero for that set and not for this one. The commit is recorded too, but on its own it is a WEAK signal: a stale measurement's commit is still an ancestor of HEAD and reads as perfectly plausible. `tests/derived-numbers.test.ts` names the unmeasured specs.
 
 | Count | Value |
 | --- | --- |
-| Route specs the run covered | 196 |
-| Route/width runs the report carried | 392 |
-| Measurements | 6850 |
-| Measurements outside threshold | 0 |
-| Full-run wall clock | 1031.3s |
+| Route specs measured (one file each under `measured/`) | 196 |
+| Route/width runs those measurements cover | 392 |
+| Measurements | 6838 |
+| Measurements outside threshold | 1 |
+| Wall clock, summed from each spec's attributed share | 1045.1s |
 | `--selftest` controls | 70 (36 negative, 34 positive), 0 instrument failure(s) |
 
-No measurement was outside its threshold on that run.
+Measurements outside threshold, by the spec whose file records them:
 
-<!-- counts:measured:data {"schema":2,"date":"2026-09-12T06:19:17.550Z","sha":"05d7055e018abdd04358b4dbd91919b1c50ede1b","dirty":false,"covered":["animated-logo-room.mjs","animated-logo.mjs","assignment-mirror-state-conflict.mjs","assignment-mirror.mjs","attach-reach.mjs","avatars.mjs","check-in-manage.mjs","classroom-deck.mjs","classroom-images.mjs","classroom-inspector-case-assignment-layout-0.mjs","classroom-inspector-case-assignment-layout-1.mjs","classroom-inspector-case-assignment-open-0.mjs","classroom-inspector-case-assignment-open-1.mjs","classroom-inspector-case-assignment-placement-top.mjs","classroom-inspector-case-sparse-open-1.mjs","classroom-interaction-case-fresh.mjs","classroom-interaction-case-typing.mjs","classroom-nav-manage-0.mjs","classroom-nav.mjs","classroom-split-s-1-item-i-crowded-manage-1-state-collapsed.mjs","classroom-split-s-1-item-i-crowded-manage-1.mjs","classroom-split-s-1-manage-1-state-compose-assignment-rubric.mjs","classroom-split-s-1-manage-1-state-selected.mjs","classroom-split-s-1-manage-1-state-units.mjs","classroom-split-s-1-manage-1.mjs","classroom-stream-manage-1.mjs","classroom-tools-live-stalled.mjs","classroom-tools-open-hall-pass-scope-manager.mjs","classroom-tools-open-hall-pass.mjs","classroom-tools-open-song-queue.mjs","classroom-tools.mjs","classroom-upload.mjs","classroom-view-as-notebook.mjs","classroom-view-class-bulk-state-no-units.mjs","classroom-view-class-bulk-state-selected.mjs","classroom-view-class-bulk-student.mjs","classroom-view-class-bulk.mjs","classroom-view-class-teacher.mjs","coin-desk-area-economy.mjs","coin-desk-state-picker.mjs","coin-desk.mjs","coin-preview.mjs","coins-signedin-1.mjs","coins.mjs","composer-attach.mjs","composer-draft.mjs","duplicate-drafts-state-empty.mjs","duplicate-drafts.mjs","feedback-state-dictating.mjs","feedback.mjs","foundry-admin-refusal.mjs","foundry-admin.mjs","foundry-covers.mjs","foundry-forge.mjs","foundry-gallery-state-full-screen.mjs","foundry-gallery.mjs","foundry-submit.mjs","frc-state-review-console.mjs","frc-state-reviewer.mjs","frc-state-student.mjs","frc.mjs","gauntlet-rank-state.mjs","gauntlet-run.mjs","gauntlet-shell-countdown.mjs","gauntlet-shell.mjs","grading-bulk-case-batch.mjs","grading-bulk-leak-1.mjs","grading-bulk-state-single.mjs","grading-bulk.mjs","grading-change-state-pre-0171.mjs","grading-change-state-selected.mjs","grading-change.mjs","grading-incomplete-state-exports.mjs","grading-incomplete.mjs","grading-rubric-state-edited.mjs","grading-rubric.mjs","grading.mjs","greenline-portal-view-garage-seed-approved.mjs","greenline-portal-view-garage-seed-pending-panel-livery.mjs","greenline-portal-view-garage-seed-pending.mjs","greenline-portal-view-garage-seed-rejected.mjs","greenline-portal-view-moderation-seed-pending.mjs","greenline-portal-view-moderation.mjs","greenline-portal.mjs","hall-pass.mjs","home-feed-teacher.mjs","home-feed.mjs","home-order-role-student-classes-0-rows-3.mjs","home-order-role-student-classes-1-rows-3.mjs","home-order-role-student-classes-1-rows-4-due-1-0-1-5.mjs","home-order-role-teacher-classes-1-rows-3.mjs","html-assignment-doc-worksheet.mjs","html-assignment-grading-live-stalled.mjs","html-assignment-grading-state-broken.mjs","html-assignment-grading-state-closed.mjs","html-assignment-grading-state-empty.mjs","html-assignment-grading.mjs","html-assignment.mjs","html-instructor-copy.mjs","html-instructor.mjs","html-progress.mjs","html-rubric-state-graded.mjs","html-rubric-state-single.mjs","html-rubric.mjs","ideacad-role-student-state-compare.mjs","ideacad-role-student-state-three.mjs","ideacad.mjs","instructor-requests.mjs","instructor-tools-class-big-tool-email.mjs","instructor-tools-tool-email.mjs","instructor-tools-tool-picker.mjs","instructor-tools.mjs","item-images-empty.mjs","item-images-text.mjs","item-images.mjs","maps-edit-state-compartment.mjs","maps-edit-state-duplicates.mjs","maps-edit-state-node-pending.mjs","maps-edit-state-place.mjs","maps-edit-state-unit.mjs","maps-edit.mjs","maps-editor-state-compartment.mjs","maps-editor-state-new-room.mjs","maps-editor-state-room.mjs","maps-editor-state-root.mjs","maps-editor.mjs","maps-grants-state-granted.mjs","maps-grants-state-published.mjs","maps-grants.mjs","maps-media-photos.mjs","maps-media.mjs","maps-shelf-state-no-photos.mjs","maps-shelf.mjs","maps-viewer-state-compartment.mjs","maps-viewer-state-item.mjs","maps-viewer-state-room.mjs","maps-viewer-state-stage-end.mjs","maps-viewer-state-stage-unit.mjs","maps-viewer-state-thin-stack.mjs","maps-viewer-state-unit.mjs","maps-viewer.mjs","marks.mjs","navigation-force-1.mjs","navigation-room-nb.mjs","navigation-room.mjs","navigation.mjs","notebook-plate-matrix.mjs","notebook-review-realtime-stalled.mjs","notebook-review-student.mjs","notebook-review-viewer-instructor-nosections-1.mjs","notebook-review-viewer-instructor.mjs","notebook-review-viewer-reviewer.mjs","notebook-review.mjs","notebook-site-matrix.mjs","notebook.mjs","pathways.mjs","portal-admin-owner-1.mjs","portal-admin-used-roster-admins.mjs","portal-admin.mjs","presence-presence-off.mjs","presence.mjs","profile-menu-state-open.mjs","profile-menu.mjs","short-links.mjs","song-queue.mjs","spec-importer-case-assignment.mjs","spec-importer-case-staging.mjs","spec-table-empty-1.mjs","spec-table-open.mjs","spec-table-rows-12.mjs","spec-table.mjs","themes-signedout-1.mjs","themes-state-matrix-room-classroom.mjs","themes-state-matrix-room-foundry.mjs","themes-state-matrix.mjs","themes.mjs","tournament-thumbs.mjs","tournaments-view-host-field-8-state-live-scores-1.mjs","tournaments-view-host-field-8-state-live.mjs","tournaments-view-list-signedin-1-admin-1.mjs","tournaments-view-list-signedin-1.mjs","tournaments-view-list.mjs","tournaments-view-page-field-16-state-live.mjs","tournaments-view-page-field-4-state-live.mjs","tournaments-view-page-field-8-state-live.mjs","tournaments-view-register-team-2.mjs","tournaments-view-team-state-live.mjs","tournaments-view-team-state-open-team-3.mjs","tournaments-view-team-state-open-viewer-host.mjs","tournaments-view-team-state-open.mjs","tournaments-view-tv-status-live-field-4-state-live.mjs","tournaments-view-tv-status-live-field-8-state-live.mjs","tournaments-view-tv-status-live-field-8.mjs","tournaments-view-tv-status-registration-open-field-22.mjs","tournaments.mjs","upload-limits.mjs"],"runsMeasured":392,"measurements":6850,"outside":0,"outsideRows":[],"totalMs":1031324,"selftest":{"controls":70,"negative":36,"positive":34,"failures":0}} -->
+- `/dev/presence?presence=off` @375 `presence` the roster itself, unchanged
+
+<!-- counts:measured:data {"schema":3,"date":"2026-09-12T05:39:57.552Z","sha":"2940ef5327778434c8c6bb05558d8b9e04704c5f","dirty":true,"oldest":"2026-09-12T05:18:26.073Z","covered":["animated-logo-room.mjs","animated-logo.mjs","assignment-mirror-state-conflict.mjs","assignment-mirror.mjs","attach-reach.mjs","avatars.mjs","check-in-manage.mjs","classroom-deck.mjs","classroom-images.mjs","classroom-inspector-case-assignment-layout-0.mjs","classroom-inspector-case-assignment-layout-1.mjs","classroom-inspector-case-assignment-open-0.mjs","classroom-inspector-case-assignment-open-1.mjs","classroom-inspector-case-assignment-placement-top.mjs","classroom-inspector-case-sparse-open-1.mjs","classroom-interaction-case-fresh.mjs","classroom-interaction-case-typing.mjs","classroom-nav-manage-0.mjs","classroom-nav.mjs","classroom-split-s-1-item-i-crowded-manage-1-state-collapsed.mjs","classroom-split-s-1-item-i-crowded-manage-1.mjs","classroom-split-s-1-manage-1-state-compose-assignment-rubric.mjs","classroom-split-s-1-manage-1-state-selected.mjs","classroom-split-s-1-manage-1-state-units.mjs","classroom-split-s-1-manage-1.mjs","classroom-stream-manage-1.mjs","classroom-tools-live-stalled.mjs","classroom-tools-open-hall-pass-scope-manager.mjs","classroom-tools-open-hall-pass.mjs","classroom-tools-open-song-queue.mjs","classroom-tools.mjs","classroom-upload.mjs","classroom-view-as-notebook.mjs","classroom-view-class-bulk-state-no-units.mjs","classroom-view-class-bulk-state-selected.mjs","classroom-view-class-bulk-student.mjs","classroom-view-class-bulk.mjs","classroom-view-class-teacher.mjs","coin-desk-area-economy.mjs","coin-desk-state-picker.mjs","coin-desk.mjs","coin-preview.mjs","coins-signedin-1.mjs","coins.mjs","composer-attach.mjs","composer-draft.mjs","duplicate-drafts-state-empty.mjs","duplicate-drafts.mjs","feedback-state-dictating.mjs","feedback.mjs","foundry-admin-refusal.mjs","foundry-admin.mjs","foundry-covers.mjs","foundry-forge.mjs","foundry-gallery-state-full-screen.mjs","foundry-gallery.mjs","foundry-submit.mjs","frc-state-review-console.mjs","frc-state-reviewer.mjs","frc-state-student.mjs","frc.mjs","gauntlet-rank-state.mjs","gauntlet-run.mjs","gauntlet-shell-countdown.mjs","gauntlet-shell.mjs","grading-bulk-case-batch.mjs","grading-bulk-leak-1.mjs","grading-bulk-state-single.mjs","grading-bulk.mjs","grading-change-state-pre-0171.mjs","grading-change-state-selected.mjs","grading-change.mjs","grading-incomplete-state-exports.mjs","grading-incomplete.mjs","grading-rubric-state-edited.mjs","grading-rubric.mjs","grading.mjs","greenline-portal-view-garage-seed-approved.mjs","greenline-portal-view-garage-seed-pending-panel-livery.mjs","greenline-portal-view-garage-seed-pending.mjs","greenline-portal-view-garage-seed-rejected.mjs","greenline-portal-view-moderation-seed-pending.mjs","greenline-portal-view-moderation.mjs","greenline-portal.mjs","hall-pass.mjs","home-feed-teacher.mjs","home-feed.mjs","home-order-role-student-classes-0-rows-3.mjs","home-order-role-student-classes-1-rows-3.mjs","home-order-role-student-classes-1-rows-4-due-1-0-1-5.mjs","home-order-role-teacher-classes-1-rows-3.mjs","html-assignment-doc-worksheet.mjs","html-assignment-grading-live-stalled.mjs","html-assignment-grading-state-broken.mjs","html-assignment-grading-state-closed.mjs","html-assignment-grading-state-empty.mjs","html-assignment-grading.mjs","html-assignment.mjs","html-instructor-copy.mjs","html-instructor.mjs","html-progress.mjs","html-rubric-state-graded.mjs","html-rubric-state-single.mjs","html-rubric.mjs","ideacad-role-student-state-compare.mjs","ideacad-role-student-state-three.mjs","ideacad.mjs","instructor-requests.mjs","instructor-tools-class-big-tool-email.mjs","instructor-tools-tool-email.mjs","instructor-tools-tool-picker.mjs","instructor-tools.mjs","item-images-empty.mjs","item-images-text.mjs","item-images.mjs","maps-edit-state-compartment.mjs","maps-edit-state-duplicates.mjs","maps-edit-state-node-pending.mjs","maps-edit-state-place.mjs","maps-edit-state-unit.mjs","maps-edit.mjs","maps-editor-state-compartment.mjs","maps-editor-state-new-room.mjs","maps-editor-state-room.mjs","maps-editor-state-root.mjs","maps-editor.mjs","maps-grants-state-granted.mjs","maps-grants-state-published.mjs","maps-grants.mjs","maps-media-photos.mjs","maps-media.mjs","maps-shelf-state-no-photos.mjs","maps-shelf.mjs","maps-viewer-state-compartment.mjs","maps-viewer-state-item.mjs","maps-viewer-state-room.mjs","maps-viewer-state-stage-end.mjs","maps-viewer-state-stage-unit.mjs","maps-viewer-state-thin-stack.mjs","maps-viewer-state-unit.mjs","maps-viewer.mjs","marks.mjs","navigation-force-1.mjs","navigation-room-nb.mjs","navigation-room.mjs","navigation.mjs","notebook-plate-matrix.mjs","notebook-review-realtime-stalled.mjs","notebook-review-student.mjs","notebook-review-viewer-instructor-nosections-1.mjs","notebook-review-viewer-instructor.mjs","notebook-review-viewer-reviewer.mjs","notebook-review.mjs","notebook-site-matrix.mjs","notebook.mjs","pathways.mjs","portal-admin-owner-1.mjs","portal-admin-used-roster-admins.mjs","portal-admin.mjs","presence-presence-off.mjs","presence.mjs","profile-menu-state-open.mjs","profile-menu.mjs","short-links.mjs","song-queue.mjs","spec-importer-case-assignment.mjs","spec-importer-case-staging.mjs","spec-table-empty-1.mjs","spec-table-open.mjs","spec-table-rows-12.mjs","spec-table.mjs","themes-signedout-1.mjs","themes-state-matrix-room-classroom.mjs","themes-state-matrix-room-foundry.mjs","themes-state-matrix.mjs","themes.mjs","tournament-thumbs.mjs","tournaments-view-host-field-8-state-live-scores-1.mjs","tournaments-view-host-field-8-state-live.mjs","tournaments-view-list-signedin-1-admin-1.mjs","tournaments-view-list-signedin-1.mjs","tournaments-view-list.mjs","tournaments-view-page-field-16-state-live.mjs","tournaments-view-page-field-4-state-live.mjs","tournaments-view-page-field-8-state-live.mjs","tournaments-view-register-team-2.mjs","tournaments-view-team-state-live.mjs","tournaments-view-team-state-open-team-3.mjs","tournaments-view-team-state-open-viewer-host.mjs","tournaments-view-team-state-open.mjs","tournaments-view-tv-status-live-field-4-state-live.mjs","tournaments-view-tv-status-live-field-8-state-live.mjs","tournaments-view-tv-status-live-field-8.mjs","tournaments-view-tv-status-registration-open-field-22.mjs","tournaments.mjs","upload-limits.mjs"],"runsMeasured":392,"measurements":6838,"outside":1,"outsideRows":[{"path":"/dev/presence?presence=off","width":375,"check":"presence","label":"the roster itself, unchanged"}],"totalMs":1045066,"selftest":{"controls":70,"negative":36,"positive":34,"failures":0}} -->
 <!-- counts:measured:end -->
 
 <!-- counts:end -->

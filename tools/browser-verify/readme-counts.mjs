@@ -12,8 +12,14 @@
  *                                             disagrees with this tree
  *
  *   npm run verify:readme                     MEASURED half. Runs the harness
- *                                             (~6 minutes, needs a browser)
- *                                             and rewrites that region.
+ *                                             (~17 minutes, needs a browser),
+ *                                             writes one file per spec under
+ *                                             `measured/`, then rewrites BOTH
+ *                                             regions from the tree.
+ *   npm run verify:readme -- --route marks    the same for the specs matching
+ *                                             `marks` alone. Seconds, and it
+ *                                             leaves every other spec's file
+ *                                             untouched.
  *   npm run verify:readme -- --check          run the harness, exit 1 if the
  *                                             committed measured half
  *                                             disagrees with it
@@ -50,10 +56,56 @@
  *
  *   MEASURED runs the report carried, measurements, measurements outside
  *            threshold and their rows, wall clock, `--selftest` controls.
- *            Needs a browser and ~6 minutes, which README.md says at length
- *            must stay outside `npm test` and outside CI. Checked only against
- *            the machine-readable data line the same run wrote beside it, so a
- *            hand-edited digit reddens and a stale-but-honest half does not.
+ *            TAKING the measurement needs a browser and ~17 minutes, which
+ *            README.md says at length must stay outside `npm test` and outside
+ *            CI. RENDERING it does not: since prompt 0168 the region is a pure
+ *            function of `measured/`, one committed file per route spec, so
+ *            `--static` rewrites it too and `npm test` checks it against that
+ *            directory on every run with no browser in the path.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THE MEASUREMENT IS A DIRECTORY AND NOT A LINE (prompt 0168).
+ *
+ * The measured region used to be one JSON blob on one line in README.md,
+ * written only by a report covering every spec in the tree -- `main()` threw
+ * on anything narrower. Two consequences, and both were measured rather than
+ * argued.
+ *
+ * ADDING ONE SPEC COST A FULL PASS. The narrowest thing that could write this
+ * region was ~17 minutes of browser time over 194 routes, to record a number
+ * about one of them. On 2026-09-11 two sessions each spent that pass on the
+ * same staleness and one was discarded as redundant when the other landed
+ * mid-run.
+ *
+ * AND THE ONE LINE LOST RACES, in the shape nothing warns about. Two lanes
+ * that each add a route spec and each regenerate CORRECTLY for their own tree
+ * write the same static number; git takes the identical edit on both sides
+ * with no conflict at all, and the merged tree holds one more spec than the
+ * region claims. Green parents, red merge. When both lanes also re-measure,
+ * the date, the sha and the covered list differ, the line conflicts, and
+ * `integrate.yml`'s resolver takes the TARGET's side inside the markers --
+ * which throws one lane's seventeen minutes away. Ledger 0147 named that
+ * second one: `integration` sat at a measurement claiming zero outside
+ * threshold over a set missing first one spec and then two.
+ *
+ * So the measurement is `measured/<spec file>.json`, ONE FILE PER SPEC, keyed
+ * on the filename `routes.mjs` already derives from the spec's own `path` and
+ * already refuses to let two specs share. Two lanes measuring two different
+ * specs write two different files and share no line, so the merge is ADDITIVE
+ * and the merged store describes the merged tree by construction. It is the
+ * answer `docs/history/` reached for one 35,000-line record and `routes/`
+ * reached for one array's closing bracket, applied to the third shared write
+ * point in this directory.
+ *
+ * WHAT THAT DOES NOT FIX, stated here rather than discovered later: the
+ * RENDERED block is still one region and is still stale on the merged tree
+ * until somebody regenerates it. What changed is the cost and the loudness.
+ * Regenerating is now `npm run verify:counts` -- a tree read, under a second,
+ * no browser -- for BOTH halves rather than a browser pass for one of them,
+ * which is what `integrate.yml`'s `counts_refresh` already runs on every
+ * merged tree; and `verifyMeasured` compares the block against the directory
+ * on every `npm test`, so a block that drifted from its own store is red on
+ * the branch rather than invisible until a reader quotes it.
  *
  * THE STATIC REGION CARRIES NO TIMESTAMP AND NO SHA, DELIBERATELY. A tree read
  * has no measurement instant; a date in it would be a value that changes on
@@ -112,7 +164,7 @@
  * avoid; a warning nobody must act on is how this became invisible in the
  * first place.
  */
-import { readFileSync, writeFileSync, readdirSync, statSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
@@ -133,7 +185,9 @@ import { tmpdir } from 'node:os';
  * @typedef {{ runsMeasured: number, measurements: number, outside: number, outsideRows: OutsideRow[], totalMs: number }} MeasuredCounts
  * @typedef {{ controls: number, negative: number, positive: number, failures: number }} SelfTest
  * @typedef {{ sha: string, dirty: boolean }} Head
- * @typedef {MeasuredCounts & { schema: number, date: string, sha: string, dirty: boolean, covered: string[], selftest: SelfTest | null }} MeasuredData
+ * @typedef {{ schema: number, spec: string, date: string, sha: string, dirty: boolean, widths: number[], runs: number, measurements: number, outsideRows: OutsideRow[], ms: number }} SpecMeasurement
+ * @typedef {{ specs: SpecMeasurement[], selftest: SelfTest | null, orphans: string[] }} Store
+ * @typedef {MeasuredCounts & { schema: number, date: string, sha: string, dirty: boolean, oldest: string, covered: string[], selftest: SelfTest | null }} MeasuredData
  * @typedef {{ runs: { path: string, width: number, results: { check: string, label?: string, withinThreshold: boolean }[] }[], totalMs: number }} Report
  */
 
@@ -156,7 +210,24 @@ const MEASURED_DATA_PREFIX = '<!-- counts:measured:data ';
 const DATA_SUFFIX = ' -->';
 
 export const STATIC_SCHEMA = 1;
-export const MEASURED_SCHEMA = 2;
+export const MEASURED_SCHEMA = 3;
+export const SPEC_SCHEMA = 1;
+
+/**
+ * The measurement store: one file per route spec, named exactly as its spec
+ * file under `routes/` is. `_`-prefixed entries are metadata and not specs,
+ * the same escape hatch `routes/_shared.mjs` uses; `_selftest.json` is the
+ * one of them, and it carries no clock and no sha so that two lanes running
+ * an unchanged instrument write byte-identical files.
+ */
+export const MEASURED_DIRNAME = 'measured';
+export const SELFTEST_FILE = '_selftest.json';
+
+/** @param {string} [root] */
+export const measuredDir = (root = REPO_ROOT) => join(root, 'tools', 'browser-verify', MEASURED_DIRNAME);
+
+/** The store file a spec file's measurement lives in. `foo.mjs` -> `foo.json`. */
+export const measurementFileFor = (/** @type {string} */ specFile) => `${specFile.replace(/\.mjs$/, '')}.json`;
 
 /** The command that rewrites each region. Quoted in every failure message. */
 export const STATIC_SCRIPT = 'npm run verify:counts';
@@ -259,6 +330,198 @@ export function summarizeReport(report) {
 	};
 }
 
+/* ------------------------------------------------------------------------ */
+/* The measurement store: one committed file per route spec.                 */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * A report's runs, grouped by the SPEC FILE each belongs to.
+ *
+ * The mapping is `routes.mjs`'s own `slugify`, imported rather than copied:
+ * a spec's filename is derived from its `path` and `routes.mjs` refuses a
+ * file whose name does not match, so `slugify(run.path) + '.json'` names
+ * exactly one store file and a second implementation of that rule is the pair
+ * that stops matching.
+ *
+ * @param {Report} report
+ * @returns {Promise<Map<string, { runs: Report['runs'], widths: number[], measurements: number, outsideRows: OutsideRow[] }>>}
+ */
+export async function groupReportBySpec(report) {
+	const { slugify } = await import(new URL('./routes.mjs', import.meta.url).href);
+	/** @type {Map<string, { runs: Report['runs'], widths: number[], measurements: number, outsideRows: OutsideRow[] }>} */
+	const bySpec = new Map();
+	for (const run of report.runs) {
+		const file = `${slugify(run.path)}.mjs`;
+		let e = bySpec.get(file);
+		if (!e) {
+			e = { runs: [], widths: [], measurements: 0, outsideRows: [] };
+			bySpec.set(file, e);
+		}
+		e.runs.push(run);
+		if (!e.widths.includes(run.width)) e.widths.push(run.width);
+		e.measurements += run.results.length;
+		for (const r of run.results) {
+			if (!r.withinThreshold) {
+				e.outsideRows.push({ path: run.path, width: run.width, check: r.check, label: r.label ?? '' });
+			}
+		}
+	}
+	for (const e of bySpec.values()) e.widths.sort((a, b) => a - b);
+	return bySpec;
+}
+
+/**
+ * The store as it is on disk: every spec measurement, the selftest record,
+ * and the store files naming a spec this tree no longer has.
+ *
+ * A `readdirSync` and a `JSON.parse`, for `deriveSpecFiles`'s reasons: this is
+ * what `npm test` compares the rendered block against, so it must cost
+ * milliseconds and must not need a browser, a dev server or the route table.
+ *
+ * @param {string} [root]
+ * @returns {Store}
+ */
+export function readStore(root = REPO_ROOT) {
+	const dir = measuredDir(root);
+	/** @type {string[]} */
+	let entries;
+	try {
+		entries = readdirSync(dir);
+	} catch {
+		return { specs: [], selftest: null, orphans: [] };
+	}
+	const tree = new Set(deriveSpecFiles(root));
+	/** @type {SpecMeasurement[]} */
+	const specs = [];
+	/** @type {string[]} */
+	const orphans = [];
+	for (const entry of entries.filter((f) => f.endsWith('.json') && !f.startsWith('_')).sort()) {
+		/** @type {SpecMeasurement} */
+		const m = JSON.parse(readFileSync(join(dir, entry), 'utf8'));
+		// THE FILENAME IS THE KEY AND THE `spec` FIELD MUST AGREE WITH IT. A
+		// file that disagrees was hand-edited or renamed, and a rename is how
+		// one spec's numbers would quietly start standing for another's.
+		if (measurementFileFor(m.spec) !== entry) {
+			throw new Error(
+				`${MEASURED_DIRNAME}/${entry} says it measures ${m.spec}, which belongs in ${measurementFileFor(m.spec)}. A measurement file is named after the spec it measures; rerun \`${MEASURED_SCRIPT} -- --route <that spec>\` rather than renaming one.`
+			);
+		}
+		if (tree.has(m.spec)) specs.push(m);
+		else orphans.push(m.spec);
+	}
+	/** @type {SelfTest | null} */
+	let selftest = null;
+	if (entries.includes(SELFTEST_FILE)) {
+		const raw = JSON.parse(readFileSync(join(dir, SELFTEST_FILE), 'utf8'));
+		selftest = { controls: raw.controls, negative: raw.negative, positive: raw.positive, failures: raw.failures };
+	}
+	return { specs, selftest, orphans };
+}
+
+/**
+ * The measured region's data, derived from the store. A PURE FUNCTION OF THE
+ * TREE, exactly as `deriveStatic` is -- which is what makes `verify:counts`
+ * able to write this region, what makes `npm test` able to check it with no
+ * browser, and what makes regenerating on a merged tree produce the merged
+ * tree's own answer whatever either side had written.
+ *
+ * `date`/`sha` are the NEWEST measurement in the store and `oldest` is the
+ * other end, because a store assembled from a full pass plus two later
+ * single-spec runs has no single measurement instant and claiming one would
+ * be the lie this file exists to prevent.
+ *
+ * @param {string} [root]
+ * @returns {MeasuredData}
+ */
+export function deriveMeasured(root = REPO_ROOT) {
+	const { specs, selftest } = readStore(root);
+	const dates = specs.map((m) => m.date).sort();
+	const newest = specs.slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).at(-1);
+	return {
+		schema: MEASURED_SCHEMA,
+		date: dates.at(-1) ?? '',
+		sha: newest?.sha ?? '',
+		dirty: specs.some((m) => m.dirty),
+		oldest: dates[0] ?? '',
+		covered: specs.map((m) => m.spec).sort(),
+		runsMeasured: specs.reduce((n, m) => n + m.runs, 0),
+		measurements: specs.reduce((n, m) => n + m.measurements, 0),
+		outside: specs.reduce((n, m) => n + m.outsideRows.length, 0),
+		outsideRows: specs.flatMap((m) => m.outsideRows),
+		totalMs: specs.reduce((n, m) => n + m.ms, 0),
+		selftest
+	};
+}
+
+/**
+ * Writes one store file per spec the report covered, and NOTHING for any spec
+ * it did not. That is the whole of what makes a partial re-measure a
+ * first-class operation and a merge additive.
+ *
+ * WHAT IT REFUSES is a spec measured at only SOME of the widths. A file
+ * claiming both widths from a one-width run is the same lie the old
+ * full-pass guard existed to refuse, in a smaller costume, so the check moved
+ * from "is this report the whole tree" to "is every spec in it whole".
+ *
+ * `ms` is an ATTRIBUTION and says so in `measured/README.md`: `run.mjs`
+ * reports one wall clock for the pass, so an equal share is the only honest
+ * per-spec number derivable from it, and the sum over a store written by one
+ * full pass is that pass's wall clock exactly.
+ *
+ * @param {Report} report
+ * @param {{ head: Head, date: string, widths: number[], root?: string }} ctx
+ * @returns {Promise<string[]>} the spec files written, sorted
+ */
+export async function writeStore(report, { head, date, widths, root = REPO_ROOT }) {
+	const bySpec = await groupReportBySpec(report);
+	const dir = measuredDir(root);
+	mkdirSync(dir, { recursive: true });
+	const perSpecMs = bySpec.size ? report.totalMs / bySpec.size : 0;
+	/** @type {string[]} */
+	const written = [];
+	for (const [specFile, e] of [...bySpec].sort(([a], [b]) => a.localeCompare(b))) {
+		const missing = widths.filter((w) => !e.widths.includes(w));
+		if (missing.length) {
+			throw new Error(
+				`the report measured ${specFile} at ${e.widths.join(', ')} but this tree runs ${widths.join(', ')}; a store file claiming a width the run never visited is the same claim the old full-pass guard refused. Rerun \`${MEASURED_SCRIPT}\` without a --width filter.`
+			);
+		}
+		/** @type {SpecMeasurement} */
+		const m = {
+			schema: SPEC_SCHEMA,
+			spec: specFile,
+			date,
+			sha: head.sha,
+			dirty: head.dirty,
+			widths: e.widths,
+			runs: e.runs.length,
+			measurements: e.measurements,
+			outsideRows: e.outsideRows,
+			ms: Math.round(perSpecMs)
+		};
+		writeFileSync(join(dir, measurementFileFor(specFile)), `${JSON.stringify(m, null, '\t')}\n`);
+		written.push(specFile);
+	}
+	return written;
+}
+
+/**
+ * The selftest record. No clock and no sha, for the static region's reason:
+ * an unchanged instrument regenerates to the same bytes, so two lanes that
+ * both ran `--selftest` cannot conflict on it.
+ *
+ * @param {SelfTest} selftest
+ * @param {string} [root]
+ */
+export function writeSelftest(selftest, root = REPO_ROOT) {
+	const dir = measuredDir(root);
+	mkdirSync(dir, { recursive: true });
+	writeFileSync(
+		join(dir, SELFTEST_FILE),
+		`${JSON.stringify({ schema: SPEC_SCHEMA, ...selftest }, null, '\t')}\n`
+	);
+}
+
 const SELFTEST_RE = /(\d+) controls run \((\d+) negative, (\d+) positive\), (\d+) instrument failure\(s\)/;
 
 /**
@@ -271,12 +534,17 @@ export function parseSelftest(stdout) {
 	return { controls: +m[1], negative: +m[2], positive: +m[3], failures: +m[4] };
 }
 
-/** @returns {Report} */
-function runHarnessJson() {
+/**
+ * @param {string[]} [routes] `run.mjs --route` filters; empty is the whole tree
+ * @returns {Report}
+ */
+function runHarnessJson(routes = []) {
 	const dir = mkdtempSync(join(tmpdir(), 'readme-counts-'));
 	const out = join(dir, 'report.json');
 	try {
-		const r = spawnSync(process.execPath, [join(HERE, 'run.mjs'), '--json', out], {
+		const args = [join(HERE, 'run.mjs'), '--json', out];
+		for (const f of routes) args.push('--route', f);
+		const r = spawnSync(process.execPath, args, {
 			cwd: REPO_ROOT,
 			stdio: ['ignore', 'inherit', 'inherit'],
 			env: process.env
@@ -337,16 +605,22 @@ export function assembleStatic(stat) {
 }
 
 /**
- * Everything the measured region carries, in one object.
- * @param {{ measured: MeasuredCounts, selftest: SelfTest | null, head: Head, date: string, covered: string[] }} parts
+ * Everything the measured region carries. `deriveMeasured` is the only
+ * producer now -- the region is a pure function of `measured/` -- so this is
+ * kept as the ONE place that names the region's keys, for the round trip
+ * `tests/derived-numbers.test.ts` drives and for a caller assembling a
+ * hypothetical region without a store on disk.
+ *
+ * @param {{ measured: MeasuredCounts, selftest: SelfTest | null, head: Head, date: string, oldest?: string, covered: string[] }} parts
  * @returns {MeasuredData}
  */
-export function assembleMeasured({ measured, selftest, head, date, covered }) {
+export function assembleMeasured({ measured, selftest, head, date, oldest, covered }) {
 	return {
 		schema: MEASURED_SCHEMA,
 		date,
 		sha: head.sha,
 		dirty: head.dirty,
+		oldest: oldest ?? date,
 		covered: [...covered].sort(),
 		runsMeasured: measured.runsMeasured,
 		measurements: measured.measurements,
@@ -387,24 +661,28 @@ const outsideLine = (o) => `- \`${o.path}\` @${o.width} \`${o.check}\`${o.label 
  * @returns {string}
  */
 export function renderMeasured(c) {
+	const span =
+		c.oldest && c.oldest !== c.date
+			? `between ${c.oldest} and ${c.date}`
+			: `at ${c.date}`;
 	const lines = [
 		MEASURED_BEGIN,
-		`**Generated by \`${MEASURED_SCRIPT}\`; do not edit by hand.** Measured ${c.date} on commit \`${c.sha.slice(0, 7)}\`${c.dirty ? ' (working tree dirty at measurement)' : ''} by a full run of \`tools/browser-verify/run.mjs\` in this container. It needs a browser and about six minutes, so it is regenerated deliberately and not on every branch; a stale-but-honest measured half is a supported state.`,
+		`**Generated by \`${STATIC_SCRIPT}\` from \`${MEASURED_DIRNAME}/\`; do not edit by hand.** Every route spec carries its OWN measurement file there, written by \`${MEASURED_SCRIPT}\` -- which needs a browser and about seventeen minutes for the whole tree, and seconds for one spec with \`-- --route <spec>\`. This table is the sum over those files, so it is a tree read like the static region above and costs nothing to regenerate on a merged tree. The newest measurement here was taken on commit \`${(c.sha || '').slice(0, 7)}\`${c.dirty ? ' (a working tree was dirty at measurement)' : ''}; measurements were taken ${span}. A stale-but-honest measured half is a supported state.`,
 		'',
-		`**Is this measured against this tree? Compare \`Route specs the run covered\` below against \`Route specs\` in the static region above.** If they differ, every number here -- the outside-threshold count included -- was measured over a different set of routes than this tree has, and a zero is a zero for that set and not for this one. The commit is recorded too, but on its own it is a WEAK signal: a stale measurement's commit is still an ancestor of HEAD and reads as perfectly plausible. \`tests/derived-numbers.test.ts\` names the unmeasured specs.`,
+		`**Is this measured against this tree? Compare \`Route specs measured\` below against \`Route specs\` in the static region above.** If they differ, every number here -- the outside-threshold count included -- was measured over a different set of routes than this tree has, and a zero is a zero for that set and not for this one. The commit is recorded too, but on its own it is a WEAK signal: a stale measurement's commit is still an ancestor of HEAD and reads as perfectly plausible. \`tests/derived-numbers.test.ts\` names the unmeasured specs.`,
 		'',
 		'| Count | Value |',
 		'| --- | --- |',
-		`| Route specs the run covered | ${c.covered.length} |`,
-		`| Route/width runs the report carried | ${c.runsMeasured} |`,
+		`| Route specs measured (one file each under \`${MEASURED_DIRNAME}/\`) | ${c.covered.length} |`,
+		`| Route/width runs those measurements cover | ${c.runsMeasured} |`,
 		`| Measurements | ${c.measurements} |`,
 		`| Measurements outside threshold | ${c.outside} |`,
-		`| Full-run wall clock | ${(c.totalMs / 1000).toFixed(1)}s |`,
+		`| Wall clock, summed from each spec's attributed share | ${(c.totalMs / 1000).toFixed(1)}s |`,
 		`| \`--selftest\` controls | ${c.selftest ? `${c.selftest.controls} (${c.selftest.negative} negative, ${c.selftest.positive} positive), ${c.selftest.failures} instrument failure(s)` : 'not run'} |`,
 		'',
 		c.outsideRows.length
-			? 'Measurements outside threshold on that run:'
-			: 'No measurement was outside its threshold on that run.',
+			? 'Measurements outside threshold, by the spec whose file records them:'
+			: 'No measurement in this store was outside its threshold.',
 		...(c.outsideRows.length ? ['', ...c.outsideRows.map(outsideLine)] : []),
 		'',
 		`${MEASURED_DATA_PREFIX}${JSON.stringify(c)}${DATA_SUFFIX}`,
@@ -629,10 +907,10 @@ export function verifyStatic(readme, live) {
  *     that, and it is what the recorded commit is for -- weakly.
  *
  * @param {string} readme
- * @param {{ fresh?: MeasuredData, specFiles?: string[], widths?: number }} [against]
+ * @param {{ fresh?: MeasuredData, specFiles?: string[], widths?: number, store?: MeasuredData }} [against]
  * @returns {string[]}
  */
-export function verifyMeasured(readme, { fresh, specFiles, widths } = {}) {
+export function verifyMeasured(readme, { fresh, specFiles, widths, store } = {}) {
 	/** @type {string[]} */
 	const problems = [];
 	/** @type {{ block: string, data: MeasuredData }} */
@@ -663,8 +941,28 @@ export function verifyMeasured(readme, { fresh, specFiles, widths } = {}) {
 	}
 	if (renderMeasured(data) !== block) {
 		problems.push(
-			`a value in the measured counts table was edited by hand (it no longer renders from its own data line). Do not correct it by hand: rerun \`${MEASURED_SCRIPT}\` (needs a browser, about six minutes).`
+			`a value in the measured counts table was edited by hand (it no longer renders from its own data line). Do not correct it by hand: rerun \`${STATIC_SCRIPT}\`, which rewrites this region from \`${MEASURED_DIRNAME}/\` in under a second.`
 		);
+	}
+	// THE REGION AGAINST ITS OWN STORE (prompt 0168). The block is a pure
+	// function of `measured/`, so this is the merged-tree check the measured
+	// half never had: two lanes that each add a spec and each measure it write
+	// two different store files, git merges both, and the rendered block still
+	// describes whichever side it came from until somebody regenerates. It is
+	// a `readdirSync` and a `JSON.parse` -- no browser anywhere in this path,
+	// which is what lets it run on every `npm test` beside the static check.
+	//
+	// It is a SECOND check and not a replacement: the covered-set rule below
+	// is about the store against the TREE (a spec nobody has measured) and
+	// stays exactly as narrow as it was.
+	if (store) {
+		const a = JSON.stringify(data);
+		const b = JSON.stringify(store);
+		if (a !== b) {
+			problems.push(
+				`the measured counts region disagrees with \`${MEASURED_DIRNAME}/\`, which is what it is derived from. That is what a merge looks like: each side regenerated correctly for its own tree and the union is neither. Rerun \`${STATIC_SCRIPT}\` -- a tree read, under a second, no browser -- and commit the result.`
+			);
+		}
 	}
 	if (!/^[0-9a-f]{7,40}$/.test(data.sha ?? '')) {
 		problems.push(`the measured counts region does not name the commit it was measured on; rerun \`${MEASURED_SCRIPT}\``);
@@ -706,10 +1004,10 @@ export function verifyMeasured(readme, { fresh, specFiles, widths } = {}) {
  * and any future caller cannot disagree about what "the block agrees" means.
  *
  * @param {string} readme
- * @param {{ live?: StaticCounts, fresh?: MeasuredData, specFiles?: string[] }} [against]
+ * @param {{ live?: StaticCounts, fresh?: MeasuredData, specFiles?: string[], store?: MeasuredData }} [against]
  * @returns {string[]}
  */
-export function verifyBlock(readme, { live, fresh, specFiles } = {}) {
+export function verifyBlock(readme, { live, fresh, specFiles, store } = {}) {
 	/** @type {string[]} */
 	const problems = [];
 	const begins = readme.split(COUNTS_BEGIN).length - 1;
@@ -718,7 +1016,7 @@ export function verifyBlock(readme, { live, fresh, specFiles } = {}) {
 		problems.push(`README carries ${begins} ${COUNTS_BEGIN} and ${ends} ${COUNTS_END} markers; exactly one of each is required (tools/idea-status.py reads that envelope)`);
 	}
 	problems.push(...verifyStatic(readme, live));
-	problems.push(...verifyMeasured(readme, { fresh, specFiles, widths: live?.widths.length }));
+	problems.push(...verifyMeasured(readme, { fresh, specFiles, widths: live?.widths.length, store }));
 	return problems;
 }
 
@@ -726,21 +1024,28 @@ export function verifyBlock(readme, { live, fresh, specFiles } = {}) {
 
 /**
  * @param {string[]} argv
- * @returns {{ mode: 'static' | 'measured', check: boolean, from: string | null, selftest: boolean }}
+ * @returns {{ mode: 'static' | 'measured', check: boolean, from: string | null, selftest: boolean, routes: string[] }}
  */
 export function parseArgs(argv) {
-	/** @type {{ mode: 'static' | 'measured', check: boolean, from: string | null, selftest: boolean }} */
-	const o = { mode: 'measured', check: false, from: null, selftest: true };
+	/** @type {{ mode: 'static' | 'measured', check: boolean, from: string | null, selftest: boolean, routes: string[] }} */
+	const o = { mode: 'measured', check: false, from: null, selftest: true, routes: [] };
 	for (let i = 0; i < argv.length; i += 1) {
 		const a = argv[i];
 		if (a === '--static') o.mode = 'static';
 		else if (a === '--check') o.check = true;
 		else if (a === '--from') o.from = argv[++i];
+		else if (a === '--route') o.routes.push(argv[++i]);
 		else if (a === '--no-selftest') o.selftest = false;
 		else throw new Error(`unknown argument ${a}`);
 	}
-	if (o.mode === 'static' && (o.from || !o.selftest)) {
-		throw new Error('--from and --no-selftest are measured-half options; --static runs no harness at all');
+	if (o.mode === 'static' && (o.from || !o.selftest || o.routes.length)) {
+		throw new Error('--from, --route and --no-selftest are measured-half options; --static runs no harness at all');
+	}
+	// A ROUTE FILTER AND `--check` DO NOT COMPOSE, and refusing is the whole
+	// of it: `--check` compares the committed region against a FRESH run, and
+	// a fresh run of two routes is not a thing the region ever claims to be.
+	if (o.check && o.routes.length) {
+		throw new Error('--check compares the committed region against a full fresh run; it does not take --route');
 	}
 	return o;
 }
@@ -757,63 +1062,73 @@ async function main() {
 	const readme = readFileSync(README_PATH, 'utf8');
 
 	/* --------------------------------------------------------------- */
-	/* The static half. No browser, no dev server, no report.           */
+	/* The tree read. No browser, no dev server, no report -- and since  */
+	/* prompt 0168 it writes BOTH regions, because the measured one is   */
+	/* now a pure function of `measured/` exactly as the static one is a */
+	/* pure function of `routes/`. That is what makes ONE sub-second     */
+	/* command the correct resolution for a merge conflict here, for     */
+	/* both halves rather than one, and it is what `integrate.yml`'s     */
+	/* `counts_refresh` already runs on every merged tree.               */
 	/* --------------------------------------------------------------- */
 	if (opts.mode === 'static') {
+		const store = deriveMeasured();
 		if (opts.check) {
-			const problems = verifyStatic(readme, stat);
+			const problems = verifyBlock(readme, { live: stat, specFiles, store });
 			if (problems.length) {
-				console.error('verify:counts --check: the static counts region is stale or edited:');
+				console.error('verify:counts --check: the counts regions are stale or edited:');
 				reportProblems(problems);
 				return 1;
 			}
-			console.log('verify:counts --check: the static counts region agrees with this tree.');
+			console.log('verify:counts --check: both counts regions agree with this tree.');
 			return 0;
 		}
-		const next = spliceRegion(readme, STATIC_REGION, renderStatic(assembleStatic(stat)));
-		const wrote = next !== readme;
-		if (wrote) {
+		const next = spliceRegion(
+			spliceRegion(readme, STATIC_REGION, renderStatic(assembleStatic(stat))),
+			MEASURED_REGION,
+			renderMeasured(store)
+		);
+		if (next !== readme) {
 			writeFileSync(README_PATH, next);
-			console.log(`readme-counts --static: static counts region rewritten in ${README_PATH}`);
-			console.log(`  ${stat.specs} specs over ${stat.routes} routes, ${stat.devPages} /dev pages, ${stat.widths.length} widths, ${stat.runs} runs`);
+			console.log(`readme-counts --static: counts regions rewritten in ${README_PATH}`);
 		} else {
-			console.log(`readme-counts --static: the static counts region was already current (${stat.specs} specs over ${stat.routes} routes, ${stat.devPages} /dev pages, ${stat.runs} runs). Nothing written.`);
+			console.log('readme-counts --static: both counts regions were already this tree\'s own answer. Nothing written.');
 		}
-		// THE STATIC RUN NEVER WRITES THE MEASURED REGION either -- it has no
-		// report and no browser. But this command is exactly what a bundle that
-		// ADDED a spec runs, which is the moment the measured half goes stale,
-		// so it says so here rather than letting `npm test` be the first to
-		// mention it. The mirror of the note at the end of the measured path.
+		console.log(`  static:   ${stat.specs} specs over ${stat.routes} routes, ${stat.devPages} /dev pages, ${stat.widths.length} widths, ${stat.runs} runs`);
+		console.log(`  measured: ${store.covered.length} spec(s) measured, ${store.measurements} measurement(s), ${store.outside} outside threshold`);
+		// THIS COMMAND IS EXACTLY WHAT A BUNDLE THAT ADDED A SPEC RUNS, which
+		// is the moment the measured half goes stale. It cannot fix that -- a
+		// spec with no store file has never been measured and no tree read can
+		// invent one -- so it says which, rather than letting `npm test` be the
+		// first to mention it.
 		reportCoverage(next);
 		return 0;
 	}
 
 	/* --------------------------------------------------------------- */
-	/* The measured half. This is the six-minute one.                   */
+	/* The measured half. The browser one: it takes the measurement and  */
+	/* writes one store file per spec it covered, then derives.          */
 	/* --------------------------------------------------------------- */
-	const report = opts.from ? JSON.parse(readFileSync(opts.from, 'utf8')) : runHarnessJson();
-	const measured = summarizeReport(report);
+	const report = opts.from ? JSON.parse(readFileSync(opts.from, 'utf8')) : runHarnessJson(opts.routes);
+	if (!report?.runs?.length) throw new Error('that report carries no runs at all; there is nothing to record.');
 
-	// WHAT THE RUN COVERED IS DERIVED HERE, FROM THE TREE THE HARNESS JUST RAN
-	// ON, and then checked against the report's own shape. `run.mjs` pushes one
-	// run per spec per width with no branch, so a report whose run count is not
-	// that product came from a FILTERED pass (`--only`) or from a `--from` file
-	// recorded against a different tree. Either way it must not write this
-	// region: a partial report under a full-coverage claim is the same lie in a
-	// smaller costume.
-	const covered = specFiles;
-	const expectedRuns = covered.length * stat.widths.length;
-	if (measured.runsMeasured !== expectedRuns) {
-		throw new Error(
-			`the report carries ${measured.runsMeasured} route/width runs; this tree has ${covered.length} route specs at ${stat.widths.length} widths, which is ${expectedRuns}. That report is not a full pass of this tree, so it must not write the measured region. Rerun \`${MEASURED_SCRIPT}\` with no route filter${opts.from ? ', or drop --from' : ''}.`
-		);
-	}
+	// A FULL PASS IS NO LONGER REQUIRED AND A PARTIAL ONE IS NOT A LIE. The
+	// guard that used to stand here refused any report that was not the whole
+	// tree, because the one-line region it wrote claimed full coverage
+	// whatever it had been handed. The store claims coverage FILE BY FILE, so
+	// a two-route report writes two files and the coverage claim stays true;
+	// what `writeStore` still refuses is a spec measured at only some of the
+	// widths, which is that same lie in a smaller costume.
+	const head = gitHead();
+	const date = new Date().toISOString();
+	const written = await writeStore(report, { head, date, widths: stat.widths });
 
 	const selftest = opts.selftest ? runSelftest() : null;
-	const fresh = assembleMeasured({ measured, selftest, head: gitHead(), date: new Date().toISOString(), covered });
+	if (selftest) writeSelftest(selftest);
+
+	const fresh = deriveMeasured();
 
 	if (opts.check) {
-		const problems = verifyBlock(readme, { live: stat, fresh, specFiles });
+		const problems = verifyBlock(readme, { live: stat, fresh, specFiles, store: fresh });
 		if (problems.length) {
 			console.error('readme-counts --check: the committed counts are stale or edited:');
 			reportProblems(problems);
@@ -823,20 +1138,26 @@ async function main() {
 		return 0;
 	}
 
-	const next = spliceRegion(readme, MEASURED_REGION, renderMeasured(fresh));
+	// BOTH REGIONS, FROM ONE PLACE. The old split had the measured run
+	// deliberately NOT write the static half, so a browser session's commit
+	// carried no static-count diff. That reason is gone: the static half is
+	// now regenerated by the same tree read that renders the measured one, so
+	// writing one without the other would leave the file in a state this
+	// script's own `--check` refuses.
+	const next = spliceRegion(
+		spliceRegion(readme, STATIC_REGION, renderStatic(assembleStatic(stat))),
+		MEASURED_REGION,
+		renderMeasured(fresh)
+	);
 	writeFileSync(README_PATH, next);
-	console.log(`readme-counts: measured counts region rewritten in ${README_PATH}`);
-	console.log(`  ${fresh.runsMeasured} runs, ${fresh.measurements} measurements, ${fresh.outside} outside threshold, ${(fresh.totalMs / 1000).toFixed(1)}s, measured on ${fresh.sha.slice(0, 7)}`);
-
-	// THE MEASURED RUN NEVER WRITES THE STATIC REGION. Two generators, two
-	// regions: a measured run that also rewrote the static half would put a
-	// static-count diff into every browser session's commit, which is the
-	// coupling this split exists to remove. It only says so.
-	const stale = verifyStatic(next, stat);
-	if (stale.length) {
-		console.log('  note: the static counts region is stale on this tree. It is not this run\'s to write:');
-		for (const p of stale) console.log(`    - ${p}`);
-	}
+	console.log(`readme-counts: ${written.length} measurement file(s) written under ${MEASURED_DIRNAME}/, both counts regions rewritten in ${README_PATH}`);
+	console.log(
+		written.length > 6
+			? `  this run measured ${written.length} spec(s): ${written.slice(0, 3).join(', ')} ... ${written.slice(-2).join(', ')}`
+			: `  this run measured: ${written.join(', ')}`
+	);
+	console.log(`  the store now holds ${fresh.covered.length} spec(s), ${fresh.runsMeasured} runs, ${fresh.measurements} measurements, ${fresh.outside} outside threshold, ${(fresh.totalMs / 1000).toFixed(1)}s, newest on ${(fresh.sha || '').slice(0, 7)}`);
+	reportCoverage(next);
 	return 0;
 }
 
@@ -853,15 +1174,22 @@ function reportCoverage(readme) {
 	} catch {
 		return;
 	}
-	const { missing, removed } = unmeasuredSpecs(parsed.data, deriveSpecFiles());
+	const { missing } = unmeasuredSpecs(parsed.data, deriveSpecFiles());
 	if (missing.length) {
-		console.log(`  note: the measured counts region never measured ${missing.length} spec(s) in this tree: ${missing.join(', ')}`);
+		console.log(`  note: ${missing.length} spec(s) in this tree have no measurement under ${MEASURED_DIRNAME}/: ${missing.join(', ')}`);
+		console.log(`        \`${MEASURED_SCRIPT} -- ${missing.map((f) => `--route ${f.replace(/\.mjs$/, '')}`).join(' ')}\` measures just those; it needs a browser and leaves every other spec's file alone.`);
 		if (parsed.data.outside === 0) {
-			console.log(`        and it reports no measurement outside its threshold, which is a claim about a set that is missing them. \`npm test\` reddens on that pair; rerun \`${MEASURED_SCRIPT}\`.`);
+			console.log(`        The region reports no measurement outside its threshold, which is a claim about a set that is missing them. \`npm test\` reddens on that pair.`);
 		}
 	}
-	if (removed.length) {
-		console.log(`  note: the measured counts region covered ${removed.length} spec(s) this tree no longer has: ${removed.join(', ')}`);
+	// AN ORPHAN IS REPORTED AND NEVER FAILED ON, which is the `removed` rule
+	// the one-line region already had, now expressed as a file nobody deleted:
+	// a store covering a SUPERSET of this tree still has a valid zero here, so
+	// refusing would block a bundle that only deleted a spec.
+	const { orphans } = readStore();
+	if (orphans.length) {
+		console.log(`  note: ${MEASURED_DIRNAME}/ holds ${orphans.length} measurement(s) for spec(s) this tree no longer has: ${orphans.join(', ')}`);
+		console.log(`        They are excluded from every number above and are safe to delete.`);
 	}
 }
 
