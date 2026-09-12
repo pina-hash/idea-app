@@ -202,3 +202,87 @@ a spreadsheet.
 Item 5 is unchanged and unanswered: the grid goes INSIDE ProseMirror as a custom
 node or it does not meet his bar, because undo, selection and paste are the bar
 and ProseMirror owns all three.
+
+## The gate is WIDENED and the grid is a PROSEMIRROR NODE (ledger 0192, migration 0210, 2026-09-12)
+
+Items 2 and 5 above are answered. `0210_notebook_note_grid.sql` is the migration
+and `src/lib/notebook/grid/` is the editor half; between them, decision 08's three
+pieces are 0180 (the audit), 0187 (the engine) and this.
+
+### Item 2: the gate, and the text floor decided in writing
+
+`_notebook_note_content_ok` accepts one new block type, `grid`, whose shape is
+`{ "type": "grid", "rows": [["a","b"],["c","d"]] }` -- keys `type` and `rows` and
+nothing else, rectangular, 1..100 rows of 1..20 cells, each cell a STRING of at
+most 500 characters. A cell stores its SOURCE (`=SUM(A1:A3)`), never its computed
+value; the number is derived at render by `$lib/notebook/formula`.
+
+**THE TEXT FLOOR TOOK THE FIRST OF LEDGER 0187'S THREE ANSWERS: a grid's own cell
+text counts toward `v_total`.** So a note whose only content is a materials table
+saves, a table of pure numbers saves (a cell is text, so `12.5` is four
+characters), and a grid whose every cell is empty is still refused -- which is
+0125's stated intent holding rather than being worked around. **The floor line is
+byte-identical to 0125's**; what widened is what FEEDS the total. The other two
+answers were refused for reasons the migration's own header carries: a separate
+has-content term would give the gate two ideas of "is there anything here", and
+requiring a sentence is a product decision nobody asked for and one that fails
+the bar directly.
+
+**WHAT IT DOES TO EVERY NOTE ALREADY STORED IS NOTHING, AND IT IS PROVEN RATHER
+THAN ARGUED.** No stored note can contain a grid (the deployed gate refused one,
+measured by 0180, and the per-block key whitelists refuse one smuggled onto a
+paragraph or a run), so the new branch is unreachable for every existing
+document. The file does not rest on that: it creates the widened gate under a
+TEMPORARY name, compares it against the deployed one row by row at apply time,
+and REFUSES instead of applying if any answer moves. Measured on the harness over
+four real seeded rows: 0 change answer, 0 already hold a grid, sixteen direct
+gate cases answer as expected.
+
+### Item 5: the grid is a ProseMirror node, and the two open questions are settled
+
+**A cell edit is ONE TRANSACTION, not one per keystroke.** A cell being typed
+into lives in the NodeView's own input and reaches the document only on Enter,
+Tab or blur; Escape abandons it. One undo step is one cell edit, which is what
+every spreadsheet does and what the append-only revision chain prefers. It is
+structural rather than a discipline: the schema exposes exactly one write
+command and it replaces the WHOLE grid. The cost, stated: Ctrl+Z *while typing in
+a cell* is the browser's own text undo, because the characters are not in the
+document yet.
+
+**ONE BLOCK OWNS THE WHOLE GRID**, 0195's precedent, with the reason that
+transfers -- a per-cell id in a note would be a join key against
+`notebook_entry_notes`, which is the orphaning 0128's real port produced. The
+node is an `atom` with a single `rows` attribute; through the DOM (the copy/paste
+and `parseDOM` path) that attribute is a JSON string, and `toDOM`/`parseDOM` is
+the one conversion.
+
+Measured in a real browser at 375 and 1440, 62 measurements, none outside
+threshold: a cell commit through the NodeView is exactly one undo step
+(`Angle 1x1 -> EDITED -> Angle 1x1`), the document still holds exactly one grid
+afterwards, every column is reachable by scrolling, no row is clipped below the
+grid's box, and the sticky row header wins a hit test at its own centre after
+scrolling to the far end.
+
+### What is left, and it is smaller than what is done
+
+**The PRODUCER.** The gate widens ALONE and before anything can emit the shape,
+so this bundle deliberately does NOT wire the node into `NoteEditor.svelte`: the
+one path from an editor document into `notebook_entry_notes.content` is
+`$lib/server/rich-text-normalize.ts`, a whitelist translator that does not name a
+grid. The next bundle adds a `NoteGrid` arm to `NoteBlock`, a branch in the
+normalizer, a renderer in `NoteContent.svelte` and the node to the editor's
+extension list -- importing `src/lib/notebook/grid/grid-doc.ts` rather than
+restating the shape. Item 3 above is that bundle's, and it is unchanged: every
+walk carries the new node down, and `richDocText` is shared with the classroom,
+whose gate refuses a grid, so a grid arm there is an opt-in hook and not a new
+branch in the shared walk.
+
+**AND A `draft-mirror` VERSION BUMP, FOR A REASON THAT IS NOT THE OBVIOUS ONE.**
+The mirror's `v: 1` covers its own field set and stores `doc` OPAQUELY, so a grid
+needs no bump to be MIRRORED. It needs one for the ROLLBACK path, and the
+measurement is worse than the throw everybody expects: a build WITHOUT the grid
+node, handed a mirrored document that has one, does not throw -- Tiptap catches
+`RangeError: Unknown node type` internally -- and **discards the WHOLE document**,
+paragraphs included, seeding an empty editor. A student's restored draft would
+come back silently blank. `tests/dom/notebook-sheet-undo.test.ts` pins both
+directions.

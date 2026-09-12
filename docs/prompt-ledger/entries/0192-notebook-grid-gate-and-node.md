@@ -8,7 +8,7 @@
   `docs/decisions/entries/08-*`, `docs/prompt-ledger/entries/0192-*`, and its own
   `docs/history/` entry.
 - Migration permitted: exactly one. Claims: 0210. Highest on origin/main at issue: 0208
-- Status: issued
+- Status: pushed
 - Branch: claude/determined-albattani-16az27 (cut from origin/integration 7f5ca8f0)
 - Notes: THE THIRD AND LAST PIECE of decision 08. Ledger 0180 audited it and
   measured the blocker against real PostgreSQL 17.10; ledger 0187 built the
@@ -43,3 +43,44 @@
   Autosave and conflict need nothing (`EntryNotes.svelte:162` is
   `autosave: false`; `0129`'s coalescing covers the draft path). Follow `0166`'s
   grant shape: revoke from `public, anon, authenticated` BY NAME.
+
+  **OUTCOME.** Landed as three pieces. `supabase/migrations/0210_notebook_note_grid.sql`
+  widens the gate and adds `_notebook_note_grid_len`;
+  `src/lib/notebook/grid/` is the shape's declaration, the ProseMirror node and
+  its NodeView; `/dev/notebook-sheet` plus
+  `tools/browser-verify/routes/notebook-sheet.mjs` is the browser pass.
+
+  **The text floor took ledger 0187's first answer: a grid's own cell text counts
+  toward `v_total`.** A note whose only content is a materials table saves; a grid
+  with every cell empty is still refused, which is 0125's intent holding. The
+  floor line is byte-identical to 0125's -- what widened is what feeds the total.
+
+  **A cell edit is ONE transaction and one block owns the whole grid.** Both are
+  structural: the schema exposes exactly one write command and it replaces the
+  whole grid, and the node is an `atom` with a single `rows` attribute.
+
+  **What every stored note does is nothing, and the file proves it rather than
+  claiming it**: the widened gate is created under a temporary name, compared
+  against the deployed one row by row at apply time, and the migration REFUSES
+  instead of applying if any answer moves. 0 of 4 seeded rows change answer; the
+  fourth is deliberately the 0078 `<>` shape, without which the survey's refusal
+  can never fire (measured both ways).
+
+  **THE PRODUCER IS NOT HERE, deliberately.** `NotebookGrid` is not in
+  `NoteEditor.svelte`'s extension list and `$lib/server/rich-text-normalize.ts`
+  does not name a grid, so nothing in this bundle can write one to the table --
+  which is what makes the gate genuinely alone. The next bundle adds the
+  `NoteBlock` arm, the normalizer branch, the renderer and the editor wiring, and
+  owes a `draft-mirror` `v: 2` for a reason that is NOT the obvious one: a build
+  without the node, handed a mirrored document with one, does not throw and
+  discards the WHOLE document, paragraphs included (measured).
+
+  Full suite 439 files / 8,382 tests, 0 failures, against a 433 / 8,318 baseline
+  read off `origin/integration` at `7f5ca8f0`. `svelte-check` 0 errors / 37
+  warnings in 20 files (31/5/1), identical before and after, and `CLAUDE.md`
+  states exactly that and is correct for the first time in five corrections -- no
+  edit was needed. Browser pass at 375 and 1440: 62 measurements, 0 outside
+  threshold. Fourteen mutants plus a positive control, four files md5-restored;
+  two survived on the first attempt and both were the mutant's fault, redone and
+  killed. **0210 IS NOT APPLIED** -- no live project is reachable from this
+  container.
