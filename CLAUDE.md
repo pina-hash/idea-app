@@ -1142,7 +1142,7 @@ This applies to every change. Prompts do not need to restate it.
 
 **Always:**
 
-- **`svelte-check` at the baseline: 0 errors, 38 warnings in 21 files.** Any
+- **`svelte-check` at the baseline: 0 errors, 37 warnings in 20 files.** Any
   change to either number is a finding to report, not something to leave
   unmentioned.
   - **RE-DERIVE IT, NEVER TRUST THIS LINE ALONE.** `npx svelte-kit sync &&
@@ -1179,7 +1179,11 @@ This applies to every change. Prompts do not need to restate it.
     `6a71eff4` on 2026-09-12 (ledger 0180) -- a FOURTH time, the drift a fourth
     time entirely `state_referenced_locally`, 34 down to 32, and the first time
     it moved DOWNWARDS, which is worth saying because a falling count is the one
-    a session is least likely to read as a finding. **A session
+    a session is least likely to read as a finding. **It then said 38 in 21
+    against a tree measuring 37 in 20**, on `origin/integration` at `b0a8101d`
+    on 2026-09-12 (ledger 0184) -- a FIFTH time, inside the same day as the
+    fourth, the drift a fifth time entirely `state_referenced_locally`, 32 down
+    to 31, and downwards again. **A session
     that measures a different number CORRECTS THIS LINE in the same change**,
     and says in its history entry which warning moved.
   - **A FRESH `npm ci` CHECKOUT HAS NO `.svelte-kit`, AND `npm test` REPORTS A
@@ -1192,8 +1196,8 @@ This applies to every change. Prompts do not need to restate it.
     and the same fresh checkout runs clean. This bites in the same first five
     minutes as the missing-`.env` phantom errors above and for the same root
     cause: nothing has generated the `.svelte-kit` output yet.
-  - The 38 break down as 32 `state_referenced_locally`, 5
-    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 21 files. The
+  - The 37 break down as 31 `state_referenced_locally`, 5
+    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 20 files. The
     breakdown is the diagnostic: it says WHICH kind moved when the total does,
     and a total that holds while the mix changes is still a finding. Read it
     with `npx svelte-check --output human 2>&1 | grep -o "svelte.dev/e/[a-z_]*"
