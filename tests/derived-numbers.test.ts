@@ -496,6 +496,26 @@ describe('tools/browser-verify/README.md counts regions', () => {
 		expect(Object.keys(raw).sort()).toEqual(['controls', 'failures', 'negative', 'positive', 'schema']);
 	});
 
+	it('a store measured at two different instants renders a SPAN, not one instant', () => {
+		// THE STATE A PARTIAL RE-MEASURE PRODUCES, and the one the committed
+		// tree does not currently carry: a store seeded by a full pass and
+		// then updated for one spec has no single measurement instant, and
+		// claiming one would be the lie this region exists to prevent. The
+		// branch is otherwise unreachable from this tree's own data, so it is
+		// driven here rather than left to the next partial pass to discover.
+		const { data } = parseMeasured(readme);
+		expect(data.oldest).toBe(data.date); // the committed store IS one pass
+
+		const mixed = renderMeasured({ ...data, oldest: '2026-01-01T00:00:00.000Z' });
+		expect(mixed).toContain('measurements were taken between 2026-01-01T00:00:00.000Z and ');
+		expect(mixed).not.toContain(`measurements were taken at ${data.date}`);
+
+		// NEGATIVE HALF: the single-instant store renders the single-instant
+		// sentence, so the assertion above is the span branch and not the
+		// renderer ignoring what it is handed.
+		expect(renderMeasured(data)).toContain(`measurements were taken at ${data.date}`);
+	});
+
 	it('verifyMeasured reddens a block that disagrees with the store, and says to run the cheap command', () => {
 		// POSITIVE CONTROL FOR THE MERGE CASE, built rather than assumed: a
 		// store carrying one spec the block does not, which is byte-for-byte
