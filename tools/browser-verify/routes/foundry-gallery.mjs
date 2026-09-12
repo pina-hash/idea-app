@@ -19,6 +19,19 @@ export default {
 		{
 			click: '[data-testid="gallery-deselect"]',
 			until: '() => !!document.querySelector("[data-testid=\'foundry-gallery-grid\']") && !document.querySelector(".fdy-gal-detail")'
+		},
+		/*
+			MOST PLAYED HAS TO BE PRESSED FOR A COUNT TO EXIST AT ALL NOW, and
+			that is the gallery's rule rather than a harness convenience: a card
+			carries a play count only while a play RANKING is in force. Under
+			`Recent` -- the default, and where this spec used to assert two
+			chips -- every card shows none, because a number on every card of a
+			gallery nobody ordered by plays reads as a verdict on the work
+			rather than as a measurement.
+		*/
+		{
+			click: '.fdy-gal-sort-btn[data-sort="played"]',
+			until: '() => document.querySelectorAll("[data-testid=\'fdy-card-plays\']").length === 2'
 		}
 	],
 	presence: [
@@ -31,6 +44,14 @@ export default {
 			is an exclusion assertion as much as a presence one -- 2 chips
 			painted, never 3, proves the zero case is genuinely rendering
 			nothing rather than the fixture simply lacking a third number.
+
+			IT IS MEASURED UNDER `Most played`, which the prepare step above
+			presses. All three fixture apps carry `cover_path: null`, so all
+			three draw a GENERATED cover -- and a generated cover has no name
+			plate, because its art already states the name. It gets one only
+			when there is a count to put on it, which is exactly this state:
+			without that branch a coverless app ranked by plays would show no
+			number at all, and the ranking would be one the reader cannot check.
 		*/
 		/* `maxPresent` IS WHAT MAKES THE SENTENCE ABOVE TRUE. `expectPresent` is
 		   a FLOOR, so "never 3" was not measured: giving the third fixture app
@@ -38,7 +59,10 @@ export default {
 		   `ok ... present 3` against `>= 2`, with its own label still reading
 		   "2 of 3 apps played". The zero case is the assertion; a ceiling is
 		   the only way to state it. */
-		{ selector: '[data-testid="fdy-card-plays"]', label: 'play-count chips (2 of 3 apps played)', expectPresent: 2, maxPresent: 2 },
+		/* VISIBLE, not merely present, and at BOTH widths: a plate carrying a
+		   count is exempt from the hover reveal, because somebody who pressed
+		   Most played asked to see a ranking. */
+		{ selector: '[data-testid="fdy-card-plays"]', label: 'play-count chips (2 of 3 apps played)', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 		{ selector: '[data-testid="foundry-inspector"]', label: 'review inspector (admin path)', expectPresent: 1 },
 		{ selector: '[data-testid="foundry-play-stats"]', label: 'FoundryPlayStats block', expectPresent: 1 },
 		{ selector: '[data-testid="foundry-metadata-edit"]', label: 'admin metadata editor', expectPresent: 1 },

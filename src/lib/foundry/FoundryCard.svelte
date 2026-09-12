@@ -176,7 +176,12 @@
 			which is a ranking the reader cannot check. Found by the test in
 			`tests/dom/foundry-card-mosaic.test.ts` rather than by looking.
 		-->
-		<span class="fdy-card-name" class:count-only={made} data-testid="fdy-card-name">
+		<span
+			class="fdy-card-name"
+			class:count-only={made}
+			class:has-count={!!plays}
+			data-testid="fdy-card-name"
+		>
 			{#if !made}
 				<span class="fdy-card-name-title">{app.title}</span>
 			{/if}
@@ -376,7 +381,19 @@
 	}
 
 	@media (hover: hover) and (min-width: 48rem) {
-		.fdy-card-name {
+		/*
+		   `:not(.has-count)` IS THE WHOLE OF WHY A RANKED GALLERY STILL SHOWS
+		   ITS NUMBERS. A plate carries a count only while a play ranking is in
+		   force, and somebody who pressed Most played asked to see a ranking --
+		   hiding its evidence behind a hover would leave them a wall of
+		   pictures in an order they cannot check, which is worse here than
+		   anywhere because the mosaic reads down its columns rather than across
+		   its rows. Under `Recent`, the default and the state this gallery is
+		   normally looked at in, no card carries a count and every one of them
+		   is the pure picture. Found by the browser spec reporting the chips
+		   `present 2, visible 0` at 1440, not by looking.
+		*/
+		.fdy-card-name:not(.has-count) {
 			opacity: 0;
 		}
 
