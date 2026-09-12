@@ -1011,6 +1011,44 @@ function mergedSuiteFindings(s: string): string[] {
 		findings.push('the suite no longer installs dependencies, so it can only ever be `unrun`');
 	}
 
+	// AND `svelte-kit sync`, WHICH IS THE OTHER HALF OF "COULD IT RUN" AND THE
+	// ONE THAT WENT MISSING. A runner's checkout has no `.svelte-kit` -- it is
+	// gitignored, and `npm ci` does not write it -- so without this vitest dies
+	// in dependency optimisation with `Tsconfig not found` BEFORE ANY TEST
+	// BODY, names nothing, and `merged_suite` answers `unrun` on EVERY tree it
+	// is handed. That is a silent regression in the precise sense: the gate
+	// still runs, still reports, and still turns the run red, so nothing on
+	// screen says the verdict is unconditional rather than earned. Four
+	// bundles diagnosed it independently in one day before it was fixed.
+	// THE ORDER IS ASSERTED, NOT JUST THE PRESENCE: a sync before `npm ci`
+	// syncs against a tree with no `svelte-kit` installed to sync it, and a
+	// sync after `npm test` is a sync the suite never saw.
+	const sync = body.search(/(^|\s)npx\s+svelte-kit\s+sync(\s|$)/m);
+	if (sync < 0) {
+		findings.push('the suite no longer runs `svelte-kit sync`, so it can only ever be `unrun`');
+	} else {
+		const ci = body.search(/(^|\s)npm ci(\s|$)/m);
+		const test = body.search(/(^|\s)npm test(\s|$)/m);
+		if (!(ci >= 0 && ci < sync)) {
+			findings.push('`svelte-kit sync` no longer runs after `npm ci`');
+		}
+		if (!(test >= 0 && sync < test)) {
+			findings.push('`svelte-kit sync` no longer runs before `npm test`');
+		}
+		// ITS OUTPUT IS NOT THE VERDICT. This function's stdout is read through
+		// `$(merged_suite)`, so a sync writing there puts its own chatter ahead
+		// of the verdict line and the caller reads an empty one -- the same
+		// defect `tools/integrate-gate-proof.sh` case 61 caught for the tee.
+		// UP TO THE `||` AND NO FURTHER. The fallback arm has a `>&2` of its
+		// own, so a check over the whole line is satisfied by the branch that
+		// runs only when the sync FAILED -- it passed a mutant that removed the
+		// redirect from the command itself, which is the case it exists for.
+		const line = body.slice(sync).split('\n')[0].split('||')[0];
+		if (!/>\s*&2|>>?"\$log"/.test(line)) {
+			findings.push('`svelte-kit sync` writes to stdout, which is where the verdict is read from');
+		}
+	}
+
 	// THE VERDICT IS ITS STDOUT, so nothing else may be written there. The tee
 	// that put several hundred reporter lines ahead of the verdict was caught
 	// by `tools/integrate-gate-proof.sh` case 61 on this function's first run.
