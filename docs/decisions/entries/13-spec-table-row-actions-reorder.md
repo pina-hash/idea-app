@@ -1,7 +1,54 @@
 # 13 The spec table's row actions: reordering dropped to give a student back the page
 - Raised: 2026-09-05  By: prompt 0048, `claude/spec-table-row-height-7k2kz4`
-- Status: open
-- Decision:
+- Status: open -- MEASURED 2026-09-12 and this entry was RIGHT; the decision it asks
+  for is still unanswered, so it stays owed.
+- Decision: still blank, deliberately. What Mr. Pina said on 2026-09-12 was that
+  drag-to-reorder works for him right now, which CONTRADICTS this entry -- so prompt
+  0173 read the component rather than recording either claim. THE ENTRY IS CORRECT:
+  the spec table's row reordering is gone, at every width, and gone on `main` too.
+  What he is using is reordering on a DIFFERENT surface. That is a report about
+  another screen and not an answer to the question below, and no code was changed.
+- Measured: 2026-09-12, by reading the source on `origin/integration`.
+  `src/lib/classroom/SpecRenderer.svelte` **lines 613-616** are the whole of a spec
+  table's row-action cell, and they hold TWO controls: Duplicate row and Delete row.
+  There is no `moveRow` function in the file -- the only occurrence of the name is
+  **line 1130**, inside the comment explaining its removal -- and `grep -rn moveRow
+  src/` finds it nowhere else in the classroom except `RubricBuilder.svelte`.
+  **Line 1151** pins the arrangement as `grid-template-columns: repeat(2, 44px)`.
+- At what widths: ALL of them. `SpecRenderer.svelte` contains **zero** `@media` and
+  **zero** `@container` rules, so there is no width at which a third or fourth
+  control appears. The cell is gated only on `canEdit` (**line 127**,
+  `!locked && !readonly`), which is about whether the table is editable at all, not
+  about the viewport.
+- On `main`, not just here: the removal is commit `be46fe87` ("Assignment tables: two
+  row controls on one line, and the page cost measured", 2026-09-05 17:17Z), and
+  `git merge-base --is-ancestor be46fe87 origin/main` answers yes. Reading
+  `origin/main`'s copy of the file directly, `grep -c "function moveRow"` is **0**
+  and lines 613-616 are the same two buttons. So production has no spec-table row
+  reordering either.
+- What he is most likely using: reordering is alive on FIVE other classroom surfaces,
+  all of which an instructor touches far more often than a student's sample table.
+  `ClassView.svelte` is the strongest candidate and matches "drag": it has both
+  drag-to-reorder (**line 507** onward, via `$lib/classroom/sort-drag`, which is also
+  on `main`) and a row menu carrying worded **Move up** / **Move down**
+  (**lines 1234** and **1240**) for items within a unit group. The others are
+  `ContentComposer.svelte` **2171**/**2180**, `RubricBuilder.svelte`
+  **420**-**421** (glyph arrows on a criterion), `FileUploadPanel.svelte`
+  **687**/**696**, and `AttachmentList.svelte` **382**/**391**. Note that a spec
+  table is a STUDENT's grid, filled in at a bench -- an instructor has little reason
+  to be typing in one, which is why the confusion is the expected one rather than a
+  surprising one.
+- By-catch, reported and not fixed: `RubricBuilder.svelte`'s reorder arrows are
+  `1.75rem` squares (**lines 595-596**), rising to `2.75rem` only under
+  `@media (max-width: 640px)` (**line 686**). So the one reorder control nearest this
+  entry's subject sits at 28px on a desktop, under the 44px floor, with no named
+  instructor-only class on its root to claim the 24px floor. That is the shape of
+  decisions 09 and 12 and belongs with them, not here.
+- Still open, unchanged: whether losing in-place row reordering is a fair price for
+  roughly a third of a phone screen per table. His remark was a report that it works,
+  not an answer to that -- and it was a report about a surface this entry is not
+  about. The default below still stands and the two ways back are still the two ways
+  back.
 - Default this assistant would pick: keep the change as shipped -- two row actions
   (duplicate, delete) on one line at 44px, reordering gone -- because it is the only
   arrangement measured that returns the row height while moving nothing beside it and

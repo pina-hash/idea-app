@@ -1,7 +1,29 @@
 # 21 `integrate.yml` runs the suite AFTER it merges, pushes and deletes, so a red merged tree cannot stop a merge
 - Raised: 2026-09-09  By: session on `claude/site-versions-build-blade-fix-gqksqp` (prompt 0121), item FOUR, report-and-propose
-- Status: open
-- Decision needed: whether the suite on the merged tree becomes a GATE on the push, or
+- Status: decided 2026-09-12. YES, BLOCK. The DECISION is closed; the BUILD is open, see the Build line.
+- Decision: 2026-09-12, Mr. Pina: yes, block. A failing merged suite stops the push
+  rather than warning.
+- Build: OPEN, and it is still the single-lane bundle this entry already said it
+  had to be -- `.github/workflows/integrate.yml` is the file every lane depends on
+  to land, so the change runs alone and merges nothing else with it.
+- What made this answerable: ledger 0163. The `merged_suite` job used to run
+  `npm ci` then `npm test` with NO `svelte-kit sync` between them, so on a runner's
+  checkout vitest died in dependency optimisation before any test body, named no
+  failing test, and the job answered `unrun` -- on every tree, every time. A gate on
+  a signal that is structurally never green would have blocked every merge in the
+  repository, which is why this could not be answered before. 0163 fixed the sync,
+  so the suite reports a real result now and a gate on it is a gate on something.
+- What remains: beyond flipping the gate, the ORDER this entry describes is
+  unchanged, and blocking means reordering rather than adding an `if`.
+  Today the job merges, regenerates the counts, PUSHES `integration`, DELETES the
+  source branches, and only then runs the suite -- so by the time the suite speaks
+  there is nothing left to stop. A gate has to move the suite ahead of the push and
+  the delete, which is exactly the thing the current order was chosen to avoid:
+  `npm ci` plus the suite are the two longest steps and the two most exposed to
+  being killed from outside, and a run evicted mid-suite must not lose a merge it
+  had already computed. That trade is the build's to solve and his answer settles
+  which side of it wins.
+- Question as raised: whether the suite on the merged tree becomes a GATE on the push, or
   stays the report it is today.
 - Not changed by this bundle, on purpose. `.github/workflows/integrate.yml` is the file
   every other lane depends on to land, four lanes were running when this was written, and
