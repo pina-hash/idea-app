@@ -177,8 +177,11 @@ this bundle is entitled to make.
   34/5/1 breakdown; it is 38/21 at the branch point and this bundle changes no
   Svelte file, so the drift is not this bundle's. `CLAUDE.md` is not this
   bundle's surface. Reported, not fixed.
-- **Full suite** on the committed tree: see the outcome block in
-  `docs/prompt-ledger/entries/0176-*`.
+- **Full suite** on the committed tree: **405 files, 7819 tests, 0 failures**,
+  387.15s. Nothing in this bundle is executable, so that is the branch point's
+  own number carried across two documentation commits, which is the point of
+  running it: a docs-only bundle that reddens the suite has done something it
+  did not mean to.
 - **Production reachability**, checked before the merge:
   `https://ideabosco.com/` 200 in 0.65s, `https://apps.ideabosco.com/` 200 in
   0.53s. The production DATABASE is unreachable, as above.
