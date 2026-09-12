@@ -471,7 +471,8 @@
 							you upload: a tall picture makes a tall card, a wide one makes a wide card.
 							Put the app's name in the picture -- the name only appears over it when
 							somebody hovers, and on a phone it sits along the bottom. Very tall or very
-							wide pictures are trimmed to fit.
+							wide pictures are trimmed to fit. Upload it at least 800 pixels wide, or it
+							will be stretched to fill the card and look soft.
 						</p>
 						<label class="btn tap-44">
 							{app.cover_path ? 'Replace' : 'Add'}
