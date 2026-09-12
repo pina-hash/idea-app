@@ -1,6 +1,6 @@
 {
 	"schema": 1,
-	"spec": "themes-state-matrix-room-foundry.mjs",
+	"spec": "foundry-mosaic.mjs",
 	"date": "2026-09-12T15:42:34.662Z",
 	"sha": "1c29061ab851f4850c21090345cd20ea059d61c9",
 	"dirty": false,
@@ -9,7 +9,7 @@
 		1440
 	],
 	"runs": 2,
-	"measurements": 34,
+	"measurements": 42,
 	"outsideRows": [],
 	"ms": 5748
 }

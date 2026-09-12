@@ -550,9 +550,14 @@ describe('the frame cancels nothing', () => {
 /* ------------------------------------------------------- the cover thumbnail */
 
 describe('a coverless tile renders its own deliberate state', () => {
-	it('renders the app initial rather than a broken or stock image', () => {
+	it('renders a generated cover carrying the app NAME, never a stock image', () => {
 		// Both fixture apps have cover_path: null, so the gallery-wide render is
-		// already the coverless case.
+		// already the coverless case. It used to be the app's INITIAL on a flat
+		// tile; it is a generated cover now, because "every card is the same"
+		// was the complaint that produced this design and one flat fallback
+		// reproduces it exactly for every app that has no picture -- which is an
+		// ordinary published state, since `foundryPublishBlockers` requires a
+		// description and never a cover.
 		const html = galleryHtml();
 
 		const start = html.indexOf('data-app-slug="gear-ratio"');
@@ -562,10 +567,13 @@ describe('a coverless tile renders its own deliberate state', () => {
 		// No <img> at all for this card -- a broken image would still emit one
 		// with a src that 404s, which looks identical to "missing" on screen.
 		expect(card).not.toContain('<img');
-		expect(card).toContain('fdy-card-blank');
-		// The initial is the app's own first letter, uppercased, not a generic
-		// glyph or a stock "no image" graphic.
-		expect(card).toContain('>G<');
+		expect(card).toContain('fdy-card-made');
+		// THE NAME IS THE ART, which is the one case where "the name is in the
+		// thumbnail" is a guarantee rather than a request of the student. The
+		// WHOLE name, not an initial.
+		expect(card).toContain('Gear Ratio');
+		// And a hue of its own, so two coverless apps are not one colour.
+		expect(card).toMatch(/--fdy-hue:\s*\d+/);
 
 		// POSITIVE CONTROL: the sibling card, which DOES have a cover once one
 		// is supplied, renders an <img> instead -- so the absence above is about
@@ -574,48 +582,84 @@ describe('a coverless tile renders its own deliberate state', () => {
 			props: {
 				apps: [summary({ id: 'a', slug: 'tide-clock', title: 'Tide Clock', cover_path: 'x/y.png' })],
 				selected: null,
-				transports: NO_TRANSPORTS,
-				onSelect: noop
+				onSelect: () => {}
 			}
 		}).body;
 		expect(withCover).toContain('<img');
-		expect(withCover).not.toContain('fdy-card-blank');
+		expect(withCover).not.toContain('fdy-card-made');
 	});
 
-	it('never scales a cover past its own resolution', () => {
-		// `object-fit: scale-down` is a CSS decision with no different markup, so
-		// what is provable at this level is that the stylesheet states it and
-		// that plain `contain` (which upscales) is not what ships instead.
-		const src = readFileSync('src/lib/foundry/FoundryGallery.svelte', 'utf8');
-		expect(src).toMatch(/\.fdy-card-cover img[\s\S]*?object-fit:\s*scale-down/);
+	it('fills the card rather than letterboxing inside it, and the card is the image’s own shape', () => {
+		// `object-fit` is a CSS decision with no different markup, so what is
+		// provable at this level is which one ships.
+		//
+		// IT USED TO BE `scale-down` AND THAT WAS RIGHT FOR THE OLD BOX. The box
+		// was a fixed 16:9 that most covers did not match, so `scale-down`
+		// letterboxed rather than cropping and refused to upscale a small
+		// screenshot into a blurry one. The box IS the image's own measured
+		// ratio now, so for every shape inside the clamp `cover` and `contain`
+		// are the same rendering and neither crops anything. What `cover`
+		// decides is the two cases where the box is NOT the image's ratio -- a
+		// shape outside the clamp, and the box's own sub-pixel rounding -- and
+		// bars inside a card that is supposed to BE a picture is the thing it
+		// avoids.
+		//
+		// THE COST, STATED RATHER THAN PINNED: a cover smaller than its column
+		// is now upscaled, where the old fixed box rendered it sharp with bars
+		// around it. That is not recoverable while the card is the picture, and
+		// the student-facing note on /foundry/mine is where it is answered.
+		const src = readFileSync('src/lib/foundry/FoundryCard.svelte', 'utf8');
+		expect(src).toMatch(/img\.fdy-card-shot[\s\S]*?object-fit:\s*cover/);
+		expect(src).toMatch(/aspect-ratio:\s*var\(--fdy-ar/);
+		// The retired DECLARATION must not come back. Matched as a declaration
+		// and not as a word: this file's own comment explains why `scale-down`
+		// was right for the old box, and a sweep for the bare string would
+		// redden on the explanation. `FoundryDetail` still uses it for its
+		// preview, correctly -- that box is a fixed one, so the old reasoning
+		// holds there and this assertion is deliberately scoped to this file.
+		expect(src).not.toMatch(/object-fit:\s*scale-down/);
 	});
 });
 
 /* -------------------------------------------------------- 2. the author line */
 
 describe('a null class renders as nothing at all', () => {
-	it('renders the class for the app that has one', () => {
+	/*
+		THE CARD NO LONGER CARRIES AN AUTHOR LINE AT ALL, so the question this
+		block used to ask -- whether a null class strands a separator -- cannot
+		be asked of it. The card is the student's picture: the author, the
+		class, the tagline and the rest are on the detail pane beside it, and
+		`FoundryDetail` is where that rule is still measured, in the tests
+		below this one.
+
+		WHAT REPLACES IT IS THE STRONGER CLAIM: not "a null class renders
+		nothing" but "no class renders at all", which cannot strand anything.
+		The author survives in ONE place on the card, the link's accessible
+		name, where it is joined by a word rather than by a separator -- so the
+		defect this block was written for (`Ana Reyes ·`) has no expression
+		left to be written in.
+	*/
+	it('the card renders no author or class element, in either fixture', () => {
 		const html = galleryHtml();
-		// From the fixture, not from the component.
-		expect(html).toContain(NAMED_WITH_CLASS.owner_class);
-		expect(html).toContain(NAMED_WITH_CLASS.owner_full_name);
-		expect(html).toContain(NAMED_NO_CLASS.owner_full_name);
-	});
 
-	it('renders no placeholder, no label and no stranded separator for the null one', () => {
-		const html = galleryHtml();
+		for (const slug of ['gear-ratio', 'tide-clock']) {
+			const start = html.indexOf(`data-app-slug="${slug}"`);
+			expect(start, `${slug} did not render`).toBeGreaterThan(-1);
+			const card = html.slice(start, html.indexOf('</a>', start));
+			expect(card, slug).not.toContain('fdy-card-class');
+			expect(card, slug).not.toContain('fdy-card-author');
+			expect(card, slug).not.toContain('fdy-card-by');
+			expect(card, slug).not.toContain('·');
+			expect(card, slug).not.toContain('Unknown');
+			// The class string itself must not appear anywhere on the card.
+			expect(card, slug).not.toContain(NAMED_WITH_CLASS.owner_class);
+		}
 
-		// The card for the classless app, isolated so the other card's real class
-		// cannot make this pass.
-		const start = html.indexOf('data-app-slug="gear-ratio"');
-		expect(start, 'the classless card did not render').toBeGreaterThan(-1);
-		const card = html.slice(start, html.indexOf('</a>', start));
-
-		expect(card).toContain(NAMED_NO_CLASS.owner_full_name); // positive control
-		expect(card).not.toMatch(/Class\s*:/i);
-		expect(card).not.toContain('·');
-		expect(card).not.toContain('Unknown');
-		expect(card).not.toContain('fdy-card-class');
+		// POSITIVE CONTROL, on the same render: the author IS carried, once, as
+		// the link's accessible name -- so the absences above are the author
+		// line being gone and not a render that produced nothing.
+		expect(html).toContain(`Tide Clock, by ${NAMED_WITH_CLASS.owner_full_name}`);
+		expect(html).toContain(`Gear Ratio, by ${NAMED_NO_CLASS.owner_full_name}`);
 	});
 
 	it('renders no author block at all when there is neither name nor class', () => {
