@@ -1,7 +1,9 @@
 # What runs here, and what it does to your branches
 
-Three workflows. `ci.yml` checks a push; `integrate.yml` collects the branches
-that passed; `deploy.yml` is the one path that writes `main`.
+Four workflows. `ci.yml` checks a push; `integrate.yml` collects the branches
+that passed; `deploy.yml` is the one path that writes `main`. `backup.yml`
+belongs to none of that and is described at the bottom: it dumps the production
+database every night and stores it off Supabase.
 
 ## The short version
 
@@ -509,3 +511,25 @@ normally underneath that red X; the summary is what tells you which is which.
   than by the push -- see "Is `integration` green?". Vercel is unaffected: it
   deploys through a GitHub App webhook, not through Actions, so `integration`
   still gets a preview build.
+
+## `backup.yml` -- and it is not part of the pipeline
+
+It touches no branch, merges nothing, and can never write `main`. It runs at
+09:00 UTC, dumps production with `pg_dump`, and puts one gzipped file in a
+Google Drive folder, keeping 30 dailies and 12 monthlies.
+
+**09:00 is one hour before `deploy.yml`'s own nightly**, deliberately: deploying
+is the only scheduled event that changes what production's code does, so every
+deploy is preceded by a copy of the database as it was before it. It is also
+deliberately not `ci.yml`'s 08:00, whose hour is chosen for the day-boundary
+window above and must not be crowded.
+
+**A missing secret makes it RED rather than skipping it.** The whole failure
+this exists to prevent is nobody finding out until they need the file, and a
+green run that did nothing is how that happens.
+
+**It does not cover Supabase Storage.** `pg_dump` reads a database; the bytes of
+every Foundry bundle, attachment, hand-in and photo are on another service.
+
+Everything about setting it up, and the numbered steps for restoring, is in
+[`docs/BACKUP.md`](../../docs/BACKUP.md).
