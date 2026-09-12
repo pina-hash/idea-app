@@ -18,15 +18,25 @@
 //      project, which has no DOM package and no Chromium in the path at all.
 //
 //   MEASURED -- runs the report carried, measurements, measurements outside
-//      threshold, wall clock, `--selftest` controls. Needs a browser and ~6
-//      minutes, which README.md says at length must stay outside `npm test`
-//      and outside CI (a browser-shaped flake must not be able to block a
-//      deploy to a classroom). So it is checked against the machine-readable
-//      data line the same run wrote beside it -- a digit changed by hand
-//      reddens -- and, since prompt 0046, against ONE cheap fact about the
-//      tree: the SPEC FILES that run covered. `npm run verify:readme --
-//      --check` is the comparison against a fresh run, for a session that has
-//      the browser.
+//      threshold, wall clock, `--selftest` controls. TAKING the measurement
+//      needs a browser and ~17 minutes, which README.md says at length must
+//      stay outside `npm test` and outside CI (a browser-shaped flake must
+//      not be able to block a deploy to a classroom). So it is checked
+//      against the machine-readable data line the same run wrote beside it --
+//      a digit changed by hand reddens -- and, since prompt 0046, against ONE
+//      cheap fact about the tree: the SPEC FILES that run covered. `npm run
+//      verify:readme -- --check` is the comparison against a fresh run, for a
+//      session that has the browser.
+//
+//      SINCE PROMPT 0168 IT IS ALSO CHECKED AGAINST `measured/`, and that is
+//      the check this file was missing. The measurement is one committed file
+//      per route spec now, and the region is a pure function of that
+//      directory -- so `renderMeasured(deriveMeasured())` is the region this
+//      tree should carry, and comparing it is a `readdirSync` and a
+//      `JSON.parse` with no browser in the path, exactly like the static
+//      check beside it. It is a SECOND check, not a replacement: the
+//      covered-set conjunction below is about the store against the TREE and
+//      is unchanged, to the word.
 //
 // WHY THAT THIRD RULE EXISTS, AND WHY IT IS A CONJUNCTION. A stale-but-honest
 // measured half is a supported state. A stale measured half that prints
@@ -56,6 +66,18 @@
 // edit on both sides with no conflict, and the pushed tree holds one more spec
 // than the region claims.
 //
+// PROMPT 0168 CLOSED THE OTHER HALF OF THAT SAME CASE, in the mechanism
+// rather than in a guard. The MEASUREMENT is now one file per route spec
+// under `tools/browser-verify/measured/`, so two lanes measuring two
+// different specs write two different files, the merge is additive, and the
+// merged store describes the merged tree by construction -- where the single
+// line it replaces either conflicted (and `integrate.yml`'s resolver threw
+// one lane's seventeen minutes away, which is ledger 0147's finding) or
+// merged silently into a set that was neither lane's. Nothing here was made
+// quieter to get that: every assertion and every control below is the one
+// that was here, generalized where a legitimate change broke a literal, with
+// the store checks added beside them.
+//
 // The two act at different times on different refs, so neither replaces the
 // other, and the reconstruction says which has been doing the work: across
 // every merge into `integration` since the region existed, NOT ONE sweep merge
@@ -69,28 +91,50 @@
 //   * A HAND EDIT, caught on the branch, before the sweep exists at all.
 //   * `main`, which the sweep never pushes and which moves on its own via the
 //     classroom export.
-//   * THE MEASURED HALF, which the sweep never writes and must not: the
-//     covered-set rule below is this file's alone.
+//   * A MEASURED HALF THE SWEEP CANNOT WRITE. Since 0168 the sweep's
+//     `readme-counts.mjs --static` DOES rewrite the measured region -- it is a
+//     tree read now -- but only when the static data line also moved, because
+//     `counts_refresh` gates its commit on that line changing. A merge that
+//     moved only the measurement leaves the block behind and the covered-set
+//     and store rules below are what say so.
 //   * A SWEEP RUN WHOSE REGENERATION FAILED. It warns and pushes anyway, by
 //     design; the next branch's CI is what says the region is behind.
 //
-// Measured on 2026-09-05: one static digit edited by hand in the rendered table
-// reddens 7 of the 18 tests here; the data line and the table edited together
-// into a self-consistent lie about the tree reddens 8.
+// MEASURED ON 2026-09-12, AND THE PAIR THIS REPLACES WAS STALE. It read
+// "one static digit edited by hand in the rendered table reddens 7 of the 18
+// tests here; the data line and the table edited together into a
+// self-consistent lie about the tree reddens 8", measured 2026-09-05. Run
+// against `origin/integration` at `ebf23dc` -- the tree those figures
+// describe, unchanged -- the same two mutations redden **3** and **4** of 18.
+// The file had moved under the numbers, which is what a figure written down
+// rather than re-measured does. On this tree, with the store checks added,
+// the identical two mutations redden **3** and **4** of 24: the same bite,
+// with six more controls beside it. A hand-edited digit inside one
+// `measured/*.json` reddens 3; deleting one of those files reddens 5.
 
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import {
 	COUNTS_BEGIN,
 	COUNTS_END,
+	MEASURED_DIRNAME,
+	MEASURED_SCHEMA,
 	README_PATH,
+	REPO_ROOT,
+	SELFTEST_FILE,
 	STATIC_SCRIPT,
 	MEASURED_REGION,
 	MEASURED_SCRIPT,
+	deriveMeasured,
 	deriveSpecFiles,
 	deriveStatic,
+	measuredDir,
+	measurementFileFor,
 	parseMeasured,
 	parseStatic,
+	readStore,
 	renderMeasured,
 	renderStatic,
 	spliceRegion,
@@ -161,7 +205,7 @@ describe('tools/browser-verify/README.md counts regions', () => {
 
 	it('passes verifyBlock, the same predicate `npm run verify:readme -- --check` applies', async () => {
 		const live = await deriveStatic();
-		expect(verifyBlock(readme, { live, specFiles: deriveSpecFiles() })).toEqual([]);
+		expect(verifyBlock(readme, { live, specFiles: deriveSpecFiles(), store: deriveMeasured() })).toEqual([]);
 	});
 
 	it('the measured region names the commit and the instant it was measured at', () => {
@@ -176,7 +220,7 @@ describe('tools/browser-verify/README.md counts regions', () => {
 	// this tree": which route spec FILES the recorded run visited.
 	// -------------------------------------------------------------------
 
-	it('the measured region says which route specs it covered, sorted, one per route/width pair', () => {
+	it('the measured region says which route specs it covers, sorted, one per route/width pair', () => {
 		const { data } = parseMeasured(readme);
 		const live = deriveSpecFiles();
 		// The derivation must have found something, or every set comparison
@@ -353,13 +397,13 @@ describe('tools/browser-verify/README.md counts regions', () => {
 		// older region through this version's renderer and died with `Cannot
 		// read properties of undefined` out of a function whose entire job is
 		// to report problems rather than raise them.
-		const older = withMeasured({}).replace('"schema":2', '"schema":1');
+		const older = withMeasured({}).replace(`"schema":${MEASURED_SCHEMA}`, `"schema":${MEASURED_SCHEMA - 1}`);
 		let problems: string[] = [];
 		expect(() => {
 			problems = verifyMeasured(older, { specFiles: deriveSpecFiles() });
 		}).not.toThrow();
 		expect(problems).toHaveLength(1);
-		expect(problems[0]).toMatch(/schema 1 and this script writes 2/);
+		expect(problems[0]).toMatch(new RegExp(`schema ${MEASURED_SCHEMA - 1} and this script writes ${MEASURED_SCHEMA}`));
 	});
 
 	it('a data line missing a field the renderer reads is REPORTED, never rendered', () => {
@@ -386,6 +430,151 @@ describe('tools/browser-verify/README.md counts regions', () => {
 		// clean, so the four failures above are the dropped field and not the
 		// splice.
 		expect(verifyMeasured(withMeasured({}), { specFiles: deriveSpecFiles() })).toEqual([]);
+	});
+
+	// -------------------------------------------------------------------
+	// THE STORE (prompt 0168). The measurement is one committed file per
+	// route spec, and the rendered region is a pure function of it. These
+	// are the checks that make the merge safe: a store the merge got right
+	// and a block the merge got wrong is exactly what two lanes produce, and
+	// before this the only thing that could see it was a browser.
+	// -------------------------------------------------------------------
+
+	it('the measured region is what this tree derives from `measured/` (a merged store reddens this)', () => {
+		// THE MERGED-TREE CHECK. `deriveMeasured` reads the directory; the
+		// committed block must be its rendering. Two lanes that each measure a
+		// different spec write two different files, git merges both, and this
+		// is what says the block has not caught up -- with no browser, on
+		// every `npm test`, on a branch as well as on `integration`.
+		const store = deriveMeasured();
+		// The derivation must have found something, or the comparison below
+		// is a comparison against the empty store.
+		expect(store.covered.length).toBeGreaterThan(0);
+		expect(store.measurements).toBeGreaterThan(0);
+		expect(parseMeasured(readme).block).toBe(renderMeasured(store));
+	});
+
+	it('every measurement file names a spec this tree has, and is named after it', () => {
+		const store = readStore();
+		const tree = new Set(deriveSpecFiles());
+		expect(tree.size).toBeGreaterThan(0);
+		expect(store.specs.length).toBeGreaterThan(0);
+		for (const m of store.specs) {
+			expect(tree.has(m.spec)).toBe(true);
+			expect(measurementFileFor(m.spec)).toBe(`${m.spec.replace(/\.mjs$/, '')}.json`);
+			// A file with no width is a file that measured nothing, and a run
+			// count that is not one per width came from a filtered pass.
+			expect(m.widths.length).toBeGreaterThan(0);
+			expect(m.runs).toBe(m.widths.length);
+			expect(m.outsideRows).toHaveLength(
+				m.outsideRows.filter((r) => typeof r.check === 'string').length
+			);
+		}
+		// And the region's covered list IS the store's spec list. Two
+		// spellings of "which specs are measured" is the pair that stops
+		// matching.
+		expect(parseMeasured(readme).data.covered).toEqual(store.specs.map((m) => m.spec).sort());
+	});
+
+	it('the store carries ONE file per spec and no shared line: two lanes cannot write the same file', () => {
+		// THE PROPERTY THE SPLIT BUYS, asserted as a property rather than as a
+		// count. A spec's measurement file is named from the spec file, which
+		// `routes.mjs` derives from the spec's own `path` and refuses to let
+		// two specs share -- so the map from spec to file is injective and two
+		// lanes adding two specs always write two different files.
+		const files = deriveSpecFiles().map(measurementFileFor);
+		expect(new Set(files).size).toBe(files.length);
+		expect(files.every((f) => f.endsWith('.json') && !f.startsWith('_'))).toBe(true);
+	});
+
+	it('`_selftest.json` carries no clock and no commit, so an unchanged instrument writes the same bytes', () => {
+		// The static region's rule, one directory down and for the same
+		// reason: with a date or a sha in it, two lanes that both ran
+		// `--selftest` over an unchanged instrument would write two different
+		// files and conflict on a value neither of them changed.
+		const raw = JSON.parse(readFileSync(join(measuredDir(), SELFTEST_FILE), 'utf8'));
+		expect(Object.keys(raw).sort()).toEqual(['controls', 'failures', 'negative', 'positive', 'schema']);
+	});
+
+	it('a store renders a SPAN when its measurements span two instants, and one instant when they do not', () => {
+		// THE STATE A PARTIAL RE-MEASURE PRODUCES. A store seeded by a full
+		// pass and then updated for one spec has no single measurement
+		// instant, and claiming one would be the lie this region exists to
+		// prevent. BOTH branches are driven from patched data rather than
+		// from whichever state the committed store happens to be in: this
+		// control asserted `oldest === date` on the committed block for one
+		// commit, which is a claim about the repository rather than about the
+		// renderer, and it failed on the first real partial re-measure -- the
+		// ratchet shape, exactly as CLAUDE.md names it.
+		const { data } = parseMeasured(readme);
+		const one = '2026-02-02T00:00:00.000Z';
+		const older = '2026-01-01T00:00:00.000Z';
+
+		const span = renderMeasured({ ...data, oldest: older, date: one });
+		expect(span).toContain(`measurements were taken between ${older} and ${one}`);
+		expect(span).not.toContain(`measurements were taken at ${one}`);
+
+		const single = renderMeasured({ ...data, oldest: one, date: one });
+		expect(single).toContain(`measurements were taken at ${one}`);
+		expect(single).not.toContain('measurements were taken between');
+
+		// AND THE COMMITTED BLOCK SAYS WHICHEVER ITS OWN DATA IMPLIES, which
+		// is the half that ties the renderer to the file rather than to a
+		// fixture.
+		expect(parseMeasured(readme).block).toContain(
+			data.oldest === data.date
+				? `measurements were taken at ${data.date}`
+				: `measurements were taken between ${data.oldest} and ${data.date}`
+		);
+	});
+
+	it('verifyMeasured reddens a block that disagrees with the store, and says to run the cheap command', () => {
+		// POSITIVE CONTROL FOR THE MERGE CASE, built rather than assumed: a
+		// store carrying one spec the block does not, which is byte-for-byte
+		// what the merged tree of two measuring lanes looks like.
+		const store = deriveMeasured();
+		const merged = {
+			...store,
+			covered: [...store.covered, 'zzz-other-lane.mjs'].sort(),
+			measurements: store.measurements + 7,
+			runsMeasured: store.runsMeasured + 2
+		};
+		const problems = verifyMeasured(readme, { store: merged });
+		expect(problems.length).toBeGreaterThan(0);
+		const joined = problems.join('\n');
+		expect(joined).toContain(MEASURED_DIRNAME);
+		// IT NAMES THE SUB-SECOND COMMAND, not the browser one. Sending a
+		// reader to a seventeen-minute pass to fix a merge is the coupling
+		// this split removes, so the message that survives a merge must not
+		// reintroduce it.
+		expect(joined).toContain(STATIC_SCRIPT);
+		expect(joined).not.toContain(MEASURED_SCRIPT);
+
+		// NEGATIVE HALF: the real store against the same block is clean, so
+		// the redness above is the disagreement and not the predicate
+		// refusing everything handed to it.
+		expect(verifyMeasured(readme, { store })).toEqual([]);
+	});
+
+	it('a measurement file whose name and `spec` disagree is REFUSED, never averaged in', async () => {
+		// A rename is how one spec's numbers would quietly start standing for
+		// another's, and the store is keyed on the filename. Driven over a
+		// temporary copy of the real directory so the predicate under test is
+		// `readStore` and not a fixture of its own shape.
+		const tmp = mkdtempSync(join(tmpdir(), 'store-rename-'));
+		try {
+			cpSync(join(REPO_ROOT, 'tools', 'browser-verify'), join(tmp, 'tools', 'browser-verify'), {
+				recursive: true
+			});
+			const dir = join(tmp, 'tools', 'browser-verify', MEASURED_DIRNAME);
+			// NEGATIVE HALF FIRST: the copy reads clean, so the throw below is
+			// the rename and not the copy.
+			expect(readStore(tmp).specs.length).toBeGreaterThan(0);
+			renameSync(join(dir, 'marks.json'), join(dir, 'zzz-renamed.json'));
+			expect(() => readStore(tmp)).toThrow(/belongs in marks\.json/);
+		} finally {
+			rmSync(tmp, { recursive: true, force: true });
+		}
 	});
 
 	it('verifyStatic reddens a region whose markers a merge removed', () => {

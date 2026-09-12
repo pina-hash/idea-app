@@ -43,7 +43,15 @@ export { WIDTHS, SETTLE_ENTRANCE } from './routes/_shared.mjs';
 
 const ROUTES_DIR = new URL('./routes/', import.meta.url);
 
-const slugify = (path) =>
+/**
+ * A spec's filename from its own `path`, and the ONE implementation of that
+ * mapping. Exported because `readme-counts.mjs` needs it to name the per-spec
+ * measurement file a run's result belongs in: a report carries `spec.path`
+ * and the measurement store is keyed on the spec FILE, so without this the
+ * store would have to carry a second copy of the rule -- the thing that stops
+ * matching the moment either side is touched.
+ */
+export const slugify = (path) =>
 	path
 		.replace(/^\/dev\//, '')
 		.toLowerCase()
