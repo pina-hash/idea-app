@@ -1,8 +1,20 @@
 # 23 A link preview does not resolve a hostname, and closing that needs a pinned connection
 
 - Raised: 2026-09-11  By: session on `claude/blissful-ritchie-sk8orl` (prompt 0151), item TWO
-- Status: open
-- Decision: blank.
+- Status: decided 2026-09-12. LEAVE AS IS. Nothing is owed and nothing is built.
+- Decision: 2026-09-12, Mr. Pina: leave as is. Approved.
+- What this settles: `src/lib/server/link-preview.ts` keeps resolving nothing and
+  keeps judging the literal host TEXT. No new dependency, no transport rewrite, no
+  lockfile commit. This is the entry's own default in the direction of not doing
+  it -- the default said option 2 "in its own bundle, and not urgently", and he
+  has answered that the bundle does not happen.
+- What stays true: the gap this entry measured is real and is now an ACCEPTED one
+  rather than an open question. A public hostname that resolves to a private
+  address is not refused (`localtest.me`, `lvh.me` and `vcap.me` all answer
+  127.0.0.1, and nothing stops a name pointing at 169.254.169.254). The two gaps a
+  casual paste actually hits were already closed by prompt 0151, the IPv4-mapped
+  IPv6 spelling and the redirect chain, and nothing about this answer undoes them.
+  A later bundle proposing the fix is reopening a decision, not finding a bug.
 - Default this assistant would pick: option 2 -- add `undici` as a dependency and pin the
   socket through `Agent({ connect: { lookup } })` -- **in its own bundle, and not
   urgently.**

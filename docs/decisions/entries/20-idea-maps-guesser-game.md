@@ -1,8 +1,29 @@
 # 20 An IDEA Maps guesser game
 
 - Raised: 2026-09-09  By: prompt 0109, `claude/docs-standards-ledger-hihkhd`
-- Status: open
-- Decision: blank. Mr. Pina asked on 2026-09-09 for the idea to be RECORDED and deferred
+- Status: decided 2026-09-12. ON HOLD, gated on CONTENT and not on a date.
+- Decision: 2026-09-12, Mr. Pina: on hold. It needs real rooms to guess from and
+  there are none. He asked explicitly that this be written down so it is not
+  forgotten.
+- What unblocks it: PUBLISHED MAP CONTENT, and nothing else. There is no date, no
+  lane and no owner waiting. Concretely, the thing that is missing is rooms with
+  photographs in them: the game shows a leaf and asks for the path, so with no
+  published room carrying compartment-level photos there is nothing to show and
+  nothing to be right about. Every mechanism it would need has already shipped --
+  nine maps migrations are on `origin/main` and the public viewer at `/maps` is
+  live -- so this is not blocked on a build. When somebody asks "can we do the
+  guesser game yet", the answer is found by listing published rooms with photos,
+  not by reading a schedule. This entry's own default already names a number for
+  that gate -- five or more rooms published with compartment-level photos -- and his
+  answer is that same shape without contradicting it, so the number stands as the
+  working threshold rather than as something he set.
+- Still open: what the thing IS, if it is ever built. He deferred it; he did not
+  scope it. The one part that changes what `/maps` currently is, and therefore
+  needs its own answer, is whether the game KEEPS SCORE -- a scored game on a
+  signed-out public page is a different feature from a puzzle somebody plays once.
+  Nothing in `IDEA_MAPS_SPEC.md` is game-shaped, so there is no prior framing to
+  build from and this is a real scoping conversation rather than a ticket.
+- Prior note: the Decision line read, before 2026-09-12 -- blank. Mr. Pina asked on 2026-09-09 for the idea to be RECORDED and deferred
   it until the map has more depth. That is a "not now", not an answer to what the thing
   would be, which is why this is still open.
 - Default this assistant would pick: **not now, and set the gate rather than the date** --

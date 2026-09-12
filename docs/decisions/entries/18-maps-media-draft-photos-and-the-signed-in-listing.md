@@ -1,8 +1,27 @@
 # 18 `maps-media` no longer lists for a stranger; a draft photo by key, and the signed-in listing, are still open
 
 - Raised: 2026-09-06  By: prompt 0071, `claude/maps-media-bucket-he0wnn`
-- Status: open
-- Decision: whether to close the two things `0186_maps_media_no_anon_listing.sql`
+- Status: decided 2026-09-12. PUBLIC, drafts included. Nothing is owed and nothing is built.
+- Decision: 2026-09-12, Mr. Pina: map photos are public, drafts included. His
+  reasoning, in his terms: the editing team is responsible for what goes on the
+  map.
+- What this settles: both halves this entry left open, in the direction of leaving
+  them open, which is its own stated default. (a) A draft-owner photo and an orphan
+  stay readable by exact key. (b) A signed-in account listing the bucket is not
+  narrowed. So `maps-media` does NOT become private, and no proxy route goes in
+  front of `/maps`, which was the cost that made this a trade rather than a bug.
+- What does not change: `0186_maps_media_no_anon_listing.sql` stays. It narrowed
+  the ANONYMOUS listing to the objects a `maps_photos` row names, which is a
+  different thing from what he just kept public -- keeping a photo readable by key
+  is not restoring a stranger's ability to enumerate the bucket. The measured
+  excess 0186 removed was exactly 2 of 3 objects: the draft-owner photo and the
+  orphan, reachable by LISTING. Reading one by key was never what 0186 touched.
+- Note: his reasoning is about responsibility, so it is worth being precise about
+  what the editing team is responsible for. It is `/maps/edit`, admin-only, gated
+  once in that area's own `+layout.server.ts` -- a named group of adults, not the
+  student body -- which is why "the team is responsible" is a load-bearing answer
+  here and would not be one on a surface any student can upload to.
+- Question as raised: whether to close the two things `0186_maps_media_no_anon_listing.sql`
   deliberately left open on the `maps-media` bucket -- (a) any caller reading a
   DRAFT-owner photo or an ORPHANED object by its exact key, and (b) any signed-in
   account listing the bucket in full -- given that closing either means making the
