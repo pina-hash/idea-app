@@ -665,15 +665,16 @@
 						</div>
 					{/if}
 
-					<!-- THE FIVE CONTROLS FIRST, THEN THE READING. Measured at 1440: the
-					     pane is a 515px box and this panel is 930px of content, so
-					     something is below the fold whatever the order -- what is
-					     decided here is WHAT. Interleaving each picker with its
-					     density line and its note put Blade material and Blade
-					     thickness, the two controls this whole panel exists for,
-					     under the fold at 1440. Controls first puts all five above
-					     it and sends the prose down, which is the half a student
-					     scrolls for on purpose. -->
+					<!-- THE FIVE CONTROLS FIRST, THEN THE READING. Something is below
+					     the fold at 1440 whatever the order -- see the measured
+					     figures beside `.tree:has(.mat)` in this component's own
+					     stylesheet, which is where that number lives so there is
+					     one of it -- so what is decided here is WHAT. Interleaving
+					     each picker with its density line and its note put Blade
+					     material and Blade thickness, the two controls this whole
+					     panel exists for, under it. Controls first puts all five
+					     above and sends the prose down, which is the half a
+					     student scrolls for on purpose. -->
 					<label class="field">
 						<span class="lab">Body material</span>
 						<select
