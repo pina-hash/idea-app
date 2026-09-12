@@ -100,13 +100,26 @@
 	$effect(() => {
 		const s = cam;
 		const st = style;
-		untrack(() => apply)?.(s, st);
+		/* TRACK THE INPUTS, UNTRACK THE CALL -- and the call means the CALL, not
+		   the read of the function. `untrack(() => apply)?.(s, st)` untracks only
+		   the lookup and leaves the invocation inside the tracking context, so
+		   everything the callee touches joins this effect's dependency set. */
+		untrack(() => apply?.(s, st));
 	});
 	/* A new evaluation means new geometry. The rebuild is the mount's, reached
 	   through a setter so this effect calls injected code inside `untrack`. */
 	$effect(() => {
 		const e = evaluation;
-		untrack(() => rebuild)?.(e);
+		/* The same correction, and here it was a real defect rather than a rule
+		   followed loosely. `build()` reads the `rotation` PROP and ends in
+		   `paint()`, which reads `cam` and `style` through its own defaults -- so
+		   once an evaluation change armed this effect, every camera write during
+		   a drag re-triggered a full geometry rebuild: a `LatheGeometry`, an
+		   `ExtrudeGeometry` and three `EdgesGeometry` disposed and rebuilt per
+		   frame. It never showed up in a measurement because the harness fixture
+		   never changes the feature tree, so the effect never re-ran with
+		   `rebuild` set. Found by re-reading the diff, not by the instrument. */
+		untrack(() => rebuild?.(e));
 	});
 	let rebuild: ((e: Evaluation) => void) | null = null;
 

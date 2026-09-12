@@ -92,6 +92,44 @@ of these was found with the verdict list entirely green.
     it throws for a pointer the element is not tracking, and capture improves a drag
     rather than being a precondition for one.
 
+## A fifth defect, found by re-reading the diff rather than by any instrument
+
+`untrack(() => fn)?.(args)` untracks the LOOKUP and leaves the CALL tracked, and it
+looks exactly like the correct thing. `CLAUDE.md`'s rule is "track the inputs, untrack
+the call", and the call means the invocation -- written the other way round, everything
+the callee touches joins the effect's dependency set. Both of this viewport's effects
+shipped that shape, and on the rebuild effect it was a real defect: `build()` reads the
+`rotation` prop and ends in `paint()`, which reads `cam` and `style` through its own
+defaults, so **once an evaluation change armed the effect, every camera write during a
+drag re-triggered a full geometry rebuild**.
+
+**No measurement in this bundle caught it, and none could have**, which is the part
+worth keeping: the harness fixture never changes the feature tree, so the effect never
+re-ran with `rebuild` set. Neither did the frame numbers once it was looked for --
+1148 triangles rebuild fast enough that the render p95 and the presented cadence were
+identical with and without the fix at 375.
+
+**The instrument that did work was counting GL buffer allocations**, with
+`createBuffer` patched before the renderer existed: a rebuild allocates fresh buffers
+and reusing geometry allocates none. It also needed the right lever, and the first one
+was wrong -- **Accept does not change `draft`** (it copies draft into accepted and
+leaves draft alone), so nothing rebuilt and the first reading was a clean 0 either way.
+Switching concepts is what replaces `draft`:
+
+| | concept switch | the 30-frame drag after it |
+|---|---|---|
+| with the fix | 22 buffers | **0** |
+| as shipped | 22 buffers | **594** (19.8 per frame) |
+
+`tests/ideacad-viewport-effect-untrack.test.ts` is the guard, and it is a STATIC one on
+purpose: `tests/dom/` has no WebGL so nothing there can see a rebuild, and
+`tests/classroom-composer-effect-reactivity.test.ts` cannot see this at all -- it sweeps
+for calls to CALLER-SUPPLIED code, and `rebuild` and `apply` are local variables. Its
+own first run found a hit inside the fix's comment, which quotes the broken shape to
+explain it, so the sweep strips comments (with both directions asserted, since a
+stripper that removed everything would make every absence pass). Reverting the shape
+reddens 2 of its 5.
+
 ## What was measured
 
 Chromium 141.0.7390.37 at `/opt/pw-browsers`, Vite on 5199.
