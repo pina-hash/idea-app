@@ -74,3 +74,66 @@ expects a team artifact this term, **C is the cheap hedge and it is only cheap u
 outcome, but it is then permanent in the ordinary way: the key is in a unique constraint
 and ten RPC bodies, so changing it later is a migration, a backfill of live student work,
 and a rewrite of the roster read. **The cheap moment is now, before the apply.**
+
+---
+
+## The parts-and-checkout half (added 2026-09-12 by ledger 0183)
+
+Everything above this line is left unedited. **This section is additive and does not
+replace ledger 0179's**, which records the sharing half of the same decision; if both
+sections arrive in one merge, keep both.
+
+**MR. PINA'S SECOND ANSWER, 2026-09-12, in his terms.** An IDEA-Blade assembly has
+SEVERAL PARTS. **ONE PERSON HOLDS A PART AT A TIME** -- industry checkout, not concurrent
+editing of one part. He named concurrent editing of a single complex part a real FUTURE
+feature and explicitly did NOT want it for IDEA-Blade. Switching who holds what must be
+"extremely easy and intuitive". **THE ASSEMBLY OWNER HAS FULL CONTROL** over who is
+editing what and can reassign teammates to parts LIVE.
+
+**WHY THAT NEEDED A MIGRATION AT ALL, WHICH IS THE BLOCKER LEDGER 0179 NAMED:**
+`ideacad_documents` holds exactly one feature tree, so there was nothing to check out.
+Confirmed against `0201` before anything was built, and it is worth stating precisely
+because the schema LOOKS like it already holds several trees. It does --
+`ideacad_concepts` is one row per feature tree and a document has many -- but 0201's
+concepts are COMPETING ALTERNATIVES OF ONE PART, which is why `ideacad_predictions`
+exists to ask which of them a student thinks will win and why
+`ideacad_documents.active_concept_id` names the single tree the editor shows. No row in
+0201 means "the hex shank" as distinct from "the blade", so no unit of ownership existed
+for a person to be given exclusive hold of.
+
+**BUILT BY LEDGER 0183, `supabase/migrations/0207_ideacad_assembly_parts.sql` and
+`src/lib/ideacad/assembly.ts`.** A document is the assembly and owns ordered
+`ideacad_parts`; a concept belongs to a PART, so each part carries its own feature tree
+and its own alternatives of it; every existing document was migrated into a ONE-PART
+assembly. The hold lives on the part row and is taken under `select ... for update`, so
+two students pressing the same control cannot both acquire it. 0201's ten RPCs are NOT
+redefined -- `0205` replaces seven of them and a second replacement would revert its
+sharing widening silently -- so the compatibility is paid by a trigger that fills
+`part_id` for any insert that does not name one, and refuses rather than guesses once an
+assembly has more than one part.
+
+**HOW THE TWO HALVES COMPOSE, since they were decided a day apart and built in parallel.**
+`0205`'s editor grant is what makes an assembly a TEAM; `0207`'s hold is what says who is
+on which PART. A teammate needs both: the grant to open the document at all, and the hold
+to be the one working on that part. Neither widens the other. 0207's claim gate therefore
+DELEGATES to `_ideacad_can_write_document(uuid)` rather than restating it, through a
+select ladder that degrades to owner-only on a deployment that has 0207 but not yet 0205.
+
+**ONE THING IN HERE IS THIS ASSISTANT'S AND NOT HIS, AND IT IS RECORDED AS OURS: THE
+STALENESS RULE.** He did not specify when a hold lapses, and a holder who closes their
+laptop must not own a part for the rest of the term. The default taken is **TEN MINUTES
+since the last heartbeat**, written down once in `_ideacad_hold_window()`, with a lapsed
+hold TAKEN OVER by the next claimant rather than swept by anything. Ten minutes because
+the client heartbeat is ten seconds, so a live tab sits sixty beats inside the window and
+survives a wifi blip or a discarded-and-restored tab, while a machine that was shut down
+frees its part inside one class period. **It is a number he may want to change** and the
+place to change it is that one function; it is not published to a student as a count of
+seconds anywhere except through `ideacad_assembly`'s own `holdWindowSeconds`, which a
+surface needs in order to draw a lapsed hold honestly.
+
+**WHAT WAS DELIBERATELY NOT BUILT.** No UI. No part deletion and no part-level
+prediction. And **no instructor force path**: `ideacad_assign_part` is the OWNER's, which
+is his own sentence, and ledger 0179 measured that a teacher cannot open a student
+document at all (`_classroom_engine_student` raises for anyone not enrolled), so a manager
+force would have granted a power with no supported way to use it. Managers read the
+assembly, as they read everything else.

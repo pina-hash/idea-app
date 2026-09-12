@@ -7,7 +7,7 @@
   `docs/prompt-ledger/entries/0183-*`, and its own `docs/history/` entry.
   NO UI IN THIS BUNDLE -- no `.svelte` file.
 - Migration permitted: exactly one. Claims: 0207. Highest landed migration at issue: 0203
-- Status: issued
+- Status: pushed
 - Branch: `claude/amazing-bohr-qxhly9`, branched from `origin/integration` at `b0a8101d`
 - Runs THIRD in a chain of three in flight: ledger 0179 claims `0205`
   (`claude/great-bell-ppysbn`, owns `src/lib/ideacad/sharing.ts`) and ledger 0181 claims
