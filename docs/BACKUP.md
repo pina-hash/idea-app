@@ -424,6 +424,20 @@ https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz
 
 Add it as the secret **`BACKUP_DRIVE_FOLDER_ID`**.
 
+**Do not share that folder with anyone, and do not put it anywhere shared.**
+Every file in it is the whole school's data in one download: student names and
+addresses, coin balances, notebook writing, grades. A Drive folder is one click
+from "Anyone with the link", and that click is not recoverable. If it has to be
+reachable by more than one person, share it with named accounts, never a link.
+
+**The files are not encrypted, and that is a choice rather than an oversight.**
+Encrypting them would mean a key, and a key is a thing to lose -- an encrypted
+backup whose passphrase went with the laptop is not a backup. The protection
+here is that the folder is private to a school Google account with its own
+sign-in, which is the same protection the live database's dashboard has. If that
+ever stops being enough, the right answer is a second, named-account-only folder
+rather than a passphrase in somebody's head.
+
 ### 4. The three Google secrets
 
 - `BACKUP_GOOGLE_CLIENT_ID`
