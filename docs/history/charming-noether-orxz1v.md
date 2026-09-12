@@ -278,7 +278,12 @@ SQL projection mirrors it. Then append-only decides what a cell edit costs, whic
 - **Full suite, `origin/integration` at branch time and again after the edits:** 405
   files, 7819 tests, 0 failures, 365.8s. Unchanged, which is the expected answer for
   a bundle that touched nothing outside `docs/`.
-- **`svelte-check`, same two readings:** 0 errors, 38 warnings, 21 files -- 32
+- **And a THIRD time on the MERGED tree**, after `origin/integration` was merged in to
+  resolve the entry 02 conflict, because that merge pulled in four other lanes' `src/`
+  work: **408 files, 7903 tests, 0 failures**, 377.3s. That matches Integrate run
+  869's own reading of the merged tree exactly, which is the control saying this
+  container and the runner agree rather than two numbers that happen to be green.
+- **`svelte-check`, all three readings:** 0 errors, 38 warnings, 21 files -- 32
   `state_referenced_locally`, 5 `css_unused_selector`, 1 `perf_avoid_nested_class`.
 - **Production reachability, before the merge:** `https://ideabosco.com/` 200 in
   0.68s. `https://ideabosco.com/coins/` 308 and `https://idea-app-sage.vercel.app/`

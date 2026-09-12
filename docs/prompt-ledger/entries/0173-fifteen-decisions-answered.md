@@ -105,6 +105,13 @@ on the gallery cards so "public totals" means moving the owner gate; and
 because that table's revoke does not name the role while all five of the file's
 function revokes do.
 
+**The MERGED tree was re-verified after that resolution**, because the merge pulled
+in four other lanes' `src/` work: full suite **408 files / 7903 tests / 0 failures**
+in 377.3s, `svelte-check` **0 errors / 38 warnings / 21 files** with the same 32/5/1
+breakdown. The suite figure matches Integrate run 869's own reading of the merged tree
+exactly (408 / 7903), which is the control that says this container and the runner
+agree.
+
 **One conflict, resolved on the branch and never on `integration`.** Ledger 0174
 closed decision 02 while this bundle ran, so `docs/decisions/entries/02-*` conflicted.
 0174 did the thing this bundle's entry 02 said it must -- audit before writing a
