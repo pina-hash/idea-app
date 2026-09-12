@@ -14,6 +14,7 @@
 	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import { createTeacherEngineTransports, htmlManifestShaped } from '$lib/classroom/transports';
 	import { createClassroomLive } from '$lib/classroom/live';
+	import { createPresenceTransports } from '$lib/classroom/presence/transports';
 	import { assignmentLockState } from '$lib/classroom/html-assignment/lock';
 	import { itemTitle } from '$lib/classroom/classroom';
 	import type { StudentWork } from '$lib/classroom/assignment-spec';
@@ -41,6 +42,27 @@
 	 */
 	// svelte-ignore state_referenced_locally
 	const live = createClassroomLive(data.supabase);
+
+	/**
+	 * WHO IS ACTUALLY WORKING (0200), BUILT ONCE BESIDE THE OTHER TWO.
+	 *
+	 * The console's own read: one call per 30 seconds for the section on screen,
+	 * answering the four states, when each student last worked and how long each
+	 * has actually worked. It is handed UNCONDITIONALLY -- on a deployment where
+	 * `0200` has not been applied the RPC does not exist, the transport's own
+	 * `PGRST202` rung answers null, and the console renders no presence region
+	 * rather than an empty one. That is the ladder rule, and the reason the
+	 * degrade lives in the transport rather than in a flag here: two spellings of
+	 * "does this deployment have presence" is how a surface comes to draw a
+	 * region it cannot fill.
+	 *
+	 * NOTHING IS ANNOUNCED FROM THIS PAGE. An instructor reading a roster changes
+	 * no student's presence, and the one thing presence cannot be told about --
+	 * somebody closing the tab -- is precisely why the poll carries this feature
+	 * rather than the notice.
+	 */
+	// svelte-ignore state_referenced_locally
+	const presence = createPresenceTransports(data.supabase, data.item.id);
 
 	/**
 	 * WHICH ENGINE THIS ITEM IS, asked with `htmlAssignmentMount` and not with
@@ -104,6 +126,7 @@
 	rubric={data.rubric}
 	{transports}
 	{live}
+	{presence}
 	close={transports.closeAssignment}
 	htmlWork={htmlMount === 'spec' ? null : htmlWork}
 />

@@ -77,6 +77,16 @@
 		ASSIGNMENT_LOCK_CHIP,
 		type AssignmentLockState
 	} from '$lib/classroom/html-assignment/lock';
+	import PresenceLine from '$lib/classroom/presence/PresenceLine.svelte';
+	import {
+		PRESENCE_COVERAGE_NOTE,
+		PRESENCE_POLL_MS,
+		presenceByEmail,
+		type PresenceLimits,
+		type PresencePayload,
+		PRESENCE_LIMITS_FALLBACK
+	} from '$lib/classroom/presence/state';
+	import type { PresenceTransports } from '$lib/classroom/presence/transports';
 
 	/**
 	 * The grading console for one assignment in one section: the roster with
@@ -105,7 +115,8 @@
 		bulk = null,
 		htmlWork = null,
 		live = null,
-		close = null
+		close = null,
+		presence = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -185,6 +196,25 @@
 		 * of its own work.
 		 */
 		close?: CloseAssignmentTransport | null;
+		/**
+		 * WHO IS ACTUALLY WORKING (0200), AND ABSENCE REMOVES THE WHOLE REGION.
+		 *
+		 * Mr. Pina asked, on 2026-09-11, to see which students are working, which
+		 * have the assignment open but are elsewhere, which are not on the site,
+		 * when each last worked, and how much time each actually spent working.
+		 * Handed this transport the roster answers all four per row; handed
+		 * nothing it renders no presence anywhere -- not an empty line, not a
+		 * placeholder, not a "presence unavailable" card.
+		 *
+		 * THIS ONE IS THE ORDINARY ABSENCE-IS-THE-MECHANISM RULE AND NOT `live`'s
+		 * EXCEPTION, and the difference is what each stands for. `live` is a
+		 * SPEED over a poll that must keep running without it. This is a
+		 * CAPABILITY that a deployment sitting before `0200` genuinely does not
+		 * have -- `classroom_presence_state` does not exist there -- so there is
+		 * nothing to degrade to and a region that drew itself anyway would be
+		 * asserting a student is away when the truth is that nobody asked.
+		 */
+		presence?: PresenceTransports | null;
 	} = $props();
 
 	/**
@@ -460,6 +490,96 @@
 		// being a floor at exactly the moment the channel is unreliable.
 		const timer = setInterval(() => void load(), GRADING_POLL_MS);
 		return () => clearInterval(timer);
+	});
+
+	// -----------------------------------------------------------------------
+	// WHO IS ACTUALLY WORKING (0200).
+	//
+	// A SECOND READ ON A SECOND CADENCE, deliberately, and not folded into
+	// `load()`. The two answer different questions at different speeds: work
+	// arriving is minutes of effort and is polled at 60s, while a student
+	// sitting down or walking away moves in seconds and is polled at 30s.
+	// Folding them would either halve the grading payload's interval for no
+	// reason or report a student as away for a minute after they started
+	// typing.
+	//
+	// AND THIS ONE IS ALSO WHERE THE CLOCK COMES FROM. Presence decays on time
+	// rather than on a write -- a student who closes the tab announces nothing
+	// and writes nothing -- so the console has to re-ask what time it is, not
+	// merely what the server last said. `presenceNow` is threaded down to every
+	// row, so thirty rows are rendered at ONE instant rather than at thirty.
+	// -----------------------------------------------------------------------
+	let presenceData = $state<PresencePayload | null>(null);
+	let presenceNow = $state(Date.now());
+
+	const presenceRows = $derived(presenceByEmail(presenceData));
+	const presenceLimits = $derived<PresenceLimits>(
+		presenceData?.limits ?? PRESENCE_LIMITS_FALLBACK
+	);
+
+	async function loadPresence() {
+		// UNTRACKED AT THE CALL: `presence` is caller-supplied code, and whatever
+		// it touches reactively before its first await would otherwise join the
+		// calling effect's dependency set. The harness twin reads a `$state`
+		// clock, which is that loop written exactly this way.
+		const bus = untrack(() => presence);
+		if (!bus) return;
+		try {
+			presenceData = await bus.loadPresence(item.id, bulk ? null : section.id);
+		} catch {
+			// A PRESENCE FAILURE NEVER TOUCHES THE GRADING PAYLOAD. This is
+			// best-effort instrumentation beside the thing that matters, and
+			// instrumentation must never be able to affect what it measures --
+			// so the last good payload stays on screen and ages into `away` on
+			// its own, which is the honest reading of "we stopped hearing".
+		}
+	}
+
+	$effect(() => {
+		// TRACKED: the transport, the item and the scope are what a new read is
+		// FOR. Absence is the mechanism -- no transport, no interval, no clock
+		// and no region.
+		const bus = presence;
+		void item.id;
+		void section.id;
+		void bulk;
+		if (!bus) {
+			presenceData = null;
+			return;
+		}
+		queueMicrotask(() => void loadPresence());
+		const timer = setInterval(() => {
+			presenceNow = Date.now();
+			void loadPresence();
+		}, PRESENCE_POLL_MS);
+		return () => clearInterval(timer);
+	});
+
+	$effect(() => {
+		// The live notice, which makes a student SITTING DOWN immediate. It can
+		// never report somebody LEAVING -- nothing is written when a tab closes
+		// -- which is why the poll above is most of the mechanism here rather
+		// than a floor under it.
+		const bus = live;
+		const transport = presence;
+		const sectionId = section.id;
+		if (!bus || !transport) return;
+		let debounce: ReturnType<typeof setTimeout> | null = null;
+		const unsubscribe = untrack(() =>
+			bus.subscribe(sectionId, (topic) => {
+				if (topic !== 'presence') return;
+				if (debounce) clearTimeout(debounce);
+				debounce = setTimeout(() => {
+					debounce = null;
+					presenceNow = Date.now();
+					void loadPresence();
+				}, CLASSROOM_LIVE_DEBOUNCE_MS);
+			})
+		);
+		return () => {
+			if (debounce) clearTimeout(debounce);
+			unsubscribe();
+		};
 	});
 
 	// -----------------------------------------------------------------------
@@ -1752,9 +1872,65 @@
 								{/if}
 							</span>
 						</button>
+						<!--
+							PRESENCE, OUTSIDE THE BUTTON AND BENEATH THE NAME.
+
+							OUTSIDE, because the button is "open this student's work" and
+							this line is not part of that act -- the same reason the bulk
+							checkbox sits outside it. It is a `<span>` of text either way:
+							there is nothing here to press, so no tap target is created
+							inside a row that is already one 44px target, and no density
+							class is declared because none is needed.
+
+							BENEATH, not beside. The chip row above already carries up to
+							four chips (section, state, incomplete, changed) and a fifth
+							and sixth on the same line would push the name to an ellipsis
+							in the pane widths this console actually runs at. This is a
+							different question from all four of those -- they are about the
+							WORK and this is about the STUDENT -- so it reads as its own
+							line rather than as more chips.
+
+							THE ROW IS STILL DRAWN FOR A STUDENT WITH NO PRESENCE ROW,
+							reading "Not opened". Leaving it blank would make "never
+							started" and "this console cannot tell" look the same, and only
+							the transport's ABSENCE means the second -- which removes the
+							line entirely.
+						-->
+						{#if presence}
+							<PresenceLine
+								row={presenceRows.get(s.email) ?? null}
+								now={presenceNow}
+								limits={presenceLimits}
+							/>
+						{/if}
 					</li>
 				{/snippet}
 
+				{#if presence}
+					<!--
+						THE SENTENCE THAT QUALIFIES EVERY FIGURE BELOW IT, rendered
+						unconditionally whenever the region is -- including when every
+						figure on the roster reads zero, which is exactly when somebody
+						reads a count as "this student did nothing". Same argument as
+						`FOUNDRY_PLAY_COVERAGE_NOTE`, and stronger here: a Foundry play
+						count that undercounts costs a student nothing, and a working-time
+						figure read as effort can cost them a conversation they did not
+						earn.
+
+						IMMEDIATELY ABOVE THE LIST, AND THAT POSITION IS A MEASUREMENT
+						RATHER THAN A PREFERENCE. Rendered under the roster heading it was
+						separated from the rows it qualifies by the close tool and the
+						whole export panel -- about 200px at 1440 and a screenful at 375,
+						measured on `/dev/presence` -- so a reader scanning rows never had
+						it in view at the same time as a figure. A caveat that is not on
+						screen beside the number it qualifies is a caveat nobody reads.
+
+						NOT A TOOLTIP ON EACH ROW, for the same reason from the other end:
+						a sentence a reader has to hover thirty times is one they read
+						zero times, and a phone cannot hover at all.
+					-->
+					<p class="presence-note" data-testid="presence-note">{PRESENCE_COVERAGE_NOTE}</p>
+				{/if}
 				{#if bulk}
 					<!--
 						THE PRESETS ARE THE POINT OF THE BULK PATH. Ticking thirty boxes
@@ -2602,6 +2778,15 @@
 		line-height: 1.45;
 		color: var(--text-2);
 	}
+	.presence-note {
+		margin: 0 0 0.6rem;
+		font-size: 0.72rem;
+		line-height: 1.45;
+		/* `--text-2`, the register's own secondary-copy tier, and not `--dim`,
+		   which clears only the darkest of the three portal grounds and this card
+		   is not on it. */
+		color: var(--text-2);
+	}
 	.roster-list {
 		list-style: none;
 		margin: 0;
@@ -2699,11 +2884,31 @@
 	/* The tick box and the row are two controls on one line, and the row keeps
 	   the rest of the measure: a name that shrank to make room for a checkbox
 	   would ellipsise the one thing the row is for. */
+	/* THE ROW BECAME A COLUMN WHEN PRESENCE ARRIVED, and only when it is drawn.
+	   `.roster-item` was a row holding an optional checkbox and the button; the
+	   presence line is a THIRD child that belongs under the button rather than
+	   beside it, so the item wraps and the line is given the full measure with
+	   `flex-basis: 100%`. Nothing moves on a console with no presence transport:
+	   with two children and no wrap there is nothing to wrap. */
+	.roster-item :global([data-testid='presence-line']) {
+		flex-basis: 100%;
+		padding: 0 0.1rem 0.35rem 0.45rem;
+	}
+	.roster-item.pickable :global([data-testid='presence-line']) {
+		/* Clear of the checkbox column, so the line starts under the NAME. */
+		padding-left: 2.9rem;
+	}
 	.roster-item {
 		display: block;
 	}
+	/* `flex-wrap` BELONGS ONLY TO THE PICKABLE ARM, because only that arm is a
+	   flex container. The plain item is `display: block` and `PresenceLine`'s own
+	   root is a block-level flex container, so it already lands on its own line
+	   with no wrap rule to carry it -- a `flex-wrap` on a block element is a
+	   declaration that looks like it is doing the work and is not. */
 	.roster-item.pickable {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: stretch;
 		gap: var(--space-1);
 	}

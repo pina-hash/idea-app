@@ -1308,6 +1308,25 @@ jobs:
               return 2
             fi
 
+            # AND `svelte-kit sync` IS PART OF "COULD IT RUN" TOO, WHICH IS
+            # WHY THIS LINE IS HERE AND WHY IT IS NOT OPTIONAL. A runner's
+            # checkout has no `.svelte-kit` -- it is gitignored and `npm ci`
+            # does not write it -- and without it vitest dies in dependency
+            # optimisation with `[RESOLVE_ERROR] ... Tsconfig not found`
+            # BEFORE ANY TEST BODY, naming no test, so `findings` comes out
+            # empty and this function answered `unrun` on every tree it was
+            # ever handed. Measured on a fresh `npm ci` checkout of this
+            # repository: `npm test` exits 1 with 0 `FAIL` lines and 0 `Tests`
+            # summary lines; after one `svelte-kit sync`, the same tree runs.
+            # `CLAUDE.md` records the same trap for a human after `npm ci`.
+            # ITS OUTPUT GOES STRAIGHT TO STDERR, never to stdout, for the
+            # reason the paragraph below gives: stdout is this function's
+            # verdict. A sync that fails is left to the suite, which then
+            # reaches no test body and is reported `unrun` by the branch that
+            # already exists for exactly that -- there is no second verdict to
+            # invent here.
+            npx svelte-kit sync >&2 || printf 'svelte-kit sync failed on the merged tree; the suite below will report what that costs\n' >&2
+
             # `npm test`, NEVER `vitest` DIRECTLY, and `tools/run-tests.mjs`'s
             # own header is the reason: importing `embedded-postgres` registers
             # a `beforeExit` handler that calls `process.exit(0)`, so vitest's
