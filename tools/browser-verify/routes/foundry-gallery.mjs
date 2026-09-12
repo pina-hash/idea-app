@@ -21,14 +21,35 @@ export default {
 			until: '() => !!document.querySelector("[data-testid=\'foundry-gallery-grid\']") && !document.querySelector(".fdy-gal-detail")'
 		},
 		/*
-			MOST PLAYED HAS TO BE PRESSED FOR A COUNT TO EXIST AT ALL NOW, and
-			that is the gallery's rule rather than a harness convenience: a card
+			MOST PLAYED HAS TO BE IN FORCE FOR A COUNT TO EXIST AT ALL, and that
+			is the gallery's rule rather than a harness convenience: a card
 			carries a play count only while a play RANKING is in force. Under
-			`Recent` -- the default, and where this spec used to assert two
-			chips -- every card shows none, because a number on every card of a
+			`Recent` every card shows none, because a number on every card of a
 			gallery nobody ordered by plays reads as a verdict on the work
 			rather than as a measurement.
+
+			IT IS PRESSED EXPLICITLY EVEN THOUGH IT IS NOW THE DEFAULT. Decision
+			04 (answered 2026-09-12) moved the opening order from `Recent` to
+			`Most played`, so this click lands on a control that is already
+			pressed and changes nothing -- and that is the point: a spec whose
+			measured state depends on which order happens to be the default is
+			one that goes quietly wrong the next time the default moves, which
+			is precisely what this bundle was written to fix one level up.
+			`routes/foundry-gallery-state-detail-stats.mjs` measures the detail
+			pane; which order the gallery OPENS on is
+			`tests/dom/foundry-sort.test.ts`'s claim and is made in one place.
 		*/
+		{
+			/* RECENT FIRST, SO THE PRESS BELOW IS A REAL ONE. `Most played` is
+			   the opening order since decision 04, and the harness records a
+			   click on an already-satisfied predicate as a step that reached no
+			   state -- correctly, since it discriminates nothing. Going to
+			   `Recent` and back makes both clicks move the page, and the pair
+			   measures the count rule in both directions rather than asserting
+			   one half of it against a default. */
+			click: '.fdy-gal-sort-btn[data-sort="recent"]',
+			until: '() => document.querySelectorAll("[data-testid=\'fdy-card-plays\']").length === 0'
+		},
 		{
 			click: '.fdy-gal-sort-btn[data-sort="played"]',
 			until: '() => document.querySelectorAll("[data-testid=\'fdy-card-plays\']").length === 2'

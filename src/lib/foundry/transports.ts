@@ -19,7 +19,7 @@
  */
 
 import type { FoundryIssue } from './preflight.ts';
-import type { FoundryPlayStats } from './telemetry.ts';
+import type { FoundryMyPlayStats, FoundryPlayStats } from './telemetry.ts';
 
 /** The shape every transport answers with. */
 export type FoundryOutcome<T = object> = ({ ok: true } & T) | { ok: false; message: string };
@@ -129,10 +129,11 @@ export interface FoundryMineTransports {
 	/** Re-read one app after a write, so the surface never renders a stale row. */
 	refresh?: (slug: string) => Promise<FoundryApp | null>;
 	/**
-	 * `foundry_app_play_stats` for the student's OWN app. Aggregates only: how
-	 * many plays, how many people, how long, and when last. Never which people
-	 * and never when a named person played -- the function has no shape in
-	 * which it could say.
+	 * `foundry_app_play_stats`. Aggregates only: how many plays, how many
+	 * people, how long, and when last. Never which people and never when a
+	 * named person played -- the function has no shape in which it could say,
+	 * which is what made 0204's widening (decision 07, answered public) a
+	 * change to WHICH APPS may be asked about rather than to what comes back.
 	 */
 	playStats?: FoundryPlayStatsTransport;
 }
@@ -323,6 +324,29 @@ export interface FoundryGalleryTransports {
  * renders no figures.
  */
 export type FoundryPlayStatsTransport = (appId: string) => Promise<FoundryPlayStats | null>;
+
+/**
+ * `foundry_my_play_stats` (0204), THE VIEWER'S OWN TIME WITH ONE APP.
+ *
+ * IT IS A SECOND TRANSPORT AND NOT A PARAMETER ON THE ONE ABOVE, and that
+ * mirrors the database rather than merely resembling it: 0204 built a separate
+ * function precisely so that "can only read their own" is a property of the
+ * SIGNATURE -- no identity argument exists, so no other player can be named.
+ * Folding the two into one transport with a "whose" flag would put back, on
+ * this side, exactly the shape the function was split to remove, and the first
+ * reader to see the flag would reasonably ask what other values it takes.
+ *
+ * `null` IS ORDINARY AND MEANS "nothing to say here": no session, an app
+ * outside the caller's population, or a deployment that does not have 0204
+ * yet. It is never distinguished from "you have never played this", because
+ * both render the same nothing -- see `hasOwnPlaytime` in `telemetry.ts`.
+ *
+ * Optional wherever it is taken, so a mounting without it renders no personal
+ * figures at all. Absence is the mechanism here as everywhere in this feature.
+ */
+export type FoundryMyPlayStatsTransport = (
+	appId: string
+) => Promise<FoundryMyPlayStats | null>;
 
 /**
  * 0173, decision 06. The trusted publisher roster: read it, add an address,

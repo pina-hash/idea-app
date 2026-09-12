@@ -1,0 +1,274 @@
+name: Backup
+
+# A LOGICAL BACKUP OF THE PRODUCTION DATABASE, ONCE A NIGHT, STORED OFF
+# SUPABASE.
+#
+# ---------------------------------------------------------------------------
+# WHY THIS EXISTS. `pina-hash/idea-app` is on the Supabase FREE plan, which has
+# no automated backups and no point-in-time recovery. That database holds every
+# student's coins, notebooks, Foundry apps, tournament records and IdeaCAD
+# work. The two loss modes that are real here rather than theoretical:
+#
+#   * A MISTAKEN STATEMENT IN THE SQL EDITOR. Every migration in this repo is
+#     applied BY HAND in Supabase's SQL editor -- that is written down in
+#     CLAUDE.md as the apply path, and `supabase/roles/idea_migrator.sql` even
+#     carries an event trigger to refuse a `drop table` from a session. That
+#     guard stops an accident and says of itself that it does not stop an
+#     intent, and it does not cover `truncate` or top-level DML at all. Nothing
+#     at all covers a person with the owner's own console open.
+#   * A FREE PROJECT PAUSED OVER A LONG BREAK. A Bosco Tech summer is about ten
+#     weeks. A paused project is restorable by a click, but the pause is also
+#     the state in which nobody is looking, and it is the state from which a
+#     project can eventually be removed.
+#
+# Neither is recoverable today. This makes both recoverable.
+#
+# ---------------------------------------------------------------------------
+# WHAT IT DOES NOT COVER, SAID HERE RATHER THAN DISCOVERED DURING A RESTORE:
+# SUPABASE STORAGE OBJECTS. `pg_dump` reads a database. The BYTES of every
+# Foundry bundle, classroom attachment, hand-in, answer key, map photo and
+# notebook photo live in Storage buckets, which are another service; what this
+# captures is the ROWS that name them. Restore this and you get a database that
+# knows about every file and can serve none. `docs/BACKUP.md` says so in its
+# first section, and closing that gap is a separate piece of work.
+#
+# ---------------------------------------------------------------------------
+# THE TRIGGERS ARE `schedule` AND `workflow_dispatch`, AND THE ABSENCE OF
+# `pull_request` IS THE SECURITY PROPERTY. This repository is PUBLIC (measured:
+# the unauthenticated GitHub API answers `"private": false` for it), so anybody
+# may open a pull request against it. GitHub withholds secrets from a fork's
+# pull-request run, but a workflow that never runs on a pull request at all
+# cannot be reasoned about wrongly. Do not add one.
+#
+# `permissions: contents: read` for the same reason: this job reads the database
+# and talks to Google, and its only business with the repository is checking
+# itself out. It is deliberately not `permissions: {}` -- that reads as tidier
+# and would hand `actions/checkout` a token with no scopes at all, which is a
+# way for the FIRST run to fail at the first step, and this workflow is one
+# nobody can rehearse.
+#
+# ---------------------------------------------------------------------------
+# THE HOUR IS CHOSEN. 09:00 UTC is 02:00 Pacific in summer and 01:00 in winter,
+# which is outside class hours in both halves of the year, and it is ONE HOUR
+# BEFORE `deploy.yml`'s own 10:00 UTC nightly. That ordering is the point:
+# deploying is the only scheduled event that changes what production's code
+# does, so every deploy is preceded by a copy of the database as it was before
+# it. Moving this later than 10:00 UTC would give up that property.
+#
+# It is deliberately NOT at `ci.yml`'s 08:00, whose hour is chosen for a
+# different reason entirely (a class of wall-clock defect that is only visible
+# between 00:00 and 02:00 Pacific) and must not be crowded.
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Dump the production database and store it in Drive
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # ------------------------------------------------------------------
+      # A MISSING SECRET FAILS THIS RUN RATHER THAN SKIPPING IT.
+      #
+      # The tempting shape is `if: secrets.X != ''`, which turns an
+      # unconfigured backup into a GREEN run that does nothing -- and the
+      # whole failure mode this workflow exists for is nobody finding out
+      # until they need the file. A red run every night is a red run somebody
+      # asks about. The values are never echoed, only their presence.
+      # ------------------------------------------------------------------
+      - name: Every secret this needs is present
+        env:
+          DB: ${{ secrets.BACKUP_DATABASE_URL }}
+          CID: ${{ secrets.BACKUP_GOOGLE_CLIENT_ID }}
+          CSECRET: ${{ secrets.BACKUP_GOOGLE_CLIENT_SECRET }}
+          RT: ${{ secrets.BACKUP_GOOGLE_REFRESH_TOKEN }}
+          FOLDER: ${{ secrets.BACKUP_DRIVE_FOLDER_ID }}
+        run: |
+          set -euo pipefail
+          missing=""
+          [ -n "${DB:-}" ]      || missing="$missing BACKUP_DATABASE_URL"
+          [ -n "${CID:-}" ]     || missing="$missing BACKUP_GOOGLE_CLIENT_ID"
+          [ -n "${CSECRET:-}" ] || missing="$missing BACKUP_GOOGLE_CLIENT_SECRET"
+          [ -n "${RT:-}" ]      || missing="$missing BACKUP_GOOGLE_REFRESH_TOKEN"
+          [ -n "${FOLDER:-}" ]  || missing="$missing BACKUP_DRIVE_FOLDER_ID"
+          if [ -n "$missing" ]; then
+            {
+              echo "## Backup did not run"
+              echo
+              echo "These repository secrets are not set:"
+              for s in $missing; do echo "- \`$s\`"; done
+              echo
+              echo 'See `docs/BACKUP.md`, "Setting up the secrets".'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "missing secrets:$missing" >&2
+            exit 1
+          fi
+          echo "all five present"
+
+      # ------------------------------------------------------------------
+      # THE CLIENT MUST BE AT LEAST THE SERVER'S MAJOR VERSION OR `pg_dump`
+      # REFUSES OUTRIGHT, and the refusal names two version numbers and
+      # nothing about what to do. The runner ships a client that was current
+      # when the image was built; Supabase upgrades the server on its own
+      # schedule. So the server is ASKED, and the matching client installed.
+      # Nothing here is pinned to a number a Supabase upgrade would age out.
+      #
+      # `psql` has no such restriction and connects to any server, which is
+      # what makes asking possible before installing.
+      # ------------------------------------------------------------------
+      - name: Install the Postgres client the server needs
+        id: pg
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          # The runner image ships a Postgres client, but this is the FIRST
+          # thing the first run does and nothing here can be rehearsed, so a
+          # missing `psql` gets installed rather than ending the run with
+          # "command not found".
+          command -v psql >/dev/null || {
+            echo "no psql on this runner; installing the distro client"
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          }
+          num=$(psql "$BACKUP_DATABASE_URL" -Atqc 'show server_version_num')
+          major=$((num / 10000))
+          echo "server is PostgreSQL $major (server_version_num $num)"
+          echo "major=$major" >> "$GITHUB_OUTPUT"
+
+          have=$(pg_dump --version | sed -E 's/[^0-9]*([0-9]+).*/\1/')
+          if [ "$have" -ge "$major" ]; then
+            echo "the runner's pg_dump is $have, which is new enough"
+            echo "bin=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "the runner's pg_dump is $have; installing $major from PGDG"
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq "postgresql-client-$major"
+          echo "bin=/usr/lib/postgresql/$major/bin" >> "$GITHUB_OUTPUT"
+
+      # ------------------------------------------------------------------
+      # THE DUMP ITSELF IS `tools/backup/dump.sh` AND IS NOT SPELLED OUT
+      # HERE. That script is what `tools/backup/roundtrip.sh` proves
+      # restorable, so a `pg_dump` invocation written into this file instead
+      # would be an artefact nobody had ever restored.
+      #
+      # THE DATE IS THE AMERICA/LOS_ANGELES ONE. This runs at 01:00 or 02:00
+      # Pacific, so the UTC date is already tomorrow: a UTC-named file would
+      # be labelled with a school day that has not happened. The filename is
+      # also the only retention state there is (`drive-upload.mjs`), so it has
+      # to be the name a person would look for.
+      # ------------------------------------------------------------------
+      - name: Dump
+        id: dump
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          PG_BIN: ${{ steps.pg.outputs.bin }}
+        run: |
+          set -euo pipefail
+          day=$(TZ=America/Los_Angeles date +%Y-%m-%d)
+          file="idea-app-$day.sql.gz"
+          bash tools/backup/dump.sh "$BACKUP_DATABASE_URL" "$file"
+          bytes=$(wc -c < "$file")
+          plain=$(gzip -dc "$file" | wc -c)
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+          echo "bytes=$bytes" >> "$GITHUB_OUTPUT"
+          echo "plain=$plain" >> "$GITHUB_OUTPUT"
+
+          # A DUMP THAT IS TOO SMALL IS THE ONE FAILURE THAT LOOKS LIKE A
+          # SUCCESS. A credential that can connect but reads nothing, or a
+          # `--schema` that matched nothing, both produce a valid, uploadable,
+          # WORTHLESS file. The floor is the schema alone, which
+          # `tools/backup/roundtrip.sh` measures at about 262,000 bytes over an
+          # empty database, so anything under 100,000 bytes did not dump this
+          # schema and this run is a failure.
+          if [ "$bytes" -lt 100000 ]; then
+            echo "the dump is $bytes bytes; the schema alone is about 260,000. Refusing to upload it." >&2
+            exit 1
+          fi
+
+          # AND IT MUST ACTUALLY BE A COMPLETE GZIP AND A COMPLETE DUMP. A run
+          # killed mid-write leaves a file that exists and has a size.
+          #
+          # The marker is read into a variable rather than piped into `grep -q`:
+          # under `pipefail`, a `grep -q` that exits on its match can SIGPIPE
+          # whatever is feeding it, and the step would then fail for finding
+          # what it was looking for.
+          gzip -t "$file"
+          # 20 rather than 5: measured, the marker sits 4 lines from the end
+          # on pg_dump 16.13 because of the trailing `\unrestrict` line, and a
+          # window that tight turns one more trailing line in a future pg_dump
+          # into a nightly failure with a misleading message.
+          last=$(gzip -dc "$file" | tail -20)
+          case "$last" in
+            *'PostgreSQL database dump complete'*) ;;
+            *) echo "the dump does not end with pg_dump's own completion marker" >&2; exit 1 ;;
+          esac
+          echo "$file: $bytes bytes gzipped, $plain uncompressed"
+
+      - name: Store it in Drive and prune to the retention window
+        env:
+          BACKUP_GOOGLE_CLIENT_ID: ${{ secrets.BACKUP_GOOGLE_CLIENT_ID }}
+          BACKUP_GOOGLE_CLIENT_SECRET: ${{ secrets.BACKUP_GOOGLE_CLIENT_SECRET }}
+          BACKUP_GOOGLE_REFRESH_TOKEN: ${{ secrets.BACKUP_GOOGLE_REFRESH_TOKEN }}
+          BACKUP_DRIVE_FOLDER_ID: ${{ secrets.BACKUP_DRIVE_FOLDER_ID }}
+          FILE: ${{ steps.dump.outputs.file }}
+        run: node tools/backup/drive-upload.mjs "$FILE"
+
+      # THE SUMMARY IS THE ONLY THING ANYBODY READS, so it carries the size
+      # and where the file went rather than "succeeded".
+      - name: Say what landed
+        if: always()
+        env:
+          FILE: ${{ steps.dump.outputs.file }}
+          BYTES: ${{ steps.dump.outputs.bytes }}
+          PLAIN: ${{ steps.dump.outputs.plain }}
+          MAJOR: ${{ steps.pg.outputs.major }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Backup"
+            echo
+            if [ -n "${FILE:-}" ]; then
+              echo "| | |"
+              echo "| --- | --- |"
+              echo "| file | \`$FILE\` |"
+              echo "| gzipped | $BYTES bytes |"
+              echo "| uncompressed | $PLAIN bytes |"
+              echo "| server | PostgreSQL ${MAJOR:-?} |"
+              echo
+              echo 'Stored in the Drive folder named by `BACKUP_DRIVE_FOLDER_ID`.'
+            else
+              echo 'No dump was produced. The step log says why.'
+            fi
+            echo
+            echo 'Restoring it: `docs/BACKUP.md`. **Storage bucket objects are not in this file.**'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # NOTHING IS LEFT ON THE RUNNER. The dump is every student's data; a
+      # runner is ephemeral, but `always()` here means a failed upload does
+      # not leave it sitting in a workspace that a later step could publish.
+      - name: Remove the local copy
+        if: always()
+        run: rm -f idea-app-*.sql.gz

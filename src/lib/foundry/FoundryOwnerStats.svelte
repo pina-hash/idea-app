@@ -3,17 +3,19 @@
 	 * THE OWNER'S DASHBOARD (decision 07): what all of this student's apps have
 	 * done, at the top of their own shelf.
 	 *
-	 * THE DECISION THIS IMPLEMENTS was "owner-only telemetry does NOT become
-	 * public; build the owner dashboard instead." The per-app panel
-	 * (`FoundryPlayStats`) already existed and is already mounted on every app
-	 * a student opens; what did not exist was the answer to "how is my work
-	 * doing" without opening five apps one at a time.
+	 * THE DECISION THIS WAS BUILT UNDER HAS BEEN REVERSED AND THIS PANEL IS
+	 * UNAFFECTED. It implemented "owner-only telemetry does NOT become public;
+	 * build the owner dashboard instead"; Mr. Pina answered decision 07 PUBLIC
+	 * on 2026-09-12 and 0204 opened the three per-app metrics. This panel was
+	 * never the gate -- it answers "how is MY work doing" without opening five
+	 * apps one at a time, which is a question the widening does not touch.
 	 *
 	 * IT IS ARITHMETIC OVER A READ THE PAGE ALREADY MAKES. `foundryOwnerRollup`
 	 * folds `foundry_play_counts()` -- which answers for the caller's own
 	 * population -- so there is no new RPC, no new grant, and no second
-	 * statement of any figure. Nothing owner-only moved anywhere: `players`,
-	 * time played and last-played stay on the gated per-app read.
+	 * statement of any figure. `players`, time played and last-played stay on
+	 * the per-app read, which 0204 widened from the author and an admin to
+	 * anybody who can see the app.
 	 *
 	 * COUNTS OVER APPS, NEVER OVER PEOPLE. There is no per-person figure in
 	 * the input, so there is none here and none this could be widened into.

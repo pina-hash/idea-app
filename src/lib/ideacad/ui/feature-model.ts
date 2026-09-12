@@ -232,48 +232,17 @@ function num(
 export function panelFor(tree: BladeTree, id: string, config: BladeConfig): PmPanel | null {
 	const r = config.rules;
 	if (id === 'materials') {
-		return {
-			id,
-			label: featureLabel(id),
-			stations: null,
-			note: null,
-			fields: [
-				{
-					kind: 'choice',
-					key: 'materials.body',
-					label: 'Body material',
-					value: tree.materials.body,
-					options: config.materials.map((m) => ({ value: m.id, label: m.name }))
-				},
-				num(
-					'materials.bodySolidFraction',
-					'Body fill',
-					'%',
-					Math.round(tree.materials.bodySolidFraction * 100),
-					10,
-					100,
-					1,
-					true
-				),
-				{
-					kind: 'choice',
-					key: 'materials.bladeStock',
-					label: 'Blade stock',
-					value: tree.materials.bladeStock,
-					options: config.stock.map((s) => ({ value: s.id, label: s.name }))
-				},
-				{
-					kind: 'choice',
-					key: 'rotation',
-					label: 'Spin direction',
-					value: tree.rotation,
-					options: [
-						{ value: 'cw', label: 'Clockwise' },
-						{ value: 'ccw', label: 'Counter-clockwise' }
-					]
-				}
-			]
-		};
+		/* THE MATERIALS PANEL MOVED TO `BladeEditor` IN 0208 AND THIS RETURNS NULL.
+		   Material and thickness are two controls over ONE stored stock id, the
+		   list they offer comes from `ideacad_materials` rather than from the
+		   config, and a student adding their own material is a form with a write
+		   behind it -- none of which a `PmField` union of number/choice/fact can
+		   express. Keeping a second, generic materials panel here would be two
+		   answers to "what may a student change about materials", and the one
+		   nobody looks at is the one that stops agreeing. `BladeEditor` branches
+		   on `panelId === 'materials'` BEFORE it reads this, so the null is what
+		   makes that branch the only path. */
+		return null;
 	}
 	if (id === 'standard-parts') {
 		return {

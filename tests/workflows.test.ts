@@ -1481,7 +1481,7 @@ describe('the invariants these particular workflows have to hold', () => {
 		expect(
 			pushLinesPerFile,
 			'the per-file push shape moved; a file that gained or lost a push line needs a look'
-		).toEqual({ 'ci.yml': 0, 'deploy.yml': 1, 'integrate.yml': 3 });
+		).toEqual({ 'backup.yml': 0, 'ci.yml': 0, 'deploy.yml': 1, 'integrate.yml': 3 });
 	});
 
 	it('POSITIVE CONTROL: every spelling of a force-push is caught, and the lease-pinned delete is not', () => {

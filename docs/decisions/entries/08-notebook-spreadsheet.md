@@ -1,6 +1,8 @@
 # 08 Notebook: a real spreadsheet engine inside a note
 - Raised: 2026-08-31  By: chat "Managing multiple FRC platform projects"
-- Status: decided 2026-09-12 as a BUILD. Scoped below.
+- Status: decided 2026-09-12 as a BUILD. Scoped below. The FORMULA ENGINE question
+  (item 1) is answered and the engine is built; the SURFACE is still blocked on the
+  gate-widening migration in item 2.
 - Decision: 2026-09-12, Mr. Pina: not a table. A REAL SPREADSHEET ENGINE WITH WORKING
   FORMULAS. He explicitly dislikes how Google Docs tables behave and does not want
   that shape. His bar: it must work as well inside a note as the text editing
@@ -149,3 +151,54 @@ every function in it is one somebody chose to support, so an unsupported formula
 says so instead of silently returning something plausible. **The honest cost: it is
 not Excel and will not do `VLOOKUP` on day one.** The function table is the artifact
 to agree with him before a line is written.
+
+
+## The dependency question is ANSWERED: a scoped evaluator, no package (2026-09-12)
+
+Item 1 above said the dependency decision was the first one and that nothing else
+could be estimated until it was made. Mr. Pina made it on 2026-09-12, on the
+audit's own recommendation: **write a scoped evaluator and adopt none of the
+four.** The licence is what settled it. HyperFormula is the only maintained
+complete engine and is GPL-3.0-only; `pina-hash/idea-app` is a genuinely public
+repository with no LICENSE file and no `license` in `package.json`, and the bundle
+is served to every browser that opens a note, which is distribution. Formula.js is
+MIT and maintained and is a function library with no parser and no dependency
+graph, so adopting it leaves most of the work. The two MIT parsers were last
+published in 2020 and 2017.
+
+**He was told VLOOKUP will not exist on day one and accepted it.** That is the
+scope decision, recorded here rather than in a report, because it is the thing
+somebody will want to reopen.
+
+### What ledger 0187 built, and what it deliberately did not
+
+`src/lib/notebook/formula/` is the engine and NOTHING ELSE: a tokenizer, a
+recursive-descent parser, a dependency graph with topological recalculation and
+cycle detection, and a named function table holding `SUM AVERAGE MIN MAX COUNT
+ROUND IF ABS`. Pure TypeScript, no DOM, no Svelte, no dependency, no storage and
+no migration. It ships ahead of the surface because the engine does not depend on
+the gate and the gate is what blocks the surface.
+
+`SQRT` appeared in the audit's sketch of the table and is NOT in the shipped one:
+the eight above are what the build was scoped to. Adding it is one entry.
+
+**Lookup functions are out of scope and were not half-built.** The obligation the
+engine carries instead is that adding one later is registration rather than
+surgery, and one design decision buys that: a function ARGUMENT carries the
+range's SHAPE (`rows` and `cols`), not just its values, because a lookup is the
+one family that needs to know a range is a table. Flattening a range to a list
+would have been enough for all eight functions above and would have made the first
+lookup a change to the evaluator.
+
+### What is still blocked, in the same dependency order
+
+Item 2 is unchanged and is now the ONLY thing between this engine and a
+spreadsheet a student can use: `_notebook_note_content_ok` still answers FALSE for
+a `sheet` block, so the grid cannot be stored. That migration widens the gate
+ALONE, before any producer can emit the shape, and it owes an answer for the
+`v_total > 0` text floor that would otherwise refuse a note whose only content is
+a spreadsheet.
+
+Item 5 is unchanged and unanswered: the grid goes INSIDE ProseMirror as a custom
+node or it does not meet his bar, because undo, selection and paste are the bar
+and ProseMirror owns all three.

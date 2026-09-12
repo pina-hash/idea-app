@@ -105,10 +105,12 @@
 		},
 
 		/**
-		 * `foundry_app_play_stats` for ANY app, which is what `is_admin()` inside
-		 * that function admits. THE SAME FOUR SCALARS the author gets and not one
-		 * field more: staff see every app's aggregates and nobody's play history,
-		 * because there is no per-player read for any caller at all.
+		 * `foundry_app_play_stats` for ANY app, which is what the `is_admin()`
+		 * arm of `_foundry_app_in_population` admits -- including the HIDDEN and
+		 * UNPUBLISHED apps 0204's widening still withholds from everybody else.
+		 * THE SAME FOUR SCALARS a student gets and not one field more: staff see
+		 * every app's aggregates and nobody's play history, because there is no
+		 * per-player read of ANOTHER person's rows for any caller at all.
 		 *
 		 * Null on a missing RPC as well, so a deployment sitting between 0138 and
 		 * 0139 renders the queue without the block rather than an error over it.

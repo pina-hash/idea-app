@@ -11,6 +11,16 @@
 		"Entry shape: { date: 'YYYY-MM-DD', title, body, tags?: string[] }.",
 		"Newest entries may go anywhere in the list -- the page sorts by date.",
 		{
+			"date": "2026-09-12",
+			"title": "Pick a real material, and a thickness you can actually get",
+			"body": "IdeaCAD's Materials panel now lists the materials the shop works with -- stainless, galvanized and plain steel, 6061 aluminum, polycarbonate and wood -- and for each one, only the stock thicknesses it is actually sold in. You pick a thickness from the list instead of typing any number you like, because that is how it works when you go to cut the part. Your mass and rotational inertia change as soon as you switch. If you want to test something that is not on the list, including a 3D printed part whose density depends on your own slicer settings, add it as your own material: enter the density and the thicknesses you have, and only you will see it. A material that is marked UNVERIFIED means the density has not been checked against its published source yet, so treat that figure as close rather than exact.",
+			"tags": [
+				"classroom",
+				"assignments",
+				"IdeaCAD"
+			]
+		},
+		{
 			"date": "2026-09-11",
 			"title": "Build and compare your blade concepts in IdeaCAD",
 			"body": "IdeaCAD gives each Blade assignment a SolidWorks-style 3D concept workspace where you can edit features, check the rules, and compare saved ideas before choosing one. Commit a concept card when you have a direction to model in SolidWorks, while your teacher can follow the saved design without moving your camera.",
@@ -22,6 +32,14 @@
 		}
 	],
 	"entries": [
+		{
+			"date": "2026-09-12",
+			"title": "The Foundry opens on the most played apps, and every app now shows its numbers",
+			"body": "The gallery used to open on whatever was published most recently. It now opens on the most played apps, so the work people are actually using is what you see first. You can still switch to Recent or to Played this week, and a gallery where nothing has been played yet is in exactly the order it always was. Open any app and you will also see how many times it has been played, how many different people have played it, how long in total, and when it was last opened. If you have played it yourself, your own time with it sits underneath, and only you can see that row. Nobody, staff included, can see which students played an app. All of these counts only include plays inside the Foundry, so opening an app from its own share link is not counted and the real number is higher.",
+			"tags": [
+				"foundry"
+			]
+		},
 		{
 			"date": "2026-09-11",
 			"title": "Check the captions on your Module 04 sketches",
@@ -1377,6 +1395,14 @@
 				"blade editor",
 				"IDEA100",
 				"fix"
+			]
+		},
+		{
+			"date": "2026-09-12",
+			"title": "You no longer need a description to publish an app in the Foundry",
+			"body": "Publishing an app needs a name, a thumbnail and the app itself. A description is optional now. Before this, you could not even send an app for review without writing one, which was not the intention. If you have an app that was stuck on that, you can submit it as it is. A description is still worth writing when you have something to say: it is what somebody reading the gallery sees before they open your app.",
+			"tags": [
+				"foundry"
 			]
 		}
 	]
