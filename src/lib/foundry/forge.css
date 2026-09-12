@@ -254,6 +254,16 @@ body:has(.fg-root) {
 .fg-root [data-cover-failed] {
 	/* The alt text would otherwise paint over the mark below. */
 	color: transparent;
+	/*
+	   THE BROKEN-IMAGE GLYPH IS NOT REMOVED HERE, AND CSS CANNOT DO IT.
+	   `color: transparent` does not touch it and neither does `content: ''`
+	   -- both were measured on the mosaic harness and the engine's own
+	   coloured icon still painted over the top-left of this pattern. What
+	   removes it is giving the element a picture that DECODES, which
+	   `foundryCoverFailed` does; see its note in `covers.ts`. This rule draws
+	   the state, and that handler makes sure there is nothing painting on top
+	   of it.
+	*/
 	background-color: var(--fg-st-draft-fill);
 	background-image: repeating-linear-gradient(
 		135deg,
