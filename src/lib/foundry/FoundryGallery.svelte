@@ -40,8 +40,10 @@
 
 	import FoundryCard from './FoundryCard.svelte';
 	import FoundryDetail from './FoundryDetail.svelte';
+	import FoundryPlayStats from './FoundryPlayStats.svelte';
 	import { foundryMosaicColumns } from './mosaic.ts';
 	import {
+		FOUNDRY_GALLERY_DEFAULT_SORT,
 		FOUNDRY_GALLERY_SORTS,
 		playCountLabel,
 		sortGallery,
@@ -51,7 +53,9 @@
 	import type {
 		FoundryApp,
 		FoundryAppSummary,
-		FoundryGalleryTransports
+		FoundryGalleryTransports,
+		FoundryMyPlayStatsTransport,
+		FoundryPlayStatsTransport
 	} from './transports.ts';
 
 	let {
@@ -105,7 +109,31 @@
 		 * one: the review queue mounts the IDENTICAL file, which is what makes
 		 * "what does a student see" answerable by reading it straight through.
 		 */
-		staffHref = null
+		staffHref = null,
+		/**
+		 * THE APP'S PUBLIC TOTALS, FOR THE APP THAT IS OPEN.
+		 * `foundry_app_play_stats`, which since 0204 (decision 07, answered
+		 * public) answers any signed-in caller who can see the app rather than
+		 * the author and an admin alone.
+		 *
+		 * WHY IT ARRIVES AS ITS OWN PROP AND NOT INSIDE `transports`. The
+		 * gallery's transport object is the PLAY RECORDER -- two calls `AppStage`
+		 * makes while a bundle runs -- and it is handed straight down to
+		 * `FoundryDetail`. These two reads belong to the pane and not to the
+		 * stage, and the stage must not be able to see them.
+		 *
+		 * ABSENCE IS THE MECHANISM, as everywhere here: no transport, no figures
+		 * and no empty panel. A harness or a degraded load renders the app page
+		 * exactly as it did before these existed.
+		 */
+		playStats = undefined,
+		/**
+		 * THE VIEWER'S OWN TIME WITH THE APP THAT IS OPEN.
+		 * `foundry_my_play_stats`, which takes no identity parameter, so there is
+		 * no argument here or in the function behind it through which another
+		 * student could be named.
+		 */
+		myPlayStats = undefined
 	}: {
 		apps: FoundryAppSummary[];
 		selected?: FoundryApp | null;
@@ -116,15 +144,34 @@
 		appsOrigin?: string | undefined;
 		playCounts?: FoundryPlayCounts;
 		staffHref?: string | null;
+		playStats?: FoundryPlayStatsTransport | undefined;
+		myPlayStats?: FoundryMyPlayStatsTransport | undefined;
 	} = $props();
 
 	/**
-	 * `recent` IS THE DEFAULT AND IS WHAT THE ROUTE ALREADY RETURNS. Opening the
-	 * gallery on a popularity ranking would put the same handful of apps at the
-	 * top of the page every day of the year, which is a decision about whose
-	 * work gets seen and not a default.
+	 * THE ORDER THE GALLERY OPENS ON, READ FROM `telemetry.ts` RATHER THAN
+	 * WRITTEN HERE.
+	 *
+	 * THIS LINE SAID `'recent'` AND THE COMMENT ABOVE IT ARGUED FOR IT: "opening
+	 * the gallery on a popularity ranking would put the same handful of apps at
+	 * the top of the page every day of the year, which is a decision about whose
+	 * work gets seen and not a default." Every word of that is a reason it was
+	 * HIS decision and not ours. Decision 04 was answered MOST PLAYED FIRST on
+	 * 2026-09-12; ledger 0173 recorded the answer, and this line went on
+	 * initialising to `'recent'` afterwards because nothing connected the two.
+	 * Mr. Pina found it by opening the gallery.
+	 *
+	 * SO THE VALUE IS AN IMPORT. A decision recorded in a document and a literal
+	 * typed into a component are two statements of one thing, and this is the
+	 * pair that demonstrably stopped matching. `FOUNDRY_GALLERY_DEFAULT_SORT`
+	 * carries the reasoning and a test asserts the component takes it rather
+	 * than asserting the string, so changing the answer is one edit in one file.
+	 *
+	 * IT IS STILL A VIEW CONTROL AND STILL NOT IN THE URL. The default moved;
+	 * where the choice is stored did not, and decision 04 says so in as many
+	 * words -- reversing that rule would be its own decision.
 	 */
-	let sort = $state<FoundryGallerySort>('recent');
+	let sort = $state<FoundryGallerySort>(FOUNDRY_GALLERY_DEFAULT_SORT);
 
 	/** Pure, stable, and it never mutates the list the route handed in. */
 	const ordered = $derived(sortGallery(apps, playCounts, sort));
@@ -276,6 +323,34 @@
 					{coverUrl}
 					{...(appsOrigin === undefined ? {} : { appsOrigin })}
 				/>
+				<!--
+					THE PLAY FIGURES, BELOW THE STUDENT PAGE AND IN THIS WRAPPER --
+					the same arrangement `staffHref` above takes, and for the same
+					reason: `FoundryDetail` is the ONE render path the gallery and the
+					review queue share, and a block added inside it would appear a
+					second time in the review console, where `FoundryInspector` is
+					already mounting this component beside it.
+
+					BELOW "How this was built", because that is the end of what the
+					student wrote and these are what happened to it afterwards. A
+					reader arriving from a card wants the app, then its author's
+					account of it, then the numbers.
+
+					IT IS MOUNTED ONLY WHEN A TRANSPORT WAS HANDED OVER, and the
+					component's own gate is the same test -- so this condition is
+					belt to that file's braces rather than a second rule: without it
+					the component would mount, read nothing and render nothing, which
+					is right but puts an empty element in the page for no reason.
+				-->
+				{#if playStats}
+					<div class="fdy-gal-plays">
+						<FoundryPlayStats
+							appId={selected.id}
+							load={playStats}
+							{...(myPlayStats === undefined ? {} : { loadMine: myPlayStats })}
+						/>
+					</div>
+				{/if}
 			</div>
 		{/key}
 	{/if}
@@ -293,6 +368,21 @@
 	   layout moves when it is there and when it is not. */
 	.fdy-gal-staff {
 		margin: 0 0 var(--space-3, 0.75rem);
+	}
+
+	/* The same idea below it: a row of its own, so the app page's own spacing is
+	   unchanged whether or not this deployment has the figures. The rule above it
+	   separates "what the student wrote" from "what happened to it", and it is
+	   DECORATION under CLAUDE.md's two-token rule -- a rule between two blocks of
+	   reading matter, not the edge of a control and not the only thing dividing
+	   two interactive rows -- so it is `--hairline` and is deliberately not
+	   measured. `--boundary` here would be the sweep `tests/boundary-token.test.ts`
+	   exists to catch. */
+	.fdy-gal-plays {
+		margin: var(--space-4, 1rem) 0 0;
+		padding: var(--space-4, 1rem) 0 0;
+		border-top: 1px solid var(--hairline);
+		min-width: 0;
 	}
 
 	.fdy-gal-head {

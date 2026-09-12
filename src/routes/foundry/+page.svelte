@@ -20,11 +20,29 @@
 	 * is silent, and nothing here is awaited before the frame goes up: telemetry
 	 * must never be able to break the thing it measures, and the thing being
 	 * measured is a student's app starting.
+	 *
+	 * AND TWO READS, WHICH ARE DECISION 07's TWO LAYERS ON THE ONE PAGE A
+	 * STUDENT ACTUALLY LANDS ON. They are NOT in the transports object above:
+	 * that object is the play recorder and is handed straight down to
+	 * `AppStage`, and a running bundle's stage has no business holding a reader
+	 * for figures about itself. They go to `FoundryGallery` as their own props
+	 * and stop at the detail pane.
+	 *
+	 * WHY THEY WERE MISSING UNTIL NOW. `0204` opened all three of the previously
+	 * owner-only metrics and added the caller-scoped read, and the two surfaces
+	 * that already had a `playStats` transport -- `/foundry/mine` and
+	 * `/foundry/review` -- carried on being the only ones. So the numbers were
+	 * public in the database and reachable through the ADMIN controls alone,
+	 * which is the opposite of what "public" was answered to mean.
 	 */
 	import { goto } from '$app/navigation';
 
 	import FoundryGallery from '$lib/foundry/FoundryGallery.svelte';
-	import type { FoundryGalleryTransports } from '$lib/foundry/transports';
+	import type {
+		FoundryGalleryTransports,
+		FoundryMyPlayStatsTransport,
+		FoundryPlayStatsTransport
+	} from '$lib/foundry/transports';
 	import { foundryCoverUrl } from '$lib/foundry/covers';
 
 	let { data } = $props();
@@ -94,6 +112,62 @@
 			: null
 	);
 
+	/**
+	 * `foundry_app_play_stats`, THE APP'S PUBLIC TOTALS.
+	 *
+	 * THE GATE IS THE FUNCTION'S, NOT THIS ROUTE'S. Since 0204 it admits anybody
+	 * who can SEE the app through `_foundry_app_in_population`, and answers NULL
+	 * otherwise -- the same answer a nonexistent app gives, so nothing here can
+	 * be used to probe an id. This route adds no check of its own and must not:
+	 * a second idea of who may read a figure is the one that stops matching.
+	 *
+	 * NULL FOR EVERY FAILURE, INCLUDING A MISSING FUNCTION. A deployment that
+	 * has not had 0204 applied yet is a real state -- migrations here go on by
+	 * hand, one file at a time -- and on it this read answers null for anybody
+	 * but the author, which the component renders as one quiet sentence rather
+	 * than as a broken page. Erroring would take a working gallery down for a
+	 * figure nobody came for, exactly as the count read in `+page.server.ts`
+	 * already declines to do.
+	 */
+	const playStats: FoundryPlayStatsTransport = async (appId) => {
+		try {
+			const { data: r, error } = await data.supabase.rpc('foundry_app_play_stats', {
+				p_app_id: appId
+			});
+			if (error || !r) return null;
+			return r as never;
+		} catch {
+			return null;
+		}
+	};
+
+	/**
+	 * `foundry_my_play_stats`, THE VIEWER'S OWN TIME WITH THIS APP.
+	 *
+	 * IT PASSES ONE ARGUMENT AND THERE IS NO SECOND ONE TO PASS. The function
+	 * takes the app and nothing else; the player is `auth.uid()` inside it. So
+	 * this route cannot ask about another student even by mistake, which is a
+	 * property of 0204's signature rather than a discipline observed here.
+	 *
+	 * A DEPLOYMENT WITHOUT 0204 ANSWERS `PGRST202` AND THIS RETURNS NULL, which
+	 * the component renders as no personal block at all -- the same nothing it
+	 * renders for a student who has never played the app. The two are
+	 * deliberately indistinguishable: neither is a state worth a sentence, and
+	 * telling them apart would need a capability probe for a figure whose whole
+	 * absence is unremarkable.
+	 */
+	const myPlayStats: FoundryMyPlayStatsTransport = async (appId) => {
+		try {
+			const { data: r, error } = await data.supabase.rpc('foundry_my_play_stats', {
+				p_app_id: appId
+			});
+			if (error || !r) return null;
+			return r as never;
+		} catch {
+			return null;
+		}
+	};
+
 	function select(slug: string | null) {
 		const target = slug ? `/foundry?app=${encodeURIComponent(slug)}` : '/foundry';
 		// `keepFocus` so picking a card with the keyboard does not throw focus
@@ -129,6 +203,8 @@
 		{transports}
 		coverUrl={foundryCoverUrl}
 		{staffHref}
+		{playStats}
+		{myPlayStats}
 		onSelect={select}
 	/>
 </div>

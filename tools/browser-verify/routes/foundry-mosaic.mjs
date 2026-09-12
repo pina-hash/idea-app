@@ -28,6 +28,28 @@ export default {
 	path: '/dev/foundry-mosaic',
 	label: 'Foundry gallery mosaic (arbitrary cover shapes, clamp, name plate)',
 	prepare: [
+		/*
+			THIS SPEC MEASURES THE `Recent` STATE AND NOW ESTABLISHES IT ITSELF.
+			It used to inherit it: `Recent` was the gallery's opening order, so
+			the rows below could say "no card shows a count" without pressing
+			anything. Decision 04 (answered 2026-09-12) moved the default to
+			`Most played`, at which point ten of eleven cards carried a chip and
+			the two generated covers gained the name plate a count brings with
+			it -- so four assertions here reddened for a reason that has nothing
+			to do with the card, the clamp or the plate, which is what this spec
+			is about.
+
+			PRESSING IT IS ALSO STRICTLY BETTER THAN HAVING INHERITED IT. A spec
+			whose measured state depends on which order happens to be the
+			default is one that goes quietly wrong the next time the default
+			moves. The click genuinely discriminates now -- ten chips before it,
+			none after -- which the harness reports, where a click on a control
+			that is already pressed is recorded as a step that reached no state.
+		*/
+		{
+			click: '.fdy-gal-sort-btn[data-sort="recent"]',
+			until: '() => document.querySelectorAll("[data-testid=\'fdy-card-plays\']").length === 0'
+		},
 		/* Every fixture cover decoded, so every card has been MEASURED. Until
 		   this holds the cards sit at the 3:2 fallback and every ratio below
 		   would be reading a placeholder. */
@@ -210,19 +232,56 @@ export default {
 				return !!c && c.worst >= 4.5 && c.madeRatios.length >= 2 && c.madeRatios.every((r) => r >= 4.5);
 			}`
 		},
+		/* ---------------------------------------------------------------
+		   THE KEYBOARD ROUTE TO THE NAME, AND THE HALF OF IT THIS HARNESS
+		   CANNOT DRIVE -- WHICH IT USED TO REPORT AS VERIFIED.
+
+		   This step asserted that focusing a card reveals its plate, and
+		   passed at both widths. It was passing VACUOUSLY at 1440: while
+		   `Most played` was the state this spec measured, every plate
+		   carried a count and was therefore exempt from the hover rule
+		   already, so the predicate held before the focus and the harness
+		   said so in as many words -- `the predicate ALREADY HELD before the
+		   step ran -- it does not discriminate`. Pressing `Recent` in the
+		   first prepare step (decision 04 moved the default) removed the
+		   exemption, and the honest answer came back: opacity 0.
+
+		   THE COMPONENT IS RIGHT AND THE INSTRUMENT CANNOT REACH IT. The
+		   reveal is `:focus-visible`, which is correct -- a mouse click on a
+		   card must not pop the plate, only a keyboard arrival should -- and
+		   Chromium does not match `:focus-visible` for a PROGRAMMATIC
+		   `element.focus()`. A prepare step is `click`, `waitFor` or
+		   `evaluate`; none of the three can produce a trusted keypress, and
+		   a `KeyboardEvent` built in page script is untrusted and does not
+		   move the heuristic. So THE RENDERED KEYBOARD REVEAL IS NOT
+		   VERIFIED BY THIS HARNESS, and saying so is the result.
+
+		   WHAT IS VERIFIED INSTEAD, and it is the half that regresses
+		   silently: that focus genuinely lands on a card (discriminating --
+		   `activeElement` is the body before the step), and, in the
+		   `orderResult` below, that the `:focus-visible` reveal is still in
+		   the cascade at all. A dropped selector is the failure this step
+		   was written for; a dropped selector is exactly what that sweep
+		   sees.
+		   --------------------------------------------------------------- */
 		{
 			evaluate: `() => {
 				const card = document.querySelector('[data-testid="fdy-card"]:not(.made)');
 				card.focus();
 				const p = card.querySelector('[data-testid="fdy-card-name"]');
-				/* Past the 180ms reveal before reading: the value at the instant
-				   focus lands is the transition's start, not its answer. */
-				return new Promise((r) => setTimeout(() => r('focused, plate opacity ' + getComputedStyle(p).opacity), 320));
+				/* Past the 180ms reveal before reading, so a value here is the
+				   transition's answer and not its start. */
+				return new Promise((r) => setTimeout(() => r(
+					'focus landed: ' + (document.activeElement === card) +
+					'; :focus matched: ' + card.matches(':focus') +
+					'; :focus-visible matched: ' + card.matches(':focus-visible') +
+					' (false is expected -- a programmatic focus is not a keyboard arrival)' +
+					'; plate opacity ' + getComputedStyle(p).opacity
+				), 320));
 			}`,
 			until: `() => {
 				const card = document.querySelector('[data-testid="fdy-card"]:not(.made)');
-				const p = card && card.querySelector('[data-testid="fdy-card-name"]');
-				return !!p && Number(getComputedStyle(p).opacity) === 1;
+				return !!card && document.activeElement === card && card.matches(':focus');
 			}`
 		}
 	],
@@ -233,6 +292,35 @@ export default {
 	   and not a defect. Pinned to that exact path rather than to a shape, so a
 	   404 on anything else is still a finding.
 	*/
+	orderResult: [
+		{
+			/*
+			   THE REVEAL RULES ARE STILL IN THE CASCADE, swept off the real
+			   stylesheets rather than inferred from a rendered opacity the
+			   harness cannot produce (see the focus step above). A dropped
+			   `:focus-visible` selector is the regression that would leave a
+			   keyboard reader with a picture and no name at 1440, and it is
+			   invisible to every other check in this file.
+
+			   THE WALK TESTS THE DECLARATION FIRST AND RECURSES ONLY ON
+			   `cssRules?.length`, which is CLAUDE.md's rule and not a style
+			   preference: `CSSStyleRule` has a `cssRules` property under CSS
+			   Nesting and an empty `CSSRuleList` is TRUTHY, so the ordinary
+			   shape treats every plain rule as a grouping rule, skips its
+			   declarations, and comes back with zero matches -- which reads
+			   exactly like a clean result.
+
+			   THE HOVER RULE IS THE POSITIVE CONTROL. Both selectors live in
+			   one rule, so a sweep that found neither and a sweep that was
+			   reading nothing at all would otherwise report the same thing.
+			   Same-origin stylesheets only; a `SecurityError` on a
+			   cross-origin sheet is skipped rather than thrown.
+			*/
+			label: 'the plate reveal rules are still in the cascade (:hover and :focus-visible)',
+			evaluate: `() => { const found = new Set(); const walk = (rules) => { for (const r of rules) { if (r.style && r.selectorText && /fdy-card-name/.test(r.selectorText) && String(r.style.opacity) === '1') { if (/:hover/.test(r.selectorText)) found.add('hover reveal'); if (/:focus-visible/.test(r.selectorText)) found.add('focus-visible reveal'); } if (r.cssRules && r.cssRules.length) walk(r.cssRules); } }; for (const sheet of document.styleSheets) { try { walk(sheet.cssRules); } catch { /* cross-origin */ } } return [...found].sort(); }`,
+			expected: ['focus-visible reveal', 'hover reveal']
+		}
+	],
 	ignoreConsole: [/\/dev\/foundry-mosaic\/cover\/does-not-exist/],
 	presence: [
 		{ selector: '.harness h1', label: 'page heading', expectPresent: 1 },
@@ -267,8 +355,10 @@ export default {
 			maxPresent: 2
 		},
 		/* One per card that is NOT a generated cover: the nine with a cover
-		   path, real or broken. Under `Recent` no count is rendered, so a
-		   generated cover has no plate at all here. */
+		   path, real or broken. Under `Recent` -- which the first `prepare`
+		   step presses -- no count is rendered, so a generated cover has no
+		   plate at all here. A generated cover gets one only when there is a
+		   count to put on it, which is why this row is nine and not eleven. */
 		/*
 		   `expectVisible: 0` IS THE POINT OF THIS ROW, NOT A RELAXATION OF IT.
 		   Nine plates are PRESENT at both widths; how many are VISIBLE is the
@@ -285,8 +375,10 @@ export default {
 			maxPresent: 9,
 			expectVisible: 0
 		},
-		/* THE EXCLUSION: `Recent` is the default and no card shows a count.
-		   Its positive control is the plate row above, on the same fixture. */
+		/* THE EXCLUSION: under `Recent` no card shows a count. Its positive
+		   control is the plate row above, on the same fixture -- and the
+		   `prepare` click that reaches this state is itself a second one, since
+		   it only holds by going from ten chips to none. */
 		{
 			selector: '[data-testid="fdy-card-plays"]',
 			label: 'play counts under Recent (none, deliberately)',

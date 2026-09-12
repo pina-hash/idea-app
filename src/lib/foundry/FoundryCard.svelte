@@ -388,10 +388,15 @@
 		   hiding its evidence behind a hover would leave them a wall of
 		   pictures in an order they cannot check, which is worse here than
 		   anywhere because the mosaic reads down its columns rather than across
-		   its rows. Under `Recent`, the default and the state this gallery is
-		   normally looked at in, no card carries a count and every one of them
-		   is the pure picture. Found by the browser spec reporting the chips
-		   `present 2, visible 0` at 1440, not by looking.
+		   its rows. Under `Recent` no card carries a count and every one of
+		   them is the pure picture. Found by the browser spec reporting the
+		   chips `present 2, visible 0` at 1440, not by looking. (This said
+		   `Recent` was "the default and the state this gallery is normally
+		   looked at in"; decision 04, answered 2026-09-12, made `Most played`
+		   the opening order, so the exempt state is now the ordinary one. The
+		   rule is unchanged -- a plate carrying a count is exempt because
+		   somebody asked to see a ranking -- and only the sentence about which
+		   state is usual was made false.)
 		*/
 		.fdy-card-name:not(.has-count) {
 			opacity: 0;
