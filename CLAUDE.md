@@ -1829,6 +1829,26 @@ against production. Every claim about live data must say so.
   someone re-pastes, or a first attempt failed partway and gets retried -- so a
   migration that only works once fails exactly then, with the schema half-built.
   Test that the file re-applies.
+- **A CORRECTION TO DATA IN AN ADMIN-EDITABLE TABLE IS NOT A MIGRATION, AND GOES
+  IN `supabase/data/`.** A migration is an immutable applied record of a SCHEMA
+  change; a table built to be edited from a console -- `ideacad_materials` is the
+  case (0208) -- has its rows corrected by a statement pasted once and superseded
+  by the next one, which is the opposite property. Shipping a code change to fix
+  four numbers in a form is the shape 0208 exists to end.
+  `supabase/data/0191-material-density-verification.sql` is the first, and the
+  shape to copy: named for the ledger entry that produced it, a READ-ONLY audit
+  select first, and every correction written so that **a blind paste writes
+  nothing** -- the values arrive as a `values` list of NULLs and the `update`
+  carries `where <col> is not null`, so an unedited paste updates zero rows
+  rather than writing a default somebody did not choose. It is pasted by hand
+  exactly as a migration is; `tools/apply-migration.mjs` does not know about it
+  and must not be taught to.
+  - **THE PASTE TRAP APPLIES TO IT IDENTICALLY.** A `$tag$` inside a `--` comment
+    balances in Postgres and breaks the Supabase editor's client-side statement
+    splitter, which cost `0194` a full apply cycle. Check any hand-pasted SQL two
+    ways -- no `$` of any kind in a comment, and every dollar-quote token on a
+    code line in a balanced pair -- and check it against a PLANTED CONTROL, or a
+    reported zero says nothing about whether the instrument was looking.
 - **A migration REFUSES rather than destroys.** If a precondition is unmet (rows
   that would be stranded), raise with the counts and what to do about it.
 - **A backfill runs exactly once**, inside a catalog guard on the column's own
