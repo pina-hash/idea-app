@@ -100,9 +100,17 @@
 //   * A SWEEP RUN WHOSE REGENERATION FAILED. It warns and pushes anyway, by
 //     design; the next branch's CI is what says the region is behind.
 //
-// Measured on 2026-09-05: one static digit edited by hand in the rendered table
-// reddens 7 of the 18 tests here; the data line and the table edited together
-// into a self-consistent lie about the tree reddens 8.
+// MEASURED ON 2026-09-12, AND THE PAIR THIS REPLACES WAS STALE. It read
+// "one static digit edited by hand in the rendered table reddens 7 of the 18
+// tests here; the data line and the table edited together into a
+// self-consistent lie about the tree reddens 8", measured 2026-09-05. Run
+// against `origin/integration` at `ebf23dc` -- the tree those figures
+// describe, unchanged -- the same two mutations redden **3** and **4** of 18.
+// The file had moved under the numbers, which is what a figure written down
+// rather than re-measured does. On this tree, with the store checks added,
+// the identical two mutations redden **3** and **4** of 24: the same bite,
+// with six more controls beside it. A hand-edited digit inside one
+// `measured/*.json` reddens 3; deleting one of those files reddens 5.
 
 import { describe, expect, it } from 'vitest';
 import { cpSync, mkdtempSync, readFileSync, renameSync, rmSync } from 'node:fs';
