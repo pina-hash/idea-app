@@ -21,6 +21,10 @@ import { bladeConfigShaped } from '../src/lib/ideacad/config';
 import { DEFAULT_BLADE_CONFIG, DEFAULT_BLADE_TREE, type BladeConfig } from '../src/lib/ideacad/blade/materials';
 
 const clone = () => structuredClone(DEFAULT_BLADE_CONFIG) as BladeConfig;
+/** The guard takes `unknown`, so a broken-shape fixture is built by widening a
+ *  real config through `unknown` -- `BladeConfig` has no index signature and a
+ *  direct cast is refused, correctly. */
+const loose = () => clone() as unknown as Record<string, unknown>;
 
 describe('bladeConfigShaped', () => {
 	it('accepts the shipped default, which is the positive control', () => {
@@ -44,14 +48,14 @@ describe('bladeConfigShaped', () => {
 	];
 	for (const key of required) {
 		it(`refuses a config missing \`${key}\``, () => {
-			const c = clone() as Record<string, unknown>;
+			const c = loose();
 			delete c[key];
 			expect(bladeConfigShaped(c)).toBe(false);
 		});
 	}
 
 	it('refuses a list key that is not a list', () => {
-		const c = clone() as Record<string, unknown>;
+		const c = loose();
 		c.materials = { pla: { densityGcm3: 1.24 } };
 		expect(bladeConfigShaped(c)).toBe(false);
 	});
@@ -59,7 +63,7 @@ describe('bladeConfigShaped', () => {
 	it('refuses a tip height that arrived as a string', () => {
 		/* The shape a JSON column hands back when somebody typed the number into
 		   a text field. */
-		const c = clone() as Record<string, unknown>;
+		const c = loose();
 		c.tipHeightIn = '0.125';
 		expect(bladeConfigShaped(c)).toBe(false);
 	});
