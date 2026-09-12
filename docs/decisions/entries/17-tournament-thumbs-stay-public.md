@@ -6,7 +6,22 @@
   that file is a dated record and is not edited, so the citation stands and this line
   is what resolves it.
 - Raised: 2026-09-05  By: prompt 0057, `claude/public-upload-buckets-4dqkbe`
-- Status: open -> ANSWERED 2026-09-06 by prompt 0076, `claude/tournament-thumbs-listing-psuleu`.
+- Status: decided 2026-09-12. KEEP PUBLIC. Nothing is owed and nothing is built.
+- Decision: 2026-09-12, Mr. Pina: keep tournament thumbnails public.
+- What this settles: his own confirmation of what the tree already does, so nothing
+  changes. `0189_tournament_thumbs_no_anon_listing.sql` closed the anonymous LISTING
+  and deliberately left `public = true` on the bucket, which is this entry's stated
+  default. A spectator thumbnail on the bracket keeps working. It also answers
+  question 2 below -- should a tournament thumbnail be public at all -- yes.
+- What does not change: 0189 stays, and reading this as a licence to reopen the
+  listing would be the mistake. Public means a thumbnail a ROW names is readable
+  without signing in. 0189 stopped a stranger ENUMERATING the bucket, which reached
+  ORPHANS no row names. Keeping the first does not restore the second.
+- Still open: question 3 alone, what happens to an object when the student leaves.
+  0189 deletes nothing and expires nothing, and his answer is about who may READ a
+  thumbnail. It is the same retention question decision 14 leaves standing, and
+  nobody has raised it on its own.
+- Prior note: open -> ANSWERED 2026-09-06 by prompt 0076, `claude/tournament-thumbs-listing-psuleu`.
   The listing is closed by `supabase/migrations/0189_tournament_thumbs_no_anon_listing.sql`
   and the bucket flag is left `public = true`, which is this entry's own stated default.
   Two things this entry says were corrected by measuring them, and the corrections are why
@@ -35,7 +50,6 @@
   Left open and NOT answered here: question 2 (should a tournament thumbnail be public at
   all) and question 3 (what happens to an object when the student leaves) -- 0189 deletes
   nothing and expires nothing. Question 1 is answered yes, on the orphans.
-- Decision:
 - Default this assistant would pick: keep 0183 as shipped -- `foundry-covers` private,
   one read policy `to authenticated`, every cover asked for through
   `/api/foundry-cover/<key>` -- and leave `tournament-thumbs` exactly as it is until

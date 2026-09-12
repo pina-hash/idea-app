@@ -24,14 +24,29 @@ not to allocate a migration number for itself.
 
 Ledger 0173 had already measured that a note's content gate is
 `_notebook_note_content_ok` and **not** `_classroom_doc_ok`. That is confirmed
-here, and it matters more than it looks, because **decision 08's own entry named
-the wrong one** -- its context line read "`_classroom_doc_ok` widened first". The
-two are different functions. `_classroom_doc_ok` is the pure jsonb predicate the
-classroom and `notebook_sessions.guidance_doc` share (0108, 0122, 0123); widening
-it would have changed nothing whatever about whether a note can hold a grid. A
-lane acting on that entry as written would have written a migration against the
-wrong function and found out at the first save. The entry is corrected in place,
-with the correction stated as a correction rather than a quiet edit.
+here. At this branch's own base (`origin/integration` at `6a71eff4`) decision 08
+still carried the stale claim -- `Status: open`, and a context line reading
+"`_classroom_doc_ok` widened first" -- and the two are different functions:
+`_classroom_doc_ok` is the pure jsonb predicate the classroom and
+`notebook_sessions.guidance_doc` share (0108, 0122, 0123), so widening it would
+have changed nothing whatever about whether a note can hold a grid. A lane acting
+on that entry as written would have written a migration against the wrong function
+and found out at the first save.
+
+**THAT CORRECTION WAS NOT THIS BUNDLE'S TO MAKE IN THE END, AND THE RECORD SHOULD
+SAY SO.** Ledger 0173 rewrote decision 08 in commit `0093a26b` at 14:53 UTC,
+forty minutes after this branch was cut and while this session was running, and
+its rewrite already carries the gate correction, the `else return false` reading,
+the widen-alone sequencing and the observation that Mr. Pina's bar means inside
+the ProseMirror document with the same undo stack. Two lanes reached the same
+findings independently from primary sources, which is the best available evidence
+that the findings are right and not an artifact of either reading.
+
+So when the two versions collided in the sweep, **0173's landed entry was taken as
+the base and this bundle's contribution appended to it** rather than the other way
+round. What is genuinely added is the half 0173 could not have: the gate's refusal
+MEASURED against a real database rather than read off the source, and the formula
+engine's actual candidates with registry facts and a licence argument.
 
 The live definition is
 `supabase/migrations/0125_notebook_run_text_parity.sql:206`. Nothing after 0125

@@ -42,6 +42,12 @@
  * bucket layout is still something a route knows and a component does not.
  */
 
+/*
+ * The clamp is `mosaic.ts`'s, called rather than copied: the range is stated
+ * once, with its reasoning, and this module is only the DOM half of it.
+ */
+import { clampCoverAspect, coverAspectIsClamped } from './mosaic.ts';
+
 /**
  * Every cover ever written is `<uid>/<uuid>.<ext>`: all three upload sites
  * build `${uid}/${crypto.randomUUID()}.${ext}` and the bucket's write policies
@@ -122,5 +128,72 @@ export function foundryCoverUrl(path: string | null | undefined): string | null 
  */
 export function foundryCoverFailed(event: Event): void {
 	const el = event.currentTarget;
-	if (el instanceof HTMLImageElement) el.dataset.coverFailed = 'true';
+	if (!(el instanceof HTMLImageElement)) return;
+	el.dataset.coverFailed = 'true';
+	/*
+	 * AND IT IS GIVEN A PICTURE THAT DECODES, WHICH IS THE ONLY WAY TO STOP
+	 * THE ENGINE PAINTING ITS BROKEN-IMAGE GLYPH.
+	 *
+	 * An `<img>` whose request failed paints that icon, in its own colours,
+	 * over the top-left of whatever `[data-cover-failed]` drew underneath.
+	 * Measured on the mosaic harness: neither `color: transparent` (already in
+	 * the rule) nor `content: ''` removes it -- the icon is the engine's
+	 * rendering of a replaced element with nothing to replace it with. A 1x1
+	 * fully transparent GIF is something to replace it with, so the element
+	 * renders nothing and the pattern behind it is what shows.
+	 *
+	 * IT WENT UNNOTICED WHILE A COVER WAS A SMALL FRAMED THUMBNAIL. The
+	 * gallery card IS the picture now, so the glyph is the picture.
+	 *
+	 * The swap re-enters this element's `load`, which is why
+	 * `foundryCoverMeasured` refuses an element already marked failed: a 1x1
+	 * is a perfectly measurable square and would otherwise stamp a 1:1 card.
+	 */
+	el.src = TRANSPARENT_1PX;
+}
+
+/** A 1x1 fully transparent GIF. Inline so a failure needs no second request. */
+const TRANSPARENT_1PX =
+	'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+/**
+ * THE `onload` FOR A COVER `<img>`, AND THE TWIN OF `foundryCoverFailed`.
+ *
+ * It stamps the card's measured aspect ratio onto the ELEMENT, as a custom
+ * property, for exactly the reason its sibling above stamps an attribute: the
+ * gallery and `/foundry/mine` draw one of these per row, so a reactive map
+ * keyed by app id would have to be kept in step with a list that reloads after
+ * every save, while a value written onto the element that produced it is
+ * scoped to that element by construction and needs nothing keyed.
+ *
+ * WHY THIS IS MEASURED AT ALL RATHER THAN READ. No cover dimension is stored
+ * anywhere: `student_apps.cover_path` is the only cover column in the schema
+ * (0130), and this lane carries no migration, so the browser measuring the
+ * decoded image is the ONLY source for the shape of the card it sits in.
+ *
+ * IT WRITES ON THE CARD, NOT ON THE IMAGE, because the aspect ratio is the
+ * CARD's -- the image fills whatever box the card ends up being. `closest`
+ * rather than `parentElement` so the markup can gain a wrapper without this
+ * silently starting to write on the wrong node.
+ *
+ * A ratio it cannot compute is left ALONE rather than written as the fallback:
+ * the card's own CSS carries the fallback in its `var()`, so "never measured"
+ * stays one state with one spelling instead of two that look identical.
+ */
+export function foundryCoverMeasured(event: Event): void {
+	const el = event.currentTarget;
+	if (!(el instanceof HTMLImageElement)) return;
+	// A failed cover that has been swapped for the 1x1 placeholder fires
+	// `load` again; its square is not this app's shape. See `foundryCoverFailed`.
+	if (el.dataset.coverFailed === 'true') return;
+	const ratio = clampCoverAspect(el.naturalWidth, el.naturalHeight);
+	if (ratio === null) return;
+	const card = el.closest<HTMLElement>('[data-fdy-card]');
+	if (!card) return;
+	card.style.setProperty('--fdy-ar', String(ratio));
+	// The CROP is a fact about this card that only the measurement knows, and
+	// it is what a student asking "why is my screenshot cut off" is looking at.
+	if (coverAspectIsClamped(el.naturalWidth, el.naturalHeight)) {
+		card.dataset.fdyClamped = 'true';
+	}
 }

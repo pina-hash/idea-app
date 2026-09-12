@@ -47,6 +47,7 @@
 		versionLabel
 	} from './surface.ts';
 	import type { FoundryApp, FoundryAppSummary, FoundryMineTransports } from './transports.ts';
+	import FoundryCard from './FoundryCard.svelte';
 	import { foundryCoverFailed } from './covers.ts';
 
 	let {
@@ -448,16 +449,31 @@
 				{#if transports.uploadCover && transports.saveField}
 					<div class="fdy-row">
 						<span class="fdy-label">Cover</span>
-						{#if app.cover_path}
-							{@const src = coverUrl(app.cover_path)}
-							{#if src}
-								<img class="fdy-cover" {src} alt="Current cover" onerror={foundryCoverFailed} />
-							{:else}
-								<span class="fdy-cover fg-cover-bad" aria-hidden="true"></span>
-							{/if}
-						{:else}
-							<p class="fdy-value fdy-value-empty">Not set</p>
-						{/if}
+						<!--
+							THE PREVIEW IS THE REAL `FoundryCard`, NOT A PICTURE OF ONE.
+							The gallery card IS the cover now -- its shape, its name plate
+							and its crop all follow from the file a student picked -- so
+							the only honest way to show them what they are choosing is to
+							mount the component the gallery mounts. A second rendering
+							here would be a preview that drifts from the thing it
+							previews, and what it would drift about is exactly what they
+							are deciding from.
+
+							It is capped in width rather than given the gallery's column,
+							because a preview beside a form is not a gallery: what has to
+							be faithful is the SHAPE and the plate, and both are.
+						-->
+						<span class="fdy-cover-preview">
+							<FoundryCard {app} href="/foundry?app={app.slug}" {coverUrl} />
+						</span>
+						<p class="fdy-cover-note">
+							This picture <strong>is</strong> your card in the gallery, at whatever shape
+							you upload: a tall picture makes a tall card, a wide one makes a wide card.
+							Put the app's name in the picture -- the name only appears over it when
+							somebody hovers, and on a phone it sits along the bottom. Very tall or very
+							wide pictures are trimmed to fit. Upload it at least 800 pixels wide, or it
+							will be stretched to fill the card and look soft.
+						</p>
 						<label class="btn tap-44">
 							{app.cover_path ? 'Replace' : 'Add'}
 							<input
@@ -1037,10 +1053,19 @@
 		gap: var(--space-2, 0.5rem);
 	}
 
-	.fdy-cover {
-		max-width: 14rem;
-		border-radius: var(--radius-sm, 6px);
-		border: 1px solid var(--hairline);
+	/* A preview, not a gallery: wide enough that the shape and the plate are
+	   both legible, narrow enough to sit in a form row. */
+	.fdy-cover-preview {
+		display: block;
+		width: 100%;
+		max-width: 18rem;
+	}
+
+	.fdy-cover-note {
+		margin: 0;
+		max-width: 44ch;
+		font-size: 0.85rem;
+		color: var(--text-2, var(--dim));
 	}
 
 	.fdy-versions {
