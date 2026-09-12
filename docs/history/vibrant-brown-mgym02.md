@@ -245,6 +245,40 @@ unit test cannot reach -- a select wired to a config nobody evaluates looks iden
   `mount.ts`, `transports.ts` and the item route, all of which ledger 0179's document-sharing
   lane is in the middle of. The dev harness supplies both and the admin console is live.
 
+## Three files outside this bundle's stated surface had to be generalized
+
+Declared here rather than discovered in a diff. All three are assertions a legitimate change
+necessarily breaks, and CLAUDE.md's rule for that is to assert the RULE instead, never to
+delete -- so each was widened and then re-run to confirm it still bites.
+
+- **`src/lib/ideacad/ui/feature-model.ts`** -- `panelFor('materials')` returns null. The
+  materials panel's own definition lived here, so leaving it would have been two materials
+  panels rather than one. The dead 44-line branch is REMOVED, not left as a dormant fallback.
+- **`tests/dom/ideacad-ui-model.test.ts`** -- two assertions read the body-fill percent back
+  off `panelFor(tree(), 'materials', ...)`. The percent-to-fraction CONVERSION is the rule
+  they were about and it has not moved, so they now assert it directly through `applyField`
+  over five values with a negative control (the stored value must not equal the percent) and
+  the reader's own direction. A second test pins the null and the surviving label, with
+  `standard-parts` as the positive control that `panelFor` has not simply stopped answering.
+- **`tests/db/ideacad-grants-anon-execute-surface.test.ts`** -- section B spelled out 0202's
+  ten ideacad functions and asserted EQUALITY, which every lane adding one breaks; and section
+  C re-applies 0202 at the end of the chain, where its own `exactly ten` guard now raises and
+  killed `beforeAll`, SKIPPING all fourteen tests including the whole-schema anon sweep that
+  has nothing to do with 0202. Both are generalized: the ten are asserted PRESENT rather than
+  exhaustive, and the second apply's refusal is captured with an assertion that it is 0202's
+  own count guard and not some third outcome, with the unchanged acl proving the rollback was
+  total. The authenticated assertion SPLIT while it was there, which is strictly stronger than
+  what it replaced: every PUBLIC ideacad function must hold the grant, and every
+  underscore-prefixed PRIVATE one must not -- a flat "all of them" would have demanded the
+  opposite of 0137, which stripped `authenticated` from 88 private helpers. **The file runs 16
+  tests now against 14.**
+
+**This overlaps 0206, which the prompt says replaces 0202's guard.** If 0206 lands first, its
+version of the migration-side fix wins and the test-side generalization above still holds; if
+this branch lands first, 0206's lane will conflict on that one file and should take its own
+shape. The alternative was leaving fourteen tests skipped on `integration` until 0206 arrives,
+which is a safety net switched off rather than a merge conflict avoided.
+
 ## Corrections made to CLAUDE.md in the same change
 
 The `svelte-check` baseline said **38 warnings in 21 files** against a tree measuring **37 in

@@ -334,6 +334,8 @@ let functionsWithout0202: FnRow[] = [];
 let aclAfterFirstApply = '';
 /** ...and after applying 0202 a second time over the same database. */
 let aclAfterSecondApply = '';
+/** 0202's own refusal, when the chain has grown past the ten it names. */
+let secondApplyRefusal = '';
 
 const notes: string[] = [];
 
@@ -352,9 +354,23 @@ beforeAll(async () => {
 	// same shape as pasting 0202 into a project that already carries the
 	// hand-applied repair. Its own self-check raises on a partial apply, so
 	// reaching the read below at all is half the assertion.
+	//
+	// AND ONCE A LATER MIGRATION ADDS AN IDEACAD FUNCTION, THAT SECOND APPLY
+	// LEGITIMATELY REFUSES. 0202's self-check asserts `exactly ten ideacad
+	// functions` and its own message says what to do about an eleventh: "revoke
+	// it there and update this count deliberately". 0208 revokes in its own
+	// file; the count is 0202's and a migration is an immutable applied record,
+	// so it is not edited. The refusal is CAPTURED rather than allowed to throw
+	// out of `beforeAll`, because an uncaught one skips all fourteen tests in
+	// this file -- including the whole-schema anon sweep in A, which is the part
+	// that has nothing to do with 0202 and is the reason this file exists.
 	aclAfterFirstApply = await ideacadAcl(db);
 	const secondApply = readFileSync(join(fileURLToPath(MIGRATION_DIR), MIGRATION_0202), 'utf8');
-	await db.sql(secondApply);
+	try {
+		await db.sql(secondApply);
+	} catch (error) {
+		secondApplyRefusal = error instanceof Error ? error.message : String(error);
+	}
 	aclAfterSecondApply = await ideacadAcl(db);
 
 	notes.push(`chain applied: ${ALL_MIGRATIONS.length} migration files`);
@@ -426,9 +442,17 @@ describe('A. every function in public, against the declared anon surface', () =>
 });
 
 describe('B. 0202: the ideacad grant surface', () => {
-	it('has all ten functions and no more', () => {
+	/* THE RULE, NOT THE LIST. This spelled out `IDEACAD_FUNCTIONS` and asserted
+	   equality, which is the assertion every lane adding an ideacad function
+	   necessarily breaks -- 0208 added four. What the file is actually for is
+	   that NO ideacad function is anon-executable and EVERY one is
+	   authenticated-executable, which are the two assertions below and which
+	   stay true however many there are. The ten 0202 names are still asserted
+	   PRESENT, because a chain that lost one of them is a different defect. */
+	it('still carries the ten 0202 names, and every ideacad function is accounted for', () => {
 		const found = functions.filter((f) => /^_?ideacad/.test(f.name)).map((f) => f.name);
-		expect(found.sort()).toEqual([...IDEACAD_FUNCTIONS].sort());
+		for (const name of IDEACAD_FUNCTIONS) expect(found, `${name} is missing`).toContain(name);
+		expect(found.length).toBeGreaterThanOrEqual(IDEACAD_FUNCTIONS.length);
 	});
 
 	it('leaves none of them executable by anon', () => {
@@ -436,9 +460,30 @@ describe('B. 0202: the ideacad grant surface', () => {
 		expect(open, 'this is the exact defect 0201 shipped and 0202 repairs').toEqual([]);
 	});
 
-	it('keeps all ten executable by authenticated', () => {
-		const lost = functions.filter((f) => /^_?ideacad/.test(f.name) && !f.authed).map((f) => f.sig);
+	/* THE PUBLIC ONES KEEP IT, THE PRIVATE ONES MUST NOT HAVE IT, and splitting
+	   them is the generalization rather than a loosening. 0202's ten are all
+	   client-callable RPCs and every one must stay reachable or the feature is
+	   down. An UNDERSCORE-PREFIXED helper is private by this schema's own
+	   convention and is called only from inside a definer function running as
+	   the owner -- 0137 stripped `authenticated` from 88 of them for exactly
+	   that reason, and 0208's `_ideacad_clean_thicknesses` is the first ideacad
+	   one. A flat "every ideacad function is authenticated-executable" would
+	   have demanded the opposite of 0137. */
+	it('keeps every PUBLIC one executable by authenticated', () => {
+		const publicOnes = functions.filter((f) => /^ideacad/.test(f.name));
+		expect(publicOnes.length, 'the sweep found no public ideacad functions at all').toBeGreaterThanOrEqual(
+			IDEACAD_FUNCTIONS.length
+		);
+		const lost = publicOnes.filter((f) => !f.authed).map((f) => f.sig);
 		expect(lost, 'the narrowing went too far and the feature is down').toEqual([]);
+	});
+
+	it('gives no PRIVATE ideacad helper an authenticated grant', () => {
+		const privateOnes = functions.filter((f) => /^_ideacad/.test(f.name));
+		const held = privateOnes.filter((f) => f.authed).map((f) => f.sig);
+		expect(held, 'a private helper with no caller outside a definer function holds a client grant').toEqual(
+			[]
+		);
 	});
 
 	it('leaves anon holding nothing at all on the four tables', async () => {
@@ -460,9 +505,28 @@ describe('B. 0202: the ideacad grant surface', () => {
 });
 
 describe('C. 0202 applied twice over the same database', () => {
-	it('changes not one acl entry the second time', () => {
+	it('changes not one acl entry the second time, whether it applies or refuses', () => {
 		expect(aclAfterSecondApply).toBe(aclAfterFirstApply);
 		expect(aclAfterFirstApply, 'the comparison read an empty catalog').not.toBe('');
+	});
+
+	/* WHICH OF THE TWO HAPPENED IS ASSERTED, NOT LEFT OPEN. A `try` that
+	   swallowed anything would turn this section into "nothing changed", which a
+	   file that failed to open would also satisfy. Once the chain carries an
+	   ideacad function 0202 does not name, the second apply must refuse with
+	   0202's OWN self-check message and roll back -- and the acl comparison
+	   above is then the proof the rollback was total. Before that it must apply
+	   silently. Both are legitimate; a THIRD outcome is not. */
+	it('either applies silently or refuses with its own count guard, and nothing else', () => {
+		const ideacad = functions.filter((f) => /^_?ideacad/.test(f.name));
+		if (ideacad.length === IDEACAD_FUNCTIONS.length) {
+			expect(secondApplyRefusal, 'a chain with exactly 0202s ten must re-apply silently').toBe('');
+		} else {
+			expect(
+				secondApplyRefusal,
+				`the chain carries ${ideacad.length} ideacad functions against 0202's ten, so its own guard must be what refused`
+			).toMatch(/0202: expected 10 ideacad functions/);
+		}
 	});
 });
 
@@ -505,7 +569,12 @@ describe('E. the same chain WITHOUT 0202 -- the world 0201 left', () => {
 			.sort();
 		// If this ever comes back empty, 0202 is not what is closing the hole and
 		// every assertion in B is passing for a reason nobody has identified.
-		expect(open, 'the defect 0201 shipped, reproduced').toEqual([...IDEACAD_FUNCTIONS].sort());
+		// ASSERTED AS CONTAINMENT RATHER THAN EQUALITY, for the reason B gives:
+		// a later migration adding an ideacad function of its own adds it to
+		// this list too, and the defect being reproduced is 0201's ten.
+		for (const name of IDEACAD_FUNCTIONS) {
+			expect(open, `${name}: the defect 0201 shipped, reproduced`).toContain(name);
+		}
 	});
 
 	it('has all four tables holding all seven privileges for both client roles', async () => {

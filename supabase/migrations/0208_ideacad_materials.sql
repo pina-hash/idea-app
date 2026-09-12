@@ -455,7 +455,7 @@ values
 	('polycarbonate', null, 'Polycarbonate', 1.20,
 	 array[0.0625, 0.093, 0.125, 0.1875, 0.250]::numeric[],
 	 'Unfilled polycarbonate sheet. Acrylic is lighter, about 1.18, and is not the same material.',
-	 'SABIC LEXAN sheet product datasheet; density measured per ISO 1183 / ASTM D792', false, null),
+	 'ISO 1183 / ASTM D792 are the test methods; the value is the typical unfilled-PC-sheet figure and wants confirming against the datasheet for the sheet the shop actually stocks. NO PART NUMBER IS NAMED HERE ON PURPOSE: naming one nobody opened is the defect IDEA_MATERIALS_PROCESS.md refuses.', false, null),
 
 	('wood', null, 'Wood (Baltic birch plywood)', 0.68,
 	 array[0.118, 0.236, 0.472]::numeric[],
@@ -466,12 +466,12 @@ values
 	('pla', null, 'PLA (3D printed)', 1.24,
 	 array[]::numeric[],
 	 'RETIRED. A printed part is not solid, so its effective density depends on your slicer settings and a shared figure for it would be wrong for almost everybody. 1.24 is solid filament. If you know your own printed density, add it as your own material.',
-	 'Filament manufacturer datasheets for solid PLA; density per ISO 1183', false, now()),
+	 'Solid-filament figure, density per ISO 1183. Retired, so nothing is graded against it; confirm against your own spool''s datasheet before using it for anything.', false, now()),
 
 	('petg', null, 'PETG (3D printed)', 1.27,
 	 array[]::numeric[],
 	 'RETIRED, for the same reason as PLA. 1.27 is solid filament.',
-	 'Filament manufacturer datasheets for solid PETG; density per ISO 1183', false, now())
+	 'Solid-filament figure, density per ISO 1183. Retired, so nothing is graded against it.', false, now())
 on conflict (slug) where owner is null do nothing;
 
 -- ---------------------------------------------------------------------------

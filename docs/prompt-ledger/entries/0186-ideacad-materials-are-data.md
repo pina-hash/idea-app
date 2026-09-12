@@ -28,4 +28,11 @@
   standard that owns its density and lands `source_verified` false. THE STOCK
   THICKNESSES ARE A PROPOSAL for Mr. Pina to correct against what is actually in the
   shop. 0205, 0206 and 0207 are claimed by ledgers 0179, 0181 and 0183 and none was
-  pushed at branch time; 0208 depends on none of them and pastes fourth.
+  pushed at branch time; 0208 depends on none of them and pastes fourth. THREE FILES OUTSIDE
+  THE OWNS LIST WERE GENERALIZED and are named in the history entry:
+  `src/lib/ideacad/ui/feature-model.ts` (the materials panel's own definition lived there, so
+  `panelFor('materials')` returns null and the dead branch is removed rather than left),
+  `tests/dom/ideacad-ui-model.test.ts` (two assertions read the body fill off that panel), and
+  `tests/db/ideacad-grants-anon-execute-surface.test.ts` (0202's `exactly ten ideacad
+  functions` guard raised in `beforeAll` and skipped all fourteen tests, the whole-schema anon
+  sweep included). The last OVERLAPS 0206, which this prompt says replaces that guard.
