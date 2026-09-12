@@ -162,15 +162,24 @@
 		</span>
 	{/if}
 
-	{#if !made}
+	{#if !made || plays}
 		<!--
 			THE NAME PLATE. Permanent everywhere EXCEPT a wide viewport on a
-			device that can hover, where it is the hover popup instead. A
-			generated cover has none because it already states its name,
-			permanently and larger.
+			device that can hover, where it is the hover popup instead.
+
+			A GENERATED COVER GETS ONE ONLY WHEN THERE IS A COUNT, AND IT
+			CARRIES THE COUNT ALONE. It has no plate otherwise, because it
+			already states its name permanently and larger, and a plate would be
+			the same name twice. But a COUNT is not a repeat, it is the only
+			thing on the card that is not already there -- and without this
+			branch a coverless app ranked by plays showed no number at all,
+			which is a ranking the reader cannot check. Found by the test in
+			`tests/dom/foundry-card-mosaic.test.ts` rather than by looking.
 		-->
-		<span class="fdy-card-name" data-testid="fdy-card-name">
-			<span class="fdy-card-name-title">{app.title}</span>
+		<span class="fdy-card-name" class:count-only={made} data-testid="fdy-card-name">
+			{#if !made}
+				<span class="fdy-card-name-title">{app.title}</span>
+			{/if}
 			{#if plays}
 				<span class="fdy-card-plays" data-testid="fdy-card-plays">{plays}</span>
 			{/if}
@@ -331,6 +340,20 @@
 			rgba(6, 5, 4, 0.82) 45%,
 			rgba(6, 5, 4, 0) 100%
 		);
+	}
+
+	/*
+	   A COUNT-ONLY PLATE SITS ON A GENERATED COVER, whose own name is centred
+	   behind it -- so the scrim is shorter (there is one short line to cover,
+	   not a wrapped title) and the count takes the full ink rather than the
+	   secondary tier, because it is the only thing on the plate.
+	*/
+	.fdy-card-name.count-only {
+		padding-top: 0.9rem;
+	}
+
+	.fdy-card-name.count-only .fdy-card-plays {
+		color: var(--white, #ece8e0);
 	}
 
 	.fdy-card-name-title {
