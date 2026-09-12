@@ -37,6 +37,20 @@ branches, 35 conflicting with `integration`, and three consecutive red Integrate
 ledger status gate worked correctly on the way past -- this branch's first CI run went green
 while this entry read `issued` and the sweep skipped it.
 
+**Item 0 was then corrected by its own evidence.** The first version said a red Integrate run
+carries no information; run `34723007701`, the one that swept this branch, says `integration
+ITSELF WAS PUSHED and is not blocked -- this run is red for that reason as well as for anything
+the suite found`, and also `the merged tree passes the suite -- Tests 8318 passed (8318)`. The
+correction is marked in the audit with the quote that forced it, and `merged_suite` working means
+decision 21's build is now unblocked rather than merely owed.
+
+**`integration` was NOT merged into `main`.** Gates 1, 2, 4 (under ledger 0114's substitution,
+the range carrying no migration), 5 and 6 were met on tip `88f0f26f` with CI run `34723104326`
+green on that exact sha; the sweep then moved `integration` to `ee3da2f8`, taking ledger 0191's
+bundle with it. Merging would land another lane's unreviewed `CLAUDE.md` edit and test, on a tip
+whose CI this bundle has not read, with production unreachable to confirm the deploy. Reported as
+a stop rather than taken.
+
 **Measured**: `npm test` 433 files / 8318 tests / 0 failures (twice, before and after the
 docs); `svelte-check` 0 errors / 37 warnings in 20 files (31/5/1), agreeing with `CLAUDE.md`
 with no correction needed. **Production unreachable** (proxy 403), so the six-item checklist's

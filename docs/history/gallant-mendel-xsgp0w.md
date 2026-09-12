@@ -64,6 +64,18 @@ have been deleted under the rule `integrate.yml`'s own summary calls "Already co
 deleted". The audit carries this as its item 0 because it is the thing most likely to be acted
 on tonight, and it is in the audit rather than only here for the reason question 5 exists.
 
+**And the audit then had to correct its own item 0, which is the rule working rather than a
+lapse.** The first version said a red Integrate run "carries no information". Run `34723007701`
+-- the one that swept this branch -- says otherwise in its own words: `1 branch(es) conflicted
+... integration ITSELF WAS PUSHED and is not blocked -- this run is red for that reason as well
+as for anything the suite found`. The run distinguishes the cases and names whether the target
+moved, so the sentence was a claim made from three run conclusions rather than from a log, which
+is the exact failure this bundle spent its day cataloguing. The correction is in the audit,
+marked as one, with the quote that forced it. **The same log carries a fact worth more than the
+correction**: `the merged tree passes the suite -- Tests 8318 passed (8318)`. `merged_suite`
+genuinely runs now, so the signal decision 21's gate would read is green for the first time --
+which makes item 1 easier to build, not less necessary.
+
 ## The one finding that outranks the rest, and why no tool was going to say so
 
 `docs/decisions/entries/21-*` is `decided 2026-09-12. YES, BLOCK` with `- Build: OPEN`, and
