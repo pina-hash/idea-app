@@ -5,10 +5,22 @@
 	 *   role=student                    one seeded concept (default)
 	 *   role=student&state=three        three concepts, one failing diameter
 	 *   role=student&state=compare      the compare surface open, gate CLOSED
+	 *   role=student&state=revealed     the compare surface with the gate OPEN,
+	 *                                   from a prediction already recorded
+	 *   role=student&state=property     the PropertyManager open on the BODY,
+	 *                                   which is the panel with the station
+	 *                                   table and the profile preview in it
 	 *   role=student&state=committed    three concepts, the active one committed
 	 *   role=teacher                    the same component, read-only
+	 *   role=teacher&state=property     the read-only PropertyManager
 	 * `commitConceptCard` is handed in only where a state wants the control: its
 	 * ABSENCE is what removes it, which is the rule the real page relies on too.
+	 *
+	 * THE PROPERTY STATE IS REACHED THROUGH THE REAL CONTROL, not through a prop.
+	 * `BladeEditor` has no `editing` input and must not gain one: a harness that
+	 * could put the panel on screen by a route nothing else has would be measuring
+	 * an arrangement a student cannot reach. `openPropertyManager` below
+	 * double-clicks the Body Revolve row, which is exactly what a student does.
 	 */
 	import BladeEditor from '$lib/ideacad/BladeEditor.svelte';
 	import type { ViewportProbe } from '$lib/ideacad/viewport/camera-rig';
@@ -42,10 +54,35 @@
 	const concepts =
 		state === 'three'
 			? [many[1], many[0], many[2]]
-			: state === 'compare' || state === 'committed'
+			: state === 'compare' || state === 'revealed' || state === 'committed'
 				? many
 				: undefined;
 	const commits: string[] = [];
+
+	/**
+	 * A prediction ALREADY RECORDED, which is what unlocks the comparative
+	 * physics on a later visit. The real page reads it from `ideacad_predictions`
+	 * through the document payload; here it is a literal, because what this state
+	 * measures is the SHEET with the physics on screen, not the read that found it.
+	 */
+	const prediction =
+		state === 'revealed'
+			? { conceptId: 'c2', rationale: 'the wide one carries its mass further out', at: '2026-09-12' }
+			: null;
+
+	/**
+	 * Open the PropertyManager the way a student does. A `waitFor` in the route
+	 * spec cannot press anything, and a prop that skipped the press would put an
+	 * arrangement on screen that the real surface has no path to.
+	 */
+	function openPropertyManager(): boolean {
+		const row = [...document.querySelectorAll('.tree [role="treeitem"]')].find((b) =>
+			b.textContent?.includes('Body Revolve')
+		);
+		if (!row) return false;
+		row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		return true;
+	}
 
 	/**
 	 * THE VIEWPORT PROBE AND THE FRAME CLOCK ARE HANDED IN, NEVER HUNG ON THE
@@ -214,6 +251,137 @@
 		return out;
 	}
 	/**
+	 * LEDGER 0160'S OWN EXPERIMENT, RUN AGAINST THE FIXED GATE.
+	 *
+	 * 0160 measured the broken one like this: one character typed into "Say why",
+	 * with NO concept picked and Reveal never pressed, rendered
+	 * `I 1626.6 g-cm2 / k 2.97 cm` under the heading `Prediction: . h`. The lock
+	 * was `{#if !prediction}` over `bind:value={prediction}`, so the comparative
+	 * physics unlocked on the first keystroke.
+	 *
+	 * This runs the identical keystrokes in the same order and reports what is on
+	 * screen after each, and it ends with a POSITIVE CONTROL: the deliberate press
+	 * with both halves present, which must open the gate. Without that last step
+	 * every absence here is satisfied by a sheet that never renders physics at
+	 * all -- which is how this measurement would pass on a page with the compare
+	 * surface deleted.
+	 *
+	 * It runs on the PAGE rather than in the route spec so the numbers come off
+	 * the real component at whichever width the harness is driving, and so a step
+	 * that stops running shortens the array and reddens.
+	 */
+	async function gateProbe(): Promise<string[]> {
+		const out: string[] = [];
+		const say = (claim: string, ok: boolean) => out.push(`${claim} ${ok ? 'ok' : 'FAILED'}`);
+		const physics = () => document.querySelectorAll('.compare dl').length;
+		const sheet = () => document.querySelector('.compare')?.textContent ?? '';
+		const tick = () => new Promise((res) => setTimeout(res, 60));
+		const field = document.querySelector('.compare input') as HTMLInputElement | null;
+		const picker = document.querySelector('.compare select') as HTMLSelectElement | null;
+		const reveal = [...document.querySelectorAll('.compare button')].find(
+			(b) => b.textContent?.trim() === 'Reveal physics'
+		) as HTMLButtonElement | null;
+		if (!field || !picker || !reveal) {
+			say('the gate surface is on screen to be measured', false);
+			return out;
+		}
+		say('the sheet opens with the physics locked', physics() === 0);
+
+		/* 0160's exact keystroke: ONE character, nothing picked, nothing pressed. */
+		field.value = 'h';
+		field.dispatchEvent(new Event('input', { bubbles: true }));
+		await tick();
+		say('one character typed into Say why leaves it locked', physics() === 0);
+		say('and no inertia figure is anywhere on the sheet', !/g·cm²|g-cm2/.test(sheet()));
+
+		/* The press with only half the answer. The control is `aria-disabled` and
+		   not `disabled`, so it can explain itself -- which means the HANDLER has
+		   to refuse too, and a real click is what asks it. */
+		reveal.click();
+		await tick();
+		say('a press with no concept picked leaves it locked', physics() === 0);
+
+		/* The other half alone. */
+		picker.value = 'c2';
+		picker.dispatchEvent(new Event('change', { bubbles: true }));
+		field.value = '';
+		field.dispatchEvent(new Event('input', { bubbles: true }));
+		await tick();
+		say('a concept picked with no reason leaves it locked', physics() === 0);
+		reveal.click();
+		await tick();
+		say('and a press on that half leaves it locked too', physics() === 0);
+
+		/* THE POSITIVE CONTROL. Both halves, then the deliberate press. */
+		field.value = 'the wide one carries its mass further out';
+		field.dispatchEvent(new Event('input', { bubbles: true }));
+		await tick();
+		say('both halves present still leaves it locked until the press', physics() === 0);
+		reveal.click();
+		await tick();
+		say('the deliberate press opens it, one block per concept', physics() === 3);
+		say('and the inertia figure is on screen once it is open', /g·cm²/.test(sheet()));
+		return out;
+	}
+
+	/**
+	 * THE LEFT PANE'S OWN CLAIMS, for the two arrangements it has.
+	 *
+	 * These are separate from `verdicts` because the pane is the region whose
+	 * failure mode is the subtlest on this surface: the PropertyManager REPLACES
+	 * the tree in place, so a panel that rendered BELOW the tree instead of
+	 * instead of it would look almost right, scroll a little further, and pass
+	 * every content check ever written about either half. The discriminator is
+	 * that the tree's own rows are GONE while the panel is up, asked of the same
+	 * element.
+	 *
+	 * The station table is the other one. It is the only control cluster on this
+	 * surface with three controls on one row, and 0160's defect here was a row
+	 * running off its pane -- so the cells are measured against the pane they sit
+	 * in rather than against the window.
+	 */
+	function paneVerdicts(): string[] {
+		const out: string[] = [];
+		const say = (claim: string, ok: boolean) => out.push(`${claim} ${ok ? 'ok' : 'FAILED'}`);
+		const box = (sel: string) => document.querySelector(sel)?.getBoundingClientRect();
+		const pane = box('.tree');
+		const pm = box('[data-testid="ideacad-property-manager"]');
+
+		say('the PropertyManager is on screen', !!pm && pm.width > 0 && pm.height > 0);
+		say(
+			'it replaced the feature tree rather than joining it',
+			document.querySelectorAll('.tree [role="tree"]').length === 0
+		);
+		say('it is inside the pane the tree was in', !!pm && !!pane && pm.left >= pane.left - 0.5 && pm.right <= pane.right + 0.5);
+		say(
+			'every station cell is inside that pane',
+			[...document.querySelectorAll('.pm tbody input, .pm .acts button')].every((el) => {
+				const r = el.getBoundingClientRect();
+				return r.width > 0 && r.left >= (pane?.left ?? 0) - 0.5 && r.right <= (pane?.right ?? 0) + 0.5;
+			})
+		);
+		say(
+			'the profile preview is drawn and inside the pane',
+			(() => {
+				const svg = box('.pm .profile svg');
+				return (
+					!!svg &&
+					svg.width > 0 &&
+					svg.height > 0 &&
+					!!pane &&
+					svg.right <= pane.right + 0.5 &&
+					document.querySelectorAll('.pm .profile circle').length > 0
+				);
+			})()
+		);
+		say(
+			'nothing is wider than the window',
+			document.documentElement.scrollWidth <= document.documentElement.clientWidth + 0.5
+		);
+		return out;
+	}
+
+	/**
 	 * PART 4's 300-frame drag, run on the page rather than from the route spec.
 	 *
 	 * It dispatches REAL middle-button pointer events at the real viewport, so
@@ -366,6 +534,9 @@
 		w.__ideacadFrameVerdicts = frameVerdicts;
 		w.__ideacadRunFrameProbe = runFrameProbe;
 		w.__ideacadCamera = () => probe;
+		w.__ideacadOpenPropertyManager = openPropertyManager;
+		w.__ideacadPaneVerdicts = paneVerdicts;
+		w.__ideacadGateProbe = gateProbe;
 	}
 </script>
 
@@ -374,7 +545,8 @@
 	tree={DEFAULT_BLADE_TREE}
 	config={DEFAULT_BLADE_CONFIG}
 	{concepts}
-	openCompare={state === 'compare'}
+	{prediction}
+	openCompare={state === 'compare' || state === 'revealed'}
 	readOnly={role === 'teacher'}
 	conceptName={role === 'teacher' ? 'Student concept' : 'Concept 1'}
 	commitConceptCard={role === 'teacher' ? undefined : async (id: string) => void commits.push(id)}

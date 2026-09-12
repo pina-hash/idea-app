@@ -105,6 +105,15 @@ on the gallery cards so "public totals" means moving the owner gate; and
 because that table's revoke does not name the role while all five of the file's
 function revokes do.
 
+**One conflict, resolved on the branch and never on `integration`.** Ledger 0174
+closed decision 02 while this bundle ran, so `docs/decisions/entries/02-*` conflicted.
+0174 did the thing this bundle's entry 02 said it must -- audit before writing a
+migration -- and found there is NO test-shaped coin policy at all, so the premise is
+withdrawn, `0204` was released unused, and a test now re-derives the audit every run.
+Resolved by taking THEIRS whole: it is the later and more complete record of the same
+decision, and this bundle's "Build: OPEN" text had become false. `origin/integration`
+was merged into this branch to do it.
+
 **Reported, not fixed.** `CLAUDE.md`'s `svelte-check` baseline says 40 warnings in 22
 files (34/5/1); this tree measures 38 in 21 (32/5/1). Ledgers 0168 and 0172 each
 reported the same gap for the same reason and `CLAUDE.md` is outside this bundle's

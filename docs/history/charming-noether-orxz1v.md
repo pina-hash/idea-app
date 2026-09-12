@@ -29,6 +29,20 @@ requires a description NO. 02 the coin ledger test RLS policy REMOVE IT. 23
 link-preview DNS pinning LEAVE AS IS. 11 the Cosso Unit 1 checkpoint image STALE. 21
 the blocking merge gate YES, BLOCK.
 
+**Entry 02's closure is NOT this bundle's text, and that is the right outcome.** This
+bundle recorded his approval and wrote that ledger 0174 must name the policy before
+writing a migration, "or report that the premise has nothing behind it". 0174 landed
+while this bundle was running and did exactly the second thing: audited `pg_policies`
+after the whole chain against a real Postgres -- 201 migration files, sixteen coin
+tables, fifteen policies, every one SELECT to `authenticated` alone -- and found NO
+test-shaped policy anywhere. So the premise is withdrawn rather than the work
+deferred, `0204` was released unused, and what shipped is
+`tests/db/coin-ledger-policy.test.ts` so a third hand audit is never needed. Their
+entry is the later and more complete record of the same decision, so the merge
+conflict on this file was resolved by taking THEIRS whole and dropping this bundle's
+speculative "Build: OPEN" text, which had become false. The prediction was right and
+is now history rather than instruction.
+
 **Three of those twelve are reversals of this assistant's own stated default** -- 04,
 which proposed keeping Recent; 05, which proposed the narrowing; and 07, which
 proposed not public at all and which he widened in a second direction the entry had
