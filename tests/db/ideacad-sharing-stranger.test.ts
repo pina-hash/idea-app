@@ -55,8 +55,15 @@ describe('0205: the enumerated RPC surface', () => {
 			 where n.nspname = 'public' and p.proname like 'ideacad%' order by 1`
 		);
 		const names = rows.map((r) => r.proname);
-		// 0201's ten, plus 0205's five.
-		expect(names).toEqual([
+		// 0201's ten, plus 0205's five. ASSERTED AS CONTAINMENT, NOT EQUALITY:
+		// this file is about what 0205 built, and a later ideacad migration
+		// adding a public RPC of its own is a legitimate change that equality
+		// necessarily reddens -- 0207 added nine and 0208 three. What must stay
+		// true is that every one of the feature's own fifteen is still on the
+		// catalog; whether the whole ideacad surface is correctly granted is
+		// tests/db/ideacad-grants-anon-execute-surface.test.ts's question, and
+		// it classifies rather than counts for exactly this reason.
+		const feature = [
 			'ideacad_commit_concept',
 			'ideacad_delete_concept',
 			'ideacad_document_grants',
@@ -72,8 +79,10 @@ describe('0205: the enumerated RPC surface', () => {
 			'ideacad_shared_with_me',
 			'ideacad_unshare_document',
 			'ideacad_update_concept_meta'
-		]);
-		expect(names).toHaveLength(15);
+		];
+		for (const name of feature) expect(names, `${name} is missing`).toContain(name);
+		expect(feature).toHaveLength(15);
+		expect(names.length).toBeGreaterThanOrEqual(15);
 	});
 });
 

@@ -69,9 +69,14 @@ describe('0205: no ideacad function is executable by anon', () => {
 			 where n.nspname = 'public' and p.proname ~ '^_?ideacad'
 			 order by 1`
 		);
-		// The sweep found something to sweep: 0201's ten, 0205's five, and the
-		// four private predicates.
-		expect(rows).toHaveLength(19);
+		// THE ANON ASSERTION IS UNIVERSAL AND STAYS SWEPT BY PREFIX -- it is true
+		// of every ideacad function there will ever be, which is exactly 0206's
+		// own reasoning about which properties a prefix sweep suits. The COUNT is
+		// not universal: 0201's ten, 0205's five and its four private predicates
+		// are nineteen, and a later migration adding one is legitimate (0207
+		// added fourteen, 0208 four). So the count became a floor plus a positive
+		// control that the sweep found something at all.
+		expect(rows.length, 'the prefix sweep matched nothing, so the next line is vacuous').toBeGreaterThanOrEqual(19);
 		expect(rows.filter((r) => r.anon_x).map((r) => r.sig)).toEqual([]);
 	});
 
@@ -117,14 +122,28 @@ describe('0205: no ideacad function is executable by anon', () => {
 			 where n.nspname = 'public' and p.proname ~ '^_?ideacad'
 			 order by 1`
 		);
+		// SCOPED TO 0205'S OWN FOUR, NOT SWEPT BY PREFIX. This file is about what
+		// 0205 built; a later ideacad migration adding a private helper is a
+		// legitimate change that a prefix count necessarily reddens (0207 added
+		// five, 0208 one). The whole-surface question -- every ideacad helper on
+		// the right side of the client/definer line -- is
+		// tests/db/ideacad-grants-anon-execute-surface.test.ts's, which classifies
+		// each one by name rather than counting them.
+		const PRIVATE_0205 = [
+			'_ideacad_can_read_document',
+			'_ideacad_can_write_document',
+			'_ideacad_document_role',
+			'_ideacad_manages_document'
+		];
 		const publicRpcs = rows.filter((r) => !r.proname.startsWith('_'));
-		const privateHelpers = rows.filter((r) => r.proname.startsWith('_'));
-		expect(publicRpcs).toHaveLength(15);
+		const privateHelpers = rows.filter((r) => PRIVATE_0205.includes(r.proname));
+		expect(publicRpcs.length).toBeGreaterThanOrEqual(15);
 		expect(privateHelpers).toHaveLength(4);
 		// A public RPC authenticated cannot call is the feature switched off.
+		// UNIVERSAL, so it stays swept by prefix over every public ideacad RPC.
 		expect(publicRpcs.filter((r) => !r.authed_x).map((r) => r.sig)).toEqual([]);
-		// EXACTLY TWO private predicates hold it, and they are the two named
-		// inside the section 3 policies. A policy expression is evaluated as the
+		// EXACTLY TWO OF 0205'S FOUR hold it, and they are the two named inside
+		// the section 3 policies. A policy expression is evaluated as the
 		// QUERYING role, so those two MUST have it or every read of these tables
 		// fails with "permission denied for function"; the other two are reached
 		// only from SECURITY DEFINER bodies and holding it would be surface
@@ -143,8 +162,10 @@ describe('0205: no ideacad function is executable by anon', () => {
 			 where n.nspname = 'public' and p.proname like '\\_ideacad%'
 			 order by 1`
 		);
-		expect(rows).toHaveLength(4);
-		expect(rows.filter((r) => !r.svc_x)).toEqual([]);
+		// Scoped to 0205's four, for the reason the test above gives.
+		const mine = rows.filter((r) => /_ideacad_(can_read_document|can_write_document|document_role|manages_document)\(/.test(r.sig));
+		expect(mine).toHaveLength(4);
+		expect(mine.filter((r) => !r.svc_x)).toEqual([]);
 	});
 });
 

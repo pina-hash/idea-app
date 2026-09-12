@@ -270,8 +270,16 @@ describe('0205: the manager term is the one 0201 wrote, not a copy', () => {
 			 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 			 where n.nspname = 'public' and p.proname like '\\_ideacad%' order by 1`
 		);
-		expect(rows).toHaveLength(4);
-		expect(rows.filter((r) => r.authed).map((r) => r.proname)).toEqual([
+		// Scoped to 0205's own four rather than swept by prefix: 0207 and 0208
+		// each add private ideacad helpers of their own, and one of 0207's
+		// (`_ideacad_part_reader`) is itself named in a policy and so correctly
+		// holds the grant too. Counting by prefix here would make this file
+		// redden on another migration's legitimate work.
+		const mine = rows.filter((r) =>
+			['_ideacad_can_read_document', '_ideacad_can_write_document', '_ideacad_document_role', '_ideacad_manages_document'].includes(r.proname)
+		);
+		expect(mine).toHaveLength(4);
+		expect(mine.filter((r) => r.authed).map((r) => r.proname)).toEqual([
 			'_ideacad_can_read_document',
 			'_ideacad_manages_document'
 		]);

@@ -81,13 +81,27 @@ const CREATE_0205_PREDICATES = `
 	$r$;
 `;
 
+// ONLY THE WRITE PREDICATE IS DROPPED, AND THAT IS FORCED RATHER THAN CHOSEN.
+// `_ideacad_can_read_document` is NAMED IN 0205'S OWN RLS POLICIES, and a policy
+// records a real dependency on every function its expression names -- so
+// `drop function` on it is REFUSED by Postgres rather than quietly degrading.
+// The write predicate is the one `_ideacad_part_writer`'s ladder consults, so it
+// is the whole of what has to go for the narrow rung to be the one measured.
 const DROP_0205_PREDICATES = `
 	drop function if exists public._ideacad_can_write_document(uuid);
-	drop function if exists public._ideacad_can_read_document(uuid);
 `;
 
 beforeAll(async () => {
 	db = await startTestDb([FIXTURE_COMPLETION, ...ALL_MIGRATIONS]);
+	// RUNG 2 IS NOW CONSTRUCTED RATHER THAN INHERITED, AND THAT IS THE WHOLE OF
+	// WHAT CHANGED HERE. This file's header describes a chain in which 0205 sat
+	// on an unmerged lane, so `_ideacad_can_write_document` was genuinely absent
+	// and the narrow rung was simply the state of the tree. 0205 is in the chain
+	// now (ledger 0188 merged it), so the predicate is really there and the
+	// degraded rung has to be MADE. Dropping it here keeps all three rungs
+	// measured on one database in the same order, and the ladder is still proved
+	// in both directions -- which is the property the file exists for.
+	await db.sql(DROP_0205_PREDICATES);
 	teacher = await createUser(db, 'asmlad.teacher@boscotech.edu', 'Ladder Teacher');
 	owner = await createUser(db, 'asmlad.owner@boscotech.net', 'Owner');
 	mate = await createUser(db, 'asmlad.mate@boscotech.net', 'Mate');
