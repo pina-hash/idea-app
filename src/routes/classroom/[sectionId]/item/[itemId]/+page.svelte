@@ -30,6 +30,8 @@
 	import { guardSaveNavigation } from '$lib/save-guard.svelte';
 	import { SaveState } from '$lib/save-state.svelte';
 	import { itemLayoutKnown } from '$lib/classroom/attachments';
+	import PresenceHeartbeat from '$lib/classroom/presence/PresenceHeartbeat.svelte';
+	import { createPresenceBeatTransport } from '$lib/classroom/presence/transports';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -455,6 +457,64 @@
 	 * cannot disagree about a student's status.
 	 */
 	const itemCheckIns = $derived(checkInsForItem(data.checkIns ?? [], data.item.id));
+
+	/**
+	 * THE PRESENCE HEARTBEAT'S WIRE (0200), AND IT IS THE ONE 0152 COULD NOT
+	 * MAKE. Everything else in that bundle shipped -- the migration, both RPCs,
+	 * the retention, the pure modules, the instructor surface -- and this file
+	 * was held by five parallel lanes, so until this line nothing anywhere wrote
+	 * a `classroom_presence` row and the console read an empty table.
+	 *
+	 * `data.engine` IS THE GATE, AND IT IS THE DATABASE'S OWN POPULATION SPELLED
+	 * IN THE PAYLOAD RATHER THAN A SECOND IDEA OF WHO IS A STUDENT. The load
+	 * builds it in exactly one branch -- `item.kind === 'assignment'` AND NOT
+	 * `canManage` -- and `classroom_presence_ping` resolves its subject through
+	 * `_classroom_engine_student`, which raises for a manager, for a material and
+	 * for an unpublished item. So the two agree by construction: every page that
+	 * mounts this is a page whose beats the RPC would accept, and asking
+	 * `kind === 'assignment' && !canManage` here instead would be that same
+	 * condition written a second time, thirty lines from the branch that already
+	 * decided it.
+	 *
+	 * WHICH MEANS A TEACHER IS NEVER BEATEN FOR. Instructors enroll themselves to
+	 * see a class the way a student does and roster imports sweep them in
+	 * (0138's finding), so a manager reading this page WOULD satisfy 0086's
+	 * enrollment gate and would acquire a presence row about themselves. Absence
+	 * is what prevents it -- there is no transport to send with -- rather than a
+	 * flag inside the component.
+	 *
+	 * NO CLIENT THROTTLE, DELIBERATELY, AND THE TWO NUMBERS ARE WHY. The
+	 * component beats at `heartbeatSeconds` (30) and
+	 * `_classroom_presence_min_gap()` refuses a write inside 20, so the client is
+	 * ALREADY the wider of the two and a third limit here could only ever be a
+	 * fourth place for the rate to be written down. The floor that matters is the
+	 * database's, because a limit living in the code that sends the requests is a
+	 * promise rather than a limit.
+	 *
+	 * `limits` IS NOT HANDED DOWN AND THAT IS NOT AN OVERSIGHT. This deployment's
+	 * real windows travel in `classroom_presence_state`'s `limits` object, which
+	 * is the INSTRUCTOR'S read; a student never calls it and has nothing to learn
+	 * them from. The component's own `PRESENCE_LIMITS_FALLBACK` is what it uses,
+	 * and `tests/db/classroom-presence-state-mirror.test.ts` pins that constant
+	 * equal to the deployed functions -- so "not told" and "told" agree wherever
+	 * 0200 is applied, and where they ever diverged the database's 20-second
+	 * floor is still the thing that decides what is written.
+	 *
+	 * NOTHING IS ANNOUNCED, AND THE REASON IS AN ARITHMETIC ONE. `live.ts` says
+	 * the notice "only makes a student SITTING DOWN immediate" -- but
+	 * `PRESENCE_POLL_MS` is 30 seconds and the heartbeat is 30 seconds, so a
+	 * notice on a PERIODIC beat tells an open console exactly what its own next
+	 * poll was about to, while costing one broadcast per student per beat. What
+	 * would earn its place is a notice on the FIRST beat and on the return from
+	 * hidden, which are the two that are news -- and `announce` fires after every
+	 * beat `PresenceHeartbeat` emits, so that is a change in `heartbeat.ts`,
+	 * which is 0152's surface and not this bundle's. Left unwired rather than
+	 * wired wastefully, and named here so the next reader does not take the
+	 * absence for a forgotten prop.
+	 */
+	const presenceBeat = $derived(
+		data.engine ? createPresenceBeatTransport(data.supabase, data.item.id) : null
+	);
 </script>
 
 <ItemDetail
@@ -492,3 +552,24 @@
 	onchanged={() => invalidateAll()}
 	ondeleted={() => goto(`/classroom/${data.section.id}`)}
 />
+
+<!--
+	IT RENDERS NOTHING, WHICH IS THE POINT RATHER THAN A CONSEQUENCE. A student is
+	not the audience for their own presence and a widget saying "you are being
+	timed" changes the thing it measures, so this element adds no box, no chip and
+	no text to the page it sits on. That is not the same as hiding it: 0200's RLS
+	policy admits the subject of the row deliberately, and whether a class is TOLD
+	is Mr. Pina's decision rather than a rendering one.
+
+	KEYED ON THE ITEM. `PresenceHeartbeat` reads its props ONCE, in `onMount`, so
+	a transport swapped underneath it would never be picked up; a client-side
+	navigation between two items in the same class re-runs this load without
+	remounting the page, and without the key the second assignment would be beaten
+	for under the first one's id. The key is what makes the remount the cost of a
+	changed transport, which is what the component's own header says it expects.
+-->
+{#if presenceBeat}
+	{#key data.item.id}
+		<PresenceHeartbeat send={presenceBeat.ping} />
+	{/key}
+{/if}

@@ -34,6 +34,36 @@ export default {
 	path: '/dev/presence',
 	label: 'Presence: four states on one roster, each legible, inside the pane at 375',
 	widths: WIDTHS,
+	/**
+	 * THE ROSTER ARRIVES ON A PROMISE, AND WITHOUT THIS THE SPEC MEASURES THE
+	 * PAGE BEFORE IT.
+	 *
+	 * `GradingConsole` calls `loadGrading` from an effect, so `.roster-row` goes
+	 * 0 to 5 between roughly 300ms and 700ms after load. `waitForApp` returns on
+	 * DOM STABILITY, which this page reaches while the console is still empty --
+	 * paint is not the payload -- so every count below was read at whichever of
+	 * those two moments the run happened to land on. Ledger 0168 DOM-probed it
+	 * and `measured/presence-presence-off.json` recorded the result: one row
+	 * outside threshold, "the roster itself, unchanged", on byte-identical code.
+	 *
+	 * A LONGER `settleMs` IS THE WRONG FIX and `waitUntil`'s own header says why:
+	 * a fixed timeout measures an empty page the day the payload gets slower and
+	 * reports honest zeros about a surface that had not finished loading. The
+	 * predicate names the thing being waited for and the wait is REPORTED in
+	 * milliseconds, so a page that suddenly needs four seconds says so instead of
+	 * passing quietly.
+	 *
+	 * IT WAITS FOR FIVE, NOT FOR ONE. The roster renders as a unit here, but a
+	 * predicate satisfied by the first row would be satisfied by a partial render
+	 * the day it does not -- and this spec's whole job is to distinguish "the
+	 * region was removed" from "the console never rendered".
+	 */
+	prepare: [
+		{
+			waitFor: `() => document.querySelectorAll('.roster-row').length === 5`,
+			label: 'the roster has loaded (5 rows)'
+		}
+	],
 	presence: [
 		{
 			selector: '[data-testid="presence-line"]',
