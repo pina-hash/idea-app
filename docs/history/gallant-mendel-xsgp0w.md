@@ -46,6 +46,24 @@ following lines and `from public, anon, authenticated;` at the end, so
 `grep 'revoke all on function.*anon'` misses every one of them and a reader concludes they
 repeated `0201`'s defect. They do not. Read the statement, not the line.
 
+## A finding the bundle made by being in the pipeline rather than by reading it
+
+Pushing this branch put the session inside the thing it was auditing, and the Integrate runs
+its own CI triggered came back red. Three in a row (`34721758677`, `34721804705`,
+`34721937193`), each under 40 seconds, each `1 branch(es) conflicted with integration ... did
+not move this run`, conflicting on eleven notebook-theme files. **The gate worked exactly as
+its README describes**: at 22:06 this branch's first CI run had gone green while its ledger
+entry still read `Status: issued`, and the sweep correctly skipped it rather than merging a
+running session's work.
+
+Then the measurement: **52 agent branches, 15 already contained in `main` or `integration`, 37
+genuinely standing, 35 of the 37 conflicting** with `integration` under
+`git merge-tree --write-tree`. Both halves of that are findings. A ledger `README` that says a
+standing branch is a SIGNAL cannot mean much at 37, and the 15 contained ones should already
+have been deleted under the rule `integrate.yml`'s own summary calls "Already contained,
+deleted". The audit carries this as its item 0 because it is the thing most likely to be acted
+on tonight, and it is in the audit rather than only here for the reason question 5 exists.
+
 ## The one finding that outranks the rest, and why no tool was going to say so
 
 `docs/decisions/entries/21-*` is `decided 2026-09-12. YES, BLOCK` with `- Build: OPEN`, and
