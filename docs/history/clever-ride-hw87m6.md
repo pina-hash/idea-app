@@ -110,11 +110,39 @@ Full suite on the merged tree: 398 files, 7717 tests, 331.77s, exit 0.
   the fallback stack, not the web fonts), and runs with
   `prefers-reduced-motion: no-preference`, so that path is unexercised.
 
-## What was reported and not fixed
+## The deploy, which did happen, and the one that never did
 
 Production had been serving `dcbb741` for fourteen hours while `main` sat at
 `8e834ba6` for nine, with no Vercel deployment for `8e834ba6` at all -- not
 failed, never created. The prompt named this as a thing to report rather than
-fix, and this entry records only what this lane could observe: the merge and the
-deploy are separate facts, and a merge landing is not evidence that a deploy
-followed it.
+fix, and warned that this lane's own push might not produce a deploy either.
+
+**It did.** `ideabosco.com` was read on a 45-second poll from the moment `main`
+moved, and the stamp went `dcbb741 -> 870e063` within that window; a live read
+afterwards confirms `870e063`, which is this lane's merge commit. So the missing
+deployment was specific to `8e834ba6` and is not a standing fault in the
+pipeline. **The merge and the deploy remain separate facts** and were confirmed
+separately: the merge by `git`, the deploy by reading the served HTML.
+
+## The first Integrate run with `cool-cori`'s fix, and what it did NOT say
+
+`cool-cori`'s one-line `svelte-kit sync` reached `main` in this lane's merge, so
+run **827** is the first Integrate run to execute the fixed workflow. It is red,
+and the reason is worth stating precisely because it is the one outcome that
+still does not exercise the thing that was fixed:
+
+> 1 branch(es) conflicted with integration and were left untouched. integration
+> did not move this run.
+
+A notebook-theme branch conflicts with `integration` across ten paths
+(`notebook-theme.css`, `notebook-theme.svelte.ts`, `NotebookView.svelte`,
+`NotebookThemeToggle.svelte`, two tests, three harness route specs and
+`0119-notebook-ui-theme-overhaul.md`). Nothing merged, so the merged-tree suite
+never ran and `merged_suite()` returned no verdict here either -- not because it
+is still broken, but because a run that merges nothing has no merged tree to
+test. **The fix is in place and still unproven in production use.** The next
+Integrate run that actually merges a branch is the one that will say whether it
+works, and that needs the conflicting branch resolved on the branch first, which
+is outside this lane. Three earlier runs the same morning (823, 825) failed on
+the identical conflict under the OLD workflow, so the conflict predates the fix
+and is not caused by it.
