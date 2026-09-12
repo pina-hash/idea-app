@@ -5,7 +5,7 @@
 - Owns: `supabase/data/` material files, `tests/db/ideacad-materials*`,
   `docs/prompt-ledger/entries/0194-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Claims: none. Highest on origin/integration at issue: 0208
-- Status: issued
+- Status: pushed
 - Branch: claude/vigilant-hopper-vt669h (cut from origin/integration 62ef6bc7)
 - Notes: **THE DEFECT IS UPSTREAM OF EGRESS.** Ledger 0191 tried sixteen sources,
   was refused by the proxy on every one, set no density and flipped no flag. That
