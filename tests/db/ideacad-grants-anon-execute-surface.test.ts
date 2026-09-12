@@ -183,7 +183,7 @@ const MIGRATION_0206 = '0206_ideacad_grant_guard.sql';
  */
 interface IdeacadFn {
 	readonly kind: 'client' | 'definer';
-	readonly migration: '0201' | '0205' | '0207' | '0208';
+	readonly migration: '0201' | '0205' | '0207' | '0208' | '0209';
 	readonly reason: string;
 }
 
@@ -201,6 +201,13 @@ const RPC_0207 =
 	'A parts/checkout RPC. 0207 created it and revoked it from `public, anon, authenticated` by name.';
 const RPC_0208 =
 	'A materials RPC. 0208 created it and revoked it from `public, anon, authenticated` by name.';
+const RPC_0209 =
+	'An action-log RPC. 0209 created it and revoked it from `public, anon, authenticated` by name.';
+const TRIGGER_ONLY_0209 =
+	'A 0209 TRIGGER function. Nothing calls it by name at all -- the executor fires it on an insert ' +
+	'into ideacad_concepts -- and no policy names it, so it holds no client grant. It is swept here ' +
+	'like every other ideacad function because it sits on the same prefix, which is exactly what ' +
+	'would have caught it keeping the anon grant the hosted default privileges hand out.';
 
 const IDEACAD_FUNCTIONS: Readonly<Record<string, IdeacadFn>> = {
 	// --- 0201's ten. Every one of them an RPC. ---
@@ -253,7 +260,12 @@ const IDEACAD_FUNCTIONS: Readonly<Record<string, IdeacadFn>> = {
 	ideacad_material_save_global: { kind: 'client', migration: '0208', reason: RPC_0208 },
 	ideacad_material_save_custom: { kind: 'client', migration: '0208', reason: RPC_0208 },
 	ideacad_material_set_retired: { kind: 'client', migration: '0208', reason: RPC_0208 },
-	_ideacad_clean_thicknesses: { kind: 'definer', migration: '0208', reason: DEFINER_ONLY }
+	_ideacad_clean_thicknesses: { kind: 'definer', migration: '0208', reason: DEFINER_ONLY },
+
+	// --- 0209's action log: two RPCs and one trigger function. ---
+	ideacad_apply_actions: { kind: 'client', migration: '0209', reason: RPC_0209 },
+	ideacad_concept_history: { kind: 'client', migration: '0209', reason: RPC_0209 },
+	_ideacad_history_origin: { kind: 'definer', migration: '0209', reason: TRIGGER_ONLY_0209 }
 };
 
 /**
@@ -323,7 +335,11 @@ const IDEACAD_0201_TABLES = [
  */
 const IDEACAD_SELECT_TABLES: readonly string[] = [
 	...IDEACAD_0201_TABLES,
-	...(chainHas('0205') ? (['ideacad_grants'] as const) : [])
+	...(chainHas('0205') ? (['ideacad_grants'] as const) : []),
+	// 0209's action log. `authenticated` holds SELECT and the RLS policy is
+	// what makes it mean "the histories you can already read"; losing it takes
+	// the timeline down rather than narrowing it.
+	...(chainHas('0209') ? (['ideacad_history'] as const) : [])
 ];
 
 // ---------------------------------------------------------------------------
