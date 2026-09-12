@@ -77,3 +77,75 @@
    selection behaviour, the same save state, and the same three gates. A grid bolted
    beside the editor with its own store meets none of that and is the shape to
    refuse.
+
+## The gate's refusal, MEASURED rather than read (ledger 0180, 2026-09-12)
+
+Everything above about the gate is a correct reading of the source. This is the
+same claim put to a real database, because "prefer measuring to reasoning" applies
+hardest to the one fact the whole build rests on. A throwaway probe on the repo's
+own harness -- a fresh database, the real migration files applied unmodified,
+PostgreSQL 17.10 -- called the DEPLOYED `_notebook_note_content_ok` with eight
+documents:
+
+| document | gate |
+| --- | --- |
+| `[{type:'p',runs:[{text:'hello'}]}]` (control) | **true** |
+| `[{type:'ul',items:[[{text:'a'}]]}]` (control) | **true** |
+| `[{type:'sheet',rows:[['a','b']]}]` | **false** |
+| `[{type:'table',rows:[['a','b']]}]` | **false** |
+| `[{type:'grid',cells:{}}]` | **false** |
+| `p` carrying an extra `sheet` key | **false** |
+| `sheet` beside a valid paragraph | **false** |
+| run carrying an extra `cell` key | **false** |
+
+Three things this adds to the read above. **The two controls are the positive
+control**: a probe whose helper returned `undefined` would have "refused" all six
+and read as a clean result. **The answer is `false`, never NULL** -- which matters
+because NULL out of this family of gates means the write is ACCEPTED (`if not NULL
+then` does not fire), the exact hole 0125 was written to close, so the refusal is
+real rather than a fall-through. **And there is nowhere to smuggle a grid into an
+existing block**: the last three rows show the per-block key whitelists refusing a
+`sheet` hung off a paragraph and a `cell` hung off a run, so the widening in item 2
+above is genuinely the only door.
+
+One thing for that migration to answer, found by the same probe and easy to miss:
+the gate's last line is `v_total is not null and v_total > 0 and ...`. A note whose
+only content is a spreadsheet contributes no prose to `v_total`, so **a sheet-only
+note is refused as empty** unless the widening decides what a grid contributes to
+the text floor. That is a decision, not an oversight to patch silently.
+
+## The formula engine: candidates, with real registry facts
+
+Item 1 above is right that this is the first decision and right that it is a
+dependency decision. Naming the actual options, fetched from the npm registry on
+2026-09-12 rather than recalled. **Nothing was installed.**
+
+| package | license | unpacked | last publish | what it is |
+| --- | --- | --- | --- | --- |
+| `hyperformula` 3.4.0 | **GPL-3.0-only** | 12.6 MiB | 2026-08-10 | a real engine: parser, dependency graph, recalc order, cycle detection |
+| `@formulajs/formulajs` 4.6.1 | MIT | 2.4 MiB | 2026-07-28 | a FUNCTION LIBRARY, not an engine |
+| `fast-formula-parser` 1.0.19 | MIT | 0.6 MiB | **2020-11-26** | a real parser with cell refs; ~6 years unmaintained |
+| `formula-parser` 2.0.1 | MIT | n/a | **2017-02-21** | effectively dead |
+
+**The licence is the decision, and it is Mr. Pina's alone.** HyperFormula is the
+only maintained complete engine and it is GPL-3.0-only. `pina-hash/idea-app` is a
+PUBLIC repository (verified, not assumed) with no LICENSE file and no `license` in
+`package.json`, and the bundle is served to every browser that opens a note, which
+is distribution. Handsontable sell a commercial licence for exactly this case. That
+is a legal and budget call, not a technical one.
+
+Formula.js is the trap worth naming: it implements `SUM`, `VLOOKUP` and hundreds
+more over values ALREADY RESOLVED, and knows nothing about `A1`, about what depends
+on what, or about a circular reference. Adopting it still leaves the parser and the
+graph to write, which is most of the work.
+
+**Recommendation, offered as a recommendation:** write a scoped evaluator and adopt
+none of the four. A tokenizer, a recursive-descent parser over `+ - * / ^ ( )` and
+comparisons, `A1` and `A1:B9` references, topological recalculation with cycle
+detection, and a named function table starting around `SUM AVERAGE MIN MAX COUNT IF
+ROUND ABS SQRT` is on the order of 400-700 lines of pure, dependency-free
+TypeScript -- the shape `rich-text-doc.ts` and `track-runtime.ts` already use -- and
+every function in it is one somebody chose to support, so an unsupported formula
+says so instead of silently returning something plausible. **The honest cost: it is
+not Excel and will not do `VLOOKUP` on day one.** The function table is the artifact
+to agree with him before a line is written.
