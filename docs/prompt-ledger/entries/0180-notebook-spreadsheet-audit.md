@@ -7,7 +7,7 @@
   `docs/decisions/entries/08-*`, `docs/prompt-ledger/entries/0180-*`, and its own
   `docs/history/` entry.
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0203
-- Status: issued
+- Status: pushed
 - Branch: claude/kind-mayer-c2sn88 (cut from origin/integration 6a71eff4)
 - Notes: AUDIT AND RECOMMENDATION, not a build. Mr. Pina decided 08 on 2026-09-12:
   a real spreadsheet inside a note, with a working formula engine, explicitly not
