@@ -95,6 +95,16 @@ worth reading:
   classroom surfaces still reorder, `ClassView`'s class stream being the one an
   instructor actually rearranges.
 
+**Prompt 0176 measured decision 07's table independently the same day and agreed**
+(`docs/history/inspiring-dirac-wtoe9z.md`, landed on `integration` mid-bundle; it
+touched neither `docs/decisions/entries/` nor this entry, so there was no overlap).
+Two of its refinements were carried into decision 07 rather than left in a history
+file: BOTH layers are a migration, because the counts a student can already see are
+on the gallery cards so "public totals" means moving the owner gate; and
+`service_role` HOLDS SELECT on `student_app_plays`, against 0139's own comment,
+because that table's revoke does not name the role while all five of the file's
+function revokes do.
+
 **Reported, not fixed.** `CLAUDE.md`'s `svelte-check` baseline says 40 warnings in 22
 files (34/5/1); this tree measures 38 in 21 (32/5/1). Ledgers 0168 and 0172 each
 reported the same gap for the same reason and `CLAUDE.md` is outside this bundle's

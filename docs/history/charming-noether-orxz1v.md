@@ -179,6 +179,26 @@ And what his answer does not widen: he answered what a student sees about THEMSE
 and what everyone sees in AGGREGATE. `CLAUDE.md`'s "NO PER-PLAYER READ OF PLAY DATA
 EXISTS FOR ANYONE, ADMIN INCLUDED" survives intact.
 
+**A parallel lane measured the same thing the same day and agreed, which is worth
+more than either reading alone.** Prompt 0176 (`docs/history/inspiring-dirac-wtoe9z.md`,
+landed on `integration` while this bundle was running) audited `student_app_plays`
+against a real embedded Postgres and reached the same split answer: the data exists,
+the read path cannot be widened without SQL. It sharpens this entry in two ways, and
+both were carried into decision 07 rather than left in a history file:
+
+- **Both layers are a migration, not just layer two.** The two counts
+  `foundry_play_counts` returns are already public to a signed-in caller and already
+  on the gallery cards, so "make the totals public" is really "move the owner gate on
+  `foundry_app_play_stats`". There is no read-path-only half to ship.
+- **`service_role` holds SELECT on `student_app_plays`**, measured `true`, against
+  0139's own comment saying it "gets nothing either, and that is deliberate". The
+  statement below that comment is
+  `revoke all on public.student_app_plays from anon, authenticated;` -- it does not
+  name `service_role`, while all five of the file's FUNCTION revokes do, so the
+  hosted bootstrap's `grant all on tables` survives. The file's self-check asserts
+  only `anon` and `authenticated`, so nothing in the repository disagreed with the
+  comment. It is the table half of the defect `CLAUDE.md` records for `0201`.
+
 ## Decision 03's hard part is a dimension nobody stores
 
 He wants the gallery to look like a Steam library: the card IS the uploaded

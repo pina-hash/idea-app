@@ -9,15 +9,23 @@
   the owner's own dashboard". He reversed both halves -- the totals go public, and
   a figure this assistant proposed showing only to an app's AUTHOR is now also owed
   to every PLAYER about themselves.
-- Build: OPEN, two layers, no collection change. Measured against
-  `supabase/migrations/0139_foundry_telemetry.sql` on 2026-09-12.
+- Build: OPEN, two layers, no collection change -- but BOTH LAYERS ARE A MIGRATION
+  and there is no read-path-only half to ship. Measured against
+  `supabase/migrations/0139_foundry_telemetry.sql` on 2026-09-12, and independently
+  by prompt 0176 (`docs/history/inspiring-dirac-wtoe9z.md`) the same day, which
+  audited this table against a real Postgres and reached the same split answer: the
+  DATA exists and the READ PATH cannot be widened without SQL. Read that entry before
+  starting; it carries the four-function census and the three no-migration routes it
+  refused (a client select, a service-role route, client-side accumulation).
 - Layer one, the public totals: `plays` and `plays_7d` are ALREADY readable by any
   signed-in caller through `foundry_play_counts(boolean, boolean)` (0139 line 384),
   which is what the gallery counts come from. What is still owner-or-admin is the
   other three, and they are all in `foundry_app_play_stats(uuid)`: `players`,
   `seconds_played` and `last_played_at`, gated at 0139 lines 448-450, which returns
-  NULL for anybody else so an id cannot be probed. Making the totals public is
-  widening that gate or giving it a public counterpart; it is not new data.
+  NULL for anybody else so an id cannot be probed. So "make the totals public" is
+  really "move the owner gate on `foundry_app_play_stats`", which is a migration --
+  the two counts a student can already see are on the gallery cards today, so there
+  is nothing to expose there. It is not new data either way.
 - Layer two, a student's own playtime: THE DATA ALREADY EXISTS AND IS ALREADY
   BEING COLLECTED. Nothing has to start recording. `student_app_plays` (0139 lines
   183-195) carries `player`, `app_id`, `started_at` and `last_seen_at`, and the
@@ -43,6 +51,17 @@
   (b) `player` is `references auth.users on delete set null`, so a departed
   student's hours stay in the app's total and stop being anybody's own -- which is
   correct, and is why `count(distinct player)` counts players and not plays.
+- Also reported by 0176, and it belongs here because this is where somebody reads
+  about this table's access: `service_role` HOLDS SELECT on `student_app_plays`,
+  measured `true`. 0139's own comment says "`service_role` gets nothing either, and
+  that is deliberate", but the statement below it is
+  `revoke all on public.student_app_plays from anon, authenticated;` -- which does
+  not name `service_role`, while all five of the file's FUNCTION revokes do. The
+  hosted bootstrap's `grant all on tables` therefore survives, and the file's
+  self-check cannot see it because it asserts only `anon` and `authenticated`. It is
+  the table half of the defect `CLAUDE.md` records for `0201`. Nothing in `src/`
+  reads through it -- the four readers all call the RPCs -- so the practical exposure
+  is small; the comment claiming a closed door that is open is the cost.
 - Not widened by this, and worth saying so: he answered what a student sees about
   THEMSELVES and what everyone sees in AGGREGATE. Neither is a per-player read of
   somebody else. CLAUDE.md's "NO PER-PLAYER READ OF PLAY DATA EXISTS FOR ANYONE,
