@@ -288,6 +288,18 @@
 	}
 	.field {
 		display: grid;
+		/* AN EXPLICIT SINGLE COLUMN, AND IT IS LOAD-BEARING RATHER THAN TIDY.
+		   With the column left implicit (`auto`), a `width: 100%` on the select
+		   is a percentage against a track whose size depends on the item, so the
+		   browser falls back to the item's INTRINSIC width -- which for a select
+		   is its longest option text. Measured: the viewer-or-editor picker came
+		   out 103px inside a 176px field, with 80px of dead gap before Share, at
+		   BOTH widths. `minmax(0, 1fr)` makes the track definite, so the
+		   percentage resolves and the control fills the box reserved for it.
+		   This is ledger 0186's defect one panel over: a select sized by its
+		   option text rather than by its field is exactly how a marker that
+		   matters ends up cut off. */
+		grid-template-columns: minmax(0, 1fr);
 		gap: 0.2rem;
 		flex: 1 1 14rem;
 		/* MIN-WIDTH 0 ON A FLEX CHILD. Its automatic minimum is its min-content,

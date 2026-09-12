@@ -236,6 +236,12 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-control);
 		background: var(--surface-1);
+		/* A CONTAINER, NOT A MEDIA QUERY, and CLAUDE.md's own reason: this panel
+		   is mounted inside somebody else's pane, so the viewport says nothing
+		   about how much room it actually has. A breakpoint written against the
+		   viewport would be dead code in a narrow pane and would fire in a wide
+		   one that happens to sit on a narrow screen. */
+		container-type: inline-size;
 	}
 	header {
 		display: flex;
@@ -269,7 +275,11 @@
 	.notice {
 		display: flex;
 		flex-wrap: wrap;
-		align-items: center;
+		/* THE MARK ALIGNS TO THE FIRST LINE, NOT THE MIDDLE ONE. Centred, a
+		   three-line notice put the "!" beside line two, where it reads as an
+		   interruption in the middle of a sentence rather than as a marker on
+		   the block. Only visible at 375, where the sentence wraps. */
+		align-items: flex-start;
 		gap: 0.4rem;
 		margin: 0;
 		padding: 0.4rem 0.5rem;
@@ -280,7 +290,16 @@
 		background: var(--surface-2);
 	}
 	.notice .mark {
+		flex: 0 0 auto;
 		font: 14px 'Share Tech Mono', monospace;
+	}
+	/* THE SENTENCE SHRINKS SO THE MARK STAYS BESIDE IT. Its automatic minimum is
+	   its min-content -- the longest word -- which on a wrapping row is enough to
+	   push the mark onto a line of its own above the text. Caught by looking: the
+	   terminal notice rendered a bare "!" on one line with the sentence under it. */
+	.notice > span:not(.mark) {
+		flex: 1 1 12rem;
+		min-width: 0;
 	}
 	.notice.refusal {
 		border-color: var(--copper);
@@ -368,6 +387,15 @@
 	   squeezed by whatever shares the row. */
 	.assign {
 		display: grid;
+		/* AN EXPLICIT SINGLE COLUMN. An implicit `auto` track makes the select's
+		   `width: 100%` a percentage against a track sized FROM the select, so
+		   the browser uses its intrinsic width -- the longest option text -- and
+		   the control stops filling the box reserved for it. It happens to look
+		   right here only because an email address is wider than 13rem; a short
+		   roster would silently shrink the picker. Same fix and same reason as
+		   `.field` in `SharePanel`, where it was measured at 103px in a 176px
+		   box. */
+		grid-template-columns: minmax(0, 1fr);
 		gap: 0.2rem;
 		flex: 0 1 13rem;
 		min-width: 0;
@@ -387,5 +415,35 @@
 		background: var(--surface-0);
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-control);
+	}
+
+	/*
+	 * THE NARROW ROW: THE NAME TAKES THE WHOLE LINE AND THE CONTROL DROPS BELOW.
+	 *
+	 * MEASURED, IN BOTH DIRECTIONS, RATHER THAN CHOSEN. In the harness this
+	 * panel is 343px wide at a 375px viewport and 416px at 1440, so 24rem
+	 * (384px) fires on one and not the other -- a threshold no container ever
+	 * reaches is a rule that silently never applies, and nothing on screen or in
+	 * any type check reports it.
+	 *
+	 * WHAT IT FIXES, caught by rasterizing and looking rather than by any check:
+	 * at 375 the holder line is an EMAIL ADDRESS, which wrapped to two lines
+	 * inside a 230px column while "In use" floated on the right beside a 55px
+	 * block. Given the row, the address fits on one line and the marker sits
+	 * under it where a thumb expects it.
+	 */
+	@container (max-width: 24rem) {
+		.nm {
+			flex-basis: 100%;
+		}
+		.act,
+		.held {
+			flex: 1 1 auto;
+			justify-content: center;
+			text-align: center;
+		}
+		.assign {
+			flex-basis: 100%;
+		}
 	}
 </style>

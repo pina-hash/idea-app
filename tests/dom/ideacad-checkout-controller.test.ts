@@ -379,6 +379,28 @@ describe('the controller', () => {
 		expect(c.state.myPartId).toBe('p1');
 	});
 
+	it('does NOT tear down a live hold on a stale read that names the PREVIOUS holder', async () => {
+		// THE CASE THAT SEPARATES `holdLostAgainst` FROM A BARE "is it still
+		// mine". A poll answering from before this client took the part shows
+		// somebody ELSE holding it at a revision BEHIND ours -- a surface reading
+		// only the holder would go terminal on a snapshot that is simply old, and
+		// the student would lose a part they are holding right now.
+		const r = rig(assembly([part('p1', 1, THEM, 9_000, 3)]));
+		const c = open(r);
+		await c.open('doc-1');
+		r.claim = { ok: true, reason: 'takeover', partId: 'p1', heldBy: ME, holdRevision: 4 };
+		r.payload = assembly([part('p1', 1, ME, 0, 4)]);
+		await c.claim('p1');
+		expect(c.state.myHoldRevision).toBe(4);
+
+		// The stale snapshot arrives after the claim landed.
+		r.payload = assembly([part('p1', 1, THEM, 9_000, 3)]);
+		await c.refresh();
+		expect(c.state.phase).toBe('idle');
+		expect(c.state.myPartId).toBe('p1');
+		expect(c.state.myHoldRevision).toBe(4);
+	});
+
 	it('lets a deliberate re-claim out of the terminal state, and nothing else does', async () => {
 		const r = rig(assembly([part('p1', 1, ME, 1_000, 4)]));
 		const c = open(r);

@@ -117,6 +117,21 @@ describe('one control per row, and its word is the state', () => {
 		expect(said).toEqual(['Free', 'Yours', `${THEM} has it`]);
 	});
 
+	it('reads a LAPSED hold as free and offers Take, because the database will take it over', () => {
+		// The row a student actually sees for somebody who walked away.
+		// `ideacad_claim_part` takes over a hold outside the window, so a row
+		// still naming that person would offer a refusal that is not going to
+		// happen -- and the button would be missing from the one row where
+		// pressing it works.
+		const lapsed = [part('p1', 1, THEM, false), part('p2', 2, THEM, true)];
+		const m = open({ assembly: assembly({ parts: lapsed }), myPartId: null, secondsLeft: null });
+		expect(m.all('[data-testid="ideacad-part-holder"]').map((el) => el.textContent!.trim())).toEqual(
+			['Free', `${THEM} has it`]
+		);
+		// One Take, on the lapsed row; one blocked marker, on the live one.
+		expect(controls(m)).toEqual({ rows: 2, claim: 1, release: 0, assign: 0, blocked: 1 });
+	});
+
 	it('puts a sentence where the blocked row’s button would be', () => {
 		// A control absent for a reason says the reason, where every sibling row
 		// has one -- otherwise the row reads as a bug.

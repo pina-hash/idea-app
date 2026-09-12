@@ -93,15 +93,30 @@
 	}
 
 	/**
-	 * `state=expiring` seeds a beat far enough into the past that the controller's
-	 * OWN clock puts the hold inside the warning fraction. It is seeded rather
-	 * than waited for: the window is ten minutes and a harness that slept through
-	 * three-quarters of it would be a browser pass nobody runs.
+	 * `state=expiring` IS A CLIENT WHOSE BEATS ARE NOT LANDING, which is the only
+	 * shape in which a hold can actually run down.
+	 *
+	 * THE FIRST ATTEMPT SEEDED AN OLD BEAT AND NOTHING ELSE, AND IT DID NOT WORK
+	 * -- caught by rasterizing and looking at it. The controller is the shipping
+	 * one, so its heartbeat landed, the fake transport moved `holdBeatAt` to now,
+	 * and the chip read "Your part for 10 min 00 s": a live client keeps its hold
+	 * alive, correctly, and the warning state was unreachable.
+	 *
+	 * So this seeds the old beat AND makes the heartbeat throw, which is the real
+	 * case the warning exists for -- the network is what went away, so no server
+	 * answer is coming and the controller's OWN clock is the only thing that can
+	 * tell the student. 40 seconds left, which is inside the 25% warning fraction
+	 * of a 600-second window and comfortably longer than a browser pass.
 	 */
-	const MY_BEAT_MS = variant === 'expiring' ? -(WINDOW_SECONDS - 90) * 1000 : -5_000;
+	const MY_BEAT_MS = variant === 'expiring' ? -(WINDOW_SECONDS - 40) * 1000 : -5_000;
 
+	/* A VIEWER'S FIXTURE HAS SOMEBODY HOLDING A PART, ALWAYS. The whole claim
+	   about the viewer state is that they are shown the assembly and not one
+	   control -- and "shown the assembly" means learning who has what. A fixture
+	   in which every part is free would let the route pass its absence counts
+	   while proving nothing about the half a viewer actually reads. */
 	let parts: IdeacadAssemblyPart[] = [
-		part('p1', 1, 'Blade body', variant === 'held' ? MATE : null, -4_000),
+		part('p1', 1, 'Blade body', variant === 'held' || role === 'viewer' ? MATE : null, -4_000),
 		part(
 			'p2',
 			2,
@@ -174,6 +189,11 @@
 			return { ok: true, reason: 'released', partId, holdRevision: p.holdRevision };
 		},
 		async beatPart(partId, holdRevision): Promise<IdeacadHoldResult> {
+			/* THE DISCONNECTED CLIENT. A throw is what a dead network produces,
+			   and it is deliberately not a refusal: nothing was decided, so the
+			   controller must NOT go terminal on it -- only its own clock may,
+			   once the window has actually passed. */
+			if (variant === 'expiring') throw new Error('network down');
 			const p = find(partId);
 			if (p.heldBy !== me || p.holdRevision !== holdRevision) {
 				return { ok: false, reason: 'lost', partId, heldBy: p.heldBy, holdRevision: p.holdRevision };
@@ -309,6 +329,21 @@
 			const p = picker.getBoundingClientRect();
 			const wrap = picker.parentElement!.getBoundingClientRect();
 			say('the reassign picker fills the width reserved for it', p.width >= wrap.width - 1);
+			say('its label is above it, not beside it', p.top > wrap.top + 1);
+		}
+		/* THE SAME CLAIM ON THE SHARE PANEL'S OWN PICKER, and it is here because
+		   the reassign check ALONE passed over a real defect: a select in an
+		   implicit `auto` grid track is sized by its longest OPTION rather than
+		   by its field, and the reassign picker happened to escape only because
+		   an email address is wider than its 13rem box. The role picker's
+		   options are two short words, so it came out 103px in a 176px field
+		   with 80px of dead gap beside it -- at both widths, invisible to every
+		   content check, and caught by rasterizing and looking. */
+		const rolePicker = document.querySelector('[data-testid="ideacad-share-form"] select');
+		if (rolePicker) {
+			const p = rolePicker.getBoundingClientRect();
+			const wrap = rolePicker.parentElement!.getBoundingClientRect();
+			say('the viewer-or-editor picker fills the width reserved for it', p.width >= wrap.width - 1);
 			say('its label is above it, not beside it', p.top > wrap.top + 1);
 		}
 		return out;
