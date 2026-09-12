@@ -8,16 +8,23 @@
 - Migration permitted: exactly one, 0204. Highest on origin/main at issue: 0203.
   NONE WRITTEN: the audit the prompt required BEFORE the migration found the decision's
   premise names nothing that exists, so `0204` is RELEASED UNUSED and free for the next
-  lane. The prompt's own grant read `Migration permitted: exactly one. Claims: 0204.`
-  and is quoted here rather than left as the machine-readable line, because a claim
-  written as `Claims: 0204` on a branch that lands no migration is the burned number
-  this ledger's README names.
+  lane.
 - Status: issued
 - Branch: `claude/wonderful-goldberg-wwotxa`
-- Notes: Deliberately excluded -- everything under `src/`, and every other file under
+- Notes: The prompt's own grant was written in the form this ledger's README reads as a
+  live claim, and that form is quoted in the body below rather than on the line above,
+  because `tools/migration-claims.mjs` checks the explicit spelling FIRST and a quotation
+  of it inside the permitted line holds the number regardless of what the rest of the
+  sentence says. Measured: with the quotation on that line the tool reported `next free
+  0205` and listed `0204` under CLAIMED, NOT LANDED; with it moved down here it reports
+  `0204` free. A branch that lands no migration must not hold one.
+
+  Deliberately excluded -- everything under `src/`, and every other file under
   `docs/decisions/entries/` (ledger 0173 owns those). Ledgers 0171, 0172 and 0173 ran in
   parallel; 0172 was already contained in `origin/integration` at branch time and 0173
   carried no entry on any ref, neither of which this lane acted on.
+
+  The prompt's grant, verbatim: `Migration permitted: exactly one. Claims: 0204.`
 
   **The finding, since it is the whole of the bundle.** `coin_transactions` -- the
   coin ledger -- carries exactly ONE policy after the whole 201-file chain, and it is
