@@ -1,103 +1,89 @@
-# 20 An IDEA Maps guesser game, recorded and deferred
+# 20 An IDEA Maps guesser game
+
 - Raised: 2026-09-09  By: prompt 0109, `claude/docs-standards-ledger-hihkhd`
 - Status: open
-- Decision: Mr. Pina asked on 2026-09-09 for the idea to be RECORDED and explicitly
-  deferred it until the map has more depth. This entry is that record. It is `open`
-  rather than `decided` because the deferral is a "not now", not an answer to what the
-  thing would be.
-- Default this assistant would pick: not now. Revisit when the maps viewer has real
-  content -- concretely, when `IDEA_MAPS_SPEC.md`'s own P1 acceptance artifact, "one
-  real room fully cataloged", is in the published data, and preferably when a second
-  room is too, since a guesser game over one room is a game with one answer.
+- Decision: blank. Mr. Pina asked on 2026-09-09 for the idea to be RECORDED and deferred
+  it until the map has more depth. That is a "not now", not an answer to what the thing
+  would be, which is why this is still open.
+- Default this assistant would pick: **not now, and set the gate rather than the date** --
+  revisit when five or more rooms are published with compartment-level photos. Nothing is
+  waiting on it.
 - Why it is blocked on him: it is a new feature nobody has scoped, in a subsystem whose
-  spec says in its own preamble that it "authorizes no build by itself: build prompts
-  are written from it only after Mr. Pina says the spec is settled." Nothing about a
-  game is in that spec -- not in section 3's out-of-scope list, not in section 10's
-  deliberately-undecided list -- so there is no prior framing to build from and no
-  earlier default to contradict.
-- What it unblocks: nothing. Deferring costs nothing and no lane is waiting. What this
-  entry buys is that the idea exists in the one list instead of in a conversation, so
-  the next person to think of it finds it already raised rather than raising it again.
-- Context: `docs/standards/IDEA_MAPS_SPEC.md` (sections 3, 5.4, 6, 8, 10);
-  `supabase/migrations/0161_maps_core.sql`, `0162`, `0163`, `0165`, `0168`, `0172`,
-  `0186`; `CLAUDE.md`'s IDEA Maps block; `docs/decisions/entries/18-maps-media-draft-photos-and-the-signed-in-listing.md`,
-  the only other maps decision.
+  spec "authorizes no build by itself". Nothing game-shaped is in that spec, so there is
+  no prior framing to build from.
+- What it unblocks: nothing. What this entry buys is that the idea exists in the one list
+  instead of in a conversation.
+- Context: `docs/standards/IDEA_MAPS_SPEC.md` (sections 2, 3, 5.4, 6, 8, 10);
+  `docs/decisions/entries/18-maps-media-draft-photos-and-the-signed-in-listing.md`.
 
-## What the idea is, written down once so it is legible later
+## The question, in one sentence
 
-A GeoGuessr-shaped game over the IDEA building: show a photo from the map and ask
-where it lives -- which room, which unit, which compartment. **It is the viewer's own
-descent run backwards.** Section 6 of the spec describes the staged route a reader
-takes now (building plan with the room highlighted, room plan with the unit
-highlighted, elevation with the compartment highlighted, then the item card, breadcrumb
-throughout). The game shows the leaf and asks for the path. That inversion is the whole
-of the concept and is worth having in writing, because "a guesser game for the map" is
-the kind of phrase that means four different things to four readers a year later.
+Should `/maps` gain a GeoGuessr-shaped game -- show a photo, ask which room, unit and
+compartment it lives in -- and if so, does that game keep score, which is the one part
+that changes what `/maps` currently is?
 
-**This is the first record of it anywhere.** A sweep of the tree on 2026-09-09 found
-exactly one mention of the idea and it was prompt 0109's own ledger entry commissioning
-this file: nothing in `docs/history/`'s fifteen maps entries, nothing in the spec,
-nothing in `CLAUDE.md`, nothing in the other seventeen decisions, no commit subject.
+**The idea, in one line:** it is the viewer's own descent run backwards. Section 6's
+staged route goes building plan to room plan to elevation to item card; the game shows the
+leaf and asks for the path. That inversion is the whole of the concept.
 
-## Why "more depth" is the right gate, and what it means concretely
+## What is true in the tree today (measured 2026-09-11)
 
-**The spec already says content is what P1 is finished by.** Section 8: "One real room
-fully cataloged is the acceptance artifact." Every P1 MECHANISM has shipped -- the core
-model, search, media, the admin editor, the public viewer -- and one P2 item, student
-editor grants, was pulled forward. What has not been confirmed is the artifact, and a
-repository checkout structurally cannot confirm it: `maps_nodes`, `maps_items`,
-`maps_stock` and `maps_photos` row counts are properties of the production database,
-which no cloud container reaches.
+- **Every P1 mechanism has shipped.** Nine maps migrations are on `origin/main`: `0161`
+  core, `0162` search, `0163` media, `0164` search-log retention, `0165` conjunctive
+  tsquery, `0166` short-link reservation, `0168` media types and plan frame, `0172`
+  editor grants, `0186` the anon listing close. Seven routes exist under
+  `src/routes/maps/`, the viewer and the gated editor.
+- **The acceptance artifact is content, and a checkout cannot confirm it.** Spec
+  **line 185**: "One real room fully cataloged is the acceptance artifact." `maps_nodes`,
+  `maps_items`, `maps_stock` and `maps_photos` row counts are properties of the production
+  database, which no cloud container reaches. **Production is unreachable from here:**
+  `DEPLOY_PROBE_URL` unset, no `.env`, and the egress proxy refuses `ideabosco.com`.
+- **There is no player.** Spec **line 34**: read access is "Fully public, no sign-in."
+  `src/routes/maps/+page.server.ts` reads `locals.supabase` for published rows and reads
+  no session; the search log at **lines 137-138** records "no identity (readers are
+  anonymous)". So a scored game has nobody to attribute a score TO.
+- **Nothing game-shaped is in the spec, still.** The words game, guess, quiz and score
+  appear **zero** times in `IDEA_MAPS_SPEC.md` (v1.1). Section 10's four undecided items
+  are the accent identity, DXF specifics, a walkable-space graph and anything
+  beacon-shaped; section 3's out-of-scope list is checkout tracking, live positioning, 3D,
+  drawn paths, DXF in P1 and inventory audit. Neither mentions a game. This is new
+  territory, not a lapsed spec item.
 
-**`0172`'s own header is the best statement of why depth is the constraint**, written
-about a different feature and true of this one: `IDEA_MAPS_SPEC.md` section 7 put
-granted editors in P2, and "it moved to P1 on 2026-09-02 because Mr. Pina is the only
-person who can catalog anything, and a map nobody can help fill is a map that stays
-half empty." A game built over a half-empty map is a game that gives the same three
-answers every time, teaches nobody the building, and is then judged as a bad feature
-when what was thin was the data.
+## What each option costs
 
-**A rough floor, offered so "more depth" is checkable rather than a feeling:** enough
-published rooms that a round cannot be won by elimination (call it five or more), and
-enough photos attached at the compartment level that a prompt image is not obviously
-the one photo the room has. `maps_photos` attaches at three levels -- node, item type,
-unique item -- so there is no schema work needed to have prompt images; there is only
-cataloging.
+| | Migration? | Applied production state? | Cost |
+|---|---|---|---|
+| **A. Not now, with a checkable gate** (five-plus published rooms, compartment photos) | no | no | Nothing. The idea stays recorded; the gate is re-checkable by anyone who can read production. **RECOMMENDED.** |
+| **B. Build it browser-scored** (state in `localStorage`, no identity) | no | no | A scoping bundle plus a viewer surface. `/maps` stays anonymous and unchanged in kind. Scores do not survive a device. |
+| **C. Build it portal-scored** (a leaderboard, streaks, per-student) | **yes** -- a table and its RLS | yes, once applied | **This changes what `/maps` IS**: either the game sits behind the portal session, which contradicts spec line 34, or a second identity is invented for an anonymous viewer. That is a disclosure decision about the public viewer, not a feature. |
 
-## Three things the eventual scoping will have to answer, named so they are not discovered mid-build
+**A and B need no migration and touch no applied production state. C does both**, and C
+is the only one that alters the spec's public-read row.
 
-1. **There is no player.** Section 2's read row is "Fully public, no sign-in. Published
-   data is anonymously readable on every read path", and `/maps` deliberately reads no
-   session and sits outside the `/maps/edit` gate. Section 5.4's search log records a
-   query, a result count and a timestamp with "no identity (readers are anonymous)". So
-   a scored, streaked or competitive game has no one to attribute a score TO without
-   either putting the game behind the portal's session (which changes what `/maps` is)
-   or inventing a second identity for it. A game that keeps score only in the browser
-   is the shape that costs nothing; anything else is a design decision about the
-   viewer's public-ness.
-2. **Answers are the map, so the game leaks the map.** That is fine -- the published
-   map is public on purpose -- but it means a game cannot be built over DRAFT data, and
-   `0161`'s draft-and-publish machinery is on every object for exactly that reason.
-   Decision 18 is the adjacent one: draft photos and who may list them.
-3. **A wrong guess is a search miss in disguise.** Section 5.4 already logs misses so
-   the vocabulary can be improved; a game generates a large, cheap corpus of "what a
-   person thought this was called", which is arguably more valuable than the game. If
-   the game is ever built, that is the argument for building it -- not engagement.
+## Two things the eventual scoping must answer
 
-## Tree check (2026-09-09)
+1. **The game cannot be built over DRAFT data.** Answers are the map, and the published
+   map is public on purpose; `0161`'s draft-and-publish machinery is on every object for
+   that reason. Decision 18 (maps-media-draft-photos-and-the-signed-in-listing) is the
+   adjacent one.
+2. **A wrong guess is a search miss in disguise.** Section 5.4 already logs misses so the
+   vocabulary can improve; a game generates a large cheap corpus of "what a person thought
+   this was called". **If it is ever built, that is the argument -- not engagement.**
 
-- The words game, play, quiz, score and guess do not appear in
-  `docs/standards/IDEA_MAPS_SPEC.md`. Confirmed by reading it.
-- Section 10's four deliberately-undecided items are the maps accent identity, DXF
-  import specifics, a walkable-space graph, and anything beacon-shaped. No game.
-  Section 3's six out-of-scope items are checkout/possession tracking, live
-  positioning, 3D rendering, drawn walking paths, DXF import in P1, and inventory
-  audit. No game. So this is new territory rather than a spec item that lapsed.
-- Eight maps migrations exist on `origin/main`, not the seven `CLAUDE.md` lists:
-  `0161`, `0162`, `0163`, `0164`, `0165`, `0168`, `0172`, `0186`. `CLAUDE.md` names
-  `0161-0165`, `0168` and `0172` and omits `0164` (search-log retention) and `0186`
-  (the `maps-media` anon listing close, which is decision 18's). That is a `CLAUDE.md`
-  line for a later bundle, reported rather than edited -- this bundle owns no source
-  file and no `CLAUDE.md`.
-- The spec is one known step behind the build already: it still shows editor grants at
-  P2, which `0172` moved to P1 on 2026-09-02. Also reported, not edited.
+## If nobody decides
+
+Nothing breaks and nothing is blocked; the entry simply stays open and surfaces at the top
+of every router kickoff. The cost of never deciding is one recurring line in that list.
+The real risk is deciding YES too early: a game over a half-empty map gives the same three
+answers every round, teaches nobody the building, and is then judged a bad feature when
+what was thin was the data.
+
+## Tree check (2026-09-11)
+
+- The original entry's tree check listed **eight** maps migrations and called `CLAUDE.md`
+  wrong for omitting `0164` and `0186`. There are **nine**: it missed `0166`
+  (`0166_short_link_reserve_maps.sql`). Corrected above. `CLAUDE.md`'s maps block still
+  names only `0161`-`0165`, `0168` and `0172`; reported, not edited -- this bundle owns no
+  source file and no `CLAUDE.md`.
+- The spec is still one step behind the build: it shows editor grants at P2, which `0172`
+  moved to P1 on 2026-09-02. Also reported, not edited.

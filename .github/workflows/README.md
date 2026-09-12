@@ -405,7 +405,8 @@ cleverness at all to trigger:
   band written down in SQL, TypeScript, a VBA macro and a C# add-in, owned by
   different lanes.
 
-So the sweep now runs `npm ci && npm test` **once, on the final merged tree**:
+So the sweep now runs `npm ci && npx svelte-kit sync && npm test` **once, on the
+final merged tree**:
 
 - **After the push and after the deletes.** `npm ci` plus a three-minute suite
   are the two longest things this job does and the two most able to end it from
@@ -428,6 +429,21 @@ So the sweep now runs `npm ci && npm test` **once, on the final merged tree**:
   runner that dies naming no test is not a test failure, and reporting it as one
   sends somebody to read a diff that has nothing wrong with it. It still makes
   the run red and it still never blocks the push.
+- **AND THE `svelte-kit sync` IS WHY THAT VERDICT WAS THE ONLY ONE THIS GATE
+  EVER GAVE, FOR AS LONG AS IT WENT WITHOUT IT.** A runner's checkout has no
+  `.svelte-kit` -- it is gitignored, and `npm ci` does not write it -- so vitest
+  died in dependency optimisation with `Tsconfig not found` BEFORE ANY TEST
+  BODY, named nothing, and `merged_suite` answered `unrun` on every tree it was
+  handed while `integration` was pushed regardless. `ci.yml` never hit it
+  because `npm run check` (which IS `svelte-kit sync && svelte-check`) runs
+  ahead of its own suite; this job had no equivalent step. Four lanes diagnosed
+  it independently on 2026-09-11 and it is fixed. **A gate that reports failure
+  while passing work through is worse than no gate, because people stop reading
+  it** -- which is exactly what happened: every lane that day took its CI
+  reading from a hand-dispatched `ci.yml` run instead.
+  `docs/decisions/entries/21-*` (`integrate-tests-after-it-merges`) carries the
+  measurement and the half still open, which is whether this suite becomes a
+  GATE on the push rather than the report it is.
 
 **The cost.** Measured on the GitHub runner that found `5877f19`: 174.50s for
 287 files and 5,821 tests. `npm ci` was 15s in a cloud container. Against a
@@ -442,11 +458,19 @@ Pacific, where a whole class of wall-clock defect is visible. It also catches
 the run where the sweep's own suite step could not run.
 
 `tools/integrate-gate-proof.sh` cases 61-75 prove this against throwaway
-repositories with a stub `npm` on PATH whose `test` runs a real checker over the
-fixture tree -- so cases 66 and 67, which observe that each PARENT is green,
-are measurements rather than stipulations. `tests/workflows.test.ts` guards the
-step against silent removal, with a positive control that mutates the real file
-one edit at a time.
+repositories with stub `npm` and `npx` binaries on PATH whose `test` runs a real
+checker over the fixture tree -- so cases 66 and 67, which observe that each
+PARENT is green, are measurements rather than stipulations. **The stubs mirror
+the generated directory, and that is not decoration:** the stub `npm ci` REMOVES
+`.svelte-kit`, only `npx svelte-kit sync` creates it, and the stub `npm test`
+reproduces the startup error's shape -- non-zero, nothing named -- when it is
+absent. Before that the stub ran regardless, so the harness was green on all
+three verdicts while the real function had one reachable answer, which is how
+this shipped. **Cases 72c and 72d are the control that would have caught it:**
+they re-cut the same region with the sync line DELETED and show the tree case 61
+calls green and the tree case 63 calls red BOTH collapsing to `unrun`.
+`tests/workflows.test.ts` guards the step against silent removal, with a
+positive control that mutates the real file one edit at a time.
 
 ### Re-running a red branch's CI
 

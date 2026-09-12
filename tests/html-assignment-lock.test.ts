@@ -222,8 +222,23 @@ describe('0198: the wiring, which is what fails silently', () => {
 });
 
 describe('0198 and live: the grading console stops needing a reload', () => {
-	it('adds exactly one topic, and the existing two are untouched', () => {
-		expect([...CLASSROOM_LIVE_TOPICS]).toEqual(['hall-pass', 'song-queue', 'responses']);
+	it('adds `responses`, and the two topics that predate it are untouched', () => {
+		// GENERALIZED IN 0152, NOT DELETED, and for the second time on this
+		// constant: `tests/classroom-live.test.ts` spelled the list out as two
+		// until 0143 added a third, and this file then spelled it out as three
+		// until 0152 added a fourth (`presence`). A list a legitimate change
+		// necessarily breaks is the one CLAUDE.md says to generalize.
+		//
+		// WHAT 0198'S BUNDLE ACTUALLY OWNS HERE is that `responses` exists, that
+		// it comes AFTER the two tools rather than displacing one of them, and
+		// that the list stays a set. None of that is a claim about how many
+		// topics there are, and a fifth topic needs no edit to this file.
+		expect([...CLASSROOM_LIVE_TOPICS].slice(0, 3)).toEqual([
+			'hall-pass',
+			'song-queue',
+			'responses'
+		]);
+		expect(new Set(CLASSROOM_LIVE_TOPICS).size).toBe(CLASSROOM_LIVE_TOPICS.length);
 	});
 
 	it('keeps a poll as the floor, unconditionally', () => {

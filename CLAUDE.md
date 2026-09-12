@@ -1142,8 +1142,9 @@ This applies to every change. Prompts do not need to restate it.
 
 **Always:**
 
-- **`svelte-check` at the baseline: 0 errors, 37 warnings.** Any change to
-  either number is a finding to report, not something to leave unmentioned.
+- **`svelte-check` at the baseline: 0 errors, 40 warnings in 22 files.** Any
+  change to either number is a finding to report, not something to leave
+  unmentioned.
   - **RE-DERIVE IT, NEVER TRUST THIS LINE ALONE.** `npx svelte-kit sync &&
     npx svelte-check`, and read the count off its own summary line -- the sync
     first, because stale generated route types report phantom errors (see the
@@ -1164,15 +1165,18 @@ This applies to every change. Prompts do not need to restate it.
     `$env/static/public` -- prefer the instrument (export the two values, then
     sync, then read the summary line) to the number. **Export the two values
     (any placeholder will do) BEFORE the sync** and the count returns to 0
-    errors / 37 warnings with the 31/5/1 breakdown intact, measured. The
+    errors / 40 warnings with the 34/5/1 breakdown intact, measured. The
     warnings are unaffected either way, which is the tell: a real regression
     moves one of those numbers, this moves only the errors and only in files
     the diff never named. A number written down here is a number that drifts: this
     line said 36 against a tree measuring 37, and two separate sessions found
     the same gap independently before either said so, which is what a figure
-    being trusted rather than measured looks like. **A session that measures a
-    different number CORRECTS THIS LINE in the same change**, and says in its
-    history entry which warning moved.
+    being trusted rather than measured looks like. **It then said 37 against a
+    tree measuring 40**, and ledger 0161 and prompt 0163 each measured 40 in 22
+    files independently before either said so -- the same shape a third time,
+    and the drift is entirely `state_referenced_locally`, 31 to 34. **A session
+    that measures a different number CORRECTS THIS LINE in the same change**,
+    and says in its history entry which warning moved.
   - **A FRESH `npm ci` CHECKOUT HAS NO `.svelte-kit`, AND `npm test` REPORTS A
     MISLEADING ROLLDOWN/TSCONFIG ERROR FOR IT.** Vitest's dependency
     optimisation step fails on startup with `[RESOLVE_ERROR] Could not resolve
@@ -1183,8 +1187,8 @@ This applies to every change. Prompts do not need to restate it.
     and the same fresh checkout runs clean. This bites in the same first five
     minutes as the missing-`.env` phantom errors above and for the same root
     cause: nothing has generated the `.svelte-kit` output yet.
-  - The 37 break down as 31 `state_referenced_locally`, 5
-    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 20 files. The
+  - The 40 break down as 34 `state_referenced_locally`, 5
+    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 22 files. The
     breakdown is the diagnostic: it says WHICH kind moved when the total does,
     and a total that holds while the mix changes is still a finding. Read it
     with `npx svelte-check --output human 2>&1 | grep -o "svelte.dev/e/[a-z_]*"
@@ -4338,14 +4342,27 @@ has. `ultracode` is a Claude Code setting and is never written into a Codex prom
     MOVED, AND IT IS NOT RESTATED HERE.** `integrate.yml` decides what it
     checks before it merges, and `ci.yml`'s header explains why `integration`
     gets no push-triggered run of its own and takes a daily scheduled one
-    instead. Both have moved more than once -- at the time of writing, a
-    change adding a SUITE RUN ON THE MERGED TREE is sitting unmerged on
-    `claude/red-merge-green-parents-ft3e57`, and the day it lands, a red
-    Integrate run stops meaning only "a merge conflicted" and starts also
-    meaning "the merged tree failed the suite", which is a different thing to
-    do about it. **Read the workflow rather than this paragraph**; a mechanism
-    copied into prose here is one that goes stale silently, which is what the
-    two sentences above it did.
+    instead. Both have moved more than once. **THE SUITE RUN ON THE MERGED TREE
+    HAS LANDED, AND THIS PARAGRAPH SAID IT WAS STILL "sitting unmerged on
+    `claude/red-merge-green-parents-ft3e57`" FOR FIVE DAYS AFTER IT DID** -- it
+    is on `main` in `21a21954` (2026-09-06) and the branch's tip is contained in
+    both `main` and `integration`, which is a paragraph describing a pending
+    change turning into a false one the moment somebody lands it. So a red
+    Integrate run no longer means only "a merge conflicted": it can also mean
+    the merged tree failed the suite, which is a different thing to do about it.
+    **AND UNTIL 2026-09-11 IT COULD MEAN A THIRD THING NOBODY COULD TELL APART
+    FROM THE SECOND.** `merged_suite` ran `npm ci` then `npm test` with no
+    `svelte-kit sync` between them, so on a runner's checkout vitest died in
+    dependency optimisation before any test body, named no failing test, and the
+    function answered `unrun` -- on every tree, every time -- while
+    `integrate.yml` pushed `integration` regardless. Four lanes diagnosed it
+    independently in one day. It is fixed; `docs/decisions/entries/21-*`
+    (`integrate-tests-after-it-merges`) carries the measurement and the half
+    that is still open, which is whether that suite becomes a GATE on the push
+    or stays the report it is today. **Read the workflow rather than this
+    paragraph**; a mechanism copied into prose here is one that goes stale
+    silently, which is what the two sentences above it did and what this one
+    did next.
   - **A BRANCH THE TARGET ALREADY CONTAINS IS DELETED TOO, WHICH IT USED NOT TO
     BE.** The workflow used to merge-and-delete only what IT merged, so a branch
     landed by hand -- every source branch of a merge bundle, for one -- became a

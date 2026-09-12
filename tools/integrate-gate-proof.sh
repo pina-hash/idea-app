@@ -42,6 +42,24 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/integrate.yml"
 DIR='docs/prompt-ledger/entries'
 
+# THE WORKFLOW'S OWN `env:` IS PART OF WHAT THE CUT TEXT NEEDS, AND LEAVING IT
+# OUT COST THE STANDARDS-VERSION HALF OF THE CROSS-BRANCH GATE ITS PROOF.
+# `cross_branch_gate` reads `$AGENT_BRANCH_PREFIXES`, which the workflow
+# declares once at job level; the cut text is sourced here under `set -u`, so
+# without it the region ABORTED at its first use -- and the two cases that
+# depend on what follows reported MERGE where the real gate skips. Cases 80 and
+# 81 stood red on `origin/integration` for exactly that reason, and a standing
+# failure is what hides the next real one.
+# IT IS READ OUT OF THE WORKFLOW, never written down again here, for the same
+# reason the gate bodies are CUT rather than copied: a second spelling of the
+# prefix list is one that stops agreeing with the file it claims to prove.
+AGENT_BRANCH_PREFIXES="$(sed -n "s/^  AGENT_BRANCH_PREFIXES:[[:space:]]*'\\(.*\\)'[[:space:]]*$/\\1/p" "$WORKFLOW" | head -n 1)"
+if [ -z "$AGENT_BRANCH_PREFIXES" ]; then
+	echo "FATAL: no AGENT_BRANCH_PREFIXES in the env: block of $WORKFLOW" >&2
+	exit 2
+fi
+export AGENT_BRANCH_PREFIXES
+
 pass=0
 fail=0
 
@@ -1349,6 +1367,23 @@ fi
 # on a runner and not in a pipe, and an escape between the space and the F is
 # enough to make a `grep '^ FAIL '` match nothing at all in CI. The strip inside
 # `merged_suite` is only exercised if the fixture is coloured.
+#
+# AND IT REFUSES TO RUN WITHOUT `.svelte-kit/tsconfig.json`, WHICH IS THE HALF
+# THIS HARNESS DID NOT HAVE AND IS THE REASON THE GATE SHIPPED BROKEN. A
+# runner's checkout carries no `.svelte-kit` -- it is gitignored and `npm ci`
+# does not write it -- and the real vitest then dies in dependency
+# optimisation with `[RESOLVE_ERROR] ... Tsconfig not found` BEFORE ANY TEST
+# BODY: exit non-zero, no `FAIL` line, no `Tests` summary, which is exactly
+# `merged_suite`'s `unrun`. A stub that ran regardless was green on all three
+# states while the real function answered `unrun` on every tree it was ever
+# handed, so the cases below proved a function this file was not modelling.
+# The stub now mirrors it: `ci` REMOVES the directory (a fresh checkout has
+# none, and this is also what keeps each case independent of the one before
+# it), `npx svelte-kit sync` is the only thing that creates it, and `test`
+# reproduces the startup error's SHAPE -- non-zero, nothing named -- when it
+# is missing. Measured against the real toolchain on this repository before it
+# was written: `npm test` on a fresh `npm ci` with no `.svelte-kit` exits 1
+# with 0 `FAIL` lines and 0 `Tests` summary lines.
 SUITEBIN="$WORK/suitebin"
 mkdir -p "$SUITEBIN"
 cat > "$SUITEBIN/npm" <<'STUB'
@@ -1356,12 +1391,22 @@ cat > "$SUITEBIN/npm" <<'STUB'
 set -u
 case "${1:-}" in
 	ci)
+		# A fresh runner checkout has no `.svelte-kit`, and `npm ci` does not
+		# write one. Removing it here is what makes that true of every case.
+		rm -rf .svelte-kit
 		if [ -f .fixture-install-fails ]; then
 			printf 'npm error code EUSAGE\nnpm error `npm ci` can only install with an existing package-lock.json\n' >&2
 			exit 1
 		fi
 		exit 0 ;;
 	test)
+		if [ ! -f .svelte-kit/tsconfig.json ]; then
+			# The real startup error's SHAPE: non-zero, and not one test named.
+			printf '\n\033[31m[RESOLVE_ERROR] \033[0mCould not resolve '"'"'node:module'"'"' in \\0rolldown/runtime.js\n'
+			printf '                                     Tsconfig not found\n'
+			printf 'run-tests.mjs: no JSON report was written -- vitest did not complete a run to report on.\n'
+			exit 1
+		fi
 		if [ -f .fixture-suite-crashes ]; then
 			printf 'node:internal/modules/run_main: Cannot find module vitest.mjs\n'
 			exit 7
@@ -1377,6 +1422,26 @@ esac
 exit 0
 STUB
 chmod +x "$SUITEBIN/npm"
+
+# `npx`, the other binary `merged_suite` now names. Only `svelte-kit sync` is
+# modelled; anything else is a silent success, because the function calls
+# nothing else through it and a stub that answered for commands the subject
+# never runs would be inventing coverage.
+cat > "$SUITEBIN/npx" <<'STUB'
+#!/usr/bin/env bash
+set -u
+if [ "${1:-}" = svelte-kit ] && [ "${2:-}" = sync ]; then
+	if [ -f .fixture-sync-fails ]; then
+		printf 'Could not detect a supported production environment\n' >&2
+		exit 1
+	fi
+	mkdir -p .svelte-kit/types
+	printf '{ "fixture": true }\n' > .svelte-kit/tsconfig.json
+	exit 0
+fi
+exit 0
+STUB
+chmod +x "$SUITEBIN/npx"
 
 # The checker a branch adds. Reads every migration in the fixture tree and
 # requires a row for it in the fixture document -- `gauntlet-doc-check.mjs` in
@@ -1408,6 +1473,7 @@ CHK
 fx_add_migration() { printf -- '-- fixture migration\n' > "migrations/$1.sql"; }
 fx_install_fails() { : > .fixture-install-fails; }
 fx_suite_crashes() { : > .fixture-suite-crashes; }
+fx_sync_fails() { : > .fixture-sync-fails; }
 
 # The suite's own verdict on whatever tree is checked out, used to establish
 # that each PARENT is green before any claim about the merge is made.
@@ -1482,6 +1548,7 @@ branch_with "$sq" claude/adds-checker   fx_add_checker
 branch_with "$sq" claude/adds-migration fx_add_migration 0002
 branch_with "$sq" claude/install-broken fx_install_fails
 branch_with "$sq" claude/suite-broken   fx_suite_crashes
+branch_with "$sq" claude/sync-broken    fx_sync_fails
 # A branch that conflicts with `main` on one file, for the both-causes case.
 branch_with "$sq" claude/conflicts      fx_edit_source 'branch three writes app.txt'
 git_q -C "$sq" checkout main
@@ -1542,6 +1609,49 @@ check_says "71. a suite that exits non-zero naming no test is UNRUN, and the mer
 	'merges: CLEAN push:yes suite:unrun findings:0 run:RED' "$out_s7"
 check_says "72. ...and that branch's work is on the remote" \
 	reachable "$(on_remote "$sq" claude/suite-broken)"
+out_s8="$(suite_sweep "$sq" claude/sync-broken)"
+check_says "72a. a tree whose \`svelte-kit sync\` fails is UNRUN, not a false green" \
+	'merges: CLEAN push:yes suite:unrun findings:0 run:RED' "$out_s8"
+
+# --- case 72b-72e: THE SYNC LINE IS LOAD-BEARING, PROVED BY REMOVING IT -----
+# Cases 61, 63 and 70/71 above are green, red and unrun -- but they were ALSO
+# green, red and unrun before the sync line existed, against a stub that ran
+# regardless, which is precisely how this gate shipped answering `unrun` on
+# every tree for as long as it did. So the control is the real one: cut the
+# same region again with `npx svelte-kit sync` DELETED, source it over
+# `merged_suite` inside a subshell so the genuine function is untouched, and
+# re-run the two cases that are supposed to disagree with each other.
+#
+# WITHOUT THE LINE BOTH COLLAPSE TO `unrun`, which is the defect exactly: a
+# green tree and a red tree become indistinguishable, and neither names a
+# thing. A harness that cannot show that is a harness that would not have
+# caught this.
+NOSYNC_FILE="$(mktemp)"
+printf '%s\n' "$SUITE_SRC" | grep -v 'npx svelte-kit sync' > "$NOSYNC_FILE"
+nosync_removed=$(( $(printf '%s\n' "$SUITE_SRC" | grep -c 'npx svelte-kit sync') ))
+if [ "$nosync_removed" -ne 1 ]; then
+	echo "FATAL: expected exactly one 'npx svelte-kit sync' line in the cut merged_suite, found $nosync_removed" >&2
+	exit 2
+fi
+if ! bash -n "$NOSYNC_FILE"; then
+	echo "FATAL: merged_suite with the sync line removed is not valid shell" >&2
+	exit 2
+fi
+check_says "72b. the control removes exactly one line, and it is the sync line" 1 "$nosync_removed"
+# The subshell inherits `suite_sweep` and the fixtures; sourcing the patched
+# text redefines `merged_suite` for that subshell ONLY.
+nosync_green="$( . "$NOSYNC_FILE"; suite_sweep "$sq" claude/adds-migration | sed -n 's/.*suite:\([a-z]*\) .*/\1/p' )"
+nosync_red="$( . "$NOSYNC_FILE"; suite_sweep "$sq" claude/adds-checker claude/adds-migration | sed -n 's/.*suite:\([a-z]*\) .*/\1/p' )"
+rm -f "$NOSYNC_FILE"
+check_says "72c. WITHOUT the sync line, the tree case 61 calls GREEN answers unrun" \
+	unrun "$nosync_green"
+check_says "72d. WITHOUT the sync line, the tree case 63 calls RED answers unrun too" \
+	unrun "$nosync_red"
+check_says "72e. ...and WITH it the same two trees are told apart" \
+	'green red' \
+	"$(printf '%s %s' \
+		"$(printf '%s' "$out_s1" | sed -n 's/.*suite:\([a-z]*\) .*/\1/p')" \
+		"$(printf '%s' "$out_s2" | sed -n 's/.*suite:\([a-z]*\) .*/\1/p')")"
 
 # --- case 73/74: the exit rule itself, at its corners ----------------------
 # `run_is_red` is the whole decision and it is driven directly, because the
@@ -1854,7 +1964,7 @@ fi
 # to pass. The number is the count of `check` calls plus case 0, and it is
 # raised deliberately by whoever adds a case. Case 6 is two of them.
 # ---------------------------------------------------------------------------
-EXPECTED_CASES=93
+EXPECTED_CASES=98
 ran=$((pass + fail))
 
 echo
