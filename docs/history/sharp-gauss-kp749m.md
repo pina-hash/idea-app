@@ -158,13 +158,64 @@ block claiming zero findings) is unchanged, to the word. The store check is a
 second check beside it, not a replacement: one is about the block against its
 own store, the other about the store against the tree.
 
+## And it was exercised on a real merge, not only on the fixture
+
+`integration` moved 27 commits while this bundle ran, including **a fourth
+full 17-minute pass** (`06a40e5`, "The measured counts region, from one full
+pass on the merged tree", measured 04:58) -- the problem happening live,
+while the fix for it was being written. Merging `integration` in conflicted on
+exactly one path, `tools/browser-verify/README.md`, strictly inside the counts
+markers, and brought two route specs this branch's store had never measured.
+
+`npm run verify:counts` resolved the conflict and then said, in its own
+output, which two specs were missing and the command that measures exactly
+those. **`npm run verify:readme -- --route presence` took 46 seconds**, wrote
+two files, and touched no other spec's measurement. Under the old shape the
+same merge needed a full pass.
+
+**That partial pass recorded a finding, and it is not this bundle's.**
+`presence-presence-off.mjs`'s POSITIVE CONTROL -- `.roster-row`, `expectPresent: 5`,
+the row whose own comment says "without it, a console that failed to load at
+all would satisfy every zero above" -- came back `present 0` at 375px, where
+`integration`'s committed block records `outside: 0` for the same spec on the
+same code. `src/` and `tools/browser-verify/routes/` on this branch are
+byte-identical to `origin/integration`, so nothing here could have caused it.
+
+It is a RACE IN THAT SPEC, established rather than guessed. Driving the page
+directly in the harness's own Chromium, `?presence=off` renders 5
+`.roster-row`, 5 `li.roster-item` and 0 presence lines -- exactly what the
+spec wants -- and the roster appears **between 300ms and 700ms after `load`**:
+
+    wait    0ms -> .roster-row = 0
+    wait  100ms -> .roster-row = 0
+    wait  300ms -> .roster-row = 0
+    wait  700ms -> .roster-row = 5
+
+The spec carries no `prepare`/`until` step, so the check races the render; it
+failed 4 of 4 measured runs at 375 here and passed at 1440 in the recorded
+pass while failing there in a manual one. **Reported to ledger 0152's lane and
+deliberately not fixed**: a route spec is not this bundle's surface. The store
+records what was measured -- `outside: 1`, with the row named -- because the
+region's contract is what the run found, and a block naming a finding is the
+case the covered-set rule exists to produce rather than the one it exists to
+refuse.
+
+**One control of this bundle's own was a ratchet and the merge found it.** The
+span control asserted `data.oldest === data.date` on the committed block, with
+the comment "the committed store IS one pass" -- a claim about the repository
+rather than about the renderer. The partial re-measure made it false and it
+failed, correctly. It now drives both branches from patched data and asserts
+the committed block says whichever its own data implies. Re-mutated afterwards
+(the span collapsed to a single instant in `renderMeasured`): 5 red, including
+this control.
+
 ## Verification
 
-* **Full suite: 392 files, 7639 tests, 0 failures**, `npm test` on the clean
-  committed tree.
+* **Full suite: 398 files, 7724 tests, 0 failures**, `npm test` on the clean
+  committed MERGED tree (392 / 7639 / 0 before merging `integration` in).
 * **`svelte-check`: 0 errors, 38 warnings, 21 files** (32 `state_referenced_locally`,
   5 `css_unused_selector`, 1 `perf_avoid_nested_class`), identical to the
-  branch-point measurement on `origin/integration`. **`CLAUDE.md` says 37**;
+  branch-point measurement on `origin/integration` and unchanged by the merge. **`CLAUDE.md` says 37**;
   it was 38 at the branch point and is 38 here, so the figure there is stale by
   one. `CLAUDE.md` is not this bundle's surface and was not edited.
 * **One full `verify:readme`** on the clean committed tree at `949480c`, Vite
