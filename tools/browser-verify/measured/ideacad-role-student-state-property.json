@@ -1,6 +1,6 @@
 {
 	"schema": 1,
-	"spec": "ideacad-role-student-state-compare.mjs",
+	"spec": "ideacad-role-student-state-property.mjs",
 	"date": "2026-09-12T14:48:44.165Z",
 	"sha": "0d711a04423c2c7ebf8c1b53364a0e9b3c292c30",
 	"dirty": false,
@@ -9,7 +9,7 @@
 		1440
 	],
 	"runs": 2,
-	"measurements": 46,
+	"measurements": 60,
 	"outsideRows": [],
 	"ms": 9451
 }
