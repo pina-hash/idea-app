@@ -9,7 +9,7 @@
   NONE WRITTEN: the audit the prompt required BEFORE the migration found the decision's
   premise names nothing that exists, so `0204` is RELEASED UNUSED and free for the next
   lane.
-- Status: issued
+- Status: pushed
 - Branch: `claude/wonderful-goldberg-wwotxa`
 - Notes: The prompt's own grant was written in the form this ledger's README reads as a
   live claim, and that form is quoted in the body below rather than on the line above,
