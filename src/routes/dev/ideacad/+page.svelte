@@ -11,6 +11,7 @@
 	 * ABSENCE is what removes it, which is the rule the real page relies on too.
 	 */
 	import BladeEditor from '$lib/ideacad/BladeEditor.svelte';
+	import type { ViewportProbe } from '$lib/ideacad/viewport/camera-rig';
 	import { DEFAULT_BLADE_CONFIG, DEFAULT_BLADE_TREE } from '$lib/ideacad/blade/materials';
 	import type { BladeTree } from '$lib/ideacad/blade/tree';
 
@@ -45,6 +46,31 @@
 				? many
 				: undefined;
 	const commits: string[] = [];
+
+	/**
+	 * THE VIEWPORT PROBE AND THE FRAME CLOCK ARE HANDED IN, NEVER HUNG ON THE
+	 * COMPONENT. `Viewport.svelte` takes an optional `onReady` and an optional
+	 * `onFrame`; the real classroom page supplies neither, so production carries
+	 * no harness hook at all and the absence is what removes it. This page
+	 * supplies both and republishes them on `window`, which is where a route
+	 * spec can reach them.
+	 */
+	let probe: ViewportProbe | null = null;
+	const frames: number[] = [];
+	function onFrame(ms: number) {
+		frames.push(ms);
+		/* Bounded: a long session must not grow an array forever. 3000 is ten
+		   times the 300-frame drag PART 4 asks to be measured. */
+		if (frames.length > 3000) frames.splice(0, frames.length - 3000);
+	}
+	function percentile(values: number[], p: number): number {
+		if (!values.length) return NaN;
+		const sorted = [...values].sort((a, b) => a - b);
+		/* Nearest-rank, so p95 of 300 samples is a real sample and not an
+		   interpolation between two of them. */
+		const rank = Math.max(1, Math.ceil((p / 100) * sorted.length));
+		return sorted[rank - 1];
+	}
 
 	/**
 	 * The geometry probe the browser harness reads. It lives on the PAGE, not in
@@ -115,9 +141,232 @@
 			const notice = box('.readouts .notice');
 			return !!notice && !!rail && notice.bottom <= rail.bottom + 0.5 && notice.height > 0;
 		})());
+
+		/* THE VIEWPORT IS A REAL CANVAS NOW, AND THESE ARE THE CLAIMS THAT WERE
+		   UNANSWERABLE WHILE IT WAS THREE CSS DIVS. A pane with real width was
+		   already measured; a pane with a canvas in it that draws nothing is the
+		   next way for this surface to be wrong while every threshold passes. */
+		const cv = box('canvas[data-testid="ideacad-canvas"]');
+		say('the canvas fills the viewport pane', !!cv && !!vp && Math.abs(cv.width - vp.width) <= 1 && Math.abs(cv.height - vp.height) <= 1);
+		say('the canvas has a backing store', !!probe && probe.canvas().width > 0 && probe.canvas().height > 0);
+		/* The backing store is the CSS box times the device pixel ratio, which
+		   PART 4 clamps to [1.5, 2]. A renderer that quietly stopped resizing
+		   paints a stretched model and nothing says so. */
+		say('the backing store matches the pane at the clamped pixel ratio', (() => {
+			if (!probe || !cv) return false;
+			const ratio = probe.canvas().width / Math.max(1, Math.round(cv.width));
+			return ratio >= 1.5 - 0.02 && ratio <= 2 + 0.02;
+		})());
+		say('the renderer issued draw calls', !!probe && probe.drawCalls() > 0);
+		/* Triangles, not just calls: a scene whose every geometry failed to build
+		   still issues calls for its lights and clears. */
+		say('the model has triangles in it', !!probe && probe.triangles() > 0);
+		/* The rig against the module it is built on. `zoomOrthoAboutCursor` is
+		   tested pure; this is the same invariant asked of the REAL camera, which
+		   is the only place a rig that reads `rotationCenter` differently shows
+		   up. */
+		say('the world point under a pixel survives a zoom', (() => {
+			if (!probe) return false;
+			const el = document.querySelector('[data-testid="ideacad-viewport"]');
+			const r = el?.getBoundingClientRect();
+			if (!r) return false;
+			/* THE CLIENT COORDINATES ARE CHOSEN AS INTEGERS AND THE PANE PIXEL IS
+			   DERIVED FROM THEM, NEVER THE OTHER WAY AROUND. `new WheelEvent`
+			   rounds `clientX`/`clientY`, so asking about pane pixel 173 while
+			   the pane sits at y = 83.422 delivers a wheel at 172.578 and the
+			   handler zooms about a point 0.42px from the one under test. That
+			   read as a rig defect on the first run and was the probe: measured
+			   drift 0.00124 world units, which is exactly the 0.42px at that
+			   zoom. Integer client coordinates make the two agree exactly, and
+			   the check is then a real statement about the rig. */
+			const cx = Math.round(r.left + r.width * 0.72);
+			const cy = Math.round(r.top + r.height * 0.31);
+			const px = { x: cx - r.left, y: cy - r.top };
+			const wheel = (deltaY: number) =>
+				el!.dispatchEvent(new WheelEvent('wheel', { deltaY, clientX: cx, clientY: cy, bubbles: true, cancelable: true }));
+			const before = probe.under(px.x, px.y);
+			wheel(-100);
+			const after = probe.under(px.x, px.y);
+			const moved = Math.hypot(after.x - before.x, after.y - before.y, after.z - before.z);
+			wheel(100);
+			return moved < 1e-9;
+		})());
+		say('the model is inside the pane at the zoom it fits to', (() => {
+			if (!probe) return false;
+			const b = probe.box();
+			const m = probe.projected();
+			return m.width > 0 && m.height > 0 && m.width <= b.width + 1 && m.height <= b.height + 1;
+		})());
+		/* AND IT USES THE ROOM. The claim above is satisfied by a model rendered
+		   one pixel wide, which is exactly the state a fit taken from the wrong
+		   radius produces -- measured, a bound read off the box CORNERS rather
+		   than the vertices put the model at 28.7% of the pane's width and every
+		   threshold still passed. This asks the geometry, not the arithmetic:
+		   `radius * 2 * zoom` is invariant under a wrong radius because the fit
+		   derives one from the other. */
+		say('the model fills the pane it was fitted to', (() => {
+			if (!probe) return false;
+			const b = probe.box();
+			const m = probe.projected();
+			const smallest = Math.min(b.width, b.height);
+			return Math.max(m.width, m.height) >= smallest * 0.55;
+		})());
 		return out;
 	}
-	if (typeof window !== 'undefined') (window as unknown as Record<string, unknown>).__ideacadVerdicts = verdicts;
+	/**
+	 * PART 4's 300-frame drag, run on the page rather than from the route spec.
+	 *
+	 * It dispatches REAL middle-button pointer events at the real viewport, so
+	 * what is measured is the same path a student's hand takes: the controls
+	 * write a new `CameraState`, the effect re-applies the camera, and the
+	 * renderer draws once. The clock is the renderer's own -- `onFrame` is
+	 * called with the duration of `renderer.render` -- so the number is the
+	 * frame cost and not the cost of the harness driving it.
+	 *
+	 * Ledger 0160 could not take this number at all: there was nothing to drag.
+	 */
+	async function frameProbe(count = 300) {
+		const el = document.querySelector('[data-testid="ideacad-viewport"]') as HTMLElement | null;
+		if (!el || !probe) return { ok: false, why: 'no viewport' };
+		const r = el.getBoundingClientRect();
+		const mid = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+		const ev = (type: string, x: number, y: number, buttons: number) =>
+			el.dispatchEvent(
+				new PointerEvent(type, { pointerId: 1, pointerType: 'mouse', button: 1, buttons, clientX: x, clientY: y, bubbles: true, cancelable: true })
+			);
+		/* A settle first: the fit, the resize and the first paint are not part of
+		   a drag, and folding them in flatters or damns the number by luck. */
+		await new Promise((res) => setTimeout(res, 300));
+		frames.length = 0;
+		/* TWO CLOCKS, BECAUSE ONE OF THEM ANSWERS THE WRONG QUESTION.
+		   `onFrame` times `renderer.render()`, which submits GL commands and
+		   returns before the driver has rasterised or the compositor has
+		   presented -- so it is the CPU cost of issuing a frame and is always
+		   the smaller number. The interval between successive animation frames
+		   during the drag is the one a 60 fps budget is actually about, because
+		   it includes everything the first clock does not. Both are reported;
+		   neither is presented as the other. */
+		const stamps: number[] = [];
+		/* AN IDLE CONTROL, TAKEN FIRST, AND THE PRESENTED NUMBER IS UNREADABLE
+		   WITHOUT IT. The viewport renders on demand, so with no drag running it
+		   issues NO frames at all -- these intervals are the host's animation
+		   cadence and nothing else. A drag whose presented p95 equals this one
+		   is a drag costing nothing; a drag above it is a drag the host could
+		   not keep up with. Without the control, a headless compositor ticking
+		   at 30 Hz reads as a renderer missing a 60 fps budget by half. */
+		const idle: number[] = [];
+		{
+			const t: number[] = [];
+			for (let i = 0; i < 30; i++) await new Promise((res) => requestAnimationFrame((n) => res(t.push(n))));
+			for (let i = 1; i < t.length; i++) idle.push(t[i] - t[i - 1]);
+		}
+		ev('pointerdown', mid.x, mid.y, 4);
+		for (let i = 0; i < count; i++) {
+			/* A circle rather than a line: a straight drag leaves the model at a
+			   pose whose triangle count may differ from every other pose, and one
+			   pose is not a drag. */
+			const a = (i / count) * Math.PI * 4;
+			ev('pointermove', mid.x + Math.cos(a) * 90, mid.y + Math.sin(a) * 60, 4);
+			/* One rendered frame per move: the renderer draws on demand, so the
+			   loop waits for the frame it just asked for rather than queueing
+			   300 state writes against one paint. */
+			await new Promise((res) => requestAnimationFrame((t) => res(stamps.push(t))));
+		}
+		ev('pointerup', mid.x, mid.y, 0);
+		/* PUT THE VIEW BACK, THROUGH THE REAL CONTROL. This probe rotates the
+		   model, and every layout verdict after it would be measuring a
+		   different pose. `pointerdown` recorded the pre-drag view, so Previous
+		   is exactly the right restore -- and using the control rather than
+		   writing the state back means a Previous that stopped working shows up
+		   here too. */
+		[...document.querySelectorAll('.viewport nav button')]
+			.find((b) => b.textContent?.trim() === 'Previous')
+			?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await new Promise((res) => setTimeout(res, 60));
+		const taken = frames.slice(0, count);
+		const gaps: number[] = [];
+		for (let i = 1; i < stamps.length; i++) gaps.push(stamps[i] - stamps[i - 1]);
+		const round = (n: number) => (Number.isFinite(n) ? Number(n.toFixed(3)) : null);
+		return {
+			ok: taken.length > 0,
+			asked: count,
+			/* The two clocks, named rather than merged. */
+			render: {
+				frames: taken.length,
+				p50: round(percentile(taken, 50)),
+				p95: round(percentile(taken, 95)),
+				max: round(Math.max(...taken))
+			},
+			presented: {
+				intervals: gaps.length,
+				p50: round(percentile(gaps, 50)),
+				p95: round(percentile(gaps, 95)),
+				max: round(Math.max(...gaps))
+			},
+			idle: {
+				intervals: idle.length,
+				p50: round(percentile(idle, 50)),
+				p95: round(percentile(idle, 95))
+			},
+			/* PART 4 asks for 60 fps, which is 16.67 ms. */
+			budgetMs: Number((1000 / 60).toFixed(3))
+		};
+	}
+
+	/**
+	 * The frame claims, as verdicts a route spec can compare.
+	 *
+	 * ONLY THE HALF THIS CODE CONTROLS IS THRESHOLDED. `onFrame` times
+	 * `renderer.render()` -- the CPU cost of issuing a frame -- and that is the
+	 * viewport's own work, so it is held to PART 4's 60 fps budget. The
+	 * PRESENTED cadence is the host's: this container has no GPU and Chromium
+	 * falls back to SwiftShader, a software rasteriser whose cost is fill-rate
+	 * bound, measured here at 16.7 ms up to about half a million backing-store
+	 * pixels and 33.3 ms above a million. Holding a software rasteriser to a
+	 * 60 fps budget would redden this harness for the machine it runs on rather
+	 * than for anything in the repository, so the presented numbers are
+	 * REPORTED beside the idle control and never thresholded.
+	 */
+	type FrameReading = {
+		ok: boolean;
+		render: { frames: number; p95: number | null };
+		presented: { p95: number | null };
+		idle: { p95: number | null };
+		budgetMs: number;
+	};
+	/* THE DRAG RUNS ONCE. A route spec reports the numbers from a `prepare`
+	   step and compares the claims in a verdict block, and running 300 frames
+	   twice to serve both would double the cost and let the two disagree. */
+	let lastFrames: FrameReading | null = null;
+
+	async function runFrameProbe() {
+		lastFrames = (await frameProbe(300)) as FrameReading;
+		const f = lastFrames;
+		/* A printable string: `prepareEvalResult` renders a string or a number
+		   into the run output and says "nothing printable" for anything else. */
+		return `render p95 ${f.render.p95} ms over ${f.render.frames} frames; presented p95 ${f.presented.p95} ms; host idle p95 ${f.idle.p95} ms; 60 fps budget ${f.budgetMs} ms`;
+	}
+
+	async function frameVerdicts() {
+		const r = lastFrames ?? ((await frameProbe(300)) as FrameReading);
+		const out: string[] = [];
+		const say = (claim: string, ok: boolean) => out.push(`${claim} ${ok ? 'ok' : 'FAILED'}`);
+		say('a 300-frame middle-drag reaches the renderer', r.ok && r.render.frames >= 285);
+		say(
+			'the cost of issuing a frame is inside the 60 fps budget',
+			r.render.p95 !== null && r.render.p95 < r.budgetMs
+		);
+		return out;
+	}
+
+	if (typeof window !== 'undefined') {
+		const w = window as unknown as Record<string, unknown>;
+		w.__ideacadVerdicts = verdicts;
+		w.__ideacadFrameProbe = frameProbe;
+		w.__ideacadFrameVerdicts = frameVerdicts;
+		w.__ideacadRunFrameProbe = runFrameProbe;
+		w.__ideacadCamera = () => probe;
+	}
 </script>
 
 <svelte:head><title>IdeaCAD harness</title></svelte:head>
@@ -129,4 +378,6 @@
 	readOnly={role === 'teacher'}
 	conceptName={role === 'teacher' ? 'Student concept' : 'Concept 1'}
 	commitConceptCard={role === 'teacher' ? undefined : async (id: string) => void commits.push(id)}
+	{onFrame}
+	onViewportReady={(p) => (probe = p)}
 />
