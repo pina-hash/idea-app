@@ -1,7 +1,19 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { evaluate } from './blade/evaluate';
-	import { DEFAULT_BLADE_CONFIG, DEFAULT_BLADE_TREE, type BladeConfig } from './blade/materials';
+	import {
+		DEFAULT_BLADE_CONFIG,
+		DEFAULT_BLADE_TREE,
+		MATERIAL_THICKNESS_MAX_IN,
+		bladeConfigWithMaterials,
+		bladeStockChoices,
+		materialChoices,
+		materialLibrary,
+		parseThicknessList,
+		stockIdAfterMaterialChange,
+		type BladeConfig,
+		type MaterialRow
+	} from './blade/materials';
 	import type { BladeTree } from './blade/tree';
 	import { validateBladeTree } from './blade/validate';
 	import { bladeConfigShaped } from './config';
@@ -37,6 +49,8 @@
 		commitConceptCard = undefined,
 		setPrediction = undefined,
 		writes = undefined,
+		materials = undefined,
+		saveCustomMaterial = undefined,
 		saveLabel = undefined,
 		onFrame = undefined,
 		onViewportReady = undefined
@@ -65,6 +79,20 @@
 		 *  persists nothing, which is exactly what the dev harness wants and what
 		 *  the real page had until ledger 0178. See `mount.ts`. */
 		writes?: IdeacadEditorWrites | null;
+		/** THE MATERIAL LIBRARY, read from `ideacad_materials` (0208) by whoever
+		 *  mounts this. Its ABSENCE is not a degraded state: the config's own
+		 *  `materials` and `stock` still resolve every id and the pickers still
+		 *  offer them, which is exactly the pre-0208 behaviour. */
+		materials?: MaterialRow[] | null;
+		/** The write path for a student's OWN custom material. Absent removes the
+		 *  Add-my-own form entirely -- absence is the mechanism, as everywhere
+		 *  else on this console. */
+		saveCustomMaterial?: (input: {
+			name: string;
+			densityGcm3: number;
+			thicknessesIn: number[];
+			note: string | null;
+		}) => Promise<MaterialRow>;
 		/** The store's own phase in words. Replaces the local indicator entirely
 		 *  when supplied: two sources for one line is how a surface comes to read
 		 *  "Saved" over a write that failed. */
@@ -175,7 +203,25 @@
 	// swapped silently: a rail quoting limits from a config nobody asked for is
 	// worse than a rail saying which limits it is quoting.
 	const configOk = $derived(bladeConfigShaped(config));
-	const cfg = $derived(configOk ? config : DEFAULT_BLADE_CONFIG);
+	const baseCfg = $derived(configOk ? config : DEFAULT_BLADE_CONFIG);
+	/**
+	 * THE LIBRARY, FOLDED INTO THE CONFIG THE ENGINE READS. `evaluate()` looks a
+	 * material and a stock up by id and non-null-asserts both, so the set it is
+	 * handed has to be TOTAL over every id on screen -- the draft's and every
+	 * sibling concept's, because the compare sheet evaluates them all against
+	 * this one config. `bladeConfigWithMaterials` is what guarantees that: the
+	 * fallback config's own entries, then the library (RETIRED ROWS INCLUDED, so
+	 * a part already on one keeps its mass), then a zero-density placeholder for
+	 * anything still unaccounted for. Nothing here ever returns NaN.
+	 */
+	/** A custom material this student has just added, held locally so the picker
+	 *  offers it immediately. `materialLibrary` dedupes by id, so the next read
+	 *  of the `materials` prop replaces it rather than doubling it. */
+	let addedMaterials = $state<MaterialRow[]>([]);
+	const library = $derived(materialLibrary([...(materials ?? []), ...addedMaterials]));
+	const cfg = $derived(
+		bladeConfigWithMaterials(baseCfg, library, [draft.materials, ...concepts.map((c) => c.features.materials)])
+	);
 	let viewport = $state<{
 		zoomToFit(): void;
 		previousView(): void;
@@ -195,6 +241,110 @@
 	const panel = $derived(panelFor(draft, panelId, cfg));
 	const featureIndex = $derived(draft.features.findIndex((f) => f.id === panelId));
 	const canPredict = $derived(!!predicted && rationale.trim().length > 0);
+
+	/* =====================================================================
+	 * THE MATERIALS PANEL (0208). It replaces `panelFor('materials')`, which
+	 * now returns null, so there is exactly ONE materials panel rather than a
+	 * generic one here and a purpose-built one there.
+	 *
+	 * IT IS HERE AND NOT IN THE RULES RAIL, and that is measured rather than
+	 * chosen. Ledger 0178 took the rail's content to 555px inside a 515px box
+	 * by adding two rows, under a fold this container's Chromium draws no
+	 * scrollbar for; it now sits at 502px in 515px with 13px spare. Two selects,
+	 * a slider and a form would put it 200px over again, silently. The tree
+	 * pane already has a Materials node, scrolls, and is where SolidWorks puts
+	 * material -- so the node a student was already selecting opens the panel.
+	 * ===================================================================== */
+	const bodyChoices = $derived(materialChoices(library, draft.materials.body));
+	const stockPick = $derived(bladeStockChoices(library, draft.materials.bladeStock));
+	const bodyFillPct = $derived(Math.round(draft.materials.bodySolidFraction * 100));
+	const bodyRow = $derived(library.find((r) => r.slug === draft.materials.body) ?? null);
+	const stockRow = $derived(library.find((r) => r.slug === stockPick.materialSlug) ?? null);
+	const bodyEntry = $derived(cfg.materials.find((m) => m.id === draft.materials.body) ?? null);
+	const stockEntry = $derived(cfg.stock.find((x) => x.id === draft.materials.bladeStock) ?? null);
+
+	/**
+	 * CHANGING THE BLADE MATERIAL KEEPS THE NEAREST THICKNESS THAT MATERIAL
+	 * ACTUALLY COMES IN. The two controls write ONE stored id, so a material
+	 * change has to name a thickness or the id stops resolving; picking the
+	 * FIRST one would silently take somebody on 0.25 in steel down to the
+	 * thinnest sheet in the new list. `stockIdAfterMaterialChange` is the one
+	 * implementation of that rule.
+	 */
+	/** A number field reports a real number or nothing. An empty box coerces to
+	 *  NaN, and a NaN written into `bodySolidFraction` takes every readout with
+	 *  it -- the same guard the PropertyManager carries, for the same reason. */
+	function numberField(key: string, e: Event) {
+		const raw = (e.currentTarget as HTMLInputElement).value;
+		if (raw.trim() === '') return;
+		const n = Number(raw);
+		if (Number.isFinite(n)) field(key, n);
+	}
+	/** Accept, from the panel's own `<form>`, so Enter is the platform's accept
+	 *  exactly as it is in the PropertyManager. */
+	function acceptMaterials(e: SubmitEvent) {
+		e.preventDefault();
+		if (!readOnly) accept();
+	}
+	function chooseBladeMaterial(slug: string) {
+		const next = stockIdAfterMaterialChange(library, slug, draft.materials.bladeStock);
+		if (next) field('materials.bladeStock', next);
+	}
+
+	/* The student's own material. Every field is required except the note, and
+	   the refusal is the DATABASE's own sentence where the database answered. */
+	let customOpen = $state(false);
+	let customName = $state('');
+	let customDensity = $state('');
+	let customThickness = $state('');
+	let customNote = $state('');
+	let customRefusal = $state('');
+	let customBusy = $state(false);
+	let customAdded = $state('');
+
+	async function addCustomMaterial(e: SubmitEvent) {
+		e.preventDefault();
+		if (!saveCustomMaterial || customBusy) return;
+		customRefusal = '';
+		customAdded = '';
+		const name = customName.trim();
+		if (!name) {
+			customRefusal = 'Give the material a name.';
+			return;
+		}
+		const density = Number(customDensity);
+		if (!Number.isFinite(density) || density <= 0 || density > 25) {
+			customRefusal = 'Density must be more than 0 and no more than 25 g/cm3.';
+			return;
+		}
+		const parsed = parseThicknessList(customThickness);
+		if (parsed.refusal) {
+			customRefusal = parsed.refusal;
+			return;
+		}
+		customBusy = true;
+		try {
+			const row = await saveCustomMaterial({
+				name,
+				densityGcm3: density,
+				thicknessesIn: parsed.thicknesses,
+				note: customNote.trim() || null
+			});
+			addedMaterials = [...addedMaterials, row];
+			customAdded = `${row.name} is now in your list.`;
+			customName = '';
+			customDensity = '';
+			customThickness = '';
+			customNote = '';
+			customOpen = false;
+		} catch {
+			customRefusal = IDEACAD_WRITE_REFUSED;
+		} finally {
+			/* In `finally`, because a throw mid-submit otherwise disables the form
+			   for the rest of the session. */
+			customBusy = false;
+		}
+	}
 
 	function accept() {
 		if (readOnly || !dirty) return;
@@ -491,8 +641,170 @@
 		{/if}
 	</header>
 	<div class="stage">
-		<aside class="tree" aria-label={editing && panel ? 'PropertyManager' : 'FeatureManager'}>
-			{#if editing && panel}
+		<aside
+			class="tree"
+			aria-label={editing && panelId === 'materials'
+				? 'Materials'
+				: editing && panel
+					? 'PropertyManager'
+					: 'FeatureManager'}
+		>
+			{#if editing && panelId === 'materials'}
+				<!-- THE MATERIALS PANEL. Same pane, same replace-in-place rule as the
+				     PropertyManager, and the same confirm pair, because Accept is
+				     what puts a material change into the document. -->
+				<form class="mat" data-testid="ideacad-materials-panel" onsubmit={acceptMaterials} aria-labelledby="mat-label">
+					<header>
+						<h3 id="mat-label">Materials</h3>
+						<button type="button" class="back" onclick={() => (editing = false)}>Feature tree</button>
+					</header>
+					{#if !readOnly}
+						<div class="confirm">
+							<button type="submit" class="accept" aria-disabled={!dirty} title="Accept (Enter)">✓ <span>Accept</span></button>
+							<button type="button" class="cancel" onclick={cancel} aria-disabled={!dirty} title="Cancel (Escape)">× <span>Cancel</span></button>
+						</div>
+					{/if}
+
+					<!-- THE FIVE CONTROLS FIRST, THEN THE READING. Something is below
+					     the fold at 1440 whatever the order -- see the measured
+					     figures beside `.tree:has(.mat)` in this component's own
+					     stylesheet, which is where that number lives so there is
+					     one of it -- so what is decided here is WHAT. Interleaving
+					     each picker with its density line and its note put Blade
+					     material and Blade thickness, the two controls this whole
+					     panel exists for, under it. Controls first puts all five
+					     above and sends the prose down, which is the half a
+					     student scrolls for on purpose. -->
+					<label class="field">
+						<span class="lab">Body material</span>
+						<select
+							value={draft.materials.body}
+							disabled={readOnly}
+							onchange={(e) => field('materials.body', e.currentTarget.value)}
+						>
+							{#each bodyChoices as option (option.value)}<option value={option.value}>{option.label}</option>{/each}
+						</select>
+					</label>
+
+					<label class="field">
+						<span class="lab">Body fill<i>{bodyFillPct}% of solid</i></span>
+						<!-- SLIDER ONLY, NOT A SLIDER AND A BOX. The PropertyManager
+						     renders both because its pane holds it; here the number
+						     input cost 70px above the fold to restate a value the
+						     label already carries. -->
+						<input
+							class="slider"
+							type="range"
+							value={bodyFillPct}
+							min="10"
+							max="100"
+							step="1"
+							disabled={readOnly}
+							aria-label="Body fill percent"
+							oninput={(e) => numberField('materials.bodySolidFraction', e)}
+						/>
+					</label>
+
+					<label class="field">
+						<span class="lab">Blade material</span>
+						<select
+							value={stockPick.materialSlug ?? ''}
+							disabled={readOnly}
+							onchange={(e) => chooseBladeMaterial(e.currentTarget.value)}
+						>
+							{#each stockPick.materials as option (option.value)}<option value={option.value}>{option.label}</option>{/each}
+						</select>
+					</label>
+					<!-- THICKNESS IS A LIST, NEVER A TYPED NUMBER. In real life you work
+					     with the thicknesses of material you actually have; you cannot
+					     make it any thickness you want. -->
+					<label class="field">
+						<span class="lab">Blade thickness<i>in</i></span>
+						<select
+							value={draft.materials.bladeStock}
+							disabled={readOnly || stockPick.thicknesses.length === 0}
+							onchange={(e) => field('materials.bladeStock', e.currentTarget.value)}
+						>
+							{#each stockPick.thicknesses as option (option.value)}<option value={option.value}>{option.label}</option>{/each}
+						</select>
+					</label>
+
+					<label class="field">
+						<span class="lab">Spin direction</span>
+						<select value={draft.rotation} disabled={readOnly} onchange={(e) => field('rotation', e.currentTarget.value)}>
+							<option value="cw">Clockwise</option>
+							<option value="ccw">Counter-clockwise</option>
+						</select>
+					</label>
+
+					<div class="reading">
+						<p class="fact">
+							Body: {bodyEntry?.name ?? 'Unknown'} &middot; {(bodyEntry?.densityGcm3 ?? 0).toFixed(2)} g/cm³
+							{#if bodyRow && !bodyRow.source_verified}<b class="chip">UNVERIFIED</b>{/if}
+							{#if bodyRow?.owner}<b class="chip mine">YOURS</b>{/if}
+						</p>
+						{#if bodyRow?.note}<p class="note">{bodyRow.note}</p>{/if}
+						<p class="fact">
+							Blade: {stockEntry?.name ?? 'Unknown'} &middot; {(stockEntry?.densityGcm3 ?? 0).toFixed(2)} g/cm³
+							{#if stockRow && !stockRow.source_verified}<b class="chip">UNVERIFIED</b>{/if}
+							{#if stockRow?.owner}<b class="chip mine">YOURS</b>{/if}
+						</p>
+						{#if stockRow?.note}<p class="note">{stockRow.note}</p>{/if}
+						<p class="note">The thickness list is the sizes this material is actually sold in. You pick one; you do not get to type a number.</p>
+						<p class="note">UNVERIFIED means the density has not been checked against its published source yet, so the mass is close rather than exact.</p>
+					</div>
+
+					{#if cfg.unresolvedMaterials.length}
+						<p class="refusal" role="status">
+							{cfg.unresolvedMaterials.length === 1 ? 'This material is' : 'These materials are'}
+							not available here, so {cfg.unresolvedMaterials.length === 1 ? 'it counts' : 'they count'} as no mass:
+							{cfg.unresolvedMaterials.join(', ')}. Pick one from the list.
+						</p>
+					{/if}
+
+					<!-- THE CUSTOM LAYER. The control is absent without its transport,
+					     which is the rule this console follows everywhere: a form that
+					     recorded nothing is worse than no form. -->
+					{#if saveCustomMaterial && !readOnly}
+						<div class="own">
+							<button type="button" class="addown" aria-expanded={customOpen} aria-controls="mat-own" onclick={() => (customOpen = !customOpen)}>
+								{customOpen ? 'Close' : 'Add my own material'}
+							</button>
+							{#if customAdded}<p class="added" role="status">{customAdded}</p>{/if}
+							{#if customOpen}
+								<div id="mat-own">
+									<p class="note">
+										Only you can see a material you add. Measure or look up its density and list the thicknesses you actually
+										have. A 3D printed part is the case this is for: its density depends on your slicer settings, so nobody
+										can publish one figure for it.
+									</p>
+									<label class="field">
+										<span class="lab">Name</span>
+										<input type="text" bind:value={customName} maxlength="60" />
+									</label>
+									<label class="field">
+										<span class="lab">Density<i>g/cm³</i></span>
+										<input type="number" bind:value={customDensity} min="0.01" max="25" step="0.01" />
+									</label>
+									<label class="field">
+										<span class="lab">Thicknesses<i>in</i></span>
+										<input type="text" bind:value={customThickness} placeholder="0.125, 0.25" />
+									</label>
+									<p class="range">Inches, separated by commas. Up to {MATERIAL_THICKNESS_MAX_IN} in each.</p>
+									<label class="field">
+										<span class="lab">Note</span>
+										<input type="text" bind:value={customNote} maxlength="200" placeholder="optional" />
+									</label>
+									{#if customRefusal}<p class="refusal" role="status">{customRefusal}</p>{/if}
+									<button type="button" class="save" aria-disabled={customBusy} onclick={(e) => addCustomMaterial(e as unknown as SubmitEvent)}>
+										{customBusy ? 'Adding…' : 'Add material'}
+									</button>
+								</div>
+							{/if}
+						</div>
+					{/if}
+				</form>
+			{:else if editing && panel}
 				<PropertyManager
 					{panel}
 					{dirty}
@@ -814,6 +1126,180 @@
 		color: var(--text-2);
 		font: 12px 'Share Tech Mono', monospace;
 		align-self: center;
+	}
+	/* THE MATERIALS PANEL. It lives in the TREE pane rather than the Rules rail,
+	   and that is measured rather than chosen: ledger 0178 put the rail's content
+	   40px over its 515px box by adding two rows, and it sits at 462px with 53px
+	   spare today -- four controls, a slider and a form would put it 300px over
+	   again. Every control clears 44px because IdeaCAD is a student surface at
+	   every width and carries no instructor-density class on its root.
+	
+	   THE PANEL IS TALLER THAN ITS PANE AND THE ANSWER IS WHICH HALF IS ABOVE THE
+	   FOLD, NOT A SHORTER PANEL. Measured at 1440: 961px of content in a 515px
+	   box, 446px over. Five controls, two density lines, two material notes and
+	   an add-your-own form do not fit 515px in any arrangement, so what is
+	   decided is WHAT goes below -- and interleaving each picker with its own
+	   prose put Blade material and Blade thickness, the two controls this panel
+	   exists for, under the fold. Controls first puts all five above it.
+
+	   `scrollbar-width: thin` WITH A COLOUR FORCES A CLASSIC SCROLLBAR THAT TAKES
+	   REAL WIDTH -- measured, `offsetWidth - clientWidth` on this pane goes from
+	   1px (its own border) to 11px -- and `scrollbar-gutter: stable` stops the
+	   panel reflowing as the content grows past the box. The thumb is a tertiary
+	   token and never the accent, per the room rule. Scoped with `:has()` so the
+	   FeatureManager and the PropertyManager -- both of which fit their pane and
+	   have their own measured entries -- are untouched.
+
+	   WHETHER THE THUMB IS PAINTED COULD NOT BE VERIFIED HERE, AND THAT IS THE
+	   INSTRUMENT RATHER THAN THIS RULE. A 24px-wide clip of the pane's own gutter
+	   came back a uniform dark column; set to `#ff00ff` on `#00ff00` as a
+	   positive control it came back IDENTICAL, so this container's headless
+	   Chromium paints no scrollbar into a screenshot at any colour. The reserved
+	   width is real and measurable; the cue on a real desktop Chrome is not
+	   something this container can be asked about. Which is why the fold's
+	   contents are an arrangement decision above and not a bet on a scrollbar. */
+	.tree:has(.mat) {
+		scrollbar-width: thin;
+		scrollbar-color: var(--text-3) var(--surface-2);
+		scrollbar-gutter: stable;
+	}
+	.mat {
+		display: block;
+	}
+	.mat header {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+	}
+	.mat h3 {
+		margin: 0.15rem 0;
+	}
+	.mat button,
+	.mat input,
+	.mat select {
+		min-height: 44px;
+		min-width: 44px;
+		color: var(--text-1);
+		background: var(--surface-2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control);
+		font: inherit;
+	}
+	.mat button {
+		padding: 0 0.7rem;
+	}
+	.mat button:focus-visible,
+	.mat input:focus-visible,
+	.mat select:focus-visible {
+		outline: 3px solid var(--focus-ring);
+		outline-offset: 2px;
+	}
+	.mat button[aria-disabled='true'] {
+		color: var(--text-2);
+		border-color: var(--hairline);
+	}
+	.mat .confirm {
+		display: flex;
+		gap: 0.4rem;
+		margin: 0.5rem 0;
+	}
+	.mat .confirm button {
+		flex: 1 1 0;
+	}
+	.mat .accept {
+		border-color: var(--green);
+	}
+	.mat .cancel {
+		border-color: var(--crimson);
+	}
+	/* STACKED, NOT SIDE BY SIDE, AND THE READING IS WHY. At 1440 this pane is
+	   300px and the panel inside it 257px; with a label column and a 9rem
+	   control the select measured 144px and clipped its own option text
+	   mid-word -- "PLA (3D printed" -- which is exactly where the "(retired)"
+	   marker lives, so the one word a student needs to see was the one cut. Full
+	   width costs about 25px a field and the pane scrolls; a clipped material
+	   name costs the decision. */
+	.mat .field {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.2rem;
+		margin: 0.5rem 0;
+	}
+	.mat .lab {
+		min-width: 0;
+		color: var(--text-2);
+		font: 13px 'Share Tech Mono', monospace;
+		letter-spacing: 0.04em;
+	}
+	.mat .lab i {
+		color: var(--text-3);
+		font-style: normal;
+		margin-left: 0.35rem;
+	}
+	.mat .field input,
+	.mat .field select {
+		width: 100%;
+		padding: 0 0.5rem;
+	}
+	.mat .slider {
+		width: 100%;
+		min-height: 44px;
+	}
+	.mat .reading {
+		margin-top: 0.8rem;
+		padding-top: 0.6rem;
+		border-top: 1px solid var(--boundary);
+	}
+	.mat .range {
+		margin: 0 0 0.6rem;
+		color: var(--text-2);
+		font: 12px 'Share Tech Mono', monospace;
+	}
+	.mat .fact {
+		margin: -0.2rem 0 0.4rem;
+		color: var(--text-2);
+		font: 13px 'Share Tech Mono', monospace;
+	}
+	.mat .chip {
+		margin-left: 0.4rem;
+		color: var(--copper);
+		font: 12px 'Share Tech Mono', monospace;
+		letter-spacing: 0.08em;
+	}
+	.mat .chip.mine {
+		color: var(--cyan);
+	}
+	.mat .note {
+		margin: 0 0 0.6rem;
+		color: var(--text-2);
+		font: 12px 'Share Tech Mono', monospace;
+		line-height: 1.5;
+	}
+	.mat .refusal {
+		margin: 0.4rem 0;
+		color: var(--crimson);
+		font: 13px 'Share Tech Mono', monospace;
+		line-height: 1.5;
+	}
+	.mat .added {
+		margin: 0.4rem 0;
+		color: var(--green);
+		font: 13px 'Share Tech Mono', monospace;
+	}
+	.mat .own {
+		margin-top: 0.8rem;
+		padding-top: 0.6rem;
+		border-top: 1px solid var(--boundary);
+	}
+	.mat .addown,
+	.mat .save {
+		width: 100%;
+	}
+	.mat .save {
+		border-color: var(--green);
+		margin-top: 0.4rem;
 	}
 	.readouts {
 		border-left: 1px solid var(--boundary);

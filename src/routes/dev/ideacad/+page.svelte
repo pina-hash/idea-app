@@ -8,6 +8,10 @@
 	 *                                   made, the physics on screen anyway
 	 *   role=student&state=predicted    the compare surface with a prediction
 	 *                                   already recorded, so the form is gone
+	 *   role=student&state=materials   the Materials panel, over the REAL library
+	 *                                  shape 0208 seeds, with the custom-material
+	 *                                  form reachable and one retired material in
+	 *                                  the list so the retired case is on screen
 	 *   role=student&state=property     the PropertyManager open on the BODY,
 	 *                                   which is the panel with the station
 	 *                                   table and the profile preview in it
@@ -25,7 +29,11 @@
 	 */
 	import BladeEditor from '$lib/ideacad/BladeEditor.svelte';
 	import type { ViewportProbe } from '$lib/ideacad/viewport/camera-rig';
-	import { DEFAULT_BLADE_CONFIG, DEFAULT_BLADE_TREE } from '$lib/ideacad/blade/materials';
+	import {
+		DEFAULT_BLADE_CONFIG,
+		DEFAULT_BLADE_TREE,
+		type MaterialRow
+	} from '$lib/ideacad/blade/materials';
 	import type { BladeTree } from '$lib/ideacad/blade/tree';
 
 	let role = 'student';
@@ -71,6 +79,176 @@
 		state === 'predicted'
 			? { conceptId: 'c2', rationale: 'the wide one carries its mass further out', at: '2026-09-12' }
 			: null;
+
+	/**
+	 * THE MATERIAL LIBRARY, IN THE SHAPE `ideacad_materials` RETURNS IT. These
+	 * are 0208's own seeded rows, copied as DATA rather than imported from the
+	 * migration -- the harness has no database and the point is to exercise the
+	 * client against the shape a read produces, including the two cases the
+	 * pickers have to handle and a hand-written fixture would skip: a RETIRED
+	 * material that a concept is still using, and a CUSTOM material that belongs
+	 * to this student.
+	 */
+	const LIBRARY: MaterialRow[] = [
+		['stainless-steel', 'Stainless steel (304)', 8.0, [0.024, 0.03, 0.048, 0.0625, 0.09, 0.125]],
+		['galvanized-steel', 'Galvanized steel', 7.85, [0.0276, 0.0336, 0.0396, 0.0516, 0.0635, 0.0785]],
+		['steel', 'Carbon or unknown steel', 7.85, [0.0625, 0.125, 0.1875, 0.25]],
+		['aluminum', '6061 aluminum', 2.7, [0.0625, 0.125, 0.1875, 0.25]],
+		['polycarbonate', 'Polycarbonate', 1.2, [0.0625, 0.093, 0.125, 0.1875, 0.25]],
+		['wood', 'Wood (Baltic birch plywood)', 0.68, [0.118, 0.236, 0.472]]
+	].map(([slug, name, d, th]) => ({
+		id: slug as string,
+		slug: slug as string,
+		owner: null,
+		name: name as string,
+		density_g_cm3: d as number,
+		thicknesses_in: th as number[],
+		note: null,
+		source: 'seeded by 0208, unverified',
+		source_verified: false,
+		retired_at: null
+	}));
+	/* The RETIRED row the default tree is still on. This is the whole retirement
+	   argument on screen: `pla` is not offered to anybody else, the part using it
+	   still computes, and the picker says so. */
+	LIBRARY.push({
+		id: 'pla',
+		slug: 'pla',
+		owner: null,
+		name: 'PLA (3D printed)',
+		density_g_cm3: 1.24,
+		thicknesses_in: [],
+		note: 'RETIRED. A printed part is not solid, so its effective density depends on your slicer settings.',
+		source: 'Filament manufacturer datasheets for solid PLA',
+		source_verified: false,
+		retired_at: '2026-09-12T00:00:00Z'
+	});
+	/* One of this student's own. */
+	LIBRARY.push({
+		id: 'custom-a1b2c3d4e5f6',
+		slug: 'custom-a1b2c3d4e5f6',
+		owner: 'dev-student',
+		name: 'My PETG at 40% infill',
+		density_g_cm3: 0.53,
+		thicknesses_in: [0.125],
+		note: 'measured on the scale, 3 prints',
+		source: 'Entered by the student who owns this material.',
+		source_verified: false,
+		retired_at: null
+	});
+
+	/* NO `$state` IN THIS FILE: it declares a local `state` for the query string,
+	   so the rune's name collides with it. Nothing here needs to be reactive
+	   anyway -- `BladeEditor` holds a newly added custom material in its own
+	   state and offers it immediately, which is the behaviour the real page
+	   relies on too while its `materials` prop catches up. */
+	let addedCount = 0;
+
+	/** The in-memory answer for the custom-material write. The REAL page hands
+	 *  `ideacad_material_save_custom` here; its ABSENCE removes the form, which
+	 *  is what the `role=teacher` state relies on. */
+	async function saveCustomMaterial(input: {
+		name: string;
+		densityGcm3: number;
+		thicknessesIn: number[];
+		note: string | null;
+	}): Promise<MaterialRow> {
+		addedCount += 1;
+		const row: MaterialRow = {
+			id: `custom-${addedCount}`,
+			slug: `custom-dev${addedCount}`,
+			owner: 'dev-student',
+			name: input.name,
+			density_g_cm3: input.densityGcm3,
+			thicknesses_in: input.thicknessesIn,
+			note: input.note,
+			source: 'Entered by the student who owns this material.',
+			source_verified: false,
+			retired_at: null
+		};
+		return row;
+	}
+
+	/**
+	 * Open the Materials panel the way a student does: by double-clicking the
+	 * Materials node the FeatureManager has always carried. A prop that put the
+	 * panel on screen directly would measure an arrangement the surface has no
+	 * path to, which is the same rule `openPropertyManager` follows.
+	 */
+	function openMaterials(): boolean {
+		const row = [...document.querySelectorAll('.tree [role="treeitem"]')].find(
+			(b) => b.textContent?.trim() === 'Materials'
+		);
+		if (!row) return false;
+		row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		return true;
+	}
+
+	/**
+	 * THE MATERIALS PANEL'S OWN CLAIMS. Same shape and same reason as
+	 * `paneVerdicts`: the panel REPLACES the tree in the same pane, so a panel
+	 * rendered below the tree passes every content check ever written about
+	 * either half and only a geometric read tells them apart.
+	 *
+	 * AND THE PHYSICS CLAIM IS HERE RATHER THAN IN A UNIT TEST, because what is
+	 * being asked is whether the CONTROL moves the readout -- a control wired to
+	 * a config nobody evaluates is the failure mode, and it looks identical.
+	 */
+	async function materialVerdicts(): Promise<string[]> {
+		const out: string[] = [];
+		const say = (claim: string, ok: boolean) => out.push(`${claim} ${ok ? 'ok' : 'FAILED'}`);
+		const box = (sel: string) => document.querySelector(sel)?.getBoundingClientRect();
+		const pane = box('.tree');
+		const panel = box('[data-testid="ideacad-materials-panel"]');
+		const tick = () => new Promise((res) => setTimeout(res, 80));
+		const railText = () => document.querySelector('.readouts')?.textContent ?? '';
+		const massOf = () => {
+			const m = /Mass([\d.]+)\s*g/.exec(railText().replace(/\s+/g, ''));
+			return m ? Number(m[1]) : NaN;
+		};
+		const selects = () => [...document.querySelectorAll('[data-testid="ideacad-materials-panel"] select')] as HTMLSelectElement[];
+		const pick = async (index: number, value: string) => {
+			const el = selects()[index];
+			if (!el) return false;
+			el.value = value;
+			el.dispatchEvent(new Event('change', { bubbles: true }));
+			await tick();
+			return true;
+		};
+
+		say('the Materials panel is on screen', !!panel && panel.width > 0 && panel.height > 0);
+		say('it replaced the feature tree rather than joining it', document.querySelectorAll('.tree [role="tree"]').length === 0);
+		say('it is inside the pane the tree was in', !!panel && !!pane && panel.left >= pane.left - 0.5 && panel.right <= pane.right + 0.5);
+		say('every control is inside that pane', [...document.querySelectorAll('[data-testid="ideacad-materials-panel"] select, [data-testid="ideacad-materials-panel"] input, [data-testid="ideacad-materials-panel"] button')].every((el) => {
+			const r = el.getBoundingClientRect();
+			return r.width > 0 && r.left >= (pane?.left ?? 0) - 0.5 && r.right <= (pane?.right ?? 0) + 0.5;
+		}));
+		say('there are four choices: body material, blade material, blade thickness, spin', selects().length === 4);
+		say('the panel names the thickness rule in words', /You pick one; you do not get to type a number/.test(document.querySelector('[data-testid="ideacad-materials-panel"]')?.textContent ?? ''));
+		say('nothing is wider than the window', document.documentElement.scrollWidth <= document.documentElement.clientWidth + 0.5);
+
+		/* THE PHYSICS MOVES. Body material only: polycarbonate, then stainless,
+		   at the SAME geometry, and the mass rule has to flip with it. */
+		await pick(0, 'polycarbonate');
+		const light = massOf();
+		const lightPass = /PASS/.test(railText());
+		await pick(0, 'stainless-steel');
+		const heavy = massOf();
+		say('changing the body material changes the mass', Number.isFinite(light) && Number.isFinite(heavy) && Math.abs(heavy - light) > 1);
+		say('polycarbonate passes the mass rule at this geometry', lightPass && light <= 680);
+		say('stainless steel fails it at the same geometry', heavy > 680);
+
+		/* AND THE THICKNESS CONTROL MOVES IT ON ITS OWN, which is the half a
+		   material-only check would pass over. */
+		await pick(0, 'polycarbonate');
+		await pick(1, 'steel');
+		await pick(2, 'steel-00625');
+		const thin = massOf();
+		await pick(2, 'steel-025');
+		const thick = massOf();
+		say('changing only the blade thickness changes the mass', Number.isFinite(thin) && Number.isFinite(thick) && thick > thin);
+		return out;
+	}
 
 	/**
 	 * Open the PropertyManager the way a student does. A `waitFor` in the route
@@ -553,6 +731,8 @@
 		w.__ideacadOpenPropertyManager = openPropertyManager;
 		w.__ideacadPaneVerdicts = paneVerdicts;
 		w.__ideacadPhysicsProbe = physicsProbe;
+		w.__ideacadOpenMaterials = openMaterials;
+		w.__ideacadMaterialVerdicts = materialVerdicts;
 	}
 </script>
 
@@ -566,6 +746,8 @@
 	readOnly={role === 'teacher'}
 	conceptName={role === 'teacher' ? 'Student concept' : 'Concept 1'}
 	commitConceptCard={role === 'teacher' ? undefined : async (id: string) => void commits.push(id)}
+	materials={LIBRARY}
+	saveCustomMaterial={role === 'teacher' ? undefined : saveCustomMaterial}
 	{onFrame}
 	onViewportReady={(p) => (probe = p)}
 />

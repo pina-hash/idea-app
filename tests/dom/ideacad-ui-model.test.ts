@@ -175,15 +175,31 @@ describe('the PropertyManager panels, and the one conversion in them', () => {
 		expect(height.slider).toBe(true);
 	});
 
-	it('shows the body fill as a percent and stores it as a fraction', () => {
-		const panel = panelFor(tree(), 'materials', DEFAULT_BLADE_CONFIG)!;
-		const fill = panel.fields.find((f) => f.key === 'materials.bodySolidFraction')!;
-		if (fill.kind !== 'number') throw new Error('unreachable');
-		expect(fill.value).toBe(42); // the document holds 0.42
-		const written = applyField(tree(), 'materials', 'materials.bodySolidFraction', 60);
-		expect(written.materials.bodySolidFraction).toBe(0.6);
-		// And the round trip, which is where a one-way conversion hides.
-		expect(panelFor(written, 'materials', DEFAULT_BLADE_CONFIG)!.fields.find((f) => f.key === 'materials.bodySolidFraction')).toMatchObject({ value: 60 });
+	/* THE FIELD IS A PERCENT AND THE DOCUMENT IS A FRACTION, and the conversion
+	   lives in `applyField`, once. This used to read the percent back off
+	   `panelFor(tree(), 'materials', ...)`; 0208 moved the materials panel into
+	   `BladeEditor` and that call answers null now, so the assertion is made
+	   against the CONVERSION rather than against a panel -- which is the rule it
+	   was always about. A panel that stored the percent and a rail that read the
+	   fraction is a body 100 times too heavy. */
+	it('stores the body fill as a fraction of the percent it is given', () => {
+		for (const [percent, stored] of [
+			[42, 0.42],
+			[60, 0.6],
+			[33, 0.33],
+			[100, 1],
+			[10, 0.1]
+		] as const) {
+			const written = applyField(tree(), 'materials', 'materials.bodySolidFraction', percent);
+			expect(written.materials.bodySolidFraction, `${percent}%`).toBe(stored);
+			/* THE NEGATIVE CONTROL, because "it stored a number" passes on a
+			   one-way conversion that stored the percent unchanged. */
+			expect(written.materials.bodySolidFraction).not.toBe(percent);
+			/* And the reader's own direction, which is what puts the percent back
+			   on screen: a conversion that rounds the wrong way here is a slider
+			   that jumps a step every time somebody opens the panel. */
+			expect(Math.round(written.materials.bodySolidFraction * 100)).toBe(percent);
+		}
 	});
 
 	it('keeps the blade count a whole number, because validateBladeTree refuses a fraction', () => {
@@ -214,11 +230,35 @@ describe('the PropertyManager panels, and the one conversion in them', () => {
 	});
 
 	it('names every panel it can open', () => {
-		const openable = [...ids(tree()), 'materials', 'standard-parts'];
+		const openable = [...ids(tree()), 'standard-parts'];
 		for (const id of openable) {
 			expect(panelFor(tree(), id, DEFAULT_BLADE_CONFIG)).not.toBeNull();
 			expect(featureLabel(id)).not.toBe(id);
 		}
+	});
+
+	/* 0208 MOVED THE MATERIALS PANEL INTO `BladeEditor` AND THIS IS THE PAIR
+	   THAT SAYS SO. Material and thickness are two controls over one stored
+	   stock id, the list they offer comes from `ideacad_materials` rather than
+	   from the config, and adding your own material is a form with a write
+	   behind it -- none of which the `PmField` union of number/choice/fact can
+	   express. `BladeEditor` branches on `panelId === 'materials'` BEFORE it
+	   reads `panelFor`, so the null is what makes that branch the only path; a
+	   second, generic materials panel surviving here is two answers to "what may
+	   a student change about materials", and the one nobody looks at is the one
+	   that stops agreeing.
+
+	   THE LABEL MUST SURVIVE THE PANEL, which is the half that would break
+	   silently. `FeatureTree` renders a Materials ROW whether or not `panelFor`
+	   answers for it, and a row whose label fell back to its own id reads
+	   "materials" in lower case among seven title-cased ones. */
+	it('answers null for materials, whose panel BladeEditor owns, and still names the row', () => {
+		expect(panelFor(tree(), 'materials', DEFAULT_BLADE_CONFIG)).toBeNull();
+		expect(featureLabel('materials')).toBe('Materials');
+		/* The positive control for that null: the node BESIDE it in the tree is
+		   still a panel `panelFor` answers for, so "null" here is a decision
+		   about materials and not a function that has stopped answering. */
+		expect(panelFor(tree(), 'standard-parts', DEFAULT_BLADE_CONFIG)).not.toBeNull();
 	});
 });
 

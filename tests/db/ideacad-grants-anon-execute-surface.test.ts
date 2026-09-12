@@ -183,7 +183,7 @@ const MIGRATION_0206 = '0206_ideacad_grant_guard.sql';
  */
 interface IdeacadFn {
 	readonly kind: 'client' | 'definer';
-	readonly migration: '0201' | '0205';
+	readonly migration: '0201' | '0205' | '0207' | '0208';
 	readonly reason: string;
 }
 
@@ -196,6 +196,11 @@ const DEFINER_ONLY =
 	'A 0205 predicate reached ONLY from a SECURITY DEFINER body. No policy names it and no client calls ' +
 	'it, so it holds no client grant at all -- which is exactly what 0202 could not express and what ' +
 	'made its "every ideacad function is executable by authenticated" assertion stop being true.';
+
+const RPC_0207 =
+	'A parts/checkout RPC. 0207 created it and revoked it from `public, anon, authenticated` by name.';
+const RPC_0208 =
+	'A materials RPC. 0208 created it and revoked it from `public, anon, authenticated` by name.';
 
 const IDEACAD_FUNCTIONS: Readonly<Record<string, IdeacadFn>> = {
 	// --- 0201's ten. Every one of them an RPC. ---
@@ -221,7 +226,34 @@ const IDEACAD_FUNCTIONS: Readonly<Record<string, IdeacadFn>> = {
 	_ideacad_can_read_document: { kind: 'client', migration: '0205', reason: POLICY_PREDICATE },
 	_ideacad_manages_document: { kind: 'client', migration: '0205', reason: POLICY_PREDICATE },
 	_ideacad_document_role: { kind: 'definer', migration: '0205', reason: DEFINER_ONLY },
-	_ideacad_can_write_document: { kind: 'definer', migration: '0205', reason: DEFINER_ONLY }
+	_ideacad_can_write_document: { kind: 'definer', migration: '0205', reason: DEFINER_ONLY },
+
+	// --- 0207's nine parts-and-checkout RPCs. ---
+	ideacad_assembly: { kind: 'client', migration: '0207', reason: RPC_0207 },
+	ideacad_add_part: { kind: 'client', migration: '0207', reason: RPC_0207 },
+	ideacad_update_part_meta: { kind: 'client', migration: '0207', reason: RPC_0207 },
+	ideacad_new_part_concept: { kind: 'client', migration: '0207', reason: RPC_0207 },
+	ideacad_set_part_active: { kind: 'client', migration: '0207', reason: RPC_0207 },
+	ideacad_claim_part: { kind: 'client', migration: '0207', reason: RPC_0207 },
+	ideacad_beat_part: { kind: 'client', migration: '0207', reason: RPC_0207 },
+	ideacad_release_part: { kind: 'client', migration: '0207', reason: RPC_0207 },
+	ideacad_assign_part: { kind: 'client', migration: '0207', reason: RPC_0207 },
+
+	// --- 0207's five predicates, split the same way 0205's four are. Only
+	//     `_ideacad_part_reader` is named in an RLS `using` clause (0207 line
+	//     551), and 0207's own grant block is what says so: it alone is granted
+	//     to `authenticated`, the other four to `service_role` only. ---
+	_ideacad_part_reader: { kind: 'client', migration: '0207', reason: POLICY_PREDICATE },
+	_ideacad_hold_window: { kind: 'definer', migration: '0207', reason: DEFINER_ONLY },
+	_ideacad_part_owner: { kind: 'definer', migration: '0207', reason: DEFINER_ONLY },
+	_ideacad_part_writer: { kind: 'definer', migration: '0207', reason: DEFINER_ONLY },
+	_ideacad_concept_part_default: { kind: 'definer', migration: '0207', reason: DEFINER_ONLY },
+
+	// --- 0208's three materials RPCs, and the one helper that is not one. ---
+	ideacad_material_save_global: { kind: 'client', migration: '0208', reason: RPC_0208 },
+	ideacad_material_save_custom: { kind: 'client', migration: '0208', reason: RPC_0208 },
+	ideacad_material_set_retired: { kind: 'client', migration: '0208', reason: RPC_0208 },
+	_ideacad_clean_thicknesses: { kind: 'definer', migration: '0208', reason: DEFINER_ONLY }
 };
 
 /**
@@ -252,6 +284,19 @@ const ideacadNames = (pick: (f: IdeacadFn) => boolean): string[] =>
 		.filter(([, f]) => pick(f))
 		.map(([name]) => name)
 		.sort();
+
+/**
+ * THE MIGRATIONS 0206 SECTION 1 ENUMERATES, which is every ideacad migration
+ * that existed when it was written and can never be more than that: 0206 is
+ * applied and an applied migration is an immutable record. A later migration's
+ * functions are classified in `IDEACAD_FUNCTIONS` above and are absent from the
+ * guard BY DESIGN -- see section F.
+ */
+const GUARD_MIGRATIONS: readonly IdeacadFn['migration'][] = ['0201', '0205'];
+
+/** Whether a classified function is one 0206 could have had an opinion about. */
+const inGuardScope = (name: string): boolean =>
+	GUARD_MIGRATIONS.includes(IDEACAD_FUNCTIONS[name].migration);
 
 /** The prefix every ideacad function and table name starts from. */
 const IDEACAD_FN_RE = /^_?ideacad/;
@@ -807,17 +852,39 @@ describe('F. the migration guard and this file classify the same way', () => {
 	// statements of one rule -- deliberately, because a test whose expected
 	// value is derived from the thing it tests cannot fail -- and two
 	// independent statements are only worth having if something compares them.
-	it('names the same functions on both sides', () => {
-		// The FULL tables, not the chain-filtered cut: both are static lists
-		// somebody wrote, and they should agree whatever this run's chain holds.
+	it('names the same functions on both sides, over the migrations 0206 knows', () => {
+		// COMPARED OVER 0206'S OWN SCOPE, NOT OVER THE WHOLE TABLE, and the
+		// asymmetry is 0206's own and deliberate. Its header: an unclassified
+		// ideacad function "RAISES A NOTICE, NOT AN EXCEPTION ... The strict
+		// half of that decision lives in [this file], which DOES fail on an
+		// unclassified ideacad function -- a test is editable in the same
+		// commit that adds the function, and an applied migration is not."
+		// So 0207's fourteen and 0208's four are classified HERE and can never
+		// be classified THERE. Asserting equality over the full table would be
+		// asserting that an applied migration predicted its successors.
 		expect(
 			[...guardClassification.keys()].sort(),
 			'0206 section 1 and IDEACAD_FUNCTIONS disagree about which functions exist'
-		).toEqual(Object.keys(IDEACAD_FUNCTIONS).sort());
+		).toEqual(Object.keys(IDEACAD_FUNCTIONS).filter(inGuardScope).sort());
+	});
+
+	it('leaves every later migration\'s function out of the guard, rather than half in', () => {
+		// The other direction, so the cut above cannot quietly stop covering
+		// anything. A function from a post-0206 migration that turned up in the
+		// guard would mean somebody edited an applied record.
+		const leaked = Object.entries(IDEACAD_FUNCTIONS)
+			.filter(([name, f]) => !GUARD_MIGRATIONS.includes(f.migration) && guardClassification.has(name))
+			.map(([name]) => name)
+			.sort();
+		expect(leaked, '0206 is applied and immutable; it cannot have gained a row').toEqual([]);
+		// Positive control: the scoped cut is not empty, so the equality above
+		// is not two empty lists agreeing.
+		expect(Object.keys(IDEACAD_FUNCTIONS).filter(inGuardScope).length).toBeGreaterThan(0);
 	});
 
 	it('puts each of them on the same side of the client/definer line', () => {
 		const disagree = Object.entries(IDEACAD_FUNCTIONS)
+			.filter(([, f]) => GUARD_MIGRATIONS.includes(f.migration))
 			.filter(([name, f]) => guardClassification.get(name) !== f.kind)
 			.map(([name, f]) => `${name}: here ${f.kind}, 0206 ${guardClassification.get(name)}`)
 			.sort();
