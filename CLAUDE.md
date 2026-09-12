@@ -1142,7 +1142,7 @@ This applies to every change. Prompts do not need to restate it.
 
 **Always:**
 
-- **`svelte-check` at the baseline: 0 errors, 40 warnings in 22 files.** Any
+- **`svelte-check` at the baseline: 0 errors, 38 warnings in 21 files.** Any
   change to either number is a finding to report, not something to leave
   unmentioned.
   - **RE-DERIVE IT, NEVER TRUST THIS LINE ALONE.** `npx svelte-kit sync &&
@@ -1165,7 +1165,7 @@ This applies to every change. Prompts do not need to restate it.
     `$env/static/public` -- prefer the instrument (export the two values, then
     sync, then read the summary line) to the number. **Export the two values
     (any placeholder will do) BEFORE the sync** and the count returns to 0
-    errors / 40 warnings with the 34/5/1 breakdown intact, measured. The
+    errors / 38 warnings with the 32/5/1 breakdown intact, measured. The
     warnings are unaffected either way, which is the tell: a real regression
     moves one of those numbers, this moves only the errors and only in files
     the diff never named. A number written down here is a number that drifts: this
@@ -1174,7 +1174,12 @@ This applies to every change. Prompts do not need to restate it.
     being trusted rather than measured looks like. **It then said 37 against a
     tree measuring 40**, and ledger 0161 and prompt 0163 each measured 40 in 22
     files independently before either said so -- the same shape a third time,
-    and the drift is entirely `state_referenced_locally`, 31 to 34. **A session
+    and the drift is entirely `state_referenced_locally`, 31 to 34. **It then said
+    40 in 22 against a tree measuring 38 in 21**, on `origin/integration` at
+    `6a71eff4` on 2026-09-12 (ledger 0180) -- a FOURTH time, the drift a fourth
+    time entirely `state_referenced_locally`, 34 down to 32, and the first time
+    it moved DOWNWARDS, which is worth saying because a falling count is the one
+    a session is least likely to read as a finding. **A session
     that measures a different number CORRECTS THIS LINE in the same change**,
     and says in its history entry which warning moved.
   - **A FRESH `npm ci` CHECKOUT HAS NO `.svelte-kit`, AND `npm test` REPORTS A
@@ -1187,8 +1192,8 @@ This applies to every change. Prompts do not need to restate it.
     and the same fresh checkout runs clean. This bites in the same first five
     minutes as the missing-`.env` phantom errors above and for the same root
     cause: nothing has generated the `.svelte-kit` output yet.
-  - The 40 break down as 34 `state_referenced_locally`, 5
-    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 22 files. The
+  - The 38 break down as 32 `state_referenced_locally`, 5
+    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 21 files. The
     breakdown is the diagnostic: it says WHICH kind moved when the total does,
     and a total that holds while the mix changes is still a finding. Read it
     with `npx svelte-check --output human 2>&1 | grep -o "svelte.dev/e/[a-z_]*"

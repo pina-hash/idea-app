@@ -131,13 +131,19 @@ export default {
 		   `footer button` pair below the only confirm pair on screen. */
 		{ selector: '[data-testid="ideacad-property-manager"]', label: 'the PropertyManager, closed', expectPresent: 0 },
 		{ selector: '.viewport nav button', label: 'view toolbar controls', expectPresent: 5, expectVisible: 5 },
-		{ selector: '.readouts .metric', label: 'rule readouts and the centre of mass', expectPresent: 5, expectVisible: 5 },
-		/* The gate, as an ABSENCE with its own positive control beside it: the
-		   compare sheet is not open here, so the physics rows must not be in the
-		   document at all. `ideacad-compare.mjs` opens it and asserts the same
-		   absence with the sheet on screen. */
+		/* SEVEN, and the last two are decision 26's answer: four rules, the centre
+		   of mass, the rotational inertia and the radius of gyration. The physics
+		   used to sit behind the prediction gate in the compare sheet; Mr. Pina
+		   decided on 2026-09-12 that it is always visible, so this is where "from
+		   the first frame" is actually measured -- the compare sheet is a thing a
+		   student opens and the rail is what is on screen when the editor mounts. */
+		{ selector: '.readouts .metric', label: 'rule readouts, the centre of mass and the physics', expectPresent: 7, expectVisible: 7 },
+		/* The compare sheet is not open on this state. Its physics rows are
+		   therefore absent from the DOCUMENT -- which is a statement about the
+		   sheet not being open, NOT about anything being withheld; the two
+		   numbers themselves are in the rail above, asserted present. */
 		{ selector: '.compare', label: 'the compare sheet, closed on this state', expectPresent: 0 },
-		{ selector: '.compare dl', label: 'the comparative physics, gated', expectPresent: 0 },
+		{ selector: '.compare dl', label: 'the comparative physics, absent with the sheet', expectPresent: 0 },
 		{ selector: 'footer button', label: 'Accept and Cancel', expectPresent: 2, expectVisible: 2 }
 	],
 	contrast: [
@@ -155,6 +161,17 @@ export default {
 		   asked of `.triad text`, because an SVG root has no text of its own. */
 		{ selector: '.triad text', label: 'a reference-triad axis letter over the viewport', min: 4.5, all: true },
 		{ selector: '.view', label: 'the current view name', min: 4.5 }
+	],
+	textContains: [
+		{
+			selector: '.readouts',
+			/* The words, not only the row count above. A rail that grew two rows
+			   with the wrong labels in them would satisfy a count and say nothing
+			   about rotational inertia. */
+			label: 'the rail names the physics and prints a real figure',
+			must: ['Rotational inertia', 'Radius of gyration', 'g·cm²', 'cm'],
+			mustNot: []
+		}
 	],
 	tapTargets: [
 		{ selector: '.viewport nav button', label: 'a view toolbar control' },

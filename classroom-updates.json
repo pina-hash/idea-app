@@ -1367,6 +1367,17 @@
 				"phone",
 				"fix"
 			]
+		},
+		{
+			"date": "2026-09-12",
+			"title": "Your blade design now saves, and the spin numbers are always on screen",
+			"body": "Two changes to the blade editor. First, your work saves. Until now the editor let you build a concept, showed \"Saved\" in the corner, and kept none of it: opening the assignment again gave you an empty blade. It now saves about a second after you stop editing, and the word in the corner tells you the truth about it, so you can close the tab and come back to what you left. Anything you built before today is not there to recover, and we are sorry about that. Second, the physics is no longer hidden. Rotational inertia and radius of gyration used to be locked until you wrote a prediction; they now read in the Rules panel from the moment the editor opens, and in every column when you press Compare. You are still asked which of your concepts you think spins longest and why, because working that out for yourself is the point, but nothing waits on your answer any more.",
+			"tags": [
+				"Assignments",
+				"blade editor",
+				"IDEA100",
+				"fix"
+			]
 		}
 	]
 }
