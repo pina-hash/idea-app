@@ -38,9 +38,9 @@
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import '$lib/shell/split.css';
 
+	import FoundryCard from './FoundryCard.svelte';
 	import FoundryDetail from './FoundryDetail.svelte';
-	import { foundryAuthorClass, foundryAuthorName } from './surface.ts';
-	import { foundryCoverFailed } from './covers.ts';
+	import { foundryMosaicColumns } from './mosaic.ts';
 	import {
 		FOUNDRY_GALLERY_SORTS,
 		playCountLabel,
@@ -128,6 +128,23 @@
 
 	/** Pure, stable, and it never mutates the list the route handed in. */
 	const ordered = $derived(sortGallery(apps, playCounts, sort));
+
+	/**
+	 * THE COLUMN CEILING, CAPPED AT THE NUMBER OF CARDS.
+	 *
+	 * `CLAUDE.md`'s multicol rule: multicol has no `auto-fit`, so it cuts every
+	 * column the width holds and leaves the spare ones EMPTY -- three apps in a
+	 * five-column container is three narrow columns and two columns of void.
+	 * The arithmetic is `mosaic.ts`'s and is asserted there without a browser.
+	 *
+	 * IT RIDES AN INLINE CUSTOM PROPERTY, which this repo is otherwise wary of
+	 * (an inline property beats every class rule, which is what made the
+	 * launcher's shared accent dead code). The distinction is that this is DATA
+	 * -- how many apps there are, knowable only at render -- and not paint:
+	 * nothing in a stylesheet could ever have set it, so nothing in a stylesheet
+	 * is being overridden.
+	 */
+	const mosaicColumns = $derived(foundryMosaicColumns(ordered.length, 5));
 </script>
 
 <ClassSplit hasDetail={selected !== null} narrow="swap" scroll="fill" detailWidth="roomy">
@@ -185,81 +202,41 @@
 					<a class="btn tap-44" href="/foundry/submit">Publish something</a>
 				</div>
 			{:else}
-				<ul class="fdy-gal-grid" data-testid="foundry-gallery-grid">
+				<ul
+					class="fdy-gal-mosaic"
+					data-testid="foundry-gallery-grid"
+					style="--fdy-cols: {mosaicColumns}"
+				>
 					{#each ordered as app (app.id)}
-						{@const author = foundryAuthorName(app)}
-						{@const cls = foundryAuthorClass(app)}
+						<!--
+							THE COUNT IS THE CALLER'S DECISION, NOT THE CARD'S, and it is
+							made here because this is what knows which ranking is in force.
+							Nothing at all under `Recent`: a number on every card of a
+							gallery nobody ordered by plays is noise, and it reads as a
+							verdict on the work rather than as a measurement. Under a play
+							ranking it follows the window being sorted on -- a card ranked
+							by this week showing its all-time total would be a ranking the
+							reader cannot check, and a ranked gallery showing no numbers at
+							all would be one they cannot check either.
+						-->
 						{@const plays = playCountLabel(
 							sort === 'played7d'
 								? (playCounts[app.id]?.plays7d ?? 0)
 								: (playCounts[app.id]?.plays ?? 0)
 						)}
+						{@const playsLabel =
+							sort === 'recent' || !plays
+								? ''
+								: `${plays}${sort === 'played7d' ? ' this week' : ''}`}
 						<li>
-							<!--
-								A LINK, not a button with a click handler. It carries a real
-								href so the row can be middle-clicked, copied and opened in a
-								tab; `onSelect` is what keeps the navigation client-side.
-							-->
-							<a
-								class="fdy-card"
-								class:selected={selected?.slug === app.slug}
+							<FoundryCard
+								{app}
 								href="/foundry?app={app.slug}"
-								data-app-slug={app.slug}
-								onclick={(e) => {
-									if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-									e.preventDefault();
-									onSelect(app.slug);
-								}}
-							>
-								<span class="fdy-card-cover">
-									{#if app.cover_path}
-										{@const src = coverUrl(app.cover_path)}
-										{#if src}
-											<img {src} alt="" loading="lazy" onerror={foundryCoverFailed} />
-										{:else}
-											<span class="fg-cover-bad" aria-hidden="true"></span>
-										{/if}
-									{:else}
-										<!-- No cover is a normal state. A tile with the app's own
-										     initial, never a stock "no image" graphic. -->
-										<span class="fdy-card-blank" aria-hidden="true">
-											{app.title.trim().slice(0, 1).toUpperCase()}
-										</span>
-									{/if}
-								</span>
-								<span class="fdy-card-body">
-									<span class="fdy-card-title">{app.title}</span>
-									{#if app.tagline}
-										<span class="fdy-card-tagline">{app.tagline}</span>
-									{/if}
-									<!--
-										The author line, each half conditional on its own. A null
-										class renders NOTHING -- not an empty span, not a
-										separator, not a label.
-									-->
-									{#if author || cls || plays}
-										<span class="fdy-card-by">
-											{#if author}<span class="fdy-card-author">{author}</span>{/if}
-											{#if cls}<span class="fdy-card-class">{cls}</span>{/if}
-											<!--
-												NOTHING AT ALL FOR ZERO. "0 plays" on every card of a
-												gallery nobody has opened yet is noise on every card,
-												and it reads as a verdict on the work rather than as
-												the absence of a measurement. The count follows
-												whichever window is being sorted on, so the number a
-												card shows is the number it was ordered by -- a card
-												ranked by this week showing its all-time total would
-												be a ranking the reader cannot check.
-											-->
-											{#if plays}
-												<span class="fdy-card-plays" data-testid="fdy-card-plays">
-													{plays}{sort === 'played7d' ? ' this week' : ''}
-												</span>
-											{/if}
-										</span>
-									{/if}
-								</span>
-							</a>
+								selected={selected?.slug === app.slug}
+								{coverUrl}
+								plays={playsLabel}
+								onselect={onSelect}
+							/>
 						</li>
 					{/each}
 				</ul>
@@ -401,160 +378,50 @@
 		color: var(--text-2, var(--dim));
 	}
 
-	/*
-	   `auto-fit`, NOT `auto-fill`: a gallery with two apps in it gets two
-	   columns rather than two and a void. `minmax(min(20rem, 100%), 1fr)` is
-	   what makes the same rule the single narrow column when the pane is
-	   narrow, with no breakpoint of its own -- the `min()` stops a 20rem track
-	   from forcing the grid wider than the pane on a phone.
+	/* ======================================================================
+	   THE MOSAIC
 
-	   20rem is measured rather than round: below it a two-line tagline in this
-	   type size starts ellipsising on the second line, and above it the card
-	   stops gaining anything.
-	*/
-	.fdy-gal-grid {
+	   A MULTI-COLUMN CONTAINER AND NEVER A GRID, which is `CLAUDE.md`'s own
+	   rule for panels of unequal height and is load-bearing here rather than
+	   stylistic: a grid ROW is as tall as its tallest member, so in a mosaic
+	   of arbitrary shapes a 2:1 card beside a 9:16 one leaves most of that
+	   row dead -- the exact defect measured on the classroom stream at
+	   713.3px of one column. Columns have no rows to lock: each card is
+	   `break-inside: avoid`, they fill down one column and on into the next,
+	   and `column-fill: balance` picks the shortest height that holds them.
+
+	   WHAT IT COSTS, STATED RATHER THAN DISCOVERED: the reading order is
+	   COLUMN-MAJOR. Under `Most played` the second-ranked app is BELOW the
+	   first rather than beside it. That is the price of a gapless mosaic in
+	   CSS today -- `grid-template-rows: masonry` is not shipped, and the
+	   alternatives are a JS layout pass or `grid-auto-flow: dense`, which
+	   reorders a ranked list outright to backfill its holes.
+
+	   `column-width` AND A COUNT, never a count alone: the width is what
+	   makes the same rule one column in a narrow pane with no breakpoint of
+	   its own, and the count is the ceiling multicol needs because it has no
+	   `auto-fit` -- it cuts every column the width holds and leaves the
+	   spare ones empty. `--fdy-cols` is capped at the number of cards by
+	   `foundryMosaicColumns`.
+
+	   15rem is measured rather than round: it is the narrowest column in
+	   which a 2:1 card -- the widest shape the clamp permits -- still holds
+	   its name plate on one line at this type size.
+	   ====================================================================== */
+	.fdy-gal-mosaic {
 		list-style: none;
 		margin: 0;
 		padding: 0;
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
-		gap: var(--space-3, 0.75rem);
+		columns: 15rem var(--fdy-cols, 1);
+		column-gap: var(--space-3, 0.75rem);
+		column-fill: balance;
 	}
 
-	/*
-	   THE THUMBNAIL WAS A 4.5rem SQUARE ICON, AND THAT WAS THE DEFECT. A cover
-	   is a screenshot of a running app, which is landscape by construction --
-	   a browser or a phone frame is always wider than it is tall -- so
-	   `object-fit: contain` inside a 72px square left most covers as a thin
-	   letterboxed strip a few pixels tall, which reads as broken or missing
-	   rather than as a deliberately small thumbnail. The box is not the wrong
-	   FIT, it was the wrong SHAPE for what actually gets uploaded.
-	*/
-	.fdy-card {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2, 0.5rem);
-		/* 44px floor as a MINIMUM, never a height: this card is far taller, and
-		   a fixed height here would clip a wrapped title. */
-		min-height: 44px;
-		padding: var(--space-3, 0.75rem);
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-md, 8px);
-		background: var(--surface-1, var(--bg1));
-		text-decoration: none;
-		color: inherit;
-	}
-
-	.fdy-card:hover,
-	.fdy-card:focus-visible {
-		border-color: var(--green);
-	}
-
-	.fdy-card.selected {
-		border-color: var(--green);
-		background: var(--surface-2, var(--bg2));
-	}
-
-	/*
-	   16:9 IS THE COVER'S OWN SHAPE, MEASURED FROM WHAT ACTUALLY GETS UPLOADED
-	   RATHER THAN CHOSEN AS A ROUND NUMBER: a browser window, a phone screen in
-	   either orientation and a desktop app window are all wider ranges that sit
-	   close to it, and none of them are square. A cover in a box shaped like
-	   its own aspect ratio needs no letterboxing to speak of, so `contain`
-	   stops being the thing fighting the layout.
-	*/
-	.fdy-card-cover {
-		display: block;
-		width: 100%;
-		aspect-ratio: 16 / 9;
-		border-radius: var(--radius-sm, 6px);
-		overflow: hidden;
-		background: var(--surface-2, var(--bg2));
-		border: 1px solid var(--hairline);
-	}
-
-	.fdy-card-cover img {
-		width: 100%;
-		height: 100%;
-		/*
-		   `scale-down`, NOT `contain`: it behaves exactly like `contain` for
-		   anything at or above the box size (never crops, never hides an edge --
-		   the reasoning `contain` was chosen for stands), but it refuses to
-		   enlarge an image SMALLER than the box. `contain` alone stretches a
-		   small upload to fill the frame, which is the "upscaled and blurry"
-		   failure mode: a screenshot saved small comes back soft and pixelated
-		   at this size instead of rendering at its own native sharpness with
-		   plain letterboxing around it.
-		*/
-		object-fit: scale-down;
-	}
-
-	.fdy-card-blank {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 100%;
-		height: 100%;
-		font-family: var(--font-title, var(--font-display));
-		/* Large enough to read as a deliberate placeholder mark rather than a
-		   shrunken accident -- it fills a real fraction of a 16:9 box instead of
-		   the single small glyph a 72px square could hold. */
-		font-size: 2.75rem;
-		color: var(--text-2, var(--dim));
-	}
-
-	/* min-width: 0 so a long unbroken title cannot force the whole grid wider
-	   than the pane -- an item's automatic minimum is its min-content, and an
-	   ellipsis does not reduce that. */
-	.fdy-card-body {
-		display: flex;
-		flex-direction: column;
-		gap: 0.15rem;
-		min-width: 0;
-	}
-
-	.fdy-card-title {
-		font-family: var(--font-display);
-		font-size: 1.05rem;
-		color: var(--text-1, var(--white));
-		overflow-wrap: anywhere;
-	}
-
-	.fdy-card-tagline {
-		font-size: 0.9rem;
-		color: var(--text-2, var(--dim));
-		overflow-wrap: anywhere;
-	}
-
-	.fdy-card-by {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.4rem;
-		margin-top: 0.15rem;
-		font-family: var(--font-mono);
-		font-size: 0.78rem;
-	}
-
-	.fdy-card-author {
-		color: var(--cyan);
-	}
-
-	.fdy-card-class {
-		color: var(--text-2, var(--dim));
-		padding-left: 0.4rem;
-		border-left: 1px solid var(--boundary);
-	}
-
-	/*
-	   Metadata, so `--text-2` for the weight -- the token measured for secondary
-	   copy on all three portal grounds. NOT `--green`: a play count is a fact
-	   about an app, not a success state, and the primary accent is reserved for
-	   actions, active navigation and completion.
-	*/
-	.fdy-card-plays {
-		color: var(--text-2, var(--dim));
-		padding-left: 0.4rem;
-		border-left: 1px solid var(--boundary);
+	/* Multicol has no row gap, so the gap between two cards in one column is
+	   the card's own bottom margin. */
+	.fdy-gal-mosaic li {
+		break-inside: avoid;
+		margin: 0 0 var(--space-3, 0.75rem);
 	}
 
 	.fdy-gal-detail {
