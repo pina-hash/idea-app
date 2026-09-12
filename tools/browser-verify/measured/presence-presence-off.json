@@ -1,0 +1,22 @@
+{
+	"schema": 1,
+	"spec": "presence-presence-off.mjs",
+	"date": "2026-09-12T05:39:57.552Z",
+	"sha": "2940ef5327778434c8c6bb05558d8b9e04704c5f",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 14,
+	"outsideRows": [
+		{
+			"path": "/dev/presence?presence=off",
+			"width": 375,
+			"check": "presence",
+			"label": "the roster itself, unchanged"
+		}
+	],
+	"ms": 6202
+}

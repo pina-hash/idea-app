@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "grading-change.mjs",
+	"date": "2026-09-12T05:18:26.073Z",
+	"sha": "949480c824e4521bac612836bb2dcf7e47aca1a8",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 24,
+	"outsideRows": [],
+	"ms": 5323
+}
