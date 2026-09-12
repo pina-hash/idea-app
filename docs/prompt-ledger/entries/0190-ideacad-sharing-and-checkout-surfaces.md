@@ -20,3 +20,10 @@
   `/dev/ideacad-team` is created rather than editing
   `src/routes/dev/ideacad/+page.svelte`, which belongs to ledger 0171: a
   browser-verify spec needs a page to drive and a new URL collides with nobody.
+  A last adversarial read of the diff after the status flip found one real
+  wrinkle and it is fixed in that same commit: `ideacad_release_part` accepts
+  the assembly OWNER freeing somebody else's part, and the controller cleared
+  its own hold on every successful release. The follow-up read re-derived it,
+  so it recovered by accident -- and the first test written for it passed on
+  the broken code for exactly that reason. It bites now with the re-read made
+  to fail, which is the one case where recovering by accident stops working.

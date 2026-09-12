@@ -518,6 +518,13 @@ export function createIdeacadCheckout(
 			return act(
 				() => transports.releasePart(partId),
 				() => {
+					// ONLY IF IT WAS THE PART WE WERE HOLDING. `ideacad_release_part`
+					// also accepts the ASSEMBLY OWNER releasing somebody else's part,
+					// so an owner holding p2 and freeing p3 would otherwise drop
+					// their own hold and stop their own heartbeat. The next read
+					// happens to re-derive it, but recovering by accident is not the
+					// same as not breaking it.
+					if (current.myPartId !== partId) return;
 					stopBeat();
 					stopTick();
 					publish({ myPartId: null, myHoldRevision: null, secondsLeft: null });

@@ -88,9 +88,11 @@ function rig(initial: IdeacadAssembly) {
 	const calls: string[] = [];
 	let claim: IdeacadHoldResult | Error | null = null;
 	let beat: IdeacadHoldResult | Error | null = null;
+	let readError: Error | null = null;
 	const transports: IdeacadAssemblyTransports = {
 		async assembly() {
 			calls.push('assembly');
+			if (readError) throw readError;
 			return payload;
 		},
 		async claimPart(partId) {
@@ -137,6 +139,9 @@ function rig(initial: IdeacadAssembly) {
 		},
 		set beat(next: IdeacadHoldResult | Error | null) {
 			beat = next;
+		},
+		set readError(next: Error | null) {
+			readError = next;
 		}
 	};
 }
@@ -421,6 +426,33 @@ describe('the controller', () => {
 		await c.claim('p1');
 		expect(c.state.phase).toBe('idle');
 		expect(c.state.myHoldRevision).toBe(7);
+	});
+
+	it('keeps its own hold when the OWNER releases a DIFFERENT part', async () => {
+		// `ideacad_release_part` accepts the assembly owner freeing somebody
+		// else's part, so a handler that cleared the local hold on every
+		// successful release would stop the owner's own heartbeat on the part
+		// they are working in. The next read happens to re-derive it, which is
+		// exactly why this is asserted rather than left to recover by accident.
+		const r = rig(
+			assembly([part('p1', 1, ME, 1_000, 4), part('p2', 2, THEM, 1_000, 2)], { isOwner: true })
+		);
+		const c = open(r);
+		await c.open('doc-1');
+		expect(c.state.myPartId).toBe('p1');
+		// THE FOLLOW-UP READ FAILS, WHICH IS WHAT MAKES THIS ASSERTABLE AT ALL.
+		// `adopt` re-derives the hold from every successful read, so with the
+		// read landing the state recovers whether or not the guard is there and
+		// the assertion below passes on the broken code too -- measured, the
+		// mutant survived exactly that version of this test. One network blip
+		// between the release and the re-read is the case where recovering by
+		// accident stops working, and it is a case a phone on school wifi has
+		// every period.
+		r.readError = new Error('the re-read did not land');
+		await c.release('p2');
+		expect(c.state.myPartId).toBe('p1');
+		expect(c.state.myHoldRevision).toBe(4);
+		expect(c.state.secondsLeft).not.toBeNull();
 	});
 
 	it('drops the hold when the OWNER reassigns a part they were holding themselves', async () => {
