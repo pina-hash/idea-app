@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "ideacad.mjs",
-	"date": "2026-09-12T16:01:15.208Z",
-	"sha": "7ad0cb3c1215f141ae7cdf7b5943c0493017741b",
+	"date": "2026-09-12T19:47:45.346Z",
+	"sha": "3101186ed82b828bf4139e349a6123f024f7dd00",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 74,
 	"outsideRows": [],
-	"ms": 10899
+	"ms": 9213
 }

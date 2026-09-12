@@ -48,11 +48,76 @@ writes through the `is_admin()` RLS policies with `maps_publish` as the one RPC
 per 0161's own header), and the portal shell
 (`/`, `/dashboard`, `/admin`).
 
-**IDEACAD IS CLASSROOM'S SCHEMA-4 NATIVE CAD ENGINE.** Its four tables are
-`ideacad_editors`, `ideacad_documents`, `ideacad_concepts` and
-`ideacad_predictions`. The feature tree is the document and every geometry and physics
+**IDEACAD IS CLASSROOM'S SCHEMA-4 NATIVE CAD ENGINE.** Its tables are
+`ideacad_editors`, `ideacad_documents`, `ideacad_concepts`,
+`ideacad_predictions` and `ideacad_materials`. The feature tree is the document and every geometry and physics
 readout is derived from it. Realtime broadcast is only the speed layer: the database poll
 is the floor, frames are roster- and revision-filtered, and no frame can write state.
+
+**MATERIALS ARE DATA, NOT CONSTANTS, AND THAT IS MR. PINA'S DECISION OF
+2026-09-12.** He rejected a bundle that hardcoded six materials into
+`src/lib/ideacad/blade/materials.ts`: a material is four numbers in a form, the
+engine already does the calculation from input values, and shipping a code
+change to add one is overkill. `ideacad_materials` (0208) is one table with TWO
+LAYERS -- `owner` NULL is a GLOBAL material only an admin writes, from
+`/admin/ideacad-materials`, with no deploy; `owner` set is a student's own
+CUSTOM material, visible to nobody else. `DEFAULT_BLADE_CONFIG` survives as the
+FALLBACK a deployment with no library still resolves against, and is not the
+list anybody edits.
+  - **THICKNESS IS DATA TOO AND IT IS THE LESSON.** In real life you work with
+    the thicknesses of material you actually have; you cannot make it any
+    thickness you want. So a material carries a list of real stock thicknesses
+    and a student PICKS from it. There is no free-text thickness field on either
+    layer -- a custom material lists the thicknesses that student actually has.
+  - **THE STORED TREE DID NOT CHANGE AND MUST NOT.** A schema-1 blade tree still
+    carries `materials.body` and `materials.bladeStock` as two strings; material
+    and thickness are two CONTROLS over ONE stored stock id,
+    `<slug>-<thickness with the decimal point removed>`. Two stored fields would
+    make every row already in `ideacad_concepts` a legacy shape
+    `validateBladeTree` answers for forever. `thicknessKey` is the one spelling
+    of that rule and it is FORCED: 0.125 -> `0125` and 0.1875 -> `01875` is what
+    reproduces the deployed `steel-0125`, `steel-01875` and `aluminum-0125`, so
+    the seed gives the carbon-steel row the slug `steel` and the 6061 row the
+    slug `aluminum` and no stored concept is rewritten. A fixed-decimal spelling
+    gives `01250` and every saved concept stops resolving, silently.
+  - **RESOLUTION AND SELECTION ARE TWO SETS, AND THAT IS HOW RETIRING STOPS
+    BREAKING A SAVED PART.** `bladeConfigWithMaterials` is the RESOLUTION set and
+    is TOTAL -- retired rows included, the fallback config's own ids included,
+    and a zero-density placeholder for anything left over -- because `evaluate()`
+    non-null-asserts both lookups and an unresolved id is a rail of NaN.
+    `materialChoices` / `bladeStockChoices` are the SELECTION set and are live
+    rows only, PLUS whatever the part is already on, marked retired. It has to
+    resolve every id every concept on screen names, not just the draft's: the
+    compare sheet evaluates them all against one config.
+  - **NOTHING IS EVER DELETED, BY ANYBODY, ON EITHER LAYER.** `retired_at`
+    shelves; there is no delete RPC and no delete grant. A material is named by
+    id inside a jsonb blob of student work and nothing can find every tree that
+    names one.
+  - **A DENSITY NAMES ITS PUBLISHED SOURCE AND CARRIES A `source_verified`
+    COLUMN.** Every row 0208 seeded lands FALSE, because the session that wrote
+    it had no network route to any of the named documents and did not open one
+    (`IDEA_MATERIALS_PROCESS.md`: an AI's recollection of a datasheet is not a
+    datasheet). Every surface renders an UNVERIFIED chip while the flag is
+    false. Clearing it is the act of somebody with the source in front of them.
+  - **NO 3D-PRINTED MATERIAL IS A LIVE GLOBAL.** A printed part's density
+    depends on slicer settings, so a shared figure is a stated mass that is a
+    lie; that is exactly what the custom layer is for. `pla` and `petg` are
+    seeded RETIRED, and only because documents saved against the pre-0208
+    hardcoded list name them.
+  - **THE MATERIALS PANEL IS IN THE TREE PANE, NOT THE RULES RAIL, AND THE RAIL
+    HAS NO ROOM.** Ledger 0178 put the rail's content 40px over its box by adding
+    two rows, under a fold this container's Chromium draws no scrollbar for; it
+    sits at 502px in 515px with 13px spare. `panelFor('materials')` returns NULL
+    and `BladeEditor` branches on `panelId === 'materials'` before it reads the
+    panel, so there is exactly one materials panel rather than a generic one and
+    a purpose-built one.
+  - **A TEACHER CANNOT SEE A STUDENT'S CUSTOM MATERIAL, and that is a known open
+    hole rather than an oversight.** The select policy is
+    `owner is null or owner = auth.uid()`. Widening it would mean putting
+    `_notebook_email_for_user` inside an RLS `using` clause, which needs an
+    `authenticated` EXECUTE grant on the uuid/email bridge 0137 deliberately
+    closed. The fix, when it is wanted, is `ideacad_roster` projecting the four
+    numbers -- not a policy.
   - **THE `/maps/edit` GATE IS THE AREA'S `+layout.server.ts`**, hoisted there
     the moment there was a second page, so a third cannot ship ungated by
     somebody forgetting to copy a check. The editor page keeps its own identical
@@ -1142,7 +1207,7 @@ This applies to every change. Prompts do not need to restate it.
 
 **Always:**
 
-- **`svelte-check` at the baseline: 0 errors, 38 warnings in 21 files.** Any
+- **`svelte-check` at the baseline: 0 errors, 37 warnings in 20 files.** Any
   change to either number is a finding to report, not something to leave
   unmentioned.
   - **RE-DERIVE IT, NEVER TRUST THIS LINE ALONE.** `npx svelte-kit sync &&
@@ -1179,7 +1244,13 @@ This applies to every change. Prompts do not need to restate it.
     `6a71eff4` on 2026-09-12 (ledger 0180) -- a FOURTH time, the drift a fourth
     time entirely `state_referenced_locally`, 34 down to 32, and the first time
     it moved DOWNWARDS, which is worth saying because a falling count is the one
-    a session is least likely to read as a finding. **A session
+    a session is least likely to read as a finding. **And then it said 38 in 21
+    against a tree measuring 37 in 20**, on `origin/integration` at `b0a8101d`
+    on 2026-09-12 (ledger 0186) -- a FIFTH time, the drift a fifth time entirely
+    `state_referenced_locally`, 32 down to 31, and downwards again. Five
+    corrections in three weeks is the argument for the instrument over the
+    number: run the command, read the summary line, and treat whatever is
+    written here as the previous session's reading. **A session
     that measures a different number CORRECTS THIS LINE in the same change**,
     and says in its history entry which warning moved.
   - **A FRESH `npm ci` CHECKOUT HAS NO `.svelte-kit`, AND `npm test` REPORTS A
@@ -1192,8 +1263,8 @@ This applies to every change. Prompts do not need to restate it.
     and the same fresh checkout runs clean. This bites in the same first five
     minutes as the missing-`.env` phantom errors above and for the same root
     cause: nothing has generated the `.svelte-kit` output yet.
-  - The 38 break down as 32 `state_referenced_locally`, 5
-    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 21 files. The
+  - The 37 break down as 31 `state_referenced_locally`, 5
+    `css_unused_selector`, 1 `perf_avoid_nested_class`, over 20 files. The
     breakdown is the diagnostic: it says WHICH kind moved when the total does,
     and a total that holds while the mix changes is still a finding. Read it
     with `npx svelte-check --output human 2>&1 | grep -o "svelte.dev/e/[a-z_]*"
