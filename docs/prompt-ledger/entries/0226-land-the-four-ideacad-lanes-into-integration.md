@@ -9,7 +9,7 @@
   `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0226-*`, and its
   own `docs/history/` entry. NO OTHER FILE.
 - Migration permitted: no. **Claims: none.**
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness, branched from `origin/integration`.
 - Notes: ledgers 0222, 0223, 0224 and 0225 all finished and pushed and none was
   swept into `integration`. Why is unestablished: the router chat's check of CI
