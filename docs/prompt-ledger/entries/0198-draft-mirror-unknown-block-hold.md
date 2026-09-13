@@ -7,7 +7,7 @@
   `docs/history/` entry. NOT the grid node or its NodeView (ledger 0192 owns those and
   they are landing), and no file of ledgers 0195, 0196 or 0197.
 - Migration permitted: no. Claims: none.
-- Status: issued
+- Status: pushed
 - Branch: `claude/tender-davinci-gl6z72`, branched from `origin/integration` at `843b3860`.
 - Notes: The defect was measured by ledger 0192 and PINNED IN A TEST IT COULD NOT FIX,
   because `draft-mirror.ts` was outside its surface. A build without the grid node,
