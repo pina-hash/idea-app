@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.27 - 2026-09-13**
+**Version 4.28 - 2026-09-13**
 
 ## These Instructions Evolve
 
@@ -734,7 +734,7 @@ between two rows, round up.
 |---|---|---|
 | Trivial mechanical edit: copy tweak, rename, single-locator swap, static-content change, one-line fix | Haiku 4.5 | low |
 | Bounded and fully specified, one file surface, nothing to investigate: a locator swap set, a copy pass, a portal update from settled text, a standards push with its fork check | Sonnet 5 | medium |
-| The default build row. Any well-scoped bundle of any size within one owned surface: surgical edits with subtle correctness, a migration with its test, a harness spec, an audit phase whose questions have answers in the tree, a read-only audit | Opus 5 | high |
+| The build row, reached and never defaulted to. Any well-scoped bundle of any size within one owned surface: surgical edits with subtle correctness, a migration with its test, a harness spec, an audit phase whose questions have answers in the tree, a read-only audit | Opus 5 | high |
 | The session must decide something the chat could not specify: an undocumented or unfamiliar subsystem, a port of a shape between repos, a repo-wide conformance or sweep, first-draft architecture, an irreversible operation | Fable 5.1 | high; `xhigh` only for the irreversible or repo-wide case. `ultracode` is NOT a higher rung than either and is never chosen on severity; see the override below |
 | High-volume work stated completely as data, formulas, tests and file surfaces, where nothing is left for the session to decide: a migration with its tests, pure modules with closed-form tests, transports, harness specs, records, a parity or conformance sweep with a fixed list | GPT-6 Astra, as a Codex cloud task | Codex's own reasoning setting, `high`. Chosen for cost and speed on volume, per Mr. Pina on 2026-09-10, not on a claim about which model is better. The prompt is written for Codex; see "Two agents, one repository" |
 
@@ -804,14 +804,54 @@ Overrides that beat the table:
   hand, not run through CC, so this routing covers repo-based CC prompts only. A rare
   high-risk repo edit still follows the tier-up plus `xhigh` override above.
 
-**Re-derive every time; never carry forward.** Classify each CC prompt against the
-table above on its own, independent of what model or effort the previous prompt in
-the same session used. Defaulting to whatever tier was used earlier in a session,
-especially the heaviest one, is a known failure mode this note exists to prevent.
-State which row the prompt matches as part of the one-line reason, not just a model
-name next to a generic justification, so the stated row and the chosen model can be
-checked against each other at a glance. Effort labels are exactly low, medium, high,
-xhigh, or max; there is no "standard" or intermediate label.
+**THE TIER IS CHOSEN PER PROMPT AND IS NEVER A DEFAULT.** This replaces the default
+this document used to state, which was Opus 5 at `high` as the build tier with Fable
+5.1 for what a session must decide alone. There is no build tier now, because there is
+no default: every CC prompt is classified against the table above on its own,
+independent of what model or effort the previous prompt in the same session or the same
+chat used, and **a tier carried forward from the previous prompt is not a choice**.
+State which row the prompt matches as part of the one-line reason, not just a model name
+next to a generic justification, so the stated row and the chosen model can be checked
+against each other at a glance.
+
+**Mr. Pina stated this on 2026-09-13 with the count in front of him**: roughly the last
+twenty prompts all carried Opus 5 at `high` without the choice ever being made.
+Defaulting to the heaviest tier already in hand is the failure mode, and it is not free
+-- **saving usage matters even on a 20x Max plan**, which he said in the same breath, so
+the cheapest tier that can do the work is the correct tier rather than a concession. The
+four answers:
+
+- **Sonnet 5 for a docs-only bundle** -- standards text, decision entries, audit
+  writeups, applied records, ledger and history entries. That is row 2, and it is the
+  row this assistant keeps missing: ledgers `0197`, `0204`, `0205` and `0206` were every
+  one of them this shape and every one of them ran on Opus 5. **The discriminator
+  against row 3's "read-only audit" is what the bundle has to ESTABLISH, not what it
+  writes**: a bundle turning findings that are already settled into prose is row 2, and
+  a bundle that must produce the findings something else will rely on is row 3 whatever
+  its output surface.
+- **Opus 5 at `high` for anything touching `src/`, any migration, and any verification
+  whose result will be relied on.** That is row 3, and it is a row to be reached rather
+  than a place to start.
+- **Fable 5.1 only where the session must decide something the prompt could not
+  specify.** Row 4, unchanged; "The test is what the session must decide on its own"
+  above is how it is reached, and it is reached rather than assumed.
+- **GPT-6 Astra, as a Codex cloud task, is part of this same choice and not a separate
+  question.** Mr. Pina pays for it and wants it used where cost, speed and volume
+  matter: migrations, RPCs, validators, and pure logic delivered with its tests, which
+  is row 5. **It has no browser**, so anything whose question is "what does this look
+  like" stays with Claude whatever it costs. Claude chat keeps control of design, and
+  Fable 5.1 is used where it beats Astra on visual work. Its cloud-task constraints --
+  the pull request against `integration`, no reach at the production database, what its
+  container holds -- are in "Two agents, one repository" and are not restated here.
+
+**Effort is the half that serializes, and model is not**: one `xhigh`, `max` or
+`ultracode` bundle at a time across all lanes. That rule, and the two different reasons
+behind it, belong to the concurrent-heavy-bundles override above and are not repeated
+here -- choosing a cheaper model never changes what is queued, and choosing a deeper
+effort level always does.
+
+Effort labels are exactly low, medium, high, xhigh, or max; there is no "standard" or
+intermediate label.
 
 **Visual, creative, or UX work is not automatically row 4.** Row 4 is about
 reversibility and scope, not about domain. Before writing `xhigh`, write out what is
@@ -2952,50 +2992,83 @@ component or token exists, the digest governs and the standard is corrected.
 
 ## Changelog
 
-- **2026-09-13 (4.27)** - Ten rules earned on 2026-09-12 and 2026-09-13, eight of them
-  written here and two of them corrections to what this file already said. A prompt that
-  vouches for a migration range goes stale between writing and running: ledgers `0190`,
-  `0192`, `0194`, `0195` and `0199` each read a shorter chain than existed when they ran
-  and each stopped correctly against its own text, five prompt-chain gaps and not one
-  defect, so a prompt naming a range names the floor, the ceiling, the permitted numbers
-  and the halt, and the range is re-read immediately before the MERGE rather than at
-  branch time. A manual instruction aimed at a web UI gives the URL and not a route
-  through the menus, as rule 13 of the manual-instruction format, after six consecutive
-  messages walked Mr. Pina through a Vercel dashboard by section name with two names
-  wrong, one setting moved to another page and one path landing on team settings instead
-  of the project's; where the URL needs an identifier this assistant cannot see, ask for
-  one URL and build the rest from it rather than guessing a slug. A push is a build and
-  the app pushes, so anything reasoning about deploy cost counts pushes and not landings:
-  the classroom export commits one revision at a time and produced `r3` through `r9` as
-  seven builds on 2026-09-09, with ledger `0204`'s Vercel audit measuring 59 of 794
-  commits to `main` in seven days as `materials/`-only exports -- quoted rather than
-  re-derived, because a cloud container's checkout is shallow and answers a commit count
-  plausibly and wrongly. A decision entry's `Status` line is a claim like any other and
-  is reconfirmed rather than believed, after decision `25` read `Status: open` on
-  2026-09-13 while Mr. Pina had already answered it and it was built the same day; the
-  router reads the entry body before believing the line. And five communication rules he
-  stated directly: an answer is as short as the question allows, because he will not read
-  long responses and length makes an answer harder to act on rather than easier (chat
-  replies only -- prompts and standards files stay complete); every response names what
-  to run now in one line before anything else, after "it's not clear which prompt is
-  which, do I run the one you just gave me or not"; never guess a fact that can be
-  checked, after "why don't you just look at the time for once" and a guessed Vercel team
-  slug that 404'd him; assume he knows nothing about current state, which he has said in
-  three separate chats; and do not hand him housekeeping he has not asked for, after
-  "there's so many fucking branches that are unused, I don't care to delete them". The
-  two corrections: the three-state Hard Rule said a migration is the ONLY artifact where
-  delivered, landed and applied come apart, and code has the same three states with a
-  quieter third, now owned by `IDEA_VERIFICATION_ADDENDA.md` rule 41 -- on 2026-09-13
-  production served ledger `0188`'s build for over a day while `main` moved twice past
-  it, and six lanes of verified work reached no student. And, added mid-bundle on the
-  day and therefore in this same version: a long router chat maintains a live state
-  document on disk, unprompted -- written early, rewritten whenever a rule, decision,
-  ledger or migration number, lane or open item moves, and re-read first after any
-  compaction, because a long chat is compacted, memory is terse and written only on
-  request, and `docs/standards/` cannot be re-read as authority mid-flight, so none of the
-  three carries mid-chat state. It carries standing rules and authorizations given in the
-  chat, the next free numbers, what each lane owns and which are running, what is owed to
-  Mr. Pina, decisions answered in his own words, findings reported and not laned, and
+- **2026-09-13 (4.28)** - THE TIER IS CHOSEN PER PROMPT AND IS NEVER A DEFAULT, which
+  replaces the default this file stated until now: Opus 5 at `high` as the build tier
+  with Fable 5.1 for what a session must decide alone. Mr. Pina said on 2026-09-13 that
+  roughly the last twenty prompts all carried Opus 5 at `high` without the choice being
+  made, and that saving usage matters even on a 20x Max plan, so the cheapest tier that
+  can do the work is the correct tier rather than a concession and a tier carried
+  forward from the previous prompt is not a choice. Sonnet 5 for a docs-only bundle --
+  standards text, decision entries, audit writeups, applied records, ledger and history
+  entries -- which is the row this assistant keeps missing, since ledgers `0197`,
+  `0204`, `0205` and `0206` were every one of them that shape and every one of them ran
+  on Opus 5; the discriminator against row 3's read-only audit is what the bundle must
+  ESTABLISH rather than what it writes. Opus 5 at `high` for anything touching `src/`,
+  any migration, and any verification whose result will be relied on. Fable 5.1 only
+  where the session must decide something the prompt could not specify. And GPT-6 Astra
+  as a Codex cloud task is part of the same choice rather than a separate question:
+  migrations, RPCs, validators and pure logic with their tests, because Mr. Pina pays
+  for it and wants it used where cost, speed and volume matter, but it has NO BROWSER,
+  so anything whose question is what something looks like stays with Claude, Claude chat
+  keeps control of design, and Fable 5.1 is used where it beats Astra on visual work.
+  Effort serialization is POINTED AT rather than restated, and the Codex cloud-task
+  constraints are cross-referenced to "Two agents, one repository" -- a second statement
+  of either is the copy that drifts. The rule replaces the "Re-derive every time; never
+  carry forward" paragraph it supersedes rather than sitting beside it, and row 3 of the
+  routing table stops calling itself the default build row in the same edit, so the
+  table and the rule cannot be read against each other. Also corrects 4.27's own count,
+  which said ten rules with eight written here and two corrections and then narrated
+  eleven items, introducing "The two corrections" over one correction and one new rule:
+  ten rules landed in this file, nine carried by ledger 0205's prompt and a tenth that
+  arrived mid-bundle, plus the one correction to the three-state Hard Rule whose rule
+  proper `IDEA_VERIFICATION_ADDENDA.md` rule 41 owns. No rule text of 0205's was
+  touched. `REGISTER.md`'s `IDEA_instructions.md` row moves in the same commit.
+
+- **2026-09-13 (4.27)** - Ten rules earned on 2026-09-12 and 2026-09-13 -- nine carried
+  by the prompt and a tenth that arrived mid-bundle -- plus one correction to what this
+  file already said. A prompt that vouches for a migration range goes stale between
+  writing and running: ledgers `0190`, `0192`, `0194`, `0195` and `0199` each read a
+  shorter chain than existed when they ran and each stopped correctly against its own
+  text, five prompt-chain gaps and not one defect, so a prompt naming a range names the
+  floor, the ceiling, the permitted numbers and the halt, and the range is re-read
+  immediately before the MERGE rather than at branch time. A manual instruction aimed at
+  a web UI gives the URL and not a route through the menus, as rule 13 of the
+  manual-instruction format, after six consecutive messages walked Mr. Pina through a
+  Vercel dashboard by section name with two names wrong, one setting moved to another
+  page and one path landing on team settings instead of the project's; where the URL
+  needs an identifier this assistant cannot see, ask for one URL and build the rest from
+  it rather than guessing a slug. A push is a build and the app pushes, so anything
+  reasoning about deploy cost counts pushes and not landings: the classroom export
+  commits one revision at a time and produced `r3` through `r9` as seven builds on
+  2026-09-09, with ledger `0204`'s Vercel audit measuring 59 of 794 commits to `main` in
+  seven days as `materials/`-only exports -- quoted rather than re-derived, because a
+  cloud container's checkout is shallow and answers a commit count plausibly and
+  wrongly. A decision entry's `Status` line is a claim like any other and is reconfirmed
+  rather than believed, after decision `25` read `Status: open` on 2026-09-13 while Mr.
+  Pina had already answered it and it was built the same day; the router reads the entry
+  body before believing the line. And five communication rules he stated directly: an
+  answer is as short as the question allows, because he will not read long responses and
+  length makes an answer harder to act on rather than easier (chat replies only --
+  prompts and standards files stay complete); every response names what to run now in
+  one line before anything else, after "it's not clear which prompt is which, do I run
+  the one you just gave me or not"; never guess a fact that can be checked, after "why
+  don't you just look at the time for once" and a guessed Vercel team slug that 404'd
+  him; assume he knows nothing about current state, which he has said in three separate
+  chats; and do not hand him housekeeping he has not asked for, after "there's so many
+  fucking branches that are unused, I don't care to delete them". The correction: the
+  three-state Hard Rule said a migration is the ONLY artifact where delivered, landed
+  and applied come apart, and code has the same three states with a quieter third, now
+  owned by `IDEA_VERIFICATION_ADDENDA.md` rule 41 -- on 2026-09-13 production served
+  ledger `0188`'s build for over a day while `main` moved twice past it, and six lanes
+  of verified work reached no student. And the tenth rule, added mid-bundle on the day
+  and therefore in this same version: a long router chat maintains a live state document
+  on disk, unprompted -- written early, rewritten whenever a rule, decision, ledger or
+  migration number, lane or open item moves, and re-read first after any compaction,
+  because a long chat is compacted, memory is terse and written only on request, and
+  `docs/standards/` cannot be re-read as authority mid-flight, so none of the three
+  carries mid-chat state. It carries standing rules and authorizations given in the
+  chat, the next free numbers, what each lane owns and which are running, what is owed
+  to Mr. Pina, decisions answered in his own words, findings reported and not laned, and
   traps already paid for. **A rule, authorization or decision discovered mid-chat takes
   effect when it is discovered, not at closeout**, stated by Mr. Pina on 2026-09-13:
   waiting for closeout is what makes him restate himself, so writing it down at closeout
