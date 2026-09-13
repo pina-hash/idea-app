@@ -55,11 +55,19 @@ and breaks the editor's client-side splitter. This file needs no `do` block, so
 it needs no dollar quoting, so the trap cannot fire. `grep -c '\$'` answers 0.
 
 **The list stops at 0210, and 0211 is ASKED ABOUT rather than asserted.** This
-is the load-bearing decision in the file. `docs/migrations-applied/` carries a
-record for every one of `0193` through `0210`; it carries none for `0211`, and
-ledger `0203` says in words that `0211` was "DELIVERED AND NOT APPLIED". The
-prompt that issued this bundle said it had since been pasted. Both cannot be
-checked from here.
+is the load-bearing decision in the file. At branch time
+`docs/migrations-applied/` carried a record for every one of `0193` through
+`0210` and none for `0211`, while ledger `0203` said in words that `0211` was
+"DELIVERED AND NOT APPLIED" and the prompt said it had since been pasted.
+**Mid-session, ledger `0204` landed `docs/migrations-applied/0211-lucid-dirac-8b6m2f.md`
+on `integration`, which says `outcome: applied`** -- and says on its own face
+that it is `source: report`, Mr. Pina's account of 2026-09-13 with a
+verification query's output behind it, not a measurement this repository made.
+So the answer is now expected to be yes. **The conditional stayed anyway**, and
+that is the decision worth recording: a `source: report` record is better than
+silence and weaker than a measurement, the database can be asked for the price
+of one catalog read, and the asymmetry below does not move because the evidence
+got better.
 
 The two errors are not symmetric. Under-seeding an applied migration costs a
 `db push` that would re-run an idempotent file nobody runs anyway. **Over-seeding
@@ -206,6 +214,12 @@ is a migration applied with nothing recording it.
 - **`tests/workflows.test.ts`: 63 passed**, sweeping the new file for the shapes
   that have actually broken a workflow here.
 - **`node tools/claude-md-check.mjs`: agrees with the tree.**
+- **The full suite, on the merged tree: 458 files, 8682 tests, 0 failures,
+  372.8s, exit 0.** Read off the summary line rather than from the exit code,
+  which is ledger 0199's trap and which cost the first reading of the branch
+  point: the run before the merge reported `Test Files 1 failed | 457 passed`
+  with `EXITCODE=1`, and that one failure was the branch point's, not this
+  bundle's. This bundle added 9 tests and 1 file (8673 to 8682, 457 to 458).
 
 ## What was NOT verified
 
@@ -216,8 +230,9 @@ is a migration applied with nothing recording it.
   established is that `deploy.yml` already does exactly that with a read-only
   URL, and that a runner has no egress proxy. The first `workflow_dispatch` is
   the measurement.
-- **That `0211` is applied to production.** The repository says it is not; the
-  prompt says it is. The seed asks rather than choosing, and reports.
+- **That `0211` is applied to production.** The repository now says it is, in a
+  record that says of itself that it is one person's report rather than a
+  measurement. The seed asks the database rather than choosing, and reports.
 - **No browser pass**, and none is called for: no file under `src/` changed.
 
 ## Left undone, deliberately
@@ -243,12 +258,20 @@ is a migration applied with nothing recording it.
   unapplied migration now gets applied by the next push to `main` instead of
   waiting for a person.
 
-## The tree this branched from was already red
+## The tree this branched from was red, and stopped being so mid-session
 
-`origin/integration` at `78516fa2` fails `tests/db/migrations-applied-record.test.ts`
+`origin/integration` at `78516fa2` failed `tests/db/migrations-applied-record.test.ts`
 -- "has a record for every migration from 0193 onward, and no gaps" -- because
-`0211_ideacad_realtime_policy.sql` is in the tree and `docs/migrations-applied/`
-has no `0211-*.md`. **1 of 8673 tests, and it is not this bundle's**: ledger
-`0204` is writing those records. Measured on a clean `git worktree` at the branch
-point before anything here was written, which is the only way that sentence is
-worth anything.
+`0211_ideacad_realtime_policy.sql` was in the tree and `docs/migrations-applied/`
+had no `0211-*.md`. **1 of 8673 tests, and it was never this bundle's**: ledger
+`0204` was writing exactly those records. Measured on a clean `git worktree` at
+the branch point before anything here was written, which is the only way that
+sentence is worth anything -- a baseline measured on the tree under test is not
+a baseline.
+
+**It is green again on `34a44f2d`.** `0204` landed the `0211` record while this
+bundle was being written, `origin/integration` was merged into this branch, and
+that file passes. The sentence is kept rather than deleted because a bundle
+whose branch point was red has to say so: everything measured against the
+earlier baseline was measured against a red tree, and a reader who only sees the
+green one cannot tell which.

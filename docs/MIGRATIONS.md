@@ -81,11 +81,14 @@ nothing left to replay, and the workflow keeps the record current from then on.
 9. **Now read the row whose `check` is `0211`.** It is a separate question with
    a separate answer.
 
-   - `subject` = **`APPLIED, and now recorded`** -- correct, nothing to do.
-   - `subject` = **`NOT APPLIED to this database`** -- also fine, and it means
-     migration `0211` still has to be applied. It will be, by the workflow, the
-     first time step 2 is finished and something reaches `main`. Nothing is
-     broken.
+   - `subject` = **`APPLIED, and now recorded`** -- correct, nothing to do. This
+     is the expected answer: `docs/migrations-applied/0211-lucid-dirac-8b6m2f.md`
+     records that you applied it on 2026-09-13.
+   - `subject` = **`NOT APPLIED to this database`** -- not expected, but not
+     broken either, and nothing was written for it. It means the record above is
+     about a different database or the paste did not take. Say so; do not write
+     the row by hand. The workflow will apply `0211` the first time step 2 is
+     finished and something reaches `main`.
 
 10. You never run this file again. If you do run it again by accident, nothing
     happens: it writes no row it has already written.

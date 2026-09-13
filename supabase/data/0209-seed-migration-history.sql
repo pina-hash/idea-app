@@ -72,16 +72,23 @@
 -- for every one of 0193 through 0210, and everything below 0193 predates that
 -- directory and was hand-applied over the life of the project.
 --
--- 0211 IS NOT IN THAT LIST AND IS ASKED ABOUT INSTEAD. At the time this file
--- was written, docs/migrations-applied/ held no record for it and ledger 0203
--- said in words that it was "DELIVERED AND NOT APPLIED". The bundle that wrote
--- this file was told it had since been pasted, and could not check: no cloud
--- session can reach this database. Seeding a row for a migration that is NOT
--- applied is the one failure this file could cause that nothing would ever
--- report -- the row would tell every later reader the database has something it
--- does not, and the workflow would skip it forever. So statement 6 asks the
--- database, through the object 0211 creates, and inserts the row only if the
--- answer is yes. Either answer is reported at the foot of this file.
+-- 0211 IS NOT IN THAT LIST AND IS ASKED ABOUT INSTEAD.
+-- docs/migrations-applied/0211-lucid-dirac-8b6m2f.md says it IS applied, and
+-- says on its own face that it rests on Mr. Pina's report of 2026-09-13 rather
+-- than on a measurement -- `source: report`, `evidence: verification-output`.
+-- Ledger 0203, which wrote the migration, says in words that it was "DELIVERED
+-- AND NOT APPLIED", because it was written before he pasted it. The bundle that
+-- wrote THIS file could check neither: no cloud session can reach this
+-- database.
+--
+-- Seeding a row for a migration that is NOT applied is the one failure this
+-- file could cause that nothing would ever report. The row would tell every
+-- later reader the database has something it does not, and
+-- .github/workflows/migrate.yml would skip it forever. Under-seeding costs
+-- nothing by comparison. So statement 6 asks the database itself, through the
+-- object 0211 creates, and inserts the row only if the answer is yes. Either
+-- answer is reported at the foot of this file. On the evidence above the answer
+-- is expected to be yes, and asking costs one catalog read.
 --
 -- 0190 AND 0191 ARE NOT IN THE LIST AND MUST NOT BE. They are permanent holes
 -- in the numbering -- bundles that were allocated a number and decided against
