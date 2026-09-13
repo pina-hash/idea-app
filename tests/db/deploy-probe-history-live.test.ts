@@ -157,8 +157,14 @@ describe('the history queries against a real Postgres', () => {
 			const h = readHistory(url);
 			expect(h.ok, h.ok ? '' : h.why).toBe(true);
 			if (!h.ok) return;
-			expect(h.history.present).toBe(true);
-			expect([...h.history.versions].sort()).toEqual(['0202', '0209', '0211']);
+			// NOT NULL: this connection is the cluster owner and can read the
+			// table, so a null here would mean the readable check answered
+			// `unreadable` for a role that plainly can -- which is control 7's
+			// positive direction, asserted here as well because every verdict
+			// below rests on it.
+			expect(h.history).not.toBeNull();
+			expect(h.history?.present).toBe(true);
+			expect([...(h.history?.versions ?? [])].sort()).toEqual(['0202', '0209', '0211']);
 		});
 
 		// -- 2. A ROW WITH THE OBJECT PRESENT -----------------------------
@@ -196,7 +202,8 @@ describe('the history queries against a real Postgres', () => {
 			// record not yet carrying them.
 			const h = readHistory(url);
 			if (!h.ok) throw new Error(h.why);
-			expect(h.history.versions.has('0212')).toBe(false);
+			expect(h.history).not.toBeNull();
+			expect(h.history?.versions.has('0212')).toBe(false);
 			const probes = [probe('0212', tableProbe('thing_0209'))];
 			const rows = runObjectProbes(probes);
 			const f = verdicts(probes, rows, h.history);

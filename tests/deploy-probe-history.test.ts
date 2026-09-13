@@ -229,7 +229,14 @@ describe('readHistory', () => {
 		// `--single-transaction` it would abort the object probes with it.
 		const s = stub([{ ok: true, rows: ['SET', 'history-table|absent', ''] }]);
 		const r = readHistory('postgres://x', s.run);
-		expect(r.ok && r.history.present).toBe(false);
+		// ABSENT IS A HISTORY, NOT A NULL ONE. `null` is reserved for "the
+		// table was not consulted" -- which `unreadable` now also answers --
+		// so an `absent` answer that came back null would be conflating a
+		// database without the table with a role that cannot read it.
+		expect(r.ok).toBe(true);
+		if (!r.ok) return;
+		expect(r.history).not.toBeNull();
+		expect(r.history?.present).toBe(false);
 		expect(s.asked).toHaveLength(1);
 		expect(s.asked[0]).toBe(HISTORY_PRESENCE_SQL);
 		// THE CATALOG, NOT THE NAME. `to_regclass` resolves a qualified name and
@@ -247,8 +254,9 @@ describe('readHistory', () => {
 		const r = readHistory('postgres://x', s.run);
 		expect(r.ok).toBe(true);
 		if (!r.ok) return;
-		expect(r.history.present).toBe(true);
-		expect([...r.history.versions].sort()).toEqual(['0001', '0002', '0211']);
+		expect(r.history).not.toBeNull();
+		expect(r.history?.present).toBe(true);
+		expect([...(r.history?.versions ?? [])].sort()).toEqual(['0001', '0002', '0211']);
 		expect(s.asked).toEqual([HISTORY_PRESENCE_SQL, HISTORY_VERSIONS_SQL]);
 	});
 
