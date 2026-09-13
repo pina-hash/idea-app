@@ -7,6 +7,13 @@
 	} from '$lib/ideacad/transports';
 	import { createIdeacadCheckout, type IdeacadCheckoutState } from '$lib/ideacad/checkout';
 	import type { IdeacadGrant, IdeacadGrantRole } from '$lib/ideacad/sharing';
+	import {
+		ideacadSharedOff,
+		ideacadSharedOn,
+		ideacadSharedRows,
+		type IdeacadSharedCapability,
+		type IdeacadSharedRow
+	} from '$lib/ideacad/shared-open';
 	import { createIdeacadStore, type IdeacadStoreState } from '$lib/ideacad/store';
 	import { IDEACAD_UNAVAILABLE, isIdeaCad, type IdeacadEditorWrites } from '$lib/ideacad/mount';
 	import { onDestroy, untrack } from 'svelte';
@@ -569,14 +576,16 @@
 	 * the same way: the page owns the load and the transports, and hands the
 	 * component values plus callbacks.
 	 *
-	 * ONE DOCUMENT, THE CALLER'S OWN. The store opens through
-	 * `ideacad_open_document`, which resolves the caller's own document, so on
-	 * this page the caller IS the owner -- `role` is `'owner'` and never a
-	 * guess. Opening somebody ELSE'S shared document needs
-	 * `ideacad_open_shared_document` and a way to choose one, which is
-	 * `store.ts`'s surface and not this lane's; `sharedWithMe` is still uncalled
-	 * and that is named in this bundle's history entry rather than left to be
-	 * found.
+	 * TWO DOCUMENTS NOW, AND THE ROLE IS READ RATHER THAN ASSUMED (ledger 0217).
+	 * This block used to say "ONE DOCUMENT, THE CALLER'S OWN", and while
+	 * `sharedWithMe` had no caller that was true: the store opened only through
+	 * `ideacad_open_document`, which resolves the caller's own document, so the
+	 * caller WAS the owner and `role: 'owner'` was a fact rather than a guess.
+	 * `openShared` is wired below, so it is now a guess -- and the wrong one for
+	 * a classmate's document, because `ideacadCanShare` is true for `owner`
+	 * alone and a hardcoded owner would put a share form under a document this
+	 * caller does not own. The role comes off the store's snapshot, which is
+	 * whatever `0205` answered.
 	 *
 	 * BOTH PROBES DEGRADE ON `PGRST202` ALONE, inside the two functions that
 	 * already own that rule. Neither is re-implemented here.
@@ -729,7 +738,14 @@
 	const ideacadTeam = $derived(
 		ideacadDocumentId
 			? {
-					role: 'owner' as const,
+					/* THE STORE'S OWN ANSWER, NEVER A LITERAL. `open` publishes
+					   `'owner'` and can publish nothing else; `openShared` publishes
+					   whatever `ideacad_open_shared_document` said, read through
+					   `ideacadRoleFromPayload` so an unrecognised value is null and
+					   `ideacadCanShare(null)` is false. `?? null` rather than
+					   `?? 'owner'`: "cannot tell" must never render as the
+					   permissive answer. */
+					role: ideacadDoc?.role ?? null,
 					ownerEmail: ideacadOwnerEmail,
 					grants: ideacadGrants,
 					sharingReady: ideacadSharingReady,
@@ -770,6 +786,139 @@
 				}
 			: null
 	);
+
+	/**
+	 * ==========================================================================
+	 * WHAT A CLASSMATE SHARED WITH YOU (0205), AND THE HALF THAT HAD NO CALLER
+	 * ==========================================================================
+	 *
+	 * `ideacad_shared_with_me` and `ideacad_open_shared_document` were applied to
+	 * production with `0205` and `sharedWithMe` was UNCALLED for three days --
+	 * this page's own block above named it and could not close it. Ledger 0201
+	 * built the pure layer, the panel and `store.openShared`, and could mount
+	 * none of it because `ItemDetail.svelte` was outside its Owns. So the grant
+	 * was live and unreachable BY CONSTRUCTION: `ideacad_shared_with_me` is a
+	 * grantee's only route to a document id, since the roster is teacher-only and
+	 * a classmate's document appears on no surface they can already read.
+	 *
+	 * THE LIST IS ITS OWN READ, NOT THE PROBE'S. `createIdeacadSharingTransports`
+	 * asks the identical question and throws the payload away, so this is a
+	 * second round trip for rows the probe already had -- which
+	 * `probeIdeacadAssembly` avoids one migration over by handing its payload
+	 * back. Fixing it means changing that function's return shape, which is
+	 * `transports.ts`; it is named in this bundle's history entry rather than
+	 * folded in here, because a second reader of a probe is exactly the kind of
+	 * change that wants its own answer for every caller.
+	 *
+	 * THE CAPABILITY STARTS OFF AND IS TURNED ON ONLY BY A READ THAT LANDED,
+	 * which is `notesReady`'s shape. "Cannot tell" renders the ladder's own
+	 * sentence and never "nothing is shared with you".
+	 */
+	let ideacadSharedRowsState = $state<IdeacadSharedRow[]>([]);
+	let ideacadSharedCapability = $state<IdeacadSharedCapability>(ideacadSharedOff());
+	/** An open or a return is in flight. One flag for both, because they are one
+	 *  question from the student's side: is this page about to change under me. */
+	let ideacadSharedBusy = $state(false);
+
+	/**
+	 * TRACKED INPUTS, UNTRACKED CALL -- the transport is caller-supplied code and
+	 * everything it touches reactively before its first `await` would otherwise
+	 * join this effect's dependency set. The inputs are the item and whether the
+	 * probe said yes, both read at the top of the body.
+	 */
+	$effect(() => {
+		const itemId = ideacadItemId;
+		const ready = ideacadSharingReady;
+		const list = ideacadTransports.sharedWithMe;
+		if (!itemId || !ready || !list) {
+			ideacadSharedRowsState = [];
+			ideacadSharedCapability = ideacadSharedOff();
+			return;
+		}
+		let live = true;
+		untrack(() => {
+			void list(itemId)
+				.then((documents) => {
+					if (!live) return;
+					// SHAPED AND ORDERED BY THE PURE LAYER, never here. A second
+					// ordering is the one that disagrees with the list the owner is
+					// looking at on the same screen.
+					ideacadSharedRowsState = ideacadSharedRows(documents);
+					ideacadSharedCapability = ideacadSharedOn();
+				})
+				.catch(() => {
+					if (!live) return;
+					ideacadSharedRowsState = [];
+					ideacadSharedCapability = ideacadSharedOff();
+				});
+		});
+		return () => {
+			live = false;
+		};
+	});
+
+	/**
+	 * WHAT `ItemDetail` IS HANDED FOR THE SHARED LIST.
+	 *
+	 * NULL FOR A MANAGER AND FOR A PAGE WITH NO IDEACAD ITEM, which is
+	 * `ideacadItemId`'s own answer and the same gate `ideacadWrites` uses -- a
+	 * teacher has no store, so there is nothing here for them to open into.
+	 * A DEPLOYMENT WITH NO `0205` IS NOT NULL, though: it renders the panel with
+	 * `capability.ready` false, so the surface says the question could not be
+	 * asked rather than vanishing, which is what tells a student the difference
+	 * between "nothing is shared" and "this site cannot tell".
+	 *
+	 * `onopen` RIDES THE STORE, AND `onreturn` RIDES THE ITEM. Both are absent
+	 * when the thing they would call cannot be built, which removes the control
+	 * rather than offering one whose only outcome is a failure.
+	 */
+	const ideacadShared = $derived(
+		ideacadItemId
+			? {
+					rows: ideacadSharedRowsState,
+					capability: ideacadSharedCapability,
+					openDocumentId: ideacadDocumentId,
+					/* THE STORE'S FLAG, WHICH IS THE ONLY THING THAT KNOWS. It is set
+					   after a refused write when `ideacad_shared_with_me` CONFIRMED
+					   the grant is gone -- a call that fails decides nothing and
+					   leaves this false, which is `store.ts`'s partition and not a
+					   second guess here. */
+					accessLost: ideacadDoc?.accessLost ?? false,
+					busy: ideacadSharedBusy,
+					onopen: ideacadSharedCapability.ready
+						? (documentId: string) => {
+								ideacadSharedBusy = true;
+								void ideacadStore
+									.openShared(documentId)
+									.catch(() => {
+										// The store keeps whatever was open. A failed open is
+										// not a lost grant and must not be reported as one:
+										// only `accessWasRevoked` decides that, and only
+										// after a refused WRITE.
+										ideacadOpenRefusal = null;
+									})
+									.finally(() => {
+										ideacadSharedBusy = false;
+									});
+							}
+						: undefined,
+					onreturn: () => {
+						const itemId = ideacadItemId;
+						if (!itemId) return;
+						ideacadSharedBusy = true;
+						void ideacadStore
+							.open(itemId)
+							.catch(() => {
+								ideacadOpenRefusal = IDEACAD_UNAVAILABLE;
+							})
+							.finally(() => {
+								ideacadSharedBusy = false;
+							});
+					}
+				}
+			: null
+	);
+
 	/**
 	 * THE WRITE BOUNDARY HANDED TO `ItemDetail`, WHICH IS A PROJECTION OF THE
 	 * STORE AND NOT A SECOND COPY OF ANYTHING. Built only for the caller the
@@ -890,6 +1039,7 @@
 	htmlAssignment={data.htmlAssignment}
 	ideacad={data.ideacad}
 	{ideacadTeam}
+	{ideacadShared}
 	{ideacadDoc}
 	{ideacadWrites}
 	{ideacadViewerEmail}
