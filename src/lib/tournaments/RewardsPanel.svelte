@@ -12,8 +12,26 @@
 	 * standings figure is what EACH registrant holds and the history is one
 	 * line per award, with `× n` and an `each` chip saying how many people it
 	 * reached. A pre-0192 ledger folds to exactly what it showed before.
+	 *
+	 * AND THE FIGURES ARE COINS (0212). Every amount carries `COIN_SYMBOL`
+	 * through `signedCoins`, because they are IDEA Coins and since 0212 they
+	 * genuinely move: `_tournament_award` mints a `competition_winnings` row on
+	 * the winner's digital balance. Before 0212 this panel said "Payout history"
+	 * over bare gold numbers while nothing had been paid, and rendered `+40`
+	 * where `DeleteTournament.svelte` rendered the same total with the symbol --
+	 * `tests/coin-symbol.test.ts` could not see the mismatch, because its
+	 * `COIN_SOURCES` list did not name this file. It does now.
+	 *
+	 * AN UNPAID ROW SAYS SO. A reward reaches no balance when the registrant is
+	 * an unlinked walk-up with no account, or when `competition_winnings` was
+	 * retired at award time. That is a real state and not an error, and the
+	 * student is owed the coins by hand -- so it is marked IN WORDS rather than
+	 * left looking identical to a paid one. A ledger from a deployment without
+	 * 0212 carries no such column and is marked NOTHING: cannot-tell is not
+	 * unpaid, and `rewardUnpaid` is the one place that distinction is made.
 	 */
 	import EntryChip from './EntryChip.svelte';
+	import { signedCoins } from '../coin-format';
 	import {
 		rewardAwards,
 		rewardRuleLabel,
@@ -58,7 +76,7 @@
 			{#each orderedRules as r (r.id)}
 				<span class="rule-chip">
 					{rewardRuleLabel(r)}
-					<strong>+{r.amount}</strong>
+					<strong>{signedCoins(r.amount)}</strong>
 				</span>
 			{/each}
 		</div>
@@ -76,7 +94,12 @@
 					{#if t.recipients > 1}
 						<span class="each">each · {t.recipients} registrants</span>
 					{/if}
-					<span class="total-amount">+{t.total}</span>
+					{#if t.unpaid > 0}
+						<span class="unpaid" title="Not yet on a coin balance">
+							{t.unpaid} not paid
+						</span>
+					{/if}
+					<span class="total-amount">{signedCoins(t.total)}</span>
 				</div>
 			{/each}
 		</div>
@@ -90,15 +113,24 @@
 					</span>
 					<span class="ledger-reason">{row.reason}</span>
 					<span class="ledger-when">{when(row.awardedAt)}</span>
+					{#if row.unpaid > 0}
+						<span class="unpaid">
+							{row.unpaid === row.recipients ? 'not paid' : `${row.unpaid} not paid`}
+						</span>
+					{/if}
 					<span class="ledger-amount"
-						>+{row.amount}{#if row.recipients > 1}<span class="times"> × {row.recipients}</span
+						>{signedCoins(row.amount)}{#if row.recipients > 1}<span class="times">
+								× {row.recipients}</span
 							>{/if}</span
 					>
 				</div>
 			{/each}
 		</div>
 	{:else if orderedRules.length}
-		<p class="note">No payouts yet. Rewards land here as matches are won.</p>
+		<p class="note">
+			No payouts yet. Rewards land here as matches are won, and are paid onto the winner's IDEA
+			Coin balance.
+		</p>
 	{/if}
 </div>
 
@@ -136,14 +168,41 @@
 		text-transform: uppercase;
 		color: var(--cyan, #00f0ff);
 	}
+	/* THE NAME IS THE ONE THING THAT MAY NOT BE SQUEEZED OUT.
+	   Every qualifier on these rows -- the award count, the `each` chip, the
+	   `not paid` mark, the amount -- is `flex: none`, and `EntryChip` carries
+	   `min-width: 0` so that it is the only thing left that CAN shrink. At
+	   375px that made it shrink to its thumbnail: measured on the 8-entry
+	   harness with a team entry, the Kilowatt row rendered a 14.6px chip with
+	   the name at ZERO WIDTH -- an initial and nothing else, on the surface
+	   that announces what that student won. Only rows carrying the `each` chip
+	   were affected, and at 1440 none were, so it read as fine on a desk.
+	   Adding the `not paid` mark put a fourth competitor on the same row.
+
+	   So the row WRAPS and the chip keeps a floor. The qualifiers drop to a
+	   second line rather than eating the identity, which is the same call the
+	   notebook grid's sticky header makes: a name being covered is a
+	   correctness defect, not a cosmetic one. */
 	.total-row,
 	.ledger-row {
 		display: flex;
 		align-items: center;
-		gap: 0.8rem;
+		flex-wrap: wrap;
+		gap: 0.35rem 0.8rem;
 		padding: 0.32rem 0;
 		border-bottom: 1px solid var(--line, rgba(0, 255, 65, 0.08));
 		min-width: 0;
+	}
+	/* THE FLOOR IS ON THE STANDINGS ROW ONLY, and that is a measurement rather
+	   than a preference. The standings row is where the squeeze happens: its
+	   qualifiers (`N awards`, the `each` chip) are wide and unconditional, and
+	   it is six rows, so a wrap costs almost nothing. A HISTORY row already fit
+	   on one line at 375 with its name whole, and putting the same floor there
+	   wrapped all sixteen of them -- doubling the length of the list to fix a
+	   defect it did not have. `flex-wrap` stays on both as the safety valve;
+	   without a floor it only engages when the content genuinely cannot fit. */
+	.total-row :global(.entry-chip) {
+		min-width: 6.5rem;
 	}
 	.total-row:last-child,
 	.ledger-row:last-child {
@@ -171,6 +230,20 @@
 	.times {
 		color: var(--dim, #7a8a7a);
 		font-size: 0.85em;
+	}
+	/* A reward that reached no balance. Amber, because it is an outstanding
+	   thing to do rather than an error -- and the WORD carries it, never the
+	   hue alone. */
+	.unpaid {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.66rem;
+		letter-spacing: 0.04em;
+		color: var(--amber, #ffb020);
+		border: 1px solid var(--amber, #ffb020);
+		border-radius: 999px;
+		padding: 0.1rem 0.5rem;
+		flex: none;
+		white-space: nowrap;
 	}
 	.total-amount,
 	.ledger-amount {

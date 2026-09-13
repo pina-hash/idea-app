@@ -176,6 +176,27 @@ export interface RewardLedgerRow {
 	 * amount. `rewardAwards` is what folds those rows back into one award.
 	 */
 	member_id?: string | null;
+	/**
+	 * The `coin_transactions` row this reward minted (0212). NULL means the
+	 * reward reached no balance: an unlinked walk-up registrant with no account,
+	 * or a `competition_winnings` category missing or retired at award time. It
+	 * is OPTIONAL on the type because every row written before 0212 predates the
+	 * column, and `undefined` there means "this deployment cannot tell" rather
+	 * than "unpaid" -- `rewardUnpaid` is the one place that distinction is made.
+	 */
+	coin_transaction_id?: string | null;
+}
+
+/**
+ * Is this ledger row known to have reached nobody's balance?
+ *
+ * FALSE FOR `undefined`, DELIBERATELY. A row read from a deployment that has
+ * not applied 0212 carries no such column at all, and rendering every one of
+ * those as "not paid" would put a warning on a whole tournament's history on
+ * the strength of a missing column. Cannot-tell is not unpaid.
+ */
+export function rewardUnpaid(row: Pick<RewardLedgerRow, 'coin_transaction_id'>): boolean {
+	return row.coin_transaction_id === null;
 }
 
 const PLACEMENT_LABELS: Record<number, string> = { 1: '1st place', 2: '2nd place', 3: '3rd place' };
@@ -213,6 +234,11 @@ export interface RewardAward {
 	recipients: number;
 	/** The lowest row id in the award: the stable ordering key. */
 	firstId: number;
+	/**
+	 * How many of this award's recipients reached no coin balance (0212). Zero
+	 * on a fully paid award and on any ledger read from a pre-0212 deployment.
+	 */
+	unpaid: number;
 }
 
 export function rewardAwards(ledger: RewardLedgerRow[]): RewardAward[] {
@@ -228,11 +254,13 @@ export function rewardAwards(ledger: RewardLedgerRow[]): RewardAward[] {
 				matchId: row.match_id,
 				awardedAt: row.awarded_at,
 				recipients: 1,
-				firstId: row.id
+				firstId: row.id,
+				unpaid: rewardUnpaid(row) ? 1 : 0
 			});
 			continue;
 		}
 		a.recipients += 1;
+		if (rewardUnpaid(row)) a.unpaid += 1;
 		if (row.id < a.firstId) {
 			a.firstId = row.id;
 			a.awardedAt = row.awarded_at;
@@ -249,6 +277,8 @@ export interface RewardTotalRow {
 	awards: number;
 	/** The widest an award on this entry went: how many people each total reached. */
 	recipients: number;
+	/** Ledger rows under this entry that reached no coin balance (0212). */
+	unpaid: number;
 }
 
 /** Per-entry totals over the ledger's AWARDS, largest first. */
@@ -257,12 +287,13 @@ export function rewardTotals(ledger: RewardLedgerRow[]): RewardTotalRow[] {
 	for (const a of rewardAwards(ledger)) {
 		let t = totals.get(a.entryId);
 		if (!t) {
-			t = { entryId: a.entryId, total: 0, awards: 0, recipients: 0 };
+			t = { entryId: a.entryId, total: 0, awards: 0, recipients: 0, unpaid: 0 };
 			totals.set(a.entryId, t);
 		}
 		t.total += a.amount;
 		t.awards += 1;
 		t.recipients = Math.max(t.recipients, a.recipients);
+		t.unpaid += a.unpaid;
 	}
 	return [...totals.values()].sort(
 		(a, b) => b.total - a.total || a.entryId.localeCompare(b.entryId)
