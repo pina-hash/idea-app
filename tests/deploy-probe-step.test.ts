@@ -170,7 +170,18 @@ function runStep(probeExit: number, env: Record<string, string>): Run {
 					since: 151,
 					ref: 'deadbeef',
 					exit: probeExit,
-					history: { table: 'present', versions: 209 },
+					// THE MERGED PAYLOAD SHAPE. `table` is the table's NAME now
+					// (it was 'present'/'absent' before the 0213/0216 merge) and
+					// presence, readability and the row count are three separate
+					// fields, because "could not read it" and "read it and it is
+					// empty" are different answers.
+					history: {
+						table: 'supabase_migrations.schema_migrations',
+						present: true,
+						readable: true,
+						recorded: 209,
+						why: 'supabase_migrations.schema_migrations carries 209 row(s).'
+					},
 					findings: [
 						{
 							num: '0209',
@@ -178,9 +189,10 @@ function runStep(probeExit: number, env: Record<string, string>): Run {
 							object: 'table public.ideacad_history',
 							state: probeExit === 0 ? 'applied' : 'not-applied',
 							why: '',
-							history: true,
+							record: 'recorded',
 							evidence: probeExit === 0 ? 'applied' : 'not-applied',
-							conflict: probeExit === 2
+							agreement: probeExit === 2 ? 'conflict' : 'agree',
+							readFrom: 'catalog'
 						},
 						// A migration with NO probeable object, carried by its
 						// row. This is the shape 0202, 0203 and 0206 have on
@@ -192,9 +204,10 @@ function runStep(probeExit: number, env: Record<string, string>): Run {
 							object: 'no probe',
 							state: probeExit === 0 ? 'applied' : 'not-applied',
 							why: '',
-							history: true,
+							record: 'recorded',
 							evidence: 'unknown',
-							conflict: false
+							agreement: probeExit === 0 ? 'record-only' : 'neither',
+							readFrom: probeExit === 0 ? 'history row' : '--'
 						}
 					]
 				})

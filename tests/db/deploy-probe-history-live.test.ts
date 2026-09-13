@@ -31,13 +31,18 @@ import { execFileSync } from 'node:child_process';
 import { startTestDb, type TestDb } from './harness';
 import {
 	EXIT,
-	HISTORY_PRESENCE_SQL,
+	HISTORY_KEY,
 	HISTORY_TABLE,
+	buildHistorySql,
 	exitFor,
+	normalizeVersion,
 	readHistory,
-	runRows,
+	runSqlRaw,
 	verdicts
 } from '../../tools/deploy-probe.mjs';
+
+/** `runSqlRaw` splits on `|`; these checks read whole lines, so rejoin them. */
+const lines = (rows: string[][]) => rows.map((r) => r.join('|').trim()).filter(Boolean);
 
 let db: TestDb;
 let url: string;
@@ -73,14 +78,14 @@ describe('the history queries against a real Postgres', () => {
 	it('psql is the transport the tool actually uses, and it can reach this database', () => {
 		// THE POSITIVE CONTROL FOR THE WHOLE FILE. Every "absent" below would
 		// look identical if psql simply could not connect.
-		const r = runRows('select 1;', url);
+		const r = runSqlRaw('select 1;', url);
 		expect(r.ok, r.ok ? '' : r.why).toBe(true);
-		if (r.ok) expect(r.rows.map((x) => x.trim()).filter(Boolean)).toEqual(['1']);
+		if (r.ok) expect(lines(r.rows)).toEqual(['1']);
 	});
 
 	// -- 1. NO TABLE AT ALL -------------------------------------------------
 	it('control 1: with no table at all the presence query answers absent and does not raise', () => {
-		const r = runRows(HISTORY_PRESENCE_SQL, url);
+		const r = runSqlRaw(buildHistorySql(), url);
 		expect(r.ok, r.ok ? '' : r.why).toBe(true);
 		if (r.ok) {
 			// PSQL PRINTS A COMMAND TAG, AND `--tuples-only` DOES NOT SUPPRESS
@@ -88,15 +93,21 @@ describe('the history queries against a real Postgres', () => {
 			// the answer. This assertion pins that it is THERE, because the
 			// defect it caused was reading it AS the answer -- and a reader
 			// that stopped seeing the tag would make the guard below vacuous.
-			const lines = r.rows.map((x) => x.trim()).filter(Boolean);
-			expect(lines).toContain('SET');
-			expect(lines).toContain('history-table|absent');
-			expect(lines[0], 'the tag comes FIRST, which is what made it dangerous').toBe('SET');
+			const got = lines(r.rows);
+			expect(got).toContain('SET');
+			expect(got).toContain(`${HISTORY_KEY}|f|f`);
+			expect(got[0], 'the tag comes FIRST, which is what made it dangerous').toBe('SET');
 		}
 
+		// AND THE MERGED TOOL DEGRADES RATHER THAN FAILING. An absent table is
+		// the pre-seed world, which is a supported state and not an error: the
+		// record cannot speak (`versions` null) and the object probes answer.
 		const h = readHistory(url);
-		expect(h.ok, h.ok ? '' : h.why).toBe(true);
-		if (h.ok) expect(h.history).toEqual({ present: false, versions: new Set() });
+		expect(h.present).toBe(false);
+		expect(h.readable).toBe(false);
+		expect(h.versions).toBeNull();
+		expect(h.why).toContain('0209-seed-migration-history.sql');
+		expect(h.why).toContain('not an error');
 	});
 
 	it('the command tag is never mistaken for the answer, in either direction', () => {
@@ -104,26 +115,30 @@ describe('the history queries against a real Postgres', () => {
 		// carries no `history-table|` prefix, so it cannot match; and a reader
 		// that matched anything non-empty would answer `cannotRun` here on a
 		// database that is perfectly reachable, which is what it did.
-		const h = readHistory(url);
-		expect(h.ok).toBe(true);
-		const stubbedTagOnly = readHistory(url, (() => ({ ok: true, rows: ['SET', ''] })) as never);
-		expect(stubbedTagOnly.ok, 'a bare tag must not read as present or absent').toBe(false);
+		// The real database first: the tag is on the wire (asserted above) and
+		// the tool still reads the labelled row behind it.
+		expect(readHistory(url).why).toContain('not an error');
+		const stubbedTagOnly = readHistory(url, (() => ({ ok: true, rows: [['SET']] })) as never);
+		expect(
+			stubbedTagOnly.why,
+			'a bare tag must not read as the preflight answer'
+		).toContain('no labelled row');
+		expect(stubbedTagOnly.versions).toBeNull();
 	});
 
-	it('a plain select on the missing relation DOES raise, which is why to_regclass is used', () => {
-		// The negative control for the guard itself: without `to_regclass` this
-		// is what the probe would have done, and under `--single-transaction`
-		// it aborts everything sent with it.
-		const r = runRows(`select version from ${HISTORY_TABLE};`, url);
+	it('a plain select on the missing relation DOES raise, which is why the preflight is catalog-only', () => {
+		// The negative control for the guard itself: this is what the tool
+		// would send if it skipped the preflight, and under
+		// `--single-transaction` it aborts everything sent with it -- including
+		// the object probes, which is the whole answer.
+		const r = runSqlRaw(`select version from ${HISTORY_TABLE};`, url);
 		expect(r.ok).toBe(false);
 		if (!r.ok) expect(r.why).toMatch(/does not exist/);
 	});
 
 	it('a migration with no probe and no table is CANNOT SAY, the pre-seed answer', () => {
 		const h = readHistory(url);
-		expect(h.ok).toBe(true);
-		if (!h.ok) return;
-		const f = verdicts([probe('0202', null)], new Map(), h.history);
+		const f = verdicts([probe('0202', null)], new Map(), h);
 		expect(f[0].state).toBe('unknown');
 		expect(exitFor(f)).toBe(EXIT.cannotConfirm);
 	});
@@ -150,22 +165,24 @@ describe('the history queries against a real Postgres', () => {
 
 		it('the presence query flips to present, and the versions come back', () => {
 			const h = readHistory(url);
-			expect(h.ok, h.ok ? '' : h.why).toBe(true);
-			if (!h.ok) return;
-			expect(h.history.present).toBe(true);
-			expect([...h.history.versions].sort()).toEqual(['0202', '0209', '0211']);
+			expect(h.present).toBe(true);
+			expect(h.readable, h.why).toBe(true);
+			// NORMALIZED ON THE WAY IN, so a four-digit file number and an
+			// unpadded row are one key. `normalizeVersion` is the one spelling.
+			expect([...h.versions!].sort()).toEqual(['202', '209', '211']);
+			expect([...h.versions!]).toEqual([...h.versions!].map(normalizeVersion));
 		});
 
 		// -- 2. A ROW WITH THE OBJECT PRESENT -----------------------------
 		it('control 2: a row whose object IS present is applied, read from the catalog', () => {
 			const h = readHistory(url);
-			if (!h.ok) throw new Error(h.why);
 			const probes = [probe('0209', tableProbe('thing_0209'))];
 			const rows = runObjectProbes(probes);
-			const f = verdicts(probes, rows, h.history);
+			const f = verdicts(probes, rows, h);
 			expect(f[0].evidence).toBe('applied');
 			expect(f[0].state).toBe('applied');
-			expect(f[0].conflict).toBe(false);
+			expect(f[0].record).toBe('recorded');
+			expect(f[0].agreement).toBe('agree');
 			expect(exitFor(f)).toBe(EXIT.allApplied);
 		});
 
@@ -174,14 +191,14 @@ describe('the history queries against a real Postgres', () => {
 			// THE FAILURE THE SEED MAKES POSSIBLE. `0211` has a row and no
 			// object; the row is a claim and the catalog is the evidence.
 			const h = readHistory(url);
-			if (!h.ok) throw new Error(h.why);
 			const probes = [probe('0211', tableProbe('thing_0211_never_created'))];
 			const rows = runObjectProbes(probes);
-			const f = verdicts(probes, rows, h.history);
-			expect(f[0].history).toBe(true);
+			const f = verdicts(probes, rows, h);
+			expect(f[0].record).toBe('recorded');
 			expect(f[0].evidence).toBe('not-applied');
 			expect(f[0].state).toBe('not-applied');
-			expect(f[0].conflict).toBe(true);
+			expect(f[0].agreement).toBe('conflict');
+			expect(f[0].why).toContain('CONFLICT');
 			expect(exitFor(f), 'a conflict must be a STOP, not a note').toBe(EXIT.notApplied);
 		});
 
@@ -190,29 +207,30 @@ describe('the history queries against a real Postgres', () => {
 			// 0212 and 0213's real shape: applied and verified by hand, with the
 			// record not yet carrying them.
 			const h = readHistory(url);
-			if (!h.ok) throw new Error(h.why);
-			expect(h.history.versions.has('0212')).toBe(false);
+			expect(h.versions!.has(normalizeVersion('0212'))).toBe(false);
 			const probes = [probe('0212', tableProbe('thing_0209'))];
 			const rows = runObjectProbes(probes);
-			const f = verdicts(probes, rows, h.history);
-			expect(f[0].history).toBe(false);
+			const f = verdicts(probes, rows, h);
+			expect(f[0].record).toBe('unrecorded');
+			expect(f[0].agreement).toBe('object-only');
 			expect(f[0].state).toBe('applied');
 			expect(exitFor(f)).toBe(EXIT.allApplied);
 		});
 
 		it('the case the seed exists for: no probe, but a row carries it', () => {
 			const h = readHistory(url);
-			if (!h.ok) throw new Error(h.why);
-			const f = verdicts([probe('0202', null)], new Map(), h.history);
+			const f = verdicts([probe('0202', null)], new Map(), h);
 			expect(f[0].state).toBe('applied');
 			expect(f[0].evidence).toBe('unknown');
-			expect(exitFor(f), 'this is the exit 3 that stopped six lanes').toBe(EXIT.allApplied);
+			expect(f[0].agreement).toBe('record-only');
+			expect(exitFor(f), 'this is the exit 3 that stopped lane after lane').toBe(
+				EXIT.allApplied
+			);
 		});
 
 		it('and exit 3 still happens for a migration with neither', () => {
 			const h = readHistory(url);
-			if (!h.ok) throw new Error(h.why);
-			const f = verdicts([probe('0206', null)], new Map(), h.history);
+			const f = verdicts([probe('0206', null)], new Map(), h);
 			expect(f[0].state).toBe('unknown');
 			expect(exitFor(f)).toBe(EXIT.cannotConfirm);
 		});
@@ -220,17 +238,17 @@ describe('the history queries against a real Postgres', () => {
 		it('neither history query can write, proven by trying', () => {
 			// `set transaction read only` is belt to the role's braces. Asserted
 			// by running a write in the same shape and watching it refuse.
-			const r = runRows(
+			const r = runSqlRaw(
 				'set transaction read only;\ncreate table public.probe_should_never_create (id int);',
 				url
 			);
 			expect(r.ok).toBe(false);
 			if (!r.ok) expect(r.why).toMatch(/read-only transaction/i);
-			const after = runRows(
+			const after = runSqlRaw(
 				`select case when to_regclass('public.probe_should_never_create') is null then 'absent' else 'present' end;`,
 				url
 			);
-			expect(after.ok && after.rows.map((x) => x.trim()).filter(Boolean)).toEqual(['absent']);
+			expect(after.ok && lines(after.rows)).toEqual(['absent']);
 		});
 	});
 });
