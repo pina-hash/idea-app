@@ -25,7 +25,9 @@
 		clearMirror,
 		draftMirrorKey,
 		latestMirror,
+		mirrorHeldMessage,
 		mirrorRestoreMessage,
+		mirrorVersionFor,
 		planMirrorRestore,
 		sweepMirrors,
 		writeMirror
@@ -746,6 +748,17 @@
 	let mirrorNote = $state<string | null>(null);
 	/** Storage refused the mirror, so the student is told the net is not there. */
 	let mirrorBlocked = $state(false);
+	/**
+	 * A SLOT THIS BUILD FOUND AND REFUSED TO OPEN, held rather than dropped.
+	 *
+	 * It is a KEY and not a boolean because it is the thing every write path has
+	 * to steer around: the composer must not clear it, must not write over it,
+	 * and must not let the quota sweep eat it. A boolean would answer "is one
+	 * held" and none of those three questions.
+	 */
+	let mirrorHeldKey = $state<string | null>(null);
+	/** The words for it. Never null while `mirrorHeldKey` is set. */
+	let mirrorHeldNote = $state<string | null>(null);
 	/** The debounce, and the thing `clearComposerMirrors` has to cancel. */
 	let mirrorTimer: ReturnType<typeof setTimeout> | null = null;
 	/**
@@ -785,7 +798,14 @@
 			clearTimeout(mirrorTimer);
 			mirrorTimer = null;
 		}
-		for (const key of composerMirrorKeys()) clearMirror(key);
+		// A HELD SLOT IS NEVER CLEARED HERE. This runs on an acknowledgement, which
+		// says the server has THIS session's writing -- it says nothing about the
+		// writing in a slot this build could not open, and that slot is the only
+		// copy of it.
+		for (const key of composerMirrorKeys()) {
+			if (key === mirrorHeldKey) continue;
+			clearMirror(key);
+		}
 	}
 	/**
 	 * A WRITE IS IN FLIGHT, autosave or manual. Distinct from `busy`, which
@@ -1048,7 +1068,7 @@
 			const now = Date.now();
 			// HOUSEKEEPING FIRST, and it only ever drops EXPIRED slots: a live one
 			// belonging to another draft is somebody's writing, not litter.
-			sweepMirrors(draftMirrorKey(viewerId, null), now);
+			sweepMirrors(draftMirrorKey(viewerId, null), now, false, mirrorHeldKey ? [mirrorHeldKey] : []);
 			const found = latestMirror(viewerId, now);
 			if (!found) return;
 			const plan = planMirrorRestore(
@@ -1057,6 +1077,26 @@
 			);
 			if (plan.action === 'drop') {
 				clearMirror(found.key);
+				return;
+			}
+
+			/**
+			 * FOUND SOMETHING THIS BUILD CANNOT DRAW: SAY SO AND TOUCH NOTHING.
+			 *
+			 * Handing `found.mirror.doc` to the editor here is the measured defect
+			 * -- Tiptap discards the WHOLE document rather than the one block it
+			 * cannot build, so the box comes back empty and the student reads a
+			 * recovery message over a blank page. So the writing stays where it
+			 * is, the key is recorded so no write path can touch it, and the
+			 * composer carries on as a fresh one.
+			 */
+			if (plan.action === 'hold') {
+				mirrorHeldKey = found.key;
+				mirrorHeldNote = mirrorHeldMessage();
+				console.warn(
+					'[notebook] a draft mirror was held rather than restored; this build does not know:',
+					plan.unknown.join(', ')
+				);
 				return;
 			}
 
@@ -1143,7 +1183,27 @@
 		const folderId = folderChoice;
 		const baseline = autosaveBaseline.serial;
 
+		/**
+		 * THE ONE KEY THIS EFFECT MAY NOT TOUCH, and the guard is here rather than
+		 * inside the timeout so the debounce is not even armed for it.
+		 *
+		 * A held slot is usually the `new` one, because a composer that refused to
+		 * restore has no draft id -- so this is normally a suspension of the net
+		 * for the session, and the student is told that in the same panel. Where
+		 * the held slot belongs to a DIFFERENT record it costs nothing: the
+		 * composer mirrors its own key as usual and only steps around that one.
+		 */
+		const held = mirrorHeldKey;
+
+		// The pending write goes FIRST, before the guard: a timer armed for a key
+		// that has since become held must not fire, and an early return that left
+		// it running would be a write to the one slot this effect may not touch.
 		if (mirrorTimer !== null) clearTimeout(mirrorTimer);
+		if (key === held) {
+			mirrorTimer = null;
+			return;
+		}
+
 		mirrorTimer = setTimeout(() => {
 			mirrorTimer = null;
 			if (!due || !doc) {
@@ -1159,18 +1219,30 @@
 				clearMirror(key);
 				return;
 			}
-			const result = writeMirror(key, {
-				v: 1,
-				at: Date.now(),
-				entryId,
-				noteId,
-				doc,
-				baseline: baseline ?? serializeForBaseline(null),
-				title: label,
-				sessionId,
-				sectionId,
-				folderId
-			});
+			const result = writeMirror(
+				key,
+				{
+					/**
+					 * THE VERSION IS DERIVED FROM THE DOCUMENT, NEVER WRITTEN DOWN
+					 * HERE. `1` while every type in it is one a deployed build can
+					 * render, which is every ordinary note; `2` the moment it is not,
+					 * so such a build drops the slot cleanly rather than blanking the
+					 * draft it restores from it. Pinning the literal at this call site
+					 * is what made that impossible before.
+					 */
+					v: mirrorVersionFor(doc),
+					at: Date.now(),
+					entryId,
+					noteId,
+					doc,
+					baseline: baseline ?? serializeForBaseline(null),
+					title: label,
+					sessionId,
+					sectionId,
+					folderId
+				},
+				held ? [held] : []
+			);
 			// SAY SO WHEN THE NET IS NOT THERE. A safety net nobody knows is
 			// missing is worse than none, because the student goes on writing a
 			// long entry under an assumption that stopped being true.
@@ -1365,6 +1437,13 @@
 		 */
 		restoredDoc = null;
 		mirrorNote = null;
+		/**
+		 * `mirrorHeldNote` DELIBERATELY SURVIVES THIS, and so does its key. What
+		 * was saved is THIS session's writing; a held slot holds somebody's
+		 * earlier unsaved writing that was never put on screen, so an
+		 * acknowledgement here is not an answer about it. Clearing the sentence
+		 * would leave the slot standing with nothing on screen saying it is there.
+		 */
 		/**
 		 * IT DOES NOT CLEAR THE MIRROR, and that is deliberate rather than an
 		 * omission. This runs on a turn-in, on a create, and on `resetForm(true)`
@@ -2911,6 +2990,16 @@
 			     title and a check-in back and the sentence is about all of it. -->
 			{#if mirrorNote}
 				<p class="feedback error" role="status" data-testid="nb-mirror-restored">{mirrorNote}</p>
+			{/if}
+			<!-- A BACKUP THIS BUILD FOUND AND WOULD NOT OPEN. It sits beside the
+			     restore note rather than replacing it because the two can never be
+			     on screen together -- one mirror is read per mount, and a held one
+			     was not restored -- and because a held backup is about the whole
+			     composer exactly as a restore is, not about the note field. It is
+			     `role="status"` and not an alert: nothing has failed and nothing is
+			     lost, which is precisely what the sentence says. -->
+			{#if mirrorHeldNote}
+				<p class="feedback error" role="status" data-testid="nb-mirror-held">{mirrorHeldNote}</p>
 			{/if}
 
 			<form onsubmit={onTurnInSubmit}>
