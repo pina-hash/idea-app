@@ -14,7 +14,7 @@
 - Migration permitted: yes. **Claims: 0211**, allocated by the prompt rather than
   taken as the next free number. `0193` through `0210` are all applied to production
   and verified; the chain on `integration` ends at `0210`.
-- Status: in progress
+- Status: pushed
 - Branch: `claude/lucid-dirac-8b6m2f`, branched from `origin/integration` at
   `50092ead`.
 - Notes: Mr. Pina decided decision 25 on 2026-09-13 -- OPTION B, build it properly.
