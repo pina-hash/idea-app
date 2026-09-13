@@ -68,3 +68,18 @@
   write credential, which is quoted in `deploy.yml` and appears nowhere in
   `CLAUDE.md` -- it was corrected where it lives, in a file this bundle owns.
   `node tools/claude-md-check.mjs` agrees with the tree.
+
+  **THE MERGE TO `main` WAS NOT TAKEN, AND GATE 4 IS WHY.** The prompt permitted
+  it (no migration; the range on `integration` tops out at `0211`, which is
+  applied, and `0212`/`0213` are on the two standing branches this bundle did
+  not touch). Item 4 of the six-item checklist requires
+  `node tools/deploy-probe.mjs --ref origin/integration` to exit 0. It exits
+  **1**: `DEPLOY_PROBE_URL` is unset in this container, so the probe answers
+  "cannot confirm", which is never a pass. **This bundle's own fix does NOT
+  change that and it would be wrong to claim it does** -- reading the history
+  table first removes the exit 3 that came from missing object probes, but it
+  cannot help when there is no connection to read anything over. Item 2 was
+  unmet as well at the time of writing: the branch is pushed and not yet
+  contained in `origin/integration`, which `integrate.yml` does on green CI.
+  Items 1, 3, 5 and 6 were satisfied. The merge is Mr. Pina's, or a rerun once
+  the secret exists.
