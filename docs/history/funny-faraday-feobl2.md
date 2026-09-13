@@ -159,17 +159,27 @@ different route.
 
 ## Measured
 
-**Baseline, re-derived in a clean `git worktree` at the branch point
-(`origin/integration` `843b3860`)**: suite **446 files / 8,518 tests / 0 failed**;
-`svelte-check` **0 errors, 37 warnings in 20 files**, 31 `state_referenced_locally`
-/ 5 `css_unused_selector` / 1 `perf_avoid_nested_class`. **`CLAUDE.md` states
-exactly that and is correct**, so no correction was needed and none was made --
-the second time in six corrections.
+**INTEGRATION MOVED MID-SESSION AND WAS MERGED IN, so there are two baselines
+and the later one is the one that matters.** The branch was cut from
+`origin/integration` at `843b3860`, where a clean `git worktree` measured
+**446 files / 8,518 tests / 0 failed**. By the time the work was done
+`origin/integration` was at `a10eb9c3`, eight commits ahead, and merging it
+CONFLICTED in exactly one file -- `tools/browser-verify/README.md`'s generated
+counts block, which both lanes had regenerated. That is the shared write point
+the README's own header names, and its resolution is not a hand-merge: take the
+other side and re-run `npm run verify:counts`, which reads the merged tree and
+costs no browser. Resolved on this branch, never on integration.
 
-**After**: suite **447 files / 8,545 tests / 0 failed**; `svelte-check`
-**0 errors, 37 warnings in 20 files**, same 31/5/1. The delta is exactly this
-bundle's one test file and its 27 tests; the new components introduced no
-warnings.
+**Baseline, re-derived in the same clean worktree at `a10eb9c3`**: suite
+**PENDING**; `svelte-check` **0 errors, 37 warnings in 20 files**, 31
+`state_referenced_locally` / 5 `css_unused_selector` / 1
+`perf_avoid_nested_class`.
+
+**After, on the merged branch**: suite **449 files / 8,563 tests / 0 failed**;
+`svelte-check` **0 errors, 37 warnings in 20 files**, the same 31/5/1. **PENDING-DELTA** The new components introduced no warnings.
+**`CLAUDE.md` states 0 errors / 37 warnings in 20 files at 31/5/1 and is
+correct**, measured independently at both baselines and on this tree, so no
+correction was needed and none was made -- the second time in six corrections.
 
 **Browser pass, `/dev/notebook-grid-insert` at 375 and 1440: 70 measurements, 0
 outside threshold.** Contrast measured against the real rendered ground: the
@@ -179,19 +189,30 @@ note toolbar controls at 44x44, the inserted grid's 12 cells at 87x44 (375) and
 277.8x44 (1440), its 4 resize controls at 73.1x44. Horizontal scroll 0px at both
 widths. Console errors 0.
 
-**Mutation proof, permissive direction: eight mutants, all killed, plus a green
+**Mutation proof, permissive direction: TEN mutants, all killed, plus a green
 positive control**, over six files, every one restored from an in-memory copy and
 md5-verified (never `git checkout --`, which discards uncommitted work and makes
-every later mutant pass against a pristine tree). The mutants: the normalizer's
-claim removed; its `gridProblem` validation removed; `docToTiptap`'s grid arm
-removed; an empty grid contributing a blank line; the insert guard removed; the
-problem list rendering nothing; the empty-grid notice removed; `NoteContent`'s
-grid arm removed.
+every later mutant pass against a pristine tree), and every one re-run under the
+CORRECTED runner described above. Eight against this bundle's own claims: the
+normalizer's claim removed; its `gridProblem` validation removed; `docToTiptap`'s
+grid arm removed; an empty grid contributing a blank line; the insert guard
+removed; the problem list rendering nothing; the empty-grid notice removed;
+`NoteContent`'s grid arm removed. Two against the generalized Part 8: a claimant
+that also claims the classroom's image, and one that claims every run-less atom.
 
 **Rasterized and looked at, at both widths**, which is how the `aria-disabled`
 contrast finding and the fixture's off-by-one cell references were found -- the
 spec's first run had three rows outside threshold and two of them were the spec
 being wrong about its own fixture.
+
+**AND AT THE COLUMN CAP, WHICH IS THE HARDEST CASE THE FEATURE HAS.** A grid
+driven to 20 columns through its own Add column control, at 375px: the scroller
+holds **1,796px of grid in a 300px box**, and after scrolling to the far end
+**0 cells sit past its edge**, the sticky row header still wins the hit test at
+its own centre, the DOCUMENT overflows by **0px**, `Add column` is correctly
+disabled, and the `4 x 20` readout says how much grid there is. Same figures at
+1440 (949px box). Looked at as well as counted: columns R, S and T read
+normally with the row numbers painting over them, not under.
 
 ## What is NOT verified, and what is left
 
@@ -229,6 +250,17 @@ in passing.
 
 **NO LOOKUP FUNCTION WAS BUILT, deliberately**, and nothing was half-built toward
 one. `#N/A` is still absent from `ERROR_CODES` for the same reason.
+
+## "The toolbar and menu" is one surface, because there is no menu
+
+The ledger entry owns "the grid insertion path in the notebook editor toolbar
+and menu". `NoteEditor.svelte` has a FIXED TOOLBAR and nothing else, deliberately
+and from its first line: its own header records that `svelte-tiptap` was passed
+over because "everything it adds is bubble/floating menus this fixed toolbar does
+not want". So the control went in the toolbar beside Link, and no second surface
+was invented to satisfy the word -- a slash command or a bubble menu would be a
+second way to insert a grid, which is a second thing to keep in step with the
+refusal, the caps and the guard.
 
 ## Files outside the literal Owns list, and why
 
