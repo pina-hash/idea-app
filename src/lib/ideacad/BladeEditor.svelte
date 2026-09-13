@@ -59,7 +59,10 @@
 		saveCustomMaterial = undefined,
 		saveLabel = undefined,
 		onFrame = undefined,
-		onViewportReady = undefined
+		onViewportReady = undefined,
+		standalone = false,
+		paneLayout = undefined,
+		onPaneLayout = undefined
 	}: {
 		tree?: BladeTree;
 		config?: BladeConfig;
@@ -134,7 +137,47 @@
 		saveLabel?: string | null;
 		onFrame?: (ms: number) => void;
 		onViewportReady?: (probe: ViewportProbe) => void;
+		standalone?: boolean;
+		paneLayout?: { left: number; right: number; leftOpen: boolean; rightOpen: boolean };
+		onPaneLayout?: (layout: { left: number; right: number; leftOpen: boolean; rightOpen: boolean }) => void;
 	} = $props();
+
+	type MobilePane = 'tree' | 'graphics' | 'rules';
+	let leftWidth = $state(untrack(() => paneLayout?.left ?? 260));
+	let rightWidth = $state(untrack(() => paneLayout?.right ?? 240));
+	let leftOpen = $state(untrack(() => paneLayout?.leftOpen ?? true));
+	let rightOpen = $state(untrack(() => paneLayout?.rightOpen ?? true));
+	let mobilePane = $state<MobilePane>('graphics');
+	let stageElement = $state<HTMLElement>();
+
+	function publishPaneLayout() {
+		onPaneLayout?.({ left: leftWidth, right: rightWidth, leftOpen, rightOpen });
+	}
+	function togglePane(which: 'left' | 'right') {
+		if (which === 'left') leftOpen = !leftOpen;
+		else rightOpen = !rightOpen;
+		publishPaneLayout();
+	}
+	function resizePane(which: 'left' | 'right', event: PointerEvent) {
+		const startX = event.clientX;
+		const start = which === 'left' ? leftWidth : rightWidth;
+		const move = (e: PointerEvent) => {
+			const available = stageElement?.clientWidth ?? 1440;
+			const delta = e.clientX - startX;
+			const next = which === 'left' ? start + delta : start - delta;
+			const other = which === 'left' ? (rightOpen ? rightWidth : 0) : leftOpen ? leftWidth : 0;
+			const bounded = Math.max(190, Math.min(380, next, available - other - 520));
+			if (which === 'left') leftWidth = bounded;
+			else rightWidth = bounded;
+		};
+		const up = () => {
+			window.removeEventListener('pointermove', move);
+			window.removeEventListener('pointerup', up);
+			publishPaneLayout();
+		};
+		window.addEventListener('pointermove', move);
+		window.addEventListener('pointerup', up);
+	}
 
 	// The concept list is the document. `draft` is the working copy of the ACTIVE concept and
 	// `accepted` is what Accept last committed to it, so Cancel has something to revert to.
@@ -826,7 +869,13 @@
 
 <svelte:document onkeydown={consoleKey} />
 
-<div class="ideacad" data-testid="ideacad-editor">
+<div
+	class="ideacad"
+	class:standalone
+	data-testid="ideacad-editor"
+	style:--tree-width={leftOpen ? `${leftWidth}px` : '0px'}
+	style:--rail-width={rightOpen ? `${rightWidth}px` : '0px'}
+>
 	<header>
 		<div><span class="eyebrow">IDEACAD / BLADE</span><h2>{active.name}</h2></div>
 		<div class="hgroup">
@@ -867,9 +916,15 @@
 			<p class="refusal write" role="status">{writeRefusal}</p>
 		{/if}
 	</header>
-	<div class="stage">
+	<nav class="mobile-switcher" aria-label="IdeaCAD panes">
+		<button aria-pressed={mobilePane === 'tree'} onclick={() => (mobilePane = 'tree')}>Features</button>
+		<button aria-pressed={mobilePane === 'graphics'} onclick={() => (mobilePane = 'graphics')}>Graphics</button>
+		<button aria-pressed={mobilePane === 'rules'} onclick={() => (mobilePane = 'rules')}>Properties</button>
+	</nav>
+	<div class="stage" bind:this={stageElement} data-mobile-pane={mobilePane}>
 		<aside
 			class="tree"
+			class:collapsed={!leftOpen}
 			aria-label={showHistory
 				? 'History'
 				: editing && panelId === 'materials'
@@ -1082,7 +1137,10 @@
 				/>
 			{/if}
 		</aside>
+		<button class="divider left-divider" aria-label="Resize FeatureManager" title="Drag to resize FeatureManager" onpointerdown={(e) => resizePane('left', e)}></button>
 		<section class="viewport" aria-label="3D viewport">
+			<button class="pane-toggle left-toggle" aria-label={leftOpen ? 'Collapse FeatureManager' : 'Open FeatureManager'} onclick={() => togglePane('left')}>{leftOpen ? '‹' : '›'}</button>
+			<button class="pane-toggle right-toggle" aria-label={rightOpen ? 'Collapse PropertyManager' : 'Open PropertyManager'} onclick={() => togglePane('right')}>{rightOpen ? '›' : '‹'}</button>
 			<nav aria-label="View toolbar">
 				<button title="Zoom to fit (F)" onclick={() => viewport?.zoomToFit()}>Fit</button>
 				<button title="Previous view (Ctrl+Shift+Z)" onclick={() => viewport?.previousView()}>Previous</button>
@@ -1123,8 +1181,10 @@
 				</footer>
 			{/if}
 		</section>
-		<aside class="readouts">
-			<h3>Rules</h3>
+		<button class="divider right-divider" aria-label="Resize PropertyManager" title="Drag to resize PropertyManager" onpointerdown={(e) => resizePane('right', e)}></button>
+		<aside class="readouts" class:collapsed={!rightOpen}>
+			<h3>PropertyManager</h3>
+			<p class="rules-label">Rules readout</p>
 			{#each result.rules.slice(0, 4) as rule}
 				<div class="metric">
 					<span>{rule.label}</span><strong>{rule.id === 'mass' ? `${rule.value.toFixed(0)} g` : `${rule.value.toFixed(2)} in`}</strong
@@ -1253,6 +1313,12 @@
 		font-family: Rajdhani, sans-serif;
 		border: 1px solid var(--boundary);
 	}
+	.ideacad.standalone {
+		height: 100%;
+		min-height: 0;
+		border: 0;
+	}
+	.mobile-switcher { display: none; }
 	header {
 		display: flex;
 		justify-content: space-between;
@@ -1284,10 +1350,36 @@
 	}
 	.stage {
 		display: grid;
-		grid-template-columns: var(--tree-width) minmax(0, 1fr) var(--rail-width);
+		grid-template-columns: var(--tree-width) 6px minmax(0, 1fr) 6px var(--rail-width);
 		min-width: 0;
 		min-height: 0;
 	}
+	.divider {
+		min-width: 6px;
+		width: 6px;
+		min-height: 0;
+		padding: 0;
+		border: 0;
+		border-radius: 0;
+		background: var(--boundary);
+		cursor: col-resize;
+		touch-action: none;
+	}
+	.divider:hover, .divider:focus-visible { background: var(--cyan); }
+	.collapsed { visibility: hidden; padding: 0; overflow: hidden; }
+	.pane-toggle {
+		position: absolute;
+		top: 50%;
+		z-index: 3;
+		min-width: 28px;
+		width: 28px;
+		min-height: 48px;
+		padding: 0;
+		transform: translateY(-50%);
+	}
+	.left-toggle { left: 0.35rem; }
+	.right-toggle { right: 0.35rem; }
+	.rules-label { margin: 0 0 .5rem; color: var(--text-2); font: 12px 'Share Tech Mono', monospace; }
 	aside {
 		overflow: auto;
 		background: var(--surface-1);
@@ -1720,14 +1812,15 @@
 	.said i {
 		font-style: normal;
 	}
-	@media (max-width: 1023px) {
+	@media (max-width: 600px) {
 		.ideacad {
-			height: auto;
-			min-height: 100vh;
+			height: 100%;
+			min-height: 0;
+			grid-template-rows: auto auto minmax(0, 1fr) auto;
 		}
-		.ideacad aside {
-			overflow: visible;
-		}
+		.mobile-switcher { display: grid; grid-template-columns: repeat(3, 1fr); padding: .25rem; gap: .25rem; border-bottom: 1px solid var(--boundary); }
+		.mobile-switcher button { min-height: 44px; }
+		.mobile-switcher button[aria-pressed='true'] { border-color: var(--cyan); color: var(--cyan); }
 		/* THE CONFIRM PAIR STAYS ABSOLUTE BELOW 1024, AND `position: static` HERE
 		   MADE IT UNPRESSABLE ON EVERY PHONE.
 
@@ -1754,23 +1847,15 @@
 			bottom: 0.75rem;
 		}
 		.ideacad .stage {
-			display: flex;
-			flex-direction: column;
+			display: grid;
+			grid-template-columns: minmax(0, 1fr);
 		}
-		.viewport {
-			order: 0;
-			min-height: 360px;
-		}
-		.readouts {
-			order: 1;
-			border-left: 0;
-			border-top: 1px solid var(--boundary);
-		}
-		.tree {
-			order: 2;
-			border-right: 0;
-			border-top: 1px solid var(--boundary);
-		}
+		.stage > .tree, .stage > .viewport, .stage > .readouts { grid-area: 1 / 1; visibility: hidden; min-width: 0; min-height: 0; overflow: auto; }
+		.stage[data-mobile-pane='tree'] > .tree,
+		.stage[data-mobile-pane='graphics'] > .viewport,
+		.stage[data-mobile-pane='rules'] > .readouts { visibility: visible; }
+		.stage > .viewport { min-height: 0; }
+		.divider, .pane-toggle { display: none; }
 		.compare {
 			position: fixed;
 			inset: auto 0 0;
