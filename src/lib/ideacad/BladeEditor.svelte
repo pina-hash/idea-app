@@ -34,7 +34,9 @@
 		setFeatures,
 		setStations
 	} from './ui/feature-model';
-	import { UNDO_DEPTH, UndoStack, undoKeyFor } from './ui/undo';
+	import HistoryTimeline from './ui/HistoryTimeline.svelte';
+	import { TIMELINE_WORDS, buildTimeline, undoKeyFor } from './ui/timeline';
+	import { stateAt, type IdeacadHistoryRow } from './history';
 	import { IDEACAD_WRITE_REFUSED, type IdeacadEditorWrites } from './mount';
 
 	let {
@@ -45,6 +47,10 @@
 		openCompare = false,
 		concepts: seedConcepts = undefined,
 		activeConceptId = null,
+		history: historyRows = [],
+		viewerEmail = null,
+		undoStep = undefined,
+		redoStep = undefined,
 		prediction = null,
 		commitConceptCard = undefined,
 		setPrediction = undefined,
@@ -66,6 +72,35 @@
 		 *  reordering the strip -- which is a student's own ordering and not the
 		 *  mount's to rewrite. */
 		activeConceptId?: string | null;
+		/**
+		 * THE ACTIVE CONCEPT'S ACTION LOG (0209), oldest first. EMPTY IS A REAL
+		 * ANSWER -- a deployment sitting between 0208 and 0209 has no log and no
+		 * timeline, and `buildTimeline` returns an empty timeline for an empty
+		 * log, so the absence needs no flag beside it.
+		 */
+		history?: IdeacadHistoryRow[];
+		/**
+		 * 0209's DURABLE UNDO AND REDO, AS TWO STANDALONE TRANSPORTS BESIDE
+		 * `writes` rather than keys inside it -- the same shape
+		 * `commitConceptCard` and `setPrediction` already take here, and for the
+		 * same reason: a surface can have one of these without having all of
+		 * them. The dev harness is exactly that surface, and a harness forced to
+		 * hand over a whole `IdeacadEditorWrites` to get an Undo button would be
+		 * a harness pretending to persist.
+		 *
+		 * ABSENCE REMOVES THE CONTROL. No `undoStep` is a read-only surface or a
+		 * deployment without 0209; the TIMELINE still renders, because reading a
+		 * history is not writing to one.
+		 */
+		/** The reader's own address, so the timeline can say "You" on their own
+		 *  rows (decision 27). It is PASSED THROUGH and never read here -- the
+		 *  editor has no other use for an identity, and resolving a name in two
+		 *  places is how two surfaces come to disagree about who did something.
+		 *  Absent is supported: nobody is "You" and every row still names its
+		 *  actor. */
+		viewerEmail?: string | null;
+		undoStep?: () => Promise<void>;
+		redoStep?: () => Promise<void>;
 		/** A prediction ALREADY RECORDED for this document. Its presence is what
 		 *  puts the recorded line on screen instead of the form -- a form that
 		 *  asked again would make a student predict twice about one document, and
@@ -189,15 +224,76 @@
 		}
 	}
 	/**
-	 * Undo and redo over ACCEPTED edits, 50 deep. The stack is a plain object in
-	 * `$state` so a push does not re-render anything by itself; `historyTick` is
-	 * what the two controls read, because `canUndo` on a non-reactive class is a
-	 * getter Svelte has no way to know moved.
+	 * UNDO AND REDO DRIVE THE DURABLE LOG, NOT A MEMORY STACK.
+	 *
+	 * `ui/undo.ts`'s fifty in-memory trees are GONE. They were correct about the
+	 * one thing that mattered -- what goes on the stack is the ACCEPTED tree and
+	 * never the draft, because a stack fed by a slider preview needs forty
+	 * presses of Ctrl+Z to undo one decision -- and that decision survives
+	 * unchanged, in a different place: `store.edit` diffs the accepted tree
+	 * against the last accepted one, so a row in the log is still one decision.
+	 * What they were wrong about is durability: close the tab and fifty trees
+	 * are gone, where these survive because they are rows in a table.
+	 *
+	 * SO THE ANSWER TO "CAN I UNDO" COMES FROM THE FOLD OVER THE ROWS, which is
+	 * `history.ts`'s `foldHistory` reached through `buildTimeline` -- one
+	 * reading of the depth-parity rule rather than a second one here. 0189 got
+	 * that rule wrong first at depth 3 (an undo of a redo IS a redo candidate,
+	 * and the shallow rule strands the student's work one press away); a second
+	 * copy in this component is exactly how that fix would come undone.
 	 */
-	const history = new UndoStack<BladeTree>(UNDO_DEPTH, (t) => structuredClone($state.snapshot(t) as BladeTree));
-	let historyTick = $state(0);
-	const canUndo = $derived(historyTick >= 0 && history.canUndo);
-	const canRedo = $derived(historyTick >= 0 && history.canRedo);
+	/**
+	 * THE NAMER READS THE SAME RESOLVED LIBRARY THE PICKERS DO, which is what
+	 * stops `aluminum-0125` reaching the screen. It cannot be a table inside
+	 * `timeline.ts`: since 0208 a material is a ROW an admin adds in a form with
+	 * no deploy, and a student's own custom materials are in this config too, so
+	 * a second list would be stale the first time either happened.
+	 *
+	 * `bladeConfigWithMaterials` is TOTAL over every id on screen -- retired rows
+	 * included -- which is exactly the property a history needs: a part's log
+	 * names materials it was on months ago.
+	 */
+	const timelineNamer = $derived((path: string, value: unknown) => {
+		if (typeof value !== 'string') return null;
+		if (path === '/materials/body') return cfg.materials.find((m) => m.id === value)?.name ?? null;
+		if (path === '/materials/bladeStock') return cfg.stock.find((x) => x.id === value)?.name ?? null;
+		return null;
+	});
+	const timeline = $derived(buildTimeline(historyRows, timelineNamer));
+	/* A TRANSPORT IS THE GATE. No `writes.undo` is a deployment without 0209 or
+	   a read-only surface, and the control is ABSENT rather than refusing. */
+	const canUndo = $derived(!readOnly && !!undoStep && timeline.canUndo);
+	const canRedo = $derived(!readOnly && !!redoStep && timeline.canRedo);
+	const hasTimeline = $derived(timeline.entries.length > 0);
+	/** Whether the tree pane is showing the history instead of the feature tree. */
+	let showHistory = $state(false);
+	/**
+	 * THE STEP BEING LOOKED AT, OR NULL FOR NOW. A LOOK AND NEVER A WRITE:
+	 * `accepted` and `draft` are untouched while this is set, so nothing is
+	 * saved, nothing is diffed and the log does not move. Committing to a past
+	 * state is Undo pressed until it is reached, which is what keeps the log
+	 * append-only -- a click that silently rewrote the document would be the
+	 * cursor 0189 refused, wearing a list's clothes.
+	 */
+	let previewSeq = $state<number | null>(null);
+	let undoBusy = $state(false);
+	/**
+	 * The tree at `previewSeq`, computed from rows this component already holds.
+	 * NO TRANSPORT, which is what lets a VIEWER scrub a part they cannot write.
+	 * It refuses loudly inside `history.ts` on a log it cannot replay, and a
+	 * throw here would blank the editor over a look, so a failed scrub falls
+	 * back to now and says nothing was changed -- which is true.
+	 */
+	const previewTree = $derived.by(() => {
+		if (previewSeq === null) return null;
+		try {
+			return stateAt<BladeTree>(historyRows, previewSeq);
+		} catch {
+			return null;
+		}
+	});
+	/** What the viewport, the rail and the readouts are looking at. */
+	const shown = $derived(previewTree ?? draft);
 	// A config arrives from the document row on the real page, so the component
 	// boundary is where an unusable one has to be caught. It is NAMED rather than
 	// swapped silently: a rail quoting limits from a config nobody asked for is
@@ -233,8 +329,14 @@
 	} | null>(null);
 	let orienting = $state(false);
 	const STANDARD = ['Front', 'Back', 'Left', 'Right', 'Top', 'Bottom', 'Isometric'] as const;
-	const result = $derived(evaluate(draft, cfg));
-	const problems = $derived(validateBladeTree(draft, cfg));
+	/* THE READOUTS FOLLOW WHAT IS ON SCREEN, WHICH IS `shown` AND NOT `draft`.
+	   A scrub that moved the model and left the mass, the rules and the rail
+	   quoting the CURRENT part would be the worst of both: a student comparing
+	   an old shape against today's numbers, with nothing saying so. `dirty`
+	   below deliberately does NOT follow it -- a preview changes nothing, so the
+	   confirm pair must not arm against a diff nobody made. */
+	const result = $derived(evaluate(shown, cfg));
+	const problems = $derived(validateBladeTree(shown, cfg));
 	const dirty = $derived(JSON.stringify($state.snapshot(draft)) !== JSON.stringify($state.snapshot(accepted)));
 	/** A station row edits the body, so the panel it opens is the body's. */
 	const panelId = $derived(selected.startsWith('station-') ? 'body-revolve' : selected);
@@ -348,8 +450,10 @@
 
 	function accept() {
 		if (readOnly || !dirty) return;
-		history.push(accepted);
-		historyTick++;
+		/* NOTHING IS PUSHED ANYWHERE. The accepted tree goes into the document
+		   and `store.edit` diffs it against the last one the LOG accounts for --
+		   which is the same grain `ui/undo.ts` used to keep in memory and is why
+		   retiring it cost no resolution. */
 		accepted = clone(draft);
 		writeActive();
 		moveRefusal = null;
@@ -359,25 +463,48 @@
 		draft = clone(accepted);
 		moveRefusal = null;
 	}
-	/** Undo and redo restore BOTH copies: a restore that moved `accepted` and left
-	 *  the preview alone would leave the viewport showing a tree the document no
-	 *  longer holds, with the confirm pair armed against a diff nobody made. */
-	function restore(to: BladeTree | null) {
-		if (!to) return;
-		accepted = structuredClone(to);
-		draft = structuredClone(to);
-		writeActive();
-		historyTick++;
-		saved = 'Unsaved';
+	/**
+	 * ONE PRESS OF UNDO OR REDO, THROUGH THE DURABLE LOG.
+	 *
+	 * THE STORE IS THE ONE THAT DECIDES WHAT GETS INVERTED, and this function
+	 * deliberately does not: `store.undo()` re-reads the log first, because on a
+	 * 0205-shared document the newest rows may belong to the other editor and
+	 * inverting the wrong one would rewrite their work under their cursor. A
+	 * component that picked the target from its own `historyRows` would be that
+	 * race with a nicer name.
+	 *
+	 * SO THE NEW TREE COMES BACK DOWN THE PROP, not out of this handler. The
+	 * store writes, the route re-publishes, `tree`/`concepts` arrive changed,
+	 * and `$effect` below adopts them -- which is the same path every other
+	 * server-decided change in this component already takes.
+	 *
+	 * A SCRUB IS CANCELLED FIRST. Pressing Undo while looking at step 4 would
+	 * otherwise leave the student reading a preview of a document that has since
+	 * moved, and the row they were looking at is not the row that got inverted.
+	 */
+	async function step(which: 'undo' | 'redo') {
+		const run = which === 'undo' ? undoStep : redoStep;
+		const allowed = which === 'undo' ? canUndo : canRedo;
+		if (!run || undoBusy) return;
+		if (!allowed) {
+			writeRefusal = which === 'undo' ? TIMELINE_WORDS.nothingToUndo : TIMELINE_WORDS.nothingToRedo;
+			return;
+		}
+		previewSeq = null;
+		undoBusy = true;
+		try {
+			await run();
+			writeRefusal = '';
+		} catch {
+			writeRefusal = IDEACAD_WRITE_REFUSED;
+		} finally {
+			/* In `finally`, because a throw mid-press otherwise disables both
+			   controls for the rest of the session. */
+			undoBusy = false;
+		}
 	}
-	function undo() {
-		if (readOnly) return;
-		restore(history.undo(clone(accepted)));
-	}
-	function redo() {
-		if (readOnly) return;
-		restore(history.redo(clone(accepted)));
-	}
+	const undo = () => void step('undo');
+	const redo = () => void step('redo');
 	/**
 	 * The console's own keystrokes. `defaultPrevented` is the discriminator
 	 * against the viewport, which binds `Ctrl+Z` (zoom) and `Ctrl+Shift+Z`
@@ -446,10 +573,15 @@
 		renaming = false;
 		editing = false;
 		moveRefusal = null;
-		// A history that followed a load would let one undo rewrite a concept the
-		// student is no longer looking at.
-		history.clear();
-		historyTick++;
+		/* THE LOG FOLLOWS THE CONCEPT AND ARRIVES DOWN THE PROP. There is nothing
+		   local to clear any more -- `store.setActive` re-reads the log for the
+		   concept being opened, exactly as `ui/undo.ts`'s `clear()` used to drop
+		   the stack, and for the same reason: an undo that reached back into a
+		   different concept would rewrite a document the student is not looking
+		   at. WHAT IS STILL LOCAL IS THE SCRUB, and it must not survive a load:
+		   a seq means nothing in another concept's log. */
+		previewSeq = null;
+		showHistory = false;
 	}
 	function nextId() {
 		let n = concepts.length + 1;
@@ -625,9 +757,28 @@
 	<header>
 		<div><span class="eyebrow">IDEACAD / BLADE</span><h2>{active.name}</h2></div>
 		<div class="hgroup">
-			{#if !readOnly}
-				<button class="hist" aria-disabled={!canUndo} title="Undo (Ctrl+Z)" onclick={undo}>Undo</button>
-				<button class="hist" aria-disabled={!canRedo} title="Redo (Ctrl+Y)" onclick={redo}>Redo</button>
+			{#if undoStep && !readOnly}
+				<button class="hist" aria-disabled={!canUndo || undoBusy} title="Undo (Ctrl+Z)" onclick={undo}>Undo</button>
+			{/if}
+			{#if redoStep && !readOnly}
+				<button class="hist" aria-disabled={!canRedo || undoBusy} title="Redo (Ctrl+Y)" onclick={redo}>Redo</button>
+			{/if}
+			<!-- THE TOGGLE IS PRESENT FOR A VIEWER TOO. A teacher reading a
+			     student's part gets the history and no Undo: the log is a record
+			     to read, and reading one is not writing to it. Its ABSENCE is a
+			     deployment with no 0209, where there is no log to show. -->
+			{#if hasTimeline}
+				<button
+					class="hist"
+					data-testid="ideacad-history-toggle"
+					aria-pressed={showHistory}
+					title="History"
+					onclick={() => {
+						showHistory = !showHistory;
+						if (!showHistory) previewSeq = null;
+						if (showHistory) editing = false;
+					}}>History</button
+				>
 			{/if}
 			<div class="save" aria-live="polite">{savedLine}</div>
 		</div>
@@ -643,13 +794,33 @@
 	<div class="stage">
 		<aside
 			class="tree"
-			aria-label={editing && panelId === 'materials'
-				? 'Materials'
-				: editing && panel
-					? 'PropertyManager'
-					: 'FeatureManager'}
+			aria-label={showHistory
+				? 'History'
+				: editing && panelId === 'materials'
+					? 'Materials'
+					: editing && panel
+						? 'PropertyManager'
+						: 'FeatureManager'}
 		>
-			{#if editing && panelId === 'materials'}
+			<!-- THE HISTORY IS A FOURTH MODE OF THIS PANE, and it is first in the
+			     branch because it is the one the student asked for by pressing a
+			     control: opening it closes the PropertyManager rather than racing
+			     it, which is what the toggle's own handler does. -->
+			{#if showHistory}
+				<HistoryTimeline
+					{timeline}
+					{previewSeq}
+					{viewerEmail}
+					busy={undoBusy}
+					onundo={undoStep && !readOnly ? undo : undefined}
+					onredo={redoStep && !readOnly ? redo : undefined}
+					onscrub={(seq) => (previewSeq = seq)}
+					onclose={() => {
+						showHistory = false;
+						previewSeq = null;
+					}}
+				/>
+			{:else if editing && panelId === 'materials'}
 				<!-- THE MATERIALS PANEL. Same pane, same replace-in-place rule as the
 				     PropertyManager, and the same confirm pair, because Accept is
 				     what puts a material change into the document. -->
@@ -862,7 +1033,7 @@
 					{/each}
 				</ul>
 			{/if}
-			<Viewport bind:this={viewport} evaluation={result} rotation={draft.rotation} {onFrame} onReady={onViewportReady} />
+			<Viewport bind:this={viewport} evaluation={result} rotation={shown.rotation} {onFrame} onReady={onViewportReady} />
 			<!-- ONE CONFIRM PAIR ON SCREEN AT A TIME. The PropertyManager carries its
 			     own green check and red X, which is where SolidWorks puts them and
 			     what 0145 PART 5 asks for; rendering this pair beside it put TWO

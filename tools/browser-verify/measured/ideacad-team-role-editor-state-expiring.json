@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "ideacad-team-role-editor-state-expiring.mjs",
-	"date": "2026-09-12T23:42:48.159Z",
-	"sha": "31c477f6e2ea2478f55a7eed63a865b2a83d9f82",
+	"date": "2026-09-13T05:55:39.447Z",
+	"sha": "74a9fd753137afe0e6d5e6cc5800b93a284d86a5",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 32,
 	"outsideRows": [],
-	"ms": 6729
+	"ms": 6419
 }

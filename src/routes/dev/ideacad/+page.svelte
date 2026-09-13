@@ -15,6 +15,9 @@
 	 *   role=student&state=property     the PropertyManager open on the BODY,
 	 *                                   which is the panel with the station
 	 *                                   table and the profile preview in it
+	 *   role=student&state=history      the History timeline open over a REAL log
+	 *                                   built by the real `diffTrees`, carrying a
+	 *                                   live edit, an undone one and a redone one
 	 *   role=student&state=committed    three concepts, the active one committed
 	 *   role=teacher                    the same component, read-only
 	 *   role=teacher&state=property     the read-only PropertyManager
@@ -35,6 +38,7 @@
 		type MaterialRow
 	} from '$lib/ideacad/blade/materials';
 	import type { BladeTree } from '$lib/ideacad/blade/tree';
+	import { diffTrees, type IdeacadHistoryRow } from '$lib/ideacad/history';
 
 	let role = 'student';
 	let state = '';
@@ -67,6 +71,133 @@
 				? many
 				: undefined;
 	const commits: string[] = [];
+
+	/**
+	 * WHO THE FIXTURE'S EDITS BELONG TO (decision 27).
+	 *
+	 * THESE ARE ADDRESSES BECAUSE `0209` STORES ADDRESSES, and the fixture used
+	 * to hold `'you'` and `'A. Reyes'` -- two strings the database cannot
+	 * produce. That is the shape `CLAUDE.md` calls a fixture the producer cannot
+	 * emit, and it cost exactly what that rule says it costs: the timeline was
+	 * printing its actor RAW, and the harness could not show it, because the
+	 * made-up values already read like names. The raw-address defect was
+	 * invisible to a browser pass that measured sixty things on this surface.
+	 *
+	 * TWO AUTHORS, ONE OF THEM THE READER. `HARNESS_VIEWER` is handed to the
+	 * editor as `viewerEmail`, so their rows say "You" and the partner's row
+	 * says a name -- which is the two-author case decision 27 is about, on
+	 * screen, at both widths.
+	 */
+	const HARNESS_VIEWER = 'a.pina@boscotech.net';
+	const HARNESS_PARTNER = 'm.reyes@boscotech.net';
+
+	/**
+	 * A REAL LOG, BUILT BY THE REAL DIFF (0196).
+	 *
+	 * `state=history` opens the timeline over a log this file did NOT hand-write
+	 * row by row. It mutates a tree the way a student does -- turn a number,
+	 * accept, turn another -- and runs `diffTrees` over each accepted pair,
+	 * which is exactly what `store.edit` does on the real page. A hand-written
+	 * fixture would be a claim about what the diff produces rather than the
+	 * thing it produces, and the timeline's whole job is naming what the diff
+	 * emitted: a row shape nothing real emits would let the namer pass over a
+	 * pointer it cannot actually read.
+	 *
+	 * THE UNDO ROWS ARE REAL TOO. Seq 5 inverts seq 4 and seq 6 inverts seq 5,
+	 * so the fixture carries a live edit, an undone one and a REDONE one --
+	 * depths 0, 1 and 2 -- which is what puts the `undone` chip, the `Undid` and
+	 * `Redid` verbs and the green "what Ctrl+Z does next" edge all on screen at
+	 * once. Depth 3 is the case 0189 got wrong first and is asserted in
+	 * `tests/dom/ideacad-timeline-mount.test.ts` rather than drawn here.
+	 */
+	function historyLog(): IdeacadHistoryRow[] {
+		const origin = structuredClone(DEFAULT_BLADE_TREE);
+		const rows: IdeacadHistoryRow[] = [
+			/* THE ORIGIN IS `migration:0209`, WHICH IS A REAL STATE AND NOT AN
+			   ODD ONE. Every concept that predates that migration got its floor
+			   from the backfill, and the backfill deliberately does NOT claim a
+			   student made the part -- so this is what the oldest row of most
+			   parts in production actually says today. It is also the only way
+			   to get a NON-PERSON actor on screen, because the two values that
+			   are not addresses (`system` and this one) are only ever written at
+			   seq 0. */
+			{
+				seq: 0,
+				kind: 'origin',
+				path: '',
+				before: null,
+				after: origin,
+				actor: 'migration:0209',
+				at: '2026-09-13T15:02:00Z'
+			}
+		];
+		let at = structuredClone(origin);
+		let seq = 1;
+		const edit = (change: (t: BladeTree) => void, actor: string, clock: string) => {
+			const next = structuredClone(at);
+			change(next);
+			for (const action of diffTrees(at, next))
+				rows.push({ ...action, seq: seq++, actor, at: clock });
+			at = next;
+		};
+		edit((t) => {
+			const hex = t.features.find((f) => f.type === 'hexBoss');
+			if (hex && hex.type === 'hexBoss') hex.height = 0.75;
+		}, HARNESS_VIEWER, '2026-09-13T15:04:00Z');
+		/* SIX, NOT FOUR. The default tree already carries four blades, so a step
+		   "changing" it to four diffs to NOTHING and the fixture silently loses a
+		   row -- which is how a spec came to assert a feature name that was never
+		   on screen. A fixture step that produces no action is not a step. */
+		edit((t) => {
+			const p = t.features.find((f) => f.type === 'circularPattern');
+			if (p && p.type === 'circularPattern') p.count = 6;
+		}, HARNESS_VIEWER, '2026-09-13T15:06:00Z');
+		edit((t) => (t.materials.bladeStock = 'aluminum-0125'), HARNESS_VIEWER, '2026-09-13T15:07:00Z');
+		edit((t) => (t.rotation = 'ccw'), HARNESS_PARTNER, '2026-09-13T15:09:00Z');
+		edit((t) => {
+			const s0 = t.features.find((f) => f.type === 'revolve');
+			if (s0 && s0.type === 'revolve') s0.stations[1] = { ...s0.stations[1], r: 0.9 };
+		}, HARNESS_VIEWER, '2026-09-13T15:11:00Z');
+		/* The undo of the newest row, then the redo of that undo -- appended, the
+		   way 0189 says an undo is an action rather than a moved pointer. */
+		const target = rows[rows.length - 1];
+		const undo: IdeacadHistoryRow = {
+			seq: seq++,
+			kind: 'set',
+			path: target.path,
+			before: target.after,
+			after: target.before,
+			undoesSeq: target.seq,
+			actor: HARNESS_VIEWER,
+			at: '2026-09-13T15:12:00Z'
+		};
+		rows.push(undo);
+		rows.push({
+			seq: seq++,
+			kind: 'set',
+			path: undo.path,
+			before: undo.after,
+			after: undo.before,
+			undoesSeq: undo.seq,
+			actor: HARNESS_VIEWER,
+			at: '2026-09-13T15:13:00Z'
+		});
+		return rows;
+	}
+	const history = state === 'history' ? historyLog() : [];
+
+	/**
+	 * THE IN-MEMORY ANSWER FOR UNDO AND REDO. The REAL page hands the store's
+	 * own `undo`/`redo` here, which re-read the log and append an inverse
+	 * through `ideacad_apply_actions`; this harness has no database, so it only
+	 * has to be PRESENT, because presence is what puts the two controls on
+	 * screen. `role=teacher` hands neither, which is the read-only timeline.
+	 */
+	let steps = 0;
+	const historyWrites =
+		state === 'history' && role !== 'teacher'
+			? { undo: async () => void steps++, redo: async () => void steps++ }
+			: {};
 
 	/**
 	 * A prediction ALREADY RECORDED, which is what puts the recorded line on
@@ -721,8 +852,116 @@
 		return out;
 	}
 
+	/**
+	 * Open the History the way a student does: by pressing the control in the
+	 * header. A prop that put the timeline on screen directly would measure an
+	 * arrangement the surface has no path to -- the same rule
+	 * `openPropertyManager` and `openMaterials` already follow.
+	 */
+	function openHistory(): boolean {
+		const btn = document.querySelector('[data-testid="ideacad-history-toggle"]');
+		if (!(btn instanceof HTMLElement)) return false;
+		btn.click();
+		return true;
+	}
+
+	/**
+	 * THE TIMELINE'S OWN CLAIMS, AND THEY ARE GEOMETRIC BECAUSE THE CONTENT ONES
+	 * CANNOT SEE THE FAILURE. Ledger 0171 lost two rows below an invisible fold
+	 * on this same rail, and this Chromium paints NO SCROLLBAR into a screenshot
+	 * at any colour (ledger 0186 proved it with a magenta-on-green control) -- so
+	 * "the row is in the DOM" and "the row is reachable" are different questions
+	 * and only the second one matters.
+	 */
+	async function timelineVerdicts(): Promise<string[]> {
+		const out: string[] = [];
+		const say = (claim: string, ok: boolean) => out.push(`${claim} ${ok ? 'ok' : 'FAILED'}`);
+		const box = (sel: string) => document.querySelector(sel)?.getBoundingClientRect();
+		const rows = [...document.querySelectorAll('[data-testid="ideacad-timeline-row"]')];
+		const list = document.querySelector('[data-testid="ideacad-timeline-rows"]');
+		const pane = box('.tree');
+		say('the timeline is on screen', !!box('[data-testid="ideacad-timeline"]'));
+		say('every step of the log has a row', rows.length === history.length);
+		say(
+			'it is inside the pane the feature tree was in',
+			!!pane &&
+				rows.every((r) => {
+					const b = r.getBoundingClientRect();
+					return b.left >= pane.left - 0.5 && b.right <= pane.right + 0.5;
+				})
+		);
+		/* EVERY ROW IS REACHABLE BY SCROLLING, which is the fold check. A row
+		   below the list's own scrollport is fine; a row that cannot be brought
+		   INTO it is the 0171 defect. */
+		if (list instanceof HTMLElement && pane) {
+			/* MEASURED AGAINST THE PANE, NOT THE LIST, AND THAT DISTINCTION IS THE
+			   WHOLE CHECK. The first version of this asked whether each row was
+			   inside the LIST's own box after scrolling it -- which every row
+			   trivially is, because scrolling a box brings a row into that box by
+			   definition. It passed while the list itself hung 200px below the
+			   pane's bottom edge with three rows under the fold, which is ledger
+			   0171's defect reproduced exactly, and a rasterized screenshot is
+			   what found it rather than this function. The honest question is
+			   whether a row ends up inside the box the STUDENT can see. */
+			const reachable = rows.every((r) => {
+				(r as HTMLElement).scrollIntoView({ block: 'nearest' });
+				const b = r.getBoundingClientRect();
+				const l = list.getBoundingClientRect();
+				const p2 = pane;
+				return (
+					b.top >= l.top - 1 &&
+					b.bottom <= l.bottom + 1 &&
+					b.top >= p2.top - 1 &&
+					b.bottom <= p2.bottom + 1
+				);
+			});
+			say('every row can be scrolled into view', reachable);
+			/* AND THE LIST ITSELF IS INSIDE THE PANE, which is the condition that
+			   makes the per-row answer above mean anything: a scroll region
+			   hanging out of its own container is two nested scroll regions, and
+			   the outer one has no cue at all in a browser that paints no
+			   scrollbar. */
+			const l = list.getBoundingClientRect();
+			say('the list is inside the pane rather than hanging out of it', l.bottom <= pane.bottom + 1 && l.top >= pane.top - 1);
+			say('there is exactly one scroll region, and it is the list', list.scrollHeight > list.clientHeight ? pane.height >= l.height - 1 : true);
+			/* THE GUTTER IS RESERVED RATHER THAN PAINTED. With no scrollbar in a
+			   screenshot, content running under one is invisible; `scrollbar-gutter`
+			   is what keeps the row's right edge clear of it whether or not the
+			   list overflows. */
+			say('the list reserves room for its scrollbar', getComputedStyle(list).scrollbarGutter === 'stable');
+			const widest = Math.max(...rows.map((r) => r.getBoundingClientRect().right));
+			say('no row runs past the list box', widest <= list.getBoundingClientRect().right + 0.5);
+		} else {
+			say('every row can be scrolled into view', false);
+			say('the list is inside the pane rather than hanging out of it', false);
+			say('there is exactly one scroll region, and it is the list', false);
+			say('the list reserves room for its scrollbar', false);
+			say('no row runs past the list box', false);
+		}
+		/* A ROW NAMES A PART AND A PARAMETER, NEVER A JSON POINTER. This is the
+		   whole point of the surface: `/features/1/acrossFlats` is not something a
+		   fifteen-year-old reads. */
+		const text = rows.map((r) => r.textContent ?? '').join(' ');
+		say('no row prints a JSON pointer', !/\/features\/|\/materials\//.test(text));
+		/* A STORED ID IS NOT A NAME EITHER, and this is the half the pointer
+		   sweep had nothing to say about: "Blade stock steel-0125 to
+		   aluminum-0125" was on screen and passed every check written above it. */
+		say('no row prints a stored stock id', !/[a-z]+-0\d{3,}/.test(text));
+		say('a material change names the material a picker offers', text.includes('6061 aluminum'));
+		say('a row names a feature in the words the controls use', text.includes('Hex Extension'));
+		say('a row names a parameter in the words the controls use', text.includes('Extension height'));
+		say('the origin says the part was created', text.includes('Part created'));
+		/* THE APPEND-ONLY SHAPE IS ON SCREEN: an undone step is still a row. */
+		say('an undone step is still listed', !!document.querySelector('[data-state="undone"]'));
+		say('a redone step is still listed', /Redid/.test(text));
+		say('nothing is wider than the window', document.documentElement.scrollWidth <= document.documentElement.clientWidth + 0.5);
+		return out;
+	}
+
 	if (typeof window !== 'undefined') {
 		const w = window as unknown as Record<string, unknown>;
+		w.__ideacadOpenHistory = openHistory;
+		w.__ideacadTimelineVerdicts = timelineVerdicts;
 		w.__ideacadVerdicts = verdicts;
 		w.__ideacadFrameProbe = frameProbe;
 		w.__ideacadFrameVerdicts = frameVerdicts;
@@ -747,6 +986,10 @@
 	conceptName={role === 'teacher' ? 'Student concept' : 'Concept 1'}
 	commitConceptCard={role === 'teacher' ? undefined : async (id: string) => void commits.push(id)}
 	materials={LIBRARY}
+	{history}
+	viewerEmail={HARNESS_VIEWER}
+	undoStep={historyWrites.undo}
+	redoStep={historyWrites.redo}
 	saveCustomMaterial={role === 'teacher' ? undefined : saveCustomMaterial}
 	{onFrame}
 	onViewportReady={(p) => (probe = p)}

@@ -1,4 +1,5 @@
 import { htmlAssignmentSchemaVersion } from '$lib/classroom/html-assignment/mount';
+import type { IdeacadHistoryRow } from './history';
 import type { IdeacadStoreState } from './store';
 export const IDEACAD_SCHEMA_VERSION=4;
 export function isIdeaCad(item:unknown):boolean{return htmlAssignmentSchemaVersion(item)===IDEACAD_SCHEMA_VERSION;}
@@ -42,6 +43,30 @@ export interface IdeacadEditorWrites {
 	setPrediction(conceptId: string, rationale: string): Promise<unknown>;
 	/** Stamp a concept card as committed. */
 	commit(conceptId: string): Promise<unknown>;
+
+	/**
+	 * 0209's DURABLE UNDO AND REDO, and they are OPTIONAL for two independent
+	 * reasons rather than one.
+	 *
+	 * The migration is applied by hand, so a deployment sitting between 0208 and
+	 * 0209 is a real state: `createIdeacadStore` takes its history transports on
+	 * the side and publishes `historyReady: false` without them, and the store's
+	 * own `undo` refuses with a sentence. Passing them down only when the log is
+	 * there makes the CONTROLS absent rather than present-and-refusing, which is
+	 * the rule every other transport here follows.
+	 *
+	 * AND THEY WRITE, so a read-only surface has none. A teacher reading a
+	 * student's part gets the timeline and no Undo, which is exactly right: the
+	 * history is a record to read, and pressing Undo on somebody else's work is
+	 * not a thing a viewer does.
+	 *
+	 * THE SCRUB IS NOT HERE AND MUST NOT JOIN THEM. Looking at an earlier step
+	 * is `stateAt` over rows the editor already holds -- pure arithmetic, no
+	 * round trip, and available to a viewer too. Committing to a past state is
+	 * Undo pressed until it is reached, which is what keeps the log append-only.
+	 */
+	undo?(): Promise<void>;
+	redo?(): Promise<void>;
 }
 
 /**
@@ -87,10 +112,29 @@ export interface IdeacadEditorSeed {
 	activeConceptId: string | null;
 	config: unknown;
 	prediction: { conceptId: string; rationale: string; at: string | null } | null;
+	/**
+	 * THE ACTIVE CONCEPT'S ACTION LOG (0209), oldest first, or EMPTY.
+	 *
+	 * Empty is a real answer and not a failure: a deployment without 0209
+	 * publishes `historyReady: false` and no rows, and the editor renders no
+	 * timeline at all. `buildTimeline` returns an empty timeline for an empty
+	 * log, so the absence needs no second flag beside it.
+	 */
+	history: IdeacadHistoryRow[];
 }
 export function ideacadEditorSeed(state: IdeacadStoreState | null | undefined): IdeacadEditorSeed | null {
 	if (!state?.document || state.concepts.length === 0) return null;
 	return {
+		/* `?? []` IS NOT DEFENSIVE PADDING. The type says `history` is always
+		   there and a store built by `createIdeacadStore` always has it -- but
+		   this function takes a SNAPSHOT, and a snapshot reaches it from a test
+		   fixture, from a surface that predates the history region, and from any
+		   future shape that drops it. Spreading `undefined` THROWS, and a throw
+		   here does not cost the timeline, it costs the whole editor: the seed is
+		   null and the student gets a refusal sentence where their blade was. The
+		   empty log is the correct degraded answer -- `buildTimeline` returns an
+		   empty timeline for it and the History control is simply absent. */
+		history: [...(state.history ?? [])],
 		concepts: state.concepts.map((row) => ({
 			id: row.id,
 			name: row.name,

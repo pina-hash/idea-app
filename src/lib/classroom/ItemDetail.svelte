@@ -209,6 +209,7 @@
 		ideacad = null,
 		ideacadDoc = null,
 		ideacadWrites = null,
+		ideacadViewerEmail = null,
 		ideacadOpenRefusal = null,
 		ideacadTeam = null
 	}: {
@@ -357,6 +358,10 @@
 		 * next door do it.
 		 */
 		ideacadWrites?: IdeacadEditorWrites | null;
+		/** The reader's own address, FORWARDED UNREAD to the blade editor so the
+		 *  history timeline can say "You" on their own rows (decision 27). It
+		 *  gates nothing and this file never looks at it. */
+		ideacadViewerEmail?: string | null;
 		/** Set when the document could not be opened, so the slot says so rather
 		 *  than mounting an editor that writes nowhere. */
 		ideacadOpenRefusal?: string | null;
@@ -1802,6 +1807,10 @@
 							activeConceptId={ideacadSeed.activeConceptId}
 							config={(ideacadSeed.config ?? ideacad.config) as any}
 							prediction={ideacadSeed.prediction}
+							history={ideacadSeed.history}
+							viewerEmail={ideacadViewerEmail}
+							undoStep={ideacadWrites.undo}
+							redoStep={ideacadWrites.redo}
 							writes={ideacadWrites}
 							saveLabel={ideacadSaveLabel(ideacadDoc?.phase)}
 							setPrediction={(conceptId, rationale) => ideacadWrites.setPrediction(conceptId, rationale)}
