@@ -6,16 +6,15 @@
  * by the ProseMirror node beside it, by the dev harness, and by the tests that
  * hold it and `0210_notebook_note_grid.sql` to the same numbers.
  *
- * WHY THE SHAPE LIVES HERE AND NOT IN `$lib/notebook-notes`. It will, and that
- * is the next bundle's edit: `NoteBlock` gains a `NoteGrid` arm, the server
- * normalizer gains a branch, and `NoteContent` gains a renderer. None of those
- * three files is this bundle's to touch, and the gate migration is required by
- * `CLAUDE.md` to widen BEFORE any producer can emit the shape -- so what ships
- * here is the DEFINITION and the EDITOR, and the producer follows. Declaring it
- * once, in a module both halves import, is what stops the migration and the node
- * acquiring two ideas of what a grid is; a second declaration in
- * `notebook-notes.ts` later would be the duplication this file exists to
- * prevent, so that edit MOVES nothing and IMPORTS this.
+ * WHY THE SHAPE LIVES HERE AND NOT IN `$lib/notebook-notes`, WHICH IS SETTLED
+ * NOW RATHER THAN PENDING. Ledger 0192 wrote this paragraph in the future tense
+ * -- the producer bundle would give `NoteBlock` a `NoteGrid` arm, the normalizer
+ * a branch and `NoteContent` a renderer -- and said the edit must MOVE nothing
+ * and IMPORT this. Ledger 0199 made all three of those edits and moved nothing:
+ * `NoteBlock` re-exports `NoteGrid` from here, and this is still the only
+ * declaration of the shape, the caps and the length arithmetic. A second
+ * declaration in `notebook-notes.ts` would be two ideas of what a grid is with
+ * `_notebook_note_grid_len` mirroring only one of them.
  *
  * ONE BLOCK OWNS THE WHOLE GRID, AND THAT IS `0195`'s PRECEDENT RATHER THAN A
  * SIMPLIFICATION. `src/lib/classroom/html-assignment/manifest.ts` states it in
@@ -35,6 +34,21 @@
  * fix, and nothing anywhere would report it. A grid is therefore exactly as
  * large as what a student typed.
  */
+
+/**
+ * THE NODE'S NAME IN THE SCHEMA, AND IN A STORED DOCUMENT'S `type`.
+ *
+ * DECLARED IN THE PURE MODULE AND RE-EXPORTED BY `grid-node.ts`, WHICH IS WHERE
+ * IT WAS DECLARED IN LEDGER 0192 AND WHY IT MOVED. `docToTiptap` in
+ * `$lib/notebook-notes` has to name the node to seed the editor from a stored
+ * grid, and `$lib/notebook-notes` is imported by `$lib/server/notebook-notes` --
+ * the normalizer -- so reading the constant from `grid-node.ts` would pull
+ * `@tiptap/core` and the whole of ProseMirror into every server route that
+ * touches a note, to read one string. There is still exactly ONE declaration of
+ * it; what changed is which of the two modules beside each other holds it, and
+ * the one that holds it is the one with no dependencies.
+ */
+export const GRID_NODE_NAME = 'notebookGrid';
 
 /**
  * The stored grid block.

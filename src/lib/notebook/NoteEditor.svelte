@@ -2,6 +2,19 @@
 	import { onDestroy, untrack } from 'svelte';
 	import { docToTiptap, type NoteDoc, type TiptapNode } from '$lib/notebook-notes';
 	import { NOTE_SCHEMA_OPTIONS } from '$lib/rich-text-schema';
+	/**
+	 * THE PURE MODULE, NOT `$lib/notebook/grid`. The index re-exports the
+	 * ProseMirror node, which imports `@tiptap/core`; this component's whole
+	 * design is that ProseMirror arrives through a DYNAMIC import on mount and
+	 * never during SSR, so a static import of the node here would undo that for
+	 * every surface that mounts an editor. The name and the caps are plain data
+	 * and cost nothing.
+	 */
+	import {
+		GRID_NODE_NAME,
+		NOTE_GRID_DEFAULT_COLS,
+		NOTE_GRID_DEFAULT_ROWS
+	} from '$lib/notebook/grid/grid-doc';
 	import { CorrectionLedger } from '$lib/notebook/autocorrect';
 	import ToleranceCallout from '$lib/notebook/ToleranceCallout.svelte';
 	import {
@@ -146,7 +159,8 @@
 		bulletList: false,
 		orderedList: false,
 		link: false,
-		empty: true
+		empty: true,
+		grid: false
 	});
 
 	function syncActive(e: Editor) {
@@ -156,7 +170,11 @@
 			bulletList: e.isActive('bulletList'),
 			orderedList: e.isActive('orderedList'),
 			link: e.isActive('link'),
-			empty: e.isEmpty
+			empty: e.isEmpty,
+			// PUSHED FROM THE EDITOR'S OWN TRANSACTIONS like everything else here.
+			// A grid is `selectable`, so the selection can be ON one -- which is
+			// when inserting a second grid is not what the student meant.
+			grid: e.isActive(GRID_NODE_NAME)
 		};
 	}
 
@@ -167,13 +185,24 @@
 
 		void (async () => {
 			try {
-				const [{ Editor, Extension }, { StarterKit }, plugin] = await Promise.all([
-					import('@tiptap/core'),
-					import('@tiptap/starter-kit'),
-					// Same ProseMirror bundle the two above pull in, so this costs no
-					// extra request and still never runs during SSR.
-					import('$lib/notebook/autocorrect-plugin')
-				]);
+				const [{ Editor, Extension }, { StarterKit }, plugin, grid, gridNodeView] =
+					await Promise.all([
+						import('@tiptap/core'),
+						import('@tiptap/starter-kit'),
+						// Same ProseMirror bundle the two above pull in, so this costs no
+						// extra request and still never runs during SSR.
+						import('$lib/notebook/autocorrect-plugin'),
+						// THE GRID NODE AND ITS NODEVIEW, LOADED THE SAME WAY AND FOR THE
+						// SAME REASON (0199). The node is `@tiptap/core`'s `Node.create`
+						// and the NodeView mounts a Svelte component into a ProseMirror
+						// `atom`; neither may run during SSR, and neither should be paid
+						// for by a surface that never opens an editor. They are two
+						// modules because `grid-node.ts` is importable by a test with no
+						// DOM and `grid-nodeview.svelte.ts` is not -- see that directory's
+						// index for the split.
+						import('$lib/notebook/grid/grid-node'),
+						import('$lib/notebook/grid/grid-nodeview.svelte')
+					]);
 				if (cancelled) return;
 
 				/**
@@ -203,6 +232,18 @@
 						Extension.create({
 							name: 'notebookAutocorrect',
 							addProseMirrorPlugins: () => [autocorrect]
+						}),
+						/**
+						 * THE SPREADSHEET GRID, WITH ITS NODEVIEW ATTACHED HERE RATHER
+						 * THAN INSIDE THE NODE (0199). `grid-node.ts` must stay
+						 * importable by a test with no DOM and no Svelte -- it is the
+						 * schema, and the schema is the paste filter -- so the drawing
+						 * half is bound on at the one place that already has a browser.
+						 * This is the construction `/dev/notebook-sheet` was written to
+						 * be copied from, and it is copied rather than re-derived.
+						 */
+						grid.NotebookGrid.extend({
+							addNodeView: () => gridNodeView.notebookGridNodeView
 						})
 					],
 					content: initialDoc ?? (value ? docToTiptap(value) : undefined),
@@ -307,6 +348,37 @@
 	}
 
 	/**
+	 * INSERT A GRID (0199). The last piece of decision 08: `0210` widened the
+	 * gate, ledger 0192 built the node and its NodeView, ledger 0187 built the
+	 * formula engine, and until this control existed a student could not make
+	 * one.
+	 *
+	 * IT IS ONE PRESS AND NO DIALOG. A grid arrives at
+	 * `NOTE_GRID_DEFAULT_ROWS x NOTE_GRID_DEFAULT_COLS` and is resized with the
+	 * controls on the grid itself, which already exist and are already measured.
+	 * Asking for a size first would be a modal in front of the cheapest possible
+	 * undo -- the grid is a ProseMirror node, so Ctrl+Z removes an unwanted one
+	 * -- and a phone-first surface should not open a form to answer a question
+	 * the student can answer by looking at the thing.
+	 *
+	 * `.focus()` FIRST, WHICH IS WHAT MAKES IT LAND WHERE THE STUDENT WAS. The
+	 * toolbar button takes focus when it is pressed, so without it the insertion
+	 * runs against whatever the selection was before the editor lost focus --
+	 * the same chain every other control here uses, for the same reason.
+	 *
+	 * IT IS REFUSED WHILE THE SELECTION IS ALREADY ON A GRID, and that refusal
+	 * is `aria-disabled` rather than `disabled`, so the control can say why. A
+	 * genuinely `disabled` control swallows pointer events and can never explain
+	 * itself; here there IS something to explain, because "press the button and
+	 * nothing happens" is otherwise what a student gets when ProseMirror
+	 * declines to put a block inside an `isolating` atom.
+	 */
+	function insertGrid() {
+		if (active.grid) return;
+		editor?.chain().focus().insertNotebookGrid(NOTE_GRID_DEFAULT_ROWS, NOTE_GRID_DEFAULT_COLS).run();
+	}
+
+	/**
 	 * Links use a prompt rather than a popover on purpose: this is a phone-first
 	 * flow, and a floating panel to type a URL into is a lot of surface for
 	 * something used once in a while. `mailto:` is offered as-is; a bare domain
@@ -371,6 +443,32 @@
 			title={active.link ? 'Remove link' : 'Add a link'}
 			disabled={disabled || !editor}
 			onclick={toggleLink}>Link</button
+		>
+		<span class="sep" aria-hidden="true"></span>
+		<!--
+			THE GRID CONTROL. A visible WORD, like every other control in this
+			toolbar and for the reason `CLAUDE.md` gives: a `title` tooltip is not
+			discoverable and a phone cannot hover. "Grid" and not a table glyph,
+			because the thing it inserts calls itself a grid everywhere else -- in
+			its own `aria-label`, in the refusal sentences and in the caps.
+
+			`aria-disabled`, NEVER `disabled`, while the selection is on a grid.
+			The control has a reason to give and a `disabled` control cannot give
+			one; the handler carries the same guard, so the refusal is real and not
+			only an attribute. It IS genuinely `disabled` while the editor is still
+			loading, which is a different state -- there is nothing to explain
+			about a control whose editor does not exist yet, and every one of its
+			neighbours behaves the same way.
+		-->
+		<button
+			type="button"
+			aria-disabled={active.grid}
+			data-testid="nb-insert-grid"
+			title={active.grid
+				? 'The cursor is already inside a grid. Click below it to add another.'
+				: 'Insert a grid for numbers and formulas'}
+			disabled={disabled || !editor}
+			onclick={insertGrid}>Grid</button
 		>
 		<span class="sep" aria-hidden="true"></span>
 		<!--
@@ -453,6 +551,23 @@
 	.note-toolbar button:hover:not(:disabled) {
 		border-color: var(--nb-hairline-strong);
 		color: var(--text-1);
+	}
+	/*
+		A CONTROL THAT REFUSES STILL LOOKS LIKE A CONTROL, because it is one: it
+		takes focus, it answers a click, and its `title` says why the answer is
+		no. What changes is only that it reads as unavailable -- dimmed and with
+		the pointer that says "not here" -- which is the whole difference between
+		`aria-disabled` and `disabled` made visible. `:hover` above is already
+		scoped `:not(:disabled)`; this adds the aria case so the hover lift does
+		not promise something the handler will decline.
+	*/
+	.note-toolbar button[aria-disabled='true'] {
+		color: var(--text-3);
+		cursor: not-allowed;
+	}
+	.note-toolbar button[aria-disabled='true']:hover {
+		border-color: transparent;
+		color: var(--text-3);
 	}
 	/* Gold marks the active state, the notebook's one accent thread. */
 	.note-toolbar button.on {

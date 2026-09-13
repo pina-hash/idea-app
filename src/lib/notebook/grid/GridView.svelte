@@ -8,6 +8,8 @@
 		gridCols,
 		type NoteGrid
 	} from './grid-doc';
+	import GridIssues from './GridIssues.svelte';
+	import { gridIssues } from './grid-issues';
 
 	/**
 	 * THE GRID A STUDENT TYPES INTO. Mounted by the ProseMirror NodeView beside
@@ -95,6 +97,19 @@
 	 * forward reference on the way through.
 	 */
 	const sheet = $derived(new FormulaSheet(gridCells(grid)));
+
+	/**
+	 * THE PROBLEM LIST, DERIVED FROM THE SHEET THAT IS ALREADY ON SCREEN (0199).
+	 *
+	 * A cell shows an error's CODE, which is all six characters of column will
+	 * hold; the engine's own sentence for it was reachable only through a
+	 * `title`, which is not discoverable and which a phone cannot show at all.
+	 * `gridIssues` turns the computed sheet into the lines `GridIssues` renders,
+	 * and it is handed THIS sheet rather than building one -- a second
+	 * `FormulaSheet` over the same cells is a second recalculation whose answers
+	 * could differ from the ones in the cells above it.
+	 */
+	const issues = $derived(gridIssues(grid, sheet));
 
 	/** The cell being typed into, as `A1`, or null. */
 	let editing = $state<string | null>(null);
@@ -247,6 +262,14 @@
 			</tbody>
 		</table>
 	</div>
+
+	<!--
+		THE REFUSALS, IN WORDS, BETWEEN THE GRID AND ITS CONTROLS (0199). Below
+		the table because it is about the table; above the size readout and the
+		resize buttons because a problem outranks a control, and because a list
+		that grows and shrinks under the buttons would move them under a finger.
+	-->
+	<GridIssues {issues} {label} />
 
 	<div class="nb-grid-foot">
 		<span class="nb-grid-size" data-testid="notebook-grid-size">
