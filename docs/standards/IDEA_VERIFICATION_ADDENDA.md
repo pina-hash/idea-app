@@ -1,5 +1,5 @@
 # IDEA Verification Standards
-**Version 2.6 - 2026-09-13**
+**Version 2.7 - 2026-09-13**
 
 **This is the verification standard. It is not staging, and there is no upstream file.**
 
@@ -427,6 +427,56 @@ at `ee4a1c4`, committed 02:01 UTC, **63 commits ahead of what was being served**
 hours after that merge landed. The instrument is two lines of `curl` and a `git log -1`,
 and it is the only thing in this file's arsenal that can tell those two states apart.
 
+## 42. A mutant killed by a race proves nothing
+
+`npm test` passes `--no-file-parallelism` to vitest for a stated reason: the database test
+files share one embedded-Postgres cluster, and run concurrently they starve and collide on
+it. A mutation script that shells out to the bare `npx vitest run` instead of to `npm test`
+runs straight into that collision, and the result is not "fewer failures," it is failures
+that cannot be told from the mutation's own effect.
+
+**A mutation proof states which form it ran.** A kill and a flake produce the identical
+line of output -- a red test -- and only the invocation that was actually used says which
+one happened. Where a proof is asked for, it is asked for against the serial form, because
+that is the form the suite's own gate runs.
+
+**Evidence.** Ledger 0213 (2026-09-13) measured this directly: the same test files, run
+under a bare `npx vitest run`, produced 4 failures from cluster contention; run serially,
+the same 33 tests passed. Its own mutation script had used the bare form for its first
+pass and gotten eleven mutants killed and zero survivors -- a clean result, and one
+measured with the race in play, so it could not be told apart from a kill. The ledger
+discarded that number rather than reporting it, and re-ran under `--no-file-parallelism`
+before writing anything down. This file already collects green signals that prove
+nothing; a race-contaminated red signal is the same failure with the sign flipped.
+
+## 43. A premise true when written can have an expiry date nobody wrote down
+
+A fixture that names a specific fact about the live tree -- "migration `0211` is the one
+with no derivable probe," taken from a seed file's own header -- is correct for exactly as
+long as that fact stays true, and nothing marks when it stops. `origin/main` is not a
+fixed thing a test can quote: it moves under a session that never touched it, and a fact
+about "the current highest migration" or "the migration nothing can build a probe for" is
+a fact about a moving target with the date silently omitted.
+
+**Evidence.** Ledger 0213 (2026-09-13) built a paired test against `0211` as the migration
+`tools/idea-status.py` could derive no probe for. `origin/main` moved mid-session and
+picked up `0211` itself, so the tool began deriving a probe for it where it had not been
+able to before, and **both directions of the paired test inverted at once** -- the exit-3
+case and the exit-0 case traded places, silently, because the fixture's premise had quietly
+expired between the session starting and the session asserting against it.
+
+**The remedy is not to re-point the fixture at a different migration that currently
+satisfies the same fact** -- that only re-hides the same expiry date under a new number,
+due on whatever day someone lands a migration in that slot too. The fixed fixture instead
+**synthesises** its no-probe migration: a commit off `origin/main` carrying one extra file,
+planted alone, so the probe-derivability row is the only thing that changes between the
+exit-3 run and the exit-0 run, and nothing about the live tree's own numbering is load
+bearing.
+
+**Generalise it.** A fixture resting on a fact about the live tree is a fixture with an
+unwritten expiry date. Construct the condition the test needs rather than naming something
+that happens to satisfy it today, and the fixture stops ageing.
+
 ## Note on internal organization
 
 This section was written as a merge plan for a document that does not exist. It is kept because the groupings are real and a future reorganization of this file should follow them, not because anything is waiting to move.
@@ -531,6 +581,22 @@ control's positive control counts rows **rising** on N presses with N greater th
 because "one row exists" passes trivially on a working save and proves nothing.
 
 ## Changelog
+
+- **2.7 (2026-09-13)** - Two rules from ledger 0213, both about instruments rather than
+  code. Rule 42: a mutant killed by a race proves nothing, after 0213's mutation script
+  ran the bare `npx vitest run` instead of `npm test`'s `--no-file-parallelism` form and
+  measured its database test files racing each other for one shared cluster -- 4 failures
+  under the bare form, the same 33 tests passing when run serially; its first mutation
+  pass had reported eleven mutants killed and zero survivors under the racing form and
+  the ledger discarded that number rather than report a kill that could not be told from
+  a flake. A mutation proof states which invocation it ran. Rule 43: a premise true when
+  written can have an expiry date nobody wrote down, after 0213's fixture named migration
+  `0211` as the one with no derivable probe and `origin/main` moved mid-session, picked up
+  `0211`, and inverted both directions of the paired test at once. The remedy is not a
+  different migration number carrying the same fact but a fixture that synthesises its own
+  no-probe migration -- a planted commit off `origin/main` isolating the one row that
+  changes -- so a fixture resting on a fact about the live tree stops ageing by no longer
+  depending on the fact.
 
 - **2.6 (2026-09-13)** - Three rules earned in one day, all three about the distance
   between a check being correct and a reader learning its answer. Rule 39: a verification
