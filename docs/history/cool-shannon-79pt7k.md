@@ -174,6 +174,25 @@ sentence itself is the third signal.
 That is the second time on this surface that looking found what measuring could not
 (ledger 0201's 873px button, ledger 0196's three defects). The habit holds.
 
+## THE PROMPT CONTRADICTED ITSELF ON ROUTE SPECS, AND THE FIX WAS THE SCOPED FORM
+
+The prompt said this bundle changes no route spec and, in the same breath, asked
+for a browser route spec at 375 and 1440. Those cannot both hold, and the way it
+surfaced was a suite regression rather than an argument: `tests/derived-numbers.test.ts`
+enforces that a README measured block claiming `Measurements outside threshold: 0`
+must cover every route spec the tree actually has, so five unmeasured
+`ideacad-attach-*` specs reddened **seven** of its assertions. Measured before the
+fix: **8 failed / 8855 passed**, of which one is the pre-existing
+`migrations-applied-record` hash and seven are all that one file.
+
+**The correction was `npm run verify:readme -- --route /dev/ideacad-attach`, the
+SCOPED form, never the whole-tree one.** Scoped takes 52 seconds and writes only
+this lane's five files; the full pass is about seventeen minutes and would rewrite
+measurements belonging to lanes that are still running. **Proved rather than
+asserted:** every one of the 223 pre-existing measurement files was md5-hashed
+before the run and after it, and the only entries that moved are the five new
+`ideacad-attach-*.json` and `README.md` itself.
+
 ## Measured
 
 - **`svelte-check` 0 errors / 37 warnings in 20 files (31/5/1).** The baseline was
@@ -186,8 +205,14 @@ That is the second time on this surface that looking found what measuring could 
 - **Five states rasterized and looked at**, not only measured: `off` at both widths,
   `on` armed at both widths (before and after the warning fix), `badconfig` refused,
   `other`, and the student's empty page.
-- **The full suite and the mutation proofs are in the report** for the run that
-  produced this entry.
+- **The full suite: 467 files, 8863 tests, 1 failed / 8862 passed**, against a
+  baseline re-run on `origin/integration` at `709827d7` of **465 files, 8833
+  tests, 1 failed / 8832 passed**. The one failure is the SAME pre-existing one in
+  both trees -- `tests/db/ideacad-attach-set-editor.test.ts` is not it;
+  `tests/db/migrations-applied-record.test.ts` fails on the `0210` record's hash,
+  identically and with identical digests, on a clean worktree at the branch point.
+  **Delta: +2 files, +30 tests, 0 new failures.**
+- **The mutation proofs are in the report** for the run that produced this entry.
 
 ## For a person to act on
 
