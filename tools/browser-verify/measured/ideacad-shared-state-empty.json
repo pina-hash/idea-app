@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "ideacad-shared-state-empty.mjs",
+	"date": "2026-09-13T02:05:42.399Z",
+	"sha": "2be0f35361c1e9f9086646bf6d9531a15cca727f",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 22,
+	"outsideRows": [],
+	"ms": 5018
+}
