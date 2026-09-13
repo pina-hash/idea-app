@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "ideacad-team-role-editor-state-lost.mjs",
-	"date": "2026-09-12T22:49:28.956Z",
-	"sha": "3467bd632f995cc6f14e6a6af99d7a902eea8a31",
+	"date": "2026-09-12T23:42:48.159Z",
+	"sha": "31c477f6e2ea2478f55a7eed63a865b2a83d9f82",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 32,
 	"outsideRows": [],
-	"ms": 4819
+	"ms": 6729
 }

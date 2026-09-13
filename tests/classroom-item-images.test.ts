@@ -53,6 +53,9 @@ import {
 import { feedCover, buildFeed, type FeedSubmission } from '$lib/classroom/feed';
 import type { ClassroomAttachment, ClassroomItem } from '$lib/classroom/classroom';
 import { hasGuidance } from '$lib/check-in-guidance';
+/* THE NOTEBOOK'S NORMALIZER, for Part 8's behavioural half (0199). Imported
+   rather than read as source text: the claim is what comes OUT of it. */
+import { normalizeNoteDoc } from '$lib/server/notebook-notes';
 
 const ATTACHMENTS: ClassroomAttachment[] = [
 	{ id: 'att-1', filename: 'teardown-03.jpg', mime_type: 'image/jpeg', sort_order: 0 },
@@ -550,15 +553,67 @@ describe('the feed thumbnail', () => {
 // Part 8. THE NOTEBOOK'S CONTRACT DID NOT MOVE.
 // ---------------------------------------------------------------------------
 describe('the notebook side', () => {
-	it('the shared walk emits no image unless a caller asks for one', () => {
-		// The notebook's normalizer supplies no `imageBlock` hook, so the editor
-		// node falls through to the text walk, has no text, and is dropped --
-		// which is the CORRECT outcome there, and is why the hook is opt-in.
-		const src = readFileSync(
-			new URL('../src/lib/server/notebook-notes.ts', import.meta.url),
-			'utf8'
+	it('emits no image from a note, BEHAVIOURALLY, whatever the hook is called', () => {
+		// GENERALIZED IN 0199, NOT DELETED, AND THIS IS THE `CLAUDE.md` RULE
+		// ABOUT AN ASSERTION A LEGITIMATE CHANGE BREAKS.
+		//
+		// This read `expect(src).not.toContain('imageBlock')` over the notebook's
+		// normalizer, and it was a perfect proxy for the claim while the hook had
+		// exactly ONE caller and therefore exactly one meaning. The notebook now
+		// supplies that hook for its SPREADSHEET GRID (0210) -- the hook's
+		// contract is "claim a node that carries no runs at all" and its NAME is
+		// the only thing about it that is narrow, which is written down at its
+		// declaration. So the source sweep stopped measuring the claim, while the
+		// claim itself is exactly as true as it was.
+		//
+		// THE CLAIM IS ASKED DIRECTLY NOW: put a real `itemImage` node through the
+		// note normalizer and read what comes out. That cannot be fooled by a
+		// rename, by a second hook, or by a claimant that grows an arm -- which
+		// the source sweep could be, in every one of those directions.
+		const withImage = {
+			type: 'doc',
+			content: [
+				{ type: 'paragraph', content: [{ type: 'text', text: 'A note with a picture in it.' }] },
+				{ type: ITEM_IMAGE_NODE.name, attrs: { src: 'attachment:diagram.png', alt: 'A diagram' } }
+			]
+		};
+		const result = normalizeNoteDoc(withImage);
+		expect(result.ok).toBe(true);
+		if (result.ok !== true) return;
+
+		// THE ABSENCE, and the POSITIVE CONTROL beside it in the same reading --
+		// a normalizer that had stopped emitting ANYTHING would satisfy the first
+		// three lines on its own.
+		const json = JSON.stringify(result.doc);
+		expect(json).not.toContain(ITEM_IMAGE_NODE.name);
+		expect(json).not.toContain('diagram.png');
+		expect(json).not.toContain('"src"');
+		expect(result.doc).toEqual([
+			{ type: 'p', runs: [{ text: 'A note with a picture in it.' }] }
+		]);
+		console.log(
+			`[0176/0199 notebook] blocks=${result.doc.length} types=${result.doc.map((b) => b.type).join(',')}`
 		);
-		expect(src).not.toContain('imageBlock');
+	});
+
+	it('and the notebook\'s claimant refuses every node type but its own grid', () => {
+		// The structural half of the same claim, one level down: whatever the
+		// notebook hands the shared walk must be a function that claims the grid
+		// and NOTHING else. Asked of the exported behaviour rather than of the
+		// closure, because the closure is private -- a document carrying four
+		// run-less atoms comes back with only the grid.
+		const many = {
+			type: 'doc',
+			content: [
+				{ type: ITEM_IMAGE_NODE.name, attrs: { src: 'attachment:a.png', alt: 'a' } },
+				{ type: 'horizontalRule' },
+				{ type: 'codeBlock' },
+				{ type: 'notebookGrid', attrs: { rows: [['kept']] } }
+			]
+		};
+		const result = normalizeNoteDoc(many);
+		expect(result.ok).toBe(true);
+		expect(result.ok === true && result.doc).toEqual([{ type: 'grid', rows: [['kept']] }]);
 	});
 
 	it('hasGuidance still answers for every block a guidance document can hold', () => {

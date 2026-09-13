@@ -8,6 +8,47 @@
 		type IdeacadEditorWrites
 	} from '$lib/ideacad/mount';
 	import type { IdeacadStoreState } from '$lib/ideacad/store';
+	import SharePanel from '$lib/ideacad/ui/SharePanel.svelte';
+	import PartsPanel from '$lib/ideacad/ui/PartsPanel.svelte';
+	import type { IdeacadGrant, IdeacadGrantRole, IdeacadDocumentRole } from '$lib/ideacad/sharing';
+	import type {
+		IdeacadCheckoutNotice,
+		IdeacadCheckoutPhase
+	} from '$lib/ideacad/checkout';
+	import type { IdeacadAssembly } from '$lib/ideacad/assembly';
+
+	/**
+	 * WHAT THE PAGE HANDS DOWN FOR SHARING AND PART CHECKOUT.
+	 *
+	 * Every field here is a VALUE READ OFF THE DATABASE or a callback into the
+	 * page's own controller. Nothing in this file derives a permission from any
+	 * of it: `SharePanel` asks `ideacadCanShare(role)` and `PartsPanel` asks
+	 * `partRows`, which reads `assembly.canWrite`. A second statement of either
+	 * rule here is the copy that stops matching the migration.
+	 */
+	interface ItemDetailIdeacadTeam {
+		/** What the caller is to this document, straight from the payload. */
+		role: IdeacadDocumentRole | null;
+		/** The owner's address, so the share form can refuse self-sharing early. */
+		ownerEmail: string;
+		grants: IdeacadGrant[];
+		/** Whether this deployment answered the `0205` probe. */
+		sharingReady: boolean;
+		onshare?: (email: string, role: IdeacadGrantRole) => Promise<void>;
+		onunshare?: (email: string) => Promise<void>;
+		/** Null when `0207` is not deployed, or the assembly has not read yet. */
+		assembly: IdeacadAssembly | null;
+		myPartId: string | null;
+		secondsLeft: number | null;
+		phase: IdeacadCheckoutPhase;
+		notice: IdeacadCheckoutNotice | null;
+		/** Addresses the owner may reassign to: whoever the document is shared with. */
+		teammates: string[];
+		onclaim?: (partId: string) => void;
+		onrelease?: (partId: string) => void;
+		onassign?: (partId: string, email: string | null) => void;
+		ondismiss?: () => void;
+	}
 	import Pending from '$lib/Pending.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import AssignmentEngine from '$lib/classroom/AssignmentEngine.svelte';
@@ -168,7 +209,8 @@
 		ideacad = null,
 		ideacadDoc = null,
 		ideacadWrites = null,
-		ideacadOpenRefusal = null
+		ideacadOpenRefusal = null,
+		ideacadTeam = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -318,6 +360,27 @@
 		/** Set when the document could not be opened, so the slot says so rather
 		 *  than mounting an editor that writes nowhere. */
 		ideacadOpenRefusal?: string | null;
+		/**
+		 * SHARING (0205) AND PART CHECKOUT (0207) FOR THE OPEN DOCUMENT.
+		 *
+		 * ONE PROP RATHER THAN TEN, for the reason `IdeacadTransports.assembly`
+		 * is one field rather than nine: these are two features of the SAME
+		 * document, they arrive together or not at all, and ten sibling props on
+		 * a file this size is ten chances to wire nine of them.
+		 *
+		 * NULL REMOVES BOTH PANELS, and that is the whole gate rather than a
+		 * flag. A manager has no document (`ideacad_open_document` raises for
+		 * one), a student whose store has not opened yet has no document id, and
+		 * a deployment sitting before `0205`/`0207` has no functions -- all three
+		 * are the same answer here, which is that there is nothing to render.
+		 *
+		 * AND EVERY CALLBACK INSIDE IT IS INDEPENDENTLY OPTIONAL, because the two
+		 * migrations are applied separately and the panels' own rule is that an
+		 * absent callback removes its control. This object never decides who may
+		 * do what: `role` and `assembly.canWrite` come from the database and the
+		 * panels read them through `ideacadCanShare` / `partRows`.
+		 */
+		ideacadTeam?: ItemDetailIdeacadTeam | null;
 	} = $props();
 
 	/**
@@ -1689,6 +1752,40 @@
 			-->
 			<section class="engine-host">
 				<h2 class="section-label">{canManage ? 'Assignment' : 'Your work'}</h2>
+				<!--
+					PART CHECKOUT SITS ABOVE THE EDITOR AND SHARING SITS BELOW IT,
+					and that ordering is the one decision ledger 0190 left open.
+
+					An IDEA-Blade is several parts and ONE PERSON HOLDS A PART AT A
+					TIME, so which part is mine is not information about the
+					document, it is the thing that GATES the modelling: a student
+					who reads it after the editor has already been used has
+					discovered it too late. Sharing is the opposite -- occasional,
+					administrative, and nothing downstream of the editor depends on
+					it -- so it goes underneath, where it does not stand between a
+					student and the work they came for. At 375 the whole slot is one
+					column and this is simply reading order.
+
+					BOTH ARE ABSENT WHEN `ideacadTeam` IS NULL, which is a manager,
+					a document that has not opened, and a pre-0205/0207 deployment
+					alike. Neither panel is given a flag saying what the caller may
+					do: `role` and `assembly.canWrite` come down from the database
+					and the panels' own predicates read them.
+				-->
+				{#if ideacadTeam && ideacadTeam.assembly}
+					<PartsPanel
+						assembly={ideacadTeam.assembly}
+						myPartId={ideacadTeam.myPartId}
+						secondsLeft={ideacadTeam.secondsLeft}
+						phase={ideacadTeam.phase}
+						notice={ideacadTeam.notice}
+						teammates={ideacadTeam.teammates}
+						onclaim={ideacadTeam.onclaim}
+						onrelease={ideacadTeam.onrelease}
+						onassign={ideacadTeam.onassign}
+						ondismiss={ideacadTeam.ondismiss}
+					/>
+				{/if}
 				{#if canManage || !ideacadWrites}
 					<BladeEditor
 						tree={ideacad.concepts?.find((c: any) => c.id === ideacad.document?.active_concept_id)?.features ??
@@ -1715,6 +1812,16 @@
 					<p class="note">{ideacadOpenRefusal}</p>
 				{:else}
 					<Pending label="Opening your blade document" />
+				{/if}
+				{#if ideacadTeam}
+					<SharePanel
+						role={ideacadTeam.role}
+						ownerEmail={ideacadTeam.ownerEmail}
+						grants={ideacadTeam.grants}
+						sharingReady={ideacadTeam.sharingReady}
+						onshare={ideacadTeam.onshare}
+						onunshare={ideacadTeam.onunshare}
+					/>
 				{/if}
 			</section>
 		{:else if ideacadMountState === 'unavailable'}
