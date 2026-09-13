@@ -8,7 +8,7 @@
   `docs/history/` entry. NO OTHER FILE. No source, test or migration is edited to make
   a merge work.
 - Migration permitted: no. **Claims: none.** Highest on origin/main at issue: 0211
-- Status: issued
+- Status: pushed
 - Branch: `claude/blissful-bohr-79y23g`, branched from `origin/integration` at `709827d7`
 - Notes: lands `claude/sharp-einstein-cqrnx6` (ledger 0212, migration file 0213),
   `claude/busy-feynman-aupq55` (ledger 0207, file 0212) and
