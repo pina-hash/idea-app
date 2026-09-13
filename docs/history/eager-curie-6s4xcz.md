@@ -142,10 +142,11 @@ safe as a blanket ban because no other word on this panel carries one -- and
 
 ## What was measured
 
-- **Full suite: 458 files / 8709 tests green**, against a branch-time baseline
+- **Full suite: 459 files / 8726 tests green**, against a branch-time baseline
   of **457 files / 8673** measured on `origin/integration` at `34a44f2d` in a
-  clean worktree before any change. +36 tests: 11 pure namer cases and 6
-  rendering cases, and the rest the re-actored fixtures.
+  clean worktree before any change. The +2 files are 0196's two test files,
+  which were never on `integration`; of the +53 tests, 17 are this bundle's
+  (11 pure namer cases and 6 rendering cases) and the rest are 0196's.
 - **`svelte-check`: 0 errors, 37 warnings in 20 files**, 31
   `state_referenced_locally` / 5 `css_unused_selector` / 1
   `perf_avoid_nested_class` -- identical to the baseline re-derived on
