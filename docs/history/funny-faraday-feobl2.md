@@ -128,6 +128,35 @@ state is to be READ. Dimming below the text floor to say "unavailable" is the
 in the toolbar and a DASHED EDGE is the difference: a shape, not a colour. The
 browser pass caught this; nothing else would have.
 
+## Two findings that were not in the plan
+
+**AN ASSERTION IN ANOTHER LANE'S TEST BROKE, AND IT WAS GENERALIZED RATHER THAN
+DELETED.** `tests/classroom-item-images.test.ts` Part 8 read
+`expect(src).not.toContain('imageBlock')` over the notebook's normalizer. The
+CLAIM behind it is that a NOTE CAN NEVER EMIT AN IMAGE, and the source sweep was
+a perfect proxy for that while the hook had exactly one caller and therefore
+exactly one meaning. Reusing the hook for the grid made the proxy wrong while
+leaving the claim exactly as true. `CLAUDE.md`'s rule is to assert the RULE
+instead and then re-mutate, so Part 8 now puts a real `itemImage` node THROUGH
+`normalizeNoteDoc` and reads what comes out -- plus a second case putting four
+run-less atoms in and getting only the grid back. That cannot be fooled by a
+rename, by a second hook, or by a claimant that grows an arm, all three of which
+could fool the sweep. **Re-mutated in both directions**: a claimant that also
+claims the classroom's image, and one that claims every run-less atom, each
+reddens 2 of the 34.
+
+**THE MUTATION RUNNER WAS WRONG, IN THE DIRECTION THAT READS AS A CLEAN PROOF.**
+It judged each run by whether `execFileSync` threw, i.e. by vitest's exit code --
+which `tools/run-tests.mjs` says in its own header cannot be trusted here.
+Measured: a clean assertion failure in the `node` project left `npx vitest run
+<file>` exiting 0, so the first attempt at the Part 8 re-mutation reported BOTH
+mutants killed when both had survived. Reproduced by hand, both genuinely
+redden. The runner now parses the summary line and treats a run whose summary it
+cannot find as a failure of the instrument; **every mutant below was re-run
+under the corrected instrument**, and the eight original kills held. The trap is
+in `CLAUDE.md` beside the `git checkout --` one, which is the same failure by a
+different route.
+
 ## Measured
 
 **Baseline, re-derived in a clean `git worktree` at the branch point

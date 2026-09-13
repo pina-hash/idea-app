@@ -1325,7 +1325,15 @@ remaining mutants in the same run then applied against a PRISTINE original with
 none of the session's changes in it, and every one of them "passed" -- which
 reads as a clean mutation proof and is actually a script silently testing code
 that was no longer there. **THE TELL IS A MUTATION SUITE THAT SUDDENLY ALL
-PASSES.** A restore step in a mutation script copies the file first (`cp`, or
+PASSES.** **AND THE SECOND WAY TO GET THAT SAME FALSE CLEAN
+READING IS TO JUDGE THE RUN BY VITEST'S EXIT CODE.** `tools/run-tests.mjs` says
+in its own header that vitest's exit code cannot be trusted here, and a mutation
+script is exactly where that costs something: measured on 2026-09-13, a clean
+assertion failure in the `node` project left `npx vitest run <file>` exiting 0,
+so an `execFileSync` judging by the throw reported two SURVIVING mutants as
+killed. A mutation script parses the summary line (`Tests <n> failed`) and
+treats a run whose summary it cannot find at all as a FAILURE of the instrument,
+never as a pass. A restore step in a mutation script copies the file first (`cp`, or
 read its content into memory) and restores FROM THAT COPY, never from git --
 `git checkout --`/`restore` is a discard-to-HEAD, not a scoped undo, and has no
 idea a mutation script exists.
