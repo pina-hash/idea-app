@@ -422,7 +422,10 @@ describe('the two statements the tool sends, on a real database', () => {
 		// this file had, because no case exercised this half.
 		await db!.sql('create role probe_schemaonly nologin');
 		await db!.sql('grant usage on schema supabase_migrations to probe_schemaonly');
-		const schemaOnly = await asRole('probe_schemaonly', presence);
+		const schemaOnly = await asRole<{ present: boolean; readable: boolean }>(
+			'probe_schemaonly',
+			presence
+		);
 		expect(schemaOnly.rows[0].present).toBe(true);
 		expect(schemaOnly.rows[0].readable, 'schema USAGE alone is not readable').toBe(false);
 
