@@ -30,3 +30,64 @@
 
 ## Outcome
 
+**`integration` landed on `main`.** Production answered **200** from this container,
+which the last six landing lanes could not reach at all (`CONNECT tunnel failed,
+response 403`, code `000`) -- both readings are correct and the difference is the
+container, so no Vercel URL was substituted on any of them and none was needed here.
+
+**THE WORK WAS THE CI READ, AND THE TIP MOVED BETWEEN THE TWO HALVES OF IT.** Read
+once on `f4616dca` (run `34730322854`), all four aggregator values `success` with
+`ref tested: f4616dcab08d20d2260791110f90bf50ebdbbb71`. The pre-merge re-read then
+found `f4616dca..b06597f1`: `integrate.yml` had merged this lane's own ledger commit
+plus ledger 0201 from `claude/peaceful-wright-hupa6x` while the local suite ran --
+**exactly the race ledger 0195 stopped on**. The delta was two ledger entries and
+nothing else (0 files under `src/`, `supabase/`, `tests/` or `.github/`), so the first
+read still spoke for the code; it was **taken again anyway** on `b06597f1` (run
+`34731281906`), same four values, `ref tested: b06597f1c7387fdc5be9359926f6a00d3c0f3b52`.
+A docs-only delta is what made the first read harmless and is the accident rather than
+the rule: nothing about that reading could have said which case it was in.
+
+**THE MERGE NAMED THE TESTED SHA, NOT THE MOVING REF.** `b06597f1` was merged into this
+branch (no conflict, in no file, `tools/browser-verify/` included), the branch tip was
+read by a third CI run, and `main` took THAT -- so the tree that landed is the tree a
+green run names, and anything `integrate.yml` merged afterwards belongs to the next
+landing rather than riding in unverified.
+
+**The migration range was read three times and never moved**: `integration` adds
+exactly `0209_ideacad_history.sql` and `0210_notebook_note_grid.sql` over `main`,
+highest `0210` on both sides, and `tools/migration-claims.mjs` independently answers
+`highest landed 0210` / `next free 0211`. No migration outside `0205`-`0210` appeared at
+any read. The `0190`/`0191` entries the tool reports as claimed-not-landed are
+historical ledger claims against which no file was ever written, so the chain reads
+`0189`, `0192`; they are accounted-for holes, not a missing file.
+
+**Measured.** Local suite on the merged tree: **450 files, 8586 tests, 0 failures**
+(555.56s), against ledger 0188's 433/8318. `svelte-check` with both `PUBLIC_` values
+exported before `svelte-kit sync`: **0 errors, 37 warnings in 20 files, 31/5/1** --
+`CLAUDE.md`'s baseline held exactly, **no correction needed, the second lane in a row**
+after five drifts in three weeks. Landing size 100 files, 17,643 insertions, 207
+deletions. `main` was already an ancestor of `integration` (0 commits left, 43 right at
+branch time), so no merge of `main` into the branch was required. Nine new ledger
+entries -- 0189, 0190, 0192, 0194, 0195, 0198, 0199, 0200, 0201 -- and **every one reads
+`Status: pushed`**, read off `origin/integration` rather than the working tree.
+
+**`Status: pushed` was written in this entry's FIRST commit rather than flipped at the
+end, and that had a measurable effect**: `integrate.yml`'s gate reads the status, so it
+merged this lane's ledger commit into `integration` immediately, which is half of the
+tip movement above. Harmless for a docs-only commit; worth knowing before doing it on a
+lane that touches `src/`.
+
+**What remains standing: two agent branches of 51.** This lane's own, and
+`claude/notebook-ui-theme-overhaul-0gnx0f`, archived by ledger 0182 at
+`refs/heads/archive/notebook-theme-0gnx0f` and deliberately neither merged nor deleted
+(a container cannot delete it; the proxy returns 403 and git reports success over that
+failure). **The other 49 are contained** -- the measurable end of the state ledger 0193
+found as its item 0, 37 standing and 35 conflicting.
+
+**NOT VERIFIED: the browser pass**, deliberately -- this bundle wrote no component,
+stylesheet or route, and `verify:browser` on an unchanged tree would re-measure other
+lanes' work and report it as this one's. **No migration was applied from here** and none
+could be; `0209`/`0210`'s applied state is Mr. Pina's verification, not a reading this
+session took. **The deploy is not confirmed as carrying this merge**: the live sha is
+recorded below, but one 200 from the root is not evidence about which commit served it.
+
