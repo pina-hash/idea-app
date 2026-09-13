@@ -339,10 +339,15 @@ jobs:
                 echo "## Migrations: every one in range is applied"
                 echo
                 jq -r '"Window: migrations from \(.since) up, read on `\(.ref[0:12])`.\n"' probe.json
-                jq -r '"Migration history table: \(.history.table), \(.history.versions) version(s) recorded.\n"' probe.json
+                jq -r '"Migration history table: \(if .history.present then "present" else "ABSENT" end), \(.history.recorded // "no") version(s) recorded.\n"' probe.json
                 echo "| migration | state | read from | object |"
                 echo "| --- | --- | --- | --- |"
-                jq -r '.findings[] | "| `\(.num)` | APPLIED | \(if .evidence == "applied" then "catalog" else "history row" end) | \(.object) |"' probe.json
+                # `.readFrom` IS READ, NEVER RE-DERIVED. `tools/deploy-probe.mjs`
+                # exports `readFrom` and serializes its answer per finding for
+                # exactly this line; working it out again from `.evidence` and
+                # `.state` in jq would be a second copy of that rule living in
+                # YAML, where nothing type checks it.
+                jq -r '.findings[] | "| `\(.num)` | APPLIED | \(.readFrom) | \(.object) |"' probe.json
                 echo
                 echo "Read from production by \`tools/deploy-probe.mjs\`. A row marked **catalog** was"
                 echo "answered by an object probe against \`pg_catalog\`, which is evidence; a row"
@@ -362,7 +367,7 @@ jobs:
                 echo
                 echo "| migration | state | object |"
                 echo "| --- | --- | --- |"
-                jq -r '.findings[] | "| `\(.num)` | \(.state | ascii_upcase) | \(.object)\(if .conflict then " -- CONFLICT: the migration history records this as applied and the catalog in production cannot see it. The row is a claim; the catalog is the evidence." else "" end) |"' probe.json
+                jq -r '.findings[] | "| `\(.num)` | \(.state | ascii_upcase) | \(.object)\(if .agreement == "conflict" then " -- CONFLICT: the migration history records this as applied and the catalog in production cannot see it. The row is a claim; the catalog is the evidence." else "" end) |"' probe.json
                 echo
                 echo "**Nothing was merged and nothing was pushed.**"
                 echo
