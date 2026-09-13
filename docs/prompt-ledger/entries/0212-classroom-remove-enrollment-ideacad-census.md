@@ -10,7 +10,7 @@
   issue: 0211. `0212` is HELD by ledger 0207 on `claude/busy-feynman-aupq55`;
   `node tools/migration-claims.mjs` reports `next free 0213` and 0213 is absent
   from both its lists.
-- Status: issued
+- Status: pushed
 - Branch: `claude/sharp-einstein-cqrnx6`, branched from `origin/integration` at
   `34a44f2d`.
 - Notes: The defect was found by ledger 0206 on 2026-09-13 and REPORTED, not
