@@ -1767,8 +1767,24 @@ the single egress point for that service. Do not add a second.
 See `.env.example`. **Never hardcode keys. Never commit `.env`.**
 
 **The local `.env` is a PLACEHOLDER Supabase project** (`example-ref`), not a
-live one. Nothing in this repo can apply a migration, run an RPC, or sign in
-against production. Every claim about live data must say so.
+live one, and **no session container has ever held a production credential** --
+`IDEA_MIGRATION_URL`, `DEPLOY_PROBE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are all
+unset in a fresh cloud checkout, so a session cannot apply a migration, run an
+RPC or sign in against production. **Every claim about live data must say so.**
+
+**WHAT CHANGED IS CI, NOT THE SESSION, AND THIS PARAGRAPH USED TO SAY "nothing
+in this repo" WITHOUT THAT DISTINCTION.** Two production credentials now live as
+GitHub repository secrets and neither is readable from a session:
+`DEPLOY_PROBE_URL` is READ-ONLY and is what `.github/workflows/deploy.yml` gives
+`tools/deploy-probe.mjs`; `IDEA_MIGRATION_URL` can WRITE, and
+`.github/workflows/migrate.yml` gives it to `tools/apply-migration.mjs` to apply
+the lowest unapplied migration on a push to `main`. So "no workflow may hold a
+write credential" is retired -- one does, deliberately, behind the scoped
+`idea_migrator` role -- and **the sentence that replaces it is narrower: NO
+SESSION HOLDS EITHER, and a session that claims to have checked production
+without naming which variable it read is claiming something this environment
+cannot do.** `.github/workflows/deploy.yml`'s own header still carries the older
+sentence in prose; it is that file's to correct, not this one's.
 
 ---
 
@@ -1794,8 +1810,18 @@ against production. Every claim about live data must say so.
     **What that guard measurably CANNOT catch is written down in the file's own header
     and must not be softened: `truncate` (an event trigger never fires for it), top-level
     DML, and a deliberate one-statement replacement of the guard function.** It stops an
-    accident, not an intent. The connection string is `IDEA_MIGRATION_URL`, read by that
-    one tool and nothing else, and never printed.
+    accident, not an intent. The connection string is `IDEA_MIGRATION_URL`. **THAT
+    CENSUS IS NO LONGER "one tool and nothing else" AND THIS LINE SAID SO UNTIL
+    2026-09-13**: `.github/workflows/migrate.yml` holds it as a repository secret
+    and hands it to two readers -- `tools/apply-migration.mjs`, which is the only
+    thing that WRITES with it, and `tools/deploy-probe.mjs`, which is handed the
+    same string under its OWN variable `DEPLOY_PROBE_URL` when no read-only one is
+    set. So the secret has three holders (the workflow, the apply tool, a session
+    that is given it by hand) and exactly one writer, and that is the split to
+    keep: **a fourth reader is a decision, and a second WRITER is the thing this
+    shape exists to prevent.** `tools/deploy-probe.mjs` must never name
+    `IDEA_MIGRATION_URL` in its own source -- `tests/workflows.test.ts` asserts
+    that in both directions. It is never printed by anything.
   - **A MIGRATION THE TOOL REFUSES IS ONE A PERSON PASTES.** Seven committed migrations
     carry destructive DDL and every one of them is historical; a new file that joins them
     is a file whose apply is Mr. Pina's, not a session's.
@@ -1809,14 +1835,25 @@ against production. Every claim about live data must say so.
     0177 and 0181 on that date. Either way the answer is the same: land it on `main`
     first, or paste it by hand. Do not widen the probe to guess.
   - **NEVER RUN `supabase db push` AGAINST THIS PROJECT.** It is not a way to
-    record one file. The remote has **no `supabase_migrations.schema_migrations`
-    table at all** (measured 2026-08-23: the relation does not exist), because
-    the CLI has never been used here, so `db push` treats every local file as
-    unapplied -- `--dry-run` planned all **130** of them, 0001 through 0130,
-    against the live database that already has every one applied. That would
-    replay one-time imports and backfills (`0084`, `0100`) over real student
-    data. `supabase migration list --linked` showing an empty `remote` column
-    for a file is therefore the NORMAL state and is not a finding.
+    record one file, and the reason it was catastrophic has CHANGED rather than
+    gone away. The remote used to have **no `supabase_migrations.schema_migrations`
+    table at all** (measured 2026-08-23: the relation did not exist), so
+    `db push` treated every local file as unapplied -- `--dry-run` planned all
+    **130** of them, 0001 through 0130, against a live database that already had
+    every one applied, which would have replayed one-time imports and backfills
+    (`0084`, `0100`) over real student data.
+    **`supabase/data/0209-seed-migration-history.sql` ENDS THAT STATE THE MOMENT
+    IT IS PASTED**, by writing one row per file from 0001 up. After the paste a
+    `db push` has nothing to replay -- and it is still forbidden, because it
+    applies a RANGE and this project applies one named file at a time through
+    `tools/apply-migration.mjs` or `.github/workflows/migrate.yml`, both of which
+    refuse anything but the lowest unapplied migration.
+    **DO NOT READ EITHER STATE OFF THIS PARAGRAPH.** Whether the table is there
+    is a property of production and no file in this repository records it; this
+    container cannot reach the database at all. `node tools/deploy-probe.mjs`
+    prints the answer on its own first line (`record:`), and that is the
+    instrument. An empty `remote` column from `supabase migration list --linked`
+    is the PRE-SEED reading and is not a finding; after the paste it would be.
   - **The CLI is still useful read-only.** `supabase db query --linked "<sql>"`
     verifies what a hand-applied file actually did, against the real project,
     and is the right way to confirm an apply landed. Linking writes
