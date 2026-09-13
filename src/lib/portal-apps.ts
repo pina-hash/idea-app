@@ -91,6 +91,15 @@ export const PORTAL_APPS: PortalApp[] = [
 		requiresAuth: true
 	},
 	{
+		id: 'ideacad',
+		title: 'IdeaCAD',
+		sub: 'A full-screen 3D CAD workspace for your models, features, properties, and design rules.',
+		icon: 'ideacad',
+		href: '/ideacad',
+		cta: 'Design',
+		requiresAuth: true
+	},
+	{
 		id: 'maps',
 		title: 'IDEA Maps',
 		sub: 'Find any room, any storage unit, and any tool, down to the drawer it lives in.',

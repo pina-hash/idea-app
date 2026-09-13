@@ -304,7 +304,10 @@
 		<img class="frc-icon-img" src={frcIcon} width="516" height="309" alt="FIRST Robotics Competition" />
 	{:else}
 	<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-		{#if id === 'coin-balance'}
+		{#if id === 'ideacad'}
+			<path d="m16 4 11 6-11 6L5 10l11-6Z" />
+			<path d="m5 10v12l11 6 11-6V10M16 16v12" />
+		{:else if id === 'coin-balance'}
 			<!-- IDEA Coin (i¢) with short ledger lines, reading as a personal statement. -->
 			<circle cx="11" cy="16" r="8" />
 			<text x="11" y="16.5" text-anchor="middle" dominant-baseline="central" fill="currentColor" stroke="none" style="font:700 8px 'Share Tech Mono', monospace">{COIN_SYMBOL}</text>
