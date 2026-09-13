@@ -51,6 +51,29 @@
 
 ## Outcome
 
-Landed. The full suite, `svelte-check` and a scoped browser pass are reported in
-`docs/history/gracious-hopper-a46lec.md`, with the three defects a RASTERIZED
-screenshot found that every automated check had passed over.
+**Landed on `claude/gracious-hopper-a46lec`, NOT merged to `main`, and item 4 of
+the six-item checklist is the stop.** `node tools/deploy-probe.mjs --ref
+origin/integration` exits **1** with "DEPLOY_PROBE_URL is not set, so
+production's applied set cannot be read. This is 'cannot confirm', never
+'applied'." The rule is that it must exit 0 and that `CANNOT SAY` is never a
+pass, so the merge is Mr. Pina's. This container is the seventh in a row refused
+production: no `.env`, `DEPLOY_PROBE_URL` unset, `IDEA_MIGRATION_URL` unset.
+
+**The range check is NON-EMPTY, and what it holds is not what the prompt
+expected.** `node tools/migration-claims.mjs` reports highest landed **0210**,
+next free 0211, and **two claimed-not-landed numbers, 0190 and 0191** -- which
+are not pending work and not this bundle's. Ledger 0092 says in its own words
+"**0190 is unclaimed and stays free** ... Nothing in this bundle touches SQL",
+and 0093 is the same shape for 0191. They are permanent holes in the numbering
+from two bundles that declined their migration. The tool attributes an in-flight
+claim to whatever branch is checked out, which is why they came back labelled
+with this one. **This bundle carries no migration and claims no number.**
+
+Items 1 and 6 were checked and pass (`git merge-base --is-ancestor
+origin/main origin/integration` exits 0; this entry reads `pushed`). Items 2, 3
+and 5 are not reached, because item 4 already stops it.
+
+The full suite, `svelte-check`, the mutation proof and the browser pass are
+reported in `docs/history/gracious-hopper-a46lec.md`, along with the three
+defects a RASTERIZED screenshot found that every automated check had passed
+over, and the two more the full suite found that every scoped run had.
