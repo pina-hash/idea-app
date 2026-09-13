@@ -253,20 +253,51 @@ describe('rewardAwards folds the rows of one award and keeps a legacy row as one
 });
 
 describe('rewardTotals over awards', () => {
+	/**
+	 * THE FIELD SET IS PINNED IN ONE PLACE, and the two totals below assert
+	 * VALUES rather than whole objects.
+	 *
+	 * Both of them used to be `toEqual` over the entire row, so 0212 adding
+	 * `unpaid` necessarily broke them -- a legitimate change breaking an
+	 * assertion that spelled out a list, which this repo says to GENERALIZE
+	 * rather than to patch field by field. Patching each `toEqual` is what
+	 * makes the next added field break N places instead of one.
+	 *
+	 * What the two tests are actually about is the per-registrant ARITHMETIC:
+	 * that a team of two reads 45 each rather than the 90 a row-sum would show.
+	 * So they assert those numbers, and the shape lives here, where a new field
+	 * reddens exactly one line and has to be a deliberate decision.
+	 */
+	it('a total carries exactly these fields', () => {
+		const team = rewardTotals(LEDGER).find((t) => t.entryId === 'team')!;
+		expect(Object.keys(team).sort()).toEqual(
+			['awards', 'entryId', 'recipients', 'total', 'unpaid'].sort()
+		);
+	});
+
 	it('reads the team at 45 per person across 3 awards, recipients 2', () => {
 		const totals = rewardTotals(LEDGER);
-		const team = totals.find((t) => t.entryId === 'team');
-		expect(team).toEqual({ entryId: 'team', total: 45, awards: 3, recipients: 2 });
+		const team = totals.find((t) => t.entryId === 'team')!;
+		expect(team.entryId).toBe('team');
+		expect(team.total).toBe(45);
+		expect(team.awards).toBe(3);
+		expect(team.recipients).toBe(2);
 		// The figure a row-sum would have shown -- 90, over 6 "awards" -- is
 		// exactly the figure this exists to stop.
 		expect(legacyTotals(LEDGER).team).toEqual({ total: 90, awards: 6 });
 	});
 
 	it('reads the legacy solo identically to the pre-0192 answer, recipients 1', () => {
-		const solo = rewardTotals(LEDGER).find((t) => t.entryId === 'solo');
+		const solo = rewardTotals(LEDGER).find((t) => t.entryId === 'solo')!;
 		const legacy = legacyTotals(LEDGER).solo;
-		expect(solo).toEqual({ entryId: 'solo', total: legacy.total, awards: legacy.awards, recipients: 1 });
-		expect(solo?.total).toBe(25);
+		expect(solo.entryId).toBe('solo');
+		expect(solo.total).toBe(legacy.total);
+		expect(solo.awards).toBe(legacy.awards);
+		expect(solo.recipients).toBe(1);
+		expect(solo.total).toBe(25);
+		// A pre-0192 ledger carries no coin link at all, so nothing reads as
+		// unpaid: cannot-tell is not unpaid (0212).
+		expect(solo.unpaid).toBe(0);
 	});
 
 	it('sorts largest first, then by entry id, as before', () => {
