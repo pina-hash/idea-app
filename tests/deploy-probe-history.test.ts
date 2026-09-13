@@ -310,6 +310,26 @@ afterAll(async () => {
 	if (db) await db.stop();
 });
 
+/**
+ * Run a statement AS a named role, on the pooled connection, and put the role
+ * back afterwards.
+ *
+ * TWO THINGS HERE ARE NOT DECORATION. `reset role` is in the SAME batch,
+ * because `set role` persists on a pooled connection -- without it the next
+ * test in this file failed with `permission denied to create role`, which
+ * reads as a broken fixture and is this helper leaking. And a multi-statement
+ * batch makes `pool.query` answer an ARRAY of results, so the row-bearing one
+ * is picked out rather than `.rows` being read off the batch (which is
+ * `undefined`, and throws one line later on something unrelated).
+ */
+async function asRole<T extends object>(role: string, sql: string): Promise<{ rows: T[] }> {
+	const res = (await db!.sql(`set role ${role};\n${sql}\nreset role;`)) as unknown;
+	const all = (Array.isArray(res) ? res : [res]) as { rows?: T[] }[];
+	const withRows = all.filter((r) => Array.isArray(r.rows) && r.rows.length > 0);
+	expect(withRows.length, `no row came back for a statement run as ${role}`).toBeGreaterThan(0);
+	return withRows[withRows.length - 1] as { rows: T[] };
+}
+
 describe('the two statements the tool sends, on a real database', () => {
 	it('answers present=false on a database that has never seen the seed, without raising', async () => {
 		db = await startTestDb([]);
@@ -352,35 +372,65 @@ describe('the two statements the tool sends, on a real database', () => {
 		// NULL for a table sitting right there, and the tool would have told an
 		// operator to paste a seed the database already had. `pg_class` is
 		// readable by PUBLIC and is not filtered by either privilege.
+		//
+		// IT IS RUN UNDER `set role`, AND THE FIRST VERSION OF THIS TEST WAS
+		// NOT. It only substituted the role NAME into `has_*_privilege`, so the
+		// statement still EXECUTED as the owning role -- under which
+		// `to_regclass` resolves perfectly well. The merged mutation proof
+		// found that: swapping `pg_class` back for `to_regclass` SURVIVED, so
+		// the headline find was not pinned by the test that claimed it. The
+		// executing role has to be the one without USAGE.
 		await db!.sql('create role probe_nousage nologin');
-		const r = await db!.sql<{ present: boolean; readable: boolean }>(
-			buildHistorySql()
-				.replace('set transaction read only;\n', '')
-				.replaceAll('current_user', "'probe_nousage'::name")
-		);
+		const presence = buildHistorySql().replace('set transaction read only;\n', '');
+		const asNoUsage = <T extends object>(sql: string) => asRole<T>('probe_nousage', sql);
+
+		const r = await asNoUsage<{ present: boolean; readable: boolean }>(presence);
 		expect(r.rows[0].present).toBe(true);
 		expect(r.rows[0].readable).toBe(false);
 
-		// AND `readable` IS TWO PRIVILEGES, NOT ONE. SELECT on the table with
-		// no USAGE on the schema still cannot read it -- `has_table_privilege`
-		// answers about the table's own ACL and says nothing about the schema --
-		// so granting only the table must leave `readable` false.
-		await db!.sql(`grant select on ${HISTORY_TABLE} to probe_nousage`);
-		const tableOnly = await db!.sql<{ present: boolean; readable: boolean }>(
-			buildHistorySql()
-				.replace('set transaction read only;\n', '')
-				.replaceAll('current_user', "'probe_nousage'::name")
-		);
-		expect(tableOnly.rows[0].readable).toBe(false);
+		// THE NEGATIVE CONTROL FOR THE CHOICE ITSELF, as the same role in the
+		// same breath: `to_regclass` cannot see the table the statement above
+		// just found, which is the whole reason the preflight reads `pg_class`.
+		//
+		// AND IT IS WORSE THAN THE HEADER USED TO SAY. Ledger 0213 recorded
+		// `to_regclass` "answering NULL" for such a role -- which is what the
+		// TOOL reports, because a raising statement makes `psql` exit non-zero
+		// and `readHistory` degrades to `present: false`. Measured here at the
+		// SQL layer it does not answer null at all: it RAISES `permission
+		// denied for schema`, and under `--single-transaction` with
+		// `ON_ERROR_STOP=1` that aborts the object probes riding in the same
+		// batch. Same conclusion, a worse failure than the one on record.
+		await expect(
+			asNoUsage(`select (to_regclass('${HISTORY_TABLE}') is null) as absent;`)
+		).rejects.toThrow(/permission denied for schema/i);
 
-		// The positive control: add the schema and it flips.
+		// AND `readable` IS TWO PRIVILEGES, NOT ONE, IN BOTH DIRECTIONS.
+		// First: SELECT on the table with no USAGE on the schema still cannot
+		// read it -- `has_table_privilege` answers about the table's own ACL
+		// and says nothing about the schema.
+		await db!.sql(`grant select on ${HISTORY_TABLE} to probe_nousage`);
+		expect(
+			(await asNoUsage<{ present: boolean; readable: boolean }>(presence)).rows[0].readable
+		).toBe(false);
+
+		// SECOND, AND THE MUTATION PROOF FOUND THIS ONE MISSING: USAGE on the
+		// schema with NO select on the table must ALSO read false. It is the
+		// dangerous direction -- a `readable: true` here sends the versions
+		// select, which raises `permission denied` and aborts the transaction
+		// the object probes ride in, taking the whole answer down. Dropping
+		// `has_table_privilege` from the conjunction survived every assertion
+		// this file had, because no case exercised this half.
+		await db!.sql('create role probe_schemaonly nologin');
+		await db!.sql('grant usage on schema supabase_migrations to probe_schemaonly');
+		const schemaOnly = await asRole('probe_schemaonly', presence);
+		expect(schemaOnly.rows[0].present).toBe(true);
+		expect(schemaOnly.rows[0].readable, 'schema USAGE alone is not readable').toBe(false);
+
+		// The positive control: give the first role the schema too and it flips.
 		await db!.sql('grant usage on schema supabase_migrations to probe_nousage');
-		const both = await db!.sql<{ present: boolean; readable: boolean }>(
-			buildHistorySql()
-				.replace('set transaction read only;\n', '')
-				.replaceAll('current_user', "'probe_nousage'::name")
-		);
-		expect(both.rows[0].readable).toBe(true);
+		expect(
+			(await asNoUsage<{ present: boolean; readable: boolean }>(presence)).rows[0].readable
+		).toBe(true);
 	});
 
 	it('answers present=true and readable=FALSE for a role that holds no grant on it', async () => {
@@ -478,6 +528,26 @@ describe('readHistory degrades one rung at a time and never throws', () => {
 		// AND THE TAG IS NOT COUNTED AS A VERSION. This is the exact inflation
 		// the defect produced: one extra "version" called SET.
 		expect([...h.versions!]).toEqual(['210']);
+
+		// A ROW THAT IS THE RIGHT SHAPE AND THE WRONG KIND IS ALSO DROPPED, and
+		// the merged mutation proof is why this second half is here: opening
+		// `versionRow` to accept ANY row SURVIVED the assertion above, because
+		// a bare `SET` tag splits to one field and its missing second field was
+		// already being filtered as empty. So the guard was passing for the
+		// wrong reason. A two-field row carrying the PRESENCE key is the input
+		// that tells the label check apart from the emptiness check.
+		let n = 0;
+		const wrongKind: Run = () =>
+			++n === 1
+				? { ok: true, rows: [[HISTORY_KEY, 't', 't']] }
+				: {
+						ok: true,
+						rows: [
+							[HISTORY_KEY, 'stray'],
+							[VERSION_KEY, '0210']
+						]
+					};
+		expect([...readHistory('postgres://x', wrongKind).versions!]).toEqual(['210']);
 	});
 
 	it('present and not readable is "cannot speak", and says which of the two it was', () => {
