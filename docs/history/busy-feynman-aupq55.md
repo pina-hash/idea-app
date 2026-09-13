@@ -286,3 +286,31 @@ row shape inside the panel. `tests/coin-symbol.test.ts` gained the two entries
 the prompt asked for. Every ref was swept first: ledgers 0205 and 0206 are
 documentation-only ("NO FILE UNDER `src/`") and no branch anywhere touches
 `src/lib/tournaments`.
+
+## The applied-record test, and why 0212 has no record
+
+`tests/db/migrations-applied-record.test.ts` requires a file under
+`docs/migrations-applied/` for every migration from 0193 onward, exactly. On a
+clean `origin/integration` worktree it passes 23/23; on this branch it reports
+`0212` missing, and **that is the mechanism working rather than a defect to
+paper over.** That directory's README is explicit -- *"One file per migration
+that actually applied to the production database. Nothing here is a plan."* --
+so writing a record for an unapplied migration would make the one property the
+directory has false, and would tell a reader 0212 is live nine days before the
+tournament when it is not.
+
+**This bundle is the first migration-carrying lane to meet ledger 0209's
+mechanism, which landed after this branch was cut**, and the collision is
+structural: a session cannot apply its own migration (the egress proxy accepts a
+CONNECT to 5432 and then carries no bytes, which that README documents), so every
+future lane that commits a migration will leave this test red until Mr. Pina
+applies it and records it. Worth a decision; not worth a false record.
+
+The 0211 half of the same failure WAS this branch's to fix and is fixed: the
+branch was cut at `78516fa`, before `6d7a85b` recorded 0211, and merging
+`origin/integration` brought it forward.
+
+`node tools/record-applied.mjs 0212 --query` answers *"no probe could be derived
+for 0212 ... probes come from origin/main. Write the verification query by hand
+and pass its output to --evidence"*, which is exactly the query in this bundle's
+final report.
