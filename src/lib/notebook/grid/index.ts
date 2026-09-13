@@ -8,17 +8,15 @@
  * is the gate (`supabase/migrations/0210_notebook_note_grid.sql`) and the
  * editor.
  *
- * IT IS NOT WIRED INTO `NoteEditor.svelte` AND THAT IS THE SEQUENCING, NOT AN
- * OMISSION. `CLAUDE.md`'s validation-gate rule says the gate widens ALONE,
- * before anything can emit the shape. The one path from an editor document into
- * `notebook_entry_notes.content` is `$lib/server/rich-text-normalize.ts`, a
- * whitelist translator that BUILDS its output from the node types it names --
- * it does not name a grid, and it is not this bundle's file. So the next bundle
- * adds three things and IMPORTS everything below rather than restating it: a
- * `NoteGrid` arm on `NoteBlock` in `$lib/notebook-notes`, a branch in the
- * normalizer, and a renderer in `NoteContent.svelte`; then
- * `NoteEditor.svelte`'s extension list gains `NotebookGrid` and the feature is
- * on. By then the gate is applied.
+ * IT IS WIRED INTO `NoteEditor.svelte` NOW, AND THIS PARAGRAPH USED TO SAY IT
+ * WAS NOT. Ledger 0192 shipped the node alone on purpose -- `CLAUDE.md`'s
+ * validation-gate rule says the gate widens BEFORE anything can emit the shape
+ * -- and named the four edits the producer bundle owed: a `NoteGrid` arm on
+ * `NoteBlock` in `$lib/notebook-notes`, a branch in the server normalizer, a
+ * renderer in `NoteContent.svelte`, and the extension list. **Ledger 0199 made
+ * all four**, with `0210` applied, and every one of them IMPORTS what is below
+ * rather than restating it. A comment describing an unwritten bundle is exactly
+ * what goes stale the moment somebody writes it.
  *
  * THE `.svelte.ts` SPLIT IS THE `rich-text-schema.ts` RULE. `grid-doc` and
  * `grid-node` are importable by a node test with no DOM -- the schema is the
