@@ -119,6 +119,16 @@ export interface EnrollmentWorkCounts {
 	submissions: number;
 	approvals: number;
 	notebook_entries: number;
+	/**
+	 * 0213. OPTIONAL because a deployment carrying 0138's four-count census and
+	 * not yet 0213's fifth is a real state, and the key is simply absent there.
+	 * `enrollmentWorkSummary` reads every count through `?? 0`, so an absent one
+	 * contributes nothing rather than printing `NaN`; the sentence is then short
+	 * and still true. The reverse order cannot break anything: the database
+	 * sending a key this build has no label for is what would drop it silently,
+	 * and this build has the label.
+	 */
+	ideacad_documents?: number;
 }
 
 /** What `classroom_remove_enrollment` answers, verbatim. */
@@ -139,7 +149,8 @@ const WORK_LABELS: Record<keyof EnrollmentWorkCounts, [string, string]> = {
 	responses: ['saved answer', 'saved answers'],
 	submissions: ['hand-in', 'hand-ins'],
 	approvals: ['module approval', 'module approvals'],
-	notebook_entries: ['notebook entry', 'notebook entries']
+	notebook_entries: ['notebook entry', 'notebook entries'],
+	ideacad_documents: ['IdeaCAD document', 'IdeaCAD documents']
 };
 
 /**
