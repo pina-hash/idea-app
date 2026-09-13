@@ -74,7 +74,15 @@ export default {
 		{ selector: '[data-testid="ideacad-shared-current"]', label: 'the Open-now mark, which a document this caller cannot reach must NOT carry', expectPresent: 0 },
 		{ selector: '[data-testid="ideacad-shared-summary"]', label: 'the count, withheld because the list is known to be out of date', expectPresent: 0 },
 		{ selector: '[data-testid="ideacad-shared-row"]', label: 'the rows are still on screen, which is the control for the two zeroes above', expectPresent: 2, expectVisible: 2 },
-		{ selector: '[data-testid="ideacad-return-mine"]', label: 'and the way back out is still offered, which is the point of it', expectPresent: 1, expectVisible: 1 }
+		{ selector: '[data-testid="ideacad-return-mine"]', label: 'and the way back out is still offered, which is the point of it', expectPresent: 1, expectVisible: 1 },
+		/* THE SECOND NEGATIVE CONTROL FOR `state=conflict`, and the one that
+		   matters most: a revoked grant and a stale revision share this phase,
+		   so a sentence keyed on the phase rather than on the LABEL the call
+		   site hands down would light up here too -- under a notice that
+		   already says the access was removed, which is a different thing. The
+		   terminal notice asserted at the top of this block is the control that
+		   stops this zero reading as a broken selector. Ledger 0224. */
+		{ selector: '[data-testid="ideacad-save-stopped"]', label: 'the stale-revision sentence, which a revoked grant must NOT also produce', expectPresent: 0 }
 	],
 	textContains: [
 		{
