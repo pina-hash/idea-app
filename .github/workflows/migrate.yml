@@ -1,0 +1,434 @@
+name: Migrate
+
+# APPLY THE LOWEST UNAPPLIED MIGRATION TO PRODUCTION, ON A MERGE TO `main`.
+#
+# ---------------------------------------------------------------------------
+# WHY THIS IS ALLOWED TO EXIST NOW, AND WHAT REMOVING THE SEED WOULD DO
+#
+# `SUPABASE_ACCESS_TOKEN` has never been set in a cloud environment on this
+# project, deliberately. The reason was never secrecy: this database had no
+# `supabase_migrations.schema_migrations` table, so `supabase db push` believed
+# NOTHING was applied and planned the whole chain from `0001` -- replaying
+# `0084_coin_legacy_import.sql` and `0100_coin_legacy_reimport.sql` over real
+# student coin data. Any credential that could reach production was one careless
+# command away from that.
+#
+# `supabase/data/0209-seed-migration-history.sql` is what changed it. Pasted
+# once, by hand, it writes down what is already applied, so there is no longer a
+# chain for `db push` to replay. THE SEED IS WHAT MAKES A WRITE CREDENTIAL IN
+# CI SAFE, AND THE TWO ARE ONE DECISION. If the seed is ever undone, reverted,
+# or the history table dropped, THE SECRET THIS WORKFLOW READS MUST BE DELETED
+# IN THE SAME BREATH -- otherwise the replay is back and a credential is sitting
+# in CI in front of it.
+#
+# THIS WORKFLOW DOES NOT SET `SUPABASE_ACCESS_TOKEN` AND MUST NOT GAIN ONE.
+# That token is the Supabase CLI's, and nothing here runs the CLI. The apply
+# goes through `tools/apply-migration.mjs`, which speaks the Postgres wire
+# protocol directly with a scoped-role connection string. The narrower
+# credential is the only one it needs, so the wider one is not set -- the
+# paragraph above is why it COULD be, and this is why it is not.
+#
+# ---------------------------------------------------------------------------
+# IT ADDS NO APPLY PATH. `tools/apply-migration.mjs` is the whole of it, and
+# everything below is choosing what to hand it and committing what it wrote.
+# Read that tool's header before changing anything here; it ALREADY does all of
+# this, so this file does none of it:
+#
+#   * refuses destructive DDL, with a real statement tokenizer that strips
+#     comments from the middle of a statement as well as the front
+#   * refuses top-level DML unless `--allow-dml` is passed (it is not, here)
+#   * refuses unless the authorising ledger entry's `Migration permitted:` line
+#     permits one, and unless no migration is already recorded under it
+#   * reads production's applied set and refuses anything that is not the
+#     LOWEST unapplied file -- including when a file BELOW it is merely
+#     unknown, because cannot say is never a pass
+#   * applies inside ONE transaction and rolls the whole thing back on a raise
+#   * verifies every object the file names, afterwards, from the catalog
+#   * inserts the migration's `supabase_migrations.schema_migrations` row inside
+#     that same transaction, which is what keeps the seed from going stale
+#   * writes `docs/migrations-applied/<nnnn>-<slug>.md` on success and NOTHING
+#     anywhere on failure
+#
+# ---------------------------------------------------------------------------
+# IT FAILS CLOSED, AND THE FOUR OUTCOMES ARE THE WHOLE CONTRACT:
+#
+#   nothing to do   the probe says every migration in range is applied, or it
+#                   cannot speak for one   -> GREEN, nothing sent
+#   applied         exit 0 from the tool, every object verified, the row
+#                   written                -> the record is committed, GREEN
+#   applied, not
+#   verified        exit 4: it committed and an object is missing, or its
+#                   history row is not there -> the record IS committed, because
+#                   that run is exactly the one somebody needs to find, and the
+#                   job goes RED
+#   refused/failed  exits 1, 2, 3: nothing was applied and nothing was written
+#                                          -> RED
+#
+# A MIGRATION IT CANNOT VERIFY IS NEVER RECORDED AS CLEANLY APPLIED. The tool
+# decides that, not this file: `outcome:` in the record it writes is `applied`
+# or `unverified`, and this job's exit follows the tool's.
+#
+# ---------------------------------------------------------------------------
+# WHY `main` AND NOT `integration`. A migration must be applied BEFORE the code
+# that calls it goes live, and `main` is what deploys `ideabosco.com`. Running
+# on the push to `main` means the apply and the deploy are the same event in the
+# right order -- Vercel builds while this runs, and the RPC exists by the time
+# anything calls it. `deploy.yml` is unchanged and still refuses to merge
+# `integration` into `main` while a migration in range is unapplied; this
+# workflow is what makes that refusal stop being a wall.
+#
+# ---------------------------------------------------------------------------
+# WHAT STAYS A PERSON'S, and it is one step and one step only: pasting
+# `supabase/data/0209-seed-migration-history.sql` once, and setting the secret.
+# `docs/MIGRATIONS.md` has both, numbered.
+
+on:
+  push:
+    branches: [main]
+
+  # THE FIRST FIRING, AND THE RECOVERY. `docs/MIGRATIONS.md` routes Mr. Pina
+  # through pull requests for everything else; this is the one button in the
+  # Actions UI he is asked to press, because a workflow added by a merge does
+  # not run for the merge that added it.
+  workflow_dispatch:
+    inputs:
+      ledger:
+        description: 'Only if the run says it could not tell which ledger entry authorised the migration. Four digits, e.g. 0203.'
+        required: false
+        type: string
+
+# SERIALIZE, AND NEVER CANCEL. Two runs applying at once is the one thing that
+# could put half a migration in front of the other half. `cancel-in-progress:
+# false` makes a second push WAIT rather than killing a run that may be mid
+# transaction.
+concurrency:
+  group: migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    permissions:
+      # Write, for one reason: committing the record the tool writes. The push
+      # is guarded below to that one directory.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # ------------------------------------------------------------------
+      # 1. IS THERE ANYTHING TO APPLY? This runs before `npm ci`, because on
+      #    most pushes to `main` the answer is no -- the classroom GitHub
+      #    export commits under `materials/` on every item save -- and a
+      #    minute of install on each of those buys nothing.
+      #
+      #    THE SAME INSTRUMENT `deploy.yml` USES, not a second reading of the
+      #    same question. Its four statuses are that tool's contract.
+      # ------------------------------------------------------------------
+      - name: Ask production which migrations it has
+        id: probe
+        env:
+          # A WRITE CREDENTIAL IS NOT NEEDED TO READ. If the read-only probe
+          # secret `deploy.yml` already uses is set, this uses that; the
+          # migration URL is the fallback for a repository that has only one.
+          DEPLOY_PROBE_URL: ${{ secrets.DEPLOY_PROBE_URL || secrets.IDEA_MIGRATION_URL }}
+          DEPLOY_PROBE_SINCE: ${{ vars.DEPLOY_PROBE_SINCE }}
+          HAS_MIGRATION_URL: ${{ secrets.IDEA_MIGRATION_URL != '' }}
+        run: |
+          set -uo pipefail
+          echo "target=" >> "$GITHUB_OUTPUT"
+
+          # UNSET IS A SUPPORTED STATE AND IS GREEN. It is the state of this
+          # repository until Mr. Pina sets the secret, and a red mark on every
+          # push to main until then is a red mark nobody reads.
+          if [ "$HAS_MIGRATION_URL" != "true" ]; then
+            echo "::notice::IDEA_MIGRATION_URL is not set, so this workflow applies nothing. docs/MIGRATIONS.md, step 2, is how it gets set."
+            {
+              echo "## Not configured yet"
+              echo
+              echo "\`IDEA_MIGRATION_URL\` is not set on this repository, so nothing was read and"
+              echo "nothing was applied. This run is green because that is the expected state"
+              echo "until the secret is set."
+              echo
+              echo "See \`docs/MIGRATIONS.md\`, **step 2**."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          ARGS=(--ref origin/main)
+          if [ -n "${DEPLOY_PROBE_SINCE:-}" ]; then ARGS+=(--since "$DEPLOY_PROBE_SINCE"); fi
+
+          node tools/deploy-probe.mjs "${ARGS[@]}" || true
+          node tools/deploy-probe.mjs "${ARGS[@]}" --json > probe.json 2> probe.err
+          PROBE=$?
+          echo "probe exit: $PROBE"
+
+          case "$PROBE" in
+            0)
+              echo "::notice::every migration in range is already applied; nothing to do."
+              {
+                echo "## Nothing to apply"
+                echo
+                echo "Every migration in range is already applied to production. Read from its own"
+                echo "\`pg_catalog\` by \`tools/deploy-probe.mjs\`."
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+              ;;
+            2)
+              TARGET="$(jq -r '[.findings[] | select(.state == "not-applied") | .num] | sort | .[0]' probe.json)"
+              if [ -z "$TARGET" ] || [ "$TARGET" = null ]; then
+                echo "::error::the probe reported a migration as not applied and then named none. Refusing."
+                exit 1
+              fi
+              echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+              {
+                echo "## Candidate: migration $TARGET"
+                echo
+                echo "| migration | state | object |"
+                echo "| --- | --- | --- |"
+                jq -r '.findings[] | "| `\(.num)` | \(.state | ascii_upcase) | \(.object) |"' probe.json
+              } >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            3)
+              # THE MACHINE IS SILENT ABOUT ONE MIGRATION, WHICH IS NOT "NOT
+              # APPLIED". Nothing here may apply on a reading it could not take,
+              # so it stops -- and it stops GREEN, because three migrations in
+              # range have no derivable probe today and this is the ORDINARY
+              # state of this project, not a fault.
+              echo "::notice::every probe that ran said applied, but at least one migration has no probe to run; nothing was applied."
+              {
+                echo "## Stopped: the probe could not name a candidate"
+                echo
+                echo "Every probe that ran said applied, and at least one migration has no probe to"
+                echo "run, so nothing was applied. **Cannot say is never a pass.**"
+                echo
+                if [ -s probe.json ]; then
+                  echo "| migration | state | object |"
+                  echo "| --- | --- | --- |"
+                  jq -r '.findings[] | "| `\(.num)` | \(.state | ascii_upcase) | \(.object) |"' probe.json
+                fi
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+              ;;
+            *)
+              # 1: THE PROBE COULD NOT RUN AT ALL, AND THE SECRET IS SET, SO
+              # THIS IS A MALFUNCTION AND NOT A CONFIGURATION. It is RED where
+              # status 3 is green, and the difference is that 3 is a limit of
+              # the derivation and 1 is the thing being broken. `deploy.yml`
+              # stops quietly on both because a person typing the confirmation
+              # is its fallback; this workflow is the only applier there is, so
+              # a silent green here is the gate quietly ceasing to work with
+              # nothing anywhere saying so.
+              echo "::error::the probe could not run at all, and IDEA_MIGRATION_URL is set. Nothing was applied."
+              {
+                echo "## RED: the probe could not run"
+                echo
+                echo "\`IDEA_MIGRATION_URL\` is set, so this is a malfunction rather than a"
+                echo "repository that is not configured yet. **Nothing was applied.**"
+                echo
+                if [ -s probe.err ]; then
+                  echo '```'
+                  cat probe.err
+                  echo '```'
+                fi
+                echo
+                echo "If this is a passing network failure, push again or press **Run workflow**."
+                echo "If it repeats, the secret is wrong or production is unreachable, and"
+                echo "\`docs/MIGRATIONS.md\` says how it was set."
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+              ;;
+          esac
+
+      # ------------------------------------------------------------------
+      # 2. WHICH BUNDLE AUTHORISED IT. The tool refuses without an authorising
+      #    ledger entry, and its own inference reads the branch's added files
+      #    against `origin/integration` -- which on `main` adds nothing, so it
+      #    cannot answer here and the entry has to be named.
+      #
+      #    IT IS MATCHED, NOT GUESSED. The only entry accepted is one whose
+      #    `Migration permitted:` line names THIS migration number. Zero
+      #    matches or more than one is a REFUSAL with a named recovery, never a
+      #    nearest guess: the wrong entry would be a bundle's permission spent
+      #    on somebody else's file.
+      # ------------------------------------------------------------------
+      - name: Find the ledger entry that claims this migration
+        id: ledger
+        if: steps.probe.outputs.target != ''
+        env:
+          TARGET: ${{ steps.probe.outputs.target }}
+          OVERRIDE: ${{ inputs.ledger }}
+        run: |
+          set -euo pipefail
+          if [ -n "${OVERRIDE:-}" ]; then
+            echo "id=$OVERRIDE" >> "$GITHUB_OUTPUT"
+            echo "named by the dispatch input: $OVERRIDE"
+            exit 0
+          fi
+
+          # `parsePermitted` IS THE ONE PARSER OF THAT LINE and this is a caller
+          # of it, never a second reading. A `grep` for the number matches
+          # "Highest on origin/main at issue: 0211" on a REFUSING entry, and
+          # "exactly one, the file 0072 wrote" as migration 0072 -- both
+          # measured, both in that function's own header, and both are how an
+          # entry that permitted nothing comes to authorise an apply.
+          cat > ledger-match.mjs <<'EOF'
+          import { readdirSync, readFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          import { parseEntry, parsePermitted } from './tools/migration-claims.mjs';
+
+          const dir = 'docs/prompt-ledger/entries';
+          const want = Number(process.env.TARGET);
+          const out = [];
+          for (const f of readdirSync(dir)) {
+          	if (!/^\d{4}-.*\.md$/.test(f)) continue;
+          	const entry = parseEntry(readFileSync(join(dir, f), 'utf8'));
+          	const permitted = parsePermitted(entry.fields['Migration permitted']);
+          	if (permitted.permits && permitted.numbers.includes(want)) out.push(f);
+          }
+          process.stdout.write(out.join(' '));
+          EOF
+
+          MATCHES="$(node ledger-match.mjs)"
+          rm -f ledger-match.mjs
+
+          COUNT=0
+          for m in $MATCHES; do COUNT=$((COUNT + 1)); done
+          if [ "$COUNT" != 1 ]; then
+            echo "::error::$COUNT ledger entries claim migration $TARGET, so this run cannot say which bundle authorised it. Nothing was applied."
+            {
+              echo "## Refused: cannot tell which bundle authorised migration $TARGET"
+              echo
+              echo "**$COUNT** entries under \`docs/prompt-ledger/entries/\` claim \`$TARGET\` on"
+              echo "their \`Migration permitted:\` line: \`$MATCHES\`"
+              echo
+              echo "That number is written at issue time and is routinely stale, so none matching is"
+              echo "ordinary and is not evidence of anything wrong with the migration itself."
+              echo
+              echo "**To recover:** press **Run workflow** on **Migrate** and put the four-digit"
+              echo "ledger number in the box. Nothing was applied and nothing was written."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          ID="${MATCHES%%-*}"
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+          echo "migration $TARGET is claimed by $MATCHES"
+
+      - name: Install dependencies
+        if: steps.probe.outputs.target != ''
+        run: |
+          npm ci
+
+      # ------------------------------------------------------------------
+      # 3. THE APPLY. One named file, through the one tool.
+      # ------------------------------------------------------------------
+      - name: Apply it
+        id: apply
+        if: steps.probe.outputs.target != ''
+        env:
+          # Through env, never interpolated into the script: the tool hands
+          # this to `pg` and redacts it out of everything it prints, and a
+          # value pasted into a shell body would defeat both.
+          IDEA_MIGRATION_URL: ${{ secrets.IDEA_MIGRATION_URL }}
+          TARGET: ${{ steps.probe.outputs.target }}
+          LEDGER: ${{ steps.ledger.outputs.id }}
+        run: |
+          set -uo pipefail
+          node tools/apply-migration.mjs "$TARGET" --ledger "$LEDGER" | tee apply.log
+          CODE="${PIPESTATUS[0]}"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "apply-migration exited $CODE"
+
+          {
+            echo "## Applying migration $TARGET"
+            echo
+            echo "Authorised by \`docs/prompt-ledger/entries/$LEDGER-*\`."
+            echo
+            echo '```'
+            cat apply.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # 0 and 4 both COMMITTED. Everything else applied nothing, wrote
+          # nothing, and stops here.
+          if [ "$CODE" != 0 ] && [ "$CODE" != 4 ]; then
+            echo "::error::apply-migration exited $CODE. Nothing was applied and nothing was written."
+            exit 1
+          fi
+
+      # ------------------------------------------------------------------
+      # 4. COMMIT THE RECORD. It runs for exit 4 as well as 0: a migration that
+      #    applied and could not be verified is exactly the run somebody needs
+      #    to be able to find afterwards, and a trace that covered only the
+      #    clean case would be missing the interesting half.
+      #
+      #    THE PUSH IS GUARDED TO ONE DIRECTORY. This job holds `contents:
+      #    write` for this step alone, so the staged set is checked against
+      #    `docs/migrations-applied/` and anything else refuses the push
+      #    outright rather than being committed with it.
+      # ------------------------------------------------------------------
+      - name: Commit the applied record to main
+        if: always() && steps.apply.outputs.code != ''
+        env:
+          TARGET: ${{ steps.probe.outputs.target }}
+          LEDGER: ${{ steps.ledger.outputs.id }}
+          CODE: ${{ steps.apply.outputs.code }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git add docs/migrations-applied/
+          if git diff --cached --quiet; then
+            echo "::warning::the apply reported success and wrote no record. Nothing to commit."
+            {
+              echo "### No record was written"
+              echo
+              echo "\`apply-migration.mjs\` exited \`$CODE\` and left no file under"
+              echo "\`docs/migrations-applied/\`. Read the log above; the migration may well be"
+              echo "applied with nothing in the repository saying so."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # THE GUARD. Exactly one path, and it is under the record directory.
+          STAGED="$(git diff --cached --name-only)"
+          OUTSIDE="$(printf '%s\n' "$STAGED" | grep -v '^docs/migrations-applied/' || true)"
+          if [ -n "$OUTSIDE" ]; then
+            echo "::error::the apply changed files outside docs/migrations-applied/. Refusing to push."
+            printf '%s\n' "$OUTSIDE"
+            exit 1
+          fi
+
+          # BUILT WITH printf, NOT WRITTEN INLINE. A multi-line string starting
+          # at column 0 ends this block scalar and makes the whole file invalid
+          # to GitHub, which is deploy.yml's own note one file over.
+          MSG="$(printf '%s\n\n%s\n%s\n\n%s\n%s\n' \
+            "Record migration $TARGET applied to production" \
+            "Applied by the Migrate workflow through tools/apply-migration.mjs," \
+            "authorised by docs/prompt-ledger/entries/$LEDGER-*, exit $CODE." \
+            "The record under docs/migrations-applied/ carries the notices, the" \
+            "per-object verification, and whether the history row landed.")"
+          git commit -q -m "$MSG"
+
+          # NEVER --force and no retry. A rejected push means main moved during
+          # this run; the honest answer is to say so and leave it, because the
+          # MIGRATION is applied either way and re-running would only try to
+          # apply it again.
+          if ! git push origin HEAD:refs/heads/main; then
+            echo "::error::the push to main was rejected -- main moved during this run. THE MIGRATION IS APPLIED; only the record did not land. Commit docs/migrations-applied/ by hand from the log above."
+            exit 1
+          fi
+          echo "record committed and pushed"
+
+      - name: Fail the run if the apply could not be verified
+        if: steps.apply.outputs.code == '4'
+        run: |
+          echo "::error::the migration APPLIED and could not be fully verified. The record is committed and says which object is missing, or that its history row is not there. Read it before doing anything else -- re-running will NOT re-apply it."
+          exit 1
