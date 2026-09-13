@@ -122,9 +122,14 @@ rather than let the hash drift unnoticed.
   "has a record for every migration from 0193 onward, and no gaps" (the
   0212-0214 gap) and "every record names a migration file that exists, and
   hashes it correctly" (the 0210 stale hash) -- are in the passing set.
-- `npm test`, foreground, full run: see the report for the exact pass/fail
-  counts against the `2 failed / 9056 passed (9058)` baseline this branch
-  carried in from `claude/blissful-bohr-79y23g`'s own history entry.
+- `npm test`, foreground, full run: **473 test files passed (473), 9058 tests
+  passed (9058), 0 failed.** Against the `2 failed / 9056 passed (9058)`
+  baseline this branch carried in from `claude/blissful-bohr-79y23g`'s own
+  history entry (the same 473 files, the same 9058 total), the delta is
+  exactly the two fixed assertions: `+2` passing, `-2` failing, `0` moved in
+  either direction elsewhere. 766.67s. Read off the summary line, never the
+  exit code, per this repository's own rule that `npm test` exits 0 with a
+  failing test.
 - `git show e8c6d805 -- supabase/migrations/0210_notebook_note_grid.sql`, read
   unfiltered: one changed line, both sides begin with `-- `, no SQL statement
   touched.
