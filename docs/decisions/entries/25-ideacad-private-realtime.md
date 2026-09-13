@@ -1,18 +1,59 @@
 # 25 Should IdeaCAD use authorized private Realtime channels?
 
 - Raised: 2026-09-11  By: ledger 0145
-- Status: open
-- Decision: blank.
-- Default this assistant would pick: **yes, in the next bundle, not urgently** -- the
-  shipped roster-and-revision filter plus the 15-second database reread already bounds a
-  forged frame to a wrong PICTURE on a teacher's screen and permits no write, so this buys
-  display integrity rather than closing a data hole.
-- Why it is blocked on him: it adds a `realtime.messages` policy, which is a new
-  authorization surface in a schema that has none today, and the cost is paid in a
-  migration on a feature shipping 2026-09-14.
-- What it unblocks: nothing is waiting. It narrows one display cost.
-- Context: `src/lib/ideacad/live.ts`; `supabase/migrations/0201_ideacad_blade_editor.sql`;
-  `docs/prompt-ledger/entries/0145-ideacad-blade-editor.md`.
+- Status: DECIDED 2026-09-13 and BUILT by ledger 0203. The migration is
+  `supabase/migrations/0211_ideacad_realtime_policy.sql`. It is DELIVERED AND NOT
+  APPLIED -- no cloud session can reach production -- so the applied state of the
+  database is unchanged until Mr. Pina pastes it.
+- Decision: 2026-09-13, Mr. Pina: **OPTION B, BUILD IT PROPERLY.**
+- Against the default: no, it agrees with it in substance and overrides it on urgency.
+  The default below was "yes, in the next bundle, not urgently". He took B now.
+- **OPTION C REMAINS REFUSED AND IS NAMED IN THE MIGRATION'S OWN HEADER** so it is not
+  reinvented: do not sign the frame payload. A secret in the browser is not a secret,
+  and that is the shape that looks like a control and is not.
+- What the build actually did, in one paragraph, because the table below prices B
+  before 0205 existed and one line of it is now wrong. Two policies on
+  `realtime.messages`, `to authenticated` only, both broadcast-only. The PING topic
+  (`ideacad-live:<itemId>`) is asymmetric: send is `classroom_can_read_item`, which is
+  the roster predicate this entry asked for, and receive is `_classroom_manages_item`,
+  so a student heartbeats and only the teacher of record hears it. The FRAME topic
+  (`ideacad-doc:<documentId>`) does NOT use a roster predicate at all -- see the
+  correction below. Three new SECURITY DEFINER wrappers in `public` carry the rule,
+  because two of the four predicates involved are deliberately not granted to
+  `authenticated` and naming them in a policy would have widened a surface 0085 and
+  0205 closed on purpose. The client opens both channels with `private: true` and
+  treats a refused join as terminal.
+- **THE CORRECTION THIS ENTRY NEEDS, AND IT IS THE ONE THING THE ENTRY GOT WRONG.**
+  This entry was written 2026-09-11; `0205` shipped DOCUMENT SHARING after it. The row
+  in the table below reads "the policy must express 'enrolled in a section this item is
+  posted to', which is `_classroom_manages_item` on one side and a roster predicate on
+  the other". **That is right for the ping topic and WRONG FOR THE FRAME TOPIC, in both
+  directions, and the wide direction is the serious one.** Too narrow: 0205 lets an
+  owner share a document to a classmate as an EDITOR, and a roster test knows nothing
+  about the grant row, so a shared editor would be refused the channel and lose live
+  preview in exactly the collaboration case sharing was built for. Too wide, and this is
+  the half that matters: EVERY student enrolled in the section passes a roster test, so
+  a roster-gated frame channel would have handed every classmate a live view of every
+  other student's screen -- a worse leak than the one this decision closes. So the frame
+  topic delegates to 0205's own `_ideacad_can_read_document` (owner, viewer, editor or
+  manager) and `_ideacad_can_write_document` (owner or editor), and reimplements
+  neither. `tests/db/ideacad-realtime-policy.test.ts` pins the in-class classmate out
+  by name, and mutating the frame gate to the roster predicate reddens three of its
+  assertions.
+- Verification, since this cannot be applied from a session: the file's own apply-time
+  self-check refuses a bare-permit policy, a missing `anon` revoke and a broken topic
+  parser -- proved by mutation, four of six SQL mutants were killed by the migration
+  declining to apply at all. What a self-check CANNOT see is whether the policy answers
+  DIFFERENTLY FOR TWO DIFFERENT PEOPLE, which is indistinguishable from a permit-all in
+  any catalog listing or row count, so a behavioural probe ships beside it at
+  `supabase/data/0203-ideacad-realtime-verification.sql` and is pasted after the
+  migration.
+- Why it was blocked on him: unchanged and now spent. It added the first authorization
+  surface of its kind to this schema and cost a migration.
+- Context: `src/lib/ideacad/live.ts`; `supabase/migrations/0211_ideacad_realtime_policy.sql`;
+  `supabase/data/0203-ideacad-realtime-verification.sql`;
+  `docs/prompt-ledger/entries/0203-ideacad-private-realtime.md`;
+  `docs/history/lucid-dirac-8b6m2f.md`.
 
 ## The question, in one sentence
 

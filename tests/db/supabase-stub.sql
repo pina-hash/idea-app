@@ -205,3 +205,53 @@ as $$
 		else (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1]
 	end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- realtime. Added for 0211, the first migration in the chain to name a
+-- `realtime.` object at all -- it puts RLS policies on realtime.messages so
+-- IdeaCAD's two broadcast topics stop being public. Same class of fixture as
+-- `auth` and `storage` above: a hosted project ships this schema, it lives
+-- outside supabase/migrations, and without it 0211 refuses to apply and takes
+-- every db suite that reads the whole migrations directory down with it.
+--
+-- WHY THE GRANTS ARE HERE AND ARE LOAD-BEARING. A hosted project grants the
+-- client roles DML on realtime.messages and relies on RLS to decide; without
+-- the grants a denial in these tests would be the missing GRANT rather than the
+-- policy, and every refusal assertion would pass VACUOUSLY while proving
+-- nothing about 0211. tests/db/ideacad-realtime-policy.test.ts mutates the
+-- policy to confirm that is not what it is measuring.
+--
+-- THE REAL TABLE IS PARTITIONED BY inserted_at AND THIS ONE IS NOT, which
+-- changes nothing a policy can observe: the policies read `extension` and
+-- `realtime.topic()`, and neither is affected by partitioning.
+-- ---------------------------------------------------------------------------
+
+create schema if not exists realtime;
+grant usage on schema realtime to anon, authenticated, service_role;
+
+create table if not exists realtime.messages (
+	id uuid not null default gen_random_uuid(),
+	topic text not null,
+	extension text not null,
+	event text,
+	payload jsonb,
+	private boolean default false,
+	inserted_at timestamptz not null default now(),
+	updated_at timestamptz not null default now()
+);
+
+alter table realtime.messages enable row level security;
+
+grant select, insert, update, delete on realtime.messages
+	to anon, authenticated, service_role;
+
+-- Realtime sets this per authorization check; it is how a policy learns which
+-- channel the caller is trying to join. `true` on current_setting so an unset
+-- GUC reads as NULL rather than raising.
+create or replace function realtime.topic()
+returns text
+language sql
+stable
+as $realtimetopic$
+	select nullif(current_setting('realtime.topic', true), '')::text;
+$realtimetopic$;
