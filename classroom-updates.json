@@ -14,6 +14,15 @@
 	"entries": [
 		{
 			"date": "2026-09-13",
+			"title": "You can now open a Blade document a classmate shared with you",
+			"body": "Sharing has worked in one direction for a while: you could hand a classmate view-only or editor access to your IdeaCAD Blade document, and they had no way to open it. Now they do. Scroll to Shared with you under your own blade on the assignment and you will see every document somebody has shared with you on it, who it belongs to, and whether you can edit it or only look. Press Open and their part loads in the editor in place of yours. A line at the top says whose document you are reading, with a Back to your own blade button beside it, so you are never stuck in somebody else's work. If you only have view-only access there are no editing controls at all, and the History is still there to read. If the owner stops sharing while you have it open, you get told in words: what is on screen stays, nothing more can be saved to it, and you can ask them to share it again. Nothing has been shared with you until somebody chooses to, so an empty list here is normal.",
+			"tags": [
+				"IdeaCAD",
+				"Sharing"
+			]
+		},
+		{
+			"date": "2026-09-13",
 			"title": "Your blade now has a History you can scroll all the way back",
 			"body": "Open an IdeaCAD Blade assignment and press History in the top right. You get every change you have ever made to that part, oldest first, back to the moment it was created. Each step says what you changed in plain words, not in code: \"Hex Extension, Extension height 0.5 in to 0.75 in\". Press any step to look at your part as it was then, with the mass and the rules for that version, and press Back to now when you are done. Looking does not change anything. Undo and Redo work from this history instead of your browser's memory, which means they still work after you close the tab and come back. Undo ADDS a step to the list rather than removing one, so nothing you have done is ever thrown away. Every step also says WHO made it. Your own changes say \"You\"; if you have shared the part with a classmate, theirs say their name, so you can tell at a glance which changes are yours and which are theirs. The very first step says \"system\" on parts that were created before the history existed, because nobody was recorded as making it.",
 			"tags": [

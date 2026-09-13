@@ -10,6 +10,12 @@
 	import type { IdeacadStoreState } from '$lib/ideacad/store';
 	import SharePanel from '$lib/ideacad/ui/SharePanel.svelte';
 	import PartsPanel from '$lib/ideacad/ui/PartsPanel.svelte';
+	import SharedDocuments from '$lib/ideacad/ui/SharedDocuments.svelte';
+	import {
+		ideacadSharedIsOpen,
+		type IdeacadSharedCapability,
+		type IdeacadSharedRow
+	} from '$lib/ideacad/shared-open';
 	import type { IdeacadGrant, IdeacadGrantRole, IdeacadDocumentRole } from '$lib/ideacad/sharing';
 	import type {
 		IdeacadCheckoutNotice,
@@ -48,6 +54,66 @@
 		onrelease?: (partId: string) => void;
 		onassign?: (partId: string, email: string | null) => void;
 		ondismiss?: () => void;
+	}
+
+	/**
+	 * WHAT A CLASSMATE SHARED WITH YOU, AND THE WAY BACK (0205, ledger 0217).
+	 *
+	 * `0205` shipped `ideacad_shared_with_me` and `ideacad_open_shared_document`;
+	 * ledger 0190 built the panel a student GRANTS from, ledger 0195 mounted it,
+	 * and ledger 0201 built every remaining piece -- `shared-open.ts`,
+	 * `SharedDocuments.svelte`, `store.openShared` -- and could not mount ANY of
+	 * it, because this file was outside its Owns. So for three days the grant was
+	 * live, the surface existed, and there was no path at any width by any
+	 * sequence of clicks to a document somebody had shared: `ideacad_shared_with_me`
+	 * is a grantee's ONLY route to a document id, since the roster is
+	 * teacher-only and a classmate's document appears on no surface they can
+	 * already read. This prop is that path.
+	 *
+	 * ONE PROP RATHER THAN SIX, which is `ideacadTeam`'s own shape and ledger
+	 * 0195's: these arrive together or not at all, and six sibling props on a
+	 * file this size is six chances to wire five of them.
+	 *
+	 * NULL REMOVES THE SURFACE ENTIRELY, and that is the whole gate rather than
+	 * a flag. A manager (`ideacad_open_document` raises for one, so no store is
+	 * built), a student whose document has not opened, and a deployment sitting
+	 * before `0205` are the same answer here -- there is nothing to render. The
+	 * pre-`0205` case has a SECOND, narrower expression inside the object
+	 * (`capability.ready` false, which renders the ladder's own sentence), for
+	 * the deployment that answered the probe and then lost it.
+	 *
+	 * NOTHING HERE IS DERIVED IN THIS FILE. `row.canWrite` is `sharing.ts`'s
+	 * answer over the role the DATABASE sent, `capability` is the probe's, and
+	 * `accessLost` is the store's. A second statement of any of them is the copy
+	 * that stops matching `0205`.
+	 */
+	interface ItemDetailIdeacadShared {
+		/** Already shaped and ordered by `ideacadSharedRows`; this file sorts nothing. */
+		rows: IdeacadSharedRow[];
+		/** Whether this deployment could answer the question at all. */
+		capability: IdeacadSharedCapability;
+		/** Which document is on screen right now, if any. */
+		openDocumentId: string | null;
+		/** Set when the open document's grant was removed mid-session. */
+		accessLost: boolean;
+		/** An open is in flight, so a second press is not offered as a fresh one. */
+		busy?: boolean;
+		onopen?: (documentId: string) => void;
+		/**
+		 * BACK TO YOUR OWN BLADE, and it is a REQUIREMENT rather than a
+		 * courtesy. `store.openShared` REPLACES the store's snapshot, so opening
+		 * a classmate's document takes the student's own document off this page
+		 * -- and their own document is never a row in `rows`, which lists only
+		 * what was shared WITH them. Without this the Open control is a one-way
+		 * door out of your own work whose only exit is a reload, which is
+		 * CLAUDE.md's Foundry rule ("the Hide control is a ONE-WAY DOOR with a
+		 * Restore nothing can ever be selected to press") one subsystem over.
+		 *
+		 * ITS ABSENCE IS STILL THE MECHANISM: a surface with no way to re-open
+		 * the caller's own document offers no control, and the region says so in
+		 * words rather than leaving a student to discover the dead end.
+		 */
+		onreturn?: () => void;
 	}
 	import Pending from '$lib/Pending.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
@@ -211,7 +277,8 @@
 		ideacadWrites = null,
 		ideacadViewerEmail = null,
 		ideacadOpenRefusal = null,
-		ideacadTeam = null
+		ideacadTeam = null,
+		ideacadShared = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -386,6 +453,8 @@
 		 * panels read them through `ideacadCanShare` / `partRows`.
 		 */
 		ideacadTeam?: ItemDetailIdeacadTeam | null;
+		/** WHAT A CLASSMATE SHARED WITH YOU (0205). See the interface above. */
+		ideacadShared?: ItemDetailIdeacadShared | null;
 	} = $props();
 
 	/**
@@ -409,6 +478,78 @@
 	/** One projection of the store's rows into the editor's vocabulary; null
 	 *  until `open` lands, which is what keeps a half-empty editor off screen. */
 	const ideacadSeed = $derived(ideacadEditorSeed(ideacadDoc));
+	/**
+	 * WHETHER THE DOCUMENT ON SCREEN IS THIS CALLER'S TO WRITE, AND IT IS THE
+	 * DATABASE'S ANSWER READ OFF THE STORE -- never a re-derivation here.
+	 *
+	 * Until `openShared` had a caller this question had exactly one answer:
+	 * `open` resolves the caller's OWN document and publishes `canWrite: true`,
+	 * so every mount that got past `ideacadSeed` was writable. It is now three
+	 * answers -- an owner, an EDITOR a classmate granted (writable, and not the
+	 * owner), and a VIEWER (read-only) -- and the terminal access-lost state is
+	 * a fourth, because `store.ts` takes `canWrite` false with `accessLost` so
+	 * the editor stops offering writes the database will refuse.
+	 *
+	 * `=== true` RATHER THAN A TRUTHY READ, so a snapshot that predates the
+	 * field, or a fixture that omits it, opens READ-ONLY. "Cannot tell" must
+	 * never render as the permissive answer, and `store.ts`'s own
+	 * `ideacadRoleFromPayload` makes the same choice one layer down. A payload
+	 * that contradicts itself -- role `editor`, `canWrite` false -- lands here
+	 * too, and read-only is the right answer for it: a control whose only
+	 * possible outcome is a refusal must not be offered.
+	 *
+	 * `|| accessLost` IS NOT A LOOPHOLE, IT IS WHAT STOPS THIS FLIP DESTROYING
+	 * THE STUDENT'S UNSAVED WORK, and it is the one subtle thing here.
+	 * `accessLost` is reachable ONLY from a document that opened writable and
+	 * had a write refused, and the store takes `canWrite` false with it -- so
+	 * without this term the branch would swap the writable editor for a
+	 * read-only one at exactly that moment, unmounting the instance holding the
+	 * edit that was just refused and re-seeding from the last SAVED state. That
+	 * is the opposite of what `IDEACAD_SHARED_ACCESS_LOST` promises in words
+	 * ("What is on screen is still here"), and nothing would report it. Keeping
+	 * the editor costs nothing: `store.ts`'s `refuseWrite` is the floor and
+	 * throws that same sentence at every press, which `BladeEditor` renders in
+	 * its header, and the panel below carries the terminal notice.
+	 *
+	 * SO THE ANSWER IS STABLE FOR THE LIFE OF AN OPEN DOCUMENT, which is the
+	 * property that matters: a role is not something that changes under a
+	 * student mid-edit, and an editor that swaps itself out is one that loses
+	 * work.
+	 *
+	 * IT DOES NOT DECIDE WHETHER AN EDITOR MOUNTS AT ALL. The empty snapshot the
+	 * store publishes before `open` lands carries `canWrite: false` too, and
+	 * mounting a read-only editor for it would put a full set of controls in
+	 * front of a student before their own document has arrived -- so the
+	 * `ideacadSeed` gate stays exactly where it was and this only chooses which
+	 * editor goes inside it.
+	 */
+	const ideacadDocWritable = $derived(
+		ideacadDoc?.canWrite === true || ideacadDoc?.accessLost === true
+	);
+	/**
+	 * WHETHER THE DOCUMENT ON SCREEN BELONGS TO SOMEBODY ELSE. `open` can only
+	 * ever publish `'owner'`, so anything else is a document reached through
+	 * `openShared` -- which is what licenses the return control below. Read off
+	 * the store rather than off `ideacadShared.openDocumentId`, because the
+	 * store is what actually replaced the snapshot and a list fetched a moment
+	 * earlier is not.
+	 */
+	const ideacadOnSomebodyElses = $derived(
+		!!ideacadDoc?.document && ideacadDoc.role !== null && ideacadDoc.role !== 'owner'
+	);
+	/**
+	 * WHOSE DOCUMENT IS ON SCREEN, LOOKED UP THROUGH THE SHIPPED PREDICATE.
+	 * `ideacadSharedIsOpen` is `shared-open.ts`'s one statement of "is this row
+	 * the open one", and it compares on the id rather than on the owner because
+	 * one person can share two documents on one item. NULL IS A NORMAL ANSWER
+	 * and renders no name: the list is fetched once, so a document opened before
+	 * a refresh, or opened on a deployment that cannot list, has no row to name
+	 * -- and a placeholder there would be this file inventing an identity.
+	 */
+	const ideacadSharedOwner = $derived(
+		ideacadShared?.rows.find((row) => ideacadSharedIsOpen(row, ideacadShared?.openDocumentId ?? null))
+			?.ownerEmail ?? null
+	);
 
 	/**
 	 * THE FRAME'S URL. The sandbox origin is read HERE and nowhere else on this
@@ -1758,6 +1899,53 @@
 			<section class="engine-host">
 				<h2 class="section-label">{canManage ? 'Assignment' : 'Your work'}</h2>
 				<!--
+					WHOSE WORK IS ON SCREEN, AND THE WAY BACK OUT (ledger 0217).
+
+					IT IS FIRST IN THE SLOT, ABOVE EVEN THE PARTS LIST, and that is
+					`PartsPanel`'s own argument taken one step further: which part is
+					mine gates the modelling, and WHICH DOCUMENT I AM IN gates that in
+					turn. The heading two lines up says "Your work"; on a document a
+					classmate shared that heading is wrong, and a student who reads it
+					after modelling for ten minutes has discovered it far too late.
+
+					IT COSTS NOTHING IN THE ORDINARY CASE. `open` can publish no role
+					but `owner`, so this is absent for every student on their own
+					document at every width -- which is the answer to the 375 question
+					a permanent banner above the editor would have raised.
+
+					THE RETURN CONTROL IS A REQUIREMENT, NOT A COURTESY. `openShared`
+					REPLACES the store's snapshot and a student's own document is never
+					a row in the shared list, so without this the Open control is a
+					one-way door whose only exit is a reload. Its ABSENCE is still the
+					mechanism -- a surface that cannot re-open the caller's own
+					document offers no button -- and the line beside it says so, so a
+					missing control reads as a rule rather than as a defect.
+				-->
+				{#if ideacadOnSomebodyElses}
+					<p class="note ic-elsewhere" data-testid="ideacad-reading-shared">
+						<span class="ic-elsewhere-text">
+							{ideacadSharedOwner
+								? `Reading ${ideacadSharedOwner}'s document. Your own blade is not on screen.`
+								: 'Reading a document a classmate shared with you. Your own blade is not on screen.'}
+						</span>
+						{#if ideacadShared?.onreturn}
+							<button
+								type="button"
+								class="ic-return tap-44"
+								data-testid="ideacad-return-mine"
+								aria-disabled={ideacadShared.busy ?? false}
+								onclick={() => ideacadShared?.onreturn?.()}
+							>
+								Back to your own blade
+							</button>
+						{:else}
+							<span class="ic-return-absent" data-testid="ideacad-return-absent">
+								Reload this page to get back to your own blade.
+							</span>
+						{/if}
+					</p>
+				{/if}
+				<!--
 					PART CHECKOUT SITS ABOVE THE EDITOR AND SHARING SITS BELOW IT,
 					and that ordering is the one decision ledger 0190 left open.
 
@@ -1802,27 +1990,159 @@
 					/>
 				{:else if ideacadSeed && ideacadWrites}
 					{#key ideacadDoc?.document?.id}
-						<BladeEditor
-							concepts={ideacadSeed.concepts as any}
-							activeConceptId={ideacadSeed.activeConceptId}
-							config={(ideacadSeed.config ?? ideacad.config) as any}
-							prediction={ideacadSeed.prediction}
-							history={ideacadSeed.history}
-							viewerEmail={ideacadViewerEmail}
-							undoStep={ideacadWrites.undo}
-							redoStep={ideacadWrites.redo}
-							writes={ideacadWrites}
-							saveLabel={ideacadSaveLabel(ideacadDoc?.phase)}
-							setPrediction={(conceptId, rationale) => ideacadWrites.setPrediction(conceptId, rationale)}
-							commitConceptCard={(conceptId) => ideacadWrites.commit(conceptId)}
-						/>
+						<!--
+							TWO EDITORS OVER ONE SEED, AND THE ONLY THING THAT CHOOSES
+							BETWEEN THEM IS THE DATABASE'S ANSWER (0205, ledger 0217).
+
+							Before `openShared` had a caller this branch had one arm,
+							correctly: `open` resolves the caller's OWN document and can
+							publish nothing but `role: 'owner'`. A document a classmate
+							shared arrives through the same store and the same seed, and
+							a VIEWER's copy of it must offer no write control at all --
+							so the read-only arm mounts the SAME seed with `readOnly`
+							and, more to the point, WITHOUT `writes`, `undoStep`,
+							`redoStep`, `setPrediction` and `commitConceptCard`. Absence
+							is the mechanism; `readOnly` states the intent once.
+
+							IT IS THE SEED AND NOT `ideacad`, WHICH IS THE WHOLE REASON
+							THIS IS NOT THE MANAGER ARM ABOVE. That arm renders the
+							LOAD's payload, which is this student's own document -- so
+							sending a viewer there would put their own blade on screen
+							under a heading about a classmate's. The seed is the store's
+							snapshot, which is whichever document is actually open.
+
+							THE TIMELINE IS DELIBERATELY IN BOTH (decision 27, ledger
+							0211). `history` and `viewerEmail` are handed down on the
+							read-only arm too, because reading how a part was built is
+							the same disclosure as reading the part -- `0205`'s own
+							policies scope both -- and `BladeEditor` already withholds
+							Undo from a surface with no `undoStep`. A shared document
+							opened here therefore reaches the attributed timeline, which
+							is the case decision 27 is actually about.
+						-->
+						<!--
+							THE SAVE CHIP MUST NOT SAY "Changed elsewhere" WHEN THE
+							ACCESS WENT, and that is the second defect rasterizing this
+							mount found. `store.ts` publishes `phase: 'conflict'` for a
+							revoked grant because the CONSEQUENCE is identical -- terminal,
+							nothing further attempted, the local copy untouched -- and
+							`shared-open.ts` already gives that state its own SENTENCE for
+							exactly this reason: nothing changed elsewhere, the access did.
+							The one-word chip was still reading the phase, so at 375 the
+							editor header claimed "Changed elsewhere" about 1200px above a
+							notice saying the access was removed. Both were present, both
+							cleared contrast, and nothing compares two claims for agreement.
+
+							IT IS FIXED AT THIS CALL SITE RATHER THAN IN
+							`ideacadSaveLabel`, deliberately. That function maps a PHASE to
+							a word and cannot tell a revoked grant from a stale revision;
+							giving it a second parameter is the obvious change and is a
+							trap -- `tests/dom/ideacad-mount.test.ts` calls it point-free as
+							`['idle','saving',...].map(ideacadSaveLabel)`, so `map`'s index
+							would arrive as the new argument and be truthy for four of the
+							five. `'error'` is the existing vocabulary's word for a write
+							that did not land, which is true here and adds no second
+							spelling of anything.
+						-->
+						{#if ideacadDocWritable}
+							<BladeEditor
+								concepts={ideacadSeed.concepts as any}
+								activeConceptId={ideacadSeed.activeConceptId}
+								config={(ideacadSeed.config ?? ideacad.config) as any}
+								prediction={ideacadSeed.prediction}
+								history={ideacadSeed.history}
+								viewerEmail={ideacadViewerEmail}
+								undoStep={ideacadWrites.undo}
+								redoStep={ideacadWrites.redo}
+								writes={ideacadWrites}
+								saveLabel={ideacadDoc?.accessLost
+									? ideacadSaveLabel('error')
+									: ideacadSaveLabel(ideacadDoc?.phase)}
+								setPrediction={(conceptId, rationale) => ideacadWrites.setPrediction(conceptId, rationale)}
+								commitConceptCard={(conceptId) => ideacadWrites.commit(conceptId)}
+							/>
+						{:else}
+							<BladeEditor
+								concepts={ideacadSeed.concepts as any}
+								activeConceptId={ideacadSeed.activeConceptId}
+								config={(ideacadSeed.config ?? ideacad.config) as any}
+								prediction={ideacadSeed.prediction}
+								history={ideacadSeed.history}
+								viewerEmail={ideacadViewerEmail}
+								readOnly={true}
+							/>
+						{/if}
 					{/key}
 				{:else if ideacadOpenRefusal}
 					<p class="note">{ideacadOpenRefusal}</p>
 				{:else}
 					<Pending label="Opening your blade document" />
 				{/if}
-				{#if ideacadTeam}
+				<!--
+					WHAT A CLASSMATE SHARED WITH YOU, BELOW THE EDITOR AND ABOVE
+					`SharePanel` (0205, ledger 0217). Three decisions, each of which
+					could have gone the other way.
+
+					BELOW THE EDITOR, NOT ABOVE IT, AND THE EMPTY CASE IS WHY. Private
+					by default is decision 24's whole premise, so for almost every
+					student on almost every assignment this panel is a heading and one
+					quiet line saying nobody has shared anything -- and a permanently
+					empty panel above the editor spends vertical space above a
+					student's own work at 375 to say nothing. `PartsPanel` earns its
+					place above because a part hold is CONTENDED and time-limited: not
+					reading it costs you the part. Nothing is lost by finding a shared
+					document a moment later, and the case where a student IS working in
+					somebody else's document has its own line at the top of the slot.
+
+					ABOVE `SharePanel`, WHICH IS THE OTHER HALF OF THE SAME FEATURE.
+					Inbound before outbound: what you can reach reads before what you
+					granted, and the inbound one is the one whose control changes what
+					is on screen.
+
+					IT IS MOUNTED WHENEVER THE PROP IS THERE, INDEPENDENT OF
+					`ideacadTeam`. They are two migrations and two questions -- a
+					deployment can answer `0205`'s list and not `0207`'s assembly, and
+					a student can have something shared with them on an item whose own
+					document has not opened yet -- so one `{#if}` covering both would
+					make each absence able to hide the other.
+				-->
+				{#if ideacadShared}
+					<SharedDocuments
+						rows={ideacadShared.rows}
+						capability={ideacadShared.capability}
+						openDocumentId={ideacadShared.openDocumentId}
+						accessLost={ideacadShared.accessLost}
+						busy={ideacadShared.busy ?? false}
+						onopen={ideacadShared.onopen}
+					/>
+				{/if}
+				<!--
+					SHARING IS THE OWNER'S SURFACE, AND ON A CLASSMATE'S DOCUMENT IT
+					IS A THIRD STATEMENT OF ONE SENTENCE (ledger 0217, found by
+					rasterizing the mount and looking).
+
+					`ideacadCanShare` is true for `owner` ALONE -- an editor, a viewer
+					and an instructor all get false -- so on a document reached
+					through `openShared` this panel can never offer a form. What it
+					rendered instead, measured at 1440: a heading reading "Sharing", a
+					"CAN EDIT" chip, and `IDEACAD_ROLE_NOTES.editor` -- which is
+					BYTE-IDENTICAL to the note the shared row for the same document
+					renders about 150px above it, and which the banner at the top of
+					the slot says a third time in its own words. Every check passed:
+					both sentences were present, both cleared contrast, and nothing
+					compares two panels for saying the same thing.
+
+					THIS IS LEDGER 0201'S SECOND RASTERIZED DEFECT ONE LEVEL UP. It
+					deleted a second view-only constant because `sharing.ts` already
+					owned the sentence; the same duplication came back BETWEEN two
+					panels the moment both could be on screen at once, which is a
+					thing only the mount could produce and only looking could find.
+
+					SO THE PANEL IS MOUNTED ON THE CALLER'S OWN DOCUMENT ONLY.
+					Nothing is lost: the role, its note and the owner's address are
+					all still on screen, from the two surfaces that own them.
+				-->
+				{#if ideacadTeam && !ideacadOnSomebodyElses}
 					<SharePanel
 						role={ideacadTeam.role}
 						ownerEmail={ideacadTeam.ownerEmail}
@@ -2410,6 +2730,54 @@
 	}
 	.engine-host {
 		margin-bottom: 0.9rem;
+	}
+	/* WHOSE DOCUMENT IS ON SCREEN (ledger 0217).
+
+	   A WRAPPING FLEX ROW AND NOT A GRID, and that is ledger 0201's 873px
+	   "Open" button read backwards. There the row note spanned both columns,
+	   the button fell into the next IMPLICIT grid row and stretched across
+	   `minmax(0, 1fr)` -- present, visible, over 44px, correctly labelled, and
+	   wrong. A flex row has no implicit row to fall into: the button is sized
+	   by its content at every width, and at 375 the sentence takes the whole
+	   measure and the control wraps under it.
+
+	   `min-width: 0` ON THE SENTENCE, which is this repo's standing rule for a
+	   flex child: an item's automatic minimum is its min-content, so a long
+	   address in the middle of it would otherwise push the whole page wider
+	   than the viewport. */
+	.ic-elsewhere {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0 0 0.7rem;
+		padding: 0.5rem 0.6rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control);
+		background: var(--surface-1);
+	}
+	.ic-elsewhere-text {
+		flex: 1 1 14rem;
+		min-width: 0;
+	}
+	.ic-return {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		color: var(--green);
+		background: transparent;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control);
+		padding: 0.3rem 0.7rem;
+		cursor: pointer;
+	}
+	.ic-return:hover {
+		background: var(--surface-2);
+	}
+	.ic-return-absent {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-2);
 	}
 	.engine-tools .btn.tiny {
 		align-self: flex-start;
