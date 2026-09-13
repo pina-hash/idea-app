@@ -13,6 +13,15 @@
 	],
 	"entries": [
 		{
+			"date": "2026-09-13",
+			"title": "Your blade now has a History you can scroll all the way back",
+			"body": "Open an IdeaCAD Blade assignment and press History in the top right. You get every change you have ever made to that part, oldest first, back to the moment it was created. Each step says what you changed in plain words, not in code: \"Hex Extension, Extension height 0.5 in to 0.75 in\". Press any step to look at your part as it was then, with the mass and the rules for that version, and press Back to now when you are done. Looking does not change anything. Undo and Redo work from this history instead of your browser's memory, which means they still work after you close the tab and come back. Undo ADDS a step to the list rather than removing one, so nothing you have done is ever thrown away. Every step also says WHO made it. Your own changes say \"You\"; if you have shared the part with a classmate, theirs say their name, so you can tell at a glance which changes are yours and which are theirs. The very first step says \"system\" on parts that were created before the history existed, because nobody was recorded as making it.",
+			"tags": [
+				"IdeaCAD",
+				"Blade"
+			]
+		},
+		{
 			"date": "2026-09-12",
 			"title": "Share your blade with a classmate, and take one part at a time",
 			"body": "An IdeaCAD Blade assignment now has two new panels on the assignment page. Sharing is yours: your work is private until you share it, and you choose, by school email, whether a classmate can look at it or edit it. You can change your mind or take access away at any time, and your teachers can always see your work without you sharing it. Parts is the other half. A blade is several parts, and one person holds a part at a time so two people cannot overwrite each other. Press Take this part to pick one up and Release when you are done; if a part says someone else has it, that is who to talk to. If you own the assembly you can hand any part to anyone you shared it with. A part you are holding is released for you if you go quiet for a while, so if you get logged out or your laptop sleeps, nobody is locked out of your work. If someone else picks up the part you were on, the page tells you rather than letting you keep working on something you can no longer save.",
@@ -1315,7 +1324,7 @@
 		{
 			"date": "2026-09-06",
 			"title": "The Matrix theme now rains, and stops tinting everything green",
-			"body": "If you switched the site to the Matrix theme from your profile menu, you will have noticed it turned everything the same green and nothing fell. It rains now: columns of letters and numbers fall down the sides of the page, bright at the leading edge and fading behind, changing as they go. Behind the writing itself the rain is kept faint on purpose, so the page stays readable. The green tint is gone too: text is close to white with a hint of green, the black is blacker, and the colours that tell things apart, like each app\u2019s own colour on the home page and the colour of a warning, are exactly as they were. If your device is set to reduce motion you get a still picture of the rain instead of movement, and if your computer cannot keep up the rain slows down and then parks itself. The theme is still per browser, and it still switches off when you sign out.",
+			"body": "If you switched the site to the Matrix theme from your profile menu, you will have noticed it turned everything the same green and nothing fell. It rains now: columns of letters and numbers fall down the sides of the page, bright at the leading edge and fading behind, changing as they go. Behind the writing itself the rain is kept faint on purpose, so the page stays readable. The green tint is gone too: text is close to white with a hint of green, the black is blacker, and the colours that tell things apart, like each app’s own colour on the home page and the colour of a warning, are exactly as they were. If your device is set to reduce motion you get a still picture of the rain instead of movement, and if your computer cannot keep up the rain slows down and then parks itself. The theme is still per browser, and it still switches off when you sign out.",
 			"tags": [
 				"theme",
 				"home page"

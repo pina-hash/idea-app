@@ -125,7 +125,12 @@ conflicting with `integration`, three consecutive red Integrate runs.
 - **No migration was applied from here**, and none could be: a cloud container has no
   route to the production database. The applied state of `0209` and `0210` is
   Mr. Pina's verification, quoted above, not a reading this session took.
-- **The deploy is not confirmed as carrying this merge.** Production answered 200 and
-  the sha live at the time of the read is reported in the ledger outcome, but Vercel's
-  build of the merge commit had not necessarily finished when it was taken, and one
-  200 from the root is not evidence about which commit served it.
+- **The deploy is not confirmed as carrying this merge, and production is TWO landings
+  behind rather than one.** It answered 200 on all twenty reads across thirteen minutes
+  after the push and served `IDEA Portal v1.1514 247dfc4` on every one of them.
+  `247dfc4` is ledger 0188's merge (2026-09-12 21:22:27Z); `main` was already at
+  `85543209` (ledger 0191/0193, 22:47:22Z) before this session began and that commit
+  was never served either, **so the lag predates this bundle by over three hours and
+  this merge did not cause it.** Not diagnosed: `deploy.yml` is the merge path and
+  Vercel's own git integration builds a push to `main`, and this bundle owns a file in
+  neither. `main` is correct at `ee4a1c42`; what is unconfirmed is the deploy.

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { IdeacadHistoryTransports } from './history';
 import {
 	createIdeacadAssemblyTransports,
 	type IdeacadAssemblyTransports
@@ -327,4 +328,64 @@ export async function probeIdeacadAssembly(
 export function withoutIdeacadAssembly(transports: IdeacadTransports): IdeacadTransports {
 	const { assembly: _assembly, ...rest } = transports;
 	return rest;
+}
+
+
+/**
+ * ==========================================================================
+ * 0209's HISTORY BOUNDARY (0196)
+ * ==========================================================================
+ *
+ * WHY IT IS A SEPARATE FACTORY RATHER THAN TWO MORE KEYS ON `IdeacadTransports`.
+ * `createIdeacadStore` takes the pair on the SIDE (`options.history`) precisely
+ * so a deployment sitting between 0208 and 0209 gets a store with no log, no
+ * undo, no redo and no timeline -- absence being the mechanism, exactly as it
+ * is for 0205's sharing and 0207's assembly. Folding them into the main
+ * boundary would make that absence unrepresentable.
+ *
+ * THE SHAPES ARE THE RPCs' OWN AND ARE NOT RESHAPED HERE. `0209` already
+ * projects `undoes_seq` as `undoesSeq` and `before_value`/`after_value` as
+ * `before`/`after`, which is what lets `IdeacadHistoryRow` be the same type on
+ * both sides of the wire; a rename in this file would be a second vocabulary
+ * for one row.
+ *
+ * THERE IS NO PROBE FUNCTION BESIDE THIS ONE, AND THAT IS DELIBERATE. Sharing
+ * and assembly each spend a round trip to ask whether their migration is there;
+ * the history does not have to, because `store.open` reads the log as its FIRST
+ * act on every document and a `PGRST202` from that read is the narrowest
+ * possible probe -- it is a call the feature makes anyway. The store's own
+ * history region degrades on that code ALONE and turns `historyReady` off, so
+ * a runtime failure inside a function that DOES exist stays a failure rather
+ * than silently removing the feature.
+ */
+export function createIdeacadHistoryTransports(
+	supabase: SupabaseClient
+): IdeacadHistoryTransports<IdeacadConceptRow> {
+	const rpc = async <T>(name: string, args: Record<string, unknown>): Promise<T> => {
+		const { data, error } = await supabase.rpc(name, args);
+		if (error) {
+			// THE CODE IS CARRIED ON THE THROWN ERROR, because the store's ladder
+			// keys on `PGRST202` ALONE and a bare `new Error(message)` would have
+			// thrown that discriminator away. Any other code stays a real failure.
+			const wrapped = new Error(error.message) as Error & { code?: string };
+			wrapped.code = (error as { code?: string }).code;
+			throw wrapped;
+		}
+		return data as T;
+	};
+	return {
+		applyActions: (conceptId, actions, features, revision) =>
+			rpc('ideacad_apply_actions', {
+				p_concept_id: conceptId,
+				p_actions: actions,
+				p_features: features,
+				p_revision: revision
+			}),
+		conceptHistory: (conceptId, afterSeq, limit) =>
+			rpc('ideacad_concept_history', {
+				p_concept_id: conceptId,
+				p_after_seq: afterSeq,
+				p_limit: limit
+			})
+	};
 }

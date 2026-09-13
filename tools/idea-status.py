@@ -21,7 +21,8 @@ depends on it. Needs Python 3 and git, nothing else.
 
 Print order is urgency order, so the most urgent thing is at the top:
 
-    [0]  DECISIONS OWED        docs/decisions/entries/*.md with Status: open, from origin/main
+    [0]  DECISIONS OWED        docs/decisions/entries/*.md from origin/main, in TWO lists:
+                               Status: open (his to answer) and Build: OPEN (a lane's to build)
     [0a] PROMPTS IN FLIGHT     docs/prompt-ledger/entries/*.md not yet deployed, read across
                                origin/main, origin/integration and every claude/** and every codex/** branch
     [1]  STANDING BRANCHES     claude/** and codex/** branches still on the remote, and why each stands
@@ -139,6 +140,19 @@ def parse_fields(text):
     return ident, title, fields
 
 
+def first_word(value):
+    """The first word of a field, lowercased, with trailing punctuation off.
+
+    READING ONLY THE FIRST WORD IS FRAGILE AND IS KEPT DELIBERATELY NARROW.
+    Ledger 0173 found decision 13 printing as owed for six days because its
+    `Status` line opened with the word `open` while the body said ANSWERED --
+    the parser was right about the word and wrong about the entry. The answer
+    is not a cleverer reading of `Status`: it is that a decision now carries a
+    SECOND field, `Build:`, which says whether anything is still owed after the
+    answer, and the two are reported separately below."""
+    return (value or "").split()[0].strip(".,;:").lower() if (value or "").strip() else ""
+
+
 def decisions(repo, ref="origin/main"):
     rows = []
     for f in ls_files(repo, ref, DECISIONS_DIR):
@@ -147,12 +161,33 @@ def decisions(repo, ref="origin/main"):
         ident, title, fields = parse_fields(show(repo, ref, f"{DECISIONS_DIR}/{f}"))
         rows.append({
             "id": ident, "title": title, "file": f,
-            "status": (fields.get("Status") or "").split()[0].lower() if fields.get("Status") else "",
+            "status": first_word(fields.get("Status")),
+            "status_raw": (fields.get("Status") or "").strip(),
+            # `Build:` IS THE SECOND SHAPE, AND WITHOUT IT A DECIDED-BUT-UNBUILT
+            # ENTRY IS IN NO LIST. Two were, on 2026-09-12: decision 21 (`YES,
+            # BLOCK`, gate not written) and decision 04 (`MOST PLAYED`, already
+            # shipped and the line stale). Both read `Status: decided ...`, so a
+            # filter on `Status == open` cannot see either -- which is how a
+            # decision Mr. Pina had already answered stayed invisible to every
+            # lane's status read.
+            "build": first_word(fields.get("Build")),
+            "build_raw": (fields.get("Build") or "").strip(),
             "default": fields.get("Default this assistant would pick", ""),
             "unblocks": fields.get("What it unblocks", ""),
             "raised": fields.get("Raised", ""),
         })
     return rows
+
+
+def owed_decisions(rows):
+    """Still HIS to answer."""
+    return [r for r in rows if r["status"] == "open"]
+
+
+def unbuilt_decisions(rows):
+    """Answered, and still A LANE'S to build. Keyed on `Build:` alone and never
+    on `Status`, because the whole point is that `Status` reads `decided`."""
+    return [r for r in rows if r["build"] == "open" and r["status"] != "open"]
 
 
 # --------------------------------------------------------------------------
@@ -576,7 +611,8 @@ def report(repo_name, since, data):
     print(f"REPO STATUS: {repo_name}")
     print("=" * 72)
 
-    open_dec = [r for r in data["decisions"] if r["status"] == "open"]
+    open_dec = owed_decisions(data["decisions"])
+    unbuilt = unbuilt_decisions(data["decisions"])
     print(f"\n[0] DECISIONS OWED (Status: open, from origin/main): {len(open_dec)}")
     if not data["decisions"]:
         print(f"    No {DECISIONS_DIR}/ on origin/main.")
@@ -587,6 +623,23 @@ def report(repo_name, since, data):
         print(f"        default: {r['default']}")
         if r["unblocks"]:
             print(f"        unblocks: {r['unblocks']}")
+
+    # A SECOND LIST WITH A SECOND LABEL, because these need a different person.
+    # An owed decision waits on Mr. Pina; a decided-but-unbuilt one waits on a
+    # lane, and folding them into one count would send the wrong party to read
+    # it. Same rule the roster split follows in CLAUDE.md: two findings, two
+    # labels, and only one of them is his.
+    print(f"\n[0]  DECIDED, BUILD OPEN (Status answered, Build: OPEN -- a lane's, not his): {len(unbuilt)}")
+    if not data["decisions"]:
+        print(f"    No {DECISIONS_DIR}/ on origin/main.")
+    elif not unbuilt:
+        print("    None. Every answered decision is built or says nothing about a build.")
+    for r in unbuilt:
+        print(f"    {r['id']}  {r['title']}")
+        print(f"        answered: {r['status_raw'][:96]}")
+        print(f"        build:    {r['build_raw'][:96]}")
+        print("        NOTE: a Build line is a dated claim about the tree. Re-read the")
+        print("              code before acting on it -- decision 04's went stale.")
 
     inflight = data["prompts_in_flight"]
     print(f"\n[0a] PROMPTS IN FLIGHT (Status not deployed, across main, integration and claude/** and codex/**): {len(inflight)}")

@@ -55,9 +55,15 @@ export const BREAKAGE = {
 	   that route's root is `div.cr-root.wrap` and the only `body > div` above it
 	   is `display: contents`, which `min-width` cannot inflate. A preset that
 	   silently fails to inject its defect is a live control that proves nothing
-	   -- and it proves nothing in exactly the reassuring direction. */
+	   -- and it proves nothing in exactly the reassuring direction.
+	   `.ideacad` JOINED BOTH LISTS FOR EXACTLY THAT REASON (0196): the IdeaCAD
+	   console's root carries neither `.harness` nor a room class, so `overflow`
+	   and `invisible` both came back GREEN on every `/dev/ideacad*` route --
+	   five specs whose two live controls had been proving nothing since they
+	   were written. Measured before and after on
+	   `ideacad-role-student-state-history`. */
 	overflow:
-		'.harness, main, .cr-root, .fg-root, .nb-root, .frc-root, .glb, .tnm-root, .gt-root, body > div { min-width: 1600px !important; }',
+		'.harness, main, .cr-root, .fg-root, .nb-root, .frc-root, .glb, .tnm-root, .gt-root, .ideacad, body > div { min-width: 1600px !important; }',
 	/* Drop every control below the 44px floor. */
 	'tiny-taps': 'button, [role="button"], a.btn { min-height: 0 !important; height: 18px !important; min-width: 0 !important; padding: 0 !important; line-height: 18px !important; }',
 	/* Wash the ink out until it cannot clear 4.5:1 on its own ground. */
@@ -67,7 +73,7 @@ export const BREAKAGE = {
 	   a preset that matches nothing on the surface being driven reports a clean
 	   run and is indistinguishable from a working check. */
 	invisible:
-		'.harness, main, h1, table, .chip-grid, .idea-logo, .note, .cr-root, .fg-root, .nb-root, .gt-root { opacity: 0 !important; }',
+		'.harness, main, h1, table, .chip-grid, .idea-logo, .note, .cr-root, .fg-root, .nb-root, .gt-root, .ideacad { opacity: 0 !important; }',
 	/* The compliance control for `textContains`. Every other preset here leaves
 	   an element saying exactly what it said; this one empties the words and
 	   leaves the box, which is the shape of the regression that check exists

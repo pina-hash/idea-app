@@ -47,7 +47,7 @@ import {
 	stationsCanAdd,
 	stationsCanRemove
 } from '$lib/ideacad/ui/feature-model';
-import { UNDO_DEPTH, UndoStack, undoKeyFor } from '$lib/ideacad/ui/undo';
+import { undoKeyFor } from '$lib/ideacad/ui/timeline';
 
 const tree = () => structuredClone(DEFAULT_BLADE_TREE) as BladeTree;
 const ids = (t: BladeTree) => t.features.map((f) => f.id);
@@ -288,59 +288,18 @@ describe('the profile preview, derived from the same stations the lathe revolves
 	});
 });
 
-describe('the undo stack', () => {
-	const stack = () => new UndoStack<{ n: number }>(UNDO_DEPTH);
-
-	it('is empty until something is accepted', () => {
-		const s = stack();
-		expect(s.canUndo).toBe(false);
-		expect(s.canRedo).toBe(false);
-		expect(s.undo({ n: 1 })).toBeNull();
-		expect(s.redo({ n: 1 })).toBeNull();
-	});
-
-	it('hands back the state that was left, and takes the current one onto the redo side', () => {
-		const s = stack();
-		s.push({ n: 1 });
-		expect(s.undo({ n: 2 })).toEqual({ n: 1 });
-		expect(s.canRedo).toBe(true);
-		expect(s.redo({ n: 1 })).toEqual({ n: 2 });
-	});
-
-	it('clones what it stores, so a later mutation of the live object cannot rewrite history', () => {
-		const s = stack();
-		const live = { n: 1 };
-		s.push(live);
-		live.n = 99;
-		expect(s.undo({ n: 2 })).toEqual({ n: 1 });
-	});
-
-	it('discards the redo future on a new edit', () => {
-		const s = stack();
-		s.push({ n: 1 });
-		s.undo({ n: 2 });
-		expect(s.canRedo).toBe(true);
-		s.push({ n: 1 }); // a fresh edit from the restored state
-		expect(s.canRedo).toBe(false);
-	});
-
-	it('caps at the stated depth and drops the OLDEST, not the newest', () => {
-		const s = stack();
-		for (let i = 0; i < UNDO_DEPTH + 10; i++) s.push({ n: i });
-		expect(s.undoDepth).toBe(UNDO_DEPTH);
-		// The most recent push is still the first thing an undo returns.
-		expect(s.undo({ n: 999 })).toEqual({ n: UNDO_DEPTH + 9 });
-	});
-
-	it('clears both sides when a different concept is loaded', () => {
-		const s = stack();
-		s.push({ n: 1 });
-		s.undo({ n: 2 });
-		s.clear();
-		expect(s.canUndo).toBe(false);
-		expect(s.canRedo).toBe(false);
-	});
-});
+/* THE `UndoStack` SUITE IS GONE WITH THE CLASS IT TESTED (0196).
+   `ui/undo.ts` held fifty accepted trees in memory and the next reload threw
+   them away; undo and redo drive 0209's durable action log now, so what used to
+   be asserted here about a depth cap, a cleared redo future and a cloned push
+   is asserted about ROWS instead -- `tests/ideacad-history-fold.test.ts` for
+   what undo and redo point at, `tests/dom/ideacad-timeline-mount.test.ts` for
+   the surface, and `tests/db/ideacad-history-store.test.ts` for the reload the
+   stack could never survive. Two of its rules did NOT carry across and that is
+   deliberate rather than lost: there is no depth cap (Mr. Pina asked for all the
+   way back to the creation of the part) and a new edit does not clear a redo
+   future (nothing is thrown away, so there is nothing to clear). The keystroke
+   map below is the half that did carry across, unchanged, in `ui/timeline.ts`. */
 
 describe('the undo keystroke map', () => {
 	const ev = (key: string, mods: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean } = {}) => ({
