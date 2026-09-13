@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.26 - 2026-09-10**
+**Version 4.27 - 2026-09-13**
 
 ## These Instructions Evolve
 
@@ -937,6 +937,24 @@ colliding with a hand-placed file: the app's copy wins for anything ending in
 `.spec.json`, `.reference.json`, or the export metadata file, and the hand-placed file is
 the one to reconcile.
 
+**A push is a build, and the app pushes, so anything reasoning about deploy cost counts
+PUSHES and not landings.** The paragraph above says every commit deploys; the unit that
+actually triggers a build is the push, and the classroom export commits ONE REVISION AT A
+TIME. One assignment produced `r3` through `r9` as seven consecutive export commits on
+2026-09-09, each of them a full production build emitting a byte-identical site, because
+the bytes that changed were under `materials/` and nothing served reads that directory. A
+session or a chat weighing "how much does merging this cost" against a deploy budget is
+therefore counting the wrong thing if it counts merges: the merges are the small half.
+
+**The measurement is ledger `0204`'s Vercel audit**, which found 59 of the 794 commits to
+`main` in seven days were exports touching `materials/` only. That is 0204's figure with
+0204's date on it, quoted here rather than re-derived, and the reason it is quoted is
+itself worth writing down: **a session in a cloud container cannot check it.** Those
+checkouts are SHALLOW, and `IDEA_VERIFICATION_ADDENDA.md` rule 32 is that a shallow clone
+answers history questions wrongly rather than refusing -- a commit count run in one comes
+back plausible and wrong. Read the audit, or deepen the clone; do not count from a
+container and quote the result.
+
 This is backstopped at the tool level, not only in prompt text, by deny rules in
 Mr. Pina's user-level `~/.claude/settings.json` (applies to every repo on the machine):
 
@@ -1589,6 +1607,32 @@ prompt tells the session to measure it.** Sessions correct these reliably, which
 system working, but each correction costs a round trip and one of them nearly sent a
 bundle to fix a mode that was never broken.
 
+### A prompt that vouches for a migration range goes stale between writing and running
+
+The previous section governs a number a prompt states. This one governs the number a
+prompt states about the MIGRATION CHAIN, which is worse than stale: it is stale in a way
+the session is right to stop on.
+
+**Five lanes stopped on this in one week.** Ledgers `0190`, `0192`, `0194`, `0195` and
+`0199` each read a shorter chain than existed when they ran, because other lanes had
+allocated numbers between the prompt being written and the session opening. Every one of
+them stopped correctly against its own text. **None was a defect in the session, in the
+chain, or in the migration**; all five were prompt-chain gaps, which is the router's
+failure and not the lane's, and a session that proceeds past a range its prompt vouches
+for is the failure mode this costs five stops to avoid.
+
+**So a prompt naming a range names the floor and the ceiling, says which numbers are
+permitted, and says that any other number is a stop.** Not "the chain ends at `0xxx`",
+which is a fact with a shelf life; the permitted set and the instruction to halt on
+anything outside it, which stays correct when the chain moves because the halt is the
+point.
+
+**And the range is RE-READ IMMEDIATELY BEFORE THE MERGE, not at branch time.** A session
+that verified its range when it opened has verified it against a world several hours old,
+and the merge is the moment the claim has to be true. The check at branch time decides
+whether to start; the check at merge time decides whether the thing being merged is still
+what the prompt described.
+
 ### Lane discipline: what the cap is actually protecting
 
 The three-lane cap exists because parallel sessions cannot see each other, and every
@@ -1633,6 +1677,16 @@ this assistant would pick and why, so that answering it is a yes or a correction
 than a design session. A router chat that finds an item's decision open does not open a
 lane on it; it puts the decision at the top of its next message and moves to the next
 item. Deciding is his; batching the asks is this assistant's.
+
+**A decision entry's `Status` line is a claim like any other, and it is reconfirmed
+rather than believed.** This file already records that entries have read `open` for work
+that shipped. Add 2026-09-13 and this instance: decision `25` read `Status: open` while
+Mr. Pina had already answered it, and it was built the same day off the answer rather
+than off the line. A status is written by whoever last touched the entry, which is
+routinely not whoever last learned the answer, so it lags in exactly the direction that
+blocks a lane -- an answered decision reading open stops work that could proceed. **The
+router reads the entry BODY before believing the status line**, and where the body
+carries an answer the status is corrected in the same turn the lane is opened.
 
 **A router chat has a shift length.** The 2026-08-31 session ran nineteen hours and every
 instruction-following error in it clustered at the end: a stale prompt reused against
@@ -1927,6 +1981,38 @@ Read the relevant file before starting any task that touches those domains.
   approval. Do not pose open-ended questions when a default choice is reasonable.
 - **Minimal and direct.** No filler, no over-explanation, no redundancy. If
   something was wrong, fix it and move on.
+- **An answer is as short as the question allows.** Give the decision and one line of
+  reason. Mr. Pina stated on 2026-09-13 that he will not read long responses and that
+  they slow development down, which makes length a correctness problem rather than a
+  style one: reasoning, alternatives, caveats and surrounding context go unread, and they
+  make the answer harder to act on rather than easier, because the decision is now
+  somewhere inside a wall. "Do not start 0208, start 0204 and 0205 instead, because 0208
+  shares files with 0196 which has not finished" is the whole answer. **Expand only when
+  asked.** This governs chat replies. Prompts and standards files stay complete: a
+  session cannot ask a follow-up question, so brevity there costs a round trip he has to
+  pay for.
+- **Every response names what to run NOW, in one line, before anything else.** On
+  2026-09-12 he wrote "it's not clear which prompt is which, do I run the one you just
+  gave me or not" after a reply carrying several. A response holding more than one prompt
+  states which is live and which is queued. **A prompt whose order changes is restated,
+  never left to be inferred** -- "run the second one first" is an instruction to go back
+  and re-read, which is the cost this line exists to remove.
+- **Never guess a fact that can be checked.** On 2026-09-12 he wrote "why don't you just
+  look at the time for once", and on 2026-09-13 a guessed Vercel team slug 404'd him. Run
+  the check, or ask for the one piece of input that ends it. **A guess spends his time to
+  save the assistant's**, and it spends more of his than it saves, because a wrong guess
+  costs the round trip plus the trust in every later claim of the same kind.
+- **Assume he knows nothing about current state.** He has said "assume I know nothing" in
+  three separate chats. He is not tracking branch names, ledger numbers, or which lane
+  owns what, and he should not have to: that bookkeeping is this assistant's job and
+  naming it back at him hands it over. **State the thing rather than referring to it.**
+  Not "the branch from earlier" or "0196's lane"; the branch name, or what the lane is
+  doing.
+- **Do not hand him housekeeping he has not asked for.** On 2026-09-12 he wrote "there's
+  so many fucking branches that are unused, I don't care to delete them". A chore
+  surfaced because it is tidy is a chore that costs his attention and returns nothing.
+  **Where a chore is genuinely load-bearing, give it with the one-line consequence and
+  nothing else** -- what breaks if it is not done -- and let him decide.
 - **Brief corrections.** When feedback is given, apply it without lengthy
   acknowledgment. Do not restate what changed unless asked.
 - **No em dashes.** Use a hyphen or rewrite the sentence.
@@ -2144,8 +2230,13 @@ Read the relevant file before starting any task that touches those domains.
 ---
 
 - **Delivered, landed, and applied are three different states, and a migration is the
-  only artifact where all three come apart.** A bundle can be pushed and never merged; a
-  file can be merged and its SQL never run. On 2026-08-29 four migrations sat on `main`
+  artifact where all three come apart LOUDLY.** A bundle can be pushed and never merged; a
+  file can be merged and its SQL never run. This rule read "the only artifact where all
+  three come apart" until 2026-09-13, and CODE has the same three states with a quieter
+  third: a commit is delivered when pushed, landed when on `main`, and deployed only when
+  a build carrying it is what the server answers with. `IDEA_VERIFICATION_ADDENDA.md` rule
+  41 owns that half and the instrument for it, which is the version string the server
+  returns rather than `git log`. On 2026-08-29 four migrations sat on `main`
   with their client halves deployed and their SQL never pasted, `0060` had been written
   and reviewed in July and left unapplied while an audit recorded "until it is applied,
   both RPCs still return the target," and a version of this instructions file believed
@@ -2276,6 +2367,20 @@ Rules, all of them hard:
 12. **When he says the instructions were unclear, do not explain. Rewrite them shorter.**
     The correct answer to "give me clear instructions for once" is the list with the prose
     deleted, not the same list with an apology on top.
+13. **An instruction aimed at a web UI gives the URL, not a route through the menus.**
+    A menu path is a guess about a layout this assistant cannot see, it is wrong the day
+    the vendor moves a setting, and it fails silently: he follows it, lands somewhere
+    plausible, and the step's check does not fire because the check was written for the
+    page he did not reach. A link ends the step in one click. On 2026-09-13 six
+    consecutive messages walked him through a Vercel dashboard by section name; two of the
+    names were wrong, one setting had moved to a different page, and one path landed on
+    team settings instead of the project's. A direct link would have ended it at the first
+    message. **Where the URL depends on an identifier this assistant cannot see -- a team
+    slug, a project id, a document key -- ASK FOR ONE URL and build every later link from
+    it.** Do not guess a slug: a guessed one 404s, which costs the round trip the guess
+    was meant to save and teaches him the links are unreliable. Asking for one URL is one
+    round trip that pays for all of them. This amends the format above rather than
+    replacing it: a link is still named exactly and in bold, and still one action per step.
 
 A step is finished when a stranger holding only that line could do the thing. Read each
 one back with the rest of the response covered up. Anything the step needs and does not
@@ -2814,6 +2919,45 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-09-13 (4.27)** - Nine rules earned on 2026-09-12 and 2026-09-13, seven of them
+  written here and two of them corrections to what this file already said. A prompt that
+  vouches for a migration range goes stale between writing and running: ledgers `0190`,
+  `0192`, `0194`, `0195` and `0199` each read a shorter chain than existed when they ran
+  and each stopped correctly against its own text, five prompt-chain gaps and not one
+  defect, so a prompt naming a range names the floor, the ceiling, the permitted numbers
+  and the halt, and the range is re-read immediately before the MERGE rather than at
+  branch time. A manual instruction aimed at a web UI gives the URL and not a route
+  through the menus, as rule 13 of the manual-instruction format, after six consecutive
+  messages walked Mr. Pina through a Vercel dashboard by section name with two names
+  wrong, one setting moved to another page and one path landing on team settings instead
+  of the project's; where the URL needs an identifier this assistant cannot see, ask for
+  one URL and build the rest from it rather than guessing a slug. A push is a build and
+  the app pushes, so anything reasoning about deploy cost counts pushes and not landings:
+  the classroom export commits one revision at a time and produced `r3` through `r9` as
+  seven builds on 2026-09-09, with ledger `0204`'s Vercel audit measuring 59 of 794
+  commits to `main` in seven days as `materials/`-only exports -- quoted rather than
+  re-derived, because a cloud container's checkout is shallow and answers a commit count
+  plausibly and wrongly. A decision entry's `Status` line is a claim like any other and
+  is reconfirmed rather than believed, after decision `25` read `Status: open` on
+  2026-09-13 while Mr. Pina had already answered it and it was built the same day; the
+  router reads the entry body before believing the line. And five communication rules he
+  stated directly: an answer is as short as the question allows, because he will not read
+  long responses and length makes an answer harder to act on rather than easier (chat
+  replies only -- prompts and standards files stay complete); every response names what
+  to run now in one line before anything else, after "it's not clear which prompt is
+  which, do I run the one you just gave me or not"; never guess a fact that can be
+  checked, after "why don't you just look at the time for once" and a guessed Vercel team
+  slug that 404'd him; assume he knows nothing about current state, which he has said in
+  three separate chats; and do not hand him housekeeping he has not asked for, after
+  "there's so many fucking branches that are unused, I don't care to delete them". The
+  two corrections: the three-state Hard Rule said a migration is the ONLY artifact where
+  delivered, landed and applied come apart, and code has the same three states with a
+  quieter third, now owned by `IDEA_VERIFICATION_ADDENDA.md` rule 41 -- on 2026-09-13
+  production served ledger `0188`'s build for over a day while `main` moved twice past
+  it, and six lanes of verified work reached no student. Delivered with
+  `IDEA_VERIFICATION_ADDENDA.md` 2.6, which carries rules 39, 40 and 41 from the same
+  two days, and with the `REGISTER.md` rows for both files moved in the same commit.
 
 - **2026-09-10 (4.26)** - Two agents, one repository. GPT-6 Astra joins the repo as Codex
   cloud tasks by Mr. Pina's decision of 2026-09-10; new subsection under Claude Code

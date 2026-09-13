@@ -1,5 +1,5 @@
 # IDEA Verification Standards
-**Version 2.5 - 2026-09-09**
+**Version 2.6 - 2026-09-13**
 
 **This is the verification standard. It is not staging, and there is no upstream file.**
 
@@ -338,6 +338,87 @@ strength of it. Four minutes had passed. Every figure came from the session's ow
 how long it had been waiting; no `date -u` was read at any point, and the one command that
 would have ended the investigation before it started cost nothing.
 
+## 39. A verification that reports through `raise notice` is a verification nobody reads
+
+A probe can be correct in every respect that a reviewer checks -- the right question, the
+right ladder of verdicts, the right refusal on the state that means nothing was examined --
+and still return nothing a human will ever see, because of where it was pasted. The
+Supabase SQL editor displays neither `raise notice` nor `raise warning`, and it renders
+only the LAST statement's result set. A probe written as a `do $$ ... $$` block that
+speaks through notices therefore runs, reaches its verdict, and prints an empty pane. The
+reader sees the same blank the editor shows for a statement that did nothing at all.
+
+**This is the failure this file already names, aimed at the reporting channel rather than
+at the assertion.** Rules 4, 5, 8, 17, 18, 19, 20, 37 and 38 are each a check that
+reported success without touching, or without reaching, what it named; these two new rules
+bring that group to eleven. The distinction here is that the check DID reach its subject
+and DID compute the right answer. What was missing was a channel, and a missing channel
+and a skipped step are indistinguishable from the reader's chair -- which means the
+default reading of an empty pane is the wrong one, and it is the charitable one that is
+wrong.
+
+**A probe pasted into that editor RETURNS ROWS.** A `select` whose columns are the verdict,
+the identity of what was examined, and the values the verdict rests on, so the last
+statement in the paste is the answer. Where the logic genuinely needs procedural code, the
+block writes to a temporary table and a trailing `select` reads it back. Never a notice as
+the sole output, and never a notice as the output that carries the verdict.
+
+**Evidence.** Ledger 0203's part C was a correct probe with a correct verdict ladder and
+reported entirely through `raise notice`. It returned nothing visible in the editor, and
+it read exactly like a run that had skipped it. Nothing about the probe was wrong; nothing
+about the paste was wrong; the verdict simply had nowhere to land.
+
+---
+
+## 40. A verification that examined nothing must say so in its own output
+
+An empty subject and a negative result are different answers, and a probe that reports
+only pass or fail collapses them into one. A boundary check over a table with no rows in
+it finds no violation, which is true and is not evidence: the query ran, the predicate
+held over the empty set, and every assertion inside it passed without a single row being
+looked at. Reported as a pass, it is a claim about a population that was never there.
+
+**Every probe carries a state field naming what it looked at**, beside its verdict: the
+row it examined, the identity of the document, policy or object, or the explicit statement
+that there was none. The absence of a subject is a distinct answer from a negative result
+and is printed as one, in words, so the reader cannot read it as clean. This is rule 17's
+identity-not-a-count discipline extended to the case where the identity is missing
+entirely, and rule 29's positive control seen from the probe's own side.
+
+**Evidence, and it is the worked example for this rule.** Ledger 0203's probe answered
+`NO DOCUMENT EXAMINED - this tested NOTHING` because `ideacad_documents` held zero rows.
+That refusal is the whole reason a false pass was not recorded. A probe that had printed
+only its verdict would have printed a pass, over an empty table, about a realtime boundary
+nobody had exercised -- and the session would have had a green reading to quote.
+
+## 41. Landed is not deployed, and they come apart for days
+
+`IDEA_instructions.md` carries the three-state rule -- delivered, landed, applied -- and
+says a migration is the only artifact where all three come apart. That is the half of it
+that was measured. **Code has the same three states**, and the third one is not the merge:
+a commit is delivered when it is pushed, landed when it is on `main`, and DEPLOYED when a
+build carrying it is what the server answers with. Those last two are separate events with
+a queue, a build and a failure mode between them, and nothing in git records the third.
+
+**A claim that a feature is live is a claim about the version string the server returns,
+not about `main`.** `git log` answers where the code is. It cannot answer what a student
+loading the page receives, and it reads exactly the same whether the deploy that followed
+the merge succeeded, failed, was superseded mid-flight, or never started. So a session or
+a chat that says a thing shipped fetches the running build's own identifier and quotes it,
+and where the two disagree the merge is reported as landed and explicitly NOT deployed.
+
+**The asymmetry is what makes this expensive.** A migration not being applied is loud: the
+feature errors, the RPC is missing, somebody notices within a period. A build not being
+deployed is silent in exactly the way this whole file is about -- every check is green,
+every branch is merged, every report is accurate about what it measured, and the work
+reaches nobody. The verified state and the served state drift apart with no instrument
+between them unless one is pointed there deliberately.
+
+**Evidence.** On 2026-09-13 production was still serving ledger 0188's build while `main`
+had moved twice past it, for over a day. Six lanes of verified, merged, correctly reported
+work had reached no student. Every one of those lanes was right about what it had done;
+none of them had been asked the question this rule exists to force.
+
 ## Note on internal organization
 
 This section was written as a merge plan for a document that does not exist. It is kept because the groupings are real and a future reorganization of this file should follow them, not because anything is waiting to move.
@@ -442,6 +523,29 @@ control's positive control counts rows **rising** on N presses with N greater th
 because "one row exists" passes trivially on a working save and proves nothing.
 
 ## Changelog
+
+- **2.6 (2026-09-13)** - Three rules earned in one day, all three about the distance
+  between a check being correct and a reader learning its answer. Rule 39: a verification
+  that reports through `raise notice` or `raise warning` is a verification nobody reads,
+  because the Supabase SQL editor displays neither and renders only the last statement's
+  result set; ledger 0203's part C was a correct probe with a correct verdict ladder that
+  returned an empty pane and read exactly like a run that had skipped it, so a probe
+  pasted into that editor returns rows and a notice is never the channel carrying a
+  verdict. Rule 40: a verification that examined nothing must say so in its own output,
+  after the same ledger's probe answered `NO DOCUMENT EXAMINED - this tested NOTHING`
+  over an empty `ideacad_documents` and that refusal is the only reason a false pass was
+  not recorded; every probe carries a state field naming its subject, because an empty
+  population and a clean result are different answers and only one of them is evidence.
+  Both are filed with rules 4, 5, 8, 17, 18, 19, 20, 37 and 38, the group about a check
+  reporting success without touching what it names, which they bring to eleven; what is
+  new in them is that the check reached its subject and computed the right answer, and
+  the channel or the population was what failed. Rule 41: landed is not deployed, and on
+  2026-09-13 production had served ledger 0188's build for over a day while `main` moved
+  twice past it, so six lanes of verified work reached no student; a claim that a feature
+  is live is a claim about the version string the server returns and not about `main`.
+  Rule 41 also corrects a clause in `IDEA_instructions.md`, whose three-state Hard Rule
+  said a migration is the only artifact where all three states come apart; code has the
+  same three, and its third is the quiet one.
 
 - **2.5 (2026-09-09)** - Two rules earned in one week, both about a check that reported
   success over something it never saw. Rule 37: a coverage reconciliation done by name
