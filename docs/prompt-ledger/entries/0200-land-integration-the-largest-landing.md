@@ -91,3 +91,15 @@ could be; `0209`/`0210`'s applied state is Mr. Pina's verification, not a readin
 session took. **The deploy is not confirmed as carrying this merge**: the live sha is
 recorded below, but one 200 from the root is not evidence about which commit served it.
 
+**THE SHA LIVE ON PRODUCTION IS `247dfc4`, WHICH IS NOT THIS MERGE AND WAS NOT THE
+PREVIOUS ONE EITHER.** `https://ideabosco.com/` answered 200 throughout and served
+`IDEA Portal v1.1514 247dfc4` on every one of twenty reads across thirteen minutes
+after the push. `247dfc4` is ledger 0188's merge (2026-09-12 21:22:27Z). `main` was
+already at `85543209` (ledger 0191/0193, 2026-09-12 22:47:22Z) BEFORE this session
+touched anything, and that commit was never served either -- **so production is two
+landings behind and the lag predates this bundle by over three hours.** This merge
+(`ee4a1c42`, 2026-09-13 02:01:29Z) had not appeared when the last read was taken.
+Not diagnosed and not routed around: `deploy.yml` is the merge path and Vercel's own
+git integration is what builds a push to `main`, neither of which this bundle owns a
+file in. **Reported as what it is -- the deploy is unconfirmed, `main` is correct.**
+
