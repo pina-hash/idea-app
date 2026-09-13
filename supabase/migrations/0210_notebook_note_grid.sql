@@ -31,7 +31,7 @@
 -- `src/lib/notebook/grid/` -- the shape's declaration and a ProseMirror node
 -- with its NodeView -- which is the EDITOR half. Nothing in it can write a
 -- grid to this table: the one path from an editor document into
--- `notebook_entry_notes.content` is `$lib/server/rich-text-normalize.ts`, a
+-- `notebook_entry_notes.content` is `src/lib/server/rich-text-normalize.ts`, a
 -- WHITELIST TRANSLATOR that BUILDS its output from the node types it names, and
 -- it does not name `grid`. Those files are not in this bundle's surface and are
 -- deliberately untouched, so a note containing a grid, saved today, stores the
