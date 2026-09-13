@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "tournaments-view-register-team-2.mjs",
-	"date": "2026-09-12T05:18:26.073Z",
-	"sha": "949480c824e4521bac612836bb2dcf7e47aca1a8",
-	"dirty": false,
+	"date": "2026-09-13T05:32:19.971Z",
+	"sha": "f86e535989befde29c5e1d35a8ef75507eb8585d",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 52,
 	"outsideRows": [],
-	"ms": 5323
+	"ms": 4900
 }
