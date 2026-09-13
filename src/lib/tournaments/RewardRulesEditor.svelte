@@ -4,8 +4,23 @@
 	 * hands back the complete rule set (tournament_set_reward_rules replaces
 	 * the whole set in one call, so the editor's state IS the rule set).
 	 * Blank amount = no rule of that kind.
+	 *
+	 * THE AMOUNTS ARE IDEA COINS AND SINCE 0212 THEY GENUINELY MOVE. Before it,
+	 * a rule written here reached `tournament_reward_ledger` and stopped there,
+	 * so the copy could honestly only promise "the public reward ledger";
+	 * `_tournament_award` now mints a `competition_winnings` row per registrant
+	 * on the winner's digital balance, and the copy says so. The unit is named
+	 * through `COIN_SYMBOL` rather than typed, which is why this file is in
+	 * `COIN_SOURCES`.
+	 *
+	 * A REWARD CAN ONLY EVER BE A CREDIT, and `parseAmount` below is the third
+	 * of the three layers that guarantee it (the others are
+	 * `check (amount >= 1)` on both reward tables and the RPC's own refusal).
+	 * Nothing here may accept zero or a negative: entering, playing and losing a
+	 * tournament must never cost a student anything.
 	 */
 	import type { RewardRule } from './tournaments';
+	import { COIN_SYMBOL } from '../coin-format';
 
 	let {
 		rules = [],
@@ -101,11 +116,14 @@
 
 <div class="rr-editor">
 	{#if locked}
-		<p class="note">The tournament is complete; rewards are settled and rules are locked.</p>
+		<p class="note">
+			The tournament is complete; rewards are settled onto IDEA Coin balances and rules are locked.
+		</p>
 	{:else}
 		<p class="note">
-			Amounts pay into the public reward ledger as matches are won; leave a field blank for no
-			reward of that kind. Round bonuses match winners-bracket rounds.
+			Amounts are in {COIN_SYMBOL} and are paid onto the winner's IDEA Coin balance as matches are
+			won, one payment per registrant; leave a field blank for no reward of that kind. Round
+			bonuses match winners-bracket rounds.
 		</p>
 	{/if}
 
