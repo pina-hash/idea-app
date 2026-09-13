@@ -80,6 +80,15 @@ export default {
 				'the confirm pair clears the reference triad ok',
 				'the confirm pair clears the concept strip ok',
 				'the readouts rail shows its last row ok',
+				/* REACHABILITY, WHICH IS A DIFFERENT QUESTION FROM PRESENCE AND
+				   IS THE ONE THAT WAS FAILING. At 375 the confirm pair was
+				   present 2 / visible 2, over 44px, correctly labelled and
+				   contrast-clear -- and 0 of 11 points across each control
+				   reached it, because the media query's `position: static`
+				   discarded its `z-index` and the canvas painted over it. Ledger
+				   0224. */
+				'every pixel of the confirm pair is reachable rather than painted over ok',
+				'the confirm pair clears the reference triad and the view name ok',
 				/* The canvas, and the rig behind it. A pane with real width was
 				   already measured; a pane holding a canvas that draws nothing is
 				   the next way for this surface to be wrong while every threshold
@@ -92,6 +101,27 @@ export default {
 				'the world point under a pixel survives a zoom ok',
 				'the model is inside the pane at the zoom it fits to ok',
 				'the model fills the pane it was fitted to ok'
+			]
+		},
+		{
+			/* THE STANDARD-VIEW LIST, WHICH IS CLOSED IN EVERY OTHER BLOCK HERE.
+			   The probe opens it through its own control, measures, and puts it
+			   back. At 375 seven rows measured 345px of content in a 278px box,
+			   so Isometric sat below a fold this Chromium paints no scrollbar
+			   for -- present, visible, over 44px, and unreachable where it was
+			   drawn. Ledger 0224. */
+			label: 'the standard-view list, opened through its own control',
+			evaluate: '() => window.__ideacadOrientationVerdicts()',
+			expected: [
+				'the list opens ok',
+				'every standard view has a row ok',
+				'nothing is below an invisible fold ok',
+				'every row can be pressed where it is drawn ok',
+				'no row has its own text clipped ok',
+				'the list stays inside the graphics area ok',
+				'every row clears 44px ok',
+				'nothing is wider than the window ok',
+				'the control closes it again ok'
 			]
 		},
 		{

@@ -34,6 +34,15 @@
 	 *                      presence of a handler
 	 *   state=lost         the grant removed while the document was open, driven
 	 *                      through the real store by a real refusal
+	 *   state=conflict     THE STALE SAVE. The server answers `ok: false` with
+	 *                      its own newer row, which is `store.ts`'s terminal
+	 *                      `conflict` -- a DIFFERENT state from `lost` sharing
+	 *                      one phase, and the one no harness reached until now.
+	 *                      `lost` is a revoked grant and the call site rewrites
+	 *                      its chip to "Not saved"; this one keeps "Changed
+	 *                      elsewhere", and for a whole bundle that chip was the
+	 *                      only thing on screen saying the document had stopped
+	 *                      saving
 	 *   state=empty        nobody has shared anything: the normal state
 	 *   state=unavailable  a deployment with no `0205`
 	 *
@@ -179,6 +188,20 @@
 
 	/** Set once the harness has deliberately revoked the grant. */
 	let revoked = $state(false);
+	/**
+	 * Set once the harness wants the server to answer STALE.
+	 *
+	 * A REFUSAL AND A STALE REVISION ARE TWO DIFFERENT ANSWERS AND THE STORE
+	 * TREATS THEM DIFFERENTLY. `revoked` makes the write THROW, which sends
+	 * `store.ts` down `accessWasRevoked` and ends in `accessLost: true`.
+	 * `stale` makes it RESOLVE with `ok: false` and the server's own newer row,
+	 * which is the ordinary conflict: terminal phase, `accessLost` false,
+	 * `canWrite` still true, the local copy untouched. Both publish
+	 * `phase: 'conflict'`, which is exactly why a harness that drove only one
+	 * of them could not tell the two apart -- and why the conflict chip went a
+	 * whole bundle without anybody seeing what it says.
+	 */
+	let stale = $state(false);
 
 	const shell = () =>
 		({
@@ -194,6 +217,12 @@
 			saveConcept: async (_id: string, features: unknown, revision: number) => {
 				// The refusal `0205` raises for a caller whose role has become null.
 				if (revoked) throw new Error('You can only save your own concept.');
+				// THE STALE ANSWER. `ideacad_save_concept` returns `ok: false`
+				// with the row as it actually stands when the revision it was
+				// sent is behind; it RESOLVES rather than raising, which is the
+				// whole difference from the line above.
+				if (stale)
+					return { ok: false as const, concept: { ...concept(MINE, 'My concept'), revision: revision + 3 } };
 				return { ok: true as const, concept: { ...concept(THEIRS, 'Their concept'), features, revision } };
 			},
 			updateConceptMeta: async () => concept(THEIRS, 'Their concept'),
@@ -248,8 +277,21 @@
 		   refused in only one of them drove the terminal path in neither. The
 		   sentence is `0205`'s own, raised for a caller whose role has become
 		   null. */
-		applyActions: async (conceptId: string) => {
+		applyActions: async (conceptId: string, _actions: unknown, _features: unknown, revision?: number) => {
 			if (revoked) throw new Error('You can only save your own concept.');
+			/* AND HERE TOO, FOR THE SAME REASON THE REFUSAL IS IN BOTH: with
+			   0209's transports present the store's write goes through
+			   `applyActions` and NEVER touches `saveConcept`, so a harness that
+			   answered stale in only one of them would drive the conflict in
+			   neither. */
+			if (stale)
+				return {
+					ok: false,
+					concept: { ...concept(MINE, 'My concept'), revision: (revision ?? 0) + 3 },
+					appended: 0,
+					firstSeq: null,
+					lastSeq: null
+				};
 			return {
 				ok: true,
 				concept: concept(conceptId.replace('concept-', ''), 'Their concept'),
@@ -302,8 +344,26 @@
 		})();
 	});
 
+	/* THE STALE PATH, DRIVEN THE WAY A STUDENT REACHES IT: open the document,
+	   let the server move underneath, then edit. Everything after that point is
+	   the shipping store reacting to the shipping answer -- no flag is set on
+	   the editor and no phase is published by hand. */
 	$effect(() => {
-		if (variant === 'lost' || variant === 'unavailable') return;
+		if (variant !== 'conflict') return;
+		void (async () => {
+			await openMine();
+			stale = true;
+			try {
+				store.edit({ schema: 1, features: [] });
+				await store.save();
+			} catch {
+				// A stale answer RESOLVES, so nothing should land here.
+			}
+		})();
+	});
+
+	$effect(() => {
+		if (variant === 'lost' || variant === 'unavailable' || variant === 'conflict') return;
 		if (role === 'owner') {
 			void openMine();
 			return;
@@ -582,7 +642,14 @@
 			banner: n('[data-testid="ideacad-reading-shared"]'),
 			back: n('[data-testid="ideacad-return-mine"]'),
 			sharePanel: n('[data-testid="ideacad-share"]'),
-			shareForm: n('[data-testid="ideacad-share-form"]')
+			shareForm: n('[data-testid="ideacad-share-form"]'),
+			/* THE SENTENCE THAT SAYS SAVING HAS STOPPED. It rides beside the
+			   chip's own word so a spec can compare the two claims: a chip
+			   reading "Changed elsewhere" with this at 0 is the state this
+			   harness was added to catch. */
+			saveStopped: n('[data-testid="ideacad-save-stopped"]'),
+			saveChip:
+				document.querySelector('[data-testid="ideacad-editor"] .save')?.textContent?.trim() ?? ''
 		};
 	}
 

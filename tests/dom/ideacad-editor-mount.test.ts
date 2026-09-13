@@ -39,6 +39,7 @@ import { describe, expect, it } from 'vitest';
 import type { Component } from 'svelte';
 import BladeEditor from '$lib/ideacad/BladeEditor.svelte';
 import { DEFAULT_BLADE_CONFIG, DEFAULT_BLADE_TREE } from '$lib/ideacad/blade/materials';
+import { ideacadSaveLabel } from '$lib/ideacad/mount';
 import { mountInto } from './mount';
 
 const Editor = BladeEditor as unknown as Component<Record<string, unknown>>;
@@ -288,5 +289,109 @@ describe('IdeaCAD: read-only is the absence of the writes, not a second render p
 		expect(teacher.all('footer').length).toBe(0);
 		await student.stop();
 		await teacher.stop();
+	});
+});
+
+/**
+ * THE TWO ROBUSTNESS GUARDS LEDGER 0224 ADDED, before Mr. Pina drove this
+ * surface for the first time.
+ *
+ * Both are here rather than in the browser harness because both are
+ * STRUCTURAL: one is whether the component renders at all, the other is
+ * whether a sentence is in the document. Neither reads a box, a ratio or a tap
+ * target, which this directory cannot measure (see the file header).
+ */
+describe('IdeaCAD: a document with nothing in it opens rather than blanking', () => {
+	/**
+	 * `[].map()` is `[]`, not nullish, so an empty `concepts` array fell past
+	 * the `??` that was meant to catch "no seed": `active` came out `undefined`
+	 * and `seedFeatures()` read `.features` off it. That is a `TypeError` at
+	 * INITIALISATION, so the component never renders a frame -- the student
+	 * gets an empty slot where their blade was, with nothing saying why.
+	 * Measured against `svelte/server`'s `render` before the guard:
+	 * `TypeError: Cannot read properties of undefined (reading 'features')`.
+	 */
+	it('renders a working editor when it is handed an empty concept list', async () => {
+		const editor = mountInto(Editor, {
+			tree: DEFAULT_BLADE_TREE,
+			config: DEFAULT_BLADE_CONFIG,
+			concepts: []
+		});
+		// The console is on screen at all, which is the half that was failing.
+		expect(editor.all('[data-testid="ideacad-editor"]').length).toBe(1);
+		// And it is a USABLE editor rather than a husk: one card, a named
+		// concept, and the feature tree the no-seed path has always produced.
+		expect(editor.all('.concepts .card').length).toBe(1);
+		expect(editor.one('[data-testid="ideacad-editor"] h2').textContent).toBe('Concept 1');
+		expect(editor.all('.tree [role="treeitem"]').length).toBeGreaterThan(0);
+		await editor.stop();
+	});
+
+	it('honours a seeded list when there is one, so the guard cannot swallow a real document', async () => {
+		// The positive control for the assertion above: a guard that returned
+		// the local card unconditionally would pass every claim in it.
+		const editor = open();
+		expect(editor.all('.concepts .card').length).toBe(3);
+		expect(editor.one('[data-testid="ideacad-editor"] h2').textContent).toBe('Concept 1');
+		await editor.stop();
+	});
+});
+
+describe('IdeaCAD: a document that has stopped saving says so in a sentence', () => {
+	/**
+	 * `store.ts` publishes the terminal `conflict` phase when the server
+	 * refuses a stale revision, and from that moment nothing the student types
+	 * reaches the database: the local row keeps its old revision, so every
+	 * following edit re-sends the same stale number and is refused again. The
+	 * only thing on screen was the two-word chip -- "Changed elsewhere" --
+	 * which reads as a note about somebody else rather than as "your work has
+	 * stopped being saved".
+	 *
+	 * The sentence is keyed on `ideacadSaveLabel('conflict')` rather than on a
+	 * literal, so the word in the chip and the sentence under it cannot drift
+	 * apart. That is what the last case here asserts.
+	 */
+	const notice = (m: ReturnType<typeof open>) =>
+		m.all('[data-testid="ideacad-save-stopped"]').map((el) => (el.textContent ?? '').trim());
+
+	it('renders the sentence when the save label is the terminal one', async () => {
+		const editor = open({ saveLabel: ideacadSaveLabel('conflict') });
+		expect(notice(editor).length).toBe(1);
+		expect(notice(editor)[0]).toContain('stopped saving');
+		expect(notice(editor)[0]).toContain('lost if you reload');
+		// The chip still says its own word: the sentence is added beside it,
+		// never instead of it.
+		expect(editor.one('[data-testid="ideacad-editor"] .save').textContent?.trim()).toBe(
+			'Changed elsewhere'
+		);
+		await editor.stop();
+	});
+
+	it('renders nothing of the kind on every save state that is not terminal', async () => {
+		for (const phase of ['idle', 'saving', 'saved', 'error']) {
+			const editor = open({ saveLabel: ideacadSaveLabel(phase) });
+			expect(notice(editor)).toEqual([]);
+			await editor.stop();
+		}
+		// A surface with no store at all -- the dev harness, and the read-only
+		// arm of the item page -- has no label to key on and gets nothing.
+		const local = open();
+		expect(notice(local)).toEqual([]);
+		await local.stop();
+	});
+
+	it('keys on the label the vocabulary produces, not on a sentence written here twice', async () => {
+		// A second spelling of the word would make the chip and the sentence
+		// two claims that can stop agreeing. If `ideacadSaveLabel('conflict')`
+		// ever changes, this pair moves together or this case reddens.
+		const word = ideacadSaveLabel('conflict');
+		const editor = open({ saveLabel: word });
+		expect(editor.one('[data-testid="ideacad-editor"] .save').textContent?.trim()).toBe(word);
+		expect(notice(editor).length).toBe(1);
+		await editor.stop();
+
+		const near = open({ saveLabel: `${word} ` });
+		expect(notice(near)).toEqual([]);
+		await near.stop();
 	});
 });
