@@ -103,30 +103,46 @@ the same 20 rows. No other standards file or register row was touched.
 ## What was NOT verified
 
 - No browser pass. Nothing under `src/` changed.
-- Whether ledgers `0213` and `0216`'s own in-flight branches land cleanly, or what
-  `tools/deploy-probe.mjs` and `deploy.yml` look like once those bundles land --
-  neither file was read or touched here, per the prompt's explicit fence.
+- Whether `tools/deploy-probe.mjs` or `deploy.yml` still carry the `bash -e` /
+  `set -uo pipefail` defect ledger `0215` found -- neither file was read or touched
+  by this bundle, per the prompt's explicit fence. Ledger `0216`
+  (`claude/kind-euler-vlt4u7`, title "the deploy fallback and the history probe")
+  merged onto `integration` between this bundle's own merge and its check of the
+  six-item gate below, so whatever it did to those two files is on `integration`'s
+  tip by the time this bundle read it, but this bundle did not read either file to
+  find out what.
 
 ## The merge, and the gate that failed exactly as expected
 
 No migration in this bundle, so `Claims: none` and the six-item checklist governs
-merging `integration` into `main` directly.
+merging `integration` into `main` directly. `integration` moved once between this
+bundle's own merge (`a456ec47`, `Merge claude/adoring-curie-hj7vpm into integration`)
+and the checklist being run: ledger `0216` landed on top of it at `caef1c07`
+(`Merge claude/kind-euler-vlt4u7 into integration`) while this bundle was still
+setting up the checks. **The checklist below is read against `caef1c07`, the tip at
+the moment of checking, not against the tip at the moment of this bundle's own
+merge** -- rereading the range immediately before acting on it is `IDEA_instructions.md`
+4.27's own rule, and ledger `0215` was bitten by the opposite once already this week.
 
 | # | Item | Command | Answer |
 | --- | --- | --- | --- |
-| 1 | `main` ancestor of `integration` | `git merge-base --is-ancestor origin/main origin/integration` | **YES** (same commit) |
-| 2 | CI green on `integration`'s current tip | read off the aggregator's per-job log for that sha | **green** |
-| 3 | Merge into `main` clean | `git merge-tree --write-tree --name-only origin/main origin/integration` | **no conflict** |
-| 4 | `deploy-probe` exits 0 | `node tools/deploy-probe.mjs --ref origin/integration` | **exit 1 -- CANNOT CONFIRM** |
-| 5 | Every migration this bundle added reported APPLIED | none added (`Claims: none`) | **N/A** |
-| 6 | Every ledger entry newly on `integration` reads `pushed` | read from each file on the ref | reads `pushed` |
+| 1 | `main` ancestor of `integration` | `git merge-base --is-ancestor origin/main origin/integration` | **YES** |
+| 2 | CI green on `integration`'s CURRENT tip | `ci.yml` dispatched by hand on `integration` (it takes no push-triggered run of its own), run `34747987895` against `caef1c07` | **completed / success** |
+| 3 | Merge into `main` clean | `git merge-tree --write-tree --name-only origin/main origin/integration` | **no conflict** (single tree sha, no names) |
+| 4 | `deploy-probe` exits 0 | `node tools/deploy-probe.mjs --ref origin/integration` | **exit 1 -- "DEPLOY_PROBE_URL is not set ... this is 'cannot confirm', never 'applied'."** |
+| 5 | Every migration this bundle added reported APPLIED | `git diff --name-only origin/main..origin/integration -- supabase/migrations/` returns nothing: no migration in range at all | **N/A** |
+| 6 | Every ledger entry newly on `integration` reads `pushed` | `0216-deploy-fallback-and-history-probe.md` and `0219-verification-addenda-2-7.md` are the two entries in the diff; both read `- Status: pushed` | **2 of 2 pushed** |
 
 **Item 4 fails exactly as the prompt said it would, and that is not this bundle
-passing itself.** `DEPLOY_PROBE_URL` is a repository secret; it reaches GitHub Actions
-runners and never a container, so `deploy-probe` exits 1 here on every invocation and
-`CANNOT CONFIRM` is never read as a pass. Seven lanes have stopped at this exact gate
-before this one. This bundle stops here too, reports the failure rather than working
-around it, and leaves the merge to whoever can run the probe where it answers.
+passing itself.** `DEPLOY_PROBE_URL` is a repository secret; it reaches GitHub
+Actions runners and never a container, so `deploy-probe` exits 1 here on every
+invocation and `CANNOT CONFIRM` is never read as a pass. Seven lanes had stopped at
+this exact gate before this one, per the prompt's own count; ledger `0216`'s title
+suggests it may be the eighth, on the same gate, in the same window -- this bundle
+did not read `0216`'s entry to confirm that, since its files are outside this
+bundle's owned surface. **This bundle stops here, reports the failure rather than
+working around it, and does not merge `integration` into `main`.** The merge is left
+to a session that can run the probe where it answers, or to Mr. Pina directly.
 
 ## Production, read rather than assumed
 

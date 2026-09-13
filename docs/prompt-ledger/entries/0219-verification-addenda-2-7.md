@@ -77,9 +77,17 @@
   inside that run. No browser pass: nothing under `src/` changed.
 
   **No migration, so the six-item checklist governs the merge to `main`, per
-  `IDEA_instructions.md` and the prompt's own explicit permission.** `0211`,
-  `0212` and `0213` are the migrations in whatever range `integration` carries
-  past `main` at merge time and are all reported APPLIED and verified by
-  Mr. Pina on 2026-09-13, which is what the prompt names as already settled for
-  item 5. The checklist as measured at merge time, including item 4's expected
-  and reported failure, is in the history entry.
+  `IDEA_instructions.md` and the prompt's own explicit permission.** This
+  branch merged onto `integration` cleanly at `a456ec47`; `integration` moved
+  once more before the checklist was checked (ledger `0216`,
+  `claude/kind-euler-vlt4u7`, landed on top at `caef1c07`), so the checklist
+  was re-read against the tip at checking time rather than at branch time.
+  `git diff --name-only origin/main..origin/integration --
+  supabase/migrations/` returned nothing at check time: no migration is in
+  range at all (`0211` through `0213` are already on both refs from ledger
+  `0215`'s earlier merge), so item 5 is N/A rather than settled by the prior
+  verification. **Item 4 failed as the prompt said it would**:
+  `node tools/deploy-probe.mjs --ref origin/integration` exited 1,
+  `DEPLOY_PROBE_URL` unset as a repository secret, "cannot confirm" rather
+  than a pass. This bundle stops there and does not merge `integration` into
+  `main`. The full checklist, item by item, is in the history entry.

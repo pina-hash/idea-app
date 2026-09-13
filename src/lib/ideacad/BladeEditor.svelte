@@ -138,15 +138,38 @@
 
 	// The concept list is the document. `draft` is the working copy of the ACTIVE concept and
 	// `accepted` is what Accept last committed to it, so Cancel has something to revert to.
+	//
+	// THE SEED IS SNAPSHOTTED BEFORE IT IS CLONED, AND THE MISSING
+	// `$state.snapshot` HERE TOOK THE WHOLE EDITOR DOWN ON THE REAL ITEM PAGE
+	// (found by ledger 0217's mount harness). This file's own `snap()` block
+	// already states the rule -- `structuredClone` throws `DataCloneError` on a
+	// `$state` proxy, so the boundary belongs here, where the proxy is -- and
+	// these two calls were the one place in the file that did not follow it.
+	// `+page.svelte` holds the store's snapshot in `$state` and
+	// `ideacadEditorSeed` carries each row's `features` REFERENCE into the seed,
+	// so every `c.features` reaching this line is a deep proxy. Measured in the
+	// harness Chromium: `structuredClone(new Proxy({a:1}, {}))` throws
+	// `DataCloneError` and the plain object clones, and before this line changed
+	// the writable editor rendered ZERO times on `/dev/ideacad-item` with a
+	// pageerror at this map. `$state.snapshot` on a value that is not a proxy
+	// returns it unchanged, so the dev harnesses that hand plain trees in are
+	// unaffected.
 	let concepts = $state<ConceptCard[]>(
 		untrack(
 			() =>
 				seedConcepts?.map((c) => ({
 					id: c.id,
 					name: c.name,
-					features: structuredClone(c.features),
+					features: structuredClone($state.snapshot(c.features)) as BladeTree,
 					committed: c.committed ?? false
-				})) ?? [{ id: 'c1', name: conceptName, features: structuredClone(tree), committed: false }]
+				})) ?? [
+					{
+						id: 'c1',
+						name: conceptName,
+						features: structuredClone($state.snapshot(tree)) as BladeTree,
+						committed: false
+					}
+				]
 		)
 	);
 	let activeId = $state(

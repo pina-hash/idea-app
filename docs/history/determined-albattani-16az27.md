@@ -213,6 +213,39 @@ And `M10` flipped `atom: true` to `false`, which changes nothing: ProseMirror's
 leaf either way. `M10a` gives the node `content: 'block+'` instead, which is the
 thing that would actually make a per-cell node expressible, and it kills eight.
 
+## The SQL paste trap, checked two ways against a planted control
+
+`CLAUDE.md` names one: **a `$tag$` inside a `--` comment balances in Postgres and
+breaks the Supabase editor's client-side statement splitter**, which cost `0194` a
+full apply cycle. A 708-line hand-pasted migration with six dollar-quoted bodies is
+exactly the shape it bites, so it is checked rather than assumed.
+
+**This rule was not in the `CLAUDE.md` this session opened.** It arrived on the
+branch with the mid-session merge of `origin/integration` -- it is ledger 0191's,
+written beside the new `supabase/data/` convention -- which is worth recording
+because a session that read its instructions once and never re-read them would have
+shipped without the check.
+
+**WAY 2 (every dollar-quote token on a code line in a balanced pair): clean.** Six
+opens, six closes, twelve tokens, nothing left open.
+
+**WAY 1 (no `$` of any kind in a comment): ONE hit, now fixed.** Line 34 wrote the
+normalizer's path as `` `$lib/server/rich-text-normalize.ts` ``. It is a bare `$`
+with no closing `$`, so it is not the 0194 defect -- but the rule is absolute, and
+the fix is strictly better anyway: a migration is read in a SQL editor, where a
+SvelteKit alias means nothing and `src/lib/server/...` is the path a reader can
+actually open.
+
+**THE SWEEP'S BEST POSITIVE CONTROL IS THE REPOSITORY'S OWN.** Three synthetic
+controls were planted (a `$tag$` in a comment, a bare `$$` in a comment, and a
+removed closing `$$`) and all three were caught. Better than any of them: putting
+the same instrument over all 208 committed migrations finds **23 files carrying a
+bare `$` in a comment across 35 lines** -- `$1` placeholders, `$lib/` paths, `$0.25`
+prices, all of them applied without incident -- and exactly **4 lines in 2 files
+carrying a real dollar-quote TOKEN in a comment**, two of which are in `0194`
+itself. An instrument that finds the file the rule was written about is one that was
+looking.
+
 ## The browser pass, and the three things it found
 
 `npm run verify:browser -- --route notebook-sheet`, at **375 and 1440**:
