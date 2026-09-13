@@ -17,14 +17,60 @@
  * ---------------------------------------------------------------------------
  * WHY IT EXISTS. `deploy.yml` used to ask a PERSON to type that every
  * migration on `integration` is applied to production, because nothing in this
- * repository records applied state: the remote has no
- * `supabase_migrations.schema_migrations` table at all (CLAUDE.md, "NEVER RUN
- * `supabase db push`"), and CI runs against an embedded Postgres with every
- * migration file applied, so a branch whose migration has never touched
- * production is green. Decision 0010 declined an unattended deploy on exactly
- * that. Mr. Pina approved a READ-ONLY Postgres role on 2026-09-03; this reads
- * production's own catalog with it and answers the question that was being
- * asked of him.
+ * repository records applied state, and CI runs against an embedded Postgres
+ * with every migration file applied, so a branch whose migration has never
+ * touched production is green. Decision 0010 declined an unattended deploy on
+ * exactly that. Mr. Pina approved a READ-ONLY Postgres role on 2026-09-03;
+ * this reads production's own catalog with it and answers the question that
+ * was being asked of him.
+ *
+ * ---------------------------------------------------------------------------
+ * IT READS THE MIGRATION HISTORY TABLE FIRST NOW, AND THE OBJECT PROBES ARE
+ * STILL THE EVIDENCE.
+ *
+ * Until 2026-09-13 production had no `supabase_migrations.schema_migrations`
+ * table at all, so this tool had nothing to read but the catalog, object by
+ * object -- and `tools/idea-status.py` cannot derive a probe from every
+ * migration. A data-only fix, a policy-only change, a tombstone: each of those
+ * produced a row this tool had to answer CANNOT SAY, which is exit 3, which is
+ * not a pass. SIX lanes stopped at that gate. Mr. Pina pasted
+ * `supabase/data/0209-seed-migration-history.sql` on 2026-09-13 and the
+ * verification came back EQUAL: 209 rows, 0001 through 0211.
+ *
+ * So the order is: read the table, then run the object probes, then combine
+ * per migration. `tools/apply-migration.mjs` inserts a row inside each apply's
+ * own transaction, which is what keeps the record from going stale again.
+ *
+ * WHICH ONE IS TRUSTED WHEN THEY DISAGREE: THE OBJECT PROBE, ALWAYS.
+ *
+ * A HISTORY ROW IS A CLAIM. Somebody wrote it -- the seed wrote 209 of them
+ * from a list a person compiled, and a future `apply-migration.mjs` run writes
+ * one because it believes its own apply committed. AN OBJECT PROBE IS
+ * EVIDENCE: it asks production's own `pg_catalog` whether the thing the
+ * migration creates is there. A row can be wrong in the one direction that
+ * matters -- claiming an apply that never happened -- and the object probe is
+ * the only check in this repository that catches it. So:
+ *
+ *   row says applied, probe says NOT applied  -> NOT APPLIED (exit 2).
+ *       The claim loses. This is the failure the seed made possible and it is
+ *       reported as a CONFLICT, by name, rather than quietly resolved.
+ *   row says applied, probe says applied      -> applied. Both agree.
+ *   row says applied, NO probe exists         -> applied. Nothing contradicts
+ *       the row and nothing else can speak for the migration at all. This is
+ *       the case that unblocks the six lanes, and it is the ONLY case in which
+ *       a row decides anything on its own.
+ *   NO row, probe says applied                -> applied. Evidence outranks a
+ *       record that is merely behind (a migration applied by hand before the
+ *       table existed, or applied without recording).
+ *   NO row, probe says NOT applied            -> NOT APPLIED (exit 2).
+ *   NO row, NO probe                          -> CANNOT SAY (exit 3).
+ *   no table at all                           -> exactly the pre-seed
+ *       behaviour: the object probes alone, and exit 3 wherever one is missing.
+ *
+ * EXIT 3 THEREFORE STILL EXISTS AND STILL MEANS CANNOT CONFIRM. What the table
+ * removed is the case where a migration had no probe AND nothing else to ask;
+ * it did not remove the status, and a row is never read as evidence against a
+ * probe that ran.
  *
  * ---------------------------------------------------------------------------
  * `information_schema` IS PRIVILEGE-FILTERED AND `pg_catalog` IS NOT, AND THAT
@@ -62,7 +108,8 @@
  *   0  every migration in range is APPLIED. Nothing is unknown.
  *   2  at least one migration is NOT applied. The deploy must not run.
  *   3  every probe that ran said applied, but at least one migration has NO
- *      probe, so the machine cannot speak for it. NOT a pass.
+ *      probe AND no history row, so the machine cannot speak for it. NOT a
+ *      pass.
  *   1  the probe could not run at all: no connection string, no `psql`, an
  *      unreachable database, a query error, `idea-status.py` unreadable. NOT
  *      a pass either.
@@ -317,44 +364,225 @@ export function redact(text, url) {
 }
 
 /* ------------------------------------------------------------------------ */
+/* The migration history table.                                              */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * The Supabase CLI's own record of which migration files a database has had
+ * applied. Written here by `supabase/data/0209-seed-migration-history.sql`
+ * (once, by hand) and kept current by `tools/apply-migration.mjs`, which
+ * inserts one row inside each apply's own transaction.
+ *
+ * The name is spelled once, here. `tools/apply-migration.mjs` has its own
+ * `HISTORY_TABLE` for its INSERT; these are two different statements about the
+ * same table rather than one rule written twice, and neither imports the
+ * other's copy because a read and a write need nothing from each other.
+ */
+export const HISTORY_TABLE = 'supabase_migrations.schema_migrations';
+
+/**
+ * IS THE TABLE THERE. Asked separately, and asked FIRST, because a `select`
+ * naming a relation that does not exist fails at PARSE time -- so it cannot be
+ * guarded inside the same statement, and under `--single-transaction` with
+ * `ON_ERROR_STOP=1` it would abort the object probes with it. `to_regclass`
+ * returns null instead of raising, which is the whole reason it is used here.
+ *
+ * A NULL ANSWER IS A SUPPORTED STATE, not a failure: it is what every database
+ * in this project answered before 2026-09-13, and what a fresh local stack
+ * answers today.
+ */
+export const HISTORY_PRESENCE_SQL =
+	'set transaction read only;\n' +
+	`select 'history-table' as k, case when to_regclass('${HISTORY_TABLE}') is null then 'absent' else 'present' end as v;`;
+
+/**
+ * Every version the table records. `version` is the four-digit migration
+ * number as text, which is the same string `idea-status.py` puts in a probe's
+ * `num` -- so the join needs no parsing on either side.
+ */
+export const HISTORY_VERSIONS_SQL =
+	'set transaction read only;\n' +
+	`select 'v' as k, version from ${HISTORY_TABLE} group by version order by version;`;
+
+/**
+ * EVERY ANSWER IS READ BACK BESIDE THE KEY IT WAS SENT UNDER, and that is not
+ * decoration. `psql` prints a COMMAND TAG for a statement that returns no rows
+ * -- `set transaction read only;` emits a bare `SET` line, and `--tuples-only`
+ * does not suppress it. Taking the first non-empty line as the answer therefore
+ * read `SET` and reported that the tool could not tell whether the table exists,
+ * which measured as `cannotRun` on a database that was perfectly reachable.
+ *
+ * It was invisible to a stubbed transport and caught by
+ * `tests/db/deploy-probe-history-live.test.ts` against a real Postgres. It is
+ * also why `runSql` has never had the problem: it has always matched
+ * `^<index>|<t|f>$`, so a tag cannot be mistaken for a row. These do the same.
+ */
+const PRESENCE_ROW = /^history-table\|(present|absent)$/;
+const VERSION_ROW = /^v\|(.+)$/;
+
+/**
+ * @typedef {{ present: boolean, versions: Set<string> }} History
+ */
+
+/**
+ * Read the history table, in at most two round trips and never more.
+ *
+ * A QUERY ERROR IS `cannotRun`, NOT "no table". The presence check already
+ * distinguishes a missing table from an unreachable database, so anything that
+ * fails AFTER it said `present` is an anomaly, and answering it by silently
+ * falling back to the object probes would turn a broken credential into a
+ * quieter verdict rather than a reported one.
+ *
+ * @param {string} url
+ * @param {(sql: string, url: string) => ReturnType<typeof runRows>} [run]
+ * @returns {{ ok: true, history: History } | { ok: false, why: string }}
+ */
+export function readHistory(url, run = runRows) {
+	const presence = run(HISTORY_PRESENCE_SQL, url);
+	if (!presence.ok) return { ok: false, why: presence.why };
+	const answer = presence.rows
+		.map((r) => PRESENCE_ROW.exec(r.trim()))
+		.find((m) => m !== null)?.[1];
+	if (answer !== 'present' && answer !== 'absent') {
+		return { ok: false, why: `could not tell whether ${HISTORY_TABLE} exists` };
+	}
+	if (answer === 'absent') return { ok: true, history: { present: false, versions: new Set() } };
+
+	const versions = run(HISTORY_VERSIONS_SQL, url);
+	if (!versions.ok) return { ok: false, why: versions.why };
+	return {
+		ok: true,
+		history: {
+			present: true,
+			versions: new Set(
+				versions.rows
+					.map((r) => VERSION_ROW.exec(r.trim()))
+					.filter((m) => m !== null)
+					.map((m) => m[1].trim())
+					.filter((v) => v !== '')
+			)
+		}
+	};
+}
+
+/**
+ * `runSql`'s sibling for a query whose answer is a list of scalars rather than
+ * an indexed boolean map. Same `psql` invocation, same redaction, same "the URL
+ * is an argument and there is no shell anywhere on the path".
+ *
+ * @param {string} sql
+ * @param {string} url
+ * @returns {{ ok: true, rows: string[] } | { ok: false, why: string }}
+ */
+export function runRows(sql, url) {
+	const psql = spawnSync(
+		'psql',
+		[url, '--no-psqlrc', '--tuples-only', '--no-align', '--field-separator=|',
+		 '--set=ON_ERROR_STOP=1', '--single-transaction', '--command', sql],
+		{ encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+	);
+	if (psql.error) {
+		const e = /** @type {Error & { code?: string }} */ (psql.error);
+		return { ok: false, why: `psql could not be run (${e.code ?? e.message})` };
+	}
+	if (psql.status !== 0) {
+		return { ok: false, why: `psql exited ${psql.status}: ${redact(psql.stderr, url)}` };
+	}
+	return { ok: true, rows: psql.stdout.split('\n') };
+}
+
+/* ------------------------------------------------------------------------ */
 /* The verdict.                                                              */
 /* ------------------------------------------------------------------------ */
 
 /**
- * @typedef {{ num: string, file: string, object: string, state: 'applied'|'not-applied'|'unknown', why: string }} Finding
+ * `history` is what the table said about this migration: `true` a row is there,
+ * `false` the table was read and has none, `null` the table was not consulted
+ * at all (no credential, or it does not exist). `evidence` is what the object
+ * probe said on its own, before the two were combined, so a reader can always
+ * see which half produced the state.
+ *
+ * @typedef {{ num: string, file: string, object: string,
+ *             state: 'applied'|'not-applied'|'unknown', why: string,
+ *             history: boolean | null,
+ *             evidence: 'applied'|'not-applied'|'unknown',
+ *             conflict: boolean }} Finding
  */
 
 /**
+ * Combine the object probes with the history table, per migration.
+ *
+ * THE THIRD ARGUMENT IS OPTIONAL AND ITS DEFAULT IS THE PRE-SEED BEHAVIOUR.
+ * `null` means the table was not consulted, and every finding then comes out
+ * byte for byte as it did before the table existed -- which is what
+ * `tools/apply-migration.mjs` calls, with two arguments, and must keep getting.
+ *
+ * See this file's header for the full table of which half wins. The short of
+ * it: a probe that RAN always decides, a row decides only where no probe
+ * exists, and a row contradicted by a probe is reported as a conflict.
+ *
  * @param {Probe[]} probes
  * @param {Map<number, boolean>} rows
+ * @param {History | null} [history]
  * @returns {Finding[]}
  */
-export function verdicts(probes, rows) {
+export function verdicts(probes, rows, history = null) {
 	return probes.map((p, i) => {
+		/** @type {boolean | null} */
+		const recorded = history && history.present ? history.versions.has(p.num) : null;
+
+		/** @type {'applied'|'not-applied'|'unknown'} */
+		let evidence;
+		let why = '';
 		if (!p.sql) {
+			evidence = 'unknown';
+			why = p.refused ?? 'no probeable object could be derived from this migration';
+		} else if (!rows.has(i)) {
+			evidence = 'unknown';
+			why = 'the probe was sent and no row came back for it';
+		} else {
+			evidence = rows.get(i) ? 'applied' : 'not-applied';
+		}
+
+		const base = { num: p.num, file: p.file, object: p.object, history: recorded, evidence };
+
+		// A PROBE THAT RAN IS EVIDENCE AND IT DECIDES, in both directions. The
+		// only thing the row changes here is the sentence: a row asserting an
+		// apply the catalog cannot see is the exact failure the seed made
+		// possible, and it is named rather than absorbed.
+		if (evidence === 'not-applied') {
 			return {
-				num: p.num,
-				file: p.file,
-				object: p.object,
-				state: /** @type {const} */ ('unknown'),
-				why: p.refused ?? 'no probeable object could be derived from this migration'
+				...base,
+				state: /** @type {const} */ ('not-applied'),
+				conflict: recorded === true,
+				why:
+					recorded === true
+						? `CONFLICT: ${HISTORY_TABLE} records ${p.num} as applied and this object is not in production's catalog. The row is a claim; the catalog is the evidence.`
+						: ''
 			};
 		}
-		if (!rows.has(i)) {
+		if (evidence === 'applied') {
+			return { ...base, state: /** @type {const} */ ('applied'), conflict: false, why: '' };
+		}
+
+		// NO PROBE RAN. This is the one place a row decides anything, and it is
+		// the case the seed exists for.
+		if (recorded === true) {
 			return {
-				num: p.num,
-				file: p.file,
-				object: p.object,
-				state: /** @type {const} */ ('unknown'),
-				why: 'the probe was sent and no row came back for it'
+				...base,
+				state: /** @type {const} */ ('applied'),
+				conflict: false,
+				why: `${why}; ${HISTORY_TABLE} records it applied`
 			};
 		}
 		return {
-			num: p.num,
-			file: p.file,
-			object: p.object,
-			state: rows.get(i) ? /** @type {const} */ ('applied') : /** @type {const} */ ('not-applied'),
-			why: ''
+			...base,
+			state: /** @type {const} */ ('unknown'),
+			conflict: false,
+			why:
+				recorded === false
+					? `${why}, and ${HISTORY_TABLE} has no row for it`
+					: why
 		};
 	});
 }
@@ -386,23 +614,45 @@ export function parseArgs(argv) {
 }
 
 /**
+ * IT NAMES WHICH HALF ANSWERED EACH ROW. `catalog` is an object probe that ran,
+ * `history` is a row carrying a migration no probe covers, and `--` is neither.
+ * A verification result that does not say what it read is a result nobody can
+ * audit, which is the same rule as "never a bare count" one paragraph up.
+ *
  * @param {Finding[]} findings
  * @param {number} code
+ * @param {History | null} [history]
  */
-function reportText(findings, code) {
-	const w = Math.max(6, ...findings.map((f) => f.object.length));
-	const lines = ['migration  state        object'];
+function reportText(findings, code, history = null) {
+	const lines = [];
+	if (history) {
+		lines.push(
+			history.present
+				? `${HISTORY_TABLE}: present, ${history.versions.size} version(s) recorded.`
+				: `${HISTORY_TABLE}: ABSENT. Every answer below is an object probe alone.`
+		);
+		lines.push('');
+	}
+	lines.push('migration  state        read from  object');
 	for (const f of findings) {
 		const state = { applied: 'APPLIED', 'not-applied': 'NOT APPLIED', unknown: 'CANNOT SAY' }[f.state];
-		lines.push(`${f.num.padEnd(9)}  ${state.padEnd(11)}  ${f.object}${f.why ? `  -- ${f.why}` : ''}`);
+		const from = f.evidence !== 'unknown' ? 'catalog' : f.state === 'applied' ? 'history' : '--';
+		lines.push(
+			`${f.num.padEnd(9)}  ${state.padEnd(11)}  ${from.padEnd(9)}  ${f.object}${f.why ? `  -- ${f.why}` : ''}`
+		);
 	}
-	void w;
 	const n = (/** @type {string} */ s) => findings.filter((f) => f.state === s).length;
+	const conflicts = findings.filter((f) => f.conflict).length;
 	lines.push('');
 	lines.push(
 		`${findings.length} migration(s) in range: ${n('applied')} applied, ` +
 			`${n('not-applied')} NOT applied, ${n('unknown')} the probe cannot speak for.`
 	);
+	if (conflicts > 0) {
+		lines.push(
+			`${conflicts} CONFLICT(S): ${HISTORY_TABLE} claims an apply production's catalog cannot see.`
+		);
+	}
 	lines.push(
 		code === EXIT.allApplied
 			? 'Every migration in range is applied to the probed database.'
@@ -428,7 +678,16 @@ async function main() {
 	const sql = buildSql(probes);
 
 	if (opts.printSql) {
-		process.stdout.write(sql ? sql + '\n' : '-- no probeable migration in range\n');
+		// BOTH QUERIES, IN THE ORDER THEY RUN. A person pasting this into the
+		// Supabase SQL editor is asking the same two questions this tool asks,
+		// and printing only half of them would hide the one that now answers
+		// most of the range.
+		process.stdout.write(
+			`-- 1. is the history table there?\n${HISTORY_PRESENCE_SQL}\n\n` +
+				`-- 2. what does it record? (only if the answer above is 'present')\n${HISTORY_VERSIONS_SQL}\n\n` +
+				'-- 3. the object probes, which are the evidence.\n' +
+				(sql ? sql + '\n' : '-- no probeable migration in range\n')
+		);
 		return EXIT.allApplied;
 	}
 
@@ -441,6 +700,16 @@ async function main() {
 		return EXIT.cannotRun;
 	}
 
+	// THE TABLE FIRST. It is the cheaper question and it is the one that can
+	// speak for a migration no object probe covers; the probes then run
+	// regardless, because a row is never taken as evidence against one.
+	const h = readHistory(url);
+	if (!h.ok) {
+		console.error(`deploy-probe: ${h.why}`);
+		return EXIT.cannotRun;
+	}
+	const history = h.history;
+
 	/** @type {Map<number, boolean>} */
 	let rows = new Map();
 	if (sql) {
@@ -452,12 +721,24 @@ async function main() {
 		rows = r.rows;
 	}
 
-	const findings = verdicts(probes, rows);
+	const findings = verdicts(probes, rows, history);
 	const code = exitFor(findings);
 	if (opts.json) {
-		process.stdout.write(JSON.stringify({ since: opts.since, ref: opts.ref, exit: code, findings }, null, 2) + '\n');
+		process.stdout.write(
+			JSON.stringify(
+				{
+					since: opts.since,
+					ref: opts.ref,
+					exit: code,
+					history: { table: history.present ? 'present' : 'absent', versions: history.versions.size },
+					findings
+				},
+				null,
+				2
+			) + '\n'
+		);
 	} else {
-		process.stdout.write(reportText(findings, code) + '\n');
+		process.stdout.write(reportText(findings, code, history) + '\n');
 	}
 	return code;
 }
