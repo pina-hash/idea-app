@@ -54,6 +54,44 @@ per 0161's own header), and the portal shell
 readout is derived from it. Realtime broadcast is only the speed layer: the database poll
 is the floor, frames are roster- and revision-filtered, and no frame can write state.
 
+**A DOCUMENT IS ARCHIVED, NEVER DELETED, AND THAT IS MR. PINA'S DECISION OF
+2026-09-13** (`docs/decisions/entries/29-*`, built as `0214`). He brings up past
+student work to show current students as reference, and work from students who
+have since left is exactly what he wants to be able to show, so `archived_at` on
+`ideacad_documents` is a state a document survives its owner's enrollment in.
+  - **THE INSTRUCTOR'S REACH WAS ALWAYS ITEM-KEYED; THE LISTING WAS NOT.**
+    `_ideacad_can_read_document` asks `_classroom_manages_item`, which reads
+    `classroom_postings` and NEVER `classroom_enrollments` -- so a teacher could
+    always SELECT a departed student's rows. `ideacad_roster` drives off the
+    ENROLLMENT and left-joins the document onto it, so the address leaving the
+    roster takes the document off the only surface that names one.
+    `ideacad_archive(p_item_id)` is the second function that fixes it, and it
+    cannot be a parameter on the roster: that function's driving set is the
+    thing that is gone.
+  - **EVERY WRITE IN IDEACAD FUNNELS THROUGH TWO PREDICATES, NOT ONE, AND THE
+    SECOND IS THE ONE THAT GETS MISSED.** `_ideacad_can_write_document` (0205)
+    covers the seven concept writers, `ideacad_apply_actions` and
+    `_ideacad_part_writer`'s WIDE rung. But `_ideacad_part_writer` SHORT-CIRCUITS
+    on `_ideacad_part_owner` first, and `ideacad_add_part`,
+    `ideacad_update_part_meta`, `ideacad_release_part` and `ideacad_assign_part`
+    gate on that predicate DIRECTLY. A narrowing applied to the first alone
+    leaves five assembly writes open while every concept write correctly
+    refuses. Both call `_ideacad_document_archived`, so they cannot disagree.
+  - **ARCHIVING IS AN INSTRUCTOR'S DELIBERATE ACT AND UNLOCKS NOTHING.** It is
+    never triggered by a roster change -- a silent archive is the same class of
+    defect as the silent delete `0213` closed -- and `0213`'s census counts
+    `ideacad_documents` rows with no `archived_at` term, so a student with
+    IdeaCAD work is refused a removal archived or not.
+  - **A CLASS GRANT IS A SECOND TABLE AND IS ALWAYS A VIEWER.**
+    `ideacad_section_grants` is keyed `(document_id, section_id)` and has NO ROLE
+    COLUMN, so "a class can never be given write" is a property of the schema
+    rather than a check. It is evaluated live against `classroom_enrollments`, so
+    deactivating a recipient closes their access in the same statement; a
+    snapshot fan-out into `ideacad_grants` was the rejected alternative and is
+    the enrollment drift this whole area exists to stop reasoning from. Only an
+    ARCHIVED document may be shared this way, and restoring one DELETES its class
+    grants in the same statement.
+
 **MATERIALS ARE DATA, NOT CONSTANTS, AND THAT IS MR. PINA'S DECISION OF
 2026-09-12.** He rejected a bundle that hardcoded six materials into
 `src/lib/ideacad/blade/materials.ts`: a material is four numbers in a form, the
@@ -1333,7 +1371,19 @@ assertion failure in the `node` project left `npx vitest run <file>` exiting 0,
 so an `execFileSync` judging by the throw reported two SURVIVING mutants as
 killed. A mutation script parses the summary line (`Tests <n> failed`) and
 treats a run whose summary it cannot find at all as a FAILURE of the instrument,
-never as a pass. A restore step in a mutation script copies the file first (`cp`, or
+never as a pass. **AND THE THIRD WAY IS TO READ ONE STREAM: THE EXIT CODE AND THE
+STREAM SPLIT ARE TWO SEPARATE TRAPS, AND FIXING ONE LEAVES THE OTHER.** Measured
+on 2026-09-13, an hour after the rule above was followed correctly: a mutation
+that made a migration REFUSE TO APPLY left vitest exiting 0 with its entire
+failure report -- `Failed Suites`, `failed to apply`, the lot -- on STDERR, while
+`execFileSync`'s return value carries only stdout. Two genuinely killed mutants
+came back `no summary line`, which the script then had to be read by hand to
+resolve. Concatenate `stdout` and `stderr` on EVERY path (`spawnSync` hands back
+both regardless of exit) before looking for the summary. **A migration whose own
+apply-time self-check catches the mutation is the STRONGEST kill available and
+deserves its own verdict**, not a fold into "failed": an apply refusal and an
+assertion failure are different facts about where the gate is.
+A restore step in a mutation script copies the file first (`cp`, or
 read its content into memory) and restores FROM THAT COPY, never from git --
 `git checkout --`/`restore` is a discard-to-HEAD, not a scoped undo, and has no
 idea a mutation script exists.
@@ -1937,6 +1987,19 @@ service_role=X/postgres` and **`anon` is true**.
 - **ASSERT THE ACL, NOT THE SELF-CHECK'S VERDICT.** A migration's own guard
   passing tells you the guard ran; reading `proacl` and
   `has_function_privilege` back tells you what is actually granted.
+- **AND ASSERT IT OVER THE OBJECTS THE FILE ITSELF WRITES, NEVER OVER A WHOLE
+  SUBSYSTEM BY NAME PREFIX.** `0206`'s own header states the general form -- an
+  apply-time guard that sweeps a subsystem is asserting something about
+  migrations that are not this file's -- and `0214` made the mistake anyway and
+  was caught by a test rather than by reading. The cost is specific: the suite
+  deliberately builds chains with a repair migration LEFT OUT as a negative
+  control (`tests/db/ideacad-grants-anon-execute-surface.test.ts` removes `0202`
+  and `0206` to reproduce the hole `0202` closed), and a prefix sweep in a later
+  file REFUSES TO APPLY there over functions it never touches. **A migration that
+  cannot apply because a file BEFORE it is missing its repair is holding somebody
+  else's ground.** A subsystem-wide sweep belongs in a guard migration written
+  for it, plus `tests/db/`, which run against whatever is there; a new migration
+  checks its own names and leaves the rest alone.
 
 ### THE SIGNATURE TRAP
 
