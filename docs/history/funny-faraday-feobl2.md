@@ -171,12 +171,21 @@ other side and re-run `npm run verify:counts`, which reads the merged tree and
 costs no browser. Resolved on this branch, never on integration.
 
 **Baseline, re-derived in the same clean worktree at `a10eb9c3`**: suite
-**PENDING**; `svelte-check` **0 errors, 37 warnings in 20 files**, 31
-`state_referenced_locally` / 5 `css_unused_selector` / 1
-`perf_avoid_nested_class`.
+**448 files / 8,535 tests / 0 failed** (455.4s); `svelte-check` **0 errors, 37
+warnings in 20 files**, 31 `state_referenced_locally` / 5 `css_unused_selector`
+/ 1 `perf_avoid_nested_class`.
 
-**After, on the merged branch**: suite **449 files / 8,563 tests / 0 failed**;
-`svelte-check` **0 errors, 37 warnings in 20 files**, the same 31/5/1. **PENDING-DELTA** The new components introduced no warnings.
+**After, on the merged branch**: suite **449 files / 8,563 tests / 0 failed**
+(476.4s); `svelte-check` **0 errors, 37 warnings in 20 files**, the same 31/5/1.
+
+**THE DELTA IS +1 FILE AND +28 TESTS, AND EVERY ONE OF THE 28 IS ACCOUNTED
+FOR.** 27 are `tests/dom/notebook-grid-insert.test.ts`, which is the new file;
+the twenty-eighth is Part 8 of `tests/classroom-item-images.test.ts` going from
+one test to two, because the source sweep it replaced became one behavioural
+case plus one structural one. This branch touches exactly two test files
+(`git diff --name-status origin/integration...HEAD -- tests/`), which is what
+makes that arithmetic closed rather than plausible. The new components
+introduced no warnings.
 **`CLAUDE.md` states 0 errors / 37 warnings in 20 files at 31/5/1 and is
 correct**, measured independently at both baselines and on this tree, so no
 correction was needed and none was made -- the second time in six corrections.
@@ -262,6 +271,45 @@ was invented to satisfy the word -- a slash command or a bubble menu would be a
 second way to insert a grid, which is a second thing to keep in step with the
 refusal, the caps and the guard.
 
+## The merge to `main` is a STOP, on two of the six items
+
+Reported with the command and the answer, as the checklist requires.
+
+1. **PASS.** `git merge-base --is-ancestor origin/main origin/integration` exits 0.
+2. **FAIL.** `git merge-base --is-ancestor origin/claude/funny-faraday-feobl2
+   origin/integration` says NOT CONTAINED -- `integrate.yml` holds a branch whose
+   added ledger entry reads `issued`, which is this session's own entry and is
+   correct while it runs. And `origin/integration`'s current tip `a10eb9c3` has
+   **no CI conclusion at all**: the newest CI run on that branch is for
+   `f94bbe3d`, and the checklist asks for the run for that EXACT sha.
+3. Clean. `git merge-tree --write-tree origin/main origin/integration` exits 0.
+4. **FAIL.** `node tools/deploy-probe.mjs --ref origin/integration` exits **1**,
+   not 0: `DEPLOY_PROBE_URL` is unset, so it reports in its own words that
+   "production's applied set cannot be read. This is 'cannot confirm', never
+   'applied'." `CANNOT SAY` is never a pass.
+5. Vacuous here, and stated rather than skipped: this bundle added no migration
+   (`Claims: none`), confirmed by
+   `git diff --name-status origin/integration...HEAD -- supabase/migrations/`
+   returning nothing.
+6. PASS. All six entries newly on `integration` (`0189`, `0190`, `0192`, `0193`,
+   `0194`, `0195`) read `Status: pushed`.
+
+**AND THE RANGE IS THE SUBSTANTIVE REASON, WHICH THE TWO FAILED ITEMS WOULD HAVE
+STOPPED ANYWAY.** `git diff --name-status origin/main origin/integration --
+supabase/migrations/` returns **two** files main does not have:
+`0209_ideacad_history.sql` and `0210_notebook_note_grid.sql`. This bundle was
+told `0210` is applied and told nothing about `0209` -- and a merge to `main`
+carries INTEGRATION, not this branch alone, so it would deploy ledger 0189's
+client half against a production that may not have its function. That is the
+exact failure the gate exists for.
+
+**Production is unreachable from this container**, which is why item 4 cannot be
+answered rather than answered badly: `ideabosco.com`, `apps.ideabosco.com`, the
+`vercel.app` host and `supabase.com` all fail CONNECT with **403** (the
+organization egress policy `/root/.ccr/README.md` describes, which says to report
+rather than retry). Only the build allowlist answers -- `api.github.com` 200.
+Ledger 0191 measured the same wall.
+
 ## Files outside the literal Owns list, and why
 
 The ledger entry owns "the grid insertion path in the notebook editor toolbar and
@@ -276,4 +324,8 @@ touched minimally -- two lines mounting `GridIssues`, and the constant's move --
 where ledger 0192's "yours to use, not to change" is about the node's decided
 semantics, none of which moved. `src/routes/dev/notebook-grid-insert/**` is a new
 route colliding with nothing, and `classroom-updates.json` is the standing
-directive.
+directive. Two more arrived from the work rather than the plan:
+`tests/classroom-item-images.test.ts`, whose Part 8 assertion this bundle
+generalized rather than deleted, and `CLAUDE.md`, which gains the grid's rules
+and the mutation-runner trap under its own standing rule that a convention lands
+in the same change that introduces it.
