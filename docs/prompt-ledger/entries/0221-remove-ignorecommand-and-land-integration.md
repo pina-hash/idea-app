@@ -5,7 +5,7 @@
 - Owns: `vercel.json`, `docs/prompt-ledger/entries/0221-*`, its own `docs/history/`
   entry, and the merge commit of `origin/integration` into `main`. NO OTHER FILE.
 - Migration permitted: no. **Claims: none.**
-- Status: issued
+- Status: pushed
 - Branch: none. This bundle commits to `main` directly; it is the deploy.
 - Notes: production has served `247dfc4` since 2026-09-12 while `main` moved twice
   past it. Vercel canceled both `9738f998` (empty) and `9b010f53` (a real merge
