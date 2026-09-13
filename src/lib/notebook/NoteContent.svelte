@@ -8,6 +8,8 @@
 		type NoteList
 	} from '$lib/notebook-notes';
 	import { itemParts } from '$lib/rich-text-doc';
+	import { isNoteGrid } from '$lib/notebook/grid/grid-doc';
+	import GridView from '$lib/notebook/grid/GridView.svelte';
 
 	/**
 	 * The one way a written note is rendered anywhere in this app -- the
@@ -24,6 +26,19 @@
 	 *
 	 * A link whose target does not survive that second check renders as plain
 	 * text rather than vanishing: the student's words are theirs either way.
+	 *
+	 * A GRID IS THE SAME COMPONENT THE EDITOR MOUNTS, WITH NO `oncommit` (0199).
+	 * Not a second, read-only table drawn here: a note is read by an instructor
+	 * and by the student who wrote it, and a separate renderer would be a second
+	 * idea of what `=SUM(A1:A4)` comes to -- which is exactly the number being
+	 * discussed. ABSENCE IS THE MECHANISM, as it is everywhere else in this
+	 * codebase: with no callback there is no write to execute, so read-only here
+	 * is structural rather than a flag this file has to remember to pass.
+	 *
+	 * ITS PROBLEM LIST COMES WITH IT, and that is the point of reusing the
+	 * component rather than the point of a tidy import. A grid whose totals read
+	 * `#DIV/0!` reads that way for the instructor too, and the sentence saying
+	 * why is the same sentence the student saw.
 	 *
 	 * IT RECURSES, AND IT CARRIES THE CAP DOWN (0122). A list item may hold a
 	 * sublist, so `list` and `listItem` below call each other; the depth is
@@ -87,6 +102,8 @@
 	{#each doc as block, i (i)}
 		{#if block.type === 'p'}
 			<p>{@render runs(block.runs)}</p>
+		{:else if isNoteGrid(block)}
+			<GridView grid={block} label="Grid" />
 		{:else}
 			{@render list(block, 1)}
 		{/if}

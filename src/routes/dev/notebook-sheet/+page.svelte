@@ -16,14 +16,23 @@
 	 * nothing to do with the grid, and a harness that mounts more than the thing
 	 * under test is a harness whose failures are ambiguous.
 	 *
-	 * IT IS NOT `NoteEditor.svelte` ITSELF, and that is the sequencing rather
-	 * than a shortcut. This bundle does not wire the grid into that component,
+	 * IT IS NOT `NoteEditor.svelte` ITSELF, and that was the sequencing rather
+	 * than a shortcut: ledger 0192 could not wire the grid into that component,
 	 * because the gate widens BEFORE any producer can emit the shape and the
 	 * server normalizer -- the only path from an editor document into
-	 * `notebook_entry_notes` -- is not this bundle's file. When the next bundle
-	 * adds the node to `NoteEditor`'s extension list, this route's editor
-	 * construction is the thing it copies, and this route should then mount
-	 * `NoteEditor` directly.
+	 * `notebook_entry_notes` -- was not that bundle's file.
+	 *
+	 * **LEDGER 0199 WIRED IT, AND COPIED THIS EDITOR CONSTRUCTION TO DO SO**,
+	 * which is what this paragraph asked for. It also said this route should
+	 * then mount `NoteEditor` directly, and that is NOT what happened: the
+	 * insertion path got `/dev/notebook-grid-insert`, which mounts the real
+	 * component, and this route kept its hand-built editor. The two prove
+	 * different things -- this one that the NODE, the NodeView and the engine
+	 * behave with nothing else in the way, that one that a STUDENT can get a
+	 * grid at all -- and replacing this editor with `NoteEditor` would have put
+	 * the autocorrect plugin and a toolbar between a failure here and its cause,
+	 * which is the ambiguity the paragraph above rejects. Its measurements are
+	 * also already in the store.
 	 */
 
 	let host = $state<HTMLDivElement | null>(null);

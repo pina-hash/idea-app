@@ -1325,7 +1325,15 @@ remaining mutants in the same run then applied against a PRISTINE original with
 none of the session's changes in it, and every one of them "passed" -- which
 reads as a clean mutation proof and is actually a script silently testing code
 that was no longer there. **THE TELL IS A MUTATION SUITE THAT SUDDENLY ALL
-PASSES.** A restore step in a mutation script copies the file first (`cp`, or
+PASSES.** **AND THE SECOND WAY TO GET THAT SAME FALSE CLEAN
+READING IS TO JUDGE THE RUN BY VITEST'S EXIT CODE.** `tools/run-tests.mjs` says
+in its own header that vitest's exit code cannot be trusted here, and a mutation
+script is exactly where that costs something: measured on 2026-09-13, a clean
+assertion failure in the `node` project left `npx vitest run <file>` exiting 0,
+so an `execFileSync` judging by the throw reported two SURVIVING mutants as
+killed. A mutation script parses the summary line (`Tests <n> failed`) and
+treats a run whose summary it cannot find at all as a FAILURE of the instrument,
+never as a pass. A restore step in a mutation script copies the file first (`cp`, or
 read its content into memory) and restores FROM THAT COPY, never from git --
 `git checkout --`/`restore` is a discard-to-HEAD, not a scoped undo, and has no
 idea a mutation script exists.
@@ -3278,6 +3286,47 @@ inside the function fails closed rather than falling through to a weaker path.
     difference is a client contradicting the column the stream, the feed and the
     export read. Assert them against each other on the same corpus, corners
     included.
+  - **THE NOTEBOOK'S NOTES HOLD A THIRD BLOCK -- A SPREADSHEET GRID (0210) --
+    AND THE CLASSROOM'S ITEM BODIES DO NOT.** Two closed shapes, two SQL gates,
+    two renderers: `_notebook_note_content_ok` accepts `grid` and
+    `_classroom_doc_ok` refuses it, which is the whole of why the widening is
+    not shared. **So `richDocText` NEVER GAINS A GRID ARM** -- it is the mirror
+    above, and a branch the SQL it mirrors does not have is dead on one side and
+    mirroring nothing on the other. `$lib/notebook-notes`'s own `docText`
+    substitutes its grids for paragraphs BEFORE delegating, which leaves the
+    shared walk exactly the walk it was.
+    - **AN EMPTY GRID CONTRIBUTES NO BLOCK TO THAT PROJECTION, and it is the
+      floor agreeing with the gate rather than tidiness.** `0210` left `0125`'s
+      floor line byte-identical (`v_total > 0`, a sum of LENGTHS with no
+      separators), so a note of two empty grids totals zero and is refused.
+      Mapped to an empty paragraph instead, `docText` answers `"\n"` and the
+      client posts a note the database will not take. Dropping the runless block
+      is what makes "some block contributed length" and "the projection is
+      non-empty" the same question.
+    - **A STUDENT IS TOLD BEFORE THE SAVE, NEVER BY IT.** `GRID_EMPTY_NOTICE` is
+      on screen while the grid is empty; the normalizer's refusal is the
+      backstop. A grid whose cells hold errors lists the ENGINE'S own sentences
+      under it (`GridIssues`), verbatim and with the location as a chip rather
+      than a prefix -- a cell six characters wide can only show `#DIV/0!`, and a
+      `title` is not discoverable and a phone cannot hover.
+    - **THE RUN-LESS-BLOCK HOOK IN `$lib/server/rich-text-normalize.ts` IS
+      CALLED `imageBlock` AND ITS NAME IS NARROWER THAN ITS JOB.** Its contract
+      is "claim a node that carries no runs at all"; the classroom's image was
+      the first such node and the notebook's grid is the second. Note the
+      mismatch in a comment, do NOT rename it (that touches the classroom's
+      normalizer) and do NOT add a second hook beside it -- two options doing one
+      job is what that file exists to have removed. This is the same answer
+      `_classroom_doc_ok` gets one rule up.
+    - **`GRID_NODE_NAME` LIVES IN `grid-doc.ts`, THE DEPENDENCY-FREE MODULE, AND
+      `grid-node.ts` RE-EXPORTS IT.** `docToTiptap` must name the node,
+      `$lib/notebook-notes` is imported by the server normalizer, and
+      `grid-node.ts` imports `@tiptap/core` -- reading the constant from there
+      puts ProseMirror in every server route that touches a note, to read one
+      string.
+    - **`docToTiptap`'s GRID ARM IS THE ONE THAT LOSES WORK IF IT IS
+      FORGOTTEN.** Without it a stored grid falls through to the list arm, the
+      editor seeds an empty list, and the next save writes the note without the
+      table. Nothing throws and nothing is reported.
 - **`safeHref` has ONE implementation** (`src/lib/rich-text.ts`), re-checked at
   RENDER time as well as on write. An unsafe link keeps its TEXT and loses its
   href -- the writing is theirs either way.

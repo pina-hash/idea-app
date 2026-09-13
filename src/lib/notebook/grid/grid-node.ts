@@ -27,6 +27,7 @@
 
 import { Node, mergeAttributes } from '@tiptap/core';
 import {
+	GRID_NODE_NAME,
 	NOTE_GRID_DEFAULT_COLS,
 	NOTE_GRID_DEFAULT_ROWS,
 	NOTE_GRID_MAX_COLS,
@@ -36,8 +37,15 @@ import {
 	type NoteGrid
 } from './grid-doc';
 
-/** The node's name in the schema, and in a stored document's `type`. */
-export const GRID_NODE_NAME = 'notebookGrid';
+/**
+ * The node's name in the schema, and in a stored document's `type`.
+ *
+ * DECLARED IN `grid-doc.ts` AND RE-EXPORTED HERE so that every importer of this
+ * module keeps reading it from this module. It moved because the stored-shape
+ * side needs it and must not pull `@tiptap/core` to get it -- see its own
+ * comment there.
+ */
+export { GRID_NODE_NAME } from './grid-doc';
 
 /**
  * The one DOM attribute the grid round-trips through, and the one place its
