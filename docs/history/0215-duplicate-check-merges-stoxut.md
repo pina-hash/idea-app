@@ -110,3 +110,71 @@ immediately before acting on it rather than at branch time.
   bundle; the two source-file changes that reached `integration` through it came from
   branches that measured their own.
 - **Whether students are in class.** A session has a clock and not a timetable.
+
+## The landing, and the gate that cannot be met by any machine
+
+The six-item checklist was read immediately before the merge rather than at branch
+time, which is `0205`'s own 4.27 rule and which earned its keep three times in one
+session: `integration` moved at **06:15:46Z** (ledger `0211`), at **06:24:12Z** and
+**06:34:16Z** (this bundle's two merges) and again at **06:41:38Z**
+(`claude/inspiring-pascal-d7c1ij`). The range the prompt described as 37 commits was
+**59** by the time it was landed.
+
+| # | Item | Command | Answer |
+| --- | --- | --- | --- |
+| 1 | `main` ancestor of `integration` | `git merge-base --is-ancestor origin/main origin/integration` | **YES** |
+| 2 | CI green on `integration`'s CURRENT tip | `ci.yml` dispatched on the full 40-char sha | **green, read off the log** |
+| 3 | Merge into `main` clean | `git merge-tree --write-tree --name-only origin/main origin/integration` | **no conflict** |
+| 4 | `deploy-probe` exits 0 | `node tools/deploy-probe.mjs --ref origin/integration` | **exit 1 -- CANNOT CONFIRM** |
+| 5 | Every migration this bundle added reported APPLIED | none added (`Claims: none`) | **N/A** |
+| 6 | Every ledger entry newly on `integration` reads `pushed` | read from each file on the ref | **12 of 12 pushed** |
+
+**The four CI outcomes were read from the aggregator's log and not from the rolled-up
+conclusion**, because `ci.yml` uses `continue-on-error` and the jobs API reports a
+failing suite as `success`. On `f4f6ad3a`: `ref tested:
+f4f6ad3a7e4998faf01709eb35799b7bfa90dbd1`, `check: success`, `test: success`,
+`vanguard-changelog: success`, `history-verify: success`.
+
+**Item 4 is unmet and cannot be met from anywhere, which is a finding rather than a
+session limitation.** `DEPLOY_PROBE_URL` is unset in this container AND unset as a
+repository secret -- `deploy.yml`'s own step log prints `DEPLOY_PROBE_URL:` empty on
+a real runner. The read-only Postgres credential Mr. Pina approved on 2026-09-03,
+which is the whole reason `tools/deploy-probe.mjs` exists, is not configured, so the
+probe answers `cannot confirm` on every trigger.
+
+**And the fallback that exists for exactly this is unreachable, from a one-character
+bug.** `deploy.yml`'s `migrations` step documents at length that on
+`workflow_dispatch` a typed confirmation carries a probe exit of 1 or 3. It does not:
+the step opens `set -uo pipefail`, deliberately omitting `-e`, but GitHub invokes a
+`run:` step as `bash -e <file>` and `set -uo pipefail` does not CLEAR errexit. So
+`node tools/deploy-probe.mjs ... --json` exiting 1 kills the step before `PROBE=$?`
+is evaluated, and the entire `case` -- every branch of it, the typed-confirmation arm
+included -- is dead code. Measured twice on real runners: with the field empty
+(run `34743453154`) and with the confirmation typed and `CONFIRMED: yes` in the step
+env (run `34743521550`), both jobs failed identically and **neither printed the
+`probe exit:` line the script emits before the `case`**. Reproduced locally with a
+positive control: `bash -e script` dies at the probe call and prints nothing,
+`bash script` prints `probe exit: 1` and succeeds. `set +e` after the `set -uo
+pipefail`, or `shell: bash` on the step, is the fix. That file is not this bundle's
+to change.
+
+**So the landing was carried by hand, and what carried item 4 is named rather than
+waved through.** Only `0211` is in the landed range -- re-read from
+`git diff --name-only origin/main..origin/integration -- supabase/migrations/` on the
+tip, not from the highest number anywhere. Its apply is recorded in-repo at
+`docs/migrations-applied/0211-lucid-dirac-8b6m2f.md`, ledger `0211`'s own entry says
+it is applied, and Mr. Pina verified on 2026-09-13 that `0211`, `0212` and `0213` are
+all applied to production, `0212` returning rows 1 through 6 PASS and `0213` nine
+rows all true. `0212` and `0213` are not in range at all: they sit on
+`claude/busy-feynman-aupq55` and `claude/sharp-einstein-cqrnx6`, which this bundle
+was told not to touch and did not.
+
+## Production, and whether any of this reached a student
+
+**No, and not because of this landing.** Production served `v1.1514` before the merge
+and the reason is already recorded: ledger `0204`'s audit found a **Vercel account
+quota that pauses deploying**, so `main` has been a queue nobody could see since
+2026-09-12 21:22Z. A landing moves `main`; it does not move what is served. The
+version string is the instrument for that distinction and it is the one
+`IDEA_VERIFICATION_ADDENDA.md` rule 41 -- landed onto a shared ref by this very
+bundle, as part of 2.6 -- exists to force.

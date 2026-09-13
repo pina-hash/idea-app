@@ -8,7 +8,7 @@
   `docs/prompt-ledger/entries/0215-*`, and its own `docs/history/` entry. NO OTHER
   SOURCE FILE.
 - Migration permitted: no. **Claims: none.**
-- Status: issued
+- Status: pushed
 - Branch: `claude/0215-duplicate-check-merges-stoxut`, branched from `origin/main` at
   `ee4a1c42`.
 - Notes: A merge-and-land bundle. Five branches stood outside `integration`; two of
@@ -48,3 +48,19 @@
   `IDEA_VERIFICATION_ADDENDA.md` at 2.5 because `0205`'s 2.6 was outside its surface;
   with both files on one ref the addenda row moves to 2.6. All 20 rows were then
   checked against their files' own version headers, zero mismatches.
+
+  **The landing was carried by hand, and item 4 of the checklist is UNMET.**
+  `tools/deploy-probe.mjs` answers `cannot confirm` because `DEPLOY_PROBE_URL` is
+  unset -- not only in the session container but as a REPOSITORY SECRET, which
+  `deploy.yml`'s own step log prints empty on a real runner. And `deploy.yml`'s
+  documented typed-confirmation fallback for exactly that case is unreachable: the
+  `migrations` step opens `set -uo pipefail` under GitHub's `bash -e`, which does not
+  clear errexit, so the probe's exit 1 kills the step before `PROBE=$?` and every arm
+  of the `case` is dead code. Measured on two real runs, `34743453154` (field empty)
+  and `34743521550` (`CONFIRMED: yes`), neither of which printed the `probe exit:`
+  line. That file is outside this bundle's surface and the fix belongs to a lane that
+  owns it. What carried item 4 instead is named in the history entry: only `0211` is
+  in the landed range, its apply is recorded at
+  `docs/migrations-applied/0211-lucid-dirac-8b6m2f.md`, and Mr. Pina verified on
+  2026-09-13 that `0211`, `0212` and `0213` are all applied to production. Items 1, 3
+  and 6 pass; item 5 is N/A because this bundle adds no migration.
