@@ -1802,6 +1802,9 @@
 							activeConceptId={ideacadSeed.activeConceptId}
 							config={(ideacadSeed.config ?? ideacad.config) as any}
 							prediction={ideacadSeed.prediction}
+							history={ideacadSeed.history}
+							undoStep={ideacadWrites.undo}
+							redoStep={ideacadWrites.redo}
 							writes={ideacadWrites}
 							saveLabel={ideacadSaveLabel(ideacadDoc?.phase)}
 							setPrediction={(conceptId, rationale) => ideacadWrites.setPrediction(conceptId, rationale)}

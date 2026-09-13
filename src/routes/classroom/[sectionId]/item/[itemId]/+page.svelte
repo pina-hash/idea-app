@@ -1,5 +1,6 @@
 <script lang="ts">
 	import {
+		createIdeacadHistoryTransports,
 		createIdeacadTransports,
 		createIdeacadSharingTransports,
 		probeIdeacadAssembly
@@ -50,6 +51,11 @@
 	const transports = createClassroomTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const ideacadTransports = createIdeacadTransports(data.supabase);
+	/* 0209's pair, built beside the boundary it rides with and read ONCE at
+	   construction like every other client here -- which is what the ignore
+	   above is for and why this sits with them rather than at the store call. */
+	// svelte-ignore state_referenced_locally
+	const ideacadHistoryTransports = createIdeacadHistoryTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const engineTransports = createEngineTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
@@ -497,7 +503,23 @@
 	 * this bundle's, so the cost is paid and named here instead of by editing
 	 * somebody else's module from this lane.
 	 */
-	const ideacadStore = createIdeacadStore(ideacadTransports);
+	/**
+	 * THE HISTORY TRANSPORTS RIDE ALONG (0196), AND THIS LINE IS WHAT MAKES
+	 * 0209's LOG REACH A STUDENT AT ALL. The migration, the two RPCs, the
+	 * arithmetic and the store's whole history region landed one bundle earlier
+	 * and were read and written by NOTHING, because the store takes the pair as
+	 * an option and this call passed none -- the same omission 0178 closed for
+	 * the editor and 0190 for the team panels, one feature over.
+	 *
+	 * THEY ARE PASSED UNCONDITIONALLY AND THE STORE DECIDES. `store.open` reads
+	 * the log as its first act, so a deployment without 0209 answers `PGRST202`
+	 * there and the store's own ladder turns `historyReady` off and keeps saving
+	 * through `ideacad_save_concept`. Probing here instead would spend a round
+	 * trip to learn what a call the feature makes anyway already says.
+	 */
+	const ideacadStore = createIdeacadStore(ideacadTransports, {
+		history: ideacadHistoryTransports
+	});
 	let ideacadDoc = $state<IdeacadStoreState | null>(null);
 	let ideacadOpenRefusal = $state<string | null>(null);
 	/** The item this page should have an IdeaCAD document open for, or null. The
@@ -758,7 +780,15 @@
 					},
 					activate: (conceptId) => ideacadStore.setActive(conceptId),
 					setPrediction: (conceptId, rationale) => ideacadStore.setPrediction(conceptId, rationale),
-					commit: (conceptId) => ideacadStore.commit(conceptId)
+					commit: (conceptId) => ideacadStore.commit(conceptId),
+					/* GATED ON `historyReady`, WHICH IS THE STORE'S OWN ANSWER RATHER
+					   THAN A SECOND GUESS HERE. False is a deployment without 0209,
+					   and the two controls are ABSENT on it rather than present and
+					   refusing -- the rule every other transport on this page
+					   follows. The timeline itself still renders from whatever rows
+					   there are, which on such a deployment is none. */
+					undo: ideacadDoc?.historyReady ? () => ideacadStore.undo() : undefined,
+					redo: ideacadDoc?.historyReady ? () => ideacadStore.redo() : undefined
 				}
 			: null
 	);

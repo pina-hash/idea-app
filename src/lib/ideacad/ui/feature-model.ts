@@ -32,6 +32,37 @@ export function featureLabel(id: string): string {
 }
 
 /**
+ * THE NAME A STUDENT READS FOR ONE EDITABLE PARAMETER, WRITTEN DOWN ONCE.
+ *
+ * These used to be nine string literals sitting inside `panelFor`'s `num()`
+ * calls, which was fine while the PropertyManager was the only thing that named
+ * a parameter. The HISTORY TIMELINE (0196) names the same parameters, reading
+ * them back off a stored action's JSON Pointer, so a second copy is a control
+ * and a history row disagreeing about what the student just changed -- and the
+ * history row is the one nobody is looking at when it drifts.
+ *
+ * A KEY MISSING FROM HERE FALLS BACK TO ITSELF rather than throwing: the
+ * timeline renders whatever a stored log contains, including a key written by
+ * an older or newer tree shape, and a crash there would take the editor down
+ * over a label.
+ */
+export const FIELD_LABELS: Record<string, string> = {
+	acrossFlats: 'Across flats',
+	height: 'Extension height',
+	rootWidth: 'Root width',
+	tipWidth: 'Tip width',
+	length: 'Length',
+	sweepDeg: 'Sweep',
+	mountRadius: 'Mount radius',
+	count: 'Blades',
+	z: 'Mount height'
+};
+
+export function fieldLabel(key: string): string {
+	return FIELD_LABELS[key] ?? key;
+}
+
+/**
  * The features a feature is BUILT ON, read off the tree's own reference fields
  * rather than from a table written beside them. `ExtrudeFeature.sketch`,
  * `PatternFeature.feature` and `MountFeature.feature` are the declaration; a
@@ -210,9 +241,10 @@ export interface PmPanel {
 	note: string | null;
 }
 
+/** THE LABEL IS NOT A PARAMETER ANY MORE -- it comes from `FIELD_LABELS`, so
+ *  the panel and the history timeline cannot name one parameter two ways. */
 function num(
 	key: string,
-	label: string,
 	unit: string,
 	value: number,
 	min: number,
@@ -220,7 +252,7 @@ function num(
 	step: number,
 	slider = false
 ): NumberField {
-	return { kind: 'number', key, label, unit, value, min, max, step, slider };
+	return { kind: 'number', key, label: fieldLabel(key), unit, value, min, max, step, slider };
 }
 
 /**
@@ -274,10 +306,9 @@ export function panelFor(tree: BladeTree, id: string, config: BladeConfig): PmPa
 			return {
 				...base,
 				fields: [
-					num('acrossFlats', 'Across flats', 'in', f.acrossFlats, 0.25, 1, 0.005),
+					num('acrossFlats', 'in', f.acrossFlats, 0.25, 1, 0.005),
 					num(
 						'height',
-						'Extension height',
 						'in',
 						f.height,
 						r.minHexExtensionIn,
@@ -291,11 +322,11 @@ export function panelFor(tree: BladeTree, id: string, config: BladeConfig): PmPa
 			return {
 				...base,
 				fields: [
-					num('rootWidth', 'Root width', 'in', f.rootWidth, 0.1, 1.5, 0.005),
-					num('tipWidth', 'Tip width', 'in', f.tipWidth, 0.1, 1.5, 0.005),
-					num('length', 'Length', 'in', f.length, 0.1, 2, 0.005),
-					num('sweepDeg', 'Sweep', 'deg', f.sweepDeg, -45, 45, 1, true),
-					num('mountRadius', 'Mount radius', 'in', f.mountRadius, 0.2, r.maxDiameterIn / 2, 0.005)
+					num('rootWidth', 'in', f.rootWidth, 0.1, 1.5, 0.005),
+					num('tipWidth', 'in', f.tipWidth, 0.1, 1.5, 0.005),
+					num('length', 'in', f.length, 0.1, 2, 0.005),
+					num('sweepDeg', 'deg', f.sweepDeg, -45, 45, 1, true),
+					num('mountRadius', 'in', f.mountRadius, 0.2, r.maxDiameterIn / 2, 0.005)
 				]
 			};
 		case 'extrude':
@@ -315,12 +346,12 @@ export function panelFor(tree: BladeTree, id: string, config: BladeConfig): PmPa
 				note: 'The extrude takes its thickness from the stock you picked in Materials.'
 			};
 		case 'circularPattern':
-			return { ...base, fields: [num('count', 'Blades', '', f.count, 2, 8, 1, true)] };
+			return { ...base, fields: [num('count', '', f.count, 2, 8, 1, true)] };
 		case 'mount':
 			return {
 				...base,
 				fields: [
-					num('z', 'Mount height', 'in', f.z, 0, r.maxHeightIn, 0.005)
+					num('z', 'in', f.z, 0, r.maxHeightIn, 0.005)
 				]
 			};
 	}
