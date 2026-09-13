@@ -52,11 +52,25 @@ export interface RichInline {
  */
 export type { RichItem, RichList };
 
-/** A block, loose enough for both closed shapes. Cast to one at the door. */
+/**
+ * A block, loose enough for both closed shapes. Cast to one at the door.
+ *
+ * THE FOURTH MEMBER IS THE NOTEBOOK'S GRID (0199/0210), and it is here for the
+ * same reason the third one is: this union is what a CLAIMANT may return, and
+ * `imageBlock` -- whose contract is "a node that carries no runs at all", see
+ * its own comment below -- now has two callers emitting two different
+ * run-less shapes. It widens what may be RETURNED to this walk and nothing
+ * else; each normalizer still casts to its own closed union at the door, and
+ * the classroom passes no claimant that can produce a grid, so its contract is
+ * unchanged. A shared loose type that could not describe one of its callers'
+ * blocks would only push that caller into an `as unknown as` at the boundary,
+ * which is the same widening with the type checker switched off.
+ */
 export type RichBlock =
 	| { type: string; runs: RichInline[] }
 	| { type: string; items: RichItem[] }
-	| { type: string; src: string; alt: string };
+	| { type: string; src: string; alt: string }
+	| { type: string; rows: string[][] };
 
 export interface RichWalkOptions {
 	/**
@@ -91,6 +105,18 @@ export interface RichWalkOptions {
 	 * A claimant that wants to REFUSE rather than emit returns null and records
 	 * the problem itself; this walk has no refusal channel and must not grow
 	 * one, because its other caller's signature is not this bundle's to change.
+	 *
+	 * ITS NAME IS NARROWER THAN ITS JOB, AND IT IS NOT RENAMED (0199). The
+	 * contract above is "a node that carries no runs at all"; the classroom's
+	 * image was simply the first one. The notebook's spreadsheet grid (0210) is
+	 * the second and passes its own claimant here rather than growing a second
+	 * hook beside this one -- two options doing one job is the duplication this
+	 * file exists to have removed, and a claimant differs from the image's only
+	 * in which node it recognises and what it emits. Renaming it would touch the
+	 * classroom's normalizer, which is not this bundle's file; noting the
+	 * mismatch in a comment is what `CLAUDE.md` already prescribes for
+	 * `_classroom_doc_ok`, whose name lies in exactly this way and for exactly
+	 * this reason.
 	 */
 	imageBlock?: (node: TiptapNode) => RichBlock | null;
 }

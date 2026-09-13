@@ -26,6 +26,20 @@
 
 import { safeHref, tiptapHasText, type TiptapNode } from '$lib/rich-text';
 import { itemParts, richDocText } from '$lib/rich-text-doc';
+/**
+ * THE GRID'S PURE MODULE, AND NEVER `$lib/notebook/grid` ITSELF. The index
+ * re-exports `grid-node.ts`, which imports `@tiptap/core`; this module is
+ * imported by `$lib/server/notebook-notes` -- the normalizer -- so reaching it
+ * through the index would put ProseMirror in every server route that touches a
+ * note. `grid-doc.ts` has no dependencies at all, which is the property that
+ * makes it importable from both sides.
+ */
+import {
+	GRID_NODE_NAME,
+	gridTextLength,
+	isNoteGrid,
+	type NoteGrid
+} from '$lib/notebook/grid/grid-doc';
 
 /** One run of inline text. The absent-means-off flags keep stored docs small. */
 export interface NoteInline {
@@ -64,7 +78,19 @@ export interface NoteList {
  */
 export type NoteItem = (NoteInline | NoteList)[];
 
-export type NoteBlock = { type: 'p'; runs: NoteInline[] } | NoteList;
+/**
+ * A SPREADSHEET GRID, the third block a note can hold (0210).
+ *
+ * RE-EXPORTED FROM `$lib/notebook/grid`, NEVER RESTATED. `grid-doc.ts` declared
+ * the shape in ledger 0192 because the migration and the ProseMirror node both
+ * needed it before this module could name it, and its own header says in so
+ * many words that the producer bundle MOVES nothing and IMPORTS it. A second
+ * declaration here would be two ideas of what a grid is, held apart by nothing,
+ * with `_notebook_note_grid_len` mirroring only one of them.
+ */
+export type { NoteGrid };
+
+export type NoteBlock = { type: 'p'; runs: NoteInline[] } | NoteList | NoteGrid;
 
 /** A whole note: an ordered list of blocks. */
 export type NoteDoc = NoteBlock[];
@@ -276,7 +302,44 @@ export { safeHref };
  * get their own line, and why the trim is SQL's rather than JavaScript's.
  */
 export function docText(doc: NoteDoc): string {
-	return richDocText(doc, NOTE_LIST_MAX_DEPTH);
+	return richDocText(doc.flatMap(gridAsText), NOTE_LIST_MAX_DEPTH);
+}
+
+/**
+ * A GRID'S CONTRIBUTION TO THE PLAIN-TEXT PROJECTION, AND WHY IT IS DONE HERE
+ * RATHER THAN IN `richDocText`.
+ *
+ * `richDocText` is the MIRROR of `_classroom_doc_text` -- `CLAUDE.md` states
+ * that in those words -- and `_classroom_doc_ok` refuses a grid outright, so a
+ * grid arm added there would be a branch the SQL it mirrors does not have, dead
+ * on the classroom side and mirroring nothing on this one. So the notebook
+ * substitutes its grids for ordinary paragraphs on the way in and the shared
+ * walk stays exactly the walk it was.
+ *
+ * A GRID WITH NO TEXT CONTRIBUTES NO BLOCK AT ALL, WHICH IS THE FLOOR AGREEING
+ * WITH THE GATE RATHER THAN A TIDINESS DECISION. `0210`'s floor is unchanged
+ * from `0125`: `v_total > 0`, where `v_total` is a sum of LENGTHS with no
+ * separators in it, so a note holding two empty grids totals zero and is
+ * refused. Mapped to an empty paragraph instead, this projection would answer
+ * `"\n"` for that note -- not the empty string -- and `docIsEmpty` would say it
+ * had content while the database refused it. Dropping the runless block is what
+ * makes "some block contributed length" and "the projection is non-empty" the
+ * same question, which is the question the gate asks.
+ *
+ * THE CELLS ARE JOINED WITH A SPACE, one line per grid. It is a projection for
+ * reading -- a card preview, a summary, the emptiness test -- and not a
+ * reconstruction of the table; `docLength` has never been the gate's own
+ * arithmetic (it counts the newlines between blocks, which `v_total` does not),
+ * and a grid does not change that either way.
+ */
+function gridAsText(block: NoteBlock): NoteBlock[] {
+	if (!isNoteGrid(block)) return [block];
+	if (gridTextLength(block) === 0) return [];
+	const text = block.rows
+		.map((row) => row.filter((cell) => cell !== '').join(' '))
+		.filter((line) => line !== '')
+		.join(' ');
+	return [{ type: 'p', runs: [{ text }] }];
 }
 
 export function docIsEmpty(doc: NoteDoc | null | undefined): boolean {
@@ -355,10 +418,30 @@ function listToTiptap(list: NoteList, depth: number): TiptapNode {
 	};
 }
 
-/** Stored doc -> the editor's own document, for opening an existing note. */
+/**
+ * Stored doc -> the editor's own document, for opening an existing note.
+ *
+ * THE GRID ARM IS THE ONE THAT LOSES WORK IF IT IS FORGOTTEN, silently and in
+ * the direction nobody looks. `NoteBlock` gained a grid, so without a branch
+ * here a stored grid falls into the `else` and is handed to `listToTiptap`,
+ * which reads `block.items` -- undefined -- and seeds the editor with an empty
+ * list. The student reopens a note to add a sentence, sees their table gone,
+ * and the next save writes the note WITHOUT it, because the editor's document
+ * is what gets normalized. Nothing throws and nothing is reported.
+ *
+ * IT IS `GRID_NODE_NAME` AND THE `rows` ATTRIBUTE, WHICH IS THE NODE'S OWN
+ * SHAPE. Spelled through the imported constant rather than the string
+ * `'notebookGrid'` so the schema and this seed cannot drift; the attribute is a
+ * real array here, because ProseMirror JSON is JSON -- the stringified form is
+ * the DOM's and belongs only to `toDOM`/`parseDOM`.
+ */
 export function docToTiptap(doc: NoteDoc): TiptapNode {
 	const content: TiptapNode[] = doc.map((block) =>
-		block.type === 'p' ? paragraph(block.runs) : listToTiptap(block, 1)
+		block.type === 'p'
+			? paragraph(block.runs)
+			: isNoteGrid(block)
+				? { type: GRID_NODE_NAME, attrs: { rows: block.rows } }
+				: listToTiptap(block, 1)
 	);
 	return { type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] };
 }

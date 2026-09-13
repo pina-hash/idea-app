@@ -1,5 +1,11 @@
 <script lang="ts">
-	import { createIdeacadTransports } from '$lib/ideacad/transports';
+	import {
+		createIdeacadTransports,
+		createIdeacadSharingTransports,
+		probeIdeacadAssembly
+	} from '$lib/ideacad/transports';
+	import { createIdeacadCheckout, type IdeacadCheckoutState } from '$lib/ideacad/checkout';
+	import type { IdeacadGrant, IdeacadGrantRole } from '$lib/ideacad/sharing';
 	import { createIdeacadStore, type IdeacadStoreState } from '$lib/ideacad/store';
 	import { IDEACAD_UNAVAILABLE, isIdeaCad, type IdeacadEditorWrites } from '$lib/ideacad/mount';
 	import { onDestroy, untrack } from 'svelte';
@@ -526,6 +532,210 @@
 	 *  before it stops the timer, which is the one moment a tab closing mid-edit
 	 *  is recoverable at all. */
 	onDestroy(() => void ideacadStore.destroy());
+
+	/**
+	 * ==========================================================================
+	 * SHARING (0205) AND PART CHECKOUT (0207), WHICH SHIPPED WITH NO WAY IN.
+	 * ==========================================================================
+	 *
+	 * Ledger 0190 built `SharePanel`, `PartsPanel` and `checkout.ts` and proved
+	 * them on `/dev/ideacad-team`; it could not mount them, because the only
+	 * route to a Blade surface is `ItemDetail.svelte` and that file was another
+	 * lane's. So fourteen RPCs were applied to production, two panels were
+	 * written and tested, and a student could reach none of it. This is the same
+	 * omission 0178 closed for the editor one bundle earlier, and it is closed
+	 * the same way: the page owns the load and the transports, and hands the
+	 * component values plus callbacks.
+	 *
+	 * ONE DOCUMENT, THE CALLER'S OWN. The store opens through
+	 * `ideacad_open_document`, which resolves the caller's own document, so on
+	 * this page the caller IS the owner -- `role` is `'owner'` and never a
+	 * guess. Opening somebody ELSE'S shared document needs
+	 * `ideacad_open_shared_document` and a way to choose one, which is
+	 * `store.ts`'s surface and not this lane's; `sharedWithMe` is still uncalled
+	 * and that is named in this bundle's history entry rather than left to be
+	 * found.
+	 *
+	 * BOTH PROBES DEGRADE ON `PGRST202` ALONE, inside the two functions that
+	 * already own that rule. Neither is re-implemented here.
+	 */
+	let ideacadSharingReady = $state(false);
+	let ideacadGrants = $state<IdeacadGrant[]>([]);
+	let ideacadCheckoutState = $state<IdeacadCheckoutState | null>(null);
+	let ideacadCheckout = $state<ReturnType<typeof createIdeacadCheckout> | null>(null);
+
+	/**
+	 * THE OWNER'S ADDRESS IS THE CALLER'S OWN, from the validated claims the
+	 * root layout already put in `page.data`. It is read for ONE purpose -- so
+	 * the share form can refuse self-sharing without a round trip -- and the
+	 * database refuses it again regardless. Empty is a supported value: the form
+	 * simply spends the round trip and reads the refusal back verbatim.
+	 */
+	const ideacadOwnerEmail = $derived((data.claims?.email ?? '').toString());
+
+	/**
+	 * THE `0205` PROBE, ONCE PER ITEM. `ideacad_shared_with_me` is the cheapest
+	 * question only that migration can answer; a failure leaves sharing OFF,
+	 * which is what `createIdeacadSharingTransports` fails closed to, and the
+	 * panel then says so in words rather than offering a Share whose only
+	 * outcome is a failure.
+	 *
+	 * TRACKED INPUT, UNTRACKED CALL -- the effect re-runs when the item changes
+	 * and the transport call is `untrack`ed, because a transport is caller
+	 * -supplied code and everything it touches before its first `await` would
+	 * otherwise join this effect's dependency set.
+	 */
+	$effect(() => {
+		const itemId = ideacadItemId;
+		const supabase = data.supabase;
+		if (!itemId || !supabase) {
+			ideacadSharingReady = false;
+			return;
+		}
+		let live = true;
+		untrack(() => {
+			void createIdeacadSharingTransports(supabase, itemId)
+				.then(({ available }) => {
+					if (live) ideacadSharingReady = available;
+				})
+				.catch(() => {
+					if (live) ideacadSharingReady = false;
+				});
+		});
+		return () => {
+			live = false;
+		};
+	});
+
+	/**
+	 * THE GRANT LIST, RE-READ AFTER EVERY WRITE RATHER THAN PATCHED LOCALLY.
+	 * `ideacadApplyGrant` / `ideacadRemoveGrant` exist and would let this file
+	 * keep its own copy in step, but the list is small, the write is rare, and a
+	 * second idea of who holds a grant is exactly the thing that stops agreeing
+	 * with the table. The database's answer is the only one rendered.
+	 */
+	async function ideacadReadGrants(documentId: string) {
+		const read = ideacadTransports.documentGrants;
+		if (!read) return;
+		try {
+			ideacadGrants = await read(documentId);
+		} catch {
+			// A grant list that could not be read is an EMPTY list, never a stale
+			// one: showing yesterday's sharing as today's is worse than showing
+			// none, and the panel's summary line simply says nobody.
+			ideacadGrants = [];
+		}
+	}
+
+	/**
+	 * THE DOCUMENT-SCOPED HALF: grants and the assembly, both keyed on the
+	 * document id the store landed rather than on the item, because neither
+	 * exists until `open()` has answered.
+	 */
+	const ideacadDocumentId = $derived(ideacadItemId ? (ideacadDoc?.document?.id ?? null) : null);
+
+	$effect(() => {
+		const documentId = ideacadDocumentId;
+		const supabase = data.supabase;
+		const assemblyTransports = ideacadTransports.assembly;
+		if (!documentId || !supabase) {
+			ideacadGrants = [];
+			return;
+		}
+		let live = true;
+		untrack(() => {
+			void ideacadReadGrants(documentId);
+			if (!assemblyTransports) return;
+			// `ideacad_assembly` IS the probe, because it is the read the panel
+			// wants anyway -- a pre-0207 deployment answers PGRST202 and no
+			// controller is built at all, so the parts panel is ABSENT rather
+			// than mounted over functions that are not there.
+			void probeIdeacadAssembly(supabase, documentId).then(({ available }) => {
+				if (!live || !available) return;
+				const checkout = createIdeacadCheckout(assemblyTransports);
+				ideacadCheckout = checkout;
+				const stop = checkout.subscribe((state) => {
+					if (live) ideacadCheckoutState = state;
+				});
+				void checkout.open(documentId).catch(() => {
+					// An assembly that will not read leaves the panel absent. The
+					// editor is unaffected: parts are a layer over the document,
+					// not a precondition for modelling one.
+					if (live) ideacadCheckoutState = null;
+				});
+				if (!live) {
+					stop();
+					checkout.destroy();
+				}
+			});
+		});
+		return () => {
+			live = false;
+			ideacadCheckout?.destroy();
+			ideacadCheckout = null;
+			ideacadCheckoutState = null;
+		};
+	});
+
+	onDestroy(() => ideacadCheckout?.destroy());
+
+	/**
+	 * WHAT `ItemDetail` IS HANDED. Null for a manager and for a document that
+	 * has not opened, which is the whole gate -- there is no flag anywhere
+	 * saying "hide the panels".
+	 *
+	 * A VIEWER IS NEVER SHOWN A CONTROL THAT WOULD BE REFUSED, and it is the
+	 * DATABASE that decides which: `assembly.canWrite` drives `partRows` into
+	 * `action: 'none'`, and the two write callbacks are withheld with it, so a
+	 * caller with read-only access has no claim control in the markup at all.
+	 * The reassign picker is `assembly.isOwner`, which is `0207`'s own rule.
+	 * `onshare` rides `ideacadSharingReady`, so a pre-0205 deployment gets the
+	 * sentence and no form.
+	 */
+	const ideacadTeam = $derived(
+		ideacadDocumentId
+			? {
+					role: 'owner' as const,
+					ownerEmail: ideacadOwnerEmail,
+					grants: ideacadGrants,
+					sharingReady: ideacadSharingReady,
+					onshare:
+						ideacadSharingReady && ideacadTransports.shareDocument
+							? async (email: string, role: IdeacadGrantRole) => {
+									await ideacadTransports.shareDocument!(ideacadDocumentId, email, role);
+									await ideacadReadGrants(ideacadDocumentId);
+								}
+							: undefined,
+					onunshare:
+						ideacadSharingReady && ideacadTransports.unshareDocument
+							? async (email: string) => {
+									await ideacadTransports.unshareDocument!(ideacadDocumentId, email);
+									await ideacadReadGrants(ideacadDocumentId);
+								}
+							: undefined,
+					assembly: ideacadCheckoutState?.assembly ?? null,
+					myPartId: ideacadCheckoutState?.myPartId ?? null,
+					secondsLeft: ideacadCheckoutState?.secondsLeft ?? null,
+					phase: ideacadCheckoutState?.phase ?? ('idle' as const),
+					notice: ideacadCheckoutState?.notice ?? null,
+					teammates: ideacadGrants.map((grant) => grant.granteeEmail),
+					onclaim:
+						ideacadCheckout && ideacadCheckoutState?.assembly?.canWrite
+							? (partId: string) => void ideacadCheckout!.claim(partId)
+							: undefined,
+					onrelease:
+						ideacadCheckout && ideacadCheckoutState?.assembly?.canWrite
+							? (partId: string) => void ideacadCheckout!.release(partId)
+							: undefined,
+					onassign:
+						ideacadCheckout && ideacadCheckoutState?.assembly?.isOwner
+							? (partId: string, email: string | null) =>
+									void ideacadCheckout!.assign(partId, email)
+							: undefined,
+					ondismiss: ideacadCheckout ? () => ideacadCheckout!.clearNotice() : undefined
+				}
+			: null
+	);
 	/**
 	 * THE WRITE BOUNDARY HANDED TO `ItemDetail`, WHICH IS A PROJECTION OF THE
 	 * STORE AND NOT A SECOND COPY OF ANYTHING. Built only for the caller the
@@ -637,6 +847,7 @@
 	layoutTransports={liveLayoutTransports}
 	htmlAssignment={data.htmlAssignment}
 	ideacad={data.ideacad}
+	{ideacadTeam}
 	{ideacadDoc}
 	{ideacadWrites}
 	{ideacadOpenRefusal}

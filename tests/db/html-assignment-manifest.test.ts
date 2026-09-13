@@ -781,14 +781,28 @@ describe('0195: HTML assignments, the manifest boundary and the two gates', () =
 	});
 
 	it('keeps the item kind at three values and the revision targets at five', async () => {
+		// THE CONSTRAINT IS NAMED, AND IT USED TO BE MATCHED BY `like '%kind%'
+		// limit 1` WITH NO ORDERING -- which is a coin flip, not a query. FIVE
+		// constraints on `classroom_items` mention `kind`
+		// (classroom_items_grading_fields, _kind_check, _post_body,
+		// _public_is_material and _titled), so the unordered `limit 1` returned
+		// an arbitrary one and this test had been passing on whichever the plan
+		// happened to hand back. It was caught when a run picked
+		// `classroom_items_public_is_material` -- `CHECK ((kind = 'material')
+		// OR (is_public = false))` -- which is a perfectly real constraint that
+		// says nothing at all about the three values this test is named for.
+		// Naming the constraint asserts the thing the comment below claims.
 		const { rows } = await db.sql<{ kinds: string; targets: string }>(
 			`select
 			   (select pg_get_constraintdef(oid) from pg_constraint
 			      where conrelid = 'public.classroom_items'::regclass
-			        and pg_get_constraintdef(oid) like '%kind%' limit 1) as kinds,
+			        and conname = 'classroom_items_kind_check') as kinds,
 			   (select pg_get_constraintdef(oid) from pg_constraint
 			      where conname = 'classroom_content_revisions_target_check') as targets`
 		);
+		// A renamed or dropped constraint must redden here rather than read as
+		// a passing sweep over a null.
+		expect(rows[0].kinds, 'classroom_items_kind_check must exist').not.toBeNull();
 		// kind STAYS the three-value CHECK. A fourth would fork every list, feed
 		// query, export and policy that names the set.
 		expect(rows[0].kinds).toContain("'assignment'");
