@@ -8,7 +8,7 @@
   `docs/history/` entry. NO OTHER SOURCE FILE. Ledgers 0207, 0212 and 0218 have
   branches standing and none of their files were touched.
 - Migration permitted: no. **Claims: none.**
-- Status: issued
+- Status: pushed
 - Branch: `claude/gracious-franklin-9idi64`, branched from `origin/integration`
   at `caef1c07`.
 - Notes: The router issued two prompts for overlapping surfaces. This is the
