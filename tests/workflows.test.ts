@@ -1481,7 +1481,17 @@ describe('the invariants these particular workflows have to hold', () => {
 		expect(
 			pushLinesPerFile,
 			'the per-file push shape moved; a file that gained or lost a push line needs a look'
-		).toEqual({ 'backup.yml': 0, 'ci.yml': 0, 'deploy.yml': 1, 'integrate.yml': 3 });
+		).toEqual({
+			'backup.yml': 0,
+			'ci.yml': 0,
+			'deploy.yml': 1,
+			// `migrate.yml`'s ONE push is the record `apply-migration.mjs` wrote
+			// under `docs/migrations-applied/`, and that step checks the staged
+			// set against that one directory before it runs. The look this map
+			// exists to force has been taken; the number is what it found.
+			'integrate.yml': 3,
+			'migrate.yml': 1
+		});
 	});
 
 	it('POSITIVE CONTROL: every spelling of a force-push is caught, and the lease-pinned delete is not', () => {

@@ -86,6 +86,30 @@
  * to keep true.
  *
  * ---------------------------------------------------------------------------
+ * IT WRITES ONE ROW INTO `supabase_migrations.schema_migrations`, AND THAT ROW
+ * IS WHAT KEEPS THE SEED HONEST.
+ *
+ * `supabase/data/0209-seed-migration-history.sql` writes one row per migration
+ * already applied, once, by hand. From that moment the database has its own
+ * record of what it has -- and a record that stops being updated is a record
+ * that lies. So every apply this tool commits inserts its own row, and the two
+ * halves are one mechanism rather than two facts about the same table.
+ *
+ * WHERE THE ROW GOES RELATIVE TO THE MIGRATION, AND IT IS NOT THE SAME IN BOTH
+ * CASES. A file this tool wraps gets the insert INSIDE that transaction, before
+ * the commit, so the migration and its row land together or not at all. A file
+ * that opens its OWN transaction has already committed by the time this tool
+ * can say anything, so the insert is a second statement afterwards -- and if
+ * THAT fails, the migration is applied and unrecorded, which this reports as
+ * `unverified` rather than swallowing.
+ *
+ * IF THE TABLE IS NOT THERE, NOTHING IS RECORDED AND THE APPLY STILL RUNS. That
+ * is the state before the seed is pasted and it has to keep working. If the
+ * table IS there and this role cannot insert into it, the apply is REFUSED
+ * before anything is sent: a migration applied with the record silently
+ * skipped is exactly the drift the seed exists to end.
+ *
+ * ---------------------------------------------------------------------------
  * THE CONNECTION STRING IS READ FROM `IDEA_MIGRATION_URL` AND IS NEVER PRINTED.
  * Not in a message, not in an error, not in `--json`. `deploy-probe.mjs`'s
  * `redact` is the one implementation of that and this calls it.
@@ -123,6 +147,22 @@ export const APPLIED_DIR = join(REPO_ROOT, 'docs', 'migrations-applied');
 
 /** The environment variable holding the scoped role's connection string. */
 export const URL_VAR = 'IDEA_MIGRATION_URL';
+
+/**
+ * The Supabase CLI's own record of which migration files a database has had
+ * applied. This project's database had no such table until
+ * `supabase/data/0209-seed-migration-history.sql` was pasted; see this file's
+ * header for what that changed and what it did not.
+ */
+export const HISTORY_TABLE = 'supabase_migrations.schema_migrations';
+
+/**
+ * The one insert. `on conflict do nothing` carries NO conflict target on
+ * purpose, so it needs no assumption about which constraint the table has and
+ * is correct against a table the seed created and one the CLI did.
+ */
+export const HISTORY_INSERT =
+	`insert into ${HISTORY_TABLE} (version, name) values ($1, $2) on conflict do nothing`;
 
 /**
  * The event-trigger guard this tool USED to expect. It is not installed on this
@@ -477,6 +517,7 @@ export function appliedRecordPath(migrationNum, slug, dir = APPLIED_DIR) {
  *   numberWarning: string | null,
  *   sessionUser: string, database: string,
  *   at: string,
+ *   historyRecorded?: boolean | null,
  *   notices: Notice[],
  *   objects: { kind: string, name: string, present: boolean }[],
  *   exit: string
@@ -512,6 +553,17 @@ export function renderAppliedRecord(r, url) {
 	lines.push(`commit: ${r.commit}`);
 	lines.push(`session_user: ${clean(r.sessionUser)}`);
 	lines.push(`database: ${clean(r.database)}`);
+	// OPTIONAL, AND `undefined` MEANS THE SAME AS `null`: no history table on
+	// that database, so nothing was recorded there. It is optional rather than
+	// required because a record built for a database that has no such table is
+	// a legitimate shape, and forcing every caller to spell out an absence is
+	// how a field gets filled in with a guess.
+	// WHAT THE DATABASE'S OWN RECORD SAYS, as a field rather than as prose, so
+	// `grep -L 'history_row: yes'` finds every apply that did not leave one.
+	// `absent` is the pre-seed state and is not a fault; `NO` is.
+	lines.push(
+		`history_row: ${r.historyRecorded === true ? 'yes' : r.historyRecorded === false ? 'NO' : 'absent'}`
+	);
 	lines.push(`outcome: ${r.exit}`);
 	lines.push('---');
 	lines.push('');
@@ -537,6 +589,22 @@ export function renderAppliedRecord(r, url) {
 		lines.push(`${r.notices.length} notice(s), in the order they arrived:`);
 		lines.push('');
 		for (const n of r.notices) lines.push(`- \`${n.severity}\` ${clean(n.message)}`);
+	}
+	lines.push('');
+	lines.push('## The migration history row');
+	lines.push('');
+	if (r.historyRecorded === true) {
+		lines.push(
+			`\`${HISTORY_TABLE}\` now carries version \`${r.migrationNum}\`, inserted by this apply.`
+		);
+	} else if (r.historyRecorded === false) {
+		lines.push(
+			`**THE ROW IS NOT THERE.** The migration applied and the insert into \`${HISTORY_TABLE}\` did not. This file opens its own transaction, so the insert could not ride with it. The database's record of itself is behind by one until somebody inserts it.`
+		);
+	} else {
+		lines.push(
+			`\`${HISTORY_TABLE}\` was not on this database, so nothing was recorded there. That is the state before \`supabase/data/0209-seed-migration-history.sql\` is pasted.`
+		);
 	}
 	lines.push('');
 	lines.push('## Verification, object by object');
@@ -1241,6 +1309,26 @@ export async function guardFingerprint(client) {
 }
 
 /**
+ * Is there a migration history table, and may this role write to it?
+ *
+ * TWO QUERIES AND NOT ONE `case`. `has_table_privilege` RAISES on a relation
+ * that does not exist, and a `case` arm is a poor place to bet that a stable
+ * function is not evaluated. Asking twice costs one round trip and cannot be
+ * wrong.
+ *
+ * @param {pg.Client} client
+ * @returns {Promise<{ present: boolean, insertable: boolean }>}
+ */
+export async function historyState(client) {
+	const r = await client.query(`select to_regclass($1) is not null as present`, [HISTORY_TABLE]);
+	if (r.rows[0].present !== true) return { present: false, insertable: false };
+	const w = await client.query(`select pg_catalog.has_table_privilege($1, 'insert') as ok`, [
+		HISTORY_TABLE
+	]);
+	return { present: true, insertable: w.rows[0].ok === true };
+}
+
+/**
  * @typedef {{ severity: string, message: string }} Notice
  */
 
@@ -1251,17 +1339,28 @@ export async function guardFingerprint(client) {
  * commit this tool's wrapper early, and every statement after it would then be
  * outside any transaction with the rollback below silently doing nothing.
  *
+ * `historyRow` is the `supabase_migrations.schema_migrations` row this apply
+ * should leave behind, or null to record nothing. A WRAPPED file gets it inside
+ * the transaction, before the commit, so the migration and its row are atomic.
+ * A SELF-MANAGED file has already committed, so the insert is a separate
+ * statement afterwards and a failure there is reported as
+ * `historyRecorded: false` on an `ok: true` result -- the migration IS applied
+ * and reporting otherwise is how somebody runs it twice.
+ *
  * @param {pg.Client} client
  * @param {string} sql
  * @param {boolean} selfManaged
  * @param {Notice[]} notices
+ * @param {{ version: string, name: string } | null} [historyRow]
  */
-export async function applyInTransaction(client, sql, selfManaged, notices) {
+export async function applyInTransaction(client, sql, selfManaged, notices, historyRow = null) {
 	if (!selfManaged) await client.query('begin');
 	try {
 		await client.query(sql);
+		if (historyRow && !selfManaged) {
+			await client.query(HISTORY_INSERT, [historyRow.version, historyRow.name]);
+		}
 		if (!selfManaged) await client.query('commit');
-		return { ok: /** @type {const} */ (true) };
 	} catch (err) {
 		const e = /** @type {Error & { code?: string, where?: string }} */ (err);
 		try {
@@ -1281,6 +1380,25 @@ export async function applyInTransaction(client, sql, selfManaged, notices) {
 			notices: notices.length
 		};
 	}
+
+	// PAST THIS LINE THE MIGRATION IS COMMITTED AND CANNOT BE UNDONE, so
+	// nothing below may return `ok: false`.
+	if (historyRow && selfManaged) {
+		try {
+			await client.query(HISTORY_INSERT, [historyRow.version, historyRow.name]);
+		} catch (err) {
+			return {
+				ok: /** @type {const} */ (true),
+				historyRecorded: false,
+				historyWhy: /** @type {Error} */ (err).message ?? String(err)
+			};
+		}
+	}
+	return {
+		ok: /** @type {const} */ (true),
+		historyRecorded: historyRow ? true : null,
+		historyWhy: ''
+	};
 }
 
 /* ------------------------------------------------------------------------ */
@@ -1544,6 +1662,34 @@ async function main() {
 			`  ordering: ${target.num} is the lowest unapplied migration at or above ${String(opts.since).padStart(4, '0')}.`
 		);
 
+		// --- the migration history row ------------------------------------
+		// ASKED BEFORE THE APPLY, so the one outcome that must never happen --
+		// a migration applied and its row silently skipped -- is a refusal with
+		// nothing sent rather than a state somebody has to repair afterwards.
+		const history = await historyState(client);
+		/** @type {{ version: string, name: string } | null} */
+		let historyRow = null;
+		if (!history.present) {
+			say(
+				`  no ${HISTORY_TABLE} on this database, so this apply records nothing there. That is the state BEFORE supabase/data/0209-seed-migration-history.sql is pasted, and it is not an error.`
+			);
+		} else if (!history.insertable) {
+			say('');
+			say(
+				`REFUSING to apply ${target.file}: ${HISTORY_TABLE} exists and this role may not insert into it.`
+			);
+			say(
+				'  Applying with the record skipped is exactly the drift the seed exists to end, so this refuses instead. Nothing was sent.'
+			);
+			report.history = { present: true, insertable: false };
+			if (opts.json) say(JSON.stringify(report, null, 2));
+			return EXIT.refused;
+		} else {
+			historyRow = { version: target.num, name: target.file.replace(/^\d+_/, '').replace(/\.sql$/, '') };
+			say(`  will record ${HISTORY_TABLE} version ${historyRow.version} with the migration.`);
+		}
+		report.history = { present: history.present, insertable: history.insertable };
+
 		if (opts.dryRun) {
 			say(`\nDRY RUN: every check passed and nothing was applied.`);
 			if (opts.json) say(JSON.stringify(report, null, 2));
@@ -1551,7 +1697,13 @@ async function main() {
 		}
 
 		// --- the apply ----------------------------------------------------
-		const result = await applyInTransaction(client, sql, scan.selfManagedTransaction, notices);
+		const result = await applyInTransaction(
+			client,
+			sql,
+			scan.selfManagedTransaction,
+			notices,
+			historyRow
+		);
 		say('');
 		for (const n of notices) say(`  ${n.severity}: ${n.message}`);
 		report.notices = notices;
@@ -1573,6 +1725,20 @@ async function main() {
 		say('');
 		say(`  applied. ${notices.length} notice(s).`);
 		report.applied = true;
+
+		// `historyRecorded` is null when nothing was asked for, true when the
+		// row landed, and false ONLY on the self-managed path where the insert
+		// ran after the file's own commit and failed.
+		const historyRecorded = result.historyRecorded ?? null;
+		report.historyRecorded = historyRecorded;
+		if (historyRecorded === true) {
+			say(`  recorded ${HISTORY_TABLE} version ${target.num}.`);
+		} else if (historyRecorded === false) {
+			say(
+				`  THE MIGRATION IS APPLIED AND ITS ${HISTORY_TABLE} ROW IS NOT (${redact(result.historyWhy ?? '', url)}). This file opened its own transaction, so the insert could not ride with it. Insert the row by hand -- docs/MIGRATIONS.md, "If a migration applied and its row did not".`
+			);
+			report.historyWhy = redact(result.historyWhy ?? '', url);
+		}
 
 		// --- the verification --------------------------------------------
 		const want = claims(sql);
@@ -1610,7 +1776,8 @@ async function main() {
 		// dry run, a failed connection, or a raise that rolled back. Those all
 		// return above this line, which is the whole mechanism.
 		const missing = objects.filter((o) => !o.present);
-		const outcome = missing.length || guardMoved ? 'unverified' : 'applied';
+		const outcome =
+			missing.length || guardMoved || historyRecorded === false ? 'unverified' : 'applied';
 		let recordPath = null;
 		try {
 			recordPath = writeAppliedRecord(
@@ -1630,6 +1797,7 @@ async function main() {
 					at: new Date().toISOString(),
 					notices,
 					objects,
+					historyRecorded,
 					exit: outcome
 				},
 				url
@@ -1646,12 +1814,14 @@ async function main() {
 			report.recordError = redact(/** @type {Error} */ (err).message, url);
 		}
 
-		if (missing.length || guardMoved) {
+		if (missing.length || guardMoved || historyRecorded === false) {
 			say('');
 			say(
 				missing.length
 					? `APPLIED, BUT ${missing.length} object(s) this file names are not in the catalog. The transaction committed; something in the file did not create what its text says it does.`
-					: 'APPLIED, but the guard moved.'
+					: guardMoved
+						? 'APPLIED, but the guard moved.'
+						: `APPLIED, but its ${HISTORY_TABLE} row is not there.`
 			);
 			if (opts.json) say(JSON.stringify(report, null, 2));
 			return EXIT.unverified;
