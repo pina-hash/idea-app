@@ -4,7 +4,7 @@
 - By: router chat
 - Owns: `docs/audits/2026-09-13-tournament-dry-run.md`, `docs/prompt-ledger/entries/0202-*`, `docs/history/peaceful-shannon-mwbnrr.md`
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0210 (per `tools/migration-claims.mjs`; next free 0211)
-- Status: issued
+- Status: pushed
 - Branch: claude/peaceful-shannon-mwbnrr
 - Notes: READ-ONLY audit. CHANGES NO SOURCE FILE. Ledgers 0196, 0197, 0200 and
   0201 are in flight; this bundle owns three documentation paths and collides
