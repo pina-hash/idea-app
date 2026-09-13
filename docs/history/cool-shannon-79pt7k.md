@@ -212,7 +212,31 @@ before the run and after it, and the only entries that moved are the five new
   `tests/db/migrations-applied-record.test.ts` fails on the `0210` record's hash,
   identically and with identical digests, on a clean worktree at the branch point.
   **Delta: +2 files, +30 tests, 0 new failures.**
-- **The mutation proofs are in the report** for the run that produced this entry.
+- **Six mutants, four killed, and the two survivors each resolved rather than
+  accepted.** Every file was copied to a buffer first and restored FROM THAT
+  BUFFER with an md5 check, never `git checkout --`; every verdict was read off
+  the summary line, never the exit code.
+  - `M1` the DATABASE teacher gate (`_classroom_manages_item` -> `false`, opened
+    rather than removed, so a non-manager gets through): **KILLED**, 3 failed / 9
+    passed.
+  - `M4` the ROUTE PROP LINE deleted -- valid TypeScript, clean compile, feature
+    gone: **KILLED**, 1 failed / 17 passed. That is the regression this lane
+    exists to make loud.
+  - `M2` the CLIENT `canManage` gate dropped from `canAttachIdeacad`:
+    **SURVIVED**, and it is genuine defence in depth rather than a test gap.
+    Proved pairwise, which is what `CLAUDE.md` requires instead of deleting the
+    redundant check: opening the OUTER layer alone (`{#if canManage &&
+    hasInspector}` -> `{#if hasInspector}`) ALSO survives, and opening BOTH
+    reddens (1 failed / 17 passed). Neither layer is observable while the other
+    still refuses.
+  - `M3` the config guard bypassed (`if (false && !bladeConfigShaped(...))`):
+    **SURVIVED under vitest and KILLED by the browser, 4 of 116 measurements
+    outside threshold.** That is a finding about the TEST rather than about the
+    code, and it is written down here because it would otherwise read as
+    coverage: the source-level assertion pins only that the guard appears BEFORE
+    the call, and a mutant that keeps the guard's text in place keeps that order.
+    The claim that actually matters -- the RPC is never reached -- is behavioural,
+    and the only instrument that can see it is the harness counting calls.
 
 ## For a person to act on
 
