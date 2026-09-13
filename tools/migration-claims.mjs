@@ -165,6 +165,15 @@ export function migrationNumber(filename) {
  *   5. Anything else that permits a migration permits it WITHOUT saying which
  *      number, which is the state that produced every collision this tool
  *      exists for. It is reported as `unspecified` and never silently as none.
+ *
+ * BACKTICKS AROUND A NUMBER ARE STRIPPED BEFORE ANY OF THE ABOVE RUNS. Entry
+ * 0131 reads `` Claims: `0196` ``, and the explicit regex requires the digits
+ * to follow `Claims:` immediately (past only whitespace) -- a backtick in
+ * between made the whole match fail and the entry fall through to
+ * `unspecified`, reported and left unfixed by ledger 0197. Stripping is global
+ * rather than a second optional-backtick clause bolted onto each regex,
+ * because the `TAKEN:` shape already carries one such clause and a second
+ * copy is exactly the kind of duplicate this repository keeps finding drifts.
  */
 /**
  * @param {unknown} rawLine
@@ -173,7 +182,7 @@ export function migrationNumber(filename) {
 export function parsePermitted(rawLine) {
 	const raw = String(rawLine ?? '');
 	const value = raw.replace(/^\s*[-*]?\s*Migration permitted:\s*/i, '');
-	const body = value.replace(/Highest on origin\/main at issue:\s*\d{4}/gi, ' ');
+	const body = value.replace(/Highest on origin\/main at issue:\s*\d{4}/gi, ' ').replace(/`/g, '');
 
 	/**
 	 * @param {number[]} numbers
@@ -212,6 +221,34 @@ export function parsePermitted(rawLine) {
  */
 function uniqueNumbers(list) {
 	return [...new Set((list ?? []).map(Number))].sort((a, b) => a - b);
+}
+
+/**
+ * The text `parsePermitted` actually reads for one entry.
+ *
+ * ORDINARILY this is just the `Migration permitted:` bullet, with `Claims:`
+ * written inline on the same line or folded onto an indented continuation --
+ * both land in `fields['Migration permitted']` because `parseEntry` treats an
+ * indented line as belonging to the bullet above it. Entry 0138 writes
+ * `Claims:` as its OWN bullet instead, one line below `Migration permitted:`
+ * and not indented under it, so `parseEntry` reads it into a SEPARATE
+ * `fields['Claims']` that `parsePermitted` never saw -- reported by ledger
+ * 0197 and left unfixed. The join happens here, not inside `parsePermitted`,
+ * whose own header says its job is reading ONE value; joining two fields is a
+ * decision about ledger SHAPE; and `parsePermitted` never claims a number.
+ *
+ * Only joins when the `Migration permitted` text does not already carry its
+ * own `Claims:` clause, so an entry that already states one inline is read
+ * exactly as before.
+ *
+ * @param {Record<string, string>} fields
+ * @returns {string}
+ */
+function permittedText(fields) {
+	const permitted = fields['Migration permitted'] ?? '';
+	const claims = fields['Claims'];
+	if (claims === undefined || /\bClaims:/i.test(permitted)) return permitted;
+	return `${permitted} Claims: ${claims}`;
 }
 
 /**
@@ -336,7 +373,7 @@ export function classify(inventory) {
 				ref: r.ref,
 				branch: r.branch,
 				status,
-				permitted: parsePermitted(parsed.fields['Migration permitted'])
+				permitted: parsePermitted(permittedText(parsed.fields))
 			};
 			const cur = seen.get(row.id);
 			if (!cur || statusRank(status) > statusRank(cur.status)) seen.set(row.id, row);

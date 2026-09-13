@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "ideacad-shared-role-editor.mjs",
-	"date": "2026-09-13T02:05:42.399Z",
-	"sha": "2be0f35361c1e9f9086646bf6d9531a15cca727f",
+	"date": "2026-09-13T05:55:39.447Z",
+	"sha": "74a9fd753137afe0e6d5e6cc5800b93a284d86a5",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 42,
 	"outsideRows": [],
-	"ms": 5018
+	"ms": 6419
 }

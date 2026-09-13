@@ -130,6 +130,15 @@ export default {
 		/* The PropertyManager is not open on this state, which is what makes the
 		   `footer button` pair below the only confirm pair on screen. */
 		{ selector: '[data-testid="ideacad-property-manager"]', label: 'the PropertyManager, closed', expectPresent: 0 },
+		/* UNDO, REDO AND HISTORY ARE ALL ABSENT HERE, AND THAT IS THE FEATURE
+		   (0196). This state hands no `undoStep`/`redoStep` and no log, which is
+		   a read-only surface or a deployment without 0209 -- absence is the
+		   mechanism, exactly as it is for every other transport in this editor.
+		   The three are measured PRESENT on
+		   `ideacad-role-student-state-history`, so this pair of specs asserts the
+		   gate in both directions rather than either one claiming it alone. */
+		{ selector: 'header .hist', label: 'Undo, Redo and History, absent with no transports and no log', expectPresent: 0 },
+		{ selector: '[data-testid="ideacad-history-toggle"]', label: 'the History toggle, absent with no log', expectPresent: 0 },
 		{ selector: '.viewport nav button', label: 'view toolbar controls', expectPresent: 5, expectVisible: 5 },
 		/* SEVEN, and the last two are decision 26's answer: four rules, the centre
 		   of mass, the rotational inertia and the radius of gyration. The physics
@@ -177,7 +186,15 @@ export default {
 		{ selector: '.viewport nav button', label: 'a view toolbar control' },
 		{ selector: '.tree button', label: 'a FeatureManager row' },
 		{ selector: '.concepts button', label: 'a concept strip control' },
-		{ selector: 'header .hist', label: 'Undo and Redo' },
+		/* UNDO AND REDO ARE NOT MEASURED HERE ANY MORE (0196), AND THAT IS THE
+		   RULE CHANGING RATHER THAN THE CHECK BEING DROPPED. They used to be
+		   unconditional header controls over `ui/undo.ts`'s in-memory stack; they
+		   are transports over 0209's durable log now, so this state -- which hands
+		   none -- correctly has neither, and the entry measured `0 matched`. A
+		   tap-target claim on a control that is absent by design is a finding that
+		   can never be fixed. They are measured on
+		   `ideacad-role-student-state-history`, which is the state that wires them,
+		   and their ABSENCE here is asserted in `presence` below. */
 		{ selector: 'footer button', label: 'Accept and Cancel' }
 	]
 };

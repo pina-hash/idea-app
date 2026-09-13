@@ -351,10 +351,31 @@ describe('the PropertyManager', () => {
 	});
 });
 
-describe('undo and redo, over accepted edits', () => {
-	/** Accept LEAVES the panel open, which is what SolidWorks does -- a student
-	 *  takes several passes at one feature. So the second call finds the panel
-	 *  already there rather than a tree to double-click. */
+describe('undo and redo, which are transports now and not a memory stack', () => {
+	/**
+	 * WHAT THIS BLOCK USED TO ASSERT, AND WHERE IT WENT (0196).
+	 *
+	 * `ui/undo.ts` held fifty accepted trees in memory and this file drove them
+	 * through the editor: an undo restored the previous accepted tree, a new
+	 * edit discarded the redo branch, and loading a concept cleared both sides.
+	 * That stack is RETIRED -- undo and redo append an inverse to 0209's durable
+	 * log, so they survive a reload -- and the assertions moved with the rules:
+	 *
+	 *   what undo and redo point at   `tests/ideacad-history-fold.test.ts`
+	 *   the timeline surface          `tests/dom/ideacad-timeline-mount.test.ts`
+	 *   surviving a reload            `tests/db/ideacad-history-store.test.ts`
+	 *
+	 * TWO OF THE OLD RULES DID NOT CARRY ACROSS, DELIBERATELY, AND SAYING SO
+	 * HERE IS THE POINT OF THIS COMMENT rather than deleting the block quietly.
+	 * There is no DEPTH CAP -- Mr. Pina asked for all the way back to the
+	 * creation of the part -- and A NEW EDIT NO LONGER DISCARDS THE REDO BRANCH,
+	 * because nothing is thrown away, so there is nothing to discard. A future
+	 * session reading the old test and "restoring" either would be undoing
+	 * 0189's central decision.
+	 *
+	 * WHAT STAYS HERE IS KEYSTROKE ROUTING, which is this COMPONENT's job and
+	 * nobody else's: which press reaches the handler at all.
+	 */
 	function acceptedEdit(m: M, count: string) {
 		if (!pmOpen(m)) {
 			rowNamed(m, 'Circular Pattern')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
@@ -366,38 +387,31 @@ describe('undo and redo, over accepted edits', () => {
 		m.flush();
 	}
 
-	it('starts with nothing to undo and nothing to redo', async () => {
-		const m = open();
-		expect(button(m, 'Undo')!.getAttribute('aria-disabled')).toBe('true');
-		expect(button(m, 'Redo')!.getAttribute('aria-disabled')).toBe('true');
-		await m.stop();
-	});
+	/** A log with one live row in it, so the fold offers an undo at all. */
+	const ONE_STEP = [
+		{ seq: 0, kind: 'origin' as const, path: '', before: null, after: structuredClone(DEFAULT_BLADE_TREE) },
+		{ seq: 1, kind: 'set' as const, path: '/rotation', before: 'cw', after: 'ccw' }
+	];
 
-	it('takes one accepted edit back, and forward again', async () => {
-		const m = open();
-		const before = mass(m);
-		acceptedEdit(m, '8');
-		const edited = mass(m);
-		expect(edited).not.toBe(before);
-		expect(button(m, 'Undo')!.getAttribute('aria-disabled')).toBe('false');
-		button(m, 'Undo')!.click();
-		m.flush();
-		expect(mass(m)).toBe(before);
-		button(m, 'Redo')!.click();
-		m.flush();
-		expect(mass(m)).toBe(edited);
-		await m.stop();
-	});
+	function wired() {
+		const calls: string[] = [];
+		const m = open({
+			history: ONE_STEP,
+			undoStep: async () => void calls.push('undo'),
+			redoStep: async () => void calls.push('redo')
+		});
+		return { m, calls };
+	}
 
-	it('answers Ctrl+Z and Ctrl+Y from the keyboard', async () => {
-		const m = open();
-		const before = mass(m);
-		acceptedEdit(m, '8');
-		const edited = mass(m);
+	it('reaches undo from Ctrl+Z and redo from both spellings', async () => {
+		const { m, calls } = wired();
 		press(m, 'z', { ctrlKey: true });
-		expect(mass(m)).toBe(before);
 		press(m, 'y', { ctrlKey: true });
-		expect(mass(m)).toBe(edited);
+		expect(calls).toEqual(['undo']);
+		// Redo is refused because nothing in this log is undone, which is the
+		// fold answering rather than the keystroke failing to arrive: the header
+		// control is there and says so.
+		expect(button(m, 'Redo')!.getAttribute('aria-disabled')).toBe('true');
 		await m.stop();
 	});
 
@@ -406,62 +420,50 @@ describe('undo and redo, over accepted edits', () => {
 		// preventDefault. A keystroke aimed at the graphics area therefore reaches
 		// the console already handled, and undoing as well would zoom AND rewrite
 		// the document on one press.
-		const m = open();
-		const before = mass(m);
-		acceptedEdit(m, '8');
-		const edited = mass(m);
+		const { m, calls } = wired();
 		const claimed = new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true });
 		claimed.preventDefault();
 		document.dispatchEvent(claimed);
 		m.flush();
-		expect(mass(m)).toBe(edited);
+		expect(calls).toEqual([]);
 		// The positive control: the identical keystroke UNCLAIMED does undo.
 		press(m, 'z', { ctrlKey: true });
-		expect(mass(m)).toBe(before);
+		expect(calls).toEqual(['undo']);
 		await m.stop();
 	});
 
 	it('leaves Ctrl+Z to the field while somebody is typing into one', async () => {
-		const m = open();
-		const before = mass(m);
+		const { m, calls } = wired();
 		acceptedEdit(m, '8');
-		const edited = mass(m);
 		const field = m.one<HTMLInputElement>('.pm input[type="number"]');
 		field.focus();
 		press(m, 'z', { ctrlKey: true });
-		expect(mass(m)).toBe(edited);
+		expect(calls).toEqual([]);
 		field.blur();
 		press(m, 'z', { ctrlKey: true });
-		expect(mass(m)).toBe(before);
+		expect(calls).toEqual(['undo']);
 		await m.stop();
 	});
 
-	it('discards the redo branch once a new edit is accepted', async () => {
-		const m = open();
-		acceptedEdit(m, '8');
-		button(m, 'Undo')!.click();
-		m.flush();
-		expect(button(m, 'Redo')!.getAttribute('aria-disabled')).toBe('false');
-		acceptedEdit(m, '6');
-		expect(button(m, 'Redo')!.getAttribute('aria-disabled')).toBe('true');
-		await m.stop();
-	});
-
-	it('does not follow a concept load, so an undo cannot rewrite a document nobody is looking at', async () => {
-		const m = open();
-		acceptedEdit(m, '8');
-		expect(button(m, 'Undo')!.getAttribute('aria-disabled')).toBe('false');
-		m.all<HTMLButtonElement>('.concepts .card')[1].click();
-		m.flush();
-		expect(button(m, 'Undo')!.getAttribute('aria-disabled')).toBe('true');
-		await m.stop();
-	});
-
-	it('is absent for a teacher, because there is nothing read-only to undo', async () => {
-		const m = open({ readOnly: true });
+	it('is absent for a teacher, because reading a history is not writing to one', async () => {
+		// The TIMELINE is still theirs to read; only the two write controls go.
+		const m = open({ readOnly: true, history: ONE_STEP, undoStep: async () => {}, redoStep: async () => {} });
 		expect(button(m, 'Undo')).toBeUndefined();
 		expect(button(m, 'Redo')).toBeUndefined();
+		expect(m.all('[data-testid="ideacad-history-toggle"]')).toHaveLength(1);
 		await m.stop();
+	});
+
+	it('is absent with no transport, which is a deployment that has no action log', async () => {
+		const m = open({ history: ONE_STEP });
+		expect(button(m, 'Undo')).toBeUndefined();
+		expect(button(m, 'Redo')).toBeUndefined();
+		// The positive control: the identical mount WITH the transports has both.
+		const n = open({ history: ONE_STEP, undoStep: async () => {}, redoStep: async () => {} });
+		expect(button(n, 'Undo')).toBeDefined();
+		expect(button(n, 'Redo')).toBeDefined();
+		await m.stop();
+		await n.stop();
 	});
 });
 

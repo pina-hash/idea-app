@@ -225,6 +225,30 @@ export function createIdeacadStore(
 	 * ================================================================== */
 
 	const historyTransports = options.history ?? null;
+	/**
+	 * TURNED OFF BY A `PGRST202` FROM THE FIRST READ, AND BY NOTHING ELSE.
+	 *
+	 * 0209 is applied by hand, so a deployment sitting between 0208 and it is a
+	 * real state -- and until this rung existed, the store on such a deployment
+	 * would have rejected `open()` outright, because `loadHistory` is the first
+	 * thing that runs after a document opens. A whole editor removed by a
+	 * missing migration is the failure this repo's select ladders exist to
+	 * prevent, and the ladder here is one rung: read the log, and if the
+	 * FUNCTION IS NOT THERE, publish `historyReady: false` and carry on saving
+	 * through `ideacad_save_concept` exactly as 0208 did.
+	 *
+	 * `PGRST202` ALONE, which is this repo's rule and matters here: a caller who
+	 * may not read a part raises `That part is not one you can open.` from
+	 * inside a function that DOES exist, and reading that as "not deployed"
+	 * would turn a refusal into a silently missing feature.
+	 *
+	 * IT IS THE NARROWEST POSSIBLE PROBE because it is a call the feature makes
+	 * anyway -- no round trip is spent asking, unlike 0205's sharing probe.
+	 */
+	let historyOff = false;
+	const historyOn = () => historyTransports !== null && !historyOff;
+	const notDeployed = (error: unknown): boolean =>
+		!!error && typeof error === 'object' && (error as { code?: string }).code === 'PGRST202';
 	/** Actions accumulated since the last write, in the order they happened. */
 	let pending: (IdeacadAction & { undoesSeq?: number })[] = [];
 	/** The last tree the log accounts for. Every diff is taken against this. */
@@ -252,12 +276,21 @@ export function createIdeacadStore(
 	 * at the wrong row.
 	 */
 	const loadHistory = async (conceptId: string | null) => {
-		if (!historyTransports || !conceptId) {
+		if (!historyOn() || !conceptId) {
 			historyRows = [];
 			publishFold();
 			return;
 		}
-		historyRows = await readWholeHistory(historyTransports, conceptId);
+		try {
+			historyRows = await readWholeHistory(historyTransports!, conceptId);
+		} catch (error) {
+			if (!notDeployed(error)) throw error;
+			// The rung. Everything below this line is 0208's behaviour.
+			historyOff = true;
+			historyRows = [];
+			pending = [];
+			publish({ historyReady: false });
+		}
 		publishFold();
 	};
 
@@ -403,12 +436,12 @@ export function createIdeacadStore(
 		// Captured BEFORE the await, so edits made during the write queue up
 		// behind this batch instead of being sent twice or dropped.
 		const sentActions = pending;
-		if (historyTransports) pending = [];
+		if (historyOn()) pending = [];
 		publish({ phase: 'saving', error: null });
 		inFlight = (async () => {
 			try {
-				const result = historyTransports
-					? await historyTransports.applyActions(
+				const result = historyOn()
+					? await historyTransports!.applyActions(
 							active.id,
 							sentActions,
 							sentFeatures,
@@ -420,7 +453,7 @@ export function createIdeacadStore(
 					// nothing at all -- the RPC returns before it appends -- so
 					// dropping them here would leave the tree ahead of the log
 					// with nothing to say so.
-					if (historyTransports) pending = [...sentActions, ...pending];
+					if (historyOn()) pending = [...sentActions, ...pending];
 					// THE LOCAL ROW IS INTENTIONALLY UNTOUCHED. The server row is
 					// exposed beside it for an explicit future resolution surface.
 					publish({
@@ -430,7 +463,7 @@ export function createIdeacadStore(
 					});
 					return;
 				}
-				if (historyTransports && 'firstSeq' in result && result.firstSeq !== null) {
+				if (historyOn() && 'firstSeq' in result && result.firstSeq !== null) {
 					const newest = historyRows.length ? historyRows[historyRows.length - 1].seq : -1;
 					if (result.firstSeq === newest + 1) {
 						// Ours are the only rows since we last looked, so the
@@ -525,7 +558,13 @@ export function createIdeacadStore(
 		// `step` rather than `undo` and `redo` separately is what keeps that one
 		// rule in one place.
 		refuseWrite();
-		if (!historyTransports) throw new Error('This deployment has no IdeaCAD history.');
+		// AND `historyOn()` RATHER THAN A BARE `historyTransports` NULL TEST, which
+		// is the same question asked one rung short: it is
+		// `historyTransports !== null && !historyOff`, so it also honours the
+		// `PGRST202` ladder that turns this region off on a deployment sitting
+		// between 0208 and 0209. Testing the transports alone would send an undo
+		// to an RPC this deployment has already been told does not exist.
+		if (!historyOn()) throw new Error('This deployment has no IdeaCAD history.');
 		const activeId = current.activeConceptId;
 		const active = activeId ? concept(activeId) : undefined;
 		if (!active) throw new Error('Open an IdeaCAD document before undoing.');
@@ -552,7 +591,7 @@ export function createIdeacadStore(
 		const revision = Math.max(active.revision, dirtyRevision ?? 0) + 1;
 		publish({ phase: 'saving', error: null });
 		try {
-			const result = await historyTransports.applyActions(activeId!, [action], next, revision);
+			const result = await historyTransports!.applyActions(activeId!, [action], next, revision);
 			if (!result.ok) {
 				publish({
 					phase: 'conflict',
@@ -682,7 +721,7 @@ export function createIdeacadStore(
 			if (!active) throw new Error('Open an IdeaCAD document before editing.');
 			const revision = Math.max(active.revision, dirtyRevision ?? 0) + 1;
 			dirtyRevision = revision;
-			if (historyTransports) {
+			if (historyOn()) {
 				// The diff is taken against the last tree the LOG accounts for,
 				// never against the concept row: several edits can queue behind
 				// one write, and diffing against the row would re-record every
@@ -796,7 +835,7 @@ export function createIdeacadStore(
 			await step('redo');
 		},
 		stateAtSeq(seq) {
-			if (!historyTransports || historyRows.length === 0) return null;
+			if (!historyOn() || historyRows.length === 0) return null;
 			return stateAt(historyRows, seq);
 		},
 		async refreshHistory() {

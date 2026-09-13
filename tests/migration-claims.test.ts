@@ -53,29 +53,34 @@ const LEDGER_DIR = fileURLToPath(new URL('../docs/prompt-ledger/entries', import
 type LedgerBlob = { file: string; text: string };
 type FixtureBranch = { branch: string; migrations?: string[]; entries?: LedgerBlob[] };
 
-/** A ledger entry in the shape a real one is written in. */
+/**
+ * A ledger entry in the shape a real one is written in.
+ *
+ * `claims`, when given, writes `Claims:` as its OWN bullet below `Migration
+ * permitted:` -- entry 0138's shape -- rather than folded into the
+ * `permitted` string the way every other fixture in this file writes it.
+ */
 function entry({
 	id,
 	status = 'issued',
-	permitted = 'no.'
+	permitted = 'no.',
+	claims
 }: {
 	id: string;
 	status?: string;
 	permitted?: string;
+	claims?: string;
 }): LedgerBlob {
-	return {
-		file: `${id}-fixture.md`,
-		text: [
-			`# ${id} A fixture entry`,
-			'- Issued: 2026-09-06',
-			'- By: a test',
-			'- Owns: nothing',
-			`- Migration permitted: ${permitted}`,
-			`- Status: ${status}`,
-			'- Branch: assigned by the harness',
-			'- Notes: none'
-		].join('\n')
-	};
+	const lines = [
+		`# ${id} A fixture entry`,
+		'- Issued: 2026-09-06',
+		'- By: a test',
+		'- Owns: nothing',
+		`- Migration permitted: ${permitted}`
+	];
+	if (claims !== undefined) lines.push(`- Claims: ${claims}`);
+	lines.push(`- Status: ${status}`, '- Branch: assigned by the harness', '- Notes: none');
+	return { file: `${id}-fixture.md`, text: lines.join('\n') };
 }
 
 function inventory({
@@ -190,6 +195,22 @@ describe('parsePermitted', () => {
 		expect(parsePermitted('- Migration permitted: yes, two. Claims: 0190, 0191.').numbers).toEqual([190, 191]);
 	});
 
+	it('reads a Claims number wrapped in backticks (entry 0131, reported by ledger 0197 as unfixed)', () => {
+		// The exact shape: `- Migration permitted: exactly one. Claims:
+		// \`0196\`. NOT APPLIED -- this container cannot reach the production
+		// database.` The backtick sat between `Claims:` and the digits and
+		// broke the explicit regex outright, so the entry fell through every
+		// later branch (no comma follows "one.", so the intent shape does not
+		// catch it either) and read as `unspecified` -- a claim the parser
+		// could see was named and reported as though none had been.
+		const p = parsePermitted(
+			'- Migration permitted: exactly one. Claims: `0196`. NOT APPLIED -- this container cannot reach the production database.'
+		);
+		expect(p.numbers).toEqual([196]);
+		expect(p.resolution).toBe('declared');
+		expect(p.permits).toBe(true);
+	});
+
 	it('reports a permission that names no number as unspecified, never as none', () => {
 		// The distinction is the whole point: "no migration" and "a migration
 		// whose number nobody has stated" are different risks, and folding the
@@ -254,6 +275,47 @@ describe('classify', () => {
 		expect(r.landed.filter((l) => l.number === 185)).toHaveLength(1);
 		expect(r.next).toBe(186);
 		expect(r.contested).toEqual([]);
+	});
+
+	it('reads a Claims: bullet written SEPARATELY from Migration permitted (entry 0138, reported by ledger 0197 as unfixed)', () => {
+		// 0138 writes:
+		//   - Migration permitted: exactly one.
+		//   - Claims: 0197.
+		// as two bullets, not one folded onto the other. `parseEntry` reads
+		// those into two distinct fields, and the old call site handed
+		// `classify()` only `fields['Migration permitted']` -- "exactly one."
+		// alone has no comma and no `Claims:` clause, so it read as
+		// `unspecified` and the claim on 0197 was invisible to the report.
+		const ownBullet = classify(
+			inventory({
+				landedFiles: LANDED_0001_TO_0185,
+				branches: [
+					{
+						branch: 'claude/example-own-bullet',
+						entries: [entry({ id: '0090', permitted: 'exactly one.', claims: '0197.' })]
+					}
+				]
+			})
+		);
+		expect(ownBullet.claimed.map((c) => c.number)).toEqual([197]);
+		expect(ownBullet.unspecified).toEqual([]);
+
+		// CONTROL: the ordinary shape, `Claims:` folded inline, must keep
+		// reading exactly as it always has -- the join must not fire when the
+		// clause is already there.
+		const inline = classify(
+			inventory({
+				landedFiles: LANDED_0001_TO_0185,
+				branches: [
+					{
+						branch: 'claude/example-inline',
+						entries: [entry({ id: '0090', permitted: 'yes, exactly one. Claims: 0186.' })]
+					}
+				]
+			})
+		);
+		expect(inline.claimed.map((c) => c.number)).toEqual([186]);
+		expect(inline.unspecified).toEqual([]);
 	});
 
 	it('a migration FILE on a branch is a claim, with or without a ledger line', () => {

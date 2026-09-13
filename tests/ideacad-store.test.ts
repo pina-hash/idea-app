@@ -95,3 +95,96 @@ describe('IdeaCAD document store autosave', () => {
 		expect(failed.state.concepts[0].features).toEqual({ still: 'mine' });
 	});
 });
+
+/**
+ * ==========================================================================
+ * THE HISTORY LADDER (0196), WHICH IS THE RUNG THAT KEEPS A PRE-0209
+ * DEPLOYMENT'S EDITOR ON SCREEN
+ * ==========================================================================
+ *
+ * 0209 is applied by hand, so a tree sitting between 0208 and it is a real
+ * state -- and `loadHistory` is the FIRST thing that runs after a document
+ * opens, so without this rung `open()` would reject outright and the whole
+ * editor would be replaced by a refusal sentence. That failure is loud, but the
+ * OTHER direction is silent and is what these assert in both: a rung that
+ * swallowed every error would read a genuine refusal ("That part is not one you
+ * can open") as "the migration is not applied" and remove the feature with
+ * nothing anywhere saying so.
+ *
+ * `PGRST202` ALONE, which is this repo's rule everywhere a client degrades past
+ * a missing RPC.
+ */
+const historyRows = [
+	{ seq: 0, kind: 'origin' as const, path: '', before: null, after: { value: 0 } },
+	{ seq: 1, kind: 'set' as const, path: '/value', before: 0, after: 7 }
+];
+
+const notDeployedError = () => Object.assign(new Error('Could not find the function'), { code: 'PGRST202' });
+
+describe('the history ladder', () => {
+	it('turns history OFF on PGRST202 and keeps the document openable', async () => {
+		const save = vi.fn(async (_id: string, features: unknown, revision: number) => ({
+			ok: true as const, concept: row(features, revision)
+		}));
+		const store = createIdeacadStore(transport(save), {
+			debounceMs: 0,
+			history: {
+				applyActions: vi.fn(),
+				conceptHistory: vi.fn(async () => {
+					throw notDeployedError();
+				})
+			}
+		});
+		// The whole point: this RESOLVES rather than rejecting.
+		await store.open('item-1');
+		expect(store.state.historyReady).toBe(false);
+		expect(store.state.history).toEqual([]);
+		expect(store.state.canUndo).toBe(false);
+		// And every write goes through `ideacad_save_concept` exactly as 0208 did.
+		store.edit({ value: 1 });
+		await store.save();
+		expect(save).toHaveBeenCalledTimes(1);
+	});
+
+	it('lets a REAL refusal through rather than reading it as a missing migration', async () => {
+		const store = createIdeacadStore(transport(vi.fn()), {
+			debounceMs: 0,
+			history: {
+				applyActions: vi.fn(),
+				conceptHistory: vi.fn(async () => {
+					// A function that EXISTS and said no. Reading this as "not
+					// deployed" would turn a refusal into a silently absent feature.
+					throw Object.assign(new Error('That part is not one you can open.'), { code: '42501' });
+				})
+			}
+		});
+		await expect(store.open('item-1')).rejects.toThrow('That part is not one you can open.');
+	});
+
+	it('keeps history ON, and writes through applyActions, when the RPCs are there', async () => {
+		const save = vi.fn();
+		const applyActions = vi.fn(async (_id: string, _actions: unknown, features: unknown, revision: number) => ({
+			ok: true as const, concept: row(features, revision), appended: 1, firstSeq: 2, lastSeq: 2
+		}));
+		const store = createIdeacadStore(transport(save), {
+			debounceMs: 0,
+			history: {
+				applyActions,
+				conceptHistory: vi.fn(async () => ({
+					conceptId: 'concept-1', rows: historyRows, total: 2, newestSeq: 1
+				}))
+			}
+		});
+		await store.open('item-1');
+		expect(store.state.historyReady).toBe(true);
+		expect(store.state.history).toHaveLength(2);
+		expect(store.state.canUndo).toBe(true);
+		store.edit({ value: 1 });
+		await store.save();
+		// THE POSITIVE CONTROL FOR THE TEST ABOVE: with the RPCs present the
+		// write goes through `applyActions` and `saveConcept` is never called, so
+		// the ladder's off-state is genuinely a different path.
+		expect(applyActions).toHaveBeenCalledTimes(1);
+		expect(save).not.toHaveBeenCalled();
+	});
+});
