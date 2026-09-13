@@ -183,7 +183,7 @@ const MIGRATION_0206 = '0206_ideacad_grant_guard.sql';
  */
 interface IdeacadFn {
 	readonly kind: 'client' | 'definer';
-	readonly migration: '0201' | '0205' | '0207' | '0208' | '0209';
+	readonly migration: '0201' | '0205' | '0207' | '0208' | '0209' | '0211';
 	readonly reason: string;
 }
 
@@ -192,6 +192,19 @@ const RPC_0205 = 'A sharing RPC. 0205 created it and revoked it from `public, an
 const POLICY_PREDICATE =
 	'A 0205 predicate NAMED INSIDE AN RLS `using` CLAUSE, so it is evaluated as the querying role and ' +
 	'must hold the grant. Revoking it does not narrow the read, it breaks it outright.';
+const REALTIME_POLICY_0211 =
+	'NAMED INSIDE AN RLS POLICY ON `realtime.messages` (0211), which is evaluated as the QUERYING ' +
+	'role -- so `client` here means an RLS policy names it, not that PostgREST calls it. Without the ' +
+	'`authenticated` grant every private IdeaCAD channel join fails with "permission denied for ' +
+	'function" instead of being refused, which is the 0070 lesson one more time. These two exist AS ' +
+	'WRAPPERS precisely so the policy does not have to name `_classroom_manages_item` or ' +
+	'`_ideacad_can_write_document`, neither of which is granted to `authenticated` and both of which ' +
+	'would have had to be widened to be named in a policy directly.';
+const REALTIME_PARSER_0211 =
+	'0211\'s topic parser, reached ONLY from the two wrappers above, as the owner. It turns a channel ' +
+	'name into a uuid and returns NULL for anything that is not an IdeaCAD topic; it never raises, ' +
+	'because a policy expression that throws errors a join rather than denying it. No client role ' +
+	'needs it, so no client role has it.';
 const DEFINER_ONLY =
 	'A 0205 predicate reached ONLY from a SECURITY DEFINER body. No policy names it and no client calls ' +
 	'it, so it holds no client grant at all -- which is exactly what 0202 could not express and what ' +
@@ -265,7 +278,12 @@ const IDEACAD_FUNCTIONS: Readonly<Record<string, IdeacadFn>> = {
 	// --- 0209's action log: two RPCs and one trigger function. ---
 	ideacad_apply_actions: { kind: 'client', migration: '0209', reason: RPC_0209 },
 	ideacad_concept_history: { kind: 'client', migration: '0209', reason: RPC_0209 },
-	_ideacad_history_origin: { kind: 'definer', migration: '0209', reason: TRIGGER_ONLY_0209 }
+	_ideacad_history_origin: { kind: 'definer', migration: '0209', reason: TRIGGER_ONLY_0209 },
+
+	// --- 0211's realtime authorization: two policy predicates and one parser. ---
+	_ideacad_realtime_can_read: { kind: 'client', migration: '0211', reason: REALTIME_POLICY_0211 },
+	_ideacad_realtime_can_send: { kind: 'client', migration: '0211', reason: REALTIME_POLICY_0211 },
+	_ideacad_realtime_topic_id: { kind: 'definer', migration: '0211', reason: REALTIME_PARSER_0211 }
 };
 
 /**
