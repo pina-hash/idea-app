@@ -209,3 +209,42 @@ safe as a blanket ban because no other word on this panel carries one -- and
   different things and a student needs neither distinction; the stored value is
   kept verbatim on the actor so a future surface can tell them apart without a
   second pass over the log.
+
+## What `CLAUDE.md` will want, when a bundle that owns it lands
+
+Not written there: `CLAUDE.md` is not in this bundle's ownership and is the
+repo's highest-collision file. **0196's proposed paragraph is still unpasted and
+is still wanted** -- it is in `docs/history/gracious-hopper-a46lec.md` under this
+same heading, and 0189 left one before it for the same reason. This bundle adds
+a second paragraph to go beside it:
+
+> **THE TIMELINE SAYS WHO, AND `actor` IS AN EMAIL SO THE SURFACE NEVER PRINTS
+> IT (0211, decision 27).** Mr. Pina, 2026-09-13: a shared editor gets full
+> history and undo, and every entry is attributed per person the way Google Docs
+> does it. `timelineActors` in `ui/timeline.ts` is the ONE namer and it is a pass
+> over the WHOLE log rather than a per-row function, because one of its rules
+> cannot be decided from a row. **THE READER'S OWN ROWS SAY "You"**, which is the
+> legibility win the decision is actually about -- in a two-author history the
+> first question is which rows are mine -- and a classmate is **THE LOCAL PART OF
+> THEIR ADDRESS, PRINTED VERBATIM AND NEVER TITLE-CASED**, because turning
+> `alejandro.pina` into "Alejandro Pina" invents a person's name formatting from
+> a string that is not one and is wrong the first time it meets `jdoe2`. **TWO
+> ADDRESSES SHARING A LOCAL PART BOTH FALL BACK TO THE FULL ADDRESS** -- this
+> school issues `@boscotech.edu` to staff and `@boscotech.net` to students off
+> one name, and two people under one name is WORSE than the raw address because
+> it is wrong rather than merely unreadable -- and **THE READER'S OWN ADDRESS IS
+> COUNTED INTO THAT COLLISION SET** even though they render as "You", or their
+> own shortened name appears on somebody else's edits. **A NON-PERSON IS NEVER
+> NAMED AS A CLASSMATE**: `0209` writes `system` for a definer path with no
+> session and `migration:0209` for its own backfill, and that backfill
+> deliberately does not claim a student created the part, so both read `system`.
+> **THERE IS NO NAME TO LOOK UP AND THAT IS NOT AN OVERSIGHT** -- every IdeaCAD
+> identity is email-keyed and the uuid/email bridge is closed to
+> `authenticated` -- so a roster name here is a migration AND a disclosure
+> decision, not a rendering change. **THE INK RANKS THE NAMES AND THE WORD
+> CARRIES THEM**: a classmate steps up to `--text-1` and "You" sits at
+> `--text-2`, because on a part worked on alone every row is yours and eight
+> emphasised "You"s hide the one row somebody else touched; colour is never the
+> only signal, since every row prints a name either way. **NO MIGRATION WAS
+> NEEDED**: `0209` already declares `actor text not null` and
+> `ideacad_concept_history` already projects it.
