@@ -555,19 +555,34 @@
 	/*
 		A CONTROL THAT REFUSES STILL LOOKS LIKE A CONTROL, because it is one: it
 		takes focus, it answers a click, and its `title` says why the answer is
-		no. What changes is only that it reads as unavailable -- dimmed and with
-		the pointer that says "not here" -- which is the whole difference between
+		no. What changes is that it reads as unavailable -- a dashed edge, and the
+		pointer that says "not here" -- which is the whole difference between
 		`aria-disabled` and `disabled` made visible. `:hover` above is already
 		scoped `:not(:disabled)`; this adds the aria case so the hover lift does
 		not promise something the handler will decline.
+
+		THE LABEL DOES NOT DIM, AND THAT IS A MEASUREMENT RATHER THAN A
+		PREFERENCE. It was `--text-3` first, which on the notebook's default plate
+		is `--nb-ink-faint` and measured **2.95:1** on the toolbar's own ground at
+		1440 against the 6.84:1 of its enabled neighbour -- and this is a control
+		whose entire job in that state is to be READ, because the refusal it is
+		giving is one a student has to understand to get past. Dimming below the
+		text floor to say "unavailable" is the `--dim`-on-`--bg1` mistake in
+		miniature: it spends legibility on a signal that has three other carriers
+		(`aria-disabled` for assistive tech, the `title` for the reason, the
+		cursor for the pointer). So the tone is the tone every other control in
+		this toolbar has, and the DASHED EDGE is the visual difference -- a shape,
+		not a colour, which is also this codebase's own rule about colour never
+		being the only signal.
 	*/
 	.note-toolbar button[aria-disabled='true'] {
-		color: var(--text-3);
+		border-style: dashed;
+		border-color: var(--boundary);
 		cursor: not-allowed;
 	}
 	.note-toolbar button[aria-disabled='true']:hover {
-		border-color: transparent;
-		color: var(--text-3);
+		border-color: var(--boundary);
+		color: var(--text-2);
 	}
 	/* Gold marks the active state, the notebook's one accent thread. */
 	.note-toolbar button.on {

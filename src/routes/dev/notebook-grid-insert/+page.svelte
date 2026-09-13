@@ -109,7 +109,7 @@
 		</p>
 	</header>
 
-	<section>
+	<section data-testid="mount-empty">
 		<h2>1. An empty note</h2>
 		<p class="lead">
 			The path a student takes first. The inserted grid has nothing in it, so it says what that
@@ -121,7 +121,7 @@
 		</p>
 	</section>
 
-	<section>
+	<section data-testid="mount-problems">
 		<h2>2. The four refusals</h2>
 		<p class="lead">
 			A cycle, a division by zero, a formula that does not parse, and a function this engine does
@@ -137,7 +137,7 @@
 		</p>
 	</section>
 
-	<section>
+	<section data-testid="mount-stored">
 		<h2>3. The stored shape, read-only</h2>
 		<p class="lead">
 			<code>NoteContent</code>, which is what the feed and the review console mount. The same

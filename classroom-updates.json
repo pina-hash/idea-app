@@ -33,6 +33,14 @@
 	],
 	"entries": [
 		{
+			"date": "2026-09-13",
+			"title": "You can put a spreadsheet grid in a notebook note",
+			"body": "There is a new Grid button in the note toolbar, next to Link. Press it and a small table appears where your cursor is; use Add row and Add column to make it the size you need. Type numbers or labels straight into a cell, or start a cell with = to work something out: =B2*C2 multiplies two cells, =SUM(D2:D4) adds up a range, and AVERAGE, MIN, MAX, COUNT, ROUND, ABS and IF all work too. The cell shows the answer and the formula reappears when you click into it, so you can always fix it. If something is wrong, the grid tells you underneath in a sentence rather than leaving you with a code: which cell, and what it needs. VLOOKUP is not available, and a cell that asks for it will say so. Undo works the way it does everywhere else in a note, so Ctrl+Z steps back through your cells and your writing in the order you did them. One thing to know: a grid with nothing typed in it does not count as writing, so a note that is only an empty grid cannot be saved. The grid says so while it is still empty.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
 			"date": "2026-09-12",
 			"title": "The Foundry opens on the most played apps, and every app now shows its numbers",
 			"body": "The gallery used to open on whatever was published most recently. It now opens on the most played apps, so the work people are actually using is what you see first. You can still switch to Recent or to Played this week, and a gallery where nothing has been played yet is in exactly the order it always was. Open any app and you will also see how many times it has been played, how many different people have played it, how long in total, and when it was last opened. If you have played it yourself, your own time with it sits underneath, and only you can see that row. Nobody, staff included, can see which students played an app. All of these counts only include plays inside the Foundry, so opening an app from its own share link is not counted and the real number is higher.",
