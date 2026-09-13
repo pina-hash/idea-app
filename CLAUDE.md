@@ -2943,10 +2943,44 @@ inside the function fails closed rather than falling through to a weaker path.
       `DRAFT_MIRROR_MAX_AGE_MS` is 24 hours. Past it a slot is abandoned work
       rather than lost work, and the window it bounds is how long unsaved
       typing sits in plain `localStorage` on a shared school device -- not how
-      long somebody might want their draft back. A stored SHAPE VERSION older
-      or unknown is DROPPED rather than coerced, for the same reason a
-      preference read drops an unrecognised value: a mirror that half-restores
-      is worse than one that admits it cannot.
+      long somebody might want their draft back. An UNKNOWN stored shape version
+      is DROPPED rather than coerced, for the same reason a preference read
+      drops an unrecognised value: a mirror that half-restores is worse than one
+      that admits it cannot. A KNOWN OLDER ONE IS READ, and this line said
+      "older or unknown" until 2026-09-13 -- a slot written twenty minutes
+      before a deploy is still somebody's unsaved writing, and dropping it for
+      being one version behind is the loss the mechanism exists to prevent.
+    - **AND THE SHAPE VERSION WAS NEVER THE GUARANTEE IT READ AS. A MIRROR
+      REFUSES A DOCUMENT THIS BUILD CANNOT RENDER, AND HOLDS IT RATHER THAN
+      DROPPING OR STRIPPING IT.** The version covers the mirror's own FIELD SET;
+      the document is stored and handed back OPAQUELY, so one naming a node the
+      running editor has never heard of passes every check and reaches Tiptap
+      intact. **Tiptap does not throw on that. It catches the `RangeError`,
+      logs it, and DISCARDS THE WHOLE DOCUMENT** -- prose sitting before the
+      offending block included -- so the restored draft is one empty paragraph
+      and nothing anywhere reports it. Measured for an unknown BLOCK, an unknown
+      INLINE node and an unknown MARK alike; only an unrecognised attr on a
+      known node is harmless. So `unknownTypes` checks the document against
+      `NOTE_MIRROR_VOCABULARY`, which is pinned against the editor's real
+      `getSchema` in both directions, and `planMirrorRestore` answers `hold`.
+      - **HOLD, NEVER DROP AND NEVER STRIP, and both alternatives lose the
+        writing.** Dropping is total loss of the only copy. Stripping to the
+        blocks it understands destroys the rest about four hundred
+        milliseconds later, because the restored box IS what the composer
+        mirrors next -- and it restates `rich-text-normalize`'s whitelist drop
+        on the READ path. Holding keeps every byte where it is, so a rollback
+        rolled forward restores it whole. **Every write path steers around a
+        held key** -- the acknowledgement sweep, the debounced write and
+        `writeMirror`'s own quota sweep, which is told what not to eat. The age
+        cap still bounds it: exposure outranks holding.
+      - **`mirrorVersionFor` DERIVES THE VERSION FROM THE DOCUMENT, and a
+        literal at the call site is what shipped the defect.** `V1_MIRROR_VOCABULARY`
+        is FROZEN and `NOTE_MIRROR_VOCABULARY` moves, so the bump arms itself
+        when the two diverge: a bundle that wires a node into the editor adds
+        one name and nothing else has to remember. Bumping unconditionally is
+        the wrong answer -- it makes every ordinary draft unreadable to the
+        build currently running. **The bump only helps builds that already know
+        to look, which is why it is the smaller half of this rule.**
     - **THIS IS A PATTERN A SECOND SURFACE MAY RE-IMPLEMENT, WHICH IS THE ONE
       PLACE "DO NOT DUPLICATE A RULE" IS ANSWERED WITH A COPY.**
       `$lib/maps/shelf-mirror.ts` is the second one -- the shelf card, on a
@@ -2956,11 +2990,20 @@ inside the function fails closed rather than falling through to a weaker path.
       type-parameter shape would mean editing somebody else's surface from a
       maps bundle to remove a duplication smaller than the change. **So a
       third mirror is a third module, not a third caller** -- and it owes all
-      seven properties: one namespaced prefix, a key per viewer and per
-      record, a dropped-not-coerced shape version, the age cap, a quota answer
+      EIGHT properties: one namespaced prefix, a key per viewer and per
+      record, a dropped-not-coerced shape version, a refusal to hand back a
+      document this build cannot render, the age cap, a quota answer
       that sweeps other slots and retries, a refusal reported rather than
       thrown, and a written statement of what it cannot hold (a `File` handle
       is memory, and the surface says so while the picture is still staged).
+      **The fourth is the one added late, and it binds only a mirror whose
+      payload is SCHEMA-BOUND** -- handed back to something that validates it
+      and can refuse. Today exactly one of the three is: `ResponseValue` is
+      strings and booleans and `MapsShelfDraft` is plain fields, so neither
+      sibling carries this hole and neither needs the check. A mirror that
+      starts carrying a document acquires it that day, and the reason it is on
+      this list rather than in the notebook's own file is that nothing warned
+      the first time.
   - **Pending work is FLUSHED before a navigation, and only a flush that cannot
     land raises a question.** The correct answer to "you have unsaved work" is
     "then save it"; a confirm on every move is a confirm nobody reads.
