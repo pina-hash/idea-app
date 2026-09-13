@@ -6,7 +6,7 @@
   `docs/prompt-ledger/entries/0210-*`, and its own `docs/history/` entry. NO OTHER
   FILE.
 - Migration permitted: no. **Claims: none.**
-- Status: issued
+- Status: pushed
 - Branch: `claude/confident-cannon-ljdhfe`, branched from `origin/integration` at
   `34a44f2d`.
 - Notes: Standards-only, one rule, written into the section of
@@ -60,3 +60,25 @@
   `origin/integration` holds `0209`, `0210` and `0211` and does not hold `0212`, so
   the permitted ceiling is not exceeded and there is nothing to stop. This bundle
   pushes its branch and stops there.
+
+  **The suite is GREEN off `integration` at branch time (`34a44f2d`): 457 test files,
+  8673 tests, 0 failed**, read off the summary line and not the exit code. The one
+  pre-existing failure this prompt warned about is CLOSED --
+  `tests/db/migrations-applied-record.test.ts` passes, because ledger `0204`'s
+  `docs/migrations-applied/0211-lucid-dirac-8b6m2f.md` is on `integration`.
+  `svelte-check` is at the stated baseline, 0 errors and 37 warnings in 20 files,
+  31/5/1, with the two `$env/static/public` placeholders exported before the sync. That
+  run overlapped this branch's own edits, so the three test files that read `docs/` were
+  re-run afterwards on the FINAL tree (3 files, 71 tests, all passing) and again at
+  `origin/integration` in a clean `git worktree` (3 files, 71 tests, all passing), which
+  is the same reading in both places. No browser pass, by instruction; nothing under
+  `src/` moved. The checkout is NOT shallow -- `git fetch --unshallow origin` succeeded,
+  `origin/main` carries 2381 commits -- and the committer identity is
+  `Claude <noreply@anthropic.com>`.
+
+  **Production serves `IDEA Portal v1.1514`**, read at 05:40 UTC on 2026-09-13, while
+  `origin/main` is at `ee4a1c42` (2026-09-13 02:01 UTC) and `origin/integration` is 26
+  commits ahead of that. Ledger `0205` read the same string at 05:01 UTC and traced it to
+  ledger `0188`'s merge at deploy sha `247dfc4` on 2026-09-12; it has not moved since, so
+  rule 41's own failure is still live and was measured twice, forty minutes apart, by two
+  lanes.
