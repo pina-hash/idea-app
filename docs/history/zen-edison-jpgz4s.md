@@ -218,3 +218,58 @@ because this bundle touches no mounted surface -- there is no file under `src/`.
   `docs/decisions/entries/21-*` only. The new `[0] DECIDED, BUILD OPEN` block prints
   a standing warning that a Build line is a dated claim about the tree, which is the
   general form of this.
+
+## The merge to `main` was NOT taken, and the reason is ownership rather than a red gate
+
+This bundle carried no migration, so its prompt granted the merge of `integration` into
+`main` against decision 16's six-item checklist. **It was not taken.** Every gate is
+reported below because a checklist reported only when it passes is not a checklist, but
+the stop came from the range read rather than from any of them.
+
+**Ledger 0200 owns the merge of `integration` into `main`** -- in those words, on its own
+`Owns:` line -- **and performed it at 02:01 UTC, three minutes before this lane reached
+the same step.** `main` moved from `85543209` to `ee4a1c42`. An earlier read in this
+session saw `85543209` and an empty `## Outcome` on 0200's entry and nearly concluded that
+lane had finished without landing; **it had not finished, and a stale local ref plus an
+unwritten outcome section is exactly what an in-flight landing looks like from outside.**
+The correct read was `git fetch` immediately before deciding, which is the same rule 0200's
+own notes give about the migration range and for the same reason.
+
+**And landing again immediately would break 0200's own rule, which is the sharper half.**
+That lane merged `b06597f1` -- the sha a green CI run names -- and wrote down why:
+"anything `integrate.yml` merged afterwards belongs to the next landing rather than riding
+in unverified." **This bundle is exactly that afterwards.** `integrate.yml` swept
+`claude/zen-edison-jpgz4s` into `integration` as `16a2b5f8` and deleted the branch, which
+is the ledger-status gate working as designed and not a leftover; the sweep landed after
+0200's tested sha, so this work is in `integration` and NOT in `main`. A second landing
+minutes behind the first, of a tree no green run names, is the thing that rule forbids.
+
+**The six gates as measured, at 02:0x UTC on 2026-09-13:**
+
+| gate | command | answer |
+| --- | --- | --- |
+| `main` is an ancestor of `integration` | `git merge-base --is-ancestor origin/main origin/integration` | YES |
+| CI green on the tip | run `34731547636` aggregator log, `ref tested: 304399e7...` | `check`/`test`/`vanguard-changelog`/`history-verify` all `success` |
+| the merge is clean | `git merge-tree --write-tree origin/main origin/integration` | CLEAN, no conflicts |
+| `deploy-probe` exits 0 | `node tools/deploy-probe.mjs --since 209` | **exit 1**, `DEPLOY_PROBE_URL is not set` -- CANNOT SAY, never a pass |
+| every migration this bundle added is APPLIED | -- | this bundle added none |
+| every new ledger entry reads `Status: pushed` | read from `origin/integration` | all seven, plus this one |
+
+The three no session can establish are unchanged: whether students are in class (it is
+Saturday 18:51 Pacific, which is a judgement and not a timetable), whether the Vercel
+preview renders, and whether a migration's effect on real data was intended.
+
+**The CI read follows 0200's warning rather than the run conclusion.** `ci.yml` marks its
+four real steps `continue-on-error`, so a step-level read from the jobs API reports
+`success` for a failing suite. The truthful values are the four the aggregator echoes, and
+the tree they speak for is its `ref tested:` line and never `head_sha`. Read that way here,
+on this lane's exact tip. Worth adding to that warning: the aggregator step does
+`exit 1`, so the JOB and therefore the RUN conclusion ARE truthful -- what is not truthful
+is the per-step conclusion, which is the narrower claim.
+
+**Final state.** `origin/integration` at `79f66750` carries this work and is green,
+measured on that exact tip after the sweep: **`npm test` 451 files, 8609 tests, 0 failures;
+`svelte-check` 0 errors, 37 warnings in 20 files.** `origin/main` at `ee4a1c42` does not
+carry it. **This bundle is the first thing in the next landing**, and the next landing lane
+inherits a clean range: `integration` adds no migration over `main`, because `0209` and
+`0210` both went in with 0200.
