@@ -1,6 +1,10 @@
 # 21 `integrate.yml` runs the suite AFTER it merges, pushes and deletes, so a red merged tree cannot stop a merge
 - Raised: 2026-09-09  By: session on `claude/site-versions-build-blade-fix-gqksqp` (prompt 0121), item FOUR, report-and-propose
 - Status: decided 2026-09-12. YES, BLOCK. The DECISION is closed; the BUILD is open, see the Build line.
+  Confirmed unchanged 2026-09-13 by ledger 0197, which was sent to record the answer
+  and found it already recorded. What 0197 DID change is the last section: the
+  prerequisite this entry named -- "watch one Integrate run report a real verdict" --
+  has now happened, so the gate has a green signal to read for the first time.
 - Decision: 2026-09-12, Mr. Pina: yes, block. A failing merged suite stops the push
   rather than warning.
 - With the default, not against it: this entry already recommended failing closed on
@@ -9,7 +13,10 @@
   line.
 - Build: OPEN, and it is still the single-lane bundle this entry already said it
   had to be -- `.github/workflows/integrate.yml` is the file every lane depends on
-  to land, so the change runs alone and merges nothing else with it.
+  to land, so the change runs alone and merges nothing else with it. **Nothing in
+  ledger 0197 touches that file**; 0197 owns no workflow and deliberately did not
+  build this. Every prerequisite this entry set is now met, so the build is
+  unblocked rather than merely still open -- see the final section.
 - What made this answerable: ledger 0163. The `merged_suite` job used to run
   `npm ci` then `npm test` with NO `svelte-kit sync` between them, so on a runner's
   checkout vitest died in dependency optimisation before any test body, named no
@@ -283,3 +290,64 @@ above, and not on a production run.
   gets declined and why.
 - `docs/prompt-ledger/entries/0121-build-stamp-and-blade-exports.md` -- the prompt that
   raised this and was told to propose rather than change.
+
+## THE LAST PREREQUISITE IS MET: an Integrate run has reported a real verdict
+
+Written 2026-09-13 by the session on `claude/zen-edison-jpgz4s` (ledger 0197), which
+was sent to record the answer above and to say what remains. **It builds nothing**,
+for the reason this entry has given three times: `integrate.yml` is the file every
+lane depends on to land, a bad edit to it cannot be fixed on a branch, and the
+bundle that changes it runs alone.
+
+**What has changed since the section above.** That section ends: "No Integrate run
+has done that yet at the time of writing -- this bundle's fix is not on `main`, and
+`workflow_run` runs the copy of the workflow on the DEFAULT BRANCH, so the first real
+verdict cannot arrive until it lands there." **It has landed and a verdict has
+arrived.** Ledger 0193's read-back audit records Integrate run `34723007701`
+reporting `the merged tree passes the suite -- Tests 8318 passed (8318)`
+(`docs/audits/2026-09-12-ledgers-0103-0192-read-back.md`, section 0, under
+CORRECTION). That is the first time `merged_suite` has spoken about a tree rather
+than about its own inability to start, and it is the signal a gate would read.
+
+**So the safe order this entry set out is complete.** It required: add the sync step
+(ledger 0163, landed); watch one Integrate run report a real verdict (run
+`34723007701`, above); and only then move the call. The third step is the only one
+left.
+
+**WHAT REMAINS TO BUILD, unchanged in substance and restated so the next lane needs
+one file rather than five.**
+
+1. **Move the `merged_suite` call** from after the delete loop to immediately after
+   `counts_refresh` and immediately before `target_push_gate`, so it runs on the
+   exact tree about to be pushed, counts region included.
+2. **Branch on its return code**, per Mr. Pina's answer:
+   - `0` -- push `$TARGET`, run the delete loop, write the summary. Today's behaviour.
+   - `1` -- push nothing, delete nothing, exit non-zero. The summary names the failing
+     assertions AND the full batch, because that list is now the suspect list.
+   - `2` -- **fail closed.** He answered "yes, block", and this entry's own
+     recommendation was already to fail closed on 2: "cannot say" is never a pass.
+     Note the argument that made 2 dangerous is retired -- 2 used to be the PERMANENT
+     state, and since 0163 it is a rare fault again.
+3. **`tools/integrate-gate-proof.sh` gains the case, in BOTH directions.** A stub
+   `npm` that FAILS must prove the target ref did not move and no branch was deleted;
+   one that PASSES must prove both still happen. A gate proved one way is the vacuous
+   positive control this repository has been bitten by twice, and cases 72c/72d are
+   the shape to copy.
+4. **`tests/workflows.test.ts` keeps its pin** of exactly one `git push --delete`: the
+   delete loop moves inside a conditional rather than being duplicated.
+
+**What ledger 0197 did do, and why it is next door to this.** `tools/idea-status.py`
+filtered decisions on `Status: open` and never read `Build:`, so this entry -- whose
+status has read `decided` since 2026-09-12 -- was in no list any lane prints, and
+neither was decision 04. **A decision Mr. Pina has already answered was invisible to
+the one tool whose job is saying what is owed.** The tool now prints two lists with
+two labels, because an owed decision waits on him and a decided-but-unbuilt one waits
+on a lane, and one count would send the wrong party to read it. This entry is in the
+second list from now on, which is the mechanism that should stop it sitting here
+unread again.
+
+**Read the Build line as a dated claim, not as a fact about the tree.** Decision 04's
+went stale within a day -- it names `FoundryGallery.svelte` line 127 as still reading
+`'recent'`, and `src/lib/foundry/telemetry.ts` already carries
+`FOUNDRY_GALLERY_DEFAULT_SORT = 'played'`. Re-read the workflow before acting on the
+four items above.
