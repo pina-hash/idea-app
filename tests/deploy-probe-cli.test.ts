@@ -1,8 +1,12 @@
-import { describe, expect, it, afterAll, inject } from 'vitest';
+import { describe, expect, it, afterAll, beforeAll, inject } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { startTestDb, type TestDb } from './db/harness';
+import { requireProbeRefs } from './git-refs-precondition';
 import { EXIT, HISTORY_TABLE } from '../tools/deploy-probe.mjs';
 
 /**
@@ -33,6 +37,49 @@ function urlFor(db: TestDb): string {
 	return `postgres://${c.user}:${c.password}@${c.host}:${c.port}/${db.databaseName}`;
 }
 
+/**
+ * A commit off `origin/main` carrying ONE extra file under
+ * `supabase/migrations/`, returned as a sha. `migrationsOnlyOn` reports that
+ * file as off-main and `readProbes` turns it into a probe with NO SQL, which is
+ * the shape the record has to answer for.
+ *
+ * WHY SYNTHESISE RATHER THAN NAME ONE: which real migration lacks a derivable
+ * probe is a fact about `tools/idea-status.py` AND about which files
+ * `origin/main` carries, and both move. This test named `0211` and the premise
+ * died mid-session when `origin/main` picked the file up.
+ *
+ * NOTHING IS WRITTEN THAT ANYTHING ELSE CAN SEE: a temporary index file, two
+ * loose objects and a commit with no ref pointing at it. The working tree, the
+ * real index and every branch are untouched.
+ */
+function synthesizeOffMainMigration(filename: string): string {
+	const index = join(tmpdir(), `deploy-probe-fixture-index-${process.pid}`);
+	rmSync(index, { force: true });
+	const git = (args: string[], extra?: NodeJS.ProcessEnv): string =>
+		execFileSync('git', args, {
+			cwd: REPO,
+			encoding: 'utf8',
+			env: { ...process.env, ...extra },
+			stdio: ['pipe', 'pipe', 'pipe']
+		}).trim();
+	try {
+		git(['read-tree', 'origin/main'], { GIT_INDEX_FILE: index });
+		const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], {
+			cwd: REPO,
+			encoding: 'utf8',
+			input: '-- a migration file that creates nothing a probe can be derived from\n'
+		}).trim();
+		git(
+			['update-index', '--add', '--cacheinfo', `100644,${blob},supabase/migrations/${filename}`],
+			{ GIT_INDEX_FILE: index }
+		);
+		const tree = git(['write-tree'], { GIT_INDEX_FILE: index });
+		return git(['commit-tree', tree, '-p', 'origin/main', '-m', 'deploy-probe fixture']);
+	} finally {
+		rmSync(index, { force: true });
+	}
+}
+
 /** Run the real CLI. The exit status is the contract, so it is READ, not thrown on. */
 function probe(url: string, args: string[]): { code: number; out: string; err: string } {
 	try {
@@ -49,6 +96,14 @@ function probe(url: string, args: string[]): { code: number; out: string; err: s
 		return { code: x.status ?? -1, out: x.stdout ?? '', err: x.stderr ?? '' };
 	}
 }
+
+// THE SAME PRECONDITION THE APPLY-MIGRATION SUITES USE, for the same reason:
+// this file hands the real CLI a `--ref`, and a shallow or single-ref checkout
+// makes it answer "the applied set could not be read" -- correct behaviour,
+// reported here as a wrong string about the tool. It fails rather than skips.
+beforeAll(() => {
+	requireProbeRefs('origin/main');
+});
 
 let db: TestDb | null = null;
 afterAll(async () => {
@@ -104,18 +159,21 @@ describe('the CLI, end to end, against a real database', () => {
 		expect(r.err).toBe('');
 	}, SLOW);
 
-	it('a row with no object is APPLIED and says the record alone answered it', async () => {
-		// PLANTED: a migration whose object is absent from this database gets a
-		// row, and its probe is removed by asking about a range where the file
-		// exists but nothing it creates does. The tool must not call this
-		// applied -- the object probe contradicts the row.
+	it('A ROW IS NEVER A LICENCE WHERE A PROBE ACTUALLY RAN: every claim is refused', async () => {
+		// PLANTED, AND PLANTED IN BULK. The seed wrote a row for every migration
+		// in this window and NONE of their objects exists on this empty fixture,
+		// so every finding here is a row claiming an apply the database denies.
+		// That is the failure the seed introduces as a possibility, and the
+		// object probes are the only thing that catches it.
 		const j = parse(probe(urlFor(db!), WINDOW).out);
 		const disagreed = j.findings.filter((f) => f.agreement === 'disagreed');
-		// Every 0205+ migration has a row from the seed except 0211+; none of
-		// their objects exist on this empty fixture. So every one of them is a
-		// planted disagreement, which is the control that the row does NOT win.
+		// THE CASE COUNT, ASSERTED, so a window that generated nothing cannot
+		// pass. If this ever reads zero the fixture stopped planting anything
+		// and the loop below was proving nothing -- which is the shape this
+		// file already failed once, by naming a migration whose premise moved.
 		expect(disagreed.length).toBeGreaterThan(0);
 		for (const f of disagreed) {
+			expect(f.record).toBe('recorded');
 			expect(f.state).toBe('not-applied');
 			expect(f.why).toContain('CLAIMS');
 		}
@@ -132,89 +190,63 @@ describe('the CLI, end to end, against a real database', () => {
 	it('ENDS STATUS 3: a migration with no derivable probe answers from its row, and exits 0', async () => {
 		// THE WHOLE POINT OF THE BUNDLE, DRIVEN END TO END THROUGH THE REAL CLI.
 		//
-		// The window `--since 209` is chosen because of what the derivation can
-		// and cannot do with it, which is the property under test rather than a
-		// convenience: `tools/idea-status.py` derives a probe for 0209
-		// (`public.ideacad_history`) and for 0210 (`_notebook_note_grid_len`)
-		// and derives NOTHING for 0211 -- the seed's own header says so in
-		// words. So 0211 is a migration this tool could only ever have answered
-		// CANNOT SAY about, and it is the one the row now answers.
+		// THE NO-PROBE MIGRATION IS SYNTHESISED RATHER THAN NAMED, AND THE FIRST
+		// VERSION OF THIS TEST NAMED ONE. It used `0211`, on the strength of
+		// `supabase/data/0209-seed-migration-history.sql`'s own header saying
+		// `tools/idea-status.py` derives no probe for it. That was true when it
+		// was written and stopped being true mid-session, for a reason nothing
+		// in this file could see: `origin/main` moved and picked the file up, so
+		// the derivation started answering for it and both directions of this
+		// pair inverted at once. **Which migration lacks a probe is a fact about
+		// two other tools and a git ref, and a fixture resting on it is a
+		// fixture with an expiry date nobody wrote down.**
 		//
-		// The objects are planted by hand rather than by applying the files:
-		// the harness chain is a curated subset and does not carry 0205 and up,
-		// so applying them would mean applying their dependencies too. What is
-		// being measured is the TOOL, and the tool reads exactly these three
-		// catalog facts.
+		// So the fixture is built instead: a commit off `origin/main` carrying
+		// ONE extra file under `supabase/migrations/`, which `migrationsOnlyOn`
+		// reports as off-main and `readProbes` turns into a probe with no SQL --
+		// the shape under test -- and a `--since` above every real migration, so
+		// the derivation contributes nothing and this is the ONLY finding. No
+		// ref is created and the working tree is untouched.
+		const fixture = synthesizeOffMainMigration('9001_probe_fixture.sql');
+		const args = ['--since', '9000', '--ref', fixture, '--json'];
+
 		const plant = await startTestDb([]);
 		try {
-			await plant.sql('create table public.ideacad_history (id int)');
-			await plant.sql(
-				"create function public._notebook_note_grid_len(d jsonb) returns int language sql as 'select 0'"
-			);
-			await plant.sql(
-				"create function public._ideacad_realtime_topic_id(p_topic text, p_prefix text) returns uuid language sql as 'select null::uuid'"
-			);
-			// The seed writes 0211's row only because that last function is
-			// there. That conditional is the seed's, and this is the state it
-			// produces.
 			await plant.sql(SEED_BODY);
 
-			const r = probe(urlFor(plant), ['--since', '209', '--ref', 'HEAD', '--json']);
-			const j = parse(r.out);
-			expect(j.history.present).toBe(true);
-			expect(j.history.readable).toBe(true);
-			// 209 and not 208: the seed lists 0001 to 0210 and adds 0211 here,
-			// because the object it asks about was planted above. And the count
-			// is EXACTLY the rows -- psql's own `SET` command tag used to land
-			// in this set as a 209th "version" on an unseeded-by-0211 database,
-			// which is why `--quiet` is on the invocation.
-			expect(j.history.recorded).toBe(209);
-
-			const byNum = new Map(j.findings.map((f) => [f.num, f]));
-			expect(byNum.get('0209')!.state).toBe('applied');
-			expect(byNum.get('0209')!.agreement).toBe('agree');
-			expect(byNum.get('0210')!.state).toBe('applied');
-			expect(byNum.get('0210')!.agreement).toBe('agree');
-
-			// THE ONE THAT USED TO STOP THE DEPLOY.
-			expect(byNum.get('0211')!.state).toBe('applied');
-			expect(byNum.get('0211')!.agreement).toBe('record-only');
-			expect(byNum.get('0211')!.record).toBe('recorded');
-			expect(r.code).toBe(EXIT.allApplied);
-
-			const text = probe(urlFor(plant), ['--since', '209', '--ref', 'HEAD']).out;
-			expect(text).toContain('were answered by the record alone, with no object to check: 0211');
-			expect(text).toContain('Every migration in range is applied to the probed database.');
-		} finally {
-			await plant.stop();
-		}
-	}, SLOW);
-
-	it('AND STATUS 3 SURVIVES: the same window with no row for 0211 is still CANNOT SAY', async () => {
-		// THE NEGATIVE CONTROL FOR THE TEST ABOVE, and the assertion the prompt
-		// names. Identical fixture minus the one function, so the seed withholds
-		// 0211's row: every probe that ran says applied, 0211 has neither a row
-		// nor a probe, and the tool refuses with 3 rather than calling it a pass.
-		const plant = await startTestDb([]);
-		try {
-			await plant.sql('create table public.ideacad_history (id int)');
-			await plant.sql(
-				"create function public._notebook_note_grid_len(d jsonb) returns int language sql as 'select 0'"
-			);
-			await plant.sql(SEED_BODY);
-
-			const r = probe(urlFor(plant), ['--since', '209', '--ref', 'HEAD', '--json']);
-			const j = parse(r.out);
-			expect(j.history.recorded).toBe(208);
-			const f = j.findings.find((x) => x.num === '0211')!;
-			expect(f.state).toBe('unknown');
-			expect(f.record).toBe('unrecorded');
-			expect(f.agreement).toBe('neither');
-			expect(j.findings.filter((x) => x.state === 'not-applied')).toEqual([]);
-			expect(r.code).toBe(EXIT.cannotConfirm);
-			expect(probe(urlFor(plant), ['--since', '209', '--ref', 'HEAD']).out).toContain(
+			// WITHOUT A ROW: neither source can speak. This is the status 3 that
+			// stopped five lanes, reproduced exactly.
+			const before = probe(urlFor(plant), args);
+			const jb = parse(before.out);
+			expect(jb.findings.length).toBe(1);
+			expect(jb.findings[0].num).toBe('9001');
+			expect(jb.findings[0].state).toBe('unknown');
+			expect(jb.findings[0].record).toBe('unrecorded');
+			expect(jb.findings[0].agreement).toBe('neither');
+			expect(before.code).toBe(EXIT.cannotConfirm);
+			expect(probe(urlFor(plant), ['--since', '9000', '--ref', fixture]).out).toContain(
 				'REFUSING: the probe cannot confirm every migration in range.'
 			);
+
+			// PLANT THE ROW, AND NOTHING ELSE. No object is created, because
+			// there is no object to create -- that is what "no derivable probe"
+			// means. The row is the only thing that changes.
+			await plant.sql(
+				"insert into supabase_migrations.schema_migrations (version, name) values ('9001','probe_fixture')"
+			);
+
+			const after = probe(urlFor(plant), args);
+			const ja = parse(after.out);
+			expect(ja.history.recorded).toBe(209);
+			expect(ja.findings[0].state).toBe('applied');
+			expect(ja.findings[0].record).toBe('recorded');
+			expect(ja.findings[0].agreement).toBe('record-only');
+			expect(ja.findings[0].why).toContain('the row is the only evidence');
+			expect(after.code).toBe(EXIT.allApplied);
+
+			const text = probe(urlFor(plant), ['--since', '9000', '--ref', fixture]).out;
+			expect(text).toContain('were answered by the record alone, with no object to check: 9001');
+			expect(text).toContain('Every migration in range is applied to the probed database.');
 		} finally {
 			await plant.stop();
 		}
