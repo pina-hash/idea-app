@@ -125,7 +125,16 @@ export interface IdeacadEditorSeed {
 export function ideacadEditorSeed(state: IdeacadStoreState | null | undefined): IdeacadEditorSeed | null {
 	if (!state?.document || state.concepts.length === 0) return null;
 	return {
-		history: [...state.history],
+		/* `?? []` IS NOT DEFENSIVE PADDING. The type says `history` is always
+		   there and a store built by `createIdeacadStore` always has it -- but
+		   this function takes a SNAPSHOT, and a snapshot reaches it from a test
+		   fixture, from a surface that predates the history region, and from any
+		   future shape that drops it. Spreading `undefined` THROWS, and a throw
+		   here does not cost the timeline, it costs the whole editor: the seed is
+		   null and the student gets a refusal sentence where their blade was. The
+		   empty log is the correct degraded answer -- `buildTimeline` returns an
+		   empty timeline for it and the History control is simply absent. */
+		history: [...(state.history ?? [])],
 		concepts: state.concepts.map((row) => ({
 			id: row.id,
 			name: row.name,

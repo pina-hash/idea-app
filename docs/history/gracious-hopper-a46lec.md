@@ -209,10 +209,39 @@ neither was INJECTING its defect -- on this route or on the five existing
 already names this failure mode. With `.ideacad` added: overflow 4 findings,
 invisible 20. `tiny-taps` 8 and `low-contrast` 20 bit before and after.
 
+## Two things the FULL suite found that every scoped run had passed
+
+Both are worth writing down, because both are the same shape: a file the change
+touched indirectly, which no targeted run was ever going to name.
+
+**`ideacadEditorSeed` threw on a snapshot with no history region.** The type says
+`history` is always there and a store built by `createIdeacadStore` always has
+it -- but the seed takes a SNAPSHOT, and `tests/dom/ideacad-mount.test.ts`
+hand-rolls a partial one, as any older surface or future shape might. Spreading
+`undefined` throws, and a throw there does not cost the timeline: it returns a
+null seed, and the student gets a refusal sentence where their blade was. Fixed
+in `mount.ts` with `?? []`, which is the correct degraded answer rather than
+padding -- `buildTimeline` returns an empty timeline for an empty log and the
+History control is simply absent.
+
+**The browser-verify README's generated counts went stale the moment a spec was
+added.** `tests/derived-numbers.test.ts` reddened on seven assertions, which is
+the tripwire working: the region claimed no measurement was outside its
+threshold while holding no measurement for the new spec at all, and the tool's
+own note names the fix. `npm run verify:readme -- --static` rewrote the static
+half and `-- --route 'state=history'` measured the new spec into the per-spec
+store in **13.5 seconds**. The store now holds **209 specs, 418 runs, 7534
+measurements, 0 outside threshold**. The `--route` filter matches on a spec's
+PATH or LABEL, not on its filename, which the tool's own error message does not
+say -- worth knowing before assuming a new spec is unregistered.
+
 ## What was measured
 
-- **Full suite: 456 files / 8661 tests green**, against a branch-time baseline of
-  450 / 8586 on `origin/integration` at `f4616dca`.
+- **Full suite: 452 files / 8622 tests green**, against a branch-time baseline of
+  **450 files / 8586 tests** measured on `origin/integration` at `f4616dca`
+  before any change. Two new test files, and a net +36 tests: this bundle adds
+  46 and the retired `UndoStack` took its 6 with it, with the rest accounted for
+  by the rewritten `ideacad-ui-mount` block.
 - **`svelte-check`: 0 errors, 37 warnings in 20 files**, 31
   `state_referenced_locally` / 5 `css_unused_selector` / 1
   `perf_avoid_nested_class`. Re-derived on `origin/integration` at branch time
