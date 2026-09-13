@@ -173,6 +173,33 @@ and marks its numbers as 0204's claim; when 0204 lands, the pointer resolves.
   at the end of this session is reported in the session's own reply rather than
   written into the standard, because it is a reading and not a rule.
 
+## A tenth rule arrived mid-bundle, and acting on it immediately is the rule's own content
+
+The prompt carried twelve numbered items. A thirteenth arrived while the suite was
+running: **a long router chat maintains a live state document on disk, unprompted**, with
+the clause that a rule, authorization or decision discovered mid-chat **takes effect when
+it is discovered, not at closeout** -- Mr. Pina's statement of 2026-09-13 that waiting for
+closeout is what makes him restate himself.
+
+It was written into `IDEA_instructions.md` in the same session rather than queued for a
+follow-up bundle, which is the only reading of the rule that is consistent with the rule.
+Queuing it would have demonstrated the failure it describes. It sits as a new `###`
+immediately before "Session control", directly after "The state of the world is one
+command": that section gets the REPO's state from `tools/idea-status.py`, and this one is
+about the CHAT's state, which no command can reconstruct.
+
+It landed inside version **4.27** rather than forcing a 4.28. The version was bumped in
+this bundle and not yet delivered anywhere, so a second bump would have minted a version
+nobody ever held, and `tests/standards-version-header.test.ts` compares the header, the
+newest changelog entry and the `REGISTER.md` row -- all three moved together, so the
+invariant it protects is unaffected either way. The changelog entry says the rule was
+added mid-bundle, so the record does not imply it was in the prompt.
+
+**The count in this bundle's own commit subjects therefore says nine and the file says
+ten**, and that is left rather than rewritten: the standards commit landed before the
+rule arrived, and amending a pushed commit to make a count agree would rewrite history to
+hide the sequence the entry is trying to record.
+
 ## Deferred
 
 - **Whether rules 39 and 40 should be merged into one rule** about the reporting

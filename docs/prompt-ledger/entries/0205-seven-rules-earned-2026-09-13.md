@@ -10,13 +10,17 @@
 - Status: issued
 - Branch: `claude/dazzling-ramanujan-i2hry6`, branched from `origin/integration` at
   `78516fa`.
-- Notes: Standards-only. Nine rules earned on 2026-09-12 and 2026-09-13 land in the
-  file that owns each: two in `IDEA_VERIFICATION_ADDENDA.md` (rules 39 and 40, on a
-  probe that reports through `raise notice` and on a probe that examined nothing), and
-  seven in `IDEA_instructions.md` (a prompt's migration range going stale, a manual
-  instruction giving the URL rather than a route through the menus, a push being a
-  build, a decision entry's status line being a claim, and four communication rules
-  Mr. Pina stated directly). No new file: every rule is written in the owning file's
+- Notes: Standards-only. Ten rules earned on 2026-09-12 and 2026-09-13 land in the
+  file that owns each: THREE in `IDEA_VERIFICATION_ADDENDA.md` (rules 39, 40 and 41 --
+  a probe that reports through `raise notice`, a probe that examined nothing, and
+  landed is not deployed), and SEVEN in `IDEA_instructions.md` (a prompt's migration
+  range going stale, a manual instruction giving the URL rather than a route through
+  the menus, a push being a build, a decision entry's status line being a claim, five
+  communication rules Mr. Pina stated directly, and -- arriving MID-BUNDLE on the day,
+  acted on immediately because that is the rule's own content -- a long router chat
+  maintaining a live state document on disk. Rule 41 also corrects the three-state
+  Hard Rule, which said a migration is the only artifact where all three states come
+  apart. No new file: every rule is written in the owning file's
   own voice with a changelog entry, and `REGISTER.md`'s rows move in the same commit
   because `tests/standards-version-header.test.ts` refuses a register row that
   disagrees with the file it names.

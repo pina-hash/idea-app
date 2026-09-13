@@ -1469,6 +1469,38 @@ production database and only a catalog read against it answers. The tool prints 
 and says so; a document that states applied status is stating a snapshot and the
 `CLAUDE.md` paragraph that did was wrong for a whole night.
 
+### A long router chat maintains a live state document on disk, unprompted
+
+The section above gets the REPO's state from one command. This one is about the CHAT's
+state, which no command can reconstruct, and it is written without being asked for.
+
+**Write it early, rewrite it whenever anything in it moves, and re-read it FIRST after any
+compaction.** Anything counts as movement: a rule or authorization given in the chat, a
+decision answered, a ledger or migration number allocated, a lane opened or closed, an open
+item raised or resolved.
+
+**Three things exist that look like they would hold this, and not one of them does.** A
+long chat is COMPACTED, and compaction drops exactly the incidental-looking lines a
+standing authorization arrives in. Memory is terse and is written only when asked, so
+anything not explicitly committed to it is not in it. And `docs/standards/` is the
+authority for how work is done, not for what is currently true, and cannot be re-read as
+authority mid-flight anyway. So the state goes in a FILE the chat can reach at any point,
+because a file is the only one of the four that survives its own context window.
+
+**What it carries**, and the list is the point rather than the format: standing rules and
+authorizations given in this chat, the next free numbers, what each lane owns and which
+are running, what is owed to Mr. Pina, decisions answered IN HIS OWN WORDS, findings
+reported and not laned, and traps already paid for.
+
+**A rule, authorization or decision discovered mid-chat TAKES EFFECT WHEN IT IS
+DISCOVERED, not at closeout.** Mr. Pina stated on 2026-09-13 that waiting for closeout is
+what makes him restate himself, which is the cost measured from his side: a rule held for
+the end of a chat is a rule he has to give twice, and the second time is after it has
+already been broken once. Writing it down at closeout is the record; acting on it is
+immediate, and the two are not the same act. This is the same argument as the
+doc-maintenance triggers at the top of this file, applied to the chat's own working state
+rather than to a standards file.
+
 ### Session control: the things that waste a session outright
 
 These are not style notes. Each one cost at least one whole session in a single day, and
@@ -2920,7 +2952,7 @@ component or token exists, the digest governs and the standard is corrected.
 
 ## Changelog
 
-- **2026-09-13 (4.27)** - Nine rules earned on 2026-09-12 and 2026-09-13, seven of them
+- **2026-09-13 (4.27)** - Ten rules earned on 2026-09-12 and 2026-09-13, eight of them
   written here and two of them corrections to what this file already said. A prompt that
   vouches for a migration range goes stale between writing and running: ledgers `0190`,
   `0192`, `0194`, `0195` and `0199` each read a shorter chain than existed when they ran
@@ -2955,7 +2987,19 @@ component or token exists, the digest governs and the standard is corrected.
   delivered, landed and applied come apart, and code has the same three states with a
   quieter third, now owned by `IDEA_VERIFICATION_ADDENDA.md` rule 41 -- on 2026-09-13
   production served ledger `0188`'s build for over a day while `main` moved twice past
-  it, and six lanes of verified work reached no student. Delivered with
+  it, and six lanes of verified work reached no student. And, added mid-bundle on the
+  day and therefore in this same version: a long router chat maintains a live state
+  document on disk, unprompted -- written early, rewritten whenever a rule, decision,
+  ledger or migration number, lane or open item moves, and re-read first after any
+  compaction, because a long chat is compacted, memory is terse and written only on
+  request, and `docs/standards/` cannot be re-read as authority mid-flight, so none of the
+  three carries mid-chat state. It carries standing rules and authorizations given in the
+  chat, the next free numbers, what each lane owns and which are running, what is owed to
+  Mr. Pina, decisions answered in his own words, findings reported and not laned, and
+  traps already paid for. **A rule, authorization or decision discovered mid-chat takes
+  effect when it is discovered, not at closeout**, stated by Mr. Pina on 2026-09-13:
+  waiting for closeout is what makes him restate himself, so writing it down at closeout
+  is the record and acting on it is immediate. Delivered with
   `IDEA_VERIFICATION_ADDENDA.md` 2.6, which carries rules 39, 40 and 41 from the same
   two days, and with the `REGISTER.md` rows for both files moved in the same commit.
 
