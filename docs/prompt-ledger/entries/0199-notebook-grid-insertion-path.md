@@ -7,8 +7,8 @@
   `tools/browser-verify/routes/notebook*.mjs` and its measured store entries,
   `docs/prompt-ledger/entries/0199-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0210
-- Status: issued
-- Branch: claude/funny-faraday-feobl2 (cut from origin/integration 843b3860)
+- Status: pushed
+- Branch: claude/funny-faraday-feobl2 (cut from origin/integration 843b3860; merged origin/integration again at a10eb9c3, one conflict in the browser-verify README's generated counts block, resolved by regeneration on this branch)
 - Notes: THE LAST PIECE of decision 08. `0210` is applied, so the gate admits a
   grid; ledger 0192 landed the ProseMirror node and its NodeView and said in so
   many words that "the producer is the next bundle"; ledger 0187 landed the
