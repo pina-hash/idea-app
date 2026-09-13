@@ -4,7 +4,7 @@
 - By: router chat
 - Owns: `supabase/migrations/0212_*.sql`, the tournament bracket and correction RPCs it touches, `src/lib/tournaments/RewardsPanel.svelte`, `src/lib/tournaments/RewardRulesEditor.svelte`, `tests/db/tournament-bracket*`, `tests/db/tournament-correction*`, `tests/dom/tournament-rewards*`, `docs/prompt-ledger/entries/0207-*`, `docs/history/busy-feynman-aupq55.md`
 - Migration permitted: yes. Claims: 0212. Highest on origin/main at issue: 0211 (per `tools/migration-claims.mjs`; next free 0212)
-- Status: issued
+- Status: pushed
 - Branch: claude/busy-feynman-aupq55
 - Notes: Fixes ledger 0202's findings; 0202 measured them and this bundle does
   not rediscover them. Three parts. ONE, real-SQL bracket coverage at 4, 5, 6, 8
@@ -23,3 +23,13 @@
   0205, 0206 and 0208 run alongside and none of their files are touched.
   BECAUSE IT CARRIES A MIGRATION IT STOPS AT ITS BRANCH AND DOES NOT MERGE TO
   `main`.
+- Outcome: All three parts landed. 0212 is WRITTEN AND UNAPPLIED -- a session
+  cannot reach the production database (`DEPLOY_PROBE_URL` and
+  `IDEA_MIGRATION_URL` both unset, `.env` absent), so it is Mr. Pina's to paste.
+  The suite is 1 failed / 8803 passed, and the one failure is
+  `tests/db/migrations-applied-record.test.ts` reporting that 0212 has no record
+  under `docs/migrations-applied/` -- which is TRUE and must stay true until the
+  migration is applied. No record was fabricated. This is the first
+  migration-carrying lane to meet ledger 0209's mechanism, which landed after
+  this branch was cut; the collision is structural and is written up in the
+  history entry. Does not merge to `main`.
