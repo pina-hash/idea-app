@@ -73,6 +73,25 @@
 	const commits: string[] = [];
 
 	/**
+	 * WHO THE FIXTURE'S EDITS BELONG TO (decision 27).
+	 *
+	 * THESE ARE ADDRESSES BECAUSE `0209` STORES ADDRESSES, and the fixture used
+	 * to hold `'you'` and `'A. Reyes'` -- two strings the database cannot
+	 * produce. That is the shape `CLAUDE.md` calls a fixture the producer cannot
+	 * emit, and it cost exactly what that rule says it costs: the timeline was
+	 * printing its actor RAW, and the harness could not show it, because the
+	 * made-up values already read like names. The raw-address defect was
+	 * invisible to a browser pass that measured sixty things on this surface.
+	 *
+	 * TWO AUTHORS, ONE OF THEM THE READER. `HARNESS_VIEWER` is handed to the
+	 * editor as `viewerEmail`, so their rows say "You" and the partner's row
+	 * says a name -- which is the two-author case decision 27 is about, on
+	 * screen, at both widths.
+	 */
+	const HARNESS_VIEWER = 'a.pina@boscotech.net';
+	const HARNESS_PARTNER = 'm.reyes@boscotech.net';
+
+	/**
 	 * A REAL LOG, BUILT BY THE REAL DIFF (0196).
 	 *
 	 * `state=history` opens the timeline over a log this file did NOT hand-write
@@ -94,7 +113,23 @@
 	function historyLog(): IdeacadHistoryRow[] {
 		const origin = structuredClone(DEFAULT_BLADE_TREE);
 		const rows: IdeacadHistoryRow[] = [
-			{ seq: 0, kind: 'origin', path: '', before: null, after: origin, actor: 'you', at: '2026-09-13T15:02:00Z' }
+			/* THE ORIGIN IS `migration:0209`, WHICH IS A REAL STATE AND NOT AN
+			   ODD ONE. Every concept that predates that migration got its floor
+			   from the backfill, and the backfill deliberately does NOT claim a
+			   student made the part -- so this is what the oldest row of most
+			   parts in production actually says today. It is also the only way
+			   to get a NON-PERSON actor on screen, because the two values that
+			   are not addresses (`system` and this one) are only ever written at
+			   seq 0. */
+			{
+				seq: 0,
+				kind: 'origin',
+				path: '',
+				before: null,
+				after: origin,
+				actor: 'migration:0209',
+				at: '2026-09-13T15:02:00Z'
+			}
 		];
 		let at = structuredClone(origin);
 		let seq = 1;
@@ -108,7 +143,7 @@
 		edit((t) => {
 			const hex = t.features.find((f) => f.type === 'hexBoss');
 			if (hex && hex.type === 'hexBoss') hex.height = 0.75;
-		}, 'you', '2026-09-13T15:04:00Z');
+		}, HARNESS_VIEWER, '2026-09-13T15:04:00Z');
 		/* SIX, NOT FOUR. The default tree already carries four blades, so a step
 		   "changing" it to four diffs to NOTHING and the fixture silently loses a
 		   row -- which is how a spec came to assert a feature name that was never
@@ -116,13 +151,13 @@
 		edit((t) => {
 			const p = t.features.find((f) => f.type === 'circularPattern');
 			if (p && p.type === 'circularPattern') p.count = 6;
-		}, 'you', '2026-09-13T15:06:00Z');
-		edit((t) => (t.materials.bladeStock = 'aluminum-0125'), 'you', '2026-09-13T15:07:00Z');
-		edit((t) => (t.rotation = 'ccw'), 'A. Reyes', '2026-09-13T15:09:00Z');
+		}, HARNESS_VIEWER, '2026-09-13T15:06:00Z');
+		edit((t) => (t.materials.bladeStock = 'aluminum-0125'), HARNESS_VIEWER, '2026-09-13T15:07:00Z');
+		edit((t) => (t.rotation = 'ccw'), HARNESS_PARTNER, '2026-09-13T15:09:00Z');
 		edit((t) => {
 			const s0 = t.features.find((f) => f.type === 'revolve');
 			if (s0 && s0.type === 'revolve') s0.stations[1] = { ...s0.stations[1], r: 0.9 };
-		}, 'you', '2026-09-13T15:11:00Z');
+		}, HARNESS_VIEWER, '2026-09-13T15:11:00Z');
 		/* The undo of the newest row, then the redo of that undo -- appended, the
 		   way 0189 says an undo is an action rather than a moved pointer. */
 		const target = rows[rows.length - 1];
@@ -133,7 +168,7 @@
 			before: target.after,
 			after: target.before,
 			undoesSeq: target.seq,
-			actor: 'you',
+			actor: HARNESS_VIEWER,
 			at: '2026-09-13T15:12:00Z'
 		};
 		rows.push(undo);
@@ -144,7 +179,7 @@
 			before: undo.after,
 			after: undo.before,
 			undoesSeq: undo.seq,
-			actor: 'you',
+			actor: HARNESS_VIEWER,
 			at: '2026-09-13T15:13:00Z'
 		});
 		return rows;
@@ -952,6 +987,7 @@
 	commitConceptCard={role === 'teacher' ? undefined : async (id: string) => void commits.push(id)}
 	materials={LIBRARY}
 	{history}
+	viewerEmail={HARNESS_VIEWER}
 	undoStep={historyWrites.undo}
 	redoStep={historyWrites.redo}
 	saveCustomMaterial={role === 'teacher' ? undefined : saveCustomMaterial}

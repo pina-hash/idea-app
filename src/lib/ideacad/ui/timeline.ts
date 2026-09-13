@@ -78,6 +78,9 @@ import {
 	type IdeacadHistoryRow
 } from '../history';
 import { featureLabel, fieldLabel } from './feature-model';
+// ONE SPELLING OF "one person is one address", shared with the sharing
+// module rather than re-spelled here. See `timelineActors` below.
+import { ideacadNormalizeEmail } from '../sharing';
 
 /* -------------------------------------------------------------------------
  * 1. THE VOCABULARY THE CONTROLS DO NOT OWN
@@ -469,4 +472,139 @@ export function timelineTime(at: string | null): string {
 	const d = new Date(at);
 	if (Number.isNaN(d.getTime())) return '';
 	return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+// ---------------------------------------------------------------------------
+// WHO MADE AN EDIT -- decision 27, 2026-09-13
+//
+// Mr. Pina: a shared editor gets FULL history and undo, and every entry is
+// ATTRIBUTED PER PERSON the way Google Docs does it. Anyone with access sees
+// ALL the history, and each entry clearly shows who made it.
+//
+// THE STORED VALUE IS AN EMAIL AND AN EMAIL IS NOT A NAME. `0209` says so in
+// its own header -- `actor` is "AN EMAIL AND IS THE WIDEST COLUMN HERE" -- and
+// printing it raw is what this module exists to stop. It satisfies the letter
+// of decision 27 and none of its point: a fifteen-year-old scanning forty rows
+// for the one their partner changed cannot read forty copies of
+// `firstname.lastname@boscotech.net`, and at 375px the address is wider than
+// the pane it sits in.
+//
+// THERE IS NO NAME TO LOOK UP AND THAT IS NOT AN OVERSIGHT. Every identity in
+// IdeaCAD is email-keyed -- `ideacad_editors` grants by address, `actor` stores
+// an address -- and the uuid/email bridge `_notebook_email_for_user` is
+// deliberately closed to `authenticated`. Projecting a roster name here would
+// be a migration AND a disclosure decision, and this bundle carries neither.
+// So the label is derived from the address itself, and every rule below is
+// about deriving it HONESTLY.
+//
+// IT IS NOT A SECOND COPY OF `emailLocal`. `$lib/classroom/classroom.ts` has a
+// one-line local-part helper, and this is a different rule that happens to
+// contain the same split: it also answers who the READER is, refuses to name a
+// non-person as one, and disambiguates two addresses that share a local part.
+// Importing that module for the split would also pull the classroom's markdown
+// parser into the IdeaCAD bundle. `ideacadNormalizeEmail` IS shared, because
+// "one person is one address" genuinely is one rule.
+// ---------------------------------------------------------------------------
+
+/** The words attribution prints. One spelling, like `TIMELINE_WORDS`. */
+export const ACTOR_WORDS = {
+	/** THE READER'S OWN ROWS SAY "You", which is the whole legibility win: in a
+	 *  two-author history the first question is which rows are mine. */
+	you: 'You',
+	/** NOT EVERY ACTOR IS A PERSON. `0209` writes `system` for a definer path
+	 *  with no session behind it and `migration:0209` for its own backfill, and
+	 *  that backfill row deliberately does NOT claim a student made it. Naming
+	 *  either as a classmate would be the fabricated record `0209` refused to
+	 *  write. */
+	system: 'system'
+} as const;
+
+export interface TimelineActor {
+	/** The word the row prints. Never empty. */
+	readonly label: string;
+	/** True when this row is the reader's own. */
+	readonly isViewer: boolean;
+	/** True when the actor is not a person at all. */
+	readonly isSystem: boolean;
+	/** The value as stored, verbatim. The row's ACCESSIBLE sentence says the
+	 *  label, not this -- a screen reader reading a full address aloud on every
+	 *  row is the raw-email defect with a different output device. */
+	readonly stored: string;
+}
+
+/**
+ * Who made each edit, resolved once over the WHOLE log.
+ *
+ * IT IS A PASS OVER THE LOG AND NOT A PER-ROW FUNCTION, because one of the
+ * rules cannot be decided from a row alone. TWO ADDRESSES CAN SHARE A LOCAL
+ * PART: this school issues `@boscotech.edu` to staff and `@boscotech.net` to
+ * students off the same name, so `a.pina@boscotech.edu` and
+ * `a.pina@boscotech.net` are two different actors that both shorten to
+ * `a.pina`. Rendered that way a shared part would show two people under one
+ * name with nothing on screen saying so -- which is worse than the raw address,
+ * because it is wrong rather than merely unreadable. When a local part is not
+ * unique in this log, every actor holding it falls back to its full address.
+ *
+ * THE COLLISION SET INCLUDES THE READER'S OWN ADDRESS even though the reader
+ * renders as "You". If it did not, a reader at `a.pina@boscotech.edu` would see
+ * a classmate at `a.pina@boscotech.net` rendered as `a.pina` -- their own
+ * shortened name, on somebody else's edits.
+ *
+ * THE LOCAL PART IS PRINTED VERBATIM AND NEVER TITLE-CASED. Turning
+ * `alejandro.pina` into "Alejandro Pina" invents a person's name from a string
+ * that is not one, and it is wrong the first time it meets `jdoe2` or `apina1`.
+ * What is printed is a truthful projection of what is stored.
+ */
+export function timelineActors(
+	entries: readonly TimelineEntry[],
+	viewerEmail: string | null | undefined
+): ReadonlyMap<string, TimelineActor> {
+	const viewer = viewerEmail ? ideacadNormalizeEmail(viewerEmail) : '';
+	// Distinct stored values, in the order the log first mentions them.
+	const stored: string[] = [];
+	for (const e of entries) {
+		const raw = (e.actor ?? '').trim();
+		if (raw && !stored.includes(raw)) stored.push(raw);
+	}
+
+	// A person is an actor whose stored value is an address. `system` and
+	// `migration:0209` have no `@` and are the two non-person values `0209`
+	// writes; anything else without one is unknown and is treated the same way,
+	// which fails toward "not a person" rather than inventing a classmate.
+	const isPerson = (value: string) => value.includes('@');
+
+	const localCount = new Map<string, number>();
+	const seen = new Set<string>();
+	for (const value of stored) {
+		if (!isPerson(value)) continue;
+		const norm = ideacadNormalizeEmail(value);
+		if (seen.has(norm)) continue;
+		seen.add(norm);
+		const local = norm.split('@')[0] ?? norm;
+		localCount.set(local, (localCount.get(local) ?? 0) + 1);
+	}
+
+	const out = new Map<string, TimelineActor>();
+	for (const value of stored) {
+		if (!isPerson(value)) {
+			out.set(value, {
+				label: ACTOR_WORDS.system,
+				isViewer: false,
+				isSystem: true,
+				stored: value
+			});
+			continue;
+		}
+		const norm = ideacadNormalizeEmail(value);
+		const local = norm.split('@')[0] ?? norm;
+		const shared = (localCount.get(local) ?? 0) > 1;
+		const isViewer = viewer !== '' && norm === viewer;
+		out.set(value, {
+			label: isViewer ? ACTOR_WORDS.you : shared ? norm : local,
+			isViewer,
+			isSystem: false,
+			stored: value
+		});
+	}
+	return out;
 }

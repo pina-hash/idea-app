@@ -30,11 +30,14 @@ import {
 	type IdeacadHistoryRow
 } from '../src/lib/ideacad/history';
 import {
+	ACTOR_WORDS,
 	buildTimeline,
 	depthWord,
 	describeTarget,
 	readValue,
-	undoKeyFor
+	timelineActors,
+	undoKeyFor,
+	type TimelineEntry
 } from '../src/lib/ideacad/ui/timeline';
 import { bladeCorpus, CORPUS_ORIGIN } from './ideacad-history-corpus';
 import type { BladeTree } from '../src/lib/ideacad/blade/tree';
@@ -357,5 +360,139 @@ describe('describeTarget on the shapes the tree actually has', () => {
 	});
 	it('falls back to a positional name rather than throwing on a feature index that is not there', () => {
 		expect(describeTarget('/features/99/count', tree).where).toBe('Feature 100');
+	});
+});
+
+/* -------------------------------------------------------------------------
+ * WHO MADE AN EDIT -- decision 27.
+ *
+ * THE ACTOR VALUES HERE ARE THE ONES `0209` CAN ACTUALLY WRITE, and that is
+ * the whole reason this block exists in the shape it does. The migration has
+ * exactly three producers: `current_user_email()` (an address), the literal
+ * `system` (a definer path with no session), and the literal `migration:0209`
+ * (its own backfill). The dev harness used to seed `'you'` and `'A. Reyes'` --
+ * strings nothing can produce, which already read like names, which is why a
+ * surface printing its actor RAW passed sixty browser measurements.
+ * ---------------------------------------------------------------------- */
+
+/** A row carrying only what the namer reads, so a case is one line. */
+function actorRow(seq: number, actor: string | null): TimelineEntry {
+	return {
+		seq,
+		state: 'applied',
+		sentence: { where: 'x', what: 'y', unit: '' },
+		undoesSeq: null,
+		depth: 0,
+		actor,
+		at: null,
+		isUndoTarget: false,
+		isRedoTarget: false
+	} as TimelineEntry;
+}
+const label = (rows: TimelineEntry[], viewer: string | null, actor: string) =>
+	timelineActors(rows, viewer).get(actor)?.label;
+
+describe('timelineActors: who made an edit', () => {
+	const VIEWER = 'a.pina@boscotech.net';
+	const PARTNER = 'm.reyes@boscotech.net';
+
+	it('says "You" for the reader and a name for everybody else', () => {
+		const rows = [actorRow(1, VIEWER), actorRow(2, PARTNER)];
+		expect(label(rows, VIEWER, VIEWER)).toBe(ACTOR_WORDS.you);
+		expect(label(rows, VIEWER, PARTNER)).toBe('m.reyes');
+	});
+
+	it('NEVER prints a bare address for a person, which is the defect', () => {
+		const rows = [actorRow(1, VIEWER), actorRow(2, PARTNER)];
+		const actors = timelineActors(rows, VIEWER);
+		for (const [, who] of actors) expect(who.label).not.toContain('@');
+	});
+
+	it('renders two authors DISTINGUISHABLY, which is the point of decision 27', () => {
+		const rows = [actorRow(1, VIEWER), actorRow(2, PARTNER)];
+		const actors = timelineActors(rows, VIEWER);
+		const labels = [...actors.values()].map((a) => a.label);
+		expect(new Set(labels).size).toBe(labels.length);
+		// And distinguishable by something other than colour: the words differ.
+		expect(actors.get(VIEWER)!.isViewer).toBe(true);
+		expect(actors.get(PARTNER)!.isViewer).toBe(false);
+	});
+
+	it('refuses to name a non-person as a classmate', () => {
+		// Both values `0209` writes that are not addresses.
+		for (const value of ['system', 'migration:0209']) {
+			const rows = [actorRow(0, value), actorRow(1, VIEWER)];
+			const who = timelineActors(rows, VIEWER).get(value)!;
+			expect(who.label).toBe(ACTOR_WORDS.system);
+			expect(who.isSystem).toBe(true);
+			expect(who.isViewer).toBe(false);
+			// The backfill's own value never reaches the screen: claiming a
+			// student made the part is what `0209` refused to write.
+			expect(who.label).not.toContain('0209');
+		}
+	});
+
+	it('falls back to the full address when two actors share a local part', () => {
+		// The case this school actually has: staff on `.edu` and students on
+		// `.net`, issued off the same name.
+		const staff = 'a.pina@boscotech.edu';
+		const student = 'a.pina@boscotech.net';
+		const rows = [actorRow(1, staff), actorRow(2, student), actorRow(3, PARTNER)];
+		const actors = timelineActors(rows, null);
+		expect(actors.get(staff)!.label).toBe(staff);
+		expect(actors.get(student)!.label).toBe(student);
+		// An actor whose local part is unique is unaffected by somebody else's
+		// collision.
+		expect(actors.get(PARTNER)!.label).toBe('m.reyes');
+	});
+
+	it('counts the READER into the collision set, so their own short name is never on somebody else', () => {
+		const staff = 'a.pina@boscotech.edu';
+		const student = 'a.pina@boscotech.net';
+		const rows = [actorRow(1, staff), actorRow(2, student)];
+		const actors = timelineActors(rows, staff);
+		expect(actors.get(staff)!.label).toBe(ACTOR_WORDS.you);
+		// THE ROW THAT MATTERS: the other `a.pina` must not render as `a.pina`,
+		// which the reader would read as their own edit.
+		expect(actors.get(student)!.label).toBe(student);
+	});
+
+	it('nobody is "You" when there is no viewer, and every row still names its actor', () => {
+		const rows = [actorRow(1, VIEWER), actorRow(2, PARTNER)];
+		const actors = timelineActors(rows, null);
+		expect([...actors.values()].some((a) => a.isViewer)).toBe(false);
+		expect(actors.get(VIEWER)!.label).toBe('a.pina');
+		expect(actors.get(PARTNER)!.label).toBe('m.reyes');
+		for (const [, who] of actors) expect(who.label.length).toBeGreaterThan(0);
+	});
+
+	it('matches the reader case- and whitespace-insensitively, the way the database keys a grant', () => {
+		const rows = [actorRow(1, '  A.Pina@BoscoTech.NET ')];
+		const actors = timelineActors(rows, VIEWER.toUpperCase());
+		expect(actors.get('A.Pina@BoscoTech.NET')!.label).toBe(ACTOR_WORDS.you);
+	});
+
+	it('has nothing to say about a row with no actor, rather than inventing one', () => {
+		const actors = timelineActors([actorRow(1, null), actorRow(2, '   ')], VIEWER);
+		expect(actors.size).toBe(0);
+	});
+
+	it('keeps the stored value verbatim, so nothing downstream has to re-derive it', () => {
+		const rows = [actorRow(1, PARTNER)];
+		expect(timelineActors(rows, VIEWER).get(PARTNER)!.stored).toBe(PARTNER);
+	});
+
+	it('resolves every actor a REAL log produced', () => {
+		// THE ROWS COME OUT OF THE REAL DIFF, like every other case in this
+		// file: a namer proven over hand-written rows is proven over rows
+		// nothing emits.
+		const rows = logFrom(bladeCorpus(40, 91)).map((r, i) => ({
+			...r,
+			actor: i % 2 === 0 ? VIEWER : PARTNER
+		}));
+		const entries = buildTimeline(rows).entries;
+		const actors = timelineActors(entries, VIEWER);
+		expect(actors.size).toBe(2);
+		for (const e of entries) expect(actors.get(e.actor!)).toBeTruthy();
 	});
 });

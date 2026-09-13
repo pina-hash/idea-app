@@ -48,6 +48,7 @@
 		concepts: seedConcepts = undefined,
 		activeConceptId = null,
 		history: historyRows = [],
+		viewerEmail = null,
 		undoStep = undefined,
 		redoStep = undefined,
 		prediction = null,
@@ -91,6 +92,13 @@
 		 * deployment without 0209; the TIMELINE still renders, because reading a
 		 * history is not writing to one.
 		 */
+		/** The reader's own address, so the timeline can say "You" on their own
+		 *  rows (decision 27). It is PASSED THROUGH and never read here -- the
+		 *  editor has no other use for an identity, and resolving a name in two
+		 *  places is how two surfaces come to disagree about who did something.
+		 *  Absent is supported: nobody is "You" and every row still names its
+		 *  actor. */
+		viewerEmail?: string | null;
 		undoStep?: () => Promise<void>;
 		redoStep?: () => Promise<void>;
 		/** A prediction ALREADY RECORDED for this document. Its presence is what
@@ -802,6 +810,7 @@
 				<HistoryTimeline
 					{timeline}
 					{previewSeq}
+					{viewerEmail}
 					busy={undoBusy}
 					onundo={undoStep && !readOnly ? undo : undefined}
 					onredo={redoStep && !readOnly ? redo : undefined}

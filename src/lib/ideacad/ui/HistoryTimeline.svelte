@@ -36,8 +36,10 @@
 	import {
 		TIMELINE_WORDS,
 		depthWord,
+		timelineActors,
 		timelineTime,
 		type Timeline,
+		type TimelineActor,
 		type TimelineEntry
 	} from './timeline';
 
@@ -48,7 +50,8 @@
 		onundo = undefined,
 		onredo = undefined,
 		onscrub = undefined,
-		onclose = undefined
+		onclose = undefined,
+		viewerEmail = null
 	}: {
 		timeline: Timeline;
 		/** The seq being looked at, or null for "now". A LOOK, never a write. */
@@ -58,9 +61,21 @@
 		onredo?: () => void;
 		onscrub?: (seq: number | null) => void;
 		onclose?: () => void;
+		/** The reader's own address, so their own rows can say "You" (decision
+		 *  27). ABSENT IS A SUPPORTED STATE and not a degraded one: with no
+		 *  viewer nobody is "You" and every row names its actor the same way,
+		 *  which is exactly right for a surface mounted without a session. */
+		viewerEmail?: string | null;
 	} = $props();
 
 	const entries = $derived(timeline.entries);
+	/* WHO MADE EACH EDIT, resolved once over the whole log rather than per row:
+	   the local-part collision rule cannot be decided from one row. See
+	   `timelineActors`. */
+	const actors = $derived(timelineActors(entries, viewerEmail));
+	function actorOf(e: TimelineEntry): TimelineActor | undefined {
+		return e.actor ? actors.get(e.actor) : undefined;
+	}
 	const count = $derived(entries.length);
 	/* The origin is a step of the history and is counted as one -- it is the
 	   creation of the part, which is the thing the student was promised they
@@ -78,7 +93,10 @@
 			verb,
 			`${e.sentence.where}${e.sentence.what ? `, ${e.sentence.what}` : ''}`,
 			e.state === 'undone' ? 'currently undone' : '',
-			e.actor ?? '',
+			// THE LABEL, NEVER `e.actor`. A screen reader spelling out a full
+			// address on every row is the raw-email defect on a different
+			// output device, and "You" is as much clearer heard as read.
+			actorOf(e)?.label ?? '',
 			when
 		]
 			.filter(Boolean)
@@ -175,7 +193,11 @@
 							<span class="meta">
 								{#if entry.state === 'undone'}<em class="chip undone-chip">undone</em>{/if}
 								{#if entry.state === 'broken'}<em class="chip broken-chip">{TIMELINE_WORDS.broken}</em>{/if}
-								{#if entry.actor}<span class="who">{entry.actor}</span>{/if}
+								{#if actorOf(entry)}{@const who = actorOf(entry)!}<span
+										class="who"
+										class:is-you={who.isViewer}
+										class:is-system={who.isSystem}>{who.label}</span
+									>{/if}
 								{#if timelineTime(entry.at)}<span class="when">{timelineTime(entry.at)}</span>{/if}
 							</span>
 						</span>
@@ -400,6 +422,37 @@
 	}
 	.broken-chip {
 		color: var(--amber);
+	}
+	/* WHO MADE THE EDIT (decision 27). THE WORD IS THE WHOLE SIGNAL and the ink
+	   only ranks it: a reader who cannot see colour reads exactly the same list,
+	   because every row prints a name either way.
+
+	   A CLASSMATE'S NAME IS THE PROMINENT ONE AND THE READER'S OWN IS NOT. On a
+	   part you worked on alone -- which is most parts -- every row is yours, and
+	   forty rows of emphasised "You" is forty rows of noise that make the one
+	   row somebody else touched harder to find, which is the opposite of what
+	   decision 27 is for. So `You` sits at the meta row's own `--text-2` and
+	   anybody else steps up to `--text-1`. Neither is hidden and neither is
+	   below the text threshold; both are measured in the browser pass against
+	   `--surface-2` AND against `--surface-1`, which is the ground a `.here`
+	   row swaps to. */
+	.who {
+		color: var(--text-1);
+		/* An address's local part has no spaces to break at, so a long one is
+		   told where it may break rather than being allowed to widen the pane.
+		   The 375px pane is the binding width. */
+		overflow-wrap: anywhere;
+	}
+	.who.is-you {
+		color: var(--text-2);
+	}
+	/* NOT A PERSON, AND IT SAYS SO IN A SECOND WAY. `0209` writes `system` and
+	   `migration:0209`, and the backfill row deliberately does not claim a
+	   student made it -- so the one word that is not somebody's name is also the
+	   one word in this column that is not upright. */
+	.who.is-system {
+		color: var(--text-2);
+		font-style: italic;
 	}
 	.row.undone .hit {
 		border-left-style: dashed;

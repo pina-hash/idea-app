@@ -587,13 +587,25 @@
 	let ideacadCheckout = $state<ReturnType<typeof createIdeacadCheckout> | null>(null);
 
 	/**
-	 * THE OWNER'S ADDRESS IS THE CALLER'S OWN, from the validated claims the
-	 * root layout already put in `page.data`. It is read for ONE purpose -- so
+	 * THE READER'S OWN ADDRESS, from the validated claims the root layout
+	 * already put in `page.data`. TWO SURFACES ASK FOR IT AND THERE IS ONE READ:
+	 * the share form (below) and the history timeline (decision 27), which says
+	 * "You" on the reader's own rows. Empty is a supported value for both.
+	 */
+	const ideacadViewerEmail = $derived((data.claims?.email ?? '').toString());
+
+	/**
+	 * THE OWNER'S ADDRESS IS THE CALLER'S OWN. It is read for ONE purpose -- so
 	 * the share form can refuse self-sharing without a round trip -- and the
 	 * database refuses it again regardless. Empty is a supported value: the form
 	 * simply spends the round trip and reads the refusal back verbatim.
+	 *
+	 * IT IS THE SAME VALUE UNDER A DIFFERENT NAME, and the name is kept because
+	 * it says which QUESTION this call site is asking. A second `data.claims`
+	 * read would be a second answer to "who is signed in" with nothing to keep
+	 * the two in step.
 	 */
-	const ideacadOwnerEmail = $derived((data.claims?.email ?? '').toString());
+	const ideacadOwnerEmail = $derived(ideacadViewerEmail);
 
 	/**
 	 * THE `0205` PROBE, ONCE PER ITEM. `ideacad_shared_with_me` is the cheapest
@@ -880,6 +892,7 @@
 	{ideacadTeam}
 	{ideacadDoc}
 	{ideacadWrites}
+	{ideacadViewerEmail}
 	{ideacadOpenRefusal}
 	{htmlAnswers}
 	{htmlInstructorAnswers}
