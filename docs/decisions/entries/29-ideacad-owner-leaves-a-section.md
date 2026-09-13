@@ -1,21 +1,19 @@
 # 29 What happens to an IdeaCAD document when its owner leaves a section?
 
 - Raised: 2026-09-13  By: ledger 0206, out of the IdeaCAD scope document
-- Status: ANSWERED 2026-09-13 by Mr. Pina. **NOT BUILT, AND IT NEEDS A
-  MIGRATION.** This is the one of the four that cannot be closed by a display
-  change: it is a new state on the document, an archive path, and an instructor
-  surface for reaching archived work. **No migration is written here**, and this
-  bundle carries none.
-- Build: OPEN, AND IT IS THE ONLY ONE OF THE FOUR THAT NEEDS A MIGRATION, so it
-  is Mr. Pina's to apply at the SQL editor. Four separable pieces, listed in
-  full under "What this costs to build": an `archived_at` state on
-  `ideacad_documents` with a pass over every read that does not know it exists;
-  an archive path; an instructor read keyed on the ITEM rather than on the
-  enrollment; and the instructor-shares-to-a-class grant, which reverses 0205's
-  written owner-only default. **The smallest useful first move is none of
-  those**: widen `classroom_remove_enrollment`'s four-way census to count
-  IdeaCAD work, which closes the live silent-loss gap below and needs no new
-  state.
+- Status: ANSWERED 2026-09-13 by Mr. Pina.
+- Build: **WRITTEN 2026-09-13 by ledger 0218 as
+  `supabase/migrations/0214_ideacad_document_archive.sql`, AND NOT YET APPLIED
+  -- it is Mr. Pina's to paste at the SQL editor.** All four pieces costed below
+  are in that file: an `archived_at` / `archived_by` state on
+  `ideacad_documents`; `ideacad_set_document_archived` as the archive path;
+  `ideacad_archive`, an instructor read keyed on the ITEM; and
+  `ideacad_section_grants` plus three functions for the
+  instructor-shares-to-a-class grant. The smallest first move named here --
+  widening `classroom_remove_enrollment`'s census -- shipped separately and
+  first, as `0213` under ledger 0212, and `0214` deliberately does not touch it.
+  **Two halves of this entry are still open and are listed under "What is still
+  open" at the end.**
 - Decision: **THE DOCUMENT AND ALL ITS WORK IS ARCHIVED, NOT DELETED**, and
   stays accessible to the admin instructor. If the instructor shares an archived
   document with a class, those students get access to it too.
@@ -166,3 +164,93 @@ concrete shape before it is built.
 Nothing about the storage cost, which is trivial. The one thing worth checking
 back on is whether a departed student may still READ their own archived work --
 he did not say, this entry does not assume, and both answers are defensible.
+
+
+---
+
+## WHAT WAS BUILT, 2026-09-13, ledger 0218 -- and which parts are a builder's judgement
+
+`supabase/migrations/0214_ideacad_document_archive.sql`. Its own header is the
+full reasoning; this section records what the decision got and what it did not,
+so nobody has to read a migration to find out whether this entry is closed.
+
+**HIS TWO SENTENCES, AND WHERE EACH ONE LANDED.**
+
+- *"The document and all its work is archived, not deleted, and stays accessible
+  to the admin instructor."* `archived_at` and `archived_by` on the document;
+  `ideacad_archive(p_item_id)` lists it, keyed on the ITEM so it survives any
+  enrollment change. **The instructor's READ needed no change at all** -- that
+  was measured rather than assumed, and is the one estimate in the costing above
+  that turned out to be pessimistic: `_ideacad_can_read_document` already asked
+  `_classroom_manages_item`, which reads `classroom_postings` and never
+  `classroom_enrollments`, and all four select policies already delegated to it.
+  What was missing was only the LISTING.
+- *"If the instructor shares an archived document with a class, those students
+  get access to it too."* `ideacad_section_grants`, a second grant table keyed
+  `(document_id, section_id)`, with `ideacad_share_document_with_section`,
+  `ideacad_unshare_document_from_section` and
+  `ideacad_document_section_grants`. A recipient discovers it through
+  `ideacad_shared_with_me` and opens it through `ideacad_open_shared_document`,
+  the same two functions a person-to-person share already used.
+
+**AN ARCHIVED DOCUMENT STOPS BEING WRITABLE AND KEEPS BEING READABLE**, which is
+this entry's own requirement. One term, `_ideacad_document_archived(uuid)`, in
+TWO predicates -- and the second is the half that was nearly missed:
+`_ideacad_part_writer` short-circuits on `_ideacad_part_owner` BEFORE consulting
+0205's rule, and four assembly writes gate on it directly, so narrowing
+`_ideacad_can_write_document` alone would have left five part writes open on an
+archived document, silently. The read side is named nowhere in the file, so
+"keeps being readable" is structural rather than a filter somebody has to
+maintain.
+
+**FOUR NARROWINGS ARE THE BUILDER'S JUDGEMENT, NOT HIS**, recorded here so the
+next session knows what it is reversing:
+
+1. **A class grant is ALWAYS a viewer.** `ideacad_section_grants` has no role
+   column, so this is a property of the schema rather than a check. A current
+   student editing a departed student's reference part would have no owner left
+   to undo it.
+2. **Only an ARCHIVED document may be shared with a class.** His sentence says
+   "an archived document" and the narrow reading is the safe one: without it an
+   instructor could broadcast a LIVE student's in-progress work to a whole class.
+3. **The target section must be one the assignment is posted to.** This reuses
+   the population `ideacad_share_document` already computes and lets
+   `ideacad_shared_with_me` stay the one discovery path. **It has a real cost and
+   it is the first thing to revisit** -- see below.
+4. **The owner's address is shown, not redacted.** Redaction was considered and
+   rejected: `ideacad_open_shared_document` returns the document row, so a
+   redacted list beside an unredacted open reads as a guarantee and is not one.
+   The surface says so in words before the press instead, the way `FoundryShare`
+   does.
+
+**ARCHIVING DOES NOT UNLOCK A REMOVAL, DELIBERATELY.** `0213`'s census counts
+`ideacad_documents` rows with no `archived_at` term, and `0214` does not name
+`classroom_remove_enrollment` at all, so a student with IdeaCAD work is refused
+before and after. A removal that silently archived would be the same class of
+defect as the silent delete `0213` closed. The two files are independent and may
+be applied in either order.
+
+## What is still open
+
+- **NARROWING 3 IS THE ONE TO PUT BACK IN FRONT OF HIM.** An instructor who
+  authors a NEW item each year rather than re-posting the canonical one cannot
+  reach last year's work through the class share at all; they would have to post
+  the old item to the new section. Whether that matches how he actually runs the
+  Blade assignment year to year is a question nobody has asked him, and widening
+  it means a second discovery path keyed on a section rather than an item, which
+  is a real disclosure surface and not a widened `if`.
+- **WHETHER A DEPARTED STUDENT MAY STILL READ THEIR OWN ARCHIVED WORK.** The
+  original entry flagged this as the one thing worth checking back on, and `0214`
+  did not decide it: the owner keeps the `owner` role and therefore keeps reading,
+  because collapsing the role to null would take the document out of every read
+  including the instructor's. That is the permissive answer arrived at by not
+  deciding, and it deserves his word rather than a default.
+- **A DEPARTED OWNER'S HELD PARTS ARE STILL NEVER RELEASED.** Named in this entry
+  as a separate finding and still true. On an archived document a hold is INERT,
+  because every write it would authorize is now closed, so this is tidiness
+  rather than a hole -- but it is tidiness nobody has done.
+- **NOTHING GOES LOOKING FOR AN ORPHAN TO ARCHIVE.** `0214` section 10 REPORTS,
+  at apply time, every document whose owner has no enrollment on the item, and
+  writes nothing. They are reachable from that moment -- `ideacad_archive` lists
+  an off-roster document whether or not anybody archived it -- but whether each
+  is reference work worth keeping is a decision with that list in front of you.
