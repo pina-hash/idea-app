@@ -8,7 +8,7 @@
   generated counts block in `tools/browser-verify/README.md`,
   `docs/prompt-ledger/entries/0224-*`, and its own `docs/history/` entry.
 - Migration permitted: no. **Claims: none.**
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness, branched from `origin/integration`.
 - Notes: no IdeaCAD surface has ever been driven by a person. Every browser
   measurement taken against it was on a `/dev` harness route, because production
