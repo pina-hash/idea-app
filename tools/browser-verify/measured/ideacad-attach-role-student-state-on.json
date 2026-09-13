@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "ideacad-attach-role-student-state-on.mjs",
+	"date": "2026-09-13T20:17:36.324Z",
+	"sha": "c05f09fdc1147062b20379abbe74a66a7585b03a",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 22,
+	"outsideRows": [],
+	"ms": 10374
+}
