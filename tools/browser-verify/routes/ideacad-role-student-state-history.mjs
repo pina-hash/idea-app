@@ -120,7 +120,15 @@ export default {
 				'Redid',
 				/* A student who knows other CAD expects an undone step to vanish.
 				   Saying so once is cheaper than them concluding it is broken. */
-				'Undo adds a step here, it never removes one'
+				'Undo adds a step here, it never removes one',
+				/* WHO MADE EACH EDIT (decision 27). The reader's own rows and a
+				   classmate's row are two different WORDS, which is what makes
+				   them distinguishable without colour. `system` is the origin,
+				   which this fixture backfilled -- it must read as a word and
+				   never as `migration:0209`. */
+				'You',
+				'm.reyes',
+				'system'
 			],
 			/* THE WHOLE POINT OF THE SURFACE. A pointer on screen is a debugging
 			   view wearing a student's clothes. */
@@ -132,6 +140,17 @@ export default {
 				   nothing to say about values. */
 				'steel-0125',
 				'aluminum-0125',
+				/* A RAW EMAIL ADDRESS, which is what this surface printed until
+				   decision 27 was answered deliberately. `@` is the whole test
+				   and it is a single character on purpose: every address has
+				   one, so the check cannot be satisfied by a shorter address or
+				   a different domain. It is safe as a blanket ban HERE because
+				   no other word on this panel carries one. */
+				'@',
+				/* The backfill's own value. `0209` deliberately refused to claim
+				   a student created a part it did not see created, and a row
+				   naming the migration at a student is that refusal undone. */
+				'migration:0209',
 				'undefined',
 				'NaN',
 				'[object Object]'
@@ -145,6 +164,16 @@ export default {
 		{ selector: '.tl .what', label: 'what happened to it', min: 4.5 },
 		{ selector: '.tl .seq', label: 'the step number', min: 4.5 },
 		{ selector: '.tl .meta', label: 'who and when', min: 4.5 },
+		/* WHO MADE IT, MEASURED AS TWO INKS BECAUSE IT IS TWO INKS. A
+		   classmate's name steps up to `--text-1` and the reader's own "You"
+		   sits at the meta row's `--text-2`, so a single `.meta` reading
+		   measures one of them and says nothing about the other -- which is
+		   exactly the shape of "a green check is a claim about the question it
+		   asked". Both are held to the TEXT threshold: the word is the signal
+		   here, not a tint on one. */
+		{ selector: '.tl .who.is-you', label: "the reader's own rows", min: 4.5 },
+		{ selector: '.tl .who:not(.is-you):not(.is-system)', label: "a classmate's name", min: 4.5 },
+		{ selector: '.tl .who.is-system', label: 'the origin, which is not a person', min: 4.5 },
 		/* THE VERB AND THE CHIP CARRY THE UNDONE STATE IN WORDS, which is why
 		   they are held to the TEXT threshold rather than the 3:1 a decorative
 		   mark would take: they are the signal, not a tint on one. */
