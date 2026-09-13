@@ -8,6 +8,17 @@
 		type IdeacadEditorWrites
 	} from '$lib/ideacad/mount';
 	import type { IdeacadStoreState } from '$lib/ideacad/store';
+	import {
+		ideacadAttachRefusal,
+		ideacadAttachState,
+		IDEACAD_ATTACH_BAD_CONFIG,
+		IDEACAD_ATTACH_OFF_CONFIRM,
+		IDEACAD_ATTACH_OFF_PROMPT,
+		IDEACAD_ATTACH_OFF_WARNING,
+		IDEACAD_ATTACH_OTHER_SURFACE,
+		type IdeacadAttachControl
+	} from '$lib/ideacad/transports';
+	import { bladeConfigShaped } from '$lib/ideacad/config';
 	import SharePanel from '$lib/ideacad/ui/SharePanel.svelte';
 	import PartsPanel from '$lib/ideacad/ui/PartsPanel.svelte';
 	import SharedDocuments from '$lib/ideacad/ui/SharedDocuments.svelte';
@@ -278,7 +289,8 @@
 		ideacadViewerEmail = null,
 		ideacadOpenRefusal = null,
 		ideacadTeam = null,
-		ideacadShared = null
+		ideacadShared = null,
+		ideacadAttach = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -455,6 +467,17 @@
 		ideacadTeam?: ItemDetailIdeacadTeam | null;
 		/** WHAT A CLASSMATE SHARED WITH YOU (0205). See the interface above. */
 		ideacadShared?: ItemDetailIdeacadShared | null;
+		/**
+		 * TURNING THE BLADE EDITOR ON AND OFF (0223), MANAGER ONLY.
+		 *
+		 * NULL REMOVES THE CONTROL ENTIRELY and is the whole gate: a student, a
+		 * viewer who manages no section, and a deployment whose page has not
+		 * been wired all hand down nothing, so there is no write to execute
+		 * rather than a write that is merely hidden. `canManage` is asked as
+		 * well, because the inspector this sits in is already one
+		 * `{#if canManage}` and a second, narrower guard costs nothing.
+		 */
+		ideacadAttach?: IdeacadAttachControl | null;
 	} = $props();
 
 	/**
@@ -907,12 +930,126 @@
 			checkInBusy = false;
 		}
 	}
+	/* =====================================================================
+	 * TURNING THE BLADE EDITOR ON AND OFF -- 0223
+	 *
+	 * `ideacad_set_editor` shipped in 0201 and, until this block existed, no
+	 * surface outside `src/routes/dev/` called it. The editor, the store, the
+	 * sharing, the assembly and the archive were all built and NONE of it was
+	 * reachable, because nothing could put an item on schema version 4. This is
+	 * the control that closes that.
+	 *
+	 * IT SITS IN THE INSPECTOR, beside the assignment engine's own importer and
+	 * rubric builder, which is where a teacher already goes to decide what a
+	 * student hands in. It is NOT inside `canEditAssignment`: that gate reads
+	 * `teacherTransports`, which is the v1 spec boundary and has nothing to do
+	 * with this one, and folding them together would make a deployment missing
+	 * either transport hide both controls.
+	 * ================================================================== */
+
+	/**
+	 * WHETHER TO OFFER THE CONTROL AT ALL. Three conditions, each doing a
+	 * different job: `canManage` is the person, `kind` is the item (the RPC
+	 * raises 'IdeaCAD can only be attached to an assignment.' for anything
+	 * else, so a control on a material could only ever refuse), and the
+	 * transport is the deployment.
+	 */
+	const canAttachIdeacad = $derived(canManage && item.kind === 'assignment' && !!ideacadAttach);
+
+	/**
+	 * WHAT THE ITEM SAYS IT IS, RE-READ FROM `item` ON EVERY RENDER AND NEVER
+	 * REMEMBERED. `onchanged` re-runs the load, so the chip a teacher sees
+	 * after a successful press is the column's own value coming back through
+	 * the payload -- which is what makes "reload and it still says on" true
+	 * rather than hopeful. A local `$state` mirror here is exactly the thing
+	 * that would look right and be wrong after a failed write.
+	 */
+	const ideacadAttachOn = $derived(ideacadAttachState(item) === 'on');
+	const ideacadOtherSurface = $derived(ideacadAttachState(item) === 'other-surface');
+
+	let ideacadAttachBusy = $state(false);
+	let ideacadAttachError = $state<string | null>(null);
+	let ideacadAttachNotice = $state<string | null>(null);
+	/** Two-step, then typed: null is disarmed, a string is what has been typed
+	    into the confirmation box so far. */
+	let ideacadOffTyped = $state<string | null>(null);
+	/**
+	 * THE SAME PREDICATE DRIVES THE CONTROL AND THE HANDLER. Two spellings of
+	 * "is this ready" is what produces a press that does nothing.
+	 */
+	const ideacadOffConfirmed = $derived(
+		(ideacadOffTyped ?? '').trim().toUpperCase() === IDEACAD_ATTACH_OFF_CONFIRM
+	);
+
+	/**
+	 * ON. The config is validated BEFORE the call and nothing is written when it
+	 * fails: `ideacad_open_document` builds a student's first concept out of
+	 * `config->'defaultFeatures'`, so a row written with a config that cannot
+	 * make a tree is an assignment that accepts a student and then refuses to
+	 * open for them, days later, in front of the wrong person.
+	 */
+	async function attachIdeacad() {
+		const attach = ideacadAttach;
+		if (!attach || ideacadAttachBusy) return;
+		ideacadAttachError = null;
+		ideacadAttachNotice = null;
+		if (!bladeConfigShaped(attach.bladeConfig)) {
+			ideacadAttachError = IDEACAD_ATTACH_BAD_CONFIG;
+			return;
+		}
+		ideacadAttachBusy = true;
+		try {
+			await attach.setEditor(item.id, 'blade', attach.bladeConfig);
+			ideacadAttachNotice = 'The Blade editor is on. Students open it from this assignment.';
+			await onchanged?.();
+		} catch (e) {
+			/* THE DATABASE'S OWN SENTENCE, VERBATIM. 'This assignment already
+			   uses another work surface. Remove it first.' is the schema-3
+			   refusal and is better copy than anything substituted here -- and
+			   it is reachable even with the local pre-empt below, because
+			   another manager can import a document between this page loading
+			   and this press. */
+			ideacadAttachError = ideacadAttachRefusal(e);
+		} finally {
+			ideacadAttachBusy = false;
+		}
+	}
+
+	/**
+	 * OFF. Measured against 0201 rather than assumed: this deletes the
+	 * `ideacad_editors` row and clears the item's schema version.
+	 * `ideacad_documents`, `ideacad_concepts` and `ideacad_predictions` cascade
+	 * off `classroom_items`, never off `ideacad_editors`, so NOTHING A STUDENT
+	 * DREW IS DELETED -- but every one of them is stranded while it is off,
+	 * because `ideacad_open_document` raises without the row. That is what the
+	 * typed confirmation names.
+	 */
+	async function detachIdeacad() {
+		const attach = ideacadAttach;
+		if (!attach || ideacadAttachBusy || !ideacadOffConfirmed) return;
+		ideacadAttachBusy = true;
+		ideacadAttachError = null;
+		ideacadAttachNotice = null;
+		try {
+			await attach.setEditor(item.id, null, null);
+			ideacadOffTyped = null;
+			ideacadAttachNotice =
+				'The Blade editor is off. Student work is kept and comes back if you turn it on again.';
+			await onchanged?.();
+		} catch (e) {
+			ideacadAttachError = ideacadAttachRefusal(e);
+		} finally {
+			ideacadAttachBusy = false;
+		}
+	}
+
 	const hasState = $derived(canManage && (!item.published || isScheduled(item) || item.is_public === true));
 	const hasInspector = $derived(
 		editable ||
 			hasInstructorMaterial ||
 			canEditReference ||
 			canEditAssignment ||
+			canAttachIdeacad ||
 			canManageDeck ||
 			canManageCheckIn ||
 			hasState ||
@@ -940,7 +1077,12 @@
 	 *   in it and nothing here is what a teacher opens the tools to reach.
 	 */
 	const groupContent = $derived(
-		canManageDeck || canEditReference || canEditAssignment || !!wordingSpec || canManageCheckIn
+		canManageDeck ||
+			canEditReference ||
+			canEditAssignment ||
+			canAttachIdeacad ||
+			!!wordingSpec ||
+			canManageCheckIn
 	);
 	const groupPrivate = $derived(hasInstructorMaterial);
 	const groupPost = $derived(editable || !!revisionTransports);
@@ -1416,6 +1558,138 @@
 									{#if gradeHref}
 										<hr class="tool-rule" />
 										<a class="btn tiny" href={gradeHref}>Open grading console</a>
+									{/if}
+								</div>
+							{/if}
+
+							<!--
+								THE BLADE EDITOR SWITCH (0223).
+
+								ITS OWN BLOCK, NOT A PANEL INSIDE THE ASSIGNMENT ENGINE ABOVE.
+								That block is gated on `teacherTransports`, the v1 spec
+								boundary, and this control has nothing to do with it: an
+								assignment can carry a Blade editor and no spec, or a spec and
+								no editor. Folding them together would hide both controls on a
+								deployment missing either transport.
+
+								44px IS NOT THE FLOOR HERE AND THE SURFACE DECLARES IT. Every
+								control in this block is `.btn.tiny` inside `.cr-root`, which
+								`classroom.css` pins at a 24px `min-height` -- the
+								IDEA_INTERFACE_STANDARDS 10 instructor-density floor, claimed
+								by the same named class the detach, rubric and importer chips
+								beside it already use. Nothing student-facing renders from
+								here: the whole region is one `{#if canManage}`.
+							-->
+							{#if canAttachIdeacad}
+								<div class="insp-block ideacad-attach" data-testid="insp-ideacad-attach">
+									<h3 class="section-label">Blade editor</h3>
+									{#if ideacadOtherSurface}
+										<!--
+											NO CONTROL, AND THE REASON IN ITS PLACE.
+											`ideacad_set_editor` refuses a schema-3 item, so a
+											button here could only ever produce a refusal -- and a
+											row that is simply missing its button reads as a defect
+											rather than as a rule.
+										-->
+										<p class="hint" data-testid="ideacad-attach-blocked">
+											{IDEACAD_ATTACH_OTHER_SURFACE}
+										</p>
+									{:else}
+										<p class="hint" data-testid="ideacad-attach-state">
+											{ideacadAttachOn
+												? 'This assignment opens in the Blade editor. Each student gets their own document.'
+												: 'Students hand this in however the assignment says. Turn the Blade editor on to give them a CAD document instead.'}
+										</p>
+										{#if ideacadAttachError}
+											<p class="feedback error" data-testid="ideacad-attach-error">
+												{ideacadAttachError}
+											</p>
+										{/if}
+										{#if ideacadAttachNotice}
+											<p class="feedback ok" data-testid="ideacad-attach-notice">
+												{ideacadAttachNotice}
+											</p>
+										{/if}
+										{#if ideacadAttachOn}
+											{#if ideacadOffTyped === null}
+												<button
+													type="button"
+													class="btn secondary tiny"
+													data-testid="ideacad-attach-off"
+													disabled={ideacadAttachBusy}
+													onclick={() => {
+														ideacadAttachError = null;
+														ideacadAttachNotice = null;
+														ideacadOffTyped = '';
+													}}
+												>
+													Turn the Blade editor off
+												</button>
+											{:else}
+												<!--
+													NAMES WHAT IT COSTS BEFORE THE CONFIRM, and both
+													halves of it: nothing is deleted, and every student
+													loses reach until it goes back on. A confirmation
+													reading "this cannot be undone" would be false here,
+													and one saying nothing would let a teacher take a
+													class's work off the screen mid-period.
+												-->
+												<p class="feedback attach-warn" data-testid="ideacad-attach-off-warning">
+													<span class="attach-warn-mark" aria-hidden="true">&#9888;</span>
+													{IDEACAD_ATTACH_OFF_WARNING}
+												</p>
+												<label class="attach-confirm" for="ideacad-off-{item.id}">
+													<span>{IDEACAD_ATTACH_OFF_PROMPT}</span>
+													<input
+														id="ideacad-off-{item.id}"
+														type="text"
+														autocomplete="off"
+														spellcheck="false"
+														data-testid="ideacad-attach-off-input"
+														disabled={ideacadAttachBusy}
+														bind:value={ideacadOffTyped}
+													/>
+												</label>
+												<span class="attach-actions">
+													<!--
+														`aria-disabled`, NEVER `disabled`, so the control
+														can explain itself: a genuinely disabled button
+														swallows the pointer event that would ask why.
+														`ideacadOffConfirmed` drives BOTH this and the
+														handler, which is what stops a press that does
+														nothing.
+													-->
+													<button
+														type="button"
+														class="btn secondary tiny danger"
+														data-testid="ideacad-attach-off-confirm"
+														aria-disabled={!ideacadOffConfirmed || ideacadAttachBusy}
+														onclick={detachIdeacad}
+													>
+														{ideacadAttachBusy ? 'Turning it off...' : 'Yes, turn it off'}
+													</button>
+													<button
+														type="button"
+														class="btn secondary tiny"
+														data-testid="ideacad-attach-off-cancel"
+														disabled={ideacadAttachBusy}
+														onclick={() => (ideacadOffTyped = null)}
+													>
+														Leave it on
+													</button>
+												</span>
+											{/if}
+										{:else}
+											<button
+												type="button"
+												class="btn secondary tiny"
+												data-testid="ideacad-attach-on"
+												disabled={ideacadAttachBusy}
+												onclick={attachIdeacad}
+											>
+												{ideacadAttachBusy ? 'Turning it on...' : 'Turn the Blade editor on'}
+											</button>
+										{/if}
 									{/if}
 								</div>
 							{/if}
@@ -2663,6 +2937,73 @@
 		flex-wrap: wrap;
 		gap: var(--space-2);
 		margin-top: var(--space-2);
+	}
+	/* THE WARNING IS A BOX, AND IT IS A BOX BECAUSE THE PICTURE SAID SO.
+
+	   It was a `.hint` beside the state sentence, which is another `.hint`:
+	   same size, same ink, no gap. Rasterized at 375 and at 1440 the two read
+	   as ONE grey paragraph, so the sentence saying a whole class loses access
+	   to their work looked exactly like the sentence saying what the editor is.
+	   Every measurement passed -- contrast 14.07:1, present 1, inside its
+	   block, over the floor -- because none of them asks whether a reader can
+	   TELL THE TWO APART.
+
+	   `.feedback` IS THE SHARED BOX and is not restated here; what this adds is
+	   the amber, which the token register makes the WARNING role. The glyph
+	   carries it too, because colour is never the only signal -- and the
+	   SENTENCE is the third, since it says in words what is about to happen. */
+	.attach-warn {
+		color: var(--amber);
+		border-color: var(--amber);
+		margin-top: var(--space-2);
+	}
+	.attach-warn-mark {
+		margin-right: 0.4rem;
+	}
+	/* THE TYPED CONFIRMATION FOR TURNING THE BLADE EDITOR OFF (0223).
+
+	   THE FLOOR IS ON THE INPUT AND IT IS `min-height`, never a height: this
+	   surface is instructor-only and claims IDEA_INTERFACE_STANDARDS 10's 24px
+	   floor through `.cr-root .btn.tiny`, but an `<input>` is not a `.btn` and
+	   inherits none of it, so it says so for itself. Rounding to reach a floor
+	   rounds both ways, which is why nothing here snaps to a token. */
+	.attach-confirm {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-2);
+	}
+	.attach-confirm input {
+		min-height: 24px;
+		min-width: 0;
+		flex: 0 1 10rem;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--white);
+		background: var(--bg2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control);
+		padding: 0.28rem 0.6rem;
+	}
+	.attach-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
+	}
+	/* `aria-disabled` is not `disabled`, so nothing dims it for free. It has to
+	   READ as unavailable while the word has not been typed, and it has to stay
+	   clickable so the press can be refused by the handler rather than swallowed
+	   by the platform. */
+	.attach-actions [aria-disabled='true'] {
+		opacity: 0.55;
+		cursor: not-allowed;
 	}
 	.insp-line {
 		display: flex;

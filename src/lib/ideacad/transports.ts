@@ -5,6 +5,10 @@ import {
 	type IdeacadAssemblyTransports
 } from './assembly';
 import { createIdeacadLive, type IdeacadLive } from './live';
+/* THE TWO ENGINE PREDICATES, IMPORTED RATHER THAN RESTATED. `mount.ts` value-imports nothing from this directory (its `store` and `history` imports are type-only), so this does not close a cycle. */
+import { isIdeaCad } from './mount';
+import { isHtmlAssignment } from '$lib/classroom/html-assignment/mount';
+import { DEFAULT_BLADE_CONFIG } from './blade/materials';
 import {
 	ideacadRoleFromPayload,
 	type IdeacadDocumentRole,
@@ -74,7 +78,17 @@ export type IdeacadSaveConceptResult =
 	| { ok: true; concept: IdeacadConceptRow }
 	| { ok: false; reason: 'stale'; concept: IdeacadConceptRow };
 
-/** The complete RPC boundary consumed by the IdeaCAD state layer. */
+/**
+ * The complete RPC boundary consumed by the IdeaCAD state layer.
+ *
+ * IT DOES NOT EXTEND `IdeacadAttachControl` (0223), DELIBERATELY, AND THAT WAS
+ * MEASURED RATHER THAN CHOSEN. Extending it makes `bladeConfig` a REQUIRED
+ * member here, which reddens every hand-built stub of this interface --
+ * `tests/ideacad-store.test.ts` and `tests/dom/ideacad-mount.test.ts` both
+ * failed that way. What the attach prop needs is a property of the CLIENT
+ * object rather than of the boundary, so `createIdeacadTransports` returns the
+ * intersection and the interface is untouched.
+ */
 export interface IdeacadTransports {
 	readonly live: IdeacadLive;
 	setEditor(itemId: string, editor: string | null, config: unknown): Promise<unknown>;
@@ -162,7 +176,7 @@ export interface IdeacadTransports {
 export function createIdeacadTransports(
 	supabase: SupabaseClient,
 	uploadSubmissionFile?: IdeacadTransports['uploadSubmissionFile']
-): IdeacadTransports {
+): IdeacadTransports & IdeacadAttachControl {
 	const rpc = async <T>(name: string, args: Record<string, unknown>): Promise<T> => {
 		const { data, error } = await supabase.rpc(name, args);
 		if (error) throw new Error(error.message);
@@ -171,6 +185,16 @@ export function createIdeacadTransports(
 
 	return {
 		live: createIdeacadLive(supabase),
+		/* THE CONFIG A NEW EDITOR ROW IS WRITTEN WITH, and the only one there
+		   is. `/admin/ideacad-materials` manages the material LIBRARY, which
+		   `bladeConfigWithMaterials` resolves over a config at RENDER time and
+		   which is global rather than per item -- so nothing anywhere supplies a
+		   per-item config, and a caller that invented one would be inventing the
+		   part every student in the class opens on. It sits on this object
+		   because this is the module that owns the `setEditor` call it is an
+		   argument to, and because a surface holding the boundary must not have
+		   to reach for a second import to use it correctly. */
+		bladeConfig: DEFAULT_BLADE_CONFIG,
 		setEditor: (itemId, editor, config) =>
 			rpc('ideacad_set_editor', { p_item_id: itemId, p_editor: editor, p_config: config }),
 		openDocument: (itemId) => rpc('ideacad_open_document', { p_item_id: itemId }),
@@ -388,4 +412,157 @@ export function createIdeacadHistoryTransports(
 				p_limit: limit
 			})
 	};
+}
+
+/* ===========================================================================
+ * ATTACHING THE EDITOR TO AN ASSIGNMENT -- 0223
+ *
+ * `setEditor` above has existed since 0201 and, until this bundle, NO SURFACE
+ * OUTSIDE `src/routes/dev/` CALLED IT. The RPC was applied, the editor was
+ * built, and there was no control anywhere by which a teacher could put the two
+ * together -- so no classroom item in production carried
+ * `assignment_schema_version` 4 and every student-side path below was dead
+ * code. Everything in this section exists to make that one call reachable, and
+ * it is all PURE: the control itself is markup in `ItemDetail`'s instructor
+ * arm, and what lives here is the vocabulary and the two predicates, so both
+ * can be asserted with no browser and no database.
+ * ======================================================================== */
+
+/**
+ * WHAT THE ITEM SAYS ABOUT ITS OWN WORK SURFACE, decided from the SAME two
+ * predicates every other surface uses (`isIdeaCad` for 4, `isHtmlAssignment`
+ * for 3) rather than from a third reading of the column. A second spelling of
+ * "which engine is this" is `htmlAssignmentMount`'s own named failure, one
+ * table over.
+ *
+ * `off` IS ALSO THE ANSWER FOR A READ THAT COULD NOT TELL, which is
+ * deliberate and is `htmlAssignmentMount`'s rule: null and 1 are the v1 spec
+ * engine, a payload that never selected the column is indistinguishable from
+ * one, and `ideacad_set_editor`'s upsert is idempotent -- so the cost of being
+ * wrong this way is a teacher pressing a control that writes what is already
+ * there. The other way round would hide the control on every ordinary
+ * assignment.
+ */
+export type IdeacadAttachState = 'on' | 'off' | 'other-surface';
+
+/**
+ * WHY THE CONTROL IS NOT OFFERED ON A SCHEMA-3 ITEM, said in words.
+ *
+ * `ideacad_set_editor` raises 'This assignment already uses another work
+ * surface. Remove it first.' for one, so a control here could only ever
+ * produce a refusal -- and a control whose only possible answer is a refusal
+ * must not be offered. What replaces it is this sentence, because a row that
+ * is simply missing its button reads as a defect.
+ *
+ * IT IS NOT A COPY OF THE DATABASE'S REFUSAL AND MUST NOT BECOME ONE. That
+ * sentence answers "your call was rejected"; this one answers "there is no
+ * button here", which is a different question asked at a different moment. The
+ * refusal itself is still rendered verbatim if the RPC ever raises it, which it
+ * can: another manager can import a document between this page loading and the
+ * press.
+ */
+export const IDEACAD_ATTACH_OTHER_SURFACE =
+	'This assignment already has a ported worksheet on it. Remove that first, and the Blade editor can go on instead.';
+
+/**
+ * THE LOCAL REFUSAL, RAISED BEFORE THE CALL RATHER THAN AFTER IT.
+ *
+ * `ideacad_open_document` builds a student's FIRST CONCEPT out of
+ * `config->'defaultFeatures'`, so an editor row written with a config that
+ * cannot produce a valid tree is an assignment that accepts a student and then
+ * refuses to open for them -- a failure that surfaces to the wrong person, in
+ * class, days later. `bladeConfigShaped` is asked on this side first, and
+ * nothing is written when it says no.
+ *
+ * IT NAMES NO TABLE AND NO MIGRATION, because a teacher reads it, and it says
+ * NOTHING CHANGED, because that is the fact that decides what they do next.
+ */
+export const IDEACAD_ATTACH_BAD_CONFIG =
+	'The Blade editor could not be turned on: this site could not build a starting part for students to open. Nothing changed. Tell Mr. Pina before you post this assignment.';
+
+/**
+ * WHAT TURNING IT OFF ACTUALLY DOES, WHICH IS THE SENTENCE THE CONFIRMATION
+ * EXISTS FOR.
+ *
+ * MEASURED AGAINST `0201`, NOT ASSUMED: `ideacad_set_editor` with a null editor
+ * runs `delete from public.ideacad_editors` and sets
+ * `assignment_schema_version` back to null. `ideacad_documents`,
+ * `ideacad_concepts` and `ideacad_predictions` all cascade off
+ * `classroom_items`, NEVER off `ideacad_editors`, and there is no trigger on
+ * that table but `touch_updated_at` and no `delete from
+ * public.ideacad_documents` anywhere in the migration chain. So NOTHING A
+ * STUDENT DREW IS DELETED.
+ *
+ * WHAT IT DOES COST IS REACH: `ideacad_open_document` raises 'This assignment
+ * does not have the Blade editor.' once the row is gone, so every student's
+ * work is stranded for as long as it is off. Turning it back on restores it --
+ * the document upsert is `on conflict do nothing` and a document that already
+ * has an `active_concept_id` mints no second concept, so their own concepts
+ * come back exactly as they left them.
+ *
+ * A CONFIRMATION THAT SAID "this cannot be undone" WOULD BE A LIE, and one that
+ * said nothing would let a teacher take a class's work off the screen mid-period
+ * without knowing it. This says the true thing, which is both halves.
+ */
+export const IDEACAD_ATTACH_OFF_WARNING =
+	'Students lose access to their blades while it is off. Nothing they have drawn is deleted, and turning it back on brings every concept back exactly as it was.';
+
+/** What the teacher types to confirm the removal. Uppercase, short, and not a
+    word a stray keystroke produces. */
+export const IDEACAD_ATTACH_OFF_CONFIRM = 'TURN OFF';
+
+/** The instructions above the typed box, naming the word without making the
+    reader hunt for it in the warning. */
+export const IDEACAD_ATTACH_OFF_PROMPT = `Type ${IDEACAD_ATTACH_OFF_CONFIRM} to confirm.`;
+
+/**
+ * WHAT A CALLER MUST HAND DOWN TO GET THE CONTROL. Null removes it entirely,
+ * which is the gate rather than a flag: a caller that cannot build this -- a
+ * student, a page whose viewer manages no section -- has no write to execute,
+ * so read-only is structural.
+ *
+ * `IdeacadTransports` SATISFIES IT STRUCTURALLY, which is what lets the item
+ * page hand its existing boundary straight down as ONE added prop rather than
+ * constructing a second object out of pieces. The narrowing is the type's: an
+ * instructor arm typed to this sees two members and not twenty.
+ *
+ * `bladeConfig` IS A VALUE AND NOT A FACTORY on purpose. The instructor arm
+ * VALIDATES whatever arrives and never chooses it -- so a deployment that ever
+ * does grow a per-item config changes this one property and no control.
+ */
+export interface IdeacadAttachControl {
+	/** The config `ideacad_editors.config` is written with. */
+	readonly bladeConfig: unknown;
+	/** `ideacad_set_editor`. A null editor removes the row. */
+	setEditor(itemId: string, editor: string | null, config: unknown): Promise<unknown>;
+}
+
+/**
+ * THE DATABASE'S OWN SENTENCE, KEPT VERBATIM.
+ *
+ * Every refusal `ideacad_set_editor` raises is already addressed to a teacher
+ * and already says what to do -- 'This assignment already uses another work
+ * surface. Remove it first.' is better copy than anything a client could
+ * substitute, and re-toning it here is how the schema-3 case becomes 'Could not
+ * turn the editor on.' The fallback is for the case with no message at all (a
+ * network failure, an abort), which is the only case where there is nothing to
+ * render.
+ */
+export function ideacadAttachRefusal(error: unknown): string {
+	const message = error instanceof Error ? error.message.trim() : '';
+	return (
+		message ||
+		'The Blade editor could not be changed. Nothing was saved. Check your connection and try again.'
+	);
+}
+
+/**
+ * WHICH OF THE THREE STATES THIS ITEM IS IN. Total over any payload, throws for
+ * nothing, and asks the two existing predicates rather than reading the column
+ * a third time.
+ */
+export function ideacadAttachState(item: unknown): IdeacadAttachState {
+	if (isIdeaCad(item)) return 'on';
+	if (isHtmlAssignment(item)) return 'other-surface';
+	return 'off';
 }
