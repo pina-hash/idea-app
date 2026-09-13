@@ -30,10 +30,26 @@ name: Deploy
 # production's `pg_catalog` with it and answers per migration, so the second
 # bullet is answered by the thing it is about.
 #
-# WHAT IS STILL A PERSON'S. Applying a migration. That needs a credential that
-# can WRITE to production, which nothing in CI and no cloud session may hold.
-# When this refuses, the job summary prints the SQL of every unapplied
-# migration in a copyable block, so the remaining step is paste and run.
+# WHAT IS STILL A PERSON'S, AND THIS PARAGRAPH USED TO OVERSTATE IT. It read
+# "applying a migration ... needs a credential that can WRITE to production,
+# which nothing in CI and no cloud session may hold". That was true when it was
+# written and is FALSE since 2026-09-13: `supabase/data/0209-seed-migration-history.sql`
+# was pasted, so there is no chain for `db push` to replay, and
+# `.github/workflows/migrate.yml` now holds `IDEA_MIGRATION_URL` and applies the
+# lowest unapplied migration on a merge to `main` through
+# `tools/apply-migration.mjs` -- one file at a time, refused unless it is the
+# lowest unapplied one, rolled back on its own `raise`.
+#
+# THE SEED AND THE WRITE CREDENTIAL ARE ONE DECISION, and `migrate.yml`'s own
+# header carries the other half of it: if the seed is ever undone or the history
+# table dropped, that secret must be deleted with it.
+#
+# NONE OF WHICH WEAKENS THIS WORKFLOW'S REFUSAL. `deploy` still refuses to merge
+# while a migration on the candidate is unapplied, and it is still not the thing
+# that applies one. When it refuses, the job summary prints the SQL of every
+# unapplied migration in a copyable block, so the remaining step is paste and
+# run -- or a `migrate.yml` run, which is the same step with the paste done by a
+# tool.
 #
 # ---------------------------------------------------------------------------
 # THE PROBE NEVER TREATS AN UNKNOWN AS APPLIED, and its four exit statuses are
@@ -42,7 +58,7 @@ name: Deploy
 #   0  every migration in range is applied            -> deploy
 #   2  at least one is NOT applied                    -> REFUSE, on any trigger
 #   3  every probe that ran said applied, but at least one migration has no
-#      probe to run                                   -> the machine is silent
+#      probe to run AND no history row                -> the machine is silent
 #   1  the probe could not run at all (no secret, unreachable, query error)
 #                                                     -> the machine is silent
 #
@@ -222,9 +238,14 @@ jobs:
 
   # ------------------------------------------------------------------------
   # 2. ASK PRODUCTION WHICH MIGRATIONS IT HAS. This is the job decision 0010
-  #    was waiting for, and it is the only thing in this repository that can
-  #    answer the question: no file records applied state, and the remote has
-  #    no `supabase_migrations.schema_migrations` table at all.
+  #    was waiting for. No file in this repository records applied state, so it
+  #    is still production that has to be asked -- but it now has TWO answers
+  #    rather than one. `supabase_migrations.schema_migrations` exists since
+  #    2026-09-13 and records 0001 through 0211, and the object probes read
+  #    `pg_catalog` as they always did. `tools/deploy-probe.mjs` reads the table
+  #    first and the probes always, and its header carries which one is trusted
+  #    when they disagree: THE PROBE, because a row is a claim and the catalog
+  #    is the evidence. Exit 3 still exists and still means CANNOT CONFIRM.
   # ------------------------------------------------------------------------
   migrations:
     needs: guard
@@ -268,6 +289,26 @@ jobs:
           CONFIRMED: ${{ needs.guard.outputs.confirmed }}
           EVENT: ${{ github.event_name }}
         run: |
+          # `set +e` FIRST, AND IT IS THE WHOLE OF WHY THE FALLBACK BELOW HAS
+          # NEVER RUN. GitHub invokes a `run:` body as
+          # `bash --noprofile --norc -eo pipefail {0}`, so ERREXIT is ALREADY ON
+          # before the first line of this script -- and `set -uo pipefail` does
+          # not clear it, because `set -o` only turns options ON. The probe's
+          # own exit 1 and exit 3 therefore killed the step on the spot, before
+          # `PROBE=$?` was ever read, so the `case` below -- including the typed
+          # confirmation that is the ONLY escape hatch from this gate -- was
+          # unreachable code from the day it was written.
+          #
+          # MEASURED, NOT REASONED: ledger 0215 read two real runs of this
+          # workflow, `34743453154` with the field empty and `34743521550` with
+          # the confirmation typed correctly, and NEITHER printed the
+          # `probe exit:` line one statement below. `tests/deploy-probe-step.test.ts`
+          # extracts this exact body out of the parsed YAML and runs it under
+          # `bash -e` with a stub probe, in both directions.
+          #
+          # This step reads a status and decides; every `exit` in it is written
+          # deliberately, which is exactly the shape ERREXIT must not govern.
+          set +e
           set -uo pipefail
 
           ARGS=(--ref "$SHA")
@@ -298,11 +339,15 @@ jobs:
                 echo "## Migrations: every one in range is applied"
                 echo
                 jq -r '"Window: migrations from \(.since) up, read on `\(.ref[0:12])`.\n"' probe.json
-                echo "| migration | state | object |"
-                echo "| --- | --- | --- |"
-                jq -r '.findings[] | "| `\(.num)` | APPLIED | \(.object) |"' probe.json
+                jq -r '"Migration history table: \(.history.table), \(.history.versions) version(s) recorded.\n"' probe.json
+                echo "| migration | state | read from | object |"
+                echo "| --- | --- | --- | --- |"
+                jq -r '.findings[] | "| `\(.num)` | APPLIED | \(if .evidence == "applied" then "catalog" else "history row" end) | \(.object) |"' probe.json
                 echo
-                echo "Read from production's own \`pg_catalog\` by \`tools/deploy-probe.mjs\`."
+                echo "Read from production by \`tools/deploy-probe.mjs\`. A row marked **catalog** was"
+                echo "answered by an object probe against \`pg_catalog\`, which is evidence; a row"
+                echo "marked **history row** has no probeable object and was carried by"
+                echo "\`supabase_migrations.schema_migrations\`, which is a claim nothing contradicted."
                 echo "Nobody typed anything and nobody had to."
               } >> "$GITHUB_STEP_SUMMARY"
               echo "go=yes" >> "$GITHUB_OUTPUT"
@@ -317,7 +362,7 @@ jobs:
                 echo
                 echo "| migration | state | object |"
                 echo "| --- | --- | --- |"
-                jq -r '.findings[] | "| `\(.num)` | \(.state | ascii_upcase) | \(.object) |"' probe.json
+                jq -r '.findings[] | "| `\(.num)` | \(.state | ascii_upcase) | \(.object)\(if .conflict then " -- CONFLICT: the migration history records this as applied and the catalog in production cannot see it. The row is a claim; the catalog is the evidence." else "" end) |"' probe.json
                 echo
                 echo "**Nothing was merged and nothing was pushed.**"
                 echo
@@ -344,7 +389,7 @@ jobs:
             *)
               # 1 or 3: THE MACHINE IS SILENT, WHICH IS NOT "APPLIED".
               WHY="the probe could not run at all"
-              [ "$PROBE" = 3 ] && WHY="every probe that ran said applied, but at least one migration has no probe to run"
+              [ "$PROBE" = 3 ] && WHY="every probe that ran said applied, but at least one migration has no probe to run and no row in production's migration history"
               {
                 echo "## The probe could not carry this run on its own"
                 echo

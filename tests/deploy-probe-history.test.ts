@@ -1,445 +1,337 @@
-import { describe, expect, it, afterAll } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { startTestDb, type TestDb } from './db/harness';
+// tests/deploy-probe-history.test.ts
+//
+// `tools/deploy-probe.mjs` reads production's migration HISTORY TABLE and its
+// OBJECT PROBES, and this is the file that pins how the two are combined.
+//
+// WHY IT EXISTS. Until 2026-09-13 the database had no
+// `supabase_migrations.schema_migrations` table, so the probe had nothing to
+// read but the catalog, object by object -- and `tools/idea-status.py` cannot
+// derive a probe from every migration (measured on this tree: 0202, 0203 and
+// 0206 yield none). Each of those answered CANNOT SAY, which is exit 3, which
+// is not a pass, and SIX lanes stopped at that gate. Mr. Pina pasted
+// `supabase/data/0209-seed-migration-history.sql` and the verification came
+// back EQUAL: 209 rows, 0001 through 0211.
+//
+// WHAT MUST NOT BE LOST IN CLOSING IT. A history row is a CLAIM -- somebody or
+// something wrote it. An object probe is EVIDENCE -- production's own
+// `pg_catalog`. The row that claims an apply which never happened is exactly
+// the failure the seed makes possible, and the object probe is the only check
+// in this repository that catches it. So every case below is planted in BOTH
+// directions rather than only in the direction that unblocks anything.
+//
+// THE MATRIX, WHICH IS THE WHOLE POINT OF THE FILE:
+//
+//   row | probe        | state       | who decided
+//   ----+--------------+-------------+---------------------------------------
+//   yes | applied      | applied     | both agree
+//   yes | NOT applied  | NOT applied | the probe. Reported as a CONFLICT.
+//   yes | (no probe)   | applied     | the row -- the only case it decides
+//   no  | applied      | applied     | the probe
+//   no  | NOT applied  | NOT applied | the probe
+//   no  | (no probe)   | CANNOT SAY  | neither -- exit 3 still exists
+//   no table at all    | ...         | the probes alone, pre-seed behaviour
+//   no credential      | ...         | exit 1, and nothing crashes
+
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
 import {
 	EXIT,
+	HISTORY_PRESENCE_SQL,
 	HISTORY_TABLE,
-	buildHistorySql,
-	buildHistoryVersionsSql,
+	HISTORY_VERSIONS_SQL,
 	exitFor,
-	noHistory,
-	normalizeVersion,
 	readHistory,
 	verdicts
 } from '../tools/deploy-probe.mjs';
 
-/**
- * `tools/deploy-probe.mjs` used to INFER an apply from one catalog object per
- * migration, so a migration it could derive nothing from answered status 3 --
- * CANNOT SAY -- and that silence stopped five lanes at the deploy gate in one
- * week. `supabase/data/0209-seed-migration-history.sql` gave the database a
- * record of its own, and the probe now reads it first.
- *
- * WHAT IS ACTUALLY AT RISK HERE, and why this file exists rather than a
- * harness drive: every wrong answer in the table below is SILENT. A row that
- * is believed over an absent object deploys code against a schema that does
- * not have it; a status 3 quietly downgraded to 0 removes the gate outright;
- * and a database with no history table answering differently from before would
- * change the behaviour of a tool nobody is watching at 2am. None of that is
- * visible on any screen.
- *
- * FOUR PLANTED CONTROLS, NAMED IN THE PROMPT AND DRIVEN IN BOTH DIRECTIONS:
- * a row present with the objects present, a row present with the objects
- * ABSENT, no row with the objects present, and no table at all.
- */
+const TOOL = fileURLToPath(new URL('../tools/deploy-probe.mjs', import.meta.url));
+const ROOT = fileURLToPath(new URL('../', import.meta.url));
 
-/** A probe with a runnable SQL expression, as `prepare()` would hand one over. */
-function probe(num: string, sql: string | null = 'exists (select 1)') {
-	return {
-		num,
-		file: `${num}_x.sql`,
-		kind: 'table',
-		object: `public.t_${num}`,
-		sql,
-		translated: false,
-		refused: null
-	};
-}
+/** A probe row as `prepare()` produces one: `sql` set means a probe exists. */
+type Probe = {
+	num: string;
+	file: string;
+	kind: string;
+	object: string;
+	sql: string | null;
+	translated: boolean;
+	refused: string | null;
+};
 
-/** The record, as `readHistory` would answer it, for a table that IS readable. */
-function record(...versions: string[]) {
-	return { present: true, readable: true, versions: new Set(versions), why: 'fixture' };
-}
+const probe = (num: string, sql: string | null): Probe => ({
+	num,
+	file: `${num}_planted.sql`,
+	kind: 'table',
+	object: `public.thing_${num}`,
+	sql,
+	translated: false,
+	refused: null
+});
 
-describe('the record and the objects, one verdict', () => {
-	// ---------------------------------------------------------------------
-	// CONTROL 1: a row, and the object is there.
-	// ---------------------------------------------------------------------
-	it('a row present and the object present is APPLIED, and both are said to agree', () => {
-		const f = verdicts([probe('0212')], new Map([[0, true]]), record('0212'));
+/** A history reading, as `readHistory` returns one. */
+const seeded = (...versions: string[]) => ({ present: true, versions: new Set(versions) });
+const noTable = { present: false, versions: new Set<string>() };
+
+describe('the history table and the object probes, combined', () => {
+	// ------------------------------------------------------------------
+	// A ROW WITH THE OBJECTS PRESENT.
+	// ------------------------------------------------------------------
+	it('a row AND a probe that says applied is applied, and is read from the catalog', () => {
+		const f = verdicts([probe('0209', 'exists (select 1)')], new Map([[0, true]]), seeded('0209'));
+		expect(f).toHaveLength(1);
 		expect(f[0].state).toBe('applied');
-		expect(f[0].record).toBe('recorded');
-		expect(f[0].agreement).toBe('agree');
+		expect(f[0].history).toBe(true);
+		expect(f[0].evidence).toBe('applied');
+		expect(f[0].conflict).toBe(false);
 		expect(exitFor(f)).toBe(EXIT.allApplied);
 	});
 
-	// ---------------------------------------------------------------------
-	// CONTROL 2: a row, and the object is NOT there. THE FAILURE THE SEED
-	// INTRODUCED AS A POSSIBILITY, and the reason the object probes are kept.
-	// ---------------------------------------------------------------------
-	it('a row present and the object ABSENT is NOT APPLIED, never applied, and is named a disagreement', () => {
-		const f = verdicts([probe('0212')], new Map([[0, false]]), record('0212'));
+	// ------------------------------------------------------------------
+	// A ROW WITH THE OBJECTS ABSENT. The failure the seed makes possible.
+	// ------------------------------------------------------------------
+	it('a row whose objects are ABSENT is NOT applied, and says so as a conflict', () => {
+		const f = verdicts([probe('0209', 'exists (select 1)')], new Map([[0, false]]), seeded('0209'));
 		expect(f[0].state).toBe('not-applied');
-		expect(f[0].record).toBe('recorded');
-		expect(f[0].agreement).toBe('disagreed');
+		expect(f[0].history).toBe(true);
+		expect(f[0].evidence).toBe('not-applied');
+		expect(f[0].conflict, 'a claim contradicted by the catalog was absorbed silently').toBe(true);
+		expect(f[0].why).toContain('CONFLICT');
 		expect(f[0].why).toContain(HISTORY_TABLE);
-		expect(f[0].why).toContain('CLAIMS');
-		// The exit is the hard refusal, which no typed confirmation overrides.
+		// THE STATUS IS THE HALF THAT MATTERS: a conflict is a STOP, not a
+		// note. Exit 2 is what `deploy.yml` refuses on with no typed string
+		// able to carry it.
 		expect(exitFor(f)).toBe(EXIT.notApplied);
 	});
 
-	it('and the disagreement does not become applied just because the row is there, at any count', () => {
-		// Five rows, four objects. The one missing object decides the exit for
-		// all of them: a single false probe is a machine-read fact.
-		const probes = ['0205', '0206', '0207', '0208', '0209'].map((n) => probe(n));
-		const rows = new Map([
-			[0, true],
-			[1, true],
-			[2, false],
-			[3, true],
-			[4, true]
-		]);
-		const f = verdicts(probes, rows, record('0205', '0206', '0207', '0208', '0209'));
-		expect(f.map((x) => x.state)).toEqual([
-			'applied',
-			'applied',
-			'not-applied',
-			'applied',
-			'applied'
-		]);
-		expect(f.filter((x) => x.agreement === 'disagreed').map((x) => x.num)).toEqual(['0207']);
+	it('a row does not rescue a sibling probe of the same migration', () => {
+		// 0205 derives EIGHT probe rows on this tree. One object missing is one
+		// object missing, whatever the other seven and the row say.
+		const f = verdicts(
+			[probe('0205', 'exists (a)'), probe('0205', 'exists (b)')],
+			new Map([
+				[0, true],
+				[1, false]
+			]),
+			seeded('0205')
+		);
+		expect(f.map((x) => x.state)).toEqual(['applied', 'not-applied']);
 		expect(exitFor(f)).toBe(EXIT.notApplied);
 	});
 
-	// ---------------------------------------------------------------------
-	// CONTROL 3: no row, and the object IS there.
-	// ---------------------------------------------------------------------
-	it('no row with the object present is APPLIED, because an absent row is silence and not a denial', () => {
-		const f = verdicts([probe('0212')], new Map([[0, true]]), record('0211'));
+	// ------------------------------------------------------------------
+	// NO ROW, OBJECTS PRESENT. Evidence outranks a record that is behind.
+	// ------------------------------------------------------------------
+	it('NO row but the objects ARE present is applied, on the catalog alone', () => {
+		// This is 0212 and 0213's real shape: applied by hand and verified,
+		// with the record not yet carrying them.
+		const f = verdicts([probe('0212', 'exists (select 1)')], new Map([[0, true]]), seeded('0209'));
 		expect(f[0].state).toBe('applied');
-		expect(f[0].record).toBe('unrecorded');
-		expect(f[0].agreement).toBe('object-only');
-		// And the gap is REPORTED rather than swallowed: migrate.yml reads that
-		// table to choose what to apply next.
-		expect(f[0].why).toContain('the record is behind');
+		expect(f[0].history).toBe(false);
+		expect(f[0].evidence).toBe('applied');
 		expect(exitFor(f)).toBe(EXIT.allApplied);
 	});
 
-	it('no row with the object ABSENT is NOT APPLIED, with both sources agreeing', () => {
-		const f = verdicts([probe('0212')], new Map([[0, false]]), record('0211'));
+	it('NO row and the objects absent is NOT applied', () => {
+		const f = verdicts([probe('0212', 'exists (select 1)')], new Map([[0, false]]), seeded('0209'));
 		expect(f[0].state).toBe('not-applied');
-		expect(f[0].agreement).toBe('agree');
+		expect(f[0].conflict, 'nothing claimed this, so nothing conflicts').toBe(false);
 		expect(exitFor(f)).toBe(EXIT.notApplied);
 	});
 
-	// ---------------------------------------------------------------------
-	// THE POINT OF THE WHOLE BUNDLE: a row where no probe could be derived.
-	// ---------------------------------------------------------------------
-	it('a row with NO probe is APPLIED, which is exactly the status 3 that stopped five lanes', () => {
-		const noProbe = probe('0213', null);
-		const before = verdicts([noProbe], new Map(), noHistory());
-		expect(before[0].state).toBe('unknown');
-		expect(exitFor(before)).toBe(EXIT.cannotConfirm);
-
-		const after = verdicts([noProbe], new Map(), record('0213'));
-		expect(after[0].state).toBe('applied');
-		expect(after[0].agreement).toBe('record-only');
-		expect(after[0].why).toContain(HISTORY_TABLE);
-		expect(exitFor(after)).toBe(EXIT.allApplied);
+	// ------------------------------------------------------------------
+	// THE CASE THE SEED EXISTS FOR, and the one that keeps exit 3 alive.
+	// ------------------------------------------------------------------
+	it('a migration with NO probe is carried by its row -- the one case a row decides', () => {
+		const f = verdicts([probe('0202', null)], new Map(), seeded('0202'));
+		expect(f[0].state).toBe('applied');
+		expect(f[0].evidence, 'a row must never be reported as evidence').toBe('unknown');
+		expect(f[0].why).toContain(HISTORY_TABLE);
+		expect(exitFor(f)).toBe(EXIT.allApplied);
 	});
 
-	// ---------------------------------------------------------------------
-	// AND STATUS 3 SURVIVES. This is the assertion the prompt names.
-	// ---------------------------------------------------------------------
-	it('no row AND no probe is still CANNOT SAY, and a readable record does not make it a pass', () => {
-		const f = verdicts([probe('0213', null)], new Map(), record('0212'));
+	it('a migration with NO probe and NO row is still CANNOT SAY, and still exit 3', () => {
+		const f = verdicts([probe('0202', null)], new Map(), seeded('0209'));
 		expect(f[0].state).toBe('unknown');
-		expect(f[0].record).toBe('unrecorded');
-		expect(f[0].agreement).toBe('neither');
-		expect(exitFor(f)).toBe(EXIT.cannotConfirm);
+		expect(f[0].history).toBe(false);
+		expect(f[0].why).toContain('has no row for it');
+		expect(exitFor(f), 'status 3 stopped meaning cannot confirm').toBe(EXIT.cannotConfirm);
 	});
 
-	it('a probe that was sent and answered nothing is CANNOT SAY, row or no row', () => {
-		// A row came back for no index at all. The probe ran and said nothing,
-		// which is not the same as saying false.
-		const withRow = verdicts([probe('0212')], new Map(), record('0212'));
+	it('a probe sent with no row back is CANNOT SAY, and a history row does carry it', () => {
+		// The transport failed for this index. Nothing was measured, so this is
+		// not evidence either way -- and the row is then the only thing left.
+		const withRow = verdicts([probe('0209', 'exists (x)')], new Map(), seeded('0209'));
+		expect(withRow[0].evidence).toBe('unknown');
 		expect(withRow[0].state).toBe('applied');
-		expect(withRow[0].agreement).toBe('record-only');
-		const withoutRow = verdicts([probe('0212')], new Map(), record('0211'));
-		expect(withoutRow[0].state).toBe('unknown');
-		expect(exitFor(withoutRow)).toBe(EXIT.cannotConfirm);
+		const without = verdicts([probe('0209', 'exists (x)')], new Map(), seeded('0001'));
+		expect(without[0].state).toBe('unknown');
+		expect(exitFor(without)).toBe(EXIT.cannotConfirm);
 	});
 
-	// ---------------------------------------------------------------------
-	// CONTROL 4: no table at all. THE PRE-SEED WORLD, WHICH MUST NOT MOVE.
-	// ---------------------------------------------------------------------
-	it('with no readable record every verdict is the object probe’s, exactly as before', () => {
-		const probes = [probe('0212'), probe('0213'), probe('0214', null)];
-		const rows = new Map([
-			[0, true],
-			[1, false]
-		]);
-		const f = verdicts(probes, rows, noHistory());
-		expect(f.map((x) => x.state)).toEqual(['applied', 'not-applied', 'unknown']);
-		for (const x of f) {
-			expect(x.record).toBe('unreadable');
-			expect(x.why).not.toContain(HISTORY_TABLE);
-		}
-		expect(exitFor(f)).toBe(EXIT.notApplied);
+	// ------------------------------------------------------------------
+	// NO TABLE AT ALL. The pre-seed world, which must still work.
+	// ------------------------------------------------------------------
+	it('with NO table the answers are the object probes alone, byte for byte', () => {
+		const probes = [probe('0209', 'exists (x)'), probe('0202', null)];
+		const rows = new Map([[0, true]]);
+		const withoutTable = verdicts(probes, rows, noTable);
+		expect(withoutTable.map((f) => f.state)).toEqual(['applied', 'unknown']);
+		expect(withoutTable.every((f) => f.history === null)).toBe(true);
+		expect(exitFor(withoutTable)).toBe(EXIT.cannotConfirm);
 
-		// And with nothing false, it is still the 3 it always was.
-		const quiet = verdicts([probe('0212'), probe('0214', null)], new Map([[0, true]]), noHistory());
-		expect(exitFor(quiet)).toBe(EXIT.cannotConfirm);
+		// AND THE TWO-ARGUMENT CALL IS IDENTICAL. `tools/apply-migration.mjs`
+		// calls `verdicts(probes, rows)` with two arguments and is not this
+		// bundle's to change, so the default has to BE the pre-seed behaviour
+		// rather than merely resemble it.
+		expect(verdicts(probes, rows)).toEqual(withoutTable);
 	});
 
-	it('the default third argument IS "no readable record", so a two-argument caller is unchanged', () => {
-		// `tools/apply-migration.mjs` calls `verdicts(probes, rows)` with two
-		// arguments and must keep the behaviour it had. Asserted as EQUALITY
-		// against the explicit form rather than by reading the default.
-		const probes = [probe('0212'), probe('0213'), probe('0214', null)];
-		const rows = new Map([
-			[0, true],
-			[1, false]
-		]);
-		expect(verdicts(probes, rows)).toEqual(verdicts(probes, rows, noHistory()));
-	});
-
-	it('an unreadable record and an empty one are different, and are not collapsed', () => {
-		// THE TRAP THIS GUARDS: a caller that answered "could not read it" with
-		// an empty Set would turn every CANNOT SAY into a NOT APPLIED and
-		// refuse every deploy forever, from a query that merely lacked a grant.
-		const unreadable = verdicts([probe('0212', null)], new Map(), noHistory());
-		const empty = verdicts([probe('0212', null)], new Map(), record());
-		expect(unreadable[0].state).toBe('unknown');
-		expect(empty[0].state).toBe('unknown');
-		expect(unreadable[0].record).toBe('unreadable');
-		expect(empty[0].record).toBe('unrecorded');
-		// Same verdict here, different reported cause, which is the half a
-		// reader acts on.
-		expect(empty[0].why).toContain(HISTORY_TABLE);
-		expect(unreadable[0].why).not.toContain(HISTORY_TABLE);
-	});
-
-	it('normalizes the set it is HANDED, not just the one readHistory built', () => {
-		// FOUND BY THIS FILE FAILING. `verdicts` used to assume its caller had
-		// already normalized, which is an invariant living in the wrong place:
-		// get it wrong and every migration reports `unrecorded`, which reads as
-		// a CANNOT SAY and is therefore never investigated. The raw four-digit
-		// spelling is exactly what a caller reading the column would pass.
-		const raw = { present: true, readable: true, versions: new Set(['0212']), why: 'raw' };
-		expect(verdicts([probe('0212', null)], new Map(), raw)[0].state).toBe('applied');
-		expect(verdicts([probe('0212', null)], new Map(), raw)[0].record).toBe('recorded');
-	});
-
-	it('matches a four-digit file number against an unpadded row, and leaves a CLI version alone', () => {
-		expect(normalizeVersion('0100')).toBe('100');
-		expect(normalizeVersion('100')).toBe('100');
-		expect(normalizeVersion(' 0007 ')).toBe('7');
-		expect(normalizeVersion('20260913000000')).toBe('20260913000000');
-		expect(verdicts([probe('0100', null)], new Map(), record('100'))[0].state).toBe('applied');
+	// ------------------------------------------------------------------
+	// THE POSITIVE CONTROL FOR THE WHOLE FILE. Without it, "every case came
+	// back applied" cannot be told from "the combiner answers applied".
+	// ------------------------------------------------------------------
+	it('positive control: the combiner does not simply answer applied', () => {
+		const states = new Set(
+			[
+				verdicts([probe('0209', 'x')], new Map([[0, true]]), seeded('0209'))[0].state,
+				verdicts([probe('0209', 'x')], new Map([[0, false]]), seeded('0209'))[0].state,
+				verdicts([probe('0202', null)], new Map(), seeded('0001'))[0].state
+			].values()
+		);
+		expect([...states].sort()).toEqual(['applied', 'not-applied', 'unknown']);
 	});
 });
 
-/* ------------------------------------------------------------------------ */
-/* The SQL, against a REAL Postgres.                                         */
-/*                                                                           */
-/* The matrix above is arithmetic. THIS is the half that cannot be reasoned  */
-/* about: whether the two statements the tool sends actually answer on a     */
-/* database with no history table, and on one whose role holds no grant on   */
-/* it. Both of those fail SILENTLY in the dangerous direction -- the first   */
-/* by raising inside the transaction the object probes ride in, the second   */
-/* by making every run report "unreadable" forever.                          */
-/* ------------------------------------------------------------------------ */
-
-const SEED = readFileSync(
-	new URL('../supabase/data/0209-seed-migration-history.sql', import.meta.url),
-	'utf8'
-);
-/** Everything before the verification, which is the last statement. */
-const SEED_BODY = SEED.slice(0, SEED.lastIndexOf('\nwith expected(version, name) as ('));
-
-let db: TestDb | null = null;
-afterAll(async () => {
-	if (db) await db.stop();
-});
-
-describe('the two statements the tool sends, on a real database', () => {
-	it('answers present=false on a database that has never seen the seed, without raising', async () => {
-		db = await startTestDb([]);
-		// THE PRE-SEED WORLD. `to_regclass` on a name whose SCHEMA does not
-		// exist must answer NULL rather than raise -- if it raised, the
-		// preflight would fail on every unseeded database and the tool would
-		// degrade where it should simply say "no table".
-		const r = await db.sql<{ present: boolean; readable: boolean }>(
-			buildHistorySql().replace('set transaction read only;\n', '')
-		);
-		expect(r.rows[0].present).toBe(false);
-		expect(r.rows[0].readable).toBe(false);
-	});
-
-	it('answers present=true and readable=true once the seed is applied, and lists its versions', async () => {
-		await db!.sql(SEED_BODY);
-		const r = await db!.sql<{ present: boolean; readable: boolean }>(
-			buildHistorySql().replace('set transaction read only;\n', '')
-		);
-		expect(r.rows[0].present).toBe(true);
-		expect(r.rows[0].readable).toBe(true);
-
-		const v = await db!.sql<{ version: string }>(
-			buildHistoryVersionsSql().replace('set transaction read only;\n', '')
-		);
-		// 208: the seed lists 0001 to 0210 and withholds 0211, whose probe
-		// object is not on this fixture. The number is the seed's own and is
-		// pinned by `tests/db/migration-history-seed.test.ts`; it is read here
-		// only to prove this statement returns the rows rather than none.
-		expect(v.rows.length).toBe(208);
-		const versions = new Set(v.rows.map((x) => normalizeVersion(x.version)));
-		expect(versions.has('100')).toBe(true);
-		expect(versions.has('211')).toBe(false);
-	});
-
-	it('answers present=TRUE for a role with no schema USAGE, which to_regclass did not', async () => {
-		// THE MISREPORT THIS FILE FOUND. The preflight used to resolve the NAME
-		// with `to_regclass`, and resolving a qualified name needs USAGE on its
-		// schema -- so for exactly the role this tool is built for it answered
-		// NULL for a table sitting right there, and the tool would have told an
-		// operator to paste a seed the database already had. `pg_class` is
-		// readable by PUBLIC and is not filtered by either privilege.
-		await db!.sql('create role probe_nousage nologin');
-		const r = await db!.sql<{ present: boolean; readable: boolean }>(
-			buildHistorySql()
-				.replace('set transaction read only;\n', '')
-				.replaceAll('current_user', "'probe_nousage'::name")
-		);
-		expect(r.rows[0].present).toBe(true);
-		expect(r.rows[0].readable).toBe(false);
-
-		// AND `readable` IS TWO PRIVILEGES, NOT ONE. SELECT on the table with
-		// no USAGE on the schema still cannot read it -- `has_table_privilege`
-		// answers about the table's own ACL and says nothing about the schema --
-		// so granting only the table must leave `readable` false.
-		await db!.sql(`grant select on ${HISTORY_TABLE} to probe_nousage`);
-		const tableOnly = await db!.sql<{ present: boolean; readable: boolean }>(
-			buildHistorySql()
-				.replace('set transaction read only;\n', '')
-				.replaceAll('current_user', "'probe_nousage'::name")
-		);
-		expect(tableOnly.rows[0].readable).toBe(false);
-
-		// The positive control: add the schema and it flips.
-		await db!.sql('grant usage on schema supabase_migrations to probe_nousage');
-		const both = await db!.sql<{ present: boolean; readable: boolean }>(
-			buildHistorySql()
-				.replace('set transaction read only;\n', '')
-				.replaceAll('current_user', "'probe_nousage'::name")
-		);
-		expect(both.rows[0].readable).toBe(true);
-	});
-
-	it('answers present=true and readable=FALSE for a role that holds no grant on it', async () => {
-		// THE ONE THAT DECIDES THE WHOLE SHAPE OF THE FILE. The deploy role
-		// holds nothing but CONNECT, and a `select` it may not run raises
-		// `permission denied` at executor startup, aborting the transaction the
-		// object probes ride in. So the privilege is asked FIRST -- and this
-		// proves the preflight genuinely answers false for such a role, rather
-		// than answering true because the test happened to run as the owner.
-		await db!.sql('create role probe_reader nologin');
-		const r = await db!.sql<{ present: boolean; readable: boolean }>(
-			buildHistorySql()
-				.replace('set transaction read only;\n', '')
-				.replaceAll('current_user', "'probe_reader'::name")
-		);
-		expect(r.rows[0].present).toBe(true);
-		expect(r.rows[0].readable).toBe(false);
-
-		// THE POSITIVE CONTROL, on the same database and the same role: grant
-		// the select and the same statement answers true. Without this, a
-		// preflight that answered false for EVERY input would pass above.
-		await db!.sql('grant usage on schema supabase_migrations to probe_reader');
-		await db!.sql(`grant select on ${HISTORY_TABLE} to probe_reader`);
-		const after = await db!.sql<{ present: boolean; readable: boolean }>(
-			buildHistorySql()
-				.replace('set transaction read only;\n', '')
-				.replaceAll('current_user', "'probe_reader'::name")
-		);
-		expect(after.rows[0].readable).toBe(true);
-	});
-
-	it('and the read the tool would refuse genuinely raises, which is what the preflight is for', async () => {
-		// Not a hypothetical: this is the exact statement `readHistory` would
-		// send if it skipped the preflight, run as a role with no grant. It
-		// must throw -- if it did not, the preflight would be ceremony.
-		const other = await startTestDb([]);
-		try {
-			await other.sql(SEED_BODY);
-			await other.sql('create role probe_norights login password \'x\'');
-			await expect(
-				other.sql(`set role probe_norights; select version from ${HISTORY_TABLE};`)
-			).rejects.toThrow(/permission denied/i);
-		} finally {
-			await other.stop();
-		}
-	});
-});
-
-describe('readHistory degrades one rung at a time and never throws', () => {
-	/** A runner that answers whatever the case under test needs. */
-	type Run = (sql: string, url: string) => { ok: true; rows: string[][] } | { ok: false; why: string };
-
-	it('a failed preflight is "cannot speak", not an exception', () => {
-		const run: Run = () => ({ ok: false, why: 'psql exited 2' });
-		const h = readHistory('postgres://x', run);
-		expect(h.versions).toBeNull();
-		expect(h.present).toBe(false);
-		expect(h.why).toContain('psql exited 2');
-	});
-
-	it('a preflight with no row at all is "cannot speak"', () => {
-		const run: Run = () => ({ ok: true, rows: [] });
-		expect(readHistory('postgres://x', run).versions).toBeNull();
-	});
-
-	it('present and not readable is "cannot speak", and says which of the two it was', () => {
-		const run: Run = () => ({ ok: true, rows: [['t', 'f']] });
-		const h = readHistory('postgres://x', run);
-		expect(h.present).toBe(true);
-		expect(h.readable).toBe(false);
-		expect(h.versions).toBeNull();
-		expect(h.why).toMatch(/may not select/);
-	});
-
-	it('absent is "cannot speak", and names the seed rather than reading as a fault', () => {
-		const run: Run = () => ({ ok: true, rows: [['f', 'f']] });
-		const h = readHistory('postgres://x', run);
-		expect(h.present).toBe(false);
-		expect(h.versions).toBeNull();
-		expect(h.why).toContain('0209-seed-migration-history.sql');
-		expect(h.why).toContain('not an error');
-	});
-
-	it('a readable table whose row read FAILS is "cannot speak", not an empty record', () => {
-		// The direction that matters: an empty Set here would report every
-		// migration unrecorded and refuse the deploy on a transient error.
-		let call = 0;
-		const run: Run = () =>
-			++call === 1 ? { ok: true, rows: [['t', 't']] } : { ok: false, why: 'connection reset' };
-		const h = readHistory('postgres://x', run);
-		expect(h.present).toBe(true);
-		expect(h.readable).toBe(true);
-		expect(h.versions).toBeNull();
-		expect(h.why).toContain('connection reset');
-	});
-
-	it('a readable table reads its versions, normalized, and drops an empty field', () => {
-		let call = 0;
-		const run: Run = () =>
-			++call === 1
-				? { ok: true, rows: [['t', 't']] }
-				: { ok: true, rows: [['0001'], ['0210'], ['']] };
-		const h = readHistory('postgres://x', run);
-		expect(h.versions).not.toBeNull();
-		expect([...h.versions!].sort()).toEqual(['1', '210']);
-		expect(h.why).toContain('2 row(s)');
-	});
-
-	it('sends the versions query ONLY after a readable answer', () => {
-		const sent: string[] = [];
-		const run: Run = (sql) => {
-			sent.push(sql);
-			return { ok: true, rows: [['f', 'f']] };
+describe('readHistory', () => {
+	/** A stub standing in for `runRows`, recording what it was asked. */
+	const stub = (answers: Array<{ ok: true; rows: string[] } | { ok: false; why: string }>) => {
+		const asked: string[] = [];
+		let i = 0;
+		const run = (sql: string) => {
+			asked.push(sql);
+			return answers[i++] ?? { ok: false as const, why: 'the stub ran out of answers' };
 		};
-		readHistory('postgres://x', run);
-		expect(sent.length).toBe(1);
-		expect(sent[0]).not.toContain('select version from');
+		return { asked, run: run as never };
+	};
+
+	// EVERY STUBBED ROW SET BELOW IS WHAT `psql` ACTUALLY EMITS, TAG INCLUDED.
+	// `set transaction read only;` prints a bare `SET` line and `--tuples-only`
+	// does not suppress it -- which is exactly what an earlier draft of
+	// `readHistory` read as the answer, reporting `cannotRun` against a
+	// perfectly reachable database. A stub that emits a tidier shape than the
+	// real producer is a stub that cannot reproduce that.
+	// `tests/db/deploy-probe-history-live.test.ts` is where the shape is
+	// measured rather than asserted.
+	it('asks presence FIRST and does not ask for versions when the table is absent', () => {
+		// A `select` naming a missing relation fails at PARSE time, so the
+		// presence check cannot be folded into the same statement -- and under
+		// `--single-transaction` it would abort the object probes with it.
+		const s = stub([{ ok: true, rows: ['SET', 'history-table|absent', ''] }]);
+		const r = readHistory('postgres://x', s.run);
+		expect(r.ok && r.history.present).toBe(false);
+		expect(s.asked).toHaveLength(1);
+		expect(s.asked[0]).toBe(HISTORY_PRESENCE_SQL);
+		// THE CATALOG, NOT THE NAME. `to_regclass` resolves a qualified name and
+		// needs USAGE on the schema to do it, so for the role this tool runs as
+		// it RAISES instead of answering null -- measured in the live file.
+		expect(s.asked[0]).toContain('pg_catalog.pg_class');
+		expect(s.asked[0]).not.toContain('to_regclass');
+	});
+
+	it('reads the versions when the table is present', () => {
+		const s = stub([
+			{ ok: true, rows: ['SET', 'history-table|present'] },
+			{ ok: true, rows: ['SET', 'v|0001', 'v|0002', 'v|0211', ''] }
+		]);
+		const r = readHistory('postgres://x', s.run);
+		expect(r.ok).toBe(true);
+		if (!r.ok) return;
+		expect(r.history.present).toBe(true);
+		expect([...r.history.versions].sort()).toEqual(['0001', '0002', '0211']);
+		expect(s.asked).toEqual([HISTORY_PRESENCE_SQL, HISTORY_VERSIONS_SQL]);
+	});
+
+	it('a query error is cannot-run, NEVER "the table is absent"', () => {
+		// Falling back to the object probes here would turn a broken credential
+		// into a quieter verdict rather than a reported one.
+		expect(readHistory('postgres://x', stub([{ ok: false, why: 'psql exited 2' }]).run)).toEqual({
+			ok: false,
+			why: 'psql exited 2'
+		});
+		const after = readHistory(
+			'postgres://x',
+			stub([
+				{ ok: true, rows: ['SET', 'history-table|present'] },
+				{ ok: false, why: 'permission denied' }
+			]).run
+		);
+		expect(after).toEqual({ ok: false, why: 'permission denied' });
+	});
+
+	it('an answer that is neither present nor absent is cannot-run', () => {
+		expect(readHistory('postgres://x', stub([{ ok: true, rows: ['', '  '] }]).run).ok).toBe(false);
+		// AND A BARE COMMAND TAG IS NOT AN ANSWER. This is the defect that was
+		// found against a real Postgres, pinned here in the cheap instrument
+		// too: the tag arrives FIRST, so a reader taking the first non-empty
+		// line answers `cannotRun` on a database that is perfectly reachable.
+		expect(readHistory('postgres://x', stub([{ ok: true, rows: ['SET', ''] }]).run).ok).toBe(
+			false
+		);
+		// A version row must not be read as a presence answer either.
+		expect(readHistory('postgres://x', stub([{ ok: true, rows: ['v|0211'] }]).run).ok).toBe(false);
+	});
+
+	it('both queries are read-only and neither can write', () => {
+		for (const sql of [HISTORY_PRESENCE_SQL, HISTORY_VERSIONS_SQL]) {
+			expect(sql).toContain('set transaction read only');
+			expect(sql).not.toMatch(/\b(insert|update|delete|drop|alter|create|truncate)\b/i);
+		}
+	});
+});
+
+describe('with no credential at all', () => {
+	// `DEPLOY_PROBE_URL` was UNSET as a repository secret when this was
+	// written -- ledger 0215 measured `deploy.yml`'s own step log printing it
+	// empty on a real runner. The no-credential path is therefore the path
+	// production takes today, and it must answer rather than crash.
+	const run = (env: NodeJS.ProcessEnv) => {
+		try {
+			const stdout = execFileSync('node', [TOOL, '--ref', 'HEAD', '--since', '209'], {
+				cwd: ROOT,
+				encoding: 'utf8',
+				env: { ...process.env, ...env }
+			});
+			return { status: 0, stdout, stderr: '' };
+		} catch (err) {
+			const e = err as { status?: number; stdout?: string; stderr?: string };
+			return { status: e.status ?? -1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' };
+		}
+	};
+
+	it('answers cannot-run, not a crash and never a pass', () => {
+		const r = run({ DEPLOY_PROBE_URL: '' });
+		expect(r.status).toBe(EXIT.cannotRun);
+		expect(r.stderr).toContain('is not set');
+		expect(r.stderr).toContain('never "applied"');
+		// A CRASH WOULD ALSO EXIT NON-ZERO, so the status alone proves nothing.
+		expect(r.stderr).not.toMatch(/TypeError|ReferenceError|is not a function|Cannot read/);
+	});
+
+	it('--print-sql prints BOTH questions, in the order they run', () => {
+		// A person pasting this into the Supabase SQL editor is asking the same
+		// two questions the tool asks. Printing only the object probes would
+		// hide the one that now answers most of the range.
+		const sql = execFileSync('node', [TOOL, '--print-sql', '--ref', 'HEAD', '--since', '209'], {
+			cwd: ROOT,
+			encoding: 'utf8',
+			env: { ...process.env, DEPLOY_PROBE_URL: '' }
+		});
+		expect(sql).toContain('pg_catalog.pg_class');
+		expect(sql).toContain(HISTORY_TABLE);
+		expect(sql).toContain('the object probes, which are the evidence');
+		// The history questions come FIRST, which is the order the tool runs
+		// them in and the order a person should read them in.
+		expect(sql.indexOf('pg_catalog.pg_class')).toBeLessThan(sql.indexOf('the object probes'));
 	});
 });

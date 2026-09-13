@@ -17,7 +17,7 @@
  * ---------------------------------------------------------------------------
  * WHY IT EXISTS. `deploy.yml` used to ask a PERSON to type that every
  * migration on `integration` is applied to production, because nothing in this
- * repository recorded applied state, and CI runs against an embedded Postgres
+ * repository records applied state, and CI runs against an embedded Postgres
  * with every migration file applied, so a branch whose migration has never
  * touched production is green. Decision 0010 declined an unattended deploy on
  * exactly that. Mr. Pina approved a READ-ONLY Postgres role on 2026-09-03;
@@ -25,63 +25,52 @@
  * was being asked of him.
  *
  * ---------------------------------------------------------------------------
- * IT ASKS THE DATABASE'S OWN HISTORY FIRST AND THE OBJECTS SECOND, AND THAT
- * ORDER IS THE WHOLE OF WHAT `0209` BOUGHT.
+ * IT READS THE MIGRATION HISTORY TABLE FIRST NOW, AND THE OBJECT PROBES ARE
+ * STILL THE EVIDENCE.
  *
- * Until `supabase/data/0209-seed-migration-history.sql` was pasted, this tool
- * could only INFER an apply: `tools/idea-status.py` derives one catalog probe
- * per migration -- the first object it creates -- and a migration it can
- * derive nothing from got no probe at all, so the answer was status 3, CANNOT
- * SAY. That silence stopped five separate lanes at the deploy gate in one
- * week. It was unavoidable while nothing recorded what had been applied.
+ * Until 2026-09-13 production had no `supabase_migrations.schema_migrations`
+ * table at all, so this tool had nothing to read but the catalog, object by
+ * object -- and `tools/idea-status.py` cannot derive a probe from every
+ * migration. A data-only fix, a policy-only change, a tombstone: each of those
+ * produced a row this tool had to answer CANNOT SAY, which is exit 3, which is
+ * not a pass. SIX lanes stopped at that gate. Mr. Pina pasted
+ * `supabase/data/0209-seed-migration-history.sql` on 2026-09-13 and the
+ * verification came back EQUAL: 209 rows, 0001 through 0211.
  *
- * `supabase_migrations.schema_migrations` is that record now. This reads it
- * first and asks the objects second, so a migration whose objects cannot be
- * derived is answered by the row instead of by a shrug.
+ * So the order is: read the table, then run the object probes, then combine
+ * per migration. `tools/apply-migration.mjs` inserts a row inside each apply's
+ * own transaction, which is what keeps the record from going stale again.
  *
- * WHICH ONE IS BELIEVED WHEN THEY DISAGREE, AND WHY:
+ * WHICH ONE IS TRUSTED WHEN THEY DISAGREE: THE OBJECT PROBE, ALWAYS.
  *
- *   A ROW IS A CLAIM. THE OBJECT IS EVIDENCE. THE OBJECT WINS.
+ * A HISTORY ROW IS A CLAIM. Somebody wrote it -- the seed wrote 209 of them
+ * from a list a person compiled, and a future `apply-migration.mjs` run writes
+ * one because it believes its own apply committed. AN OBJECT PROBE IS
+ * EVIDENCE: it asks production's own `pg_catalog` whether the thing the
+ * migration creates is there. A row can be wrong in the one direction that
+ * matters -- claiming an apply that never happened -- and the object probe is
+ * the only check in this repository that catches it. So:
  *
- * A row says somebody -- the seed, or `tools/apply-migration.mjs` -- believed
- * a file had been applied. Nothing re-checked it afterwards, and the seed
- * wrote 208 of its rows from the repository's own records rather than from the
- * database. A probe that comes back FALSE is the database itself saying the
- * object is not there. So a row claiming an apply whose object is absent is
- * reported NOT APPLIED (status 2) and the disagreement is named in the output.
- * That is the one failure the seed introduced as a possibility, and keeping
- * the object probes is the only thing that catches it. DO NOT DELETE THEM.
+ *   row says applied, probe says NOT applied  -> NOT APPLIED (exit 2).
+ *       The claim loses. This is the failure the seed made possible and it is
+ *       reported as a CONFLICT, by name, rather than quietly resolved.
+ *   row says applied, probe says applied      -> applied. Both agree.
+ *   row says applied, NO probe exists         -> applied. Nothing contradicts
+ *       the row and nothing else can speak for the migration at all. This is
+ *       the case that unblocks the six lanes, and it is the ONLY case in which
+ *       a row decides anything on its own.
+ *   NO row, probe says applied                -> applied. Evidence outranks a
+ *       record that is merely behind (a migration applied by hand before the
+ *       table existed, or applied without recording).
+ *   NO row, probe says NOT applied            -> NOT APPLIED (exit 2).
+ *   NO row, NO probe                          -> CANNOT SAY (exit 3).
+ *   no table at all                           -> exactly the pre-seed
+ *       behaviour: the object probes alone, and exit 3 wherever one is missing.
  *
- * AN ABSENT ROW IS SILENCE, NOT A DENIAL, WHICH IS WHY THE ASYMMETRY IS NOT
- * INCONSISTENT. The table is not exhaustive by construction: the seed stops at
- * `0211`, and any migration pasted by hand afterwards leaves no row behind. So
- * a missing row plus a TRUE probe is APPLIED -- with the gap named, because
- * `.github/workflows/migrate.yml` reads that table to decide what to apply
- * next -- while a present row plus a FALSE probe is a contradiction.
- *
- * AND STATUS 3 STILL MEANS CANNOT CONFIRM. A row is not a licence to answer
- * "applied" where nothing was checked, only a licence to answer where the
- * MACHINE previously had nothing to say: no row AND no probe is still 3, and
- * a database with no history table at all answers exactly as it did before
- * this bundle, probe by probe, 3 included.
- *
- * ---------------------------------------------------------------------------
- * READING THAT TABLE IS TWO ROUND TRIPS AND MUST BE, BECAUSE THE ROLE HOLDS NO
- * GRANTS. `supabase_migrations.schema_migrations` is an ordinary table, not a
- * catalog, so a role created for this job with nothing but CONNECT cannot
- * select from it -- and a `select` it may not run raises `permission denied`
- * at executor startup, which aborts the single transaction the object probes
- * ride in and would take the WHOLE answer down with it. A `case` guard does
- * not help: the permission is checked for every range table in the statement,
- * not per branch. So the existence and the privilege are asked of `pg_catalog`
- * FIRST (`buildHistorySql`), and the rows are read only if that came back
- * readable (`buildHistoryVersionsSql`).
- *
- * A FAILURE OF EITHER DEGRADES TO THE OBJECT PROBES RATHER THAN FAILING THE
- * RUN, and says so on stderr. That is the select-ladder shape this repository
- * already uses everywhere else: the widest rung first, one rung narrower on
- * failure, and the narrowest rung is exactly what this tool did before the
- * table existed.
+ * EXIT 3 THEREFORE STILL EXISTS AND STILL MEANS CANNOT CONFIRM. What the table
+ * removed is the case where a migration had no probe AND nothing else to ask;
+ * it did not remove the status, and a row is never read as evidence against a
+ * probe that ran.
  *
  * ---------------------------------------------------------------------------
  * `information_schema` IS PRIVILEGE-FILTERED AND `pg_catalog` IS NOT, AND THAT
@@ -118,17 +107,14 @@
  *
  *   0  every migration in range is APPLIED. Nothing is unknown.
  *   2  at least one migration is NOT applied. The deploy must not run.
- *   3  nothing came back NOT applied, but at least one migration has neither a
- *      history row nor a probe that ran, so the machine cannot speak for it.
- *      NOT a pass.
+ *   3  every probe that ran said applied, but at least one migration has NO
+ *      probe AND no history row, so the machine cannot speak for it. NOT a
+ *      pass.
  *   1  the probe could not run at all: no connection string, no `psql`, an
  *      unreachable database, a query error, `idea-status.py` unreadable. NOT
  *      a pass either.
  *
- * An unknown is never reported as applied, in any of those. Status 2 now has
- * two causes rather than one -- a probe that came back false, and a probe that
- * came back false while a history row claimed otherwise -- and the second is
- * printed in words rather than folded into the first.
+ * An unknown is never reported as applied, in any of those.
  *
  * ---------------------------------------------------------------------------
  * IT PRINTS PER MIGRATION AND NEVER A BARE COUNT, because a verification
@@ -160,170 +146,6 @@ export const EXIT = {
 	notApplied: 2,
 	cannotConfirm: 3
 };
-
-/* ------------------------------------------------------------------------ */
-/* The database's own record of what it has applied.                         */
-/* ------------------------------------------------------------------------ */
-
-/**
- * The Supabase CLI's own history table, seeded once by
- * `supabase/data/0209-seed-migration-history.sql` and kept current by
- * `tools/apply-migration.mjs`. Written down HERE ONCE and read from this
- * constant by every statement below, so a rename is one edit.
- */
-export const HISTORY_TABLE = 'supabase_migrations.schema_migrations';
-
-/**
- * @typedef {{ present: boolean, readable: boolean, versions: Set<string> | null, why: string }} History
- */
-
-/**
- * What a run with no usable history looks like. `versions: null` is the thing
- * every reader branches on and it means THE RECORD CANNOT SPEAK -- no table,
- * no read privilege, or the read failed -- which is not the same as a table
- * that is there and holds no row for a migration. `verdicts` treats the two
- * completely differently and a caller that collapsed them into an empty Set
- * would report every migration unrecorded on a database that simply refused
- * the select.
- *
- * @returns {History}
- */
-export function noHistory(why = 'not read') {
-	return { present: false, readable: false, versions: null, why };
-}
-
-/**
- * CATALOG ONLY, AND IT HAS TO BE. This asks whether the history table exists
- * and whether this role may select from it, WITHOUT naming it as a range table
- * -- because naming a table a role cannot read raises `permission denied` at
- * executor startup, and this tool's whole point is to run as a role that holds
- * nothing but CONNECT.
- *
- * IT ASKS `pg_class` RATHER THAN `to_regclass`, AND THAT IS A MEASUREMENT
- * RATHER THAN A PREFERENCE. `to_regclass` resolves a NAME, and resolving a
- * qualified name needs USAGE on its schema -- so for exactly the role this
- * tool is built for it answers NULL for a table that is sitting right there,
- * and the tool would report "not on this database, paste the seed" about a
- * database that already has it. Measured: a role with CONNECT and no schema
- * USAGE read `present: false` through `to_regclass` and `present: true`
- * through this. `pg_class` and `pg_namespace` are readable by PUBLIC and are
- * not filtered by either privilege, which is the same fact the
- * `information_schema` section above turns on.
- *
- * READABLE IS TWO PRIVILEGES, NOT ONE. `has_table_privilege` answers about the
- * TABLE's own ACL and says nothing about the schema, so a role granted SELECT
- * on the table and nothing on `supabase_migrations` would read `true` here and
- * then fail the actual select with `permission denied for schema`. Both are
- * asked, and `readable` is the conjunction.
- *
- * @returns {string}
- */
-export function buildHistorySql() {
-	const [schema, table] = HISTORY_TABLE.split('.');
-	// A SCALAR SUBQUERY, NOT A JOINED ONE. A derived table that matches nothing
-	// contributes NO ROW, so the whole statement would come back empty on the
-	// pre-seed database -- which `readHistory` correctly reads as "the
-	// preflight returned no row" and would then report as an instrument fault
-	// rather than as the ordinary absence it is. A scalar subquery answers NULL
-	// and the statement always returns exactly one row.
-	return (
-		'set transaction read only;\n' +
-		'select (t.oid is not null) as present,\n' +
-		'       coalesce(t.oid is not null\n' +
-		`                and pg_catalog.has_schema_privilege(current_user, ${sqlLit(schema)}, 'usage')\n` +
-		"                and pg_catalog.has_table_privilege(current_user, t.oid, 'select'), false) as readable\n" +
-		'from (select (select c.oid from pg_catalog.pg_class c\n' +
-		'              join pg_catalog.pg_namespace n on n.oid = c.relnamespace\n' +
-		`              where n.nspname = ${sqlLit(schema)} and c.relname = ${sqlLit(table)}\n` +
-		"                and c.relkind in ('r','p','v','m','f') limit 1) as oid) as t;"
-	);
-}
-
-/**
- * The rows, run ONLY after `buildHistorySql` came back readable. One column,
- * because `version` is the only thing any verdict here turns on -- `name` is
- * the CLI's label and `statements` is deliberately null for every row the seed
- * wrote, so reading either would be reading something this tool cannot use.
- *
- * @returns {string}
- */
-export function buildHistoryVersionsSql() {
-	return `set transaction read only;\nselect version from ${HISTORY_TABLE};`;
-}
-
-/**
- * A version as the two sides spell it, reduced to one form.
- *
- * The seed and `tools/apply-migration.mjs` both write the four-digit file
- * number (`0100`), and `idea-status.py` derives `num` the same way, so these
- * agree today. They are normalized anyway because the cost of a mismatch is
- * asymmetric and silent: an unmatched row reads as "no row", which is a
- * CANNOT SAY rather than a wrong answer, so nobody would ever see it. An
- * all-digits version loses its leading zeros; anything else (a CLI-style
- * `20260913000000`, which nothing here writes but the table's own convention
- * allows) is compared as it stands.
- *
- * @param {string} v
- * @returns {string}
- */
-export function normalizeVersion(v) {
-	const t = (v ?? '').trim();
-	return /^\d+$/.test(t) ? String(Number(t)) : t;
-}
-
-/**
- * Read the record, degrading one rung at a time. EVERY failure below answers
- * `noHistory` with a reason rather than throwing: the object probes are the
- * narrowest rung of this ladder and they are exactly what this tool ran before
- * the table existed, so a database that cannot answer the history question
- * still gets the whole answer it used to get.
- *
- * @param {string} url
- * @param {(sql: string, url: string) => ReturnType<typeof runSqlRaw>} [run]
- * @returns {History}
- */
-export function readHistory(url, run = runSqlRaw) {
-	const pre = run(buildHistorySql(), url);
-	if (!pre.ok) return noHistory(`the history table could not be asked about (${pre.why})`);
-	const line = pre.rows.find((r) => r.length >= 2);
-	if (!line) return noHistory('the history preflight returned no row');
-	const present = line[0] === 't';
-	const readable = line[1] === 't';
-	if (!present) {
-		return {
-			present: false,
-			readable: false,
-			versions: null,
-			why: `${HISTORY_TABLE} is not on this database, so every answer below is the object probe's. That is the state BEFORE supabase/data/0209-seed-migration-history.sql is pasted, and it is not an error.`
-		};
-	}
-	if (!readable) {
-		return {
-			present: true,
-			readable: false,
-			versions: null,
-			why: `${HISTORY_TABLE} is there and this role may not select from it, so every answer below is the object probe's.`
-		};
-	}
-	const got = run(buildHistoryVersionsSql(), url);
-	if (!got.ok) {
-		return {
-			present: true,
-			readable: true,
-			versions: null,
-			why: `${HISTORY_TABLE} could not be read (${got.why}), so every answer below is the object probe's.`
-		};
-	}
-	const versions = new Set(
-		got.rows.map((r) => normalizeVersion(r[0])).filter((v) => v !== '')
-	);
-	return {
-		present: true,
-		readable: true,
-		versions,
-		why: `${HISTORY_TABLE} carries ${versions.size} row(s).`
-	};
-}
 
 /* ------------------------------------------------------------------------ */
 /* The one translation: information_schema -> pg_catalog.                    */
@@ -495,31 +317,14 @@ export function buildSql(probes) {
 }
 
 /**
- * ONE `psql`, ONE STATEMENT STRING, ROWS BACK AS PIPE-SPLIT FIELDS. Every
- * query this tool runs goes through here, so there is exactly one place that
- * knows how the process is spawned and how a failure is worded -- and, more to
- * the point, exactly one place that could ever put the connection string
- * somewhere it is printed.
- *
  * @param {string} sql
  * @param {string} url
- * @returns {{ ok: true, rows: string[][] } | { ok: false, why: string }}
+ * @returns {{ ok: true, rows: Map<number, boolean> } | { ok: false, why: string }}
  */
-export function runSqlRaw(sql, url) {
-	// `--quiet` IS LOAD-BEARING AND WAS ADDED AFTER IT BIT. Without it psql
-	// prints each non-SELECT statement's COMMAND TAG on stdout even under
-	// `--tuples-only`, so `set transaction read only;` contributes a bare line
-	// reading `SET` ahead of the rows -- measured:
-	// `"SET\n0001\n0002\n"` against `"0001\n0002\n"` with the flag. The
-	// object probes never noticed, because they discard any line that is not
-	// `<int>|<t|f>`; the history read has no such shape to filter on and
-	// silently gained a 209th "version" called `SET`, which matched no
-	// migration and inflated every count this tool printed. Anything that
-	// filtered that out downstream would be a second, softer copy of "what a
-	// version is". Suppress it here instead.
+export function runSql(sql, url) {
 	const psql = spawnSync(
 		'psql',
-		[url, '--no-psqlrc', '--quiet', '--tuples-only', '--no-align', '--field-separator=|',
+		[url, '--no-psqlrc', '--tuples-only', '--no-align', '--field-separator=|',
 		 '--set=ON_ERROR_STOP=1', '--single-transaction', '--command', sql],
 		{ encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
 	);
@@ -534,33 +339,11 @@ export function runSqlRaw(sql, url) {
 	if (psql.status !== 0) {
 		return { ok: false, why: `psql exited ${psql.status}: ${redact(psql.stderr, url)}` };
 	}
-	const rows = psql.stdout
-		.split('\n')
-		.map((l) => l.trim())
-		.filter((l) => l !== '')
-		.map((l) => l.split('|'));
-	return { ok: true, rows };
-}
-
-/**
- * The object probes, read back as `index -> boolean`. A line that does not
- * match the shape sent is DROPPED rather than guessed at, which is what makes
- * "no row came back for this probe" a state `verdicts` can report instead of a
- * value it has to invent.
- *
- * @param {string} sql
- * @param {string} url
- * @returns {{ ok: true, rows: Map<number, boolean> } | { ok: false, why: string }}
- */
-export function runSql(sql, url) {
-	const raw = runSqlRaw(sql, url);
-	if (!raw.ok) return raw;
 	/** @type {Map<number, boolean>} */
 	const rows = new Map();
-	for (const fields of raw.rows) {
-		if (fields.length !== 2) continue;
-		if (!/^\d+$/.test(fields[0]) || !/^[tf]$/.test(fields[1])) continue;
-		rows.set(Number(fields[0]), fields[1] === 't');
+	for (const line of psql.stdout.split('\n')) {
+		const m = /^(\d+)\|([tf])$/.exec(line.trim());
+		if (m) rows.set(Number(m[1]), m[2] === 't');
 	}
 	return { ok: true, rows };
 }
@@ -581,129 +364,294 @@ export function redact(text, url) {
 }
 
 /* ------------------------------------------------------------------------ */
+/* The migration history table.                                              */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * The Supabase CLI's own record of which migration files a database has had
+ * applied. Written here by `supabase/data/0209-seed-migration-history.sql`
+ * (once, by hand) and kept current by `tools/apply-migration.mjs`, which
+ * inserts one row inside each apply's own transaction.
+ *
+ * The name is spelled once, here. `tools/apply-migration.mjs` has its own
+ * `HISTORY_TABLE` for its INSERT; these are two different statements about the
+ * same table rather than one rule written twice, and neither imports the
+ * other's copy because a read and a write need nothing from each other.
+ */
+export const HISTORY_TABLE = 'supabase_migrations.schema_migrations';
+
+/** Its two halves, split once, because the catalog lookup needs them apart. */
+const [HISTORY_SCHEMA, HISTORY_NAME] = HISTORY_TABLE.split('.');
+
+/**
+ * IS THE TABLE THERE, AND MAY THIS ROLE READ IT. Asked separately, and asked
+ * FIRST, because a `select` naming a relation this role cannot reach fails
+ * before any row is produced -- so it cannot be guarded inside the same
+ * statement, and under `--single-transaction` with `ON_ERROR_STOP=1` it would
+ * abort the object probes with it.
+ *
+ * IT ASKS `pg_catalog` RATHER THAN `to_regclass`, AND THAT IS A MEASUREMENT
+ * RATHER THAN A PREFERENCE. `to_regclass` resolves a NAME, and resolving a
+ * qualified name needs USAGE on its schema. It does NOT answer null for a
+ * schema the role cannot reach -- **it RAISES**. Measured on a real Postgres,
+ * as a role holding CONNECT and nothing else, against a database where this
+ * table exists with 208 rows in it:
+ *
+ *   to_regclass('supabase_migrations.schema_migrations')
+ *     -> ERROR: permission denied for schema supabase_migrations
+ *   the pg_class lookup below
+ *     -> present: true
+ *
+ * That role is not a hypothetical, it is the one this whole file is built for
+ * (see the `information_schema` section: "A role created for this job holds
+ * nothing but CONNECT"). Through `to_regclass` the presence query raises, the
+ * read fails, and `readHistory` correctly reports `cannotRun` -- so the tool
+ * exits 1 and EVERY DEPLOY STOPS, on a database that is perfectly reachable
+ * and perfectly correct. `pg_class` and `pg_namespace` are readable by PUBLIC
+ * and are filtered by neither privilege, which is the same fact the
+ * `information_schema` section above turns on.
+ *
+ * READABLE IS TWO PRIVILEGES, NOT ONE, and it is asked here rather than
+ * discovered by the read failing. `has_table_privilege` answers about the
+ * TABLE's own ACL and says nothing about the schema, so a role granted SELECT
+ * on the table and nothing on `supabase_migrations` would pass a table-only
+ * check and then fail the real select with `permission denied for schema`.
+ * Both are asked, and `readable` is the conjunction.
+ *
+ * A SCALAR SUBQUERY, NOT A JOINED ONE: a derived table that matches nothing
+ * contributes NO ROW, so on a pre-seed database the whole statement would come
+ * back empty and `readHistory` would report that it could not tell -- which is
+ * `cannotRun` -- instead of the ordinary `absent` it is.
+ *
+ * ABSENT IS A SUPPORTED STATE, not a failure: it is what every database in
+ * this project answered before 2026-09-13, and what a fresh local stack
+ * answers today. So is UNREADABLE.
+ */
+export const HISTORY_PRESENCE_SQL =
+	'set transaction read only;\n' +
+	"select 'history-table' as k,\n" +
+	"       case when t.oid is null then 'absent'\n" +
+	`            when pg_catalog.has_schema_privilege(current_user, '${HISTORY_SCHEMA}', 'usage')\n` +
+	"             and pg_catalog.has_table_privilege(current_user, t.oid, 'select') then 'present'\n" +
+	"            else 'unreadable' end as v\n" +
+	'from (select (select c.oid from pg_catalog.pg_class c\n' +
+	'              join pg_catalog.pg_namespace n on n.oid = c.relnamespace\n' +
+	`              where n.nspname = '${HISTORY_SCHEMA}' and c.relname = '${HISTORY_NAME}'\n` +
+	"                and c.relkind in ('r','p','v','m','f') limit 1) as oid) as t;" ;
+
+/**
+ * Every version the table records. `version` is the four-digit migration
+ * number as text, which is the same string `idea-status.py` puts in a probe's
+ * `num` -- so the join needs no parsing on either side.
+ */
+export const HISTORY_VERSIONS_SQL =
+	'set transaction read only;\n' +
+	`select 'v' as k, version from ${HISTORY_TABLE} group by version order by version;`;
+
+/**
+ * EVERY ANSWER IS READ BACK BESIDE THE KEY IT WAS SENT UNDER, and that is not
+ * decoration. `psql` prints a COMMAND TAG for a statement that returns no rows
+ * -- `set transaction read only;` emits a bare `SET` line, and `--tuples-only`
+ * does not suppress it. Taking the first non-empty line as the answer therefore
+ * read `SET` and reported that the tool could not tell whether the table exists,
+ * which measured as `cannotRun` on a database that was perfectly reachable.
+ *
+ * It was invisible to a stubbed transport and caught by
+ * `tests/db/deploy-probe-history-live.test.ts` against a real Postgres. It is
+ * also why `runSql` has never had the problem: it has always matched
+ * `^<index>|<t|f>$`, so a tag cannot be mistaken for a row. These do the same.
+ */
+const PRESENCE_ROW = /^history-table\|(present|absent|unreadable)$/;
+const VERSION_ROW = /^v\|(.+)$/;
+
+/**
+ * @typedef {{ present: boolean, versions: Set<string> }} History
+ */
+
+/**
+ * Read the history table, in at most two round trips and never more.
+ *
+ * A QUERY ERROR IS `cannotRun`, NOT "no table". The presence check already
+ * distinguishes a missing table from an unreachable database, so anything that
+ * fails AFTER it said `present` is an anomaly, and answering it by silently
+ * falling back to the object probes would turn a broken credential into a
+ * quieter verdict rather than a reported one.
+ *
+ * A THIRD OUTCOME: `ok` with a NULL history, which is "the table is there and
+ * this role cannot read it". See the branch below for why that is a degrade
+ * rather than a failure.
+ *
+ * @param {string} url
+ * @param {(sql: string, url: string) => ReturnType<typeof runRows>} [run]
+ * @returns {{ ok: true, history: History | null, why?: string } | { ok: false, why: string }}
+ */
+export function readHistory(url, run = runRows) {
+	const presence = run(HISTORY_PRESENCE_SQL, url);
+	if (!presence.ok) return { ok: false, why: presence.why };
+	const answer = presence.rows
+		.map((r) => PRESENCE_ROW.exec(r.trim()))
+		.find((m) => m !== null)?.[1];
+	if (answer !== 'present' && answer !== 'absent' && answer !== 'unreadable') {
+		return { ok: false, why: `could not tell whether ${HISTORY_TABLE} exists` };
+	}
+	if (answer === 'absent') return { ok: true, history: { present: false, versions: new Set() } };
+
+	// PRESENT AND NOT READABLE IS A DEGRADE, NOT A FAILURE, AND THE DIFFERENCE
+	// IS EVERY DEPLOY. `null` is this file's own word for "the table was not
+	// consulted", so every finding below comes out byte for byte as it did
+	// before the table existed -- which is a working answer. Reporting it as
+	// `cannotRun` instead would mean that the moment the seed is pasted, a
+	// read-only role holding CONNECT and no grant on one new table stops every
+	// deploy this repository can make, having previously answered fine.
+	//
+	// It is NOT collapsed into `{ present: false }`: that would say the table
+	// is absent, which is a claim about the database rather than about this
+	// role's reach, and it is the sentence an operator would act on by pasting
+	// a seed that is already applied.
+	if (answer === 'unreadable') {
+		return {
+			ok: true,
+			history: null,
+			why: `${HISTORY_TABLE} is there and this role may not select from it, so every answer below is the object probe's. A grant of USAGE on ${HISTORY_SCHEMA} and SELECT on the table is what this role is missing.`
+		};
+	}
+
+	const versions = run(HISTORY_VERSIONS_SQL, url);
+	if (!versions.ok) return { ok: false, why: versions.why };
+	return {
+		ok: true,
+		history: {
+			present: true,
+			versions: new Set(
+				versions.rows
+					.map((r) => VERSION_ROW.exec(r.trim()))
+					.filter((m) => m !== null)
+					.map((m) => m[1].trim())
+					.filter((v) => v !== '')
+			)
+		}
+	};
+}
+
+/**
+ * `runSql`'s sibling for a query whose answer is a list of scalars rather than
+ * an indexed boolean map. Same `psql` invocation, same redaction, same "the URL
+ * is an argument and there is no shell anywhere on the path".
+ *
+ * @param {string} sql
+ * @param {string} url
+ * @returns {{ ok: true, rows: string[] } | { ok: false, why: string }}
+ */
+export function runRows(sql, url) {
+	const psql = spawnSync(
+		'psql',
+		[url, '--no-psqlrc', '--tuples-only', '--no-align', '--field-separator=|',
+		 '--set=ON_ERROR_STOP=1', '--single-transaction', '--command', sql],
+		{ encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+	);
+	if (psql.error) {
+		const e = /** @type {Error & { code?: string }} */ (psql.error);
+		return { ok: false, why: `psql could not be run (${e.code ?? e.message})` };
+	}
+	if (psql.status !== 0) {
+		return { ok: false, why: `psql exited ${psql.status}: ${redact(psql.stderr, url)}` };
+	}
+	return { ok: true, rows: psql.stdout.split('\n') };
+}
+
+/* ------------------------------------------------------------------------ */
 /* The verdict.                                                              */
 /* ------------------------------------------------------------------------ */
 
 /**
- * `record` is what `HISTORY_TABLE` said about this migration and is NOT the
- * verdict: `recorded` a row is there, `unrecorded` the table is there and has
- * none, `unreadable` the record could not speak at all. `agreement` is how the
- * row and the object compare, and `disagreed` is the one value that has to be
- * printed rather than counted.
+ * `history` is what the table said about this migration: `true` a row is there,
+ * `false` the table was read and has none, `null` the table was not consulted
+ * at all (no credential, or it does not exist). `evidence` is what the object
+ * probe said on its own, before the two were combined, so a reader can always
+ * see which half produced the state.
  *
- * @typedef {'recorded'|'unrecorded'|'unreadable'} Record_
- * @typedef {'agree'|'disagreed'|'record-only'|'object-only'|'neither'} Agreement
  * @typedef {{ num: string, file: string, object: string,
- *             state: 'applied'|'not-applied'|'unknown',
- *             record: Record_, agreement: Agreement, why: string }} Finding
+ *             state: 'applied'|'not-applied'|'unknown', why: string,
+ *             history: boolean | null,
+ *             evidence: 'applied'|'not-applied'|'unknown',
+ *             conflict: boolean }} Finding
  */
 
 /**
- * THE WHOLE DECISION, IN ONE TABLE, AND THE ASYMMETRY IN THE MIDDLE TWO ROWS
- * IS THE POINT (see this file's header for the argument):
+ * Combine the object probes with the history table, per migration.
  *
- *   row   object   ->  verdict
- *   ---   ------       -------
- *   yes   true         APPLIED           both agree
- *   yes   false        NOT APPLIED       the row is a claim, the object is
- *                                        evidence, and the evidence wins
- *   yes   (none)       APPLIED           the row is the only evidence there
- *                                        is, and this is what 0209 bought
- *   no    true         APPLIED           an absent row is silence, not a
- *                                        denial; the gap is named
- *   no    false        NOT APPLIED       both agree
- *   no    (none)       CANNOT SAY        status 3, unchanged
- *   --    true         APPLIED           no readable record: exactly what this
- *   --    false        NOT APPLIED       tool did before the table existed,
- *   --    (none)       CANNOT SAY        probe by probe, 3 included
+ * THE THIRD ARGUMENT IS OPTIONAL AND ITS DEFAULT IS THE PRE-SEED BEHAVIOUR.
+ * `null` means the table was not consulted, and every finding then comes out
+ * byte for byte as it did before the table existed -- which is what
+ * `tools/apply-migration.mjs` calls, with two arguments, and must keep getting.
  *
- * `history` is OPTIONAL and defaults to "the record cannot speak", so
- * `tools/apply-migration.mjs` -- which calls this with two arguments and reads
- * the history table itself, for its own different purpose -- keeps exactly the
- * behaviour it had. Widening this signature additively rather than changing it
- * is what makes that true without editing that file.
+ * See this file's header for the full table of which half wins. The short of
+ * it: a probe that RAN always decides, a row decides only where no probe
+ * exists, and a row contradicted by a probe is reported as a conflict.
  *
  * @param {Probe[]} probes
  * @param {Map<number, boolean>} rows
- * @param {History} [history]
+ * @param {History | null} [history]
  * @returns {Finding[]}
  */
-export function verdicts(probes, rows, history = noHistory()) {
-	// THE LOOKUP OWNS THE NORMALIZATION, so no caller can hand this a set it
-	// silently fails to match against. `readHistory` already normalizes what it
-	// reads and `normalizeVersion` is idempotent, so doing it again here costs
-	// one pass over ~200 strings and removes an invariant that would otherwise
-	// live in the caller -- where getting it wrong reports every migration
-	// unrecorded, which reads as a CANNOT SAY and is therefore never noticed.
-	const known =
-		history.versions === null ? null : new Set([...history.versions].map(normalizeVersion));
+export function verdicts(probes, rows, history = null) {
 	return probes.map((p, i) => {
-		/** Three-valued on purpose: `null` is "the record cannot speak". */
-		const claimed = known === null ? null : known.has(normalizeVersion(p.num));
-		/** Three-valued on purpose: `null` is "no probe ran". */
-		const evidence = !p.sql ? null : rows.has(i) ? rows.get(i) === true : null;
+		/** @type {boolean | null} */
+		const recorded = history && history.present ? history.versions.has(p.num) : null;
 
-		const noProbeWhy = !p.sql
-			? (p.refused ?? 'no probeable object could be derived from this migration')
-			: 'the probe was sent and no row came back for it';
+		/** @type {'applied'|'not-applied'|'unknown'} */
+		let evidence;
+		let why = '';
+		if (!p.sql) {
+			evidence = 'unknown';
+			why = p.refused ?? 'no probeable object could be derived from this migration';
+		} else if (!rows.has(i)) {
+			evidence = 'unknown';
+			why = 'the probe was sent and no row came back for it';
+		} else {
+			evidence = rows.get(i) ? 'applied' : 'not-applied';
+		}
 
-		/** @type {Record_} */
-		const record = claimed === null ? 'unreadable' : claimed ? 'recorded' : 'unrecorded';
-		const base = { num: p.num, file: p.file, object: p.object, record };
+		const base = { num: p.num, file: p.file, object: p.object, history: recorded, evidence };
 
-		if (evidence === true) {
-			// `object-only` covers BOTH a readable record that has no row and a
-			// record that could not speak: in each, the object is the only thing
-			// that answered. They are told apart by `record`, which is the field
-			// that says WHY, and only the first is worth a sentence.
-			/** @type {Agreement} */
-			const how = claimed === true ? 'agree' : 'object-only';
+		// A PROBE THAT RAN IS EVIDENCE AND IT DECIDES, in both directions. The
+		// only thing the row changes here is the sentence: a row asserting an
+		// apply the catalog cannot see is the exact failure the seed made
+		// possible, and it is named rather than absorbed.
+		if (evidence === 'not-applied') {
 			return {
 				...base,
-				state: /** @type {const} */ ('applied'),
-				agreement: how,
+				state: /** @type {const} */ ('not-applied'),
+				conflict: recorded === true,
 				why:
-					claimed === false
-						? `the object is there, and ${HISTORY_TABLE} carries no row for it. An absent row is silence rather than a denial, so this is APPLIED -- but the record is behind, and .github/workflows/migrate.yml reads that table to choose what to apply next.`
+					recorded === true
+						? `CONFLICT: ${HISTORY_TABLE} records ${p.num} as applied and this object is not in production's catalog. The row is a claim; the catalog is the evidence.`
 						: ''
 			};
 		}
-
-		if (evidence === false) {
-			return claimed === true
-				? {
-						...base,
-						state: /** @type {const} */ ('not-applied'),
-						agreement: /** @type {const} */ ('disagreed'),
-						why: `${HISTORY_TABLE} CLAIMS this was applied and the object it creates is NOT there. A row is a claim and the object is evidence, so this is NOT APPLIED. Either the apply did not happen, or a later migration moved the object this probe was derived from.`
-					}
-				: {
-						...base,
-						state: /** @type {const} */ ('not-applied'),
-						agreement: /** @type {const} */ ('agree'),
-						why: ''
-					};
+		if (evidence === 'applied') {
+			return { ...base, state: /** @type {const} */ ('applied'), conflict: false, why: '' };
 		}
 
-		// NO PROBE RAN. The row is now the only thing there is to go on, and
-		// where there is no row either this stays the CANNOT SAY it has always
-		// been.
-		return claimed === true
-			? {
-					...base,
-					state: /** @type {const} */ ('applied'),
-					agreement: /** @type {const} */ ('record-only'),
-					why: `recorded in ${HISTORY_TABLE}. ${noProbeWhy}, so the row is the only evidence and nothing contradicts it.`
-				}
-			: {
-					...base,
-					state: /** @type {const} */ ('unknown'),
-					agreement: /** @type {const} */ ('neither'),
-					why:
-						claimed === false
-							? `${noProbeWhy}, and ${HISTORY_TABLE} carries no row for it either.`
-							: noProbeWhy
-				};
+		// NO PROBE RAN. This is the one place a row decides anything, and it is
+		// the case the seed exists for.
+		if (recorded === true) {
+			return {
+				...base,
+				state: /** @type {const} */ ('applied'),
+				conflict: false,
+				why: `${why}; ${HISTORY_TABLE} records it applied`
+			};
+		}
+		return {
+			...base,
+			state: /** @type {const} */ ('unknown'),
+			conflict: false,
+			why:
+				recorded === false
+					? `${why}, and ${HISTORY_TABLE} has no row for it`
+					: why
+		};
 	});
 }
 
@@ -734,64 +682,52 @@ export function parseArgs(argv) {
 }
 
 /**
+ * IT NAMES WHICH HALF ANSWERED EACH ROW. `catalog` is an object probe that ran,
+ * `history` is a row carrying a migration no probe covers, and `--` is neither.
+ * A verification result that does not say what it read is a result nobody can
+ * audit, which is the same rule as "never a bare count" one paragraph up.
+ *
  * @param {Finding[]} findings
  * @param {number} code
- * @param {History} history
+ * @param {History | null} [history]
  */
-function reportText(findings, code, history) {
-	// THE SOURCE IS NAMED BEFORE THE ROWS, because the same table of verdicts
-	// means two different things depending on whether the record was readable,
-	// and a reader who cannot tell which will read a wall of APPLIED as
-	// stronger evidence than it is.
-	const lines = [`record: ${history.why}`, '', 'migration  record      state        object'];
+function reportText(findings, code, history = null, unreadableWhy = '') {
+	const lines = [];
+	if (history) {
+		lines.push(
+			history.present
+				? `${HISTORY_TABLE}: present, ${history.versions.size} version(s) recorded.`
+				: `${HISTORY_TABLE}: ABSENT. Every answer below is an object probe alone.`
+		);
+		lines.push('');
+	} else if (unreadableWhy) {
+		// THE THIRD STATE SAYS SO HERE TOO. Absent already gets a line, and
+		// unreadable is the same kind of statement -- it changes what every
+		// verdict below is worth -- so leaving it on stderr alone would make a
+		// degraded run and a full one look identical in the job summary.
+		lines.push(`${HISTORY_TABLE}: UNREADABLE. ${unreadableWhy}`);
+		lines.push('');
+	}
+	lines.push('migration  state        read from  object');
 	for (const f of findings) {
 		const state = { applied: 'APPLIED', 'not-applied': 'NOT APPLIED', unknown: 'CANNOT SAY' }[f.state];
-		const rec = { recorded: 'row', unrecorded: 'no row', unreadable: '--' }[f.record];
+		const from = f.evidence !== 'unknown' ? 'catalog' : f.state === 'applied' ? 'history' : '--';
 		lines.push(
-			`${f.num.padEnd(9)}  ${rec.padEnd(10)}  ${state.padEnd(11)}  ${f.object}${f.why ? `  -- ${f.why}` : ''}`
+			`${f.num.padEnd(9)}  ${state.padEnd(11)}  ${from.padEnd(9)}  ${f.object}${f.why ? `  -- ${f.why}` : ''}`
 		);
 	}
-	const n = (/** @type {string} */ k) => findings.filter((f) => f.state === k).length;
+	const n = (/** @type {string} */ s) => findings.filter((f) => f.state === s).length;
+	const conflicts = findings.filter((f) => f.conflict).length;
 	lines.push('');
 	lines.push(
 		`${findings.length} migration(s) in range: ${n('applied')} applied, ` +
 			`${n('not-applied')} NOT applied, ${n('unknown')} the probe cannot speak for.`
 	);
-
-	// A DISAGREEMENT IS PRINTED, NEVER COUNTED. It is the one finding whose
-	// cause somebody has to go and look at, and folding it into the NOT
-	// APPLIED tally is how it stops being looked at.
-	const disagreed = findings.filter((f) => f.agreement === 'disagreed');
-	if (disagreed.length > 0) {
-		lines.push('');
+	if (conflicts > 0) {
 		lines.push(
-			`${disagreed.length} migration(s) have a row in ${HISTORY_TABLE} whose object is NOT there:`
-		);
-		for (const f of disagreed) lines.push(`  ${f.num}  ${f.file}  ${f.object}`);
-		lines.push(
-			'A row is a claim and the object is evidence. Read each of these before trusting either.'
+			`${conflicts} CONFLICT(S): ${HISTORY_TABLE} claims an apply production's catalog cannot see.`
 		);
 	}
-	const behind = findings.filter((f) => f.agreement === 'object-only' && f.record === 'unrecorded');
-	if (behind.length > 0) {
-		lines.push('');
-		lines.push(
-			`${behind.length} migration(s) are applied and have NO row in ${HISTORY_TABLE}: ` +
-				behind.map((f) => f.num).join(', ') +
-				'. Nothing here is wrong, and the record is behind by that much.'
-		);
-	}
-	const recordOnly = findings.filter((f) => f.agreement === 'record-only');
-	if (recordOnly.length > 0) {
-		lines.push('');
-		lines.push(
-			`${recordOnly.length} migration(s) were answered by the record alone, with no object to check: ` +
-				recordOnly.map((f) => f.num).join(', ') +
-				`. Before ${HISTORY_TABLE} existed every one of these was a CANNOT SAY.`
-		);
-	}
-
-	lines.push('');
 	lines.push(
 		code === EXIT.allApplied
 			? 'Every migration in range is applied to the probed database.'
@@ -817,17 +753,14 @@ async function main() {
 	const sql = buildSql(probes);
 
 	if (opts.printSql) {
-		// BOTH STATEMENTS, LABELLED, because there are two now and a reader
-		// pasting only the second would be pasting the half that was already
-		// there. The versions read is shown too, even though it is only sent
-		// when the preflight says readable -- what this flag is for is reading
-		// the SQL, not predicting the run.
+		// BOTH QUERIES, IN THE ORDER THEY RUN. A person pasting this into the
+		// Supabase SQL editor is asking the same two questions this tool asks,
+		// and printing only half of them would hide the one that now answers
+		// most of the range.
 		process.stdout.write(
-			`-- 1. is ${HISTORY_TABLE} there, and may this role read it\n` +
-				buildHistorySql() +
-				`\n\n-- 2. its rows, sent only if the answer above was readable\n` +
-				buildHistoryVersionsSql() +
-				'\n\n-- 3. the object probes\n' +
+			`-- 1. is the history table there?\n${HISTORY_PRESENCE_SQL}\n\n` +
+				`-- 2. what does it record? (only if the answer above is 'present')\n${HISTORY_VERSIONS_SQL}\n\n` +
+				'-- 3. the object probes, which are the evidence.\n' +
 				(sql ? sql + '\n' : '-- no probeable migration in range\n')
 		);
 		return EXIT.allApplied;
@@ -842,12 +775,20 @@ async function main() {
 		return EXIT.cannotRun;
 	}
 
-	// THE WIDEST RUNG FIRST. Every failure inside this degrades to "the record
-	// cannot speak" with a reason, never to an exception and never to an empty
-	// set of versions -- so the object probes below answer exactly as they did
-	// before this table existed.
-	const history = readHistory(url);
-	if (history.versions === null) console.error(`deploy-probe: ${history.why}`);
+	// THE TABLE FIRST. It is the cheaper question and it is the one that can
+	// speak for a migration no object probe covers; the probes then run
+	// regardless, because a row is never taken as evidence against one.
+	const h = readHistory(url);
+	if (!h.ok) {
+		console.error(`deploy-probe: ${h.why}`);
+		return EXIT.cannotRun;
+	}
+	const history = h.history;
+	// A DEGRADE IS SAID OUT LOUD. It is not an error and does not change the
+	// exit status, but a run whose verdicts all came from the object probes is
+	// a weaker answer than one that had the record, and nothing else on screen
+	// would distinguish them.
+	if (history === null && h.why) console.error(`deploy-probe: ${h.why}`);
 
 	/** @type {Map<number, boolean>} */
 	let rows = new Map();
@@ -869,17 +810,13 @@ async function main() {
 					since: opts.since,
 					ref: opts.ref,
 					exit: code,
-					// The record's STATE travels with the answer. A consumer
-					// reading `findings` alone cannot tell a run that had the
-					// table from one that did not, and those are two different
-					// strengths of the same word.
-					history: {
-						table: HISTORY_TABLE,
-						present: history.present,
-						readable: history.readable,
-						recorded: history.versions === null ? null : history.versions.size,
-						why: history.why
-					},
+					// THREE STATES, NOT TWO. `unreadable` is neither `present`
+					// nor `absent` and must not be reported as either: one
+					// would claim the table is missing and the other would
+					// claim its rows were read.
+					history: history
+						? { table: history.present ? 'present' : 'absent', versions: history.versions.size }
+						: { table: 'unreadable', versions: null },
 					findings
 				},
 				null,
@@ -887,7 +824,7 @@ async function main() {
 			) + '\n'
 		);
 	} else {
-		process.stdout.write(reportText(findings, code, history) + '\n');
+		process.stdout.write(reportText(findings, code, history, history === null ? (h.why ?? '') : '') + '\n');
 	}
 	return code;
 }
