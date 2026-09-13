@@ -10,7 +10,7 @@
 - Migration permitted: no. **Claims: none.** Migration `0213` exists, on ledger
   0212's branch `claude/sharp-einstein-cqrnx6`, and this is the LEDGER number.
   Different namespace, checked three ways before any work started.
-- Status: issued
+- Status: pushed
 - Branch: `claude/keen-davinci-xvhwdw`, branched from `origin/integration` at
   `8fe7a076`.
 - Notes: `tools/deploy-probe.mjs` inferred an apply from ONE catalog object per
