@@ -1,13 +1,50 @@
 # 13 The spec table's row actions: reordering dropped to give a student back the page
 - Raised: 2026-09-05  By: prompt 0048, `claude/spec-table-row-height-7k2kz4`
-- Status: open -- MEASURED 2026-09-12 and this entry was RIGHT; the decision it asks
-  for is still unanswered, so it stays owed.
-- Decision: still blank, deliberately. What Mr. Pina said on 2026-09-12 was that
-  drag-to-reorder works for him right now, which CONTRADICTS this entry -- so prompt
-  0173 read the component rather than recording either claim. THE ENTRY IS CORRECT:
-  the spec table's row reordering is gone, at every width, and gone on `main` too.
-  What he is using is reordering on a DIFFERENT surface. That is a report about
-  another screen and not an answer to the question below, and no code was changed.
+- Status: CLOSED 2026-09-13, by this assistant under Mr. Pina's explicit delegation.
+  The spec table's row reordering STAYS REMOVED. No source file changed: this entry is
+  a decision record and nothing else, and the arrangement it blesses is the one already
+  shipped on `main` and on `integration`.
+- Decision: 2026-09-13. **NOT MR. PINA'S ANSWER, AND THE DISTINCTION IS THE POINT.** He
+  did not answer the question below; he DELEGATED it, on 2026-09-13, and this is the
+  call made under that delegation by ledger 0203. Anyone reading this later should treat
+  it as an assistant's judgement he authorised, not as a preference he expressed -- and
+  should feel free to reverse it, which costs one commit (see "If the answer is no").
+  Recording it the other way round would put words in his mouth, and the record of what
+  he actually said about this surface, on 2026-09-12, is the paragraph below: that drag
+  works for him, which was a report about a DIFFERENT screen.
+- Why the removal stands, in four lines, all of them already measured in this entry:
+  1. **The removal was measured, not assumed.** The table under "The arrangements tried"
+     is seven real arrangements driven on the real component at 375px, not a sketch. Two
+     controls on one line is the only row in it whose width figures (100px ops column,
+     628px table scrollWidth) are IDENTICAL to what the 2x2 already measured, so nothing
+     beside the table moves. That is a stronger result than "it seemed fine".
+  2. **A third and fourth 44px control costs width on a phone.** Four on one line takes
+     the ops column from 100px to 192.8px and the table's scrollWidth from 628px to
+     721px, inside a 293px wrapper. That is the widening `IDEA_INTERFACE_STANDARDS` 10
+     step 3 refuses at the narrow width, so restoring reordering AND keeping the row
+     height is not actually one of the options.
+  3. **The spec table is a STUDENT surface.** It is the grid a student fills in at a
+     bench, on a phone, which is why the 44px floor is not negotiable here and why the
+     24px instructor-console floor is not available to buy the width back with. The page
+     cost falls on the person with the smallest screen and the least reason to be
+     rearranging anything.
+  4. **Reordering is not lost from the product, only from this table.** It is alive on
+     FIVE other classroom surfaces, enumerated below, every one of them a surface an
+     instructor touches far more often than a student's sample grid. And nothing reads
+     row order for credit -- `tableRowFilled`, `blockProgress` and
+     `_classroom_spec_unmet` all count FILLED rows -- so a student who types samples out
+     of order loses presentation, never marks.
+- The reversal path, named so it is not rediscovered: **DRAG.** If in-place reordering is
+  ever wanted back on this table, the answer is drag-to-reorder via
+  `$lib/classroom/sort-drag` -- the mechanism `ClassView.svelte` already uses and which
+  is already on `main` -- and NOT a third and fourth glyph. Drag adds no control to the
+  row, so it costs none of the width point 2 prices, and it is the one arrangement that
+  was never measured here because it was never built for this surface. That is a real
+  build rather than a revert, and it should be raised as its own decision with its own
+  numbers.
+- What was NOT decided here, deliberately: the by-catch below. `RubricBuilder.svelte`'s
+  28px reorder arrows are still under the floor and are still decisions 09 and 12's,
+  not this one's. Closing this entry does not close that.
 - Measured: 2026-09-12, by reading the source on `origin/integration`.
   `src/lib/classroom/SpecRenderer.svelte` **lines 613-616** are the whole of a spec
   table's row-action cell, and they hold TWO controls: Duplicate row and Delete row.
