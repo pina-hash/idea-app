@@ -205,9 +205,10 @@ before the run and after it, and the only entries that moved are the five new
 - **Five states rasterized and looked at**, not only measured: `off` at both widths,
   `on` armed at both widths (before and after the warning fix), `badconfig` refused,
   `other`, and the student's empty page.
-- **The full suite: 467 files, 8863 tests, 1 failed / 8862 passed**, against a
-  baseline re-run on `origin/integration` at `709827d7` of **465 files, 8833
-  tests, 1 failed / 8832 passed**. The one failure is the SAME pre-existing one in
+- **The full suite: 467 files, 8863 tests, 1 failed / 8862 passed, 643.8s**,
+  against a baseline re-run on `origin/integration` at `709827d7` of **465 files,
+  8833 tests, 1 failed / 8832 passed, 724.1s**. Read off the summary line and off
+  stderr, never the exit code -- `run-tests.mjs` exits 0 on failures by design. The one failure is the SAME pre-existing one in
   both trees -- `tests/db/ideacad-attach-set-editor.test.ts` is not it;
   `tests/db/migrations-applied-record.test.ts` fails on the `0210` record's hash,
   identically and with identical digests, on a clean worktree at the branch point.

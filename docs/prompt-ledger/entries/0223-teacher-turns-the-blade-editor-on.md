@@ -20,7 +20,7 @@
   the browser spec stands.
 - Migration permitted: no. **Claims: none.** `ideacad_set_editor` shipped in
   `0201` and is applied.
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness, branched from `origin/integration`.
 - Notes: IdeaCAD is fully built and UNREACHABLE. No surface outside
   `src/routes/dev/` calls `ideacad_set_editor`, and no published classroom item
