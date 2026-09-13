@@ -469,9 +469,14 @@ alter table public.ideacad_section_grants enable row level security;
 -- calls back here through _ideacad_document_role, and Postgres answers
 -- "infinite recursion detected in policy". The enrollment term is safe to spell
 -- out because classroom_enrollments' own policy does not reach IdeaCAD.
-drop policy if exists "owners, managers and reached students read ideacad section grants"
+-- THE NAME IS UNDER 63 CHARACTERS ON PURPOSE. Postgres truncates a longer
+-- identifier and says so in a notice, and the drop and the create then agree
+-- only because they truncate identically -- which is a thing to rely on rather
+-- than a thing to arrange. Measured: the first draft's name was 64 and produced
+-- two truncation notices on every apply.
+drop policy if exists "reached classes and managers read ideacad section grants"
 	on public.ideacad_section_grants;
-create policy "owners, managers and reached students read ideacad section grants"
+create policy "reached classes and managers read ideacad section grants"
 	on public.ideacad_section_grants
 	for select
 	to authenticated
