@@ -160,6 +160,59 @@ and marks its numbers as 0204's claim; when 0204 lands, the pointer resolves.
   row.
 - **No em dash and no British spelling in any added line**, swept over the diff.
 
+## Rule 41 was confirmed live, from this container, while it was being written
+
+The prompt gave rule 41's evidence as a claim: production serving ledger `0188`'s build
+for over a day while `main` moved twice past it. **It was re-measured rather than quoted**,
+and the reading is now in the rule itself.
+
+At 05:01 UTC on 2026-09-13, `https://ideabosco.com/` served footer badge
+**`IDEA Portal v1.1514`** at deploy sha **`247dfc4`**, which is
+`Merge integration into main: ledger 0188 ...`, committed 2026-09-12 21:22 UTC.
+`origin/main` was at `ee4a1c4`, committed 02:01 UTC -- **63 commits ahead of the build in
+front of students**, three hours after that merge landed. So the rule's own instrument
+(read the version string, not `git log`) was exercised on the exact failure it describes,
+and the answer was the failure.
+
+This is the one figure in the bundle that did NOT have to be taken on the prompt's word,
+and the contrast with rule 6's 59-of-794 is the whole argument for the instrument: the
+version string is two lines of `curl` from any container, and the commit count is
+unavailable from a shallow one at any price.
+
+## The merge to `main` was authorized and is BLOCKED, on two items of the six
+
+The prompt authorized a merge against the six-item checklist. Four items pass and two do
+not, and neither of the two is this bundle's to fix.
+
+1. **PASS.** `git merge-base --is-ancestor origin/main origin/integration` exits 0.
+2. **FAIL.** The suite is RED on `integration`'s current tip `78516fa`:
+   `tests/db/migrations-applied-record.test.ts` refuses, because
+   `supabase/migrations/0211_ideacad_realtime_policy.sql` is on `integration` and
+   `docs/migrations-applied/0211-*.md` is not, so the record has a gap at `0211`. That
+   test requires a record for every migration from `0193` onward. Measured twice, once on
+   the unmodified branch point and once on this branch: **1 failed, 8672 passed** both
+   times, the same single file, so this bundle introduces nothing. The missing record is
+   ledger `0203`'s -- it delivered `0211` -- and `docs/migrations-applied/` is outside
+   this bundle's file surface.
+3. Not reached.
+4. **FAIL.** `node tools/deploy-probe.mjs --ref origin/integration` exits **1** and prints
+   `DEPLOY_PROBE_URL is not set, so production's applied set cannot be read. This is
+   "cannot confirm", never "applied".` The checklist requires exit 0 and says `CANNOT SAY`
+   is never a pass. The container holds no `DEPLOY_PROBE_URL`, exactly as it holds no
+   `IDEA_MIGRATION_URL`.
+5. Vacuous: this bundle added no migration. **Claims: none.** The chain on `integration`
+   ends at `0211`, which is what the prompt said, so the range check the prompt asked for
+   in the same breath comes back consistent.
+6. **PASS.** All five ledger entries newly on `integration` relative to `main` -- `0197`,
+   `0200`, `0201`, `0202`, `0203` -- read `Status: pushed`.
+
+**Item 4 is the interesting one to leave written down.** A cloud session can satisfy items
+1, 2, 3, 5 and 6 from commands it holds, and cannot satisfy item 4 at all in this
+container. That is not a defect in this bundle; it is the checklist containing one item
+that is structurally unreachable from where the sessions authorized to use it run, which
+is the shape of the preview check that was removed from the lane ending on 2026-08-26 for
+the same reason. Reported, not negotiated away.
+
 ## What was NOT verified
 
 - **Ledger 0204's audit**, for the reason above: not on the branch point.
@@ -168,10 +221,10 @@ and marks its numbers as 0204's claim; when 0204 lands, the pointer resolves.
   renders.
 - **Nothing was measured against the live Supabase project.** No migration was
   written and none was needed.
-- **The claim inside rule 41 that production served `0188`'s build for over a
-  day** is the prompt's, dated 2026-09-13. The version string production serves
-  at the end of this session is reported in the session's own reply rather than
-  written into the standard, because it is a reading and not a rule.
+- **The "over a day" and "six lanes" in rule 41's first paragraph** are the prompt's
+  figures for an earlier observation on 2026-09-13 and were not re-derived. What WAS
+  re-derived is the state at 05:01 UTC, which is in the rule beside them and is the
+  measured half.
 
 ## A tenth rule arrived mid-bundle, and acting on it immediately is the rule's own content
 

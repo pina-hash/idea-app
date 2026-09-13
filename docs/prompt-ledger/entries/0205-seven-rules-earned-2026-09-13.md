@@ -7,7 +7,7 @@
   `docs/prompt-ledger/entries/0205-*`, and its own `docs/history/` entry. NO OTHER
   FILE.
 - Migration permitted: no. **Claims: none.**
-- Status: issued
+- Status: pushed
 - Branch: `claude/dazzling-ramanujan-i2hry6`, branched from `origin/integration` at
   `78516fa`.
 - Notes: Standards-only. Ten rules earned on 2026-09-12 and 2026-09-13 land in the
@@ -44,3 +44,19 @@
   `IDEA_VERIFICATION_ADDENDA.md` 2.5, which is what the prompt said the mirror held.
   The project-knowledge copies at 4.24 and a self-inconsistent 2.4 are stale copies and
   not a fork; nothing from them is merged in.
+
+  **The merge to `main` is BLOCKED on two of the six checklist items, and neither is
+  this bundle's to fix.** Item 2: the suite is red on `integration`'s tip `78516fa` --
+  `tests/db/migrations-applied-record.test.ts` finds no
+  `docs/migrations-applied/0211-*.md` beside `supabase/migrations/0211_*.sql`, which is
+  ledger `0203`'s record to write and is outside this file surface. Item 4:
+  `tools/deploy-probe.mjs --ref origin/integration` exits 1 with `DEPLOY_PROBE_URL is
+  not set`, and `CANNOT SAY` is never a pass. Items 1, 5 and 6 pass; item 3 was not
+  reached. Suite measured twice at **1 failed, 8672 passed** -- once at the branch point
+  and once on this branch, the same single file both times -- and `svelte-check` is at
+  the stated baseline, 0 errors and 37 warnings in 20 files, 31/5/1.
+
+  **Production serves `IDEA Portal v1.1514` at deploy sha `247dfc4`** (ledger `0188`'s
+  merge, 2026-09-12 21:22 UTC), read at 05:01 UTC on 2026-09-13, with `origin/main` at
+  `ee4a1c4` and 63 commits ahead of it. That is rule 41's own failure, measured on
+  itself.

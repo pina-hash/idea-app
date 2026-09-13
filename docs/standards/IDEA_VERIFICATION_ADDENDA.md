@@ -414,10 +414,18 @@ every branch is merged, every report is accurate about what it measured, and the
 reaches nobody. The verified state and the served state drift apart with no instrument
 between them unless one is pointed there deliberately.
 
-**Evidence.** On 2026-09-13 production was still serving ledger 0188's build while `main`
-had moved twice past it, for over a day. Six lanes of verified, merged, correctly reported
-work had reached no student. Every one of those lanes was right about what it had done;
-none of them had been asked the question this rule exists to force.
+**Evidence, and it was still true while this rule was being written.** On 2026-09-13
+production was serving ledger 0188's build while `main` had moved twice past it. Six lanes
+of verified, merged, correctly reported work had reached no student. Every one of those
+lanes was right about what it had done; none of them had been asked the question this rule
+exists to force.
+
+Re-measured from the container at 05:01 UTC the same day, by reading the footer badge off
+`https://ideabosco.com/`: **`IDEA Portal v1.1514`, deploy sha `247dfc4`** -- which is
+`Merge integration into main: ledger 0188 ...`, committed 2026-09-12 21:22 UTC. `main` was
+at `ee4a1c4`, committed 02:01 UTC, **63 commits ahead of what was being served**, three
+hours after that merge landed. The instrument is two lines of `curl` and a `git log -1`,
+and it is the only thing in this file's arsenal that can tell those two states apart.
 
 ## Note on internal organization
 
