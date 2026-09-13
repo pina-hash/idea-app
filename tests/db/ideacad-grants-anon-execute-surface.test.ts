@@ -183,7 +183,7 @@ const MIGRATION_0206 = '0206_ideacad_grant_guard.sql';
  */
 interface IdeacadFn {
 	readonly kind: 'client' | 'definer';
-	readonly migration: '0201' | '0205' | '0207' | '0208' | '0209' | '0211';
+	readonly migration: '0201' | '0205' | '0207' | '0208' | '0209' | '0211' | '0214';
 	readonly reason: string;
 }
 
@@ -192,6 +192,17 @@ const RPC_0205 = 'A sharing RPC. 0205 created it and revoked it from `public, an
 const POLICY_PREDICATE =
 	'A 0205 predicate NAMED INSIDE AN RLS `using` CLAUSE, so it is evaluated as the querying role and ' +
 	'must hold the grant. Revoking it does not narrow the read, it breaks it outright.';
+const RPC_0214 =
+	'AN ARCHIVE RPC (0214). Created or replaced by that file, which revokes from `public, anon, ' +
+	'authenticated, service_role` by name and grants back `authenticated, service_role`. The three ' +
+	'REPLACED ones -- `ideacad_roster` (0201), `ideacad_shared_with_me` and ' +
+	'`ideacad_open_shared_document` (0205) -- are classified under their ORIGINAL migration above, ' +
+	'because this table answers "which file has to keep this narrow" and a create-or-replace under ' +
+	'this project\'s default privileges can hand a function a fresh anon grant, so BOTH files own it.';
+const DEFINER_ONLY_0214 =
+	'A 0214 predicate reached only from a SECURITY DEFINER body -- the two write gates call it and ' +
+	'nothing else does. No policy names it, so no client role holds EXECUTE. It is swept here like ' +
+	'every other ideacad function because it sits on the same prefix.';
 const REALTIME_POLICY_0211 =
 	'NAMED INSIDE AN RLS POLICY ON `realtime.messages` (0211), which is evaluated as the QUERYING ' +
 	'role -- so `client` here means an RLS policy names it, not that PostgREST calls it. Without the ' +
@@ -283,7 +294,19 @@ const IDEACAD_FUNCTIONS: Readonly<Record<string, IdeacadFn>> = {
 	// --- 0211's realtime authorization: two policy predicates and one parser. ---
 	_ideacad_realtime_can_read: { kind: 'client', migration: '0211', reason: REALTIME_POLICY_0211 },
 	_ideacad_realtime_can_send: { kind: 'client', migration: '0211', reason: REALTIME_POLICY_0211 },
-	_ideacad_realtime_topic_id: { kind: 'definer', migration: '0211', reason: REALTIME_PARSER_0211 }
+	_ideacad_realtime_topic_id: { kind: 'definer', migration: '0211', reason: REALTIME_PARSER_0211 },
+
+	// 0214, the document archive. `ideacad_roster`, `ideacad_shared_with_me`
+	// and `ideacad_open_shared_document` are REPLACED by that file and stay
+	// classified above under 0201 and 0205 -- their entries are unchanged and
+	// their end state is the same, which is the point of 0214 restating the
+	// revoke rather than relying on create-or-replace preserving an ACL.
+	ideacad_set_document_archived: { kind: 'client', migration: '0214', reason: RPC_0214 },
+	ideacad_archive: { kind: 'client', migration: '0214', reason: RPC_0214 },
+	ideacad_share_document_with_section: { kind: 'client', migration: '0214', reason: RPC_0214 },
+	ideacad_unshare_document_from_section: { kind: 'client', migration: '0214', reason: RPC_0214 },
+	ideacad_document_section_grants: { kind: 'client', migration: '0214', reason: RPC_0214 },
+	_ideacad_document_archived: { kind: 'definer', migration: '0214', reason: DEFINER_ONLY_0214 }
 };
 
 /**
@@ -357,7 +380,12 @@ const IDEACAD_SELECT_TABLES: readonly string[] = [
 	// 0209's action log. `authenticated` holds SELECT and the RLS policy is
 	// what makes it mean "the histories you can already read"; losing it takes
 	// the timeline down rather than narrowing it.
-	...(chainHas('0209') ? (['ideacad_history'] as const) : [])
+	...(chainHas('0209') ? (['ideacad_history'] as const) : []),
+	// 0214's class grants. `authenticated` holds SELECT and the RLS policy is
+	// what makes it mean "a grant naming a section you are in, or the list on a
+	// document you manage"; losing it takes the archive share down rather than
+	// narrowing it.
+	...(chainHas('0214') ? (['ideacad_section_grants'] as const) : [])
 ];
 
 // ---------------------------------------------------------------------------
@@ -1140,12 +1168,43 @@ describe('E. the same chain WITHOUT 0202 -- the world 0201 left', () => {
 		// that has nothing to do with 0202. What the control is FOR is that
 		// 0201's ten are open without 0202 and shut with it, so that is what it
 		// asserts -- a containment, not an equality.
-		const closed = ideacadNames((f) => f.migration === '0201').filter((n) => !open.has(n));
+		// GENERALIZED A SECOND TIME, and for a different reason than the first.
+		// The containment below used to cover all ten unconditionally. A LATER
+		// migration that REPLACES one of 0201's functions must revoke it by name
+		// in its own text -- create-or-replace under this project's default
+		// privileges hands the new function a fresh `anon` grant, so the file
+		// doing the replacing owns the narrowing -- and the effect is that such
+		// a function is correctly SHUT on this chain without 0202 having
+		// anything to do with it. Exempting it is not weakening the control: it
+		// is the control declining to credit 0202 with somebody else's revoke.
+		//
+		// Each exemption is CHAIN-CONDITIONAL, so on a tree without that
+		// migration the function goes back to being one of the ten.
+		const RE_NARROWED_BY_A_LATER_FILE: Readonly<Record<string, string>> = {
+			// 0214 replaces it to project `archivedAt`, and revokes it in 0166
+			// shape as that requires.
+			...(chainHas('0214') ? { ideacad_roster: '0214' } : {})
+		};
+		const closed = ideacadNames((f) => f.migration === '0201')
+			.filter((n) => !open.has(n))
+			.filter((n) => !(n in RE_NARROWED_BY_A_LATER_FILE));
 		expect(
 			closed,
 			'the defect 0201 shipped, reproduced. If this ever comes back non-empty, 0202 is not what is ' +
 				'closing the hole and every assertion in B is passing for a reason nobody has identified.'
 		).toEqual([]);
+
+		// AND THE EXEMPTIONS ARE THEMSELVES ASSERTED, in the direction that
+		// matters: an exemption is only legitimate because the later file
+		// genuinely revoked it, so a name listed above that turns out to be OPEN
+		// here is an exemption covering a hole rather than a revoke.
+		for (const [name, migration] of Object.entries(RE_NARROWED_BY_A_LATER_FILE)) {
+			expect(
+				open.has(name),
+				`${name} is exempted as re-narrowed by ${migration}, but it is anon-executable on this ` +
+					'chain -- so the exemption is hiding the defect rather than describing a fix.'
+			).toBe(false);
+		}
 
 		// The two halves of the measured difference, stated as numbers rather
 		// than left implicit in two separate assertions.
@@ -1154,7 +1213,10 @@ describe('E. the same chain WITHOUT 0202 -- the world 0201 left', () => {
 			functions.filter((f) => IDEACAD_FN_RE.test(f.name) && f.anon).length,
 			'with 0202 in the chain'
 		).toBe(0);
-		expect(open.size, 'without it').toBeGreaterThanOrEqual(10);
+		expect(
+			open.size + Object.keys(RE_NARROWED_BY_A_LATER_FILE).length,
+			'without it, counting the ones a later file re-narrowed on its own account'
+		).toBeGreaterThanOrEqual(10);
 	});
 
 	it("has 0201's four tables holding all seven privileges for both client roles", async () => {

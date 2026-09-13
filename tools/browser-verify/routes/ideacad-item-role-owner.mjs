@@ -69,7 +69,12 @@ export default {
 		{ selector: '[data-testid="ideacad-shared-open"]', label: 'both are openable, because neither is the one on screen', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 		{ selector: '[data-testid="ideacad-reading-shared"]', label: 'the banner, which must NOT appear on the caller\'s own document', expectPresent: 0 },
 		{ selector: '[data-testid="ideacad-shared-current"]', label: 'the Open-now mark, which no row earns here', expectPresent: 0 },
-		{ selector: '[data-testid="ideacad-share-form"]', label: 'the share form, which only an owner gets', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
+		{ selector: '[data-testid="ideacad-share-form"]', label: 'the share form, which only an owner gets', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		/* THE NEGATIVE CONTROL FOR `state=conflict`. A document that is saving
+		   normally must carry no sentence saying it has stopped -- and the
+		   writable editor asserted two rows up is what stops this reading as a
+		   selector that is simply wrong. Ledger 0224. */
+		{ selector: '[data-testid="ideacad-save-stopped"]', label: 'the saving-has-stopped sentence, which an ordinary document never earns', expectPresent: 0 }
 	],
 	contrast: [
 		{ selector: '[data-testid="ideacad-shared-summary"]', label: 'the summary chip', min: 4.5 }

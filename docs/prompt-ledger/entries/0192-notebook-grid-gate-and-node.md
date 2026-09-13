@@ -93,4 +93,12 @@
   ledger README names for allocating a number with a gap, and it closed itself the
   moment 0189's file landed rather than needing anything here.
 
+  **The SQL paste trap checked two ways against planted controls**: dollar-quote
+  tokens balanced (6 opens, 6 closes), and one bare `$` in a comment
+  (`` `$lib/...` ``) rewritten as the real path. The sweep over all 208 migrations
+  is its own positive control -- it finds the 4 real token-in-comment lines, two of
+  them in `0194`, the file the rule was written about. **That rule arrived on this
+  branch with the mid-session merge and was not in the `CLAUDE.md` this session
+  opened.**
+
   **0210 IS NOT APPLIED** -- no live project is reachable from this container.

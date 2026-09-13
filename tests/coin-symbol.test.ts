@@ -48,6 +48,8 @@ const COIN_SOURCES = [
 	'src/lib/marks/CoinDeskMark.svelte',
 	'src/lib/AppLauncher.svelte',
 	'src/lib/tournaments/DeleteTournament.svelte',
+	'src/lib/tournaments/RewardsPanel.svelte',
+	'src/lib/tournaments/RewardRulesEditor.svelte',
 	'src/routes/dev/coin-desk/+page.svelte',
 	'src/routes/dev/coin-desk/fake-ledger.ts',
 	'src/routes/dev/coin-preview/+page.svelte',

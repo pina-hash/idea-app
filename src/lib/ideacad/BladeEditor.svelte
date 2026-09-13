@@ -37,7 +37,7 @@
 	import HistoryTimeline from './ui/HistoryTimeline.svelte';
 	import { TIMELINE_WORDS, buildTimeline, undoKeyFor } from './ui/timeline';
 	import { stateAt, type IdeacadHistoryRow } from './history';
-	import { IDEACAD_WRITE_REFUSED, type IdeacadEditorWrites } from './mount';
+	import { IDEACAD_WRITE_REFUSED, ideacadSaveLabel, type IdeacadEditorWrites } from './mount';
 
 	let {
 		tree = DEFAULT_BLADE_TREE,
@@ -154,22 +154,42 @@
 	// pageerror at this map. `$state.snapshot` on a value that is not a proxy
 	// returns it unchanged, so the dev harnesses that hand plain trees in are
 	// unaffected.
+	/**
+	 * AN EMPTY SEED IS THE SAME ANSWER AS NO SEED, AND `?? ` ALONE WAS NOT.
+	 * `[].map()` is `[]`, not nullish, so an empty `concepts` array fell
+	 * straight past the `??` and left `concepts` empty -- `active` is then
+	 * `undefined` and `seedFeatures()` reads `.features` off it, which is a
+	 * `TypeError` at INITIALISATION. That does not degrade the editor, it
+	 * blanks it: the component never renders a frame, and a student looking at
+	 * the slot where their blade was has no way to tell an empty document from
+	 * a lost one. Measured against `svelte/server`'s `render`:
+	 * `Cannot read properties of undefined (reading 'features')`.
+	 *
+	 * `ideacadEditorSeed` currently refuses a zero-concept document one layer
+	 * up, so this is DEFENCE IN DEPTH rather than a live path -- which is
+	 * exactly the trade this component should take, because the cost of the
+	 * guard is one predicate and the cost of its absence is the whole surface.
+	 * What it renders is not invented: it is the one local card the no-seed
+	 * path has always produced, so a document with nothing in it opens on an
+	 * empty blade rather than on nothing at all.
+	 */
 	let concepts = $state<ConceptCard[]>(
-		untrack(
-			() =>
-				seedConcepts?.map((c) => ({
-					id: c.id,
-					name: c.name,
-					features: structuredClone($state.snapshot(c.features)) as BladeTree,
-					committed: c.committed ?? false
-				})) ?? [
-					{
-						id: 'c1',
-						name: conceptName,
-						features: structuredClone($state.snapshot(tree)) as BladeTree,
-						committed: false
-					}
-				]
+		untrack(() =>
+			seedConcepts?.length
+				? seedConcepts.map((c) => ({
+						id: c.id,
+						name: c.name,
+						features: structuredClone($state.snapshot(c.features)) as BladeTree,
+						committed: c.committed ?? false
+					}))
+				: [
+						{
+							id: 'c1',
+							name: conceptName,
+							features: structuredClone($state.snapshot(tree)) as BladeTree,
+							committed: false
+						}
+					]
 		)
 	);
 	let activeId = $state(
@@ -232,6 +252,36 @@
 	let writeRefusal = $state('');
 	/** The store's phase wins whenever a store is there to have one. */
 	const savedLine = $derived(saveLabel ?? saved);
+	/**
+	 * THE TERMINAL SAVE STATE GETS A SENTENCE, BECAUSE TWO WORDS IN A CHIP ARE
+	 * NOT A REPORT.
+	 *
+	 * `store.ts` publishes `phase: 'conflict'` when the server refuses a stale
+	 * revision, and from that moment nothing this student types will ever
+	 * reach the database: the local row keeps its old `revision` deliberately
+	 * (the server's copy is held beside it for a resolution surface nobody has
+	 * built yet), so every following edit re-sends the same stale number and is
+	 * refused again. The chip flickers Saving and settles back on "Changed
+	 * elsewhere", which reads like a note about somebody else rather than like
+	 * "your work has stopped being saved" -- and a student who keeps modelling
+	 * for the rest of the period loses all of it at the next reload.
+	 *
+	 * THE SENTENCE IS NOT A SECOND COPY OF THE STORE'S. The store's `error`
+	 * describes the STATE ("this concept changed elsewhere, your unsaved work
+	 * is still here") and never reaches this component -- only `saveLabel`
+	 * does. What is added here is the CONSEQUENCE and the thing to do about it,
+	 * which is the same job `IDEACAD_WRITE_REFUSED` does one path over.
+	 *
+	 * IT IS KEYED ON `ideacadSaveLabel('conflict')` AND NEVER ON A LITERAL, so
+	 * the word and the sentence cannot drift apart. The call site already
+	 * disambiguates the two states that share the phase: a REVOKED grant is
+	 * handed down as `ideacadSaveLabel('error')` and has its own notice
+	 * elsewhere, so this label arriving means a stale revision and nothing
+	 * else. A surface with no store never produces it at all.
+	 */
+	const SAVE_CONFLICT_NOTICE =
+		'This blade was changed somewhere else, so your work has stopped saving. What is on screen is still here, but it will be lost if you reload. Tell your teacher before you carry on.';
+	const saveNotice = $derived(saveLabel === ideacadSaveLabel('conflict') ? SAVE_CONFLICT_NOTICE : '');
 	/** Run one document write, and keep the refusal where the student is working.
 	 *  The local copy is NEVER rolled back: what is on screen is the student's
 	 *  work, and taking it away because the network said no loses the thing the
@@ -810,6 +860,9 @@
 		     implicit row and steal height from the viewport. The header already
 		     wraps, so `flex-basis: 100%` puts this under the indicator it belongs
 		     to at every width. -->
+		{#if saveNotice}
+			<p class="refusal write stopped" data-testid="ideacad-save-stopped" role="status">{saveNotice}</p>
+		{/if}
 		{#if writeRefusal}
 			<p class="refusal write" role="status">{writeRefusal}</p>
 		{/if}
@@ -1216,7 +1269,7 @@
 	}
 	h2,
 	h3 {
-		font-family: 'Chakra Petch', sans-serif;
+		font-family: var(--font-hero);
 		margin: 0.15rem 0;
 	}
 	h2::before {
@@ -1437,9 +1490,16 @@
 		width: 100%;
 		padding: 0 0.5rem;
 	}
+	/* THE SLIDER IS PAINTED IN THIS ROOM'S GREEN RATHER THAN THE BROWSER'S BLUE.
+	   A bare `input[type=range]` takes the UA accent, which in this Chromium
+	   renders a saturated blue track -- the one blue thing on a console whose
+	   whole register is green, amber, cyan and crimson, and a colour `app.css`
+	   assigns no meaning to. `--green` is this repository's token for a control
+	   the student is operating, which is what this is. */
 	.mat .slider {
 		width: 100%;
 		min-height: 44px;
+		accent-color: var(--green);
 	}
 	.mat .reading {
 		margin-top: 0.8rem;
@@ -1517,7 +1577,7 @@
 	.metric b {
 		grid-column: 1/-1;
 		color: var(--green);
-		font-family: 'Share Tech Mono';
+		font-family: var(--font-mono);
 	}
 	.metric b.fail {
 		color: var(--crimson);
@@ -1581,7 +1641,7 @@
 	}
 	.cols h4 {
 		margin: 0.3rem 0 0.5rem;
-		font-family: 'Chakra Petch', sans-serif;
+		font-family: var(--font-hero);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -1647,6 +1707,16 @@
 		flex-basis: 100%;
 		margin: 0;
 	}
+	/* THE TERMINAL ONE IS CRIMSON AND THE RETRYABLE ONE IS AMBER, which is this
+	   repository's own register rather than a choice made here: `--crimson` is
+	   reserved for live/rec/ERROR and `--amber` is the warning. A refused write
+	   the student can retry is a warning; a document that has stopped saving
+	   altogether is the error. Colour is not the only signal -- the two carry
+	   different sentences, and this one says what has stopped and what to do. */
+	.refusal.write.stopped {
+		color: var(--crimson);
+		line-height: 1.5;
+	}
 	.said i {
 		font-style: normal;
 	}
@@ -1658,9 +1728,30 @@
 		.ideacad aside {
 			overflow: visible;
 		}
+		/* THE CONFIRM PAIR STAYS ABSOLUTE BELOW 1024, AND `position: static` HERE
+		   MADE IT UNPRESSABLE ON EVERY PHONE.
+
+		   `footer` carries `z-index: 2` so it paints over the graphics area.
+		   `z-index` applies to POSITIONED elements only, so overriding
+		   `position` to `static` silently discarded it -- and `Viewport`'s own
+		   root is `position: absolute; inset: 0`, so the canvas and the view
+		   toolbar (`z-index: 2`, also positioned) then painted straight over a
+		   footer sitting in flow at the TOP of the pane. Measured at 375 before
+		   this line changed: the footer was in the DOM at 373x68 with a real
+		   box, every content and presence check passed, and an
+		   `elementFromPoint` sweep across both controls answered
+		   `Accept 0/11 reachable, Cancel 0/11 reachable` -- blocked by the
+		   toolbar's own buttons. A screenshot of the pane shows no Accept and no
+		   Cancel anywhere on it.
+
+		   Absolute at the bottom right is what 1440 already does and is proven
+		   reachable there; at 375 it clears the reference triad (bottom LEFT,
+		   64px) and the view name beside it. Overlapping the model a little is
+		   the cost, and a control that overlaps is worth immeasurably more than
+		   one that cannot be pressed. */
 		.ideacad footer {
-			position: static;
-			padding: 0.75rem 1rem;
+			right: 0.75rem;
+			bottom: 0.75rem;
 		}
 		.ideacad .stage {
 			display: flex;
@@ -1687,6 +1778,37 @@
 		.viewport nav {
 			max-width: 100%;
 			overflow: auto;
+		}
+		/* TWO COLUMNS, BECAUSE SEVEN ROWS DO NOT FIT AND ISOMETRIC IS THE ONE
+		   THAT FELL OFF.
+
+		   The list is capped at `calc(100% - 5rem)` of a viewport that is 360px
+		   tall here, and seven 44px rows with their gaps and padding measure
+		   345px of content in a 278px box -- so `Isometric (Ctrl+7)` sat below
+		   the fold and `Bottom` was sliced through its glyphs. Measured: an
+		   `elementFromPoint` at the Isometric row's own centre did not reach it.
+		   The list is `overflow: auto` so it can be scrolled to, but this
+		   container's Chromium paints no scrollbar at all (ledger 0186's
+		   magenta-on-green control), and Isometric is the view a student most
+		   wants to get back to.
+
+		   Four rows of two measure about 200px and clear the cap with room over.
+		   The cells keep their own 44px floor; only the arrangement moves, so
+		   nothing is added, removed or renamed. Above 1024 the single column
+		   already fits (345px of content in a 345px box, measured) and is left
+		   exactly as it was.
+
+		   THE TRACKS ARE `max-content`, NOT `1fr`, AND THAT IS THE SECOND HALF
+		   OF THIS FIX RATHER THAN A TIDINESS. With two `1fr` tracks the menu
+		   kept the width it had as one column, so each cell came out about 86px
+		   and every shortcut hint was sliced -- "Ctrl+1" rendered as "Ctrl+",
+		   which is a clipped row traded for a clipped hint. Sizing the tracks to
+		   their content lets the menu widen to what it needs (about 325px at
+		   375, inside a 373px pane) and `max-width` keeps it from ever running
+		   past that pane on a narrower phone. */
+		.orient {
+			grid-template-columns: repeat(2, max-content);
+			max-width: calc(100% - 1.5rem);
 		}
 	}
 </style>

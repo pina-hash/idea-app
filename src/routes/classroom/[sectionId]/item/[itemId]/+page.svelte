@@ -1040,6 +1040,7 @@
 	ideacad={data.ideacad}
 	{ideacadTeam}
 	{ideacadShared}
+	ideacadAttach={data.canManage ? ideacadTransports : null}
 	{ideacadDoc}
 	{ideacadWrites}
 	{ideacadViewerEmail}

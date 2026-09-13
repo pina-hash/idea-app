@@ -490,6 +490,55 @@
 			return !!notice && !!rail && notice.bottom <= rail.bottom + 0.5 && notice.height > 0;
 		})());
 
+		/* THE CONFIRM PAIR CAN ACTUALLY BE PRESSED, WHICH IS A DIFFERENT QUESTION
+		   FROM EVERY ONE ASKED ABOVE IT AND IS THE ONE THAT WAS FAILING.
+
+		   At 375 the media query set `position: static` on the footer, which
+		   silently discards its `z-index: 2` -- `z-index` applies to positioned
+		   elements only -- so `Viewport`'s own `position: absolute; inset: 0`
+		   root and the view toolbar painted straight over it. Measured before
+		   the fix: the footer had a real 373x68 box, `presence` counted it
+		   present 2 / visible 2, the tap-target check measured it over 44px, the
+		   contrast check read it fine, and an `elementFromPoint` sweep answered
+		   `Accept 0/11, Cancel 0/11`. Not one existing check could see it,
+		   because none of them asks what is on TOP.
+
+		   Eleven points across each control rather than the centre alone: a
+		   control half-covered is still a control a student misses, and a
+		   single centre probe is exactly what a toolbar that wraps differently
+		   at another width would slip past. */
+		say(
+			'every pixel of the confirm pair is reachable rather than painted over',
+			(() => {
+				const controls = [...document.querySelectorAll('footer button')];
+				if (!controls.length) return false;
+				return controls.every((control) => {
+					const r = control.getBoundingClientRect();
+					if (r.width <= 0 || r.height <= 0) return false;
+					for (let i = 0; i <= 10; i++) {
+						const x = r.left + 2 + (r.width - 4) * (i / 10);
+						const hit = document.elementFromPoint(x, r.top + r.height / 2);
+						if (!hit || !(hit === control || control.contains(hit))) return false;
+					}
+					return true;
+				});
+			})()
+		);
+		/* AND IT DOES NOT BUY THAT BY COVERING THE VIEWPORT'S OWN MARKS. The
+		   reference triad and the view name are the two things at the bottom of
+		   the graphics area; a footer that reaches by sitting on one of them has
+		   traded one unreadable thing for another. */
+		say(
+			'the confirm pair clears the reference triad and the view name',
+			(() => {
+				const f = box('footer');
+				if (!f) return true;
+				const clear = (o: DOMRect | undefined) =>
+					!o || f.left >= o.right - 0.5 || f.right <= o.left + 0.5 || f.top >= o.bottom - 0.5 || f.bottom <= o.top + 0.5;
+				return clear(box('.triad')) && clear(box('.view'));
+			})()
+		);
+
 		/* THE VIEWPORT IS A REAL CANVAS NOW, AND THESE ARE THE CLAIMS THAT WERE
 		   UNANSWERABLE WHILE IT WAS THREE CSS DIVS. A pane with real width was
 		   already measured; a pane with a canvas in it that draws nothing is the
@@ -853,6 +902,109 @@
 	}
 
 	/**
+	 * THE STANDARD-VIEW LIST, OPENED THROUGH ITS OWN CONTROL AND CLOSED AGAIN.
+	 *
+	 * It is a probe of its own rather than a block inside `verdicts` because
+	 * the list is CLOSED in every state this harness renders -- `verdicts` runs
+	 * over the surface as it opens, and a check written there would have
+	 * measured an element that is not on screen and passed vacuously for it.
+	 *
+	 * WHAT IT IS FOR: at 375 the list is capped at `calc(100% - 5rem)` of a
+	 * 360px viewport, and seven 44px rows measured 345px of content in a 278px
+	 * box -- so `Isometric (Ctrl+7)`, which is the view a student most wants to
+	 * get back to, sat below a fold this container's Chromium paints no
+	 * scrollbar for, and `Bottom` was sliced through its glyphs. Every existing
+	 * check passed: the rows were present, visible, over 44px and correctly
+	 * labelled. Only a fold measurement and a hit test tell it apart.
+	 *
+	 * IT PUTS THE LIST BACK, so every measurement taken after it is taken on the
+	 * surface as it opens.
+	 */
+	/**
+	 * THE SEVEN VIEWS, WRITTEN DOWN HERE RATHER THAN READ OFF THE EDITOR'S OWN
+	 * `STANDARD`. That constant lives inside `BladeEditor.svelte` and is not in
+	 * this module's scope at all -- the first version of this probe referenced
+	 * it and threw `ReferenceError: STANDARD is not defined`, which the harness
+	 * reported as `CANNOT COMPARE` rather than as a pass, which is the
+	 * instrument working. Importing it would be worse than the error: a test
+	 * whose expected value comes from the thing under test cannot fail, so a
+	 * view quietly dropped from the editor's list would take this claim down
+	 * with it and nothing would say so.
+	 */
+	const EXPECTED_VIEWS = ['Front', 'Back', 'Left', 'Right', 'Top', 'Bottom', 'Isometric'];
+
+	async function orientationVerdicts(): Promise<string[]> {
+		const out: string[] = [];
+		const say = (claim: string, ok: boolean) => out.push(`${claim} ${ok ? 'ok' : 'FAILED'}`);
+		const control = [...document.querySelectorAll('.viewport nav button')].find(
+			(b) => b.textContent?.trim() === 'Orientation'
+		) as HTMLButtonElement | undefined;
+		if (!control) {
+			say('the Orientation control is on screen to be pressed', false);
+			return out;
+		}
+		control.click();
+		await new Promise((res) => setTimeout(res, 120));
+		const list = document.querySelector('.orient') as HTMLElement | null;
+		const rows = [...document.querySelectorAll('.orient button')] as HTMLElement[];
+		const pane = document.querySelector('.viewport')?.getBoundingClientRect();
+		say('the list opens', !!list && rows.length === EXPECTED_VIEWS.length);
+		if (list && pane) {
+			/* BY NAME, not by count: seven rows is satisfied by seven copies of
+			   the same view, and Isometric -- the one that was falling off -- is
+			   the last of them. */
+			say(
+				'every standard view has a row',
+				EXPECTED_VIEWS.every((view) => rows.some((row) => (row.textContent ?? '').trim().startsWith(view)))
+			);
+			/* THE FOLD. Not "can it be scrolled to" -- the list is
+			   `overflow: auto`, so every row trivially can be. The claim is that
+			   there is no fold at all, because a fold with no scrollbar painted
+			   is a row a student never learns is there. */
+			say('nothing is below an invisible fold', list.scrollHeight <= list.clientHeight + 1);
+			say(
+				'every row can be pressed where it is drawn',
+				rows.every((row) => {
+					const r = row.getBoundingClientRect();
+					if (r.width <= 0 || r.height <= 0) return false;
+					const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+					return !!hit && (hit === row || row.contains(hit));
+				})
+			);
+			/* THE SHORTCUT HINT IS PART OF THE ROW. The first arrangement that
+			   cleared the fold did it by halving each cell, which sliced
+			   "Ctrl+1" to "Ctrl+" -- a clipped row traded for a clipped hint. */
+			say(
+				'no row has its own text clipped',
+				rows.every((row) => row.scrollWidth <= row.clientWidth + 1)
+			);
+			say(
+				'the list stays inside the graphics area',
+				(() => {
+					const b = list.getBoundingClientRect();
+					return b.left >= pane.left - 0.5 && b.right <= pane.right + 0.5 && b.bottom <= pane.bottom + 0.5 && b.top >= pane.top - 0.5;
+				})()
+			);
+			say('every row clears 44px', rows.every((row) => {
+				const r = row.getBoundingClientRect();
+				return r.height >= 43.5 && r.width >= 43.5;
+			}));
+		} else {
+			say('every standard view has a row', false);
+			say('nothing is below an invisible fold', false);
+			say('every row can be pressed where it is drawn', false);
+			say('no row has its own text clipped', false);
+			say('the list stays inside the graphics area', false);
+			say('every row clears 44px', false);
+		}
+		say('nothing is wider than the window', document.documentElement.scrollWidth <= document.documentElement.clientWidth + 0.5);
+		control.click();
+		await new Promise((res) => setTimeout(res, 120));
+		say('the control closes it again', document.querySelectorAll('.orient').length === 0);
+		return out;
+	}
+
+	/**
 	 * Open the History the way a student does: by pressing the control in the
 	 * header. A prop that put the timeline on screen directly would measure an
 	 * arrangement the surface has no path to -- the same rule
@@ -972,6 +1124,7 @@
 		w.__ideacadPhysicsProbe = physicsProbe;
 		w.__ideacadOpenMaterials = openMaterials;
 		w.__ideacadMaterialVerdicts = materialVerdicts;
+		w.__ideacadOrientationVerdicts = orientationVerdicts;
 	}
 </script>
 
