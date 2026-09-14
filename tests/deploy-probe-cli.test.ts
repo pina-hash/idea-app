@@ -56,12 +56,16 @@ function synthesizeOffMainMigration(filename: string): string {
 	const index = join(tmpdir(), `deploy-probe-fixture-index-${process.pid}`);
 	rmSync(index, { force: true });
 	const git = (args: string[], extra?: NodeJS.ProcessEnv): string =>
-		execFileSync('git', args, {
-			cwd: REPO,
-			encoding: 'utf8',
-			env: { ...process.env, ...extra },
-			stdio: ['pipe', 'pipe', 'pipe']
-		}).trim();
+		execFileSync(
+			'git',
+			['-c', 'user.name=IDEA test fixture', '-c', 'user.email=fixture@example.invalid', ...args],
+			{
+				cwd: REPO,
+				encoding: 'utf8',
+				env: { ...process.env, ...extra },
+				stdio: ['pipe', 'pipe', 'pipe']
+			}
+		).trim();
 	try {
 		git(['read-tree', 'origin/main'], { GIT_INDEX_FILE: index });
 		const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], {
@@ -79,6 +83,13 @@ function synthesizeOffMainMigration(filename: string): string {
 		rmSync(index, { force: true });
 	}
 }
+
+it('synthesizes its commit with an invocation-scoped identity', () => {
+	const fixture = synthesizeOffMainMigration('9001_identity_fixture.sql');
+	expect(
+		execFileSync('git', ['cat-file', '-t', fixture], { cwd: REPO, encoding: 'utf8' }).trim()
+	).toBe('commit');
+});
 
 /** Run the real CLI. The exit status is the contract, so it is READ, not thrown on. */
 function probe(url: string, args: string[]): { code: number; out: string; err: string } {
