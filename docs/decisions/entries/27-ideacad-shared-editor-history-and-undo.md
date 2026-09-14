@@ -1,16 +1,14 @@
 # 27 Does a shared editor get full history and undo?
 
 - Raised: 2026-09-13  By: ledger 0206, out of the IdeaCAD scope document
-- Status: ANSWERED 2026-09-13 by Mr. Pina. **NOT BUILT.** The DATA is already
-  there and needs no migration; what is missing is the DISPLAY, and ledger 0196
-  is building it in parallel with this entry (see "Who is building it" below).
-- Build: OPEN, and it is a DISPLAY build with no migration in it. It is ledger
-  0196's, already written and pushed to `claude/gracious-hopper-a46lec`
-  (`src/lib/ideacad/ui/HistoryTimeline.svelte` renders `entry.actor` at line
-  178) and NOT landed -- its own ledger records `tools/deploy-probe.mjs` unable
-  to read production's applied set, which is gate 4 of six. What is still owed
-  after that lands is a production surface on which a shared editor can OPEN a
-  document at all: `SharedDocuments.svelte` is mounted only in the dev harness.
+- Status: ANSWERED 2026-09-13 by Mr. Pina and **BUILT.** The attributed durable
+  history, full timeline, undo/redo transport, and production shared-document
+  opening path have all landed. The stale account below is retained as history;
+  this status line is the current answer.
+- Build: `src/lib/ideacad/ui/HistoryTimeline.svelte` renders every entry's actor;
+  `src/lib/ideacad/BladeEditor.svelte` mounts the timeline; the classroom route
+  constructs `createIdeacadHistoryTransports`; and `ItemDetail.svelte` mounts
+  `SharedDocuments` and calls `store.openShared` on the production item page.
 - Decision: **YES, AND THE HISTORY IS ATTRIBUTED PER PERSON, THE WAY GOOGLE DOCS
   DOES IT.** A shared editor gets the full history and full undo. Every entry
   carries who made it. Anyone with access can view ALL of the history, whoever
@@ -128,26 +126,11 @@ both of them now load-bearing rather than incidental:**
    licence to ship a row with no actor: the column forbids it and the writers
    cannot produce one.
 
-## WHAT REMAINS TO BUILD
+## WHAT REMAINS OPEN
 
-**None of this is a migration, and none of it is this bundle's.** Stated so the
-next session does not re-derive it:
-
-1. **Landing 0196.** It is pushed to `claude/gracious-hopper-a46lec` and its own
-   ledger records that it did NOT merge to `main`: `tools/deploy-probe.mjs`
-   cannot read production's applied set, so item 4 of the six-gate checklist
-   stops it. Until it lands, the timeline exists on a branch and on no
-   deployment.
-2. **A shared editor actually reaching it.** `_ideacad_can_read_document` admits
-   a grantee, so the RPC will answer them -- but the recipient-side picker
-   `SharedDocuments.svelte` is mounted only in the dev harness
-   (`src/routes/dev/ideacad-shared/+page.svelte` line 386) and appears in no
-   file under `src/routes/classroom/`. So a student who has been shared a
-   document has no production surface on which to open it, and therefore none on
-   which to see its history. **That is a separate gap from this decision and it
-   is older than it** -- `src/lib/ideacad/shared-open.ts` line 5 already says
-   "BOTH HAD NO CALLER for eight days ... The feature was half live."
-3. **Undo across two people.** `0209` models an undo as an appended INVERSE row
+The decided display and shared-open path are built. One authority question was
+never answered by this decision: **may one editor undo another person's action?**
+`0209` models an undo as an appended INVERSE row
    naming its target in `undoes_seq`, with a partial unique index
    (`ideacad_history_undoes_once_idx`, lines 246-248) making a double-undo
    impossible and raising 'Somebody already undid that action. Reload the
