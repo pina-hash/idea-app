@@ -4,6 +4,42 @@ This document owns IdeaCAD's product scope. It separates Mr. Pina's decisions
 from what the repository happens to implement today. Implementation is evidence,
 not permission to infer the unanswered product decisions listed at the end.
 
+## WHAT THIS IS AND WHAT IT IS NOT
+
+> "This is not a technical precision program. You are sketching things in 3D
+> space to get your idea across. It should be quick to use, extremely quick to
+> use. It's IdeaCAD, as in it's to develop ideas. It's not to make technical
+> drawings."
+
+> "It is NOT SolidWorks. It should be easy to use and should NOT require any
+> kind of training to use. It should be as intuitive as drawing."
+
+The working rule that follows is:
+
+- Where SolidWorks conventions genuinely help, they are adopted - the 3D
+  viewport mouse controls are the clear case, because they are muscle memory a
+  user already has and inventing different ones would be a cost with no benefit.
+- Everything else is judged by whether a fourteen-year-old who has never opened
+  a CAD program can do it without being told how. A feature that needs explaining
+  is a defect, not a feature with documentation missing.
+- Speed and directness beat precision and rigor wherever they conflict. That is
+  a deliberate trade, not an oversight.
+- Discoverability is a correctness property. "Requires training" carries the
+  same weight as "crashes".
+
+The evidence for this section is two moments: the owner opened the editor and
+said "I don't know how to do anything"; and an earlier build edited a solid of
+revolution through a table of sixteen numeric r/z rows, which he called
+"extremely annoying to do anything meaningful" - a spreadsheet with a 3D
+preview rather than a sketching tool.
+
+### REJECTED PATTERNS
+
+- editing geometry through a table of numbers
+- prose instructions in the interface explaining how a control works
+- a control whose only discovery path is trying it
+- a second way to do something that already has a way
+
 ## The product decision
 
 Mr. Pina's framing is the governing definition:
