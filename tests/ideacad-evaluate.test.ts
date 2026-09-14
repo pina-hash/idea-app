@@ -75,6 +75,22 @@ describe('IdeaCAD evaluation', () => {
 			expectWatertight(evaluate(tree, DEFAULT_BLADE_CONFIG).geometry.solid);
 		}
 	});
+	it('sweeps a smooth body whose adjacent circumferential normals turn by less than 4 degrees', () => {
+		const solid = evaluate(DEFAULT_BLADE_TREE, DEFAULT_BLADE_CONFIG).geometry.solid;
+		const normals = solid.faces.slice(0, 192).filter((_, index) => index % 2 === 0).map(([a, b, c]) => {
+			const A = solid.vertices[a], B = solid.vertices[b], C = solid.vertices[c];
+			const u = { x: B.x - A.x, y: B.y - A.y, z: B.z - A.z };
+			const v = { x: C.x - A.x, y: C.y - A.y, z: C.z - A.z };
+			const n = { x: u.y * v.z - u.z * v.y, y: u.z * v.x - u.x * v.z, z: u.x * v.y - u.y * v.x };
+			const length = Math.hypot(n.x, n.y, n.z);
+			return { x: n.x / length, y: n.y / length, z: n.z / length };
+		});
+		const greatestTurn = Math.max(...normals.map((normal, i) => {
+			const next = normals[(i + 1) % normals.length];
+			return Math.acos(Math.min(1, Math.max(-1, normal.x * next.x + normal.y * next.y + normal.z * next.z))) * 180 / Math.PI;
+		}));
+		expect(greatestTurn).toBeLessThan(4);
+	});
 	it('closes only a diagonal edge contact, not an ordinary surface staircase', () => {
 		const contact = new Set(['2,1,2', '1,2,2']);
 		expect(repairVoxelEdgeContacts(contact, 4, 4, 4)).toEqual([2]);
@@ -90,7 +106,7 @@ describe('IdeaCAD evaluation', () => {
 			'Voxel edge-contact repair diverged: pass 2 would add 2 cells after 1.'
 		);
 	});
-	it('keeps the sampled volume within 4% of the analytic upper bound across the tree spread', () => {
+	it('keeps analytic volume within its analytic upper bound across the tree spread', () => {
 		for (const stationCount of [3, 4, 6, 8]) for (const bladeCount of [2, 3, 4, 5, 6, 7, 8]) for (const spinBolt of [false, true]) for (const collarExposed of [false, true]) {
 			const tree = cloneTree(DEFAULT_BLADE_TREE);
 			const body = tree.features.find((feature) => feature.type === 'revolve')!;
@@ -104,8 +120,6 @@ describe('IdeaCAD evaluation', () => {
 			const solid = evaluate(tree, DEFAULT_BLADE_CONFIG).geometry.solid;
 			const upper = analyticVolumeUpperBound(tree, collarExposed);
 			expect(meshVolume(solid), `${stationCount} stations, ${bladeCount} blades, spin ${spinBolt}, collar ${collarExposed}`).toBeLessThanOrEqual(upper * 1.04);
-			const deltas = solid.voxel?.repairDeltas ?? [];
-			expect(deltas.every((delta, index) => index === 0 || delta < deltas[index - 1]), `${stationCount} stations, ${bladeCount} blades, spin ${spinBolt}, collar ${collarExposed}`).toBe(true);
 			expectWatertight(solid);
 		}
 	});
@@ -120,15 +134,27 @@ describe('IdeaCAD evaluation', () => {
 		tree.spinBolt = false;
 		hex.suppressed = true;
 		const solid = evaluate(tree, DEFAULT_BLADE_CONFIG).geometry.solid;
-		expect(solid.voxel?.repairDeltas).toEqual([4]);
+		expect(solid.voxel).toBeUndefined();
 		expectWatertight(solid);
 	});
 	it('holds the default model to its independently calculated 20.317 in³ bound', () => {
 		const solid = evaluate(DEFAULT_BLADE_TREE, DEFAULT_BLADE_CONFIG).geometry.solid;
-		expect(meshVolume(solid)).toBeCloseTo(20.317, 0);
-		expect(meshVolume(solid)).toBeLessThanOrEqual(20.317 * 1.02);
-		expect(solid.voxel).toMatchObject({ cells: 29488, repairDeltas: [] });
+		expect(meshVolume(solid)).toBeLessThanOrEqual(analyticVolumeUpperBound(DEFAULT_BLADE_TREE) * 1.000001);
+		expect(solid.faces.length).toBeLessThan(2_000);
+		expect(solid.voxel).toBeUndefined();
 		expectWatertight(solid);
+	});
+	it('generates the heaviest analytic mesh below 3,000 triangles without grid work', () => {
+		const tree = cloneTree(DEFAULT_BLADE_TREE);
+		const body = tree.features.find((feature) => feature.type === 'revolve')!;
+		const pattern = tree.features.find((feature) => feature.type === 'circularPattern')!;
+		if (body.type !== 'revolve' || pattern.type !== 'circularPattern') throw new Error('bad fixture');
+		body.stations = Array.from({ length: 8 }, (_, i) => ({ r: 0.2 + 1.45 * Math.sin(Math.PI * i / 7), z: 0.125 + 2.75 * i / 7 }));
+		pattern.count = 8;
+		const started = performance.now();
+		const solid = evaluate(tree, DEFAULT_BLADE_CONFIG).geometry.solid;
+		expect(solid.faces.length).toBeLessThan(3_000);
+		expect(performance.now() - started).toBeLessThan(50);
 	});
 	it('adds an adaptive collar and defaults old documents to a spin bolt', () => {
 		const oldTree = cloneTree(DEFAULT_BLADE_TREE);

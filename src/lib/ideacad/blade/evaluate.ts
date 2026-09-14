@@ -1,5 +1,6 @@
 import type { BladeConfig } from './materials';
 import { featureOf, type BladeTree } from './tree';
+import { appendExtrusion, appendRevolve, regularHexagon, rotated } from './mesh';
 
 const IN_CM = 2.54;
 const HEX_EXTENSION_MIN_IN = 0.5;
@@ -70,15 +71,6 @@ export function bladePlanform(rootWidth: number, tipWidth: number, length: numbe
 	];
 }
 
-function insidePolygon(x: number, y: number, polygon: { x: number; y: number }[]) {
-	let inside = false;
-	for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-		const a = polygon[i], b = polygon[j];
-		if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
-	}
-	return inside;
-}
-
 const FACE_NEIGHBORS = [
 	[1, 0, 0],
 	[-1, 0, 0],
@@ -123,42 +115,6 @@ export function repairVoxelEdgeContacts(filled: Set<string>, nx: number, ny: num
 	throw new Error(`Voxel edge-contact repair did not converge within ${maxRepairPasses} passes.`);
 }
 
-/** A boundary mesh of the actual union, rather than intersecting feature shells. */
-function unionMesh(inside: (x: number, y: number, z: number) => boolean, radius: number, zMin: number, zMax: number): SolidMesh {
-	const step = Math.max((radius * 2) / 48, (zMax - zMin) / 48, 0.04);
-	const nx = Math.ceil((radius * 2) / step) + 2, ny = nx, nz = Math.ceil((zMax - zMin) / step) + 2;
-	const x0 = -nx * step / 2, y0 = x0, base = zMin - step;
-	const filled = new Set<string>();
-	for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
-		if (inside(x0 + (i + 0.5) * step, y0 + (j + 0.5) * step, base + (k + 0.5) * step)) filled.add(`${i},${j},${k}`);
-	}
-	/* A sampled union can leave two occupied cells touching along an edge: in a
-	   2x2 ring around that edge, the occupied cells are diagonal and the other
-	   two cells are empty. Fill those two cells before skinning. A staircase on
-	   an ordinary surface has the fourth (diagonal) cell occupied and therefore
-	   must not match this predicate. */
-	const repairDeltas = repairVoxelEdgeContacts(filled, nx, ny, nz);
-	const vertices: SolidMesh['vertices'] = [], faces: SolidMesh['faces'] = [], ids = new Map<string, number>();
-	const vertex = (i: number, j: number, k: number) => {
-		const key = `${i},${j},${k}`; let id = ids.get(key);
-		if (id === undefined) { id = vertices.length; ids.set(key, id); vertices.push({ x: x0 + i * step, y: y0 + j * step, z: base + k * step }); }
-		return id;
-	};
-	const sides = [
-		[1,0,0, [[1,0,0],[1,1,0],[1,1,1],[1,0,1]]], [-1,0,0, [[0,0,0],[0,0,1],[0,1,1],[0,1,0]]],
-		[0,1,0, [[0,1,0],[0,1,1],[1,1,1],[1,1,0]]], [0,-1,0, [[0,0,0],[1,0,0],[1,0,1],[0,0,1]]],
-		[0,0,1, [[0,0,1],[1,0,1],[1,1,1],[0,1,1]]], [0,0,-1, [[0,0,0],[0,1,0],[1,1,0],[1,0,0]]]
-	] as const;
-	for (const key of filled) {
-		const [i,j,k] = key.split(',').map(Number);
-		for (const [di,dj,dk,corners] of sides) if (!filled.has(`${i+di},${j+dj},${k+dk}`)) {
-			const q = corners.map(([a,b,c]) => vertex(i+a,j+b,k+c));
-			faces.push([q[0],q[1],q[2]], [q[0],q[2],q[3]]);
-		}
-	}
-	return { vertices, faces, voxel: { step, cells: filled.size, repairDeltas } };
-}
-
 export function evaluate(tree: BladeTree, config: BladeConfig): Evaluation {
 	const body = featureOf(tree, 'revolve'), hex = featureOf(tree, 'hexBoss'), sketch = featureOf(tree, 'bladeSketch');
 	const pattern = featureOf(tree, 'circularPattern'), mount = featureOf(tree, 'mount');
@@ -187,21 +143,18 @@ export function evaluate(tree: BladeTree, config: BladeConfig): Evaluation {
 	const collarPresent = hex.suppressed !== true;
 	const spinPresent = tree.spinBolt !== false;
 	const spinRadius = Math.min(0.125, body.stations[0].r), spinHeight = Math.min(0.25, bodyTop * 0.08);
-	const radiusAt = (z: number) => {
-		for (let i = 1; i < body.stations.length; i++) { const a = body.stations[i-1], b = body.stations[i]; if (z <= b.z) return a.r + (b.r-a.r)*(z-a.z)/(b.z-a.z); }
-		return 0;
-	};
-	const rotate = (x: number, y: number, angle: number) => ({ x: x*Math.cos(angle)+y*Math.sin(angle), y: -x*Math.sin(angle)+y*Math.cos(angle) });
 	const zTop = collarPresent ? bodyTop + hex.height + collarHeight : bodyTop;
-	const buildSolid = () => unionMesh((x,y,z) => {
-		const r = Math.hypot(x,y);
-		if (z >= body.stations[0].z && z <= bodyTop && r <= radiusAt(z)) return true;
-		if (collarPresent && z >= bodyTop && z <= bodyTop + hex.height && Math.max(Math.abs(x), Math.abs(0.5*x + Math.sqrt(3)/2*y), Math.abs(0.5*x - Math.sqrt(3)/2*y)) <= hex.acrossFlats/2) return true;
-		if (collarPresent && z >= bodyTop + hex.height - collarHeight/2 && z <= zTop && r <= collarOuterRadius) return true;
-		if (spinPresent && z >= body.stations[0].z-spinHeight && z <= body.stations[0].z && r <= spinRadius) return true;
-		if (z >= mount.z && z <= mount.z + stock.thicknessIn) for (let n=0;n<pattern.count;n++) { const p=rotate(x,y,2*Math.PI*n/pattern.count); if (insidePolygon(p.x,p.y,poly)) return true; }
-		return false;
-	}, maxR, body.stations[0].z - (spinPresent ? spinHeight : 0), zTop);
+	const buildSolid = () => {
+		const mesh: SolidMesh = { vertices: [], faces: [] };
+		appendRevolve(mesh, body.stations);
+		if (collarPresent) {
+			appendExtrusion(mesh, regularHexagon(hex.acrossFlats), bodyTop, bodyTop + hex.height);
+			appendRevolve(mesh, [{ r: collarOuterRadius, z: bodyTop + hex.height - collarHeight / 2 }, { r: collarOuterRadius, z: zTop }]);
+		}
+		if (spinPresent) appendRevolve(mesh, [{ r: spinRadius, z: body.stations[0].z - spinHeight }, { r: spinRadius, z: body.stations[0].z }]);
+		for (let n = 0; n < pattern.count; n++) appendExtrusion(mesh, rotated(poly, 2 * Math.PI * n / pattern.count), mount.z, mount.z + stock.thicknessIn);
+		return mesh;
+	};
 	const com = mass ? mz / mass : 0, diameterIn = maxR * 2, fullHeightIn = bodyTop, hexExtensionIn = hex.height;
 	const forward = tree.rotation === 'cw' ? sketch.sweepDeg > 0 : sketch.sweepDeg < 0;
 	const rules: RuleResult[] = [
