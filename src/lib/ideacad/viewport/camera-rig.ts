@@ -203,6 +203,10 @@ export interface ViewportProbe {
 	under(x: number, y: number): Vec3;
 	drawCalls(): number;
 	triangles(): number;
+	/** Fraction of framebuffer pixels which differ meaningfully from the clear
+	 * colour. This reads the canvas after a real render; draw-call and triangle
+	 * counts cannot distinguish a painted model from a black frame. */
+	paintedFraction(): number;
 }
 
 /**
