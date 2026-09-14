@@ -8,7 +8,7 @@ import { createIdeacadLive, type IdeacadLive } from './live';
 /* THE TWO ENGINE PREDICATES, IMPORTED RATHER THAN RESTATED. `mount.ts` value-imports nothing from this directory (its `store` and `history` imports are type-only), so this does not close a cycle. */
 import { isIdeaCad } from './mount';
 import { isHtmlAssignment } from '$lib/classroom/html-assignment/mount';
-import { DEFAULT_BLADE_CONFIG } from './blade/materials';
+import { bladeWorkspace } from './blade/workspace';
 import {
 	ideacadRoleFromPayload,
 	type IdeacadDocumentRole,
@@ -194,7 +194,7 @@ export function createIdeacadTransports(
 		   because this is the module that owns the `setEditor` call it is an
 		   argument to, and because a surface holding the boundary must not have
 		   to reach for a second import to use it correctly. */
-		bladeConfig: DEFAULT_BLADE_CONFIG,
+		bladeConfig: bladeWorkspace.defaultContext.config,
 		setEditor: (itemId, editor, config) =>
 			rpc('ideacad_set_editor', { p_item_id: itemId, p_editor: editor, p_config: config }),
 		openDocument: (itemId) => rpc('ideacad_open_document', { p_item_id: itemId }),
