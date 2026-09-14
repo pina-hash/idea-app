@@ -96,66 +96,145 @@ there.**
 
 ## What was measured
 
-- **`svelte-check`: 0 errors, 37 warnings in 20 files**, breakdown 31
-  `state_referenced_locally` / 5 `css_unused_selector` / 1 `perf_avoid_nested_class`.
-  Re-derived on `origin/main` at `799d2033` in a clean `git worktree` rather than read
-  off `CLAUDE.md`, and it came out identical on both, breakdown included. The
-  intermediate merge sat at 40/22 and the three extra were all
-  `css_unused_selector` -- `.left-toggle`, `.right-toggle`, `.why` -- each a rule
-  whose element another lane had removed. The compiler found the float/dock leftovers
-  I had missed.
-- **Undefined custom properties: 0**, across 469 fallback-less `var()` uses in the
-  owned files, swept with comments stripped and **with a positive control** proving
-  the sweep flags an unknown token. It is what found `--copper`.
-- **Double-definition sweep**: every class carrying the same property in both the
-  sheet and a component's scoped block. Three at first; `.viewport`'s `background`
-  was a real disagreement (`--ic-ground` against `--surface-2`) and is now one
-  definition. The two left, `.divider`'s `min-height` and `.hist`'s `padding`, are
-  **identical values** in both places, so they are duplication and not a fork; the
-  `.divider` one is deliberately left as defence against the specificity tie, since
-  both say `0` and it is what defeats the base control's tap floor on a 6px grip.
-- **Chromium 141 at 1440 and 375, rasterized and looked at.** `.ic-root` applies
-  (`--ic-ground` `#0e1114`, `--surface-0` aliased to it, `--ic-tap` `44px`, Rajdhani).
-  No horizontal scroll at either width (`scrollWidth` equals `innerWidth`, 1440 and
-  375). Zero console errors. The phone pane switcher renders FEATURES / GRAPHICS /
-  PROPERTIES with the current one filled.
+Every baseline is **re-derived on `origin/main` in a clean `git worktree`**, not
+read off `CLAUDE.md`, and the second merge moved the reference commit from
+`799d2033` to `fe62631f`.
 
-## The black viewport is NOT this bundle's, and here is its mechanism
+- **`svelte-check`: 1 error, 37 warnings in 21 files -- IDENTICAL to
+  `fe62631f`.** `CLAUDE.md`'s written baseline (0 errors, 37 in 20) was
+  accurate for `799d2033`, which was measured and matched exactly, breakdown
+  included (31 `state_referenced_locally` / 5 `css_unused_selector` / 1
+  `perf_avoid_nested_class`). **The 1 error is `main`'s**, not this bundle's:
+  `src/lib/ideacad/viewport/picking.ts:80` passes a `Vector2Like` where
+  three.js wants a `Vector2`, in a file ledger 0245 added and this branch
+  leaves byte-identical. Not fixed -- see below.
+- Each pass surfaced extra `css_unused_selector` warnings and **the compiler
+  found float/dock leftovers I had missed**: `.left-toggle`, `.right-toggle`,
+  `.why` after the first merge, `.shortcut` after the second. Each was a rule
+  whose element another lane had removed.
+- **Undefined custom properties: 0**, across 477 fallback-less `var()` uses in
+  the owned files, comments stripped, **with a positive control** proving the
+  sweep flags an unknown token. It is what found `--copper`.
+- **Double-definition sweep** over every class carrying the same property in
+  both the sheet and a component's scoped block. `.viewport`'s `background` was
+  a real disagreement and is now one definition. Two remain, `.divider`'s
+  `min-height` and `.hist`'s `padding`, with **identical values** in both
+  places -- duplication, not a fork; the `.divider` one is left deliberately as
+  defence against the specificity tie, since both say `0` and it is what
+  defeats the base control's tap floor on a 6px grip.
+- **The three `tests/dom/ideacad-*` files: `3 failed | 73 passed (76)`, the
+  same three names, on this branch AND on `fe62631f`.** The failing-name sets
+  diff to empty in both directions. They were 10 on `799d2033`; the lanes that
+  landed meanwhile fixed seven.
+- **Chromium 141 at 1440 and 375, rasterized and looked at.** `.ic-root`
+  applies, `--ic-tap` computes to `44px` (on `main` it computes to the EMPTY
+  STRING, because no token system was in scope), `--surface-0` is aliased to
+  the room's ground so the canvas clear colour follows the room. No horizontal
+  scroll at either width (`scrollWidth` equals `innerWidth`). **Zero console
+  errors.**
 
-`main` renders an empty graphics area and **this merge does not change it**, measured
-both ways: the canvas box is `912x0` on `main` and `914x0` merged, inside a
-`.viewport-well` that is **2px tall** on both.
+## Two merges, because `main` moved seven times mid-session
 
-What it actually is, which is more specific than "renders black": **`.viewport`
-declares four grid rows (`auto auto minmax(0, 1fr) auto`) and renders three in-flow
-children** when the orientation list is closed, which is the default. So
-`.viewport-well` lands on row 2 -- an `auto` row -- and collapses to its content, and
-`.edit-footer` takes the `1fr`. It is visible in both screenshots as the Accept and
-Cancel pair stretched floor to ceiling as two tall dashed columns. The grid line is
-identical on both sides of the merge and conflicted in neither, so it predates both
-lanes. **Not fixed here, deliberately** -- ledger 0239 owns it -- and the one-line
-shape of the fix is worth knowing: the row count and the in-flow child count have to
-agree, or the well needs to name its row.
+Between the first resolution and the push, ledgers **0239, 0240, 0241, 0242,
+0244, 0245 and 0246 all landed on `main`** -- the sequencing gate this session
+first refused to cross turned out to be seven lanes deep, and they touch the
+same four files. So `origin/main` was merged in a second time and resolved the
+same way, 13 more hunks. The pattern repeated almost exactly:
 
-The canvas readback differs and **must not be read as the model appearing**:
-`nonBlackPct` goes 0.44% to 100% only because the clear colour moved from the
-portal's `#0a0c0b` to the room's `#0e1114` and crossed the sweep's own threshold. The
-drawing buffer is one pixel tall in both. Nothing of the model is visible on either
-tree.
+- **Float versus dock, again, and dock wins again.** 0241 docked the status bar
+  with a `minmax(36px, auto)` reserve, dropped `.viewport`'s padding (so the
+  negative-margin bleed the first pass preserved is gone), and set the view
+  strip and the well FLUSH -- no rule on either side of that seam, because two
+  would draw two lines. Carried into the sheet so each has one definition; the
+  band keeps `--ic-head`, which is this register's name for a command band.
+- **0241's PANE-EDGE TOGGLES are new work, not the float argument**, and stay
+  as written: a toggle belongs on the edge it moves.
+- **Roughly forty more relocated-skin rules came back** on main's side (`h3`,
+  `h4`, the control base, the focus ring, `aria-disabled`, `.rules-label`) and
+  went again. `cursor: pointer` was among them and is 0240's affordance --
+  kept, because `.ic-root button` already carries it, so nothing was lost.
+- **0240 removed the padlock and the keyboard hint.** `.lock` and `.shortcut`,
+  both of which the first pass had deliberately preserved, have no elements any
+  more; their rules are gone and the reasoning is inverted in the file.
 
-## Not verified
+**Two of 0240's decisions were refused, both for the same reason -- a fixed
+register:**
 
-- **The ten failing tests in `tests/dom/ideacad-ui-mount.test.ts`,
-  `ideacad-timeline-mount.test.ts` and `ideacad-mount.test.ts` were not diagnosed or
-  fixed.** They fail identically on `origin/main` at `799d2033` -- `10 failed | 66
-  passed (76)` on both trees, and the failing test NAMES diff to an empty set in both
-  directions. They are pre-existing and outside this bundle.
-- No signed-in surface. `/dev/ideacad` is the harness; `ItemDetail`'s mount of this
-  editor needs a Bosco Tech Google session and was not driven.
+- Its tree rows became bordered boxes whose HOVER paints `--green` +
+  `--green-tint`. In this room that IS the selected state (green rail + tint
+  fill), so applying both would make hover and selected indistinguishable. The
+  room's own hover is deliberately a non-accent colour for exactly that reason.
+  0240's *intent* -- a new user seeing that a row is clickable -- is delivered
+  by the room already (a mark glyph, a hover that moves the rail, and
+  `cursor: pointer`), plus 0240's own EDIT chip, which is the clearest
+  affordance of the three and survives untouched.
+- Its pressed pane tab painted `--cyan`. `--cyan` is METADATA in this
+  repository's fixed register and an active tab is navigation, which is
+  `--green`; the sheet already fills a pressed control with the accent over
+  dark ink, so it carries a fill as well as a hue. **Reassigning a fixed
+  semantic role is the one thing the theme rules forbid outright.**
+
+## The black viewport is FIXED, and this merge carries the fix
+
+The first pass measured the graphics area **collapsed to 2px** on `main` -- the
+canvas box `912x0` inside a `.viewport-well` `914x2` -- and diagnosed it as
+`.viewport` declaring FOUR grid rows while rendering THREE in-flow children, so
+the well landed on an `auto` row and `.edit-footer` took the `1fr`. Visible in
+the screenshots of both trees as Accept and Cancel stretched floor to ceiling.
+
+**Ledger 0241 found and fixed the same thing independently**, three rows instead
+of four with explicit `grid-row` on each child, and 0239 fixed a separate
+black-frame cause in `Viewport.svelte` and `camera-rig.ts`. Measured after the
+second merge: the well is **926x391 at 1440 and 373x276 at 375**, the canvas
+**924x390** and **371x275**, and the screenshots show the sage revolve with its
+hex boss, blade mounts, grid floor and reference triad. Nothing here fixed it;
+the merge carries it, which is worth writing down only because the first pass's
+record said it was unfixed and that sentence is now wrong.
+
+**`readPixels` IS NOT THE INSTRUMENT FOR THIS AND THE FIRST PASS WAS LUCKY.**
+After the fix the readback comes back flat -- `meanChannel 0`, ONE distinct
+bucket over 810,810 pixels -- on a viewport that visibly renders a shaded
+solid, because the drawing buffer is not preserved and a read outside the
+render loop gets a cleared one. Before the fix the same call returned the clear
+colour, which happened to be meaningful. **A composited screenshot is the
+instrument; a canvas readback here reports the buffer's lifetime, not the
+picture.**
+
+## The confirm pair is reachable, hit-tested
+
+0231 had the pair floating and measured it UNPRESSABLE at 375 --
+`Accept 0/11 reachable, Cancel 0/11 reachable`, painted over by the positioned
+canvas and toolbar. The merged tree makes it a grid row at every width, which
+retires that failure mode rather than fixing it, and the claim is measured the
+same way it was made: `elementFromPoint` across each control's own span,
+**Accept 9/9 and Cancel 9/9 reachable at 1440 AND at 375**. A comment at
+`.edit-footer` says not to reintroduce an absolute footer without re-running it.
+
+## Not verified, and what is deliberately left broken
+
+- **`main` IS RED AND THIS BRANCH CANNOT BE GREEN.** Every recent CI run on
+  `main` is a failure -- #104, #105, #106, #110, #112, #113, #108 -- for two
+  independent pre-existing reasons, and this branch inherits both because it
+  matches `main` exactly on each: the `picking.ts` type error (which fails
+  `npm run check`) and the three `ideacad-*` dom tests. **Neither was
+  introduced here and neither is fixed here.** The type error is a one-line,
+  behaviour-identical fix (construct a `Vector2` from the `Vector2Like` before
+  `setFromCamera`) in a file inside this bundle's owned path, and it was still
+  left alone: fixing it would not reach green, because the three test failures
+  are in four other lanes' work, so it would be widening the PR for no
+  mergeability gain. **The PR is therefore left open rather than merged.**
+- The three failing tests were not diagnosed.
+- No signed-in surface. `/dev/ideacad` is the harness; `ItemDetail`'s mount of
+  this editor needs a Bosco Tech Google session and was not driven.
 - `prefers-reduced-motion` is `no-preference` in the harness, so that path is
-  unexercised.
-- Contrast ratios were **not** re-measured. Ledger 0231 measured its own palette and
-  nothing in this merge moves an ink or a ground except `.viewport`'s background,
-  which carries no text.
-- The three-way behaviour of the resolved surface was judged by reading and by two
-  screenshots, not by driving every control.
+  unexercised -- which matters here because 0240 shipped an ungated
+  `transition` on tree rows; the rule it was dropped by was the hue clash, and
+  **the gating question was not reopened** since the rule is gone.
+- **Contrast ratios were not re-measured.** Ledger 0231 measured its palette;
+  nothing here moves an ink or a ground except `.viewport`'s background, which
+  carries no text, and `.status-bar`'s ink, which takes the register's
+  `--ic-text-2` on a ground 0231 had already measured.
+- `var(--copper)` survives in `src/routes/admin/ideacad-materials/+page.svelte`,
+  outside this bundle's ownership.
+- The resolved surface was judged by reading, two sweeps and four screenshots,
+  not by driving every control.

@@ -107,7 +107,7 @@
 </script>
 
 <div class="ft">
-	<h3 id="ft-label">FeatureManager</h3>
+	<h3 id="ft-label">{selected ? 'Features' : 'Select a feature'}</h3>
 	<ul id="ft-list" role="tree" aria-labelledby="ft-label" onkeydown={key}>
 		{#each rows as row, i (row.id)}
 			{@const trouble = row.kind === 'station' ? [] : problemsFor(problems, row.id)}
@@ -136,7 +136,11 @@
 					<span class="name">{row.label}</span>
 					{#if trouble.length}<span class="chip" title={trouble[0].message}>REBUILD</span>{/if}
 					{#if row.id === 'standard-parts'}<span class="chip">UNVERIFIED</span>{/if}
-					<span class="lock" aria-label="Name and deletion locked" title="Name and deletion locked">🔒</span>
+					{#if readOnly || row.id === 'standard-parts'}
+						<span class="mode">VIEW</span>
+					{:else}
+						<span class="mode editable">EDIT</span>
+					{/if}
 				</button>
 			</li>
 		{/each}
@@ -179,14 +183,19 @@
 	.chip {
 		flex: 0 0 auto;
 	}
-	/* THE LOCK GLYPH is ledger 0236's and has no counterpart in the room's
-	   sheet, so it stays here. It carries no colour of its own -- the emoji
-	   supplies its own, and `grayscale(1)` is what keeps it chrome rather than
-	   a second hue in a panel that already spends green, amber and crimson. */
-	.lock {
+	/* 0240'S EDITABLE-MODE CHIP replaced ledger 0236's padlock glyph, so the
+	   `.lock` rule this conflicted with has no element left to style. */
+	.mode {
 		flex: 0 0 auto;
-		font-size: 12px;
-		filter: grayscale(1);
-		opacity: 0.7;
+		padding: 0.15rem 0.3rem;
+		border: 1px solid var(--hairline);
+		border-radius: 2px;
+		font: 10px / 1 var(--font-mono);
+		letter-spacing: 0.08em;
+		color: var(--text-2);
+	}
+	.mode.editable {
+		border-color: var(--green);
+		color: var(--green);
 	}
 </style>

@@ -1184,11 +1184,16 @@
    `BladeEditor.svelte`.
    -------------------------------------------------------------------------- */
 
-/* The heads-up view strip, docked as row 1 of the graphics area. */
+/* The heads-up view strip, docked as row 1 of the graphics area. IT CARRIES NO
+   RULE UNDER IT AND NO BEVEL, which is ledger 0241's decision and pairs with
+   the well's missing top border below: the band and the canvas sit flush, so a
+   rule on each side of the seam would draw two lines. The GROUND STEP is the
+   separator -- `--ic-head` against `--ic-ground` is a full step of this
+   register's three, which is what lets the eye place the seam without a line.
+   Ledger 0241 reached for the panel ground here, before this register existed;
+   a command band is `--ic-head` in it. */
 .ic-root .view-toolbar {
 	background: var(--ic-head);
-	border-bottom: 1px solid var(--ic-edge);
-	box-shadow: var(--ic-bevel);
 }
 
 /* The graphics well. The inner rings read as a recessed bezel around the
@@ -1196,6 +1201,7 @@
 .ic-root .viewport-well {
 	background: var(--ic-ground);
 	border: 1px solid var(--ic-edge);
+	border-top: 0; /* see the view strip above: the two sit flush (ledger 0241) */
 	box-shadow:
 		inset 0 0 0 2px rgba(0, 0, 0, 0.35),
 		inset 0 8px 18px rgba(0, 0, 0, 0.22);

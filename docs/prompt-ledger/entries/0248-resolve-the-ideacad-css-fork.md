@@ -9,7 +9,9 @@
   `store.ts`, `workspaces.ts`, any `blade/*.ts`, any migration.
 - Migration permitted: no. **Claims: none.**
 - Status: pushed
-- Branch: `claude/hopeful-archimedes-7nlrwr`, branched from `main` at `799d2033`.
+- Branch: `claude/hopeful-archimedes-7nlrwr`, branched from `main` at `799d2033`,
+  then re-merged against `main` at `fe62631f` after ledgers 0239 through 0246
+  landed mid-session on the same four files.
 - Supersedes: PR #96 (ledger 0231). That branch is merged INTO this one by
   content rather than landed on its own, so #96 closes unmerged and its three
   commits reach `main` through this branch.
@@ -23,3 +25,8 @@
   mounts that component for a student. It also clears `var(--copper)`, a
   custom property referenced six times under `src/lib/ideacad/ui/` and defined
   nowhere in `src/`. No geometry, physics or validation is touched.
+- **NOT MERGED, deliberately.** `main`'s CI is red on every recent run for two
+  pre-existing reasons this branch inherits unchanged and did not cause -- the
+  `picking.ts` type error from ledger 0245, and three `tests/dom/ideacad-*`
+  failures across four other lanes' work. Green is unreachable inside this
+  bundle's ownership, so PR #114 is left open for a person to decide.

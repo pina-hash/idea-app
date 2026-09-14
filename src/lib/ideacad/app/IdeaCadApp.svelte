@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, untrack } from 'svelte';
+	import { onDestroy, tick, untrack } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import BladeEditor from '../BladeEditor.svelte';
 	import { createIdeacadStore, type IdeacadStoreState } from '../store';
@@ -20,11 +20,13 @@
 	let editorState: IdeacadStoreState = $state(store.state);
 	let opening = $state(false);
 	let refusal = $state('');
-	/* Opening the route is a choice point, even if a future store implementation
-	 * restores a document eagerly. A document only gets the canvas after the
-	 * person explicitly chooses it in this session. */
-	let pickerOpen = $state(true);
+	/* This local gate, rather than store state, owns entry to the canvas. The store
+	 * may eventually hydrate or restore a document, but /ideacad still cannot show
+	 * it until this mount records an explicit choice from the chooser. */
+	let documentChosen = $state(false);
+	let chooserOpen = $state(true);
 	let activeTitle = $state('');
+	let newDocumentSection = $state<HTMLElement>();
 	let layout = $state(untrack(() => initialLayout));
 	const unsubscribe = store.subscribe((next) => (editorState = next));
 	onDestroy(() => { unsubscribe(); void store.destroy(); });
@@ -48,17 +50,33 @@
 	}
 
 	async function openExisting(documentId: string, title: string) {
-		opening = true; refusal = ''; pickerOpen = false; activeTitle = title;
-		try { await store.openShared(documentId); }
+		opening = true; refusal = '';
+		try {
+			await store.openShared(documentId);
+			documentChosen = true;
+			chooserOpen = false;
+			activeTitle = title;
+		}
 		catch (error) { refusal = refusalFrom(error); }
 		finally { opening = false; }
 	}
 
 	async function openNew(itemId: string, title: string) {
-		opening = true; refusal = ''; pickerOpen = false; activeTitle = title;
-		try { await store.open(itemId); }
+		opening = true; refusal = '';
+		try {
+			await store.open(itemId);
+			documentChosen = true;
+			chooserOpen = false;
+			activeTitle = title;
+		}
 		catch (error) { refusal = refusalFrom(error); }
 		finally { opening = false; }
+	}
+
+	async function showNewDocument() {
+		chooserOpen = true;
+		await tick();
+		newDocumentSection?.focus();
 	}
 
 	let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -76,19 +94,19 @@
 <main class="app-shell" data-testid="ideacad-app">
 	<nav class="command-bar" aria-label="IdeaCAD commands">
 		<a href="/" class="brand" aria-label="IDEA home">IDEA<span>CAD</span></a>
-		<button class:active={pickerOpen} onclick={() => (pickerOpen = !pickerOpen)} aria-expanded={pickerOpen}>Documents</button>
-		<button class="new" onclick={() => (pickerOpen = true)}>+ New document</button>
-		{#if activeTitle}<strong class="document-title" title={activeTitle}><span>OPEN</span>{activeTitle}</strong>{/if}
+		<button class:active={chooserOpen} onclick={() => (chooserOpen = true)} aria-expanded={chooserOpen}>Documents</button>
+		<button class="new" onclick={showNewDocument}>+ New document</button>
+		{#if documentChosen && activeTitle}<strong class="document-title" title={activeTitle}>{activeTitle}</strong>{/if}
 		<span class="spacer"></span>
 		<a href="/" class="exit">Exit to IDEA</a>
 	</nav>
 
-	{#if pickerOpen || !editorState?.document}
+	{#if chooserOpen || !documentChosen}
 		<section class="start" aria-label="IdeaCAD documents">
 			<div class="start-card">
 				<header class="start-heading">
 					<p class="eyebrow">IDEACAD // DOCUMENT CONTROL</p>
-					<h1>{editorState?.document ? 'Choose a document' : 'Your documents'}</h1>
+					<h1>{documentChosen ? 'Choose a document' : 'Your documents'}</h1>
 					<p>Continue your own work or start with an available IdeaCAD assignment.</p>
 				</header>
 				{#if refusal}<p class="refusal" role="alert">{refusal}</p>{/if}
@@ -102,18 +120,20 @@
 						{/each}
 					</div>
 				{:else}
-					<div class="empty-state"><span aria-hidden="true">＋</span><div><h2>No documents yet</h2><p>Your work will appear here after you create your first document.</p></div></div>
+					<div class="empty-state"><span aria-hidden="true">＋</span><div><h2>No documents yet</h2><p>Your work will appear here after you create your first document.</p><button class="primary-action" onclick={showNewDocument}>New document</button></div></div>
 				{/if}
-				<div class="section-label"><h2>Start new</h2><span>Choose a workspace</span></div>
-				{#if sources.length}
-					<div class="document-grid new-grid">
-						{#each sources as source (source.itemId)}<button onclick={() => openNew(source.itemId, source.title)} disabled={opening}><span class="card-code">NEW DOCUMENT</span><strong>{source.title}</strong><span>Create and open →</span></button>{/each}
-					</div>
-				{:else}<div class="empty new-empty"><strong>No starters available</strong><span>An IdeaCAD assignment must be made available before a new document can be created.</span></div>{/if}
-				{#if editorState?.document}<button class="close" onclick={() => (pickerOpen = false)}>Back to graphics</button>{/if}
+				<div class="new-document-section" bind:this={newDocumentSection} tabindex="-1">
+					<div class="section-label"><h2>New document</h2><span>Choose a workspace</span></div>
+					{#if sources.length}
+						<div class="document-grid new-grid">
+							{#each sources as source (source.itemId)}<button onclick={() => openNew(source.itemId, source.title)} disabled={opening}><span class="card-code">NEW DOCUMENT</span><strong>{source.title}</strong><span>Create and open →</span></button>{/each}
+						</div>
+					{:else}<div class="empty new-empty"><strong>No starters available</strong><span>An IdeaCAD assignment must be made available before a new document can be created.</span></div>{/if}
+				</div>
+				{#if documentChosen}<button class="close" onclick={() => (chooserOpen = false)}>Back to graphics</button>{/if}
 			</div>
 		</section>
-	{:else if seed}
+	{:else if documentChosen && seed}
 		<div class="editor-frame">
 			<BladeEditor standalone paneLayout={layout} onPaneLayout={saveLayout} concepts={seed.concepts as never} activeConceptId={seed.activeConceptId} config={seed.config as never} history={seed.history} prediction={seed.prediction} {writes} undoStep={writes?.undo} redoStep={writes?.redo} setPrediction={writes?.setPrediction} commitConceptCard={writes?.commit} saveLabel={ideacadSaveLabel(editorState?.phase)} />
 		</div>
@@ -129,7 +149,7 @@
 	.command-bar button, .command-bar a { min-height: 51px; padding: 0 16px; display: inline-flex; align-items: center; color: var(--text-2); background: transparent; border: 0; border-left: 1px solid var(--boundary); text-decoration: none; font: 700 11px 'Share Tech Mono', monospace; letter-spacing: .06em; text-transform: uppercase; }
 	.command-bar button:hover, .command-bar a:hover, .command-bar button.active { color: var(--text-1); background: var(--surface-2); }
 	.brand { color: var(--text-1) !important; font-family: var(--font-hero) !important; font-size: 16px !important; font-weight: 800 !important; letter-spacing: .14em !important; border-left: 0 !important; padding-left: 4px !important; padding-right: 22px !important; } .brand span { color: var(--cyan); } .new { color: var(--green) !important; border-right: 1px solid var(--boundary) !important; }
-	.document-title { align-self: center; min-width: 0; margin-left: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-hero); letter-spacing: .03em; } .document-title span { margin-right: 8px; color: var(--cyan); font: 9px 'Share Tech Mono', monospace; letter-spacing: .12em; } .spacer { flex: 1; }
+	.document-title { align-self: center; min-width: 0; margin-left: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-hero); letter-spacing: .03em; } .spacer { flex: 1; }
 	.exit { border-right: 1px solid var(--boundary) !important; }
 	.editor-frame { min-height: 0; overflow: hidden; }
 	.start { min-height: 0; overflow: auto; display: grid; place-items: start center; padding: clamp(28px, 6vw, 76px) clamp(18px, 5vw, 64px); background: linear-gradient(color-mix(in srgb, var(--boundary) 28%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--boundary) 28%, transparent) 1px, transparent 1px), radial-gradient(circle at 50% -20%, color-mix(in srgb, var(--cyan) 12%, transparent), transparent 48%); background-size: 32px 32px, 32px 32px, auto; }
@@ -141,7 +161,7 @@
 	.document-grid button::before { content: ''; position: absolute; inset: -1px auto auto -1px; width: 24px; height: 2px; background: var(--cyan); } .document-grid button:hover { border-color: var(--cyan); background: var(--surface-2); transform: translateY(-1px); } .document-grid button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 	.document-grid button > strong { font-family: var(--font-hero); font-size: 17px; } .document-grid button > span:last-child { color: var(--text-2); font-size: 11px; } .card-code { color: var(--cyan); font-size: 9px; letter-spacing: .13em; }
 	.new-grid button::before { background: var(--green); } .new-grid .card-code, .new-grid button > span:last-child { color: var(--green); }
-	.empty-state { min-height: 136px; display: flex; align-items: center; gap: 22px; padding: 24px; border: 1px dashed var(--boundary); background: color-mix(in srgb, var(--surface-1) 80%, transparent); } .empty-state > span { color: var(--cyan); font: 36px var(--font-hero); } .empty-state h2 { margin: 0 0 7px; font: 700 17px var(--font-hero); text-transform: uppercase; } .empty-state p { margin: 0; color: var(--text-2); line-height: 1.5; }
+	.empty-state { min-height: 136px; display: flex; align-items: center; gap: 22px; padding: 24px; border: 1px dashed var(--boundary); background: color-mix(in srgb, var(--surface-1) 80%, transparent); } .empty-state > span { color: var(--cyan); font: 36px var(--font-hero); } .empty-state h2 { margin: 0 0 7px; font: 700 17px var(--font-hero); text-transform: uppercase; } .empty-state p { margin: 0; color: var(--text-2); line-height: 1.5; } .primary-action { min-height: 44px; margin-top: 16px; padding: 0 18px; color: var(--surface-0); background: var(--green); border: 1px solid var(--green); font: 700 11px 'Share Tech Mono', monospace; letter-spacing: .08em; text-transform: uppercase; } .new-document-section:focus { outline: none; } .new-document-section:focus-visible .section-label { border-bottom-color: var(--green); }
 	.empty { display: grid; gap: 7px; padding: 18px; color: var(--text-2); border-left: 2px solid var(--boundary); background: var(--surface-1); font-size: 11px; } .empty strong { color: var(--text-1); text-transform: uppercase; letter-spacing: .08em; } .close { margin-top: 24px; min-height: 44px; color: var(--text-1); background: var(--surface-2); border: 1px solid var(--boundary); } .refusal { padding: 12px 16px; color: var(--crimson); border: 1px solid var(--crimson); background: var(--surface-1); }
 	@media (max-width: 680px) { .command-bar { padding: 0 4px; } .document-title { display: none; } .command-bar button, .command-bar a { padding: 0 8px; font-size: 10px; } .brand { padding-right: 10px !important; } .new { font-size: 0 !important; } .new::after { content: 'New'; font-size: 10px; } .start { padding-top: 32px; } .start-heading { margin-bottom: 28px; } }
 </style>

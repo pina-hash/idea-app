@@ -21,8 +21,6 @@
 	 */
 	import type { Station } from '../blade/tree';
 	import {
-		FEATURE_DELETE_REFUSAL,
-		FEATURE_RENAME_REFUSAL,
 		MAX_STATIONS,
 		MIN_STATIONS,
 		stationsCanAdd,
@@ -160,38 +158,21 @@
 		<button type="button" class="back" onclick={onclose}>Feature tree</button>
 	</header>
 
-	{#if !readOnly}
-		<div class="confirm">
-			<button type="submit" class="accept" aria-disabled={!dirty} title="Accept (Enter)">
-				✓ <span>Accept</span>
-			</button>
-			<button type="button" class="cancel" onclick={oncancel} aria-disabled={!dirty} title="Cancel (Escape)">
-				× <span>Cancel</span>
-			</button>
-		</div>
-		<p class="shortcut"><b>Drag</b> a number to adjust · <b>Shift-drag</b> fine · <b>Tab</b> next · <b>Enter</b> commit · <b>Esc</b> revert</p>
-		{#if reorderable}
-			<div class="reorder">
-				<button type="button" onclick={() => onmove(-1)} aria-disabled={!canMoveUp}>Move up</button>
-				<button type="button" onclick={() => onmove(1)} aria-disabled={!canMoveDown}>Move down</button>
-			</div>
-		{/if}
-		{#if refusal}<p class="refusal" role="status">{refusal}</p>{/if}
-	{/if}
-
-	{#if panel.note}<p class="note">{panel.note}</p>{/if}
+	<h4>Parameters</h4>
 
 	{#each panel.fields as field (field.key)}
 		{#if field.kind === 'number'}
 			<label class="field">
 				<span class="lab">{field.label}</span>
-				<span class="number-control"><input
+				<span class="number-control"><span class="scrub-mark" aria-hidden="true">↔</span><input
 					type="number"
 					value={field.value}
 					min={field.min}
 					max={field.max}
 					step={field.step}
 					disabled={readOnly}
+					title="Drag horizontally or type"
+					oninput={(e) => number(e, (n) => onfield(field.key, n))}
 					onfocus={(e) => remember(e.currentTarget)}
 					onblur={(e) => commitNumber(e.currentTarget, (n) => onfield(field.key, n))}
 					onkeydown={(e) => numberKey(e, (n) => onfield(field.key, n))}
@@ -249,6 +230,8 @@
 									value={station.r}
 									disabled={readOnly}
 									aria-label={`Station ${i + 1} radius`}
+									title="Drag horizontally or type"
+									oninput={(e) => number(e, (n) => onstation(i, 'r', n))}
 									onfocus={(e) => remember(e.currentTarget)}
 									onblur={(e) => commitNumber(e.currentTarget, (n) => onstation(i, 'r', n))}
 									onkeydown={(e) => numberKey(e, (n) => onstation(i, 'r', n))}
@@ -262,6 +245,8 @@
 									value={station.z}
 									disabled={readOnly}
 									aria-label={`Station ${i + 1} height`}
+									title="Drag horizontally or type"
+									oninput={(e) => number(e, (n) => onstation(i, 'z', n))}
 									onfocus={(e) => remember(e.currentTarget)}
 									onblur={(e) => commitNumber(e.currentTarget, (n) => onstation(i, 'z', n))}
 									onkeydown={(e) => numberKey(e, (n) => onstation(i, 'z', n))}
@@ -270,33 +255,37 @@
 							</td>
 							<td class="acts">
 								{#if !readOnly}
-									<button type="button" aria-label={`Add a station after ${i + 1}`} aria-disabled={!stationsCanAdd(stations.length)} onclick={() => onaddstation(i)}>+</button>
-									<button type="button" aria-label={`Remove station ${i + 1}`} aria-disabled={!stationsCanRemove(stations.length)} onclick={() => onremovestation(i)}>−</button>
+									<button type="button" aria-label={`Add a station after ${i + 1}`} title={stationsCanAdd(stations.length) ? 'Add station' : `Maximum: ${MAX_STATIONS} stations`} aria-disabled={!stationsCanAdd(stations.length)} onclick={() => onaddstation(i)}>+</button>
+									<button type="button" aria-label={`Remove station ${i + 1}`} title={stationsCanRemove(stations.length) ? 'Remove station' : `Minimum: ${MIN_STATIONS} stations`} aria-disabled={!stationsCanRemove(stations.length)} onclick={() => onremovestation(i)}>−</button>
 								{/if}
 							</td>
 						</tr>
 					{/each}
 				</tbody>
 			</table>
-			{#if !stationsCanRemove(stations.length)}
-				<p class="note">A body needs at least {MIN_STATIONS} stations, so none of these can be removed.</p>
-			{/if}
-			{#if !stationsCanAdd(stations.length)}
-				<p class="note">A body takes at most {MAX_STATIONS} stations.</p>
-			{/if}
 			<ProfilePreview {stations} />
 		</div>
 	{/if}
 
-	<!-- THE STANDING REFUSALS GO LAST, AND THE ORDER IS THE POINT. Put above the
-	     fields they pushed the station table and the profile preview past a
-	     514.6px pane's fold at 1440, where this container's Chromium paints no
-	     scrollbar at all -- so the prose explaining two controls that do not
-	     exist was displacing the controls that do. Explanation is what a student
-	     scrolls to; parameters are what they came for. -->
-	{#if !readOnly && reorderable}
-		<p class="note standing">{FEATURE_DELETE_REFUSAL}</p>
-		<p class="note">{FEATURE_RENAME_REFUSAL}</p>
+	{#if !readOnly}
+		<div class="actions">
+			<div class="confirm">
+				<button type="submit" class="accept" aria-disabled={!dirty} title="Accept (Enter)">
+					✓ <span>Accept</span>
+				</button>
+				<button type="button" class="cancel" onclick={oncancel} aria-disabled={!dirty} title="Cancel (Escape)">
+					× <span>Cancel</span>
+				</button>
+			</div>
+			{#if reorderable}
+				<div class="reorder">
+					<button type="button" onclick={() => onmove(-1)} aria-disabled={!canMoveUp}>Move up</button>
+					<button type="button" onclick={() => onmove(1)} aria-disabled={!canMoveDown}>Move down</button>
+				</div>
+				<div class="feature-state" title="Name and deletion fixed">FIXED FEATURE</div>
+			{/if}
+			{#if refusal}<p class="refusal" role="status">{refusal}</p>{/if}
+		</div>
 	{/if}
 </form>
 
@@ -335,9 +324,14 @@
 	   which is why its own sheet says nothing about it. */
 	.number-control {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) 2.8rem;
+		grid-template-columns: 1.2rem minmax(0, 1fr) 2.8rem;
 		align-items: center;
 		gap: 0.35rem;
+	}
+	.scrub-mark {
+		color: var(--green);
+		font-weight: 700;
+		cursor: ew-resize;
 	}
 	.number-control input {
 		font-size: 1.15rem;
@@ -359,27 +353,22 @@
 		padding: 0;
 	}
 	.range,
-	.note,
-	.refusal,
-	.shortcut {
+	.refusal {
 		margin: 0.15rem 0 0.6rem;
 	}
-	/* THE KEYBOARD HINT is ledger 0233's and the room's sheet has no rule for
-	   it, so dropping this block would have left it unstyled. It is a line of
-	   KEY NAMES rather than a sentence, so it keeps the instrument face -- the
-	   one place in this component where mono is still right -- through the
-	   room's tokens instead of a literal stack. */
-	.shortcut {
-		font: var(--ic-fs-label) / 1.5 var(--font-mono);
-		color: var(--ic-text-2);
-	}
-	.shortcut b {
-		color: var(--ic-text-1);
-		font-weight: 700;
-	}
-	.standing {
+	.actions {
 		margin-top: 1rem;
 		padding-top: 0.75rem;
+	}
+	.feature-state {
+		width: max-content;
+		margin-top: 0.5rem;
+		padding: 0.25rem 0.4rem;
+		border: 1px solid var(--hairline);
+		border-radius: 2px;
+		font: 10px 'Share Tech Mono', monospace;
+		letter-spacing: 0.1em;
+		color: var(--text-2);
 	}
 	table {
 		width: 100%;
