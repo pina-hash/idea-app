@@ -136,6 +136,15 @@ export function validateBladeTree(tree: BladeTree, config?: BladeConfig): BladeP
 			});
 		}
 	}
+	for (const hex of tree.features.filter((feature) => feature.type === 'hexBoss')) {
+		if (hex.type === 'hexBoss' && hex.height < 0.5) {
+			problems.push({
+				featureId: hex.id,
+				parameter: 'height',
+				message: 'Extend the hex core at least 0.5 inches; there is no maximum extension.'
+			});
+		}
+	}
 	if (tree.materials.bodySolidFraction < 0.1 || tree.materials.bodySolidFraction > 1) {
 		problems.push({
 			featureId: 'materials',

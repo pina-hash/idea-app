@@ -48,7 +48,6 @@ export interface MountFeature extends FeatureState {
 	feature: string;
 	z: number;
 }
-
 export type BladeFeature =
 	| RevolveFeature
 	| HexFeature
@@ -62,6 +61,8 @@ export interface BladeTree {
 	editor: 'blade';
 	units: 'in';
 	rotation: Rotation;
+	/** Absent in older schema-1 documents means the default, present spin bolt. */
+	spinBolt?: boolean;
 	materials: { body: string; bodySolidFraction: number; bladeStock: string };
 	features: BladeFeature[];
 }

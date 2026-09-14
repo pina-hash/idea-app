@@ -20,14 +20,8 @@
 	 * said, which a 44px glyph does not have.
 	 */
 	import type { Station } from '../blade/tree';
-	import {
-		MAX_STATIONS,
-		MIN_STATIONS,
-		stationsCanAdd,
-		stationsCanRemove,
-		type PmPanel
-	} from './feature-model';
-	import ProfilePreview from './ProfilePreview.svelte';
+	import type { PmPanel } from './feature-model';
+	import ProfileEditor from './ProfileEditor.svelte';
 
 	let {
 		panel,
@@ -215,61 +209,21 @@
 
 	{#if panel.stations}
 		<div class="stations">
-			<table>
-				<caption>Stations, {MIN_STATIONS} to {MAX_STATIONS}, heights increasing</caption>
-				<thead><tr><th scope="col">#</th><th scope="col">r (in)</th><th scope="col">z (in)</th><th scope="col"><span class="sr">Actions</span></th></tr></thead>
-				<tbody>
-					{#each stations as station, i (i)}
-						<tr>
-							<th scope="row">{i + 1}</th>
-							<td>
-								<input
-									type="number"
-									step="0.005"
-									min="0"
-									value={station.r}
-									disabled={readOnly}
-									aria-label={`Station ${i + 1} radius`}
-									title="Drag horizontally or type"
-									oninput={(e) => number(e, (n) => onstation(i, 'r', n))}
-									onfocus={(e) => remember(e.currentTarget)}
-									onblur={(e) => commitNumber(e.currentTarget, (n) => onstation(i, 'r', n))}
-									onkeydown={(e) => numberKey(e, (n) => onstation(i, 'r', n))}
-									onpointerdown={(e) => scrub(e, (n) => onstation(i, 'r', n))}
-								/>
-							</td>
-							<td>
-								<input
-									type="number"
-									step="0.005"
-									value={station.z}
-									disabled={readOnly}
-									aria-label={`Station ${i + 1} height`}
-									title="Drag horizontally or type"
-									oninput={(e) => number(e, (n) => onstation(i, 'z', n))}
-									onfocus={(e) => remember(e.currentTarget)}
-									onblur={(e) => commitNumber(e.currentTarget, (n) => onstation(i, 'z', n))}
-									onkeydown={(e) => numberKey(e, (n) => onstation(i, 'z', n))}
-									onpointerdown={(e) => scrub(e, (n) => onstation(i, 'z', n))}
-								/>
-							</td>
-							<td class="acts">
-								{#if !readOnly}
-									<button type="button" aria-label={`Add a station after ${i + 1}`} title={stationsCanAdd(stations.length) ? 'Add station' : `Maximum: ${MAX_STATIONS} stations`} aria-disabled={!stationsCanAdd(stations.length)} onclick={() => onaddstation(i)}>+</button>
-									<button type="button" aria-label={`Remove station ${i + 1}`} title={stationsCanRemove(stations.length) ? 'Remove station' : `Minimum: ${MIN_STATIONS} stations`} aria-disabled={!stationsCanRemove(stations.length)} onclick={() => onremovestation(i)}>−</button>
-								{/if}
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-			<ProfilePreview {stations} />
+			<ProfileEditor {stations} {readOnly} {onstation} onstations={(next) => {
+				const current = stations;
+				if (next.length > current.length) {
+					const inserted = next.findIndex((station, index) => current[index]?.z !== station.z);
+					onaddstation(inserted - 1);
+					queueMicrotask(() => next.forEach((station, index) => { onstation(index, 'r', station.r); onstation(index, 'z', station.z); }));
+				} else if (next.length < current.length) onremovestation(current.findIndex((station, index) => next[index]?.z !== station.z));
+				else next.forEach((station, index) => { onstation(index, 'r', station.r); onstation(index, 'z', station.z); });
+			}} oncommit={() => queueMicrotask(onaccept)} />
 		</div>
 	{/if}
 
 	{#if !readOnly}
 		<div class="actions">
-			<div class="confirm">
+			<div class="confirm" class:profile-confirm={!!panel.stations}>
 				<button type="submit" class="accept" aria-disabled={!dirty} title="Accept (Enter)">
 					✓ <span>Accept</span>
 				</button>
@@ -343,6 +297,9 @@
 	}
 	.confirm button {
 		flex: 1 1 0;
+	}
+	.confirm.profile-confirm {
+		display: none;
 	}
 	.reorder button {
 		flex: 1 1 0;
@@ -431,53 +388,5 @@
 		font: 10px 'Share Tech Mono', monospace;
 		letter-spacing: 0.1em;
 		color: var(--text-2);
-	}
-	table {
-		width: 100%;
-		border-collapse: collapse;
-		margin-top: 0.5rem;
-	}
-	caption {
-		text-align: left;
-		font: 12px 'Share Tech Mono', monospace;
-		color: var(--text-2);
-		padding-bottom: 0.35rem;
-	}
-	th,
-	td {
-		padding: 0.15rem;
-		text-align: left;
-		font: 12px 'Share Tech Mono', monospace;
-		color: var(--text-2);
-	}
-	tbody th {
-		color: var(--text-1);
-	}
-	td input {
-		width: 100%;
-		min-width: 0;
-		padding: 0 0.3rem;
-		font-size: 1rem;
-		font-weight: 700;
-		font-variant-numeric: tabular-nums;
-		text-align: right;
-		touch-action: none;
-		cursor: ew-resize;
-	}
-	.acts {
-		display: flex;
-		gap: 0.2rem;
-	}
-	.acts button {
-		padding: 0;
-		width: 44px;
-	}
-	.sr {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
 	}
 </style>

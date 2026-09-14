@@ -17,3 +17,17 @@
 .ic-dense :is(.tree, .readouts) :is(li + li, .metric + .metric) {
 	border-top: 1px solid var(--hairline);
 }
+
+/* Inputs must include their padding and native controls inside the declared
+   width. Without border-box, PropertyManager's 100%-wide numeric fields grow
+   past their grid track and clip the least-significant digit at the pane edge. */
+.ic-dense :is(input, select) {
+	box-sizing: border-box;
+}
+
+.ic-dense input[type='number'] {
+	min-width: 6rem;
+	padding-inline: 0.45rem 1.6rem !important;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
