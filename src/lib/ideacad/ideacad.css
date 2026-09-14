@@ -1229,3 +1229,26 @@
 	color: var(--ic-text-1);
 	font-weight: 600;
 }
+
+/* --------------------------------------------------------------------------
+   THE NUMERIC FIELD'S OWN BOX (ledger 0251's fix, re-scoped by 0248).
+
+   THIS IS THE ONE THING IN THIS MERGE THAT NO CONFLICT MARKER WARNED ABOUT.
+   The lane that fixed it wrote both rules under `.ic-dense`, which this file's
+   merge takes off the editor root -- so git appended them here cleanly, with
+   no conflict, and they would have matched NOTHING. The defect they fix is
+   real and visible: without `border-box` a 100%-wide numeric field grows past
+   its grid track and clips the least-significant digit at the pane edge. Under
+   `.ic-root` they apply to every field in the room rather than to a class
+   nobody carries, and the `!important` is gone because nothing here competes.
+   `text-align` and the mono face are already set above; only the box is new.
+   -------------------------------------------------------------------------- */
+.ic-root :is(input, select) {
+	box-sizing: border-box;
+}
+.ic-root input[type='number'] {
+	min-width: 6rem;
+	/* the right inset reserves the native spinner's own column */
+	padding-inline: 0.45rem 1.6rem;
+	font-variant-numeric: tabular-nums;
+}

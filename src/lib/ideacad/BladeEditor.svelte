@@ -925,8 +925,8 @@
 		<button aria-pressed={mobilePane === 'rules'} onclick={() => (mobilePane = 'rules')}>Properties</button>
 	</nav>
 	<div class="stage" bind:this={stageElement} data-mobile-pane={mobilePane}>
-		<button class="pane-toggle pane-edge-toggle left-edge" aria-expanded={leftOpen} onclick={() => togglePane('left')}>{leftOpen ? 'Hide' : 'Show'} FeatureManager</button>
-		<button class="pane-toggle pane-edge-toggle right-edge" aria-expanded={rightOpen} onclick={() => togglePane('right')}>{rightOpen ? 'Hide' : 'Show'} PropertyManager</button>
+		<button class="pane-toggle pane-edge-toggle left-edge" aria-expanded={leftOpen} aria-label={leftOpen ? 'Hide FeatureManager' : 'Show FeatureManager'} title={leftOpen ? 'Hide FeatureManager' : 'Show FeatureManager'} onclick={() => togglePane('left')}>{leftOpen ? '‹' : '›'}</button>
+		<button class="pane-toggle pane-edge-toggle right-edge" aria-expanded={rightOpen} aria-label={rightOpen ? 'Hide PropertyManager' : 'Show PropertyManager'} title={rightOpen ? 'Hide PropertyManager' : 'Show PropertyManager'} onclick={() => togglePane('right')}>{rightOpen ? '›' : '‹'}</button>
 		<aside
 			class="tree"
 			class:collapsed={!leftOpen}
@@ -1370,17 +1370,54 @@
 	   it moves. The ground resolves through `.ic-root`'s alias. */
 	.pane-edge-toggle {
 		position: absolute;
-		top: 50%;
+		top: .45rem;
 		z-index: 2;
-		min-width: 28px;
-		width: 28px;
-		padding: 0.55rem 0;
-		writing-mode: vertical-rl;
+		min-width: 24px;
+		width: 24px;
+		height: 24px;
+		min-height: 24px;
+		padding: 0;
+		font-size: 1.25rem;
+		line-height: 1;
 		background: var(--surface-1);
-		transform: translateY(-50%);
 	}
-	.pane-edge-toggle.left-edge { left: var(--tree-width); }
-	.pane-edge-toggle.right-edge { right: var(--rail-width); }
+	.pane-edge-toggle.left-edge { left: calc(var(--tree-width) - 30px); }
+	.pane-edge-toggle.right-edge { right: calc(var(--rail-width) - 30px); }
+	.ideacad[style*='--tree-width: 0px'] .pane-edge-toggle.left-edge { left: .45rem; }
+	.ideacad[style*='--rail-width: 0px'] .pane-edge-toggle.right-edge { right: .45rem; }
+	:global(.tree .actions .confirm),
+	:global(.tree .actions .reorder) {
+		position: relative;
+		padding-top: 1.1rem;
+	}
+	:global(.tree .actions .confirm::before),
+	:global(.tree .actions .reorder::before) {
+		position: absolute;
+		top: 0;
+		left: 0;
+		font: 10px / 1 var(--font-mono);
+		letter-spacing: .1em;
+		color: var(--text-3);
+	}
+	:global(.tree .actions .confirm::before) { content: 'COMMIT CHANGES'; }
+	:global(.tree .actions .reorder::before) { content: 'FEATURE ORDER'; }
+	:global(.tree .actions .reorder) {
+		margin-top: .8rem;
+		padding-bottom: .55rem;
+		border-bottom: 1px solid var(--hairline);
+	}
+	:global(.tree .actions .feature-state) {
+		width: auto;
+		border: 0;
+		padding: 0;
+		line-height: 1.45;
+	}
+	:global(.tree .actions .feature-state::before) {
+		content: 'Feature identity: ';
+		color: var(--text-3);
+		letter-spacing: .04em;
+		text-transform: none;
+	}
 	aside {
 		overflow: auto;
 	}

@@ -149,6 +149,33 @@ read off `CLAUDE.md`, and the second merge moved the reference commit from
   scroll at either width (`scrollWidth` equals `innerWidth`). **Zero console
   errors.**
 
+## THREE merges, because `main` kept moving under it
+
+`main` moved SEVEN merges during the first resolution and NINE more during the
+second, so this bundle merged it three times and resolved 32 hunks in total.
+The third pass (`fe62631f` to `eabed627`, ledgers 0250 to 0253) is where the
+fork started RE-FORMING: a lane added twelve more lines to `ideacad.css`, still
+under `.ic-dense`, fixing numeric fields that clip their last digit.
+
+**THAT ONE PRODUCED NO CONFLICT AT ALL, WHICH IS THE MOST IMPORTANT THING IN
+THIS ENTRY.** Git appended those rules cleanly to the end of the sheet, under a
+class this merge takes off the editor root -- so they would have matched
+NOTHING and the clipping defect would have come back, silently, in a merge that
+looked clean. They are re-scoped onto `.ic-root` with the `!important` dropped,
+and the file says so at the point of use. **A conflict marker is not the only
+way a merge loses work; a rule whose SELECTOR the other side retired is the
+way that leaves no trace.**
+
+The third pass also retired three things the earlier passes had fought to keep,
+each because the markup they styled is now gone: 0233's station-table scrub
+(the table became the direct-manipulation profile editor), `button.twist` (the
+tree is flat), and `.mode.editable`. The compiler found all three, as it found
+`.left-toggle`/`.right-toggle`/`.why` in pass one and `.shortcut` in pass two
+-- **five rounds in which `css_unused_selector` caught a rule I had kept whose
+element another lane had deleted.** That warning is the instrument for this
+class of merge, and it is worth running after every pass rather than at the
+end.
+
 ## Two merges, because `main` moved seven times mid-session
 
 Between the first resolution and the push, ledgers **0239, 0240, 0241, 0242,

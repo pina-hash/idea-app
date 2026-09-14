@@ -1,23 +1,13 @@
 <script lang="ts">
 	/**
-	 * The FeatureManager: the six features in build order, the body's stations as
-	 * child rows beneath the body, and the two read-only nodes.
+	 * The FeatureManager: the six features in build order and the two read-only
+	 * nodes. Stations are parameters of Body Revolve and belong in its editor,
+	 * not beside actual features in this tree.
 	 *
 	 * SELECTION IS A ROVING TABINDEX, NOT EIGHT TAB STOPS. A tree is one control
 	 * in the tab order and the arrows move inside it, which is what a tree widget
 	 * is; eight stops between the header and the viewport is a keyboard user
 	 * pressing Tab eight times to leave a list they did not want to enter.
-	 *
-	 * THE BODY'S STATIONS ARE CHILD ROWS AND THEY START COLLAPSED, which is what
-	 * a tree does and is also a measured decision: expanded by default, four
-	 * station rows pushed Materials and Standard Parts off the bottom of a 566.6px
-	 * pane at 1440 -- two nodes 0145 PART 5 names, gone, with nothing on screen
-	 * saying they were there. Collapsed, the eight named rows fit.
-	 *
-	 * A STATION ROW IS SELECTABLE AND NOT DELETABLE FROM HERE: add and remove live
-	 * in the PropertyManager's own station table, which is where 0145 PART 5 puts
-	 * them and where the 3-to-8 bound can be stated beside the control rather than
-	 * inferred from a row that is missing an X.
 	 *
 	 * SELECTION OPENS THE PARAMETERS. IdeaCAD is for rapidly developing an idea,
 	 * so selecting a row and reaching its useful controls are one action.
@@ -42,26 +32,9 @@
 		readOnly?: boolean;
 	} = $props();
 
-	let open = $state(false);
-
-	/** Every row that is ON SCREEN, in one list, so the arrow keys move through
-	 *  exactly what is visible and a row added later cannot be reachable by mouse
-	 *  and not by key. A collapsed body contributes no station rows at all --
-	 *  hiding them in CSS would leave the arrows walking through boxes nobody
-	 *  can see. */
-	type Row = { id: string; label: string; kind: 'feature' | 'station' | 'node'; index?: number };
+	type Row = { id: string; label: string; kind: 'feature' | 'node' };
 	const rows = $derived<Row[]>([
-		...tree.features.flatMap((f): Row[] => [
-			{ id: f.id, label: featureLabel(f.id), kind: 'feature' },
-			...(f.type === 'revolve' && open
-				? f.stations.map((s, i) => ({
-						id: `station-${i}`,
-						label: `Station ${i + 1}  r ${s.r.toFixed(2)}  z ${s.z.toFixed(2)}`,
-						kind: 'station' as const,
-						index: i
-					}))
-				: [])
-		]),
+		...tree.features.map((f): Row => ({ id: f.id, label: featureLabel(f.id), kind: 'feature' })),
 		{ id: 'materials', label: featureLabel('materials'), kind: 'node' },
 		{ id: 'standard-parts', label: featureLabel('standard-parts'), kind: 'node' }
 	]);
@@ -75,17 +48,6 @@
 		else if (e.key === 'ArrowUp') to = Math.max(0, at - 1);
 		else if (e.key === 'Home') to = 0;
 		else if (e.key === 'End') to = last;
-		else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-			/* The tree pattern's own expand and collapse. It answers only on the
-			   row that HAS children, so it is never a key that silently does
-			   nothing somewhere else in the list. */
-			if (rows[at]?.id === 'body-revolve') {
-				e.preventDefault();
-				e.stopPropagation();
-				open = e.key === 'ArrowRight';
-			}
-			return;
-		}
 		else if (e.key === 'Enter' || e.key === ' ') {
 			e.preventDefault();
 			e.stopPropagation();
@@ -110,22 +72,12 @@
 	<h3 id="ft-label">{selected ? 'Features' : 'Select a feature'}</h3>
 	<ul id="ft-list" role="tree" aria-labelledby="ft-label" onkeydown={key}>
 		{#each rows as row, i (row.id)}
-			{@const trouble = row.kind === 'station' ? [] : problemsFor(problems, row.id)}
-			<li role="none" class:child={row.kind === 'station'}>
-				{#if row.id === 'body-revolve'}
-					<button
-						class="twist"
-						aria-expanded={open}
-						aria-controls="ft-list"
-						aria-label={open ? 'Hide the body stations' : 'Show the body stations'}
-						onclick={() => (open = !open)}>{open ? '▾' : '▸'}</button
-					>
-				{/if}
+			{@const trouble = problemsFor(problems, row.id)}
+			<li role="none">
 				<button
 					role="treeitem"
-					aria-expanded={row.id === 'body-revolve' ? open : undefined}
 					aria-selected={selected === row.id}
-					aria-level={row.kind === 'station' ? 2 : 1}
+					aria-level={1}
 					tabindex={i === at ? 0 : -1}
 					class:active={selected === row.id}
 					class:trouble={trouble.length > 0}
@@ -138,8 +90,6 @@
 					{#if row.id === 'standard-parts'}<span class="chip">UNVERIFIED</span>{/if}
 					{#if readOnly || row.id === 'standard-parts'}
 						<span class="mode">VIEW</span>
-					{:else}
-						<span class="mode editable">EDIT</span>
 					{/if}
 				</button>
 			</li>
@@ -169,10 +119,6 @@
 		width: 100%;
 		text-align: left;
 	}
-	button.twist {
-		flex: 0 0 auto;
-		justify-content: center;
-	}
 	.name {
 		flex: 1 1 auto;
 		min-width: 0;
@@ -193,9 +139,5 @@
 		font: 10px / 1 var(--font-mono);
 		letter-spacing: 0.08em;
 		color: var(--text-2);
-	}
-	.mode.editable {
-		border-color: var(--green);
-		color: var(--green);
 	}
 </style>
