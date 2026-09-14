@@ -107,7 +107,7 @@
 </script>
 
 <div class="ft">
-	<h3 id="ft-label">FeatureManager</h3>
+	<h3 id="ft-label">{selected ? 'Features' : 'Select a feature'}</h3>
 	<ul id="ft-list" role="tree" aria-labelledby="ft-label" onkeydown={key}>
 		{#each rows as row, i (row.id)}
 			{@const trouble = row.kind === 'station' ? [] : problemsFor(problems, row.id)}
@@ -136,7 +136,11 @@
 					<span class="name">{row.label}</span>
 					{#if trouble.length}<span class="chip" title={trouble[0].message}>REBUILD</span>{/if}
 					{#if row.id === 'standard-parts'}<span class="chip">UNVERIFIED</span>{/if}
-					<span class="lock" aria-label="Name and deletion locked" title="Name and deletion locked">🔒</span>
+					{#if readOnly || row.id === 'standard-parts'}
+						<span class="mode">VIEW</span>
+					{:else}
+						<span class="mode editable">EDIT</span>
+					{/if}
 				</button>
 			</li>
 		{/each}
@@ -178,6 +182,13 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-control);
 		font: inherit;
+		cursor: pointer;
+		transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+	}
+	button[role='treeitem']:hover {
+		border-color: var(--green);
+		background: var(--green-tint);
+		transform: translateX(2px);
 	}
 	button.twist {
 		flex: 0 0 auto;
@@ -205,11 +216,18 @@
 		letter-spacing: 0.08em;
 		color: var(--copper);
 	}
-	.lock {
+	.mode {
 		flex: 0 0 auto;
-		font-size: 12px;
-		filter: grayscale(1);
-		opacity: 0.7;
+		padding: 0.15rem 0.3rem;
+		border: 1px solid var(--hairline);
+		border-radius: 2px;
+		font: 10px 'Share Tech Mono', monospace;
+		letter-spacing: 0.08em;
+		color: var(--text-2);
+	}
+	.mode.editable {
+		border-color: var(--green);
+		color: var(--green);
 	}
 	button.trouble .chip {
 		color: var(--crimson);

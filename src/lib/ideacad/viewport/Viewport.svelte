@@ -22,6 +22,7 @@
 	 * ticks an animation frame and a first paint that never lands is a blank
 	 * pane with nothing to report.
 	 */
+	import { dev } from '$app/environment';
 	import { onMount, untrack } from 'svelte';
 	import type { Evaluation } from '../blade/evaluate';
 	import type { Rotation } from '../blade/tree';
@@ -190,17 +191,23 @@
 			   values keep adjacent roles legible even when their colours are close. */
 			const bodyMat = new THREE.MeshStandardMaterial({
 				color: new THREE.Color(ink.body),
+				emissive: new THREE.Color(ink.body),
+				emissiveIntensity: 0.12,
 				metalness: 0.46,
 				roughness: 0.34,
 				side: THREE.DoubleSide
 			});
 			const hexMat = new THREE.MeshStandardMaterial({
 				color: new THREE.Color(ink.hex),
+				emissive: new THREE.Color(ink.hex),
+				emissiveIntensity: 0.12,
 				metalness: 0.58,
 				roughness: 0.27
 			});
 			const bladeMat = new THREE.MeshStandardMaterial({
 				color: new THREE.Color(ink.blade),
+				emissive: new THREE.Color(ink.blade),
+				emissiveIntensity: 0.12,
 				metalness: 0.64,
 				roughness: 0.3,
 				side: THREE.DoubleSide
@@ -252,6 +259,28 @@
 			let anchor = new THREE.Vector3();
 			let edgeLines: InstanceType<typeof THREE.LineSegments>[] = [];
 			let meshes: InstanceType<typeof THREE.Mesh>[] = [];
+			let assertNextFrame = false;
+
+			/* A framebuffer assertion, not a scene-content assertion. The four corners
+			   establish the actually encoded clear colour after tone mapping and sRGB;
+			   a pixel must differ by more than antialiasing noise in order to count. */
+			function paintedFraction() {
+				const gl = renderer.getContext();
+				const width = gl.drawingBufferWidth;
+				const height = gl.drawingBufferHeight;
+				if (!width || !height) return 0;
+				const pixels = new Uint8Array(width * height * 4);
+				gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+				const corners = [0, (width - 1) * 4, (height - 1) * width * 4, (width * height - 1) * 4];
+				let painted = 0;
+				for (let i = 0; i < pixels.length; i += 4) {
+					const background = corners.some(
+						(c) => Math.abs(pixels[i] - pixels[c]) <= 6 && Math.abs(pixels[i + 1] - pixels[c + 1]) <= 6 && Math.abs(pixels[i + 2] - pixels[c + 2]) <= 6
+					);
+					if (!background) painted++;
+				}
+				return painted / (width * height);
+			}
 
 			function build(e: Evaluation) {
 				for (const o of owned) o.dispose();
@@ -392,6 +421,11 @@
 					pending = false;
 					const t0 = performance.now();
 					renderer.render(scene, camera);
+					if (dev && assertNextFrame) {
+						assertNextFrame = false;
+						const fraction = paintedFraction();
+						if (fraction < 0.005) throw new Error(`IdeaCAD viewport rendered only ${(fraction * 100).toFixed(3)}% non-background pixels`);
+					}
 					const ms = performance.now() - t0;
 					/* Wrapped: a probe that throws must not be able to reach the
 					   render it is measuring. */
@@ -424,6 +458,11 @@
 			/* The fit is taken AFTER the first size is known: fitting against a
 			   zero-width pane is how a model ends up microscopic or gone. */
 			cam = fitted(cam, radius, box());
+			/* The assertion is armed only after sizing and fitting. The earlier setup
+			   paints intentionally coalesce, and reading one of those intermediate
+			   frames would test a camera state the user never sees. */
+			assertNextFrame = true;
+			paint(cam, style);
 
 			controls = new SolidWorksControls(host, {
 				/* A SNAPSHOT, NOT THE RUNE. `cam` is `$state`, so reading it hands
@@ -504,7 +543,8 @@
 				anchor: () => ({ x: anchor.x, y: anchor.y, z: anchor.z }),
 				under: (x, y) => worldUnderCursor(cam, anchor, { x, y }, box()),
 				drawCalls: () => renderer.info.render.calls,
-				triangles: () => renderer.info.render.triangles
+				triangles: () => renderer.info.render.triangles,
+				paintedFraction
 			});
 
 			cleanup = () => {

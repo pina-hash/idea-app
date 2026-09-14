@@ -2,12 +2,9 @@
  * `SolidWorksControls`: the DOM half of PART 4, over `controls-math.ts`.
  *
  * NOT OrbitControls, and the reason is behavioural rather than availability.
- * OrbitControls is a turntable -- azimuth and polar about a world up vector,
- * with clamps and damping. SolidWorks' default is a free arcball about the
- * rotation center with no world-up lock and no inertia, and a student feels
- * the difference in the first second. `rotateScreen` in `controls-math.ts` is
- * that arcball and is already tested; this file binds it to pointers and keys
- * and owns no arithmetic of its own beyond composing that module's helpers.
+ * OrbitControls also brings behaviours this map must not inherit (damping,
+ * alternate button bindings, and a configurable polar range). The explicit
+ * rig below is a world-up orbit with SolidWorks' bindings and no inertia.
  *
  * EVERY MUTATION GOES THROUGH `write`, which hands back a NEW `CameraState`.
  * The viewport re-renders on demand from that callback and never polls, which
@@ -19,13 +16,32 @@ import {
 	axisAngle,
 	arrowRotation,
 	multiply,
-	rotateScreen,
 	zoomOrthoAboutCursor,
 	PreviousViewStack,
 	STANDARD_VIEWS,
 	type CameraState
 } from './controls-math';
-import { fitted, panByPixels, wheelFactor } from './camera-rig';
+import { clampZoom, fitted, orbitWithoutRoll, panByPixels, wheelFactor } from './camera-rig';
+
+/** The source-audited SolidWorks default mouse/keyboard map. Operations that
+ * belong to selection or the shortcut UI are named even though this camera
+ * controller intentionally leaves them for those owners. */
+export const SOLIDWORKS_BINDINGS = {
+	middleDrag: 'orbit',
+	ctrlMiddleDrag: 'pan',
+	shiftMiddleDrag: 'zoom',
+	altMiddleDrag: 'roll',
+	wheel: 'zoom-to-cursor',
+	middleClickGeometry: 'set-rotation-center',
+	rightDrag: 'mouse-gestures',
+	rightClick: 'context-menu',
+	leftDragEmpty: 'box-select',
+	leftDragModel: 'select-or-move',
+	doubleClickEmpty: 'unbound',
+	doubleClickFace: 'unbound',
+	arrow: 'rotate-15-degrees',
+	shiftArrow: 'rotate-90-degrees'
+} as const;
 
 export interface ControlsOptions {
 	/** The current state. Read fresh on every event: the owner may replace it. */
@@ -98,6 +114,7 @@ export class SolidWorksControls {
 	private readonly onWheel: (e: WheelEvent) => void;
 	private readonly onKeyDown: (e: KeyboardEvent) => void;
 	private readonly onAuxClick: (e: MouseEvent) => void;
+	private readonly onContextMenu: (e: MouseEvent) => void;
 
 	constructor(
 		private el: HTMLElement,
@@ -139,7 +156,7 @@ export class SolidWorksControls {
 			const s = this.o.get();
 			const box = this.o.size();
 			if (this.drag.mode === 'rotate') {
-				this.o.write({ ...s, quaternion: rotateScreen(s.quaternion, dx, dy, box.width, speed) });
+				this.o.write({ ...s, quaternion: orbitWithoutRoll(s.quaternion, dx, dy, box.width, speed) });
 			} else if (this.drag.mode === 'pan') {
 				this.o.write(panByPixels(s, dx, dy));
 			} else if (this.drag.mode === 'roll') {
@@ -151,7 +168,7 @@ export class SolidWorksControls {
 				});
 			} else {
 				/* Drag UP zooms in, which is SolidWorks' direction. */
-				this.o.write({ ...s, orthoZoom: Math.max(1e-3, s.orthoZoom * Math.exp(-dy / 200)) });
+				this.o.write({ ...s, orthoZoom: clampZoom(s.orthoZoom * Math.exp(-dy / 200), this.o.radius(), box) });
 			}
 		};
 
@@ -173,9 +190,9 @@ export class SolidWorksControls {
 			const cursor = inside
 				? { x: e.clientX - r.left, y: e.clientY - r.top }
 				: { x: box.width / 2, y: box.height / 2 };
-			this.o.write(
-				zoomOrthoAboutCursor(this.o.get(), wheelFactor(e.deltaY, step, o.reverseWheel ?? false), cursor, box)
-			);
+			const state = this.o.get();
+			const factor = clampZoom(state.orthoZoom * wheelFactor(e.deltaY, step, o.reverseWheel ?? false), this.o.radius(), box) / state.orthoZoom;
+			this.o.write(zoomOrthoAboutCursor(state, factor, cursor, box));
 		};
 
 		/* Middle-click on Windows opens the browser's autoscroll puck otherwise,
@@ -183,6 +200,7 @@ export class SolidWorksControls {
 		this.onAuxClick = (e) => {
 			if (e.button === 1) e.preventDefault();
 		};
+		this.onContextMenu = (e) => e.preventDefault();
 
 		this.onKeyDown = (e) => {
 			if (typingInto(document.activeElement)) return;
@@ -205,7 +223,7 @@ export class SolidWorksControls {
 				if (e.ctrlKey && e.shiftKey) return void this.restorePrevious();
 				this.pushPrevious();
 				const factor = e.shiftKey ? step : 1 / step;
-				this.o.write({ ...s, orthoZoom: Math.max(1e-3, s.orthoZoom * factor) });
+				this.o.write({ ...s, orthoZoom: clampZoom(s.orthoZoom * factor, this.o.radius(), box) });
 				return;
 			}
 			if (e.key.startsWith('Arrow')) {
@@ -241,6 +259,7 @@ export class SolidWorksControls {
 		el.addEventListener('pointerup', this.onPointerUp);
 		el.addEventListener('pointercancel', this.onPointerUp);
 		el.addEventListener('auxclick', this.onAuxClick);
+		el.addEventListener('contextmenu', this.onContextMenu);
 		/* Non-passive: the handler calls `preventDefault` and a passive listener
 		   cannot, so the page would scroll under the model on every notch. */
 		el.addEventListener('wheel', this.onWheel, { passive: false });
@@ -261,7 +280,7 @@ export class SolidWorksControls {
 		const s = this.o.get();
 		const box = this.o.size();
 		if (this.touches.size === 1) {
-			this.o.write({ ...s, quaternion: rotateScreen(s.quaternion, dx, dy, box.width, this.o.mouseSpeed ?? Math.PI) });
+			this.o.write({ ...s, quaternion: orbitWithoutRoll(s.quaternion, dx, dy, box.width, this.o.mouseSpeed ?? Math.PI) });
 			return;
 		}
 		const now = this.spread();
@@ -330,6 +349,7 @@ export class SolidWorksControls {
 		el.removeEventListener('pointerup', this.onPointerUp);
 		el.removeEventListener('pointercancel', this.onPointerUp);
 		el.removeEventListener('auxclick', this.onAuxClick);
+		el.removeEventListener('contextmenu', this.onContextMenu);
 		el.removeEventListener('wheel', this.onWheel);
 		el.removeEventListener('keydown', this.onKeyDown);
 	}
