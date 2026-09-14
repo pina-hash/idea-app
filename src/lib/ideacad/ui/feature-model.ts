@@ -146,8 +146,6 @@ export const FEATURE_DELETE_REFUSAL =
  * in the PropertyManager, which is where a student is when they want to change
  * a feature; this line is what the tree has room to say.
  */
-export const FEATURE_TREE_NOTE = 'Features cannot be renamed or deleted. Double-click a row to edit it.';
-
 /**
  * RENAME IS REFUSED FOR A SECOND REASON, FOLDED INTO THE SENTENCE ABOVE.
  * A `BladeFeature` carries no name field, so a typed name would live only in

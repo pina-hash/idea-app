@@ -1,7 +1,8 @@
 <script lang="ts">
 	/**
-	 * The PropertyManager: the selected node's parameters, live over the DRAFT,
-	 * with the confirm pair that decides whether the draft becomes the document.
+	 * The PropertyManager: the selected node's parameters. Ordinary values commit
+	 * on blur, Enter, or the end of a scrub; the confirm pair remains for the
+	 * structural station and build-order changes that need a deliberate boundary.
 	 *
 	 * IT REPLACES THE TREE IN THE SAME PANE (0145 PART 5) rather than opening
 	 * beside it, which is what SolidWorks does and what the 300px pane has room
@@ -77,15 +78,76 @@
 		if (Number.isFinite(n)) then(n);
 	}
 
-	/**
-	 * THE PANEL IS A `<form>` SO THAT ENTER IS THE PLATFORM'S OWN ACCEPT.
-	 * A keydown listener on a wrapping `<div>` is what the a11y rule refuses and
-	 * is also worse: implicit submission is what a browser already does with
-	 * Enter in a field, it works in every engine, and it needs no guard for the
-	 * case where the student is typing. ESCAPE is the console's, handled in
-	 * `BladeEditor` while this panel is open, because Escape is not a typing key
-	 * and the panel is not always where focus sits.
-	 */
+	function acceptAfter(update: () => void) {
+		update();
+		queueMicrotask(onaccept);
+	}
+
+	function remember(input: HTMLInputElement) {
+		input.dataset.startValue = input.value;
+	}
+
+	function commitNumber(input: HTMLInputElement, then: (n: number) => void) {
+		const raw = input.value;
+		if (raw.trim() === '') return;
+		const value = Number(raw);
+		if (!Number.isFinite(value)) return;
+		acceptAfter(() => then(value));
+		input.dataset.startValue = input.value;
+	}
+
+	function numberKey(e: KeyboardEvent, then: (n: number) => void) {
+		const input = e.currentTarget as HTMLInputElement;
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			e.stopPropagation();
+			commitNumber(input, then);
+			input.blur();
+		} else if (e.key === 'Escape') {
+			e.preventDefault();
+			e.stopPropagation();
+			input.value = input.dataset.startValue ?? input.defaultValue;
+			number({ currentTarget: input } as unknown as Event, then);
+			input.blur();
+		}
+	}
+
+	function scrub(e: PointerEvent, then: (n: number) => void) {
+		if (e.button !== 0 || readOnly) return;
+		const input = e.currentTarget as HTMLInputElement;
+		remember(input);
+		const startX = e.clientX;
+		const start = Number(input.value);
+		const step = Number(input.step) || 1;
+		let moved = false;
+		input.setPointerCapture(e.pointerId);
+		input.focus();
+		const move = (event: PointerEvent) => {
+			const dx = event.clientX - startX;
+			if (Math.abs(dx) < 3) return;
+			moved = true;
+			const fine = event.shiftKey ? 0.1 : 1;
+			const min = input.min === '' ? -Infinity : Number(input.min);
+			const max = input.max === '' ? Infinity : Number(input.max);
+			const value = Math.min(max, Math.max(min, start + dx * step * fine));
+			const decimals = Math.min(6, Math.max(0, (step.toString().split('.')[1] ?? '').length + (fine < 1 ? 1 : 0)));
+			input.value = String(Number(value.toFixed(decimals)));
+			then(Number(input.value));
+		};
+		const up = () => {
+			input.removeEventListener('pointermove', move);
+			input.removeEventListener('pointerup', up);
+			input.removeEventListener('pointercancel', up);
+			if (moved) commitNumber(input, then);
+		};
+		input.addEventListener('pointermove', move);
+		input.addEventListener('pointerup', up);
+		input.addEventListener('pointercancel', up);
+	}
+
+	/** The form preserves explicit Accept for structural edits. Numeric inputs
+	 * claim Enter and Escape themselves; Escape stops before the editor-wide
+	 * handler so reverting one field never discards unrelated structural work. */
 	function submit(e: SubmitEvent) {
 		e.preventDefault();
 		if (!readOnly) onaccept();
@@ -107,6 +169,7 @@
 				× <span>Cancel</span>
 			</button>
 		</div>
+		<p class="shortcut"><b>Drag</b> a number to adjust · <b>Shift-drag</b> fine · <b>Tab</b> next · <b>Enter</b> commit · <b>Esc</b> revert</p>
 		{#if reorderable}
 			<div class="reorder">
 				<button type="button" onclick={() => onmove(-1)} aria-disabled={!canMoveUp}>Move up</button>
@@ -121,16 +184,19 @@
 	{#each panel.fields as field (field.key)}
 		{#if field.kind === 'number'}
 			<label class="field">
-				<span class="lab">{field.label}{#if field.unit}<i>{field.unit}</i>{/if}</span>
-				<input
+				<span class="lab">{field.label}</span>
+				<span class="number-control"><input
 					type="number"
 					value={field.value}
 					min={field.min}
 					max={field.max}
 					step={field.step}
 					disabled={readOnly}
-					oninput={(e) => number(e, (n) => onfield(field.key, n))}
-				/>
+					onfocus={(e) => remember(e.currentTarget)}
+					onblur={(e) => commitNumber(e.currentTarget, (n) => onfield(field.key, n))}
+					onkeydown={(e) => numberKey(e, (n) => onfield(field.key, n))}
+					onpointerdown={(e) => scrub(e, (n) => onfield(field.key, n))}
+				/>{#if field.unit}<i>{field.unit}</i>{/if}</span>
 			</label>
 			{#if field.slider}
 				<input
@@ -143,6 +209,7 @@
 					disabled={readOnly}
 					aria-label={`${field.label} slider`}
 					oninput={(e) => number(e, (n) => onfield(field.key, n))}
+					onchange={() => queueMicrotask(onaccept)}
 				/>
 				<p class="range">{field.min} to {field.max}{#if field.unit}&nbsp;{field.unit}{/if}</p>
 			{/if}
@@ -152,7 +219,7 @@
 				<select
 					value={field.value}
 					disabled={readOnly}
-					onchange={(e) => onfield(field.key, e.currentTarget.value)}
+					onchange={(e) => acceptAfter(() => onfield(field.key, e.currentTarget.value))}
 				>
 					{#each field.options as option (option.value)}<option value={option.value}>{option.label}</option>{/each}
 				</select>
@@ -182,7 +249,10 @@
 									value={station.r}
 									disabled={readOnly}
 									aria-label={`Station ${i + 1} radius`}
-									oninput={(e) => number(e, (n) => onstation(i, 'r', n))}
+									onfocus={(e) => remember(e.currentTarget)}
+									onblur={(e) => commitNumber(e.currentTarget, (n) => onstation(i, 'r', n))}
+									onkeydown={(e) => numberKey(e, (n) => onstation(i, 'r', n))}
+									onpointerdown={(e) => scrub(e, (n) => onstation(i, 'r', n))}
 								/>
 							</td>
 							<td>
@@ -192,7 +262,10 @@
 									value={station.z}
 									disabled={readOnly}
 									aria-label={`Station ${i + 1} height`}
-									oninput={(e) => number(e, (n) => onstation(i, 'z', n))}
+									onfocus={(e) => remember(e.currentTarget)}
+									onblur={(e) => commitNumber(e.currentTarget, (n) => onstation(i, 'z', n))}
+									onkeydown={(e) => numberKey(e, (n) => onstation(i, 'z', n))}
+									onpointerdown={(e) => scrub(e, (n) => onstation(i, 'z', n))}
 								/>
 							</td>
 							<td class="acts">
@@ -295,12 +368,31 @@
 		width: 100%;
 		padding: 0 0.5rem;
 	}
+	.number-control {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 2.8rem;
+		align-items: center;
+		gap: 0.35rem;
+	}
+	.number-control input {
+		font-size: 1.15rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		text-align: right;
+		touch-action: none;
+		cursor: ew-resize;
+	}
+	.number-control i {
+		font: 12px 'Share Tech Mono', monospace;
+		font-style: normal;
+		color: var(--copper);
+		text-align: left;
+	}
 	.lab {
 		font: 12px 'Share Tech Mono', monospace;
 		letter-spacing: 0.08em;
 		color: var(--text-2);
 	}
-	.lab i,
 	.val i {
 		font-style: normal;
 		color: var(--copper);
@@ -315,11 +407,16 @@
 	}
 	.range,
 	.note,
-	.refusal {
+	.refusal,
+	.shortcut {
 		margin: 0.15rem 0 0.6rem;
 		font: 12px 'Share Tech Mono', monospace;
 		line-height: 1.5;
 		color: var(--text-2);
+	}
+	.shortcut b {
+		color: var(--text-1);
+		font-weight: 700;
 	}
 	.refusal {
 		color: var(--amber);
@@ -354,6 +451,12 @@
 		width: 100%;
 		min-width: 0;
 		padding: 0 0.3rem;
+		font-size: 1rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		text-align: right;
+		touch-action: none;
+		cursor: ew-resize;
 	}
 	.acts {
 		display: flex;
