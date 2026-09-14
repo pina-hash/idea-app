@@ -31,7 +31,7 @@ function refusal(result: BladeTreeOperationResult, code: string): string {
 describe('IdeaCAD feature-tree operations', () => {
 	it('enforces the stated station bounds at the model mutation boundary', () => {
 		let tree = cloneTree(DEFAULT_BLADE_TREE);
-		for (let count = 4; count <= 8; count += 1) {
+		for (let count = 5; count <= 8; count += 1) {
 			const body = tree.features.find((feature) => feature.type === 'revolve');
 			if (!body || body.type !== 'revolve') throw new Error('fixture needs a body');
 			const last = body.stations.at(-1)!;
@@ -40,6 +40,7 @@ describe('IdeaCAD feature-tree operations', () => {
 
 		let body = tree.features.find((feature) => feature.type === 'revolve');
 		if (!body || body.type !== 'revolve') throw new Error('fixture needs a body');
+		const bodyId = body.id;
 		expect(body.stations).toHaveLength(8);
 		expect(refusal(addBodyStation(tree, body.id, { r: 0.7, z: 4 }, 8), 'station-limit')).toContain(
 			'at most 8'
@@ -47,8 +48,8 @@ describe('IdeaCAD feature-tree operations', () => {
 		expect(body.stations).toHaveLength(8);
 
 		while (body.stations.length > 3) {
-			tree = success(removeBodyStation(tree, body.id, body.stations.length - 1));
-			const current = tree.features.find((feature) => feature.id === body.id);
+			tree = success(removeBodyStation(tree, bodyId, body.stations.length - 1));
+			const current = tree.features.find((feature) => feature.id === bodyId);
 			if (!current || current.type !== 'revolve') throw new Error('fixture needs a body');
 			body = current;
 		}
@@ -71,8 +72,8 @@ describe('IdeaCAD feature-tree operations', () => {
 		const added: BladeFeature = {
 			id: 'student-hex',
 			type: 'hexBoss',
-			acrossFlats: 0.45,
-			height: 0.4
+			acrossFlats: 0.5,
+			height: 0.5
 		};
 		let tree = success(addFeature(original, added, 2));
 		tree = success(renameFeature(tree, 'student-hex', 'Grip idea'));
