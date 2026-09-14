@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "ideacad-attach-role-teacher-state-on.mjs",
-	"date": "2026-09-13T20:17:36.324Z",
-	"sha": "c05f09fdc1147062b20379abbe74a66a7585b03a",
-	"dirty": false,
+	"date": "2026-09-14T07:33:51.410Z",
+	"sha": "b884daf26522e27dd0972ea8160b636b0e1ead0a",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 30,
 	"outsideRows": [],
-	"ms": 10374
+	"ms": 6093
 }

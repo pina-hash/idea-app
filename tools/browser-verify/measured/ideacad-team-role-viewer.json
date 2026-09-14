@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "ideacad-team-role-viewer.mjs",
-	"date": "2026-09-13T05:55:39.447Z",
-	"sha": "74a9fd753137afe0e6d5e6cc5800b93a284d86a5",
+	"date": "2026-09-14T07:33:51.410Z",
+	"sha": "b884daf26522e27dd0972ea8160b636b0e1ead0a",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 38,
 	"outsideRows": [],
-	"ms": 6419
+	"ms": 6093
 }

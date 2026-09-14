@@ -25,7 +25,14 @@
  * this is a student surface at every width. The station table's `+` and `−` are
  * the tightest cluster on the whole console and are the reason that matters.
  */
+import { IDEACAD_DRAWN } from './_ideacad-drawn.mjs';
+
+/* THE THREE "WAS ANYTHING ACTUALLY DRAWN" CHECKS (ledger 0247). Stated once in
+   `_ideacad-drawn.mjs` because they are properties of the Blade editor rather
+   than of this state; see that file for which routes take them and why. */
+
 export default {
+	...IDEACAD_DRAWN,
 	path: '/dev/ideacad?role=student&state=property',
 	label: 'IdeaCAD: the PropertyManager on the body, with its station table',
 	prepare: [

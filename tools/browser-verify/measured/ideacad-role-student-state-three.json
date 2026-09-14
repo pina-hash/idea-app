@@ -1,15 +1,64 @@
 {
 	"schema": 1,
 	"spec": "ideacad-role-student-state-three.mjs",
-	"date": "2026-09-13T05:55:39.447Z",
-	"sha": "74a9fd753137afe0e6d5e6cc5800b93a284d86a5",
+	"date": "2026-09-14T07:33:51.410Z",
+	"sha": "b884daf26522e27dd0972ea8160b636b0e1ead0a",
 	"dirty": true,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
-	"measurements": 26,
-	"outsideRows": [],
-	"ms": 6419
+	"measurements": 36,
+	"outsideRows": [
+		{
+			"path": "/dev/ideacad?role=student&state=three",
+			"width": 375,
+			"check": "tap-target",
+			"label": "a concept card"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=three",
+			"width": 375,
+			"check": "tap-target",
+			"label": "a concept strip control"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=three",
+			"width": 375,
+			"check": "presence",
+			"label": "the failing rule chip"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=three",
+			"width": 375,
+			"check": "presence",
+			"label": "the passing rule chips"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=three",
+			"width": 375,
+			"check": "distinguishable",
+			"label": "a readout label against its own value"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=three",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "a concept card"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=three",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "a concept strip control"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=three",
+			"width": 1440,
+			"check": "layout-sanity",
+			"label": "the IdeaCAD console"
+		}
+	],
+	"ms": 6093
 }
