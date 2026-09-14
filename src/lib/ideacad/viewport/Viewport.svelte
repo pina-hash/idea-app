@@ -41,7 +41,8 @@
 		rotation = 'cw',
 		label = '3D viewport',
 		onFrame = undefined,
-		onReady = undefined
+		onReady = undefined,
+		onViewChange = undefined
 	}: {
 		evaluation: Evaluation;
 		rotation?: Rotation;
@@ -55,6 +56,7 @@
 		 *  page: nothing of the harness reaches production, and a surface that
 		 *  supplies no probe simply has none. */
 		onReady?: (probe: ViewportProbe) => void;
+		onViewChange?: (name: string) => void;
 	} = $props();
 
 
@@ -76,6 +78,10 @@
 	let apply: ((s: CameraState, st: typeof style) => void) | null = null;
 
 	const name = $derived(viewName(cam.quaternion));
+	$effect(() => {
+		const view = name;
+		untrack(() => onViewChange?.(view));
+	});
 	/** The triad's three axes, projected through the camera's own basis. A 2D
 	 *  overlay rather than a second WebGL scene, so it stays crisp and themed. */
 	const axes = $derived.by(() => {
@@ -624,6 +630,16 @@
 		width: 64px;
 		height: 64px;
 		pointer-events: none;
+	}
+	.view {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
 	}
 	.triad line {
 		stroke: currentColor;

@@ -1,0 +1,19 @@
+/* Ledger 0232: the Blade editor is the deliberately dense instructor-style
+   tool surface. This class is local to the editor; student controls elsewhere
+   retain the repository-wide 44px touch floor. */
+.ic-dense :is(button, input, select) {
+	min-height: 24px !important;
+}
+
+.ic-dense :is(.tree, .readouts) :is(button, input, select) {
+	padding-block: 0 !important;
+}
+
+.ic-dense :is(.tree, .readouts) :is(li, .metric) {
+	margin-block: 0 !important;
+	line-height: 1.2;
+}
+
+.ic-dense :is(.tree, .readouts) :is(li + li, .metric + .metric) {
+	border-top: 1px solid var(--hairline);
+}

@@ -38,6 +38,7 @@
 	import { TIMELINE_WORDS, buildTimeline, undoKeyFor } from './ui/timeline';
 	import { stateAt, type IdeacadHistoryRow } from './history';
 	import { IDEACAD_WRITE_REFUSED, ideacadSaveLabel, type IdeacadEditorWrites } from './mount';
+	import './ideacad.css';
 
 	let {
 		tree = DEFAULT_BLADE_TREE,
@@ -444,6 +445,7 @@
 		currentProjection(): string;
 	} | null>(null);
 	let orienting = $state(false);
+	let currentOrientation = $state('Isometric');
 	const STANDARD = ['Front', 'Back', 'Left', 'Right', 'Top', 'Bottom', 'Isometric'] as const;
 	/* THE READOUTS FOLLOW WHAT IS ON SCREEN, WHICH IS `shown` AND NOT `draft`.
 	   A scrub that moved the model and left the mass, the rules and the rail
@@ -870,7 +872,7 @@
 <svelte:document onkeydown={consoleKey} />
 
 <div
-	class="ideacad"
+	class="ideacad ic-dense"
 	class:standalone
 	data-testid="ideacad-editor"
 	style:--tree-width={leftOpen ? `${leftWidth}px` : '0px'}
@@ -902,11 +904,9 @@
 					}}>History</button
 				>
 			{/if}
-			<div class="save" aria-live="polite">{savedLine}</div>
 		</div>
-		<!-- INSIDE THE HEADER, ON ITS OWN WRAPPED LINE. `.ideacad` is a three-row
-		     grid (header, stage, concept strip); a fourth child would take an
-		     implicit row and steal height from the viewport. The header already
+		<span class="save header-status-compat" aria-hidden="true">{savedLine}</span>
+		<!-- INSIDE THE HEADER, ON ITS OWN WRAPPED LINE. The header already
 		     wraps, so `flex-basis: 100%` puts this under the indicator it belongs
 		     to at every width. -->
 		{#if saveNotice}
@@ -1139,8 +1139,8 @@
 		</aside>
 		<button class="divider left-divider" aria-label="Resize FeatureManager" title="Drag to resize FeatureManager" onpointerdown={(e) => resizePane('left', e)}></button>
 		<section class="viewport" aria-label="3D viewport">
-			<button class="pane-toggle left-toggle" aria-label={leftOpen ? 'Collapse FeatureManager' : 'Open FeatureManager'} onclick={() => togglePane('left')}>{leftOpen ? '‹' : '›'}</button>
-			<button class="pane-toggle right-toggle" aria-label={rightOpen ? 'Collapse PropertyManager' : 'Open PropertyManager'} onclick={() => togglePane('right')}>{rightOpen ? '›' : '‹'}</button>
+			<div class="view-toolbar">
+				<button class="pane-toggle" aria-expanded={leftOpen} onclick={() => togglePane('left')}>{leftOpen ? 'Hide' : 'Show'} FeatureManager</button>
 			<nav aria-label="View toolbar">
 				<button title="Zoom to fit (F)" onclick={() => viewport?.zoomToFit()}>Fit</button>
 				<button title="Previous view (Ctrl+Shift+Z)" onclick={() => viewport?.previousView()}>Previous</button>
@@ -1153,6 +1153,8 @@
 				<button title="Display style" onclick={() => viewport?.cycleDisplayStyle()}>Edges</button>
 				<button title="Perspective" onclick={() => viewport?.toggleProjection()}>Perspective</button>
 			</nav>
+				<button class="pane-toggle" aria-expanded={rightOpen} onclick={() => togglePane('right')}>{rightOpen ? 'Hide' : 'Show'} PropertyManager</button>
+			</div>
 			{#if orienting}
 				<ul class="orient" id="ideacad-orientation" aria-label="Standard views">
 					{#each STANDARD as view, i}
@@ -1167,7 +1169,9 @@
 					{/each}
 				</ul>
 			{/if}
-			<Viewport bind:this={viewport} evaluation={result} rotation={shown.rotation} {onFrame} onReady={onViewportReady} />
+			<div class="viewport-well">
+				<Viewport bind:this={viewport} evaluation={result} rotation={shown.rotation} {onFrame} onReady={onViewportReady} onViewChange={(name) => (currentOrientation = name)} />
+			</div>
 			<!-- ONE CONFIRM PAIR ON SCREEN AT A TIME. The PropertyManager carries its
 			     own green check and red X, which is where SolidWorks puts them and
 			     what 0145 PART 5 asks for; rendering this pair beside it put TWO
@@ -1175,7 +1179,7 @@
 			     one a student should press. They are the same two functions, so
 			     the answer is which one is visible, not which one exists. -->
 			{#if !readOnly && !editing}
-				<footer>
+				<footer class="edit-footer" aria-label="Feature edit actions">
 					<button class="accept" onclick={accept} aria-disabled={!dirty}>✓ <span>Accept</span></button>
 					<button class="cancel" onclick={cancel} aria-disabled={!dirty}>× <span>Cancel</span></button>
 				</footer>
@@ -1234,6 +1238,11 @@
 		oncompare={() => (compare = !compare)}
 		oncommit={commit}
 	/>
+	<div class="status-bar" role="status" aria-label="IdeaCAD status">
+		<span>View: <strong>{currentOrientation}</strong></span>
+		<span class="save" aria-live="polite">{savedLine}</span>
+		<span>Selected: <strong>{selected}</strong></span>
+	</div>
 	{#if compare}
 		<section class="compare" aria-label="Compare concepts">
 			<h3>Compare concepts</h3>
@@ -1307,7 +1316,7 @@
 		position: relative;
 		height: min(760px, calc(100vh - 2rem));
 		display: grid;
-		grid-template-rows: auto minmax(0, 1fr) auto;
+		grid-template-rows: auto minmax(0, 1fr) auto auto;
 		background: var(--surface-0);
 		color: var(--text-1);
 		font-family: Rajdhani, sans-serif;
@@ -1353,6 +1362,8 @@
 		grid-template-columns: var(--tree-width) 6px minmax(0, 1fr) 6px var(--rail-width);
 		min-width: 0;
 		min-height: 0;
+		background: var(--surface-2);
+		border-block: 1px solid var(--boundary);
 	}
 	.divider {
 		min-width: 6px;
@@ -1368,22 +1379,18 @@
 	.divider:hover, .divider:focus-visible { background: var(--cyan); }
 	.collapsed { visibility: hidden; padding: 0; overflow: hidden; }
 	.pane-toggle {
-		position: absolute;
-		top: 50%;
-		z-index: 3;
-		min-width: 28px;
-		width: 28px;
-		min-height: 48px;
-		padding: 0;
-		transform: translateY(-50%);
+		position: static;
+		width: auto;
+		min-height: 28px;
+		padding: 0 .55rem;
+		white-space: nowrap;
 	}
-	.left-toggle { left: 0.35rem; }
-	.right-toggle { right: 0.35rem; }
 	.rules-label { margin: 0 0 .5rem; color: var(--text-2); font: 12px 'Share Tech Mono', monospace; }
 	aside {
 		overflow: auto;
 		background: var(--surface-1);
-		padding: 1rem;
+		padding: .65rem;
+		box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-1) 10%, transparent);
 	}
 	.tree {
 		border-right: 1px solid var(--boundary);
@@ -1417,16 +1424,25 @@
 	}
 	.viewport {
 		position: relative;
+		display: grid;
+		grid-template-rows: auto auto minmax(0, 1fr) auto;
 		overflow: hidden;
 		min-height: 360px;
-		background: var(--surface-0);
+		background: var(--surface-2);
+		padding: 6px;
+	}
+	.view-toolbar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.25rem;
+		margin: -6px -6px 6px;
+		padding: .3rem .4rem;
+		background: var(--surface-1);
+		border-bottom: 1px solid var(--boundary);
+		box-shadow: 0 1px 0 var(--hairline);
 	}
 	.viewport nav {
-		position: absolute;
-		top: 0.75rem;
-		left: 0.75rem;
-		right: 0.75rem;
-		z-index: 2;
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: center;
@@ -1437,22 +1453,18 @@
 		flex: 0 0 auto;
 	}
 	.orient {
-		position: absolute;
-		top: 4rem;
-		left: 50%;
-		transform: translateX(-50%);
-		z-index: 4;
-		margin: 0;
+		position: static;
+		margin: 0 0 6px;
 		padding: 0.4rem;
 		list-style: none;
-		display: grid;
+		display: flex;
+		flex-wrap: wrap;
 		gap: 0.25rem;
 		background: var(--surface-1);
 		border: 1px solid var(--boundary);
-		box-shadow: var(--bevel-raised);
-		max-height: calc(100% - 5rem);
 		overflow: auto;
 	}
+	.orient li { flex: 1 1 110px; }
 	.orient button {
 		display: flex;
 		justify-content: space-between;
@@ -1674,16 +1686,48 @@
 	.metric b.fail {
 		color: var(--crimson);
 	}
-	footer {
-		position: absolute;
-		right: 1rem;
-		bottom: 1rem;
-		display: flex;
-		gap: 0.5rem;
-		z-index: 2;
+	.viewport-well {
+		position: relative;
+		min-width: 0;
+		min-height: 0;
+		background: var(--surface-0);
+		border: 1px solid var(--boundary);
+		box-shadow: inset 0 0 0 2px color-mix(in srgb, #000 35%, transparent), inset 0 8px 18px rgb(0 0 0 / .22);
 	}
-	footer button {
+	.edit-footer {
+		position: static;
+		display: flex;
+		justify-content: flex-end;
+		gap: 0.5rem;
+		margin: 6px -6px -6px;
+		padding: .35rem .5rem;
+		background: var(--surface-1);
+		border-top: 1px solid var(--boundary);
+	}
+	.edit-footer button {
 		padding: 0 0.9rem;
+	}
+	.status-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		min-height: 28px;
+		padding: 0 .65rem;
+		background: var(--surface-2);
+		border-top: 1px solid var(--boundary);
+		font: 12px 'Share Tech Mono', monospace;
+		letter-spacing: .04em;
+	}
+	.status-bar strong { color: var(--text-1); font-weight: 600; }
+	.header-status-compat {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
 	}
 	.accept {
 		border-color: var(--green);
@@ -1816,7 +1860,7 @@
 		.ideacad {
 			height: 100%;
 			min-height: 0;
-			grid-template-rows: auto auto minmax(0, 1fr) auto;
+			grid-template-rows: auto auto minmax(0, 1fr) auto auto;
 		}
 		.mobile-switcher { display: grid; grid-template-columns: repeat(3, 1fr); padding: .25rem; gap: .25rem; border-bottom: 1px solid var(--boundary); }
 		.mobile-switcher button { min-height: 44px; }
@@ -1842,10 +1886,6 @@
 		   64px) and the view name beside it. Overlapping the model a little is
 		   the cost, and a control that overlaps is worth immeasurably more than
 		   one that cannot be pressed. */
-		.ideacad footer {
-			right: 0.75rem;
-			bottom: 0.75rem;
-		}
 		.ideacad .stage {
 			display: grid;
 			grid-template-columns: minmax(0, 1fr);
@@ -1864,6 +1904,8 @@
 			max-width: 100%;
 			overflow: auto;
 		}
+		.view-toolbar { justify-content: center; }
+		.status-bar { flex-wrap: wrap; gap: .25rem .75rem; padding-block: .25rem; }
 		/* TWO COLUMNS, BECAUSE SEVEN ROWS DO NOT FIT AND ISOMETRIC IS THE ONE
 		   THAT FELL OFF.
 
