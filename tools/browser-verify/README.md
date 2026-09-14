@@ -434,6 +434,43 @@ threshold exists it is printed beside the measurement, never instead of it.
 | `order-result` | An array a page-side action wrote (a dev transport's own call log), compared element-for-element against what it should have written -- for a claim about a WRITE, where a fixture backed by static data never re-renders to prove it on screen. A non-array on either side is refused IN WORDS, never as a silent red |
 | `motion` | Per ELEMENT, in BOTH media states: how many elements animate under `no-preference`, and how many are still moving, still transformed or unpainted under `reduce`, plus the lowest resting opacity in the set |
 | `console-errors` | Console errors and uncaught exceptions during the run |
+| `canvas-content` | The pixels actually in a `<canvas>`: its dominant colour and that colour's share, the fraction of sampled pixels off it, and how many distinct colours there are -- the question every other check on this page answers "fine" to over a blank viewport |
+| `layout-sanity` | Four claims in one sweep over the interactive population: zero-box elements, elements outside the DOCUMENT's own extent, elements overlapping a named reserved region, and text clipped by a container that hides its overflow -- each with its own count, and the deliberate shapes (ellipsised, visually hidden, scrolled out of a scroller) reported separately rather than folded in |
+| `distinguishable` | Whether two elements that must READ differently actually differ, in font size, font weight or ink -- with all three deltas printed whichever one carried it |
+
+**The last three are ledger 0247's, and they exist because of a measured
+false green.** On 2026-09-14 the IdeaCAD 3D viewport was a canvas measuring
+912.0 x 0.0 whose drawing buffer was 1368 x 1, on every editor route at both
+widths -- a completely black viewport -- and the route's own presence, contrast,
+tap-target and text-contains rows were all green over it. "Present, visible,
+large enough, readable" is a claim about a BOX, and a box can be perfect over
+nothing at all. Three details of their own:
+
+- **The canvas readback needs `preserveDrawingBuffer`, and the harness forces
+  it.** `Viewport.svelte` builds its renderer with the WebGL default of
+  `preserveDrawingBuffer: false`, so the drawing buffer is thrown away the
+  instant the frame is composited and `gl.readPixels` afterwards reads a cleared
+  one. Measured on a fixture whose triangle is known to be drawn: 120000 pixels,
+  **1** distinct colour, `rgb(0, 0, 0)`. `installCanvasReadback` patches
+  `HTMLCanvasElement.prototype.getContext` before any page script runs;
+  `run.mjs` calls it for a spec carrying `canvasContent` and nothing else pays
+  for it. Where that install has to happen was measured too, and the obvious
+  spelling does not work -- an init script does NOT run for `page.setContent` in
+  this playwright-core, and `context.addInitScript` does not fix it, so the
+  helper navigates to `about:blank` itself. **If the hook is missing the check
+  says so in words rather than reporting the blank buffer it would otherwise
+  get**, because a plausible blank is not investigated and a false red is.
+- **The dominant colour is DERIVED, never declared.** Nobody tells the check
+  what a viewport's clear colour is, and it does not need telling: the single
+  most common exact RGB value is the ground, and the question becomes "is this
+  uniform", which is the defect. A cleared canvas is one colour at 100% whatever
+  that colour is.
+- **"Outside the viewport" is asked of the DOCUMENT.** A
+  `getBoundingClientRect().top >= innerHeight` reading is what every element
+  below the fold of a scrolling page returns, so that spelling is a page-length
+  detector rather than a check. And a zero-size box is never also counted as
+  offscreen: the three 0x0 pane tabs sit at (0,0), where the naive test reports
+  three offscreen elements that are nothing of the kind.
 
 Three details are deliberate:
 
@@ -790,6 +827,40 @@ green, which is the property that makes it worth anything.
 | `console-error` | `console-errors` |
 | `blank-text` | `text-contains` |
 | `motion` | `motion` |
+| `blank-canvas` | `canvas-content` |
+| `zero-box` | `layout-sanity` |
+| `same-style` | `distinguishable` |
+
+**`blank-canvas` DOES TWO THINGS AND NEEDS BOTH, which is a measurement about
+the surface rather than belt and braces.** No-oping `drawArrays`/`drawElements`
+covers a surface that renders again after the injection -- `/dev/ideacad`'s
+prepare drives 300 real frames through the renderer, and without the patch they
+would simply redraw the model. Clearing the live buffer covers the other
+fourteen editor routes, and is the half that is easy to leave out:
+`Viewport.svelte`'s own header says "RENDER ON DEMAND. There is no animation
+loop", so on a route whose prepare drives no frames NOTHING redraws after the
+injection, and with `preserveDrawingBuffer` forced on by the readback hook the
+frame drawn before it is still sitting there -- the patched draw calls would
+never run, the readback would find the model, and the control would come back
+green while proving nothing. It clears to the context's OWN current clear
+colour, so what is left is exactly the defect rather than a colour of the
+harness's choosing.
+
+**A LIVE CONTROL CANNOT SHOW GREEN-TO-RED ON A SURFACE THAT IS ALREADY RED, AND
+ON 2026-09-14 TWO OF THESE THREE WERE.** `same-style` is a clean transition:
+all three `distinguishable` rows on `/dev/ideacad?role=teacher&state=property`
+at 1440 go from distinguished to `INDISTINGUISHABLE on all three axes`.
+`zero-box` cannot, because the surface already has four zero-box elements, so
+what it demonstrates is the count moving 4 to 9 with the five newly-zeroed
+controls named by their own text. `blank-canvas` cannot either, because
+`canvas-content` short-circuits on the canvas's zero CSS box before it ever
+reads a pixel. Its green-to-red was taken on the real renderer instead, by
+propping the collapsed pane to 431px in a scratch script and pressing the
+surface's own Fit control: 19.09% of pixels off the dominant colour over 11,110
+distinct colours (WITHIN), then 0.00% over 1 colour with the preset applied
+(OUTSIDE). **Once the pane is fixed, run `--break blank-canvas` on the real
+route and the transition is available there** -- this paragraph describes the
+tree of 2026-09-14 and is worth deleting the day it stops being true.
 
 **`blank-text` names the compliance footers rather than sweeping the
 document**, and that is deliberate: blanking every element would redden
@@ -969,6 +1040,7 @@ change, not the harness.
 | `browser.mjs` | Executable resolution, launch, `waitForApp`, `clickUntil`, external-request blocking |
 | `server.mjs` | Boots and stops `vite dev`, handing the placeholder public env to the **child process** so no `.env` is written to the repo |
 | `checks.mjs` | The six checks and the in-page colour/visibility helpers |
+| `checks-visual.mjs` | `canvas-content`, `layout-sanity` and `distinguishable` -- the three checks that ask whether anything was actually DRAWN, plus the canvas readback hook. Its own file rather than the bottom of `checks.mjs` for the reason `routes/` is a directory: a file every lane appends to at one closing brace is a shared write point |
 | `routes.mjs` | Assembles the route table from `routes/`; read it first |
 | `routes/` | One file per route spec -- what is measured on each. See `routes/README.md` before adding one |
 | `routes/_tools/verify-loader-guards.mjs` | Negative controls for `routes.mjs`'s two load-time refusals (`node tools/browser-verify/routes/_tools/verify-loader-guards.mjs`) -- no browser needed |

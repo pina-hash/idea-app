@@ -5,7 +5,8 @@
  *   npm run verify:browser                 both widths, every listed dev route
  *   npm run verify:browser -- --probe      environment capability probe only
  *   npm run verify:browser -- --selftest   negative controls (exits 1 if a check is broken)
- *   npm run verify:browser -- --break overflow|tiny-taps|low-contrast|invisible|console-error|blank-text|motion
+ *   npm run verify:browser -- --break overflow|tiny-taps|low-contrast|invisible|console-error|blank-text|motion|
+ *                                        blank-canvas|zero-box|same-style
  *                                          inject that defect into the REAL page and confirm the
  *                                          matching check reddens on this surface
  *   npm run verify:browser -- --route pathways --route spec-table
@@ -38,6 +39,7 @@ import {
 	prepareWaitResult,
 	prepareEvalResult
 } from './checks.mjs';
+import { canvasContent, layoutSanity, distinguishable, installCanvasReadback } from './checks-visual.mjs';
 import { probeEnvironment } from './probe.mjs';
 import { runSelfTest } from './selftest.mjs';
 import { WIDTHS, selectRoutes, urlFor } from './routes.mjs';
@@ -98,7 +100,65 @@ export const BREAKAGE = {
 	},
 	/* Not CSS: a thrown error, which is how the notebook bundle's real
 	   state_unsafe_mutation surfaced -- silently, with dead click handlers. */
-	'console-error': { js: 'throw new Error("state_unsafe_mutation (injected by --break console-error)")' }
+	'console-error': { js: 'throw new Error("state_unsafe_mutation (injected by --break console-error)")' },
+	/* The live control for `canvasContent`. IT DOES TWO THINGS AND NEEDS BOTH,
+	   which is a measurement about the surface rather than belt and braces.
+
+	   No-oping `drawArrays`/`drawElements` covers a surface that renders again
+	   after the injection -- `/dev/ideacad`'s prepare drives 300 real frames
+	   through the renderer, and without the patch they would simply redraw the
+	   model. Both prototypes are patched: a WebGL2 context does not inherit
+	   from `WebGLRenderingContext`.
+
+	   Clearing the live buffer covers the other fourteen editor routes, and is
+	   the half that is easy to leave out. `Viewport.svelte`'s own header says
+	   "RENDER ON DEMAND. There is no animation loop", so on a route whose
+	   prepare drives no frames NOTHING redraws after the injection -- and with
+	   `preserveDrawingBuffer` forced on by the readback hook, the frame drawn
+	   before the injection is still sitting there. The patched draw calls would
+	   never run, the readback would find the model, and the control would come
+	   back green while proving nothing.
+
+	   It clears to the context's OWN current clear colour, so what is left is
+	   exactly the defect and not a colour of the harness's choosing: a canvas of
+	   one flat colour, present, visible, correctly sized, with a live context
+	   and a real backing store. */
+	'blank-canvas': {
+		js: `for (const proto of [window.WebGLRenderingContext && WebGLRenderingContext.prototype, window.WebGL2RenderingContext && WebGL2RenderingContext.prototype]) {
+			if (!proto) continue;
+			for (const m of ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced', 'drawRangeElements']) {
+				if (proto[m]) proto[m] = function () {};
+			}
+		}
+		for (const cv of document.querySelectorAll('canvas')) {
+			const gl = cv.getContext('webgl2') || cv.getContext('webgl');
+			if (!gl) continue;
+			const bound = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+			if (bound) gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+			const c = gl.getParameter(gl.COLOR_CLEAR_VALUE);
+			gl.clearColor(c[0], c[1], c[2], c[3]);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			if (bound) gl.bindFramebuffer(gl.FRAMEBUFFER, bound);
+		}`
+	},
+	/* The live control for `layoutSanity`'s zero-box claim. `:first-of-type`
+	   rather than a named IdeaCAD selector so the preset injects a real defect
+	   on ANY surface with a button -- a preset that matches nothing on the route
+	   being driven reports a clean run and is indistinguishable from a working
+	   check, which is the measured mistake `overflow` and `invisible` both made.
+	   The padding and border are zeroed with the width because a button with
+	   either one still measures wider than nothing. */
+	'zero-box': 'button:first-of-type { width: 0 !important; min-width: 0 !important; padding-inline: 0 !important; border-inline-width: 0 !important; }',
+	/* The live control for `distinguishable`. It NAMES the elements the IdeaCAD
+	   pairs are drawn from rather than sweeping the document, for `blank-text`'s
+	   reason: flattening every font size and weight on the page would move every
+	   tap-target box and every contrast ground with it, and a preset that
+	   reddens everything proves nothing about the one check under test. All
+	   three deciding axes are equalised at once, because a pair passes on ANY
+	   one of them and leaving one alone would leave the pair distinguishable. */
+	'same-style':
+		'.readouts .metric span, .readouts .metric strong, .readouts .metric b, .status-bar span, .status-bar strong, .eyebrow, .save' +
+		' { font-size: 12px !important; font-weight: 400 !important; color: rgb(231, 234, 232) !important; }'
 };
 
 function parseArgs(argv) {
@@ -171,6 +231,24 @@ function printDetail(r, indent = '        ') {
 	   the label line and never truncated here. */
 	if (r.check === 'prepare-eval' && r.data?.until) {
 		console.log(`${indent}until: ${r.data.until}`);
+	}
+	if (r.check === 'canvas-content' && r.data?.results === undefined) {
+		/* The reasons an invisible canvas gave, when that is what carried it. */
+		for (const why of r.data?.reasons ?? []) console.log(`${indent}not visible: ${why}`);
+	}
+	if (r.check === 'layout-sanity') {
+		const bucket = (name, rows, counted) => {
+			for (const row of rows.slice(0, 8)) console.log(`${indent}${name}${counted ? '' : ' (reported, not counted)'}: ${row}`);
+			if (rows.length > 8) console.log(`${indent}${name}: ... and ${rows.length - 8} more`);
+		};
+		if (r.data?.reservedMissing) console.log(`${indent}the reserved region (${r.data.reservedLabel}) MATCHED NOTHING -- "nothing overlaps it" is vacuous`);
+		bucket('zero-box', r.data?.zeroBox ?? [], true);
+		bucket('outside the document', r.data?.offscreen ?? [], true);
+		bucket('overlapping', r.data?.overlap ?? [], true);
+		bucket('clipped', r.data?.clipped ?? [], true);
+		bucket('scrolled out of a scroller', r.data?.inScroller ?? [], false);
+		bucket('ellipsised', r.data?.ellipsised ?? [], false);
+		bucket('visually hidden', r.data?.visuallyHidden ?? [], false);
 	}
 	if (r.check === 'console-errors') {
 		for (const e of r.data.errors) console.log(`${indent}[${e.type}] ${e.text.split('\n')[0].slice(0, 200)}`);
@@ -321,6 +399,14 @@ async function runRoute(browser, origin, spec, width, opts) {
 	   deliberate defect the operator asked for, not a step that can fail. */
 	const prepared = [];
 	try {
+		/* THE CANVAS READBACK HOOK GOES IN BEFORE THE FIRST NAVIGATION, AND ONLY
+		   FOR A SPEC THAT ASKS FOR IT. It forces `preserveDrawingBuffer` on, so
+		   a WebGL buffer can still be read after compositing (see
+		   `checks-visual.mjs` for the measurement that makes it necessary); an
+		   init script does not apply retroactively, so there is no later point
+		   at which this could be done. Gated on the spec so no route that never
+		   reads a canvas pays for a renderer attribute it did not ask for. */
+		if ((spec.canvasContent ?? []).length) await installCanvasReadback(page);
 		const res = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 		navStatus = res ? res.status() : null;
 		hydration = await waitForApp(page);
@@ -427,6 +513,13 @@ async function runRoute(browser, origin, spec, width, opts) {
 		for (const o of spec.orderResult ?? []) results.push(await orderResult(page, o));
 		for (const d of spec.datalistOrder ?? []) results.push(await datalistOrder(page, d));
 		for (const s of spec.statePairs ?? []) results.push(await statePairContrast(page, s));
+		/* THE THREE CHECKS THAT ASK WHETHER ANYTHING WAS DRAWN (checks-visual.mjs).
+		   They run after everything above because two of them read boxes the
+		   prepare steps put in place, and `canvasContent` wants the last frame
+		   the surface issued rather than the first. */
+		for (const c of spec.canvasContent ?? []) results.push(await canvasContent(page, c));
+		for (const l of spec.layoutSanity ?? []) results.push(await layoutSanity(page, l));
+		for (const d of spec.distinguishable ?? []) results.push(await distinguishable(page, d));
 		/* ONE call for every motion entry, not one per entry: the check flips
 		   Chromium's `prefers-reduced-motion` emulation and settles twice, and
 		   eleven marks measured separately would pay twenty-two settles per

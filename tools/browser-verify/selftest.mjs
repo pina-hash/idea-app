@@ -43,11 +43,50 @@ import {
 	prepareWaitResult,
 	prepareEvalResult
 } from './checks.mjs';
+import { canvasContent, layoutSanity, distinguishable, installCanvasReadback } from './checks-visual.mjs';
 
 const shell = (body, head = '') =>
 	`<!doctype html><html><head><meta name="viewport" content="width=device-width"><style>
     html,body{margin:0;padding:0;background:#0a0c0b;color:#eae6d8;font:16px/1.4 sans-serif}
     ${head}</style></head><body>${body}</body></html>`;
+
+/**
+ * A REAL WebGL CANVAS, drawn or merely cleared, for `canvasContent`.
+ *
+ * It asks for NO context attributes at all, so `preserveDrawingBuffer` is the
+ * WebGL default of false -- exactly as
+ * `src/lib/ideacad/viewport/Viewport.svelte` builds its renderer. The fixture
+ * must be in the same shape as the real thing or the hook it is proving is
+ * never exercised.
+ *
+ * The shader paints a GRADIENT rather than a flat fill, because a lit mesh does
+ * and a flat one would not exercise the distinct-colour term. It redraws on
+ * every frame, so the reading is of a live surface rather than of one frame
+ * that happened to survive.
+ */
+const glShell = (draw) =>
+	shell(
+		'<canvas id="c" width="400" height="300" style="width:400px;height:300px"></canvas>' +
+			'<script>(() => {' +
+			'const cv = document.getElementById("c");' +
+			'const gl = cv.getContext("webgl2") || cv.getContext("webgl");' +
+			'if (!gl) return;' +
+			'const vs = gl.createShader(gl.VERTEX_SHADER);' +
+			'gl.shaderSource(vs, "attribute vec2 p; varying vec2 v; void main(){ v = p; gl_Position = vec4(p, 0.0, 1.0); }");' +
+			'gl.compileShader(vs);' +
+			'const fs = gl.createShader(gl.FRAGMENT_SHADER);' +
+			'gl.shaderSource(fs, "precision mediump float; varying vec2 v; void main(){ gl_FragColor = vec4(0.35 + 0.5 * v.x, 0.6 + 0.3 * v.y, 0.4, 1.0); }");' +
+			'gl.compileShader(fs);' +
+			'const pr = gl.createProgram(); gl.attachShader(pr, vs); gl.attachShader(pr, fs); gl.linkProgram(pr); gl.useProgram(pr);' +
+			'const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);' +
+			'gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-0.7, -0.6, 0.7, -0.6, 0.0, 0.75]), gl.STATIC_DRAW);' +
+			'const loc = gl.getAttribLocation(pr, "p"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);' +
+			'const draw = ' + (draw ? 'true' : 'false') + ';' +
+			'(function frame(){ gl.clearColor(0.039, 0.047, 0.043, 1); gl.clear(gl.COLOR_BUFFER_BIT);' +
+			'if (draw) gl.drawArrays(gl.TRIANGLES, 0, 3); requestAnimationFrame(frame); })();' +
+			'})()</' +
+			'script>'
+	);
 
 /* Each case: what to load, which check to run, and which way it must come out. */
 const CASES = [
@@ -1046,12 +1085,314 @@ const CASES = [
 			run: (p, errs) => consoleErrors(errs),
 			expect: 'within'
 		}
+	},
+	/* ------------------------------------------------------------------ *
+	 * THE THREE CHECKS THAT ASK WHETHER ANYTHING WAS DRAWN (checks-visual.mjs).
+	 *
+	 * Each claim gets its OWN group rather than one group per check, because a
+	 * check with four sub-claims and one pair of fixtures proves whichever
+	 * sub-claim the fixture happens to move and says nothing about the other
+	 * three. `layoutSanity` therefore has five pairs and `distinguishable` four.
+	 * ------------------------------------------------------------------ */
+	{
+		group: 'canvas-content (a cleared canvas vs a drawn one)',
+		bad: {
+			name: 'a WebGL canvas that is cleared and never drawn into',
+			canvasReadback: true,
+			html: glShell(false),
+			run: (p) => canvasContent(p, { selector: '#c', label: 'the fixture canvas' }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same canvas with a shaded triangle in it',
+			canvasReadback: true,
+			html: glShell(true),
+			run: (p) => canvasContent(p, { selector: '#c', label: 'the fixture canvas' }),
+			expect: 'within'
+		}
+	},
+	{
+		/*
+			THE CHECK'S OWN DEPENDENCY, PROVED. With `preserveDrawingBuffer`
+			off, `gl.readPixels` after compositing reads a buffer the browser
+			has already thrown away -- MEASURED at 120000 pixels, 1 distinct
+			colour, rgb(0, 0, 0), over a canvas that was visibly painting. So
+			the identical DRAWN fixture, run without the hook, must come out
+			OUTSIDE and must say WHY. Without this control the check's blank
+			reading and a genuinely blank canvas are the same sentence.
+
+			The `assert` is the half that matters: `outside` alone would also
+			be satisfied by the check simply reporting an empty buffer, which
+			is the failure mode under test.
+		*/
+		group: 'canvas-content (the readback hook is a prerequisite, and its absence is said out loud)',
+		bad: {
+			name: 'the DRAWN canvas read with no readback hook installed',
+			html: glShell(true),
+			run: (p) => canvasContent(p, { selector: '#c', label: 'the fixture canvas' }),
+			expect: 'outside',
+			assert: (r) =>
+				/readback hook was NOT installed/.test(r.measured) ? null : `expected the missing-hook reason, got: ${r.measured}`
+		},
+		good: {
+			name: 'the same drawn canvas with the hook installed',
+			canvasReadback: true,
+			html: glShell(true),
+			run: (p) => canvasContent(p, { selector: '#c', label: 'the fixture canvas' }),
+			expect: 'within'
+		}
+	},
+	{
+		group: 'canvas-content (a selector that is not a canvas is a FAILURE, never a vacuous pass)',
+		bad: {
+			name: 'a <div> where a canvas was asked for',
+			canvasReadback: true,
+			html: shell('<div id="c" style="width:200px;height:100px;background:#123"></div>'),
+			run: (p) => canvasContent(p, { selector: '#c', label: 'not a canvas' }),
+			expect: 'outside',
+			assert: (r) => (/not a <canvas>/.test(r.measured) ? null : `expected the not-a-canvas reason, got: ${r.measured}`)
+		},
+		good: {
+			name: 'a drawn canvas at the same selector',
+			canvasReadback: true,
+			html: glShell(true),
+			run: (p) => canvasContent(p, { selector: '#c', label: 'the fixture canvas' }),
+			expect: 'within'
+		}
+	},
+	{
+		group: 'layout-sanity (a zero-width control)',
+		bad: {
+			name: 'a button zeroed to 0x44',
+			html: shell('<div id="r"><button style="width:0;min-width:0;padding:0;border:0;height:44px">go</button></div>'),
+			run: (p) => layoutSanity(p, { root: '#r', label: 'the fixture', checkClippedText: false }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same button at 44x44',
+			html: shell('<div id="r"><button style="width:44px;height:44px;padding:0">go</button></div>'),
+			run: (p) => layoutSanity(p, { root: '#r', label: 'the fixture', checkClippedText: false }),
+			expect: 'within'
+		}
+	},
+	{
+		/*
+			A `display: none` CONTROL IS NOT A ZERO BOX, and this pair is what
+			stops the check saying it is. The collapsed FeatureManager stations
+			on the real surface are exactly this shape, and a check that counted
+			them would report eight findings on a correct tree.
+		*/
+		group: 'layout-sanity (a control the page does not render is skipped, not counted)',
+		bad: {
+			name: 'a rendered 0x0 control beside a display:none one',
+			html: shell(
+				'<div id="r"><button style="display:none">hidden</button><button style="width:0;height:0;padding:0;border:0">go</button></div>'
+			),
+			run: (p) => layoutSanity(p, { root: '#r', label: 'the fixture', checkClippedText: false }),
+			expect: 'outside',
+			assert: (r) => (r.data.skipped === 1 ? null : `expected 1 skipped, got ${r.data.skipped}`)
+		},
+		good: {
+			name: 'the display:none control alone, beside a sound one',
+			html: shell(
+				'<div id="r"><button style="display:none">hidden</button><button style="width:44px;height:44px;padding:0">go</button></div>'
+			),
+			run: (p) => layoutSanity(p, { root: '#r', label: 'the fixture', checkClippedText: false }),
+			expect: 'within',
+			assert: (r) => (r.data.skipped === 1 ? null : `expected 1 skipped, got ${r.data.skipped}`)
+		}
+	},
+	{
+		group: 'layout-sanity (a control parked outside the document)',
+		bad: {
+			name: 'a 44x44 button at left:-800px',
+			html: shell('<div id="r" style="position:relative"><button style="position:absolute;left:-800px;top:0;width:44px;height:44px">go</button></div>'),
+			run: (p) => layoutSanity(p, { root: '#r', label: 'the fixture', checkClippedText: false }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same button inside a horizontal scroller, which can reach it',
+			html: shell(
+				'<div id="r" style="width:120px;overflow-x:auto"><div style="width:900px;position:relative;height:60px">' +
+					'<button style="position:absolute;left:800px;top:0;width:44px;height:44px">go</button></div></div>'
+			),
+			run: (p) => layoutSanity(p, { root: '#r', label: 'the fixture', checkClippedText: false }),
+			expect: 'within',
+			assert: (r) => (r.data.inScroller.length === 1 ? null : `expected 1 scrolled-out element reported, got ${r.data.inScroller.length}`)
+		}
+	},
+	{
+		group: 'layout-sanity (a control over the reserved region)',
+		bad: {
+			name: 'a button sitting on top of the status bar',
+			html: shell(
+				'<div id="r" style="position:relative;height:120px">' +
+					'<div class="sb" style="position:absolute;left:0;top:60px;width:300px;height:28px;background:#161a18"></div>' +
+					'<button style="position:absolute;left:20px;top:50px;width:80px;height:44px">go</button></div>'
+			),
+			run: (p) => layoutSanity(p, { root: '#r', reserved: '.sb', reservedLabel: 'the status bar', label: 'the fixture', checkClippedText: false }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same button clear of it',
+			html: shell(
+				'<div id="r" style="position:relative;height:120px">' +
+					'<div class="sb" style="position:absolute;left:0;top:60px;width:300px;height:28px;background:#161a18"></div>' +
+					'<button style="position:absolute;left:20px;top:4px;width:80px;height:44px">go</button></div>'
+			),
+			run: (p) => layoutSanity(p, { root: '#r', reserved: '.sb', reservedLabel: 'the status bar', label: 'the fixture', checkClippedText: false }),
+			expect: 'within'
+		}
+	},
+	{
+		/*
+			"NOTHING OVERLAPS THE STATUS BAR" IS PERFECTLY TRUE OF A PAGE WITH NO
+			STATUS BAR. Every absence assertion in this harness sits beside a
+			positive control for exactly this reason; here the control is inside
+			the check, and this pair proves it fires.
+		*/
+		group: 'layout-sanity (a reserved region that matched nothing is a FAILURE)',
+		bad: {
+			name: 'a reserved selector naming an element that is not there',
+			html: shell('<div id="r"><button style="width:44px;height:44px">go</button></div>'),
+			run: (p) => layoutSanity(p, { root: '#r', reserved: '.no-such-bar', reservedLabel: 'the status bar', label: 'the fixture', checkClippedText: false }),
+			expect: 'outside',
+			assert: (r) => (/WHICH MATCHED NOTHING/.test(r.measured) ? null : `expected the vacuous-region reason, got: ${r.measured}`)
+		},
+		good: {
+			name: 'the same sweep with the region actually present',
+			html: shell('<div id="r"><div class="sb" style="width:300px;height:28px"></div><button style="width:44px;height:44px">go</button></div>'),
+			run: (p) => layoutSanity(p, { root: '#r', reserved: '.sb', reservedLabel: 'the status bar', label: 'the fixture', checkClippedText: false }),
+			expect: 'within'
+		}
+	},
+	{
+		group: 'layout-sanity (text clipped by its container, and the two shapes that are not)',
+		bad: {
+			name: 'a long sentence in a 60px overflow:hidden box',
+			html: shell('<div id="r"><p style="width:60px;overflow:hidden;white-space:nowrap;margin:0">a sentence far wider than sixty pixels</p></div>'),
+			run: (p) => layoutSanity(p, { root: '#r', label: 'the fixture' }),
+			expect: 'outside'
+		},
+		good: {
+			/* The two DELIBERATE shapes, together, over a box that genuinely
+			   clips: an ellipsised truncation carries a visible mark and the
+			   1x1 `clip` idiom is the screen-reader pattern. Both must be
+			   REPORTED and neither may be counted, which the asserts pin --
+			   otherwise "0 clipped" here would also be satisfied by a check
+			   that had stopped looking at text at all. */
+			name: 'an ellipsised truncation and a visually-hidden span, both reported and neither counted',
+			html: shell(
+				'<div id="r">' +
+					'<p style="width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0">a sentence far wider than sixty pixels</p>' +
+					'<span style="position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Saved</span>' +
+					'</div>'
+			),
+			run: (p) => layoutSanity(p, { root: '#r', label: 'the fixture' }),
+			expect: 'within',
+			assert: (r) =>
+				r.data.ellipsised.length === 1 && r.data.visuallyHidden.length === 1
+					? null
+					: `expected 1 ellipsised and 1 visually hidden, got ${r.data.ellipsised.length} and ${r.data.visuallyHidden.length}`
+		}
+	},
+	{
+		group: 'distinguishable (two things styled identically)',
+		bad: {
+			name: 'a label and a value at the same size, weight and colour',
+			html: shell('<p><span id="a" style="font:400 12px sans-serif;color:#e7eae8">Mass</span> <b id="b" style="font:400 12px sans-serif;color:#e7eae8">184 g</b></p>'),
+			run: (p) => distinguishable(p, { a: '#a', b: '#b', label: 'label vs value', aLabel: 'the label', bLabel: 'the value' }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same pair distinguished by WEIGHT alone',
+			html: shell('<p><span id="a" style="font:400 12px sans-serif;color:#e7eae8">Mass</span> <b id="b" style="font:700 12px sans-serif;color:#e7eae8">184 g</b></p>'),
+			run: (p) => distinguishable(p, { a: '#a', b: '#b', label: 'label vs value', aLabel: 'the label', bLabel: 'the value' }),
+			expect: 'within'
+		}
+	},
+	{
+		/* SIZE ALONE, so the axis is proved on its own rather than riding on the
+		   weight pair above. Same for colour below. A check that passes on ANY
+		   of three axes needs one control per axis or two of them are untested. */
+		group: 'distinguishable (size alone is enough)',
+		bad: {
+			name: 'a heading and body text at an identical 14px/400',
+			html: shell('<div><h3 id="a" style="font:400 14px sans-serif;color:#e7eae8;margin:0">Compare concepts</h3><p id="b" style="font:400 14px sans-serif;color:#e7eae8;margin:0">Which spins longest?</p></div>'),
+			run: (p) => distinguishable(p, { a: '#a', b: '#b', label: 'heading vs body', aLabel: 'the heading', bLabel: 'the body' }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'the same pair at 19px and 14px, weight and colour unchanged',
+			html: shell('<div><h3 id="a" style="font:400 19px sans-serif;color:#e7eae8;margin:0">Compare concepts</h3><p id="b" style="font:400 14px sans-serif;color:#e7eae8;margin:0">Which spins longest?</p></div>'),
+			run: (p) => distinguishable(p, { a: '#a', b: '#b', label: 'heading vs body', aLabel: 'the heading', bLabel: 'the body' }),
+			expect: 'within'
+		}
+	},
+	{
+		group: 'distinguishable (colour alone is enough, at the real surface’s own ratio)',
+		bad: {
+			name: 'two 12px/400 spans one unit apart in ink',
+			html: shell('<p><span id="a" style="font:400 12px sans-serif;color:rgb(231,234,232)">IDEACAD</span> <span id="b" style="font:400 12px sans-serif;color:rgb(230,234,232)">Saved</span></p>'),
+			run: (p) => distinguishable(p, { a: '#a', b: '#b', label: 'eyebrow vs saved-state', aLabel: 'the eyebrow', bLabel: 'the saved word' }),
+			expect: 'outside'
+		},
+		good: {
+			/* The REAL pair's two inks, taken off `/dev/ideacad` at 1440:
+			   `.eyebrow` is rgb(90, 189, 168) and `.save` is rgb(231, 234, 232),
+			   which measure 1.85:1 against the 1.25 floor. */
+			name: 'the surface’s own teal-against-ink pair, same size and weight',
+			html: shell('<p><span id="a" style="font:400 12px sans-serif;color:rgb(90,189,168)">IDEACAD</span> <span id="b" style="font:400 12px sans-serif;color:rgb(231,234,232)">Saved</span></p>'),
+			run: (p) => distinguishable(p, { a: '#a', b: '#b', label: 'eyebrow vs saved-state', aLabel: 'the eyebrow', bLabel: 'the saved word' }),
+			expect: 'within'
+		}
+	},
+	{
+		group: 'distinguishable (one side missing, and one side invisible, are both FAILURES)',
+		bad: {
+			name: 'a pair whose second selector matches nothing',
+			html: shell('<p><span id="a" style="font:400 12px sans-serif;color:#e7eae8">Mass</span></p>'),
+			run: (p) => distinguishable(p, { a: '#a', b: '#nope', label: 'label vs value', aLabel: 'the label', bLabel: 'the value' }),
+			expect: 'outside',
+			assert: (r) => (/nothing to compare/.test(r.measured) ? null : `expected the nothing-to-compare reason, got: ${r.measured}`)
+		},
+		good: {
+			name: 'both sides present, visible, and differing by weight',
+			html: shell('<p><span id="a" style="font:400 12px sans-serif;color:#e7eae8">Mass</span> <b id="b" style="font:700 12px sans-serif;color:#e7eae8">184 g</b></p>'),
+			run: (p) => distinguishable(p, { a: '#a', b: '#b', label: 'label vs value', aLabel: 'the label', bLabel: 'the value' }),
+			expect: 'within'
+		}
+	},
+	{
+		group: 'distinguishable (a pair that differs but is not on screen is a FAILURE)',
+		bad: {
+			name: 'a value at 700 weight inside a display:none parent',
+			html: shell('<p><span id="a" style="font:400 12px sans-serif;color:#e7eae8">Mass</span><span style="display:none"><b id="b" style="font:700 12px sans-serif;color:#e7eae8">184 g</b></span></p>'),
+			run: (p) => distinguishable(p, { a: '#a', b: '#b', label: 'label vs value', aLabel: 'the label', bLabel: 'the value' }),
+			expect: 'outside',
+			assert: (r) => (/NOT BOTH VISIBLE/.test(r.measured) ? null : `expected the not-both-visible reason, got: ${r.measured}`)
+		},
+		good: {
+			name: 'the same pair with the value on screen',
+			html: shell('<p><span id="a" style="font:400 12px sans-serif;color:#e7eae8">Mass</span><span><b id="b" style="font:700 12px sans-serif;color:#e7eae8">184 g</b></span></p>'),
+			run: (p) => distinguishable(p, { a: '#a', b: '#b', label: 'label vs value', aLabel: 'the label', bLabel: 'the value' }),
+			expect: 'within'
+		}
 	}
 ];
 
 async function measure(browser, fixture, width) {
 	const { context, page, consoleErrors: errs } = await openPage(browser, { width, blockExternal: false });
 	try {
+		/* THE CANVAS READBACK HOOK, FOR THE SLOTS THAT ASK FOR IT. It forces
+		   `preserveDrawingBuffer` on, which a WebGL readback after compositing
+		   needs; `installCanvasReadback` navigates to `about:blank` itself
+		   because -- MEASURED -- an init script in this playwright-core does not
+		   run for `setContent` alone. A slot that does not set the flag takes
+		   the unchanged path below, byte for byte, and one slot deliberately
+		   omits it to prove the check NOTICES the hook is missing rather than
+		   reporting the blank buffer it would otherwise read. */
+		if (fixture.canvasReadback) await installCanvasReadback(page);
 		await page.setContent(fixture.html, { waitUntil: 'load' });
 		await settle(page, { settleMs: 250 });
 		/* `motionSweep` sweeps every entry in ONE pair of media flips and so

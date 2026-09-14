@@ -15,7 +15,14 @@
  */
 import { WIDTHS } from './_shared.mjs';
 
+import { IDEACAD_DRAWN } from './_ideacad-drawn.mjs';
+
+/* THE THREE "WAS ANYTHING ACTUALLY DRAWN" CHECKS (ledger 0247). Stated once in
+   `_ideacad-drawn.mjs` because they are properties of the Blade editor rather
+   than of this state; see that file for which routes take them and why. */
+
 export default {
+	...IDEACAD_DRAWN,
 	path: '/dev/ideacad-item?role=viewer&state=callbacks',
 	label: 'IdeaCAD item page: every write handed in over a read-only payload is still refused',
 	widths: WIDTHS,

@@ -18,7 +18,14 @@
  * same sheet once a prediction is recorded, where the form is replaced by what
  * was said and the physics is exactly where it was.
  */
+import { IDEACAD_DRAWN } from './_ideacad-drawn.mjs';
+
+/* THE THREE "WAS ANYTHING ACTUALLY DRAWN" CHECKS (ledger 0247). Stated once in
+   `_ideacad-drawn.mjs` because they are properties of the Blade editor rather
+   than of this state; see that file for which routes take them and why. */
+
 export default {
+	...IDEACAD_DRAWN,
 	path: '/dev/ideacad?role=student&state=compare',
 	label: 'IdeaCAD: the compare sheet before a prediction, physics on screen',
 	prepare: [{ waitFor: '() => !!document.querySelector(".compare")' }],
