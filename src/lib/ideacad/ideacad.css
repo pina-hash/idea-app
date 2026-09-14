@@ -528,9 +528,12 @@
 	background: var(--ic-control);
 	border-left-color: var(--ic-edge);
 }
+/* THE EXPANDER KEEPS THE FULL TAP FLOOR IN BOTH DIMENSIONS. Set to 36px wide
+   for density it measured 36x44 in the harness -- under the floor on a
+   student surface -- so it is `--ic-tap` square, the way the rows are. */
 .ic-root .ft button.twist {
-	width: 36px;
-	min-width: 36px;
+	width: var(--ic-tap);
+	min-width: var(--ic-tap);
 	border-left: 0;
 	color: var(--ic-text-3);
 	font-family: var(--font-mono);
