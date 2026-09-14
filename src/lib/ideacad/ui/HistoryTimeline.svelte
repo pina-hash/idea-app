@@ -210,6 +210,8 @@
 
 <style>
 	/**
+	 * LAYOUT ONLY; the skin is `../ideacad.css` under `.ic-root`.
+	 *
 	 * THE PANEL TAKES THE PANE'S HEIGHT, WHICH IS WHAT KEEPS THE LIST INSIDE IT.
 	 *
 	 * Rasterized at 1440 before this was here: the list carried its own
@@ -240,10 +242,6 @@
 	}
 	h3 {
 		margin: 0;
-		font: 13px 'Share Tech Mono', monospace;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--text-1);
 		display: flex;
 		align-items: baseline;
 		gap: 0.5rem;
@@ -253,9 +251,6 @@
 	   say it. */
 	h3 i {
 		font-style: normal;
-		font-size: 11px;
-		color: var(--text-2);
-		letter-spacing: 0.04em;
 	}
 	/* `.tap-44` IS `inline-flex` WITH NO `justify-content`, so a label inside one
 	   sits at flex-start against the border unless the control says otherwise.
@@ -264,16 +259,8 @@
 	   these controls rather than of the floor class, which is shared. */
 	.back,
 	.now {
-		font: 11px 'Share Tech Mono', monospace;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		background: var(--surface-2);
-		color: var(--text-1);
-		border: 1px solid var(--boundary);
-		border-radius: 4px;
 		padding: 0 0.6rem;
 		justify-content: center;
-		cursor: pointer;
 	}
 	.acts {
 		display: flex;
@@ -281,28 +268,8 @@
 	}
 	.act {
 		flex: 1;
-		font: 12px 'Share Tech Mono', monospace;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		background: var(--surface-2);
-		color: var(--text-1);
-		border: 1px solid var(--boundary);
-		border-radius: 4px;
 		padding: 0 0.6rem;
 		justify-content: center;
-		cursor: pointer;
-	}
-	/* AN UNAVAILABLE CONTROL IS STILL READ, so it takes `--text-2` and not
-	   `--text-3`. Measured on this pane's own ground: `--text-3` is 2.95:1,
-	   which is not a near miss -- a student cannot tell whether the word says
-	   Undo or Redo. It is still distinguishable from the available state, which
-	   is `--text-1` at 14.5:1, and the `aria-disabled` attribute is what carries
-	   the state to a screen reader rather than the lightness. This is the same
-	   argument `aria-disabled` over `disabled` rests on: the control has to be
-	   able to explain itself, which starts with being legible. */
-	.act[aria-disabled='true'] {
-		color: var(--text-2);
-		cursor: default;
 	}
 	.preview {
 		margin: 0;
@@ -311,18 +278,10 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.5rem;
-		font: 12px Rajdhani, sans-serif;
-		color: var(--text-1);
-		background: var(--surface-2);
-		border: 1px solid var(--amber);
-		border-radius: 4px;
 	}
 	.note,
 	.empty {
 		margin: 0;
-		font: 12px 'Share Tech Mono', monospace;
-		color: var(--text-2);
-		line-height: 1.35;
 	}
 	.rows {
 		list-style: none;
@@ -339,6 +298,11 @@
 		flex: 1;
 		min-height: 0;
 		overflow-y: auto;
+		/* `scrollbar-gutter: stable` IS LOAD-BEARING AND NOT TIDINESS. This
+		   Chromium paints no scrollbar into a screenshot at any colour (ledger
+		   0186 proved it with a magenta-on-green control), so a list that let
+		   its content run under the scrollbar would measure correct and read
+		   clipped, and nothing would report it. */
 		scrollbar-gutter: stable;
 		/* A scroll into a row must not land it under the sticky nothing above;
 		   there is no sticky header inside this box, so the padding is the small
@@ -355,24 +319,12 @@
 		align-items: flex-start;
 		text-align: left;
 		padding: 0.35rem 0.45rem;
-		background: var(--surface-2);
-		border: 1px solid transparent;
-		border-left: 3px solid var(--boundary);
-		border-radius: 3px;
-		color: var(--text-1);
-		font: 13px Rajdhani, sans-serif;
 	}
 	/* Only a scrubbable row is a button, so only a button gets a pointer. */
 	button.hit {
 		cursor: pointer;
 	}
-	button.hit:hover,
-	button.hit:focus-visible {
-		border-color: var(--green);
-	}
 	.seq {
-		font: 11px 'Share Tech Mono', monospace;
-		color: var(--text-2);
 		min-width: 1.6rem;
 		padding-top: 2px;
 	}
@@ -383,18 +335,7 @@
 		min-width: 0;
 		flex: 1;
 	}
-	.where {
-		font-weight: 600;
-		color: var(--text-1);
-	}
-	.verb {
-		font: 11px 'Share Tech Mono', monospace;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--amber);
-	}
 	.what {
-		color: var(--text-2);
 		line-height: 1.3;
 		overflow-wrap: anywhere;
 	}
@@ -403,76 +344,12 @@
 		flex-wrap: wrap;
 		gap: 0.4rem;
 		align-items: center;
-		font: 11px 'Share Tech Mono', monospace;
-		color: var(--text-2);
 	}
-	.chip {
-		font-style: normal;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		border: 1px solid currentColor;
-		border-radius: 3px;
-		padding: 0 0.3rem;
-	}
-	/* COLOUR IS NEVER THE ONLY SIGNAL. An undone step carries the word "undone",
-	   a dashed left edge AND the hue; a reader who sees none of the three is
-	   reading a row that says "Undid" in its own verb line. */
-	.undone-chip {
-		color: var(--amber);
-	}
-	.broken-chip {
-		color: var(--amber);
-	}
-	/* WHO MADE THE EDIT (decision 27). THE WORD IS THE WHOLE SIGNAL and the ink
-	   only ranks it: a reader who cannot see colour reads exactly the same list,
-	   because every row prints a name either way.
-
-	   A CLASSMATE'S NAME IS THE PROMINENT ONE AND THE READER'S OWN IS NOT. On a
-	   part you worked on alone -- which is most parts -- every row is yours, and
-	   forty rows of emphasised "You" is forty rows of noise that make the one
-	   row somebody else touched harder to find, which is the opposite of what
-	   decision 27 is for. So `You` sits at the meta row's own `--text-2` and
-	   anybody else steps up to `--text-1`. Neither is hidden and neither is
-	   below the text threshold; both are measured in the browser pass against
-	   `--surface-2` AND against `--surface-1`, which is the ground a `.here`
-	   row swaps to. */
 	.who {
-		color: var(--text-1);
 		/* An address's local part has no spaces to break at, so a long one is
 		   told where it may break rather than being allowed to widen the pane.
 		   The 375px pane is the binding width. */
 		overflow-wrap: anywhere;
-	}
-	.who.is-you {
-		color: var(--text-2);
-	}
-	/* NOT A PERSON, AND IT SAYS SO IN A SECOND WAY. `0209` writes `system` and
-	   `migration:0209`, and the backfill row deliberately does not claim a
-	   student made it -- so the one word that is not somebody's name is also the
-	   one word in this column that is not upright. */
-	.who.is-system {
-		color: var(--text-2);
-		font-style: italic;
-	}
-	.row.undone .hit {
-		border-left-style: dashed;
-		border-left-color: var(--amber);
-	}
-	.row.origin .hit {
-		border-left-color: var(--cyan);
-	}
-	.row.broken .hit {
-		border-left-color: var(--amber);
-	}
-	/* "WHAT CTRL+Z DOES NEXT", WHICH IS NOT A CURSOR. It is a fact about the
-	   fold -- the newest live row -- and it moves when the log does rather than
-	   being a position anybody scrolls. */
-	.row.next .hit {
-		border-left-color: var(--green);
-	}
-	.row.here .hit {
-		border-color: var(--amber);
-		background: var(--surface-1);
 	}
 	@media (max-width: 1023px) {
 		.tl {

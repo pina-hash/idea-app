@@ -38,6 +38,9 @@
 	import { TIMELINE_WORDS, buildTimeline, undoKeyFor } from './ui/timeline';
 	import { stateAt, type IdeacadHistoryRow } from './history';
 	import { IDEACAD_WRITE_REFUSED, ideacadSaveLabel, type IdeacadEditorWrites } from './mount';
+	/* THE ROOM'S OWN SKIN (ledger 0231). Every colour, face, edge and state in
+	   IdeaCAD is declared there, scoped under `.ic-root`, which is this
+	   component's root element; the style block below holds LAYOUT only. */
 	import './ideacad.css';
 
 	let {
@@ -872,7 +875,7 @@
 <svelte:document onkeydown={consoleKey} />
 
 <div
-	class="ideacad ic-dense"
+	class="ideacad ic-root"
 	class:standalone
 	data-testid="ideacad-editor"
 	style:--tree-width={leftOpen ? `${leftWidth}px` : '0px'}
@@ -1310,6 +1313,9 @@
 	:global(body) {
 		margin: 0;
 	}
+	/* LAYOUT ONLY. The skin -- every colour, face, edge, chip and state -- is
+	   `ideacad.css`, scoped under `.ic-root` on this component's root, so a
+	   rule here that names a colour or a font is a second copy of one there. */
 	.ideacad {
 		--tree-width: 300px;
 		--rail-width: 280px;
@@ -1317,9 +1323,6 @@
 		height: min(760px, calc(100vh - 2rem));
 		display: grid;
 		grid-template-rows: auto minmax(0, 1fr) auto auto;
-		background: var(--surface-0);
-		color: var(--text-1);
-		font-family: Rajdhani, sans-serif;
 		border: 1px solid var(--boundary);
 	}
 	.ideacad.standalone {
@@ -1334,28 +1337,10 @@
 		align-items: center;
 		gap: 0.5rem;
 		flex-wrap: wrap;
-		padding: 0.75rem 1rem;
-		border-bottom: 1px solid var(--boundary);
 	}
 	.hgroup {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
-	}
-	h2,
-	h3 {
-		font-family: var(--font-hero);
-		margin: 0.15rem 0;
-	}
-	h2::before {
-		content: none;
-	}
-	.eyebrow,
-	.save,
-	.metric span,
-	.notice {
-		font: 12px 'Share Tech Mono', monospace;
-		letter-spacing: 0.08em;
 	}
 	.stage {
 		display: grid;
@@ -1370,13 +1355,9 @@
 		width: 6px;
 		min-height: 0;
 		padding: 0;
-		border: 0;
-		border-radius: 0;
-		background: var(--boundary);
 		cursor: col-resize;
 		touch-action: none;
 	}
-	.divider:hover, .divider:focus-visible { background: var(--cyan); }
 	.collapsed { visibility: hidden; padding: 0; overflow: hidden; }
 	.pane-toggle {
 		position: static;
@@ -1385,42 +1366,11 @@
 		padding: 0 .55rem;
 		white-space: nowrap;
 	}
-	.rules-label { margin: 0 0 .5rem; color: var(--text-2); font: 12px 'Share Tech Mono', monospace; }
 	aside {
 		overflow: auto;
-		background: var(--surface-1);
-		padding: .65rem;
-		box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-1) 10%, transparent);
-	}
-	.tree {
-		border-right: 1px solid var(--boundary);
-	}
-	button,
-	input,
-	select {
-		min-height: 44px;
-		min-width: 44px;
-		color: var(--text-1);
-		background: var(--surface-2);
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-control);
-		font: inherit;
-	}
-	button:focus-visible,
-	input:focus-visible,
-	select:focus-visible {
-		outline: 3px solid var(--focus-ring);
-		outline-offset: 2px;
-	}
-	button[aria-disabled='true'] {
-		color: var(--text-2);
-		border-color: var(--hairline);
 	}
 	.hist {
 		padding: 0 0.7rem;
-	}
-	.notice {
-		color: var(--copper);
 	}
 	.viewport {
 		position: relative;
@@ -1428,7 +1378,6 @@
 		grid-template-rows: auto auto minmax(0, 1fr) auto;
 		overflow: hidden;
 		min-height: 360px;
-		background: var(--surface-2);
 		padding: 6px;
 	}
 	.view-toolbar {
@@ -1437,31 +1386,23 @@
 		justify-content: space-between;
 		gap: 0.25rem;
 		margin: -6px -6px 6px;
-		padding: .3rem .4rem;
-		background: var(--surface-1);
-		border-bottom: 1px solid var(--boundary);
-		box-shadow: 0 1px 0 var(--hairline);
+		padding: 0.3rem 0.4rem;
 	}
 	.viewport nav {
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: center;
-		gap: 0.25rem;
 	}
 	.viewport nav button {
-		padding: 0 0.7rem;
 		flex: 0 0 auto;
 	}
 	.orient {
 		position: static;
 		margin: 0 0 6px;
-		padding: 0.4rem;
 		list-style: none;
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.25rem;
-		background: var(--surface-1);
-		border: 1px solid var(--boundary);
 		overflow: auto;
 	}
 	.orient li { flex: 1 1 110px; }
@@ -1474,8 +1415,6 @@
 		text-align: left;
 	}
 	.orient small {
-		color: var(--text-2);
-		font: 12px 'Share Tech Mono', monospace;
 		align-self: center;
 	}
 	/* THE MATERIALS PANEL. It lives in the TREE pane rather than the Rules rail,
@@ -1519,51 +1458,15 @@
 	}
 	.mat header {
 		display: flex;
-		gap: 0.5rem;
 		align-items: center;
 		justify-content: space-between;
 		flex-wrap: wrap;
 	}
-	.mat h3 {
-		margin: 0.15rem 0;
-	}
-	.mat button,
-	.mat input,
-	.mat select {
-		min-height: 44px;
-		min-width: 44px;
-		color: var(--text-1);
-		background: var(--surface-2);
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-control);
-		font: inherit;
-	}
-	.mat button {
-		padding: 0 0.7rem;
-	}
-	.mat button:focus-visible,
-	.mat input:focus-visible,
-	.mat select:focus-visible {
-		outline: 3px solid var(--focus-ring);
-		outline-offset: 2px;
-	}
-	.mat button[aria-disabled='true'] {
-		color: var(--text-2);
-		border-color: var(--hairline);
-	}
 	.mat .confirm {
 		display: flex;
-		gap: 0.4rem;
-		margin: 0.5rem 0;
 	}
 	.mat .confirm button {
 		flex: 1 1 0;
-	}
-	.mat .accept {
-		border-color: var(--green);
-	}
-	.mat .cancel {
-		border-color: var(--crimson);
 	}
 	/* STACKED, NOT SIDE BY SIDE, AND THE READING IS WHY. At 1440 this pane is
 	   300px and the panel inside it 257px; with a label column and a 9rem
@@ -1576,133 +1479,60 @@
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
 		gap: 0.2rem;
-		margin: 0.5rem 0;
 	}
 	.mat .lab {
 		min-width: 0;
-		color: var(--text-2);
-		font: 13px 'Share Tech Mono', monospace;
-		letter-spacing: 0.04em;
-	}
-	.mat .lab i {
-		color: var(--text-3);
-		font-style: normal;
-		margin-left: 0.35rem;
 	}
 	.mat .field input,
 	.mat .field select {
 		width: 100%;
 		padding: 0 0.5rem;
 	}
-	/* THE SLIDER IS PAINTED IN THIS ROOM'S GREEN RATHER THAN THE BROWSER'S BLUE.
-	   A bare `input[type=range]` takes the UA accent, which in this Chromium
-	   renders a saturated blue track -- the one blue thing on a console whose
-	   whole register is green, amber, cyan and crimson, and a colour `app.css`
-	   assigns no meaning to. `--green` is this repository's token for a control
-	   the student is operating, which is what this is. */
+	/* THE SLIDER IS PAINTED IN THIS ROOM'S GREEN RATHER THAN THE BROWSER'S BLUE
+	   (`accent-color`, in `ideacad.css`): a bare `input[type=range]` takes the
+	   UA accent, which in this Chromium renders a saturated blue track -- the
+	   one blue thing on a console whose whole register is green, amber, cyan
+	   and crimson. */
 	.mat .slider {
 		width: 100%;
-		min-height: 44px;
-		accent-color: var(--green);
-	}
-	.mat .reading {
-		margin-top: 0.8rem;
-		padding-top: 0.6rem;
-		border-top: 1px solid var(--boundary);
-	}
-	.mat .range {
-		margin: 0 0 0.6rem;
-		color: var(--text-2);
-		font: 12px 'Share Tech Mono', monospace;
-	}
-	.mat .fact {
-		margin: -0.2rem 0 0.4rem;
-		color: var(--text-2);
-		font: 13px 'Share Tech Mono', monospace;
-	}
-	.mat .chip {
-		margin-left: 0.4rem;
-		color: var(--copper);
-		font: 12px 'Share Tech Mono', monospace;
-		letter-spacing: 0.08em;
-	}
-	.mat .chip.mine {
-		color: var(--cyan);
-	}
-	.mat .note {
-		margin: 0 0 0.6rem;
-		color: var(--text-2);
-		font: 12px 'Share Tech Mono', monospace;
-		line-height: 1.5;
-	}
-	.mat .refusal {
-		margin: 0.4rem 0;
-		color: var(--crimson);
-		font: 13px 'Share Tech Mono', monospace;
-		line-height: 1.5;
-	}
-	.mat .added {
-		margin: 0.4rem 0;
-		color: var(--green);
-		font: 13px 'Share Tech Mono', monospace;
-	}
-	.mat .own {
-		margin-top: 0.8rem;
-		padding-top: 0.6rem;
-		border-top: 1px solid var(--boundary);
 	}
 	.mat .addown,
 	.mat .save {
 		width: 100%;
 	}
 	.mat .save {
-		border-color: var(--green);
 		margin-top: 0.4rem;
 	}
-	.readouts {
-		border-left: 1px solid var(--boundary);
-	}
-	/* 0.5rem, NOT 0.7rem, AND THE NUMBER IS MEASURED RATHER THAN CHOSEN. The two
-	   physics rows decision 26 added took the rail's content to 555px inside a
-	   515px box at 1440 -- 40px of overflow, with the last row (the UNVERIFIED
-	   STANDARD PARTS notice) below a fold this container's Chromium draws no
-	   scrollbar for. 0.7 to 0.45 is 8px per row over eight rows, 64px; 0.5
-	   cleared the overflow to EXACTLY zero, which is not a margin, and the row
-	   heights here are content-driven. Measured at 0.45rem: content 502px in a
-	   515px box, 13px spare, and 0px overflow. Below 1024 the rail is
-	   `overflow: visible` in a stacked column and never had the problem. */
+	/* THE ROW HEIGHT IS MEASURED RATHER THAN CHOSEN. The two physics rows
+	   decision 26 added took the rail's content to 555px inside a 515px box at
+	   1440 -- 40px of overflow, with the last row (the UNVERIFIED STANDARD PARTS
+	   notice) below a fold this container's Chromium draws no scrollbar for.
+	   The row is label-above / value-and-verdict-beneath now (`ideacad.css`,
+	   `.metric`), at 0.4rem of block padding, and ledger 0231 re-measured the
+	   rail's last row visible at 1440 under that arrangement. Below 1024 the
+	   rail is `overflow: visible` in a stacked column and never had the
+	   problem. */
 	.metric {
 		display: grid;
-		grid-template-columns: 1fr auto;
-		gap: 0.35rem;
-		padding: 0.45rem 0;
-		border-bottom: 1px solid var(--hairline);
-	}
-	.metric b {
-		grid-column: 1/-1;
-		color: var(--green);
-		font-family: var(--font-mono);
-	}
-	.metric b.fail {
-		color: var(--crimson);
 	}
 	.viewport-well {
 		position: relative;
 		min-width: 0;
 		min-height: 0;
-		background: var(--surface-0);
-		border: 1px solid var(--boundary);
-		box-shadow: inset 0 0 0 2px color-mix(in srgb, #000 35%, transparent), inset 0 8px 18px rgb(0 0 0 / .22);
 	}
+	/* THE CONFIRM PAIR'S BAND IS DOCKED under the canvas as the last row of the
+	   `.viewport` grid (ledger 0232). Ledger 0231 had it floating bottom-right
+	   over the model, which the merged markup can no longer express: the only
+	   `<footer>` in this component carries `.edit-footer`, so a bare
+	   `footer { position: absolute }` would lift the docked band out of its own
+	   grid row. The negative margin bleeds it into `.viewport`'s 6px padding. */
 	.edit-footer {
 		position: static;
 		display: flex;
 		justify-content: flex-end;
 		gap: 0.5rem;
 		margin: 6px -6px -6px;
-		padding: .35rem .5rem;
-		background: var(--surface-1);
-		border-top: 1px solid var(--boundary);
+		padding: 0.35rem 0.5rem;
 	}
 	.edit-footer button {
 		padding: 0 0.9rem;
@@ -1713,13 +1543,8 @@
 		justify-content: space-between;
 		gap: 1rem;
 		min-height: 28px;
-		padding: 0 .65rem;
-		background: var(--surface-2);
-		border-top: 1px solid var(--boundary);
-		font: 12px 'Share Tech Mono', monospace;
-		letter-spacing: .04em;
+		padding: 0 0.65rem;
 	}
-	.status-bar strong { color: var(--text-1); font-weight: 600; }
 	.header-status-compat {
 		position: absolute;
 		width: 1px;
@@ -1728,12 +1553,6 @@
 		overflow: hidden;
 		clip: rect(0 0 0 0);
 		white-space: nowrap;
-	}
-	.accept {
-		border-color: var(--green);
-	}
-	.cancel {
-		border-color: var(--crimson);
 	}
 	.compare::before {
 		content: '';
@@ -1748,10 +1567,6 @@
 		max-height: calc(100% - 10rem);
 		overflow: auto;
 		z-index: 3;
-		padding: 1.5rem;
-		background: var(--surface-1);
-		border: 1px solid var(--boundary);
-		box-shadow: var(--bevel-raised);
 	}
 	.compare input,
 	.compare select,
@@ -1763,21 +1578,11 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
 		gap: 0.5rem;
-		margin-top: 0.75rem;
 	}
 	.cols article {
 		min-width: 0;
-		padding: 0.6rem;
-		background: var(--surface-2);
-		border: 1px solid var(--hairline);
-		border-radius: var(--radius-control);
-	}
-	.cols article.active {
-		border-color: var(--green);
 	}
 	.cols h4 {
-		margin: 0.3rem 0 0.5rem;
-		font-family: var(--font-hero);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -1789,72 +1594,18 @@
 	}
 	.cols li {
 		display: grid;
-		grid-template-columns: 1fr auto auto;
-		gap: 0.35rem;
-		padding: 0.2rem 0;
-		font: 12px 'Share Tech Mono', monospace;
-		color: var(--text-2);
-	}
-	.cols li strong {
-		color: var(--text-1);
-	}
-	.cols li b {
-		color: var(--green);
-	}
-	.cols li b.fail {
-		color: var(--crimson);
 	}
 	.cols dl {
 		display: grid;
 		grid-template-columns: auto 1fr;
-		gap: 0.2rem 0.5rem;
 		margin: 0.5rem 0 0;
-		padding-top: 0.5rem;
-		border-top: 1px solid var(--boundary);
-		font: 12px 'Share Tech Mono', monospace;
-	}
-	.cols dt {
-		color: var(--text-2);
 	}
 	.cols dd {
 		margin: 0;
 	}
-	.thumb {
-		background: var(--surface-0);
-		border: 1px solid var(--hairline);
-		border-radius: 2px;
-	}
-	.thumb polyline {
-		fill: none;
-		stroke: var(--green);
-		stroke-width: 2;
-	}
-	.note,
-	.refusal,
-	.broken,
-	.said i {
-		font: 12px 'Share Tech Mono', monospace;
-		color: var(--text-2);
-	}
-	.refusal {
-		color: var(--amber);
-	}
 	.refusal.write {
 		flex-basis: 100%;
 		margin: 0;
-	}
-	/* THE TERMINAL ONE IS CRIMSON AND THE RETRYABLE ONE IS AMBER, which is this
-	   repository's own register rather than a choice made here: `--crimson` is
-	   reserved for live/rec/ERROR and `--amber` is the warning. A refused write
-	   the student can retry is a warning; a document that has stopped saving
-	   altogether is the error. Colour is not the only signal -- the two carry
-	   different sentences, and this one says what has stopped and what to do. */
-	.refusal.write.stopped {
-		color: var(--crimson);
-		line-height: 1.5;
-	}
-	.said i {
-		font-style: normal;
 	}
 	@media (max-width: 600px) {
 		.ideacad {
@@ -1862,9 +1613,7 @@
 			min-height: 0;
 			grid-template-rows: auto auto minmax(0, 1fr) auto auto;
 		}
-		.mobile-switcher { display: grid; grid-template-columns: repeat(3, 1fr); padding: .25rem; gap: .25rem; border-bottom: 1px solid var(--boundary); }
-		.mobile-switcher button { min-height: 44px; }
-		.mobile-switcher button[aria-pressed='true'] { border-color: var(--cyan); color: var(--cyan); }
+		.mobile-switcher { display: grid; grid-template-columns: repeat(3, 1fr); padding: .25rem; gap: .25rem; }
 		/* THE CONFIRM PAIR STAYS ABSOLUTE BELOW 1024, AND `position: static` HERE
 		   MADE IT UNPRESSABLE ON EVERY PHONE.
 
