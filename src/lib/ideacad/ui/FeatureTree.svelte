@@ -145,6 +145,7 @@
 </div>
 
 <style>
+	/* LAYOUT ONLY; the skin is `../ideacad.css` under `.ic-root`. */
 	.ft {
 		display: block;
 	}
@@ -155,43 +156,19 @@
 	}
 	li {
 		display: flex;
-		gap: 0.25rem;
 		align-items: stretch;
 	}
-	li.child .name {
-		padding-left: 1.1rem;
-		font: 12px 'Share Tech Mono', monospace;
-		letter-spacing: 0.04em;
-	}
 	button {
-		min-height: 44px;
-		min-width: 44px;
 		display: flex;
 		flex: 1 1 auto;
 		align-items: center;
 		gap: 0.4rem;
 		width: 100%;
 		text-align: left;
-		padding: 0.5rem;
-		margin: 0.15rem 0;
-		color: var(--text-1);
-		background: var(--surface-2);
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-control);
-		font: inherit;
 	}
 	button.twist {
 		flex: 0 0 auto;
-		width: 44px;
 		justify-content: center;
-		color: var(--text-2);
-	}
-	button.active {
-		border-color: var(--green);
-		background: var(--green-tint);
-	}
-	button.trouble {
-		border-color: var(--crimson);
 	}
 	.name {
 		flex: 1 1 auto;
@@ -202,24 +179,8 @@
 	}
 	.chip {
 		flex: 0 0 auto;
-		font: 12px 'Share Tech Mono', monospace;
-		letter-spacing: 0.08em;
-		color: var(--copper);
-	}
-	button.trouble .chip {
-		color: var(--crimson);
-	}
-	h3 {
-		margin: 0 0 0.4rem;
 	}
 	.why {
-		margin: 0.45rem 0 0;
-		font: 12px 'Share Tech Mono', monospace;
-		line-height: 1.5;
-		color: var(--text-2);
-	}
-	button:focus-visible {
-		outline: 3px solid var(--focus-ring);
-		outline-offset: 2px;
+		margin: 0.6rem 0 0;
 	}
 </style>

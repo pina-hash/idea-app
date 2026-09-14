@@ -1,0 +1,1126 @@
+/* ==========================================================================
+   IDEACAD -- the room's own design system. Ledger 0231.
+
+   IdeaCAD is professional CAD software, not a website. Toolbars and panels
+   read as TOOL CHROME and the graphics area is the SUBJECT: everything here
+   is a bezel around the model. The structure is SolidWorks' (a command band
+   across the top, the FeatureManager on the left, the PropertyManager on the
+   right, a heads-up view strip floating over the graphics area, document tabs
+   along the bottom) and the accent is IDEA green everywhere SolidWorks would
+   spend its red. The shape is borrowed; the skin is not.
+
+   EVERYTHING IS SCOPED UNDER `.ic-root`, WHICH IS THE EDITOR'S OWN ROOT
+   ELEMENT, so nothing here can reach the rest of the site. The tokens are
+   declared on that root as `--ic-*` and the SHARED vocabulary is ALIASED onto
+   them the `.nb-root` / `.fg-root` way -- source and target on the same
+   element -- so a component that still reads `var(--surface-2)` or
+   `var(--text-2)` follows this plate, and so does the WebGL canvas, whose
+   clear colour is read off the host's `--surface-0` at mount
+   (`viewport/Viewport.svelte`). A room that redeclared the shared names on a
+   descendant instead would be the var()-resolves-where-declared trap.
+
+   THE FAILURE THIS FIXES IS TWO DIFFERENT THINGS RENDERING AS IDENTICAL GREY
+   PARAGRAPHS. A label, a readout, a chip and a sentence of prose were all
+   12px Share Tech Mono in `--text-2`, so a check that asked "present,
+   visible, 44px, contrast" passed straight over a panel a person could not
+   parse. The rule that replaces it is a TYPE SCALE WITH JOBS:
+
+     - `--font-mono` (Share Tech Mono) is the INSTRUMENT face: eyebrows,
+       field labels, chips, units, and every NUMBER. It is monospaced, so
+       figures in a column align by construction, and `tabular-nums` is set
+       on the root for the Rajdhani figures beside them.
+     - `--font-display` (Rajdhani) is the READING face: control words, tree
+       rows, and every SENTENCE (a note, a refusal, a caption). A sentence is
+       never set in the instrument face, which is what makes a note and a
+       label distinguishable at a glance before either is read.
+     - `--font-hero` is the document title alone.
+
+   PANEL HEADERS, DIVIDERS AND RAILS ARE SEPARATE SURFACES. A panel title is a
+   full-bleed BAND (`--ic-head`) with a boundary under it, a section label is
+   an eyebrow with a rule, a control is a raised chrome plate, an input is a
+   recessed field. Three grounds, one step apart, is what lets the eye tell a
+   header from a row from a field without reading any of them.
+
+   STATES CARRY A WORD AND A SHAPE AS WELL AS A HUE, always:
+     selected    green 3px rail + tint fill + `aria-selected`
+     active      green top rail + the word ACTIVE (concept tabs)
+     suppressed  `aria-disabled`: dashed edge, `--ic-text-2`, no fill
+     error       crimson rail + the REBUILD chip
+     pass / fail an outlined green PASS chip / a FILLED crimson FAIL chip
+   Colour is never the only signal on any of them.
+
+   THE TAP FLOOR IS `--ic-tap`, 44px, AND THE 24px DENSITY FLOOR IS A CLASS A
+   SURFACE DECLARES (`IDEA_INTERFACE_STANDARDS` 10). `.ic-dense` is that
+   declaration: it re-points `--ic-tap` to 24px for the subtree that carries
+   it and nothing else. NO ELEMENT IN IDEACAD CARRIES IT TODAY, on purpose:
+   every IdeaCAD surface is one a student taps, on a phone through the pane
+   switcher and on a desktop through the same rows, so there is no
+   instructor-only subtree to claim it for. The class exists so that when an
+   instructor-only console is built inside this room, the claim is written on
+   the element a later sweep reads it from, rather than asserted by a bundle.
+   ========================================================================== */
+
+.ic-root {
+	/* --- The plate: cool graphite, one step apart per surface -------------
+	   Deliberately LESS green than the portal's plate (`--bg*`) and LESS
+	   neutral than the classroom's (`--surface-*`): a third room a person can
+	   place at a glance. The graphics ground is the darkest so the sage model
+	   is the brightest thing on screen. --------------------------------- */
+	--ic-ground: #0e1114; /* the graphics area, and the page behind the panes */
+	--ic-panel: #191d21; /* the FeatureManager, PropertyManager and strip bodies */
+	--ic-head: #22272c; /* panel title bands, the command band, raised chrome */
+	--ic-control: #262c31; /* a button's own plate */
+	--ic-control-hover: #2e353b;
+	--ic-field: #0d1012; /* a recessed input */
+	--ic-tint: #123222; /* the selected-row fill, green at 12% over the panel */
+
+	/* --- Ink. Measured (WCAG 2.x, computed) against every ground above:
+	     text-1 #e6e9ec  15.30 / 13.91 / 12.36 / 15.67 / 11.45 on tint
+	     text-2 #a4adb5   8.19 /  7.44 /  6.61 /  8.38 /  6.13 on tint
+	   `--ic-text-3` is decorative only (separators, the twist glyph at rest)
+	   and is not measured as text. --------------------------------------- */
+	--ic-text-1: #e6e9ec;
+	--ic-text-2: #a4adb5;
+	--ic-text-3: #6b757d;
+
+	/* --- Edges. `--ic-edge` is the load-bearing boundary and clears 3:1 on
+	   every ground in the room (4.44 / 4.04 / 3.59 / 4.55 / 3.32 on tint);
+	   `--ic-line` is decoration and is not measured. --------------------- */
+	--ic-edge: #737d85;
+	--ic-line: rgba(255, 255, 255, 0.08);
+	--ic-rail: 3px; /* the selection / state rail on a row */
+
+	/* --- Accent and status. The IDEA green is the accent, unchanged; it
+	   measures 7.17 on the panel and 6.37 on a band. The FAIL word is
+	   `--ic-fail-ink`: `--crimson` itself is 4.12 on a band, so the text
+	   form is the same hue at 67% lightness instead of 61% (4.96 on a band,
+	   5.58 on the panel). Fills and edges keep the raw semantic tokens. --- */
+	--ic-accent: var(--green);
+	--ic-accent-ink: #0b1a0e; /* text ON a green fill: 7.61 */
+	--ic-fail: var(--crimson);
+	--ic-fail-ink: #e07474;
+	--ic-warn: var(--amber); /* 5.50 panel / 4.88 band */
+	--ic-meta: var(--cyan); /* 7.49 panel / 6.65 band */
+
+	/* --- Type scale, in px because chrome is fixed-size -------------------- */
+	--ic-fs-eyebrow: 11px; /* mono, uppercase, tracked: a panel or section label */
+	--ic-fs-label: 12px; /* mono: a field label, a chip, a unit */
+	--ic-fs-num: 14px; /* mono: a readout value */
+	--ic-fs-ui: 14px; /* display: a control word, a tree row */
+	--ic-fs-prose: 13px; /* display: a sentence */
+	--ic-fs-title: 14px; /* display 600 uppercase: a panel title */
+	--ic-fs-doc: 20px; /* hero: the document title */
+	--ic-track: 0.1em;
+
+	/* --- Geometry ---------------------------------------------------------- */
+	--ic-tap: 44px;
+	--ic-radius: 2px;
+	--ic-pad: 0.75rem; /* a pane's inner gutter */
+	--ic-bevel: inset 0 1px 0 rgba(255, 255, 255, 0.06), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+	--ic-recess: inset 0 1px 2px rgba(0, 0, 0, 0.55);
+
+	/* --- The shared vocabulary, aliased onto this plate (see the header) --- */
+	--surface-0: var(--ic-ground);
+	--surface-1: var(--ic-panel);
+	--surface-2: var(--ic-control);
+	--text-1: var(--ic-text-1);
+	--text-2: var(--ic-text-2);
+	--text-3: var(--ic-text-3);
+	--boundary: var(--ic-edge);
+	--hairline: var(--ic-line);
+	--green-tint: var(--ic-tint);
+	--radius-control: var(--ic-radius);
+	--bevel-raised: var(--ic-bevel);
+
+	background: var(--ic-ground);
+	color: var(--ic-text-1);
+	font-family: var(--font-display);
+	font-size: var(--ic-fs-ui);
+	line-height: 1.3;
+	font-variant-numeric: tabular-nums;
+}
+
+/* THE DENSITY CLAIM. Carried by nothing today -- see the header. */
+.ic-root .ic-dense {
+	--ic-tap: 24px;
+}
+
+/* --------------------------------------------------------------------------
+   Type
+   -------------------------------------------------------------------------- */
+.ic-root h2,
+.ic-root h3,
+.ic-root h4 {
+	margin: 0;
+	line-height: 1.2;
+}
+.ic-root h2::before,
+.ic-root h3::before {
+	content: none;
+}
+.ic-root > header h2 {
+	font: 600 var(--ic-fs-doc) / 1.15 var(--font-hero);
+	letter-spacing: 0.01em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* A SECTION EYEBROW: mono, uppercase, tracked. It is the one style that names
+   a region rather than a value, and it is never used for a sentence. */
+.ic-root .eyebrow,
+.ic-root .rules-label,
+.ic-root .mat .lab,
+.ic-root .pm .lab,
+.ic-root .pm caption,
+.ic-root .pm th,
+.ic-root .tl h3 {
+	font: var(--ic-fs-eyebrow) / 1.2 var(--font-mono);
+	letter-spacing: var(--ic-track);
+	text-transform: uppercase;
+	color: var(--ic-text-2);
+}
+.ic-root .eyebrow {
+	color: var(--ic-accent);
+}
+/* A SENTENCE is set in the reading face. This is the half of the type scale
+   that does the work: every `.note`, `.why`, `.range`, `.refusal` and caption
+   used to be 12px mono, indistinguishable from the label two lines above. */
+.ic-root .note,
+.ic-root .why,
+.ic-root .range,
+.ic-root .refusal,
+.ic-root .broken,
+.ic-root .empty,
+.ic-root .added,
+.ic-root .said,
+.ic-root .nogl,
+.ic-root .profile figcaption,
+.ic-root .concepts .note,
+.ic-root .tl .note,
+.ic-root .tl .preview {
+	font: var(--ic-fs-prose) / 1.45 var(--font-display);
+	letter-spacing: 0;
+	text-transform: none;
+	color: var(--ic-text-2);
+}
+.ic-root .refusal {
+	color: var(--ic-warn);
+}
+.ic-root .added {
+	color: var(--ic-accent);
+}
+/* A NUMBER is set in the instrument face, at a size a glance can read. */
+.ic-root .metric strong,
+.ic-root .pm .val,
+.ic-root .compare li strong,
+.ic-root .compare dd,
+.ic-root .mat .fact {
+	font: var(--ic-fs-num) / 1.2 var(--font-mono);
+	color: var(--ic-text-1);
+	font-variant-numeric: tabular-nums;
+}
+.ic-root .mat .fact {
+	font-size: var(--ic-fs-label);
+	color: var(--ic-text-2);
+}
+.ic-root .notice {
+	font: var(--ic-fs-eyebrow) / 1.3 var(--font-mono);
+	letter-spacing: var(--ic-track);
+	text-transform: uppercase;
+	color: var(--ic-warn);
+}
+
+/* --------------------------------------------------------------------------
+   Controls. A button is a RAISED chrome plate; an input is a RECESSED field.
+   `min-height` and never a height, so a wrapped label grows the box.
+   -------------------------------------------------------------------------- */
+.ic-root button,
+.ic-root input,
+.ic-root select {
+	min-height: var(--ic-tap);
+	min-width: var(--ic-tap);
+	color: var(--ic-text-1);
+	background: var(--ic-control);
+	border: 1px solid var(--ic-edge);
+	border-radius: var(--ic-radius);
+	font: 500 var(--ic-fs-ui) / 1.2 var(--font-display);
+	letter-spacing: 0.01em;
+}
+.ic-root button {
+	box-shadow: var(--ic-bevel);
+	cursor: pointer;
+}
+.ic-root button:hover {
+	background: var(--ic-control-hover);
+	border-color: var(--ic-accent);
+}
+.ic-root input,
+.ic-root select {
+	background: var(--ic-field);
+	box-shadow: var(--ic-recess);
+	font-variant-numeric: tabular-nums;
+}
+.ic-root input[type='number'] {
+	font-family: var(--font-mono);
+	font-size: var(--ic-fs-num);
+	text-align: right;
+}
+.ic-root input[type='range'] {
+	background: transparent;
+	border: 0;
+	box-shadow: none;
+	accent-color: var(--ic-accent);
+}
+.ic-root button:focus-visible,
+.ic-root input:focus-visible,
+.ic-root select:focus-visible {
+	outline: 2px solid var(--focus-ring);
+	outline-offset: 1px;
+}
+/* SUPPRESSED. A control that cannot act is still read (`--ic-text-2`, never
+   `--ic-text-3`) and still explains itself, so it is `aria-disabled`; the
+   DASHED edge is the second signal beside the ink, and the plate goes flat. */
+.ic-root button[aria-disabled='true'],
+.ic-root input:disabled,
+.ic-root select:disabled {
+	color: var(--ic-text-2);
+	background: var(--ic-panel);
+	border-style: dashed;
+	border-color: var(--ic-edge);
+	box-shadow: none;
+	cursor: default;
+}
+.ic-root button[aria-disabled='true']:hover {
+	background: var(--ic-panel);
+	border-color: var(--ic-edge);
+}
+/* PRESSED (a mode that is on): the accent as fill, the word in dark ink. */
+.ic-root button[aria-pressed='true'] {
+	background: var(--ic-accent);
+	border-color: var(--ic-accent);
+	color: var(--ic-accent-ink);
+	box-shadow: none;
+}
+/* THE CONFIRM PAIR, wherever it sits: a FILLED green check, an OUTLINED
+   crimson X. Where SolidWorks puts a green check and a red X, so does this. */
+.ic-root .accept {
+	background: var(--ic-accent);
+	border-color: var(--ic-accent);
+	color: var(--ic-accent-ink);
+	font-weight: 600;
+}
+.ic-root .accept:hover {
+	background: #8ccb84;
+	border-color: #8ccb84;
+}
+.ic-root .cancel,
+.ic-root .danger {
+	border-color: var(--ic-fail);
+}
+.ic-root .cancel:hover,
+.ic-root .danger:hover {
+	border-color: var(--ic-fail-ink);
+	background: var(--ic-control-hover);
+}
+/* The `aria-disabled` rule above outranks these by one attribute, so a
+   disabled Accept goes flat and dashed like every other suppressed control. */
+
+/* --------------------------------------------------------------------------
+   The command band (the editor's own header)
+   -------------------------------------------------------------------------- */
+.ic-root > header {
+	padding: 0.5rem var(--ic-pad);
+	background: var(--ic-head);
+	border-bottom: 1px solid var(--ic-edge);
+	box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+.ic-root > header > div:first-child {
+	min-width: 0;
+}
+.ic-root .hgroup {
+	gap: 0.35rem;
+}
+.ic-root .hist {
+	font: var(--ic-fs-label) / 1.2 var(--font-mono);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	padding: 0 0.7rem;
+}
+/* THE SAVE STATE IS A STATUS CHIP: the word is the signal, the chip is the
+   shape that says it is a status rather than a control. */
+.ic-root .save {
+	display: inline-flex;
+	align-items: center;
+	min-height: 28px;
+	padding: 0 0.6rem;
+	border: 1px solid var(--ic-line);
+	border-radius: var(--ic-radius);
+	background: var(--ic-panel);
+	font: var(--ic-fs-eyebrow) / 1.2 var(--font-mono);
+	letter-spacing: var(--ic-track);
+	text-transform: uppercase;
+	color: var(--ic-text-2);
+}
+.ic-root .refusal.write {
+	padding: 0.35rem 0.6rem;
+	border-left: var(--ic-rail) solid var(--ic-warn);
+	background: var(--ic-panel);
+}
+.ic-root .refusal.write.stopped {
+	color: var(--ic-fail-ink);
+	border-left-color: var(--ic-fail);
+}
+
+/* THE PHONE PANE SWITCHER: three tabs on the band, the current one filled. */
+.ic-root .mobile-switcher {
+	background: var(--ic-head);
+	border-bottom: 1px solid var(--ic-edge);
+}
+.ic-root .mobile-switcher button {
+	font: var(--ic-fs-label) / 1.2 var(--font-mono);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------------------
+   The stage: two panes, a graphics area, two dividers
+   -------------------------------------------------------------------------- */
+.ic-root .stage > aside {
+	background: var(--ic-panel);
+	padding: var(--ic-pad);
+	scrollbar-width: thin;
+	scrollbar-color: var(--ic-text-3) var(--ic-panel);
+}
+.ic-root .tree {
+	border-right: 1px solid var(--ic-edge);
+}
+.ic-root .readouts {
+	border-left: 1px solid var(--ic-edge);
+}
+/* THE DIVIDER IS A GRIP: a dark channel with three dots, green when held. */
+.ic-root .divider {
+	position: relative;
+	background: var(--ic-ground);
+	box-shadow: none;
+	border: 0;
+	border-radius: 0;
+	min-height: 0;
+}
+.ic-root .divider::after {
+	content: '';
+	position: absolute;
+	inset: 50% auto auto 50%;
+	width: 2px;
+	height: 22px;
+	transform: translate(-50%, -50%);
+	background: repeating-linear-gradient(to bottom, var(--ic-edge) 0 2px, transparent 2px 6px);
+}
+.ic-root .divider:hover,
+.ic-root .divider:focus-visible {
+	background: var(--ic-tint);
+}
+.ic-root .divider:hover::after,
+.ic-root .divider:focus-visible::after {
+	background: repeating-linear-gradient(to bottom, var(--ic-accent) 0 2px, transparent 2px 6px);
+}
+/* THE PANE TOGGLES sit on the graphics area's edge as small chrome tabs. */
+.ic-root .pane-toggle {
+	font: 16px / 1 var(--font-mono);
+	background: var(--ic-head);
+	color: var(--ic-text-2);
+	border-color: var(--ic-edge);
+	box-shadow: var(--ic-bevel);
+}
+.ic-root .pane-toggle:hover {
+	color: var(--ic-text-1);
+}
+
+/* --------------------------------------------------------------------------
+   Panel title bands. Full bleed across the pane (the negative margin undoes
+   the pane's gutter), one step lighter than the panel, an edge beneath.
+   Every panel in the room has one: the FeatureManager, the PropertyManager,
+   the Materials panel, the History and the rules rail.
+   -------------------------------------------------------------------------- */
+.ic-root .ft h3,
+.ic-root .pm > header,
+.ic-root .mat > header,
+.ic-root .tl > header,
+.ic-root .readouts > h3 {
+	margin: calc(-1 * var(--ic-pad)) calc(-1 * var(--ic-pad)) 0.6rem;
+	padding: 0.45rem var(--ic-pad);
+	min-height: 36px;
+	background: var(--ic-head);
+	border-bottom: 1px solid var(--ic-edge);
+	box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+.ic-root .ft h3,
+.ic-root .pm > header h3,
+.ic-root .mat > header h3,
+.ic-root .readouts > h3 {
+	font: 600 var(--ic-fs-title) / 1.2 var(--font-display);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--ic-text-1);
+}
+.ic-root .ft h3 {
+	display: flex;
+	align-items: center;
+}
+.ic-root .pm > header,
+.ic-root .mat > header,
+.ic-root .tl > header {
+	gap: 0.5rem;
+}
+.ic-root .pm > header h3,
+.ic-root .mat > header h3 {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* THE WAY BACK is a quiet chrome tab with a chevron, not a primary button. */
+.ic-root .back {
+	font: var(--ic-fs-label) / 1.2 var(--font-mono);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	padding: 0 0.6rem 0 0.45rem;
+	justify-content: center;
+}
+.ic-root .back::before {
+	content: '\2039\00a0';
+	color: var(--ic-accent);
+}
+/* A SECTION LABEL under a band: an eyebrow with a rule running out from it. */
+.ic-root .rules-label {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 0 0 0.25rem;
+}
+.ic-root .rules-label::after {
+	content: '';
+	flex: 1;
+	height: 1px;
+	background: var(--ic-line);
+}
+
+/* --------------------------------------------------------------------------
+   The FeatureManager: flat rows on the panel, a rail for state.
+   A row is not a bordered box; the tree is one control and its rows are
+   separated by hairlines, which is what makes the selected row's green rail
+   and tint the loudest thing in the pane. The tap floor is unchanged.
+   -------------------------------------------------------------------------- */
+.ic-root .ft li {
+	gap: 0;
+	border-bottom: 1px solid var(--ic-line);
+}
+.ic-root .ft button {
+	margin: 0;
+	padding: 0.35rem 0.5rem 0.35rem 0.6rem;
+	background: transparent;
+	border: 0;
+	border-left: var(--ic-rail) solid transparent;
+	border-radius: 0;
+	box-shadow: none;
+	font-weight: 500;
+}
+.ic-root .ft button:hover {
+	background: var(--ic-control);
+	border-left-color: var(--ic-edge);
+}
+.ic-root .ft button.twist {
+	width: 36px;
+	min-width: 36px;
+	border-left: 0;
+	color: var(--ic-text-3);
+	font-family: var(--font-mono);
+}
+.ic-root .ft button.twist:hover {
+	color: var(--ic-text-1);
+}
+/* A FEATURE ROW carries a mark: a filled square for a feature, a hollow one
+   for a node (Materials, Standard Parts), a tick for a station. The glyph is
+   a second signal beside the indent and the label, and it is what makes the
+   list scan as a tree rather than as a list of buttons. */
+.ic-root .ft button[role='treeitem']::before {
+	content: '';
+	flex: 0 0 auto;
+	width: 7px;
+	height: 7px;
+	margin-right: 0.15rem;
+	border: 1px solid var(--ic-text-2);
+	transform: rotate(45deg);
+}
+.ic-root .ft button[data-row='feature']::before {
+	background: var(--ic-text-2);
+}
+.ic-root .ft button[data-row='station']::before {
+	width: 8px;
+	height: 1px;
+	border: 0;
+	background: var(--ic-text-3);
+	transform: none;
+}
+.ic-root .ft li.child .name {
+	padding-left: 0.6rem;
+	font: var(--ic-fs-label) / 1.2 var(--font-mono);
+	letter-spacing: 0.02em;
+	color: var(--ic-text-2);
+}
+.ic-root .ft button.active {
+	background: var(--ic-tint);
+	border-left-color: var(--ic-accent);
+	color: var(--ic-text-1);
+	font-weight: 600;
+}
+.ic-root .ft button.active::before {
+	border-color: var(--ic-accent);
+	background: var(--ic-accent);
+}
+.ic-root .ft button.trouble {
+	border-left-color: var(--ic-fail);
+}
+.ic-root .ft button:focus-visible {
+	outline-offset: -2px;
+}
+
+/* --------------------------------------------------------------------------
+   Chips. One shape for every status word: mono, uppercase, a hairline edge.
+   PASS is OUTLINED in green; FAIL is FILLED crimson with dark ink -- so the
+   two differ in fill as well as in hue and in word.
+   -------------------------------------------------------------------------- */
+.ic-root .chip,
+.ic-root .metric b,
+.ic-root .compare li b {
+	display: inline-flex;
+	align-items: center;
+	min-height: 18px;
+	padding: 0 0.35rem;
+	border: 1px solid currentColor;
+	border-radius: var(--ic-radius);
+	font: var(--ic-fs-eyebrow) / 1 var(--font-mono);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	font-style: normal;
+	color: var(--ic-warn);
+	white-space: nowrap;
+}
+.ic-root .chip.pass,
+.ic-root .metric b,
+.ic-root .compare li b {
+	color: var(--ic-accent);
+}
+.ic-root .chip.fail,
+.ic-root .metric b.fail,
+.ic-root .compare li b.fail,
+.ic-root .ft button.trouble .chip {
+	color: var(--ic-accent-ink);
+	background: var(--ic-fail-ink);
+	border-color: var(--ic-fail-ink);
+}
+.ic-root .chip.mine {
+	color: var(--ic-meta);
+}
+.ic-root .tl .chip {
+	color: var(--ic-warn);
+	background: transparent;
+	border-color: currentColor;
+}
+
+/* --------------------------------------------------------------------------
+   The rules rail: label above, value and verdict beneath, per instrument.
+   -------------------------------------------------------------------------- */
+.ic-root .metric {
+	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-areas:
+		'label label'
+		'value chip';
+	align-items: center;
+	gap: 0.15rem 0.5rem;
+	padding: 0.4rem 0;
+	border-bottom: 1px solid var(--ic-line);
+}
+.ic-root .metric span {
+	grid-area: label;
+	font: var(--ic-fs-eyebrow) / 1.2 var(--font-mono);
+	letter-spacing: var(--ic-track);
+	text-transform: uppercase;
+	color: var(--ic-text-2);
+}
+.ic-root .metric strong {
+	grid-area: value;
+	font-size: 15px;
+}
+.ic-root .metric b {
+	grid-area: chip;
+	justify-self: end;
+}
+.ic-root .readouts .notice {
+	margin: 0.6rem 0 0;
+	padding-left: 0.5rem;
+	border-left: var(--ic-rail) solid var(--ic-warn);
+}
+
+/* --------------------------------------------------------------------------
+   The PropertyManager and the Materials panel: fields, tables, notes
+   -------------------------------------------------------------------------- */
+.ic-root .confirm,
+.ic-root .reorder {
+	gap: 0.35rem;
+	margin: 0 0 0.5rem;
+}
+.ic-root .reorder button {
+	font: var(--ic-fs-label) / 1.2 var(--font-mono);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+.ic-root .pm .field {
+	padding: 0.3rem 0;
+	border-bottom: 1px solid var(--ic-line);
+}
+.ic-root .pm .field.fact {
+	border-bottom: 0;
+}
+.ic-root .lab i,
+.ic-root .val i {
+	font-style: normal;
+	text-transform: none;
+	letter-spacing: 0.02em;
+	color: var(--ic-meta);
+	margin-left: 0.35rem;
+}
+.ic-root .pm .val {
+	text-align: right;
+}
+.ic-root .pm .val i {
+	font-size: var(--ic-fs-label);
+	color: var(--ic-text-2);
+}
+.ic-root .pm .range {
+	margin: 0.1rem 0 0.5rem;
+	font: var(--ic-fs-label) / 1.3 var(--font-mono);
+	color: var(--ic-text-2);
+}
+.ic-root .pm .standing {
+	border-top: 1px solid var(--ic-edge);
+}
+/* THE STATION TABLE reads as an instrument: mono headings, right-set numbers. */
+.ic-root .pm table {
+	margin-top: 0.6rem;
+	border-top: 1px solid var(--ic-edge);
+}
+.ic-root .pm caption {
+	padding: 0.4rem 0;
+}
+.ic-root .pm th,
+.ic-root .pm td {
+	padding: 0.15rem 0.1rem;
+}
+.ic-root .pm tbody th {
+	font: var(--ic-fs-num) / 1.2 var(--font-mono);
+	text-transform: none;
+	letter-spacing: 0;
+	color: var(--ic-text-1);
+	text-align: right;
+	padding-right: 0.3rem;
+}
+.ic-root .pm td input {
+	padding: 0 0.3rem;
+	font-size: var(--ic-fs-label);
+}
+.ic-root .pm .acts button {
+	font-family: var(--font-mono);
+	font-size: 16px;
+}
+.ic-root .profile svg {
+	background: var(--ic-ground);
+	border: 1px solid var(--ic-edge);
+	border-radius: var(--ic-radius);
+	box-shadow: var(--ic-recess);
+}
+.ic-root .profile .axis {
+	stroke: var(--ic-text-3);
+}
+.ic-root .profile .line {
+	stroke: var(--ic-accent);
+}
+.ic-root .profile .dot {
+	fill: var(--ic-accent);
+}
+/* The Materials panel's own rows. */
+.ic-root .mat .field {
+	margin: 0.4rem 0;
+}
+.ic-root .mat .reading,
+.ic-root .mat .own {
+	margin-top: 0.75rem;
+	padding-top: 0.6rem;
+	border-top: 1px solid var(--ic-edge);
+}
+.ic-root .mat .fact {
+	margin: 0 0 0.35rem;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.3rem;
+}
+.ic-root .mat .chip {
+	margin: 0;
+}
+.ic-root .mat .note {
+	margin: 0 0 0.5rem;
+}
+.ic-root .mat .addown,
+.ic-root .mat .save {
+	font: var(--ic-fs-label) / 1.2 var(--font-mono);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+.ic-root .mat .save {
+	background: var(--ic-accent);
+	border-color: var(--ic-accent);
+	color: var(--ic-accent-ink);
+}
+.ic-root .mat #mat-own .field {
+	margin: 0.3rem 0;
+}
+
+/* --------------------------------------------------------------------------
+   The graphics area: the heads-up view strip, the standard-view list, the
+   reference triad, the view name, the confirm pair
+   -------------------------------------------------------------------------- */
+.ic-root .viewport {
+	background: var(--ic-ground);
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+/* THE VIEW STRIP is one floating plate of joined controls, SolidWorks'
+   heads-up toolbar, rather than five separate buttons. Each control keeps
+   its own box (and its own 44px), the joins are hairlines. */
+.ic-root .viewport nav {
+	gap: 0;
+	justify-content: center;
+	pointer-events: none;
+}
+.ic-root .viewport nav button {
+	pointer-events: auto;
+	font: var(--ic-fs-label) / 1.2 var(--font-mono);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	padding: 0 0.75rem;
+	border-radius: 0;
+	background: color-mix(in srgb, var(--ic-head) 92%, transparent);
+}
+/* THE JOIN IS AN OVERLAP, NOT A DROPPED EDGE. Every control keeps all four
+   borders and the next one is pulled 1px over the last, so when the strip
+   WRAPS at 375 (Perspective takes a second row, measured) the row's last
+   control still has its right edge rather than reading as cut off. */
+.ic-root .viewport nav button + button {
+	margin-left: -1px;
+}
+.ic-root .viewport nav button:first-child {
+	border-radius: var(--ic-radius) 0 0 var(--ic-radius);
+}
+.ic-root .viewport nav button:last-child {
+	border-radius: 0 var(--ic-radius) var(--ic-radius) 0;
+}
+.ic-root .viewport nav button:hover,
+.ic-root .viewport nav button:focus-visible {
+	position: relative;
+	z-index: 1;
+}
+.ic-root .viewport nav button[aria-expanded='true'] {
+	background: var(--ic-tint);
+	color: var(--ic-accent);
+}
+.ic-root .orient {
+	background: var(--ic-panel);
+	border: 1px solid var(--ic-edge);
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+	padding: 0.3rem;
+}
+.ic-root .orient button {
+	background: transparent;
+	border-color: transparent;
+	box-shadow: none;
+}
+.ic-root .orient button:hover {
+	background: var(--ic-control);
+	border-color: var(--ic-edge);
+}
+.ic-root .orient small {
+	font: var(--ic-fs-eyebrow) / 1 var(--font-mono);
+	letter-spacing: 0.06em;
+	color: var(--ic-text-2);
+}
+.ic-root .vp .view {
+	font: var(--ic-fs-eyebrow) / 1.2 var(--font-mono);
+	letter-spacing: var(--ic-track);
+	text-transform: uppercase;
+	color: var(--ic-text-2);
+}
+.ic-root .vp .triad text {
+	font-family: var(--font-mono);
+}
+.ic-root .vp .nogl {
+	background: var(--ic-panel);
+	border: 1px solid var(--ic-edge);
+	border-left: var(--ic-rail) solid var(--ic-warn);
+	color: var(--ic-text-1);
+}
+.ic-root .viewport > footer {
+	gap: 0.35rem;
+}
+.ic-root .viewport > footer button {
+	padding: 0 0.9rem;
+}
+
+/* --------------------------------------------------------------------------
+   The concept strip: document tabs along the bottom, the active one raised
+   -------------------------------------------------------------------------- */
+.ic-root .concepts {
+	background: var(--ic-head);
+	border-top: 1px solid var(--ic-edge);
+	padding: 0.5rem var(--ic-pad) var(--ic-pad);
+	gap: 0.5rem;
+}
+.ic-root .concepts .card {
+	background: var(--ic-panel);
+	border-color: var(--ic-edge);
+	border-top: var(--ic-rail) solid transparent;
+	box-shadow: none;
+	padding: 0 0.65rem;
+	min-width: 210px;
+}
+.ic-root .concepts .card:hover {
+	border-color: var(--ic-edge);
+	border-top-color: var(--ic-text-2);
+	background: var(--ic-control);
+}
+.ic-root .concepts .card.active {
+	background: var(--ic-tint);
+	border-color: var(--ic-accent);
+}
+.ic-root .concepts .nm {
+	font-weight: 600;
+}
+.ic-root .concepts small {
+	font: var(--ic-fs-eyebrow) / 1.3 var(--font-mono);
+	letter-spacing: var(--ic-track);
+	color: var(--ic-text-2);
+	font-weight: 400;
+}
+.ic-root .concepts .card.active small {
+	color: var(--ic-accent);
+}
+.ic-root .thumb {
+	background: var(--ic-ground);
+	border: 1px solid var(--ic-edge);
+	border-radius: var(--ic-radius);
+}
+.ic-root .thumb polyline {
+	stroke: var(--ic-accent);
+}
+.ic-root .concepts .controls button,
+.ic-root .concepts .rename {
+	font: var(--ic-fs-label) / 1.2 var(--font-mono);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	padding: 0 0.8rem;
+}
+.ic-root .concepts .rename {
+	text-transform: none;
+	letter-spacing: 0;
+	font: 500 var(--ic-fs-ui) / 1.2 var(--font-display);
+	background: var(--ic-field);
+	box-shadow: var(--ic-recess);
+}
+
+/* --------------------------------------------------------------------------
+   The compare sheet
+   -------------------------------------------------------------------------- */
+.ic-root .compare {
+	background: var(--ic-panel);
+	border: 1px solid var(--ic-edge);
+	box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+	padding: 0 1.25rem 1.25rem;
+}
+/* The sheet's title is a band like every other panel's: it bleeds across the
+   sheet's own gutter the way a pane's band bleeds across the pane's. */
+.ic-root .compare > h3 {
+	margin: 0 -1.25rem 0.75rem;
+	padding: 0.5rem 1.25rem;
+	min-height: 36px;
+	display: flex;
+	align-items: center;
+	background: var(--ic-head);
+	border-bottom: 1px solid var(--ic-edge);
+	font: 600 var(--ic-fs-title) / 1.2 var(--font-display);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+.ic-root .compare > p {
+	margin-top: 0;
+	font: var(--ic-fs-prose) / 1.45 var(--font-display);
+	color: var(--ic-text-1);
+}
+.ic-root .compare > .note,
+.ic-root .compare > .refusal {
+	color: var(--ic-text-2);
+}
+.ic-root .compare > .refusal {
+	color: var(--ic-warn);
+}
+.ic-root .compare > .cols {
+	margin-top: 0.5rem;
+}
+.ic-root .compare > .close {
+	margin: 0.75rem 0 0;
+	font: var(--ic-fs-label) / 1.2 var(--font-mono);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+.ic-root .cols article {
+	background: var(--ic-ground);
+	border: 1px solid var(--ic-edge);
+	border-top: var(--ic-rail) solid transparent;
+	border-radius: var(--ic-radius);
+	padding: 0.6rem 0.7rem 0.7rem;
+}
+.ic-root .cols article.active {
+	border-color: var(--ic-accent);
+	border-top-color: var(--ic-accent);
+	background: var(--ic-tint);
+}
+.ic-root .cols h4 {
+	margin: 0.4rem 0 0.5rem;
+	font: 600 var(--ic-fs-ui) / 1.2 var(--font-display);
+	letter-spacing: 0.02em;
+}
+.ic-root .cols li {
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	align-items: center;
+	padding: 0.25rem 0;
+	border-bottom: 1px solid var(--ic-line);
+	font: var(--ic-fs-eyebrow) / 1.2 var(--font-mono);
+	letter-spacing: var(--ic-track);
+	text-transform: uppercase;
+	color: var(--ic-text-2);
+}
+.ic-root .cols li strong {
+	font-size: var(--ic-fs-label);
+	letter-spacing: 0;
+	text-transform: none;
+}
+.ic-root .cols dl {
+	margin-top: 0.5rem;
+	padding-top: 0.45rem;
+	border-top: 1px solid var(--ic-edge);
+	gap: 0.2rem 0.6rem;
+	font: var(--ic-fs-label) / 1.3 var(--font-mono);
+}
+/* THE SYMBOL COLUMN IS NOT UPPERCASED: `k` is the radius of gyration and `K`
+   is not, so these keep the eyebrow's face and colour and nothing else. */
+.ic-root .cols dt {
+	font: var(--ic-fs-label) / 1.3 var(--font-mono);
+	color: var(--ic-text-2);
+}
+.ic-root .cols dd {
+	font-size: var(--ic-fs-label);
+}
+.ic-root .said {
+	color: var(--ic-text-1);
+}
+.ic-root .said i {
+	color: var(--ic-text-2);
+	font-style: normal;
+}
+
+/* --------------------------------------------------------------------------
+   The History timeline
+   -------------------------------------------------------------------------- */
+.ic-root .tl > header {
+	align-items: center;
+}
+.ic-root .tl h3 {
+	color: var(--ic-text-1);
+	font-weight: 400;
+}
+.ic-root .tl h3 i {
+	font-size: var(--ic-fs-eyebrow);
+	letter-spacing: 0.04em;
+	color: var(--ic-text-2);
+}
+.ic-root .tl .act,
+.ic-root .tl .now {
+	font: var(--ic-fs-label) / 1.2 var(--font-mono);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	justify-content: center;
+}
+.ic-root .tl .preview {
+	background: var(--ic-panel);
+	border: 1px solid var(--ic-warn);
+	border-left-width: var(--ic-rail);
+	color: var(--ic-text-1);
+}
+.ic-root .tl .hit {
+	background: var(--ic-ground);
+	border: 1px solid transparent;
+	border-left: var(--ic-rail) solid var(--ic-edge);
+	border-radius: var(--ic-radius);
+	box-shadow: none;
+	font: var(--ic-fs-prose) / 1.3 var(--font-display);
+	color: var(--ic-text-1);
+}
+.ic-root .tl button.hit:hover,
+.ic-root .tl button.hit:focus-visible {
+	background: var(--ic-control);
+	border-color: var(--ic-accent);
+}
+.ic-root .tl .seq,
+.ic-root .tl .meta,
+.ic-root .tl .verb {
+	font: var(--ic-fs-eyebrow) / 1.3 var(--font-mono);
+	letter-spacing: 0.06em;
+}
+.ic-root .tl .seq {
+	color: var(--ic-text-2);
+	text-align: right;
+}
+.ic-root .tl .verb {
+	text-transform: uppercase;
+	color: var(--ic-warn);
+}
+.ic-root .tl .where {
+	font-weight: 600;
+}
+/* WHO MADE THE EDIT (decision 27): the word is the whole signal and the ink
+   only ranks it -- a classmate's name in `--ic-text-1`, the reader's own
+   "You" a step down, and a non-person in italics as its second cue. */
+.ic-root .tl .who {
+	color: var(--ic-text-1);
+}
+.ic-root .tl .who.is-you {
+	color: var(--ic-text-2);
+}
+.ic-root .tl .who.is-system {
+	color: var(--ic-text-2);
+	font-style: italic;
+}
+.ic-root .tl .row.undone .hit {
+	border-left-style: dashed;
+	border-left-color: var(--ic-warn);
+}
+.ic-root .tl .row.origin .hit {
+	border-left-color: var(--ic-meta);
+}
+.ic-root .tl .row.broken .hit {
+	border-left-color: var(--ic-warn);
+}
+.ic-root .tl .row.next .hit {
+	border-left-color: var(--ic-accent);
+}
+.ic-root .tl .row.here .hit {
+	border-color: var(--ic-warn);
+	background: var(--ic-tint);
+}

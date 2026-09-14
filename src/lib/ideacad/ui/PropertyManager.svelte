@@ -228,86 +228,34 @@
 </form>
 
 <style>
+	/* LAYOUT ONLY; the skin is `../ideacad.css` under `.ic-root`. */
 	.pm {
 		display: block;
 	}
 	header {
 		display: flex;
-		gap: 0.5rem;
 		align-items: center;
 		justify-content: space-between;
 		flex-wrap: wrap;
 	}
-	h3 {
-		margin: 0.15rem 0;
-	}
-	button,
-	input,
-	select {
-		min-height: 44px;
-		min-width: 44px;
-		color: var(--text-1);
-		background: var(--surface-2);
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-control);
-		font: inherit;
-	}
-	button {
-		padding: 0 0.7rem;
-	}
-	button:focus-visible,
-	input:focus-visible,
-	select:focus-visible {
-		outline: 3px solid var(--focus-ring);
-		outline-offset: 2px;
-	}
-	button[aria-disabled='true'] {
-		color: var(--text-2);
-		border-color: var(--hairline);
-	}
 	.confirm,
 	.reorder {
 		display: flex;
-		gap: 0.4rem;
-		margin: 0.5rem 0;
 	}
-	.confirm button {
-		flex: 1 1 0;
-	}
+	.confirm button,
 	.reorder button {
 		flex: 1 1 0;
-	}
-	.accept {
-		border-color: var(--green);
-	}
-	.cancel {
-		border-color: var(--crimson);
 	}
 	.field {
 		display: grid;
 		grid-template-columns: 1fr minmax(6rem, auto);
 		gap: 0.4rem;
 		align-items: center;
-		padding: 0.35rem 0;
 	}
 	.field input,
 	.field select {
 		width: 100%;
 		padding: 0 0.5rem;
-	}
-	.lab {
-		font: 12px 'Share Tech Mono', monospace;
-		letter-spacing: 0.08em;
-		color: var(--text-2);
-	}
-	.lab i,
-	.val i {
-		font-style: normal;
-		color: var(--copper);
-		margin-left: 0.35rem;
-	}
-	.val {
-		text-align: right;
 	}
 	.slider {
 		width: 100%;
@@ -317,43 +265,25 @@
 	.note,
 	.refusal {
 		margin: 0.15rem 0 0.6rem;
-		font: 12px 'Share Tech Mono', monospace;
-		line-height: 1.5;
-		color: var(--text-2);
-	}
-	.refusal {
-		color: var(--amber);
 	}
 	.standing {
 		margin-top: 1rem;
 		padding-top: 0.75rem;
-		border-top: 1px solid var(--hairline);
 	}
 	table {
 		width: 100%;
 		border-collapse: collapse;
-		margin-top: 0.5rem;
 	}
 	caption {
 		text-align: left;
-		font: 12px 'Share Tech Mono', monospace;
-		color: var(--text-2);
-		padding-bottom: 0.35rem;
 	}
 	th,
 	td {
-		padding: 0.15rem;
 		text-align: left;
-		font: 12px 'Share Tech Mono', monospace;
-		color: var(--text-2);
-	}
-	tbody th {
-		color: var(--text-1);
 	}
 	td input {
 		width: 100%;
 		min-width: 0;
-		padding: 0 0.3rem;
 	}
 	.acts {
 		display: flex;

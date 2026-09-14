@@ -27,32 +27,23 @@
 </figure>
 
 <style>
+	/* LAYOUT ONLY; the skin is `../ideacad.css` under `.ic-root`. */
 	.profile {
 		margin: 0.75rem 0 0;
 	}
 	svg {
 		max-width: 100%;
 		height: auto;
-		background: var(--surface-0);
-		border: 1px solid var(--hairline);
-		border-radius: var(--radius-control);
 	}
 	.axis {
-		stroke: var(--boundary);
 		stroke-width: 1;
 		stroke-dasharray: 3 3;
 	}
 	.line {
 		fill: none;
-		stroke: var(--green);
 		stroke-width: 2;
 	}
-	.dot {
-		fill: var(--green);
-	}
 	figcaption {
-		font: 12px 'Share Tech Mono', monospace;
-		color: var(--text-2);
 		padding-top: 0.3rem;
 	}
 </style>
