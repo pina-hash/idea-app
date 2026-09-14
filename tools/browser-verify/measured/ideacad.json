@@ -1,15 +1,148 @@
 {
 	"schema": 1,
 	"spec": "ideacad.mjs",
-	"date": "2026-09-13T05:55:39.447Z",
-	"sha": "74a9fd753137afe0e6d5e6cc5800b93a284d86a5",
+	"date": "2026-09-14T07:33:51.410Z",
+	"sha": "b884daf26522e27dd0972ea8160b636b0e1ead0a",
 	"dirty": true,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
-	"measurements": 76,
-	"outsideRows": [],
-	"ms": 6419
+	"measurements": 88,
+	"outsideRows": [
+		{
+			"path": "/dev/ideacad",
+			"width": 375,
+			"check": "contrast",
+			"label": "the sentence saying what the tree does not offer"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 375,
+			"check": "tap-target",
+			"label": "a view toolbar control"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 375,
+			"check": "tap-target",
+			"label": "a FeatureManager row"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 375,
+			"check": "tap-target",
+			"label": "a concept strip control"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 375,
+			"check": "tap-target",
+			"label": "Accept and Cancel"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 375,
+			"check": "presence",
+			"label": "FeatureManager rows"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 375,
+			"check": "presence",
+			"label": "FeatureManager rows and the body’s expander"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 375,
+			"check": "presence",
+			"label": "the body’s expander"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 375,
+			"check": "presence",
+			"label": "rule readouts, the centre of mass and the physics"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 375,
+			"check": "order-result",
+			"label": "the console, the viewport and the view toolbar are where they claim to be"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 375,
+			"check": "order-result",
+			"label": "the standard-view list, opened through its own control"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 375,
+			"check": "distinguishable",
+			"label": "a readout label against its own value"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1440,
+			"check": "contrast",
+			"label": "the sentence saying what the tree does not offer"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "a view toolbar control"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "a FeatureManager row"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "a concept strip control"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "Accept and Cancel"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1440,
+			"check": "presence",
+			"label": "FeatureManager rows and the body’s expander"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1440,
+			"check": "presence",
+			"label": "the body’s expander"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1440,
+			"check": "order-result",
+			"label": "the console, the viewport and the view toolbar are where they claim to be"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1440,
+			"check": "order-result",
+			"label": "the standard-view list, opened through its own control"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1440,
+			"check": "layout-sanity",
+			"label": "the IdeaCAD console"
+		}
+	],
+	"ms": 6093
 }

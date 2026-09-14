@@ -244,84 +244,41 @@
 </form>
 
 <style>
+	/* LAYOUT ONLY; the skin is `../ideacad.css` under `.ic-root`. */
 	.pm {
 		display: block;
 	}
 	header {
 		display: flex;
-		gap: 0.5rem;
 		align-items: center;
 		justify-content: space-between;
 		flex-wrap: wrap;
 	}
-	h3 {
-		margin: 0.15rem 0;
-	}
-	h4 {
-		margin: 0.75rem 0 0.25rem;
-		font: 700 12px 'Share Tech Mono', monospace;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: var(--green);
-	}
-	button,
-	input,
-	select {
-		min-height: 44px;
-		min-width: 44px;
-		color: var(--text-1);
-		background: var(--surface-2);
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-control);
-		font: inherit;
-	}
-	button {
-		padding: 0 0.7rem;
-		cursor: pointer;
-	}
-	button:focus-visible,
-	input:focus-visible,
-	select:focus-visible {
-		outline: 3px solid var(--focus-ring);
-		outline-offset: 2px;
-	}
-	button[aria-disabled='true'] {
-		color: var(--text-2);
-		border-color: var(--hairline);
-	}
 	.confirm,
 	.reorder {
 		display: flex;
-		gap: 0.4rem;
-		margin: 0.5rem 0;
-	}
-	.confirm button {
-		flex: 1 1 0;
 	}
 	.confirm.profile-confirm {
 		display: none;
 	}
+	.confirm button,
 	.reorder button {
 		flex: 1 1 0;
-	}
-	.accept {
-		border-color: var(--green);
-	}
-	.cancel {
-		border-color: var(--crimson);
 	}
 	.field {
 		display: grid;
 		grid-template-columns: 1fr minmax(6rem, auto);
 		gap: 0.4rem;
 		align-items: center;
-		padding: 0.35rem 0;
 	}
 	.field input,
 	.field select {
 		width: 100%;
 		padding: 0 0.5rem;
 	}
+	/* DRAG-TO-SCRUB (ledger 0233) IS LAYOUT AND BEHAVIOUR, so it stays here.
+	   Ledger 0231 never saw this control -- it landed on `main` afterwards --
+	   which is why its own sheet says nothing about it. */
 	.number-control {
 		display: grid;
 		grid-template-columns: 1.2rem minmax(0, 1fr) 2.8rem;
@@ -341,24 +298,12 @@
 		touch-action: none;
 		cursor: ew-resize;
 	}
+	/* The unit beside a scrubbed number is a UNIT, so it reads the room's one
+	   unit rule (`.lab i, .val i, .number-control i` in `ideacad.css`) rather
+	   than restating a face and a colour here. It pointed at `var(--copper)`,
+	   which is defined nowhere in `src/`, so the colour was never applied. */
 	.number-control i {
-		font: 12px 'Share Tech Mono', monospace;
-		font-style: normal;
-		color: var(--copper);
 		text-align: left;
-	}
-	.lab {
-		font: 12px 'Share Tech Mono', monospace;
-		letter-spacing: 0.08em;
-		color: var(--text-2);
-	}
-	.val i {
-		font-style: normal;
-		color: var(--copper);
-		margin-left: 0.35rem;
-	}
-	.val {
-		text-align: right;
 	}
 	.slider {
 		width: 100%;
@@ -367,17 +312,10 @@
 	.range,
 	.refusal {
 		margin: 0.15rem 0 0.6rem;
-		font: 12px 'Share Tech Mono', monospace;
-		line-height: 1.5;
-		color: var(--text-2);
-	}
-	.refusal {
-		color: var(--amber);
 	}
 	.actions {
 		margin-top: 1rem;
 		padding-top: 0.75rem;
-		border-top: 1px solid var(--hairline);
 	}
 	.feature-state {
 		width: max-content;

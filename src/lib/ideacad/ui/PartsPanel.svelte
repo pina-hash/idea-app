@@ -674,8 +674,8 @@
 		padding: 0.15rem 0.4rem;
 	}
 	.chip.expiring {
-		border-color: var(--copper);
-		color: var(--copper);
+		border-color: var(--ic-warn, var(--amber));
+		color: var(--ic-warn, var(--amber));
 	}
 	.note {
 		margin: 0;
@@ -712,7 +712,7 @@
 		min-width: 0;
 	}
 	.notice.refusal {
-		border-color: var(--copper);
+		border-color: var(--ic-warn, var(--amber));
 	}
 	.notice.terminal {
 		border-color: var(--crimson);
