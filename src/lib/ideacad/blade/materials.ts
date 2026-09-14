@@ -3,6 +3,83 @@ export interface Material { id: string; name: string; densityGcm3: number }
 export interface Stock extends Material { thicknessIn: number }
 export interface StandardPart { name: string; massG: number; verified: boolean; geometry: Record<string, unknown> }
 export interface BladeConfig { materials: Material[]; stock: Stock[]; standardParts: StandardPart[]; launcher: { acrossFlatsIn: number|null }; tipHeightIn: number; rules: { maxDiameterIn:number; minHeightIn:number; maxHeightIn:number; minHexExtensionIn:number; maxHexExtensionIn:number; maxMassG:number }; defaultFeatures: BladeTree }
+
+/** The shop vocabulary for thickness. This is presentation metadata, not a unit conversion. */
+export type StockThicknessConvention = 'gauge' | 'fractional-inch' | 'metric-ply';
+
+/**
+ * A material requested for the blade stock lesson.
+ *
+ * A density is deliberately nullable. `null` means that this repository has not
+ * opened a published source which contains the value; it is not permission to
+ * substitute a typical value. `densitySource` must be null at the same time.
+ */
+export interface BladeStockMaterial {
+	id: 'ar500' | '6061' | '4140' | 'polycarbonate' | 'baltic-birch-ply';
+	name: string;
+	densityGcm3: number | null;
+	densitySource: string | null;
+	densityVerified: boolean;
+	thicknessConvention: StockThicknessConvention;
+	stockThicknesses: readonly { label: string; inches: number }[];
+}
+
+export const MATERIAL_DENSITY_UNVERIFIED = 'UNVERIFIED — density is unavailable; physics cannot be calculated.';
+export const MATERIAL_UNKNOWN_REFUSAL = 'UNKNOWN_MATERIAL';
+export const THICKNESS_UNKNOWN_REFUSAL = 'UNKNOWN_THICKNESS';
+export const DENSITY_UNVERIFIED_REFUSAL = 'DENSITY_UNVERIFIED';
+
+/**
+ * The model-layer catalogue for ledger 0261.
+ *
+ * The execution environment could not open a manufacturer datasheet for any
+ * density. In accordance with the no-invention rule, all five therefore carry
+ * no density and no density citation. Thickness labels preserve the convention
+ * in which each kind of stock is ordered; they do not imply density verification.
+ */
+export const BLADE_STOCK_MATERIALS: readonly BladeStockMaterial[] = [
+	{
+		id: 'ar500', name: 'AR500 abrasion-resistant steel', densityGcm3: null, densitySource: null,
+		densityVerified: false, thicknessConvention: 'fractional-inch',
+		stockThicknesses: [{ label: '3/16 in', inches: 0.1875 }, { label: '1/4 in', inches: 0.25 }, { label: '3/8 in', inches: 0.375 }, { label: '1/2 in', inches: 0.5 }]
+	},
+	{
+		id: '6061', name: '6061 aluminum', densityGcm3: null, densitySource: null,
+		densityVerified: false, thicknessConvention: 'fractional-inch',
+		stockThicknesses: [{ label: '1/16 in', inches: 0.0625 }, { label: '1/8 in', inches: 0.125 }, { label: '3/16 in', inches: 0.1875 }, { label: '1/4 in', inches: 0.25 }]
+	},
+	{
+		id: '4140', name: '4140 alloy steel', densityGcm3: null, densitySource: null,
+		densityVerified: false, thicknessConvention: 'fractional-inch',
+		stockThicknesses: [{ label: '1/8 in', inches: 0.125 }, { label: '3/16 in', inches: 0.1875 }, { label: '1/4 in', inches: 0.25 }, { label: '3/8 in', inches: 0.375 }]
+	},
+	{
+		id: 'polycarbonate', name: 'Polycarbonate sheet', densityGcm3: null, densitySource: null,
+		densityVerified: false, thicknessConvention: 'gauge',
+		stockThicknesses: [{ label: '0.060 in sheet', inches: 0.06 }, { label: '0.093 in sheet', inches: 0.093 }, { label: '0.118 in sheet', inches: 0.118 }, { label: '0.177 in sheet', inches: 0.177 }]
+	},
+	{
+		id: 'baltic-birch-ply', name: 'Baltic birch plywood', densityGcm3: null, densitySource: null,
+		densityVerified: false, thicknessConvention: 'metric-ply',
+		stockThicknesses: [{ label: '3 mm', inches: 3 / 25.4 }, { label: '6 mm', inches: 6 / 25.4 }, { label: '12 mm', inches: 12 / 25.4 }]
+	}
+] as const;
+
+export type BladeStockResolution =
+	| { ok: true; material: BladeStockMaterial; thickness: BladeStockMaterial['stockThicknesses'][number]; densityGcm3: number; densitySource: string }
+	| { ok: false; refusal: typeof MATERIAL_UNKNOWN_REFUSAL | typeof THICKNESS_UNKNOWN_REFUSAL | typeof DENSITY_UNVERIFIED_REFUSAL; message: string };
+
+/** Resolve both selectable inputs without a default, guess, or partial success. */
+export function resolveBladeStock(materialId: string, thicknessIn: number): BladeStockResolution {
+	const material = BLADE_STOCK_MATERIALS.find((candidate) => candidate.id === materialId);
+	if (!material) return { ok: false, refusal: MATERIAL_UNKNOWN_REFUSAL, message: `Unknown material: ${materialId}` };
+	const thickness = material.stockThicknesses.find((candidate) => candidate.inches === thicknessIn);
+	if (!thickness) return { ok: false, refusal: THICKNESS_UNKNOWN_REFUSAL, message: `${material.name} is not listed at ${thicknessIn} in.` };
+	if (!material.densityVerified || material.densityGcm3 === null || material.densitySource === null) {
+		return { ok: false, refusal: DENSITY_UNVERIFIED_REFUSAL, message: `${material.name}: ${MATERIAL_DENSITY_UNVERIFIED}` };
+	}
+	return { ok: true, material, thickness, densityGcm3: material.densityGcm3, densitySource: material.densitySource };
+}
 export const DEFAULT_BLADE_TREE: BladeTree = { schema:1, editor:'blade', units:'in', rotation:'cw', materials:{body:'pla',bodySolidFraction:.42,bladeStock:'steel-0125'}, features:[
  {id:'body-revolve',type:'revolve',stations:[{r:.12,z:.125},{r:1.55,z:.35},{r:1.65,z:2.4},{r:.7,z:2.95}]},
  {id:'hex-extension',type:'hexBoss',acrossFlats:.5,height:.5},
