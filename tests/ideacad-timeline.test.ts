@@ -399,7 +399,7 @@ describe('timelineActors: who made an edit', () => {
 	it('says "You" for the reader and a name for everybody else', () => {
 		const rows = [actorRow(1, VIEWER), actorRow(2, PARTNER)];
 		expect(label(rows, VIEWER, VIEWER)).toBe(ACTOR_WORDS.you);
-		expect(label(rows, VIEWER, PARTNER)).toBe('m.reyes');
+		expect(label(rows, VIEWER, PARTNER)).toBe('M Reyes');
 	});
 
 	it('NEVER prints a bare address for a person, which is the defect', () => {
@@ -443,7 +443,7 @@ describe('timelineActors: who made an edit', () => {
 		expect(actors.get(student)!.label).toBe(student);
 		// An actor whose local part is unique is unaffected by somebody else's
 		// collision.
-		expect(actors.get(PARTNER)!.label).toBe('m.reyes');
+		expect(actors.get(PARTNER)!.label).toBe('M Reyes');
 	});
 
 	it('counts the READER into the collision set, so their own short name is never on somebody else', () => {
@@ -461,8 +461,8 @@ describe('timelineActors: who made an edit', () => {
 		const rows = [actorRow(1, VIEWER), actorRow(2, PARTNER)];
 		const actors = timelineActors(rows, null);
 		expect([...actors.values()].some((a) => a.isViewer)).toBe(false);
-		expect(actors.get(VIEWER)!.label).toBe('a.pina');
-		expect(actors.get(PARTNER)!.label).toBe('m.reyes');
+		expect(actors.get(VIEWER)!.label).toBe('A Pina');
+		expect(actors.get(PARTNER)!.label).toBe('M Reyes');
 		for (const [, who] of actors) expect(who.label.length).toBeGreaterThan(0);
 	});
 

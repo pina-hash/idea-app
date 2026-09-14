@@ -139,11 +139,35 @@ describe('a NEW EDIT after an undo does not truncate anything', () => {
 		expect(rows).toHaveLength(5);
 		const fold = foldHistory(rows);
 		expect(fold.undoTarget?.seq).toBe(4);
-		// The undo at 3 is still the newest odd-depth row, so redo still points
-		// at it -- which is the DELIBERATE difference from `ui/undo.ts`, whose
-		// `push` clears the redo future. Nothing is lost here to be cleared.
-		expect(fold.redoTarget?.seq).toBe(3);
+		// The audit row stays, but the new decision explicitly closes that branch.
+		expect(fold.redoTarget).toBeNull();
+		expect(fold.redoDiscarded).toBe(true);
 		expect(stateAt(rows)).toEqual({ count: 2, rotation: 'ccw' });
+	});
+});
+
+describe('random edit streams round-trip exactly', () => {
+	it('undoes every edit to the byte-equivalent origin, then redoes to the exact end', () => {
+		let seed = 0x262;
+		const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+		for (let run = 0; run < 75; run += 1) {
+			let rows: IdeacadHistoryRow[] = [ORIGIN];
+			let current = { count: 1, rotation: 'cw' };
+			const edits = 20 + Math.floor(random() * 100);
+			for (let i = 0; i < edits; i += 1) {
+				const changeCount = random() < 0.7;
+				const path = changeCount ? '/count' : '/rotation';
+				const before = changeCount ? current.count : current.rotation;
+				const after = changeCount ? Math.floor(random() * 24) + 1 : current.rotation === 'cw' ? 'ccw' : 'cw';
+				rows.push({ seq: rows.length, kind: 'set', path, before, after });
+				current = stateAt<typeof current>(rows);
+			}
+			const end = structuredClone(current);
+			while (foldHistory(rows).canUndo) rows = press(rows, 'undo');
+			expect(stateAt(rows)).toEqual(ORIGIN.after);
+			while (foldHistory(rows).canRedo) rows = press(rows, 'redo');
+			expect(stateAt(rows)).toEqual(end);
+		}
 	});
 });
 
