@@ -186,7 +186,7 @@ export async function installCanvasReadback(page) {
  *   the shaded `--selftest` triangle       23.77%             9,617
  *   the real Blade viewport, 30 readings   16.87-42.83%   6,833-9,706
  *   the same canvas, --break blank-canvas   0.00%                 1
- *   the same canvas at `799d203`            0.00%                 6
+ *   the same canvas at `799d203`, propped    0.00%                 6
  *   a canvas that was only ever cleared     0.00%                 1
  *
  * So a sound render clears the 2% floor by an order of magnitude and the
@@ -231,7 +231,10 @@ export async function canvasContent(
 			/* THE LIVE CONTEXT, ASKED FOR BY ITS OWN TYPE. `getContext` returns
 			   the EXISTING context when the type matches and null when it does
 			   not, so trying webgl2, then webgl, then 2d finds whichever one the
-			   page actually made without creating a second. */
+			   page actually made without creating a second of a different type.
+			   On a canvas that has NO context it creates the FIRST one, whose
+			   buffer is a single cleared colour -- which fails, correctly, for a
+			   canvas nothing ever drew into. */
 			const gl = el.getContext('webgl2') || el.getContext('webgl');
 			if (gl) {
 				const attrs = gl.getContextAttributes() || {};
