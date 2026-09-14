@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_BLADE_TREE } from '../src/lib/ideacad/blade/materials';
 import {
 	addFeature,
+	addBodyStation,
 	deleteFeature,
 	duplicateFeature,
 	renameFeature,
 	reorderFeature,
+	removeBodyStation,
 	suppressFeature,
 	type BladeTreeOperationResult
 } from '../src/lib/ideacad/blade/ops';
@@ -27,6 +29,43 @@ function refusal(result: BladeTreeOperationResult, code: string): string {
 }
 
 describe('IdeaCAD feature-tree operations', () => {
+	it('enforces the stated station bounds at the model mutation boundary', () => {
+		let tree = cloneTree(DEFAULT_BLADE_TREE);
+		for (let count = 4; count <= 8; count += 1) {
+			const body = tree.features.find((feature) => feature.type === 'revolve');
+			if (!body || body.type !== 'revolve') throw new Error('fixture needs a body');
+			const last = body.stations.at(-1)!;
+			tree = success(addBodyStation(tree, body.id, { r: last.r, z: last.z + 0.1 }, body.stations.length));
+		}
+
+		let body = tree.features.find((feature) => feature.type === 'revolve');
+		if (!body || body.type !== 'revolve') throw new Error('fixture needs a body');
+		expect(body.stations).toHaveLength(8);
+		expect(refusal(addBodyStation(tree, body.id, { r: 0.7, z: 4 }, 8), 'station-limit')).toContain(
+			'at most 8'
+		);
+		expect(body.stations).toHaveLength(8);
+
+		while (body.stations.length > 3) {
+			tree = success(removeBodyStation(tree, body.id, body.stations.length - 1));
+			const current = tree.features.find((feature) => feature.id === body.id);
+			if (!current || current.type !== 'revolve') throw new Error('fixture needs a body');
+			body = current;
+		}
+		expect(refusal(removeBodyStation(tree, body.id, 2), 'station-limit')).toContain('at least 3');
+	});
+
+	it('rejects a sixteen-station point cloud even when it was constructed outside tree operations', () => {
+		const tree = cloneTree(DEFAULT_BLADE_TREE);
+		const body = tree.features.find((feature) => feature.type === 'revolve');
+		if (!body || body.type !== 'revolve') throw new Error('fixture needs a body');
+		body.stations = Array.from({ length: 16 }, (_, index) => ({ r: 0.7, z: 0.125 + index * 0.25 }));
+		expect(validateBladeTree(tree)).toContainEqual({
+			featureId: body.id,
+			parameter: 'stations',
+			message: 'Use 3 to 8 body stations.'
+		});
+	});
 	it('adds, duplicates, renames, suppresses, restores, reorders, and deletes without mutation', () => {
 		const original = cloneTree(DEFAULT_BLADE_TREE);
 		const added: BladeFeature = {

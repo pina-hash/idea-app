@@ -5,6 +5,10 @@ export interface Station {
 	z: number;
 }
 
+/** The stored schema-1 body contract, shared by validation and tree operations. */
+export const MIN_BODY_STATIONS = 3;
+export const MAX_BODY_STATIONS = 8;
+
 /** Metadata shared by every feature. Optional fields keep schema-1 documents compatible. */
 export interface FeatureState {
 	id: string;

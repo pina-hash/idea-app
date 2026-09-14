@@ -1,5 +1,10 @@
 import type { BladeConfig } from './materials';
-import { featureDependencies, type BladeTree } from './tree';
+import {
+	featureDependencies,
+	MAX_BODY_STATIONS,
+	MIN_BODY_STATIONS,
+	type BladeTree
+} from './tree';
 
 export interface BladeProblem {
 	featureId: string;
@@ -84,11 +89,14 @@ export function validateBladeTree(tree: BladeTree, config?: BladeConfig): BladeP
 
 	for (const body of tree.features.filter((feature) => feature.type === 'revolve')) {
 		if (body.type !== 'revolve') continue;
-		if (body.stations.length < 3 || body.stations.length > 8) {
+		if (
+			body.stations.length < MIN_BODY_STATIONS ||
+			body.stations.length > MAX_BODY_STATIONS
+		) {
 			problems.push({
 				featureId: body.id,
 				parameter: 'stations',
-				message: 'Use 3 to 8 body stations.'
+				message: `Use ${MIN_BODY_STATIONS} to ${MAX_BODY_STATIONS} body stations.`
 			});
 		}
 		body.stations.forEach((station, index) => {
