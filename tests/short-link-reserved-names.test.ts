@@ -1,7 +1,7 @@
 // tests/short-link-reserved-names.test.ts
 //
-// `_app_short_link_reserved` (0093, redefined by 0156, by 0166 and again by
-// 0196) is a hand-typed list.
+// `_app_short_link_reserved` (0093, most recently redefined by 0215) is a
+// hand-typed list.
 // SQL cannot read the filesystem, so the list can never derive itself -- what
 // this file buys instead is that the NEXT drift is loud.
 //
@@ -29,7 +29,7 @@
 // directory of its own under src/routes, cleaned up in a finally block, and
 // never touches anything git already knows about.
 
-import { readdirSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { readdirSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
@@ -127,7 +127,8 @@ const CHAIN = [
 	// production no longer runs. Every file that redefines this predicate
 	// belongs here, in apply order.
 	'0166_short_link_reserve_maps.sql',
-	'0196_short_link_reserve_hx.sql'
+	'0196_short_link_reserve_hx.sql',
+	'0215_short_link_reserve_ideacad.sql'
 ] as const;
 
 let db: TestDb;
@@ -178,5 +179,44 @@ describe('the deployed function names the identical set RESERVED_SLUGS does', ()
 			`select public._app_short_link_reserved('open-lab') as reserved`
 		);
 		expect(rows[0].reserved).toBe(false);
+	});
+});
+
+	describe('0215 preserves and records an existing ideacad short link', () => {
+	test('moves a collision once and is idempotent', async () => {
+		const pre = await startTestDb(
+			CHAIN.filter((name) => name !== '0215_short_link_reserve_ideacad.sql')
+		);
+		try {
+			await pre.sql(`insert into public.app_short_links
+				(slug, target, label, active, created_by)
+				values ('ideacad', '/classroom/cad', 'CAD handout', true, 'teacher@boscotech.edu')`);
+			const migration = readFileSync(
+				join(REPO_ROOT, 'supabase', 'migrations', '0215_short_link_reserve_ideacad.sql'),
+				'utf8'
+			);
+			await pre.sql(migration);
+
+			const first = await pre.sql<{ slug: string; target: string }>(
+				`select slug, target from public.app_short_links order by slug`
+			);
+			expect(first.rows).toEqual([{ slug: 'ideacad-link', target: '/classroom/cad' }]);
+			const audit = await pre.sql<{ original_slug: string; moved_slug: string; migration: string }>(
+				`select original_slug, moved_slug, migration
+				 from public.app_short_link_reserved_moves`
+			);
+			expect(audit.rows).toEqual([
+				{ original_slug: 'ideacad', moved_slug: 'ideacad-link', migration: '0215' }
+			]);
+
+			await pre.sql(migration);
+			const afterReplay = await pre.sql<{ links: number; moves: number }>(
+				`select (select count(*)::int from public.app_short_links) as links,
+					(select count(*)::int from public.app_short_link_reserved_moves) as moves`
+			);
+			expect(afterReplay.rows[0]).toEqual({ links: 1, moves: 1 });
+		} finally {
+			await pre.stop();
+		}
 	});
 });

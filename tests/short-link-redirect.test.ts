@@ -45,6 +45,9 @@
 //      as a code check the route does not make.
 
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isHttpError, isRedirect } from '@sveltejs/kit';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
 import { createPostgrestShim, loadForeignKeys } from './db/postgrest-shim';
@@ -66,16 +69,24 @@ const CHAIN = [
 	'0067_admin_tier.sql',
 	'0093_short_links.sql',
 	'0137_anon_execute_sweep.sql',
-	'0156_short_link_reserved_names.sql'
+	'0156_short_link_reserved_names.sql',
+	'0166_short_link_reserve_maps.sql',
+	'0196_short_link_reserve_hx.sql',
+	'0215_short_link_reserve_ideacad.sql'
 ] as const;
 
 /**
- * The same chain with 0093 REMOVED -- the pre-0093 deployment, claim 4. 0156
- * goes with it: it redefines a function 0093 creates and reports on a table
- * 0093 creates, so it cannot apply without 0093 either.
+ * The dependency-only chain with every short-link migration removed -- the
+ * pre-0093 deployment, claim 4. Each later reserved-name migration redefines a
+ * function 0093 creates, so none can apply without 0093 either.
  */
-const PRE_CHAIN = CHAIN.filter(
-	(f) => f !== '0093_short_links.sql' && f !== '0156_short_link_reserved_names.sql'
+const PRE_CHAIN = CHAIN.filter((f) =>
+	[
+		'0001_profiles.sql',
+		'0003_profile_section.sql',
+		'0020_profiles_identity.sql',
+		'0067_admin_tier.sql'
+	].includes(f)
 );
 
 let db: TestDb;
@@ -301,54 +312,29 @@ describe('the fragment a visitor scanned is what survives', () => {
 // ---------------------------------------------------------------------------
 
 /**
- * 0156's list (0093's own copy is unrelated -- it is the immutable applied
- * record of 0093 and was never updated), transcribed. It is transcribed
- * rather than read out of the function because the assertion is that each of
- * these is REFUSED -- deriving the list from the predicate under test would
- * make the sweep unable to fail. tests/short-link-reserved-names.test.ts is
- * the separate check that this transcription, the SQL function and the real
- * route tree all still agree.
+ * Derive the refusal cases from the route and static trees, not from the SQL
+ * predicate under test. A newly added top-level path therefore becomes a
+ * refusal case without another hand-maintained test list. The separate
+ * reserved-names test proves that this tree-derived set, the TypeScript mirror
+ * and the SQL predicate remain identical.
  */
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const RESERVED = [
-	'a',
-	'admin',
-	'api',
-	'archive',
-	'assignments',
-	'auth',
-	'b',
-	'classroom',
-	'coin-balance',
-	'coin-desk',
-	'coin-entry',
-	'coins',
-	'contracts',
-	'dashboard',
-	'dev',
-	'downloads',
-	'foundry',
-	'frc',
-	'fsp',
-	'fsp-pulse',
-	'fsp-tech-selection',
-	'gauntlet',
-	'greenline',
-	'manifest.webmanifest',
-	'notebook',
-	'push-sw.js',
-	'reference',
-	'robots.txt',
-	'sitemap.xml',
-	'tools',
-	'tournaments',
-	'vanguard'
-] as const;
+	...new Set(
+		['src/routes', 'static'].flatMap((dir) =>
+			readdirSync(join(REPO_ROOT, dir)).filter((name) =>
+				/^[a-z0-9][a-z0-9._-]{0,60}$/.test(name)
+			)
+		)
+	)
+].sort();
 
 describe('a slug that shadows a real page cannot be created', () => {
 	// A generated sweep asserts its own case count, or a sweep that generated
 	// nothing passes.
-	test('the sweep has 32 names in it', () => {
-		expect(RESERVED.length).toBe(32);
+	test('the tree-derived sweep has real routes and the newly added IdeaCAD route', () => {
+		expect(RESERVED.length).toBeGreaterThan(30);
+		expect(RESERVED).toContain('ideacad');
 	});
 
 	for (const name of RESERVED) {
