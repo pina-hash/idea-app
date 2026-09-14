@@ -126,6 +126,22 @@ read off `CLAUDE.md`, and the second merge moved the reference commit from
   same three names, on this branch AND on `fe62631f`.** The failing-name sets
   diff to empty in both directions. They were 10 on `799d2033`; the lanes that
   landed meanwhile fixed seven.
+- **`tests/db/migrations-applied-record.test.ts`: `1 failed | 22 passed (23)`
+  on this branch AND on `fe62631f`**, the same assertion -- there is no
+  `docs/migrations-applied/` record for migration `0215`, which ledger 0234
+  added in `dc6a2f4a`. A third pre-existing cause of `main`'s red CI, and this
+  branch touches no migration and no record.
+- **THE LOCAL FULL SUITE DID NOT COMPLETE AND ITS TOTALS ARE NOT REPORTED.**
+  `npm test` was run twice on this container and both runs went silent partway
+  (282 of 479 files, then 72 of 479) with vitest still resident -- 479 test
+  files each booting databases on one shared cluster is more than this
+  container finishes. **No total is quoted rather than a guessed one**, and
+  because vitest's exit code cannot be trusted here anyway (`tools/run-tests.mjs`
+  says so in its own header), the reading that stands is the three files above,
+  each measured against the same file on `origin/main`, plus the PR's own CI
+  run on a real runner. A first, concurrent run is discarded outright: a second
+  vitest was running against the same cluster, which `CLAUDE.md` warns races
+  the `create role` guards.
 - **Chromium 141 at 1440 and 375, rasterized and looked at.** `.ic-root`
   applies, `--ic-tap` computes to `44px` (on `main` it computes to the EMPTY
   STRING, because no token system was in scope), `--surface-0` is aliased to

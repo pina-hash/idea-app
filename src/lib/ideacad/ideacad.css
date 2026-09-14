@@ -1179,9 +1179,10 @@
    literal font stack. They are SKIN, so they live here rather than in the
    component, which keeps holding layout only -- and a rule that exists in
    both places is the pair that stops agreeing, which is the whole reason this
-   file forked. The LAYOUT half of each (the grid row it occupies, its
-   negative margins into the viewport's padding) stays in
-   `BladeEditor.svelte`.
+   file forked. The LAYOUT half of each (the grid row it occupies, its reserved
+   `min-height`, the status bar's right padding) stays in
+   `BladeEditor.svelte`. Ledger 0241 removed the viewport's padding and the
+   negative margins that bled into it, so those are gone from both sides.
    -------------------------------------------------------------------------- */
 
 /* The heads-up view strip, docked as row 1 of the graphics area. IT CARRIES NO
