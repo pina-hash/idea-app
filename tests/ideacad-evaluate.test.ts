@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_BLADE_CONFIG, DEFAULT_BLADE_TREE } from '../src/lib/ideacad/blade/materials';
-import { evaluate, frustumProperties, polygonProperties, type SolidMesh } from '../src/lib/ideacad/blade/evaluate';
+import { bladePlanform, evaluate, frustumProperties, polygonProperties, repairVoxelEdgeContacts, type SolidMesh } from '../src/lib/ideacad/blade/evaluate';
 import { cloneTree } from '../src/lib/ideacad/blade/tree';
 import { validateBladeTree } from '../src/lib/ideacad/blade/validate';
 
@@ -18,6 +18,36 @@ function expectWatertight(mesh: SolidMesh) {
 	expect(mesh.faces.length).toBeGreaterThan(0);
 	expect([...edges.values()].filter((uses) => uses !== 2)).toEqual([]);
 	expect(volume6).toBeGreaterThan(0);
+}
+
+function meshVolume(mesh: SolidMesh) {
+	return Math.abs(mesh.faces.reduce((volume6, [a, b, c]) => {
+		const va = mesh.vertices[a], vb = mesh.vertices[b], vc = mesh.vertices[c];
+		return volume6 + va.x * (vb.y * vc.z - vb.z * vc.y) + va.y * (vb.z * vc.x - vb.x * vc.z) + va.z * (vb.x * vc.y - vb.y * vc.x);
+	}, 0) / 6);
+}
+
+function analyticVolumeUpperBound(tree: typeof DEFAULT_BLADE_TREE, collarExposed = true) {
+	const body = tree.features.find((feature) => feature.type === 'revolve')!;
+	const hex = tree.features.find((feature) => feature.type === 'hexBoss')!;
+	const sketch = tree.features.find((feature) => feature.type === 'bladeSketch')!;
+	const pattern = tree.features.find((feature) => feature.type === 'circularPattern')!;
+	if (body.type !== 'revolve' || hex.type !== 'hexBoss' || sketch.type !== 'bladeSketch' || pattern.type !== 'circularPattern') throw new Error('bad fixture');
+	let volume = 0;
+	for (let i = 1; i < body.stations.length; i++) {
+		const a = body.stations[i - 1], b = body.stations[i];
+		volume += frustumProperties(a.r, b.r, b.z - a.z, 1).volume;
+	}
+	const hexSide = hex.acrossFlats / Math.sqrt(3);
+	if (collarExposed) {
+		volume += 3 * Math.sqrt(3) * hexSide ** 2 * hex.height / 2;
+		const collarHeight = Math.max(0.125, Math.min(0.5, body.stations.at(-1)!.z * 0.1));
+		volume += Math.PI * (hex.acrossFlats / Math.sqrt(3) + 0.5) ** 2 * collarHeight;
+	}
+	if (tree.spinBolt !== false) volume += Math.PI * Math.min(0.125, body.stations[0].r) ** 2 * Math.min(0.25, body.stations.at(-1)!.z * 0.08);
+	const polygon = bladePlanform(sketch.rootWidth, sketch.tipWidth, sketch.length, sketch.sweepDeg, sketch.mountRadius);
+	volume += polygonProperties(polygon).area * DEFAULT_BLADE_CONFIG.stock[0].thicknessIn * pattern.count;
+	return volume;
 }
 
 describe('IdeaCAD evaluation', () => {
@@ -44,6 +74,61 @@ describe('IdeaCAD evaluation', () => {
 			pattern.count = bladeCount;
 			expectWatertight(evaluate(tree, DEFAULT_BLADE_CONFIG).geometry.solid);
 		}
+	});
+	it('closes only a diagonal edge contact, not an ordinary surface staircase', () => {
+		const contact = new Set(['2,1,2', '1,2,2']);
+		expect(repairVoxelEdgeContacts(contact, 4, 4, 4)).toEqual([2]);
+		expect(contact).toEqual(new Set(['2,1,2', '1,2,2', '1,1,2', '2,2,2']));
+
+		const staircase = new Set(['2,1,2', '1,2,2', '2,2,2']);
+		expect(repairVoxelEdgeContacts(staircase, 4, 4, 4)).toEqual([]);
+		expect(staircase.size).toBe(3);
+	});
+	it('raises when edge-contact additions grow instead of converging', () => {
+		const diverging = new Set(['1,3,4', '2,4,5', '2,5,4']);
+		expect(() => repairVoxelEdgeContacts(diverging, 6, 6, 6)).toThrow(
+			'Voxel edge-contact repair diverged: pass 2 would add 2 cells after 1.'
+		);
+	});
+	it('keeps the sampled volume within 4% of the analytic upper bound across the tree spread', () => {
+		for (const stationCount of [3, 4, 6, 8]) for (const bladeCount of [2, 3, 4, 5, 6, 7, 8]) for (const spinBolt of [false, true]) for (const collarExposed of [false, true]) {
+			const tree = cloneTree(DEFAULT_BLADE_TREE);
+			const body = tree.features.find((feature) => feature.type === 'revolve')!;
+			const hex = tree.features.find((feature) => feature.type === 'hexBoss')!;
+			const pattern = tree.features.find((feature) => feature.type === 'circularPattern')!;
+			if (body.type !== 'revolve' || hex.type !== 'hexBoss' || pattern.type !== 'circularPattern') throw new Error('bad fixture');
+			body.stations = Array.from({length:stationCount}, (_,i) => ({ r: 0.2 + 1.45 * Math.sin(Math.PI * i / (stationCount - 1)), z: 0.125 + 2.75 * i / (stationCount - 1) }));
+			pattern.count = bladeCount;
+			tree.spinBolt = spinBolt;
+			hex.suppressed = !collarExposed;
+			const solid = evaluate(tree, DEFAULT_BLADE_CONFIG).geometry.solid;
+			const upper = analyticVolumeUpperBound(tree, collarExposed);
+			expect(meshVolume(solid), `${stationCount} stations, ${bladeCount} blades, spin ${spinBolt}, collar ${collarExposed}`).toBeLessThanOrEqual(upper * 1.04);
+			const deltas = solid.voxel?.repairDeltas ?? [];
+			expect(deltas.every((delta, index) => index === 0 || delta < deltas[index - 1]), `${stationCount} stations, ${bladeCount} blades, spin ${spinBolt}, collar ${collarExposed}`).toBe(true);
+			expectWatertight(solid);
+		}
+	});
+	it('repairs the zero-width edge contact produced by a corpus-shaped tree', () => {
+		const tree = cloneTree(DEFAULT_BLADE_TREE);
+		const body = tree.features.find((feature) => feature.type === 'revolve')!;
+		const hex = tree.features.find((feature) => feature.type === 'hexBoss')!;
+		const pattern = tree.features.find((feature) => feature.type === 'circularPattern')!;
+		if (body.type !== 'revolve' || hex.type !== 'hexBoss' || pattern.type !== 'circularPattern') throw new Error('bad fixture');
+		body.stations = Array.from({length:3}, (_,i) => ({ r: 0.2 + 1.45 * Math.sin(Math.PI * i / 2), z: 0.125 + 2.75 * i / 2 }));
+		pattern.count = 3;
+		tree.spinBolt = false;
+		hex.suppressed = true;
+		const solid = evaluate(tree, DEFAULT_BLADE_CONFIG).geometry.solid;
+		expect(solid.voxel?.repairDeltas).toEqual([4]);
+		expectWatertight(solid);
+	});
+	it('holds the default model to its independently calculated 20.317 in³ bound', () => {
+		const solid = evaluate(DEFAULT_BLADE_TREE, DEFAULT_BLADE_CONFIG).geometry.solid;
+		expect(meshVolume(solid)).toBeCloseTo(20.317, 0);
+		expect(meshVolume(solid)).toBeLessThanOrEqual(20.317 * 1.02);
+		expect(solid.voxel).toMatchObject({ cells: 29488, repairDeltas: [] });
+		expectWatertight(solid);
 	});
 	it('adds an adaptive collar and defaults old documents to a spin bolt', () => {
 		const oldTree = cloneTree(DEFAULT_BLADE_TREE);
