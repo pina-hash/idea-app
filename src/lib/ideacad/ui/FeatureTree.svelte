@@ -19,14 +19,12 @@
 	 * them and where the 3-to-8 bound can be stated beside the control rather than
 	 * inferred from a row that is missing an X.
 	 *
-	 * DOUBLE-CLICK AND ENTER OPEN EDIT FEATURE, a single click only selects
-	 * (0145 PART 5). The two are different intentions and a single click that
-	 * replaced the tree with a panel would take the tree away from somebody who
-	 * was only looking.
+	 * SELECTION OPENS THE PARAMETERS. IdeaCAD is for rapidly developing an idea,
+	 * so selecting a row and reaching its useful controls are one action.
 	 */
 	import type { BladeTree } from '../blade/tree';
 	import type { BladeProblem } from '../blade/validate';
-	import { FEATURE_TREE_NOTE, featureLabel, problemsFor } from './feature-model';
+	import { featureLabel, problemsFor } from './feature-model';
 
 	let {
 		tree,
@@ -101,6 +99,11 @@
 		e.stopPropagation();
 		onselect(rows[to].id);
 	}
+
+	function selectAndEdit(id: string) {
+		onselect(id);
+		onedit(id);
+	}
 </script>
 
 <div class="ft">
@@ -127,21 +130,17 @@
 					class:active={selected === row.id}
 					class:trouble={trouble.length > 0}
 					data-row={row.kind}
-					onclick={() => onselect(row.id)}
+					onclick={() => selectAndEdit(row.id)}
 					ondblclick={() => onedit(row.id)}
 				>
 					<span class="name">{row.label}</span>
 					{#if trouble.length}<span class="chip" title={trouble[0].message}>REBUILD</span>{/if}
 					{#if row.id === 'standard-parts'}<span class="chip">UNVERIFIED</span>{/if}
+					<span class="lock" aria-label="Name and deletion locked" title="Name and deletion locked">🔒</span>
 				</button>
 			</li>
 		{/each}
 	</ul>
-	<!-- The two verbs this tree does not offer, said once, because a console whose
-	     rows carry no rename and no delete reads as a defect and one sentence is
-	     the difference. The REASON is in the PropertyManager, where a student is
-	     when they want to change a feature and where there is room for it. -->
-	<p class="why">{FEATURE_TREE_NOTE}</p>
 </div>
 
 <style>
@@ -206,17 +205,17 @@
 		letter-spacing: 0.08em;
 		color: var(--copper);
 	}
+	.lock {
+		flex: 0 0 auto;
+		font-size: 12px;
+		filter: grayscale(1);
+		opacity: 0.7;
+	}
 	button.trouble .chip {
 		color: var(--crimson);
 	}
 	h3 {
 		margin: 0 0 0.4rem;
-	}
-	.why {
-		margin: 0.45rem 0 0;
-		font: 12px 'Share Tech Mono', monospace;
-		line-height: 1.5;
-		color: var(--text-2);
 	}
 	button:focus-visible {
 		outline: 3px solid var(--focus-ring);
