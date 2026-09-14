@@ -20,6 +20,31 @@ function expectWatertight(mesh: SolidMesh) {
 	expect(volume6).toBeGreaterThan(0);
 }
 
+function expectSingleConnectedComponent(mesh: SolidMesh) {
+	const facesByEdge = new Map<string, number[]>();
+	mesh.faces.forEach(([a, b, c], face) => {
+		for (const [u, v] of [[a, b], [b, c], [c, a]]) {
+			const key = u < v ? `${u}:${v}` : `${v}:${u}`;
+			const uses = facesByEdge.get(key) ?? [];
+			uses.push(face);
+			facesByEdge.set(key, uses);
+		}
+	});
+	const reached = new Set([0]), pending = [0];
+	while (pending.length) {
+		const face = pending.pop()!;
+		const [a, b, c] = mesh.faces[face];
+		for (const [u, v] of [[a, b], [b, c], [c, a]]) {
+			const key = u < v ? `${u}:${v}` : `${v}:${u}`;
+			for (const adjacent of facesByEdge.get(key) ?? []) if (!reached.has(adjacent)) {
+				reached.add(adjacent);
+				pending.push(adjacent);
+			}
+		}
+	}
+	expect(reached.size).toBe(mesh.faces.length);
+}
+
 function meshVolume(mesh: SolidMesh) {
 	return Math.abs(mesh.faces.reduce((volume6, [a, b, c]) => {
 		const va = mesh.vertices[a], vb = mesh.vertices[b], vc = mesh.vertices[c];
@@ -73,6 +98,7 @@ describe('IdeaCAD evaluation', () => {
 			body.stations = Array.from({length:stationCount}, (_,i) => ({ r: 0.2 + 1.45 * Math.sin(Math.PI * i / (stationCount - 1)), z: 0.125 + 2.75 * i / (stationCount - 1) }));
 			pattern.count = bladeCount;
 			expectWatertight(evaluate(tree, DEFAULT_BLADE_CONFIG).geometry.solid);
+			expectSingleConnectedComponent(evaluate(tree, DEFAULT_BLADE_CONFIG).geometry.solid);
 		}
 	});
 	it('sweeps a smooth body whose adjacent circumferential normals turn by less than 4 degrees', () => {
@@ -121,6 +147,7 @@ describe('IdeaCAD evaluation', () => {
 			const upper = analyticVolumeUpperBound(tree, collarExposed);
 			expect(meshVolume(solid), `${stationCount} stations, ${bladeCount} blades, spin ${spinBolt}, collar ${collarExposed}`).toBeLessThanOrEqual(upper * 1.04);
 			expectWatertight(solid);
+			expectSingleConnectedComponent(solid);
 		}
 	});
 	it('repairs the zero-width edge contact produced by a corpus-shaped tree', () => {
@@ -136,6 +163,7 @@ describe('IdeaCAD evaluation', () => {
 		const solid = evaluate(tree, DEFAULT_BLADE_CONFIG).geometry.solid;
 		expect(solid.voxel).toBeUndefined();
 		expectWatertight(solid);
+		expectSingleConnectedComponent(solid);
 	});
 	it('holds the default model to its independently calculated 20.317 in³ bound', () => {
 		const solid = evaluate(DEFAULT_BLADE_TREE, DEFAULT_BLADE_CONFIG).geometry.solid;
