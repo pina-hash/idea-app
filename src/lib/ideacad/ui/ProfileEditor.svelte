@@ -149,8 +149,8 @@
 	.profile-editor { outline: none; }
 	.sketch { position: relative; margin-top: .5rem; }
 	svg { display: block; width: 100%; min-height: 280px; max-height: 48vh; background: linear-gradient(var(--surface-0), color-mix(in srgb, var(--surface-0), var(--green) 3%)); border: 1px solid var(--boundary); border-radius: var(--radius-control); touch-action: none; }
-	.axis { stroke: var(--copper); stroke-width: 2; stroke-dasharray: 7 5; }
-	.axis-label, .scale-label { fill: var(--copper); color: var(--copper); font: 10px 'Share Tech Mono', monospace; letter-spacing: .08em; }
+	.axis { stroke: var(--boundary); stroke-width: 2; stroke-dasharray: 7 5; }
+	.axis-label, .scale-label { fill: var(--text-2); color: var(--text-2); font: 10px / 1 var(--font-mono); letter-spacing: .08em; }
 	.segment { stroke: var(--green); stroke-width: 3; pointer-events: none; }
 	.hit-segment { stroke: transparent; stroke-width: 24; cursor: copy; }
 	.handle { fill: var(--surface-0); stroke: var(--green); stroke-width: 4; cursor: grab; }
