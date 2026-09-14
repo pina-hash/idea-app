@@ -2,8 +2,11 @@ import {
 	cloneTree,
 	featureDependencies,
 	isStructuralFeature,
+	MAX_BODY_STATIONS,
+	MIN_BODY_STATIONS,
 	type BladeFeature,
-	type BladeTree
+	type BladeTree,
+	type Station
 } from './tree';
 import { validateBladeTree } from './validate';
 
@@ -13,6 +16,7 @@ export type BladeTreeRefusalCode =
 	| 'duplicate-id'
 	| 'dependency-blocked'
 	| 'structural-feature'
+	| 'station-limit'
 	| 'invalid-position'
 	| 'invalid-name';
 
@@ -162,6 +166,75 @@ export function renameFeature(tree: BladeTree, id: string, name: string): BladeT
 	if (!trimmed) return refuse('invalid-name', 'Give this feature a name before saving it.');
 	const next = cloneTree(tree);
 	next.features[found].name = trimmed;
+	return finish(next);
+}
+
+/**
+ * Insert a body station through the same immutable boundary as other tree edits.
+ * The upper bound is checked before mutation instead of relying on a later
+ * validation pass that a programmatic caller may never run.
+ */
+export function addBodyStation(
+	tree: BladeTree,
+	bodyId: string,
+	station: Station,
+	position: number
+): BladeTreeOperationResult {
+	const invalid = validInput(tree);
+	if (invalid) return invalid;
+	const found = locate(tree, bodyId);
+	if (typeof found !== 'number') return found;
+	const body = tree.features[found];
+	if (body.type !== 'revolve') {
+		return refuse('feature-not-found', `Feature “${bodyId}” is not a body feature.`);
+	}
+	if (body.stations.length >= MAX_BODY_STATIONS) {
+		return refuse(
+			'station-limit',
+			`A body can have at most ${MAX_BODY_STATIONS} stations.`
+		);
+	}
+	if (!Number.isInteger(position) || position < 0 || position > body.stations.length) {
+		return refuse('invalid-position', 'Choose a position inside the body stations.');
+	}
+	const next = cloneTree(tree);
+	const nextBody = next.features[found];
+	if (nextBody.type !== 'revolve') {
+		return refuse('feature-not-found', `Feature “${bodyId}” is not a body feature.`);
+	}
+	nextBody.stations.splice(position, 0, structuredClone(station));
+	return finish(next);
+}
+
+/** Removing a station cannot take the body below its stored minimum. */
+export function removeBodyStation(
+	tree: BladeTree,
+	bodyId: string,
+	position: number
+): BladeTreeOperationResult {
+	const invalid = validInput(tree);
+	if (invalid) return invalid;
+	const found = locate(tree, bodyId);
+	if (typeof found !== 'number') return found;
+	const body = tree.features[found];
+	if (body.type !== 'revolve') {
+		return refuse('feature-not-found', `Feature “${bodyId}” is not a body feature.`);
+	}
+	if (body.stations.length <= MIN_BODY_STATIONS) {
+		return refuse(
+			'station-limit',
+			`A body needs at least ${MIN_BODY_STATIONS} stations.`
+		);
+	}
+	if (!Number.isInteger(position) || position < 0 || position >= body.stations.length) {
+		return refuse('invalid-position', 'Choose a station in the body.');
+	}
+	const next = cloneTree(tree);
+	const nextBody = next.features[found];
+	if (nextBody.type !== 'revolve') {
+		return refuse('feature-not-found', `Feature “${bodyId}” is not a body feature.`);
+	}
+	nextBody.stations.splice(position, 1);
 	return finish(next);
 }
 
