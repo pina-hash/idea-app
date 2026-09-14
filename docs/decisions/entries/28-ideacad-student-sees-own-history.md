@@ -1,14 +1,14 @@
 # 28 Can a student see their own history in full?
 
 - Raised: 2026-09-13  By: ledger 0206, out of the IdeaCAD scope document
-- Status: ANSWERED 2026-09-13 by Mr. Pina. The DATA path is built and needs no
-  migration; the SURFACE is ledger 0196's and **has not landed.**
-- Build: OPEN, and it is the same single item as decision 27 -- ledger 0196's
-  timeline, pushed and not landed. The data is complete and correct on
-  `integration` and is read by nothing: `transports.ts` supplies no history
-  factory, so `store.undo()` throws 'This deployment has no IdeaCAD history.'
-  (`src/lib/ideacad/store.ts` line 528). No migration, no schema change, no new
-  grant.
+- Status: ANSWERED 2026-09-13 by Mr. Pina and **BUILT.** The durable data path,
+  whole-history paging transport, timeline surface, and undo/redo wiring have
+  landed. The older build account below is retained as history; this status line
+  is the current answer.
+- Build: `createIdeacadHistoryTransports` is constructed on the production
+  classroom item route, `BladeEditor.svelte` mounts `HistoryTimeline.svelte`,
+  and `readWholeHistory` pages to the newest sequence rather than stopping at a
+  display-sized first page. No new migration or grant is needed.
 - Decision: **YES. Students see their history in full.**
 - Why it was blocked on him: every other per-student record in this codebase has
   had an explicit answer about what its owner may see of it, and several of them
@@ -99,16 +99,10 @@ the first thing to normalise if the budget is ever missed.
 
 ## WHAT REMAINS TO BUILD
 
-The same single item as decision 27, and no more: **the timeline surface, which
-is ledger 0196's and is pushed but not landed.** On `origin/integration` the
-durable log is written by the database and read by nothing -- `transports.ts`
-supplies no history factory, so `options.history` is undefined at both
-`createIdeacadStore` call sites and `store.undo()` throws 'This deployment has
-no IdeaCAD history.' (`src/lib/ideacad/store.ts` line 528). A student's own
-history is complete, correct, and currently invisible to them.
-
-**No migration. No schema change. No new grant.** `authenticated` already holds
-SELECT on `ideacad_history` and EXECUTE on the read function.
+Nothing for this decision. A student's complete history is now visible on the
+production editor surface. **No migration. No schema change. No new grant.**
+`authenticated` already holds SELECT on `ideacad_history` and EXECUTE on the
+read function.
 
 ## What would change this answer
 
