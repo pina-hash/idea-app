@@ -30,7 +30,6 @@
 		cameraBasis,
 		cameraPosition,
 		fitted,
-		spinArrowTurn,
 		viewName,
 		worldUnderCursor,
 		type ViewportProbe
@@ -154,36 +153,88 @@
 				blade: token('--text-2', '#9aa89b'),
 				hex: token('--gear', '#75846f'),
 				edge: token('--edge', '#0d120c'),
-				fail: token('--crimson', '#d95f5f'),
-				arrow: token('--cyan', '#67d8de')
+				fail: token('--crimson', '#d95f5f')
 			};
 
 			const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
 			renderer.setClearColor(new THREE.Color(ink.ground), 1);
+			renderer.outputColorSpace = THREE.SRGBColorSpace;
+			renderer.toneMapping = THREE.ACESFilmicToneMapping;
+			renderer.toneMappingExposure = 1.05;
 			const scene = new THREE.Scene();
 
-			/* A plain three-light rig: key, fill, rim. No environment map and no
-			   tone mapping -- this is an engineering view, not a product shot. */
-			const key = new THREE.DirectionalLight(0xffffff, 2.1);
-			key.position.set(4, 6, 5);
-			const fill = new THREE.DirectionalLight(0xffffff, 0.8);
-			fill.position.set(-5, 1, 3);
-			const rim = new THREE.DirectionalLight(0xffffff, 0.5);
-			rim.position.set(0, -4, -6);
-			scene.add(key, fill, rim, new THREE.AmbientLight(0xffffff, 0.55));
+			/* Three deliberately different directions and colour temperatures. The
+			   broad ambient wash which used to flatten every normal is gone: key
+			   describes the curved body, fill retains its shadow side, and rim peels
+			   the far silhouette off the dark IdeaCAD ground. */
+			const key = new THREE.DirectionalLight(0xfff4df, 3.4);
+			key.position.set(5, 8, 6);
+			const fill = new THREE.DirectionalLight(0xb8d8ff, 1.15);
+			fill.position.set(-6, 2, 4);
+			const rim = new THREE.DirectionalLight(0xd8fff1, 2.25);
+			rim.position.set(-2, 5, -7);
+			scene.add(key, fill, rim, new THREE.HemisphereLight(0xcfe2ff, 0x101510, 0.42));
 
 			const model = new THREE.Group();
 			scene.add(model);
 
-			/* One material per role, shared across every instance -- draw calls
-			   are the budget on the machines this targets. Lambert rather than a
-			   PBR material for the same reason: matte faces, no roughness pass. */
-			const bodyMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(ink.body), side: THREE.DoubleSide });
-			const hexMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(ink.hex) });
-			const bladeMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(ink.blade), side: THREE.DoubleSide });
+			/* One material per role, shared across every instance. MeshStandard adds
+			   the restrained highlight machined stock needs without an environment
+			   map, texture fetch, or extra draw call. Different metalness/roughness
+			   values keep adjacent roles legible even when their colours are close. */
+			const bodyMat = new THREE.MeshStandardMaterial({
+				color: new THREE.Color(ink.body),
+				metalness: 0.46,
+				roughness: 0.34,
+				side: THREE.DoubleSide
+			});
+			const hexMat = new THREE.MeshStandardMaterial({
+				color: new THREE.Color(ink.hex),
+				metalness: 0.58,
+				roughness: 0.27
+			});
+			const bladeMat = new THREE.MeshStandardMaterial({
+				color: new THREE.Color(ink.blade),
+				metalness: 0.64,
+				roughness: 0.3,
+				side: THREE.DoubleSide
+			});
 			const edgeMat = new THREE.LineBasicMaterial({ color: new THREE.Color(ink.edge) });
 			const failMat = new THREE.LineBasicMaterial({ color: new THREE.Color(ink.fail) });
-			const arrowMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(ink.arrow) });
+
+			/* A quiet datum plane gives scale and a soft fake contact shadow grounds
+			   the part. Neither receives lights or shadows, so this costs two simple
+			   draws instead of a shadow map pass on classroom GPUs. */
+			const grid = new THREE.GridHelper(12, 24, 0x52605a, 0x28312d);
+			const gridMaterials = Array.isArray(grid.material) ? grid.material : [grid.material];
+			for (const material of gridMaterials) {
+				material.transparent = true;
+				material.opacity = 0.28;
+				material.depthWrite = false;
+			}
+			const contactMat = new THREE.MeshBasicMaterial({
+				color: 0x000000,
+				transparent: true,
+				opacity: 0.32,
+				depthWrite: false,
+				side: THREE.DoubleSide
+			});
+			const contactCanvas = document.createElement('canvas');
+			contactCanvas.width = contactCanvas.height = 64;
+			const contactContext = contactCanvas.getContext('2d');
+			if (contactContext) {
+				const fade = contactContext.createRadialGradient(32, 32, 2, 32, 32, 31);
+				fade.addColorStop(0, 'rgba(255,255,255,1)');
+				fade.addColorStop(0.58, 'rgba(255,255,255,0.62)');
+				fade.addColorStop(1, 'rgba(255,255,255,0)');
+				contactContext.fillStyle = fade;
+				contactContext.fillRect(0, 0, 64, 64);
+				contactMat.alphaMap = new THREE.CanvasTexture(contactCanvas);
+			}
+			const contactGeometry = new THREE.CircleGeometry(1, 32);
+			const contact = new THREE.Mesh(contactGeometry, contactMat);
+			contact.rotation.x = -Math.PI / 2;
+			scene.add(grid, contact);
 
 			/* The same 30 degrees `geometry.ts` uses for the blade's own edges.
 			   Display edges for the body and the hex are a RENDERING decision --
@@ -202,6 +253,10 @@
 				edgeLines = [];
 				meshes = [];
 				model.clear();
+				const groundY = Math.min(...e.geometry.stations.map((station) => station.z)) - 0.025;
+				grid.position.y = groundY;
+				contact.position.y = groundY + 0.004;
+				contact.scale.set(e.diameterIn * 0.38, e.diameterIn * 0.38, 1);
 
 				const g = evaluationGeometries(e);
 				owned.push(g.body, g.hex, g.blade, g.edges);
@@ -243,14 +298,7 @@
 				meshes.push(bodyMesh, hexMesh);
 				edgeLines.push(bodyLine, hexLine);
 
-				/* THE FIT IS TAKEN BEFORE THE ARROW IS ADDED, AND THAT ORDER IS THE
-				   WHOLE POINT. The arrow is an annotation about the part, not part
-				   of the part: measured with it inside the bound the radius came
-				   out 3.519 against the model's own 2.17, so Zoom to Fit sized the
-				   pane to an arrow. Nothing on screen reported it -- every
-				   threshold passed and the model was simply small.
-
-				   AND THE RADIUS IS TAKEN FROM THE VERTICES, NOT FROM THE BOX.
+				/* THE RADIUS IS TAKEN FROM THE VERTICES, NOT FROM THE BOX.
 				   `Box3.getBoundingSphere` returns the sphere through the box's
 				   CORNERS, which for a part shaped like this one -- a squat
 				   cylinder, wider than it is tall -- is a diagonal nothing
@@ -275,36 +323,9 @@
 				});
 				radius = Math.max(far, 0.1);
 
-				/* Which way it spins, drawn just above the hex: an arc with a head,
-				   reversed for a counter-clockwise document. An ANNOTATION, so it
-				   is sized against the part rather than to the part -- at the
-				   body's own radius it was the loudest thing in the frame and read
-				   as the subject. */
-				const arcR = Math.max(0.35, (e.diameterIn / 2) * 0.42);
-				const SWEEP = Math.PI * 1.35;
-				const arc = new THREE.TorusGeometry(arcR, 0.022, 6, 24, SWEEP);
-				const head = new THREE.ConeGeometry(0.075, 0.19, 10);
-				owned.push(arc, head);
-				const spin = new THREE.Group();
-				const ring = new THREE.Mesh(arc, arrowMat);
-				/* A torus lies in its own XY plane; this lays it flat, so the arc
-				   parameter runs +X toward +Z. The Top view looks DOWN the +Y axis
-				   with +Z painting downward, so that direction reads CLOCKWISE on
-				   screen -- which is the sense `docs/prompts/0145-ideacad.md` line
-				   356 defines: `rotation: 'cw' | 'ccw'  // viewed from above`. */
-				ring.rotation.x = Math.PI / 2;
-				/* The head sits ON the arc's end and points along its tangent.
-				   Written as a mirrored coordinate it sat somewhere else entirely,
-				   which no threshold could see and which reads as a stray cone. */
-				const end = new THREE.Vector3(arcR * Math.cos(SWEEP), 0, arcR * Math.sin(SWEEP));
-				const tangent = new THREE.Vector3(-Math.sin(SWEEP), 0, Math.cos(SWEEP));
-				const tip = new THREE.Mesh(head, arrowMat);
-				tip.position.copy(end);
-				tip.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
-				spin.add(ring, tip);
-				spin.position.y = bodyTop + e.geometry.hexHeight + 0.2;
-				spin.rotation.x = spinArrowTurn(rotation);
-				model.add(spin);
+				/* The former teal spin arrow was neither attached nor labelled and
+				   dominated the small model. Rotation remains document data, but an
+				   unexplained direction annotation is worse than no annotation. */
 
 				/* A rule failure is the ONE permitted use of crimson here, and it
 				   is on the OUTLINE rather than the faces: the shape stays
@@ -351,7 +372,7 @@
 				camera.position.set(p.x, p.y, p.z);
 				camera.quaternion.set(s.quaternion.x, s.quaternion.y, s.quaternion.z, s.quaternion.w);
 				(camera as InstanceType<typeof THREE.OrthographicCamera>).updateProjectionMatrix();
-				for (const m of meshes) (m.material as InstanceType<typeof THREE.MeshLambertMaterial>).wireframe = st === 'wireframe';
+				for (const m of meshes) (m.material as InstanceType<typeof THREE.MeshStandardMaterial>).wireframe = st === 'wireframe';
 				for (const l of edgeLines) l.visible = st === 'shaded-edges';
 				draw();
 			}
@@ -490,7 +511,10 @@
 				bladeMat.dispose();
 				edgeMat.dispose();
 				failMat.dispose();
-				arrowMat.dispose();
+				for (const material of gridMaterials) material.dispose();
+				contactMat.dispose();
+				contactMat.alphaMap?.dispose();
+				contactGeometry.dispose();
 				renderer.dispose();
 				rebuild = apply = redraw = refit = null;
 			};
