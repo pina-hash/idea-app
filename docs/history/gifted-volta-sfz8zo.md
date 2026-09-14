@@ -112,27 +112,35 @@ beside it. Nothing in that list changed except that it now reflects the selectio
 
 ## Verified
 
-- **`npm test`: 7 failed, 9143 passed, 6 skipped, across 482 files (5 files failed).**
-  Read off the summary line, never the exit code. **All 7 failures are pre-existing**:
-  the same five files and the same seven test names fail on a clean `git worktree` at
-  the branch point (`eabed627`) with none of this bundle's changes in it -- the two
-  failure lists diff to nothing but timing digits. They are
-  `tests/apply-migration-guard.test.ts`, `tests/apply-migration-trace.test.ts`,
-  `tests/db/migrations-applied-record.test.ts` (three about the applied-migration
-  record, which wants a `0215` entry under `docs/migrations-applied/`),
-  `tests/dom/ideacad-ui-mount.test.ts` (four, in the FeatureManager tree) and
-  `tests/ideacad-tree-ops.test.ts` (one, station bounds). **The suite is red on
-  arrival**, which is the condition `CLAUDE.md` names as the expensive one: a standing
-  failure makes a real regression indistinguishable from the known-red files.
-- **`npx svelte-check`: 2 errors, 37 warnings in 22 files**, breakdown 31
-  `state_referenced_locally` / 5 `css_unused_selector` / 1 `perf_avoid_nested_class`.
-  **Identical to the baseline measured in the clean worktree**, so this bundle adds
-  neither an error nor a warning, and none of the new CSS is unused. Both errors are
-  pre-existing and in files this bundle does not own
-  (`src/lib/ideacad/viewport/picking.ts:80`, `tests/ideacad-tree-ops.test.ts:51`).
-  **`CLAUDE.md`'s verification line still reads "0 errors, 37 warnings in 20 files"**
-  and the tree measures 2 in 22; that line is not this ledger's to edit, and it is the
-  sixth recorded drift.
+- **`npm test` on the merged tree: 1 failed, 9153 passed, 6 skipped, across 482 files.**
+  Read off the summary line, never the exit code. The one failure is
+  `tests/db/migrations-applied-record.test.ts` wanting a `0215` entry under
+  `docs/migrations-applied/`, **which is identical to `main`** and is the single
+  failure `0258`'s own merge message names as the one only Mr. Pina can close, by
+  pasting the migration and recording production's answer. Two further files report at
+  SUITE level and are a **local checkout artefact, not a failure**:
+  `tests/apply-migration-guard.test.ts` and `tests/apply-migration-trace.test.ts` drive
+  the real `tools/apply-migration.mjs --ref origin/integration`, and this container's
+  clone had no such ref, so the tool took its designed fail-closed path. `ci.yml`'s own
+  header describes this in reverse, and it is why CI checks out at `fetch-depth: 0`.
+  Fetching the ref and re-running both files: **51 passed, 0 failed.**
+- **`npx svelte-check` on the merged tree: 0 errors, 37 warnings in 20 files**,
+  breakdown 31 `state_referenced_locally` / 5 `css_unused_selector` / 1
+  `perf_avoid_nested_class` -- **exactly the figure `CLAUDE.md`'s verification line
+  states**, so this bundle adds neither an error nor a warning, and none of the new CSS
+  is unused.
+  - **A CORRECTION TO WHAT THIS ENTRY FIRST SAID, KEPT BECAUSE THE MISTAKE IS THE
+    LESSON.** The work was done at branch point `eabed627`, where the tree measured 2
+    errors / 37 warnings in 22 files and the suite failed 7 tests in 5 files -- both
+    verified against a clean `git worktree` at that same commit, so the bundle was
+    correctly cleared of all of it. This entry then recorded `CLAUDE.md`'s line as a
+    sixth drift. **It was not.** `main` moved during the bundle and ledger `0258`
+    (PR #122) had already closed every one of those failures plus the
+    `viewport/picking.ts:80` type error; merging `origin/main` in took the tree to the
+    documented baseline with no conflict and no change to any file this ledger owns.
+    A baseline measured against a branch point is a baseline for the branch point, and
+    saying anything about a WRITTEN figure needs the current trunk -- which is the
+    instrument-over-the-number rule arriving from the other direction.
 - **23 assertions in `tests/dom/ideacad-shape-panel.test.ts`, all passing**, and the
   instrument was proved rather than trusted: **7 mutants, 7 killed, 0 survivors** --
   the refusal re-toned to a generic sentence (2 tests), the accepted tree never handed
