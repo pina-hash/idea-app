@@ -922,6 +922,8 @@
 		<button aria-pressed={mobilePane === 'rules'} onclick={() => (mobilePane = 'rules')}>Properties</button>
 	</nav>
 	<div class="stage" bind:this={stageElement} data-mobile-pane={mobilePane}>
+		<button class="pane-toggle pane-edge-toggle left-edge" aria-expanded={leftOpen} onclick={() => togglePane('left')}>{leftOpen ? 'Hide' : 'Show'} FeatureManager</button>
+		<button class="pane-toggle pane-edge-toggle right-edge" aria-expanded={rightOpen} onclick={() => togglePane('right')}>{rightOpen ? 'Hide' : 'Show'} PropertyManager</button>
 		<aside
 			class="tree"
 			class:collapsed={!leftOpen}
@@ -1140,8 +1142,7 @@
 		<button class="divider left-divider" aria-label="Resize FeatureManager" title="Drag to resize FeatureManager" onpointerdown={(e) => resizePane('left', e)}></button>
 		<section class="viewport" aria-label="3D viewport">
 			<div class="view-toolbar">
-				<button class="pane-toggle" aria-expanded={leftOpen} onclick={() => togglePane('left')}>{leftOpen ? 'Hide' : 'Show'} FeatureManager</button>
-			<nav aria-label="View toolbar">
+				<nav aria-label="View toolbar">
 				<button title="Zoom to fit (F)" onclick={() => viewport?.zoomToFit()}>Fit</button>
 				<button title="Previous view (Ctrl+Shift+Z)" onclick={() => viewport?.previousView()}>Previous</button>
 				<button
@@ -1152,8 +1153,7 @@
 				>
 				<button title="Display style" onclick={() => viewport?.cycleDisplayStyle()}>Edges</button>
 				<button title="Perspective" onclick={() => viewport?.toggleProjection()}>Perspective</button>
-			</nav>
-				<button class="pane-toggle" aria-expanded={rightOpen} onclick={() => togglePane('right')}>{rightOpen ? 'Hide' : 'Show'} PropertyManager</button>
+				</nav>
 			</div>
 			{#if orienting}
 				<ul class="orient" id="ideacad-orientation" aria-label="Standard views">
@@ -1172,12 +1172,9 @@
 			<div class="viewport-well">
 				<Viewport bind:this={viewport} evaluation={result} rotation={shown.rotation} {onFrame} onReady={onViewportReady} onViewChange={(name) => (currentOrientation = name)} />
 			</div>
-			<!-- ONE CONFIRM PAIR ON SCREEN AT A TIME. The PropertyManager carries its
-			     own green check and red X, which is where SolidWorks puts them and
-			     what 0145 PART 5 asks for; rendering this pair beside it put TWO
-			     Accepts on a 1440px screen, measured, with nothing saying which
-			     one a student should press. They are the same two functions, so
-			     the answer is which one is visible, not which one exists. -->
+			<!-- The fixed grid row is load-bearing: when the optional orientation
+			     row is absent, auto-placement must not put this footer in the
+			     viewport's flexible track and stretch its two controls into columns. -->
 			{#if !readOnly && !editing}
 				<footer class="edit-footer" aria-label="Feature edit actions">
 					<button class="accept" onclick={accept} aria-disabled={!dirty}>✓ <span>Accept</span></button>
@@ -1316,7 +1313,7 @@
 		position: relative;
 		height: min(760px, calc(100vh - 2rem));
 		display: grid;
-		grid-template-rows: auto minmax(0, 1fr) auto auto;
+		grid-template-rows: auto minmax(0, 1fr) auto minmax(36px, auto);
 		background: var(--surface-0);
 		color: var(--text-1);
 		font-family: Rajdhani, sans-serif;
@@ -1358,6 +1355,7 @@
 		letter-spacing: 0.08em;
 	}
 	.stage {
+		position: relative;
 		display: grid;
 		grid-template-columns: var(--tree-width) 6px minmax(0, 1fr) 6px var(--rail-width);
 		min-width: 0;
@@ -1385,6 +1383,19 @@
 		padding: 0 .55rem;
 		white-space: nowrap;
 	}
+	.pane-edge-toggle {
+		position: absolute;
+		top: 50%;
+		z-index: 2;
+		min-width: 28px;
+		width: 28px;
+		padding: .55rem 0;
+		writing-mode: vertical-rl;
+		background: var(--surface-1);
+		transform: translateY(-50%);
+	}
+	.pane-edge-toggle.left-edge { left: var(--tree-width); }
+	.pane-edge-toggle.right-edge { right: var(--rail-width); }
 	.rules-label { margin: 0 0 .5rem; color: var(--text-2); font: 12px 'Share Tech Mono', monospace; }
 	aside {
 		overflow: auto;
@@ -1425,22 +1436,23 @@
 	.viewport {
 		position: relative;
 		display: grid;
-		grid-template-rows: auto auto minmax(0, 1fr) auto;
+		grid-template-rows: auto auto minmax(0, 1fr);
 		overflow: hidden;
 		min-height: 360px;
 		background: var(--surface-2);
-		padding: 6px;
+		padding: 0;
 	}
 	.view-toolbar {
+		grid-row: 1;
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		justify-content: center;
 		gap: 0.25rem;
-		margin: -6px -6px 6px;
+		margin: 0;
 		padding: .3rem .4rem;
 		background: var(--surface-1);
-		border-bottom: 1px solid var(--boundary);
-		box-shadow: 0 1px 0 var(--hairline);
+		border-bottom: 0;
+		box-shadow: none;
 	}
 	.viewport nav {
 		display: flex;
@@ -1453,8 +1465,9 @@
 		flex: 0 0 auto;
 	}
 	.orient {
+		grid-row: 2;
 		position: static;
-		margin: 0 0 6px;
+		margin: 0;
 		padding: 0.4rem;
 		list-style: none;
 		display: flex;
@@ -1687,33 +1700,35 @@
 		color: var(--crimson);
 	}
 	.viewport-well {
+		grid-row: 3;
 		position: relative;
 		min-width: 0;
 		min-height: 0;
 		background: var(--surface-0);
 		border: 1px solid var(--boundary);
+		border-top: 0;
 		box-shadow: inset 0 0 0 2px color-mix(in srgb, #000 35%, transparent), inset 0 8px 18px rgb(0 0 0 / .22);
 	}
 	.edit-footer {
-		position: static;
+		grid-row: 4;
 		display: flex;
+		align-items: center;
 		justify-content: flex-end;
 		gap: 0.5rem;
-		margin: 6px -6px -6px;
+		min-height: 36px;
 		padding: .35rem .5rem;
 		background: var(--surface-1);
 		border-top: 1px solid var(--boundary);
 	}
-	.edit-footer button {
-		padding: 0 0.9rem;
-	}
+	.edit-footer button { padding: 0 .9rem; }
 	.status-bar {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 1rem;
-		min-height: 28px;
-		padding: 0 .65rem;
+		min-height: 36px;
+		box-sizing: border-box;
+		padding: .35rem 11rem .35rem .65rem;
 		background: var(--surface-2);
 		border-top: 1px solid var(--boundary);
 		font: 12px 'Share Tech Mono', monospace;
@@ -1865,27 +1880,6 @@
 		.mobile-switcher { display: grid; grid-template-columns: repeat(3, 1fr); padding: .25rem; gap: .25rem; border-bottom: 1px solid var(--boundary); }
 		.mobile-switcher button { min-height: 44px; }
 		.mobile-switcher button[aria-pressed='true'] { border-color: var(--cyan); color: var(--cyan); }
-		/* THE CONFIRM PAIR STAYS ABSOLUTE BELOW 1024, AND `position: static` HERE
-		   MADE IT UNPRESSABLE ON EVERY PHONE.
-
-		   `footer` carries `z-index: 2` so it paints over the graphics area.
-		   `z-index` applies to POSITIONED elements only, so overriding
-		   `position` to `static` silently discarded it -- and `Viewport`'s own
-		   root is `position: absolute; inset: 0`, so the canvas and the view
-		   toolbar (`z-index: 2`, also positioned) then painted straight over a
-		   footer sitting in flow at the TOP of the pane. Measured at 375 before
-		   this line changed: the footer was in the DOM at 373x68 with a real
-		   box, every content and presence check passed, and an
-		   `elementFromPoint` sweep across both controls answered
-		   `Accept 0/11 reachable, Cancel 0/11 reachable` -- blocked by the
-		   toolbar's own buttons. A screenshot of the pane shows no Accept and no
-		   Cancel anywhere on it.
-
-		   Absolute at the bottom right is what 1440 already does and is proven
-		   reachable there; at 375 it clears the reference triad (bottom LEFT,
-		   64px) and the view name beside it. Overlapping the model a little is
-		   the cost, and a control that overlaps is worth immeasurably more than
-		   one that cannot be pressed. */
 		.ideacad .stage {
 			display: grid;
 			grid-template-columns: minmax(0, 1fr);
