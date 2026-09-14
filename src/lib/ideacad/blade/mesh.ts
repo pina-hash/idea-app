@@ -2,6 +2,54 @@ import type { SolidMesh } from './evaluate';
 
 export interface Point2 { x: number; y: number }
 
+function faceCentre(mesh: SolidMesh, face: [number, number, number]) {
+	const [a, b, c] = face.map((index) => mesh.vertices[index]);
+	return { x: (a.x + b.x + c.x) / 3, y: (a.y + b.y + c.y) / 3, z: (a.z + b.z + c.z) / 3 };
+}
+
+/**
+ * Join a newly appended analytic shell to the existing shell by opening the
+ * nearest triangle on each and sewing the two boundary loops together. The
+ * openings lie inside the authored overlap, so the seam is an internal
+ * connection rather than a visible bridge or a voxel/boolean approximation.
+ */
+export function appendJoined(mesh: SolidMesh, append: () => void, firstBaseFace = 0, lastBaseFace = mesh.faces.length, usedBaseFaces = new Set<number>()) {
+	const firstNewFace = mesh.faces.length;
+	append();
+	if (firstNewFace === 0) return;
+	let baseIndex = firstBaseFace, newIndex = firstNewFace, nearest = Number.POSITIVE_INFINITY;
+	const baseCentres = mesh.faces.slice(firstBaseFace, lastBaseFace).map((face) => faceCentre(mesh, face));
+	const newCentres = mesh.faces.slice(firstNewFace).map((face) => faceCentre(mesh, face));
+	for (let i = firstBaseFace; i < lastBaseFace; i++) {
+		if (usedBaseFaces.has(i)) continue;
+		const a = baseCentres[i - firstBaseFace];
+		for (let j = firstNewFace; j < mesh.faces.length; j++) {
+			const b = newCentres[j - firstNewFace];
+			const distance = (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2;
+			if (distance < nearest) { nearest = distance; baseIndex = i; newIndex = j; }
+		}
+	}
+	const base = mesh.faces[baseIndex], joined = mesh.faces[newIndex];
+	usedBaseFaces.add(baseIndex);
+	// Reverse the second loop so both ends inherit the winding of the faces removed.
+	const [a, b, c] = base;
+	const reversed = [joined[0], joined[2], joined[1]];
+	let aligned = reversed;
+	let alignment = Number.POSITIVE_INFINITY;
+	for (let offset = 0; offset < 3; offset++) {
+		const candidate = [reversed[offset], reversed[(offset + 1) % 3], reversed[(offset + 2) % 3]];
+		const score = [a, b, c].reduce((sum, index, i) => {
+			const p = mesh.vertices[index], q = mesh.vertices[candidate[i]];
+			return sum + (p.x - q.x) ** 2 + (p.y - q.y) ** 2 + (p.z - q.z) ** 2;
+		}, 0);
+		if (score < alignment) { alignment = score; aligned = candidate; }
+	}
+	const [d, f, e] = aligned;
+	mesh.faces[baseIndex] = [a, b, f];
+	mesh.faces[newIndex] = [a, f, d];
+	mesh.faces.push([b, c, e], [b, e, f], [c, a, d], [c, d, e]);
+}
+
 /** Append a closed polyline-of-revolution solid. Radii may be zero. */
 export function appendRevolve(mesh: SolidMesh, profile: { r: number; z: number }[], segments = 96) {
 	const rings: number[][] = [];

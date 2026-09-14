@@ -1,6 +1,6 @@
 import type { BladeConfig } from './materials';
 import { featureOf, type BladeTree } from './tree';
-import { appendExtrusion, appendRevolve, regularHexagon, rotated } from './mesh';
+import { appendExtrusion, appendJoined, appendRevolve, regularHexagon, rotated } from './mesh';
 
 const IN_CM = 2.54;
 const HEX_EXTENSION_MIN_IN = 0.5;
@@ -143,16 +143,23 @@ export function evaluate(tree: BladeTree, config: BladeConfig): Evaluation {
 	const collarPresent = hex.suppressed !== true;
 	const spinPresent = tree.spinBolt !== false;
 	const spinRadius = Math.min(0.125, body.stations[0].r), spinHeight = Math.min(0.25, bodyTop * 0.08);
-	const zTop = collarPresent ? bodyTop + hex.height + collarHeight : bodyTop;
+	const zTop = collarPresent ? bodyTop + Math.max(hex.height, collarHeight) : bodyTop;
 	const buildSolid = () => {
 		const mesh: SolidMesh = { vertices: [], faces: [] };
 		appendRevolve(mesh, body.stations);
+		const bodyFaceCount = mesh.faces.length;
+		const joinedBodyFaces = new Set<number>();
 		if (collarPresent) {
-			appendExtrusion(mesh, regularHexagon(hex.acrossFlats), bodyTop, bodyTop + hex.height);
-			appendRevolve(mesh, [{ r: collarOuterRadius, z: bodyTop + hex.height - collarHeight / 2 }, { r: collarOuterRadius, z: zTop }]);
+			appendJoined(mesh, () => appendExtrusion(mesh, regularHexagon(hex.acrossFlats), bodyTop, bodyTop + hex.height), 192, bodyFaceCount, joinedBodyFaces);
+			appendJoined(mesh, () => appendRevolve(mesh, [{ r: collarOuterRadius, z: bodyTop }, { r: collarOuterRadius, z: bodyTop + collarHeight }]), 192, bodyFaceCount, joinedBodyFaces);
 		}
-		if (spinPresent) appendRevolve(mesh, [{ r: spinRadius, z: body.stations[0].z - spinHeight }, { r: spinRadius, z: body.stations[0].z }]);
-		for (let n = 0; n < pattern.count; n++) appendExtrusion(mesh, rotated(poly, 2 * Math.PI * n / pattern.count), mount.z, mount.z + stock.thicknessIn);
+		if (spinPresent) appendJoined(mesh, () => appendRevolve(mesh, [{ r: spinRadius, z: body.stations[0].z - spinHeight }, { r: spinRadius, z: body.stations[0].z }]), 192, bodyFaceCount, joinedBodyFaces);
+		for (let n = 0; n < pattern.count; n++) appendJoined(mesh, () => appendExtrusion(mesh, rotated(poly, 2 * Math.PI * n / pattern.count), mount.z, mount.z + stock.thicknessIn), 192, bodyFaceCount, joinedBodyFaces);
+		const signedVolume6 = mesh.faces.reduce((sum, [a, b, c]) => {
+			const A = mesh.vertices[a], B = mesh.vertices[b], C = mesh.vertices[c];
+			return sum + A.x * (B.y * C.z - B.z * C.y) + A.y * (B.z * C.x - B.x * C.z) + A.z * (B.x * C.y - B.y * C.x);
+		}, 0);
+		if (signedVolume6 < 0) mesh.faces = mesh.faces.map(([a, b, c]) => [a, c, b]);
 		return mesh;
 	};
 	const com = mass ? mz / mass : 0, diameterIn = maxR * 2, fullHeightIn = bodyTop, hexExtensionIn = hex.height;
