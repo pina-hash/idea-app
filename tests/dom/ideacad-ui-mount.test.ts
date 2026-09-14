@@ -271,26 +271,23 @@ describe('the PropertyManager', () => {
 		await m.stop();
 	});
 
-	it('edits the body through its station table, and the table is where add and remove live', async () => {
+	it('makes the profile sketch the body editor and removes the station table', async () => {
 		const m = editing('Body Revolve');
-		expect(m.all('.pm tbody tr')).toHaveLength(4);
-		m.all<HTMLButtonElement>('.pm .acts button')[0].click(); // "+" on row 1
-		m.flush();
-		expect(m.all('.pm tbody tr')).toHaveLength(5);
-		m.all<HTMLButtonElement>('.pm .acts button')[1].click(); // "−" on row 1
-		m.flush();
-		expect(m.all('.pm tbody tr')).toHaveLength(4);
+		expect(m.all('.pm table')).toHaveLength(0);
+		expect(m.all('.pm .profile-editor .handle')).toHaveLength(4);
+		expect(m.all('.pm .selected-values input')).toHaveLength(2);
+		expect(m.one('.pm .axis-label').textContent).toBe('AXIS OF REVOLUTION');
 		await m.stop();
 	});
 
 	it('draws the profile from the stations on screen, so the two cannot disagree', async () => {
 		const m = editing('Body Revolve');
-		const before = m.one('.pm .profile polyline').getAttribute('points');
-		expect(m.all('.pm .profile circle')).toHaveLength(4);
-		type(m.all<HTMLInputElement>('.pm tbody input')[0], '0.9');
+		const before = m.one('.pm .segment').getAttribute('x1');
+		expect(m.all('.pm .handle')).toHaveLength(4);
+		type(m.all<HTMLInputElement>('.pm .selected-values input')[0], '0.9');
 		m.flush();
-		expect(m.one('.pm .profile polyline').getAttribute('points')).not.toBe(before);
-		expect(m.all('.pm .profile circle')).toHaveLength(4);
+		expect(m.one('.pm .segment').getAttribute('x1')).not.toBe(before);
+		expect(m.all('.pm .handle')).toHaveLength(4);
 		await m.stop();
 	});
 
