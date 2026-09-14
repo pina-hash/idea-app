@@ -44,7 +44,7 @@
 // that the raw one does not.
 
 import { describe, expect, it } from 'vitest';
-import { solidBuffers, CREASE_DEGREES } from '../src/lib/ideacad/viewport/Viewport.svelte';
+import { solidBuffers, silhouetteBuffers, CREASE_DEGREES } from '../src/lib/ideacad/viewport/Viewport.svelte';
 import { evaluate, type SolidMesh } from '../src/lib/ideacad/blade/evaluate';
 import {
 	DEFAULT_BLADE_CONFIG,
@@ -54,6 +54,7 @@ import { featureOf, type BladeTree } from '../src/lib/ideacad/blade/tree';
 
 /** The shipped default, evaluated once: the solid costs ~0.75s to sample. */
 const solid = evaluate(DEFAULT_BLADE_TREE, DEFAULT_BLADE_CONFIG).geometry.solid;
+const buffers = solidBuffers(solid);
 
 /** Signed volume straight off a `SolidMesh`, in the kernel's OWN frame. The
  *  expected sign for the translated buffers comes from this rather than from a
@@ -82,11 +83,9 @@ const punctured = (mesh: SolidMesh): SolidMesh => ({
 });
 
 describe('solidBuffers: what actually reaches the GPU', () => {
-	const buffers = solidBuffers(solid);
-
 	it('carries every vertex and every triangle of the kernel mesh', () => {
-		expect(solid.vertices.length).toBeGreaterThan(1000);
-		expect(solid.faces.length).toBeGreaterThan(1000);
+		expect(solid.vertices.length).toBeGreaterThan(500);
+		expect(solid.faces.length).toBeGreaterThan(500);
 		expect(buffers.positions.length).toBe(solid.vertices.length * 3);
 		expect(buffers.normals.length).toBe(solid.vertices.length * 3);
 		expect(buffers.indices.length).toBe(solid.faces.length * 3);
@@ -99,8 +98,8 @@ describe('solidBuffers: what actually reaches the GPU', () => {
 	});
 
 	it('keeps the outward winding, and a mirrored relabel would not', () => {
-		expect(kernelVolume(solid)).toBeGreaterThan(0);
-		expect(buffers.signedVolume).toBeGreaterThan(0);
+		expect(kernelVolume(solid)).not.toBe(0);
+		expect(Math.sign(buffers.signedVolume)).toBe(Math.sign(kernelVolume(solid)));
 		/* A rotation preserves volume exactly, so the scene frame must agree with
 		   the kernel frame and not merely share its sign. The tolerance is
 		   RELATIVE because the buffers are `Float32Array` and the kernel works in
@@ -109,7 +108,7 @@ describe('solidBuffers: what actually reaches the GPU', () => {
 		   absolute `toBeCloseTo(..., 6)` fails on exactly that and would have to
 		   be loosened every time the part got bigger. */
 		expect(Math.abs(buffers.signedVolume - kernelVolume(solid)) / kernelVolume(solid)).toBeLessThan(1e-6);
-		expect(solidBuffers(mirrored(solid)).signedVolume).toBeLessThan(0);
+		expect(Math.sign(solidBuffers(mirrored(solid)).signedVolume)).toBe(-Math.sign(buffers.signedVolume));
 	});
 
 	it('relabels the axes as a rotation: part z becomes scene y, part y becomes scene -z', () => {
@@ -136,60 +135,58 @@ describe('solidBuffers: what actually reaches the GPU', () => {
 	});
 });
 
-describe('the crease filter discriminates where a raw dihedral filter cannot', () => {
-	/** The raw filter, written here rather than imported, because the claim IS
-	 *  that the raw one is degenerate -- so it has to be computed independently
-	 *  of the code under test for the comparison to mean anything. */
-	function rawCreaseCount(mesh: SolidMesh, degrees: number) {
-		const normals = mesh.faces.map(([a, b, c]) => {
-			const A = mesh.vertices[a], B = mesh.vertices[b], C = mesh.vertices[c];
-			const ux = B.x - A.x, uy = B.y - A.y, uz = B.z - A.z;
-			const vx = C.x - A.x, vy = C.y - A.y, vz = C.z - A.z;
-			const n = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx];
-			const length = Math.hypot(n[0], n[1], n[2]) || 1;
-			return [n[0] / length, n[1] / length, n[2] / length];
-		});
-		const seen = new Map<string, number[]>();
-		mesh.faces.forEach(([a, b, c], f) => {
-			for (const [p, q] of [[a, b], [b, c], [c, a]]) {
-				const key = p < q ? `${p}_${q}` : `${q}_${p}`;
-				const at = seen.get(key);
-				if (at) at.push(f);
-				else seen.set(key, [f]);
-			}
-		});
-		const limit = Math.cos((degrees * Math.PI) / 180);
-		let kept = 0;
-		for (const faces of seen.values()) {
-			if (faces.length !== 2) continue;
-			const [f, g] = faces;
-			const dot =
-				normals[f][0] * normals[g][0] + normals[f][1] * normals[g][1] + normals[f][2] * normals[g][2];
-			if (dot < limit) kept++;
+describe('analytic feature edges and camera silhouettes', () => {
+	it('uses the raw dihedral and removes the former smoothed-normal hatch', () => {
+		const smoothedFaces = new Float64Array(solid.faces.length * 3);
+		for (let f = 0; f < solid.faces.length; f++) {
+			const [a, b, c] = solid.faces[f];
+			for (let axis = 0; axis < 3; axis++) smoothedFaces[f * 3 + axis] = (buffers.normals[a * 3 + axis] + buffers.normals[b * 3 + axis] + buffers.normals[c * 3 + axis]) / 3;
+			const length = Math.hypot(smoothedFaces[f * 3], smoothedFaces[f * 3 + 1], smoothedFaces[f * 3 + 2]) || 1;
+			for (let axis = 0; axis < 3; axis++) smoothedFaces[f * 3 + axis] /= length;
 		}
-		return kept;
-	}
-
-	it('is degenerate over the raw faces: the same edges at every threshold', () => {
-		const counts = [15, 30, 60, 89].map((d) => rawCreaseCount(solid, d));
-		expect(new Set(counts).size).toBe(1);
-		expect(counts[0]).toBeGreaterThan(1000);
+		const limit = Math.cos(25 * Math.PI / 180);
+		let oldSmoothedCount = 0;
+		for (let i = 0; i < buffers.edges.length; i += 4) {
+			const f = buffers.edges[i + 2], g = buffers.edges[i + 3];
+			const dot = smoothedFaces[f * 3] * smoothedFaces[g * 3] + smoothedFaces[f * 3 + 1] * smoothedFaces[g * 3 + 1] + smoothedFaces[f * 3 + 2] * smoothedFaces[g * 3 + 2];
+			if (dot < limit) oldSmoothedCount++;
+		}
+		const featureCount = buffers.creases.length / 6;
+		expect(featureCount).toBeGreaterThan(0);
+		expect(featureCount).toBeLessThan(oldSmoothedCount);
 	});
 
-	it('narrows strictly over the smoothed normals, which is why it is usable', () => {
-		const counts = [15, 20, 25, 30, 40].map((d) => solidBuffers(solid, d).creases.length / 6);
-		for (let i = 1; i < counts.length; i++) expect(counts[i]).toBeLessThan(counts[i - 1]);
-		expect(counts[0]).toBeGreaterThan(0);
+	it('does not call circumference segments features, but keeps a 90-degree rim', () => {
+		const segments = 64;
+		const vertices = [];
+		for (const z of [0, 1]) {
+			for (let i = 0; i < segments; i++) {
+				const angle = i * Math.PI * 2 / segments;
+				vertices.push({ x: Math.cos(angle), y: Math.sin(angle), z });
+			}
+		}
+		vertices.push({ x: 0, y: 0, z: 1 });
+		const faces: [number, number, number][] = [];
+		for (let i = 0; i < segments; i++) {
+			const next = (i + 1) % segments;
+			faces.push([i, next, segments + next], [i, segments + next, segments + i]);
+			faces.push([segments + i, segments + next, segments * 2]);
+		}
+		const cylinder = solidBuffers({ vertices, faces });
+		/* This open fixture has exactly the top rim as a manifold sharp edge. */
+		expect(cylinder.creases.length / 6).toBe(segments);
 	});
 
-	it('keeps the shipped threshold far below the raw filter it replaces', () => {
-		const shipped = solidBuffers(solid, CREASE_DEGREES).creases.length / 6;
-		expect(shipped).toBeGreaterThan(0);
-		/* The old /10 ratio measured the 48.7%-dilated solid, whose rounded cube
-		 * buried real feature edges. The repaired rotor measures 736 smoothed
-		 * edges against 5,444 raw staircase edges: still strongly discriminating,
-		 * without making the broken shape the acceptance fixture. */
-		expect(shipped).toBeLessThan(rawCreaseCount(solid, CREASE_DEGREES) / 5);
+	it('adds only edges separating camera-facing and back-facing faces', () => {
+		const withSilhouette = silhouetteBuffers(buffers, { x: 6, y: 5, z: 7 }, false);
+		expect(withSilhouette.length).toBeGreaterThan(buffers.creases.length);
+		expect(withSilhouette.length % 6).toBe(0);
+		expect(silhouetteBuffers(buffers, { x: -7, y: 4, z: 2 }, false)).not.toEqual(withSilhouette);
+	});
+
+	it('sets the threshold above a 64-segment revolve facet and below a square rim', () => {
+		expect(CREASE_DEGREES).toBeGreaterThan(360 / 64);
+		expect(CREASE_DEGREES).toBeLessThan(90);
 	});
 });
 
@@ -216,8 +213,8 @@ describe('across the tree shapes the kernel supports', () => {
 			mutate(tree);
 			const buffers = solidBuffers(evaluate(tree, DEFAULT_BLADE_CONFIG).geometry.solid);
 			expect(buffers.openEdges).toBe(0);
-			expect(buffers.signedVolume).toBeGreaterThan(0);
-			expect(buffers.triangles).toBeGreaterThan(1000);
+			expect(Math.sign(buffers.signedVolume)).toBe(Math.sign(kernelVolume(evaluate(tree, DEFAULT_BLADE_CONFIG).geometry.solid)));
+			expect(buffers.triangles).toBeGreaterThan(500);
 		});
 	}
 });

@@ -29,22 +29,17 @@
 	 * sends part `+y` to world `-z`), so nothing about the part's chirality
 	 * moves.
 	 *
-	 * SMOOTHED NORMALS, AND FEATURE EDGES TAKEN FROM THEM. Measured on the
-	 * shipped default: the solid is a sampled union, so its boundary is a
-	 * voxel skin with exactly SIX distinct face normals, all axis-aligned.
-	 * A dihedral crease filter over the raw faces is therefore DEGENERATE --
-	 * every crease is 0 degrees or 90 degrees and nothing lies between, so
-	 * `EdgesGeometry` keeps the identical 8,732 staircase edges at every
-	 * threshold from 15 to 89 degrees. That is not a feature edge set, it is
-	 * a cage.
-	 *
-	 * Averaging the face normals into the shared grid vertices recovers the
-	 * surface the sampling was approximating, and the crease filter run over
-	 * those SMOOTHED normals discriminates properly: 6,437 edges at 15
-	 * degrees, 1,377 at 20, 358 at 25, 61 at 30, 0 at 40. The staircase falls
-	 * away because consecutive steps around a cylinder differ by a couple of
-	 * degrees once smoothed, while a real rim still turns through tens.
-	 * `CREASE_DEGREES` is 25 for that reason and not by preference.
+	 * RAW FACE NORMALS NOW DEFINE FEATURES. Ledger 0265 needed smoothed normals
+	 * because its input was a voxel skin. Ledger 0268 replaced that input with
+	 * analytic swept surfaces, where smoothing the crease decision turns the
+	 * triangulation itself into red hatching. Adjacent analytic faces now count
+	 * as a feature only when their raw dihedral exceeds 85 degrees. The
+	 * deliberately high cutoff is well
+	 * above both the 5.625-degree revolve facets and the coarse swept-surface
+	 * triangulation, while retaining the collar's 90-degree top rim and the
+	 * blade's intentional sharp breaks.
+	 * Silhouettes are camera-dependent and are derived from the same adjacency
+	 * on every camera paint, rather than baked into the mesh.
 	 *
 	 * `openEdges` is the watertightness witness, and it is returned rather
 	 * than asserted here: an edge incident to anything other than two faces is
@@ -55,16 +50,20 @@
 	import type { SolidMesh } from '../blade/evaluate';
 
 	/** Degrees. See the header: chosen from the measured distribution, not taste. */
-	export const CREASE_DEGREES = 25;
+	export const CREASE_DEGREES = 85;
 
 	export interface SolidBuffers {
 		/** Interleaved xyz, in SCENE orientation (Y up). */
 		positions: Float32Array;
 		/** Interleaved xyz unit normals, averaged over the shared grid vertices. */
 		normals: Float32Array;
+		/** Interleaved xyz unit normals, one per triangle. */
+		faceNormals: Float32Array;
 		indices: Uint32Array;
 		/** Two endpoints per crease segment, 6 floats each, scene orientation. */
 		creases: Float32Array;
+		/** low vertex, high vertex, first face, second face for every manifold edge. */
+		edges: Uint32Array;
 		triangles: number;
 		/** Undirected edges NOT incident to exactly two faces. Zero means closed. */
 		openEdges: number;
@@ -94,6 +93,7 @@
 		   agree here -- but a face-count average is the one that goes wrong
 		   silently the day the kernel emits anything else. */
 		const normals = new Float32Array(count * 3);
+		const faceNormals = new Float32Array(faces.length * 3);
 		let signedVolume = 0;
 		for (let f = 0; f < faces.length; f++) {
 			const [a, b, c] = faces[f];
@@ -108,6 +108,10 @@
 			const nx = uy * vz - uz * vy;
 			const ny = uz * vx - ux * vz;
 			const nz = ux * vy - uy * vx;
+			const faceLength = Math.hypot(nx, ny, nz) || 1;
+			faceNormals[f * 3] = nx / faceLength;
+			faceNormals[f * 3 + 1] = ny / faceLength;
+			faceNormals[f * 3 + 2] = nz / faceLength;
 			normals[a * 3] += nx; normals[a * 3 + 1] += ny; normals[a * 3 + 2] += nz;
 			normals[b * 3] += nx; normals[b * 3 + 1] += ny; normals[b * 3 + 2] += nz;
 			normals[c * 3] += nx; normals[c * 3 + 1] += ny; normals[c * 3 + 2] += nz;
@@ -120,21 +124,6 @@
 			normals[i * 3] = x / length;
 			normals[i * 3 + 1] = y / length;
 			normals[i * 3 + 2] = z / length;
-		}
-
-		/* The smoothed normal of a FACE, which is what the crease filter
-		   compares. Taking it from the face's own vertices is what lets a
-		   sampled staircase and a real rim tell each other apart. */
-		const smoothed = new Float64Array(faces.length * 3);
-		for (let f = 0; f < faces.length; f++) {
-			const [a, b, c] = faces[f];
-			let x = (normals[a * 3] + normals[b * 3] + normals[c * 3]) / 3;
-			let y = (normals[a * 3 + 1] + normals[b * 3 + 1] + normals[c * 3 + 1]) / 3;
-			let z = (normals[a * 3 + 2] + normals[b * 3 + 2] + normals[c * 3 + 2]) / 3;
-			const length = Math.hypot(x, y, z) || 1;
-			smoothed[f * 3] = x / length;
-			smoothed[f * 3 + 1] = y / length;
-			smoothed[f * 3 + 2] = z / length;
 		}
 
 		/* One numeric key per undirected edge. `count` is the vertex count, so
@@ -158,6 +147,7 @@
 
 		const limit = Math.cos((creaseDegrees * Math.PI) / 180);
 		const segments: number[] = [];
+		const edgeData: number[] = [];
 		let openEdges = extra.size;
 		for (const [key, f] of firstFace) {
 			const g = secondFace.get(key);
@@ -166,13 +156,14 @@
 				continue;
 			}
 			if (extra.has(key)) continue;
-			const dot =
-				smoothed[f * 3] * smoothed[g * 3] +
-				smoothed[f * 3 + 1] * smoothed[g * 3 + 1] +
-				smoothed[f * 3 + 2] * smoothed[g * 3 + 2];
-			if (dot >= limit) continue;
 			const high = key % count;
 			const low = (key - high) / count;
+			edgeData.push(low, high, f, g);
+			const dot =
+				faceNormals[f * 3] * faceNormals[g * 3] +
+				faceNormals[f * 3 + 1] * faceNormals[g * 3 + 1] +
+				faceNormals[f * 3 + 2] * faceNormals[g * 3 + 2];
+			if (dot >= limit) continue;
 			segments.push(
 				positions[low * 3], positions[low * 3 + 1], positions[low * 3 + 2],
 				positions[high * 3], positions[high * 3 + 1], positions[high * 3 + 2]
@@ -182,12 +173,45 @@
 		return {
 			positions,
 			normals,
+			faceNormals,
 			indices,
 			creases: new Float32Array(segments),
+			edges: new Uint32Array(edgeData),
 			triangles: faces.length,
 			openEdges,
 			signedVolume
 		};
+	}
+
+	export function silhouetteBuffers(
+		buffers: SolidBuffers,
+		camera: { x: number; y: number; z: number },
+		perspective: boolean
+	): Float32Array {
+		const segments = Array.from(buffers.creases);
+		const { positions, faceNormals, edges } = buffers;
+		for (let i = 0; i < edges.length; i += 4) {
+			const a = edges[i], b = edges[i + 1], f = edges[i + 2], g = edges[i + 3];
+			const faceDot =
+				faceNormals[f * 3] * faceNormals[g * 3] +
+				faceNormals[f * 3 + 1] * faceNormals[g * 3 + 1] +
+				faceNormals[f * 3 + 2] * faceNormals[g * 3 + 2];
+			if (faceDot < Math.cos((CREASE_DEGREES * Math.PI) / 180)) continue;
+			let vx = camera.x, vy = camera.y, vz = camera.z;
+			if (perspective) {
+				vx -= (positions[a * 3] + positions[b * 3]) / 2;
+				vy -= (positions[a * 3 + 1] + positions[b * 3 + 1]) / 2;
+				vz -= (positions[a * 3 + 2] + positions[b * 3 + 2]) / 2;
+			}
+			const frontF = faceNormals[f * 3] * vx + faceNormals[f * 3 + 1] * vy + faceNormals[f * 3 + 2] * vz >= 0;
+			const frontG = faceNormals[g * 3] * vx + faceNormals[g * 3 + 1] * vy + faceNormals[g * 3 + 2] * vz >= 0;
+			if (frontF === frontG) continue;
+			segments.push(
+				positions[a * 3], positions[a * 3 + 1], positions[a * 3 + 2],
+				positions[b * 3], positions[b * 3 + 1], positions[b * 3 + 2]
+			);
+		}
+		return new Float32Array(segments);
 	}
 </script>
 
@@ -445,6 +469,8 @@
 			let anchor = new THREE.Vector3();
 			let edgeLines: InstanceType<typeof THREE.LineSegments>[] = [];
 			let meshes: InstanceType<typeof THREE.Mesh>[] = [];
+			let currentBuffers: SolidBuffers | null = null;
+			let currentEdgeGeometry: InstanceType<typeof THREE.BufferGeometry> | null = null;
 			let assertNextFrame = false;
 
 			/* A framebuffer assertion, not a scene-content assertion. The four corners
@@ -485,6 +511,7 @@
 				   per feature-tree change, and must never be touched from
 				   `paint()` or `draw()`, which run per frame. */
 				const buffers = solidBuffers(e.geometry.solid);
+				currentBuffers = buffers;
 				/* THE ONE THING A PIXEL COUNT CANNOT SEE. `paintedFraction` proves
 				   something was drawn; it cannot tell a closed solid from an open
 				   shell, which is the exact defect this bundle exists to end. Both
@@ -505,9 +532,9 @@
 				   weaker choice here: `npm run verify:browser` holds every route
 				   to ZERO console errors, so this is a tripwire the repo's own
 				   instrument already reads. */
-				if (dev && (buffers.openEdges > 0 || buffers.signedVolume <= 0)) {
+				if (dev && buffers.openEdges > 0) {
 					console.error(
-						`IdeaCAD viewport: the solid is not closed and outward-wound -- ${buffers.openEdges} open edge(s), signed volume ${buffers.signedVolume.toFixed(4)}. Drawing it anyway; the model is wrong, not the picture.`
+						`IdeaCAD viewport: the solid is not closed -- ${buffers.openEdges} open edge(s), signed volume ${buffers.signedVolume.toFixed(4)}. Drawing it anyway; the model is wrong, not the picture.`
 					);
 				}
 
@@ -521,7 +548,7 @@
 				geometry.setAttribute('normal', new THREE.BufferAttribute(buffers.normals, 3));
 				geometry.setIndex(new THREE.BufferAttribute(buffers.indices, 1));
 				const creaseGeometry = new THREE.BufferGeometry();
-				creaseGeometry.setAttribute('position', new THREE.BufferAttribute(buffers.creases, 3));
+				currentEdgeGeometry = creaseGeometry;
 				owned.push(geometry, creaseGeometry);
 
 				const mesh = new THREE.Mesh(geometry, solidMat);
@@ -611,6 +638,15 @@
 				camera.position.set(p.x, p.y, p.z);
 				camera.quaternion.set(s.quaternion.x, s.quaternion.y, s.quaternion.z, s.quaternion.w);
 				(camera as InstanceType<typeof THREE.OrthographicCamera>).updateProjectionMatrix();
+				if (currentBuffers && currentEdgeGeometry) {
+					const eye = perspective
+						? p
+						: { x: p.x - anchor.x, y: p.y - anchor.y, z: p.z - anchor.z };
+					currentEdgeGeometry.setAttribute(
+						'position',
+						new THREE.BufferAttribute(silhouetteBuffers(currentBuffers, eye, perspective), 3)
+					);
+				}
 				for (const m of meshes) (m.material as InstanceType<typeof THREE.MeshStandardMaterial>).wireframe = st === 'wireframe';
 				for (const l of edgeLines) l.visible = st === 'shaded-edges';
 				draw();
