@@ -40,10 +40,21 @@
 		redo: editorState.historyReady ? () => store.redo() : undefined
 	} : null);
 
-	async function open(itemId: string, title: string) {
+	function refusalFrom(error: unknown): string {
+		return error instanceof Error ? error.message : String(error);
+	}
+
+	async function openExisting(documentId: string, title: string) {
+		opening = true; refusal = ''; pickerOpen = false; activeTitle = title;
+		try { await store.openShared(documentId); }
+		catch (error) { refusal = refusalFrom(error); }
+		finally { opening = false; }
+	}
+
+	async function openNew(itemId: string, title: string) {
 		opening = true; refusal = ''; pickerOpen = false; activeTitle = title;
 		try { await store.open(itemId); }
-		catch { refusal = 'This document could not be opened. Nothing was changed.'; }
+		catch (error) { refusal = refusalFrom(error); }
 		finally { opening = false; }
 	}
 
@@ -77,7 +88,7 @@
 				{#if refusal}<p class="refusal" role="alert">{refusal}</p>{/if}
 				<div class="document-grid">
 					{#each documents as document (document.id)}
-						<button onclick={() => open(document.itemId, document.title)} disabled={opening}>
+						<button onclick={() => openExisting(document.id, document.title)} disabled={opening}>
 							<strong>{document.title}</strong><span>Edited {new Date(document.updatedAt).toLocaleDateString()}</span>
 						</button>
 					{/each}
@@ -85,7 +96,7 @@
 				<h2>New document</h2>
 				{#if sources.length}
 					<div class="document-grid new-grid">
-						{#each sources as source (source.itemId)}<button onclick={() => open(source.itemId, source.title)} disabled={opening}><strong>{source.title}</strong><span>Create and open</span></button>{/each}
+						{#each sources as source (source.itemId)}<button onclick={() => openNew(source.itemId, source.title)} disabled={opening}><strong>{source.title}</strong><span>Create and open</span></button>{/each}
 					</div>
 				{:else}<p class="empty">There are no available document starters right now.</p>{/if}
 				{#if editorState?.document}<button class="close" onclick={() => (pickerOpen = false)}>Back to graphics</button>{/if}
