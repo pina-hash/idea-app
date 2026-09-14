@@ -392,8 +392,12 @@
 			   rather than quietly filling itself in. */
 			const solidMat = new THREE.MeshStandardMaterial({
 				color: new THREE.Color(ink.body),
+				/* 0.12, the value ledger 0239 chose when it fixed black viewport
+				   frames, kept exactly. The three role materials it set it on are
+				   one material now, but the emissive lift is that fix and nothing
+				   measured here justifies moving it. */
 				emissive: new THREE.Color(ink.body),
-				emissiveIntensity: 0.1,
+				emissiveIntensity: 0.12,
 				metalness: 0.52,
 				roughness: 0.32,
 				side: THREE.FrontSide,
