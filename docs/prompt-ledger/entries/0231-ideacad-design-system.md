@@ -9,7 +9,7 @@
   `store.ts`, `workspaces.ts`, any `blade/*.ts`, any migration. Two other
   lanes hold those.
 - Migration permitted: no. **Claims: none.**
-- Status: issued
+- Status: pushed
 - Branch: `claude/vigilant-feynman-aa3onu`, branched from `main` at `2bb8b56`.
 - Notes: a scoped design system for IdeaCAD -- CSS custom properties on one
   root class (`.ic-root`), applied to the editor components. SolidWorks'
