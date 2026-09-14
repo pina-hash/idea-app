@@ -91,6 +91,21 @@ function logWithUndo(): IdeacadHistoryRow[] {
 	];
 }
 
+function logWithDivergedRedo(): IdeacadHistoryRow[] {
+	const rows = logWithUndo();
+	return [
+		...rows,
+		{
+			seq: rows[rows.length - 1].seq + 1,
+			kind: 'set',
+			path: '/rotation',
+			before: 'cw',
+			after: 'ccw',
+			actor: VIEWER
+		}
+	];
+}
+
 /* Every mount is unmounted even when its test throws: `BladeEditor` listens for
    its undo keystrokes on the DOCUMENT, so a mount left standing keeps claiming
    them and reddens unrelated keyboard tests in other files. */
@@ -310,6 +325,27 @@ describe('undo and redo are transports, and absence removes them', () => {
 		expect(n.one('[data-testid="ideacad-timeline-redo"]').getAttribute('aria-disabled')).toBe('false');
 	});
 
+	it('says when undo and redo have reached their boundaries', () => {
+		const originOnly = open({ history: [log()[0]], undoStep: async () => {}, redoStep: async () => {} });
+		open_(originOnly);
+		originOnly.one<HTMLButtonElement>('[data-testid="ideacad-timeline-undo"]').click();
+		originOnly.flush();
+		expect(originOnly.one('[data-testid="ideacad-timeline-boundary"]').textContent).toContain('nothing to undo');
+		originOnly.one<HTMLButtonElement>('[data-testid="ideacad-timeline-redo"]').click();
+		originOnly.flush();
+		expect(originOnly.one('[data-testid="ideacad-timeline-boundary"]').textContent).toContain('nothing to redo');
+	});
+
+	it('explicitly says a new edit discarded the old redo branch', () => {
+		const m = open({ history: logWithDivergedRedo(), undoStep: async () => {}, redoStep: async () => {} });
+		open_(m);
+		const redo = m.one<HTMLButtonElement>('[data-testid="ideacad-timeline-redo"]');
+		expect(redo.getAttribute('aria-disabled')).toBe('true');
+		redo.click();
+		m.flush();
+		expect(m.one('[data-testid="ideacad-timeline-boundary"]').textContent).toContain('discarded');
+	});
+
 	it('reaches undo from Ctrl+Z, which is the keystroke ui/undo.ts used to own', () => {
 		let undid = 0;
 		const m = open({ undoStep: async () => void undid++ });
@@ -490,7 +526,7 @@ describe('every entry says who made it', () => {
 		const said = m.all('.who').map((w) => (w.textContent ?? '').trim());
 		expect(new Set(said).size).toBe(2);
 		expect(said).toContain('You');
-		expect(said).toContain('m.reyes');
+		expect(said).toContain('M Reyes');
 		// AND NOT BY COLOUR ALONE: the two carry different classes as well as
 		// different words, and the words alone already tell them apart.
 		expect(m.all('.who.is-you').length).toBeGreaterThan(0);
@@ -509,7 +545,7 @@ describe('every entry says who made it', () => {
 		// Every row is still attributed -- absent viewer removes the "You", not
 		// the attribution.
 		expect(anonymous.all('.who').length).toBe(withViewer.all('.who').length);
-		expect(anonymous.all('.who').map((w) => (w.textContent ?? '').trim())).toContain('a.pina');
+		expect(anonymous.all('.who').map((w) => (w.textContent ?? '').trim())).toContain('A Pina');
 	});
 
 	it('does not name a non-person as a classmate', () => {
@@ -532,7 +568,7 @@ describe('every entry says who made it', () => {
 		const labels = m.all('.hit').map((r) => r.getAttribute('aria-label') ?? '');
 		expect(labels.filter(Boolean).length).toBe(rows(m).length);
 		expect(labels.some((l) => l.includes('You'))).toBe(true);
-		expect(labels.some((l) => l.includes('m.reyes'))).toBe(true);
+		expect(labels.some((l) => l.includes('M Reyes'))).toBe(true);
 		for (const l of labels) expect(l).not.toContain('@');
 	});
 });

@@ -339,6 +339,7 @@ export interface Timeline {
 	readonly entries: readonly TimelineEntry[];
 	readonly canUndo: boolean;
 	readonly canRedo: boolean;
+	readonly redoDiscarded: boolean;
 	/** The newest seq, which is the scrub's right-hand end. */
 	readonly newestSeq: number;
 	/** The origin's seq, which is its left-hand end. Always 0 in practice, read
@@ -346,7 +347,7 @@ export interface Timeline {
 	readonly originSeq: number;
 }
 
-const EMPTY: Timeline = { entries: [], canUndo: false, canRedo: false, newestSeq: 0, originSeq: 0 };
+const EMPTY: Timeline = { entries: [], canUndo: false, canRedo: false, redoDiscarded: false, newestSeq: 0, originSeq: 0 };
 
 /**
  * The whole list, oldest first, named against the tree each row applied to.
@@ -405,6 +406,7 @@ export function buildTimeline(rows: readonly IdeacadHistoryRow[], namer?: Timeli
 		entries,
 		canUndo: fold.canUndo,
 		canRedo: fold.canRedo,
+		redoDiscarded: fold.redoDiscarded,
 		newestSeq: ordered[ordered.length - 1].seq,
 		originSeq: origin.seq
 	};
@@ -458,6 +460,7 @@ export const TIMELINE_WORDS = {
 	redo: 'Redo',
 	nothingToUndo: 'There is nothing to undo.',
 	nothingToRedo: 'There is nothing to redo.',
+	redoDiscarded: 'Redo was discarded because a new change started a different path.',
 	/** THE SCRUB IS A LOOK, NOT A CHANGE, and it says so where the student is
 	 *  looking. Committing to a past state is undo pressed until it is reached,
 	 *  which is what keeps the log append-only. */
@@ -550,10 +553,8 @@ export interface TimelineActor {
  * a classmate at `a.pina@boscotech.net` rendered as `a.pina` -- their own
  * shortened name, on somebody else's edits.
  *
- * THE LOCAL PART IS PRINTED VERBATIM AND NEVER TITLE-CASED. Turning
- * `alejandro.pina` into "Alejandro Pina" invents a person's name from a string
- * that is not one, and it is wrong the first time it meets `jdoe2` or `apina1`.
- * What is printed is a truthful projection of what is stored.
+	 * A dotted or underscored school address is presented as the person's name;
+	 * opaque account handles remain unchanged rather than pretending to know.
  */
 export function timelineActors(
 	entries: readonly TimelineEntry[],
@@ -585,6 +586,14 @@ export function timelineActors(
 	}
 
 	const out = new Map<string, TimelineActor>();
+	const personName = (local: string): string => {
+		if (!/[._-]/.test(local)) return local;
+		return local
+			.split(/[._-]+/)
+			.filter(Boolean)
+			.map((part) => part[0].toUpperCase() + part.slice(1))
+			.join(' ');
+	};
 	for (const value of stored) {
 		if (!isPerson(value)) {
 			out.set(value, {
@@ -600,7 +609,7 @@ export function timelineActors(
 		const shared = (localCount.get(local) ?? 0) > 1;
 		const isViewer = viewer !== '' && norm === viewer;
 		out.set(value, {
-			label: isViewer ? ACTOR_WORDS.you : shared ? norm : local,
+			label: isViewer ? ACTOR_WORDS.you : shared ? norm : personName(local),
 			isViewer,
 			isSystem: false,
 			stored: value

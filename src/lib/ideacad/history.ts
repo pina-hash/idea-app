@@ -326,6 +326,9 @@ export interface IdeacadHistoryFold {
 	readonly depth: ReadonlyMap<number, number>;
 	readonly canUndo: boolean;
 	readonly canRedo: boolean;
+	/** A normal edit landed after an undo, so that abandoned branch is retained
+	 *  in the audit log but is no longer a redo candidate. */
+	readonly redoDiscarded: boolean;
 }
 
 /**
@@ -349,6 +352,8 @@ export function foldHistory(rows: readonly IdeacadHistoryRow[]): IdeacadHistoryF
 	const consumed = new Set<number>();
 	let undoTarget: IdeacadHistoryRow | null = null;
 	let redoTarget: IdeacadHistoryRow | null = null;
+	let newerEdit = false;
+	let redoDiscarded = false;
 
 	for (let i = all.length - 1; i >= 0; i -= 1) {
 		const row = all[i];
@@ -360,6 +365,11 @@ export function foldHistory(rows: readonly IdeacadHistoryRow[]): IdeacadHistoryF
 		const even = (depth.get(row.seq) ?? 0) % 2 === 0;
 		if (even) {
 			if (!undoTarget) undoTarget = row;
+			// A depth-zero row is a new decision, rather than an inverse-chain
+			// operation. It explicitly closes every older redo branch.
+			if ((depth.get(row.seq) ?? 0) === 0) newerEdit = true;
+		} else if (newerEdit) {
+			redoDiscarded = true;
 		} else if (!redoTarget) redoTarget = row;
 		if (undoTarget && redoTarget) break;
 	}
@@ -369,7 +379,8 @@ export function foldHistory(rows: readonly IdeacadHistoryRow[]): IdeacadHistoryF
 		redoTarget,
 		depth,
 		canUndo: undoTarget !== null,
-		canRedo: redoTarget !== null
+		canRedo: redoTarget !== null,
+		redoDiscarded
 	};
 }
 

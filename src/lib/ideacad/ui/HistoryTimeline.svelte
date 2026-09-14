@@ -81,6 +81,27 @@
 	   creation of the part, which is the thing the student was promised they
 	   could get back to. */
 	const countLine = $derived(`${count} ${count === 1 ? 'step' : 'steps'}`);
+	let boundaryMessage = $state('');
+	function requestUndo(): void {
+		if (busy) return;
+		if (!timeline.canUndo) {
+			boundaryMessage = TIMELINE_WORDS.nothingToUndo;
+			return;
+		}
+		boundaryMessage = '';
+		onundo?.();
+	}
+	function requestRedo(): void {
+		if (busy) return;
+		if (!timeline.canRedo) {
+			boundaryMessage = timeline.redoDiscarded
+				? TIMELINE_WORDS.redoDiscarded
+				: TIMELINE_WORDS.nothingToRedo;
+			return;
+		}
+		boundaryMessage = '';
+		onredo?.();
+	}
 
 	/** A row's own accessible sentence, which is what a screen reader hears and
 	 *  is deliberately the same words the row prints rather than a second copy
@@ -124,7 +145,7 @@
 					class="act tap-44"
 					data-testid="ideacad-timeline-undo"
 					aria-disabled={!timeline.canUndo || busy}
-					onclick={() => timeline.canUndo && !busy && onundo?.()}>{TIMELINE_WORDS.undo}</button
+					onclick={requestUndo}>{TIMELINE_WORDS.undo}</button
 				>
 			{/if}
 			{#if onredo}
@@ -133,10 +154,11 @@
 					class="act tap-44"
 					data-testid="ideacad-timeline-redo"
 					aria-disabled={!timeline.canRedo || busy}
-					onclick={() => timeline.canRedo && !busy && onredo?.()}>{TIMELINE_WORDS.redo}</button
+					onclick={requestRedo}>{TIMELINE_WORDS.redo}</button
 				>
 			{/if}
 		</div>
+		{#if boundaryMessage}<p class="boundary" role="status" data-testid="ideacad-timeline-boundary">{boundaryMessage}</p>{/if}
 	{/if}
 
 	{#if previewSeq !== null}
@@ -278,6 +300,11 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.5rem;
+	}
+	.boundary {
+		margin: 0;
+		font: 12px Rajdhani, sans-serif;
+		color: var(--text-1);
 	}
 	.note,
 	.empty {
