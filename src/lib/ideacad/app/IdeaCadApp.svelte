@@ -20,7 +20,10 @@
 	let editorState: IdeacadStoreState = $state(store.state);
 	let opening = $state(false);
 	let refusal = $state('');
-	let pickerOpen = $state(false);
+	/* Opening the route is a choice point, even if a future store implementation
+	 * restores a document eagerly. A document only gets the canvas after the
+	 * person explicitly chooses it in this session. */
+	let pickerOpen = $state(true);
 	let activeTitle = $state('');
 	let layout = $state(untrack(() => initialLayout));
 	const unsubscribe = store.subscribe((next) => (editorState = next));
@@ -71,34 +74,42 @@
 </script>
 
 <main class="app-shell" data-testid="ideacad-app">
-	<div class="command-bar">
+	<nav class="command-bar" aria-label="IdeaCAD commands">
 		<a href="/" class="brand" aria-label="IDEA home">IDEA<span>CAD</span></a>
-		<button onclick={() => (pickerOpen = !pickerOpen)} aria-expanded={pickerOpen}>Documents</button>
-		<button class="new" onclick={() => (pickerOpen = true)}>New document</button>
-		{#if activeTitle}<strong title={activeTitle}>{activeTitle}</strong>{/if}
+		<button class:active={pickerOpen} onclick={() => (pickerOpen = !pickerOpen)} aria-expanded={pickerOpen}>Documents</button>
+		<button class="new" onclick={() => (pickerOpen = true)}>+ New document</button>
+		{#if activeTitle}<strong class="document-title" title={activeTitle}><span>OPEN</span>{activeTitle}</strong>{/if}
 		<span class="spacer"></span>
-		<a href="/" class="exit">Exit</a>
-	</div>
+		<a href="/" class="exit">Exit to IDEA</a>
+	</nav>
 
 	{#if pickerOpen || !editorState?.document}
 		<section class="start" aria-label="IdeaCAD documents">
 			<div class="start-card">
-				<p class="eyebrow">IDEACAD</p><h1>{editorState?.document ? 'Open another document' : 'Your documents'}</h1>
-				<p>Open an existing model or start a new one. IdeaCAD does not need a classroom page around it.</p>
+				<header class="start-heading">
+					<p class="eyebrow">IDEACAD // DOCUMENT CONTROL</p>
+					<h1>{editorState?.document ? 'Choose a document' : 'Your documents'}</h1>
+					<p>Continue your own work or start with an available IdeaCAD assignment.</p>
+				</header>
 				{#if refusal}<p class="refusal" role="alert">{refusal}</p>{/if}
-				<div class="document-grid">
-					{#each documents as document (document.id)}
-						<button onclick={() => openExisting(document.id, document.title)} disabled={opening}>
-							<strong>{document.title}</strong><span>Edited {new Date(document.updatedAt).toLocaleDateString()}</span>
-						</button>
-					{/each}
-				</div>
-				<h2>New document</h2>
+				{#if documents.length}
+					<div class="section-label"><h2>Recent documents</h2><span>{documents.length} available</span></div>
+					<div class="document-grid">
+						{#each documents as document (document.id)}
+							<button onclick={() => openExisting(document.id, document.title)} disabled={opening}>
+								<span class="card-code">DOCUMENT</span><strong>{document.title}</strong><span>Edited {new Date(document.updatedAt).toLocaleDateString()}</span>
+							</button>
+						{/each}
+					</div>
+				{:else}
+					<div class="empty-state"><span aria-hidden="true">＋</span><div><h2>No documents yet</h2><p>Your work will appear here after you create your first document.</p></div></div>
+				{/if}
+				<div class="section-label"><h2>Start new</h2><span>Choose a workspace</span></div>
 				{#if sources.length}
 					<div class="document-grid new-grid">
-						{#each sources as source (source.itemId)}<button onclick={() => openNew(source.itemId, source.title)} disabled={opening}><strong>{source.title}</strong><span>Create and open</span></button>{/each}
+						{#each sources as source (source.itemId)}<button onclick={() => openNew(source.itemId, source.title)} disabled={opening}><span class="card-code">NEW DOCUMENT</span><strong>{source.title}</strong><span>Create and open →</span></button>{/each}
 					</div>
-				{:else}<p class="empty">There are no available document starters right now.</p>{/if}
+				{:else}<div class="empty new-empty"><strong>No starters available</strong><span>An IdeaCAD assignment must be made available before a new document can be created.</span></div>{/if}
 				{#if editorState?.document}<button class="close" onclick={() => (pickerOpen = false)}>Back to graphics</button>{/if}
 			</div>
 		</section>
@@ -112,18 +123,25 @@
 <style>
 	:global(html), :global(body) { width: 100%; height: 100%; overflow: hidden; }
 	:global(body) { margin: 0; }
-	.app-shell { width: 100vw; height: 100vh; overflow: hidden; display: grid; grid-template-rows: 48px minmax(0, 1fr); background: var(--surface-0); color: var(--text-1); }
-	.command-bar { display: flex; align-items: center; gap: .4rem; padding: 0 .65rem; border-bottom: 1px solid var(--boundary); background: var(--surface-1); font-family: 'Share Tech Mono', monospace; }
-	.command-bar button, .command-bar a { min-height: 36px; padding: 0 .7rem; display: inline-flex; align-items: center; color: var(--text-1); background: var(--surface-2); border: 1px solid var(--boundary); text-decoration: none; }
-	.brand { font-weight: 800; letter-spacing: .12em; } .brand span { color: var(--cyan); } .new { border-color: var(--green) !important; }
-	.command-bar strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .spacer { flex: 1; }
+	.app-shell { width: 100vw; height: 100vh; overflow: hidden; display: grid; grid-template-rows: 52px minmax(0, 1fr); background: var(--surface-0); color: var(--text-1); font-family: 'Share Tech Mono', monospace; }
+	.command-bar { position: relative; display: flex; align-items: stretch; gap: 0; padding: 0 12px; border-bottom: 1px solid var(--boundary); background: var(--surface-1); box-shadow: 0 8px 24px color-mix(in srgb, var(--surface-0) 72%, transparent); }
+	.command-bar::after { content: ''; position: absolute; inset: auto 0 -1px; height: 1px; background: linear-gradient(90deg, var(--cyan), transparent 35%, transparent 70%, var(--green)); opacity: .5; }
+	.command-bar button, .command-bar a { min-height: 51px; padding: 0 16px; display: inline-flex; align-items: center; color: var(--text-2); background: transparent; border: 0; border-left: 1px solid var(--boundary); text-decoration: none; font: 700 11px 'Share Tech Mono', monospace; letter-spacing: .06em; text-transform: uppercase; }
+	.command-bar button:hover, .command-bar a:hover, .command-bar button.active { color: var(--text-1); background: var(--surface-2); }
+	.brand { color: var(--text-1) !important; font-family: var(--font-hero) !important; font-size: 16px !important; font-weight: 800 !important; letter-spacing: .14em !important; border-left: 0 !important; padding-left: 4px !important; padding-right: 22px !important; } .brand span { color: var(--cyan); } .new { color: var(--green) !important; border-right: 1px solid var(--boundary) !important; }
+	.document-title { align-self: center; min-width: 0; margin-left: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-hero); letter-spacing: .03em; } .document-title span { margin-right: 8px; color: var(--cyan); font: 9px 'Share Tech Mono', monospace; letter-spacing: .12em; } .spacer { flex: 1; }
+	.exit { border-right: 1px solid var(--boundary) !important; }
 	.editor-frame { min-height: 0; overflow: hidden; }
-	.start { min-height: 0; overflow: auto; display: grid; place-items: start center; padding: clamp(1rem, 5vw, 4rem); background: radial-gradient(circle at 50% 0, color-mix(in srgb, var(--cyan) 10%, transparent), transparent 45%); }
-	.start-card { width: min(900px, 100%); } h1 { margin: .15rem 0; font-family: var(--font-hero); } h2 { margin-top: 2rem; }
-	.eyebrow { color: var(--cyan); letter-spacing: .14em; font: 12px 'Share Tech Mono', monospace; }
-	.document-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: .75rem; }
-	.document-grid button { min-height: 88px; padding: 1rem; text-align: left; display: grid; gap: .35rem; color: var(--text-1); background: var(--surface-1); border: 1px solid var(--boundary); }
-	.document-grid button:hover { border-color: var(--cyan); } .document-grid span, .empty { color: var(--text-2); font: 12px 'Share Tech Mono', monospace; }
-	.new-grid button { border-color: var(--green); } .close { margin-top: 1rem; min-height: 44px; } .refusal { color: var(--crimson); }
-	@media (max-width: 600px) { .command-bar { gap: .2rem; } .command-bar strong { display: none; } .command-bar button, .command-bar a { padding: 0 .45rem; } .exit { display: none !important; } }
+	.start { min-height: 0; overflow: auto; display: grid; place-items: start center; padding: clamp(28px, 6vw, 76px) clamp(18px, 5vw, 64px); background: linear-gradient(color-mix(in srgb, var(--boundary) 28%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--boundary) 28%, transparent) 1px, transparent 1px), radial-gradient(circle at 50% -20%, color-mix(in srgb, var(--cyan) 12%, transparent), transparent 48%); background-size: 32px 32px, 32px 32px, auto; }
+	.start-card { width: min(960px, 100%); } .start-heading { max-width: 660px; margin-bottom: 42px; } h1 { margin: 5px 0 10px; color: var(--text-1); font-family: var(--font-hero); font-size: clamp(32px, 5vw, 56px); line-height: .95; letter-spacing: -.035em; text-transform: uppercase; } .start-heading > p:last-child { color: var(--text-2); line-height: 1.65; }
+	.eyebrow { margin: 0; color: var(--cyan); letter-spacing: .16em; font-size: 11px; }
+	.section-label { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--boundary); } .section-label h2 { margin: 0; color: var(--text-1); font: 700 13px var(--font-hero); letter-spacing: .08em; text-transform: uppercase; } .section-label span { color: var(--text-2); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+	.document-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 10px; }
+	.document-grid button { position: relative; min-height: 118px; padding: 18px; text-align: left; display: grid; align-content: space-between; gap: 8px; color: var(--text-1); background: color-mix(in srgb, var(--surface-1) 94%, transparent); border: 1px solid var(--boundary); border-radius: 0; }
+	.document-grid button::before { content: ''; position: absolute; inset: -1px auto auto -1px; width: 24px; height: 2px; background: var(--cyan); } .document-grid button:hover { border-color: var(--cyan); background: var(--surface-2); transform: translateY(-1px); } .document-grid button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+	.document-grid button > strong { font-family: var(--font-hero); font-size: 17px; } .document-grid button > span:last-child { color: var(--text-2); font-size: 11px; } .card-code { color: var(--cyan); font-size: 9px; letter-spacing: .13em; }
+	.new-grid button::before { background: var(--green); } .new-grid .card-code, .new-grid button > span:last-child { color: var(--green); }
+	.empty-state { min-height: 136px; display: flex; align-items: center; gap: 22px; padding: 24px; border: 1px dashed var(--boundary); background: color-mix(in srgb, var(--surface-1) 80%, transparent); } .empty-state > span { color: var(--cyan); font: 36px var(--font-hero); } .empty-state h2 { margin: 0 0 7px; font: 700 17px var(--font-hero); text-transform: uppercase; } .empty-state p { margin: 0; color: var(--text-2); line-height: 1.5; }
+	.empty { display: grid; gap: 7px; padding: 18px; color: var(--text-2); border-left: 2px solid var(--boundary); background: var(--surface-1); font-size: 11px; } .empty strong { color: var(--text-1); text-transform: uppercase; letter-spacing: .08em; } .close { margin-top: 24px; min-height: 44px; color: var(--text-1); background: var(--surface-2); border: 1px solid var(--boundary); } .refusal { padding: 12px 16px; color: var(--crimson); border: 1px solid var(--crimson); background: var(--surface-1); }
+	@media (max-width: 680px) { .command-bar { padding: 0 4px; } .document-title { display: none; } .command-bar button, .command-bar a { padding: 0 8px; font-size: 10px; } .brand { padding-right: 10px !important; } .new { font-size: 0 !important; } .new::after { content: 'New'; font-size: 10px; } .start { padding-top: 32px; } .start-heading { margin-bottom: 28px; } }
 </style>
