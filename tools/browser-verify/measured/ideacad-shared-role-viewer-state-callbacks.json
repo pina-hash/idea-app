@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "ideacad-shared-role-viewer-state-callbacks.mjs",
-	"date": "2026-09-14T06:37:41.546Z",
-	"sha": "5399ccf32870e9df7f3de7e66aa88a288a4c6d66",
-	"dirty": true,
+	"date": "2026-09-14T06:55:56.465Z",
+	"sha": "a68ed7575423ac2352846a27704052d72d197262",
+	"dirty": false,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 24,
 	"outsideRows": [],
-	"ms": 6847
+	"ms": 6775
 }

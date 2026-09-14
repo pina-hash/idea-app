@@ -14,10 +14,13 @@ each of its checks fails when the defect it names is planted, and reports what
 it finds. **It fixes nothing** -- every defect below belongs to the lane that
 owns the file.
 
-**IT WAS MEASURED ON TWO TREES AND BOTH READINGS MATTER.** The branch was cut
-from `799d203`, where the viewport is black; `origin/main` moved to `fe62631`
-underneath it, carrying ledgers 0240 to 0246, and one of those repaired the
-collapsed pane. The findings reported here are from the MERGED tree, because
+**IT WAS MEASURED ON THREE TREES AND TWO OF THE READINGS MATTER.** The branch
+was cut from `799d203`, where the viewport is black; `origin/main` moved to
+`fe62631` underneath it, carrying ledgers 0240 to 0246, and one of those
+repaired the collapsed pane. It moved again to `115ed79` (ledgers 0252 and
+0253) before this landed, and **every number below is byte-identical on both of
+the later two** -- 30 outside threshold, canvas 16.87% to 42.83% over 6,833 to
+9,706 colours, the same three zero-box controls -- so they are reported once. The findings reported here are from the MERGED tree, because
 that is what lands. The branch-point readings are kept beside them, because the
 same check on the same route answering 0.00% off the dominant colour over 1
 distinct colour at `799d203` and 21.50% over 8,325 at `fe62631` is the best
@@ -265,15 +268,21 @@ routes.
 
 ### Two findings that are not this bundle's checks, found on the way past
 
-7. **`svelte-check` on `origin/main` reports 1 ERROR**, which CLAUDE.md's stated
-   baseline (0 errors, 37 warnings in 20 files) does not admit. It is
+7. **`svelte-check` on `origin/main` reports ERRORS, and the count is rising**,
+   which CLAUDE.md's stated baseline (0 errors, 37 warnings in 20 files) does
+   not admit. At `fe62631` it was ONE --
    `src/lib/ideacad/viewport/picking.ts:80:26`, `Argument of type 'Vector2Like'
-   is not assignable to parameter of type 'Vector2'`, from ledger 0245. Measured
-   on a CLEAN `git worktree` at `origin/main` with none of this branch's changes
-   in it -- **1 error and 37 warnings in 21 files**, the same figure the merged
-   tree gives, with the warning mix unchanged at 31 `state_referenced_locally` /
-   5 `css_unused_selector` / 1 `perf_avoid_nested_class`. CLAUDE.md is not this
-   bundle's to edit; the correction belongs to whoever owns `picking.ts`.
+   is not assignable to parameter of type 'Vector2'`, from ledger 0245 --
+   measured on a CLEAN `git worktree` with none of this branch's changes in it,
+   **1 error and 37 warnings in 21 files**, the same figure the merged tree
+   gave. At `115ed79` it is TWO: ledger 0252 added
+   `tests/ideacad-tree-ops.test.ts:51:67`, `'body' is possibly 'undefined'`.
+   **2 errors and 37 warnings in 22 files**, warning mix unchanged throughout at
+   31 `state_referenced_locally` / 5 `css_unused_selector` / 1
+   `perf_avoid_nested_class`. This is why CI is red on `main`: every one of the
+   last eight `ci.yml` runs on that branch failed, `fe62631` and `115ed79`
+   included. CLAUDE.md is not this bundle's to edit and neither file is this
+   bundle's to touch; both corrections belong to the lanes that own them.
 
 8. **An existing IdeaCAD verdict was vacuous at the branch point and reported
    `ok` over a model 0.68 pixels wide.** `the model fills the pane it was fitted
@@ -305,5 +314,16 @@ routes.
 - Nothing here says anything about production. No process in this container has
   a route to the production database and none was attempted.
 - **The suite is red on `main` and stays red**, which this bundle neither caused
-  nor fixed: see the report for the file list and the evidence that every one of
-  them is byte-identical to `origin/main`'s.
+  nor fixed. At `fe62631`: **4 failed | 9112 passed | 6 skipped (9122)**, 4 files
+  of 479, and the IDENTICAL four files with the IDENTICAL six named failures come
+  back from a clean `git worktree` at `origin/main` with none of this branch in
+  it -- `tests/dom/ideacad-ui-mount.test.ts`,
+  `tests/apply-migration-guard.test.ts`, `tests/apply-migration-trace.test.ts`,
+  `tests/db/migrations-applied-record.test.ts`. At `115ed79` it is **5 failed |
+  9113 passed | 6 skipped (9124)**, the fifth being
+  `tests/ideacad-tree-ops.test.ts`, which ledger 0252 added in the same commit
+  that put the second `svelte-check` error in it. Not one of the five is a file
+  this bundle touches. **Read off the summary line, never the exit code**:
+  `tools/run-tests.mjs` says in its own header why, and this run is the case --
+  `npm test` reported its failures and the wrapper's own `raw exit` was 1 while
+  vitest underneath exited 0.
