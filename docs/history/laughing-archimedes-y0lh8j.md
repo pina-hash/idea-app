@@ -163,23 +163,33 @@ feel free to split it; nothing about the code depends on the two living together
 
 ## What was measured
 
-* **`npx svelte-check`: 0 new errors, 0 new warnings.** Baseline re-derived in a clean
-  `git worktree` at the branch point (`eabed62`), because a baseline measured on the tree
-  under test is not a baseline: **2 errors, 37 warnings in 22 files**, mix 31
-  `state_referenced_locally` / 5 `css_unused_selector` / 1 `perf_avoid_nested_class`.
-  This tree measures the same 2 / 37 / 22 with the same mix. **CLAUDE.md's verification
-  line says 0 errors and 37 warnings in 20 files, and both the error count and the file
-  count are stale** -- the two errors are `src/lib/ideacad/viewport/picking.ts:80`
+* **`npx svelte-check` on the merged tree: 0 errors, 37 warnings in 20 files, mix 31
+  `state_referenced_locally` / 5 `css_unused_selector` / 1 `perf_avoid_nested_class` --
+  which is EXACTLY what CLAUDE.md's verification line states.**
+* **AND THE INTERESTING PART IS THAT THE BRANCH POINT DID NOT MEASURE THAT.** The
+  baseline was re-derived in a clean `git worktree` at `eabed62`, because a baseline
+  measured on the tree under test is not a baseline, and it came back **2 errors, 37
+  warnings in 22 files** -- the errors `src/lib/ideacad/viewport/picking.ts:80`
   (`Vector2Like` not assignable to `Vector2`) and `tests/ideacad-tree-ops.test.ts:51`
-  (`'body' is possibly 'undefined'`), both pre-existing, both in files this lane was
-  forbidden to touch. It is reported rather than corrected in place for exactly that
-  reason; the next session holding either file should fix the code and the line together.
-* **`npm test`: 9161 passed, 7 failed, 6 skipped. All 7 failures are the baseline's,
-  measured at the branch point before any change** (`tests/dom/ideacad-ui-mount.test.ts`
-  x5, `tests/apply-migration-guard.test.ts`, `tests/apply-migration-trace.test.ts`,
-  `tests/db/migrations-applied-record.test.ts`, `tests/ideacad-tree-ops.test.ts` -- the
-  baseline run reported 7 failed / 9120 passed / 6 skipped). Counted off the summary line
-  and never off the exit code, which was 0 on both runs with failures present.
+  (`'body' is possibly 'undefined'`). This entry said, for several hours, that CLAUDE.md's
+  line was stale on both counts. **It was not: the LANE was behind.** `origin/main` had
+  already fixed both, and merging it took this tree to 0 / 37 / 20 and turned the five
+  `tests/dom/ideacad-ui-mount.test.ts` failures and the `tests/ideacad-tree-ops.test.ts`
+  one green with no change of this lane's. The lesson is not about those two errors, it
+  is about the instrument: **a baseline taken at a branch point is a statement about the
+  branch point and NOT about `main`**, and a lane that reports "CLAUDE.md is stale" on the
+  strength of one is doing the same thing the six previous drift corrections warn about,
+  in the opposite direction -- reading a number rather than measuring against the tree the
+  claim is about. Re-measure against `origin/main` before saying that line has drifted
+  again.
+* **`npm test` at the branch point: 9161 passed, 7 failed, 6 skipped, against a baseline
+  of 9120 passed / 7 failed / 6 skipped measured before any change** -- the same seven,
+  none of them this lane's. **Six of those seven are gone on the merged tree**: `main`'s
+  fixes take the five `tests/dom/ideacad-ui-mount.test.ts` failures and the
+  `tests/ideacad-tree-ops.test.ts` one green, leaving the migration-tooling three
+  (`apply-migration-guard`, `apply-migration-trace`, `db/migrations-applied-record`),
+  which are about applied state this container cannot reach. Counted off the summary line
+  and never off the exit code, which was 0 on every run that had failures in it.
 * **41 new assertions**, 32 pure (`tests/ideacad-chooser.test.ts`) and 9 over a real SSR
   render of the real component (`tests/ideacad-chooser-render.test.ts`). Every absence
   claim carries a positive control on the same fixture, so a zero can never be a page that
