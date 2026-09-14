@@ -3,10 +3,17 @@
  *
  * `checks.mjs` asks present, visible, 44px, 4.5:1, and what an element SAYS.
  * Every one of those came back green over a completely black 3D viewport --
- * measured on `/dev/ideacad` at 1440 on 2026-09-14, where the canvas is
- * 912.0x0.0, its drawing buffer is 1368 x 1, and 99.56% of that buffer is the
- * page ground. Three lanes shipped visual work into that surface and none of
- * them could see it.
+ * measured on `/dev/ideacad` at 1440 on 2026-09-14 at commit `799d203`, where
+ * the canvas was 912.0x0.0, its drawing buffer was 1368 x 1, and 99.56% of that
+ * buffer was the page ground. Three lanes shipped visual work into that surface
+ * and none of them could see it.
+ *
+ * THAT PARTICULAR PANE WAS REPAIRED ON `main` WHILE THIS FILE WAS BEING
+ * WRITTEN, and the pair of readings is the best evidence the check discriminates
+ * that anyone is ever likely to get -- the same check, the same route, two real
+ * trees: 0.00% off the dominant colour over 1 distinct colour at `799d203`, and
+ * 21.50% over 8,325 at `fe62631`. It is not a reason to think the check is
+ * finished with. The defect it names is a class, not an incident.
  *
  * The gap is not that those checks are wrong. It is that "present, visible,
  * large enough, readable" is a claim about a BOX, and a box can be perfect over
@@ -175,11 +182,12 @@ export async function installCanvasReadback(page) {
  * ARITHMETIC ALONE -- the `--selftest` fixture, and the REAL three.js viewport
  * driven to a correct fit at 1440:
  *
- *                                    differ > 8/ch    distinct colours
- *   the shaded fixture triangle          23.77%              9,617
- *   the real Blade model, fitted         19.09%             11,110
- *   the same canvas, --break blank-canvas 0.00%                  1
- *   a canvas that was only ever cleared   0.00%                  1
+ *                                     differ > 8/ch   distinct colours
+ *   the shaded `--selftest` triangle       23.77%             9,617
+ *   the real Blade viewport, 30 readings   16.87-42.83%   6,833-9,706
+ *   the same canvas, --break blank-canvas   0.00%                 1
+ *   the same canvas at `799d203`            0.00%                 6
+ *   a canvas that was only ever cleared     0.00%                 1
  *
  * So a sound render clears the 2% floor by an order of magnitude and the
  * 16-colour floor by nearly three, while both broken readings sit at the floor

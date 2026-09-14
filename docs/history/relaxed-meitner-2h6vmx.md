@@ -14,11 +14,22 @@ each of its checks fails when the defect it names is planted, and reports what
 it finds. **It fixes nothing** -- every defect below belongs to the lane that
 owns the file.
 
+**IT WAS MEASURED ON TWO TREES AND BOTH READINGS MATTER.** The branch was cut
+from `799d203`, where the viewport is black; `origin/main` moved to `fe62631`
+underneath it, carrying ledgers 0240 to 0246, and one of those repaired the
+collapsed pane. The findings reported here are from the MERGED tree, because
+that is what lands. The branch-point readings are kept beside them, because the
+same check on the same route answering 0.00% off the dominant colour over 1
+distinct colour at `799d203` and 21.50% over 8,325 at `fe62631` is the best
+evidence anyone is likely to get that it discriminates -- and because a check
+that only ever ran against a broken tree would be a check nobody had seen
+pass.
+
 ## The gap, stated precisely
 
 The existing checks are not wrong. They ask a question about a BOX, and a box
-can be perfect over nothing at all. Measured on `/dev/ideacad` at 1440 before
-any change: the canvas is `912.0 x 0.0`, its WebGL drawing buffer is `1368 x 1`,
+can be perfect over nothing at all. Measured on `/dev/ideacad` at 1440 at
+`799d203`: the canvas is `912.0 x 0.0`, its WebGL drawing buffer is `1368 x 1`,
 99.56% of that buffer is the page ground -- and the route's `presence`,
 `contrast`, `tap-target` and `text-contains` rows were green over it.
 
@@ -169,20 +180,26 @@ happens to move and says nothing about the other three. Six of the pairs carry
 an `assert` on the reason text, because "outside threshold" is also what a
 broken instrument returns.
 
-**Live, on the real surface.** A live control cannot show green-to-red on a
-surface that is already red, and two of the three were:
+**Live, on the real surface**, `/dev/ideacad?role=teacher&state=property` at
+1440. Each preset's own row is in bold and every other row sits at its
+baseline, which is the property that makes a preset worth anything:
 
-| Preset | On `/dev/ideacad?role=teacher&state=property` @1440 |
-| --- | --- |
-| `same-style` | clean transition: all three `distinguishable` rows go from distinguished to `INDISTINGUISHABLE on all three axes` |
-| `zero-box` | already red, so the demonstration is the count moving **4 to 9**, with the five newly-zeroed controls named by their own text (`Feature tree`, `left-divider`, `Hide FeatureManager`, `Fit`, ...) |
-| `blank-canvas` | already red for a PRIOR reason -- the check short-circuits on the canvas's zero CSS box before it reads a pixel |
+| | `canvas-content` | `layout-sanity` | `distinguishable` |
+| --- | --- | --- | --- |
+| no preset | ok 21.50% / 8,325 colours | 3 zero-box | ok, ok, ok |
+| `blank-canvas` | **0.00% / 1 colour** | 3 zero-box | ok, ok, ok |
+| `zero-box` | ok 21.50% / 8,325 | **6 zero-box** | ok, ok, ok |
+| `same-style` | ok 21.50% / 8,325 | 3 zero-box | **INDISTINGUISHABLE x3** |
 
-`blank-canvas`'s green-to-red was taken on the real renderer instead, in a
-scratch script that props the collapsed pane to 431px and presses the surface's
-own Fit control: **19.09% off the dominant colour over 11,110 distinct colours
-(WITHIN), then 0.00% over 1 colour with the preset applied (OUTSIDE)**. Once the
-pane is fixed the transition is available on the route itself.
+`zero-box` is the one that cannot be a clean transition, because the surface
+genuinely has three zero-box controls (finding 2 below); what it demonstrates is
+the count moving 3 to 6 with the newly zeroed controls named by their own text.
+At the branch point `blank-canvas` was in the same position for a different
+reason -- `canvas-content` short-circuited on the canvas's zero CSS box before it
+read a pixel -- and its green-to-red was taken by propping the collapsed pane to
+431px in a scratch script and pressing the surface's own **Fit** control
+(19.09% / 11,110 colours WITHIN, then 0.00% / 1 OUTSIDE). The merged tree makes
+that prop unnecessary.
 
 `blank-canvas` needs BOTH halves of what it does, and that is a measurement
 rather than belt and braces. No-oping the draw calls covers a surface that
@@ -193,64 +210,81 @@ loop", so with `preserveDrawingBuffer` forced on, the frame drawn before the
 injection is still sitting there, the patched draw calls never run, and the
 control comes back green while proving nothing.
 
-## What the instrument found, and none of it is fixed here
+## What the instrument found on the merged tree, and none of it is fixed here
 
-66 route/width runs over the 33 `/dev/ideacad*` specs, 1344 measurements, 187
-outside threshold. 150 of those measurements are the new checks' and **75 are
-outside threshold.**
+66 route/width runs over the 33 `/dev/ideacad*` specs, 1344 measurements, 147
+outside threshold. 150 of those measurements are the new checks' and **30 are
+outside threshold**, all of them two findings repeated across the fifteen editor
+routes.
 
-1. **The 3D viewport is a zero-height canvas on all fifteen editor routes at
-   both widths.** `912.0 x 0.0` and `359.0 x 0.0` on `/dev/ideacad*`;
-   `444.5 x 0.0` and `295.0 x 0.0` on `/dev/ideacad-item*`. 30 of 30
-   `canvas-content` readings short-circuit on it. The same element,
-   `div.vp > canvas`, is also the zero-box row `layout-sanity` reports at 375.
+1. **The 3D viewport draws, on all fifteen editor routes at both widths.** 30 of
+   30 `canvas-content` readings are WITHIN: CSS boxes from `307.0 x 328.5` to
+   `924.0 x 490.2`, **16.87% to 42.83%** of sampled pixels off the dominant
+   colour over **6,833 to 9,706** distinct colours, against floors of 2% and 16.
+   This is the finding that was not available at the branch point, where the
+   same thirty readings were `zero CSS box ... nothing can be drawn in it`.
 
-2. **The model projects to 0.68 x 0.70 PIXELS**, and that is a second defect
-   hiding behind the first. Propped to a real 912x429 pane and driven 300 frames
-   through the real renderer, the canvas still reads 0.00% / 6 distinct colours,
-   and the page's own probe answers `drawCalls 15, triangles 904,
-   projected { width: 0.681, height: 0.702 }`. Pressing the surface's own **Fit**
-   control takes the projection to `292 x 301` and the canvas to 19.09% / 11,110
-   colours -- so the sub-pixel model is a consequence of the initial fit being
-   computed against a zero-height pane, and this is ONE root cause rather than
-   two.
-
-3. **An existing verdict is vacuous while (1) holds, and reported `ok` over a
-   0.68px model.** `the model fills the pane it was fitted to` compares
-   `max(projected.w, projected.h) >= min(box.w, box.h) * 0.55`, and with
-   `box.height` 0 the right-hand side is 0, so any projection passes. It is
-   green at 1440 in the same run whose `the canvas fills the viewport pane`
-   sits FAILED two lines above it. That is the bundle's own thesis arriving
-   inside a check written to prevent it.
-
-4. **Three pane-switcher buttons render at 0x0 at 1440** on all fifteen routes:
-   `nav.mobile-switcher > button` reading "Features", "Graphics" and
-   "Properties". They are RENDERED, not `display: none` -- so they are focusable,
+2. **Three pane-switcher buttons render at 0x0 at 1440**, on all fifteen routes
+   -- `nav.mobile-switcher > button` reading "Features", "Graphics" and
+   "Properties". They are RENDERED, not `display: none`, so they are focusable,
    tabbable controls with no box at desktop width. At 375, where they are the
-   real switcher, they are fine and thirteen other elements are correctly
-   `display: none`.
+   real switcher, they are fine and thirteen other elements are correctly not
+   rendered. This is every `layout-sanity` red in the run: 15 of 15 at 1440, 0
+   of 15 at 375.
 
-5. **`p.view` ("Isometric") is 1x1 and clipped on all fifteen routes at both
+3. **`p.view` ("Isometric") is 1x1 and clipped on all fifteen routes at both
    widths** -- 58x14 of text in a 1x1 box. `Viewport.svelte` declares `.view`
-   TWICE in one stylesheet: the rule at line 634 is the visually-hidden idiom
+   TWICE in one stylesheet: the rule at line 674 is the visually-hidden idiom
    (`width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)`) and the one
-   at line 667 sets `position/bottom/left/margin/font/color` and undoes none of
-   it, so the later rule adds a place to sit and the earlier one keeps the box at
-   1x1. Meanwhile the spec's `contrast [the current view name]` row measures it
-   at **16.19:1** -- a contrast reading on text nobody can see. Found because the
-   visually-hidden bucket is reported by name rather than skipped.
+   at line 707 sets `position/bottom/left/margin/font/color` and undoes none of
+   it, so the later rule gives it a place to sit and the earlier one keeps the
+   box at 1x1. Meanwhile the spec's `contrast [the current view name]` row
+   measures it at **16.19:1** -- a contrast reading on text nobody can see. It
+   is REPORTED and not counted, because the idiom it wears is the legitimate
+   screen-reader pattern and `.header-status-compat` beside it is a correct use
+   of it; naming the bucket's members rather than skipping them is the whole
+   reason this is visible at all.
 
-6. **The readouts rail is `visibility: hidden` at 375** on all fifteen routes,
-   so `distinguishable` reports NOT BOTH VISIBLE for the label/value pair at that
-   width. This is corroborated rather than novel: the spec's own pre-existing
+4. **The readouts rail is `visibility: hidden` at 375** on all fifteen routes, so
+   `distinguishable` reports NOT BOTH VISIBLE for the label/value pair there.
+   This is corroborated rather than novel: the spec's own pre-existing
    `presence [rule readouts...]` row already reads `present 7, visible 0` and
-   already fails there. Two independent checks agreeing is the reading to trust.
+   already fails at that width. Two independent checks agreeing is the reading
+   to trust.
 
-7. **Zero findings for three of the four `layout-sanity` claims**, over stated
+5. **"Standard Parts" is ellipsised in the feature tree at 1440** on 12 of the 15
+   routes -- 103x21 of text in a 97x20 box. Reported, not counted: an ellipsis is
+   a deliberate truncation with a visible mark. Worth a look by the owning lane
+   all the same, since it is the only row in that tree that does not fit.
+
+6. **Zero findings for three of the four `layout-sanity` claims**, over stated
    populations: 0 elements outside the document, 0 overlapping the status bar
-   (measured at `1438.0 x 28.0` and `373.0 x 28.0`), 0 genuinely-clipped text
-   elements, across 23 to 40 interactive elements and 23 to 142 text elements per
-   route.
+   (measured `1438.0 x 36.0` at 1440 and `373.0 x 28.0` at 375), 0
+   genuinely-clipped text elements, across 23 to 40 interactive elements and 23
+   to 142 text elements per route.
+
+### Two findings that are not this bundle's checks, found on the way past
+
+7. **`svelte-check` on `origin/main` reports 1 ERROR**, which CLAUDE.md's stated
+   baseline (0 errors, 37 warnings in 20 files) does not admit. It is
+   `src/lib/ideacad/viewport/picking.ts:80:26`, `Argument of type 'Vector2Like'
+   is not assignable to parameter of type 'Vector2'`, from ledger 0245. Measured
+   on a CLEAN `git worktree` at `origin/main` with none of this branch's changes
+   in it -- **1 error and 37 warnings in 21 files**, the same figure the merged
+   tree gives, with the warning mix unchanged at 31 `state_referenced_locally` /
+   5 `css_unused_selector` / 1 `perf_avoid_nested_class`. CLAUDE.md is not this
+   bundle's to edit; the correction belongs to whoever owns `picking.ts`.
+
+8. **An existing IdeaCAD verdict was vacuous at the branch point and reported
+   `ok` over a model 0.68 pixels wide.** `the model fills the pane it was fitted
+   to` compares `max(projected.w, projected.h) >= min(box.w, box.h) * 0.55`, and
+   with `box.height` 0 the right-hand side is 0, so any projection passed. It was
+   green at 1440 in the same run whose `the canvas fills the viewport pane` sat
+   FAILED two lines above it. The pane is repaired now so the verdict has teeth
+   again, but **the shape is still there**: a ratio against a dimension that can
+   be zero is a claim that switches itself off exactly when the thing it guards
+   breaks. That is the bundle's own thesis arriving inside a check written to
+   prevent it, and it is worth a look by the lane that owns the probe.
 
 ## What was NOT verified, and one limit worth knowing
 
@@ -270,7 +304,6 @@ outside threshold.**
   not exercised. Both are the harness's standing limits, not this bundle's.
 - Nothing here says anything about production. No process in this container has
   a route to the production database and none was attempted.
-- `--break blank-canvas` and `--break zero-box` cannot show a green-to-red
-  transition on the IdeaCAD routes while findings 1 and 4 stand. The paragraph
-  saying so in `tools/browser-verify/README.md` is worth deleting the day that
-  stops being true.
+- **The suite is red on `main` and stays red**, which this bundle neither caused
+  nor fixed: see the report for the file list and the evidence that every one of
+  them is byte-identical to `origin/main`'s.

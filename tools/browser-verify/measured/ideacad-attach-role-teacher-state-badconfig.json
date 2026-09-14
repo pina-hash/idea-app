@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "ideacad-attach-role-teacher-state-badconfig.mjs",
-	"date": "2026-09-13T20:17:36.324Z",
-	"sha": "c05f09fdc1147062b20379abbe74a66a7585b03a",
-	"dirty": false,
+	"date": "2026-09-14T06:37:41.546Z",
+	"sha": "5399ccf32870e9df7f3de7e66aa88a288a4c6d66",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 16,
 	"outsideRows": [],
-	"ms": 10374
+	"ms": 6847
 }

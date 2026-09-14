@@ -1,15 +1,172 @@
 {
 	"schema": 1,
 	"spec": "ideacad-role-student-state-property.mjs",
-	"date": "2026-09-13T05:55:39.447Z",
-	"sha": "74a9fd753137afe0e6d5e6cc5800b93a284d86a5",
+	"date": "2026-09-14T06:37:41.546Z",
+	"sha": "5399ccf32870e9df7f3de7e66aa88a288a4c6d66",
 	"dirty": true,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
-	"measurements": 60,
-	"outsideRows": [],
-	"ms": 6419
+	"measurements": 70,
+	"outsideRows": [
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "contrast",
+			"label": "the panel’s own prose"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "tap-target",
+			"label": "the confirm pair"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "tap-target",
+			"label": "a reorder control"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "tap-target",
+			"label": "the way back to the tree"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "tap-target",
+			"label": "a station cell"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "tap-target",
+			"label": "add or remove a station"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "presence",
+			"label": "the PropertyManager"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "presence",
+			"label": "station rows"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "presence",
+			"label": "the r and z cells"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "presence",
+			"label": "add and remove, one pair per station"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "presence",
+			"label": "the 2D profile preview"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "presence",
+			"label": "one dot per station on the profile"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "presence",
+			"label": "the green check and the red X"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "presence",
+			"label": "Move up and Move down"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "presence",
+			"label": "the sentence saying why no feature renames or deletes"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "text-contains",
+			"label": "the panel names its bounds rather than leaving them to be discovered"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 375,
+			"check": "distinguishable",
+			"label": "a readout label against its own value"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 1440,
+			"check": "contrast",
+			"label": "the panel’s own prose"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "the confirm pair"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "a reorder control"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "the way back to the tree"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "a station cell"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 1440,
+			"check": "tap-target",
+			"label": "add or remove a station"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 1440,
+			"check": "presence",
+			"label": "the sentence saying why no feature renames or deletes"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 1440,
+			"check": "text-contains",
+			"label": "the panel names its bounds rather than leaving them to be discovered"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=property",
+			"width": 1440,
+			"check": "layout-sanity",
+			"label": "the IdeaCAD console"
+		}
+	],
+	"ms": 6847
 }

@@ -1,15 +1,28 @@
 {
 	"schema": 1,
 	"spec": "ideacad-item-role-owner.mjs",
-	"date": "2026-09-13T08:41:19.295Z",
-	"sha": "9b010f53d1f42f9f894921914fc97955d37a5c6b",
+	"date": "2026-09-14T06:37:41.546Z",
+	"sha": "5399ccf32870e9df7f3de7e66aa88a288a4c6d66",
 	"dirty": true,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
-	"measurements": 34,
-	"outsideRows": [],
-	"ms": 6722
+	"measurements": 46,
+	"outsideRows": [
+		{
+			"path": "/dev/ideacad-item?role=owner",
+			"width": 375,
+			"check": "distinguishable",
+			"label": "a readout label against its own value"
+		},
+		{
+			"path": "/dev/ideacad-item?role=owner",
+			"width": 1440,
+			"check": "layout-sanity",
+			"label": "the IdeaCAD console"
+		}
+	],
+	"ms": 6847
 }
