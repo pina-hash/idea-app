@@ -39,11 +39,16 @@ import {
 } from '../src/lib/ideacad/viewport/controls-math';
 import {
 	FIT_FILL,
+	CAMERA_NEAR,
+	MIN_MODEL_PIXELS,
+	PERSPECTIVE_HALF_FOV,
 	applyQuaternion,
 	cameraBasis,
 	cameraPosition,
 	fitZoom,
 	fitted,
+	clampZoom,
+	orbitWithoutRoll,
 	panByPixels,
 	spinArrowTurn,
 	viewName,
@@ -131,6 +136,37 @@ describe('cameraBasis', () => {
 		/* Screen up is -Z from above, which is why +Z paints DOWNWARD in the Top
 		   view -- the fact the rotation arrow's direction rests on. */
 		expect(b.up.z).toBeCloseTo(-1, 12);
+	});
+});
+
+describe('SolidWorks orbit constraints', () => {
+	it('never accumulates roll: screen up remains in the world-up plane', () => {
+		let q = axisAngle({ x: 0, y: 0, z: 1 }, 0.7);
+		for (let i = 0; i < 40; i++) q = orbitWithoutRoll(q, 17, i % 2 ? -9 : 13, 800);
+		const b = cameraBasis(q);
+		/* With zero roll, camera right is horizontal, hence perpendicular to Y. */
+		expect(b.right.y).toBeCloseTo(0, 10);
+	});
+
+	it('stops before vertical instead of flipping over a pole', () => {
+		const q = orbitWithoutRoll(IDENTITY_QUATERNION, 0, -100_000, 800);
+		const b = cameraBasis(q);
+		expect(b.forward.y).toBeGreaterThan(0.99);
+		expect(b.forward.y).toBeLessThan(1);
+		expect(b.up.y).toBeGreaterThan(0);
+	});
+});
+
+describe('zoom clamps', () => {
+	it('does not let the model shrink below the visible floor', () => {
+		expect(clampZoom(0, 2, VIEWPORT) * 4).toBe(MIN_MODEL_PIXELS);
+	});
+
+	it('keeps the bounding sphere behind the perspective near plane', () => {
+		const radius = 2;
+		const zoom = clampZoom(Number.POSITIVE_INFINITY, radius, VIEWPORT);
+		const distance = VIEWPORT.height / 2 / (zoom * Math.tan(PERSPECTIVE_HALF_FOV));
+		expect(distance - radius).toBeCloseTo(CAMERA_NEAR, 10);
 	});
 });
 
