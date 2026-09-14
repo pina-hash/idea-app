@@ -152,11 +152,9 @@
 </section>
 
 <style>
+	/* LAYOUT ONLY; the skin is `../ideacad.css` under `.ic-root`. */
 	.concepts {
 		display: grid;
-		gap: 0.5rem;
-		padding: 0.75rem;
-		border-top: 1px solid var(--boundary);
 	}
 	.cards {
 		display: flex;
@@ -174,36 +172,13 @@
 	}
 	button {
 		flex: 0 0 auto;
-		min-height: 44px;
-		min-width: 44px;
-		padding: 0 1rem;
 		scroll-snap-align: start;
-		color: var(--text-1);
-		background: var(--surface-2);
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-control);
-		font: inherit;
-	}
-	button:focus-visible,
-	input:focus-visible {
-		outline: 3px solid var(--focus-ring);
-		outline-offset: 2px;
-	}
-	button[aria-disabled='true'] {
-		color: var(--text-2);
-		border-color: var(--hairline);
 	}
 	.card {
-		min-width: 200px;
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
 		text-align: left;
-		padding: 0 0.75rem;
-	}
-	.card.active {
-		border-color: var(--green);
-		background: var(--green-tint);
 	}
 	.nm {
 		flex: 1 1 auto;
@@ -214,50 +189,20 @@
 	}
 	small {
 		display: block;
-		color: var(--green);
-		font: 12px 'Share Tech Mono', monospace;
-		letter-spacing: 0.08em;
 	}
 	.thumb {
 		flex: 0 0 auto;
-		background: var(--surface-0);
-		border: 1px solid var(--hairline);
-		border-radius: 2px;
-	}
-	.thumb polyline {
-		fill: none;
-		stroke: var(--green);
-		stroke-width: 2;
 	}
 	.chip {
 		flex: 0 0 auto;
-		font: 12px 'Share Tech Mono', monospace;
-		letter-spacing: 0.08em;
-	}
-	.chip.pass {
-		color: var(--green);
-	}
-	.chip.fail {
-		color: var(--crimson);
-	}
-	.danger {
-		border-color: var(--crimson);
 	}
 	.note {
 		align-self: center;
 		padding: 0 0.5rem;
-		font: 12px 'Share Tech Mono', monospace;
-		color: var(--text-2);
 	}
 	.rename {
 		flex: 0 0 auto;
-		min-height: 44px;
 		min-width: 180px;
 		padding: 0 0.7rem;
-		color: var(--text-1);
-		background: var(--surface-2);
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-control);
-		font: inherit;
 	}
 </style>

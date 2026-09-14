@@ -233,8 +233,8 @@
 		padding: 0.15rem 0.4rem;
 	}
 	.chip.role.ro {
-		border-color: var(--copper);
-		color: var(--copper);
+		border-color: var(--ic-warn, var(--amber));
+		color: var(--ic-warn, var(--amber));
 	}
 	.note {
 		margin: 0;

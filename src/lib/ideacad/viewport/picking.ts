@@ -1,4 +1,4 @@
-import { Raycaster, type Camera, type Intersection, type Object3D, type Vector2Like } from 'three';
+import { Raycaster, Vector2, type Camera, type Intersection, type Object3D, type Vector2Like } from 'three';
 import type { BladeFeature, BladeTree } from '../blade/tree';
 
 /** A render role is the smallest provenance vocabulary the renderer exposes today. */
@@ -77,7 +77,9 @@ export function raycastFeatures(
 	targets: readonly FeaturePickTarget[]
 ): FeaturePickResult {
 	const raycaster = new Raycaster();
-	raycaster.setFromCamera(pointer, camera);
+	// `setFromCamera` takes a real `Vector2`, not the structural `Vector2Like`
+	// this function accepts; the two numbers are the same either way.
+	raycaster.setFromCamera(new Vector2(pointer.x, pointer.y), camera);
 
 	const featureByObject = new Map<Object3D, string>();
 	for (const target of targets) {
