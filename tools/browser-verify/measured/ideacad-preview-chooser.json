@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "ideacad-preview-chooser.mjs",
+	"date": "2026-09-14T08:17:28.769Z",
+	"sha": "8fbaa43bacca3d7a067ce50aab2517df07fd3478",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 86,
+	"outsideRows": [],
+	"ms": 4938
+}
