@@ -20,7 +20,51 @@
  * alone by every pan: a pan that moved it would change what a later rotation
  * turns about.
  */
-import { type CameraState, type Quaternion, type Vec3, STANDARD_VIEWS } from './controls-math';
+import { axisAngle, multiply, type CameraState, type Quaternion, type Vec3, STANDARD_VIEWS } from './controls-math';
+
+/** SolidWorks-style turntable orbit limits. Keeping a small margin from the
+ * poles makes yaw remain defined and prevents the view from flipping over. */
+export const ORBIT_POLE_MARGIN = Math.PI / 180;
+
+/**
+ * Orbit about world-up, with no roll. SolidWorks' ordinary middle drag is an
+ * orbit, not a free arcball: horizontal motion changes azimuth and vertical
+ * motion changes elevation. Reconstructing the quaternion from those two
+ * angles deliberately removes accumulated roll on every move.
+ */
+export function orbitWithoutRoll(
+	q: Quaternion,
+	dx: number,
+	dy: number,
+	width: number,
+	mouseSpeed = Math.PI
+): Quaternion {
+	const forward = cameraBasis(q).forward;
+	const yaw = Math.atan2(forward.x, forward.z) - (dx / Math.max(width, 1)) * mouseSpeed;
+	const oldPitch = Math.asin(Math.max(-1, Math.min(1, forward.y)));
+	const limit = Math.PI / 2 - ORBIT_POLE_MARGIN;
+	const pitch = Math.max(-limit, Math.min(limit, oldPitch - (dy / Math.max(width, 1)) * mouseSpeed));
+	return multiply(axisAngle({ x: 0, y: 1, z: 0 }, yaw), axisAngle({ x: 1, y: 0, z: 0 }, -pitch));
+}
+
+/** Zoom limits: a visible-size floor and the perspective rig's near plane. */
+export const MIN_MODEL_PIXELS = 8;
+export const CAMERA_NEAR = 0.1;
+export const PERSPECTIVE_HALF_FOV = (35 * Math.PI) / 360;
+
+export function zoomBounds(radius: number, viewport: { height: number }): { min: number; max: number } {
+	const diameter = Math.max(radius * 2, 1e-6);
+	/* Viewport.svelte derives perspective distance from this same 35-degree
+	 * field of view. Requiring distance >= radius + near keeps the nearest point
+	 * of the bounding sphere behind the near plane. */
+	const max = Math.max(1, viewport.height) / 2 / (Math.max(radius, 0) + CAMERA_NEAR) / Math.tan(PERSPECTIVE_HALF_FOV);
+	return { min: MIN_MODEL_PIXELS / diameter, max };
+}
+
+export function clampZoom(zoom: number, radius: number, viewport: { height: number }): number {
+	const bounds = zoomBounds(radius, viewport);
+	return Math.max(bounds.min, Math.min(bounds.max, zoom));
+}
 
 /** Rotate a vector by a quaternion. The one implementation; `three` is not imported here. */
 export function applyQuaternion(v: Vec3, q: Quaternion): Vec3 {

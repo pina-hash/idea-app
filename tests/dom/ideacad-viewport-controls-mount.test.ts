@@ -26,7 +26,7 @@
 // against a real Chromium.
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { SolidWorksControls, typingInto } from '$lib/ideacad/viewport/controls';
+import { SOLIDWORKS_BINDINGS, SolidWorksControls, typingInto } from '$lib/ideacad/viewport/controls';
 import { IDENTITY_QUATERNION, STANDARD_VIEWS, type CameraState } from '$lib/ideacad/viewport/controls-math';
 import { viewName } from '$lib/ideacad/viewport/camera-rig';
 
@@ -83,6 +83,36 @@ const pointer = (el: Element, type: string, x: number, y: number, init: PointerE
 
 const key = (el: Element, k: string, init: KeyboardEventInit = {}) =>
 	el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, ...init }));
+
+describe('SolidWorksControls: audited binding table', () => {
+	it('pins every researched gesture by name', () => {
+		expect(SOLIDWORKS_BINDINGS).toEqual({
+			middleDrag: 'orbit',
+			ctrlMiddleDrag: 'pan',
+			shiftMiddleDrag: 'zoom',
+			altMiddleDrag: 'roll',
+			wheel: 'zoom-to-cursor',
+			middleClickGeometry: 'set-rotation-center',
+			rightDrag: 'mouse-gestures',
+			rightClick: 'context-menu',
+			leftDragEmpty: 'box-select',
+			leftDragModel: 'select-or-move',
+			doubleClickEmpty: 'unbound',
+			doubleClickFace: 'unbound',
+			arrow: 'rotate-15-degrees',
+			shiftArrow: 'rotate-90-degrees'
+		});
+	});
+
+	it('suppresses the browser context menu without changing the camera', () => {
+		const r = rig();
+		const event = new MouseEvent('contextmenu', { button: 2, bubbles: true, cancelable: true });
+		r.el.dispatchEvent(event);
+		expect(event.defaultPrevented).toBe(true);
+		expect(r.writes).toHaveLength(0);
+		r.stop();
+	});
+});
 
 describe('SolidWorksControls: a middle-drag rotates', () => {
 	let r: ReturnType<typeof rig>;
