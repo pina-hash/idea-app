@@ -14,6 +14,7 @@ export interface RuleResult {
 export interface SolidMesh {
 	vertices: { x: number; y: number; z: number }[];
 	faces: [number, number, number][];
+	voxel?: { step: number; cells: number; repairDeltas: number[] };
 }
 export interface Evaluation {
 	diameterIn: number;
@@ -78,6 +79,50 @@ function insidePolygon(x: number, y: number, polygon: { x: number; y: number }[]
 	return inside;
 }
 
+const FACE_NEIGHBORS = [
+	[1, 0, 0],
+	[-1, 0, 0],
+	[0, 1, 0],
+	[0, -1, 0],
+	[0, 0, 1],
+	[0, 0, -1]
+] as const;
+
+function closesEdgeContact(filled: Set<string>, i: number, j: number, k: number) {
+	for (let a = 0; a < FACE_NEIGHBORS.length; a++) {
+		const [ax, ay, az] = FACE_NEIGHBORS[a];
+		if (!filled.has(`${i + ax},${j + ay},${k + az}`)) continue;
+		for (let b = a + 1; b < FACE_NEIGHBORS.length; b++) {
+			const [bx, by, bz] = FACE_NEIGHBORS[b];
+			if (ax * bx + ay * by + az * bz !== 0) continue;
+			if (
+				filled.has(`${i + bx},${j + by},${k + bz}`) &&
+				!filled.has(`${i + ax + bx},${j + ay + by},${k + az + bz}`)
+			) return true;
+		}
+	}
+	return false;
+}
+
+export function repairVoxelEdgeContacts(filled: Set<string>, nx: number, ny: number, nz: number) {
+	const deltas: number[] = [];
+	const maxRepairPasses = Math.max(nx, ny, nz);
+	let previousAdded = Number.POSITIVE_INFINITY;
+	for (let pass = 0; pass < maxRepairPasses; pass++) {
+		const add: string[] = [];
+		for (let k=1;k<nz-1;k++) for (let j=1;j<ny-1;j++) for (let i=1;i<nx-1;i++) {
+			const key=`${i},${j},${k}`; if (filled.has(key)) continue;
+			if (closesEdgeContact(filled, i, j, k)) add.push(key);
+		}
+		if (add.length === 0) return deltas;
+		if (add.length >= previousAdded) throw new Error(`Voxel edge-contact repair diverged: pass ${pass + 1} would add ${add.length} cells after ${previousAdded}.`);
+		for (const key of add) filled.add(key);
+		deltas.push(add.length);
+		previousAdded = add.length;
+	}
+	throw new Error(`Voxel edge-contact repair did not converge within ${maxRepairPasses} passes.`);
+}
+
 /** A boundary mesh of the actual union, rather than intersecting feature shells. */
 function unionMesh(inside: (x: number, y: number, z: number) => boolean, radius: number, zMin: number, zMax: number): SolidMesh {
 	const step = Math.max((radius * 2) / 48, (zMax - zMin) / 48, 0.04);
@@ -87,19 +132,12 @@ function unionMesh(inside: (x: number, y: number, z: number) => boolean, radius:
 	for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
 		if (inside(x0 + (i + 0.5) * step, y0 + (j + 0.5) * step, base + (k + 0.5) * step)) filled.add(`${i},${j},${k}`);
 	}
-	/* A sampled union can leave two occupied cells touching at only an edge or a
-	   point. Close those zero-width contacts before skinning; they are not a
-	   printable connection and their boundary is not a 2-manifold. */
-	for (let pass = 0; pass < 8; pass++) {
-		const add: string[] = [];
-		for (let k=1;k<nz-1;k++) for (let j=1;j<ny-1;j++) for (let i=1;i<nx-1;i++) {
-			const key=`${i},${j},${k}`; if (filled.has(key)) continue;
-			const neighbors=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
-			const occupied=neighbors.filter(([a,b,c])=>filled.has(`${i+a},${j+b},${k+c}`));
-			if (occupied.length >= 2 && occupied.some((a,n)=>occupied.some((b,m)=>m>n && a[0]*b[0]+a[1]*b[1]+a[2]*b[2]===0))) add.push(key);
-		}
-		for (const key of add) filled.add(key);
-	}
+	/* A sampled union can leave two occupied cells touching along an edge: in a
+	   2x2 ring around that edge, the occupied cells are diagonal and the other
+	   two cells are empty. Fill those two cells before skinning. A staircase on
+	   an ordinary surface has the fourth (diagonal) cell occupied and therefore
+	   must not match this predicate. */
+	const repairDeltas = repairVoxelEdgeContacts(filled, nx, ny, nz);
 	const vertices: SolidMesh['vertices'] = [], faces: SolidMesh['faces'] = [], ids = new Map<string, number>();
 	const vertex = (i: number, j: number, k: number) => {
 		const key = `${i},${j},${k}`; let id = ids.get(key);
@@ -118,7 +156,7 @@ function unionMesh(inside: (x: number, y: number, z: number) => boolean, radius:
 			faces.push([q[0],q[1],q[2]], [q[0],q[2],q[3]]);
 		}
 	}
-	return { vertices, faces };
+	return { vertices, faces, voxel: { step, cells: filled.size, repairDeltas } };
 }
 
 export function evaluate(tree: BladeTree, config: BladeConfig): Evaluation {
@@ -146,6 +184,7 @@ export function evaluate(tree: BladeTree, config: BladeConfig): Evaluation {
 	for (const part of config.standardParts) { mass += part.massG; mz += part.massG * bodyTop * IN_CM / 2; }
 	const collarHeight = Math.max(0.125, Math.min(0.5, bodyTop * 0.1));
 	const collarOuterRadius = hex.acrossFlats / Math.sqrt(3) + 0.5;
+	const collarPresent = hex.suppressed !== true;
 	const spinPresent = tree.spinBolt !== false;
 	const spinRadius = Math.min(0.125, body.stations[0].r), spinHeight = Math.min(0.25, bodyTop * 0.08);
 	const radiusAt = (z: number) => {
@@ -153,12 +192,12 @@ export function evaluate(tree: BladeTree, config: BladeConfig): Evaluation {
 		return 0;
 	};
 	const rotate = (x: number, y: number, angle: number) => ({ x: x*Math.cos(angle)+y*Math.sin(angle), y: -x*Math.sin(angle)+y*Math.cos(angle) });
-	const zTop = bodyTop + hex.height + collarHeight;
+	const zTop = collarPresent ? bodyTop + hex.height + collarHeight : bodyTop;
 	const buildSolid = () => unionMesh((x,y,z) => {
 		const r = Math.hypot(x,y);
 		if (z >= body.stations[0].z && z <= bodyTop && r <= radiusAt(z)) return true;
-		if (z >= bodyTop && z <= bodyTop + hex.height && Math.max(Math.abs(x), Math.abs(0.5*x + Math.sqrt(3)/2*y), Math.abs(0.5*x - Math.sqrt(3)/2*y)) <= hex.acrossFlats/2) return true;
-		if (z >= bodyTop + hex.height - collarHeight/2 && z <= zTop && r <= collarOuterRadius) return true;
+		if (collarPresent && z >= bodyTop && z <= bodyTop + hex.height && Math.max(Math.abs(x), Math.abs(0.5*x + Math.sqrt(3)/2*y), Math.abs(0.5*x - Math.sqrt(3)/2*y)) <= hex.acrossFlats/2) return true;
+		if (collarPresent && z >= bodyTop + hex.height - collarHeight/2 && z <= zTop && r <= collarOuterRadius) return true;
 		if (spinPresent && z >= body.stations[0].z-spinHeight && z <= body.stations[0].z && r <= spinRadius) return true;
 		if (z >= mount.z && z <= mount.z + stock.thicknessIn) for (let n=0;n<pattern.count;n++) { const p=rotate(x,y,2*Math.PI*n/pattern.count); if (insidePolygon(p.x,p.y,poly)) return true; }
 		return false;
@@ -173,5 +212,5 @@ export function evaluate(tree: BladeTree, config: BladeConfig): Evaluation {
 		{ id:'engagement', label:'Engagement', value:sketch.sweepDeg, limit:'Inspector verifies visually', pass:forward }
 	];
 	let solid: SolidMesh | undefined;
-	return { diameterIn, fullHeightIn, hexExtensionIn, massG:mass, comHeightIn:com/IN_CM, inertiaGcm2:I, radiusOfGyrationCm:mass?Math.sqrt(I/mass):0, rules, unverifiedStandardParts:config.standardParts.some((x)=>!x.verified)||config.launcher.acrossFlatsIn===null, geometry:{ stations:body.stations, bladePolygon:poly, bladeCount:pattern.count, bladeZ:mount.z, hexAcrossFlats:hex.acrossFlats, hexHeight:hex.height, collar:{outerRadius:collarOuterRadius,height:collarHeight}, spinBolt:{present:spinPresent,radius:spinRadius,height:spinHeight}, get solid() { return solid ??= buildSolid(); } } };
+	return { diameterIn, fullHeightIn, hexExtensionIn, massG:mass, comHeightIn:com/IN_CM, inertiaGcm2:I, radiusOfGyrationCm:mass?Math.sqrt(I/mass):0, rules, unverifiedStandardParts:config.standardParts.some((x)=>!x.verified)||config.launcher.acrossFlatsIn===null, geometry:{ stations:body.stations, bladePolygon:poly, bladeCount:pattern.count, bladeZ:mount.z, hexAcrossFlats:hex.acrossFlats, hexHeight:hex.height, collar:{outerRadius:collarPresent ? collarOuterRadius : 0,height:collarPresent ? collarHeight : 0}, spinBolt:{present:spinPresent,radius:spinRadius,height:spinHeight}, get solid() { return solid ??= buildSolid(); } } };
 }
