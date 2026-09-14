@@ -96,32 +96,41 @@ describe('the FeatureManager tree', () => {
 		await m.stop();
 	});
 
-	it('shows the body’s stations as child rows once the body is expanded, and hides them again', async () => {
+	it('keeps the tree FLAT: stations are edited in the profile editor, not as child rows', async () => {
+		// This used to drive an expander that revealed Station 1..4 beneath the
+		// body. Ledgers 0250 and 0252 removed it and moved station editing into
+		// the direct-manipulation profile editor, so the rows it looked for are
+		// gone by decision rather than by regression -- and the drag model that
+		// replaced them is covered by `tests/ideacad-profile-drag.test.ts`.
+		// What is pinned here is that decision: a lane re-introducing an
+		// expander or station child rows reddens this.
 		const m = open();
-		const twist = m.one<HTMLButtonElement>('.tree .twist');
-		expect(twist.getAttribute('aria-expanded')).toBe('false');
-		twist.click();
-		m.flush();
-		expect(twist.getAttribute('aria-expanded')).toBe('true');
+		expect(m.all('.tree .twist')).toHaveLength(0);
+		expect(m.all('.tree [aria-expanded]')).toHaveLength(0);
 		const names = rows(m).map((b) => b.querySelector('.name')?.textContent?.split('  ')[0]);
-		expect(names.slice(0, 6)).toEqual(['Body Revolve', 'Station 1', 'Station 2', 'Station 3', 'Station 4', 'Hex Extension']);
-		// The two read nodes are still there, which is the thing collapsing bought.
-		expect(names.at(-1)).toBe('Standard Parts');
-		twist.click();
-		m.flush();
 		expect(rows(m)).toHaveLength(8);
+		expect(names.some((n) => n?.startsWith('Station'))).toBe(false);
+		// positive control: the rows that DO belong to a flat tree are all here,
+		// so the two absences above cannot pass on an empty tree.
+		expect(names[0]).toBe('Body Revolve');
+		expect(names.at(-1)).toBe('Standard Parts');
 		await m.stop();
 	});
 
-	it('expands and collapses the body from the keyboard, which is the tree pattern’s own pair', async () => {
+	it('has no expand pair to drive from the keyboard, and the arrows leave the flat tree alone', async () => {
+		// The other half of the same removal. With no expandable node the ARIA
+		// tree pattern's expand/collapse pair does not apply; the half that
+		// still does -- Arrow up/down, Home, End -- is the sibling test above.
+		// This pins that the horizontal arrows cannot disturb the row set.
 		const m = open();
 		const list = m.one('.tree [role="tree"]');
 		const arrow = (key: string) => {
 			list.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
 			m.flush();
 		};
+		expect(rows(m)).toHaveLength(8);
 		arrow('ArrowRight');
-		expect(rows(m)).toHaveLength(12);
+		expect(rows(m)).toHaveLength(8);
 		arrow('ArrowLeft');
 		expect(rows(m)).toHaveLength(8);
 		await m.stop();
@@ -148,12 +157,20 @@ describe('the FeatureManager tree', () => {
 		await m.stop();
 	});
 
-	it('selects on a single click and opens Edit Feature only on the deliberate second intent', async () => {
+	it('selects AND opens Edit Feature on a single click, with the double click still harmless', async () => {
+		// Ledger 0240 wired `onclick` to select-and-edit on purpose. The
+		// two-step this used to assert (a click is a look, a double click is an
+		// edit) was the discoverability defect it was issued to fix, so the
+		// contract pinned here is the shipped one: one click reaches the
+		// parameters, and the older double click still lands on the same panel
+		// rather than toggling it back shut.
 		const m = open();
 		const hex = rowNamed(m, 'Hex Extension')!;
+		expect(pmOpen(m)).toBe(false); // positive control: nothing is open yet
 		hex.click();
 		m.flush();
-		expect(pmOpen(m)).toBe(false); // a click is a look, not an edit
+		expect(pmOpen(m)).toBe(true);
+		expect(m.one('#pm-label').textContent).toBe('Hex Extension');
 		hex.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
 		m.flush();
 		expect(pmOpen(m)).toBe(true);
@@ -183,10 +200,21 @@ describe('the FeatureManager tree', () => {
 		await m.stop();
 	});
 
-	it('says the two verbs it does not offer, rather than leaving a gap where a control would be', async () => {
+	it('marks the rows it will not let you edit, rather than leaving the refusal unexplained', async () => {
+		// This replaces a blanket "features cannot be renamed or deleted" note
+		// that ledger 0240 removed WITH the padlocks, because it had stopped
+		// being true. Same interface rule, narrower mechanism: the VIEW chip
+		// lands on the rows that really are read-only.
 		const m = open();
-		expect(m.one('.tree .why').textContent).toContain('cannot be renamed or deleted');
+		expect(rowNamed(m, 'Standard Parts')!.textContent).toContain('VIEW');
+		// positive control: an editable row carries no chip, so the assertion
+		// above cannot pass by the chip being everywhere.
+		expect(rowNamed(m, 'Hex Extension')!.textContent).not.toContain('VIEW');
 		await m.stop();
+
+		const ro = open({ readOnly: true });
+		expect(rows(ro).every((b) => b.textContent!.includes('VIEW'))).toBe(true);
+		await ro.stop();
 	});
 });
 
@@ -328,13 +356,17 @@ describe('the PropertyManager', () => {
 		await m.stop();
 	});
 
-	it('carries the REASON for those two absences, where a student is when they want one', async () => {
-		// The tree has room for a line; the reason lives here, because the pane at
-		// 1440 is 514.6px and eight 44px rows and a heading fill it.
+	it('carries the REASON a feature cannot be renamed or deleted, where a student is when they want one', async () => {
+		// Ledger 0240 renamed `.standing` to `.actions` and turned its sentence
+		// into `.feature-state`, a chip whose title carries the two verbs. The
+		// reason is still stated in the pane the student is working in, which is
+		// the whole point of this assertion.
 		const m = open();
 		rowNamed(m, 'Circular Pattern')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
 		m.flush();
-		expect(m.one('.pm .standing').textContent).toContain('none of them can be deleted or renamed');
+		const state = m.one('.pm .feature-state');
+		expect(state.textContent).toContain('FIXED FEATURE');
+		expect(state.getAttribute('title')).toContain('Name and deletion');
 		await m.stop();
 	});
 
