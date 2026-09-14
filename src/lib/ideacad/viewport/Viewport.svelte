@@ -1,3 +1,196 @@
+<script module lang="ts">
+	/**
+	 * THE SOLID IS THE MODEL, AND THIS IS THE ONE TRANSLATION OF IT.
+	 *
+	 * Ledger 0254 made `Evaluation.geometry.solid` a single watertight,
+	 * outward-wound boundary mesh: the union of the revolved body, the
+	 * patterned blades, the hex extension, the collar and the optional spin
+	 * bolt. Nothing rendered it. This viewport built its own meshes from the
+	 * convenience fields beside it -- `stations`, `hexHeight`, `bladeZ` -- so
+	 * the collar and the spin bolt existed in the model and not on screen, and
+	 * every part was an independent open shell whose interior was visible
+	 * wherever two of them met. That is the "everything is just surfaces, holes
+	 * everywhere" the owner saw.
+	 *
+	 * There is now ONE mesh and no second path. The convenience fields are not
+	 * read for geometry at all; `diameterIn` still scales the contact shadow,
+	 * because that is a scale annotation rather than a shape.
+	 *
+	 * THE AXIS RELABEL IS RIGHT-HANDED, AND THAT IS THE WHOLE OF WHY THE MODEL
+	 * READS AS SOLID. The kernel works in part space, where `z` is the spin
+	 * axis; the scene is Y-up. `(x, y, z) -> (x, z, -y)` is a rotation
+	 * (determinant +1), so the outward winding 0254 proved survives it and
+	 * backface culling can be left ON -- which is what makes a closed solid
+	 * look closed. The obvious relabel, `(x, y, z) -> (x, z, y)`, is a MIRROR
+	 * (determinant -1): it renders a model that is the right shape, inside
+	 * out, and the only way to make that look filled again is `DoubleSide`,
+	 * which is exactly the dodge that made the old open shells survive review.
+	 * It is also the relabel the blade already used (`rotation.x = -PI/2`
+	 * sends part `+y` to world `-z`), so nothing about the part's chirality
+	 * moves.
+	 *
+	 * SMOOTHED NORMALS, AND FEATURE EDGES TAKEN FROM THEM. Measured on the
+	 * shipped default: the solid is a sampled union, so its boundary is a
+	 * voxel skin with exactly SIX distinct face normals, all axis-aligned.
+	 * A dihedral crease filter over the raw faces is therefore DEGENERATE --
+	 * every crease is 0 degrees or 90 degrees and nothing lies between, so
+	 * `EdgesGeometry` keeps the identical 8,732 staircase edges at every
+	 * threshold from 15 to 89 degrees. That is not a feature edge set, it is
+	 * a cage.
+	 *
+	 * Averaging the face normals into the shared grid vertices recovers the
+	 * surface the sampling was approximating, and the crease filter run over
+	 * those SMOOTHED normals discriminates properly: 6,437 edges at 15
+	 * degrees, 1,377 at 20, 358 at 25, 61 at 30, 0 at 40. The staircase falls
+	 * away because consecutive steps around a cylinder differ by a couple of
+	 * degrees once smoothed, while a real rim still turns through tens.
+	 * `CREASE_DEGREES` is 25 for that reason and not by preference.
+	 *
+	 * `openEdges` is the watertightness witness, and it is returned rather
+	 * than asserted here: an edge incident to anything other than two faces is
+	 * a hole, and a closed solid has none. A renderer that silently drew an
+	 * open mesh is the failure this whole bundle exists to end, so the number
+	 * is carried out where a test can read it.
+	 */
+	import type { SolidMesh } from '../blade/evaluate';
+
+	/** Degrees. See the header: chosen from the measured distribution, not taste. */
+	export const CREASE_DEGREES = 25;
+
+	export interface SolidBuffers {
+		/** Interleaved xyz, in SCENE orientation (Y up). */
+		positions: Float32Array;
+		/** Interleaved xyz unit normals, averaged over the shared grid vertices. */
+		normals: Float32Array;
+		indices: Uint32Array;
+		/** Two endpoints per crease segment, 6 floats each, scene orientation. */
+		creases: Float32Array;
+		triangles: number;
+		/** Undirected edges NOT incident to exactly two faces. Zero means closed. */
+		openEdges: number;
+		/** Signed volume in the scene's own frame. Positive means outward-wound. */
+		signedVolume: number;
+	}
+
+	export function solidBuffers(
+		solid: SolidMesh,
+		creaseDegrees: number = CREASE_DEGREES
+	): SolidBuffers {
+		const { vertices, faces } = solid;
+		const count = vertices.length;
+		const positions = new Float32Array(count * 3);
+		for (let i = 0; i < count; i++) {
+			const v = vertices[i];
+			positions[i * 3] = v.x;
+			positions[i * 3 + 1] = v.z;
+			positions[i * 3 + 2] = -v.y;
+		}
+
+		const indices = new Uint32Array(faces.length * 3);
+		/* Left UNNORMALISED on purpose: the cross product's length is twice the
+		   triangle's area, so accumulating it into the vertices is an
+		   area-weighted average rather than a face-count average. On a voxel
+		   skin every triangle is one of two halves of a square, so the two
+		   agree here -- but a face-count average is the one that goes wrong
+		   silently the day the kernel emits anything else. */
+		const normals = new Float32Array(count * 3);
+		let signedVolume = 0;
+		for (let f = 0; f < faces.length; f++) {
+			const [a, b, c] = faces[f];
+			indices[f * 3] = a;
+			indices[f * 3 + 1] = b;
+			indices[f * 3 + 2] = c;
+			const ax = positions[a * 3], ay = positions[a * 3 + 1], az = positions[a * 3 + 2];
+			const bx = positions[b * 3], by = positions[b * 3 + 1], bz = positions[b * 3 + 2];
+			const cx = positions[c * 3], cy = positions[c * 3 + 1], cz = positions[c * 3 + 2];
+			const ux = bx - ax, uy = by - ay, uz = bz - az;
+			const vx = cx - ax, vy = cy - ay, vz = cz - az;
+			const nx = uy * vz - uz * vy;
+			const ny = uz * vx - ux * vz;
+			const nz = ux * vy - uy * vx;
+			normals[a * 3] += nx; normals[a * 3 + 1] += ny; normals[a * 3 + 2] += nz;
+			normals[b * 3] += nx; normals[b * 3 + 1] += ny; normals[b * 3 + 2] += nz;
+			normals[c * 3] += nx; normals[c * 3 + 1] += ny; normals[c * 3 + 2] += nz;
+			signedVolume +=
+				(ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6;
+		}
+		for (let i = 0; i < count; i++) {
+			const x = normals[i * 3], y = normals[i * 3 + 1], z = normals[i * 3 + 2];
+			const length = Math.hypot(x, y, z) || 1;
+			normals[i * 3] = x / length;
+			normals[i * 3 + 1] = y / length;
+			normals[i * 3 + 2] = z / length;
+		}
+
+		/* The smoothed normal of a FACE, which is what the crease filter
+		   compares. Taking it from the face's own vertices is what lets a
+		   sampled staircase and a real rim tell each other apart. */
+		const smoothed = new Float64Array(faces.length * 3);
+		for (let f = 0; f < faces.length; f++) {
+			const [a, b, c] = faces[f];
+			let x = (normals[a * 3] + normals[b * 3] + normals[c * 3]) / 3;
+			let y = (normals[a * 3 + 1] + normals[b * 3 + 1] + normals[c * 3 + 1]) / 3;
+			let z = (normals[a * 3 + 2] + normals[b * 3 + 2] + normals[c * 3 + 2]) / 3;
+			const length = Math.hypot(x, y, z) || 1;
+			smoothed[f * 3] = x / length;
+			smoothed[f * 3 + 1] = y / length;
+			smoothed[f * 3 + 2] = z / length;
+		}
+
+		/* One numeric key per undirected edge. `count` is the vertex count, so
+		   `low * count + high` is unique and stays an exact integer well inside
+		   the safe range for any mesh this kernel can produce. */
+		const firstFace = new Map<number, number>();
+		const secondFace = new Map<number, number>();
+		const extra = new Set<number>();
+		const addEdge = (p: number, q: number, f: number) => {
+			const key = p < q ? p * count + q : q * count + p;
+			if (!firstFace.has(key)) firstFace.set(key, f);
+			else if (!secondFace.has(key)) secondFace.set(key, f);
+			else extra.add(key);
+		};
+		for (let f = 0; f < faces.length; f++) {
+			const [a, b, c] = faces[f];
+			addEdge(a, b, f);
+			addEdge(b, c, f);
+			addEdge(c, a, f);
+		}
+
+		const limit = Math.cos((creaseDegrees * Math.PI) / 180);
+		const segments: number[] = [];
+		let openEdges = extra.size;
+		for (const [key, f] of firstFace) {
+			const g = secondFace.get(key);
+			if (g === undefined) {
+				openEdges++;
+				continue;
+			}
+			if (extra.has(key)) continue;
+			const dot =
+				smoothed[f * 3] * smoothed[g * 3] +
+				smoothed[f * 3 + 1] * smoothed[g * 3 + 1] +
+				smoothed[f * 3 + 2] * smoothed[g * 3 + 2];
+			if (dot >= limit) continue;
+			const high = key % count;
+			const low = (key - high) / count;
+			segments.push(
+				positions[low * 3], positions[low * 3 + 1], positions[low * 3 + 2],
+				positions[high * 3], positions[high * 3 + 1], positions[high * 3 + 2]
+			);
+		}
+
+		return {
+			positions,
+			normals,
+			indices,
+			creases: new Float32Array(segments),
+			triangles: faces.length,
+			openEdges,
+			signedVolume
+		};
+	}
+</script>
+
 <script lang="ts">
 	/**
 	 * The 3D viewport. Until this file existed there was no canvas, no
@@ -147,7 +340,6 @@
 
 		(async () => {
 			const THREE = await import('three');
-			const { evaluationGeometries } = await import('../geometry');
 			if (disposed || !canvas || !host) return;
 
 			const token = (n: string, fallback: string) =>
@@ -157,8 +349,6 @@
 			const ink = {
 				ground: token('--surface-0', '#0a0c0b'),
 				body: token('--ice', '#a9bcab'),
-				blade: token('--text-2', '#9aa89b'),
-				hex: token('--gear', '#75846f'),
 				edge: token('--edge', '#0d120c'),
 				fail: token('--crimson', '#d95f5f')
 			};
@@ -185,32 +375,33 @@
 			const model = new THREE.Group();
 			scene.add(model);
 
-			/* One material per role, shared across every instance. MeshStandard adds
-			   the restrained highlight machined stock needs without an environment
-			   map, texture fetch, or extra draw call. Different metalness/roughness
-			   values keep adjacent roles legible even when their colours are close. */
-			const bodyMat = new THREE.MeshStandardMaterial({
+			/* ONE MATERIAL, BECAUSE THERE IS ONE BODY. The three role materials
+			   this replaces described three separate meshes; the part is a single
+			   solid and a single manufactured piece, so painting regions of it in
+			   different colours would be inventing a distinction the model does
+			   not carry. MeshStandard still adds the restrained highlight machined
+			   stock needs without an environment map, texture fetch or extra draw
+			   call.
+
+			   `FrontSide` IS THE POINT AND IS NOT A DEFAULT LEFT ALONE. The two
+			   materials this replaces were `DoubleSide`, which is what an open
+			   shell needs to avoid showing its own inside -- and which also hides
+			   the fact that it IS open. The solid is closed and outward-wound, so
+			   backface culling is exactly the test: if the relabel above were a
+			   mirror, or the mesh had a hole, the interior would read as missing
+			   rather than quietly filling itself in. */
+			const solidMat = new THREE.MeshStandardMaterial({
 				color: new THREE.Color(ink.body),
+				/* 0.12, the value ledger 0239 chose when it fixed black viewport
+				   frames, kept exactly. The three role materials it set it on are
+				   one material now, but the emissive lift is that fix and nothing
+				   measured here justifies moving it. */
 				emissive: new THREE.Color(ink.body),
 				emissiveIntensity: 0.12,
-				metalness: 0.46,
-				roughness: 0.34,
-				side: THREE.DoubleSide
-			});
-			const hexMat = new THREE.MeshStandardMaterial({
-				color: new THREE.Color(ink.hex),
-				emissive: new THREE.Color(ink.hex),
-				emissiveIntensity: 0.12,
-				metalness: 0.58,
-				roughness: 0.27
-			});
-			const bladeMat = new THREE.MeshStandardMaterial({
-				color: new THREE.Color(ink.blade),
-				emissive: new THREE.Color(ink.blade),
-				emissiveIntensity: 0.12,
-				metalness: 0.64,
-				roughness: 0.3,
-				side: THREE.DoubleSide
+				metalness: 0.52,
+				roughness: 0.32,
+				side: THREE.FrontSide,
+				flatShading: false
 			});
 			const edgeMat = new THREE.LineBasicMaterial({ color: new THREE.Color(ink.edge) });
 			const failMat = new THREE.LineBasicMaterial({ color: new THREE.Color(ink.fail) });
@@ -249,11 +440,6 @@
 			contact.rotation.x = -Math.PI / 2;
 			scene.add(grid, contact);
 
-			/* The same 30 degrees `geometry.ts` uses for the blade's own edges.
-			   Display edges for the body and the hex are a RENDERING decision --
-			   `geometry.ts` translates a feature tree and returns the blade's
-			   edges because that is the part with sharp ones. */
-			const EDGE_ANGLE = 30;
 			let owned: { dispose(): void }[] = [];
 			let radius = 1;
 			let anchor = new THREE.Vector3();
@@ -288,50 +474,72 @@
 				edgeLines = [];
 				meshes = [];
 				model.clear();
-				const groundY = Math.min(...e.geometry.stations.map((station) => station.z)) - 0.025;
+
+				/* THE SOLID IS READ EXACTLY ONCE PER EVALUATION, HERE.
+				   `geometry.solid` is a lazy getter memoised in the closure
+				   `evaluate()` returned, so the FIRST read of a given evaluation
+				   samples the union and every later read is free -- and a new
+				   evaluation is a new closure with a cold cache. Measured on the
+				   shipped default: 750ms for that first read against 0.002ms for
+				   the second. So it belongs on the rebuild path, which runs once
+				   per feature-tree change, and must never be touched from
+				   `paint()` or `draw()`, which run per frame. */
+				const buffers = solidBuffers(e.geometry.solid);
+				/* THE ONE THING A PIXEL COUNT CANNOT SEE. `paintedFraction` proves
+				   something was drawn; it cannot tell a closed solid from an open
+				   shell, which is the exact defect this bundle exists to end. Both
+				   witnesses fall out of the translation for free, so dev says so
+				   rather than drawing a torn mesh that looks fine from most
+				   angles.
+
+				   REPORTED, NOT THROWN, and the difference is where this runs.
+				   The frame assertion below can afford to throw because it sits
+				   inside `draw()`'s own callback; `build()` is reached from an
+				   `$effect` and, on the first call, from the un-awaited async
+				   mount. A throw on either path does not surface as an assertion
+				   -- it wedges the effect, or becomes an unhandled rejection that
+				   abandons the rest of the mount, so the controls, the resize
+				   observer and `onReady` never run. The viewport would be dead
+				   for a reason nothing on screen explains, which is a worse
+				   failure than the one being guarded. `console.error` is not the
+				   weaker choice here: `npm run verify:browser` holds every route
+				   to ZERO console errors, so this is a tripwire the repo's own
+				   instrument already reads. */
+				if (dev && (buffers.openEdges > 0 || buffers.signedVolume <= 0)) {
+					console.error(
+						`IdeaCAD viewport: the solid is not closed and outward-wound -- ${buffers.openEdges} open edge(s), signed volume ${buffers.signedVolume.toFixed(4)}. Drawing it anyway; the model is wrong, not the picture.`
+					);
+				}
+
+				const geometry = new THREE.BufferGeometry();
+				geometry.setAttribute('position', new THREE.BufferAttribute(buffers.positions, 3));
+				/* Supplied rather than computed. `computeVertexNormals` would
+				   average the same shared vertices to the same answer, but it
+				   would be a SECOND implementation of the smoothing whose
+				   threshold the crease filter is calibrated against, and the two
+				   could stop agreeing with nothing to say so. */
+				geometry.setAttribute('normal', new THREE.BufferAttribute(buffers.normals, 3));
+				geometry.setIndex(new THREE.BufferAttribute(buffers.indices, 1));
+				const creaseGeometry = new THREE.BufferGeometry();
+				creaseGeometry.setAttribute('position', new THREE.BufferAttribute(buffers.creases, 3));
+				owned.push(geometry, creaseGeometry);
+
+				const mesh = new THREE.Mesh(geometry, solidMat);
+				const lines = new THREE.LineSegments(creaseGeometry, edgeMat);
+				model.add(mesh, lines);
+				meshes.push(mesh);
+				edgeLines.push(lines);
+
+				/* THE GROUND COMES FROM THE SOLID, NOT FROM THE STATIONS. The
+				   lowest station is the body's own base; the spin bolt hangs
+				   BELOW it, so a datum placed at the stations put the grid
+				   through the bolt. The solid knows where the part actually
+				   ends. */
+				geometry.computeBoundingBox();
+				const groundY = (geometry.boundingBox?.min.y ?? 0) - 0.025;
 				grid.position.y = groundY;
 				contact.position.y = groundY + 0.004;
 				contact.scale.set(e.diameterIn * 0.38, e.diameterIn * 0.38, 1);
-
-				const g = evaluationGeometries(e);
-				owned.push(g.body, g.hex, g.blade, g.edges);
-
-				const bodyEdges = new THREE.EdgesGeometry(g.body, EDGE_ANGLE);
-				const hexEdges = new THREE.EdgesGeometry(g.hex, EDGE_ANGLE);
-				owned.push(bodyEdges, hexEdges);
-
-				const bodyMesh = new THREE.Mesh(g.body, bodyMat);
-				const bodyLine = new THREE.LineSegments(bodyEdges, edgeMat);
-				model.add(bodyMesh, bodyLine);
-
-				const bodyTop = e.geometry.stations.at(-1)?.z ?? 0;
-				const hexMesh = new THREE.Mesh(g.hex, hexMat);
-				hexMesh.position.y = bodyTop + e.geometry.hexHeight / 2;
-				const hexLine = new THREE.LineSegments(hexEdges, edgeMat);
-				hexLine.position.copy(hexMesh.position);
-				model.add(hexMesh, hexLine);
-
-				/* The blade is extruded in its own XY plane along +Z. Laid flat on
-				   a rotor that spins about Y, its thickness is vertical: rotating
-				   -90 degrees about X sends the extrusion to +Y and the planform
-				   into the world XZ plane. The pattern is then a rotation about Y,
-				   reusing one geometry and one material for every instance. */
-				for (let i = 0; i < Math.max(1, g.instances); i++) {
-					const arm = new THREE.Group();
-					arm.rotation.y = (i / Math.max(1, g.instances)) * Math.PI * 2;
-					const blade = new THREE.Mesh(g.blade, bladeMat);
-					blade.rotation.x = -Math.PI / 2;
-					blade.position.y = e.geometry.bladeZ;
-					const line = new THREE.LineSegments(g.edges, edgeMat);
-					line.rotation.copy(blade.rotation);
-					line.position.copy(blade.position);
-					arm.add(blade, line);
-					model.add(arm);
-					meshes.push(blade);
-					edgeLines.push(line);
-				}
-				meshes.push(bodyMesh, hexMesh);
-				edgeLines.push(bodyLine, hexLine);
 
 				/* THE RADIUS IS TAKEN FROM THE VERTICES, NOT FROM THE BOX.
 				   `Box3.getBoundingSphere` returns the sphere through the box's
@@ -346,21 +554,17 @@
 				const v = new THREE.Vector3();
 				let far = 0;
 				model.traverse((o) => {
-					const mesh = o as InstanceType<typeof THREE.Mesh>;
-					if (!(mesh as { isMesh?: boolean }).isMesh) return;
-					mesh.updateWorldMatrix(true, false);
-					const pos = mesh.geometry.getAttribute('position');
+					const mesh2 = o as InstanceType<typeof THREE.Mesh>;
+					if (!(mesh2 as { isMesh?: boolean }).isMesh) return;
+					mesh2.updateWorldMatrix(true, false);
+					const pos = mesh2.geometry.getAttribute('position');
 					for (let i = 0; i < pos.count; i++) {
 						v.fromBufferAttribute(pos as InstanceType<typeof THREE.BufferAttribute>, i)
-							.applyMatrix4(mesh.matrixWorld);
+							.applyMatrix4(mesh2.matrixWorld);
 						far = Math.max(far, v.distanceTo(anchor));
 					}
 				});
 				radius = Math.max(far, 0.1);
-
-				/* The former teal spin arrow was neither attached nor labelled and
-				   dominated the small model. Rotation remains document data, but an
-				   unexplained direction annotation is worse than no annotation. */
 
 				/* A rule failure is the ONE permitted use of crimson here, and it
 				   is on the OUTLINE rather than the faces: the shape stays
@@ -552,9 +756,7 @@
 				controls?.destroy();
 				controls = null;
 				for (const o of owned) o.dispose();
-				bodyMat.dispose();
-				hexMat.dispose();
-				bladeMat.dispose();
+				solidMat.dispose();
 				edgeMat.dispose();
 				failMat.dispose();
 				for (const material of gridMaterials) material.dispose();

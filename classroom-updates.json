@@ -13,6 +13,14 @@
 	],
 	"entries": [
 		{
+			"date": "2026-09-14",
+			"title": "The 3D model in Blade CAD is drawn as one solid piece",
+			"body": "The viewport used to draw the body, the hex and each blade as separate hollow shells, so you could see straight into the inside of the model and some parts of the part were missing from the picture altogether. It now draws the whole part as one closed solid, the way it would actually be made. The shape itself is still being corrected and looks blockier and fatter than your numbers say it is; the readouts on the right have always been computed from your feature tree rather than from the picture, so they are unaffected.",
+			"tags": [
+				"blade cad"
+			]
+		},
+		{
 			"date": "2026-09-13",
 			"title": "You can now open a Blade document a classmate shared with you",
 			"body": "Sharing has worked in one direction for a while: you could hand a classmate view-only or editor access to your IdeaCAD Blade document, and they had no way to open it. Now they do. Scroll to Shared with you under your own blade on the assignment and you will see every document somebody has shared with you on it, who it belongs to, and whether you can edit it or only look. Press Open and their part loads in the editor in place of yours. A line at the top says whose document you are reading, with a Back to your own blade button beside it, so you are never stuck in somebody else's work. If you only have view-only access there are no editing controls at all, and the History is still there to read. If the owner stops sharing while you have it open, you get told in words: what is on screen stays, nothing more can be saved to it, and you can ask them to share it again. Nothing has been shared with you until somebody chooses to, so an empty list here is normal.",
