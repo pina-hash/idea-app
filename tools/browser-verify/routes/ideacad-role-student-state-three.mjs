@@ -20,7 +20,14 @@
  * same reason: one card is not a strip, and a scroller with a single item
  * cannot show whether the cards keep their targets when there are several.
  */
+import { IDEACAD_DRAWN } from './_ideacad-drawn.mjs';
+
+/* THE THREE "WAS ANYTHING ACTUALLY DRAWN" CHECKS (ledger 0247). Stated once in
+   `_ideacad-drawn.mjs` because they are properties of the Blade editor rather
+   than of this state; see that file for which routes take them and why. */
+
 export default {
+	...IDEACAD_DRAWN,
 	path: '/dev/ideacad?role=student&state=three',
 	label: 'IdeaCAD: three concepts, the active one over the diameter rule',
 	prepare: [{ waitFor: '() => !!document.querySelector(".readouts .metric b")' }],

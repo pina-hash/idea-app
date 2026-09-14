@@ -37,7 +37,14 @@
  * this is a student surface at every width and carries no instructor-density
  * class on its root.
  */
+import { IDEACAD_DRAWN } from './_ideacad-drawn.mjs';
+
+/* THE THREE "WAS ANYTHING ACTUALLY DRAWN" CHECKS (ledger 0247). Stated once in
+   `_ideacad-drawn.mjs` because they are properties of the Blade editor rather
+   than of this state; see that file for which routes take them and why. */
+
 export default {
+	...IDEACAD_DRAWN,
 	path: '/dev/ideacad?role=student&state=materials',
 	label: 'IdeaCAD: the Materials panel, its thickness list, and the physics moving with it',
 	prepare: [

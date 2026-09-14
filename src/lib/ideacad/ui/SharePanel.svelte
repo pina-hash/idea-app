@@ -278,7 +278,7 @@
 		color: var(--green);
 	}
 	.note.off {
-		color: var(--copper);
+		color: var(--ic-warn, var(--amber));
 	}
 	form {
 		display: flex;

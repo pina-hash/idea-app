@@ -12,7 +12,14 @@
  * A ONE-SIDED VERSION OF THIS FILE WOULD PASS ON A BLANK PAGE, which is the
  * shape of absence assertion this repository has paid for before.
  */
+import { IDEACAD_DRAWN } from './_ideacad-drawn.mjs';
+
+/* THE THREE "WAS ANYTHING ACTUALLY DRAWN" CHECKS (ledger 0247). Stated once in
+   `_ideacad-drawn.mjs` because they are properties of the Blade editor rather
+   than of this state; see that file for which routes take them and why. */
+
 export default {
+	...IDEACAD_DRAWN,
 	path: '/dev/ideacad?role=teacher&state=property',
 	label: 'IdeaCAD: the read-only PropertyManager, role parity as an absence',
 	prepare: [
