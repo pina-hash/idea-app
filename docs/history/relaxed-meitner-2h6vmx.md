@@ -14,13 +14,17 @@ each of its checks fails when the defect it names is planted, and reports what
 it finds. **It fixes nothing** -- every defect below belongs to the lane that
 owns the file.
 
-**IT WAS MEASURED ON THREE TREES AND TWO OF THE READINGS MATTER.** The branch
-was cut from `799d203`, where the viewport is black; `origin/main` moved to
+**IT WAS MEASURED ON FOUR TREES, AND THE LAST ONE IS THE POINT.** The branch was
+cut from `799d203`, where the viewport is black; `origin/main` moved to
 `fe62631` underneath it, carrying ledgers 0240 to 0246, and one of those
-repaired the collapsed pane. It moved again to `115ed79` (ledgers 0252 and
-0253) before this landed, and **every number below is byte-identical on both of
-the later two** -- 30 outside threshold, canvas 16.87% to 42.83% over 6,833 to
-9,706 colours, the same three zero-box controls -- so they are reported once. The findings reported here are from the MERGED tree, because
+repaired the collapsed pane. It moved again to `115ed79`, where every number was
+byte-identical. It moved a third time to `df9653b` -- four more pull requests in
+under an hour, #118 to #121 -- and **the sweep immediately found a defect that
+was not there twenty minutes earlier**: the PropertyManager's confirm pair,
+`button.accept` and `button.cancel`, rendering at 0x0. Findings below are from
+`df9653b`. That a harness written this morning caught a regression shipped this
+morning, on a surface three lanes had just declared finished, is the whole
+argument for it. The findings reported here are from the MERGED tree, because
 that is what lands. The branch-point readings are kept beside them, because the
 same check on the same route answering 0.00% off the dominant colour over 1
 distinct colour at `799d203` and 21.50% over 8,325 at `fe62631` is the best
@@ -215,15 +219,15 @@ control comes back green while proving nothing.
 
 ## What the instrument found on the merged tree, and none of it is fixed here
 
-66 route/width runs over the 33 `/dev/ideacad*` specs, 1344 measurements, 147
-outside threshold. 150 of those measurements are the new checks' and **30 are
+66 route/width runs over the 33 `/dev/ideacad*` specs, 1344 measurements. 150 of
+those measurements are the new checks' and **30 are
 outside threshold**, all of them two findings repeated across the fifteen editor
 routes.
 
 1. **The 3D viewport draws, on all fifteen editor routes at both widths.** 30 of
    30 `canvas-content` readings are WITHIN: CSS boxes from `307.0 x 328.5` to
    `924.0 x 490.2`, **16.87% to 42.83%** of sampled pixels off the dominant
-   colour over **6,833 to 9,706** distinct colours, against floors of 2% and 16.
+   colour over **6,793 to 9,706** distinct colours, against floors of 2% and 16.
    This is the finding that was not available at the branch point, where the
    same thirty readings were `zero CSS box ... nothing can be drawn in it`.
 
@@ -232,10 +236,18 @@ routes.
    "Properties". They are RENDERED, not `display: none`, so they are focusable,
    tabbable controls with no box at desktop width. At 375, where they are the
    real switcher, they are fine and thirteen other elements are correctly not
-   rendered. This is every `layout-sanity` red in the run: 15 of 15 at 1440, 0
-   of 15 at 375.
+   rendered. This accounts for every `layout-sanity` red in the run: 15 of 15 at
+   1440, 0 of 15 at 375.
 
-3. **`p.view` ("Isometric") is 1x1 and clipped on all fifteen routes at both
+3. **AND THE CONFIRM PAIR JOINED THEM BETWEEN `115ed79` AND `df9653b`.**
+   `form.pm > div.actions > div.confirm > button.accept` ("Accept") and
+   `button.cancel` ("Cancel") measure 0x0 at 1440 on
+   `ideacad-role-student-state-property`, and did not on the tree measured
+   twenty minutes earlier. One of #118 to #121 did it. It changes no COUNT --
+   that route was already red on the three switcher buttons above -- which is
+   exactly why the offender list is printed by name and not merely tallied.
+
+4. **`p.view` ("Isometric") is 1x1 and clipped on all fifteen routes at both
    widths** -- 58x14 of text in a 1x1 box. `Viewport.svelte` declares `.view`
    TWICE in one stylesheet: the rule at line 674 is the visually-hidden idiom
    (`width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)`) and the one
@@ -248,19 +260,19 @@ routes.
    of it; naming the bucket's members rather than skipping them is the whole
    reason this is visible at all.
 
-4. **The readouts rail is `visibility: hidden` at 375** on all fifteen routes, so
+5. **The readouts rail is `visibility: hidden` at 375** on all fifteen routes, so
    `distinguishable` reports NOT BOTH VISIBLE for the label/value pair there.
    This is corroborated rather than novel: the spec's own pre-existing
    `presence [rule readouts...]` row already reads `present 7, visible 0` and
    already fails at that width. Two independent checks agreeing is the reading
    to trust.
 
-5. **"Standard Parts" is ellipsised in the feature tree at 1440** on 12 of the 15
+6. **"Standard Parts" is ellipsised in the feature tree at 1440** on 12 of the 15
    routes -- 103x21 of text in a 97x20 box. Reported, not counted: an ellipsis is
    a deliberate truncation with a visible mark. Worth a look by the owning lane
    all the same, since it is the only row in that tree that does not fit.
 
-6. **Zero findings for three of the four `layout-sanity` claims**, over stated
+7. **Zero findings for three of the four `layout-sanity` claims**, over stated
    populations: 0 elements outside the document, 0 overlapping the status bar
    (measured `1438.0 x 36.0` at 1440 and `373.0 x 28.0` at 375), 0
    genuinely-clipped text elements, across 23 to 40 interactive elements and 23
@@ -268,7 +280,7 @@ routes.
 
 ### Two findings that are not this bundle's checks, found on the way past
 
-7. **`svelte-check` on `origin/main` reports ERRORS, and the count is rising**,
+8. **`svelte-check` on `origin/main` reports ERRORS, and the count is rising**,
    which CLAUDE.md's stated baseline (0 errors, 37 warnings in 20 files) does
    not admit. At `fe62631` it was ONE --
    `src/lib/ideacad/viewport/picking.ts:80:26`, `Argument of type 'Vector2Like'
@@ -276,15 +288,18 @@ routes.
    measured on a CLEAN `git worktree` with none of this branch's changes in it,
    **1 error and 37 warnings in 21 files**, the same figure the merged tree
    gave. At `115ed79` it is TWO: ledger 0252 added
-   `tests/ideacad-tree-ops.test.ts:51:67`, `'body' is possibly 'undefined'`.
-   **2 errors and 37 warnings in 22 files**, warning mix unchanged throughout at
+   `tests/ideacad-tree-ops.test.ts:51:67`, `'body' is possibly 'undefined'` --
+   **2 errors and 37 warnings in 22 files**. At `df9653b` that second one is gone
+   and `picking.ts` remains, back to **1 error in 21 files**, so the count
+   OSCILLATES and the baseline line is wrong at every reading. Warning mix
+   unchanged throughout at
    31 `state_referenced_locally` / 5 `css_unused_selector` / 1
    `perf_avoid_nested_class`. This is why CI is red on `main`: every one of the
    last eight `ci.yml` runs on that branch failed, `fe62631` and `115ed79`
    included. CLAUDE.md is not this bundle's to edit and neither file is this
    bundle's to touch; both corrections belong to the lanes that own them.
 
-8. **An existing IdeaCAD verdict was vacuous at the branch point and reported
+9. **An existing IdeaCAD verdict was vacuous at the branch point and reported
    `ok` over a model 0.68 pixels wide.** `the model fills the pane it was fitted
    to` compares `max(projected.w, projected.h) >= min(box.w, box.h) * 0.55`, and
    with `box.height` 0 the right-hand side is 0, so any projection passed. It was
@@ -322,8 +337,13 @@ routes.
   `tests/db/migrations-applied-record.test.ts`. At `115ed79` it is **5 failed |
   9113 passed | 6 skipped (9124)**, the fifth being
   `tests/ideacad-tree-ops.test.ts`, which ledger 0252 added in the same commit
-  that put the second `svelte-check` error in it. Not one of the five is a file
-  this bundle touches. **Read off the summary line, never the exit code**:
+  that put the second `svelte-check` error in it. At `df9653b`, the tree that
+  lands, that fifth is fixed and the set is back to exactly those four:
+  **6 failed | 9125 passed | 6 skipped (9137)** over 4 failing files of 481.
+  Not one of them is a file this bundle touches, and CI agrees from its own
+  side -- the `test` job's aggregator prints `check: failure`, `test: failure`,
+  `vanguard-changelog: success`, `history-verify: success` on this branch and
+  the IDENTICAL four lines on `main`. **Read off the summary line, never the exit code**:
   `tools/run-tests.mjs` says in its own header why, and this run is the case --
   `npm test` reported its failures and the wrapper's own `raw exit` was 1 while
   vitest underneath exited 0.

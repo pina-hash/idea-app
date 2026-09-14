@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "ideacad-role-teacher-state-property.mjs",
-	"date": "2026-09-14T06:55:56.465Z",
-	"sha": "a68ed7575423ac2352846a27704052d72d197262",
-	"dirty": false,
+	"date": "2026-09-14T07:33:51.410Z",
+	"sha": "b884daf26522e27dd0972ea8160b636b0e1ead0a",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -11,6 +11,18 @@
 	"runs": 2,
 	"measurements": 56,
 	"outsideRows": [
+		{
+			"path": "/dev/ideacad?role=teacher&state=property",
+			"width": 375,
+			"check": "contrast",
+			"label": "the station table caption"
+		},
+		{
+			"path": "/dev/ideacad?role=teacher&state=property",
+			"width": 375,
+			"check": "contrast",
+			"label": "a station row number"
+		},
 		{
 			"path": "/dev/ideacad?role=teacher&state=property",
 			"width": 375,
@@ -44,8 +56,26 @@
 		{
 			"path": "/dev/ideacad?role=teacher&state=property",
 			"width": 375,
+			"check": "order-result",
+			"label": "the read-only panel occupies the pane exactly as the student’s does"
+		},
+		{
+			"path": "/dev/ideacad?role=teacher&state=property",
+			"width": 375,
 			"check": "distinguishable",
 			"label": "a readout label against its own value"
+		},
+		{
+			"path": "/dev/ideacad?role=teacher&state=property",
+			"width": 1440,
+			"check": "contrast",
+			"label": "the station table caption"
+		},
+		{
+			"path": "/dev/ideacad?role=teacher&state=property",
+			"width": 1440,
+			"check": "contrast",
+			"label": "a station row number"
 		},
 		{
 			"path": "/dev/ideacad?role=teacher&state=property",
@@ -56,9 +86,33 @@
 		{
 			"path": "/dev/ideacad?role=teacher&state=property",
 			"width": 1440,
+			"check": "presence",
+			"label": "station rows, the same four"
+		},
+		{
+			"path": "/dev/ideacad?role=teacher&state=property",
+			"width": 1440,
+			"check": "presence",
+			"label": "the r and z cells, shown and disabled"
+		},
+		{
+			"path": "/dev/ideacad?role=teacher&state=property",
+			"width": 1440,
+			"check": "presence",
+			"label": "one dot per station on the profile"
+		},
+		{
+			"path": "/dev/ideacad?role=teacher&state=property",
+			"width": 1440,
+			"check": "order-result",
+			"label": "the read-only panel occupies the pane exactly as the student’s does"
+		},
+		{
+			"path": "/dev/ideacad?role=teacher&state=property",
+			"width": 1440,
 			"check": "layout-sanity",
 			"label": "the IdeaCAD console"
 		}
 	],
-	"ms": 6775
+	"ms": 6093
 }

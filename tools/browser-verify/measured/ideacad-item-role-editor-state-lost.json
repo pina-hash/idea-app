@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "ideacad-item-role-editor-state-lost.mjs",
-	"date": "2026-09-14T06:55:56.465Z",
-	"sha": "a68ed7575423ac2352846a27704052d72d197262",
-	"dirty": false,
+	"date": "2026-09-14T07:33:51.410Z",
+	"sha": "b884daf26522e27dd0972ea8160b636b0e1ead0a",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -24,5 +24,5 @@
 			"label": "the IdeaCAD console"
 		}
 	],
-	"ms": 6775
+	"ms": 6093
 }

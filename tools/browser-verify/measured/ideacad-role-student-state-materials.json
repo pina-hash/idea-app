@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "ideacad-role-student-state-materials.mjs",
-	"date": "2026-09-14T06:55:56.465Z",
-	"sha": "a68ed7575423ac2352846a27704052d72d197262",
-	"dirty": false,
+	"date": "2026-09-14T07:33:51.410Z",
+	"sha": "b884daf26522e27dd0972ea8160b636b0e1ead0a",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -14,42 +14,6 @@
 		{
 			"path": "/dev/ideacad?role=student&state=materials",
 			"width": 375,
-			"check": "prepare-wait",
-			"label": "() => !!document.querySelector(\"[data-testid=\\\"ideacad-mater"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 375,
-			"check": "contrast",
-			"label": "the panel heading on the pane ground"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 375,
-			"check": "contrast",
-			"label": "a control label"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 375,
-			"check": "contrast",
-			"label": "the density readout beside a picker"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 375,
-			"check": "contrast",
-			"label": "the panel’s own prose"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 375,
-			"check": "contrast",
-			"label": "the UNVERIFIED chip beside a density"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 375,
 			"check": "tap-target",
 			"label": "a material or thickness picker"
 		},
@@ -87,12 +51,6 @@
 			"path": "/dev/ideacad?role=student&state=materials",
 			"width": 375,
 			"check": "presence",
-			"label": "the FeatureManager list, replaced"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 375,
-			"check": "presence",
 			"label": "body material, blade material, blade thickness, spin"
 		},
 		{
@@ -118,24 +76,6 @@
 			"width": 375,
 			"check": "presence",
 			"label": "Add my own material"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 375,
-			"check": "presence",
-			"label": "the viewport’s confirm pair, withdrawn while the panel is up"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 375,
-			"check": "text-contains",
-			"label": "the panel states the thickness rule and the UNVERIFIED density rather than leaving either to be discovered"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 375,
-			"check": "order-result",
-			"label": "the panel replaced the tree in the tree’s own pane, and the controls drive the readouts"
 		},
 		{
 			"path": "/dev/ideacad?role=student&state=materials",
@@ -146,48 +86,6 @@
 		{
 			"path": "/dev/ideacad?role=student&state=materials",
 			"width": 1440,
-			"check": "prepare-wait",
-			"label": "() => !!document.querySelector(\"[data-testid=\\\"ideacad-mater"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "contrast",
-			"label": "the panel heading on the pane ground"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "contrast",
-			"label": "a control label"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "contrast",
-			"label": "the density readout beside a picker"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "contrast",
-			"label": "the panel’s own prose"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "contrast",
-			"label": "the UNVERIFIED chip beside a density"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "tap-target",
-			"label": "a material or thickness picker"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
 			"check": "tap-target",
 			"label": "the confirm pair"
 		},
@@ -206,75 +104,9 @@
 		{
 			"path": "/dev/ideacad?role=student&state=materials",
 			"width": 1440,
-			"check": "tap-target",
-			"label": "the body fill slider"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "presence",
-			"label": "the Materials panel"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "presence",
-			"label": "the FeatureManager list, replaced"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "presence",
-			"label": "body material, blade material, blade thickness, spin"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "presence",
-			"label": "the body fill slider"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "presence",
-			"label": "the body and blade density lines"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "presence",
-			"label": "the green check and the red X"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "presence",
-			"label": "Add my own material"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "presence",
-			"label": "the viewport’s confirm pair, withdrawn while the panel is up"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "text-contains",
-			"label": "the panel states the thickness rule and the UNVERIFIED density rather than leaving either to be discovered"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
-			"check": "order-result",
-			"label": "the panel replaced the tree in the tree’s own pane, and the controls drive the readouts"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=materials",
-			"width": 1440,
 			"check": "layout-sanity",
 			"label": "the IdeaCAD console"
 		}
 	],
-	"ms": 6775
+	"ms": 6093
 }

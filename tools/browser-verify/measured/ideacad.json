@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "ideacad.mjs",
-	"date": "2026-09-14T06:55:56.465Z",
-	"sha": "a68ed7575423ac2352846a27704052d72d197262",
-	"dirty": false,
+	"date": "2026-09-14T07:33:51.410Z",
+	"sha": "b884daf26522e27dd0972ea8160b636b0e1ead0a",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -116,6 +116,18 @@
 		{
 			"path": "/dev/ideacad",
 			"width": 1440,
+			"check": "presence",
+			"label": "FeatureManager rows and the body’s expander"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1440,
+			"check": "presence",
+			"label": "the body’s expander"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1440,
 			"check": "order-result",
 			"label": "the console, the viewport and the view toolbar are where they claim to be"
 		},
@@ -132,5 +144,5 @@
 			"label": "the IdeaCAD console"
 		}
 	],
-	"ms": 6775
+	"ms": 6093
 }
