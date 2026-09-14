@@ -190,6 +190,24 @@ export const IDEACAD_CHECKOUT_OFFLINE =
 export const IDEACAD_CHECKOUT_VIEW_ONLY =
 	'You can look at every part of this assembly. Taking a part is for the people the owner shared it with as editors.';
 
+/**
+ * THE SENTENCE SOMEBODY READS INSTEAD OF THE SHAPE CONTROLS.
+ *
+ * A SECOND VIEW-ONLY SENTENCE, DELIBERATELY, BECAUSE IT ANSWERS A DIFFERENT
+ * QUESTION. `IDEACAD_CHECKOUT_VIEW_ONLY` is about the ASSEMBLY -- who may take a
+ * part at all. This one is about the SHAPE of the part in front of you: the
+ * collection of bodies and blade rows on the hex core, which only the person
+ * currently HOLDING the part may add to, move or remove. A reader who is on the
+ * assembly as an editor but is not holding this part reads a true sentence from
+ * the first and a false one from the second if they are folded together.
+ *
+ * IT NAMES THE HOLD RATHER THAN A ROLE, because the hold is what the database
+ * checks: `_ideacad_part_writer` refuses a write from anybody but the holder,
+ * whatever their grant says.
+ */
+export const IDEACAD_SHAPE_VIEW_ONLY =
+	'You can see how this part is put together. Adding, moving and removing pieces is for whoever is holding the part.';
+
 /** Seconds left on a hold, from the payload's own window. NULL when not held. */
 export function holdSecondsLeft(
 	part: Pick<IdeacadAssemblyPart, 'holdBeatAt'> | null | undefined,
