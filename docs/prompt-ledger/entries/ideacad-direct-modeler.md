@@ -2,7 +2,7 @@
 
 - Issued: 2026-09-15
 - By: Alejandro's local Codex request, IdeaCAD Product Specification v1 and Addendum A
-- Owns: `.gitattributes` entries for pinned IdeaCAD artifacts, `src/lib/ideacad/**`, `src/routes/ideacad/**`, `src/routes/dev/ideacad*/**`, `static/ideacad/kernels/**`, `tools/ideacad-kernel-spike/**`, relevant classroom handoff paths, focused IdeaCAD tests and browser verification, dependency manifests, IdeaCAD migration drafts, `docs/IDEACAD.md`, `docs/ideacad/**`, the attached specification copies, this entry and its own history entry.
+- Owns: `.gitattributes` entries for pinned IdeaCAD artifacts, `src/lib/ideacad/**`, `src/routes/ideacad/**`, `src/routes/dev/ideacad*/**`, `static/ideacad/kernels/**`, `tools/ideacad-kernel-spike/**`, relevant classroom handoff paths and the required `classroom-updates.json` entry, focused IdeaCAD tests and browser verification, dependency manifests, IdeaCAD migration drafts, `docs/IDEACAD.md`, `docs/ideacad/**`, the attached specification copies, this entry and its own history entry.
 - Migration permitted: yes, standalone documents require an additive migration. Claims: 0216. Highest on origin/main at issue: 0215.
 - Status: pushed
 - Branch: `codex/ideacad-direct-modeler`

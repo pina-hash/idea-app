@@ -13,6 +13,12 @@
 	],
 	"entries": [
 		{
+			"date": "2026-09-15",
+			"title": "Start your own model in IdeaCAD",
+			"body": "IdeaCAD opens with your documents, and a new model starts empty. Draw a shape, turn it into a solid, and build your own design. An IdeaCAD assignment now opens the separate modeling workspace; link your document to the assignment to share it with your instructor. Your older blade documents still open. Turn on IdeaBlade when you want to check a design against the competition limits. For printed parts, enter the finished part's weight or its Bambu Studio estimate; the program does not guess a weight from plastic density.",
+			"tags": ["IdeaCAD", "Assignments"]
+		},
+		{
 			"date": "2026-09-14",
 			"title": "The 3D model in Blade CAD is drawn as one solid piece",
 			"body": "The viewport used to draw the body, the hex and each blade as separate hollow shells, so you could see straight into the inside of the model and some parts of the part were missing from the picture altogether. It now draws the whole part as one closed solid, the way it would actually be made. The shape itself is still being corrected and looks blockier and fatter than your numbers say it is; the readouts on the right have always been computed from your feature tree rather than from the picture, so they are unaffected.",
