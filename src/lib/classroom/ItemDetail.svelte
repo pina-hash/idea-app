@@ -2145,7 +2145,9 @@
 		student would read it.
 	-->
 	{#if item.kind === 'assignment'}
-		{#if ideacadMountState === 'ideacad' && ideacad}
+		{#if ideacad?.standalone}
+			<section class="card engine-slot"><h2 class="section-label">IdeaCAD</h2><a class="button tap-44" href="/ideacad">Open IdeaCAD →</a></section>
+		{:else if ideacadMountState === 'ideacad' && ideacad}
 			<!--
 				THE BLADE EDITOR, AND THE THREE MOUNTS ARE THREE DIFFERENT ANSWERS
 				RATHER THAN ONE MOUNT WITH FLAGS.

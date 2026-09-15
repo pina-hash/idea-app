@@ -1,0 +1,321 @@
+{
+  "revision": "9307e73d880ed824b2b62e44c4a1beb9d5d7b787",
+  "results": [
+    {
+      "name": "bracket + drilled hole + inner-edge filletJournaled",
+      "ok": true,
+      "totalMs": 176.1576,
+      "operationMs": 53.172000000000025,
+      "operation": {
+        "failedEdges": [],
+        "isPartial": false,
+        "op": 0,
+        "solid": 4
+      },
+      "volume": 5142.920367320511,
+      "expected": 5142.92036732051,
+      "relativeError": 1.7684401795370982e-16,
+      "validationErrors": 0,
+      "mesh": {
+        "triangleCount": 146,
+        "boundaryEdges": 0,
+        "nonManifoldEdges": 0,
+        "eulerCharacteristic": 0,
+        "isWatertight": true
+      },
+      "components": 1,
+      "surfaces": [
+        "plane",
+        "cylinder"
+      ]
+    },
+    {
+      "name": "bracket + drilled hole + inner-edge chamferJournaled",
+      "ok": true,
+      "totalMs": 30.89439999999999,
+      "operationMs": 13.311700000000002,
+      "operation": {
+        "failedEdges": [],
+        "isPartial": false,
+        "op": 0,
+        "solid": 3
+      },
+      "volume": 5148.62833058846,
+      "expected": 5148.628330588459,
+      "relativeError": 1.7664796201534675e-16,
+      "validationErrors": 0,
+      "mesh": {
+        "triangleCount": 108,
+        "boundaryEdges": 0,
+        "nonManifoldEdges": 0,
+        "eulerCharacteristic": 0,
+        "isWatertight": true
+      },
+      "components": 1,
+      "surfaces": [
+        "plane",
+        "cylinder"
+      ]
+    },
+    {
+      "name": "shell box open top inward 2",
+      "ok": true,
+      "totalMs": 4.566100000000006,
+      "operationMs": 3.5278999999999883,
+      "volume": 4512,
+      "expected": 4512,
+      "relativeError": 0,
+      "validationErrors": 0,
+      "mesh": {
+        "triangleCount": 28,
+        "boundaryEdges": 0,
+        "nonManifoldEdges": 0,
+        "eulerCharacteristic": 2,
+        "isWatertight": true
+      },
+      "components": 1,
+      "surfaces": [
+        "plane"
+      ]
+    },
+    {
+      "name": "revolve rectangular sketch 360 degrees to annular tube",
+      "ok": true,
+      "totalMs": 14.066900000000004,
+      "operationMs": 2.537700000000001,
+      "volume": 4712.38898038469,
+      "expected": 4712.38898038469,
+      "relativeError": 0,
+      "validationErrors": 0,
+      "mesh": {
+        "triangleCount": 344,
+        "boundaryEdges": 0,
+        "nonManifoldEdges": 0,
+        "eulerCharacteristic": 0,
+        "isWatertight": true
+      },
+      "components": 1,
+      "surfaces": [
+        "plane",
+        "cylinder"
+      ]
+    },
+    {
+      "name": "semicircular analytic arc + closing line sketch extrude",
+      "ok": true,
+      "totalMs": 4.943399999999997,
+      "operationMs": 0.09199999999998454,
+      "volume": 785.3981633974483,
+      "expected": 785.3981633974483,
+      "relativeError": 0,
+      "validationErrors": 0,
+      "mesh": {
+        "triangleCount": 240,
+        "boundaryEdges": 0,
+        "nonManifoldEdges": 0,
+        "eulerCharacteristic": 2,
+        "isWatertight": true
+      },
+      "components": 1,
+      "surfaces": [
+        "plane",
+        "cylinder"
+      ]
+    },
+    {
+      "name": "rectangle sketch with exact circle hole extrude",
+      "ok": false,
+      "totalMs": 6.651299999999992,
+      "error": "{\"volume\":11214.601836602551,\"expected\":11214.601836602551,\"relativeError\":0,\"valid\":2,\"mesh\":{\"triangleCount\":160,\"boundaryEdges\":0,\"nonManifoldEdges\":0,\"eulerCharacteristic\":0,\"isWatertight\":true},\"components\":1}"
+    },
+    {
+      "name": "linear pattern three separate box bodies",
+      "ok": true,
+      "totalMs": 2.984100000000012,
+      "operationMs": 1.7298999999999864,
+      "bodyCount": 3,
+      "bodies": [
+        {
+          "volume": 24,
+          "expected": 24,
+          "relativeError": 0,
+          "validationErrors": 0,
+          "mesh": {
+            "triangleCount": 12,
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "eulerCharacteristic": 2,
+            "isWatertight": true
+          },
+          "components": 1,
+          "surfaces": [
+            "plane"
+          ]
+        },
+        {
+          "volume": 24,
+          "expected": 24,
+          "relativeError": 0,
+          "validationErrors": 0,
+          "mesh": {
+            "triangleCount": 12,
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "eulerCharacteristic": 2,
+            "isWatertight": true
+          },
+          "components": 1,
+          "surfaces": [
+            "plane"
+          ]
+        },
+        {
+          "volume": 24,
+          "expected": 24,
+          "relativeError": 0,
+          "validationErrors": 0,
+          "mesh": {
+            "triangleCount": 12,
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "eulerCharacteristic": 2,
+            "isWatertight": true
+          },
+          "components": 1,
+          "surfaces": [
+            "plane"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "circular pattern three separate box bodies",
+      "ok": true,
+      "totalMs": 1.529200000000003,
+      "operationMs": 0.4371999999999616,
+      "bodyCount": 3,
+      "bodies": [
+        {
+          "volume": 24,
+          "expected": 24,
+          "relativeError": 0,
+          "validationErrors": 0,
+          "mesh": {
+            "triangleCount": 12,
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "eulerCharacteristic": 2,
+            "isWatertight": true
+          },
+          "components": 1,
+          "surfaces": [
+            "plane"
+          ]
+        },
+        {
+          "volume": 23.99999999999999,
+          "expected": 24,
+          "relativeError": 4.440892098500626e-16,
+          "validationErrors": 0,
+          "mesh": {
+            "triangleCount": 12,
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "eulerCharacteristic": 2,
+            "isWatertight": true
+          },
+          "components": 1,
+          "surfaces": [
+            "plane"
+          ]
+        },
+        {
+          "volume": 24.000000000000014,
+          "expected": 24,
+          "relativeError": 5.921189464667501e-16,
+          "validationErrors": 0,
+          "mesh": {
+            "triangleCount": 12,
+            "boundaryEdges": 0,
+            "nonManifoldEdges": 0,
+            "eulerCharacteristic": 2,
+            "isWatertight": true
+          },
+          "components": 1,
+          "surfaces": [
+            "plane"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "mirror bracket across YZ",
+      "ok": true,
+      "totalMs": 9.114100000000008,
+      "operationMs": 0.36630000000002383,
+      "volume": 5138.628330588459,
+      "expected": 5138.628330588459,
+      "relativeError": 0,
+      "validationErrors": 0,
+      "mesh": {
+        "triangleCount": 104,
+        "boundaryEdges": 0,
+        "nonManifoldEdges": 0,
+        "eulerCharacteristic": 0,
+        "isWatertight": true
+      },
+      "components": 1,
+      "surfaces": [
+        "plane",
+        "cylinder"
+      ]
+    },
+    {
+      "name": "scale bracket 2x with body matrix",
+      "ok": true,
+      "totalMs": 10.972100000000012,
+      "operationMs": 1.366199999999992,
+      "volume": 41109.02664470767,
+      "expected": 41109.02664470767,
+      "relativeError": 0,
+      "validationErrors": 0,
+      "mesh": {
+        "triangleCount": 136,
+        "boundaryEdges": 0,
+        "nonManifoldEdges": 0,
+        "eulerCharacteristic": 0,
+        "isWatertight": true
+      },
+      "components": 1,
+      "surfaces": [
+        "plane",
+        "cylinder"
+      ]
+    },
+    {
+      "name": "replace side support plane to move top linear edge +5X",
+      "ok": true,
+      "totalMs": 11.392800000000022,
+      "operationMs": 10.906499999999994,
+      "operation": {
+        "op": 0,
+        "solid": 1
+      },
+      "volume": 12750,
+      "expected": 12750,
+      "relativeError": 0,
+      "validationErrors": 0,
+      "mesh": {
+        "triangleCount": 12,
+        "boundaryEdges": 0,
+        "nonManifoldEdges": 0,
+        "eulerCharacteristic": 2,
+        "isWatertight": true
+      },
+      "components": 1,
+      "surfaces": [
+        "plane"
+      ]
+    }
+  ]
+}

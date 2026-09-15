@@ -90,7 +90,7 @@ describe('IdeaCAD: the physics is never gated, and the prediction is still colle
 		// One block per concept, so the sheet is comparative rather than showing
 		// the active concept's numbers alone.
 		expect(m.all('.compare dl').length).toBe(3);
-		expect(m.one('.compare').textContent).toContain('g·cm²');
+		expect(m.one('.compare').textContent).toContain('Unknown');
 		await m.stop();
 	});
 
@@ -103,7 +103,7 @@ describe('IdeaCAD: the physics is never gated, and the prediction is still colle
 		const rail = m.one('.readouts').textContent ?? '';
 		expect(rail).toContain('Rotational inertia');
 		expect(rail).toContain('Radius of gyration');
-		expect(rail).toMatch(/g·cm²/);
+		expect(rail).toMatch(/Unknown/);
 		await m.stop();
 	});
 

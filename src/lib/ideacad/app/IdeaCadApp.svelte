@@ -8,9 +8,14 @@
 	 * `./types.ts`, the pure layer, so it is assertable without a browser. What
 	 * is here is the mount, the transports and the arrangement.
 	 */
-	import { onDestroy, tick, untrack } from 'svelte';
+	import { onMount,onDestroy, tick, untrack } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import BladeEditor from '../BladeEditor.svelte';
+	import DirectDocuments from '../solid/DirectDocuments.svelte';
+	import AdvisorySettings from '../solid/AdvisorySettings.svelte';
+	import {createSolidTransports,type DirectSummary} from '../solid/transport';
+	import type {SolidDocument} from '../solid/types';
+	import type {AdvisoryRules} from '../solid/advisory';
 	import { createIdeacadStore, type IdeacadStoreState } from '../store';
 	import { createIdeacadHistoryTransports, createIdeacadTransports } from '../transports';
 	import { createIdeacadArchiveTransports } from '../archive-transports';
@@ -38,13 +43,21 @@
 		type IdeaCadPaneLayout
 	} from './types';
 
-	let { supabase, userId, documents, sources, initialLayout } = $props<{
+	let { supabase, userId, documents, sources, initialLayout,directDocuments=[],directError=null,debugSolid=false } = $props<{
 		supabase: SupabaseClient;
 		userId: string;
 		documents: IdeaCadDocumentSummary[];
 		sources: IdeaCadDocumentSource[];
 		initialLayout: IdeaCadPaneLayout;
+		directDocuments?:DirectSummary[];directError?:string|null;debugSolid?:boolean;
 	}>();
+	const directApi=untrack(()=>createSolidTransports(supabase));
+	let Workspace=$state<typeof import('../solid/SolidWorkspace.svelte').default|null>(null);
+	let solid:SolidDocument|null=$state.raw(null),directRows:DirectSummary[]=$state(untrack(()=>directDocuments)),directMessage=$state(untrack(()=>directError??'')),rules:AdvisoryRules|null=$state(null),settingsOpen=$state(false);
+	async function refreshDirect(){try{directRows=await directApi.list();directMessage='';}catch(err){directMessage=err instanceof Error?err.message:String(err);}}
+	async function readRules(){try{rules=await directApi.advisoryTransport.read();}catch{rules=null;}}
+	async function directOpen(id?:string,source?:IdeaCadDocumentSource){if(opening)return;const linked=source?directRows.find(r=>r.isOwn&&r.itemId===source.itemId):null;id??=linked?.id;opening=id??'new';refusal=null;try{Workspace??=(await import('../solid/SolidWorkspace.svelte')).default;let opened=id?await directApi.transport.open(id):await directApi.transport.create(source?.title??'Untitled document');if(source&&!id){await directApi.link(opened.id,source.itemId);opened=await directApi.transport.open(opened.id);}solid=opened;chooserOpen=false;}catch(err){refusal={key:id??'new',subject:'IdeaCAD model',message:err instanceof Error?err.message:String(err)};await refreshDirect();}finally{opening='';}}
+	onMount(()=>{void readRules();});
 
 	const transports = untrack(() => createIdeacadTransports(supabase));
 	const archiveTransports = untrack(() => createIdeacadArchiveTransports(supabase));
@@ -131,6 +144,8 @@
 	} : null);
 
 	async function openExisting(document: IdeaCadDocumentSummary) {
+		if(opening)return;
+		solid=null;
 		opening = document.id; refusal = null;
 		try {
 			await store.openShared(document.id);
@@ -147,16 +162,7 @@
 	}
 
 	async function openNew(source: IdeaCadDocumentSource) {
-		opening = source.itemId; refusal = null;
-		try {
-			await store.open(source.itemId);
-			documentChosen = true;
-			chooserOpen = false;
-			activeTitle = source.title;
-			activeOwner = null;
-		}
-		catch (error) { refusal = { key: source.itemId, subject: source.title, message: ideaCadOpenRefusal(error) }; }
-		finally { opening = ''; }
+		await directOpen(undefined,source);
 	}
 
 	/** Archive or restore, after the two-step confirm. The overlay is written
@@ -174,9 +180,7 @@
 	}
 
 	async function showNewDocument() {
-		chooserOpen = true;
-		await tick();
-		newDocumentSection?.focus();
+		await directOpen();
 	}
 
 	let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -293,6 +297,9 @@
 	</div>
 {/snippet}
 
+{#if solid&&!chooserOpen&&Workspace}
+	<div class="direct-frame">{#key solid.id}<Workspace dev={debugSolid} document={solid} transport={directApi.transport} advisoryTransport={directApi.advisoryTransport} onback={()=>{solid=null;chooserOpen=true;void refreshDirect();}}/>{/key}</div>
+{:else}
 <main class="app-shell" data-testid="ideacad-app">
 	<nav class="command-bar" aria-label="IdeaCAD commands">
 		<a href="/" class="brand" aria-label="IDEA home">IDEA<span>CAD</span></a>
@@ -308,8 +315,9 @@
 			{#if activeOwner}<span class="title-owner" title={activeOwner}>{activeOwner}</span>{/if}
 		{/if}
 		<span class="spacer"></span>
+		{#if rules?.canEdit}<button onclick={()=>{void readRules().then(()=>settingsOpen=true);}}>IdeaBlade limits</button>{/if}
 		<button class:active={chooserOpen} onclick={() => (chooserOpen = true)} aria-expanded={chooserOpen}>Documents</button>
-		<button class="new" onclick={showNewDocument}>+ New document</button>
+		<button class="new" onclick={showNewDocument} disabled={opening!==''}>+ New document</button>
 		<a href="/" class="exit">Exit to IDEA</a>
 	</nav>
 
@@ -318,13 +326,13 @@
 			<div class="start-card">
 				<header class="start-heading">
 					<p class="eyebrow">IDEACAD // DOCUMENT CONTROL</p>
-					<h1>{view.total === 0 ? 'Start your first document' : documentChosen ? 'Choose a document' : 'Your documents'}</h1>
+					<h1>{view.total+directRows.length === 0 ? 'Start your first document' : 'Your documents'}</h1>
 					<p>
-						{view.total === 0
-							? 'A document is your own copy of an IdeaCAD assignment. Pick one below and it opens straight into the modelling workspace.'
-							: 'Continue your own work, open something shared with you, or start an available IdeaCAD assignment.'}
+						Create a model, continue your work, or open a shared document.
 					</p>
 				</header>
+				{#if directMessage}<div class="refusal" role="alert">{directMessage}</div>{/if}
+				<DirectDocuments rows={directRows} api={directApi} {sources} onopen={id=>void directOpen(id)} onchange={()=>void refreshDirect()}/>
 
 				<!-- THE FALLBACK ONLY. A refusal renders inside the card that was
 				     pressed; this is where it goes when a narrowing has since taken
@@ -398,10 +406,7 @@
 							{/each}
 						</div>
 					{:else}
-						<div class="empty new-empty">
-							<strong>No starters available</strong>
-							<span>An IdeaCAD assignment must be made available before a new document can be created. Your teacher turns the Blade editor on from the assignment itself.</span>
-						</div>
+						<button class="close" onclick={()=>void directOpen()} disabled={opening!==''}>+ Blank model</button>
 					{/if}
 				</div>
 
@@ -414,11 +419,14 @@
 		</div>
 	{/if}
 </main>
+{/if}
+{#if settingsOpen&&rules}<div class="rules-overlay ic-root"><AdvisorySettings {rules} transport={directApi.advisoryTransport} onchange={value=>rules=value} onclose={()=>settingsOpen=false}/></div>{/if}
 
 <style>
+	.direct-frame{position:fixed;inset:0;z-index:50}.rules-overlay{position:fixed;inset:0;z-index:70;background:#0008;display:grid;place-items:center}
 	:global(html), :global(body) { width: 100%; height: 100%; overflow: hidden; }
 	:global(body) { margin: 0; }
-	.app-shell { width: 100vw; height: 100vh; overflow: hidden; display: grid; grid-template-rows: 52px minmax(0, 1fr); background: var(--surface-0); color: var(--text-1); font-family: Rajdhani, sans-serif; }
+	.app-shell { max-width:none; margin:0; padding:0; width: 100vw; height: 100vh; overflow: hidden; display: grid; grid-template-rows: 52px minmax(0, 1fr); background: var(--surface-0); color: var(--text-1); font-family: Rajdhani, sans-serif; }
 	.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 	/* THE COMMAND BAR SPEAKS THE EDITOR'S LANGUAGE: 12px Share Tech Mono at
@@ -511,7 +519,6 @@
 	.new-document-section:focus-visible .section-label { border-bottom-color: var(--green); }
 
 	.empty { display: grid; gap: 7px; padding: 18px; color: var(--text-2); border-left: 2px solid var(--boundary); background: var(--surface-1); font-size: 13px; line-height: 1.55; }
-	.empty strong { color: var(--text-1); font: 700 12px 'Share Tech Mono', monospace; letter-spacing: .08em; text-transform: uppercase; }
 	.narrowed { border-left-color: var(--cyan); }
 	.close { margin-top: 24px; min-height: 44px; padding: 0 16px; color: var(--text-1); background: var(--surface-2); border: 1px solid var(--boundary); font: 11px 'Share Tech Mono', monospace; letter-spacing: .08em; text-transform: uppercase; }
 	.close:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }

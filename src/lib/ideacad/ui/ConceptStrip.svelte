@@ -87,10 +87,10 @@
 	const cards = $derived<Card[]>(
 		concepts.map((c) => {
 			try {
-				const e = evaluate(c.features, config);
+				const e = evaluate(c.features, config, false);
 				return {
 					id: c.id,
-					failures: e.rules.filter((r) => !r.pass).map((r) => r.label),
+					failures: e.rules.filter((r) => r.id !== 'mass' && !r.pass).map((r) => r.label),
 					broken: false,
 					points: profilePolyline(e.geometry.stations, 46, 34, 3).points
 				};
@@ -115,7 +115,7 @@
 			{:else if card?.failures.length}
 				<span class="chip fail">FAIL {card.failures.length}</span>
 			{:else}
-				<span class="chip pass">PASS</span>
+				<span class="chip">CHECKS INCOMPLETE</span>
 			{/if}
 		</button>
 	{/each}

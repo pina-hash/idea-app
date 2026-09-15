@@ -32,6 +32,7 @@ type DocumentRow = {
 	active_concept_id: string | null;
 	updated_at: string;
 	archived_at?: string | null;
+	model_format?: string;
 };
 
 /**
@@ -53,6 +54,8 @@ type DocumentRow = {
 async function readDocuments(
 	supabase: App.Locals['supabase']
 ): Promise<{ rows: DocumentRow[]; archiveColumn: boolean }> {
+	const direct = await supabase.from('ideacad_documents').select('id,item_id,student_email,active_concept_id,updated_at,archived_at,model_format').order('updated_at',{ascending:false});
+	if(!direct.error)return{rows:(direct.data??[]) as DocumentRow[],archiveColumn:true};
 	const wide = await supabase
 		.from('ideacad_documents')
 		.select('id,item_id,student_email,active_concept_id,updated_at,archived_at')
@@ -143,11 +146,15 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 	   `current_user_email()` for itself -- so only the rendering degrades. */
 	const viewerEmail = ideacadNormalizeEmail(claims.email ?? '');
 
-	const [{ rows: documentRows }, { data: editorRows }, parentData] = await Promise.all([
+	const [{ rows: allDocumentRows }, { data: editorRows }, parentData,directResult] = await Promise.all([
 		readDocuments(supabase),
 		supabase.from('ideacad_editors').select('item_id'),
-		parent()
+		parent(),
+		supabase.rpc('ideacad_direct_documents')
 	]);
+	const directDocuments=Array.isArray(directResult.data)?directResult.data:[];
+	const directIds=new Set(directDocuments.map(row=>row.id));
+	const documentRows=allDocumentRows.filter(row=>row.item_id&&row.model_format!=='solid-v1'&&!directIds.has(row.id));
 
 	const itemIds = [
 		...new Set([...documentRows.map((r) => r.item_id), ...(editorRows ?? []).map((r) => r.item_id)])
@@ -207,7 +214,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 	   list carries other people's documents on assignments they have never
 	   started themselves, and excluding those would take the New document card
 	   away from the one person who most needs to open the thing they set. */
-	const started = new Set(documents.filter((row) => row.isOwn).map((row) => row.itemId));
+	const started = new Set([...documents.filter((row) => row.isOwn).map((row) => row.itemId),...directDocuments.filter(row=>row.isOwn).map(row=>row.itemId)]);
 	const sources: IdeaCadDocumentSource[] = (editorRows ?? [])
 		.filter((row) => !started.has(row.item_id))
 		.map((row) => ({ itemId: row.item_id, title: titles.get(row.item_id) ?? 'New IdeaCAD document' }));
@@ -215,6 +222,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 	const raw = (parentData.userProfile?.preferences as Record<string, unknown> | undefined)
 		?.ideacad as { panes?: Partial<IdeaCadPaneLayout> } | undefined;
 	return {
+		directDocuments,directError:directResult.error?.message??null,
 		documents,
 		sources,
 		userId: claims.sub,

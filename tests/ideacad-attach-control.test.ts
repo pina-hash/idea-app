@@ -275,7 +275,7 @@ describe('the wiring that makes any of it reachable', () => {
 		expect(call).toBeGreaterThan(-1);
 		expect(guard).toBeLessThan(call);
 		// And the refusal returns rather than falling through to the call.
-		expect(source).toContain(`ideacadAttachError = IDEACAD_ATTACH_BAD_CONFIG;\n\t\t\treturn;`);
+		expect(source.replace(/\r\n/g, '\n')).toContain(`ideacadAttachError = IDEACAD_ATTACH_BAD_CONFIG;\n\t\t\treturn;`);
 	});
 
 	it('the refusal sentences are one spelling each, read from the module', () => {

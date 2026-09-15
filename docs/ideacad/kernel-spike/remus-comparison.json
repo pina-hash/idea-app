@@ -1,0 +1,435 @@
+{
+  "revision": "9307e73d880ed824b2b62e44c4a1beb9d5d7b787",
+  "source": "https://github.com/esaueng/remus/tree/9307e73d880ed824b2b62e44c4a1beb9d5d7b787/crates/wasm/pkg",
+  "environment": {
+    "node": "v26.2.0",
+    "platform": "win32",
+    "cpu": "Intel(R) Core(TM) i9-10900K CPU @ 3.70GHz",
+    "browser": false
+  },
+  "artifact": {
+    "wasmBytes": 8315198,
+    "sha256": "c3dfd1211fc9d22ac8be5e84fce7e8ec731337ec675bf1bd0256b2fddc2dc7f4",
+    "gzip9Bytes": 2910859,
+    "brotli11Bytes": 2047764
+  },
+  "timing": {
+    "coldRequireMs": 15.455199999999998,
+    "kernelConstructionMs": 0.4069999999999965,
+    "firstCutMs": 66.9527,
+    "firstPushMs": 15.1507,
+    "warm20After5Warmup": {
+      "cutMs": {
+        "median": 1.8814999999999884,
+        "p95": 2.478800000000035
+      },
+      "pushMs": {
+        "median": 5.435850000000016,
+        "p95": 6.577399999999955
+      },
+      "pullMs": {
+        "median": 4.3315000000000055,
+        "p95": 4.8740999999999985
+      },
+      "tessellateMs": {
+        "median": 0.45390000000003283,
+        "p95": 0.6218999999999824
+      }
+    },
+    "samples": [
+      {
+        "cutMs": 2.0857000000000028,
+        "pushMs": 5.407899999999984,
+        "pullMs": 4.3887,
+        "tessellateMs": 1.3597000000000037
+      },
+      {
+        "cutMs": 2.7151000000000067,
+        "pushMs": 5.201300000000003,
+        "pullMs": 4.398500000000013,
+        "tessellateMs": 0.48799999999999955
+      },
+      {
+        "cutMs": 2.1562000000000126,
+        "pushMs": 5.2719000000000165,
+        "pullMs": 4.587800000000016,
+        "tessellateMs": 0.495900000000006
+      },
+      {
+        "cutMs": 2.032199999999989,
+        "pushMs": 5.688199999999995,
+        "pullMs": 4.29079999999999,
+        "tessellateMs": 0.49680000000000746
+      },
+      {
+        "cutMs": 2.1616000000000213,
+        "pushMs": 5.576599999999985,
+        "pullMs": 4.682399999999973,
+        "tessellateMs": 0.5040000000000191
+      },
+      {
+        "cutMs": 1.9481000000000108,
+        "pushMs": 5.913000000000011,
+        "pullMs": 4.751300000000015,
+        "tessellateMs": 0.46500000000003183
+      },
+      {
+        "cutMs": 2.3041999999999803,
+        "pushMs": 5.187700000000007,
+        "pullMs": 4.33159999999998,
+        "tessellateMs": 0.47160000000002356
+      },
+      {
+        "cutMs": 3.228499999999997,
+        "pushMs": 7.118400000000008,
+        "pullMs": 4.5077,
+        "tessellateMs": 0.4629000000000474
+      },
+      {
+        "cutMs": 2.1259000000000015,
+        "pushMs": 5.264999999999986,
+        "pullMs": 5.0197,
+        "tessellateMs": 0.5117999999999938
+      },
+      {
+        "cutMs": 2.2461999999999875,
+        "pushMs": 6.577399999999955,
+        "pullMs": 4.367199999999968,
+        "tessellateMs": 0.6218999999999824
+      },
+      {
+        "cutMs": 2.478800000000035,
+        "pushMs": 5.434000000000026,
+        "pullMs": 4.331400000000031,
+        "tessellateMs": 0.5249000000000024
+      },
+      {
+        "cutMs": 2.0889999999999986,
+        "pushMs": 5.707899999999995,
+        "pullMs": 4.2181999999999675,
+        "tessellateMs": 0.47280000000000655
+      },
+      {
+        "cutMs": 2.415900000000022,
+        "pushMs": 5.437700000000007,
+        "pullMs": 4.278699999999958,
+        "tessellateMs": 0.4461000000000013
+      },
+      {
+        "cutMs": 2.1725999999999885,
+        "pushMs": 5.529500000000041,
+        "pullMs": 4.411900000000003,
+        "tessellateMs": 0.4439000000000419
+      },
+      {
+        "cutMs": 2.3795000000000073,
+        "pushMs": 5.433500000000095,
+        "pullMs": 4.173800000000028,
+        "tessellateMs": 0.4617000000000644
+      },
+      {
+        "cutMs": 1.814899999999966,
+        "pushMs": 5.706099999999992,
+        "pullMs": 4.49249999999995,
+        "tessellateMs": 0.6633000000000493
+      },
+      {
+        "cutMs": 1.629199999999969,
+        "pushMs": 5.956099999999992,
+        "pullMs": 4.8740999999999985,
+        "tessellateMs": 0.48529999999993834
+      },
+      {
+        "cutMs": 1.4504000000000588,
+        "pushMs": 5.223099999999931,
+        "pullMs": 4.195299999999975,
+        "tessellateMs": 0.4173999999999296
+      },
+      {
+        "cutMs": 1.6140000000000327,
+        "pushMs": 5.081000000000017,
+        "pullMs": 4.005199999999945,
+        "tessellateMs": 0.41620000000000346
+      },
+      {
+        "cutMs": 1.6429999999999154,
+        "pushMs": 5.6503999999999905,
+        "pullMs": 4.067000000000007,
+        "tessellateMs": 0.3755999999999631
+      },
+      {
+        "cutMs": 1.445600000000013,
+        "pushMs": 5.806299999999965,
+        "pullMs": 4.651399999999967,
+        "tessellateMs": 0.3990000000000009
+      },
+      {
+        "cutMs": 1.2907999999999902,
+        "pushMs": 5.0545000000000755,
+        "pullMs": 4.4027999999999565,
+        "tessellateMs": 0.3626000000000431
+      },
+      {
+        "cutMs": 1.2729000000000497,
+        "pushMs": 4.97180000000003,
+        "pullMs": 3.9189999999999827,
+        "tessellateMs": 0.3608000000000402
+      },
+      {
+        "cutMs": 1.4255000000000564,
+        "pushMs": 4.926299999999969,
+        "pullMs": 3.8600999999999885,
+        "tessellateMs": 0.3585000000000491
+      },
+      {
+        "cutMs": 1.2413999999999987,
+        "pushMs": 5.101499999999987,
+        "pullMs": 3.8295000000000528,
+        "tessellateMs": 0.3706999999999425
+      }
+    ]
+  },
+  "before": {
+    "volume": 11214.601836602551,
+    "expectedVolume": 11214.601836602551,
+    "relativeVolumeError": 0,
+    "validationErrorCount": 0,
+    "detailed": {
+      "errorCount": 0,
+      "warningCount": 0,
+      "issues": []
+    },
+    "brepFaceComponents": 1,
+    "shells": 1,
+    "faceCount": 7,
+    "surfaceTypes": [
+      "plane",
+      "cylinder"
+    ],
+    "mesh": {
+      "triangleCount": 216,
+      "boundaryEdges": 0,
+      "nonManifoldEdges": 0,
+      "eulerCharacteristic": 0,
+      "isWatertight": true
+    }
+  },
+  "after": {
+    "volume": 16821.90275490383,
+    "expectedVolume": 16821.902754903826,
+    "relativeVolumeError": 2.162644060007534e-16,
+    "validationErrorCount": 0,
+    "detailed": {
+      "errorCount": 0,
+      "warningCount": 0,
+      "issues": []
+    },
+    "brepFaceComponents": 1,
+    "shells": 1,
+    "faceCount": 7,
+    "surfaceTypes": [
+      "plane",
+      "cylinder"
+    ],
+    "mesh": {
+      "triangleCount": 216,
+      "boundaryEdges": 0,
+      "nonManifoldEdges": 0,
+      "eulerCharacteristic": 0,
+      "isWatertight": true
+    }
+  },
+  "selectedRef": "{\"version\":1,\"entity_kind\":\"face\",\"anchor\":{\"anchor\":\"OperationOutput\",\"operation\":0,\"index\":6}}",
+  "selectionAfterPush": {
+    "entities": [
+      {
+        "handle": 22,
+        "kind": "face"
+      }
+    ],
+    "provenance": "construction",
+    "status": "bound"
+  },
+  "selectedPlane": {
+    "d": 15,
+    "normal": [
+      0,
+      0,
+      1
+    ],
+    "type": "plane"
+  },
+  "edgeAfterPush": {
+    "entities": [
+      {
+        "handle": 46,
+        "kind": "edge"
+      }
+    ],
+    "provenance": "construction",
+    "status": "bound"
+  },
+  "vertexAfterPush": {
+    "entities": [
+      {
+        "handle": 44,
+        "kind": "vertex"
+      }
+    ],
+    "provenance": "construction",
+    "status": "bound"
+  },
+  "serialization": {
+    "bytes": 12865,
+    "serializeMs": 1.8456999999999937,
+    "reloadMs": 10.380599999999987,
+    "reload": {
+      "volume": 16821.90275490383,
+      "expectedVolume": 16821.902754903826,
+      "relativeVolumeError": 2.162644060007534e-16,
+      "validationErrorCount": 0,
+      "detailed": {
+        "errorCount": 0,
+        "warningCount": 0,
+        "issues": []
+      },
+      "brepFaceComponents": 1,
+      "shells": 1,
+      "faceCount": 7,
+      "surfaceTypes": [
+        "plane",
+        "cylinder"
+      ],
+      "mesh": {
+        "triangleCount": 216,
+        "boundaryEdges": 0,
+        "nonManifoldEdges": 0,
+        "eulerCharacteristic": 0,
+        "isWatertight": true
+      }
+    },
+    "selectedRefAfterGeometryOnlyReload": {
+      "entities": [
+        {
+          "handle": 6,
+          "kind": "face"
+        }
+      ],
+      "provenance": "construction",
+      "status": "bound"
+    },
+    "selectedRefAfterDeterministicCommandReplay": {
+      "entities": [
+        {
+          "handle": 22,
+          "kind": "face"
+        }
+      ],
+      "provenance": "construction",
+      "status": "bound"
+    },
+    "journalBefore": [
+      {
+        "detail": {
+          "events": 32,
+          "origin": "construction"
+        },
+        "kind": "boolean_cut",
+        "op": 0,
+        "type": "evolution"
+      },
+      {
+        "detail": {
+          "events": 32,
+          "origin": "construction"
+        },
+        "kind": "move_faces",
+        "op": 1,
+        "type": "evolution"
+      }
+    ],
+    "journalAfter": [
+      {
+        "detail": {
+          "events": 32,
+          "origin": "construction"
+        },
+        "kind": "boolean_cut",
+        "op": 0,
+        "type": "evolution"
+      },
+      {
+        "detail": {
+          "events": 32,
+          "origin": "construction"
+        },
+        "kind": "move_faces",
+        "op": 1,
+        "type": "evolution"
+      }
+    ],
+    "referenceWitnessesAfterReload": [
+      {
+        "ref": "{\"version\":1,\"entity_kind\":\"face\",\"anchor\":{\"anchor\":\"OperationOutput\",\"operation\":0,\"index\":6}}",
+        "resolved": {
+          "entities": [
+            {
+              "handle": 6,
+              "kind": "face"
+            }
+          ],
+          "provenance": "construction",
+          "status": "bound"
+        },
+        "plane": {
+          "d": 15,
+          "normal": [
+            0,
+            0,
+            1
+          ],
+          "type": "plane"
+        }
+      },
+      {
+        "ref": "{\"version\":1,\"entity_kind\":\"face\",\"anchor\":{\"anchor\":\"OperationOutput\",\"operation\":1,\"index\":6}}",
+        "resolved": {
+          "entities": [
+            {
+              "handle": 6,
+              "kind": "face"
+            }
+          ],
+          "provenance": "construction",
+          "status": "bound"
+        },
+        "plane": {
+          "d": 15,
+          "normal": [
+            0,
+            0,
+            1
+          ],
+          "type": "plane"
+        }
+      }
+    ]
+  },
+  "invalidEdit": {
+    "error": "offset: move-face would change topology at face Some(Id(22)), edge None: swept face reaches nonadjacent face 16 before completing the move",
+    "unchangedOriginalValid": true
+  },
+  "api": {
+    "moveEdge": false,
+    "moveVertex": false,
+    "moveFaces": true,
+    "moveFacesJournaled": true,
+    "replaceSurfaceJournaled": true
+  },
+  "limitations": [
+    "Node runtime measurements, not browser network cold load or integrated-GPU FPS.",
+    "Narrow analytic bracket-like test only; no general topology-changing direct edit claim.",
+    "No moveEdge or moveVertex methods in this artifact.",
+    "Upstream says no published releases; snapshot is a frozen compatibility artifact."
+  ]
+}

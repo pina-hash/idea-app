@@ -1,0 +1,1249 @@
+{
+  "calls": [
+    {
+      "actor": "teacher",
+      "method": "rpc",
+      "name": "classroom_upsert_course",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "rpc",
+      "name": "classroom_upsert_section",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "rpc",
+      "name": "classroom_set_enrollment",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "rpc",
+      "name": "classroom_set_enrollment",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "rpc",
+      "name": "classroom_set_enrollment",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "rpc",
+      "name": "ideacad_set_editor",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_create_direct_document",
+      "error": null
+    },
+    {
+      "actor": "editor",
+      "method": "rpc",
+      "name": "ideacad_create_direct_document",
+      "error": null
+    },
+    {
+      "actor": "admin",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_create_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_concept_history",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_open_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_concept_history",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_open_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_concept_history",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_read_brep_artifacts",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_share_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_share_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "viewer",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "viewer",
+      "method": "rpc",
+      "name": "ideacad_open_direct_document",
+      "error": null
+    },
+    {
+      "actor": "viewer",
+      "method": "rpc",
+      "name": "ideacad_direct_concept_history",
+      "error": null
+    },
+    {
+      "actor": "viewer",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "editor",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "editor",
+      "method": "rpc",
+      "name": "ideacad_open_direct_document",
+      "error": null
+    },
+    {
+      "actor": "editor",
+      "method": "rpc",
+      "name": "ideacad_direct_concept_history",
+      "error": null
+    },
+    {
+      "actor": "editor",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "editor",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "editor",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "editor",
+      "method": "rpc",
+      "name": "ideacad_open_direct_document",
+      "error": null
+    },
+    {
+      "actor": "editor",
+      "method": "rpc",
+      "name": "ideacad_direct_concept_history",
+      "error": null
+    },
+    {
+      "actor": "editor",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "editor",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "editor",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_set_direct_document_archived",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_open_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_concept_history",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_set_direct_document_archived",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_link_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "select",
+      "name": "classroom_postings",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "rpc",
+      "name": "ideacad_set_direct_document_archived",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "select",
+      "name": "classroom_postings",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_unshare_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "viewer",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "select",
+      "name": "classroom_postings",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "rpc",
+      "name": "ideacad_share_direct_document_with_section",
+      "error": null
+    },
+    {
+      "actor": "teacher",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "viewer",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "viewer",
+      "method": "rpc",
+      "name": "ideacad_open_direct_document",
+      "error": null
+    },
+    {
+      "actor": "viewer",
+      "method": "rpc",
+      "name": "ideacad_direct_concept_history",
+      "error": null
+    },
+    {
+      "actor": "viewer",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "viewer",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "admin",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "admin",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "admin",
+      "method": "rpc",
+      "name": "ideacad_set_advisory_rules",
+      "error": {
+        "code": "P0001",
+        "message": "Use finite, nonnegative numeric limits or leave a bound empty. Each minimum must be at most its maximum."
+      }
+    },
+    {
+      "actor": "admin",
+      "method": "rpc",
+      "name": "ideacad_set_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "admin",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "admin",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_create_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_concept_history",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_open_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_concept_history",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_open_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_concept_history",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_open_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_concept_history",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_open_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_concept_history",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_save_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_documents",
+      "error": null
+    },
+    {
+      "actor": "admin",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "admin",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "admin",
+      "method": "rpc",
+      "name": "ideacad_set_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_open_direct_document",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_direct_concept_history",
+      "error": null
+    },
+    {
+      "actor": "owner",
+      "method": "rpc",
+      "name": "ideacad_advisory_rules",
+      "error": null
+    }
+  ],
+  "documents": [
+    {
+      "id": "3ecae070-28e8-4e5a-97bc-434d3aefeb93",
+      "model_format": "solid-v1",
+      "title": "Owner private seed",
+      "item_id": null,
+      "student_email": "bridge.owner@boscotech.net",
+      "archived_at": null
+    },
+    {
+      "id": "10a2ff90-dbea-40c3-a3b6-7559c8cde6a5",
+      "model_format": "solid-v1",
+      "title": "Editor private seed",
+      "item_id": null,
+      "student_email": "bridge.editor@boscotech.net",
+      "archived_at": null
+    },
+    {
+      "id": "b4b4baed-7bbd-4189-8021-5c1cea5b8e15",
+      "model_format": "solid-v1",
+      "title": "Shared editor box",
+      "item_id": "a50fa97c-7060-402a-80cf-d826e6b76fb8",
+      "student_email": "bridge.owner@boscotech.net",
+      "archived_at": "2026-09-15T09:17:54.836Z"
+    },
+    {
+      "id": "2c6b7223-a6e2-4444-9aaa-21fdf80f6735",
+      "model_format": "solid-v1",
+      "title": "Phone box",
+      "item_id": null,
+      "student_email": "bridge.owner@boscotech.net",
+      "archived_at": null
+    }
+  ],
+  "concepts": [
+    {
+      "id": "d18fe862-dbb3-4780-b08f-27b1848cd691",
+      "document_id": "3ecae070-28e8-4e5a-97bc-434d3aefeb93",
+      "revision": 1,
+      "features": {
+        "title": "Owner private seed",
+        "units": "in",
+        "addons": {
+          "ideaBlade": false
+        },
+        "bodies": [],
+        "format": "ideacad-solid-v1",
+        "kernel": "remus-f7907f5-2.130.20",
+        "sketches": []
+      }
+    },
+    {
+      "id": "ffdcb57b-01b3-4cf2-be59-51b5380754f1",
+      "document_id": "10a2ff90-dbea-40c3-a3b6-7559c8cde6a5",
+      "revision": 1,
+      "features": {
+        "title": "Editor private seed",
+        "units": "in",
+        "addons": {
+          "ideaBlade": false
+        },
+        "bodies": [],
+        "format": "ideacad-solid-v1",
+        "kernel": "remus-f7907f5-2.130.20",
+        "sketches": []
+      }
+    },
+    {
+      "id": "cab29c1f-39cc-4e64-9fba-5a69cd810ce1",
+      "document_id": "b4b4baed-7bbd-4189-8021-5c1cea5b8e15",
+      "revision": 9,
+      "features": {
+        "title": "Shared editor box",
+        "units": "in",
+        "addons": {
+          "ideaBlade": false
+        },
+        "bodies": [
+          {
+            "id": "98633305-359a-4f89-85fa-23037d1159c0",
+            "name": "Body 1",
+            "role": "part",
+            "artifact": "d181870b95678a931f51af201f79143df23c5fd3aec702fe0153f1fb667aecfa",
+            "materialId": null
+          }
+        ],
+        "format": "ideacad-solid-v1",
+        "kernel": "remus-f7907f5-2.130.20",
+        "sketches": []
+      }
+    },
+    {
+      "id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "document_id": "2c6b7223-a6e2-4444-9aaa-21fdf80f6735",
+      "revision": 9,
+      "features": {
+        "title": "Phone box",
+        "units": "in",
+        "addons": {
+          "ideaBlade": true
+        },
+        "bodies": [
+          {
+            "id": "16219b55-11a3-41ce-a784-9ff5090ac783",
+            "name": "Body 1",
+            "role": "part",
+            "massG": null,
+            "artifact": "1335ced3eae848fdd3113fa3fc2a31b3b60841c83db67f4d8c8e46589f3d7d11",
+            "massSource": "measured",
+            "materialId": "aluminum-6061-t6"
+          }
+        ],
+        "format": "ideacad-solid-v1",
+        "kernel": "remus-f7907f5-2.130.20",
+        "sketches": []
+      }
+    }
+  ],
+  "history": [
+    {
+      "concept_id": "cab29c1f-39cc-4e64-9fba-5a69cd810ce1",
+      "seq": "0",
+      "kind": "origin",
+      "path": "",
+      "operation_id": null,
+      "operation_start": null,
+      "result_revision": null,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "cab29c1f-39cc-4e64-9fba-5a69cd810ce1",
+      "seq": "1",
+      "kind": "insert",
+      "path": "/sketches/0",
+      "operation_id": "ee5ac872-8d46-4fc5-ad39-6845ada06287",
+      "operation_start": true,
+      "result_revision": 2,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "cab29c1f-39cc-4e64-9fba-5a69cd810ce1",
+      "seq": "2",
+      "kind": "insert",
+      "path": "/bodies/0",
+      "operation_id": "8adf447c-7d56-4cf6-b281-bbbf4f522c53",
+      "operation_start": true,
+      "result_revision": 3,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "cab29c1f-39cc-4e64-9fba-5a69cd810ce1",
+      "seq": "3",
+      "kind": "remove",
+      "path": "/sketches/0",
+      "operation_id": "8adf447c-7d56-4cf6-b281-bbbf4f522c53",
+      "operation_start": false,
+      "result_revision": null,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "cab29c1f-39cc-4e64-9fba-5a69cd810ce1",
+      "seq": "4",
+      "kind": "set",
+      "path": "/title",
+      "operation_id": "b3874e31-628b-4ddf-82f3-9503e80ad3f6",
+      "operation_start": true,
+      "result_revision": 4,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "cab29c1f-39cc-4e64-9fba-5a69cd810ce1",
+      "seq": "5",
+      "kind": "set",
+      "path": "/title",
+      "operation_id": "819a98a4-fa23-4e13-a6ce-336f824f5128",
+      "operation_start": true,
+      "result_revision": 5,
+      "undoes_seq": "4"
+    },
+    {
+      "concept_id": "cab29c1f-39cc-4e64-9fba-5a69cd810ce1",
+      "seq": "6",
+      "kind": "insert",
+      "path": "/sketches/0",
+      "operation_id": "af286f62-899d-42de-b611-5539ba3924eb",
+      "operation_start": true,
+      "result_revision": 6,
+      "undoes_seq": "3"
+    },
+    {
+      "concept_id": "cab29c1f-39cc-4e64-9fba-5a69cd810ce1",
+      "seq": "7",
+      "kind": "remove",
+      "path": "/bodies/0",
+      "operation_id": "af286f62-899d-42de-b611-5539ba3924eb",
+      "operation_start": false,
+      "result_revision": null,
+      "undoes_seq": "2"
+    },
+    {
+      "concept_id": "cab29c1f-39cc-4e64-9fba-5a69cd810ce1",
+      "seq": "8",
+      "kind": "insert",
+      "path": "/bodies/0",
+      "operation_id": "05bb9e59-dd13-47fc-bdd0-0f5368a8d672",
+      "operation_start": true,
+      "result_revision": 7,
+      "undoes_seq": "7"
+    },
+    {
+      "concept_id": "cab29c1f-39cc-4e64-9fba-5a69cd810ce1",
+      "seq": "9",
+      "kind": "remove",
+      "path": "/sketches/0",
+      "operation_id": "05bb9e59-dd13-47fc-bdd0-0f5368a8d672",
+      "operation_start": false,
+      "result_revision": null,
+      "undoes_seq": "6"
+    },
+    {
+      "concept_id": "cab29c1f-39cc-4e64-9fba-5a69cd810ce1",
+      "seq": "10",
+      "kind": "set",
+      "path": "/title",
+      "operation_id": "fb7c35fe-614b-4adf-9269-10ed1f6ad76b",
+      "operation_start": true,
+      "result_revision": 8,
+      "undoes_seq": "5"
+    },
+    {
+      "concept_id": "cab29c1f-39cc-4e64-9fba-5a69cd810ce1",
+      "seq": "11",
+      "kind": "set",
+      "path": "/title",
+      "operation_id": "a17f3918-637b-4d64-9ad6-2ba0cd3d678c",
+      "operation_start": true,
+      "result_revision": 9,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "d18fe862-dbb3-4780-b08f-27b1848cd691",
+      "seq": "0",
+      "kind": "origin",
+      "path": "",
+      "operation_id": null,
+      "operation_start": null,
+      "result_revision": null,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "seq": "0",
+      "kind": "origin",
+      "path": "",
+      "operation_id": null,
+      "operation_start": null,
+      "result_revision": null,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "seq": "1",
+      "kind": "insert",
+      "path": "/sketches/0",
+      "operation_id": "f288c435-8084-46bb-a42f-cea5adaf504e",
+      "operation_start": true,
+      "result_revision": 2,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "seq": "2",
+      "kind": "insert",
+      "path": "/bodies/0",
+      "operation_id": "2c9e1d45-2d20-421f-8e1a-1c2bbab933e2",
+      "operation_start": true,
+      "result_revision": 3,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "seq": "3",
+      "kind": "remove",
+      "path": "/sketches/0",
+      "operation_id": "2c9e1d45-2d20-421f-8e1a-1c2bbab933e2",
+      "operation_start": false,
+      "result_revision": null,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "seq": "4",
+      "kind": "set",
+      "path": "/title",
+      "operation_id": "c1d3f0a3-c5ac-43f8-8cf7-a48381056348",
+      "operation_start": true,
+      "result_revision": 4,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "seq": "5",
+      "kind": "set",
+      "path": "/bodies/0/materialId",
+      "operation_id": "5133b4de-e9d9-493b-af68-77670695717f",
+      "operation_start": true,
+      "result_revision": 5,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "seq": "6",
+      "kind": "insert",
+      "path": "/bodies/0/massG",
+      "operation_id": "5133b4de-e9d9-493b-af68-77670695717f",
+      "operation_start": false,
+      "result_revision": null,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "seq": "7",
+      "kind": "insert",
+      "path": "/bodies/0/massSource",
+      "operation_id": "5133b4de-e9d9-493b-af68-77670695717f",
+      "operation_start": false,
+      "result_revision": null,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "seq": "8",
+      "kind": "set",
+      "path": "/bodies/0/massSource",
+      "operation_id": "2b8799f6-e126-495f-bbc9-5f01d52d69ec",
+      "operation_start": true,
+      "result_revision": 6,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "seq": "9",
+      "kind": "set",
+      "path": "/bodies/0/massG",
+      "operation_id": "7227bfaf-a3da-47d1-bcdd-b604acd51f0d",
+      "operation_start": true,
+      "result_revision": 7,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "seq": "10",
+      "kind": "set",
+      "path": "/bodies/0/massG",
+      "operation_id": "3f4dd22c-af4c-48a1-b7f0-46b37e3c648e",
+      "operation_start": true,
+      "result_revision": 8,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "seq": "11",
+      "kind": "set",
+      "path": "/bodies/0/massSource",
+      "operation_id": "3f4dd22c-af4c-48a1-b7f0-46b37e3c648e",
+      "operation_start": false,
+      "result_revision": null,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "seq": "12",
+      "kind": "set",
+      "path": "/bodies/0/materialId",
+      "operation_id": "3f4dd22c-af4c-48a1-b7f0-46b37e3c648e",
+      "operation_start": false,
+      "result_revision": null,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "f7fafb9b-f189-4acf-abdb-9c91b6d62b3d",
+      "seq": "13",
+      "kind": "set",
+      "path": "/addons/ideaBlade",
+      "operation_id": "98ccdd21-ff0a-41b7-bd1e-eb13d7f8e18b",
+      "operation_start": true,
+      "result_revision": 9,
+      "undoes_seq": null
+    },
+    {
+      "concept_id": "ffdcb57b-01b3-4cf2-be59-51b5380754f1",
+      "seq": "0",
+      "kind": "origin",
+      "path": "",
+      "operation_id": null,
+      "operation_start": null,
+      "result_revision": null,
+      "undoes_seq": null
+    }
+  ],
+  "artifacts": [
+    {
+      "document_id": "2c6b7223-a6e2-4444-9aaa-21fdf80f6735",
+      "hash": "1335ced3eae848fdd3113fa3fc2a31b3b60841c83db67f4d8c8e46589f3d7d11",
+      "bytes": 4963
+    },
+    {
+      "document_id": "b4b4baed-7bbd-4189-8021-5c1cea5b8e15",
+      "hash": "d181870b95678a931f51af201f79143df23c5fd3aec702fe0153f1fb667aecfa",
+      "bytes": 4970
+    }
+  ],
+  "rules": [
+    {
+      "revision": "1",
+      "limits": {
+        "maxMassG": 680,
+        "minMassG": null,
+        "maxHeightIn": 3.1,
+        "minHeightIn": 2.9,
+        "maxDiameterIn": 5,
+        "minDiameterIn": null,
+        "maxHexExtensionIn": null,
+        "minHexExtensionIn": 0.5
+      },
+      "changed_by": null
+    },
+    {
+      "revision": "2",
+      "limits": {
+        "maxMassG": 700,
+        "minMassG": null,
+        "maxHeightIn": 3.1,
+        "minHeightIn": 2.9,
+        "maxDiameterIn": 5,
+        "minDiameterIn": null,
+        "maxHexExtensionIn": 0.9,
+        "minHexExtensionIn": 0.5
+      },
+      "changed_by": "bridge.admin@boscotech.net"
+    },
+    {
+      "revision": "3",
+      "limits": {
+        "maxMassG": 700,
+        "minMassG": null,
+        "maxHeightIn": 3.1,
+        "minHeightIn": 2.9,
+        "maxDiameterIn": 1,
+        "minDiameterIn": null,
+        "maxHexExtensionIn": 0.9,
+        "minHexExtensionIn": 0.5
+      },
+      "changed_by": "bridge.admin@boscotech.net"
+    }
+  ]
+}

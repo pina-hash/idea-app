@@ -70,7 +70,7 @@ describe('IdeaCAD manufacturing export round trips', () => {
 
 	it('captures traceability fields and rule results in the manifest', () => {
 		const manifest = JSON.parse(new TextDecoder().decode(exportManifest(evaluation, { partName: 'A-side blade', material: 'AR500', stockThicknessMm: 3.175 })));
-		expect(manifest).toMatchObject({ partName: 'A-side blade', material: 'AR500', stockThicknessMm: 3.175, massG: evaluation.massG });
-		expect(manifest.rules).toEqual(evaluation.rules);
+		expect(manifest).toMatchObject({ partName: 'A-side blade', material: 'AR500', stockThicknessMm: 3.175, massG: null });
+		expect(manifest.rules).toEqual(evaluation.rules.map(rule=>rule.id==='mass'?{...rule,value:null,pass:null}:rule));
 	});
 });

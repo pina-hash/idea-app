@@ -1,0 +1,46 @@
+{
+  "bracket": {
+    "volume": 2.2400005744485347,
+    "painted": {
+      "fraction": 0.23756723175381264,
+      "width": 1440,
+      "height": 816
+    }
+  },
+  "drilled": 2.169314605182983,
+  "filleted": {
+    "volume": 2.1714606235490135,
+    "painted": {
+      "fraction": 0.16129238153594772,
+      "width": 1440,
+      "height": 816
+    }
+  },
+  "restored": 2.1714606235490135,
+  "blankControl": {
+    "fraction": 0,
+    "width": 1440,
+    "height": 816
+  },
+  "dxfBytes": 977,
+  "backupRoundTrip": true,
+  "phone": {
+    "painted": {
+      "fraction": 0.07211625794732061,
+      "width": 375,
+      "height": 734
+    },
+    "overflow": 0,
+    "canvas": {
+      "x": 0,
+      "y": 52,
+      "width": 375,
+      "height": 734,
+      "top": 52,
+      "right": 375,
+      "bottom": 786,
+      "left": 0
+    }
+  },
+  "errors": []
+}

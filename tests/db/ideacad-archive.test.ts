@@ -809,7 +809,7 @@ describe('G. the enrollment census 0214 must not have touched', () => {
 		const all = readdirSync(new URL('../../supabase/migrations', import.meta.url))
 			.filter((file) => file.endsWith('.sql'))
 			.sort();
-		const without = all.filter((file) => !file.startsWith('0214_'));
+		const without = all.filter((file) => file < '0214_ideacad_document_archive.sql');
 		const db = await startTestDb(['../../tests/db/full-chain-fixture-completion.sql', ...without]);
 		try {
 			const read = async () => {

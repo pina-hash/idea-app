@@ -4,259 +4,217 @@ This document owns IdeaCAD's product scope. It separates Mr. Pina's decisions
 from what the repository happens to implement today. Implementation is evidence,
 not permission to infer the unanswered product decisions listed at the end.
 
-## WHAT THIS IS AND WHAT IT IS NOT
+## Direct modeler rewrite, 2026-09-15
 
-> "This is not a technical precision program. You are sketching things in 3D
-> space to get your idea across. It should be quick to use, extremely quick to
-> use. It's IdeaCAD, as in it's to develop ideas. It's not to make technical
-> drawings."
+Alejandro explicitly adopted Product Specification v1 and Addendum A as the
+instructions for the rewrite. The addendum takes precedence. New documents are
+standalone, empty exact-solid documents, with IdeaBlade disabled. The eight-row
+blade generator remains a compatibility reader for existing work, rather than
+the model for new work. The full product acceptance test is still outstanding.
 
-> "It is NOT SolidWorks. It should be easy to use and should NOT require any
-> kind of training to use. It should be as intuitive as drawing."
+### Kernel decision and measured spike
 
-The working rule that follows is:
+Choose **Remus**, pinned to its frozen WASM compatibility artifact at
+`9307e73d880ed824b2b62e44c4a1beb9d5d7b787`, behind an application-owned adapter.
+This is an unpublished snapshot, not a claimed stable upstream release. Its
+direct face operation and construction journal fit the product better than an
+application that emulates each local edit with booleans. Keep exact B-rep bytes
+as the durable geometry; generated meshes are projections. All kernel work runs
+in a Web Worker. Persist the encoding revision so upgrades cannot reinterpret
+old documents silently.
 
-- Where SolidWorks conventions genuinely help, they are adopted - the 3D
-  viewport mouse controls are the clear case, because they are muscle memory a
-  user already has and inventing different ones would be a cost with no benefit.
-- Everything else is judged by whether a fourteen-year-old who has never opened
-  a CAD program can do it without being told how. A feature that needs explaining
-  is a defect, not a feature with documentation missing.
-- Speed and directness beat precision and rigor wherever they conflict. That is
-  a deliberate trade, not an oversight.
-- Discoverability is a correctness property. "Requires training" carries the
-  same weight as "crashes".
+Measurements on this Windows workstation (Intel i9-10900K, Node 26.2.0, Chrome
+152.0.7977.84, localhost, fresh browser context) use a 4 × 3 × 1 inch box minus
+a radius-0.5 through-cylinder. Expected volume is `12 - pi/4`, or
+11.2146018366 in³. Both kernels returned one valid solid with that volume; a
+40-inch top-face push returned 459.7986753007 in³ and preserved selection.
 
-The evidence for this section is two moments: the owner opened the editor and
-said "I don't know how to do anything"; and an earlier build edited a solid of
-revolution through a table of sixteen numeric r/z rows, which he called
-"extremely annoying to do anything meaningful" - a spreadsheet with a 3D
-preview rather than a sketching tool.
+| Measure | occt-wasm 5.0.0 | Remus pinned artifact |
+| --- | ---: | ---: |
+| WASM raw bytes | 22,226,346 | 8,315,198 |
+| WASM Brotli-11 bytes | 4,902,428 | 2,047,764 |
+| Worker kernel initialization | 78.2 ms | 31.7 ms |
+| First browser cylinder subtraction | 72.1 ms | 60.0 ms |
+| Warm browser drag, representative range | 19–29 ms | 4.7–7.8 ms |
+| Selection correspondence | Custom unique planar correspondence | Native construction provenance |
 
-### REJECTED PATTERNS
+The spike renderer submitted warm frames in approximately 8–14 ms, with a
+72–83 ms first shader/render cost. Those are CPU-side submission times, not GPU
+completion measurements or proof of 60 fps on school integrated graphics.
+Download times over a school network and novice-user testing remain unmeasured.
+The harness uses real pointer selection and drag, checks painted pixels with
+preserved drawing buffers, and captures 1440px and 375px screenshots. Its source
+is `tools/ideacad-kernel-spike`; evidence is in `docs/ideacad/kernel-spike`.
 
-- editing geometry through a table of numbers
-- prose instructions in the interface explaining how a control works
-- a control whose only discovery path is trying it
-- a second way to do something that already has a way
+The Remus runtime trials also passed a non-blade L-bracket with a drilled hole
+and concave fillet, chamfer, shell, revolve, analytic arc extrusion, patterns,
+mirror, and scale. B-rep save/reload preserved the selection journal. A push
+through the opposite wall was refused without changing the original solid.
+Two adapter requirements emerged: normalize inner sketch winding, and compute
+per-face shading normals because the shared export mesh averages sharp corners.
 
-## The product decision
+Neither tested facade exposes arbitrary edge and vertex movement. The adapter
+now moves qualified edges and vertices by rebuilding adjoining planar support
+surfaces, and pushes planar/cylindrical faces. Curved local deformation remains
+unsupported and returns a refusal. This is not a general surface editor.
 
-Mr. Pina's framing is the governing definition:
+Alternatives: occt-wasm has strong exact construction but lacks a direct local
+face/edge/vertex editing facade. brepjs does not fill that gap. OpenCascade.js's
+tested beta WASM was 50,305,130 bytes raw and 9,847,550 Brotli. Manifold is much
+smaller but uses mesh geometry; its face/OriginalID attribution exists, contrary
+to the addendum's categorical claim. The quoted claim that its author rejected
+real-time use could not be verified and was not used in the choice.
 
-> “This is not a technical precision program. You are sketching things in 3D
-> space to get your idea across. It should be quick to use, extremely quick to
-> use. It's IdeaCAD, as in it's to develop ideas. It's not to make technical
-> drawings.”
+Primary references: [Remus API](https://github.com/esaueng/remus/blob/9307e73d880ed824b2b62e44c4a1beb9d5d7b787/crates/wasm/pkg/remus_wasm.d.ts),
+[Remus release policy](https://github.com/esaueng/remus/blob/9307e73d880ed824b2b62e44c4a1beb9d5d7b787/docs/production-readiness/fork-maintenance.md),
+[OpenZCAD architecture](https://github.com/esaueng/OpenZCAD/blob/main/architecture.md),
+[occt-wasm facade](https://github.com/andymai/occt-wasm), and
+[Manifold attribution](https://manifoldcad.org/docs/jsapi/classes/manifold.Mesh.html).
 
-When speed and directness conflict with precision or rigor, **speed and
-directness win**. IdeaCAD is for developing and communicating an idea, not for
-producing technical drawings. See decision 31.
+### Mouse contract for the rewrite
 
-## The application boundary
+| Gesture | Result |
+| --- | --- |
+| Middle down + drag | Orbit about the point raycast at down; capture it once |
+| Middle down on empty space | Use the view-plane point through the current target |
+| Upward middle drag | Show the underside; preserve the existing horizontal sign |
+| Ctrl + middle drag | Pan |
+| Shift + middle drag | Zoom |
+| Wheel | Zoom toward the cursor |
+| Ctrl + Alt + middle drag | Unbound; camera-edit mode is outside this scope |
+| Alt + middle drag | Unbound; no verified binding adopted |
+| Right click | Suppress the browser context menu inside the viewport |
 
-**IdeaCAD is a standalone, full-screen application reached from the home page.**
-Embedding the editor in a classroom assignment page was tried, shipped, and
-**rejected on sight**: the graphics area rendered about **373px wide**. That is a
-rejected approach, not an unfinished layout to revisit. A classroom assignment
-may point into IdeaCAD; it may not become the frame around the editor.
+The owner's down-and-drag pivot preference takes precedence over SOLIDWORKS'
+documented click-entity-then-drag refinement. Sources:
+[SOLIDWORKS view controls](https://blogs.solidworks.com/products/solidworks/how-do-i-manipulate-my-model-view-let-me-count-the-ways/) and
+[middle button documentation](https://help.solidworks.com/2024/English/SolidWorks/sldworks/r_Middle_Mouse_Button.htm).
 
-Today `/ideacad` is authenticated and removes the portal reading-column ceiling.
-It renders its own 48px command bar and a viewport-filling document/editor area.
-The home launcher routes to it. Desktop has independently collapsible, resizable
-feature and property panes; their widths are saved in
-`profiles.preferences.ideacad`. At 375px the panes become full-width overlays
-selected by Features / Graphics / Properties. The existing Blade editor remains
-the only editor render path. (`src/routes/ideacad/+layout.svelte`,
-`src/routes/ideacad/+page.server.ts`, `src/lib/ideacad/app/IdeaCadApp.svelte`;
-ledger 0227.)
+### Preservation and unresolved domain input
 
-## Assignments hand off; they do not contain the app
+Keep existing student rows unchanged and open them with their recorded format.
+Use additive schema changes for standalone documents and a compare-and-swap
+save that checks the stored revision while holding a row lock. Production
+migration application remains Alejandro's action. Preserve deliberate archive
+and instructor reachability from decision 29; leaving a section must not delete
+work. The collar-height relationship is unspecified in Addendum A and has been
+asked of Alejandro; the invented 10% clamp is not adopted.
 
-An assignment links to IdeaCAD through a plain embedded link that the student
-clicks — **“nothing fancy.”** Import attaches that link automatically; it is not
-confirmed by hand.
+## Current implementation
 
-Assignment context is **copied into the assignment at import, never live-linked
-to a template**. Editing a template later must never alter work a student has
-already opened. The automatic import/link flow is not present in the inspected
-IdeaCAD tree. What exists today is the older schema-4 attachment path:
+`/ideacad` opens its chooser. Any signed-in user can create an empty standalone
+document. The classroom item links to the app; it no longer creates a legacy
+blade automatically. IdeaBlade is off for every new document.
 
-- `ideacad_set_editor` changes a classroom assignment to schema 4 and stores the
-  editor name and JSON configuration in the item-keyed `ideacad_editors` row.
-- The teacher control supplies Blade's current `DEFAULT_BLADE_CONFIG`. Turning
-  the editor off deletes that editor row and clears schema 4, but does not delete
-  documents, concepts, or predictions; turning it back on exposes the existing
-  work again.
-- A student's first `ideacad_open_document(item_id)` copies
-  `config.defaultFeatures` into the first concept. Existing documents are opened
-  by document id through the non-creating `ideacad_open_shared_document` path.
+- **Geometry:** `solid/engine.ts` owns exact solids in a Web Worker. Face names
+  survive supported edits through the kernel journal; split faces receive new,
+  distinct IDs. Edge/vertex selections use the body topology epoch and incidence
+  handles. Tessellated meshes are disposable viewport/export projections.
+- **Modeling:** line/rectangle/circle/polygon/arc sketches, extrusion and cuts,
+  revolve, fillet/chamfer/shell, direct face edits, qualified edge/vertex edits,
+  transforms, mirror, linear/circular patterns, and multi-body Booleans.
+  Tools have icons and short hover descriptions. Typed values appear at the
+  cursor. Rule limits never become geometry clamps.
+- **Storage:** migration 0216 makes assignment linking optional, adds a format
+  discriminator, copied assignment context and immutable hash-addressed BREP
+  artifacts. Existing feature trees stay `blade-v1`; new manifests are
+  `ideacad-solid-v1`. Unknown kernel encodings refuse to open.
+- **History:** every accepted gesture is one durable operation. Undo and redo
+  append attributed inverse actions, and survive closing/reopening the app.
+  Writes require an exact revision; UUID receipts make uncertain retries
+  idempotent. A newer remote edit produces a conflict instead of an overwrite.
+  Save recovery offers a backup and an explicit discard-and-reopen confirmation.
+- **Sharing:** private by default, named viewers/editors, captured instructor
+  authority after assignment linking, deliberate archive/restore, and class
+  reference sharing of archived models. Classroom deletion cannot cascade away
+  new solid documents. New clients discover other editors' changes on reopen;
+  automatic live refresh is not implemented.
+- **Exports:** 3MF is first, STL remains available, and DXF exports a selected
+  sketch or planar face with analytic lines, arcs and circular holes in mm.
+  `.ideacad` backups contain the manifest and original BREP bytes. Import is
+  undoable, checks hashes/units/structure, and preserves the open model on failure.
 
-Those facts describe the current implementation. They do not decide the open
-import format or authorize a live template link. See decision 32 and migration
-`0201`.
+### Administrator controls
 
-## Documents, workspaces, and contexts
+Site admins can open **IdeaBlade limits** in the chooser, or **Edit limits** in
+the model's IdeaBlade panel. There are minimum and maximum fields for diameter,
+body height, assembly mass and hex extension. Empty means no bound. These are
+the eight numeric values used by the automatic checks. Ordinary teachers do not
+gain this global permission merely by managing a class.
 
-### Decided invariants
+Saving appends a rules revision and records the admin. A stale settings window
+cannot overwrite newer settings. Open modelers refresh rules on focus and once
+per minute, and read fresh settings when the dialog opens. Changing a threshold
+changes the verdict without editing geometry or document history.
 
-- A document's workspace is **immutable once it has work**. Moving work to a
-  different workspace is an explicit **copy**, never an in-place workspace
-  change.
-- Workspace contexts are **versioned**. Updating a workspace must never lose
-  existing work. An unknown workspace or unknown/higher context version is
-  refused loudly, never guessed, downgraded, or coerced.
-- There will be a **BLANK / general workspace** alongside Blade. The blank
-  workspace can **OPEN documents from other workspaces**. It is not built.
-- While Blade is the only workspace, standalone IdeaCAD defaults to Blade. Once
-  two workspaces exist, IdeaCAD presents a workspace chooser.
+### Part mass and approved density sources
 
-### What the workspace code actually supplies today
+Alejandro's later instruction limits density references to **MatWeb and Bambu
+Lab**, and supersedes the previous generic printed-plastic/fill calculation.
 
-`workspaceRegistry` is an immutable, explicitly constructed registry containing
-only `bladeWorkspace`. Unknown ids throw `UnknownWorkspaceError`; duplicate ids
-are refused. Blade has context version 1. Missing, non-integer, older (there is
-no older migration), or higher versions throw `WorkspaceContextVersionError`
-before the adapter reads version-specific configuration. The adapter delegates
-starting-tree creation, validation, and evaluation to the existing Blade code.
+In **Objects → body → Material**, printed PLA, ABS, HIPS, TPU and Other have no
+bulk density. Enter the finished part's **Bambu Studio estimate** or **scale
+measurement** in grams. Exclude supports, purge, brim and other removable
+material. A geometry change clears the entered mass; moving or rotating the
+unchanged part preserves it. Changing material clears the old override/source.
 
-This contract is **not persisted by the current document schema**. There is no
-workspace id or context-version column on `ideacad_documents`; the stored editor
-configuration remains item-keyed. Consequently, immutable workspace identity,
-explicit copy between workspaces, the blank workspace, cross-workspace opening,
-and the two-workspace chooser are not built. (`src/lib/ideacad/workspaces.ts`,
-`src/lib/ideacad/blade/workspace.ts`; ledger 0230.)
+The four stock reference choices use the cited MatWeb values: 6061-T6/T651
+aluminum 2.70 g/cm³, AISI 1018 carbon steel 7.87, annealed 304 stainless 8.00,
+and Makrolon ET2613 solid polycarbonate 1.20. The catalog links directly to each
+record. MatWeb's indexed records supplied these numbers; direct pages blocked
+automated full-page retrieval. They are reference estimates, not certificates
+for unidentified shop stock. Generic carbon, stainless, galvanized and unknown
+steel, and unidentified polycarbonate, stay unverified. A measured mass can be
+entered for any body.
 
-## What exists today
+Bambu Studio's source distinguishes model filament from support/purge categories,
+but a plate subtotal can still include brim/skirt. No automatic slicer integration
+or inferred effective density is claimed. Reference:
+[Bambu Studio filament accounting](https://github.com/bambulab/BambuStudio/blob/56e0ee35f0e720ba6819ec2395a17e679aa95751/src/slic3r/GUI/GCodeRenderer/BaseRenderer.cpp#L1850).
 
-The shipped data model began in migration `0201` and was extended by the later
-IdeaCAD migrations. Its core is:
+Assembly mass is unknown until every part has a supported value. Slicer and
+stock-density results say **Estimate**. Center of mass, inertia and radius of
+gyration are calculated only when every body's mass distribution is supported
+by a uniform stock reference; a printed/measured total alone cannot establish
+its internal distribution. Legacy geometry remains readable, but the website
+shows its unsupported mass/physics as Unknown and exports those values as null.
+The old closed-form arithmetic remains testable for historical interpretation.
 
-- `ideacad_editors`: one editor registration and JSON config per classroom item.
-- `ideacad_documents`: one student-owned document per `(item_id, student_email)`.
-- `ideacad_concepts`: ordered, revisioned feature trees under a document, with an
-  active concept selected by the document.
-- `ideacad_predictions`: one selected concept and rationale per document. The
-  prediction gates nothing; physics stays visible.
-- `ideacad_materials`: global and student-custom material data, retired rather
-  than deleted.
-- Durable attributed action history, document grants, assembly parts with
-  checkout, private Realtime broadcast, and archive/class-sharing layers are
-  implemented by the migrations after `0201` and consumed under
-  `src/lib/ideacad/`.
+### Limits of the current tools
 
-The Blade surface provides a feature tree, property manager/profile preview,
-Three.js graphics viewport, concept cards, always-visible rule and physics
-readouts, prediction, durable attributed history with undo/redo, sharing,
-assembly parts/checkout, and archive surfaces. Documents are private by default;
-named classmates can be viewers or editors, and the instructor managing the
-item can read and edit. The separate decision entries 24–30 own those answers;
-this scope document does not replace them.
+The polygon tool draws six sides; the arc tool creates a closed arc-and-chord
+profile. Revolve uses the sketch's vertical axis. Linear patterns use world X;
+circular patterns use world Z with full-circle spacing. Mirrors use the selected
+origin plane. General mixed-curve sketch editing, arbitrary local edits on curved
+edges/vertices, and free placement of pattern/revolve axes are not implemented.
+The standard-parts check reports **Manual inspection**; unknown launcher-fit and
+collar-height rules are not invented. Body roles identify hex core and other
+hardware for the advisory measurements.
 
-Migration `0214` adds `archived_at` and `archived_by`. Archiving blocks writes but
-not reads. Its instructor archive listing is item-keyed because the live roster
-is enrollment-driven and cannot name a departed owner's document. A class share
-is always view-only, is live against enrollment, and is available only for an
-archived document. Documents and materials are retired/archived rather than
-deleted under their existing decisions.
+Diameter is the swept diameter about origin Z from a mesh with known tolerance;
+near-limit results are Unknown. Height excludes bodies marked Hex core. Hex
+extension is measured above the other bodies' top. Students must orient the
+assembly and assign roles consistently with those definitions.
 
-## What has been measured
+## Verification and release
 
-These numbers are historical measurements of the named builds, not promises
-about an unmeasured browser today:
+The local run passed **72 IdeaCAD files / 1,077 tests**, including real kernel
+operations, persistence, permissions, failure recovery and legacy compatibility.
+The complete repo run also exposed unrelated Windows/line-ending/Node failures;
+all 39 affected non-IdeaCAD files were compared against the original baseline.
+See [verification](ideacad/verification/README.md) and the
+[real-database browser report](ideacad/verification/BROWSER_VERIFICATION.md).
 
-- The rejected classroom embedding produced an approximately **373px-wide**
-  graphics area; that sight test established the standalone boundary.
-- The standalone desktop grid at 1440px resolves to **260 + 6 + 934 + 6 + 240px**,
-  leaving **934px** for graphics. At 375px each switched pane occupies the full
-  **375px** width. Ledger 0227 records these as CSS arithmetic because Chromium
-  could not launch in that environment.
-- Before the route-specific layout reset, the global app shell capped the
-  supposedly full-screen route at **880px**. At a 1900px viewport the reset
-  changes that resolved constraint to the application's full **1900px** width.
-  Ledger 0228 also records this as CSS arithmetic rather than live DOM output.
-- The robustness pass began with **50 route/width runs, 972 measurements, 0
-  outside threshold**, despite interaction defects. After its fixes it recorded
-  **52 route/width runs, 1006 measurements, 0 outside threshold** and **70
-  self-test controls with 0 instrument failures**. This is why a green geometry
-  threshold is not treated as proof that the editor is usable. Ledger 0224
-  contains the drive and screenshots.
-- That drive measured seven orientation rows at **345px in a 278px box** before
-  the phone menu fix. It also found an unpressable phone confirmation, an empty
-  concept-list crash, and a two-word stale-save message; those four defects were
-  fixed in ledger 0224.
-- The durable history schema measured **220.5 bytes per action**, including heap,
-  indexes, and page overhead, against a **400-byte** budget. Decision 28 owns the
-  retention implication.
+The novice student's five-minute cold test, school integrated-GPU 60 fps target,
+school-network behavior and deployed authentication are
+still unverified. Local tests and screenshots do not substitute for those checks.
 
-## Known broken or structurally impossible today
+Alejandro confirmed manual application of migration 0216 on 2026-09-15 and
+supplied its **27 readiness rows, all true**, then authorized release to main.
+The [application record](migrations-applied/0216-ideacad-direct-modeler.md) is
+based on his report; this task did not connect to or write the production database.
 
-### A genuinely assignment-free document is impossible
-
-`ideacad_documents.item_id` is a **NOT NULL** foreign key to
-`classroom_items`, and its uniqueness is `(item_id, student_email)`.
-`ideacad_editors` is item-keyed too. Therefore the standalone app is a standalone
-*surface*, not an assignment-independent storage model. “New document” currently
-means “create from an available assignment-backed editor registration.” A truly
-general document requires a migration; ledger 0235 authorizes none.
-
-### The chooser sends a teacher toward a student-only creation gate
-
-`/ideacad/+page.server.ts` admits any signed-in user and builds its chooser from
-documents visible through RLS plus editor registrations. The chooser's “New
-document” buttons always call `store.open(itemId)`, which invokes
-`ideacad_open_document`. That RPC begins with `_classroom_engine_student` and
-therefore requires an actively enrolled student. A teacher can reach the chooser
-and can be shown a starter, but clicking it routes the teacher through a
-student-only gate and refuses. Existing document buttons use
-`openShared(documentId)`, whose deployed manager branch is different; this does
-not repair the new-document path.
-
-### The workspace boundary is not connected to stored documents
-
-Blade's versioned adapter refuses bad context in isolation, but the route/store
-still load item configuration directly and documents carry no workspace/context
-identity. The safety contract exists in code; the persistence path needed to
-enforce it for a document does not.
-
-### Known layout debt retained after the robustness pass
-
-Ledger 0224 deliberately left three observed limitations: the Materials panel
-was measured **446px taller** than its pane at 1440; the 375px compare sheet held
-**1151px of content in a 650px scroll box**; and the no-store preview harness
-showed “Saved” immediately. These are recorded limitations, not new product
-decisions. Their desired remedies remain open.
-
-## Open questions — no answer is implied
-
-Everything below is open unless a cited existing decision entry already owns it:
-
-1. What exact tools and feature model make up the blank/general workspace?
-2. What does “open documents from other workspaces” do: interpret in place,
-   offer a copy, or open read-only?
-3. What does the workspace chooser show, and can a person save a preferred
-   default after the second workspace exists?
-4. What exact database shape persists workspace id and context version?
-5. What exact event means a document “has work” and freezes its workspace?
-6. What data and permissions carry into an explicit cross-workspace copy?
-7. How are supported older contexts migrated while preserving the original,
-   and what recovery/export is offered for a loudly refused newer context?
-8. What is the assignment import/template format, and exactly which context is
-   copied at import?
-9. Where and how is the plain IdeaCAD link attached automatically, and what are
-   its link text and destination parameters?
-10. What happens when import encounters an unknown workspace or unsupported
-    context version?
-11. May an unopened assignment be deliberately refreshed from a newer template,
-    and how is “unopened/no work” proven?
-12. How, if at all, are existing schema-4 assignments transitioned to the
-    copied-context/plain-link flow?
-13. Should teachers be offered any document-creation path in the standalone
-    chooser, and if so what do they create and own?
-14. What migration makes genuinely assignment-free documents possible without
-    weakening assignment ownership, sharing, archive, or instructor access?
-15. Should the retained Materials-panel and phone compare-sheet overflow be
-    redesigned, and what interaction should replace each?
-
-The current tree, its convenience defaults, and the names of existing RPCs do
-not decide any of these questions.
+The prior product record, including the numbered decisions and older schema
+limitations, is preserved in [legacy-product-record.md](ideacad/legacy-product-record.md).
+The adopted [v1 specification](ideacad/specifications/IDEACAD_SPEC_v1.md) and
+[addendum](ideacad/specifications/IDEACAD_SPEC_ADDENDUM.md) are retained verbatim.

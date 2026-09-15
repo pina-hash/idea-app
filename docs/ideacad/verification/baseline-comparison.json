@@ -1,0 +1,24 @@
+{
+  "baselineCommit": "db4ddbe659fdcb3d489e4bf0a3b07b508c48aa33",
+  "node": "v26.2.0",
+  "platform": "win32",
+  "selectedFiles": 39,
+  "baselineFilesFailed": 38,
+  "baselineFilesPassed": 1,
+  "baselineTestsFailed": 91,
+  "baselineTestsPassed": 405,
+  "baselineTestsSkipped": 40,
+  "currentFailureHeadings": 109,
+  "baselineFailureHeadings": 108,
+  "controlFailureHeadings": 1,
+  "currentHeadingsNotReproduced": [],
+  "additionalBaselineHeadings": [],
+  "oneDifference": "notebook-section-reviewer-tier passes in clean CRLF baseline. Replacing CRLF with LF only in scratch migration 0106 reproduces exact current failure, 1 failed/25 passed. Source bytes restored.",
+  "preparation": [
+    "node_modules junction to existing installation",
+    "placeholder .env + svelte-kit sync",
+    "tests/db/cluster.ts same UTF8/C initdbFlags as current run"
+  ],
+  "allSelectedTestSourcesByteIdentical": true,
+  "finalBaselineDiff": "tests/db/cluster.ts | 1 +\n 1 file changed, 1 insertion(+)"
+}

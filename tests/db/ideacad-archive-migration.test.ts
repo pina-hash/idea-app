@@ -81,8 +81,11 @@ const authedExec = async (sig: string) => {
 // ---------------------------------------------------------------------------
 describe('A. the file re-applies over the database it already built', () => {
 	it('applies a second time with no error and the same end state', async () => {
+		// Reapply this migration's own end state, without replacing newer gates.
+		const reapplyDb = await startTestDb([FIXTURE_COMPLETION, ...ALL.filter((f) => f <= TARGET)]);
+		try {
 		const shape = async () => {
-			const { rows } = await db.sql<{ sig: string }>(
+			const { rows } = await reapplyDb.sql<{ sig: string }>(
 				`select p.oid::regprocedure::text as sig
 				   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 				  where n.nspname = 'public' and p.proname ~ '^_?ideacad' order by 1`
@@ -90,7 +93,7 @@ describe('A. the file re-applies over the database it already built', () => {
 			return rows.map((r) => r.sig);
 		};
 		const before = await shape();
-		await db.sql(TARGET_SQL);
+		await reapplyDb.sql(TARGET_SQL);
 		expect(await shape()).toEqual(before);
 
 		// Positive control: the shape read is capable of finding this file's own
@@ -98,7 +101,8 @@ describe('A. the file re-applies over the database it already built', () => {
 		// `regprocedure` renders unqualified when the schema is on the search
 		// path, so this matches on the bare name rather than on `public.`.
 		expect(before.some((s) => s.includes('ideacad_archive('))).toBe(true);
-	}, 120_000);
+		} finally { await reapplyDb.stop(); }
+	}, 240_000);
 
 	it('the policy it creates is dropped by name before each create, so the second apply does not collide', () => {
 		const drops = TARGET_SQL.match(
@@ -130,7 +134,8 @@ describe('A. the file re-applies over the database it already built', () => {
 // ---------------------------------------------------------------------------
 describe('B. it degrades past a missing 0207 instead of refusing', () => {
 	it('applies over the chain WITHOUT 0207, and narrows no assembly gate there', async () => {
-		const without = ALL.filter((f) => f !== '0207_ideacad_assembly_parts.sql' && f !== TARGET);
+		// This control measures 0214's compatibility, before later dependent migrations.
+		const without = ALL.filter((f) => f < TARGET && f !== '0207_ideacad_assembly_parts.sql');
 		const bare = await startTestDb([FIXTURE_COMPLETION, ...without]);
 		try {
 			// Precondition of the precondition: 0207 really is absent, so what
@@ -169,7 +174,8 @@ describe('B. it degrades past a missing 0207 instead of refusing', () => {
 			  where n.nspname = 'public' and p.proname = '_ideacad_part_owner'`
 		);
 		expect(rows).toHaveLength(1);
-		expect(rows[0].prosrc).toContain('_ideacad_document_archived');
+		// 0216 expresses the same archive gate directly on its format-aware row.
+		expect(rows[0].prosrc).toMatch(/not public\._ideacad_document_archived|d\.archived_at is null/);
 	});
 });
 

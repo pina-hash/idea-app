@@ -183,7 +183,7 @@ const MIGRATION_0206 = '0206_ideacad_grant_guard.sql';
  */
 interface IdeacadFn {
 	readonly kind: 'client' | 'definer';
-	readonly migration: '0201' | '0205' | '0207' | '0208' | '0209' | '0211' | '0214';
+	readonly migration: '0201' | '0205' | '0207' | '0208' | '0209' | '0211' | '0214' | '0216';
 	readonly reason: string;
 }
 
@@ -306,7 +306,28 @@ const IDEACAD_FUNCTIONS: Readonly<Record<string, IdeacadFn>> = {
 	ideacad_share_document_with_section: { kind: 'client', migration: '0214', reason: RPC_0214 },
 	ideacad_unshare_document_from_section: { kind: 'client', migration: '0214', reason: RPC_0214 },
 	ideacad_document_section_grants: { kind: 'client', migration: '0214', reason: RPC_0214 },
-	_ideacad_document_archived: { kind: 'definer', migration: '0214', reason: DEFINER_ONLY_0214 }
+	_ideacad_document_archived: { kind: 'definer', migration: '0214', reason: DEFINER_ONLY_0214 },
+	ideacad_read_brep_artifacts: {kind:'client',migration:'0216',reason:'Scoped immutable geometry reads.'},
+	ideacad_direct_concept_history: {kind:'client',migration:'0216',reason:'Paged attributed operation history.'},
+	ideacad_open_direct_document: {kind:'client',migration:'0216',reason:'Exact-solid document reader.'},
+	ideacad_direct_documents: {kind:'client',migration:'0216',reason:'Private chooser summaries.'},
+	ideacad_create_direct_document: {kind:'client',migration:'0216',reason:'Signed-in blank model creation.'},
+	ideacad_link_direct_document: {kind:'client',migration:'0216',reason:'Optional owner assignment link.'},
+	ideacad_share_direct_document: {kind:'client',migration:'0216',reason:'Owner named sharing.'},
+	ideacad_set_direct_document_archived: {kind:'client',migration:'0216',reason:'Explicit authorized archive.'},
+	ideacad_share_direct_document_with_section: {kind:'client',migration:'0216',reason:'Captured manager class sharing.'},
+	ideacad_unshare_direct_document_from_section: {kind:'client',migration:'0216',reason:'Captured manager class revocation.'},
+	ideacad_save_direct_document: {kind:'client',migration:'0216',reason:'Revision checked atomic geometry and history save.'},
+	ideacad_advisory_rules: {kind:'client',migration:'0216',reason:'Signed-in rule reader.'},
+	ideacad_set_advisory_rules: {kind:'client',migration:'0216',reason:'Admin-only append with revision check.'},
+	_ideacad_direct_manager: {kind:'definer',migration:'0216',reason:'Captured section authority, called by definers.'},
+	_ideacad_direct_can_write: {kind:'definer',migration:'0216',reason:'Direct writer permission predicate.'},
+	_ideacad_preserve_direct_document: {kind:'definer',migration:'0216',reason:'Deletion prevention trigger.'},
+	_ideacad_direct_apply_action: {kind:'definer',migration:'0216',reason:'History action validation and replay.'},
+	_ideacad_direct_validate_model: {kind:'definer',migration:'0216',reason:'Format validation in writers.'},
+	_ideacad_direct_validate_sketches: {kind:'definer',migration:'0216',reason:'Sketch validation in writers.'},
+	_ideacad_direct_payload: {kind:'definer',migration:'0216',reason:'Authorized document envelope builder.'},
+	_ideacad_valid_advisory_limits: {kind:'definer',migration:'0216',reason:'Rule validation inside admin writer.'}
 };
 
 /**
@@ -375,6 +396,7 @@ const IDEACAD_0201_TABLES = [
  * (`student_app_plays` is exactly that), and sweeping would refuse it.
  */
 const IDEACAD_SELECT_TABLES: readonly string[] = [
+	...(chainHas('0216')?['ideacad_assignment_sections','ideacad_brep_artifacts','ideacad_rule_revisions']:[]),
 	...IDEACAD_0201_TABLES,
 	...(chainHas('0205') ? (['ideacad_grants'] as const) : []),
 	// 0209's action log. `authenticated` holds SELECT and the RLS policy is

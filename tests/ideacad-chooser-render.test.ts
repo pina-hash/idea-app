@@ -141,9 +141,10 @@ describe('the empty state leads with New document, composed in place', () => {
 		expect(count(empty, '>Documents</h2>')).toBe(0);
 	});
 
-	it('says WHY there is nothing to start when there are no starters either', () => {
+	it('allows an empty standalone document without assignment starters', () => {
 		const nothing = html([], []);
-		expect(nothing).toContain('No starters available');
+		expect(nothing).toContain('New document');
+		expect(nothing).not.toContain('No starters available');
 		expect(count(nothing, 'NEW DOCUMENT')).toBe(0);
 	});
 });

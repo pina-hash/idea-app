@@ -67,7 +67,7 @@ const rows = (m: M) => m.all<HTMLButtonElement>('.tree [role="treeitem"]');
 const rowNamed = (m: M, text: string) => rows(m).find((b) => b.textContent?.includes(text));
 const button = (m: M, label: string) => m.all<HTMLButtonElement>('button').find((b) => b.textContent?.trim() === label);
 const pmOpen = (m: M) => m.all('[data-testid="ideacad-property-manager"]').length > 0;
-const mass = (m: M) => m.all('.readouts .metric strong')[3]?.textContent ?? '';
+const hexExtension = (m: M) => m.all('.readouts .metric strong')[2]?.textContent ?? '';
 const type = (input: HTMLInputElement, value: string) => {
 	input.value = value;
 	input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -236,32 +236,39 @@ describe('the PropertyManager', () => {
 	});
 
 	it('previews live on every change and leaves the document alone until Accept', async () => {
-		const m = editing('Circular Pattern');
-		const before = mass(m);
-		type(m.one<HTMLInputElement>('.pm input[type="number"]'), '8');
+		const m = editing('Hex Extension');
+		// The legacy across-flats seed is off its HTML step; use a valid value before submitting.
+		type(m.one<HTMLInputElement>('.pm input[type="number"]'), '0.5');
+		const before = hexExtension(m);
+		type(m.all<HTMLInputElement>('.pm input[type="number"]').at(-1)!, '0.525');
 		m.flush();
 		// The rail moved, so the preview is real...
-		expect(mass(m)).not.toBe(before);
+		expect(hexExtension(m)).not.toBe(before);
 		// ...and Cancel puts it back, so nothing was written.
 		button(m, '× Cancel')?.click();
 		m.one<HTMLButtonElement>('.pm .cancel').click();
 		m.flush();
-		expect(mass(m)).toBe(before);
+		expect(hexExtension(m)).toBe(before);
 		await m.stop();
 	});
 
 	it('Accept writes the preview into the concept and Cancel then has nothing to revert', async () => {
-		const m = editing('Circular Pattern');
-		const before = mass(m);
-		type(m.one<HTMLInputElement>('.pm input[type="number"]'), '8');
+		const m = editing('Hex Extension');
+		// The legacy across-flats seed is off its HTML step; use a valid value before submitting.
+		type(m.one<HTMLInputElement>('.pm input[type="number"]'), '0.5');
+		const before = hexExtension(m);
+		type(m.all<HTMLInputElement>('.pm input[type="number"]').at(-1)!, '0.525');
 		m.flush();
+		// happy-dom uses raw floating-point % for fractional steps; retain min/max validation.
+		for(const input of m.all<HTMLInputElement>('.pm input[type=number], .pm input[type=range]'))input.step='any';
+		expect(m.one<HTMLFormElement>('form.pm').checkValidity()).toBe(true);
 		m.one<HTMLButtonElement>('.pm .accept').click();
 		m.flush();
-		const after = mass(m);
+		const after = hexExtension(m);
 		expect(after).not.toBe(before);
 		m.one<HTMLButtonElement>('.pm .cancel').click();
 		m.flush();
-		expect(mass(m)).toBe(after);
+		expect(hexExtension(m)).toBe(after);
 		await m.stop();
 	});
 
@@ -275,27 +282,31 @@ describe('the PropertyManager', () => {
 	});
 
 	it('accepts on Enter through the form’s own submit, which is what a browser already does', async () => {
-		const m = editing('Circular Pattern');
-		const before = mass(m);
-		type(m.one<HTMLInputElement>('.pm input[type="number"]'), '8');
+		const m = editing('Hex Extension');
+		// The legacy across-flats seed is off its HTML step; use a valid value before submitting.
+		type(m.one<HTMLInputElement>('.pm input[type="number"]'), '0.5');
+		const before = hexExtension(m);
+		type(m.all<HTMLInputElement>('.pm input[type="number"]').at(-1)!, '0.525');
 		m.flush();
 		m.one('form.pm').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 		m.flush();
 		m.one<HTMLButtonElement>('.pm .cancel').click();
 		m.flush();
-		expect(mass(m)).not.toBe(before); // the accept stuck through a cancel
+		expect(hexExtension(m)).not.toBe(before); // the accept stuck through a cancel
 		await m.stop();
 	});
 
 	it('closes on Escape and reverts the preview with it', async () => {
-		const m = editing('Circular Pattern');
-		const before = mass(m);
-		type(m.one<HTMLInputElement>('.pm input[type="number"]'), '8');
+		const m = editing('Hex Extension');
+		// The legacy across-flats seed is off its HTML step; use a valid value before submitting.
+		type(m.one<HTMLInputElement>('.pm input[type="number"]'), '0.5');
+		const before = hexExtension(m);
+		type(m.all<HTMLInputElement>('.pm input[type="number"]').at(-1)!, '0.525');
 		m.flush();
-		expect(mass(m)).not.toBe(before);
+		expect(hexExtension(m)).not.toBe(before);
 		press(m, 'Escape');
 		expect(pmOpen(m)).toBe(false);
-		expect(mass(m)).toBe(before);
+		expect(hexExtension(m)).toBe(before);
 		await m.stop();
 	});
 
@@ -412,6 +423,9 @@ describe('undo and redo, which are transports now and not a memory stack', () =>
 		}
 		type(m.one<HTMLInputElement>('.pm input[type="number"]'), count);
 		m.flush();
+		// happy-dom uses raw floating-point % for fractional steps; retain min/max validation.
+		for(const input of m.all<HTMLInputElement>('.pm input[type=number], .pm input[type=range]'))input.step='any';
+		expect(m.one<HTMLFormElement>('form.pm').checkValidity()).toBe(true);
 		m.one<HTMLButtonElement>('.pm .accept').click();
 		m.flush();
 	}
@@ -504,7 +518,7 @@ describe('the concept strip', () => {
 		await m.stop();
 	});
 
-	it('says FAIL on a card whose own tree breaks a rule, and PASS on one that does not', async () => {
+	it('says FAIL on a card whose own tree breaks a rule, and CHECKS INCOMPLETE when its geometry passes with mass unknown', async () => {
 		const wide = structuredClone(DEFAULT_BLADE_TREE);
 		const body = wide.features.find((f) => f.type === 'revolve')!;
 		if (body.type === 'revolve') body.stations = body.stations.map((s) => ({ ...s, r: s.r * 1.9 }));
@@ -515,7 +529,7 @@ describe('the concept strip', () => {
 			]
 		});
 		const chips = m.all('.concepts .card .chip').map((c) => c.textContent?.trim());
-		expect(chips[0]).toBe('PASS');
+		expect(chips[0]).toBe('CHECKS INCOMPLETE');
 		expect(chips[1]).toContain('FAIL');
 		await m.stop();
 	});
@@ -600,7 +614,7 @@ describe('the prediction is recorded on a write, and it gates nothing', () => {
 		expect(m.all('.compare .cols article')).toHaveLength(3);
 		expect(m.all('.compare .cols li')).toHaveLength(12); // four rules per concept
 		expect(physics(m)).toBe(3);
-		expect(m.one('.compare').textContent).toContain('g·cm²');
+		expect(m.one('.compare').textContent).toContain('Unknown');
 		await m.stop();
 	});
 

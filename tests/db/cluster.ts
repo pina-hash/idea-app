@@ -75,6 +75,7 @@ export async function setup(project: TestProject): Promise<void> {
 		password: 'postgres',
 		port,
 		persistent: false,
+		initdbFlags: ['--encoding=UTF8','--locale=C'],
 		/**
 		 * Postgres refuses to run as root, and a root shell is the NORMAL state
 		 * in a remote/CI container (measured here: initdb failed with

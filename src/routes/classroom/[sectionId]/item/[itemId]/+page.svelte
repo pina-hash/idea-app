@@ -534,7 +534,7 @@
 	 *  version through the ONE predicate, and `data.ideacad` being null is a
 	 *  deployment whose read could not answer. */
 	const ideacadItemId = $derived(
-		!data.canManage && data.ideacad && isIdeaCad(data.item) ? data.item.id : null
+		!data.canManage && data.ideacad && !(data.ideacad as {standalone?:boolean}).standalone && isIdeaCad(data.item) ? data.item.id : null
 	);
 	/**
 	 * `ideacadItemId` IS READ TRACKED AND THE CALLS ARE `untrack`ed, which is

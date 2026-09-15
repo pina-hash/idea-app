@@ -115,7 +115,7 @@ export function repairVoxelEdgeContacts(filled: Set<string>, nx: number, ny: num
 	throw new Error(`Voxel edge-contact repair did not converge within ${maxRepairPasses} passes.`);
 }
 
-export function evaluate(tree: BladeTree, config: BladeConfig): Evaluation {
+export function evaluate(tree: BladeTree, config: BladeConfig, historicalPhysics=true): Evaluation {
 	const body = featureOf(tree, 'revolve'), hex = featureOf(tree, 'hexBoss'), sketch = featureOf(tree, 'bladeSketch');
 	const pattern = featureOf(tree, 'circularPattern'), mount = featureOf(tree, 'mount');
 	const mat = config.materials.find((x) => x.id === tree.materials.body)!;
@@ -123,21 +123,22 @@ export function evaluate(tree: BladeTree, config: BladeConfig): Evaluation {
 	let mass = 0, I = 0, mz = 0, maxR = 0;
 	for (let i = 1; i < body.stations.length; i++) {
 		const a = body.stations[i - 1], b = body.stations[i];
-		const q = frustumProperties(a.r * IN_CM, b.r * IN_CM, (b.z - a.z) * IN_CM, mat.densityGcm3 * tree.materials.bodySolidFraction);
-		mass += q.mass; I += q.inertia; mz += q.mass * (a.z * IN_CM + q.centroid); maxR = Math.max(maxR, a.r, b.r);
+		if(historicalPhysics){const q = frustumProperties(a.r * IN_CM, b.r * IN_CM, (b.z - a.z) * IN_CM, mat.densityGcm3 * tree.materials.bodySolidFraction);
+		mass += q.mass; I += q.inertia; mz += q.mass * (a.z * IN_CM + q.centroid);}maxR = Math.max(maxR, a.r, b.r);
 	}
 	const side = hex.acrossFlats * IN_CM / Math.sqrt(3), area = 3 * Math.sqrt(3) * side * side / 2;
-	const hmass = area * hex.height * IN_CM * mat.densityGcm3 * tree.materials.bodySolidFraction;
+	const hmass = historicalPhysics?area * hex.height * IN_CM * mat.densityGcm3 * tree.materials.bodySolidFraction:0;
 	const bodyTop = body.stations.at(-1)!.z;
 	mass += hmass; I += (5 / 12) * hmass * side * side; mz += hmass * (bodyTop + hex.height / 2) * IN_CM;
 	maxR = Math.max(maxR, hex.acrossFlats / Math.sqrt(3));
 	const poly = bladePlanform(sketch.rootWidth, sketch.tipWidth, sketch.length, sketch.sweepDeg, sketch.mountRadius);
 	const pp = polygonProperties(poly.map((p) => ({ x: p.x * IN_CM, y: p.y * IN_CM })));
-	const bmass = stock.densityGcm3 * stock.thicknessIn * IN_CM * pp.area;
-	mass += bmass * pattern.count; I += stock.densityGcm3 * stock.thicknessIn * IN_CM * pp.polar * pattern.count;
+	const bmass = historicalPhysics?stock.densityGcm3 * stock.thicknessIn * IN_CM * pp.area:0;
+	mass += bmass * pattern.count;if(historicalPhysics)I += stock.densityGcm3 * stock.thicknessIn * IN_CM * pp.polar * pattern.count;
 	mz += bmass * pattern.count * (mount.z + stock.thicknessIn / 2) * IN_CM;
 	maxR = Math.max(maxR, ...poly.map((p) => Math.hypot(p.x, p.y)));
-	for (const part of config.standardParts) { mass += part.massG; mz += part.massG * bodyTop * IN_CM / 2; }
+	if(historicalPhysics)for (const part of config.standardParts) { mass += part.massG; mz += part.massG * bodyTop * IN_CM / 2; }
+	else {mass=Number.NaN;I=Number.NaN;mz=Number.NaN;}
 	const collarHeight = Math.max(0.125, Math.min(0.5, bodyTop * 0.1));
 	const collarOuterRadius = hex.acrossFlats / Math.sqrt(3) + 0.5;
 	const collarPresent = hex.suppressed !== true;
@@ -162,7 +163,7 @@ export function evaluate(tree: BladeTree, config: BladeConfig): Evaluation {
 		if (signedVolume6 < 0) mesh.faces = mesh.faces.map(([a, b, c]) => [a, c, b]);
 		return mesh;
 	};
-	const com = mass ? mz / mass : 0, diameterIn = maxR * 2, fullHeightIn = bodyTop, hexExtensionIn = hex.height;
+	const com = !historicalPhysics ? NaN : mass ? mz / mass : 0, diameterIn = maxR * 2, fullHeightIn = bodyTop, hexExtensionIn = hex.height;
 	const forward = tree.rotation === 'cw' ? sketch.sweepDeg > 0 : sketch.sweepDeg < 0;
 	const rules: RuleResult[] = [
 		{ id:'diameter', label:'Diameter', value:diameterIn, limit:`≤ ${config.rules.maxDiameterIn} in`, pass:diameterIn<=config.rules.maxDiameterIn },
@@ -172,5 +173,5 @@ export function evaluate(tree: BladeTree, config: BladeConfig): Evaluation {
 		{ id:'engagement', label:'Engagement', value:sketch.sweepDeg, limit:'Inspector verifies visually', pass:forward }
 	];
 	let solid: SolidMesh | undefined;
-	return { diameterIn, fullHeightIn, hexExtensionIn, massG:mass, comHeightIn:com/IN_CM, inertiaGcm2:I, radiusOfGyrationCm:mass?Math.sqrt(I/mass):0, rules, unverifiedStandardParts:config.standardParts.some((x)=>!x.verified)||config.launcher.acrossFlatsIn===null, geometry:{ stations:body.stations, bladePolygon:poly, bladeCount:pattern.count, bladeZ:mount.z, hexAcrossFlats:hex.acrossFlats, hexHeight:hex.height, collar:{outerRadius:collarPresent ? collarOuterRadius : 0,height:collarPresent ? collarHeight : 0}, spinBolt:{present:spinPresent,radius:spinRadius,height:spinHeight}, get solid() { return solid ??= buildSolid(); } } };
+	return { diameterIn, fullHeightIn, hexExtensionIn, massG:mass, comHeightIn:com/IN_CM, inertiaGcm2:I, radiusOfGyrationCm:!historicalPhysics?NaN:mass?Math.sqrt(I/mass):0, rules, unverifiedStandardParts:config.standardParts.some((x)=>!x.verified)||config.launcher.acrossFlatsIn===null, geometry:{ stations:body.stations, bladePolygon:poly, bladeCount:pattern.count, bladeZ:mount.z, hexAcrossFlats:hex.acrossFlats, hexHeight:hex.height, collar:{outerRadius:collarPresent ? collarOuterRadius : 0,height:collarPresent ? collarHeight : 0}, spinBolt:{present:spinPresent,radius:spinRadius,height:spinHeight}, get solid() { return solid ??= buildSolid(); } } };
 }
