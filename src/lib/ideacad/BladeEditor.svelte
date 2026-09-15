@@ -4,12 +4,10 @@
 	import {
 		DEFAULT_BLADE_CONFIG,
 		DEFAULT_BLADE_TREE,
-		MATERIAL_THICKNESS_MAX_IN,
 		bladeConfigWithMaterials,
 		bladeStockChoices,
 		materialChoices,
 		materialLibrary,
-		parseThicknessList,
 		stockIdAfterMaterialChange,
 		type BladeConfig,
 		type MaterialRow
@@ -433,8 +431,7 @@
 	/** A custom material this student has just added, held locally so the picker
 	 *  offers it immediately. `materialLibrary` dedupes by id, so the next read
 	 *  of the `materials` prop replaces it rather than doubling it. */
-	let addedMaterials = $state<MaterialRow[]>([]);
-	const library = $derived(materialLibrary([...(materials ?? []), ...addedMaterials]));
+	const library = $derived(materialLibrary(materials ?? []));
 	const cfg = $derived(
 		bladeConfigWithMaterials(baseCfg, library, [draft.materials, ...concepts.map((c) => c.features.materials)])
 	);
@@ -456,7 +453,7 @@
 	   an old shape against today's numbers, with nothing saying so. `dirty`
 	   below deliberately does NOT follow it -- a preview changes nothing, so the
 	   confirm pair must not arm against a diff nobody made. */
-	const result = $derived(evaluate(shown, cfg));
+	const result = $derived(evaluate(shown, cfg, false));
 	const problems = $derived(validateBladeTree(shown, cfg));
 	const dirty = $derived(JSON.stringify($state.snapshot(draft)) !== JSON.stringify($state.snapshot(accepted)));
 	/** A station row edits the body, so the panel it opens is the body's. */
@@ -512,61 +509,6 @@
 	function chooseBladeMaterial(slug: string) {
 		const next = stockIdAfterMaterialChange(library, slug, draft.materials.bladeStock);
 		if (next) field('materials.bladeStock', next);
-	}
-
-	/* The student's own material. Every field is required except the note, and
-	   the refusal is the DATABASE's own sentence where the database answered. */
-	let customOpen = $state(false);
-	let customName = $state('');
-	let customDensity = $state('');
-	let customThickness = $state('');
-	let customNote = $state('');
-	let customRefusal = $state('');
-	let customBusy = $state(false);
-	let customAdded = $state('');
-
-	async function addCustomMaterial(e: SubmitEvent) {
-		e.preventDefault();
-		if (!saveCustomMaterial || customBusy) return;
-		customRefusal = '';
-		customAdded = '';
-		const name = customName.trim();
-		if (!name) {
-			customRefusal = 'Give the material a name.';
-			return;
-		}
-		const density = Number(customDensity);
-		if (!Number.isFinite(density) || density <= 0 || density > 25) {
-			customRefusal = 'Density must be more than 0 and no more than 25 g/cm3.';
-			return;
-		}
-		const parsed = parseThicknessList(customThickness);
-		if (parsed.refusal) {
-			customRefusal = parsed.refusal;
-			return;
-		}
-		customBusy = true;
-		try {
-			const row = await saveCustomMaterial({
-				name,
-				densityGcm3: density,
-				thicknessesIn: parsed.thicknesses,
-				note: customNote.trim() || null
-			});
-			addedMaterials = [...addedMaterials, row];
-			customAdded = `${row.name} is now in your list.`;
-			customName = '';
-			customDensity = '';
-			customThickness = '';
-			customNote = '';
-			customOpen = false;
-		} catch {
-			customRefusal = IDEACAD_WRITE_REFUSED;
-		} finally {
-			/* In `finally`, because a throw mid-submit otherwise disables the form
-			   for the rest of the session. */
-			customBusy = false;
-		}
 	}
 
 	function accept() {
@@ -862,7 +804,7 @@
 	 *  malformed tree, so one broken concept must not blank the surface. */
 	function readingOf(c: ConceptCard) {
 		try {
-			const e = evaluate(c.features, cfg);
+			const e = evaluate(c.features, cfg, false);
 			return { ok: true as const, e, points: profilePolyline(e.geometry.stations, 46, 34, 3).points };
 		} catch {
 			return { ok: false as const, e: null, points: '' };
@@ -993,24 +935,7 @@
 						</select>
 					</label>
 
-					<label class="field">
-						<span class="lab">Body fill<i>{bodyFillPct}% of solid</i></span>
-						<!-- SLIDER ONLY, NOT A SLIDER AND A BOX. The PropertyManager
-						     renders both because its pane holds it; here the number
-						     input cost 70px above the fold to restate a value the
-						     label already carries. -->
-						<input
-							class="slider"
-							type="range"
-							value={bodyFillPct}
-							min="10"
-							max="100"
-							step="1"
-							disabled={readOnly}
-							aria-label="Body fill percent"
-							oninput={(e) => numberField('materials.bodySolidFraction', e)}
-						/>
-					</label>
+					<p class="note">Printed part mass is unknown.</p>
 
 					<label class="field">
 						<span class="lab">Blade material</span>
@@ -1046,71 +971,30 @@
 
 					<div class="reading">
 						<p class="fact">
-							Body: {bodyEntry?.name ?? 'Unknown'} &middot; {(bodyEntry?.densityGcm3 ?? 0).toFixed(2)} g/cm³
+							Body: {bodyEntry?.name ?? 'Unknown'} &middot; Part mass required
 							{#if bodyRow && !bodyRow.source_verified}<b class="chip">UNVERIFIED</b>{/if}
 							{#if bodyRow?.owner}<b class="chip mine">YOURS</b>{/if}
 						</p>
 						{#if bodyRow?.note}<p class="note">{bodyRow.note}</p>{/if}
 						<p class="fact">
-							Blade: {stockEntry?.name ?? 'Unknown'} &middot; {(stockEntry?.densityGcm3 ?? 0).toFixed(2)} g/cm³
+							Blade: {stockEntry?.name ?? 'Unknown'} &middot; Density unverified
 							{#if stockRow && !stockRow.source_verified}<b class="chip">UNVERIFIED</b>{/if}
 							{#if stockRow?.owner}<b class="chip mine">YOURS</b>{/if}
 						</p>
 						{#if stockRow?.note}<p class="note">{stockRow.note}</p>{/if}
 						<p class="note">The thickness list is the sizes this material is actually sold in. You pick one; you do not get to type a number.</p>
-						<p class="note">UNVERIFIED means the density has not been checked against its published source yet, so the mass is close rather than exact.</p>
+						<p class="note">Legacy documents do not contain verified part masses.</p>
 					</div>
 
 					{#if cfg.unresolvedMaterials.length}
 						<p class="refusal" role="status">
 							{cfg.unresolvedMaterials.length === 1 ? 'This material is' : 'These materials are'}
-							not available here, so {cfg.unresolvedMaterials.length === 1 ? 'it counts' : 'they count'} as no mass:
+							not available here:
 							{cfg.unresolvedMaterials.join(', ')}. Pick one from the list.
 						</p>
 					{/if}
 
-					<!-- THE CUSTOM LAYER. The control is absent without its transport,
-					     which is the rule this console follows everywhere: a form that
-					     recorded nothing is worse than no form. -->
-					{#if saveCustomMaterial && !readOnly}
-						<div class="own">
-							<button type="button" class="addown" aria-expanded={customOpen} aria-controls="mat-own" onclick={() => (customOpen = !customOpen)}>
-								{customOpen ? 'Close' : 'Add my own material'}
-							</button>
-							{#if customAdded}<p class="added" role="status">{customAdded}</p>{/if}
-							{#if customOpen}
-								<div id="mat-own">
-									<p class="note">
-										Only you can see a material you add. Measure or look up its density and list the thicknesses you actually
-										have. A 3D printed part is the case this is for: its density depends on your slicer settings, so nobody
-										can publish one figure for it.
-									</p>
-									<label class="field">
-										<span class="lab">Name</span>
-										<input type="text" bind:value={customName} maxlength="60" />
-									</label>
-									<label class="field">
-										<span class="lab">Density<i>g/cm³</i></span>
-										<input type="number" bind:value={customDensity} min="0.01" max="25" step="0.01" />
-									</label>
-									<label class="field">
-										<span class="lab">Thicknesses<i>in</i></span>
-										<input type="text" bind:value={customThickness} placeholder="0.125, 0.25" />
-									</label>
-									<p class="range">Inches, separated by commas. Up to {MATERIAL_THICKNESS_MAX_IN} in each.</p>
-									<label class="field">
-										<span class="lab">Note</span>
-										<input type="text" bind:value={customNote} maxlength="200" placeholder="optional" />
-									</label>
-									{#if customRefusal}<p class="refusal" role="status">{customRefusal}</p>{/if}
-									<button type="button" class="save" aria-disabled={customBusy} onclick={(e) => addCustomMaterial(e as unknown as SubmitEvent)}>
-										{customBusy ? 'Adding…' : 'Add material'}
-									</button>
-								</div>
-							{/if}
-						</div>
-					{/if}
-				</form>
+					</form>
 			{:else if editing && panel}
 				<PropertyManager
 					{panel}
@@ -1191,11 +1075,11 @@
 			<p class="rules-label">Rules readout</p>
 			{#each result.rules.slice(0, 4) as rule}
 				<div class="metric">
-					<span>{rule.label}</span><strong>{rule.id === 'mass' ? `${rule.value.toFixed(0)} g` : `${rule.value.toFixed(2)} in`}</strong
-					><b class:fail={!rule.pass}>{rule.pass ? 'PASS' : 'FAIL'}</b>
+					<span>{rule.label}</span><strong>{rule.id === 'mass' ? 'Unknown' : `${rule.value.toFixed(2)} in`}</strong
+					><b class:fail={rule.id!=='mass'&&!rule.pass}>{rule.id==='mass'?'UNKNOWN':rule.pass ? 'PASS' : 'FAIL'}</b>
 				</div>
 			{/each}
-			<div class="metric"><span>Center of mass</span><strong>{result.comHeightIn.toFixed(2)} in</strong></div>
+			<div class="metric"><span>Center of mass</span><strong>Unknown</strong></div>
 			<!-- THE PHYSICS IS HERE, FROM THE FIRST FRAME, and that is decision 26's
 			     answer rather than a convenience. Rotational inertia and radius of
 			     gyration used to live behind the prediction gate in the compare
@@ -1211,8 +1095,8 @@
 			     printed PASS/FAIL on it would be quoting a limit nobody is
 			     holding students to. Widening the slice is a decision, not a
 			     one-character fix. -->
-			<div class="metric"><span>Rotational inertia</span><strong>{result.inertiaGcm2.toFixed(1)} g·cm²</strong></div>
-			<div class="metric"><span>Radius of gyration</span><strong>{result.radiusOfGyrationCm.toFixed(2)} cm</strong></div>
+			<div class="metric"><span>Rotational inertia</span><strong>Unknown</strong></div>
+			<div class="metric"><span>Radius of gyration</span><strong>Unknown</strong></div>
 			{#if !configOk}<p class="notice">CONFIG UNREADABLE, SHOWING DEFAULT LIMITS</p>{/if}
 			{#if result.unverifiedStandardParts}<p class="notice">UNVERIFIED STANDARD PARTS</p>{/if}
 		</aside>
@@ -1282,18 +1166,18 @@
 								{#each column.reading.e.rules.slice(0, 4) as rule}
 									<li>
 										<span>{rule.label}</span>
-										<strong>{rule.id === 'mass' ? `${rule.value.toFixed(0)} g` : `${rule.value.toFixed(2)} in`}</strong>
-										<b class:fail={!rule.pass}>{rule.pass ? 'PASS' : 'FAIL'}</b>
+										<strong>{rule.id === 'mass' ? 'Unknown' : `${rule.value.toFixed(2)} in`}</strong>
+										<b class:fail={rule.id!=='mass'&&!rule.pass}>{rule.id==='mass'?'UNKNOWN':rule.pass ? 'PASS' : 'FAIL'}</b>
 									</li>
 								{/each}
 							</ul>
 							<dl>
 								<dt>I</dt>
-								<dd>{column.reading.e.inertiaGcm2.toFixed(1)} g·cm²</dd>
+								<dd>Unknown</dd>
 								<dt>k</dt>
-								<dd>{column.reading.e.radiusOfGyrationCm.toFixed(2)} cm</dd>
+								<dd>Unknown</dd>
 								<dt>COM</dt>
-								<dd>{column.reading.e.comHeightIn.toFixed(2)} in</dd>
+								<dd>Unknown</dd>
 							</dl>
 						{:else}
 							<p class="broken">This concept cannot be rebuilt.</p>
@@ -1537,25 +1421,9 @@
 	.mat .lab {
 		min-width: 0;
 	}
-	.mat .field input,
 	.mat .field select {
 		width: 100%;
 		padding: 0 0.5rem;
-	}
-	/* THE SLIDER IS PAINTED IN THIS ROOM'S GREEN RATHER THAN THE BROWSER'S BLUE
-	   (`accent-color`, in `ideacad.css`): a bare `input[type=range]` takes the
-	   UA accent, which in this Chromium renders a saturated blue track -- the
-	   one blue thing on a console whose whole register is green, amber, cyan
-	   and crimson. */
-	.mat .slider {
-		width: 100%;
-	}
-	.mat .addown,
-	.mat .save {
-		width: 100%;
-	}
-	.mat .save {
-		margin-top: 0.4rem;
 	}
 	/* THE ROW HEIGHT IS MEASURED RATHER THAN CHOSEN. The two physics rows
 	   decision 26 added took the rail's content to 555px inside a 515px box at

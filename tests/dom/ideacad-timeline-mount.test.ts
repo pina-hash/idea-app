@@ -141,7 +141,7 @@ const open_ = (m: M) => {
 };
 const treeRows = (m: M) => m.all('.tree [role="treeitem"]');
 const text = (m: M) => m.all('[data-testid="ideacad-timeline"]')[0]?.textContent ?? '';
-const mass = (m: M) => m.all('.readouts .metric strong')[3]?.textContent ?? '';
+const hexExtension = (m: M) => m.all('.readouts .metric strong')[2]?.textContent ?? '';
 
 describe('the toggle, and the pane it takes over', () => {
 	it('offers no History control at all when the log is empty', () => {
@@ -363,17 +363,17 @@ describe('scrubbing is a look and never a write', () => {
 	it('moves the readouts to the step being looked at, and back', () => {
 		const m = open();
 		open_(m);
-		const now = mass(m);
+		const now = hexExtension(m);
 		expect(now.length).toBeGreaterThan(0);
 		// Step 0 is the part as it was created, which is a different blade from
 		// the one three edits later.
 		m.all<HTMLButtonElement>('[data-testid="ideacad-timeline-row"] button')[0].click();
 		m.flush();
-		const atOrigin = mass(m);
+		const atOrigin = hexExtension(m);
 		expect(atOrigin).not.toBe(now);
 		m.one<HTMLButtonElement>('[data-testid="ideacad-timeline-now"]').click();
 		m.flush();
-		expect(mass(m)).toBe(now);
+		expect(hexExtension(m)).toBe(now);
 	});
 
 	it('says it is a look, where the student is looking', () => {
@@ -441,22 +441,22 @@ describe('scrubbing is a look and never a write', () => {
 	it('drops the scrub when the HEADER TOGGLE closes the timeline', () => {
 		const m = open();
 		open_(m);
-		const now = mass(m);
+		const now = hexExtension(m);
 		m.all<HTMLButtonElement>('[data-testid="ideacad-timeline-row"] button')[0].click();
 		m.flush();
-		expect(mass(m)).not.toBe(now);
+		expect(hexExtension(m)).not.toBe(now);
 		toggle(m).click();
 		m.flush();
-		expect(mass(m)).toBe(now);
+		expect(hexExtension(m)).toBe(now);
 	});
 
 	it("drops the scrub when the PANEL'S OWN close button is pressed", () => {
 		const m = open();
 		open_(m);
-		const now = mass(m);
+		const now = hexExtension(m);
 		m.all<HTMLButtonElement>('[data-testid="ideacad-timeline-row"] button')[0].click();
 		m.flush();
-		expect(mass(m)).not.toBe(now);
+		expect(hexExtension(m)).not.toBe(now);
 		const back = m
 			.all<HTMLButtonElement>('[data-testid="ideacad-timeline"] button')
 			.find((b) => b.textContent?.trim() === 'Feature tree')!;
@@ -465,7 +465,7 @@ describe('scrubbing is a look and never a write', () => {
 		m.flush();
 		// The pane is back on the feature tree AND the document is back at now.
 		expect(m.all('[data-testid="ideacad-timeline"]')).toHaveLength(0);
-		expect(mass(m)).toBe(now);
+		expect(hexExtension(m)).toBe(now);
 	});
 
 	it('makes a row a button only when a scrub is wired, so read-only is structural', () => {

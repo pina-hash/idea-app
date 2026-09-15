@@ -12,10 +12,10 @@ export function exportManifest(evaluation: Evaluation, input: ExportManifestInpu
 		schema: 'ideacad-export-manifest-1',
 		partName: input.partName,
 		units: { mass: 'g', stockThickness: 'mm' },
-		massG: evaluation.massG,
+		massG: null,
 		material: input.material,
 		stockThicknessMm: input.stockThicknessMm,
-		rules: evaluation.rules.map(({ id, label, value, limit, pass }) => ({ id, label, value, limit, pass }))
+		rules: evaluation.rules.map(({ id, label, value, limit, pass }) => ({ id, label, value:id==='mass'?null:value, limit, pass:id==='mass'?null:pass }))
 	};
 	return new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`);
 }

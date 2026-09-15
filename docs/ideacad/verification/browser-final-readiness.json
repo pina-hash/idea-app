@@ -1,0 +1,110 @@
+[
+  {
+    "examined": "RLS and grants: ideacad_assignment_sections",
+    "ready": true
+  },
+  {
+    "examined": "RLS and grants: ideacad_brep_artifacts",
+    "ready": true
+  },
+  {
+    "examined": "RLS and grants: ideacad_rule_revisions",
+    "ready": true
+  },
+  {
+    "examined": "client function: public.ideacad_advisory_rules()",
+    "ready": true
+  },
+  {
+    "examined": "client function: public.ideacad_create_direct_document(text,text)",
+    "ready": true
+  },
+  {
+    "examined": "client function: public.ideacad_direct_concept_history(uuid,bigint,integer)",
+    "ready": true
+  },
+  {
+    "examined": "client function: public.ideacad_direct_documents()",
+    "ready": true
+  },
+  {
+    "examined": "client function: public.ideacad_link_direct_document(uuid,uuid)",
+    "ready": true
+  },
+  {
+    "examined": "client function: public.ideacad_open_direct_document(uuid)",
+    "ready": true
+  },
+  {
+    "examined": "client function: public.ideacad_read_brep_artifacts(uuid,text[])",
+    "ready": true
+  },
+  {
+    "examined": "client function: public.ideacad_save_direct_document(uuid,integer,uuid,text,jsonb,jsonb,jsonb)",
+    "ready": true
+  },
+  {
+    "examined": "client function: public.ideacad_set_advisory_rules(bigint,jsonb)",
+    "ready": true
+  },
+  {
+    "examined": "client function: public.ideacad_set_direct_document_archived(uuid,boolean)",
+    "ready": true
+  },
+  {
+    "examined": "client function: public.ideacad_share_direct_document(uuid,text,text)",
+    "ready": true
+  },
+  {
+    "examined": "client function: public.ideacad_share_direct_document_with_section(uuid,uuid)",
+    "ready": true
+  },
+  {
+    "examined": "client function: public.ideacad_unshare_direct_document_from_section(uuid,uuid)",
+    "ready": true
+  },
+  {
+    "examined": "direct document deletion protection",
+    "ready": true
+  },
+  {
+    "examined": "operation receipt uniqueness",
+    "ready": true
+  },
+  {
+    "examined": "private function: public._ideacad_direct_apply_action(jsonb,jsonb)",
+    "ready": true
+  },
+  {
+    "examined": "private function: public._ideacad_direct_can_write(uuid)",
+    "ready": true
+  },
+  {
+    "examined": "private function: public._ideacad_direct_manager(uuid)",
+    "ready": true
+  },
+  {
+    "examined": "private function: public._ideacad_direct_payload(uuid)",
+    "ready": true
+  },
+  {
+    "examined": "private function: public._ideacad_direct_validate_model(jsonb)",
+    "ready": true
+  },
+  {
+    "examined": "private function: public._ideacad_direct_validate_sketches(jsonb)",
+    "ready": true
+  },
+  {
+    "examined": "private function: public._ideacad_preserve_direct_document()",
+    "ready": true
+  },
+  {
+    "examined": "private function: public._ideacad_valid_advisory_limits(jsonb)",
+    "ready": true
+  },
+  {
+    "examined": "standalone document item nullable",
+    "ready": true
+  }
+]

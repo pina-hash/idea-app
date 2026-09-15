@@ -1,0 +1,35 @@
+import {chromium} from 'playwright-core';
+import {writeFileSync,mkdirSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import assert from 'node:assert/strict';
+const variant=process.argv[2]??'remus';
+const out=new URL(`../../.output/ideacad-kernel/${variant}/`,import.meta.url);mkdirSync(out,{recursive:true});
+const browser=await chromium.launch({channel:'chrome',headless:true});
+try {
+	const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];
+	page.on('pageerror',e=>errors.push(e.message));
+	await page.addInitScript(()=>{const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(kind,options){return original.call(this,kind,(kind==='webgl'||kind==='webgl2')?{...options,preserveDrawingBuffer:true}:options);};});
+	await page.goto(`http://127.0.0.1:4178?kernel=${variant}`);
+	await page.waitForFunction(()=>window.spike?.ready,{},{timeout:30000});
+	await page.screenshot({path:fileURLToPath(new URL('before.png',out))});
+	const baseline=await page.evaluate(()=>({report:window.spike.report,painted:window.spike.painted(),point:window.spike.facePoint(),overflow:document.documentElement.scrollWidth-innerWidth}));
+	await page.mouse.move(baseline.point.x,baseline.point.y);await page.mouse.down();
+	await page.waitForFunction(id=>window.spike.report.selected===id,baseline.point.id);
+	await page.mouse.move(baseline.point.x,baseline.point.y-100,{steps:30});await page.mouse.up();
+	await page.waitForFunction(v=>window.spike.report.volume>v,baseline.report.volume);
+	await page.waitForFunction(()=>window.spike.idle);
+	await page.screenshot({path:fileURLToPath(new URL('after.png',out))});
+	const dragged=await page.evaluate(()=>({report:window.spike.report,painted:window.spike.painted()}));
+	await page.evaluate(()=>window.spike.reset());
+	const forty=await page.evaluate(()=>window.spike.checkDistance(40).then(r=>({volume:r.volume,valid:r.valid,solids:r.solids,selectionSurvived:r.selectionSurvived,operationMs:r.operationMs})));
+	await page.evaluate(()=>window.spike.reset());await page.setViewportSize({width:375,height:812});
+	await page.screenshot({path:fileURLToPath(new URL('phone.png',out))});
+	const phone=await page.evaluate(()=>({painted:window.spike.painted(),overflow:document.documentElement.scrollWidth-innerWidth,buttons:[...document.querySelectorAll('button')].map(e=>({label:e.textContent,height:e.getBoundingClientRect().height}))}));
+	const result={browser:browser.version(),baseline,dragged,forty,phone,errors};
+	assert.equal(errors.length,0);assert.equal(baseline.report.solids,1);assert.equal(baseline.report.valid,true);
+	assert(Math.abs(baseline.report.volume-(12-Math.PI*.25))<1e-8);
+	assert(Math.abs(forty.volume-(12-Math.PI*.25)*41)<1e-8);assert.equal(forty.selectionSurvived,true);
+	assert(baseline.painted.fraction>.05);assert(phone.painted.fraction>.05);assert.equal(phone.overflow,0);
+	writeFileSync(new URL('browser-report.json',out),JSON.stringify(result,null,2));
+	console.log(JSON.stringify(result,null,2));
+}finally{await browser.close();}

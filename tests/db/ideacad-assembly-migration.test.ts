@@ -17,7 +17,7 @@ import { startTestDb, createUser, type SeededUser, type TestDb } from './harness
 const MIGRATIONS_DIR = new URL('../../supabase/migrations/', import.meta.url);
 const ALL = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
 const TARGET = '0207_ideacad_assembly_parts.sql';
-const CHAIN_BEFORE_0207 = ALL.filter((f) => f !== TARGET);
+const CHAIN_BEFORE_0207 = ALL.filter((f) => f < TARGET);
 const FIXTURE_COMPLETION = '../../tests/db/full-chain-fixture-completion.sql';
 const TARGET_SQL = readFileSync(new URL(TARGET, MIGRATIONS_DIR), 'utf8');
 

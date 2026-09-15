@@ -1,0 +1,45 @@
+[
+  {
+    "innerNormalZ": 1,
+    "details": {
+      "errorCount": 2,
+      "warningCount": 0,
+      "issues": [
+        {
+          "severity": "error",
+          "description": "inner wire 3 on planar face 1 has the same winding as its outer wire"
+        },
+        {
+          "severity": "error",
+          "description": "inner wire 4 on planar face 7 has the same winding as its outer wire"
+        }
+      ]
+    },
+    "volume": 11214.601836602551,
+    "expectedVolume": 11214.601836602551,
+    "mesh": {
+      "triangleCount": 216,
+      "boundaryEdges": 0,
+      "nonManifoldEdges": 0,
+      "eulerCharacteristic": 0,
+      "isWatertight": true
+    }
+  },
+  {
+    "innerNormalZ": -1,
+    "details": {
+      "errorCount": 0,
+      "warningCount": 0,
+      "issues": []
+    },
+    "volume": 11214.601836602551,
+    "expectedVolume": 11214.601836602551,
+    "mesh": {
+      "triangleCount": 216,
+      "boundaryEdges": 0,
+      "nonManifoldEdges": 0,
+      "eulerCharacteristic": 0,
+      "isWatertight": true
+    }
+  }
+]

@@ -8,15 +8,17 @@ const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k =
 function crc32(bytes: Uint8Array) { let crc = 0xffffffff; for (const byte of bytes) crc = crcTable[(crc ^ byte) & 255]! ^ crc >>> 8; return (crc ^ 0xffffffff) >>> 0; }
 
 /** A deterministic, dependency-free ZIP writer using valid stored entries. */
-function zip(entries: { name: string; bytes: Uint8Array }[]): Uint8Array {
+export function zip(entries: { name: string; bytes: Uint8Array }[]): Uint8Array {
 	const output: number[] = [], central: number[] = [];
 	for (const entry of entries) {
 		const name = new TextEncoder().encode(entry.name), offset = output.length, crc = crc32(entry.bytes);
-		output.push(...u32(0x04034b50), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(crc), ...u32(entry.bytes.length), ...u32(entry.bytes.length), ...u16(name.length), ...u16(0), ...name, ...entry.bytes);
+		output.push(...u32(0x04034b50), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(crc), ...u32(entry.bytes.length), ...u32(entry.bytes.length), ...u16(name.length), ...u16(0));
+		for(const byte of name)output.push(byte);
+		for(const byte of entry.bytes)output.push(byte);
 		central.push(...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(crc), ...u32(entry.bytes.length), ...u32(entry.bytes.length), ...u16(name.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset), ...name);
 	}
 	const centralOffset = output.length;
-	output.push(...central);
+	for(const byte of central)output.push(byte);
 	output.push(...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(entries.length), ...u16(entries.length), ...u32(central.length), ...u32(centralOffset), ...u16(0));
 	return Uint8Array.from(output);
 }

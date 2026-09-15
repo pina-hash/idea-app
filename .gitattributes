@@ -16,3 +16,8 @@
 # `-text` turns line-ending conversion off in both directions and keeps them
 # byte-identical to the tarballs they came out of.
 src/lib/foundry/vendor/*.js -text
+# IdeaCAD's pinned kernel bindings and supplied specifications are verbatim artifacts.
+src/lib/ideacad/kernel/vendor/remus/*.js -text
+src/lib/ideacad/kernel/vendor/remus/*.d.ts -text
+static/ideacad/kernels/*.wasm -text
+docs/ideacad/specifications/*.md -text
