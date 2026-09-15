@@ -24,8 +24,10 @@ Unknown distributions prevent unsupported center-of-mass/inertia claims.
 immutable BREP storage, operation receipts, exact-revision writes and separate
 permissions. Private/named/class sharing and deliberate archiving preserve old
 work and captured instructor access. Legacy writers cannot overwrite new formats.
-The migration remains unapplied in production; Alejandro's manual process owns
-application. The final SQL returns 27 readiness rows.
+At the initial handoff, the migration was unapplied in production. Alejandro then
+confirmed manual application, supplied all 27 readiness rows as true, and
+authorized release to main. The application record identifies his report as its
+source; the task did not apply the migration.
 
 Validation: 72 IdeaCAD files / 1,077 passing tests; browser-driven modeling and
 real SQL/RLS role, save/reopen, undo/redo, archive/link/share and admin flows at

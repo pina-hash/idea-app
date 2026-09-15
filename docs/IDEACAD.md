@@ -206,13 +206,13 @@ See [verification](ideacad/verification/README.md) and the
 [real-database browser report](ideacad/verification/BROWSER_VERIFICATION.md).
 
 The novice student's five-minute cold test, school integrated-GPU 60 fps target,
-school-network behavior, deployed authentication and production migration are
+school-network behavior and deployed authentication are
 still unverified. Local tests and screenshots do not substitute for those checks.
 
-Before deploying this client, Alejandro must apply
-`supabase/migrations/0216_ideacad_direct_documents.sql` through the authorized
-manual migration process. Its final query must return **27 rows, all ready=true**.
-No production migration was applied or recorded by this task.
+Alejandro confirmed manual application of migration 0216 on 2026-09-15 and
+supplied its **27 readiness rows, all true**, then authorized release to main.
+The [application record](migrations-applied/0216-ideacad-direct-modeler.md) is
+based on his report; this task did not connect to or write the production database.
 
 The prior product record, including the numbered decisions and older schema
 limitations, is preserved in [legacy-product-record.md](ideacad/legacy-product-record.md).
