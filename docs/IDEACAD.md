@@ -271,11 +271,191 @@ exclusion and the expiry sweep with positive controls.
 
 ### The ten surfaces
 
-<!-- FILL:SURFACES -->
+The ten surfaces were built in parallel by ten agents, each owning its own
+files, against the spine above; every request they had of a shared file
+(`SolidWorkspace.svelte`, `viewport.ts`, `features/core.ts`, `engine.ts`) was
+applied afterwards by one writer, which is how the spine's rules survived ten
+hands. Each row says what the surface got, in the surface's own measured
+numbers, and what it deliberately did not.
+
+**1. The design tree** (`FeatureTree.svelte`, `FeatureParams.svelte`,
+`tree/rows.ts`, `tree/params.ts`). Every feature in tree order with a status
+glyph AND a word, its summary, its type, and its message on its own row only
+when it has one. A row press selects the geometry the feature made and then
+the feature. Beneath the list, `FeatureParams` edits the full feature off the
+manifest: number fields are `type=text inputmode=decimal` with no `min`, `max`
+or `step`, and -3.5 and 1e6 go out as typed (a distance of 0 is refused by the
+KERNEL's own sentence, `Pull the sketch to give it depth.`, and the box is
+re-synced from the manifest). Rename inline, reorder by Up/Down or drag,
+suppress, delete, and every refusal is the reducer's own sentence obtained by
+running the real `reduce` (`refusalFor`), never restated. Up, Down and Delete
+are `aria-disabled` with the reason written under them. At 375 the tree is the
+workspace's slide-over behind the Tree toggle. Left out: re-picking a broken
+reference from the form (a viewport gesture), touch drag (the 44px buttons are
+the phone path), shift-click multi-select.
+
+**2. Dimensional control** (`viewport/readout.ts`, `dimensions/model.ts`,
+`DimensionPanel.svelte`). A drag reads at the pointer with its unit
+(`Extrude 1.208 in`, `2.286 x 0.175 in`, `Rotate 90.0 deg about Z`), sixteen
+pixels right and below it, which `tools/browser-verify`'s `readoutNearPointer`
+check now measures on the real page. `parseDimension` accepts `1.5`, `1 1/2`,
+`3/8`, `2in`, `2"`, `25.4mm` (stores exactly 1), `45deg`, `150%`; it refuses
+`abc`, `1/0`, `1,5` and a unit from the wrong family, each with a sentence. A
+DRIVING value (a feature parameter, a sketch constraint) is typed and made
+true by the replay or the solver; a DRIVEN value (a length, an area, a volume)
+is shown beside the word `measured` and is never editable, because an editable
+driven value would mean guessing which driving value to move. Left out: a
+native number picker (there is none, on purpose).
+
+**3. Reference geometry** (`features/reference.ts`, `ReferencePanel.svelte`,
+`viewport/reference-layer.ts`). Planes, axes and points FROM geometry (a flat
+face, a round face's axis, an edge, two corners, an edge middle, a face
+centroid, a body centre) and BY construction (offset, angle about an axis, mid
+plane, three points, two planes meeting, axis meeting plane, coordinates). The
+panel decides nothing: `referenceOffers` is one pure function answering every
+construction as ready (the feature plus the sentence) or not (the reason), and
+the panel renders the list verbatim. A face's centre is its AREA CENTROID
+(`faceCentroid` over the tessellation), not the vertex average, which on a
+round cap sits on the rim. References follow the topology by name and report a
+lost one on their own row; a revolve, a pattern and a mirror name a reference
+and follow it. Datum planes are a module-level setting with a listener, drawn
+unpickable. Left out: hover emphasis in the viewport (no hover pipeline), a
+point-normal plane button.
+
+**4. Mates** (`features/mate.ts`, `mates/*.ts`, `MatePanel.svelte`,
+`viewport/mate-preview.ts`). All six kinds (coincident, concentric, parallel,
+perpendicular, distance, angle) over faces, edges, corners and references,
+solved sequentially in tree order within the freedom earlier mates leave. The
+solver is pure and the kernel is touched twice (frames read once, one
+transform per moved body); the step is damped Gauss-Newton in dual form over a
+numeric Jacobian, because the primal normal equations amplified
+finite-difference noise in the free directions. Over-constraint is three
+sentences and a restored pose: `already hold it in place`, `conflicts with
+Mate 1` (naming exactly the earlier mates whose removal would free it), `adds
+nothing`. A fixed body never moves. Each body's remaining freedom is the null
+space of the accepted rows, named per world axis (`slides along Z, turns about
+Z`) and projected as `BodyProjection.freedom`. The magnetic auto-mate during a
+Move drag (`matePreview`, 0.15 in) snaps facing planar faces or parallel
+cylinder axes, draws the outlines as guides, and commits a real mate feature on
+release unless Ctrl is held. Left out: sphere faces (mate as a point,
+untested), a large-model timing.
+
+**5. Sketching** (`SketchEditor.svelte`, `sketch/editor.ts`,
+`sketch/model.ts`, `viewport/sketch-layer.ts`). The open sketch is an editable
+collection: draw (line chains sharing points, rectangle, circle, polygon with a
+typed side count, three-click arc), select, drag-move, join by dropping a
+point on a point, trim, extend, corner fillet (two tangent constraints, so a
+later dimension keeps the corner round), delete, constraints and dimensions
+offered from the selection, and region ticks for extrude. Every edit is ONE
+`set-feature` carrying the whole entity and constraint list, built from the
+SOLVED entities, and the editing look rides `api.guide`. The pick rule: a
+point within the pick radius wins outright over every curve. Left out: splines
+(the kernel's 2D solver has no spline entity), dimension VALUE text drawn in
+the viewport (guides are polylines; the number lives in the panel), extending
+an arc, a rubber-band selection.
+
+**6. Blends and the other features** (`features/blends.ts`,
+`features/extra.ts`, `features/holes.ts`, `features/options.ts`,
+`FeaturePanel.svelte`, `MeasurePanel.svelte`, `SectionPanel.svelte`). Fillet of
+several edges through one feature, face-to-all-its-edges, tangent propagation
+(`tangentChain`, walked in code because the kernel has no tangency query),
+asymmetric and angle chamfers (the kernel's conventions MEASURED and pinned,
+never corrected in code), variable-radius fillet, shell with per-face
+thickness on flat faces, a hole feature with a SOURCED size chart (ASME
+B18.2.8 clearance, UNC and metric tap drills, each figure naming its source),
+draft, sweep along a sketch chain or model edges, ruled loft. Rib is refused
+honestly in a sentence (the kernel cannot extend an open sketch to the body).
+Smooth loft through three or more profiles returned a negative volume in this
+kernel build and is refused in words. Measure reports a word, a number and a
+unit with a witness line; Section clips on a datum, a reference plane or a
+selected flat face.
+
+**7. Materials and colour** (`BodyProperties.svelte`, `advisory.ts`,
+`appearance.ts`). Every stock material carries a colour (required, so no
+material can silently draw as machined stock); a body can override it from a
+palette of eight named swatches or a typed hex; `describeAppearance` says which
+rung applies in words. THE DENSITY CITATION DISCIPLINE IS UNCHANGED:
+`hasCitedDensity` is the one predicate, `bodyMass` calls it, a cited material
+shows its number and its MatWeb link, an uncited one shows the Unverified chip,
+no number and `Mass: Unknown`, and the four cited densities are pinned by a
+test against the pre-edit bytes. No material was added, because none could be
+sourced from this container. Fixed-for-mates is a labelled checkbox here.
+
+**8. Storage and the launch page** (`transport.ts`, `launch/*`,
+`LaunchPage.svelte`, `DocumentCard.svelte`, `TrashList.svelte`,
+`DirectDocuments.svelte`, `/ideacad`, `/dev/ideacad-launch`). The front door
+lists a student's models as cards (title, thumbnail, feature and body counts,
+last edit, owner, role word, assignment and folder chips, tags), grouped and
+searchable, with folders, tags, rename, duplicate, archive and the trash.
+Archive and trash are two sentences that differ on purpose: archive keeps a
+model readable and listed; the trash names the document and says it goes for
+good after thirty days. A document linked to an assignment shows decision 29's
+sentence in place of a trash control, because 0217 refuses it and a control
+whose only outcome is a refusal is not offered. A `PGRST202` on any 0217
+function degrades to one sentence (`STORAGE_UNAVAILABLE`), so a deployment
+between 0216 and 0217 renders the list with the rail saying why filing is not
+offered. Left out: thumbnail GENERATION (the RPC exists; the workspace does
+not yet render one), hiding an owner's tags from a grantee.
+
+**9. Add-ons** (`addons/registry.ts`, `addons/ideablade.ts`,
+`AddonPanel.svelte`). An add-on is `{ id, name, description, tools, starters,
+references, advise? }` and NEVER-RESTRICT IS A TYPE-LEVEL PROPERTY: each
+interface's key set is pinned to an exported member list by an `Exact<>`
+assertion, the only function-valued members are `run`, `advise`, `steps` and
+`step`, and a tool's only door into the document is `api.apply` with the same
+commands a student's press sends. A hook that ran before a base command, or
+returned a verdict, cannot be added without editing the lists. IdeaBlade
+contributes four tools (hex core, collar, spin bolt, body profile), one
+starter (the default part: eight features, four bodies with roles) and three
+references, every default cited to `blade/tree.ts` or `blade/evaluate.ts` and
+every one typed. Left out: a blade-plate tool; one-step undo of a tool run
+(each step is its own history row, labelled with the add-on's name).
+
+**10. Part movement** (`viewport/triad.ts`, `viewport/drag-math.ts`,
+`MovePanel.svelte`). A real triad at the selection's centre: three arrows with
+letters, three plane squares, three rotation rings and a centre free-drag
+sphere, hit-tested by invisible fatter twins (a ring's target is a FLAT
+annulus, never a torus, because from a top view a torus tube steals the press
+meant for the arrow beneath it). Axis, plane, free and ring drags are one pure
+function; a 90-degree sweep on the Z ring turned a 4x3x1 box into 3x4x1 with
+its centre unchanged. Alt divides a handle drag by ten. Snapping to references
+and other bodies' corners within 12 screen pixels is a setting, off by
+default, and Ctrl skips it for one drag. The panel types an offset or an angle
+as the SAME `transform` feature a gesture makes. The engine's transform
+executor now copies (`copyAndTransformSolid`) so undoing a move puts the body
+back, which the previous in-place transform did not.
 
 ### What is now possible, and what is not built
 
-<!-- FILL:POSSIBLE -->
+**Now possible.** A student can build a part as a sequence of editable
+operations and change any number in it later; sketch on a face and have the
+sketch follow that face when the part beneath it changes; make reference
+planes, axes and points from geometry or by construction and revolve, pattern
+and mirror about them; place two bodies against each other with named mates
+and see how much freedom each has left; round, bevel, shell, drill, draft,
+sweep and loft; type any dimension in inches, millimetres or fractions; move a
+part with a triad or by typed numbers and undo it; file, tag, rename,
+duplicate, archive and trash documents from a front page; open every document
+saved before this bundle unchanged. The acceptance model (a motor bracket, its
+bolt hole sketched on the flange's top face, an axis from the hole, a pin
+mated concentric to it) is in `docs/ideacad/verification/0273/`: editing the
+bracket's depth through the tree rebuilt seven later features, and changing
+the flange thickness in the FIRST sketch rebuilt all eight with the hole, the
+axis and the mate intact, in about 20 ms.
+
+**Not built, and why.** Rib (no extend-to-body in the kernel). Splines (no
+spline entity in the kernel's 2D solver). Smooth loft through three or more
+profiles (a negative volume from this kernel build). Multi-body boolean
+between two feature-made bodies is the existing `boolean` feature and was not
+widened. Thumbnails are stored by an RPC nothing calls yet. Assemblies are ONE
+file: a mate names two bodies in the same document, and a part reused across
+documents is a duplicate, not a link. A hover pipeline in the viewport. A
+sketch dimension's value drawn beside the geometry. Touch drag in the tree.
+The advisory's `bodyParts` definition disagrees with `blade/evaluate.ts` about
+what `Hex extension` and `Body height` measure (the add-on starter's defaults
+read hex 0.205 in against a 0.5 in floor and height 3.356 in against 2.9 to
+3.1 in); that is reported, not changed, because `blade/**` is outside this
+bundle and the advisory is a rule about a blade.
 
 ## Current implementation
 

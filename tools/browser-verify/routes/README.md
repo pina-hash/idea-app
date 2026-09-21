@@ -115,6 +115,11 @@ export default {
   flips, so adding entries is cheap; see `checks.mjs` and the harness README's
   `motion` section.
 - `textContains` -- `[{ selector, label, must, mustNot }]`.
+- `readoutNearPointer` -- `[{ readoutSelector, fromEvaluate, delta, steps, maxPx, label }]`
+  -- a REAL pointer drag from the client position `fromEvaluate` (a page-side
+  function SOURCE) returns, checking a readout is on screen at every step and
+  never further than `maxPx` from the pointer. It moves the model it drags, so
+  it runs after every static check.
 - `ignoreConsole` -- regex sources for errors that belong to the FIXTURE.
 
 Selectors are ANCHORED (a component root, then the element) rather than bare

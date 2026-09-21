@@ -646,3 +646,98 @@ export async function distinguishable(
 		data: { ...data, axes, minSizeDeltaPx, minWeightDelta, minInkRatio }
 	};
 }
+
+/* ------------------------------------------------------------------ *
+ * 4. Readout near the pointer -- does a live value follow a drag
+ * ------------------------------------------------------------------ */
+
+/**
+ * WHAT IT ASKS. During a real pointer drag, is there a readout on screen and
+ * does it sit beside the pointer? A modeler that floats the number a drag is
+ * worth ("Extrude 1.500 in") beside the cursor is answering the one question
+ * a student has while dragging; a readout that appears in a corner, or not at
+ * all, is the defect this exists for, and nothing in a static DOM read can see
+ * it because the element does not exist until the drag is under way.
+ *
+ * HOW IT MEASURES. `fromEvaluate` is a page-side function SOURCE returning the
+ * client position to press at (a route spec computes it from the model, so a
+ * projected face centre rather than a guessed pixel). The check presses there,
+ * moves in `steps` increments to `delta` away, and at each step after the
+ * first reads the readout's box and the distance from the pointer to its
+ * NEAREST edge. It reports the worst (largest) distance and the number of
+ * steps the readout was missing, then releases the pointer.
+ *
+ * THE THRESHOLD IS A DISTANCE, `maxPx`, AND A COUNT. The readout must be
+ * present on every sampled step after the first (a drag needs one move to
+ * begin), and its nearest edge must never be further than `maxPx` from the
+ * pointer. Both halves are printed; a readout that flickers fails on the
+ * count, one that sits in a corner fails on the distance.
+ *
+ * NEGATIVE CONTROLS. `--selftest` puts it to a readout that follows the
+ * pointer and to one pinned in a corner; `--break readout-away` translates the
+ * real surface's readout 300px away so the check reddens on the page it is
+ * for. Neither can pass by the readout merely existing.
+ */
+export async function readoutNearPointer(
+	page,
+	{ label = 'readout follows the pointer', readoutSelector, fromEvaluate, delta = { dx: 80, dy: 0 }, steps = 6, maxPx = 40, settleMs = 60 } = {}
+) {
+	const start = await page.evaluate(`(${fromEvaluate})()`);
+	const problems = [];
+	const samples = [];
+	if (!start || typeof start.x !== 'number' || typeof start.y !== 'number') {
+		return {
+			check: 'readout-near-pointer',
+			selector: readoutSelector,
+			label,
+			measured: `fromEvaluate returned ${JSON.stringify(start)}, not a client position`,
+			threshold: `readout present on every step after the first, nearest edge within ${maxPx}px of the pointer`,
+			withinThreshold: false,
+			data: { start, samples, fault: 'no-start' }
+		};
+	}
+	await page.mouse.move(start.x, start.y);
+	await page.mouse.down();
+	try {
+		for (let i = 1; i <= steps; i++) {
+			const x = start.x + (delta.dx * i) / steps, y = start.y + (delta.dy * i) / steps;
+			await page.mouse.move(x, y);
+			await page.waitForTimeout(settleMs);
+			if (i === 1) continue;
+			const read = await page.evaluate(
+				({ selector, x, y }) => {
+					const el = document.querySelector(selector);
+					if (!el) return { present: false };
+					const r = el.getBoundingClientRect();
+					const visible = r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).display !== 'none';
+					const nx = Math.max(r.left, Math.min(x, r.right)), ny = Math.max(r.top, Math.min(y, r.bottom));
+					return { present: true, visible, text: (el.textContent || '').trim(), box: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)], distance: Math.hypot(nx - x, ny - y) };
+				},
+				{ selector: readoutSelector, x, y }
+			);
+			samples.push({ step: i, pointer: [Math.round(x), Math.round(y)], ...read });
+			if (!read.present || !read.visible) problems.push(`step ${i}: readout ${read.present ? 'not visible' : 'absent'}`);
+			else if (read.distance > maxPx) problems.push(`step ${i}: ${read.distance.toFixed(1)}px from the pointer`);
+		}
+	} finally {
+		await page.mouse.up();
+		await page.waitForTimeout(settleMs);
+	}
+	const present = samples.filter((s) => s.present && s.visible);
+	const worst = present.length ? Math.max(...present.map((s) => s.distance)) : null;
+	const texts = [...new Set(present.map((s) => s.text))];
+	const measured =
+		`${present.length} of ${samples.length} sampled steps had a visible readout` +
+		(worst === null ? '' : `; nearest edge at most ${worst.toFixed(1)}px from the pointer`) +
+		(texts.length ? `; it read ${texts.map((t) => JSON.stringify(t)).slice(0, 3).join(', ')}` : '') +
+		(problems.length ? `; ${problems.join('; ')}` : '');
+	return {
+		check: 'readout-near-pointer',
+		selector: readoutSelector,
+		label,
+		measured,
+		threshold: `readout present on every step after the first, nearest edge within ${maxPx}px of the pointer`,
+		withinThreshold: problems.length === 0 && samples.length > 0,
+		data: { start, delta, steps, maxPx, samples, problems }
+	};
+}
