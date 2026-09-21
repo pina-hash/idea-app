@@ -5,7 +5,7 @@
  *   npm run verify:browser                 both widths, every listed dev route
  *   npm run verify:browser -- --probe      environment capability probe only
  *   npm run verify:browser -- --selftest   negative controls (exits 1 if a check is broken)
- *   npm run verify:browser -- --break overflow|tiny-taps|low-contrast|invisible|console-error|blank-text|motion|
+ *   npm run verify:browser -- --break overflow|tiny-taps|low-contrast|invisible|console-error|blank-text|motion|readout-away|
  *                                        blank-canvas|zero-box|same-style
  *                                          inject that defect into the REAL page and confirm the
  *                                          matching check reddens on this surface
@@ -39,7 +39,7 @@ import {
 	prepareWaitResult,
 	prepareEvalResult
 } from './checks.mjs';
-import { canvasContent, layoutSanity, distinguishable, installCanvasReadback } from './checks-visual.mjs';
+import { canvasContent, layoutSanity, distinguishable, installCanvasReadback, readoutNearPointer } from './checks-visual.mjs';
 import { probeEnvironment } from './probe.mjs';
 import { runSelfTest } from './selftest.mjs';
 import { WIDTHS, selectRoutes, urlFor } from './routes.mjs';
@@ -101,6 +101,11 @@ export const BREAKAGE = {
 	/* Not CSS: a thrown error, which is how the notebook bundle's real
 	   state_unsafe_mutation surfaced -- silently, with dead click handlers. */
 	'console-error': { js: 'throw new Error("state_unsafe_mutation (injected by --break console-error)")' },
+	/* The live control for `readoutNearPointer`: the solid modeler's drag readout
+	   is still drawn, still says the right number, and sits 300px away from the
+	   pointer -- which is exactly the defect the check is for and the one a
+	   presence check cannot see. */
+	'readout-away': '.solid-workspace .measure { transform: translate(300px, 300px) !important; }',
 	/* The live control for `canvasContent`. IT DOES TWO THINGS AND NEEDS BOTH,
 	   which is a measurement about the surface rather than belt and braces.
 
@@ -520,6 +525,8 @@ async function runRoute(browser, origin, spec, width, opts) {
 		for (const c of spec.canvasContent ?? []) results.push(await canvasContent(page, c));
 		for (const l of spec.layoutSanity ?? []) results.push(await layoutSanity(page, l));
 		for (const d of spec.distinguishable ?? []) results.push(await distinguishable(page, d));
+		/* A real drag, after everything static has been read: it moves the model. */
+		for (const r of spec.readoutNearPointer ?? []) results.push(await readoutNearPointer(page, r));
 		/* ONE call for every motion entry, not one per entry: the check flips
 		   Chromium's `prefers-reduced-motion` emulation and settles twice, and
 		   eleven marks measured separately would pay twenty-two settles per

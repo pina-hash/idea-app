@@ -16,7 +16,10 @@
 			"date": "2026-09-15",
 			"title": "Start your own model in IdeaCAD",
 			"body": "IdeaCAD opens with your documents, and a new model starts empty. Draw a shape, turn it into a solid, and build your own design. An IdeaCAD assignment now opens the separate modeling workspace; link your document to the assignment to share it with your instructor. Your older blade documents still open. Turn on IdeaBlade when you want to check a design against the competition limits. For printed parts, enter the finished part's weight or its Bambu Studio estimate; the program does not guess a weight from plastic density.",
-			"tags": ["IdeaCAD", "Assignments"]
+			"tags": [
+				"IdeaCAD",
+				"Assignments"
+			]
 		},
 		{
 			"date": "2026-09-14",
@@ -1453,6 +1456,22 @@
 			"body": "Publishing an app needs a name, a thumbnail and the app itself. A description is optional now. Before this, you could not even send an app for review without writing one, which was not the intention. If you have an app that was stuck on that, you can submit it as it is. A description is still worth writing when you have something to say: it is what somebody reading the gallery sees before they open your app.",
 			"tags": [
 				"foundry"
+			]
+		},
+		{
+			"date": "2026-09-21",
+			"title": "IdeaCAD has a new front page",
+			"body": "Opening IdeaCAD now shows every model you own or that was shared with you as a card, with a picture, how many features and bodies it has, and when it was last edited. You can put models in folders, tag them, rename them, make a copy, and search by name, owner or tag. Archive keeps a model readable under Archived and you can bring it back any time. Move to trash keeps it for 30 days in the Trash view, where you can restore it or remove it for good. Assignment work is kept and cannot be trashed; archive it instead.",
+			"tags": [
+				"ideacad"
+			]
+		},
+		{
+			"date": "2026-09-21",
+			"title": "IdeaCAD: every edit is a step you can go back and change",
+			"body": "The solid modeler keeps a design tree on the left. Every sketch, extrude, fillet, hole, mirror, pattern and reference plane is a row you can select, rename, reorder, suppress or delete, and changing a number in one rebuilds everything after it. Dimensions are typed as you like, including fractions and millimetres, and nothing rounds or limits what you type: if a shape cannot be built the row says why. You can add reference planes, axes and points, mate two bodies, measure distances and angles, cut a section view, and colour bodies. In Add-ons, IdeaBlade builds the hex core, collar, spin bolt and body profile for you, and never locks a tool.",
+			"tags": [
+				"ideacad"
 			]
 		}
 	]

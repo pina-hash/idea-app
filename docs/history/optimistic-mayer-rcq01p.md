@@ -1,0 +1,253 @@
+---
+title: "IdeaCAD feature graph: design tree, reference geometry, mates, sketching, blends, materials, storage, add-on tools, part movement"
+date: 2026-09-21
+branches: ["claude/optimistic-mayer-rcq01p"]
+migrations: ["0217"]
+subsystems: ["ideacad", "database", "verification"]
+---
+
+Ledger 0273. One migration (`0217`), the IdeaCAD feature graph as the spine,
+then ten surfaces built in parallel by ten agents on one branch, integrated
+by a single writer, verified in a real Chromium at 1440 and 375, and shipped
+as a PR against `main` that is NOT merged: Mr. Pina applies 0217 by hand
+first.
+
+### What changed
+
+- **The spine** (`src/lib/ideacad/solid/`): `types.ts` gains the version 2
+  manifest (a feature list, reference and mate features, `FaceRef` /
+  `EdgeRef` / `VertexRef` with geometric hints, `BodyFreedom`);
+  `naming.ts` is the four-tier topological naming (construction roles,
+  ordinals, hints, counted fallback) with blends named from the two neighbours
+  sharing the most edge length; `engine.ts` replays the feature list with a
+  twelve-checkpoint window, a projection cache keyed by solid handle that is
+  invalidated on `replaceBody`, `addBody` and after every checkpoint restore,
+  and `replayedFrom` / `replayMs` on every projection; `commands.ts` reduces
+  the document commands (add, set, rename, move, suppress, remove, title,
+  addon, metadata, with `sketch` and `delete` as wrappers) and refuses in its own sentences; `upgradeManifest` turns a
+  version 1 save into `body` features and the first version 2 save carries
+  `diffTrees(v1, v2)` so 0209's action log replays across the boundary; the
+  transform executor copies (`copyAndTransformSolid`) so undoing a move puts
+  the body back.
+- **Migration 0217** (`supabase/migrations/0217_ideacad_feature_graph.sql`):
+  the validator accepts `ideacad-solid-v1` and `-v2`; `deleted_at` /
+  `deleted_by` with a thirty-day `_ideacad_trash_window()`, a lazy
+  `_ideacad_purge_expired_direct_documents()` and a preserve trigger that
+  admits a purge only through the transaction-local GUC `ideacad.purge`;
+  `ideacad_folders`, `tags text[]`, `thumbnail` (a data URL under 60000
+  bytes, CHECKed); rename through a history row, duplicate, thumbnail RPC;
+  every function revokes from `public, anon, authenticated` by name (the 0166
+  shape) and grants back exactly what should hold it; a self-check that
+  raises, and a read-only readiness query after `commit;` that returns rows
+  with two negative controls. `tests/db/ideacad-feature-graph-storage.test.ts`
+  seeds the chain through 0216's real RPCs and applies 0217 over it (25
+  tests, including a mutant list as the positive control, a 31-day / 29-day
+  expiry pair, a second apply, and a dollar-in-comment scan with a planted
+  control). `tests/db/ideacad-grants-anon-execute-surface.test.ts` adds 0217
+  and `ideacad_folders` to its allowlists.
+- **Ten surfaces**, each in its own files and each recorded in
+  `docs/IDEACAD.md` under "The ten surfaces": the design tree, dimensional
+  control, reference geometry, mates, sketching, blends and the other
+  features (hole with a sourced size chart, draft, sweep, loft; rib refused
+  honestly), materials and colour, storage and the launch page (`/ideacad` is
+  `LaunchPage` now, the legacy chooser at `?legacy=1`), add-ons (never-restrict
+  pinned in the types), part movement (a real triad, drag arithmetic, fine
+  control, snapping, `MovePanel`).
+- **The integration**: 28 requests from the ten agents applied to
+  `SolidWorkspace.svelte`, `viewport.ts`, `features/core.ts`, `engine.ts`,
+  `readout.ts`, `tools.ts` by one writer. Declined: an export from
+  `src/lib/ideacad/blade/evaluate.ts` (a forbidden path; the add-on keeps its
+  own copy of the collar and spin-bolt rules and says so) and a change to the
+  advisory's `bodyParts` (reported as a finding instead).
+- **Browser verification**: `tools/browser-verify/checks-visual.mjs` gains
+  `readoutNearPointer` (a real pointer drag, sampling the readout's distance
+  from the pointer at every step); `run.mjs` dispatches it and carries a
+  `--break readout-away` preset; `selftest.mjs` puts it to a broken and a
+  sound fixture; three route specs (`ideacad-solid`, `ideacad-solid-state-tree`,
+  `ideacad-launch`) with their measured files. The acceptance model's images
+  are in `docs/ideacad/verification/0273/`.
+- **Two classroom update entries** (2026-09-21) in `classroom-updates.json`.
+
+### Decisions, and why
+
+- **A linear feature list with a derived dependency DAG**, not a stored
+  graph: the list is what a student reads and reorders, the DAG is what
+  decides a replay's start and a reorder's refusal, and storing the DAG would
+  be a second statement of the same dependencies.
+- **Deterministic body ids `<fid>#k`** so a metadata command, a mate and a
+  role can name a body a feature has not been replayed to create yet.
+- **Names never rewrite a stored feature.** A hint re-attaches a reference
+  with a warning on the row; an ambiguous or missing match is an error naming
+  the reference. A repair during load would be a silent edit of a student's
+  work.
+- **The checkpoint window is twelve** and the kernel cannot discard one
+  checkpoint (discarding any drops every later one, measured), so the stack is
+  compacted by rebuilding from the base once it has grown past twice the
+  window. The cost table is in `docs/IDEACAD.md`.
+- **The hole in the acceptance model is sketched on the flange's top FACE.**
+  The first run put it on a fixed `XY` datum at z 0.375 and the deep edit
+  (flange 0.375 to 0.5) broke the cut and, downstream, the axis and the mate
+  with lost-reference errors naming `cut.side.0`. That is the engine doing its
+  job (a sketch on a fixed plane does not follow a face), and the model was
+  wrong, not the engine: on a face reference the same edit rebuilt all eight
+  features with the hole, the axis and the mate intact. Worth knowing because
+  it is the first thing a student will do.
+- **The selected tree row keeps the list's ink.** `ideacad.css` fills any
+  `.ic-root button[aria-pressed='true']` with the accent and dark ink (a mode
+  that is on); on a tree row the fill was overridden by the hover ground and
+  the dark ink stayed, measured 1.27:1. The row now declares its own paint
+  (`FeatureTree.svelte`), and the harness reads 11.59:1.
+
+- **Twenty-seven decorative edges moved from `--boundary` to `--hairline`**
+  after the full suite: a heading's underline, a section's top rule, a
+  fieldset frame, a static chip, the workspace's header and footer rules and
+  the tree rail's edge. Every control edge (button, input, select, the offer
+  buttons, the tool palette and panel boxes floating on the plate) keeps
+  `--boundary`, which is the three-use rule in CLAUDE.md applied rather than
+  the count chased: the tree reads 209 hairline against 368 boundary after.
+- **The launch page draws search and sort only once the list needs them**,
+  at the chooser's own `IDEACAD_CHOOSER_CONTROLS_AT` (six rows), in the front
+  door and embedded alike. Measured by the chooser render test: embedded under
+  the legacy chooser it was a second search on one page above the threshold
+  and a lone one below it.
+- **`tests/db/migrations-applied-record.test.ts` accepts a ledger slug that
+  names an existing entry file** beside a four-digit number. 0216's record was
+  written for a Codex task whose entry is `ideacad-direct-modeler.md`, and the
+  regex alone left that test red on `main`; the file-exists check is the
+  stronger assertion (a slug that names no file is a record authorised by
+  nothing). Outside this bundle's owned files, done because the merge to
+  `main` was granted and a standing red hides the next real failure.
+- **The 1440 acceptance pass was killed twice by a Vite full reload** before
+  it ran clean: `svelte-kit sync` running for `svelte-check` in another shell
+  rewrites `.svelte-kit/`, and the dev server reloads every open page. Run the
+  sync before the browser pass, never beside it.
+
+### After the pre-merge review (six lenses, two refuters per finding)
+
+Ten findings survived refutation; the two deploy-order ones are the paste-first
+rule, the ledger flip is the final commit, and the rest changed code:
+
+- **Undo across the version 1 to 2 boundary was refused by the server** (a
+  blocker for every document saved before this bundle). `SolidWorkspace`
+  diffed and inverted against the ENGINE's snapshot, which is upgraded on
+  load; the row still holds version 1 until a save carries the upgrade, so
+  undoing the first edit inverted the upgrade too and sent an engine-shaped
+  version 2 as `p_model`: 'The history actions do not produce the saved
+  model.', retried as retryable, and the recovery panel. The workspace now
+  keeps `serverManifest`, the tree the server holds as of the last recorded
+  operation, diffs every operation against it and, for an undo or redo, sends
+  the tree the exact inverse rows PRODUCE. `groupHistory` requires the rows to
+  be exact inverses, so a fresh diff was not an option. Pinned in
+  `tests/ideacad-solid-history.test.ts`.
+- **A body's record survives its feature being suppressed or failing.**
+  `reconcileRecords` rebuilt the records from the live bodies only, so a
+  suppressed extrude lost its body's name, material, colour, role, mass and
+  fixed flag and the next save persisted the loss. A record whose creating
+  feature is still in the tree is kept. Pinned in
+  `tests/ideacad-solid-features.test.ts`.
+- **A typed pattern count is no longer rounded** (`Math.round` in the numeric
+  entry contradicted the changelog's 'nothing rounds'); the executor refuses
+  a fraction in words: 'A pattern needs a whole number of copies, at least
+  two.'
+- **Close sketch, the add-on switch and the current swatch declared their own
+  pressed ground**: the room's global pressed-button rule filled them with the
+  accent while their own rule painted the word in the accent, 1.00:1 until
+  hovered. Each takes the green tint the tree row uses. Measured in Chromium
+  at 1440 and 375 after the fix: Close sketch 5.98:1 (on the hover ground the
+  pointer leaves it on), the add-on switch 5.91:1 on the tint (rgb 18, 50, 34),
+  the tree's status word on the same tint 5.91:1; the swatch carries the same
+  two tokens and was not reached by the probe.
+- **0217 masks tags and folder for every reader but the owner**, on the list
+  and in the open payload, which is what its own section 4 header already
+  said; and `ideacad_duplicate_direct_document` answers a non-owner 'does
+  not exist' for a trashed document, as the list and the open path do,
+  rather than telling them it is in the trash. Section 7's rolling-back
+  self-check now covers the eight replaced functions as well as the sixteen
+  new ones. The file changed after the PR first carried its hash; the PR
+  body names the hash of what to paste.
+- **The thumbnail is a JPEG and an oversize one is not sent**: a PNG of a
+  shaded render can pass the 60000-character cap on compression luck alone,
+  and the best-effort path swallowed the refusal.
+- **`cancel()` clears the gesture in `finally` and `begin()` clears it when
+  the kernel refuses**, so a rejected kernel call cannot leave the workspace
+  believing a drag is in progress.
+- Filing a document, tagging it or deleting a folder that held it bumps
+  `updated_at` through 0201's touch trigger, so the row moves to the top of
+  the last-edited order with no model edit; recorded so it is not read as a
+  defect later. A grantee can still page a trashed document's revision rows
+  through 0216's `ideacad_direct_concept_history` until the purge, which is
+  what they could read before the trash; a later migration may add the
+  owner-only term there. The trash receipt's `swept` is a system-wide count
+  of expired rows and is not rendered.
+
+### Measured
+
+- Acceptance model at 1440 and 375, identical numbers at both widths: bracket
+  bounds [0,-2,0,3,0,2.5]; the cut produced one cylinder face; the Reference
+  panel offered `axis-face`, `point-face`, `point-body`, `plane-offset`,
+  `plane-angle`, `point-axis-plane`, `axis-datum`, `point-coordinates` for it;
+  the concentric mate solved with residual 4.4e-16 and left the pin 2 degrees
+  of freedom; editing the bracket's depth 2 to 3 through the tree's parameter
+  field replayed from feature 1 in 20.6 ms at 1440 and 27.2 ms at 375 and took
+  the volume 3.7966 to 5.7185 (analytic 5.7185); changing the flange from 0.375
+  to 0.5 in the FIRST sketch replayed from 0 in 29.3 and 30.3 ms and took it to
+  6.6872 (analytic 6.6872), every row `ok`, the mate `ok`. The figures are the
+  committed run's (`docs/ideacad/verification/0273/acceptance-report.txt`);
+  two earlier runs, whose output is not committed, read 16 to 22 and 21 to
+  28 ms.
+- Browser harness, the three new specs at both widths: 118 measurements, 0
+  outside threshold (after the tree-row fix; 2 outside before it, both the
+  1.27:1 name). Self-test: 100 controls, both slots of the new check proven.
+  `--break readout-away` on `/dev/ideacad-solid` at 1440 reddened the new
+  check at 446.9 px against 40 px while the readout still read a value.
+- `svelte-check`: 0 errors, 37 warnings in 20 files (31 `state_referenced_locally`,
+  5 `css_unused_selector`, 1 `perf_avoid_nested_class`), the baseline.
+- Solid suites after integration: 427 node tests in 28 files and 400 dom
+  tests in 25 files, 0 failed. The ten agents' own files: tree 38, dimensions
+  151, reference 33, mates 42, sketching 73, blends 25, appearance 22, storage
+  54, add-ons 22, triad 46, all 0 failed.
+- Full suite, once, at the end, read from the summary line and stderr:
+  527 files and 9823 tests; the first run reported 4 failed in 3 files (`tests/boundary-token.test.ts`: the new panels had put 44 `--boundary` uses and no `--hairline` on the tree, so the decorative side stopped being the majority; `tests/ideacad-chooser-render.test.ts`: the embedded launch page drew a second search below the chooser's own threshold; `tests/db/migrations-applied-record.test.ts`, twice: no record for 0217 yet, and 0216's hand-written record names a Codex ledger slug where the test demanded four digits, which is red on `origin/main` today). The first three were fixed in the commit that followed and their files re-run green (99 passed, 1 failed on those 8 files); the one left is the 0217 record, which is written from Mr. Pina's paste report and cannot honestly exist before it.
+- Replay cost on the forty-feature fixture, the projection cache's memory
+  and the checkpoint arithmetic: the table in `docs/IDEACAD.md`.
+
+### Corrections to the prompt's "measured 2026-09-20" claims
+
+- The densities and their sources live in `src/lib/ideacad/solid/advisory.ts`
+  (`STOCK_MATERIALS`), not where the prompt placed them; the citation
+  discipline was preserved there, unchanged.
+- The archive function the prompt named as `ideacad_archive` is
+  `ideacad_set_direct_document_archived(uuid, boolean)` for a direct
+  document; `ideacad_archive(p_item_id)` is the classroom-item function from
+  0214 and is not what the launch page calls.
+- No delete RPC existed for a direct document before 0217; the trash is the
+  first removal path of any kind, and it is a soft delete with a purge.
+- The revolve axis was a hardcoded sketch axis; it takes a selected reference
+  axis now.
+- `SolidCommand` already had more members than the prompt listed (metadata,
+  addon, delete-body); the reducer was extended, not created.
+
+### Not verified
+
+- Nothing against production or a signed-in session: the local `.env` is
+  the placeholder project, so `/ideacad` over `createSolidTransports` and
+  the 0217 RPCs on a live database were not driven. The RPCs are proven on
+  the embedded Postgres only.
+- Web fonts do not load in the harness, so every text metric is in the
+  fallback stack; `prefers-reduced-motion` is `no-preference` throughout.
+- Touch input: no drag was driven with a touch pointer at 375; the phone
+  path in the tree is the 44 px buttons.
+- The snap settings in a real drag were proven by the drag-math tests over an
+  owned projection, not by a browser drag with snapping on.
+- The Measure and Section panels were driven by mount tests and by the
+  integrated workspace's type-check, not by a browser pass of their own.
+
+### Deferred
+
+- A thumbnail for a document saved before 0217, until it is saved again (the
+  workspace stores one after every save; nothing regenerates one otherwise).
+- Hiding an owner's tags from a grantee on the launch page.
+- The advisory `bodyParts` definition against `blade/evaluate.ts` (a
+  `blade/**` change, outside this bundle).
+- One-step undo of an add-on tool run (needs a batch command).
+- A hover pipeline in the viewport.

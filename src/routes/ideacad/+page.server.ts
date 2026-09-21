@@ -21,6 +21,8 @@ import {
 	type IdeaCadDocumentSummary,
 	type IdeaCadPaneLayout
 } from '$lib/ideacad/app/types';
+import { normalizeDocument, normalizeFolder } from '$lib/ideacad/solid/launch/library';
+import { STORAGE_UNAVAILABLE } from '$lib/ideacad/solid/launch/wording';
 
 const DEFAULT_LAYOUT: IdeaCadPaneLayout = { left: 260, right: 240, leftOpen: true, rightOpen: true };
 
@@ -146,13 +148,20 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 	   `current_user_email()` for itself -- so only the rendering degrades. */
 	const viewerEmail = ideacadNormalizeEmail(claims.email ?? '');
 
-	const [{ rows: allDocumentRows }, { data: editorRows }, parentData,directResult] = await Promise.all([
+	const [{ rows: allDocumentRows }, { data: editorRows }, parentData,directResult,folderResult] = await Promise.all([
 		readDocuments(supabase),
 		supabase.from('ideacad_editors').select('item_id'),
 		parent(),
-		supabase.rpc('ideacad_direct_documents')
+		supabase.rpc('ideacad_direct_documents'),
+		/* THE LAUNCH PAGE'S FOLDERS, from 0217. A deployment before it answers
+		   `PGRST202`, which is a state to name in one sentence, never a failed
+		   load: the list below still renders and the rail says why filing is
+		   not on offer yet. Any other error is reported verbatim. */
+		supabase.rpc('ideacad_direct_folders')
 	]);
-	const directDocuments=Array.isArray(directResult.data)?directResult.data:[];
+	const directDocuments=(Array.isArray(directResult.data)?directResult.data:[]).map(normalizeDocument);
+	const directFolders=(Array.isArray(folderResult.data)?folderResult.data:[]).map(normalizeFolder);
+	const directFoldersError=folderResult.error?(folderResult.error.code==='PGRST202'?STORAGE_UNAVAILABLE:folderResult.error.message):null;
 	const directIds=new Set(directDocuments.map(row=>row.id));
 	const documentRows=allDocumentRows.filter(row=>row.item_id&&row.model_format!=='solid-v1'&&!directIds.has(row.id));
 
@@ -222,7 +231,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 	const raw = (parentData.userProfile?.preferences as Record<string, unknown> | undefined)
 		?.ideacad as { panes?: Partial<IdeaCadPaneLayout> } | undefined;
 	return {
-		directDocuments,directError:directResult.error?.message??null,
+		directDocuments,directError:directResult.error?.message??null,directFolders,directFoldersError,
 		documents,
 		sources,
 		userId: claims.sub,

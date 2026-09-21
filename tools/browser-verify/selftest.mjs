@@ -43,7 +43,7 @@ import {
 	prepareWaitResult,
 	prepareEvalResult
 } from './checks.mjs';
-import { canvasContent, layoutSanity, distinguishable, installCanvasReadback } from './checks-visual.mjs';
+import { canvasContent, layoutSanity, distinguishable, installCanvasReadback, readoutNearPointer } from './checks-visual.mjs';
 
 const shell = (body, head = '') =>
 	`<!doctype html><html><head><meta name="viewport" content="width=device-width"><style>
@@ -90,6 +90,30 @@ const glShell = (draw) =>
 
 /* Each case: what to load, which check to run, and which way it must come out. */
 const CASES = [
+	{
+		group: 'readout-near-pointer',
+		bad: {
+			/* The readout exists, is visible and says a number, and sits in a
+			   corner: every static check passes it, and only a drag can see that
+			   it is not beside the pointer. */
+			name: 'a drag readout pinned in a corner while the pointer moves',
+			html: shell(
+				'<div id="stage" style="position:fixed;inset:0"></div><output class="measure" style="position:fixed;left:8px;top:8px;display:none;padding:6px;background:#222;color:#eee">1.500 in</output>' +
+					'<script>const o=document.querySelector(".measure");let down=false;addEventListener("pointerdown",()=>{down=true;});addEventListener("pointermove",()=>{if(down)o.style.display="block";});addEventListener("pointerup",()=>{down=false;o.style.display="none";});</script>'
+			),
+			run: (p) => readoutNearPointer(p, { readoutSelector: '.measure', fromEvaluate: '() => ({ x: 150, y: 150 })', delta: { dx: 80, dy: 0 }, steps: 4, maxPx: 40 }),
+			expect: 'outside'
+		},
+		good: {
+			name: 'a drag readout that follows the pointer at a 16px offset',
+			html: shell(
+				'<div id="stage" style="position:fixed;inset:0"></div><output class="measure" style="position:fixed;display:none;padding:6px;background:#222;color:#eee">1.500 in</output>' +
+					'<script>const o=document.querySelector(".measure");let down=false;addEventListener("pointerdown",()=>{down=true;});addEventListener("pointermove",(e)=>{if(down){o.style.display="block";o.style.left=(e.clientX+16)+"px";o.style.top=(e.clientY+16)+"px";}});addEventListener("pointerup",()=>{down=false;o.style.display="none";});</script>'
+			),
+			run: (p) => readoutNearPointer(p, { readoutSelector: '.measure', fromEvaluate: '() => ({ x: 150, y: 150 })', delta: { dx: 80, dy: 0 }, steps: 4, maxPx: 40 }),
+			expect: 'within'
+		}
+	},
 	{
 		group: 'horizontal-scroll',
 		bad: {

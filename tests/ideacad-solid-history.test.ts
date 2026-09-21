@@ -1,6 +1,8 @@
 import {describe,it,expect} from 'vitest';
 import {diffTrees,applyActions,foldHistory,invertAction,type IdeacadAction} from '../src/lib/ideacad/history';
 import {readPinnedHistory,groupHistory,foldGroups,historyAtRevision,inverseOperation,type DirectRow,canonical} from '../src/lib/ideacad/solid/history';
+import {upgradeManifest} from '../src/lib/ideacad/solid/features';
+import {KERNEL_ID,type LegacyManifest} from '../src/lib/ideacad/solid/types';
 
 function history(){
 	let model:any={a:0,b:0,c:0};const rows:DirectRow[]=[{seq:0,kind:'origin',path:'',before:null,after:model}];let revision=1;
@@ -11,6 +13,27 @@ function history(){
 	}
 	return {rows,get model(){return model;},get revision(){return revision;},edit(after:any){return append(diffTrees(model,after));},inverse(target:ReturnType<typeof groupHistory>[number]){return append(inverseOperation(model,target).actions,'Undo or redo');}};
 }
+
+describe('an undo across the version 1 to 2 boundary',()=>{
+	it('sends the tree its exact inverse rows produce, which is version 1, and never the engine\'s upgraded snapshot',()=>{
+		/* Measured before the workspace kept a server-side tree of its own: the first edit of a stored version 1 document diffs v1 -> v2+edit (the upgrade rides along), so the undo's exact inverse lands the server on v1 while the engine, which upgrades on load, reports v2 -- and the save was refused with 'The history actions do not produce the saved model.' on every document saved before the feature graph. */
+		const v1:LegacyManifest={format:'ideacad-solid-v1',kernel:KERNEL_ID,units:'in',title:'Old',bodies:[{id:'b-old',name:'Old box',artifact:'h',materialId:null,role:'part'}],sketches:[],addons:{ideaBlade:false}};
+		const edited={...upgradeManifest(v1),title:'Renamed'};
+		const rows:DirectRow[]=[{seq:0,kind:'origin',path:'',before:null,after:v1}];
+		const id='op-1';diffTrees(v1,edited).forEach((a,n)=>rows.push({...a,seq:rows.length,operationId:id,operationStart:n===0,resultRevision:n===0?2:null,operationLabel:n===0?'Rename':null}));
+		const target=groupHistory(rows).at(-1)!;
+		expect(target.rows.map(r=>r.path)).toContain('/format');
+		const inverse=inverseOperation(edited,target);
+		/* What the server will hold after the inverse rows: exactly version 1. */
+		expect(canonical(inverse.after)).toBe(canonical(v1));
+		expect(canonical(applyActions(edited,inverse.actions))).toBe(canonical(v1));
+		/* What the engine reports after loading it: version 2, which is NOT what the server holds, so p_model must be `inverse.after`. */
+		expect(canonical(upgradeManifest(inverse.after as unknown as LegacyManifest))).not.toBe(canonical(inverse.after));
+		/* And the inverse rows are the ones groupHistory accepts as an undo of that operation. */
+		inverse.actions.forEach((a,n)=>rows.push({...a,seq:rows.length,operationId:'op-2',operationStart:n===0,resultRevision:n===0?3:null,operationLabel:n===0?'Undo':null}));
+		expect(foldGroups(groupHistory(rows)).redoTarget?.id).toBe('op-2');
+	});
+});
 
 describe('grouped durable history proof',()=>{
 	it('inverts a multi-row gesture as one operation with exact descending target mappings',()=>{

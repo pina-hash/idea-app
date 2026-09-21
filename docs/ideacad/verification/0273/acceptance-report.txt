@@ -1,0 +1,25 @@
+1440: workspace ready true
+1440: bracket bounds [0.00,-2.00,0.00,3.00,0.00,2.50], flange top face exL.side.2 at z=0.375, hole at y=-1
+1440: hole sketch plane origin [0.000,0.000,0.375] normal [0.00,0.00,1.00]; hole centre in plane (u,v) = (2.000, -1.000)
+1440: after the cut: rows L profile:ok, Bracket:ok, Hole sketch:ok, Bolt hole:ok; face kinds ["plane","plane","plane","plane","plane","plane","plane","plane","cylinder"]
+1440: reference offers for a cylinder face: ["axis-face","point-face","point-body","plane-offset","plane-angle","point-axis-plane","axis-datum","point-coordinates"]
+1440: axis feature {"id":"fbe39b65f3f91","name":"Axis 1","type":"axis","status":"ok"}
+1440: bodies before the mate: Body 1@[0.00,-2.00,0.00,3.00,0.00,2.50] | Body 2@[4.80,0.30,0.38,5.20,0.70,1.38]
+1440: mate [{"kind":"concentric","status":"ok","residual":4.440892098500626e-16}]; pin bounds after: [1.800,-1.200,0.375,2.200,-0.800,1.375] (hole centre is x=2, y=-1); pin dof 2
+  screenshot acceptance-1440-model.png
+1440: edited Bracket distance 2 -> 3 through the tree: volume 3.7966 -> 5.7185 (expected 5.6949 if every later feature rebuilt in proportion, less the hole); replayed from 1 in 20.6 ms; rows L profile:ok, Bracket:ok, Hole sketch:ok, Bolt hole:ok, Axis 1:ok, Boss sketch:ok, Pin:ok, Mate 1:ok
+1440: flange 0.375 -> 0.5 in the first sketch: volume 5.7185 -> 6.6872; replayed from 0 in 29.3 ms; rows L profile:ok, Bracket:ok, Hole sketch:ok, Bolt hole:ok, Axis 1:ok, Boss sketch:ok, Pin:ok, Mate 1:ok; mates ["ok"]
+  screenshot acceptance-1440-rebuilt.png
+375: workspace ready true
+375: bracket bounds [0.00,-2.00,0.00,3.00,0.00,2.50], flange top face exL.side.2 at z=0.375, hole at y=-1
+375: hole sketch plane origin [0.000,0.000,0.375] normal [0.00,0.00,1.00]; hole centre in plane (u,v) = (2.000, -1.000)
+375: after the cut: rows L profile:ok, Bracket:ok, Hole sketch:ok, Bolt hole:ok; face kinds ["plane","plane","plane","plane","plane","plane","plane","plane","cylinder"]
+375: reference offers for a cylinder face: ["axis-face","point-face","point-body","plane-offset","plane-angle","point-axis-plane","axis-datum","point-coordinates"]
+375: axis feature {"id":"f4fc0b4fa3640","name":"Axis 1","type":"axis","status":"ok"}
+375: bodies before the mate: Body 1@[0.00,-2.00,0.00,3.00,0.00,2.50] | Body 2@[4.80,0.30,0.38,5.20,0.70,1.38]
+375: mate [{"kind":"concentric","status":"ok","residual":4.440892098500626e-16}]; pin bounds after: [1.800,-1.200,0.375,2.200,-0.800,1.375] (hole centre is x=2, y=-1); pin dof 2
+  screenshot acceptance-375-model.png
+375: edited Bracket distance 2 -> 3 through the tree: volume 3.7966 -> 5.7185 (expected 5.6949 if every later feature rebuilt in proportion, less the hole); replayed from 1 in 27.2 ms; rows L profile:ok, Bracket:ok, Hole sketch:ok, Bolt hole:ok, Axis 1:ok, Boss sketch:ok, Pin:ok, Mate 1:ok
+375: flange 0.375 -> 0.5 in the first sketch: volume 5.7185 -> 6.6872; replayed from 0 in 30.3 ms; rows L profile:ok, Bracket:ok, Hole sketch:ok, Bolt hole:ok, Axis 1:ok, Boss sketch:ok, Pin:ok, Mate 1:ok; mates ["ok"]
+  screenshot acceptance-375-rebuilt.png
+  screenshot acceptance-375-tree.png

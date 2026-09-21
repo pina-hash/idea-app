@@ -183,7 +183,7 @@ const MIGRATION_0206 = '0206_ideacad_grant_guard.sql';
  */
 interface IdeacadFn {
 	readonly kind: 'client' | 'definer';
-	readonly migration: '0201' | '0205' | '0207' | '0208' | '0209' | '0211' | '0214' | '0216';
+	readonly migration: '0201' | '0205' | '0207' | '0208' | '0209' | '0211' | '0214' | '0216' | '0217';
 	readonly reason: string;
 }
 
@@ -327,7 +327,31 @@ const IDEACAD_FUNCTIONS: Readonly<Record<string, IdeacadFn>> = {
 	_ideacad_direct_validate_model: {kind:'definer',migration:'0216',reason:'Format validation in writers.'},
 	_ideacad_direct_validate_sketches: {kind:'definer',migration:'0216',reason:'Sketch validation in writers.'},
 	_ideacad_direct_payload: {kind:'definer',migration:'0216',reason:'Authorized document envelope builder.'},
-	_ideacad_valid_advisory_limits: {kind:'definer',migration:'0216',reason:'Rule validation inside admin writer.'}
+	_ideacad_valid_advisory_limits: {kind:'definer',migration:'0216',reason:'Rule validation inside admin writer.'},
+	// 0217, the feature-graph storage: the trash, folders, tags, rename,
+	// duplicate and thumbnail for direct documents. Every one revokes from
+	// `public, anon, authenticated` by name (0166 shape). The four 0216
+	// functions 0217 REPLACES (`_ideacad_direct_validate_model`,
+	// `_ideacad_direct_can_write`, `_ideacad_direct_payload`,
+	// `ideacad_direct_documents`, plus the three owner actions it re-states)
+	// stay classified above under 0216; 0217 restates their grants so their
+	// end state is unchanged, which is the same argument 0214 makes.
+	ideacad_trash_direct_document: {kind:'client',migration:'0217',reason:'Owner moves an unlinked direct document to the trash.'},
+	ideacad_restore_direct_document: {kind:'client',migration:'0217',reason:'Owner restores a trashed direct document.'},
+	ideacad_purge_direct_document: {kind:'client',migration:'0217',reason:'Owner purges a trashed, unlinked direct document; the one delete path.'},
+	ideacad_direct_trash: {kind:'client',migration:'0217',reason:'Owner lists their own trash with purge dates.'},
+	ideacad_direct_folders: {kind:'client',migration:'0217',reason:'Owner lists their folders.'},
+	ideacad_create_folder: {kind:'client',migration:'0217',reason:'Owner creates a folder.'},
+	ideacad_rename_folder: {kind:'client',migration:'0217',reason:'Owner renames a folder.'},
+	ideacad_delete_folder: {kind:'client',migration:'0217',reason:'Owner deletes a folder; documents in it are unfiled, never deleted.'},
+	ideacad_move_direct_document: {kind:'client',migration:'0217',reason:'Owner files a document in a folder.'},
+	ideacad_tag_direct_document: {kind:'client',migration:'0217',reason:'Owner tags a document.'},
+	ideacad_rename_direct_document: {kind:'client',migration:'0217',reason:'Writer renames a document through a history row.'},
+	ideacad_duplicate_direct_document: {kind:'client',migration:'0217',reason:'Reader copies a document into their own library.'},
+	ideacad_set_direct_document_thumbnail: {kind:'client',migration:'0217',reason:'Writer stores a small thumbnail after a save.'},
+	_ideacad_trash_window: {kind:'definer',migration:'0217',reason:'The one statement of the thirty-day window, read by definers.'},
+	_ideacad_purge_expired_direct_documents: {kind:'definer',migration:'0217',reason:'The lazy expiry sweep, called by the trash RPCs.'},
+	_ideacad_clean_tags: {kind:'definer',migration:'0217',reason:'Tag normalisation inside the tag writer.'},
 };
 
 /**
@@ -397,6 +421,7 @@ const IDEACAD_0201_TABLES = [
  */
 const IDEACAD_SELECT_TABLES: readonly string[] = [
 	...(chainHas('0216')?['ideacad_assignment_sections','ideacad_brep_artifacts','ideacad_rule_revisions']:[]),
+	...(chainHas('0217')?['ideacad_folders']:[]),
 	...IDEACAD_0201_TABLES,
 	...(chainHas('0205') ? (['ideacad_grants'] as const) : []),
 	// 0209's action log. `authenticated` holds SELECT and the RLS policy is

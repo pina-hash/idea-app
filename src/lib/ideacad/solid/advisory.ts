@@ -3,29 +3,33 @@ export const DEFAULT_LIMITS={minDiameterIn:null,maxDiameterIn:5,minHeightIn:2.9,
 export type AdvisoryLimits={ [K in keyof typeof DEFAULT_LIMITS]: number|null };
 export interface AdvisoryRules { revision:number;schemaVersion:number;limits:AdvisoryLimits;changedAt:string;canEdit:boolean }
 export interface AdvisoryTransport {read():Promise<AdvisoryRules>;save(expectedRevision:number,limits:AdvisoryLimits):Promise<AdvisoryRules>}
-export interface StockMaterial { id:string;name:string;densityGcm3:number|null;source:string|null;sourceNote:string;printed?:boolean }
-/** Only MatWeb reference grades. Unidentified shop stock has no guessed density. */
+export interface StockMaterial { id:string;name:string;densityGcm3:number|null;source:string|null;sourceNote:string;printed?:boolean;/** The colour a body takes when this material is assigned and no body colour overrides it (`#rrggbb`). Appearance only: it says nothing about the density, which is cited or absent. */color:string }
+/** Only MatWeb reference grades. Unidentified shop stock has no guessed density. Every row carries a colour, because a colour is decoration and costs no citation; a density is a number and does. */
 export const STOCK_MATERIALS:StockMaterial[]=[
-	{id:'printed-pla',name:'3D print · PLA',densityGcm3:null,source:null,sourceNote:'Use the finished part mass.',printed:true},
-	{id:'printed-abs',name:'3D print · ABS',densityGcm3:null,source:null,sourceNote:'Use the finished part mass.',printed:true},
-	{id:'printed-hips',name:'3D print · HIPS',densityGcm3:null,source:null,sourceNote:'Use the finished part mass.',printed:true},
-	{id:'printed-tpu',name:'3D print · TPU',densityGcm3:null,source:null,sourceNote:'Use the finished part mass.',printed:true},
-	{id:'printed-other',name:'3D print · Other',densityGcm3:null,source:null,sourceNote:'Use the finished part mass.',printed:true},
-	{id:'aluminum-6061-t6',name:'6061-T6/T651 aluminum',densityGcm3:2.7,source:'https://www.matweb.com/search/datasheet.aspx?matguid=b8d536e0b9b54bd7b69e4124d8f1d20a',sourceNote:'MatWeb indexed table: AA typical, 2.70 g/cm³. Reference estimate; match the stock grade.'},
-	{id:'carbon-steel',name:'Carbon steel · Grade unknown',densityGcm3:null,source:null,sourceNote:'Identify the grade or enter a measured mass.'},
-	{id:'steel-1018',name:'AISI 1018 carbon steel',densityGcm3:7.87,source:'https://www.matweb.com/search/datasheet.aspx?matguid=3a9cc570fbb24d119f08db22a53e2421',sourceNote:'MatWeb indexed table: cold drawn AISI 1018, 7.87 g/cm³. Reference estimate.'},
-	{id:'stainless-unknown',name:'Stainless steel · Grade unknown',densityGcm3:null,source:null,sourceNote:'Identify the grade or enter a measured mass.'},
-	{id:'stainless-304',name:'304 stainless · Annealed bar',densityGcm3:8,source:'https://matweb.com/search/DataSheet.aspx?MatGUID=072da6c8d36c4c519a87c9b082c58cd3',sourceNote:'MatWeb indexed table: annealed 304 bar, 8.00 g/cm³. Reference estimate.'},
-	{id:'galvanized-unknown',name:'Galvanized steel · Grade unknown',densityGcm3:null,source:null,sourceNote:'Coating and steel grade are unspecified. Enter a measured mass.'},
-	{id:'steel-unknown',name:'Other steel · Grade unknown',densityGcm3:null,source:null,sourceNote:'Identify the grade or enter a measured mass.'},
-	{id:'polycarbonate-unknown',name:'Polycarbonate · Grade unknown',densityGcm3:null,source:null,sourceNote:'Identify the sheet grade or enter a measured mass.'},
-	{id:'polycarbonate-et2613',name:'Makrolon ET2613 polycarbonate',densityGcm3:1.2,source:'https://www.matweb.com/search/DataSheet.aspx?MatGUID=1b0b3e2e5425444bba6c5da695fb3906',sourceNote:'MatWeb indexed table: solid sheet resin, ISO 1183-1, 1.20 g/cm³. Reference estimate.'}
+	{id:'printed-pla',name:'3D print · PLA',densityGcm3:null,source:null,sourceNote:'Use the finished part mass.',printed:true,color:'#e0a33a'},
+	{id:'printed-abs',name:'3D print · ABS',densityGcm3:null,source:null,sourceNote:'Use the finished part mass.',printed:true,color:'#c65a3f'},
+	{id:'printed-hips',name:'3D print · HIPS',densityGcm3:null,source:null,sourceNote:'Use the finished part mass.',printed:true,color:'#e9e4d6'},
+	{id:'printed-tpu',name:'3D print · TPU',densityGcm3:null,source:null,sourceNote:'Use the finished part mass.',printed:true,color:'#4d9bd3'},
+	{id:'printed-other',name:'3D print · Other',densityGcm3:null,source:null,sourceNote:'Use the finished part mass.',printed:true,color:'#9a72c4'},
+	{id:'aluminum-6061-t6',name:'6061-T6/T651 aluminum',densityGcm3:2.7,source:'https://www.matweb.com/search/datasheet.aspx?matguid=b8d536e0b9b54bd7b69e4124d8f1d20a',sourceNote:'MatWeb indexed table: AA typical, 2.70 g/cm³. Reference estimate; match the stock grade.',color:'#c7ccd1'},
+	{id:'carbon-steel',name:'Carbon steel · Grade unknown',densityGcm3:null,source:null,sourceNote:'Identify the grade or enter a measured mass.',color:'#6b7075'},
+	{id:'steel-1018',name:'AISI 1018 carbon steel',densityGcm3:7.87,source:'https://www.matweb.com/search/datasheet.aspx?matguid=3a9cc570fbb24d119f08db22a53e2421',sourceNote:'MatWeb indexed table: cold drawn AISI 1018, 7.87 g/cm³. Reference estimate.',color:'#7b8187'},
+	{id:'stainless-unknown',name:'Stainless steel · Grade unknown',densityGcm3:null,source:null,sourceNote:'Identify the grade or enter a measured mass.',color:'#aeb5bb'},
+	{id:'stainless-304',name:'304 stainless · Annealed bar',densityGcm3:8,source:'https://matweb.com/search/DataSheet.aspx?MatGUID=072da6c8d36c4c519a87c9b082c58cd3',sourceNote:'MatWeb indexed table: annealed 304 bar, 8.00 g/cm³. Reference estimate.',color:'#c2c9ce'},
+	{id:'galvanized-unknown',name:'Galvanized steel · Grade unknown',densityGcm3:null,source:null,sourceNote:'Coating and steel grade are unspecified. Enter a measured mass.',color:'#9fa9b1'},
+	{id:'steel-unknown',name:'Other steel · Grade unknown',densityGcm3:null,source:null,sourceNote:'Identify the grade or enter a measured mass.',color:'#747a80'},
+	{id:'polycarbonate-unknown',name:'Polycarbonate · Grade unknown',densityGcm3:null,source:null,sourceNote:'Identify the sheet grade or enter a measured mass.',color:'#cfe1e8'},
+	{id:'polycarbonate-et2613',name:'Makrolon ET2613 polycarbonate',densityGcm3:1.2,source:'https://www.matweb.com/search/DataSheet.aspx?MatGUID=1b0b3e2e5425444bba6c5da695fb3906',sourceNote:'MatWeb indexed table: solid sheet resin, ISO 1183-1, 1.20 g/cm³. Reference estimate.',color:'#d8e7ed'}
 ];
 export function approvedDensitySource(url:string){try{const hostname=new URL(url).hostname.toLowerCase();return hostname==='matweb.com'||hostname.endsWith('.matweb.com')||hostname==='bambulab.com'||hostname.endsWith('.bambulab.com');}catch{return false;}}
+/** The word a source link carries, for the two hosts `approvedDensitySource` admits. */
+export function densitySourceName(url:string):'MatWeb'|'Bambu Lab'{try{return new URL(url).hostname.toLowerCase().includes('bambulab')?'Bambu Lab':'MatWeb';}catch{return 'MatWeb';}}
+/** A density the modeler may multiply by: a number, AND a source on MatWeb or Bambu Lab. A number with no source, or with a source elsewhere, is unverified and is never used; a null density is simply absent. `bodyMass`, the body panel and the materials test all ask this one predicate. */
+export function hasCitedDensity(material:Pick<StockMaterial,'densityGcm3'|'source'>):material is StockMaterial&{densityGcm3:number;source:string}{return material.densityGcm3!==null&&Number.isFinite(material.densityGcm3)&&material.source!==null&&approvedDensitySource(material.source);}
 export function bodyMass(body:BodyProjection):{grams:number|null;estimated:boolean;distributed:boolean}{
 	if(body.massG!==undefined&&body.massG!==null&&Number.isFinite(body.massG)&&body.massG>=0)return{grams:body.massG,estimated:body.massSource==='bambu-studio',distributed:false};
 	const material=STOCK_MATERIALS.find(m=>m.id===body.materialId);
-	if(!material||material.printed||material.densityGcm3===null||!material.source||!approvedDensitySource(material.source))return{grams:null,estimated:false,distributed:false};
+	if(!material||material.printed||!hasCitedDensity(material))return{grams:null,estimated:false,distributed:false};
 	return{grams:body.volume*16.387064*material.densityGcm3,estimated:true,distributed:true};
 }
 export interface AdvisoryCheck { key:string;label:string;value:number|null;unit:string;min:number|null;max:number|null;status:'pass'|'fail'|'unknown';note?:string }
