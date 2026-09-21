@@ -100,6 +100,183 @@ and instructor reachability from decision 29; leaving a section must not delete
 work. The collar-height relationship is unspecified in Addendum A and has been
 asked of Alejandro; the invented 10% clamp is not adopted.
 
+## Feature graph, 2026-09-21
+
+Ledger 0273 turned the direct modeler's document from a list of bodies into a
+FEATURE GRAPH: an ordered, re-playable list of features, each recording its
+command, its parameters and what it consumed, so editing a number replays the
+model from that feature forward. Everything below is what was built, why, what
+was measured, and what was left undone. The code is `src/lib/ideacad/solid/`;
+the storage is migration `0217_ideacad_feature_graph.sql`.
+
+### The graph is a linear list with an implicit dependency DAG
+
+A document (`ideacad-solid-v2`) stores `features: Feature[]` in tree order.
+Each feature is `{ id, name, type, suppressed?, ...parameters }`; a parameter
+that names something another feature made is a REFERENCE (`FaceRef`,
+`EdgeRef`, `VertexRef`, a sketch feature id, a reference-plane feature id, a
+body id) and never a copy of geometry. The dependency graph is derived from
+those references (`featureDependencies` in `features.ts`), not stored, so it
+cannot drift from the parameters.
+
+Linear-with-derived-DAG was chosen over a stored DAG for three reasons. A
+student reads a tree, not a graph: "what happens if I change this" is answered
+by the rows below it. Replay order is then a property of the list and needs no
+topological sort that could disagree with the order on screen. And reordering
+is a validated move rather than a re-wiring: `reorderRange` says how far a
+feature may move without passing something it depends on or something that
+depends on it, and the reducer refuses anything outside that range with a
+sentence naming the feature in the way. What a DAG would have bought, running
+independent branches in parallel, the kernel cannot use: it is one WASM
+instance on one worker thread.
+
+The engine (`engine.ts`) replays through one kernel and keeps a KERNEL
+CHECKPOINT after each of the newest `CHECKPOINT_WINDOW` (12) features, plus the
+document's body and reference tables at every feature. An edit to feature k
+restores the checkpoint after k-1 and runs k..n. A feature that fails is
+SKIPPED, not fatal: its row carries `status: 'error'` and the kernel's own
+sentence, the kernel is restored to the checkpoint before it, and every later
+feature still runs. One that depended on the failed feature fails in turn with
+a lost-reference sentence naming what it needed, which is how a document with
+a broken fillet still opens and still renders everything else.
+
+Every edit is one `SolidCommand` through one reducer (`commands.ts`): add,
+set, remove, move, suppress, rename, body metadata, add-on state, title. A
+drag is a gesture whose every frame is a `set-feature` on a feature created at
+the gesture's start, so a drag costs one kernel operation per frame on the
+last feature exactly as the 2026-09-15 modeler did.
+
+### Topological naming: the scheme and when it breaks
+
+The scheme is stated once in `naming.ts` and is repeated here because every
+reference a student makes rests on it.
+
+**Tier 1, construction names.** Every face is named when it is created, by
+the feature that created it, deterministically from the feature id and the
+face's role: an extrude names `<fid>.start`, `<fid>.end`, `<fid>.side.<i>` and
+`<fid>.hole.<h>.<i>` where `<i>` is the index of the profile edge that swept
+the face, in the sketch's own entity order; a revolve `<fid>.rev.<i>` plus caps
+under 360 degrees; a saved body `<fid>.face.<i>` in the order of its bytes; a
+fillet `<fid>.blend.<A>|<B>` from the two faces it runs along (the two sharing
+the most edge length with it, so a fillet down a box edge is named by the two
+sides and not by the end caps it also touches); a chamfer `<fid>.bevel.<A>|<B>`;
+a corner patch `<fid>.corner.<A>|<B>|<C>`; a shell's inner face
+`<fid>.inner.<source>`. Names carry the feature id, so a boolean merging two
+bodies cannot collide two names. Names ride through every journaled kernel
+operation (`propagateAttributesForOp`), which is what lets a face keep its name
+through a push, a cut, a fillet on a neighbouring edge or a boolean. An edge is
+named by the sorted pair of faces it joins (`edge:<A>|<B>`), a vertex by the
+sorted set of faces meeting at it. **It breaks** when a face genuinely has no
+construction role: a face the kernel created in an operation whose carrier
+rules cannot place it. Those fall to tier 4.
+
+**Tier 2, ordinals.** When one name lands on more than one face (a slot cut
+through a top splits it into two, both carried as `<fid>.end`), the pieces get
+`<name>~<k>` by the lexicographic order of a stable anchor (the average of the
+face's vertices); two edges joining the same two faces get `#<k>` by midpoint.
+**It breaks silently** when an upstream edit moves the pieces past each other:
+a slot dragged from the left half of a plate to the right swaps which piece is
+`~0`, and a fillet on `<fid>.end~1` lands on the other piece with no error,
+because the name resolves. That is why tier 3 is recorded for every reference
+and checked even when the name resolves.
+
+**Tier 3, geometric hints.** Every reference stores the surface kind, anchor,
+normal and area of the face it was made on (`FaceHint`, `EdgeHint`,
+`VertexHint`). When a name no longer resolves, the hint is matched against the
+current faces within tolerance: a UNIQUE match re-attaches the reference and
+the feature row says so as a WARNING naming what it did; an ambiguous match (a
+symmetric part has two faces with one signature) or no match is an ERROR
+naming the reference, and the feature is skipped rather than guessed. When the
+name resolves but the hint disagrees, the row warns. **It breaks** when the
+face genuinely moved: a hint is a picture of the past, so a face pushed two
+inches after the reference was made no longer matches its own hint and the
+reference has to be re-picked.
+
+**Tier 4, nothing.** A face nothing above named is `<fid>.face.<k>` by anchor
+order and COUNTED; `NamingReport.fallback` says how many faces in a replay
+rest on ordinals, which is the number to watch.
+
+**What is deliberately not done.** A stored feature is never rewritten to
+repair a reference: a repair that changes somebody's saved feature during a
+load is a silent edit of their work, so the warning stays until the student
+re-picks. The kernel's own `captureSignatureRef` / `resolveRef` were not used
+for tier 3: they bind to a session's journal op ids, which do not survive a
+replay from bytes.
+
+**How a broken reference reports itself.** `lostReference(kind, what)`,
+`ambiguousReference(kind, what, count)` and `reattachedReference(kind, what)`
+in `naming.ts` are the three sentences, and they land on the feature's own row
+(`FeatureRow.message`, status `error` or `warning`). The row is selectable,
+its parameters open, and the reference can be re-picked. Nothing throws out of
+a replay, and nothing builds a wrong face silently in the tiers that can tell.
+
+### Replay cost, measured
+
+`tests/ideacad-solid-features.test.ts` builds a forty-feature document (a box
+and thirty-eight pushes) and prints the cost on every run. On this container
+during the 2026-09-21 session, with two other processes sharing four cores:
+
+| Edit | Replays from | Replay |
+| --- | ---: | ---: |
+| feature 1 (the extrude, 39 features below it) | 0 (the base) | 80.9 ms |
+| feature 7 | 0 (outside the window) | 93.7 ms |
+| the last feature | 39 | 4.2 ms |
+| the oldest feature inside the window | 0 | 111.5 ms |
+
+An unloaded run earlier in the session measured 63.2 ms for the deep edit and
+3.0 ms for the last feature. The arithmetic behind the window: a kernel push
+costs about 5.4 ms and a cut about 1.9 ms at the median (the 2026-09-15 spike),
+so replaying thirty-nine features is order 60 to 100 ms, which is one dropped
+frame, once, at the moment a deep number changes; a drag on the newest feature
+stays at one operation per frame. A checkpoint is a clone of the kernel arena:
+kernel memory grew from 2.8 MB to 25.0 MB across the forty-feature build with
+the window holding twelve checkpoints, and an earlier reading with a
+checkpoint after every feature (26 held) reached 17.6 MB on a smaller
+document. The decision: cache the newest twelve features' checkpoints, replay
+from the base for anything deeper, and report `replayedFrom` and `replayMs` on
+every projection (the dev harness shows them) so the number is a reading. The
+kernel cannot discard one checkpoint (discarding any checkpoint drops every
+later one, measured), so the stack is compacted by rebuilding from the base
+once it has grown past twice the window.
+
+### Backward compatibility: a saved body is a `body` feature
+
+Every document saved before the graph (`ideacad-solid-v1`, bodies with no
+feature list) opens unchanged. `upgradeManifest` turns each saved body into one
+`{ type: 'body', bodyId, artifact, source: 'legacy' }` feature, so it renders
+identically (the same bytes), keeps its name, material, role and mass, and can
+be pushed, blended, mirrored, patterned and mated like any other body. Its
+first save from the new client carries the upgrade as ordinary history actions
+diffed from the stored version 1 tree, so 0209's action log replays across the
+boundary and an undo can cross back. A version 1 sketch drawn on an arbitrary
+face becomes a sketch feature on a `fixed` plane held by value. What such a
+document cannot do is what it never could: the operations that made its bodies
+are not on record, so they cannot be edited as parameters. The document
+validator in 0217 accepts both formats and refuses a version 1 tree that
+carries a feature list, so version 1 stays exactly version 1 for the deployed
+client until this one ships.
+
+### Storage: migration 0217
+
+One file, applied by hand before the client is merged: the validator widened
+to two formats; a TRASH for a student's own unlinked models (thirty-day window,
+restore, a real purge through the preserve trigger, and no trash path at all
+for a document linked to an assignment, per decision 29); folders, tags, a
+rename that writes a history row rather than editing the stored tree behind
+the log's back, duplicate, and a thumbnail the workspace stores after each
+save. Every function revokes from `public, anon, authenticated` by name (0166
+shape). `tests/db/ideacad-feature-graph-storage.test.ts` seeds four documents
+through 0216's real functions, applies 0217 over them, and proves the list
+exclusion and the expiry sweep with positive controls.
+
+### The ten surfaces
+
+<!-- FILL:SURFACES -->
+
+### What is now possible, and what is not built
+
+<!-- FILL:POSSIBLE -->
+
 ## Current implementation
 
 `/ideacad` opens its chooser. Any signed-in user can create an empty standalone
