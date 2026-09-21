@@ -1,25 +1,17 @@
+<!--
+  THE LEGACY CHOOSER'S MOUNT OF THE LAUNCH PAGE. `IdeaCadApp.svelte` still
+  mounts this with the props it always had (rows, api, sources, onopen,
+  onchange); everything it renders is `launch/LaunchPage.svelte`, embedded, so
+  the legacy chooser at `/ideacad?legacy=1` and the front door at `/ideacad`
+  are ONE surface with two frames rather than two lists that drift.
+-->
 <script lang="ts">
-	import type {DirectSummary,createSolidTransports} from './transport';
-	import type {IdeaCadDocumentSource} from '../app/types';
-	let {rows,api,sources,onopen,onchange}:{rows:DirectSummary[];api:ReturnType<typeof createSolidTransports>;sources:IdeaCadDocumentSource[];onopen:(id:string)=>void;onchange:()=>void}=$props();
-	let query=$state(''),manage=$state(''),email=$state(''),role=$state<'viewer'|'editor'|'none'>('viewer'),assignment=$state(''),error=$state(''),busy=$state(false),armed=$state('');
-	let sections:{id:string;label:string}[]=$state([]),sectionId=$state('');
-	async function manageRow(row:DirectSummary){manage=manage===row.id?'':row.id;error='';sections=[];sectionId='';if(manage&&row.canArchive&&row.itemId)try{const found=await api.sections(row.itemId);if(manage===row.id)sections=found;}catch(err){if(manage===row.id)error=err instanceof Error?err.message:String(err);}}
-	const visible=$derived(rows.filter(r=>`${r.title} ${r.ownerEmail}`.toLowerCase().includes(query.toLowerCase())));
-	async function run(action:()=>Promise<unknown>){busy=true;error='';try{await action();onchange();manage='';armed='';}catch(err){error=err instanceof Error?err.message:String(err);}finally{busy=false;}}
+	import type { DirectSummary, createSolidTransports } from './transport';
+	import type { IdeaCadDocumentSource } from '../app/types';
+	import type { LaunchApi } from './launch/api';
+	import LaunchPage from './launch/LaunchPage.svelte';
+	let { rows, api, sources, onopen, onchange }: { rows: DirectSummary[]; api: ReturnType<typeof createSolidTransports>; sources: IdeaCadDocumentSource[]; onopen: (id: string) => void; onchange: () => void } = $props();
+	const launch = $derived<LaunchApi>({ ...api, create: (title) => api.transport.create(title) });
 </script>
-<section aria-label="Solid documents">
-	{#if rows.length}<div class="heading"><h2>Models</h2>{#if rows.length>5}<input aria-label="Search models" placeholder="Search name or owner" bind:value={query}/>{/if}</div>{/if}
-	<div class="cards">{#each visible as row}<article><button class="open" onclick={()=>onopen(row.id)}><span class="icon" aria-hidden="true">▱</span><div><strong>{row.title}</strong><span>{row.bodyCount} {row.bodyCount===1?'body':'bodies'}{row.archivedAt?' · Archived':''}</span>{#if !row.isOwn}<small>{row.ownerEmail}</small>{/if}</div></button><button class="manage" aria-label={`Manage ${row.title}`} onclick={()=>void manageRow(row)}>⋯</button>
-		{#if manage===row.id}<div class="management">
-			{#if row.isOwn}<form onsubmit={e=>{e.preventDefault();void run(()=>api.share(row.id,email,role));}}><label>Share with<input type="email" required placeholder="Email address" bind:value={email}/></label><select aria-label="Shared permission" bind:value={role}><option value="viewer">Can view</option><option value="editor">Can edit</option><option value="none">Remove access</option></select><button disabled={busy}>Update sharing</button></form>
-			{#if !row.itemId&&sources.length}<form onsubmit={e=>{e.preventDefault();void run(()=>api.link(row.id,assignment));}}><label>Link to assignment<select required bind:value={assignment}><option value="">Choose assignment</option>{#each sources as source}<option value={source.itemId}>{source.title}</option>{/each}</select></label><button disabled={busy||!assignment}>Link model</button></form>{/if}{/if}
-			{#if row.canArchive}{#if armed===row.id}<p>{row.archivedAt?'Restore this model for editing?':'Archive this model? It stays available to read.'}</p><button disabled={busy} onclick={()=>void run(()=>api.archive(row.id,!row.archivedAt))}>Confirm {row.archivedAt?'restore':'archive'}</button><button onclick={()=>armed=''}>Cancel</button>{:else}<button onclick={()=>armed=row.id}>{row.archivedAt?'Restore':'Archive'}</button>{/if}{/if}
-			{#if row.archivedAt&&row.canArchive&&sections.length}<form onsubmit={e=>{e.preventDefault();void run(()=>api.classShare(row.id,sectionId));}}><label>Share reference with class<select required bind:value={sectionId}><option value="">Choose class</option>{#each sections as section}<option value={section.id}>{section.label}</option>{/each}</select></label><small>Shares the model and creator’s name with this class.</small><button disabled={busy||!sectionId}>Share view only</button><button type="button" disabled={busy||!sectionId} onclick={()=>void run(()=>api.classShare(row.id,sectionId,true))}>Remove class access</button></form>{/if}
-			{#if error}<p role="alert">{error}</p>{/if}
-		</div>{/if}
-	</article>{/each}</div>
-</section>
-<style>
-	.heading{display:flex;align-items:center;justify-content:space-between;gap:12px}h2{font:700 19px Rajdhani,sans-serif}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:12px}article{position:relative;background:var(--surface-1);border:1px solid var(--boundary);border-radius:6px}button,input,select{min-height:44px;min-width:44px;font:600 17px Rajdhani,sans-serif;background:var(--surface-0);border:1px solid var(--boundary);color:var(--text-1);border-radius:4px;padding:0 10px;box-sizing:border-box}button{cursor:pointer}.open{display:flex;align-items:center;width:100%;text-align:left;padding:20px 50px 20px 20px;border:0;background:transparent}.open div{display:grid;gap:4px}strong{font-size:23px}span,small{color:var(--text-2)}.icon{font-size:45px;width:64px;flex-shrink:0;color:var(--cyan)}.manage{position:absolute;right:4px;top:8px;border:0;background:transparent;font-size:24px}.management{padding:12px;border-top:1px solid var(--boundary)}form{display:grid;gap:8px;margin-bottom:12px}label{display:grid;gap:4px}input,select{width:100%}p{color:var(--text-2)}p[role=alert]{color:var(--warning)}
-</style>
+
+<LaunchPage api={launch} {rows} {sources} {onopen} {onchange} embedded />

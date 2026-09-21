@@ -3,13 +3,21 @@ import {diffTrees} from '../history';
 import {canonical,historyAtRevision,readPinnedHistory} from './history';
 import {emptyManifest,type GeometryArtifact,type SolidDocument,type SolidSave,type SolidTransport} from './types';
 import type {AdvisoryLimits,AdvisoryRules,AdvisoryTransport} from './advisory';
+import {normalizeDocument,normalizeFolder,normalizeTrashed,type LaunchDocument,type LaunchFolder,type TrashedDocument} from './launch/library';
+import type {TrashReceipt} from './launch/api';
+import {STORAGE_UNAVAILABLE} from './launch/wording';
 
-export interface DirectSummary {id:string;title:string;itemId:string|null;ownerEmail:string;isOwn:boolean;updatedAt:string;archivedAt:string|null;canWrite:boolean;canArchive:boolean;bodyCount:number;role:string}
+/** One row of `ideacad_direct_documents`, normalised (`launch/library.ts`): 0217's fields are present on every deployment, defaulted to what is true before it is applied. */
+export type DirectSummary=LaunchDocument;
 export class SolidConflict extends Error {}
 const bytes=(value:string)=>Uint8Array.from(atob(value.replace(/\s/g,'')),c=>c.charCodeAt(0));
 const base64=(value:Uint8Array)=>{let text='';for(let i=0;i<value.length;i+=16384)text+=String.fromCharCode(...value.subarray(i,i+16384));return btoa(text);};
 export function createSolidTransports(supabase:SupabaseClient){
 	async function rpc(name:string,args?:Record<string,unknown>):Promise<any>{const {data,error}=await supabase.rpc(name,args);if(error)throw Error(error.message);if(data===null)throw Error('The server returned no document data.');return data;}
+	/* THE STORAGE CALLS DEGRADE ON `PGRST202` ALONE (CLAUDE.md, RPC degradation): a function 0217 adds is absent on a
+	   deployment sitting before it, and that is a deployment state to name in one sentence, never a crash. Any other
+	   error is the function's own refusal and is shown verbatim where the student pressed. */
+	async function storage(name:string,args?:Record<string,unknown>):Promise<any>{const {data,error}=await supabase.rpc(name,args);if(error)throw Error(error.code==='PGRST202'?STORAGE_UNAVAILABLE:error.message);return data;}
 	const payloads=new Map<string,Record<string,unknown>>(),accepted=new Map<string,number>(),observed=new Map<string,number>();
 	async function document(payload:any):Promise<SolidDocument>{
 		const m=payload.concept?.features;if(!(m?.format==='ideacad-solid-v1'||m?.format==='ideacad-solid-v2')||m.kernel!==emptyManifest().kernel)throw Error('This document requires its original geometry reader.');
@@ -51,8 +59,22 @@ export function createSolidTransports(supabase:SupabaseClient){
 		thumbnail:async(documentId,dataUrl)=>{const {error}=await supabase.rpc('ideacad_set_direct_document_thumbnail',{p_document_id:documentId,p_thumbnail:dataUrl});if(error&&error.code!=='PGRST202')throw Error(error.message);}
 	};
 	const advisoryTransport:AdvisoryTransport={read:()=>rpc('ideacad_advisory_rules'),save:async(expectedRevision:number,limits:AdvisoryLimits):Promise<AdvisoryRules>=>{const result=await rpc('ideacad_set_advisory_rules',{p_expected_revision:expectedRevision,p_limits:limits});if(!result.ok)throw new SolidConflict('Another administrator changed these limits. Close and reopen settings to load the latest revision.');return result.current;}};
-	return {transport,advisoryTransport,list:():Promise<DirectSummary[]>=>rpc('ideacad_direct_documents'),link:(id:string,itemId:string)=>rpc('ideacad_link_direct_document',{p_document_id:id,p_item_id:itemId}),share:(id:string,email:string,role:'viewer'|'editor'|'none')=>role==='none'?rpc('ideacad_unshare_document',{p_document_id:id,p_grantee_email:email}):rpc('ideacad_share_direct_document',{p_document_id:id,p_grantee_email:email,p_role:role}),archive:(id:string,archived:boolean)=>rpc('ideacad_set_direct_document_archived',{p_document_id:id,p_archived:archived}),
+	return {transport,advisoryTransport,list:async():Promise<DirectSummary[]>=>((await rpc('ideacad_direct_documents')) as unknown[]).map(normalizeDocument),link:(id:string,itemId:string)=>rpc('ideacad_link_direct_document',{p_document_id:id,p_item_id:itemId}),share:(id:string,email:string,role:'viewer'|'editor'|'none')=>role==='none'?rpc('ideacad_unshare_document',{p_document_id:id,p_grantee_email:email}):rpc('ideacad_share_direct_document',{p_document_id:id,p_grantee_email:email,p_role:role}),archive:(id:string,archived:boolean)=>rpc('ideacad_set_direct_document_archived',{p_document_id:id,p_archived:archived}),
 		classShare:(id:string,sectionId:string,remove=false)=>rpc(remove?'ideacad_unshare_direct_document_from_section':'ideacad_share_direct_document_with_section',{p_document_id:id,p_section_id:sectionId}),
-		sections:async(itemId:string):Promise<{id:string;label:string}[]>=>{const {data,error}=await supabase.from('classroom_postings').select('section_id,classroom_sections!inner(id,label)').eq('item_id',itemId);if(error)throw Error(error.message);return(data??[]).map((r:any)=>({id:r.section_id,label:r.classroom_sections.label}));}
+		sections:async(itemId:string):Promise<{id:string;label:string}[]>=>{const {data,error}=await supabase.from('classroom_postings').select('section_id,classroom_sections!inner(id,label)').eq('item_id',itemId);if(error)throw Error(error.message);return(data??[]).map((r:any)=>({id:r.section_id,label:r.classroom_sections.label}));},
+		/* 0217: the trash, folders, tags, rename and duplicate. Names and parameter spellings are the migration's own;
+		   `tests/ideacad-solid-launch-transport.test.ts` reads them back off the migration file rather than off this module. */
+		trash:(id:string):Promise<TrashReceipt>=>storage('ideacad_trash_direct_document',{p_document_id:id}),
+		restore:(id:string)=>storage('ideacad_restore_direct_document',{p_document_id:id}),
+		purge:(id:string)=>storage('ideacad_purge_direct_document',{p_document_id:id}),
+		trashList:async():Promise<TrashedDocument[]>=>(((await storage('ideacad_direct_trash'))??[]) as unknown[]).map(normalizeTrashed),
+		folders:async():Promise<LaunchFolder[]>=>(((await storage('ideacad_direct_folders'))??[]) as unknown[]).map(normalizeFolder),
+		createFolder:async(name:string):Promise<LaunchFolder>=>normalizeFolder(await storage('ideacad_create_folder',{p_name:name})),
+		renameFolder:async(id:string,name:string):Promise<LaunchFolder>=>normalizeFolder(await storage('ideacad_rename_folder',{p_folder_id:id,p_name:name})),
+		deleteFolder:async(id:string):Promise<{movedOut:number}>=>{const r=await storage('ideacad_delete_folder',{p_folder_id:id});return{movedOut:Number(r?.movedOut??0)};},
+		move:(id:string,folderId:string|null)=>storage('ideacad_move_direct_document',{p_document_id:id,p_folder_id:folderId}),
+		tag:async(id:string,tags:string[]):Promise<{tags:string[]}>=>{const r=await storage('ideacad_tag_direct_document',{p_document_id:id,p_tags:tags});return{tags:Array.isArray(r?.tags)?r.tags:[]};},
+		rename:(id:string,title:string)=>storage('ideacad_rename_direct_document',{p_document_id:id,p_title:title}),
+		duplicate:async(id:string,title?:string):Promise<{id:string}>=>{const r=await storage('ideacad_duplicate_direct_document',{p_document_id:id,p_title:title??null});return{id:String(r?.document?.id??'')};}
 	};
 }

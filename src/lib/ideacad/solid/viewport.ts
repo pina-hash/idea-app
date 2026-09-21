@@ -19,26 +19,26 @@ import { dot, sub, vector } from './math';
 import { datumPlane, planeFromNormal } from './sketch/model';
 import { buildTriad, triadHandle, type TriadHandle } from './viewport/triad';
 import { sketchObjects } from './viewport/sketch-layer';
-import { referenceObjects } from './viewport/reference-layer';
+import { referenceObjects, datumPlaneObjects, onDatumPlanesChange } from './viewport/reference-layer';
 import { DrawingTool, isDrawTool, type DrawPlane } from './viewport/drawing';
-import { dragValue } from './viewport/drag-math';
+import { dragValue, snapTargetsFrom, bodyAnchors, type SnapTarget } from './viewport/drag-math';
 import { disposeObject, polyline } from './viewport/shared';
 import { bodyColour } from './appearance';
 import type { SketchDraft } from './sketch/editor';
-import type { ModelProjection, PlaneRef, ResolvedPlane, Selection, Sketch, SketchPlane, Vec3 } from './types';
+import type { ModelProjection, PlaneRef, ResolvedPlane, Selection, SketchPlane, Vec3 } from './types';
 
-export type Tool = 'select'|'rectangle'|'circle'|'line'|'polygon'|'arc'|'extrude'|'revolve'|'fillet'|'chamfer'|'shell'|'move'|'rotate'|'scale'|'linear-pattern'|'circular-pattern'|'measure'|'hole'|'mate'|'reference';
-export interface DragValue { distance: number; delta: Vec3; angle: number; count: number; point: {x:number;y:number}; handle?: TriadHandle | null }
+export type Tool = 'select'|'rectangle'|'circle'|'line'|'polygon'|'arc'|'extrude'|'revolve'|'fillet'|'chamfer'|'shell'|'move'|'rotate'|'scale'|'linear-pattern'|'circular-pattern'|'measure'|'hole'|'mate'|'reference'|'draft'|'sweep'|'loft';
+/** Tools whose press only selects: the panel that goes with them builds the feature from the selection. */
+export const SELECT_ONLY_TOOLS: readonly Tool[] = ['measure','mate','reference','draft','sweep','loft'];
+export interface DragValue { distance: number; delta: Vec3; angle: number; count: number; point: {x:number;y:number}; handle?: TriadHandle | null; /** The snap the drag took, when it took one (part movement). */ snapped?: { to: string }; /** Held modifiers at this sample; Ctrl suppresses the magnetic mate snap. */ modifiers?: { shift?: boolean; ctrl?: boolean; alt?: boolean } }
 export interface Gesture { selection: Selection; tool: Tool; start: Vec3; axis: Vec3; handle?: TriadHandle | null }
 export type { DrawPlane } from './viewport/drawing';
 interface Options {
 	getTool:()=>Tool; getPlane:()=>DrawPlane; getSelections:()=>Selection[]; canWrite:()=>boolean;
 	select:(selection:Selection|null,append:boolean)=>void;
 	begin:(gesture:Gesture)=>Promise<void>; update:(value:DragValue)=>void; end:()=>void; cancel:()=>void;
-	/** A finished v1 profile from a drawing tool. */
-	sketch:(sketch:Sketch,ref:PlaneRef)=>void;
-	/** A finished entity collection from a drawing tool, once the sketching surface emits one. */
-	draft?:(draft:SketchDraft,ref:PlaneRef)=>void;
+	/** A finished entity collection from a drawing tool: the workspace turns it into a sketch feature. */
+	draft:(draft:SketchDraft,ref:PlaneRef)=>void;
 	numeric:(key:string,point:{x:number;y:number})=>void; error:(message:string)=>void;
 	/** While a sketch is open for editing, presses and moves inside the viewport go here as plane coordinates. */
 	sketchPointer?:(event:'down'|'move'|'up',at:[number,number],e:PointerEvent)=>boolean;
@@ -54,7 +54,7 @@ export class SolidViewport {
 	private ray=new THREE.Raycaster();private frame=0;private observer:ResizeObserver;private abort=new AbortController();
 	private model:ModelProjection=EMPTY_MODEL;
 	private orbit:{x:number;y:number;pivot:THREE.Vector3;mode:'orbit'|'pan'|'zoom';pointerId:number}|null=null;
-	private drag:{gesture:Gesture;x:number;y:number;ready:boolean;starting:boolean;last?:DragValue;pointerId:number}|null=null;
+	private drag:{gesture:Gesture;x:number;y:number;ready:boolean;starting:boolean;last?:DragValue;pointerId:number;snap?:{targets:SnapTarget[];anchors:Vec3[]}}|null=null;
 	private drawingTool:DrawingTool;
 	private pointer={x:0,y:0};
 	/** The sketch open for editing, whose plane every press is dropped onto. */
@@ -74,8 +74,7 @@ export class SolidViewport {
 			guide:(points,color)=>{this.clear(this.guides);const line=polyline(points,color??'#a5ecff',1,false);line.renderOrder=10;this.guides.add(line);this.invalidate();},
 			clearGuides:()=>{this.clear(this.guides);this.invalidate();},
 			error:message=>this.options.error(message),
-			finish:(sketch,ref)=>this.options.sketch(sketch,ref),
-			draft:this.options.draft?(draft,ref)=>this.options.draft!(draft,ref):undefined,
+			draft:(draft,ref)=>this.options.draft(draft,ref),
 			capture:e=>this.canvas.setPointerCapture(e.pointerId),pointer:()=>this.pointer
 		});
 		this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(canvas);this.resize();
@@ -92,6 +91,8 @@ export class SolidViewport {
 			else if(/^[0-9.-]$/.test(e.key)&&this.options.getSelections().length){e.preventDefault();this.options.numeric(e.key,this.pointer);}
 			else if(e.key.toLowerCase()==='f'){e.preventDefault();this.fit();}
 		},events);
+		/* The datum-plane setting is written by the reference panel; a change redraws the scene. destroy() aborts, which unsubscribes. */
+		this.abort.signal.addEventListener('abort',onDatumPlanesChange(()=>this.display(this.model)));
 	}
 	private resize(){const width=this.canvas.clientWidth,height=this.canvas.clientHeight;if(width<=0||height<=0)return;this.renderer.setSize(width,height,false);this.camera.left=-3*width/height;this.camera.right=3*width/height;this.camera.top=3;this.camera.bottom=-3;this.camera.updateProjectionMatrix();this.invalidate();}
 	invalidate(){if(!this.frame)this.frame=requestAnimationFrame(()=>{this.frame=0;const start=performance.now();this.renderer.render(this.scene,this.camera);this.frameCosts.push(performance.now()-start);});}
@@ -110,6 +111,7 @@ export class SolidViewport {
 		}
 		for(const sketch of model.sketches)for(const object of sketchObjects(sketch)){this.sketchLayer.add(object);this.meshes.push(object);}
 		for(const ref of model.references)for(const object of referenceObjects(ref)){this.refs.add(object);this.refObjects.push(object);}
+		for(const object of datumPlaneObjects(model))this.refs.add(object);
 		this.highlight();
 	}
 	highlight(){
@@ -176,10 +178,12 @@ export class SolidViewport {
 		const handle=triadHandle(hit.object.userData.handle?hit:undefined);
 		if(!handle)this.options.select(selection,e.shiftKey);this.highlight();
 		if(!this.options.canWrite()||e.shiftKey)return;
-		if(selection.kind==='reference')return;
+		if(selection.kind==='reference'||SELECT_ONLY_TOOLS.includes(tool))return;
 		const normal=handle?.axis??hit.object.userData.normal??[0,0,1];
 		const gesture:Gesture={selection,tool,start:vector(hit.point.toArray()),axis:Math.hypot(...normal)>.9?normal:[0,0,1],handle};
-		this.drag={gesture,x:e.clientX,y:e.clientY,ready:false,starting:false,pointerId:e.pointerId};this.canvas.setPointerCapture(e.pointerId);
+		/* Snap targets and the body's own anchors are computed once at press: the anchors are the corners at the gesture's start, the targets are the other bodies. */
+		const snap=handle?{targets:snapTargetsFrom(this.model,[selection.bodyId]),anchors:bodyAnchors(this.model,selection.bodyId)}:undefined;
+		this.drag={gesture,x:e.clientX,y:e.clientY,ready:false,starting:false,pointerId:e.pointerId,snap};this.canvas.setPointerCapture(e.pointerId);
 	}
 	private move(e:PointerEvent){
 		this.pointer={x:e.offsetX,y:e.offsetY};
@@ -200,6 +204,9 @@ export class SolidViewport {
 			canvas:{width:this.canvas.clientWidth,height:this.canvas.clientHeight},zoom:this.camera.zoom,
 			toScreen:(p)=>{const v=new THREE.Vector3(...p).project(this.camera);return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};},
 			viewPlanePoint:(client,through)=>{const p=this.viewPlane({clientX:client.x,clientY:client.y},new THREE.Vector3(...through));return p?vector(p.toArray()):null;},
+			planePoint:(client,plane)=>{this.setRay({clientX:client.x,clientY:client.y});const p=this.ray.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(...plane.normal),new THREE.Vector3(...plane.origin)),new THREE.Vector3());return p?vector(p.toArray()):null;},
+			viewDirection:vector(this.camera.getWorldDirection(new THREE.Vector3()).toArray()),
+			snapTargets:d.snap?.targets,anchors:d.snap?.anchors,
 			modifiers:{shift:e.shiftKey,ctrl:e.ctrlKey,alt:e.altKey}
 		});
 		d.last=value;this.options.update(value);

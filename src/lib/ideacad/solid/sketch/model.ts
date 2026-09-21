@@ -333,3 +333,95 @@ export function planeFromNormal(normal: Vec3, through: Vec3): ResolvedPlane {
 	const d = dot(n, through);
 	return { origin: scale(n, d), u, v, normal: n };
 }
+
+/* ------------------------------------------------- 2D curve arithmetic */
+/**
+ * WHERE A POINT SITS ALONG A CURVE, in the curve's own parameter: a line's
+ * 0..1 from `a` to `b`, a circle's angle in [0, 2π) from +u, an arc's 0..1 of
+ * its counter-clockwise sweep. The trim tool orders crossings by this, so one
+ * definition serves every curve type and a segment "between crossings" is
+ * a parameter interval whatever the curve is.
+ */
+export const TAU = Math.PI * 2;
+const angleOf = (c: Vec2, p: Vec2) => { let a = Math.atan2(p[1] - c[1], p[0] - c[0]); if (a < 0) a += TAU; return a; };
+export function curveParam(entities: readonly SketchEntity[], curve: CurveEntity, p: Vec2): number {
+	if (curve.type === 'line') { const a = pointOf(entities, curve.a), b = pointOf(entities, curve.b); const dx = b[0] - a[0], dy = b[1] - a[1], len2 = dx * dx + dy * dy; return len2 ? ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2 : 0; }
+	if (curve.type === 'circle') return angleOf(pointOf(entities, curve.center), p);
+	const c = pointOf(entities, curve.center), s = pointOf(entities, curve.start), sweep = arcSweep(c, s, pointOf(entities, curve.end));
+	let rel = angleOf(c, p) - angleOf(c, s); if (rel < -1e-9) rel += TAU;
+	return rel / sweep;
+}
+/** The point at a curve parameter (see `curveParam`). */
+export function curvePoint(entities: readonly SketchEntity[], curve: CurveEntity, t: number): Vec2 {
+	if (curve.type === 'line') { const a = pointOf(entities, curve.a), b = pointOf(entities, curve.b); return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+	if (curve.type === 'circle') { const c = pointOf(entities, curve.center); return [c[0] + curve.radius * Math.cos(t), c[1] + curve.radius * Math.sin(t)]; }
+	const c = pointOf(entities, curve.center), s = pointOf(entities, curve.start); return arcPoint(c, s, arcSweep(c, s, pointOf(entities, curve.end)), t);
+}
+/** Whether a parameter lies on the curve's own extent: always for a circle, 0..1 for a line or an arc. */
+const withinExtent = (curve: CurveEntity, t: number, eps: number) => curve.type === 'circle' || (t >= -eps && t <= 1 + eps);
+/** A point on a curve's supporting line or circle, as that curve's parameter, or null when it is off the finite extent. */
+function paramIfOn(entities: readonly SketchEntity[], curve: CurveEntity, p: Vec2, eps: number): number | null {
+	const t = curveParam(entities, curve, p);
+	return withinExtent(curve, t, eps) ? t : null;
+}
+export interface Crossing { t: number; point: Vec2; other: string; tOther: number }
+/** The support of a curve: a line through two points, or a circle. */
+type Support = { kind: 'line'; a: Vec2; d: Vec2 } | { kind: 'circle'; c: Vec2; r: number };
+function support(entities: readonly SketchEntity[], curve: CurveEntity): Support {
+	if (curve.type === 'line') { const a = pointOf(entities, curve.a), b = pointOf(entities, curve.b); return { kind: 'line', a, d: [b[0] - a[0], b[1] - a[1]] }; }
+	const c = pointOf(entities, curve.center);
+	return { kind: 'circle', c, r: curve.type === 'circle' ? curve.radius : Math.hypot(...([pointOf(entities, curve.start)[0] - c[0], pointOf(entities, curve.start)[1] - c[1]] as Vec2)) };
+}
+/** Every point where two supports meet, ignoring extent. Parallel lines and coincident circles meet nowhere. */
+function supportCrossings(p: Support, q: Support): Vec2[] {
+	if (p.kind === 'line' && q.kind === 'line') {
+		const det = p.d[0] * q.d[1] - p.d[1] * q.d[0]; if (Math.abs(det) < 1e-12) return [];
+		const w: Vec2 = [q.a[0] - p.a[0], q.a[1] - p.a[1]]; const t = (w[0] * q.d[1] - w[1] * q.d[0]) / det;
+		return [[p.a[0] + p.d[0] * t, p.a[1] + p.d[1] * t]];
+	}
+	if (p.kind === 'line' || q.kind === 'line') {
+		const line = (p.kind === 'line' ? p : q) as Extract<Support, { kind: 'line' }>, circle = (p.kind === 'circle' ? p : q) as Extract<Support, { kind: 'circle' }>;
+		const f: Vec2 = [line.a[0] - circle.c[0], line.a[1] - circle.c[1]], A = line.d[0] * line.d[0] + line.d[1] * line.d[1], B = 2 * (f[0] * line.d[0] + f[1] * line.d[1]), C = f[0] * f[0] + f[1] * f[1] - circle.r * circle.r;
+		if (A < 1e-18) return [];
+		let disc = B * B - 4 * A * C; if (disc < -1e-9 * A) return []; disc = Math.max(0, disc);
+		const roots = disc < 1e-18 ? [-B / (2 * A)] : [(-B - Math.sqrt(disc)) / (2 * A), (-B + Math.sqrt(disc)) / (2 * A)];
+		return roots.map((t) => [line.a[0] + line.d[0] * t, line.a[1] + line.d[1] * t] as Vec2);
+	}
+	const d = Math.hypot(q.c[0] - p.c[0], q.c[1] - p.c[1]); if (d < 1e-12 || d > p.r + q.r + 1e-9 || d < Math.abs(p.r - q.r) - 1e-9) return [];
+	const a = (p.r * p.r - q.r * q.r + d * d) / (2 * d), h = Math.sqrt(Math.max(0, p.r * p.r - a * a)), u: Vec2 = [(q.c[0] - p.c[0]) / d, (q.c[1] - p.c[1]) / d], m: Vec2 = [p.c[0] + u[0] * a, p.c[1] + u[1] * a];
+	return h < 1e-12 ? [m] : [[m[0] - u[1] * h, m[1] + u[0] * h], [m[0] + u[1] * h, m[1] - u[0] * h]];
+}
+/**
+ * Where a curve crosses every other curve in the sketch, on both finite
+ * extents, as parameters along `curve`. Construction geometry counts: a
+ * construction line is a trim boundary, exactly as it is on the drawing
+ * board. A crossing at a shared point comes back too; callers that want the
+ * interior drop `t` near 0 and 1 themselves.
+ */
+export function crossings(entities: readonly SketchEntity[], curve: CurveEntity, eps = 1e-7): Crossing[] {
+	const out: Crossing[] = [], mine = support(entities, curve);
+	for (const other of entities) {
+		if (!isCurve(other) || other.id === curve.id) continue;
+		for (const point of supportCrossings(mine, support(entities, other))) {
+			const t = paramIfOn(entities, curve, point, eps), tOther = paramIfOn(entities, other, point, eps);
+			if (t === null || tOther === null) continue;
+			out.push({ t, point, other: other.id, tOther });
+		}
+	}
+	return out.sort((x, y) => x.t - y.t);
+}
+/** Where a ray from `from` along `direction` first meets any curve other than `except`, as the distance along the ray and the curve it met. */
+export function rayHit(entities: readonly SketchEntity[], from: Vec2, direction: Vec2, except: string, eps = 1e-7): { distance: number; point: Vec2; other: string } | null {
+	const n = Math.hypot(direction[0], direction[1]); if (n < 1e-12) return null;
+	const ray: Support = { kind: 'line', a: from, d: [direction[0] / n, direction[1] / n] };
+	let best: { distance: number; point: Vec2; other: string } | null = null;
+	for (const other of entities) {
+		if (!isCurve(other) || other.id === except) continue;
+		for (const point of supportCrossings(ray, support(entities, other))) {
+			const distance = (point[0] - from[0]) * ray.d[0] + (point[1] - from[1]) * ray.d[1];
+			if (distance <= eps || paramIfOn(entities, other, point, eps) === null) continue;
+			if (!best || distance < best.distance) best = { distance, point, other: other.id };
+		}
+	}
+	return best;
+}

@@ -22,6 +22,13 @@
 	import MatePanel from './MatePanel.svelte';
 	import FeaturePanel from './FeaturePanel.svelte';
 	import AddonPanel from './AddonPanel.svelte';
+	import DimensionPanel from './DimensionPanel.svelte';
+	import MovePanel from './MovePanel.svelte';
+	import MeasurePanel from './MeasurePanel.svelte';
+	import SectionPanel from './SectionPanel.svelte';
+	import { holeFeatureAt, withOptions } from './features/options';
+	import { matePreview, MATE_SNAP_TOLERANCE } from './viewport/mate-preview';
+	import { parseDimension } from './dimensions/model';
 	import type {AdvisoryTransport,AdvisoryRules} from './advisory';
 	import {STOCK_MATERIALS} from './advisory';
 	import {diffTrees} from '../history';
@@ -29,14 +36,14 @@
 	import { TOOLS, QUICK_TOOLS } from './tools';
 	import { SolidClient } from './client';
 	import { SolidViewport, EMPTY_MODEL, type DragValue, type Gesture, type Tool, type DrawPlane } from './viewport';
-	import { dragReadout } from './viewport/readout';
+	import { dragReadout, numericPrompt, numericUnit } from './viewport/readout';
 	import type { SketchDraft } from './sketch/editor';
 	import { datumPlane } from './sketch/model';
 	import { refFromSelection } from './naming';
 	import { newFeatureId } from './features';
 	import { download, sketchDxf,profileDxf,solidStl, solidThreeMf } from './export';
 	import type { WorkspaceApi } from './workspace-api';
-	import type { EdgeRef, FaceRef, Feature, ModelProjection, ModelSnapshot, PlaneRef, Selection, Sketch, SolidCommand, SolidDocument, SolidHistoryAction, SolidTransport } from './types';
+	import type { EdgeRef, EntityRef, FaceRef, Feature, MateKind, ModelProjection, ModelSnapshot, PlaneRef, Selection, SolidCommand, SolidDocument, SolidHistoryAction, SolidTransport } from './types';
 
 	let {document:opened,transport,advisoryTransport,onback,dev=false}:{document:SolidDocument;transport:SolidTransport;advisoryTransport?:AdvisoryTransport;onback:()=>void;dev?:boolean}=$props();
 	let rules:AdvisoryRules|null=$state(null),settingsOpen=$state(false);
@@ -45,7 +52,7 @@
 	let client:SolidClient;let viewport:SolidViewport;
 	let model:ModelProjection=$state(EMPTY_MODEL);
 	let selections:Selection[]=$state([]),tool:Tool=$state('select'),planeName=$state<'XY'|'XZ'|'YZ'>('XY');
-	let error=$state(''),loading=$state(true),busy=$state(false),more=$state(false),objectsOpen=$state(false),addonOpen=$state(false),exportOpen=$state(false),treeOpen=$state(false),referenceOpen=$state(false),matesOpen=$state(false);
+	let error=$state(''),loading=$state(true),busy=$state(false),more=$state(false),objectsOpen=$state(false),addonOpen=$state(false),exportOpen=$state(false),treeOpen=$state(false),referenceOpen=$state(false),matesOpen=$state(false),sectionOpen=$state(false);
 	let reopenConfirm=$state(false);
 	let editingSketch=$state<string|null>(null);
 	let measure=$state<{text:string;x:number;y:number}|null>(null),numeric=$state<{value:string;x:number;y:number}|null>(null);
@@ -56,6 +63,8 @@
 	/** While a sketch is open, the sketch editor installs the handler that receives viewport presses in plane coordinates. */
 	let sketchPointer:((event:'down'|'move'|'up',at:[number,number],e:PointerEvent)=>boolean)|null=null;
 	let actions:SolidHistoryAction[]=[];let committed=false;let gestureBefore:ModelSnapshot|null=null;let gestureCenter:[number,number,number]=[0,0,0];
+	/* The model as it stood when the gesture began: a mate preview reads it, because during the drag `model` already shows the moved body. */
+	let gestureModel:ModelProjection=EMPTY_MODEL;let mateCandidate:{kind:MateKind;a:Selection;b:Selection}|null=null;
 	let history:DirectRow[]=$state(untrack(()=>opened.history??[{seq:0,kind:'origin',path:'',after:opened.snapshot.manifest}]));
 	const historyState=$derived(foldGroups(groupHistory(history)));
 	const saveState=new SaveState({save:async()=>{
@@ -98,15 +107,17 @@
 		catch(err){error=err instanceof Error?err.message:String(err);show(await client.request<ModelProjection>('project'));}
 		finally{busy=false;}
 	}
-	async function createSketch(sketch:Sketch,ref:PlaneRef){await apply({type:'sketch',sketch,planeRef:ref},'Draw sketch');tool='extrude';select({bodyId:'',kind:'sketch',id:sketch.id});viewport.highlight();}
 	/** A drawn entity collection becomes a sketch feature on the plane it was drawn on, selected and ready to extrude. */
 	async function createDraft(draft:SketchDraft,ref:PlaneRef){const id=newFeatureId();await apply({type:'add-feature',feature:{id,name:'',type:'sketch',plane:ref,entities:draft.entities,constraints:draft.constraints}},'Draw sketch');if(model.features.some(f=>f.id===id)){tool='extrude';select({bodyId:'',kind:'sketch',id});viewport.highlight();}}
 	async function begin(next:Gesture){
 		if(!opened.canWrite)throw Error('This document is read-only.');
-		if(busy)throw Error('Finish the current change first.');gesture=next;gestureFeature=newFeatureId();gestureBefore=currentSnapshot;gestureCenter=[...(model.bodies.find(b=>b.id===next.selection.bodyId)?.centerOfMass??[0,0,0])];committed=false;await client.request('begin');
+		if(busy)throw Error('Finish the current change first.');gesture=next;gestureFeature=newFeatureId();gestureBefore=currentSnapshot;gestureCenter=[...(model.bodies.find(b=>b.id===next.selection.bodyId)?.centerOfMass??[0,0,0])];committed=false;gestureModel=model;mateCandidate=null;await client.request('begin');
 	}
 	/** The reference a feature stores for a selection, with its hint, from the projection the gesture started on. */
 	function ref(selection:Selection){const body=model.bodies.find(b=>b.id===selection.bodyId);if(!body)throw Error('Select something on a body.');return refFromSelection(selection,body);}
+	/** The selected reference of a kind, when one is among the selections: the axis a revolve or a pattern turns about or runs along, or the plane a mirror reflects across. A reference among the selections is the student's own say-so. */
+	function selectedReference(kind:'plane'|'axis'|'point'){for(const s of selections)if(s.kind==='reference'){const r=model.references.find(r=>r.feature===s.id);if(r?.kind===kind)return r;}return undefined;}
+	const mirrorPlane=$derived(selectedReference('plane'));
 	/** Omit distributed over the feature union, so each member keeps its own discriminated fields. */
 	type FeatureInput=Feature extends infer F?F extends Feature?Omit<F,'id'|'name'>&{name?:string}:never:never;
 	const feature=(f:FeatureInput):SolidCommand=>({type:'add-feature',feature:{id:gestureFeature,name:'',...f} as Feature});
@@ -114,24 +125,34 @@
 		if(!gesture)return null;const {selection,tool:active,axis}=gesture;
 		if(selection.kind==='sketch'){
 			const sketch=model.sketches.find(s=>s.feature===selection.id);if(!sketch)return null;
-			if(active==='revolve')return feature({type:'revolve',sketch:selection.id,angle:value.angle,axis:{kind:'sketch',feature:selection.id,axis:'v'},operation:'new'});
+			if(active==='revolve'){const about=selectedReference('axis');return feature({type:'revolve',sketch:selection.id,angle:value.angle,axis:about?{kind:'reference',feature:about.feature}:{kind:'sketch',feature:selection.id,axis:'v'},operation:'new'});}
 			const support=sketch.planeRef.kind==='face'?sketch.planeRef.face.body:undefined;
 			return feature({type:'extrude',sketch:selection.id,distance:value.distance,operation:support?(value.distance<0?'cut':'add'):'new',target:support});
 		}
 		if(active==='fillet'||active==='chamfer'){
 			const edges=[...selections.filter(s=>s.kind==='edge'),...(selection.kind==='edge'&&!selections.some(s=>s.id===selection.id)?[selection]:[])].map(s=>ref(s) as EdgeRef);
 			if(!edges.length)return null;
-			return active==='fillet'?feature({type:'fillet',edges,radius:Math.abs(value.distance)}):feature({type:'chamfer',edges,distance:Math.abs(value.distance)});
+			return active==='fillet'?feature(withOptions({type:'fillet',edges,radius:Math.abs(value.distance)})):feature(withOptions({type:'chamfer',edges,distance:Math.abs(value.distance)}));
 		}
-		if(active==='shell'){const open=[...selections.filter(s=>s.kind==='face'),...(selection.kind==='face'&&!selections.some(s=>s.id===selection.id)?[selection]:[])].map(s=>ref(s) as FaceRef);return feature({type:'shell',body:selection.bodyId,thickness:Math.abs(value.distance),openFaces:open});}
-		if(active==='linear-pattern'||active==='circular-pattern')return feature({type:'pattern',body:selection.bodyId,mode:active==='linear-pattern'?'linear':'circular',axis:{kind:'datum',axis:active==='linear-pattern'?'X':'Z'},spacing:active==='linear-pattern'?value.distance:360/value.count,count:value.count});
+		if(active==='shell'){const open=[...selections.filter(s=>s.kind==='face'),...(selection.kind==='face'&&!selections.some(s=>s.id===selection.id)?[selection]:[])].map(s=>ref(s) as FaceRef);return feature(withOptions({type:'shell',body:selection.bodyId,thickness:Math.abs(value.distance),openFaces:open}));}
+		/* The hole tool: the press point on the face is the hole's centre; size, fit and depth come from the Feature panel. */
+		if(active==='hole'&&selection.kind==='face'){const body=model.bodies.find(b=>b.id===selection.bodyId),face=body?.faces.find(f=>f.id===selection.id);if(!body||!face)return null;return feature(holeFeatureAt(body,face,gesture.start));}
+		if(active==='linear-pattern'||active==='circular-pattern'){const along=selectedReference('axis');return feature({type:'pattern',body:selection.bodyId,mode:active==='linear-pattern'?'linear':'circular',axis:along?{kind:'reference',feature:along.feature}:{kind:'datum',axis:active==='linear-pattern'?'X':'Z'},spacing:active==='linear-pattern'?value.distance:360/value.count,count:value.count});}
 		if(active==='rotate'||active==='scale'||active==='move'){
 			if(active==='move'&&(selection.kind==='edge'||selection.kind==='vertex'))return feature({type:'move-selection',entity:ref(selection) as EdgeRef,delta:scaleVector(axis,value.distance)});
-			const matrix=new THREE.Matrix4(),center=new THREE.Vector3(...gestureCenter);
-			if(active==='move')matrix.makeTranslation(...scaleVector(axis,value.distance));
+			const matrix=new THREE.Matrix4(),center=new THREE.Vector3(...gestureCenter),mode=value.handle?.mode;
+			/* The triad's handle says what the drag is: a ring is a turn about its axis through the centre, a plane square or the centre sphere is a delta, an arrow is a distance along its axis. A move is offered the magnetic mate snap unless Ctrl is held. */
+			if(mode==='ring')matrix.makeRotationAxis(new THREE.Vector3(...(value.handle?.axis??axis)).normalize(),value.angle*Math.PI/180);
+			else if(mode==='plane'||mode==='free'||active==='move'){
+				const t=mode==='plane'||mode==='free'?value.delta:scaleVector(axis,value.distance);
+				const preview=active==='move'&&!value.modifiers?.ctrl?matePreview(gestureModel,selection.bodyId,t,MATE_SNAP_TOLERANCE):null;
+				mateCandidate=preview?.candidate??null;viewport.clearGuides();for(const g of preview?.guides??[])viewport.guide(g,'#d9b96a');
+				matrix.makeTranslation(...(preview?.delta??t));
+			}
 			else if(active==='rotate')matrix.makeRotationAxis(new THREE.Vector3(...axis),value.angle*Math.PI/180);
 			else {const factor=1+value.distance;matrix.makeScale(factor,factor,factor);}
-			if(active!=='move')matrix.premultiply(new THREE.Matrix4().makeTranslation(...center.toArray())).multiply(new THREE.Matrix4().makeTranslation(...center.negate().toArray()));
+			const aboutCenter=mode==='ring'||(mode!=='plane'&&mode!=='free'&&active!=='move');
+			if(aboutCenter)matrix.premultiply(new THREE.Matrix4().makeTranslation(...center.toArray())).multiply(new THREE.Matrix4().makeTranslation(...center.negate().toArray()));
 			return feature({type:'transform',bodies:[...new Set([selection.bodyId,...selections.map(s=>s.bodyId)].filter(Boolean))],matrix:matrix.clone().transpose().toArray()});
 		}
 		if(selection.kind==='edge'||selection.kind==='vertex')return feature({type:'move-selection',entity:ref(selection) as EdgeRef,delta:value.delta});
@@ -141,7 +162,7 @@
 	const scaleVector=(v:[number,number,number],n:number):[number,number,number]=>[v[0]*n,v[1]*n,v[2]*n];
 	function update(value:DragValue){
 		let command:SolidCommand|null;try{command=commandFor(value);}catch(err){error=err instanceof Error?err.message:String(err);return;}if(!command)return;
-		measure={text:dragReadout(gesture!.tool,value),x:value.point.x,y:value.point.y};
+		measure={text:dragReadout(gesture!.tool,value,{kind:gesture!.selection.kind}),x:value.point.x,y:value.point.y};
 		queued=command;pump();
 	}
 	function pump(){
@@ -151,15 +172,18 @@
 	}
 	async function end(){
 		if(committed)return;committed=true;busy=true;
-		try{await pumping;if(queued)await pump();show(await client.request<ModelProjection>('commit'));if(gestureBefore)await record(TOOLS.find(t=>t.id===gesture?.tool)?.name??'Edit solid',gestureBefore);}
+		const candidate=mateCandidate;mateCandidate=null;viewport.clearGuides();
+		try{await pumping;if(queued)await pump();show(await client.request<ModelProjection>('commit'));if(gestureBefore)await record(gesture?.handle?.mode==='ring'?'Rotate':(TOOLS.find(t=>t.id===gesture?.tool)?.name??'Edit solid'),gestureBefore);}
 		catch(err){error=err instanceof Error?err.message:String(err);}
 		finally{gesture=null;gestureBefore=null;measure=null;numeric=null;busy=false;}
+		/* A move that snapped to another body's face adds the mate it previewed, after the transform has landed; `ref` reads the faces where the bodies now sit. */
+		if(candidate&&!error){try{const a=ref(candidate.a),b=ref(candidate.b);await apply({type:'add-feature',feature:{id:'',name:'',type:'mate',kind:candidate.kind,a:{kind:'face',...a} as EntityRef,b:{kind:'face',...b} as EntityRef}},`Add ${candidate.kind} mate`);}catch(err){error=err instanceof Error?err.message:String(err);}}
 	}
-	async function cancel(){queued=null;await pumping;if(client){show(await client.request<ModelProjection>('cancel'));}gesture=null;gestureBefore=null;measure=null;numeric=null;}
+	async function cancel(){queued=null;await pumping;if(client){show(await client.request<ModelProjection>('cancel'));}gesture=null;gestureBefore=null;measure=null;numeric=null;mateCandidate=null;viewport?.clearGuides();}
 	async function undo(redo=false){if(!opened.canWrite||busy||loading||gesture)return;const target=redo?historyState.redoTarget:historyState.undoTarget;if(!target)return;busy=true;const before=currentSnapshot;try{const inverse=inverseOperation(before.manifest,target);show(await client.request<ModelProjection>('load',{manifest:inverse.after,artifacts:before.artifacts}));await record(redo?'Redo':'Undo',before,inverse.actions);title=currentSnapshot.manifest.title;}catch(err){error=err instanceof Error?err.message:String(err);}finally{busy=false;}}
 	async function enterNumeric(){
 		if(!opened.canWrite||busy||loading)return;
-		const value=Number(numeric?.value);if(!Number.isFinite(value)){error='Enter a finite number.';return;}
+		const parsed=parseDimension(numeric?.value??'',numericUnit(tool));if(!parsed.ok){error=parsed.reason;return;}const value=tool==='scale'?parsed.value-1:parsed.value;
 		if(!gesture){const selection=selections[0];if(!selection)return;const body=model.bodies.find(b=>b.id===selection.bodyId),face=body?.faces.find(f=>f.id===selection.id),sketch=model.sketches.find(s=>s.feature===selection.id);try{await begin({selection,tool,start:face?.center??sketch?.plane.origin??[0,0,0],axis:face?.normal??sketch?.plane.normal??[0,0,1]});}catch(err){error=err instanceof Error?err.message:String(err);numeric=null;return;}}
 		update({distance:value,angle:value,delta:scaleVector(gesture!.axis,value),count:Math.round(value),point:{x:numeric?.x??0,y:numeric?.y??0}});await end();canvas.focus();
 	}
@@ -191,7 +215,7 @@
 		if(settingsOpen)return;
 		const typing=(e.target as HTMLElement)?.closest('input,textarea,select,[contenteditable=true]');if(typing)return;
 		if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();void undo(e.shiftKey);}
-		else if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();if(selections.length)void apply({type:'delete',selections},'Delete selection');}
+		else if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();const feature=selections.find(s=>s.kind==='feature'||s.kind==='sketch'||s.kind==='reference');if(feature)void apply({type:'remove-feature',id:feature.id},'Delete feature');else if(selections.length)void apply({type:'delete',selections},'Delete selection');}
 	}
 	async function openSettings(){if(!advisoryTransport)return;try{rules=await advisoryTransport.read();settingsOpen=true;}catch(err){error=err instanceof Error?err.message:String(err);}}
 	/** What every panel reads and writes through. Getters, so a panel's `$derived` tracks the workspace's own state. */
@@ -209,7 +233,7 @@
 	onMount(()=>{
 		const readRules=()=>{if(advisoryTransport)void advisoryTransport.read().then(value=>rules=value).catch(err=>error=err.message);};readRules();
 		window.addEventListener('focus',readRules);const ruleTimer=setInterval(readRules,60000);
-		client=new SolidClient();viewport=new SolidViewport(canvas,{getTool:()=>tool,getPlane:():DrawPlane=>({plane:datumPlane(planeName),ref:{kind:'datum',datum:planeName}}),getSelections:()=>selections,canWrite:()=>opened.canWrite,select,begin,update,end:()=>void end(),cancel:()=>void cancel(),sketch:(s,r)=>void createSketch(s,r),draft:(d,r)=>void createDraft(d,r),numeric:(key,point)=>{numeric={value:key,...point};requestAnimationFrame(()=>numericInput?.focus());},error:message=>error=message,sketchPointer:(event,at,e)=>sketchPointer?.(event,at,e)??false});
+		client=new SolidClient();viewport=new SolidViewport(canvas,{getTool:()=>tool,getPlane:():DrawPlane=>({plane:datumPlane(planeName),ref:{kind:'datum',datum:planeName}}),getSelections:()=>selections,canWrite:()=>opened.canWrite,select,begin,update,end:()=>void end(),cancel:()=>void cancel(),draft:(d,r)=>void createDraft(d,r),numeric:(key,point)=>{numeric={value:key,...point};requestAnimationFrame(()=>numericInput?.focus());},error:message=>error=message,sketchPointer:(event,at,e)=>sketchPointer?.(event,at,e)??false});
 		for(const m of STOCK_MATERIALS)if(m.color)viewport.materialColours.set(m.id,m.color);
 		client.request<ModelProjection>('load',opened.snapshot).then(result=>{show(result);viewport.fit();loading=false;saveState.markSaved();}).catch(err=>{error=err.message;loading=false;});
 		const unbind=saveState.attach();
@@ -246,7 +270,7 @@
 				<button aria-label="Top view" onclick={()=>viewport.view('top')}>Top</button>
 				<button aria-label="Isometric view" onclick={()=>viewport.view('iso')}>3D</button>
 			</div>
-			<div class="right-tools"><button class:active={objectsOpen} onclick={()=>objectsOpen=!objectsOpen}>Objects <span>{model.bodies.length+openSketches.length}</span></button><button class:active={referenceOpen} onclick={()=>referenceOpen=!referenceOpen}>Reference</button><button class:active={matesOpen} onclick={()=>matesOpen=!matesOpen}>Mates</button><button class:active={addonOpen} onclick={()=>addonOpen=!addonOpen}>Add-ons</button></div>
+			<div class="right-tools"><button class:active={objectsOpen} onclick={()=>objectsOpen=!objectsOpen}>Objects <span>{model.bodies.length+openSketches.length}</span></button><button class:active={referenceOpen} onclick={()=>referenceOpen=!referenceOpen}>Reference</button><button class:active={matesOpen} onclick={()=>matesOpen=!matesOpen}>Mates</button><button class:active={sectionOpen} aria-pressed={sectionOpen} onclick={()=>sectionOpen=!sectionOpen}>Section</button><button class:active={addonOpen} onclick={()=>addonOpen=!addonOpen}>Add-ons</button></div>
 			{#if loading}<div class="loading" role="status">Loading geometry…</div>{/if}
 			{#if !opened.canWrite}<div class="read-only">{opened.deletedAt?'In the trash':opened.archivedAt?'Archived':'View only'}</div>{/if}
 			{#if model.replayMs!==undefined&&model.replayMs>0&&dev}<div class="replay" data-testid="ideacad-replay">replayed from {model.replayedFrom} in {model.replayMs.toFixed(1)} ms</div>{/if}
@@ -254,13 +278,17 @@
 			<div class="panels">
 				{#if editingSketch}<SketchEditor {api}/>{/if}
 				<FeaturePanel {api}/>
+				<DimensionPanel {api}/>
+				{#if tool==='move'||tool==='rotate'||tool==='scale'}<MovePanel {api}/>{/if}
+				{#if tool==='measure'}<MeasurePanel {api}/>{/if}
+				{#if sectionOpen}<SectionPanel {api}/>{/if}
 				{#if referenceOpen}<ReferencePanel {api}/>{/if}
 				{#if matesOpen}<MatePanel {api}/>{/if}
 				{#if objectsOpen}
 					<aside class="objects panel" aria-label="Objects"><h2>Objects</h2>
 						{#each openSketches as sketch (sketch.feature)}<button class:selected={selections.some(s=>s.id===sketch.feature)} onclick={()=>{select({bodyId:'',kind:'sketch',id:sketch.feature});setTool('extrude');}}>◇ {sketch.name}<span>{sketch.regions.length?`${sketch.regions.length} closed`:'open'}</span></button>{/each}
 						{#each model.bodies as body (body.id)}<button class:selected={selections.some(s=>s.bodyId===body.id)} onclick={(e)=>select({bodyId:body.id,kind:'body',id:body.id},e.shiftKey)}>▱ {body.name}</button>{/each}
-						{#if selectedBody}<BodyProperties body={selectedBody} canWrite={opened.canWrite&&!loading&&!busy} change={(command,label)=>void apply(command,label)}/><div class="body-actions"><button onclick={()=>void apply({type:'add-feature',feature:{id:'',name:'',type:'mirror',bodies:[selectedBody.id],plane:{kind:'datum',datum:planeName}}},'Mirror body')}>Mirror {planeName}</button><button onclick={()=>void apply({type:'delete',selections:[{bodyId:selectedBody.id,kind:'body',id:selectedBody.id}]},'Delete body')}>Delete body</button></div>{/if}
+						{#if selectedBody}<BodyProperties body={selectedBody} canWrite={opened.canWrite&&!loading&&!busy} change={(command,label)=>void apply(command,label)} error={api.error}/><div class="body-actions"><button onclick={()=>void apply({type:'add-feature',feature:{id:'',name:'',type:'mirror',bodies:[selectedBody.id],plane:mirrorPlane?{kind:'reference',feature:mirrorPlane.feature}:{kind:'datum',datum:planeName}}},'Mirror body')}>Mirror {mirrorPlane?`across ${mirrorPlane.name}`:planeName}</button><button onclick={()=>void apply({type:'delete',selections:[{bodyId:selectedBody.id,kind:'body',id:selectedBody.id}]},'Delete body')}>Delete body</button></div>{/if}
 						{#if new Set(selections.map(s=>s.bodyId).filter(Boolean)).size>1}<div class="body-actions">{#each ['union','subtract','intersect'] as operation}<button onclick={()=>void apply({type:'add-feature',feature:{id:'',name:'',type:'boolean',operation:operation as 'union'|'subtract'|'intersect',bodies:[...new Set(selections.map(s=>s.bodyId).filter(Boolean))]}},operation)}>{operation}</button>{/each}</div>{/if}
 					</aside>
 				{/if}
@@ -269,7 +297,7 @@
 			{#if exportOpen}<div class="export-menu panel" role="group" aria-label="Export format"><button onclick={()=>exportFile('3mf')}>3MF <span>Recommended</span></button><button onclick={()=>exportFile('stl')}>STL</button><button onclick={()=>exportFile('dxf')}>DXF profile</button><button onclick={()=>exportFile('ideacad')}>IdeaCAD backup</button>{#if opened.canWrite}<button onclick={()=>importInput.click()}>Import IdeaCAD backup</button>{/if}</div>{/if}
 			<input type="file" accept=".ideacad" bind:this={importInput} hidden onchange={e=>void importBackup(e.currentTarget.files?.[0])}/>
 			{#if measure&&!numeric}<output class="measure" style:left={`${Math.min(measure.x+16,(canvas?.clientWidth??1000)-160)}px`} style:top={`${measure.y+16}px`}>{measure.text}</output>{/if}
-			{#if numeric}<form class="number-entry" style:left={`${Math.min(numeric.x+16,(canvas?.clientWidth??1000)-170)}px`} style:top={`${Math.min(numeric.y+16,(canvas?.clientHeight??800)-64)}px`} onsubmit={(e)=>{e.preventDefault();void enterNumeric();}}><input bind:this={numericInput} bind:value={numeric.value} aria-label="Exact value" inputmode="decimal"/><button type="submit" aria-label="Use exact value">↵</button></form>{/if}
+			{#if numeric}<form class="number-entry" style:left={`${Math.min(numeric.x+16,(canvas?.clientWidth??1000)-170)}px`} style:top={`${Math.min(numeric.y+16,(canvas?.clientHeight??800)-64)}px`} onsubmit={(e)=>{e.preventDefault();void enterNumeric();}}><input bind:this={numericInput} bind:value={numeric.value} aria-label={numericPrompt(tool)} autocomplete="off"/><button type="submit" aria-label="Use exact value">↵</button></form>{/if}
 			{#if error}<div class="error" role="alert"><span>{error}</span><button aria-label="Dismiss message" onclick={()=>error=''}>×</button></div>{/if}
 		</div>
 	</div>
@@ -290,7 +318,7 @@
 	.body{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:0}.tree-rail{min-height:0;display:flex;flex-direction:column;background:var(--surface-1);border-right:1px solid var(--boundary);overflow:hidden}.tree-toggle{display:none}
 	.workarea{position:relative;min-height:0;overflow:hidden}canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}.tools{position:absolute;left:12px;top:12px;display:flex;flex-direction:column;padding:5px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:8px;z-index:5;max-height:calc(100% - 24px);flex-wrap:wrap;align-content:flex-start}.tools.expanded{width:110px}.more{height:44px;padding:0;font-size:24px}.view-tools{position:absolute;left:50%;transform:translateX(-50%);top:12px;display:flex;padding:2px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px}.view-tools select{padding:0 8px;background:var(--surface-1)}.right-tools{position:absolute;right:12px;top:12px;display:flex;gap:4px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 24px)}.right-tools span{margin-left:6px;color:var(--text-2)}
 	.panels{position:absolute;right:12px;top:68px;bottom:12px;width:260px;display:flex;flex-direction:column;gap:8px;overflow:auto;z-index:7;pointer-events:none}.panels>:global(*){pointer-events:auto}
-	:global(.solid-workspace .panel){padding:10px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px}.panel h2{margin:0 0 8px;font-size:20px;padding:5px 10px;border-bottom:1px solid var(--boundary)}.panel>button{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left}.panel button span{font-size:13px;color:var(--text-2)}.body-actions{display:flex;flex-wrap:wrap;border-top:1px solid var(--boundary);margin-top:10px;padding-top:8px}.export-menu{position:absolute;top:8px;right:12px;z-index:15;width:245px}.measure,.number-entry{position:absolute;z-index:8;background:var(--surface-2);color:var(--text-1);border:1px solid var(--green);border-radius:5px;font:14px 'Share Tech Mono',monospace}.measure{padding:9px 12px;pointer-events:none}.number-entry{display:flex;width:170px}.number-entry input{width:120px;min-width:0;padding:0 8px;font-family:'Share Tech Mono',monospace}.error{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);max-width:min(600px,calc(100% - 30px));padding:8px 10px 8px 16px;display:flex;gap:10px;align-items:center;z-index:20;border:1px solid var(--warning);border-radius:7px;background:var(--surface-1);font-size:17px}.error button{flex-shrink:0}.loading{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:21px}.read-only{position:absolute;bottom:12px;left:12px;padding:8px 12px;background:var(--surface-1);border:1px solid var(--boundary)}.replay{position:absolute;bottom:12px;right:12px;padding:4px 8px;font:11px 'Share Tech Mono',monospace;color:var(--text-2);background:var(--surface-1);border:1px solid var(--boundary);border-radius:4px}footer{display:flex;align-items:center;gap:20px;border-top:1px solid var(--boundary);padding:0 15px;font:11px 'Share Tech Mono',monospace;color:var(--text-2)}.tool-name{margin-left:auto}
+	:global(.solid-workspace .panel){padding:10px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px}.panel h2{margin:0 0 8px;font-size:20px;padding:5px 10px;border-bottom:1px solid var(--boundary)}.panel>button{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left}.panel button span{font-size:13px;color:var(--text-2)}.body-actions{display:flex;flex-wrap:wrap;border-top:1px solid var(--boundary);margin-top:10px;padding-top:8px}.export-menu{position:absolute;top:8px;right:12px;z-index:15;width:245px}.measure,.number-entry{position:absolute;z-index:8;background:var(--surface-2);color:var(--text-1);border:1px solid var(--green);border-radius:5px;font:14px 'Share Tech Mono',monospace}.measure{padding:9px 12px;pointer-events:none}.number-entry{display:flex;width:170px}.number-entry input{width:120px;min-width:0;padding:0 8px;font-family:'Share Tech Mono',monospace}.error{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);max-width:min(600px,calc(100% - 30px));padding:8px 10px 8px 16px;display:flex;gap:10px;align-items:center;z-index:20;border:1px solid var(--ic-warn);border-radius:7px;background:var(--surface-1);font-size:17px}.error button{flex-shrink:0}.loading{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:21px}.read-only{position:absolute;bottom:12px;left:12px;padding:8px 12px;background:var(--surface-1);border:1px solid var(--boundary)}.replay{position:absolute;bottom:12px;right:12px;padding:4px 8px;font:11px 'Share Tech Mono',monospace;color:var(--text-2);background:var(--surface-1);border:1px solid var(--boundary);border-radius:4px}footer{display:flex;align-items:center;gap:20px;border-top:1px solid var(--boundary);padding:0 15px;font:11px 'Share Tech Mono',monospace;color:var(--text-2)}.tool-name{margin-left:auto}
 	@media(max-width:1023px){.body{grid-template-columns:minmax(0,1fr)}.tree-rail{display:none;position:absolute;left:0;top:56px;bottom:28px;width:min(300px,80vw);z-index:9}.tree-open .tree-rail{display:flex}.tree-toggle{display:inline-flex}}
 	@media(max-width:700px){.solid-workspace{grid-template-rows:52px minmax(0,1fr) 26px}header{padding:0 4px;gap:0}.documents span{display:none}.document-save{position:absolute;bottom:4px;right:8px;width:55vw;max-width:calc(100% - 16px);z-index:12;padding:0;font-size:10px}.tool-name{display:none}.document-title{flex:1;width:80px;font-size:18px;padding:0 6px}header button{font-size:14px;padding:0 8px}.tools{left:8px;right:8px;bottom:8px;top:auto;flex-direction:row;flex-wrap:nowrap!important;width:auto!important;overflow-x:auto;overflow-y:hidden;max-height:66px}.view-tools{left:8px;transform:none;top:8px}.view-tools button{font-size:13px;padding:0 8px}.right-tools{right:8px;top:60px;max-width:calc(100% - 16px)}.right-tools button{font-size:13px;padding:0 8px}.right-tools span{display:none}.panels{right:8px;left:8px;top:112px;bottom:80px;width:auto}.error{bottom:80px;font-size:16px}.read-only{bottom:74px}.tree-rail{top:52px;bottom:26px}footer{gap:10px;font-size:10px}}
 </style>

@@ -182,6 +182,8 @@ export class SolidEngine {
 		while (from > 0 && this.checkpointAfter(from - 1) === null) from--;
 		this.k.restore(this.checkpointAfter(from - 1)!);
 		this.live = from > 0 ? cloneState(this.states[from - 1]) : emptyState();
+		/* The restore rewound these solids under their handles; a cache entry keyed by handle would draw them where they were before the last solve or transform. */
+		for (const b of this.live.bodies.values()) this.cache.delete(b.solid);
 		this.states.length = from; this.checkpoints.length = from; this.results.length = from;
 		for (let i = from; i < n; i++) {
 			const feature = this.features[i];
@@ -233,8 +235,11 @@ export class SolidEngine {
 		let from = 0;
 		while (from < a.length && from < b.length && JSON.stringify(a[from]) === JSON.stringify(b[from])) from++;
 		const changed = from < Math.max(a.length, b.length);
+		/* A body pinned or unpinned for the mates replays nothing, so the mates are re-solved on their own when there are any. */
+		const fixedChanged = next.bodies.some((r) => !!r.fixed !== !!this.records.find((x) => x.id === r.id)?.fixed);
 		this.features = clone(b); this.records = clone(next.bodies); this.addons = clone(next.addons); this.title = next.title;
 		if (changed) this.replayFrom(from);
+		else if (fixedChanged && this.live.mates.length) this.replayFrom(b.length);
 		else { this.reconcileRecords(); this.lastReplay = { ms: 0, from: b.length }; }
 	}
 
@@ -529,8 +534,8 @@ export class SolidEngine {
 			for (const [fid, handle] of cached.handles.faces) this.picks.set(this.key({ bodyId: id, kind: 'face', id: fid }), { body, handle, kind: 'face' });
 			for (const [eid, handle] of cached.handles.edges) this.picks.set(this.key({ bodyId: id, kind: 'edge', id: eid }), { body, handle, kind: 'edge' });
 			for (const [vid, handle] of cached.handles.vertices) this.picks.set(this.key({ bodyId: id, kind: 'vertex', id: vid }), { body, handle, kind: 'vertex' });
-			const dof = this.mateReport.dof.get(id);
-			return { ...record, faces: cached.faces, edges: cached.edges, vertices: cached.vertices, mesh: cached.mesh, bounds: cached.bounds, volume: cached.volume, centerOfMass: cached.centerOfMass, inertia: cached.inertia, createdBy: body.createdBy, ...(dof !== undefined ? { dof } : {}) };
+			const dof = this.mateReport.dof.get(id), freedom = this.mateReport.freedom?.get(id);
+			return { ...record, faces: cached.faces, edges: cached.edges, vertices: cached.vertices, mesh: cached.mesh, bounds: cached.bounds, volume: cached.volume, centerOfMass: cached.centerOfMass, inertia: cached.inertia, createdBy: body.createdBy, ...(dof !== undefined ? { dof } : {}), ...(freedom ? { freedom } : {}) };
 		});
 		const ext = this.extent();
 		const size = ext ? Math.max(1, ...[0, 1, 2].map((i) => ext.max[i] - ext.min[i])) * 0.6 : 1;

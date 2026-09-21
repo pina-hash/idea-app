@@ -187,8 +187,8 @@ export function transform(ctx: ExecutorContext, f: FeatureOf<'transform'>) {
 	f.matrix.forEach((n) => finite(n));
 	for (const id of f.bodies) {
 		const b = ctx.body(id);
-		ctx.k.transformSolid(b.solid, new Float64Array(f.matrix));
-		ctx.replaceBody(b, b.solid);
+		/* A COPY, never in place: the projection cache is keyed by solid handle, and a replay that restores a checkpoint keeps the handle alive, so an in-place transform left a removed move on screen. A new handle projects afresh. Face names ride the copy. */
+		ctx.replaceBody(b, ctx.k.copyAndTransformSolid(b.solid, new Float64Array(f.matrix)));
 	}
 }
 /** The homogeneous transform of a point by a row-major 4x4 matrix. */

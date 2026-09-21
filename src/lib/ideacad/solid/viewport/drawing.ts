@@ -1,19 +1,27 @@
 /**
  * THE DRAWING TOOLS' STATE MACHINE: what a press, a move, a release and a key
  * mean while a rectangle, circle, polygon, line chain or arc is being drawn
- * on a plane. The viewport owns pointer capture, raycasting and the guide
- * group; this owns the drawing itself and hands a finished profile back
- * through the host.
+ * on a plane WITH NO SKETCH OPEN. The viewport owns pointer capture,
+ * raycasting and the guide group; this owns the drawing itself and hands the
+ * finished ENTITY COLLECTION back through `host.draft`, which the workspace
+ * turns into a sketch feature on the plane it was drawn on.
  *
- * THIS MODULE IS THE SKETCHING SURFACE'S. It still emits the v1 `Sketch`
- * profile the reducer converts into entities (`host.finish`); the surface
- * moves it onto `host.draft`, which takes an entity collection directly, and
- * adds polygon side counts, snapping, splines and the rest. `DrawPlane` says
- * which plane is drawn on and how the document names it.
+ * THIS MODULE IS THE SKETCHING SURFACE'S. The entities it emits are the same
+ * drafts `sketch/editor.ts` builds inside an open sketch (a rectangle carries
+ * its horizontal/vertical constraints, an arc its chord so the first drawing
+ * closes), so a shape drawn here and one drawn while editing are one shape.
+ * The v1 `Sketch` profile is no longer emitted: `host.finish` stays in the
+ * contract only because the viewport still names it, and a host without
+ * `draft` is told so rather than handed a profile nothing converts any more.
+ *
+ * `drawingSettings` is the one module-level knob: the polygon side count the
+ * sketch panel writes and both the drag-drawn polygon and the in-sketch one
+ * read. Any whole number of three or more; nothing is clamped above.
  */
-import { add, dot, scale, sub } from '../math';
-import type { PlaneRef, Sketch, SketchPlane, Vec3 } from '../types';
-import type { SketchDraft } from '../sketch/editor';
+import { dot, sub } from '../math';
+import { drop, lift } from '../sketch/model';
+import { arcEntities, circleEntities, polygonEntities, polylineEntities, rectangleEntities, type SketchDraft } from '../sketch/editor';
+import type { PlaneRef, SketchPlane, Vec2, Vec3 } from '../types';
 import { drawingReadout } from './readout';
 
 export type DrawTool = 'rectangle' | 'circle' | 'line' | 'polygon' | 'arc';
@@ -21,6 +29,11 @@ export const DRAW_TOOLS: readonly DrawTool[] = ['rectangle', 'circle', 'line', '
 export const isDrawTool = (tool: string): tool is DrawTool => (DRAW_TOOLS as readonly string[]).includes(tool);
 /** The plane a drawing tool draws on, and how the document will name it. */
 export interface DrawPlane { plane: SketchPlane; ref: PlaneRef }
+/** Settings the sketch panel writes and every polygon reads. */
+export const drawingSettings: { polygonSides: number } = { polygonSides: 6 };
+/** Whether a side count can make a polygon: a whole number, three or more. Nothing above is refused. */
+export const polygonSidesOk = (sides: number) => Number.isInteger(sides) && sides >= 3;
+export const POLYGON_SIDES_REFUSAL = 'A polygon needs a whole number of sides, at least 3.';
 
 export interface DrawingHost {
 	/** The world point under a pointer event on `plane`, or null when the ray misses it. */
@@ -30,9 +43,8 @@ export interface DrawingHost {
 	guide(points: Vec3[], color?: string): void;
 	clearGuides(): void;
 	error(message: string): void;
-	/** A finished v1 profile, which the workspace turns into a sketch feature. */
-	finish(sketch: Sketch, ref: PlaneRef): void;
-	/** A finished entity collection. Optional until the sketching surface switches over. */
+	/** RETIRED: the v1 profile path. Never called; kept only because the viewport's host literal still names it. */
+	/** A finished entity collection, which the workspace turns into a sketch feature. */
 	draft?(draft: SketchDraft, ref: PlaneRef): void;
 	capture(e: PointerEvent): void;
 	pointer(): { x: number; y: number };
@@ -72,7 +84,10 @@ export class DrawingTool {
 	up(): boolean {
 		const d = this.drawing;
 		if (!d || d.tool === 'line' || d.tool === 'arc') return false;
-		if (Math.hypot(...sub(d.current, d.start)) > 1e-6) { this.host.finish(this.drawnSketch(), d.ref); this.drawing = null; this.host.clearGuides(); }
+		if (Math.hypot(...sub(d.current, d.start)) > 1e-6) {
+			if (d.tool === 'polygon' && !polygonSidesOk(drawingSettings.polygonSides)) { this.host.error(POLYGON_SIDES_REFUSAL); return true; }
+			this.emit(this.drawnDraft(), d.ref);
+		}
 		return true;
 	}
 	key(e: KeyboardEvent): boolean {
@@ -83,36 +98,40 @@ export class DrawingTool {
 	/** The live readout of what is being drawn, in inches, at the pointer. */
 	readout(): { text: string; point: { x: number; y: number } } | null {
 		const d = this.drawing; if (!d) return null;
-		const du = dot(sub(d.current, d.start), d.plane.u), dv = dot(sub(d.current, d.start), d.plane.v);
-		return { text: drawingReadout({ tool: d.tool, du, dv, segment: Math.hypot(...sub(d.current, d.points[d.points.length - 1])) }), point: this.host.pointer() };
+		const [du, dv] = this.offsets(d.current), last = d.points[d.points.length - 1], [su, sv] = this.offsets(d.current, last);
+		const input = { tool: d.tool, du, dv, segment: Math.hypot(...sub(d.current, last)), su, sv, sides: drawingSettings.polygonSides, ...(d.tool === 'arc' && d.points.length >= 2 ? { radius: Math.hypot(...sub(d.points[1], d.points[0])) } : {}) };
+		return { text: drawingReadout(input), point: this.host.pointer() };
 	}
-	private drawnSketch(): Sketch {
-		const d = this.drawing!, plane = d.plane, du = dot(sub(d.current, d.start), plane.u), dv = dot(sub(d.current, d.start), plane.v);
-		const sketch: Sketch = { id: crypto.randomUUID(), name: 'Sketch', plane, profile: { type: 'polygon', points: [] } };
-		if (d.tool === 'circle') sketch.profile = { type: 'circle', center: d.start, radius: Math.hypot(du, dv) };
-		else if (d.tool === 'rectangle') sketch.profile = { type: 'polygon', points: [d.start, add(d.start, scale(plane.u, du)), d.current, add(d.start, scale(plane.v, dv))] };
-		else if (d.tool === 'polygon') { const radius = Math.hypot(du, dv), angle = Math.atan2(dv, du); sketch.profile = { type: 'polygon', points: Array.from({ length: 6 }, (_, i) => add(d.start, add(scale(plane.u, radius * Math.cos(angle + i * Math.PI / 3)), scale(plane.v, radius * Math.sin(angle + i * Math.PI / 3))))) }; }
-		else if (d.tool === 'arc' && d.points.length >= 3) { const center = d.points[0], start = d.points[1], end = d.points[2]; const r = Math.hypot(...sub(start, center)), direction = sub(end, center), length = Math.hypot(...direction); const onCircle = add(center, scale(direction, r / length)); sketch.profile = { type: 'wire', segments: [{ type: 'arc', start, end: onCircle, center }, { type: 'line', start: onCircle, end: start }] }; }
-		else sketch.profile = { type: 'polygon', points: [...d.points] };
-		return sketch;
+	/** Plane offsets of a world point from the drawing's start (or from `from`). */
+	private offsets(p: Vec3, from = this.drawing!.start): Vec2 { const plane = this.drawing!.plane, d = sub(p, from); return [dot(d, plane.u), dot(d, plane.v)]; }
+	/** The finished shape as sketch entities in the plane's own (u, v). */
+	private drawnDraft(): SketchDraft {
+		const d = this.drawing!, plane = d.plane, at = (p: Vec3) => drop(plane, p), start = at(d.start), current = at(d.current);
+		if (d.tool === 'circle') return circleEntities(start, Math.hypot(current[0] - start[0], current[1] - start[1]));
+		if (d.tool === 'rectangle') return rectangleEntities(start, current);
+		if (d.tool === 'polygon') return polygonEntities(start, current, drawingSettings.polygonSides);
+		if (d.tool === 'arc' && d.points.length >= 3) return arcEntities(at(d.points[0]), at(d.points[1]), at(d.points[2]));
+		return polylineEntities(d.points.map(at));
 	}
-	private redraw() {
+	/** The outline of the shape in progress, for the guide. */
+	private outline(): Vec3[] {
 		const d = this.drawing!;
-		let points: Vec3[];
-		if (d.tool === 'line' || d.tool === 'arc') points = [...d.points, d.current];
-		else {
-			const s = this.drawnSketch();
-			if (s.profile.type === 'polygon') points = [...s.profile.points, s.profile.points[0]];
-			else if (s.profile.type === 'circle') { const { center, radius } = s.profile; points = Array.from({ length: 65 }, (_, i) => add(center, add(scale(d.plane.u, radius * Math.cos(i / 64 * Math.PI * 2)), scale(d.plane.v, radius * Math.sin(i / 64 * Math.PI * 2))))); }
-			else points = [...d.points, d.current];
-		}
-		this.host.guide(points);
+		if (d.tool === 'line' || d.tool === 'arc') return [...d.points, d.current];
+		const draft = this.drawnDraft(), up = (p: Vec2): Vec3 => lift(d.plane, p);
+		const circle = draft.entities.find((e) => e.type === 'circle');
+		if (circle && circle.type === 'circle') { const c = draft.entities.find((e) => e.id === circle.center); const cx = c?.type === 'point' ? c.x : 0, cy = c?.type === 'point' ? c.y : 0; return Array.from({ length: 65 }, (_, i) => up([cx + circle.radius * Math.cos(i / 64 * Math.PI * 2), cy + circle.radius * Math.sin(i / 64 * Math.PI * 2)])); }
+		const corners = draft.entities.filter((e) => e.type === 'point').map((p) => up([p.x, p.y]));
+		return [...corners, corners[0]];
+	}
+	private redraw() { this.host.guide(this.outline()); }
+	private emit(draft: SketchDraft, ref: PlaneRef) {
+		this.drawing = null; this.host.clearGuides();
+		if (!this.host.draft) { this.host.error('This viewport cannot take a drawn shape.'); return; }
+		this.host.draft(draft, ref);
 	}
 	private finishPolyline() {
 		if (!this.drawing) return;
 		if (this.drawing.points.length < 3) { this.host.error('Close a shape with three points.'); return; }
-		this.host.finish(this.drawnSketch(), this.drawing.ref);
-		this.drawing = null;
-		this.host.clearGuides();
+		this.emit(this.drawnDraft(), this.drawing.ref);
 	}
 }

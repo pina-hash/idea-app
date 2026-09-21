@@ -20,6 +20,9 @@ export const TOOLS:{id:Tool;name:string;description:string;icon:string}[]=[
 	{id:'linear-pattern',name:'Linear pattern',description:'Drag across for spacing and upward for more copies.',icon:'M2 10h5v8H2zM10 10h5v8h-5zM18 10h5v8h-5zM3 5h18m-3-3 3 3-3 3'},
 	{id:'circular-pattern',name:'Circular pattern',description:'Drag upward to arrange more copies around an axis.',icon:'M9 1h6v6H9zM2 15h6v6H2zM16 15h6v6h-6zM4 11a8 8 0 0 1 2-4m12 0a8 8 0 0 1 2 4M9 21h6'},
 	{id:'reference',name:'Reference',description:'Add a plane, an axis or a point to build against.',icon:'M3 17l6-12 12 0-6 12zM12 5v14M6 11h12'},
-	{id:'measure',name:'Measure',description:'Click two things to read the distance or angle between them.',icon:'M3 17L17 3l4 4L7 21zM8 12l2 2M11 9l2 2M14 6l2 2'}
+	{id:'measure',name:'Measure',description:'Click two things to read the distance or angle between them.',icon:'M3 17L17 3l4 4L7 21zM8 12l2 2M11 9l2 2M14 6l2 2'},
+	{id:'draft',name:'Draft',description:'Tilt selected flat faces by an angle so a part releases from a mold.',icon:'M4 20h16M6 20L9 4h6l3 16'},
+	{id:'sweep',name:'Sweep',description:'Run a closed sketch along an open path sketch or model edges.',icon:'M3 18c6 0 6-12 12-12h6M3 14c6 0 6-12 12-12'},
+	{id:'loft',name:'Loft',description:'Blend two or more sketches into one solid, in order.',icon:'M4 20h16M8 4h8M4 20L8 4M20 20L16 4'}
 ];
 export const QUICK_TOOLS:Tool[]=['select','rectangle','circle','line','extrude','fillet','move'];

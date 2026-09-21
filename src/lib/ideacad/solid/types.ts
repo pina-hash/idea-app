@@ -264,6 +264,8 @@ export interface FaceProjection extends MeshData {
 }
 export interface EdgeProjection { id: string; curve: string; points: Float32Array; faces: string[]; length: number; mid: Vec3; ordinal?: number }
 export interface VertexProjection { id: string; point: Vec3; faces: string[]; ordinal?: number }
+/** Rigid freedom a body has left after its mates, named by world axis. `ground` marks a body others were placed against that nothing holds. */
+export interface BodyFreedom { dof: number; translations: number; slides: ('X' | 'Y' | 'Z')[]; turns: ('X' | 'Y' | 'Z')[]; ground?: boolean }
 export interface BodyProjection {
 	id: string; name: string; materialId: string | null; role: BodyRole; color?: string | null; fixed?: boolean;
 	massG?: number|null; massSource?: 'measured'|'bambu-studio';
@@ -273,6 +275,8 @@ export interface BodyProjection {
 	createdBy: string;
 	/** Rigid degrees of freedom left by the mates on this body, 0..6. Undefined when no mate names it. */
 	dof?: number;
+	/** What `dof` counts, in words: which axes it slides along and turns about. Undefined when no mate names it. */
+	freedom?: BodyFreedom;
 }
 export type FeatureStatus = 'ok' | 'error' | 'suppressed' | 'warning';
 export interface FeatureRow {
