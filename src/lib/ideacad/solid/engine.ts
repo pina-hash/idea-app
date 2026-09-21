@@ -92,6 +92,13 @@ export class SolidEngine {
 			const feature = this.features.find((f) => f.id === body.createdBy);
 			next.push(existing ? { ...existing, artifact: body.artifact } : { id, name: feature?.type === 'body' ? feature.name : `Body ${next.length + 1}`, artifact: body.artifact, materialId: null, role: 'part' });
 		}
+		/* A body that is ABSENT but whose creating feature is still in the tree (suppressed, or failing because of an edit above it) keeps its record: dropping it here was persisted by the next save, and the body came back as `Body N` with no material, colour, role, mass or fixed flag once the feature was unsuppressed or repaired. Only a body whose feature is gone is gone. */
+		for (const r of this.records) {
+			if (next.some((x) => x.id === r.id)) continue;
+			const hash = r.id.lastIndexOf('#'), fid = hash > 0 ? r.id.slice(0, hash) : r.id;
+			/* Only a record that already carries its artifact hash can be kept: the hash is what a save and the validator need, and an absent body has no solid left to hash. The workspace snapshots after every command, so a record has one by the time its feature can be suppressed. */
+			if (/^[0-9a-f]{64}$/.test(r.artifact) && this.features.some((f) => f.id === fid || (f.type === 'body' && f.bodyId === r.id))) next.push(r);
+		}
 		this.records = next;
 	}
 

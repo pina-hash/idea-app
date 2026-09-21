@@ -111,7 +111,7 @@
 	h3{margin:6px 0 0;display:flex;justify-content:space-between;align-items:baseline;font:600 15px Rajdhani,sans-serif;color:var(--text-1);border-bottom:1px solid var(--hairline);padding-bottom:4px}.count{font:12px 'Share Tech Mono',monospace;color:var(--text-2)}
 	.addon{display:grid;gap:8px}
 	button{min-height:44px;border:1px solid var(--boundary);border-radius:5px;background:transparent;color:var(--text-1);font:600 16px Rajdhani,sans-serif;cursor:pointer;text-align:left}button:disabled{opacity:.4;cursor:default}button:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
-	.switch{display:flex;justify-content:space-between;align-items:center;padding:0 12px}.switch.selected{border-color:var(--green);color:var(--green)}.state{font-size:13px;color:var(--text-2)}
+	.switch{display:flex;justify-content:space-between;align-items:center;padding:0 12px}/* The pressed look declares its own ground: ideacad.css fills any pressed .ic-root button with the accent, and green ink on that fill measured 1.00:1. */.switch.selected{border-color:var(--green);color:var(--green);background:var(--green-tint,color-mix(in srgb,var(--green) 12%,var(--surface-1)))}.state{font-size:13px;color:var(--text-2)}
 	ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 	.tool,.plan{width:100%;display:grid;gap:2px;padding:8px 12px}.tool[aria-expanded="true"]{border-color:var(--green)}
 	.title{display:flex;align-items:center;gap:8px;font-size:16px}.title svg{flex-shrink:0;color:var(--text-2)}.caret{margin-left:auto;color:var(--text-2)}.sentence{font-weight:400;font-size:14px;color:var(--text-2)}

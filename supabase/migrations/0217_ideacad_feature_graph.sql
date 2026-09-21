@@ -383,7 +383,8 @@ $fgdirectwrite$;
 -- 0216's payload, with one refusal added: a trashed document opens for its
 -- owner only (the workspace shows it read-only with an In-the-trash label), and
 -- answers 'does not exist' to a grantee, exactly as a document that was never
--- shared would. to_jsonb(d) carries the five new columns without a change.
+-- shared would. to_jsonb(d) carries the five new columns, less the two that are
+-- the owner's own filing (tags, folder_id) for any other reader.
 create or replace function public._ideacad_direct_payload(p_document_id uuid)
 returns jsonb language plpgsql volatile security definer set search_path = ''
 as $fgpayload$
@@ -398,7 +399,7 @@ begin
 	r := public._ideacad_document_role(d.id);
 	if r is distinct from 'owner' and public._ideacad_direct_manager(d.id) then r := 'manager'; end if;
 	select array_agg(value->>'artifact') into hashes from jsonb_array_elements(c.features->'bodies');
-	return jsonb_build_object('document',to_jsonb(d),'concept',to_jsonb(c),'role',r,
+	return jsonb_build_object('document',case when d.student_email = public.current_user_email() then to_jsonb(d) else to_jsonb(d) - 'tags' - 'folder_id' end,'concept',to_jsonb(c),'role',r,
 		'canWrite',public._ideacad_direct_can_write(d.id),'archivedAt',d.archived_at,'deletedAt',d.deleted_at,
 		'artifacts',public.ideacad_read_brep_artifacts(d.id,coalesce(hashes,'{}'::text[])));
 end;
@@ -406,6 +407,9 @@ $fgpayload$;
 
 -- 0216's chooser list, minus the trash and plus the launch page's fields.
 -- Still summaries only: no BREP bytes and no history until a document opens.
+-- FILING IS THE OWNER'S: a grantee, a classmate under a section grant and a
+-- manager see a shared document with NO folder and NO tags (section 4), so the
+-- two are masked for everyone but the owner here and in the open payload.
 create or replace function public.ideacad_direct_documents()
 returns jsonb language sql stable security definer set search_path = ''
 as $fgdirectlist$
@@ -421,7 +425,9 @@ as $fgdirectlist$
 			else public._ideacad_document_role(d.id) end,
 		'bodyCount',coalesce(jsonb_array_length(c.features->'bodies'),0),
 		'featureCount',coalesce(jsonb_array_length(c.features->'features'),0),
-		'folderId',d.folder_id,'tags',to_jsonb(d.tags),'thumbnail',d.thumbnail
+		'folderId',case when d.student_email = public.current_user_email() then d.folder_id end,
+		'tags',case when d.student_email = public.current_user_email() then to_jsonb(d.tags) else '[]'::jsonb end,
+		'thumbnail',d.thumbnail
 	) order by d.updated_at desc,d.id),'[]'::jsonb)
 	from public.ideacad_documents d
 	left join public.ideacad_concepts c on c.id = d.active_concept_id and c.document_id = d.id and c.deleted_at is null
@@ -686,6 +692,9 @@ begin
 	if not public._ideacad_can_read_document(p_document_id) then raise exception 'That document does not exist.'; end if;
 	select * into d from public.ideacad_documents where id = p_document_id and model_format = 'solid-v1' for share;
 	if not found then raise exception 'That document does not exist.'; end if;
+	-- A trashed document is invisible to every reader but its owner (the payload
+	-- and the list both say 'does not exist'); a reader learns nothing here either.
+	if d.deleted_at is not null and d.student_email is distinct from e then raise exception 'That document does not exist.'; end if;
 	if d.deleted_at is not null then raise exception 'Restore this model from the trash first.'; end if;
 	select * into c from public.ideacad_concepts where id = d.active_concept_id and document_id = d.id and deleted_at is null;
 	if not found then raise exception 'The document has no active model.'; end if;
@@ -808,7 +817,9 @@ begin
 		'public.ideacad_rename_folder(uuid,text)', 'public.ideacad_delete_folder(uuid)',
 		'public.ideacad_move_direct_document(uuid,uuid)', 'public.ideacad_tag_direct_document(uuid,text[])',
 		'public.ideacad_rename_direct_document(uuid,text)', 'public.ideacad_duplicate_direct_document(uuid,text)',
-		'public.ideacad_set_direct_document_thumbnail(uuid,text)'
+		'public.ideacad_set_direct_document_thumbnail(uuid,text)',
+		'public.ideacad_direct_documents()', 'public.ideacad_set_direct_document_archived(uuid,boolean)',
+		'public.ideacad_link_direct_document(uuid,uuid)', 'public.ideacad_share_direct_document(uuid,text,text)'
 	] loop
 		if to_regprocedure(sig) is null or has_function_privilege('anon', sig, 'execute')
 			or not has_function_privilege('authenticated', sig, 'execute') then
@@ -816,7 +827,9 @@ begin
 		end if;
 	end loop;
 	foreach sig in array array[
-		'public._ideacad_trash_window()', 'public._ideacad_purge_expired_direct_documents()', 'public._ideacad_clean_tags(text[])'
+		'public._ideacad_trash_window()', 'public._ideacad_purge_expired_direct_documents()', 'public._ideacad_clean_tags(text[])',
+		'public._ideacad_direct_validate_model(jsonb)', 'public._ideacad_direct_can_write(uuid)',
+		'public._ideacad_direct_payload(uuid)', 'public._ideacad_preserve_direct_document()'
 	] loop
 		if to_regprocedure(sig) is null or has_function_privilege('anon', sig, 'execute')
 			or has_function_privilege('authenticated', sig, 'execute') then

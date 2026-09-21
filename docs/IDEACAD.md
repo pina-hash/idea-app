@@ -296,7 +296,7 @@ the phone path), shift-click multi-select.
 
 **2. Dimensional control** (`viewport/readout.ts`, `dimensions/model.ts`,
 `DimensionPanel.svelte`). A drag reads at the pointer with its unit
-(`Extrude 1.208 in`, `2.286 x 0.175 in`, `Rotate 90.0 deg about Z`), sixteen
+(`Extrude 1.208 in`, `2.286 × 0.175 in`, `Rotate 90.0° about Z`), sixteen
 pixels right and below it, which `tools/browser-verify`'s `readoutNearPointer`
 check now measures on the real page. `parseDimension` accepts `1.5`, `1 1/2`,
 `3/8`, `2in`, `2"`, `25.4mm` (stores exactly 1), `45deg`, `150%`; it refuses
@@ -394,8 +394,12 @@ sentence in place of a trash control, because 0217 refuses it and a control
 whose only outcome is a refusal is not offered. A `PGRST202` on any 0217
 function degrades to one sentence (`STORAGE_UNAVAILABLE`), so a deployment
 between 0216 and 0217 renders the list with the rail saying why filing is not
-offered. Left out: thumbnail GENERATION (the RPC exists; the workspace does
-not yet render one), hiding an owner's tags from a grantee.
+offered. The workspace stores a 160x120 JPEG through that RPC after every
+successful save (an oversize one is not sent; the column caps a data URL at
+60000 characters), and the card renders it. Left out: a thumbnail for a
+document saved before 0217 until it is saved again. Filing is the owner's:
+a grantee, a classmate under a section grant and a manager see a shared
+row with no tags and no folder, on the list and in the open payload.
 
 **9. Add-ons** (`addons/registry.ts`, `addons/ideablade.ts`,
 `AddonPanel.svelte`). An add-on is `{ id, name, description, tools, starters,
@@ -439,15 +443,16 @@ duplicate, archive and trash documents from a front page; open every document
 saved before this bundle unchanged. The acceptance model (a motor bracket, its
 bolt hole sketched on the flange's top face, an axis from the hole, a pin
 mated concentric to it) is in `docs/ideacad/verification/0273/`: editing the
-bracket's depth through the tree rebuilt seven later features, and changing
-the flange thickness in the FIRST sketch rebuilt all eight with the hole, the
-axis and the mate intact, in about 20 ms.
+bracket's depth through the tree replayed seven of the eight features (the
+bracket and the six after it), and changing the flange thickness in the FIRST
+sketch rebuilt all eight with the hole, the axis and the mate intact, in 29
+to 30 ms on the committed run.
 
 **Not built, and why.** Rib (no extend-to-body in the kernel). Splines (no
 spline entity in the kernel's 2D solver). Smooth loft through three or more
 profiles (a negative volume from this kernel build). Multi-body boolean
 between two feature-made bodies is the existing `boolean` feature and was not
-widened. Thumbnails are stored by an RPC nothing calls yet. Assemblies are ONE
+widened. Assemblies are ONE
 file: a mate names two bodies in the same document, and a part reused across
 documents is a duplicate, not a link. A hover pipeline in the viewport. A
 sketch dimension's value drawn beside the geometry. Touch drag in the tree.

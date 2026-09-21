@@ -31,7 +31,7 @@
 	import { parseDimension } from './dimensions/model';
 	import type {AdvisoryTransport,AdvisoryRules} from './advisory';
 	import {STOCK_MATERIALS} from './advisory';
-	import {diffTrees} from '../history';
+	import {applyActions,diffTrees} from '../history';
 	import {foldGroups,groupHistory,inverseOperation,type DirectRow} from './history';
 	import { TOOLS, QUICK_TOOLS } from './tools';
 	import { SolidClient } from './client';
@@ -43,7 +43,7 @@
 	import { newFeatureId } from './features';
 	import { download, sketchDxf,profileDxf,solidStl, solidThreeMf } from './export';
 	import type { WorkspaceApi } from './workspace-api';
-	import type { EdgeRef, EntityRef, FaceRef, Feature, MateKind, ModelProjection, ModelSnapshot, PlaneRef, Selection, SolidCommand, SolidDocument, SolidHistoryAction, SolidTransport } from './types';
+	import type { EdgeRef, EntityRef, FaceRef, Feature, MateKind, ModelProjection, ModelSnapshot, PlaneRef, Selection, SolidCommand, SolidDocument, SolidHistoryAction, SolidManifest, SolidTransport } from './types';
 
 	let {document:opened,transport,advisoryTransport,onback,dev=false}:{document:SolidDocument;transport:SolidTransport;advisoryTransport?:AdvisoryTransport;onback:()=>void;dev?:boolean}=$props();
 	let rules:AdvisoryRules|null=$state(null),settingsOpen=$state(false);
@@ -60,6 +60,8 @@
 	let importInput:HTMLInputElement=$state()!;
 	let gesture:Gesture|null=null,gestureFeature='',queued:SolidCommand|null=null,pumping:Promise<void>|null=null;
 	let currentSnapshot:ModelSnapshot=$state.raw(untrack(()=>opened.snapshot)),revision=untrack(()=>opened.revision);
+	/* THE TREE THE SERVER HOLDS, AS OF THE LAST RECORDED OPERATION, and it is not the engine's. A stored version 1 document is upgraded in memory on load, so `currentSnapshot` (the engine's) reads version 2 while the row still holds version 1 until a save carries the upgrade. Every history diff and every undo inverse is computed against THIS tree, and the model a save sends is the tree the recorded actions PRODUCE from it: measured before this split, undoing the first edit of a version 1 document inverted the upgrade too, landed the server on version 1 while p_model was the engine's version 2, and every existing document ended in the recovery panel on its first Undo. */
+	let serverManifest:SolidManifest=untrack(()=>opened.snapshot.manifest);
 	/** While a sketch is open, the sketch editor installs the handler that receives viewport presses in plane coordinates. */
 	let sketchPointer:((event:'down'|'move'|'up',at:[number,number],e:PointerEvent)=>boolean)|null=null;
 	let actions:SolidHistoryAction[]=[];let committed=false;let gestureBefore:ModelSnapshot|null=null;let gestureCenter:[number,number,number]=[0,0,0];
@@ -94,10 +96,13 @@
 	}
 	async function record(label:string,before:ModelSnapshot,changes?:SolidHistoryAction['changes']){
 		const after=await client.request<ModelSnapshot>('snapshot');currentSnapshot=after;
-		if(JSON.stringify(before.manifest)===JSON.stringify(after.manifest))return;
-		const id=crypto.randomUUID(),patches=changes??diffTrees(before.manifest,after.manifest),seq=history.length,resultRevision=groupHistory(history).length+2;
+		if(!changes&&JSON.stringify(before.manifest)===JSON.stringify(after.manifest))return;
+		/* Diff against the server's tree; an undo's inverse rows are exact (groupHistory refuses anything else) and PRODUCE the tree the server will hold, which is what p_model must equal. */
+		const base=serverManifest,patches=changes??diffTrees(base,after.manifest),produced=changes?applyActions(base,changes):after.manifest;
 		if(!patches.length)return;
-		actions.push({id,label,before:before.manifest,after:after.manifest,createdAt:new Date().toISOString(),changes:patches});
+		serverManifest=produced;
+		const id=crypto.randomUUID(),seq=history.length,resultRevision=groupHistory(history).length+2;
+		actions.push({id,label,before:base,after:produced,createdAt:new Date().toISOString(),changes:patches});
 		history=[...history,...patches.map((patch,i)=>({...patch,seq:seq+i,operationId:id,operationStart:i===0,operationLabel:i===0?label:null,resultRevision:i===0?resultRevision:null}))];saveState.markDirty();
 	}
 	async function apply(command:SolidCommand,label:string){
@@ -111,7 +116,7 @@
 	async function createDraft(draft:SketchDraft,ref:PlaneRef){const id=newFeatureId();await apply({type:'add-feature',feature:{id,name:'',type:'sketch',plane:ref,entities:draft.entities,constraints:draft.constraints}},'Draw sketch');if(model.features.some(f=>f.id===id)){tool='extrude';select({bodyId:'',kind:'sketch',id});viewport.highlight();}}
 	async function begin(next:Gesture){
 		if(!opened.canWrite)throw Error('This document is read-only.');
-		if(busy)throw Error('Finish the current change first.');gesture=next;gestureFeature=newFeatureId();gestureBefore=currentSnapshot;gestureCenter=[...(model.bodies.find(b=>b.id===next.selection.bodyId)?.centerOfMass??[0,0,0])];committed=false;gestureModel=model;mateCandidate=null;await client.request('begin');
+		if(busy)throw Error('Finish the current change first.');gesture=next;gestureFeature=newFeatureId();gestureBefore=currentSnapshot;gestureCenter=[...(model.bodies.find(b=>b.id===next.selection.bodyId)?.centerOfMass??[0,0,0])];committed=false;gestureModel=model;mateCandidate=null;try{await client.request('begin');}catch(err){gesture=null;gestureBefore=null;throw err;}
 	}
 	/** The reference a feature stores for a selection, with its hint, from the projection the gesture started on. */
 	function ref(selection:Selection){const body=model.bodies.find(b=>b.id===selection.bodyId);if(!body)throw Error('Select something on a body.');return refFromSelection(selection,body);}
@@ -179,18 +184,18 @@
 		/* A move that snapped to another body's face adds the mate it previewed, after the transform has landed; `ref` reads the faces where the bodies now sit. */
 		if(candidate&&!error){try{const a=ref(candidate.a),b=ref(candidate.b);await apply({type:'add-feature',feature:{id:'',name:'',type:'mate',kind:candidate.kind,a:{kind:'face',...a} as EntityRef,b:{kind:'face',...b} as EntityRef}},`Add ${candidate.kind} mate`);}catch(err){error=err instanceof Error?err.message:String(err);}}
 	}
-	async function cancel(){queued=null;await pumping;if(client){show(await client.request<ModelProjection>('cancel'));}gesture=null;gestureBefore=null;measure=null;numeric=null;mateCandidate=null;viewport?.clearGuides();}
-	async function undo(redo=false){if(!opened.canWrite||busy||loading||gesture)return;const target=redo?historyState.redoTarget:historyState.undoTarget;if(!target)return;busy=true;const before=currentSnapshot;try{const inverse=inverseOperation(before.manifest,target);show(await client.request<ModelProjection>('load',{manifest:inverse.after,artifacts:before.artifacts}));await record(redo?'Redo':'Undo',before,inverse.actions);title=currentSnapshot.manifest.title;}catch(err){error=err instanceof Error?err.message:String(err);}finally{busy=false;}}
+	async function cancel(){queued=null;try{await pumping;if(client){show(await client.request<ModelProjection>('cancel'));}}catch(err){error=err instanceof Error?err.message:String(err);}finally{gesture=null;gestureBefore=null;measure=null;numeric=null;mateCandidate=null;viewport?.clearGuides();}}
+	async function undo(redo=false){if(!opened.canWrite||busy||loading||gesture)return;const target=redo?historyState.redoTarget:historyState.undoTarget;if(!target)return;busy=true;const before=currentSnapshot;try{const inverse=inverseOperation(serverManifest,target);show(await client.request<ModelProjection>('load',{manifest:inverse.after,artifacts:before.artifacts}));await record(redo?'Redo':'Undo',before,inverse.actions);title=currentSnapshot.manifest.title;}catch(err){error=err instanceof Error?err.message:String(err);}finally{busy=false;}}
 	async function enterNumeric(){
 		if(!opened.canWrite||busy||loading)return;
 		const parsed=parseDimension(numeric?.value??'',numericUnit(tool));if(!parsed.ok){error=parsed.reason;return;}const value=tool==='scale'?parsed.value-1:parsed.value;
 		if(!gesture){const selection=selections[0];if(!selection)return;const body=model.bodies.find(b=>b.id===selection.bodyId),face=body?.faces.find(f=>f.id===selection.id),sketch=model.sketches.find(s=>s.feature===selection.id);try{await begin({selection,tool,start:face?.center??sketch?.plane.origin??[0,0,0],axis:face?.normal??sketch?.plane.normal??[0,0,1]});}catch(err){error=err instanceof Error?err.message:String(err);numeric=null;return;}}
-		update({distance:value,angle:value,delta:scaleVector(gesture!.axis,value),count:Math.round(value),point:{x:numeric?.x??0,y:numeric?.y??0}});await end();canvas.focus();
+		update({distance:value,angle:value,delta:scaleVector(gesture!.axis,value),count:value,point:{x:numeric?.x??0,y:numeric?.y??0}});await end();canvas.focus();
 	}
 	async function back(){if(gesture)await end();await saveState.saveNow();if(saveState.dirty)return;onback();}
 	async function reopenSaved(){
 		if(busy)return;busy=true;error='';
-		try{const fresh=await transport.open(opened.id);show(await client.request<ModelProjection>('load',fresh.snapshot));opened=fresh;currentSnapshot=fresh.snapshot;title=fresh.title;revision=fresh.revision;history=fresh.history??[];actions=[];select(null);viewport.fit();saveState.markSaved();reopenConfirm=false;}
+		try{const fresh=await transport.open(opened.id);show(await client.request<ModelProjection>('load',fresh.snapshot));opened=fresh;serverManifest=fresh.snapshot.manifest;currentSnapshot=await client.request<ModelSnapshot>('snapshot');title=fresh.title;revision=fresh.revision;history=fresh.history??[];actions=[];select(null);viewport.fit();saveState.markSaved();reopenConfirm=false;}
 		catch(err){error=err instanceof Error?err.message:String(err);}finally{busy=false;}
 	}
 	async function exportFile(kind:'3mf'|'stl'|'dxf'|'ideacad'){
@@ -209,7 +214,7 @@
 	/** A small picture of the model after each save, for the launch page. Best effort: a failure here never touches the save. */
 	async function sendThumbnail(){
 		if(!transport.thumbnail||!canvas||!model.bodies.length)return;
-		try{viewport.painted();const scaled=document.createElement('canvas');scaled.width=160;scaled.height=120;scaled.getContext('2d')?.drawImage(canvas,0,0,160,120);await transport.thumbnail(opened.id,scaled.toDataURL('image/png'));}catch{/* a thumbnail is decoration */}
+		try{viewport.painted();const scaled=document.createElement('canvas');scaled.width=160;scaled.height=120;scaled.getContext('2d')?.drawImage(canvas,0,0,160,120);const dataUrl=scaled.toDataURL('image/jpeg',0.82);/* 0217 caps the column at 60000 characters; a PNG of a shaded render can pass it on compression luck alone, so a JPEG is sent and an oversize one is not sent at all. */if(dataUrl.length>60000)return;await transport.thumbnail(opened.id,dataUrl);}catch{/* a thumbnail is decoration */}
 	}
 	function keydown(e:KeyboardEvent){
 		if(settingsOpen)return;
@@ -235,7 +240,7 @@
 		window.addEventListener('focus',readRules);const ruleTimer=setInterval(readRules,60000);
 		client=new SolidClient();viewport=new SolidViewport(canvas,{getTool:()=>tool,getPlane:():DrawPlane=>({plane:datumPlane(planeName),ref:{kind:'datum',datum:planeName}}),getSelections:()=>selections,canWrite:()=>opened.canWrite,select,begin,update,end:()=>void end(),cancel:()=>void cancel(),draft:(d,r)=>void createDraft(d,r),numeric:(key,point)=>{numeric={value:key,...point};requestAnimationFrame(()=>numericInput?.focus());},error:message=>error=message,sketchPointer:(event,at,e)=>sketchPointer?.(event,at,e)??false});
 		for(const m of STOCK_MATERIALS)if(m.color)viewport.materialColours.set(m.id,m.color);
-		client.request<ModelProjection>('load',opened.snapshot).then(result=>{show(result);viewport.fit();loading=false;saveState.markSaved();}).catch(err=>{error=err.message;loading=false;});
+		client.request<ModelProjection>('load',opened.snapshot).then(async result=>{show(result);currentSnapshot=await client.request<ModelSnapshot>('snapshot');viewport.fit();loading=false;saveState.markSaved();}).catch(err=>{error=err.message;loading=false;});
 		const unbind=saveState.attach();
 		if(dev)(window as unknown as {ideaCadSolid:unknown}).ideaCadSolid={get model(){return model;},get snapshot(){return currentSnapshot;},get busy(){return busy||loading||!!pumping;},get selections(){return selections;},apply,select,setTool,editSketch,project:(p:[number,number,number])=>viewport.projectPoint(p),painted:()=>viewport.painted(),fit:()=>viewport.fit(),view:(v:'iso'|'top'|'front'|'right')=>viewport.view(v),save:()=>saveState.saveNow(),undo,frameCosts:viewport.frameCosts,request:(method:string,value?:unknown)=>client.request(method,value)};
 		return()=>{clearInterval(ruleTimer);window.removeEventListener('focus',readRules);unbind();viewport.destroy();client.destroy();};

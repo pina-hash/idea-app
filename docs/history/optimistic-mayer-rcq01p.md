@@ -23,8 +23,8 @@ first.
   twelve-checkpoint window, a projection cache keyed by solid handle that is
   invalidated on `replaceBody`, `addBody` and after every checkpoint restore,
   and `replayedFrom` / `replayMs` on every projection; `commands.ts` reduces
-  the document commands (add, set, rename, move, suppress, remove, mate,
-  addon, metadata) and refuses in its own sentences; `upgradeManifest` turns a
+  the document commands (add, set, rename, move, suppress, remove, title,
+  addon, metadata, with `sketch` and `delete` as wrappers) and refuses in its own sentences; `upgradeManifest` turns a
   version 1 save into `body` features and the first version 2 save carries
   `diffTrees(v1, v2)` so 0209's action log replays across the boundary; the
   transform executor copies (`copyAndTransformSolid`) so undoing a move puts
@@ -122,6 +122,64 @@ first.
   rewrites `.svelte-kit/`, and the dev server reloads every open page. Run the
   sync before the browser pass, never beside it.
 
+### After the pre-merge review (six lenses, two refuters per finding)
+
+Ten findings survived refutation; the two deploy-order ones are the paste-first
+rule, the ledger flip is the final commit, and the rest changed code:
+
+- **Undo across the version 1 to 2 boundary was refused by the server** (a
+  blocker for every document saved before this bundle). `SolidWorkspace`
+  diffed and inverted against the ENGINE's snapshot, which is upgraded on
+  load; the row still holds version 1 until a save carries the upgrade, so
+  undoing the first edit inverted the upgrade too and sent an engine-shaped
+  version 2 as `p_model`: 'The history actions do not produce the saved
+  model.', retried as retryable, and the recovery panel. The workspace now
+  keeps `serverManifest`, the tree the server holds as of the last recorded
+  operation, diffs every operation against it and, for an undo or redo, sends
+  the tree the exact inverse rows PRODUCE. `groupHistory` requires the rows to
+  be exact inverses, so a fresh diff was not an option. Pinned in
+  `tests/ideacad-solid-history.test.ts`.
+- **A body's record survives its feature being suppressed or failing.**
+  `reconcileRecords` rebuilt the records from the live bodies only, so a
+  suppressed extrude lost its body's name, material, colour, role, mass and
+  fixed flag and the next save persisted the loss. A record whose creating
+  feature is still in the tree is kept. Pinned in
+  `tests/ideacad-solid-features.test.ts`.
+- **A typed pattern count is no longer rounded** (`Math.round` in the numeric
+  entry contradicted the changelog's 'nothing rounds'); the executor refuses
+  a fraction in words: 'A pattern needs a whole number of copies, at least
+  two.'
+- **Close sketch, the add-on switch and the current swatch declared their own
+  pressed ground**: the room's global pressed-button rule filled them with the
+  accent while their own rule painted the word in the accent, 1.00:1 until
+  hovered. Each takes the green tint the tree row uses. Measured in Chromium
+  at 1440 and 375 after the fix: Close sketch 5.98:1 (on the hover ground the
+  pointer leaves it on), the add-on switch 5.91:1 on the tint (rgb 18, 50, 34),
+  the tree's status word on the same tint 5.91:1; the swatch carries the same
+  two tokens and was not reached by the probe.
+- **0217 masks tags and folder for every reader but the owner**, on the list
+  and in the open payload, which is what its own section 4 header already
+  said; and `ideacad_duplicate_direct_document` answers a non-owner 'does
+  not exist' for a trashed document, as the list and the open path do,
+  rather than telling them it is in the trash. Section 7's rolling-back
+  self-check now covers the eight replaced functions as well as the sixteen
+  new ones. The file changed after the PR first carried its hash; the PR
+  body names the hash of what to paste.
+- **The thumbnail is a JPEG and an oversize one is not sent**: a PNG of a
+  shaded render can pass the 60000-character cap on compression luck alone,
+  and the best-effort path swallowed the refusal.
+- **`cancel()` clears the gesture in `finally` and `begin()` clears it when
+  the kernel refuses**, so a rejected kernel call cannot leave the workspace
+  believing a drag is in progress.
+- Filing a document, tagging it or deleting a folder that held it bumps
+  `updated_at` through 0201's touch trigger, so the row moves to the top of
+  the last-edited order with no model edit; recorded so it is not read as a
+  defect later. A grantee can still page a trashed document's revision rows
+  through 0216's `ideacad_direct_concept_history` until the purge, which is
+  what they could read before the trash; a later migration may add the
+  owner-only term there. The trash receipt's `swept` is a system-wide count
+  of expired rows and is not rendered.
+
 ### Measured
 
 - Acceptance model at 1440 and 375, identical numbers at both widths: bracket
@@ -130,10 +188,13 @@ first.
   `plane-angle`, `point-axis-plane`, `axis-datum`, `point-coordinates` for it;
   the concentric mate solved with residual 4.4e-16 and left the pin 2 degrees
   of freedom; editing the bracket's depth 2 to 3 through the tree's parameter
-  field replayed from feature 1 in 16 to 22 ms and took the volume 3.7966 to
-  5.7185 (analytic 5.7185); changing the flange from 0.375 to 0.5 in the FIRST
-  sketch replayed from 0 in 21 to 28 ms and took it to 6.6872 (analytic
-  6.6872), every row `ok`, the mate `ok`.
+  field replayed from feature 1 in 20.6 ms at 1440 and 27.2 ms at 375 and took
+  the volume 3.7966 to 5.7185 (analytic 5.7185); changing the flange from 0.375
+  to 0.5 in the FIRST sketch replayed from 0 in 29.3 and 30.3 ms and took it to
+  6.6872 (analytic 6.6872), every row `ok`, the mate `ok`. The figures are the
+  committed run's (`docs/ideacad/verification/0273/acceptance-report.txt`);
+  two earlier runs, whose output is not committed, read 16 to 22 and 21 to
+  28 ms.
 - Browser harness, the three new specs at both widths: 118 measurements, 0
   outside threshold (after the tree-row fix; 2 outside before it, both the
   1.27:1 name). Self-test: 100 controls, both slots of the new check proven.
@@ -183,7 +244,8 @@ first.
 
 ### Deferred
 
-- Thumbnail generation in the workspace (the RPC exists and nothing calls it).
+- A thumbnail for a document saved before 0217, until it is saved again (the
+  workspace stores one after every save; nothing regenerates one otherwise).
 - Hiding an owner's tags from a grantee on the launch page.
 - The advisory `bodyParts` definition against `blade/evaluate.ts` (a
   `blade/**` change, outside this bundle).

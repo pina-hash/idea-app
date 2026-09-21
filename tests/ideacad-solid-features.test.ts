@@ -113,6 +113,24 @@ describe('the feature list replays into the model', () => {
 		await expect(e.apply({ type: 'set-feature', id: 'f1', patch: { edges: [{ body: 'x1#0', faces: ['x1.end', 'nowhere'], hint: { curve: 'CIRCLE', mid: [9, 9, 9], length: 1 } }] } })).rejects.toThrow(/Lost reference: the edge .*nowhere/);
 		expect(e.project().features.map((f) => f.status)).toEqual(['ok', 'ok', 'ok', 'ok', 'ok']);
 	});
+	it('a body keeps its record while its feature is suppressed: name, material, colour, role and fixed survive the round trip', async () => {
+		/* Measured before the fix: reconcileRecords rebuilt the records from the live bodies only, so suppressing the extrude dropped the record, the next save persisted the drop, and the body came back as `Body 1` with nothing on it. */
+		const e = await engine();
+		const pts = [[0, 0], [4, 0], [4, 3], [0, 3]].map(([x, y], i) => ({ id: `p${i}`, type: 'point', x, y }));
+		const lines = pts.map((_, i) => ({ id: `l${i}`, type: 'line', a: `p${i}`, b: `p${(i + 1) % 4}` }));
+		await e.apply({ type: 'add-feature', feature: { id: 'sk', name: 'Sketch', type: 'sketch', plane: { kind: 'datum', datum: 'XY' }, entities: [...pts, ...lines] as never, constraints: [] } });
+		await e.apply({ type: 'add-feature', feature: { id: 'ex', name: 'Box', type: 'extrude', sketch: 'sk', distance: 1, operation: 'new' } });
+		await e.apply({ type: 'metadata', bodyId: 'ex#0', name: 'Plate', materialId: 'steel-1018', color: '#d24a3a', fixed: true });
+		await e.snapshot(); /* the workspace snapshots after every command, which is what gives the record its artifact hash */
+		const off = await e.apply({ type: 'suppress-feature', id: 'ex', suppressed: true });
+		expect(off.bodies).toHaveLength(0);
+		expect((await e.snapshot()).manifest.bodies.find((b) => b.id === 'ex#0')).toMatchObject({ name: 'Plate', materialId: 'steel-1018', color: '#d24a3a', fixed: true });
+		const on = await e.apply({ type: 'suppress-feature', id: 'ex', suppressed: false });
+		expect(on.bodies[0]).toMatchObject({ id: 'ex#0', name: 'Plate', materialId: 'steel-1018', color: '#d24a3a', fixed: true });
+		/* Positive control: a body whose feature is GONE loses its record. */
+		await e.apply({ type: 'remove-feature', id: 'ex' });
+		expect((await e.snapshot()).manifest.bodies.some((b) => b.id === 'ex#0')).toBe(false);
+	});
 	it('refuses a reorder above a dependency and a delete with dependents, in words naming them', async () => {
 		const e = await engine(); await box(e);
 		const m = e.project();

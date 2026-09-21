@@ -216,7 +216,7 @@ export function mirror(ctx: ExecutorContext, f: FeatureOf<'mirror'>) {
 
 export function pattern(ctx: ExecutorContext, f: FeatureOf<'pattern'>) {
 	const k = ctx.k;
-	if (!Number.isSafeInteger(f.count) || f.count < 2) throw Error('A pattern needs at least two copies.');
+	if (!Number.isSafeInteger(f.count) || f.count < 2) throw Error('A pattern needs a whole number of copies, at least two.');
 	const spacing = finite(f.spacing, f.mode === 'linear' ? 'spacing' : 'angle');
 	if (Math.abs(spacing) < 1e-9) throw Error(f.mode === 'linear' ? 'Give the copies some spacing.' : 'Give the copies some angle between them.');
 	const source = ctx.body(f.body);

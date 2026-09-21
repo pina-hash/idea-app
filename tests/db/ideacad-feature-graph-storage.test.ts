@@ -202,6 +202,17 @@ describe('A. the envelope validator, widened to two formats over seeded version 
 		expect(linked).toMatchObject({ format: 'ideacad-solid-v1', featureCount: 0, canTrash: false, itemId });
 		expect(typeof scratch.createdAt).toBe('string');
 	});
+	it('filing is the owner\'s: a grantee sees no tags and no folder on a shared row or its open payload, and the owner sees both', async () => {
+		await call(owner, "public.ideacad_tag_direct_document($1::uuid,array['reference'])", [sharedId]);
+		const mine = (await list()).find((r) => r.id === sharedId), theirs = (await list(viewer)).find((r) => r.id === sharedId);
+		expect(mine.tags).toEqual(['reference']);
+		/* Positive control: the row IS on the grantee's list; only the filing is masked. */
+		expect(theirs).toBeTruthy(); expect(theirs.tags).toEqual([]); expect(theirs.folderId).toBeNull();
+		const byViewer = await open(sharedId, viewer), byOwner = await open(sharedId);
+		expect(byViewer.document.tags).toBeUndefined(); expect(byViewer.document.folder_id).toBeUndefined();
+		expect(byOwner.document.tags).toEqual(['reference']);
+		await call(owner, "public.ideacad_tag_direct_document($1::uuid,array[]::text[])", [sharedId]);
+	});
 });
 
 describe('B. the trash: owner-only, unlinked-only, hidden from everyone else, restorable, then really gone', () => {
@@ -235,6 +246,9 @@ describe('B. the trash: owner-only, unlinked-only, hidden from everyone else, re
 		expect(await trashList(viewer)).toEqual([]);
 		/* The grantee cannot open it; the owner opens it read-only. */
 		expect(await denied(viewer, 'public.ideacad_open_direct_document($1::uuid)', [sharedId])).toContain('does not exist');
+		/* Duplicate answers the grantee the same way; the owner alone is told to restore first. */
+		expect(await denied(viewer, 'public.ideacad_duplicate_direct_document($1::uuid,null)', [sharedId])).toContain('does not exist');
+		expect(await denied(owner, 'public.ideacad_duplicate_direct_document($1::uuid,null)', [sharedId])).toContain('from the trash first');
 		const opened = await open(sharedId);
 		expect(opened.canWrite).toBe(false);
 		expect(opened.deletedAt).toBe(result.deletedAt);
