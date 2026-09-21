@@ -12,8 +12,8 @@ export function createSolidTransports(supabase:SupabaseClient){
 	async function rpc(name:string,args?:Record<string,unknown>):Promise<any>{const {data,error}=await supabase.rpc(name,args);if(error)throw Error(error.message);if(data===null)throw Error('The server returned no document data.');return data;}
 	const payloads=new Map<string,Record<string,unknown>>(),accepted=new Map<string,number>(),observed=new Map<string,number>();
 	async function document(payload:any):Promise<SolidDocument>{
-		const m=payload.concept?.features;if(m?.format!=='ideacad-solid-v1'||m.kernel!==emptyManifest().kernel)throw Error('This document requires its original geometry reader.');
-		const doc:SolidDocument={id:payload.document.id,title:m.title,conceptId:payload.concept.id,revision:payload.concept.revision,canWrite:payload.canWrite===true,owner:payload.document.student_email,archivedAt:payload.document.archived_at,snapshot:{manifest:m,artifacts:[]}};
+		const m=payload.concept?.features;if(!(m?.format==='ideacad-solid-v1'||m?.format==='ideacad-solid-v2')||m.kernel!==emptyManifest().kernel)throw Error('This document requires its original geometry reader.');
+		const doc:SolidDocument={id:payload.document.id,title:m.title,conceptId:payload.concept.id,revision:payload.concept.revision,canWrite:payload.canWrite===true,owner:payload.document.student_email,archivedAt:payload.document.archived_at,deletedAt:payload.document.deleted_at??null,snapshot:{manifest:m,artifacts:[]}};
 		const pinned=await readPinnedHistory((after,limit)=>rpc('ideacad_direct_concept_history',{p_concept_id:doc.conceptId,p_after_seq:after,p_limit:limit}));
 		const validated=historyAtRevision(pinned.rows,doc.revision,m);doc.history=pinned.rows.filter(r=>r.seq<=validated.lastSeq);
 		const hashes=new Set<string>();
@@ -47,7 +47,8 @@ export function createSolidTransports(supabase:SupabaseClient){
 			}
 			if((observed.get(input.documentId)??0)>revision)throw new SolidConflict('This model changed in another session. Export a backup, then reopen it before continuing.');
 			return{revision};
-		}
+		},
+		thumbnail:async(documentId,dataUrl)=>{const {error}=await supabase.rpc('ideacad_set_direct_document_thumbnail',{p_document_id:documentId,p_thumbnail:dataUrl});if(error&&error.code!=='PGRST202')throw Error(error.message);}
 	};
 	const advisoryTransport:AdvisoryTransport={read:()=>rpc('ideacad_advisory_rules'),save:async(expectedRevision:number,limits:AdvisoryLimits):Promise<AdvisoryRules>=>{const result=await rpc('ideacad_set_advisory_rules',{p_expected_revision:expectedRevision,p_limits:limits});if(!result.ok)throw new SolidConflict('Another administrator changed these limits. Close and reopen settings to load the latest revision.');return result.current;}};
 	return {transport,advisoryTransport,list:():Promise<DirectSummary[]>=>rpc('ideacad_direct_documents'),link:(id:string,itemId:string)=>rpc('ideacad_link_direct_document',{p_document_id:id,p_item_id:itemId}),share:(id:string,email:string,role:'viewer'|'editor'|'none')=>role==='none'?rpc('ideacad_unshare_document',{p_document_id:id,p_grantee_email:email}):rpc('ideacad_share_direct_document',{p_document_id:id,p_grantee_email:email,p_role:role}),archive:(id:string,archived:boolean)=>rpc('ideacad_set_direct_document_archived',{p_document_id:id,p_archived:archived}),

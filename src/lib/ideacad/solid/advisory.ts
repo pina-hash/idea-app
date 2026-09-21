@@ -3,7 +3,7 @@ export const DEFAULT_LIMITS={minDiameterIn:null,maxDiameterIn:5,minHeightIn:2.9,
 export type AdvisoryLimits={ [K in keyof typeof DEFAULT_LIMITS]: number|null };
 export interface AdvisoryRules { revision:number;schemaVersion:number;limits:AdvisoryLimits;changedAt:string;canEdit:boolean }
 export interface AdvisoryTransport {read():Promise<AdvisoryRules>;save(expectedRevision:number,limits:AdvisoryLimits):Promise<AdvisoryRules>}
-export interface StockMaterial { id:string;name:string;densityGcm3:number|null;source:string|null;sourceNote:string;printed?:boolean }
+export interface StockMaterial { id:string;name:string;densityGcm3:number|null;source:string|null;sourceNote:string;printed?:boolean;/** The colour a body takes when this material is assigned and no body colour overrides it. */color?:string }
 /** Only MatWeb reference grades. Unidentified shop stock has no guessed density. */
 export const STOCK_MATERIALS:StockMaterial[]=[
 	{id:'printed-pla',name:'3D print · PLA',densityGcm3:null,source:null,sourceNote:'Use the finished part mass.',printed:true},

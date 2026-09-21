@@ -1,6 +1,6 @@
 import { zip } from '../export/three-mf';
-import { sketchPolyline, dot, sub } from './math';
-import type { ModelProjection, Sketch,ProfileCurve } from './types';
+import { arcSweep, pointOf } from './sketch/model';
+import type { ModelProjection, ProfileCurve, SketchEntity } from './types';
 const escape=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]!));
 const mm=25.4;
 /** Export topology is indexed and shared; rendering normals never alter it. */
@@ -34,13 +34,17 @@ export function profileDxf(curves:ProfileCurve[]):string{
 	}
 	lines.push('0','ENDSEC','0','EOF');return lines.join('\n');
 }
-export function sketchDxf(sketch:Sketch):string {
-	const curves:ProfileCurve[]=[],local=(p:[number,number,number]):[number,number]=>{const d=sub(p,sketch.plane.origin);return[dot(d,sketch.plane.u),dot(d,sketch.plane.v)];};
-	for(const profile of [sketch.profile,...sketch.holes??[]]){
-		if(profile.type==='circle')curves.push({type:'circle',center:local(profile.center),radius:profile.radius});
-		else if(profile.type==='polygon')profile.points.forEach((p,i)=>curves.push({type:'line',start:local(p),end:local(profile.points[(i+1)%profile.points.length])}));
-		else for(const segment of profile.segments){if(segment.type==='line')curves.push({type:'line',start:local(segment.start),end:local(segment.end)});else{const center=local(segment.center),start=local(segment.start),end=local(segment.end),angle=(p:[number,number])=>(Math.atan2(p[1]-center[1],p[0]-center[0])*180/Math.PI+360)%360;curves.push({type:'arc',center,radius:Math.hypot(start[0]-center[0],start[1]-center[1]),startAngle:angle(start),endAngle:angle(end)});}}
+/** A sketch's entities as DXF curves, in its own plane coordinates. Construction entities are left out. */
+export function sketchCurves(entities:readonly SketchEntity[]):ProfileCurve[]{
+	const curves:ProfileCurve[]=[];
+	const angle=(center:[number,number],p:[number,number])=>(Math.atan2(p[1]-center[1],p[0]-center[0])*180/Math.PI+360)%360;
+	for(const e of entities){
+		if(e.type==='point'||e.construction)continue;
+		if(e.type==='line')curves.push({type:'line',start:pointOf(entities,e.a),end:pointOf(entities,e.b)});
+		else if(e.type==='circle')curves.push({type:'circle',center:pointOf(entities,e.center),radius:e.radius});
+		else{const center=pointOf(entities,e.center),start=pointOf(entities,e.start),end=pointOf(entities,e.end);void arcSweep(center,start,end);curves.push({type:'arc',center,radius:Math.hypot(start[0]-center[0],start[1]-center[1]),startAngle:angle(center,start),endAngle:angle(center,end)});}
 	}
-	return profileDxf(curves);
+	return curves;
 }
+export function sketchDxf(sketch:{entities:readonly SketchEntity[]}):string { return profileDxf(sketchCurves(sketch.entities)); }
 export function download(data:Uint8Array|string,name:string,type:string){const blob=new Blob([typeof data==='string'?data:data as Uint8Array<ArrayBuffer>],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}

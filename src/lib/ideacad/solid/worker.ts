@@ -1,5 +1,5 @@
 import { SolidEngine } from './engine';
-import type { ModelSnapshot, SolidCommand } from './types';
+import type { ModelSnapshot, Selection, SketchConstraint, SketchEntity, SolidCommand } from './types';
 let engine: SolidEngine;
 let chain=Promise.resolve();
 self.onmessage=({data})=>{
@@ -19,6 +19,8 @@ self.onmessage=({data})=>{
 				case 'snapshot': result=await engine.snapshot();break;
 				case 'project': result=engine.project();break;
 				case 'profile': result=engine.planarProfile(data.value);break;
+				case 'sketch-solve': result=engine.solveSketch(data.value as {entities:SketchEntity[];constraints:SketchConstraint[]});break;
+				case 'measure': result=engine.measure((data.value as {a:Selection;b?:Selection}).a,(data.value as {a:Selection;b?:Selection}).b);break;
 				default: throw Error('Unknown geometry operation.');
 			}
 			self.postMessage({id:data.id,result});
