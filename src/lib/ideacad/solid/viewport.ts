@@ -23,6 +23,7 @@ import { referenceObjects } from './viewport/reference-layer';
 import { DrawingTool, isDrawTool, type DrawPlane } from './viewport/drawing';
 import { dragValue } from './viewport/drag-math';
 import { disposeObject, polyline } from './viewport/shared';
+import { bodyColour } from './appearance';
 import type { SketchDraft } from './sketch/editor';
 import type { ModelProjection, PlaneRef, ResolvedPlane, Selection, Sketch, SketchPlane, Vec3 } from './types';
 
@@ -43,8 +44,7 @@ interface Options {
 	sketchPointer?:(event:'down'|'move'|'up',at:[number,number],e:PointerEvent)=>boolean;
 }
 export const EMPTY_MODEL: ModelProjection = {bodies:[],sketches:[],references:[],features:[],mates:[],addons:{ideaBlade:false},canUndo:false,canRedo:false,operationMs:0};
-/** The material colour for a body: its own colour, else its material's, else machined stock. */
-export function bodyColour(body: ModelProjection['bodies'][number], materialColour?: string | null): string { return body.color ?? materialColour ?? '#91a2ad'; }
+export { bodyColour } from './appearance';
 export class SolidViewport {
 	readonly renderer:THREE.WebGLRenderer;
 	readonly camera=new THREE.OrthographicCamera(-4,4,3,-3,.001,100000);

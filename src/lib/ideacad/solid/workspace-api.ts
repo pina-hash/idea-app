@@ -9,11 +9,13 @@
  * kernel state; what it needs beyond the projection it asks for with
  * `request` (a sketch solve, a measurement), which is the worker passthrough.
  */
-import type { ModelProjection, ResolvedPlane, Selection, SketchConstraint, SketchEntity, SketchSolveReport, SolidCommand, Vec3 } from './types';
+import type { ModelProjection, ResolvedPlane, Selection, SketchConstraint, SketchEntity, SketchSolveReport, SolidCommand, SolidManifest, Vec3 } from './types';
 import type { Tool } from './viewport';
 
 export interface WorkspaceApi {
 	readonly model: ModelProjection;
+	/** The document as last projected: the feature list with every parameter, for a panel that edits one. */
+	readonly manifest: SolidManifest;
 	readonly selections: Selection[];
 	readonly canWrite: boolean;
 	readonly busy: boolean;
@@ -25,6 +27,8 @@ export interface WorkspaceApi {
 	setTool(tool: Tool): void;
 	/** Open a sketch feature for editing in the viewport, or close the open one. */
 	editSketch(featureId: string | null): void;
+	/** While a sketch is open, the sketch editor installs this to receive viewport presses in the sketch plane's (u, v) coordinates; return true to consume the event. Null uninstalls. */
+	setSketchPointer(handler: ((event: 'down' | 'move' | 'up', at: [number, number], e: PointerEvent) => boolean) | null): void;
 	/** Worker passthrough. `sketch-solve` returns `{entities, report}`; `measure` returns `{kind, value, points?}`. */
 	request<T>(method: 'sketch-solve' | 'measure' | 'project' | 'snapshot', value?: unknown): Promise<T>;
 	/** Screen position of a world point, for labels beside geometry. */

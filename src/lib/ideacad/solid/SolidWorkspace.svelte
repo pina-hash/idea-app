@@ -52,7 +52,9 @@
 	let numericInput:HTMLInputElement=$state()!;
 	let importInput:HTMLInputElement=$state()!;
 	let gesture:Gesture|null=null,gestureFeature='',queued:SolidCommand|null=null,pumping:Promise<void>|null=null;
-	let currentSnapshot=untrack(()=>opened.snapshot),revision=untrack(()=>opened.revision);
+	let currentSnapshot:ModelSnapshot=$state.raw(untrack(()=>opened.snapshot)),revision=untrack(()=>opened.revision);
+	/** While a sketch is open, the sketch editor installs the handler that receives viewport presses in plane coordinates. */
+	let sketchPointer:((event:'down'|'move'|'up',at:[number,number],e:PointerEvent)=>boolean)|null=null;
 	let actions:SolidHistoryAction[]=[];let committed=false;let gestureBefore:ModelSnapshot|null=null;let gestureCenter:[number,number,number]=[0,0,0];
 	let history:DirectRow[]=$state(untrack(()=>opened.history??[{seq:0,kind:'origin',path:'',after:opened.snapshot.manifest}]));
 	const historyState=$derived(foldGroups(groupHistory(history)));
@@ -194,7 +196,8 @@
 	async function openSettings(){if(!advisoryTransport)return;try{rules=await advisoryTransport.read();settingsOpen=true;}catch(err){error=err instanceof Error?err.message:String(err);}}
 	/** What every panel reads and writes through. Getters, so a panel's `$derived` tracks the workspace's own state. */
 	const api:WorkspaceApi={
-		get model(){return model;},get selections(){return selections;},get canWrite(){return opened.canWrite&&!loading;},get busy(){return busy||loading;},get tool(){return tool;},get editingSketch(){return editingSketch;},
+		get model(){return model;},get manifest(){return currentSnapshot.manifest;},get selections(){return selections;},get canWrite(){return opened.canWrite&&!loading;},get busy(){return busy||loading;},get tool(){return tool;},get editingSketch(){return editingSketch;},
+		setSketchPointer:(handler)=>{sketchPointer=handler;},
 		apply,select,setTool,editSketch,
 		request:(method,value)=>client.request(method,value),
 		project:(p)=>viewport.projectPoint(p),
@@ -206,7 +209,7 @@
 	onMount(()=>{
 		const readRules=()=>{if(advisoryTransport)void advisoryTransport.read().then(value=>rules=value).catch(err=>error=err.message);};readRules();
 		window.addEventListener('focus',readRules);const ruleTimer=setInterval(readRules,60000);
-		client=new SolidClient();viewport=new SolidViewport(canvas,{getTool:()=>tool,getPlane:():DrawPlane=>({plane:datumPlane(planeName),ref:{kind:'datum',datum:planeName}}),getSelections:()=>selections,canWrite:()=>opened.canWrite,select,begin,update,end:()=>void end(),cancel:()=>void cancel(),sketch:(s,r)=>void createSketch(s,r),draft:(d,r)=>void createDraft(d,r),numeric:(key,point)=>{numeric={value:key,...point};requestAnimationFrame(()=>numericInput?.focus());},error:message=>error=message});
+		client=new SolidClient();viewport=new SolidViewport(canvas,{getTool:()=>tool,getPlane:():DrawPlane=>({plane:datumPlane(planeName),ref:{kind:'datum',datum:planeName}}),getSelections:()=>selections,canWrite:()=>opened.canWrite,select,begin,update,end:()=>void end(),cancel:()=>void cancel(),sketch:(s,r)=>void createSketch(s,r),draft:(d,r)=>void createDraft(d,r),numeric:(key,point)=>{numeric={value:key,...point};requestAnimationFrame(()=>numericInput?.focus());},error:message=>error=message,sketchPointer:(event,at,e)=>sketchPointer?.(event,at,e)??false});
 		for(const m of STOCK_MATERIALS)if(m.color)viewport.materialColours.set(m.id,m.color);
 		client.request<ModelProjection>('load',opened.snapshot).then(result=>{show(result);viewport.fit();loading=false;saveState.markSaved();}).catch(err=>{error=err.message;loading=false;});
 		const unbind=saveState.attach();
