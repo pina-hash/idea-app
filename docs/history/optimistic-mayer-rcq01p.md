@@ -98,6 +98,30 @@ first.
   the dark ink stayed, measured 1.27:1. The row now declares its own paint
   (`FeatureTree.svelte`), and the harness reads 11.59:1.
 
+- **Twenty-seven decorative edges moved from `--boundary` to `--hairline`**
+  after the full suite: a heading's underline, a section's top rule, a
+  fieldset frame, a static chip, the workspace's header and footer rules and
+  the tree rail's edge. Every control edge (button, input, select, the offer
+  buttons, the tool palette and panel boxes floating on the plate) keeps
+  `--boundary`, which is the three-use rule in CLAUDE.md applied rather than
+  the count chased: the tree reads 209 hairline against 368 boundary after.
+- **The launch page draws search and sort only once the list needs them**,
+  at the chooser's own `IDEACAD_CHOOSER_CONTROLS_AT` (six rows), in the front
+  door and embedded alike. Measured by the chooser render test: embedded under
+  the legacy chooser it was a second search on one page above the threshold
+  and a lone one below it.
+- **`tests/db/migrations-applied-record.test.ts` accepts a ledger slug that
+  names an existing entry file** beside a four-digit number. 0216's record was
+  written for a Codex task whose entry is `ideacad-direct-modeler.md`, and the
+  regex alone left that test red on `main`; the file-exists check is the
+  stronger assertion (a slug that names no file is a record authorised by
+  nothing). Outside this bundle's owned files, done because the merge to
+  `main` was granted and a standing red hides the next real failure.
+- **The 1440 acceptance pass was killed twice by a Vite full reload** before
+  it ran clean: `svelte-kit sync` running for `svelte-check` in another shell
+  rewrites `.svelte-kit/`, and the dev server reloads every open page. Run the
+  sync before the browser pass, never beside it.
+
 ### Measured
 
 - Acceptance model at 1440 and 375, identical numbers at both widths: bracket
@@ -122,7 +146,7 @@ first.
   151, reference 33, mates 42, sketching 73, blends 25, appearance 22, storage
   54, add-ons 22, triad 46, all 0 failed.
 - Full suite, once, at the end, read from the summary line and stderr:
-  SUITE_COUNTS_PLACEHOLDER
+  527 files and 9823 tests; the first run reported 4 failed in 3 files (`tests/boundary-token.test.ts`: the new panels had put 44 `--boundary` uses and no `--hairline` on the tree, so the decorative side stopped being the majority; `tests/ideacad-chooser-render.test.ts`: the embedded launch page drew a second search below the chooser's own threshold; `tests/db/migrations-applied-record.test.ts`, twice: no record for 0217 yet, and 0216's hand-written record names a Codex ledger slug where the test demanded four digits, which is red on `origin/main` today). The first three were fixed in the commit that followed and their files re-run green (99 passed, 1 failed on those 8 files); the one left is the 0217 record, which is written from Mr. Pina's paste report and cannot honestly exist before it.
 - Replay cost on the forty-feature fixture, the projection cache's memory
   and the checkpoint arithmetic: the table in `docs/IDEACAD.md`.
 

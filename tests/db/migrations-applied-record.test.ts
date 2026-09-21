@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync, execFileSync } from 'node:child_process';
@@ -265,7 +265,15 @@ describe('docs/migrations-applied/ as committed', () => {
 			if (source !== 'report') continue;
 			expect(text, f).not.toMatch(/^session_user:/m);
 			expect(text, f).not.toMatch(/^database:/m);
-			expect(text, f).toMatch(/^ledger: "\d{4}"$/m);
+			// The authoriser is a ledger entry: a four-digit number for a numbered
+			// prompt, or the slug of an entry file that exists (a Codex task's entry
+			// carries no number -- `ideacad-direct-modeler`, recorded for 0216). A
+			// slug that names no file is a record authorised by nothing.
+			const ledger = /^ledger: "([^"]+)"$/m.exec(text)?.[1];
+			expect(ledger, f).toBeTruthy();
+			if (!/^\d{4}$/.test(ledger ?? '')) {
+				expect(existsSync(join(REPO_ROOT, 'docs', 'prompt-ledger', 'entries', `${ledger}.md`)), `${f}: ledger "${ledger}" names no entry file`).toBe(true);
+			}
 			expect(text, f).toContain('not on a measurement made by this repository');
 		}
 	});

@@ -200,12 +200,12 @@
 	</section>
 {/if}
 <style>
-	.feature{display:grid;gap:6px}h2{margin:0;font-size:18px}h3{margin:4px 0 0;font:600 15px Rajdhani,sans-serif;color:var(--text-1);border-bottom:1px solid var(--boundary);padding-bottom:4px}
+	.feature{display:grid;gap:6px}h2{margin:0;font-size:18px}h3{margin:4px 0 0;font:600 15px Rajdhani,sans-serif;color:var(--text-1);border-bottom:1px solid var(--hairline);padding-bottom:4px}
 	.picks,.note,.readout{margin:0;color:var(--text-2);font-size:14px;line-height:1.4}.readout{color:var(--text-1);font:14px 'Share Tech Mono',monospace}
 	label{display:grid;gap:4px;font:600 14px Rajdhani,sans-serif;color:var(--text-2)}label small{font-weight:400;font-size:12px}
 	input,select{min-height:44px;width:100%;box-sizing:border-box;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:16px Rajdhani,sans-serif;padding:0 8px}
 	.toggle{display:flex;align-items:center;gap:8px;min-height:44px;color:var(--text-1);cursor:pointer}.toggle input{width:20px;height:20px;min-height:0;margin:0;flex-shrink:0}.toggle small{display:block;font-size:12px;color:var(--text-2);font-weight:400}
-	.fits{margin:0;padding:0 8px 4px;border:1px solid var(--boundary);border-radius:4px;display:grid}.fits legend{font:600 14px Rajdhani,sans-serif;color:var(--text-2);padding:0 4px}
+	.fits{margin:0;padding:0 8px 4px;border:1px solid var(--hairline);border-radius:4px;display:grid}.fits legend{font:600 14px Rajdhani,sans-serif;color:var(--text-2);padding:0 4px}
 	.feature button{min-height:44px;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:600 15px Rajdhani,sans-serif;cursor:pointer;padding:0 10px}
 	.feature button.wide{width:100%}.feature button.primary{border-color:var(--green);color:var(--green)}.feature button:disabled{opacity:.4;cursor:default}
 	.walls{list-style:none;margin:0;padding:0;display:grid;gap:4px}.walls li{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:44px;font-size:14px;color:var(--text-1)}

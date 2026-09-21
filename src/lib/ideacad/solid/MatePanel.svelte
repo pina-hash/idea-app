@@ -105,14 +105,14 @@
 <style>
 	.mates{display:grid;gap:10px}h2{margin:0;font-size:18px}h2 span{color:var(--text-2);font:12px var(--font-mono,'Share Tech Mono',monospace);margin-left:6px}
 	.note,p{margin:0;color:var(--text-2);font-size:14px;line-height:1.4}
-	form.create{display:grid;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--boundary)}
+	form.create{display:grid;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--hairline)}
 	label{display:grid;gap:4px;font:600 14px var(--font-display,Rajdhani,sans-serif);color:var(--text-2)}
 	label.check{display:flex;align-items:center;gap:8px;min-height:44px;color:var(--text-1);cursor:pointer}label.check input{width:22px;height:22px;min-height:0;margin:0;padding:0;flex:none}
-	fieldset.kinds{margin:0;padding:0 8px 4px;border:1px solid var(--boundary);border-radius:4px;display:grid;grid-template-columns:1fr 1fr;gap:0 8px}fieldset.kinds legend{padding:0 4px;font:600 14px var(--font-display,Rajdhani,sans-serif);color:var(--text-2)}
+	fieldset.kinds{margin:0;padding:0 8px 4px;border:1px solid var(--hairline);border-radius:4px;display:grid;grid-template-columns:1fr 1fr;gap:0 8px}fieldset.kinds legend{padding:0 4px;font:600 14px var(--font-display,Rajdhani,sans-serif);color:var(--text-2)}
 	input,button{min-height:44px;width:100%;box-sizing:border-box;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:16px var(--font-display,Rajdhani,sans-serif);padding:0 8px}
 	button{cursor:pointer;color:var(--green);border-color:var(--green)}button:disabled{opacity:.4;cursor:default}
 	ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
-	.bodies li{display:grid;gap:2px;padding:6px 8px;border:1px dashed var(--boundary);border-radius:4px}.freedom{color:var(--text-1)}
+	.bodies li{display:grid;gap:2px;padding:6px 8px;border:1px dashed var(--hairline);border-radius:4px}.freedom{color:var(--text-1)}
 	.list li{display:grid;gap:4px;padding:6px 8px;border:1px solid var(--boundary);border-radius:4px}.list li.error{border-color:var(--ic-warn,var(--amber))}
 	.head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.head strong{color:var(--text-1)}.kind{color:var(--text-2);font:12px var(--font-mono,'Share Tech Mono',monospace)}
 	.status{margin-left:auto;font:600 12px var(--font-mono,'Share Tech Mono',monospace);color:var(--green)}li.error .status{color:var(--ic-warn,var(--amber))}

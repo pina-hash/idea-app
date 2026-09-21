@@ -102,5 +102,5 @@
 	.unit{padding:0 8px;font:12px 'Share Tech Mono',monospace;color:var(--text-2)}
 	button{min-height:44px;min-width:44px;padding:0 12px;border:1px solid var(--green);border-radius:4px;background:var(--surface-0);color:var(--green);font:600 16px Rajdhani,sans-serif;cursor:pointer}button:disabled{opacity:.4;cursor:default}
 	.readonly{display:flex;justify-content:space-between;gap:8px;min-height:44px;align-items:center;padding:0 8px;font:600 14px Rajdhani,sans-serif;color:var(--text-2)}output{font:14px 'Share Tech Mono',monospace;color:var(--text-1)}
-	dl{margin:0;display:grid;gap:4px;padding-top:6px;border-top:1px solid var(--boundary)}dl div{display:flex;justify-content:space-between;gap:8px;align-items:baseline}dt{font:600 14px Rajdhani,sans-serif;color:var(--text-2)}dd{margin:0;font:14px 'Share Tech Mono',monospace;color:var(--text-1)}.tag{font:11px 'Share Tech Mono',monospace;color:var(--ic-meta,var(--cyan))}
+	dl{margin:0;display:grid;gap:4px;padding-top:6px;border-top:1px solid var(--hairline)}dl div{display:flex;justify-content:space-between;gap:8px;align-items:baseline}dt{font:600 14px Rajdhani,sans-serif;color:var(--text-2)}dd{margin:0;font:14px 'Share Tech Mono',monospace;color:var(--text-1)}.tag{font:11px 'Share Tech Mono',monospace;color:var(--ic-meta,var(--cyan))}
 </style>

@@ -20,6 +20,7 @@
 	import { onMount } from 'svelte';
 	import Pending from '$lib/Pending.svelte';
 	import type { LaunchApi } from './api';
+	import { IDEACAD_CHOOSER_CONTROLS_AT } from '../../app/types';
 	import { collectTags, filterDocuments, groupDocuments, LAUNCH_SORTS, LAUNCH_SORT_LABELS, searchDocuments, sortDocuments, type LaunchDocument, type LaunchFolder, type LaunchSort, type LaunchView, type TrashedDocument } from './library';
 	import { EMPTY_ARCHIVED, EMPTY_FOLDER, EMPTY_LIBRARY, EMPTY_LIBRARY_HINT, EMPTY_SEARCH, FOLDER_DELETE_SENTENCE, NEW_MODEL_TITLE, folderDeleteConfirm, folderDeletedSentence } from './wording';
 	import DocumentCard from './DocumentCard.svelte';
@@ -44,6 +45,7 @@
 	const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 	const focus = (el: HTMLElement) => { el.focus(); };
 	const visible = $derived(sortDocuments(searchDocuments(filterDocuments(rows, { view, folderId, tag }), query), sort));
+	const controlsShown = $derived(rows.length >= IDEACAD_CHOOSER_CONTROLS_AT);
 	const groups = $derived(groupDocuments(visible));
 	const tags = $derived(collectTags(rows));
 	const emptySentence = $derived.by(() => {
@@ -106,8 +108,11 @@
 				<button class="accept" data-testid="new-model" onclick={() => { newOpen = true; noticeText = ''; }}>+ New model</button>
 			{/if}
 		</div>
-		<label class="search">Search<input type="search" bind:value={query} placeholder="Title, owner or tag" /></label>
-		<label class="sort">Sort<select bind:value={sort}>{#each LAUNCH_SORTS as s (s)}<option value={s}>{LAUNCH_SORT_LABELS[s]}</option>{/each}</select></label>
+		{#if controlsShown}
+			<!-- Search and sort are drawn only once the list is long enough to need them (the chooser's own threshold, IDEACAD_CHOOSER_CONTROLS_AT); below it they cost a reader more than they save, and a page with two searches on it is the embedded case this rule was measured on. -->
+			<label class="search">Search<input type="search" bind:value={query} placeholder="Title, owner or tag" /></label>
+			<label class="sort">Sort<select bind:value={sort}>{#each LAUNCH_SORTS as s (s)}<option value={s}>{LAUNCH_SORT_LABELS[s]}</option>{/each}</select></label>
+		{/if}
 		<div class="views" role="group" aria-label="View">
 			<button aria-pressed={view === 'live'} data-testid="view-live" onclick={() => show('live')}>All models</button>
 			<button aria-pressed={view === 'archived'} data-testid="view-archived" onclick={() => show('archived')}>Archived</button>

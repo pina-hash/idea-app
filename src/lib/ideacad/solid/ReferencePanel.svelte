@@ -97,10 +97,10 @@
 <style>
 	.reference{display:grid;gap:8px}
 	h2{margin:0;font-size:18px}
-	h3{margin:6px 0 0;display:flex;justify-content:space-between;align-items:baseline;font:600 15px Rajdhani,sans-serif;color:var(--text-1);border-bottom:1px solid var(--boundary);padding-bottom:4px}
+	h3{margin:6px 0 0;display:flex;justify-content:space-between;align-items:baseline;font:600 15px Rajdhani,sans-serif;color:var(--text-1);border-bottom:1px solid var(--hairline);padding-bottom:4px}
 	.reference h3 .count{font:12px 'Share Tech Mono',monospace;color:var(--text-2)}
 	.lede,.note,.hint{margin:0;color:var(--text-2);font-size:14px;line-height:1.4}
-	.hint{border-top:1px solid var(--boundary);padding-top:8px}
+	.hint{border-top:1px solid var(--hairline);padding-top:8px}
 	.hint strong{color:var(--text-1);font-weight:600}
 	.offers,.list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
 	.inputs{display:grid;gap:6px}

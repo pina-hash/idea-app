@@ -67,7 +67,7 @@
 	.measure{display:grid;gap:8px}h2{margin:0;font-size:18px}
 	.hint{margin:0;color:var(--text-2);font-size:14px;line-height:1.4}
 	.picks{margin:0;padding:0;list-style:none;display:grid;gap:4px;font-size:14px;color:var(--text-1)}.picks .ordinal{font:12px 'Share Tech Mono',monospace;color:var(--text-2);margin-right:6px}.picks .empty{color:var(--text-2)}
-	.result{display:grid;gap:2px;min-height:44px;padding:6px 8px;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0)}
+	.result{display:grid;gap:2px;min-height:44px;padding:6px 8px;border:1px solid var(--hairline);border-radius:4px;background:var(--surface-0)}
 	.result .word{font:600 14px Rajdhani,sans-serif;color:var(--text-2)}.result .value{font:20px 'Share Tech Mono',monospace;color:var(--text-1)}.result small{font-size:12px;color:var(--text-2)}
 	.measure button{min-height:44px;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:600 15px Rajdhani,sans-serif;cursor:pointer;padding:0 10px}
 </style>
