@@ -6,6 +6,8 @@
 import type { Executor } from './context';
 import type { Feature, FeatureType } from '../types';
 import * as core from './core';
+import { fillet, chamfer, shell } from './blends';
+import { plane, axis, point } from './reference';
 import { mate } from './mate';
 import { hole, draft, sweep, loft, rib } from './extra';
 
@@ -16,17 +18,17 @@ export const EXECUTORS: { [T in FeatureType]: Executor<Extract<Feature, { type: 
 	revolve: core.revolve,
 	push: core.push,
 	'move-selection': core.moveSelection,
-	fillet: core.fillet,
-	chamfer: core.chamfer,
-	shell: core.shell,
+	fillet,
+	chamfer,
+	shell,
 	transform: core.transform,
 	mirror: core.mirror,
 	pattern: core.pattern,
 	boolean: core.boolean,
 	delete: core.deleteBodies,
-	plane: core.plane,
-	axis: core.axis,
-	point: core.point,
+	plane,
+	axis,
+	point,
 	mate,
 	hole,
 	draft,

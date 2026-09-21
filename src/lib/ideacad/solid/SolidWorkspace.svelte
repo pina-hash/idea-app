@@ -29,6 +29,8 @@
 	import { TOOLS, QUICK_TOOLS } from './tools';
 	import { SolidClient } from './client';
 	import { SolidViewport, EMPTY_MODEL, type DragValue, type Gesture, type Tool, type DrawPlane } from './viewport';
+	import { dragReadout } from './viewport/readout';
+	import type { SketchDraft } from './sketch/editor';
 	import { datumPlane } from './sketch/model';
 	import { refFromSelection } from './naming';
 	import { newFeatureId } from './features';
@@ -95,6 +97,8 @@
 		finally{busy=false;}
 	}
 	async function createSketch(sketch:Sketch,ref:PlaneRef){await apply({type:'sketch',sketch,planeRef:ref},'Draw sketch');tool='extrude';select({bodyId:'',kind:'sketch',id:sketch.id});viewport.highlight();}
+	/** A drawn entity collection becomes a sketch feature on the plane it was drawn on, selected and ready to extrude. */
+	async function createDraft(draft:SketchDraft,ref:PlaneRef){const id=newFeatureId();await apply({type:'add-feature',feature:{id,name:'',type:'sketch',plane:ref,entities:draft.entities,constraints:draft.constraints}},'Draw sketch');if(model.features.some(f=>f.id===id)){tool='extrude';select({bodyId:'',kind:'sketch',id});viewport.highlight();}}
 	async function begin(next:Gesture){
 		if(!opened.canWrite)throw Error('This document is read-only.');
 		if(busy)throw Error('Finish the current change first.');gesture=next;gestureFeature=newFeatureId();gestureBefore=currentSnapshot;gestureCenter=[...(model.bodies.find(b=>b.id===next.selection.bodyId)?.centerOfMass??[0,0,0])];committed=false;await client.request('begin');
@@ -135,7 +139,7 @@
 	const scaleVector=(v:[number,number,number],n:number):[number,number,number]=>[v[0]*n,v[1]*n,v[2]*n];
 	function update(value:DragValue){
 		let command:SolidCommand|null;try{command=commandFor(value);}catch(err){error=err instanceof Error?err.message:String(err);return;}if(!command)return;
-		measure={text:gesture?.tool==='revolve'||gesture?.tool==='rotate'?`${value.angle.toFixed(1)}°`:gesture?.tool.includes('pattern')?`${value.count} × ${(gesture?.tool==='circular-pattern'?360/value.count:value.distance).toFixed(gesture?.tool==='circular-pattern'?1:3)} ${gesture?.tool==='circular-pattern'?'°':'in'}`:`${value.distance.toFixed(3)} in`,x:value.point.x,y:value.point.y};
+		measure={text:dragReadout(gesture!.tool,value),x:value.point.x,y:value.point.y};
 		queued=command;pump();
 	}
 	function pump(){
@@ -194,12 +198,15 @@
 		apply,select,setTool,editSketch,
 		request:(method,value)=>client.request(method,value),
 		project:(p)=>viewport.projectPoint(p),
-		error:(message)=>{error=message;}
+		error:(message)=>{error=message;},
+		guide:(points,color)=>viewport.guide(points,color),clearGuides:()=>viewport.clearGuides(),
+		clip:(plane)=>viewport.clip(plane),lookAt:(plane)=>viewport.lookAt(plane),fit:()=>viewport.fit(),
+		unproject:(x,y,plane)=>viewport.unproject(x,y,plane)
 	};
 	onMount(()=>{
 		const readRules=()=>{if(advisoryTransport)void advisoryTransport.read().then(value=>rules=value).catch(err=>error=err.message);};readRules();
 		window.addEventListener('focus',readRules);const ruleTimer=setInterval(readRules,60000);
-		client=new SolidClient();viewport=new SolidViewport(canvas,{getTool:()=>tool,getPlane:():DrawPlane=>({plane:datumPlane(planeName),ref:{kind:'datum',datum:planeName}}),getSelections:()=>selections,canWrite:()=>opened.canWrite,select,begin,update,end:()=>void end(),cancel:()=>void cancel(),sketch:(s,r)=>void createSketch(s,r),numeric:(key,point)=>{numeric={value:key,...point};requestAnimationFrame(()=>numericInput?.focus());},error:message=>error=message});
+		client=new SolidClient();viewport=new SolidViewport(canvas,{getTool:()=>tool,getPlane:():DrawPlane=>({plane:datumPlane(planeName),ref:{kind:'datum',datum:planeName}}),getSelections:()=>selections,canWrite:()=>opened.canWrite,select,begin,update,end:()=>void end(),cancel:()=>void cancel(),sketch:(s,r)=>void createSketch(s,r),draft:(d,r)=>void createDraft(d,r),numeric:(key,point)=>{numeric={value:key,...point};requestAnimationFrame(()=>numericInput?.focus());},error:message=>error=message});
 		for(const m of STOCK_MATERIALS)if(m.color)viewport.materialColours.set(m.id,m.color);
 		client.request<ModelProjection>('load',opened.snapshot).then(result=>{show(result);viewport.fit();loading=false;saveState.markSaved();}).catch(err=>{error=err.message;loading=false;});
 		const unbind=saveState.attach();

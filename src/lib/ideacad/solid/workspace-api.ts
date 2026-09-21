@@ -9,7 +9,7 @@
  * kernel state; what it needs beyond the projection it asks for with
  * `request` (a sketch solve, a measurement), which is the worker passthrough.
  */
-import type { ModelProjection, Selection, SketchConstraint, SketchEntity, SketchSolveReport, SolidCommand } from './types';
+import type { ModelProjection, ResolvedPlane, Selection, SketchConstraint, SketchEntity, SketchSolveReport, SolidCommand, Vec3 } from './types';
 import type { Tool } from './viewport';
 
 export interface WorkspaceApi {
@@ -31,6 +31,16 @@ export interface WorkspaceApi {
 	project(point: [number, number, number]): { x: number; y: number };
 	/** Show a sentence where every other refusal shows. */
 	error(message: string): void;
+	/** Draw a transient polyline in the viewport (a mate preview, a measurement, a dimension witness line) until `clearGuides`. */
+	guide(points: Vec3[], color?: string): void;
+	clearGuides(): void;
+	/** A section view: cut everything on the plane's normal side away. Null restores the model. */
+	clip(plane: ResolvedPlane | null): void;
+	/** Camera: look straight at a plane, or fit the model. */
+	lookAt(plane: ResolvedPlane): void;
+	fit(): void;
+	/** The world point under a viewport position on a plane. */
+	unproject(x: number, y: number, plane: ResolvedPlane): Vec3 | null;
 }
 export type SketchSolve = { entities: SketchEntity[]; report: SketchSolveReport };
 export type SketchSolveInput = { entities: SketchEntity[]; constraints: SketchConstraint[] };
