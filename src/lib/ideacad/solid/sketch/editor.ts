@@ -63,12 +63,40 @@ export function polylineEntities(corners: Vec2[]): SketchDraft {
 	const lines = points.map((p, i) => ({ id: newEntityId(), type: 'line' as const, a: p.id, b: points[(i + 1) % points.length].id }));
 	return { entities: [...points, ...lines], constraints: [] };
 }
-/** An arc and its chord from a center, a start and an end direction. */
+/**
+ * An arc AND ITS CHORD from a center, a start and an end direction: the v1
+ * drag-draw path, whose one caller is `viewport/drawing.ts`. The chord is the
+ * difference from `arcDraft` and is deliberate -- a shape drawn with no sketch
+ * open has nothing else to close against, where an arc drawn INSIDE a sketch
+ * connects through its shared points.
+ *
+ * THE THIRD CLICK IS A DIRECTION HERE TOO, AND IT USED TO BE READ AS ONE HALF
+ * OF A DIRECTION. The end was projected onto the radius along the click's
+ * bearing, which is right, and the arc was then stored `start -> end` always,
+ * which is not: a stored arc runs COUNTER-CLOCKWISE from its start to its end,
+ * so a clockwise third click committed the reflex complement. Measured on this
+ * function before the fix, center (0,0) and start (1,0): a click ten degrees
+ * clockwise gave 350.000 degrees and a click 0.01in below the start gave
+ * 359.427 -- a near-whole circle for a click a student aimed just under the
+ * start. Ledger 0275 fixed the identical defect in the in-sketch arc TOOL and
+ * left this one only because its caller sat outside that bundle's files.
+ *
+ * The repair is `arcDraft`'s, so there is one direction rule rather than two:
+ * `arcSweepToward` gives the SIGNED short way round and a clockwise sweep is
+ * stored with the two ends SWAPPED, exactly as `arcDraft` and `filletCorner`
+ * already do it. The arc entity gains no field, the end POSITION is unchanged
+ * (`arcPoint` at the signed sweep is the same projection the old line took),
+ * and an arc saved before this reads exactly as it did.
+ *
+ * Shift for the long way round is the tool's and is NOT plumbed here: this
+ * path's press handler reads no modifier, so offering one would mean a preview
+ * that cannot show it -- which is the defect 0275 fixed, one surface over.
+ */
 export function arcEntities(center: Vec2, start: Vec2, towards: Vec2): SketchDraft {
-	const r = Math.hypot(start[0] - center[0], start[1] - center[1]), d = Math.hypot(towards[0] - center[0], towards[1] - center[1]) || 1;
-	const end: Vec2 = [center[0] + (towards[0] - center[0]) * r / d, center[1] + (towards[1] - center[1]) * r / d];
+	const sweep = arcSweepToward(center, start, towards);
+	const end = arcPoint(center, start, sweep, 1);
 	const c = newEntityId(), s = newEntityId(), e = newEntityId();
-	return { entities: [{ id: c, type: 'point', x: center[0], y: center[1] }, { id: s, type: 'point', x: start[0], y: start[1] }, { id: e, type: 'point', x: end[0], y: end[1] }, { id: newEntityId(), type: 'arc', center: c, start: s, end: e }, { id: newEntityId(), type: 'line', a: e, b: s }], constraints: [] };
+	return { entities: [{ id: c, type: 'point', x: center[0], y: center[1] }, { id: s, type: 'point', x: start[0], y: start[1] }, { id: e, type: 'point', x: end[0], y: end[1] }, { id: newEntityId(), type: 'arc', center: c, start: sweep > 0 ? s : e, end: sweep > 0 ? e : s }, { id: newEntityId(), type: 'line', a: e, b: s }], constraints: [] };
 }
 /** Merge a draft into a sketch's entity list. */
 export function appendDraft(sketch: SketchDraft, draft: SketchDraft): SketchDraft {
@@ -129,6 +157,15 @@ const near = (a: Vec2, b: Vec2, tolerance: number) => Math.hypot(a[0] - b[0], a[
  * can produce, and which is the case this refuses.
  */
 const ARC_MIN_SWEEP = 1e-6;
+/**
+ * How far an arc's two radii may differ before `movePoints` repairs it. An
+ * ABSOLUTE tolerance, and deliberately TIGHTER at every radius than
+ * `inconsistentArcs`'s own `1e-7 * max(1, r)`, so the repair can never leave
+ * behind a difference the sketch panel's notice would then report. It exists
+ * only to make a whole-entity drag a true no-op, where all three points travel
+ * by one delta and the two radii agree to within floating-point noise.
+ */
+const ARC_RADIUS_EPSILON = 1e-9;
 /** The point ids a curve names, in the order it names them. A point names itself. */
 export function entityPoints(entities: readonly SketchEntity[], id: string): string[] {
 	const e = entities.find((x) => x.id === id);
@@ -318,9 +355,104 @@ export function joinPoints(sketch: SketchDraft, from: string, to: string): Sketc
 		.filter((c) => !(('a' in c && 'b' in c && c.a === c.b) || (c.type === 'symmetric' && c.a === c.b)));
 	return pruneDraft({ entities, constraints });
 }
-/** MOVE: points at new positions. A fixed point is refused before any drag starts, so this never sees one. */
+/**
+ * THE RADIUS AN ARC KEEPS THROUGH A MOVE: the distance from its center to its
+ * START, unless the start is the point that MOVED and the end is not, in which
+ * case it is the end's. So the endpoint a student is dragging is the one that
+ * gives way, and the one they are not touching is what the radius is read
+ * from. Returns null when the question has no answer -- a zero radius, or a
+ * bearing taken from a point sitting exactly on the center -- so the caller
+ * leaves such an arc alone rather than manufacturing a position for it.
+ */
+function arcRepairRadius(c: Vec2, s: Vec2, t: Vec2, movedStart: boolean, movedEnd: boolean): number | null {
+	const r = Math.hypot((movedStart && !movedEnd ? t : s)[0] - c[0], (movedStart && !movedEnd ? t : s)[1] - c[1]);
+	return r > 0 ? r : null;
+}
+/** A point pulled onto `r` along its own bearing from `c`; null when it sits exactly on the center and has no bearing. */
+function ontoRadius(c: Vec2, p: Vec2, r: number): Vec2 | null {
+	const d = Math.hypot(p[0] - c[0], p[1] - c[1]);
+	return d > 0 ? [c[0] + (p[0] - c[0]) * r / d, c[1] + (p[1] - c[1]) * r / d] : null;
+}
+/**
+ * MOVE: points at new positions. A fixed point is refused before any drag
+ * starts, so this never sees one.
+ *
+ * AN ARC'S TWO ENDS MUST STAY THE SAME DISTANCE FROM ITS CENTER, AND A DRAG
+ * USED TO PUT EITHER OF THEM ANYWHERE. Measured through this function before
+ * the repair, on a radius-1.000 arc whose end was dragged to (0, 2.5):
+ * `rStart` 1.000 against `rEnd` 2.500. That is not a cosmetic state. Ledger
+ * 0275 measured the kernel and it is sharp in both directions:
+ * `makeCircleArc3d` REFUSES such an edge outright, down to one part in a
+ * million (`edge vertices do not agree with its authoritative curve trim`), so
+ * the profile cannot be extruded; and `gcsAddArc` contributes exactly ONE
+ * equation coupling the two radii, so the moment the sketch carries any
+ * constraint the solver TELEPORTS the end back onto the radius, dragging
+ * whatever shares that point with it. A drag that silently breaks the extrude
+ * is the defect; a drag that silently gets undone by the next solve is the
+ * same defect wearing a different hat.
+ *
+ * SO A DRAGGED ENDPOINT SWEEPS ALONG THE ARC'S OWN CIRCLE: the radius is held
+ * and the ANGLE follows the cursor. Decision 31 is what picks it -- "not a
+ * technical precision program... quick to use, extremely quick to use" -- and
+ * of the three coherent answers it is the only one that needs no explaining.
+ * The two rejected alternatives are in this bundle's history entry:
+ * RE-RADIUSING the whole arc (both ends move together, so touching one end
+ * silently moves the other, which may be shared with a line the student drew
+ * first), and REFUSING the drag (which leaves an arc already in the broken
+ * state with no way back, and teaches that the tool is arbitrary).
+ *
+ * A MOVE OF THE CENTER ALONE CARRIES BOTH ENDS WITH IT, so the arc TRAVELS
+ * rather than deforming -- the one reading that preserves the sweep as well as
+ * the radius, and what a person means by grabbing the middle of something.
+ * Every other shape of move falls out of `arcRepairRadius`.
+ *
+ * THE REPAIR IS SKIPPED FOR AN ARC THE MOVE LEFT CONSISTENT, which is what
+ * makes a WHOLE-ENTITY drag a no-op: all three points travel by one delta, the
+ * radii still agree, and nothing is recomputed (measured: rStart and rEnd both
+ * 1.000 and the sweep still 90.000 after +(1,1)). An arc none of whose points
+ * moved is never touched at all, so a document that already carries a broken
+ * arc is not rewritten behind the student's back -- but dragging that arc's
+ * end DOES repair it, which is exactly what the sketch panel's notice tells
+ * them to do.
+ *
+ * ONE PASS, FIRST REPAIR WINS. Two arcs sharing a point can each ask for it,
+ * and a second pass would chase a chain of them around; what is left over is
+ * reported by `inconsistentArcs` rather than iterated at.
+ *
+ * WHAT THIS DOES NOT COVER, DELIBERATELY: a drag that ends ON another point is
+ * a JOIN, which goes through `joinPoints` and not through here, and a join
+ * onto a point off the circle still leaves the arc inconsistent. Honouring the
+ * join AND the radius is impossible, and choosing between them changes what a
+ * join means for every arc. The notice is the safety net; the history entry
+ * names it for Mr. Pina.
+ */
 export function movePoints(sketch: SketchDraft, moves: ReadonlyMap<string, Vec2>): SketchDraft {
-	return { entities: sketch.entities.map((e) => { const to = e.type === 'point' ? moves.get(e.id) : undefined; return to ? { ...e, x: to[0], y: to[1] } : e; }), constraints: sketch.constraints };
+	const at = new Map<string, Vec2>();
+	for (const e of sketch.entities) if (e.type === 'point') at.set(e.id, moves.get(e.id) ?? [e.x, e.y]);
+	const repair = new Map<string, Vec2>();
+	const put = (id: string, to: Vec2) => { if (!repair.has(id)) repair.set(id, to); };
+	for (const e of sketch.entities) {
+		if (e.type !== 'arc') continue;
+		const movedCenter = moves.has(e.center), movedStart = moves.has(e.start), movedEnd = moves.has(e.end);
+		if (!movedCenter && !movedStart && !movedEnd) continue;
+		const c = at.get(e.center), s = at.get(e.start), t = at.get(e.end);
+		if (!c || !s || !t) continue;
+		const rStart = Math.hypot(s[0] - c[0], s[1] - c[1]), rEnd = Math.hypot(t[0] - c[0], t[1] - c[1]);
+		if (Math.abs(rStart - rEnd) <= ARC_RADIUS_EPSILON) continue;
+		if (movedCenter && !movedStart && !movedEnd) {
+			const was = sketch.entities.find((p) => p.id === e.center);
+			if (was?.type !== 'point') continue;
+			const dx = c[0] - was.x, dy = c[1] - was.y;
+			put(e.start, [s[0] + dx, s[1] + dy]); put(e.end, [t[0] + dx, t[1] + dy]);
+			continue;
+		}
+		const r = arcRepairRadius(c, s, t, movedStart, movedEnd);
+		if (r === null) continue;
+		const slide = movedStart && !movedEnd ? e.start : e.end;
+		const to = ontoRadius(c, slide === e.start ? s : t, r);
+		if (to) put(slide, to);
+	}
+	return { entities: sketch.entities.map((e) => { if (e.type !== 'point') return e; const to = repair.get(e.id) ?? moves.get(e.id); return to ? { ...e, x: to[0], y: to[1] } : e; }), constraints: sketch.constraints };
 }
 
 /* ------------------------------------------------------------- snapping */

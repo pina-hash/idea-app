@@ -210,17 +210,17 @@
 	>
 		<div class="tour-top">
 			<span class="tour-count">{index + 1} of {visible.length}</span>
-			<button class="tour-x" type="button" aria-label="Close tour" onclick={() => onclose('closed')}>
+			<button class="tour-x tap-44" type="button" aria-label="Close tour" onclick={() => onclose('closed')}>
 				&times;
 			</button>
 		</div>
 		<h3 id="tour-step-title">{step.title}</h3>
 		<p class="tour-body">{step.body}</p>
 		<div class="tour-actions">
-			<button class="tour-skip" type="button" onclick={() => onclose('skipped')}>Skip tour</button>
+			<button class="tour-skip tap-44" type="button" onclick={() => onclose('skipped')}>Skip tour</button>
 			<span class="tour-nav">
-				<button class="tour-btn" type="button" disabled={index === 0} onclick={back}>Back</button>
-				<button class="tour-btn primary" type="button" onclick={next}>{last ? 'Done' : 'Next'}</button>
+				<button class="tour-btn tap-44" type="button" disabled={index === 0} onclick={back}>Back</button>
+				<button class="tour-btn primary tap-44" type="button" onclick={next}>{last ? 'Done' : 'Next'}</button>
 			</span>
 		</div>
 	</div>
@@ -291,6 +291,25 @@
 		text-transform: uppercase;
 		color: var(--cyan, #00f0ff);
 	}
+	/*
+	 * THE FOUR CONTROLS CARRY `.tap-44` (app.css), WHICH IS THE ONE MECHANISM
+	 * RATHER THAN A SCOPED COPY OF IT. Measured in this harness before it:
+	 * close 15x19.2, Skip tour 55.3x11, Back and Next 57x26.8 -- every one
+	 * under 44px and three of the four under the 24px absolute floor.
+	 * `IDEA_INTERFACE_STANDARDS` 2.12 puts 44px on every student surface
+	 * without exception, and the 24px density floor is a property a surface
+	 * DECLARES with a named class on its own root. The tour declares none, is
+	 * the first thing a new student is shown, and these are the controls they
+	 * leave it with, so 44 is the number it answers to.
+	 *
+	 * `.tap-44` grows HEIGHT and never width (`min-height`, plus `min-width:
+	 * 0` so a flex child can still shrink), which is what keeps this safe in
+	 * `.tour-actions`: Skip and Back sit closer than 44px horizontally, so a
+	 * mechanism that grew the hit area sideways would hand a tap meant for one
+	 * to the other. The close X is the exception and re-pins `min-width`
+	 * because it is a single glyph that owns its corner with nothing beside
+	 * it.
+	 */
 	.tour-x {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
 		font-size: 1rem;
@@ -298,7 +317,10 @@
 		color: var(--dim, #4a7a52);
 		background: none;
 		border: none;
-		padding: 0 0 0.2rem 0.4rem;
+		/* Beats `.tap-44`'s `min-width: 0` on specificity (two classes to one), which is what this needs and every sibling must not have. */
+		min-width: 44px;
+		justify-content: center;
+		padding: 0;
 		cursor: pointer;
 	}
 	.tour-x:hover {
@@ -329,6 +351,18 @@
 		display: inline-flex;
 		gap: 0.5rem;
 	}
+	/*
+	 * THE EDGE IS `--boundary` AND NOT A THINNED `--dim`, AND THAT IS THE
+	 * CONTRAST FINDING ON THESE CONTROLS RATHER THAN THE LABEL. The label was
+	 * the reported one and it CLEARS: `--dim` on the callout's `--bg1` plate
+	 * measures 4.52:1 in this harness, over the 4.5 floor (the 4.46 on record
+	 * was a stale figure -- see this bundle's history entry). What does not
+	 * clear is the box around it. `color-mix(--dim 45%, transparent)` composites
+	 * to #4a5848 and measures 2.00:1 against the same plate, and CLAUDE.md's
+	 * `--boundary` contract names "the outer edge of an interactive control" as
+	 * load-bearing at 3:1. The neat token measures 3.42:1 and is the one place
+	 * that rule says to reach for.
+	 */
 	.tour-btn {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
 		font-size: 0.66rem;
@@ -336,8 +370,9 @@
 		text-transform: uppercase;
 		color: var(--dim, #4a7a52);
 		background: none;
-		border: 1px solid color-mix(in srgb, var(--dim, #4a7a52) 45%, transparent);
+		border: 1px solid var(--boundary, #6f7b73);
 		border-radius: 4px;
+		justify-content: center;
 		padding: 0.4rem 0.85rem;
 		cursor: pointer;
 	}
@@ -345,9 +380,20 @@
 		opacity: 0.4;
 		cursor: default;
 	}
+	/*
+	 * THE PRIMARY KEEPS ITS IDENTITY COLOUR AND MOVES ONLY THE ALPHA, which is
+	 * the `--acc-edge` argument in miniature: the edge carries the brand, so a
+	 * neutral boundary here would delete the one thing marking Next apart from
+	 * Back. At 55% it composited to #817435 and measured 2.76:1 against the
+	 * button's OWN 9% gold wash -- the ground actually behind it, since a
+	 * border paints inside the border box -- under the 3:1 a control edge
+	 * carries. 75% measures 3.85:1 against that wash and 4.50:1 against the
+	 * plate outside it, so it clears on both sides and is still a tint rather
+	 * than solid gold, which leaves the hover step up something to say.
+	 */
 	.tour-btn.primary {
 		color: var(--gold, #c8a848);
-		border-color: color-mix(in srgb, var(--gold, #c8a848) 55%, transparent);
+		border-color: color-mix(in srgb, var(--gold, #c8a848) 75%, transparent);
 		background: color-mix(in srgb, var(--gold, #c8a848) 9%, transparent);
 	}
 	.tour-btn.primary:hover {

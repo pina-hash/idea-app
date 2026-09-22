@@ -1502,6 +1502,15 @@
 				"fix",
 				"reading"
 			]
+		},
+		{
+			"date": "2026-09-22",
+			"title": "Arcs go the way you drew them, and the tour's buttons are easier to hit",
+			"body": "Two fixes. In IdeaCAD, dragging the end of an arc used to pull it off its own curve, which made the shape impossible to extrude later. Now the end slides around the arc instead: the size stays put and only the angle follows your cursor. Drawing an arc on a plane with no sketch open also used to swing the wrong way round if you clicked below where you started, giving you almost a full circle instead of the small arc you aimed at. It now goes the way you clicked. Separately, the buttons on the welcome tour that pops up the first time you sign in, Back, Next, Skip tour and the close X, were too small to hit reliably on a phone. They are full size now.",
+			"tags": [
+				"ideacad",
+				"tour"
+			]
 		}
 	]
 }
