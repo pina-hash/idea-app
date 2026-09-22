@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { TOUR_SEEN_KEY } from '$lib/tour/orientation';
+	import { PATHWAY_DEFER_MAX_AGE_MS, deferPathwayPicker } from '$lib/PathwayPicker.svelte';
 	import HomePage from '../../+page.svelte';
 	import { store, seedPreferences } from './store.svelte';
 
@@ -24,7 +25,27 @@
 	const reset = () => {
 		try {
 			localStorage.removeItem(TOUR_SEEN_KEY);
-			sessionStorage.removeItem('pathway-picker-dismissed');
+			/*
+			 * THE PATHWAY SHEET IS RESET THROUGH THE PICKER'S OWN WRITER, NOT BY
+			 * NAMING ITS KEY.
+			 *
+			 * This line used to be `sessionStorage.removeItem('pathway-picker-
+			 * dismissed')`, which is precisely where ledger 0276 moved the
+			 * deferral OUT of -- so the control went on clearing a key nothing
+			 * writes any more and silently stopped resetting the one thing it is
+			 * named for. `PathwayPicker.svelte` keeps that key module-private on
+			 * purpose (its own header: two copies of "has this been deferred" is
+			 * the pair that drifts, and `HomeTour` was already taken off its
+			 * inline copy), so this is deliberately NOT a third spelling of it.
+			 *
+			 * Writing a deferral stamped a week and a millisecond ago is the same
+			 * answer as no deferral at all, through the same rule:
+			 * `pathwayPickerDeferred` is `now - at < PATHWAY_DEFER_MAX_AGE_MS`.
+			 * It also shadows the legacy session key this line used to clear,
+			 * which that predicate consults only when there is no durable record
+			 * -- so one call resets both stores.
+			 */
+			deferPathwayPicker(Date.now() - PATHWAY_DEFER_MAX_AGE_MS - 1);
 		} catch {
 			/* nothing to clear */
 		}
