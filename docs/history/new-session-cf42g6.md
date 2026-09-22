@@ -348,6 +348,29 @@ M10, an own key holding `undefined` -- which answers identically under
 the console's USE of it is pinned by the browser spec. **Neither instrument covers
 both halves, and only one of them runs in CI.**
 
+## The suite, and the one thing it caught
+
+**`npm test`: 528 of 529 files and 9887 of 9889 tests green on the first clean
+run, with the 2 failures BELONGING TO THIS BUNDLE and now fixed.**
+`tests/derived-numbers.test.ts` reddened because a new browser spec exists in
+`routes/` with no measurement under `measured/` -- which is precisely what that
+test is for, and `npm run verify:counts` had said so in words
+("1 spec(s) in this tree have no measurement under measured/") before the suite
+did. `npm run verify:readme -- --route "state=section"` measured it: 40
+measurements, 0 outside threshold, `dirty: false` at `306a497c`. The store now
+holds 242 specs, 484 runs, 8834 measurements. Green after.
+
+Two notes on running it. **The filter matches the spec's PATH, not its
+filename**, so `--route grading-bulk-state-section` answers "No routes matched"
+and `--route "state=section"` is the form that works; and **`verify:readme`
+takes no `--port`**, unlike `run.mjs`. Neither is a defect, and both cost a
+cycle here.
+
+**`run-tests.mjs` was right and the wrapper's exit code was not**: the
+background job reported `exited with code 0` while the tool's own last line
+said it was failing the process. That is the trap its header documents, seen
+live -- the summary line is the truth.
+
 ## Four files outside the prompt's Owns line
 
 Reported rather than buried, with the reason each was needed:
