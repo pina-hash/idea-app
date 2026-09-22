@@ -12,7 +12,7 @@
 - Migration permitted: no. Claims: 1-8. Six confirmed, ONE WRONG, one confirmed
   with its stated mechanism wrong.
   Highest on origin/main at issue: 0217
-- Status: issued
+- Status: pushed
 - Branch: `claude/new-session-ht1e8l`
 - Notes: CLAIM 5 IS THE ONE THAT WAS WRONG, and it was wrong in the direction
   the prompt warned about: it says the menu "ends up painted over the page
