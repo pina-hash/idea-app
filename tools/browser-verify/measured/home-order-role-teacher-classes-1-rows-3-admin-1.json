@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "home-order-role-teacher-classes-1-rows-3-admin-1.mjs",
+	"date": "2026-09-22T19:21:47.537Z",
+	"sha": "49ab3229926c648a0865918c6642a2632467b575",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 50,
+	"outsideRows": [],
+	"ms": 6610
+}
