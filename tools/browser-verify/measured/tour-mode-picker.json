@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "tour-mode-picker.mjs",
+	"date": "2026-09-22T04:19:32.982Z",
+	"sha": "3793ea2cfe4e7354fadb9b3cef985abd63a1084e",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 28,
+	"outsideRows": [],
+	"ms": 7367
+}
