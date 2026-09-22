@@ -41,6 +41,18 @@
   session's own expected value for a sibling snap -- 39, not 30, because the
   chest's outer face is at 33 and the bench's inherited wall is 6.
 
+  Two suite failures this bundle CAUSES and cannot honestly fix, both
+  structural consequences of being a lane that carries a migration, both
+  isolated at the branch point rather than inferred:
+  `tests/db/migrations-applied-record.test.ts` wants a record under
+  `docs/migrations-applied/` for every migration file at 0193 or above, and
+  0224 has never been applied -- writing one would contradict that directory's
+  own first sentence ("Nothing here is a plan").
+  `tests/db/migration-0177-tombstone.test.ts` wants the migration series
+  contiguous, and 0224 leaves 0219 through 0223 as holes nothing claims,
+  because this prompt assigned 0224 and forbade any other number. Both tests
+  are outside this lane's ownership and are reported rather than edited.
+
   Left for somebody else, both named in the history entry:
   `maps-edit-state-place.mjs` and `maps-editor-state-room.mjs` carry flaky
   pointer-drag probes that drop the first drag on the branch point as well as

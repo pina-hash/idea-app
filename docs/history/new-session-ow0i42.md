@@ -320,6 +320,21 @@ the map would have gone blank rather than degraded.
   are blocked, so the type in every measurement above is the fallback stack.
 - The editor's wall band was not driven at a zoom other than fit.
 
+## A scope note
+
+The prompt's ownership list named `src/lib/maps/`, `src/routes/maps/`, the
+migration, the spec, `tests/maps-*.test.ts` and
+`tools/browser-verify/routes/maps-*.mjs`. This bundle also touched
+`src/routes/dev/maps-viewer/` and `src/routes/dev/maps-edit/` -- the two maps
+dev harnesses -- because a browser check has nothing to measure without a
+fixture state to measure it on, and CLAUDE.md requires interactive work to be
+verified through a harness mounting the real component. They are maps-only
+files that nothing outside maps reads, and every existing state was left
+byte-identical: the wall fixtures are SEPARATE functions rather than numbers
+typed into the shared ones, precisely so the twelve pre-existing viewer states
+still measure what they measured. Nothing outside the maps subsystem was
+touched at all, which `git diff --stat origin/main...HEAD` shows in one screen.
+
 ## For Mr. Pina
 
 - **Migration 0224 is ready to paste** and has never been applied. Its tail
