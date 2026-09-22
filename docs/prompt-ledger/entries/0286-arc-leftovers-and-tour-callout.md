@@ -3,7 +3,7 @@
 - By: Lane B
 - Owns: `src/lib/ideacad/solid/sketch/editor.ts`, `src/lib/ideacad/solid/viewport/drawing.ts`, `src/lib/tour/SpotlightTour.svelte`, `tests/ideacad-solid-sketching-geometry.test.ts`, one new spec under `tools/browser-verify/routes/` with its `measured/*.json` and the generated counts block, `docs/prompt-ledger/entries/0286-*`
 - Migration permitted: no. Highest on origin/main at issue: 0217
-- Status: issued
+- Status: pushed
 - Branch: `claude/new-session-ig6vdi`
 - Notes: Three of the four items shipped as written and the fourth did not exist.
   `drawing.ts` needed NO edit -- item B's repair is `arcDraft`'s own direction rule
