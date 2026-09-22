@@ -1,208 +1,282 @@
 ---
-title: "The deploy probe reads the seeded history first, and keeps the objects as evidence"
+title: "A duplicated prompt, a merged fork, and the live controls that were left unpinned"
 date: 2026-09-13
-branches: ["claude/keen-davinci-xvhwdw"]
+branches: ["claude/keen-davinci-xvhwdw", "claude/new-session-3yjcxp"]
 migrations: []
 subsystems: ["migrations", "ci", "tooling"]
 ---
 
-`tools/deploy-probe.mjs` could only ever INFER an apply. `tools/idea-status.py`
-derives one catalog probe per migration -- the first object the file creates --
-and a migration it can derive nothing from got no probe at all, so the answer
-was status 3, CANNOT SAY. Five separate lanes stopped at that gate in one week.
-It was unavoidable while nothing recorded what had been applied.
+This bundle was issued to make `tools/deploy-probe.mjs` read the seeded
+`supabase_migrations.schema_migrations` before falling back to the object
+probes. **Three bundles were issued for that one job**, and by the time this
+one finished, its work was already on `integration`, merged by the third.
 
-`supabase/data/0209-seed-migration-history.sql` gave the database a record of
-its own. Ledger 0209's closing note named reading it as the obvious next
-bundle, in a different file, with a different owner, and a different decision
-about what counts as evidence. This is that bundle.
+What is left here is the part none of them had: the evidence that the two
+privilege decisions in the merged probe are load-bearing.
 
-## The precondition is a stop, and it could not be met here
+## Three prompts, one job, and why no duplicate check could have caught it
 
-The prompt made the seed's paste a precondition and said to say so plainly if
-it could not be verified. **It cannot be verified from a cloud container and
-was not.** `IDEA_MIGRATION_URL`, `DEPLOY_PROBE_URL` and
-`SUPABASE_SERVICE_ROLE_KEY` are all unset here and there is no `.env` at all --
-measured, not assumed -- so there is no route to the database by which
-`supabase_migrations.schema_migrations` could be looked at.
+Ledger `0213` (this one), `0216` and then `0220` were all issued by the router
+chat, hours apart, naming overlapping ownership of `tools/deploy-probe.mjs`,
+`tests/deploy-probe*` and three named paragraphs of `CLAUDE.md`.
 
-So everything below was built and measured against the embedded harness with
-`0209-seed-migration-history.sql` applied to it, in both directions, through
-the real `psql` binary. **Production behaviour is unverified.** What the tool
-does on production the first time somebody runs it with a credential is a
-prediction, and the only thing this bundle can honestly claim is that it does
-the right thing against a database carrying exactly the state the seed writes.
+**This bundle's duplicate check ran three ways and came back clean, and was
+right to.** Every fetched remote ref's `docs/prompt-ledger/entries/` held
+nothing in the `0213` slot; the live GitHub contents API for `main` and
+`integration` held nothing; and the string `0213` across every ref's tree and
+commit messages matched exactly one thing -- the MIGRATION `0213` on ledger
+0212's branch, a different namespace. **0216's entry records a three-way check
+that came back clean too**, for the mirror-image reason. Neither was wrong.
+`docs/prompt-ledger/README.md` names that limit in its own words and says
+nothing short of a lock closes it. This is the first time it has been hit twice
+in one day on one file.
 
-## A row is a claim, the object is evidence, and the object wins
+**Three sessions agreeing independently is worth more than any one of them.**
+All three reached the same design -- history first, object probes kept, the
+object deciding wherever it ran, status 3 preserved -- and two of them
+independently found the same `psql` command-tag defect and independently
+concluded that the third stale claim ledger 0209 named lives in
+`.github/workflows/deploy.yml` and appears nowhere in `CLAUDE.md`. Two sessions
+checked the same sentence against the tree and the tree won both times.
 
-The prompt required the tool's own header to say which of the two is believed
-when they disagree, and why. It does, and the asymmetry underneath it is the
-half worth writing down here.
+## Two decisions where the merged version overruled this branch, both correctly
 
-**A ROW IS A CLAIM.** It says somebody -- the seed, or
-`tools/apply-migration.mjs` -- believed a file had been applied. Nothing
-re-checked it afterwards, and 208 of the seed's rows were written from the
-repository's own records rather than from the database. **A FALSE PROBE IS
-EVIDENCE**: the database itself saying the object is not there. So a row
-claiming an apply whose object is absent is NOT APPLIED, status 2, and the
-disagreement is printed by name rather than folded into the tally. That is the
-one failure the seed introduces as a possibility, and the object probes are the
-only thing that catches it, which is why they are kept.
+**The `psql` command tag is handled by labelled rows, not by `--quiet`.** This
+branch found the defect -- `set transaction read only;` emits a bare `SET` line
+that `--tuples-only` does not suppress, so it landed in the version set as an
+extra "version" and inflated every count printed -- and fixed it at the source
+with the flag. `0220` gives every row a literal key column instead, on the
+grounds that a flag is one edit away from being dropped by somebody tidying an
+argument list and nothing would fail loudly when it went. That is the better
+fix and this branch's was worse.
 
-**AN ABSENT ROW IS SILENCE, NOT A DENIAL**, and that is why the asymmetry is
-not an inconsistency. The table is not exhaustive by construction: the seed
-stops at `0211` and every migration pasted by hand afterwards leaves no row
-behind. So a missing row with a TRUE probe is APPLIED -- with the gap named in
-the report, because `.github/workflows/migrate.yml` reads that table to choose
-what to apply next and a record that is behind will make it re-offer something.
+**`cannotRun` on an unreadable table is written down as REJECTED rather than
+left undocumented.** 0216 argued that a failure after the preflight says
+`present` is an anomaly and should stop the run; this branch argued it should
+degrade. The merged header carries both and says why the degrade wins: the
+narrowest rung is not a weaker answer, it is the pre-seed answer, which fails
+closed by construction. A disagreement between two sessions is worth more
+recorded than resolved silently.
 
-**AND STATUS 3 SURVIVES.** A row is a licence to answer where the machine
-previously had nothing to say, never a licence to answer where nothing was
-checked. No row AND no probe is still 3. A database with no history table at
-all answers exactly as it did before this bundle, probe by probe, 3 included --
-asserted as an EQUALITY against the explicit form rather than by reading the
-default, because `tools/apply-migration.mjs` calls `verdicts` with two
-arguments and must keep the behaviour it had.
+## The two fixes that survived, and what they were fixing
 
-    row   object   ->  verdict
-    yes   true         APPLIED       both agree
-    yes   false        NOT APPLIED   the evidence wins
-    yes   (none)       APPLIED       what 0209 bought
-    no    true         APPLIED       silence, not a denial; the gap is named
-    no    false        NOT APPLIED   both agree
-    no    (none)       CANNOT SAY    status 3, unchanged
-    --    any          exactly as before the table existed
+**`to_regclass` RAISES for the role this tool is built for.** The presence
+query resolved a NAME, on the stated grounds that `to_regclass` "returns null
+instead of raising". It does not, for a role with no USAGE on the schema --
+resolving a qualified name needs that privilege. Measured on a real Postgres,
+as a role holding CONNECT and nothing else, against a database where the table
+exists with 208 rows in it:
 
-## The signature was widened additively, so no other file changed
+    to_regclass('supabase_migrations.schema_migrations')
+      -> ERROR: permission denied for schema supabase_migrations
+    the pg_class lookup
+      -> present
 
-`verdicts(probes, rows, history)` takes the record as an OPTIONAL third
-argument defaulting to "the record cannot speak". `tools/apply-migration.mjs`
-imports `verdicts` from this file and calls it with two, and
-`tests/workflows.test.ts` pins that import list by name. Widening rather than
-changing is what let this bundle leave that file alone entirely.
+That role is not a hypothetical: the file's own `information_schema` section
+says "A role created for this job holds nothing but CONNECT". `pg_class` and
+`pg_namespace` are readable by PUBLIC and filtered by neither privilege, which
+is the same fact that section already turns on one paragraph up.
 
-## Reading the table is two round trips, and it has to be
-
-`supabase_migrations.schema_migrations` is an ordinary table, not a catalog.
-The deploy role holds nothing but CONNECT, and **a `select` a role may not run
-raises `permission denied` at executor startup**, which would abort the single
-transaction the object probes ride in and take the whole answer down with it. A
-`case` guard does not help: the permission is checked for every range table in
-the statement, not per branch.
-
-So the existence and the privilege are asked of `pg_catalog` FIRST, and the
-rows are read only if that came back readable. **Measured rather than argued**:
-the exact statement `readHistory` would send if it skipped the preflight, run
-as a role with no grant, raises `permission denied`. That assertion is in the
-suite, so the preflight cannot quietly become ceremony.
-
-Every failure on that path degrades to the object probes with a REASON on
-stderr, never an exception and never an empty set of versions. An empty set
-would report every migration unrecorded and refuse the deploy on a transient
-error, which is why `versions: null` and `new Set()` are deliberately different
-things and a mutant that collapses them is killed by four assertions.
-
-## Three defects the measurement found, none of which reasoning would have
-
-**`to_regclass` NEEDS SCHEMA USAGE, AND THE PREFLIGHT IS BUILT FOR A ROLE THAT
-HAS NONE.** The first version resolved the NAME. Resolving a qualified name
-needs USAGE on its schema, so for exactly the role this tool runs as it answers
-NULL for a table sitting right there -- and the tool would have told an
-operator to paste a seed the database already had. Measured: `present: false`
-through `to_regclass` and `present: true` through `pg_catalog.pg_class` for the
-same role on the same database. `pg_class` and `pg_namespace` are readable by
-PUBLIC and filtered by neither privilege, which is the same fact the file's
-`information_schema` section already turns on.
-
-**`readable` IS TWO PRIVILEGES.** `has_table_privilege` answers about the
+**`readable` is TWO privileges.** `has_table_privilege` answers about the
 table's own ACL and says nothing about the schema, so a role granted SELECT on
-the table and nothing on `supabase_migrations` read `true` and would then have
-failed the real select with `permission denied for schema`. Both are asked now,
-with a three-step control in the suite: no grants, table only, then both.
+the table and nothing on `supabase_migrations` would pass a table-only check
+and then fail the real select with `permission denied for schema`.
 
-**`psql` PRINTS ITS COMMAND TAGS ON STDOUT UNDER `--tuples-only`.** The
-statements open with `set transaction read only;`, so a bare line reading `SET`
-arrived ahead of the rows -- measured, `"SET\n0001\n0002\n"` against
-`"0001\n0002\n"` with `--quiet`. The object probes never noticed because they
-discard any line that is not `<int>|<t|f>`; the history read has no such shape
-to filter on and silently gained a 209th "version" called `SET`, which matched
-no migration and inflated every count the tool printed. Fixed at the source
-with `--quiet` rather than downstream, because a filter there would be a
-second, softer copy of "what a version is".
+## What this branch actually adds, and why it is the part that was missing
 
-A fourth was found by the test file failing rather than by a browser: `verdicts`
-assumed its caller had already normalized the version set, which is an
-invariant living in the wrong place. Get it wrong and every migration reports
-`unrecorded`, which reads as a CANNOT SAY and is therefore never investigated.
-The lookup owns the normalization now.
+Both fixes are on `integration`. **None of the controls that pin them is.**
+Measured on `integration`'s own `tests/db/deploy-probe-history-live.test.ts`:
 
-## What was measured
+    create role                    0
+    has_schema_privilege           0
+    permission denied for schema   0
+    usage                          0
 
-- **`svelte-check`: 0 errors, 37 warnings in 20 files, 31/5/1.** Re-derived on a
-  clean `git worktree` at the branch point `8fe7a076` -- a baseline measured on
-  the tree under test is not a baseline -- and again on the working tree.
-  Identical. **`CLAUDE.md`'s stated figure needed no correction**, which is the
-  first time in six readings; the two placeholder `$env` values were exported
-  before the sync, without which the run reports 14 phantom errors in 31 files.
-- **The branch point was GREEN**: 458 files, 8682 tests, all passed, at
-  `8fe7a076` in the same worktree.
-- **The whole CLI, end to end, through real `psql` against a real Postgres.**
-  `tests/deploy-probe-cli.test.ts` plants the objects `0209` and `0210` create
-  by hand, seeds the history, and drives `node tools/deploy-probe.mjs`. The
-  window `--since 209` is chosen for what the derivation CANNOT do with it:
-  `idea-status.py` derives nothing at all for `0211`, so it is the migration
-  this tool could only ever have answered CANNOT SAY about. With the row it
-  answers `record-only` APPLIED and the process exits 0. Without the row -- the
-  same fixture minus one function, so the seed's own conditional withholds it --
-  it answers `unknown` and exits 3. **That pair is the bundle.**
-- **A mutation proof, judged by the summary line and never by vitest's exit
-  code.** Eleven permissive mutants across the decision matrix, the degradation
-  ladder, the two preflight privileges and the `psql` invocation. The target
-  file is copied into memory and restored from that copy, never with
-  `git checkout --`, which is a discard-to-HEAD and would have taken this
-  session's uncommitted work with it.
-- **The full suite**, at the end, on the merged tree.
+Every case in that file runs as the cluster owner, which reads anything. So the
+choice of `pg_class` over `to_regclass`, and both halves of the two-privilege
+check, are unpinned there: revert any of them and nothing reddens. **A check
+that has never failed has not been tested**, and these had not.
+
+Three controls, all against a CONNECT-only role on a real Postgres:
+
+- **Control 5** puts both spellings to that role on one database, so the
+  comparison is a measurement rather than a claim.
+- **Control 6** pins both privilege halves from BOTH directions. It needs a
+  second role: the first gains the table then the schema, so it never once asks
+  a role that has the schema and not the table -- and without that mirror,
+  dropping the TABLE half of the conjunction SURVIVES. That was found by the
+  mutation proof, not by reading.
+- **Control 7** pins the degrade: `versions` null rather than an empty record,
+  and the verdicts coming out as the pre-seed ones.
+
+Mutation-proved against `integration`'s own implementation: five permissive
+mutants -- reverting to `to_regclass`, dropping either privilege half,
+collapsing unreadable into an empty record, and narrowing the catalog lookup's
+relkind list -- **all five killed, no survivors**, target restored to its exact
+md5.
 
 ## What was NOT verified
 
-- **Anything against production.** There is no credential and no route. The
-  seed's paste is unconfirmed and so is every claim about what the live
-  database now holds.
-- **The merge to `main`, which this bundle is blocked from making by its own
-  subject.** Item 4 of the six-item checklist is
-  `node tools/deploy-probe.mjs --ref origin/integration` exiting 0.
-  `DEPLOY_PROBE_URL` is unset here, so it exits 1 -- cannot run, which is never
-  a pass. **The bundle that exists to end the probe's silence is stopped by it.**
-  That is not a defect in the checklist: item 4 is a question about production
-  and a container with no credential genuinely cannot answer it. What this
-  bundle changes is the answer the probe gives once somebody CAN run it.
+- **Anything against production.** `IDEA_MIGRATION_URL`, `DEPLOY_PROBE_URL` and
+  `SUPABASE_SERVICE_ROLE_KEY` are unset here and there is no `.env`, so whether
+  the seed has been pasted is unknown and every measurement above is against
+  the embedded harness with that seed applied to it.
+- **The merge to `main`, blocked by this bundle's own subject.** Item 4 of the
+  six-item checklist is `node tools/deploy-probe.mjs --ref origin/integration`
+  exiting 0. With no credential it exits 1 -- cannot run, which is never a
+  pass. That is not a defect in the checklist: item 4 asks a question about
+  production, and a container with no credential cannot answer it. Production's
+  version string cannot be reported for the same reason.
 - **No browser pass**, as the prompt said.
 
-## The three `CLAUDE.md` paragraphs, and the one that was not there
+## Four instrument defects in this session's own tooling
 
-Ledger 0209 named three paragraphs as going stale the moment the seed is
-pasted. **One of the three is not in `CLAUDE.md` and never was.** Its entry
-reads "three of ITS paragraphs" and lists `deploy.yml`'s quoted "applying a
-migration ... needs a credential that can WRITE to production, which nothing in
-CI and no cloud session may hold" -- and that sentence lives in
-`.github/workflows/deploy.yml`, at its header and again in its status-2 summary
-block. `CLAUDE.md` carries no quotation of it.
+Recorded because every one produced a confident, wrong reading, and three were
+mine.
 
-What `CLAUDE.md` carries is its own statement of the same claim, in the
-Environment section: "Nothing in this repo can apply a migration, run an RPC,
-or sign in against production." That is the paragraph that was corrected, and
-the correction is the narrower sentence: **no SESSION holds either credential,
-and CI now holds both** -- `DEPLOY_PROBE_URL` read-only for `deploy.yml`, and
-`IDEA_MIGRATION_URL` with write access for `migrate.yml`, behind the scoped
-`idea_migrator` role.
+**A commit captured a mutant.** `git add -A` ran while the mutation script had
+`tools/deploy-probe.mjs` swapped out, committing `when true` in place of the
+`has_schema_privilege` check -- one of the two defects this bundle exists to
+fix. It was unpushed and was amended, and the fix was verified by reading the
+markers back out of `HEAD` rather than off the working tree. **The rule that
+follows is the one `CLAUDE.md` already states about `git checkout --` in
+mutation scripts, pointed the other way: a mutation run makes the working tree
+untrustworthy for as long as it is running, and nothing may be committed from
+it.** Staging only files the script does not touch, and diffing the INDEX copy
+against a known-good ref before committing, is what this session did afterwards.
 
-The third paragraph edited is the `IDEA_MIGRATION_URL` reader census, which
-said "read by that one tool and nothing else" and was **already false on
-`integration` before this bundle started**: `migrate.yml` hands the same secret
-to `tools/deploy-probe.mjs` under `DEPLOY_PROBE_URL` when no read-only one is
-set. Three holders, one writer, and the split named so a fourth reader is a
-decision rather than a drift.
+**The mutation script judged runs with a bare `npx vitest run`.** `npm test`
+passes `--no-file-parallelism`; a bare run does not, and these files boot
+databases on one shared cluster. Run in parallel they raced -- 4 failed, 33
+passed serially. A mutant "killed" by a race proves nothing, so that proof's
+numbers were discarded and the whole thing re-run rather than reported.
 
-`deploy.yml`'s own copy is left alone deliberately -- it is that file's to
-correct and this bundle owns three paragraphs of `CLAUDE.md` and no workflow --
-and is named here with its lines so the next bundle does not have to find it.
+**A fixture named a migration instead of building one.** An earlier test used
+`0211` as "the migration with no derivable probe", on the strength of the seed
+file's own header. `origin/main` moved mid-session and picked the file up, the
+derivation started answering for it, and both directions of the pair inverted
+at once. Which migration lacks a probe is a fact about two other tools and a
+git ref. A fixture resting on a fact it does not control has an expiry date
+nobody writes down.
+
+**`svelte-check` caught six errors the full suite could not.** Widening
+`readHistory` to return a third outcome made `history` nullable, and six call
+sites read it without narrowing. The suite was green throughout, because vitest
+does not typecheck. That is why the baseline is a separate instrument.
+
+---
+
+## Correction from ledger 0274, 2026-09-22: the controls were already there
+
+Everything above this line is the 2026-09-13 session's own account and is left
+byte-identical. This section is ledger 0274, which was issued nine days later to
+land or close the branch and found that the central claim above does not hold.
+**`CLAUDE.md` says a past bundle's account is corrected by a NEW entry rather
+than by an edit; this entry had never landed anywhere, so the correction is
+appended here rather than published uncorrected and answered somewhere else.**
+
+**WHY THE BRANCH STOOD FOR NINE DAYS, WHICH IS NOT WHAT ANYBODY ASSUMED.** CI on
+its tip `4890582c` was RED, and `integrate.yml` merges only a green branch, so a
+red tip is a branch that stands forever with nothing saying why. Two tests
+failed, 463 files passed of 465, and **neither failure was in this branch's own
+work**:
+
+    tests/deploy-probe-cli.test.ts > ENDS STATUS 3: ... exits 0
+      Error: Command failed: git commit-tree ... Author identity unknown
+      fatal: empty ident name (for <runner@runnervmlun5p...internal.cloudapp.net>)
+
+    tests/db/migrations-applied-record.test.ts > every record names a migration
+    file that exists, and hashes it correctly
+      0210-determined-albattani-16az27.md:
+        expected '48a4ad20...' to be '550f5597...'
+
+The first is a fixture that shells `git commit-tree` and a GitHub runner that
+has no git identity: it passes on any machine where a person has configured one
+and fails on every runner, which is the (c) answer -- environment-dependent, and
+invisible locally. The second is a sha drift on the `0210` applied record. Both
+were fixed on `integration` in the 164 commits the branch was behind:
+`tests/deploy-probe-cli.test.ts` now passes `-c user.name=IDEA test fixture -c
+user.email=fixture@example.invalid` to every git call, and the `0210` record was
+reconciled. **Merging current `integration` clears both, and `npm test` on the
+merged tree is 527 files and 9829 tests, all passing.**
+
+**AND THE 106 LINES THIS BRANCH ADDS PIN NOTHING THAT IS NOT ALREADY PINNED.**
+The claim above is that `tests/db/deploy-probe-history-live.test.ts` on
+`integration` carries none of the CONNECT-only controls -- `create role` 0,
+`has_schema_privilege` 0, `permission denied for schema` 0, `usage` 0 -- and
+that therefore "reverting either fix reddens nothing". **The four marker counts
+are correct and the conclusion drawn from them is not, because the sweep was run
+over one file and the coverage is in its sibling.**
+`tests/deploy-probe-history.test.ts`, which this very file imports beside, carries
+`create role` 5 times, `probe_schemaonly` 3 times and `permission denied for
+schema` once -- **and it carried all of them at this branch's own tip on
+2026-09-13**, measured at `4890582c`, not acquired later. Its
+`answers present=TRUE for a role with no schema USAGE, which to_regclass did not`
+asserts, in one test and under `set role`, the whole of controls 5 and 6: that
+`to_regclass` raises for a role without USAGE, that the catalog query answers
+present for the same role, that SELECT-without-USAGE is not readable, that
+USAGE-without-SELECT is not readable **on a mirror role of its own**, and the
+positive control that granting both flips it. Control 7 is covered better still
+by `tests/deploy-probe-cli.test.ts`'s `degrades to the object probes when the
+role may not read the record, and says so`, which drives the REAL CLI as a REAL
+login role holding nothing but CONNECT and ends on a positive control of 208
+recorded rows -- where control 7 stubs the transport.
+
+**Measured rather than argued, by the mutation proof this bundle was asked for.**
+Three permissive mutants of the two privilege decisions -- reverting the
+`pg_class` scalar subquery to `to_regclass`, dropping the `has_schema_privilege`
+half of `readable`, dropping the `has_table_privilege` half -- each applied
+alone, each judged by `npm test` over the four deploy-probe suites with the
+summary line parsed out of stdout AND stderr, each restored from an in-memory
+byte copy and md5-checked back to `97c56b96ff59a95566b5a5840ce3842e`:
+
+    mutant                     with the 106 lines      without them
+    M1 to_regclass             KILLED 4 failed/66      KILLED 2 failed/65
+    M2 drop has_schema_priv    KILLED 3 failed/67      KILLED 2 failed/65
+    M3 drop has_table_priv     KILLED 2 failed/68      KILLED 1 failed/66
+
+**No mutant survives the removal.** In every row the killer present on both
+sides is `tests/deploy-probe-history.test.ts`'s single CONNECT-only test. So the
+106 lines are a second implementation of a check that already exists, which is
+the one thing `CLAUDE.md`'s working conventions name outright: *a second
+implementation of a check is the thing that quietly stops matching.* They are
+not landed. The two roles they create, `probe_connect_only` and
+`probe_schema_only`, are also CLUSTER-WIDE objects created with no
+`if not exists` on the one shared cluster, one underscore away from the
+`probe_schemaonly` the sibling file already creates there.
+
+**What is kept is this entry.** Three prompts issued for one job, two decisions
+where the merged version overruled this branch with a better reason, and four
+instrument defects -- a commit that captured a mutant, a mutation script judging
+through a race, a fixture that named a migration instead of building one, and
+six type errors a green suite could not see -- are not duplicated anywhere and
+are the part of this branch worth having.
+
+**And the lesson is a generalisation of one this entry already contains.** It
+records a fixture resting on a fact it did not control, and calls that an expiry
+date nobody writes down. A coverage sweep scoped to one filename is the same
+mistake pointed at the test suite instead of at the fixture: `create role 0` was
+a true reading of a file and a false answer to the question being asked. **A
+claim that nothing pins a decision is a claim about the whole suite, so the
+sweep is the whole suite** -- or, better, it is the mutation proof itself, which
+cannot be scoped to the wrong file because the thing it measures is whether
+anything at all goes red.
+
+**Not verified by this bundle.** Anything against production:
+`DEPLOY_PROBE_URL`, `IDEA_MIGRATION_URL` and `SUPABASE_SERVICE_ROLE_KEY` are all
+unset in a cloud container and a repository secret never reaches one, so
+`tools/deploy-probe.mjs` cannot be run against the real database from here and
+the applied state was read from `docs/migrations-applied/` instead. No browser
+pass. `npm run verify:readme` was deliberately NOT run in its writing form: it
+rewrites `README.md` and every file under `measured/`, which is outside this
+bundle's owned paths. `npm run verify:counts -- --check` agrees with the tree.
+
+**For Mr. Pina.** `tools/deploy-probe.mjs` was not touched: no defect was found
+in it and its blob is identical to `origin/integration`'s. The branch's commits
+are contained in this one, so `integrate.yml` will delete
+`claude/keen-davinci-xvhwdw` once this lands. **If you want the 106 lines after
+all, they are not gone** -- they are the diff between `4890582c` and
+`origin/integration` for `tests/db/deploy-probe-history-live.test.ts`, and
+restoring them is one `git checkout`. The judgment this bundle made is that a
+duplicate control is worse than no control, because it reads as coverage; it is
+a judgment and it is reversible.
