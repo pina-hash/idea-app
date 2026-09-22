@@ -42,7 +42,7 @@
 	import type { WorkspaceApi } from './workspace-api';
 	import type { FeatureOf, ResolvedPlane, SketchProjection } from './types';
 	import { SketchSession, constraintLabel, constraintOffers, entityLabel, type Commit, type ConstraintOffer, type SessionContext, type SessionResult, type SketchTool } from './sketch/editor';
-	import { lift } from './sketch/model';
+	import { inconsistentArcs, lift } from './sketch/model';
 	import { editingGuides } from './viewport/sketch-layer';
 	import { drawingSettings, polygonSidesOk, POLYGON_SIDES_REFUSAL } from './viewport/drawing';
 
@@ -55,7 +55,7 @@
 		{ id: 'line', word: 'Line', hint: 'Click each corner. Click the first point to close, or press Enter to stop.', write: true },
 		{ id: 'rectangle', word: 'Rectangle', hint: 'Drag from one corner to the opposite corner.', write: true },
 		{ id: 'circle', word: 'Circle', hint: 'Drag from the center out to the radius.', write: true },
-		{ id: 'arc', word: 'Arc', hint: 'Click the center, then the start, then the end.', write: true },
+		{ id: 'arc', word: 'Arc', hint: 'Click the center, then the start, then swing around to where it ends. Hold Shift for the long way around.', write: true },
 		{ id: 'polygon', word: 'Polygon', hint: 'Drag from the center to the first corner.', write: true },
 		{ id: 'trim', word: 'Trim', hint: 'Click the part of a line, arc or circle to remove, between where it crosses others.', write: true },
 		{ id: 'extend', word: 'Extend', hint: 'Click a line near the end to run on to the next entity.', write: true },
@@ -75,6 +75,23 @@
 	const activeTool = $derived(TOOLS.find((t) => t.id === tool) ?? TOOLS[0]);
 	/* A hover id can outlive its entity by one commit (a fillet removes the corner under the pointer), so the note names only what is still there. */
 	const hoverNote = $derived(sketch && hovered && sketch.entities.some((e) => e.id === hovered) ? `${entityLabel(sketch.entities, hovered)} under the pointer` : '');
+	/**
+	 * AN ARC WHOSE ENDS SIT AT DIFFERENT DISTANCES FROM ITS CENTER, SAID OUT
+	 * LOUD WHERE THE STUDENT IS WORKING. The arc TOOL can no longer make one,
+	 * but dragging an arc's end point in Select still can, and what happens
+	 * next is otherwise unreadable: the extrude refuses in the kernel's words
+	 * (`edge vertices do not agree with its authoritative curve trim`), and
+	 * adding any constraint anywhere in the sketch makes the solver pull the
+	 * end back onto the radius, moving whatever shares that point with it.
+	 *
+	 * IT IS A NOTICE AND NEVER A REFUSAL, deliberately. The same check at the
+	 * document boundary -- `validateFeature`, which gates BOTH the save and
+	 * the open -- would stop a sketch already carrying one from opening at
+	 * all, which takes a sketch the student can still repair by hand and makes
+	 * it unreachable. See the ledger entry for the measurements.
+	 */
+	const brokenArcs = $derived(sketch ? inconsistentArcs(sketch.entities) : []);
+	const arcNotice = $derived(brokenArcs.length ? `${brokenArcs.length === 1 ? `${entityLabel(sketch!.entities, brokenArcs[0])} has` : `${brokenArcs.length} arcs have`} ends at different distances from the center, so ${brokenArcs.length === 1 ? 'it cannot' : 'they cannot'} be built. Drag an end back onto the arc, or delete ${brokenArcs.length === 1 ? 'it' : 'them'} and draw again.` : '');
 
 	/** Pixels per sketch inch right now, from two lifted points: the one conversion every tolerance uses. */
 	function pixelsPerInch(plane: ResolvedPlane) { const a = api.project(lift(plane, [0, 0])), b = api.project(lift(plane, [1, 0])); return Math.max(1e-6, Math.hypot(b.x - a.x, b.y - a.y)); }
@@ -90,7 +107,7 @@
 	}
 	function sync() {
 		tool = session.tool; selected = [...session.selected]; hovered = session.hovered;
-		drawingNote = session.tool === 'line' && session.anchorCount ? `${session.anchorCount} point${session.anchorCount === 1 ? '' : 's'} placed. Click the first point to close, or press Enter to stop.` : session.tool === 'arc' && session.anchorCount ? (session.anchorCount === 1 ? 'Center placed. Click the start of the arc.' : 'Start placed. Click where the arc ends.') : session.pendingFillet && sketch ? `${entityLabel(sketch.entities, session.pendingFillet)} picked. Click the line it meets.` : '';
+		drawingNote = session.tool === 'line' && session.anchorCount ? `${session.anchorCount} point${session.anchorCount === 1 ? '' : 's'} placed. Click the first point to close, or press Enter to stop.` : session.tool === 'arc' && session.anchorCount ? (session.anchorCount === 1 ? 'Center placed. Click where the arc starts.' : 'Start placed. Swing around to where it ends. Hold Shift for the long way around.') : session.pendingFillet && sketch ? `${entityLabel(sketch.entities, session.pendingFillet)} picked. Click the line it meets.` : '';
 		tick++;
 		const id = api.editingSketch, key = session.selected.join(','); if (!id || key === published) return;
 		published = key;
@@ -167,10 +184,23 @@
 	const usesRegion = (f: FeatureOf<'extrude'>, region: string) => !f.regions || f.regions.includes(region);
 	const numberText = (form: HTMLFormElement) => (form.elements.namedItem('value') as HTMLInputElement).value;
 
+	/**
+	 * SHIFT MOVES THE PREVIEW, so it has to reach the session outside a pointer
+	 * event. `context()` defaults `shift` to false because the redraw effect
+	 * has no event to read it from, so without this the arc preview would show
+	 * the short way round until the pointer moved and then commit the long one
+	 * -- a smaller copy of the preview/commit disagreement this bundle exists
+	 * to remove. `setModifier` answers whether anything on screen actually
+	 * changes, so every other key costs no redraw.
+	 */
+	function modifier(e: KeyboardEvent) { if (e.key === 'Shift' && sketch && session.setModifier(e.type === 'keydown')) sync(); }
+
 	onMount(() => {
 		api.setSketchPointer(pointer);
 		window.addEventListener('keydown', keydown, { capture: true });
-		return () => { window.removeEventListener('keydown', keydown, { capture: true }); };
+		window.addEventListener('keydown', modifier);
+		window.addEventListener('keyup', modifier);
+		return () => { window.removeEventListener('keydown', keydown, { capture: true }); window.removeEventListener('keydown', modifier); window.removeEventListener('keyup', modifier); };
 	});
 	onDestroy(() => { api.setSketchPointer(null); api.clearGuides(); });
 	/* The editing look follows the sketch, the selection, the hover and every session change; the workspace's tool joins because its Escape/setTool clears the guides. */
@@ -184,6 +214,7 @@
 	{#if sketch}
 		<p class="status" role="status" data-testid="ideacad-sketch-status">{words[sketch.solve.classification] ?? sketch.solve.classification}{sketch.solve.dof ? ` · ${sketch.solve.dof} free` : ''}</p>
 		<p class="count">{sketch.entities.filter((e) => e.type !== 'point').length} entities · {sketch.constraints.length} constraints · {sketch.regions.length} closed {sketch.regions.length === 1 ? 'region' : 'regions'}</p>
+		{#if arcNotice}<p class="arc-notice" role="status" data-testid="ideacad-sketch-arc-notice">{arcNotice}</p>{/if}
 		<div class="tools" role="group" aria-label="Sketch tools">
 			{#each TOOLS.filter((t) => api.canWrite || !t.write) as t (t.id)}<button type="button" class="tool" class:active={tool === t.id} aria-pressed={tool === t.id} onclick={() => setTool(t.id)}>{t.word}</button>{/each}
 		</div>
@@ -238,7 +269,7 @@
 	{/if}
 </section>
 <style>
-	.sketch-editor{display:grid;gap:8px}.head{display:flex;justify-content:space-between;align-items:center;gap:8px}h2{margin:0;font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}h3{margin:0;font-size:15px;color:var(--text-2)}.status,.count,.hint{margin:0;color:var(--text-2);font-size:14px;line-height:1.35}
+	.sketch-editor{display:grid;gap:8px}.head{display:flex;justify-content:space-between;align-items:center;gap:8px}h2{margin:0;font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}h3{margin:0;font-size:15px;color:var(--text-2)}.status,.count,.hint{margin:0;color:var(--text-2);font-size:14px;line-height:1.35}.arc-notice{margin:0;color:var(--amber);font-size:14px;line-height:1.35}
 	.tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
 	button{min-height:44px;min-width:44px;padding:0 10px;border:1px solid var(--boundary);border-radius:5px;background:var(--surface-0);color:var(--text-1);font:600 15px Rajdhani,sans-serif;cursor:pointer}button:hover{background:var(--surface-2)}button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
 	button.tool.active{border-color:var(--green);color:var(--green);background:color-mix(in srgb,var(--green) 12%,var(--surface-1))}

@@ -24,7 +24,7 @@
  * commit and what to preview; drawing is `viewport/sketch-layer.ts`'s.
  */
 import { newEntityId } from '../features';
-import { pointOf, samples, isCurve, crossings, curveParam, curvePoint, rayHit, curveLength, TAU, type CurveEntity } from './model';
+import { pointOf, samples, isCurve, crossings, curveParam, rayHit, curveLength, arcPoint, arcSweepToward, TAU, type CurveEntity } from './model';
 import type { SketchConstraint, SketchEntity, Vec2 } from '../types';
 
 export interface SketchDraft { entities: SketchEntity[]; constraints: SketchConstraint[] }
@@ -119,6 +119,16 @@ export function removeEntity(sketch: SketchDraft, id: string): SketchDraft {
 /* ---------------------------------------------------------- graph helpers */
 const clone = (sketch: SketchDraft): SketchDraft => ({ entities: sketch.entities.map((e) => ({ ...e })), constraints: sketch.constraints.map((c) => ({ ...c })) });
 const near = (a: Vec2, b: Vec2, tolerance: number) => Math.hypot(a[0] - b[0], a[1] - b[1]) <= tolerance;
+/**
+ * The smallest arc a third click may ask for, in radians. Below it the sweep
+ * is zero or a whole turn, neither of which is an arc: the kernel refuses a
+ * zero span outright, and a whole turn is a circle, which has its own tool. At
+ * a one inch radius this is a twenty-five nanometre chord, so no click a
+ * student aims falls under it; what does is a click that lands EXACTLY on the
+ * center-to-start ray, which a snap onto an existing point or onto the origin
+ * can produce, and which is the case this refuses.
+ */
+const ARC_MIN_SWEEP = 1e-6;
 /** The point ids a curve names, in the order it names them. A point names itself. */
 export function entityPoints(entities: readonly SketchEntity[], id: string): string[] {
 	const e = entities.find((x) => x.id === id);
@@ -356,14 +366,39 @@ export function chainDraft(anchors: readonly Anchor[], closed: boolean): SketchD
 	}
 	return { entities, constraints };
 }
-/** An arc alone (no chord: inside a sketch an arc connects through its points) from a center anchor, a start anchor and the direction of the end. */
-export function arcDraft(center: Anchor, start: Anchor, towards: Anchor): SketchDraft {
-	const r = Math.hypot(start.at[0] - center.at[0], start.at[1] - center.at[1]), d = Math.hypot(towards.at[0] - center.at[0], towards.at[1] - center.at[1]) || 1;
-	const end: Vec2 = towards.point ? towards.at : [center.at[0] + (towards.at[0] - center.at[0]) * r / d, center.at[1] + (towards.at[1] - center.at[1]) * r / d];
+/**
+ * AN ARC ALONE (no chord: inside a sketch an arc connects through its points)
+ * from a center anchor, a start anchor and the DIRECTION of the end.
+ *
+ * THE THIRD CLICK IS A DIRECTION AND CANNOT BE A POSITION, WHICH IS WHY IT
+ * TAKES A `Vec2` AND NOT AN `Anchor`. The center and the start fix the radius
+ * between them, so the only thing a third click can still choose is how far
+ * round to go and which way. It used to be read BOTH ways: a click that
+ * snapped to an existing point became the end VERBATIM, at whatever distance
+ * from the center that point happened to sit, and every other click was
+ * projected onto the radius. The kernel refuses the first of those outright --
+ * `makeCircleArc3d` throws `edge vertices do not agree with its authoritative
+ * curve trim` for a mismatch of one part in a million, measured -- so the
+ * branch drew an arc with a radial jump in it that could never be extruded,
+ * and the PREVIEW took the other branch and showed a different arc from the
+ * one about to be committed. Both of those are gone by construction: the end
+ * is always `arcPoint`'s, which carries the start's radius, and a caller has
+ * nowhere to put a point id.
+ *
+ * THE DIRECTION IS THE SIDE THE CLICK FELL ON, and a stored arc still runs
+ * counter-clockwise from its start to its end -- a clockwise sweep is stored
+ * with the two SWAPPED, exactly as `filletCorner` below already does it. So
+ * the arc entity gains no field, the invariant every other reader assumes is
+ * unchanged, and an arc saved before this reads as it always did.
+ */
+export function arcDraft(center: Anchor, start: Anchor, towards: Vec2, major = false): SketchDraft {
+	const sweep = arcSweepToward(center.at, start.at, towards, major);
+	const end = arcPoint(center.at, start.at, sweep, 1);
 	const entities: SketchEntity[] = [];
-	const id = (a: Anchor, at: Vec2) => { if (a.point) return a.point; const pid = newEntityId(); entities.push({ id: pid, type: 'point', x: at[0], y: at[1] }); return pid; };
-	const c = id(center, center.at), s = id(start, start.at), e = id(towards, end);
-	entities.push({ id: newEntityId(), type: 'arc', center: c, start: s, end: e });
+	const id = (a: Anchor) => { if (a.point) return a.point; const pid = newEntityId(); entities.push({ id: pid, type: 'point', x: a.at[0], y: a.at[1] }); return pid; };
+	const c = id(center), s = id(start), e = newEntityId();
+	entities.push({ id: e, type: 'point', x: end[0], y: end[1] });
+	entities.push({ id: newEntityId(), type: 'arc', center: c, start: sweep > 0 ? s : e, end: sweep > 0 ? e : s });
 	return { entities, constraints: [] };
 }
 /** A draft whose one point `from` is replaced by the sketch's existing point `to`: how a drag-drawn circle centers on a corner that is already there. */
@@ -458,6 +493,8 @@ export class SketchSession {
 	hovered: string | null = null;
 	/** The line picked first for a fillet, waiting for its partner. */
 	pendingFillet: string | null = null;
+	/** Shift, as of the last pointer or key event: the arc tool's long-way-round. Held here rather than read from the context inside `preview`, because the panel redraws the preview OUTSIDE a pointer event and so has no modifier to hand it. */
+	private major = false;
 	private anchors: Anchor[] = [];
 	private dragFrom: Anchor | null = null;
 	private cursor: Snap | null = null;
@@ -465,8 +502,59 @@ export class SketchSession {
 	get anchorCount() { return this.anchors.length; }
 	get drawing() { return this.anchors.length > 0 || !!this.dragFrom; }
 	get dragging() { return !!this.drag?.moved; }
-	setTool(tool: SketchTool) { if (tool !== this.tool) { this.tool = tool; this.anchors = []; this.dragFrom = null; this.drag = null; this.pendingFillet = null; this.cursor = null; } }
+	setTool(tool: SketchTool) { if (tool !== this.tool) { this.tool = tool; this.anchors = []; this.dragFrom = null; this.drag = null; this.pendingFillet = null; this.cursor = null; this.major = false; } }
+	/** Shift pressed or released while no pointer event is in flight. Answers whether anything on screen changes, so a key that cannot move the preview costs no redraw. */
+	setModifier(shift: boolean): boolean {
+		if (shift === this.major) return false;
+		this.major = shift;
+		return this.tool === 'arc' && this.anchors.length === 2 && !!this.cursor;
+	}
 	private snapAt(at: Vec2, ctx: SessionContext, reference: Vec2 | null = null, exclude?: ReadonlySet<string>): Snap { return snapPoint(at, { entities: ctx.entities, radius: ctx.snapRadius, reference, exclude }); }
+	/**
+	 * Where an arc click lands. THE THIRD ONE IS A DIRECTION, so what comes
+	 * back for it is the point on the arc's own circle that the click points
+	 * at: the snap mark then sits where the end will actually be, and the
+	 * preview and the commit are handed the same position rather than two
+	 * readings of one click. Its `kind` is reported as NO SNAP whatever the
+	 * raw snap was, because every snap names a POSITION and a third click
+	 * cannot reach one -- a mark promising otherwise is the defect one level
+	 * down.
+	 */
+	private arcSnap(at: Vec2, ctx: SessionContext): Snap {
+		/*
+		 * THE SECOND CLICK IS REFERENCED TO THE CENTER, so a start can be
+		 * placed exactly level or plumb with it. THE THIRD IS REFERENCED TO
+		 * NOTHING, and that asymmetry is deliberate rather than an oversight.
+		 * Level and plumb move a click ONTO an axis, and on the third click
+		 * that axis is one the arc reaches from two sides: a click at 170
+		 * degrees lands on the 180 ray, where the two half circles are mirror
+		 * images and the normalization has to pick one -- so a student aiming
+		 * just below the far side got the half bulging the other way, which is
+		 * the reported defect in miniature. An exact quarter is worth less
+		 * than a direction that always follows the click, and a sketch that
+		 * needs the quarter exactly has a dimension for it.
+		 */
+		const snap = this.snapAt(at, ctx, this.anchors.length === 1 ? this.anchors[0].at : null);
+		if (this.anchors.length < 2) return snap;
+		const [c, s] = this.anchors;
+		/*
+		 * A SNAP MAY NEVER TURN A USABLE CLICK INTO A REFUSAL. A third click
+		 * near the origin snaps to the origin, which IS the center whenever
+		 * the student drew around it, and a click that snaps to an existing
+		 * point can land on the center the same way. Both are ordinary
+		 * actions. So the snapped position is used only while it still asks
+		 * for an arc, the raw one is used when it does not, and the refusals
+		 * in `down` are left for a click that genuinely asks for neither.
+		 */
+		const end = this.arcEnd(c.at, s.at, snap.at) ?? this.arcEnd(c.at, s.at, at);
+		return { at: end ?? snap.at, kind: 'none' };
+	}
+	/** Where an arc from `c` through `s` ends when a third click points at `towards`, or null when that click asks for no arc at all: on the center, so there is no direction, or along the center-to-start ray, so there is no sweep. */
+	private arcEnd(c: Vec2, s: Vec2, towards: Vec2): Vec2 | null {
+		if (near(towards, c, 1e-9)) return null;
+		const sweep = arcSweepToward(c, s, towards, this.major);
+		return Math.abs(sweep) < ARC_MIN_SWEEP || Math.abs(Math.abs(sweep) - TAU) < ARC_MIN_SWEEP ? null : arcPoint(c, s, sweep, 1);
+	}
 	private draft = (sketch: SketchDraft, ctx: SessionContext) => appendDraft({ entities: [...ctx.entities], constraints: [...ctx.constraints] }, sketch);
 	private current = (ctx: SessionContext): SketchDraft => ({ entities: [...ctx.entities], constraints: [...ctx.constraints] });
 	private refuse = (error: string): SessionResult => ({ changed: true, error });
@@ -498,12 +586,20 @@ export class SketchSession {
 			return { changed: true };
 		}
 		if (tool === 'arc') {
-			const snap = this.snapAt(at, ctx, null);
-			this.anchors.push({ at: snap.at, point: snap.point, kind: snap.kind });
-			if (this.anchors.length < 3) return { changed: true };
-			const [c, s, e] = this.anchors; this.anchors = [];
-			if (near(c.at, s.at, 1e-9)) return this.refuse('Pick the start of the arc away from its center.');
-			return { changed: true, commit: { label: 'Draw arc', sketch: this.draft(arcDraft(c, s, e), ctx) } };
+			this.major = !!ctx.shift;
+			const snap = this.arcSnap(at, ctx);
+			if (this.anchors.length < 2) {
+				/* Refused on the SECOND click rather than after a third: a start on top of its own center has no radius, and finding that out costs one more click than it needs to. */
+				if (this.anchors.length === 1 && near(snap.at, this.anchors[0].at, 1e-9)) return this.refuse('Pick the start of the arc away from its center.');
+				this.anchors.push({ at: snap.at, point: snap.point, kind: snap.kind });
+				return { changed: true };
+			}
+			const [c, s] = this.anchors;
+			if (near(snap.at, c.at, 1e-9)) return this.refuse('Click away from the center to say where the arc ends.');
+			const sweep = arcSweepToward(c.at, s.at, snap.at, this.major);
+			if (Math.abs(sweep) < ARC_MIN_SWEEP || Math.abs(Math.abs(sweep) - TAU) < ARC_MIN_SWEEP) return this.refuse('Click to one side of the start to say how far the arc goes around.');
+			this.anchors = [];
+			return { changed: true, commit: { label: 'Draw arc', sketch: this.draft(arcDraft(c, s, snap.at, this.major), ctx) } };
 		}
 		if (tool === 'rectangle' || tool === 'circle' || tool === 'polygon') {
 			const snap = this.snapAt(at, ctx, null);
@@ -542,7 +638,8 @@ export class SketchSession {
 			return { changed: true };
 		}
 		if (this.tool === 'line') this.cursor = this.snapAt(at, ctx, this.anchors.length ? this.anchors[this.anchors.length - 1].at : null);
-		else if (this.tool === 'arc' || ((this.tool === 'rectangle' || this.tool === 'circle' || this.tool === 'polygon') && !this.dragFrom)) this.cursor = this.snapAt(at, ctx, null);
+		else if (this.tool === 'arc') { this.major = !!ctx.shift; this.cursor = this.arcSnap(at, ctx); }
+		else if ((this.tool === 'rectangle' || this.tool === 'circle' || this.tool === 'polygon') && !this.dragFrom) this.cursor = this.snapAt(at, ctx, null);
 		else if (this.dragFrom) this.cursor = { at, kind: 'none' };
 		else this.cursor = null;
 		const kinds = this.tool === 'select' || this.tool === 'dimension' || this.tool === 'fillet' ? undefined : this.tool === 'trim' || this.tool === 'extend' ? CURVE_KINDS : null;
@@ -609,7 +706,14 @@ export class SketchSession {
 		if (this.tool === 'line' && anchors.length && cursor) polylines.push([...anchors, cursor.at]);
 		if (this.tool === 'arc' && anchors.length && cursor) {
 			if (anchors.length === 1) polylines.push([anchors[0], cursor.at]);
-			else { const [c, s] = anchors; polylines.push([c, s]); const draft = arcDraft(this.anchors[0], this.anchors[1], { at: cursor.at, kind: 'none' }); const arc = draft.entities.find((e) => e.type === 'arc') as CurveEntity; polylines.push(samples(draft.entities, arc)); polylines.push([c, curvePoint(draft.entities, arc, 1)]); }
+			else {
+				const [c, s] = anchors; polylines.push([c, s]);
+				const draft = arcDraft(this.anchors[0], this.anchors[1], cursor.at, this.major);
+				const arc = draft.entities.find((e) => e.type === 'arc') as CurveEntity;
+				polylines.push(samples(draft.entities, arc));
+				/* The second radius line runs to the NEW end, which is not `curvePoint(arc, 1)`: a clockwise arc is stored with its ends swapped, so the curve's own parameter 1 is the student's START and the guide would double the first line and leave the end unmarked. */
+				polylines.push([c, arcPoint(c, s, arcSweepToward(c, s, cursor.at, this.major), 1)]);
+			}
 		}
 		const from = this.dragFrom;
 		if (from && cursor) {
