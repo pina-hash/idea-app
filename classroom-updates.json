@@ -13,6 +13,12 @@
 	],
 	"entries": [
 		{
+			"date": "2026-09-22",
+			"title": "The pathway box no longer blocks the page",
+			"body": "If you were asked to pick your pathway and could not scroll, that is fixed. The box used to sit over the whole screen, and the page behind it moved without looking like it moved, so the site felt stuck. Now the page holds still while the box is up, you can close it by clicking anywhere outside it or pressing Escape, and if you choose to decide later it stays closed even after you reload. It will ask again in a week if you still have no pathway. You can also ask your instructor to set it for you.",
+			"tags": ["Home", "fix"]
+		},
+		{
 			"date": "2026-09-15",
 			"title": "Start your own model in IdeaCAD",
 			"body": "IdeaCAD opens with your documents, and a new model starts empty. Draw a shape, turn it into a solid, and build your own design. An IdeaCAD assignment now opens the separate modeling workspace; link your document to the assignment to share it with your instructor. Your older blade documents still open. Turn on IdeaBlade when you want to check a design against the competition limits. For printed parts, enter the finished part's weight or its Bambu Studio estimate; the program does not guess a weight from plastic density.",

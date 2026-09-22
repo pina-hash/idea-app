@@ -440,9 +440,31 @@
 	<section class="hero" data-tour="hero">
 		<div class="hero-eyebrow">Don Bosco Technical Institute - Technology Pathway</div>
 		<h1>Integrated Design, Engineering <span class="accent">&amp;</span> Art</h1>
+		<!--
+			ADDRESSED TO ANYONE AT THE SCHOOL, WHICH IS REPORT 13 (Mr. Pina,
+			2026-09-11): the subtitle "needs to be updated to properly reflect the
+			latest state of the website as a whole and not just for IDEA students
+			but for anyone who visits, the whole school".
+
+			The text it replaces -- "Your classes, your notebook, your coin
+			balance, and the training and games that go with them. Sign in and
+			everything saves." -- was authored in 9e23c961 on 2026-08-15 and was
+			every-clause about a signed-in IDEA student. FOUR launcher cards omit
+			`requiresAuth` and are reachable signed out (IDEA Maps, the IDEA Coin
+			Ledger, VANGUARD and Tournaments; see $lib/portal-apps.ts, whose maps
+			entry states the reason), so a visitor who read the old line and did
+			not sign in was told nothing about the four things already open to
+			them.
+
+			Three sentences, one claim each, in the order a stranger needs them:
+			what this is, what costs nothing, what signing in adds. The public
+			surfaces are named rather than gestured at, because "some things are
+			public" is not something anyone can act on.
+		-->
 		<p class="hero-sub">
-			Your classes, your notebook, your coin balance, and the training and games that go with them.
-			Sign in and everything saves.
+			Built for the whole school, not just the IDEA pathway. IDEA Maps, tournaments, the coin
+			leaderboard, and VANGUARD are open to anyone. Sign in for your classes, notebook, and coin
+			balance.
 		</p>
 		<div class="hero-meta">
 			<div class="hero-stat">
