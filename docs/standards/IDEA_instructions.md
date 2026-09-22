@@ -1405,16 +1405,16 @@ reports. A parallel-lane prompt ends:**
 >    one for your branch.
 > 3. The merge into `main` is clean. A conflict is resolved on `integration`, never on
 >    `main`.
-> 4. `node tools/deploy-probe.mjs --ref origin/integration` exits 0, or, where it
->    cannot run at all (exit 1, `DEPLOY_PROBE_URL` unset -- the ordinary state in a
->    cloud container), every migration `git diff --name-only
->    origin/main...origin/integration -- supabase/migrations/` names has a committed
->    applied record under `docs/migrations-applied/`, checked by number with the
->    missing set printed rather than summarized. Exit 2 or 3 from the probe is always
->    a stop; the substitute never applies over them, only over a probe that could not
->    run. A session taking the substitute route says so, prints the number set it
->    checked and the number set it found, and never reports the substitute as the
->    probe having passed. See decision 34
+> 4. `node tools/deploy-probe.mjs --ref origin/integration` exits 0. Exit 2 or 3 is a
+>    stop, and `CANNOT SAY` is never a pass. Where the probe cannot run at all (exit 1,
+>    `DEPLOY_PROBE_URL` unset -- the ordinary state in a cloud container), the substitute
+>    is: every migration `git diff --name-only origin/main...origin/integration --
+>    supabase/migrations/` names has a committed applied record under
+>    `docs/migrations-applied/`, checked by number with the missing set printed rather
+>    than summarized. The substitute never applies over an exit 2 or 3, only over a
+>    probe that could not run. A session taking the substitute route says so, prints the
+>    number set it checked and the number set it found, and never reports the substitute
+>    as the probe having passed. See decision 34
 >    (`docs/decisions/entries/34-gate-four-record-backed-answer.md`) for why this is
 >    not a weakening and for the two migration numbers, `0190` and `0191`, that are
 >    permanent holes rather than gaps.
@@ -3014,12 +3014,12 @@ component or token exists, the digest governs and the standard is corrected.
   every cloud container), by every migration the merge would newly deploy having a
   committed applied record under `docs/migrations-applied/`, checked by number with the
   missing set printed rather than summarized and never reported as the probe having
-  passed. `0190` and `0191` are permanent numeric holes, not gaps, and the decision entry
-  also corrects the exit-code wording itself: `EXIT.cannotRun` is `1` in
-  `tools/deploy-probe.mjs`'s own export, not `2` or `3`, so the old text's "Exit 2 or 3 is
-  a stop" never actually named the code a credential-less session hits. Items 1, 2, 3, 5
-  and 6, and the three-things-you-cannot-claim paragraph, are unchanged. `REGISTER.md`'s
-  `IDEA_instructions.md` row moves in the same commit.
+  passed. `0190` and `0191` are permanent numeric holes, not gaps, and the added text
+  names the exit code precisely: `EXIT.cannotRun` is `1` in `tools/deploy-probe.mjs`'s own
+  export, which the old text's "Exit 2 or 3 is a stop" never named -- that sentence stays,
+  verbatim, and the substitute is stated as what governs the case it left uncovered. Items
+  1, 2, 3, 5 and 6, and the three-things-you-cannot-claim paragraph, are unchanged.
+  `REGISTER.md`'s `IDEA_instructions.md` row moves in the same commit.
 
 - **2026-09-13 (4.28)** - THE TIER IS CHOSEN PER PROMPT AND IS NEVER A DEFAULT, which
   replaces the default this file stated until now: Opus 5 at `high` as the build tier
