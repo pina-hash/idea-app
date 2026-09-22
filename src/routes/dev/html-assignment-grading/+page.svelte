@@ -340,7 +340,35 @@
 
 <svelte:head><title>dev: grading console, ported HTML assignment</title></svelte:head>
 
-<div class="cr-root harness" data-testid="hx-grading-harness">
+<!--
+	THE REAL ROUTE'S OWN MEASURE, AND WITHOUT IT THIS FIXTURE MEASURED A
+	CONSOLE THAT DOES NOT EXIST (0288).
+
+	`src/routes/classroom/+layout.svelte` sets `--cr-measure-route` from
+	`classroomMeasure(loc)`, which answers `console` for `item-grade` -- and
+	`--measure-console` is `100%`, the window less the room's gutter. A harness
+	that omits it falls back through `classroom.css` to `--measure-page`
+	(60rem), so `main.cr-console` capped itself at 960px HERE while the page an
+	instructor opens takes the whole window.
+
+	THAT IS NOT A COSMETIC GAP. The rubric was withheld from a ported document
+	on a measurement taken on this route -- "the split gets 562 at 1440 and at
+	1920 alike, so the wide arrangement never has room" -- which was true of
+	this fixture and false of the console. Measured with the real measure in
+	place: 1009.6px at 1440 and 1489.6px at 1920, and 509.7px of document
+	rather than 280. A harness must mirror the whole mechanism it stands in
+	for, and this is what the gap cost.
+
+	`cr-app` goes with it, for the same reason and from the same answer: the
+	layout adds it exactly when the measure is `console`, and it is what turns
+	the console into a full-height application frame with three independently
+	scrolling regions. Setting the width without it would be half the mirror.
+-->
+<div
+	class="cr-root cr-app harness"
+	style="--cr-measure-route: var(--measure-console)"
+	data-testid="hx-grading-harness"
+>
 	<header class="hx-head">
 		<h1>Grading console, ported HTML assignment</h1>
 		<p class="hx-note">
