@@ -8,6 +8,7 @@
 	import LinkPreviewCard from '$lib/classroom/LinkPreviewCard.svelte';
 	import UnitManager from '$lib/classroom/UnitManager.svelte';
 	import { sortDrag } from '$lib/classroom/sort-drag';
+	import { anchored } from '$lib/shell/anchored';
 	import { itemLayoutOf, type ClassroomLayoutTransports } from '$lib/classroom/attachments';
 	import { COMPOSER_DISCARD_WARNING } from '$lib/classroom/composer-staging';
 	import type { AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
@@ -209,6 +210,13 @@
 	let editing = $state<string | null>(null);
 	let expanded = $state<Record<string, boolean>>({});
 	let openMenu = $state<string | null>(null);
+	/* THE TRIGGER THE OPEN MENU IS POINTING AT, for `use:anchored`.
+	   Exactly one menu is open at a time (`openMenu` is a single id), so this is
+	   one reference rather than one per row: the click that opens a menu is the
+	   click that names its anchor, taken from the event's own `currentTarget`
+	   rather than from a `bind:this` per iteration, which an `{#each}` would
+	   otherwise need an array to hold. */
+	let menuAnchor = $state<HTMLElement | null>(null);
 	let armDelete = $state<string | null>(null);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
@@ -1185,18 +1193,67 @@
 							</span>
 						{/if}
 					</span>
+					<!--
+						THE META LINE WRAPS, AND EACH FIELD IS ITS OWN UNBREAKABLE PIECE.
+
+						It was `nowrap` + `text-overflow: ellipsis` -- the exact rule
+						`.row-title` shed when it was fixed -- and the row simply does not
+						have the width for one line. Measured at 1196x1304 in manage mode
+						on /dev/classroom-split: a row is
+						select(30) + grip(44) + expand(30) + main(177) + menu(32), so the
+						text column is 143px WITH AN ITEM OPEN and 306px without, while a
+						full assignment line needs 349px. Widening the window buys nothing:
+						the pane is a fixed measure, so the box is the same at 1196, 1440
+						and 1920 (measured: 213px at all three on /dev/classroom).
+
+						So the ellipsis was not trimming a tail, it was eating the fields
+						Mr. Pina acts on -- at 143px the visible text was
+						"Assignment · Due Thu, Au": no time, no points, no category.
+
+						WRAPPING RATHER THAN DROPPING A FIELD. The alternative was hiding
+						the category under some width, and it hides a real value with
+						nothing on screen saying so; there are only ever four short fields
+						here, so the whole line fits in two lines at the narrowest pane and
+						one everywhere else. The SEPARATOR TRAVELS WITH THE FIELD IT
+						PRECEDES, inside the same flex item, so it can never dangle at the
+						end of a line or wrap onto one alone -- a line that wraps begins
+						"· ", which reads as a continuation, where a trailing "·" would
+						read as the truncation this is removing.
+
+						`&nbsp;` inside "N pts" is what keeps the number with its unit: the
+						pieces break at spaces when a piece is genuinely wider than the box
+						(only the date and an authored category ever are), and a value
+						split mid-way is the thing being fixed.
+					-->
 					<span class="row-meta">
-						<span class="row-kind">{itemKindLabel(item.kind)}</span>
+						<span class="meta-bit row-kind">{itemKindLabel(item.kind)}</span>
 						{#if item.kind === 'assignment'}
 							<!-- NO DUE SEGMENT WHEN THERE IS NO DUE DATE, matching ItemDetail:
 							     formatDue(null) is "No due date", which reads as a real value
 							     and renders the sentence "Due No due date". -->
-							{#if item.due_at}&middot; Due {formatDue(item.due_at)}{/if}
-							{#if item.points != null}&nbsp;&middot; {item.points} pts{/if}
+							{#if item.due_at}
+								<span class="meta-bit"
+									><span class="meta-sep" aria-hidden="true">&middot;</span>&nbsp;Due
+									{formatDue(item.due_at)}</span
+								>
+							{/if}
+							{#if item.points != null}
+								<span class="meta-bit"
+									><span class="meta-sep" aria-hidden="true">&middot;</span>&nbsp;{item.points}&nbsp;pts</span
+								>
+							{/if}
 						{:else}
-							&middot; {shortWhen(item.created_at)}
+							<span class="meta-bit"
+								><span class="meta-sep" aria-hidden="true">&middot;</span>&nbsp;{shortWhen(
+									item.created_at
+								)}</span
+							>
 						{/if}
-						{#if item.category}&nbsp;&middot; {item.category}{/if}
+						{#if item.category}
+							<span class="meta-bit"
+								><span class="meta-sep" aria-hidden="true">&middot;</span>&nbsp;{item.category}</span
+							>
+						{/if}
 					</span>
 				</span>
 			</a>
@@ -1210,12 +1267,53 @@
 						aria-haspopup="menu"
 						aria-label="Actions for {itemTitle(item)}"
 						data-testid="row-menu"
-						onclick={() => toggleMenu(item.id)}
+						onclick={(e) => {
+							menuAnchor = e.currentTarget as HTMLElement;
+							toggleMenu(item.id);
+						}}
 					>
 						<span aria-hidden="true">&#8942;</span>
 					</button>
 					{#if openMenu === item.id}
-						<div class="menu" data-testid="row-menu-open">
+						<!--
+							POSITIONED AGAINST THE VIEWPORT, by the shared
+							$lib/shell/anchored -- the same action InfoTip, the grading
+							console and RichTextEditor's popovers use, and whose own header
+							names a menu inside a scrolling region as the failure it exists
+							for. This was the last hand-rolled copy.
+
+							WHAT WAS WRONG, measured at 1196x1304 on
+							/dev/classroom-split/s-1/item/i-crowded?manage=1 with the pane
+							scrolled to its end: the menu opened at top=1379 against a pane
+							whose bottom edge is 1304, so the WHOLE 198px panel was below
+							the fold and nothing appeared at all. `.cr-nav` is
+							`overflow-y: auto` and 0277's `.cr-root` is `overflow: hidden`,
+							so there is nowhere below the pane for it to paint.
+
+							The panel was NOT mis-positioned by `.stream`'s multicol, which
+							was the standing theory: measured, the menu's top sits exactly
+							0.2rem under its trigger (1376 -> 1379.2) and its right edge is
+							its wrapper's, so `absolute` was doing what it was told. The
+							defect was only ever that nothing flipped it.
+
+							`prefer: 'below'` and `align: 'end'` reproduce the old
+							`top: calc(100% + 0.2rem); right: 0` exactly when there is room,
+							so a menu with space below opens where it always did; `gap: 3`
+							is that 0.2rem. No ancestor carries a `transform`, `filter` or
+							`contain` (measured on the whole chain up to `<body>`), which is
+							the one precondition the action cannot check for itself.
+						-->
+						<div
+							class="menu"
+							data-testid="row-menu-open"
+							use:anchored={{
+								anchor: menuAnchor,
+								open: openMenu === item.id,
+								prefer: 'below',
+								align: 'end',
+								gap: 3
+							}}
+						>
 							<div role="menu">
 							<button type="button" role="menuitem" disabled={busy} onclick={() => toggleEdit(item.id)}>
 								{editing === item.id ? 'Close editor' : 'Edit'}
@@ -1352,7 +1450,12 @@
 						{/if}
 					</span>
 					<span class="row-meta">
-						<span class="row-kind">Notebook check-in</span> &middot; {checkInMeta(checkIn)}
+						<span class="meta-bit row-kind">Notebook check-in</span>
+						<span class="meta-bit"
+							><span class="meta-sep" aria-hidden="true">&middot;</span>&nbsp;{checkInMeta(
+								checkIn
+							)}</span
+						>
 					</span>
 				</span>
 			{/snippet}
@@ -2420,13 +2523,35 @@
 		line-clamp: none;
 		overflow: visible;
 	}
+	/* See the note at the markup for the measurement this comes from. `baseline`
+	   rather than `center` so two wrapped lines sit on their own baselines and a
+	   short piece beside a tall one does not float; the row gap is small because
+	   these are continuation lines of ONE sentence, not separate rows. */
 	.row-meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		column-gap: 0.3rem;
+		row-gap: 0.05rem;
+		min-width: 0;
 		font-family: var(--font-mono);
 		font-size: 0.65rem;
 		color: var(--text-2);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
+	}
+	/* A field breaks at its own spaces only when it is genuinely wider than the
+	   box -- the date in the narrow pane, and an authored category. `min-width:
+	   0` is what lets it: without it a flex item's automatic minimum is its
+	   min-content and the line pushes the pane sideways instead of wrapping. */
+	.meta-bit {
+		min-width: 0;
+	}
+	/* The separator keeps the meta line's own ink rather than dropping to
+	   `--boundary`. CLAUDE.md's rule is that a separator glyph is a BOUNDARY and
+	   must never be painted with a hairline token; `--text-2` is already well
+	   clear of that 3:1 floor, and moving it DOWN to `--boundary` would spend
+	   contrast on the one line this bundle exists to make more readable. */
+	.meta-sep {
+		color: inherit;
 	}
 	.row-kind {
 		letter-spacing: 0.06em;
@@ -2537,12 +2662,39 @@
 		border-color: var(--boundary);
 		background: var(--surface-2);
 	}
+	/* WHAT IS LEFT HERE IS THE FALLBACK, and it has to stay -- the same split
+	   RichTextEditor's popovers carry. `use:anchored` writes `position: fixed`
+	   and two coordinates only while the menu is OPEN, so these rules are what
+	   print and what paints in the frame before the first placement. They are
+	   not a clamp layered over the action: when the action is running it
+	   overrides every one of them.
+
+	   `max-width` is the one thing the action cannot do for itself. Clamping
+	   keeps a panel's START on screen and lets a panel WIDER than the viewport
+	   run off the far edge, so the cap is what makes that unreachable -- and
+	   11rem of `min-width` on a 320px phone is otherwise free to do it. */
 	.menu {
 		position: absolute;
 		top: calc(100% + 0.2rem);
 		right: 0;
 		z-index: 30;
-		min-width: 11rem;
+		/* A FIXED WIDTH, NOT A MINIMUM, AND THE ACTION IS WHY.
+
+		   `min-width` was enough while the panel was `absolute`: its containing
+		   block was the 32px `.row-menu`, so shrink-to-fit had nothing to grow
+		   into and it settled at exactly 11rem. Under `position: fixed` the
+		   containing block becomes the VIEWPORT, so the same rule let it grow to
+		   its content -- measured 324px once the unit select's longest option
+		   could ask for it, a 148px widening nobody asked for.
+
+		   It also broke the PLACEMENT, which is the half that matters: `anchored`
+		   measures the panel to decide where it goes, and a panel whose width is
+		   still settling is measured at one width and painted at another. That
+		   put the menu's right edge at x=1196 on a 1196px viewport -- flush
+		   against the screen edge, past the 8px margin the action clamps to.
+		   A pinned width cannot drift between the measurement and the paint. */
+		width: 11rem;
+		max-width: calc(100vw - 1rem);
 		padding: 0.25rem;
 		display: flex;
 		flex-direction: column;

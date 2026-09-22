@@ -14,6 +14,16 @@
 	"entries": [
 		{
 			"date": "2026-09-22",
+			"title": "Due dates and points are no longer cut off in the class list",
+			"body": "In the list of posts and assignments, the small line under each title shows the kind, the due date, the points and the grading category. On a narrow screen, and whenever you had an item open beside the list, that line used to be cut short with a … and the due time and the points were the first things to go. It now wraps onto a second line instead, so nothing is hidden. Nothing you do changes, and no dates or points have changed, you can just read all of them now.",
+			"tags": [
+				"Stream",
+				"Classes",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-22",
 			"title": "The pathway box no longer blocks the page",
 			"body": "If you were asked to pick your pathway and could not scroll, that is fixed. The box used to sit over the whole screen, and the page behind it moved without looking like it moved, so the site felt stuck. Now the page holds still while the box is up, you can close it by clicking anywhere outside it or pressing Escape, and if you choose to decide later it stays closed even after you reload. It will ask again in a week if you still have no pathway. You can also ask your instructor to set it for you.",
 			"tags": [
