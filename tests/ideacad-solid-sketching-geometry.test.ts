@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { SolidEngine } from '../src/lib/ideacad/solid/engine';
 import { createKernel } from '../src/lib/ideacad/kernel/remus';
 import type { Feature, FeatureOf, SketchEntity, Vec2 } from '../src/lib/ideacad/solid/types';
-import { crossings, rayHit, curveParam, curvePoint, regions, solveSketch, pointOf } from '../src/lib/ideacad/solid/sketch/model';
+import { crossings, rayHit, curveParam, curvePoint, regions, solveSketch, pointOf, arcSweep, arcSweepToward, arcPoint, inconsistentArcs, TAU } from '../src/lib/ideacad/solid/sketch/model';
 import { trimEntity, extendEntity, filletCorner, joinPoints, snapPoint, chainDraft, polygonEntities, rectangleEntities, appendDraft, splitCurves, ensurePoint, type SketchDraft } from '../src/lib/ideacad/solid/sketch/editor';
 
 const WASM = new Uint8Array(readFileSync('static/ideacad/kernels/remus-9307e73.wasm'));
@@ -207,5 +207,142 @@ describe('two islands and a hole through the real engine', () => {
 		const one = await e.apply({ type: 'set-feature', id: 'x', patch: { regions: ['r1'] } });
 		expect(one.bodies).toHaveLength(1); expect(one.bodies[0].volume).toBeCloseTo(8, 6);
 		expect(one.features.find((f) => f.id === 'x')!.status).toBe('ok');
+	});
+});
+
+/**
+ * WHAT THE KERNEL DOES WITH AN ARC WHOSE TWO ENDS SIT AT DIFFERENT DISTANCES
+ * FROM ITS CENTER. Ledger 0275 could not answer this from a comment and the
+ * prompt that raised it expected the seam to be unreadable from a container,
+ * so the whole arc design was to be made not to depend on the answer. The
+ * answer is reachable -- the wasm is committed and the suite already loads it
+ * -- and it is sharp enough to be worth pinning: the kernel REFUSES such an
+ * edge outright, and its 2D solver couples the two radii, so an inconsistent
+ * arc is never merely cosmetic. Both facts are load-bearing for
+ * `arcDraft` and for `inconsistentArcs`, so both are asserted here rather
+ * than recorded in prose that nothing checks.
+ */
+describe('an arc with two radii, against the real kernel', () => {
+	const flat = (start: Vec2, end: Vec2): [number, number, number, number, number, number, number, number, number, number, number, number] =>
+		[start[0], start[1], 0, end[0], end[1], 0, 0, 0, 0, 0, 0, 1];
+
+	it('refuses the edge outright, down to one part in a million, and builds the consistent one beside it', async () => {
+		const k = await createKernel(WASM);
+		{
+			/* The positive control first, so a refusal below cannot be the kernel refusing everything. */
+			expect(typeof k.makeCircleArc3d(...flat([1, 0], [0, 1]))).toBe('number');
+			for (const [label, end] of [['three times the radius', [0, 3]], ['one part in ten thousand', [0, 1.0001]], ['one part in a million', [0, 1.000001]]] as [string, Vec2][]) {
+				expect(() => k.makeCircleArc3d(...flat([1, 0], end)), label).toThrow(/edge vertices do not agree/);
+			}
+			/* And the two degeneracies a third click used to be able to commit. */
+			expect(() => k.makeCircleArc3d(...flat([0, 0], [0, 0]))).toThrow(/coincides with center/);
+			expect(() => k.makeCircleArc3d(...flat([1, 0], [0, 0]))).toThrow(/non-zero span/);
+		}
+	});
+
+	it('couples the two radii in its 2D solver, so a constraint anywhere teleports a mismatched end onto the radius', async () => {
+		const k = await createKernel(WASM);
+		{
+			/* THE COUPLING IS ONE EQUATION, and a line over the same three points is the control that it is the ARC contributing it. */
+			const dof = (kind: 'none' | 'line' | 'arc') => {
+				const s = k.gcsNew();
+				const c = k.gcsAddPoint(s, 0, 0, true), a = k.gcsAddPoint(s, 1, 0, false), b = k.gcsAddPoint(s, 0, 3, false);
+				if (kind === 'line') k.gcsAddLine(s, a, b);
+				if (kind === 'arc') k.gcsAddArc(s, c, a, b);
+				const raw = k.gcsDof(s);
+				return (typeof raw === 'string' ? JSON.parse(raw) : raw) as { dof: number; numParams: number; numEquations: number };
+			};
+			expect(dof('none')).toMatchObject({ numParams: 4, numEquations: 0, dof: 4 });
+			expect(dof('line')).toMatchObject({ numParams: 4, numEquations: 0, dof: 4 });
+			expect(dof('arc')).toMatchObject({ numParams: 4, numEquations: 1, dof: 3 });
+
+			/* Behaviourally: the end three inches out is pulled onto the start's one inch by the first solve, and nothing asked it to move. */
+			const s = k.gcsNew();
+			const c = k.gcsAddPoint(s, 0, 0, true), a = k.gcsAddPoint(s, 1, 0, false), b = k.gcsAddPoint(s, 0, 3, false);
+			k.gcsAddArc(s, c, a, b);
+			k.gcsAddConstraint(s, JSON.stringify({ type: 'fixX', point: a, value: 1 }));
+			k.gcsSolveDetailed(s, 400, 1e-12);
+			const end = Array.from(k.gcsPointPosition(s, b));
+			expect(Math.hypot(end[0], end[1])).toBeCloseTo(1, 9);
+			expect(Array.from(k.gcsPointPosition(s, a))).toEqual([expect.closeTo(1, 9), expect.closeTo(0, 9)]);
+		}
+	});
+
+	it('refuses the extrude of a profile carrying one, and builds the same profile once the radii agree', async () => {
+		const profile = (end: Vec2): Feature => ({
+			id: 'profile', name: 'Profile', type: 'sketch', plane: { kind: 'datum', datum: 'XY' },
+			entities: [
+				{ id: 'c', type: 'point', x: 0, y: 0 }, { id: 's', type: 'point', x: 1, y: 0 }, { id: 'e', type: 'point', x: end[0], y: end[1] },
+				{ id: 'a', type: 'arc', center: 'c', start: 's', end: 'e' }, { id: 'l', type: 'line', a: 'e', b: 's' }
+			], constraints: []
+		});
+		const build = async (end: Vec2) => {
+			const e = await engine();
+			await e.apply({ type: 'add-feature', feature: profile(end) });
+			return e.apply({ type: 'add-feature', feature: { id: 'x', name: 'Extrude', type: 'extrude', sketch: 'profile', distance: 1, operation: 'new' } });
+		};
+		/*
+		 * The chord runs end to start, so the region is a circular SEGMENT and
+		 * not a quarter disc: r^2/2 * (theta - sin theta) at r = 1 and theta =
+		 * pi/2, which is pi/4 - 1/2, one inch thick.
+		 */
+		const ok = await build([0, 1]);
+		expect(ok.bodies).toHaveLength(1);
+		expect(ok.bodies[0].volume).toBeCloseTo(Math.PI / 4 - 0.5, 3);
+		await expect(build([0, 3])).rejects.toThrow(/edge vertices do not agree/);
+		/* Which is why the sketch says so in its own words rather than leaving a student to read that sentence. */
+		const entitiesOf = (end: Vec2) => (profile(end) as FeatureOf<'sketch'>).entities;
+		expect(inconsistentArcs(entitiesOf([0, 3]))).toEqual(['a']);
+		expect(inconsistentArcs(entitiesOf([0, 1]))).toEqual([]);
+	});
+});
+
+describe('which arc a third click asks for', () => {
+	const C: Vec2 = [0, 0], S: Vec2 = [1, 0];
+	const deg = (n: number) => n * 180 / Math.PI;
+	const at = (d: number): Vec2 => [Math.cos(d * Math.PI / 180), Math.sin(d * Math.PI / 180)];
+
+	it('is signed, is the short way round, and is never more than a half turn without Shift', () => {
+		for (const d of [-179, -170, -90, -45, -1, -0.001, 0.001, 1, 45, 90, 170, 179]) {
+			expect(deg(arcSweepToward(C, S, at(d))), `${d} degrees`).toBeCloseTo(d, 9);
+			expect(Math.abs(arcSweepToward(C, S, at(d)))).toBeLessThanOrEqual(Math.PI + 1e-9);
+		}
+		/* Exactly opposite is the one tie, and it is broken counter-clockwise so the answer is total. */
+		expect(deg(arcSweepToward(C, S, [-1, 0]))).toBeCloseTo(180, 9);
+		expect(deg(arcSweepToward(C, S, [-1, 0], true))).toBeCloseTo(-180, 9);
+		/* The distance of the click from the center changes nothing: it is a direction. */
+		for (const r of [0.01, 0.5, 1, 4, 1000]) expect(deg(arcSweepToward(C, S, [r * Math.cos(-0.7), r * Math.sin(-0.7)]))).toBeCloseTo(deg(-0.7), 9);
+	});
+
+	it('takes the long way to the SAME end point under Shift, so the pair is exhaustive', () => {
+		for (const d of [-170, -90, -10, 10, 90, 170]) {
+			const minor = arcSweepToward(C, S, at(d)), major = arcSweepToward(C, S, at(d), true);
+			expect(Math.abs(minor) + Math.abs(major)).toBeCloseTo(TAU, 9);
+			expect(Math.sign(major)).toBe(-Math.sign(minor));
+			/* The same end point: the two arcs differ only in which way round they reach it. */
+			const a = arcPoint(C, S, minor, 1), b = arcPoint(C, S, major, 1);
+			expect(a[0]).toBeCloseTo(b[0], 9); expect(a[1]).toBeCloseTo(b[1], 9);
+		}
+	});
+
+	it('is a different question from `arcSweep`, which still answers about a STORED arc', () => {
+		/* The stored reading is unsigned and counter-clockwise, which is what every reader of an arc entity needs and what made the tool wrong. */
+		expect(deg(arcSweep(C, S, at(-10)))).toBeCloseTo(350, 9);
+		expect(deg(arcSweepToward(C, S, at(-10)))).toBeCloseTo(-10, 9);
+		/* And they agree exactly where the drawn arc did run counter-clockwise. */
+		for (const d of [10, 90, 170]) expect(deg(arcSweep(C, S, at(d)))).toBeCloseTo(deg(arcSweepToward(C, S, at(d))), 9);
+	});
+
+	it('names every arc whose ends disagree, and no arc whose ends agree', () => {
+		const arc = (end: Vec2): SketchEntity[] => [
+			{ id: 'c', type: 'point', x: 0, y: 0 }, { id: 's', type: 'point', x: 1, y: 0 }, { id: 'e', type: 'point', x: end[0], y: end[1] },
+			{ id: 'a', type: 'arc', center: 'c', start: 's', end: 'e' }
+		];
+		for (const end of [[0, 3], [0, 1.0001], [0, 0], [2, 0]] as Vec2[]) expect(inconsistentArcs(arc(end)), String(end)).toEqual(['a']);
+		for (const d of [-170, -90, 10, 90, 179]) expect(inconsistentArcs(arc(at(d))), `${d} degrees`).toEqual([]);
+		/* A radius of zero is named too, which is neither of the two above: every point is the same point. */
+		expect(inconsistentArcs([{ id: 'c', type: 'point', x: 0, y: 0 }, { id: 's', type: 'point', x: 0, y: 0 }, { id: 'e', type: 'point', x: 0, y: 0 }, { id: 'a', type: 'arc', center: 'c', start: 's', end: 'e' }])).toEqual(['a']);
+		/* And a sketch with no arc in it at all is not a finding. */
+		expect(inconsistentArcs(rect().entities)).toEqual([]);
 	});
 });
