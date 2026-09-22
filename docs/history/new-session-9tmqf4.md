@@ -212,6 +212,17 @@ defect. Its caller is outside this bundle's files, so it was left alone.
   rather than reported: two because source changed underneath them, one because
   this session killed it. A suite run that did not describe the tree being
   pushed is not a result.
+- **And again on the MERGED tree, after `origin/main` moved twice mid-session:
+  527 files, 9842 tests, all passed, exit 0**, in 1242s. Two green parents are
+  not a green merge -- this repository's own browser-harness README records the
+  day five CI-green branches all failed to merge -- and the merge here touched
+  a file a test reads, so the parents' runs were not accepted in place of it.
+  The one conflict was `tools/browser-verify/README.md`'s counts block: both
+  sides had added a route spec and both wrote `237`. Resolved the way that
+  file's own header prescribes, by regenerating on the merged tree rather than
+  choosing a side, which gives `238` specs over `93` routes; `verify:counts
+  --check` exits 0 and `tests/derived-numbers.test.ts` is green. Taking either
+  side would have left the block describing a tree that does not exist.
 - **A browser spec that drives the tool**,
   `tools/browser-verify/routes/ideacad-solid-state-arc.mjs`, the first of 237 to
   press the arc tool at all. Three arcs from nine real presses on the viewport
