@@ -292,18 +292,47 @@ describe('every preset that shipped still renders', () => {
 	   before and after" the prompt asks for, done on the shipping renderer
 	   rather than on the data. */
 	it('renders every preset through Avatar, with all of its marks', () => {
+		/* THE EXPECTATION COMES FROM THE DATA, NOT FROM `presetMarks`, AND THAT
+		   IS A REPAIR RATHER THAN A STYLE CHOICE. This loop read
+		   `for (const mark of presetMarks(p))`, which is the function under
+		   test generating its own expectation: collapsing `presetMarks` back to
+		   `[{ d: preset.d }]` -- exactly the regression it exists to prevent --
+		   left this assertion checking that one path, finding it, and PASSING.
+		   Measured: the mutation was green here and was caught only by the
+		   browser spec's node count. So the expectation is built from
+		   `p.d` and `p.marks` directly, which is what a preset IS, and the
+		   count is asserted before the contents so a shortened list cannot pass
+		   by being a prefix of a longer one. */
 		for (const p of AVATAR_PRESETS) {
 			const html = render(Avatar, {
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				props: { profile: { id: 'u1', avatar: `preset:${p.id}` } as any, size: 40 }
 			}).body;
 			expect(html, `${p.id} did not resolve to a preset`).toContain(p.fg);
-			for (const mark of presetMarks(p)) {
-				expect(html, `${p.id} dropped a mark`).toContain(mark.d);
+
+			const expectedPaths = [p.d, ...(p.marks ?? []).map((m) => m.d)];
+			const drawn = [...html.matchAll(/<path[^>]*\sd="([^"]+)"/g)].map((m) => m[1]);
+			expect(drawn.length, `${p.id} drew ${drawn.length} paths, not ${expectedPaths.length}`).toBe(
+				expectedPaths.length
+			);
+			for (const d of expectedPaths) expect(drawn, `${p.id} dropped a mark`).toContain(d);
+			for (const mark of p.marks ?? []) {
 				if (markTransform(mark)) {
 					expect(html, `${p.id} dropped a rotation`).toContain(markTransform(mark) as string);
 				}
 			}
+		}
+
+		/* AND `presetMarks` ITSELF IS CHECKED AGAINST THE DATA, in the one
+		   direction the loop above cannot: that it returns the primary path
+		   FIRST and then every extra mark, which is the order the renderer
+		   relies on for a fill to land over its own stroke. */
+		for (const p of AVATAR_PRESETS) {
+			const marks = presetMarks(p);
+			expect(marks.length, `presetMarks dropped a mark on ${p.id}`).toBe(
+				1 + (p.marks?.length ?? 0)
+			);
+			expect(marks[0].d, `presetMarks reordered ${p.id}`).toBe(p.d);
 		}
 	});
 

@@ -14,6 +14,16 @@
 	"entries": [
 		{
 			"date": "2026-09-22",
+			"title": "New profile pictures, including a mascot pack, and you can customize how your name looks",
+			"body": "The picture choices are no longer just the eight shapes. There are three groups now: the original marks, a mascot pack (cat, fox, owl, bear, axolotl) and some shop instruments. Two of the old marks were hard to see against the dark background, especially the waveform, so they were brightened without changing their colour. Your old choice still works and has not moved. There is also a new Identity section in your profile menu: pick an accent colour, a badge, a banner colour and a short tagline, and they show up wherever you appear. Open the menu from your picture in the top right and expand Identity. Everything saves as soon as you tap it, and Reset customization puts it all back. Right now you will see other people's pictures but not yet their colours and badges; that part is coming.",
+			"tags": [
+				"profile",
+				"Appearance",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-22",
 			"title": "The pathway box no longer blocks the page",
 			"body": "If you were asked to pick your pathway and could not scroll, that is fixed. The box used to sit over the whole screen, and the page behind it moved without looking like it moved, so the site felt stuck. Now the page holds still while the box is up, you can close it by clicking anywhere outside it or pressing Escape, and if you choose to decide later it stays closed even after you reload. It will ask again in a week if you still have no pathway. You can also ask your instructor to set it for you.",
 			"tags": [
