@@ -190,6 +190,41 @@ export interface FoundryAuthor {
 	owner_class: string | null;
 }
 
+/**
+ * WHO A PUBLISHER IS, as `foundry_author_profile` (0221) projects them.
+ *
+ * REPORT 31 ASKED FOR "their profile ... comprehensive with their IDEA profile,
+ * their profile picture and everything", and this is the whole of what
+ * "everything" resolves to once the refusals are applied. It extends
+ * `FoundryAuthor` rather than restating its three fields, so the name ladder
+ * (`foundryAuthorName`) and the class rule (`foundryAuthorClass`) work on this
+ * shape unchanged and there is no second idea of what an author is called.
+ *
+ * THERE IS NO EMAIL HERE EITHER, and the reason is the one on `FoundryAuthor`:
+ * a granted path from a name to an address is a school directory. The definer
+ * behind this has no column for one and no parameter that could ask.
+ *
+ * `avatar`, `avatar_url` AND `pathway` ARE NOT A NEW TIER. `gauntlet_leaderboards`
+ * has projected all three to every signed-in student since 0024 and 0038, and
+ * decision 14 (2026-09-12, KEEP) settled the question they raise: anyone signed
+ * in sees anyone's photo. The bucket is private and `Avatar.svelte` asks for
+ * the bytes through `/api/avatar/<key>` exactly as it does everywhere else.
+ *
+ * `app_count` IS THIS CALLER'S OWN VIEW, not the author's real total: it runs
+ * through the same population predicate as the list beneath it, so an author
+ * reading their own page counts their drafts and a classmate counts what a
+ * classmate can see. A header that outran its own list would be the defect.
+ */
+export interface FoundryAuthorCard extends FoundryAuthor {
+	owner: string;
+	avatar: string | null;
+	avatar_url: string | null;
+	pathway: string | null;
+	app_count: number;
+	/** `min(created_at)` over the apps this caller can see. */
+	first_published_at: string | null;
+}
+
 export interface FoundryApp extends FoundryAuthor {
 	id: string;
 	slug: string;
@@ -232,6 +267,16 @@ export interface FoundryAppSummary extends FoundryAuthor {
 	 * ends up being what a search is verified against.
 	 */
 	description?: string | null;
+	/**
+	 * 0221. The author's uuid, which `foundry_list_apps` has always projected
+	 * and the client dropped. It is the address of their profile page and
+	 * nothing else -- it is an opaque id, it names no person to anybody who
+	 * does not already hold it, and the route it points at refuses any uuid
+	 * whose apps the caller cannot already see.
+	 *
+	 * Optional for the fixture reason the two fields around it carry.
+	 */
+	owner?: string;
 	cover_path: string | null;
 	published_version_id: string | null;
 	published_ordinal: number | null;
