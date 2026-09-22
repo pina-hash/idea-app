@@ -826,6 +826,96 @@ AUTHORIZATION and the ROW, never the payload. That is what moved the cap from
     deployment with no Google credentials, refusing a file it never needed Drive
     to serve.
 
+### CLASSROOM TEAMS -- a draw that persists, and a style keyed on MEMBERSHIP
+
+**THE RANDOM PICKER AND THE TEAMS FEATURE ARE TWO THINGS AND THE FIRST IS
+EPHEMERAL ON PURPOSE.** `src/lib/classroom/picker.ts` is a pure draw over names
+and a seed; `0223` is what makes one LAST. A teacher re-rolling in front of a
+class must not be writing rows on every press of Draw again, so **saving is a
+separate deliberate press and is never a side effect of drawing** -- the same
+rule Foundry states as "preflight passing is not submission".
+
+- **TWO WAYS TO ASK FOR A DRAW, ONE DEALER.** `pickerTeams(candidates, size,
+  seed)` keeps its exact original signature and behaviour;
+  `pickerTeamsBy(candidates, mode, value, seed)` is the surface's entry point
+  and takes `'size'` or `'count'`. Both route through one private dealer via
+  `pickerTeamCount`, so **the round-robin deal cannot acquire a second
+  spelling**. Do not replace the size mode and do not change the dealing.
+  - **COUNT MODE IS CLAMPED TO THE CLASS SIZE, and the clamp is the count-mode
+    twin of the round-robin deal.** Slicing leaves one student alone; an
+    unclamped count leaves EMPTY TEAMS -- headed cards with nobody under them --
+    which reads as a broken draw rather than as a teacher asking for more teams
+    than they have students. The panel says so BEFORE the draw
+    (`picker-count-clamped`), because a clamp nobody was told about reads as the
+    control being ignored.
+- **THE ROSTER IS REFERENCED, NEVER DUPLICATED, AND THE READ LEFT JOINS IT.** A
+  `classroom_team_members` row carries an EMAIL and nothing else; the name and
+  the active flag come from `classroom_enrollments` at read time.
+  `classroom_team_board` LEFT joins and projects `still_enrolled`. **An inner
+  join here silently shrinks a team every time somebody transfers out** -- which
+  is what every presence-shaped read in this app does -- and destroys the record
+  of who worked with whom in the one artifact that held it. A team holding a
+  student who left is the state that will ACTUALLY OCCUR, so it has a word for
+  it rather than erasing itself, on the surface and in the CSV alike.
+- **ONE STUDENT, ONE TEAM PER DRAW, IS A KEY AND NOT A CHECK.**
+  `classroom_teams` carries a redundant-looking `unique (id, team_set_id)` purely
+  so `classroom_team_members` can hold a COMPOSITE foreign key against it, with
+  `primary key (team_set_id, student_email)` beside it. The invalid state is
+  unrepresentable, so no RPC re-checks it and no raw insert routes around it.
+- **THE STYLE WRITE IS KEYED ON MEMBERSHIP, NOT OWNERSHIP, AND THAT IS THE ONE
+  PREDICATE THAT DOES NOT TRANSLATE.** `tournament_set_entry_style` authorizes on
+  `tournament_entries.user_id = auth.uid()`; **a team has no `user_id`, it has
+  members, keyed by email**. `_classroom_team_member` is new code rather than a
+  translation. Any member may write, **last write wins**, and `style_updated_by`
+  records who -- a deliberate DEPARTURE from `docs/decisions/entries/30-*`, whose
+  owner/manager/transfer shape rests on members holding DIFFERENT
+  RESPONSIBILITIES for a work product. A banner is not a work product. **The
+  agreed-manager alternative is one nullable column and one branch, and is the
+  right change the day somebody reports an actual dispute**; it is not worth
+  building before then. A section MANAGER may also write, which the tournament
+  rule deliberately does not allow a host, because a teacher who posted a banner
+  to a class needs to take one down without retiring the whole draw.
+- **AUDIENCE IS STATED, NOT INHERITED: PUBLIC MEANS THE CLASS.**
+  `tournament_entry_styles` is `anon`-readable because a TV projector holds no
+  session. **A team roster names students in a class**, so its audience is the
+  section's own enrolled students and its managers and NOBODY ELSE -- never
+  `anon`, at any posting state. All three tables have RLS on with NO POLICY and
+  no client grant, so either denies on its own, and every read and write goes
+  through a definer function.
+- **THE POSTING WINDOW IS A WINDOW ON THE TEAMS RECORD, NOT A FIELD ON AN ITEM.**
+  Making a posted roster a `classroom_items` row with an end date would inherit
+  the `(item_id, student_email, block_id)` answer model for something that takes
+  no answers. Visibility is DERIVED at call time by
+  `_classroom_team_set_visible`; there is no stored flag to go stale and no
+  sweep. Post and unpost are TWO verbs, because "post until Friday" and "take it
+  down" are different intentions and a single toggle taking a timestamp makes
+  the second one an argument value.
+- **THE SEED IS STORED AND IS IN THE EXPORT.** It is what makes a draw checkable
+  rather than merely plausible, and an export is the artifact that outlives the
+  screen. A persisted draw that lost its seed is a list of names with no way to
+  tell a draw from an arrangement.
+- **THE RENDERERS ARE THE TOURNAMENT MODULE'S, CONSUMED READ-ONLY.** `accentOf`,
+  `hasStyle`, `backgroundCss` and `bannerInk` all take `EntryStyleDraft`, a
+  `Pick` that EXCLUDES `entry_id` and `tournament_id`, so they accept a team
+  today with no adapter and no extraction. `teamStyle` in
+  `$lib/classroom/teams.ts` is the one projection. **Generalizing that module off
+  `TournamentEntry` is lane D2's work and must not be done twice**; when it
+  lands, that import is the one line that moves. The ink comes from `bannerInk`
+  and is never chosen at the call site -- a student may pick any background, and
+  a second answer to "which of dark or light survives on it" is how a team ends
+  up with black text on a black gradient.
+- **NO PRESET LIST LIVES IN SQL.** Badge and flourish ids are length-bounded free
+  text, validated by the client against `BADGES` and `FLOURISHES`. A CHECK
+  constraint would be a second copy of a list D2 is moving, and the copy that
+  cannot change without a migration.
+- **THE STUDENT-FACING SURFACE IS NOT BUILT, AND ITS ABSENCE IS A LANE BOUNDARY
+  RATHER THAN AN OVERSIGHT.** The class stream is `ClassView.svelte`, mounted
+  from `src/routes/classroom/[sectionId]/+layout.svelte`. Everything a posted
+  roster and a student style editor need is in place -- the window, the
+  audience-gated read, the membership-gated write -- and the MOUNT is whoever
+  owns those two files. **Until it exists, no `classroom-updates.json` entry
+  claiming students can see teams is true.**
+
 ### WHO IS WORKING -- an instrument's silence is never a fact about a student
 
 **A DERIVED INSTRUMENT MAY NOT CONTRADICT THE RECORD IT IS RENDERED BESIDE, AND
