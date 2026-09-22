@@ -1,7 +1,7 @@
 ---
 title: "A duplicated prompt, a merged fork, and the live controls that were left unpinned"
 date: 2026-09-13
-branches: ["claude/keen-davinci-xvhwdw"]
+branches: ["claude/keen-davinci-xvhwdw", "claude/new-session-3yjcxp"]
 migrations: []
 subsystems: ["migrations", "ci", "tooling"]
 ---
@@ -163,3 +163,120 @@ nobody writes down.
 `readHistory` to return a third outcome made `history` nullable, and six call
 sites read it without narrowing. The suite was green throughout, because vitest
 does not typecheck. That is why the baseline is a separate instrument.
+
+---
+
+## Correction from ledger 0274, 2026-09-22: the controls were already there
+
+Everything above this line is the 2026-09-13 session's own account and is left
+byte-identical. This section is ledger 0274, which was issued nine days later to
+land or close the branch and found that the central claim above does not hold.
+**`CLAUDE.md` says a past bundle's account is corrected by a NEW entry rather
+than by an edit; this entry had never landed anywhere, so the correction is
+appended here rather than published uncorrected and answered somewhere else.**
+
+**WHY THE BRANCH STOOD FOR NINE DAYS, WHICH IS NOT WHAT ANYBODY ASSUMED.** CI on
+its tip `4890582c` was RED, and `integrate.yml` merges only a green branch, so a
+red tip is a branch that stands forever with nothing saying why. Two tests
+failed, 463 files passed of 465, and **neither failure was in this branch's own
+work**:
+
+    tests/deploy-probe-cli.test.ts > ENDS STATUS 3: ... exits 0
+      Error: Command failed: git commit-tree ... Author identity unknown
+      fatal: empty ident name (for <runner@runnervmlun5p...internal.cloudapp.net>)
+
+    tests/db/migrations-applied-record.test.ts > every record names a migration
+    file that exists, and hashes it correctly
+      0210-determined-albattani-16az27.md:
+        expected '48a4ad20...' to be '550f5597...'
+
+The first is a fixture that shells `git commit-tree` and a GitHub runner that
+has no git identity: it passes on any machine where a person has configured one
+and fails on every runner, which is the (c) answer -- environment-dependent, and
+invisible locally. The second is a sha drift on the `0210` applied record. Both
+were fixed on `integration` in the 164 commits the branch was behind:
+`tests/deploy-probe-cli.test.ts` now passes `-c user.name=IDEA test fixture -c
+user.email=fixture@example.invalid` to every git call, and the `0210` record was
+reconciled. **Merging current `integration` clears both, and `npm test` on the
+merged tree is 527 files and 9829 tests, all passing.**
+
+**AND THE 106 LINES THIS BRANCH ADDS PIN NOTHING THAT IS NOT ALREADY PINNED.**
+The claim above is that `tests/db/deploy-probe-history-live.test.ts` on
+`integration` carries none of the CONNECT-only controls -- `create role` 0,
+`has_schema_privilege` 0, `permission denied for schema` 0, `usage` 0 -- and
+that therefore "reverting either fix reddens nothing". **The four marker counts
+are correct and the conclusion drawn from them is not, because the sweep was run
+over one file and the coverage is in its sibling.**
+`tests/deploy-probe-history.test.ts`, which this very file imports beside, carries
+`create role` 5 times, `probe_schemaonly` 3 times and `permission denied for
+schema` once -- **and it carried all of them at this branch's own tip on
+2026-09-13**, measured at `4890582c`, not acquired later. Its
+`answers present=TRUE for a role with no schema USAGE, which to_regclass did not`
+asserts, in one test and under `set role`, the whole of controls 5 and 6: that
+`to_regclass` raises for a role without USAGE, that the catalog query answers
+present for the same role, that SELECT-without-USAGE is not readable, that
+USAGE-without-SELECT is not readable **on a mirror role of its own**, and the
+positive control that granting both flips it. Control 7 is covered better still
+by `tests/deploy-probe-cli.test.ts`'s `degrades to the object probes when the
+role may not read the record, and says so`, which drives the REAL CLI as a REAL
+login role holding nothing but CONNECT and ends on a positive control of 208
+recorded rows -- where control 7 stubs the transport.
+
+**Measured rather than argued, by the mutation proof this bundle was asked for.**
+Three permissive mutants of the two privilege decisions -- reverting the
+`pg_class` scalar subquery to `to_regclass`, dropping the `has_schema_privilege`
+half of `readable`, dropping the `has_table_privilege` half -- each applied
+alone, each judged by `npm test` over the four deploy-probe suites with the
+summary line parsed out of stdout AND stderr, each restored from an in-memory
+byte copy and md5-checked back to `97c56b96ff59a95566b5a5840ce3842e`:
+
+    mutant                     with the 106 lines      without them
+    M1 to_regclass             KILLED 4 failed/66      KILLED 2 failed/65
+    M2 drop has_schema_priv    KILLED 3 failed/67      KILLED 2 failed/65
+    M3 drop has_table_priv     KILLED 2 failed/68      KILLED 1 failed/66
+
+**No mutant survives the removal.** In every row the killer present on both
+sides is `tests/deploy-probe-history.test.ts`'s single CONNECT-only test. So the
+106 lines are a second implementation of a check that already exists, which is
+the one thing `CLAUDE.md`'s working conventions name outright: *a second
+implementation of a check is the thing that quietly stops matching.* They are
+not landed. The two roles they create, `probe_connect_only` and
+`probe_schema_only`, are also CLUSTER-WIDE objects created with no
+`if not exists` on the one shared cluster, one underscore away from the
+`probe_schemaonly` the sibling file already creates there.
+
+**What is kept is this entry.** Three prompts issued for one job, two decisions
+where the merged version overruled this branch with a better reason, and four
+instrument defects -- a commit that captured a mutant, a mutation script judging
+through a race, a fixture that named a migration instead of building one, and
+six type errors a green suite could not see -- are not duplicated anywhere and
+are the part of this branch worth having.
+
+**And the lesson is a generalisation of one this entry already contains.** It
+records a fixture resting on a fact it did not control, and calls that an expiry
+date nobody writes down. A coverage sweep scoped to one filename is the same
+mistake pointed at the test suite instead of at the fixture: `create role 0` was
+a true reading of a file and a false answer to the question being asked. **A
+claim that nothing pins a decision is a claim about the whole suite, so the
+sweep is the whole suite** -- or, better, it is the mutation proof itself, which
+cannot be scoped to the wrong file because the thing it measures is whether
+anything at all goes red.
+
+**Not verified by this bundle.** Anything against production:
+`DEPLOY_PROBE_URL`, `IDEA_MIGRATION_URL` and `SUPABASE_SERVICE_ROLE_KEY` are all
+unset in a cloud container and a repository secret never reaches one, so
+`tools/deploy-probe.mjs` cannot be run against the real database from here and
+the applied state was read from `docs/migrations-applied/` instead. No browser
+pass. `npm run verify:readme` was deliberately NOT run in its writing form: it
+rewrites `README.md` and every file under `measured/`, which is outside this
+bundle's owned paths. `npm run verify:counts -- --check` agrees with the tree.
+
+**For Mr. Pina.** `tools/deploy-probe.mjs` was not touched: no defect was found
+in it and its blob is identical to `origin/integration`'s. The branch's commits
+are contained in this one, so `integrate.yml` will delete
+`claude/keen-davinci-xvhwdw` once this lands. **If you want the 106 lines after
+all, they are not gone** -- they are the diff between `4890582c` and
+`origin/integration` for `tests/db/deploy-probe-history-live.test.ts`, and
+restoring them is one `git checkout`. The judgment this bundle made is that a
+duplicate control is worse than no control, because it reads as coverage; it is
+a judgment and it is reversible.
