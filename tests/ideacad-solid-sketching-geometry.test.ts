@@ -15,7 +15,7 @@ import { SolidEngine } from '../src/lib/ideacad/solid/engine';
 import { createKernel } from '../src/lib/ideacad/kernel/remus';
 import type { Feature, FeatureOf, SketchEntity, Vec2 } from '../src/lib/ideacad/solid/types';
 import { crossings, rayHit, curveParam, curvePoint, regions, solveSketch, pointOf, arcSweep, arcSweepToward, arcPoint, inconsistentArcs, TAU } from '../src/lib/ideacad/solid/sketch/model';
-import { trimEntity, extendEntity, filletCorner, joinPoints, snapPoint, chainDraft, polygonEntities, rectangleEntities, appendDraft, splitCurves, ensurePoint, type SketchDraft } from '../src/lib/ideacad/solid/sketch/editor';
+import { trimEntity, extendEntity, filletCorner, joinPoints, snapPoint, chainDraft, polygonEntities, rectangleEntities, appendDraft, splitCurves, ensurePoint, arcDraft, type SketchDraft } from '../src/lib/ideacad/solid/sketch/editor';
 
 const WASM = new Uint8Array(readFileSync('static/ideacad/kernels/remus-9307e73.wasm'));
 const engines: SolidEngine[] = [];
@@ -331,6 +331,42 @@ describe('which arc a third click asks for', () => {
 		expect(deg(arcSweepToward(C, S, at(-10)))).toBeCloseTo(-10, 9);
 		/* And they agree exactly where the drawn arc did run counter-clockwise. */
 		for (const d of [10, 90, 170]) expect(deg(arcSweep(C, S, at(d)))).toBeCloseTo(deg(arcSweepToward(C, S, at(d))), 9);
+	});
+
+	/*
+	 * `arcDraft` IS TESTED ON ITS OWN INPUT, not only through the session, and
+	 * a mutation run is what said so. `SketchSession` hands it a third click
+	 * its own `arcSnap` has ALREADY projected onto the circle, so replacing
+	 * `arcDraft`'s projection with the raw click changes nothing reachable
+	 * from a session test and the mutant survived all fifty-eight of them.
+	 * Two layers holding one guarantee is the right shape -- the preview and
+	 * the commit both go through this function -- but each has to be asserted
+	 * where it can fail.
+	 */
+	it('projects any third click onto the start radius, however far off it the click was', () => {
+		const far: Vec2[] = [[0, 3], [0.02, 2.98], [7, -7], [0.05, -0.05], [-1000, 1]];
+		for (const towards of far) {
+			for (const major of [false, true]) {
+				const draft = arcDraft({ at: C, kind: 'none' }, { at: S, kind: 'none' }, towards, major);
+				const arc = draft.entities.find((e) => e.type === 'arc') as Extract<SketchEntity, { type: 'arc' }>;
+				const c = pointOf(draft.entities, arc.center), st = pointOf(draft.entities, arc.start), en = pointOf(draft.entities, arc.end);
+				expect(Math.hypot(st[0] - c[0], st[1] - c[1]), `${towards} major=${major}`).toBeCloseTo(1, 12);
+				expect(Math.hypot(en[0] - c[0], en[1] - c[1]), `${towards} major=${major}`).toBeCloseTo(1, 12);
+				expect(inconsistentArcs(draft.entities)).toEqual([]);
+				/*
+				 * And the NEW end is on the RAY to the click, which is what
+				 * makes the projection the right one rather than merely a
+				 * consistent one. It is not always `arc.end`: a clockwise arc
+				 * is stored with its ends swapped, so the new end is whichever
+				 * of the two is not the start the caller placed.
+				 */
+				const other = Math.hypot(st[0] - S[0], st[1] - S[1]) < 1e-12 ? en : st;
+				const wanted = Math.atan2(towards[1], towards[0]), got = Math.atan2(other[1], other[0]);
+				expect(Math.abs(Math.atan2(Math.sin(got - wanted), Math.cos(got - wanted))), `${towards} major=${major}`).toBeLessThan(1e-9);
+			}
+		}
+		/* The positive control: handed the raw click as the end, every one of those would be off the radius. */
+		for (const towards of far) expect(Math.abs(Math.hypot(towards[0], towards[1]) - 1)).toBeGreaterThan(1e-6);
 	});
 
 	it('names every arc whose ends disagree, and no arc whose ends agree', () => {

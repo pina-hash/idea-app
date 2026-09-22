@@ -208,6 +208,55 @@ defect. Its caller is outside this bundle's files, so it was left alone.
   positive control (the consistent arc builds; a line over the same points adds
   no equation).
 
+## Mutation proof
+
+Seven mutants, each applied to the working tree, judged by `npm test --
+ideacad-solid-sketching`, and restored FROM A BYTE COPY -- never `git checkout
+--`, which restores from HEAD and would have silently discarded this session's
+own uncommitted work and left every later mutant running against a pristine
+tree. Both files md5-verified identical afterwards. Baseline 59 passed, 0
+failed.
+
+| mutant | result |
+| --- | --- |
+| `arcSweepToward` normalizes counter-clockwise only, as the deployed tool did | KILLED, 6 failed |
+| the third click becomes the end verbatim, as the snapped branch did | KILLED, 1 failed (see below) |
+| a clockwise arc is stored unswapped, so it reads back as its complement | KILLED, 5 failed |
+| the degenerate third clicks are accepted again | KILLED, 1 failed |
+| `inconsistentArcs` never finds one | KILLED, 2 failed |
+| the preview ignores Shift, so it draws the arc the commit will not | KILLED, 2 failed |
+| a snap is allowed to manufacture a refusal again | KILLED, 1 failed |
+
+**One of them SURVIVED the first time, and that is the finding.** Replacing
+`arcDraft`'s projection with the raw third click changed nothing any of the
+fifty-eight tests could see, because `SketchSession.arcSnap` has ALREADY
+projected the click before `arcDraft` is handed it. Two layers hold the radius
+guarantee, which is the right shape -- the preview and the commit both go
+through that function -- but a test that only ever reaches it through the
+session cannot fail on it. `tests/ideacad-solid-sketching-geometry.test.ts` now
+drives `arcDraft` directly with five wildly off-radius third clicks, and the
+mutant dies. This is CLAUDE.md's own rule about defense in depth, arriving as a
+green mutation run rather than as an error.
+
+**The browser spec has a negative control too.** With the direction fix
+reverted and the dev server serving the mutated module, the spec's own
+`until` predicates fail and the run reports the deployed numbers back:
+`sweeps [359.427, 270, 90]` from nine real presses, an extrude volume of
+4.7004 instead of 1.7837 (the major segment rather than the minor one), and 6
+console errors. `model.ts` was restored from a byte copy and md5-verified
+(`7363a8ac...`).
+
+**A claim in the prompt that this tree refutes.** It says `npm test` "exits 0
+with a failing test" and to read the summary line and stderr. That was true of
+bare vitest and is why `tools/run-tests.mjs` exists: it asks vitest for a JSON
+summary and sets the exit code from that file's own `success` boolean, written
+before the `async-exit-hook` that clobbers the code ever runs. Measured across
+all seven mutants plus two baselines: `npm test` exited 1 on every run with a
+failing test and 0 on every clean one. The mutation script reads the summary
+line from stdout and stderr concatenated anyway, and treats a missing summary
+as an instrument failure rather than a pass, because the exit code being right
+today is not a reason to depend on it.
+
 ## Not verified
 
 - Nothing was run against the production database or a signed-in session; this
