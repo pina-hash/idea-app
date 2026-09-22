@@ -1,15 +1,15 @@
 {
 	"schema": 1,
 	"spec": "ideacad-solid-state-arc.mjs",
-	"date": "2026-09-22T04:45:49.888Z",
-	"sha": "3793ea2cfe4e7354fadb9b3cef985abd63a1084e",
+	"date": "2026-09-22T04:55:14.418Z",
+	"sha": "6367308d1e4b894c599d2b84594cba13fcbe6501",
 	"dirty": true,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
-	"measurements": 36,
+	"measurements": 38,
 	"outsideRows": [],
-	"ms": 19660
+	"ms": 21769
 }

@@ -166,6 +166,50 @@ export default {
 			attempts: 3,
 			gapMs: 500,
 			waitMs: 600
+		},
+		{
+			/*
+			 * THE NOTICE, IN BOTH DIRECTIONS, which a presence check alone
+			 * cannot give: the checks below run once, on the final state, so
+			 * they can only say the notice is ABSENT after three good arcs.
+			 * That is worth nothing without the other half. So an arc whose
+			 * ends sit at different distances from its center is planted here
+			 * -- the arc tool can no longer draw one, but an endpoint drag in
+			 * Select still can, which is what the notice is for -- the
+			 * `until` reads the sentence off the page, and then it is removed
+			 * again so the final state is the one the checks describe.
+			 *
+			 * Its contrast was measured the same way and is NOT standing here,
+			 * because contrast runs on the final state too: 5.5:1 at both
+			 * widths, rgb(208, 128, 48) on rgb(25, 29, 33).
+			 */
+			evaluate: `async () => {
+				const s = window.ideaCadSolid;
+				const wait = async () => { for (let i = 0; i < 400 && s.busy; i++) await new Promise((r) => setTimeout(r, 25)); };
+				const sk = () => s.model.sketches.find((k) => k.feature === 'sk1');
+				const planted = sk().entities.concat([
+					{ id: 'bc', type: 'point', x: 0, y: -6 }, { id: 'bs', type: 'point', x: 1, y: -6 }, { id: 'be', type: 'point', x: 0, y: -3 },
+					{ id: 'ba', type: 'arc', center: 'bc', start: 'bs', end: 'be' }
+				]);
+				await s.apply({ type: 'set-feature', id: 'sk1', patch: { entities: planted, constraints: sk().constraints } }, 'Plant a two-radius arc');
+				await wait();
+				await new Promise((r) => setTimeout(r, 200));
+				const el = document.querySelector('[data-testid="ideacad-sketch-arc-notice"]');
+				window.__arcNotice = el ? el.textContent : null;
+				const back = sk().entities.filter((e) => !['bc', 'bs', 'be', 'ba'].includes(e.id));
+				await s.apply({ type: 'set-feature', id: 'sk1', patch: { entities: back, constraints: sk().constraints } }, 'Remove it again');
+				await wait();
+				await new Promise((r) => setTimeout(r, 200));
+				return 'notice while planted: ' + JSON.stringify(window.__arcNotice);
+			}`,
+			/* Present and saying what to do while the arc is there, gone once it is not. */
+			until: `() => typeof window.__arcNotice === 'string'
+				&& window.__arcNotice.includes('ends at different distances from the center')
+				&& window.__arcNotice.includes('Drag an end back onto the arc')
+				&& !document.querySelector('[data-testid="ideacad-sketch-arc-notice"]')`,
+			attempts: 3,
+			gapMs: 500,
+			waitMs: 400
 		}
 	],
 	presence: [

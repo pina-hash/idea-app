@@ -104,6 +104,23 @@ so a caller has nowhere to put a point id and the old branch cannot come back.
 The end is always `arcPoint`'s, which carries the start's radius by construction,
 so defects 2 and 3 are one fix and are structural rather than checked.
 
+**THE SNAPPED-ENDPOINT CASE, DECIDED, AND THE ALTERNATIVE THAT WAS REJECTED.**
+The radius wins and the snap is refused: a third click that lands on an existing
+point contributes that point's BEARING from the center and nothing else, and the
+arc ends on its own circle along that ray. The rejected alternative is the other
+half of the same fork -- **the snap wins and the radius is taken from the snapped
+end**, which would move the START radially onto the new radius. It is coherent,
+and it is worse for one specific reason: in the case that matters, closing a
+profile, the START is the snapped one -- it is the end of a line the student
+already drew -- so honouring the LAST snap means breaking the FIRST, silently
+moving a point that other geometry shares. There is no third state where both are
+half true, which is what the old code shipped.
+
+The cost of the decision, stated: an arc can no longer be closed onto an existing
+point by its third click. It closes the other way round -- start the arc AT the
+point (the second click snaps normally, and that snap is preserved), or draw it
+and drag its end onto the target, which `joinPoints` already supports.
+
 **2. A clockwise arc is stored with its ends SWAPPED, exactly as `filletCorner`
 already did it.** The arc entity gains no field, "counter-clockwise from start to
 end" stays true for every reader, and **an arc saved before this reads exactly as
