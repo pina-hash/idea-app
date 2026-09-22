@@ -128,7 +128,19 @@ const settle = () => new Promise((r) => setTimeout(r, 0));
 describe('the across-sections grading load issues its reads in one wave', () => {
 	it('sends the work reads while the roster RPC is still open', async () => {
 		const rec = recordingClient();
-		const pending = createBulkGradingTransports(rec.client).loadAcross(ITEM);
+		/**
+		 * ASSERTED, NOT ASSUMED AWAY WITH A `!` (0288). `loadAcross` is optional
+		 * on `BulkGradingTransports` now -- that absence is what lets the
+		 * per-section console grade a batch without reading across classes -- so
+		 * the CROSS-CLASS factory carrying it is a real claim about this factory
+		 * rather than a type nuisance. Non-null-asserted, a
+		 * `createBulkGradingTransports` that silently stopped reading across
+		 * classes would fail this file with a TypeError about undefined instead
+		 * of with the sentence below.
+		 */
+		const across = createBulkGradingTransports(rec.client);
+		expect(typeof across.loadAcross).toBe('function');
+		const pending = across.loadAcross!(ITEM);
 
 		await settle();
 

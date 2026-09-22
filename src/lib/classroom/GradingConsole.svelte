@@ -40,8 +40,10 @@
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
 	import {
+		BULK_PRESETS,
 		BULK_PRESET_LABEL,
 		applyPreset,
+		bottomLevelScores,
 		bulkCanSend,
 		bulkOutcome,
 		bulkPlan,
@@ -140,16 +142,27 @@
 		transports: AssignmentTeacherTransports;
 		basePath?: string;
 		/**
-		 * GRADING AT SCALE, AND ABSENCE IS THE MECHANISM.
+		 * GRADING AT SCALE, AND ABSENCE IS THE MECHANISM -- AT TWO LEVELS SINCE
+		 * 0288, WHICH IS THE WHOLE OF WHAT CHANGED.
 		 *
-		 * Handed in, this console reads the assignment across EVERY class the
-		 * caller teaches it in, groups the roster by section, offers a tick box
-		 * per student and a batch bar, and commits through one statement (0175).
-		 * Omitted -- which is the per-section route at
-		 * `/classroom/<section>/item/<item>/grade` -- none of that markup exists:
-		 * there are no checkboxes to leave unchecked, no batch bar to disable and
-		 * no cross-section read to scope down. Single-section is structural here,
-		 * not a mode.
+		 * Handed in, this console offers a tick box per student, the presets and
+		 * a batch bar, and commits through one statement (0175). Omitted, none of
+		 * that markup exists: there are no checkboxes to leave unchecked and no
+		 * batch bar to disable. That much is as it was.
+		 *
+		 * WHAT MOVED IS THE CROSS-CLASS READ, which is now `bulk.loadAcross` and
+		 * is OPTIONAL. This prop used to carry both, so the per-section route at
+		 * `/classroom/<section>/item/<item>/grade` could not be given batch
+		 * grading without also being given every class the caller teaches the
+		 * assignment in -- a different page, which already exists at
+		 * `/classroom/grading/<itemId>` and which this console LINKS to. That is
+		 * why Mr. Pina filed "I must be able to quick return a zero" against a
+		 * console where every piece of the machinery already existed.
+		 *
+		 * So: the OBJECT says this console may write a batch; the METHOD says it
+		 * reads across classes. `createBatchGradingTransports` is the first
+		 * without the second. Single-section is still structural rather than a
+		 * mode -- it is just a second absence now instead of the same one.
 		 */
 		bulk?: BulkGradingTransports | null;
 		/**
@@ -429,13 +442,33 @@
 	const avatarByEmail = $derived(
 		new Map((data?.roster ?? []).map((e) => [e.student_email, rosterSubject(e)]))
 	);
+	/**
+	 * THE THREE QUESTIONS `bulk` USED TO ANSWER AT ONCE (0288), separated.
+	 *
+	 * They are genuinely different, and collapsing them is what put every piece
+	 * of batch machinery on a route an instructor was not grading from:
+	 *
+	 *   batchReady      may this console WRITE many students at once?
+	 *   crossClassRead  does it READ the assignment across classes?
+	 *   crossClass      is more than one class actually on screen right now?
+	 *
+	 * The last is the narrowest and is the only one a section LABEL may read: a
+	 * cross-class console whose assignment happens to be posted to one class is
+	 * one class, and naming it on every row is noise about a distinction the
+	 * grader cannot see.
+	 */
+	const batchReady = $derived(!!bulk);
+	const crossClassRead = $derived(!!bulk?.loadAcross);
 	/** More than one class on screen: the state every section label exists for. */
-	const crossClass = $derived(!!bulk && activeSections.length > 1);
+	const crossClass = $derived(crossClassRead && activeSections.length > 1);
 
 	async function load() {
-		// ONE BRANCH, at the read. Everything downstream reads `data` and
-		// `sections` without asking which one filled them.
-		if (bulk) {
+		// ONE BRANCH, at the read, and it is the METHOD rather than the object:
+		// a console given the batch capability alone still reads its own one
+		// section, which is what keeps the per-section route the per-section
+		// route. Everything downstream reads `data` and `sections` without
+		// asking which one filled them.
+		if (bulk?.loadAcross) {
 			const res = await bulk.loadAcross(item.id);
 			if (!res.ok) {
 				loadError = res.message;
@@ -588,7 +621,13 @@
 		const bus = untrack(() => presence);
 		if (!bus) return;
 		try {
-			const payload = await bus.loadPresence(item.id, bulk ? null : section.id);
+			// THE SCOPE IS THE READ, NEVER THE WRITE (0288). `null` asks for every
+			// section the caller manages and `section.id` asks for this one, so
+			// this is `crossClassRead` and not `batchReady`: a per-section console
+			// that can return a zero to its class still reads that class's
+			// presence, and keyed on the OBJECT it would silently have started
+			// asking for every class the moment batch grading reached it.
+			const payload = await bus.loadPresence(item.id, crossClassRead ? null : section.id);
 			if (payload === null) {
 				// THE DEPLOYMENT HAS NO PRESENCE. Not an empty roster and not a
 				// failure: the transport's own `PGRST202` rung is the only thing
@@ -621,7 +660,9 @@
 		const bus = presence;
 		void item.id;
 		void section.id;
-		void bulk;
+		// The SCOPE, which is what a new read is for -- and the scope is the
+		// cross-class read, not the batch write. See `loadPresence` above.
+		void crossClassRead;
 		if (!bus) {
 			presenceData = null;
 			presenceStatus = 'pending';
@@ -828,6 +869,37 @@
 		scores = { ...scores, [c.id]: points };
 		overrideOpen = { ...overrideOpen, [c.id]: false };
 		needComment = needComment.filter((id) => id !== c.id);
+	}
+
+	/**
+	 * SCORE EVERY CRITERION AT ITS BOTTOM LEVEL (0288). Mr. Pina: "I must be
+	 * able to quick return a zero."
+	 *
+	 * ONE CONTROL SERVES BOTH PATHS, and that falls out of the console's own
+	 * shape rather than being arranged: `scores` is the state the rubric panel
+	 * binds AND the state `bulkPlan` sends to everybody ticked, so scoring the
+	 * bottom row once is a zero for the open student if nobody is ticked and a
+	 * zero for thirty if the `Nothing handed in` preset is. There is no separate
+	 * batch-zero to keep in step with a single-student zero.
+	 *
+	 * IT GOES THROUGH `pickLevel`, PER CRITERION, RATHER THAN ASSIGNING
+	 * `scores`. That is not tidiness: `pickLevel` also closes the override box
+	 * and drops the criterion from `needComment`, and a zero written straight
+	 * into `scores` while an override box was open would leave a criterion
+	 * showing a level and demanding a justification for a score it no longer
+	 * has. `bottomLevelScores` is the one place the LEVEL is read.
+	 *
+	 * IT IS NOT A COMMIT AND MUST NEVER BECOME ONE. It fills the form; Return to
+	 * student still arms and still confirms, and the batch still shows its plan
+	 * first. A one-press "zero everyone" with no plan in between is the one
+	 * gesture on this surface nobody could take back.
+	 */
+	function scoreEveryCriterionAtBottom() {
+		const bottom = bottomLevelScores(rubric);
+		for (const c of rubric ?? []) {
+			const points = bottom[c.id];
+			if (typeof points === 'number') pickLevel(c, points);
+		}
 	}
 
 	function toggleOverride(c: RubricCriterion) {
@@ -1114,8 +1186,6 @@
 	// it, then ticks everyone who earned the same and commits -- and can open any
 	// of them on the way past without losing the selection.
 	// -----------------------------------------------------------------------
-	/** The presets offered, in the order they are shown. */
-	const BULK_PRESETS: BulkPreset[] = ['all', 'submitted', 'ungraded', 'none'];
 	let picked = $state<string[]>([]);
 	let batchBusy = $state(false);
 	let outcome = $state<BulkOutcome | null>(null);
@@ -1950,8 +2020,8 @@
 				{#snippet rosterRow(s: StudentWork)}
 					{@const chip = statusChip(s)}
 					{@const short = incompleteCount(s)}
-					<li class="roster-item" class:pickable={!!bulk}>
-						{#if bulk}
+					<li class="roster-item" class:pickable={batchReady}>
+						{#if batchReady}
 							<!--
 								OUTSIDE THE BUTTON, and not only because a checkbox inside a
 								button is invalid: ticking a name and opening their work are
@@ -2129,13 +2199,18 @@
 						<p class="presence-warn" data-testid="presence-stale">{PRESENCE_STALE_NOTE}</p>
 					{/if}
 				{/if}
-				{#if bulk}
+				{#if batchReady}
 					<!--
-						THE PRESETS ARE THE POINT OF THE BULK PATH. Ticking thirty boxes
+						THE PRESETS ARE THE POINT OF THE BATCH PATH. Ticking thirty boxes
 						is not faster than grading thirty students; "everyone who handed
 						in" and "everyone not graded yet" are the two selections an
 						instructor actually makes, and the second is the one they reach
 						for after a partial pass.
+
+						ON `batchReady` AND NOT ON THE GROUPING (0288): these are the same
+						two selections whether the roster below them is one class or
+						three, and keying them to the cross-class read is what kept them
+						off the route Mr. Pina grades from.
 					-->
 					<div class="pick-presets" data-testid="pick-presets">
 						<span class="pick-presets-label">Select</span>
@@ -2151,6 +2226,8 @@
 							</button>
 						{/each}
 					</div>
+				{/if}
+				{#if crossClassRead}
 					{@const grouped = groupBySection(students, activeSections, sectionOf)}
 					{#each grouped.groups as group (group.section.id)}
 						<div class="roster-group" data-testid="roster-group">
@@ -2209,6 +2286,14 @@
 						exists for. The link is unconditional because the only thing that
 						could make it conditional is a count this page does not have, and a
 						path nobody can find is a path that was not built.
+
+						IT HANGS OFF `crossClassRead` AND NEVER OFF `batchReady` (0288),
+						and that is the whole reason the two were separated rather than
+						the per-section route simply being handed the full object. This
+						branch used to be `{:else}` of `{#if bulk}`, so the moment that
+						route gained batch grading the only route to the cross-class
+						console would have disappeared from it -- a page quietly becoming
+						the page it used to link to, with the link gone.
 					-->
 					<p class="cross-class-link">
 						<!-- `.tap-44` and not a bare inline link: the prose exemption is for a
@@ -2611,6 +2696,44 @@
 												Extra credit is not available on this deployment yet.
 											</p>
 										{/if}
+										<!--
+											THE ZERO, IN ONE GESTURE (0288). Mr. Pina: "I must be able to
+											quick return a zero or incomplete assignments."
+
+											IT SITS WITH THE SCORES, NOT WITH THE BATCH, because it is a
+											fill of this form and the batch sends this form. Put in the
+											batch bar it would read as "zero everyone", which is a
+											different and much more frightening control, and it would be
+											unavailable to the single student it is most often wanted for.
+
+											IT SAYS WHAT IT WILL DO AND NOT WHAT IT MEANS. "Score every
+											criterion at its lowest level" is checkable against the rubric
+											on screen; "Give a zero" is a claim about a total that an
+											extra-credit award on the line above can falsify.
+
+											`aria-disabled`, never `disabled`, so it can explain itself --
+											a rubric with no criteria has nothing to score and a disabled
+											control swallows the pointer event that would say so.
+										-->
+										{#if rubric?.length}
+											<div class="zero-row">
+												<button
+													type="button"
+													class="btn secondary tiny"
+													data-testid="score-bottom-levels"
+													aria-disabled={busy || batchBusy}
+													onclick={() => {
+														if (busy || batchBusy) return;
+														scoreEveryCriterionAtBottom();
+													}}
+												>
+													Score every criterion at its lowest level
+												</button>
+												<span class="zero-note">
+													Fills the rubric. Nothing is sent until you return it.
+												</span>
+											</div>
+										{/if}
 										<div class="score-total">
 											Total: {liveAwarded} / {outOf} pts{#if extraCreditReady && (extraCreditNumber ?? 0) > 0}
 												&nbsp;<span class="ec-part"
@@ -2712,7 +2835,7 @@
 										</span>
 									</div>
 
-									{#if bulk}
+									{#if batchReady}
 										<!--
 											THE BATCH, UNDER THE RUBRIC THAT FEEDS IT.
 											It is here and not in a panel of its own because the scores
@@ -3157,9 +3280,11 @@
 		text-align: left;
 	}
 	/* -------------------------------------------------------------------
-	   GRADING AT SCALE. Everything below renders only when the bulk transport
-	   is handed in, so the per-section console's box model is byte-identical
-	   to what it was.
+	   GRADING AT SCALE. Everything below renders only when a BATCH transport is
+	   handed in, so a console given none is byte-identical to what it was.
+	   Since 0288 the per-section console is given one -- the grouping and the
+	   section labels are what it is still not given, and those key on
+	   `crossClassRead`.
 	   ------------------------------------------------------------------- */
 	.visually-hidden {
 		position: absolute;
@@ -4123,6 +4248,23 @@
 		font-size: 0.72rem;
 		color: var(--text-2);
 	}
+	/* THE ZERO CONTROL. A row of its own above the total, so the button and the
+	   sentence that qualifies it are read together rather than the button being
+	   read alone. `.cr-console .btn` already carries the 44px floor (see
+	   classroom.css), so nothing here sets a height. */
+	.zero-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-1);
+		margin-top: var(--space-2);
+	}
+	.zero-note {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2);
+	}
+
 	.score-total {
 		margin: 0.6rem 0;
 		font-family: var(--font-mono);
