@@ -668,6 +668,82 @@ show.
       does not raise it again.
     - What an admin has that an author does not is still OTHER APPS, never more
       detail about one person.
+    - **AN AGGREGATE OVER ONE APP AND A COLUMN OVER EVERY APP ARE TWO
+      DIFFERENT DISCLOSURES, AND `0221` IS WHERE THAT LINE IS DRAWN.**
+      `foundry_play_counts` gained `seconds_played` and `plays_prev_7d` and
+      deliberately has **NO `players` COLUMN**. The per-app door
+      (`foundry_app_play_stats`) answers a distinct player count for ONE app
+      the caller named, which is what decision 07 opened; a cross-app one
+      would let a reader SCAN a whole gallery for the apps with exactly one
+      player, and on those apps `seconds_played` IS one named student's
+      playtime. The n=1 acceptance was about somebody opening one app, never
+      about handing out the list of every app where n is 1. `0221`'s own
+      apply-time guard raises if the column ever appears, and
+      `tests/db/foundry-play-boards.test.ts` asserts the absence with the
+      per-app read as its positive control.
+  - **THE GALLERY'S RANKED SECTIONS ARE THE LEADERBOARDS, AND THERE IS NO
+    BOARD PAGE.** Reports 30 and 32b are one surface: `FOUNDRY_GALLERY_BOARDS`
+    names four orders (trending, played, hours, new), `foundryBoards` returns
+    the ones with something to say, and every one of them is `sortGallery`'s
+    OWN ranking -- so there is one comparator on the surface rather than a
+    second ranking implementation over the same counts. A new board is an arm
+    in `foundrySortScore` plus a label; it is never a new page.
+    - **"TRENDING" IS A FORMULA AND NOT A WORD:** plays in the last seven days
+      MINUS plays in the seven before that (`foundryTrendScore`). A RISE, not a
+      level -- "Most played" is already the all-time level and "Played this
+      week" is already the recent one, so a board ranking on either is a copy
+      of one of them under a different heading.
+    - **A BOARD IS SUPPRESSED WHEN ITS SIGNAL IS FLAT, and none render at or
+      below `FOUNDRY_BOARD_SIZE` apps.** On a gallery nobody has played, three
+      of the four boards rank every app at zero and a stable sort renders the
+      IDENTICAL row three times under three headings -- which looks completely
+      normal and tells the reader something false, because a leaderboard
+      implies the order was earned.
+    - **`recent` AND `new` ARE TWO DIFFERENT QUESTIONS.** `recent` is
+      `foundry_list_apps`'s own `updated_at desc`, which a metadata edit moves;
+      `new` reads `created_at`, which nothing moves. Ranking "brand new" on
+      `updated_at` puts a four-term-old app first the day its author fixed a
+      typo in its tagline.
+    - **`trending` AND `new` ARE BOARD ORDERS AND ARE NOT IN
+      `FOUNDRY_GALLERY_SORTS`**, so `isGallerySort` refuses them: seven buttons
+      in one group is a control nobody reads at 375px, and a stored or URL
+      value must not be able to put the control into a pressed state with no
+      button under it.
+  - **SEARCH IS CLIENT-SIDE, MATCHES ANY TOKEN RATHER THAN EVERY ONE, AND THAT
+    IS FORCED BY THE REPORT THAT ASKED FOR IT.** `$lib/foundry/search.ts` runs
+    over the list the route already loaded. Requiring every query token to
+    match is the usual default and makes "Cookie Clicker" find nothing, which
+    is precisely the search report 32b calls broken -- one shared token
+    surfaces "Cookie Press" and everything else is RANKING. **The tolerance is
+    DAMERAU at k = 1, not Levenshtein**: `cookei` against `cookie` is an
+    adjacent TRANSPOSITION, the commonest typing mistake there is, and plain
+    Levenshtein scores it 2. Synonyms and `pg_trgm` are named in that file with
+    their costs and are deliberately not built.
+    - **IT SEARCHES THE NAME A CARD SHOWS, NEVER THE ONE A CHOSEN DISPLAY NAME
+      REPLACED.** It reads `foundryAuthorName`, so a student who has chosen a
+      display name cannot be found by their account name -- which is the
+      chosen-identity rule applied to a surface nobody thinks of as a surface.
+      Reaching for `displayName()` instead would also make the box a
+      disclosure by probe: type a suspected address, see whether anything
+      comes back.
+    - **IT IS COMPLETE ONLY WHILE `foundry_list_apps` RETURNS EVERYTHING.**
+      There is no pagination today, so this covers the whole gallery. A limit
+      added to that function silently turns this into a search over a page,
+      which is the failure to watch for; the answer at that point is the
+      database, not a bigger client.
+  - **A PUBLISHER HAS A PAGE AND THE DOOR IS AN APP, NEVER A PERSON.**
+    `/foundry/author/<owner uuid>` mounts `FoundryAuthorPage`;
+    `foundry_author_profile` (0221) answers NULL unless the caller can already
+    see at least one of that author's apps, so a uuid naming nobody answers
+    identically and the page cannot be used to probe for a student. Its app
+    list is `foundry_list_apps(p_owner)` -- the same function the gallery calls
+    with no owner, so there is no second population rule. It projects the
+    avatar and the pathway `gauntlet_leaderboards` has shown every signed-in
+    student since 0024 and 0038 (decision 14), and refuses the address,
+    `section_id`, `role` and `preferences` by name. **The author link lives on
+    `FoundryDetail`'s author line and not on a card**: a card is itself a link,
+    and an anchor inside an anchor stops the card being clickable past the
+    name.
   - **THE RESUME WINDOW IS THE RATE LIMIT, AND IT IS WRITTEN DOWN ONCE** --
     `_foundry_play_window()`, thirty minutes. The START resumes inside it and the
     PING refuses outside it, because they are the same rule about what one
@@ -1333,6 +1409,49 @@ below; a third mount is a caller of it, never a third handler.
 - **EVERY REFUSAL IS THE SAME BODYLESS 404.** A malformed URL, an unknown app,
   an unpublished version, another app's file, a missing row and a hidden app
   are indistinguishable from outside.
+- **THE FRAME GRANTS `allow="fullscreen"` AND NOTHING ELSE, AND THE SANDBOX IS
+  A SEPARATE LEVER FROM THE PERMISSIONS POLICY.** The default allowlist for
+  `fullscreen` is `self`, no response in this repository sends a
+  Permissions-Policy header, and a bundle is cross-origin BY DESIGN -- so a
+  game's own in-document full-screen button was refused by the browser with
+  nothing on screen to say why (report 33b). Measured as a pair in Chromium with
+  the production sandbox set and a real gesture: with the attribute
+  `document.fullscreenEnabled` is true and the request resolves, without it the
+  flag is false and the request throws "Disallowed by permissions policy".
+  - **IT IS A DIFFERENT CONTROL FROM `AppStage`'s**, which is the PARENT's and
+    always worked; neither substitutes for the other, because a game that
+    repaints on going full screen can only do that from inside.
+  - **EVERY OTHER DEFAULT-`self` FEATURE IS REFUSED** -- `gamepad`, `autoplay`,
+    `camera`, `xr-spatial-tracking` and the rest -- and each is its own decision
+    with its own report behind it. A gamepad in a student's racing game silently
+    doing nothing is this same defect one feature over; it has not been reported
+    and is not fixed. `tests/foundry-iframe-permissions.test.ts` pins each
+    refusal by name, over the file with its PROSE STRIPPED -- the comment above
+    the tag explains why `allowfullscreen` was not used, so a raw read finds the
+    word it is asserting the absence of.
+- **`src/app.html` CARRIES `viewport-fit=cover`, AND THE HALF THAT MATTERS IS
+  UNVERIFIABLE HERE.** Without it iOS insets the LAYOUT VIEWPORT to the safe
+  area, so `100dvh` is already the inset box and a full-screen stage visibly
+  stops short of the edges on a notched iPhone in landscape. No container in
+  this repository has WebKit and Chromium ignores the attribute on a desktop, so
+  what was measured is what it does NOT break: 9 route/width readings at
+  607x320, 375 and 1440, every one identical with and without it, including all
+  four `env(safe-area-inset-*)` values and the computed `100dvh`. **Six
+  components read those insets** (`InstallPrompt`, `SiteFeedback`,
+  `FrcInterestForm`, `CameraCapture`, `PhotoCorrector`, `/fsp/ask`) and every
+  one adds its own padding rather than relying on a pre-inset viewport, which is
+  why the change is safe to make on that evidence. Anything claiming this was
+  verified on Safari is wrong.
+- **PREFLIGHT WARNS ABOUT A MISSING VIEWPORT META AND MUST NEVER REFUSE ONE.**
+  `htmlDeclaresViewport` reads the RAW SOURCE rather than `HtmlFacts`, and that
+  is not laziness: `HtmlFacts` is produced by two different parsers (the
+  browser's `DOMParser` and deno-dom inside `foundry-ingest`), so a field added
+  to it has to be implemented in both or the server half reads `undefined` and
+  warns about every upload ever made. Both sides are handed the same `source`,
+  so a test over it cannot differ between them. It is a WARNING because an app
+  may legitimately be desktop-only and because every app already published
+  without the tag would start failing a check it passed on the day it was
+  uploaded.
 - **THE STORAGE SHIM IS INJECTED AGAIN, AND IT IS ALSO IN THE CONTRACT.** An
   opaque origin has no storage area and the `localStorage` GETTER THROWS, so
   the first line of a generated app that reads saved state takes the page down

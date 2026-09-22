@@ -1097,6 +1097,58 @@ export interface HtmlScan {
 }
 
 /** The first line with something on it, used as a fallback locator. */
+
+/**
+ * DOES THIS PAGE TELL A PHONE HOW WIDE IT IS?
+ *
+ * REPORT 33b's SECOND HALF. Without `<meta name="viewport">` every mobile
+ * browser lays a document out at a nominal ~980 CSS pixels and then scales the
+ * whole thing down to fit -- so a student's game renders correct, complete and
+ * unreadably small, on a phone and inside the stage's full-screen state alike.
+ * Making the stage bigger cannot fix it, because the document inside is
+ * pretending to be on a desktop.
+ *
+ * IT IS A WARNING AND NEVER A REFUSAL, and that is a deliberate line rather
+ * than caution. An app may legitimately be desktop-only -- a CAD-style tool
+ * with a 1200px canvas is a reasonable thing for a student to build -- and
+ * every app already published without the tag would start failing a check it
+ * passed the day it was uploaded. A narrowing needs its own answer for what is
+ * already stored, and there is no answer here worth having.
+ *
+ * IT READS THE RAW SOURCE RATHER THAN `HtmlFacts`, AND THAT IS NOT LAZINESS.
+ * `HtmlFacts` is produced by two different parsers -- `DOMParser` in the
+ * browser, deno-dom inside `foundry-ingest` -- and a field added to it has to
+ * be implemented in both or the server half silently reads `undefined` and
+ * warns about every upload ever made. `scanHtml` is handed the same `source`
+ * string on both sides, so a test over the source is the one shape whose answer
+ * cannot differ between them. `tests/foundry-preflight-parity.test.ts` exists
+ * because that difference is otherwise invisible.
+ *
+ * IT ACCEPTS ANY SPELLING OF THE ATTRIBUTE: quoted, single-quoted, bare,
+ * upper-case, and in any attribute order. The cost of being loose is a missed
+ * warning; the cost of being strict is a false one on a correct file, told to a
+ * student who did the right thing. Those are not the same cost.
+ */
+export function htmlDeclaresViewport(source: string): boolean {
+	for (const tag of source.matchAll(/<meta\b[^>]*>/gi)) {
+		if (/\bname\s*=\s*(?:"viewport"|'viewport'|viewport(?=[\s/>]))/i.test(tag[0])) return true;
+	}
+	return false;
+}
+
+/**
+ * The sentence, with the fix in it as something to paste. It names the ENTRY
+ * file because that is the document a phone opens.
+ */
+export function viewportWarning(path: string): string {
+	return (
+		`${path} has no viewport meta tag, so a phone will lay it out about 980 pixels wide and ` +
+		'shrink the whole page to fit. Add this inside <head>: ' +
+		'<meta name="viewport" content="width=device-width, initial-scale=1">. ' +
+		'Leave it out only if your app is meant for a desktop screen.'
+	);
+}
+
 /**
  * Whether an inline script IS the platform storage shim, IN ANY VERSION THIS
  * PLATFORM HAS EVER HANDED OUT.
@@ -1242,6 +1294,16 @@ export function scanHtml(
 		const result = scanJs(path, text, (start ?? lastKnownStart) - 1);
 		failures.push(...result.failures);
 		warnings.push(...result.warnings);
+	}
+
+	/*
+	 * ONCE, ON THE ENTRY FILE ONLY. `FOUNDRY_ENTRY_FILE` is the document a
+	 * browser actually opens; a fragment of HTML a student fetches into a div
+	 * is not laid out on its own and warning about it would be noise on a
+	 * correct bundle. See `htmlDeclaresViewport` for why this is a warning.
+	 */
+	if (path === FOUNDRY_ENTRY_FILE && !htmlDeclaresViewport(source)) {
+		warnings.push(issue(path, null, viewportWarning(path)));
 	}
 
 	const finder = new LineFinder(source);

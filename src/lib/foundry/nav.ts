@@ -8,6 +8,16 @@
  * THE INFORMATION ARCHITECTURE, stated once:
  *
  *   gallery    /foundry           the front door: everything published
+ *                /foundry/author/<id>  ONE PUBLISHER'S SHELF (report 31), which
+ *                                 resolves to the GALLERY tab rather than to a
+ *                                 tab of its own. It is a filtered view of
+ *                                 published apps -- `foundry_list_apps` with an
+ *                                 owner -- reached by following a name on the
+ *                                 gallery, so a tab for it would be a permanent
+ *                                 door to a page that means nothing until you
+ *                                 have picked a person. The active tab staying
+ *                                 on Gallery is also what tells a reader where
+ *                                 the back door is.
  *   mine       /foundry/mine      the student's own shelf
  *   contract   /foundry/contract  the build contract, a TOP-LEVEL place
  *   submit     /foundry/submit    the publish flow
@@ -37,6 +47,7 @@ export type FoundryPlace = 'gallery' | 'mine' | 'contract' | 'submit' | 'classes
 export function locateFoundry(pathname: string): FoundryPlace | null {
 	const p = pathname.replace(/\/+$/, '') || '/';
 	if (p === '/foundry') return 'gallery';
+	if (p.startsWith('/foundry/author/')) return 'gallery';
 	if (p === '/foundry/mine') return 'mine';
 	if (p === '/foundry/contract') return 'contract';
 	if (p === '/foundry/submit' || p === '/foundry/starter') return 'submit';
