@@ -44,6 +44,9 @@
 	 * that ripples every time somebody uploads a picture.
 	 */
 	import Avatar from '$lib/Avatar.svelte';
+	import IdentityBanner from '$lib/IdentityBanner.svelte';
+	import { AVATAR_PRESETS, presetTier, AVATAR_TIERS } from '$lib/profile';
+	import { ACCENT_PRESETS, BADGES, type IdentityStyle } from '$lib/identity-style';
 	import { AVATAR_TINTS, avatarTint, rosterSubject } from '$lib/avatars';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
 	import SectionGrid from '$lib/notebook/SectionGrid.svelte';
@@ -484,6 +487,122 @@
 			}
 		} as unknown as AssignmentTeacherTransports;
 	}
+	/* ======================================================================
+	   LEDGER 0289's CASES.
+
+	   THE PRESET SWEEP is every id in the registry through the REAL component,
+	   which is what makes "every existing avatar id still renders" a thing a
+	   browser can answer rather than a thing a test asserts about data. It is
+	   generated from `AVATAR_PRESETS`, so a preset added later is on this page
+	   with no edit here.
+
+	   THE THIRTY-IDENTITY ROSTER is the measurement behind the restraint in
+	   `Avatar.svelte`'s own header. It renders the same thirty people twice --
+	   once as accented avatars (what a roster actually gets) and once as full
+	   banners (what report 15 asks for if taken literally) -- so the cost of
+	   the rejected arrangement is a number rather than an opinion.
+	   ====================================================================== */
+	const PRESET_IDS = AVATAR_PRESETS.map((p) => p.id);
+
+	const STYLE_CASES: { key: string; label: string; style: IdentityStyle }[] = [
+		{
+			key: 'accent-only',
+			label: 'Accent only',
+			style: {
+				background_type: null,
+				background_value: null,
+				accent_color: '#8e5bf0',
+				badge: null,
+				flourish: null,
+				tagline: null
+			}
+		},
+		{
+			key: 'badge-tagline',
+			label: 'Accent, badge, tagline',
+			style: {
+				background_type: null,
+				background_value: null,
+				accent_color: '#0fbe7a',
+				badge: 'rocket',
+				flourish: null,
+				tagline: 'Builds things that roll'
+			}
+		},
+		{
+			key: 'solid',
+			label: 'Solid banner, LIGHT ground (dark ink)',
+			style: {
+				background_type: 'solid',
+				background_value: '#efb539',
+				accent_color: '#e5484d',
+				badge: 'crown',
+				flourish: null,
+				tagline: 'Fastest teardown, period 3'
+			}
+		},
+		{
+			key: 'gradient',
+			label: 'Gradient banner, DARK ground (light ink)',
+			style: {
+				background_type: 'gradient',
+				background_value: ['#3e7bfa', '#8e5bf0'],
+				accent_color: '#22cccc',
+				badge: 'bolt',
+				flourish: 'glow-pulse',
+				tagline: 'CAD or nothing'
+			}
+		},
+		{
+			key: 'drift',
+			label: 'Particle trail',
+			style: {
+				background_type: 'solid',
+				background_value: '#1a2a4a',
+				accent_color: '#ec4899',
+				badge: 'flame',
+				flourish: 'particle-trail',
+				tagline: 'Third seed, undefeated'
+			}
+		},
+		{
+			key: 'none',
+			label: 'NO style at all -- the state everybody is in',
+			style: {
+				background_type: null,
+				background_value: null,
+				accent_color: null,
+				badge: null,
+				flourish: null,
+				tagline: null
+			}
+		}
+	];
+
+	/** Thirty people, deterministic, so both arrangements measure the same set. */
+	const THIRTY = Array.from({ length: 30 }, (_, i) => {
+		const accent = ACCENT_PRESETS[i % ACCENT_PRESETS.length].hex;
+		const badge = BADGES[i % BADGES.length].id;
+		return {
+			key: `p${i}`,
+			subject: {
+				display_name: `Student ${String(i + 1).padStart(2, '0')} Apellido`,
+				email: `student${i}@boscotech.net`,
+				avatar: i % 3 === 0 ? `preset:${PRESET_IDS[i % PRESET_IDS.length]}` : null,
+				avatar_url: null,
+				/* Every one of the thirty is customized, which is the WORST case
+				   rather than the likely one: the point of the measurement is the
+				   ceiling, and a roster where two people have an accent cannot
+				   tell you what thirty costs. */
+				style_background_type: 'gradient' as const,
+				style_background_value: ['#3e7bfa', accent] as [string, string],
+				style_accent_color: accent,
+				style_badge: badge,
+				style_flourish: 'glow-pulse',
+				style_tagline: 'Period 3, bench 4'
+			}
+		};
+	});
 </script>
 
 <svelte:head><title>Avatars harness</title></svelte:head>
@@ -607,7 +726,123 @@
 	</main>
 </div>
 
+<!-- ========================================================================
+     LEDGER 0289. Kept in its own region so the sweeps above, which measure
+     row heights against a locked density contract, are unaffected by it.
+     ======================================================================== -->
+<main class="harness cr-root" data-testid="identity-harness">
+	<h2>Every preset in the registry, through the real component</h2>
+	<p class="note">
+		{AVATAR_PRESETS.length} presets. Every id that has ever shipped must still draw a mark here;
+		the eight original ones are unchanged apart from two lightness repairs.
+	</p>
+	{#each AVATAR_TIERS as tier (tier.id)}
+		{@const inTier = AVATAR_PRESETS.filter((p) => presetTier(p) === tier.id)}
+		<h3 class="tier-head">{tier.label} <span class="note">{tier.note}</span></h3>
+		<div class="presets" data-testid="preset-tier" data-tier={tier.id}>
+			{#each inTier as p (p.id)}
+				<span class="preset-cell" data-testid="preset-cell" data-preset={p.id}>
+					<Avatar profile={{ id: 'u', avatar: `preset:${p.id}` } as never} size={44} />
+					<span class="preset-word">{p.label}</span>
+				</span>
+			{/each}
+		</div>
+	{/each}
+
+	<h2>Identity styles: the avatar takes the accent, the banner takes the rest</h2>
+	<p class="note">
+		The restraint in <code>Avatar.svelte</code>. Left is what a roster row gets; right is what a
+		surface showing ONE person gets.
+	</p>
+	<div class="style-cases" data-testid="identity-cases">
+		{#each STYLE_CASES as c (c.key)}
+			<div class="style-case" data-testid="identity-case" data-case={c.key}>
+				<span class="case-label">{c.label}</span>
+				<span class="case-pair">
+					<Avatar
+						subject={{ display_name: 'Ana Reyes', email: 'ana@boscotech.net' }}
+						style={c.style}
+						size={28}
+					/>
+					<IdentityBanner
+						subject={{ display_name: 'Ana Reyes', email: 'ana@boscotech.net' }}
+						style={c.style}
+						size={36}
+					/>
+				</span>
+			</div>
+		{/each}
+	</div>
+
+	<h2>Thirty identities, the arrangement that ships</h2>
+	<p class="note">
+		Accented avatars in a roster row. This is what a class of thirty actually renders.
+	</p>
+	<div class="roster" data-testid="thirty-avatars">
+		{#each THIRTY as r (r.key)}
+			<div class="roster-row" data-testid="thirty-avatar-row">
+				<Avatar subject={r.subject} tintKey={r.subject.email} size={28} />
+				<span class="roster-name">{r.subject.display_name}</span>
+			</div>
+		{/each}
+	</div>
+
+	<h2>Thirty identities, the arrangement that was REJECTED</h2>
+	<p class="note">
+		The same thirty as full banners: what report 15 asks for read literally. Measured against the
+		row above, not argued about.
+	</p>
+	<div class="roster" data-testid="thirty-banners">
+		{#each THIRTY as r (r.key)}
+			<div class="roster-row" data-testid="thirty-banner-row">
+				<IdentityBanner subject={r.subject} tintKey={r.subject.email} size={28} />
+			</div>
+		{/each}
+	</div>
+</main>
+
 <style>
+	.tier-head {
+		font-size: 0.9rem;
+		margin: 0.8rem 0 0.4rem;
+	}
+	.presets {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.preset-cell {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.2rem;
+		width: 5.2rem;
+		font-size: 0.7rem;
+		color: var(--text-2);
+	}
+	.preset-word {
+		text-align: center;
+	}
+	.style-cases {
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+	}
+	.style-case {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.case-label {
+		font-size: 0.7rem;
+		color: var(--text-2);
+	}
+	.case-pair {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+	}
 	.harness {
 		padding: 1rem;
 		max-width: 60rem;
