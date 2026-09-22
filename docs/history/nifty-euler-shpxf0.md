@@ -370,6 +370,73 @@ paths, not 7`.
 Every file was restored from a byte copy (never `git checkout --`) and md5
 checked; nothing was committed while a mutation was in place.
 
+### What the browser harness caught that reading would not have
+
+Four things, on a surface the unit tests call green:
+
+1. **`waitForApp` returns on DOM stability and `/dev/profile-menu` is
+   `ssr = false`**, so the first scripted click landed while SvelteKit was
+   still finishing its own first navigation. The next step threw `Execution
+   context was destroyed` with an ABORTED `__data.json` behind it, and every
+   measurement after that point was of a page that no longer existed. The spec
+   waits on the profile row having reached the component first.
+2. **`Disclosure` HIDES IN CSS AND NEVER REMOVES**, which is its documented
+   contract -- so an `until` keyed on a swatch being PRESENT already held, the
+   harness correctly refused to fire the click ("the predicate ALREADY HELD, so
+   the click never fired -- this step reached no state"), and all 24 controls
+   were measured present-and-invisible. The predicate is `aria-expanded`.
+3. **`:nth-of-type` counts among siblings of the same TYPE**, so
+   `.pm-swatches .pm-swatch:nth-of-type(5)` matched two buttons across two
+   groups. Each group carries its own hook now.
+4. **The contrast check cannot reach a `::before` wash** -- see the banner
+   section above. Its 14.66:1 was a pass for a reason nobody checked.
+
+**AND ONE DEFECT I REPORTED THAT WAS NOT ONE.** A probe written for this spec
+asked whether Sign out sat inside the VIEWPORT, reported `AND IT IS
+UNREACHABLE: bottom 1678 of 900 with no scroll`, and produced a `max-height` /
+`overflow-y: auto` on `.pm-panel`. **That was wrong and is backed out.** This
+panel is not its own scroller BY DESIGN: it is reached by scrolling the
+DOCUMENT, which is exactly what `profile-menu-state-open.mjs` asserts, and that
+spec was still passing while mine claimed a defect. Two probes answering one
+question is the pair that stops agreeing, and these disagreed on the first run
+-- so the new probe asks the established question about the Sign out control
+rather than inventing a second predicate. The panel CSS is byte-identical to
+what it was.
+
+### Two tests are RED on this branch, both structurally, and neither is fixable here
+
+`npm test`: **7 failed, 9936 passed** before the counts regeneration; after it,
+**2 failed** and both are consequences of carrying a migration that has not been
+applied.
+
+1. **`tests/db/migrations-applied-record.test.ts`** wants a record under
+   `docs/migrations-applied/` for every migration from 0193 onward, read off the
+   WORKING TREE. 0220 has not been applied -- a cloud container cannot reach the
+   production database -- and that directory's own README says in its first two
+   lines: "One file per migration that actually applied to the production
+   database. **Nothing here is a plan.**" So writing a record now would be
+   writing down something that did not happen.
+   **THIS IS HOW EVERY MIGRATION-CARRYING LANE LEAVES THE TREE, and it is
+   checkable rather than asserted:** `0217`'s SQL landed in `5a2bd197` and its
+   record in `e44bc034`, a separate commit; `0216`'s in `e525425c` and
+   `7d91cb91`. The record is written by a LATER bundle, from Mr. Pina's report,
+   once he has pasted the file. It goes green the moment 0220 is applied and
+   recorded.
+2. **`tests/db/migration-0177-tombstone.test.ts`** requires the migration series
+   to be contiguous apart from holes a lane in flight is holding. The prompt for
+   this bundle says "**Use 0220 and no other number**", and `0220` is free --
+   but `0219` is unclaimed, so it is a hole nothing accounts for. `0218` is
+   CONTESTED between `claude/new-session-8ff2od` and
+   `claude/new-session-nfgovx`, which is very likely why 0220 was assigned: one
+   of those two moving to 0219 closes this by itself. **The instruction was
+   followed rather than second-guessed**, because renumbering against an
+   explicit directive could collide with a lane this session cannot see. If the
+   contest resolves some other way, renumbering this file to `0219` is the whole
+   fix and nothing else in the bundle names the number.
+
+**Neither failure existed on `origin/main`** and neither is about the code this
+bundle changed.
+
 ### What was NOT verified
 
 - **Nothing was run against the live Supabase project.** This container cannot
