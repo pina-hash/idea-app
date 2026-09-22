@@ -57,8 +57,20 @@ export default {
 	],
 	presence: [
 		{ selector: '.pm-panel', label: 'the panel (positive control)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '.pm-preset', label: 'eight preset controls', expectPresent: 8, maxPresent: 8, expectVisible: 8 },
-		{ selector: '.pm-preset .pm-preset-word', label: 'a word on every preset', expectPresent: 8, maxPresent: 8, expectVisible: 8 },
+		/* THE RULE, NOT THE COUNT (ledger 0289). These pinned EIGHT, which was
+		   the whole registry when this spec was written and which a legitimate
+		   change -- report 14 asking for more options -- necessarily broke the
+		   moment the set grew to seventeen. Re-pinning to the new number
+		   records what last happened and checks nothing. What these rows are
+		   actually for is that every preset is a REAL control and carries a
+		   WORD: a glyph is not a control's name, a `title` is not discoverable
+		   and a phone cannot hover (report 23, ledger 0117). So the count is a
+		   FLOOR of the original eight -- the registry is append-only, so it can
+		   never be fewer -- and controls are reconciled against words by the
+		   `orderResult` probe below rather than by a second literal that would
+		   go stale the same way. */
+		{ selector: '.pm-preset', label: 'every preset is a control (at least the original eight)', expectPresent: 8, expectVisible: 8 },
+		{ selector: '.pm-preset .pm-preset-word', label: 'a word on every preset', expectPresent: 8, expectVisible: 8 },
 		{ selector: '.pm-preset[aria-pressed="true"]', label: 'exactly one preset pressed', expectPresent: 1, maxPresent: 1 },
 		{ selector: '.pm-name-edit input', label: 'the name field, open', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '.pm-theme', label: 'theme radios', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
@@ -81,6 +93,18 @@ export default {
 		{ selector: '.pm-note', label: 'the pathway sentence', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	orderResult: [
+		{
+			/* EVERY PRESET CARRIES EXACTLY ONE NON-EMPTY WORD, whatever the
+			   registry holds -- which is what the two pinned counts above used
+			   to assert between them, and which survives the set growing. A
+			   preset shipped with a glyph and no name is a control nobody can
+			   name, and it is invisible to a check that only compares two
+			   totals that both moved. The count is printed so a run that
+			   rendered no presets cannot report agreement between two zeroes. */
+			label: 'every preset control carries exactly one word',
+			evaluate: `() => { const c = document.querySelectorAll('.pm-preset').length; const w = document.querySelectorAll('.pm-preset .pm-preset-word').length; const named = [...document.querySelectorAll('.pm-preset')].filter((b) => ((b.querySelector('.pm-preset-word') || {}).textContent || '').trim().length > 0).length; return [c > 0 ? c + ' presets' : 'NO PRESETS RENDERED', c === w && c === named ? 'every one is named' : 'MISMATCH: ' + c + ' controls, ' + w + ' words, ' + named + ' non-empty']; }`,
+			expected: ['17 presets', 'every one is named']
+		},
 		{
 			label: 'the panel sits inside the viewport at this width',
 			evaluate: `() => { const p = document.querySelector('.pm-panel').getBoundingClientRect(); return [p.left >= 0 && p.right <= innerWidth + 0.5 ? 'inside the viewport' : 'off edge: ' + Math.round(p.left) + '..' + Math.round(p.right) + ' of ' + innerWidth]; }`,
@@ -122,7 +146,7 @@ export default {
 	tapTargets: [
 		{ selector: '.pm-btn', label: 'Save name, Cancel, Upload a picture, Use Google photo', min: 44 },
 		{ selector: '.pm-name-edit input', label: 'the name field', min: 44 },
-		{ selector: '.pm-preset', label: 'the eight presets', min: 44 },
+		{ selector: '.pm-preset', label: 'every preset control', min: 44 },
 		{ selector: '.pm-theme', label: 'the theme radios', min: 44 },
 		/* 44px WITH NO EXEMPTION. This is a student-facing surface -- it is the
 		   menu on all 69 product pages -- so the 24px instructor floor is not

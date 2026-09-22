@@ -623,7 +623,7 @@
 									</div>
 
 									<div class="pm-label pm-sub">Accent</div>
-									<div class="pm-swatches">
+									<div class="pm-swatches" data-testid="pm-accent">
 										<button
 											class="pm-swatch pm-swatch-none"
 											class:selected={!style?.accent_color}
@@ -651,7 +651,7 @@
 									</div>
 
 									<div class="pm-label pm-sub">Badge</div>
-									<div class="pm-swatches">
+									<div class="pm-swatches" data-testid="pm-badge">
 										<button
 											class="pm-swatch pm-swatch-none"
 											class:selected={!style?.badge}
@@ -678,7 +678,7 @@
 									</div>
 
 									<div class="pm-label pm-sub">Banner</div>
-									<div class="pm-swatches">
+									<div class="pm-swatches" data-testid="pm-banner">
 										<button
 											class="pm-swatch pm-swatch-none"
 											class:selected={!bgType}
@@ -772,7 +772,7 @@
 									     flourish names a decisive moment a tournament has and a
 									     profile does not. -->
 									<div class="pm-label pm-sub">Effect</div>
-									<div class="pm-swatches">
+									<div class="pm-swatches" data-testid="pm-effect">
 										<button
 											class="pm-swatch pm-swatch-none"
 											class:selected={!style?.flourish}
