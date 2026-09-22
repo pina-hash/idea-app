@@ -84,7 +84,7 @@ Mr. Pina applied 0220, 0221, 0223 and 0224 in the SQL editor after this lane sto
 then pasted back each verification table. All four were checked row by row before
 anything was recorded:
 
-- **0221**: all 16 rows plus the positive control on `app_short_link_target` read true.
+- **0221**: all 16 rows read true, including the last-row positive control on `app_short_link_target`.
 - **0223**: all 12 rows read `OK`, including the positive control on
   `gauntlet_macro_start`.
 - **0224**: all 21 rows read true, including the last-row positive control on
