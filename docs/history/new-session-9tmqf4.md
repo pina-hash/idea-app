@@ -207,6 +207,11 @@ defect. Its caller is outside this bundle's files, so it was left alone.
   after -- re-derived on the clean tree at `3793ea2c` with the two `PUBLIC_`
   values exported before the sync. CLAUDE.md's written baseline was CORRECT this
   time, for the first time in six recorded readings.
+- **`npm test`: 527 files, 9842 tests, all passed, exit 0**, in 1236s, on the
+  final tree with nothing else in flight. Three earlier runs were discarded
+  rather than reported: two because source changed underneath them, one because
+  this session killed it. A suite run that did not describe the tree being
+  pushed is not a result.
 - **A browser spec that drives the tool**,
   `tools/browser-verify/routes/ideacad-solid-state-arc.mjs`, the first of 237 to
   press the arc tool at all. Three arcs from nine real presses on the viewport
