@@ -1,5 +1,5 @@
 # IDEA Maps - Specification
-**Version 1.1 - 2026-08-30**
+**Version 1.2 - 2026-09-22**
 
 Scoped with Mr. Pina on 2026-08-30 in the IDEA maps scoping chat. This document is the
 spec. It authorizes no build by itself: build prompts are written from it only after
@@ -75,6 +75,34 @@ One table of spatial containers, self-referencing:
 - Geometry, in inches, positioned in the parent's frame: outline (rect or polygon),
   position, rotation. Rooms position against the building origin; units against their
   room; compartments have no plan geometry.
+- **Reference face: the outline is the INTERIOR face of the space it describes.** Not
+  the centerline and not the exterior. Every outline typed to date was measured by
+  somebody standing inside a room, so reading the stored numbers as interior is what
+  keeps every published row correct with no backfill; centerline or exterior would
+  silently move every room by a wall thickness and make the existing data ambiguous. A
+  240 inch room is 240 inches of usable space. Decision 36, 2026-09-14, built as
+  migration 0224.
+- **Wall thickness is a separate per-node value with a building-level default, and the
+  wall is a band lying OUTWARD from the outline.** Two values, because a building's
+  exterior wall and the partitions between its rooms are different numbers: the node's
+  own thickness, and the default its descendants fall back to when they carry none.
+  Resolution is own value, then the nearest ancestor carrying a default, then nothing.
+  Nothing is the pre-0224 behaviour exactly -- a drawn line, no band -- and ZERO is a
+  legal value that also draws a line but stops the inheritance walk, because it is an
+  answer somebody gave rather than one nobody gave. Compartments carry no wall, as they
+  carry no other plan geometry.
+- **Thickness is uniform per node, not per edge.** A polygon room gets one number,
+  applied to every edge and mitered at the corners. Per-edge was considered and refused:
+  it needs a list parallel to `points` with nothing to keep the two in step when a
+  corner is edited out, a second shape for `rect`, and a form asking for five numbers
+  where a building index wants one. What it buys -- a room whose north wall is thicker
+  than its south wall -- nobody has asked for.
+- **Snapping has a face, and which one is decided by the relationship.** A thing being
+  placed is INSIDE its parent, so it meets the parent's inner face, which is the outline
+  exactly as typed; it is BESIDE a sibling, so it meets that sibling's outer face. The
+  thing being placed presents its own outer face in both cases. With no thickness set
+  the outer face is the inner face, so every placement made before 0224 is answered
+  identically after it.
 - Elevation, on `unit` nodes only: an ordered stack of its compartments with typed
   heights and widths. This is the side view for the last ten feet.
 - Campus growth is only more nodes: `site` above `building`, `outdoor_zone` siblings of
@@ -204,9 +232,28 @@ P1 ships it admin-only. P2 opens it to granted students.
 - DXF import specifics (scoped at P2).
 - Walkable-space graph for drawn paths (P2+ if ever).
 - Anything beacon-shaped beyond a nullable column note.
+- **Per-edge snapping for a polygon.** A polygon's snap targets are its axis-aligned
+  bounding box rather than its real edges, for both faces alike, so a five-sided room
+  already snaps to lines that are not its walls. That predates wall thickness and is
+  independent of it: 0224 left it exactly as it found it, because the outer face's box
+  is derived the same way as the inner one's and the two therefore stay consistent with
+  each other. Fixing it is real per-edge geometry in the editor's drag arithmetic and is
+  its own bundle. It is recorded here rather than left unwritten because it is the one
+  thing about maps geometry that does not do what a reader of this section would assume.
+  Note that the polygon's DRAWN faces are exact -- the wall band is a true mitered
+  offset -- so what is approximate is where a shape snaps, never what is on screen.
 
 ## Changelog
 
+- **1.2 (2026-09-22).** Wall thickness, from Mr. Pina's report of 2026-09-14 ("wall
+  thicknesses must be accounted for") and decision 36, which he delegated. Section 4.1
+  gains the reference face -- the outline is the INTERIOR face of the space -- plus the
+  two-value thickness model with its building-level default, the answer that thickness
+  is uniform per node rather than per edge, and the rule that snapping now has a face
+  chosen by the relationship. Section 10 gains the pre-existing polygon bounding-box
+  snap as a named open item; it was already true and was nowhere written down. No
+  scoping decision was reopened, and nothing here changes what an already-published
+  row means -- which is the whole reason the interior face was the answer.
 - **1.1 (2026-08-30).** Closeout pass. Registered as a standards file: mirrored to
   `docs/standards/IDEA_MAPS_SPEC.md` with a `REGISTER.md` row, so it now has a freshness
   authority the way every other multi-session document does. The 1.0 preamble planned a
