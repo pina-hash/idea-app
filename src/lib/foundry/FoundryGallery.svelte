@@ -42,9 +42,12 @@
 	import FoundryDetail from './FoundryDetail.svelte';
 	import FoundryPlayStats from './FoundryPlayStats.svelte';
 	import { foundryMosaicColumns } from './mosaic.ts';
+	import { foundrySearch, foundrySearchEmptyNote } from './search.ts';
 	import {
 		FOUNDRY_GALLERY_DEFAULT_SORT,
 		FOUNDRY_GALLERY_SORTS,
+		FOUNDRY_PLAY_COVERAGE_NOTE,
+		foundryBoards,
 		playCountLabel,
 		sortGallery,
 		type FoundryGallerySort,
@@ -173,8 +176,44 @@
 	 */
 	let sort = $state<FoundryGallerySort>(FOUNDRY_GALLERY_DEFAULT_SORT);
 
+	/**
+	 * THE SEARCH BOX, REPORT 32b. Local state, deliberately not in the URL, for
+	 * exactly the reason decision 04 gives about the sort: a query is a thing
+	 * you do while looking, and putting it in the query string would put a
+	 * second parameter on every link a student pastes. SELECTION is still in
+	 * the URL, so an app found by searching is still linkable by opening it.
+	 *
+	 * IT FILTERS AND DOES NOT FETCH. `foundrySearch` runs over the list the
+	 * route already loaded, which today is every app in this caller's
+	 * population, so there is no round trip, no debounce to get wrong and no
+	 * pending state to render. `search.ts` states what makes that true and what
+	 * would end it.
+	 */
+	let query = $state('');
+
+	/**
+	 * SEARCHING REPLACES THE BOARDS RATHER THAN SITTING UNDER THEM. A person
+	 * who has typed something is looking for one app; four ranked sections
+	 * above their results are four things in the way of it.
+	 */
+	const searching = $derived(query.trim().length > 0);
+
 	/** Pure, stable, and it never mutates the list the route handed in. */
-	const ordered = $derived(sortGallery(apps, playCounts, sort));
+	const ordered = $derived(
+		searching ? foundrySearch(apps, query) : sortGallery(apps, playCounts, sort)
+	);
+
+	/**
+	 * THE RANKED SECTIONS, REPORTS 30 AND 32b, LIVE ON OPEN.
+	 *
+	 * `foundryBoards` decides which of them have anything to say -- see its own
+	 * header for the flatness rule and the size floor -- so this is a render of
+	 * whatever it returns and never a list of headings with empty rows under
+	 * them. A gallery too small to rank, or one where nothing has been played,
+	 * gets no boards and the list below is the whole page, which is the honest
+	 * arrangement rather than a degraded one.
+	 */
+	const boards = $derived(searching ? [] : foundryBoards(apps, playCounts));
 
 	/**
 	 * THE COLUMN CEILING, CAPPED AT THE NUMBER OF CARDS.
@@ -211,7 +250,88 @@
 				<a class="fdy-gal-contract tap-44" href="/foundry/contract">Build contract</a>
 			</header>
 
+			<!--
+				THE SEARCH BOX, REPORT 32b. A real `<label>` with a real word in
+				it rather than a placeholder: a placeholder disappears the moment
+				anybody types, which is exactly when a reader who lost their place
+				needs to know what the box is. `type="search"` so a phone offers
+				the right keyboard and the browser its own clear control.
+
+				IT RENDERS WHENEVER THERE IS MORE THAN ONE APP, on the same test
+				the sort control uses, because searching a gallery of one is a
+				control whose only possible outcome is the page you are on.
+			-->
 			{#if apps.length > 1}
+				<div class="fdy-gal-find">
+					<label class="fdy-gal-find-label" for="fdy-gal-q">Search apps</label>
+					<input
+						id="fdy-gal-q"
+						class="fdy-gal-find-input tap-44"
+						type="search"
+						autocomplete="off"
+						data-testid="foundry-gallery-search"
+						bind:value={query}
+					/>
+					{#if searching}
+						<!--
+							THE COUNT IS A LIVE REGION, because the thing that changed
+							when somebody typed is further down the page and off screen
+							on a phone. `polite`, so it waits for a pause in typing
+							rather than interrupting every keystroke.
+						-->
+						<p class="fdy-gal-find-count" role="status" data-testid="foundry-search-count">
+							{ordered.length === 1 ? '1 app' : `${ordered.length} apps`} for "{query.trim()}"
+						</p>
+					{/if}
+				</div>
+			{/if}
+
+			<!--
+				THE RANKED SECTIONS, VISIBLE AND LIVE ON OPEN (report 32b), which
+				is the whole of what makes them different from the sort control
+				below: three or four orders at once rather than one at a time.
+
+				EVERY BOARD IS `sortGallery`'s OWN RANKING. There is no second
+				comparator here and no second idea of what "most played" means --
+				a board is an order, a heading, five rows and the figure that
+				order ranks on. `telemetry.ts` holds all of it.
+
+				THE COVERAGE NOTE IS RENDERED ONCE FOR THE WHOLE REGION rather
+				than under each board. `CLAUDE.md` requires it beside every play
+				figure and decision 04 records that the ranked LIST carries none
+				today; four copies of one sentence in one screen is noise that
+				gets skipped, and one sentence introducing four ranked sections
+				is read. It qualifies every number in the region it heads.
+			-->
+			{#if boards.length > 0}
+				<section class="fdy-gal-boards" data-testid="foundry-gallery-boards">
+					<p class="fdy-gal-boards-note">{FOUNDRY_PLAY_COVERAGE_NOTE}</p>
+					{#each boards as board (board.sort)}
+						<section class="fdy-gal-board" data-board={board.sort}>
+							<header class="fdy-gal-board-head">
+								<h3>{board.title}</h3>
+								<p class="fdy-gal-board-rule">{board.rule}</p>
+							</header>
+							<ul class="fdy-gal-board-row">
+								{#each board.apps as app, i (app.id)}
+									<li>
+										<FoundryCard
+											{app}
+											href="/foundry?app={app.slug}"
+											selected={selected?.slug === app.slug}
+											{coverUrl}
+											plays={board.figures[i]}
+											onselect={onSelect}
+										/>
+									</li>
+								{/each}
+							</ul>
+						</section>
+					{/each}
+				</section>
+			{/if}
+
+			{#if apps.length > 1 && !searching}
 				<!--
 					REAL BUTTONS WITH WORDS ON THEM, in a labelled group, with
 					`aria-pressed` saying which one is on. Not a <select>: three options
@@ -224,6 +344,14 @@
 					until somebody plays something would make it appear one day with no
 					explanation.
 				-->
+				<!--
+					THE HEADING EXISTS SO THE LIST IS NOT MISTAKEN FOR A FIFTH
+					BOARD. With ranked sections above it, an unlabelled mosaic
+					reads as another one of them; this says it is everything.
+				-->
+				{#if boards.length > 0}
+					<h3 class="fdy-gal-all">All {apps.length} apps</h3>
+				{/if}
 				<div class="fdy-gal-sort" role="group" aria-label="Order the gallery">
 					{#each FOUNDRY_GALLERY_SORTS as option (option.id)}
 						<button
@@ -248,6 +376,22 @@
 					</p>
 					<a class="btn tap-44" href="/foundry/submit">Publish something</a>
 				</div>
+			{:else if searching && ordered.length === 0}
+				<!--
+					THE SEARCH EMPTY STATE, WHICH IS NOT THE GALLERY EMPTY STATE.
+					"Nothing has been published yet" would be a lie on a gallery
+					full of apps, and it is the sentence a single shared empty
+					branch would have produced. `foundrySearchEmptyNote` names
+					what was searched and what is deliberately not in the list, so
+					a student does not conclude their own unapproved app has
+					vanished.
+				-->
+				<div class="fdy-gal-empty" data-testid="foundry-search-empty">
+					<p>{foundrySearchEmptyNote(query)}</p>
+					<button type="button" class="btn tap-44" onclick={() => (query = '')}>
+						Clear the search
+					</button>
+				</div>
 			{:else}
 				<ul
 					class="fdy-gal-mosaic"
@@ -271,8 +415,14 @@
 								? (playCounts[app.id]?.plays7d ?? 0)
 								: (playCounts[app.id]?.plays ?? 0)
 						)}
+						<!--
+							NOTHING WHILE SEARCHING. The list is ranked by relevance
+							then, not by plays, so a play count beside each card
+							would be a number that does not explain the order it is
+							sitting in -- the same reason `recent` prints none.
+						-->
 						{@const playsLabel =
-							sort === 'recent' || !plays
+							searching || sort === 'recent' || !plays
 								? ''
 								: `${plays}${sort === 'played7d' ? ' this week' : ''}`}
 						<li>
@@ -383,6 +533,147 @@
 		padding: var(--space-4, 1rem) 0 0;
 		border-top: 1px solid var(--hairline);
 		min-width: 0;
+	}
+
+	/* -------------------------------------------------------------------
+	   THE SEARCH BOX (report 32b).
+	   ------------------------------------------------------------------- */
+
+	.fdy-gal-find {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2, 0.5rem);
+		min-width: 0;
+	}
+
+	/* A VISIBLE WORD, not a placeholder. A placeholder is gone the moment
+	   anybody types, which is when a reader most needs to know what the box
+	   is, and it is never a label to assistive tech. */
+	.fdy-gal-find-label {
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		color: var(--text-2, var(--dim));
+	}
+
+	/* `--boundary` and not `--hairline`: this is the outer edge of an
+	   interactive control, which is the first of the three things CLAUDE.md
+	   says the load-bearing token is taken by. */
+	.fdy-gal-find-input {
+		flex: 1 1 12rem;
+		min-width: 0;
+		padding: 0 var(--space-3, 0.75rem);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-1, 4px);
+		background: var(--surface-2, var(--bg2));
+		color: var(--text-1, var(--white));
+		font-family: var(--font-display);
+		font-size: 1rem;
+	}
+
+	.fdy-gal-find-input:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
+	}
+
+	/* The live count takes the whole next line so it never squeezes the input
+	   below a usable width on a phone. */
+	.fdy-gal-find-count {
+		flex: 1 0 100%;
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		color: var(--text-2, var(--dim));
+	}
+
+	/* -------------------------------------------------------------------
+	   THE RANKED SECTIONS (reports 30 and 32b).
+	   ------------------------------------------------------------------- */
+
+	.fdy-gal-boards {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-5, 1.25rem);
+		min-width: 0;
+	}
+
+	/* One coverage note for the whole region. See the markup for why it is not
+	   repeated per board. */
+	.fdy-gal-boards-note {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		line-height: 1.5;
+		color: var(--text-2, var(--dim));
+	}
+
+	.fdy-gal-board {
+		min-width: 0;
+	}
+
+	.fdy-gal-board-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--space-2, 0.5rem);
+		margin: 0 0 var(--space-2, 0.5rem);
+	}
+
+	.fdy-gal-board-head h3 {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: 1.05rem;
+		letter-spacing: 0.02em;
+	}
+
+	/* WHAT THE BOARD COUNTS, beside the heading rather than hidden in a title
+	   attribute: a tooltip is not discoverable and a phone cannot hover. */
+	.fdy-gal-board-rule {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		color: var(--text-2, var(--dim));
+	}
+
+	/*
+	   A BOARD IS A ROW THAT SCROLLS SIDEWAYS, NOT A GRID AND NOT THE MOSAIC.
+	   Five cards stacked vertically at 375px is five screens of one section
+	   before the next heading, which is the opposite of "all of them visible
+	   upon opening"; a horizontal row keeps each section one glance tall at
+	   every width and lets the ranking be read left to right, which is the
+	   direction a ranking is read in.
+
+	   IT KEEPS ITS SCROLLBAR. No region on this site may hide one (CLAUDE.md),
+	   and here it is the only thing saying there is more of the ranking than
+	   fits.
+
+	   `scroll-snap` ON THE CHILDREN so a swipe lands on a card rather than
+	   halfway through one. `proximity` and not `mandatory`: mandatory fights a
+	   deliberate small scroll and traps a keyboard user mid-row.
+	*/
+	.fdy-gal-board-row {
+		display: flex;
+		gap: var(--space-3, 0.75rem);
+		margin: 0;
+		padding: 0 0 var(--space-2, 0.5rem);
+		list-style: none;
+		overflow-x: auto;
+		scroll-snap-type: x proximity;
+		overscroll-behavior-x: contain;
+	}
+
+	.fdy-gal-board-row > li {
+		flex: 0 0 min(16rem, 78%);
+		min-width: 0;
+		scroll-snap-align: start;
+	}
+
+	/* The full list's own heading, once there are sections above it. */
+	.fdy-gal-all {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: 1.05rem;
+		letter-spacing: 0.02em;
 	}
 
 	.fdy-gal-head {
