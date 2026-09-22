@@ -31,8 +31,11 @@ import {
 	MAPS_KIND_LABELS,
 	mapsElevationStack,
 	mapsNodeContent,
+	mapsOuterCorners,
 	mapsPlacedBox,
+	mapsResolveWallThickness,
 	mapsShapeCorners,
+	mapsThicknessChain,
 	type MapsBox,
 	type MapsElevationSlot,
 	type MapsItem,
@@ -373,11 +376,33 @@ export interface MapsPlanShape {
 	box: MapsBox;
 	/** The outline's own corner path in the PARENT frame, for a polygon. */
 	points: [number, number][];
+	/**
+	 * 0224. The OUTER face's path in the same frame: where the wall material
+	 * ends. NULL when this shape has no resolved thickness, which is what makes
+	 * "no wall" render as the hairline it always rendered as rather than as a
+	 * band of zero width -- an empty band and no band are different drawings,
+	 * and only one of them is what was there before 0224.
+	 */
+	outerPoints: [number, number][] | null;
+	/** The resolved thickness in INCHES, for the renderer's own sub-pixel floor. */
+	thickness: number | null;
 }
 
 export interface MapsPlanView {
-	/** The container's own extent, which is the drawing's frame. */
+	/** The container's own extent, which is the drawing's frame -- its INTERIOR. */
 	frame: MapsBox;
+	/**
+	 * 0224. The frame's OUTER face path, in the frame's own coordinates. The
+	 * frame is the room the viewer is standing in and its walls are the most
+	 * visible ones on the drawing.
+	 *
+	 * IT IS A PATH AND NOT A BOX, because a polygon room's outer face is a
+	 * mitered polygon and a box would square it off -- the same reason
+	 * `points` exists beside `box` on a shape.
+	 */
+	frameOuter: [number, number][] | null;
+	/** The frame's own resolved thickness, inches. */
+	frameThickness: number | null;
 	shapes: MapsPlanShape[];
 	/** Children with no plan geometry: real containers the drawing cannot place. */
 	unplaced: MapsNode[];
@@ -419,7 +444,20 @@ export function mapsPlanView(data: MapsViewerData, nodeId: string | null): MapsP
 		const points = mapsShapeCorners(content.outline, content.rotation_deg).map(
 			([px, py]) => [px + x, py + y] as [number, number]
 		);
-		shapes.push({ node: child, box, points });
+		// 0224. The outer face comes from the SAME corner helper family, so the
+		// two faces of one wall can never be drawn at two different angles, and
+		// it is translated by the same x/y so they cannot be drawn in two
+		// different places either.
+		const { thickness } = mapsResolveWallThickness(
+			mapsThicknessChain(data.nodes, child.id, (n) => mapsNodeContent(n))
+		);
+		const outerPoints =
+			thickness && thickness > 0
+				? mapsOuterCorners(content.outline, thickness, content.rotation_deg).map(
+						([px, py]) => [px + x, py + y] as [number, number]
+					)
+				: null;
+		shapes.push({ node: child, box, points, outerPoints, thickness });
 	}
 
 	let frame: MapsBox | null = null;
@@ -457,8 +495,30 @@ export function mapsPlanView(data: MapsViewerData, nodeId: string | null): MapsP
 			};
 		}, null);
 	}
+	// The frame's own wall, resolved the same way every shape's is. Only a
+	// container with a real outline of its own can have one: a frame derived
+	// from the union of its contents is not a room, it is a bounding box, and
+	// drawing a wall around it would be inventing a building.
+	let frameOuter: [number, number][] | null = null;
+	let frameThickness: number | null = null;
+	if (node) {
+		const own = mapsNodeContent(node);
+		if (own.outline) {
+			frameThickness = mapsResolveWallThickness(
+				mapsThicknessChain(data.nodes, node.id, (n) => mapsNodeContent(n))
+			).thickness;
+			if (frameThickness && frameThickness > 0) {
+				// The frame sits at ITS origin, so no translation: the frame's
+				// own coordinates are the drawing's coordinates.
+				frameOuter = mapsOuterCorners(own.outline, frameThickness, null);
+			}
+		}
+	}
+
 	return {
 		frame: frame ?? { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+		frameOuter,
+		frameThickness,
 		shapes,
 		unplaced
 	};
@@ -588,6 +648,20 @@ export function mapsSitePlanView(data: MapsViewerData): MapsPlanView {
 	const gap = widest * 0.1;
 	for (const { root, corners, minX, minY } of sized) {
 		const points = corners.map(([px, py]) => [px - minX + x, py - minY] as [number, number]);
+		// 0224. The site row lays each root out at an ARTIFICIAL origin, so the
+		// outer face is translated by the same (minX, minY, x) the inner face
+		// is -- computed from the outline rather than by growing `box`, which
+		// would square off a polygon root.
+		const content = mapsNodeContent(root);
+		const { thickness } = mapsResolveWallThickness(
+			mapsThicknessChain(data.nodes, root.id, (n) => mapsNodeContent(n))
+		);
+		const outerPoints =
+			thickness && thickness > 0
+				? mapsOuterCorners(content.outline!, thickness, content.rotation_deg).map(
+						([px, py]) => [px - minX + x, py - minY] as [number, number]
+					)
+				: null;
 		const box = points.reduce<MapsBox>(
 			(acc, [px, py]) => ({
 				minX: Math.min(acc.minX, px),
@@ -597,7 +671,7 @@ export function mapsSitePlanView(data: MapsViewerData): MapsPlanView {
 			}),
 			{ minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
 		);
-		shapes.push({ node: root, box, points });
+		shapes.push({ node: root, box, points, outerPoints, thickness });
 		x = box.maxX + gap;
 	}
 	const frame = shapes.reduce<MapsBox | null>((acc, s) => {
@@ -609,7 +683,16 @@ export function mapsSitePlanView(data: MapsViewerData): MapsPlanView {
 			maxY: Math.max(acc.maxY, s.box.maxY)
 		};
 	}, null);
-	return { frame: frame ?? { minX: 0, minY: 0, maxX: 0, maxY: 0 }, shapes, unplaced };
+	// NO FRAME WALL ON THE SITE ROW. The frame here is the union of several
+	// buildings laid out side by side at an origin nobody typed -- it is not a
+	// room, so there is no wall around it to draw. Each building draws its own.
+	return {
+		frame: frame ?? { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+		frameOuter: null,
+		frameThickness: null,
+		shapes,
+		unplaced
+	};
 }
 
 // ---------------------------------------------------------------------------

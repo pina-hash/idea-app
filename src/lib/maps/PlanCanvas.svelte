@@ -70,6 +70,11 @@
 		MAPS_KIND_LABELS,
 		mapsEffectiveNodeContent,
 		mapsFootprint,
+		mapsOuterCorners,
+		mapsOuterFootprint,
+		mapsResolveWallThickness,
+		mapsThicknessChain,
+		mapsNodeContent,
 		mapsGhostPosition,
 		mapsGridStepIn,
 		mapsPlaceShape,
@@ -91,6 +96,7 @@
 		parent,
 		outline,
 		rotationDeg,
+		wallThicknessIn = null,
 		x,
 		y,
 		data,
@@ -109,6 +115,15 @@
 		/** The outline as the TYPED fields currently read. Never written here. */
 		outline: MapsOutline | null;
 		rotationDeg: number | null;
+		/**
+		 * 0224. The wall thickness as the TYPED field currently reads -- this
+		 * node's OWN value, before it is saved, exactly as `outline` and
+		 * `rotationDeg` are. NULL means the field is empty, which is not "no
+		 * wall": an empty field still inherits the building default, and this
+		 * component resolves that from `data` rather than making the form do it
+		 * twice. Never written here.
+		 */
+		wallThicknessIn?: number | null;
 		x: number | null;
 		y: number | null;
 		data: MapsEditorData;
@@ -166,9 +181,50 @@
 
 	const footprint = $derived(outline && parent ? mapsFootprint(outline, rotationDeg) : null);
 
+	// --- 0224: the walls ----------------------------------------------------
+	//
+	// EVERY THICKNESS ON THIS SHEET IS RESOLVED THE SAME WAY, through
+	// `mapsResolveWallThickness` over a pending-aware chain, so the wall the
+	// sheet DRAWS and the face `mapsSnapTargets` OFFERS cannot be two different
+	// numbers. That agreement is this component's own stated point about the
+	// frame, extended to the thing the frame gained.
+	const contentOf = (node: MapsNode) =>
+		mapsEffectiveNodeContent(node, pendingFor(data.pending, 'maps_nodes', node.id));
+	/** A drawn node's resolved wall, inches, or null when it has none. */
+	const thicknessOf = (nodeId: string): number | null =>
+		mapsResolveWallThickness(mapsThicknessChain(nodes, nodeId, contentOf)).thickness;
+	/**
+	 * The node being EDITED resolves from the typed field first, because the
+	 * sheet draws what the form currently says and not what the row last said
+	 * -- the same rule `outline` and `rotationDeg` already follow. An empty
+	 * field falls through to the inherited default, which is why this is a
+	 * resolution and not a read.
+	 */
+	const selfThickness = $derived.by(() => {
+		if (wallThicknessIn !== null) return wallThicknessIn;
+		if (!parent) return null;
+		return mapsResolveWallThickness([
+			mapsNodeContent({ wall_thickness_in: null, default_wall_thickness_in: null }),
+			...mapsThicknessChain(nodes, parent.id, contentOf)
+		]).thickness;
+	});
+	/** The frame's own wall: the container being drawn into. */
+	const frameThickness = $derived.by(() => {
+		if (!frameOutline) return null;
+		if (parent) return thicknessOf(parent.id);
+		return selfId ? thicknessOf(selfId) : null;
+	});
+
 	const planW = $derived(frameBox ? frameBox.maxX - frameBox.minX : 0);
 	const planH = $derived(frameBox ? frameBox.maxY - frameBox.minY : 0);
 
+	/* THE FIT RESERVES THE CONSTANT MARGIN, NOT THE WALL-AWARE ONE, AND THAT IS
+	   NOT AN OVERSIGHT. `marginPx` is a function of `pxPerInch`, which is a
+	   function of `fitScale` -- reserving it here would close that loop and
+	   either oscillate or settle on an arbitrary scale. The sheet is inside a
+	   scrolling pane, so a frame wall wider than the constant margin costs a
+	   few pixels of scroll rather than a clipped wall, which is the cheap half
+	   of the trade. */
 	const fitScale = $derived.by(() => {
 		if (planW <= 0 || planH <= 0) return 1;
 		if (paneWidth <= 0) return NOMINAL_PX / planW;
@@ -177,6 +233,16 @@
 		return Math.min(w / planW, h / planH);
 	});
 	const pxPerInch = $derived(fitScale * zoom);
+
+	/**
+	 * OUTWARD ROOM. The frame's band lies outside the frame box, so the sheet's
+	 * margin has to clear it or the wall is drawn correctly and clipped away.
+	 * `MARGIN_PX` is what the dimension lines need; this is the larger of the
+	 * two, in pixels, recomputed as the drawing scales.
+	 */
+	const marginPx = $derived(
+		Math.max(MARGIN_PX, Math.ceil((frameThickness ?? 0) * pxPerInch) + 4)
+	);
 
 	const targets = $derived(mapsSnapTargets({ ...data, nodes }, parent, selfId));
 
@@ -255,6 +321,38 @@
 			.map(([px, py]) => `${(px - box.minX).toFixed(3)},${(py - box.minY).toFixed(3)}`)
 			.join(' ');
 	}
+	/**
+	 * 0224'S WALL BAND, as one `<path>`: the outer ring then the inner ring,
+	 * filled `evenodd`, which leaves exactly the material between them. Both
+	 * rings are expressed in the OUTER box's coordinates, because that is the
+	 * box the element is sized to.
+	 *
+	 * NOT A THICK STROKE ON THE OUTLINE. A stroke straddles its path, half in
+	 * and half out, so it would put half the wall INSIDE the room and quietly
+	 * contradict the decision the band exists to show.
+	 */
+	function ringFor(o: MapsOutline, rot: number | null, t: number, outer: MapsBox): string {
+		const ring = (pts: [number, number][]) =>
+			pts
+				.map(
+					([px, py], i) =>
+						`${i === 0 ? 'M' : 'L'}${(px - outer.minX).toFixed(3)} ${(py - outer.minY).toFixed(3)}`
+				)
+				.join(' ') + ' Z';
+		return `${ring(mapsOuterCorners(o, t, rot))} ${ring(mapsShapeCorners(o, rot))}`;
+	}
+	/** A drawn node's OUTER box in frame pixels -- where its wall band is drawn. */
+	function wallPx(d: Drawn, t: number, originX: number, originY: number) {
+		const outer = mapsOuterFootprint(d.content.outline!, t, d.content.rotation_deg);
+		const px = pxPerInch;
+		return {
+			outer,
+			left: (d.content.position_x_in! + outer.minX - originX) * px,
+			top: (d.content.position_y_in! + outer.minY - originY) * px,
+			width: (outer.maxX - outer.minX) * px,
+			height: (outer.maxY - outer.minY) * px
+		};
+	}
 	const round2 = (v: number) => Math.round(v * 100) / 100;
 	const inches = (v: number) => `${round2(v)}″`;
 
@@ -290,8 +388,8 @@
 		};
 	});
 
-	const sheetW = $derived(planW * pxPerInch + 2 * MARGIN_PX);
-	const sheetH = $derived(planH * pxPerInch + 2 * MARGIN_PX);
+	const sheetW = $derived(planW * pxPerInch + 2 * marginPx);
+	const sheetH = $derived(planH * pxPerInch + 2 * marginPx);
 
 	/** The grid, in inches, at this scale; null when even a 50ft pitch is too fine. */
 	const gridStep = $derived(mapsGridStepIn(pxPerInch));
@@ -313,7 +411,7 @@
 	   only its position is provisional). */
 	const dims = $derived.by(() => {
 		if (!selfPx || !footprint || !frameBox) return null;
-		const M = MARGIN_PX;
+		const M = marginPx;
 		const left = M + selfPx.left;
 		const top = M + selfPx.top;
 		const right = left + selfPx.width;
@@ -677,13 +775,13 @@
 				<svg class="dims" width={sheetW} height={sheetH} viewBox="0 0 {sheetW} {sheetH}" aria-hidden="true">
 					<!-- The grid, in inches: a foot at a workable zoom. -->
 					{#each gridLines.x as gx (gx)}
-						<line class="grid" x1={MARGIN_PX + gx} y1={MARGIN_PX} x2={MARGIN_PX + gx} y2={MARGIN_PX + planH * pxPerInch} />
+						<line class="grid" x1={marginPx + gx} y1={marginPx} x2={marginPx + gx} y2={marginPx + planH * pxPerInch} />
 					{/each}
 					{#each gridLines.y as gy (gy)}
-						<line class="grid" x1={MARGIN_PX} y1={MARGIN_PX + gy} x2={MARGIN_PX + planW * pxPerInch} y2={MARGIN_PX + gy} />
+						<line class="grid" x1={marginPx} y1={marginPx + gy} x2={marginPx + planW * pxPerInch} y2={marginPx + gy} />
 					{/each}
 					<!-- The frame's own size, below its bottom-right corner. -->
-					<text class="dim-text frame-dim" x={MARGIN_PX + planW * pxPerInch} y={sheetH - 10} text-anchor="end">
+					<text class="dim-text frame-dim" x={marginPx + planW * pxPerInch} y={sheetH - 10} text-anchor="end">
 						{frameKindWord} {inches(planW)} &times; {inches(planH)}{#if gridStep}
 							&nbsp;&middot; grid {gridStep >= 12 && gridStep % 12 === 0 ? `${gridStep / 12}′` : inches(gridStep)}{/if}
 					</text>
@@ -711,19 +809,19 @@
 						</text>
 						{#if dims.offX !== null && dims.offY !== null}
 							<!-- Offsets from the frame's origin corner, along its outer edges. -->
-							<line class="dim offset" x1={MARGIN_PX} y1={MARGIN_PX - 14} x2={dims.originPxX} y2={MARGIN_PX - 14} />
-							<line class="dim tick" x1={dims.originPxX} y1={MARGIN_PX - 18} x2={dims.originPxX} y2={MARGIN_PX - 10} />
-							<text class="dim-text offset-text" x={(MARGIN_PX + dims.originPxX) / 2} y={MARGIN_PX - 18} text-anchor="middle" data-testid="maps-plan-dim-x">
+							<line class="dim offset" x1={marginPx} y1={marginPx - 14} x2={dims.originPxX} y2={marginPx - 14} />
+							<line class="dim tick" x1={dims.originPxX} y1={marginPx - 18} x2={dims.originPxX} y2={marginPx - 10} />
+							<text class="dim-text offset-text" x={(marginPx + dims.originPxX) / 2} y={marginPx - 18} text-anchor="middle" data-testid="maps-plan-dim-x">
 								X {inches(dims.offX)}
 							</text>
-							<line class="dim offset" x1={MARGIN_PX - 14} y1={MARGIN_PX} x2={MARGIN_PX - 14} y2={dims.originPxY} />
-							<line class="dim tick" x1={MARGIN_PX - 18} y1={dims.originPxY} x2={MARGIN_PX - 10} y2={dims.originPxY} />
+							<line class="dim offset" x1={marginPx - 14} y1={marginPx} x2={marginPx - 14} y2={dims.originPxY} />
+							<line class="dim tick" x1={marginPx - 18} y1={dims.originPxY} x2={marginPx - 10} y2={dims.originPxY} />
 							<text
 								class="dim-text offset-text"
-								x={MARGIN_PX - 18}
-								y={(MARGIN_PX + dims.originPxY) / 2}
+								x={marginPx - 18}
+								y={(marginPx + dims.originPxY) / 2}
 								text-anchor="middle"
-								transform="rotate(-90 {MARGIN_PX - 18} {(MARGIN_PX + dims.originPxY) / 2})"
+								transform="rotate(-90 {marginPx - 18} {(marginPx + dims.originPxY) / 2})"
 								data-testid="maps-plan-dim-y"
 							>
 								Y {inches(dims.offY)}
@@ -732,15 +830,55 @@
 					{/if}
 				</svg>
 
+				{#if frameOutline && frameThickness && frameThickness > 0 && frameBox}
+					{@const fo = mapsOuterFootprint(frameOutline, frameThickness, null)}
+					<!-- The frame's own wall, outside the frame box. The margin above
+					     grew to clear it, so it is drawn rather than clipped. -->
+					<svg
+						class="wall wall-frame"
+						data-testid="maps-plan-wall-frame"
+						data-thickness-in={frameThickness}
+						style="left: {marginPx + (fo.minX - frameBox.minX) * pxPerInch}px; top: {marginPx +
+							(fo.minY - frameBox.minY) * pxPerInch}px; width: {(fo.maxX - fo.minX) *
+							pxPerInch}px; height: {(fo.maxY - fo.minY) * pxPerInch}px;"
+						viewBox="0 0 {fo.maxX - fo.minX} {fo.maxY - fo.minY}"
+						preserveAspectRatio="none"
+						aria-hidden="true"
+					>
+						<path d={ringFor(frameOutline, null, frameThickness, fo)} />
+					</svg>
+				{/if}
 				<div
 					class="plan-frame"
 					bind:this={frameEl}
-					style="left: {MARGIN_PX}px; top: {MARGIN_PX}px; width: {planW * pxPerInch}px; height: {planH * pxPerInch}px"
+					style="left: {marginPx}px; top: {marginPx}px; width: {planW * pxPerInch}px; height: {planH * pxPerInch}px"
 					data-testid="maps-plan-frame"
 					use:cursorTrack
 				>
 					{#snippet drawnNode(d: Drawn, originX: number, originY: number, role: 'sibling' | 'child', depth: number)}
 						{@const b = boxPx(d, originX, originY)}
+						{@const t = thicknessOf(d.node.id)}
+						{#if t && t > 0}
+							{@const w = wallPx(d, t, originX, originY)}
+							<!-- THE WALL THE SNAP TARGET IS. `mapsSnapTargets` offers a
+							     sibling by its OUTER face, so the sheet has to draw that
+							     face or a shape snaps flush against a line that is not
+							     on the drawing -- which is this component's own stated
+							     rule about the frame, applied to the thing the frame
+							     gained. It is not a button: the room is the control. -->
+							<svg
+								class="wall"
+								data-testid="maps-plan-wall"
+								data-node-wall={d.node.id}
+								data-thickness-in={t}
+								style="left: {w.left}px; top: {w.top}px; width: {w.width}px; height: {w.height}px;"
+								viewBox="0 0 {w.outer.maxX - w.outer.minX} {w.outer.maxY - w.outer.minY}"
+								preserveAspectRatio="none"
+								aria-hidden="true"
+							>
+								<path d={ringFor(d.content.outline!, d.content.rotation_deg, t, w.outer)} />
+							</svg>
+						{/if}
 						<button
 							type="button"
 							class="drawn {role}"
@@ -780,6 +918,22 @@
 						{@render drawnNode(c, frameBox.minX, frameBox.minY, 'child', 0)}
 					{/each}
 
+					{#if selfPx && footprint && outline && selfThickness && selfThickness > 0}
+						{@const so = mapsOuterFootprint(outline, selfThickness, rotationDeg)}
+						<svg
+							class="wall wall-self"
+							data-testid="maps-plan-wall-self"
+							data-thickness-in={selfThickness}
+							style="left: {selfPx.left - (footprint.minX - so.minX) * pxPerInch}px; top: {selfPx.top -
+								(footprint.minY - so.minY) * pxPerInch}px; width: {(so.maxX - so.minX) *
+								pxPerInch}px; height: {(so.maxY - so.minY) * pxPerInch}px;"
+							viewBox="0 0 {so.maxX - so.minX} {so.maxY - so.minY}"
+							preserveAspectRatio="none"
+							aria-hidden="true"
+						>
+							<path d={ringFor(outline, rotationDeg, selfThickness, so)} />
+						</svg>
+					{/if}
 					{#if selfPx && footprint && outline}
 						<button
 							type="button"
@@ -1009,6 +1163,26 @@
 		border: 1px solid var(--boundary);
 		background: transparent;
 		box-sizing: content-box;
+	}
+	/* 0224's wall band. FILL ONLY and `pointer-events: none`: the hairline that
+	   reads when a wall is thinner than a device pixel is the shape's own
+	   border, drawn over this, so a wall never draws two lines where there is
+	   one surface -- and the pointer belongs to the room, not to its wall. */
+	.wall {
+		position: absolute;
+		pointer-events: none;
+		overflow: visible;
+	}
+	.wall path {
+		fill: var(--mp-wall-fill, color-mix(in srgb, var(--green) 30%, transparent));
+		fill-rule: evenodd;
+		stroke: none;
+	}
+	.wall-frame path {
+		fill: var(--mp-wall-frame-fill, color-mix(in srgb, var(--green) 20%, transparent));
+	}
+	.wall-self path {
+		fill: var(--mp-wall-self-fill, color-mix(in srgb, var(--gold) 34%, transparent));
 	}
 	.layer {
 		position: absolute;

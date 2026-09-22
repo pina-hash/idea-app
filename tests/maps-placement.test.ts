@@ -39,6 +39,7 @@ import {
 	type MapsEditorData,
 	type MapsElevationDraft,
 	type MapsNode,
+	type MapsOutline,
 	type MapsSnapTarget
 } from '../src/lib/maps/maps';
 import { FIX, mapsEditFixture } from '../src/routes/dev/maps-edit/fixture';
@@ -402,7 +403,7 @@ describe('the outer face: a band lying OUTWARD from the typed outline', () => {
 		// paths exist because the rect case must stay float-exact; this is the
 		// measurement that says they agree, which is the only thing that lets
 		// two paths exist at all.
-		const asPolygon = {
+		const asPolygon: MapsOutline = {
 			kind: 'polygon',
 			points: [
 				[0, 0],
@@ -410,7 +411,7 @@ describe('the outer face: a band lying OUTWARD from the typed outline', () => {
 				[240, 180],
 				[0, 180]
 			]
-		} as const;
+		};
 
 		it('reduces exactly to the rect branch on a rectangle-shaped polygon', () => {
 			const viaPolygon = mapsOuterCorners(asPolygon, 6, null);
@@ -427,10 +428,10 @@ describe('the outer face: a band lying OUTWARD from the typed outline', () => {
 			// are choosing a winding direction. Reversed, the shape is the same
 			// room and the wall must still be on the outside of it -- so both
 			// windings must give the same box, and it must be the BIGGER one.
-			const reversed = {
+			const reversed: MapsOutline = {
 				kind: 'polygon',
-				points: [...asPolygon.points].reverse()
-			} as const;
+				points: [...(asPolygon as { points: [number, number][] }).points].reverse()
+			};
 			const a = mapsOuterFootprint(asPolygon, 6, null);
 			const b = mapsOuterFootprint(reversed, 6, null);
 			expect(a.minX).toBeCloseTo(b.minX, 9);
@@ -449,7 +450,7 @@ describe('the outer face: a band lying OUTWARD from the typed outline', () => {
 			// 90 degree corner the miter reach is t * root 2 along the bisector,
 			// so a corner at (120, 90) whose bisector points at (+1,+1)/root 2
 			// lands at (126, 96).
-			const ell = {
+			const ell: MapsOutline = {
 				kind: 'polygon',
 				points: [
 					[0, 0],
@@ -459,7 +460,7 @@ describe('the outer face: a band lying OUTWARD from the typed outline', () => {
 					[120, 180],
 					[0, 180]
 				]
-			} as const;
+			};
 			const out = mapsOuterCorners(ell, 6, null);
 			expect(out.length).toBe(6);
 			expect(out[0][0]).toBeCloseTo(-6, 9);
@@ -474,23 +475,23 @@ describe('the outer face: a band lying OUTWARD from the typed outline', () => {
 		it('returns a degenerate shape unchanged rather than inventing a wall for it', () => {
 			// Zero area (three collinear points) and a repeated point have no
 			// inside for a wall to be outside of.
-			const collinear = {
+			const collinear: MapsOutline = {
 				kind: 'polygon',
 				points: [
 					[0, 0],
 					[10, 0],
 					[20, 0]
 				]
-			} as const;
+			};
 			expect(mapsOuterCorners(collinear, 6, null)).toEqual(mapsShapeCorners(collinear, null));
-			const repeated = {
+			const repeated: MapsOutline = {
 				kind: 'polygon',
 				points: [
 					[0, 0],
 					[0, 0],
 					[10, 10]
 				]
-			} as const;
+			};
 			expect(mapsOuterCorners(repeated, 6, null)).toEqual(mapsShapeCorners(repeated, null));
 		});
 	});

@@ -468,6 +468,18 @@
 		--mv-shape-fill: color-mix(in srgb, var(--mv-accent) 10%, transparent);
 		--mv-shape-fill-hover: color-mix(in srgb, var(--mv-accent) 20%, transparent);
 		--mv-line: color-mix(in srgb, var(--mv-accent) 45%, transparent);
+		/* 0224's wall bands. A wall is STRUCTURE, so it is denser than the room
+		   fill it encloses (10%) and denser than the frame's own line (45% of a
+		   hairline's worth of pixels); it takes the room's own accent rather
+		   than a new hue, because inventing a colour for a wall would be
+		   inventing an identity for it. The frame's band is quieter than a
+		   child's: it rings the entire drawing, and at the child's weight it
+		   would be the loudest thing on a plan whose job is to make ONE found
+		   room leap out. Both are graphical objects rather than text, so the
+		   floor they clear is 3:1 and it is measured in verify:browser rather
+		   than asserted here. */
+		--mv-wall-fill: color-mix(in srgb, var(--mv-accent) 34%, transparent);
+		--mv-wall-frame-fill: color-mix(in srgb, var(--mv-accent) 26%, transparent);
 		--mv-ink: var(--text-1, #e7eae8);
 		--mv-boundary: var(--boundary, #6f7b73);
 		/* The plate the panel paints, which the sticky search box has to cover
