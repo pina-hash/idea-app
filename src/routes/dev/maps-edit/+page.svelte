@@ -2,7 +2,13 @@
 	import MapsEditor from '$lib/maps/MapsEditor.svelte';
 	import type { MapsSelection } from '$lib/maps/maps';
 	import { untrack } from 'svelte';
-	import { FIX, mapsEditFixture, mapsEditFixtureWithSurplus, memoryMapsTransports } from './fixture';
+	import {
+		FIX,
+		mapsEditFixture,
+		mapsEditFixtureWithSurplus,
+		mapsEditFixtureWithWalls,
+		memoryMapsTransports
+	} from './fixture';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -12,7 +18,13 @@
 	// `?state=duplicates` opens on a fixture carrying prompt 0098's surplus
 	// rooms; every other state opens on the base fixture the existing checks
 	// count rows against. Read once, at load, on purpose.
-	const fixture = untrack(() => data.state) === 'duplicates' ? mapsEditFixtureWithSurplus() : mapsEditFixture();
+	const openedOn = untrack(() => data.state);
+	const fixture =
+		openedOn === 'duplicates'
+			? mapsEditFixtureWithSurplus()
+			: openedOn === 'walls'
+				? mapsEditFixtureWithWalls()
+				: mapsEditFixture();
 	const transports = memoryMapsTransports(fixture);
 
 	const SELECTIONS: Record<string, MapsSelection> = {
@@ -22,7 +34,11 @@
 		place: { kind: 'node', id: FIX.workbench },
 		'type-pending': { kind: 'type', id: FIX.hexKeyType },
 		'new-root': { kind: 'new-node', parentId: null, presetKind: null },
-		duplicates: { kind: 'duplicates' }
+		duplicates: { kind: 'duplicates' },
+		// 0224. Workbench B open, exactly as `?state=place` opens it, over the
+		// wall fixture -- so the two states are the SAME surface with and
+		// without walls and the snap values are directly comparable.
+		walls: { kind: 'node', id: FIX.workbench }
 	};
 	const initialSelection = $derived(data.state ? (SELECTIONS[data.state] ?? null) : null);
 </script>
@@ -37,7 +53,8 @@
 		States: <a href="/dev/maps-edit">none</a>, <a href="/dev/maps-edit?state=node-pending">node-pending</a>,
 		<a href="/dev/maps-edit?state=compartment">compartment</a>, <a href="/dev/maps-edit?state=unit">unit</a>, <a href="/dev/maps-edit?state=place">place</a>,
 		<a href="/dev/maps-edit?state=type-pending">type-pending</a>, <a href="/dev/maps-edit?state=new-root">new-root</a>,
-		<a href="/dev/maps-edit?state=duplicates">duplicates</a> (the surplus rooms of prompt 0098).
+		<a href="/dev/maps-edit?state=duplicates">duplicates</a> (the surplus rooms of prompt 0098),
+		<a href="/dev/maps-edit?state=walls">walls</a> (0224: the same shape as `place`, over a map with wall thicknesses on it).
 	</p>
 	{#key data.state}
 		<MapsEditor initial={fixture} {transports} {initialSelection} />

@@ -617,6 +617,14 @@
 	   `pointer-events: none` -- the fill is material, and the link's own hit
 	   area is the room, so a wall that swallowed the pointer would make the
 	   room next door harder to reach on a phone. */
+	/* EVERY `.mv-shape` STROKE RULE IS WRITTEN `path:not(.mv-wall)`, AND THAT
+	   IS NOT TIDINESS. The band is a `<path>` INSIDE the shape's own `<a>`
+	   (a wall belongs to the room it encloses), so `.mv-shape path` reached it
+	   at higher specificity than this block and the band drew its own 1.5px
+	   non-scaling stroke on top of the shape's -- two lines where there is one
+	   surface, and worst exactly where it matters, at the sub-pixel widths
+	   where the hairline is all that is left. `verify:browser` measured it as
+	   `THE BAND IS ALSO STROKED`; nothing on screen at 1440px showed it. */
 	.mv-wall {
 		fill: var(--mv-wall-fill);
 		fill-rule: evenodd;
@@ -626,7 +634,7 @@
 	.mv-wall-frame {
 		fill: var(--mv-wall-frame-fill);
 	}
-	.mv-shape path {
+	.mv-shape path:not(.mv-wall) {
 		fill: var(--mv-shape-fill);
 		stroke: var(--mv-accent);
 		stroke-width: 1.5;
@@ -639,9 +647,9 @@
 		   whole shape group and can be invisible on a dark plate. */
 		cursor: pointer;
 	}
-	.mv-shape:hover path,
-	.mv-shape:focus-visible path,
-	.mv-shape.is-hot path {
+	.mv-shape:hover path:not(.mv-wall),
+	.mv-shape:focus-visible path:not(.mv-wall),
+	.mv-shape.is-hot path:not(.mv-wall) {
 		fill: var(--mv-shape-fill-hover);
 		stroke: var(--mv-accent-strong);
 		stroke-width: 2.5;
@@ -651,12 +659,12 @@
 	}
 	/* THE OPEN THING: heavier, in the accent, with its own word under the
 	   name. A second state and a second word, never a second gold. */
-	.mv-shape.is-here path {
+	.mv-shape.is-here path:not(.mv-wall) {
 		fill: var(--mv-shape-fill-hover);
 		stroke: var(--mv-accent-strong);
 		stroke-width: 3;
 	}
-	.mv-shape.is-marked path {
+	.mv-shape.is-marked path:not(.mv-wall) {
 		/* THE FOUND THING. Gold fill, gold stroke, and a heavier weight -- three
 		   signals, because colour is never the only one. The row in the list
 		   beside the drawing carries the WORD ("found here"), which is the

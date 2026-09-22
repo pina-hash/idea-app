@@ -208,6 +208,20 @@
 			...mapsThicknessChain(nodes, parent.id, contentOf)
 		]).thickness;
 	});
+	/**
+	 * THE FACE THIS SHAPE PRESENTS WHEN IT IS SNAPPED, which is its OUTER one.
+	 *
+	 * `footprint` above is the INNER box and stays the box the sheet DRAWS and
+	 * dimensions -- the typed numbers are the interior and a dimension line
+	 * must read them back. What meets a neighbour is the wall material, so
+	 * this is what `mapsPlaceShape` is handed. With no thickness the two are
+	 * the same box, by calling the same function, so every placement the sheet
+	 * made before 0224 is answered identically after it.
+	 */
+	const outerFootprint = $derived(
+		outline && parent ? mapsOuterFootprint(outline, selfThickness, rotationDeg) : null
+	);
+
 	/** The frame's own wall: the container being drawn into. */
 	const frameThickness = $derived.by(() => {
 		if (!frameOutline) return null;
@@ -483,7 +497,8 @@
 			? mapsPlaceShape({
 					desiredX,
 					desiredY,
-					footprint,
+					// THE OUTER FACE, not the drawn one. See `outerFootprint`.
+					footprint: outerFootprint ?? footprint,
 					targets,
 					// A tolerance in PIXELS converted to inches, so the snap
 					// feels the same at any scale rather than grabbing half a
