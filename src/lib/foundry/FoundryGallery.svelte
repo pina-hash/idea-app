@@ -334,9 +334,17 @@
 			{#if apps.length > 1 && !searching}
 				<!--
 					REAL BUTTONS WITH WORDS ON THEM, in a labelled group, with
-					`aria-pressed` saying which one is on. Not a <select>: three options
-					that change what is already on screen is a segmented control, and a
-					select hides two of the three behind a press.
+					`aria-pressed` saying which one is on. Not a <select>: a handful of
+					options that change what is already on screen is a segmented
+					control, and a select hides all but one of them behind a press.
+
+					FIVE OF THEM SINCE 0221, and the row WRAPS rather than gaining a
+					breakpoint -- at 375 the labels do not fit one line and wrap to
+					two, which is the correct arrangement and needs no rule of its
+					own. The two BOARD orders (`trending`, `new`) are deliberately
+					not here: seven buttons in one group is a control nobody reads at
+					that width, and both of those answer a question you look at
+					rather than browse in.
 
 					IT RENDERS WHENEVER THERE IS MORE THAN ONE APP TO ORDER, including
 					before anything has been played. Every app ties at zero then and the
@@ -662,9 +670,27 @@
 		overscroll-behavior-x: contain;
 	}
 
+	/*
+	   `flex: 0 1` AND A FLOOR, NEVER `0 0`, AND THE MEASUREMENT IS WHY.
+
+	   With `flex: 0 0 min(16rem, 78%)` five cards plus four gaps came to 1328px
+	   against 1294px of pane at 1440 -- so the board scrolled by THIRTY-FOUR
+	   PIXELS and the fifth-ranked app was clipped on a desktop with room to
+	   spare. That reads as a top four with something behind it, which is the
+	   one thing a ranked row must not do, and a screenshot shows it as a card
+	   that looks fine at the right edge.
+
+	   Allowing shrink with a FLOOR fixes the wide case without touching the
+	   narrow one: at 1440 the cards give up a few pixels each and all five fit
+	   with no scroll, and at 375 the floor is larger than a fifth of the pane
+	   so the row still overflows and still scrolls, with the next card peeking
+	   -- which is the affordance saying the ranking continues. `0 1` and not
+	   `1 1`: a board of two cards must not stretch them across the whole
+	   measure.
+	*/
 	.fdy-gal-board-row > li {
-		flex: 0 0 min(16rem, 78%);
-		min-width: 0;
+		flex: 0 1 min(16rem, 78%);
+		min-width: min(14rem, 78%);
 		scroll-snap-align: start;
 	}
 

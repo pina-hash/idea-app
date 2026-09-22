@@ -24,8 +24,9 @@
  *           name. SHIPPED.
  *
  *   RUNG 1.5 SPELLING TOLERANCE. A token of four characters or more matches a
- *           word it differs from by one insertion, deletion or substitution,
- *           so "clicekr" finds "clicker" and "maize" finds "maze". SHIPPED,
+ *           word it differs from by one insertion, deletion, substitution or
+ *           ADJACENT TRANSPOSITION, so "cookei" finds "cookie", "clicekr"
+ *           finds "clicker" and "maize" finds "maze". SHIPPED,
  *           and it is what most people mean when a search feels forgiving.
  *           It is NOT semantics: "car" will never find "automobile".
  *
@@ -118,26 +119,54 @@ export function foundrySearchTokens(text: string | null | undefined): string[] {
 }
 
 /**
- * TRUE WHEN TWO STRINGS ARE AT MOST ONE EDIT APART. Bounded rather than a full
- * Levenshtein matrix: the answer is only ever needed as a yes or no at k = 1,
- * and this walks each string once.
+ * TRUE WHEN TWO STRINGS ARE AT MOST ONE TYPO APART.
  *
- * The three cases are the three edits. Equal lengths means a SUBSTITUTION, so
- * at most one position may differ. A length difference of one means an
- * INSERTION or a DELETION, so the shorter must be the longer with one
- * character taken out. A difference of two or more is never one edit.
+ * FOUR EDITS, NOT THREE, AND THE FOURTH IS THE ONE THAT MATTERS. This was
+ * written as plain Levenshtein at k = 1 -- substitution, insertion, deletion --
+ * and the browser pass caught it immediately on the report's own example with a
+ * typo in it: `cookei` against `cookie` is two SUBSTITUTIONS to Levenshtein and
+ * therefore distance 2, so "Cookei Clicker" found nothing at all. It is one
+ * TRANSPOSITION to a person, and a transposition of adjacent letters is the
+ * single most common typing mistake there is. A spelling tolerance that misses
+ * the commonest spelling mistake is not a spelling tolerance, so this is
+ * Damerau-Levenshtein at k = 1 rather than Levenshtein at k = 1.
+ *
+ * THE FIX WENT IN THE RULE AND NOT IN THE FIXTURE. Changing the harness query
+ * to a typo this function already handled would have been fitting the test to
+ * the code, and the case it stopped covering is the case a student will
+ * actually type.
+ *
+ * BOUNDED RATHER THAN A FULL MATRIX: the answer is only ever needed as a yes or
+ * no at k = 1, so each branch walks the strings once and returns.
+ *
+ *   equal length, one position differs        SUBSTITUTION
+ *   equal length, two ADJACENT positions
+ *     differ and are each other swapped       TRANSPOSITION
+ *   lengths differ by one                     INSERTION or DELETION
+ *   lengths differ by two or more             never one typo
  */
-export function withinOneEdit(a: string, b: string): boolean {
+export function withinOneTypo(a: string, b: string): boolean {
 	if (a === b) return true;
 	const diff = a.length - b.length;
 	if (diff > 1 || diff < -1) return false;
 
 	if (diff === 0) {
-		let seen = 0;
+		// Collect the differing positions, stopping at three: one is a
+		// substitution, two MAY be a transposition, three is neither.
+		const at: number[] = [];
 		for (let i = 0; i < a.length; i++) {
-			if (a[i] !== b[i] && ++seen > 1) return false;
+			if (a[i] !== b[i]) {
+				at.push(i);
+				if (at.length > 2) return false;
+			}
 		}
-		return seen === 1;
+		if (at.length === 1) return true;
+		if (at.length !== 2) return false;
+		// ADJACENT AND SWAPPED. Two differing positions that are not next to
+		// each other are two separate mistakes, not one; two adjacent ones
+		// holding each other's letters are one swap.
+		const [i, j] = at;
+		return j === i + 1 && a[i] === b[j] && a[j] === b[i];
 	}
 
 	const long = diff === 1 ? a : b;
@@ -178,7 +207,7 @@ function tokenScore(token: string, words: readonly string[], weight: number): nu
 			best = Math.max(best, weight * 3);
 			continue;
 		}
-		if (token.length >= FUZZY_MIN_LENGTH && withinOneEdit(token, word)) {
+		if (token.length >= FUZZY_MIN_LENGTH && withinOneTypo(token, word)) {
 			best = Math.max(best, weight);
 		}
 	}

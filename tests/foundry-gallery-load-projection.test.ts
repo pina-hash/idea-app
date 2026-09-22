@@ -274,7 +274,23 @@ describe('the gallery load, driven as a browsing student', () => {
 		// The load's SECOND read really ran: a key for the app, rather than the
 		// empty object its degrade path produces when 0139 is not applied.
 		expect(Object.keys(data.playCounts)).toEqual([data.apps[0].id]);
-		expect(data.playCounts[data.apps[0].id as string]).toEqual({ plays: 0, plays7d: 0 });
+		/*
+		 * FOUR FIGURES, ON A CHAIN THAT STOPS AT 0139. This chain does not carry
+		 * 0221, so `foundry_play_counts` really does return three columns here
+		 * and the two 0221 keys are genuinely absent from the rows -- which
+		 * makes this the LADDER assertion rather than a shape assertion:
+		 * `foundryPlayCountMap` reads a missing key as 0, and a map that came
+		 * back with `undefined` instead would make `foundryTrendScore` produce
+		 * NaN. NaN in a comparator does not throw; it silently leaves the list
+		 * in the order it was already in, which looks exactly like a gallery
+		 * where nothing is trending.
+		 */
+		expect(data.playCounts[data.apps[0].id as string]).toEqual({
+			plays: 0,
+			plays7d: 0,
+			playsPrev7d: 0,
+			seconds: 0
+		});
 	});
 
 	test('its columns are EXACTLY these nineteen, and a twentieth reddens this', async () => {
