@@ -58,6 +58,50 @@ const POINTER_DRAG = `async () => {
 		+ '; after: sorting=' + !!document.querySelector('.rows.is-sorting');
 }`;
 
+/**
+ * THE CLASS PAGE IS WHERE THE CLIPPED-BOTTOM REPORT IS WORST, and it had no
+ * assertion of any kind about it.
+ *
+ * The item page and the class page carry DIFFERENT chrome -- the section tab
+ * bar renders here and not on an item (`ClassroomShell` gates it on `tab`,
+ * which is null for an item) -- so one `--cr-chrome-h` constant was wrong
+ * about both. Measured against its 168px: 157.9px of chrome on an item,
+ * 201.3px here. At every desktop size whose list is long enough to reach the
+ * cap the nav pane's bottom edge landed 33.3px BELOW the viewport bottom and
+ * the document overflowed by 33px, and `overscroll-behavior: contain` on the
+ * pane -- which is the whole screen while nothing is open -- meant no wheel
+ * over the list could bring those pixels back.
+ *
+ * The item spec (`classroom-split-s-1-item-i-crowded-manage-1.mjs`) carries
+ * the sibling of this probe for the DETAIL pane and a reachable item footer;
+ * the two overlap only in asking whether the document moved, because the pane
+ * each one is about is a different pane and only one of them exists here.
+ */
+const LIST_BOTTOM_ON_SCREEN = `() => {
+	const round = (n) => Math.round(n * 10) / 10;
+	const wide = window.matchMedia('(min-width: 1024px)').matches;
+	const nav = document.querySelector('[data-testid="class-nav-pane"]');
+	if (!nav) return ['fixture:missing-nav-pane'];
+
+	const overflow = round(document.documentElement.scrollHeight - window.innerHeight);
+	const bounded = wide
+		? (overflow <= 1 ? 'room-bounded:yes' : 'room-bounded:no-overflows-' + overflow + 'px')
+		: 'room-bounded:yes';
+
+	/* Above the breakpoint the list pane is the scroll region and takes the
+	   rest of the column; below it the document is, and the pane must not
+	   bound itself. Same rule as the item spec's, about the other pane. */
+	const gap = round(nav.getBoundingClientRect().bottom - window.innerHeight);
+	const paneBounds = getComputedStyle(nav).maxHeight !== 'none';
+	const fills = wide
+		? (Math.abs(gap) <= 1
+			? 'scroll-arrangement:ok'
+			: 'scroll-arrangement:pane-' + (gap > 0 ? 'past-fold-by-' : 'short-by-') + Math.abs(gap) + 'px')
+		: (paneBounds ? 'scroll-arrangement:pane-bounded-itself-on-a-phone' : 'scroll-arrangement:ok');
+
+	return [bounded, fills];
+}`;
+
 export default {
 	path: '/dev/classroom-split/s-1?manage=1',
 	label: 'Class stream, bulk selection bar + pointer drag reorder (teacher)',
@@ -118,6 +162,11 @@ export default {
 			evaluate: '() => window.__composeProbe().orders.at(-1)',
 			expected: ['i-crowded', 'i-2b', 'i-1', 'i-2', 'i-3', 'i-4', 'i-5', 'i-6', 'i-7'],
 			label: 'setOrder recorded the id array the pointer drop should have produced'
+		},
+		{
+			evaluate: LIST_BOTTOM_ON_SCREEN,
+			expected: ['room-bounded:yes', 'scroll-arrangement:ok'],
+			label: 'the class list pane owns the scroll and its bottom edge is on screen'
 		},
 		{
 			/* THE REDRAW IS COMPUTED, NOT A CLASS: `appearance: none` is what

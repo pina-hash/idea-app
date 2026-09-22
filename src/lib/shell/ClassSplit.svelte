@@ -109,10 +109,16 @@
 		/**
 		 * WHO OWNS THE SCROLL above the breakpoint.
 		 *
-		 * `panes` (the default, and the classroom's) makes each pane its own
-		 * scroll container at viewport height less the chrome above it. It is
-		 * right when the split IS the page: a breadcrumb and a tab bar above,
-		 * nothing below.
+		 * `panes` (the default) makes each pane its own scroll container at
+		 * viewport height less the chrome above it. It is right when the split
+		 * IS the page AND that chrome measures the constant `split.css` names.
+		 * THIS USED TO SAY "and the classroom's" AND IT NO LONGER IS: the
+		 * classroom's chrome measured 157.9px on an item, 184.3px on an item
+		 * whose breadcrumb trail wraps and 201.3px on a class page against a
+		 * 168px constant, so the room bounds the split itself now and the
+		 * stylesheet gives it `fill`'s geometry structurally. No mount in the
+		 * tree passes this value or takes it and means it; it is the safe
+		 * default for one that forgets.
 		 *
 		 * `page` leaves the scroll to the document and sticks the detail pane
 		 * beside a flowing list. It is right when the split is one thing on a
@@ -132,6 +138,12 @@
 		 * chrome, because it never names a height. Below the breakpoint it is
 		 * `page`: a phone gets the document's own single scroll, not a 100dvh app
 		 * shell with two scrollers inside it.
+		 *
+		 * A ROOM MAY CLAIM `fill` FOR ITS OWN SPLIT WITHOUT THIS PROP, and the
+		 * classroom does -- `.cr-root > .cr-split` in `split.css` takes the same
+		 * geometry, because the bounded parent there is the ROOM and a prop on
+		 * the split alone could not have supplied one. Read that rule before
+		 * concluding a classroom mount has forgotten something.
 		 */
 		scroll?: 'panes' | 'page' | 'fill';
 		/**

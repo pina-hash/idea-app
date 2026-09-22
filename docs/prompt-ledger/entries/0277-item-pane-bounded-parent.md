@@ -1,0 +1,8 @@
+# 0277 Lane L3 - the classroom item page is clipped at the bottom
+- Issued: 2026-09-22T00:00:00Z
+- By: Mr. Pina, from Haden Klinman's report of 2026-09-15 against build `8b115a7` ("screen cuts off at bottom sometimes", IDEA209H item page, 2133x1058), routed as ledger 0277
+- Owns: `src/lib/shell/split.css`, `src/lib/shell/ClassSplit.svelte`, `src/routes/classroom/[sectionId]/+layout.svelte`, `src/lib/classroom/ClassroomShell.svelte`, `src/lib/classroom/nav.ts`, `src/lib/classroom/classroom.css`, `src/lib/classroom/ItemDetail.svelte`, `tools/browser-verify/routes/classroom-split-*.mjs` and the counts block in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0277-*`, `docs/history/<branch slug>`
+- Migration permitted: no
+- Status: issued
+- Branch: `claude/new-session-w594ua`
+- Notes: Forbidden: `src/lib/classroom/ClassView.svelte`, `src/lib/classroom/GradingConsole.svelte`, `src/lib/classroom/ContentComposer.svelte` (other lanes). Shipped as a bounded parent rather than a tuned `--cr-chrome-h`: `split.css` now gives `.cr-root` the application frame whenever a split is its body, and the split `fill-height`'s geometry, so the constant no longer decides the pane height on any classroom route. Two files changed under `src/`; `src/routes/classroom/[sectionId]/+layout.svelte`, `ClassroomShell.svelte`, `nav.ts`, `classroom.css` and `ItemDetail.svelte` were audited and needed no edit. Also touched outside the Owns line: `classroom-updates.json` (the standing student-changelog directive in CLAUDE.md) and `tools/browser-verify/measured/*.json` for the two re-measured specs.

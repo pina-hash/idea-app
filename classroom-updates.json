@@ -13,6 +13,16 @@
 	],
 	"entries": [
 		{
+			"date": "2026-09-22",
+			"title": "The bottom of the class page stops cutting off",
+			"body": "On a computer, the class list and an open item each scroll on their own, and the page around them stays put. The height they were given was a fixed guess, and on the class page the guess was too short by about the height of a line, so the last of the list sat just below the bottom of the screen with no way to scroll to it. It is now measured from the window you actually have, so the bottom of the list and the bottom of an item, footer and all, are always reachable. Nothing changes on a phone, where the whole page scrolls as it always has.",
+			"tags": [
+				"Classes",
+				"fix",
+				"reading"
+			]
+		},
+		{
 			"date": "2026-09-15",
 			"title": "Start your own model in IdeaCAD",
 			"body": "IdeaCAD opens with your documents, and a new model starts empty. Draw a shape, turn it into a solid, and build your own design. An IdeaCAD assignment now opens the separate modeling workspace; link your document to the assignment to share it with your instructor. Your older blade documents still open. Turn on IdeaBlade when you want to check a design against the competition limits. For printed parts, enter the finished part's weight or its Bambu Studio estimate; the program does not guess a weight from plastic density.",
