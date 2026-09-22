@@ -358,6 +358,44 @@ a padded column at 375. Bounded to its container.
   a match calls `abort()` before navigating, a miss navigates nowhere and keeps
   listening, and interim text is shown and never acted on.
 
+### The mutation proof
+
+Nine mutants, one per shipped guarantee, each applied to the working tree and
+judged through `npm test`. The script restores from a BYTE COPY HELD IN MEMORY
+and md5-checks the file afterwards -- never `git checkout --`, which restores
+from HEAD and would have discarded this bundle's uncommitted work, leaving
+every later mutant to "pass" against a pristine tree. It reads the SUMMARY LINE
+from stdout and stderr concatenated rather than the exit code, and treats a run
+whose summary it cannot find as an instrument failure. The clean tree was run
+first as the control, green.
+
+| Mutant | Guarantee | Verdict |
+|---|---|---|
+| `voice-exact-match` | a near-miss navigates nowhere | KILLED, 3 tests |
+| `voice-audience-gate` | an admin surface is not sayable by a student | KILLED, 3 tests |
+| `voice-no-mic-at-mount` | no recogniser until Start is pressed | KILLED, 15 tests |
+| `voice-null-means-none` | an explicit null means NONE, not "ask the browser" | KILLED, 1 test |
+| `census-exclusions` | the app-written export is not counted | KILLED, 2 tests |
+| `census-block-comments` | a block comment carries across lines | KILLED, 1 test |
+| `census-line-total` | a final line with no newline is still a line | KILLED, 2 tests |
+| `coin-card-copy` | each card says which side of the ledger it is | KILLED, 4 tests |
+| `coin-card-verb` | the two cards offer different verbs | KILLED, 1 test |
+
+**Nine of nine killed, every file restored byte-identical.** One of them,
+`census-line-total`, came back NOT APPLIED on the first run -- its anchor was
+written with two tabs where the file has one -- and that is the reason the
+script distinguishes "anchor not found" from "survived" at all: a mutant that
+never applied is an instrument failure, and reporting it as a pass is how a
+proof certifies a guarantee it never tested. Re-run with the corrected anchor,
+it killed.
+
+**THE EXIT-CODE TRAP WAS DEMONSTRATED LIVE ON THE WAY HERE.** The full suite
+run that found the two `derived-numbers` failures printed
+`Test Files 1 failed | 530 passed` and `run-tests.mjs: vitest reported
+failures`, while the shell pipeline around it reported `exited with code 0`.
+A mutation script judging by the throw would have read two real failures as a
+clean run.
+
 ### What was NOT verified
 
 - **No real microphone, anywhere.** Every path was driven through a stubbed
