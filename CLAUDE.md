@@ -3129,6 +3129,49 @@ inside the function fails closed rather than falling through to a weaker path.
       renderer or sanitizer touches. `tests/feedback-untrusted-render.test.ts`
       asserts it for this surface specifically rather than inheriting the
       typed-document argument, which does not apply here.
+    - **THERE ARE THREE DOWNLOADS AND THE ARCHIVE IS THE ONE WITH THE PICTURES
+      IN IT.** `feedbackMarkdown` is the pasteable bundle and `feedbackJson` is
+      the rows; both NAME a screenshot and neither can carry one, because
+      `rowScreenshotPath` is a key into a private bucket.
+      `buildFeedbackArchive` (`$lib/feedback/archive.ts`) is the zip:
+      index.json, and per report a report.md with the image BESIDE it, named
+      from index.json's own `files` lookup. A folder of loose screenshots a
+      reader matches up by guessing is the problem it was built to end, so **no
+      report may point at an image that is not there and no image may be an
+      orphan** -- both directions, because a silently mismatched screenshot is
+      worse than no screenshot at all.
+      - **IT REUSES `$lib/foundry/zip-write.ts` AND A SECOND ZIP WRITER IS THE
+        THING TO REFUSE.** `buildZip` is a pure writer with no Foundry knowledge
+        in it; its folder says where it was born, not what it does. It BUFFERS,
+        which is why the archive carries an image budget
+        (`FEEDBACK_ARCHIVE_IMAGE_BUDGET`) rather than whatever the filter
+        matched: the bucket's own ceiling is 8 MiB an object, so an unbounded
+        batch is hundreds of MB of input plus output in a tab.
+      - **THE BYTES COME FROM AN INJECTED TRANSPORT, ON THE ADMIN'S OWN CLIENT,
+        AND NO POLICY WAS WIDENED TO GET THEM.** `feedback media admin read`
+        (0170) already gives an admin SELECT on every object in the bucket --
+        the same policy the thumbnail on the row goes through. It is a
+        `download` and NOT the load's signed URLs, which last five minutes: a
+        queue is worked through for longer, and an export pressed after they
+        expire would produce an archive with no images and no reason on screen.
+        **Absence of the transport removes the control**, so an archive of
+        reports whose every image failed is not a thing this console can make.
+      - **EVERY REPORT STATES HOW OLD ITS BUILD IS, AND THE REFERENCE POINT IS
+        THIS BUILD'S OWN COMMIT RATHER THAN `origin/main`.** A browser has no
+        git and cannot ask a remote for its head; the two agree on a production
+        deploy and not on a preview, so `feedbackBuildAge` NAMES what it counted
+        to. It reads `virtual:site-changelog` through `await import()` at the
+        press -- the payload boundary that module's own declaration sets -- and
+        every branch is a SENTENCE: no identifier captured, a build timestamp
+        rather than a commit, and a commit the log cannot hold (it omits merges
+        AND truncates on a shallow clone, and a reader told only one of those
+        concludes the wrong thing half the time).
+      - **`README.md` SAYS WHAT THE ARCHIVE IS AND NOTHING ABOUT PROCESS.** No
+        branching, no testing, no prompt: a session already has all of it from
+        this file and the standards, and a second copy would go stale and then
+        contradict them. `tests/feedback-archive.test.ts` sweeps for it.
+      - **THE SUBMITTER TOGGLE STILL DECIDES AND THE ARCHIVE SAYS WHICH WAY.**
+        It withholds a NAME, never a report: `tried` and the screenshot stay.
 - **EVERY SURFACE THAT PERSISTS WORK USES THE ONE SAVE STATE**
   (`$lib/save-state.svelte.ts`), never a sixth hand-rolled variant. It owns the five
   states (clean, dirty, writing, saved, failed), the 800ms debounce, backoff to
