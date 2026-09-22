@@ -5,11 +5,32 @@
 	import type { UserProfile } from '$lib/profile';
 
 	/**
-	 * Manual verification harness for the ProfileMenu display-name edit bug
-	 * (dev-only). Mounts the REAL component with mock session data from +page.ts.
-	 * Verify: open the menu, click Edit, the panel STAYS open and shows the inline
-	 * name field; type a name, Save, the panel stays open and the name updates;
-	 * clicking outside the panel still closes it.
+	 * Manual verification harness for ProfileMenu (dev-only). Mounts the REAL
+	 * component with mock session data from +page.ts.
+	 *
+	 * THE NAME EDIT: open the menu, click Edit next to the name. The panel STAYS
+	 * open and reveals the inline field; type a name and Save, the panel stays
+	 * open and the name updates; a click outside still closes it.
+	 *
+	 * THE PATHWAY: the Pathway section's six tiles each write
+	 * `profiles.pathway` through the component's own `saveProfile`. Tap one and
+	 * the readout below, the chip on the trigger, the chip in the menu's meta
+	 * row and the tint on the display name all move together with no reload,
+	 * because the write ends in `invalidateAll()` and the readout is the LOAD'S
+	 * value rather than a copy the page kept.
+	 *
+	 * THE READOUT IS THE STORED ROW, NOT THE CHIP. `PathwayChip` renders nothing
+	 * at all for an unset pathway, so a chip-only check cannot tell "unset" from
+	 * "the component failed to mount", and it cannot tell a refused write from a
+	 * successful one that happened to write the same value. The readout prints
+	 * what the stub's store now holds, which is the thing a real row would be.
+	 *
+	 * THE REFUSAL: `?refuse=rls` makes the stub answer zero rows with no error
+	 * (the silent-success trap `saveProfile` selects the row back to catch) and
+	 * `?refuse=error` makes it answer a PostgREST error. In both the readout and
+	 * every chip must stay on the OLD value and the panel must say why.
+	 * `?pathway=none` seeds the unset state a student who deferred the
+	 * first-login sheet arrives in.
 	 */
 	const profile = $derived((page.data.userProfile ?? null) as UserProfile | null);
 </script>
@@ -24,6 +45,12 @@
 		and reveal the name field. Change the name and Save: the panel stays open and the name updates.
 		A click on the empty page area still closes the panel.
 	</p>
+	<p class="note">
+		Pathway: open the menu and tap a tile under <strong>Pathway</strong>. The readout below and
+		every chip move together, with no reload. Add <code>?refuse=rls</code> (zero rows, no error) or
+		<code>?refuse=error</code> to force a refused write: the readout must NOT move and the panel
+		must say why. <code>?pathway=none</code> starts from the unset state.
+	</p>
 
 	<div class="stage">
 		<div class="fake-header">
@@ -33,6 +60,9 @@
 	</div>
 
 	<p class="readout">Current display name: <strong data-testid="name">{displayName(profile)}</strong></p>
+	<p class="readout">
+		Stored pathway: <strong data-testid="pathway">{profile?.pathway ?? 'unset'}</strong>
+	</p>
 </div>
 
 <style>
@@ -77,6 +107,10 @@
 	.readout {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.85rem;
+		color: var(--cyan, #00f0ff);
+	}
+	code {
+		font-family: 'Share Tech Mono', monospace;
 		color: var(--cyan, #00f0ff);
 	}
 </style>
