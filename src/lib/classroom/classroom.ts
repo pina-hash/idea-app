@@ -1691,6 +1691,27 @@ export interface ItemInput {
 	publishAt?: string | null;
 	category: string | null;
 	links: { label: string; url: string }[];
+	/**
+	 * 0218. THE UNIT AN ITEM IS FILED INTO AT CREATION, and null -- unfiled --
+	 * is the default nobody has to think about, which is exactly what every
+	 * item did before this field existed.
+	 *
+	 * READ ON CREATE ONLY, and that is not an oversight. Once the item exists,
+	 * filing it is `classroom_set_item_unit`'s job through the row menu, the
+	 * bulk move and the drag onto a group header -- three surfaces and one
+	 * write, since 0111. Carrying a unit on `updateItem` as well would be a
+	 * SECOND write path to the same column, which is the pair that stops
+	 * agreeing; `classroom_update_item` has no `p_unit_id` and must not gain
+	 * one.
+	 *
+	 * IT IS ONE VALUE RATHER THAN ONE PER SECTION because `unit_id` is a column
+	 * on the CANONICAL record, never on a posting -- so an item posted to three
+	 * classes is filed once and all three read the same answer by construction.
+	 * A unit belongs to one course, so an item posted across two courses is
+	 * filed in a unit of one of them and reads as unfiled in the other, which
+	 * `classGroups` already does with a unit id the reader cannot see.
+	 */
+	unitId?: string | null;
 }
 
 /**
@@ -1750,6 +1771,18 @@ export function scheduleLabel(item: { publish_at?: string | null }): string {
 export interface ItemSaved {
 	itemId: string;
 	formattingDropped?: boolean;
+	/**
+	 * 0218, and the same argument as `formattingDropped` one field up: the save
+	 * landed, and something the teacher CHOSE did not.
+	 *
+	 * True only when a unit was picked AND this deployment's
+	 * `classroom_create_item` has no `p_unit_id` to put it in -- a project
+	 * sitting between two hand-applied migrations, which is a real state here.
+	 * The item is posted and every word of it is there; what is missing is the
+	 * filing, which is recoverable in one click from the class page. Saying so
+	 * is the difference between that and a picker that silently does nothing.
+	 */
+	unitDropped?: boolean;
 }
 
 export interface ClassroomComposerTransports {

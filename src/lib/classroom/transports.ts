@@ -90,6 +90,7 @@ import {
 	type ClassroomSection,
 	type ImportSummary,
 	type ItemInput,
+	type ItemSaved,
 	type ItemLink,
 	type LinkPreview,
 	type SectionDeleteResult,
@@ -878,7 +879,7 @@ async function saveItem(payload: {
 	sectionIds?: string[];
 	input: ItemInput;
 	published: boolean | null;
-}): Promise<TxResult<{ itemId: string; formattingDropped?: boolean }>> {
+}): Promise<TxResult<ItemSaved>> {
 	try {
 		const res = await fetch('/api/classroom/item', {
 			method: 'POST',
@@ -895,11 +896,26 @@ async function saveItem(payload: {
 				dueAt: payload.input.dueAt,
 				publishAt: payload.input.publishAt ?? null,
 				category: payload.input.category,
-				links: payload.input.links
+				links: payload.input.links,
+				// 0218, AND IT IS SENT ONLY WHEN A UNIT WAS ACTUALLY PICKED.
+				// Naming a new RPC parameter on every call would make a project
+				// that has not applied 0218 yet answer PGRST202 to every item
+				// creation; naming it only when the feature is in use means the
+				// ordinary save is byte-identical to the one before this field
+				// existed, and the degrade rung behind it only ever runs for a
+				// teacher who chose a unit. `undefined` is dropped by
+				// JSON.stringify, which is what makes "only when used" one
+				// expression rather than a branch.
+				unitId: payload.input.unitId ?? undefined
 			})
 		});
 		const body = (await res.json().catch(() => null)) as
-			| { error?: string; item_id?: string; formatting_dropped?: boolean }
+			| {
+					error?: string;
+					item_id?: string;
+					formatting_dropped?: boolean;
+					unit_dropped?: boolean;
+			  }
 			| null;
 		if (!res.ok) {
 			return { ok: false, message: body?.error ?? `Save failed (${res.status}).` };
@@ -912,7 +928,14 @@ async function saveItem(payload: {
 		// answered "nothing to export" rather than being filtered here -- one
 		// place decides what is exportable, and it is the one with the data.
 		pingClassroomExport(itemId);
-		return { ok: true, data: { itemId, formattingDropped: body?.formatting_dropped === true } };
+		return {
+			ok: true,
+			data: {
+				itemId,
+				formattingDropped: body?.formatting_dropped === true,
+				unitDropped: body?.unit_dropped === true
+			}
+		};
 	} catch (e) {
 		return { ok: false, message: (e as Error).message || 'Save failed.' };
 	}
