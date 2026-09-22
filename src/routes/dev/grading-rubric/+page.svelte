@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
 	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
 	import RubricView from '$lib/classroom/RubricView.svelte';
@@ -14,12 +15,94 @@
 		ClassroomItem,
 		ClassroomSection
 	} from '$lib/classroom/classroom';
+	import type {
+		SpeechRecognitionErrorLike,
+		SpeechRecognitionEventLike
+	} from '$lib/feedback/dictation';
 	// THE ROOM'S OWN STYLESHEET, not just its class. `.cr-root` with no rules
 	// behind it is a fixture that paints the portal plate while claiming to be
 	// the classroom, which is worse than no wrapper at all
 	// (tools/browser-verify/routes/README.md, "A harness must be in the room
 	// production is in"). The spec carries a presence row asserting it mounted.
 	import '$lib/classroom/classroom.css';
+
+	/**
+	 * A SCRIPTED SPEECH RECOGNISER (0288), so dictated feedback is drivable
+	 * here with no microphone and no speech service.
+	 *
+	 * IT IS A SECOND TEST DOUBLE AND NOT A SECOND RULE. `/dev/feedback` has one
+	 * of these for the report box; what is duplicated is a stub that answers
+	 * four events on a timer, and its SCRIPT differs because a grading comment
+	 * is not a bug report. Every rule -- the session, the append, the refusal
+	 * sentences, the language -- is imported from `$lib/feedback/dictation` by
+	 * the code under test and is not restated in either fixture.
+	 *
+	 * `?speech=none` hands the console `null`, which is Firefox and every
+	 * third-party iPad browser: no constructor, so NO CONTROL RENDERS
+	 * ANYWHERE. That is the negative control for the whole feature, and it is
+	 * the one a presence sweep can read as an absence.
+	 *
+	 * `?speech=refused` denies the microphone: an `error` event and then `end`,
+	 * which is what a real recogniser does -- the session is over, so it ends.
+	 * The control has to clear itself and say why.
+	 *
+	 * `?speech=broken` makes `start()` THROW, which is the one real path that
+	 * produces NO `end` EVENT AT ALL: `Dictation.start` catches it, reports
+	 * through `onError` and has already dropped its own reference, so nothing
+	 * will ever tell the control the session finished. Chrome throws exactly
+	 * this on a second `start()`. It is a separate mode rather than a variant
+	 * of `refused` because an error-without-end is NOT something a recogniser
+	 * emits, and a fixture its producer cannot emit is how a dead branch gets
+	 * certified -- measured here: written that way, `refused` left the button
+	 * reading STOP forever and the mode was modelling nothing real.
+	 */
+	const speechMode = $derived(page.url.searchParams.get('speech') ?? 'transcribe');
+	const HEARD_INTERIM = 'clean weld';
+	const HEARD_FINAL = 'clean weld, but the fillet radius is undersized';
+	function scriptedSpeech(mode: string) {
+		return class FakeSpeechRecognition {
+			lang = '';
+			continuous = false;
+			interimResults = false;
+			onstart: ((ev: unknown) => void) | null = null;
+			onresult: ((ev: SpeechRecognitionEventLike) => void) | null = null;
+			onerror: ((ev: SpeechRecognitionErrorLike) => void) | null = null;
+			onend: ((ev: unknown) => void) | null = null;
+			#timers: ReturnType<typeof setTimeout>[] = [];
+			start() {
+				if (mode === 'broken') {
+					// BEFORE `onstart`, and it THROWS rather than reporting:
+					// this is the path `Dictation.start` catches, and the only
+					// real one that never delivers an `end`.
+					throw new Error('InvalidStateError: recognition has already started');
+				}
+				this.onstart?.({});
+				if (mode === 'refused') {
+					// ERROR THEN END, which is what a real recogniser does: the
+					// session is over, so it ends. The control recovers down the
+					// ordinary `onListening(false)` path.
+					this.onerror?.({ error: 'not-allowed' });
+					this.#timers.push(setTimeout(() => this.onend?.({}), 0));
+					return;
+				}
+				const result = (isFinal: boolean, transcript: string): SpeechRecognitionEventLike => ({
+					resultIndex: 0,
+					results: [{ isFinal, length: 1, 0: { transcript } }]
+				});
+				this.#timers.push(setTimeout(() => this.onresult?.(result(false, HEARD_INTERIM)), 300));
+				this.#timers.push(setTimeout(() => this.onresult?.(result(true, HEARD_FINAL)), 800));
+			}
+			stop() {
+				this.#timers.forEach(clearTimeout);
+				this.#timers = [];
+				setTimeout(() => this.onend?.({}), 0);
+			}
+			abort() {
+				this.stop();
+			}
+		};
+	}
+	const fakeSpeech = $derived(speechMode === 'none' ? null : scriptedSpeech(speechMode));
 
 	/**
 	 * THE REAL `RubricBuilder`, the REAL `RubricView` and the REAL
@@ -323,6 +406,7 @@
 				{rubric}
 				{transports}
 				basePath="/dev/grading-rubric"
+				speech={fakeSpeech}
 			/>
 		{/key}
 	</section>

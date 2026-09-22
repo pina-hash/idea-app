@@ -43,12 +43,18 @@ import {
  * The cross-section, many-student capability, handed to `GradingConsole` as ONE
  * optional prop.
  *
- * OMITTING IT REMOVES THE WHOLE SURFACE -- the checkboxes, the batch bar, the
- * section grouping and the cross-section load -- down through the component, so
- * the per-section console at `/classroom/<section>/item/<item>/grade` is
+ * OMITTING IT REMOVES THE WHOLE SURFACE -- the checkboxes, the presets and the
+ * batch bar -- down through the component, so a console handed nothing is
  * structurally the console it has always been rather than the same console with
- * a flag turned off. A read-only or single-section mode that had to be
- * remembered is the shape this avoids.
+ * a flag turned off. A read-only or single-batch mode that had to be remembered
+ * is the shape this avoids.
+ *
+ * TWO LEVELS OF ABSENCE, NOT ONE, AND THEY ANSWER TWO DIFFERENT QUESTIONS.
+ * Omitting the OBJECT removes batch grading. Omitting `loadAcross` from an
+ * object that is present keeps batch grading and removes the cross-class read,
+ * the section grouping and the section labels -- which is the per-section
+ * grading route, and is what lets it return a zero to a class without becoming
+ * the cross-class console it links to.
  *
  * IT IS ITS OWN OBJECT rather than three more methods on
  * `AssignmentTeacherTransports` because the two are handed out at different
@@ -64,8 +70,28 @@ export interface BulkGradingTransports {
 	 * the list with no roster rows behind it is a class name shown to somebody
 	 * who cannot see into it, and two independent reads are how that comes
 	 * about.
+	 *
+	 * OPTIONAL SINCE 0288, AND ITS ABSENCE IS THE SECOND MECHANISM RATHER THAN
+	 * A DEGRADED FIRST ONE.
+	 *
+	 * This object used to carry two capabilities that only ever travelled
+	 * together -- reading one assignment ACROSS classes, and grading MANY
+	 * students in one statement -- so the console could not be given the second
+	 * without the first. That is why Mr. Pina filed "I must be able to quick
+	 * return a zero" from the per-section route: every piece of batch machinery
+	 * existed and none of it was reachable there, because the only prop that
+	 * turns it on would also have swapped his one class for every class he
+	 * teaches the assignment in. The per-section console already LINKS to the
+	 * cross-class one; it must not silently become it.
+	 *
+	 * So the two are separated one level in. The OBJECT says "this console can
+	 * write a batch"; this METHOD says "and it reads across classes". A caller
+	 * that omits it gets the tick boxes, the presets and the batch bar over the
+	 * roster it already had, and `GradingConsole.load()` falls through to
+	 * `transports.loadGrading(item.id, section.id)` exactly as it does with no
+	 * batch capability at all.
 	 */
-	loadAcross(itemId: string): Promise<TxResult<BulkGradingLoad>>;
+	loadAcross?(itemId: string): Promise<TxResult<BulkGradingLoad>>;
 	/**
 	 * One statement, one transaction, one line per student
 	 * (`classroom_grade_submissions`, 0175).
@@ -535,14 +561,47 @@ export function bulkOutcome(
  * `ungraded` is the one an instructor reaches for after a partial pass, and it
  * is why the list is not just "all" and "none".
  */
-export type BulkPreset = 'all' | 'none' | 'submitted' | 'ungraded';
+/**
+ * THE PRESETS, IN THE ORDER THEY ARE OFFERED, AND THE ONE STATEMENT OF WHICH
+ * ONES EXIST.
+ *
+ * IT IS THE ARRAY THAT IS WRITTEN DOWN AND THE TYPE THAT IS DERIVED, not the
+ * other way round, and that ordering is the whole point. A hand-written union
+ * beside a hand-written order list is two statements of the membership: adding
+ * a preset to one and forgetting the other type-checks perfectly and renders a
+ * button with no words in it.
+ *
+ * DERIVED THIS WAY, THE COMPILER DOES THREE THINGS AT ONCE. Adding a member
+ * widens `BulkPreset`, which makes `BULK_PRESET_LABEL` (a total `Record`)
+ * refuse to compile without a label, and makes `applyPreset`'s switch refuse to
+ * compile without an arm -- so the two things that must agree with this list
+ * cannot silently fall behind it.
+ *
+ * WHAT THE COMPILER STILL CANNOT SEE is a label that is present but EMPTY, and
+ * that is what the suite asserts, over this array as its population. Taking the
+ * population from the label map instead is vacuous and was measured as such:
+ * deleting a key removes it from the population too, so the sweep comes back
+ * green over the exact key that went missing.
+ *
+ * `missing` sits beside `submitted` because they are complements and read as a
+ * pair; `none` is last because it is the undo.
+ */
+export const BULK_PRESETS = ['all', 'submitted', 'missing', 'ungraded', 'none'] as const;
+
+export type BulkPreset = (typeof BULK_PRESETS)[number];
 
 export const BULK_PRESET_LABEL: Record<BulkPreset, string> = {
 	all: 'Everyone shown',
 	none: 'Nobody',
 	submitted: 'Handed in',
+	missing: 'Nothing handed in',
 	ungraded: 'Not graded yet'
 };
+
+/** Handed in, or handed in and already given back. The one spelling. */
+function hasHandedIn(s: StudentWork): boolean {
+	return s.submission?.state === 'submitted' || s.submission?.state === 'returned';
+}
 
 export function applyPreset(preset: BulkPreset, students: StudentWork[]): string[] {
 	switch (preset) {
@@ -551,12 +610,64 @@ export function applyPreset(preset: BulkPreset, students: StudentWork[]): string
 		case 'none':
 			return [];
 		case 'submitted':
-			return students
-				.filter((s) => s.submission?.state === 'submitted' || s.submission?.state === 'returned')
-				.map((s) => s.email);
+			return students.filter(hasHandedIn).map((s) => s.email);
+		/**
+		 * THE SELECTION A ZERO IS FOR (0288), and it is the exact complement of
+		 * `submitted` rather than a second reading of what a hand-in is --
+		 * `hasHandedIn` is asked once and negated, so the two can never both
+		 * claim a student or both miss one.
+		 *
+		 * Mr. Pina: "I must be able to quick return a zero or incomplete
+		 * assignments." The work that earns a zero is the work that never
+		 * arrived, and picking those names by hand off a roster of thirty is
+		 * the whole of what made it slow.
+		 *
+		 * IT IS NOT `ungraded`, WHICH IS THE ONE IT WILL BE CONFUSED WITH. A
+		 * student who handed in on time and is simply waiting is `ungraded` and
+		 * must never be swept into a zero; `missing` asks about the HAND-IN and
+		 * `ungraded` asks about the GRADE, and after a partial pass the two sets
+		 * barely overlap.
+		 */
+		case 'missing':
+			return students.filter((s) => !hasHandedIn(s)).map((s) => s.email);
 		case 'ungraded':
 			return students.filter((s) => !s.submission?.graded_at).map((s) => s.email);
 	}
+}
+
+/**
+ * EVERY CRITERION AT ITS BOTTOM LEVEL: the scores a zero is made of (0288).
+ *
+ * Mr. Pina had to hand-pick every criterion's lowest level to give one student
+ * a zero, on a rubric where `criterionIssues` ALREADY enforces that the bottom
+ * level is worth 0 -- so the number was never in doubt and the clicking was
+ * pure tax.
+ *
+ * IT READS THE LEVEL, NEVER THE LITERAL 0, and that is the whole reason this
+ * is a function over the rubric rather than a fill of zeroes. A criterion
+ * migrated from the flat format can have ONE level (`incomplete` is stamped on
+ * exactly that case), and a rubric being edited is not required to be valid
+ * mid-edit -- so "the bottom level" is a question about this rubric and 0 is an
+ * assumption about every rubric. Where the two agree, which is every valid
+ * rubric, they agree; where they do not, this scores what the rubric actually
+ * says and the grader sees a level light up rather than an override they then
+ * have to justify in writing.
+ *
+ * A CRITERION WITH NO LEVELS AT ALL IS LEFT ALONE rather than scored 0. There
+ * is nothing to read, and writing a number no level explains is exactly the
+ * override `_classroom_check_levels` would then demand a comment for.
+ */
+export function bottomLevelScores(rubric: RubricCriterion[] | null): Record<string, number> {
+	const out: Record<string, number> = {};
+	for (const c of rubric ?? []) {
+		const levels = c.levels ?? [];
+		if (!levels.length) continue;
+		const bottom = levels[levels.length - 1];
+		if (typeof bottom?.points === 'number' && !Number.isNaN(bottom.points)) {
+			out[c.id] = bottom.points;
+		}
+	}
+	return out;
 }
 
 /**

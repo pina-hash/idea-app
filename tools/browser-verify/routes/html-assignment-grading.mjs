@@ -110,17 +110,64 @@ export default {
 					'ready=' + (wrap?.getAttribute('data-hx-ready') ?? 'absent'),
 					'listening=' + (wrap?.getAttribute('data-hx-listening') ?? 'absent'),
 					/*
-						THE FINDING IS THE SHARE OF THE COLUMN, NOT A PIXEL COUNT. An
+						THE FINDING IS THE SHARE OF ITS COLUMN, NOT A PIXEL COUNT. An
 						absolute threshold cannot be the same claim at 375 and at 1440,
-						and the defect was never about an absolute width: the document
-						sat BESIDE the rubric and got half the row (measured 275px at
-						1440 and 275px at 1920 alike, because the console caps itself at
-						960px). Filling its column is the property that was lost.
+						and the defect this line was written for was never about an
+						absolute width: the frame did not fill the column it was in.
+						That property is unchanged by 0288 and still holds in both
+						arrangements -- what moved is how wide the column is.
 					*/
 					'frameFillsColumn=' + (cw > 0 && fw / cw > 0.95),
-					/* And the rubric is BELOW it rather than beside it, which is what
-					   makes that possible. */
-					'rubricBeside=' + document.querySelectorAll('.work-split.has-rubric').length
+					/*
+						0288 FLIPPED THIS LINE FROM 0 TO 1, DELIBERATELY, AND THE
+						COMMENT IT REPLACES CARRIED A STALE MEASUREMENT.
+
+						It read: the document "sat BESIDE the rubric and got half the
+						row (measured 275px at 1440 and 275px at 1920 alike, because
+						the console caps itself at 960px)". The cap is real ON THIS
+						HARNESS and nowhere else: this dev route does not set the
+						cr-measure-route custom property, so cr-measure falls back to
+						measure-page (60rem), while the real route resolves it to
+						measure-console, which is 100%. Measured under the real route's
+						condition the split is 1009.6px at 1440 and 1489.6px at 1920,
+						and the document column is 509.7px -- more than the whole split
+						was under the harness reading.
+
+						So the rubric sits beside the document now. has-rubric is the
+						class that says so and it is on at EVERY width, because the
+						collapse is a media query over the tracks rather than a change
+						to the class -- which is why display is read beside it: that is
+						the reading that tells a stacked document from a side-by-side
+						one, and this harness is narrower than the real route, so at
+						both 375 and 1440 it is below the 78rem collapse and correctly
+						stacked.
+
+						(NO BACKTICKED NAMES IN HERE: this whole block sits inside a
+						template literal, so a backtick ends the string and the file
+						stops parsing -- measured, as an "Invalid left-hand side
+						expression in postfix operation" at import time.)
+					*/
+					'rubricBeside=' + document.querySelectorAll('.work-split.has-rubric').length,
+					/* The marker the collapse keys on. A ported document carries it;
+					   a spec assignment never does. */
+					'documentWork=' + document.querySelectorAll('.work-split.document-work').length,
+					/*
+						THE RULE, NOT THE STATE, because this spec runs at two widths
+						and shares ONE expected array: the arrangement legitimately
+						differs between them, so a literal here could only ever be
+						right at one. 78rem is where a ported document earns two
+						columns (411px of document, the flat part of the curve on the
+						real worksheet), so what is asserted is that the collapse and
+						the width AGREE -- true at 375 (stacked) and at 1440 (side by
+						side) alike, and false the moment either moves without the
+						other.
+					*/
+					'collapseMatchesWidth=' + (() => {
+						const el = document.querySelector('.work-split');
+						if (!el) return 'absent';
+						const grid = getComputedStyle(el).display === 'grid';
+						return (window.innerWidth >= 1248) === grid;
+					})()
 				];
 			}`,
 			expected: [
@@ -128,7 +175,9 @@ export default {
 				'ready=yes',
 				'listening=yes',
 				'frameFillsColumn=true',
-				'rubricBeside=0'
+				'rubricBeside=1',
+				'documentWork=1',
+				'collapseMatchesWidth=true'
 			]
 		},
 		{

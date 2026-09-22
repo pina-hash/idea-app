@@ -49,7 +49,11 @@ export default {
 		{ selector: '[data-testid="roster-section"]', label: 'the class, on every roster row', expectPresent: 7, maxPresent: 7, expectVisible: 7 },
 		{ selector: '[data-testid="roster-pick"]', label: 'a tick box per student', expectPresent: 7, maxPresent: 7, expectVisible: 7 },
 		{ selector: '[data-testid="pick-presets"]', label: 'the named selections', expectPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="pick-presets"] button', label: 'all / handed in / not graded / nobody', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
+		/* FIVE SINCE 0288: `Nothing handed in` joined the list, because the
+		   selection a zero is for is the one nobody could make. Pinned exactly,
+		   in both directions, so a preset silently disappearing is as much a
+		   finding as one silently appearing. */
+		{ selector: '[data-testid="pick-presets"] button', label: 'all / handed in / nothing handed in / not graded / nobody', expectPresent: 5, maxPresent: 5, expectVisible: 5 },
 		/* The export panel scopes to ONE class here, because a gradebook CSV
 		   naming Period 1 and carrying Period 2 as well is a wrong import that
 		   looks exactly like a right one. */
