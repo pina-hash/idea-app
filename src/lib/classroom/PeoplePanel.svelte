@@ -31,7 +31,9 @@
 		mailtoPlan,
 		mailtoPlanNote,
 		rosterCsv,
-		rosterCsvFilename
+		rosterCsvFilename,
+		teamsCsv,
+		teamsCsvFilename
 	} from '$lib/classroom/roster-export';
 	import {
 		pickerDrawNote,
@@ -39,9 +41,26 @@
 		pickerPool,
 		pickerSeedFrom,
 		pickerShuffle,
-		pickerTeams,
-		type PickerCandidate
+		pickerTeamsBy,
+		type PickerCandidate,
+		type PickerTeamMode
 	} from '$lib/classroom/picker';
+	import {
+		TEAM_WINDOW_WORDS,
+		accentOf,
+		backgroundCss,
+		bannerInk,
+		canStyleTeam,
+		hasStyle,
+		teamDriftNote,
+		teamLabel,
+		teamStyle,
+		teamWindowEnd,
+		teamWindowState,
+		type Team,
+		type TeamSet,
+		type TeamTransports
+	} from '$lib/classroom/teams';
 
 	/**
 	 * ONE class's people and settings: the roster (add, correct, deactivate, CSV
@@ -63,6 +82,7 @@
 		removalReady = false,
 		transports,
 		loadNotebookGrid = null,
+		teams: teamTransports = null,
 		onchanged = null,
 		ondeleted = null
 	}: {
@@ -79,6 +99,21 @@
 		 */
 		removalReady?: boolean;
 		transports: ClassroomPeopleTransports;
+		/**
+		 * THE TEAMS SUBSTRATE (0223), AND ITS ABSENCE REMOVES THE WHOLE AREA.
+		 *
+		 * Null is the fail-closed default and is a REAL deployment state, not a
+		 * defensive one: migrations here are applied by hand, one file at a
+		 * time, so a client can ship before 0223 lands. A caller that has not
+		 * wired it gets the panel exactly as it was before this bundle -- no
+		 * Teams tool, no save control -- rather than controls that would answer
+		 * PGRST202.
+		 *
+		 * Each transport inside it is optional for the same reason one level
+		 * down: no `style` transport means no style controls anywhere beneath,
+		 * so read-only is structural rather than a flag.
+		 */
+		teams?: TeamTransports | null;
 		/**
 		 * The notebook's own grid read, for the compliance element below (0099).
 		 *
@@ -228,7 +263,7 @@
 	// controls are one row; opening one closes the others.
 	// -----------------------------------------------------------------------
 
-	type Tool = 'export' | 'email' | 'picker';
+	type Tool = 'export' | 'email' | 'picker' | 'teams';
 	let tool = $state<Tool | null>(null);
 	function toggleTool(next: Tool) {
 		tool = tool === next ? null : next;
@@ -281,6 +316,19 @@
 	// draw is a new seed, deliberately pressed.
 	let seed = $state(0);
 	let teamSize = $state(3);
+	/**
+	 * HOW MANY TEAMS, ASKED THE OTHER WAY ROUND, and it is a second control
+	 * rather than a replacement.
+	 *
+	 * The report that produced this asked to "specify a number of teams". The
+	 * only input here was Team size, so getting seven teams out of it meant
+	 * solving `ceil(n / size) = 7` in your head with a class watching. Both
+	 * questions are legitimate -- "teams of about three" and "seven benches" --
+	 * so both are offered and the dealer underneath is the same one.
+	 */
+	let teamMode = $state<PickerTeamMode>('size');
+	let teamCount = $state(4);
+	const teamValue = $derived(teamMode === 'count' ? teamCount : teamSize);
 	let absent = $state(new Set<string>());
 	let drawn = $state(false);
 
@@ -293,7 +341,7 @@
 	const pool = $derived(pickerPool(candidates, absent));
 	const drawNote = $derived(pickerDrawNote(seed, pool));
 	const order = $derived(drawn ? pickerShuffle(pool.included, seed) : []);
-	const teams = $derived(drawn ? pickerTeams(pool.included, teamSize, seed) : []);
+	const teams = $derived(drawn ? pickerTeamsBy(pool.included, teamMode, teamValue, seed) : []);
 	const chosen = $derived(drawn ? pickerOne(pool.included, seed) : null);
 
 	function draw() {
@@ -309,6 +357,174 @@
 		if (next.has(email)) next.delete(email);
 		else next.add(email);
 		absent = next;
+	}
+
+	// --- Saved teams (0223) -------------------------------------------------
+	//
+	// THE DRAW ABOVE IS EPHEMERAL AND THIS IS WHAT MAKES ONE LAST. Everything
+	// below is behind `teamTransports`: with no transport the area does not
+	// render at all, which is the same absence-is-the-mechanism rule the rest of
+	// this module uses, and it is what keeps the panel correct on a deployment
+	// that does not have 0223 yet.
+
+	let teamLabelDraft = $state('');
+	let savedSets = $state<TeamSet[]>([]);
+	let teamsManages = $state(false);
+	let teamsLoading = $state(false);
+	/** null = not asked yet; false = this deployment has no 0223. */
+	let teamsReady = $state<boolean | null>(null);
+	let teamsError = $state<string | null>(null);
+	let teamsBusy = $state(false);
+	/** Which saved set has its Retire armed. Only ever one. */
+	let armedRetire = $state<string | null>(null);
+	/** Days to post for, per set. null is the "no end" option. */
+	let postDays = $state<Record<string, number | null>>({});
+
+	/**
+	 * THE CLOCK IS READ ONCE, HERE, and threaded down. A component that reads
+	 * its own clock silently disagrees with the payload it is rendering, and the
+	 * window state is exactly the kind of thing two readings would disagree
+	 * about across a midnight or a poll.
+	 */
+	let nowMs = $state(Date.now());
+
+	async function loadTeams() {
+		const t = teamTransports;
+		if (!t) return;
+		teamsLoading = true;
+		teamsError = null;
+		try {
+			const res = await t.board(section.id);
+			nowMs = Date.now();
+			if (res.ok) {
+				savedSets = res.sets;
+				teamsManages = res.manages;
+				teamsReady = true;
+			} else if (res.reason === 'unavailable') {
+				// A REAL STATE, NOT AN ERROR. 0223 is applied by hand, so a
+				// client can genuinely be ahead of its migration. The area says
+				// so and offers nothing, rather than showing controls that
+				// would answer PGRST202.
+				teamsReady = false;
+			} else {
+				teamsReady = true;
+				teamsError = res.message;
+			}
+		} finally {
+			teamsLoading = false;
+		}
+	}
+
+	/**
+	 * WRAPPED IN `untrack` BECAUSE IT CALLS AN INJECTED TRANSPORT.
+	 *
+	 * `teamTransports` is written by whoever mounts this component, who cannot
+	 * see this effect. Everything it touches reactively before its first
+	 * `await` would otherwise join this effect's dependency set, and anything it
+	 * then writes re-triggers the effect -- which is `effect_update_depth_exceeded`
+	 * on mount, naming nothing about the transport that caused it. The dev
+	 * harness's logging transports are exactly that shape.
+	 *
+	 * TRACK THE INPUTS, UNTRACK THE CALL: the tool and the section are read
+	 * tracked, so opening the panel and changing class both refetch; only the
+	 * invocation is untracked.
+	 */
+	$effect(() => {
+		const open = tool === 'teams';
+		const id = section.id;
+		if (!open || !id) return;
+		untrack(() => {
+			if (teamsReady === null && !teamsLoading) void loadTeams();
+		});
+	});
+
+	/** Save the draw currently on screen. Manager only; the RPC re-checks. */
+	async function saveTeams() {
+		const t = teamTransports;
+		if (!t?.save || teams.length === 0) return;
+		teamsBusy = true;
+		try {
+			const res = await t.save({
+				sectionId: section.id,
+				label: teamLabelDraft.trim() || 'Teams',
+				seed,
+				mode: teamMode,
+				modeValue: teamValue,
+				teams: teams.map((team) => team.map((p) => p.email))
+			});
+			if (res.ok) {
+				teamLabelDraft = '';
+				msg = { ok: true, text: 'Teams saved. They will still be here after a reload.' };
+				teamsReady = null;
+				await loadTeams();
+			} else {
+				msg = { ok: false, text: res.message ?? 'Could not save these teams.' };
+			}
+		} finally {
+			teamsBusy = false;
+		}
+	}
+
+	async function runTeamAction(
+		fn: (() => Promise<{ ok: boolean; message?: string }>) | undefined,
+		okText: string
+	) {
+		if (!fn) return;
+		teamsBusy = true;
+		try {
+			const res = await fn();
+			msg = res.ok ? { ok: true, text: okText } : { ok: false, text: res.message ?? 'That did not work.' };
+			if (res.ok) await loadTeams();
+		} finally {
+			teamsBusy = false;
+			armedRetire = null;
+		}
+	}
+
+	/**
+	 * The team CSV. Same `<a download>` shape as the roster export above and for
+	 * the same reason: a server round trip would only re-derive rows this page
+	 * is already holding.
+	 */
+	function downloadTeamsCsv(set: TeamSet) {
+		if (typeof document === 'undefined') return;
+		const text = teamsCsv(section, set);
+		const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = teamsCsvFilename(section, set, Date.now());
+		document.body.appendChild(a);
+		a.click();
+		a.remove();
+		URL.revokeObjectURL(url);
+		const people = set.teams.reduce((n, team) => n + team.members.length, 0);
+		msg = {
+			ok: true,
+			text: `Exported ${set.teams.length} team${set.teams.length === 1 ? '' : 's'} and ${people} student${people === 1 ? '' : 's'}.`
+		};
+	}
+
+	/**
+	 * A team's own colours, as inline custom properties. Read through
+	 * `$lib/tournaments/entry-styles`'s pure functions, which already take the
+	 * draft shape -- no adapter, and no second implementation of what a style
+	 * renders as.
+	 */
+	function teamCardStyle(team: Team): string {
+		const style = teamStyle(team);
+		const bg = backgroundCss(style);
+		return [
+			`--team-accent: ${accentOf(style)}`,
+			// THE INK COMES FROM `bannerInk` AND IS NOT CHOSEN HERE. A student
+			// may pick any background; which of dark or light text survives on it
+			// is arithmetic the tournament module already does, and a second
+			// answer to that question is how a team ends up with black text on a
+			// black gradient with nothing on screen reporting it.
+			bg ? `--team-ink: ${bannerInk(style)}` : null,
+			bg ? `--team-bg: ${bg}` : null
+		]
+			.filter(Boolean)
+			.join('; ');
 	}
 
 	/** The row whose Remove is armed. Only ever one, and never across a reload. */
@@ -841,6 +1057,18 @@
 			>
 				Random picker
 			</button>
+			{#if teamTransports}
+				<button
+					type="button"
+					class="btn tiny tap-44"
+					data-testid="tool-teams"
+					aria-expanded={tool === 'teams'}
+					aria-controls="tool-panel-teams"
+					onclick={() => toggleTool('teams')}
+				>
+					Saved teams
+				</button>
+			{/if}
 		</div>
 
 		{#if tool === 'email'}
@@ -910,20 +1138,76 @@
 					so the same draw can be shown again, and so a student can check it.
 				</p>
 				<div class="tools-row">
-					<label class="tool-field narrow">
-						<span>Team size</span>
-						<input
-							type="number"
-							min="1"
-							max="20"
-							bind:value={teamSize}
-							data-testid="picker-team-size"
-						/>
-					</label>
+					<!--
+						TWO WAYS TO ASK FOR THE SAME DRAW, and the radio pair is what
+						makes the second one reachable. A teacher with seven benches
+						wants seven teams; before this the only control was Team size,
+						so they had to solve ceil(n / size) = 7 in their head.
+					-->
+					<fieldset class="team-mode">
+						<legend>How to divide the class</legend>
+						<label class="team-mode-opt tap-44">
+							<input
+								type="radio"
+								name="team-mode"
+								value="size"
+								checked={teamMode === 'size'}
+								data-testid="picker-mode-size"
+								onchange={() => (teamMode = 'size')}
+							/>
+							<span>Team size</span>
+						</label>
+						<label class="team-mode-opt tap-44">
+							<input
+								type="radio"
+								name="team-mode"
+								value="count"
+								checked={teamMode === 'count'}
+								data-testid="picker-mode-count"
+								onchange={() => (teamMode = 'count')}
+							/>
+							<span>Number of teams</span>
+						</label>
+					</fieldset>
+					{#if teamMode === 'size'}
+						<label class="tool-field narrow">
+							<span>Students per team</span>
+							<input
+								type="number"
+								min="1"
+								max="20"
+								bind:value={teamSize}
+								data-testid="picker-team-size"
+							/>
+						</label>
+					{:else}
+						<label class="tool-field narrow">
+							<span>How many teams</span>
+							<input
+								type="number"
+								min="1"
+								max="20"
+								bind:value={teamCount}
+								data-testid="picker-team-count"
+							/>
+						</label>
+					{/if}
 					<button type="button" class="btn tiny tap-44" data-testid="picker-draw" onclick={draw}>
 						{drawn ? 'Draw again' : 'Draw'}
 					</button>
 				</div>
+				{#if teamMode === 'count' && pool.included.length > 0 && teamCount > pool.included.length}
+					<!--
+						SAID BEFORE THE DRAW, not discovered after it. Asking for more
+						teams than there are students is clamped rather than padded with
+						empty cards, and a clamp nobody was told about reads as the
+						control being ignored.
+					-->
+					<p class="note" data-testid="picker-count-clamped">
+						There are only {pool.included.length} students in the draw, so you will get
+						{pool.included.length} teams of one rather than {teamCount}.
+					</p>
+				{/if}
 
 				{#if candidates.length === 0}
 					<p class="note empty-state">Nobody on the live roster to draw from yet.</p>
@@ -968,6 +1252,41 @@
 					{#if teams.length > 0}
 						<div data-testid="picker-teams">
 							<h3>Teams</h3>
+							{#if teamTransports?.save}
+								<!--
+									SAVING IS A SEPARATE, DELIBERATE PRESS and never a side
+									effect of drawing. A draw a teacher is still re-rolling in
+									front of the class must not be writing rows on every press
+									of Draw again, and a surface that said "saved" for
+									something ephemeral is the failure this whole area exists
+									to fix.
+								-->
+								<div class="tools-row team-save">
+									<label class="tool-field">
+										<span>Call this draw</span>
+										<input
+											type="text"
+											maxlength="120"
+											placeholder="Build teams"
+											bind:value={teamLabelDraft}
+											data-testid="teams-save-label"
+										/>
+									</label>
+									<button
+										type="button"
+										class="btn tiny tap-44"
+										data-testid="teams-save"
+										disabled={teamsBusy}
+										onclick={saveTeams}
+									>
+										{teamsBusy ? 'Saving' : 'Save these teams'}
+									</button>
+								</div>
+								<p class="note">
+									Saving keeps these teams after a reload and lets you export them or post
+									them to the class. Drawing again does not save anything on its own.
+								</p>
+							{/if}
 							<div class="picker-teams">
 								{#each teams as team, i (i)}
 									<div class="picker-team">
@@ -982,6 +1301,203 @@
 							</div>
 						</div>
 					{/if}
+				{/if}
+			</div>
+		{/if}
+
+		{#if tool === 'teams' && teamTransports}
+			<div class="tool-panel" id="tool-panel-teams" data-testid="teams-panel">
+				{#if teamsLoading}
+					<Pending label="Loading saved teams" />
+				{:else if teamsReady === false}
+					<!--
+						NOT AN ERROR. Migrations here are applied one file at a time by
+						hand, so a deployment sitting between two of them is a real
+						state and this says which capability is missing rather than
+						blanking the page.
+					-->
+					<p class="note empty-state" data-testid="teams-unavailable">
+						Saved teams are not available on this deployment yet. The random picker
+						above still works; teams drawn with it cannot be kept or posted until
+						this class's database has been updated.
+					</p>
+				{:else if teamsError}
+					<p class="note" data-testid="teams-error">{teamsError}</p>
+				{:else if savedSets.length === 0}
+					<p class="note empty-state" data-testid="teams-empty">
+						No saved teams yet. Draw some with the random picker and press Save these
+						teams.
+					</p>
+				{:else}
+					{#each savedSets as set (set.id)}
+						{@const state = teamWindowState(set, nowMs)}
+						{@const drift = teamDriftNote(set)}
+						<article class="team-set" data-testid="team-set">
+							<header class="team-set-head">
+								<h3>{set.label}</h3>
+								<!--
+									The window state carries a WORD as well as a tone: colour
+									is never the only signal on this site.
+								-->
+								<span class="team-state" data-state={state} data-testid="team-set-state">
+									{TEAM_WINDOW_WORDS[state]}
+								</span>
+							</header>
+							<p class="note team-seed">
+								{set.teams.length} team{set.teams.length === 1 ? '' : 's'}, drawn by
+								{set.mode === 'count' ? 'number of teams' : 'team size'} ({set.mode_value}),
+								seed {set.seed}. The same seed over the same names always gives this same
+								result.
+							</p>
+
+							{#if drift}
+								<p class="note team-drift" data-testid="team-drift">{drift}</p>
+							{/if}
+
+							<div class="team-cards">
+								{#each set.teams as team (team.id)}
+									<div
+										class="team-card"
+										class:has-style={hasStyle(teamStyle(team))}
+										style={teamCardStyle(team)}
+										data-testid="team-card"
+									>
+										<h4>{teamLabel(team)}</h4>
+										{#if team.tagline}
+											<p class="team-tagline">{team.tagline}</p>
+										{/if}
+										<ul>
+											{#each team.members as member (member.student_email)}
+												<li class:left-class={!member.still_enrolled}>
+													{member.display_name}
+													{#if !member.still_enrolled}
+														<!--
+															A WORD, not a colour and not a strikethrough
+															alone. This student is still on the team that
+															was drawn; what changed is the roster.
+														-->
+														<span class="team-left" data-testid="team-member-left">
+															no longer on the roster
+														</span>
+													{/if}
+												</li>
+											{/each}
+										</ul>
+										{#if team.style_updated_by}
+											<p class="team-by" data-testid="team-style-by">
+												Decorated by {team.style_updated_by}
+											</p>
+										{/if}
+										{#if canStyleTeam(team, teamsManages) && teamTransports.style}
+											<p class="note team-style-hint">
+												You can change this team's name and colours.
+											</p>
+										{/if}
+									</div>
+								{/each}
+							</div>
+
+							<div class="tools-row team-actions">
+								<button
+									type="button"
+									class="btn tiny tap-44"
+									data-testid="team-export"
+									onclick={() => downloadTeamsCsv(set)}
+								>
+									Export CSV
+								</button>
+
+								{#if state === 'showing' || state === 'scheduled'}
+									<button
+										type="button"
+										class="btn tiny tap-44"
+										data-testid="team-unpost"
+										disabled={teamsBusy}
+										onclick={() =>
+											runTeamAction(
+												() => teamTransports.unpost!(set.id),
+												'Taken down. The class can no longer see these teams.'
+											)}
+									>
+										Take down
+									</button>
+								{:else}
+									<label class="tool-field narrow">
+										<span>Post for</span>
+										<select
+											data-testid="team-post-days"
+											value={postDays[set.id] ?? null}
+											onchange={(e) => {
+												const v = (e.currentTarget as HTMLSelectElement).value;
+												postDays = { ...postDays, [set.id]: v === '' ? null : Number(v) };
+											}}
+										>
+											<option value="">until I take it down</option>
+											<option value="1">today</option>
+											<option value="5">5 days</option>
+											<option value="14">2 weeks</option>
+										</select>
+									</label>
+									<button
+										type="button"
+										class="btn tiny tap-44"
+										data-testid="team-post"
+										disabled={teamsBusy}
+										onclick={() =>
+											runTeamAction(
+												() =>
+													teamTransports.post!(
+														set.id,
+														teamWindowEnd(Date.now(), postDays[set.id] ?? null)
+													),
+												'Posted. The whole class can see these teams.'
+											)}
+									>
+										Post to the class
+									</button>
+								{/if}
+
+								{#if armedRetire === set.id}
+									<!--
+										A DESTRUCTIVE-LOOKING ACTION NAMES WHAT IT COSTS, and this
+										one costs less than it looks: retiring keeps every row and
+										only takes the draw off every surface.
+									-->
+									<span class="note team-retire-note" data-testid="team-retire-note">
+										Retire "{set.label}"? It comes off this page and off the class's
+										view. The record of who was on which team is kept.
+									</span>
+									<button
+										type="button"
+										class="btn tiny danger tap-44"
+										data-testid="team-retire-confirm"
+										disabled={teamsBusy}
+										onclick={() =>
+											runTeamAction(() => teamTransports.archive!(set.id), 'Teams retired.')}
+									>
+										Retire
+									</button>
+									<button
+										type="button"
+										class="btn tiny tap-44"
+										data-testid="team-retire-cancel"
+										onclick={() => (armedRetire = null)}
+									>
+										Keep
+									</button>
+								{:else}
+									<button
+										type="button"
+										class="btn tiny tap-44"
+										data-testid="team-retire"
+										onclick={() => (armedRetire = set.id)}
+									>
+										Retire
+									</button>
+								{/if}
+							</div>
+						</article>
+					{/each}
 				{/if}
 			</div>
 		{/if}
@@ -1615,5 +2131,171 @@
 		margin: 0;
 		padding-left: 1.1rem;
 		color: var(--text-1);
+	}
+
+	/* --- Saved teams (0223) ------------------------------------------- */
+
+	.team-mode {
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-2, 6px);
+		padding: var(--space-1, 0.25rem) var(--space-2, 0.5rem);
+		margin: 0;
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2, 0.5rem);
+		align-items: center;
+	}
+
+	.team-mode legend {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-2);
+		padding: 0 0.3rem;
+	}
+
+	.team-mode-opt {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		min-height: 44px;
+		cursor: pointer;
+	}
+
+	.team-save {
+		margin-top: var(--space-2, 0.5rem);
+	}
+
+	.team-set {
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-2, 6px);
+		padding: var(--space-3, 0.75rem);
+		margin-top: var(--space-3, 0.75rem);
+	}
+
+	.team-set-head {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2, 0.5rem);
+		align-items: baseline;
+		justify-content: space-between;
+	}
+
+	.team-set-head h3 {
+		margin: 0;
+		min-width: 0;
+	}
+
+	/*
+	 * A WORD IS ALWAYS PRESENT -- the element's whole content is the sentence
+	 * from TEAM_WINDOW_WORDS -- so the tone below is a second signal and never
+	 * the only one.
+	 */
+	.team-state {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-2);
+	}
+
+	.team-state[data-state='showing'] {
+		color: var(--green);
+	}
+
+	.team-state[data-state='scheduled'] {
+		color: var(--cyan);
+	}
+
+	.team-seed {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+	}
+
+	.team-drift {
+		color: var(--amber);
+	}
+
+	/*
+	 * MULTI-COLUMN, NOT A GRID, AND IT IS THE REPO'S OWN RULE RATHER THAN A
+	 * preference. A grid ROW is as tall as its tallest member, and these cards
+	 * are deliberately unequal: one carries a tagline, a "decorated by" line and
+	 * a style hint while its neighbour carries none of them. In a grid the short
+	 * card's column dies for the whole height of the long one, and nothing on
+	 * screen or in any type check reports it.
+	 *
+	 * `column-width` AND a count, because multicol has no `auto-fit`: with only
+	 * a width it cuts every column the measure holds and leaves the spare one
+	 * empty. With both, the used count is min(count, what fits), so two teams
+	 * share the whole measure and a narrow pane still drops to one column.
+	 *
+	 * Reading order becomes column-major, which for teams numbered 1..n is the
+	 * order they are numbered in.
+	 */
+	.team-cards {
+		columns: 15rem 4;
+		column-gap: var(--space-2, 0.5rem);
+		margin-top: var(--space-2, 0.5rem);
+	}
+
+	.team-card {
+		break-inside: avoid;
+		/* multicol has no row gap, so the rhythm is a margin on the panel. */
+		margin-bottom: var(--space-2, 0.5rem);
+		min-width: 0;
+		padding: var(--space-2, 0.5rem);
+		border: 1px solid var(--boundary);
+		border-left: 4px solid var(--team-accent, var(--boundary));
+		border-radius: var(--radius-2, 6px);
+	}
+
+	.team-card.has-style {
+		background: var(--team-bg, transparent);
+		color: var(--team-ink, inherit);
+	}
+
+	.team-card h4 {
+		margin: 0 0 0.2rem;
+		color: inherit;
+	}
+
+	.team-tagline {
+		margin: 0 0 0.3rem;
+		font-style: italic;
+		font-size: 0.85rem;
+	}
+
+	.team-card ul {
+		margin: 0;
+		padding-left: 1.1rem;
+	}
+
+	.team-card li.left-class {
+		opacity: 0.75;
+	}
+
+	/*
+	 * A WORD, because a student who left the class is still on the team that
+	 * was drawn and an opacity change alone says nothing about which of those
+	 * two facts moved.
+	 */
+	.team-left {
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		color: var(--amber);
+		white-space: nowrap;
+	}
+
+	.team-by,
+	.team-style-hint {
+		margin: 0.3rem 0 0;
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		color: var(--text-2);
+	}
+
+	.team-actions {
+		margin-top: var(--space-2, 0.5rem);
+	}
+
+	.team-retire-note {
+		flex-basis: 100%;
 	}
 </style>
