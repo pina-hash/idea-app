@@ -4353,6 +4353,23 @@
 		font-size: 0.82rem;
 		color: var(--gold);
 	}
+	/* THE LABEL AND ITS DICTATE CONTROL SHARE A ROW (0288). Stacked, the
+	   control sat between the label and the box it writes into, which reads as
+	   a third field rather than as a way of filling the second. It wraps,
+	   because the live sentence beside the button is as long as whoever is
+	   speaking -- and the label's own bottom margin is dropped here so the two
+	   sit on one baseline; it is restored by the row's gap. */
+	.comment-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-1);
+		margin-bottom: var(--space-1);
+	}
+	.comment-head .comment-label {
+		margin-bottom: 0;
+	}
 	.comment-label {
 		display: block;
 		font-family: var(--font-mono);
