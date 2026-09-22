@@ -5,7 +5,7 @@
 - Owns: `docs/migrations-applied/**`, `docs/prompt-ledger/entries/0284-*`,
   `docs/history/<this branch>.md`
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0217.
-- Status: issued
+- Status: pushed
 - Branch: `claude/new-session-8ff2od`
 - Notes: Documentation only. No file under `src/`, `supabase/` or `tests/` was
   touched, and no other document was edited. The migration this records was
@@ -66,9 +66,11 @@ have correctly refused.
 
 ## Test run
 
-`npm test` summary line reported below, with
-`tests/db/migrations-applied-record.test.ts` passing where it previously
-would have failed on this branch's tip for lack of a 0218 record.
+`tests/db/migrations-applied-record.test.ts` alone: **23 passed (23)**.
+
+Full `npm test`: **529 test files passed (529), 9910 tests passed (9910),
+0 failed.** Duration 1336.93s. This includes the passing
+`migrations-applied-record` suite.
 
 ## Not verified
 
