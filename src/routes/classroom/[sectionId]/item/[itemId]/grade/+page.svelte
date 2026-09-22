@@ -4,6 +4,8 @@
 	import HtmlAssignmentFrame from '$lib/classroom/html-assignment/HtmlAssignmentFrame.svelte';
 	import { hxFrameSeed } from '$lib/classroom/html-assignment/answers';
 	import {
+		htmlAnswerSheet,
+		htmlAnswerText,
 		htmlAssignmentMount,
 		htmlAssignmentServed,
 		htmlAssignmentSrc,
@@ -176,11 +178,71 @@
 		and cleared it" read the same because they ARE the same.
 	-->
 	{#if htmlMount === 'html' && data.htmlAssignment && !served}
-		<!-- THE FRAME WOULD 404 AND THE GATE IS NOT LOOSENED. `/hx/<docId>`
-		     refuses a document whose item is not live, so mounting the frame here
-		     would draw an empty box on the one surface where a teacher is
-		     deciding whether to publish. -->
+		<!--
+			THE FRAME WOULD 404 AND THE GATE IS NOT LOOSENED. `/hx/<docId>` refuses a
+			document whose item is not live, so mounting the frame here would draw an
+			empty box rather than a worksheet -- and that gate is not loosenable from
+			any side: the route answers on a host holding no session, so publication
+			status IS its whole authorization.
+
+			BUT THE SENTENCE IS NO LONGER THE ONLY THING HERE, AND THAT WAS THE
+			DEFECT. Mr. Pina graded an unpublished item and got a paragraph about
+			publishing where a student's answers belong -- answers that were in
+			`classroom_responses` the whole time, and are already on this page in
+			`seedFor(student)`. So the notice keeps its place and the WORK is printed
+			under it: same seed, same field map, same manifest, grouped the way the
+			manifest groups its blocks.
+
+			IT IS THE ANSWERS AND NOT THE DOCUMENT, and it says so. A grader who
+			needs the page as the student saw it publishes the item, which is exactly
+			what the notice above tells them to do.
+		-->
+		{@const unpublishedSeed = seedFor(student)}
+		{@const sheet = htmlAnswerSheet(
+			data.htmlAssignment.manifest,
+			unpublishedSeed.values,
+			unpublishedSeed.images
+		)}
 		<p class="note card">{HTML_ASSIGNMENT_NOT_LIVE}</p>
+		{#if sheet.length}
+			<div class="answers card" data-testid="answers-without-document">
+				<p class="answers-label">
+					What {student.displayName} has written, read straight from their saved work
+				</p>
+				{#each sheet as group (group.moduleId ?? 'header')}
+					<section class="answers-group">
+						<h3 class="answers-group-head">{group.title}</h3>
+						<dl class="answers-list">
+							{#each group.cells as cell (cell.blockId)}
+								{@const text = htmlAnswerText(cell.value)}
+								<dt class="answers-field">{cell.field}</dt>
+								<dd class="answers-value" class:empty={text === null || text === ''}>
+									<!-- A BLOCK THE STUDENT LEFT ALONE SAYS SO, and it is a
+									     different sentence from one they opened and cleared:
+									     "skipped question 4" and "question 4 is not on this
+									     worksheet" are what a grader is telling apart here, so
+									     an empty block is reported rather than dropped. -->
+									{#if text === null}
+										<span class="answers-none">No answer saved</span>
+									{:else if text === ''}
+										<span class="answers-none">Left blank</span>
+									{:else}
+										{text}
+									{/if}
+									{#if cell.image}
+										<span class="answers-image" data-testid="answers-image">
+											Photo: {cell.image.name}{cell.image.caption
+												? ` -- ${cell.image.caption}`
+												: ''}
+										</span>
+									{/if}
+								</dd>
+							{/each}
+						</dl>
+					</section>
+				{/each}
+			</div>
+		{/if}
 	{:else if htmlMount === 'html' && data.htmlAssignment}
 		{@const seed = seedFor(student)}
 		<!--
@@ -213,5 +275,81 @@
 	.note {
 		color: var(--text-2);
 		margin: 0;
+	}
+	.answers {
+		margin: var(--space-2) 0 0;
+	}
+	.answers-label {
+		margin: 0 0 var(--space-2);
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--text-2);
+	}
+	.answers-group + .answers-group {
+		margin-top: var(--space-3);
+	}
+	.answers-group-head {
+		margin: 0 0 var(--space-2);
+		font-size: 0.8rem;
+		font-family: var(--font-mono);
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--cyan);
+	}
+	/* TWO COLUMNS ABOVE A NARROW PANE AND ONE BELOW IT, from the content rather
+	   than from a round number: a `field` is one hyphenated token and the answer
+	   beside it is a sentence or a paragraph, so the label column is sized to the
+	   longest token and the value takes the rest. `minmax(0, 1fr)` on the value so
+	   a long unbroken string cannot push the pane wider than the column. */
+	.answers-list {
+		display: grid;
+		grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+		gap: var(--space-1) var(--space-2);
+		margin: 0;
+	}
+	@media (max-width: 40rem) {
+		.answers-list {
+			grid-template-columns: minmax(0, 1fr);
+			gap: 0 0;
+		}
+		.answers-field {
+			margin-top: var(--space-2);
+		}
+	}
+	.answers-field {
+		margin: 0;
+		min-width: 0;
+		overflow-wrap: anywhere;
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2);
+	}
+	.answers-value {
+		margin: 0;
+		min-width: 0;
+		/* THE STUDENT'S OWN LINE BREAKS SURVIVE. A long-answer block is stored as
+		   typed, and collapsing it to one paragraph is a grader reading something
+		   the student did not write. */
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		font-size: 0.82rem;
+		line-height: 1.5;
+		color: var(--text-1);
+	}
+	/* NOT COLOUR ALONE and not below the text threshold: an unanswered block is a
+	   WORD ("No answer saved"), and this only tilts the tier it is read at. */
+	.answers-none {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2);
+	}
+	.answers-image {
+		display: block;
+		margin-top: var(--space-1);
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2);
 	}
 </style>

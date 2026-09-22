@@ -314,3 +314,115 @@ export interface HtmlAssignmentAnswers {
 	imageRemove?: (image: { blockId: string; field: string }) => void;
 	imageCaption?: (image: { blockId: string; field: string; caption: string }) => void;
 }
+
+/**
+ * =========================================================================
+ * THE ANSWERS WITHOUT THE DOCUMENT, for the one surface that cannot have both.
+ * =========================================================================
+ *
+ * WHY THIS EXISTS. Mr. Pina graded an item that was not published and got
+ * `HTML_ASSIGNMENT_NOT_LIVE` where the work belongs -- a sentence about
+ * publishing, standing in for a student's answers that were sitting in
+ * `classroom_responses` the whole time. The sentence is correct and stays; what
+ * was wrong is that it was the ONLY thing there.
+ *
+ * AND THE FRAME CANNOT SIMPLY BE MOUNTED INSTEAD. `/hx/<docId>` refuses an
+ * unpublished or scheduled item with a bodyless 404
+ * (`$lib/server/html-assignment-document.ts`, the `!item.published ||
+ * isScheduled(item)` line), and that gate is not loosenable from here or
+ * anywhere: the route answers on a host that holds no session, so publication
+ * status IS its whole authorization. Mounting the frame would draw an empty box
+ * BESIDE the sentence rather than instead of it -- worse, not better.
+ *
+ * SO THE ANSWERS ARE PROJECTED DIRECTLY. They are already on the grading page:
+ * `hxFrameSeed` builds exactly the map the document would have been seeded with,
+ * keyed by `field` through the stored manifest. This groups that map the way the
+ * manifest groups its blocks, so a grader reads the work in the order the
+ * document asks for it.
+ *
+ * IT IS A PROJECTION AND NOT A SECOND RENDERER. There is no layout here, no
+ * prose, no images of the page -- a grader who needs the document as the student
+ * saw it publishes the item, which is what the sentence beside this says. What
+ * this answers is the narrower and more urgent question: what did they write.
+ */
+export interface HtmlAnswerCell {
+	/** The permanent join key, for a grader who needs to say which block. */
+	blockId: string;
+	/** The document author's own name for the input. The only label a manifest
+	    carries -- `HtmlBlock` has `id`, `field`, `type` and `minSentences` and no
+	    human title -- so it is what is printed, rather than a prettified guess. */
+	field: string;
+	type: string;
+	/**
+	 * WHAT THE STUDENT PUT THERE, or null for a block they left alone. A checkbox
+	 * or radio arrives as a boolean and is rendered as a word by the caller; a
+	 * table arrives as the JSON string the block's own type declares and is shown
+	 * verbatim, because reshaping it here would be a second table renderer.
+	 */
+	value: string | boolean | null;
+	/** An image the student attached to this block, if any. */
+	image: HxImageState | null;
+}
+
+export interface HtmlAnswerGroup {
+	/** `null` for the header blocks, which carry no module and no points. */
+	moduleId: string | null;
+	title: string;
+	cells: HtmlAnswerCell[];
+}
+
+/**
+ * THE GROUPED PROJECTION, AND IT REPORTS AN EMPTY BLOCK RATHER THAN DROPPING IT.
+ *
+ * A block a student did not answer is a fact a grader is looking for -- it is
+ * the difference between "they skipped question 4" and "question 4 is not on
+ * this worksheet" -- so every block the manifest declares gets a cell, with a
+ * null value when nothing was stored. Dropping the empties would make a blank
+ * worksheet indistinguishable from a manifest with no blocks in it.
+ *
+ * A MANIFEST THIS CANNOT WALK YIELDS NO GROUPS, which is the same fail-closed
+ * answer `htmlFieldToBlockId` gives and for the same reason: with no field map
+ * there is nothing a stored row could be keyed back to, and a guess would show a
+ * grader one answer under another question.
+ */
+export function htmlAnswerSheet(
+	manifest: unknown,
+	values: Record<string, string | boolean>,
+	images: Record<string, HxImageState>
+): HtmlAnswerGroup[] {
+	if (!walkableManifest(manifest)) return [];
+	const cell = (b: { id: string; field: string; type: string }): HtmlAnswerCell => ({
+		blockId: b.id,
+		field: b.field,
+		type: b.type,
+		value: Object.prototype.hasOwnProperty.call(values, b.field) ? values[b.field] : null,
+		image: images[b.field] ?? null
+	});
+	const groups: HtmlAnswerGroup[] = [];
+	const header = manifest.header ?? [];
+	if (header.length) {
+		// THE HEADER IS A GROUP LIKE ANY OTHER AND IS NAMED, not left untitled: a
+		// student's name and team ARE answers, stored the same way, and an
+		// unlabelled first block reads as part of whatever follows it.
+		groups.push({ moduleId: null, title: 'Identity', cells: header.map(cell) });
+	}
+	for (const mod of manifest.modules ?? []) {
+		groups.push({
+			moduleId: mod.id,
+			title: mod.title,
+			cells: (mod.blocks ?? []).map(cell)
+		});
+	}
+	return groups;
+}
+
+/**
+ * ONE STORED VALUE AS A WORD, so a boolean does not reach a grader as `true`.
+ * An empty string is NOT "Yes" and not blank-as-absent: it is a box the student
+ * opened and left empty, which the caller distinguishes from a null.
+ */
+export function htmlAnswerText(value: string | boolean | null): string | null {
+	if (value === null || value === undefined) return null;
+	if (typeof value === 'boolean') return value ? 'Ticked' : 'Not ticked';
+	return value;
+}

@@ -214,11 +214,92 @@ export const PRESENCE_DISPLAY: Record<
  * or talks to a partner accrues nothing; and nothing is counted at all until
  * the assignment is open in a browser.
  */
-export const PRESENCE_COVERAGE_NOTE =
-	'Counted only while this assignment is open and being typed in. Thinking, reading and working on paper do not add to it.';
+export function presenceCoverageNote(limits: PresenceLimits = PRESENCE_LIMITS_FALLBACK): string {
+	return (
+		'Counted only while this assignment is open and being typed in. Thinking, reading and working on paper do not add to it. ' +
+		`It sees only the assignment page itself, only since this was switched on, and only the last ${limits.retentionDays} days, ` +
+		'so a blank line here is never evidence a student did nothing. What they handed in is on the row above it.'
+	);
+}
 
-/** What a student who has never opened the assignment reads as. */
+/**
+ * THE FALLBACK SPELLING OF THAT SENTENCE, DERIVED RATHER THAN TYPED, so the
+ * retention figure cannot come to exist twice. A caller with a payload in hand
+ * calls the function with the payload's OWN limits, which is the travelling rule
+ * this module's header states; this is what a caller with no payload reads.
+ */
+export const PRESENCE_COVERAGE_NOTE = presenceCoverageNote(PRESENCE_LIMITS_FALLBACK);
+
+/**
+ * WHAT A SWALLOWED ERROR SAYS OUT LOUD NOW. `loadPresence` catching every
+ * failure and keeping the last payload is correct -- best-effort instrumentation
+ * must never be able to affect the thing it measures -- but doing it SILENTLY is
+ * how a stale or absent reading passes for a fresh one. The sentence names the
+ * consequence rather than the fault, because the reader's next action is to
+ * distrust the column and not to debug an RPC.
+ */
+export const PRESENCE_STALE_NOTE =
+	'Could not refresh who is working just now, so this column may be out of date. Nothing else on this page is affected.';
+
+/**
+ * WHAT A STUDENT WHO HAS NEVER OPENED THE ASSIGNMENT READS AS -- and it is
+ * EARNED rather than defaulted to. See `presenceLineKind`: this sentence is
+ * printed only when presence has actually answered, has no row for them, and
+ * nothing of theirs has arrived either. Before ledger 0278 it was the `{:else}`
+ * of a two-branch component, so it was also what a loading state, a missing
+ * RPC and a swallowed error printed -- under a chip reading "Returned 18/20".
+ */
 export const PRESENCE_NEVER_OPENED = 'Not opened';
+
+/**
+ * THE THIRD ANSWER, AND THE ONE THAT WAS MISSING. "This console cannot tell"
+ * is not "this student never arrived", and printing the second for the first is
+ * a confident false statement about a child on the surface a teacher acts from.
+ *
+ * NOT "yet". Three of the four ways a row goes missing never resolve: the RPC
+ * is absent on a deployment before 0200, the rows were swept past the retention
+ * window, or the work predates the feature. A word promising an answer that is
+ * not coming is the same defect one step quieter.
+ */
+export const PRESENCE_UNKNOWN = 'Not known';
+
+/**
+ * WHY A MISSING ROW IS FOUR ANSWERS AND NOT ONE, decided in ONE place so a
+ * component and its caller cannot disagree about which of them is printing.
+ *
+ * `row` -- there is a record; print it. A record and a work chip are two facts
+ * about one student and neither contradicts the other.
+ *
+ * `outranked` -- NO record, but the student's work is here. Presence says
+ * NOTHING at all: the heartbeat table is written only by a beat from the
+ * assignment page, so it can be silent about a student who did the whole thing
+ * on a path that emits none, and a derived instrument must never contradict the
+ * record it is standing beside. This is the case Mr. Pina reported.
+ *
+ * `unknown` -- no record, no work, and presence has not answered.
+ *
+ * `never-opened` -- no record, no work, and presence DID answer. The only
+ * reading that earns a verdict.
+ *
+ * THE ORDER IS THE RULE. `workArrived` is tested before `loaded` on purpose: a
+ * row being graded says nothing rather than "Not known", which is both the
+ * honest answer and the quiet one on the rows a grader is actually reading.
+ */
+export type PresenceLineKind = 'row' | 'outranked' | 'unknown' | 'never-opened';
+
+export function presenceLineKind(facts: {
+	/** Does the payload carry a heartbeat row for this student? */
+	hasRow: boolean;
+	/** Has a presence payload arrived at all? FALSE is the loading state. */
+	loaded: boolean;
+	/** Has anything of this student's arrived -- a submission, responses, files? */
+	workArrived: boolean;
+}): PresenceLineKind {
+	if (facts.hasRow) return 'row';
+	if (facts.workArrived) return 'outranked';
+	if (!facts.loaded) return 'unknown';
+	return 'never-opened';
+}
 
 /**
  * ACTIVE TIME, IN THE COARSEST UNIT THAT IS STILL TRUE. Seconds below a minute,

@@ -77,11 +77,13 @@
 		ASSIGNMENT_LOCK_CHIP,
 		type AssignmentLockState
 	} from '$lib/classroom/html-assignment/lock';
+	import Disclosure from '$lib/Disclosure.svelte';
 	import PresenceLine from '$lib/classroom/presence/PresenceLine.svelte';
 	import {
-		PRESENCE_COVERAGE_NOTE,
 		PRESENCE_POLL_MS,
+		PRESENCE_STALE_NOTE,
 		presenceByEmail,
+		presenceCoverageNote,
 		type PresenceLimits,
 		type PresencePayload,
 		PRESENCE_LIMITS_FALLBACK
@@ -512,10 +514,43 @@
 	let presenceData = $state<PresencePayload | null>(null);
 	let presenceNow = $state(Date.now());
 
+	/**
+	 * WHAT THIS CONSOLE ACTUALLY KNOWS, AS FOUR STATES RATHER THAN A NULLABLE
+	 * PAYLOAD, and that conflation is the whole of what ledger 0278 fixed.
+	 *
+	 * `presenceData === null` meant FOUR different things -- the first poll has
+	 * not returned, the RPC does not exist on this deployment, the read threw, or
+	 * the item genuinely has no rows -- and `presenceByEmail(null)` is an empty
+	 * Map for all four, so `PresenceLine`'s `{:else}` printed "Not opened" for
+	 * every student in every one of them. Measured on the real component, all
+	 * four printed "Not opened" under a chip reading "Returned 18/20".
+	 *
+	 *   `pending`     -- nothing has come back yet. Every load starts here.
+	 *   `ready`       -- a payload is in hand. The ONLY state that earns a verdict.
+	 *   `unavailable` -- the transport answered NULL, which its `PGRST202` rung
+	 *                    means as "this deployment has no presence". That is the
+	 *                    absence-removes-the-region case, and it never fired
+	 *                    before: the region keyed on the TRANSPORT being handed in,
+	 *                    which the grade route does unconditionally and correctly.
+	 *   `stale`       -- the read threw. The last payload stays, and the failure is
+	 *                    said out loud instead of passing for a fresh reading.
+	 */
+	type PresenceStatus = 'pending' | 'ready' | 'unavailable' | 'stale';
+	let presenceStatus = $state<PresenceStatus>('pending');
+
 	const presenceRows = $derived(presenceByEmail(presenceData));
 	const presenceLimits = $derived<PresenceLimits>(
 		presenceData?.limits ?? PRESENCE_LIMITS_FALLBACK
 	);
+	/**
+	 * THE REGION EXISTS UNLESS THE DEPLOYMENT SAID IT DOES NOT. `pending` and
+	 * `stale` still draw it -- there is something true to say in both -- and
+	 * `unavailable` removes it entirely, which is what the transport's null was
+	 * always meant to do.
+	 */
+	const presenceShown = $derived(!!presence && presenceStatus !== 'unavailable');
+	/** Has presence ANSWERED? Not "is there a row for this student". */
+	const presenceLoaded = $derived(presenceData !== null);
 
 	async function loadPresence() {
 		// UNTRACKED AT THE CALL: `presence` is caller-supplied code, and whatever
@@ -525,13 +560,29 @@
 		const bus = untrack(() => presence);
 		if (!bus) return;
 		try {
-			presenceData = await bus.loadPresence(item.id, bulk ? null : section.id);
+			const payload = await bus.loadPresence(item.id, bulk ? null : section.id);
+			if (payload === null) {
+				// THE DEPLOYMENT HAS NO PRESENCE. Not an empty roster and not a
+				// failure: the transport's own `PGRST202` rung is the only thing
+				// that answers null, and it means the function is not there.
+				presenceData = null;
+				presenceStatus = 'unavailable';
+				return;
+			}
+			presenceData = payload;
+			presenceStatus = 'ready';
 		} catch {
 			// A PRESENCE FAILURE NEVER TOUCHES THE GRADING PAYLOAD. This is
 			// best-effort instrumentation beside the thing that matters, and
 			// instrumentation must never be able to affect what it measures --
 			// so the last good payload stays on screen and ages into `away` on
 			// its own, which is the honest reading of "we stopped hearing".
+			//
+			// WHAT CHANGED IS THAT IT SAYS SO. Keeping the stale payload is
+			// right; keeping it SILENTLY is how an absent reading passes for a
+			// fresh one, and with no payload at all it was printing "Not opened"
+			// about every student on the roster.
+			presenceStatus = 'stale';
 		}
 	}
 
@@ -545,8 +596,15 @@
 		void bulk;
 		if (!bus) {
 			presenceData = null;
+			presenceStatus = 'pending';
 			return;
 		}
+		// A NEW SCOPE IS A NEW QUESTION, so the last scope's rows stop speaking
+		// for this one. `pending` rather than keeping them: the previous item's
+		// heartbeats are not a stale reading of this item, they are a reading of
+		// something else.
+		presenceData = null;
+		presenceStatus = 'pending';
 		queueMicrotask(() => void loadPresence());
 		const timer = setInterval(() => {
 			presenceNow = Date.now();
@@ -849,6 +907,25 @@
 		}
 		if (s.responses.length || s.files.length) return { label: 'In progress', cls: 'progress' };
 		return { label: 'Not submitted', cls: 'none' };
+	}
+
+	/**
+	 * HAS ANYTHING OF THIS STUDENT'S ARRIVED AT ALL -- ASKED OF `statusChip`
+	 * ITSELF RATHER THAN OF THE ROWS AGAIN.
+	 *
+	 * The presence line needs this to know when to stand down, and a second walk
+	 * over `submission`, `responses` and `files` is precisely the second copy
+	 * that stops matching: the chip would say "In progress" while the line said
+	 * "Not opened", which is the pair of contradicting verdicts this whole
+	 * repair is about. So there is ONE definition of "nothing arrived" in this
+	 * file -- `statusChip`'s own last branch -- and this is a projection of it.
+	 *
+	 * `tests/dom/presence-console-mount.test.ts` pins the two against each other
+	 * over a corpus, so a branch added to `statusChip` cannot silently change
+	 * what this answers without a case saying so.
+	 */
+	function workArrived(s: StudentWork): boolean {
+		return statusChip(s).cls !== 'none';
 	}
 
 	async function grade(release: boolean): Promise<SaveOutcome> {
@@ -1413,6 +1490,20 @@
 		void focusLevel(ci, li);
 	}
 
+	/**
+	 * WHERE THE SELECTED STUDENT SITS IN THE LIST, and whether there is one either
+	 * side. `moveStudent` computes the same index, and this is what the two PAGER
+	 * CONTROLS read so a button is never offered whose only possible outcome is
+	 * the "Last student on the roster." note -- the `versionIsDeletable` rule.
+	 *
+	 * IT IS A DERIVED READ OF THE CURRENT LIST, never a snapshot taken when a row
+	 * was clicked: the roster reloads after every save, so a captured index
+	 * describes the order before the thing just written to it.
+	 */
+	const rosterIndex = $derived(students.findIndex((s) => s.email === selectedEmail));
+	const hasNextStudent = $derived(rosterIndex >= 0 && rosterIndex < students.length - 1);
+	const hasPrevStudent = $derived(rosterIndex > 0);
+
 	function moveStudent(step: -1 | 1) {
 		if (!students.length) return;
 		const at = students.findIndex((s) => s.email === selectedEmail);
@@ -1552,207 +1643,272 @@
 
 		<div class="console" class:split={!!selected}>
 			<section class="roster card">
-				<div class="roster-head">
-					<h2 class="section-label">Roster</h2>
-					<button type="button" class="btn secondary tiny" onclick={exportCsv}>
-						Export CSV
-					</button>
-				</div>
-				{#if close}
-					<!--
-						CLOSING THE ASSIGNMENT (0198), IN THE ROSTER RATHER THAN BESIDE
-						ONE STUDENT'S RUBRIC.
-
-						It acts on the whole item, so it belongs where the whole item is
-						on screen. Put next to the rubric it would read as something
-						done to the student who happens to be open.
-
-						IT SAYS THE ORDER, ALWAYS, NOT ONLY WHEN ARMED. Returning a
-						grade writes `returned`, which is editable again by 0086's own
-						definition -- so releasing a grade re-opens that student and
-						undoes the close for them. Both halves are Mr. Pina's decisions
-						of 2026-09-10 and they meet on exactly this cell; a teacher
-						cannot be expected to infer it from two features.
-					-->
-					<div class="close-tool" data-testid="close-tool">
-						<p class="close-label">
-							Closing this assignment
-							<span class="close-counts" data-testid="close-counts">
-								{openCount} open · {closedCount} closed
-							</span>
-						</p>
-						<p class="close-order">{ASSIGNMENT_CLOSE_ORDER_NOTE}</p>
-						{#if armedClose}
-							<!-- THE CONFIRM NAMES THE REAL COUNT, off the roster on screen. -->
-							<p class="close-confirm" data-testid="close-confirm">
-								{armedClose.closed
-									? `Close this assignment for ${openCount} student${openCount === 1 ? '' : 's'}? They will not be able to save any more work on it.`
-									: `Reopen this assignment for ${closedCount} student${closedCount === 1 ? '' : 's'}? Anyone who turned their own work in stays as they are.`}
-							</p>
-							<span class="close-actions">
-								<button
-									type="button"
-									class="btn tiny"
-									disabled={closeBusy}
-									data-testid="close-confirm-go"
-									onclick={() => {
-										const closed = armedClose?.closed ?? true;
-										armedClose = null;
-										void runClose(closed);
-									}}
-								>
-									{armedClose.closed ? 'Close it' : 'Reopen it'}
-								</button>
-								<button
-									type="button"
-									class="btn secondary tiny"
-									disabled={closeBusy}
-									onclick={() => (armedClose = null)}
-								>
-									Cancel
-								</button>
-							</span>
-						{:else}
-							<span class="close-actions">
-								<button
-									type="button"
-									class="btn secondary tiny"
-									disabled={closeBusy || openCount === 0}
-									data-testid="close-arm"
-									onclick={() => (armedClose = { closed: true })}
-								>
-									Close assignment
-								</button>
-								{#if closedCount > 0}
-									<!-- OFFERED ONLY WHEN THERE IS SOMETHING TO REOPEN, so the
-									     control is never one whose only outcome is nothing
-									     happening. -->
-									<button
-										type="button"
-										class="btn secondary tiny"
-										disabled={closeBusy}
-										data-testid="close-reopen"
-										onclick={() => (armedClose = { closed: false })}
-									>
-										Reopen
-									</button>
-								{/if}
-							</span>
-						{/if}
-						{#if closeBusy}<Pending label="Closing" />{/if}
-						{#if closeError}<p class="feedback error">{closeError}</p>{/if}
-						{#if closeNotice}<p class="feedback ok" data-testid="close-notice">{closeNotice}</p>{/if}
-					</div>
-				{/if}
-				{#if liveStatus === 'stalled'}
-					<!-- THE ONE QUIET SENTENCE A STALLED CHANNEL EARNS, in the same
-					     words the hall pass and the song queue use, naming the poll so
-					     "paused" does not read as "broken". Nothing is said for
-					     `connecting` (every page starts there) or `live`. -->
-					<p class="live-note" data-testid="grading-live-note">
-						{classroomLivePausedLine(GRADING_POLL_MS)}
-					</p>
-				{/if}
 				<!--
-					THE GRADED-WORK EXPORTS, BESIDE THE CSV RATHER THAN INSTEAD OF IT.
-					The CSV is a gradebook import and is four columns wide on purpose;
-					these three carry the work itself. Every word on a control says
-					what it produces and for whom, because the difference between
-					"one student" and "the whole class" is the difference between one
-					person's writing leaving the building and thirty.
+					EVERYTHING ABOVE THE NAMES, IN ONE REGION THAT SCROLLS (0278).
+
+					`.roster` is a flex column with `overflow: hidden` above 1024px, so
+					once the list below holds a `min-height` floor something has to yield
+					when the pane is short -- and without a scroll container here that
+					something is CLIPPED rather than reachable, which is the failure mode
+					CLAUDE.md names: a pane that clips its overflow satisfies a no-scroll
+					measurement by hiding the content.
+
+					THE ORDER OF YIELDING IS DELIBERATE. The names are what a grader came
+					for, so the list keeps its floor and THIS gives way -- the head, the
+					two collapsed panels and the three notices. It keeps its own
+					scrollbar; no region on this site may hide one.
+
+					THE COVERAGE SENTENCE IS NOT IN HERE, and that is the one thing that
+					must not move: it qualifies every figure on the list and was
+					deliberately placed immediately above the rows it qualifies, measured
+					on /dev/presence. Inside a scrolling region it could be scrolled away
+					from the numbers it is about.
 				-->
-				<div class="work-export" data-testid="work-export">
-					<p class="work-export-label">Export graded work</p>
-					{#if crossClass}
-						<!--
-							ONE CLASS PER FILE. A gradebook import that named Period 1 and
-							carried Period 2's students as well would be accepted by FACTS
-							without complaint, so the section is chosen here rather than
-							inferred, and the choice reaches the filename, the CSV rows, the
-							JSON and the workbook through one derived roster.
-						-->
-						<label class="export-section" data-testid="export-section">
-							<span class="export-section-label">Class to export</span>
-							<select
-								class="tap-44"
-								bind:value={exportSectionId}
-								onchange={() => (exportNote = null)}
-							>
-								{#each activeSections as s (s.id)}
-									<option value={s.id}>{sectionTitles.get(s.id) ?? sectionTitle(s)}</option>
-								{/each}
-							</select>
-						</label>
-					{/if}
-					<div class="work-export-row">
-						<button
-							type="button"
-							class="btn secondary tiny"
-							aria-disabled={!selected}
-							data-testid="export-json-student"
-							onclick={() => exportJson('student')}
-						>
-							JSON: this student
-						</button>
-						<button
-							type="button"
-							class="btn secondary tiny"
-							data-testid="export-json-class"
-							onclick={() => exportJson('section')}
-						>
-							JSON: whole class
-						</button>
-						<button
-							type="button"
-							class="btn secondary tiny"
-							data-testid="export-workbook"
-							onclick={exportWorkbook}
-						>
-							{exporting ? 'Building spreadsheet' : 'Spreadsheet: whole class'}
+				<div class="roster-tools">
+					<div class="roster-head">
+						<h2 class="section-label">Roster</h2>
+						<button type="button" class="btn secondary tiny" onclick={exportCsv}>
+							Export CSV
 						</button>
 					</div>
-					<label class="identity-toggle" data-testid="export-identity">
-						<input
-							type="checkbox"
-							checked={identity === 'included'}
-							onchange={(e) => {
-								identity = e.currentTarget.checked ? 'included' : 'omitted';
-								exportNote = null;
-							}}
-						/>
-						<span>Include student names and email addresses</span>
-					</label>
-					<p class="identity-note" data-testid="export-identity-note">
-						{IDENTITY_NOTE[identity]}
-					</p>
-					{#if exportNote}
-						<p class="export-note" data-testid="export-note">{exportNote}</p>
+					{#if close}
+						<!--
+							CLOSING THE ASSIGNMENT (0198), IN THE ROSTER RATHER THAN BESIDE
+							ONE STUDENT'S RUBRIC.
+
+							It acts on the whole item, so it belongs where the whole item is
+							on screen. Put next to the rubric it would read as something
+							done to the student who happens to be open.
+
+							IT SAYS THE ORDER, ALWAYS, NOT ONLY WHEN ARMED. Returning a
+							grade writes `returned`, which is editable again by 0086's own
+							definition -- so releasing a grade re-opens that student and
+							undoes the close for them. Both halves are Mr. Pina's decisions
+							of 2026-09-10 and they meet on exactly this cell; a teacher
+							cannot be expected to infer it from two features.
+						-->
+						<!--
+							COLLAPSED BY DEFAULT (0278), AND THE COUNT STAYS OUT WHERE IT IS READ.
+
+							Mr. Pina, grading on 2026-09-13: "the closing this assignment and
+							Export graded work sections above the names take up way too much
+							space to the point where the names are like microscopic on the
+							screen, I can only see like one student at a time". Both panels
+							rendered unconditionally and the second is three buttons deep, so at
+							1440 they and the four prose blocks under them took most of a
+							roster pane whose list gets only what they leave over.
+
+							`Disclosure` RATHER THAN A `<details>` OR A LOCAL FLAG. It is the
+							repo's one disclosure: a real button with `aria-expanded` and
+							`aria-controls`, a word and not only a caret, the region HIDDEN in
+							CSS rather than removed so it still prints, and the manual choice
+							remembered per person per item through `scope`. A twenty-first
+							hand-rolled one is what that component exists to stop.
+
+							`collapseWhen` CONSTANT-TRUE IS HOW "CLOSED BY DEFAULT" IS SPELLED,
+							and it is safe precisely because the signal is LATCHED there: it can
+							fall and never rise, so a value that never changes cannot fold a
+							panel somebody is inside.
+
+							AND THE OPEN/CLOSED COUNT IS IN `meta`, NOT IN THE BODY. It is the
+							number he acts on -- whether there is anything left to close -- so
+							it is on the trigger row and visible while the panel is shut. The
+							prose sentence and every control moved inside.
+						-->
+						<Disclosure
+							label="Closing this assignment"
+							scope={`grading-close:${item.id}`}
+							collapseWhen
+							testId="close-disclosure"
+						>
+							{#snippet meta()}
+								<span class="close-counts" data-testid="close-counts">
+									{openCount} open · {closedCount} closed
+								</span>
+							{/snippet}
+							<div class="close-tool" data-testid="close-tool">
+								<p class="close-order">{ASSIGNMENT_CLOSE_ORDER_NOTE}</p>
+								{#if armedClose}
+									<!-- THE CONFIRM NAMES THE REAL COUNT, off the roster on screen. -->
+									<p class="close-confirm" data-testid="close-confirm">
+										{armedClose.closed
+											? `Close this assignment for ${openCount} student${openCount === 1 ? '' : 's'}? They will not be able to save any more work on it.`
+											: `Reopen this assignment for ${closedCount} student${closedCount === 1 ? '' : 's'}? Anyone who turned their own work in stays as they are.`}
+									</p>
+									<span class="close-actions">
+										<button
+											type="button"
+											class="btn tiny"
+											disabled={closeBusy}
+											data-testid="close-confirm-go"
+											onclick={() => {
+												const closed = armedClose?.closed ?? true;
+												armedClose = null;
+												void runClose(closed);
+											}}
+										>
+											{armedClose.closed ? 'Close it' : 'Reopen it'}
+										</button>
+										<button
+											type="button"
+											class="btn secondary tiny"
+											disabled={closeBusy}
+											onclick={() => (armedClose = null)}
+										>
+											Cancel
+										</button>
+									</span>
+								{:else}
+									<span class="close-actions">
+										<button
+											type="button"
+											class="btn secondary tiny"
+											disabled={closeBusy || openCount === 0}
+											data-testid="close-arm"
+											onclick={() => (armedClose = { closed: true })}
+										>
+											Close assignment
+										</button>
+										{#if closedCount > 0}
+											<!-- OFFERED ONLY WHEN THERE IS SOMETHING TO REOPEN, so the
+											     control is never one whose only outcome is nothing
+											     happening. -->
+											<button
+												type="button"
+												class="btn secondary tiny"
+												disabled={closeBusy}
+												data-testid="close-reopen"
+												onclick={() => (armedClose = { closed: false })}
+											>
+												Reopen
+											</button>
+										{/if}
+									</span>
+								{/if}
+								{#if closeBusy}<Pending label="Closing" />{/if}
+								{#if closeError}<p class="feedback error">{closeError}</p>{/if}
+								{#if closeNotice}
+									<p class="feedback ok" data-testid="close-notice">{closeNotice}</p>
+								{/if}
+							</div>
+						</Disclosure>
+					{/if}
+					{#if liveStatus === 'stalled'}
+						<!-- THE ONE QUIET SENTENCE A STALLED CHANNEL EARNS, in the same
+						     words the hall pass and the song queue use, naming the poll so
+						     "paused" does not read as "broken". Nothing is said for
+						     `connecting` (every page starts there) or `live`. -->
+						<p class="live-note" data-testid="grading-live-note">
+							{classroomLivePausedLine(GRADING_POLL_MS)}
+						</p>
+					{/if}
+					<!--
+						THE GRADED-WORK EXPORTS, BESIDE THE CSV RATHER THAN INSTEAD OF IT.
+						The CSV is a gradebook import and is four columns wide on purpose;
+						these three carry the work itself. Every word on a control says
+						what it produces and for whom, because the difference between
+						"one student" and "the whole class" is the difference between one
+						person's writing leaving the building and thirty.
+					-->
+					<Disclosure
+						label="Export graded work"
+						scope={`grading-export:${item.id}`}
+						collapseWhen
+						testId="work-export-disclosure"
+					>
+						<div class="work-export" data-testid="work-export">
+							{#if crossClass}
+								<!--
+									ONE CLASS PER FILE. A gradebook import that named Period 1 and
+									carried Period 2's students as well would be accepted by FACTS
+									without complaint, so the section is chosen here rather than
+									inferred, and the choice reaches the filename, the CSV rows, the
+									JSON and the workbook through one derived roster.
+								-->
+								<label class="export-section" data-testid="export-section">
+									<span class="export-section-label">Class to export</span>
+									<select
+										class="tap-44"
+										bind:value={exportSectionId}
+										onchange={() => (exportNote = null)}
+									>
+										{#each activeSections as s (s.id)}
+											<option value={s.id}>{sectionTitles.get(s.id) ?? sectionTitle(s)}</option>
+										{/each}
+									</select>
+								</label>
+							{/if}
+							<div class="work-export-row">
+								<button
+									type="button"
+									class="btn secondary tiny"
+									aria-disabled={!selected}
+									data-testid="export-json-student"
+									onclick={() => exportJson('student')}
+								>
+									JSON: this student
+								</button>
+								<button
+									type="button"
+									class="btn secondary tiny"
+									data-testid="export-json-class"
+									onclick={() => exportJson('section')}
+								>
+									JSON: whole class
+								</button>
+								<button
+									type="button"
+									class="btn secondary tiny"
+									data-testid="export-workbook"
+									onclick={exportWorkbook}
+								>
+									{exporting ? 'Building spreadsheet' : 'Spreadsheet: whole class'}
+								</button>
+							</div>
+							<label class="identity-toggle" data-testid="export-identity">
+								<input
+									type="checkbox"
+									checked={identity === 'included'}
+									onchange={(e) => {
+										identity = e.currentTarget.checked ? 'included' : 'omitted';
+										exportNote = null;
+									}}
+								/>
+								<span>Include student names and email addresses</span>
+							</label>
+							<p class="identity-note" data-testid="export-identity-note">
+								{IDENTITY_NOTE[identity]}
+							</p>
+							{#if exportNote}
+								<p class="export-note" data-testid="export-note">{exportNote}</p>
+							{/if}
+						</div>
+					</Disclosure>
+					{#if returnedCount < students.length}
+						<p class="csv-hint">
+							CSV scores fill in as work is returned ({returnedCount}/{students.length} returned{crossClass
+								? ', across every class shown'
+								: ''}).
+						</p>
+					{/if}
+					{#if offRosterCount > 0}
+						<p class="off-roster" data-testid="off-roster-notice">
+							{offRosterCount} response {offRosterCount === 1 ? 'set' : 'sets'} on this assignment
+							{offRosterCount === 1 ? 'belongs' : 'belong'} to somebody who is not on this class
+							roster, so {offRosterCount === 1 ? 'it is' : 'they are'} not listed, counted or
+							exported here. Check the roster on the People tab if that is unexpected.
+						</p>
+					{/if}
+					{#if managerCount > 0}
+						<p class="manager-note" data-testid="manager-notice">
+							{managerCount}
+							{managerCount === 1 ? 'person on this roster' : 'people on this roster'} can manage this
+							class, so {managerCount === 1 ? 'their row is' : 'their rows are'} not listed, counted or
+							exported as student work: {work.managers.join(', ')}. Remove the enrollment on the People
+							tab to take {managerCount === 1 ? 'it' : 'them'} off the roster entirely.
+						</p>
 					{/if}
 				</div>
-				{#if returnedCount < students.length}
-					<p class="csv-hint">
-						CSV scores fill in as work is returned ({returnedCount}/{students.length} returned{crossClass
-							? ', across every class shown'
-							: ''}).
-					</p>
-				{/if}
-				{#if offRosterCount > 0}
-					<p class="off-roster" data-testid="off-roster-notice">
-						{offRosterCount} response {offRosterCount === 1 ? 'set' : 'sets'} on this assignment
-						{offRosterCount === 1 ? 'belongs' : 'belong'} to somebody who is not on this class
-						roster, so {offRosterCount === 1 ? 'it is' : 'they are'} not listed, counted or
-						exported here. Check the roster on the People tab if that is unexpected.
-					</p>
-				{/if}
-				{#if managerCount > 0}
-					<p class="manager-note" data-testid="manager-notice">
-						{managerCount}
-						{managerCount === 1 ? 'person on this roster' : 'people on this roster'} can manage this
-						class, so {managerCount === 1 ? 'their row is' : 'their rows are'} not listed, counted or
-						exported as student work: {work.managers.join(', ')}. Remove the enrollment on the People
-						tab to take {managerCount === 1 ? 'it' : 'them'} off the roster entirely.
-					</p>
-				{/if}
 				<!--
 					ONE ROW, ONE SNIPPET, whichever list it lands in. The flat roster and
 					the per-section groups render the identical markup, because a second
@@ -1896,17 +2052,19 @@
 							the transport's ABSENCE means the second -- which removes the
 							line entirely.
 						-->
-						{#if presence}
+						{#if presenceShown}
 							<PresenceLine
 								row={presenceRows.get(s.email) ?? null}
 								now={presenceNow}
 								limits={presenceLimits}
+								loaded={presenceLoaded}
+								workArrived={workArrived(s)}
 							/>
 						{/if}
 					</li>
 				{/snippet}
 
-				{#if presence}
+				{#if presenceShown}
 					<!--
 						THE SENTENCE THAT QUALIFIES EVERY FIGURE BELOW IT, rendered
 						unconditionally whenever the region is -- including when every
@@ -1929,7 +2087,19 @@
 						a sentence a reader has to hover thirty times is one they read
 						zero times, and a phone cannot hover at all.
 					-->
-					<p class="presence-note" data-testid="presence-note">{PRESENCE_COVERAGE_NOTE}</p>
+					<p class="presence-note" data-testid="presence-note">
+						{presenceCoverageNote(presenceLimits)}
+					</p>
+					{#if presenceStatus === 'stale'}
+						<!-- THE ONE QUIET SENTENCE A FAILED PRESENCE READ EARNS, in the
+						     shape the stalled-channel note beside it already uses. It is
+						     not an error card: nothing a grader is doing has failed, and
+						     the only thing that changed is how much this one column can
+						     be trusted. Said out loud because the alternative -- what
+						     shipped -- was a swallowed failure printing a confident
+						     "Not opened" about every student on the roster. -->
+						<p class="presence-warn" data-testid="presence-stale">{PRESENCE_STALE_NOTE}</p>
+					{/if}
 				{/if}
 				{#if bulk}
 					<!--
@@ -2225,211 +2395,287 @@
 						{#if rubric?.length}
 							<div class="work-col work-right" role="region" aria-label="Rubric">
 								<div class="card score-card">
-									<h3 class="section-label">Rubric score</h3>
 									<!--
-										THE KEYS, PRINTED. The same array the handler dispatches
-										from (GRADE_KEYS), so a key that stops working stops being
-										advertised. The Tab row is marked native: the browser
-										moves focus, this component does not swallow it.
+										THE DOCK'S CONTAINING BLOCK, and the only reason this element
+										exists. `position: sticky` is bounded by its PARENT's box, so
+										with the actions row a direct child of `.score-card` the dock
+										would pin all the way down past the batch panel and sit over
+										the batch's own controls. Bounded here it releases exactly
+										where the rubric it acts on ends.
 									-->
-									<ul class="key-legend" data-testid="grade-key-legend">
-										{#each GRADE_KEYS as k (k.keys)}
-											<li><kbd>{k.keys}</kbd> {k.label}</li>
+									<div class="grade-main">
+										<h3 class="section-label">Rubric score</h3>
+										<!--
+											THE KEYS, PRINTED. The same array the handler dispatches
+											from (GRADE_KEYS), so a key that stops working stops being
+											advertised. The Tab row is marked native: the browser
+											moves focus, this component does not swallow it.
+										-->
+										<ul class="key-legend" data-testid="grade-key-legend">
+											{#each GRADE_KEYS as k (k.keys)}
+												<li><kbd>{k.keys}</kbd> {k.label}</li>
+											{/each}
+										</ul>
+										{#if keyNote}<p class="key-note" role="status">{keyNote}</p>{/if}
+										<!-- Grading is a LEVEL CHOICE, not a typed number: every level's
+										     descriptor stays reachable so the decision is made against the
+										     written standard, and the level's points are what apply. -->
+										{#each criteria as c, ci (c.id)}
+											{@const max = criterionMax(c)}
+											{@const chosen = chosenIndex(ci)}
+											{@const rove = roveIndex(ci)}
+											{@const override = isOverrideScore(c, scores[c.id])}
+											{@const missingNote = needComment.includes(c.id)}
+											<div
+												class="score-row"
+												class:override
+												class:flagged={missingNote}
+												class:focused={ci === critIndex}
+											>
+												<div class="score-head">
+													<span class="score-crit">{c.criterion}</span>
+													<span class="score-value" class:override>
+														{scores[c.id] ?? '—'} / {max}
+														{#if override}<span class="override-chip">Override</span>{/if}
+													</span>
+												</div>
+												{#if criterionIncomplete(c)}
+													<p class="score-unfinished">
+														This criterion’s levels are unfinished, so most scores need an override.
+													</p>
+												{/if}
+												<div class="level-picker" role="group" aria-label={`Levels for ${c.criterion}`}>
+													{#each c.levels ?? [] as level, li (li)}
+														{@const key = levelKey(ci, li)}
+														{@const short = levelShort(level, c.id, spec)}
+														{@const full = level.descriptor?.trim() ?? ''}
+														{@const hasTip = !!full && full !== short}
+														{@const tipId = `grade-tip-${c.id}-${li}`}
+														<div class="level-slot">
+															<button
+																type="button"
+																class="level-btn"
+																class:picked={li === chosen}
+																aria-pressed={li === chosen}
+																aria-describedby={hasTip ? tipId : undefined}
+																tabindex={li === rove ? 0 : -1}
+																data-grade-level={key}
+																bind:this={levelEls[key]}
+																onclick={() => {
+																	critIndex = ci;
+																	pickLevel(c, level.points);
+																}}
+																onpointerenter={() => (hoveredLevel = key)}
+																onpointerleave={() => {
+																	if (hoveredLevel === key) hoveredLevel = null;
+																}}
+																onfocus={() => {
+																	critIndex = ci;
+																	hoveredLevel = key;
+																}}
+																onblur={() => {
+																	if (hoveredLevel === key) hoveredLevel = null;
+																}}
+															>
+																<span class="level-top">
+																	<span class="level-points">{level.points}</span>
+																	<span class="level-label">{level.label}</span>
+																</span>
+																{#if short}
+																	<span class="level-short">{short}</span>
+																{/if}
+															</button>
+															{#if hasTip}
+																<span
+																	class="level-tip"
+																	class:shown={hoveredLevel === key}
+																	role="tooltip"
+																	id={tipId}
+																	use:anchored={{
+																		anchor: levelEls[key],
+																		open: hoveredLevel === key,
+																		prefer: 'above',
+																		align: 'end'
+																	}}>{full}</span
+																>
+															{/if}
+														</div>
+													{/each}
+												</div>
+												<button type="button" class="override-toggle" onclick={() => toggleOverride(c)}>
+													{overrideOpen[c.id] ? 'Use a level instead' : 'Score between levels'}
+												</button>
+												{#if overrideOpen[c.id]}
+													<div class="override-box">
+														<span class="score-input">
+															<input
+																type="number"
+																min="0"
+																max={max}
+																step="0.5"
+																bind:value={scores[c.id]}
+																aria-label={`Score for ${c.criterion}`}
+															/>
+															<span class="score-out">/ {max}</span>
+														</span>
+														<textarea
+															class="crit-comment"
+															rows="2"
+															placeholder="Why this score and not a level? (required)"
+															aria-label={`Comment on ${c.criterion}`}
+															bind:value={critComments[c.id]}
+														></textarea>
+													</div>
+												{:else if critComments[c.id]}
+													<p class="score-note">{critComments[c.id]}</p>
+												{/if}
+												{#if missingNote}
+													<p class="score-flag">A comment is required to score between levels.</p>
+												{/if}
+											</div>
 										{/each}
-									</ul>
-									{#if keyNote}<p class="key-note" role="status">{keyNote}</p>{/if}
-									<!-- Grading is a LEVEL CHOICE, not a typed number: every level's
-									     descriptor stays reachable so the decision is made against the
-									     written standard, and the level's points are what apply. -->
-									{#each criteria as c, ci (c.id)}
-										{@const max = criterionMax(c)}
-										{@const chosen = chosenIndex(ci)}
-										{@const rove = roveIndex(ci)}
-										{@const override = isOverrideScore(c, scores[c.id])}
-										{@const missingNote = needComment.includes(c.id)}
-										<div
-											class="score-row"
-											class:override
-											class:flagged={missingNote}
-											class:focused={ci === critIndex}
-										>
-											<div class="score-head">
-												<span class="score-crit">{c.criterion}</span>
-												<span class="score-value" class:override>
-													{scores[c.id] ?? '—'} / {max}
-													{#if override}<span class="override-chip">Override</span>{/if}
+										<!--
+											EXTRA CREDIT IS ITS OWN LINE, never a criterion. A rubric
+											criterion's maximum is its top level's points and the maxima
+											sum to the module total, so a criterion holding an award
+											would be a rubric that no longer describes the grading --
+											and 0095's override machinery would read every award as an
+											unexplained off-level score forever.
+										-->
+										{#if extraCreditReady}
+											<div class="extra-credit">
+												<label class="ec-label" for="grade-extra-credit">Extra credit</label>
+												<input
+													id="grade-extra-credit"
+													class="ec-input tap-44"
+													type="number"
+													min="0"
+													step="0.5"
+													placeholder="0"
+													bind:value={extraCredit}
+												/>
+												<span class="ec-note">
+													Points beyond the rubric. Blank or 0 awards none.
 												</span>
 											</div>
-											{#if criterionIncomplete(c)}
-												<p class="score-unfinished">
-													This criterion’s levels are unfinished, so most scores need an override.
+											{#if extraCreditInvalid}
+												<p class="score-flag" data-testid="extra-credit-invalid">
+													Extra credit must be a number of 0 or more. To lower a score, score
+													the rubric criteria lower.
 												</p>
 											{/if}
-											<div class="level-picker" role="group" aria-label={`Levels for ${c.criterion}`}>
-												{#each c.levels ?? [] as level, li (li)}
-													{@const key = levelKey(ci, li)}
-													{@const short = levelShort(level, c.id, spec)}
-													{@const full = level.descriptor?.trim() ?? ''}
-													{@const hasTip = !!full && full !== short}
-													{@const tipId = `grade-tip-${c.id}-${li}`}
-													<div class="level-slot">
-														<button
-															type="button"
-															class="level-btn"
-															class:picked={li === chosen}
-															aria-pressed={li === chosen}
-															aria-describedby={hasTip ? tipId : undefined}
-															tabindex={li === rove ? 0 : -1}
-															data-grade-level={key}
-															bind:this={levelEls[key]}
-															onclick={() => {
-																critIndex = ci;
-																pickLevel(c, level.points);
-															}}
-															onpointerenter={() => (hoveredLevel = key)}
-															onpointerleave={() => {
-																if (hoveredLevel === key) hoveredLevel = null;
-															}}
-															onfocus={() => {
-																critIndex = ci;
-																hoveredLevel = key;
-															}}
-															onblur={() => {
-																if (hoveredLevel === key) hoveredLevel = null;
-															}}
-														>
-															<span class="level-top">
-																<span class="level-points">{level.points}</span>
-																<span class="level-label">{level.label}</span>
-															</span>
-															{#if short}
-																<span class="level-short">{short}</span>
-															{/if}
-														</button>
-														{#if hasTip}
-															<span
-																class="level-tip"
-																class:shown={hoveredLevel === key}
-																role="tooltip"
-																id={tipId}
-																use:anchored={{
-																	anchor: levelEls[key],
-																	open: hoveredLevel === key,
-																	prefer: 'above',
-																	align: 'end'
-																}}>{full}</span
-															>
-														{/if}
-													</div>
-												{/each}
-											</div>
-											<button type="button" class="override-toggle" onclick={() => toggleOverride(c)}>
-												{overrideOpen[c.id] ? 'Use a level instead' : 'Score between levels'}
-											</button>
-											{#if overrideOpen[c.id]}
-												<div class="override-box">
-													<span class="score-input">
-														<input
-															type="number"
-															min="0"
-															max={max}
-															step="0.5"
-															bind:value={scores[c.id]}
-															aria-label={`Score for ${c.criterion}`}
-														/>
-														<span class="score-out">/ {max}</span>
-													</span>
-													<textarea
-														class="crit-comment"
-														rows="2"
-														placeholder="Why this score and not a level? (required)"
-														aria-label={`Comment on ${c.criterion}`}
-														bind:value={critComments[c.id]}
-													></textarea>
-												</div>
-											{:else if critComments[c.id]}
-												<p class="score-note">{critComments[c.id]}</p>
-											{/if}
-											{#if missingNote}
-												<p class="score-flag">A comment is required to score between levels.</p>
-											{/if}
-										</div>
-									{/each}
-									<!--
-										EXTRA CREDIT IS ITS OWN LINE, never a criterion. A rubric
-										criterion's maximum is its top level's points and the maxima
-										sum to the module total, so a criterion holding an award
-										would be a rubric that no longer describes the grading --
-										and 0095's override machinery would read every award as an
-										unexplained off-level score forever.
-									-->
-									{#if extraCreditReady}
-										<div class="extra-credit">
-											<label class="ec-label" for="grade-extra-credit">Extra credit</label>
-											<input
-												id="grade-extra-credit"
-												class="ec-input tap-44"
-												type="number"
-												min="0"
-												step="0.5"
-												placeholder="0"
-												bind:value={extraCredit}
-											/>
-											<span class="ec-note">
-												Points beyond the rubric. Blank or 0 awards none.
-											</span>
-										</div>
-										{#if extraCreditInvalid}
-											<p class="score-flag" data-testid="extra-credit-invalid">
-												Extra credit must be a number of 0 or more. To lower a score, score
-												the rubric criteria lower.
+										{:else}
+											<!--
+												THE CAPABILITY, SAID OUT LOUD. The payload came back
+												without 0171's column, so this deployment cannot record an
+												award; offering the control here would send one into an
+												arity that has no parameter for it. Turning off exactly
+												what is missing and saying so beats blanking the form.
+											-->
+											<p class="ec-unavailable" data-testid="extra-credit-unavailable">
+												Extra credit is not available on this deployment yet.
 											</p>
 										{/if}
-									{:else}
+										<div class="score-total">
+											Total: {liveAwarded} / {outOf} pts{#if extraCreditReady && (extraCreditNumber ?? 0) > 0}
+												&nbsp;<span class="ec-part"
+													>({liveTotal} rubric + {extraCreditNumber} extra credit)</span
+												>{/if}
+										</div>
+										<label class="comment-label" for="grade-comment">Comment to the student</label>
+										<textarea id="grade-comment" class="comment" rows="3" bind:value={comment}></textarea>
+										{#if gradeError}<p class="feedback error">{gradeError}</p>{/if}
+										{#if gradeNotice}<p class="feedback ok">{gradeNotice}</p>{/if}
 										<!--
-											THE CAPABILITY, SAID OUT LOUD. The payload came back
-											without 0171's column, so this deployment cannot record an
-											award; offering the control here would send one into an
-											arity that has no parameter for it. Turning off exactly
-											what is missing and saying so beats blanking the form.
+											PINNED TO THE BOTTOM OF THE RUBRIC PANE (0278), AND THERE IS
+											STILL EXACTLY ONE OF IT.
+
+											Mr. Pina, 2026-09-13: "I want to be able to click the return to
+											student button from anywhere scrolled on the screen, it should
+											be pinned to the bottom or top when it's not visible at the very
+											bottom." Above 1024px `.work-col` is its own scroll container,
+											so this row scrolled out of view INSIDE that pane -- which is
+											exactly where a sticky anchors.
+
+											`position: sticky` ON THE ROW ITSELF, NEVER A SECOND COPY AND
+											NEVER `position: fixed`. A second copy is what "it must not
+											appear twice when the column does not scroll" is about, and one
+											sticky element cannot: it is the same box in the same place in
+											the flow, offset only while its containing block is taller than
+											the pane. And `fixed` would hang a grading control over the
+											roster, the notices and every other pane on the page.
+
+											IT DOES NOT COVER THE LAST CRITERION, and that is a property of
+											sticky rather than a value somebody tuned: at the end of the
+											scroll the row sits back down in its own flow position, below
+											the comment box, with nothing under it. What it passes over
+											mid-scroll it passes over opaquely, with the pane's own boundary
+											drawn on top, so nothing reads as half-hidden.
+
+											AND IT IS BOUNDED BY `.grade-main` RATHER THAN BY THE CARD. The
+											batch panel is further down the same card, and a dock bounded by
+											the card would sit over the batch's own controls once a grader
+											scrolled to them. Bounded here it releases at the end of the
+											rubric, which is the end of what it acts on.
+
+											THE PAGER IS IN THE SAME DOCK, AND IT IS WIRING RATHER THAN
+											LOGIC. `moveStudent` has existed since the console did -- it
+											clamps, routes through `requestSelect` so the unsaved-work guard
+											still fires, and lands focus on the first criterion -- and it
+											was reachable ONLY from `n` and `p`. A mouse user had to go back
+											to the roster and find the next name. Same function, same
+											guard, same focus landing; the keys and the legend are
+											untouched.
+
+											`aria-disabled`, NEVER `disabled`, AT THE ENDS OF THE ROSTER. A
+											genuinely disabled control swallows its own pointer events, so
+											it can never say why it did nothing -- and `moveStudent` already
+											answers, in the live `key-note` region, with "Last student on
+											the roster."
 										-->
-										<p class="ec-unavailable" data-testid="extra-credit-unavailable">
-											Extra credit is not available on this deployment yet.
-										</p>
-									{/if}
-									<div class="score-total">
-										Total: {liveAwarded} / {outOf} pts{#if extraCreditReady && (extraCreditNumber ?? 0) > 0}
-											&nbsp;<span class="ec-part"
-												>({liveTotal} rubric + {extraCreditNumber} extra credit)</span
-											>{/if}
+										<span class="grade-actions">
+											<button
+												type="button"
+												class="btn secondary tiny"
+												aria-disabled={!hasPrevStudent}
+												data-testid="student-prev"
+												onclick={() => moveStudent(-1)}
+											>
+												&lsaquo; Previous student
+											</button>
+											<button
+												type="button"
+												class="btn secondary tiny"
+												aria-disabled={!hasNextStudent}
+												data-testid="student-next"
+												onclick={() => moveStudent(1)}
+											>
+												Next student &rsaquo;
+											</button>
+											<button
+												type="button"
+												class="btn secondary tiny"
+												disabled={busy}
+												onclick={() => void save.saveNow()}
+											>
+												Save draft
+											</button>
+											<button
+												type="button"
+												class="btn tiny"
+												class:armed={armReturn}
+												disabled={busy}
+												data-testid="grade-return"
+												onclick={() => grade(true)}
+											>
+												{armReturn ? 'Press R again to return' : 'Return to student'}
+											</button>
+											<!-- The live unsaved marker, in the same words the other three
+											     surfaces use. It reports the acknowledgement, so "Saved" here
+											     means the draft is stored, never that a request went out. -->
+											<SaveIndicator state={save} />
+										</span>
 									</div>
-									<label class="comment-label" for="grade-comment">Comment to the student</label>
-									<textarea id="grade-comment" class="comment" rows="3" bind:value={comment}></textarea>
-									{#if gradeError}<p class="feedback error">{gradeError}</p>{/if}
-									{#if gradeNotice}<p class="feedback ok">{gradeNotice}</p>{/if}
-									<span class="grade-actions">
-										<button
-											type="button"
-											class="btn secondary tiny"
-											disabled={busy}
-											onclick={() => void save.saveNow()}
-										>
-											Save draft
-										</button>
-										<button
-											type="button"
-											class="btn tiny"
-											class:armed={armReturn}
-											disabled={busy}
-											onclick={() => grade(true)}
-										>
-											{armReturn ? 'Press R again to return' : 'Return to student'}
-										</button>
-										<!-- The live unsaved marker, in the same words the other three
-										     surfaces use. It reports the acknowledgement, so "Saved" here
-										     means the draft is stored, never that a request went out. -->
-										<SaveIndicator state={save} />
-									</span>
 
 									{#if bulk}
 										<!--
@@ -2697,20 +2943,15 @@
 	/* Its own boxed group rather than three more chips on the roster heading:
 	   these three write a file carrying somebody's writing out of the building,
 	   and the identity switch has to read as belonging to them. */
+	/* NO BORDER AND NO OUTER MARGIN ANY MORE: this sits INSIDE a `Disclosure`
+	   body now, which already draws the region's edge, and a bordered card inside
+	   a bordered region is the second frame that made these two panels read as
+	   two cards stacked above the names. The fill stays -- it is what separates
+	   the controls from the card behind them. */
 	.work-export {
-		margin: 0 0 var(--space-2);
-		padding: var(--space-2);
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-card);
-		background: var(--surface-2);
-	}
-	.work-export-label {
-		margin: 0 0 var(--space-2);
-		font-family: var(--font-mono);
-		font-size: 0.62rem;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--text-2);
+		margin: 0;
+		padding: var(--space-2) 0 0;
+		background: transparent;
 	}
 	/* WRAPS RATHER THAN SCROLLS. The roster column is 260px at the narrow end
 	   and these are three real words each, so a nowrap row is what pushes the
@@ -2786,6 +3027,18 @@
 		   which clears only the darkest of the three portal grounds and this card
 		   is not on it. */
 		color: var(--text-2);
+	}
+	/* AMBER, NOT CRIMSON, and the same call `.off-roster` above makes: a presence
+	   read that failed is something to know about, not an error -- nothing a
+	   grader is doing has broken -- and `--crimson` stays reserved for live, rec
+	   and error. No border either: this sits directly above the names, and a
+	   second bordered card there is the space complaint this bundle is also
+	   answering. */
+	.presence-warn {
+		margin: 0 0 0.6rem;
+		font-size: 0.72rem;
+		line-height: 1.45;
+		color: var(--amber);
 	}
 	.roster-list {
 		list-style: none;
@@ -3177,28 +3430,14 @@
 		color: var(--violet-ink);
 		border-color: var(--violet-ink);
 	}
+	/* AS ABOVE: the `Disclosure` around this draws the edge, so the card's own
+	   border and bottom margin are gone and what is left is the stack. */
 	.close-tool {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
-		margin-bottom: var(--space-3);
-		padding: var(--space-2);
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-card);
-		background: var(--surface-2);
-	}
-	.close-label {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem;
-		align-items: baseline;
-		justify-content: space-between;
 		margin: 0;
-		font-family: var(--font-mono);
-		font-size: 0.7rem;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--text-2);
+		padding: var(--space-2) 0 0;
 	}
 	.close-counts {
 		font-size: 0.7rem;
@@ -3415,6 +3654,52 @@
 		}
 		.roster-list {
 			min-height: 0;
+			overflow-y: auto;
+			overscroll-behavior: contain;
+		}
+		/* THE NAMES GET A FLOOR, WRITTEN AS A CEILING ON THE THING THAT WAS
+		   STARVING THEM (0278), AND THE DIRECTION IS THE WHOLE LESSON.
+
+		   `.roster` is a flex column with `overflow: hidden`, and the list had
+		   `min-height: 0` with no `flex-shrink` limit -- so it took whatever the
+		   head, the two panels and the four prose blocks left over, which at 1440
+		   was one name at a time. Collapsing the panels is most of the repair and
+		   this is what stops the next thing added above the names doing it again.
+
+		   A `min-height` ON THE LIST IS THE OBVIOUS FORM AND IT IS WRONG. Measured
+		   on `/dev/html-assignment-grading` at 1440x900: `min-height: min(18rem,
+		   100%)` on the list won the flex fight outright and shrank THIS region to
+		   **0px tall with 156px of content in it** -- both panels and every notice
+		   invisible, clipped rather than scrolled, which is precisely the failure
+		   the scroll container was added to prevent. It also stretched the grid
+		   rows to 252px each, because a constrained list makes its own row taller.
+
+		   A PERCENTAGE CEILING CANNOT DO THAT IN EITHER DIRECTION. The tools take
+		   at most 45% of the pane, so the list always has at least 55% and this
+		   region can never be squeezed below its own content without getting a
+		   scrollbar for the remainder. 45 rather than 50 because the names are
+		   what a grader came for and a tie should not be split evenly; the
+		   percentage resolves because `.roster` is a stretched flex item of
+		   `.console` and so has a definite height.
+
+		   AND THE CAP HAS A FLOOR UNDER IT, which is the correction to the
+		   correction. `max-height: 45%` alone binds on a SHORT pane, where the
+		   panels are not the problem: measured on the same harness, whose roster
+		   card is only 252px because a dev page is not the `.cr-app` frame, 45%
+		   is 113px against 156px of collapsed content -- so 43px of notices sat
+		   behind a scrollbar with nothing expanded at all. `min-height` wins over
+		   `max-height` in CSS, so the pair reads as "cap the panels at 45% of the
+		   pane, but never show less than 9rem of them". On a realistic pane the
+		   cap is 300px+ and never binds on the collapsed content; it binds only on
+		   the thing it is for, which is something large arriving above the names.
+
+		   AND IT KEEPS ITS SCROLLBAR. No region on this site may hide one, and a
+		   capped region that clipped instead would satisfy a no-overflow
+		   measurement by hiding the panels. */
+		.roster-tools {
+			flex: 0 1 auto;
+			min-height: min(9rem, 100%);
+			max-height: 45%;
 			overflow-y: auto;
 			overscroll-behavior: contain;
 		}
@@ -3760,10 +4045,43 @@
 		padding: 0.4rem 0.55rem;
 		margin-bottom: var(--space-2);
 	}
+	/* THE DOCK. See the markup for the whole argument; what the rules do:
+	   - `sticky` with `bottom: 0`, so the row sits in its own flow position at
+	     the end of the scroll and only lifts while `.grade-main` is taller than
+	     the pane. One element, never a second copy, so it cannot appear twice.
+	   - AN OPAQUE GROUND AND A BOUNDARY ON TOP. A dock over scrolling content
+	     with a transparent background is two lines of text on top of each other,
+	     and the boundary is the load-bearing kind (it is the only thing between
+	     two regions of content), so it takes `--boundary` and not `--hairline`.
+	   - `z-index` because `sticky` makes the row POSITIONED, and positioned
+	     siblings paint in TREE order: every later element in the card -- the
+	     batch panel, its table -- would otherwise paint straight over the dock,
+	     which an opaque background does nothing about. Same trap the notebook
+	     grid's sticky header shipped.
+	   - NO `scroll-padding` COUNTERPART, and that asymmetry is deliberate: the
+	     notebook grid needed one because its sticky header sat where
+	     `scrollIntoView` lands a cell. Nothing here scrolls a target under this
+	     row -- `focusLevel` scrolls a LEVEL control, which lives above the dock
+	     inside the same block, and `block: 'nearest'` brings it to the near edge. */
 	.grade-actions {
+		position: sticky;
+		bottom: 0;
+		z-index: 2;
 		display: flex;
 		gap: 0.4rem;
 		flex-wrap: wrap;
+		align-items: center;
+		margin-top: var(--space-2);
+		padding: var(--space-2) 0;
+		background: var(--surface-1);
+		border-top: 1px solid var(--boundary);
+	}
+	/* The dock is sticky against THIS box rather than against the card, so the
+	   batch panel below keeps its own controls to itself. */
+	.grade-main {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
 	}
 	/* ARMED: the first R only arms the return, and the button says so in words.
 	   The amber edge is the second signal beside the changed label, never the
