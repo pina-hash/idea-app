@@ -3,7 +3,7 @@
 - By: Lane L1, from a student's report of 2026-09-21 19:57 local against build `3793ea2`
 - Owns: `src/lib/ideacad/solid/sketch/editor.ts`, `src/lib/ideacad/solid/sketch/model.ts`, `src/lib/ideacad/solid/validate.ts`, `src/lib/ideacad/solid/types.ts`, `src/lib/ideacad/solid/SketchEditor.svelte`, `tests/ideacad-solid-sketching-session.test.ts`, `tests/ideacad-solid-sketching-geometry.test.ts`, one new spec under `tools/browser-verify/routes/` plus the counts block in `tools/browser-verify/README.md`, `docs/prompt-ledger/entries/0275-*`
 - Migration permitted: no. Highest on origin/main at issue: 0217
-- Status: pushed
+- Status: issued
 - Branch: `claude/new-session-9tmqf4`
 - Notes: Four of the five reported defects are fixed and the fifth is deliberately
   not, with the measurement that decides it. `validate.ts` and `types.ts` are

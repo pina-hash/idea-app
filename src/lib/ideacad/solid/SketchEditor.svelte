@@ -55,7 +55,7 @@
 		{ id: 'line', word: 'Line', hint: 'Click each corner. Click the first point to close, or press Enter to stop.', write: true },
 		{ id: 'rectangle', word: 'Rectangle', hint: 'Drag from one corner to the opposite corner.', write: true },
 		{ id: 'circle', word: 'Circle', hint: 'Drag from the center out to the radius.', write: true },
-		{ id: 'arc', word: 'Arc', hint: 'Click the center, then the start, then swing round to where it ends. Hold Shift for the long way round.', write: true },
+		{ id: 'arc', word: 'Arc', hint: 'Click the center, then the start, then swing around to where it ends. Hold Shift for the long way around.', write: true },
 		{ id: 'polygon', word: 'Polygon', hint: 'Drag from the center to the first corner.', write: true },
 		{ id: 'trim', word: 'Trim', hint: 'Click the part of a line, arc or circle to remove, between where it crosses others.', write: true },
 		{ id: 'extend', word: 'Extend', hint: 'Click a line near the end to run on to the next entity.', write: true },
@@ -107,7 +107,7 @@
 	}
 	function sync() {
 		tool = session.tool; selected = [...session.selected]; hovered = session.hovered;
-		drawingNote = session.tool === 'line' && session.anchorCount ? `${session.anchorCount} point${session.anchorCount === 1 ? '' : 's'} placed. Click the first point to close, or press Enter to stop.` : session.tool === 'arc' && session.anchorCount ? (session.anchorCount === 1 ? 'Center placed. Click where the arc starts.' : 'Start placed. Swing round to where it ends. Hold Shift for the long way round.') : session.pendingFillet && sketch ? `${entityLabel(sketch.entities, session.pendingFillet)} picked. Click the line it meets.` : '';
+		drawingNote = session.tool === 'line' && session.anchorCount ? `${session.anchorCount} point${session.anchorCount === 1 ? '' : 's'} placed. Click the first point to close, or press Enter to stop.` : session.tool === 'arc' && session.anchorCount ? (session.anchorCount === 1 ? 'Center placed. Click where the arc starts.' : 'Start placed. Swing around to where it ends. Hold Shift for the long way around.') : session.pendingFillet && sketch ? `${entityLabel(sketch.entities, session.pendingFillet)} picked. Click the line it meets.` : '';
 		tick++;
 		const id = api.editingSketch, key = session.selected.join(','); if (!id || key === published) return;
 		published = key;

@@ -10,25 +10,25 @@
  * the right level for arithmetic and says nothing about whether a press on the
  * canvas ever arrives.
  *
- * WHAT THIS SPEC DRIVES, AND WHY IT IS THE CASE IT IS. Three presses on the
- * viewport canvas at projected plane coordinates -- the center, a start an
- * inch to its right, and a third press A HUNDREDTH OF AN INCH BELOW THE START.
- * That last one IS the report: the deployed tool answered it with a 359.427
- * degree near-circle bulging away from the press, because the arc entity has
- * no direction and the tool read `arcSweep`, which normalizes into (0, 2pi].
- * The `until` predicates are where the geometry is claimed, because a prepare
- * step's `until` is the one place this harness lets a spec state a measured
- * fact about the page and fail on it.
+ * WHAT THIS SPEC DRIVES. NINE presses on the viewport canvas, at plane
+ * coordinates put through the viewport's own `project`, drawing three arcs.
+ * The first IS the report: a center, a start an inch to its right, and a third
+ * press A HUNDREDTH OF AN INCH BELOW THE START, which the deployed tool
+ * answered with a 359.427 degree near-circle bulging away from the press. The
+ * second is a quarter turn clockwise, which that tool could not draw at all.
+ * The third is the same quarter with SHIFT held on the press. The `until`
+ * predicates are where the geometry is claimed, because a prepare step's
+ * `until` is the one place this harness lets a spec state a measured fact
+ * about the page and fail on it.
  *
- * THE ONE INSTRUMENT ADJUSTMENT, DECLARED. `viewport.ts` calls
- * `canvas.setPointerCapture(e.pointerId)` when the sketch consumes a press,
- * and a pointer id that belongs to no live pointer makes that throw
- * `NotFoundError` -- an artefact of dispatching a `PointerEvent` rather than
- * anything about the tool. A real mouse has no such trouble, but this
- * harness's only pointer verb is a click at an element's own centre and an arc
- * needs three different points. So the drive stubs that ONE method for the
- * length of the drive and restores it, and nothing else about the path is
- * replaced: the events are dispatched at the canvas, `SolidViewport` converts
+ * NOTHING ON THE PATH IS REPLACED, AND AN EARLIER DRAFT OF THIS FILE CLAIMED
+ * OTHERWISE. It said `canvas.setPointerCapture(e.pointerId)` -- which
+ * `viewport.ts` calls when the sketch consumes a press -- must throw
+ * `NotFoundError` for a pointer id belonging to no live pointer, and it stubbed
+ * that method for the length of the drive. Measured instead of assumed: this
+ * Chromium accepts the call for a dispatched `PointerEvent` and the drive
+ * records `setPointerCapture: no` with 0 console errors, so the stub was
+ * removed. The events are dispatched at the canvas, `SolidViewport` converts
  * them with its own `editingPoint`, and `SketchEditor` commits through the
  * real `api.apply`.
  *
@@ -38,7 +38,7 @@
  */
 export default {
 	path: '/dev/ideacad-solid?state=arc',
-	label: 'IdeaCAD: the arc tool, three presses on the canvas',
+	label: 'IdeaCAD: the arc tool, nine presses on the canvas',
 	prepare: [
 		{ click: 'text=+ New document', until: '() => !!window.ideaCadSolid', attempts: 20, gapMs: 250 },
 		{ waitFor: '() => !!window.ideaCadSolid && !window.ideaCadSolid.busy' },
@@ -58,7 +58,7 @@ export default {
 				await new Promise((r) => setTimeout(r, 300));
 				s.setTool('arc');
 				await new Promise((r) => setTimeout(r, 200));
-				return 'editing ' + s.model.sketches.length + ' sketch(es), tool ' + s.tool;
+				return 'editing ' + s.model.sketches.length + ' sketch(es); panel hint: ' + (document.querySelector('[data-testid="ideacad-sketch-hint"]') || {}).textContent;
 			}`,
 			until: '() => !!document.querySelector(\'[data-testid="ideacad-sketch-editor"]\')',
 			attempts: 3,
@@ -80,11 +80,8 @@ export default {
 				const s = window.ideaCadSolid;
 				const canvas = document.querySelector('.solid-workspace canvas');
 				if (!canvas) return 'no canvas';
-				const proto = Object.getPrototypeOf(canvas);
-				const held = proto.setPointerCapture;
-				proto.setPointerCapture = function () {};
 				const settle = async (ms) => { for (let i = 0; i < 400 && s.busy; i++) await new Promise((r) => setTimeout(r, 25)); await new Promise((r) => setTimeout(r, ms)); };
-				try {
+				{
 					const press = (u, v, shiftKey) => {
 						const p = s.project([u, v, 0]);
 						const base = { pointerId: 1, pointerType: 'mouse', isPrimary: true, bubbles: true, cancelable: true, clientX: p.x, clientY: p.y, button: 0, shiftKey: !!shiftKey };
@@ -96,7 +93,7 @@ export default {
 					await arc(0, 0, 1, 0, 1, -0.01);
 					await arc(-4, 0, -1.5, 0, -4, -2.5);
 					await arc(5, 0, 7, 0, 5, -2, true);
-				} finally { proto.setPointerCapture = held; }
+				}
 				const sketch = s.model.sketches.find((k) => k.feature === 'sk1');
 				const pt = (id) => (sketch.entities.find((e) => e.id === id) || {});
 				window.__arcDrive = sketch.entities.filter((e) => e.type === 'arc').map((a) => {
@@ -223,7 +220,7 @@ export default {
 	],
 	textContains: [
 		/* The hint has to describe what the third press can actually do. It used to say "then the end", which is true in neither reading of the old code. */
-		{ selector: '[data-testid="ideacad-sketch-hint"]', label: 'the arc hint', must: ['swing round to where it ends', 'Shift'] }
+		{ selector: '[data-testid="ideacad-sketch-hint"]', label: 'the arc hint', must: ['swing around to where it ends', 'Shift'] }
 	],
 	contrast: [{ selector: '[data-testid="ideacad-sketch-hint"]', label: 'the tool hint', min: 4.5 }],
 	/* A student surface at every width. */

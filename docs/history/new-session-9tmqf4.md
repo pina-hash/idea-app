@@ -216,11 +216,15 @@ defect. Its caller is outside this bundle's files, so it was left alone.
   closed and extruded: **1 body, volume 1.7837**, against the analytic circular
   segment `3.125 * (pi/2 - 1) = 1.7837`. 36 measurements at 375 and 1440, 0
   outside threshold.
-- **Its one instrument adjustment is declared in the spec's own header**:
-  `viewport.ts` calls `setPointerCapture` with the event's pointer id, which
-  throws for a synthetic `PointerEvent`, so the drive stubs that one method for
-  the length of the drive and restores it. The harness's only pointer verb is a
-  click at an element's centre, and an arc needs three different points.
+- **It replaces nothing on the path, and an earlier draft of it did.** That
+  draft stubbed `setPointerCapture` for the length of the drive, on the reasoning
+  that `viewport.ts` calls it with the event's pointer id and that a synthetic
+  `PointerEvent`'s id belongs to no live pointer, so the call must throw
+  `NotFoundError`. Measured rather than assumed, by calling through to the real
+  method and recording what happened: this Chromium ACCEPTS it, the drive
+  reports `setPointerCapture: no` and 0 console errors, and the stub was
+  deleted. The reasoning was sound and the fact was not; the spec's header now
+  carries the measurement instead of the inference.
 - **The kernel facts above** are pinned against the real wasm, each with a
   positive control (the consistent arc builds; a line over the same points adds
   no equation).
