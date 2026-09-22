@@ -7,9 +7,7 @@
 		accentAlpha,
 		accentOf,
 		backgroundCss,
-		bannerInk,
 		hasStyle,
-		isImageBackground,
 		type IdentityStyle
 	} from '$lib/identity-style';
 
@@ -81,22 +79,12 @@
 
 	const accent = $derived(identity?.accent_color ? accentOf(identity) : null);
 	const bg = $derived(backgroundCss(identity));
-	/**
-	 * THE INK IS THE BACKGROUND'S, NEVER THE ACCENT'S, and only when there IS a
-	 * background. `bannerInk` picks dark or light from the background's own
-	 * luminance -- so a student who chooses a pale yellow gets dark text rather
-	 * than a white-on-white banner. With no background the room's own `--text-1`
-	 * governs, because the banner is then sitting on whatever plate the surface
-	 * is made of and this component has no business guessing its colour.
-	 */
-	const ink = $derived(bg ? bannerInk(identity) : null);
 	const glow = $derived(identity?.flourish === 'glow-pulse' && !!accent);
 	const drift = $derived(identity?.flourish === 'particle-trail' && !!accent);
 
 	const cssVars = $derived(
 		[
 			bg ? `--idb-bg:${bg}` : '',
-			ink ? `--idb-ink:${ink}` : '',
 			accent ? `--idb-acc:${accent}` : '',
 			accent ? `--idb-acc-soft:${accentAlpha(accent, 0.45)}` : ''
 		]
@@ -109,7 +97,6 @@
 	class="idb"
 	class:styled
 	class:has-bg={!!bg}
-	class:scrim={isImageBackground(identity)}
 	class:glow
 	class:drift
 	style={cssVars || undefined}
@@ -144,6 +131,40 @@
 </div>
 
 <style>
+	/* ========================================================================
+	   THE BACKGROUND IS A WASH, NOT A FILL, AND THAT IS A MEASURED DECISION
+	   RATHER THAN A TASTE ONE.
+
+	   Report 15 asks for "banners like there are in the IDEA tournaments",
+	   which is a FULL-STRENGTH background with the text on top of it. That
+	   cannot be made legible, and the numbers are why: with the student
+	   choosing the colour freely, `bannerInk`'s two-value light/dark rule
+	   bottoms out at **1.90:1** at full opacity (worst case a mid olive,
+	   #a5b478) against the 4.5:1 a body text carries. Picking whichever of the
+	   two inks measures better instead only reaches **3.98:1**, and flips 35.7%
+	   of the colour space -- a large visible change to a deployed tournament
+	   surface, which is not this bundle's to make. A black scrim needs **0.60
+	   alpha** before light ink clears, which mutes the colour far more than a
+	   wash does AND still leaves the tagline at 3.90.
+
+	   SO THE TEXT DOES NOT SIT ON THE STUDENT'S COLOUR AT ALL. The colour is
+	   laid over the room's own plate at 0.22, which is exactly the treatment
+	   `EntryChip` already uses and for the same stated reason -- a dense row
+	   where the name has to stay the most legible thing on it. The ink is then
+	   the ROOM's `--text-1`, which every room has already measured against its
+	   own plates, so legibility is a property of the construction rather than a
+	   number that has to hold for a colour nobody has picked yet. Measured over
+	   four plates and the whole colour space at 0.22: the name's worst case is
+	   **5.73:1**.
+
+	   `bannerInk` IS THEREFORE NOT CALLED HERE, and that is not the lift having
+	   failed. It is lifted, the tournament banner still calls it, and it is
+	   still the right answer for a surface that paints the colour at full
+	   strength. This surface does not. The 1.90:1 finding is the TOURNAMENT
+	   banner's too and is reported in this bundle's history entry as a defect
+	   found rather than fixed: fixing it means changing what a live projector
+	   renders mid-tournament, with its own visual pass.
+	   ======================================================================== */
 	.idb {
 		display: flex;
 		align-items: center;
@@ -152,44 +173,37 @@
 	}
 	/* WITH A STYLE IT BECOMES A CARD; without one these rules do not apply at
 	   all, so an uncustomized identity is an avatar and a name with no box
-	   round them -- byte-identical to what every surface renders today. */
+	   round them -- which is what every surface renders today and is the state
+	   everybody is in until they choose something. */
 	.idb.styled {
+		position: relative;
 		padding: 0.55rem 0.75rem;
 		border-radius: var(--radius-card, 10px);
 		border: 1px solid var(--boundary, rgba(255, 255, 255, 0.2));
-	}
-	.idb.styled.has-bg {
-		position: relative;
-		background: var(--idb-bg);
-		border-color: transparent;
-		color: var(--idb-ink);
+		/* The accent rule, the same signal `EntryChip` draws. */
+		border-left: 3px solid var(--idb-acc, var(--boundary, rgba(255, 255, 255, 0.2)));
 		overflow: hidden;
 	}
-	/* An IMAGE background is unknown art, so the text gets a scrim rather than
-	   a guess. `bannerInk` always answers light ink for one, so the scrim is
-	   dark. 0220 refuses an image background on a PROFILE, so this arm only
-	   fires for a tournament style rendered through this component -- it is kept
-	   because the component is shared and the shape is legal in the type. */
-	.idb.styled.scrim::before {
+	/* THE WASH ITSELF, as a layer rather than as a `background` on the card, so
+	   the opacity applies to the COLOUR and not to the text above it. An
+	   `opacity` on the card would fade the name with it, which is the mistake
+	   this shape avoids by construction. */
+	.idb.styled.has-bg::before {
 		content: '';
 		position: absolute;
 		inset: 0;
-		background: linear-gradient(90deg, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.42));
+		background: var(--idb-bg);
+		opacity: 0.22;
 		pointer-events: none;
 	}
-	.idb.styled.scrim > :global(*),
-	.idb.styled.scrim .idb-text {
+	.idb.styled > :global(*) {
 		position: relative;
 		z-index: 1;
 	}
-	/* The accent rule, the same signal `EntryChip` draws. It is the LAST
-	   element in the box rather than the first so it does not push the avatar
-	   off the leading edge of the row. */
-	.idb.styled:not(.has-bg) {
-		border-left: 3px solid var(--idb-acc, var(--boundary, rgba(255, 255, 255, 0.2)));
-	}
 	.idb-text {
 		min-width: 0;
+		position: relative;
+		z-index: 1;
 	}
 	.idb-line {
 		display: flex;
@@ -202,31 +216,40 @@
 		font-weight: 600;
 		font-size: 1rem;
 		margin: 0;
-		/* `--text-1` and not a literal: every room this can land in aliases it
-		   onto its own plate. With a background the ink is the background's,
-		   which is what the cascade order here says. */
-		color: var(--idb-ink, var(--text-1, #e8ffe8));
+		/* THE ROOM'S OWN INK, never a colour derived from the student's. Every
+		   room aliases `--text-1` onto its own plate and has measured it there;
+		   a value computed here would be measured against nothing. */
+		color: var(--text-1, #e8ffe8);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
+	/* THE BADGE TAKES THE INK, NOT THE ACCENT, AND THAT IS THE SECOND THING
+	   MEASURING CHANGED. Painted in the accent on the student's own background
+	   it came out at **2.11:1** (a red crown on amber) and **2.50:1** (cyan on
+	   a blue-violet gradient) against the 3:1 a graphical object carries --
+	   because the accent and the background are TWO FREE COLOURS and no pairing
+	   of two free colours can be guaranteed to contrast. A badge is a glyph
+	   somebody chose to display, so it is a thing to be READ: it takes the text
+	   tier and clears whatever the background is. The accent still paints the
+	   ring and the rule, which are decoration. */
 	.idb-badge {
 		display: inline-flex;
 		flex: none;
-		/* The badge takes the ACCENT where there is one, and the ink otherwise.
-		   Never a third colour: a badge is a decoration of the identity, not a
-		   second identity. */
-		color: var(--idb-acc, var(--idb-ink, var(--text-2, #9ab)));
+		color: var(--text-1, #e8ffe8);
 	}
+	/* THE TAGLINE IS THE SAME INK AS THE NAME, differentiated by SIZE and by
+	   the mono face rather than by colour, and that is the repo's own finding
+	   one tier up: muted copy sitting on an active fill takes the tier ABOVE,
+	   because the wash lightens the ground out from under it. Measured on the
+	   washed ground, `--text-2` bottoms out at **2.70:1**; `--text-1` holds the
+	   name's 5.73:1. There is no opacity fade for the same reason -- a fade IS
+	   a lightening, and at 0.82 it took the worst case to 3.38:1. */
 	.idb-tagline {
 		margin: 0.1rem 0 0;
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
 		font-size: 0.72rem;
-		/* On a custom background the ink is the only safe colour, so the tagline
-		   takes it at reduced opacity rather than a token measured against a
-		   plate this banner may not be sitting on. */
-		color: var(--idb-ink, var(--text-2, #9ab));
-		opacity: var(--idb-tagline-fade, 0.82);
+		color: var(--text-1, #e8ffe8);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -244,19 +267,12 @@
 	   full opacity with no transform, so a reduced-motion reader sees the whole
 	   thing and loses only the motion.
 	   ------------------------------------------------------------------------ */
-	.idb.glow {
-		box-shadow: 0 0 0 0 transparent;
-	}
 	.idb.drift::after {
 		content: '';
 		position: absolute;
 		inset: 0;
 		pointer-events: none;
-		background: radial-gradient(
-			circle at 20% 50%,
-			var(--idb-acc-soft) 0,
-			transparent 42%
-		);
+		background: radial-gradient(circle at 20% 50%, var(--idb-acc-soft) 0, transparent 42%);
 		opacity: 0;
 	}
 	@media (prefers-reduced-motion: no-preference) {

@@ -531,7 +531,7 @@
 		},
 		{
 			key: 'solid',
-			label: 'Solid banner, LIGHT ground (dark ink)',
+			label: 'Solid banner, a very light colour (the worst case for ink)',
 			style: {
 				background_type: 'solid',
 				background_value: '#efb539',
@@ -543,7 +543,7 @@
 		},
 		{
 			key: 'gradient',
-			label: 'Gradient banner, DARK ground (light ink)',
+			label: 'Gradient banner, two colours',
 			style: {
 				background_type: 'gradient',
 				background_value: ['#3e7bfa', '#8e5bf0'],
@@ -566,7 +566,31 @@
 			}
 		},
 		{
-			key: 'none',
+			/* THE ADVERSARIAL CASE, and it is here because every other colour on
+			   this page is one somebody would plausibly pick. A near-white
+			   background is the worst ground a light ink can land on, and it is
+			   a legal value -- 0220's constraint is "a hex", not "a hex we
+			   like". If the wash treatment is ever replaced by a fill, this is
+			   the case that reddens first. */
+			key: 'hostile',
+			label: 'A near-WHITE background: the worst ground the ink can land on',
+			style: {
+				background_type: 'solid',
+				background_value: '#fafafa',
+				accent_color: '#e5484d',
+				badge: 'star',
+				flourish: null,
+				tagline: 'The adversarial case'
+			}
+		},
+		{
+			/* `no-style`, NOT `none`: `data-case="none"` is already taken by the
+			   six roster cases at the top of this page, and
+			   `tools/browser-verify/routes/avatars.mjs` selects
+			   `[data-case="none"] .initials` expecting exactly one. Measured: the
+			   collision took that row to 3 and turned a real check into noise. A
+			   data-case value on this page is global. */
+			key: 'no-style',
 			label: 'NO style at all -- the state everybody is in',
 			style: {
 				background_type: null,
@@ -752,7 +776,9 @@
 	<h2>Identity styles: the avatar takes the accent, the banner takes the rest</h2>
 	<p class="note">
 		The restraint in <code>Avatar.svelte</code>. Left is what a roster row gets; right is what a
-		surface showing ONE person gets.
+		surface showing ONE person gets. The banner's background is a WASH over the room's own plate,
+		never a fill under the text: a full-strength fill bottoms out at 1.90:1 for the name, which is
+		measured in <code>IdentityBanner.svelte</code>'s own header.
 	</p>
 	<div class="style-cases" data-testid="identity-cases">
 		{#each STYLE_CASES as c (c.key)}
