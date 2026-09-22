@@ -4,7 +4,7 @@
 	import { page } from '$app/state';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { UserProfile } from '$lib/profile';
-	import { PATHWAY_PICKER_DONE_EVENT } from '$lib/PathwayPicker.svelte';
+	import { PATHWAY_PICKER_DONE_EVENT, pathwayPickerDeferred } from '$lib/PathwayPicker.svelte';
 	import SpotlightTour from './SpotlightTour.svelte';
 	import { ORIENTATION_STEPS, TOUR_SEEN_KEY, type TourPhase } from './orientation';
 	import type { TourCloseReason, TourStep } from './tour';
@@ -44,14 +44,22 @@
 			phase === 'all' ? [...ORIENTATION_STEPS] : ORIENTATION_STEPS.filter((s) => s.phase === phase);
 	}
 
-	/** Mirrors PathwayPicker's own show condition: while it owns the screen, wait. */
+	/**
+	 * Mirrors PathwayPicker's own show condition: while it owns the screen, wait.
+	 *
+	 * THE DEFERRAL HALF IS THE PICKER'S OWN PREDICATE, NOT A SECOND COPY OF IT.
+	 * This used to read `sessionStorage.getItem('pathway-picker-dismissed')`
+	 * inline -- a literal key and a literal store, thirty lines from the
+	 * component that owns both. Ledger 0276 moved the deferral to a durable,
+	 * expiring localStorage record, and an inline reader would have gone on
+	 * asking a key nothing writes any more: the tour would have decided the
+	 * picker was showing when it was not, and waited for a done event that was
+	 * never coming. Calling `pathwayPickerDeferred` is what makes that
+	 * impossible rather than merely fixed.
+	 */
 	const pickerShowing = () => {
 		if (!claims || profile?.role !== 'student' || profile?.pathway) return false;
-		try {
-			return !sessionStorage.getItem('pathway-picker-dismissed');
-		} catch {
-			return false;
-		}
+		return !pathwayPickerDeferred();
 	};
 
 	$effect(() => {
