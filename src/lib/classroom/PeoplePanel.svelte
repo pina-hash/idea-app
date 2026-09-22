@@ -1424,9 +1424,17 @@
 								{:else}
 									<label class="tool-field narrow">
 										<span>Post for</span>
+										<!--
+											THE VALUE IS A STRING, NOT `null`. A select matches its
+											options by VALUE, and the "no end" option's value is the
+											empty string -- so binding `null` here matched nothing,
+											left no option selected, and rendered an EMPTY control
+											with no text in it. Measured in Chromium at 375 and 1440
+											before the fix: a blank box where a choice should be.
+										-->
 										<select
 											data-testid="team-post-days"
-											value={postDays[set.id] ?? null}
+											value={postDays[set.id] == null ? '' : String(postDays[set.id])}
 											onchange={(e) => {
 												const v = (e.currentTarget as HTMLSelectElement).value;
 												postDays = { ...postDays, [set.id]: v === '' ? null : Number(v) };
@@ -2033,11 +2041,29 @@
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 	}
-	.tool-field input {
+	.tool-field input,
+	.tool-field select {
 		min-height: 44px;
 	}
 	.tool-field.narrow input {
 		width: 6rem;
+	}
+	/*
+	 * THE SELECT IS NAMED BESIDE THE INPUT because `.tool-field input` alone
+	 * left a native white control sitting on this room's dark plate -- measured
+	 * in Chromium at both widths. It takes the room's own surface and ink
+	 * rather than a colour invented here, and `--boundary` rather than
+	 * `--hairline` because the edge of an interactive control is load-bearing.
+	 */
+	.tool-field select {
+		max-width: 100%;
+		padding: 0 var(--space-2, 0.5rem);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-2, 6px);
+		background: var(--surface-2, var(--bg2));
+		color: var(--text-1);
+		font-family: var(--font-display);
+		font-size: 0.9rem;
 	}
 	.tool-addresses {
 		margin: 0;

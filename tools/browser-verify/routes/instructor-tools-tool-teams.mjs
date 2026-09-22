@@ -27,6 +27,15 @@
  * style controls are asserted ABSENT, because the harness omits the `style`
  * transport and absence is the mechanism that removes them.
  *
+ * EVERY BACKSLASH IN AN `evaluate` TEMPLATE IS DOUBLED, AND IT HAS TO BE. These
+ * sources are template literals, where `\\s` is just the letter `s` and `\\d` is
+ * just `d` -- so a regex written `/\\s+/` arrives in the browser as `/s+/` and
+ * silently normalises runs of the letter S instead of runs of whitespace. That
+ * is not a syntax error and nothing warns: the first run of this spec reported
+ * false for a sentence that was on screen and correct, because the normaliser
+ * had turned "Build teams" into "Build team ". The tell is an assertion that
+ * fails on text a DEBUG print shows to be exactly right.
+ *
  * THE COUNT-MODE CLAMP IS ASSERTED AS A SENTENCE, NOT A TEAM COUNT. Asking for
  * more teams than there are students is clamped rather than padded with empty
  * cards, and a clamp nobody is told about reads as the control being ignored.
@@ -46,6 +55,21 @@ export default {
 			   a server render cannot reach this at all. */
 			click: '[data-testid="picker-mode-count"]',
 			until: '() => !!document.querySelector("[data-testid=\'picker-team-count\']")'
+		},
+		{
+			/* MEASURED HERE, NOT IN `tapTargets`, because opening the teams panel
+			   CLOSES the picker -- one open panel at a time is this page's own
+			   rule -- so by the time the measurement phase runs the radio is not
+			   on screen. A `tapTargets` entry for it would match nothing and
+			   report "0 matched", which is the shape of result that looks like a
+			   pass to a skim. Taking the box while it is genuinely visible is the
+			   honest reading. */
+			evaluate: `() => {
+				const label = document.querySelector('[data-testid="picker-mode-count"]').closest('label');
+				const r = label.getBoundingClientRect();
+				window.__radioBox = [r.width, r.height];
+				return 'radio label ' + Math.round(r.width) + 'x' + Math.round(r.height);
+			}`
 		},
 		{
 			evaluate: `() => {
@@ -75,11 +99,34 @@ export default {
 		{
 			/* The board arrives from the effect's transport call, so the panel
 			   exists before its contents do. Waiting on a SET rather than on the
-			   panel is what tells a loaded board from a spun effect. */
-			until: '() => document.querySelectorAll("[data-testid=\'team-set\']").length >= 2'
+			   panel is what tells a loaded board from a spun effect.
+			
+			   `waitFor` AND NOT A BARE `until`: `until` is read only by a step
+			   that also ACTS, so a step carrying it alone is discarded and waits
+			   for nothing. `tests/browser-verify-prepare-until.test.ts` caught
+			   exactly that here, which is the defect that whole file exists for. */
+			waitFor: '() => document.querySelectorAll("[data-testid=\'team-set\']").length >= 2'
+		},
+		{
+			/* ARMED IN PREPARE, NOT INSIDE AN `orderResult`. Svelte settles
+			   asynchronously, so a `.click()` followed by a synchronous read in
+			   the same expression reads the DOM as it was BEFORE the click --
+			   which is what the first run of this spec did, and it reported all
+			   three sub-assertions false for a control that works. A prepare
+			   step with an `until` is the only shape that waits. */
+			click: '[data-testid="team-retire"]',
+			until: '() => !!document.querySelector("[data-testid=\'team-retire-note\']")'
 		}
 	],
 	orderResult: [
+		{
+			/* A CONTROL WRAPPED IN A LABEL IS MEASURED AT THE LABEL, which is
+			   what a finger actually hits. The radio itself is smaller; the
+			   44px floor lives on `.team-mode-opt`. */
+			label: 'the Number of teams radio clears 44px where a finger lands on it',
+			evaluate: '() => { const b = window.__radioBox || [0, 0]; return [String(b[1] >= 44), String(b[0] > 0)]; }',
+			expected: ['true', 'true']
+		},
 		{
 			label: 'count mode gives exactly the number of teams asked for, balanced within one',
 			evaluate: `() => {
@@ -112,8 +159,12 @@ export default {
 			evaluate: `() => {
 				const left = [...document.querySelectorAll('[data-testid="team-member-left"]')];
 				const li = left[0]?.closest('li');
+				/* TWO, not one: the fixture marks team 2's first member in BOTH
+				   saved sets, so a departed student appears in the posted draw
+				   and the unposted one. Counted from the fixture rather than
+				   from what came out. */
 				return [
-					String(left.length === 1),
+					String(left.length === 2),
 					/* The name is still there beside the label: the row was
 					   annotated, not replaced. */
 					String(!!li && li.textContent.replace(left[0].textContent, '').trim().length > 0),
@@ -125,12 +176,38 @@ export default {
 		{
 			label: 'the seed rides on every saved set, so a persisted draw is still checkable',
 			evaluate: `() => {
+				/* WHITESPACE-NORMALISED. textContent carries the template's own
+				   line breaks and indentation, so a raw substring check against a
+				   sentence that wraps in the source fails on whitespace rather
+				   than on content -- which is what the first run of this spec
+				   did, reporting false for a sentence that was on screen. */
 				const seeds = [...document.querySelectorAll('[data-testid="team-set"] .team-seed')]
-					.map((el) => el.textContent || '');
+					.map((el) => (el.textContent || '').replace(/\\s+/g, ' ').trim());
 				return [
 					String(seeds.length >= 2),
 					String(seeds.every((t) => /seed \\d+/.test(t))),
 					String(seeds.every((t) => t.includes('always gives this same result')))
+				];
+			}`,
+			expected: ['true', 'true', 'true']
+		},
+		{
+			/*
+				THE SELECT'S CHOSEN OPTION IS READ BACK, not just its presence.
+				A select bound to a value none of its options carries renders
+				EMPTY -- no error, no warning, a blank box where a choice should
+				be -- which is what this control did until a screenshot showed
+				it. `selectedIndex` and the option's own text are the two reads
+				that tell a working control from that one.
+			*/
+			label: 'the Post for control shows the option it is actually on',
+			evaluate: `() => {
+				const sel = document.querySelector('[data-testid="team-post-days"]');
+				if (!sel) return ['no select'];
+				return [
+					String(sel.selectedIndex >= 0),
+					String((sel.options[sel.selectedIndex]?.text || '').trim().length > 0),
+					String(sel.options.length === 4)
 				];
 			}`,
 			expected: ['true', 'true', 'true']
@@ -155,9 +232,13 @@ export default {
 				const hint = document.querySelectorAll('.team-style-hint').length;
 				/* THE POSITIVE CONTROL beside the absence: the styled team DID
 				   render its decoration, so "no controls" is not "no teams". */
+				/* TWO styled cards, not one: hasStyle is true for a team with
+				   only an accent as well as for one with a background, and the
+				   fixture has one of each. Only ONE carries a style_updated_by,
+				   which is why the two numbers differ. */
 				const styled = document.querySelectorAll('[data-testid="team-card"].has-style').length;
 				const by = document.querySelectorAll('[data-testid="team-style-by"]').length;
-				return [String(hint === 0), String(styled === 1), String(by === 1)];
+				return [String(hint === 0), String(styled === 2), String(by === 1)];
 			}`,
 			expected: ['true', 'true', 'true']
 		},
@@ -182,11 +263,8 @@ export default {
 		{
 			label: 'retiring arms a confirm that names the draw and says the record is kept',
 			evaluate: `() => {
-				const btn = document.querySelector('[data-testid="team-retire"]');
-				if (!btn) return ['no retire control'];
-				btn.click();
 				const note = document.querySelector('[data-testid="team-retire-note"]');
-				const t = (note?.textContent || '').trim();
+				const t = (note?.textContent || '').replace(/\\s+/g, ' ').trim();
 				return [String(!!note), String(t.includes('Build teams')), String(t.includes('kept'))];
 			}`,
 			expected: ['true', 'true', 'true']
@@ -209,7 +287,9 @@ export default {
 		{ selector: '[data-testid="tool-teams"]', label: 'the Saved teams tool', min: 44 },
 		{ selector: '[data-testid="team-export"]', label: 'Export CSV', min: 44 },
 		{ selector: '[data-testid="team-retire"]', label: 'Retire', min: 44 },
-		{ selector: '[data-testid="picker-mode-count"]', label: 'the Number of teams radio', min: 44 }
+		{ selector: '[data-testid="team-post-days"]', label: 'the Post for select', min: 44 }
+		/* The mode radio is NOT here: see the prepare step that measures it
+		   while the picker is still open. */
 	],
 	contrast: [
 		{ selector: '[data-testid="team-set"] h3', label: 'a saved draw title', min: 4.5 },
