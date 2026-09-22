@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.28 - 2026-09-13**
+**Version 4.29 - 2026-09-21**
 
 ## These Instructions Evolve
 
@@ -1405,8 +1405,19 @@ reports. A parallel-lane prompt ends:**
 >    one for your branch.
 > 3. The merge into `main` is clean. A conflict is resolved on `integration`, never on
 >    `main`.
-> 4. `node tools/deploy-probe.mjs --ref origin/integration` exits 0. Exit 2 or 3 is a
->    stop, and `CANNOT SAY` is never a pass.
+> 4. `node tools/deploy-probe.mjs --ref origin/integration` exits 0, or, where it
+>    cannot run at all (exit 1, `DEPLOY_PROBE_URL` unset -- the ordinary state in a
+>    cloud container), every migration `git diff --name-only
+>    origin/main...origin/integration -- supabase/migrations/` names has a committed
+>    applied record under `docs/migrations-applied/`, checked by number with the
+>    missing set printed rather than summarized. Exit 2 or 3 from the probe is always
+>    a stop; the substitute never applies over them, only over a probe that could not
+>    run. A session taking the substitute route says so, prints the number set it
+>    checked and the number set it found, and never reports the substitute as the
+>    probe having passed. See decision 34
+>    (`docs/decisions/entries/34-gate-four-record-backed-answer.md`) for why this is
+>    not a weakening and for the two migration numbers, `0190` and `0191`, that are
+>    permanent holes rather than gaps.
 > 5. Every migration this bundle added is reported APPLIED by that same probe, by number.
 > 6. Every ledger entry newly on `integration` reads `Status: pushed`.
 >
@@ -2991,6 +3002,24 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-09-21 (4.29)** - ITEM 4 OF THE CANNED LANE ENDING NOW HAS A SECOND ROUTE, because
+  a gate no session can execute is not a control -- this file already removed one control
+  for that exact reason in 4.20, and this one had stopped ten lanes while existing as a
+  decision nowhere: no entry under `docs/decisions/entries/` named gate 4 at all, and the
+  attribution one router chat gave it, "decision 31", is a different, already-decided
+  question (IdeaCAD's scope and application boundary) with nothing about migrations in it.
+  Decision 34 (`gate-four-record-backed-answer`) answers it: item 4 is satisfied by the
+  probe exiting 0, or, where it cannot run (exit 1, `DEPLOY_PROBE_URL` unset, which is
+  every cloud container), by every migration the merge would newly deploy having a
+  committed applied record under `docs/migrations-applied/`, checked by number with the
+  missing set printed rather than summarized and never reported as the probe having
+  passed. `0190` and `0191` are permanent numeric holes, not gaps, and the decision entry
+  also corrects the exit-code wording itself: `EXIT.cannotRun` is `1` in
+  `tools/deploy-probe.mjs`'s own export, not `2` or `3`, so the old text's "Exit 2 or 3 is
+  a stop" never actually named the code a credential-less session hits. Items 1, 2, 3, 5
+  and 6, and the three-things-you-cannot-claim paragraph, are unchanged. `REGISTER.md`'s
+  `IDEA_instructions.md` row moves in the same commit.
 
 - **2026-09-13 (4.28)** - THE TIER IS CHOSEN PER PROMPT AND IS NEVER A DEFAULT, which
   replaces the default this file stated until now: Opus 5 at `high` as the build tier
