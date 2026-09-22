@@ -11,7 +11,7 @@
   line only), and its own `docs/history/` entry.
 - Migration permitted: no. Claims: none.
   Highest on origin/main at issue: 0217
-- Status: issued
+- Status: pushed
 - Branch: `claude/new-session-6u4tff`
 - Notes: TWO OF THE FOUR SHIPPED CODE, and the other two are the interesting
   ones because in both cases the tree or the measurement contradicted the
