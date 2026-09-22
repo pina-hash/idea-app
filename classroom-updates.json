@@ -16,7 +16,10 @@
 			"date": "2026-09-22",
 			"title": "The pathway box no longer blocks the page",
 			"body": "If you were asked to pick your pathway and could not scroll, that is fixed. The box used to sit over the whole screen, and the page behind it moved without looking like it moved, so the site felt stuck. Now the page holds still while the box is up, you can close it by clicking anywhere outside it or pressing Escape, and if you choose to decide later it stays closed even after you reload. It will ask again in a week if you still have no pathway. You can also ask your instructor to set it for you.",
-			"tags": ["Home", "fix"]
+			"tags": [
+				"Home",
+				"fix"
+			]
 		},
 		{
 			"date": "2026-09-15",
@@ -1478,6 +1481,16 @@
 			"body": "The solid modeler keeps a design tree on the left. Every sketch, extrude, fillet, hole, mirror, pattern and reference plane is a row you can select, rename, reorder, suppress or delete, and changing a number in one rebuilds everything after it. Dimensions are typed as you like, including fractions and millimetres, and nothing rounds or limits what you type: if a shape cannot be built the row says why. You can add reference planes, axes and points, mate two bodies, measure distances and angles, cut a section view, and colour bodies. In Add-ons, IdeaBlade builds the hex core, collar, spin bolt and body profile for you, and never locks a tool.",
 			"tags": [
 				"ideacad"
+			]
+		},
+		{
+			"date": "2026-09-22",
+			"title": "The bottom of the class page stops cutting off",
+			"body": "On a computer, the class list and an open item each scroll on their own, and the page around them stays put. The height they were given was a fixed guess, and on the class page the guess was too short by about the height of a line, so the last of the list sat just below the bottom of the screen with no way to scroll to it. It is now measured from the window you actually have, so the bottom of the list and the bottom of an item, footer and all, are always reachable. Nothing changes on a phone, where the whole page scrolls as it always has.",
+			"tags": [
+				"Classes",
+				"fix",
+				"reading"
 			]
 		}
 	]

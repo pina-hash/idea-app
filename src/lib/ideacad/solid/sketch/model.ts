@@ -50,6 +50,51 @@ export function arcSweep(center: Vec2, start: Vec2, end: Vec2): number {
 	let sweep = a1 - a0; while (sweep <= 1e-12) sweep += Math.PI * 2; while (sweep > Math.PI * 2 + 1e-12) sweep -= Math.PI * 2;
 	return sweep;
 }
+/**
+ * THE SIGNED SWEEP A THIRD CLICK ASKS FOR: positive counter-clockwise,
+ * negative clockwise, the SHORT way round from the start, and never zero for
+ * any click that is not exactly on the center-to-start ray.
+ *
+ * `arcSweep` ABOVE IS NOT THIS QUESTION AND MUST NOT BE USED FOR IT. It
+ * normalizes into (0, 2pi] because a STORED arc always runs counter-clockwise
+ * from its start to its end, which is the right rule for reading an arc back
+ * and the wrong one for deciding which arc somebody just drew: asked about a
+ * click ten degrees BELOW the start it answers 350, and about a click a
+ * hundredth of an inch below a start an inch out it answers 359.427 -- a
+ * near-circle bulging the wrong way, which is the defect a student reported
+ * on 2026-09-21 and the reason this function exists.
+ *
+ * `major` takes the LONG way round to the SAME end point, which is the only
+ * other arc through the two points on that circle, so the pair is exhaustive.
+ */
+export function arcSweepToward(center: Vec2, start: Vec2, towards: Vec2, major = false): number {
+	const a0 = Math.atan2(start[1] - center[1], start[0] - center[0]), a1 = Math.atan2(towards[1] - center[1], towards[0] - center[0]);
+	let sweep = a1 - a0;
+	while (sweep > Math.PI) sweep -= Math.PI * 2;
+	while (sweep <= -Math.PI) sweep += Math.PI * 2;
+	return major ? (sweep > 0 ? sweep - Math.PI * 2 : sweep + Math.PI * 2) : sweep;
+}
+/**
+ * The arcs whose two ends sit at different distances from their center, which
+ * is a state no arc may be in: the kernel REFUSES such an edge outright
+ * (`makeCircleArc3d` throws `edge vertices do not agree with its authoritative
+ * curve trim` for a mismatch of one part in a million, measured), and the
+ * kernel's 2D solver couples the two radii (`gcsAddArc` contributes exactly
+ * one equation, measured), so the moment the sketch carries any constraint at
+ * all the solver TELEPORTS the end onto the start's radius, dragging whatever
+ * shares that point with it. The tolerance mirrors the v1 wire validator's,
+ * which is the kernel's own.
+ */
+export function inconsistentArcs(entities: readonly SketchEntity[]): string[] {
+	const out: string[] = [];
+	for (const e of entities) {
+		if (e.type !== 'arc') continue;
+		const c = pointOf(entities, e.center), s = pointOf(entities, e.start), t = pointOf(entities, e.end);
+		const r = Math.hypot(s[0] - c[0], s[1] - c[1]), rEnd = Math.hypot(t[0] - c[0], t[1] - c[1]);
+		if (!(r > 0) || Math.abs(r - rEnd) > 1e-7 * Math.max(1, r, rEnd)) out.push(e.id);
+	}
+	return out;
+}
 export function arcPoint(center: Vec2, start: Vec2, sweep: number, t: number): Vec2 {
 	const r = Math.hypot(start[0] - center[0], start[1] - center[1]), a = Math.atan2(start[1] - center[1], start[0] - center[0]) + sweep * t;
 	return [center[0] + r * Math.cos(a), center[1] + r * Math.sin(a)];

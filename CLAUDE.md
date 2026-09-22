@@ -826,6 +826,103 @@ AUTHORIZATION and the ROW, never the payload. That is what moved the cap from
     deployment with no Google credentials, refusing a file it never needed Drive
     to serve.
 
+### WHO IS WORKING -- an instrument's silence is never a fact about a student
+
+**A DERIVED INSTRUMENT MAY NOT CONTRADICT THE RECORD IT IS RENDERED BESIDE, AND
+A MISSING ROW IS AS MANY ANSWERS AS THERE ARE WAYS FOR IT TO GO MISSING.**
+`0200`'s presence table (`classroom_presence_state`, the four states in
+`$lib/classroom/presence/state.ts`) is written ONLY by a heartbeat ping from the
+assignment page, and its own header says so: a student with no row has never
+opened the assignment. `PresenceLine` printed `PRESENCE_NEVER_OPENED` from the
+`{:else}` of a two-branch component, and `GradingConsole` handed it
+`presenceRows.get(email) ?? null` over one nullable payload -- so "Not opened"
+was ALSO what a first poll still in flight printed, what a deployment with no
+such RPC printed, and what a swallowed network error printed. Mr. Pina filed it
+from the other end on 2026-09-12: a roster row reading "Returned 18/20" with
+"Not opened" underneath it.
+
+- **`presenceLineKind` IS THE DECISION AND THERE IS ONE OF IT**, in `state.ts`
+  beside the words, taking three facts: is there a row, has presence ANSWERED,
+  and has any of this student's work arrived. `row` prints the record;
+  `outranked` prints NOTHING AT ALL; `unknown` prints `PRESENCE_UNKNOWN`;
+  `never-opened` is the only reading that earns the verdict. A component and its
+  caller cannot disagree about which of them is printing.
+- **THE ORDER IS THE RULE: `workArrived` IS WEIGHED BEFORE `loaded`.** A row a
+  grader is reading says nothing rather than "Not known", which is both the
+  honest answer and the quiet one -- and it takes the third line off the rows
+  that have work, which is the half of the spacing complaint that could be
+  answered without touching the 44px roster floor.
+- **AND WORK IS ASKED OF `statusChip` ITSELF.** `workArrived` in
+  `GradingConsole` returns `statusChip(s).cls !== 'none'` rather than walking
+  `submission`, `responses` and `files` again: a second walk is exactly the
+  second copy that stops matching, and what it produces is a chip saying "In
+  progress" over a line saying "Not opened".
+- **A TRANSPORT ANSWERING NULL REMOVES THE REGION, WHICH IS WHAT ITS `PGRST202`
+  RUNG ALWAYS MEANT.** The region used to key on the TRANSPORT OBJECT, which
+  both grading routes hand in unconditionally and correctly, so the
+  absence-removes-the-region rule never fired for the one state it was written
+  for. It keys on `presenceStatus` now: `pending`, `ready`, `unavailable`,
+  `stale`.
+- **A SWALLOWED FAILURE SAYS SO** (`PRESENCE_STALE_NOTE`). Keeping the last
+  payload is right -- best-effort instrumentation must never affect what it
+  measures -- but keeping it silently is how an absent reading passes for a
+  fresh one.
+- **THE COVERAGE SENTENCE IS A FUNCTION OF THE PAYLOAD'S OWN LIMITS**
+  (`presenceCoverageNote`), because it names the retention window and a literal
+  there would be the second copy of a number this module's header exists to make
+  travel. `PRESENCE_COVERAGE_NOTE` is derived from
+  `PRESENCE_LIMITS_FALLBACK` rather than typed.
+- **DO NOT MAKE THE PRESENCE TABLE READ WORK.** That is a migration, and the
+  table's silence about a student who did the work on a path that emits no beats
+  is a PROPERTY of what a heartbeat is, not a gap to close in SQL. The repair
+  belongs where the two facts are rendered side by side.
+
+**AND THE TWO PANELS ABOVE THE NAMES ARE DISCLOSURES, CLOSED BY DEFAULT, WITH
+THE COUNT LEFT OUTSIDE.** "Closing this assignment" and "Export graded work"
+rendered unconditionally, and above 1024px `.roster` is a flex column with
+`overflow: hidden` whose list had `min-height: 0` and no shrink limit -- so the
+names got whatever the panels and four prose blocks left over. Measured with the
+roster card pinned to a 380px frame: the list was **0px tall on
+`/dev/html-assignment-grading` and 18.2px with 225px of content on
+`/dev/presence`, 0 names visible in both**. They are `Disclosure` callers now
+(`collapseWhen` constant-true is how "closed by default" is spelled, and it is
+safe because the signal is LATCHED there), and the open/closed count sits in the
+`meta` snippet so shutting the panel does not hide the number a teacher acts on.
+- **THE LIST'S FLOOR IS WRITTEN AS A CEILING ON THE PANELS (`.roster-tools`,
+  `max-height: 45%`), AND NO ABSOLUTE FLOOR ON EITHER SIDE.** That is the third
+  attempt and both earlier ones are the same defect in two directions: a
+  `min-height` on the LIST took the panels to 0px tall with 156px of content in
+  them, clipped rather than scrolled; a 9rem floor on the PANELS took the list
+  to 11.9px with 44px of content, where `elementFromPoint` at the first name's
+  centre answered the bulk checkbox's label and a click stopped selecting a
+  student at all. A proportional cap cannot do either, and the region keeps its
+  scrollbar because no region on this site may hide one.
+
+**AND `Return to student` IS A STICKY DOCK BOUNDED BY `.grade-main`, NEVER A
+SECOND COPY AND NEVER `position: fixed`.** Above 1024px `.work-col` is its own
+scroll container, so the actions row scrolled out of view inside that pane --
+which is where a sticky anchors. One element made sticky cannot appear twice,
+which is what the "not twice when the column does not scroll" requirement is
+about; `.grade-main` exists only to bound it, because the batch panel is further
+down the same card and a dock bounded by the card would sit over the batch's own
+controls. It carries a `z-index` because sticky makes the row POSITIONED and
+positioned siblings paint in tree order -- the notebook grid's sticky header
+shipped exactly that -- and an opaque ground because a transparent dock over
+scrolling content is two lines of text on top of each other.
+- **NEXT AND PREVIOUS STUDENT ARE BUTTONS AS WELL AS `n` AND `p`, AND IT IS
+  WIRING RATHER THAN LOGIC.** `moveStudent` clamps, routes through
+  `requestSelect` so the unsaved-work guard still fires, and lands focus on the
+  first criterion; it was reachable only from the keyboard, so a mouse user went
+  back to the roster and found the next name. `aria-disabled` and never
+  `disabled` at the ends of the roster, because a disabled control swallows its
+  own pointer events and `moveStudent` already explains itself.
+- **A GEOMETRY CLAIM HERE IS `npm run verify:browser`'s AND NOWHERE ELSE'S.**
+  `tools/browser-verify/routes/grading-bulk-state-dock.mjs` drives the dock's
+  own scroll container -- the pane above 1024px, the document below it -- and
+  HIT-TESTS the Return control at its own centre, which is the only read that
+  tells a covered control from a clickable one. `tests/dom/` has no layout
+  engine and reads every box as zero.
+
 ### PORTED HTML ASSIGNMENTS -- a second origin split, and the ONE rule that outranks the rest
 
 **A PORTED HTML ASSIGNMENT IS A WHOLE DOCUMENT A STUDENT WORKS INSIDE**, served

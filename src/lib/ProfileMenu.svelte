@@ -5,7 +5,7 @@
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import Avatar from '$lib/Avatar.svelte';
 	import PathwayChip from '$lib/PathwayChip.svelte';
-	import { pathwayColor } from '$lib/pathways';
+	import { PATHWAYS, pathwayColor, withAlpha } from '$lib/pathways';
 	import {
 		SITE_THEMES,
 		SITE_THEME_LABELS,
@@ -68,6 +68,45 @@
 	let nameDraft = $state('');
 	let busy = $state(false);
 	let errorMsg = $state('');
+	let errorEl: HTMLParagraphElement | undefined = $state();
+
+	/**
+	 * THE ONE PROBLEM LIST IS BROUGHT INTO VIEW WHEN IT FILLS, AND THAT IS A
+	 * MEASURED FIX RATHER THAN A COURTESY.
+	 *
+	 * Every write on this surface -- the name, a preset, an upload, and since
+	 * ledger 0280 the pathway -- reports into a single `.pm-error` low in the
+	 * panel, which is the right shape (CLAUDE.md: a refusal renders in the same
+	 * problem list as every other problem, not in a second place). What it is
+	 * not, on its own, is READABLE: the panel grew a section and its own bottom
+	 * went past the fold. MEASURED on `/dev/profile-menu` with the write forced
+	 * to be declined, at 375 and 1440 alike: the sentence sat at y 1013..1053 in
+	 * a 900px viewport -- present, painted, `expectVisible` satisfied, and 113px
+	 * below anything the student could see. So the tile did not take, nothing
+	 * said why, and the only thing on screen was a chip still showing the old
+	 * value, which is precisely the silent failure `saveProfile` selects the row
+	 * back to prevent.
+	 *
+	 * A SECOND ERROR SLOT BESIDE THE PATHWAY TILES WAS THE OTHER ANSWER AND IS
+	 * WORSE: it is the second place the rule above names, it fixes one section
+	 * and leaves the other three below the fold, and two elements saying one
+	 * thing is the pair that stops agreeing.
+	 *
+	 * `block: 'nearest'` SO A SENTENCE ALREADY ON SCREEN DOES NOT MOVE THE PAGE
+	 * -- the common case is a panel that fits, and scrolling it then would be a
+	 * jump with no cause a reader can see. `behavior: 'instant'` because
+	 * `src/app.css` sets a global `scroll-behavior: smooth` and a refusal is not
+	 * an animation.
+	 *
+	 * Both reads are TRACKED on purpose: the effect exists to re-run when the
+	 * message changes or the element mounts. Nothing caller-supplied is called
+	 * inside it -- `scrollIntoView` is a DOM method on this component's own
+	 * node -- so there is nothing to `untrack`, and it writes no state it reads.
+	 */
+	$effect(() => {
+		if (!errorMsg) return;
+		errorEl?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+	});
 
 	const close = () => {
 		open = false;
@@ -128,6 +167,48 @@
 
 	const choosePreset = (id: string) => saveProfile({ avatar: `preset:${id}` });
 	const useGooglePhoto = () => saveProfile({ avatar: null });
+
+	/**
+	 * A STUDENT SETS THEIR OWN PATHWAY HERE, AND THIS IS THE ONLY PLACE OUTSIDE
+	 * THE FIRST-LOGIN SHEET THAT LETS THEM.
+	 *
+	 * WHY IT HAD TO EXIST. `PathwayPicker` caps a deferral at seven days
+	 * (`PATHWAY_DEFER_MAX_AGE_MS`), on the correct reasoning that a deferral
+	 * with no end quietly means this student never gets a pathway. With no
+	 * second route that cap turns a one-time modal into a recurring one: a
+	 * student who taps "Choose later" meets the same sheet next week, forever,
+	 * because nothing else on the site writes the column for them. The sheet is
+	 * the prompt; this is the setting.
+	 *
+	 * IT GOES THROUGH `saveProfile`, WHICH IS THE POINT. That helper already
+	 * selects the row back, so a zero-row RLS-blocked update is reported rather
+	 * than read as success, and the refusal lands in the panel's one problem
+	 * list beside every other write on this surface. A second write path here
+	 * would be a second copy of that lesson.
+	 *
+	 * NO POLICY IS NEEDED AND NONE WAS ADDED. `0038_profile_pathway.sql` says
+	 * so in its own header -- a student writes their own pathway through 0001's
+	 * "update own profile" policy, at the same trust level as `display_name`
+	 * and `section_id`, and the `enforce_role_change` trigger guards `role`
+	 * alone. The gap this closes was always UI, never the database.
+	 *
+	 * ANY OF THE SIX, NOT SET-ONCE, AND THAT IS A DELIBERATE CHOICE. A pathway
+	 * is IDENTITY AND ATTRIBUTION ONLY -- CLAUDE.md and 0038 both state that no
+	 * route, policy or feature may branch access on it -- so a wrong value is a
+	 * misattribution on a leaderboard, not an access decision, and it is
+	 * already correctable by any teacher from the dashboard roster. Set-once
+	 * would leave a student who mis-tapped inside a modal they were trying to
+	 * dismiss with no way out but asking staff, which is the dead end this
+	 * whole control exists to remove. The display name sitting two rows above
+	 * is the same trust level and is freely editable.
+	 *
+	 * Tapping the current pathway writes nothing: `aria-checked` already says
+	 * it is set, and a no-op round trip is a spinner with nothing behind it.
+	 */
+	const choosePathway = (id: string) => {
+		if (profile?.pathway === id) return;
+		return saveProfile({ pathway: id });
+	};
 
 	const onUpload = async (e: Event) => {
 		const input = e.currentTarget as HTMLInputElement;
@@ -238,6 +319,73 @@
 					</div>
 				{/if}
 
+				<!-- THE PATHWAY, SET FROM HERE AND NOT ONLY FROM THE FIRST-LOGIN
+				     SHEET. See `choosePathway` above for why this control exists and
+				     why any of the six is writable rather than only the unset case.
+
+				     IT SITS WITH THE IDENTITY CONTROLS, directly under the name it is
+				     the other half of: the chip beside the avatar and the tint on the
+				     display name are both this value, so the control belongs where
+				     what it changes is on screen. Picture and Theme follow.
+
+				     A RADIOGROUP, THE WAY THE THEME PICKER IS, because the six are
+				     exactly one choice of a fixed set and `aria-checked` says which
+				     without anybody having to see the tint. UNSET IS A LEGAL STATE
+				     and renders as no tile checked, which is what a student who
+				     deferred the sheet arrives here with.
+
+				     ONE TAP IS THE WRITE, mirroring the presets in the section below
+				     rather than the sheet's pick-then-confirm: a confirm step buys
+				     nothing for a change that is undone by tapping a different tile,
+				     and the chip two rows up is the acknowledgement.
+
+				     COLOUR IS NOT THE ONLY SIGNAL. The checked tile carries a check
+				     glyph as well as the identity edge, the identity tint and
+				     `aria-checked`; every tile carries its code as a visible word and
+				     its pathway glyph beside it. The ink and the fill come from
+				     `pathways.ts`, where the ink is the identity at a lightness that
+				     clears 4.5:1 on exactly this tint. -->
+				<div class="pm-section">
+					<div class="pm-label" id="pm-pathway-label">Pathway</div>
+					<p class="pm-note">
+						Shows on your profile and the boards. It never limits what you can open, and you can
+						change it here.
+					</p>
+					<div class="pm-pathways" role="radiogroup" aria-labelledby="pm-pathway-label">
+						{#each PATHWAYS as p (p.id)}
+							<button
+								class="pm-pathway"
+								class:selected={profile?.pathway === p.id}
+								type="button"
+								role="radio"
+								aria-checked={profile?.pathway === p.id}
+								disabled={busy}
+								style="--pw:{p.color}; --pw-ink:{p.ink}; --pw-bg:{withAlpha(p.color, 0.12)}"
+								onclick={() => choosePathway(p.id)}
+							>
+								<span class="pm-pathway-mark" aria-hidden="true">
+									<svg
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									>
+										<!-- eslint-disable-next-line svelte/no-at-html-tags -- static markup from the pathways registry, never user input -->
+										{@html p.icon}
+									</svg>
+								</span>
+								<span class="pm-pathway-word">
+									{p.label}<span class="pm-pathway-tick" aria-hidden="true"
+										>{profile?.pathway === p.id ? ' \u2713' : ''}</span
+									>
+								</span>
+							</button>
+						{/each}
+					</div>
+				</div>
+
 				<!-- THE PICTURE: eight preset marks, each a 44px control WITH ITS WORD
 				     (ledger 0117, report 23). They were 8-across at ~32px with a
 				     `title` nobody on a phone can hover; a glyph is not a control's
@@ -311,7 +459,10 @@
 				</div>
 
 				{#if errorMsg}
-					<p class="pm-error">{errorMsg}</p>
+					<!-- THE PANEL'S ONE PROBLEM LIST, for the name, the picture, the
+					     upload and the pathway alike. See the effect above for why it
+					     is scrolled to rather than duplicated per section. -->
+					<p class="pm-error" bind:this={errorEl}>{errorMsg}</p>
 				{/if}
 
 				<div class="pm-actions">
@@ -624,11 +775,103 @@
 		cursor: default;
 	}
 
+	/* --- The pathway: six identity tiles, three across --------------------
+	   THREE ACROSS RATHER THAN THE PRESETS' FOUR, because a pathway code is a
+	   word of up to four letters plus a tick and the panel is 343px wide at
+	   375px. Four columns of six tiles would also leave two empty cells in the
+	   second row; three leaves none.
+
+	   EACH TILE PAINTS ITSELF FROM `pathways.ts` THROUGH THREE CUSTOM
+	   PROPERTIES SET INLINE (`--pw`, `--pw-ink`, `--pw-bg`), the same shape
+	   `PathwayChip` and the first-login sheet use. They are inline because the
+	   value is per pathway and comes from the registry -- the launcher's
+	   cascade argument does not apply, since there is no shared default here a
+	   later rule would need to reach past.
+
+	   THE INK DRAWS THE WORD AND THE GLYPH; THE IDENTITY DRAWS THE EDGE AND
+	   THE FILL. `pathways.ts` derives each ink so it clears 4.5:1 on exactly
+	   this 12% tint over the portal's three grounds; the raw identity does not
+	   for CSEE, MSET and BMET. */
+	.pm-pathways {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: var(--space-2);
+	}
+	.pm-pathway {
+		display: grid;
+		justify-items: center;
+		align-content: center;
+		gap: 0.25rem;
+		min-height: 44px;
+		padding: 0.4rem 0.2rem;
+		background: var(--bg2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control);
+		cursor: pointer;
+		color: var(--pw-ink, var(--text-2));
+		transition: border-color 0.2s ease;
+	}
+	.pm-pathway-mark {
+		width: 26px;
+		height: 26px;
+		display: grid;
+		place-items: center;
+	}
+	.pm-pathway-mark svg {
+		width: 100%;
+		height: 100%;
+	}
+	.pm-pathway-word {
+		font-family: var(--font-mono);
+		font-size: 0.66rem;
+		letter-spacing: 0.06em;
+		line-height: 1.15;
+		text-align: center;
+	}
+	.pm-pathway:hover,
+	.pm-pathway:focus-visible {
+		border-color: var(--pw, var(--green));
+	}
+	.pm-pathway:focus-visible {
+		outline: 2px solid var(--focus-ring);
+		outline-offset: 1px;
+	}
+	/* THE CHECKED TILE IS MARKED FOUR WAYS -- the identity edge, the identity
+	   tint, the tick glyph in its word and `aria-checked` -- so neither the hue
+	   nor any single one of them is carrying the state alone. */
+	.pm-pathway.selected {
+		border-color: var(--pw, var(--green));
+		background: var(--pw-bg, var(--bg2));
+	}
+	.pm-pathway:disabled {
+		opacity: 0.6;
+		cursor: default;
+	}
+
+	/* One short line of student-facing copy under a section label. `--text-2`
+	   and not `--dim`: `--dim` measures 4.46:1 on `--bg1`, which is the panel's
+	   own ground, and this is real copy rather than decoration. */
+	.pm-note {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: 0.85rem;
+		line-height: 1.35;
+		color: var(--text-2);
+	}
+
 	.pm-error {
 		margin: 0;
 		font-family: var(--font-mono);
 		font-size: 0.78rem;
 		color: var(--amber);
+		/* ROOM FOR THE SENTENCE WHEN IT IS SCROLLED TO. `block: 'nearest'` stops
+		   the moment the box is technically inside the viewport, which at 375px
+		   put the refusal flush against the bottom edge -- measured y 860..900 of
+		   900, whole but with nothing under it, which reads as a line the page
+		   cut off. `scroll-margin` is the property that exists for exactly this
+		   and costs nothing anywhere else: it is read only by a scroll that
+		   targets this element. */
+		scroll-margin-block: var(--space-3);
 	}
 	.pm-actions {
 		display: flex;
@@ -668,7 +911,8 @@
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.pm-caret,
-		.pm-preset {
+		.pm-preset,
+		.pm-pathway {
 			transition: none;
 		}
 	}

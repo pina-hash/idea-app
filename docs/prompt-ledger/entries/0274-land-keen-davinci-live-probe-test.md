@@ -1,0 +1,8 @@
+# 0274 Land or close the stalled branch `claude/keen-davinci-xvhwdw`
+- Issued: 2026-09-22T00:00:00Z
+- By: Lane L0, routed as ledger 0274 after the branch had stood eight days
+- Owns: `tests/db/deploy-probe-history-live.test.ts`, `docs/history/keen-davinci-xvhwdw.md`, `tools/deploy-probe.mjs` (only if the audit proved the test right and the tool wrong), `docs/prompt-ledger/entries/0274-land-keen-davinci-live-probe-test.md`
+- Migration permitted: no. Claims: none. Highest on origin/main at issue: 0217
+- Status: pushed
+- Branch: `claude/new-session-3yjcxp` (the harness's branch; `claude/keen-davinci-xvhwdw` merged into it)
+- Notes: The audit answer was (d), with a correction. The branch did not fail on its own work: CI on its tip `4890582c` was red on two tests, both artifacts of a base 164 commits stale -- `tests/deploy-probe-cli.test.ts` shelled `git commit-tree` with no git identity on a GitHub runner (integration has since passed `-c user.name`/`-c user.email` to every git call) and `tests/db/migrations-applied-record.test.ts` found a sha drift on the `0210` applied record (since reconciled). `integrate.yml` merges only a green branch, so a red tip is a branch that stands forever. Merging current `integration` clears both. The tool was NOT touched: no defect was found in it, so `tools/deploy-probe.mjs` is byte-identical to `origin/integration`'s. The branch's own claim that reverting either privilege fix "reddens nothing" was measured against `tests/db/deploy-probe-history-live.test.ts` alone and is too narrow -- `tests/deploy-probe-history.test.ts` on `integration` carries CONNECT-only role controls of its own. The corrected claim, measured, is in the history entry.
