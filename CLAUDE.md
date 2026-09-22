@@ -4872,6 +4872,32 @@ has. `ultracode` is a Claude Code setting and is never written into a Codex prom
     and an unanswered request cost 8s a page -- one run took 305 SECONDS), so
     **text is measured in the fallback stack**; and `prefers-reduced-motion` is
     `no-preference`, so that path is not exercised.
+  - **RUN ONE PASS AT A TIME. TWO CONCURRENT ONES MANUFACTURE FINDINGS IN
+    COMPONENTS NEITHER RUN TOUCHED.** Measured: a `--route grading` run started
+    while a full pass was still going reported five findings on
+    `classroom-split-s-1-manage-1-state-compose-assignment-rubric` -- including
+    `prepare-click [[data-testid="new-post"]] 1 matched, 12 attempt(s),
+    predicate never satisfied` -- and the same spec run alone reports **18
+    measurements, 0 outside threshold**. Two vite servers and two Chromiums on
+    this container starve a click's own predicate, and the result reads exactly
+    like a regression in somebody else's code. The same applies to running a
+    pass beside `npm test`, which additionally races the DB suite's one shared
+    cluster (see the parallelism trap). **A finding on a spec your diff cannot
+    reach is a re-run before it is a bug.**
+  - **A `/dev` HARNESS THAT MOUNTS A CLASSROOM SURFACE AND DOES NOT SET
+    `--cr-measure-route` MEASURES A WIDTH THE REAL ROUTE NEVER HAS.**
+    `src/routes/classroom/+layout.svelte` sets it from `classroomMeasure(loc)`;
+    a harness that omits it falls through `classroom.css` to `--measure-page`
+    (60rem), so `main` caps at 960px where the real page takes the window
+    (`--measure-console` is `100%`). **This is not hypothetical and it shipped a
+    wrong layout**: the rubric was withheld from every ported HTML assignment on
+    the reading "the split gets 562 at 1440 and at 1920 alike", which was true
+    of `/dev/html-assignment-grading` and false of the console -- the real
+    numbers are 1009.6 and 1489.6. That harness sets it now;
+    `/dev/grading-rubric` and `/dev/grading-bulk` still do not. **Check it
+    before reading any width off a classroom harness**, and set it (plus
+    `.cr-app` where the measure is `console`) rather than injecting it at
+    measurement time, or the fixture goes on lying to the next reader.
   - **A CHECK THAT HAS NEVER FAILED HAS NOT BEEN TESTED.** `--selftest` puts
     every check to a broken fixture AND a sound one and exits non-zero if the
     instrument is wrong; `--break <preset>` injects a defect into the REAL page

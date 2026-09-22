@@ -307,8 +307,8 @@ Tap targets 90x44 and 125x44 at 1440 and 375; the zero control 212.1x44 / 269x44
 
 ## Mutation proof
 
-Eight mutants, all killed -- **and one of them survived first, which is the finding
-worth keeping.**
+Eleven mutants. **Ten killed, one killed only by the browser harness, and one of the
+ten survived on the first attempt -- both of those are the findings worth keeping.**
 
 `tools/mutate-check.mjs` was written for this and answers all three of the traps
 `CLAUDE.md` names: it restores from a byte copy in memory and md5-checks the restore
@@ -326,10 +326,49 @@ kills. That is also why the pinned `toHaveLength(4)` it replaced was the wrong
 assertion in the first place: it was a number a legitimate change necessarily
 breaks, and the repair offered each time is to write down the new number.
 
-The other seven: `bottomLevelScores` reading a literal 0; scoring a level-less
-criterion; `missing` silently becoming `ungraded`; exclusivity replaced by an
-immediate restart; `errorKey` never set; the no-`end` guard removed; and interim text
-written into the field.
+The other seven in that group: `bottomLevelScores` reading a literal 0; scoring a
+level-less criterion; `missing` silently becoming `ungraded`; exclusivity replaced by
+an immediate restart; `errorKey` never set; the no-`end` guard removed; and interim
+text written into the field.
+
+**M11 SURVIVED `npm test` AND IS REPORTED AS SUCH, because the thing it breaks is
+not covered by the suite at all.** It is the change the prompt proposed -- the
+console branching on the OBJECT again (`if (bulk)`) rather than on the method --
+and nothing in `tests/` mounts `GradingConsole`, so 60 tests passed over a console
+that would have turned the per-section grading route into the cross-class one. The
+browser harness is what kills it, and emphatically: **34 of 40 measurements outside
+threshold on `grading-bulk-state-section`, against 0 on the restored tree**, because
+the console calls an undefined `loadAcross`, throws, and never renders a roster at
+all.
+
+That is the honest shape of the proof rather than a gap to paper over: the
+transport's SHAPE is pinned by `npm test` (M9, the factory keeping `loadAcross`, and
+M10, an own key holding `undefined` -- which answers identically under
+`bulk?.loadAcross` today and is one optional-chaining change from not doing), and
+the console's USE of it is pinned by the browser spec. **Neither instrument covers
+both halves, and only one of them runs in CI.**
+
+## Four files outside the prompt's Owns line
+
+Reported rather than buried, with the reason each was needed:
+
+* **`src/routes/dev/html-assignment-grading/+page.svelte`** -- the harness that
+  caused report 5. Leaving it measuring a console that does not exist would have
+  meant pinning a 280px document column as correct. The argument is above.
+* **`src/routes/dev/grading-rubric/+page.svelte`** and
+  **`src/routes/dev/grading-bulk/+page.svelte`** -- the scripted speech recogniser
+  and the `?state=section` transport shape. Neither feature is drivable without a
+  fixture, and a feature verified only by reading is not verified.
+* **`tools/browser-verify/routes/grading-bulk.mjs`** -- its pinned preset count of
+  4 is 5 now. A spec my own change reddens is mine to correct.
+* **`tools/mutate-check.mjs`** -- new, no caller in `src/`. The prompt requires a
+  mutation proof per shipped change with a byte-copy restore, and `CLAUDE.md`
+  records three separate ways a hand-rolled mutation script has produced a FALSE
+  CLEAN READING on this repo: `git checkout --` discarding the session's own work,
+  vitest's exit code being 0 on a real failure, and the failure report landing on
+  stderr while only stdout is read. This answers all three and runs a green control
+  first, refusing to report any verdict if the clean tree is not green. Eleven
+  mutants went through it here.
 
 ## An instrument finding, because it cost a wrong diagnosis here
 
