@@ -43,7 +43,8 @@ Measured rather than asserted, three ways:
 - 0224's own apply-time self-check counts rows carrying a thickness after a
   file that writes none, and raises with the number rather than applying.
 - All eight pre-existing `/dev/maps-viewer` browser states measure identically
-  at 375 and 1440 -- 549 measurements over 29 maps routes, 0 outside threshold.
+  at 375 and 1440. Final run: 30 maps routes, **554 measurements at each
+  width, 0 outside threshold**.
 
 ## The two questions decision 36 left open, answered
 
@@ -256,8 +257,12 @@ the map would have gone blank rather than degraded.
   clean `git worktree` with `.env` exported: identical, same breakdown. The
   `CLAUDE.md` baseline line is correct for this tree and was not edited.
 - `npm test`: see the closing report for the summary line.
-- `npm run verify:browser`, all 29 maps routes at 375 and 1440: 549
-  measurements each, **0 outside threshold**.
+- `npm run verify:browser`, all 30 maps routes at 375 and at 1440: **554
+  measurements each width, 0 outside threshold.** The four new specs also have
+  their measurement files written under `tools/browser-verify/measured/` by
+  `npm run verify:readme` on the committed tree with port 5199 free -- 8
+  route/width runs, 72 measurements, 0 outside threshold -- and both counts
+  regions of the harness README were REGENERATED rather than edited.
 - Migration 0224 applied against a real Postgres over seeded pre-migration
   data, re-applied twice more cleanly, and the predicate exercised at nine
   inputs including NaN and both infinities.
@@ -319,6 +324,19 @@ the map would have gone blank rather than degraded.
 - **`prefers-reduced-motion` is `no-preference` in the harness**, and web fonts
   are blocked, so the type in every measurement above is the fallback stack.
 - The editor's wall band was not driven at a zoom other than fit.
+
+## One thing that LOOKS like a regression in a screenshot and is not
+
+Rasterized side by side at 1440px, `?state=place` and `?state=walls` put the
+plan sheet about 145px apart vertically, which reads as the canvas having moved
+when walls were added. Measured rather than eyeballed, it has not: the sheet is
+**662 x 514px in both**, with the frame at **34, 34 inside it in both** -- so
+`marginPx` correctly stayed at the constant 34 (a 9 inch wall at 1.5px/in is
+13.5px, well under it). What differs is the PANE, **1234px tall without walls
+and 1528px with them**, because the form column beside the canvas grew by the
+two new fields and their notes; the sheet is centred in a pane as tall as its
+taller column, so half of that 294px is the offset. Worth writing down because
+the next person to compare those two screenshots will see it too.
 
 ## A scope note
 
