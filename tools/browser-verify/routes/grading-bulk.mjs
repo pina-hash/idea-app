@@ -17,7 +17,27 @@ export default {
 		selector was renamed.
 	*/
 	prepare: [
-		{ waitFor: '() => document.querySelectorAll(".roster-list .roster-row").length === 7' }
+		{ waitFor: '() => document.querySelectorAll(".roster-list .roster-row").length === 7' },
+		{
+			/*
+				LEDGER 0278 COLLAPSED THE EXPORT PANEL, AND THE CLASS PICKER IS INSIDE
+				IT. "Export graded work" is a `Disclosure` closed by default now,
+				because it and the close panel were taking most of a roster pane and
+				leaving one name on screen (Mr. Pina, 2026-09-13). Collapsing HIDES
+				rather than removes, so the picker still MATCHES its selector -- and a
+				hidden element has a zero box, which is what a tap-target read reports
+				an honest zero about. Measured before this step was added: "1 matched,
+				0 visible/measurable".
+
+				THE ASSERTIONS BELOW ARE UNCHANGED, which is the point: the same
+				picker, the same 44px floor, one press further in.
+			*/
+			click: '[data-testid="work-export-disclosure"]',
+			until: `() => document.querySelector('[data-testid="work-export-disclosure"]')?.getAttribute('aria-expanded') === 'true'`,
+			label: 'the export panel is open, which is one press from its collapsed default',
+			attempts: 12,
+			gapMs: 200
+		}
 	],
 	presence: [
 		/* TWO CLASSES, NOT THREE. The fixture posts to three; the caller manages

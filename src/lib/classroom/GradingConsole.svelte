@@ -3682,23 +3682,31 @@
 		   percentage resolves because `.roster` is a stretched flex item of
 		   `.console` and so has a definite height.
 
-		   AND THE CAP HAS A FLOOR UNDER IT, which is the correction to the
-		   correction. `max-height: 45%` alone binds on a SHORT pane, where the
-		   panels are not the problem: measured on the same harness, whose roster
-		   card is only 252px because a dev page is not the `.cr-app` frame, 45%
-		   is 113px against 156px of collapsed content -- so 43px of notices sat
-		   behind a scrollbar with nothing expanded at all. `min-height` wins over
-		   `max-height` in CSS, so the pair reads as "cap the panels at 45% of the
-		   pane, but never show less than 9rem of them". On a realistic pane the
-		   cap is 300px+ and never binds on the collapsed content; it binds only on
-		   the thing it is for, which is something large arriving above the names.
+		   AND THERE IS NO `min-height` HERE, WHICH IS THE THIRD ATTEMPT AND THE
+		   REASON THE OTHER TWO ARE WRITTEN DOWN. Any ABSOLUTE floor on either
+		   region starves the other one on a short pane -- it is the same defect
+		   twice, in two directions:
 
-		   AND IT KEEPS ITS SCROLLBAR. No region on this site may hide one, and a
-		   capped region that clipped instead would satisfy a no-overflow
-		   measurement by hiding the panels. */
+		     - a floor on the LIST took this region to 0px tall with 156px of
+		       panels in it, clipped rather than scrolled;
+		     - a floor of 9rem HERE took the list to **11.9px with 44px of content**
+		       on `/dev/html-rubric?state=single` at 1440, where the roster card is
+		       257.9px. The first name was clipped out of its own list, and
+		       `elementFromPoint` at the row's centre answered the bulk checkbox's
+		       label instead of the row -- so a click did not select a student, and
+		       the browser harness caught it as a prepare step that never reached
+		       its state rather than as anything visible.
+
+		   A PROPORTIONAL CAP AND NOTHING ELSE cannot do either: the list always
+		   has 55% and this always has 45%, whatever the pane. What it costs is that
+		   on a pane too short for the collapsed panels this region scrolls -- 45%
+		   of 208px against 144px of content -- and that is the right trade, because
+		   it keeps its scrollbar and nothing is hidden. No region on this site may
+		   hide one, and a capped region that clipped instead would satisfy a
+		   no-overflow measurement by hiding the panels. */
 		.roster-tools {
 			flex: 0 1 auto;
-			min-height: min(9rem, 100%);
+			min-height: 0;
 			max-height: 45%;
 			overflow-y: auto;
 			overscroll-behavior: contain;
@@ -4075,6 +4083,41 @@
 		padding: var(--space-2) 0;
 		background: var(--surface-1);
 		border-top: 1px solid var(--boundary);
+	}
+	/* THE DOCK PACKS RATHER THAN STACKS, AND THE BASIS IS MEASURED.
+	   A sticky row costs pane height for as long as it is pinned, so how many
+	   ROWS it wraps to is not cosmetic here -- `.work-col` is the scroll
+	   container, and a four-row dock takes better than half of it.
+
+	   Four controls at their natural widths (170 / 165 / 130 / 170px measured)
+	   are 635px of content. The REAL rubric column is `minmax(0, 1fr)` of a
+	   1.05fr/1fr split inside `.work`, which at 1440 is about 480px -- two rows.
+	   A DEV HARNESS'S column is narrower: 224.8px on `/dev/grading-bulk` at
+	   1440, measured, where every button took a row of its own and the dock came
+	   out 232.9px tall.
+
+	   `flex: 1 1 5rem` FIXES BOTH ENDS WITH ONE NUMBER rather than a container
+	   query nobody can see fire. 80px of basis means two controls share any row
+	   from ~167px up -- which the 170px dock inside that 224.8px harness column
+	   is, measured, so even the narrowest case this tree can render is two rows
+	   rather than four -- and all four share one row from ~350px up, which the
+	   real page's ~425px dock is. `grow` spends the slack on the buttons, so a
+	   wide column gets four wide controls and not four narrow ones beside a gap.
+	   Below the basis the label wraps INSIDE the button, growing the row rather
+	   than adding one.
+
+	   THE SAVE MARKER TAKES ITS OWN LINE (`flex-basis: 100%`) because it is not
+	   a control and must not be sized like one -- and when it has nothing to say
+	   it renders nothing, so the line costs nothing. */
+	.grade-actions > button {
+		flex: 1 1 5rem;
+		min-width: 0;
+	}
+	/* `:global` because the element belongs to `SaveIndicator`, and a DIRECT-CHILD
+	   selector so the Retry and Save controls inside it are not sized as dock
+	   buttons. */
+	.grade-actions > :global(.save-ind) {
+		flex-basis: 100%;
 	}
 	/* The dock is sticky against THIS box rather than against the card, so the
 	   batch panel below keeps its own controls to itself. */

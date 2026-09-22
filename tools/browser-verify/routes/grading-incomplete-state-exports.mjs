@@ -36,6 +36,30 @@ export default {
 			until: '() => !!document.querySelector(".console.split")'
 		},
 		{
+			/*
+				LEDGER 0278 COLLAPSED THE EXPORT PANEL, SO THIS SPEC OPENS IT.
+
+				"Export graded work" is a `Disclosure` now, closed by default: it and
+				the close panel together were taking most of a roster pane and leaving
+				one name on screen (Mr. Pina, 2026-09-13). Collapsing HIDES rather than
+				removes, so every selector below still MATCHES -- but a hidden element
+				has a zero box, which is the state a contrast read and a tap-target read
+				report an honest zero about, and a click on a zero-box control lands on
+				nothing.
+
+				EVERY ASSERTION BELOW IS OTHERWISE UNCHANGED, which is the point:
+				the same controls, the same wording, the same 44px floor, one press
+				further in. The collapsed reading has its own home in
+				`grading-bulk?state=dock`, where the panel body is asserted PRESENT
+				and NOT VISIBLE with its control still in the DOM.
+			*/
+			click: '[data-testid="work-export-disclosure"]',
+			until: `() => document.querySelector('[data-testid="work-export-disclosure"]')?.getAttribute('aria-expanded') === 'true'`,
+			label: 'the export panel is open, which is one press from its collapsed default',
+			attempts: 12,
+			gapMs: 200
+		},
+		{
 			click: '[data-testid="export-json-student"]',
 			until: '() => document.querySelectorAll("[data-testid=\'capture-row\']").length === 1'
 		},
