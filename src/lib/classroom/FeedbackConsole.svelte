@@ -1,7 +1,16 @@
 <script lang="ts">
+	// THE EAGER HALF OF THE VERSION SUBSTRATE ONLY. `deploy` is a handful of
+	// fields and is already on every route through the root layout; the commit
+	// LOG it is compared against is `virtual:site-changelog`, which is imported
+	// lazily inside the export handler for the reason stated there.
+	import { deploy } from 'virtual:site-versions';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import { runBulk } from '$lib/classroom/classroom';
 	import type { FeedbackRow, FeedbackStatus } from '$lib/feedback/feedback';
+	import {
+		buildFeedbackArchive,
+		type FeedbackScreenshotSource
+	} from '$lib/feedback/archive';
 	import {
 		EMPTY_FEEDBACK_FILTER,
 		facetValues,
@@ -66,6 +75,7 @@
 		rows,
 		classroomSections = [],
 		screenshotUrls = {},
+		fetchScreenshot,
 		setStatus,
 		now = () => Date.now()
 	}: {
@@ -91,6 +101,29 @@
 		 * renders the same sentence a broken thumbnail does.
 		 */
 		screenshotUrls?: Record<string, string>;
+		/**
+		 * HOW THE ARCHIVE GETS A SCREENSHOT'S BYTES, or undefined.
+		 *
+		 * ABSENCE REMOVES THE CONTROL, which is this repo's mechanism rather than
+		 * a flag: with no source there is no way to put an image in a zip, and an
+		 * archive of reports whose screenshots are all "could not be read" is the
+		 * export doing the opposite of what it exists for. So the button is not
+		 * rendered at all and the two existing downloads are untouched.
+		 *
+		 * IT IS A TRANSPORT AND NOT A CLIENT for the ordinary reason: this
+		 * component fetches nothing and knows about no bucket. The page wires it
+		 * to the admin's own browser client, so the storage policy answers exactly
+		 * as it does for the thumbnail already on screen -- `feedback media admin
+		 * read` (0170) -- and nothing here had to be widened to get the bytes.
+		 *
+		 * NOT THE SIGNED URLS ABOVE, DELIBERATELY. Those are minted by the page
+		 * load and last five minutes; a queue is worked through for longer than
+		 * that, so an export pressed twenty minutes in would fetch a set of
+		 * expired links and produce an archive with no images in it and no reason
+		 * anybody could see. Asking the store at the moment of the press cannot
+		 * go stale.
+		 */
+		fetchScreenshot?: FeedbackScreenshotSource;
 		setStatus: (id: string, status: FeedbackStatus) => Promise<{ ok: boolean; message?: string }>;
 		/** Injectable clock, so a harness can pin the export stamp. */
 		now?: () => number;
@@ -214,6 +247,20 @@
 	);
 	const roles = $derived(facetValues(rows, rowRole));
 	const sections = $derived(facetValues(rows, rowSection));
+	/**
+	 * THE KINDS PRESENT, READ OFF THE ROWS rather than from `FEEDBACK_KINDS`.
+	 *
+	 * `app_feedback.kind` is text and this queue reads every app, so the box's
+	 * own four are not the whole set: VANGUARD's in-game composer writes its own
+	 * rows, and a kind added to the box reaches this queue before anything here
+	 * is recompiled. This is the same argument the generic meta pass above is
+	 * built on -- a queue that reads its own rows cannot fall behind its own
+	 * producers -- and it is why the picker never offers a kind that would
+	 * filter to nothing.
+	 */
+	const kinds = $derived(facetValues(rows, (r) => (r.kind ?? '').trim() || null));
+	/** How many of the loaded rows carry a screenshot, so the facet says what it would find. */
+	const withShots = $derived(rows.filter((r) => rowScreenshotPath(r) !== null).length);
 
 	function whenLabel(iso: string): string {
 		const d = new Date(iso);
@@ -352,8 +399,21 @@
 	 * server round trip would only re-derive rows the console already holds.
 	 */
 	function download(name: string, text: string, mime: string) {
+		saveBlob(name, new Blob([text], { type: `${mime};charset=utf-8` }));
+	}
+
+	/** The same click, for bytes rather than text. */
+	function downloadBytes(name: string, bytes: Uint8Array) {
+		saveBlob(name, new Blob([bytes as BlobPart], { type: 'application/zip' }));
+	}
+
+	/**
+	 * ONE IMPLEMENTATION OF THE CLICK. Two of these is two places a revoke can
+	 * be forgotten, and the second one is always the one that is.
+	 */
+	function saveBlob(name: string, blob: Blob) {
 		if (typeof document === 'undefined') return;
-		const url = URL.createObjectURL(new Blob([text], { type: `${mime};charset=utf-8` }));
+		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
 		a.download = name;
@@ -390,6 +450,73 @@
 		});
 		download(feedbackExportName('json', stamp.slice(0, 19)), text, 'application/json');
 		exportNote = `Exported ${visible.length} filtered report${visible.length === 1 ? '' : 's'} as JSON.${identityNote}`;
+	}
+
+	/**
+	 * THE ARCHIVE. A zip with every filtered report, its own markdown, and the
+	 * bytes of its screenshot sitting in the same folder.
+	 *
+	 * IT IS BUILT IN THE BROWSER, FROM WHAT THIS CONSOLE ALREADY HOLDS, and a
+	 * server route was the rejected alternative. The rows are on screen, the
+	 * two existing exports are already assembled here, and `buildZip` is the
+	 * same writer the Foundry submit path runs in a browser tab -- so a route
+	 * would re-derive rows it was handed, add a second surface holding an admin
+	 * payload, and buy nothing. What it would COST is real: the bytes would make
+	 * two trips instead of one, and the route would be a second place the
+	 * storage policy had to be satisfied.
+	 *
+	 * THE COMMIT LOG IS IMPORTED LAZILY AND THAT IS A PAYLOAD BOUNDARY, not a
+	 * performance tweak. `virtual:site-changelog`'s own declaration says to
+	 * reach it only through `await import()`, and only on a surface about to
+	 * render the log: it is the full commit history, and a static import here
+	 * would put it in whatever shared chunk this console lands in. A press is
+	 * exactly the moment it is about to be read.
+	 *
+	 * IT FAILS SOFT AND SAYS SO. Nothing on this page depends on the archive, so
+	 * a throw anywhere in it reports a sentence beside the button rather than
+	 * taking the queue down mid-triage.
+	 */
+	let archiveBusy = $state(false);
+
+	async function exportArchive() {
+		if (!fetchScreenshot || archiveBusy) return;
+		archiveBusy = true;
+		exportNote = null;
+		try {
+			const stamp = new Date(now()).toISOString();
+			const { entries } = await import('virtual:site-changelog');
+			const archive = await buildFeedbackArchive(visible, fetchScreenshot, {
+				filter,
+				generatedAt: stamp,
+				includeSubmitter,
+				classroomSections: sectionMap,
+				commitLog: entries,
+				head: deploy
+			});
+			downloadBytes(archive.name, archive.bytes);
+			// EVERY NUMBER THE ARCHIVE KNOWS, INCLUDING THE ONES THAT ARE ZERO. A
+			// count of images left out is exactly the figure somebody would
+			// otherwise discover by unzipping and finding nothing there.
+			// BYTES UNDER A KILOBYTE ARE PRINTED AS BYTES. Rounded to KB, a real
+			// 74-byte fixture reported "1 screenshot (0 KB)", which reads as an
+			// image that did not make it.
+			const size =
+				archive.imageBytes < 1024
+					? `${archive.imageBytes} bytes`
+					: archive.imageBytes < 1024 * 1024
+						? `${Math.round(archive.imageBytes / 1024)} KB`
+						: `${(archive.imageBytes / 1024 / 1024).toFixed(1)} MB`;
+			const shots = `${archive.images} screenshot${archive.images === 1 ? '' : 's'} (${size})`;
+			const left = archive.missing.length
+				? ` ${archive.missing.length} screenshot${archive.missing.length === 1 ? '' : 's'} could not be included; each report says which and why.`
+				: '';
+			exportNote = `Exported ${archive.reports} filtered report${archive.reports === 1 ? '' : 's'} as an archive, with ${shots}.${left}${identityNote}`;
+		} catch (e) {
+			exportNote = null;
+			error = `That archive could not be built: ${(e as Error).message || 'unknown failure'}. The markdown and JSON exports are unaffected.`;
+		} finally {
+			archiveBusy = false;
+		}
 	}
 
 	function clearFilter() {
@@ -475,6 +602,29 @@
 					{#each sections as sec (sec)}<option value={sec}>{sec}</option>{/each}
 				</select>
 			</div>
+			<!--
+				KIND AND SCREENSHOT SIT WITH THE OTHER FACETS, not in a second row
+				of their own: they are the same kind of narrowing and the same
+				control shape, and `.fbc-control` is where the 44px floor is
+				stated once for all of them.
+			-->
+			<div class="facet">
+				<label class="facet-label" for="fbc-kind">Kind</label>
+				<select id="fbc-kind" class="fbc-control fbc-input" bind:value={filter.kind}>
+					<option value="">Any kind</option>
+					{#each kinds as k (k)}<option value={k}>{k}</option>{/each}
+				</select>
+			</div>
+			<div class="facet">
+				<label class="facet-label" for="fbc-shot">Screenshot</label>
+				<select id="fbc-shot" class="fbc-control fbc-input" bind:value={filter.shot}>
+					<option value="">Any</option>
+					<!-- THE COUNT IS IN THE LABEL because a facet that would find
+					     nothing should say so before it is chosen, not after. -->
+					<option value="with">With one ({withShots})</option>
+					<option value="without">Without one ({rows.length - withShots})</option>
+				</select>
+			</div>
 			<div class="facet">
 				<label class="facet-label" for="fbc-from">From</label>
 				<input id="fbc-from" class="fbc-control fbc-input" type="date" bind:value={filter.from} />
@@ -535,6 +685,23 @@
 			>
 				Export JSON
 			</button>
+			<!--
+				A THIRD OPTION BESIDE THE OTHER TWO, never a replacement for them.
+				It is rendered only where a screenshot source was handed in:
+				absence removes the control, so an archive whose every image says
+				"could not be read" is not something this console can produce.
+			-->
+			{#if fetchScreenshot}
+				<button
+					type="button"
+					class="fbc-control btn secondary"
+					disabled={visible.length === 0 || archiveBusy}
+					data-testid="fbc-export-archive"
+					onclick={exportArchive}
+				>
+					{archiveBusy ? 'Building archive...' : 'Export archive (zip)'}
+				</button>
+			{/if}
 		</div>
 		{#if exportNote}
 			<p class="note export-note" aria-live="polite">{exportNote}</p>
