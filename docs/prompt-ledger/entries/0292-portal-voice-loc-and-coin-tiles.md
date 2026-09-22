@@ -64,3 +64,19 @@
   test now plants one on `window` as its positive control.
   WHERE A PHONE READER SHOULD GET THE READOUT IS LEFT TO MR. PINA rather than
   guessed at, with the measurement in the history entry.
+  THE FULL BROWSER PASS IS 492 RUNS, 8988 MEASUREMENTS, 204 OUTSIDE THRESHOLD
+  against a committed store of 146, and NONE OF THE DIFFERENCE IS THIS
+  BUNDLE'S. Per spec: 226 unchanged, 2 improved, 18 worse, 14 of them
+  `ideacad-*`. Settled by ABLATION rather than by reading, because one of the
+  four suspects named `button.vnav-trigger` among its blockers: the twelve
+  suspect specs run on this tree with the dock and again with
+  `.vnav-shell { display: none }` give 25 findings either way, 0 only-with and
+  0 only-without, and the reach row that named the trigger measures
+  51.5x43.5 both ways. The committed store could not answer it -- its four
+  relevant files date from 2026-09-12 to 09-14, eight to ten days before this
+  branch point -- and a second worktree at `origin/main` was abandoned as an
+  instrument after it reported 16 to 40 console errors per route. `themes.mjs`
+  asserts `exactly 12` launcher cards and the registry has held 13 since the
+  `ideacad` card landed on 2026-09-13, the day after that spec was last
+  measured. REPORTED AS A STANDING GAP rather than fixed here: the specs are
+  not this lane's.
