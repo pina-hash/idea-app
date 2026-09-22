@@ -10,7 +10,7 @@
   `docs/prompt-ledger/entries/0280-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Claims: 1-5, all five confirmed against the tree.
   Highest on origin/main at issue: 0217
-- Status: issued
+- Status: pushed
 - Branch: `claude/eloquent-thompson-p2gc2s`
 - Notes: ONE PROMPT CLAIM WAS WRONG AGAINST THE TREE and it was the scoping
   one, not a technical one: ledger 0276 is described as "pushed and unmerged on
