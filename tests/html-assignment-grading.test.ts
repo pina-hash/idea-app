@@ -28,6 +28,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { loadHtmlAssignment } from '../src/lib/classroom/html-assignment/load';
 import {
+	htmlAnswerSheet,
+	htmlAnswerText,
 	htmlAssignmentMount,
 	htmlAssignmentServed
 } from '../src/lib/classroom/html-assignment/mount';
@@ -265,5 +267,148 @@ describe('the wiring, swept as source', () => {
 				`${name} should not re-select the document row itself`
 			).not.toContain("from('classroom_html_assignments')");
 		}
+	});
+});
+
+/**
+ * =========================================================================
+ * LEDGER 0278: THE ANSWERS WITHOUT THE DOCUMENT.
+ * =========================================================================
+ *
+ * Mr. Pina graded an item that was not published and got
+ * `HTML_ASSIGNMENT_NOT_LIVE` where the work belongs -- a paragraph about
+ * publishing, standing in for answers that were in `classroom_responses` the
+ * whole time. The notice is correct and stays; what was wrong is that it was
+ * the only thing there.
+ *
+ * AND THE FRAME CANNOT SIMPLY BE MOUNTED INSTEAD, which the four cases in
+ * `htmlAssignmentServed` above are the other half of: `/hx/<docId>` refuses an
+ * unpublished or scheduled item with a bodyless 404, on a host that holds no
+ * session, so publication status IS that route's whole authorization. Mounting
+ * the frame would draw an empty box BESIDE the sentence rather than instead of
+ * it. So the answers are projected from the same seed the document would have
+ * been given.
+ *
+ * WHAT THIS FILE CANNOT SAY, and it is said out loud rather than left implied:
+ * no `/dev` route drives the grade page's `!served` branch. The harness at
+ * `/dev/html-assignment-grading` mounts its OWN `htmlWork` snippet, which has
+ * never carried that branch, so the MARKUP around this projection has not been
+ * rendered in a browser -- before this bundle or after it. What is pinned here
+ * is every decision the projection makes; adding an unpublished state to that
+ * harness is the follow-up.
+ */
+describe('htmlAnswerSheet, the answers a grader reads when the document cannot be served', () => {
+	const MANIFEST = {
+		schemaVersion: 3,
+		kind: 'html-assignment',
+		title: 'Blade CAD 01',
+		course: 'IDEA100',
+		points: 20,
+		header: [
+			{ id: 'hdr-name', field: 'student-name', type: 'text' },
+			{ id: 'hdr-team', field: 'team', type: 'text' }
+		],
+		modules: [
+			{
+				id: 'm1',
+				title: 'Setup',
+				points: 10,
+				blocks: [
+					{ id: 'm1-span', field: 'beam-span', type: 'text' },
+					{ id: 'm1-why', field: 'why-this-span', type: 'longText' },
+					{ id: 'm1-check', field: 'checked-clearance', type: 'checkbox' },
+					{ id: 'm1-photo', field: 'bench-photo', type: 'image' }
+				],
+				criteria: []
+			}
+		]
+	} as unknown as HtmlAssignmentManifest;
+
+	const VALUES = {
+		'student-name': 'Ana Reyes',
+		'beam-span': '240 mm',
+		'why-this-span': 'It fits the vise.\nAnd the stock is 250.',
+		'checked-clearance': true
+		// `team` and `bench-photo` are UNANSWERED, which is a fact a grader wants.
+	};
+	const IMAGES = {
+		'bench-photo': { url: '/api/x', name: 'bench.jpg', caption: 'the second cut' }
+	};
+
+	it('groups the blocks the way the manifest does, header first', () => {
+		const sheet = htmlAnswerSheet(MANIFEST, VALUES, {});
+		expect(sheet.map((g) => g.title)).toEqual(['Identity', 'Setup']);
+		expect(sheet[0].moduleId).toBeNull();
+		expect(sheet[1].moduleId).toBe('m1');
+		// EVERY BLOCK GETS A CELL, in the manifest's own order.
+		expect(sheet[0].cells.map((c) => c.field)).toEqual(['student-name', 'team']);
+		expect(sheet[1].cells.map((c) => c.field)).toEqual([
+			'beam-span',
+			'why-this-span',
+			'checked-clearance',
+			'bench-photo'
+		]);
+	});
+
+	it('reports an unanswered block rather than dropping it', () => {
+		// "They skipped question 4" and "question 4 is not on this worksheet" are
+		// what a grader is telling apart, and a dropped empty makes them identical.
+		const sheet = htmlAnswerSheet(MANIFEST, VALUES, {});
+		const team = sheet[0].cells.find((c) => c.field === 'team');
+		expect(team?.value).toBeNull();
+		const span = sheet[1].cells.find((c) => c.field === 'beam-span');
+		expect(span?.value).toBe('240 mm');
+	});
+
+	it('carries the block id, which is the permanent join key', () => {
+		const sheet = htmlAnswerSheet(MANIFEST, VALUES, {});
+		expect(sheet[1].cells.map((c) => c.blockId)).toEqual([
+			'm1-span',
+			'm1-why',
+			'm1-check',
+			'm1-photo'
+		]);
+	});
+
+	it('hangs an image off its own block and leaves the others null', () => {
+		const sheet = htmlAnswerSheet(MANIFEST, VALUES, IMAGES);
+		const photo = sheet[1].cells.find((c) => c.field === 'bench-photo');
+		expect(photo?.image?.name).toBe('bench.jpg');
+		expect(photo?.image?.caption).toBe('the second cut');
+		expect(sheet[1].cells.filter((c) => c.image).length).toBe(1);
+	});
+
+	it('yields NO groups for a manifest it cannot walk -- fail closed, never guess', () => {
+		// The same answer `htmlFieldToBlockId` gives, and for the same reason: with
+		// no field map there is nothing a stored row could be keyed back to, and a
+		// guess shows a grader one answer under another question.
+		expect(htmlAnswerSheet(null, VALUES, {})).toEqual([]);
+		expect(htmlAnswerSheet({ modules: 'nope' }, VALUES, {})).toEqual([]);
+		expect(htmlAnswerSheet('not an object', VALUES, {})).toEqual([]);
+		// THE POSITIVE CONTROL: the same call over the real manifest is not empty.
+		expect(htmlAnswerSheet(MANIFEST, VALUES, {}).length).toBe(2);
+	});
+
+	it('a manifest with no header has no Identity group, and one with no modules still walks', () => {
+		const noHeader = { ...MANIFEST, header: undefined } as unknown as HtmlAssignmentManifest;
+		expect(htmlAnswerSheet(noHeader, VALUES, {}).map((g) => g.title)).toEqual(['Setup']);
+		const headerOnly = { ...MANIFEST, modules: [] } as unknown as HtmlAssignmentManifest;
+		expect(htmlAnswerSheet(headerOnly, VALUES, {}).map((g) => g.title)).toEqual(['Identity']);
+	});
+});
+
+describe('htmlAnswerText', () => {
+	it('turns a boolean into a word, so a grader never reads "true"', () => {
+		expect(htmlAnswerText(true)).toBe('Ticked');
+		expect(htmlAnswerText(false)).toBe('Not ticked');
+	});
+	it('keeps a string exactly as the student typed it, newlines included', () => {
+		expect(htmlAnswerText('two\nlines')).toBe('two\nlines');
+	});
+	it('tells NULL from the EMPTY STRING, which are two different facts', () => {
+		// Nothing stored at all, against a box they opened and cleared. The caller
+		// renders "No answer saved" for the first and "Left blank" for the second.
+		expect(htmlAnswerText(null)).toBeNull();
+		expect(htmlAnswerText('')).toBe('');
 	});
 });

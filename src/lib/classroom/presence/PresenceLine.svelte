@@ -2,8 +2,10 @@
 	import PresenceChip from './PresenceChip.svelte';
 	import {
 		PRESENCE_NEVER_OPENED,
+		PRESENCE_UNKNOWN,
 		presenceActiveLabel,
 		presenceLastWorkedLabel,
+		presenceLineKind,
 		presenceState,
 		type PresenceLimits,
 		type PresenceRow
@@ -19,26 +21,60 @@
 	 * is thirty answers to one question, and the console's own `now` is what the
 	 * roster is being rendered at.
 	 *
-	 * A MISSING ROW IS "NOT OPENED", NOT "AWAY", and the difference is the one an
-	 * instructor cares about at the start of a period: away is somebody who was
-	 * here, not-opened is somebody who never arrived. It renders with no chip at
-	 * all, because a chip would put it in the same vocabulary as the four states
-	 * and it is not one of them -- it is the absence of a row.
+	 * ------------------------------------------------------------------------
+	 * A MISSING ROW IS THREE DIFFERENT ANSWERS AND THIS USED TO PRINT ONE.
+	 * ------------------------------------------------------------------------
+	 *
+	 * It was two branches -- a row, or `PRESENCE_NEVER_OPENED` -- so "Not opened"
+	 * was also what a payload that had not arrived yet printed, what a deployment
+	 * with no `classroom_presence_state` printed, and what a swallowed network
+	 * error printed. Mr. Pina filed it on 2026-09-12 from the other end: a row
+	 * reading "Returned 18/20" with "Not opened" underneath it. Reproduced on all
+	 * four paths in `tests/dom/presence-console-mount.test.ts`.
+	 *
+	 * `presenceLineKind` IS THE DECISION AND IT IS NOT MADE HERE. The two facts
+	 * this component cannot know -- whether presence answered at all, and whether
+	 * anything of this student's has arrived -- come in as props, and the ORDER
+	 * they are weighed in lives in `state.ts` beside the words, so a caller and a
+	 * renderer cannot come to disagree about which of them is printing.
+	 *
+	 * NO CHIP ON ANY OF THE THREE. A chip would put an absence in the same
+	 * vocabulary as the four measured states, and none of them is one: they are
+	 * things this instrument cannot say.
 	 */
 	let {
 		row = null,
 		now,
-		limits
+		limits,
+		loaded = true,
+		workArrived = false
 	}: {
 		row?: PresenceRow | null;
 		now: number;
 		limits: PresenceLimits;
+		/**
+		 * HAS A PRESENCE PAYLOAD ARRIVED AT ALL? Defaulting to TRUE is deliberate
+		 * and is the one direction that cannot manufacture the bug: a caller who
+		 * forgets it gets the pre-0278 reading for a row it has, and the only thing
+		 * a wrong default could turn into is a "Not known" on a console that does
+		 * know -- never a "Not opened" on a console that does not.
+		 */
+		loaded?: boolean;
+		/**
+		 * HAS ANYTHING OF THIS STUDENT'S ARRIVED -- a submission, a response, a
+		 * file? When it has, presence says NOTHING: the heartbeat table is written
+		 * only by a beat from the assignment page, so it can be silent about a
+		 * student who did the whole thing, and a derived instrument must never
+		 * contradict the record sitting on the line above it.
+		 */
+		workArrived?: boolean;
 	} = $props();
 
+	const kind = $derived(presenceLineKind({ hasRow: !!row, loaded, workArrived }));
 	const state = $derived(row ? presenceState(row, now, limits) : null);
 </script>
 
-{#if row && state}
+{#if kind === 'row' && row && state}
 	<span class="pline" data-testid="presence-line">
 		<PresenceChip {state} compact />
 		<span class="pmeta" data-testid="presence-worked"
@@ -52,11 +88,23 @@
 			>{presenceActiveLabel(row.active_seconds)} active</span
 		>
 	</span>
-{:else}
+{:else if kind === 'never-opened'}
 	<span class="pline" data-testid="presence-line">
 		<span class="pmeta pnever" data-testid="presence-never">{PRESENCE_NEVER_OPENED}</span>
 	</span>
+{:else if kind === 'unknown'}
+	<span class="pline" data-testid="presence-line">
+		<span class="pmeta punknown" data-testid="presence-unknown">{PRESENCE_UNKNOWN}</span>
+	</span>
 {/if}
+<!--
+	AND `outranked` RENDERS NOTHING AT ALL -- no line, no element, no test hook.
+	Absence is the mechanism, the way it is for every omitted transport in this
+	codebase: there is no sentence to get wrong and no box to leave empty. It also
+	takes the third line off exactly the rows a grader is reading, which is the
+	half of Mr. Pina's spacing report that could be answered without touching the
+	44px floor on the row itself.
+-->
 
 <style>
 	.pline {
@@ -78,6 +126,13 @@
 		white-space: nowrap;
 	}
 	.pnever {
+		font-style: normal;
+	}
+	/* THE SAME TIER AS EVERY OTHER WORD ON THIS LINE, deliberately. "Not known"
+	   is a statement this console is making about ITSELF, not a quieter grade of
+	   fact about the student, so dimming it below the text threshold would be the
+	   hairline-as-content mistake in words rather than in a rule. */
+	.punknown {
 		font-style: normal;
 	}
 	/* A SEPARATOR GLYPH IS A BOUNDARY AND TAKES THE BOUNDARY TOKEN, never a

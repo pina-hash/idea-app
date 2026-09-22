@@ -28,7 +28,34 @@ export default {
 	   visit the base path and measure the default fixture under this name. */
 	label: 'Grading console: an assignment the teacher has closed',
 
-	prepare: OPEN_FIRST_STUDENT,
+	/*
+		LEDGER 0278 COLLAPSED THE CLOSE PANEL, SO THIS SPEC OPENS IT.
+
+		"Closing this assignment" is a `Disclosure` now, closed by default, because
+		it and the export panel together were taking most of a roster pane and
+		leaving one name on screen (Mr. Pina, 2026-09-13). Collapsing HIDES rather
+		than removes, so every selector below still matches -- but a hidden element
+		has a zero box, which is exactly the state a contrast read and a
+		tap-target read report an honest zero about.
+
+		SO THE PANEL IS OPENED AS A PREPARE STEP AND EVERY ASSERTION BELOW IS
+		UNCHANGED. That is the point: the controls, their wording, their counts and
+		their measurements are the same controls measured the same way, one press
+		further in. Deleting the assertions because their subject moved would have
+		been the alternative, and it would have silently stopped checking the
+		refusal wording and the 44px floor on the two most consequential controls
+		on this surface. The collapsed state has its own row, below.
+	*/
+	prepare: [
+		...OPEN_FIRST_STUDENT,
+		{
+			click: '[data-testid="close-disclosure"]',
+			until: `() => document.querySelector('[data-testid="close-disclosure"]')?.getAttribute('aria-expanded') === 'true'`,
+			label: 'the close panel is open, which is one press from its collapsed default',
+			attempts: 12,
+			gapMs: 200
+		}
+	],
 
 	orderResult: [
 		{
@@ -92,6 +119,39 @@ export default {
 			expected: ['closedChips=1', 'submittedChips=0']
 		},
 		{
+			label: 'the panel is a real disclosure, and the count it is read for survives collapsing',
+			evaluate: `() => {
+				const trigger = document.querySelector('[data-testid="close-disclosure"]');
+				const counts = document.querySelector('[data-testid="close-counts"]');
+				if (!trigger) return ['trigger=absent'];
+				const cb = counts ? counts.getBoundingClientRect() : null;
+				const body = document.getElementById(trigger.getAttribute('aria-controls') || '');
+				return [
+					/* A REAL BUTTON WITH THE TWO ATTRIBUTES, never a div plus a
+					   document click listener: that shape is mouse-only, invisible to
+					   assistive tech, and double-toggles against anything added later. */
+					'tag=' + trigger.tagName,
+					'hasAriaExpanded=' + trigger.hasAttribute('aria-expanded'),
+					'ariaControlsResolves=' + !!body,
+					/* A WORD, NOT ONLY A CARET. */
+					'labelHasWords=' + /Closing this assignment/.test(trigger.textContent || ''),
+					/* THE COUNT IS ON THE TRIGGER ROW, so shutting the panel does not
+					   hide whether there is anything left to close -- which is the
+					   number a teacher acts on. */
+					'countIsOutsideTheBody=' + (!!cb && !!body && !body.contains(counts)),
+					'countHasBox=' + (!!cb && cb.width > 0 && cb.height > 0)
+				];
+			}`,
+			expected: [
+				'tag=BUTTON',
+				'hasAriaExpanded=true',
+				'ariaControlsResolves=true',
+				'labelHasWords=true',
+				'countIsOutsideTheBody=true',
+				'countHasBox=true'
+			]
+		},
+		{
 			label: 'the close control is armed in two steps and names a real count',
 			evaluate: `() => {
 				const tool = document.querySelector('[data-testid="close-tool"]');
@@ -130,7 +190,24 @@ export default {
 			maxPresent: 1,
 			expectVisible: 1
 		},
-		{ selector: '[data-testid="close-tool"]', label: 'the close control', expectPresent: 1, maxPresent: 1 },
+		{
+			/* OPENED BY `prepare`, so this is the panel's CONTENT being on screen
+			   rather than merely in the DOM. The collapsed reading is the
+			   `grading-bulk?state=dock` spec's, on the export panel, where it is
+			   asserted as present-and-not-visible. */
+			selector: '[data-testid="close-tool"]',
+			label: 'the close control, opened',
+			expectPresent: 1,
+			maxPresent: 1,
+			expectVisible: 1
+		},
+		{
+			selector: '[data-testid="close-disclosure"]',
+			label: 'its trigger, which stays on screen either way',
+			expectPresent: 1,
+			maxPresent: 1,
+			expectVisible: 1
+		},
 		/*
 			THE POSITIVE CONTROL FOR THE WHOLE SPEC. Every row above would also hold
 			on a console that had stopped rendering the grading half; the rubric
@@ -165,6 +242,7 @@ export default {
 		   instructor-only but declares no reduced-density class, so by the
 		   standard's own rule it is measured at 44 like everything else. */
 		{ selector: '[data-testid="close-arm"]', label: 'Close assignment', min: 44 },
-		{ selector: '[data-testid="close-reopen"]', label: 'Reopen', min: 44 }
+		{ selector: '[data-testid="close-reopen"]', label: 'Reopen', min: 44 },
+		{ selector: '[data-testid="close-disclosure"]', label: 'the panel trigger', min: 44 }
 	]
 };
