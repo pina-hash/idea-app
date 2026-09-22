@@ -32,6 +32,7 @@
 // file is only about the wire between them, which that one cannot see.
 
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { POST } from '../src/routes/api/classroom/item/+server';
 
 interface RpcCall {
@@ -198,5 +199,59 @@ describe('/api/classroom/item: the unit (0218)', () => {
 			await post({ ...BASE, unitId: 'unit-3' }, sb.client);
 			expect(sb.calls).toHaveLength(2);
 		});
+	});
+});
+
+/**
+ * AND THE COMPOSER ACTUALLY PUTS THE CHOSEN UNIT IN THE PAYLOAD.
+ *
+ * WRITTEN BECAUSE A MUTATION SURVIVED. Replacing `itemInput()`'s unit line with
+ * a bare `undefined` -- a composer that renders the picker, records the
+ * selection, and silently never sends it -- passed every other assertion in
+ * this bundle: the route tests build their own body, the database tests call
+ * the RPC directly, and the picker still looked and behaved correctly on
+ * screen. That is the exact failure this bundle was written to remove, so it
+ * is the one that most needs pinning.
+ *
+ * A SOURCE SWEEP RATHER THAN A MOUNT, because `itemInput()` is a private
+ * function of the component: nothing exports it, and a mount can only observe
+ * it by driving a save through a stub transport, which asserts the transport
+ * rather than the payload. The tradeoff is stated rather than hidden -- this
+ * checks that the wiring is written, not that it runs.
+ */
+describe('ContentComposer puts the chosen unit in the payload', () => {
+	const src = readFileSync('src/lib/classroom/ContentComposer.svelte', 'utf8');
+	/** `itemInput()`'s body, which is what `createItem` is handed. */
+	const itemInput = (() => {
+		const at = src.indexOf('function itemInput()');
+		expect(at, 'itemInput() moved or was renamed').toBeGreaterThan(-1);
+		const end = src.indexOf('\n\t}', at);
+		return src.slice(at, end);
+	})();
+
+	it('sends the unit on create', () => {
+		expect(itemInput).toMatch(/unitId:\s*mode === 'create' \? unitId : undefined/);
+	});
+
+	it('sends NOTHING on edit, so there is one write path to unit_id', () => {
+		// Filing an existing item is `classroom_set_item_unit`'s job.
+		// `classroom_update_item` has no parameter for it and must not gain one.
+		expect(itemInput).toContain("mode === 'create' ? unitId : undefined");
+		expect(itemInput).not.toMatch(/unitId:\s*unitId\b/);
+	});
+
+	it('POSITIVE CONTROL: the sweep really is reading itemInput()', () => {
+		// So "the unit line is there" is an answer about the function and not
+		// about a slice that happened to be empty or to span the whole file.
+		expect(itemInput).toContain('publishAt: scheduleToSend()');
+		expect(itemInput).toContain('category: category.trim() || null');
+		expect(itemInput.length).toBeLessThan(2500);
+	});
+
+	it('the picker is bound to the same `unitId` the payload reads', () => {
+		// Two names would be a control that records a choice nowhere the
+		// payload looks -- which is what the surviving mutant did by hand.
+		expect(src).toContain('bind:value={unitId}');
+		expect(src).toContain('data-testid="composer-unit-select"');
 	});
 });

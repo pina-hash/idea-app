@@ -134,6 +134,31 @@ exempts this one input by its own testid for exactly that reason.
   refused on size, and a ten-case corpus where the drop predicate and the picker
   predicate must agree file for file with BOTH counts pinned (4 accepted, 6 refused).
 
+**THE MUTATION PROOF: eight mutants, eight killed, and the instrument was wrong
+twice before it was right.** M1 removing the deck drop target's `accept` (1 test),
+M2 removing the deck type gate so the box is size-only as it was (3 tests), M3
+removing the wrong-course refusal from 0218 (3 tests), M6 gating the route's degrade
+rung on "the call errored" instead of PGRST202 alone (1 test), M7 naming `p_unit_id`
+unconditionally (2 tests), M8 a composer that renders the picker and never sends the
+choice (2 tests). M4 (`revoke ... from public` alone, `0201`'s shape) and M5 (not
+dropping the old twelve-argument arity) are killed by the MIGRATION'S OWN APPLY-TIME
+CHECK rather than by an assertion, which is the stronger kill and reads differently: 0
+tests failed and the SUITE failed, because `beforeAll` could not apply the file.
+
+**That difference is what the script got wrong twice, and it is a third variant of the
+summary-line trap worth writing down.** The first version judged by the `Tests` line
+alone and called M4 and M5 survivors. The second added a `Test Files ... failed |
+... passed` pattern and still called them survivors -- because a run whose only
+failure is a SUITE prints `Test Files  1 failed (1)` with **no `passed` group on that
+line at all**, and `Tests  4 passed | 14 skipped` with **no `failed` group on that
+one**, so a regex expecting `failed | passed` matches neither. Only matching
+`Test Files\s+(\d+)\s+failed` independently, and treating `Failed Suites` as a kill,
+gave the true verdict. M8 was a genuine survivor and stayed one until a sweep was
+written for it: a composer that renders the picker, records the selection and silently
+never sends it passed every other assertion in the bundle, which is the exact defect
+this work exists to remove. All four mutated files were restored from an in-memory
+copy, never from git, and md5-checked identical afterwards.
+
 **Two of this bundle's own claims were wrong and the tree corrected them.** The first
 draft asserted that 0176 had left `classroom_create_item` anon-executable, on the
 grounds that a hosted project's default privileges write a direct `anon` grant and
