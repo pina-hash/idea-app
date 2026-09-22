@@ -207,6 +207,50 @@ what somebody wants six weeks later when a project is being marked.
   one expected team-size array reddened exactly one assertion, and the file was restored
   from a byte copy (md5 match), never `git checkout --`.
 
+## The mutation proof
+
+Eight mutations, each in the PERMISSIVE direction, each judged through
+`npm test` on the relevant file, each restored from an in-memory byte copy and
+md5-checked (all eight byte-identical afterwards). **Eight killed, none
+survived.**
+
+| mutation | verdict | summary |
+| --- | --- | --- |
+| count mode stops clamping to the class size | killed | 3 failed / 251 passed |
+| the size mode gets its own slicing dealer | killed | 48 failed / 206 passed |
+| the team name bypasses `csvCell`'s formula guard | killed | 3 failed / 27 passed |
+| the board INNER joins enrollments | killed | 1 failed / 29 passed |
+| the style write admits any signed-in caller | killed | 5 failed / 25 passed |
+| one function keeps only `revoke ... from public` | **killed by 0223's own apply-time check** | 30 skipped |
+| a draw is visible whatever its window says | killed | 4 failed / 26 passed |
+| the member primary key stops pinning one team per draw | killed | 1 failed / 29 passed |
+
+**THE ANON-REVOKE ONE IS THE INTERESTING RESULT AND MY OWN INSTRUMENT GOT IT
+WRONG FIRST.** Replacing the by-name revoke with `revoke ... from public` -- the
+form that does NOT close a function on this project -- made the migration REFUSE
+TO APPLY, with its own sentence:
+
+    0223: anon can execute public.classroom_team_board(uuid) -- revoke from anon BY NAME, per 0166.
+
+That is the strongest kill available: the gate caught it before a single test
+body ran. But a migration that refuses to apply SKIPS every test rather than
+failing one, so the summary line read `Tests 30 skipped (30)` with no "failed"
+in it anywhere -- and the script, which judged on the word "failed", scored it
+as **SURVIVED**. That is the false-clean direction, on the one mutation whose
+kill matters most. It was caught by reading the summary rather than the verdict,
+and the script's logic was corrected to treat a skip-all beside a `failed to
+apply` line as the strongest kill. **CLAUDE.md names this trap and it still bit
+an instrument written with it in view**, which is worth recording: the rule is
+not "parse the summary line", it is "know every shape a kill can take".
+
+**The browser-measured change has a separate proof and it is not a test.** The
+blank `Post for` select was found by RASTERIZING the panel and looking at it --
+every content assertion passed over it, because the element was present, was the
+right size, and had the right options; what it did not have was a selected one.
+Reverting the fix returns the control to an empty box, which the spec's new
+`selectedIndex` read now catches, but nothing in the repository caught it before
+a screenshot did.
+
 ## What is NOT verified
 
 - **The migration has not been applied anywhere but the test harness.** A cloud container
@@ -223,6 +267,39 @@ what somebody wants six weeks later when a project is being marked.
   this lane could not build. An entry announcing that students can see their teams would
   be false until D4 mounts it. The standing directive is for changes to what a class SEES,
   and this bundle changes what a TEACHER sees.
+
+## TWO TESTS ARE RED ON THIS BRANCH AND NEITHER IS FIXABLE HERE
+
+Both were GREEN at the branch point, measured in a clean worktree at `1ec2f640`,
+so both are this bundle's doing. Neither can be made green truthfully.
+
+**1. `tests/db/migrations-applied-record.test.ts` -- structural for ANY unapplied
+migration.** It asserts a record under `docs/migrations-applied/` for every
+migration file from 0193 onward. That directory is, by its own README, "one file
+per migration that actually applied to the production database. Nothing here is
+a plan." 0223 has not been applied; a cloud container cannot reach the database;
+writing a record would be fabricating an applied state. **This is not specific to
+this bundle**: `git log --diff-filter=A` shows 0216 and 0217 each landed their
+migration and their applied-record in SEPARATE, LATER commits, so every
+migration-bearing branch in this repository carries this red between the two.
+It clears when Mr. Pina applies 0223 and somebody runs `tools/record-applied.mjs`.
+
+**2. `tests/db/migration-0177-tombstone.test.ts` -- 0219 through 0222 are holes
+nothing on this branch accounts for.** `tools/migration-claims.mjs` reported
+`next free 0219`; the prompt said **"Use 0223 and no other number"**, twice. Taking
+0223 leaves four numbers with no file and no claim. The tool reads CLAIMS from
+refs, so the moment the sibling lanes holding 0219-0222 push their branches or
+their ledger entries land, those holes become `inFlightHoles` and the test goes
+green with no action from anyone -- which is exactly how 0218 is already
+classified, held by `claude/new-session-8ff2od` and `claude/new-session-nfgovx`.
+
+**Renumbering to 0219 was considered and rejected.** It would violate an explicit,
+repeated instruction, and it would very likely collide head-on with whichever
+sibling lane was told to take 0219 -- trading a transient red for a real
+contested number, which is the failure `migration-claims.mjs` exists to prevent.
+**If the lane assignment was not what I have assumed, this is the one decision in
+the bundle to overturn, and it is a rename of one file plus one line in the
+ledger.**
 
 ## Deferred, with the reason
 
