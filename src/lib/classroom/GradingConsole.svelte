@@ -54,6 +54,12 @@
 		type BulkOutcome,
 		type BulkPreset
 	} from '$lib/classroom/grading-bulk';
+	import DictateButton from '$lib/classroom/DictateButton.svelte';
+	import {
+		GradingDictation,
+		appendDictation
+	} from '$lib/classroom/grading-dictation.svelte';
+	import { dictationConstructor, type SpeechRecognitionCtor } from '$lib/feedback/dictation';
 	import {
 		IDENTITY_NOTE,
 		buildGradingExport,
@@ -120,7 +126,8 @@
 		htmlWork = null,
 		live = null,
 		close = null,
-		presence = null
+		presence = null,
+		speech = undefined
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -230,6 +237,21 @@
 		 * asserting a student is away when the truth is that nobody asked.
 		 */
 		presence?: PresenceTransports | null;
+		/**
+		 * THE SPEECH CONSTRUCTOR, INJECTED, AND THREE VALUES MEAN THREE THINGS.
+		 *
+		 * `undefined` -- the default, and what both real routes hand in -- means
+		 * ASK THE BROWSER, so production behaves exactly as if this prop did not
+		 * exist. `null` means there is no speech service and no dictate control
+		 * renders anywhere, which is the honest Firefox/third-party-iPad state
+		 * and is also how a harness proves the absence. A constructor means use
+		 * this one, which is how a container with no microphone drives the whole
+		 * path.
+		 *
+		 * It is a CONSTRUCTOR rather than a boolean because the fake has to
+		 * deliver results: a flag could only ever prove the button renders.
+		 */
+		speech?: SpeechRecognitionCtor | null;
 	} = $props();
 
 	/**
@@ -355,6 +377,33 @@
 	 * breakpoint and not a layout.
 	 */
 	const documentWork = $derived(!spec && !!htmlWork);
+
+	/**
+	 * DICTATED FEEDBACK (0288). Mr. Pina: "at the very least a transcription
+	 * audio feedback would save me a ton of time."
+	 *
+	 * ONE CONTROLLER FOR THE WHOLE CONSOLE, holding one speech session, so the
+	 * comment box and every criterion note share a microphone rather than
+	 * competing for it. `grading-dictation.svelte.ts` carries the argument; the
+	 * short version is that a rubric puts five of these buttons on one screen
+	 * and two live recognisers is a grader watching their words land in the
+	 * field they just stopped dictating into.
+	 *
+	 * `dictation` IS A PROP SO A HARNESS CAN DRIVE IT WITH NO MICROPHONE, which
+	 * is the only way any of this is verifiable in a container -- and undefined,
+	 * not null, is the "ask the browser" default, so the real routes hand in
+	 * nothing and get the real speech service. A browser without one renders no
+	 * button at all: absence is the mechanism, as it is in the report box this
+	 * borrows from.
+	 */
+	const dictate = new GradingDictation(
+		// UNTRACKED, the way the report box reads the same value: this is a
+		// one-time capability question asked at construction, and read tracked
+		// it is a `state_referenced_locally` warning about a reference that is
+		// correct. The constructor never changes for the life of a page.
+		untrack(() => (speech === undefined ? dictationConstructor() : speech))
+	);
+	$effect(() => () => dictate.destroy());
 
 	/**
 	 * DID THIS WORK CHANGE AFTER IT WAS GRADED. Derived per student through the
@@ -2645,6 +2694,23 @@
 															aria-label={`Comment on ${c.criterion}`}
 															bind:value={critComments[c.id]}
 														></textarea>
+														<!--
+															KEYED ON THE CRITERION ID, which is the join key for
+															every answer stored under it and is permanent -- so
+															the controller can never hand a transcript to a
+															field that has been renamed out from under it.
+														-->
+														<DictateButton
+															dictation={dictate}
+															field={`crit:${c.id}`}
+															label={`the note on ${c.criterion}`}
+															disabled={busy || batchBusy}
+															append={(text) =>
+																(critComments[c.id] = appendDictation(
+																	critComments[c.id] ?? '',
+																	text
+																))}
+														/>
 													</div>
 												{:else if critComments[c.id]}
 													<p class="score-note">{critComments[c.id]}</p>
@@ -2740,7 +2806,23 @@
 													>({liveTotal} rubric + {extraCreditNumber} extra credit)</span
 												>{/if}
 										</div>
-										<label class="comment-label" for="grade-comment">Comment to the student</label>
+										<div class="comment-head">
+											<label class="comment-label" for="grade-comment">Comment to the student</label>
+											<!--
+												THE TRANSCRIPT IS APPENDED TO WHAT IS IN THE BOX NOW,
+												read fresh at the moment the sentence lands rather than
+												snapshotted when the button was pressed -- so anything
+												typed while the person was also speaking survives.
+												`appendDictation` never removes a character.
+											-->
+											<DictateButton
+												dictation={dictate}
+												field="comment"
+												label="the comment to the student"
+												disabled={busy || batchBusy}
+												append={(text) => (comment = appendDictation(comment, text))}
+											/>
+										</div>
 										<textarea id="grade-comment" class="comment" rows="3" bind:value={comment}></textarea>
 										{#if gradeError}<p class="feedback error">{gradeError}</p>{/if}
 										{#if gradeNotice}<p class="feedback ok">{gradeNotice}</p>{/if}
