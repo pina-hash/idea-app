@@ -396,6 +396,57 @@ failures`, while the shell pipeline around it reported `exited with code 0`.
 A mutation script judging by the throw would have read two real failures as a
 clean run.
 
+### The full browser pass, and the eighteen specs that were already red
+
+**492 route/width runs, 8988 measurements, 204 outside threshold**, in 22.5
+minutes with nothing else on the machine. The committed `measured/` store
+records 146. That gap needed an answer, and getting one took three instruments
+because the first two were wrong.
+
+**Per spec: 226 unchanged, 2 improved, 18 worse.** Fourteen of the eighteen are
+`ideacad-*`, which this bundle does not touch. The other four looked like they
+could be the new bottom-left dock covering something -- and one of them NAMED
+it: `spec-table-empty-1`'s reach check listed
+`button.vnav-trigger` inside `div.vnav.vnav-shell` among its blockers.
+
+**THE COMMITTED STORE CANNOT ANSWER THIS, AND THAT IS WORTH KNOWING ON ITS
+OWN.** Each spec's file records its OWN last run, so the store is a mosaic of
+different dates rather than a snapshot. The four suspects were last measured on
+2026-09-12, 09-13 and 09-14 -- eight to ten days before this branch point. Most
+of 146 -> 204 is `main` drifting under specs nobody re-measured.
+
+**A SECOND WORKTREE AT `origin/main` WAS THE WRONG SECOND INSTRUMENT.** It ran,
+and it reported 16 to 40 console errors per route and a ProfileMenu that would
+not open -- its environment was not clean. A dirty instrument gives confident
+wrong answers, which is worse than no answer, so it was abandoned rather than
+read.
+
+**THE ABLATION IS THE RIGHT ONE: one tree, one instrument, one variable.** The
+twelve suspect specs were run on this tree as they ship, then again with
+`.vnav-shell { display: none }`, and the two reports diffed -- not their totals,
+which could mask a swap, but their per-check finding SETS.
+
+| | |
+|---|---|
+| with the dock | 24 runs, 386 measurements, **25** outside threshold |
+| without the dock | 24 runs, 386 measurements, **25** outside threshold |
+| findings only WITH it | **0** |
+| findings only WITHOUT it | **0** |
+
+And the row that named the trigger, both ways: **`smallest walked reach
+51.5x43.5` with the dock and `51.5x43.5` without it**, identical to the tenth
+of a pixel at both widths. The dock is in the blocker LIST -- the check names
+every element it met at every sample point -- but it is not what limits the
+reach. The 43.5px comes from the checklist's own container.
+
+**So none of the eighteen is this bundle's.** The `themes` pair is the one with
+a dated explanation: the spec asserts `exactly 12` launcher cards and the
+registry holds 13, because the `ideacad` card landed in `portal-apps.ts` on
+**2026-09-13** and `themes.json` was last measured on **2026-09-12** -- the day
+before. It has been red ever since and nothing re-measured it.
+
+The file restored byte-identical (md5-checked), as the mutation proof's does.
+
 ### What was NOT verified
 
 - **No real microphone, anywhere.** Every path was driven through a stubbed
@@ -463,6 +514,14 @@ the Owns line and needed no change.
    obvious candidate, and it costs the header nothing. That is a decision
    about where it belongs, not a defect, and it was left to you rather than
    guessed at.
-5. **Watch which utterances miss.** The alias table is a first guess at how a
+5. **The browser harness's measurement store is stale, and it hid nothing this
+   time but it will.** Eighteen specs are red against their committed
+   baselines and not one is this bundle's; the four that were checked were
+   last measured eight to ten days earlier. `themes.mjs` has asserted
+   `exactly 12` launcher cards since the day before a thirteenth shipped.
+   Nothing is broken by this, but a store that drifts is a store that
+   eventually absorbs a real regression, and the next lane to run a full pass
+   will see the same 204 and have to re-derive the same answer.
+6. **Watch which utterances miss.** The alias table is a first guess at how a
    speech service hears these names. A student reporting "it never understands
    X" is a one-line addition to `SPOKEN_ALIASES`, not a redesign.
