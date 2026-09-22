@@ -4,6 +4,9 @@
 	import { untrack } from 'svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import Avatar from '$lib/Avatar.svelte';
+	import Disclosure from '$lib/Disclosure.svelte';
+	import IdentityBanner from '$lib/IdentityBanner.svelte';
+	import BadgeIcon from '$lib/tournaments/BadgeIcon.svelte';
 	import PathwayChip from '$lib/PathwayChip.svelte';
 	import { PATHWAYS, pathwayColor, withAlpha } from '$lib/pathways';
 	import {
@@ -15,10 +18,22 @@
 	} from '$lib/theme.svelte';
 	import {
 		AVATAR_PRESETS,
+		AVATAR_TIERS,
 		displayName,
+		markTransform,
+		presetMarks,
+		presetTier,
+		profileStyle,
+		profileStyleReady,
 		signOutEverywhere,
 		type UserProfile
 	} from '$lib/profile';
+	import {
+		ACCENT_PRESETS,
+		BADGES,
+		PROFILE_FLOURISHES,
+		type IdentityStyle
+	} from '$lib/identity-style';
 
 	/**
 	 * The global profile menu, mounted in every page header. Self-contained: it
@@ -210,6 +225,112 @@
 		return saveProfile({ pathway: id });
 	};
 
+	/**
+	 * ========================================================================
+	 * THE IDENTITY CONTROLS (ledger 0289, report 15).
+	 * ========================================================================
+	 *
+	 * EVERY WRITE GOES THROUGH `saveProfile`, which is the same argument ledger
+	 * 0280 made for the pathway control one section up: that helper selects the
+	 * row back, so an RLS-blocked zero-row update is REPORTED rather than read
+	 * as success, and the refusal lands in this panel's one problem list beside
+	 * every other write on this surface. There is no second write path and
+	 * there must not be one.
+	 *
+	 * NO SECURITY DEFINER RPC, AND NO POLICY, for the reason 0220's header
+	 * gives: `profiles` already carries "update own profile", so a student
+	 * writing their own identity is the same trust level as the display name
+	 * two sections above. The VALIDATION lives in 0220's CHECK constraints
+	 * rather than in a function, and `backgroundCss` re-validates a third time
+	 * where the value meets a style attribute.
+	 *
+	 * THE CONTROLS ARE BUTTON GRIDS OVER THE SHARED REGISTRIES, not a mount of
+	 * `EntryStyleEditor`. That component takes a `TournamentEntry`, imports
+	 * `tournaments-theme.css` and previews through `EntryBanner` -- a room's
+	 * stylesheet and a room's render path, on a component mounted in sixty-nine
+	 * portal mastheads. What is SHARED is the thing that would actually drift:
+	 * the registries, the CSS derivation and the ink, all of which are
+	 * `$lib/identity-style.ts` and are read by both. The ARRANGEMENT of
+	 * controls is per-room, exactly as the pathway tiles and the preset tiles
+	 * already in this file are.
+	 *
+	 * WHAT IS SENT IS ALWAYS THE WHOLE PAIR FOR A BACKGROUND. 0220 constrains
+	 * `(type is null) = (value is null)`, so a patch that moved one without the
+	 * other would be refused by the database -- correctly, and with a
+	 * constraint-violation sentence no student can act on. `writeBackground`
+	 * is the one place that pair is assembled.
+	 */
+	const style = $derived(profileStyle(profile));
+	const styleReady = $derived(profileStyleReady(profile));
+
+	/** A live draft for the preview only; every control writes immediately. */
+	const bgType = $derived(style?.background_type ?? null);
+	const bgValue = $derived(style?.background_value ?? null);
+	const solidNow = $derived(
+		bgType === 'solid' && typeof bgValue === 'string' ? bgValue : '#3e7bfa'
+	);
+	const gradNow = $derived(
+		bgType === 'gradient' && Array.isArray(bgValue) ? bgValue : ['#3e7bfa', '#8e5bf0']
+	);
+
+	let taglineDraft = $state('');
+	let taglineSeeded = $state(false);
+	$effect(() => {
+		/* Seed ONCE per profile rather than on every render: reading the stored
+		   value tracked would clobber whatever is being typed. `untrack` keeps
+		   the effect's only input the profile id. */
+		const id = profile?.id;
+		untrack(() => {
+			if (!taglineSeeded && id) {
+				taglineDraft = profile?.style_tagline ?? '';
+				taglineSeeded = true;
+			}
+		});
+	});
+
+	/**
+	 * A LOWERCASED HEX, ALWAYS. 0220's accent constraint is case-INSENSITIVE so
+	 * a native colour picker's value can never be refused on a technicality,
+	 * but what is STORED is canonical, so two people who picked the same colour
+	 * hold the same string.
+	 */
+	const norm = (hex: string | null) => (hex ? hex.toLowerCase() : null);
+
+	const chooseAccent = (hex: string | null) =>
+		saveProfile({ style_accent_color: norm(hex) });
+	const chooseBadge = (id: string | null) => saveProfile({ style_badge: id });
+	const chooseFlourish = (id: string | null) => saveProfile({ style_flourish: id });
+
+	/** The background pair, assembled in one place. See the note above. */
+	const writeBackground = (
+		type: 'solid' | 'gradient' | null,
+		value: string | [string, string] | null
+	) =>
+		saveProfile({
+			style_background_type: type,
+			style_background_value:
+				type === 'solid' ? norm(value as string) : type === 'gradient'
+					? (value as [string, string]).map((v) => norm(v))
+					: null
+		});
+
+	const saveTagline = async () => {
+		const trimmed = taglineDraft.trim();
+		/* NULL, never the empty string: 0220's tagline check is `between 1 and
+		   48`, so an empty string is a refusal rather than a clearance. */
+		await saveProfile({ style_tagline: trimmed.length ? trimmed.slice(0, 48) : null });
+	};
+
+	const clearStyle = () =>
+		saveProfile({
+			style_background_type: null,
+			style_background_value: null,
+			style_accent_color: null,
+			style_badge: null,
+			style_flourish: null,
+			style_tagline: null
+		});
+
 	const onUpload = async (e: Event) => {
 		const input = e.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
@@ -393,25 +514,61 @@
 				     looking at the ring. -->
 				<div class="pm-section">
 					<div class="pm-label">Picture</div>
-					<div class="pm-presets">
-						{#each AVATAR_PRESETS as p (p.id)}
-							<button
-								class="pm-preset"
-								class:selected={currentPreset === p.id}
-								type="button"
-								aria-pressed={currentPreset === p.id}
-								disabled={busy}
-								onclick={() => choosePreset(p.id)}
-							>
-								<span class="pm-preset-mark" aria-hidden="true">
-									<svg viewBox="0 0 24 24" fill="none" stroke={p.fg} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-										<path d={p.d} />
-									</svg>
-								</span>
-								<span class="pm-preset-word">{p.label}</span>
-							</button>
-						{/each}
-					</div>
+					<!-- GROUPED BY TIER (ledger 0289, report 14: "there should be more
+					     options"). Eight marks were a grid; seventeen without a word
+					     over each group is a wall, and the tiers are what let a
+					     student find the mascots rather than scroll past them. The
+					     groups come from AVATAR_TIERS and the membership from
+					     `presetTier`, so adding a preset needs no edit here. -->
+					{#each AVATAR_TIERS as tier (tier.id)}
+						{@const inTier = AVATAR_PRESETS.filter((p) => presetTier(p) === tier.id)}
+						{#if inTier.length}
+							<div class="pm-tier">
+								<span class="pm-tier-name">{tier.label}</span>
+								<span class="pm-tier-note">{tier.note}</span>
+							</div>
+							<div class="pm-presets">
+								{#each inTier as p (p.id)}
+									<button
+										class="pm-preset"
+										class:selected={currentPreset === p.id}
+										type="button"
+										aria-pressed={currentPreset === p.id}
+										disabled={busy}
+										onclick={() => choosePreset(p.id)}
+									>
+										<span class="pm-preset-mark" aria-hidden="true">
+											<!-- EVERY MARK, through `presetMarks`, which is the ONE
+											     implementation `Avatar.svelte` also calls. This was a
+											     single `<path d={p.d} />` in both files; with richer
+											     presets two copies would be a cat with eyes in one
+											     place and a cat without them in the other. -->
+											<svg
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke={p.fg}
+												stroke-width="1.5"
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												style="color:{p.fg}"
+											>
+												{#each presetMarks(p) as mark, i (i)}
+													<path
+														d={mark.d}
+														fill={mark.fill ?? 'none'}
+														stroke={mark.fill ? 'none' : (mark.stroke ?? p.fg)}
+														stroke-width={mark.width ?? 1.5}
+														transform={markTransform(mark)}
+													/>
+												{/each}
+											</svg>
+										</span>
+										<span class="pm-preset-word">{p.label}</span>
+									</button>
+								{/each}
+							</div>
+						{/if}
+					{/each}
 					<div class="pm-row">
 						<label class="pm-btn pm-upload" class:disabled={busy}>
 							Upload a picture
@@ -424,6 +581,250 @@
 						{/if}
 					</div>
 				</div>
+
+				<!-- ====================================================================
+				     THE IDENTITY SECTION (ledger 0289, report 15).
+
+				     IT IS A DISCLOSURE, CLOSED BY DEFAULT, AND THAT IS THE RESTRAINT
+				     THIS PANEL ALREADY NEEDED. Ledger 0280 measured this popover's
+				     one problem list sitting 113px below the fold at 900px after a
+				     single section was added; five more control groups rendered
+				     unconditionally would put the Sign out button somewhere nobody
+				     can reach. `collapseWhen` constant-true is how "closed by
+				     default" is spelled, and it is safe because the signal is
+				     LATCHED inside Disclosure -- it can fall and never rise, so a
+				     student who opens this keeps it open while they work.
+
+				     THE PREVIEW IS THE REAL COMPONENT, never a mock-up of one. It is
+				     the same `IdentityBanner` every other surface mounts, handed the
+				     same style, so what a student sees here is what a classmate will
+				     see. A hand-drawn preview is the second implementation that
+				     stops matching.
+
+				     AND THE WHOLE SECTION IS ABSENT WHEN 0220 IS NOT APPLIED. The
+				     migration is pasted by hand, so a deployment carrying this client
+				     without it is a real state -- and a picker whose every save is
+				     refused by a column that does not exist is worse than no picker:
+				     absence is the mechanism this platform uses for a control it
+				     cannot honour. `profileStyleReady` is the one reading of that,
+				     and it keys on `undefined` rather than on a value, so "chose no
+				     accent" (null) cannot read as "cannot tell".
+				     ==================================================================== -->
+				{#if styleReady}
+					<div class="pm-section">
+						<Disclosure label="Identity" collapseWhen={true} scope="profile-identity">
+							{#snippet children()}
+								<div class="pm-identity">
+									<p class="pm-hint">
+										This is how your name appears to other people across the site.
+									</p>
+									<div class="pm-preview">
+										<IdentityBanner {profile} size={36} />
+									</div>
+
+									<div class="pm-label pm-sub">Accent</div>
+									<div class="pm-swatches">
+										<button
+											class="pm-swatch pm-swatch-none"
+											class:selected={!style?.accent_color}
+											type="button"
+											aria-pressed={!style?.accent_color}
+											disabled={busy}
+											onclick={() => chooseAccent(null)}
+										>
+											<span class="pm-swatch-word">None</span>
+										</button>
+										{#each ACCENT_PRESETS as a (a.id)}
+											<button
+												class="pm-swatch"
+												class:selected={style?.accent_color === a.hex}
+												type="button"
+												aria-pressed={style?.accent_color === a.hex}
+												disabled={busy}
+												onclick={() => chooseAccent(a.hex)}
+											>
+												<span class="pm-swatch-dot" style="background:{a.hex}" aria-hidden="true"
+												></span>
+												<span class="pm-swatch-word">{a.label}</span>
+											</button>
+										{/each}
+									</div>
+
+									<div class="pm-label pm-sub">Badge</div>
+									<div class="pm-swatches">
+										<button
+											class="pm-swatch pm-swatch-none"
+											class:selected={!style?.badge}
+											type="button"
+											aria-pressed={!style?.badge}
+											disabled={busy}
+											onclick={() => chooseBadge(null)}
+										>
+											<span class="pm-swatch-word">None</span>
+										</button>
+										{#each BADGES as b (b.id)}
+											<button
+												class="pm-swatch"
+												class:selected={style?.badge === b.id}
+												type="button"
+												aria-pressed={style?.badge === b.id}
+												disabled={busy}
+												onclick={() => chooseBadge(b.id)}
+											>
+												<span class="pm-swatch-glyph"><BadgeIcon id={b.id} size="1.1em" /></span>
+												<span class="pm-swatch-word">{b.label}</span>
+											</button>
+										{/each}
+									</div>
+
+									<div class="pm-label pm-sub">Banner</div>
+									<div class="pm-swatches">
+										<button
+											class="pm-swatch pm-swatch-none"
+											class:selected={!bgType}
+											type="button"
+											aria-pressed={!bgType}
+											disabled={busy}
+											onclick={() => writeBackground(null, null)}
+										>
+											<span class="pm-swatch-word">None</span>
+										</button>
+										<button
+											class="pm-swatch"
+											class:selected={bgType === 'solid'}
+											type="button"
+											aria-pressed={bgType === 'solid'}
+											disabled={busy}
+											onclick={() => writeBackground('solid', solidNow)}
+										>
+											<span class="pm-swatch-dot" style="background:{solidNow}" aria-hidden="true"
+											></span>
+											<span class="pm-swatch-word">Solid</span>
+										</button>
+										<button
+											class="pm-swatch"
+											class:selected={bgType === 'gradient'}
+											type="button"
+											aria-pressed={bgType === 'gradient'}
+											disabled={busy}
+											onclick={() => writeBackground('gradient', [gradNow[0], gradNow[1]])}
+										>
+											<span
+												class="pm-swatch-dot"
+												style="background:linear-gradient(135deg,{gradNow[0]},{gradNow[1]})"
+												aria-hidden="true"
+											></span>
+											<span class="pm-swatch-word">Gradient</span>
+										</button>
+									</div>
+									<!-- THE COLOUR INPUTS APPEAR ONLY FOR THE MODE THAT USES THEM.
+									     A colour well that changes nothing is the control-whose-only-
+									     outcome-is-nothing this platform refuses to offer. Each is
+									     wrapped in its own `<label>`, which is what a finger hits, and
+									     the label carries the word. -->
+									{#if bgType === 'solid'}
+										<div class="pm-colors">
+											<label class="pm-color">
+												<span>Colour</span>
+												<input
+													type="color"
+													value={solidNow}
+													disabled={busy}
+													onchange={(e) =>
+														writeBackground('solid', (e.currentTarget as HTMLInputElement).value)}
+												/>
+											</label>
+										</div>
+									{:else if bgType === 'gradient'}
+										<div class="pm-colors">
+											<label class="pm-color">
+												<span>From</span>
+												<input
+													type="color"
+													value={gradNow[0]}
+													disabled={busy}
+													onchange={(e) =>
+														writeBackground('gradient', [
+															(e.currentTarget as HTMLInputElement).value,
+															gradNow[1]
+														])}
+												/>
+											</label>
+											<label class="pm-color">
+												<span>To</span>
+												<input
+													type="color"
+													value={gradNow[1]}
+													disabled={busy}
+													onchange={(e) =>
+														writeBackground('gradient', [
+															gradNow[0],
+															(e.currentTarget as HTMLInputElement).value
+														])}
+												/>
+											</label>
+										</div>
+									{/if}
+
+									<!-- ONLY THE AMBIENT FLOURISHES, and the list is DERIVED
+									     (`PROFILE_FLOURISHES` filters on kind) rather than typed out,
+									     so it cannot drift from 0220's own CHECK constraint. An event
+									     flourish names a decisive moment a tournament has and a
+									     profile does not. -->
+									<div class="pm-label pm-sub">Effect</div>
+									<div class="pm-swatches">
+										<button
+											class="pm-swatch pm-swatch-none"
+											class:selected={!style?.flourish}
+											type="button"
+											aria-pressed={!style?.flourish}
+											disabled={busy}
+											onclick={() => chooseFlourish(null)}
+										>
+											<span class="pm-swatch-word">None</span>
+										</button>
+										{#each PROFILE_FLOURISHES as f (f.id)}
+											<button
+												class="pm-swatch pm-swatch-wide"
+												class:selected={style?.flourish === f.id}
+												type="button"
+												aria-pressed={style?.flourish === f.id}
+												disabled={busy}
+												onclick={() => chooseFlourish(f.id)}
+											>
+												<span class="pm-swatch-word">{f.label}</span>
+											</button>
+										{/each}
+									</div>
+
+									<div class="pm-label pm-sub">Tagline</div>
+									<form
+										class="pm-tagline"
+										onsubmit={(e) => {
+											e.preventDefault();
+											saveTagline();
+										}}
+									>
+										<input
+											type="text"
+											maxlength="48"
+											placeholder="48 characters"
+											bind:value={taglineDraft}
+											disabled={busy}
+										/>
+										<button class="pm-btn" type="submit" disabled={busy}>Save</button>
+									</form>
+
+									<div class="pm-row">
+										<button class="pm-btn" type="button" disabled={busy} onclick={clearStyle}>
+											Reset customization
+										</button>
+									</div>
+								</div>
+							{/snippet}
+						</Disclosure>
+					</div>
+				{/if}
 
 				<!-- THE SITE THEME CONTROL. Here and nowhere else, which is what the
 				     session gate in ThemeRoot is paired with: the theme is on exactly
@@ -859,6 +1260,155 @@
 		color: var(--text-2);
 	}
 
+	/* ------------------------------------------------------------------------
+	   THE IDENTITY CONTROLS (ledger 0289).
+
+	   EVERY CONTROL HERE CLEARS THE 44px FLOOR, because this is a
+	   student-facing surface at every width (IDEA_INTERFACE_STANDARDS 10) and
+	   this panel is mounted in sixty-nine mastheads. The floor is `min-height`
+	   and never `height`: a fixed height cannot round UP, which is exactly how
+	   the notebook's plate switch ended up pinned below the floor it was meant
+	   to clear.
+
+	   AND EVERY ONE CARRIES A WORD, not only a swatch or a glyph. A colour dot
+	   on its own is colour-as-the-only-signal, and a `title` is not
+	   discoverable and a phone cannot hover -- the same finding report 23 made
+	   about the eight picture presets, which is why they gained their names.
+	   ------------------------------------------------------------------------ */
+	.pm-tier {
+		display: flex;
+		align-items: baseline;
+		gap: 0.4rem;
+		margin: 0.55rem 0 0.3rem;
+	}
+	.pm-tier-name {
+		font-family: var(--font-mono, 'Share Tech Mono', monospace);
+		font-size: 0.66rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--text-2, #9ab);
+	}
+	.pm-tier-note {
+		font-size: 0.66rem;
+		color: var(--text-3, #7a8a7a);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.pm-identity {
+		display: block;
+	}
+	.pm-hint {
+		margin: 0 0 0.5rem;
+		font-size: 0.72rem;
+		color: var(--text-2, #9ab);
+	}
+	.pm-preview {
+		margin-bottom: 0.6rem;
+	}
+	.pm-sub {
+		margin-top: 0.6rem;
+	}
+	.pm-swatches {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.3rem;
+	}
+	.pm-swatch {
+		display: flex;
+		align-items: center;
+		justify-content: flex-start;
+		gap: 0.35rem;
+		min-height: 44px;
+		padding: 0.3rem 0.45rem;
+		border-radius: var(--radius-sm, 6px);
+		border: 1px solid var(--boundary, rgba(255, 255, 255, 0.2));
+		background: var(--bg2, #101610);
+		color: var(--text-1, #e8ffe8);
+		font-family: var(--font-display, 'Rajdhani', sans-serif);
+		font-size: 0.78rem;
+		cursor: pointer;
+		min-width: 0;
+	}
+	.pm-swatch:disabled {
+		opacity: 0.55;
+		cursor: default;
+	}
+	/* The SELECTED state is a ring AND a weight, never the ring alone: colour
+	   is never the only signal, and `aria-pressed` carries it for anyone not
+	   looking at either. */
+	.pm-swatch.selected {
+		border-color: var(--green, #00ff41);
+		box-shadow: inset 0 0 0 1px var(--green, #00ff41);
+		font-weight: 700;
+	}
+	.pm-swatch-wide {
+		grid-column: span 2;
+	}
+	.pm-swatch-dot {
+		width: 1rem;
+		height: 1rem;
+		border-radius: 50%;
+		flex: none;
+		border: 1px solid var(--boundary, rgba(255, 255, 255, 0.2));
+	}
+	.pm-swatch-glyph {
+		display: inline-flex;
+		flex: none;
+		color: var(--text-2, #9ab);
+	}
+	.pm-swatch-word {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.pm-colors {
+		display: flex;
+		gap: 0.4rem;
+		margin-top: 0.3rem;
+	}
+	/* THE CONTROL IS MEASURED AT THE LABEL, which is what a finger hits. The
+	   input inside it is the browser's own colour well and is smaller; the
+	   label is what carries the floor and the word. */
+	.pm-color {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		min-height: 44px;
+		padding: 0.25rem 0.5rem;
+		border-radius: var(--radius-sm, 6px);
+		border: 1px solid var(--boundary, rgba(255, 255, 255, 0.2));
+		background: var(--bg2, #101610);
+		font-family: var(--font-mono, 'Share Tech Mono', monospace);
+		font-size: 0.68rem;
+		color: var(--text-2, #9ab);
+		cursor: pointer;
+	}
+	.pm-color input {
+		width: 32px;
+		height: 28px;
+		padding: 0;
+		border: none;
+		background: none;
+		cursor: pointer;
+	}
+	.pm-tagline {
+		display: flex;
+		gap: 0.35rem;
+		margin-top: 0.3rem;
+	}
+	.pm-tagline input {
+		flex: 1;
+		min-width: 0;
+		min-height: 44px;
+		padding: 0.3rem 0.5rem;
+		border-radius: var(--radius-sm, 6px);
+		border: 1px solid var(--boundary, rgba(255, 255, 255, 0.2));
+		background: var(--bg2, #101610);
+		color: var(--text-1, #e8ffe8);
+		font-family: var(--font-display, 'Rajdhani', sans-serif);
+		font-size: 0.85rem;
+	}
 	.pm-error {
 		margin: 0;
 		font-family: var(--font-mono);

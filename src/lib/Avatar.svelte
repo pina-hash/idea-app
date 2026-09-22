@@ -1,12 +1,20 @@
 <script lang="ts">
-	import { avatarSource, type UserProfile } from '$lib/profile';
+	import {
+		avatarSource,
+		markTransform,
+		presetMarks,
+		profileStyle,
+		type UserProfile
+	} from '$lib/profile';
 	import {
 		avatarTint,
 		proxiedAvatarSource,
 		subjectAvatar,
 		subjectInitials,
+		subjectStyle,
 		type AvatarSubject
 	} from '$lib/avatars';
+	import { accentOf, type IdentityStyle } from '$lib/identity-style';
 
 	/**
 	 * A person's picture at any size: chosen preset mark, uploaded image,
@@ -57,13 +65,72 @@
 		profile = undefined,
 		subject = undefined,
 		tintKey = undefined,
-		size = 32
+		size = 32,
+		style = undefined
 	}: {
 		profile?: UserProfile | null;
 		subject?: AvatarSubject | null;
 		tintKey?: string | null;
 		size?: number;
+		/**
+		 * An identity style to paint instead of the one on `profile` / `subject`.
+		 * Callers do not pass this: it exists for the profile menu's live
+		 * preview, which has to show a DRAFT that is not saved anywhere yet.
+		 */
+		style?: IdentityStyle | null;
 	} = $props();
+
+	/**
+	 * ============================================================================
+	 * THE RESTRAINT, AND IT IS THE DECISION THAT MAKES REPORT 15 SHIPPABLE.
+	 * ============================================================================
+	 *
+	 * Report 15 asks for tournament-grade banners "anywhere the profile shows up
+	 * - authoring, publisher, leaderboard, my class". Taken literally on the
+	 * surface that matters most, that is a class roster drawing THIRTY gradient
+	 * banners, thirty background layers and thirty ambient animations, in a pane
+	 * where the thing a teacher came to read is the names.
+	 *
+	 * SO THE FULL BANNER IS NOT WHAT AN AVATAR RENDERS. This component takes
+	 * exactly ONE thing from a style -- the accent, as the ring already drawn
+	 * round every tile -- which costs one `border-color` and not one extra node,
+	 * one extra layer or one extra animation. `IdentityBanner.svelte` is where
+	 * the background, the badge and the tagline live, and it is mounted on
+	 * surfaces that show ONE person at a size where a banner is the point.
+	 *
+	 * WHAT WAS REJECTED, and why each is worse than it looks:
+	 *   - A BACKGROUND WASH ON THE TILE, the way `EntryChip` does it. A chip is
+	 *     a name on a row with a 24px thumbnail beside it; this is a 24px
+	 *     CIRCLE, and a gradient inside it competes with the initials or the
+	 *     mark, which are the thing that actually identifies the person.
+	 *   - THE BADGE, as a corner pip. At 24px a badge is about six pixels of
+	 *     glyph -- unreadable, and colour-only signal, which this platform
+	 *     refuses.
+	 *   - THE AMBIENT FLOURISH. `glow-pulse` is a keyframe animation; thirty of
+	 *     them on one roster is thirty compositor layers running forever on a
+	 *     six-to-eight-year-old school desktop, which is the stated performance
+	 *     budget. It renders on the banner, where there is one.
+	 *   - A `size` THRESHOLD that turned the banner on above some number of
+	 *     pixels. That is a magic constant deciding a disclosure-shaped question
+	 *     in the wrong place: whether a surface wants a banner is the SURFACE's
+	 *     call, so it is a component choice, not an arithmetic one.
+	 *
+	 * The roster-scale cost of this is measured rather than asserted -- thirty
+	 * identities, both arrangements, in this bundle's history entry.
+	 */
+
+	/**
+	 * THE STYLE IS DERIVED, NOT REQUIRED, AND THAT IS THE WHOLE INHERITANCE
+	 * MECHANISM. Every consumer already hands this component a `profile` or a
+	 * `subject`; reading the style off that same object is what lets a surface
+	 * pick up an identity accent with NO EDIT to it -- the same trick 0181 used
+	 * to move every uploaded avatar onto a proxy without touching the nine
+	 * surfaces that render one.
+	 */
+	const identity = $derived(
+		style !== undefined ? style : profile != null ? profileStyle(profile) : subjectStyle(subject)
+	);
+	const accent = $derived(identity?.accent_color ? accentOf(identity) : null);
 
 	/**
 	 * Reset on a NEW source rather than on mount. A `{#each}` over a roster
@@ -143,7 +210,10 @@
 
 <span
 	class="avatar"
-	style="width:{px};height:{px};min-width:{px};--avatar-tint:{tint}"
+	class:accented={!!accent}
+	style="width:{px};height:{px};min-width:{px};--avatar-tint:{tint}{accent
+		? `;--avatar-accent:${accent}`
+		: ''}"
 	aria-hidden="true"
 >
 	{#if source.kind === 'image' && !failed}
@@ -156,11 +226,36 @@
 			onerror={() => (failedUrl = source.kind === 'image' ? source.url : null)}
 		/>
 	{:else if source.kind === 'preset'}
-		<svg viewBox="0 0 24 24" fill="none" stroke={source.preset.fg} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-			<path d={source.preset.d} />
+		<!-- EVERY MARK OF THE PRESET, THROUGH `presetMarks`, WHICH IS THE ONE
+		     IMPLEMENTATION. This used to be a single `<path d={preset.d} />`,
+		     which was correct while a preset WAS one path. The picker in
+		     ProfileMenu carried the identical line, and the two would now be a
+		     cat with eyes beside a cat without them.
+
+		     `color` carries the stroke so a filled mark can say
+		     `fill="currentColor"` and pick up the preset's own colour without
+		     each entry repeating its hex. -->
+		<svg
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke={source.preset.fg}
+			stroke-width="1.5"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+			style="color:{source.preset.fg}"
+		>
+			{#each presetMarks(source.preset) as mark, i (i)}
+				<path
+					d={mark.d}
+					fill={mark.fill ?? 'none'}
+					stroke={mark.fill ? 'none' : (mark.stroke ?? source.preset.fg)}
+					stroke-width={mark.width ?? 1.5}
+					transform={markTransform(mark)}
+				/>
+			{/each}
 		</svg>
 	{:else}
-		<span class="initials" style="font-size:{Math.round(size * 0.4)}px">{fallbackText}</span>
+			<span class="initials" style="font-size:{Math.round(size * 0.4)}px">{fallbackText}</span>
 	{/if}
 </span>
 
@@ -179,6 +274,19 @@
 		overflow: hidden;
 		background: var(--bg2, #081209);
 		border: 1px solid var(--line, rgba(0, 255, 65, 0.15));
+	}
+	/* THE ONE THING A STYLE CHANGES HERE. The ring already existed and already
+	   carried a colour; an accented identity repoints it and nothing else. It
+	   is 2px rather than 1px because at 24px a one-pixel ring in a custom hue
+	   reads as an anti-aliasing artefact rather than as a choice -- and because
+	   the ring is then a GRAPHICAL OBJECT carrying meaning, which is the 3:1
+	   contract `--boundary` names. The accent presets are measured against it
+	   in tools/browser-verify/routes/avatars.mjs.
+
+	   NO GLOW, NO WASH, NO BADGE: see the restraint note in the script block. */
+	.avatar.accented {
+		border-width: 2px;
+		border-color: var(--avatar-accent);
 	}
 	.avatar img {
 		width: 100%;
