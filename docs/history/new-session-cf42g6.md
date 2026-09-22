@@ -358,7 +358,13 @@ test is for, and `npm run verify:counts` had said so in words
 ("1 spec(s) in this tree have no measurement under measured/") before the suite
 did. `npm run verify:readme -- --route "state=section"` measured it: 40
 measurements, 0 outside threshold, `dirty: false` at `306a497c`. The store now
-holds 242 specs, 484 runs, 8834 measurements. Green after.
+holds 242 specs, 484 runs, 8834 measurements.
+
+**Re-run whole afterwards on the committed tree, with nothing else running:
+529 of 529 files and 9889 of 9889 tests passed, 0 failures, 1263.85s.** That is
+the figure to compare a later tree against; this bundle adds 22 tests across
+two new files (`classroom-grading-dictation` and
+`classroom-batch-grading-transport`) plus five in `classroom-grading-bulk`.
 
 Two notes on running it. **The filter matches the spec's PATH, not its
 filename**, so `--route grading-bulk-state-section` answers "No routes matched"
