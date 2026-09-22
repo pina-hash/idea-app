@@ -14,7 +14,7 @@
   **Claims: NONE. No migration written, so 0219 is left free.**
   Highest on origin/main at issue: 0217. Starting sha `1ec2f640`, which is
   `origin/main` exactly.
-- Status: issued
+- Status: pushed
 - Branch: `claude/new-session-cf42g6`
 - Notes: SHIPPED THREE OF THE FIVE (2, 3 and 5), and the three chosen are the
   three that need NO migration -- so this bundle deploys with nothing for Mr.
