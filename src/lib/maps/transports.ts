@@ -43,7 +43,7 @@ import { MAPS_PENDING_COLUMN } from './maps';
 import {
 	MAPS_ITEM_COLUMNS,
 	MAPS_ITEM_TYPE_COLUMNS,
-	MAPS_NODE_COLUMNS,
+	loadMapsNodes,
 	MAPS_PHOTO_COLUMNS,
 	MAPS_STOCK_COLUMNS,
 	loadMapsEditorData,
@@ -640,26 +640,35 @@ export function mapsGrantTransports(supabase: MapsWriteClient): MapsGrantTranspo
  * a reason that is an accident. The one thing the filter WOULD change is the
  * only thing worth having: it would hide a leak instead of failing on it.
  *
- * NO LADDER, for the reason `selects.ts` gives about the editor's read: 0161
- * to 0165 landed as one wave and there is no deployment where `maps_nodes`
- * answers and `maps_photos` does not. The first migration that widens these
- * tables adds the rung with it.
+ * ONE LADDER, THE SAME ONE THE EDITOR TAKES, AND IT IS `loadMapsNodes` RATHER
+ * THAN A SECOND COPY OF IT. 0161 to 0165 landed as one wave, so for four
+ * migrations there was no rung to serve; 0224 widens `maps_nodes` and is
+ * applied by hand, so between this bundle shipping and that paste there is a
+ * real deployment whose node read must not name two columns it does not have
+ * -- PostgREST rejects the whole select on an unknown column, so the map would
+ * go blank rather than degrade. `selects.ts` owns the rungs and the
+ * capability flag; this function reads them.
+ *
+ * THE PUBLIC READ IS WHERE THIS MATTERS MOST. `/maps` holds no session and
+ * answers a phone standing at a toolbox; a failed select there is a map nobody
+ * can browse, for a column nobody needed.
  */
 export async function loadMapsPublicData(supabase: MapsReadClient): Promise<MapsViewerData> {
 	const [nodes, itemTypes, items, stock, photos] = await Promise.all([
-		supabase.from('maps_nodes').select(MAPS_NODE_COLUMNS),
+		loadMapsNodes(supabase),
 		supabase.from('maps_item_types').select(MAPS_ITEM_TYPE_COLUMNS),
 		supabase.from('maps_items').select(MAPS_ITEM_COLUMNS),
 		supabase.from('maps_stock').select(MAPS_STOCK_COLUMNS),
 		supabase.from('maps_photos').select(MAPS_PHOTO_COLUMNS)
 	]);
-	for (const result of [nodes, itemTypes, items, stock, photos]) {
+	for (const result of [itemTypes, items, stock, photos]) {
 		if (result.error) throw new Error(result.error.message);
 	}
 	const byName = (a: { name?: string | null }, b: { name?: string | null }) =>
 		(a.name ?? '').localeCompare(b.name ?? '');
 	return {
-		nodes: ((nodes.data ?? []) as MapsViewerData['nodes']).slice().sort(byName),
+		thicknessReady: nodes.thicknessReady,
+		nodes: (nodes.nodes as MapsViewerData['nodes']).slice().sort(byName),
 		itemTypes: ((itemTypes.data ?? []) as MapsViewerData['itemTypes']).slice().sort(byName),
 		items: ((items.data ?? []) as MapsViewerData['items']).slice(),
 		stock: ((stock.data ?? []) as MapsViewerData['stock']).slice(),

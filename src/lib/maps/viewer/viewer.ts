@@ -55,6 +55,15 @@ export interface MapsViewerData {
 	items: MapsItem[];
 	stock: MapsStock[];
 	photos: MapsPhoto[];
+	/**
+	 * 0224's select-ladder capability. TRUE only when the rung that actually
+	 * answered NAMED `wall_thickness_in`, so a deployment sitting before 0224
+	 * reads false and every wall control is withheld rather than offered with
+	 * nowhere to write. Optional so a fixture that predates the ladder is not
+	 * a type error, and read through `mapsThicknessReady` so "not stated" and
+	 * "cannot tell" are one answer in one place.
+	 */
+	thicknessReady?: boolean;
 }
 
 export const EMPTY_VIEWER_DATA: MapsViewerData = {
