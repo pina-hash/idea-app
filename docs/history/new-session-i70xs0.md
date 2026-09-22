@@ -145,8 +145,15 @@ times landing on `3793ea2cfe4e7354fadb9b3cef985abd63a1084e` with no drift.
   (register, mirror and local all at 4.28), because the sweep clones from `origin`
   and this bundle's edit was still local and unpushed at that reading. Re-run after
   the push; see the push confirmation below.
-- `npm test` (the full suite): reported in the ending section below, since it was
-  still running in the background at the time this entry was drafted.
+- `npm test` (the full suite): the first run failed one test --
+  `tests/workflows.test.ts`'s `expect(ENDING).toMatch(/CANNOT SAY\` is never a pass/)`,
+  because the first pass at item 4 REPLACED that literal sentence instead of keeping
+  it and adding the exit-1 case beside it. Fixed by restoring the sentence verbatim
+  and stating the substitute as governing only the case it leaves uncovered (a
+  second, separate commit and push). Re-run clean: **527 files passed, 9826 tests
+  passed, 0 failures**, exit code 0. `svelte-check` separately: **0 errors, 37
+  warnings in 20 files**, matching `CLAUDE.md`'s stated baseline exactly with no
+  change to either number.
 - Decision-entry census: 33 existing entries (01 through 33), confirming the claim
   that 34, 35 and 36 were free. **Only 6 of the 33 carry a `Build:` line -- `04`,
   `21`, `27`, `28`, `29`, `30`.** The other **27 of the 33 existing decision entries

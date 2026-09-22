@@ -7,7 +7,7 @@
   `docs/standards/IDEA_instructions.md`, `docs/standards/REGISTER.md`,
   `docs/prompt-ledger/entries/0279-*`, and its own `docs/history/` entry.
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0217
-- Status: issued
+- Status: pushed
 - Branch: claude/new-session-i70xs0
 - Notes: Three decisions recorded, not reopened, per the router chat's own
   framing. Entry 34 answers gate 4 (the merge-checklist item that has stopped
@@ -36,3 +36,11 @@
 
   This bundle carries no migration and touches nothing under `src/`, `tools/`
   or `tests/`.
+
+  Verification: `npm test` 527 files / 9826 tests passed, 0 failures (the
+  first run wrongly failed `tests/workflows.test.ts` because the first pass
+  at item 4 replaced rather than kept the literal "`CANNOT SAY` is never a
+  pass" sentence the test pins; a second commit restored it and the suite is
+  clean). `svelte-check` 0 errors, 37 warnings in 20 files, matching
+  `CLAUDE.md`'s stated baseline exactly. `tests/standards-version-header.test.ts`
+  passes; header (4.29, 2026-09-21) and newest changelog entry agree.
