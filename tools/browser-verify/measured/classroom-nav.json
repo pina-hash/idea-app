@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "classroom-nav.mjs",
-	"date": "2026-09-12T05:18:26.073Z",
-	"sha": "949480c824e4521bac612836bb2dcf7e47aca1a8",
+	"date": "2026-09-22T19:58:30.099Z",
+	"sha": "bddca62fbca9a8d5a5c7ba8cf03d1eb128f00c4f",
 	"dirty": false,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 36,
 	"outsideRows": [],
-	"ms": 5323
+	"ms": 5364
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import { page } from '$app/state';
-	import { displayName } from '$lib/profile';
+	import { displayName, profileStyleReady } from '$lib/profile';
 	import type { UserProfile } from '$lib/profile';
 
 	/**
@@ -62,6 +62,35 @@
 	<p class="readout">Current display name: <strong data-testid="name">{displayName(profile)}</strong></p>
 	<p class="readout">
 		Stored pathway: <strong data-testid="pathway">{profile?.pathway ?? 'unset'}</strong>
+	</p>
+	<!-- THE STORED ROW, NOT THE BANNER. `IdentityBanner` renders nothing at all
+	     for an uncustomized identity, so a banner-only check cannot tell "chose
+	     nothing" from "the component failed to mount", and cannot tell a refused
+	     write from a successful one that wrote the same value. Same argument the
+	     pathway readout above is here for. -->
+	<p class="readout">
+		Stored accent: <strong data-testid="accent">{profile?.style_accent_color ?? 'unset'}</strong>
+	</p>
+	<p class="readout">
+		Stored badge: <strong data-testid="badge">{profile?.style_badge ?? 'unset'}</strong>
+	</p>
+	<p class="readout">
+		Stored banner:
+		<strong data-testid="bg">{profile?.style_background_type ?? 'unset'}</strong>
+	</p>
+	<p class="readout">
+		Stored tagline: <strong data-testid="tagline">{profile?.style_tagline ?? 'unset'}</strong>
+	</p>
+	<p class="readout">
+		0220 applied (columns present):
+		<strong data-testid="style-ready">{profileStyleReady(profile) ? 'yes' : 'no'}</strong>
+	</p>
+	<p class="note">
+		Identity: open the menu and expand <strong>Identity</strong>. Every control writes through the
+		same <code>saveProfile</code> the name and the pathway use, so <code>?refuse=rls</code> and
+		<code>?refuse=error</code> work here too and the readouts above must NOT move.
+		<code>?style=set</code> starts customized; <code>?style=absent</code> is the pre-0220
+		deployment, where the whole section must be gone.
 	</p>
 </div>
 
