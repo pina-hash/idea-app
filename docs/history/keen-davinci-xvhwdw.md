@@ -272,10 +272,20 @@ rewrites `README.md` and every file under `measured/`, which is outside this
 bundle's owned paths. `npm run verify:counts -- --check` agrees with the tree.
 
 **For Mr. Pina.** `tools/deploy-probe.mjs` was not touched: no defect was found
-in it and its blob is identical to `origin/integration`'s. The branch's commits
-are contained in this one, so `integrate.yml` will delete
-`claude/keen-davinci-xvhwdw` once this lands. **If you want the 106 lines after
-all, they are not gone** -- they are the diff between `4890582c` and
+in it and its blob is identical to `origin/integration`'s.
+
+**`claude/keen-davinci-xvhwdw` NEEDS A DELETE BY HAND, AND THIS ENTRY SAID THE OPPOSITE FOR ONE COMMIT.** It read that
+`integrate.yml` would delete it once this landed. Its commits ARE contained in
+`integration` now, which is the half that was right; but the workflow's
+contained-delete path sits BELOW its CI-conclusion check, and that check
+`continue`s on anything that is not `success`. This branch's tip `4890582c` is
+RED -- which is why it stalled in the first place -- so it is skipped before
+control ever reaches the delete, and no future run will take it either. A red
+branch that is fully merged is therefore a ref that stands forever with nothing
+saying why, which is the same failure this bundle was issued to resolve, one
+level up. A cloud session cannot delete a remote branch, so this one is yours.
+
+**If you want the 106 lines after all, they are not gone** -- they are the diff between `4890582c` and
 `origin/integration` for `tests/db/deploy-probe-history-live.test.ts`, and
 restoring them is one `git checkout`. The judgment this bundle made is that a
 duplicate control is worse than no control, because it reads as coverage; it is
