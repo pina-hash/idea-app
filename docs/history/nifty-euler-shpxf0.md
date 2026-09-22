@@ -437,6 +437,34 @@ applied.
 **Neither failure existed on `origin/main`** and neither is about the code this
 bundle changed.
 
+### The full `verify:readme` sweep, and the 36 findings it un-hid
+
+The ending asks for `npm run verify:readme` once at the end on a clean committed
+tree. It ran to completion on `bddca62f`: **242 measurement files written, exit
+0**, about 40 minutes over 484 route/width runs.
+
+**THIS BUNDLE'S OWN SIX SPECS ARE CLEAN**: `avatars` (132 measurements),
+`profile-menu-style-set` (58), `profile-menu-state-open` (76), `profile-menu`
+(14), and the two pathway specs (32 and 42) -- **354 measurements, every one of
+them inside threshold, `outsideRows: []` on all six**.
+
+**THE TREE-WIDE FIGURE MOVED FROM 146 OUTSIDE THRESHOLD TO 182, AND NONE OF THE
+36 IS THIS BUNDLE'S.** Every one is an IdeaCAD route -- `/dev/ideacad` and
+`/dev/ideacad-item` across their role and state variants -- which this bundle
+never touched and does not import from. What changed is not the surfaces, it is
+that the committed measurement for them was taken on 2026-09-12 and had been
+stale ever since; the README says in its own words that "a stale-but-honest
+measured half is a supported state", and this is what the honest half looks like
+once it is taken again. **They are reported here rather than fixed**: they belong
+to the lanes working in that subsystem, and a profile bundle editing IdeaCAD's
+surfaces to move a number would be exactly the drive-by this repository's lane
+discipline exists to prevent.
+
+**THE COST OF THE SWEEP IS A 243-FILE DIFF**, which is a real merge hazard
+against any lane holding a measurement file. That is a known shape here and
+CLAUDE.md carries the procedure for it: on a conflict in the counts block,
+regenerate rather than picking a side.
+
 ### What was NOT verified
 
 - **Nothing was run against the live Supabase project.** This container cannot

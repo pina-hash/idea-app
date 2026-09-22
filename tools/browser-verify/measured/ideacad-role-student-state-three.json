@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "ideacad-role-student-state-three.mjs",
-	"date": "2026-09-14T07:33:51.410Z",
-	"sha": "b884daf26522e27dd0972ea8160b636b0e1ead0a",
-	"dirty": true,
+	"date": "2026-09-22T19:58:30.099Z",
+	"sha": "bddca62fbca9a8d5a5c7ba8cf03d1eb128f00c4f",
+	"dirty": false,
 	"widths": [
 		375,
 		1440
@@ -11,18 +11,6 @@
 	"runs": 2,
 	"measurements": 36,
 	"outsideRows": [
-		{
-			"path": "/dev/ideacad?role=student&state=three",
-			"width": 375,
-			"check": "tap-target",
-			"label": "a concept card"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=three",
-			"width": 375,
-			"check": "tap-target",
-			"label": "a concept strip control"
-		},
 		{
 			"path": "/dev/ideacad?role=student&state=three",
 			"width": 375,
@@ -38,27 +26,33 @@
 		{
 			"path": "/dev/ideacad?role=student&state=three",
 			"width": 375,
+			"check": "layout-sanity",
+			"label": "the IdeaCAD console"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=three",
+			"width": 375,
 			"check": "distinguishable",
 			"label": "a readout label against its own value"
 		},
 		{
 			"path": "/dev/ideacad?role=student&state=three",
-			"width": 1440,
-			"check": "tap-target",
-			"label": "a concept card"
-		},
-		{
-			"path": "/dev/ideacad?role=student&state=three",
-			"width": 1440,
-			"check": "tap-target",
-			"label": "a concept strip control"
+			"width": 375,
+			"check": "distinguishable",
+			"label": "the IDEACAD eyebrow against the saved-state word"
 		},
 		{
 			"path": "/dev/ideacad?role=student&state=three",
 			"width": 1440,
 			"check": "layout-sanity",
 			"label": "the IdeaCAD console"
+		},
+		{
+			"path": "/dev/ideacad?role=student&state=three",
+			"width": 1440,
+			"check": "distinguishable",
+			"label": "the IDEACAD eyebrow against the saved-state word"
 		}
 	],
-	"ms": 6093
+	"ms": 5364
 }
