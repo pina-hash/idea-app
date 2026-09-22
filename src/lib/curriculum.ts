@@ -192,6 +192,51 @@ export const SECTIONS: Section[] = [
 		honors: true,
 		isNew: true,
 		status: 'upcoming'
+	},
+	{
+		/*
+		 * FRC IS A COURSE ON THIS TILE, AND THIS ROW IS THE WHOLE OF WHAT MAKES
+		 * IT ONE. It was approved on or about 2026-09-01 as an honors course
+		 * taught inside IDEA class time for every year band below the senior
+		 * class, and the classroom already carries a real section for it
+		 * ("FRC 2026/27 Section 1", on Mr. Pina's own class switcher). But
+		 * `activeCourseCount()` is a Set over THIS array and there was no FRC
+		 * entry in it at all, so the home page's Active Courses tile read 2
+		 * against a pathway running 3. THE CLASSROOM SIDE WAS NEVER WRONG:
+		 * `classroom_sections.active` is a different flag on a different table,
+		 * and a student's class card has always shown.
+		 *
+		 * THE SEASON YEAR GOES IN THE TITLE AND NEVER IN `course`, for exactly
+		 * the reason the rotation does not -- see the `course` field's own
+		 * comment. Every row in this array is 2026-27 already, and a course code
+		 * carrying the year would make FRC 2027/28 a SECOND course in the Set:
+		 * the `IDEA 100-1/-2/-3` defect wearing a different suffix. `IDEA FRC`
+		 * is the course; a later season is a new row under the same code.
+		 *
+		 * `year` IS THE LOWEST BAND IT SERVES AND `yearLabel` SAYS THE RANGE.
+		 * The field is one band by type and this course spans three, so the
+		 * range lives in the free-prose label `summer-2026` already uses that
+		 * way ("Incoming Freshman"). `yearLabel` is what the coin desk's section
+		 * label prints; `year` itself only groups `selfSelectOptions()`, which
+		 * has no caller in `src/` today.
+		 *
+		 * `term` IS THE ONE FIELD HERE THAT IS A PLACEHOLDER RATHER THAN A FACT.
+		 * `Term` is a closed union with no year-long value, and widening it
+		 * would make `termLabel()` in `$lib/coin-desk/sections.ts` print
+		 * "Term <whatever was added>" -- so this takes `S1`, the value the
+		 * other honors offering uses. It is read only by the coin desk picker's
+		 * own row label and by nothing that counts.
+		 */
+		id: 'frc-2026',
+		course: 'IDEA FRC',
+		title: 'FRC 2026/27',
+		year: 1,
+		yearLabel: 'Freshman to Junior',
+		instructor: 'Pina',
+		term: 'S1',
+		honors: true,
+		isNew: true,
+		status: 'live'
 	}
 ];
 
