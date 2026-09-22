@@ -1492,6 +1492,16 @@
 				"fix",
 				"reading"
 			]
+		},
+		{
+			"date": "2026-09-22",
+			"title": "You can say where you want to go",
+			"body": "There is a Voice button in the bottom left corner of every page now. Press it, press Start listening, and say a place: \"classroom\", \"my notebook\", \"maps\", \"gauntlet\", \"coin ledger\". The panel lists every phrase that works, so you never have to guess. It is off until you press Start and a page reload turns it off again; your browser does the listening on your own device, nothing you say is recorded, and nothing you say is sent to the site. It stops listening on its own the moment it understands one command, and if it mishears you it tells you what it heard and stays put instead of taking you somewhere random. Some browsers do not have this built in, and on those the button simply is not there.",
+			"tags": [
+				"Everywhere",
+				"new",
+				"accessibility"
+			]
 		}
 	]
 }

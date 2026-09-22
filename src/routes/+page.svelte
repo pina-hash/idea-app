@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { total as changelogTotal } from 'virtual:site-versions';
+	import { census as codeCensus } from 'virtual:site-code';
 	import { APPS, CHANGE_TYPES, appLabel, changeTypeLabel } from '$lib/site-manifest';
 	import { groupEntriesByMonth, type VersionEntry } from '$lib/site-versions';
 	import VersionBadge from '$lib/VersionBadge.svelte';
@@ -8,6 +9,7 @@
 	import AppLauncher from '$lib/AppLauncher.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import Pending from '$lib/Pending.svelte';
+	import CodeCounter from '$lib/CodeCounter.svelte';
 	import HomeTour from '$lib/tour/HomeTour.svelte';
 	import ClassroomFeed from '$lib/classroom/ClassroomFeed.svelte';
 	import {
@@ -404,7 +406,34 @@
 	<canvas id="bg-canvas"></canvas>
 
 	<header>
-		<a class="logo logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
+		<!--
+			THE LOGO AND THE CODE READOUT ARE ONE GROUP, AND THAT IS A MEASURED
+			DECISION RATHER THAN A TIDY ONE.
+
+			THE READOUT: report 12 (Mr. Pina, 2026-09-11), home banner only. It is
+			here and on no other surface -- the claim it makes is about this
+			repository as a whole, which is a thing to say once on the front door.
+			It renders NOTHING when `virtual:site-code` answers `complete: false`
+			(a checkout with no tracked file list), because a code count that can
+			silently come out low is worse than no count, which is the same rule
+			the version substrate applies to a shallow clone.
+
+			THE GROUP: a new header child must not grow the banner, and put in
+			`.header-right` it did. Measured at 375px on this very page, where the
+			header is `flex-wrap: wrap`: the actions row needs 316.6px of the
+			343px available, so a 116px chip beside them pushed `.auth-block` onto
+			a third row and took the header from 125.5px to 158.7px. On the
+			logo's row there is 239px spare and the chip is shorter than the
+			emblem, so the row's height does not move at all. At 1440 the header
+			is a single 64px line either way. The chip's own box is the same font,
+			size, padding and border as the controls opposite it, and it reaches
+			44px through `.tap-reach-44` -- the hit area grows, the layout does
+			not.
+		-->
+		<div class="header-left">
+			<a class="logo logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
+			<CodeCounter census={codeCensus} />
+		</div>
 		<div class="header-right">
 			{#if classChip}
 				<a class="class-chip" href="/classroom">{classChip}</a>

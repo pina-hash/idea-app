@@ -92,7 +92,13 @@ const alias = {
 	// imported here at all.
 	'virtual:site-changelog': fileURLToPath(
 		new URL('./tests/stubs/site-changelog.ts', import.meta.url)
-	)
+	),
+	// The THIRD module of the same build-time substrate: the code census the
+	// home banner renders. Aliased for the same reason as the two above it --
+	// the real one is produced by a plugin that shells out to git, and without
+	// a stand-in the home page cannot be imported here at all, which would take
+	// its section order and its accent mechanism down with it.
+	'virtual:site-code': fileURLToPath(new URL('./tests/stubs/site-code.ts', import.meta.url))
 };
 
 /**
