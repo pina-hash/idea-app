@@ -29,6 +29,7 @@
 
 import { csvCell, splitLastFirst } from '$lib/classroom/assignment-spec';
 import type { ClassroomEnrollment, ClassroomSection } from '$lib/classroom/classroom';
+import { teamLabel, type TeamSet } from '$lib/classroom/teams';
 
 /**
  * The one status vocabulary, and it is the SAME SENTENCE the row shows.
@@ -275,4 +276,135 @@ export function mailtoPlanNote(plan: MailtoPlan): string {
  */
 export function classEmailList(recipients: readonly string[]): string {
 	return recipients.join(', ');
+}
+
+// ---------------------------------------------------------------------------
+// TEAM ROSTERS, OUT OF THE PAGE.
+//
+// The same rules as the roster CSV above and for the same reasons: `csvCell`
+// and `splitLastFirst` are reused rather than rewritten, because a team name is
+// a value a STUDENT typed and this file gets opened in Excel, which executes a
+// leading `=`, `+`, `-` or `@`. A second escape written here would be a second
+// thing to remember that about -- and a student-authored cell is a strictly
+// more hostile input than a teacher-authored one.
+//
+// WHY THE DRAW AND THE SEED ARE COLUMNS AND NOT JUST THE FILENAME. The seed is
+// what makes a draw CHECKABLE rather than merely plausible: the same seed over
+// the same names always gives the same teams, which is the claim the picker
+// panel prints on screen and the only thing separating a random draw from an
+// arrangement somebody made. An export that dropped it would be a list of names
+// with no way to tell those two apart -- and an export is exactly the artifact
+// that outlives the screen it was taken from. Repeating both on every row is
+// what makes one file self-describing when two draws sit in the same folder.
+//
+// A STUDENT WHO HAS LEFT THE CLASS IS IN THE FILE, with a column saying so.
+// Dropping them would be the inner-join defect one artifact further downstream,
+// and this is the copy somebody keeps.
+// ---------------------------------------------------------------------------
+
+/** The header row, exported so a test asserts the file against it rather than a retyped copy. */
+export const TEAM_CSV_HEADERS = [
+	'Draw',
+	'Seed',
+	'Team',
+	'Team name',
+	'Last',
+	'First',
+	'Email',
+	'Roster',
+	'Class',
+	'Block'
+] as const;
+
+/** The one vocabulary for the roster column, so the file and the screen agree. */
+export function teamMemberRosterLabel(stillEnrolled: boolean): string {
+	return stillEnrolled ? 'On the live roster' : 'No longer on the live roster';
+}
+
+/**
+ * One draw as a CSV: a row per student, ordered by team and then the way a
+ * gradebook orders people.
+ *
+ * Deliberately NOT one row per team with the members joined into a cell. A
+ * spreadsheet full of comma-separated names in single cells cannot be sorted,
+ * filtered, counted or pasted into anything else, which is most of what an
+ * export is for.
+ */
+export function teamsCsv(section: ClassroomSection, set: TeamSet): string {
+	const lines = [TEAM_CSV_HEADERS.join(',')];
+	const className = section.course?.code
+		? `${section.course.code} ${section.label}`
+		: section.label;
+
+	for (const team of [...set.teams].sort((a, b) => a.team_number - b.team_number)) {
+		const members = [...team.members].sort((a, b) => {
+			const an = splitLastFirst(a.display_name, a.student_email);
+			const bn = splitLastFirst(b.display_name, b.student_email);
+			return (
+				an.last.localeCompare(bn.last, undefined, { sensitivity: 'base' }) ||
+				an.first.localeCompare(bn.first, undefined, { sensitivity: 'base' }) ||
+				a.student_email.localeCompare(b.student_email)
+			);
+		});
+
+		// A TEAM WITH NOBODY ON IT STILL GETS A ROW. It cannot happen from a
+		// draw -- both picker modes refuse to produce one -- but it can happen
+		// from a roster that emptied, and a team silently missing from an export
+		// is the one thing nobody checks for.
+		if (members.length === 0) {
+			lines.push(
+				[
+					csvCell(set.label),
+					csvCell(set.seed),
+					csvCell(String(team.team_number)),
+					csvCell(teamLabel(team)),
+					csvCell(''),
+					csvCell(''),
+					csvCell(''),
+					csvCell('No students on this team'),
+					csvCell(className),
+					csvCell(section.block ?? '')
+				].join(',')
+			);
+			continue;
+		}
+
+		for (const member of members) {
+			const { last, first } = splitLastFirst(member.display_name, member.student_email);
+			lines.push(
+				[
+					csvCell(set.label),
+					csvCell(set.seed),
+					csvCell(String(team.team_number)),
+					csvCell(teamLabel(team)),
+					csvCell(last),
+					csvCell(first),
+					csvCell(member.student_email),
+					csvCell(teamMemberRosterLabel(member.still_enrolled)),
+					csvCell(className),
+					csvCell(section.block ?? '')
+				].join(',')
+			);
+		}
+	}
+
+	// The BOM is BUILT AT RUNTIME, the `gradesCsv` rule: a source literal and an
+	// escape both proved unable to survive the toolchain here, and Excel needs
+	// it to open accented names correctly.
+	return String.fromCharCode(0xfeff) + lines.join('\r\n') + '\r\n';
+}
+
+/** A filename a teacher can find again: the class, the draw, then the day it was taken. */
+export function teamsCsvFilename(
+	section: ClassroomSection,
+	set: Pick<TeamSet, 'label'>,
+	nowMs: number
+): string {
+	const day = new Date(nowMs).toISOString().slice(0, 10);
+	const stem = [section.course?.code ?? 'class', section.label, set.label, day]
+		.join('-')
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '');
+	return `${stem || 'teams'}-teams.csv`;
 }
