@@ -1492,6 +1492,34 @@
 				"fix",
 				"reading"
 			]
+		},
+		{
+			"date": "2026-09-22",
+			"title": "The Foundry opens on four lists now, and there is a search box",
+			"body": "Instead of one list of published apps, the Foundry front page now shows four at once: Trending, Most played, Most hours, and Brand new. Trending means played more this week than the week before, so it is what is climbing rather than what is already popular, and each list says underneath it exactly what it counts. The full list is still there below them, and it can now also be ordered by hours played or by how many times an app has been updated. There is a search box as well. It looks at app names, taglines, descriptions and authors, it will find an app when only one of your words matches, and it copes with a typo, so searching for Cookie Clicker finds Cookie Press. One thing worth knowing about the numbers: they only count plays that happen inside the Foundry. If somebody opens your app from its share link that does not count, so the real figure is higher.",
+			"tags": [
+				"foundry",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-22",
+			"title": "Tap a publisher's name to see everything else they have made",
+			"body": "Open any app in the Foundry and the author's name under the title is now a link. It goes to their page: their picture, their pathway, their class, how long they have been publishing, and every app of theirs you can see. There is no email address anywhere on it, and nothing there that is not already on the app's own page.",
+			"tags": [
+				"foundry",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-22",
+			"title": "Full screen works properly on a phone, including your app's own button",
+			"body": "Two fixes for playing an app on a phone. If the app you are playing has its own full screen button inside the game, it used to do nothing at all; it works now. And on an iPhone, a full screen app should now reach the edges of the screen instead of stopping short of them, which was most noticeable holding the phone sideways. If you build apps: the upload check will now warn you when your page has no viewport tag, which is what makes a page tiny on a phone. It is only a warning, so an app meant for a computer screen still uploads.",
+			"tags": [
+				"foundry",
+				"phone",
+				"fix"
+			]
 		}
 	]
 }
