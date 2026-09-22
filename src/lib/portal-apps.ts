@@ -138,10 +138,42 @@ export const PORTAL_APPS: PortalApp[] = [
 	// launcher (both routes redirect there). The old Sheets entry tool is
 	// retired outright (see docs/coin-economy/archive/legacy-system/);
 	// Coin Desk is the entry tool.
+	//
+	// THEY STAY TWO CARDS, AND MR. PINA ASKED FOR ONE (report 16, 2026-09-11:
+	// "split coin desk and idea coin ledger into one single banner for admins
+	// ... one for IDEA coin ledger on the left and one for coin desk, to
+	// minimize confusion"). The confusion is real and is answered below in the
+	// COPY -- "where everyone reads" against "where staff write", parallel so
+	// the pair reads as a pair wherever the grid puts them, plus a CTA verb
+	// that differs (View live / Log) instead of the generic "Open" five other
+	// cards share. What was REFUSED is the merged tile, for two costs it cannot
+	// avoid:
+	//
+	//  1. `visibleApps` partitions `adminOnly` to the END of the grid, so a
+	//     merged tile is either admin-only -- which DELETES the public Ledger
+	//     card every student and every signed-out visitor uses, an outcome
+	//     worse than the problem -- or it is public and carries an admin-only
+	//     button inside a card the whole school sees.
+	//  2. A merged tile keeps ONE id, and pins, custom order and usage counts
+	//     are keyed on the id. Retiring `coin-desk` drops every admin's pin,
+	//     dragged position and launch history for the tool they use most --
+	//     which is exactly the loss the `dashboard` entry below refused to take
+	//     when `admin` merged into it, and the admin whose record it is is
+	//     Mr. Pina's own.
+	//
+	// The shape is buildable if he wants it with the price known: the card's
+	// root element would stop being an anchor for this card only (it is an
+	// `<a>` today, so two buttons inside it is invalid markup), which also
+	// moves drag, tour and `data-app` handling for that branch. It is a
+	// decision, not an oversight -- see docs/history/ for this bundle.
 	{
 		id: 'coins',
 		title: 'IDEA Coin Ledger',
-		sub: 'Your balance, the leaderboard, every transaction, open contracts, and role applications.',
+		// PARALLEL WITH COIN DESK BELOW, AND THAT IS THE WHOLE FIX. Each card
+		// says which side of the ledger it is, in the same grammar, so the
+		// question "which of these two do I want" is answered by either card on
+		// its own rather than by comparing them.
+		sub: 'Where everyone reads the coins: your balance, the leaderboard, every transaction, open contracts and role applications. Nothing here changes a balance.',
 		icon: 'coins',
 		href: '/coins/index.html',
 		cta: 'View live'
@@ -219,10 +251,18 @@ export const PORTAL_APPS: PortalApp[] = [
 	{
 		id: 'coin-desk',
 		title: 'Coin Desk',
-		sub: 'Log fines, awards, and purchases against the real coin ledger (0070). Admin tool.',
+		// The migration number this line used to carry ("against the real coin
+		// ledger (0070)") is gone: a card in a launcher is user-facing copy, and
+		// a migration number in it is a commit message that wandered into the
+		// interface.
+		sub: 'Where staff write the coins: log fines, awards and purchases into the IDEA Coin Ledger. The only tool that changes a balance. Admin tool.',
 		icon: 'coin-desk',
 		href: '/coin-desk',
-		cta: 'Open',
+		// "Log", not "Open". Five other cards say Open, which says nothing; the
+		// verb is what tells an admin at a glance which of the two coin cards
+		// they are about to press, and "log" is already this subsystem's own
+		// word for it everywhere else.
+		cta: 'Log',
 		adminOnly: true
 	},
 	{

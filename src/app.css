@@ -2057,6 +2057,17 @@ a:hover {
 	text-shadow: none;
 	letter-spacing: normal;
 }
+/* THE LEFT GROUP: the emblem and the lines-of-code readout, together, so the
+   readout rides the logo's row rather than the actions row. In `.header-right`
+   it pushed the sign-in block onto a third row and grew the banner by 33.2px at
+   375px -- measured on the signed-in fixture, where the actions row has 26px of
+   slack against a 116px chip. */
+.legacy-index .header-left {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	min-width: 0;
+}
 .legacy-index .header-right {
 	display: flex;
 	align-items: center;
@@ -3040,6 +3051,21 @@ a:hover {
 		min-height: auto;
 		padding: 0.8rem 1rem;
 		flex-wrap: wrap;
+	}
+	/* THE LINES-OF-CODE READOUT IS A DESKTOP READOUT, AND THAT IS FORCED BY
+	   ARITHMETIC RATHER THAN CHOSEN. Measured on the real signed-out `/` at
+	   375px, where the banner is `flex-wrap: wrap` and has 343px of inner
+	   width: the emblem is 104px and the actions row is 210px, which with the
+	   1rem gap leaves THIRTEEN PIXELS. There is no width of chip that fits, so
+	   any readout in this banner costs a second row -- 75.5px to 115.1px,
+	   permanently, on a sticky header, on the landing page. The band where it
+	   would cost that is roughly 346px to 493px; at 320px the banner already
+	   wraps and above ~494px it fits with room. Hidden, rather than shipped at
+	   a cost the constraint forbids. Where a phone reader should get this
+	   instead is a decision, not an oversight: see docs/history/ for the
+	   measurement and the options. */
+	.legacy-index .header-left .loc {
+		display: none;
 	}
 	.legacy-index .logo {
 		font-size: 1.1rem;

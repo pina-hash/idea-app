@@ -30,3 +30,20 @@ declare module 'virtual:site-changelog' {
 	import type { VersionEntry } from '$lib/site-versions';
 	export const entries: VersionEntry[];
 }
+
+// THE THIRD VIRTUAL MODULE, and it is here rather than in a file of its own
+// because it is the same substrate: a number derived from the repository at
+// build time by a plugin in vite.config.ts, whose RULES live in a pure module
+// (`$lib/code-census`) that a test can reach.
+//
+// WHY IT IS NOT AN EXPORT ON `virtual:site-versions`: that module is imported
+// by the root layout and therefore lands on every route in the site, and this
+// payload is rendered by exactly one page. See the chunking argument in
+// vite.config.ts. It is small -- three aggregate tables, no per-file list --
+// so the home page imports it eagerly; a per-file breakdown is what would make
+// that a mistake, and is deliberately not emitted.
+declare module 'virtual:site-code' {
+	import type { CodeCensus } from '$lib/code-census';
+	export type { CodeCensus };
+	export const census: CodeCensus;
+}

@@ -1,7 +1,9 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
 import { buildSiteVersions, GIT_HEAD_FORMAT, GIT_LOG_FORMAT } from './src/lib/site-versions';
+import { buildCodeCensus, languageFor, type CensusFile } from './src/lib/code-census';
 import { devRouteStub } from './src/lib/dev-routes';
 
 /**
@@ -132,6 +134,92 @@ function siteVersionsPlugin(): Plugin {
 }
 
 /**
+ * THE CODE CENSUS: `virtual:site-code`, built from the tracked file list at
+ * build / dev-server start, exactly as the version substrate above is built
+ * from the commit log.
+ *
+ * THIS FUNCTION ONLY GATHERS, and that division is the same one the plugin
+ * above states: it runs `git ls-files`, reads the files git names, and hands
+ * them over. WHAT COUNTS, WHAT IS EXCLUDED AND HOW A LINE IS CLASSIFIED all
+ * live in `src/lib/code-census.ts`, where a test can reach them. There is not
+ * one threshold, extension or exclusion in this file.
+ *
+ * `git ls-files` IS THE WHOLE ANSWER TO "does this count node_modules". It
+ * lists TRACKED files only, so every gitignored path -- the install tree, the
+ * build output, `.env` -- is outside the census by construction rather than by
+ * an exclusion list somebody has to keep current.
+ *
+ * THE EXTENSION FILTER RUNS BEFORE THE READ, not after it. The tree carries
+ * 4,049 tracked files, of which about 300 are audio and image assets that
+ * `languageFor` answers null for; reading them to then discard them would put
+ * tens of megabytes through the dev server's startup for nothing. Measured
+ * cost of the whole pass on this tree: see the history entry.
+ *
+ * A THIRD MODULE RATHER THAN TWO MORE EXPORTS ON THE EAGER ONE, for the
+ * chunking reason the comment above gives in full: `virtual:site-versions` is
+ * imported by the root layout and therefore lands on EVERY route in the site,
+ * and this payload is wanted by exactly one page. A separate id is a separate
+ * chunk, which is the only thing that separates them.
+ */
+function siteCodePlugin(): Plugin {
+	const VIRTUAL = 'virtual:site-code';
+	const RESOLVED = '\0' + VIRTUAL;
+
+	return {
+		name: 'idea-site-code',
+		resolveId(id) {
+			if (id === VIRTUAL) return RESOLVED;
+		},
+		load(id) {
+			if (id !== RESOLVED) return;
+
+			let paths: string[] = [];
+			let complete = false;
+			try {
+				// -z, so a filename with a space, a quote or a non-ASCII character
+				// arrives intact. `git ls-files` quotes such a name under the default
+				// separator, which would then be read as a path that does not exist.
+				paths = execSync('git ls-files -z', {
+					encoding: 'utf8',
+					maxBuffer: 64 * 1024 * 1024
+				})
+					.split('\0')
+					.filter(Boolean);
+				complete = paths.length > 0;
+			} catch {
+				paths = [];
+				complete = false;
+			}
+
+			const files: CensusFile[] = [];
+			for (const path of paths) {
+				if (!languageFor(path)) continue;
+				try {
+					files.push({ path, text: readFileSync(path, 'utf8') });
+				} catch {
+					// A tracked path that is not readable as text (a submodule entry, a
+					// file removed from the working tree) is SKIPPED rather than
+					// counted as empty: a zero-line entry would quietly lower the
+					// per-file averages and say nothing about having done so.
+				}
+			}
+
+			const census = buildCodeCensus(files, { complete });
+
+			if (!complete) {
+				this.warn(
+					'[site-code] no tracked file list available: the home banner will show no code ' +
+						'figure. A count taken over a partial tree is lower than the real one, so ' +
+						'none is emitted at all.'
+				);
+			}
+
+			return `export const census = ${JSON.stringify(census)};`;
+		}
+	};
+}
+
+/**
  * THE `/dev/*` HARNESSES ARE NOT COMPILED INTO A PRODUCTION BUILD.
  *
  * `apply: 'build'` is the whole gate, and it is a property of WHICH VITE
@@ -157,7 +245,7 @@ function stripDevRoutesPlugin(): Plugin {
 }
 
 export default defineConfig({
-	plugins: [siteVersionsPlugin(), stripDevRoutesPlugin(), sveltekit()],
+	plugins: [siteVersionsPlugin(), siteCodePlugin(), stripDevRoutesPlugin(), sveltekit()],
 	server: {
 		port: process.env.PORT ? Number(process.env.PORT) : 5173
 	}
