@@ -33,6 +33,12 @@
   counts block, regenerated with `npm run verify:counts` and never hand-edited.
   `src/lib/pathways.ts` was on the Owns line and did NOT need changing; the
   registry already exported everything the control renders from.
+  THE MUTATION PROOF DID NOT PIN: with the select-back and its zero-row guard
+  removed, `npm test` reports 527/527 files and 9826/9826 tests passed, exit 0,
+  identical to the clean run. Nothing in the suite asserts it. The browser
+  harness does -- 10 of 32 measurements outside threshold on the refusal spec,
+  against 0 restored -- but it is outside `npm test` and outside CI. Reported
+  as a gap rather than claimed as a proof.
   ONE DEFECT FOUND AND FIXED BY THE VERIFICATION rather than by reading: the
   panel's one problem list sat 113px below the fold once the section was added
   (measured y 1013..1053 in a 900px viewport, at both widths), so a refused

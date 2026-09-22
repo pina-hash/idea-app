@@ -149,12 +149,65 @@ Four specs over the route, **162 measurements, 0 outside threshold**.
 - **Rasterized and looked at**, at both widths and in both outcomes, not only
   asserted on.
 
+`npm test`: **527 test files passed, 9826 tests passed**, exit 0, 1564.79s.
+Read from the summary line with both streams merged.
+
 `npx svelte-check`: **0 errors, 37 warnings in 20 files (31
 `state_referenced_locally`, 5 `css_unused_selector`, 1
 `perf_avoid_nested_class`)**, before and after, re-derived in this container
 with the two `$env/static/public` values exported before `svelte-kit sync`.
 `CLAUDE.md`'s baseline line is correct as written on this tree and needed no
 correction.
+
+## The mutation proof, and what it says about where the pin lives
+
+The mutation: `saveProfile`'s `.select('id')` and its `!data || data.length
+=== 0` branch both removed, which is what "somebody simplifies this" looks
+like. Against the harness stub that is a faithful reproduction of the defect --
+with nothing selected back, a zero-row refusal has no `error`, so the write
+reads as success, `invalidateAll()` runs, and the chip sits there showing the
+value that was not written.
+
+**`npm test` DOES NOT PIN IT. The mutant survives, and that is reported rather
+than dressed up as a proof.** 527 test files passed, 9826 tests passed, exit 0
+-- byte-for-byte the same verdict as the clean run, which was also 527/527 and
+9826/9826. Read from the summary line with stdout and stderr merged, not from
+the exit code. `tests/profile-menu-tap-reach.test.ts` is the only file in the
+suite that reads this component at all and it parses the source for the
+`.tap-reach-44` mechanism; nothing anywhere asserts the select-back. A census
+of `tests/` for `saveProfile` or `.select('id')` against `profiles` finds
+nothing either, so the survival is a property of the suite rather than of this
+run.
+
+**The browser harness kills it, hard, at both widths.** `?refuse=rls` on the
+mutant: **10 of 32 measurements outside threshold**, against 0 on the restored
+tree. The readings, in the order they matter:
+
+- `the student reads: "NOTHING" (zero box)` -- the whole defect in one line;
+- `presence [the refusal, visible in the panel] present 0, visible 0` against
+  an expected 1;
+- `order-result [the row did not move and the panel names the problem]
+  ["unset","NO SENTENCE"]` -- the row correctly did not move, and nothing said
+  so, which is exactly the silent half;
+- the prepare step's own `until` never satisfied, 12 attempts, so the run
+  reports that it never reached the state its numbers describe.
+
+So the pin is real but it lives in an instrument that is deliberately outside
+`npm test` and outside CI, and therefore bites only when a session chooses to
+spend a browser on it. That is the same gap `tests/profile-menu-tap-reach.test.ts`
+was written to close for the reach, and the same argument would justify a
+`node`-project source test here. **This bundle did not write one**, because a
+source-parsing assertion that `.select('id')` appears in a string is a spelling
+check rather than a behavioural one, and `CLAUDE.md`'s rule is that a test
+earns its place by making a SILENT regression loud. Whether the harness's
+coverage is enough for a write path this quiet is a judgment worth recording
+rather than settling unilaterally.
+
+The file was restored from a `cp` taken before the mutation, never with
+`git checkout --`, and verified md5-identical (`56a2d73c...`) with `git status`
+clean afterwards. `npx svelte-check` and the four-spec harness pass were both
+re-run after the restore: 0 errors / 37 warnings, and 162 measurements with 0
+outside threshold.
 
 ## Two files outside the Owns line, and why each was needed
 
