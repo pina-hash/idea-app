@@ -146,6 +146,22 @@ corrected in place, along with the two sentences whose conclusion it carried
 `--bg1` or `--bg2` is still a failure waiting for a use" is now `--bg2` alone).
 **The FRC readings in the same paragraph were NOT re-measured** and are untouched.
 
+**THE PROVENANCE IS EXACT AND IS WORTH WRITING DOWN, because it is a stale
+number propagating through three documents and costing a prompt item.** Ledger
+0282's history entry says, in its own words, that `--dim` on `--bg1` is a
+finding "where CLAUDE.md **already records** that token as measuring 4.46:1". It
+read the figure rather than measuring it -- reasonably, since the surface it was
+measuring was elsewhere and 0282 shipped no colour change -- and named it as a
+real finding needing an owner. Prompt 0286 then issued it as item C on that
+basis. So: `CLAUDE.md` drifted, 0282 quoted it, the prompt inherited the quote,
+and a lane was sent to fix a control that clears. **This is not a correction of
+0282's account** -- `CLAUDE.md`'s rule is that a past entry is written once and
+left alone, and a later bundle saying otherwise is a new entry, which this is.
+0282 reported what the authority said; the authority was wrong. It is the
+cleanest available argument for that file's own standing instruction to prefer
+the instrument to the number, and for writing a checkable figure where an
+instrument can reach it.
+
 `CLAUDE.md` is outside this bundle's stated files and the edit is deliberate: the
 figure is one this session measured, `CLAUDE.md`'s own rule is that a session
 measuring a different number corrects the line in the same change, and the stale
