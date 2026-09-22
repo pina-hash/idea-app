@@ -287,31 +287,59 @@
 	const gateModule = $derived(spec?.approvalGate?.afterModule ?? null);
 
 	/**
-	 * THE WORK COLUMN IS A WHOLE DOCUMENT, NOT A FORM, AND THAT CHANGES THE
-	 * ARRANGEMENT RATHER THAN A NUMBER.
+	 * THE WORK COLUMN IS A WHOLE DOCUMENT, AND SINCE 0288 IT SITS BESIDE THE
+	 * RUBRIC LIKE EVERY OTHER WORK COLUMN. THIS BLOCK USED TO WITHHOLD THAT,
+	 * AND THE NUMBER IT WITHHELD IT ON WAS A HARNESS READING.
 	 *
-	 * With a spec, the work column and the rubric sit SIDE BY SIDE: a spec
-	 * render is short fields and reads fine in half the row. A ported HTML
-	 * assignment's work column is a page, and it does not fit -- MEASURED, in
-	 * the real console at two viewport widths: `main.cr-console` caps itself at
-	 * 960px (nav.ts's `console` measure), so the roster takes 320 and the work
-	 * split gets 562 AT 1440 AND AT 1920 ALIKE. Split `1.05fr : 1fr` that is
-	 * 280px of document, at every width there will ever be, with the worksheet's
-	 * own headings wrapping over three lines inside it.
+	 * It said: `main.cr-console` caps itself at 960px, so the split gets 562
+	 * "AT 1440 AND AT 1920 ALIKE", which at `1.05fr : 1fr` is 280px of
+	 * document, so the wide arrangement never has room. Every step of that was
+	 * measured -- on `/dev/html-assignment-grading`, which is the one surface
+	 * where it is true. THE HARNESS DOES NOT SET `--cr-measure-route`. The real
+	 * route does (`src/routes/classroom/+layout.svelte`, from
+	 * `classroomMeasure('item-grade') === 'console'`), and `--measure-console`
+	 * is `100%`, so `--cr-measure` falls back to `--measure-page` (60rem) in the
+	 * harness and resolves to the window on the page an instructor actually
+	 * opens. A harness missing a mechanism the real page has is CLAUDE.md's own
+	 * named failure, and this is what it costs: a layout decision made against a
+	 * width the surface never has.
 	 *
-	 * SO THE WIDE ARRANGEMENT NEVER HAS ROOM, and the answer is to drop it here
-	 * rather than lower a ratio into two columns too narrow to read. Withholding
-	 * `has-rubric` is the whole change: `.work-split` is already a flex COLUMN
-	 * without it and `:not(.has-rubric)` already carries the app frame's
-	 * single-scroller rules, so the document takes the full 562 and the rubric
-	 * stacks under it down a path that was measured before this existed. A
-	 * modifier class would have been a second arrangement to keep in step with
-	 * the first.
+	 * MEASURED ON THE REAL ROUTE'S CONDITION, same fixture, both widths:
+	 *   1440 -> main 1408, roster 320, split 1009.6, columns 509.7 / 485.5
+	 *   1920 -> main 1888, roster 320, split 1489.6, columns 755.6 / 719.6
+	 * So the document gets 509.7px at 1440, not 280 -- more than the whole
+	 * split was under the stale reading.
 	 *
-	 * IT ASKS THE SAME CONDITION THE RENDER BRANCH ASKS (`!spec && htmlWork`),
-	 * read off the same two values, because a layout that disagreed with the
-	 * branch it is laying out is how the rubric ends up beside a pane that is
-	 * not there.
+	 * AND THE DOCUMENT FITS, measured on the REAL ported worksheet
+	 * (`idea100-blade-01.ported.html`, 47 inputs, 2 tables) rather than on the
+	 * smoke fixture, at every column width the split can produce:
+	 *   297px -> 0px horizontal overflow, 11664px tall, 11 inputs clipped
+	 *   400px -> 0px, 9020px tall, 6 clipped
+	 *   510px -> 0px, 7617px tall, 6 clipped
+	 *   756px -> 0px, 6278px tall, 1 clipped
+	 *  1010px -> 0px, 5960px tall, 1 clipped   (what it gets TODAY, stacked)
+	 * It never overflows horizontally -- it is a responsive document -- so the
+	 * question was never "does it fit" but "how much taller does it get", and
+	 * at 1440 the answer is 7617 against 5960: 1657px more document scroll,
+	 * bought by taking the rubric out from UNDER 5960px of it and putting it
+	 * beside it in its own scroll container. That is the trade Mr. Pina asked
+	 * for in the words "a despicable amount of scrolling".
+	 *
+	 * THE FLOOR IS THE KNEE IN THAT TABLE AND IS THE ONE THING THIS ADDS.
+	 * Between 400px and 297px the document gains 2644px of height and five more
+	 * inputs clip; above 400px it is flat. From the split's own arithmetic,
+	 * measured twice and exact at both widths --
+	 *   column = (viewport - 444.8) * 0.5122
+	 * -- 400px of document needs 1226px of viewport, so the collapse sits at
+	 * 78rem (1248px, giving 411px). BELOW IT A DOCUMENT STACKS exactly as it
+	 * did before this bundle, down the path `:not(.has-rubric)` already carries.
+	 *
+	 * IT IS NOT A SECOND ARRANGEMENT. `document-work` re-points the COLLAPSE
+	 * POINT of the arrangement `has-rubric` already describes; it declares no
+	 * columns, no gap and no ratio of its own, so there is nothing for it to
+	 * fall out of step with. The previous author rejected a modifier class on
+	 * exactly that ground and the ground still holds -- which is why this is a
+	 * breakpoint and not a layout.
 	 */
 	const documentWork = $derived(!spec && !!htmlWork);
 
@@ -2288,9 +2316,16 @@
 						SIDE BY SIDE: the work (left) and the rubric (right) each scroll
 						on their own, so scoring never means scrolling away from what is
 						being scored. Below ~900px this collapses to one stacked column
-						(the .console.split breakpoint's own convention).
+						(the .console.split breakpoint's own convention) -- and below
+						78rem when the work is a whole ported DOCUMENT rather than a spec
+						render, which needs more of the row before two columns are worth
+						having. See `documentWork` for the measurements behind that.
 					-->
-					<div class="work-split" class:has-rubric={!!rubric?.length && !documentWork}>
+					<div
+						class="work-split"
+						class:has-rubric={!!rubric?.length}
+						class:document-work={documentWork}
+					>
 						<!--
 							THE ONE SCROLL REGION WITH NOTHING FOCUSABLE IN IT. Above the
 							breakpoint this column scrolls on its own, and its content is a
@@ -3614,6 +3649,35 @@
 			grid-template-columns: 1fr;
 		}
 	}
+	/* A WHOLE DOCUMENT NEEDS MORE OF THE ROW BEFORE TWO COLUMNS ARE WORTH
+	   HAVING, AND 78rem IS WHERE THE MEASUREMENT SAYS SO (0288).
+
+	   `column = (viewport - 444.8) * 0.5122` -- the split's own arithmetic,
+	   exact at both widths it was read at -- so 78rem (1248px) is 411px of
+	   document. On the real ported worksheet that is the flat part of the
+	   curve: 400px is 9020px tall, 510px is 7617px, and 297px is 11664px with
+	   five more inputs clipped. Below this the document stacks exactly as it
+	   did before 0288, down `:not(.has-rubric)`'s own already-measured path.
+
+	   IT RE-POINTS A COLLAPSE, IT DOES NOT DECLARE AN ARRANGEMENT. There is no
+	   `grid-template-columns`, no gap and no ratio here that could drift from
+	   the rule above; a spec render and a document lay out identically wherever
+	   both are in two columns. */
+	@media (max-width: 78rem) {
+		/* BACK TO THE FLEX COLUMN, not merely to one grid track. `has-rubric`
+		   switched `display` to grid, and the application frame below hangs the
+		   two panes' independent scrolling off that same class -- so collapsing
+		   the TRACKS alone would leave a one-column grid whose first child
+		   scrolls inside a bounded row and whose second child lands in an
+		   implicit `auto` row underneath it, overflowing the pane. Reverting
+		   `display` puts a collapsed document on exactly the path
+		   `:not(.has-rubric)` already carries, which is the path it took before
+		   0288. */
+		.work-split.has-rubric.document-work {
+			display: flex;
+			flex-direction: column;
+		}
+	}
 
 	/* --- THE APPLICATION FRAME ---------------------------------------------
 	   Above the shell's own breakpoint the room is the viewport (`.cr-app` on
@@ -3745,6 +3809,39 @@
 			flex: none;
 		}
 	}
+
+	/* THE ONE BAND THIS BREAKPOINT COULD HAVE BROKEN: 1024px to 78rem, where a
+	   ported document is STACKED (the 78rem rule above) while still carrying
+	   `has-rubric`, inside an application frame that hangs two-pane scrolling
+	   off that same class.
+
+	   Without this the frame would bound the document in a `minmax(0, 1fr)` row
+	   and scroll it there, and the rubric -- a second child of a one-track grid
+	   -- would land in an implicit `auto` row underneath and simply overflow the
+	   pane, with no scrollbar of its own and no way to reach the bottom of it.
+	   Nothing on screen reports that, and it is only reachable between two
+	   breakpoints, which is exactly the shape that ships.
+
+	   SO A COLLAPSED DOCUMENT IS TOLD IT IS ONE SCROLLER, in the same words
+	   `:not(.has-rubric)` is told it a few rules up. BOUNDED AT BOTH ENDS on
+	   purpose: unbounded, `overflow-y: visible` on `.work-col` would reach the
+	   1440px and 1920px case too and take the two panes' independent scrolling
+	   away from the arrangement this bundle exists to switch on. */
+	@media (min-width: 1024px) and (max-width: 78rem) {
+		.work-split.has-rubric.document-work {
+			min-height: 0;
+			overflow-y: auto;
+			overscroll-behavior: contain;
+			grid-template-rows: none;
+			align-items: initial;
+		}
+		.work-split.has-rubric.document-work .work-col {
+			overflow-y: visible;
+			overscroll-behavior: auto;
+			padding-right: 0;
+		}
+	}
+
 	.gate-row {
 		display: flex;
 		justify-content: space-between;
