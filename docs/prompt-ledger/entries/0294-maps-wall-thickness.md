@@ -41,6 +41,9 @@
   session's own expected value for a sibling snap -- 39, not 30, because the
   chest's outer face is at 33 and the bench's inherited wall is 6.
 
+  Final suite: 2 failed, 9922 passed, 527 of 529 files green. Both failures
+  are the pair below; every file this bundle added or touched passes.
+
   Two suite failures this bundle CAUSES and cannot honestly fix, both
   structural consequences of being a lane that carries a migration, both
   isolated at the branch point rather than inferred:

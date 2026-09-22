@@ -256,7 +256,12 @@ the map would have gone blank rather than degraded.
   `perf_avoid_nested_class`. Re-derived at the branch point (`1ec2f640`) in a
   clean `git worktree` with `.env` exported: identical, same breakdown. The
   `CLAUDE.md` baseline line is correct for this tree and was not edited.
-- `npm test`: see the closing report for the summary line.
+- `npm test` (the serial form, never a bare `npx vitest run`): **2 failed |
+  9922 passed (9924)**, 527 of 529 files, 1300s. Both failures are the
+  migration-number pair below and neither is in this bundle's code; every file
+  it added or touched is green (`maps-wall-thickness-migration` 24,
+  `maps-placement` 46, `maps-select-ladder` 8, `maps-kind-rules` 7,
+  `derived-numbers` 25).
 - `npm run verify:browser`, all 30 maps routes at 375 and at 1440: **554
   measurements each width, 0 outside threshold.** The four new specs also have
   their measurement files written under `tools/browser-verify/measured/` by
