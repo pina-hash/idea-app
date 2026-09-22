@@ -1,12 +1,12 @@
 ---
-title: "Lane R (ledger 0295): five migration branches folded; stopped before the apply at step 3"
+title: "Lane R (ledger 0295): five migration branches folded, four applies recorded; deploy held on one test"
 date: "2026-09-22"
 branches: ["claude/new-session-zsum4t"]
 migrations: ["0218", "0220", "0221", "0223", "0224"]
 subsystems: ["migrations", "tooling"]
 ---
 
-**Status: stopped at step 3. No migration was pasted, no record was written, no deploy.**
+**Status: the four migrations were applied and recorded, but the deploy is held on one test failure (see the last section).
 
 ## What landed on the branch
 
@@ -77,3 +77,54 @@ merge and the ledger on this branch can be kept as they are.
 Steps 4 to 8 and the deploy did not happen. No migration was applied because of this
 lane, and 0220, 0221, 0223 and 0224 are still unapplied. The five source branches, and
 this one, have red CI tips and will not be swept into `integration`.
+
+## Update: the four migrations were applied anyway, and are now recorded
+
+Mr. Pina applied 0220, 0221, 0223 and 0224 in the SQL editor after this lane stopped,
+then pasted back each verification table. All four were checked row by row before
+anything was recorded:
+
+- **0221**: all 16 rows plus the positive control on `app_short_link_target` read true.
+- **0223**: all 12 rows read `OK`, including the positive control on
+  `gauntlet_macro_start`.
+- **0224**: all 21 rows read true, including the last-row positive control on
+  `_maps_wall_thickness_ok`.
+- **0220**: 16 rows, and **two** read FAIL where the prompt expected one.
+  - "CONTROL, must FAIL: image accepted" is the planted control, and its FAIL is correct.
+  - "the tagline refuses empty" is a defect in the verification query, not the
+    migration. It was checked against the deployed definition in its own row rather
+    than taken on report. The migration writes `between 1 and 48`; Postgres stores and
+    renders that as `>= 1 ... AND ... <= 48`, so the probe's pattern `%1 AND 48%` can
+    never match the rendered text. The deployed constraint does refuse an empty
+    tagline.
+  - The row "confetti is NOT allowed" passes for the wrong reason: its pattern
+    `%glow-pulse%` would pass even if confetti were allowed. The deployed array holds
+    only `glow-pulse` and `particle-trail`, so the rule holds anyway.
+  - All three points are written into the record's own note. The migration file is
+    not edited, because it is applied and its text has to match what ran.
+
+The records were all written by `tools/record-applied.mjs`, each with its pasted table
+as evidence. 0220's evidence also carries the supplementary catalog read, in which
+every column and constraint the migration creates reads present.
+
+- 0221, 0223 and 0224 resolved their own authorising ledger.
+- 0220 did not: ledger 0289 carries no parseable `Claims:` field and no `Branch:` line.
+  It was recorded with `--ledger 0289 --branch claude/nifty-euler-shpxf0`, both checked
+  against 0289's own "Migration permitted: yes, exactly one, number 0220". A first run
+  without `--branch` wrote the record as `0220-ledger-0289.md` with `branch: unknown`.
+  That file was deleted and rewritten as `0220-nifty-euler-shpxf0.md`.
+
+With the records in place, `tests/db/migrations-applied-record.test.ts` and
+`tests/db/migration-0177-tombstone.test.ts` pass: 2 files, 27 tests. The deadlock itself
+is resolved.
+
+## Still held: the deploy
+
+`tests/identity-consumer-inheritance.test.ts` still fails on this tree, for the reason
+given above. Until it is fixed, the full suite is red on this branch, CI will not go
+green, `integrate.yml` will not sweep it, and gates 2 and 6 cannot be met. Nothing was
+merged to `main` and nothing was deployed.
+
+Production is therefore **ahead of the deployed app**: it now carries 0220, 0221, 0223
+and 0224. That is the ordinary safe direction, since each is additive, but it should
+not stay that way for long.
