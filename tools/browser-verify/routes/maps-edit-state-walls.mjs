@@ -51,6 +51,73 @@ export default {
 	orderResult: [
 		{
 			label:
+				'TYPING A WALL THICKNESS MARKS THE FORM DIRTY, so the unsaved-work guard can see it',
+			/* THE DEFECT THIS EXISTS FOR IS SILENT AND WAS REAL. `EditBaseline`
+			   answers `changed` from ONE signature string, so a field missing
+			   from that string is a field the surface cannot see being edited:
+			   the save indicator stays absent, the navigation guard does not
+			   fire, and the number is gone on the next click with nothing
+			   anywhere reporting it. Both wall fields were missing from that
+			   signature until this check was written.
+
+			   IT TESTS ONE FIELD AND CARRIES ITS OWN CONTROL, rather than using
+			   a neighbouring field as the control. The save state is ONE-WAY --
+			   once a form is dirty it stays dirty -- so a second field measured
+			   on the same mount reads `dirty` whatever it does, which is a pass
+			   that means nothing. The control here is a NO-OP INPUT on the same
+			   field: setting it to the value it already holds must leave the
+			   indicator absent, which is what rules out "any input event
+			   dirties this form" and makes the transition below evidence. The
+			   OTHER field has its own state, `?state=walls-default`, for the
+			   same reason.
+
+			   IT RUNS FIRST AND PUTS THE FIELD BACK. These probes share one
+			   form, and leaving a 7 in the wall field would change Workbench
+			   B's own resolved thickness from the inherited 6 to 7 and move the
+			   snap probe's answer from 39 to 40 -- a probe quietly testing a
+			   different claim than the one it states. */
+			evaluate: `async () => {
+				const q = (s) => document.querySelector(s);
+				const FIELD = 'input[id$="-wall"]';
+				const ind = () => q('.save-ind');
+				const state = () =>
+					ind() ? [...ind().classList].find((c) => c !== 'save-ind' && !c.startsWith('svelte-')) : 'absent';
+				const set = (v) => {
+					const el = q(FIELD);
+					el.value = v;
+					el.dispatchEvent(new Event('input', { bubbles: true }));
+				};
+				const settleFor = async (ms) => { await new Promise((r) => setTimeout(r, ms)); return state(); };
+				const waitDirty = async () => {
+					for (let i = 0; i < 40; i += 1) {
+						if (state() === 'dirty') return 'dirty after ' + (i + 1) + ' poll(s)';
+						await new Promise((r) => setTimeout(r, 50));
+					}
+					return 'NEVER WENT DIRTY (' + state() + ')';
+				};
+				const atRest = state();
+				const was = q(FIELD).value;
+				set(was);
+				const afterNoop = await settleFor(500);
+				set('7');
+				const went = await waitDirty();
+				set(was);
+				await new Promise((r) => setTimeout(r, 120));
+				console.info('[walls] dirty: rest=' + atRest + ' noop=' + afterNoop + ' changed=' + went);
+				return [
+					atRest === 'absent' ? 'at rest the indicator is absent, because there is nothing to report' : 'AT REST IT SAID ' + atRest,
+					afterNoop === 'absent' ? 'CONTROL: an input event that changes nothing leaves it absent' : 'CONTROL FAILED: a no-op input went ' + afterNoop,
+					went.startsWith('dirty') ? 'and a real change to the wall field goes dirty' : 'THE WALL FIELD DID NOT: ' + went
+				];
+			}`,
+			expected: [
+				'at rest the indicator is absent, because there is nothing to report',
+				'CONTROL: an input event that changes nothing leaves it absent',
+				'and a real change to the wall field goes dirty'
+			]
+		},
+		{
+			label:
 				'THE PARENT IS OFFERED BY ITS INNER FACE: a 9 inch wall on the room moves the frame box not at all',
 			/* Decision 36's central promise, on the editor side, READ IN INCHES
 			   off the band's own viewBox rather than in pixels off a client

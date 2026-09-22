@@ -9,7 +9,7 @@
 - Migration permitted: yes, exactly one. Claims: 0224. Highest landed at
   issue: 0217. Confirmed free with `node tools/migration-claims.mjs` before the
   first commit.
-- Status: issued
+- Status: pushed
 - Branch: claude/new-session-ow0i42
 - Notes: Builds decision 36
   (`docs/decisions/entries/36-maps-outline-is-the-interior-face.md`), which
@@ -26,3 +26,22 @@
   pre-existing defect that a polygon snaps to its axis-aligned bounding box
   rather than its real edges is deliberately NOT fixed and is named in the
   spec and in the history entry as its own bundle.
+
+  Shipped: migration 0224 (NEVER APPLIED -- Mr. Pina pastes it, and its tail
+  carries a commented read-only verification query with a positive control),
+  the geometry layer in `src/lib/maps/maps.ts`, the select ladder's first rung
+  in `selects.ts` (which that module predicted since 0161), the wall band in
+  the public viewer and the editor canvas, the two form fields, and
+  `IDEA_MAPS_SPEC.md` 1.2 with its `REGISTER.md` row.
+
+  The browser run corrected this session twice: the band was inheriting the
+  shape's stroke at higher specificity (two lines where there is one surface,
+  worst at the sub-pixel widths the feature is judged on), and the editor was
+  still snapping the mover by its INNER footprint. It also corrected the
+  session's own expected value for a sibling snap -- 39, not 30, because the
+  chest's outer face is at 33 and the bench's inherited wall is 6.
+
+  Left for somebody else, both named in the history entry:
+  `maps-edit-state-place.mjs` and `maps-editor-state-room.mjs` carry flaky
+  pointer-drag probes that drop the first drag on the branch point as well as
+  on this tree; and a polygon's SNAP targets are still its bounding box.

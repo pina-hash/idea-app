@@ -218,6 +218,14 @@
 			posX.trim(),
 			posY.trim(),
 			rotation.trim(),
+			// 0224. WITHOUT THESE TWO the form reads CLEAN after somebody types
+			// a wall thickness: the unsaved-work guard does not fire, and the
+			// number is lost on the next navigation with nothing reporting it.
+			// The signature is the ONE comparison `EditBaseline` answers
+			// `changed` from, so a field missing from it is a field the surface
+			// cannot see being edited.
+			wallThickness.trim(),
+			defaultWallThickness.trim(),
 			elevOrder.trim(),
 			elevH.trim(),
 			elevW.trim()
