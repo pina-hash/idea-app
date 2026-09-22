@@ -4556,16 +4556,24 @@ ROOM**; both of those had passed review in the room they were written for.
 
 **AND THE SAME ARITHMETIC BINDS A TOKEN MOVE, IN THE OTHER DIRECTION: A PORTAL
 TOKEN CANNOT BE RAISED TO FIX A PORTAL GROUND UNTIL THE LIGHT ROOMS THAT READ IT
-HAVE BEEN MEASURED.** `--dim` clears only the DARKEST of the three portal
-grounds -- 5.31 on `--bg0`, **4.46** on `--bg1`, **4.24** on `--bg2` -- and the
-obvious answer, lightening it (hue 105deg and 6.7% saturation held, 53.3% ->
-56%, `#8b9687`, giving 5.76 / 4.90 / 4.60), is REFUSED: `--dim` is also read by
+HAVE BEEN MEASURED.** `--dim` clears the two DARKER of the three portal
+grounds -- 5.31 on `--bg0`, **4.52** on `--bg1`, **4.24** on `--bg2`. **THAT
+MIDDLE FIGURE READ 4.46 UNTIL 2026-09-22, WHICH IS THE SIDE OF 4.5 THAT CHANGES
+THE VERDICT**, and it was corrected only because a bundle was issued to fix a
+`--bg1` call site that turned out not to need fixing (ledger 0286). #849080 on
+#1a2a1a is 4.52 under two independent instruments -- an sRGB computation and
+Chromium's own compositor through `npm run verify:browser` -- and every OTHER
+number in this paragraph reproduced exactly, which is what says the drift is
+this one figure rather than the whole row. The FRC readings below were NOT
+re-measured. Prefer the instrument to the number: composite the two colours and
+read the pixel back. The obvious answer, lightening it (hue 105deg and 6.7%
+saturation held, 53.3% -> 56%, `#8b9687`, giving 5.76 / 4.90 / 4.60), is REFUSED: `--dim` is also read by
 five FRC components on `.frc-root`'s paper, where it already measures 2.95 /
 3.23 and the candidate takes it to **2.72 / 2.98**. Degrading a room the sweep
 did not cover, to fix one it did, is the exact mistake this whole section
 exists to name. So the two failing CALL SITES took `--text-2` (the register's
 own token for secondary labels and meta, 6.91 / 5.88 / 5.51 on the same three
-grounds) and the token did not move. **`--dim` on `--bg1` or `--bg2` is still a
+grounds) and the token did not move. **`--dim` on `--bg2` is still a
 failure waiting for a use**, and FRC's own `--frc-gray` measures 2.77 on its own
 surface, so the room needs a hook of its own before either can be fixed
 properly. That is a bundle, not a line.
