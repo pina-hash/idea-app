@@ -25,7 +25,7 @@
 	import { REFERENCE_TYPES } from './features';
 	import { referenceOffers, type Datum, type DatumAxis, type ReferenceOffer } from './features/reference';
 	import { DATUM_NAMES, datumPlanesShown, setDatumPlanesShown } from './viewport/reference-layer';
-	/* A datum is named as the viewport's plane label names it (Top, Front, Right), never by its axis pair. */
+	/* A datum is named as the viewport's plane label names it (Top, Front, Right), never by its axis pair; the field's own caption says Plane. */
 	const DATUM_ORDER = ['XY', 'XZ', 'YZ'] as const;
 	let { api }: { api: WorkspaceApi } = $props();
 	let datum = $state<Datum>('XY'), axis = $state<DatumAxis>('Z'), offset = $state('1'), angle = $state('45'), coords = $state('0, 0, 0');
@@ -73,7 +73,7 @@
 
 	<h3>By construction <span class="count" data-testid="ideacad-reference-ready-construction">{readyCount(byConstruction)} of {byConstruction.length} ready</span></h3>
 	<div class="inputs">
-		<label><span class="cap">Plane</span><select bind:value={datum} data-testid="ideacad-reference-datum">{#each DATUM_ORDER as d (d)}<option value={d}>{DATUM_NAMES[d]} plane</option>{/each}</select></label>
+		<label><span class="cap">Plane</span><select bind:value={datum} data-testid="ideacad-reference-datum">{#each DATUM_ORDER as d (d)}<option value={d}>{DATUM_NAMES[d]}</option>{/each}</select></label>
 		<label><span class="cap">Axis</span><select bind:value={axis} data-testid="ideacad-reference-axis"><option>X</option><option>Y</option><option>Z</option></select></label>
 		<label><span class="cap">Offset <small>in</small></span><input inputmode="decimal" bind:value={offset} data-testid="ideacad-reference-offset" /></label>
 		<label><span class="cap">Angle <small>°</small></span><input inputmode="decimal" bind:value={angle} data-testid="ideacad-reference-angle" /></label>
@@ -102,7 +102,8 @@
 	h3{margin:6px 0 0;display:flex;justify-content:space-between;align-items:baseline;font:600 15px Rajdhani,sans-serif;color:var(--text-1);border-bottom:1px solid var(--hairline);padding-bottom:4px}
 	.reference h3 .count{font:12px 'Share Tech Mono',monospace;color:var(--text-2)}
 	.offers,.list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
-	.inputs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.inputs .wide{grid-column:span 2}
+	/* The plane column is the widest because its choice is a word (Top, Front, Right) where the axis is one letter: at equal thirds the select was 75px and clipped 'Top plane' to 'Top p' (round 2 merge, measured). */
+	.inputs{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.8fr) minmax(0,1fr);gap:6px}.inputs .wide{grid-column:span 2}
 	.offers.folded li.waiting{display:none}.offers.folded:not(:has(li:not(.waiting))){display:none}
 	.reference .fold{display:flex;align-items:center;gap:6px;min-height:44px;width:100%;box-sizing:border-box;padding:4px 8px;border:1px dashed var(--boundary);border-radius:4px;background:transparent;color:var(--text-2);font:15px Rajdhani,sans-serif;cursor:pointer;text-align:left}
 	.caret{width:1em}
