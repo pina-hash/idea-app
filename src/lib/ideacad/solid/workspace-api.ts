@@ -26,6 +26,12 @@ export interface WorkspaceApi {
 	readonly editingSketch: string | null;
 	apply(command: SolidCommand, label: string): Promise<void>;
 	select(selection: Selection | null, append?: boolean): void;
+	/** Several selections in one pass (an edge set); with `append` it adds only what is not already picked. Optional so a harness can omit it. */
+	selectMany?(selections: Selection[], append?: boolean): void;
+	/** Called after a frame whose camera, zoom or canvas size changed; returns the unsubscribe. A label pinned to a model point repositions here. */
+	onCameraChange?(listener: () => void): () => void;
+	/** True while the viewport owns a drag (a handle drag and its readout), so pinned labels step aside for exactly that span. */
+	readonly dragging?: boolean;
 	setTool(tool: Tool): void;
 	/** Open a sketch feature for editing in the viewport, or close the open one. */
 	editSketch(featureId: string | null): void;

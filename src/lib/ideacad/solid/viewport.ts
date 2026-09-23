@@ -108,6 +108,8 @@ interface Options {
 	clicked?:(at:{x:number;y:number},touch:boolean)=>void;
 	/** A drag, a drawing or a box began: transient chrome near the pointer gets out of the way. */
 	busyPointer?:()=>void;
+	/** The camera, its zoom or the canvas size changed since the last frame drawn: labels pinned to model points reposition. */
+	cameraChange?:()=>void;
 }
 /** How tall a reference or plane name is on screen, in CSS pixels. */
 export const LABEL_PX=20;
@@ -202,7 +204,9 @@ export class SolidViewport {
 		this.abort.signal.addEventListener('abort',onDatumPlanesChange(()=>this.display(this.model)));
 	}
 	private resize(){const width=this.canvas.clientWidth,height=this.canvas.clientHeight;if(width<=0||height<=0)return;this.renderer.setSize(width,height,false);this.camera.left=-3*width/height;this.camera.right=3*width/height;this.camera.top=3;this.camera.bottom=-3;this.camera.updateProjectionMatrix();this.measureTriad();this.buildOverlay();this.invalidate();}
-	invalidate(){if(!this.frame)this.frame=requestAnimationFrame(()=>{this.frame=0;const start=performance.now();this.sizeLabels();this.pullOverlay();this.renderer.render(this.scene,this.camera);this.renderTriad();this.frameCosts.push(performance.now()-start);});}
+	invalidate(){if(!this.frame)this.frame=requestAnimationFrame(()=>{this.frame=0;const start=performance.now();this.sizeLabels();this.pullOverlay();this.renderer.render(this.scene,this.camera);this.renderTriad();this.frameCosts.push(performance.now()-start);this.reportCamera();});}
+	private cameraKey='';
+	private reportCamera(){if(!this.options.cameraChange)return;const m=this.camera.matrixWorld.elements,key=`${m.join(',')}|${this.camera.zoom}|${this.canvas.clientWidth}x${this.canvas.clientHeight}`;if(key===this.cameraKey)return;this.cameraKey=key;this.options.cameraChange();}
 	/** World units per CSS pixel at the current zoom. */
 	private perPixel(){const h=this.canvas.clientHeight||1;return(this.camera.top-this.camera.bottom)/(this.camera.zoom*h);}
 	/** Reference and plane names stay a readable size on screen at every zoom: each name is scaled to `LABEL_PX` tall for the current zoom, keeping its own width-to-height ratio. */

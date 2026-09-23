@@ -154,6 +154,12 @@
 		else selections=[selection];
 		viewport?.highlight();
 	}
+	/** Several at once with one highlight pass (a whole edge set). Appending adds only what is not picked yet, so it never toggles one off. */
+	function selectMany(list:Selection[],append=false){
+		const same=(a:Selection,b:Selection)=>a.bodyId===b.bodyId&&a.id===b.id&&a.kind===b.kind;
+		const base=append?selections:[];selections=[...base,...list.filter((s,i)=>!base.some(b=>same(b,s))&&list.findIndex(x=>same(x,s))===i)];if(!selections.length)bar=null;
+		viewport?.highlight();
+	}
 	function setTool(next:Tool){if(gesture)void cancel();panelsFolded=false;viewport?.clearDrawing();if(next!=='fillet'&&next!=='chamfer'){chainWanted=null;viewport?.setPreviewEdges(null);}tool=next;error='';bar=null;if(next==='reference')referenceOpen=true;if(next==='mate')matesOpen=true;viewport?.highlight();canvas?.focus();}
 	function editSketch(id:string|null){
 		editingSketch=id;const sketch=id?model.sketches.find(s=>s.feature===id):null;bar=null;menu=null;
@@ -597,11 +603,13 @@
 		e.preventDefault();runCommand(command);
 	}
 	async function openSettings(){if(!advisoryTransport)return;try{rules=await advisoryTransport.read();settingsOpen=true;}catch(err){error=err instanceof Error?err.message:String(err);}}
+	/** Labels pinned to model points (the dimension overlay) listen here instead of polling every frame. */
+	const cameraListeners=new Set<()=>void>();
 	/** What every panel reads and writes through. Getters, so a panel's `$derived` tracks the workspace's own state. */
 	const api:WorkspaceApi={
 		get model(){return model;},get manifest(){return currentSnapshot.manifest;},get selections(){return selections;},get canWrite(){return opened.canWrite&&!loading;},get busy(){return busy||loading;},get tool(){return tool;},get editingSketch(){return editingSketch;},
 		setSketchPointer:(handler)=>{sketchPointer=handler;},
-		apply,select,setTool,editSketch,
+		apply,select,selectMany,setTool,editSketch,
 		request:(method,value)=>client.request(method,value),
 		project:(p)=>viewport.projectPoint(p),
 		error:(message)=>{error=message;},
@@ -609,6 +617,7 @@
 		clip:(plane)=>viewport.clip(plane),lookAt:(plane)=>viewport.lookAt(plane),fit:()=>viewport.fit(),
 		unproject:(x,y,plane)=>viewport.unproject(x,y,plane),
 		get prefs(){return prefs;},setPreference:(group,value)=>prefStore.set(group,value),runCommand:(id)=>runById(id),
+		onCameraChange:(listener)=>{cameraListeners.add(listener);return()=>{cameraListeners.delete(listener);};},get dragging(){return !!gesture||!!measure;},
 		hover:(list)=>viewport?.setExternalHover(list),
 		onHover:(listener)=>{hoverListeners.add(listener);return()=>{hoverListeners.delete(listener);};},
 		contextMenu:(request)=>panelMenu(request),
@@ -628,7 +637,7 @@
 				/* The Hole tool's own words: a CLICK on a face drills it there. A drag still sizes nothing and drills at the press, as before. */
 				if(tool==='hole'&&barPick.best?.selection.kind==='face'&&drillAt(barPick.best)){bar=null;return;}
 				bar={at,touch};},
-			busyPointer:()=>{bar=null;menu=null;}});
+			busyPointer:()=>{bar=null;menu=null;},cameraChange:()=>{for(const listener of [...cameraListeners])listener();}});
 		for(const m of STOCK_MATERIALS)if(m.color)viewport.materialColours.set(m.id,m.color);
 		viewport.triadShown=prefs.view.triad;viewport.setDisplayMode(prefs.view.mode);viewport.setTriadSlot(triadSlot??null);
 		/* A press anywhere on the model closes the value box: what was typed there was for what is no longer being pointed at. */

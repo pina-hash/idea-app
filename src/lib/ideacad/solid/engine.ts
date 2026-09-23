@@ -625,19 +625,18 @@ export class SolidEngine {
 		for (const face of faceHandles) { for (const edge of k.getFaceEdges(face)) edgeFaces.set(edge, [...(edgeFaces.get(edge) ?? []), faceNames.get(face)!]); for (const vertex of k.getFaceVertices(face)) vertexFaces.set(vertex, [...(vertexFaces.get(vertex) ?? []), faceNames.get(face)!]); }
 		const handles = { faces: new Map<string, number>(), edges: new Map<string, number>(), vertices: new Map<string, number>() };
 		/* Edges: grouped by their face pair; a pair with several edges takes ordinals by midpoint. */
-		const edgeGroups = new Map<string, { handle: number; mid: Vec3 }[]>();
-		for (const [handle, names] of edgeFaces) { const adjacent = [...new Set(names)].sort(); if (adjacent.length < 2) continue; const key = adjacent.join('|'); edgeGroups.set(key, [...(edgeGroups.get(key) ?? []), { handle, mid: this.edgeMid(handle) }]); }
+		/* A group keeps its own face list: a round's face is named `<fid>.blend.<A>|<B>`, so splitting the joined key on '|' would cut that one name into two. */
+		const edgeGroups = new Map<string, { faces: string[]; group: { handle: number; mid: Vec3 }[] }>();
+		for (const [handle, names] of edgeFaces) { const adjacent = [...new Set(names)].sort(); if (adjacent.length < 2) continue; const key = JSON.stringify(adjacent), entry = edgeGroups.get(key) ?? { faces: adjacent, group: [] }; entry.group.push({ handle, mid: this.edgeMid(handle) }); edgeGroups.set(key, entry); }
 		const edges: BodyProjection['edges'] = [], edgeIdOf = new Map<number, string>();
-		for (const [key, group] of edgeGroups) {
-			const faces = key.split('|');
+		for (const { faces, group } of edgeGroups.values()) {
 			const ordered = group.length > 1 ? [...group].sort((a, b) => anchorOrder(a.mid, b.mid)) : group;
 			ordered.forEach(({ handle, mid }, i) => { const id = edgeId(faces, group.length > 1 ? i : undefined); edgeIdOf.set(handle, id); handles.edges.set(id, handle); edges.push({ id, curve: k.getEdgeCurveType(handle), faces, points: new Float32Array(k.sampleEdge(handle, 0.002)), length: k.edgeLength(handle), mid, ordinal: group.length > 1 ? i : undefined }); });
 		}
-		const vertexGroups = new Map<string, { handle: number; point: Vec3 }[]>();
-		for (const [handle, names] of vertexFaces) { const adjacent = [...new Set(names)].sort(); if (adjacent.length < 3) continue; const key = adjacent.join('|'); vertexGroups.set(key, [...(vertexGroups.get(key) ?? []), { handle, point: vector(k.getVertexPosition(handle)) }]); }
+		const vertexGroups = new Map<string, { faces: string[]; group: { handle: number; point: Vec3 }[] }>();
+		for (const [handle, names] of vertexFaces) { const adjacent = [...new Set(names)].sort(); if (adjacent.length < 3) continue; const key = JSON.stringify(adjacent), entry = vertexGroups.get(key) ?? { faces: adjacent, group: [] }; entry.group.push({ handle, point: vector(k.getVertexPosition(handle)) }); vertexGroups.set(key, entry); }
 		const vertices: BodyProjection['vertices'] = [];
-		for (const [key, group] of vertexGroups) {
-			const faces = key.split('|');
+		for (const { faces, group } of vertexGroups.values()) {
 			const ordered = group.length > 1 ? [...group].sort((a, b) => anchorOrder(a.point, b.point)) : group;
 			ordered.forEach(({ handle, point }, i) => { const id = vertexId(faces, group.length > 1 ? i : undefined); handles.vertices.set(id, handle); vertices.push({ id, point, faces, ordinal: group.length > 1 ? i : undefined }); });
 		}
