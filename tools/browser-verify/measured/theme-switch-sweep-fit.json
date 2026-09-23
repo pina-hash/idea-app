@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "theme-switch-sweep-fit.mjs",
-	"date": "2026-09-23T22:57:28.783Z",
-	"sha": "1f9abd4c73bdcae5323de05a7894cb762299823e",
+	"date": "2026-09-23T23:14:59.917Z",
+	"sha": "32291a789ccd0c966a61957f2efe6027f9f20097",
 	"dirty": false,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 6,
 	"outsideRows": [],
-	"ms": 5676
+	"ms": 5808
 }
