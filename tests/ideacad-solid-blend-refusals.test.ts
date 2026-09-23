@@ -106,10 +106,20 @@ describe('the largest size that fits', () => {
 		expect(row(fixed, chamfer.id).status).toBe('ok');
 		expect(fixed.bodies[0].volume).toBeCloseTo(4 * 3 * THICK - 0.5 * fit * fit * 4, 9);
 	});
-	it('the drag path refuses the same sentence: an add with its own id is refused whole and nothing is left in the tree', async () => {
-		const { e, m } = await plate();
+	it('the drag path refuses the same sentence: an add with its own id is refused whole and nothing is left in the tree; asked again further past the limit on the same geometry (the next drag frame) it spends no probe at all', async () => {
+		const log = watch(); const { e, m } = await plate();
 		await expect(add(e, { id: 'f1', name: 'Fillet 1', type: 'fillet', edges: [edgeRef(m, 'x1.end', 'x1.side.0')], radius: 0.75 })).rejects.toThrow(/^That radius is too big for this edge\. The largest that fits here is 0\.499 in\.$/);
 		expect(e.project().features).toHaveLength(2);
+		expect(log.scratches.at(-1)).toBe(1);
+		await expect(add(e, { id: 'f1', name: 'Fillet 1', type: 'fillet', edges: [edgeRef(m, 'x1.end', 'x1.side.0')], radius: 0.9 })).rejects.toThrow(/The largest that fits here is 0\.499 in\.$/);
+		expect(log.scratches.at(-1)).toBe(0);
+		/* The other direction: a different edge is different geometry, and is searched afresh. */
+		await expect(add(e, { id: 'f1', name: 'Fillet 1', type: 'fillet', edges: [edgeRef(m, 'x1.end', 'x1.side.1')], radius: 0.9 })).rejects.toThrow(/The largest that fits here is 0\.499 in\.$/);
+		expect(log.scratches.at(-1)).toBe(1);
+	});
+	it('a stored variable radius with a law the kernel would quietly ignore is refused in words', async () => {
+		const { e, m } = await plate();
+		await expect(add(e, { id: 'f1', name: 'Fillet 1', type: 'fillet', edges: [edgeRef(m, 'x1.end', 'x1.side.0')], radius: 0.1, variable: { end: 0.2, law: 'wobbly' as 'linear' } })).rejects.toThrow('Use a linear or S-curve radius law.');
 	});
 });
 

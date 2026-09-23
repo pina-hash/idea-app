@@ -140,6 +140,9 @@ export function largestThatFits(fits: (v: number) => boolean, requested: number,
 	const mid = between();
 	return { value: good, attempts, exact: !(mid > good && mid < bad) };
 }
+/** The last few answers, keyed by the blend and the geometry it was refused on. Small on purpose: it serves a drag or a replay of the same refusal, not a history. */
+const fitMemo = new Map<string, { value: number | null; exact: boolean }>();
+const FIT_MEMO_SIZE = 32;
 /** What the kernel's text says went wrong, and the limit it named when it named one. */
 export type KernelBlendIssue = { kind: 'cliff' | 'setback' | 'vertex' | 'trim' | 'curved' | 'boundary' | 'self' | 'partial' | 'other'; limit?: number };
 export function readKernelBlendError(text: string): KernelBlendIssue {
@@ -222,7 +225,8 @@ function blendCall(k: BrepKernel, solid: number, f: Blend, handles: number[]): {
 		const radius = positive(f.radius, 'radius');
 		if (f.variable) {
 			const end = positive(f.variable.end, 'radius');
-			return { solid: k.filletVariable(solid, JSON.stringify(handles.map((edge) => ({ edge, law: f.variable!.law ?? 'linear', start: radius, end })))) };
+			const law = f.variable.law ?? 'linear';
+			return { solid: k.filletVariable(solid, JSON.stringify(handles.map((edge) => ({ edge, law, start: radius, end })))) };
 		}
 		return { journaled: k.filletJournaled(solid, edges, radius) };
 	}
@@ -313,7 +317,12 @@ function refuse(ctx: ExecutorContext, f: Blend, body: { id: string; solid: numbe
 	/* A round running along an earlier one usually fits just under that one's radius, so each such radius is a first guess. */
 	const guesses = f.type === 'fillet' ? [...new Set(struck.flatMap((i) => hits[i]))].map((fid) => ctx.manifest.features.find((x) => x.id === fid)).flatMap((x) => (x?.type === 'fillet' && !x.variable ? [x.radius] : [])) : [];
 	/* A drag refuses frame after frame; the search is for the refusal a student stops on, so a preview frame only says what went wrong. */
-	const found = issue.kind !== 'boundary' && !ctx.preview ? largestThatFits(probe, primary, hint, FIT_ATTEMPTS, FIT_BUDGET_MS, guesses) : { value: null, exact: false };
+	/* The same refusal asked again on the same geometry (a drag past the limit, frame after frame, or a replay) reuses its answer instead of probing again: a single-size blend's largest fit does not depend on how far past it the request was. The geometry is keyed by the body's box AND its volume, so an edit upstream that moves a hole without changing the box still misses. */
+	const single = f.type === 'fillet' ? !f.variable : f.distance2 === undefined;
+	const key = single ? JSON.stringify([f.id, f.type, f.edges, !!f.propagate, f.type === 'chamfer' ? f.angle ?? null : null, [...k.boundingBox(body.solid)].map((x) => Number(x.toFixed(9))), Number(Number(json(k.massProperties(body.solid)).volume).toFixed(9)), issue.kind]) : '';
+	const memo = key ? fitMemo.get(key) : undefined;
+	const found = memo && (memo.value === null || memo.value < primary) ? memo : issue.kind !== 'boundary' && !ctx.preview ? largestThatFits(probe, primary, hint, FIT_ATTEMPTS, FIT_BUDGET_MS, guesses) : { value: null, exact: false };
+	if (key && !ctx.preview && found !== memo) { fitMemo.delete(key); fitMemo.set(key, { value: found.value, exact: found.exact }); if (fitMemo.size > FIT_MEMO_SIZE) fitMemo.delete(fitMemo.keys().next().value!); }
 	const fit = found.value;
 	let sizeFix: FeatureFix | undefined, sizeWords = '';
 	if (fit !== null) {
@@ -358,7 +367,8 @@ function refuse(ctx: ExecutorContext, f: Blend, body: { id: string; solid: numbe
 function runBlend(ctx: ExecutorContext, f: Blend) {
 	const k = ctx.k;
 	/* Sizes are checked first, in the executor's own words, before any geometry is read. */
-	if (f.type === 'fillet') { positive(f.radius, 'radius'); if (f.variable) positive(f.variable.end, 'radius'); }
+	/* The kernel turns an unknown law into a constant radius without a word (research section 4), so a stored law it would ignore is refused here instead. */
+	if (f.type === 'fillet') { positive(f.radius, 'radius'); if (f.variable) { positive(f.variable.end, 'radius'); const law = f.variable.law ?? 'linear'; if (law !== 'linear' && law !== 'scurve') throw Error('Use a linear or S-curve radius law.'); } }
 	else { positive(f.distance, 'distance'); if (f.angle !== undefined) { const a = finite(f.angle, 'angle'); if (!(a > 0 && a < 90)) throw Error('Use a chamfer angle between 0 and 90 degrees.'); } else if (f.distance2 !== undefined) positive(f.distance2, 'distance'); }
 	const { body, picked, refs, handles } = blendEdges(ctx, f);
 	const t = topology(k, body.solid);
