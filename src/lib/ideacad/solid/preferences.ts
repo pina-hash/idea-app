@@ -118,8 +118,8 @@ export function readPreferences(raw: unknown): SolidPreferences {
 		snaps: { references: bool(snaps.references, d.snaps.references), bodies: bool(snaps.bodies, d.snaps.bodies), angles: bool(snaps.angles, d.snaps.angles) },
 		drawing: { polygonSides: typeof sides === 'number' && polygonSidesOk(sides) ? sides : d.drawing.polygonSides },
 		features: {
-			fillet: { propagate: bool(fillet.propagate, d.features.fillet.propagate), variableEnd: nullableNumber(fillet.variableEnd, d.features.fillet.variableEnd), law: oneOf(fillet.law, ['linear', 'scurve'] as const, d.features.fillet.law) },
-			chamfer: { propagate: bool(chamfer.propagate, d.features.chamfer.propagate), distance2: nullableNumber(chamfer.distance2, d.features.chamfer.distance2), angle: nullableNumber(chamfer.angle, d.features.chamfer.angle) },
+			fillet: { propagate: bool(fillet.propagate, d.features.fillet.propagate), variableEnd: nullableNumber(fillet.variableEnd, d.features.fillet.variableEnd), law: oneOf(fillet.law, ['linear', 'scurve'] as const, d.features.fillet.law), ...(finite(fillet.radius) ? { radius: fillet.radius } : {}) },
+			chamfer: { propagate: bool(chamfer.propagate, d.features.chamfer.propagate), distance2: nullableNumber(chamfer.distance2, d.features.chamfer.distance2), angle: nullableNumber(chamfer.angle, d.features.chamfer.angle), ...(finite(chamfer.distance) ? { distance: chamfer.distance } : {}) },
 			hole: { standard: oneOf(hole.standard, HOLE_STANDARDS.map((s) => s.id), d.features.hole.standard), fit: oneOf(hole.fit, HOLE_FITS, d.features.hole.fit), diameter: nullableNumber(hole.diameter, d.features.hole.diameter), depth: depth === 'through' || finite(depth) ? depth : d.features.hole.depth }
 		},
 		hints: {

@@ -31,9 +31,13 @@
 	import ReferencePanel from './ReferencePanel.svelte';
 	import MatePanel from './MatePanel.svelte';
 	import AnalysisPanel from './AnalysisPanel.svelte';
+	import Tutorial from './learn/Tutorial.svelte';
+	import { firstUseHint, retireInStore } from './learn/hints';
 	import FeaturePanel from './FeaturePanel.svelte';
 	import AddonPanel from './AddonPanel.svelte';
 	import DimensionPanel from './DimensionPanel.svelte';
+	import DimensionOverlay from './DimensionOverlay.svelte';
+	import { withDrivingSize } from './dimensions/drawn';
 	import MovePanel from './MovePanel.svelte';
 	import MeasurePanel from './MeasurePanel.svelte';
 	import SectionPanel from './SectionPanel.svelte';
@@ -54,6 +58,7 @@
 	import { DATUM_SELECTION_PREFIX, type Datum } from './features/reference';
 	import { holeFeatureAt, withOptions } from './features/options';
 	import { matePreview, MATE_SNAP_TOLERANCE } from './viewport/mate-preview';
+	import { moveWithinFreedom } from './mates/motion';
 	import { parseDimension } from './dimensions/model';
 	import type {AdvisoryTransport,AdvisoryRules} from './advisory';
 	import {STOCK_MATERIALS} from './advisory';
@@ -66,7 +71,7 @@
 	import { rectangleEntities, type SketchDraft } from './sketch/editor';
 	import { datumPlane, planeFromNormal } from './sketch/model';
 	import { refFromSelection } from './naming';
-	import { newFeatureId } from './features';
+	import { newEntityId, newFeatureId } from './features';
 	import { download, sketchDxf,profileDxf,solidStl, solidThreeMf } from './export';
 	import type { WorkspaceApi, WorkspaceMenuRequest } from './workspace-api';
 	import type { BodyProjection, EdgeRef, EntityRef, FaceRef, Feature, MateKind, ModelProjection, ModelSnapshot, PlaneRef, ResolvedPlane, Selection, SolidCommand, SolidDocument, SolidHistoryAction, SolidManifest, SolidTransport } from './types';
@@ -82,7 +87,7 @@
 	let client:SolidClient;let viewport:SolidViewport;
 	let model:ModelProjection=$state(EMPTY_MODEL);
 	let selections:Selection[]=$state([]),tool:Tool=$state('select');
-	let error=$state(''),loading=$state(true),busy=$state(false),more=$state(false),objectsOpen=$state(false),addonOpen=$state(false),exportOpen=$state(false),treeOpen=$state(false),referenceOpen=$state(false),matesOpen=$state(false),sectionOpen=$state(false),analysisOpen=$state(false),panelsFolded=$state(false);
+	let error=$state(''),loading=$state(true),busy=$state(false),more=$state(false),objectsOpen=$state(false),addonOpen=$state(false),exportOpen=$state(false),treeOpen=$state(false),referenceOpen=$state(false),matesOpen=$state(false),sectionOpen=$state(false),analysisOpen=$state(false),panelsFolded=$state(false),helpOpen=$state(false);
 	let reopenConfirm=$state(false);
 	/* Transient chrome: command search (and the view menu, which is the same list narrowed), the preferences panel. */
 	let search=$state<{at:{x:number;y:number};group?:CommandGroup}|null>(null),prefsOpen=$state(false);
@@ -173,6 +178,7 @@
 		viewport.editingPlane=sketch?sketch.plane:null;viewport.editingSketchId=sketch?sketch.feature:null;if(sketch){treeOpen=false;select({bodyId:'',kind:'sketch',id:sketch.feature});void tick().then(()=>{if(editingSketch===sketch.feature)viewport.focusSketch(sketch,chromeInset());});}else{viewport.focusSketch(null);viewport.highlight();}
 	}
 	async function record(label:string,before:ModelSnapshot,changes?:SolidHistoryAction['changes']){
+		const armed=tool;
 		const after=await client.request<ModelSnapshot>('snapshot');currentSnapshot=after;
 		if(!changes&&JSON.stringify(before.manifest)===JSON.stringify(after.manifest))return;
 		/* Diff against the server's tree; an undo's inverse rows are exact (groupHistory refuses anything else) and PRODUCE the tree the server will hold, which is what p_model must equal. */
@@ -182,6 +188,8 @@
 		const id=crypto.randomUUID(),seq=history.length,resultRevision=groupHistory(history).length+2;
 		actions.push({id,label,before:base,after:produced,createdAt:new Date().toISOString(),changes:patches});
 		history=[...history,...patches.map((patch,i)=>({...patch,seq:seq+i,operationId:id,operationStart:i===0,operationLabel:i===0?label:null,resultRevision:i===0?resultRevision:null}))];saveState.markDirty();
+		/* A first-use cue retires once its tool has made something; an undo that restores a feature retires nothing. */
+		if(!changes)retireInStore(prefStore,armed,before.manifest.features,after.manifest.features);
 	}
 	/** Features whose picks are spent once they exist: the next tool must not act on the faces a mate, a combine or a mirror was made from. */
 	const CONSUMES_PICKS=['mate','boolean','mirror'];
@@ -208,10 +216,10 @@
 		finally{busy=false;}
 	}
 	/** A drawn entity collection becomes a sketch feature on the plane it was drawn on, selected and ready to extrude. */
-	async function createDraft(draft:SketchDraft,ref:PlaneRef){drafting=true;try{const id=newFeatureId();await apply({type:'add-feature',feature:{id,name:'',type:'sketch',plane:ref,entities:draft.entities,constraints:draft.constraints}},'Draw sketch');if(model.features.some(f=>f.id===id)){tool='extrude';select({bodyId:'',kind:'sketch',id});viewport.highlight();}}finally{drafting=false;}}
+	async function createDraft(draft:SketchDraft,ref:PlaneRef){drafting=true;try{const id=newFeatureId(),sized=withDrivingSize(draft,newEntityId);await apply({type:'add-feature',feature:{id,name:'',type:'sketch',plane:ref,entities:sized.entities,constraints:sized.constraints}},'Draw sketch');if(model.features.some(f=>f.id===id)){tool='extrude';select({bodyId:'',kind:'sketch',id});viewport.highlight();}}finally{drafting=false;}}
 	/** "Start from a box": a 2 x 2 in square on Top, pulled up 1 in, as one change, then selected. */
 	async function startFromBox(){
-		const sketch=newFeatureId(),extrude=newFeatureId(),square=rectangleEntities([-1,-1],[1,1]);
+		const sketch=newFeatureId(),extrude=newFeatureId(),square=withDrivingSize(rectangleEntities([-1,-1],[1,1]),newEntityId);
 		const made=await applyAll([{type:'add-feature',feature:{id:sketch,name:'',type:'sketch',plane:{kind:'datum',datum:'XY'},entities:square.entities,constraints:square.constraints}},{type:'add-feature',feature:{id:extrude,name:'',type:'extrude',sketch,distance:1,operation:'new'}}],'Start from a box');
 		if(!made)return;const body=model.bodies.find(b=>b.createdBy===extrude)??model.bodies[0];if(body)select({bodyId:body.id,kind:'body',id:body.id});viewport.fit();canvas.focus();
 	}
@@ -257,6 +265,12 @@
 		if(active==='rotate'||active==='scale'||active==='move'){
 			if(active==='move'&&(selection.kind==='edge'||selection.kind==='vertex'))return feature({type:'move-selection',entity:ref(selection) as EdgeRef,delta:scaleVector(axis,value.distance)});
 			const matrix=new THREE.Matrix4(),center=new THREE.Vector3(...gestureCenter),mode=value.handle?.mode;
+			/* A mated or fixed body moves only within the freedom its mates leave (`mates/motion.ts`), and alone: the picks left selected after a mate are on both parts. A drag across the freedom moves nothing and snaps to nothing. */
+			if((active==='move'||active==='rotate')&&isHeld(gestureModel,selection.bodyId)){
+				const turn=mode==='ring'||active==='rotate',request=turn?{rotation:{axis:[...(value.handle?.axis??axis)] as [number,number,number],angle:value.angle*Math.PI/180,pivot:gestureCenter}}:{translation:mode==='plane'||mode==='free'?value.delta:scaleVector(axis,value.distance)};
+				const motion=moveWithinFreedom(gestureModel,selection.bodyId,request);mateCandidate=null;viewport.clearGuides();
+				return motion.held?null:feature({type:'transform',bodies:[selection.bodyId],matrix:motion.matrix});
+			}
 			/* The triad's handle says what the drag is: a ring is a turn about its axis through the centre, a plane square or the centre sphere is a delta, an arrow is a distance along its axis. A move is offered the magnetic mate snap unless Ctrl is held. */
 			if(mode==='ring')matrix.makeRotationAxis(new THREE.Vector3(...(value.handle?.axis??axis)).normalize(),value.angle*Math.PI/180);
 			else if(mode==='plane'||mode==='free'||active==='move'){
@@ -276,6 +290,7 @@
 		return null;
 	}
 	const scaleVector=(v:[number,number,number],n:number):[number,number,number]=>[v[0]*n,v[1]*n,v[2]*n];
+	const isHeld=(m:ModelProjection,id:string)=>!!m.bodies.find(b=>b.id===id)?.fixed||m.mates.some(x=>x.status==='ok'&&[x.a,x.b].some(r=>(r as {body?:string}).body===id));
 	function update(value:DragValue){
 		let command:SolidCommand|null;try{command=commandFor(value);}catch(err){error=err instanceof Error?err.message:String(err);return;}if(!command)return;
 		measure={text:dragReadout(gesture!.tool,value,{kind:gesture!.selection.kind}),x:value.point.x,y:value.point.y};
@@ -438,7 +453,7 @@
 		setDisplayMode:(mode)=>prefStore.set('view',{...prefs.view,mode}),openDisplayMenu:()=>openDisplayMenu(),
 		openExport:()=>exportOpen=!exportOpen,openSearch,openPreferences:()=>{prefsOpen=!prefsOpen;},
 		/* Help is the searchable list of every command until the tutorial lands; it never opens nothing. */
-		openHelp:()=>openSearch(),
+		openHelp:()=>{helpOpen=!helpOpen;if(helpOpen)panelsFolded=false;},
 		sketchOn,editSketch:()=>{const s=selections.find(x=>x.kind==='sketch');if(s)editSketch(s.id);},filletFaceEdges,selectOther,selectTangentChain:()=>void selectTangentChain(),selectLoop,hideBodies,showBodies,get hiddenBodies(){return hiddenCount;},mirrorBodies,appearance,openPickFilter:()=>openPickMenu(),drillAtMenuPoint
 	};
 	/** Run a registry command from any path (a key, search, the view control, the palette), and remember it for search's ranking. One that cannot run says why, where every refusal is said. */
@@ -564,7 +579,7 @@
 		viewport.highlight();
 	}
 	/** The chrome floating over the model, which the context toolbar must not cover: the open panels, the tool palette and the top bar's controls. */
-	function chromeRects(){return[...document.querySelectorAll('.solid-workspace .panels>*,.solid-workspace .tools,.solid-workspace .top-bar .view-controls .row,.solid-workspace .pick-tools,.solid-workspace .right-tools,.solid-workspace .error')].map(el=>el.getBoundingClientRect()).filter(r=>r.width>0&&r.height>0);}
+	function chromeRects(){/* On a phone the panels are one bottom sheet, and the sheet's own box (clipped, unlike its cards) is what the selection toolbar must stay off. */const panels=(canvas?.clientWidth??1000)<=700&&!!workareaEl?.querySelector('.panels>.panel')?'.solid-workspace .panels':'.solid-workspace .panels>*';return[...document.querySelectorAll(panels+',.solid-workspace .tools,.solid-workspace .top-bar .view-controls .row,.solid-workspace .pick-tools,.solid-workspace .right-tools,.solid-workspace .error')].map(el=>el.getBoundingClientRect()).filter(r=>r.width>0&&r.height>0);}
 	/** Where the box is drawn, in the work area's own pixels. */
 	const boxStyle=$derived.by(()=>{if(!box||!canvas)return null;const r=canvas.getBoundingClientRect();return{left:box.rect.left-r.left,top:box.rect.top-r.top,width:box.rect.right-box.rect.left,height:box.rect.bottom-box.rect.top};});
 	/* The value box. A digit, a point or a minus with something selected, or while a drawing is becoming a sketch, opens it; digits that arrive before it has focus are appended in order, never dropped. */
@@ -678,6 +693,7 @@
 		<button aria-label="Undo" onclick={()=>void undo()} disabled={!historyState.undoTarget||!opened.canWrite||busy}>↶</button>
 		<button aria-label="Redo" onclick={()=>void undo(true)} disabled={!historyState.redoTarget||!opened.canWrite||busy}>↷</button>
 		<button class="search-open" class:active={!!search&&!search.group} aria-label="Search commands" title={keyFor('search')?`Search commands (${keyFor('search')})`:'Search commands'} onclick={()=>search&&!search.group?search=null:runById('search')}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 17a7 7 0 1 1 0-14 7 7 0 0 1 0 14zM15 15l6 6"/></svg><span>Search</span></button>
+		<button class="help-open" class:active={helpOpen} aria-label="Learn" aria-pressed={helpOpen} onclick={()=>runById('help')}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={commandById('help')!.icon}/></svg><span>Learn</span></button>
 		<button class="prefs-open" class:active={prefsOpen} aria-label="Preferences" aria-expanded={prefsOpen} onclick={()=>prefsOpen=!prefsOpen}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg><span>Settings</span></button>
 		<button class="tree-toggle" class:active={treeOpen} aria-expanded={treeOpen} onclick={()=>treeOpen=!treeOpen}>Tree</button>
 		<button class="export-open" class:active={exportOpen} onclick={()=>exportOpen=!exportOpen}>Export <span aria-hidden="true">↗</span></button>
@@ -686,11 +702,12 @@
 		<aside class="tree-rail" aria-label="Design tree rail"><FeatureTree {api}/></aside>
 		<div class="workarea" bind:this={workareaEl} onpointerdowncapture={(e)=>{if(e.target!==canvas)return;if(lapseStep!==null)endLapse();/* Below 1024px the tree is a slide-over: a press on the model is a press away from it. */if(treeOpen)treeOpen=false;}}>
 			<canvas bind:this={canvas} tabindex="0" aria-label="3D model: select and drag geometry"></canvas>
+			<DimensionOverlay {api} hidden={loading||!!measure}/>
 			{#if bar&&selections.length&&(barItems.length||barCrumbs.length)}<ContextBar at={bar.at} touch={bar.touch} avoid={chromeRects} commands={barItems} crumbs={barCrumbs} onrun={(item)=>item.run?.()} oncrumb={(crumb)=>{viewport.setExternalHover(null);crumb.selections.forEach((s,i)=>select(s,i>0));}} onpreview={(crumb)=>viewport?.setExternalHover(crumb?crumb.selections:null)} onclose={()=>{bar=null;}}/>{/if}
 			{#if box&&boxStyle}<div class="box-select" class:crossing={box.mode==='crossing'} data-testid="ideacad-box-select" data-mode={box.mode} aria-hidden="true" style:left={`${boxStyle.left}px`} style:top={`${boxStyle.top}px`} style:width={`${boxStyle.width}px`} style:height={`${boxStyle.height}px`}><span>{BOX_WORDS[box.mode]}</span></div>{/if}
 			<nav class="tools" class:expanded={more} aria-label="Modeling tools">
-				{#each shownTools as item (item.id)}<ToolButton name={keyFor(item.id)?`${item.name} (${keyFor(item.id)})`:item.name} description={item.description} icon={item.icon} active={tool===item.id} onclick={()=>runById(item.id)}/>{/each}
-				<button class="more" aria-label={more?'Fewer tools':'More tools'} aria-expanded={more} onclick={()=>more=!more}>{more?'−':'⋯'}</button>
+				{#each shownTools as item (item.id)}<ToolButton id={item.id} hint={firstUseHint(item.id,prefs.hints.retired)} name={keyFor(item.id)?`${item.name} (${keyFor(item.id)})`:item.name} description={item.description} icon={item.icon} active={tool===item.id} onclick={()=>runById(item.id)}/>{/each}
+				<button class="more" data-more-tools aria-label={more?'Fewer tools':'More tools'} aria-expanded={more} onclick={()=>more=!more}>{more?'−':'⋯'}</button>
 			</nav>
 			<div class="top-bar">
 				<div class="view-tools">
@@ -710,6 +727,7 @@
 			{#if saveState.failed}<aside class="recovery panel" aria-label="Save recovery"><h2>Changes not saved</h2><p>{saveState.message}</p><button onclick={()=>void exportFile('ideacad')}>Save backup</button>{#if reopenConfirm}<p>Discard unsaved changes and open the saved model?</p><button disabled={busy} onclick={()=>void reopenSaved()}>Discard and reopen</button><button onclick={()=>reopenConfirm=false}>Cancel</button>{:else}<button disabled={busy} onclick={()=>reopenConfirm=true}>Reopen saved model</button>{/if}</aside>{/if}
 			<div class="panels" class:folded={panelsFolded}>
 				<button class="sheet-handle" data-testid="ideacad-sheet-handle" aria-expanded={!panelsFolded} onclick={()=>panelsFolded=!panelsFolded}><span class="grip" aria-hidden="true"></span>Panels<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+				{#if helpOpen}<Tutorial {api} onclose={()=>{helpOpen=false;}}/>{/if}
 				{#if prefsOpen}<PreferencesPanel store={prefStore} {prefs} onclose={()=>{prefsOpen=false;}}/>{/if}
 				{#if editingSketch}<SketchEditor {api}/>{/if}
 				<FeaturePanel {api}/>
@@ -751,8 +769,6 @@
 	:global(body:has(.solid-workspace) .sfb-shell){bottom:calc(2px + env(safe-area-inset-bottom, 0px));right:8px}
 	:global(body:has(.solid-workspace) .vnav-shell){bottom:calc(2px + env(safe-area-inset-bottom, 0px));left:8px}
 	@media(max-width:700px){:global(body:has(.solid-workspace) .sfb-word){display:none}}
-	/* A tool's hover card waits for the student's own delay (preferences, Hints) before it shows, instead of covering the model the instant the pointer crosses the palette. */
-	.tools :global(.tool-wrap .tooltip){display:block;visibility:hidden}.tools :global(.tool-wrap:hover .tooltip),.tools :global(.tool-wrap:focus-within .tooltip){visibility:visible;transition:visibility 0s linear var(--ic-tip-delay,400ms)}
 	.settings-overlay{position:absolute;inset:0;z-index:40;background:#0008;display:grid;place-items:center}.solid-workspace{position:relative}
 	.recovery{z-index:22}.recovery p{font-size:16px;color:var(--text-2)}
 	.document-save{min-width:0;display:flex;justify-content:flex-end}.document-save :global(.save-ind){max-width:100%;flex-wrap:nowrap}.document-save :global(.save-ind-text){min-width:0;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -767,7 +783,7 @@
 	/* The pick filter's control, and the count of hidden bodies: both say what is on, in words, whenever it is on. */
 	.view-tools{gap:6px;align-items:flex-start}.pick-tools{display:flex;gap:4px;pointer-events:auto;flex:0 0 auto}.pick-tools button{display:inline-flex;align-items:center;gap:6px;padding:0 12px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px;white-space:nowrap}.pick-tools button span{max-width:150px;overflow:hidden;text-overflow:ellipsis}.pick-tools button.active{background:color-mix(in srgb,var(--green) 12%,var(--surface-1));border-color:var(--green);color:var(--green)}.pick-open:not(.active){padding:0;justify-content:center}.hidden-bodies{color:var(--ic-warn,var(--amber))}
 	.empty-slot{position:absolute;left:50%;top:68px;transform:translateX(-50%);z-index:6;pointer-events:none;width:max-content;max-width:calc(100% - 24px)}
-	.search-open,.prefs-open{display:inline-flex;align-items:center;gap:6px}.tree-toggle{align-items:center}
+	.search-open,.prefs-open,.help-open{display:inline-flex;align-items:center;gap:6px}.tree-toggle{align-items:center}
 	.solid-workspace{height:100%;min-height:0;display:grid;grid-template-rows:56px minmax(0,1fr) auto 48px;overflow:hidden;background:var(--surface-0);color:var(--text-1);font-family:Rajdhani,sans-serif}header{display:flex;gap:4px;align-items:center;padding:0 12px;background:var(--surface-1);border-bottom:1px solid var(--hairline);z-index:10}button,input{font:600 16px Rajdhani,sans-serif;color:var(--text-1);min-height:44px;min-width:44px;border:1px solid transparent;border-radius:5px;background:transparent}button{cursor:pointer;padding:0 12px}button:hover{background:var(--surface-2)}button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}button.active,button.selected{background:color-mix(in srgb,var(--green) 12%,var(--surface-1));border-color:var(--green);color:var(--green)}button:disabled{opacity:.4;cursor:default}.documents{display:flex;gap:8px;align-items:center}.document-title{max-width:300px;width:25vw;min-width:80px;font-size:21px;padding:0 12px;border-left:1px solid var(--hairline);border-radius:0}.document-save{flex:1;text-align:right;padding-right:12px}
 	.body{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:0}.tree-rail{min-height:0;display:flex;flex-direction:column;background:var(--surface-1);border-right:1px solid var(--hairline);overflow:hidden}.tree-toggle{display:none}
 	.workarea{position:relative;min-height:0;overflow:hidden}canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}.tools{position:absolute;left:12px;top:12px;display:flex;flex-direction:column;padding:5px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:8px;z-index:5;max-height:calc(100% - 24px);flex-wrap:wrap;align-content:flex-start}.tools.expanded{display:grid;grid-template-columns:repeat(3,44px);grid-auto-rows:44px;width:auto;overflow-y:auto}.more{height:44px;padding:0;font-size:24px}.right-tools{flex:0 1 auto;display:flex;gap:4px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px;flex-wrap:wrap;justify-content:flex-end}.right-tools span{margin-left:6px;color:var(--text-2)}
@@ -776,5 +792,5 @@
 	.sheet-handle{display:none;position:sticky;top:0;z-index:1;flex:none;align-items:center;justify-content:center;gap:8px;width:100%;padding:0 12px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px;font-size:15px}.sheet-handle .grip{width:28px;height:4px;border-radius:2px;background:var(--text-2)}.panels.folded .sheet-handle svg{transform:rotate(180deg)}
 	:global(.solid-workspace .panel){padding:10px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px}.panel h2{margin:0 0 8px;font-size:20px;padding:5px 10px;border-bottom:1px solid var(--hairline)}.panel>button{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left}.panel button span{font-size:13px;color:var(--text-2)}.body-actions{display:flex;flex-wrap:wrap;border-top:1px solid var(--hairline);margin-top:10px;padding-top:8px}.export-menu{position:absolute;top:8px;right:12px;z-index:15;width:245px}.measure,.number-entry{position:absolute;z-index:8;background:var(--surface-2);color:var(--text-1);border:1px solid var(--green);border-radius:5px;font:14px 'Share Tech Mono',monospace}.measure{padding:9px 12px;pointer-events:none}.number-entry{display:flex;width:170px}.number-entry input{width:120px;min-width:0;padding:0 8px;font-family:'Share Tech Mono',monospace}.error{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);max-width:min(600px,calc(100% - 30px));padding:8px 10px 8px 16px;display:flex;gap:10px;align-items:center;z-index:20;border:1px solid var(--ic-warn);border-radius:7px;background:var(--surface-1);font-size:17px}.error button{flex-shrink:0}.loading{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:21px}.read-only{position:absolute;bottom:12px;left:108px;padding:8px 12px;background:var(--surface-1);border:1px solid var(--hairline)}.replay{position:absolute;bottom:12px;right:12px;padding:4px 8px;font:11px 'Share Tech Mono',monospace;color:var(--text-2);background:var(--surface-1);border:1px solid var(--hairline);border-radius:4px}footer{display:flex;align-items:center;gap:20px;border-top:1px solid var(--hairline);padding:0 var(--dock-right,15px) 0 var(--dock-left,15px);font:11px 'Share Tech Mono',monospace;color:var(--text-2);min-width:0;overflow:hidden;white-space:nowrap}.tool-name{margin-left:auto}
 	@media(max-width:1023px){.body{grid-template-columns:minmax(0,1fr)}.tree-rail{display:none;position:absolute;left:0;top:56px;bottom:calc(48px + var(--history-h,0px) + var(--error-h,0px));width:min(300px,80vw);z-index:9}.tree-open .tree-rail{display:flex}.tree-toggle{display:inline-flex}}
-	@media(max-width:700px){.solid-workspace{grid-template-rows:52px minmax(0,1fr) auto 48px}header{padding:0 4px;gap:0}.documents span,.prefs-open span{display:none}.search-open{display:none}.document-save{position:absolute;bottom:5px;left:var(--dock-left,8px);right:var(--dock-right,8px);width:auto;justify-content:flex-start;z-index:12;padding:0;font-size:10px}.tool-name{display:none}.document-title{flex:1;width:80px;font-size:18px;padding:0 6px}header button{font-size:14px;padding:0 8px;white-space:nowrap}.export-open span{display:none}.tools{left:8px;right:8px;bottom:8px;top:auto;flex-direction:row;flex-wrap:nowrap!important;width:auto!important;overflow-x:auto;overflow-y:hidden;max-height:66px}.tools.expanded{display:grid;grid-template-columns:repeat(6,44px);grid-auto-rows:44px;max-height:none;overflow:visible;right:auto}.workarea:has(.tools.expanded) .triad-slot{bottom:206px}.workarea:has(.panels>:global(.panel)) .empty-slot{display:none}.top-bar,.workarea:has(.tools.expanded) .top-bar{left:8px;right:8px;top:8px;flex-direction:column;align-items:stretch}.right-tools{align-self:flex-end}.right-tools button{font-size:13px;padding:0 8px}.right-tools span{display:none}.panels{right:8px;left:8px;top:auto;bottom:max(80px,var(--error-h,0px));max-height:min(40%,calc(100% - 200px));width:auto}.workarea:has(.tools.expanded) .panels{bottom:max(206px,var(--error-h,0px))}.panels:has(>:global(.panel)) .sheet-handle{display:flex}.panels.folded>:global(:not(.sheet-handle)){display:none}.right-tools{max-width:100%;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;gap:0}.right-tools button{flex:none;padding:0 7px}.panels.folded{left:auto}.panels.folded .sheet-handle{width:auto}.error{bottom:80px;font-size:16px}.triad-slot{left:8px;bottom:82px;width:64px;height:64px}.read-only{bottom:82px;left:80px}.empty-slot{top:120px}.tree-rail{top:52px;bottom:calc(48px + var(--history-h,0px) + var(--error-h,0px))}footer{gap:10px;font-size:10px;align-items:flex-start;padding-top:8px}}
+	@media(max-width:700px){.solid-workspace{grid-template-rows:52px minmax(0,1fr) auto 48px}header{padding:0 4px;gap:0}.documents span,.prefs-open span,.help-open span{display:none}.search-open{display:none}.document-save{position:absolute;bottom:5px;left:var(--dock-left,8px);right:var(--dock-right,8px);width:auto;justify-content:flex-start;z-index:12;padding:0;font-size:10px}.tool-name{display:none}.document-title{flex:1;width:80px;font-size:18px;padding:0 6px}header button{font-size:14px;padding:0 8px;white-space:nowrap}.export-open span{display:none}.tools{left:8px;right:8px;bottom:8px;top:auto;flex-direction:row;flex-wrap:nowrap!important;width:auto!important;overflow-x:auto;overflow-y:hidden;max-height:66px}.tools.expanded{display:grid;grid-template-columns:repeat(6,44px);grid-auto-rows:44px;max-height:none;overflow:visible;right:auto}.workarea:has(.tools.expanded) .triad-slot{bottom:206px}.workarea:has(.panels>:global(.panel)) .empty-slot{display:none}.top-bar,.workarea:has(.tools.expanded) .top-bar{left:8px;right:8px;top:8px;flex-direction:column;align-items:stretch}.right-tools{align-self:flex-end}.right-tools button{font-size:13px;padding:0 8px}.right-tools span{display:none}.panels{right:8px;left:8px;top:auto;bottom:max(80px,var(--error-h,0px));max-height:min(40%,calc(100% - 200px));width:auto}.workarea:has(.tools.expanded) .panels{bottom:max(206px,var(--error-h,0px))}.panels:has(>:global(.panel)) .sheet-handle{display:flex}.panels.folded>:global(:not(.sheet-handle)){display:none}.right-tools{max-width:100%;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;gap:0}.right-tools button{flex:none;padding:0 7px}.panels.folded{left:auto}.panels.folded .sheet-handle{width:auto}.error{bottom:80px;font-size:16px}.triad-slot{left:8px;bottom:82px;width:64px;height:64px}.read-only{bottom:82px;left:80px}.empty-slot{top:120px}.tree-rail{top:52px;bottom:calc(48px + var(--history-h,0px) + var(--error-h,0px))}footer{gap:10px;font-size:10px;align-items:flex-start;padding-top:8px}}
 </style>

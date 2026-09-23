@@ -44,7 +44,7 @@ import { EXECUTORS, solveMates } from './features/index';
 import { tangentChain } from './features/blends';
 import { checkInterference, checkPair, type InterferenceReport } from './analysis/interference';
 import type { ExecutorContext, LiveBody, MateState, Resolved, ResolvedRef, SketchState } from './features/context';
-import { emptyManifest, type AxisRef, type BodyProjection, type BodyRecord, type EdgeRef, type FaceRef, type Feature, type FeatureRow, type GeometryArtifact, type ModelProjection, type ModelSnapshot, type PlaneRef, type PointRef, type ResolvedAxis, type ResolvedPlane, type ResolvedPoint, type Selection, type SketchConstraint, type SketchEntity, type SolidCommand, type SolidManifest, type Vec3, type VertexRef, type LegacyManifest, type MateProjection, type ReferenceProjection, type SketchProjection } from './types';
+import { emptyManifest, type AxisRef, type BodyProjection, type BodyRecord, type EdgeRef, type FaceRef, type Feature, type FeatureHelp, type FeatureRow, type GeometryArtifact, type ModelProjection, type ModelSnapshot, type PlaneRef, type PointRef, type ResolvedAxis, type ResolvedPlane, type ResolvedPoint, type Selection, type SketchConstraint, type SketchEntity, type SolidCommand, type SolidManifest, type Vec3, type VertexRef, type LegacyManifest, type MateProjection, type ReferenceProjection, type SketchProjection } from './types';
 
 const json = <T = Record<string, any>>(input: unknown): T => (typeof input === 'string' ? JSON.parse(input) : input) as T;
 const clone = <T>(value: T): T => structuredClone(value);
@@ -64,7 +64,7 @@ export const EXPORT_TESSELLATION = { chord: 0.002, angle: 0.15 } as const;
 export const displayChord = (size: number) => Math.max(DISPLAY_TESSELLATION.minChord, DISPLAY_TESSELLATION.chordPerSize * (Number.isFinite(size) && size > 0 ? size : 1));
 
 interface State { bodies: Map<string, LiveBody>; order: string[]; refs: Map<string, ResolvedRef>; sketches: Map<string, SketchState>; mates: MateState[] }
-interface Result { status: FeatureRow['status']; message?: string; bodies: string[]; naming?: NamingReport }
+interface Result { status: FeatureRow['status']; message?: string; bodies: string[]; naming?: NamingReport; help?: FeatureHelp }
 /** One step of the time-lapse: the body order after a feature, the bodies that feature made or changed, and the sketches open then. */
 export interface TimelapseStep { order: string[]; changed: BodyProjection[]; sketches: SketchProjection[] }
 interface Pick { body: LiveBody; handle: number; kind: Selection['kind'] }
@@ -167,7 +167,9 @@ export class SolidEngine {
 			faceName: (face) => k.getFaceName(face) || undefined,
 			warn: (message) => { warnings.push(message); },
 			volume: (solid) => engine.volume(solid),
-			extent: () => engine.extent()
+			extent: () => engine.extent(),
+			/* A drag frame skips a refused round's size search (features/blends.ts); only a settled build pays for it. */
+			preview: !!engine.preview
 		};
 		return ctx;
 	}
@@ -235,7 +237,7 @@ export class SolidEngine {
 				} catch (error) {
 					this.k.restore(fallback);
 					this.live = i > 0 ? cloneState(this.states[i - 1]) : emptyState();
-					this.results[i] = { status: 'error', message: error instanceof Error ? error.message : String(error), bodies: [] };
+					this.results[i] = { status: 'error', message: error instanceof Error ? error.message : String(error), bodies: [], help: (error as { help?: FeatureHelp } | null)?.help };
 				}
 			}
 			if (before === null) this.k.discardCheckpoint(fallback);
@@ -251,19 +253,20 @@ export class SolidEngine {
 		this.picks.clear();
 		this.lastReplay = { ms: performance.now() - started, from };
 	}
-	/** The feature a command is about, whose own failure refuses the command rather than reddening a row. */
-	private commandFeature(command: SolidCommand): string | null {
-		if (command.type === 'add-feature') return command.feature.id;
-		if (command.type === 'set-feature' || command.type === 'suppress-feature') return command.id;
-		return null;
+	/** The features a command is about, whose own failure refuses the command rather than reddening a row. A batch (a joint's mates) is about every feature in it, so it is refused whole. */
+	private commandFeatures(command: SolidCommand): string[] {
+		if (command.type === 'batch') return command.commands.flatMap((c) => this.commandFeatures(c));
+		if (command.type === 'add-feature') return [command.feature.id];
+		if (command.type === 'set-feature' || command.type === 'suppress-feature') return [command.id];
+		return [];
 	}
-	/** A command whose OWN feature failed is refused with that feature's sentence, and the manifest is put back by the caller. */
+	/** A command whose OWN feature failed is refused with the first failing feature's sentence, and the manifest is put back by the caller. */
 	private refuseOwnFailure(command: SolidCommand, next: SolidManifest) {
-		const id = this.commandFeature(command);
-		if (!id) return;
-		const index = next.features.findIndex((f) => f.id === id);
-		const result = index >= 0 ? this.results[index] : undefined;
-		if (result?.status === 'error') throw Error(result.message ?? 'This change could not be made.');
+		for (const id of this.commandFeatures(command)) {
+			const index = next.features.findIndex((f) => f.id === id);
+			const result = index >= 0 ? this.results[index] : undefined;
+			if (result?.status === 'error') throw Error(result.message ?? 'This change could not be made.');
+		}
 	}
 	/** Replace the whole manifest, replaying only from the first feature that differs. */
 	private applyManifest(next: SolidManifest) {
@@ -695,7 +698,7 @@ export class SolidEngine {
 		const features: FeatureRow[] = this.features.map((f, index) => {
 			const r = this.results[index] ?? { status: 'error', message: 'Not replayed.', bodies: [] };
 			const mateError = f.type === 'mate' ? this.mateReport.errors.find((e) => e.feature === f.id) : undefined;
-			return { id: f.id, index, type: f.type, name: f.name, status: mateError ? 'error' : r.status, message: mateError?.message ?? r.message, summary: featureSummary(f), bodies: r.bodies, dependsOn: dependsOnFeatures(f, this.features), suppressed: !!f.suppressed };
+			return { id: f.id, index, type: f.type, name: f.name, status: mateError ? 'error' : r.status, message: mateError?.message ?? r.message, help: mateError ? undefined : r.help, summary: featureSummary(f), bodies: r.bodies, dependsOn: dependsOnFeatures(f, this.features), suppressed: !!f.suppressed };
 		});
 		const mates: MateProjection[] = this.live.mates.map((m) => { const error = this.mateReport.errors.find((e) => e.feature === m.feature); return { feature: m.feature, kind: m.kind, a: m.a, b: m.b, value: m.value, status: error ? 'error' : 'ok', message: error?.message, residual: this.mateReport.residuals.get(m.feature) }; });
 		return { bodies, sketches, references, features, mates, addons: clone(this.addons), operationMs, replayMs: this.lastReplay.ms, replayedFrom: this.lastReplay.from, canUndo: !!this.undoSteps.length, canRedo: !!this.redoSteps.length, rollbackIndex: this.limit };

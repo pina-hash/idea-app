@@ -24,6 +24,7 @@
 import type { EntityKind } from '../types';
 import type { Tool, DragValue } from '../viewport';
 import { formatDimension, type DimensionUnit } from '../dimensions/model';
+import { labelText, typedInDisplay } from '../dimensions/labels';
 export { INCH_DECIMALS } from '../dimensions/model';
 
 /**
@@ -35,7 +36,8 @@ export type DisplayUnit = 'in' | 'mm';
 export const DISPLAY_UNITS: readonly DisplayUnit[] = ['in', 'mm'];
 export const readoutSettings: { unit: DisplayUnit } = { unit: 'in' };
 const MM_PER_INCH = 25.4;
-export const inches = (n: number) => (readoutSettings.unit === 'mm' && Number.isFinite(n) ? `${(n * MM_PER_INCH).toFixed(2)} mm` : formatDimension(n, 'in'));
+/** One unit rule for the readout and the viewport's size labels: `dimensions/labels.ts` formats both. */
+export const inches = (n: number) => labelText(n, 'in', readoutSettings.unit);
 export const degrees = (n: number) => formatDimension(n, 'deg');
 
 /** What the drag started on, from the gesture's own selection. */
@@ -105,9 +107,7 @@ export function numericPrompt(tool: Tool): string { const p = PROMPTS[tool] ?? '
  * passes through untouched.
  */
 export function withDisplayUnit(text: string, unit: DimensionUnit): string {
-	if (unit !== 'in' || readoutSettings.unit !== 'mm') return text;
-	const t = text.trim();
-	return /^[-+]?(\d+(\.\d*)?|\.\d+)(\s+\d+\/\d+)?$|^[-+]?\d+\/\d+$/.test(t) ? `${t}mm` : text;
+	return typedInDisplay(text, unit, readoutSettings.unit);
 }
 
 /**
