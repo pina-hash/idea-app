@@ -50,17 +50,12 @@
 	import { refFromSelection } from './naming';
 	import { featureOptions, holeFeatureAt, withOptions } from './features/options';
 	import { HOLE_FIT_WORDS, HOLE_STANDARDS, describeHole, type HoleFit } from './features/holes';
-	import { blendFeatureOf, edgeKey, edgeSet, edgeShapes, facesByEdge, featureOfName, sizeFixFromSentence, type EdgeSetKind, type EdgeShape } from './features/blends';
+	import { blendFeatureOf, edgeKey, edgeSetOffers, edgeShapes, facesByEdge, featureOfName, sizeFixFromSentence } from './features/blends';
 	let { api }: { api: WorkspaceApi } = $props();
 	const BLEND_TOOLS = ['fillet', 'chamfer', 'shell', 'hole'];
 	const EXTRA_KINDS = ['draft', 'sweep', 'loft', 'rib'] as const;
 	type Extra = (typeof EXTRA_KINDS)[number];
 	const WORDS: Record<string, string> = { fillet: 'Fillet', chamfer: 'Chamfer', shell: 'Shell', hole: 'Hole', draft: 'Draft', sweep: 'Sweep', loft: 'Loft', rib: 'Rib' };
-	/** The edge sets one pick grows into, in the order a student reaches for them. All comes before Feature and Outside, so on a one-feature box, where the three are the same edges, the plainest word is the one offered. */
-	const GROW: { kind: EdgeSetKind; word: string; title: string }[] = [
-		{ kind: 'chain', word: 'Chain', title: 'Tangent chain' }, { kind: 'loop', word: 'Loop', title: 'Around the face' }, { kind: 'body', word: 'All', title: 'Every edge of the body' },
-		{ kind: 'feature', word: 'Feature', title: 'Every edge of this feature' }, { kind: 'convex', word: 'Outside', title: 'Outside (convex) edges' }, { kind: 'concave', word: 'Inside', title: 'Inside (concave) edges' }
-	];
 	const BUSY = 'Wait for the model to finish updating.';
 	const tool = $derived(api.tool as string);
 	let extra = $state<Extra>('draft'), moreOpen = $state(false);
@@ -125,28 +120,8 @@
 	const seed = $derived(edges.at(-1) ?? faces.at(-1));
 	const seedBody = $derived(seed ? api.model.bodies.find((b) => b.id === seed.bodyId) : undefined);
 	const beside = $derived(seedBody ? facesByEdge(seedBody) : null);
-	/**
-	 * Each set's edges and how many it would ADD. An edge with no corner (the
-	 * one beside a round) is never in a set, since it cannot be rounded; a set
-	 * that adds nothing, or holds exactly what an earlier set holds, is not
-	 * offered, so the row carries no dead buttons.
-	 */
-	const sets = $derived.by(() => {
-		if (!seed || !seedBody) return [];
-		const body = seedBody, picked = new Set(edges.filter((s) => s.bodyId === body.id).map((s) => s.id)), shapes = edgeShapes(body);
-		/* Each edge's shape is read once per MODEL (`edgeShapes` caches on the projection), so a new pick on the same model walks no face mesh at all. */
-		const shapeOf = (id: string): EdgeShape => shapes.get(id) ?? 'unknown';
-		const from = seed.kind === 'edge' ? { edge: seed.id } : { face: seed.id, feature: featureOfName(seed.id) };
-		const seen = new Set<string>(), out: { kind: EdgeSetKind; word: string; title: string; ids: string[]; adds: number }[] = [];
-		for (const g of GROW) {
-			if (seed.kind !== 'edge' && (g.kind === 'chain' || g.kind === 'loop')) continue;
-			const ids = g.kind === 'convex' || g.kind === 'concave' ? body.edges.map((e) => e.id).filter((id) => shapeOf(id) === g.kind) : edgeSet(body, g.kind, from).filter((id) => shapeOf(id) !== 'smooth');
-			const key = [...ids].sort().join(','), adds = ids.filter((id) => !picked.has(id)).length;
-			if (!adds || seen.has(key)) continue;
-			seen.add(key); out.push({ ...g, ids, adds });
-		}
-		return out;
-	});
+	/** What one pick grows into (`edgeSetOffers`, the same list the viewport's accelerator offers): a set that adds nothing, or repeats another, is not offered, so the row carries no dead buttons. */
+	const sets = $derived(seed && seedBody ? edgeSetOffers(seedBody, { kind: seed.kind as 'edge' | 'face', id: seed.id }, new Set(edges.filter((s) => s.bodyId === seedBody.id).map((s) => s.id))) : []);
 	function preview(ids: string[] | null) { if (!seedBody || !ids) { api.hover?.(null); return; } const body = seedBody.id; api.hover?.(ids.map((id) => ({ bodyId: body, kind: 'edge', id }))); }
 	/** Add a set to the picks. `select(s, true)` TOGGLES, so an edge already picked is skipped rather than dropped, and a picked face is dropped because its edges are what a round takes. */
 	function grow(ids: string[]) {

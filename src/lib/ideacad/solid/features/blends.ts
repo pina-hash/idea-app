@@ -558,6 +558,34 @@ export function edgeSet(body: BodyProjection, kind: EdgeSetKind, seed: { edge?: 
 	}
 }
 
+/** The edge sets one pick grows into, in the order a student reaches for them, with the word each is offered under. All comes before Feature and Outside, so on a one-feature box, where the three are the same edges, the plainest word is the one offered. */
+export const EDGE_SET_OFFERS: readonly { kind: EdgeSetKind; word: string; title: string }[] = [
+	{ kind: 'chain', word: 'Chain', title: 'Tangent chain' }, { kind: 'loop', word: 'Loop', title: 'Around the face' }, { kind: 'body', word: 'All', title: 'Every edge of the body' },
+	{ kind: 'feature', word: 'Feature', title: 'Every edge of this feature' }, { kind: 'convex', word: 'Outside', title: 'Outside (convex) edges' }, { kind: 'concave', word: 'Inside', title: 'Inside (concave) edges' }
+];
+/**
+ * THE OFFERS AFTER ONE PICK, for the fillet panel and the viewport's
+ * selection accelerator alike, so the two can never offer different sets for
+ * the same pick. `seed` is the edge or face picked last; `picked` the edge ids
+ * already picked on its body. An edge with no corner (the one beside a round)
+ * is never offered, since it cannot be rounded; a set that adds nothing, or
+ * holds exactly what an earlier offer holds, is left out. Each offer carries
+ * its edge ids (to light on hover and to add on press) and how many it adds.
+ */
+export function edgeSetOffers(body: BodyProjection, seed: { kind: 'edge' | 'face'; id: string }, picked: ReadonlySet<string> = new Set()): { kind: EdgeSetKind; word: string; title: string; ids: string[]; adds: number }[] {
+	const shapes = edgeShapes(body), shapeOf = (id: string): EdgeShape => shapes.get(id) ?? 'unknown';
+	const from = seed.kind === 'edge' ? { edge: seed.id } : { face: seed.id, feature: featureOfName(seed.id) };
+	const seen = new Set<string>(), out: { kind: EdgeSetKind; word: string; title: string; ids: string[]; adds: number }[] = [];
+	for (const g of EDGE_SET_OFFERS) {
+		if (seed.kind !== 'edge' && (g.kind === 'chain' || g.kind === 'loop')) continue;
+		const ids = g.kind === 'convex' || g.kind === 'concave' ? body.edges.map((e) => e.id).filter((id) => shapeOf(id) === g.kind) : edgeSet(body, g.kind, from).filter((id) => shapeOf(id) !== 'smooth');
+		const key = [...ids].sort().join(','), adds = ids.filter((id) => !picked.has(id)).length;
+		if (!adds || seen.has(key)) continue;
+		seen.add(key); out.push({ ...g, ids, adds });
+	}
+	return out;
+}
+
 export function shell(ctx: ExecutorContext, f: FeatureOf<'shell'>) {
 	const k = ctx.k, thickness = positive(f.thickness, 'thickness');
 	const body = ctx.body(f.body);

@@ -24,7 +24,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { SolidEngine } from '../src/lib/ideacad/solid/engine';
 import { EXECUTORS } from '../src/lib/ideacad/solid/features/index';
 import type { ExecutorContext } from '../src/lib/ideacad/solid/features/context';
-import { BlendRefusal, FIT_ATTEMPTS, edgeKey, edgeSet, edgeShape, edgeShapes, facesByEdge, floorFigure, largestThatFits, readKernelBlendError, sizeFixFromSentence } from '../src/lib/ideacad/solid/features/blends';
+import { BlendRefusal, FIT_ATTEMPTS, edgeKey, edgeSet, edgeSetOffers, edgeShape, edgeShapes, facesByEdge, floorFigure, largestThatFits, readKernelBlendError, sizeFixFromSentence } from '../src/lib/ideacad/solid/features/blends';
 import type { EdgeRef, Feature, FeatureOf, ModelProjection, SolidCommand } from '../src/lib/ideacad/solid/types';
 import { refFromSelection } from '../src/lib/ideacad/solid/naming';
 
@@ -302,6 +302,11 @@ describe('edge sets over the projection (no kernel in the helpers; the projectio
 		/* Four of them run beside the corner rounds, four beside the flat sides: every one of them is on the top face. */
 		expect(chain.filter((id) => id.includes('c1.blend.'))).toHaveLength(4);
 		expect(edgeSet(m.bodies[0], 'chain', { edge: edgeBetween(m, 'x1.end', 'x1.side.0').id })).toEqual([edgeBetween(m, 'x1.end', 'x1.side.0').id]);
+		/* The offers after one pick: the chain first (the 7 other rim edges), and never an edge beside a round, which has no corner. */
+		const offers = edgeSetOffers(body, { kind: 'edge', id: seed }, new Set([seed]));
+		expect(offers[0]).toMatchObject({ kind: 'chain', adds: 7 });
+		for (const o of offers) for (const id of o.ids) expect(edgeShapes(body).get(id)).not.toBe('smooth');
+		expect(new Set(offers.map((o) => [...o.ids].sort().join())).size).toBe(offers.length);
 		/* The edge beside a round is smooth, neither convex nor concave. */
 		const beside = body.edges.find((x) => facesByEdge(body).get(x.id)!.map((f) => f.id).sort().join() === ['c1.blend.x1.side.0|x1.side.1', 'x1.side.0'].join())!;
 		expect(edgeShape(body, beside)).toBe('smooth');
