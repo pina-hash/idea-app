@@ -252,6 +252,18 @@ describe('a launcher card on a light ground (AppLauncher --acc-ink under Space W
 		}
 	});
 
+	it('re-inks the one launcher mark that paints a literal near-white', () => {
+		// GreenlineMark draws its start line and its lapping machine in
+		// #eafff3, 1.05:1 on the light card: the icon read as an empty ring.
+		// The launcher's theme rule hands those strokes the card's own ink.
+		const mark = readFileSync('src/lib/marks/GreenlineMark.svelte', 'utf8');
+		expect(mark).toContain('stroke="#eafff3"'); // positive control: the literal is still there to override
+		expect(ratio(parse('#eafff3').rgb, PANEL)).toBeLessThan(1.5);
+		expect(style).toMatch(
+			/:global\(:root\[data-theme='space-white'\]\) \.app-card\[data-app='greenline'\] \.app-icon :global\(:is\(\.gl-line, \.gl-trail, \.gl-marker\)\) \{\s*stroke: currentColor;/
+		);
+	});
+
 	it('NEGATIVE CONTROL: every identity as authored fails as text on the light card', () => {
 		for (const [id, primary] of identity) expect(ratio(parse(primary).rgb, PANEL), id).toBeLessThan(4.5);
 	});

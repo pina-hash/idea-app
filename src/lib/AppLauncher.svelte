@@ -1227,6 +1227,15 @@
 		/* #40e3b1, hsl(161.6 74.4% 57.1%): 5.27 on the card. */
 		--acc-ink: hsl(161.6 74.4% 26.5%);
 	}
+	/* GREENLINE's mark draws its start line and its lapping machine in a
+	   literal near-white (#eafff3, the game's signature highlight), which on
+	   the light card is 1.05:1 -- the icon read as an empty ring. Here they
+	   take the card's own re-pinned ink, as the track already does; a CSS
+	   `stroke` outranks the presentation attribute, so the mark itself is not
+	   edited and the dark card paints exactly what it did. */
+	:global(:root[data-theme='space-white']) .app-card[data-app='greenline'] .app-icon :global(:is(.gl-line, .gl-trail, .gl-marker)) {
+		stroke: currentColor;
+	}
 	:global(:root[data-theme='space-white']) .app-card[data-app='dashboard'] {
 		/* #78b870, hsl(113.3 33.6% 58%): 5.39 on the card. */
 		--acc-ink: hsl(113.3 33.6% 33.5%);
