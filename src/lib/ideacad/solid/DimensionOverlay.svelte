@@ -81,7 +81,9 @@
 	const labelEls = new Map<string, HTMLElement>();
 	/** Anchors by item id, recomputed when the model, the selection or the zoom changes; read by a commit for the label's factor. */
 	let anchors = new Map<string, DimensionAnchor>();
-	let anchorKey = '', lastSignature = '';
+	let anchorKey = '', lastSignature = '', lastCamera = '', lastFull = 0;
+	/** How often a full pass runs while nothing on screen moves. */
+	const STILL_MS = 250;
 
 	/** Pixels per inch near the model: the longest projected world axis, which for an orthographic camera is the scale of the screen plane. */
 	function scale(project: (p: Vec3) => { x: number; y: number }): { ppi: number; view: string } {
@@ -100,6 +102,10 @@
 		const project = (p: Vec3) => api.project(p);
 		const { ppi, view } = scale(project), gap = GAP_PX / ppi, rect = element.getBoundingClientRect();
 		const key = `${ppi.toFixed(3)}|${view}|${list.map((i) => i.id).join(',')}|${sketchShown?.feature ?? ''}|${featureShown?.id ?? ''}`;
+		/* A still camera over an unchanged model places nothing new: the full pass then runs only every few frames, to follow a panel opening or a label's width settling, and a moving camera gets every frame. */
+		const origin = project([0, 0, 0]), camera = `${key}|${origin.x.toFixed(1)},${origin.y.toFixed(1)}|${rect.left.toFixed(1)},${rect.top.toFixed(1)},${rect.width.toFixed(1)}x${rect.height.toFixed(1)}`, now = performance.now();
+		if (camera === lastCamera && anchors.size && now - lastFull < STILL_MS) return;
+		lastCamera = camera; lastFull = now;
 		if (key !== anchorKey || anchors.size === 0) {
 			const next = new Map<string, DimensionAnchor>();
 			if (sketchShown) for (const a of sketchAnchors(sketchShown, gap)) next.set(`${sketchShown.feature}:${a.key}`, a);
@@ -147,7 +153,7 @@
 	$effect(() => {
 		const count = items.length; void display; void api.model; void root;
 		/* Whatever changed, the anchors are recomputed on the next pass: a new width moves its witness lines even when the list of numbers is the same. */
-		anchorKey = '';
+		anchorKey = ''; lastCamera = '';
 		if (!count || !root) { placed = []; lastSignature = ''; return; }
 		let stop = () => {}, alive = true;
 		const subscribe = host.onCameraChange;
