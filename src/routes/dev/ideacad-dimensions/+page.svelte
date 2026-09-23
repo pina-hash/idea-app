@@ -5,7 +5,7 @@
 	 * Mounts the REAL `DimensionOverlay` (and the real `DimensionPanel` beside
 	 * it, so the two can be read against each other) over a small fake model:
 	 * a 4 x 3 rectangle sketched on Top, extruded 1 in, one top edge rounded,
-	 * and a circle sketched on Front. The model is REBUILT from its numbers on
+	 * a 0.5 in hole drilled into the top, and a circle sketched on Front. The model is REBUILT from its numbers on
 	 * every `set-feature`, which is what the engine's replay does for the real
 	 * modeler, so a typed width moves the box and its labels. The "kernel" here
 	 * refuses exactly one thing, a zero-depth extrude, in the engine's own
@@ -15,7 +15,8 @@
 	 * projector the overlay is handed as `api.project`, so a label beside an
 	 * edge on screen is beside that edge in the projection too. `?state=` picks
 	 * what is selected: `box` (default), `sketch` (the sketch open for editing),
-	 * `circle`, `fillet`, `edge` (a measured length), `mm`, `readonly`.
+	 * `circle`, `fillet`, `hole`, `edge` (a measured length), `rim` (a hole's
+	 * rim, measured as its diameter), `editing`, `mm`, `readonly`.
 	 */
 	import { onMount } from 'svelte';
 	import '$lib/ideacad/ideacad.css';
@@ -27,8 +28,10 @@
 	import { emptyManifest, type BodyProjection, type Feature, type ModelProjection, type Selection, type SketchConstraint, type SketchEntity, type SketchProjection, type SolidCommand, type SolidManifest, type Vec3 } from '$lib/ideacad/solid/types';
 
 	/* ------------------------------------------------------------------ the model, from its numbers */
-	interface Params { w: number; h: number; depth: number; fillet: number; radius: number }
-	let params = $state<Params>({ w: 4, h: 3, depth: 1, fillet: 0.25, radius: 0.75 });
+	interface Params { w: number; h: number; depth: number; fillet: number; radius: number; hole: number; holeDepth: number }
+	let params = $state<Params>({ w: 4, h: 3, depth: 1, fillet: 0.25, radius: 0.75, hole: 0.5, holeDepth: 0.5 });
+	/** Where the hole is drilled into the top face, in world X and Y. */
+	const HOLE_AT: [number, number] = [1, 1];
 	const MESH = { positions: new Float32Array(), normals: new Float32Array(), indices: new Uint32Array() };
 	const SOLVED = { converged: true, classification: 'solved' as const, dof: 2, maxResidual: 0, trouble: [] };
 	function rectEntities(p: Params): SketchEntity[] {
@@ -42,15 +45,18 @@
 			{ id: 's1', name: 'Sketch 1', type: 'sketch', plane: { kind: 'datum', datum: 'XY' }, entities: rectEntities(p), constraints: rectConstraints(p) },
 			{ id: 'x1', name: 'Extrude 1', type: 'extrude', sketch: 's1', distance: p.depth, operation: 'new' },
 			{ id: 'f1', name: 'Fillet 1', type: 'fillet', edges: [{ body: 'x1#0', faces: ['x1.end', 'x1.side.0'], hint: { curve: 'line', mid: [p.w / 2, 0, p.depth], length: p.w } }], radius: p.fillet },
-			{ id: 's2', name: 'Sketch 2', type: 'sketch', plane: { kind: 'datum', datum: 'XZ' }, entities: circleEntities.map((e) => (e.type === 'circle' ? { ...e, radius: p.radius } : e)), constraints: [{ id: 'kr', type: 'circleRadius', circle: 'c1', value: p.radius }] }
+			{ id: 's2', name: 'Sketch 2', type: 'sketch', plane: { kind: 'datum', datum: 'XZ' }, entities: circleEntities.map((e) => (e.type === 'circle' ? { ...e, radius: p.radius } : e)), constraints: [{ id: 'kr', type: 'circleRadius', circle: 'c1', value: p.radius }] },
+			{ id: 'h1', name: 'Hole 1', type: 'hole', face: { body: 'x1#0', name: 'x1.end', hint: { kind: 'plane', center: [p.w / 2, p.h / 2, p.depth], normal: [0, 0, 1], area: p.w * p.h } }, center: HOLE_AT, standard: 'custom', fit: 'custom', diameter: p.hole, depth: p.holeDepth }
 		] };
 	}
 	function modelOf(p: Params, manifest: SolidManifest): ModelProjection {
 		const top = datumPlane('XY'), front = datumPlane('XZ'), d = p.depth, z0 = Math.min(0, d), z1 = Math.max(0, d), k = p.fillet * (1 - Math.SQRT1_2);
 		const face = (id: string, center: Vec3, normal: Vec3, kind = 'plane') => ({ id, kind, center, normal, area: 1, surface: {}, edges: [], ...MESH });
 		const body: BodyProjection = { id: 'x1#0', name: 'Plate', materialId: null, role: 'part', createdBy: 'x1', volume: p.w * p.h * Math.abs(d), bounds: [0, 0, z0, p.w, p.h, z1], centerOfMass: [p.w / 2, p.h / 2, d / 2], inertia: [], mesh: MESH,
-			faces: [face('x1.end', [p.w / 2, p.h / 2, d], [0, 0, Math.sign(d) || 1]), face('x1.side.0', [p.w / 2, 0, d / 2], [0, -1, 0]), face('f1.blend.x1.end|x1.side.0', [p.w / 2, k, d - k], [0, -Math.SQRT1_2, Math.SQRT1_2], 'cylinder')],
-			edges: [{ id: 'edge:x1.end|x1.side.1', curve: 'line', points: new Float32Array([p.w, 0, d, p.w, p.h, d]), faces: ['x1.end', 'x1.side.1'], length: p.h, mid: [p.w, p.h / 2, d] }], vertices: [] };
+			faces: [face('x1.end', [p.w / 2, p.h / 2, d], [0, 0, Math.sign(d) || 1]), face('x1.side.0', [p.w / 2, 0, d / 2], [0, -1, 0]), face('f1.blend.x1.end|x1.side.0', [p.w / 2, k, d - k], [0, -Math.SQRT1_2, Math.SQRT1_2], 'cylinder'),
+				face('h1.wall', [HOLE_AT[0] + p.hole / 2, HOLE_AT[1], d - p.holeDepth / 2], [1, 0, 0], 'cylinder'), face('h1.bottom', [HOLE_AT[0], HOLE_AT[1], d - p.holeDepth], [0, 0, 1])],
+			edges: [{ id: 'edge:x1.end|x1.side.1', curve: 'line', points: new Float32Array([p.w, 0, d, p.w, p.h, d]), faces: ['x1.end', 'x1.side.1'], length: p.h, mid: [p.w, p.h / 2, d] },
+				{ id: 'edge:h1.wall|x1.end', curve: 'CIRCLE', points: new Float32Array(Array.from({ length: 33 }, (_, i) => [HOLE_AT[0] + p.hole / 2 * Math.cos(i / 32 * Math.PI * 2), HOLE_AT[1] + p.hole / 2 * Math.sin(i / 32 * Math.PI * 2), d]).flat()), faces: ['h1.wall', 'x1.end'], length: Math.PI * p.hole, mid: [HOLE_AT[0] - p.hole / 2, HOLE_AT[1], d] }], vertices: [] };
 		const s1 = manifest.features[0] as Extract<Feature, { type: 'sketch' }>, s2 = manifest.features[3] as Extract<Feature, { type: 'sketch' }>;
 		const sketches: SketchProjection[] = [
 			{ feature: 's1', name: 'Sketch 1', plane: top, planeRef: { kind: 'datum', datum: 'XY' }, entities: s1.entities, constraints: s1.constraints, solve: SOLVED, regions: [{ id: 'r0', outline: [[0, 0, 0], [p.w, 0, 0], [p.w, p.h, 0], [0, p.h, 0]], holes: [], area: p.w * p.h }], consumed: true },
@@ -58,7 +64,7 @@
 		];
 		const row = (id: string, index: number, type: Feature['type'], name: string, bodies: string[] = [], dependsOn: string[] = []) => ({ id, index, type, name, status: 'ok' as const, summary: '', bodies, dependsOn, suppressed: false });
 		return { bodies: [body], sketches, references: [], mates: [], addons: { ideaBlade: false }, operationMs: 0, canUndo: false, canRedo: false,
-			features: [row('s1', 0, 'sketch', 'Sketch 1'), row('x1', 1, 'extrude', 'Extrude 1', ['x1#0'], ['s1']), row('f1', 2, 'fillet', 'Fillet 1', ['x1#0'], ['x1']), row('s2', 3, 'sketch', 'Sketch 2')] };
+			features: [row('s1', 0, 'sketch', 'Sketch 1'), row('x1', 1, 'extrude', 'Extrude 1', ['x1#0'], ['s1']), row('f1', 2, 'fillet', 'Fillet 1', ['x1#0'], ['x1']), row('s2', 3, 'sketch', 'Sketch 2'), row('h1', 4, 'hole', 'Hole 1', ['x1#0'], ['x1'])] };
 	}
 	const first = manifestOf(params);
 	let manifest = $state.raw<SolidManifest>(first);
@@ -78,6 +84,8 @@
 		else if (what === 'circle') selections = [{ bodyId: '', kind: 'sketch', id: 's2' }];
 		else if (what === 'fillet') selections = [{ bodyId: 'x1#0', kind: 'feature', id: 'f1' }];
 		else if (what === 'edge') selections = [{ bodyId: 'x1#0', kind: 'edge', id: 'edge:x1.end|x1.side.1' }];
+		else if (what === 'hole') selections = [{ bodyId: 'x1#0', kind: 'feature', id: 'h1' }];
+		else if (what === 'rim') selections = [{ bodyId: 'x1#0', kind: 'edge', id: 'edge:h1.wall|x1.end' }];
 		else selections = [];
 	}
 	pick(scenario);
@@ -123,6 +131,7 @@
 		await new Promise((r) => setTimeout(r, 30));
 		if (next.type === 'extrude') params.depth = next.distance;
 		else if (next.type === 'fillet') params.fillet = next.radius;
+		else if (next.type === 'hole') { if (next.diameter !== undefined) params.hole = next.diameter; if (typeof next.depth === 'number') params.holeDepth = next.depth; }
 		else if (next.type === 'sketch') for (const c of next.constraints) { if (c.id === 'kw' && c.type === 'distance') params.w = c.value; if (c.id === 'kh' && c.type === 'distance') params.h = c.value; if (c.id === 'kr' && c.type === 'circleRadius') params.radius = c.value; }
 		rebuild(); log = [...log, label]; busy = false;
 	}
@@ -146,17 +155,19 @@
 		/* The rounded edge, as an arc across the corner at each end and a line along it. */
 		const r = p.fillet, arc = (x: number) => Array.from({ length: 9 }, (_, i) => { const a = (i / 8) * Math.PI / 2; return c(x, r - r * Math.sin(a), d - r + r * Math.cos(a)); });
 		path(arc(0), 'blend'); path(arc(p.w), 'blend'); path([c(0, r - r * Math.SQRT1_2, d - r + r * Math.SQRT1_2), c(p.w, r - r * Math.SQRT1_2, d - r + r * Math.SQRT1_2)], 'blend');
+		const ring = (z: number) => Array.from({ length: 33 }, (_, i) => c(HOLE_AT[0] + p.hole / 2 * Math.cos(i / 32 * Math.PI * 2), HOLE_AT[1] + p.hole / 2 * Math.sin(i / 32 * Math.PI * 2), z));
+		path(ring(d), 'body'); path(ring(d - p.holeDepth), 'blend');
 		const front = datumPlane('XZ');
 		path(Array.from({ length: 49 }, (_, i) => lift(front, [6.5 + p.radius * Math.cos(i / 48 * Math.PI * 2), 1.5 + p.radius * Math.sin(i / 48 * Math.PI * 2)])), 'sketch');
 		return lines;
 	});
-	const choices = ['box', 'sketch', 'circle', 'fillet', 'edge', 'none'];
+	const choices = ['box', 'sketch', 'circle', 'fillet', 'hole', 'edge', 'rim', 'none'];
 </script>
 
 <svelte:head><title>IdeaCAD dimensions · Development</title></svelte:head>
 <main class="ic-root harness" data-state={scenario}>
 	<nav class="controls" aria-label="Harness">
-		{#each choices as c (c)}<button class:active={(c === 'sketch' && editingSketch) || (c !== 'sketch' && selections[0] && ((c === 'box' && selections[0].kind === 'body') || (c === 'circle' && selections[0].id === 's2') || (c === 'fillet' && selections[0].id === 'f1') || (c === 'edge' && selections[0].kind === 'edge'))) || (c === 'none' && !selections.length)} onclick={() => pick(c)}>{c}</button>{/each}
+		{#each choices as c (c)}<button class:active={(c === 'sketch' && editingSketch) || (c !== 'sketch' && selections[0] && ((c === 'box' && selections[0].kind === 'body') || (c === 'circle' && selections[0].id === 's2') || (c === 'fillet' && selections[0].id === 'f1') || (c === 'hole' && selections[0].id === 'h1') || (c === 'edge' && selections[0].id === 'edge:x1.end|x1.side.1') || (c === 'rim' && selections[0].id === 'edge:h1.wall|x1.end'))) || (c === 'none' && !selections.length)} onclick={() => pick(c)}>{c}</button>{/each}
 		<button onclick={() => setView('iso')}>Iso</button><button onclick={() => setView('top')}>Top</button><button onclick={() => setView('front')}>Front</button>
 		<button onclick={() => (zoom *= 1.25)} aria-label="Zoom in">+</button><button onclick={() => (zoom /= 1.25)} aria-label="Zoom out">−</button>
 		<button onclick={() => { prefs = { ...prefs, units: { display: prefs.units.display === 'mm' ? 'in' : 'mm' } }; }}>{prefs.units.display}</button>

@@ -22,7 +22,7 @@
     "id": "s1:kw",
     "text": "4.000 in",
     "x": 28,
-    "y": 483,
+    "y": 502,
     "w": 88,
     "h": 44
    },
@@ -30,7 +30,7 @@
     "id": "s1:kh",
     "text": "3.000 in",
     "x": 229,
-    "y": 483,
+    "y": 502,
     "w": 88,
     "h": 44
    },
@@ -38,7 +38,7 @@
     "id": "x1:distance",
     "text": "1.000 in",
     "x": 277,
-    "y": 423,
+    "y": 447,
     "w": 88,
     "h": 44
    }
@@ -56,7 +56,7 @@
     "Set Distance 1"
    ],
    "error": "",
-   "ms": 254,
+   "ms": 298,
    "w": 6,
    "label": "6.000 in"
   },
@@ -91,7 +91,7 @@
    "visible": "visible",
    "moved": [
     58,
-    27,
+    22,
     42
    ],
    "summary": {
@@ -217,6 +217,31 @@
    "buttons": 1,
    "inputs": 0
   },
+  "hole": {
+   "count": 2,
+   "texts": [
+    "⌀ 0.500 in",
+    "0.500 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 2,
+   "inputs": 0
+  },
   "edge": {
    "count": 4,
    "texts": [
@@ -229,6 +254,36 @@
    "minW": 88.015625,
    "minGapX": 10,
    "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON",
+    "BUTTON",
+    "SPAN"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)",
+    "rgb(164, 173, 181)"
+   ],
+   "buttons": 3,
+   "inputs": 0
+  },
+  "rim": {
+   "count": 4,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in",
+    "⌀ 0.500 inmeasured"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12,
    "overlappingPairs": 0,
    "worstOverlapPx2": 0,
    "unreachable": [],
@@ -321,10 +376,10 @@
   },
   "keyboardOpen": 1,
   "costShown": {
-   "scriptMs": 22,
+   "scriptMs": 27,
    "layoutMs": 0,
-   "styleMs": 7,
-   "taskMs": 58
+   "styleMs": 8,
+   "taskMs": 66
   },
   "costNone": {
    "scriptMs": 0,
@@ -333,18 +388,20 @@
    "taskMs": 4
   },
   "costTurning": {
-   "scriptMs": 122,
+   "scriptMs": 138,
    "layoutMs": 10,
    "styleMs": 13,
-   "taskMs": 307
+   "taskMs": 345
   },
   "costTurningNone": {
-   "scriptMs": 43,
+   "scriptMs": 49,
    "layoutMs": 3,
    "styleMs": 6,
-   "taskMs": 111
+   "taskMs": 120
   },
   "errors": [
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
@@ -416,7 +473,7 @@
     "Set Distance 1"
    ],
    "error": "",
-   "ms": 286,
+   "ms": 267,
    "w": 6,
    "label": "6.000 in"
   },
@@ -577,6 +634,31 @@
    "buttons": 1,
    "inputs": 0
   },
+  "hole": {
+   "count": 2,
+   "texts": [
+    "⌀ 0.500 in",
+    "0.500 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 2,
+   "inputs": 0
+  },
   "edge": {
    "count": 4,
    "texts": [
@@ -589,6 +671,36 @@
    "minW": 88.015625,
    "minGapX": 10,
    "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON",
+    "BUTTON",
+    "SPAN"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)",
+    "rgb(164, 173, 181)"
+   ],
+   "buttons": 3,
+   "inputs": 0
+  },
+  "rim": {
+   "count": 4,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in",
+    "⌀ 0.500 inmeasured"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12,
    "overlappingPairs": 0,
    "worstOverlapPx2": 0,
    "unreachable": [],
@@ -681,30 +793,32 @@
   },
   "keyboardOpen": 1,
   "costShown": {
-   "scriptMs": 35,
+   "scriptMs": 21,
    "layoutMs": 0,
    "styleMs": 7,
-   "taskMs": 84
+   "taskMs": 58
   },
   "costNone": {
    "scriptMs": 0,
    "layoutMs": 0,
    "styleMs": 0,
-   "taskMs": 3
+   "taskMs": 4
   },
   "costTurning": {
    "scriptMs": 134,
-   "layoutMs": 13,
-   "styleMs": 13,
-   "taskMs": 377
+   "layoutMs": 10,
+   "styleMs": 14,
+   "taskMs": 357
   },
   "costTurningNone": {
-   "scriptMs": 39,
-   "layoutMs": 3,
-   "styleMs": 5,
-   "taskMs": 95
+   "scriptMs": 55,
+   "layoutMs": 4,
+   "styleMs": 7,
+   "taskMs": 151
   },
   "errors": [
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
@@ -776,7 +890,7 @@
     "Set Distance 1"
    ],
    "error": "",
-   "ms": 315,
+   "ms": 319,
    "w": 6,
    "label": "6.000 in"
   },
@@ -937,6 +1051,31 @@
    "buttons": 1,
    "inputs": 0
   },
+  "hole": {
+   "count": 2,
+   "texts": [
+    "⌀ 0.500 in",
+    "0.500 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 2,
+   "inputs": 0
+  },
   "edge": {
    "count": 4,
    "texts": [
@@ -949,6 +1088,36 @@
    "minW": 88.015625,
    "minGapX": 10,
    "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON",
+    "BUTTON",
+    "SPAN"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)",
+    "rgb(164, 173, 181)"
+   ],
+   "buttons": 3,
+   "inputs": 0
+  },
+  "rim": {
+   "count": 4,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in",
+    "⌀ 0.500 inmeasured"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12,
    "overlappingPairs": 0,
    "worstOverlapPx2": 0,
    "unreachable": [],
@@ -1041,10 +1210,10 @@
   },
   "keyboardOpen": 1,
   "costShown": {
-   "scriptMs": 25,
+   "scriptMs": 21,
    "layoutMs": 0,
    "styleMs": 7,
-   "taskMs": 77
+   "taskMs": 56
   },
   "costNone": {
    "scriptMs": 0,
@@ -1053,18 +1222,20 @@
    "taskMs": 4
   },
   "costTurning": {
-   "scriptMs": 151,
-   "layoutMs": 11,
-   "styleMs": 20,
-   "taskMs": 400
+   "scriptMs": 141,
+   "layoutMs": 10,
+   "styleMs": 13,
+   "taskMs": 375
   },
   "costTurningNone": {
-   "scriptMs": 44,
+   "scriptMs": 50,
    "layoutMs": 3,
    "styleMs": 6,
-   "taskMs": 132
+   "taskMs": 117
   },
   "errors": [
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",

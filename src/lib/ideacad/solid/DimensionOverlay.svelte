@@ -46,7 +46,7 @@
 	/** Past this many pixels of pointer travel on the model, a press is a drag and the labels step aside. */
 	const DRAG_PX = 4;
 	/** One number to draw: what it is, which feature it patches, and whether it may be typed. */
-	interface Item { id: string; feature: string; dim: Dimension | Measured; group: string; driving: boolean; word: string }
+	interface Item { id: string; feature: string; dim: Dimension | Measured; group: string; driving: boolean; word: string; conflicts?: boolean }
 	/** One number placed on screen. */
 	interface Placed { id: string; x: number; y: number; w: number; h: number; ax: number; ay: number; lines: string[]; text: string }
 
@@ -69,7 +69,9 @@
 	const featureShown = $derived(selectedFeature && selectedFeature.type !== 'sketch' ? selectedFeature : null);
 	const items = $derived.by((): Item[] => {
 		const out: Item[] = [], canWrite = api.canWrite;
-		if (sketchShown) for (const d of sketchDimensions(sketchShown)) out.push({ id: `${sketchShown.feature}:${d.key}`, feature: sketchShown.feature, dim: d, group: 'sketch', driving: canWrite, word: d.label });
+		/* A number the solver names as one it cannot satisfy with the others says so beside itself, in a word, as the panel does. */
+		const trouble = new Set(sketchShown?.solve.trouble ?? []);
+		if (sketchShown) for (const d of sketchDimensions(sketchShown)) out.push({ id: `${sketchShown.feature}:${d.key}`, feature: sketchShown.feature, dim: d, group: 'sketch', driving: canWrite, word: d.label, conflicts: trouble.has(d.key) });
 		if (featureShown) for (const d of featureDimensions(featureShown)) out.push({ id: `${featureShown.id}:${d.key}`, feature: featureShown.id, dim: d, group: 'feature', driving: canWrite, word: d.label });
 		if (!openSketch) { const keys = new Set(measuredAnchors(primary, api.model).map((a) => a.key)); for (const m of drivenDimensions(primary, api.model)) if (keys.has(m.key)) out.push({ id: `measured:${m.key}`, feature: '', dim: m, group: 'measured', driving: false, word: m.label }); }
 		return out;
@@ -127,7 +129,7 @@
 			/* A number whose geometry is off screen is not drawn pinned to the edge with a leader to nowhere. */
 			if (point.x < -8 || point.y < -8 || point.x > rect.width + 8 || point.y > rect.height + 8 || !Number.isFinite(point.x + point.y)) continue;
 			const ahead = Math.hypot(...anchor.away) > 0 ? toLocal([anchor.at[0] + anchor.away[0] * gap, anchor.at[1] + anchor.away[1] * gap, anchor.at[2] + anchor.away[2] * gap]) : null;
-			const target = labelTarget(point, ahead);
+			const target = labelTarget(point, ahead, anchor.offset);
 			const text = labelText(item.dim.value, item.dim.unit, display, anchor.prefix, anchor.factor ?? 1);
 			const size = sizeOf(item.id, text);
 			boxes.push({ id: item.id, x: target.x, y: target.y, w: size.w, h: size.h, item, anchor, point, text });
@@ -243,7 +245,7 @@
 							<input use:focusBox={editing.text} oninput={(e) => { if (editing) editing.text = e.currentTarget.value; }} aria-label={`${item.word}, ${display === 'mm' && item.dim.unit === 'in' ? 'millimeters' : item.dim.unit === 'in' ? 'inches' : item.dim.unit === 'deg' ? 'degrees' : item.dim.unit === 'count' ? 'copies' : 'ratio'}`} autocomplete="off" spellcheck="false" onkeydown={(e) => keydown(e, item)} onblur={() => { if (pending !== p.id) cancel(); }} data-dimension-input={p.id} />
 						</form>
 					{:else if item.driving}
-						<button type="button" class="dim-label" use:register={p.id} aria-label={`${item.word} ${p.text}`} aria-busy={pending === p.id ? 'true' : undefined} data-dimension-label={p.id} onclick={() => open(item)}>{p.text}</button>
+						<button type="button" class="dim-label" class:conflicts={item.conflicts} use:register={p.id} aria-label={`${item.word} ${p.text}${item.conflicts ? ', conflicts' : ''}`} aria-busy={pending === p.id ? 'true' : undefined} data-dimension-label={p.id} onclick={() => open(item)}>{p.text}{#if item.conflicts}<small>conflicts</small>{/if}</button>
 					{:else}
 						<span class="dim-label driven" use:register={p.id} data-dimension-label={p.id}>{p.text}{#if item.group === 'measured'}<small>measured</small>{/if}</span>
 					{/if}
@@ -270,6 +272,7 @@
 	button.dim-label[aria-busy='true']{border-style:dashed}
 	.dim-label.driven{cursor:default;border-style:dashed;border-color:var(--boundary);color:var(--text-2);pointer-events:none}
 	.dim-label small{font:12px var(--font-mono,'Share Tech Mono',monospace);color:var(--text-2)}
+	.dim-label.conflicts{border-color:var(--ic-warn,var(--amber));border-style:dashed}.dim-label.conflicts small{color:var(--ic-warn,var(--amber))}
 	.dim-edit{display:flex;margin:0}
 	.dim-edit input{box-sizing:border-box;width:128px;min-height:44px;padding:0 10px;border:1px solid var(--green);border-radius:5px;background:var(--surface-0);color:var(--text-1);font:16px var(--font-mono,'Share Tech Mono',monospace);box-shadow:none}
 	.dim-edit input:focus-visible{outline:2px solid var(--green);outline-offset:1px}

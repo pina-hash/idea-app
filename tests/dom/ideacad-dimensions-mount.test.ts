@@ -306,6 +306,14 @@ describe('the dimension overlay', () => {
 		expect(labels(c)).toHaveLength(2);
 		expect(c.all('.dim-lines polyline')).toHaveLength(6);
 	});
+	it('a number the solver cannot satisfy carries the word "conflicts"; the others do not', async () => {
+		const troubled = model({ sketches: model().sketches.map((k) => ({ ...k, solve: { ...k.solve, classification: 'unsatisfied' as const, trouble: ['kv'] } })) });
+		const h = harness({ editingSketch: 's1', selections: [{ bodyId: '', kind: 'sketch', id: 's1' }], model: troubled }); const m = mountOverlay(h); await pass(m);
+		const kv = m.one<HTMLElement>('[data-dimension-label="s1:kv"]'), kw = m.one<HTMLElement>('[data-dimension-label="s1:kw"]');
+		expect(kv.querySelector('small')?.textContent).toBe('conflicts');
+		expect(kv.getAttribute('aria-label')).toBe('Distance 2 3.000 in, conflicts');
+		expect(kw.querySelector('small')).toBeNull();
+	});
 	it('the hidden prop takes the labels away, and nothing is left to press', async () => {
 		const h = harness({ selections: [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }] });
 		const m = mountInto(Overlay, { api: h.api, hidden: true }); mounted.push(m); await pass(m);

@@ -38,6 +38,8 @@ export interface DimensionAnchor {
 	prefix?: '⌀' | 'R';
 	/** What the stored number is multiplied by to be shown, and a typed one divided by to be stored: a circle stores its radius and is shown, and typed, as its diameter, as SolidWorks shows it. */
 	factor?: number;
+	/** How many pixels along `away` the label sits, when the default would cover what it names (a small hole). */
+	offset?: number;
 }
 export type Projector = (point: Vec3) => { x: number; y: number };
 
@@ -139,6 +141,8 @@ export function sketchAnchors(sketch: Pick<SketchProjection, 'feature' | 'plane'
 }
 
 /* ----------------------------------------------------------- feature values */
+/** How far, in pixels, a hole's numbers stand off from it. */
+export const HOLE_OFFSET = 64;
 /** Faces the feature itself named: construction names start with the feature id (`naming.ts`). */
 export function facesOf(model: ModelProjection, featureId: string, role = '') {
 	const prefix = `${featureId}.${role}`;
@@ -230,9 +234,12 @@ function placeFeature(feature: Feature, model: ModelProjection, gap: number, pro
 		case 'hole': {
 			const wall = facesOf(model, fid, 'wall')[0]?.face, bottom = facesOf(model, fid, 'bottom')[0]?.face;
 			const up: Vec3 = feature.face.hint ? norm(feature.face.hint.normal) : [0, 0, 1];
+			/* A hole is small on screen, so its numbers stand off to the side, out from the axis through the wall, rather than on top of the hole they name. */
+			const radial = wall && bottom ? norm(sub(sub(wall.center, bottom.center), mul(up, dot(sub(wall.center, bottom.center), up)))) : [0, 0, 0] as Vec3;
+			const away = Math.hypot(...radial) > 0 ? radial : up;
 			const out: DimensionAnchor[] = [];
-			if (wall) out.push({ ...at('diameter', fid, wall.center, up), prefix: '⌀' });
-			const floor = bottom?.center ?? wall?.center; if (floor) out.push(at('depth', fid, floor, up));
+			if (wall) out.push({ ...at('diameter', fid, wall.center, away), prefix: '⌀', offset: HOLE_OFFSET });
+			const floor = bottom?.center ?? wall?.center; if (floor) out.push({ ...at('depth', fid, floor, away), offset: HOLE_OFFSET });
 			return out;
 		}
 		case 'pattern': {

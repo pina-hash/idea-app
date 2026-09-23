@@ -16,7 +16,7 @@
 // rectangle is 4 x 3 with its corner at the origin, so its width label sits at
 // x = 2 below y = 0 and its height label at y = 1.5 right of x = 4.
 import { describe, expect, it } from 'vitest';
-import { facesOf, featureAnchors, featureMiddle, measuredAnchors, pixelsPerInch, sketchAnchors, sketchConstraintAnchor } from '../src/lib/ideacad/solid/dimensions/anchors';
+import { HOLE_OFFSET, facesOf, featureAnchors, featureMiddle, measuredAnchors, pixelsPerInch, sketchAnchors, sketchConstraintAnchor } from '../src/lib/ideacad/solid/dimensions/anchors';
 import { featureDimensions, sketchDimensions } from '../src/lib/ideacad/solid/dimensions/model';
 import { datumPlane } from '../src/lib/ideacad/solid/sketch/model';
 import type { BodyProjection, Feature, FeatureOf, FeatureRow, ModelProjection, ResolvedPlane, SketchConstraint, SketchEntity, SketchProjection, Vec3 } from '../src/lib/ideacad/solid/types';
@@ -195,6 +195,16 @@ describe('every feature number has exactly one anchor', () => {
 		const [diameter, depth] = featureAnchors(hole, m, GAP);
 		expect(diameter.prefix).toBe('⌀'); expect(diameter.factor).toBeUndefined();
 		close(diameter.at, [1, 1, 0.75]); close(depth.at, [1, 1, 0.5]);
+		/* A wall centre sitting on the axis gives no side to stand off to, so the numbers go up along the face normal. */
+		close(diameter.away, [0, 0, 1]);
+	});
+	it('a hole\'s numbers stand off to the side, out through the wall, farther than a label usually sits', () => {
+		const hole = features.find((f) => f.type === 'hole')!;
+		const m = model({ bodies: [body({ faces: [face('o1.wall', [1.25, 1, 0.75], [1, 0, 0], 'cylinder'), face('o1.bottom', [1, 1, 0.5], [0, 0, -1])] })] });
+		const [diameter, depth] = featureAnchors(hole, m, GAP);
+		close(diameter.away, [1, 0, 0]); close(depth.away, [1, 0, 0]);
+		expect(diameter.offset).toBe(HOLE_OFFSET); expect(depth.offset).toBe(HOLE_OFFSET);
+		expect(HOLE_OFFSET).toBeGreaterThan(30);
 	});
 	it('a pattern spaces its label between the source and its first copy', () => {
 		const pattern = features.find((f) => f.type === 'pattern')!;
