@@ -373,7 +373,8 @@
 		error:(message)=>{error=message;},
 		guide:(points,color)=>viewport.guide(points,color),clearGuides:()=>viewport.clearGuides(),
 		clip:(plane)=>viewport.clip(plane),lookAt:(plane)=>viewport.lookAt(plane),fit:()=>viewport.fit(),
-		unproject:(x,y,plane)=>viewport.unproject(x,y,plane)
+		unproject:(x,y,plane)=>viewport.unproject(x,y,plane),
+		get prefs(){return prefs;},setPreference:(group,value)=>prefStore.set(group,value),runCommand:(id)=>runById(id)
 	};
 	onMount(()=>{
 		const readRules=()=>{if(advisoryTransport)void advisoryTransport.read().then(value=>rules=value).catch(err=>error=err.message);};readRules();

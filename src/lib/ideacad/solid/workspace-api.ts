@@ -11,6 +11,7 @@
  */
 import type { ModelProjection, ResolvedPlane, Selection, SketchConstraint, SketchEntity, SketchSolveReport, SolidCommand, SolidManifest, Vec3 } from './types';
 import type { Tool } from './viewport';
+import type { PreferenceGroup, SolidPreferences } from './preferences';
 
 export interface WorkspaceApi {
 	readonly model: ModelProjection;
@@ -45,6 +46,12 @@ export interface WorkspaceApi {
 	fit(): void;
 	/** The world point under a viewport position on a plane. */
 	unproject(x: number, y: number, plane: ResolvedPlane): Vec3 | null;
+	/** The student's own settings (display unit, hint state, shortcuts), read-only. Optional so a test's fake workspace need not supply it. */
+	readonly prefs?: SolidPreferences;
+	/** Change one group of the student's settings; validated and saved by the workspace's store. */
+	setPreference?<G extends PreferenceGroup>(group: G, value: SolidPreferences[G]): void;
+	/** Run a registry command by id (`command-registry.ts`), exactly as its key or its search row would: a tutorial step or a context menu names a command, never a handler. */
+	runCommand?(id: string): void;
 }
 export type SketchSolve = { entities: SketchEntity[]; report: SketchSolveReport };
 export type SketchSolveInput = { entities: SketchEntity[]; constraints: SketchConstraint[] };
