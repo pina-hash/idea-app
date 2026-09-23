@@ -21,6 +21,11 @@
 //     circle-segment volume;
 //   * the pin-in-a-hole case the exact pipeline refuses comes back from the
 //     approximate path marked approximate, with the clearance still exact;
+//   * `solidToSolidDistance` answers the nearest CORNERS when the closest
+//     points lie inside a curved face (0.564 in for a disk 0.125 in above a
+//     plate), so the clearance search is what gives 0.125, and a motor resting
+//     on a plate's edge reads touching; past `SEARCH_PAIRS` a clearance keeps
+//     the kernel's answer and says approximate;
 //   * the harness's representative model: the closed-form mass properties
 //     `sample.ts` writes down equal the kernel's for every primitive, and the
 //     canned `SAMPLE_INTERFERENCE` report equals what `checkInterference`
@@ -28,7 +33,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createKernel, type BrepKernel } from '../src/lib/ideacad/kernel/remus';
-import { checkInterference, sortPairs, type InterferencePair } from '../src/lib/ideacad/solid/analysis/interference';
+import { SEARCH_PAIRS, checkInterference, sortPairs, type InterferencePair } from '../src/lib/ideacad/solid/analysis/interference';
 import { tensorAbout } from '../src/lib/ideacad/solid/analysis/mass';
 import { AXIS_VECTOR, SAMPLE_INTERFERENCE, SAMPLE_PRIMITIVES, primitiveMass, type SamplePrimitive } from '../src/lib/ideacad/solid/analysis/sample';
 import type { Vec3 } from '../src/lib/ideacad/solid/types';
@@ -129,6 +134,40 @@ describe('checkInterference on the kernel', () => {
 		const [over] = checkInterference(k, [{ id: 'plate', solid: plate() }, { id: 'pin', solid: pin(0.3) }]).pairs;
 		expect(over.kind).toBe('interference'); expect(over.quality).toBe('exact');
 		expect(over.volume).toBeCloseTo(Math.PI * (0.09 - 0.0625) * 0.5, 9);
+	});
+});
+
+describe('clearance does not trust solidToSolidDistance alone', () => {
+	it('a disk 0.125 in above a plate: the kernel answers the nearest corners, the search answers 0.125, certified by the bounding-box gap', async () => {
+		const k = await kernel();
+		const plate = box(k, [-3, -2.5, 0.35], [3, 2.5, 0.6]), disk = place(k, k.makeCylinder(2, 0.25), I3, [3.5, 0, 0.725]);
+		/* The defect the search exists for, measured: the kernel's own answer is the corner pair, over four times the gap. */
+		expect(k.solidToSolidDistance(plate, disk)[0]).toBeGreaterThan(0.5);
+		const [pair] = checkInterference(k, [{ id: 'plate', solid: plate }, { id: 'disk', solid: disk }]).pairs;
+		expect(pair.kind).toBe('clear'); expect(pair.quality).toBe('exact');
+		expect(pair.distance).toBeCloseTo(0.125, 12);
+		expect(pair.points![1][2] - pair.points![0][2]).toBeCloseTo(0.125, 12);
+	});
+	it('a motor resting on a plate\'s edge touches, at the one point no corner sits on', async () => {
+		const k = await kernel();
+		const plate = box(k, [-3, -2.5, 0.35], [3, 2.5, 0.6]), motor = place(k, k.makeCylinder(0.5, 0.45), I3, [3.5, 0, 0.35]);
+		expect(k.solidToSolidDistance(plate, motor)[0]).toBeGreaterThan(0.1);
+		const [pair] = checkInterference(k, [{ id: 'plate', solid: plate }, { id: 'motor', solid: motor }]).pairs;
+		expect(pair.kind).toBe('touching');
+		expect(pair.distance!).toBeLessThan(1e-9);
+	});
+	it('past SEARCH_PAIRS uncertified clearances, the rest keep the kernel\'s answer and say approximate and unsearched', async () => {
+		const k = await kernel();
+		const bodies = [0, 12, 24].flatMap((dx, c) => SAMPLE_PRIMITIVES.map((p) => { const solid = build(k, p); place(k, solid, I3, [dx, 0, 0]); return { id: `${p.id}/${c}`, solid }; }));
+		const report = checkInterference(k, bodies);
+		expect(report.pairsChecked).toBe(153);
+		expect(report.searched).toBe(SEARCH_PAIRS);
+		const unsearched = report.pairs.filter((p) => p.searched === false);
+		expect(unsearched.length).toBeGreaterThan(0);
+		for (const p of unsearched) { expect(p.quality).toBe('approximate'); expect(p.kind).toBe('clear'); }
+		/* Positive control: every copy's own near pairs were searched and read as in the single model. */
+		for (const c of [0, 1, 2]) expect(report.pairs.find((p) => p.a === `chassis#0/${c}` && p.b === `disk#0/${c}`)).toMatchObject({ kind: 'clear', quality: 'exact', distance: 0.125 });
+		expect(report.pairs.filter((p) => p.kind === 'interference')).toHaveLength(3);
 	});
 });
 

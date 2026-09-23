@@ -258,8 +258,8 @@ export function checkInterference(k: InterferenceKernel, bodies: readonly Interf
 		if (boxGap(ba, bb) > CONTACT_TOLERANCE_IN) broadPhase++;
 		settled.push(settle(k, a, b, ba, bb));
 	}
-	/* The full search goes to the uncertified clearances nearest first, up to SEARCH_PAIRS of them. */
-	const queue = settled.filter((x): x is Pending => isPending(x) && !x.start.certified).sort((x, y) => x.start.distance - y.start.distance);
+	/* The full search goes to the uncertified clearances that could be nearest, up to SEARCH_PAIRS of them: ordered by the bounding-box gap, which is a true lower bound, and not by the kernel's answer, which measured 0.564 in for a pair 0.125 in apart and would send a near pair to the back of the queue. */
+	const queue = settled.filter((x): x is Pending => isPending(x) && !x.start.certified).sort((x, y) => x.gap - y.gap || x.start.distance - y.start.distance);
 	const searched = new Set(queue.slice(0, SEARCH_PAIRS));
 	const pairs = settled.map((x) => {
 		if (!isPending(x)) return x;

@@ -27,8 +27,9 @@ export function length(inches: number, unit: LengthUnit = 'in'): string {
 export function volume(in3: number, unit: LengthUnit = 'in'): string {
 	return unit === 'mm' ? `${sig(in3 * MM_PER_IN ** 3)} mm³` : `${sig(in3)} in³`;
 }
-export function point(p: readonly number[], unit: LengthUnit = 'in'): string {
-	const k = unit === 'mm' ? MM_PER_IN : 1, d = unit === 'mm' ? 1 : 3;
+/** Three coordinates, joined, with no unit (the caller writes it once). `decimals` counts inches; millimeters get one fewer. */
+export function point(p: readonly number[], unit: LengthUnit = 'in', decimals = 3): string {
+	const k = unit === 'mm' ? MM_PER_IN : 1, d = unit === 'mm' ? decimals - 1 : decimals;
 	return p.slice(0, 3).map((n) => group(n * k, d)).join(', ');
 }
 export const percent = (fraction: number) => `${group(fraction * 100, fraction >= 0.1 ? 0 : 1)}%`;
