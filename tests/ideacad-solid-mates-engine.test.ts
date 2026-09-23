@@ -224,4 +224,27 @@ describe('mates against the real kernel', () => {
 		expect(after[2] - before[2]).toBeCloseTo(0.5, 6); expect(after[5] - before[5]).toBeCloseTo(0.5, 6);
 		expect((after[0] + after[3]) / 2).toBeCloseTo(2, 6); expect((after[1] + after[4]) / 2).toBeCloseTo(1.5, 6);
 	});
+	it('a pin in a slot planned from the real projection rides the slot wall at its own radius, sits on the plate, and keeps a slide along the slot and a spin', async () => {
+		const e = await engine(); const m0 = await twoBoxes(e);
+		/* A slot 3 long and 0.5 wide cut through the base along X at y = 0.5 .. 1.0. */
+		await add(e, rectangle('s5', 0.5, 0.5, 3, 0.5, { kind: 'face', face: (face(m0, 'x1#0', 'x1.end') as { kind: 'face' } & { body: string; name: string }) as never }));
+		await add(e, { id: 'x5', name: 'Slot', type: 'extrude', sketch: 's5', distance: -2, operation: 'cut', target: 'x1#0' });
+		await add(e, circle('s4', 12, 0, 0.25));
+		const m1 = await add(e, { id: 'x4', name: 'Pin', type: 'extrude', sketch: 's4', distance: 2, operation: 'new' });
+		const near = body(m1, 'x1#0').faces.find((f) => f.id.startsWith('x5.side') && f.kind === 'plane' && f.normal[1] > 0.9)!;
+		expect(near.center[1]).toBeCloseTo(0.5, 9);
+		const shank = body(m1, 'x4#0').faces.find((f) => f.kind === 'cylinder')!;
+		const pick = (bodyId: string, id: string) => ({ kind: 'face' as const, bodyId, id });
+		const plan = planJoint({ model: m1, manifest: emptyManifest() }, 'slot', [pick('x1#0', near.id), pick('x4#0', shank.id), pick('x1#0', 'x1.end'), pick('x4#0', 'x4.start')]);
+		expect(plan.reason).toBeNull(); expect(plan.ready).toBe(true);
+		expect(plan.mates.map((m) => [m.kind, m.value ?? null])).toEqual([['distance', 0.25], ['coincident', null]]);
+		const m = await e.apply({ type: 'batch', commands: plan.mates.map((mt, i) => ({ type: 'add-feature', feature: { id: `k${i}`, name: `Pin in slot 1 ${i}`, type: 'mate', kind: mt.kind, a: mt.a, b: mt.b, ...(mt.value !== undefined ? { value: mt.value } : {}), joint: 'slot', group: 'k0' } })) });
+		expect(row(m, 'k0').status).toBe('ok'); expect(row(m, 'k1').status).toBe('ok');
+		const pin = body(m, 'x4#0');
+		expect(pin.dof).toBe(2);
+		/* Its axis sits 0.25 off the near wall, which is the slot's middle, and its bottom on the base's top. */
+		expect((pin.bounds[1] + pin.bounds[4]) / 2).toBeCloseTo(0.75, 6); expect(pin.bounds[2]).toBeCloseTo(1, 6);
+		const slide = moveWithinFreedom(m, 'x4#0', { translation: [1, 1, 1] });
+		expect(slide.v[0]).toBeCloseTo(1, 6); expect(Math.hypot(slide.v[1], slide.v[2])).toBeLessThan(1e-6);
+	});
 });

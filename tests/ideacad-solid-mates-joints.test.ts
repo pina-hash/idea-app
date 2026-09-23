@@ -46,7 +46,7 @@ describe('what a pick can pair as', () => {
 		const m = model();
 		expect([WALL, TOP, SHANK, HEAD].map((s) => pickShape(m, s))).toEqual(['round', 'flat', 'round', 'flat']);
 		expect(pairShape('round', 'round')).toBe('round'); expect(pairShape('round', 'line')).toBe('round'); expect(pairShape('line', 'round')).toBe('round');
-		expect(pairShape('flat', 'flat')).toBe('flat'); expect(pairShape('flat', 'round')).toBeNull(); expect(pairShape('point', 'flat')).toBeNull();
+		expect(pairShape('flat', 'flat')).toBe('flat'); expect(pairShape('flat', 'round')).toBe('tangent'); expect(pairShape('point', 'flat')).toBeNull(); expect(pairShape('line', 'flat')).toBeNull();
 	});
 });
 
@@ -73,12 +73,12 @@ describe('a joint is planned from its picks before anything is added', () => {
 		expect(plan.mates.map((m) => m.kind)).toEqual(['coincident', 'concentric']);
 		expect(plan.mates.every((m) => m.a.kind !== 'reference' && m.a.kind !== 'sketch-entity' && (m.a as { body: string }).body === 'x1#0')).toBe(true);
 	});
-	it('a part-way hinge names the slots still to fill and gives no reason yet; a pair across shapes is refused in words', () => {
+	it('a part-way hinge names the slots still to fill and gives no reason yet; a round-to-flat pair is refused naming the joint it makes', () => {
 		const half = planJoint(ctx(), 'hinge', [WALL, SHANK]);
 		expect(half.ready).toBe(false); expect(half.reason).toBeNull();
 		expect(half.slots.map((s) => !!s.pick)).toEqual([true, true, false, false]); expect(half.slots[2].shape).toBe('flat');
 		const mixed = planJoint(ctx(), 'hinge', [WALL, HEAD]);
-		expect(mixed.ready).toBe(false); expect(mixed.reason).toMatch(/^A round pick pairs with a round one\. Pick a matching face on Pin\.$/);
+		expect(mixed.ready).toBe(false); expect(mixed.reason).toBe('A hinge pairs round to round, flat to flat. These picks make a Pin in slot.');
 	});
 	it('a hinge whose flat faces run along its axis would slide, not spin, and is refused naming what it would do (against the square pair above)', () => {
 		const plan = planJoint(ctx(), 'hinge', [WALL, SHANK, SIDE, FLATX]);
@@ -87,7 +87,8 @@ describe('a joint is planned from its picks before anything is added', () => {
 	});
 	it('picks the chosen joint cannot take name the joints they can make', () => {
 		expect(planJoint(ctx(), 'planar', [WALL, SHANK]).reason).toBe('A planar pairs flat to flat. These picks make a Hinge, Cylindrical or Fixed.');
-		expect(planJoint(ctx(), 'cylindrical', [TOP, HEAD]).reason).toBe('A cylindrical pairs round to round. These picks make a Hinge, Slider, Planar or Fixed.');
+		expect(planJoint(ctx(), 'cylindrical', [WALL, HEAD]).reason).toBe('A cylindrical pairs round to round. These picks make a Pin in slot.');
+		expect(planJoint(ctx(), 'cylindrical', [TOP, HEAD]).reason).toBe('A cylindrical pairs round to round. These picks make a Hinge, Slider, Planar, Fixed or Pin in slot.');
 	});
 	it('two picks on one part are refused naming the part', () => {
 		const same = planJoint(ctx(), 'cylindrical', [WALL, TOP]);
@@ -107,13 +108,25 @@ describe('a joint is planned from its picks before anything is added', () => {
 		const square = planJoint(ctx(), 'slider', [SIDE, FLATX, SIDE2, FLATY]);
 		expect(square.reason).toBeNull(); expect(square.ready).toBe(true); expect(square.freedom).toEqual({ dof: 1, translations: 1, slides: ['Z'], turns: [] });
 	});
+	it('a pin in a slot rides one wall at its own radius and sits on the plate: it slides along the slot and spins, and nothing else', () => {
+		/* A slot along X, 0.5 wide: its near wall at y = 0.75 faces +Y into the slot; the pin (r 0.25) stands at y = 1. */
+		const slotted = model({ bodies: [body('x1#0', 'Plate', [0, 0, 0, 3, 2, 1], [plane('x1.end', [0.5, 0.5, 1], [0, 0, 1]), plane('s1.side.0', [1.5, 0.75, 0.5], [0, 1, 0]), plane('s1.side.2', [1.5, 1.25, 0.5], [0, -1, 0])]), PIN()] });
+		const c = { model: slotted, manifest: manifest() }, WALL1 = face('x1#0', 's1.side.0');
+		expect(pairShape('round', 'flat')).toBe('tangent');
+		const plan = planJoint(c, 'slot', [WALL1, SHANK, TOP, HEAD]);
+		expect(plan.reason).toBeNull(); expect(plan.ready).toBe(true);
+		expect(plan.mates.map((m) => [m.kind, m.value ?? null])).toEqual([['distance', 0.25], ['coincident', null]]);
+		expect(plan.freedom).toEqual({ dof: 2, translations: 1, slides: ['X'], turns: ['Z'] });
+		/* The same picks cannot make a hinge, and the refusal names the joint they do make. */
+		expect(planJoint(c, 'hinge', [WALL1, SHANK]).reason).toBe('A hinge pairs round to round, flat to flat. These picks make a Pin in slot.');
+	});
 	it('a fixed joint leaves nothing, and every joint states its promise', () => {
 		const fixed = planJoint(ctx(), 'fixed', [TOP, HEAD, SIDE, FLATX, SIDE2, FLATY]);
 		expect(fixed.reason).toBeNull(); expect(fixed.ready).toBe(true); expect(fixed.freedom?.dof).toBe(0);
 		/* A pin held in its hole cannot also put a flat face against the plate's far side: the trial solve refuses it in the solver's words. */
 		const torn = planJoint(ctx(), 'fixed', [WALL, SHANK, TOP, HEAD, SIDE, FLATX]);
 		expect(torn.ready).toBe(false); expect(torn.reason).toBe('Pair 3 cannot hold together with the others. Pick a different face for pair 3.');
-		expect(Object.fromEntries(Object.entries(JOINTS).map(([k, j]) => [k, j.dof]))).toEqual({ hinge: 1, slider: 1, cylindrical: 2, planar: 3, fixed: 0 });
+		expect(Object.fromEntries(Object.entries(JOINTS).map(([k, j]) => [k, j.dof]))).toEqual({ hinge: 1, slider: 1, cylindrical: 2, planar: 3, fixed: 0, slot: 2 });
 	});
 	it('a single concentric mate on a flat face and a round face is refused up front with the solver pairing sentence (F047), and the round pair is accepted', () => {
 		expect(mateFit(ctx(), 'concentric', TOP, SHANK)).toBe('A concentric mate needs two round faces or circular edges.');

@@ -2,8 +2,8 @@
  * THE MATES PANEL: JOINTS BY WHAT A PART DOES, AND A REASON BEFORE A MATE
  * THAT CANNOT WORK. Ledger 0296, assembly lane.
  *
- * On the box, the Mates panel opens with its six joint tiles (hinge, slider,
- * cylindrical, planar, fixed, one mate), each with a glyph, a word and the
+ * On the box, the Mates panel opens with its seven tiles (hinge, slider,
+ * cylindrical, planar, fixed, pin in slot, and one mate), each with a glyph, a word and the
  * degrees it leaves. Two picks on the box itself (its top face, then a
  * shift-click on its front face) cannot make a hinge, and the panel says so in
  * words beside the slots instead of adding a mate that errors (F047); the Add
@@ -39,15 +39,15 @@ export default {
 				window.__icMates = { picks: s.selections.length, reason, applied: s.model.mates.length - before, overflow: panel ? panel.scrollWidth - panel.clientWidth : null, columnOverflow: column ? column.scrollWidth - column.clientWidth : null, tiles: panel?.querySelectorAll('label.tile').length ?? 0 };
 				return JSON.stringify(window.__icMates);
 			`),
-			until: '() => !!window.__icMates && window.__icMates.picks === 2 && window.__icMates.applied === 0 && /^Both picks are on /.test(window.__icMates.reason ?? "") && window.__icMates.overflow <= 0 && window.__icMates.tiles === 6',
+			until: '() => !!window.__icMates && window.__icMates.picks === 2 && window.__icMates.applied === 0 && /^Both picks are on /.test(window.__icMates.reason ?? "") && window.__icMates.overflow <= 0 && window.__icMates.tiles === 7',
 			attempts: 3,
 			gapMs: 500
 		}
 	],
 	presence: [
 		{ selector: '[data-testid="ideacad-mate-panel"]', label: 'the Mates panel', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="ideacad-mate-joint"] label.tile', label: 'six joint tiles', expectPresent: 6, maxPresent: 6, expectVisible: 6 },
-		{ selector: '[data-testid="ideacad-mate-joint"] label.tile svg', label: 'a glyph on every tile', expectPresent: 6, maxPresent: 6, expectVisible: 6 },
+		{ selector: '[data-testid="ideacad-mate-joint"] label.tile', label: 'six joints and one mate', expectPresent: 7, maxPresent: 7, expectVisible: 7 },
+		{ selector: '[data-testid="ideacad-mate-joint"] label.tile svg', label: 'a glyph on every tile', expectPresent: 7, maxPresent: 7, expectVisible: 7 },
 		{ selector: '[data-testid="ideacad-mate-picks"] li', label: 'the hinge slots', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
 		{ selector: '[data-testid="ideacad-mate-reason"]', label: 'the reason beside the picks', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="ideacad-mate-add"][aria-disabled="true"]', label: 'Add, focusable and saying why', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
@@ -55,7 +55,7 @@ export default {
 	],
 	textContains: [
 		{ selector: '[data-testid="ideacad-mate-reason"]', label: 'the refusal names the part and the way forward', must: ['Both picks are on', 'Pick one on each part.'] },
-		{ selector: '[data-testid="ideacad-mate-joint"]', label: 'every joint by what it does', must: ['Hinge', 'Slider', 'Cylindrical', 'Planar', 'Fixed', 'One mate', '1 free', '2 free', '3 free', '0 free'] }
+		{ selector: '[data-testid="ideacad-mate-joint"]', label: 'every joint by what it does', must: ['Hinge', 'Slider', 'Cylindrical', 'Planar', 'Fixed', 'Pin in slot', 'One mate', '1 free', '2 free', '3 free', '0 free'] }
 	],
 	contrast: [
 		{ selector: '[data-testid="ideacad-mate-reason"] span', label: 'the reason', min: 4.5 },

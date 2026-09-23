@@ -171,7 +171,7 @@ export interface FeatureBase {
 
 export type MateKind = 'coincident' | 'concentric' | 'parallel' | 'perpendicular' | 'distance' | 'angle';
 /** A joint names what a set of mates lets a part DO; its mates carry it, and `group` (the first mate's id) keeps them one joint. */
-export type JointKind = 'fixed' | 'hinge' | 'slider' | 'cylindrical' | 'planar';
+export type JointKind = 'fixed' | 'hinge' | 'slider' | 'cylindrical' | 'planar' | 'slot';
 
 export type Feature = FeatureBase & (
 	/** A body whose only parameter is its exact bytes: a v1 body, an import, or a copy. */

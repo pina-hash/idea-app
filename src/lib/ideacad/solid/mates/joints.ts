@@ -10,6 +10,7 @@
  *   Cylindrical  spins and slides round + round                  2 free
  *   Planar       slides flat      flat + flat                    3 free
  *   Fixed        locked           round, flat, flat pairs        0 free
+ *   Pin in slot  slides, spins    round + flat wall, flat + flat 2 free
  *
  * Picks are read in PAIRS, in selection order: the first pick of the first
  * pair names the part that stays, the other part moves (the solver's
@@ -23,10 +24,11 @@
 import type { EntityRef, JointKind, MateKind, ModelProjection, Selection, SolidManifest } from '../types';
 import { refFromSelection } from '../naming';
 import { describeFreedom, type Freedom } from './freedom';
+import { frameFromProjection } from './frames';
 import { mateTrouble, proposedFreedom, trialSolve, type ProposedMate } from './solve';
 import { selectionWords } from './words';
 
-export type PairShape = 'round' | 'flat' | 'line';
+export type PairShape = 'round' | 'flat' | 'line' | 'tangent';
 export type PickShape = PairShape | 'point' | null;
 export interface JointSpec {
 	word: string;
@@ -40,17 +42,19 @@ export interface JointSpec {
 	/** A 24x24 stroke path for the tile. */
 	glyph: string;
 }
-export const JOINT_KINDS: readonly JointKind[] = ['hinge', 'slider', 'cylindrical', 'planar', 'fixed'];
+export const JOINT_KINDS: readonly JointKind[] = ['hinge', 'slider', 'cylindrical', 'planar', 'fixed', 'slot'];
 export const JOINTS: Record<JointKind, JointSpec> = {
 	hinge: { word: 'Hinge', does: 'spins', dof: 1, slides: 0, recipes: [['round', 'flat']], glyph: 'M12 4a8 8 0 1 1-7.4 5M4.6 4v5h5M12 10v4' },
 	slider: { word: 'Slider', does: 'slides', dof: 1, slides: 1, recipes: [['flat', 'flat'], ['line', 'flat']], glyph: 'M3 15h18M6 11h8v8H6zM17 8l3 3-3 3' },
 	cylindrical: { word: 'Cylindrical', does: 'spins, slides', dof: 2, slides: 1, recipes: [['round']], glyph: 'M8 5h8v14H8zM12 2v20M17 8l3 3-3 3' },
 	planar: { word: 'Planar', does: 'slides flat', dof: 3, slides: 2, recipes: [['flat']], glyph: 'M3 17l6-6h12l-6 6zM12 6v5M9 8l3-3 3 3' },
-	fixed: { word: 'Fixed', does: 'locked', dof: 0, slides: 0, recipes: [['round', 'flat', 'flat'], ['flat', 'flat', 'flat']], glyph: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5zM12 15v2' }
+	fixed: { word: 'Fixed', does: 'locked', dof: 0, slides: 0, recipes: [['round', 'flat', 'flat'], ['flat', 'flat', 'flat']], glyph: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5zM12 15v2' },
+	/* The pin rides one wall of the slot (a round face held its own radius off a flat one) and sits on a flat; the other wall fits when the slot is as wide as the pin. */
+	slot: { word: 'Pin in slot', does: 'slides, spins', dof: 2, slides: 1, recipes: [['tangent', 'flat']], glyph: 'M3 8h18M3 16h18M7 12a2 2 0 1 0 4 0a2 2 0 1 0-4 0M15 12h5' }
 };
 /** The mate a pair of shapes becomes. */
-export const PAIR_MATE: Record<PairShape, MateKind> = { round: 'concentric', flat: 'coincident', line: 'coincident' };
-export const SHAPE_WORDS: Record<PairShape, string> = { round: 'Round', flat: 'Flat', line: 'Straight' };
+export const PAIR_MATE: Record<PairShape, MateKind> = { round: 'concentric', flat: 'coincident', line: 'coincident', tangent: 'distance' };
+export const SHAPE_WORDS: Record<PairShape, string> = { round: 'Round', flat: 'Flat', line: 'Straight', tangent: 'Pin, wall' };
 type Ctx = { model: ModelProjection; manifest: SolidManifest };
 
 /** What a pick can pair as: a round face or circular edge, a flat face or plane, a straight edge or axis, or a corner. */
@@ -67,6 +71,7 @@ export function pairShape(a: PickShape, b: PickShape): PairShape | null {
 	if (a === 'flat' && b === 'flat') return 'flat';
 	if ((a === 'round' && (b === 'round' || b === 'line')) || (b === 'round' && a === 'line')) return 'round';
 	if (a === 'line' && b === 'line') return 'line';
+	if ((a === 'round' && b === 'flat') || (a === 'flat' && b === 'round')) return 'tangent';
 	return null;
 }
 /** A pick as the reference a mate stores. */
@@ -129,24 +134,27 @@ export function planJoint(ctx: Ctx, joint: JointKind, picks: readonly Selection[
 	}
 	if (moves === null && stays !== null && picks[1]) moves = stays === partOf(picks[1]) ? null : partOf(picks[1]);
 	const done = pairs.filter((p) => p.b).map((p) => p.shape as PairShape), half = pairs.find((p) => !p.b);
-	const recipe = spec.recipes.find((r) => fits(half ? [...done, half.shape as PairShape] : done, r)) ?? null;
+	/* A lone pick has no pair yet: a round one may become a round pair or a pin-on-wall pair, a flat one a flat pair or a pin-on-wall pair. */
+	const halfFits = (r: readonly PairShape[]) => !half || [half.shape as PairShape, ...(half.shape === 'round' || half.shape === 'flat' ? ['tangent' as const] : [])].some((h) => fits([...done, h], r));
+	const recipe = spec.recipes.find((r) => fits(done, r) && halfFits(r)) ?? null;
 	if (!recipe) {
-		const sofar = half ? [...done, half.shape as PairShape] : done;
-		const others = JOINT_KINDS.filter((j) => j !== joint && JOINTS[j].recipes.some((r) => fits(sofar, r))).map((j) => JOINTS[j].word);
+		const others = JOINT_KINDS.filter((j) => j !== joint && JOINTS[j].recipes.some((r) => fits(done, r) && halfFits(r))).map((j) => JOINTS[j].word);
 		const offer = others.length ? ` These picks make a ${others.length === 1 ? others[0] : `${others.slice(0, -1).join(', ')} or ${others[others.length - 1]}`}.` : '';
 		return { ...empty(`A ${spec.word.toLowerCase()} pairs ${recipeWords(spec.recipes[0])}.${offer}`), stays, moves };
 	}
 	/* Slots: the pairs already made, in pick order, then what the recipe still wants. */
 	const left = [...recipe];
 	for (const s of done) left.splice(left.indexOf(s), 1);
-	if (half) left.splice(left.indexOf(half.shape as PairShape), 1);
+	if (half) { const own = half.shape as PairShape, i = left.indexOf(own); left.splice(i >= 0 ? i : left.indexOf('tangent'), 1); if (i < 0) half.shape = 'tangent'; }
 	const slots: JointSlot[] = [];
 	for (const p of pairs) { const shape = p.shape as PairShape; slots.push({ shape, pick: p.a, words: selectionWords(ctx, p.a) }, p.b ? { shape, pick: p.b, words: selectionWords(ctx, p.b) } : { shape }); }
 	for (const shape of left) slots.push({ shape }, { shape });
 	const base = { joint, slots, stays, moves, mates: [] as ProposedMate[], freedom: null, sentence: null };
 	if (left.length || half) return { ...base, reason: null, ready: false };
 	let mates: ProposedMate[];
-	try { mates = pairs.map((p) => ({ kind: PAIR_MATE[p.shape as PairShape], a: selectionRef(ctx.model, p.a), b: selectionRef(ctx.model, p.b!) })); }
+	/* A pin riding a wall is a distance mate of the pin's own radius between its axis and the wall. */
+	const radius = (p: { a: Selection; b?: Selection }) => { for (const s of [p.a, p.b!]) { const f = frameFromProjection(ctx.model, selectionRef(ctx.model, s)); if (f?.frame.kind === 'axis' && f.frame.radius !== undefined) return f.frame.radius; } throw Error('Pick the round face of the pin, not an axis, so its radius is known.'); };
+	try { mates = pairs.map((p) => ({ kind: PAIR_MATE[p.shape as PairShape], a: selectionRef(ctx.model, p.a), b: selectionRef(ctx.model, p.b!), ...(p.shape === 'tangent' ? { value: radius(p) } : {}) })); }
 	catch (error) { return { ...base, reason: error instanceof Error ? error.message : String(error), ready: false }; }
 	const proposed = proposedFreedom(ctx.model, mates);
 	if ('error' in proposed) return { ...base, reason: proposed.error, ready: false };

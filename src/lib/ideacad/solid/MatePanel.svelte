@@ -45,10 +45,10 @@
 	/* Which single mate kinds these two picks can take, in the solver's own words. */
 	const kindFit = $derived(mode === 'mate' && picks.length === 2 ? Object.fromEntries(MATE_KINDS.map((k) => [k, mateFit(ctx, k, picks[0], picks[1], takesValue(k) ? typed ?? 0 : undefined, flip)])) as Record<MateKind, string | null> : null);
 	/* The cue for what a joint still wants, pair by pair: "Pick a round face on each part, then a flat face on each part." */
-	const THING: Record<PairShape, string> = { round: 'a round face', flat: 'a flat face', line: 'a straight edge' };
+	const THING: Record<PairShape, string> = { round: 'a round face', flat: 'a flat face', line: 'a straight edge', tangent: "the pin's round face and one wall of its slot" };
 	function wanted(slots: readonly JointSlot[]): string {
 		const parts: string[] = [];
-		for (let i = 0; i < slots.length; i += 2) { const filled = [slots[i], slots[i + 1]].filter((x) => x?.pick).length; if (filled < 2) parts.push(`${THING[slots[i].shape]} on ${filled ? 'the other part' : 'each part'}`); }
+		for (let i = 0; i < slots.length; i += 2) { const filled = [slots[i], slots[i + 1]].filter((x) => x?.pick).length; if (filled < 2) parts.push(slots[i].shape === 'tangent' ? THING.tangent : `${THING[slots[i].shape]} on ${filled ? 'the other part' : 'each part'}`); }
 		return `Pick ${parts.join(', then ')}.`;
 	}
 	const blocked = $derived.by((): string | null => {
@@ -70,7 +70,7 @@
 			}
 			const spec = JOINTS[mode], ids = plan!.mates.map(() => newFeatureId());
 			const groups = new Set(api.manifest.features.filter((f) => f.type === 'mate' && (f as { joint?: string }).joint === mode).map((f) => (f as { group?: string }).group ?? f.id));
-			const name = `${spec.word} ${groups.size + 1}`, pairWord = (k: MateKind) => (k === 'concentric' ? 'axis' : 'face');
+			const name = `${spec.word} ${groups.size + 1}`, pairWord = (k: MateKind) => (k === 'concentric' ? 'axis' : k === 'distance' ? 'wall' : 'face');
 			const commands: SolidCommand[] = plan!.mates.map((m, i) => ({ type: 'add-feature', feature: { id: ids[i], name: plan!.mates.length > 1 ? `${name} ${pairWord(m.kind)}${plan!.mates.filter((x, j) => j < i && x.kind === m.kind).length ? ` ${i + 1}` : ''}` : name, type: 'mate', kind: m.kind, a: m.a, b: m.b, ...(m.flip ? { flip: true } : {}), joint: mode as JointKind, group: ids[0] } }));
 			await api.apply({ type: 'batch', commands }, `Add ${spec.word.toLowerCase()}`);
 		} catch (e) { refuse(e); }
@@ -82,7 +82,7 @@
 			const f = featureOf(m.feature), joint = f?.joint && JOINTS[f.joint] ? f.joint : null, key = joint ? f?.group ?? m.feature : m.feature;
 			const found = byGroup.get(key);
 			if (found) { found.mates.push(m); continue; }
-			const entry: Entry = { id: key, joint, name: joint ? (f?.name ?? '').replace(/ (axis|face)( \d+)?$/, '') || JOINTS[joint].word : f?.name ?? 'Mate', mates: [m] };
+			const entry: Entry = { id: key, joint, name: joint ? (f?.name ?? '').replace(/ (axis|face|wall)( \d+)?$/, '') || JOINTS[joint].word : f?.name ?? 'Mate', mates: [m] };
 			byGroup.set(key, entry); out.push(entry);
 		}
 		return out;
@@ -192,7 +192,7 @@
 	.tile{position:relative;display:flex;align-items:center;gap:6px;min-height:44px;padding:2px 6px 2px 8px;border:1px solid var(--boundary);border-radius:4px;color:var(--text-1);cursor:pointer;box-sizing:border-box}
 	.tile input{position:absolute;opacity:0;width:1px;height:1px;margin:0;min-height:0;pointer-events:none}
 	.tile svg{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-	.tile .t{display:grid;min-width:0;line-height:1.1}.tile b{font:600 15px var(--font-display,Rajdhani,sans-serif);overflow-wrap:anywhere}.tile small{font:12px var(--font-mono,'Share Tech Mono',monospace);color:var(--text-2)}
+	.tile[data-joint='mate']{grid-column:1/-1}.tile .t{display:grid;min-width:0;line-height:1.1}.tile b{font:600 15px var(--font-display,Rajdhani,sans-serif);overflow-wrap:anywhere}.tile small{font:12px var(--font-mono,'Share Tech Mono',monospace);color:var(--text-2)}
 	.tile:has(input:checked){border-color:var(--green);box-shadow:inset 4px 0 0 var(--green);background:var(--surface-2)}.tile:has(input:checked) b{color:var(--green)}
 	.tile:has(input:focus-visible){outline:2px solid var(--green);outline-offset:1px}
 	fieldset.kinds{padding:2px 6px 6px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.kind-option.unfit b{color:var(--text-2);text-decoration:line-through;text-decoration-thickness:1px}

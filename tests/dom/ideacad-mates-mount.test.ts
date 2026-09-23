@@ -210,7 +210,7 @@ describe('the mate panel', () => {
 		const withHole = () => { const mf = manifest(); mf.features.splice(1, 2, { id: 'h1', name: 'Hole 1', type: 'hole', face: { body: 'x1#0', name: 'x1.end' }, center: [1, 1], standard: 'custom', fit: 'custom', diameter: 0.5, depth: 'through' }); return mf; };
 		const h = harness({ model: hingeModel, manifest: withHole() }); const m = mountPanel(h);
 		expect(m.one<HTMLInputElement>('[data-joint="hinge"] input').checked).toBe(true);
-		expect(m.all('[data-testid="ideacad-mate-joint"] label.tile').map((l) => l.textContent)).toEqual(['Hinge1 free', 'Slider1 free', 'Cylindrical2 free', 'Planar3 free', 'Fixed0 free', 'One mateany']);
+		expect(m.all('[data-testid="ideacad-mate-joint"] label.tile').map((l) => l.textContent)).toEqual(['Hinge1 free', 'Slider1 free', 'Cylindrical2 free', 'Planar3 free', 'Fixed0 free', 'Pin in slot2 free', 'One mateany']);
 		expect(m.all('[data-testid="ideacad-mate-picks"] .shape').map((x) => x.textContent)).toEqual(['Round', 'Round', 'Flat', 'Flat']);
 		/* Half a hinge: the slots say what is still wanted, the Add control says why it cannot add yet, and nothing is applied. */
 		h.set({ selections: [pick('x1#0', 'h1.wall'), pick('x2#0', 'x2.side.0')] }); m.flush();
@@ -220,7 +220,7 @@ describe('the mate panel', () => {
 		expect(h.applied).toHaveLength(0); expect(h.errors).toEqual(['Pick a flat face on each part.']);
 		/* A flat face with a round one is refused beside the slots, in words, before anything is added. */
 		h.set({ selections: [pick('x1#0', 'h1.wall'), pick('x2#0', 'x2.start')] }); m.flush();
-		expect(m.one('[data-testid="ideacad-mate-reason"]').textContent).toBe('A round pick pairs with a round one. Pick a matching face on Pin.');
+		expect(m.one('[data-testid="ideacad-mate-reason"]').textContent).toBe('A hinge pairs round to round, flat to flat. These picks make a Pin in slot.');
 		h.set({ selections: [pick('x1#0', 'h1.wall'), pick('x2#0', 'x2.side.0'), pick('x1#0', 'x1.end'), pick('x2#0', 'x2.start')] }); m.flush();
 		expect(m.all('[data-testid="ideacad-mate-reason"]')).toHaveLength(0);
 		expect(m.one('[data-testid="ideacad-mate-result"]').textContent).toBe('Pin: 1 degree of freedom left, turns about Z.');
