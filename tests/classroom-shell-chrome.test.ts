@@ -117,3 +117,42 @@ describe('Report and Voice are docked in the classroom chrome, never floating ov
 		}
 	});
 });
+
+/**
+ * THE 24px FLOOR IS DECLARED, NEVER ASSUMED (IDEA_INTERFACE_STANDARDS section
+ * 10; ledger 0297). A chip in the room is 44px; it may sit at 24px only where
+ * BOTH halves of the standard's condition hold, and both are in the selector:
+ * the teacher chose compact density, and the control is inside a surface that
+ * declares itself instructor-only. A rule that dropped the second half would
+ * shrink every student surface the day a teacher picked compact, and nothing on
+ * a teacher's own screen would show it -- which is why this is a test.
+ */
+describe('compact density is instructor-only and opt-in', () => {
+	const css = () => read('src/lib/classroom/classroom.css').replace(/\/\*[\s\S]*?\*\//g, '');
+
+	it('the chip floor in the room is 44px', () => {
+		expect(css()).toMatch(
+			/\.cr-root \.btn\.tiny,\s*\.cr-root \.btn\.secondary\.tiny \{[^}]*min-height: 44px;/
+		);
+	});
+
+	it('every rule that takes a chip below 44px names both the density and the instructor surface', () => {
+		const rules = [...css().matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(
+			([, sel, body]) => /\.btn[^,{]*\.tiny/.test(sel) && /min-height:\s*(2[0-9]|3[0-9]|4[0-3])px/.test(body)
+		);
+		// Positive control: the compact rule itself is found.
+		expect(rules.length).toBeGreaterThan(0);
+		for (const [, sel] of rules) {
+			for (const part of sel.split(',')) {
+				expect(part, part).toContain("[data-density='compact']");
+				expect(part, part).toContain('.cr-instructor-surface');
+			}
+		}
+	});
+
+	it('the preference module still names the attribute and the class this reads', async () => {
+		const mod = await import('../src/lib/preferences/classroom');
+		expect(mod.DENSITY_ATTRIBUTE).toBe('data-density');
+		expect(mod.INSTRUCTOR_SURFACE_CLASS).toBe('cr-instructor-surface');
+	});
+});
