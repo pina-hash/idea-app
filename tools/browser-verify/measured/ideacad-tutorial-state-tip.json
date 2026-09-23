@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "ideacad-tutorial-state-tip.mjs",
+	"date": "2026-09-23T10:32:40.396Z",
+	"sha": "84194e49e3d449fbb56e4dc3cad6b36e7b7e591f",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 26,
+	"outsideRows": [],
+	"ms": 8609
+}
