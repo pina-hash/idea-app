@@ -122,7 +122,8 @@
 		clearTimeout(timer);
 		/* The first ask goes at once, so the section appears with its answer; later ones wait for the model to settle. */
 		if (supported === 'unknown' && !checking) void check(key);
-		else timer = setTimeout(() => void check(key), DEBOUNCE_MS);
+		/* A change that began while this waited is asked for again when it lands: the effect re-runs when busy falls. */
+		else timer = setTimeout(() => { if (!api.busy) void check(key); }, DEBOUNCE_MS);
 	}
 	async function check(key: string) {
 		asked = key; checking = true;
