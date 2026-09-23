@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "voice.mjs",
+	"date": "2026-09-22T19:20:39.634Z",
+	"sha": "49ab3229926c648a0865918c6642a2632467b575",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 54,
+	"outsideRows": [],
+	"ms": 4517
+}

@@ -25,8 +25,11 @@
 
 import { describe, expect, test } from 'vitest';
 import {
+	BULK_PRESETS,
 	BULK_PRESET_LABEL,
+	type BulkPreset,
 	applyPreset,
+	bottomLevelScores,
 	bulkCanSend,
 	bulkOutcome,
 	bulkPlan,
@@ -613,10 +616,134 @@ describe('the presets pick genuinely different sets', () => {
 		expect(applyPreset('submitted', ROSTER)).not.toEqual(applyPreset('ungraded', ROSTER));
 	});
 
-	test('every preset has a label and no label is reused', () => {
-		const labels = Object.values(BULK_PRESET_LABEL);
-		expect(labels).toHaveLength(4);
-		expect(new Set(labels).size).toBe(4);
+	/**
+	 * THE RULE, NOT THE LIST (0288). This spelled out `toHaveLength(4)` twice,
+	 * which is an assertion a legitimate change necessarily breaks -- adding
+	 * `missing` reddened it, and the offered repair each time is to write down
+	 * whatever the new number is, which records what last happened and checks
+	 * nothing.
+	 *
+	 * What it is actually for is that a preset can reach `applyPreset`'s switch
+	 * with no entry in `BULK_PRESET_LABEL`, and the console renders
+	 * `{BULK_PRESET_LABEL[preset]}` -- so the button comes out EMPTY. That
+	 * throws nothing and type-checks, because a `Record<BulkPreset, string>`
+	 * missing a key is a type error only if the union is widened in the same
+	 * edit, which is exactly what adding a preset does not always do.
+	 *
+	 * THE POPULATION IS `BULK_PRESETS` AND NOT THE LABEL MAP, and that is a
+	 * MEASURED correction rather than a preference. Written over
+	 * `Object.keys(BULK_PRESET_LABEL)` this test SURVIVED the mutation it
+	 * exists for -- deleting `missing`'s label removed it from the population
+	 * as well, so the sweep came back green (55 passed) over the exact key that
+	 * had gone missing. A sweep whose population comes from the thing under
+	 * test cannot see anything leave it.
+	 *
+	 * `BULK_PRESETS` is the ORDER LIST THE CONSOLE RENDERS FROM, so it is the
+	 * honest population: every button that will be drawn must have words in it
+	 * and an arm in the switch.
+	 */
+	test('every preset the console offers has a distinct label and an applyPreset arm', () => {
+		const presets: readonly BulkPreset[] = BULK_PRESETS;
+		expect(presets.length).toBeGreaterThan(0);
+		for (const preset of presets) {
+			expect(BULK_PRESET_LABEL[preset].trim()).not.toBe('');
+			// `undefined` is what a switch with no arm for this key returns, and
+			// it is not the same answer as "nobody matched", which is `[]`.
+			expect(Array.isArray(applyPreset(preset, ROSTER))).toBe(true);
+		}
+		const labels = presets.map((p) => BULK_PRESET_LABEL[p]);
+		expect(new Set(labels).size).toBe(presets.length);
+	});
+
+	/**
+	 * THE SELECTION A ZERO IS FOR, and it is asserted as the EXACT COMPLEMENT
+	 * of `submitted` rather than against a hand-listed set of names: the two
+	 * read one predicate and the failure worth catching is them disagreeing --
+	 * a student in both (graded twice) or in neither (silently ungradeable by
+	 * either preset).
+	 */
+	test('"nothing handed in" is exactly the complement of "handed in"', () => {
+		const handedIn = applyPreset('submitted', ROSTER);
+		const missing = applyPreset('missing', ROSTER);
+		expect(missing).toContain(DARA.email);
+		expect(missing).not.toContain(ALICE.email);
+		// No overlap, and between them they name the whole roster exactly once.
+		expect(missing.filter((e) => handedIn.includes(e))).toEqual([]);
+		expect([...handedIn, ...missing].sort()).toEqual(ROSTER.map((s) => s.email).sort());
+	});
+
+	/**
+	 * NOT `ungraded`, WHICH IS THE ONE IT WILL BE CONFUSED WITH. A student who
+	 * handed in and is waiting is `ungraded` and must never be swept into a
+	 * zero. Asserted with a named student in one and not the other, so the two
+	 * cannot quietly become the same predicate.
+	 */
+	test('"nothing handed in" is not "not graded yet"', () => {
+		const missing = applyPreset('missing', ROSTER);
+		const ungraded = applyPreset('ungraded', ROSTER);
+		expect(missing).not.toEqual(ungraded);
+		// ALICE handed in and has no grade: ungraded, and NOT a candidate zero.
+		expect(ungraded).toContain(ALICE.email);
+		expect(missing).not.toContain(ALICE.email);
+	});
+});
+
+/**
+ * THE SCORES A ZERO IS MADE OF.
+ *
+ * The expected values come from the RUBRIC fixture rather than from the
+ * function: its two criteria are out of 10 each and their bottom levels are
+ * worth 0, so the answer is `{c1: 0, c2: 0}` and that is written down here.
+ */
+describe('bottomLevelScores reads the level, never the literal 0', () => {
+	test('every criterion lands on its own bottom level', () => {
+		const out = bottomLevelScores(RUBRIC);
+		expect(Object.keys(out).sort()).toEqual(RUBRIC.map((c) => c.id).sort());
+		for (const c of RUBRIC) {
+			expect(out[c.id]).toBe(c.levels[c.levels.length - 1]!.points);
+		}
+	});
+
+	/**
+	 * THE CASE THAT SEPARATES IT FROM A FILL OF ZEROES, and the reason this is
+	 * a function over the rubric at all. A criterion whose bottom level is not
+	 * 0 is not a valid rubric under `criterionIssues` -- but a rubric mid-edit
+	 * is not required to be valid, and scoring it 0 would write a number no
+	 * level explains, which is precisely the override the server then demands a
+	 * written justification for. A literal-0 implementation passes every other
+	 * test in this block and fails this one.
+	 */
+	test('a bottom level worth more than 0 is scored at what it is worth', () => {
+		const odd = [
+			{
+				id: 'odd',
+				criterion: 'Salvaged',
+				points: 10,
+				levels: [
+					{ points: 10, label: 'Full', descriptor: 'All of it' },
+					{ points: 6, label: 'Some', descriptor: 'Some of it' },
+					{ points: 2, label: 'Floor', descriptor: 'Turned something in' }
+				]
+			}
+		];
+		expect(bottomLevelScores(odd)).toEqual({ odd: 2 });
+	});
+
+	/**
+	 * A CRITERION WITH NO LEVELS IS LEFT ALONE rather than scored 0 -- there is
+	 * nothing to read. Asserted as an ABSENT KEY and not as a 0, because the
+	 * console spreads this into `scores` and a 0 would be a score it then has
+	 * to defend.
+	 */
+	test('a criterion with no levels contributes no key at all', () => {
+		const bare = [{ id: 'bare', criterion: 'Unmigrated', points: 5, levels: [] }];
+		const out = bottomLevelScores(bare);
+		expect('bare' in out).toBe(false);
+		expect(out).toEqual({});
+	});
+
+	test('a null rubric is an empty answer, never a throw', () => {
+		expect(bottomLevelScores(null)).toEqual({});
 	});
 });
 

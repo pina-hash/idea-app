@@ -37,6 +37,41 @@
 	const buildFallback = describeBuild(null, '1755735000000');
 
 	let mode = $state<'ok' | 'refusal' | 'network'>('ok');
+	// THESE THREE SIT ABOVE `sink` AND HAVE TO. `seedRows()` runs inside that
+	// `$state` initialiser and reads `SHOT_OWNER`; a `const` is hoisted without
+	// being initialised, so declaring them below it is a temporal dead zone and
+	// the page 500s on load. `svelte-check` reports nothing -- it is valid
+	// TypeScript -- so the only instrument that catches it is opening the page.
+
+	/**
+	 * A REAL 8x5 PNG, 74 BYTES, so the archive export is drivable here with no
+	 * bucket and no session.
+	 *
+	 * A REAL ONE RATHER THAN A PLACEHOLDER STRING: the archive names the file
+	 * from the type the store reports, the zip writer CRCs and stores what it
+	 * is handed, and the point of the harness is that whatever comes out can be
+	 * unzipped and opened. Bytes that are not an image would pass every step and
+	 * produce an archive whose images do not decode, which is precisely the
+	 * failure nobody would see until a session opened one.
+	 */
+	const SHOT_PNG_B64 =
+		'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAFCAIAAAD38zoCAAAAEUlEQVR42mPQW+KPFTHQQQIAAj4tKX3I6u4AAAAASUVORK5CYII=';
+	/** The uploader's uuid, which is the first segment of every 0170 key. */
+	const SHOT_OWNER = '00000000-0000-4000-8000-000000000000';
+
+	/**
+	 * THE SCREENSHOT SOURCE, IN MEMORY. It answers bytes for one key and NULL
+	 * for the other, which is what makes the "the image could not be read back"
+	 * branch visible on the page rather than only green in a test.
+	 */
+	const fetchScreenshot = async (key: string) => {
+		if (!key.endsWith('11111111-1111-4111-8111-111111111111.png')) return null;
+		const binary = atob(SHOT_PNG_B64);
+		const bytes = new Uint8Array(binary.length);
+		for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+		return { bytes, contentType: 'image/png' };
+	};
+
 	let sink = $state<FeedbackRow[]>(seedRows());
 	let seq = 0;
 
@@ -92,6 +127,56 @@
 				...base,
 				id: 'seed-signed',
 				message: 'The notebook plate switch is hard to hit on a phone.',
+				anonymous: false,
+				contact: null,
+				submitter_name: 'Harness User',
+				submitter_email: 'harness@boscotech.net'
+			},
+			/*
+				A ROW WITH A SCREENSHOT, AND A ROW WITH A KEY WHOSE BYTES ARE
+				GONE. The archive export cannot be driven at all without the
+				first, and the second is the half that is easy to ship broken:
+				an object that has been deleted, or a bucket a deployment does
+				not have, produces a report that names an image the archive
+				does not contain, and the only way to see that it says so is to
+				build one. Both keys are the 0170 shape (<uuid>/<uuid>.png).
+
+				THE BUILD STAMP IS ON THESE TWO AND DELIBERATELY DIFFERENT ON
+				EACH: one names a commit, one is a build id. They are the two
+				branches of the build-age sentence, side by side in the
+				archive, where a reader can see that a timestamp cannot be
+				counted and a commit can.
+			*/
+			{
+				...base,
+				id: 'seed-shot',
+				kind: 'bug' as const,
+				meta: {
+					route: '/notebook',
+					path: '/notebook',
+					viewport: '375x812',
+					build: { value: 'a1b2c3d', source: 'git-commit', means: 'The git commit this deployment was built from.' }
+				},
+				message: 'The grid header covers the first student name when I scroll sideways.',
+				tried: 'Scrolling back, and reloading the page.',
+				screenshot_path: `${SHOT_OWNER}/11111111-1111-4111-8111-111111111111.png`,
+				anonymous: false,
+				contact: null,
+				submitter_name: 'Harness User',
+				submitter_email: 'harness@boscotech.net'
+			},
+			{
+				...base,
+				id: 'seed-shot-gone',
+				kind: 'idea' as const,
+				meta: {
+					route: '/coin-desk',
+					path: '/coin-desk',
+					viewport: '1440x900',
+					build: { value: '1755735000000', source: 'build-id', means: 'A SvelteKit build id, which is a build timestamp.' }
+				},
+				message: 'It would help if the payout list remembered which section I was on.',
+				screenshot_path: `${SHOT_OWNER}/22222222-2222-4222-8222-222222222222.png`,
 				anonymous: false,
 				contact: null,
 				submitter_name: 'Harness User',
@@ -482,7 +567,7 @@
 					<span>refuse every second status write (drives a PARTIAL bulk result)</span>
 				</label>
 			</div>
-			<FeedbackConsole rows={sink} {setStatus} />
+			<FeedbackConsole rows={sink} {fetchScreenshot} {setStatus} />
 		</div>
 	{/if}
 

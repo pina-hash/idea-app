@@ -2336,6 +2336,28 @@ async function loadGradingAcrossSections(
 	};
 }
 
+/**
+ * BATCH GRADING WITHOUT THE CROSS-CLASS READ (0288), for the per-section
+ * console at `/classroom/<section>/item/<item>/grade`.
+ *
+ * It is `createBulkGradingTransports` MINUS `loadAcross`, and it is written as
+ * exactly that -- one object spread, one key deleted -- rather than as a second
+ * factory that builds its own `gradeMany`. The batch write is one rule and
+ * there is one statement of it; a second copy here is the copy that stops
+ * agreeing about how a refusal reads, which on this path is the difference
+ * between "no grade was written" and thirty students silently half-graded.
+ *
+ * WHY THE PER-SECTION ROUTE CANNOT SIMPLY TAKE THE FULL OBJECT: `loadAcross`
+ * is what `GradingConsole.load()` branches on, so handing it over replaces that
+ * page's one class with every class the caller teaches the assignment in. That
+ * page already links to the console which does that on purpose. See
+ * `BulkGradingTransports.loadAcross` for the whole argument.
+ */
+export function createBatchGradingTransports(supabase: SupabaseClient): BulkGradingTransports {
+	const { loadAcross: _crossClass, ...batch } = createBulkGradingTransports(supabase);
+	return batch;
+}
+
 export function createBulkGradingTransports(supabase: SupabaseClient): BulkGradingTransports {
 	return {
 		loadAcross: (itemId) => loadGradingAcrossSections(supabase, itemId),

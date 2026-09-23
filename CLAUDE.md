@@ -3447,6 +3447,49 @@ inside the function fails closed rather than falling through to a weaker path.
       renderer or sanitizer touches. `tests/feedback-untrusted-render.test.ts`
       asserts it for this surface specifically rather than inheriting the
       typed-document argument, which does not apply here.
+    - **THERE ARE THREE DOWNLOADS AND THE ARCHIVE IS THE ONE WITH THE PICTURES
+      IN IT.** `feedbackMarkdown` is the pasteable bundle and `feedbackJson` is
+      the rows; both NAME a screenshot and neither can carry one, because
+      `rowScreenshotPath` is a key into a private bucket.
+      `buildFeedbackArchive` (`$lib/feedback/archive.ts`) is the zip:
+      index.json, and per report a report.md with the image BESIDE it, named
+      from index.json's own `files` lookup. A folder of loose screenshots a
+      reader matches up by guessing is the problem it was built to end, so **no
+      report may point at an image that is not there and no image may be an
+      orphan** -- both directions, because a silently mismatched screenshot is
+      worse than no screenshot at all.
+      - **IT REUSES `$lib/foundry/zip-write.ts` AND A SECOND ZIP WRITER IS THE
+        THING TO REFUSE.** `buildZip` is a pure writer with no Foundry knowledge
+        in it; its folder says where it was born, not what it does. It BUFFERS,
+        which is why the archive carries an image budget
+        (`FEEDBACK_ARCHIVE_IMAGE_BUDGET`) rather than whatever the filter
+        matched: the bucket's own ceiling is 8 MiB an object, so an unbounded
+        batch is hundreds of MB of input plus output in a tab.
+      - **THE BYTES COME FROM AN INJECTED TRANSPORT, ON THE ADMIN'S OWN CLIENT,
+        AND NO POLICY WAS WIDENED TO GET THEM.** `feedback media admin read`
+        (0170) already gives an admin SELECT on every object in the bucket --
+        the same policy the thumbnail on the row goes through. It is a
+        `download` and NOT the load's signed URLs, which last five minutes: a
+        queue is worked through for longer, and an export pressed after they
+        expire would produce an archive with no images and no reason on screen.
+        **Absence of the transport removes the control**, so an archive of
+        reports whose every image failed is not a thing this console can make.
+      - **EVERY REPORT STATES HOW OLD ITS BUILD IS, AND THE REFERENCE POINT IS
+        THIS BUILD'S OWN COMMIT RATHER THAN `origin/main`.** A browser has no
+        git and cannot ask a remote for its head; the two agree on a production
+        deploy and not on a preview, so `feedbackBuildAge` NAMES what it counted
+        to. It reads `virtual:site-changelog` through `await import()` at the
+        press -- the payload boundary that module's own declaration sets -- and
+        every branch is a SENTENCE: no identifier captured, a build timestamp
+        rather than a commit, and a commit the log cannot hold (it omits merges
+        AND truncates on a shallow clone, and a reader told only one of those
+        concludes the wrong thing half the time).
+      - **`README.md` SAYS WHAT THE ARCHIVE IS AND NOTHING ABOUT PROCESS.** No
+        branching, no testing, no prompt: a session already has all of it from
+        this file and the standards, and a second copy would go stale and then
+        contradict them. `tests/feedback-archive.test.ts` sweeps for it.
+      - **THE SUBMITTER TOGGLE STILL DECIDES AND THE ARCHIVE SAYS WHICH WAY.**
+        It withholds a NAME, never a report: `tried` and the screenshot stay.
 - **EVERY SURFACE THAT PERSISTS WORK USES THE ONE SAVE STATE**
   (`$lib/save-state.svelte.ts`), never a sixth hand-rolled variant. It owns the five
   states (clean, dirty, writing, saved, failed), the 800ms debounce, backoff to
@@ -4874,16 +4917,24 @@ ROOM**; both of those had passed review in the room they were written for.
 
 **AND THE SAME ARITHMETIC BINDS A TOKEN MOVE, IN THE OTHER DIRECTION: A PORTAL
 TOKEN CANNOT BE RAISED TO FIX A PORTAL GROUND UNTIL THE LIGHT ROOMS THAT READ IT
-HAVE BEEN MEASURED.** `--dim` clears only the DARKEST of the three portal
-grounds -- 5.31 on `--bg0`, **4.46** on `--bg1`, **4.24** on `--bg2` -- and the
-obvious answer, lightening it (hue 105deg and 6.7% saturation held, 53.3% ->
-56%, `#8b9687`, giving 5.76 / 4.90 / 4.60), is REFUSED: `--dim` is also read by
+HAVE BEEN MEASURED.** `--dim` clears the two DARKER of the three portal
+grounds -- 5.31 on `--bg0`, **4.52** on `--bg1`, **4.24** on `--bg2`. **THAT
+MIDDLE FIGURE READ 4.46 UNTIL 2026-09-22, WHICH IS THE SIDE OF 4.5 THAT CHANGES
+THE VERDICT**, and it was corrected only because a bundle was issued to fix a
+`--bg1` call site that turned out not to need fixing (ledger 0286). #849080 on
+#1a2a1a is 4.52 under two independent instruments -- an sRGB computation and
+Chromium's own compositor through `npm run verify:browser` -- and every OTHER
+number in this paragraph reproduced exactly, which is what says the drift is
+this one figure rather than the whole row. The FRC readings below were NOT
+re-measured. Prefer the instrument to the number: composite the two colours and
+read the pixel back. The obvious answer, lightening it (hue 105deg and 6.7%
+saturation held, 53.3% -> 56%, `#8b9687`, giving 5.76 / 4.90 / 4.60), is REFUSED: `--dim` is also read by
 five FRC components on `.frc-root`'s paper, where it already measures 2.95 /
 3.23 and the candidate takes it to **2.72 / 2.98**. Degrading a room the sweep
 did not cover, to fix one it did, is the exact mistake this whole section
 exists to name. So the two failing CALL SITES took `--text-2` (the register's
 own token for secondary labels and meta, 6.91 / 5.88 / 5.51 on the same three
-grounds) and the token did not move. **`--dim` on `--bg1` or `--bg2` is still a
+grounds) and the token did not move. **`--dim` on `--bg2` is still a
 failure waiting for a use**, and FRC's own `--frc-gray` measures 2.77 on its own
 surface, so the room needs a hook of its own before either can be fixed
 properly. That is a bundle, not a line.
@@ -5190,6 +5241,32 @@ has. `ultracode` is a Claude Code setting and is never written into a Codex prom
     and an unanswered request cost 8s a page -- one run took 305 SECONDS), so
     **text is measured in the fallback stack**; and `prefers-reduced-motion` is
     `no-preference`, so that path is not exercised.
+  - **RUN ONE PASS AT A TIME. TWO CONCURRENT ONES MANUFACTURE FINDINGS IN
+    COMPONENTS NEITHER RUN TOUCHED.** Measured: a `--route grading` run started
+    while a full pass was still going reported five findings on
+    `classroom-split-s-1-manage-1-state-compose-assignment-rubric` -- including
+    `prepare-click [[data-testid="new-post"]] 1 matched, 12 attempt(s),
+    predicate never satisfied` -- and the same spec run alone reports **18
+    measurements, 0 outside threshold**. Two vite servers and two Chromiums on
+    this container starve a click's own predicate, and the result reads exactly
+    like a regression in somebody else's code. The same applies to running a
+    pass beside `npm test`, which additionally races the DB suite's one shared
+    cluster (see the parallelism trap). **A finding on a spec your diff cannot
+    reach is a re-run before it is a bug.**
+  - **A `/dev` HARNESS THAT MOUNTS A CLASSROOM SURFACE AND DOES NOT SET
+    `--cr-measure-route` MEASURES A WIDTH THE REAL ROUTE NEVER HAS.**
+    `src/routes/classroom/+layout.svelte` sets it from `classroomMeasure(loc)`;
+    a harness that omits it falls through `classroom.css` to `--measure-page`
+    (60rem), so `main` caps at 960px where the real page takes the window
+    (`--measure-console` is `100%`). **This is not hypothetical and it shipped a
+    wrong layout**: the rubric was withheld from every ported HTML assignment on
+    the reading "the split gets 562 at 1440 and at 1920 alike", which was true
+    of `/dev/html-assignment-grading` and false of the console -- the real
+    numbers are 1009.6 and 1489.6. That harness sets it now;
+    `/dev/grading-rubric` and `/dev/grading-bulk` still do not. **Check it
+    before reading any width off a classroom harness**, and set it (plus
+    `.cr-app` where the measure is `console`) rather than injecting it at
+    measurement time, or the fixture goes on lying to the next reader.
   - **A CHECK THAT HAS NEVER FAILED HAS NOT BEEN TESTED.** `--selftest` puts
     every check to a broken fixture AND a sound one and exits non-zero if the
     instrument is wrong; `--break <preset>` injects a defect into the REAL page

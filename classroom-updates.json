@@ -14,6 +14,16 @@
 	"entries": [
 		{
 			"date": "2026-09-22",
+			"title": "Due dates and points are no longer cut off in the class list",
+			"body": "In the list of posts and assignments, the small line under each title shows the kind, the due date, the points and the grading category. On a narrow screen, and whenever you had an item open beside the list, that line used to be cut short with a … and the due time and the points were the first things to go. It now wraps onto a second line instead, so nothing is hidden. Nothing you do changes, and no dates or points have changed, you can just read all of them now.",
+			"tags": [
+				"Stream",
+				"Classes",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-22",
 			"title": "New profile pictures, including a mascot pack, and you can customize how your name looks",
 			"body": "The picture choices are no longer just the eight shapes. There are three groups now: the original marks, a mascot pack (cat, fox, owl, bear, axolotl) and some shop instruments. Two of the old marks were hard to see against the dark background, especially the waveform, so they were brightened without changing their colour. Your old choice still works and has not moved. There is also a new Identity section in your profile menu: pick an accent colour, a badge, a banner colour and a short tagline, and they show up wherever you appear. Open the menu from your picture in the top right and expand Identity. Everything saves as soon as you tap it, and Reset customization puts it all back. Right now you will see other people's pictures but not yet their colours and badges; that part is coming.",
 			"tags": [
@@ -1501,6 +1511,25 @@
 				"Classes",
 				"fix",
 				"reading"
+			]
+		},
+		{
+			"date": "2026-09-22",
+			"title": "Arcs go the way you drew them, and the tour's buttons are easier to hit",
+			"body": "Two fixes. In IdeaCAD, dragging the end of an arc used to pull it off its own curve, which made the shape impossible to extrude later. Now the end slides around the arc instead: the size stays put and only the angle follows your cursor. Drawing an arc on a plane with no sketch open also used to swing the wrong way round if you clicked below where you started, giving you almost a full circle instead of the small arc you aimed at. It now goes the way you clicked. Separately, the buttons on the welcome tour that pops up the first time you sign in, Back, Next, Skip tour and the close X, were too small to hit reliably on a phone. They are full size now.",
+			"tags": [
+				"ideacad",
+				"tour"
+			]
+		},
+		{
+			"date": "2026-09-22",
+			"title": "You can say where you want to go",
+			"body": "There is a Voice button in the bottom left corner of every page now. Press it, press Start listening, and say a place: \"classroom\", \"my notebook\", \"maps\", \"gauntlet\", \"coin ledger\". The panel lists every phrase that works, so you never have to guess. It is off until you press Start and a page reload turns it off again; your browser does the listening on your own device, nothing you say is recorded, and nothing you say is sent to the site. It stops listening on its own the moment it understands one command, and if it mishears you it tells you what it heard and stays put instead of taking you somewhere random. Some browsers do not have this built in, and on those the button simply is not there.",
+			"tags": [
+				"Everywhere",
+				"new",
+				"accessibility"
 			]
 		},
 		{

@@ -261,6 +261,17 @@ export function rowDay(row: FeedbackRow): string {
 	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/**
+ * WHETHER THE ROW HAS A SCREENSHOT, as a facet value rather than a boolean.
+ *
+ * A THREE-STATE STRING AND NOT A `boolean | null`, because the empty string is
+ * already how every other optional facet here spells "any" -- `role`, `section`
+ * and both dates all do. A boolean facet would need its own "unset" value and
+ * its own branch in `filterFeedback`, and `EMPTY_FEEDBACK_FILTER` would be the
+ * one place the two spellings had to be kept in step.
+ */
+export type FeedbackShotFacet = '' | 'with' | 'without';
+
 export interface FeedbackFilter {
 	status: 'all' | FeedbackStatus;
 	/** Substring, case-insensitive, against the route (and the path). */
@@ -269,6 +280,23 @@ export interface FeedbackFilter {
 	role: string;
 	/** Exact section id, or '' for any. */
 	section: string;
+	/**
+	 * Exact kind, or '' for any.
+	 *
+	 * `row.kind` IS A PLAIN STRING ON THE ROW and this facet is typed as one to
+	 * match. `FeedbackKind` is the union the BOX offers -- bug, idea, praise,
+	 * other -- but `app_feedback` stores text, VANGUARD's in-game composer
+	 * writes its own rows, and a kind added to the box later reaches this queue
+	 * before anything here is recompiled. So the picker is built from
+	 * {@link facetValues} over the loaded rows, exactly as `role` and `section`
+	 * are, rather than from a list typed out here that could fall behind its own
+	 * producers. (The prompt that asked for this facet said the kinds were bug,
+	 * idea and other; `praise` is the fourth, which is the reason a list is the
+	 * wrong shape.)
+	 */
+	kind: string;
+	/** Whether the row carries a screenshot key, or '' for any. */
+	shot: FeedbackShotFacet;
 	/** Inclusive YYYY-MM-DD bounds, or '' for open. */
 	from: string;
 	to: string;
@@ -279,6 +307,8 @@ export const EMPTY_FEEDBACK_FILTER: FeedbackFilter = {
 	route: '',
 	role: '',
 	section: '',
+	kind: '',
+	shot: '',
 	from: '',
 	to: ''
 };
@@ -297,6 +327,7 @@ export function filterFeedback(
 	const route = filter.route.trim().toLowerCase();
 	const role = filter.role.trim();
 	const section = filter.section.trim();
+	const kind = filter.kind.trim();
 	return rows.filter((row) => {
 		if (filter.status !== 'all' && statusOf(row) !== filter.status) return false;
 		if (route) {
@@ -305,6 +336,15 @@ export function filterFeedback(
 		}
 		if (role && (rowRole(row) ?? '') !== role) return false;
 		if (section && (rowSection(row) ?? '') !== section) return false;
+		if (kind && (row.kind ?? '').trim() !== kind) return false;
+		// BOTH DIRECTIONS FROM ONE PREDICATE. `rowScreenshotPath` is the only
+		// reader of that column anywhere in this file, so "has a screenshot"
+		// cannot come to mean one thing here and another in the export.
+		if (filter.shot) {
+			const has = rowScreenshotPath(row) !== null;
+			if (filter.shot === 'with' && !has) return false;
+			if (filter.shot === 'without' && has) return false;
+		}
 		const day = rowDay(row);
 		if (filter.from && (!day || day < filter.from)) return false;
 		if (filter.to && (!day || day > filter.to)) return false;
@@ -461,6 +501,36 @@ export interface FeedbackExportOptions {
 	includeSubmitter?: boolean;
 	/** The live `classroom_sections` lookup, see {@link resolveSectionId}. */
 	classroomSections?: ReadonlyMap<string, ClassroomSectionInfo>;
+	/**
+	 * HOW OLD THE BUILD THIS ROW WAS FILED AGAINST IS, in one sentence, or null
+	 * to say nothing.
+	 *
+	 * A HOOK RATHER THAN A COMPUTATION HERE, because the answer needs the commit
+	 * log and this module is pure arithmetic over a row. `virtual:site-changelog`
+	 * is a build-time module behind a deliberate payload boundary (its own
+	 * declaration says to reach it only through `await import()`, and only on a
+	 * surface about to render the log), so importing it here would put the whole
+	 * commit log on every surface that exports feedback. The archive builder does
+	 * the import and hands the sentence in; {@link feedbackBuildAge} is the one
+	 * implementation of what it says.
+	 *
+	 * UNSET IS THE DEFAULT AND CHANGES NOTHING: the markdown and JSON downloads
+	 * pass no hook and are byte-identical to what they were before it existed.
+	 */
+	buildAge?: (row: FeedbackRow) => string | null;
+	/**
+	 * WHAT TO SAY WHERE A ROW HAS A SCREENSHOT, or null to say nothing at all.
+	 *
+	 * The default is the sentence the pasteable bundle has always carried: the
+	 * key resolves to nothing outside the console, so the bundle names the image
+	 * rather than linking it. THE ARCHIVE IS THE ONE CALLER THAT OVERRIDES IT,
+	 * because there the bytes are sitting in the same folder as the file saying
+	 * so and the honest thing to write is a relative link.
+	 *
+	 * A HOOK AND NOT A BOOLEAN: the archive's answer is a PATH it computes per
+	 * row, and a flag would mean this file knowing the archive's folder layout.
+	 */
+	screenshotNote?: (row: FeedbackRow) => string | null;
 }
 
 /**
@@ -525,11 +595,21 @@ export function quoteMessage(message: string): string {
 		.join('\n');
 }
 
+/**
+ * THE DEFAULT SCREENSHOT SENTENCE, kept as a named constant so the archive's
+ * test can assert it is the one thing the override REPLACES rather than a
+ * string that happens to look the same.
+ */
+export const FEEDBACK_SCREENSHOT_NOTE =
+	'_A screenshot is attached. Open this report in the feedback console to see it._';
+
 function oneRow(
 	row: FeedbackRow,
 	index: number,
 	includeSubmitter: boolean,
-	classroomSections?: ReadonlyMap<string, ClassroomSectionInfo>
+	classroomSections?: ReadonlyMap<string, ClassroomSectionInfo>,
+	buildAge?: (row: FeedbackRow) => string | null,
+	screenshotNote?: (row: FeedbackRow) => string | null
 ): string {
 	const route = rowRoute(row);
 	const lines: string[] = [`### ${index}. ${row.kind} at ${route}`];
@@ -580,6 +660,12 @@ function oneRow(
 	// repeating it under every report is most of the bundle's length.
 	const build = rowBuild(row);
 	if (build) facts.push(`build: ${build.value} (${build.source})`);
+	// THE AGE IS ITS OWN BULLET AND IS ASKED FOR EVERY ROW, INCLUDING ONE WITH
+	// NO BUILD STAMP AT ALL. A row that captured no identifier is exactly the
+	// row whose age a reader would otherwise assume, so the resolver gets to say
+	// "nothing was captured" rather than the line simply being absent.
+	const age = buildAge?.(row);
+	if (age) facts.push(`build age: ${age}`);
 	// THE GENERIC PASS, LAST AND ALWAYS SORTED, so a producer nothing above
 	// names by key still reaches the bundle instead of being dropped on the
 	// floor -- see rowMetaExtras.
@@ -601,13 +687,23 @@ function oneRow(
 		lines.push('');
 		lines.push(quoteMessage(tried));
 	}
-	// A SCREENSHOT IS NAMED, NEVER LINKED. The key resolves to nothing outside
-	// the console -- the bucket is private and the URL the console renders is
-	// signed and short-lived -- so printing one would be an address that always
-	// 404s. Saying it exists is what lets a reader know to go and look.
+	// A SCREENSHOT IS NAMED RATHER THAN LINKED BY DEFAULT. The key resolves to
+	// nothing outside the console -- the bucket is private and the URL the
+	// console renders is signed and short-lived -- so printing one would be an
+	// address that always 404s. Saying it exists is what lets a reader know to
+	// go and look.
+	//
+	// THE ONE CALLER THAT OVERRIDES THIS IS THE ARCHIVE, and it is not an
+	// exception to the rule above but the case the rule was standing in for:
+	// there the bytes are in the same folder as the file saying so, so a
+	// relative link resolves. The hook exists so this file never has to know
+	// that layout.
 	if (rowScreenshotPath(row)) {
-		lines.push('');
-		lines.push('_A screenshot is attached. Open this report in the feedback console to see it._');
+		const note = screenshotNote ? screenshotNote(row) : FEEDBACK_SCREENSHOT_NOTE;
+		if (note) {
+			lines.push('');
+			lines.push(note);
+		}
 	}
 	lines.push('');
 	return lines.join('\n');
@@ -632,6 +728,10 @@ export function feedbackMarkdown(
 	if (filter.route) facets.push(`route contains "${filter.route}"`);
 	if (filter.role) facets.push(`role: ${filter.role}`);
 	if (filter.section) facets.push(`section: ${filter.section}`);
+	if (filter.kind) facets.push(`kind: ${filter.kind}`);
+	if (filter.shot) {
+		facets.push(filter.shot === 'with' ? 'with a screenshot' : 'without a screenshot');
+	}
 	if (filter.from) facets.push(`from ${filter.from}`);
 	if (filter.to) facets.push(`to ${filter.to}`);
 
@@ -684,7 +784,14 @@ export function feedbackMarkdown(
 		const heading = groupHeading.get(row);
 		const block =
 			(heading ? `${heading}\n\n` : '') +
-			oneRow(row, included + 1, includeSubmitter, classroomSections);
+			oneRow(
+				row,
+				included + 1,
+				includeSubmitter,
+				classroomSections,
+				options.buildAge,
+				options.screenshotNote
+			);
 		// Leave room for the truncation notice itself, so the thing that says
 		// what was dropped can never be the thing that gets dropped.
 		if (used + block.length > budget - 320 && included > 0) break;

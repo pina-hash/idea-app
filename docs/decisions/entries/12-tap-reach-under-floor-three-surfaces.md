@@ -1,5 +1,57 @@
 # 12 Three `.tap-reach-44` controls measured under the floor, on surfaces no one bundle owns
 - Raised: 2026-09-05  By: prompt 0044, `claude/tap-reach-44-class-bug-fschcn`
+- Status: CLOSED 2026-09-22 by prompt 0282, `claude/new-session-6u4tff`, which
+  wrote no code for it: item 2 was already fixed in the tree, by prompt 0119
+  (`claude/notebook-ui-theme-overhaul-t3dc3a`). That bundle re-laid the toolbar so
+  the list controls took a line of their own and became ordinary 44px BOXES
+  (`.tool-btn`) instead of `.inline-link.tap-reach-44` words, measured it, and said
+  in its own history entry that the transition of this line "belongs to whoever
+  owns `docs/decisions/`". This is that transition.
+
+  **The one-line answer this entry proposed is in the tree and is load-bearing.**
+  `.tools` carries `flex-wrap: wrap` and `min-width: 0`, with the automatic-minimum
+  trap written beside it. The 32px-at-phone-width cost the entry asked Mr. Pina to
+  accept is moot -- the controls took a line of their own either way -- so the
+  question "may `.tools` wrap, for 32px at phone width" never had to be answered.
+
+  **RE-MEASURED AGAINST THE TREE rather than read off the entry**, since the entry
+  is from 2026-09-05 and the file has changed since (md5 `39634f4e...`, not the
+  `bcbce4ee...` prompt 0047 restored). Driven on `/dev/notebook` into the BUSIEST
+  state the entry's own arithmetic is about -- a query typed so Clear renders, and
+  Select pressed so it reads Done -- because the four controls are not all on
+  screen at once by default:
+
+  | control | 375px | 1440px |
+  | --- | --- | --- |
+  | sort select | 112 x 44 | 112 x 44 |
+  | Clear | 52.4 x 44 | 52.4 x 44 |
+  | Expand all | 78.4 x 44 | absent above the breakpoint (`{#if !wide}`) |
+  | Select / Done | 51.8 x 44 | 51.8 x 44 |
+
+  **0 of 4 under the floor at 375 and 0 of 3 at 1440, and 0px document overflow at
+  both**, with `.tools` at 293x96 (two lines) at 375 and 366x44 (one) at 1440, its
+  own `scrollWidth` equal to its `clientWidth` in every state. No FIFTH control in
+  the row is under the floor: the sort select, the only other control there, is
+  112 x 44. `/dev/notebook`'s harness row for this now sits under `tapTargets`
+  rather than `tapReach` (a box is measured as a box) and reports 78.4 x 44 at 375
+  and 57.5 x 44 at 1440 on the route's landing state -- 500 measurements across the
+  notebook routes, 0 outside threshold.
+
+  **Mutation proof.** `flex-wrap: wrap` and `min-width: 0` removed from `.tools`:
+  the busiest state at 375 goes to a **74px document overflow** (`.tools`
+  `scrollWidth 408` against `clientWidth 293`), 1440 unchanged; restored
+  byte-identically (md5 re-checked) from a copy rather than with `git checkout --`.
+  The entry predicted 13px, which was the arithmetic for a row WITHOUT Clear in it;
+  the shape of the finding is what reproduces, not the number. **`npm test` cannot
+  see any of this** -- 82 files and 1014 tests pass with the mutant in place,
+  because `tests/dom/` has no layout engine -- so the browser harness is the only
+  instrument here, exactly as this entry's last paragraph says.
+
+  Items 1 and 3 were already fixed by prompt 0047 and their specs still report
+  clean (`/dev/notebook` swatches 45 x 45 walked, 7 of 7; the attachment rows on
+  `classroom-split-s-1-item-i-crowded-manage-1`, 0 outside threshold on a
+  2026-09-22 measurement). All three surfaces measure at or above the floor, so the
+  entry is closed rather than narrowed again.
 - Status: PARTLY CLOSED 2026-09-05 by prompt 0047,
   `claude/decision-12-surfaces-a9e60c`. All three measurements REPRODUCED with the
   tree's own walked probe, identical at 375 and 1440, and the cause named for each:

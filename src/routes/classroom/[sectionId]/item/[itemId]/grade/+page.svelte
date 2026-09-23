@@ -14,7 +14,11 @@
 		HTML_ASSIGNMENT_UNAVAILABLE
 	} from '$lib/classroom/html-assignment/mount';
 	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
-	import { createTeacherEngineTransports, htmlManifestShaped } from '$lib/classroom/transports';
+	import {
+		createBatchGradingTransports,
+		createTeacherEngineTransports,
+		htmlManifestShaped
+	} from '$lib/classroom/transports';
 	import { createClassroomLive } from '$lib/classroom/live';
 	import { createPresenceTransports } from '$lib/classroom/presence/transports';
 	import { assignmentLockState } from '$lib/classroom/html-assignment/lock';
@@ -27,6 +31,26 @@
 	// One stable client for the session (the item page's convention).
 	// svelte-ignore state_referenced_locally
 	const transports = createTeacherEngineTransports(data.supabase);
+	/**
+	 * BATCH GRADING ON THIS ROUTE (0288), AND DELIBERATELY NOT THE CROSS-CLASS
+	 * READ.
+	 *
+	 * Mr. Pina: "I must be able to quick return a zero or incomplete
+	 * assignments." Every piece of that already existed -- the tick boxes, the
+	 * presets, the plan, the one-statement commit (0175) -- and none of it was
+	 * reachable HERE, because the only prop that switched it on also swapped
+	 * this page's one class for every class he teaches the assignment in.
+	 *
+	 * `createBatchGradingTransports` is `createBulkGradingTransports` without
+	 * `loadAcross`, so this console keeps reading its own section through
+	 * `transports.loadGrading(item.id, section.id)` and gains the batch bar over
+	 * the roster it already had. The roster stays ungrouped, no section labels
+	 * appear, presence stays scoped to this section, and the link to the
+	 * cross-class console stays exactly where it was -- all four of those hang
+	 * off the METHOD rather than the object, which is the point of the split.
+	 */
+	// svelte-ignore state_referenced_locally
+	const batch = createBatchGradingTransports(data.supabase);
 
 	/**
 	 * THE LIVE BUS, BUILT ONCE BESIDE THE TRANSPORTS AND FOR THE SAME REASON.
@@ -127,6 +151,7 @@
 	spec={htmlMount === 'spec' ? data.spec : null}
 	rubric={data.rubric}
 	{transports}
+	bulk={batch}
 	{live}
 	{presence}
 	close={transports.closeAssignment}
