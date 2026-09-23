@@ -18,9 +18,17 @@
 //      chosen picture into an initials tile with nothing saying why.
 //
 // THE "BEFORE" IS READ OFF GIT, NOT RETYPED. A retyped fixture characterizes
-// what the author believed the old value was; `git show origin/main:<file>` is
+// what the author believed the old value was; `git show <commit>:<file>` is
 // what was actually shipped. The prompt asks for all eight rendered before and
 // after, and this is the only honest way to have a "before" at all.
+//
+// THE REF IS PINNED TO THE COMMIT BEFORE THE REPAIR, `f9d43b49^`, AND USED TO BE
+// `origin/main`. That read was right only until the repair itself reached main:
+// from then on main's `gear` and `wave` WERE the repaired colours, so "moved
+// exactly two colours" found none moved and was red on main and on every branch
+// (measured by ledger 0296 at bf04a223). The parent of the commit that made the
+// change is the shipped "before" for good. CI checks out full history
+// (`fetch-depth: 0`), so the commit is always there.
 
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
@@ -204,9 +212,11 @@ describe('the registries reconcile with 0220s CHECK constraints', () => {
 // 3. Every preset id still renders.
 // ---------------------------------------------------------------------------
 
-/** The preset array as it stood on origin/main, parsed out of the shipped file. */
+/** The commit before the preset repair (f9d43b49, 'Raise the preset set, and render an identity through Avatar and a sibling'). */
+const PRESETS_BEFORE_REF = 'f9d43b49^';
+/** The preset array as it stood before the repair, parsed out of the shipped file. */
 function presetsOnMain(): { id: string; fg: string; d: string }[] {
-	const src = execFileSync('git', ['show', 'origin/main:src/lib/profile.ts'], {
+	const src = execFileSync('git', ['show', `${PRESETS_BEFORE_REF}:src/lib/profile.ts`], {
 		encoding: 'utf8'
 	});
 	const block = src.slice(
@@ -221,8 +231,8 @@ function presetsOnMain(): { id: string; fg: string; d: string }[] {
 describe('every preset that shipped still renders', () => {
 	const before = presetsOnMain();
 
-	it('read the eight off origin/main, so the before is real and not retyped', () => {
-		expect(before.length, 'parsed nothing out of origin/main: the sweep is vacuous').toBe(8);
+	it('read the eight off the commit before the repair, so the before is real and not retyped', () => {
+		expect(before.length, 'parsed nothing out of the before commit: the sweep is vacuous').toBe(8);
 		expect(before.map((p) => p.id)).toEqual([
 			'hex',
 			'cube',
