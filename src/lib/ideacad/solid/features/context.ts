@@ -44,6 +44,8 @@ export interface ExecutorContext {
 	readonly refs: ReadonlyMap<string, ResolvedRef>;
 	readonly sketches: ReadonlyMap<string, SketchState>;
 	readonly mates: readonly MateState[];
+	/** True while a drag previews this feature frame by frame (the engine's gesture), so a refusal can skip work only a refusal the student stops on is worth. Absent means not a preview. */
+	readonly preview?: boolean;
 
 	/** A live body, or a lost-reference error naming it. */
 	body(id: string): LiveBody;
