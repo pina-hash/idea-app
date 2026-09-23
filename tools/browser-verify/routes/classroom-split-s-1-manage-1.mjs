@@ -181,7 +181,10 @@ export default {
 					'selects ' + selects.length + ' appearance=' + [...new Set(selects.map(app))].join('|')
 				];
 			}`,
-			expected: ['checks 20 appearance=none', 'selects 1 appearance=none'],
+			/* Two selects since ledger 0297: the bulk bar's "file into a unit"
+			   and the class find bar's "Show only" kind filter. Both are the
+			   room's own `.cr-select`, which is the claim this row makes. */
+			expected: ['checks 20 appearance=none', 'selects 2 appearance=none'],
 			label: 'cr-check and cr-select compute appearance: none'
 		}
 	]

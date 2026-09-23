@@ -10,6 +10,21 @@
 		locateClassroom,
 		sectionTabs
 	} from '$lib/classroom/nav';
+	import {
+		outstandingBadge,
+		outstandingCheckIns,
+		type ClassCheckIn
+	} from '$lib/classroom/class-check-ins';
+	import { entryTitle, statusLabel, type NotebookEntry } from '$lib/notebook';
+	import type { ClassroomItem, ClassroomUnit } from '$lib/classroom/classroom';
+	import {
+		CLASSROOM_PREFERENCES_NAMESPACE,
+		createClassroomPreferences
+	} from '$lib/preferences/classroom';
+	import { provideClassroomPreferences, reactivePreferences } from '$lib/preferences/context';
+	import { namespaceOf, profileNamespaceWriter, supabaseProfileIo } from '$lib/preferences/profile-io';
+	import type { PaletteNotebookEntry, PaletteSources, PaletteStudent } from '$lib/shell/palette';
+	import type { Crumb } from '$lib/classroom/nav';
 
 	/**
 	 * The classroom's own room.
@@ -39,16 +54,51 @@
 	const section = $derived((page.data.section as ClassroomSection | undefined) ?? null);
 	const item = $derived(page.data.item as { title?: string | null } | undefined);
 
+	const studentLabel = $derived.by(() => {
+		const s = page.data.student as { display_name?: string | null; email?: string } | undefined;
+		return s ? (s.display_name ?? s.email ?? null) : null;
+	});
+
 	const crumbs = $derived(
 		classroomCrumbs(loc, {
 			section: section ? sectionTitle(section) : null,
 			// The item page's own title rule, so a titleless announcement reads the
 			// same in the trail as it does on the page.
-			item: item ? itemTitle(item as never) : null
+			item: item ? itemTitle(item as never) : null,
+			// A reviewer reading one student's notebook: whose, and the way back
+			// the load worked out (the class's own tab, or the all-sections console).
+			student: studentLabel,
+			returnTo: (page.data.notebookReturnTo as Crumb[] | undefined) ?? null
 		})
 	);
 
-	const tabs = $derived(loc.sectionId ? sectionTabs(loc.sectionId) : []);
+	/**
+	 * THE NOTEBOOK TAB CARRIES THE CLASS'S NOTEBOOK COUNT (ledger 0297). It used
+	 * to be a "My notebook" link with a bare number on the class page, whose
+	 * meaning lived in a tooltip a phone cannot hover; the tab is the door now,
+	 * so the number sits on the door, with its word. A student's is the
+	 * check-ins that still need something from them; a manager's is how many
+	 * check-ins this class is behind on. Both are the class page's own
+	 * numbers, read from the section load already on the page -- nothing new is
+	 * fetched, and `outstandingBadge` answers null for none rather than a 0.
+	 */
+	const notebookCount = $derived.by(() => {
+		if (!loc.sectionId || page.data.section?.id !== loc.sectionId) return null;
+		const manages = page.data.canManage === true;
+		const n = outstandingBadge(
+			manages
+				? ((page.data.sectionOutstanding as number | null | undefined) ?? null)
+				: outstandingCheckIns((page.data.checkIns as ClassCheckIn[] | undefined) ?? [])
+		);
+		return n === null ? null : { count: n, word: manages ? 'behind' : 'to do' };
+	});
+	const tabs = $derived(
+		loc.sectionId
+			? sectionTabs(loc.sectionId).map((t) =>
+					t.id === 'notebook' && notebookCount ? { ...t, count: notebookCount } : t
+				)
+			: []
+	);
 	const tab = $derived(activeTab(loc));
 
 	/**
@@ -83,12 +133,86 @@
 	 * it asked for the console measure.
 	 */
 	const isConsole = $derived(measure === 'console');
+
+	/**
+	 * THE CLASSROOM'S ONE PREFERENCE STORE (ledger 0297), created ONCE here
+	 * because this layout is not remounted as the URL moves between classes and
+	 * items, and handed down by context. Device groups live in this browser per
+	 * viewer; account groups in `profiles.preferences.classroom`, written
+	 * read-then-merge so no other namespace is ever clobbered. Signed out, the
+	 * account groups simply live for the session.
+	 */
+	// The client and the viewer are one per session, captured once on purpose.
+	// svelte-ignore state_referenced_locally
+	const viewer = (data.claims?.sub as string | undefined) ?? null;
+	// svelte-ignore state_referenced_locally
+	const preferences = createClassroomPreferences({
+		viewer,
+		account: viewer
+			? {
+					initial: namespaceOf(page.data.userProfile?.preferences, CLASSROOM_PREFERENCES_NAMESPACE),
+					writer: profileNamespaceWriter(
+						supabaseProfileIo(data.supabase, viewer),
+						CLASSROOM_PREFERENCES_NAMESPACE
+					)
+				}
+			: null
+	});
+	provideClassroomPreferences(preferences);
+	const prefs = reactivePreferences(preferences);
+
+	/**
+	 * THE STUDENT'S NOTEBOOK ENTRIES, WHERE A NOTEBOOK IS ON SCREEN (ledger
+	 * 0297). This was the whole of `src/routes/notebook/+layout.svelte`, which
+	 * mounted a palette of its own over the separate notebook app; the notebook
+	 * lives in here now, so its entries join this palette instead. Offered only
+	 * on a notebook place, and opening one runs the notebook's own
+	 * `selectEntry` through the handler `NotebookView` registers -- so an entry
+	 * is listed only where something on the page can open it.
+	 */
+	const notebookEntries = $derived<PaletteNotebookEntry[]>(
+		loc.place === 'notebook' || loc.place === 'notebook-home'
+			? ((page.data.entries as NotebookEntry[] | undefined) ?? []).map((e) => ({
+					id: e.id,
+					title: entryTitle(e),
+					detail: e.submitted_at ? statusLabel(e.status) : 'Draft'
+				}))
+			: []
+	);
+
+	/**
+	 * WHAT THE PALETTE SEARCHES, from data the pages below already loaded:
+	 * `page.data` merges the section layout's items, units and check-ins down,
+	 * and the switcher's list is this layout's own. Nothing is fetched for it.
+	 * The section only counts when it is the class in the URL.
+	 */
+	const paletteSources = $derived<PaletteSources>({
+		section: section && section.id === loc.sectionId ? section : null,
+		items: ((page.data.items as ClassroomItem[] | undefined) ?? []).filter(Boolean),
+		units: (page.data.units as ClassroomUnit[] | undefined) ?? [],
+		sections: data.navSections ?? [],
+		checkIns: (page.data.checkIns as ClassCheckIn[] | undefined) ?? [],
+		notebookEntries
+	});
+
+
+	/** A manager's roster for `@`, loaded on the palette's first open in a class, managers dropped. */
+	async function loadStudents(sectionId: string): Promise<PaletteStudent[]> {
+		const { loadSectionRoster } = await import('$lib/classroom/transports');
+		const { splitRoster } = await import('$lib/classroom/classroom');
+		const res = await loadSectionRoster(data.supabase, sectionId);
+		if (!res.ok) return [];
+		return splitRoster(res.data.rows)
+			.students.filter((r) => r.active)
+			.map((r) => ({ email: r.student_email, name: r.display_name || r.student_email }));
+	}
 </script>
 
 <div
 	class="cr-root"
 	class:cr-app={isConsole}
 	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
+	data-density={prefs.current.display.density}
 >
 	<ClassroomShell
 		sections={data.navSections ?? []}
@@ -102,6 +226,10 @@
 		minimal={loc.place === 'view-as'}
 		backHref={atPicker ? '/classroom' : '/classroom/view-as'}
 		backLabel={atPicker ? 'Classroom' : 'Pick a student'}
+		palette={loc.place === 'view-as' ? null : paletteSources}
+		preferences={loc.place === 'view-as' ? null : preferences}
+		loadStudents={page.data.canManage === true ? loadStudents : null}
+		todoHref={data.navIsStaff === true ? null : '/classroom/todo'}
 	>
 		{@render children()}
 	</ClassroomShell>

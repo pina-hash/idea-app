@@ -16,6 +16,7 @@
 		type BuildStamp
 	} from './context';
 	import type { SupabaseClient } from '@supabase/supabase-js';
+	import { holdDeployReload } from '$lib/shell/deploy-safety';
 
 	/**
 	 * THE ONE REPORT AFFORDANCE, mounted once in the root layout.
@@ -156,6 +157,20 @@
 	);
 
 	let open = $state(false);
+
+	/**
+	 * AN OPEN REPORT HOLDS OFF A DEPLOY RELOAD ($lib/shell/deploy-safety): the
+	 * back button while somebody is typing one must not take the new version of
+	 * the site by reloading and throwing the report away. Open is the signal,
+	 * rather than open with something typed, because what is typed lives in the
+	 * box, and a hold is cheap -- it only postpones the upgrade to the next
+	 * navigation. It does not ask on unload; closing a tab with an empty box
+	 * open is not a loss worth a question.
+	 */
+	$effect(() => {
+		if (!open) return;
+		return holdDeployReload('a problem report is open');
+	});
 
 	/**
 	 * THE BOX IS NOT IN THE SHELL CHUNK, AND THE CLICK MUST NOT WAIT FOR IT.
@@ -427,6 +442,17 @@
 		text-transform: uppercase;
 		cursor: pointer;
 		box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+	}
+	/* UNDER SPACE WHITE (ledger 0297, package F1b): the floating pill is a
+	   control whose outer edge is the only thing separating it from a light
+	   page, so it takes the load-bearing boundary, and it lifts on the theme's
+	   hard elevation rather than a blurred dark drop. */
+	:global(:root[data-theme='space-white']) .sfb-trigger {
+		border-color: var(--boundary);
+		box-shadow: var(--elevation-2);
+	}
+	:global(:root[data-theme='space-white']) .sfb-relocated .sfb-trigger {
+		box-shadow: none;
 	}
 	.sfb-relocated .sfb-trigger {
 		box-shadow: none;

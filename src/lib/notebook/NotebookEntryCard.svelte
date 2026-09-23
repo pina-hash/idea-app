@@ -11,14 +11,15 @@
 	import { entryTimeline, hasTimeline, type NotebookEvent } from '$lib/notebook-history';
 	import { onDestroy } from 'svelte';
 	import {
+		correctedFileName,
 		entryPlainText,
 		entryTitle,
-		flagReasonLabel,
 		isPinned,
 		isUntitled,
 		orderedPhotos,
 		photoCountLabel,
 		photoPages,
+		photoSrc,
 		removedPhotos,
 		sessionMeta,
 		showsStatus,
@@ -28,6 +29,10 @@
 		type NotebookEntry,
 		type StagedPhoto
 	} from '$lib/notebook';
+	import { restoreKeepsPairing, straightenTarget } from '$lib/notebook/capture';
+	import PhotoCorrector from '$lib/notebook/PhotoCorrector.svelte';
+	import EntryVerdict from '$lib/notebook/EntryVerdict.svelte';
+	import { displayPhotoName } from '$lib/notebook';
 	import {
 		entryPreview,
 		folderById,
@@ -114,6 +119,7 @@
 		onPin,
 		onDelete,
 		onRemovePhoto,
+		onAddCorrected,
 		onRetitle,
 		onRestorePhoto,
 		onSubmit,
@@ -179,6 +185,11 @@
 		 * NotebookPhotos, whose own presence-gates-the-control rule this mirrors.
 		 */
 		onRemovePhoto?: (photoId: string) => Promise<EntryActionResult>;
+		/**
+		 * Add a straightened copy of the entry's LATEST page (ledger 0297, F4b).
+		 * Offered only on the page `straightenTarget` names; absent, no control.
+		 */
+		onAddCorrected?: (entryId: string, file: File) => Promise<EntryActionResult>;
 		/**
 		 * A free-form entry's own title (0116, notebook_set_entry_label). Never
 		 * offered on a check-in entry -- its title IS the check-in's label, and
@@ -413,6 +424,42 @@
 			return;
 		}
 		renaming = false;
+	}
+
+	// ---- straighten the latest page, after the fact (ledger 0297, F4b) -------
+
+	const straightenable = $derived(straightenTarget(entry.photos));
+	let straightenFile = $state<File | null>(null);
+	let straightening = $state(false);
+	let straightenErr = $state<string | null>(null);
+
+	async function openStraighten() {
+		const target = straightenable;
+		if (!target) return;
+		straightenErr = null;
+		try {
+			const res = await fetch(photoSrc(target.id));
+			if (!res.ok) throw new Error(String(res.status));
+			const blob = await res.blob();
+			straightenFile = new File([blob], correctedFileName(target.original_filename), {
+				type: blob.type || 'image/jpeg'
+			});
+		} catch {
+			straightenErr = 'That page could not be opened to straighten.';
+		}
+	}
+
+	async function straightenDone(enhanced: File | null) {
+		straightenFile = null;
+		// RE-ASKED: a page added meanwhile makes this one no longer the latest.
+		if (!enhanced || !onAddCorrected || !straightenTarget(entry.photos)) return;
+		straightening = true;
+		try {
+			const result = await onAddCorrected(entry.id, enhanced);
+			if (!result.ok) straightenErr = result.error;
+		} finally {
+			straightening = false;
+		}
 	}
 
 	// ---- removed photos, restore (0117) --------------------------------------
@@ -1033,19 +1080,35 @@
 				</div>
 			{/if}
 
-			{#if entry.status === 'flagged' && (entry.flag_reason || entry.instructor_comment)}
-				<div class="callout">
-					{#if entry.flag_reason}
-						<strong>{flagReasonLabel(entry.flag_reason)}.</strong>
-					{/if}
-					{#if entry.instructor_comment}
-						<span>{entry.instructor_comment}</span>
-					{/if}
-					<span class="callout-hint">Add another photo below to send it back for review.</span>
-				</div>
-			{/if}
+			<EntryVerdict
+				status={entry.status}
+				flagReason={entry.flag_reason}
+				comment={entry.instructor_comment}
+				hint="Add another photo below to send it back for review."
+			/>
 
 			<NotebookPhotos {photos} label={title} onRemove={onRemovePhoto} />
+
+			<!-- STRAIGHTEN IS A CHOICE AFTER THE FACT (ledger 0297, F4b), on the
+			     latest page only: that is the one page a corrected copy appended
+			     now is guaranteed to pair with (`straightenTarget`). -->
+			{#if onAddCorrected && straightenable}
+				<div class="straighten-row">
+					<button
+						type="button"
+						class="btn secondary tap-44"
+						data-testid="entry-straighten"
+						disabled={straightening}
+						onclick={openStraighten}
+					>
+						{straightening ? 'Adding the straightened copy...' : `Straighten page ${pages.length}`}
+					</button>
+					{#if straightenErr}<span class="row-error" role="alert">{straightenErr}</span>{/if}
+				</div>
+			{/if}
+			{#if straightenFile}
+				<PhotoCorrector file={straightenFile} onDone={(enhanced) => straightenDone(enhanced)} />
+			{/if}
 
 			{#if onRestorePhoto && removed.length}
 				<details class="removed-photos" data-testid="removed-photos">
@@ -1056,18 +1119,32 @@
 						{#each removed as photo (photo.id)}
 							<li>
 								<span class="removed-name">
-									{photo.original_filename ?? `Photo ${photo.sequence_order}`}
+									{photo.original_filename ? displayPhotoName(photo.original_filename) : `Photo ${photo.sequence_order}`}
 								</span>
 								<span class="removed-when">Removed {when(photo.removed_at ?? '')}</span>
-								<button
-									type="button"
-									class="btn secondary restore-photo-btn"
-									disabled={restoringPhotoId === photo.id}
-									data-testid="restore-photo"
-									onclick={() => restorePhotoOne(photo.id)}
-								>
-									{restoringPhotoId === photo.id ? 'Restoring...' : 'Restore'}
-								</button>
+								<!-- ONLY WHERE IT KEEPS EVERY PAGE PAIRED (ledger 0297,
+								     `restoreKeepsPairing`): a corrected version, or an
+								     original that would land between another page and
+								     its correction, says why instead of offering a
+								     button whose result would put a photo on the wrong
+								     page. -->
+								{#if restoreKeepsPairing(entry.photos, photo.id)}
+									<button
+										type="button"
+										class="btn secondary restore-photo-btn"
+										disabled={restoringPhotoId === photo.id}
+										data-testid="restore-photo"
+										onclick={() => restorePhotoOne(photo.id)}
+									>
+										{restoringPhotoId === photo.id ? 'Restoring...' : 'Restore'}
+									</button>
+								{:else}
+									<span class="removed-when" data-testid="restore-photo-refused">
+										{photo.variant === 'enhanced'
+											? 'Straightened copy, not restorable'
+											: 'Would join the wrong page'}
+									</span>
+								{/if}
 							</li>
 						{/each}
 					</ul>
@@ -1616,25 +1693,15 @@
 		font-size: 0.78rem;
 		color: var(--text-3);
 	}
-	.callout {
-		border-left: 2px solid var(--nb-accent);
-		padding: var(--space-2) var(--space-3);
-		margin: 0 0 var(--space-3);
-		background: var(--nb-accent-wash);
-		border-radius: 0 var(--radius-control) var(--radius-control) 0;
-		font-size: 0.88rem;
-		display: grid;
-		gap: var(--space-1);
-	}
-	.callout strong {
-		color: var(--nb-accent-ink);
-	}
-	.callout-hint {
-		color: var(--text-2);
-		font-size: 0.8rem;
-	}
 	.entry-notes {
 		margin-top: var(--space-4);
+	}
+	.straighten-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
 	}
 
 	/* Closed by default (0119), the same rule as .removed-photos below. */
@@ -1917,6 +1984,31 @@
 		padding-left: 0;
 	}
 
+	/*
+	 * AN OPEN ENTRY'S TITLE KEEPS A READABLE MEASURE AT EVERY WIDTH, which a
+	 * viewport query below could not promise (ledger 0297). Inside the
+	 * classroom the open entry sits in a detail pane, and a pane is narrower
+	 * than the window by the list beside it: measured at 1366x768 the pane
+	 * was 862px, the six labelled controls took about 620px of it, and the
+	 * title beside them wrapped to eight lines in 160px. So the row may wrap
+	 * wherever the title would get less than 28rem, and the controls take
+	 * the next line at the right, which is the arrangement the phone already
+	 * has. Scoped to the open entry: a collapsed row carries no controls and
+	 * must never wrap its checkbox away from its title.
+	 */
+	@media (min-width: 42rem) {
+		.entry.open .row {
+			flex-wrap: wrap;
+		}
+		.entry.open .disclosure {
+			flex: 1 1 28rem;
+		}
+		.entry.open .tools {
+			flex-wrap: wrap;
+			justify-content: flex-end;
+			margin-left: auto;
+		}
+	}
 	/*
 	 * Below this width six labelled controls and a readable title cannot
 	 * share one line, so the group takes its own. The words stay: shrinking

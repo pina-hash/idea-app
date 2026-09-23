@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { siteTheme, siteThemeAttr } from '$lib/theme.svelte';
+	import { siteTheme, themeAttrFor, themeColorFor } from '$lib/theme.svelte';
 	import type { Component } from 'svelte';
 
 	/**
@@ -56,17 +56,37 @@
 	 * for the server and the client to disagree about, which is the property
 	 * the component's own header already promised and this preserves.
 	 */
+	/*
+	 * THE DECISION IS `themeAttrFor`, AND IT IS THE SAME CALL THE SERVER MAKES.
+	 * The session gate, the default-is-an-absence rule and Space White's route
+	 * scope all live in that one pure function in `$lib/theme`; the server
+	 * evaluates it for every registered theme to fill the table the pre-paint
+	 * boot script in `src/app.html` looks the stored value up in (see
+	 * `themeBootScript`). So the attribute this effect writes after hydration
+	 * is, by construction, the one the boot script already wrote before the
+	 * first paint -- and the pathname is an input here for the same reason it
+	 * is there: a client-side navigation from a classroom page to a room Space
+	 * White does not cover has to take the attribute off.
+	 */
 	const signedIn = $derived(!!page.data.claims);
-	const attr = $derived(signedIn ? siteThemeAttr(siteTheme()) : undefined);
+	const attr = $derived(themeAttrFor(siteTheme(), page.url.pathname, signedIn));
 
 	$effect(() => {
 		const el = document.documentElement;
 		if (attr) el.setAttribute('data-theme', attr);
 		else el.removeAttribute('data-theme');
+		/* THE BROWSER'S OWN CHROME FOLLOWS, from the same registry the boot
+		   script reads (`SITE_THEME_COLORS`). A meta that stayed #0A0C0D over a
+		   white page is a dark status bar on a light theme. */
+		const meta = document.querySelector('meta[name="theme-color"]');
+		meta?.setAttribute('content', themeColorFor(attr));
 		/* Teardown restores the unthemed document. Nothing unmounts the root
 		   layout in production, but a harness that swaps roots must not leave a
 		   theme behind on a page that no longer has a control for it. */
-		return () => el.removeAttribute('data-theme');
+		return () => {
+			el.removeAttribute('data-theme');
+			meta?.setAttribute('content', themeColorFor(undefined));
+		};
 	});
 
 	let Rain = $state<Component<{ active: boolean }> | null>(null);

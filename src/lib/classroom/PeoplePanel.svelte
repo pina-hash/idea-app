@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Avatar from '$lib/Avatar.svelte';
 	import { rosterSubject } from '$lib/avatars';
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import { dropTarget, matchesAccept } from '$lib/file-drop';
 	import {
@@ -24,6 +24,7 @@
 		type ReviewTransports
 	} from '$lib/notebook-review';
 	import { formatSectionLabel } from '$lib/section-label';
+	import { classNotebookHref } from '$lib/classroom/nav';
 	import Pending from '$lib/Pending.svelte';
 	import {
 		classEmailList,
@@ -47,14 +48,12 @@
 	} from '$lib/classroom/picker';
 	import {
 		TEAM_WINDOW_WORDS,
-		accentOf,
-		backgroundCss,
-		bannerInk,
 		canStyleTeam,
 		hasStyle,
 		teamDriftNote,
 		teamLabel,
 		teamStyle,
+		teamStyleVars,
 		teamWindowEnd,
 		teamWindowState,
 		type Team,
@@ -350,6 +349,15 @@
 		// printed beside it.
 		seed = pickerSeedFrom(Math.random());
 		drawn = true;
+		/* THE RESULT IS ON SCREEN WHEN DRAW IS PRESSED (ledger 0297). It renders
+		   directly under the Draw row now (the Here today list is ordered after
+		   it), and on a short window it is scrolled into view rather than left
+		   below the fold for a teacher standing at the front of the room. */
+		void tick().then(() =>
+			document
+				.querySelector('[data-testid="picker-note"]')
+				?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+		);
 	}
 
 	function toggleAbsent(email: string) {
@@ -505,26 +513,12 @@
 	}
 
 	/**
-	 * A team's own colours, as inline custom properties. Read through
-	 * `$lib/tournaments/entry-styles`'s pure functions, which already take the
-	 * draft shape -- no adapter, and no second implementation of what a style
-	 * renders as.
+	 * A team's own colours, as inline custom properties: `teamStyleVars`, the
+	 * one projection the class page's posted-teams board reads too (ledger
+	 * 0297), so the two boards cannot paint one team two ways.
 	 */
 	function teamCardStyle(team: Team): string {
-		const style = teamStyle(team);
-		const bg = backgroundCss(style);
-		return [
-			`--team-accent: ${accentOf(style)}`,
-			// THE INK COMES FROM `bannerInk` AND IS NOT CHOSEN HERE. A student
-			// may pick any background; which of dark or light text survives on it
-			// is arithmetic the tournament module already does, and a second
-			// answer to that question is how a team ends up with black text on a
-			// black gradient with nothing on screen reporting it.
-			bg ? `--team-ink: ${bannerInk(style)}` : null,
-			bg ? `--team-bg: ${bg}` : null
-		]
-			.filter(Boolean)
-			.join('; ');
+		return teamStyleVars(team);
 	}
 
 	/** The row whose Remove is armed. Only ever one, and never across a reload. */
@@ -912,7 +906,7 @@
 	<title>People &middot; {sectionTitle(section)} // IDEA Classroom</title>
 </svelte:head>
 
-<main class="classroom-page">
+<main class="classroom-page cr-instructor-surface">
 	<section class="hero">
 		<div class="eyebrow">{section.course?.code ?? 'IDEA // Classroom'}</div>
 		<h1>People</h1>
@@ -930,6 +924,17 @@
 		<p class="feedback" class:ok={msg.ok} class:error={!msg.ok}>{msg.text}</p>
 	{/if}
 
+	<!--
+		THE ROSTER BESIDE ITS TOOLS (ledger 0297). People was one 60rem column: the
+		roster first, then the class tools, then compliance and settings, so on a
+		41-student class the random picker and the team draw sat at y=3962. From
+		1100px the page is two columns, the roster on the left and everything that
+		acts on it on the right, at the top; below that it is one column with the
+		class tools FIRST (`order`), because a teacher opening People in front of a
+		class is there to draw a name, not to scroll past forty of them.
+	-->
+	<div class="people-grid">
+	<div class="people-roster">
 	<section class="card">
 		<h2>Roster</h2>
 		{#if roster.length === 0}
@@ -1020,6 +1025,8 @@
 		</details>
 	</section>
 
+	</div>
+	<div class="people-side">
 	<!--
 		CLASS TOOLS. Placed BELOW the roster and ABOVE notebook compliance: the
 		roster is what the page is for and keeps the top, and all three of these
@@ -1522,7 +1529,7 @@
 				{#if notebook.sessions === 0}
 					<p class="note empty-state" data-testid="nb-compliance-empty">
 						No notebook check-ins are scheduled for this class yet.
-						<a href={`/notebook/review?section=${section.id}`}>Add one in the review console</a>.
+						<a href={`${classNotebookHref(section.id)}?mode=checkins`}>Add one on the Notebook tab</a>.
 					</p>
 				{:else}
 					<p class="nb-line" data-testid="nb-compliance-line">
@@ -1566,7 +1573,7 @@
 						<p class="note" data-testid="nb-all-clear">Everyone is up to date on every check-in.</p>
 					{/if}
 					<p class="note">
-						<a href={`/notebook/review?section=${section.id}`}>Open the review console</a>
+						<a href={classNotebookHref(section.id)}>Open the Notebook tab</a>
 						to read entries, flag work and grade the Documentation Check.
 					</p>
 				{/if}
@@ -1654,6 +1661,8 @@
 			</div>
 		{/if}
 	</section>
+	</div>
+	</div>
 
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />
@@ -1662,11 +1671,13 @@
 
 <style>
 	.classroom-page {
-		max-width: var(--cr-measure, var(--measure-page));
+		max-width: var(--cr-measure, var(--measure-split));
 		margin: 0 auto;
 		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
 	}
-	.classroom-page > .card {
+	/* The cards now sit inside the roster and side columns (ledger 0297). */
+	.people-roster > .card,
+	.people-side > .card {
 		margin-bottom: 1.1rem;
 	}
 	.classroom-page h2 {
@@ -2323,5 +2334,47 @@
 
 	.team-retire-note {
 		flex-basis: 100%;
+	}
+
+	/* --- The roster beside its tools (ledger 0297) ------------------------- */
+	.people-grid {
+		display: flex;
+		flex-direction: column;
+	}
+	/* One column: the side's cards join the page's own flow so the class tools
+	   can come FIRST; the roster follows, then compliance and settings. */
+	.people-side {
+		display: contents;
+	}
+	.people-side > [data-testid='class-tools'] {
+		order: -1;
+	}
+	@media (min-width: 1100px) {
+		.people-grid {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) minmax(22rem, 30rem);
+			gap: 0 var(--space-5);
+			align-items: start;
+		}
+		.people-side {
+			display: flex;
+			flex-direction: column;
+			min-width: 0;
+		}
+		.people-roster {
+			min-width: 0;
+		}
+	}
+	/* THE DRAW'S RESULT SITS DIRECTLY UNDER THE DRAW BUTTON. The Here today list
+	   (a checkbox per student, 41 of them in a real class) used to sit between
+	   the button and the names it drew, so pressing Draw changed nothing a
+	   teacher could see. Ordered last in the panel; the DOM is unchanged, so the
+	   list keeps its place for a screen reader and in print. */
+	#tool-panel-picker {
+		display: flex;
+		flex-direction: column;
+	}
+	#tool-panel-picker > .tool-absent {
+		order: 1;
 	}
 </style>

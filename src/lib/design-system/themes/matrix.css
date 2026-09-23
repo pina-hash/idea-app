@@ -92,9 +92,10 @@
      - --line / --line-strong / --hairline. Already sage and mint; --hairline
        is a white alpha rule CLAUDE.md forbids raising, and re-hueing the
        other two would be a claim about FSP's hairlines for no gain.
-     - Every --nb-* token. The notebook has its OWN plate picker, and a site
-       theme reaching into a room that already asks the question is two
-       controls fighting over one surface.
+     - Every --nb-* token. The notebook's own tokens under this theme are
+       authored in colors.css (`:root[data-theme='matrix'] .nb-root`); since
+       ledger 0297 the notebook has no plate picker and follows the site
+       theme, reading this register straight through.
      - Every scoped room's own declarations (.frc-root, .gt-root, .glb,
        .tnm-root, .fsp-root, .fg-root, .cd-root, .nb-root). Those sit BELOW
        :root and win for their own subtree by the ordinary cascade -- there is
@@ -124,6 +125,11 @@
 	--text-3: #4f6853;
 	--boundary: #64826b;
 	--green-tint: #093619;
+	/* The role layer's raised ground (colors.css), which in a dark register
+	   is the lightest step -- this theme's own --surface-2, as a literal for
+	   the alias reason colors.css gives. Nothing painted before ledger 0297
+	   reads it, so declaring it moves no pixel. */
+	--surface-raised: #0c150d;
 
 	/* --- The four luminance-held tiers. See the block above for why each of
 	   these is a solved value and not a chosen one. ------------------------ */
@@ -229,8 +235,8 @@
 
    THE NOTEBOOK IS NOT REACHED, AND THIS BUNDLE FIRST WROTE THE PAIR FOR IT.
    Ledger 0119 landed on `integration` the same day with a Matrix plate of
-   the notebook's own (`.nb-root[data-nb-theme='matrix']`, and the default
-   plate following the site theme), whose header says in its own words that
+   the notebook's own (retired in ledger 0297, when the notebook began
+   following the site theme outright), whose header says in its own words that
    the falling code stays on the portal pages and that the room's `.bg-fx`
    suppression is what it relies on. A site theme reaching past a decision
    the room's owner wrote down that morning is two lanes shipping opposite

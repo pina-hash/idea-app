@@ -34,7 +34,7 @@
 	<title>Duplicate drafts | {data.section.label}</title>
 </svelte:head>
 
-<div class="dd-page">
+<div class="dd-page cr-instructor-surface">
 	<DuplicateDrafts
 		sectionName={data.section.label}
 		answer={data.answer}
@@ -47,7 +47,7 @@
 <style>
 	.dd-page {
 		padding: var(--cr-gutter, 1rem);
-		max-width: var(--cr-measure, 92rem);
+		max-width: var(--cr-measure, var(--measure-split));
 		margin: 0 auto;
 	}
 </style>

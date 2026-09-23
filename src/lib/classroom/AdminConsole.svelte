@@ -141,7 +141,7 @@
 	<title>Courses &amp; setup // IDEA Classroom</title>
 </svelte:head>
 
-<main class="classroom-page">
+<main class="classroom-page cr-instructor-surface">
 	<section class="hero">
 		<div class="eyebrow">IDEA // Classroom</div>
 		<h1>Courses &amp; setup</h1>

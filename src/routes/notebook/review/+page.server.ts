@@ -1,136 +1,22 @@
 import { error, redirect } from '@sveltejs/kit';
-import { notebookAccess } from '$lib/server/notebook-access';
-import type { ReviewSection } from '$lib/notebook-review';
+import { loadReviewConsole } from '$lib/server/notebook-review-console';
+import { legacyReviewTarget } from '$lib/notebook/legacy-routes';
 import type { PageServerLoad } from './$types';
 
 /**
- * Section review: the per-section compliance grid, plus the check-in
- * management it depends on.
+ * THE REVIEW CONSOLE'S OLD ADDRESS, KEPT (ledger 0297, package F4a).
  *
- * The GATE is unchanged: the same two tiers the notebook's own data layer
- * recognizes (teacher of record of a classroom section, or the 0067
- * admin/chair tier) via the one shared helper, and a non-reviewer gets a 404
- * rather than a redirect -- the /admin rule, so probing the URL reveals
- * nothing. Anonymous visitors never reach it (hooks.server.ts turns them away
- * at the '/notebook' prefix first).
- *
- * WHICH SECTIONS. Since 0094 these are IDEA CLASSROOM sections -- the
- * notebook has no section table of its own any more -- scoped to what the
- * viewer may actually touch:
- *
- *   * CHAIR (0067 admin) -- every section, `manages: true` on all of them.
- *   * INSTRUCTOR -- sections where they are the TEACHER OF RECORD
- *     (`manages: true`), which is exactly what `classroom_manages_section()`
- *     checks inside every notebook RPC and policy.
- *   * SECTION REVIEWER (0169) -- sections granted on the reviewer allowlist,
- *     `manages: false`: the console renders the grid and the review actions
- *     for these and withholds the manage-only panels (check-ins, doc-check
- *     grading, staff deletes) on that flag. The rows come from
- *     `notebook_reviewed_sections()` via notebookAccess, because a reviewer
- *     cannot read `classroom_sections` at all (0082's policy covers members
- *     and managers) and would otherwise hold a grant they could not name.
- *     One person can be both -- teacher of P1, reviewer of P2 -- so the two
- *     lists MERGE, and a section on both keeps `manages: true`.
- *
- * The teacher_email filter is doing real work, not just tidying: 0082 lets an
- * ENROLLED STUDENT read their own sections too, so an unfiltered select here
- * would offer a section to someone the grid would then refuse.
- *
- * That scoping is still CONVENIENCE, not the boundary.
- * `notebook_get_section_grid` refuses a section the caller neither teaches nor
- * administers regardless of what the client asks for, so the worst a tampered
- * request achieves is an error instead of data.
- *
- * Everything after this load runs as the CALLER'S OWN session from the
- * browser (the /coin-desk convention): the grid, the entry read and all four
- * writes are RPCs or RLS-scoped selects that re-check the caller themselves.
- *
- * Fails soft in one direction only: with the notebook migrations unapplied the
- * page renders a clearly-flagged "not available yet" card instead of crashing.
+ * THE GATE RUNS BEFORE THE REDIRECT, AND THAT ORDER IS THE WHOLE RULE. A
+ * non-reviewer gets the same 404 this address always gave them -- the /admin
+ * rule -- because a redirect answered to anybody would confirm the review
+ * surface exists to somebody who may not see it. Only a caller the console
+ * would admit is sent on: a manager of `?section=` to that class's own
+ * Notebook tab (where the retired Check-ins tab used to send them), anybody
+ * else to the all-sections console. The target re-checks everything itself.
  */
 export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
-
-	const access = await notebookAccess(supabase, claims.sub, claims.email as string | undefined);
-	if (!access.canReview) error(404, 'Not found');
-
-	let query = supabase
-		.from('classroom_sections')
-		.select('id, label, block, teacher_email, classroom_courses ( code, title )')
-		.order('label');
-	if (!access.isChair) query = query.eq('teacher_email', access.email);
-
-	// Is 0097 applied? Migrations here are pasted in by hand, so a deploy
-	// sitting between two of them is a real state -- and the Documentation
-	// Check panel is the ONLY thing that depends on this one. A head-count
-	// probe rather than a version table (the notebook's own fail-soft
-	// convention): unapplied, the panel simply does not render and the grid,
-	// the check-in manager and every review action are untouched.
-	const [{ data, error: sectionError }, unitLinkProbe] = await Promise.all([
-		query,
-		supabase.from('notebook_unit_items').select('section_id', { count: 'exact', head: true })
-	]);
-
-	interface Row {
-		id: string;
-		label: string;
-		block: string | null;
-		teacher_email: string;
-		classroom_courses: { code: string; title: string } | { code: string; title: string }[] | null;
-	}
-
-	// PostgREST types an embedded to-one as an object, but the generated client
-	// types it as a possible array; normalize rather than trust either.
-	const managed: ReviewSection[] = ((data ?? []) as Row[]).map((row) => {
-		const course = Array.isArray(row.classroom_courses)
-			? row.classroom_courses[0]
-			: row.classroom_courses;
-		return {
-			id: row.id,
-			label: row.label,
-			block: row.block,
-			teacher_email: row.teacher_email,
-			course_code: course?.code ?? '',
-			course_title: course?.title ?? '',
-			manages: true
-		};
-	});
-
-	// The 0169 reviewer grants, merged AFTER the managed list so a section the
-	// viewer holds both ways keeps `manages: true`. Sorted once at the end:
-	// the two sources are each ordered but their union is not.
-	const managedIds = new Set(managed.map((s) => s.id));
-	const sections: ReviewSection[] = [
-		...managed,
-		...access.reviewsSections.filter((s) => !managedIds.has(s.id))
-	].sort((a, b) => a.label.localeCompare(b.label));
-
-	/**
-	 * `?section=` -- how a class page links straight into its own grid.
-	 *
-	 * Validated against the list ABOVE rather than passed through, so a made-up
-	 * or foreign id simply falls back to the default section instead of
-	 * preselecting one whose grid would then answer with a refusal. That is
-	 * courtesy, not a boundary: `notebook_get_section_grid` refuses a section
-	 * the caller neither teaches nor administers whatever this says.
-	 */
-	const asked = url.searchParams.get('section');
-	const initialSectionId = sections.some((s) => s.id === asked) ? asked : null;
-
-	return {
-		isInstructor: access.isInstructor,
-		isChair: access.isChair,
-		/**
-		 * The caller's own uuid, so the admin log can render their own rows as
-		 * "You". It is already in the validated claims -- this is a rename, not a
-		 * read -- and it is the ONLY identity the log resolves: every other actor
-		 * stays a uuid, because joining `profiles` for arbitrary user ids would
-		 * add a read of other people's rows to a console for a cosmetic gain.
-		 */
-		viewerId: claims.sub,
-		configured: !sectionError,
-		docCheckReady: !unitLinkProbe.error,
-		initialSectionId,
-		sections
-	};
+	const review = await loadReviewConsole(supabase, claims);
+	if (!review) error(404, 'Not found');
+	redirect(307, legacyReviewTarget(url, review.sections));
 };

@@ -114,12 +114,24 @@ describe('coverage is structural, not per page', () => {
 		expect(PAGES.length).toBeGreaterThan(100);
 	});
 
-	it('has no layout reset anywhere, so the root layout wraps every page', () => {
+	it('every layout reset resets to the ROOT, so the root layout still wraps every page', () => {
 		// `+page@.svelte` / `+layout@.svelte` are the ONLY way a route escapes an
-		// ancestor layout in SvelteKit. One of these appearing is what would make
-		// the shell mount stop being total, silently and for one route only.
+		// ancestor layout in SvelteKit. A reset to the ROOT (`@` with no name)
+		// escapes every layout BETWEEN the page and the root and never the root
+		// itself, which is where the shell mount lives, so coverage survives it.
+		// A reset to a NAMED layout is where this rule would need re-reading, so
+		// each reset is named here with its reason and any other one reddens.
+		// The one on file is the class projector (ledger 0297, LIVE): a wall
+		// display that must render no classroom chrome, and whose load must not
+		// inherit the section payload (roster, hall pass holder, items). Its
+		// shell control is excluded by category and relocated to its own strip.
+		const ROOT_RESETS: Record<string, string> = {
+			'src/routes/classroom/[sectionId]/live/projector/+page@.svelte':
+				'the class projector: no classroom chrome on a wall, and no section payload in its data'
+		};
 		const resets = ROUTE_FILES.filter((f) => /\/\+(page|layout|error)@[^/]*\.svelte$/.test(f));
-		expect(resets).toEqual([]);
+		expect([...resets].sort()).toEqual(Object.keys(ROOT_RESETS).sort());
+		for (const f of resets) expect(f, f).toMatch(/\/\+page@\.svelte$/);
 		// Positive control: the detector finds one when the pattern is present.
 		expect(
 			['src/routes/x/+page@.svelte', 'src/routes/y/+layout@root.svelte'].filter((f) =>
@@ -210,7 +222,10 @@ describe('every exclusion is by category, and each has a positive control', () =
 	);
 
 	it('an ordinary route keeps the shell control (the whole-file positive control)', () => {
-		for (const routeId of ['/', '/notebook', '/classroom/[sectionId]', '/greenline/builder']) {
+		// '/classroom/[sectionId]' left this list in ledger 0297: the classroom
+		// docks the control in its own header now (the `classroom` rule), and
+		// '/foundry' took its place as a second ordinary signed-in surface.
+		for (const routeId of ['/', '/notebook', '/foundry', '/greenline/builder']) {
 			expect(feedbackExclusion(routeId)).toBeNull();
 			expect(triggers({ place: 'shell', routeId, pathname: routeId })).toBe(1);
 		}
@@ -227,7 +242,9 @@ describe('every exclusion is by category, and each has a positive control', () =
 		const relocations: Record<string, string> = {
 			deck: 'src/routes/classroom/[sectionId]/item/[itemId]/deck/+page.svelte',
 			gauntlet: 'src/routes/gauntlet/+layout.svelte',
-			error: 'src/routes/+error.svelte'
+			classroom: 'src/lib/classroom/ClassroomShell.svelte',
+			error: 'src/routes/+error.svelte',
+			projector: 'src/routes/classroom/[sectionId]/live/projector/+page@.svelte'
 		};
 		for (const [id, file] of Object.entries(relocations)) {
 			const src = read(file);

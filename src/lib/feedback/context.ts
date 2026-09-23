@@ -28,6 +28,8 @@
  */
 export type FeedbackExclusionId =
 	| 'deck'
+	| 'projector'
+	| 'classroom'
 	| 'gauntlet'
 	| 'greenline'
 	| 'vanguard'
@@ -53,6 +55,46 @@ export interface FeedbackExclusionRule {
 const under = (prefix: string) => (routeId: string) =>
 	routeId === prefix || routeId.startsWith(prefix + '/');
 
+/**
+ * The `/dev` harnesses that mount the REAL ClassroomShell, which carries the
+ * relocated Report and Voice controls in its header. Exported so a test can
+ * sweep src/routes/dev for every harness that imports the shell and fail when
+ * one is missing from this list (a harness showing both the floating pill and
+ * the docked one measures an arrangement production never has).
+ */
+export const CLASSROOM_SHELL_HARNESSES = [
+	'/dev/animated-logo-room',
+	'/dev/classroom',
+	'/dev/classroom-live',
+	'/dev/classroom-nav',
+	'/dev/classroom-palette',
+	'/dev/classroom-split',
+	'/dev/classroom-stream',
+	'/dev/classroom-todo',
+	'/dev/classroom-view-as-notebook',
+	'/dev/notebook',
+	'/dev/notebook-capture',
+	'/dev/notebook-review',
+	'/dev/notebook-review-student',
+	'/dev/notebook-timeline',
+	'/dev/theme-switch'
+] as const;
+
+/**
+ * The `/dev` harnesses that mount a classroom SURFACE without the shell around
+ * it (the grading console, People). In production those surfaces sit under
+ * `/classroom`, where the controls are docked in the header and nothing
+ * floats over them, so the harness takes the same exclusion: a floating pill
+ * over the grading dock in a harness is an arrangement production never has.
+ */
+export const CLASSROOM_SURFACE_HARNESSES = [
+	'/dev/grading',
+	'/dev/grading-bulk',
+	'/dev/grading-rubric',
+	'/dev/presence',
+	'/dev/instructor-tools'
+] as const;
+
 export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 	{
 		id: 'deck',
@@ -69,6 +111,51 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 			/^\/classroom\/\[sectionId\]\/item\/\[itemId\]\/deck$/.test(routeId) ||
 			under('/dev/classroom-deck')(routeId),
 		samples: ['/classroom/[sectionId]/item/[itemId]/deck', '/dev/classroom-deck']
+	},
+	{
+		id: 'projector',
+		label: 'Class projector view',
+		relocatedTo: "the projector view's own strip, beside Full screen",
+		// The class's wall display (ledger 0297): the agenda, the clock and the
+		// timer, projected. A floating control over it is on the wall in front of
+		// the class, exactly as it would be over a deck.
+		match: (routeId) =>
+			routeId === '/classroom/[sectionId]/live/projector' || under('/dev/classroom-projector')(routeId),
+		samples: ['/classroom/[sectionId]/live/projector', '/dev/classroom-projector']
+	},
+	{
+		id: 'classroom',
+		label: 'IDEA Classroom and the notebook inside it',
+		relocatedTo: 'the classroom header, beside Search and Settings (the Menu on a narrow window)',
+		// LEDGER 0297, report 34's neighbour: the floating Report and Voice pills
+		// sat over live classroom content on every class and notebook page -- a
+		// row's checkbox and grip, a menu trigger, People's Deactivate and Remove,
+		// the grading dock's Return button at 960, the photo corrector's buttons
+		// -- and a hit test at the overlap answered the pill. The room has chrome
+		// of its own on every one of those pages, so both controls dock into it
+		// (ClassroomShell mounts SiteFeedback at `place="relocated"` and VoiceNav
+		// at `place="header"`), and nothing floats over the class any more.
+		//
+		// AFTER THE DECK AND THE PROJECTOR, the two classroom routes with chrome
+		// of their own (the deck's bar, the wall strip) and which this rule must
+		// not claim: the first match wins.
+		// The dev harnesses that mount the real ClassroomShell are listed so a
+		// measurement there sees the production arrangement and not a pill over
+		// the fixture with a second copy in the header.
+		match: (routeId) =>
+			under('/classroom')(routeId) ||
+			CLASSROOM_SHELL_HARNESSES.some((p) => under(p)(routeId)) ||
+			CLASSROOM_SURFACE_HARNESSES.some((p) => under(p)(routeId)),
+		samples: [
+			'/classroom',
+			'/classroom/[sectionId]',
+			'/classroom/[sectionId]/item/[itemId]',
+			'/classroom/[sectionId]/people',
+			'/classroom/[sectionId]/notebook',
+			'/classroom/notebook',
+			'/classroom/todo',
+			'/dev/classroom-split/[sectionId]'
+		]
 	},
 	{
 		id: 'gauntlet',

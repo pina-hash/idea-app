@@ -54,9 +54,9 @@
 	const EMPTY: GreenlinePending = { ready: true, tracks: 0, decals: 0, total: 0 };
 	const UNREADY: GreenlinePending = { ready: false, tracks: 0, decals: 0, total: 0 };
 
-	// ?manage=0 is a student's own view of the same URL, which must have no bar
-	// at all -- four of the five tabs are `manageOnly` and the fifth alone
-	// renders no bar.
+	// ?manage=0 is a student's own view of the same URL. Three of the five tabs
+	// are `manageOnly`; since ledger 0297 the class's Notebook tab is not, so a
+	// student gets a two-tab bar -- Class and Notebook -- and nothing else.
 	const params = $derived(page.url.searchParams);
 	const manages = $derived(params.get('manage') !== '0');
 	const tabs = shipped;
@@ -78,11 +78,9 @@
 				<div class="dv-eyebrow">DEV</div>
 				<h1>The doors</h1>
 				<p class="dv-lead">
-					Above: the real section tab bar, fed by the real <code>sectionTabs()</code>. Check-ins is
-					a departure, so it carries a guillemet and never takes the active underline;
-					Duplicates is an in-classroom view and does take it, on its own page.
-					<code>?manage=0</code> is a student, who gets no bar at all because only one tab
-					survives the manage filter.
+					Above: the real section tab bar, fed by the real <code>sectionTabs()</code>. Every tab
+					is an in-classroom view now, the class's Notebook tab included.
+					<code>?manage=0</code> is a student, whose bar is Class and Notebook.
 				</p>
 			</section>
 

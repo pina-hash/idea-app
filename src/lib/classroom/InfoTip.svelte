@@ -175,6 +175,11 @@
 		visibility: hidden;
 		pointer-events: none;
 	}
+	/* Under Space White a popover lifts on the theme's hard elevation rather
+	   than a blurred dark drop (ledger 0297); the dark theme keeps its own. */
+	:global(:root[data-theme='space-white']) .info-tip-panel {
+		box-shadow: var(--elevation-2);
+	}
 	@media (prefers-reduced-motion: no-preference) {
 		.info-tip-panel {
 			transition: opacity 0.12s ease;

@@ -17,6 +17,7 @@
 	import { markUnitComplete, clearUnitComplete } from '$lib/frc/progression';
 	import { approveSubmission, requestRevision } from '$lib/frc/gate-submissions';
 	import AdminRoster from './AdminRoster.svelte';
+	import { supabaseProfileIo, updateProfilePreferences } from '$lib/preferences/profile-io';
 	import {
 		CONSOLE_PANELS,
 		CONSOLE_SORT_MODES,
@@ -88,11 +89,17 @@
 
 	const persist = async (next: ConsolePrefs) => {
 		prefs = next;
-		const merged = mergeConsolePrefs(data.userProfile?.preferences, next);
 		// Fire and forget on purpose: a usage record that failed to save costs
 		// nothing but next visit's order, and a save error here is not a thing
-		// to put in front of somebody who is reviewing a queue.
-		await data.supabase.from('profiles').update({ preferences: merged }).eq('id', data.userProfile?.id ?? '');
+		// to put in front of somebody who is reviewing a queue. The merge is
+		// `mergeConsolePrefs`, applied to the row as it stands NOW rather than
+		// the page-load snapshot (ledger 0297), so another page's namespace
+		// written since this one loaded is kept.
+		const uid = data.userProfile?.id;
+		if (!uid) return;
+		await updateProfilePreferences(supabaseProfileIo(data.supabase, uid), (current) =>
+			mergeConsolePrefs(current, next)
+		);
 	};
 	const setSort = (mode: ConsoleSort) => {
 		loadedPrefs = { ...loadedPrefs, sort: mode };

@@ -40,7 +40,8 @@
 		disabled = false,
 		uploadReady = true,
 		captureContext = undefined,
-		testPrefix = 'nb'
+		testPrefix = 'nb',
+		correctFirst = true
 	}: {
 		staged: StagedPhoto[];
 		/**
@@ -56,6 +57,14 @@
 		captureContext?: unknown;
 		/** Distinguishes this stager's hooks when a page mounts more than one. */
 		testPrefix?: string;
+		/**
+		 * Whether every photo passes the straighten screen before it is staged
+		 * (ledger 0297, F4b). The composer passes false: straightening is a
+		 * choice made AFTER the fact on the entry's latest page
+		 * (`straightenTarget`), so a photo is staged, and uploaded, the moment it
+		 * is taken rather than one extra tap later.
+		 */
+		correctFirst?: boolean;
 	} = $props();
 
 	/** Picked but not yet through the correction step; corrected one at a time. */
@@ -145,7 +154,10 @@
 			if (rejected.length) rejectedNote = rejected.join(' ');
 			// Every usable photo queues for its OWN correction step (one at a
 			// time, in order); it lands in `staged` only once corrected or skipped.
-			if (usable.length) correctionQueue = [...correctionQueue, ...usable];
+			if (usable.length) {
+				if (correctFirst) correctionQueue = [...correctionQueue, ...usable];
+				else staged = [...staged, ...usable.map((file) => ({ file, enhanced: null }))];
+			}
 		} finally {
 			checking = false;
 		}

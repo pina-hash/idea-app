@@ -43,7 +43,7 @@ import {
 	prepareWaitResult,
 	prepareEvalResult
 } from './checks.mjs';
-import { canvasContent, layoutSanity, distinguishable, installCanvasReadback, readoutNearPointer } from './checks-visual.mjs';
+import { canvasContent, layoutSanity, controlFit, distinguishable, installCanvasReadback, readoutNearPointer } from './checks-visual.mjs';
 
 const shell = (body, head = '') =>
 	`<!doctype html><html><head><meta name="viewport" content="width=device-width"><style>
@@ -163,6 +163,40 @@ const CASES = [
 			html: shell('<div style="background:#d8d4c6;padding:8px"><p id="t" style="color:#14180f">on a light card</p></div>'),
 			run: (p) => contrast(p, { selector: '#t', min: 4.5, all: true }),
 			expect: 'within'
+		}
+	},
+	{
+		/* THE PROJECTOR-WASHOUT OPTION (ledger 0297). The broken fixture is
+		   chosen so that ONLY the washout can catch it: the portal's own --dim
+		   on --bg0 clears WCAG at 5.31:1 and drops to 3.26:1 once a 300:1
+		   projector and 10% ambient light are applied -- so a check that
+		   silently ignored `projector: true` and judged the WCAG ratio would
+		   come back GREEN here, and the assert says so in words. The sound
+		   fixture is the research's own worked example, #0D1311 on #F7F9F9,
+		   which the model puts at 9.56:1. Both expected figures were computed
+		   OUTSIDE this instrument (the sRGB luminance formula in a separate
+		   Python session), so the assert is not the implementation agreeing
+		   with itself. */
+		group: 'contrast (projector washout)',
+		bad: {
+			name: 'the portal --dim on --bg0: passes WCAG, fails on the wall',
+			html: shell('<div style="background:#121a12;padding:8px"><p id="t" style="color:#849080">secondary label</p></div>'),
+			run: (p) => contrast(p, { selector: '#t', min: 4.5, all: true, projector: true }),
+			expect: 'outside',
+			assert: (r) => {
+				const x = r.data.results[0];
+				if (!x) return 'no element measured';
+				if (x.ratio < 4.5) return `the fixture was meant to PASS plain WCAG and read ${x.ratio}:1, so it does not isolate the washout`;
+				if (Math.abs(x.washed - 3.26) > 0.02) return `washed ${x.washed}:1, expected 3.26 from the model`;
+				return null;
+			}
+		},
+		good: {
+			name: "Space White's body ink on its panel (the research's 9.56:1)",
+			html: shell('<div style="background:#f7f9f9;padding:8px"><p id="t" style="color:#0d1311">body copy</p></div>'),
+			run: (p) => contrast(p, { selector: '#t', min: 4.5, all: true, projector: true }),
+			expect: 'within',
+			assert: (r) => (Math.abs((r.data.results[0]?.washed ?? 0) - 9.56) <= 0.02 ? null : `washed ${r.data.results[0]?.washed}:1, expected 9.56`)
 		}
 	},
 	{
@@ -1181,6 +1215,43 @@ const CASES = [
 			canvasReadback: true,
 			html: glShell(true),
 			run: (p) => canvasContent(p, { selector: '#c', label: 'the fixture canvas' }),
+			expect: 'within'
+		}
+	},
+	{
+		/* LEDGER 0297: "button text never touches its border". The bad fixture
+		   is a bordered button with no inline padding, its word flush against
+		   both edges; the good one is the same button with 12px of padding. */
+		group: 'control-fit (a label touching its own border)',
+		bad: {
+			name: 'a bordered button with its word flush against the edge',
+			html: shell('<div id="r"><button style="border:1px solid #9ab;background:#123;color:#eee;padding:12px 0;min-height:44px;font:16px monospace">Return</button></div>'),
+			run: (p) => controlFit(p, { root: '#r', label: 'the fixture' }),
+			expect: 'outside',
+			assert: (r) => (r.data.tight.length === 1 && r.data.overlap.length === 0 ? null : `expected 1 tight 0 overlap, got ${r.data.tight.length}/${r.data.overlap.length}`)
+		},
+		good: {
+			name: 'the same button with 12px of inline padding',
+			html: shell('<div id="r"><button style="border:1px solid #9ab;background:#123;color:#eee;padding:12px;min-height:44px;font:16px monospace">Return</button></div>'),
+			run: (p) => controlFit(p, { root: '#r', label: 'the fixture' }),
+			expect: 'within'
+		}
+	},
+	{
+		/* "Nothing overlaps at half-screen width": a floating control over a
+		   row's checkbox is the shape the classroom shipped. */
+		group: 'control-fit (one control painted over another)',
+		bad: {
+			name: 'a fixed pill over a row checkbox',
+			html: shell('<div id="r"><label style="display:block;padding:12px"><input type="checkbox" style="width:20px;height:20px"> row</label><button style="position:fixed;left:0;top:0;width:120px;height:44px;padding:0 12px">Voice</button></div>'),
+			run: (p) => controlFit(p, { root: '#r', label: 'the fixture' }),
+			expect: 'outside',
+			assert: (r) => (r.data.overlap.length >= 1 ? null : `expected an overlapping pair, got ${r.data.overlap.length}`)
+		},
+		good: {
+			name: 'the same two controls side by side',
+			html: shell('<div id="r"><label style="display:inline-block;padding:12px"><input type="checkbox" style="width:20px;height:20px"> row</label><button style="width:120px;height:44px;padding:0 12px">Voice</button></div>'),
+			run: (p) => controlFit(p, { root: '#r', label: 'the fixture' }),
 			expect: 'within'
 		}
 	},

@@ -1,13 +1,16 @@
 <script lang="ts">
 	import {
+		displayPhotoName,
 		driveOpenUrl,
 		pageKey,
 		pagePhoto,
 		photoPages,
 		photoSrc,
 		type EntryActionResult,
-		type NotebookPhoto
+		type NotebookPhoto,
+		type PhotoPage
 	} from '$lib/notebook';
+	import { pageRemovalOrder } from '$lib/notebook/capture';
 	import { photoThumbSrc } from '$lib/notebook-folders';
 	import PhotoViewer from '$lib/notebook/PhotoViewer.svelte';
 
@@ -124,19 +127,36 @@
 	let removing = $state<string | null>(null);
 	let removeError = $state<Record<string, string>>({});
 
-	async function remove(photoId: string) {
+	/**
+	 * REMOVING IS PER PAGE, BOTH ROWS, CORRECTED VERSION FIRST (ledger 0297).
+	 * It used to remove the one photo on screen, which on a page showing its
+	 * original left the corrected row behind with nothing before it but the
+	 * previous page -- and `photoPages` pairs a corrected row with whatever
+	 * live original precedes it. `pageRemovalOrder` is the one rule; the order
+	 * is the safe one if the second call fails. Keyed on `pageKey`, so the
+	 * armed state follows the page and not whichever variant is showing.
+	 */
+	async function remove(page: PhotoPage) {
+		const key = pageKey(page);
 		if (!onRemove || removing) return;
-		if (armed !== photoId) {
-			armed = photoId;
+		if (armed !== key) {
+			armed = key;
 			return;
 		}
-		removing = photoId;
-		const { [photoId]: _dropped, ...rest } = removeError;
+		removing = key;
+		const { [key]: _dropped, ...rest } = removeError;
 		removeError = rest;
-		const result = await onRemove(photoId);
+		let failure: string | null = null;
+		for (const id of pageRemovalOrder(page)) {
+			const result = await onRemove(id);
+			if (!result.ok) {
+				failure = result.error;
+				break;
+			}
+		}
 		removing = null;
 		armed = null;
-		if (!result.ok) removeError = { ...removeError, [photoId]: result.error };
+		if (failure) removeError = { ...removeError, [key]: failure };
 	}
 </script>
 
@@ -249,31 +269,31 @@
 						<span class="variant">corrected</span>
 					{/if}
 					{#if photo.original_filename}
-						<span class="filename">{photo.original_filename}</span>
+						<span class="filename">{displayPhotoName(photo.original_filename)}</span>
 					{/if}
 					{#if onRemove}
 						<button
 							type="button"
 							class="photo-remove"
 							data-testid="photo-remove"
-							disabled={removing === photo.id}
-							onclick={() => remove(photo.id)}
+							disabled={removing === key}
+							onclick={() => remove(page)}
 						>
-							{removing === photo.id
+							{removing === key
 								? 'Removing...'
-								: armed === photo.id
+								: armed === key
 									? 'Confirm remove'
 									: 'Remove'}
 						</button>
-						{#if armed === photo.id}
+						{#if armed === key}
 							<button type="button" class="photo-remove-cancel" onclick={() => (armed = null)}>
 								Cancel
 							</button>
 						{/if}
 					{/if}
-					{#if onRemove && removeError[photo.id]}
+					{#if onRemove && removeError[key]}
 						<span class="photo-remove-error" role="alert" data-testid="photo-remove-error">
-							{removeError[photo.id]}
+							{removeError[key]}
 						</span>
 					{/if}
 				</figcaption>

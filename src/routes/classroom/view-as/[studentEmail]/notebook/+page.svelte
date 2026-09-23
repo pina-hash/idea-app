@@ -3,15 +3,12 @@
 	import NotebookNoAccountNotice from '$lib/notebook/NotebookNoAccountNotice.svelte';
 	import type { PageData } from './$types';
 
-	let { data }: { data: PageData } = $props();
-
 	/**
-	 * The way up is the PICKER now, not this student's own landing page. That
-	 * page listed their classes so an admin could open one as them, and both
-	 * class-level previews are gone; the URL survives only as a redirect back
-	 * here, so pointing "Home" at it would be a link to the page you are on.
+	 * The way up is the PICKER, which the classroom shell's minimal mode renders
+	 * as its back control ("Pick a student"); the notebook has no masthead of
+	 * its own any more (ledger 0297), so nothing here carries a second one.
 	 */
-	const HOME = '/classroom/view-as';
+	let { data }: { data: PageData } = $props();
 </script>
 
 <!--
@@ -40,6 +37,4 @@
 	canReview={false}
 	uploadReady={false}
 	readOnly
-	homeHref={HOME}
-	masthead={false}
 />

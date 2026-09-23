@@ -54,27 +54,35 @@ describe('control 1: a caller who manages no section is offered no manage-only t
 	 */
 	const tabs = sectionTabs('s-1');
 
-	it('a student sees exactly one tab, and it is the class stream', () => {
+	/*
+	 * GENERALIZED (ledger 0297): a student used to see exactly one tab, the
+	 * class stream. The notebook moved INTO the class as a tab every member
+	 * sees, so a student sees two -- the class and its notebook -- and still
+	 * nothing a manager alone is offered.
+	 */
+	it('a student sees the class stream and its notebook, and nothing manage-only', () => {
 		const visible = visibleSectionTabs(tabs, false);
-		expect(visible.map((t) => t.id)).toEqual(['class']);
+		expect(visible.map((t) => t.id)).toEqual(['class', 'notebook']);
+		expect(visible.every((t) => !t.manageOnly)).toBe(true);
 		// Named absences, not just a count: a tab renamed rather than removed
 		// would keep the count and lose the meaning.
+		expect(visible.some((t) => t.id === 'live')).toBe(false);
 		expect(visible.some((t) => t.id === 'people')).toBe(false);
 		expect(visible.some((t) => t.id === 'grades')).toBe(false);
 		expect(visible.some((t) => t.id === 'duplicates')).toBe(false);
-		expect(visible.some((t) => t.id === 'check-ins')).toBe(false);
 	});
 
-	it('POSITIVE CONTROL: a manager sees all five, so the absences above are the predicate', () => {
+	it('POSITIVE CONTROL: a manager sees all six, so the absences above are the predicate', () => {
 		const visible = visibleSectionTabs(tabs, true);
 		expect(visible.map((t) => t.id)).toEqual([
 			'class',
+			'live',
+			'notebook',
 			'people',
 			'grades',
-			'duplicates',
-			'check-ins'
+			'duplicates'
 		]);
-		expect(visible.length).toBe(5);
+		expect(visible.length).toBe(6);
 	});
 
 	it('the shell filters through that one function and does not spell it again', () => {
@@ -85,15 +93,17 @@ describe('control 1: a caller who manages no section is offered no manage-only t
 	});
 
 	/**
-	 * A STUDENT GETS NO BAR AT ALL, which is a second, independent refusal: the
-	 * bar renders only when more than one tab survives the filter. So opening
-	 * `visibleSectionTabs` alone still leaves this closed, and opening this
-	 * alone still leaves a student one tab.
+	 * ONE SURVIVING TAB WOULD RENDER NO BAR, which is a second, independent
+	 * rule: the bar renders only when more than one tab survives the filter.
+	 * GENERALIZED (ledger 0297): a student used to be that case and is not any
+	 * more -- their class's Notebook tab is the second tab, so the bar is how a
+	 * student reaches their notebook for this class. What stays true is the
+	 * rule, and that the bar a student gets carries only the two tabs above.
 	 */
-	it('one surviving tab renders no bar, in the shell as shipped', () => {
+	it('the bar renders only for more than one tab, and a student now has two', () => {
 		const shell = read('src/lib/classroom/ClassroomShell.svelte');
 		expect(shell).toMatch(/visibleTabs\.length > 1 && tab/);
-		expect(visibleSectionTabs(sectionTabs('s-1'), false).length).toBe(1);
+		expect(visibleSectionTabs(sectionTabs('s-1'), false).length).toBe(2);
 	});
 });
 
@@ -203,13 +213,15 @@ describe('control 3: every section tab still resolves', () => {
 	 * check names the file it looked for. The duplicates tab is absent from
 	 * both directions on purpose -- see the last block.
 	 */
-	it('the shipped set is exactly these five, in reading order', () => {
-		expect(tabs.map((t) => t.id)).toEqual(['class', 'people', 'grades', 'duplicates', 'check-ins']);
+	it('the shipped set is exactly these six, in reading order', () => {
+		expect(tabs.map((t) => t.id)).toEqual(['class', 'live', 'notebook', 'people', 'grades', 'duplicates']);
 	});
 
 	it('every in-classroom tab points at a page that exists on disk', () => {
 		const internal = tabs.filter((t) => !t.external);
-		expect(internal.length).toBe(4);
+		// Six: the notebook came inside the class and the Live tab joined it
+		// (ledger 0297); no tab is a departure any more.
+		expect(internal.length).toBe(6);
 		for (const t of internal) {
 			const file = routeFileFor(t.href);
 			expect(existsSync(new URL(`../${file}`, import.meta.url)), `${t.id} -> ${file}`).toBe(true);
@@ -222,24 +234,33 @@ describe('control 3: every section tab still resolves', () => {
 		}
 	});
 
-	it('the check-ins tab is a departure, and its destination is a real route', () => {
-		const checkIns = tabs.find((t) => t.id === 'check-ins') as SectionTab;
-		expect(checkIns.external).toBe(true);
-		expect(checkIns.href).toBe('/notebook/review?section=s-1');
+	/*
+	 * GENERALIZED (ledger 0297) FROM "the check-ins tab is a departure". That
+	 * tab left the class for /notebook/review?section=<id>; the class's review,
+	 * check-in manager included, is now the Notebook tab INSIDE the class, so
+	 * no tab departs at all. The old address is still a real route -- it
+	 * redirects, and tests/notebook-legacy-routes.test.ts drives it -- and the
+	 * notebook tab reads `?mode=checkins`, which is what the duplicate-date
+	 * refusal links to.
+	 */
+	it('the notebook tab is inside the class, and no tab is a departure any more', () => {
+		expect(tabs.filter((t) => t.external)).toEqual([]);
+		const notebook = tabs.find((t) => t.id === 'notebook') as SectionTab;
+		expect(notebook.manageOnly).toBe(false);
+		expect(notebook.href).toBe('/classroom/s-1/notebook');
+		expect(activeTab(locateClassroom(notebook.href))).toBe('notebook');
+		const load = read('src/routes/classroom/[sectionId]/notebook/+page.server.ts');
+		expect(load).toMatch(/url\.searchParams\.get\('mode'\)/);
+		expect(load).toMatch(/asked === 'checkins'/);
+		// The address the old tab named still answers.
 		expect(existsSync(new URL('../src/routes/notebook/review/+page.server.ts', import.meta.url))).toBe(
 			true
 		);
-		// The console really does read that parameter, and validates it rather
-		// than passing it through -- which is what makes the tab land on THIS
-		// class's grid instead of a hub.
-		const review = read('src/routes/notebook/review/+page.server.ts');
-		expect(review).toMatch(/url\.searchParams\.get\('section'\)/);
-		expect(review).toMatch(/sections\.some\(\(s\) => s\.id === asked\)/);
 	});
 
 	it('a departure is never the active tab, and the shell says so twice', () => {
-		// There is no ClassroomLocation for /notebook/review, so `activeTab`
-		// cannot name it however the URL is spelled.
+		// There is no ClassroomLocation for the legacy /notebook/review, so
+		// `activeTab` cannot name it however the URL is spelled.
 		expect(activeTab(locateClassroom('/notebook/review?section=s-1'))).toBeNull();
 		const shell = read('src/lib/classroom/ClassroomShell.svelte');
 		expect(shell).toMatch(/class:active=\{!t\.external && t\.id === tab\}/);
@@ -296,8 +317,11 @@ describe('the duplicates tab and its page stand or fall together', () => {
 		expect(dupes.external).toBeUndefined();
 		expect(dupes.href).toBe('/classroom/s-1/duplicates');
 		expect(activeTab(locateClassroom(dupes.href))).toBe('duplicates');
-		// It sits above the departure: an in-classroom view before a door out.
+		// GENERALIZED (ledger 0297): it used to sit above the one departure, the
+		// Check-ins tab. That tab is gone into the class's Notebook tab, so the
+		// rule left is that it is last among the manage-only views and is not a
+		// door out.
 		const ids = sectionTabs('s-1').map((t) => t.id);
-		expect(ids.indexOf('duplicates')).toBeLessThan(ids.indexOf('check-ins'));
+		expect(ids.at(-1)).toBe('duplicates');
 	});
 });

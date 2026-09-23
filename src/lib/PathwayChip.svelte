@@ -26,7 +26,7 @@
 {#if p}
 	<span
 		class="pathway-chip {size}"
-		style="color:{p.ink}; background:{withAlpha(p.color, 0.12)}; border-color:{withAlpha(p.color, 0.45)}"
+		style="--pw-ink:{p.ink}; --pw-ink-light:{p.inkOnLight}; background:{withAlpha(p.color, 0.12)}; border-color:{withAlpha(p.color, 0.45)}"
 		title="{p.label} pathway"
 	>
 		<svg
@@ -46,7 +46,12 @@
 {/if}
 
 <style>
+	/* THE INK IS A CUSTOM PROPERTY PAIR, AND THE THEME PICKS (ledger 0297,
+	   package F1b). `ink` for the dark grounds it was measured on, `inkOnLight`
+	   under Space White, whose light panel turns IDEA's #00FF41 into a 1.3:1
+	   word. The fill and the edge stay the identity on both. */
 	.pathway-chip {
+		color: var(--pw-ink);
 		display: inline-flex;
 		align-items: center;
 		gap: 0.28em;
@@ -73,5 +78,8 @@
 	}
 	.pw-label {
 		transform: translateY(0.05em);
+	}
+	:global(:root[data-theme='space-white']) .pathway-chip {
+		color: var(--pw-ink-light, var(--pw-ink));
 	}
 </style>

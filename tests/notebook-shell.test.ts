@@ -449,68 +449,88 @@ describe('the shell is shared, not copied', () => {
 	it('the application frame is a prop, is never unconditional, and both elements read ONE answer', () => {
 		const src = read('src/lib/notebook/NotebookView.svelte');
 		// ONE derived, read twice. Two independent expressions is how a wrapper
-		// that is a viewport frame ends up around a body that is not.
-		expect(src).toMatch(/const framed = \$derived\(ownsPage \?\? masthead\)/);
-		expect(src).toMatch(/class:cr-app=\{framed\}/);
+		// that is the frame's body ends up around a main that is not.
+		expect(src).toMatch(/const framed = \$derived\(ownsPage\)/);
 		expect(src).toMatch(/class:cr-app-body=\{framed\}/);
-		// Never the bare class on either element.
-		expect(src).not.toMatch(/class="[^"]*\bcr-app\b[^"]*"/);
+		expect(src).toMatch(/class:nb-shell-fill=\{framed\}/);
+		// Never the bare class. And never the FRAME itself: since ledger 0297
+		// the notebook lives inside ClassroomShell, whose `.cr-root` is the
+		// `.cr-app` frame, so a second `cr-app` here would be a frame nested in
+		// a frame -- a viewport-tall box starting under the shell's chrome.
 		expect(src).not.toMatch(/class="[^"]*\bcr-app-body\b[^"]*"/);
-		// The review console IS the page always, so it takes the bare class --
-		// the positive control on the two negatives above.
+		expect(src).not.toMatch(/class:cr-app=/);
+		expect(src).not.toMatch(/class="[^"]*\bcr-app(?![-\w])[^"]*"/);
+		// `ownsPage` defaults to false, so a mount that forgets it gets page flow
+		// (a scrolling document) rather than a frame body it did not ask for.
+		expect(src).toMatch(/ownsPage = false/);
+		// The review console IS the body of the page always, so it takes the
+		// bare class -- the positive control on the negatives above.
 		expect(read('src/lib/notebook/ReviewConsole.svelte')).toMatch(
-			/class="[^"]*\bcr-app\b[^"]*"/
+			/class="[^"]*\bcr-app-body\b[^"]*"/
 		);
 	});
 
 	/*
-	 * EVERY MOUNT THAT IS NOT THE WHOLE PAGE SAYS SO, and the two say it
-	 * differently on purpose. `masthead={false}` already means "I am inside
-	 * somebody else's bar", so the view-as tree needs nothing beyond what it
-	 * already passes and the default carries it. The per-student review page is
-	 * the case the default cannot reach: it KEEPS the masthead and still has a
-	 * back strip above the room and a staff Deleted section below it, so it
-	 * states `ownsPage={false}` -- measured, with the frame on, as a 900px
-	 * viewport box starting 127px down a 1463px document at 1440.
+	 * EVERY MOUNT SAYS WHETHER IT IS THE WHOLE PAGE, and the default is NO.
+	 * The student's own notebook -- whole, or one class's tab -- is the body of
+	 * the classroom's frame and says `ownsPage`. The per-student review page
+	 * keeps a back strip above the room and a staff Deleted section below it,
+	 * and view-as sits under an impersonation banner, so neither passes it.
 	 *
-	 * A NEW MOUNT IS THE THING THIS CATCHES. The frame is the default for
-	 * anything that keeps its masthead, so a page that wraps this component in
-	 * chrome and forgets the prop gets a viewport frame in the middle of a
-	 * scrolling document -- which looks deliberate.
+	 * A NEW MOUNT IS THE THING THIS CATCHES, in both directions: the sweep
+	 * below finds every real route that mounts the component, and one missing
+	 * from this list fails rather than passing unexamined.
 	 */
 	it('every NotebookView mount that is not the whole page says so', () => {
 		const mounts = [
-			// name, file, what it must pass
 			{
-				file: 'src/routes/notebook/+page.svelte',
+				file: 'src/routes/classroom/notebook/+page.svelte',
 				owns: true,
-				why: 'the student notebook IS the page'
+				why: 'the whole notebook is the body of the classroom frame'
 			},
 			{
-				file: 'src/routes/notebook/review/student/[studentEmail]/+page.svelte',
+				file: 'src/routes/classroom/[sectionId]/notebook/+page.svelte',
+				owns: true,
+				why: "a class's own Notebook tab is the body of the classroom frame"
+			},
+			{
+				file: 'src/routes/classroom/notebook/review/student/[studentEmail]/+page.svelte',
 				owns: false,
 				why: 'a back strip above the room and the staff Deleted section below it'
 			},
 			{
 				file: 'src/routes/classroom/view-as/[studentEmail]/notebook/+page.svelte',
 				owns: false,
-				why: 'mounted under ClassroomShell; masthead={false} already carries it'
+				why: 'under the impersonation banner, inside a scrolling document'
 			}
 		];
 		for (const m of mounts) {
 			const src = read(m.file);
-			// ON THE TAG, NOT ANYWHERE IN THE FILE. Both of these props are named
-			// in the comments that explain them, in backticks, so a file-wide
-			// match is satisfied by the prose that describes the attribute and
-			// survives the attribute being deleted -- measured: removing
-			// `ownsPage={false}` from the review page left this test green. It is
-			// the same trap the scroll-mode assertion above learned by mutation.
+			// ON THE TAG, NOT ANYWHERE IN THE FILE: the prop is named in the
+			// comments that explain it, so a file-wide match survives the
+			// attribute being deleted.
 			const tag = src.match(/<NotebookView[\s\S]*?\/>/)?.[0];
 			expect(tag, `${m.file} no longer mounts NotebookView`).toBeDefined();
-			const suppressed = /masthead=\{false\}/.test(tag!);
-			const stated = /ownsPage=\{false\}/.test(tag!);
-			expect(suppressed || stated, `${m.file}: ${m.why}`).toBe(!m.owns);
+			const owns = /\bownsPage(?!=\{false\})\b/.test(tag!);
+			expect(owns, `${m.file}: ${m.why}`).toBe(m.owns);
 		}
+		// THE SWEEP: every shipped route that mounts the component is on the list.
+		const listed = new Set(mounts.map((m) => m.file));
+		const found: string[] = [];
+		const walk = (dir: string) => {
+			for (const ent of readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true })) {
+				const path = `${dir}/${ent.name}`;
+				if (ent.isDirectory()) {
+					if (path === 'src/routes/dev') continue;
+					walk(path);
+				} else if (ent.name.endsWith('.svelte') && /<NotebookView\b/.test(read(path))) {
+					found.push(path);
+				}
+			}
+		};
+		walk('src/routes');
+		expect(found.length).toBeGreaterThanOrEqual(4);
+		expect(found.filter((f) => !listed.has(f))).toEqual([]);
 	});
 
 	/*
@@ -972,27 +992,38 @@ describe('the select ladders gained a rung rather than growing one', () => {
 		// it, putting deleted entries back in the feed. So the load must read the
 		// rung's own flag, and tests/notebook-page-load.test.ts pins that the flag
 		// and the column agree.
-		const load = read('src/routes/notebook/+page.server.ts');
+		// The load moved into one shared module (ledger 0297), called by the
+		// whole notebook and by a class's own Notebook tab alike.
+		const load = read('src/lib/server/notebook-student.ts');
 		expect(load).toMatch(/read\(rung\.select, rung\.excludeDeleted\)/);
 		expect(load).not.toMatch(/rung\.capability === 'deletion'/);
 		expect(load).toMatch(/excludeDeleted \? query\.is\('deleted_at', null\) : query/);
 	});
 
 	it('the class page falls back when a filter or a column is refused', () => {
+		// THE LADDER MOVED, THE GUARANTEE DID NOT (ledger 0297). The class page's
+		// status read is `readOwnCheckIns` in $lib/classroom/student-work now,
+		// shared with the cross-class to-do, so the shape is asserted where it
+		// is written and the class layout is asserted to call it rather than
+		// carrying a second copy.
 		const layout = read('src/routes/classroom/[sectionId]/+layout.server.ts');
-		expect(layout).toMatch(/\.is\('deleted_at', null\)/);
+		expect(layout).toMatch(/await readOwnCheckIns\(supabase, claims\.sub, checkInRows\.rows, today\)/);
+		const ladder = read('src/lib/classroom/student-work.ts');
+		expect(ladder).toMatch(/\.is\('deleted_at', null\)/);
 		// Widest first, and an UNFILTERED final read -- without which every card
 		// reads "missing" on an older project with nothing raised anywhere. Named
 		// by shape rather than by the exact line, so adding a rung to this ladder
 		// (0118 added one) does not have to edit this assertion.
-		expect(layout).toMatch(/if \(!withDrafts\.error\) return \{ rows: withDrafts\.data, drafts: true \}/);
-		expect(layout).toMatch(/if \(!filtered\.error\) return \{ rows: filtered\.data, drafts: false \}/);
-		expect(layout).toMatch(/const plain = await base\(/);
-		expect(layout).toMatch(/return \{ rows: plain\.data, drafts: false \}/);
+		expect(ladder).toMatch(/if \(!withDrafts\.error\) return \{ rows: withDrafts\.data, drafts: true \}/);
+		expect(ladder).toMatch(/if \(!filtered\.error\) return \{ rows: filtered\.data, drafts: false \}/);
+		expect(ladder).toMatch(/const plain = await base\(/);
+		expect(ladder).toMatch(/return \{ rows: plain\.data, drafts: false \}/);
 	});
 
 	it('the review console refuses to open a deleted entry', () => {
-		const console_ = read('src/routes/notebook/review/+page.svelte');
+		// The console's transports moved into one module (ledger 0297), built
+		// by the all-sections console and a class's Notebook tab alike.
+		const console_ = read('src/lib/notebook/review-transports.ts');
 		expect(console_).toMatch(/if \(r\.deleted_at\) return \{ ok: false/);
 	});
 });
@@ -1182,16 +1213,16 @@ describe('StudentReviewBackStrip', () => {
 	}
 
 	it('carries the section it was given', () => {
-		expect(strip('sec-abc')).toContain('href="/notebook/review?section=sec-abc"');
+		expect(strip('sec-abc')).toContain('href="/classroom/notebook/review?section=sec-abc"');
 	});
 
 	it('a section that needs escaping is encoded, never pasted', () => {
-		expect(strip('a b&c')).toContain('href="/notebook/review?section=a%20b%26c"');
+		expect(strip('a b&c')).toContain('href="/classroom/notebook/review?section=a%20b%26c"');
 	});
 
 	it('no section is the bare link this always had, not an empty query', () => {
 		const body = strip(null);
-		expect(body).toContain('href="/notebook/review"');
+		expect(body).toContain('href="/classroom/notebook/review"');
 		expect(body).not.toContain('?section=');
 	});
 
@@ -1199,6 +1230,21 @@ describe('StudentReviewBackStrip', () => {
 		const body = render(StudentReviewBackStrip, {
 			props: { displayName: null, email: 'ana@boscotech.net' } as never
 		}).body;
-		expect(body).toContain('href="/notebook/review"');
+		expect(body).toContain('href="/classroom/notebook/review"');
+	});
+
+	it("a way back the load chose outranks the section console, and names itself", () => {
+		const body = render(StudentReviewBackStrip, {
+			props: {
+				displayName: 'Ana Reyes',
+				email: 'ana@boscotech.net',
+				sectionId: 'sec-abc',
+				backHref: '/classroom/sec-abc/notebook',
+				backLabel: 'Class notebook'
+			} as never
+		}).body;
+		expect(body).toContain('href="/classroom/sec-abc/notebook"');
+		expect(body).toContain('Class notebook');
+		expect(body).not.toContain('/classroom/notebook/review');
 	});
 });

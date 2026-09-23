@@ -8,6 +8,7 @@
 		type IdeacadEditorWrites
 	} from '$lib/ideacad/mount';
 	import type { IdeacadStoreState } from '$lib/ideacad/store';
+	import type { Snippet } from 'svelte';
 	import {
 		ideacadAttachRefusal,
 		ideacadAttachState,
@@ -277,6 +278,7 @@
 		revisionTransports = null,
 		checkIns = [],
 		checkInTransports = null,
+		notebookCapture = null,
 		layoutTransports = null,
 		htmlAssignment = null,
 		htmlAnswers = null,
@@ -353,6 +355,13 @@
 		 * is there, read-only.
 		 */
 		checkInTransports?: ClassCheckInTransports | null;
+		/**
+		 * The student's notebook capture for this item (ledger 0297, package
+		 * F4b), rendered inside the check-in card. A snippet so the route owns
+		 * the load and the transports and this page owns only where it sits.
+		 * Null for a manager and wherever the route cannot build one.
+		 */
+		notebookCapture?: Snippet | null;
 		/**
 		 * THE 0193 WRITES (placement, file order, rename), handed straight to the
 		 * edit composer. Null on a deployment without the migration and for
@@ -1264,7 +1273,7 @@
 		</footer>
 	</main>
 {:else}
-<main class="classroom-page" class:page-wide={htmlMount === 'html'}>
+<main class="classroom-page item-page" class:page-wide={htmlMount === 'html'}>
 	<!--
 		THE INSPECTOR: every instructor-only affordance on this page, in one
 		region, above the content and visually apart from it.
@@ -1724,8 +1733,9 @@
 								<!-- ATTACH AND DETACH, the management half. The check-in
 								     itself reads in the content flow above for everyone.
 								     Editing its date, its name or which classes it runs in
-								     stays in /notebook/review's SessionManager, which owns
-								     the check-in; this only decides what it hangs off. -->
+								     stays in the check-in manager on the class's Notebook
+								     tab (SessionManager), which owns the check-in; this only
+								     decides what it hangs off. -->
 								<div class="insp-block">
 									<!-- UNCONDITIONAL, and it used to sit INSIDE the count test
 									     below -- so an item with no check-in attached yet rendered
@@ -1749,7 +1759,7 @@
 
 												IT WRITES THROUGH THE NARROW RPC and moves nothing else on the
 												check-in. Its date, its name and which classes it runs in stay in
-												/notebook/review's SessionManager, which owns them -- and which
+												the Notebook tab's check-in manager, which owns them -- and which
 												offers this same field on this same component, so a teacher who is
 												already in there fixing a date does not have to come here.
 
@@ -1988,10 +1998,14 @@
 		simply does not render for them rather than reporting a state assembled
 		from somebody else's work.
 	-->
-	{#if checkIns.length}
+	{#if checkIns.length || (!canManage && notebookCapture)}
 		<section class="card ci-card" data-testid="item-check-ins">
 			<h2 class="section-label">
-				{checkIns.length === 1 ? 'Notebook check-in' : 'Notebook check-ins'}
+				{checkIns.length === 0
+					? 'Notebook'
+					: checkIns.length === 1
+						? 'Notebook check-in'
+						: 'Notebook check-ins'}
 			</h2>
 			{#each checkIns as checkIn (checkIn.session_id)}
 				<div class="ci-row" data-testid="item-check-in">
@@ -2038,12 +2052,25 @@
 					<!-- The same door the stream row offers, carrying both ids: the
 					     upload flow files against a (check-in, class) PAIR, and a
 					     student in two classes that share one has two to choose
-					     between. This page knows which; the notebook cannot guess. -->
-					<a class="ci-link" href={checkInHref(checkIn)} data-testid="item-check-in-link">
-						{canManage ? 'Open the notebook' : 'Open your notebook'}
-					</a>
+					     between. This page knows which; the notebook cannot guess.
+					     It opens the class's own Notebook tab (ledger 0297), so the
+					     student stays inside the class they were reading. -->
+					{#if canManage || !notebookCapture}
+						<a class="ci-link" href={checkInHref(checkIn)} data-testid="item-check-in-link">
+							{canManage ? 'Open the notebook' : 'Open your notebook'}
+						</a>
+					{/if}
 				</div>
 			{/each}
+			<!-- CAPTURE WHERE THE WORK IS (ledger 0297, package F4b). A student adds a
+			     page or a note to their notebook from here, filed to this check-in
+			     (or to the class with this item's title when there is none), and sees
+			     what they already filed. The route builds it and hands it down, so
+			     this page carries no notebook transports of its own; absent, the
+			     link above is the door, exactly as before. -->
+			{#if !canManage && notebookCapture}
+				<div class="ci-capture">{@render notebookCapture()}</div>
+			{/if}
 		</section>
 	{/if}
 
@@ -2647,7 +2674,7 @@
 	}
 
 	.classroom-page {
-		max-width: var(--cr-measure, var(--measure-reading));
+		max-width: var(--cr-measure, var(--measure-split));
 		margin: 0 auto;
 		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
 	}
@@ -2933,6 +2960,17 @@
 		min-height: 44px;
 		display: inline-flex;
 		align-items: center;
+	}
+	.ci-capture {
+		margin-top: var(--space-3);
+		padding-top: var(--space-3);
+		border-top: 1px solid var(--hairline);
+		min-width: 0;
+	}
+	.ci-card > .section-label + .ci-capture {
+		margin-top: 0;
+		padding-top: 0;
+		border-top: 0;
 	}
 	.ci-actions {
 		display: flex;

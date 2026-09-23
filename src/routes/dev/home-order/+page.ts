@@ -2,6 +2,8 @@ import { dev } from '$app/environment';
 import { error } from '@sveltejs/kit';
 import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 import type { FeedSubmission } from '$lib/classroom/feed';
+import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
+import { readClassroomClock } from '$lib/classroom/student-work';
 import type { PageLoad } from './$types';
 
 /**
@@ -75,9 +77,9 @@ function item(sectionId: string, n: number, dueAt?: string): ClassroomItem {
 		 * measure the section offset against two empty cards.
 		 *
 		 * `Date.now()` AND NOT `NOW`, WHICH IS THE TRAP. This route mounts the
-		 * REAL `src/routes/+page.svelte`, and that page ranks with
-		 * `const now = new Date()` -- the live clock, which no fixture can
-		 * freeze. Dated off `NOW` instead, these items were ~50 days out by the
+		 * REAL `src/routes/+page.svelte`, and that page ranks against the
+		 * loader's clock, which this harness reads live (`readClassroomClock` in
+		 * the load below) exactly as the server load does. Dated off `NOW` instead, these items were ~50 days out by the
 		 * time anyone opened the page, ranked `later`, and produced exactly the
 		 * empty cards this line exists to prevent. Measured in a browser: 0 rows
 		 * dated off `NOW`, 6 dated off `Date.now()`.
@@ -148,11 +150,27 @@ export const load: PageLoad = async ({ url }) => {
 	 * days` (see `item`), because that is what the section-offset measurements
 	 * this route exists for were taken against.
 	 */
+	/**
+	 * THE PAGE'S ONE CLOCK READ, the way `+page.server.ts` hands it over
+	 * (ledger 0297). Without it the page falls back to reading its own clock
+	 * and the To-do door, which only renders off a loader's clock, never
+	 * mounts, so this harness could not measure where it sits.
+	 */
+	const clock = readClassroomClock();
+
+	/**
+	 * THE END OF THE SCHOOL'S CALENDAR DAY, not the machine's. The feed words a
+	 * deadline by the America/Los_Angeles day (one clock, ledger 0297), so a
+	 * date built on the runtime's own midnight names the wrong day whenever the
+	 * machine and the school disagree about the date, which a UTC container
+	 * does every evening. -07:00 lands at 23:59 in daylight time and 22:59 in
+	 * standard time, the same calendar day either way.
+	 */
 	const dueAtFor = (days: number) => {
-		const d = new Date();
-		d.setDate(d.getDate() + days);
-		d.setHours(23, 59, 0, 0);
-		return d.toISOString();
+		const day = new Date(Date.parse(`${clock.today}T12:00:00Z`) + days * 86_400_000)
+			.toISOString()
+			.slice(0, 10);
+		return new Date(`${day}T23:59:00-07:00`).toISOString();
 	};
 
 	/**
@@ -165,6 +183,18 @@ export const load: PageLoad = async ({ url }) => {
 
 	const isTeacher = role === 'teacher';
 	const me = isTeacher ? TEACHER : STUDENT;
+
+	/**
+	 * `?signedout=1` DROPS THE SESSION and returns what the page's own server
+	 * load returns with none: no claims, no profile, no sections. It is the only
+	 * way to put the SIGNED-OUT landing page on screen through the real
+	 * component, and the landing page keeps the full hero that a signed-in
+	 * visitor no longer gets (ledger 0297, package F1b). It is also the parameter
+	 * the pre-paint theme boot reads, which is why this harness is listed in
+	 * `THEME_BOOT_HARNESSES`: the server assumes a session here exactly when this
+	 * load hands the page one.
+	 */
+	const signedOut = url.searchParams.get('signedout') === '1';
 
 	// A teacher of record on every section, or somebody else's teacher.
 	const sections = Array.from({ length: classes }, (_, i) =>
@@ -200,22 +230,26 @@ export const load: PageLoad = async ({ url }) => {
 	return {
 		// What the page's own server load returns.
 		classroomReady: true,
-		feedSections: sections,
-		feedItems: items,
-		feedSubmissions: submissions,
+		feedSections: signedOut ? [] : sections,
+		feedItems: signedOut ? [] : items,
+		feedSubmissions: signedOut ? [] : submissions,
+		feedCheckIns: [] as ClassCheckIn[],
+		feedClock: clock,
 		// What the root layout normally supplies, overridden here so the page and
 		// the launcher both see a signed-in viewer of the chosen role.
-		claims: { sub: 'harness-user', email: me },
-		userProfile: {
-			id: 'harness-user',
-			role: isTeacher ? 'teacher' : 'student',
-			display_name: isTeacher ? 'T. Vargas' : 'Alice Alvarez',
-			avatar: null,
-			pathway: 'IDEA',
-			preferences: {}
-		},
-		isAdmin: admin,
-		foundryReviewPending: pending,
-		harness: { role, classes, rows, admin, due: dueOffsets }
+		claims: signedOut ? null : { sub: 'harness-user', email: me },
+		userProfile: signedOut
+			? null
+			: {
+					id: 'harness-user',
+					role: isTeacher ? 'teacher' : 'student',
+					display_name: isTeacher ? 'T. Vargas' : 'Alice Alvarez',
+					avatar: null,
+					pathway: 'IDEA',
+					preferences: {}
+				},
+		isAdmin: signedOut ? false : admin,
+		foundryReviewPending: signedOut ? null : pending,
+		harness: { role, classes, rows, admin, due: dueOffsets, signedOut }
 	};
 };

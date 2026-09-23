@@ -2,10 +2,13 @@
 	import { onDestroy } from 'svelte';
 	import {
 		ITEM_IMAGE_NODE,
+		docFromPlainText,
+		docText,
 		docToTiptap,
 		type ItemDoc,
 		type TiptapNode
 	} from '$lib/classroom/classroom-doc';
+	import { requestVersionCheck } from '$lib/shell/deploy-safety';
 	import { isOfferedRef, type ImageChoice } from '$lib/classroom/attachments';
 	import { ITEM_SCHEMA_OPTIONS } from '$lib/rich-text-schema';
 	import { anchored } from '$lib/shell/anchored';
@@ -121,6 +124,40 @@
 	let host = $state<HTMLDivElement | null>(null);
 	let editor = $state<Editor | null>(null);
 	let failed = $state(false);
+
+	/**
+	 * WHAT IS TYPED WHEN THE EDITOR COULD NOT LOAD.
+	 *
+	 * The editor arrives as a separate download, and after a deploy renames the
+	 * site's files an open tab can ask for one that no longer exists. That used
+	 * to leave a 716x240 box with nothing editable in it, eight dead toolbar
+	 * buttons and a note promising the body "will save as plain text" -- while
+	 * 33 typed characters landed nowhere (measured). So a failed load puts a
+	 * working plain textarea in the editor's place, and everything typed into
+	 * it reaches the caller through the SAME `onchange`, as the document
+	 * `docFromPlainText` makes of it: one paragraph per blank-line-separated
+	 * block, exactly what a plain body has always been stored as.
+	 *
+	 * SEEDED WITH THE BODY'S OWN TEXT, one paragraph per line, so an edit starts
+	 * from what is there. `onready` still fires, with the document the editor
+	 * WOULD have been seeded from, so a caller's baseline is the stored body and
+	 * a save made without typing here writes it back unchanged; only typing
+	 * replaces the formatting, and the note below says so.
+	 */
+	let plainText = $state('');
+
+	function plainTextOf(doc: ItemDoc | null | undefined): string {
+		if (!doc || !doc.length) return '';
+		return docText(doc)
+			.split('\n')
+			.filter((line) => line.trim() !== '')
+			.join('\n\n');
+	}
+
+	function typedPlain(text: string) {
+		plainText = text;
+		onchange(docToTiptap(docFromPlainText(text)));
+	}
 
 	/**
 	 * What the toolbar shows, PUSHED from the editor's own transactions rather
@@ -242,9 +279,14 @@
 				syncActive(instance);
 				onready?.(instance.getJSON() as TiptapNode);
 			} catch {
-				// A body is still writable without formatting; say so rather than
-				// leaving an inert box.
+				// A body is still writable without formatting: the textarea below
+				// takes the editor's place (see `plainText`), and the site is asked,
+				// unthrottled, whether a new version is live -- a chunk that failed
+				// to download is the strongest sign there is.
+				plainText = plainTextOf(value);
 				failed = true;
+				onready?.(docToTiptap(value && value.length ? value : []));
+				requestVersionCheck({ force: true });
 			}
 		})();
 
@@ -689,9 +731,21 @@
 	     writing area rather than the whole card. Instructions routinely run
 	     several paragraphs and how much of them a teacher wants on screen is
 	     theirs to decide. -->
-	<div class="rt-surface" class:empty={active.empty} data-placeholder={placeholder}>
-		<div bind:this={host}></div>
-	</div>
+	{#if failed}
+		<textarea
+			class="rt-surface rt-plain"
+			value={plainText}
+			{placeholder}
+			{disabled}
+			aria-label={label}
+			data-testid="classroom-body-plain"
+			oninput={(e) => typedPlain(e.currentTarget.value)}
+		></textarea>
+	{:else}
+		<div class="rt-surface" class:empty={active.empty} data-placeholder={placeholder}>
+			<div bind:this={host}></div>
+		</div>
+	{/if}
 
 	{#if failed}
 		<p class="rt-note" role="status">
@@ -806,6 +860,11 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+	}
+	/* Under Space White a popover lifts on the theme's hard elevation rather
+	   than a blurred dark drop (ledger 0297); the dark theme keeps its own. */
+	:global(:root[data-theme='space-white']) .link-pop {
+		box-shadow: var(--elevation-2);
 	}
 	.link-input {
 		width: 15rem;
@@ -1041,6 +1100,19 @@
 		left: 0.7rem;
 		color: var(--text-2);
 		pointer-events: none;
+	}
+	/* The fallback textarea wears the editor surface's own box (padding, type,
+	   height, the resize corner) and drops only what a textarea brings. */
+	.rt-plain {
+		display: block;
+		width: 100%;
+		box-sizing: border-box;
+		border: 0;
+		background: transparent;
+	}
+	.rt-plain:focus-visible {
+		outline: 1px solid var(--focus-ring);
+		outline-offset: -2px;
 	}
 	.rt-note {
 		margin: 0;

@@ -344,7 +344,7 @@
 
 <svelte:head><title>Rubric edit to grading console // dev harness</title></svelte:head>
 
-<div class="cr-root">
+<div class="cr-root" style="--cr-measure-route: var(--measure-console)">
 	<section class="oracle" data-testid="rubric-oracle">
 		<h1>Rubric edit &middot; does it reach the console (0106)</h1>
 		<p class="lede">

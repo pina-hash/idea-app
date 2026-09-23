@@ -15,10 +15,35 @@
  * `src/lib/design-system/themes/*.css`, against the token file as the source
  * of truth -- and each sweep carries a POSITIVE CONTROL, because a parser that
  * silently matched nothing would report a clean result for every one of them.
+ *
+ * ---------------------------------------------------------------------------
+ * THE RULES CHANGED DELIBERATELY FOR ONE THEME, AND THIS IS WHY (ledger 0297,
+ * package F1a). Space White is a LIGHT theme, and a light theme cannot keep
+ * two of these rules and be readable: --green on a white panel is 2.2:1, and
+ * --white, --dim, --ice and --gear are read as INK, so holding their
+ * luminance would hold them pale on a pale ground. The rules exist to keep
+ * rooms no theme is measured in legible -- FRC paints --dim on white paper,
+ * FSP reads --white on navy, every identity room reads the semantic hues on a
+ * dark plate of its own. So the protection for a theme that must repaint them
+ * moves from "never repaint" to "never REACH those rooms": its attribute is
+ * written only on an allowlist of routes (`themeAttrFor` / `themeInScope` in
+ * src/lib/theme.ts), and the block at the foot of this file proves the scope
+ * answers "out" for FRC, FSP and every identity room. A theme that is NOT in
+ * `SCOPED_SITE_THEMES` -- Matrix today -- is held to the original rules,
+ * unchanged, and IDENTITY stays forbidden for every theme, scoped or not.
  */
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import {
+	SCOPED_SITE_THEMES,
+	SITE_THEMES,
+	THEME_SCOPE_EXACT,
+	THEME_SCOPE_PREFIXES,
+	themeAttrFor,
+	themeInScope,
+	type SiteTheme
+} from '../src/lib/theme';
 
 const DS = new URL('../src/lib/design-system/', import.meta.url);
 const THEMES_DIR = new URL('themes/', DS);
@@ -33,6 +58,14 @@ const THEME_FILES = readdirSync(fileURLToPath(THEMES_DIR))
 const themeSource = Object.fromEntries(
 	THEME_FILES.map((f) => [f, read(new URL(f, THEMES_DIR))])
 ) as Record<string, string>;
+
+/** The theme id a file declares its root block for, read off the file itself. */
+const themeIdOf = (css: string): string | null =>
+	/:root\[data-theme='([a-z-]+)'\]\s*\{/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ''))?.[1] ?? null;
+
+/** Is this file's theme one whose attribute is route-scoped (see theme.ts). */
+const isScoped = (file: string) =>
+	SCOPED_SITE_THEMES.includes(themeIdOf(themeSource[file]) as SiteTheme);
 
 /** `--name: value;` declarations, comments stripped first so a documented hex
  *  in a header block cannot be read as a declaration. */
@@ -86,8 +119,18 @@ describe('the theme layer exists and is swept', () => {
 	it('the token files are not edited by a theme: every theme token already exists', () => {
 		/* A theme "adds a layer that overrides token VALUES; it does not edit the
 		   token file and it does not introduce a token." A NEW name here is the
-		   silent case: it paints under the theme and is undefined without it. */
-		const base = read(new URL('colors.css', DS)) + read(new URL('effects.css', DS));
+		   silent case: it paints under the theme and is undefined without it.
+
+		   THE TOKEN FILES ARE FOUR, AND THIS USED TO READ TWO. surfaces.css
+		   declares --texture-brushed and --texture-vignette on :root, and
+		   Space White sets both to `none` (no glow, no blur); typography.css is
+		   the fourth token file index.css imports. Reading only colors.css and
+		   effects.css would call a real token "new". */
+		const base =
+			read(new URL('colors.css', DS)) +
+			read(new URL('effects.css', DS)) +
+			read(new URL('surfaces.css', DS)) +
+			read(new URL('typography.css', DS));
 		const known = new Set(declarations(base).map((d) => d.name));
 		expect(known.size).toBeGreaterThan(50); // positive control on the parser
 		expect(known.has('--bg0')).toBe(true);
@@ -124,15 +167,64 @@ describe('identity and semantic colours are not themeable', () => {
 		'--crimson'
 	];
 
-	it('no theme declares an identity or a semantic token', () => {
-		const forbidden = new Set([...IDENTITY, ...SEMANTIC]);
+	it('no theme declares an identity token, scoped or not', () => {
+		/* THE LAUNCHER'S ACCENTS ARE NOT A THEME'S TO MOVE, LIGHT OR DARK. A
+		   light theme that needs a card's accent re-inked does it in the card's
+		   own sanctioned place (the sweep's), never by repainting the pair on
+		   :root -- which would make twelve cards one colour. */
 		const offenders: string[] = [];
+		let swept = 0;
 		for (const [file, css] of Object.entries(themeSource)) {
 			for (const { name } of declarations(css)) {
-				if (forbidden.has(name)) offenders.push(`${file}: ${name}`);
+				swept++;
+				if (IDENTITY.includes(name)) offenders.push(`${file}: ${name}`);
 			}
 		}
+		expect(swept).toBeGreaterThan(10); // the sweep read real declarations
 		expect(offenders).toEqual([]);
+	});
+
+	it('no UNSCOPED theme declares a semantic token; a scoped one may, and only because it is scoped', () => {
+		const offenders: string[] = [];
+		let unscoped = 0;
+		for (const [file, css] of Object.entries(themeSource)) {
+			if (isScoped(file)) continue;
+			unscoped++;
+			for (const { name } of declarations(css)) {
+				if (SEMANTIC.includes(name)) offenders.push(`${file}: ${name}`);
+			}
+		}
+		// Matrix is unscoped and is held to the original rule, unchanged.
+		expect(unscoped).toBeGreaterThan(0);
+		expect(themeIdOf(themeSource['matrix.css'])).toBe('matrix');
+		expect(isScoped('matrix.css')).toBe(false);
+		expect(offenders).toEqual([]);
+	});
+
+	it('every theme file that repaints a semantic or luminance-held token is in SCOPED_SITE_THEMES', () => {
+		/* The inverse direction, so the exemption above cannot be claimed by a
+		   file that is not actually scoped: a theme repainting --green that
+		   `themeAttrFor` would write on every route is the FRC-paper failure
+		   with a new name. */
+		/* "Repaints" a luminance-held tier means MOVES it past the 2% the rule
+		   below allows -- Matrix re-hues all four at held luminance, which is
+		   exactly what an unscoped theme may do. */
+		const baseVals = Object.fromEntries(
+			declarations(read(new URL('colors.css', DS))).map((d) => [d.name, d.value])
+		) as Record<string, string>;
+		const heldMoved = (d: { name: string; value: string }) =>
+			['--white', '--dim', '--ice', '--gear'].includes(d.name) &&
+			(!/^#[0-9a-f]{6}$/i.test(d.value) ||
+				Math.abs(luminance(d.value) - luminance(baseVals[d.name])) / luminance(baseVals[d.name]) > 0.02);
+		const repainters = Object.entries(themeSource)
+			.filter(([, css]) => declarations(css).some((d) => SEMANTIC.includes(d.name) || heldMoved(d)))
+			.map(([file]) => file);
+		expect(repainters).toContain('space-white.css'); // positive control: the one that does
+		for (const file of repainters) expect(isScoped(file), file).toBe(true);
+		// And every scoped id has its file, so the list cannot name a ghost.
+		for (const id of SCOPED_SITE_THEMES) {
+			expect(Object.values(themeSource).some((css) => themeIdOf(css) === id), id).toBe(true);
+		}
 	});
 
 	it('POSITIVE CONTROL: the same sweep DOES catch a forbidden declaration', () => {
@@ -199,10 +291,14 @@ describe('a chrome token whose ground the theme does not own holds its luminance
 		expect(new Set(UNOWNED.map((t) => baseValues[t])).size).toBe(4);
 	});
 
-	it('every theme holds all four within 2% of the base luminance', () => {
+	it('every UNSCOPED theme holds all four within 2% of the base luminance', () => {
+		/* A SCOPED theme is exempt, and the exemption is paid for by the scope:
+		   its attribute never reaches FRC's paper or FSP's navy, which are the
+		   rooms this rule exists for (the block at the foot of this file). */
 		const drift: string[] = [];
 		let checked = 0;
 		for (const [file, css] of Object.entries(themeSource)) {
+			if (isScoped(file)) continue;
 			const vals = Object.fromEntries(declarations(css).map((d) => [d.name, d.value]));
 			for (const t of UNOWNED) {
 				const v = vals[t];
@@ -306,6 +402,26 @@ describe('a theme is a token layer, not a stylesheet', () => {
 			selector: /^:root\[data-theme='[a-z-]+'\] \.fg-root$/,
 			why: "the forge's opaque plate, made transparent so the rain shows",
 			onlyDeclares: [/^background-color$/]
+		},
+		/* THE EIGHTH, AND THE FIRST THAT DECLARES TOKENS RATHER THAN A PROPERTY
+		   (ledger 0297). Space White is a light theme scoped to the classroom,
+		   and three dark surfaces are mounted INSIDE the classroom -- IdeaCAD's
+		   Blade editor on a schema-4 item, the notebook's photo overlays (the
+		   camera and the corrector, `.nb-island`, which work on a photograph and
+		   stay dark on purpose), and the deck's black projection stage. The
+		   NOTEBOOK ITSELF left this list in ledger 0297: it follows the site
+		   theme now, so a Space White classroom has a Space White notebook. Each reads the semantic inks off
+		   <html>, so each would inherit white-tuned ink on a plate still black.
+		   This block hands each island the DEFAULT value of every token the
+		   theme moves, at zero specificity (`:where` on both halves) so every
+		   room's own declarations still win. It may declare CUSTOM PROPERTIES
+		   ONLY -- no property at all -- and the block below derives exactly
+		   which ones from the stylesheets. */
+		{
+			selector:
+				/^:where\(:root\[data-theme='space-white'\]\) :where\(\.ic-root, \.nb-island, \.deck-stage\)$/,
+			why: "Space White's dark islands keep the default look inside a light page",
+			onlyDeclares: []
 		}
 	];
 
@@ -326,8 +442,8 @@ describe('a theme is a token layer, not a stylesheet', () => {
 	const propsOf = (body: string) =>
 		[...body.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]).filter((n) => !n.startsWith('--'));
 
-	it('the exception list is exactly seven entries, each used by some theme', () => {
-		expect(EXCEPTIONS.length).toBe(7);
+	it('the exception list is exactly eight entries, each used by some theme', () => {
+		expect(EXCEPTIONS.length).toBe(8);
 		for (const ex of EXCEPTIONS) {
 			const used = Object.values(themeSource).some((css) => selectors(css).some((s) => ex.selector.test(s)));
 			expect(used, `stale exception: ${ex.why}`).toBe(true);
@@ -381,5 +497,223 @@ describe('a theme is a token layer, not a stylesheet', () => {
 			expect(bare, `${file} declares an animation`).not.toMatch(/(^|[\s;{])animation(-name)?\s*:/m);
 			expect(bare, `${file} declares keyframes`).not.toMatch(/@keyframes/);
 		}
+	});
+});
+
+describe("Space White's dark islands: the block is DERIVED from the stylesheets, in both directions", () => {
+	/* WHICH TOKENS THE ISLAND BLOCK MUST HAND BACK is not a list anybody should
+	   keep by hand, because the answer moves every time a token is added to a
+	   base file. It is every base token the theme redeclares, PLUS every base
+	   token whose value depends -- through any chain of var() -- on one it
+	   redeclares: an alias resolves where it is DECLARED, so --focus-ring:
+	   var(--cyan) computed on <html> reaches an island as the light theme's
+	   cyan unless the island redeclares the alias itself. This computes that
+	   closure off the four token files and holds the block to it exactly, and
+	   each value to its base declaration verbatim. */
+	const bareOf = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '');
+	const declsIn = (body: string) => {
+		const out: Record<string, string> = {};
+		for (const m of body.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;{}]+);/g)) out[m[1]] = m[2].replace(/\s+/g, ' ').trim();
+		return out;
+	};
+	/** The body of the FIRST block opening with `selectorStart`. */
+	function blockAfter(css: string, selectorStart: string): Record<string, string> {
+		const bare = bareOf(css);
+		const at = bare.indexOf(selectorStart);
+		expect(at, `selector not found: ${selectorStart}`).toBeGreaterThan(-1);
+		const open = bare.indexOf('{', at);
+		return declsIn(bare.slice(open + 1, bare.indexOf('\n}', open)));
+	}
+
+	const base: Record<string, string> = {
+		...blockAfter(read(new URL('colors.css', DS)), ':root {'),
+		...blockAfter(read(new URL('effects.css', DS)), ':root {'),
+		...blockAfter(read(new URL('surfaces.css', DS)), ':root {'),
+		...blockAfter(read(new URL('typography.css', DS)), ':root {')
+	};
+	const sw = themeSource['space-white.css'];
+	const moved = blockAfter(sw, ":root[data-theme='space-white'] {");
+	const island = blockAfter(sw, ":where(:root[data-theme='space-white'])");
+	const refs = (v: string) => [...v.matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]);
+
+	function closure(movedNames: Set<string>): Set<string> {
+		const out = new Set<string>([...movedNames].filter((n) => n in base));
+		let grew = true;
+		while (grew) {
+			grew = false;
+			for (const [n, v] of Object.entries(base)) {
+				if (!out.has(n) && refs(v).some((r) => out.has(r))) {
+					out.add(n);
+					grew = true;
+				}
+			}
+		}
+		return out;
+	}
+
+	it('reads real blocks (positive control on the reader)', () => {
+		expect(Object.keys(base).length).toBeGreaterThan(80);
+		expect(base['--bg0']).toBe('#121a12');
+		expect(Object.keys(moved).length).toBeGreaterThan(30);
+		expect(moved['--green']).toBe('#3b6c36');
+		expect(island['--green']).toBe('#78b870');
+	});
+
+	it('the island block declares exactly the dependency closure of what the theme moves', () => {
+		const need = closure(new Set(Object.keys(moved)));
+		// The closure reaches aliases the theme never names, which is its point.
+		expect(need.has('--focus-ring')).toBe(true);
+		// GENERALIZED (ledger 0297): `--nb-accent` was the notebook's example
+		// here, an alias of `--gold` declared at :root. No notebook token lives
+		// at :root any more -- the room declares them on `.nb-root`, per site
+		// theme -- so the closure must reach none of them, and an island that
+		// still handed one back would be declaring a token nothing reads.
+		expect([...need].filter((n) => n.startsWith('--nb-'))).toEqual([]);
+		expect(Object.keys(island).filter((n) => n.startsWith('--nb-'))).toEqual([]);
+		expect(need.has('--accent-ink')).toBe(true);
+		expect([...need].sort()).toEqual(Object.keys(island).sort());
+	});
+
+	it('every island value is its base declaration, verbatim', () => {
+		const drift: string[] = [];
+		for (const [n, v] of Object.entries(island)) if (base[n] !== v) drift.push(`${n}: ${v} vs base ${base[n]}`);
+		expect(Object.keys(island).length).toBeGreaterThan(40);
+		expect(drift).toEqual([]);
+	});
+
+	it('POSITIVE CONTROL: the closure reaches an alias of a moved token and leaves an unrelated one out', () => {
+		const need = closure(new Set(['--cyan']));
+		expect(need.has('--focus-ring')).toBe(true); // var(--cyan)
+		expect(need.has('--status-info')).toBe(true); // var(--cyan)
+		expect(need.has('--bg0')).toBe(false); // unrelated, not pulled in
+		// An island that forgot one alias fails the equality above.
+		const short = Object.keys(island).filter((n) => n !== '--focus-ring').sort();
+		expect(short).not.toEqual([...closure(new Set(Object.keys(moved)))].sort());
+	});
+});
+
+describe('a theme that repaints what the rooms read never reaches them: the route scope', () => {
+	/* The protection the luminance and semantic rules gave FRC's paper and
+	   FSP's navy, moved to where it now lives. Every room with its own
+	   identity is listed; a scoped theme must answer "out" for every one, for
+	   a SIGNED-IN visitor, which is the only visitor any theme applies to. */
+	const ROOMS_OUT = [
+		'/frc',
+		'/frc/training/unit-1',
+		'/fsp',
+		'/fsp/live',
+		'/fsp/ask',
+		'/fsp-pulse',
+		'/fsp-tech-selection',
+		'/foundry',
+		'/foundry/review',
+		'/gauntlet',
+		'/gauntlet/author',
+		'/greenline',
+		'/vanguard',
+		'/maps',
+		'/maps/edit',
+		'/tournaments',
+		'/tournaments/abc/tv',
+		'/coins',
+		'/coins/index.html',
+		'/coin-desk',
+		'/ideacad',
+		'/a/app-id/',
+		'/b/app-id/version-id/',
+		'/hx/doc-id',
+		'/dev/frc',
+		'/dev/fsp-day1',
+		'/dev/foundry-gallery',
+		'/dev/gauntlet-shell',
+		'/dev/greenline-portal',
+		'/dev/ideacad',
+		'/dev/maps-viewer',
+		'/dev/tournaments',
+		'/dev/coin-desk'
+	];
+
+	it('FRC and FSP are OUT of scope, and so is every identity room, for every scoped theme', () => {
+		expect(SCOPED_SITE_THEMES.length).toBeGreaterThan(0);
+		// The brief's two named rooms, counted so a list that lost them reddens.
+		expect(ROOMS_OUT.filter((p) => /^\/(dev\/)?(frc|fsp)/.test(p)).length).toBeGreaterThan(6);
+		for (const p of ROOMS_OUT) {
+			expect(themeInScope(p), p).toBe(false);
+			for (const t of SCOPED_SITE_THEMES) expect(themeAttrFor(t, p, true), `${t} on ${p}`).toBeUndefined();
+		}
+		// No allowlisted prefix names either room, however spelled.
+		for (const x of THEME_SCOPE_PREFIXES) expect(x).not.toMatch(/^\/(frc|fsp)/);
+	});
+
+	it('POSITIVE CONTROL: the classroom IS in scope, so the refusals above are the scope and not a dead function', () => {
+		for (const p of [
+			'/classroom',
+			'/classroom/s-1',
+			'/classroom/s-1/item/i-1',
+			'/reference/i-1',
+			'/dev/themes',
+			'/dev/classroom-split/s-1',
+			// The notebook follows the site theme (ledger 0297): inside the
+			// classroom by prefix, its legacy address by its own entry, and
+			// its harnesses so a pass measures what the route paints.
+			'/classroom/notebook',
+			'/classroom/notebook/review',
+			'/classroom/s-1/notebook',
+			'/notebook',
+			'/notebook/review',
+			'/dev/notebook',
+			'/dev/notebook-review',
+			'/dev/navigation-room-nb'
+		]) {
+			expect(themeInScope(p), p).toBe(true);
+			expect(themeAttrFor('space-white', p, true), p).toBe('space-white');
+		}
+		// A near-miss spelling is not a prefix match.
+		expect(themeInScope('/classroomx')).toBe(false);
+		expect(themeInScope('/notebookx')).toBe(false);
+	});
+
+	/* THE HOME PAGE IS IN SCOPE AS ONE EXACT PATH (ledger 0297, package F1b),
+	   and this is the assertion that keeps it one. Every route in the site
+	   begins with `/`, so the failure it guards against is the careless edit
+	   that puts `/` in the PREFIX list -- which would reach FRC's paper and
+	   FSP's navy in one line and redden nothing else in this file, because the
+	   rooms-out sweep above would still read "out" for any room whose path the
+	   prefix matcher happened to reject. Both directions, on the same function:
+	   `/` is in, and nothing that merely starts with it is. */
+	it('the home page is in scope as an EXACT path, and nothing under it rides in with it', () => {
+		// IN: the page itself, for a signed-in visitor, and its harnesses.
+		expect(THEME_SCOPE_EXACT).toContain('/');
+		expect(themeInScope('/')).toBe(true);
+		for (const t of SCOPED_SITE_THEMES) expect(themeAttrFor(t, '/', true), `${t} on /`).toBe(t);
+		expect(themeInScope('/dev/home-order')).toBe(true);
+		// Signed out is still the default, on the home page as everywhere.
+		for (const t of SCOPED_SITE_THEMES) expect(themeAttrFor(t, '/', false), `${t} on / signed out`).toBeUndefined();
+		// OUT: every path under `/` that is not itself in scope, the rooms first.
+		const underRoot = ['/frc', '/fsp', '/fsp/live', '/archive', '/foundry', '/gauntlet', '/index.html', '//', '/209h', '/coins/'];
+		for (const p of underRoot) {
+			expect(themeInScope(p), p).toBe(false);
+			for (const t of SCOPED_SITE_THEMES) expect(themeAttrFor(t, p, true), `${t} on ${p}`).toBeUndefined();
+		}
+		// And the structural half: `/` is never a PREFIX, and every exact path is
+		// a path rather than a pattern.
+		expect(THEME_SCOPE_PREFIXES).not.toContain('/');
+		for (const x of THEME_SCOPE_EXACT) expect(x).toMatch(/^\/[a-z0-9-]*$/);
+	});
+
+	it('POSITIVE CONTROL: the same sweep catches `/` put in the PREFIX list', () => {
+		/* The matcher is re-run by hand with `/` added to the prefixes, which is
+		   the one-line edit the test above exists to refuse; it must put FRC in
+		   scope, or the refusal above is not what keeps FRC out. The mutant is a
+		   local copy of the rule, not a file edit. */
+		const mutant = (p: string) => [...THEME_SCOPE_PREFIXES, '/'].some((x) => p === x || p.startsWith(x === '/' ? x : x + '/'));
+		expect(mutant('/frc')).toBe(true);
+		expect(mutant('/fsp/live')).toBe(true);
+		expect(themeInScope('/frc')).toBe(false);
+	});
+
+	it('an UNSCOPED theme is not route-limited: Matrix paints every room it always did', () => {
+		for (const p of [...ROOMS_OUT, '/classroom', '/']) expect(themeAttrFor('matrix', p, true), p).toBe('matrix');
+		expect(SITE_THEMES).toContain('matrix');
 	});
 });

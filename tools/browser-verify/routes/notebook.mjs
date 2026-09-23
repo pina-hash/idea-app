@@ -105,6 +105,14 @@ export default {
 		   value at both widths with the panel open as it did with it shut, the
 		   panel being a nav-pane sibling of the feed rather than anything the
 		   compose card or the check-in picker sits inside. */
+		/* THE FOLDERS AND FILTERS FOLD AWAY ON ARRIVAL (ledger 0297): open, they
+		   were 277px of a 528px list pane at 1366x768 and left the list 0
+		   visible entries. Manage folders lives inside them, so the panel is
+		   opened first -- which is also the row that proves the trigger works. */
+		{
+			click: '[data-testid="nb-filters-toggle"]',
+			until: '() => document.querySelector("[data-testid=\'nb-filters-toggle\']").getAttribute("aria-expanded") === "true"'
+		},
 		{
 			click: '[data-testid="manage-folders"]',
 			until: '() => !!document.querySelector("[data-testid=\'folder-name\']")'
@@ -154,7 +162,21 @@ export default {
 			phone-width run that stopped finding it would mean the keying itself
 			had changed.
 		*/
-		{ selector: '.nb-root.cr-app', label: 'the application frame (this component owns the page)', expectPresent: 1, maxPresent: 1 },
+		/* GENERALIZED (ledger 0297): the frame is the CLASSROOM's now. The
+		   notebook is the body of the classroom shell's `.cr-app` frame, so the
+		   room carries `.cr-app-body` and the frame itself is the shell's
+		   `.cr-root` -- exactly one of each, as on the real route. */
+		{ selector: '.nb-root.cr-app-body', label: 'the notebook is the body of the classroom frame', expectPresent: 1, maxPresent: 1 },
+		{ selector: '.cr-root.cr-app', label: 'the classroom frame around it', expectPresent: 1, maxPresent: 1 },
+		{ selector: '.nb-root.cr-app', label: 'a second frame on the notebook itself (must be absent)', expectPresent: 0 },
+		/* The whole notebook files a free entry to a class the student picks,
+		   defaulting to the class they came from (none here). */
+		{ selector: '[data-testid="new-entry-class"]', label: 'the class picker for a free entry (whole notebook)', expectPresent: 1, maxPresent: 1 },
+		/* Two classes post a check-in of the same name and date; across the
+		   whole notebook each pick names its class, or the two read identical. */
+		{ selector: '[data-testid="pick-class"]', label: 'each check-in pick names its class (whole notebook, two classes)', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
+		{ selector: '[data-testid="nb-filters-toggle"]', label: 'the folders-and-filters disclosure trigger', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="nb-theme-toggle"], [data-nb-theme]', label: 'the retired plate picker or a plate attribute (must be absent)', expectPresent: 0 },
 		/* The list pane is a head and a body: the head stays put above the
 		   breakpoint while the body scrolls. Structure only -- that the head
 		   does not MOVE is geometry this harness has no check type for, and is
@@ -228,7 +250,9 @@ export default {
 		{ selector: '.nb-head .chip-due, .nb-head .chip-drafts', label: 'head status chips (next check-in, drafts)', min: 44 },
 		/* The filter chips were never measured by any row; the toolbar re-lay is
 		   the moment to pin them. */
-		{ selector: '.chips .chip-toggle', label: 'filter chips', min: 44 }
+		{ selector: '.chips .chip-toggle', label: 'filter chips', min: 44 },
+		{ selector: '[data-testid="nb-filters-toggle"]', label: 'folders-and-filters trigger', min: 44 },
+		{ selector: '[data-testid="new-entry-class"]', label: 'free-entry class picker', min: 44 }
 	],
 	/* TWO `.tap-reach-44` SURFACES, BOTH FIXED, and both are here because 0044
 	   measured every user of that class and found these two had no row of any

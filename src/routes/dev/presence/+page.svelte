@@ -1,4 +1,8 @@
 <script lang="ts">
+	// The room the real route renders in (ledger 0297, harness fidelity): the
+	// classroom stylesheet and the route's own measure, or every width read here
+	// is a width production never has (CLAUDE.md).
+	import '$lib/classroom/classroom.css';
 	import { page } from '$app/state';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
 	import PresenceHeartbeat from '$lib/classroom/presence/PresenceHeartbeat.svelte';
@@ -222,7 +226,7 @@
 
 <svelte:head><title>dev / presence</title></svelte:head>
 
-<main class="harness cr-root">
+<main class="harness cr-root" style="--cr-measure-route: var(--measure-console)">
 	<header class="head">
 		<h1>Presence on the grading console</h1>
 		<p class="lede">

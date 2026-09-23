@@ -1998,6 +1998,35 @@ a:hover {
 	font-family: 'Share Tech Mono', monospace;
 	position: relative;
 	z-index: 1;
+	/* THE LANDING PAGE'S OWN INKS, AS ROOM HOOKS (ledger 0297, package F1b).
+	   Every tint in this block used to be an rgba() literal of one of five
+	   colors this page was drawn in before the token layer existed -- the
+	   mint rim-light, a pale brass, a pale patina, a sage and a warning
+	   orange -- 59 of them, which no theme could reach. They are named here
+	   ONCE and every rule below mixes them, so a theme moves five values
+	   rather than fifty-nine and the IDEA page paints what it painted
+	   before: `color-mix(in srgb, <hook> N%, transparent)` rasterizes
+	   identically to `rgba(<hook>, N/100)` as a fill, measured in Chromium on
+	   all 228 pairs this block uses (background and border, on the page
+	   ground). Inside a GRADIENT a mixed stop lands within one 8-bit level of
+	   the rgba() stop it replaced: 97 pixels at +/-1 on the Portal Updates
+	   divider, measured, and nothing a reader can see. The
+	   two that were already token values are written as the token (`--ice`,
+	   `--green`). Space White points each hook at its own ink in the block at
+	   the foot of this section. */
+	--li-mint: #8fe08a;
+	--li-brass: #d3c68e;
+	--li-patina: #93d6c8;
+	--li-sage: #87947c;
+	--li-fix: #ff8c00;
+	/* The sticky header's plate and its frosting. */
+	--li-header-ground: rgba(19, 26, 19, 0.88);
+	--li-header-blur: blur(12px);
+	/* The instructors stat's ice glow, which was an inline style literal. */
+	--li-ice-glow: 0 0 6px rgba(169, 188, 171, 0.45), 0 0 18px rgba(169, 188, 171, 0.2);
+	/* The hero stat's breathing glow, as the two ends of its keyframes. */
+	--li-breathe-lo: 0 0 8px rgba(143, 224, 138, 0.6), 0 0 20px rgba(143, 224, 138, 0.2);
+	--li-breathe-hi: 0 0 16px rgba(143, 224, 138, 1), 0 0 40px rgba(143, 224, 138, 0.5);
 }
 
 .legacy-index #scroll-bar {
@@ -2028,10 +2057,10 @@ a:hover {
 	position: sticky;
 	top: 0;
 	z-index: 100;
-	background: rgba(19, 26, 19, 0.88);
-	backdrop-filter: blur(12px);
-	-webkit-backdrop-filter: blur(12px);
-	border-bottom: 1px solid rgba(143, 224, 138, 0.15);
+	background: var(--li-header-ground);
+	backdrop-filter: var(--li-header-blur);
+	-webkit-backdrop-filter: var(--li-header-blur);
+	border-bottom: 1px solid color-mix(in srgb, var(--li-mint) 15%, transparent);
 	padding: 0 2rem;
 	display: flex;
 	align-items: center;
@@ -2056,6 +2085,47 @@ a:hover {
 	align-items: center;
 	text-shadow: none;
 	letter-spacing: normal;
+}
+/* THE EMBLEM ON A LIGHT CONSOLE SITS IN A DISPLAY WINDOW (ledger 0297, package
+   F1b). The emblem is a dark green plate with ivory letters and a steel gear,
+   drawn for a dark ground; on Space White's light masthead it read as a dark
+   sticker (Phase 0 measured 45% of it as opaque dark green-gray metal). Recoloring
+   it would be a new mark, and the design standard keeps it green under any
+   accent, so the MARK does not move: the masthead gives it a window -- a
+   dark glass mixed from the console's own ink and green, chamfered like the
+   emblem's plate -- which is how a white instrument panel carries a lit
+   display. Every masthead that
+   seats the emblem wears `.logo-mark` (home and classroom today), and the
+   attribute is only ever written on in-scope routes, so no other room sees it.
+
+   A PSEUDO-ELEMENT, NOT A PADDED BOX: the window reaches past the emblem's own
+   box, so the header row it sits in keeps its exact height and the logo keeps
+   its exact position -- the theme adds paint and moves nothing. `isolation`
+   gives the emblem the stacking context the window needs to sit behind it and
+   in front of the header. */
+:root[data-theme='space-white'] .logo-mark .idea-logo {
+	isolation: isolate;
+}
+:root[data-theme='space-white'] .logo-mark .idea-logo::before {
+	content: '';
+	position: absolute;
+	inset: -4px -8px -4px -6px;
+	z-index: -1;
+	/* The glass is the console's ink with a third of its green in it, so it
+	   reads as the emblem's own plate carried out to a frame rather than as a
+	   black box, and it is chamfered the way the emblem's plate and the home
+	   stats plate are. */
+	background: color-mix(in srgb, var(--green) 28%, var(--text-1));
+	clip-path: polygon(
+		6px 0%,
+		calc(100% - 6px) 0%,
+		100% 6px,
+		100% calc(100% - 6px),
+		calc(100% - 6px) 100%,
+		6px 100%,
+		0% calc(100% - 6px),
+		0% 6px
+	);
 }
 /* THE LEFT GROUP: the emblem and the lines-of-code readout, together, so the
    readout rides the logo's row rather than the actions row. In `.header-right`
@@ -2082,8 +2152,8 @@ a:hover {
 	text-transform: uppercase;
 	color: var(--gold);
 	text-decoration: none;
-	border: 1px solid rgba(211, 198, 142, 0.35);
-	background: rgba(211, 198, 142, 0.05);
+	border: 1px solid color-mix(in srgb, var(--li-brass) 35%, transparent);
+	background: color-mix(in srgb, var(--li-brass) 5%, transparent);
 	padding: 0.3rem 0.7rem;
 	border-radius: 2px;
 	white-space: nowrap;
@@ -2092,7 +2162,7 @@ a:hover {
 		text-shadow 0.2s;
 }
 .legacy-index .class-chip:hover {
-	border-color: rgba(211, 198, 142, 0.7);
+	border-color: color-mix(in srgb, var(--li-brass) 70%, transparent);
 	text-shadow: var(--glow-gold);
 }
 
@@ -2109,7 +2179,7 @@ a:hover {
 	text-transform: uppercase;
 	color: var(--cyan);
 	background: none;
-	border: 1px solid rgba(147, 214, 200, 0.3);
+	border: 1px solid color-mix(in srgb, var(--li-patina) 30%, transparent);
 	padding: 0.3rem 0.7rem;
 	border-radius: 2px;
 	cursor: pointer;
@@ -2122,22 +2192,67 @@ a:hover {
 }
 .legacy-index .auth-link:hover {
 	color: var(--green);
-	border-color: rgba(143, 224, 138, 0.5);
+	border-color: color-mix(in srgb, var(--li-mint) 50%, transparent);
 	text-shadow: var(--glow-green);
 }
 .legacy-index .auth-link.signin {
 	color: var(--green);
-	border-color: rgba(143, 224, 138, 0.4);
+	border-color: color-mix(in srgb, var(--li-mint) 40%, transparent);
 }
 .legacy-index .auth-link:disabled {
 	opacity: 0.6;
 	cursor: default;
 }
+/* ON A PHONE THE HEADER IS TWO TIDY ROWS, NOT THREE RAGGED ONES (ledger
+   0297). Signed in, the actions wrapped under the logo and then wrapped again
+   inside themselves: 162px of banner at 375. Below 520px the header is a grid
+   -- the logo and the profile menu on the first row, the class chip and Take
+   the tour on the second -- by letting the two groups' children take grid
+   cells directly (`display: contents`). Nothing is dropped and nothing
+   truncates. */
+@media (max-width: 520px) {
+	.legacy-index header:has(.auth-block .pm-root) {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		align-items: center;
+		gap: 0.5rem 0.6rem;
+		padding-block: 0.6rem;
+	}
+	.legacy-index header:has(.auth-block .pm-root) .header-right {
+		display: contents;
+	}
+	.legacy-index header:has(.auth-block .pm-root) .auth-block {
+		grid-column: 2;
+		grid-row: 1;
+		justify-self: end;
+	}
+	.legacy-index header:has(.auth-block .pm-root) .class-chip {
+		grid-column: 1;
+		grid-row: 2;
+		justify-self: start;
+	}
+	.legacy-index header:has(.auth-block .pm-root) .tour-link {
+		grid-column: 2;
+		grid-row: 2;
+		justify-self: end;
+	}
+}
+/* THE HOME HEADER'S CONTROLS TAKE THE 44px FLOOR (ledger 0297). The home page
+   is a student surface, and Sign in measured 71x23.6px signed out -- the one
+   control a visitor has to press -- with the class chip and Take the tour at
+   the same 24px. `min-height` and centring only; the type, the letter spacing
+   and the chip look are untouched. */
+.legacy-index .header-right :is(.class-chip, .auth-link) {
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box;
+}
 /* Header "Take the tour" entry: persistent but quiet (dim until hovered, when
    the shared .auth-link:hover green takes over). */
 .legacy-index .tour-link {
 	color: var(--dim);
-	border-color: rgba(143, 224, 138, 0.18);
+	border-color: color-mix(in srgb, var(--li-mint) 18%, transparent);
 }
 .legacy-index .auth-error {
 	position: relative;
@@ -2248,18 +2363,73 @@ a:hover {
 	letter-spacing: 0.15em;
 	text-transform: uppercase;
 }
+/* THE STAT VALUES' OWN INKS, which used to be inline styles on the spans in
+   +page.svelte -- one of them a literal ice glow no theme could reach. Written
+   one class deeper than `.hero-stat .value` so they win it on specificity
+   rather than on source order, and to the same values the inline styles
+   carried, so the IDEA page paints to the byte what it did. */
+.legacy-index .hero-stat .value.v-year {
+	color: var(--gold);
+	text-shadow: var(--glow-gold);
+	animation-delay: 0.8s;
+}
+.legacy-index .hero-stat .v-staff-a {
+	color: var(--cyan);
+	text-shadow: var(--glow-cyan);
+}
+.legacy-index .hero-stat .v-staff-sep {
+	color: var(--dim);
+	margin: 0 0.4rem;
+	font-size: 0.9em;
+}
+.legacy-index .hero-stat .v-staff-b {
+	color: var(--ice);
+	text-shadow: var(--li-ice-glow);
+}
+
+/* THE SIGNED-IN HERO: ONE ROW (ledger 0297, package F1b). The programme's
+   name and the three stats, side by side, with the eyebrow and the sign-in
+   pitch left out in the markup. The stats wear the Space White micro-label
+   recipe in every theme -- the mono label ABOVE the value, by reversing the
+   column rather than the DOM, so a screen reader still hears "3, Active
+   Courses". Measured on /dev/home-order at 1366x768: the hero goes from 540px
+   to about 107px and Your Classes from y=835 to y=402, above the fold. */
+.legacy-index .hero.compact {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 0.75rem 2rem;
+	padding: 1.5rem 2rem 1.25rem;
+}
+.legacy-index .hero.compact h1 {
+	font-size: clamp(1.1rem, 1.9vw, 1.4rem);
+	margin-bottom: 0;
+	min-width: 0;
+}
+.legacy-index .hero.compact .hero-meta {
+	margin-top: 0;
+	padding: 0.55rem 1.3rem;
+	gap: 1.6rem;
+}
+.legacy-index .hero.compact .hero-stat {
+	flex-direction: column-reverse;
+	gap: 0.1rem;
+}
+.legacy-index .hero.compact .hero-stat:not(:last-child)::after {
+	right: -0.8rem;
+}
+.legacy-index .hero.compact .hero-stat .value {
+	font-size: 0.95rem;
+}
 
 @keyframes breathe {
 	0%,
 	100% {
-		text-shadow:
-			0 0 8px rgba(143, 224, 138, 0.6),
-			0 0 20px rgba(143, 224, 138, 0.2);
+		text-shadow: var(--li-breathe-lo);
 	}
 	50% {
-		text-shadow:
-			0 0 16px rgba(143, 224, 138, 1),
-			0 0 40px rgba(143, 224, 138, 0.5);
+		text-shadow: var(--li-breathe-hi);
 	}
 }
 
@@ -2275,8 +2445,8 @@ a:hover {
 	max-width: 1100px;
 	margin: 0 auto 2.5rem;
 	padding: 1.2rem 1.8rem;
-	background: linear-gradient(135deg, rgba(211, 198, 142, 0.07) 0%, rgba(147, 214, 200, 0.05) 100%);
-	border: 1px solid rgba(211, 198, 142, 0.35);
+	background: linear-gradient(135deg, color-mix(in srgb, var(--li-brass) 7%, transparent) 0%, color-mix(in srgb, var(--li-patina) 5%, transparent) 100%);
+	border: 1px solid color-mix(in srgb, var(--li-brass) 35%, transparent);
 	border-radius: 4px;
 	text-decoration: none;
 	transition:
@@ -2284,24 +2454,24 @@ a:hover {
 		background 0.2s;
 }
 .legacy-index .promo-callout:hover {
-	border-color: rgba(211, 198, 142, 0.7);
-	background: linear-gradient(135deg, rgba(211, 198, 142, 0.12) 0%, rgba(147, 214, 200, 0.08) 100%);
+	border-color: color-mix(in srgb, var(--li-brass) 70%, transparent);
+	background: linear-gradient(135deg, color-mix(in srgb, var(--li-brass) 12%, transparent) 0%, color-mix(in srgb, var(--li-patina) 8%, transparent) 100%);
 }
 .legacy-index .promo-callout.nextlive {
-	border-color: rgba(143, 224, 138, 0.25);
+	border-color: color-mix(in srgb, var(--li-mint) 25%, transparent);
 	/* Full-height green rail on the left + a subtle green gradient wash layered
 	   over the existing tint. */
 	border-left: 3px solid var(--green);
 	background:
-		linear-gradient(to right, rgba(120, 184, 112, 0.04), transparent 45%),
-		linear-gradient(135deg, rgba(143, 224, 138, 0.1) 0%, rgba(147, 214, 200, 0.05) 100%);
+		linear-gradient(to right, color-mix(in srgb, var(--green) 4%, transparent), transparent 45%),
+		linear-gradient(135deg, color-mix(in srgb, var(--li-mint) 10%, transparent) 0%, color-mix(in srgb, var(--li-patina) 5%, transparent) 100%);
 }
 .legacy-index .promo-callout.nextlive:hover {
-	border-color: rgba(143, 224, 138, 0.5);
+	border-color: color-mix(in srgb, var(--li-mint) 50%, transparent);
 	border-left-color: var(--green);
 	background:
-		linear-gradient(to right, rgba(120, 184, 112, 0.07), transparent 45%),
-		linear-gradient(135deg, rgba(143, 224, 138, 0.16) 0%, rgba(147, 214, 200, 0.08) 100%);
+		linear-gradient(to right, color-mix(in srgb, var(--green) 7%, transparent), transparent 45%),
+		linear-gradient(135deg, color-mix(in srgb, var(--li-mint) 16%, transparent) 0%, color-mix(in srgb, var(--li-patina) 8%, transparent) 100%);
 }
 .legacy-index .promo-left {
 	display: flex;
@@ -2327,7 +2497,7 @@ a:hover {
 	font-weight: 700;
 	letter-spacing: 0.18em;
 	color: var(--gold);
-	text-shadow: 0 0 8px rgba(211, 198, 142, 0.5);
+	text-shadow: 0 0 8px color-mix(in srgb, var(--li-brass) 50%, transparent);
 	text-transform: uppercase;
 	margin-bottom: 0.3rem;
 }
@@ -2366,7 +2536,7 @@ a:hover {
 	font-size: 0.58rem;
 	letter-spacing: 0.18em;
 	color: var(--gold);
-	border: 1px solid rgba(211, 198, 142, 0.4);
+	border: 1px solid color-mix(in srgb, var(--li-brass) 40%, transparent);
 	padding: 0.35rem 0.9rem;
 	border-radius: 2px;
 	white-space: nowrap;
@@ -2396,7 +2566,7 @@ a:hover {
 .legacy-index .divider-line {
 	flex: 1;
 	height: 1px;
-	background: linear-gradient(to right, transparent, rgba(143, 224, 138, 0.3), transparent);
+	background: linear-gradient(to right, transparent, color-mix(in srgb, var(--li-mint) 30%, transparent), transparent);
 }
 .legacy-index .divider-label {
 	font-family: 'Orbitron', sans-serif;
@@ -2436,7 +2606,7 @@ a:hover {
 }
 .legacy-index .course-card {
 	background: var(--bg1);
-	border: 1px solid rgba(143, 224, 138, 0.12);
+	border: 1px solid color-mix(in srgb, var(--li-mint) 12%, transparent);
 	border-radius: 4px;
 	box-shadow: var(--bevel-raised);
 	overflow: hidden;
@@ -2453,11 +2623,11 @@ a:hover {
 	transform: translateY(0);
 }
 .legacy-index .course-card:hover {
-	border-color: rgba(143, 224, 138, 0.35);
+	border-color: color-mix(in srgb, var(--li-mint) 35%, transparent);
 }
 .legacy-index .course-card.pinned {
-	border-color: rgba(211, 198, 142, 0.5);
-	box-shadow: 0 0 0 1px rgba(211, 198, 142, 0.15);
+	border-color: color-mix(in srgb, var(--li-brass) 50%, transparent);
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--li-brass) 15%, transparent);
 }
 .legacy-index .course-header {
 	display: flex;
@@ -2466,7 +2636,7 @@ a:hover {
 	flex-wrap: wrap;
 	gap: 0.5rem;
 	padding: 1.1rem 1.5rem;
-	border-bottom: 1px solid rgba(143, 224, 138, 0.1);
+	border-bottom: 1px solid color-mix(in srgb, var(--li-mint) 10%, transparent);
 	background: var(--bg2);
 }
 .legacy-index .course-header.collapsible {
@@ -2525,18 +2695,18 @@ a:hover {
 }
 .legacy-index .badge-grade {
 	color: var(--gold);
-	border: 1px solid rgba(211, 198, 142, 0.3);
-	background: rgba(211, 198, 142, 0.05);
+	border: 1px solid color-mix(in srgb, var(--li-brass) 30%, transparent);
+	background: color-mix(in srgb, var(--li-brass) 5%, transparent);
 }
 .legacy-index .badge-block {
 	color: var(--cyan);
-	border: 1px solid rgba(147, 214, 200, 0.3);
-	background: rgba(147, 214, 200, 0.05);
+	border: 1px solid color-mix(in srgb, var(--li-patina) 30%, transparent);
+	background: color-mix(in srgb, var(--li-patina) 5%, transparent);
 }
 .legacy-index .badge-instructor {
 	color: var(--ice);
-	border: 1px solid rgba(169, 188, 171, 0.3);
-	background: rgba(169, 188, 171, 0.05);
+	border: 1px solid color-mix(in srgb, var(--ice) 30%, transparent);
+	background: color-mix(in srgb, var(--ice) 5%, transparent);
 }
 .legacy-index .gc-link {
 	font-family: 'Orbitron', sans-serif;
@@ -2546,7 +2716,7 @@ a:hover {
 	/* --dim on --bg2 is 4.24:1; see .hero-stat .label above for why the token
 	   itself is left alone. 5.51:1. */
 	color: var(--text-2);
-	border: 1px solid rgba(135, 148, 124, 0.3);
+	border: 1px solid color-mix(in srgb, var(--li-sage) 30%, transparent);
 	padding: 0.2rem 0.6rem;
 	border-radius: 2px;
 	text-decoration: none;
@@ -2556,7 +2726,7 @@ a:hover {
 }
 .legacy-index .gc-link:hover {
 	color: var(--green);
-	border-color: rgba(143, 224, 138, 0.4);
+	border-color: color-mix(in srgb, var(--li-mint) 40%, transparent);
 }
 .legacy-index .course-collapse-arrow {
 	font-family: 'Orbitron', sans-serif;
@@ -2590,7 +2760,7 @@ a:hover {
 	flex-wrap: wrap;
 	gap: 0.5rem;
 	padding: 0.8rem 1.5rem;
-	border-bottom: 1px solid rgba(143, 224, 138, 0.05);
+	border-bottom: 1px solid color-mix(in srgb, var(--li-mint) 5%, transparent);
 	transition:
 		background 0.2s,
 		padding-left 0.2s;
@@ -2607,7 +2777,7 @@ a:hover {
 	cursor: pointer;
 }
 .legacy-index .assignment-item.linked:hover {
-	background: rgba(143, 224, 138, 0.04);
+	background: color-mix(in srgb, var(--li-mint) 4%, transparent);
 	padding-left: 1.8rem;
 }
 .legacy-index .assignment-left {
@@ -2640,7 +2810,7 @@ a:hover {
 }
 .legacy-index .dot-live {
 	background: var(--green);
-	box-shadow: 0 0 6px rgba(143, 224, 138, 0.8);
+	box-shadow: 0 0 6px color-mix(in srgb, var(--li-mint) 80%, transparent);
 }
 .legacy-index .dot-archived {
 	background: var(--dim);
@@ -2840,7 +3010,7 @@ a:hover {
 }
 .legacy-index .changelog-toggle {
 	background: none;
-	border: 1px solid rgba(135, 148, 124, 0.3);
+	border: 1px solid color-mix(in srgb, var(--li-sage) 30%, transparent);
 	color: var(--dim);
 	font-family: 'Orbitron', sans-serif;
 	font-size: 0.58rem;
@@ -2859,7 +3029,7 @@ a:hover {
 }
 .legacy-index .changelog-toggle:hover {
 	color: var(--green);
-	border-color: rgba(143, 224, 138, 0.3);
+	border-color: color-mix(in srgb, var(--li-mint) 30%, transparent);
 }
 .legacy-index .changelog-arrow {
 	transition: transform 0.3s;
@@ -2871,7 +3041,7 @@ a:hover {
 	display: none;
 	margin-top: 1rem;
 	background: var(--bg1);
-	border: 1px solid rgba(135, 148, 124, 0.2);
+	border: 1px solid color-mix(in srgb, var(--li-sage) 20%, transparent);
 	border-radius: 3px;
 	box-shadow: var(--bevel-raised);
 	padding: 1rem 1.5rem;
@@ -2894,7 +3064,7 @@ a:hover {
 	margin: 0 -1.5rem;
 	padding: 0.5rem 1.5rem 0.35rem;
 	background: var(--bg1);
-	border-bottom: 1px solid rgba(135, 148, 124, 0.14);
+	border-bottom: 1px solid color-mix(in srgb, var(--li-sage) 14%, transparent);
 	font-size: 0.6rem;
 	letter-spacing: 0.18em;
 	text-transform: uppercase;
@@ -2908,7 +3078,7 @@ a:hover {
 	gap: 1.5rem;
 	align-items: baseline;
 	padding: 0.5rem 0;
-	border-bottom: 1px solid rgba(135, 148, 124, 0.1);
+	border-bottom: 1px solid color-mix(in srgb, var(--li-sage) 10%, transparent);
 	font-size: 0.72rem;
 }
 .legacy-index .changelog-entry:last-child {
@@ -2935,7 +3105,7 @@ a:hover {
 	flex-wrap: wrap;
 	padding-bottom: 0.75rem;
 	margin-bottom: 0.5rem;
-	border-bottom: 1px solid rgba(135, 148, 124, 0.25);
+	border-bottom: 1px solid color-mix(in srgb, var(--li-sage) 25%, transparent);
 }
 .legacy-index .cl-select,
 .legacy-index .cl-date input {
@@ -2944,7 +3114,7 @@ a:hover {
 	letter-spacing: 0.06em;
 	color: var(--cyan);
 	background: var(--bg2);
-	border: 1px solid rgba(147, 214, 200, 0.25);
+	border: 1px solid color-mix(in srgb, var(--li-patina) 25%, transparent);
 	border-radius: 2px;
 	padding: 0.3rem 0.5rem;
 }
@@ -2984,33 +3154,33 @@ a:hover {
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
 	color: var(--dim);
-	border: 1px solid rgba(135, 148, 124, 0.35);
+	border: 1px solid color-mix(in srgb, var(--li-sage) 35%, transparent);
 	border-radius: 2px;
 	padding: 0.08rem 0.35rem;
 	white-space: nowrap;
 }
 .legacy-index .cl-tag.cl-type {
 	color: var(--cyan);
-	border-color: rgba(147, 214, 200, 0.3);
+	border-color: color-mix(in srgb, var(--li-patina) 30%, transparent);
 }
 .legacy-index .cl-tag.cl-type-feature {
 	color: var(--green);
-	border-color: rgba(143, 224, 138, 0.35);
+	border-color: color-mix(in srgb, var(--li-mint) 35%, transparent);
 }
 .legacy-index .cl-tag.cl-type-fix {
 	color: var(--amber);
-	border-color: rgba(255, 140, 0, 0.35);
+	border-color: color-mix(in srgb, var(--li-fix) 35%, transparent);
 }
 .legacy-index .cl-tag.cl-type-visual {
 	color: var(--gold);
-	border-color: rgba(211, 198, 142, 0.35);
+	border-color: color-mix(in srgb, var(--li-brass) 35%, transparent);
 }
 
 /* Footer */
 .legacy-index footer {
 	position: relative;
 	z-index: 1;
-	border-top: 1px solid rgba(143, 224, 138, 0.1);
+	border-top: 1px solid color-mix(in srgb, var(--li-mint) 10%, transparent);
 	padding: 2rem;
 	text-align: center;
 }
@@ -3096,6 +3266,21 @@ a:hover {
 	.legacy-index .hero-stat .value {
 		font-size: 1.1rem;
 	}
+	.legacy-index .hero.compact {
+		padding: 0.9rem 1rem 0.6rem;
+		gap: 0.5rem;
+	}
+	.legacy-index .hero.compact h1 {
+		font-size: 0.95rem;
+	}
+	.legacy-index .hero.compact .hero-meta {
+		padding: 0.45rem 0.8rem;
+		gap: 0.3rem 1.1rem;
+		justify-content: flex-start;
+	}
+	.legacy-index .hero.compact .hero-stat .value {
+		font-size: 0.9rem;
+	}
 	.legacy-index .promo-callout {
 		margin-left: 1rem;
 		margin-right: 1rem;
@@ -3139,6 +3324,81 @@ a:hover {
 	.legacy-index .promo-icon {
 		animation: none;
 	}
+}
+
+/* ==========================================================================
+   THE LANDING PAGE UNDER SPACE WHITE (ledger 0297, package F1b).
+
+   `/` is in Space White's route scope as an EXACT path (`THEME_SCOPE_EXACT`
+   in src/lib/theme.ts), so `:root[data-theme='space-white']` can only ever be
+   true here on the home page -- `/archive` shares this stylesheet and is not
+   in scope. These rules live beside the page they style, never in the theme
+   file: a theme is a token layer (tests/theme-tokens.test.ts) and a component
+   decides how it looks under one, the way AppLauncher re-inks its own cards.
+
+   MOSTLY IT IS THE ROOM HOOKS. The five inks this page mixes its tints from
+   point at the theme's own inks, the header loses its frosted dark plate for
+   the panel ground, and the breathing glow goes flat -- no glow and no blur is
+   the theme's character, and a glow has no light-ground equivalent.
+
+   AND THE LINES THAT CARRY STRUCTURE TAKE THE BOUNDARY. On a light ground a
+   panel and its page are 1.13:1 apart, which a monitor shows and a washed
+   projector does not, so the header's edge, the class cards, the stats plate,
+   the changelog panel and every control's outer edge are `--boundary`
+   (3:1 or better, measured by the home spec) rather than a tint that reads
+   1.4:1. Decoration -- a rule between two rows inside a card -- keeps its
+   tint.
+   ========================================================================== */
+:root[data-theme='space-white'] .legacy-index {
+	--li-mint: var(--green);
+	--li-brass: var(--gold);
+	--li-patina: var(--cyan);
+	--li-sage: var(--dim);
+	--li-fix: var(--amber);
+	--li-header-ground: var(--surface-1);
+	--li-header-blur: none;
+	--li-pop-shadow: var(--elevation-2);
+	--li-ice-glow: 0 0 0 transparent;
+	--li-breathe-lo: 0 0 0 transparent;
+	--li-breathe-hi: 0 0 0 transparent;
+}
+:root[data-theme='space-white'] .legacy-index header,
+:root[data-theme='space-white'] .legacy-index footer {
+	border-color: var(--boundary);
+}
+:root[data-theme='space-white'] .legacy-index :is(.course-card, .hero-meta, .changelog-body) {
+	border-color: var(--boundary);
+}
+:root[data-theme='space-white']
+	.legacy-index
+	:is(.class-chip, .auth-link, .changelog-toggle, .cl-select, .cl-date input, .gc-link) {
+	border-color: var(--boundary);
+}
+:root[data-theme='space-white']
+	.legacy-index
+	:is(.class-chip, .auth-link, .changelog-toggle, .gc-link):hover {
+	border-color: var(--green);
+}
+/* A still stat: an animation of a transparent shadow is a style recalc every
+   frame for nothing. */
+:root[data-theme='space-white'] .legacy-index .hero-stat .value {
+	animation: none;
+}
+/* The live dot's halo is a glow; the dot itself stays. */
+:root[data-theme='space-white'] .legacy-index .dot-live {
+	box-shadow: none;
+}
+/* The date picker's glyph was inverted to read on a dark field; on a light one
+   the browser's own glyph is already the right way round. */
+:root[data-theme='space-white'] .legacy-index .cl-date input::-webkit-calendar-picker-indicator {
+	filter: none;
+}
+/* THE STARFIELD IS A FIELD OF BLURRED, GLOWING DOTS, WHICH IS WHAT THIS THEME
+   DOES NOT DRAW. The canvas keeps running its own theme check (it re-reads
+   --green whenever the theme changes, so switching back paints the right
+   green), and here it simply takes no box. */
+:root[data-theme='space-white'] .legacy-index #bg-canvas {
+	display: none;
 }
 
 /* ==========================================================================

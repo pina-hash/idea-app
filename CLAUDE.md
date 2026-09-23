@@ -33,7 +33,12 @@ It replaced the old static IDEA site (GitHub Pages); that repo is separate.
 
 ### The subsystems
 
-IDEA Classroom (`/classroom`), the digital notebook (`/notebook`), the IDEA Coin
+IDEA Classroom (`/classroom`), the digital notebook (inside the classroom since
+ledger 0297: a class's Notebook tab at `/classroom/<id>/notebook`, the whole
+notebook at `/classroom/notebook`, the review console at
+`/classroom/notebook/review`; `/notebook`, `/notebook/review` and
+`/notebook/review/student/<email>` answer 307 to them, the two review addresses
+only after their own reviewer gate so a non-reviewer still gets 404), the IDEA Coin
 economy (`/coin-desk`, `/coins`), GAUNTLET (`/gauntlet`, CAD skills), GREENLINE
 (`/greenline`, 3D combat racing), VANGUARD (`/vanguard`, legacy game),
 Tournaments (`/tournaments`), FRC Training (`/frc`), FSP (`/fsp/*`, archived
@@ -1025,13 +1030,14 @@ rule Foundry states as "preflight passing is not submission".
   text, validated by the client against `BADGES` and `FLOURISHES`. A CHECK
   constraint would be a second copy of a list D2 is moving, and the copy that
   cannot change without a migration.
-- **THE STUDENT-FACING SURFACE IS NOT BUILT, AND ITS ABSENCE IS A LANE BOUNDARY
-  RATHER THAN AN OVERSIGHT.** The class stream is `ClassView.svelte`, mounted
-  from `src/routes/classroom/[sectionId]/+layout.svelte`. Everything a posted
-  roster and a student style editor need is in place -- the window, the
-  audience-gated read, the membership-gated write -- and the MOUNT is whoever
-  owns those two files. **Until it exists, no `classroom-updates.json` entry
-  claiming students can see teams is true.**
+- **A POSTED ROSTER IS ON THE CLASS PAGE NOW (ledger 0297), AND THE STYLE
+  EDITOR IS STILL NOT.** `ClassTeams.svelte` (over `$lib/classroom/class-teams.ts`)
+  is mounted from `src/routes/classroom/[sectionId]/+layout.svelte`: it renders
+  only a set `_classroom_team_set_visible` answers for, names only (never an
+  address), the viewer's own team marked, closed by default. A student editing
+  their team's banner has the membership-gated write waiting and no control
+  yet, so no `classroom-updates.json` entry may claim students can style a
+  team.
 
 ### WHO IS WORKING -- an instrument's silence is never a fact about a student
 
@@ -1129,6 +1135,94 @@ scrolling content is two lines of text on top of each other.
   HIT-TESTS the Return control at its own centre, which is the only read that
   tells a covered control from a clickable one. `tests/dom/` has no layout
   engine and reads every box as zero.
+
+### THE LIVE CLASS -- the projector reads nothing private
+
+**THE LIVE TAB IS A MANAGER'S CONTROL VIEW AND THE PROJECTOR IS A SECOND WINDOW
+IT FEEDS, AND ONLY WHAT THE CONTROL VIEW CHOOSES TO SEND EVER REACHES THE WALL
+(ledger 0297).** `/classroom/<id>/live` (404 to anyone who cannot manage the
+section) holds who is working, the timer, the hall pass, today's agenda and the
+random picker; `/classroom/<id>/live/projector` is `+page@.svelte`, a reset to
+the ROOT layout, so it inherits the site theme and drops the classroom chrome.
+It loads the class label and nothing that names a person.
+
+- **`buildProjectorFrame` IS THE ONE PROJECTION AND `parseProjectorFrame`
+  RE-VALIDATES ON THE WAY IN.** A frame crosses a same-browser `BroadcastChannel`
+  (with a `localStorage` fallback), and the projector keeps only
+  `PROJECTOR_FRAME_KEYS` and the two hall-pass words, so a control view that
+  grew a field cannot put it on a wall by accident. There is no server channel,
+  which is why a phone cannot drive it; adding one is a disclosure decision.
+- **A PICKED NAME REACHES THE WALL ONLY ON AN EXPLICIT Show**, with its seed;
+  who is working, presence and a student's hall-pass NAME never do.
+- **A PROJECTED ROUTE JOINS `PROJECTOR_ROUTES` AND `FEEDBACK_EXCLUSIONS` IN THE
+  SAME CHANGE**, the first so a deploy never reloads it mid-lesson and the
+  second so the report control relocates into the wall strip rather than
+  floating over a projected image. Wall text is sized to be read from the back
+  of the room and measured under the projector wash (`PROJECTOR_MODEL`).
+
+
+
+### NOTEBOOK CAPTURE -- where the work is, and never only in memory
+
+**A STUDENT ADDS TO THEIR NOTEBOOK FROM THE ASSIGNMENT PAGE, AND IT FILES ITSELF
+(ledger 0297).** `NotebookCapture.svelte` sits in the item page's check-in card
+for a student (never for a manager, never on an announcement). `captureFiling`
+in `$lib/notebook/capture.ts` is the one answer to "where does this go": the
+item's check-in (its session and section) when it has one, otherwise the class
+with the item's title as the entry's custom label. No migration was needed:
+the columns were all there.
+
+- **A PHOTO IS WRITTEN TO THE DEVICE BEFORE IT IS SENT, AND UPLOADED AS A DRAFT
+  THE MOMENT IT IS TAKEN.** `$lib/notebook/capture-store.ts` is an IndexedDB
+  store per viewer and per filing with a 24-hour expiry, and it never rejects:
+  a full or blocked store comes back as a state the surface says out loud.
+  `$lib/notebook/capture-queue.ts` uploads serially and a failure holds the
+  line. This is the draft-mirror rule's photo half; the capture NOTE has no
+  mirror yet, which is recorded as open.
+- **THE RETRY IS IDEMPOTENT THROUGH A TOKEN IN THE FILENAME, BECAUSE THE PHOTO
+  ROWS HAVE NO OTHER KEY.** A capture carries `CAPTURE_TOKEN_TAIL` in its
+  original filename and a retry re-reads the entry's photos for it before
+  sending again, so a dropped connection never doubles a page;
+  `displayPhotoName` strips it so the tag never shows. An idempotency column
+  would retire it, and that is a migration, not a rename.
+- **STRAIGHTENING IS A CHOICE AFTER THE FACT, AND PAIRING STAYS ADJACENCY.** An
+  enhanced copy pairs with the original before it, so only the LATEST page may
+  be straightened, removing a page removes its enhanced copy first
+  (`pageRemovalOrder`), and a restore is refused unless the pairing map is
+  unchanged (`restoreKeepsPairing`). Every order of add, straighten, remove and
+  restore to depth 8 is enumerated in `tests/notebook-capture.test.ts`; a looser
+  rule is how a straightened page ends up beside the wrong original.
+- **ONE-PASS APPROVAL IS THE EXISTING TWO WRITERS, NEVER A THIRD.**
+  `approveAction` in `$lib/notebook/review-queue.ts` sends `notebook_accept_entry`
+  with no comment and `notebook_resolve_entry` (the only writer of an
+  instructor comment) with one; `reviewQueue` never sweeps in a flagged entry
+  and reads "cannot tell" as not reviewed. `EntryVerdict.svelte` is the one
+  renderer of a flag or a next step, on the student's card and in review alike.
+- **THE CLASS TIMELINE IS READ-ONLY OVER HAND-INS AND ITS STREAK IS NEVER
+  RANKED** (`$lib/notebook/timeline.ts`, `classDayStreak`): a student's own count
+  of consecutive class days with an entry, where a today with nothing filed yet
+  does not break it, and no surface compares one student's streak to another's.
+
+### WHAT A STUDENT OWES -- one predicate, one read, one day
+
+**"MISSING" HAS ONE IMPLEMENTATION: `assignmentStanding` AND `checkInStanding`
+in `$lib/classroom/classroom.ts` (ledger 0297).** The class filter, the row chip,
+the to-do page, the home feed's overdue case and every count ask it. A second
+spelling of "past due and nothing turned in" is how a row reads "Not started"
+while the Missing filter lists it, which is exactly what shipped before it.
+Undated work is never Missing and never counted; it is listed last.
+
+- **OWED WORK IS ONE READ.** `loadClassroomWork` in
+  `$lib/classroom/student-work.ts` is the home page's, the classroom index's and
+  the to-do page's load: classes, items, the caller's own submissions and
+  check-ins, and ONE clock read handed down as `{ now, today }`. Another
+  student's score never enters that payload. A check-in's status is keyed on
+  the session AND the section, never on the session alone.
+- **A DUE DATE IS THE SCHOOL'S DAY.** `$lib/classroom/school-calendar.ts` is the
+  one conversion (`laCalendarDay`, `schoolDayOf`, weeks starting Sunday) and
+  reads no clock; `formatDue` prints in America/Los_Angeles and names no
+  weekday. A browser's own zone deciding "due today" is the evening bug the
+  notebook grid already had.
 
 ### PORTED HTML ASSIGNMENTS -- a second origin split, and the ONE rule that outranks the rest
 
@@ -2135,8 +2229,15 @@ picture into an initials tile with nothing saying why.
   renderable as a 24x24 mark nor ours to ship.
 
 **`preferences` is a shared JSONB blob with several independent namespaces**
-(`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`, `ideacad`). Every write is a
-whole-blob **spread-merge**, so a sibling namespace can never be clobbered; every
+(`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`, `ideacad`, `classroom`). Every
+write goes through **`$lib/preferences/profile-io`**, which READS THE ROW FIRST and
+merges one namespace, in one queue per tab (ledger 0297): a writer spreading the
+page-load snapshot was measured erasing a sibling's write one click later (a folded
+class card lost to a pinned app), so a direct `.update({ preferences` outside that
+module and IdeaCAD's own read-first store is the defect, and
+`tests/preferences-store.test.ts` sweeps for it. Each `classroom` group records
+whether it follows the device or the account (`$lib/preferences/classroom.ts`). Every
+write is a whole-blob **spread-merge**, so a sibling namespace can never be clobbered; every
 read **validates values against their union** and DROPS an unrecognised one, so a
 stored value can never put the UI in a state no branch renders. **A NESTED
 NAMESPACE NEEDS THE MERGE AT EVERY LEVEL IT SHARES**: `ideacad` holds `panes`
@@ -3088,6 +3189,38 @@ inside the function fails closed rather than falling through to a weaker path.
   second thing that can fail inside it turns a 500 into a 500 with no log at all.
   The message it returns for a 500 is GENERIC -- an internal error's own text can
   carry a query, a path or a token, and that value is rendered to the caller.
+  **`src/hooks.client.ts` is its client twin (ledger 0297)**: it mints the same
+  kind of id for a client-side failure and marks a failed chunk load with
+  `App.Error.chunk`, which is what makes `+error.svelte` offer Try again.
+- **A NEW VERSION OF THE SITE ARRIVES ONLY AT A NAVIGATION THE PERSON MADE, AND
+  ONE FUNCTION DECIDES WHEN (ledger 0297, F6).** Every push to `main` is a
+  production deploy and several land in a school day, so `svelte.config.js` polls
+  (`kit.version.pollInterval`, 120 s) and `DeployWatch.svelte`, mounted once in
+  the root layout, asks `deployReloadVerdict` in `$lib/shell/deploy-safety.ts` on
+  every `onNavigate`. It reloads only for a link, a back/forward, or a goto the
+  save guard re-issued after its flush; only when the path changes; never from a
+  fullscreen element; never from a route in `PROJECTOR_ROUTES` (the deck, the
+  tournament TV stage, the classroom projector, `/fsp/live`, GREENLINE,
+  GAUNTLET, IdeaCAD, and any projected view added later); never while a hold
+  is active. An idle page never
+  reloads, because the only trigger is a navigation.
+  - **`onNavigate`, NEVER `beforeNavigate`, AND NEVER THE DOCUMENTED SNIPPET.**
+    The order of `beforeNavigate` callbacks between a layout and a page flips
+    within a session, and assigning `location.href` there fires `beforeunload`
+    synchronously, which turns the save guard's flush-then-navigate into a native
+    Leave dialog. `onNavigate` runs only for navigations no guard cancelled, after
+    the URL moved, so the reload is `location.reload()`.
+  - **ANYTHING A FULL LOAD WOULD DESTROY HOLDS THE RELOAD**, through
+    `holdDeployReload` or `trackInFlight`: every classroom upload
+    (`uploadClassroomFile`), the staged deck unpack, the notebook's photo posts,
+    an open composer with work in it, an open feedback box. **A new upload path
+    or a new projected surface joins them in the same change**; forgetting one is
+    silent until a deploy lands mid-upload.
+  - **NEVER RELOAD FROM `vite:preloadError`.** It only asks for a version check.
+    A failed route chunk is SvelteKit's to recover (it reloads the target when the
+    version changed), a failed editor chunk degrades to a plain textarea written
+    through the same document path, and the save guard's flush has a deadline
+    (`SAVE_GUARD_FLUSH_TIMEOUT_MS`) so a hung save cannot freeze a link.
 - **Proxy routes serving bytes from the app's own origin use a MIME ALLOWLIST,
   never an echo of the upstream header** -- same-origin `text/html` runs as script.
   Anything outside the allowlist is served `application/octet-stream` + `nosniff`.
@@ -3232,6 +3365,14 @@ inside the function fails closed rather than falling through to a weaker path.
     `min(count, floor((width + gap) / (col + gap)))`, so panels share the whole
     measure where there is room and still drop to one column in a narrow pane.
     Cap every count the content can fall short of.
+  - **A LONG PANEL MAY CONTINUE INTO THE NEXT COLUMN, AND ONLY A LONG ONE.**
+    `break-inside: avoid` on every unit left a 426x702px hole under a short unit
+    at 1440, and no order-preserving arrangement of unbreakable boxes removes
+    it. So ClassView lets a unit of ten or more rows break BETWEEN rows (its
+    header stays with its first row, each part keeps its frame through
+    `box-decoration-break: clone`) and a short unit still never breaks
+    (ledger 0297). The continuation carries no header of its own, which is
+    recorded as open rather than solved.
   - **THE ROW GAP IS A MARGIN ON THE PANEL**, because multicol has no row gap;
     and the reading order changes from row-major to column-major, which for an
     ordered list of units is the order they are numbered in.
@@ -3268,8 +3409,9 @@ inside the function fails closed rather than falling through to a weaker path.
     a glyph, a hue and a per-plate token like every other answer to that question.
     **A value added this way arrives with all of it or not at all:** a key, a
     label, a hint, a glyph no other state uses, a fill STYLE no other state uses
-    (solid-with-a-pinned-fill, dashed, dotted), a `--nb-cell-*` token declared on
-    all three plates, and a MEASURED contrast figure for each of them.
+    (solid-with-a-pinned-fill, dashed, dotted), a `--nb-cell-*` token declared in
+    every site theme's `.nb-root` block that moves it (the dark base and Space
+    White since ledger 0297), and a MEASURED contrast figure for each of them.
     `tests/notebook-review-console.test.ts` pins the original six as the head of
     the list, in order, and asserts the whole set for uniqueness and for a token
     on every plate -- the generalization of an assertion that used to spell out
@@ -3302,7 +3444,9 @@ inside the function fails closed rather than falling through to a weaker path.
     reproduces a smaller copy of the same bug every evening, which is when a
     teacher lays out the next day. **ONE CLOCK, IN THE LOADER.** The grid reads
     it in SQL, once per payload; the class page reads `new Date()` once in
-    `+layout.server.ts`, converts it with `laCalendarDay` and hands the STRING
+    `+layout.server.ts`, converts it with `laCalendarDay` (which lives in
+    `$lib/classroom/school-calendar.ts` since ledger 0297, where `formatDue`
+    and the feed's due arithmetic read the same day) and hands the STRING
     down. `checkInStatus` takes a BOOLEAN and `checkInIsScheduled` takes two day
     strings -- neither reaches for a clock, which is what makes both assertable
     at a pinned instant. A second idea of "is this due yet" is the pair that
@@ -3398,6 +3542,12 @@ inside the function fails closed rather than falling through to a weaker path.
   control inside a locked density contract, where inflating it would break a real
   invariant to satisfy a guideline written for standalone controls -- say so
   rather than breaking the contract.
+  - **IN THE CLASSROOM THAT DECLARATION IS `.cr-instructor-surface` AND IT
+    NEEDS A SECOND CONDITION (ledger 0297).** `.cr-root .btn.tiny` is 44px; it
+    drops to 24px only under `.cr-root[data-density='compact']` AND inside
+    `.cr-instructor-surface`, so compact is something a teacher chose on a
+    surface that says it is theirs, and a student surface is 44px in every
+    density. `tests/classroom-shell-chrome.test.ts` holds both halves.
   - **THE FLOOR IS `min-height`, NEVER A HEIGHT, and never a snap to the nearest
     token.** Rounding to reach a floor rounds BOTH ways: a mechanical sweep that
     snaps takes a 43px control to 41px and reports success. The notebook's plate
@@ -3452,7 +3602,7 @@ inside the function fails closed rather than falling through to a weaker path.
   disable.
 - **EVERY SURFACE REPORTS ITS OWN DEFECTS, AND THE AFFORDANCE IS MOUNTED ONCE IN
   THE ROOT LAYOUT.** `SiteFeedback.svelte` sits in `src/routes/+layout.svelte`;
-  there are no layout resets in `src/routes`, so that mount is what makes
+  the one layout reset in `src/routes` is the classroom projector (below), so that mount is what makes
   coverage something a new route INHERITS rather than has to remember. **Do not
   mount it per page** -- that is the rejected alternative, and
   `tests/feedback-coverage.test.ts` sweeps every `+page.svelte` and reddens if it
@@ -3461,7 +3611,13 @@ inside the function fails closed rather than falling through to a weaker path.
     is `FEEDBACK_EXCLUSIONS` in `src/lib/feedback/context.ts`, matched on ROUTE ID
     so a page added under an excluded section inherits it. A surface that takes
     the control off the shell mounts it itself at `place="relocated"` (the deck
-    bar, the GAUNTLET viewport footer, GREENLINE's own menus, the error page). A
+    bar, the GAUNTLET viewport footer, GREENLINE's own menus, the error page,
+    the classroom header and the classroom projector's wall strip). **Every
+    route under `/classroom` is the `classroom` category since ledger 0297**:
+    the floating Report and Voice pills won hit tests over row controls, People's
+    Remove and the grading dock, so `ClassroomShell` docks both (`VoiceNav` at
+    `place="header"`), and a `/dev` harness that mounts the real shell is listed
+    in `CLASSROOM_SHELL_HARNESSES` so it measures the production arrangement. A
     category with nowhere to relocate to is an exclusion that deleted the control.
   - **CONTEXT IS CAPTURED, NEVER TYPED**, through `captureMeta`: route id, path,
     role, section, viewport, clock time, and the build. A field somebody has to
@@ -3743,7 +3899,7 @@ inside the function fails closed rather than falling through to a weaker path.
 - **A NAVIGATION IS THE ONE PENDING STATE THAT IS GLOBAL, AND IT IS MOUNTED
   ONCE.** `NavigationProgress.svelte` reads `navigating` from `$app/state` and
   sits in `src/routes/+layout.svelte` beside `SiteFeedback`, for the same
-  reason: there are no layout resets in `src/routes`, so every page route
+  reason: apart from the classroom projector's one reset, nothing in `src/routes` escapes the root layout, so every page route
   INHERITS the indicator instead of having to remember one. This is the
   deliberate opposite of the save state's per-instance rule -- a save state is
   per-surface because a global one would speak for work it cannot see, and a
@@ -3816,6 +3972,15 @@ inside the function fails closed rather than falling through to a weaker path.
     clears only the darkest of the three portal grounds. Measured in all three
     rooms it ships in: portal 5.88:1, classroom card 7.27:1, and the notebook's
     default / light / IDEA plates at 7.27 / 7.75 / 9.18:1.
+- **EVERY ACTION IS REGISTERED ONCE, IN `$lib/shell/commands.ts`, AND THE
+  PALETTE, THE LEGEND AND VOICE READ IT (ledger 0297).** A console's keys are
+  registered by IMPORTING its table (`GRADE_KEYS` from
+  `$lib/classroom/grading-keys.ts`, `REVIEW_KEYS`), never by retyping them, so
+  the legend cannot describe a key the console does not bind. A `run` command
+  is offered only while a surface has registered its handler through
+  `registerCommandHandler`, so the palette never offers something that does
+  nothing. Role and context only decide what is OFFERED; the destination
+  re-checks access, as every route already does.
 - **A change signal must be worth trusting.** An "Updated" badge is stamped only by a
   real content change to something already visible -- publishing, scheduling, pinning,
   reordering and filing are NOT edits, and neither is a save that changed nothing.
@@ -4868,9 +5033,11 @@ the source of truth; **do not invent colours or swap fonts.**
     and turns a tuned surface into a wireframe, which nothing on screen reports.
     `tests/boundary-token.test.ts` reddens on it, and on a decorative rule swept
     onto the load-bearing token.
-  - **IT IS PER ROOM, LIKE `--hairline` IS.** `.nb-root` aliases it to
-    `--nb-boundary`, which each notebook plate declares for itself. The `:root`
-    value is measured against dark green plate and is 1.29:1 on paper.
+  - **IT IS PER THEME, AND THE NOTEBOOK READS IT RATHER THAN DECLARING ITS OWN.**
+    Since ledger 0297 `.nb-root` takes the site's value through
+    `--nb-boundary: var(--boundary)`; a site theme that moves the grounds moves
+    `--boundary` with them. The `:root` value is measured against the dark green
+    plate and is 1.29:1 on paper, which is why Space White declares its own.
   - **THE VALUE MOVES IN LIGHTNESS ONLY**, on the room's own hue and saturation
     -- `--boundary` is `--text-3`'s hue at 46% instead of 38%. `--text-3` itself
     was the obvious candidate and does NOT clear: 2.95:1 on `--surface-2`, which
@@ -4940,7 +5107,8 @@ the source of truth; **do not invent colours or swap fonts.**
     desaturating is how a brand quietly stops being itself.** If a colour cannot
     clear while staying recognisable, say so and stop.
     - **THIS IS NOT A LAUNCHER RULE, IT IS THE RULE, and there are three of it
-      now.** `--acc-ink` for a card, `--violet-ink` for anything painting a WORD
+      on a dark ground and four light-ground twins beside them (ledger 0297,
+      see the scoped-theme rule below).** `--acc-ink` for a card, `--violet-ink` for anything painting a WORD
       in `--violet` (the raw accent measures 2.88 / 2.45 / 2.30 as text on
       `--bg0` / `--bg1` / `--bg2` -- not a near-miss, unreadable), and
       `Pathway.ink` in `src/lib/pathways.ts` beside `Pathway.color`. In each the
@@ -4964,6 +5132,56 @@ the source of truth; **do not invent colours or swap fonts.**
     only makes the right thing available.
 - **Background:** the `.bg-fx` scanline + vignette overlay, disabled under reduced
   motion. Legibility first.
+- **A SITE THEME MAY BE ROUTE-SCOPED, AND SPACE WHITE IS (ledger 0297).**
+  `SCOPED_SITE_THEMES` names the themes that apply only inside
+  `THEME_SCOPE_PREFIXES` (the classroom, the reference viewer, the notebook) and
+  `THEME_SCOPE_EXACT` (the home page, as the exact path `/` and never as a
+  prefix, because every route starts with a slash). `themeInScope` matches on a
+  path boundary and FAILS CLOSED, so `/classroomx` is out and a room nobody
+  listed keeps its own look. **`themeAttrFor` in `src/lib/theme.ts` is THE ONE
+  decision** -- session gate, default and scope -- and both `ThemeRoot` and the
+  pre-paint script read it; a second spelling is a room that flashes white or
+  stays dark with nothing to compare the two.
+  - **THE THEME IS SET BEFORE FIRST PAINT, AND THE SERVER SENDS ANSWERS, NOT
+    RULES.** `src/app.html` carries `THEME_BOOT_MARKER`; the `themeBoot` handle,
+    sequenced after `authGuard` in `hooks.server.ts`, replaces it with a script
+    that is a LOOKUP TABLE: the server evaluates `themeAttrFor` for every theme
+    on this path and session, and the script only looks up the stored
+    `localStorage` value. No scope logic runs in the browser, so it cannot
+    disagree with the server's. `THEME_BOOT_HARNESSES` are the only routes
+    where the server assumes a dev session.
+  - **A SCOPED THEME MAY REPAINT A SEMANTIC HUE FOR ITS GROUND, AN UNSCOPED ONE
+    MAY NOT**, and it moves lightness only. `tests/theme-tokens.test.ts` asserts
+    it, and sweeps the route scope in both directions (the FRC, FSP, Foundry,
+    GAUNTLET, GREENLINE, VANGUARD, Maps, Tournaments, coin and IdeaCAD rooms and
+    the `/a/`, `/b/` and `/hx/` document routes stay OUT).
+  - **DARK ISLANDS STAY DARK THROUGH ONE ZERO-SPECIFICITY BLOCK** in
+    `src/lib/design-system/themes/space-white.css`,
+    `:where(.ic-root, .nb-island, .deck-stage)`, which restores every token the
+    theme moves plus its dependency closure. The test DERIVES the closure, so a
+    token added to the theme without its island restore reddens. The photo
+    corrector and the camera wear `.nb-island`; projected slides stay dark.
+  - **A LIGHT THEME HAS LIGHT-GROUND TWINS FOR EVERY IDENTITY INK, and the
+    rule is the ink rule above.** `Pathway.inkOnLight`, `fgOnLight` on an
+    avatar preset, `AVATAR_TINTS_ON_LIGHT`, and a Space White `--acc-ink` per
+    launcher card: the identity color never moves, the twin moves lightness
+    only. `tests/space-white-inks.test.ts` parses the real grounds out of the
+    theme file. A hover wash under a light theme mixes into `--bg1`, never into
+    transparent, or it disappears on white. A theme difference inside a
+    component is a theme-keyed override there, never a new token in the theme
+    file: theme files hold tokens only.
+  - **THE PROJECTOR IS A MEASURED CONDITION, NOT A MODE.** `PROJECTOR_MODEL` in
+    `tools/browser-verify/checks.mjs` (300:1 native, 10% ambient wash) is
+    recorded beside every contrast reading, with floors of 4.5 for body text,
+    3.0 for muted and status text, 2.0 for a boundary and 1.1 for a ground
+    step. Space White clears every one; IDEA and Matrix do not and were left
+    untouched by design.
+  - **THE HOME EMBLEM IS SERVED AS A `srcset` OVER RIGHT-SIZED COPIES** under
+    `static/IDEA/`, never as the 2.6 MB source, and sits in a display window on
+    Space White rather than being recolored. `.legacy-index` reads its neon
+    tints through `--li-*` room hooks so a light theme can point them at its
+    inks. App marks follow the once-only standard `IdeaCadMark` set: one pass,
+    rest frame held, nothing hidden in a base state.
 
 ### Scoped themes are deliberately off-brand, and stay in their room
 
@@ -5021,80 +5239,52 @@ properly. That is a bundle, not a line.
   logo, a lookalike, or its red-on-white scheme**; the Dassault Systemes disclaimer
   footer stays on every page. The VIEWPORT layer is visual only -- it never touches
   data flow, auth, scoring, or room timing.
-- **`.nb-root` -- notebook editorial**, default / light / IDEA palettes. Tokens only:
-  a rule needing to know which palette is showing should have been a token.
-  - **THE DEFAULT PLATE IS THE CLASSROOM'S CONSOLE REGISTER, UNCONDITIONALLY, and
-    `prefers-color-scheme` reaches NOTHING in this room.** Six `--nb-*` tokens map
-    one to one onto the `:root` register (`--surface-0/-1/-2`, `--text-1/-2`,
-    `--boundary`) and are written out as LITERALS -- `.nb-root` aliases
-    `--surface-1` back to `--nb-surface`, so an alias in that direction closes a
-    cycle. The warm near-black "dark" plate that used to hold this slot is RETIRED:
-    it was the notebook holding a private opinion about what a dark room looks
-    like, one step away from the classroom a student had just come from. Light and
-    IDEA are both opt-in, both unchanged, and a plate that no longer exists is
-    answered in `read()` (`notebook-theme.svelte.ts`) rather than by keeping a CSS
-    block, an attribute value or a picker row alive for it.
-  - **What the register has NO counterpart for is AUTHORED and MEASURED, never
-    borrowed across.** `--nb-ink-faint` is the case that proves it: the classroom's
-    `--text-3` fails 4.5:1 on all three grounds of this plate (3.29 / 3.13 / 2.95)
-    because it is decorative there and real muted copy here.
-  - **The palettes are BACKGROUND PLATES, not an identity.** They exist so a student
-    can read a photograph of paper in different lighting. The notebook is on the
-    platform's type, radius and spacing -- Rajdhani, `--radius-*`, `--space-*` --
-    exactly as the classroom is, and switching a plate must change nothing else.
-    The room's private system-sans stack and its own 10px/6px corners are RETIRED;
-    do not reintroduce a notebook-only type or corner scale.
-  - **THE ROOM ALIASES, IT DOES NOT REDECLARE.** `.nb-root` points the shared names
-    at its own plate (`--surface-1: var(--nb-surface)`, `--text-1: var(--nb-ink)`,
-    `--hairline: var(--nb-hairline)`, and so on), so every notebook component reads
-    the same vocabulary the classroom does. **The alias must stay on `.nb-root`
-    itself.** Writing the plate values straight onto `--surface-*` in the palette
-    blocks would put the LIGHT set at `:root` (where the light palette lives) and
-    repaint the classroom, the reference viewer and view-as in paper white. Source
-    and target on the SAME element is also what keeps the
-    var()-resolves-where-declared trap off this: it needs a descendant
-    redeclaration, and an alias is not one. **The canvas mirror
-    (`body:has(.nb-root)`) must keep naming `--nb-bg`** -- `body` and `:root` are
-    ANCESTORS of `.nb-root` and cannot see the alias.
-  - **`--text-3` does not mean "below the text threshold" in here.** In the
-    classroom it is decorative tertiary; in the notebook it is real muted copy.
+- **`.nb-root` -- the notebook, which FOLLOWS THE SITE THEME, and that is Mr.
+  Pina's decision of 2026-09-23** ("visually and functionally the IDEA notebook
+  should follow IDEA Classroom, not the other way around"; ledger 0297, recorded in
+  `IDEA_CLASSROOM_REBUILD_PLAN.md`, superseding decisions 14 and 15 on appearance).
+  There are no notebook plates, no plate picker and no notebook masthead: the
+  notebook renders inside `ClassroomShell` and paints whatever the site theme is,
+  Space White included.
+  - **THE DEPENDENCY RUNS FROM THE ROOM TO THE REGISTER, NEVER BACK.** `.nb-root`
+    in `colors.css` aliases the register (`--nb-bg: var(--surface-0)` through
+    `--nb-boundary: var(--boundary)`), and nothing notebook-named lives at `:root`.
+    The one re-point left inside the room is `--text-3`, which reads
+    `--nb-ink-faint`, because the classroom's `--text-3` is decorative tertiary and
+    in here it is real muted copy (it fails 4.5:1 on every dark ground as text).
+    The canvas is one rule, `body:has(.nb-root) { background: var(--surface-0) }`.
+  - **What the register has no counterpart for is AUTHORED PER SITE THEME AND
+    MEASURED, never borrowed across**: the review grid's `--nb-cell-*` inks and
+    pinned fills, the folder colours, the status inks, the brass accent and
+    `--nb-shadow`. They are declared in the dark base `.nb-root` block and again in
+    `:root[data-theme='matrix'] .nb-root` and `:root[data-theme='space-white'] .nb-root`
+    for only what those themes move, each with its measured table beside it. A
+    grid state added later arrives in every block or not at all.
+  - **A PLATE ID A STUDENT STORED BEFORE THIS IS SWEPT, NEVER READ.**
+    `RETIRED_NOTEBOOK_PLATES` and `retireStoredNotebookPlate` in
+    `$lib/notebook/notebook-theme.ts` answer every stored `idea_notebook_theme`
+    value with the site theme and clear the key without ever throwing, so no stored
+    value can error or strand anybody on a look they cannot change back.
+  - **THE PHOTO OVERLAYS STAY DARK IN EVERY THEME AND LIVE IN THE TOP LAYER.**
+    `PhotoCorrector` and `CameraCapture` are modal `<dialog>` elements opened with
+    `showModal()` and carry `.nb-island`, which Space White's dark-island block
+    restores; a viewfinder that glares and a drag quad that must hold its contrast
+    over an arbitrary photograph are not preferences. The room's old
+    `position: relative; z-index: 1` wrapper is gone, because it buried those
+    overlays under the classroom header.
   - **MUTED COPY THAT SITS ON AN ACTIVE FILL TAKES `--text-2`, NEVER `--text-3`.**
-    The plate tokens are tuned against the three plate GROUNDS, and
-    `--nb-accent-wash` is a veil laid ON one of them: it lightens the ground out
-    from under the text on a dark plate and the tier below stops clearing. Measured
-    on the nine combinations (three plates x three grounds the wash can land on),
-    `--text-3` fails six of them -- 3.30 to 4.31 -- while `--text-2` clears all
-    nine, worst 4.89. `NotebookThemeToggle`'s `.option.current .note` and
-    `NotebookView`'s `.pick.selected .pick-meta` are the two rules that implement
-    this; a third surface putting muted copy on a selected row joins them.
-    **Lowering the wash is the rejected alternative:** at the 6% that would rescue
-    `--text-3` the fill measures 1.09:1 against the card, so the selected row stops
-    being marked at all.
-  - **AND THE SAME GROUND ARITHMETIC BINDS THE ROOM'S OWN INKS, NOT ONLY THE
-    BORROWED TIERS.** A plate has SIX grounds, not three: `--nb-surface`,
-    `--nb-bg`, `--nb-surface-dim`, and the wash laid over each of them. Every
-    `--nb-*` ink is measured against all six or it is not measured. The light
-    plate's were checked against the bare three only, and the missing half is
-    exactly where they failed -- `--nb-accent-ink` at 4.25/4.32/4.45 across 15
-    distinct candidates, `--nb-warn` failing four of six from 4.33 down,
-    `--nb-ok` failing the recessed plate at 4.33. Deepening the ink is the fix
-    (lightness only for a hex, the dark-end fraction for a `color-mix`); the
-    hue identity never moves.
-  - **A WASH IS A SIGNAL, AND A SIGNAL IS NOT THE THING TO SPEND.** Thinning it
-    to rescue an ink is refused, and the measurement is why rather than the
-    taste: carrying `#8a6d24` to 4.5 on wash-over-page needs 5% alpha, where
-    the fill reads **1.04:1** against its own card; it still cannot reach 4.5
-    on wash-over-recessed at ANY alpha (best 4.20, because thinning only
-    asymptotes to the bare plate, which was already failing); and it does
-    nothing at all for the candidates sitting on a bare recessed plate with no
-    wash under them. A lever that cannot reach the target, and destroys the
-    signal on the way, is not the lever.
-  - **What stays notebook-named is what has no counterpart**, not what someone
-    liked: `--nb-shadow` (there is no `--shadow-*` family), `--nb-hairline-strong`
-    (the platform has one rule weight; `--line-strong` is mint green),
-    `--nb-ink-hover`, the accent trio, `--nb-ok/-error/-warn` (the raw semantic
-    tokens are the UNCORRECTED values these exist to correct), `--nb-masthead`, the
-    folder colours, `--nb-cell-*` and `--nb-shot-*`.
+    `--nb-accent-wash` is a veil laid on a ground, and on a dark ground it lightens
+    the ground out from under the tier below it: measured on the retired plates,
+    `--text-3` failed six of nine plate-by-ground combinations (3.30 to 4.31) while
+    `--text-2` cleared all nine. `NotebookView`'s `.pick.selected .pick-meta`
+    implements this; a surface putting muted copy on a selected row joins it.
+    **Lowering the wash is the rejected alternative**: at the 6% that would rescue
+    `--text-3` the fill reads 1.09:1 against its card and the row stops being
+    marked at all.
+  - **A WASH IS A SIGNAL, AND A SIGNAL IS NOT THE THING TO SPEND.** Every ink this
+    room authors is measured against the bare grounds AND the wash over each of
+    them; deepening the ink is the fix (lightness only), thinning the wash is
+    refused, because it cannot reach the target and destroys the signal on the way.
 - **`.cr-root` -- classroom calm surfaces.** `--cr-gutter` and `--measure-*` are the
   ONE page-width decision (`classroomMeasure` in `nav.ts`).
 - **`.cd-root` -- the coin desk.** It is NOT a repaint: the desk sits on the

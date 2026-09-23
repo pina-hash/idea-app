@@ -3558,10 +3558,20 @@
 		font-size: 0.72rem;
 		padding: 0.3rem 0.9rem;
 		cursor: pointer;
+		/* 25px measured before ledger 0297, on a surface whose own comment claims
+		   44px. The composer declares no instructor-only class, so it takes the
+		   student floor (IDEA_INTERFACE_STANDARDS section 10). */
+		min-height: 44px;
+		display: inline-flex;
+		align-items: center;
 	}
+	/* The chosen kind is more than a colour: a heavier weight and an underline
+	   bar, as well as the green edge. */
 	.kind.active {
 		color: var(--green);
 		border-color: var(--line-strong);
+		font-weight: 700;
+		box-shadow: inset 0 -3px 0 var(--green);
 	}
 	.schedule-field {
 		display: flex;
@@ -3761,6 +3771,9 @@
 		gap: 0.4rem 0.9rem;
 		margin: 0.35rem 0;
 	}
+	/* THE WHOLE LABEL IS THE TARGET, AND IT IS 44px (ledger 0297): each "Post to"
+	   class measured 19px tall, the checkbox and its words, on the one control
+	   that decides which classes see a post. */
 	.target-check {
 		display: flex;
 		flex-direction: row;
@@ -3768,6 +3781,7 @@
 		gap: 0.35rem;
 		margin: 0;
 		cursor: pointer;
+		min-height: 44px;
 	}
 	.target-check input {
 		width: auto;

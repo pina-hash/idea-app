@@ -3,6 +3,8 @@ import { type Handle, type HandleServerError, redirect } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+import { dev } from '$app/environment';
+import { THEME_BOOT_MARKER, themeBootHarnessSession, themeBootScript } from '$lib/theme';
 
 /**
  * Redirects old GitHub Pages base-path links to their new homes. Scoped to the
@@ -136,7 +138,47 @@ const authGuard: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-export const handle: Handle = sequence(legacyRedirects, supabase, authGuard);
+/**
+ * THE SITE THEME, APPLIED BEFORE FIRST PAINT (ledger 0297, package F1a).
+ *
+ * `src/app.html` carries `THEME_BOOT_MARKER` right after its theme-color meta,
+ * and this replaces it with the inline script `themeBootScript` builds for THIS
+ * request: a table from every stored theme id to the attribute it paints here,
+ * filled by asking `themeAttrFor` -- the one pure function `ThemeRoot` also
+ * asks -- with the request's own session and path. The browser then does a
+ * lookup of `localStorage.idea_site_theme` in that table and nothing else, so
+ * it cannot reach a different answer from the hydrated page. See `$lib/theme`
+ * for why this is a script over the existing key rather than a cookie mirror.
+ *
+ * IT RUNS AFTER `authGuard`, because the session it gates on is what
+ * `authGuard` resolved into `event.locals.claims`. It changes nothing about the
+ * three handles before it: `sequence` merges resolve options, applying every
+ * `transformPageChunk` and keeping the first `filterSerializedResponseHeaders`,
+ * which is `supabase`'s.
+ *
+ * THE `/dev` BRANCH MIRRORS WHAT THE HARNESSES DO, AND ONLY THE ONES LISTED.
+ * A `/dev` page fakes its session in its own load (`/dev/themes` returns
+ * `claims` unless `?signedout=1`), which this hook cannot see, so without this
+ * branch no harness could ever measure the pre-paint path. It names the
+ * harnesses in `THEME_BOOT_HARNESSES` rather than every `/dev` route, because
+ * most harnesses fake no session at all and a boot script that assumed one
+ * painted a theme `ThemeRoot` then removed. It is `dev`-only, and every `/dev`
+ * route 404s in production anyway.
+ *
+ * The replacement is a FUNCTION so a `$` in the script can never be read as a
+ * `String.replace` pattern. A page with nothing to apply gets an empty string,
+ * which takes the marker out and adds no bytes.
+ */
+const themeBoot: Handle = async ({ event, resolve }) => {
+	const { pathname, searchParams } = event.url;
+	const harnessSession = dev && themeBootHarnessSession(pathname, searchParams.get('signedout'));
+	const script = themeBootScript(pathname, !!event.locals.claims || harnessSession);
+	return resolve(event, {
+		transformPageChunk: ({ html }) => html.replace(THEME_BOOT_MARKER, () => script)
+	});
+};
+
+export const handle: Handle = sequence(legacyRedirects, supabase, authGuard, themeBoot);
 
 /**
  * THE MINIMUM THAT MAKES A SERVER ERROR AND A REPORT ABOUT IT THE SAME EVENT.

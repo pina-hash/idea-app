@@ -13,6 +13,195 @@
 	],
 	"entries": [
 		{
+			"date": "2026-09-23",
+			"title": "A white theme for bright rooms and the projector",
+			"body": "Class pages, your notebook and the home page can now be white. Press the Light button at the top of any class page, next to your profile picture, to switch, and press it again to go back. You can also pick Space White in your profile menu. It stays easy to read on the classroom projector and in a bright room, and your app cards, pathway chip and profile picture stay readable on it. Your choice is remembered on that device. Games and the other apps keep their own look, and slides you present stay dark.",
+			"tags": [
+				"Appearance",
+				"Classes",
+				"Notebook",
+				"Home",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Your classes sit higher on the home page, and it loads faster",
+			"body": "Once you are signed in, the header at the top of the home page is shorter, so Your Classes shows without scrolling on most laptop screens. The IDEA logo now downloads about 19 KB instead of 2.6 MB, so the page appears sooner on school wifi. The Classroom and My Notebook cards also have new icons; if your device is set to reduce motion, they stay still.",
+			"tags": [
+				"Home",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Search your whole classroom",
+			"body": "Press Ctrl K (Cmd K on a Mac), or the Search button at the top of any class page, to jump straight to an assignment, a unit, another class, your to-do or your notebook. Start with # to look only at posts and assignments, or > for actions, and press ? to see every shortcut. A small typo still finds what you meant.",
+			"tags": [
+				"Classes",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Find your work inside a class",
+			"body": "Each class page has a search box and To do, Missing and Done buttons, so you can see just the work you still owe. Your teacher's units stay in the same order while you filter, and Clear shows everything again.",
+			"tags": [
+				"Classes",
+				"Classwork",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Settings that stick",
+			"body": "The Settings button at the top of a class page lets you choose what a class opens on, with a Reset button to go back to how it was. Folding a class card on your home page is no longer undone when you pin an app.",
+			"tags": [
+				"Classes",
+				"Home",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Your to-do, across every class",
+			"body": "A new To-do page lists what you have to do in all your classes in one place: Assigned, Missing and Done, grouped by this week, next week, later, and no due date. You can narrow it to one class. Open it from the To-do button at the top of any class page, from My Classes, from the line above the apps on the home page, or with Ctrl K. Work your teacher handed back with feedback you have not read yet is marked so you can find it.",
+			"tags": [
+				"Classwork",
+				"Home",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Missing work says Missing",
+			"body": "An assignment that is past its due time with nothing turned in now says Missing (or Missing, draft saved) instead of Not started. Each unit shows how many of its assignments you have finished, and every My Classes card shows how many assignments are missing and how many are due this week.",
+			"tags": [
+				"Classwork",
+				"Classes",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Due dates show the right day",
+			"body": "Due dates always show the school's own day and time and no longer name a day of the week. A deadline tomorrow morning no longer shows as due today when you check in the evening.",
+			"tags": [
+				"Classwork",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Your notebook is inside each class now",
+			"body": "Every class has a Notebook tab next to Class. It shows the entries you filed to that class and its check-ins, and anything you write there is filed to that class. All classes opens your whole notebook, where each check-in says which class it is for. Old notebook links and printed check-in cards still work and bring you to the same place.",
+			"tags": [
+				"Notebook",
+				"Classes",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "The notebook matches the rest of the classroom",
+			"body": "The notebook now has the classroom's own look, including the white theme. The notebook's separate color picker is gone; change the look for the whole site from your profile menu or the Light button in your class. Taking and straightening a photo stays dark so your pages are easy to see. Folders and filters fold into one line above your entries, so more entries fit on the screen, and long entry titles get the full width.",
+			"tags": [
+				"Notebook",
+				"Appearance"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Updates no longer interrupt your work",
+			"body": "When a new version of the site comes out while you have a page open, you now get it the next time you go to another page, never while you are typing, uploading a photo, or showing slides full screen. If part of a page cannot load, you see a Try again button instead of a blank screen, and the post and notebook editors still take your typing.",
+			"tags": [
+				"Everywhere",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "See your team on the class page",
+			"body": "When your teacher posts teams for a class, they now show near the top of that class's page. Your own team is shown first, marked Your team, and the full list of teams opens from the button under it. Only the names of the people in each team are shown.",
+			"tags": [
+				"Classes",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Your classes are icons at the top",
+			"body": "Every class you are in now has its own small icon along the top of every class page, with the one you are in marked. Tap one to switch classes, or open Classes to see them all by name. On a phone or a narrow window, To-do, Search, Settings and the other buttons at the top are inside the Menu button.",
+			"tags": [
+				"Classes",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "More room for your work",
+			"body": "An open assignment or post now uses the whole width beside the class list, and long titles fit on a phone screen. Report a problem and Voice sit in the header at the top of class pages instead of floating over your work, so they no longer cover buttons near the bottom of the screen.",
+			"tags": [
+				"Classes",
+				"Classwork",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Presentations: Back is at the top left",
+			"body": "When you open a presentation, its buttons are in a strip above the slides instead of on top of them, and Back is at the top left, where it is on every other page.",
+			"tags": [
+				"Classwork",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "The home page header is smaller on a phone",
+			"body": "On a phone the header at the top of the home page now fits in two short rows, so your apps and classes start higher, and the Sign in button is bigger and easier to tap.",
+			"tags": [
+				"Home",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Add to your notebook from the assignment",
+			"body": "On an assignment page, you can now take or add photos and write a note for your notebook right where you are working, without opening the notebook first. On a laptop you can also drop or paste a picture. It is filed for you: under that day's notebook check-in when the assignment has one, and otherwise under the class with the assignment's title.",
+			"tags": [
+				"Notebook",
+				"Classwork",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Your photos are safe the moment you take them",
+			"body": "Each page you photograph is saved on your device first and then uploaded as a draft right away, so closing the tab or losing wifi no longer loses it. Every page shows whether it is saved on this device, uploading, or uploaded. If an upload fails, press Retry; a page is never added twice. Nothing is turned in until you press Turn in.",
+			"tags": [
+				"Notebook",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Straighten a page when you want to",
+			"body": "Taking a photo no longer makes you straighten it first. If a page came out crooked, press Straighten on it afterwards.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Your class timeline and your teacher's next steps",
+			"body": "Each class's Notebook tab has a Timeline that shows your notebook entries, the work you handed in and your assignment photos in date order, with how many class days in a row you have added to your notebook. When your teacher approves an entry with a next step, that next step now shows on the entry so you can see what to do next.",
+			"tags": [
+				"Notebook",
+				"new"
+			]
+		},
+		{
 			"date": "2026-09-22",
 			"title": "Due dates and points are no longer cut off in the class list",
 			"body": "In the list of posts and assignments, the small line under each title shows the kind, the due date, the points and the grading category. On a narrow screen, and whenever you had an item open beside the list, that line used to be cut short with a … and the due time and the points were the first things to go. It now wraps onto a second line instead, so nothing is hidden. Nothing you do changes, and no dates or points have changed, you can just read all of them now.",

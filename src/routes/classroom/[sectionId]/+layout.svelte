@@ -5,6 +5,10 @@
 	import ClassView from '$lib/classroom/ClassView.svelte';
 	import HallPass from '$lib/classroom/HallPass.svelte';
 	import SongQueue from '$lib/classroom/SongQueue.svelte';
+	import ClassTeams from '$lib/classroom/ClassTeams.svelte';
+	import LiveDoor from '$lib/classroom/live-class/LiveDoor.svelte';
+	import { liveItemChoices } from '$lib/classroom/live-class/grid';
+	import { createPresenceTransports } from '$lib/classroom/presence/transports';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import {
 		readClassViewPrefs,
@@ -14,7 +18,8 @@
 	} from '$lib/classroom/classroom';
 	import { COMPOSER_DISCARD_WARNING } from '$lib/classroom/composer-staging';
 	import { createClassroomLive } from '$lib/classroom/live';
-	import { locateClassroom, navKeepsComposer } from '$lib/classroom/nav';
+	import { classNotebookHref, locateClassroom, navKeepsComposer } from '$lib/classroom/nav';
+	import { holdDeployReload } from '$lib/shell/deploy-safety';
 	import {
 		createCheckInTransports,
 		createClassroomTransports,
@@ -32,6 +37,9 @@
 		mergeInstructorMaterials,
 		runClassroomExport
 	} from '$lib/classroom/transports';
+	import { supabaseProfileIo, writeProfileNamespace } from '$lib/preferences/profile-io';
+	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
+	import { classOpensOnFor } from '$lib/preferences/classroom';
 	import type { LayoutData } from './$types';
 
 	/**
@@ -94,6 +102,13 @@
 	 */
 	// svelte-ignore state_referenced_locally
 	const live = createClassroomLive(data.supabase);
+	/**
+	 * THE LIVE DOOR'S COUNT (ledger 0297): a manager's class page asks presence
+	 * about the assignment the Live tab would open on, so the way in says how
+	 * many students are on it before anybody opens anything.
+	 */
+	// svelte-ignore state_referenced_locally
+	const presenceTransports = createPresenceTransports(data.supabase, '');
 	/**
 	 * THE 0193 WRITES, built once and handed down ONLY when the load's probe
 	 * says the columns exist (`layoutReady`). Null removes the placement, order
@@ -249,6 +264,20 @@
 	});
 
 	/**
+	 * A POST WITH WORK IN IT HOLDS OFF A DEPLOY RELOAD. Moving between items in
+	 * this class keeps the composer and its staged files, which is the point of
+	 * mounting it here; a full page load would take both, so no new version of
+	 * the site is taken by reloading while one is open with anything in it (see
+	 * `$lib/shell/deploy-safety`). It also asks before the page unloads, which
+	 * is what stops SvelteKit's own reload after a failed download from
+	 * discarding the post without a word.
+	 */
+	$effect(() => {
+		if (!composing || !composerDirty) return;
+		return holdDeployReload('an unsaved post', { warnOnUnload: true });
+	});
+
+	/**
 	 * THE LIST, OVERLAID WITH WHATEVER THIS COMPOSER JUST CREATED.
 	 *
 	 * `data.items` only moves on a real reload (`invalidateAll`, or a fresh
@@ -291,15 +320,21 @@
 	}
 
 	/**
-	 * The notebook door for whoever is looking. A manager of this section gets the
-	 * review console already scoped to it -- `notebook_get_section_grid` asks
-	 * `classroom_manages_section`, the same question `canManage` is, so the link
-	 * can never offer a grid the database would refuse. Everyone else reading this
-	 * page is an actively enrolled student, and theirs is their own notebook.
+	 * THE CLASS'S OWN NOTEBOOK, for whoever is looking (ledger 0297). One address
+	 * for both roles now: the tab decides from the server's own `canManage`
+	 * whether it is the student's notebook in this class or the class's review,
+	 * so a check-in row links a student straight to their notebook with that
+	 * check-in chosen, and a manager to the class's grid -- both without leaving
+	 * the class.
 	 */
-	const notebookHref = $derived(
-		data.canManage ? `/notebook/review?section=${data.section.id}` : '/notebook'
+	const liveChoice = $derived(
+		data.canManage
+			? (liveItemChoices(items, Date.parse(data.classClock.now), data.classClock.today).find((c) => c.signal) ??
+					null)
+			: null
 	);
+
+	const notebookHref = $derived(classNotebookHref(data.section.id));
 
 	/**
 	 * Folded units, optimistic locally so the caret turns on the click rather
@@ -327,9 +362,21 @@
 			? collapsed.filter((id) => id !== groupId)
 			: [...collapsed, groupId];
 		if (!data.claims?.sub) return;
-		const merged = { ...(data.preferences ?? {}), classroomUnits: next };
-		await data.supabase.from('profiles').update({ preferences: merged }).eq('id', data.claims.sub);
+		// READ THEN MERGE (ledger 0297): the row as it stands now, not the
+		// page-load snapshot, so a fold never erases a namespace another surface
+		// wrote since this page loaded, and a later write never erases the fold.
+		await writeProfileNamespace(supabaseProfileIo(data.supabase, data.claims.sub), 'classroomUnits', next);
 	}
+
+	/**
+	 * THE VIEW A CLASS OPENS ON, the viewer's own default from the classroom
+	 * preference store the outer layout provides (null in a harness without
+	 * one). A default, never the last filter used: a class that silently opened
+	 * on yesterday's search would look like it had lost its items.
+	 */
+	const classPrefStore = classroomPreferences();
+	const classPrefs = classPrefStore ? reactivePreferences(classPrefStore) : null;
+	const opensOn = $derived(classOpensOnFor(classPrefs?.current.classView.opensOn ?? 'all', data.canManage));
 </script>
 
 {#snippet classList()}
@@ -355,7 +402,7 @@
 		The ROW renders only when at least one of them does, so a class with
 		neither carries no empty strip.
 	-->
-	{#if data.hallPass || data.songQueue}
+	{#if data.hallPass || data.songQueue || data.canManage}
 		<div class="class-tools" data-testid="class-tools">
 			{#if data.hallPass}
 				<HallPass
@@ -377,7 +424,19 @@
 					tool
 				/>
 			{/if}
+			{#if data.canManage}
+				<LiveDoor
+					href={`/classroom/${data.section.id}/live`}
+					sectionId={data.section.id}
+					choice={liveChoice}
+					presence={presenceTransports}
+					{live}
+				/>
+			{/if}
 		</div>
+	{/if}
+	{#if data.teams?.length}
+		<ClassTeams sets={data.teams} />
 	{/if}
 	<ClassView
 		section={data.section}
@@ -397,6 +456,8 @@
 		onCompose={data.canManage ? toggleComposer : null}
 		notice={composeNotice}
 		onToggleGroup={toggleGroup}
+		{opensOn}
+		clock={data.classClock}
 		{transports}
 		{unitTransports}
 		{deckTransports}
