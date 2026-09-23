@@ -26,7 +26,16 @@ import type { Tool, DragValue } from '../viewport';
 import { formatDimension, type DimensionUnit } from '../dimensions/model';
 export { INCH_DECIMALS } from '../dimensions/model';
 
-export const inches = (n: number) => formatDimension(n, 'in');
+/**
+ * THE DISPLAY UNIT, a student's preference: lengths beside the cursor read in
+ * inches or millimeters. The document always stores inches; this changes the
+ * words, and what a bare number typed into the value box means.
+ */
+export type DisplayUnit = 'in' | 'mm';
+export const DISPLAY_UNITS: readonly DisplayUnit[] = ['in', 'mm'];
+export const readoutSettings: { unit: DisplayUnit } = { unit: 'in' };
+const MM_PER_INCH = 25.4;
+export const inches = (n: number) => (readoutSettings.unit === 'mm' && Number.isFinite(n) ? `${(n * MM_PER_INCH).toFixed(2)} mm` : formatDimension(n, 'in'));
 export const degrees = (n: number) => formatDimension(n, 'deg');
 
 /** What the drag started on, from the gesture's own selection. */
@@ -88,7 +97,18 @@ export function numericUnit(tool: Tool): DimensionUnit {
 }
 const PROMPTS: Partial<Record<Tool, string>> = { extrude: 'Extrude distance (in)', revolve: 'Revolve angle (deg)', fillet: 'Fillet radius (in)', chamfer: 'Chamfer distance (in)', shell: 'Shell thickness (in)', move: 'Move distance (in)', rotate: 'Rotate angle (deg)', scale: 'Scale factor', 'linear-pattern': 'Copies', 'circular-pattern': 'Copies' };
 /** The label on the number entry a digit opens: what is being typed and in what unit. */
-export function numericPrompt(tool: Tool): string { return PROMPTS[tool] ?? 'Exact value (in)'; }
+export function numericPrompt(tool: Tool): string { const p = PROMPTS[tool] ?? 'Exact value (in)'; return readoutSettings.unit === 'mm' ? p.replace('(in)', '(mm)') : p; }
+/**
+ * What a typed length means in the student's display unit: a bare number in
+ * millimeters mode is millimeters, so `25` becomes `25mm` before it is parsed.
+ * A number that already names its unit, and every angle, count and ratio,
+ * passes through untouched.
+ */
+export function withDisplayUnit(text: string, unit: DimensionUnit): string {
+	if (unit !== 'in' || readoutSettings.unit !== 'mm') return text;
+	const t = text.trim();
+	return /^[-+]?(\d+(\.\d*)?|\.\d+)(\s+\d+\/\d+)?$|^[-+]?\d+\/\d+$/.test(t) ? `${t}mm` : text;
+}
 
 /**
  * What a drawing in progress is worth. `du`/`dv` are the plane offsets from
@@ -102,7 +122,7 @@ export interface DrawingInput { tool: string; du: number; dv: number; segment: n
 export function drawingReadout(input: DrawingInput): string {
 	const { tool, du, dv, segment } = input;
 	if (tool === 'circle') return `⌀ ${inches(2 * Math.hypot(du, dv))}`;
-	if (tool === 'rectangle') return `${Math.abs(du).toFixed(3)} × ${Math.abs(dv).toFixed(3)} in`;
+	if (tool === 'rectangle') return readoutSettings.unit === 'mm' ? `${(Math.abs(du) * MM_PER_INCH).toFixed(2)} × ${(Math.abs(dv) * MM_PER_INCH).toFixed(2)} mm` : `${Math.abs(du).toFixed(3)} × ${Math.abs(dv).toFixed(3)} in`;
 	if (tool === 'polygon') return `R ${inches(Math.hypot(du, dv))} · ${input.sides ?? 6} sides`;
 	if (tool === 'arc') {
 		const radius = input.radius ?? segment;

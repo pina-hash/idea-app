@@ -190,7 +190,9 @@
 		saveTimer = setTimeout(async () => {
 			const { data } = await supabase.from('profiles').select('preferences').eq('id', userId).single();
 			const preferences = (data?.preferences && typeof data.preferences === 'object') ? data.preferences : {};
-			await supabase.from('profiles').update({ preferences: { ...preferences, ideacad: { panes: next } } }).eq('id', userId);
+			/* A SPREAD-MERGE INSIDE `ideacad` TOO: the solid modeler keeps its own preferences at `ideacad.solid`, and writing `{ panes }` alone would erase them. */
+			const ideacad = (preferences.ideacad && typeof preferences.ideacad === 'object' && !Array.isArray(preferences.ideacad)) ? preferences.ideacad : {};
+			await supabase.from('profiles').update({ preferences: { ...preferences, ideacad: { ...ideacad, panes: next } } }).eq('id', userId);
 		}, 250);
 	}
 
