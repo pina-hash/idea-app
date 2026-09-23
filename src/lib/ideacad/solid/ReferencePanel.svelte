@@ -28,6 +28,9 @@
 	let { api }: { api: WorkspaceApi } = $props();
 	let datum = $state<Datum>('XY'), axis = $state<DatumAxis>('Z'), offset = $state('1'), angle = $state('45'), coords = $state('0, 0, 0');
 	let showDatum = $state(datumPlanesShown()), sectioned = $state<string | null>(null);
+	/* The offers that cannot be made yet fold away until asked for: each still says why on a press, and a ready one is never folded. */
+	let folded = $state({ selection: true, construction: true });
+	const uid = $props.id();
 	const GLYPH: Record<string, string> = { plane: '▱', axis: '│', point: '·' };
 	/** `Number('')` is 0, which is a number nobody typed; an empty field is not a number. */
 	const number = (v: string) => (v.trim() === '' ? NaN : Number(v.trim()));
@@ -52,31 +55,31 @@
 </script>
 <section class="reference panel" aria-label="Reference geometry" data-testid="ideacad-reference-panel">
 	<h2>Reference geometry</h2>
-	<p class="lede">Planes, axes and points to build against. Each is a feature in the design tree; rename it there.</p>
+
+	{#snippet offerList(list: ReferenceOffer[], key: 'selection' | 'construction')}
+		{@const waiting = list.length - readyCount(list)}
+		<ul class="offers" class:folded={folded[key]} id={`${uid}-${key}`}>
+			{#each list as o (o.id)}
+				<li class:waiting={!o.feature}><button type="button" class="offer" class:ready={!!o.feature} aria-disabled={!o.feature} disabled={!api.canWrite || api.busy} data-offer={o.id} onclick={() => void make(o)}><span class="title"><span class="glyph" aria-hidden="true">{GLYPH[o.kind]}</span> {o.title}</span><span class="sentence">{o.sentence}</span></button></li>
+			{/each}
+		</ul>
+		{#if waiting}<button type="button" class="fold" aria-expanded={!folded[key]} aria-controls={`${uid}-${key}`} data-testid={`ideacad-reference-fold-${key}`} onclick={() => (folded[key] = !folded[key])}><span class="caret" aria-hidden="true">{folded[key] ? '▸' : '▾'}</span>{folded[key] ? 'Show' : 'Hide'} {waiting} not ready</button>{/if}
+	{/snippet}
 
 	<h3>From the selection <span class="count" data-testid="ideacad-reference-ready-selection">{readyCount(fromSelection)} of {fromSelection.length} ready</span></h3>
-	<ul class="offers">
-		{#each fromSelection as o (o.id)}
-			<li><button type="button" class="offer" class:ready={!!o.feature} aria-disabled={!o.feature} disabled={!api.canWrite || api.busy} data-offer={o.id} onclick={() => void make(o)}><span class="title"><span class="glyph" aria-hidden="true">{GLYPH[o.kind]}</span> {o.title}</span><span class="sentence">{o.sentence}</span></button></li>
-		{/each}
-	</ul>
+	{@render offerList(fromSelection, 'selection')}
 
 	<h3>By construction <span class="count" data-testid="ideacad-reference-ready-construction">{readyCount(byConstruction)} of {byConstruction.length} ready</span></h3>
-	<p class="note">A selected plane, flat face, axis, edge or corner is the base; the datum below stands in when nothing fitting is selected.</p>
 	<div class="inputs">
-		<label>Datum plane<select bind:value={datum} data-testid="ideacad-reference-datum"><option>XY</option><option>XZ</option><option>YZ</option></select></label>
-		<label>Datum axis<select bind:value={axis} data-testid="ideacad-reference-axis"><option>X</option><option>Y</option><option>Z</option></select></label>
-		<label>Offset (in)<input inputmode="decimal" bind:value={offset} data-testid="ideacad-reference-offset" /></label>
-		<label>Angle (°)<input inputmode="decimal" bind:value={angle} data-testid="ideacad-reference-angle" /></label>
-		<label>Point x, y, z (in)<input bind:value={coords} data-testid="ideacad-reference-coordinates" /></label>
+		<label>Plane<select bind:value={datum} data-testid="ideacad-reference-datum"><option>XY</option><option>XZ</option><option>YZ</option></select></label>
+		<label>Axis<select bind:value={axis} data-testid="ideacad-reference-axis"><option>X</option><option>Y</option><option>Z</option></select></label>
+		<label>Offset <small>in</small><input inputmode="decimal" bind:value={offset} data-testid="ideacad-reference-offset" /></label>
+		<label>Angle <small>°</small><input inputmode="decimal" bind:value={angle} data-testid="ideacad-reference-angle" /></label>
+		<label class="wide">Point x, y, z <small>in</small><input bind:value={coords} data-testid="ideacad-reference-coordinates" /></label>
 	</div>
-	<ul class="offers">
-		{#each byConstruction as o (o.id)}
-			<li><button type="button" class="offer" class:ready={!!o.feature} aria-disabled={!o.feature} disabled={!api.canWrite || api.busy} data-offer={o.id} onclick={() => void make(o)}><span class="title"><span class="glyph" aria-hidden="true">{GLYPH[o.kind]}</span> {o.title}</span><span class="sentence">{o.sentence}</span></button></li>
-		{/each}
-	</ul>
+	{@render offerList(byConstruction, 'construction')}
 
-	<label class="toggle"><input type="checkbox" checked={showDatum} onchange={(e) => toggleDatum(e.currentTarget.checked)} data-testid="ideacad-reference-datum-planes" /><span>Show datum planes <small>the XY, XZ and YZ squares at the origin, drawn faintly</small></span></label>
+	<label class="toggle"><input type="checkbox" checked={showDatum} onchange={(e) => toggleDatum(e.currentTarget.checked)} data-testid="ideacad-reference-datum-planes" /><span>Show datum planes</span></label>
 
 	<h3>In this document <span class="count">{rows.length}</span></h3>
 	{#if rows.length}
@@ -89,22 +92,19 @@
 				</li>
 			{/each}
 		</ul>
-	{:else}
-		<p class="note">No reference geometry yet.</p>
 	{/if}
-	<p class="hint" data-testid="ideacad-reference-hint"><strong>Use one as a revolve axis, a pattern axis or a mirror plane:</strong> select the sketch or the body first, then shift-click the axis or plane (here, or in the viewport), then type the angle, spacing or count. The feature turns about, runs along or reflects across that reference, and follows it when it moves.</p>
 </section>
 <style>
 	.reference{display:grid;gap:8px}
 	h2{margin:0;font-size:18px}
 	h3{margin:6px 0 0;display:flex;justify-content:space-between;align-items:baseline;font:600 15px Rajdhani,sans-serif;color:var(--text-1);border-bottom:1px solid var(--hairline);padding-bottom:4px}
 	.reference h3 .count{font:12px 'Share Tech Mono',monospace;color:var(--text-2)}
-	.lede,.note,.hint{margin:0;color:var(--text-2);font-size:14px;line-height:1.4}
-	.hint{border-top:1px solid var(--hairline);padding-top:8px}
-	.hint strong{color:var(--text-1);font-weight:600}
 	.offers,.list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
-	.inputs{display:grid;gap:6px}
-	label{display:grid;gap:4px;font:600 14px Rajdhani,sans-serif;color:var(--text-2)}
+	.inputs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.inputs .wide{grid-column:1/-1}
+	.offers.folded li.waiting{display:none}.offers.folded:not(:has(li:not(.waiting))){display:none}
+	.reference .fold{display:flex;align-items:center;gap:6px;min-height:44px;width:100%;box-sizing:border-box;padding:4px 8px;border:1px dashed var(--boundary);border-radius:4px;background:transparent;color:var(--text-2);font:15px Rajdhani,sans-serif;cursor:pointer;text-align:left}
+	.caret{width:1em}
+	label{display:grid;gap:2px;font:600 14px Rajdhani,sans-serif;color:var(--text-2)}label small{font-weight:400}
 	input,select{min-height:44px;width:100%;box-sizing:border-box;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:16px Rajdhani,sans-serif;padding:0 8px}
 	.reference .offer{display:grid;gap:2px;width:100%;min-height:44px;box-sizing:border-box;text-align:left;padding:6px 8px;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:16px Rajdhani,sans-serif;cursor:pointer}
 	.reference .offer.ready{border-color:var(--green)}
@@ -116,7 +116,6 @@
 	.glyph{display:inline-block;width:1em;text-align:center}
 	.toggle{display:flex;align-items:center;gap:8px;min-height:44px;color:var(--text-1);cursor:pointer}
 	.toggle input{width:20px;height:20px;min-height:0;margin:0;flex-shrink:0}
-	.toggle small{display:block;font-size:12px;color:var(--text-2);font-weight:400}
 	.reference .row{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;min-height:44px;box-sizing:border-box;text-align:left;padding:4px 8px;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--text-1);font:16px Rajdhani,sans-serif;cursor:pointer}
 	.reference .row.selected{border-color:var(--green);color:var(--green)}
 	.reference .row .meta{font:12px 'Share Tech Mono',monospace;color:var(--text-2)}

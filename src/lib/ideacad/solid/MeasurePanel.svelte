@@ -53,21 +53,19 @@
 </script>
 <section class="measure panel" aria-label="Measure" data-testid="ideacad-measure-panel">
 	<h2>Measure</h2>
-	<p class="hint">Click one thing for its length, area or volume. Shift-click a second for the distance or angle between them: two corners, a corner and a face or edge, two flat faces, or two bodies.</p>
 	<ol class="picks" data-testid="ideacad-measure-picks">
 		{#each picks as p, i (p.bodyId + '/' + p.kind + '/' + p.id)}<li><span class="ordinal">{i === 0 ? 'First' : 'Second'}</span> {describe(p)}</li>{/each}
 		{#if !picks.length}<li class="empty">Nothing selected yet.</li>{/if}
 	</ol>
 	<output class="result" aria-live="polite" data-testid="ideacad-measure-result">
-		{#if result}<span class="word">{WORDS[result.kind]?.word ?? result.kind}</span><span class="value">{shown}</span>{#if result.points}<small>A line in the viewport joins the two closest points.</small>{/if}{:else if pending}<span class="word">Measuring…</span>{:else if picks.length}<span class="word">No reading for this pair.</span>{/if}
+		{#if result}<span class="word">{WORDS[result.kind]?.word ?? result.kind}</span><span class="value">{shown}</span>{:else if pending}<span class="word">Measuring…</span>{:else if picks.length}<span class="word">No reading for this pair.</span>{/if}
 	</output>
 	{#if picks.length}<button type="button" onclick={() => api.select(null)} data-testid="ideacad-measure-clear">Clear picks</button>{/if}
 </section>
 <style>
 	.measure{display:grid;gap:8px}h2{margin:0;font-size:18px}
-	.hint{margin:0;color:var(--text-2);font-size:14px;line-height:1.4}
 	.picks{margin:0;padding:0;list-style:none;display:grid;gap:4px;font-size:14px;color:var(--text-1)}.picks .ordinal{font:12px 'Share Tech Mono',monospace;color:var(--text-2);margin-right:6px}.picks .empty{color:var(--text-2)}
 	.result{display:grid;gap:2px;min-height:44px;padding:6px 8px;border:1px solid var(--hairline);border-radius:4px;background:var(--surface-0)}
-	.result .word{font:600 14px Rajdhani,sans-serif;color:var(--text-2)}.result .value{font:20px 'Share Tech Mono',monospace;color:var(--text-1)}.result small{font-size:12px;color:var(--text-2)}
+	.result .word{font:600 14px Rajdhani,sans-serif;color:var(--text-2)}.result .value{font:20px 'Share Tech Mono',monospace;color:var(--text-1)}
 	.measure button{min-height:44px;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:600 15px Rajdhani,sans-serif;cursor:pointer;padding:0 10px}
 </style>

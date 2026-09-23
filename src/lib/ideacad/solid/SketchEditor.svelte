@@ -51,15 +51,15 @@
 	const consumers = $derived(api.manifest.features.filter((f): f is FeatureOf<'extrude'> => f.type === 'extrude' && f.sketch === api.editingSketch));
 	const words: Record<string, string> = { solved: 'Fully defined', underConstrained: 'Under defined', redundant: 'Over defined', unsatisfied: 'Cannot be solved', unsolved: 'Not solved' };
 	const TOOLS: { id: SketchTool; word: string; hint: string; write: boolean }[] = [
-		{ id: 'select', word: 'Select', hint: 'Click to select. Drag a point or an entity to move it; drop a point on another point to join them.', write: false },
-		{ id: 'line', word: 'Line', hint: 'Click each corner. Click the first point to close, or press Enter to stop.', write: true },
-		{ id: 'rectangle', word: 'Rectangle', hint: 'Drag from one corner to the opposite corner.', write: true },
-		{ id: 'circle', word: 'Circle', hint: 'Drag from the center out to the radius.', write: true },
-		{ id: 'arc', word: 'Arc', hint: 'Click the center, then the start, then swing around to where it ends. Hold Shift for the long way around.', write: true },
-		{ id: 'polygon', word: 'Polygon', hint: 'Drag from the center to the first corner.', write: true },
-		{ id: 'trim', word: 'Trim', hint: 'Click the part of a line, arc or circle to remove, between where it crosses others.', write: true },
-		{ id: 'extend', word: 'Extend', hint: 'Click a line near the end to run on to the next entity.', write: true },
-		{ id: 'fillet', word: 'Fillet', hint: 'Click a corner point, or two lines one after the other, to round the corner.', write: true }
+		{ id: 'select', word: 'Select', hint: 'Drag to move; drop a point on a point to join', write: false },
+		{ id: 'line', word: 'Line', hint: 'Click each corner; click the first to close, Enter to stop', write: true },
+		{ id: 'rectangle', word: 'Rectangle', hint: 'Drag corner to corner', write: true },
+		{ id: 'circle', word: 'Circle', hint: 'Drag from the center out', write: true },
+		{ id: 'arc', word: 'Arc', hint: 'Center, start, then swing around to where it ends; Shift for the long way', write: true },
+		{ id: 'polygon', word: 'Polygon', hint: 'Drag from the center to a corner', write: true },
+		{ id: 'trim', word: 'Trim', hint: 'Click the piece to remove', write: true },
+		{ id: 'extend', word: 'Extend', hint: 'Click near a line\'s end to run it on', write: true },
+		{ id: 'fillet', word: 'Fillet', hint: 'Click a corner, or two lines, to round it', write: true }
 	];
 	const session = new SketchSession();
 	/* Mirrors of the session for the template; the session is the state, these are what it reads as. */
