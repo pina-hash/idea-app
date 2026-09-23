@@ -175,8 +175,14 @@ export class SolidEngine {
 		const cp = this.k.checkpoint();
 		try { return fn(); } finally { this.k.restore(cp); this.k.discardCheckpoint(cp); }
 	}
-	private volume(solid: number): number {
-		if (this.k.validateSolid(solid) !== 0) throw Error('This change could not form a valid solid. Try a different size.');
+	/** A combine, mirror or pattern sizes nothing, so its refusal names what the student can change instead (F009). */
+	private static readonly INVALID: Partial<Record<Feature['type'], string>> = {
+		boolean: 'These bodies could not be combined into one valid solid. Move one so they overlap by more than a sliver, or so they only meet face to face.',
+		mirror: 'The mirrored copy could not join the original as a valid solid. Try a plane that clears the body or lies on one of its flat faces.',
+		pattern: 'The copies could not form a valid solid. Change the spacing so they overlap by more, or not at all.'
+	};
+	private volume(solid: number, type?: Feature['type']): number {
+		if (this.k.validateSolid(solid) !== 0) throw Error((type && SolidEngine.INVALID[type]) ?? 'This change could not form a valid solid. Try a different size.');
 		let volume: number;
 		try { volume = json(this.k.massProperties(solid)).volume; } catch { throw Error('This change would remove the whole body. Use Delete to remove it.'); }
 		if (!Number.isFinite(volume) || volume <= 0) throw Error('This change would remove the whole body. Use Delete to remove it.');
@@ -224,7 +230,7 @@ export class SolidEngine {
 				try {
 					const executor = EXECUTORS[feature.type] as (ctx: ExecutorContext, f: Feature) => void;
 					executor(this.context(feature, i, touched, warnings), feature);
-					for (const id of touched) { const b = this.live.bodies.get(id); if (b) this.volume(b.solid); }
+					for (const id of touched) { const b = this.live.bodies.get(id); if (b) this.volume(b.solid, feature.type); }
 					this.results[i] = { status: warnings.length ? 'warning' : 'ok', message: warnings[0], bodies: [...touched] };
 				} catch (error) {
 					this.k.restore(fallback);
