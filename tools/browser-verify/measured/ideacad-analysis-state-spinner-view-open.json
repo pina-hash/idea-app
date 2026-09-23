@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "ideacad-analysis-state-spinner-view-open.mjs",
-	"date": "2026-09-23T09:19:30.951Z",
-	"sha": "b6ff71b239cc33a1443d7647ba12823247604620",
-	"dirty": false,
+	"date": "2026-09-23T09:46:21.921Z",
+	"sha": "1f91c202ff54f953daf9991c4fc103a2a124dfe1",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 30,
 	"outsideRows": [],
-	"ms": 5865
+	"ms": 5481
 }
