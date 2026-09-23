@@ -12,6 +12,7 @@
 import type { ModelProjection, ResolvedPlane, Selection, SketchConstraint, SketchEntity, SketchSolveReport, SolidCommand, SolidManifest, Vec3 } from './types';
 import type { Tool } from './viewport';
 import type { PreferenceGroup, SolidPreferences } from './preferences';
+import type { MenuItem } from './context-menu';
 
 export interface WorkspaceApi {
 	readonly model: ModelProjection;
@@ -52,6 +53,12 @@ export interface WorkspaceApi {
 	setPreference?<G extends PreferenceGroup>(group: G, value: SolidPreferences[G]): void;
 	/** Run a registry command by id (`command-registry.ts`), exactly as its key or its search row would: a tutorial step or a context menu names a command, never a handler. */
 	runCommand?(id: string): void;
+	/** Preselect geometry from a panel or the tree (a row's bodies, a crumb's face), lit in the viewport exactly as the pointer's hover lights it; null stops. Optional so a fake workspace need not supply it. */
+	hover?(selections: Selection[] | null): void;
+	/** Hear what the pointer is over in the viewport: a selection, or null over empty space. The tree lights the matching row this way. Returns the unsubscribe. */
+	onHover?(listener: (selection: Selection | null) => void): () => void;
+	/** Open the workspace's one right-click menu at client pixels, with rows the caller builds (`context-menu.ts`: `commandItems` from the registry). */
+	contextMenu?(items: MenuItem[], at: { x: number; y: number }): void;
 }
 export type SketchSolve = { entities: SketchEntity[]; report: SketchSolveReport };
 export type SketchSolveInput = { entities: SketchEntity[]; constraints: SketchConstraint[] };

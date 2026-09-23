@@ -40,7 +40,12 @@
 	import CommandSearch from './CommandSearch.svelte';
 	import EmptyCue from './EmptyCue.svelte';
 	import PreferencesPanel from './PreferencesPanel.svelte';
-	import { COMMANDS, commandById, effectiveShortcuts, keyFromEvent, keyLabel, recordRecent, type Command, type CommandContext, type CommandGroup, type PanelId } from './command-registry';
+	import ContextMenu from './ContextMenu.svelte';
+	import ContextBar from './ContextBar.svelte';
+	import { COMMANDS, CONTEXT_BAR, CONTEXT_MENUS, PICK_FILTER_KINDS, PICK_FILTER_WORDS, acceptsSelection, commandById, effectiveShortcuts, keyFromEvent, keyLabel, menuKindOf, pickFilterLabel, recordRecent, type Command, type CommandContext, type CommandGroup, type MenuKind, type PanelId, type PickFilterKind } from './command-registry';
+	import { breadcrumb, commandItems, selectionLabel, type Crumb, type MenuItem } from './context-menu';
+	import { BOX_WORDS } from './viewport/box-select';
+	import { edgeLoop, loopFace } from './viewport/edge-loop';
 	import { MemoryPreferenceStore, applyToModules, captureFromModules, changedGroups, type PreferenceStore } from './preferences';
 	import { onDatumPlanesChange, datumPlanesVisible, DATUM_NAMES } from './viewport/reference-layer';
 	import { DATUM_SELECTION_PREFIX, type Datum } from './features/reference';
@@ -53,7 +58,7 @@
 	import {foldGroups,groupHistory,inverseOperation,type DirectRow} from './history';
 	import { TOOLS, QUICK_TOOLS } from './tools';
 	import { SolidClient } from './client';
-	import { SolidViewport, EMPTY_MODEL, type DragValue, type Gesture, type Tool, type DrawPlane } from './viewport';
+	import { SolidViewport, EMPTY_MODEL, type BoxState, type DragValue, type Gesture, type Tool, type DrawPlane, type ViewportPick } from './viewport';
 	import { dragReadout, numericPrompt, numericUnit, withDisplayUnit } from './viewport/readout';
 	import { rectangleEntities, type SketchDraft } from './sketch/editor';
 	import { datumPlane, planeFromNormal } from './sketch/model';
@@ -86,6 +91,14 @@
 	/* The widths the shell's Voice and Report controls take out of the footer, where they are docked. */
 	let dockLeft=$state(12),dockRight=$state(12);
 	let editingSketch=$state<string|null>(null);
+	/* THE CHROME NEAR THE POINTER: the right-click menu (and what was under the pointer when it opened), the context toolbar with its breadcrumb (and what was under the click), and a box being dragged. */
+	let menu=$state.raw<{items:MenuItem[];at:{x:number;y:number};label:string}|null>(null),menuPick:ViewportPick|null=null;
+	let bar=$state.raw<{at:{x:number;y:number};touch?:boolean}|null>(null),barPick:ViewportPick|null=null;
+	let box=$state.raw<BoxState|null>(null);
+	/* Bodies hidden for this session only; never saved, always shown on screen as a count with a way back. */
+	let hiddenBodies=$state.raw<string[]>([]);
+	let pickButton:HTMLButtonElement|undefined=$state();
+	const hoverListeners=new Set<(selection:Selection|null)=>void>();
 	let measure=$state<{text:string;x:number;y:number}|null>(null),numeric=$state<{value:string;x:number;y:number}|null>(null);
 	let numericInput:HTMLInputElement=$state()!;
 	let importInput:HTMLInputElement=$state()!;
@@ -120,17 +133,19 @@
 	const VIEW_ITEMS:{id:string;label:string}[]=[{id:'fit',label:'Fit'},{id:'view-iso',label:'Iso'},{id:'view-front',label:'Front'},{id:'view-top',label:'Top'},{id:'normal-to',label:'Normal to'},{id:'view-right',label:'Right'}];
 	const viewItems:ViewItem[]=$derived(VIEW_ITEMS.map(v=>{const c=commandById(v.id)!,k=keyFor(v.id);return{id:v.id,label:v.label,title:`${c.name}${k?` (${k})`:''}`,reason:v.id==='normal-to'&&!normalTarget()?'Select a flat face or plane':null};}));
 	const openSketches=$derived(model.sketches.filter(s=>!s.consumed));
+	const pickFilter=$derived(prefs.pick.only);
+	const hiddenCount=$derived(hiddenBodies.filter(id=>model.bodies.some(b=>b.id===id)).length);
 	function show(result:ModelProjection){model=result;if(planesForced&&result.features.length){planesForced=false;if(viewport)viewport.datumForced=false;}viewport?.display(result);}
 	function select(selection:Selection|null,append=false){
-		if(!selection)selections=[];
+		if(!selection){selections=[];bar=null;}
 		else if(append){const exists=selections.some(s=>s.bodyId===selection.bodyId&&s.id===selection.id&&s.kind===selection.kind);selections=exists?selections.filter(s=>!(s.bodyId===selection.bodyId&&s.id===selection.id)): [...selections,selection];}
 		else selections=[selection];
 		viewport?.highlight();
 	}
-	function setTool(next:Tool){if(gesture)void cancel();viewport?.clearDrawing();tool=next;error='';if(next==='reference')referenceOpen=true;if(next==='mate')matesOpen=true;viewport?.highlight();canvas?.focus();}
+	function setTool(next:Tool){if(gesture)void cancel();viewport?.clearDrawing();tool=next;error='';bar=null;if(next==='reference')referenceOpen=true;if(next==='mate')matesOpen=true;viewport?.highlight();canvas?.focus();}
 	function editSketch(id:string|null){
-		editingSketch=id;const sketch=id?model.sketches.find(s=>s.feature===id):null;
-		viewport.editingPlane=sketch?sketch.plane:null;if(sketch){viewport.lookAt(sketch.plane);select({bodyId:'',kind:'sketch',id:sketch.feature});}
+		editingSketch=id;const sketch=id?model.sketches.find(s=>s.feature===id):null;bar=null;menu=null;
+		viewport.editingPlane=sketch?sketch.plane:null;viewport.editingSketchId=sketch?sketch.feature:null;if(sketch){viewport.lookAt(sketch.plane);select({bodyId:'',kind:'sketch',id:sketch.feature});}else viewport.highlight();
 	}
 	async function record(label:string,before:ModelSnapshot,changes?:SolidHistoryAction['changes']){
 		const after=await client.request<ModelSnapshot>('snapshot');currentSnapshot=after;
@@ -296,9 +311,9 @@
 		if(s.kind==='reference'){const r=model.references.find(r=>r.feature===s.id);return r?.kind==='plane'?{origin:r.origin,u:r.u!,v:r.v!,normal:r.normal!}:null;}
 		return null;
 	}
-	/** The plane a drawing press on empty space lands on: a selected plane, else the datum the view looks straight at, else Top. */
+	/** The plane a drawing press on empty space lands on: a selected flat face or plane (so "Sketch" on a face draws on it wherever the press lands), else the datum the view looks straight at, else Top. */
 	function defaultDrawPlane(){
-		for(const s of selections){if(isDatum(s)){const datum=s.id.slice(DATUM_SELECTION_PREFIX.length) as Datum;return{plane:datumPlane(datum),ref:{kind:'datum' as const,datum}};}if(s.kind==='reference'){const r=model.references.find(r=>r.feature===s.id);if(r?.kind==='plane')return{plane:{origin:r.origin,u:r.u!,v:r.v!,normal:r.normal!},ref:{kind:'reference' as const,feature:r.feature}};}}
+		for(const s of selections){if(s.kind==='face'){const body=model.bodies.find(b=>b.id===s.bodyId),face=body?.faces.find(f=>f.id===s.id);if(body&&face&&face.kind==='plane')return{plane:planeFromNormal(face.normal,face.center),ref:{kind:'face' as const,face:{body:body.id,name:face.id,hint:{kind:face.kind,center:face.center,normal:face.normal,area:face.area}}}};}if(isDatum(s)){const datum=s.id.slice(DATUM_SELECTION_PREFIX.length) as Datum;return{plane:datumPlane(datum),ref:{kind:'datum' as const,datum}};}if(s.kind==='reference'){const r=model.references.find(r=>r.feature===s.id);if(r?.kind==='plane')return{plane:{origin:r.origin,u:r.u!,v:r.v!,normal:r.normal!},ref:{kind:'reference' as const,feature:r.feature}};}}
 		const datum=viewport?.facingDatum()??'XY';return{plane:datumPlane(datum),ref:{kind:'datum' as const,datum}};
 	}
 	function togglePanel(panel:PanelId){if(panel==='objects')objectsOpen=!objectsOpen;else if(panel==='reference')referenceOpen=!referenceOpen;else if(panel==='mates')matesOpen=!matesOpen;else if(panel==='section')sectionOpen=!sectionOpen;else addonOpen=!addonOpen;}
@@ -311,17 +326,131 @@
 		normalTo:()=>{const plane=normalTarget();if(plane)viewport.normalTo(plane);},togglePlanes,togglePanel,
 		openExport:()=>exportOpen=!exportOpen,openSearch,openPreferences:()=>{prefsOpen=!prefsOpen;},
 		/* Help is the searchable list of every command until the tutorial lands; it never opens nothing. */
-		openHelp:()=>openSearch()
+		openHelp:()=>openSearch(),
+		sketchOn,editSketch:()=>{const s=selections.find(x=>x.kind==='sketch');if(s)editSketch(s.id);},filletFaceEdges,selectOther,selectTangentChain:()=>void selectTangentChain(),selectLoop,hideBodies,showBodies,get hiddenBodies(){return hiddenCount;},mirrorBodies,appearance,openPickFilter:()=>openPickMenu(),drillAtMenuPoint
 	};
 	/** Run a registry command from any path (a key, search, the view control, the palette), and remember it for search's ranking. One that cannot run says why, where every refusal is said. */
 	function runCommand(command:Command){
-		search=null;const reason=command.unavailable?.(commandContext);if(reason){error=reason;return;}
+		search=null;menu=null;const reason=command.unavailable?.(commandContext);if(reason){error=reason;return;}
 		command.run(commandContext);
 		/* Opening a list is not using a command: only what was run from it ranks. */
 		if(!OPENERS.includes(command.id))prefStore.set('commands',{recent:recordRecent(prefs.commands.recent,command.id)});
 	}
 	const OPENERS=['search','view-menu','help'];
 	function runById(id:string){const command=commandById(id);if(command)runCommand(command);}
+	/* ------------------------------------------------------------------ SELECTION CHROME: menu, toolbar, breadcrumb, box, pick filter */
+	const referenceKindOf=(s:Selection|undefined)=>s?.kind==='reference'&&!isDatum(s)?model.references.find(r=>r.feature===s.id)?.kind:undefined;
+	/** A command's name in a menu row, where the row says what it will do now: Show or Hide planes. */
+	const labelFor=(c:Command)=>c.id==='planes'?(datumPlanesVisible(model,planesForced)?'Hide planes':'Show planes'):undefined;
+	/** Tools that take a typed value right away: run from a menu or the toolbar with a fitting selection, the value box opens beside the pointer. */
+	const VALUE_AFTER=['extrude','fillet','chamfer','shell','fillet-face-edges'];
+	/** Run a command from the right-click menu or the context toolbar: exactly as its key would, then open the value box where it takes one. */
+	function runFromMenu(command:Command,at:{x:number;y:number}|null){
+		const refused=!!command.unavailable?.(commandContext);runCommand(command);bar=null;
+		if(refused||!at||!VALUE_AFTER.includes(command.id)||!opened.canWrite||!['extrude','fillet','chamfer','shell'].includes(tool))return;
+		const armed=commandById(tool);if(!armed||!acceptsSelection(armed,selections))return;
+		const r=canvas.getBoundingClientRect();numeric={value:'',x:at.x-r.left,y:at.y-r.top};focusNumeric();
+	}
+	/** The menu's rows for what was right-clicked. */
+	function menuItems(kind:MenuKind,pick:ViewportPick|null,at:{x:number;y:number}):MenuItem[]{
+		const ids=CONTEXT_MENUS[kind].filter(id=>!(id==='delete'&&selections.some(isDatum))&&!(id==='show-bodies'&&!hiddenCount));
+		const rows=commandItems(ids,commandContext,shortcuts.byCommand,(c)=>runFromMenu(c,at),labelFor);
+		for(const row of rows)if(row.id==='select-other'){const list=pick?.all??[];row.items=candidateItems(list);row.reason=list.length>1?null:'Nothing else here';row.run=undefined;}
+		if(kind!=='empty')return rows;
+		const recent=prefs.commands.recent.filter(id=>!CONTEXT_MENUS.empty.includes(id)&&commandById(id)).slice(0,6);
+		const views=commandItems(['view-iso','view-front','view-top','view-right','normal-to'],commandContext,shortcuts.byCommand,(c)=>runFromMenu(c,at));
+		return[
+			...(recent.length?[{id:'recent',label:'Recent',icon:'M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18zM12 7v5l3 2',items:commandItems(recent,commandContext,shortcuts.byCommand,(c)=>runFromMenu(c,at),labelFor)}]:[]),
+			{id:'views',label:'Views',icon:commandById('view-iso')!.icon,items:views},
+			...rows.slice(0,rows.length-1),
+			{id:'pick-filter',label:pickFilter.length?`Pick filter: ${pickFilterLabel(pickFilter)}`:'Pick filter',icon:commandById('pick-filter')!.icon,items:pickItems()},
+			...rows.slice(rows.length-1)
+		];
+	}
+	/** Select Other's list: everything under the pointer, nearest first, each lit in the model while it is hovered or focused. */
+	function candidateItems(list:ViewportPick['all']):MenuItem[]{
+		return list.slice(0,24).map((c,i)=>({id:`candidate-${i}`,label:selectionLabel(model,c.selection),icon:KIND_ICONS[c.selection.kind]??KIND_ICONS.reference,run:()=>{select(c.selection);bar={at:menu?.at??{x:0,y:0}};barPick=menuPick;},preview:(on:boolean)=>viewport?.setExternalHover(on?[c.selection]:null)}));
+	}
+	const KIND_ICONS:Partial<Record<string,string>>={face:'M4 7l8-4 8 4-8 4z',edge:'M4 20L20 4',vertex:'M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6z',sketch:'M4 6h16v12H4z',reference:'M3 17l6-12h12l-6 12z',body:'M4 7l8-4 8 4v10l-8 4-8-4z'};
+	/** The pick filter's rows: a box per kind, and a way back to picking anything. */
+	function pickItems():MenuItem[]{
+		return[...PICK_FILTER_KINDS.map(k=>({id:`pick-${k}`,label:PICK_FILTER_WORDS[k],checked:pickFilter.includes(k),keepOpen:true,run:()=>togglePick(k)})),{id:'pick-all',label:'Pick anything',icon:'M5 3l14 10-7 1-3 7z',reason:pickFilter.length?null:'Already picking anything',run:()=>setPick([])}];
+	}
+	function setPick(only:PickFilterKind[]){prefStore.set('pick',{only});}
+	function togglePick(kind:PickFilterKind){const only=prefStore.current.pick.only;setPick(only.includes(kind)?only.filter(k=>k!==kind):[...only,kind]);}
+	function openPickMenu(){const r=pickButton?.getBoundingClientRect();bar=null;menuPick=null;menu={items:pickItems(),at:r?{x:r.left,y:r.bottom}:{x:40,y:120},label:'Pick filter'};}
+	/** A right-click: select what is under the pointer (keeping a selection it already belongs to) and open its menu. */
+	function openContextMenu(at:{x:number;y:number},pick:ViewportPick){
+		if(loading)return;
+		const best=pick.best?.selection??null;
+		/* Right-clicking a selected body anywhere keeps the body: the menu is the body's. */
+		const selectedBody=best?.bodyId?selections.find(s=>s.kind==='body'&&s.bodyId===best.bodyId):undefined;
+		if(best&&!selectedBody&&!selections.some(s=>s.kind===best.kind&&s.id===best.id&&s.bodyId===best.bodyId)){let chosen=best;if(['rotate','scale','linear-pattern','circular-pattern'].includes(tool)&&best.kind!=='sketch'&&best.kind!=='reference')chosen={bodyId:best.bodyId,kind:'body',id:best.bodyId};select(chosen);}
+		const target=best?selectedBody??selections.find(s=>s.kind===best.kind&&s.id===best.id&&s.bodyId===best.bodyId)??selections[selections.length-1]??best:null;
+		const kind=menuKindOf(target,referenceKindOf(target??undefined));
+		menuPick=pick;bar=null;
+		menu={items:menuItems(kind,pick,at),at,label:target?`${selectionLabel(model,target)} menu`:'Menu'};
+	}
+	/** The keyboard's menu key (or Shift+F10): the menu for the current selection, beside it. */
+	function openContextMenuFromKeys(){
+		const r=canvas.getBoundingClientRect(),s=selections[selections.length-1];
+		const face=s?model.bodies.find(b=>b.id===s.bodyId)?.faces.find(f=>f.id===s.id):undefined;
+		const p=face?viewport.projectPoint(face.center):{x:r.left+r.width/2,y:r.top+r.height/2};
+		const at={x:Math.min(Math.max(p.x,r.left),r.right),y:Math.min(Math.max(p.y,r.top),r.bottom)};
+		menuPick=null;bar=null;menu={items:menuItems(menuKindOf(s,referenceKindOf(s)),null,at),at,label:s?`${selectionLabel(model,s)} menu`:'Menu'};
+	}
+	/** Select Other from search or a key: what is under the pointer's last position. */
+	function selectOther(){
+		const r=canvas.getBoundingClientRect(),p=viewport.pointerPosition(),at={x:r.left+p.x,y:r.top+p.y};
+		const pick=menuPick??viewport.pickAt({clientX:at.x,clientY:at.y});
+		const list=candidateItems(pick.all);if(!list.length){error='Nothing is under the pointer.';return;}
+		menuPick=pick;menu={items:list,at:menu?.at??at,label:'Select other'};
+	}
+	/** Every edge of the selected faces, and Fillet armed: "fillet this face" in one press. */
+	function filletFaceEdges(){
+		const edges:Selection[]=[];for(const s of selections){if(s.kind!=='face')continue;const face=model.bodies.find(b=>b.id===s.bodyId)?.faces.find(f=>f.id===s.id);for(const id of face?.edges??[])if(!edges.some(e=>e.bodyId===s.bodyId&&e.id===id))edges.push({bodyId:s.bodyId,kind:'edge',id});}
+		if(!edges.length){error='Select a face with edges to round.';return;}
+		selections=edges;setTool('fillet');viewport.highlight();
+	}
+	/** The tangent chain, from the fillet's own walk in the worker. */
+	async function selectTangentChain(){
+		const seeds=selections.filter(s=>s.kind==='edge');if(!seeds.length){error='Select an edge first.';return;}
+		try{const chain=await client.request<Selection[]>('tangent-chain',seeds);selections=chain.length?chain:seeds;viewport.highlight();}
+		catch(err){error=err instanceof Error?err.message:String(err);}
+	}
+	/** The loop of edges around the face this edge is on: the face under the pointer when there is one. */
+	function selectLoop(){
+		const edge=selections.find(s=>s.kind==='edge');const body=edge?model.bodies.find(b=>b.id===edge.bodyId):undefined;if(!edge||!body){error='Select an edge first.';return;}
+		const under=[...(menuPick?.all??[]),...(barPick?.all??[])].filter(c=>c.selection.kind==='face'&&c.selection.bodyId===body.id).map(c=>c.selection.id);
+		const ids=edgeLoop(body,edge.id,loopFace(body,edge.id,under));
+		selections=ids.map(id=>({bodyId:body.id,kind:'edge' as const,id}));viewport.highlight();
+	}
+	function hideBodies(){const ids=[...new Set(selections.map(s=>s.bodyId).filter(Boolean))];if(!ids.length)return;hiddenBodies=[...new Set([...hiddenBodies,...ids])];select(null);viewport.setHiddenBodies(hiddenBodies);}
+	function showBodies(){hiddenBodies=[];viewport.setHiddenBodies([]);}
+	/** Mirror the selected bodies across a selected plane, else across a selected Front, Top or Right, else Top. */
+	function mirrorBodies(){const bodies=[...new Set(selections.filter(s=>s.kind==='body').map(s=>s.bodyId))];if(!bodies.length){error='Select a body to mirror.';return;}void apply({type:'add-feature',feature:{id:'',name:'',type:'mirror',bodies,plane:mirrorPlane?{kind:'reference',feature:mirrorPlane.feature}:{kind:'datum',datum:mirrorDatum}}},'Mirror body');}
+	/** Material and color live in the Objects panel, beside the body's mass. */
+	function appearance(){const id=selections.find(s=>s.bodyId)?.bodyId;if(!id)return;select({bodyId:id,kind:'body',id});objectsOpen=true;}
+	/** Face the selected flat face or plane and arm Rectangle: a press anywhere then draws on that plane. */
+	function sketchOn(){const plane=normalTarget();if(!plane){error='Select a flat face or plane to sketch on.';return;}viewport.lookAt(plane);setTool('rectangle');}
+	/** Hole from a menu opened on a face drills where the menu was opened, in one press. */
+	function drillAtMenuPoint(){
+		const hit=(menuPick??barPick)?.best;if(!hit||hit.selection.kind!=='face'||!opened.canWrite)return false;
+		const body=model.bodies.find(b=>b.id===hit.selection.bodyId),face=body?.faces.find(f=>f.id===hit.selection.id);if(!body||!face)return false;
+		void apply({type:'add-feature',feature:{id:newFeatureId(),name:'',...holeFeatureAt(body,face,hit.point)} as Feature},'Hole');return true;
+	}
+	/* The context toolbar and breadcrumb read the CURRENT selection, so a crumb pressed or a command run updates them in place. */
+	const barKind=$derived(menuKindOf(selections[selections.length-1],referenceKindOf(selections[selections.length-1])));
+	const barItems=$derived(bar&&selections.length?commandItems(CONTEXT_BAR[barKind],commandContext,shortcuts.byCommand,(c)=>runFromMenu(c,bar?.at??null),labelFor):[]);
+	const barCrumbs=$derived(bar&&selections.length?breadcrumb(model,selections[selections.length-1]):[]);
+	/** A finished box: its picks replace the selection, or join it with Ctrl or Shift. */
+	function boxSelected(picked:Selection[],append:boolean){
+		if(append){const next=[...selections];for(const s of picked)if(!next.some(a=>a.kind===s.kind&&a.id===s.id&&a.bodyId===s.bodyId))next.push(s);selections=next;}
+		else selections=picked;
+		viewport.highlight();
+	}
+	/** Where the box is drawn, in the work area's own pixels. */
+	const boxStyle=$derived.by(()=>{if(!box||!canvas)return null;const r=canvas.getBoundingClientRect();return{left:box.rect.left-r.left,top:box.rect.top-r.top,width:box.rect.right-box.rect.left,height:box.rect.bottom-box.rect.top};});
 	/* The value box. A digit, a point or a minus with something selected, or while a drawing is becoming a sketch, opens it; digits that arrive before it has focus are appended in order, never dropped. */
 	function numericKey(key:string){
 		if(numeric){numeric.value+=key;focusNumeric();return true;}
@@ -344,7 +473,7 @@
 		if(numericInput&&target===numericInput){e.preventDefault();closeNumeric();canvas.focus();return;}
 		if(target?.closest?.('input,textarea,select,[contenteditable=true]')){target.blur();return;}
 		if(gesture||viewport?.isDrawing()){e.preventDefault();viewport.cancel();return;}
-		if(numeric||search||exportOpen||prefsOpen){e.preventDefault();closeNumeric();search=null;exportOpen=false;prefsOpen=false;return;}
+		if(numeric||search||exportOpen||prefsOpen||menu||bar){e.preventDefault();closeNumeric();search=null;exportOpen=false;prefsOpen=false;menu=null;bar=null;return;}
 		if(selections.length){e.preventDefault();select(null);}
 	}
 	function keydown(e:KeyboardEvent){
@@ -355,6 +484,8 @@
 		if(numeric&&e.key==='Enter'){e.preventDefault();void enterNumeric();return;}
 		if(numeric&&e.key==='Backspace'){e.preventDefault();numeric.value=numeric.value.slice(0,-1);focusNumeric();return;}
 		if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&/^[0-9.\-]$/.test(e.key)){if(numericKey(e.key))e.preventDefault();return;}
+		/* The keyboard's own menu key, or Shift+F10: the right-click menu for what is selected. */
+		if(e.key==='ContextMenu'||(e.shiftKey&&e.key==='F10')){e.preventDefault();openContextMenuFromKeys();return;}
 		const key=keyFromEvent(e);if(!key)return;
 		/* Space and Enter on a focused button press that button; a shortcut never takes them from it. */
 		if((key==='Space'||key==='Enter')&&target?.closest?.('button,a,[role=button],[role=option],[role=menuitem],summary'))return;
@@ -374,12 +505,22 @@
 		guide:(points,color)=>viewport.guide(points,color),clearGuides:()=>viewport.clearGuides(),
 		clip:(plane)=>viewport.clip(plane),lookAt:(plane)=>viewport.lookAt(plane),fit:()=>viewport.fit(),
 		unproject:(x,y,plane)=>viewport.unproject(x,y,plane),
-		get prefs(){return prefs;},setPreference:(group,value)=>prefStore.set(group,value),runCommand:(id)=>runById(id)
+		get prefs(){return prefs;},setPreference:(group,value)=>prefStore.set(group,value),runCommand:(id)=>runById(id),
+		hover:(list)=>viewport?.setExternalHover(list),
+		onHover:(listener)=>{hoverListeners.add(listener);return()=>{hoverListeners.delete(listener);};},
+		contextMenu:(items,at)=>{menuPick=null;bar=null;menu={items,at,label:'Menu'};}
 	};
 	onMount(()=>{
 		const readRules=()=>{if(advisoryTransport)void advisoryTransport.read().then(value=>rules=value).catch(err=>error=err.message);};readRules();
 		window.addEventListener('focus',readRules);const ruleTimer=setInterval(readRules,60000);
-		client=new SolidClient();viewport=new SolidViewport(canvas,{getTool:()=>tool,getPlane:():DrawPlane=>defaultDrawPlane(),getSelections:()=>selections,canWrite:()=>opened.canWrite,select,begin,update,end:()=>void end(),cancel:()=>void cancel(),draft:(d,r)=>void createDraft(d,r),error:message=>error=message,sketchPointer:(event,at,e)=>sketchPointer?.(event,at,e)??false});
+		client=new SolidClient();viewport=new SolidViewport(canvas,{getTool:()=>tool,getPlane:():DrawPlane=>defaultDrawPlane(),getSelections:()=>selections,canWrite:()=>opened.canWrite,select,begin,update,end:()=>void end(),cancel:()=>void cancel(),draft:(d,r)=>void createDraft(d,r),error:message=>error=message,sketchPointer:(event,at,e)=>sketchPointer?.(event,at,e)??false,
+			getPickFilter:()=>prefs.pick.only,
+			hover:(selection)=>{for(const listener of [...hoverListeners])listener(selection);},
+			contextMenu:(at,pick)=>openContextMenu(at,pick),
+			box:(state)=>{box=state;},
+			boxSelect:(picked,append)=>boxSelected(picked,append),
+			clicked:(at,touch)=>{menu=null;if(!selections.length||editingSketch){bar=null;return;}barPick=viewport.pickAt({clientX:at.x,clientY:at.y});bar={at,touch};},
+			busyPointer:()=>{bar=null;menu=null;}});
 		for(const m of STOCK_MATERIALS)if(m.color)viewport.materialColours.set(m.id,m.color);
 		viewport.triadShown=prefs.view.triad;viewport.setTriadSlot(triadSlot??null);
 		/* A press anywhere on the model closes the value box: what was typed there was for what is no longer being pointed at. */
@@ -396,7 +537,7 @@
 		const docks=typeof ResizeObserver==='function'?new ResizeObserver(measureDocks):null;const watchDocks=()=>{for(const el of document.querySelectorAll('.vnav-shell .vnav-trigger,.sfb-shell .sfb-trigger'))docks?.observe(el);measureDocks();};watchDocks();const dockTimer=setTimeout(watchDocks,800);window.addEventListener('resize',measureDocks);
 		client.request<ModelProjection>('load',opened.snapshot).then(async result=>{show(result);currentSnapshot=await client.request<ModelSnapshot>('snapshot');viewport.fit();loading=false;saveState.markSaved();}).catch(err=>{error=err.message;loading=false;});
 		const unbind=saveState.attach();
-		if(dev)(window as unknown as {ideaCadSolid:unknown}).ideaCadSolid={get model(){return model;},get snapshot(){return currentSnapshot;},get busy(){return busy||loading||!!pumping||drafting;},get selections(){return selections;},apply,select,setTool,editSketch,project:(p:[number,number,number])=>viewport.projectPoint(p),painted:()=>viewport.painted(),fit:()=>viewport.fit(),view:(v:'iso'|'top'|'front'|'right'|'normal')=>v==='normal'?commandContext.normalTo():viewport.view(v),save:()=>saveState.saveNow(),undo,frameCosts:viewport.frameCosts,request:(method:string,value?:unknown)=>client.request(method,value),get prefs(){return prefs;},preferences:prefStore,triad:()=>viewport.triadRect(),get tool(){return tool;}};
+		if(dev)(window as unknown as {ideaCadSolid:unknown}).ideaCadSolid={get model(){return model;},get snapshot(){return currentSnapshot;},get busy(){return busy||loading||!!pumping||drafting;},get selections(){return selections;},apply,select,setTool,editSketch,project:(p:[number,number,number])=>viewport.projectPoint(p),painted:()=>viewport.painted(),fit:()=>viewport.fit(),view:(v:'iso'|'top'|'front'|'right'|'normal')=>v==='normal'?commandContext.normalTo():viewport.view(v),save:()=>saveState.saveNow(),undo,frameCosts:viewport.frameCosts,hoverCosts:viewport.hoverCosts,get hovered(){return viewport.hovered();},drawn:()=>viewport.drawnCounts(),hover:(list:Selection[]|null)=>viewport.setExternalHover(list),request:(method:string,value?:unknown)=>client.request(method,value),get prefs(){return prefs;},preferences:prefStore,triad:()=>viewport.triadRect(),get tool(){return tool;}};
 		return()=>{clearInterval(ruleTimer);window.removeEventListener('focus',readRules);unbind();unsubscribe();offDatum();clearTimeout(captureTimer);captureModules();void prefStore.flush();window.removeEventListener('change',scheduleCapture,true);window.removeEventListener('input',scheduleCapture,true);docks?.disconnect();clearTimeout(dockTimer);window.removeEventListener('resize',measureDocks);viewport.destroy();client.destroy();};
 	});
 	onDestroy(()=>saveState.destroy());
@@ -421,12 +562,20 @@
 		<aside class="tree-rail" aria-label="Design tree rail"><FeatureTree {api}/></aside>
 		<div class="workarea">
 			<canvas bind:this={canvas} tabindex="0" aria-label="3D model: select and drag geometry"></canvas>
+			{#if bar&&selections.length&&(barItems.length||barCrumbs.length)}<ContextBar at={bar.at} touch={bar.touch} commands={barItems} crumbs={barCrumbs} onrun={(item)=>item.run?.()} oncrumb={(crumb)=>{viewport.setExternalHover(null);crumb.selections.forEach((s,i)=>select(s,i>0));}} onpreview={(crumb)=>viewport?.setExternalHover(crumb?crumb.selections:null)} onclose={()=>{bar=null;}}/>{/if}
+			{#if box&&boxStyle}<div class="box-select" class:crossing={box.mode==='crossing'} data-testid="ideacad-box-select" data-mode={box.mode} aria-hidden="true" style:left={`${boxStyle.left}px`} style:top={`${boxStyle.top}px`} style:width={`${boxStyle.width}px`} style:height={`${boxStyle.height}px`}><span>{BOX_WORDS[box.mode]}</span></div>{/if}
 			<nav class="tools" class:expanded={more} aria-label="Modeling tools">
 				{#each shownTools as item (item.id)}<ToolButton name={keyFor(item.id)?`${item.name} (${keyFor(item.id)})`:item.name} description={item.description} icon={item.icon} active={tool===item.id} onclick={()=>runById(item.id)}/>{/each}
 				<button class="more" aria-label={more?'Fewer tools':'More tools'} aria-expanded={more} onclick={()=>more=!more}>{more?'−':'⋯'}</button>
 			</nav>
 			<div class="top-bar">
-				<div class="view-tools"><ViewControls items={viewItems} onrun={runById}/></div>
+				<div class="view-tools">
+					<div class="pick-tools">
+						<button class="pick-open" class:active={pickFilter.length>0} bind:this={pickButton} aria-haspopup="menu" aria-expanded={menu?.label==='Pick filter'} aria-label={pickFilter.length?`Pick filter: ${pickFilterLabel(pickFilter)} only`:'Pick filter: anything'} data-testid="ideacad-pick-filter" onclick={()=>menu?.label==='Pick filter'?menu=null:openPickMenu()}><svg viewBox="0 0 24 24" width="18" height="18" fill={pickFilter.length?'currentColor':'none'} stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8v7l-4 2v-9z"/></svg>{#if pickFilter.length}<span>{pickFilterLabel(pickFilter)}</span>{/if}</button>
+						{#if hiddenCount}<button class="hidden-bodies" data-testid="ideacad-hidden-bodies" aria-label={`Show ${hiddenCount} hidden ${hiddenCount===1?'body':'bodies'}`} onclick={showBodies}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM4 4l16 16"/></svg><span>{hiddenCount} hidden</span></button>{/if}
+					</div>
+					<ViewControls items={viewItems} onrun={runById}/>
+				</div>
 				<div class="right-tools"><button class:active={objectsOpen} onclick={()=>objectsOpen=!objectsOpen}>Objects <span>{model.bodies.length+openSketches.length}</span></button><button class:active={referenceOpen} onclick={()=>referenceOpen=!referenceOpen}>Reference</button><button class:active={matesOpen} onclick={()=>matesOpen=!matesOpen}>Mates</button><button class:active={sectionOpen} aria-pressed={sectionOpen} onclick={()=>sectionOpen=!sectionOpen}>Section</button><button class:active={addonOpen} onclick={()=>addonOpen=!addonOpen}>Add-ons</button></div>
 			</div>
 			<div class="triad-slot" bind:this={triadSlot} aria-hidden="true" data-testid="ideacad-triad" data-shown={prefs.view.triad}></div>
@@ -460,6 +609,7 @@
 			{#if measure&&!numeric}<output class="measure" style:left={`${Math.min(measure.x+16,(canvas?.clientWidth??1000)-160)}px`} style:top={`${measure.y+16}px`}>{measure.text}</output>{/if}
 			{#if numeric}<form class="number-entry" style:left={`${Math.min(numeric.x+16,(canvas?.clientWidth??1000)-170)}px`} style:top={`${Math.min(numeric.y+16,(canvas?.clientHeight??800)-64)}px`} onsubmit={(e)=>{e.preventDefault();void enterNumeric();}}><input bind:this={numericInput} bind:value={numeric.value} aria-label={numericPrompt(tool)} autocomplete="off"/><button type="submit" aria-label="Use exact value">↵</button></form>{/if}
 			{#if error}<div class="error" role="alert"><span>{error}</span><button aria-label="Dismiss message" onclick={()=>error=''}>×</button></div>{/if}
+			{#if menu}<ContextMenu items={menu.items} at={menu.at} label={menu.label} onclose={()=>{menu=null;menuPick=null;viewport?.setExternalHover(null);}}/>{/if}
 			{#if search}<CommandSearch commands={search.group?COMMANDS.filter(c=>!OPENERS.includes(c.id)):COMMANDS} recent={prefs.commands.recent} keys={shortcuts.byCommand} group={search.group} at={search.at} unavailable={(c)=>c.unavailable?.(commandContext)??null} onrun={runCommand} onclose={()=>{search=null;canvas?.focus();}}/>{/if}
 		</div>
 	</div>
@@ -481,6 +631,12 @@
 	@media(max-width:700px){.solid-workspace.save-failed{grid-template-rows:52px minmax(0,1fr) 48px}}
 	.top-bar{position:absolute;top:12px;left:76px;right:12px;display:flex;align-items:flex-start;gap:8px;z-index:8;pointer-events:none}.workarea:has(.tools.expanded) .top-bar{left:168px}.view-tools{flex:1 1 0;min-width:0;display:flex}.right-tools{pointer-events:auto}
 	.triad-slot{position:absolute;left:12px;bottom:12px;width:84px;height:84px;pointer-events:none}
+	/* A drag on the model never selects the page's words; a panel's own words still can be. */
+	.workarea{user-select:none;-webkit-user-select:none}.workarea :global(.panel),.workarea .error span{user-select:text;-webkit-user-select:text}
+	/* THE BOX: solid and "Inside" left to right, dashed and "Touching" right to left, so the rule is visible while it is drawn. */
+	.box-select{position:absolute;z-index:9;pointer-events:none;border:1.5px solid var(--cyan);background:color-mix(in srgb,var(--cyan) 8%,transparent)}.box-select.crossing{border-style:dashed;border-color:var(--green);background:color-mix(in srgb,var(--green) 8%,transparent)}.box-select span{position:absolute;left:-1px;top:-24px;padding:2px 8px;font:12px 'Share Tech Mono',monospace;color:var(--text-1);background:var(--surface-1);border:1px solid var(--boundary);border-radius:4px;white-space:nowrap}
+	/* The pick filter's control, and the count of hidden bodies: both say what is on, in words, whenever it is on. */
+	.view-tools{gap:6px;align-items:flex-start}.pick-tools{display:flex;gap:4px;pointer-events:auto;flex:0 0 auto}.pick-tools button{display:inline-flex;align-items:center;gap:6px;padding:0 12px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px;white-space:nowrap}.pick-tools button span{max-width:150px;overflow:hidden;text-overflow:ellipsis}.pick-tools button.active{background:color-mix(in srgb,var(--green) 12%,var(--surface-1));border-color:var(--green);color:var(--green)}.pick-open:not(.active){padding:0;justify-content:center}.hidden-bodies{color:var(--ic-warn,var(--amber))}
 	.empty-slot{position:absolute;left:50%;top:68px;transform:translateX(-50%);z-index:6;pointer-events:none;width:max-content;max-width:calc(100% - 24px)}
 	.search-open,.prefs-open{display:inline-flex;align-items:center;gap:6px}.tree-toggle{align-items:center}
 	.solid-workspace{height:100%;min-height:0;display:grid;grid-template-rows:56px minmax(0,1fr) 48px;overflow:hidden;background:var(--surface-0);color:var(--text-1);font-family:Rajdhani,sans-serif}header{display:flex;gap:4px;align-items:center;padding:0 12px;background:var(--surface-1);border-bottom:1px solid var(--hairline);z-index:10}button,input{font:600 16px Rajdhani,sans-serif;color:var(--text-1);min-height:44px;min-width:44px;border:1px solid transparent;border-radius:5px;background:transparent}button{cursor:pointer;padding:0 12px}button:hover{background:var(--surface-2)}button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}button.active,button.selected{background:color-mix(in srgb,var(--green) 12%,var(--surface-1));border-color:var(--green);color:var(--green)}button:disabled{opacity:.4;cursor:default}.documents{display:flex;gap:8px;align-items:center}.document-title{max-width:300px;width:25vw;min-width:80px;font-size:21px;padding:0 12px;border-left:1px solid var(--hairline);border-radius:0}.document-save{flex:1;text-align:right;padding-right:12px}

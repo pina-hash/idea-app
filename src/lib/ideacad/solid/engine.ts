@@ -41,6 +41,7 @@ import { dependsOnFeatures, featureSummary, upgradeManifest } from './features';
 import { reduce } from './commands';
 import { datumPlane, regionOutlines, solveSketch, planeFromNormal } from './sketch/model';
 import { EXECUTORS, solveMates } from './features/index';
+import { tangentChain } from './features/blends';
 import type { ExecutorContext, LiveBody, MateState, Resolved, ResolvedRef, SketchState } from './features/context';
 import { emptyManifest, type AxisRef, type BodyProjection, type BodyRecord, type EdgeRef, type FaceRef, type Feature, type FeatureRow, type GeometryArtifact, type ModelProjection, type ModelSnapshot, type PlaneRef, type PointRef, type ResolvedAxis, type ResolvedPlane, type ResolvedPoint, type Selection, type SketchConstraint, type SketchEntity, type SolidCommand, type SolidManifest, type Vec3, type VertexRef, type LegacyManifest, type MateProjection, type ReferenceProjection, type SketchProjection } from './types';
 
@@ -490,6 +491,24 @@ export class SolidEngine {
 			return { kind: 'angle', value: Math.acos(cosine) * 180 / Math.PI };
 		}
 		throw Error('Measure two corners, a corner and a face or edge, two flat faces, or two bodies.');
+	}
+
+	/**
+	 * SELECT TANGENT CHAIN: the edges that run on smoothly from the picked
+	 * ones, on their own body, by the SAME walk a fillet with propagation
+	 * takes (`tangentChain`), so what is selected is exactly what that fillet
+	 * would round. Answered as projection edge ids, seeds included.
+	 */
+	tangentEdges(seeds: Selection[]): Selection[] {
+		const picks = seeds.map((s) => this.pick(s)).filter((p) => p.kind === 'edge');
+		if (!picks.length) throw Error('Select an edge to follow its tangent chain.');
+		const out: Selection[] = [], seen = new Set<string>();
+		for (const bodyId of new Set(picks.map((p) => p.body.id))) {
+			const group = picks.filter((p) => p.body.id === bodyId), body = group[0].body, cached = this.bodyCache(body);
+			const idOf = new Map([...cached.handles.edges].map(([id, handle]) => [handle, id]));
+			for (const handle of tangentChain(this.k, body.solid, group.map((p) => p.handle))) { const id = idOf.get(handle); if (id && !seen.has(`${bodyId}/${id}`)) { seen.add(`${bodyId}/${id}`); out.push({ bodyId, kind: 'edge', id }); } }
+		}
+		return out;
 	}
 
 	/* --------------------------------------------------------- projection */

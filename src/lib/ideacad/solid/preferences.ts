@@ -2,7 +2,8 @@
  * EVERYTHING A STUDENT CUSTOMIZES IN THE MODELER, IN ONE TYPED STORE. The
  * planes, the corner triad, the quick toolbar and its order, every shortcut,
  * the snaps, the polygon side count, the feature defaults, hint timing and
- * retired hints, the commands used recently, and the display unit.
+ * retired hints, the commands used recently, the display unit, and the pick
+ * filter (what a click can pick; empty is anything).
  *
  * WHERE IT LIVES. Behind `PreferenceStore`, with three implementations: in
  * memory (tests), in `localStorage` per viewer (the dev harness), and in the
@@ -36,7 +37,7 @@ import { DATUM_PLANE_MODES, datumPlaneMode, setDatumPlaneMode, type DatumPlaneMo
 import { DISPLAY_UNITS, readoutSettings, type DisplayUnit } from './viewport/readout';
 import { DEFAULT_FEATURE_OPTIONS, featureOptions, type FeatureOptions } from './features/options';
 import { HOLE_STANDARDS, type HoleFit } from './features/holes';
-import { COMMAND_IDS, DEFAULT_QUICK_TOOLS, isToolId, keyRefusal, normalizeKey } from './command-registry';
+import { COMMAND_IDS, DEFAULT_QUICK_TOOLS, PICK_FILTER_KINDS, isToolId, keyRefusal, normalizeKey, type PickFilterKind } from './command-registry';
 
 export type { DatumPlaneMode, DisplayUnit };
 export const VIEW_MODES = ['shaded-edges', 'shaded', 'hidden-lines', 'wireframe'] as const;
@@ -57,9 +58,11 @@ export interface SolidPreferences {
 	hints: { tooltipDelayMs: number; retired: string[]; tutorial: { step: string | null; finished: boolean } };
 	commands: { recent: string[] };
 	units: { display: DisplayUnit };
+	/** The pick filter: the kinds a click may pick. Empty picks anything, and a filter that is on is always shown on screen. */
+	pick: { only: PickFilterKind[] };
 }
 export type PreferenceGroup = keyof SolidPreferences;
-export const PREFERENCE_GROUPS: readonly PreferenceGroup[] = ['view', 'toolbar', 'shortcuts', 'snaps', 'drawing', 'features', 'hints', 'commands', 'units'];
+export const PREFERENCE_GROUPS: readonly PreferenceGroup[] = ['view', 'toolbar', 'shortcuts', 'snaps', 'drawing', 'features', 'hints', 'commands', 'units', 'pick'];
 
 export function defaultPreferences(): SolidPreferences {
 	const f = DEFAULT_FEATURE_OPTIONS();
@@ -72,7 +75,8 @@ export function defaultPreferences(): SolidPreferences {
 		features: { fillet: f.fillet, chamfer: f.chamfer, hole: f.hole },
 		hints: { tooltipDelayMs: 400, retired: [], tutorial: { step: null, finished: false } },
 		commands: { recent: [] },
-		units: { display: 'in' }
+		units: { display: 'in' },
+		pick: { only: [] }
 	};
 }
 
@@ -102,7 +106,7 @@ export function readPreferences(raw: unknown): SolidPreferences {
 	const r = isObject(raw) ? raw : {};
 	const view = isObject(r.view) ? r.view : {}, toolbar = isObject(r.toolbar) ? r.toolbar : {}, snaps = isObject(r.snaps) ? r.snaps : {};
 	const drawing = isObject(r.drawing) ? r.drawing : {}, features = isObject(r.features) ? r.features : {}, hints = isObject(r.hints) ? r.hints : {};
-	const commands = isObject(r.commands) ? r.commands : {}, units = isObject(r.units) ? r.units : {};
+	const commands = isObject(r.commands) ? r.commands : {}, units = isObject(r.units) ? r.units : {}, pick = isObject(r.pick) ? r.pick : {};
 	const fillet = isObject(features.fillet) ? features.fillet : {}, chamfer = isObject(features.chamfer) ? features.chamfer : {}, hole = isObject(features.hole) ? features.hole : {};
 	const tutorial = isObject(hints.tutorial) ? hints.tutorial : {};
 	const sides = drawing.polygonSides;
@@ -124,7 +128,9 @@ export function readPreferences(raw: unknown): SolidPreferences {
 			tutorial: { step: typeof tutorial.step === 'string' && HINT_ID.test(tutorial.step) ? tutorial.step : tutorial.step === null ? null : d.hints.tutorial.step, finished: bool(tutorial.finished, d.hints.tutorial.finished) }
 		},
 		commands: { recent: stringList(commands.recent, (s) => COMMAND_IDS.includes(s), RECENT_COMMANDS_MAX) ?? d.commands.recent },
-		units: { display: oneOf(units.display, DISPLAY_UNITS, d.units.display) }
+		units: { display: oneOf(units.display, DISPLAY_UNITS, d.units.display) },
+		/* In the filter's own order, so two ways of storing one filter read back as one. */
+		pick: { only: ((stringList(pick.only, (s) => (PICK_FILTER_KINDS as readonly string[]).includes(s), PICK_FILTER_KINDS.length) as PickFilterKind[] | null) ?? d.pick.only).sort((a, b) => PICK_FILTER_KINDS.indexOf(a) - PICK_FILTER_KINDS.indexOf(b)) }
 	};
 }
 /** Stored shortcut choices, kept only for a known command with a key a shortcut can use or null; two choices of one key keep the first by command id, so no key runs two commands. */

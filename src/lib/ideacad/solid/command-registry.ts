@@ -20,6 +20,7 @@
  */
 import type { Tool } from './viewport';
 import type { EntityKind, Selection } from './types';
+import { isDrawTool } from './viewport/drawing';
 
 export type CommandGroup = 'Select' | 'Sketch' | 'Features' | 'Move' | 'Assembly' | 'Reference' | 'Inspect' | 'Edit' | 'View' | 'Panels' | 'File' | 'Help';
 /** The groups in the order search and the preferences panel list them. */
@@ -51,6 +52,30 @@ export interface CommandContext {
 	openSearch(group?: CommandGroup): void;
 	openPreferences(): void;
 	openHelp(): void;
+	/** Face the selected flat face or plane and arm a drawing tool on it. */
+	sketchOn(): void;
+	/** Open the selected sketch for editing. */
+	editSketch(): void;
+	/** Select every edge of the selected faces and arm Fillet. */
+	filletFaceEdges(): void;
+	/** List everything under the pointer to choose from. */
+	selectOther(): void;
+	/** Add the edges that continue smoothly from the selected ones. */
+	selectTangentChain(): void;
+	/** Select the loop of edges the selected edge is on. */
+	selectLoop(): void;
+	/** Hide the bodies of the selection for this session; show every hidden body again. */
+	hideBodies(): void;
+	showBodies(): void;
+	readonly hiddenBodies: number;
+	/** Mirror the selected bodies across a selected plane, else across Top. */
+	mirrorBodies(): void;
+	/** Open the selected body's material and color. */
+	appearance(): void;
+	/** Open the pick filter's list. */
+	openPickFilter(): void;
+	/** Drill a hole where the menu was opened, when it was opened on a face. False when there is no such point. */
+	drillAtMenuPoint?(): boolean;
 }
 
 export interface Command {
@@ -93,7 +118,7 @@ export const COMMANDS: readonly Command[] = [
 	tool('fillet', 'Fillet', 'Drag an edge to round it. Shift-click to round several at once.', 'M4 21V12a8 8 0 0 1 8-8h9M10 21V12a2 2 0 0 1 2-2h9', 'Features', { accepts: { kinds: ['edge', 'face'], min: 1 }, keywords: ['round', 'radius', 'blend'] }),
 	tool('chamfer', 'Chamfer', 'Drag an edge to cut a flat bevel. Shift-click to bevel several at once.', 'M4 21V11l7-7h10M10 21V14l4-4h7', 'Features', { accepts: { kinds: ['edge', 'face'], min: 1 }, keywords: ['bevel'] }),
 	tool('shell', 'Shell', 'Drag a face to hollow the body and open that face.', 'M4 5l8-3 8 3v14l-8 3-8-3zM7 7l5-2 5 2-5 2zM12 9v10M7 7v10l5 2 5-2V7', 'Features', { accepts: { kinds: ['face', 'body'], min: 1 }, keywords: ['hollow', 'wall'] }),
-	tool('hole', 'Hole', 'Click a face to drill a standard clearance or tapped hole.', 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'Features', { accepts: { kinds: ['face'], min: 1, max: 1 }, keywords: ['drill', 'tap', 'bolt', 'hole wizard'] }),
+	tool('hole', 'Hole', 'Click a face to drill a standard clearance or tapped hole.', 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'Features', { accepts: { kinds: ['face'], min: 1, max: 1 }, keywords: ['drill', 'tap', 'bolt', 'hole wizard'], run: (ctx) => { if (!ctx.drillAtMenuPoint?.()) ctx.setTool('hole'); } }),
 	tool('move', 'Move', 'Drag a colored handle to move a body or selection.', 'M12 2v20M2 12h20M9 5l3-3 3 3M9 19l3 3 3-3M5 9l-3 3 3 3M19 9l3 3-3 3', 'Move', { accepts: { kinds: ['body', 'face', 'edge', 'vertex'], min: 1 }, keywords: ['translate', 'drag', 'position'] }),
 	tool('rotate', 'Rotate', 'Drag a colored handle to turn the selected body.', 'M20 8a9 9 0 1 0 1 8M20 3v5h-5M12 9v6m-3-3h6', 'Move', { accepts: { kinds: ['body', 'face', 'edge', 'vertex'], min: 1 }, keywords: ['turn', 'spin'] }),
 	tool('scale', 'Scale', 'Drag a colored handle to resize the selected body.', 'M4 11v9h9v-9zM13 11l8-8M15 3h6v6', 'Move', { accepts: { kinds: ['body', 'face', 'edge', 'vertex'], min: 1 }, keywords: ['resize', 'size'] }),
@@ -105,6 +130,18 @@ export const COMMANDS: readonly Command[] = [
 	tool('draft', 'Draft', 'Tilt selected flat faces by an angle so a part releases from a mold.', 'M4 20h16M6 20L9 4h6l3 16', 'Features', { accepts: { kinds: ['face'], min: 1 }, keywords: ['taper', 'mold'] }),
 	tool('sweep', 'Sweep', 'Run a closed sketch along an open path sketch or model edges.', 'M3 18c6 0 6-12 12-12h6M3 14c6 0 6-12 12-12', 'Features', { accepts: { kinds: ['sketch', 'edge'], min: 1 }, keywords: ['path', 'pipe', 'tube'] }),
 	tool('loft', 'Loft', 'Blend two or more sketches into one solid, in order.', 'M4 20h16M8 4h8M4 20L8 4M20 20L16 4', 'Features', { accepts: { kinds: ['sketch'], min: 2 }, keywords: ['blend', 'transition'] }),
+
+	{ id: 'sketch-on', name: 'Sketch', description: 'Face the selected flat face or plane and draw on it.', icon: 'M4 20h4L19 9l-4-4L4 16zM13 7l4 4M3 21h18', group: 'Sketch', accepts: { kinds: ['face', 'reference'], min: 1, max: 1 }, keywords: ['sketch on face', 'sketch on plane', 'draw on'], run: (ctx) => ctx.sketchOn(), unavailable: (ctx) => (ctx.canNormalTo ? null : 'Select a flat face or plane') },
+	{ id: 'edit-sketch', name: 'Edit sketch', description: 'Open the selected sketch to change its shapes.', icon: 'M4 6h16v12H4zM14 9l3 3-6 6H8v-3z', group: 'Sketch', accepts: { kinds: ['sketch'], min: 1, max: 1 }, keywords: ['open sketch', 'change sketch'], run: (ctx) => ctx.editSketch(), unavailable: (ctx) => (!ctx.canWrite ? 'View only' : ctx.selections.some((s) => s.kind === 'sketch') ? null : 'Select a sketch') },
+	{ id: 'fillet-face-edges', name: 'Fillet face edges', description: 'Pick every edge of the selected faces and round them.', icon: 'M4 21V12a8 8 0 0 1 8-8h9M4 4h4v4H4z', group: 'Features', accepts: { kinds: ['face'], min: 1 }, keywords: ['round all edges', 'fillet face'], run: (ctx) => ctx.filletFaceEdges(), unavailable: (ctx) => (ctx.selections.some((s) => s.kind === 'face') ? null : 'Select a face') },
+	{ id: 'select-other', name: 'Select other', description: 'Choose among everything under the pointer.', icon: 'M5 3l10 7-5 1-2 5zM14 14h7M14 18h7M14 22h7', group: 'Select', keywords: ['behind', 'hidden face', 'cycle'], run: (ctx) => ctx.selectOther() },
+	{ id: 'select-tangent', name: 'Select tangent chain', description: 'Add every edge that runs on smoothly from the selected one.', icon: 'M3 17c4 0 4-10 9-10s5 10 9 10M3 17h3M18 17h3', group: 'Select', accepts: { kinds: ['edge'], min: 1 }, keywords: ['tangent edges', 'propagate', 'chain'], run: (ctx) => ctx.selectTangentChain() },
+	{ id: 'select-loop', name: 'Select loop', description: 'Select the edges around the face this edge is on.', icon: 'M5 5h14v14H5zM9 9h6v6H9z', group: 'Select', accepts: { kinds: ['edge'], min: 1, max: 1 }, keywords: ['loop', 'edge loop', 'outline'], run: (ctx) => ctx.selectLoop() },
+	{ id: 'pick-filter', name: 'Pick filter', description: 'Choose what a click can pick: faces, edges and more.', icon: 'M3 4h18l-7 8v7l-4 2v-9z', group: 'Select', keywords: ['selection filter', 'filter'], run: (ctx) => ctx.openPickFilter() },
+	{ id: 'hide-body', name: 'Hide body', description: 'Hide the selected body until you show it again.', icon: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM4 4l16 16', group: 'View', accepts: { kinds: ['body', 'face', 'edge', 'vertex'], min: 1 }, keywords: ['hide', 'hide part'], run: (ctx) => ctx.hideBodies(), unavailable: (ctx) => (ctx.selections.some((s) => !!s.bodyId) ? null : 'Select a body') },
+	{ id: 'show-bodies', name: 'Show hidden bodies', description: 'Show every body you hid.', icon: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6z', group: 'View', keywords: ['show', 'unhide', 'show all'], run: (ctx) => ctx.showBodies(), unavailable: (ctx) => (ctx.hiddenBodies ? null : 'Nothing is hidden') },
+	{ id: 'mirror-body', name: 'Mirror body', description: 'Copy the selected body across a picked plane, or across Top.', icon: 'M12 2v20M9 6H3l6 12zM15 6h6l-6 12z', group: 'Features', accepts: { kinds: ['body', 'reference'], min: 1 }, keywords: ['mirror', 'reflect', 'flip copy'], run: (ctx) => ctx.mirrorBodies(), unavailable: (ctx) => (!ctx.canWrite ? 'View only' : ctx.selections.some((s) => s.kind === 'body') ? null : 'Select a body') },
+	{ id: 'body-appearance', name: 'Material and color', description: 'Choose the selected body\'s material and color.', icon: 'M12 3a9 9 0 1 0 0 18c1.5 0 2-1 2-2s-1-2 0-3 2-1 4-1 3-2 3-4c0-4-4-8-9-8zM7.5 12h.01M9.5 8h.01M14.5 7.5h.01', group: 'Edit', accepts: { kinds: ['body', 'face', 'edge', 'vertex'], min: 1 }, keywords: ['material', 'color', 'colour', 'appearance', 'density', 'mass'], run: (ctx) => ctx.appearance(), unavailable: (ctx) => (ctx.selections.some((s) => !!s.bodyId) ? null : 'Select a body') },
 
 	{ id: 'undo', name: 'Undo', description: 'Take back the last change.', icon: 'M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3', group: 'Edit', keys: ['Ctrl+z'], run: (ctx) => ctx.undo(), unavailable: (ctx) => (ctx.canUndo ? null : 'Nothing to undo') },
 	{ id: 'redo', name: 'Redo', description: 'Bring back a change you took back.', icon: 'M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3', group: 'Edit', keys: ['Ctrl+y', 'Ctrl+Shift+z'], run: (ctx) => ctx.redo(), unavailable: (ctx) => (ctx.canRedo ? null : 'Nothing to redo') },
@@ -291,3 +328,102 @@ export function acceptsSelection(command: Command, selections: readonly Selectio
 	if (rule.max !== undefined && selections.length > rule.max) return false;
 	return selections.every((s) => rule.kinds.includes(s.kind));
 }
+/** Why a command does not fit the selection, in a few words, or null when it does. The right-click menu shows it on the row instead of hiding the row. */
+export function acceptReason(command: Command, selections: readonly Selection[]): string | null {
+	const rule = command.accepts;
+	if (!rule || acceptsSelection(command, selections)) return null;
+	if (rule.max !== undefined && selections.length > rule.max) return rule.max === 1 ? 'Takes one at a time' : `Takes up to ${rule.max}`;
+	const words = [...new Set(rule.kinds.map((k) => KIND_WORDS[k]).filter(Boolean))];
+	return `Takes ${words.length > 1 ? `${words.slice(0, -1).join(', ')} or ${words[words.length - 1]}` : words[0] ?? 'a selection'}`;
+}
+const KIND_WORDS: Partial<Record<EntityKind, string>> = { body: 'a body', face: 'a face', edge: 'an edge', vertex: 'a vertex', sketch: 'a sketch', reference: 'a plane or axis', feature: 'a feature' };
+
+/* -------------------------------------------------------------------------
+ * WHAT A CLICK CAN PICK: the tool's own kinds, narrowed by the pick filter
+ * ---------------------------------------------------------------------- */
+
+/** The pick filter's kinds, in the order the filter lists them. */
+export const PICK_FILTER_KINDS = ['faces', 'edges', 'vertices', 'sketches', 'planes'] as const;
+export type PickFilterKind = (typeof PICK_FILTER_KINDS)[number];
+export const PICK_FILTER_WORDS: Readonly<Record<PickFilterKind, string>> = { faces: 'Faces', edges: 'Edges', vertices: 'Vertices', sketches: 'Sketches', planes: 'Planes' };
+const FILTER_ENTITIES: Readonly<Record<PickFilterKind, readonly EntityKind[]>> = { faces: ['face', 'body'], edges: ['edge'], vertices: ['vertex'], sketches: ['sketch'], planes: ['reference'] };
+/** The pick filter in words, for the control that shows it is on: "Edges", "Faces and edges". Empty when nothing is filtered. */
+export function pickFilterLabel(filter: readonly PickFilterKind[]): string {
+	const words = PICK_FILTER_KINDS.filter((k) => filter.includes(k)).map((k, i) => (i ? PICK_FILTER_WORDS[k].toLowerCase() : PICK_FILTER_WORDS[k]));
+	return words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}` : words[0] ?? '';
+}
+/**
+ * The selection kinds a press with `tool` can pick, or null for anything. It
+ * is the tool's own `accepts`: the Hole tool takes a face and so never a
+ * sketch lying on it, a drawing tool takes a face or a plane and so never an
+ * edge beside it. A tool that takes a body picks it by any face, edge or
+ * vertex of it. The pick filter narrows this for every tool except a drawing
+ * tool, whose press says where to draw rather than what to select.
+ */
+export function pickKinds(tool: Tool, filter: readonly PickFilterKind[] = []): Set<EntityKind> | null {
+	const rule = commandById(tool)?.accepts;
+	const kinds: Set<EntityKind> | null = rule ? new Set(rule.kinds) : null;
+	if (kinds?.has('body')) for (const k of ['face', 'edge', 'vertex'] as const) kinds.add(k);
+	if (!filter.length || isDrawTool(tool)) return kinds;
+	const allowed = new Set(filter.flatMap((f) => FILTER_ENTITIES[f]));
+	return kinds ? new Set([...kinds].filter((k) => allowed.has(k))) : allowed;
+}
+/** Tools whose box picks whole bodies. */
+const BODY_BOX_TOOLS: readonly Tool[] = ['move', 'rotate', 'scale', 'linear-pattern', 'circular-pattern'];
+/**
+ * What a box drawn with `tool` picks: edges under Fillet and Chamfer, faces
+ * under Shell and Draft, bodies under the tools that move or copy a body,
+ * faces and edges otherwise. An active pick filter decides instead for Select
+ * and the other select-only tools, and narrows the rest.
+ */
+export function boxKinds(tool: Tool, filter: readonly PickFilterKind[] = []): ('face' | 'edge' | 'vertex' | 'body')[] {
+	if (BODY_BOX_TOOLS.includes(tool)) return ['body'];
+	const base: ('face' | 'edge' | 'vertex')[] = tool === 'fillet' || tool === 'chamfer' ? ['edge'] : tool === 'shell' || tool === 'draft' ? ['face'] : ['face', 'edge'];
+	const want = (['face', 'edge', 'vertex'] as const).filter((k) => filter.some((f) => FILTER_ENTITIES[f].includes(k)));
+	if (!filter.length) return base;
+	if (tool === 'select' || tool === 'measure' || tool === 'mate' || tool === 'reference') return want;
+	return base.filter((k) => want.includes(k));
+}
+
+/* -------------------------------------------------------------------------
+ * THE RIGHT-CLICK MENU AND THE CONTEXT TOOLBAR, per kind of selection
+ * ---------------------------------------------------------------------- */
+
+/** What a right-click is on. A Front, Top or Right plane and a reference plane are both a `plane`. */
+export type MenuKind = 'face' | 'edge' | 'vertex' | 'body' | 'sketch' | 'plane' | 'axis' | 'feature' | 'empty';
+/** The kind of menu a selection opens. */
+export function menuKindOf(selection: Selection | null | undefined, referenceKind?: 'plane' | 'axis' | 'point'): MenuKind {
+	if (!selection) return 'empty';
+	if (selection.kind === 'reference') return referenceKind && referenceKind !== 'plane' ? 'axis' : 'plane';
+	if (selection.kind === 'sketch-entity') return 'sketch';
+	return selection.kind;
+}
+/**
+ * The right-click menu's commands for each kind, in the order they are
+ * listed. Every id is a registry command, so a name, an icon and a reason come
+ * from one place; the menu adds only the lists a command cannot be (Select
+ * Other's candidates, the pick filter's kinds, the views).
+ */
+export const CONTEXT_MENUS: Readonly<Record<MenuKind, readonly string[]>> = {
+	face: ['sketch-on', 'extrude', 'fillet-face-edges', 'shell', 'hole', 'measure', 'normal-to', 'select-other', 'hide-body'],
+	edge: ['fillet', 'chamfer', 'select-tangent', 'select-loop', 'measure', 'select-other', 'hide-body'],
+	vertex: ['measure', 'move', 'select-other', 'hide-body'],
+	body: ['move', 'rotate', 'mirror-body', 'body-appearance', 'delete', 'hide-body'],
+	sketch: ['edit-sketch', 'extrude', 'revolve', 'delete'],
+	plane: ['sketch-on', 'normal-to', 'planes', 'delete'],
+	axis: ['revolve', 'circular-pattern', 'delete'],
+	feature: ['delete'],
+	empty: ['fit', 'planes', 'show-bodies', 'search']
+};
+/** The few commands the toolbar beside a fresh selection shows, most used first, icon only (the menu has the words). */
+export const CONTEXT_BAR: Readonly<Record<MenuKind, readonly string[]>> = {
+	face: ['sketch-on', 'extrude', 'fillet-face-edges', 'hole', 'normal-to'],
+	edge: ['fillet', 'chamfer', 'select-tangent', 'select-loop'],
+	vertex: ['measure', 'move'],
+	body: ['move', 'rotate', 'mirror-body', 'body-appearance'],
+	sketch: ['edit-sketch', 'extrude', 'revolve'],
+	plane: ['sketch-on', 'normal-to'],
+	axis: ['revolve', 'circular-pattern'],
+	feature: [],
+	empty: []
+};

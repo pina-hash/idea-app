@@ -49,6 +49,12 @@ describe('reading a stored blob', () => {
 		expect(p.units.display).toBe('in');
 		expect(p.shortcuts).toEqual({ rectangle: 'Ctrl+Shift+r', polygon: null });
 	});
+	it('the pick filter keeps only the kinds it knows, once each, in the filter\'s own order; empty is anything and is the default', () => {
+		expect(defaultPreferences().pick).toEqual({ only: [] });
+		expect(readPreferences({ pick: { only: ['planes', 'edges', 'bogus', 'edges', 7, 'faces'] } }).pick.only).toEqual(['faces', 'edges', 'planes']);
+		expect(readPreferences({ pick: { only: 'edges' } }).pick.only).toEqual([]);
+		expect(compactPreferences(readPreferences({ pick: { only: ['edges'] } }))).toEqual({ pick: { only: ['edges'] } });
+	});
 	it('two stored choices of one key keep the first by command id, so no key runs two commands', () => {
 		expect(readPreferences({ shortcuts: { polygon: 'q', arc: 'q' } }).shortcuts).toEqual({ arc: 'q' });
 	});

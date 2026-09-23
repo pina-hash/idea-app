@@ -10,7 +10,7 @@
 // a tool, a digit taken as a shortcut (the value box stops receiving it), and
 // a search that ranks a stale command above the one just used.
 import { describe, expect, it } from 'vitest';
-import { COMMANDS, COMMAND_GROUPS, DEFAULT_QUICK_TOOLS, TOOL_IDS, acceptsSelection, commandById, effectiveShortcuts, keyFromEvent, keyLabel, keyRefusal, normalizeKey, recordRecent, searchCommands, shortcutConflict } from '../src/lib/ideacad/solid/command-registry';
+import { COMMANDS, COMMAND_GROUPS, CONTEXT_BAR, CONTEXT_MENUS, DEFAULT_QUICK_TOOLS, PICK_FILTER_KINDS, TOOL_IDS, acceptReason, acceptsSelection, boxKinds, commandById, effectiveShortcuts, keyFromEvent, keyLabel, keyRefusal, menuKindOf, normalizeKey, pickFilterLabel, pickKinds, recordRecent, searchCommands, shortcutConflict } from '../src/lib/ideacad/solid/command-registry';
 import { QUICK_TOOLS, TOOLS } from '../src/lib/ideacad/solid/tools';
 
 /** The 23 tool ids as they stood before the registry, in the palette's order. Typed out, not derived, so a dropped or renamed tool reddens. */
@@ -31,7 +31,9 @@ describe('every command is registered once', () => {
 		expect(armed).toEqual(TOOL_IDS_BEFORE);
 	});
 	it('the non-tool commands the workspace promises are all there, and none of them arms a tool', () => {
-		const actions = ['undo', 'redo', 'delete', 'fit', 'view-front', 'view-top', 'view-right', 'view-iso', 'normal-to', 'planes', 'view-menu', 'panel-objects', 'panel-reference', 'panel-mates', 'panel-section', 'panel-addons', 'export', 'search', 'preferences', 'help'];
+		const actions = ['undo', 'redo', 'delete', 'fit', 'view-front', 'view-top', 'view-right', 'view-iso', 'normal-to', 'planes', 'view-menu', 'panel-objects', 'panel-reference', 'panel-mates', 'panel-section', 'panel-addons', 'export', 'search', 'preferences', 'help',
+			/* The selection commands the right-click menu and the context toolbar run (ledger 0296, stage W2). */
+			'sketch-on', 'edit-sketch', 'fillet-face-edges', 'select-other', 'select-tangent', 'select-loop', 'pick-filter', 'hide-body', 'show-bodies', 'mirror-body', 'body-appearance'];
 		for (const id of actions) { expect(commandById(id), id).toBeDefined(); expect(commandById(id)!.tool, id).toBeUndefined(); }
 		expect(COMMANDS).toHaveLength(TOOL_IDS_BEFORE.length + actions.length);
 	});
@@ -165,5 +167,73 @@ describe('what a command accepts', () => {
 		expect(acceptsSelection(commandById('mate')!, [face, face])).toBe(true);
 		expect(acceptsSelection(commandById('extrude')!, [edge])).toBe(false);
 		expect(acceptsSelection(commandById('fit')!, [edge])).toBe(true);
+	});
+});
+
+describe('what a click and a box can pick', () => {
+	const set = (x: Set<string> | null) => (x ? [...x].sort() : null);
+	it('a press picks the kinds its tool takes: the Hole tool never a sketch (F036), a drawing tool never an edge (F031), Select anything', () => {
+		expect(set(pickKinds('hole'))).toEqual(['face']);
+		expect(set(pickKinds('rectangle'))).toEqual(['face', 'reference']);
+		expect(set(pickKinds('select'))).toBeNull();
+		/* A tool that takes a body picks it by any face, edge or corner of it. */
+		expect(set(pickKinds('move'))).toEqual(['body', 'edge', 'face', 'vertex']);
+		expect(set(pickKinds('fillet'))).toEqual(['edge', 'face']);
+	});
+	it('the pick filter narrows every tool but a drawing one, whose press says where to draw', () => {
+		expect(set(pickKinds('select', ['edges']))).toEqual(['edge']);
+		expect(set(pickKinds('select', ['faces', 'planes']))).toEqual(['body', 'face', 'reference']);
+		expect(set(pickKinds('fillet', ['faces']))).toEqual(['face']);
+		expect(set(pickKinds('hole', ['edges']))).toEqual([]);
+		expect(set(pickKinds('rectangle', ['edges']))).toEqual(['face', 'reference']);
+	});
+	it('a box picks edges under Fillet and Chamfer, faces under Shell, bodies under Move, faces and edges otherwise; a filter decides for Select', () => {
+		expect(boxKinds('fillet')).toEqual(['edge']);
+		expect(boxKinds('chamfer')).toEqual(['edge']);
+		expect(boxKinds('shell')).toEqual(['face']);
+		for (const t of ['move', 'rotate', 'scale', 'linear-pattern', 'circular-pattern'] as const) expect(boxKinds(t), t).toEqual(['body']);
+		expect(boxKinds('select')).toEqual(['face', 'edge']);
+		expect(boxKinds('select', ['vertices'])).toEqual(['vertex']);
+		expect(boxKinds('fillet', ['faces'])).toEqual([]);
+		expect(boxKinds('move', ['edges'])).toEqual(['body']);
+	});
+	it('the filter reads as words, in its own order, and not at all when it is off', () => {
+		expect(pickFilterLabel([])).toBe('');
+		expect(pickFilterLabel(['edges'])).toBe('Edges');
+		expect(pickFilterLabel(['edges', 'faces'])).toBe('Faces and edges');
+		expect(pickFilterLabel([...PICK_FILTER_KINDS])).toBe('Faces, edges, vertices, sketches and planes');
+	});
+});
+
+describe('the right-click menu and the context toolbar', () => {
+	it('every row of every menu, and every icon of every toolbar, is a registered command', () => {
+		let count = 0;
+		for (const [kind, ids] of [...Object.entries(CONTEXT_MENUS), ...Object.entries(CONTEXT_BAR)]) for (const id of ids) { count++; expect(commandById(id), `${kind}: ${id}`).toBeDefined(); }
+		expect(count).toBeGreaterThan(40);
+	});
+	it('every toolbar icon is also a row, with its name, in the same kind of menu: an icon always has its word one right-click away', () => {
+		for (const [kind, ids] of Object.entries(CONTEXT_BAR)) for (const id of ids) expect(CONTEXT_MENUS[kind as keyof typeof CONTEXT_MENUS], `${kind}: ${id}`).toContain(id);
+	});
+	it('the menus the brief names carry what it names', () => {
+		expect(CONTEXT_MENUS.face).toEqual(expect.arrayContaining(['sketch-on', 'extrude', 'fillet-face-edges', 'shell', 'hole', 'measure', 'normal-to', 'select-other', 'hide-body']));
+		expect(CONTEXT_MENUS.edge).toEqual(expect.arrayContaining(['fillet', 'chamfer', 'select-tangent', 'select-loop', 'measure']));
+		expect(CONTEXT_MENUS.body).toEqual(expect.arrayContaining(['move', 'rotate', 'mirror-body', 'body-appearance', 'delete']));
+		expect(CONTEXT_MENUS.sketch).toEqual(expect.arrayContaining(['edit-sketch', 'extrude', 'revolve', 'delete']));
+		expect(CONTEXT_MENUS.plane).toEqual(expect.arrayContaining(['sketch-on', 'normal-to', 'planes']));
+		expect(CONTEXT_MENUS.empty).toEqual(expect.arrayContaining(['fit', 'planes', 'search']));
+	});
+	it('a menu kind comes from what was right-clicked: a Front plane and a reference plane are both a plane, an axis is an axis', () => {
+		expect(menuKindOf(null)).toBe('empty');
+		expect(menuKindOf({ bodyId: '', kind: 'reference', id: 'datum:XZ' })).toBe('plane');
+		expect(menuKindOf({ bodyId: '', kind: 'reference', id: 'ax1' }, 'axis')).toBe('axis');
+		expect(menuKindOf({ bodyId: 'b', kind: 'edge', id: 'e' })).toBe('edge');
+	});
+	it('a row that does not fit the selection says why in a few words, and one that fits says nothing', () => {
+		const face = { bodyId: 'b', kind: 'face' as const, id: 'f' }, edge = { bodyId: 'b', kind: 'edge' as const, id: 'e' };
+		expect(acceptReason(commandById('fillet')!, [edge])).toBeNull();
+		expect(acceptReason(commandById('hole')!, [face, face])).toBe('Takes one at a time');
+		expect(acceptReason(commandById('select-tangent')!, [face])).toBe('Takes an edge');
+		expect(acceptReason(commandById('extrude')!, [edge])).toBe('Takes a sketch or a face');
+		expect(acceptReason(commandById('fit')!, [edge])).toBeNull();
 	});
 });
