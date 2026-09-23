@@ -18,7 +18,7 @@ import { CREATING_TYPES } from '../src/lib/ideacad/solid/features';
 import { emptyManifest, type BodyProjection, type FeatureRow, type ModelProjection, type SolidCommand } from '../src/lib/ideacad/solid/types';
 import type { WorkspaceApi } from '../src/lib/ideacad/solid/workspace-api';
 
-const SOURCES = ['src/lib/ideacad/solid/addons/registry.ts', 'src/lib/ideacad/solid/addons/ideablade.ts'];
+const SOURCES = ['src/lib/ideacad/solid/addons/registry.ts', 'src/lib/ideacad/solid/addons/ideablade.ts', 'src/lib/ideacad/solid/addons/spinner.ts', 'src/lib/ideacad/solid/addons/frc.ts'];
 const PANEL = 'src/lib/ideacad/solid/AddonPanel.svelte';
 /** Code with its comments removed, so a docblock may NAME the property without the sweep reading the name as a hit. */
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1');
@@ -31,23 +31,24 @@ describe('the never-restrict property', () => {
 		for (const list of [ADDON_MEMBERS, TOOL_MEMBERS, STARTER_MEMBERS, REFERENCE_MEMBERS, ADDON_FUNCTIONS]) for (const name of list) expect(name).not.toMatch(HOOKISH);
 		const addons = installedAddons();
 		expect(addons.length).toBeGreaterThan(0);
-		let functions = 0;
-		const check = (o: object, allowed: readonly string[]) => {
+		const functions: Record<string, number> = {};
+		const check = (id: string, o: object, allowed: readonly string[]) => {
 			for (const [k, v] of Object.entries(o)) {
 				expect(allowed).toContain(k);
-				if (typeof v === 'function') { functions++; expect(ADDON_FUNCTIONS).toContain(k); }
+				if (typeof v === 'function') { functions[id] = (functions[id] ?? 0) + 1; expect(ADDON_FUNCTIONS).toContain(k); }
 			}
 		};
 		for (const a of addons) {
-			check(a, ADDON_MEMBERS);
-			for (const t of a.tools) check(t, TOOL_MEMBERS);
-			for (const s of a.starters) check(s, STARTER_MEMBERS);
-			for (const r of a.references) check(r, REFERENCE_MEMBERS);
+			check(a.id, a, ADDON_MEMBERS);
+			for (const t of a.tools) check(a.id, t, TOOL_MEMBERS);
+			for (const s of a.starters) check(a.id, s, STARTER_MEMBERS);
+			for (const r of a.references) check(a.id, r, REFERENCE_MEMBERS);
 		}
-		/* Positive control: the sweep counted the functions it walked past. IdeaBlade has four tools, one starter, three references and an advise. */
-		expect(functions).toBe(4 + 1 + 3 + 1);
+		/* Positive control: the sweep counted the functions it walked past, per add-on. IdeaBlade has four tools, one starter, three references and an advise; the spinner weapon and FRC checks add-ons carry none at all (their readouts live in the Analysis panel), which is what makes them unable to touch a document. */
+		expect(addons.map((a) => a.id)).toEqual(['ideaBlade', 'spinnerWeapon', 'frcChecks']);
+		expect(functions).toEqual({ ideaBlade: 4 + 1 + 3 + 1 });
 	});
-	it('neither add-on source carries clamp, min(, max( or refuse in its code; the panel has no bounded or number-typed field; and the sweep finds a planted one', () => {
+	it('no add-on source carries clamp, min(, max( or refuse in its code; the panel has no bounded or number-typed field; and the sweep finds a planted one', () => {
 		const hits = (text: string) => stripComments(text).split('\n').map((line, i) => ({ line: i + 1, text: line })).filter((l) => RESTRICTING.test(l.text));
 		for (const path of SOURCES) {
 			const source = readFileSync(path, 'utf8');
