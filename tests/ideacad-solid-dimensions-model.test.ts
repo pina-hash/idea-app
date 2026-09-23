@@ -256,6 +256,11 @@ describe('sketchDimensions', () => {
 		const dims = sketchDimensions({ feature: 's1', constraints: rect(4, 3).constraints });
 		expect(dims.map((d) => [d.key, d.label, d.detail, d.value, d.unit])).toEqual([['kw', 'Distance 1', 'p0 to p1', 4, 'in'], ['kh', 'Distance 2', 'p1 to p2', 3, 'in']]);
 		expect(dims.every((d) => d.driving)).toBe(true);
+		/* With the entities, the detail is a word a student reads instead of two entity ids. */
+		const worded = sketchDimensions({ feature: 's1', constraints: rect(4, 3).constraints, entities: rect(4, 3).entities });
+		expect(worded.map((d) => d.detail)).toEqual(['horizontal', 'vertical']);
+		const skew = sketchDimensions({ feature: 's1', constraints: [{ id: 'kd', type: 'distance', a: 'p0', b: 'p2', value: 5 }, { id: 'kr', type: 'circleRadius', circle: 'c', value: 1 }], entities: rect(4, 3).entities });
+		expect(skew.map((d) => d.detail)).toEqual(['aligned', 'circle']);
 		/* The whole DIMENSIONED census gets a row, and nothing outside it does. */
 		const all: FeatureOf<'sketch'>['constraints'] = [
 			{ id: 'a', type: 'distance', a: 'p', b: 'q', value: 1 }, { id: 'b', type: 'pointLineDistance', point: 'p', line: 'l', value: 2 }, { id: 'c', type: 'angle', l1: 'l', l2: 'm', value: 30 },
@@ -333,5 +338,19 @@ describe('through the real engine', () => {
 		expect(drivenDimensions(null, m)).toEqual([]);
 		/* A sketch measures its enclosed area from the projection's regions. */
 		expect(drivenDimensions({ bodyId: '', kind: 'sketch', id: 's1' }, m).map((d) => [d.label, Number(d.value.toFixed(6)), d.unit])).toEqual([['Enclosed area', 12, 'in2']]);
+		/* A straight edge has no diameter (the positive control is the cylinder below). */
+		expect(drivenDimensions({ bodyId: body.id, kind: 'edge', id: edge.id }, m).some((d) => d.key === 'diameter')).toBe(false);
+	});
+	it('a round edge off the real kernel also reads as its diameter: a 0.75 in radius disk\'s rim is 1.5 across and 2 pi 0.75 around', async () => {
+		const e = await engine();
+		await e.apply({ type: 'add-feature', feature: { id: 'c1', name: 'Disk', type: 'sketch', plane: { kind: 'datum', datum: 'XY' }, entities: [{ id: 'o', type: 'point', x: 1, y: 2 }, { id: 'k', type: 'circle', center: 'o', radius: 0.75 }], constraints: [] } });
+		const m = await e.apply({ type: 'add-feature', feature: { id: 'x2', name: 'Extrude', type: 'extrude', sketch: 'c1', distance: 0.5, operation: 'new' } });
+		const body = m.bodies[0], rim = body.edges.find((ed) => ed.curve === 'CIRCLE');
+		expect(rim).toBeDefined();
+		const read = drivenDimensions({ bodyId: body.id, kind: 'edge', id: rim!.id }, m);
+		expect(read.map((d) => d.key)).toEqual(['length', 'diameter']);
+		expect(read[0].value).toBeCloseTo(2 * Math.PI * 0.75, 3);
+		expect(read[1].value).toBeCloseTo(1.5, 3);
+		expect(read.every((d) => d.driving === false)).toBe(true);
 	});
 });

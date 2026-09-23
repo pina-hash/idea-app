@@ -1,0 +1,363 @@
+{
+ "375": {
+  "cueBox": {
+   "bounds": [
+    -1,
+    -1,
+    0,
+    1,
+    1,
+    1
+   ],
+   "constraints": [
+    "horizontal",
+    "vertical",
+    "horizontal",
+    "vertical",
+    "distance",
+    "distance"
+   ],
+   "labels": [
+    {
+     "id": "f45d3bd94016b:e829578c1",
+     "text": "2.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    },
+    {
+     "id": "f45d3bd94016b:eca9e6d36",
+     "text": "2.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    },
+    {
+     "id": "f7eb973bed6d1:distance",
+     "text": "1.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    }
+   ],
+   "overChrome": [],
+   "pairs": 0,
+   "sideways": 0
+  },
+  "cueWidth": {
+   "bounds": [
+    -1,
+    -1,
+    0,
+    2,
+    1,
+    1
+   ],
+   "labels": [
+    {
+     "id": "f45d3bd94016b:e829578c1",
+     "text": "3.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    },
+    {
+     "id": "f45d3bd94016b:eca9e6d36",
+     "text": "2.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    }
+   ],
+   "overChrome": [],
+   "pairs": 0,
+   "sideways": 0
+  },
+  "errors": []
+ },
+ "960": {
+  "drawn": {
+   "sketch": {
+    "constraints": [
+     "horizontal",
+     "vertical",
+     "horizontal",
+     "vertical",
+     "distance=3.000",
+     "distance=2.000"
+    ],
+    "solve": "underConstrained"
+   },
+   "labels": [
+    {
+     "id": "fe271378d8a86:e514e8139",
+     "text": "3.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    },
+    {
+     "id": "fe271378d8a86:e76aefe87",
+     "text": "2.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    }
+   ],
+   "overChrome": [],
+   "pairs": 0,
+   "sideways": 0
+  },
+  "afterWidth": {
+   "region": [
+    8
+   ],
+   "solve": "underConstrained",
+   "error": ""
+  },
+  "box": {
+   "bounds": [
+    -2.124,
+    -1.005,
+    0,
+    1.876,
+    0.995,
+    1
+   ],
+   "labels": [
+    {
+     "id": "fe271378d8a86:e514e8139",
+     "text": "4.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    },
+    {
+     "id": "fe271378d8a86:e76aefe87",
+     "text": "2.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    },
+    {
+     "id": "f2302893ebfb3:distance",
+     "text": "1.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    }
+   ],
+   "overChrome": [],
+   "pairs": 0,
+   "sideways": 0
+  },
+  "afterDepth": {
+   "bounds": [
+    -2.124,
+    -1.005,
+    0,
+    1.876,
+    0.995,
+    0.5
+   ],
+   "history": 2,
+   "labels": [
+    "4.000 in",
+    "2.000 in",
+    "0.500 in"
+   ]
+  },
+  "orbit": {
+   "labels": [
+    {
+     "id": "fe271378d8a86:e514e8139",
+     "text": "4.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    },
+    {
+     "id": "fe271378d8a86:e76aefe87",
+     "text": "2.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    },
+    {
+     "id": "f2302893ebfb3:distance",
+     "text": "0.500 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    }
+   ],
+   "overChrome": [],
+   "pairs": 0,
+   "sideways": 0,
+   "before": [
+    "fe271378d8a86:e514e8139",
+    "fe271378d8a86:e76aefe87",
+    "f2302893ebfb3:distance"
+   ]
+  },
+  "frameCosts": {
+   "n": 33,
+   "median": 3.8,
+   "p95": 64.2
+  },
+  "errors": []
+ },
+ "1440": {
+  "drawn": {
+   "sketch": {
+    "constraints": [
+     "horizontal",
+     "vertical",
+     "horizontal",
+     "vertical",
+     "distance=3.000",
+     "distance=2.000"
+    ],
+    "solve": "underConstrained"
+   },
+   "labels": [
+    {
+     "id": "f2ffaa7537ac6:ea0e3b9db",
+     "text": "3.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    },
+    {
+     "id": "f2ffaa7537ac6:e8135f630",
+     "text": "2.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    }
+   ],
+   "overChrome": [],
+   "pairs": 0,
+   "sideways": 0
+  },
+  "afterWidth": {
+   "region": [
+    8
+   ],
+   "solve": "underConstrained",
+   "error": ""
+  },
+  "box": {
+   "bounds": [
+    -1.877,
+    -1,
+    0,
+    2.123,
+    1,
+    1
+   ],
+   "labels": [
+    {
+     "id": "f2ffaa7537ac6:ea0e3b9db",
+     "text": "4.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    },
+    {
+     "id": "f2ffaa7537ac6:e8135f630",
+     "text": "2.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    },
+    {
+     "id": "f4cdb025460cf:distance",
+     "text": "1.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    }
+   ],
+   "overChrome": [],
+   "pairs": 0,
+   "sideways": 0
+  },
+  "afterDepth": {
+   "bounds": [
+    -1.877,
+    -1,
+    0,
+    2.123,
+    1,
+    0.5
+   ],
+   "history": 2,
+   "labels": [
+    "4.000 in",
+    "2.000 in",
+    "0.500 in"
+   ]
+  },
+  "orbit": {
+   "labels": [
+    {
+     "id": "f2ffaa7537ac6:ea0e3b9db",
+     "text": "4.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    },
+    {
+     "id": "f2ffaa7537ac6:e8135f630",
+     "text": "2.000 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    },
+    {
+     "id": "f4cdb025460cf:distance",
+     "text": "0.500 in",
+     "w": 88,
+     "h": 44,
+     "reachable": true,
+     "under": null
+    }
+   ],
+   "overChrome": [],
+   "pairs": 0,
+   "sideways": 0,
+   "before": [
+    "f2ffaa7537ac6:ea0e3b9db",
+    "f2ffaa7537ac6:e8135f630",
+    "f4cdb025460cf:distance"
+   ]
+  },
+  "frameCosts": {
+   "n": 33,
+   "median": 3.1,
+   "p95": 74.8
+  },
+  "errors": []
+ }
+}

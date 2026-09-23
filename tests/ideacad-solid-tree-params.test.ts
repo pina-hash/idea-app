@@ -36,7 +36,8 @@ describe('fields per type', () => {
 		expect(chamfer.refs[0].status).toBe('found');
 		const push = field(fieldsFor(feature('p1'), ctx('p1')), 'face') as Extract<Field, { kind: 'ref' }>;
 		expect(push.ref.status).toBe('reattached');
-		expect(push.ref.words).toBe('face x1.side.0 on Body 1');
+		/* In the Mates panel's words, never the construction id (F034). */
+		expect(push.ref.words).toBe('side face 1 on Body 1'); expect(push.ref.words).not.toContain('x1.');
 		/* The same push with no warning on its row reads found: the reattached word comes from the row, not the reference. */
 		expect((field(fieldsFor(feature('p1'), { manifest, model }), 'face') as Extract<Field, { kind: 'ref' }>).ref.status).toBe('found');
 		expect(Object.values(REF_STATUS_WORDS).every((w) => w.length > 3)).toBe(true);

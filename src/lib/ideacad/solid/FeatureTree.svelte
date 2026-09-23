@@ -51,7 +51,8 @@
 	import { TREE_ICONS, featureIcon } from './tree/icons';
 	import { treeApi, type TreeMenuItem, type TreeMenuRequest } from './tree/api';
 	import type { WorkspaceApi } from './workspace-api';
-	import type { FeatureRow, SolidCommand } from './types';
+	import type { FeatureFix, FeatureRow, Selection, SolidCommand } from './types';
+	import { edgeKey, sizeFixFromSentence } from './features/blends';
 	let { api }: { api: WorkspaceApi } = $props();
 	const tree = $derived(treeApi(api));
 	const rows = $derived(api.model.features);
@@ -112,6 +113,24 @@
 
 	async function run(command: SolidCommand, label: string) {
 		try { await api.apply(command, label); } catch (error) { api.error(error instanceof Error ? error.message : String(error)); }
+	}
+	/** A refused row's one-click way forward, the Feature panel's own: its commands in order, each an ordinary edit with its own undo, stopping at the first the workspace refuses (the document did not change). */
+	async function pressFix(row: FeatureRow, fix: FeatureFix) {
+		if (api.busy) { api.error(REBUILDING); return; }
+		for (const command of fix.commands) {
+			const before = JSON.stringify(api.manifest.features);
+			await run(command, command.type === 'remove-feature' ? `Delete ${row.name}` : fix.label);
+			if (JSON.stringify(api.manifest.features) === before) return;
+		}
+		api.hover?.(null);
+	}
+	/** The row's own fix, or, until the engine carries help onto every row, the size its sentence names (the Feature panel's same fallback). */
+	const fixFor = (row: FeatureRow): FeatureFix | null => row.help?.fix ?? (row.type === 'fillet' || row.type === 'chamfer' ? sizeFixFromSentence(row, api.manifest.features.find((f) => f.id === row.id)) : null);
+	/** Light the edges a refusal is about, matched by edge key so an edge renumbered by the rebuild still lights. */
+	function showWhere(where: Selection[] | undefined) {
+		const out: Selection[] = [];
+		for (const w of where ?? []) { const e = api.model.bodies.find((b) => b.id === w.bodyId)?.edges.find((x) => edgeKey(x.id) === edgeKey(w.id)); if (e) out.push({ ...w, id: e.id }); }
+		api.hover?.(out.length ? out : null);
 	}
 	/** A press the reducer would refuse says so where every refusal shows, and sends nothing. */
 	async function attempt(command: SolidCommand, label: string, refusal: string | null = refusalFor(api.manifest, command)) {
@@ -326,6 +345,7 @@
 		{#if selected && api.canWrite && renaming !== row.id}<button class="row-more" type="button" aria-haspopup="menu" aria-expanded={!!menu} aria-label={`${row.name} actions`} onclick={(e) => rowMenu(row, e, e.currentTarget as HTMLElement)}>⋯</button>{/if}
 	</div>
 	{#if row.message}<p class="message" role={row.status === 'error' ? 'alert' : 'status'}>{row.message}</p>{/if}
+	{#if row.status === 'error' && api.canWrite && fixFor(row)}{@const fix = fixFor(row)!}<button class="fix" type="button" aria-disabled={api.busy} onclick={() => void pressFix(row, fix)} onpointerenter={() => showWhere(row.help?.where)} onpointerleave={() => api.hover?.(null)} onfocus={() => showWhere(row.help?.where)} onblur={() => api.hover?.(null)} data-testid="ideacad-tree-fix">{fix.label}</button>{/if}
 {/snippet}
 <section class="tree" aria-label="Design tree" data-testid="ideacad-feature-tree" bind:this={sectionEl}>
 	<h2>Features <span class="count">{rows.length}</span></h2>
@@ -386,6 +406,7 @@
 	/* THE NAME OUTLASTS THE NUMBER: the summary gives way first, down to nothing, and only then does the name ellipsize, never below a few letters. A status word never gives way. */.name{flex:1 1 auto;min-width:2.6em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}.summary{flex:0 1000 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--text-2);font:12px 'Share Tech Mono',monospace;white-space:nowrap}.status{flex-shrink:0;display:inline-flex;gap:4px;align-items:center;font:11px 'Share Tech Mono',monospace;letter-spacing:.05em;text-transform:uppercase}.editing-word{flex-shrink:0;font:11px 'Share Tech Mono',monospace;letter-spacing:.05em;text-transform:uppercase;color:var(--green)}
 	li.error>.line .status{color:var(--ic-fail-ink,#e07474)}li.warning>.line .status{color:var(--ic-warn,var(--amber))}li.suppressed>.line .status,li.suppressed>.line .name{color:var(--text-2)}
 	.row-more,.eye{flex:0 0 44px;width:44px;min-height:44px;display:grid;place-items:center;padding:0;border:1px solid transparent;border-radius:4px;background:transparent;box-shadow:none;color:var(--text-2);font:700 18px Rajdhani,sans-serif;cursor:pointer}.row-more:hover,.eye:hover{background:var(--surface-2);color:var(--text-1);border-color:transparent}.row-more:focus-visible,.eye:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}.row-more{color:var(--text-1);border-color:var(--boundary)}.eye[aria-pressed="false"]{color:var(--text-3)}.eye[aria-pressed="true"]{background:transparent;color:var(--text-2);border-color:transparent}
+	.fix{display:block;margin:0 8px 8px 8px;min-height:44px;padding:4px 12px;border:1px solid var(--green);border-radius:4px;background:var(--surface-0);color:var(--green);font:600 15px Rajdhani,sans-serif;text-align:left;cursor:pointer}.fix:hover{background:var(--surface-2)}.fix[aria-disabled='true']{opacity:.55;cursor:default}.fix:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 	.message{margin:0 8px 8px 8px;font-size:13px;line-height:1.4;color:var(--text-2)}li.error>.message{color:var(--ic-fail-ink,#e07474)}li.warning>.message{color:var(--ic-warn,var(--amber))}
 	.rename{flex:1 1 auto;min-height:44px;width:100%;min-width:0;box-sizing:border-box;padding:0 8px;border:1px solid var(--green);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:600 15px Rajdhani,sans-serif}
 	.sr-only{position:absolute;left:0;top:0;width:1px;height:1px;margin:0;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}

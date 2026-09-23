@@ -51,15 +51,15 @@
 	const consumers = $derived(api.manifest.features.filter((f): f is FeatureOf<'extrude'> => f.type === 'extrude' && f.sketch === api.editingSketch));
 	const words: Record<string, string> = { solved: 'Fully defined', underConstrained: 'Under defined', redundant: 'Over defined', unsatisfied: 'Cannot be solved', unsolved: 'Not solved' };
 	const TOOLS: { id: SketchTool; word: string; hint: string; write: boolean }[] = [
-		{ id: 'select', word: 'Select', hint: 'Click to select. Drag a point or an entity to move it; drop a point on another point to join them.', write: false },
-		{ id: 'line', word: 'Line', hint: 'Click each corner. Click the first point to close, or press Enter to stop.', write: true },
-		{ id: 'rectangle', word: 'Rectangle', hint: 'Drag from one corner to the opposite corner.', write: true },
-		{ id: 'circle', word: 'Circle', hint: 'Drag from the center out to the radius.', write: true },
-		{ id: 'arc', word: 'Arc', hint: 'Click the center, then the start, then swing around to where it ends. Hold Shift for the long way around.', write: true },
-		{ id: 'polygon', word: 'Polygon', hint: 'Drag from the center to the first corner.', write: true },
-		{ id: 'trim', word: 'Trim', hint: 'Click the part of a line, arc or circle to remove, between where it crosses others.', write: true },
-		{ id: 'extend', word: 'Extend', hint: 'Click a line near the end to run on to the next entity.', write: true },
-		{ id: 'fillet', word: 'Fillet', hint: 'Click a corner point, or two lines one after the other, to round the corner.', write: true }
+		{ id: 'select', word: 'Select', hint: 'Drag to move; drop a point on a point to join', write: false },
+		{ id: 'line', word: 'Line', hint: 'Click each corner; click the first to close, Enter to stop', write: true },
+		{ id: 'rectangle', word: 'Rectangle', hint: 'Drag corner to corner', write: true },
+		{ id: 'circle', word: 'Circle', hint: 'Drag from the center out', write: true },
+		{ id: 'arc', word: 'Arc', hint: 'Center, start, then swing around to where it ends; Shift for the long way', write: true },
+		{ id: 'polygon', word: 'Polygon', hint: 'Drag from the center to a corner', write: true },
+		{ id: 'trim', word: 'Trim', hint: 'Click the piece to remove', write: true },
+		{ id: 'extend', word: 'Extend', hint: 'Click near a line\'s end to run it on', write: true },
+		{ id: 'fillet', word: 'Fillet', hint: 'Click a corner, or two lines, to round it', write: true }
 	];
 	const session = new SketchSession();
 	/* Mirrors of the session for the template; the session is the state, these are what it reads as. */
@@ -107,7 +107,7 @@
 	}
 	function sync() {
 		tool = session.tool; selected = [...session.selected]; hovered = session.hovered;
-		drawingNote = session.tool === 'line' && session.anchorCount ? `${session.anchorCount} point${session.anchorCount === 1 ? '' : 's'} placed. Click the first point to close, or press Enter to stop.` : session.tool === 'arc' && session.anchorCount ? (session.anchorCount === 1 ? 'Center placed. Click where the arc starts.' : 'Start placed. Swing around to where it ends. Hold Shift for the long way around.') : session.pendingFillet && sketch ? `${entityLabel(sketch.entities, session.pendingFillet)} picked. Click the line it meets.` : '';
+		drawingNote = session.tool === 'line' && session.anchorCount ? `${session.anchorCount} point${session.anchorCount === 1 ? '' : 's'} placed; click the first to close, Enter to stop` : session.tool === 'arc' && session.anchorCount ? (session.anchorCount === 1 ? 'Center placed; click where it starts' : 'Start placed; swing around to where it ends, Shift for the long way') : session.pendingFillet && sketch ? `${entityLabel(sketch.entities, session.pendingFillet)} picked. Click the line it meets.` : '';
 		tick++;
 		const id = api.editingSketch, key = session.selected.join(','); if (!id || key === published) return;
 		published = key;
@@ -127,7 +127,8 @@
 	function keydown(e: KeyboardEvent) {
 		/* The target is the window itself when a key is dispatched there, and the window has no `closest`. */
 		const target = e.target as { closest?: (selector: string) => Element | null } | null;
-		if (!sketch || target?.closest?.('input,textarea,select,[contenteditable=true]')) return;
+		/* A size box or label drawn over the viewport (`DimensionOverlay`) owns its own keys: a digit or Enter typed there is a size, not a sketch shortcut. */
+		if (!sketch || target?.closest?.('input,textarea,select,[contenteditable=true],[data-dimension-label],[data-dimension-input]')) return;
 		const key = e.key === 'Escape' ? 'Escape' : e.key === 'Enter' ? 'Enter' : e.key === 'Delete' || e.key === 'Backspace' ? 'Delete' : null;
 		if (!key) return;
 		const ctx = context(); if (!ctx) return;
@@ -270,7 +271,8 @@
 </section>
 <style>
 	.sketch-editor{display:grid;gap:8px}.head{display:flex;justify-content:space-between;align-items:center;gap:8px}h2{margin:0;font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}h3{margin:0;font-size:15px;color:var(--text-2)}.status,.count,.hint{margin:0;color:var(--text-2);font-size:14px;line-height:1.35}.arc-notice{margin:0;color:var(--amber);font-size:14px;line-height:1.35}
-	.tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+	/* Wrapping rows of buttons that grow to fill each row, never a fixed column count: three columns in a 260px panel left 'Rectangle' touching its own border. Each button is at least its word plus its 10px padding. */
+	.tools{display:flex;flex-wrap:wrap;gap:4px}.tools button{flex:1 1 auto}
 	button{min-height:44px;min-width:44px;padding:0 10px;border:1px solid var(--boundary);border-radius:5px;background:var(--surface-0);color:var(--text-1);font:600 15px Rajdhani,sans-serif;cursor:pointer}button:hover{background:var(--surface-2)}button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
 	button.tool.active{border-color:var(--green);color:var(--green);background:color-mix(in srgb,var(--green) 12%,var(--surface-1))}
 	.done{border-color:var(--green);color:var(--green);font-size:16px}

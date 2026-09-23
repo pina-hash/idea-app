@@ -106,8 +106,8 @@ describe('fillets', () => {
 		const removed = m1.bodies[0].volume - on.bodies[0].volume;
 		expect(removed).toBeGreaterThan(0);
 		expect(removed).toBeLessThan(rounded(0.1, 2 * (BOX.w - 0.6) + 2 * (BOX.h - 0.6)) + 4 * 0.1 * 0.1 * 0.1);
-		/* The other direction: the same feature with propagation off is ONE edge ending at two tangent edges, which this kernel refuses; the edit is refused with the kernel's sentence and the rim stays. */
-		await expect(e.apply({ type: 'set-feature', id: 'f2', patch: { propagate: false } })).rejects.toThrow(/blend/);
+		/* The other direction: the same feature with propagation off is ONE edge ending at two tangent edges, which this kernel refuses; the edit is refused in the student's words (never the kernel's text) and the rim stays. */
+		await expect(e.apply({ type: 'set-feature', id: 'f2', patch: { propagate: false } })).rejects.toThrow('This edge runs smoothly on into the next edges, and a round cannot stop partway along them.');
 		const still = e.project();
 		expect(row(still, 'f2').status).toBe('ok');
 		expect(still.bodies[0].faces.filter((f) => f.id.startsWith('f2.blend.'))).toHaveLength(8);
@@ -268,7 +268,12 @@ describe('the options store', () => {
 	it('folds the panel options into a dragged fillet, chamfer and shell, and leaves every other feature alone; a wall face is removed from the open faces', () => {
 		expect(featureOptions).toEqual(DEFAULT_FEATURE_OPTIONS());
 		const edges: EdgeRef[] = [{ body: 'x1#0', faces: ['a', 'b'] }];
+		/* Tangent chain is ON by default for both blends; turned off, the feature carries no propagate key at all. */
+		expect(withOptions({ type: 'fillet', edges, radius: 0.2 })).toEqual({ type: 'fillet', edges, radius: 0.2, propagate: true });
+		expect(withOptions({ type: 'chamfer', edges, distance: 0.1 })).toEqual({ type: 'chamfer', edges, distance: 0.1, propagate: true });
+		featureOptions.fillet.propagate = false; featureOptions.chamfer.propagate = false;
 		expect(withOptions({ type: 'fillet', edges, radius: 0.2 })).toEqual({ type: 'fillet', edges, radius: 0.2 });
+		expect(withOptions({ type: 'chamfer', edges, distance: 0.1 })).toEqual({ type: 'chamfer', edges, distance: 0.1 });
 		featureOptions.fillet.propagate = true; featureOptions.fillet.variableEnd = 0.4; featureOptions.fillet.law = 'scurve';
 		expect(withOptions({ type: 'fillet', edges, radius: 0.2 })).toEqual({ type: 'fillet', edges, radius: 0.2, propagate: true, variable: { end: 0.4, law: 'scurve' } });
 		featureOptions.chamfer.distance2 = 0.3;

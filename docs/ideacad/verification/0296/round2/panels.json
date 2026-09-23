@@ -1,0 +1,83 @@
+{
+ "375": {
+  "reference": {
+   "selected": "Top",
+   "options": [
+    "Top",
+    "Front",
+    "Right"
+   ],
+   "w": 136.3,
+   "h": 44,
+   "inside": true,
+   "panelOverflow": 0,
+   "columnOverflow": 0
+  },
+  "section": {
+   "options": [
+    "Top plane",
+    "Front plane",
+    "Right plane",
+    "Selected flat face"
+   ],
+   "w": 337,
+   "h": 44,
+   "inside": true,
+   "panelOverflow": 0
+  }
+ },
+ "960": {
+  "reference": {
+   "selected": "Top",
+   "options": [
+    "Top",
+    "Front",
+    "Right"
+   ],
+   "w": 94.8,
+   "h": 44,
+   "inside": true,
+   "panelOverflow": 0,
+   "columnOverflow": 0
+  },
+  "section": {
+   "options": [
+    "Top plane",
+    "Front plane",
+    "Right plane",
+    "Selected flat face: Body 1, end face"
+   ],
+   "w": 238,
+   "h": 44,
+   "inside": true,
+   "panelOverflow": 0
+  }
+ },
+ "1440": {
+  "reference": {
+   "selected": "Top",
+   "options": [
+    "Top",
+    "Front",
+    "Right"
+   ],
+   "w": 94.8,
+   "h": 44,
+   "inside": true,
+   "panelOverflow": 0,
+   "columnOverflow": 0
+  },
+  "section": {
+   "options": [
+    "Top plane",
+    "Front plane",
+    "Right plane",
+    "Selected flat face"
+   ],
+   "w": 238,
+   "h": 44,
+   "inside": true,
+   "panelOverflow": 0
+  }
+ }
+}

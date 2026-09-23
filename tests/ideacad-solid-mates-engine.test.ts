@@ -23,7 +23,10 @@ import { SolidEngine } from '../src/lib/ideacad/solid/engine';
 import { refFromSelection } from '../src/lib/ideacad/solid/naming';
 import { solveAssembly } from '../src/lib/ideacad/solid/mates/solve';
 import { MATE_KINDS, MATE_WORDS } from '../src/lib/ideacad/solid/features/mate';
-import type { EntityRef, Feature, FeatureOf, ModelProjection, MateKind } from '../src/lib/ideacad/solid/types';
+import { emptyManifest, type EntityRef, type Feature, type FeatureOf, type ModelProjection, type MateKind, type SolidManifest } from '../src/lib/ideacad/solid/types';
+import { planJoint } from '../src/lib/ideacad/solid/mates/joints';
+import { moveWithinFreedom } from '../src/lib/ideacad/solid/mates/motion';
+import { selectionWords } from '../src/lib/ideacad/solid/mates/words';
 
 const WASM = new Uint8Array(readFileSync('static/ideacad/kernels/remus-9307e73.wasm'));
 const engines: SolidEngine[] = [];
@@ -144,7 +147,7 @@ describe('mates against the real kernel', () => {
 		/* An edge of the pin's top rim concentric with the hole: a circular edge is an axis. */
 		const rim = body(c, 'x4#0').edges.find((ed) => ed.curve === 'CIRCLE')!;
 		const r = await add(e, { id: 'm3', name: 'Mate 3', type: 'mate', kind: 'concentric', a: face(c, 'x1#0', hole.id), b: { kind: 'edge', ...refFromSelection({ bodyId: 'x4#0', kind: 'edge', id: rim.id }, body(c, 'x4#0')) as { body: string; faces: string[] } } });
-		expect(row(r, 'm3').status).toBe('error'); expect(row(r, 'm3').message).toMatch(/adds nothing: Mate 1 already hold/);
+		expect(row(r, 'm3').status).toBe('error'); expect(row(r, 'm3').message).toMatch(/adds nothing: Mate 1 already holds/);
 	});
 	it('a lost reference is the resolver\'s own sentence on the mate row, and the rest of the model stands', async () => {
 		const e = await engine(); const m0 = await twoBoxes(e);
@@ -172,5 +175,76 @@ describe('mates against the real kernel', () => {
 		] });
 		expect(timed.errors).toEqual([]);
 		console.log(`solver ms per mate (pure): ${[...timed.ms].map(([k, v]) => `${k}=${v.toFixed(3)}`).join(' ')}; replay with three mates: ${m.replayMs?.toFixed(2)} ms`);
+	});
+	it('a hinge planned from the real projection lands as ONE batch (one undo), leaves the pin one turn about the hole axis, and a drag keeps only that turn', async () => {
+		const e = await engine(); const m0 = await twoBoxes(e);
+		/* The Hole tool through the base at (2, 1.5), and a pin standing at x = 12. */
+		await add(e, { id: 'h1', name: 'Hole 1', type: 'hole', face: face(m0, 'x1#0', 'x1.end') as never, center: [2, 1.5], standard: 'custom', fit: 'custom', diameter: 0.5, depth: 'through' });
+		await add(e, circle('s4', 12, 0, 0.25));
+		const m1 = await add(e, { id: 'x4', name: 'Pin', type: 'extrude', sketch: 's4', distance: 2, operation: 'new' });
+		const wall = body(m1, 'x1#0').faces.find((f) => f.id === 'h1.wall')!, shank = body(m1, 'x4#0').faces.find((f) => f.kind === 'cylinder')!;
+		expect(wall.kind).toBe('cylinder');
+		const pick = (bodyId: string, id: string) => ({ kind: 'face' as const, bodyId, id });
+		const manifest = { ...emptyManifest(), features: [{ id: 'h1', name: 'Hole 1', type: 'hole' }] } as unknown as SolidManifest;
+		const plan = planJoint({ model: m1, manifest }, 'hinge', [pick('x1#0', wall.id), pick('x4#0', shank.id), pick('x1#0', 'x1.end'), pick('x4#0', 'x4.start')]);
+		expect(plan.reason).toBeNull(); expect(plan.ready).toBe(true);
+		const base = body(m1, 'x1#0').name, pinName = body(m1, 'x4#0').name;
+		expect(plan.slots.map((s) => s.words)).toEqual([`${base}, hole wall`, selectionWords({ model: m1, manifest }, pick('x4#0', shank.id)), `${base}, end face`, `${pinName}, start face`]);
+		expect(plan.slots[1].words).toMatch(new RegExp(`^${pinName}, round face \\d+$`));
+		const m = await e.apply({ type: 'batch', commands: plan.mates.map((mt, i) => ({ type: 'add-feature', feature: { id: `j${i}`, name: `Hinge 1 ${i}`, type: 'mate', kind: mt.kind, a: mt.a, b: mt.b, joint: 'hinge', group: 'j0' } })) });
+		expect(row(m, 'j0').status).toBe('ok'); expect(row(m, 'j1').status).toBe('ok');
+		expect(row(m, 'j0').summary).toBe('hinge');
+		const pin = body(m, 'x4#0');
+		expect(pin.dof).toBe(1);
+		expect((pin.bounds[0] + pin.bounds[3]) / 2).toBeCloseTo(2, 9); expect((pin.bounds[1] + pin.bounds[4]) / 2).toBeCloseTo(1.5, 9); expect(pin.bounds[2]).toBeCloseTo(1, 9);
+		/* A drag across the axis and up keeps nothing; a turn about the hole axis survives whole. */
+		const across = moveWithinFreedom(m, 'x4#0', { translation: [1, 1, 1] });
+		expect(Math.hypot(...across.v)).toBeLessThan(1e-6); expect(across.dof).toBe(1);
+		const spin = moveWithinFreedom(m, 'x4#0', { rotation: { axis: [0, 0, 1], angle: 0.7, pivot: [2, 1.5, 0] } });
+		expect(spin.omega[2]).toBeCloseTo(0.7, 6); expect(Math.hypot(spin.omega[0], spin.omega[1], ...spin.v)).toBeLessThan(1e-6);
+		/* One edit, one undo: the whole hinge goes. */
+		const undone = await e.undo();
+		expect(undone.mates).toHaveLength(0); expect(undone.features.some((f) => f.id === 'j0' || f.id === 'j1')).toBe(false);
+	});
+	it('a drag projected onto a cylindrical joint lands as a Move the solve keeps: the pin slides up its hole and stays on the axis', async () => {
+		const e = await engine(); const m0 = await twoBoxes(e);
+		await add(e, { id: 'h1', name: 'Hole 1', type: 'hole', face: face(m0, 'x1#0', 'x1.end') as never, center: [2, 1.5], standard: 'custom', fit: 'custom', diameter: 0.5, depth: 'through' });
+		await add(e, circle('s4', 12, 0, 0.25));
+		const m1 = await add(e, { id: 'x4', name: 'Pin', type: 'extrude', sketch: 's4', distance: 2, operation: 'new' });
+		const shank = body(m1, 'x4#0').faces.find((f) => f.kind === 'cylinder')!;
+		const m2 = await add(e, mateFeature('m1', 'concentric', face(m1, 'x1#0', 'h1.wall'), face(m1, 'x4#0', shank.id)));
+		const before = body(m2, 'x4#0').bounds;
+		expect((before[0] + before[3]) / 2).toBeCloseTo(2, 9);
+		/* The student drags the pin up and sideways; only the slide along the hole axis survives the projection. */
+		const motion = moveWithinFreedom(m2, 'x4#0', { translation: [0.6, -0.4, 0.5] });
+		expect(motion.dof).toBe(2); expect(motion.v[0]).toBeCloseTo(0, 9); expect(motion.v[1]).toBeCloseTo(0, 9); expect(motion.v[2]).toBeCloseTo(0.5, 9);
+		const m3 = await add(e, { id: 't1', name: 'Move 1', type: 'transform', bodies: ['x4#0'], matrix: motion.matrix });
+		expect(row(m3, 'm1').status).toBe('ok'); expect(row(m3, 't1').status).toBe('ok');
+		const after = body(m3, 'x4#0').bounds;
+		expect(after[2] - before[2]).toBeCloseTo(0.5, 6); expect(after[5] - before[5]).toBeCloseTo(0.5, 6);
+		expect((after[0] + after[3]) / 2).toBeCloseTo(2, 6); expect((after[1] + after[4]) / 2).toBeCloseTo(1.5, 6);
+	});
+	it('a pin in a slot planned from the real projection rides the slot wall at its own radius, sits on the plate, and keeps a slide along the slot and a spin', async () => {
+		const e = await engine(); const m0 = await twoBoxes(e);
+		/* A slot 3 long and 0.5 wide cut through the base along X at y = 0.5 .. 1.0. */
+		await add(e, rectangle('s5', 0.5, 0.5, 3, 0.5, { kind: 'face', face: (face(m0, 'x1#0', 'x1.end') as { kind: 'face' } & { body: string; name: string }) as never }));
+		await add(e, { id: 'x5', name: 'Slot', type: 'extrude', sketch: 's5', distance: -2, operation: 'cut', target: 'x1#0' });
+		await add(e, circle('s4', 12, 0, 0.25));
+		const m1 = await add(e, { id: 'x4', name: 'Pin', type: 'extrude', sketch: 's4', distance: 2, operation: 'new' });
+		const near = body(m1, 'x1#0').faces.find((f) => f.id.startsWith('x5.side') && f.kind === 'plane' && f.normal[1] > 0.9)!;
+		expect(near.center[1]).toBeCloseTo(0.5, 9);
+		const shank = body(m1, 'x4#0').faces.find((f) => f.kind === 'cylinder')!;
+		const pick = (bodyId: string, id: string) => ({ kind: 'face' as const, bodyId, id });
+		const plan = planJoint({ model: m1, manifest: emptyManifest() }, 'slot', [pick('x1#0', near.id), pick('x4#0', shank.id), pick('x1#0', 'x1.end'), pick('x4#0', 'x4.start')]);
+		expect(plan.reason).toBeNull(); expect(plan.ready).toBe(true);
+		expect(plan.mates.map((m) => [m.kind, m.value ?? null])).toEqual([['distance', 0.25], ['coincident', null]]);
+		const m = await e.apply({ type: 'batch', commands: plan.mates.map((mt, i) => ({ type: 'add-feature', feature: { id: `k${i}`, name: `Pin in slot 1 ${i}`, type: 'mate', kind: mt.kind, a: mt.a, b: mt.b, ...(mt.value !== undefined ? { value: mt.value } : {}), joint: 'slot', group: 'k0' } })) });
+		expect(row(m, 'k0').status).toBe('ok'); expect(row(m, 'k1').status).toBe('ok');
+		const pin = body(m, 'x4#0');
+		expect(pin.dof).toBe(2);
+		/* Its axis sits 0.25 off the near wall, which is the slot's middle, and its bottom on the base's top. */
+		expect((pin.bounds[1] + pin.bounds[4]) / 2).toBeCloseTo(0.75, 6); expect(pin.bounds[2]).toBeCloseTo(1, 6);
+		const slide = moveWithinFreedom(m, 'x4#0', { translation: [1, 1, 1] });
+		expect(slide.v[0]).toBeCloseTo(1, 6); expect(Math.hypot(slide.v[1], slide.v[2])).toBeLessThan(1e-6);
 	});
 });

@@ -51,7 +51,6 @@
 </script>
 <section class="addons panel" aria-label="Add-ons" data-testid="ideacad-addon-panel">
 	<h2>Add-ons</h2>
-	<p class="lede">An add-on adds tools, a starter and reference geometry, and may advise. It never changes what the base tools do.</p>
 	{#each addons as addon (addon.id)}
 		{@const on = addonEnabled(api.model.addons, addon.id)}
 		<article class="addon" data-addon={addon.id} data-enabled={on}>
@@ -107,7 +106,7 @@
 	{/each}
 </section>
 <style>
-	.addons{display:grid;gap:8px}h2{margin:0;font-size:18px}.lede,.description{margin:0;font-size:14px;color:var(--text-2)}
+	.addons{display:grid;gap:8px}h2{margin:0;font-size:18px}.description{margin:0;font-size:14px;color:var(--text-2)}
 	h3{margin:6px 0 0;display:flex;justify-content:space-between;align-items:baseline;font:600 15px Rajdhani,sans-serif;color:var(--text-1);border-bottom:1px solid var(--hairline);padding-bottom:4px}.count{font:12px 'Share Tech Mono',monospace;color:var(--text-2)}
 	.addon{display:grid;gap:8px}
 	button{min-height:44px;border:1px solid var(--boundary);border-radius:5px;background:transparent;color:var(--text-1);font:600 16px Rajdhani,sans-serif;cursor:pointer;text-align:left}button:disabled{opacity:.4;cursor:default}button:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}

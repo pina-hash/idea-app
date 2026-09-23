@@ -504,3 +504,31 @@ describe('the rollback bar, when the workspace can roll back', () => {
 		expect(api.commands).toHaveLength(0);
 	});
 });
+
+describe('a refused row', () => {
+	/* The fixture's own Fillet 1 row, refused with the help the engine carries: the tree offers the Feature panel's one-click way forward under the sentence. */
+	const refused = (api: FakeApi) => { Object.assign(api.api.model.features.find((r) => r.id === 'f1')!, { status: 'error', message: 'The round is too big for that edge.', help: { fix: { label: 'Use 0.1 in', commands: [{ type: 'set-feature', id: 'f1', patch: { radius: 0.1 } }] } } }); return api; };
+	it('offers its fix under the sentence and applies the fix commands; a row without help, and a read-only tree, offer none', async () => {
+		const api = refused(fakeApi()); const m = mountInto(Tree, { api: api.api }); mounted.push(m);
+		const fixes = m.all<HTMLButtonElement>('[data-testid="ideacad-tree-fix"]');
+		expect(fixes).toHaveLength(1);
+		expect(fixes[0].textContent).toBe('Use 0.1 in');
+		expect(fixes[0].closest('[data-row]')?.getAttribute('data-row')).toBe('f1');
+		fixes[0].click(); await m.settle();
+		expect(api.commands).toEqual([{ command: { type: 'set-feature', id: 'f1', patch: { radius: 0.1 } }, label: 'Use 0.1 in' }]);
+		const ro = refused(fakeApi({ canWrite: false })); const r = mountInto(Tree, { api: ro.api }); mounted.push(r);
+		expect(r.all('[data-testid="ideacad-tree-fix"]')).toHaveLength(0);
+		expect(r.all('[data-row="f1"] .message')).toHaveLength(1);
+	});
+	it('a refused round the engine has not yet given help offers the size its own sentence names; any other sentence offers nothing', async () => {
+		const api = fakeApi(); Object.assign(api.api.model.features.find((r) => r.id === 'f1')!, { status: 'error', message: 'That radius is too big for this edge. The largest that fits here is 0.999 in.' });
+		const m = mountInto(Tree, { api: api.api }); mounted.push(m);
+		const fix = m.one<HTMLButtonElement>('[data-testid="ideacad-tree-fix"]');
+		expect(fix.textContent).toBe('Use 0.999 in');
+		fix.click(); await m.settle();
+		expect(api.commands).toEqual([{ command: { type: 'set-feature', id: 'f1', patch: { radius: 0.999 } }, label: 'Use 0.999 in' }]);
+		const other = fakeApi(); Object.assign(other.api.model.features.find((r) => r.id === 'f1')!, { status: 'error', message: 'Select an edge.' });
+		const o = mountInto(Tree, { api: other.api }); mounted.push(o);
+		expect(o.all('[data-testid="ideacad-tree-fix"]')).toHaveLength(0);
+	});
+});

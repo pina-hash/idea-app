@@ -44,7 +44,8 @@
  * a bare number and a scale factor is a bare ratio (or a percentage).
  */
 import { DIMENSIONED } from '../sketch/model';
-import type { BodyProjection, Feature, ModelProjection, Selection, SketchProjection, Vec3 } from '../types';
+import { circleThrough } from '../mates/frames';
+import type { BodyProjection, EdgeProjection, Feature, ModelProjection, Selection, SketchEntity, SketchProjection, Vec3 } from '../types';
 
 /* ------------------------------------------------------------- shapes */
 export type DimensionUnit = 'in' | 'deg' | 'count' | 'factor';
@@ -261,19 +262,74 @@ const CONSTRAINT_WORDS: Partial<Record<SketchProjection['constraints'][number]['
  * patch rewrites the whole `constraints` array with one value moved, which is
  * what `set-feature` on the sketch feature carries.
  */
-export function sketchDimensions(sketch: Pick<SketchProjection, 'feature' | 'constraints'>): Dimension[] {
+export function sketchDimensions(sketch: Pick<SketchProjection, 'feature' | 'constraints'> & { entities?: readonly SketchEntity[] }): Dimension[] {
 	const out: Dimension[] = [], counts = new Map<string, number>();
 	for (const c of sketch.constraints) {
 		if (!DIMENSIONED.includes(c.type) || !('value' in c)) continue;
 		const word = CONSTRAINT_WORDS[c.type] ?? c.type;
 		const n = (counts.get(word) ?? 0) + 1; counts.set(word, n);
-		const detail = c.type === 'distance' ? `${c.a} to ${c.b}` : c.type === 'pointLineDistance' ? `${c.point} to ${c.line}` : c.type === 'angle' ? `${c.l1} to ${c.l2}` : c.type === 'circleRadius' ? c.circle : c.type === 'arcRadius' ? c.arc : c.point;
+		/* With the entities to hand the detail says what the number measures in words a student reads ("horizontal", "circle"); without them, the entity ids, which is all there is. */
+		const detail = (sketch.entities ? detailWord(sketch.entities, c) : null) ?? (c.type === 'distance' ? `${c.a} to ${c.b}` : c.type === 'pointLineDistance' ? `${c.point} to ${c.line}` : c.type === 'angle' ? `${c.l1} to ${c.l2}` : c.type === 'circleRadius' ? c.circle : c.type === 'arcRadius' ? c.arc : c.point);
 		out.push(dim(c.id, `${word} ${n}`, c.value, c.type === 'angle' ? 'deg' : 'in', (value) => ({ constraints: sketch.constraints.map((k) => (k.id === c.id ? { ...k, value } : k)) }), detail));
 	}
 	return out;
 }
 
+/* ------------------------------------------------- which feature */
+/**
+ * The feature whose numbers a selection offers: a feature, sketch or
+ * reference by its own id; a FACE by the feature that made that face (its
+ * construction name starts with the feature id, `naming.ts`), so pressing a
+ * fillet's round face offers the fillet's radius and a hole's wall its
+ * diameter, as SolidWorks shows a face's own feature; anything else on a body
+ * (a body, an edge, a corner, a face whose name no longer names a feature in
+ * the list, or a face a copy carried over from its source) by the feature
+ * that created the body. The Dimensions panel and
+ * the viewport's numbers ask this one question the same way.
+ */
+export function featureForSelection(selection: Selection | null | undefined, model: Pick<ModelProjection, 'bodies' | 'features'>, features: readonly Pick<Feature, 'id'>[]): string | null {
+	if (!selection) return null;
+	if (selection.kind === 'feature' || selection.kind === 'sketch' || selection.kind === 'reference') return selection.id;
+	const creator = model.bodies.find((b) => b.id === selection.bodyId)?.createdBy ?? null;
+	if (selection.kind === 'face') {
+		/* The naming feature counts only if it made or changed THIS body: a patterned or mirrored copy keeps its source's face names, and its numbers are the pattern's. */
+		const made = selection.id.split('.')[0], row = model.features.find((r) => r.id === made);
+		if (made && features.some((f) => f.id === made) && (made === creator || !!row?.bodies.includes(selection.bodyId))) return made;
+	}
+	return creator;
+}
+
+/** What a sketch number measures, in a word: a distance is horizontal, vertical or aligned by where its two points sit; a radius is a circle's or an arc's. Null when the entities do not say. */
+function detailWord(entities: readonly SketchEntity[], c: SketchProjection['constraints'][number]): string | null {
+	const at = (id: string) => { const p = entities.find((e) => e.id === id); return p && p.type === 'point' ? p : null; };
+	switch (c.type) {
+		case 'distance': {
+			const a = at(c.a), b = at(c.b); if (!a || !b) return null;
+			const dx = Math.abs(b.x - a.x), dy = Math.abs(b.y - a.y), tol = 1e-9 * Math.max(1, dx, dy);
+			return dy <= tol && dx > tol ? 'horizontal' : dx <= tol && dy > tol ? 'vertical' : 'aligned';
+		}
+		case 'pointLineDistance': return 'point to line';
+		case 'angle': return 'between lines';
+		case 'circleRadius': return 'circle';
+		case 'arcRadius': return 'arc';
+		case 'fixX': return 'from the vertical axis';
+		case 'fixY': return 'from the horizontal axis';
+		default: return null;
+	}
+}
+
 /* ------------------------------------------------- measured values */
+/**
+ * The circle a CIRCLE edge lies on, read through three of its sampled points
+ * (the mate frames' own `circleThrough`), or null for any other curve or a
+ * polyline too short to say.
+ */
+export function circleOfEdge(edge: Pick<EdgeProjection, 'curve' | 'points'>): { center: Vec3; normal: Vec3; radius: number } | null {
+	const n = Math.floor(edge.points.length / 3);
+	if (edge.curve !== 'CIRCLE' || n < 3) return null;
+	const at = (i: number): Vec3 => [edge.points[3 * i], edge.points[3 * i + 1], edge.points[3 * i + 2]];
+	try { return circleThrough(at(0), at(Math.floor(n / 3)), at(Math.floor((2 * n) / 3))); } catch { return null; }
+}
 const measured = (key: string, label: string, value: number, unit: MeasuredUnit): Measured => ({ key, label, value, unit, driving: false });
 /** `bounds` is the kernel's `[min x, min y, min z, max x, max y, max z]`. */
 export const boundsSize = (bounds: readonly number[]): Vec3 => [bounds[3] - bounds[0], bounds[4] - bounds[1], bounds[5] - bounds[2]];
@@ -286,7 +342,12 @@ export function drivenDimensions(selection: Selection | null | undefined, model:
 	if (!selection) return [];
 	const body: BodyProjection | undefined = model.bodies.find((b) => b.id === selection.bodyId);
 	switch (selection.kind) {
-		case 'edge': { const edge = body?.edges.find((e) => e.id === selection.id); return edge ? [measured('length', 'Length', edge.length, 'in')] : []; }
+		case 'edge': {
+			const edge = body?.edges.find((e) => e.id === selection.id); if (!edge) return [];
+			/* A round edge (a hole's rim, a boss's top) also reads as its diameter, which is the number a student checks a hole against. */
+			const circle = circleOfEdge(edge);
+			return [measured('length', 'Length', edge.length, 'in'), ...(circle ? [measured('diameter', 'Diameter', 2 * circle.radius, 'in')] : [])];
+		}
 		case 'face': { const face = body?.faces.find((f) => f.id === selection.id); return face ? [measured('area', 'Area', face.area, 'in2')] : []; }
 		case 'vertex': { const v = body?.vertices.find((x) => x.id === selection.id); return v ? (['X', 'Y', 'Z'] as const).map((axis, i) => measured(`at.${axis.toLowerCase()}`, `At ${axis}`, v.point[i], 'in')) : []; }
 		case 'body': {

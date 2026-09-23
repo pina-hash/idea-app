@@ -161,12 +161,12 @@ describe('the density row', () => {
 });
 
 describe('the other controls', () => {
-	it('the fixed checkbox carries its sentence and sends fixed both ways', () => {
+	it('the fixed checkbox carries its name, no instruction, and sends fixed both ways', () => {
 		const h = harness(); const m = mountPanel(h);
 		const box = m.one<HTMLInputElement>('[data-testid="ideacad-body-fixed"]');
 		expect(box.type).toBe('checkbox');
 		expect(box.checked).toBe(false);
-		expect(box.closest('label')?.textContent).toContain('Fixed in place: a mate never moves this body');
+		expect(box.closest('label')?.textContent?.trim()).toMatch(/^Fixed in place$/);
 		tick(m, 'ideacad-body-fixed', true);
 		expect(h.applied[0]).toEqual({ command: { type: 'metadata', bodyId: 'x1#0', fixed: true }, label: 'Fix body in place' });
 		h.props.body = body({ fixed: true }); m.flush();

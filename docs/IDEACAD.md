@@ -340,6 +340,23 @@ cylinder axes, draws the outlines as guides, and commits a real mate feature on
 release unless Ctrl is held. Left out: sphere faces (mate as a point,
 untested), a large-model timing.
 
+JOINTS (`mates/joints.ts`, round 2 of ledger 0296) name a mate by what the part
+should do: Hinge (spins, 1 free), Slider (slides, 1), Cylindrical (spins and
+slides, 2), Planar (slides flat, 3), Fixed (0) and Pin in slot (slides and
+spins, 2). A joint is the solver's own mate kinds, added as ONE `batch`
+command (one undo), and each of its mate features carries `joint` and a shared
+`group` so the Mates panel lists them as one row; `flip` turns a coincident
+pair to face the other way. Nothing is added until a plan's numeric freedom
+(`proposedFreedom`, the solver's Jacobian) matches the joint's promise and a
+trial solve succeeds, so a hinge whose flat faces run along its axis is refused
+in words before any feature lands. `mates/motion.ts` (`moveWithinFreedom`)
+projects a drag on a mated body onto the freedom its accepted mates leave and
+answers the row-major matrix the `transform` feature stores; wiring it into
+the workspace's move gesture is a request on the writer's files. Picks and
+stored mate sides read in the student's words through `mates/words.ts`
+("Body 1, hole wall"), which the Measure panel, the Section panel and the
+feature parameter form share.
+
 **5. Sketching** (`SketchEditor.svelte`, `sketch/editor.ts`,
 `sketch/model.ts`, `viewport/sketch-layer.ts`). The open sketch is an editable
 collection: draw (line chains sharing points, rectangle, circle, polygon with a
@@ -369,6 +386,15 @@ Smooth loft through three or more profiles returned a negative volume in this
 kernel build and is refused in words. Measure reports a word, a number and a
 unit with a witness line; Section clips on a datum, a reference plane or a
 selected flat face.
+
+A refused round or bevel is a sentence in the student's words with a one-click
+way forward: the largest size that fits (found by at most 8 kernel attempts or
+1.5 s, and only on refusal), adding the edges to the earlier round they meet,
+leaving out the edges that run into another round, or the whole tangent
+chain. The kernel text is kept only as a development detail. Tangent
+propagation is on by default. Every edge of an L bracket at once is refused by
+this kernel at any radius (2 stripes meet), while the edges along the pull
+round. The design tree's refused row offers the same fix as the Feature panel.
 
 **7. Materials and colour** (`BodyProperties.svelte`, `advisory.ts`,
 `appearance.ts`). Every stock material carries a colour (required, so no
