@@ -44,7 +44,7 @@
 	function startTags() { tagsDraft = row.tags.join(', '); tagsEditing = true; refusal = ''; }
 </script>
 
-<article class="card" class:archived={row.archivedAt !== null} data-testid="model-card" data-id={row.id} aria-labelledby={`title-${row.id}`}>
+<article class="doc-card" class:archived={row.archivedAt !== null} data-testid="model-card" data-id={row.id} aria-labelledby={`title-${row.id}`}>
 	<div class="picture" aria-hidden="true">
 		{#if row.thumbnail}<img src={row.thumbnail} alt="" />{:else}
 			<svg viewBox="0 0 64 48" class="thumb"><polyline points="12,18 32,8 52,18 52,36 32,46 12,36 12,18" fill="none" stroke-width="1.5" /><polyline points="12,18 32,28 52,18" fill="none" stroke-width="1.5" /><polyline points="32,28 32,46" fill="none" stroke-width="1.5" /></svg>
@@ -82,7 +82,7 @@
 				{#if row.isOwn}<button onclick={startTags}>{row.tags.length ? 'Edit tags' : 'Add tags'}</button>{/if}
 			</div>
 			{#if row.isOwn}
-				<label class="field">Folder
+				<label class="folder-field">Folder
 					<select aria-label="Folder" value={row.folderId ?? ''} disabled={busy} onchange={(e) => void run(() => api.move(row.id, (e.currentTarget as HTMLSelectElement).value || null))}>
 						<option value="">No folder</option>
 						{#each folders as folder (folder.id)}<option value={folder.id}>{folder.name}</option>{/each}
@@ -148,8 +148,10 @@
 </article>
 
 <style>
-	.card { display: grid; grid-template-columns: 96px minmax(0, 1fr); grid-template-areas: 'picture ident' 'actions actions' 'manage manage'; gap: 0.5rem 0.75rem; padding: 0.75rem; min-width: 0; background: var(--ic-panel); border: 1px solid var(--ic-edge); border-radius: var(--ic-radius); box-shadow: var(--ic-bevel); }
-	.card.archived { border-style: dashed; }
+	/* `doc-card`, never `card`: app.css carries a global `.card` with a 1.25rem margin on both ends, which put 40px of
+	   empty space between every row of this grid (measured 51.7px against a 12px gap). */
+	.doc-card { display: grid; grid-template-columns: 96px minmax(0, 1fr); grid-template-areas: 'picture ident' 'actions actions' 'manage manage'; gap: 0.5rem 0.75rem; padding: 0.75rem; min-width: 0; background: var(--ic-panel); border: 1px solid var(--ic-edge); border-radius: var(--ic-radius); box-shadow: var(--ic-bevel); }
+	.doc-card.archived { border-style: dashed; }
 	.picture { grid-area: picture; display: grid; place-items: center; align-content: center; gap: 0.25rem; aspect-ratio: 4 / 3; min-width: 0; background: var(--ic-ground); border: 1px solid var(--ic-line); border-radius: var(--ic-radius); overflow: hidden; }
 	.picture img { width: 100%; height: 100%; object-fit: contain; }
 	.picture .thumb { width: 56px; height: 42px; border: 0; background: transparent; }
@@ -163,6 +165,9 @@
 	.sep { color: var(--ic-edge); }
 	.owner { margin: 0; font: var(--ic-fs-prose) / 1.3 var(--font-display); color: var(--ic-meta); overflow-wrap: anywhere; }
 	.chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+	/* Two pixels of air above and below the word, which the room's 18px chip leaves at 1.5. Only here: the Blade rules
+	   rail wears the same chip and has no height to give (CLAUDE.md, the materials rule). */
+	.chips .chip { min-height: 20px; }
 	.chip.folder { color: var(--ic-text-2); text-transform: none; letter-spacing: 0.02em; }
 	.chip.tag { color: var(--ic-text-2); text-transform: none; letter-spacing: 0.02em; border-color: var(--ic-line); }
 	.row-actions { grid-area: actions; display: flex; flex-wrap: wrap; gap: 0.5rem; }
@@ -170,7 +175,7 @@
 	.row-actions button[aria-expanded='true'] { border-color: var(--ic-accent); }
 	.manage { grid-area: manage; display: grid; gap: 0.6rem; padding-top: 0.6rem; border-top: 1px solid var(--ic-line); min-width: 0; }
 	.tools, .pair { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-	form, .field { display: grid; gap: 0.35rem; min-width: 0; }
+	form, .folder-field { display: grid; gap: 0.35rem; min-width: 0; }
 	label { display: grid; gap: 0.25rem; font: var(--ic-fs-label) / 1.3 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ic-text-2); min-width: 0; }
 	input, select { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; padding: 0 0.5rem; text-transform: none; letter-spacing: 0; }
 	.keep, .remove { display: grid; gap: 0.35rem; padding: 0.5rem; border: 1px solid var(--ic-line); border-radius: var(--ic-radius); }

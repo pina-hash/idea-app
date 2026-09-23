@@ -119,6 +119,6 @@
 	.field{display:grid;gap:4px;font-size:14px}.label{color:var(--text-1)}.label small{font:12px 'Share Tech Mono',monospace;color:var(--text-2)}.hint{color:var(--text-2);font-size:12px}
 	input,textarea{min-height:44px;width:100%;box-sizing:border-box;padding:0 8px;border:1px solid var(--boundary);border-radius:5px;background:var(--surface-0);color:var(--text-1);font:16px Rajdhani,sans-serif}textarea{padding:8px;font:15px 'Share Tech Mono',monospace;resize:vertical}
 	.run{background:var(--green);color:#15191d;border-color:var(--green);padding:0 16px}
-	.settings{width:100%;border-color:var(--green);color:var(--green)}
+	.settings{width:100%;padding:0 12px;border-color:var(--green);color:var(--green)}
 	.advisory{display:grid}
 </style>

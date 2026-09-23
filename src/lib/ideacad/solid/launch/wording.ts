@@ -31,7 +31,6 @@ export const PURGE_SENTENCE = 'Removes the model for good right now. There is no
 export const FOLDER_DELETE_SENTENCE = 'Deleting a folder unfiles the models in it. They stay in your library; nothing is deleted.';
 
 export const EMPTY_LIBRARY = 'No models yet';
-export const EMPTY_LIBRARY_HINT = 'Start with New model. Everything you make is listed here.';
 export const EMPTY_ARCHIVED = 'Nothing is archived';
 export const EMPTY_TRASH = 'The trash is empty';
 export const EMPTY_FOLDER = 'This folder is empty';
