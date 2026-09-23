@@ -206,4 +206,22 @@ describe('mates against the real kernel', () => {
 		const undone = await e.undo();
 		expect(undone.mates).toHaveLength(0); expect(undone.features.some((f) => f.id === 'j0' || f.id === 'j1')).toBe(false);
 	});
+	it('a drag projected onto a cylindrical joint lands as a Move the solve keeps: the pin slides up its hole and stays on the axis', async () => {
+		const e = await engine(); const m0 = await twoBoxes(e);
+		await add(e, { id: 'h1', name: 'Hole 1', type: 'hole', face: face(m0, 'x1#0', 'x1.end') as never, center: [2, 1.5], standard: 'custom', fit: 'custom', diameter: 0.5, depth: 'through' });
+		await add(e, circle('s4', 12, 0, 0.25));
+		const m1 = await add(e, { id: 'x4', name: 'Pin', type: 'extrude', sketch: 's4', distance: 2, operation: 'new' });
+		const shank = body(m1, 'x4#0').faces.find((f) => f.kind === 'cylinder')!;
+		const m2 = await add(e, mateFeature('m1', 'concentric', face(m1, 'x1#0', 'h1.wall'), face(m1, 'x4#0', shank.id)));
+		const before = body(m2, 'x4#0').bounds;
+		expect((before[0] + before[3]) / 2).toBeCloseTo(2, 9);
+		/* The student drags the pin up and sideways; only the slide along the hole axis survives the projection. */
+		const motion = moveWithinFreedom(m2, 'x4#0', { translation: [0.6, -0.4, 0.5] });
+		expect(motion.dof).toBe(2); expect(motion.v[0]).toBeCloseTo(0, 9); expect(motion.v[1]).toBeCloseTo(0, 9); expect(motion.v[2]).toBeCloseTo(0.5, 9);
+		const m3 = await add(e, { id: 't1', name: 'Move 1', type: 'transform', bodies: ['x4#0'], matrix: motion.matrix });
+		expect(row(m3, 'm1').status).toBe('ok'); expect(row(m3, 't1').status).toBe('ok');
+		const after = body(m3, 'x4#0').bounds;
+		expect(after[2] - before[2]).toBeCloseTo(0.5, 6); expect(after[5] - before[5]).toBeCloseTo(0.5, 6);
+		expect((after[0] + after[3]) / 2).toBeCloseTo(2, 6); expect((after[1] + after[4]) / 2).toBeCloseTo(1.5, 6);
+	});
 });
