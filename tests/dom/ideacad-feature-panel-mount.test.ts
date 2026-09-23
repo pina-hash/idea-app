@@ -312,6 +312,24 @@ describe('the blend refusals and the edge sets', () => {
 		h.set({ manifest: manifest() }); m.flush();
 		expect(box()).toBe('0.2');
 	});
+	it('a picked round face shows the round that made it with its own size, and Set changes that feature; a face no round made shows none; read-only has no Set', async () => {
+		const h = harness({ tool: 'fillet', manifest: withFillet(0.75), selections: [pickFace('f2.blend.x1.end|x1.side.0')] });
+		const m = mountPanel(h);
+		const row = m.one('[data-testid="ideacad-blend-resize"]');
+		expect(row.textContent).toContain('Fillet 2');
+		expect(m.one<HTMLInputElement>('[data-testid="ideacad-blend-resize-value"]').value).toBe('0.75');
+		type(m, 'ideacad-blend-resize-value', '0.5');
+		await press(m, 'ideacad-blend-resize-set');
+		expect(h.applied).toEqual([{ label: 'Set Fillet 2', command: { type: 'set-feature', id: 'f2', patch: { radius: 0.5 } } }]);
+		type(m, 'ideacad-blend-resize-value', 'big');
+		await press(m, 'ideacad-blend-resize-set');
+		expect(h.applied).toHaveLength(1); expect(h.errors.at(-1)).toBe('Enter a radius in inches, like 0.25.');
+		h.set({ selections: [pickFace('x1.end')] }); m.flush();
+		expect(m.all('[data-testid="ideacad-blend-resize"]')).toHaveLength(0);
+		h.set({ selections: [pickFace('f2.blend.x1.end|x1.side.0')], canWrite: false }); m.flush();
+		expect(m.all('[data-testid="ideacad-blend-resize"]')).toHaveLength(1);
+		expect(m.all('[data-testid="ideacad-blend-resize-set"]')).toHaveLength(0);
+	});
 	it('one picked edge grows into every edge of the body, lit while the pointer is over it; a set that adds nothing is not offered; a face under a later shell offers the round before it', async () => {
 		const h = harness({ tool: 'fillet', selections: [pickEdge('edge:x1.end|x1.side.0')] });
 		const hovered: (Selection[] | null)[] = [];

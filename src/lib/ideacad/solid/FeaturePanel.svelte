@@ -50,7 +50,7 @@
 	import { refFromSelection } from './naming';
 	import { featureOptions, holeFeatureAt, withOptions } from './features/options';
 	import { HOLE_FIT_WORDS, HOLE_STANDARDS, describeHole, type HoleFit } from './features/holes';
-	import { edgeKey, edgeSet, edgeShape, facesByEdge, featureOfName, sizeFixFromSentence, type EdgeSetKind, type EdgeShape } from './features/blends';
+	import { blendFeatureOf, edgeKey, edgeSet, edgeShape, facesByEdge, featureOfName, sizeFixFromSentence, type EdgeSetKind, type EdgeShape } from './features/blends';
 	let { api }: { api: WorkspaceApi } = $props();
 	const BLEND_TOOLS = ['fillet', 'chamfer', 'shell', 'hole'];
 	const EXTRA_KINDS = ['draft', 'sweep', 'loft', 'rib'] as const;
@@ -183,6 +183,20 @@
 	});
 	$effect(() => { if (!shellAhead) beforeShell = false; });
 	const at = () => (beforeShell && shellAhead ? shellAhead.at : undefined);
+	/** A round or bevel face picked: the feature that made it, so its size can be changed where it sits (the stored feature, not a kernel resize, so the change is in the history like any other). */
+	const pickedBlend = $derived.by(() => {
+		const face = faces.at(-1); const fid = face ? blendFeatureOf(face.id) : undefined;
+		const f = fid ? api.manifest.features.find((x) => x.id === fid) : undefined;
+		return f && (f.type === 'fillet' || f.type === 'chamfer') ? f : null;
+	});
+	let resizeBox = $state('');
+	$effect(() => { const f = pickedBlend; untrack(() => { resizeBox = f ? String(f.type === 'fillet' ? f.radius : f.distance) : ''; }); });
+	async function resize() {
+		const f = pickedBlend; if (!f) return;
+		if (api.busy) { api.error(BUSY); return; }
+		const v = number(resizeBox); if (!Number.isFinite(v)) { api.error(f.type === 'fillet' ? 'Enter a radius in inches, like 0.25.' : 'Enter a distance in inches, like 0.1.'); return; }
+		await api.apply({ type: 'set-feature', id: f.id, patch: f.type === 'fillet' ? { radius: v } : { distance: v } }, `Set ${f.name}`);
+	}
 	async function fillet() {
 		if (api.busy) { api.error(BUSY); return; }
 		const r = number(radius); if (!Number.isFinite(r)) { api.error('Enter a radius in inches, like 0.25.'); return; }
@@ -270,6 +284,7 @@
 		<h2>{WORDS[mode]}</h2>
 		{#if mode === 'fillet' || mode === 'chamfer'}
 			<p class="picks" data-testid="ideacad-feature-picks"><span class="count">{plural(edges.length, 'edge')}</span>{#if edges.length && edges.every((s) => s.bodyId === edges[0].bodyId)}<span class="on">{bodyName(edges[0].bodyId)}</span>{/if}{#if leftOut}<span class="cue" data-testid="ideacad-feature-left-out">{leftOut} smooth left out</span>{/if}</p>
+			{#if pickedBlend}<div class="resize" data-testid="ideacad-blend-resize"><span class="who-name">{pickedBlend.name}</span><label class="fp-field">{pickedBlend.type === 'fillet' ? 'R' : 'D'}<input inputmode="decimal" bind:value={resizeBox} aria-label={pickedBlend.type === 'fillet' ? `${pickedBlend.name} radius` : `${pickedBlend.name} distance`} data-testid="ideacad-blend-resize-value" /><span class="fp-unit">in</span></label>{#if editable}<button type="button" aria-disabled={api.busy} onclick={() => void resize()} data-testid="ideacad-blend-resize-set">Set</button>{/if}</div>{/if}
 			{#if faces.length && !edges.length}<button type="button" class="wide" onclick={faceEdges} data-testid="ideacad-feature-face-edges">Edges of {plural(faces.length, 'face')}</button>{/if}
 			{#if sets.length}
 				<div class="grow" role="group" aria-label="Add edges" data-testid="ideacad-edge-sets">
@@ -365,6 +380,8 @@
 	.grow{display:grid;grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:6px}.feature .grow button{display:flex;align-items:center;justify-content:center;gap:4px;padding:0 6px;font-size:14px;min-width:0}.grow .n{font:12px 'Share Tech Mono',monospace;color:var(--text-2)}
 	.rigor :global(.disc-trigger){padding:6px 10px;font-size:13px}.rigor :global(.disc-body[data-open='true']){display:grid;gap:6px;padding-top:6px}
 	.refusal{display:grid;gap:6px;padding:8px;border:1px solid var(--boundary);border-left:3px solid var(--amber);border-radius:4px;background:var(--surface-0)}.refusal p{margin:0;color:var(--text-1);font-size:14px;line-height:1.4}.refusal .who{font:600 14px Rajdhani,sans-serif;color:var(--amber)}
+	/* A picked round's own size, changed where it sits: its name, its box, Set. */
+	.resize{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,7.5rem) auto;align-items:center;gap:6px}.resize .who-name{font:600 15px Rajdhani,sans-serif;color:var(--text-1);overflow-wrap:anywhere}.resize .fp-field{font:600 14px Rajdhani,sans-serif;color:var(--text-2)}
 	.others{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:6px}
 	.detail{display:block;font:11px 'Share Tech Mono',monospace;color:var(--text-2);overflow-wrap:anywhere}
 	.walls{list-style:none;margin:0;padding:0;display:grid;gap:4px}.walls li{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:44px;font-size:14px;color:var(--text-1)}
