@@ -258,7 +258,7 @@ describe('the blend refusals and the edge sets', () => {
 	const withFillet = (radius: number): SolidManifest => ({ ...manifest(), features: [...manifest().features, { id: 'f2', name: 'Fillet 2', type: 'fillet', edges: [{ body: 'x1#0', faces: ['x1.end', 'x1.side.0'] }], radius }] });
 	it('a refused round shows its row sentence with the way forward; pressing applies its commands in order, and stops at the first the workspace refuses', async () => {
 		const fix = { label: 'Add to Fillet 1', commands: [{ type: 'set-feature', id: 'f1', patch: { radius: 0.1 } }, { type: 'remove-feature', id: 'f2' }] as SolidCommand[] };
-		const h = harness({ tool: 'fillet', model: model({ features: [refusedRow({ message: 'This edge meets the round from Fillet 1 at a corner. Rounds that share a corner have to be made together.', help: { fix, where: [{ bodyId: 'x1#0', kind: 'edge', id: 'edge:x1.side.0|x1.end' }], detail: 'blend: unsupported vertex blend at Id(15): 2 stripes meet' } })] }) });
+		const h = harness({ tool: 'fillet', model: model({ features: [refusedRow({ message: 'This edge meets the round from Fillet 1 at a corner, which a separate round cannot blend.', help: { fix, where: [{ bodyId: 'x1#0', kind: 'edge', id: 'edge:x1.side.0|x1.end' }], detail: 'blend: unsupported vertex blend at Id(15): 2 stripes meet' } })] }) });
 		const hovered: (Selection[] | null)[] = [];
 		h.api.hover = (list) => { hovered.push(list); };
 		/* The first command lands (the manifest moves), the second is refused (it does not). */
@@ -267,7 +267,7 @@ describe('the blend refusals and the edge sets', () => {
 		const m = mountPanel(h);
 		const box = m.one('[data-testid="ideacad-blend-refusal"]');
 		expect(box.textContent).toContain('Fillet 2');
-		expect(box.textContent).toContain('This edge meets the round from Fillet 1 at a corner.');
+		expect(box.textContent).toContain('This edge meets the round from Fillet 1 at a corner, which a separate round cannot blend.');
 		/* The kernel's own text is a development detail only. */
 		expect(m.all('[data-testid="ideacad-blend-detail"]')).toHaveLength(0);
 		/* Pointing at the refusal lights its edge under the id the projection uses now, whichever way the face names were joined. */

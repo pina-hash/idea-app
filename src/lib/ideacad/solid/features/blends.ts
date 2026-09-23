@@ -290,7 +290,7 @@ function refuse(ctx: ExecutorContext, f: Blend, body: { id: string; solid: numbe
 		const where = smooth.map(edgeSel);
 		if (!sharp.length) return new BlendRefusal(`${plural(smooth.length, 'That edge is', 'Those edges are')} already smooth, so there is no corner to ${word}.`, { where, detail });
 		const which = `${smooth.length} of these edges ${plural(smooth.length, 'is', 'are')} already ${rounded ? `rounded by ${nameOf(rounded)}` : 'smooth'}`;
-		if (target?.m) return new BlendRefusal(`${which}, and the others meet that ${word} at its corners. ${word === 'round' ? 'Rounds' : 'Bevels'} that share a corner have to be made together.`, { where, detail, fix: { label: `Add ${target.m.edges.length} ${plural(target.m.edges.length, 'edge', 'edges')} to ${target.m.into.name}`, commands: [{ type: 'set-feature', id: target.m.into.id, patch: { edges: [...target.m.into.edges, ...target.m.edges] } }, { type: 'remove-feature', id: f.id }] } });
+		if (target?.m) return new BlendRefusal(`${which}, and the others meet that ${word} at its corners, which a separate ${word} cannot blend.`, { where, detail, fix: { label: `Add ${target.m.edges.length} ${plural(target.m.edges.length, 'edge', 'edges')} to ${target.m.into.name}`, commands: [{ type: 'set-feature', id: target.m.into.id, patch: { edges: [...target.m.into.edges, ...target.m.edges] } }, { type: 'remove-feature', id: f.id }] } });
 		const keep = f.edges.filter((_, i) => !smooth.includes(refs[i]));
 		return new BlendRefusal(`${which}, so ${plural(smooth.length, 'it has', 'they have')} no corner to ${word}.`, { where, detail, fix: { label: `Leave ${plural(smooth.length, 'it', 'them')} out`, commands: [{ type: 'set-feature', id: f.id, patch: { edges: keep } }] } });
 	}
@@ -337,7 +337,8 @@ function refuse(ctx: ExecutorContext, f: Blend, body: { id: string; solid: numbe
 		if (keep.length && blendFits(ctx, body.solid, f, [...new Set(keep.flatMap((i) => runOf(refs[i])))])) fixes.push({ label: `Leave out ${struck.length} ${plural(struck.length, 'edge', 'edges')}`, commands: [{ type: 'set-feature', id: f.id, patch: { edges: keep.map((i) => f.edges[i]) } }] });
 		if (sizeFix) fixes.push(sizeFix);
 		const help: FeatureHelp = { where: struck.map((i) => edgeSel(refs[i])), detail, ...(fixes.length ? { fix: fixes[0] } : {}), ...(fixes.length > 1 ? { more: fixes.slice(1) } : {}) };
-		if (into && sameSize) return new BlendRefusal(`${whose('meets', 'meet')} the ${their} from ${name} at a corner. ${word === 'round' ? 'Rounds' : 'Bevels'} that share a corner have to be made together.`, help);
+		/* Said as what was measured (a SEPARATE one cannot blend that corner), never as a promise that making them together will: on an L bracket it does not (measured, "2 stripes meet" at every radius), and pressing the fix then says so. */
+		if (into && sameSize) return new BlendRefusal(`${whose('meets', 'meet')} the ${their} from ${name} at a corner, which a separate ${word} cannot blend.`, help);
 		return new BlendRefusal(`${whose('runs', 'run')} into the ${their} from ${name}, where a ${word} this size cannot meet it.${sizeFix ? ` ${largest}` : ''}`, help);
 	}
 	const sentence: Record<KernelBlendIssue['kind'], string> = {

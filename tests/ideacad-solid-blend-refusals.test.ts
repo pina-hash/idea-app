@@ -125,7 +125,7 @@ describe('refusals that name an edge or a corner', () => {
 		const refused = await add(e, { id: '', name: '', type: 'fillet', edges: four, radius: r } as Feature);
 		const f2 = refused.features[3];
 		expect(f2.status).toBe('error');
-		expect(f2.message).toBe('1 of these edges is already rounded by Fillet 1, and the others meet that round at its corners. Rounds that share a corner have to be made together.');
+		expect(f2.message).toBe('1 of these edges is already rounded by Fillet 1, and the others meet that round at its corners, which a separate round cannot blend.');
 		const refusal = log.refusals.at(-1)!;
 		expect(refusal.help.where).toEqual([{ bodyId: 'x1#0', kind: 'edge', id: 'edge:f1.blend.x1.end|x1.side.0|x1.end' }]);
 		/* The projection joins a round's own name into its edge ids differently; `edgeKey` is the one spelling both sides compare by. */
@@ -147,7 +147,7 @@ describe('refusals that name an edge or a corner', () => {
 		await add(e, { id: 'f1', name: 'Fillet 1', type: 'fillet', edges: [edgeRef(m, 'x1.end', 'x1.side.0')], radius: 0.1 });
 		const refused = await add(e, { id: '', name: '', type: 'fillet', edges: [edgeRef(m, 'x1.end', 'x1.side.1')], radius: 0.1 } as Feature);
 		const f2 = refused.features[3];
-		expect(f2.message).toBe('This edge meets the round from Fillet 1 at a corner. Rounds that share a corner have to be made together.');
+		expect(f2.message).toBe('This edge meets the round from Fillet 1 at a corner, which a separate round cannot blend.');
 		const refusal = log.refusals.at(-1)!;
 		expect(refusal.help.fix!.label).toBe('Add to Fillet 1');
 		expect(log.scratches.at(-1)).toBeLessThanOrEqual(FIT_ATTEMPTS);
@@ -251,6 +251,18 @@ describe('edge sets over the projection (no kernel in the helpers; the projectio
 		await add(e, { id: 's1', name: 'L', type: 'sketch', plane: { kind: 'datum', datum: 'XZ' }, entities, constraints: [] });
 		return add(e, { id: 'x1', name: 'Extrude 1', type: 'extrude', sketch: 's1', distance: 2, operation: 'new' });
 	}
+	it('every edge of an L bracket at once is refused in words with no size offered, because this kernel cannot blend a corner where the inside round meets the outside ones at any radius (measured at 0.05, 0.1 and 0.2); the six edges along the pull, which share no corner, round', async () => {
+		const log = watch(); const m = await bracket(), body = m.bodies[0], e = engines.at(-1)!;
+		const refused = await add(e, { id: '', name: '', type: 'fillet', edges: edgeSet(body, 'body').map((id) => refFromSelection({ bodyId: body.id, kind: 'edge', id }, body) as EdgeRef), radius: 0.1, propagate: true } as Feature);
+		expect(refused.features.at(-1)!.message).toBe('Several rounds meet at one corner here in a way that cannot be blended. Try fewer edges at a time.');
+		expect(log.refusals.at(-1)!.help.fix).toBeUndefined();
+		expect(log.refusals.at(-1)!.help.detail).toMatch(/stripes meet/);
+		await e.undo();
+		const along = body.edges.filter((x) => Math.abs(x.points[1] - x.points[x.points.length - 2]) > 1.5).map((x) => x.id);
+		expect(along).toHaveLength(6);
+		const made = await add(e, { id: 'f9', name: 'Along', type: 'fillet', edges: along.map((id) => refFromSelection({ bodyId: body.id, kind: 'edge', id }, body) as EdgeRef), radius: 0.1, propagate: true });
+		expect(row(made, 'f9').status).toBe('ok');
+	});
 	it('convex and concave split an L bracket 17 to 1 by the dihedral sign, the one concave edge being the inside corner; a plain plate is 12 convex, 0 concave', async () => {
 		const m = await bracket(), body = m.bodies[0];
 		expect(body.edges).toHaveLength(18);
