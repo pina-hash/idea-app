@@ -33,7 +33,12 @@ It replaced the old static IDEA site (GitHub Pages); that repo is separate.
 
 ### The subsystems
 
-IDEA Classroom (`/classroom`), the digital notebook (`/notebook`), the IDEA Coin
+IDEA Classroom (`/classroom`), the digital notebook (inside the classroom since
+ledger 0297: a class's Notebook tab at `/classroom/<id>/notebook`, the whole
+notebook at `/classroom/notebook`, the review console at
+`/classroom/notebook/review`; `/notebook`, `/notebook/review` and
+`/notebook/review/student/<email>` answer 307 to them, the two review addresses
+only after their own reviewer gate so a non-reviewer still gets 404), the IDEA Coin
 economy (`/coin-desk`, `/coins`), GAUNTLET (`/gauntlet`, CAD skills), GREENLINE
 (`/greenline`, 3D combat racing), VANGUARD (`/vanguard`, legacy game),
 Tournaments (`/tournaments`), FRC Training (`/frc`), FSP (`/fsp/*`, archived
@@ -3268,8 +3273,9 @@ inside the function fails closed rather than falling through to a weaker path.
     a glyph, a hue and a per-plate token like every other answer to that question.
     **A value added this way arrives with all of it or not at all:** a key, a
     label, a hint, a glyph no other state uses, a fill STYLE no other state uses
-    (solid-with-a-pinned-fill, dashed, dotted), a `--nb-cell-*` token declared on
-    all three plates, and a MEASURED contrast figure for each of them.
+    (solid-with-a-pinned-fill, dashed, dotted), a `--nb-cell-*` token declared in
+    every site theme's `.nb-root` block that moves it (the dark base and Space
+    White since ledger 0297), and a MEASURED contrast figure for each of them.
     `tests/notebook-review-console.test.ts` pins the original six as the head of
     the list, in order, and asserts the whole set for uniqueness and for a token
     on every plate -- the generalization of an assertion that used to spell out
@@ -4868,9 +4874,11 @@ the source of truth; **do not invent colours or swap fonts.**
     and turns a tuned surface into a wireframe, which nothing on screen reports.
     `tests/boundary-token.test.ts` reddens on it, and on a decorative rule swept
     onto the load-bearing token.
-  - **IT IS PER ROOM, LIKE `--hairline` IS.** `.nb-root` aliases it to
-    `--nb-boundary`, which each notebook plate declares for itself. The `:root`
-    value is measured against dark green plate and is 1.29:1 on paper.
+  - **IT IS PER THEME, AND THE NOTEBOOK READS IT RATHER THAN DECLARING ITS OWN.**
+    Since ledger 0297 `.nb-root` takes the site's value through
+    `--nb-boundary: var(--boundary)`; a site theme that moves the grounds moves
+    `--boundary` with them. The `:root` value is measured against the dark green
+    plate and is 1.29:1 on paper, which is why Space White declares its own.
   - **THE VALUE MOVES IN LIGHTNESS ONLY**, on the room's own hue and saturation
     -- `--boundary` is `--text-3`'s hue at 46% instead of 38%. `--text-3` itself
     was the obvious candidate and does NOT clear: 2.95:1 on `--surface-2`, which
@@ -5021,80 +5029,52 @@ properly. That is a bundle, not a line.
   logo, a lookalike, or its red-on-white scheme**; the Dassault Systemes disclaimer
   footer stays on every page. The VIEWPORT layer is visual only -- it never touches
   data flow, auth, scoring, or room timing.
-- **`.nb-root` -- notebook editorial**, default / light / IDEA palettes. Tokens only:
-  a rule needing to know which palette is showing should have been a token.
-  - **THE DEFAULT PLATE IS THE CLASSROOM'S CONSOLE REGISTER, UNCONDITIONALLY, and
-    `prefers-color-scheme` reaches NOTHING in this room.** Six `--nb-*` tokens map
-    one to one onto the `:root` register (`--surface-0/-1/-2`, `--text-1/-2`,
-    `--boundary`) and are written out as LITERALS -- `.nb-root` aliases
-    `--surface-1` back to `--nb-surface`, so an alias in that direction closes a
-    cycle. The warm near-black "dark" plate that used to hold this slot is RETIRED:
-    it was the notebook holding a private opinion about what a dark room looks
-    like, one step away from the classroom a student had just come from. Light and
-    IDEA are both opt-in, both unchanged, and a plate that no longer exists is
-    answered in `read()` (`notebook-theme.svelte.ts`) rather than by keeping a CSS
-    block, an attribute value or a picker row alive for it.
-  - **What the register has NO counterpart for is AUTHORED and MEASURED, never
-    borrowed across.** `--nb-ink-faint` is the case that proves it: the classroom's
-    `--text-3` fails 4.5:1 on all three grounds of this plate (3.29 / 3.13 / 2.95)
-    because it is decorative there and real muted copy here.
-  - **The palettes are BACKGROUND PLATES, not an identity.** They exist so a student
-    can read a photograph of paper in different lighting. The notebook is on the
-    platform's type, radius and spacing -- Rajdhani, `--radius-*`, `--space-*` --
-    exactly as the classroom is, and switching a plate must change nothing else.
-    The room's private system-sans stack and its own 10px/6px corners are RETIRED;
-    do not reintroduce a notebook-only type or corner scale.
-  - **THE ROOM ALIASES, IT DOES NOT REDECLARE.** `.nb-root` points the shared names
-    at its own plate (`--surface-1: var(--nb-surface)`, `--text-1: var(--nb-ink)`,
-    `--hairline: var(--nb-hairline)`, and so on), so every notebook component reads
-    the same vocabulary the classroom does. **The alias must stay on `.nb-root`
-    itself.** Writing the plate values straight onto `--surface-*` in the palette
-    blocks would put the LIGHT set at `:root` (where the light palette lives) and
-    repaint the classroom, the reference viewer and view-as in paper white. Source
-    and target on the SAME element is also what keeps the
-    var()-resolves-where-declared trap off this: it needs a descendant
-    redeclaration, and an alias is not one. **The canvas mirror
-    (`body:has(.nb-root)`) must keep naming `--nb-bg`** -- `body` and `:root` are
-    ANCESTORS of `.nb-root` and cannot see the alias.
-  - **`--text-3` does not mean "below the text threshold" in here.** In the
-    classroom it is decorative tertiary; in the notebook it is real muted copy.
+- **`.nb-root` -- the notebook, which FOLLOWS THE SITE THEME, and that is Mr.
+  Pina's decision of 2026-09-23** ("visually and functionally the IDEA notebook
+  should follow IDEA Classroom, not the other way around"; ledger 0297, recorded in
+  `IDEA_CLASSROOM_REBUILD_PLAN.md`, superseding decisions 14 and 15 on appearance).
+  There are no notebook plates, no plate picker and no notebook masthead: the
+  notebook renders inside `ClassroomShell` and paints whatever the site theme is,
+  Space White included.
+  - **THE DEPENDENCY RUNS FROM THE ROOM TO THE REGISTER, NEVER BACK.** `.nb-root`
+    in `colors.css` aliases the register (`--nb-bg: var(--surface-0)` through
+    `--nb-boundary: var(--boundary)`), and nothing notebook-named lives at `:root`.
+    The one re-point left inside the room is `--text-3`, which reads
+    `--nb-ink-faint`, because the classroom's `--text-3` is decorative tertiary and
+    in here it is real muted copy (it fails 4.5:1 on every dark ground as text).
+    The canvas is one rule, `body:has(.nb-root) { background: var(--surface-0) }`.
+  - **What the register has no counterpart for is AUTHORED PER SITE THEME AND
+    MEASURED, never borrowed across**: the review grid's `--nb-cell-*` inks and
+    pinned fills, the folder colours, the status inks, the brass accent and
+    `--nb-shadow`. They are declared in the dark base `.nb-root` block and again in
+    `:root[data-theme='matrix'] .nb-root` and `:root[data-theme='space-white'] .nb-root`
+    for only what those themes move, each with its measured table beside it. A
+    grid state added later arrives in every block or not at all.
+  - **A PLATE ID A STUDENT STORED BEFORE THIS IS SWEPT, NEVER READ.**
+    `RETIRED_NOTEBOOK_PLATES` and `retireStoredNotebookPlate` in
+    `$lib/notebook/notebook-theme.ts` answer every stored `idea_notebook_theme`
+    value with the site theme and clear the key without ever throwing, so no stored
+    value can error or strand anybody on a look they cannot change back.
+  - **THE PHOTO OVERLAYS STAY DARK IN EVERY THEME AND LIVE IN THE TOP LAYER.**
+    `PhotoCorrector` and `CameraCapture` are modal `<dialog>` elements opened with
+    `showModal()` and carry `.nb-island`, which Space White's dark-island block
+    restores; a viewfinder that glares and a drag quad that must hold its contrast
+    over an arbitrary photograph are not preferences. The room's old
+    `position: relative; z-index: 1` wrapper is gone, because it buried those
+    overlays under the classroom header.
   - **MUTED COPY THAT SITS ON AN ACTIVE FILL TAKES `--text-2`, NEVER `--text-3`.**
-    The plate tokens are tuned against the three plate GROUNDS, and
-    `--nb-accent-wash` is a veil laid ON one of them: it lightens the ground out
-    from under the text on a dark plate and the tier below stops clearing. Measured
-    on the nine combinations (three plates x three grounds the wash can land on),
-    `--text-3` fails six of them -- 3.30 to 4.31 -- while `--text-2` clears all
-    nine, worst 4.89. `NotebookThemeToggle`'s `.option.current .note` and
-    `NotebookView`'s `.pick.selected .pick-meta` are the two rules that implement
-    this; a third surface putting muted copy on a selected row joins them.
-    **Lowering the wash is the rejected alternative:** at the 6% that would rescue
-    `--text-3` the fill measures 1.09:1 against the card, so the selected row stops
-    being marked at all.
-  - **AND THE SAME GROUND ARITHMETIC BINDS THE ROOM'S OWN INKS, NOT ONLY THE
-    BORROWED TIERS.** A plate has SIX grounds, not three: `--nb-surface`,
-    `--nb-bg`, `--nb-surface-dim`, and the wash laid over each of them. Every
-    `--nb-*` ink is measured against all six or it is not measured. The light
-    plate's were checked against the bare three only, and the missing half is
-    exactly where they failed -- `--nb-accent-ink` at 4.25/4.32/4.45 across 15
-    distinct candidates, `--nb-warn` failing four of six from 4.33 down,
-    `--nb-ok` failing the recessed plate at 4.33. Deepening the ink is the fix
-    (lightness only for a hex, the dark-end fraction for a `color-mix`); the
-    hue identity never moves.
-  - **A WASH IS A SIGNAL, AND A SIGNAL IS NOT THE THING TO SPEND.** Thinning it
-    to rescue an ink is refused, and the measurement is why rather than the
-    taste: carrying `#8a6d24` to 4.5 on wash-over-page needs 5% alpha, where
-    the fill reads **1.04:1** against its own card; it still cannot reach 4.5
-    on wash-over-recessed at ANY alpha (best 4.20, because thinning only
-    asymptotes to the bare plate, which was already failing); and it does
-    nothing at all for the candidates sitting on a bare recessed plate with no
-    wash under them. A lever that cannot reach the target, and destroys the
-    signal on the way, is not the lever.
-  - **What stays notebook-named is what has no counterpart**, not what someone
-    liked: `--nb-shadow` (there is no `--shadow-*` family), `--nb-hairline-strong`
-    (the platform has one rule weight; `--line-strong` is mint green),
-    `--nb-ink-hover`, the accent trio, `--nb-ok/-error/-warn` (the raw semantic
-    tokens are the UNCORRECTED values these exist to correct), `--nb-masthead`, the
-    folder colours, `--nb-cell-*` and `--nb-shot-*`.
+    `--nb-accent-wash` is a veil laid on a ground, and on a dark ground it lightens
+    the ground out from under the tier below it: measured on the retired plates,
+    `--text-3` failed six of nine plate-by-ground combinations (3.30 to 4.31) while
+    `--text-2` cleared all nine. `NotebookView`'s `.pick.selected .pick-meta`
+    implements this; a surface putting muted copy on a selected row joins it.
+    **Lowering the wash is the rejected alternative**: at the 6% that would rescue
+    `--text-3` the fill reads 1.09:1 against its card and the row stops being
+    marked at all.
+  - **A WASH IS A SIGNAL, AND A SIGNAL IS NOT THE THING TO SPEND.** Every ink this
+    room authors is measured against the bare grounds AND the wash over each of
+    them; deepening the ink is the fix (lightness only), thinning the wash is
+    refused, because it cannot reach the target and destroys the signal on the way.
 - **`.cr-root` -- classroom calm surfaces.** `--cr-gutter` and `--measure-*` are the
   ONE page-width decision (`classroomMeasure` in `nav.ts`).
 - **`.cd-root` -- the coin desk.** It is NOT a repaint: the desk sits on the
