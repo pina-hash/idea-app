@@ -455,6 +455,62 @@ git, parse the summary line rather than the exit code, and read both streams. A
 future lane should reach for it rather than writing an eleventh ad-hoc script,
 which is what both of us did.
 
+### A RED TEST ON `main` THAT IS NOT THIS LANE'S, AND WILL REDDEN EVERY LANE
+
+The suite was re-run on the merged tree, because fifteen ledgers landed
+alongside this bundle. **548 files, 10,491 tests, ONE failure**, and it is not
+this bundle's:
+
+```
+FAIL tests/identity-style-shared.test.ts
+  > every preset that shipped still renders
+  > moved exactly two colours, and both upward in contrast
+  AssertionError: expected [] to deeply equal [ 'gear', 'wave' ]
+```
+
+**IT IS A TEST THAT CAN ONLY PASS WHILE ITS OWN CHANGE IS UNMERGED.** Its
+`before` snapshot is not a fixture, it is a git read:
+
+```js
+function presetsOnMain() {
+  const src = execFileSync('git', ['show', 'origin/main:src/lib/profile.ts'], ...)
+```
+
+So it compares the working tree against WHATEVER `origin/main` HOLDS RIGHT NOW,
+and asserts exactly two presets differ. Measured:
+
+| | `gear` | `wave` |
+|---|---|---|
+| at `1ec2f640`, before that lane merged | `#3b6e8f` | `#5500aa` |
+| on `origin/main` today | `#4785ad` | `#a74fff` |
+| in the working tree | `#4785ad` | `#a74fff` |
+
+While the branch was outstanding, `origin/main` held the old colours, two
+presets differed, and it passed. The moment `bf04a223` merged that work to
+`main`, `origin/main` started holding the NEW colours, `moved` became `[]`, and
+it fails permanently. It also depends on how recently the reader fetched, so it
+answers differently on two machines at the same commit.
+
+**THE COMMIT THAT INTRODUCED IT IS TITLED "Repair a self-referential test"**
+(`db42b533`), and its sibling is `74e21513` "Remove a git-diff test that could
+only pass on its own branch". That lane identified this exact class of defect
+and shipped another instance of it in the repair.
+
+**WHY IT MATTERS BEYOND ONE RED ROW.** CLAUDE.md's own reason for deleting
+`tests/spec-instructions-budget.test.ts`: "a standing failure hides a real one
+-- for days, every genuine regression in the suite was indistinguishable from
+the known-red file. A test nobody can keep green is worse than no test." Every
+lane that runs `npm test` from now on gets this row, and the next real
+regression arrives next to it.
+
+**NOT FIXED HERE, deliberately**: `tests/identity-style-shared.test.ts` is
+another lane's file and the repair is a design decision rather than a typo.
+The two shapes that work: pin the eight presets as a LITERAL fixture in the
+test (the "before" is then a fact about a moment, which is what it was always
+trying to be), or read them from a TAGGED commit rather than from a moving
+branch ref. What cannot work is any comparison against `origin/main`, because
+this test's own subject is merged into it.
+
 ### What was NOT verified
 
 - **No real microphone, anywhere.** Every path was driven through a stubbed
@@ -530,6 +586,12 @@ the Owns line and needed no change.
    Nothing is broken by this, but a store that drifts is a store that
    eventually absorbs a real regression, and the next lane to run a full pass
    will see the same 204 and have to re-derive the same answer.
-6. **Watch which utterances miss.** The alias table is a first guess at how a
+6. **`tests/identity-style-shared.test.ts` IS RED ON `main` RIGHT NOW, and it
+   is not this bundle's.** It compares against `git show origin/main`, so it
+   could only pass while its own change was unmerged; merging it made it fail
+   forever. Every lane's `npm test` shows it from now on, and a standing
+   failure is what hides the next real one. The diagnosis and the two fixes
+   are above.
+7. **Watch which utterances miss.** The alias table is a first guess at how a
    speech service hears these names. A student reporting "it never understands
    X" is a one-line addition to `SPOKEN_ALIASES`, not a redesign.
