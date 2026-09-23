@@ -45,8 +45,8 @@ Screenshots of each area's final state are in `docs/ideacad/verification/0296/<a
 
 ## 2. What reached main, and what production serves
 
-- Branch head merged to `main`: **SHA_PLACEHOLDER**.
-- Version string production serves at `https://ideabosco.com/`: **VERSION_PLACEHOLDER**.
+- Branch head merged to `main`: **pending, written by the commit that follows the deploy**.
+- Version string production serves at `https://ideabosco.com/`: **pending, as above**.
 
 ## 3. Proposed SQL for 0226
 
@@ -63,7 +63,7 @@ optional keys 0217's validator does not look at, checked against the SQL.
 ## 4. What shipped, by area
 
 Scores are `MATURITY.md`'s, Phase 0 to final. **The lowest moved from 0 to 2.** Friction:
-85 lines logged, 57 fixed with a re-check each, 28 open.
+85 lines logged, 58 fixed with a re-check each, 27 open.
 
 - **Customization, 0 to 2.** One typed preference store (`preferences.ts`) with ten groups,
   validated on read (an unknown or bad value falls back one field at a time), saving only
@@ -142,11 +142,56 @@ agent. About 8 million subagent tokens over fifteen agents.
 
 **Verification.** svelte-check stayed at the baseline, 0 errors and 37 warnings in 20 files
 (31 `state_referenced_locally`, 5 `css_unused_selector`, 1 `perf_avoid_nested_class`), in
-every lane and on the merged tree. Full suite, merge gate and build: section 2's figures are
-in the gate record below. The final writer stage's browser pass: 58 route and width runs, 962
-measurements, the arc spec's canvas-content reading (F085) the one open finding.
+every lane and on the merged tree. The full suite, the build and the README
+measurement are in the gate record below. The final writer stage's browser pass: 58 route and width runs, 962
+measurements, the arc spec's canvas-content reading (F085) the one open finding, which the ending traced and
+fixed (below).
 
-GATE_PLACEHOLDER
+**The merge gate, as run.** `origin/main` had not moved since the run began (`bf04a223`),
+so merging it into the branch was a no-op. The suite and the build ran at `eff5c9e7`;
+after that come only CLAUDE.md, the README measurement and the seven-line fix below.
+
+| Step | Where | Result |
+|---|---|---|
+| `npm ci` | branch at `eff5c9e7` | exit 0 |
+| `npx svelte-kit sync && npx svelte-check` | same | 0 errors and 37 warnings in 20 files, the baseline |
+| `npm test` | same | 573 test files and 10,861 tests passed, 0 failed; no `Failed Suites` and no `failed to apply` anywhere in the stream; 1,381 s |
+| `npm run build` | same | built; exit 0 |
+| `tests/claude-md.test.ts`, `tests/derived-numbers.test.ts` | `4cd231ed`, after the CLAUDE.md commit | 50 of 50 passed; `node tools/claude-md-check.mjs` agrees with the tree |
+| `npm run verify:readme` | `4cd231ed`, clean tree; the arc spec again on `165f36d0` | 287 specs, 574 runs, 10,298 measurements; 228 outside threshold, then 226 after the arc fix. The committed measurement (taken at `bddca62f`) had 182 |
+| IdeaCAD tests reaching the fix | `165f36d0` | 6 files, 178 tests passed; svelte-check still 0 errors and 37 warnings in 20 files |
+| `git diff origin/main --stat -- supabase/migrations` | before the push | empty |
+
+**`verify:readme` did not boot twice before it ran, and the cause is a trap the next
+session will hit in the same order.** Run straight after `npm run build`, the harness's
+dev server printed "ready" and then answered no request to `/dev/pathways` for 180 s,
+twice. Debug logging showed Vite spending over four seconds loading a one-line file,
+because the build had left 219 MB in `.vercel/output` and 218 MB in `.svelte-kit/output`
+inside the watched root. With those two directories deleted, the same page answered in
+1.0 s and the harness booted. CLAUDE.md now says so under Machine and toolchain.
+
+**What moved in the README measurement, and whose it is.** 46 rows joined the outside list
+and none left it. Each was re-run alone on the branch AND in a worktree of untouched `main`
+(`bf04a223`):
+
+- **44 are `main`'s, not this run's**, identical on both trees: the Foundry gallery in full
+  screen at 375 (19), the grading console's incomplete-hand-in exports (22 in the full pass,
+  11 on one re-run, 22 on `main`; the export disclosure's opening click never lands), the
+  tournaments TV view's exit control (1), and the empty spec table's checklist reach (2).
+  They landed on `main` between `bddca62f` and `bf04a223` and are left for their owners.
+- **2 were this run's: F085, the arc spec**, reading 0.61% and 1.18% of the canvas drawn
+  against 8.62% and 21.88% on `main`. Cause: writer stage 4's "Edit sketch frames the
+  sketch" runs `focusSketch` one `tick()` after the sketch opens, so a view or Fit given in
+  the same moment was turned back to face the sketch and the new body was seen flat on as one
+  shade. No student can press a key inside a microtask, but a deferred call overriding a
+  later camera command is a race, so the fix is in the product and not in the spec: the
+  viewport counts camera commands (`cameraCommands()`) and the deferred framing stands down
+  if the count moved. Re-measured: 9.67% and 57.29%, 0 of 38 outside.
+
+**Not re-run after that fix, on the fast path chosen at the end of the run:** the full test suite and the
+other IdeaCAD browser specs. The fix changes behaviour only when the camera is commanded
+within one microtask of a sketch opening, and the six test files that import either changed
+file pass.
 
 ## 5. Tried and abandoned, and why
 

@@ -175,7 +175,7 @@
 	}
 	function editSketch(id:string|null){
 		editingSketch=id;const sketch=id?model.sketches.find(s=>s.feature===id):null;bar=null;menu=null;
-		viewport.editingPlane=sketch?sketch.plane:null;viewport.editingSketchId=sketch?sketch.feature:null;if(sketch){treeOpen=false;viewport.lookAt(sketch.plane);select({bodyId:'',kind:'sketch',id:sketch.feature});void tick().then(()=>{if(editingSketch===sketch.feature)viewport.focusSketch(sketch,chromeInset());});}else{viewport.focusSketch(null);viewport.highlight();}
+		viewport.editingPlane=sketch?sketch.plane:null;viewport.editingSketchId=sketch?sketch.feature:null;if(sketch){treeOpen=false;viewport.lookAt(sketch.plane);select({bodyId:'',kind:'sketch',id:sketch.feature});const commanded=viewport.cameraCommands();void tick().then(()=>{if(editingSketch===sketch.feature&&viewport.cameraCommands()===commanded)viewport.focusSketch(sketch,chromeInset());});}else{viewport.focusSketch(null);viewport.highlight();}
 	}
 	async function record(label:string,before:ModelSnapshot,changes?:SolidHistoryAction['changes']){
 		const armed=tool;

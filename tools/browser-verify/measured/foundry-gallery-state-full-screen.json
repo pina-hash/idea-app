@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "foundry-gallery-state-full-screen.mjs",
-	"date": "2026-09-22T19:58:30.099Z",
-	"sha": "bddca62fbca9a8d5a5c7ba8cf03d1eb128f00c4f",
+	"date": "2026-09-23T13:57:15.144Z",
+	"sha": "4cd231edaf3967d6260433c582271a3f0c3a1bde",
 	"dirty": false,
 	"widths": [
 		375,
@@ -10,6 +10,121 @@
 	],
 	"runs": 2,
 	"measurements": 44,
-	"outsideRows": [],
-	"ms": 5364
+	"outsideRows": [
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "prepare-click",
+			"label": ".fdy-launch"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "prepare-click",
+			"label": ".fdy-full"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "contrast",
+			"label": "the running label, on the full-screen plate"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "contrast",
+			"label": "the way-out hint, on the full-screen plate"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "contrast",
+			"label": "Exit full screen"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "contrast",
+			"label": "Stop app"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "tap-target",
+			"label": "Exit full screen, in full screen"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "tap-target",
+			"label": "Stop app, in full screen"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "presence",
+			"label": "the Exit full screen control, in full screen"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "presence",
+			"label": "the Stop app control, in full screen"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "presence",
+			"label": "the hint naming which Escape this viewer has"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "presence",
+			"label": "the running label, truncated rather than dropped"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "presence",
+			"label": "the running bundle frame, still mounted inside the full-screen stage"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "text-contains",
+			"label": "the overlay hint promises the control, not the key"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "text-contains",
+			"label": "the control names the way out"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "order-result",
+			"label": "the full-screen stage is exactly the viewport box"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "order-result",
+			"label": "the full-screen bar is one row, whatever the app is called"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "order-result",
+			"label": "neither control is shrunk by the row; the label is what absorbs the width"
+		},
+		{
+			"path": "/dev/foundry-gallery?state=full-screen",
+			"width": 375,
+			"check": "order-result",
+			"label": "the running app gets at least 80% of the viewport height"
+		}
+	],
+	"ms": 5622
 }

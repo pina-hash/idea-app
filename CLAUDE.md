@@ -4190,6 +4190,14 @@ These have each cost a debugging session. They are not hypothetical.
     instrument is a HIT TEST across the covered element's own text box, in
     `npm run verify:browser`; `tests/dom/` has no layout engine and would read
     zero.
+- **A `DOMRect`'s SIDES ARE PROTOTYPE GETTERS, SO `{ ...rect }` COPIES NOTHING.**
+  The spread is an empty object with no error: IdeaCAD's tool card, handed one
+  to `anchorPosition`, opened at left 0. Copy the fields by name.
+- **A POPOVER MOVED TO `<body>` TO ESCAPE A STACKING CONTEXT LEAVES ITS ROOM'S
+  TOKENS BEHIND.** A scoped room declares its tokens on its own wrapper, so a
+  panel portalled to the body paints in the portal's plate. Portal to the
+  room's own root instead: IdeaCAD's tool card moved to `.ic-root`, which fixed
+  the stacking and kept the colours.
 - **A genuinely `disabled` control swallows pointer events**, so a "why is this
   disabled" cue can never fire from it. Use `aria-disabled` when the control must
   still explain itself.
@@ -4429,6 +4437,16 @@ belong wherever the app's own behaviour is documented.
     `git checkout package-lock.json` and add the entry so the two files' styles
     already agree, or commit the reformat as its own commit so the dependency's
     own diff stays readable. **Never let it ride along inside another change.**
+- **A BUILD LEAVES ABOUT 440MB INSIDE THE ROOT THAT A DEV SERVER THEN CRAWLS,
+  AND THE SYMPTOM IS A VITE THAT PRINTS "ready" AND ANSWERS NOTHING.** On Linux
+  the build succeeds and leaves `.vercel/output` and `.svelte-kit/output` behind
+  (219MB and 218MB, measured 2026-09-23). Run next, `npm run verify:readme`
+  failed "vite dev did not answer within 180000ms" twice, with debug logging
+  showing a one-line module taking over four seconds to load; with the two
+  output directories deleted, the same page answered in 1.0s. Both are build
+  artifacts the next build rewrites, so delete them before any dev server or
+  harness run that follows a build -- which is the order the merge gate runs
+  them in.
 - **`npm run build` dies on Windows in the Vercel adapter's `closeBundle` with
   `EPERM`** writing a path Windows cannot create. Machine-level and PRE-EXISTING,
   not a code failure; Vercel builds on Linux and is unaffected. It does NOT stop
