@@ -170,8 +170,8 @@
 	function chromeInset(){
 		const c=canvas?.getBoundingClientRect(),q=(sel:string)=>workareaEl?.querySelector(sel)?.getBoundingClientRect(),tools=q('.tools'),top=q('.top-bar'),panels=q('.panels');
 		if(!c)return{left:0,right:0,top:0,bottom:0};
-		const phone=c.width<=700,sheetTop=panels&&panels.height>0?panels.top:c.bottom;
-		return{left:!phone&&tools?Math.max(0,tools.right-c.left):0,right:!phone&&panels?Math.max(0,c.right-panels.left):0,top:top?Math.max(0,top.bottom-c.top):0,bottom:phone?Math.max(0,c.bottom-sheetTop):0};
+		const phone=c.width<=700,open=!!workareaEl?.querySelector('.panels>.panel'),sheetTop=open&&panels&&panels.height>0?panels.top:c.bottom,strip=tools?tools.top:c.bottom;
+		return{left:!phone&&tools?Math.max(0,tools.right-c.left):0,right:!phone&&open&&panels?Math.max(0,c.right-panels.left):0,top:top?Math.max(0,top.bottom-c.top):0,bottom:phone?Math.max(0,c.bottom-Math.min(sheetTop,strip)):0};
 	}
 	function editSketch(id:string|null){
 		editingSketch=id;const sketch=id?model.sketches.find(s=>s.feature===id):null;bar=null;menu=null;
@@ -659,7 +659,7 @@
 				/* The Hole tool's own words: a CLICK on a face drills it there. A drag still sizes nothing and drills at the press, as before. */
 				if(tool==='hole'&&barPick.best?.selection.kind==='face'&&drillAt(barPick.best)){bar=null;return;}
 				bar={at,touch};},
-			busyPointer:()=>{bar=null;menu=null;},cameraChange:()=>{for(const listener of [...cameraListeners])listener();}});
+			busyPointer:()=>{bar=null;menu=null;},cameraChange:()=>{for(const listener of [...cameraListeners])listener();},insets:()=>chromeInset()});
 		for(const m of STOCK_MATERIALS)if(m.color)viewport.materialColours.set(m.id,m.color);
 		viewport.triadShown=prefs.view.triad;viewport.setDisplayMode(prefs.view.mode);viewport.setTriadSlot(triadSlot??null);
 		/* A press anywhere on the model closes the value box: what was typed there was for what is no longer being pointed at. */

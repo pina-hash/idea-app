@@ -110,6 +110,8 @@ interface Options {
 	busyPointer?:()=>void;
 	/** The camera, its zoom or the canvas size changed since the last frame drawn: labels pinned to model points reposition. */
 	cameraChange?:()=>void;
+	/** How far the chrome (the palette, the top bar, the panels) reaches into the canvas on each side, in CSS pixels: Fit frames the model in what is left. */
+	insets?:()=>{left:number;right:number;top:number;bottom:number};
 }
 /** How tall a reference or plane name is on screen, in CSS pixels. */
 export const LABEL_PX=20;
@@ -437,7 +439,8 @@ export class SolidViewport {
 			const s=data.selection as Selection,body=this.model.bodies.find(b=>b.id===s.bodyId),face=body?.faces.find(f=>f.id===s.id);
 			if(body&&face)return{plane:planeFromNormal(face.normal,hit.point),ref:{kind:'face',face:{body:body.id,name:face.id,hint:{kind:face.kind,center:face.center,normal:face.normal,area:face.area}}}};
 		}
-		if(data?.datum){const datum=data.datum as 'XY'|'XZ'|'YZ';return{plane:datumPlane(datum),ref:{kind:'datum',datum}};}
+		/* A datum plane seen edge on (Top and Right in a Front view) is a line under the pointer, not a place to draw: the press goes to the plane the view faces instead. */
+		if(data?.datum){const datum=data.datum as 'XY'|'XZ'|'YZ',plane=datumPlane(datum),view=this.camera.getWorldDirection(new THREE.Vector3());if(Math.abs(view.dot(new THREE.Vector3(...plane.normal)))>.2)return{plane,ref:{kind:'datum',datum}};}
 		if(data?.selection?.kind==='reference'&&data.plane)return{plane:data.plane,ref:{kind:'reference',feature:(data.selection as Selection).id}};
 		return this.options.getPlane();
 	}
@@ -557,7 +560,11 @@ export class SolidViewport {
 		const bounds=new THREE.Box3();if(this.solids.children.length)bounds.setFromObject(this.solids);else if(this.sketchLayer.children.length)bounds.setFromObject(this.sketchLayer);else for(const o of this.datumObjects)if(o.userData.part==='fill')bounds.expandByObject(o);const center=bounds.getCenter(new THREE.Vector3());this.camera.position.add(center.clone().sub(this.target));this.target.copy(center);
 		this.camera.updateMatrixWorld();const corners:THREE.Vector3[]=[];for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z])corners.push(new THREE.Vector3(x,y,z).applyMatrix4(this.camera.matrixWorldInverse));
 		const projected=new THREE.Box3().setFromPoints(corners),size=projected.getSize(new THREE.Vector3());
-		this.camera.zoom=(onlyPlanes?.5:.76)*Math.min((this.camera.right-this.camera.left)/Math.max(size.x,1e-7),(this.camera.top-this.camera.bottom)/Math.max(size.y,1e-7));this.camera.updateProjectionMatrix();this.drawGizmo();this.invalidate();
+		/* F044: framed in the part of the view the chrome leaves free, so a fitted model is not under a panel. */
+		const inset=onlyPlanes?{left:0,right:0,top:0,bottom:0}:this.options.insets?.()??{left:0,right:0,top:0,bottom:0},w=Math.max(1,this.canvas.clientWidth),h=Math.max(1,this.canvas.clientHeight),freeW=Math.max(w*.4,w-inset.left-inset.right),freeH=Math.max(h*.4,h-inset.top-inset.bottom);
+		this.camera.zoom=(onlyPlanes?.5:.76)*Math.min((this.camera.right-this.camera.left)*freeW/w/Math.max(size.x,1e-7),(this.camera.top-this.camera.bottom)*freeH/h/Math.max(size.y,1e-7));this.camera.updateProjectionMatrix();
+		const perPixel=(this.camera.right-this.camera.left)/this.camera.zoom/w,shift=new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion).multiplyScalar((Math.min(inset.right,w-freeW)-Math.min(inset.left,w-freeW))/2*perPixel).add(new THREE.Vector3(0,1,0).applyQuaternion(this.camera.quaternion).multiplyScalar((Math.min(inset.top,h-freeH)-Math.min(inset.bottom,h-freeH))/2*perPixel));
+		this.camera.position.add(shift);this.target.add(shift);this.camera.updateMatrixWorld();this.drawGizmo();this.invalidate();
 	}
 	/**
 	 * Face a plane head on, keeping the point the view turns about. Pressed
