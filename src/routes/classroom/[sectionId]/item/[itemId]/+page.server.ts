@@ -71,14 +71,16 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	 * already filed for it. Started here and awaited at the return, so it runs
 	 * beside the item's own reads rather than after them. A manager gets none:
 	 * the capture is a student's own notebook, and a manager's read would
-	 * return every student's rows.
+	 * return every student's rows. An announcement gets none either: it asks
+	 * for no work.
 	 */
-	const notebookRead = canManage
-		? null
-		: loadItemNotebook(supabase, claims.sub, params.sectionId, {
-				id: item.id,
-				title: item.title ?? null
-			});
+	const notebookRead =
+		canManage || item.kind === 'post'
+			? null
+			: loadItemNotebook(supabase, claims.sub, params.sectionId, {
+					id: item.id,
+					title: item.title ?? null
+				});
 	if (canManage) {
 		// Instructor-only materials (0090), manager reads only -- see
 		// mergeInstructorMaterials for why this is never fetched for a student.
