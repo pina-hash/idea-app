@@ -316,7 +316,8 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 	 * `checkInIsScheduled` owns the comparison. Neither reads `new Date()`, and
 	 * nothing else here may either.
 	 */
-	const today = laCalendarDay(new Date());
+	const clockRead = new Date();
+	const today = laCalendarDay(clockRead);
 
 	const [{ data: manages }, content, checkInRows, hallPass, songQueue, layoutReady] = await Promise.all([
 		supabase.rpc('classroom_manages_section', { p_section_id: params.sectionId }),
@@ -660,6 +661,13 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		 */
 		songQueue,
 		sectionOutstanding,
+		/**
+		 * THE SAME ONE CLOCK READ, handed down (ledger 0297) so the class page's
+		 * status filter asks "is this past due" against the instant this load
+		 * ran and "is this check-in's day behind us" against the same day the
+		 * check-ins above were adjudicated in, and never reads a clock of its own.
+		 */
+		classClock: { now: clockRead.toISOString(), today },
 		/**
 		 * 0193. Whether `classroom_items` carries the placement columns, from
 		 * the probe above. The layout hands the 0193 transports down only when

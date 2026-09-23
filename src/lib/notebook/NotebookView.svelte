@@ -16,6 +16,7 @@
 	import { guardSaveNavigation } from '$lib/save-guard.svelte';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import { revealDetailPane } from '$lib/shell/reveal';
+	import { registerCommandHandler } from '$lib/shell/command-handlers';
 	import { splitIsWide, watchSplitWidth } from '$lib/shell/split.svelte';
 	import { clearPendingCapture, fitForUpload, takePendingCapture } from '$lib/notebook/camera';
 	import {
@@ -516,6 +517,17 @@
 		// has to hold the entry before its position means anything.
 		void tick().then(() => revealDetailPane(detailEl));
 	}
+
+	/*
+	 * THE COMMAND PALETTE CAN OPEN AN ENTRY HERE (ledger 0297), and only while
+	 * this notebook is mounted: the palette lists the page's entries by name
+	 * and hands the chosen id to the same `selectEntry` a row click runs.
+	 */
+	$effect(() =>
+		registerCommandHandler('notebook.open-entry', (id) => {
+			if (id) selectEntry(id);
+		})
+	);
 
 	/**
 	 * ONE guard for both ways staged work gets discarded: closing the composer,

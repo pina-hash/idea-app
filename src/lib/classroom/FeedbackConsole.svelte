@@ -534,7 +534,7 @@
 	(src/routes/classroom/+layout.svelte), which owns the logo, the section
 	switcher and the breadcrumb trail back up.
 -->
-<main class="fb-page">
+<main class="fb-page cr-instructor-surface">
 	<section class="hero">
 		<div class="eyebrow">IDEA // Admin</div>
 		<h1>Feedback</h1>

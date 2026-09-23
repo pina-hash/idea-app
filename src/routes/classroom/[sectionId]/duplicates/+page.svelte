@@ -34,7 +34,7 @@
 	<title>Duplicate drafts | {data.section.label}</title>
 </svelte:head>
 
-<div class="dd-page">
+<div class="dd-page cr-instructor-surface">
 	<DuplicateDrafts
 		sectionName={data.section.label}
 		answer={data.answer}

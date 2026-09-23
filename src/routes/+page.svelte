@@ -21,6 +21,7 @@
 	} from '$lib/classroom/feed';
 	import { sectionTitle, type ClassroomItem, type ClassroomSection } from '$lib/classroom/classroom';
 	import { activeCourseCount } from '$lib/curriculum';
+	import { supabaseProfileIo, writeProfileNamespace } from '$lib/preferences/profile-io';
 
 	let { data } = $props();
 	let { supabase, claims, userProfile: profile } = $derived(data);
@@ -141,8 +142,10 @@
 		const next = toggleCollapsed(feedPrefs, sectionId);
 		feedPrefs = next;
 		if (!claims) return;
-		const merged = { ...(profile?.preferences ?? {}), classroomFeed: next };
-		await supabase.from('profiles').update({ preferences: merged }).eq('id', claims.sub);
+		// READ THEN MERGE (ledger 0297): into the row as it stands now, so a pin
+		// in the launcher a moment later cannot erase this fold, nor this fold
+		// the pin.
+		await writeProfileNamespace(supabaseProfileIo(supabase, claims.sub), 'classroomFeed', next);
 	};
 
 	let loading = $state(false);
