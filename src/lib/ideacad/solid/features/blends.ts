@@ -100,6 +100,8 @@ export class BlendRefusal extends Error {
 }
 /** The most kernel attempts a refused blend may spend finding a size that fits. A blend that succeeds spends none. */
 export const FIT_ATTEMPTS = 8;
+/** And the most time: no attempt STARTS once this much has passed, so a search over a long chain of heavy rounds (measured, about 0.8 s an attempt beside a 0.999 in round) answers in a couple of seconds with the best size found so far, never one untried. */
+export const FIT_BUDGET_MS = 1500;
 /** Down to three significant figures: a size a student can read and type, never above `v`. */
 export function floorFigure(v: number): number {
 	if (!(v > 0) || !Number.isFinite(v)) return 0;
@@ -116,17 +118,18 @@ export function floorFigure(v: number): number {
  * once, then halving the gap on figures a student could type. Every size
  * returned was tried and fitted; null means none did within `budget`.
  */
-export function largestThatFits(fits: (v: number) => boolean, requested: number, hint?: number, budget = FIT_ATTEMPTS): { value: number | null; attempts: number } {
+export function largestThatFits(fits: (v: number) => boolean, requested: number, hint?: number, budget = FIT_ATTEMPTS, budgetMs = FIT_BUDGET_MS): { value: number | null; attempts: number } {
 	let attempts = 0, bad = requested;
+	const started = performance.now(), late = () => attempts > 0 && performance.now() - started > budgetMs;
 	const attempt = (v: number) => { attempts++; return fits(v); };
 	if (hint !== undefined && hint > 0 && hint < requested) {
 		const c = floorFigure(hint * (1 - 1e-9));
 		if (c > 0) { if (attempt(c)) return { value: c, attempts }; bad = c; }
 	}
 	let good = 0;
-	for (const lo of [floorFigure(bad / 64), floorFigure(bad / 4096)]) { if (!(lo > 0) || attempts >= budget) break; if (attempt(lo)) { good = lo; break; } bad = lo; }
+	for (const lo of [floorFigure(bad / 64), floorFigure(bad / 4096)]) { if (!(lo > 0) || attempts >= budget || late()) break; if (attempt(lo)) { good = lo; break; } bad = lo; }
 	if (!good) return { value: null, attempts };
-	while (attempts < budget) {
+	while (attempts < budget && !late()) {
 		const mid = floorFigure(bad / good > 4 ? Math.sqrt(good * bad) : (good + bad) / 2);
 		if (!(mid > good && mid < bad)) break;
 		if (attempt(mid)) good = mid; else bad = mid;
@@ -248,7 +251,7 @@ function mergeTarget(ctx: ExecutorContext, f: Blend, fid: string): { into: Blend
 	const edges = f.edges.filter((e) => e.faces.every(before) && !has(e));
 	return edges.length ? { into: into as Blend, edges } : null;
 }
-const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+function plural(n: number, one: string, many: string) { return n === 1 ? one : many; }
 /**
  * THE REFUSAL. Called only after the kernel has refused (or made something
  * that is not a solid). In order: an edge that has no corner to round is
@@ -297,18 +300,34 @@ function refuse(ctx: ExecutorContext, f: Blend, body: { id: string; solid: numbe
 	const hint = issue.limit !== undefined && (f.type === 'fillet' ? !f.variable && issue.kind === 'cliff' : f.distance2 === undefined && issue.kind === 'setback') ? issue.limit : undefined;
 	const probe = (v: number) => blendFits(ctx, body.solid, { ...f, ...sizedPatch(f, v) } as Blend, handles);
 	const where = handles.map(edgeSel);
-	const fit = issue.kind !== 'boundary' ? largestThatFits(probe, primary, hint).value : null;
+	/* A drag refuses frame after frame; the search is for the refusal a student stops on, so a preview frame only says what went wrong. */
+	const fit = issue.kind !== 'boundary' && !ctx.preview ? largestThatFits(probe, primary, hint).value : null;
+	let sizeFix: FeatureFix | undefined, sizeWords = '';
 	if (fit !== null) {
 		const patch = sizedPatch(f, fit) as { radius?: number; distance?: number; distance2?: number; variable?: { end: number } };
-		const words = f.type === 'fillet' ? (patch.variable ? `${figure(patch.radius!)} to ${figure(patch.variable.end)}` : figure(patch.radius!)) : patch.distance2 !== undefined ? `${figure(patch.distance!)} by ${figure(patch.distance2)}` : figure(patch.distance!);
-		return new BlendRefusal(`That ${f.type === 'fillet' ? 'radius' : 'chamfer'} is too big for ${these}. The largest that fits here is ${words}.`, { where, detail, fix: { label: `Use ${words}`, value: fit, commands: [{ type: 'set-feature', id: f.id, patch }] } });
+		sizeWords = f.type === 'fillet' ? (patch.variable ? `${figure(patch.radius!)} to ${figure(patch.variable.end)}` : figure(patch.radius!)) : patch.distance2 !== undefined ? `${figure(patch.distance!)} by ${figure(patch.distance2)}` : figure(patch.distance!);
+		sizeFix = { label: `Use ${sizeWords}`, value: fit, commands: [{ type: 'set-feature', id: f.id, patch }] };
 	}
-	const meets = [...touching(handles, false)];
-	if (meets.length) {
-		const [fid, edges] = meets[0], m = mergeTarget(ctx, f, fid), name = nameOf(fid);
-		const own = `${plural(edges.length, 'This edge meets', 'These edges meet')} the ${ctx.manifest.features.find((x) => x.id === fid)?.type === 'chamfer' ? 'bevel' : 'round'} from ${name} at a corner`;
-		if (m) return new BlendRefusal(`${own}. ${word === 'round' ? 'Rounds' : 'Bevels'} that share a corner have to be made together.`, { where: edges.map(edgeSel), detail, fix: { label: `Add to ${name}`, commands: [{ type: 'set-feature', id: m.into.id, patch: { edges: [...m.into.edges, ...m.edges] } }, { type: 'remove-feature', id: f.id }] } });
-		return new BlendRefusal(`${own}, which cannot be blended here. Pick edges that stop short of it.`, { where: edges.map(edgeSel), detail });
+	/* Which of the student's own picks run into an earlier round or bevel: along the run the chain carries them on (the arc down the side of a big round) or at a corner. */
+	const runOf = (h: number) => (f.propagate ? tangentChain(k, body.solid, [h]) : [h]);
+	const hits = refs.map((h) => [...touching(runOf(h), false).keys()]);
+	const struck = refs.map((_, i) => i).filter((i) => hits[i].length);
+	/* A size close to what was asked is the answer; one far below it (0.0153 for a 0.2 in round) is a symptom of running into the earlier round, which is the thing to say. */
+	if (sizeFix && (fit! >= primary / 2 || !struck.length)) return new BlendRefusal(`That ${f.type === 'fillet' ? 'radius' : 'chamfer'} is too big for ${these}. The largest that fits here is ${sizeWords}.`, { where, detail, fix: sizeFix });
+	if (struck.length) {
+		const fid = hits[struck[0]][0], name = nameOf(fid), their = ctx.manifest.features.find((x) => x.id === fid)?.type === 'chamfer' ? 'bevel' : 'round';
+		const whose = (one: string, many: string) => (struck.length === refs.length ? plural(refs.length, `This edge ${one}`, `These edges ${many}`) : `${struck.length} of these edges ${struck.length === 1 ? one : many}`);
+		const into = mergeTarget(ctx, f, fid);
+		const sameSize = into && (into.into.type === 'fillet' && f.type === 'fillet' ? into.into.radius === f.radius : into.into.type === 'chamfer' && f.type === 'chamfer' ? into.into.distance === f.distance && into.into.distance2 === f.distance2 && into.into.angle === f.angle : false);
+		const fixes: FeatureFix[] = [];
+		if (into && sameSize) fixes.push({ label: `Add to ${name}`, commands: [{ type: 'set-feature', id: into.into.id, patch: { edges: [...into.into.edges, ...into.edges] } }, { type: 'remove-feature', id: f.id }] });
+		/* Leaving out the picks that run into it, when the rest make the size asked for: one more probe. */
+		const keep = refs.map((_, i) => i).filter((i) => !hits[i].length);
+		if (keep.length && blendFits(ctx, body.solid, f, [...new Set(keep.flatMap((i) => runOf(refs[i])))])) fixes.push({ label: `Leave out ${struck.length} ${plural(struck.length, 'edge', 'edges')}`, commands: [{ type: 'set-feature', id: f.id, patch: { edges: keep.map((i) => f.edges[i]) } }] });
+		if (sizeFix) fixes.push(sizeFix);
+		const help: FeatureHelp = { where: struck.map((i) => edgeSel(refs[i])), detail, ...(fixes.length ? { fix: fixes[0] } : {}), ...(fixes.length > 1 ? { more: fixes.slice(1) } : {}) };
+		if (into && sameSize) return new BlendRefusal(`${whose('meets', 'meet')} the ${their} from ${name} at a corner. ${word === 'round' ? 'Rounds' : 'Bevels'} that share a corner have to be made together.`, help);
+		return new BlendRefusal(`${whose('runs', 'run')} into the ${their} from ${name}, where a ${word} this size cannot meet it.${sizeFix ? ` The largest that fits here is ${sizeWords}.` : ''}`, help);
 	}
 	const sentence: Record<KernelBlendIssue['kind'], string> = {
 		cliff: `That ${f.type === 'fillet' ? 'radius' : 'chamfer'} is too big for ${these}, and no smaller size fits either. Try fewer edges at a time.`,

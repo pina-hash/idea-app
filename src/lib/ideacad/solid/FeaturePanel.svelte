@@ -296,6 +296,7 @@
 				<div class="refusal" role="group" aria-label={row.name} data-testid="ideacad-blend-refusal" data-row={row.id} onpointerenter={() => showWhere(help.where)} onpointerleave={() => api.hover?.(null)}>
 					<p><strong>{row.name}</strong> {row.message}</p>
 					{#if help.fix && editable}{@const fix = help.fix}<button type="button" class="wide primary" aria-disabled={api.busy} onclick={() => void pressFix(row, fix)} onfocus={() => showWhere(help.where)} onblur={() => api.hover?.(null)} data-testid="ideacad-blend-fix">{fix.label}</button>{/if}
+					{#if help.more?.length && editable}<div class="others">{#each help.more as other (other.label)}<button type="button" class="wide" aria-disabled={api.busy} onclick={() => void pressFix(row, other)} data-testid="ideacad-blend-fix-other">{other.label}</button>{/each}</div>{/if}
 					{#if dev && help.detail}<code class="detail" data-testid="ideacad-blend-detail">{help.detail}</code>{/if}
 				</div>
 			{/each}
@@ -357,10 +358,11 @@
 	.fits{margin:0;padding:0 8px 4px;border:1px solid var(--hairline);border-radius:4px;display:grid}.fits legend{font:600 14px Rajdhani,sans-serif;color:var(--text-2);padding:0 4px}
 	.feature button{min-height:44px;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:600 15px Rajdhani,sans-serif;cursor:pointer;padding:0 10px}
 	.feature button.wide{width:100%}.feature button.primary{border-color:var(--green);color:var(--green)}.feature button[aria-disabled='true']{opacity:.5;cursor:not-allowed}
-	/* The edge sets: three to a row, each a word and what it adds, so the row reads as a picture of the choices rather than a menu. */
-	.grow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.feature .grow button{display:flex;align-items:center;justify-content:center;gap:4px;padding:0 6px;font-size:14px;min-width:0}.grow .n{font:12px 'Share Tech Mono',monospace;color:var(--text-2)}
-	.rigor :global(.disc-trigger){padding:6px 10px;font-size:13px}.rigor :global(.disc-body){display:grid;gap:6px;padding-top:6px}
+	/* The edge sets: up to three to a row and filling it, each a word and what it adds, so the row reads as a picture of the choices rather than a menu. */
+	.grow{display:grid;grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:6px}.feature .grow button{display:flex;align-items:center;justify-content:center;gap:4px;padding:0 6px;font-size:14px;min-width:0}.grow .n{font:12px 'Share Tech Mono',monospace;color:var(--text-2)}
+	.rigor :global(.disc-trigger){padding:6px 10px;font-size:13px}.rigor :global(.disc-body[data-open='true']){display:grid;gap:6px;padding-top:6px}
 	.refusal{display:grid;gap:6px;padding:8px;border:1px solid var(--boundary);border-left:3px solid var(--amber);border-radius:4px;background:var(--surface-0)}.refusal p{margin:0;color:var(--text-1);font-size:14px;line-height:1.4}.refusal strong{color:var(--amber)}
+	.others{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:6px}
 	.detail{display:block;font:11px 'Share Tech Mono',monospace;color:var(--text-2);overflow-wrap:anywhere}
 	.walls{list-style:none;margin:0;padding:0;display:grid;gap:4px}.walls li{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:44px;font-size:14px;color:var(--text-1)}
 	.more{text-align:left;background:transparent;border-color:transparent;color:var(--text-2)}.more[aria-expanded="true"]{color:var(--text-1)}

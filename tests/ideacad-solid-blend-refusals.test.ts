@@ -180,6 +180,30 @@ describe('refusals that name an edge or a corner', () => {
 	});
 });
 
+describe('a round that runs into a much bigger one', () => {
+	it('three top edges of a 2 x 2 x 1 box beside a 0.999 in round: the tiny size that fits is not the headline; the two edges that run into the round are named, leaving them out is offered first and makes the size asked for, and the tiny size is offered second', async () => {
+		const log = watch();
+		const e = await SolidEngine.create(WASM); engines.push(e);
+		await add(e, rectangle('s1', 2, 2)); const m = await add(e, { id: 'x1', name: 'Extrude 1', type: 'extrude', sketch: 's1', distance: 1, operation: 'new' });
+		await add(e, { id: 'f1', name: 'Fillet 1', type: 'fillet', edges: [edgeRef(m, 'x1.end', 'x1.side.0')], radius: 0.999 });
+		const m1 = e.project(), body = m1.bodies[0];
+		const top = body.faces.find((f) => f.id === 'x1.end')!;
+		const sharp = top.edges.filter((id) => edgeShape(body, body.edges.find((x) => x.id === id)!) !== 'smooth');
+		expect(sharp).toHaveLength(3);
+		const refused = await add(e, { id: '', name: '', type: 'fillet', edges: sharp.map((id) => refFromSelection({ bodyId: 'x1#0', kind: 'edge', id }, body) as EdgeRef), radius: 0.2, propagate: true } as Feature);
+		const f2 = refused.features[3], refusal = log.refusals.at(-1)!;
+		expect(f2.status).toBe('error');
+		expect(f2.message).toMatch(/^2 of these edges run into the round from Fillet 1, where a round this size cannot meet it\. The largest that fits here is \d+(\.\d+)? in\.$/);
+		expect(refusal.help.fix!.label).toBe('Leave out 2 edges');
+		expect(refusal.help.more!.map((x) => x.label)).toEqual([expect.stringMatching(/^Use \d+(\.\d+)? in$/)]);
+		expect(refusal.help.more![0].value!).toBeLessThan(0.1);
+		expect(log.scratches.at(-1)).toBeLessThanOrEqual(FIT_ATTEMPTS + 1);
+		const fixed = await press(e, refusal.help.fix!.commands);
+		expect(fixed.features[3].status).toBe('ok');
+		expect(fixed.features[3].summary).toBe('R 0.2 in · 1 edge');
+	});
+});
+
 describe('the pure halves', () => {
 	it('reads the kernel texts measured on this build, and a text it does not know is `other`, never a guess', () => {
 		expect(readKernelBlendError('blend: blend cliff on face Id(2) at edge Id(9): requested radius 3, available radius 2.999999999999999')).toEqual({ kind: 'cliff', limit: 2.999999999999999 });

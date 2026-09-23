@@ -300,8 +300,8 @@ export interface FeatureRow {
  * label to read without parsing the label.
  */
 export interface FeatureFix { label: string; commands: SolidCommand[]; value?: number }
-/** What travels with a refused feature besides its sentence. `detail` is the kernel's own text, shown only in development. */
-export interface FeatureHelp { fix?: FeatureFix; where?: Selection[]; detail?: string }
+/** What travels with a refused feature besides its sentence: the way forward (`fix`), any other ways (`more`), the edges it is about, and the kernel's own text, shown only in development. */
+export interface FeatureHelp { fix?: FeatureFix; more?: FeatureFix[]; where?: Selection[]; detail?: string }
 export interface ReferenceProjection {
 	feature: string; name: string; kind: 'plane' | 'axis' | 'point';
 	origin: Vec3; normal?: Vec3; direction?: Vec3; u?: Vec3; v?: Vec3;
