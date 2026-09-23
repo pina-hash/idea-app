@@ -1162,6 +1162,49 @@ It loads the class label and nothing that names a person.
 
 
 
+### NOTEBOOK CAPTURE -- where the work is, and never only in memory
+
+**A STUDENT ADDS TO THEIR NOTEBOOK FROM THE ASSIGNMENT PAGE, AND IT FILES ITSELF
+(ledger 0297).** `NotebookCapture.svelte` sits in the item page's check-in card
+for a student (never for a manager, never on an announcement). `captureFiling`
+in `$lib/notebook/capture.ts` is the one answer to "where does this go": the
+item's check-in (its session and section) when it has one, otherwise the class
+with the item's title as the entry's custom label. No migration was needed:
+the columns were all there.
+
+- **A PHOTO IS WRITTEN TO THE DEVICE BEFORE IT IS SENT, AND UPLOADED AS A DRAFT
+  THE MOMENT IT IS TAKEN.** `$lib/notebook/capture-store.ts` is an IndexedDB
+  store per viewer and per filing with a 24-hour expiry, and it never rejects:
+  a full or blocked store comes back as a state the surface says out loud.
+  `$lib/notebook/capture-queue.ts` uploads serially and a failure holds the
+  line. This is the draft-mirror rule's photo half; the capture NOTE has no
+  mirror yet, which is recorded as open.
+- **THE RETRY IS IDEMPOTENT THROUGH A TOKEN IN THE FILENAME, BECAUSE THE PHOTO
+  ROWS HAVE NO OTHER KEY.** A capture carries `CAPTURE_TOKEN_TAIL` in its
+  original filename and a retry re-reads the entry's photos for it before
+  sending again, so a dropped connection never doubles a page;
+  `displayPhotoName` strips it so the tag never shows. An idempotency column
+  would retire it, and that is a migration, not a rename.
+- **STRAIGHTENING IS A CHOICE AFTER THE FACT, AND PAIRING STAYS ADJACENCY.** An
+  enhanced copy pairs with the original before it, so only the LATEST page may
+  be straightened, removing a page removes its enhanced copy first
+  (`pageRemovalOrder`), and a restore is refused unless the pairing map is
+  unchanged (`restoreKeepsPairing`). Every order of add, straighten, remove and
+  restore to depth 8 is enumerated in `tests/notebook-capture.test.ts`; a looser
+  rule is how a straightened page ends up beside the wrong original.
+- **ONE-PASS APPROVAL IS THE EXISTING TWO WRITERS, NEVER A THIRD.**
+  `approveAction` in `$lib/notebook/review-queue.ts` sends `notebook_accept_entry`
+  with no comment and `notebook_resolve_entry` (the only writer of an
+  instructor comment) with one; `reviewQueue` never sweeps in a flagged entry
+  and reads "cannot tell" as not reviewed. `EntryVerdict.svelte` is the one
+  renderer of a flag or a next step, on the student's card and in review alike.
+- **THE CLASS TIMELINE IS READ-ONLY OVER HAND-INS AND ITS STREAK IS NEVER
+  RANKED** (`$lib/notebook/timeline.ts`, `classDayStreak`): a student's own count
+  of consecutive class days with an entry, where a today with nothing filed yet
+  does not break it, and no surface compares one student's streak to another's.
+
+### WHAT A STUDENT OWES -- one predicate, one read, one day
+
 **"MISSING" HAS ONE IMPLEMENTATION: `assignmentStanding` AND `checkInStanding`
 in `$lib/classroom/classroom.ts` (ledger 0297).** The class filter, the row chip,
 the to-do page, the home feed's overdue case and every count ask it. A second
