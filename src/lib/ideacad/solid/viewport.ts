@@ -556,7 +556,11 @@ export class SolidViewport {
 	/* ------------------------------------------------------------------ CAMERA */
 	/** Every corner of the solids' bounds is on screen (true with no solids). The workspace refits after an edit that took an in-view model out of view, and never otherwise, so a view somebody zoomed in on stays theirs. */
 	modelInView(){if(!this.solids.children.length)return true;const b=new THREE.Box3().setFromObject(this.solids);if(b.isEmpty())return true;this.camera.updateMatrixWorld();for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z]){const p=new THREE.Vector3(x,y,z).project(this.camera);if(Math.abs(p.x)>1.001||Math.abs(p.y)>1.001)return false;}return true;}
+	/** How many times the view was fitted or turned to a named or normal view. A deferred framing compares it before it runs, so it never overrides a camera command given after it was scheduled. */
+	cameraCommands(){return this.commanded;}
+	private commanded=0;
 	fit(){
+		this.commanded++;
 		/* An empty part fits its Front, Top and Right planes, at a size that leaves the top of the view for the start cue. */
 		const onlyPlanes=!this.solids.children.length&&!this.sketchLayer.children.length;
 		if(onlyPlanes&&!this.datumObjects.length){this.camera.zoom=1;this.camera.updateProjectionMatrix();this.invalidate();return;}
@@ -575,6 +579,7 @@ export class SolidViewport {
 	 * SolidWorks' Normal To does.
 	 */
 	normalTo(plane:ResolvedPlane){
+		this.commanded++;
 		const n=new THREE.Vector3(...plane.normal).normalize();if(n.lengthSq()<.5)return;
 		const facing=this.camera.getWorldDirection(new THREE.Vector3()).dot(n)<-.999;
 		this.camera.position.copy(this.target).add(n.multiplyScalar(facing?-10:10));this.camera.up.set(...plane.v);this.camera.lookAt(this.target);this.camera.updateMatrixWorld();this.drawGizmo();this.invalidate();
