@@ -92,7 +92,8 @@ export default {
 		/* No row carries an error message on a clean build; the rows above are the positive control. */
 		{ selector: '[data-testid="ideacad-feature-tree"] .message', label: 'a feature message, absent on a clean build', expectPresent: 0 },
 		/* This workspace cannot roll back yet, so there is no bar at all: presence of a transport is presence of a control. */
-		{ selector: '[data-testid="ideacad-rollback-bar"]', label: 'the rollback bar, absent until the workspace can roll back', expectPresent: 0 }
+		/* The workspace rolls back (ledger 0296, stage W3), so the tree draws its bar. */
+		{ selector: '[data-testid="ideacad-rollback-bar"]', label: 'the rollback bar, at the end of the tree (1)', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	textContains: [
 		{ selector: '[data-testid="ideacad-feature-tree"]', label: 'the tree names its planes and its rows, and says nothing about rows that are fine', must: ['Front Plane', 'Top Plane', 'Right Plane', 'Origin', 'Base sketch', 'Plate', 'Spin axis'], mustNot: ['Error', 'Draw a shape'] },
