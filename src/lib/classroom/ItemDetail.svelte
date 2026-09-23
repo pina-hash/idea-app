@@ -1264,7 +1264,7 @@
 		</footer>
 	</main>
 {:else}
-<main class="classroom-page" class:page-wide={htmlMount === 'html'}>
+<main class="classroom-page item-page" class:page-wide={htmlMount === 'html'}>
 	<!--
 		THE INSPECTOR: every instructor-only affordance on this page, in one
 		region, above the content and visually apart from it.
@@ -2650,7 +2650,7 @@
 	}
 
 	.classroom-page {
-		max-width: var(--cr-measure, var(--measure-reading));
+		max-width: var(--cr-measure, var(--measure-split));
 		margin: 0 auto;
 		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
 	}

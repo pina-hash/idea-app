@@ -47,7 +47,7 @@
 <style>
 	.dd-page {
 		padding: var(--cr-gutter, 1rem);
-		max-width: var(--cr-measure, 92rem);
+		max-width: var(--cr-measure, var(--measure-split));
 		margin: 0 auto;
 	}
 </style>

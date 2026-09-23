@@ -362,9 +362,30 @@ export type ClassroomMeasure = 'reading' | 'form' | 'panel' | 'page' | 'wide' | 
 
 export function classroomMeasure(loc: ClassroomLocation): ClassroomMeasure | null {
 	switch (loc.place) {
+		/**
+		 * AN ITEM USES ITS PANE; ITS SENTENCES KEEP A READING MEASURE (ledger
+		 * 0297). This returned `reading` (46rem), which capped the whole item --
+		 * attachments, tables, the deck card, a spec's input grid -- and left
+		 * 200px of the detail pane empty at 1440, 126 at 1366 and 224 at 960.
+		 * The page takes the pane now and classroom.css caps the PARAGRAPH
+		 * instead (`.cr-root :where(.classroom-page.item-page) :where(p, li, ...)`),
+		 * which is IDEA_INTERFACE_STANDARDS section 1: cap the prose, not the page.
+		 * The changelog is still one column of sentences and keeps `reading`.
+		 */
 		case 'item':
+			return 'split';
 		case 'updates':
 			return 'reading';
+		/**
+		 * THE MANAGEMENT PAGES USE THE SCREEN (ledger 0297). People, Grades and
+		 * Duplicates were 60rem centered, 480px of margin at 1440; they are
+		 * tables and tool panels, not prose, so they take the width a two-pane
+		 * class page takes and lay their own columns out inside it.
+		 */
+		case 'people':
+		case 'grades':
+		case 'duplicates':
+			return 'split';
 		case 'feedback':
 			return 'form';
 		case 'admin':

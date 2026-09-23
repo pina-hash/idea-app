@@ -144,6 +144,16 @@ body:has(.cr-root) {
 .cr-root h2::before {
 	content: none;
 }
+/* THE APP SHELL'S h2 MARGIN STOPS AT THE ROOM (ledger 0297). src/app.css gives
+   every h2 `margin: 2.25rem 0 1rem`, and `.cr-root h2` above resets the face
+   and the colour but not the margin -- so a card whose first child is a bare
+   h2 (the item page's Presentation card) opened with a 60px empty band: 36px
+   of margin on top of 24px of card padding. A heading that opens its box needs
+   no air above it; the box's own padding is the air. `:where()` keeps this at
+   the room's specificity, so a component that sizes its own heading keeps it. */
+.cr-root :where(h2:first-child) {
+	margin-top: 0;
+}
 /* Links are cyan here, not green: a link is not a primary action, and green
    is spent on the things that are. The app shell's hover glow goes with it. */
 .cr-root a {
@@ -200,19 +210,48 @@ body:has(.cr-root) {
 
 /* --- Buttons -------------------------------------------------------------- */
 /* `.btn.tiny` is the chip-sized action sitting beside a heading, or beside
-   another chip, on a page somebody is reading rather than working -- Cancel
-   on a staged rubric, Add criterion, attach/detach a check-in. It is never
-   phone-touched (it lives inside the manage-only classroom surface) and it
-   is not the student-facing engine, so IDEA_INTERFACE_STANDARDS 10's 24px
-   floor applies, not the 44px one. `min-height` is the floor and never a
-   fixed height, so a chip whose label wraps still grows with it; the
-   existing block padding is untouched, because at this size it is most of
-   what makes the control read as a chip rather than a button. */
+   another chip -- Cancel on a staged rubric, Add criterion, attach/detach a
+   check-in. This rule is its TYPE and its horizontal rhythm; how tall it is
+   is the next rule's, which is where the 44px floor and the instructor-only
+   compact density are decided (ledger 0297). */
 .cr-root .btn.tiny,
 .cr-root .btn.secondary.tiny {
 	font-size: 0.65rem;
 	padding: 0.28rem 0.6rem;
+}
+
+/* A CHIP IS 44px UNLESS ITS SURFACE SAYS OTHERWISE (ledger 0297). The chip
+   rule used to set a 24px floor on every `.btn.tiny` in the room, at a specificity
+   (0,3,0) that silently beat `.tap-44` (0,1,0) on the 22 controls that carry
+   both, so a control whose markup asked for 44px measured 24. And the floor it
+   set was never declared anywhere a sweep could read it:
+   IDEA_INTERFACE_STANDARDS section 10 lets a control sit at 24px only on an
+   INSTRUCTOR-ONLY surface that says so with a named class on its own root, and
+   treats every surface without one as student-facing, 44px at every width.
+
+   So the chip's floor is 44px, stated here once, and the 24px density is an
+   opt-in with both halves of the standard's condition in the selector: the
+   teacher chose compact density (`data-density` on `.cr-root`, the device
+   preference) AND the control sits inside a surface that declares itself
+   instructor-only (`.cr-instructor-surface`, $lib/preferences/classroom.ts).
+   A student surface cannot match it, whatever the preference says.
+
+   Block padding and `min-height` carry the floor, never a height: a chip whose
+   label wraps still grows, and the type and the horizontal rhythm that make a
+   chip read as a chip are untouched. The compact rule is written BEFORE the
+   console and engine rules below and at their specificity, so those two
+   worked surfaces stay 44px in either density. */
+.cr-root .btn.tiny,
+.cr-root .btn.secondary.tiny {
+	min-height: 44px;
+	padding-block: var(--space-2);
+	display: inline-flex;
+	align-items: center;
+}
+.cr-root[data-density='compact'] :where(.cr-instructor-surface) .btn.tiny,
+.cr-root[data-density='compact'] :where(.cr-instructor-surface) .btn.secondary.tiny {
 	min-height: 24px;
+	padding-block: 0.28rem;
 }
 
 /* THE CONSOLE'S CONTROLS ARE WORKED, NOT READ PAST.
@@ -481,11 +520,14 @@ body:has(.cr-root) {
 		padding-bottom: 0;
 	}
 
-	/* Prose keeps its reading measure inside the detail pane: the pane is far
-	   wider than a column of text should ever be, and widening the split must
-	   not widen the sentences. */
+	/* THE DETAIL PANE'S CONTENT USES THE PANE (ledger 0297). This pinned the
+	   whole page to `--measure-reading`, which is a width for SENTENCES and was
+	   capping everything else with them: 200px of the pane unused at 1440, 126
+	   at 1366, and 640 once "Hide other items" handed the item the whole row.
+	   The pane is the measure now; the prose cap below is what keeps widening
+	   the split from widening the sentences. */
 	.cr-split > .cr-detail {
-		--cr-measure: var(--measure-reading);
+		--cr-measure: none;
 	}
 
 	/* A FORM IS NOT PROSE. The composer fills the detail pane rather than the
@@ -495,6 +537,39 @@ body:has(.cr-root) {
 	.cr-detail-compose {
 		max-width: var(--measure-form);
 	}
+}
+
+/* --- Cap the paragraph, not the page (ledger 0297) -----------------------
+   IDEA_INTERFACE_STANDARDS section 1: a reading surface caps its PROSE at a
+   reading measure and lets everything that is not prose (a table, an image,
+   a deck card, a link card, a spec's input grid, a ported document) use the
+   pane it sits in. The item page used to express the first half by capping
+   the whole page, which cost the second half. A reference document keeps its
+   own measured prose width (`--rb-measure`, 54ch, about 76 characters a line
+   in Rajdhani) and its data objects take the column, which is this same rule
+   written by that component; only the column around it widened.
+
+   `:where()` on both sides keeps this at the room's own specificity (0,1,0),
+   so any component that already sizes one of these elements for itself (a
+   scoped rule is 0,1,1) keeps its own answer; this is the default for prose
+   nobody sized. A ported HTML document is a frame, not prose, and is not in
+   the list. */
+.cr-root :where(.classroom-page.item-page)
+	:where(p, li, blockquote, dd, dt, figcaption, h1, h2, h3, h4, h5, h6) {
+	max-width: var(--measure-reading);
+}
+
+/* THE ITEM TITLE SCALES WITH THE WINDOW (ledger 0297). It was Orbitron 38.4px
+   at every width: seven lines and 309px tall at 375, so the hero took 55% of
+   an 812 screen before any content. Clamped, it is 24px on a phone, about 30
+   at 960 and 34 at 1440, and balanced so a two-line title does not end on a
+   single word. */
+.cr-root .classroom-page.item-page .hero h1 {
+	font-size: clamp(1.5rem, 1rem + 1.4vw, 2.15rem);
+	line-height: 1.18;
+	margin: 0.2rem 0 0.45rem;
+	text-wrap: balance;
+	overflow-wrap: anywhere;
 }
 
 /* --- The nav-collapse toggle ("Hide other items") ------------------------
