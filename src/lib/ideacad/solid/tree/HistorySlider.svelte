@@ -76,13 +76,15 @@
 	</label>
 </div>
 <style>
-	.history{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:4px 8px;box-sizing:border-box;min-width:0;background:var(--surface-1);border-top:1px solid var(--hairline);font-family:Rajdhani,sans-serif;color:var(--text-1)}
+	.history{container-type:inline-size;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:4px 8px;box-sizing:border-box;min-width:0;background:var(--surface-1);border-top:1px solid var(--hairline);font-family:Rajdhani,sans-serif;color:var(--text-1)}
 	.controls{display:flex;gap:4px;flex-shrink:0}
 	.ctl{min-height:44px;min-width:44px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;box-sizing:border-box;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-2);color:var(--text-1);font:600 14px Rajdhani,sans-serif;cursor:pointer;white-space:nowrap}.ctl:hover{border-color:var(--green)}.ctl:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}.ctl[aria-disabled="true"]{color:var(--text-2);border-style:dashed;cursor:default}.ctl[aria-disabled="true"]:hover{border-color:var(--boundary)}
 	.play{min-width:84px;justify-content:center}.play[aria-pressed="true"]{border-color:var(--green);color:var(--green);background:var(--green-tint,color-mix(in srgb,var(--green) 12%,var(--surface-1)))}
 	.scrub{flex:1 1 160px;min-width:140px;display:flex;align-items:center;min-height:44px}.scrub input{width:100%;min-height:44px;margin:0;background:transparent;border:0;box-shadow:none;accent-color:var(--green)}
 	.readout{display:flex;align-items:baseline;gap:8px;min-width:0;max-width:220px;flex:0 1 auto}.count{font:14px 'Share Tech Mono',monospace;color:var(--text-1);white-space:nowrap}.name{font-size:14px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 	.speed{display:flex;align-items:center;gap:6px;flex-shrink:0}.speed-word{font:11px 'Share Tech Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2)}.speed select{min-height:44px;min-width:64px;padding:0 8px;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:14px 'Share Tech Mono',monospace}
+	/* A PHONE: the five controls fit one row with their words, and the scrubber, the count and the speed share the second. The feature's name is the one thing that goes; the stage and the scrubber's own reading still say it. Measured, not guessed: at 375 and 414 the five controls take 342.7px and the bar is two rows, 103px, with nothing off screen; at 960 and 1440 it is one row, 53px. Before this rule, Stop ran off the right edge at 375. */
+	@container (max-width: 440px){.controls{gap:4px}.ctl{padding:0 8px;gap:4px}.play{min-width:0}.name{display:none}.scrub{flex-basis:120px;min-width:100px}.speed{gap:4px}}
 	.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 	@media(prefers-reduced-motion:no-preference){.ctl{transition:border-color .12s ease,background-color .12s ease}}
 </style>
