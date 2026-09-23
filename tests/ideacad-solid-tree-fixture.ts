@@ -20,6 +20,7 @@ import { lostReference, reattachedReference } from '../src/lib/ideacad/solid/nam
 import { reduce } from '../src/lib/ideacad/solid/commands';
 import { emptyManifest, type BodyProjection, type Feature, type FeatureRow, type ModelProjection, type Selection, type SketchProjection, type SolidCommand, type SolidManifest } from '../src/lib/ideacad/solid/types';
 import type { WorkspaceApi } from '../src/lib/ideacad/solid/workspace-api';
+import type { TreeExtras } from '../src/lib/ideacad/solid/tree/api';
 
 const END = { body: 'x1#0', name: 'x1.end', hint: { kind: 'plane', center: [2, 1.5, 1] as [number, number, number], normal: [0, 0, 1] as [number, number, number], area: 12 } };
 const SIDE = { body: 'x1#0', name: 'x1.side.0', hint: { kind: 'plane', center: [2, 0, 0.5] as [number, number, number], normal: [0, -1, 0] as [number, number, number], area: 4 } };
@@ -77,7 +78,7 @@ export interface FakeApi {
 	edits: (string | null)[];
 	tools: string[];
 }
-export function fakeApi(overrides: Partial<{ canWrite: boolean; busy: boolean; editingSketch: string | null; selections: Selection[]; refuse: boolean }> = {}): FakeApi {
+export function fakeApi(overrides: Partial<{ canWrite: boolean; busy: boolean; editingSketch: string | null; selections: Selection[]; refuse: boolean; extras: Partial<TreeExtras> }> = {}): FakeApi {
 	let manifest = fixtureManifest();
 	const model = fixtureModel();
 	const record: FakeApi = { api: null as unknown as WorkspaceApi, commands: [], selects: [], errors: [], edits: [], tools: [] };
@@ -91,5 +92,7 @@ export function fakeApi(overrides: Partial<{ canWrite: boolean; busy: boolean; e
 		request: async () => { throw Error('not in the fixture'); }, project: () => ({ x: 0, y: 0 }), error(message) { record.errors.push(message); },
 		guide() {}, clearGuides() {}, clip() {}, lookAt() {}, fit() {}, unproject: () => null
 	};
+	/* The optional members the tree lights controls for (`tree/api.ts`): absent unless a case hands them in. */
+	if (overrides.extras) Object.defineProperties(record.api, Object.getOwnPropertyDescriptors(overrides.extras));
 	return record;
 }

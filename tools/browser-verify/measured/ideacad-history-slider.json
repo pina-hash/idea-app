@@ -1,6 +1,6 @@
 {
 	"schema": 1,
-	"spec": "ideacad-solid-state-tree.mjs",
+	"spec": "ideacad-history-slider.mjs",
 	"date": "2026-09-23T08:15:10.651Z",
 	"sha": "e367dfbcaca2472cdbc5236073f7c324acb67e1f",
 	"dirty": false,
@@ -9,7 +9,7 @@
 		1440
 	],
 	"runs": 2,
-	"measurements": 62,
+	"measurements": 40,
 	"outsideRows": [],
 	"ms": 11764
 }
