@@ -1,0 +1,33 @@
+diff --git a/src/lib/ideacad/solid/SolidWorkspace.svelte b/src/lib/ideacad/solid/SolidWorkspace.svelte
+index 7e1f0552..097702c7 100644
+--- a/src/lib/ideacad/solid/SolidWorkspace.svelte
++++ b/src/lib/ideacad/solid/SolidWorkspace.svelte
+@@ -53,6 +53,7 @@
+ 	import { DATUM_SELECTION_PREFIX, type Datum } from './features/reference';
+ 	import { holeFeatureAt, withOptions } from './features/options';
+ 	import { matePreview, MATE_SNAP_TOLERANCE } from './viewport/mate-preview';
++	import { moveWithinFreedom } from './mates/motion';
+ 	import { parseDimension } from './dimensions/model';
+ 	import type {AdvisoryTransport,AdvisoryRules} from './advisory';
+ 	import {STOCK_MATERIALS} from './advisory';
+@@ -236,6 +237,12 @@
+ 		if(active==='rotate'||active==='scale'||active==='move'){
+ 			if(active==='move'&&(selection.kind==='edge'||selection.kind==='vertex'))return feature({type:'move-selection',entity:ref(selection) as EdgeRef,delta:scaleVector(axis,value.distance)});
+ 			const matrix=new THREE.Matrix4(),center=new THREE.Vector3(...gestureCenter),mode=value.handle?.mode;
++			/* A mated or fixed body moves only within the freedom its mates leave (`mates/motion.ts`), and alone: the picks left selected after a mate are on both parts. A drag across the freedom moves nothing and snaps to nothing. */
++			if((active==='move'||active==='rotate')&&isHeld(gestureModel,selection.bodyId)){
++				const turn=mode==='ring'||active==='rotate',request=turn?{rotation:{axis:[...(value.handle?.axis??axis)] as [number,number,number],angle:value.angle*Math.PI/180,pivot:gestureCenter}}:{translation:mode==='plane'||mode==='free'?value.delta:scaleVector(axis,value.distance)};
++				const motion=moveWithinFreedom(gestureModel,selection.bodyId,request);mateCandidate=null;viewport.clearGuides();
++				return motion.held?null:feature({type:'transform',bodies:[selection.bodyId],matrix:motion.matrix});
++			}
+ 			/* The triad's handle says what the drag is: a ring is a turn about its axis through the centre, a plane square or the centre sphere is a delta, an arrow is a distance along its axis. A move is offered the magnetic mate snap unless Ctrl is held. */
+ 			if(mode==='ring')matrix.makeRotationAxis(new THREE.Vector3(...(value.handle?.axis??axis)).normalize(),value.angle*Math.PI/180);
+ 			else if(mode==='plane'||mode==='free'||active==='move'){
+@@ -255,6 +262,7 @@
+ 		return null;
+ 	}
+ 	const scaleVector=(v:[number,number,number],n:number):[number,number,number]=>[v[0]*n,v[1]*n,v[2]*n];
++	const isHeld=(m:ModelProjection,id:string)=>!!m.bodies.find(b=>b.id===id)?.fixed||m.mates.some(x=>x.status==='ok'&&[x.a,x.b].some(r=>(r as {body?:string}).body===id));
+ 	function update(value:DragValue){
+ 		let command:SolidCommand|null;try{command=commandFor(value);}catch(err){error=err instanceof Error?err.message:String(err);return;}if(!command)return;
+ 		measure={text:dragReadout(gesture!.tool,value,{kind:gesture!.selection.kind}),x:value.point.x,y:value.point.y};
