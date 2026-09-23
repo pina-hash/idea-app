@@ -5,6 +5,7 @@
 	import ClassView from '$lib/classroom/ClassView.svelte';
 	import HallPass from '$lib/classroom/HallPass.svelte';
 	import SongQueue from '$lib/classroom/SongQueue.svelte';
+	import ClassTeams from '$lib/classroom/ClassTeams.svelte';
 	import LiveDoor from '$lib/classroom/live-class/LiveDoor.svelte';
 	import { liveItemChoices } from '$lib/classroom/live-class/grid';
 	import { createPresenceTransports } from '$lib/classroom/presence/transports';
@@ -434,6 +435,9 @@
 				/>
 			{/if}
 		</div>
+	{/if}
+	{#if data.teams?.length}
+		<ClassTeams sets={data.teams} />
 	{/if}
 	<ClassView
 		section={data.section}
