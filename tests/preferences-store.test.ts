@@ -246,7 +246,18 @@ describe('the classroom schema validates on read', () => {
 			classView: { opensOn: 'missing' },
 			grading: { advanceAfterReturn: false },
 			guidance: { retiredHints: ['open-palette'], tour: 'finished' },
-			search: { recent: ['cmd:go.home', 'item:abc-1'] }
+			search: { recent: ['cmd:go.home', 'item:abc-1'] },
+			// Absent from the stored value, so the group reads as its default
+			// (ledger 0297, F4b): the seeded next-step chips, no last look.
+			notebookReview: {
+				lastLooked: {},
+				comments: [
+					'Date every entry.',
+					'Show why this iteration failed.',
+					'State the next test you will run.',
+					'Label the parts of your sketch.'
+				]
+			}
 		});
 	});
 

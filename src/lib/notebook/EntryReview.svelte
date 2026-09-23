@@ -3,6 +3,7 @@
 	import { gridStudentSubject } from '$lib/avatars';
 	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
 	import EntryNotes from '$lib/notebook/EntryNotes.svelte';
+	import EntryVerdict from '$lib/notebook/EntryVerdict.svelte';
 	import { deletedNoteThreads, noteThreads } from '$lib/notebook-notes';
 	import {
 		entryTitle,
@@ -408,12 +409,7 @@
 		{/if}
 	</p>
 
-	{#if entry.status === 'flagged' && (entry.flag_reason || entry.instructor_comment)}
-		<div class="callout">
-			{#if entry.flag_reason}<strong>{flagReasonLabel(entry.flag_reason)}.</strong>{/if}
-			{#if entry.instructor_comment}<span>{entry.instructor_comment}</span>{/if}
-		</div>
-	{/if}
+	<EntryVerdict status={entry.status} flagReason={entry.flag_reason} comment={entry.instructor_comment} />
 
 	{#if pageCount}
 		<div class="pages">
@@ -689,18 +685,6 @@
 	.filed {
 		color: var(--text-3);
 		font-style: italic;
-	}
-	.callout {
-		display: grid;
-		gap: var(--space-1);
-		padding: var(--space-2) var(--space-3);
-		border-left: 2px solid var(--nb-accent);
-		background: var(--nb-accent-wash);
-		border-radius: 0 var(--radius-control) var(--radius-control) 0;
-		font-size: 0.88rem;
-	}
-	.callout strong {
-		color: var(--nb-accent-ink);
 	}
 	.pages {
 		display: grid;

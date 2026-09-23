@@ -13,7 +13,6 @@
 	import {
 		entryPlainText,
 		entryTitle,
-		flagReasonLabel,
 		isPinned,
 		isUntitled,
 		orderedPhotos,
@@ -29,6 +28,7 @@
 		type StagedPhoto
 	} from '$lib/notebook';
 	import { restoreKeepsPairing } from '$lib/notebook/capture';
+	import EntryVerdict from '$lib/notebook/EntryVerdict.svelte';
 	import { displayPhotoName } from '$lib/notebook';
 	import {
 		entryPreview,
@@ -1035,17 +1035,12 @@
 				</div>
 			{/if}
 
-			{#if entry.status === 'flagged' && (entry.flag_reason || entry.instructor_comment)}
-				<div class="callout">
-					{#if entry.flag_reason}
-						<strong>{flagReasonLabel(entry.flag_reason)}.</strong>
-					{/if}
-					{#if entry.instructor_comment}
-						<span>{entry.instructor_comment}</span>
-					{/if}
-					<span class="callout-hint">Add another photo below to send it back for review.</span>
-				</div>
-			{/if}
+			<EntryVerdict
+				status={entry.status}
+				flagReason={entry.flag_reason}
+				comment={entry.instructor_comment}
+				hint="Add another photo below to send it back for review."
+			/>
 
 			<NotebookPhotos {photos} label={title} onRemove={onRemovePhoto} />
 
@@ -1631,23 +1626,6 @@
 		margin: 0 0 var(--space-3);
 		font-size: 0.78rem;
 		color: var(--text-3);
-	}
-	.callout {
-		border-left: 2px solid var(--nb-accent);
-		padding: var(--space-2) var(--space-3);
-		margin: 0 0 var(--space-3);
-		background: var(--nb-accent-wash);
-		border-radius: 0 var(--radius-control) var(--radius-control) 0;
-		font-size: 0.88rem;
-		display: grid;
-		gap: var(--space-1);
-	}
-	.callout strong {
-		color: var(--nb-accent-ink);
-	}
-	.callout-hint {
-		color: var(--text-2);
-		font-size: 0.8rem;
 	}
 	.entry-notes {
 		margin-top: var(--space-4);
