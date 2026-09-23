@@ -226,6 +226,32 @@ export function themeAttrFor(
 /** The comment in `src/app.html` the server replaces with the boot script. */
 export const THEME_BOOT_MARKER = '<!--idea-theme-boot-->';
 
+/**
+ * THE DEV HARNESSES WHOSE FAKED SESSION THE SERVER MAY ASSUME, AND ONLY
+ * THOSE. A `/dev` page fakes its session in its own load, which the server
+ * hook cannot see, so the hook has to be told which harness pages hand
+ * `ThemeRoot` a `claims` object. Treating every `/dev` route as signed in was
+ * the first draft and it was WRONG in a measurable way: most harnesses return
+ * no claims, so the boot script painted a stored theme and `ThemeRoot` took it
+ * off again after hydration (measured on /dev/classroom-split/s-1 with Space
+ * White stored: the first paint and the settled page disagreed), which is the
+ * flash this whole mechanism exists to remove, moved onto the harnesses.
+ *
+ * A harness joins by returning `claims` gated on exactly `?signedout=1`, and
+ * `tests/theme-preference.test.ts` reads each listed page's load to check it
+ * still does. A harness that fakes claims and is not listed simply gets no
+ * pre-paint in dev, which is the pre-0297 behaviour and paints nothing wrong.
+ */
+export const THEME_BOOT_HARNESSES: readonly string[] = ['/dev/themes', '/dev/theme-switch'];
+
+/** Whether a listed harness is showing its faked session for this request. */
+export function themeBootHarnessSession(pathname: string, signedOutParam: string | null): boolean {
+	const p = pathname || '/';
+	return (
+		THEME_BOOT_HARNESSES.some((h) => p === h || p.startsWith(h + '/')) && signedOutParam !== '1'
+	);
+}
+
 /** stored value -> the attribute and the theme-color it paints, for this request. */
 export type ThemeBootTable = Record<string, { a: SiteThemeAttr; c: string }>;
 

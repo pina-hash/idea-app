@@ -4,7 +4,7 @@ import { sequence } from '@sveltejs/kit/hooks';
 
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { dev } from '$app/environment';
-import { THEME_BOOT_MARKER, themeBootScript } from '$lib/theme';
+import { THEME_BOOT_MARKER, themeBootHarnessSession, themeBootScript } from '$lib/theme';
 
 /**
  * Redirects old GitHub Pages base-path links to their new homes. Scoped to the
@@ -156,11 +156,14 @@ const authGuard: Handle = async ({ event, resolve }) => {
  * `transformPageChunk` and keeping the first `filterSerializedResponseHeaders`,
  * which is `supabase`'s.
  *
- * THE `/dev` BRANCH MIRRORS WHAT THE HARNESSES DO. A `/dev` page fakes its
- * session in its own load (`/dev/themes` returns `claims` unless
- * `?signedout=1`), which this hook cannot see, so without this branch no
- * harness could ever measure the pre-paint path. It is `dev`-only, and every
- * `/dev` route 404s in production anyway.
+ * THE `/dev` BRANCH MIRRORS WHAT THE HARNESSES DO, AND ONLY THE ONES LISTED.
+ * A `/dev` page fakes its session in its own load (`/dev/themes` returns
+ * `claims` unless `?signedout=1`), which this hook cannot see, so without this
+ * branch no harness could ever measure the pre-paint path. It names the
+ * harnesses in `THEME_BOOT_HARNESSES` rather than every `/dev` route, because
+ * most harnesses fake no session at all and a boot script that assumed one
+ * painted a theme `ThemeRoot` then removed. It is `dev`-only, and every `/dev`
+ * route 404s in production anyway.
  *
  * The replacement is a FUNCTION so a `$` in the script can never be read as a
  * `String.replace` pattern. A page with nothing to apply gets an empty string,
@@ -168,7 +171,7 @@ const authGuard: Handle = async ({ event, resolve }) => {
  */
 const themeBoot: Handle = async ({ event, resolve }) => {
 	const { pathname, searchParams } = event.url;
-	const harnessSession = dev && pathname.startsWith('/dev/') && searchParams.get('signedout') !== '1';
+	const harnessSession = dev && themeBootHarnessSession(pathname, searchParams.get('signedout'));
 	const script = themeBootScript(pathname, !!event.locals.claims || harnessSession);
 	return resolve(event, {
 		transformPageChunk: ({ html }) => html.replace(THEME_BOOT_MARKER, () => script)

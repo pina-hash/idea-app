@@ -44,8 +44,10 @@ import {
 	SITE_THEME_LABELS,
 	SITE_THEME_NOTES,
 	siteThemeAttr,
+	THEME_BOOT_HARNESSES,
 	THEME_BOOT_MARKER,
 	themeAttrFor,
+	themeBootHarnessSession,
 	themeBootScript,
 	themeBootTable,
 	themeColorFor
@@ -295,7 +297,30 @@ describe('the pre-paint writer agrees with ThemeRoot, case for case', () => {
 		expect(hooks).toMatch(/sequence\(legacyRedirects,\s*supabase,\s*authGuard,\s*themeBoot\)/);
 		expect(hooks).toMatch(/themeBootScript\(pathname,\s*!!event\.locals\.claims/);
 		expect(hooks).toMatch(/html\.replace\(THEME_BOOT_MARKER,\s*\(\)\s*=>\s*script\)/);
-		// The dev-harness session is dev-only.
-		expect(hooks).toMatch(/const harnessSession = dev &&/);
+		// The dev-harness session is dev-only, and it is the named list, not every /dev route.
+		expect(hooks).toMatch(/const harnessSession = dev && themeBootHarnessSession\(pathname, searchParams\.get\('signedout'\)\)/);
+		expect(hooks).not.toMatch(/pathname\.startsWith\('\/dev\/'\)/);
+	});
+
+	/* THE SERVER MAY ASSUME A HARNESS SESSION ONLY WHERE THE HARNESS FAKES ONE.
+	   The boot script's table is built with the server's idea of "signed in";
+	   ThemeRoot's comes from `page.data.claims`, which a harness supplies in its
+	   own load. If the two disagree the first paint shows a theme the hydrated
+	   page then removes -- measured on /dev/classroom-split/s-1 before the list
+	   existed. So each listed harness is read and must return `claims` gated on
+	   exactly `?signedout=1`, the one parameter the hook reads. */
+	it('assumes a session only on the listed harnesses, each of which fakes one on the same parameter', () => {
+		expect(THEME_BOOT_HARNESSES.length).toBeGreaterThan(0);
+		for (const h of THEME_BOOT_HARNESSES) {
+			const load = src(`../src/routes${h}/+page.ts`);
+			expect(load, h).toMatch(/const signedOut = url\.searchParams\.get\('signedout'\) === '1';/);
+			expect(load, h).toMatch(/claims: signedOut\s*\?\s*null/);
+			expect(themeBootHarnessSession(h, null), h).toBe(true);
+			expect(themeBootHarnessSession(h, '1'), h).toBe(false);
+		}
+		// Negative controls: a harness that fakes nothing, a prefix lookalike, a real route.
+		expect(themeBootHarnessSession('/dev/classroom-split/s-1', null)).toBe(false);
+		expect(themeBootHarnessSession('/dev/themes-lookalike', null)).toBe(false);
+		expect(themeBootHarnessSession('/classroom', null)).toBe(false);
 	});
 });

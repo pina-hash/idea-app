@@ -98,11 +98,16 @@ function read(): SiteTheme {
 	}
 }
 
-let theme = $state<SiteTheme>(read());
+/* The first read is taken once and handed to both, so the remembered dark
+   theme is seeded from a plain value rather than from the `$state` (a read of
+   the rune here would only ever capture its initial value, which is exactly
+   what the compiler warns about). */
+const initialTheme = read();
+let theme = $state<SiteTheme>(initialTheme);
 
 /** The light theme the one-tap switch turns on, and the dark one it returns to (see below). */
 const LIGHT_THEME: SiteTheme = 'space-white';
-let lastDark: SiteTheme = theme === LIGHT_THEME ? DEFAULT_SITE_THEME : theme;
+let lastDark: SiteTheme = initialTheme === LIGHT_THEME ? DEFAULT_SITE_THEME : initialTheme;
 
 export function siteTheme(): SiteTheme {
 	return theme;
