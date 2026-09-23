@@ -1683,6 +1683,23 @@
 		return { originalOk: true, enhancedOk: (await addPhoto(form)).ok };
 	}
 
+	/**
+	 * A STRAIGHTENED COPY OF AN ENTRY'S LATEST PAGE, added after the fact
+	 * (ledger 0297, F4b). The card offers it only on the page
+	 * `straightenTarget` names -- the one an appended corrected row is
+	 * guaranteed to pair with -- and this sends it as the 'enhanced' variant.
+	 */
+	async function addCorrectedToEntry(entryId: string, file: File): Promise<EntryActionResult> {
+		if (readOnly || !addPhoto) return { ok: false, error: 'Adding photos is not available.' };
+		const form = new FormData();
+		form.set('photo', await prepared(file));
+		form.set('entry_id', entryId);
+		form.set('variant', 'enhanced');
+		const result = await addPhoto(form);
+		if (result.ok) onChanged?.();
+		return result.ok ? { ok: true } : { ok: false, error: result.error };
+	}
+
 	/** "photo 2" / "photos 2, 4" -- shared by both save paths. */
 	function photoList(nums: number[]): string {
 		return `${nums.length === 1 ? 'photo' : 'photos'} ${nums.join(', ')}`;
@@ -3047,6 +3064,7 @@
 											{historyReady}
 											{viewerId}
 											onAddPhotos={addPhoto ? addPhotosToEntry : undefined}
+											onAddCorrected={addPhoto ? addCorrectedToEntry : undefined}
 											onAddNote={addNote ? saveNoteToEntry : undefined}
 											onEditNote={editNote ? saveNoteEdit : undefined}
 											onMove={folderTransports ? moveOne : undefined}
@@ -3320,6 +3338,7 @@
 					bind:staged
 					bind:settling={stagerSettling}
 					disabled={busy}
+					correctFirst={false}
 					{uploadReady}
 					captureContext={{
 						session: selectedSession,
@@ -3498,6 +3517,7 @@
 					{historyReady}
 					{viewerId}
 					onAddPhotos={addPhoto ? addPhotosToEntry : undefined}
+											onAddCorrected={addPhoto ? addCorrectedToEntry : undefined}
 					onAddNote={addNote ? saveNoteToEntry : undefined}
 					onEditNote={editNote ? saveNoteEdit : undefined}
 					onMove={folderTransports ? moveOne : undefined}

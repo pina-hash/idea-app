@@ -11,6 +11,7 @@
 	import { entryTimeline, hasTimeline, type NotebookEvent } from '$lib/notebook-history';
 	import { onDestroy } from 'svelte';
 	import {
+		correctedFileName,
 		entryPlainText,
 		entryTitle,
 		isPinned,
@@ -18,6 +19,7 @@
 		orderedPhotos,
 		photoCountLabel,
 		photoPages,
+		photoSrc,
 		removedPhotos,
 		sessionMeta,
 		showsStatus,
@@ -27,7 +29,8 @@
 		type NotebookEntry,
 		type StagedPhoto
 	} from '$lib/notebook';
-	import { restoreKeepsPairing } from '$lib/notebook/capture';
+	import { restoreKeepsPairing, straightenTarget } from '$lib/notebook/capture';
+	import PhotoCorrector from '$lib/notebook/PhotoCorrector.svelte';
 	import EntryVerdict from '$lib/notebook/EntryVerdict.svelte';
 	import { displayPhotoName } from '$lib/notebook';
 	import {
@@ -116,6 +119,7 @@
 		onPin,
 		onDelete,
 		onRemovePhoto,
+		onAddCorrected,
 		onRetitle,
 		onRestorePhoto,
 		onSubmit,
@@ -181,6 +185,11 @@
 		 * NotebookPhotos, whose own presence-gates-the-control rule this mirrors.
 		 */
 		onRemovePhoto?: (photoId: string) => Promise<EntryActionResult>;
+		/**
+		 * Add a straightened copy of the entry's LATEST page (ledger 0297, F4b).
+		 * Offered only on the page `straightenTarget` names; absent, no control.
+		 */
+		onAddCorrected?: (entryId: string, file: File) => Promise<EntryActionResult>;
 		/**
 		 * A free-form entry's own title (0116, notebook_set_entry_label). Never
 		 * offered on a check-in entry -- its title IS the check-in's label, and
@@ -415,6 +424,42 @@
 			return;
 		}
 		renaming = false;
+	}
+
+	// ---- straighten the latest page, after the fact (ledger 0297, F4b) -------
+
+	const straightenable = $derived(straightenTarget(entry.photos));
+	let straightenFile = $state<File | null>(null);
+	let straightening = $state(false);
+	let straightenErr = $state<string | null>(null);
+
+	async function openStraighten() {
+		const target = straightenable;
+		if (!target) return;
+		straightenErr = null;
+		try {
+			const res = await fetch(photoSrc(target.id));
+			if (!res.ok) throw new Error(String(res.status));
+			const blob = await res.blob();
+			straightenFile = new File([blob], correctedFileName(target.original_filename), {
+				type: blob.type || 'image/jpeg'
+			});
+		} catch {
+			straightenErr = 'That page could not be opened to straighten.';
+		}
+	}
+
+	async function straightenDone(enhanced: File | null) {
+		straightenFile = null;
+		// RE-ASKED: a page added meanwhile makes this one no longer the latest.
+		if (!enhanced || !onAddCorrected || !straightenTarget(entry.photos)) return;
+		straightening = true;
+		try {
+			const result = await onAddCorrected(entry.id, enhanced);
+			if (!result.ok) straightenErr = result.error;
+		} finally {
+			straightening = false;
+		}
 	}
 
 	// ---- removed photos, restore (0117) --------------------------------------
@@ -1044,6 +1089,27 @@
 
 			<NotebookPhotos {photos} label={title} onRemove={onRemovePhoto} />
 
+			<!-- STRAIGHTEN IS A CHOICE AFTER THE FACT (ledger 0297, F4b), on the
+			     latest page only: that is the one page a corrected copy appended
+			     now is guaranteed to pair with (`straightenTarget`). -->
+			{#if onAddCorrected && straightenable}
+				<div class="straighten-row">
+					<button
+						type="button"
+						class="btn secondary tap-44"
+						data-testid="entry-straighten"
+						disabled={straightening}
+						onclick={openStraighten}
+					>
+						{straightening ? 'Adding the straightened copy...' : `Straighten page ${pages.length}`}
+					</button>
+					{#if straightenErr}<span class="row-error" role="alert">{straightenErr}</span>{/if}
+				</div>
+			{/if}
+			{#if straightenFile}
+				<PhotoCorrector file={straightenFile} onDone={(enhanced) => straightenDone(enhanced)} />
+			{/if}
+
 			{#if onRestorePhoto && removed.length}
 				<details class="removed-photos" data-testid="removed-photos">
 					<summary>
@@ -1629,6 +1695,13 @@
 	}
 	.entry-notes {
 		margin-top: var(--space-4);
+	}
+	.straighten-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
 	}
 
 	/* Closed by default (0119), the same rule as .removed-photos below. */

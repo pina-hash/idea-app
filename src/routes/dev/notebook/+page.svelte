@@ -1120,11 +1120,33 @@
 		return body.ok && body.doc ? body.doc : { error: body.error ?? 'That note could not be saved.' };
 	}
 
+	/**
+	 * THE PHOTO ROUTE'S BYTES FOR WHAT THIS HARNESS WAS SENT (ledger 0297, F4b).
+	 * "Straighten page N" on an entry fetches the page through `photoSrc`, the
+	 * real proxy, which answers 401 here. A dev-only fetch shim answers that
+	 * one path with the bytes the fake upload received, so the corrector opens
+	 * on the photo the student actually took; every other request passes
+	 * through untouched.
+	 */
+	const uploadedBytes = new Map<string, File>();
+	if (typeof window !== 'undefined' && !(window as unknown as { __nbPhotoShim?: boolean }).__nbPhotoShim) {
+		(window as unknown as { __nbPhotoShim?: boolean }).__nbPhotoShim = true;
+		const realFetch = window.fetch.bind(window);
+		window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+			const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+			const m = /\/api\/notebook\/photo\/([^/?#]+)/.exec(url);
+			const file = m ? uploadedBytes.get(decodeURIComponent(m[1])) : undefined;
+			if (file) return Promise.resolve(new Response(file, { headers: { 'content-type': file.type || 'image/jpeg' } }));
+			return realFetch(input, init);
+		};
+	}
+
 	async function createEntry(form: FormData): Promise<CreateEntryResult> {
 		log = [...log, `POST /api/notebook/upload  ${describe(form)}`];
 		record('upload', form);
 		const id = `new-${++seq}`;
 		const file = form.get('photo') as File | null;
+		if (file) uploadedBytes.set(`${id}-1`, file);
 		const sessionId = (form.get('session_id') as string | null) ?? null;
 		const session = SESSIONS.find((s) => s.id === sessionId) ?? null;
 		// Mirrors notebook_create_entry's p_submitted: absent (or anything but
