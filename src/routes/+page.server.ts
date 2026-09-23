@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { normalizeItemRow, normalizeSectionRow, sortSections } from '$lib/classroom/classroom';
-import { SECTION_SELECT, loadSectionRoster, selectItemsWithDoc } from '$lib/classroom/transports';
+import { loadSectionRoster } from '$lib/classroom/transports';
 import type { FeedSubmission } from '$lib/classroom/feed';
+import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
+import { loadClassroomWork, type ClassroomClock } from '$lib/classroom/student-work';
 import { queueOrder } from '$lib/foundry/review';
 import type { FoundryAppSummary } from '$lib/foundry/transports';
 import type { PageServerLoad } from './$types';
@@ -67,94 +68,45 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 			feedSections: [],
 			feedItems: [],
 			feedSubmissions: [] as FeedSubmission[],
+			feedCheckIns: [] as ClassCheckIn[],
 			feedManagerEmails: {} as Record<string, string[]>,
+			feedClock: null as ClassroomClock | null,
 			foundryReviewPending: null as number | null
 		};
 	}
 
+	const layout = parent();
 	// Kicked off beside the feed reads rather than after them; every return
 	// below awaits it, so an early return cannot leave it dangling.
-	const pending = parent().then(({ isAdmin }) => foundryReviewPending(supabase, isAdmin));
-
-	const { data: sectionRows, error: sectionError } = await supabase
-		.from('classroom_sections')
-		.select(SECTION_SELECT);
-
-	if (sectionError) {
-		return {
-			classroomReady: false,
-			feedSections: [],
-			feedItems: [],
-			feedSubmissions: [] as FeedSubmission[],
-			feedManagerEmails: {} as Record<string, string[]>,
-			foundryReviewPending: await pending
-		};
-	}
+	const pending = layout.then(({ isAdmin }) => foundryReviewPending(supabase, isAdmin));
 
 	/**
-	 * A CONCLUDED CLASS LEAVES THE HOME PAGE ENTIRELY.
-	 *
-	 * `classroom_sections.active` is 0083's archive flag -- soft state, set by
-	 * `classroom_set_section_active`, keeping the roster, the stream and every
-	 * graded record exactly as they were. `SECTION_SELECT` has always carried the
-	 * column and `normalizeSectionRow` has always preserved it, but NOTHING read
-	 * it on this path: RLS does not filter on it either (`classroom_can_read_section`
-	 * asks about management and enrollment, never about the archive), so last
-	 * term's class kept its card, kept its overdue rows, and kept adding to the
-	 * "N to do" chip for as long as the student stayed enrolled -- which is
-	 * forever, because archiving is exactly the thing that does not unenroll
-	 * anybody.
-	 *
-	 * FILTERED HERE AND NOT INSIDE `buildFeed`, so there is one statement of it:
-	 * `sections` is what feeds the header's class chip, the item read's
-	 * `sectionIds` and the feed alike, and a filter applied further down would
-	 * leave the first two naming a class the third had dropped. It also stops the
-	 * items of an archived class being fetched at all.
-	 *
-	 * ABSENT READS AS ACTIVE, via `normalizeSectionRow`'s own default, which is
-	 * what keeps this fail-open: a row that cannot say it is archived is not
-	 * treated as one.
+	 * THE CLASSES, THEIR ITEMS AND THE SUBMISSIONS BEHIND THEM are the shared
+	 * owed-work read in $lib/classroom/student-work (ledger 0297), the SAME one
+	 * the to-do page and My Classes call -- so a concluded class leaves all three
+	 * surfaces together, and the three can never disagree about which items a
+	 * student owes. It carries the caller's own check-ins too (for the classes
+	 * they do not teach), which is what lets the feed's To-do door count a
+	 * notebook check-in not filed yet the same way the to-do page lists it.
 	 */
-	const sections = sortSections(
-		((sectionRows ?? []) as Record<string, unknown>[])
-			.map(normalizeSectionRow)
-			.filter((s) => s.active)
-	);
-	const sectionIds = sections.map((s) => s.id);
-	if (!sectionIds.length) {
+	const work = await loadClassroomWork(supabase, {
+		userId: claims.sub,
+		email: (claims.email as string | undefined) ?? '',
+		isAdmin: layout.then(({ isAdmin }) => isAdmin),
+		checkIns: true
+	});
+
+	if (!work.ready || !work.sections.length) {
 		return {
-			classroomReady: true,
+			classroomReady: work.ready,
 			feedSections: [],
 			feedItems: [],
 			feedSubmissions: [] as FeedSubmission[],
+			feedCheckIns: [] as ClassCheckIn[],
 			feedManagerEmails: {} as Record<string, string[]>,
+			feedClock: work.clock as ClassroomClock | null,
 			foundryReviewPending: await pending
 		};
-	}
-
-	// The section filter rides an aliased INNER embed, never the unaliased
-	// `classroom_postings` one, which must keep listing every class an item is
-	// posted to (the itemsForSection reasoning, applied across many sections).
-	const { data: itemRows } = await selectItemsWithDoc((select) =>
-		supabase
-			.from('classroom_items')
-			.select(`${select}, posted_in:classroom_postings!inner(section_id)`)
-			.in('posted_in.section_id', sectionIds)
-			.order('created_at', { ascending: false })
-	);
-
-	const items = ((itemRows ?? []) as unknown as Record<string, unknown>[]).map(normalizeItemRow);
-
-	let submissions: FeedSubmission[] = [];
-	if (items.length) {
-		const { data: subRows } = await supabase
-			.from('classroom_submissions')
-			.select('item_id, student_email, state, submitted_at, returned_at, graded_at')
-			.in(
-				'item_id',
-				items.map((i) => i.id)
-			);
-		submissions = (subRows ?? []) as FeedSubmission[];
 	}
 
 	// Who, on the rosters this caller MANAGES, can manage the class they are
@@ -174,10 +126,18 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 
 	return {
 		classroomReady: true,
-		feedSections: sections,
-		feedItems: items,
-		feedSubmissions: submissions,
+		feedSections: work.sections,
+		feedItems: work.items,
+		feedSubmissions: work.submissions,
+		feedCheckIns: work.checkIns,
 		feedManagerEmails,
+		/**
+		 * THE LOADER'S ONE CLOCK READ, handed to the page so the feed's ranking,
+		 * its "Due tomorrow" words and the To-do door's counts are all measured
+		 * against the instant this load ran -- on the server's render and after
+		 * hydration alike -- rather than each reading a clock of its own.
+		 */
+		feedClock: work.clock as ClassroomClock | null,
 		foundryReviewPending: await pending
 	};
 };

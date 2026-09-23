@@ -54,6 +54,7 @@ export type ClassroomPlace =
 	| 'admin'
 	| 'updates'
 	| 'feedback'
+	| 'todo'
 	| 'view-as'
 	| 'other';
 
@@ -89,6 +90,9 @@ export function locateClassroom(pathname: string): ClassroomLocation {
 	if (head === 'admin' || head === 'manage') return { place: 'admin', sectionId: null, itemId: null };
 	if (head === 'updates') return { place: 'updates', sectionId: null, itemId: null };
 	if (head === 'feedback') return { place: 'feedback', sectionId: null, itemId: null };
+	// The cross-class to-do (ledger 0297). Matched BEFORE the section branch, or
+	// `/classroom/todo` would read as a class whose id is "todo".
+	if (head === 'todo') return { place: 'todo', sectionId: null, itemId: null };
 
 	const sectionId = head;
 	if (rest.length === 1) return { place: 'section', sectionId, itemId: null };
@@ -299,7 +303,7 @@ export function canCollapseNav(loc: ClassroomLocation): boolean {
  * widens `--cr-measure` to `--measure-split` when a split is actually on
  * screen. See the `.cr-split` rules there.
  */
-export type ClassroomMeasure = 'reading' | 'form' | 'panel' | 'page' | 'wide' | 'console';
+export type ClassroomMeasure = 'reading' | 'form' | 'panel' | 'page' | 'wide' | 'split' | 'console';
 
 export function classroomMeasure(loc: ClassroomLocation): ClassroomMeasure | null {
 	switch (loc.place) {
@@ -322,6 +326,13 @@ export function classroomMeasure(loc: ClassroomLocation): ClassroomMeasure | nul
 		 */
 		case 'item-grade':
 			return 'console';
+		/**
+		 * THE TO-DO IS A LIST OF GROUPS LAID OUT IN COLUMNS, so it takes the
+		 * width a two-pane class page takes (`--measure-split`) rather than a
+		 * single reading column capped in the middle of a wide window.
+		 */
+		case 'todo':
+			return 'split';
 		/**
 		 * NULL, not a width. `view-as` is one place covering two genuinely
 		 * different pages -- the 46rem student picker and a notebook mounted
@@ -390,6 +401,8 @@ export function classroomCrumbs(
 			return [home, { label: "What's new" }];
 		case 'feedback':
 			return [home, { label: 'Feedback' }];
+		case 'todo':
+			return [home, { label: 'To-do' }];
 		default:
 			return [home];
 	}

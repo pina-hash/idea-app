@@ -167,6 +167,7 @@
 		palette={loc.place === 'view-as' ? null : paletteSources}
 		preferences={loc.place === 'view-as' ? null : preferences}
 		loadStudents={page.data.canManage === true ? loadStudents : null}
+		todoHref={data.navIsStaff === true ? null : '/classroom/todo'}
 	>
 		{@render children()}
 	</ClassroomShell>

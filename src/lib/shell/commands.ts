@@ -105,6 +105,7 @@ export const ICONS = {
 	missing: 'M12 8.5v4.5M12 16.5h.01M10.3 4.2L2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z',
 	todo: 'M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 0 0 0-17zM12 8v4l2.5 2.5',
 	done: 'M5 12.5l4.5 4.5L19 7.5',
+	checklist: 'M10 6.5h10M10 12h10M10 17.5h10M3.5 6.5l1.5 1.5 2.5-3M3.5 12l1.5 1.5 2.5-3M3.5 17.5l1.5 1.5 2.5-3',
 	draft: 'M4 20h4L19 9l-4-4L4 16zM13 7l4 4',
 	assignment: 'M7 3.5h8l3 3V20.5H7zM15 3.5v3h3M10 12h5M10 15.5h5',
 	material: 'M5 4.5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H5zM19 4.5h-6M19 4.5v13h-6',
@@ -177,6 +178,16 @@ const CORE: readonly ShellCommand[] = [
 		context: 'global',
 		keywords: ['classroom', 'courses', 'sections'],
 		href: (env) => env.basePath
+	},
+	{
+		id: 'go.todo',
+		name: 'Open to-do',
+		icon: ICONS.checklist,
+		description: 'Everything assigned, missing and done, across all of your classes.',
+		role: 'student',
+		context: 'global',
+		keywords: ['todo', 'to do', 'due', 'missing', 'assigned', 'homework', 'late'],
+		href: (env) => `${env.basePath}/todo`
 	},
 	{
 		id: 'go.notebook',

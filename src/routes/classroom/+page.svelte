@@ -9,4 +9,5 @@
 	ready={data.ready}
 	isStaff={data.isStaff}
 	sections={data.sections}
+	todo={data.todo}
 />

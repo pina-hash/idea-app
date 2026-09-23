@@ -979,16 +979,23 @@ describe('the select ladders gained a rung rather than growing one', () => {
 	});
 
 	it('the class page falls back when a filter or a column is refused', () => {
+		// THE LADDER MOVED, THE GUARANTEE DID NOT (ledger 0297). The class page's
+		// status read is `readOwnCheckIns` in $lib/classroom/student-work now,
+		// shared with the cross-class to-do, so the shape is asserted where it
+		// is written and the class layout is asserted to call it rather than
+		// carrying a second copy.
 		const layout = read('src/routes/classroom/[sectionId]/+layout.server.ts');
-		expect(layout).toMatch(/\.is\('deleted_at', null\)/);
+		expect(layout).toMatch(/await readOwnCheckIns\(supabase, claims\.sub, checkInRows\.rows, today\)/);
+		const ladder = read('src/lib/classroom/student-work.ts');
+		expect(ladder).toMatch(/\.is\('deleted_at', null\)/);
 		// Widest first, and an UNFILTERED final read -- without which every card
 		// reads "missing" on an older project with nothing raised anywhere. Named
 		// by shape rather than by the exact line, so adding a rung to this ladder
 		// (0118 added one) does not have to edit this assertion.
-		expect(layout).toMatch(/if \(!withDrafts\.error\) return \{ rows: withDrafts\.data, drafts: true \}/);
-		expect(layout).toMatch(/if \(!filtered\.error\) return \{ rows: filtered\.data, drafts: false \}/);
-		expect(layout).toMatch(/const plain = await base\(/);
-		expect(layout).toMatch(/return \{ rows: plain\.data, drafts: false \}/);
+		expect(ladder).toMatch(/if \(!withDrafts\.error\) return \{ rows: withDrafts\.data, drafts: true \}/);
+		expect(ladder).toMatch(/if \(!filtered\.error\) return \{ rows: filtered\.data, drafts: false \}/);
+		expect(ladder).toMatch(/const plain = await base\(/);
+		expect(ladder).toMatch(/return \{ rows: plain\.data, drafts: false \}/);
 	});
 
 	it('the review console refuses to open a deleted entry', () => {

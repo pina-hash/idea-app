@@ -133,6 +133,7 @@ describe('canCollapseNav: only where a list pane actually sits beside something'
 		{ place: 'admin', expected: false, because: 'never splits' },
 		{ place: 'updates', expected: false, because: 'never splits' },
 		{ place: 'feedback', expected: false, because: 'never splits' },
+		{ place: 'todo', expected: false, because: 'one page of groups across every class, no list beside an item' },
 		{ place: 'view-as', expected: false, because: 'minimal mode has no switcher and no toggle either' },
 		{ place: 'other', expected: false, because: 'not a recognised classroom route' }
 	];

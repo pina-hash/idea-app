@@ -51,6 +51,13 @@
 		 * own `new Date()` would silently disagree with the feed it is rendering.
 		 */
 		now?: Date;
+		/**
+		 * THE "SEE ALL" DOOR (ledger 0297): where the cross-class to-do lives.
+		 * These cards rank what each class asks right now and stop at six rows;
+		 * the to-do is the whole list, Assigned, Missing and Done. Null removes
+		 * the door, which is what a teacher's feed gets.
+		 */
+		todoHref?: string | null;
 	}
 
 	let {
@@ -59,7 +66,8 @@
 		onToggle,
 		ready = true,
 		basePath = '/classroom',
-		now = new Date()
+		now = new Date(),
+		todoHref = null
 	}: Props = $props();
 
 	const collapsedSet = $derived(new Set(collapsed));
@@ -175,6 +183,11 @@
 		</div>
 	</div>
 {:else}
+	{#if todoHref}
+		<a class="feed-todo-all" href={todoHref} data-testid="feed-todo-all"
+			>See all in To-do <span aria-hidden="true">&rsaquo;</span></a
+		>
+	{/if}
 	{#each feeds as feed (feed.section.id)}
 		{@const open = !collapsedSet.has(feed.section.id)}
 		{@const summary = actionSummary(feed)}
@@ -432,5 +445,40 @@
 	 */
 	.feed-subline .section-meta {
 		overflow-wrap: anywhere;
+	}
+
+	/*
+	 * THE DOOR TO THE WHOLE LIST, right-aligned above the cards so it reads as
+	 * the heading's continuation. 44px, like every student control, and only
+	 * as wide as its words: a full-width box would make the empty stretch to
+	 * its left a link nobody can see.
+	 */
+	.feed-todo-all {
+		display: flex;
+		align-items: center;
+		width: fit-content;
+		min-height: 44px;
+		margin: -0.4rem 0 0.4rem auto;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--gold);
+		text-decoration: none;
+	}
+	.feed-todo-all:hover {
+		color: var(--green);
+	}
+	/*
+	 * "OPEN CLASS" measured 40.9px tall at 375 (FRICTION.md, student to-do):
+	 * the shared app.css rule gives it padding and no floor. The floor is added
+	 * here, on this component's own link, so the other `.feed-more` surfaces
+	 * are untouched.
+	 */
+	.assignment-list .feed-more {
+		display: flex;
+		align-items: center;
+		min-height: 44px;
+		box-sizing: border-box;
 	}
 </style>
