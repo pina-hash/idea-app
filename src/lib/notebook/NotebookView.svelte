@@ -158,6 +158,7 @@
 		defaultSectionId = null,
 		reviewHref = '/classroom/notebook/review',
 		allClassesHref = null,
+		timelineHref = null,
 		historyReady = true,
 		coalescingReady = false,
 		viewerId,
@@ -338,6 +339,8 @@
 		reviewHref?: string;
 		/** A class's tab links to the whole notebook, carrying the class along. */
 		allClassesHref?: string | null;
+		/** This class's project timeline (ledger 0297, F4b); a class's own tab only. */
+		timelineHref?: string | null;
 		/**
 		 * A note can be DELETED and an entry can show a HISTORY (0119). False
 		 * turns both off the same way `deletionReady` turns off 0116/0117: no
@@ -3582,6 +3585,9 @@
 			{/if}
 			<!-- A class's tab reaches the whole notebook, carrying the class along
 			     so a free entry written there still starts filed to it. -->
+			{#if timelineHref}
+				<a class="chip chip-link" href={timelineHref} data-testid="nb-timeline">Timeline &rsaquo;</a>
+			{/if}
 			{#if allClassesHref}
 				<a class="chip chip-link" href={allClassesHref} data-testid="nb-all-classes"
 					>All classes &rsaquo;</a

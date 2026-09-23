@@ -8,7 +8,7 @@
 		reviewConsoleTransports
 	} from '$lib/notebook/review-transports';
 	import { sectionTitle } from '$lib/classroom/classroom';
-	import { notebookHomeHref, notebookReviewHref } from '$lib/classroom/nav';
+	import { classNotebookHref, notebookHomeHref, notebookReviewHref } from '$lib/classroom/nav';
 	import type { PageData } from './$types';
 
 	/**
@@ -85,6 +85,7 @@
 		scopeSectionId={data.section.id}
 		scopeLabel={sectionTitle(data.section)}
 		allClassesHref={notebookHomeHref(data.section.id)}
+		timelineHref={`${classNotebookHref(data.section.id)}/timeline`}
 		{...writes}
 		onChanged={() => invalidateAll()}
 	/>
