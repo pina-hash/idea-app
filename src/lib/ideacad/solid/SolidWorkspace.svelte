@@ -98,7 +98,10 @@
 	/* THE ROLLBACK BAR AND THE TIME-LAPSE, both workspace state and never the manifest. `rollbackIndex` is the engine's (every projection carries it); the time-lapse is the steps the worker built once for this feature list, and `lapseStep` the one on screen, null for the live model. */
 	let rollbackIndex=$state<number|null>(null);
 	let lapse:{key:string;steps:BodyProjection[][];sketches:TimelapseStep['sketches'][]}|null=null,lapseBuilding:Promise<void>|null=null;
-	let lapseStep=$state<number|null>(null),historyHeight=$state(0),errorHeight=$state(0);
+	let lapseStep=$state<number|null>(null),historyHeight=$state(0),errorHeight=$state(0),errorClear=$state(0);
+	let errorEl:HTMLDivElement|undefined=$state(),workareaEl:HTMLDivElement|undefined=$state();
+	/* How far up from the work area's bottom the message reaches, so the tree's slide-over can stop above it: the message sits higher on a phone, clear of the tool strip. */
+	$effect(()=>{void errorHeight;if(!error||!errorEl||!workareaEl){errorClear=0;return;}errorClear=Math.max(0,Math.ceil(workareaEl.getBoundingClientRect().bottom-errorEl.getBoundingClientRect().top+8));});
 	/* What each time-lapse step cost to put on screen, in ms: read by the dev hook, never shown. */
 	const swapCosts:number[]=[];
 	let bar=$state.raw<{at:{x:number;y:number};touch?:boolean}|null>(null),barPick:ViewportPick|null=null;
@@ -648,7 +651,7 @@
 </script>
 
 <svelte:window onkeydown={keydown}/>
-<section class="ic-root solid-workspace" class:save-failed={saveState.failed} class:tree-open={treeOpen} aria-label="IdeaCAD modeler" style:--dock-left={`${dockLeft}px`} style:--dock-right={`${dockRight}px`} style:--ic-tip-delay={`${prefs.hints.tooltipDelayMs}ms`} style:--history-h={`${historyHeight}px`} style:--error-h={error?`${errorHeight+24}px`:'0px'}>
+<section class="ic-root solid-workspace" class:save-failed={saveState.failed} class:tree-open={treeOpen} aria-label="IdeaCAD modeler" style:--dock-left={`${dockLeft}px`} style:--dock-right={`${dockRight}px`} style:--ic-tip-delay={`${prefs.hints.tooltipDelayMs}ms`} style:--history-h={`${historyHeight}px`} style:--error-h={error?`${errorClear}px`:'0px'}>
 	<header>
 		<button class="documents" onclick={()=>void back()} aria-label="Documents">‹ <span>Documents</span></button>
 		<input class="document-title" aria-label="Document name" bind:value={title} readonly={!opened.canWrite||loading||busy} maxlength="120" onchange={()=>void apply({type:'title',title},'Rename document')}/>
@@ -662,7 +665,7 @@
 	</header>
 	<div class="body">
 		<aside class="tree-rail" aria-label="Design tree rail"><FeatureTree {api}/></aside>
-		<div class="workarea" onpointerdowncapture={(e)=>{if(e.target!==canvas)return;if(lapseStep!==null)endLapse();/* Below 1024px the tree is a slide-over: a press on the model is a press away from it. */if(treeOpen)treeOpen=false;}}>
+		<div class="workarea" bind:this={workareaEl} onpointerdowncapture={(e)=>{if(e.target!==canvas)return;if(lapseStep!==null)endLapse();/* Below 1024px the tree is a slide-over: a press on the model is a press away from it. */if(treeOpen)treeOpen=false;}}>
 			<canvas bind:this={canvas} tabindex="0" aria-label="3D model: select and drag geometry"></canvas>
 			{#if bar&&selections.length&&(barItems.length||barCrumbs.length)}<ContextBar at={bar.at} touch={bar.touch} avoid={chromeRects} commands={barItems} crumbs={barCrumbs} onrun={(item)=>item.run?.()} oncrumb={(crumb)=>{viewport.setExternalHover(null);crumb.selections.forEach((s,i)=>select(s,i>0));}} onpreview={(crumb)=>viewport?.setExternalHover(crumb?crumb.selections:null)} onclose={()=>{bar=null;}}/>{/if}
 			{#if box&&boxStyle}<div class="box-select" class:crossing={box.mode==='crossing'} data-testid="ideacad-box-select" data-mode={box.mode} aria-hidden="true" style:left={`${boxStyle.left}px`} style:top={`${boxStyle.top}px`} style:width={`${boxStyle.width}px`} style:height={`${boxStyle.height}px`}><span>{BOX_WORDS[box.mode]}</span></div>{/if}
@@ -710,7 +713,7 @@
 			<input type="file" accept=".ideacad" bind:this={importInput} hidden onchange={e=>void importBackup(e.currentTarget.files?.[0])}/>
 			{#if measure&&!numeric}<output class="measure" style:left={`${Math.min(measure.x+16,(canvas?.clientWidth??1000)-160)}px`} style:top={`${measure.y+16}px`}>{measure.text}</output>{/if}
 			{#if numeric}<form class="number-entry" style:left={`${Math.min(numeric.x+16,(canvas?.clientWidth??1000)-170)}px`} style:top={`${Math.min(numeric.y+16,(canvas?.clientHeight??800)-64)}px`} onsubmit={(e)=>{e.preventDefault();void enterNumeric();}}><input bind:this={numericInput} bind:value={numeric.value} aria-label={numericPrompt(tool)} autocomplete="off"/><button type="submit" aria-label="Use exact value">↵</button></form>{/if}
-			{#if error}<div class="error" role="alert" bind:clientHeight={errorHeight}><span>{error}</span><button aria-label="Dismiss message" onclick={()=>error=''}>×</button></div>{/if}
+			{#if error}<div class="error" role="alert" bind:this={errorEl} bind:clientHeight={errorHeight}><span>{error}</span><button aria-label="Dismiss message" onclick={()=>error=''}>×</button></div>{/if}
 			{#if menu}<ContextMenu items={menu.items} at={menu.at} label={menu.label} onclose={()=>{const back=menu?.returnFocus;menu=null;menuPick=null;viewport?.setExternalHover(null);if(back?.isConnected)back.focus();}}/>{/if}
 			{#if search}<CommandSearch commands={search.group?COMMANDS.filter(c=>!OPENERS.includes(c.id)):COMMANDS} recent={prefs.commands.recent} keys={shortcuts.byCommand} group={search.group} at={search.at} unavailable={(c)=>c.unavailable?.(commandContext)??null} onrun={runCommand} onclose={()=>{search=null;canvas?.focus();}}/>{/if}
 		</div>
