@@ -869,6 +869,64 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		expect(launcher).toContain('<MapsMark />');
 	});
 
+	it('gives the IdeaCAD card an animated extrude mark that hides nothing at rest', () => {
+		// Same contract every mark in $lib/marks carries (see the Foundry case
+		// above), and Mr. Pina's own words for this one: an animated cube that
+		// reads as IdeaCAD without the word, honoring reduced motion with a
+		// still frame and never a frame stopped mid-extrude.
+		const mark = readFileSync('src/lib/marks/IdeaCadMark.svelte', 'utf8');
+		expect(mark).toContain('prefers-reduced-motion: no-preference');
+		expect(mark).toMatch(/animation:\s*im-/);
+
+		// Nothing at opacity 0 and nothing under a transform OUTSIDE a keyframe.
+		// `transform-origin` is a declaration about where a transform would
+		// pivot, not a transform, so it is the one `transform` word allowed.
+		const styleBody = mark.slice(mark.indexOf('<style>'));
+		const outsideKeyframes = styleBody.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
+		expect(outsideKeyframes).not.toMatch(/opacity:\s*0/);
+		expect(outsideKeyframes).not.toMatch(/transform:/);
+
+		// NO LITERAL COLOR. The card resolves currentColor to its ink, and the
+		// IdeaCAD front door points the `--icm-*` hooks at its own tokens.
+		expect(mark).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+		expect(mark).toContain('stroke="currentColor"');
+
+		// HALF A CYCLE ENDS ON THE REST STATE, which is what lets the front door
+		// play the extrude once and settle with no second set of keyframes. Read
+		// each keyframe set as offset -> value, and ask what it holds at 50%:
+		// both neighbours of 50% must already be the rest value, or `once`
+		// would stop on a frame the base styles then snap away from.
+		const frames = (name: string, prop: string) => {
+			const body = styleBody.match(new RegExp(`@keyframes ${name}\\s*\\{((?:[^{}]*\\{[^{}]*\\})*)[^{}]*\\}`))?.[1] ?? '';
+			const out: [number, string][] = [];
+			for (const block of body.matchAll(/([\d%,\s]+)\{([^}]*)\}/g)) {
+				const value = block[2].match(new RegExp(`(?:^|;|\\s)${prop}:\\s*([^;]+)`))?.[1].trim();
+				if (value === undefined) continue;
+				for (const offset of block[1].split(',')) if (offset.trim()) out.push([parseFloat(offset), value]);
+			}
+			return out.sort((a, b) => a[0] - b[0]);
+		};
+		const at50 = (f: [number, string][]) => [f.filter(([o]) => o <= 50).at(-1)?.[1], f.find(([o]) => o >= 50)?.[1]];
+		const rise = frames('im-rise', 'transform');
+		const grow = frames('im-grow', 'transform');
+		const shade = frames('im-shade', 'opacity');
+		// Positive control on the reader: each set was found and has its ends.
+		expect(rise.length).toBeGreaterThanOrEqual(4);
+		expect(grow.length).toBeGreaterThanOrEqual(4);
+		expect(shade.length).toBeGreaterThanOrEqual(4);
+		expect(at50(rise)).toEqual(['translateY(0)', 'translateY(0)']);
+		expect(at50(grow)).toEqual(['scaleY(1)', 'scaleY(1)']);
+		expect(at50(shade)).toEqual(['1', '1']);
+		expect(mark).toContain('animation-iteration-count: 0.5');
+
+		// The launcher renders it, and the inline cube it replaced is gone
+		// rather than left as a second drawing of the same logo.
+		const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
+		expect(launcher).toContain("id === 'ideacad'");
+		expect(launcher).toContain('<IdeaCadMark />');
+		expect(launcher).not.toContain('m16 4 11 6-11 6L5 10l11-6Z');
+	});
+
 	it('never moves an identity colour for contrast, only the ink', () => {
 		// FRC is the one card whose brand colour cannot carry text on --bg1: pure
 		// #ED1C24 measured 3.41:1 there. The fix moved --acc-ink and left FIRST red

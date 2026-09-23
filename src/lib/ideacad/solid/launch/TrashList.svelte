@@ -52,7 +52,7 @@
 	.ident { display: grid; gap: 0.3rem; min-width: 0; }
 	h3 { font: 600 17px / 1.2 var(--font-display); overflow-wrap: anywhere; }
 	.when { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
-	.when .chip { color: var(--ic-warn); }
+	.when .chip { color: var(--ic-warn); min-height: 20px; }
 	.left { font: var(--ic-fs-label) / 1.3 var(--font-mono); color: var(--ic-text-2); }
 	.facts { margin: 0; font: var(--ic-fs-label) / 1.3 var(--font-mono); color: var(--ic-text-2); }
 	.actions { display: grid; gap: 0.35rem; }

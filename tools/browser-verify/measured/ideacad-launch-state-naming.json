@@ -1,6 +1,6 @@
 {
 	"schema": 1,
-	"spec": "ideacad-launch.mjs",
+	"spec": "ideacad-launch-state-naming.mjs",
 	"date": "2026-09-23T07:08:33.012Z",
 	"sha": "676793b99a32e129db2578a67db1479bc70b9b18",
 	"dirty": false,
@@ -9,7 +9,7 @@
 		1440
 	],
 	"runs": 2,
-	"measurements": 48,
+	"measurements": 26,
 	"outsideRows": [],
 	"ms": 7028
 }
