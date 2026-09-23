@@ -23,7 +23,7 @@
 import type { EntityRef, JointKind, MateKind, ModelProjection, Selection, SolidManifest } from '../types';
 import { refFromSelection } from '../naming';
 import { describeFreedom, type Freedom } from './freedom';
-import { proposedFreedom, type ProposedMate } from './solve';
+import { mateTrouble, proposedFreedom, trialSolve, type ProposedMate } from './solve';
 import { selectionWords } from './words';
 
 export type PairShape = 'round' | 'flat' | 'line';
@@ -145,6 +145,17 @@ export function planJoint(ctx: Ctx, joint: JointKind, picks: readonly Selection[
 	if ('error' in proposed) return { ...base, reason: proposed.error, ready: false };
 	const name = bodyName(ctx, proposed.mover), sentence = describeFreedom(name, proposed.freedom);
 	if (proposed.freedom.dof !== spec.dof || proposed.freedom.translations !== spec.slides) return { ...base, freedom: proposed.freedom, sentence, reason: `Not a ${spec.word.toLowerCase()}. ${sentence} ${joint === 'hinge' ? 'Pick flat faces square to the round ones.' : 'Pick flat faces that meet at an angle.'}`, ready: false };
+	/* Orientation sense: try the mates as picked, then with every round pair flipped (a pin inserted from the other side). */
+	let trial = trialSolve(ctx.model, mates);
+	if (trial.errors.length && mates.some((m) => m.kind === 'concentric')) {
+		const flipped = mates.map((m) => (m.kind === 'concentric' ? { ...m, flip: true } : m)), again = trialSolve(ctx.model, flipped);
+		if (!again.errors.length) { mates = flipped; trial = again; }
+	}
+	if (trial.errors.length) {
+		const e = trial.errors[0], n = Number(e.feature.replace('proposed-', '')) + 1;
+		const reason = mateTrouble(e.message) === 'conflict' ? `Pair ${n} cannot hold together with the others. Pick a different face for pair ${n}.` : e.message.replace(/Mate (\d+)/g, 'Pair $1');
+		return { ...base, freedom: proposed.freedom, sentence, reason, ready: false };
+	}
 	return { ...base, mates, freedom: proposed.freedom, sentence, reason: null, ready: true };
 }
 /** Why one geometric mate cannot take these two picks, or null when it can. The solver's own pairing sentence. */

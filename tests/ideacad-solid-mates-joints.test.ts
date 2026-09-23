@@ -27,7 +27,7 @@ const round = (id: string, origin: Vec3, axis: Vec3, radius: number, center: Vec
 const body = (id: string, name: string, bounds: number[], faces: FaceProjection[], extra: Partial<BodyProjection> = {}): BodyProjection => ({ id, name, materialId: null, role: 'part', createdBy: id.split('#')[0], faces, edges: [], vertices: [], mesh: mesh(), bounds, volume: 1, centerOfMass: [0, 0, 0], inertia: [], ...extra });
 /* Plate 0..2 x 0..2 x 0..1 with a hole about Z through (1, 1). Pin: shank r 0.25 about the same axis, head underside at z = 1. */
 const PLATE = () => body('x1#0', 'Plate', [0, 0, 0, 2, 2, 1], [plane('x1.end', [0.5, 0.5, 1], [0, 0, 1]), plane('x1.side.1', [2, 1, 0.5], [1, 0, 0]), plane('x1.side.2', [1, 2, 0.5], [0, 1, 0]), round('h1.wall', [1, 1, 0], [0, 0, 1], 0.25, [1.25, 1, 0.5])]);
-const PIN = () => body('p1#0', 'Pin', [0.75, 0.75, 0, 1.25, 1.25, 2], [round('p1.side.0', [1, 1, 0], [0, 0, 1], 0.25, [1.25, 1, 0.5]), plane('p1.start', [1, 1, 1], [0, 0, -1]), plane('p1.face.3', [1.25, 1, 1.5], [-1, 0, 0]), plane('p1.face.4', [1, 1.25, 1.5], [0, -1, 0])]);
+const PIN = () => body('p1#0', 'Pin', [0.75, 0.75, 0, 1.25, 1.25, 2], [round('p1.side.0', [1, 1, 0], [0, 0, 1], 0.25, [1.25, 1, 0.5]), plane('p1.start', [1, 1, 1], [0, 0, -1]), plane('p1.face.3', [1.25, 1, 1.5], [-1, 0, 0]), plane('p1.face.4', [1, 1.25, 1.5], [0, -1, 0]), plane('p1.end', [1, 1, 2], [0, 0, 1])]);
 const EMPTY: ModelProjection = { bodies: [], sketches: [], references: [], features: [], mates: [], addons: { ideaBlade: false }, canUndo: false, canRedo: false, operationMs: 0 };
 const model = (over: Partial<ModelProjection> = {}): ModelProjection => ({ ...EMPTY, bodies: [PLATE(), PIN()], ...over });
 const manifest = (): SolidManifest => ({ ...emptyManifest(), features: [
@@ -38,7 +38,7 @@ const manifest = (): SolidManifest => ({ ...emptyManifest(), features: [
 const ctx = (m = model()) => ({ model: m, manifest: manifest() });
 const face = (bodyId: string, id: string): Selection => ({ kind: 'face', bodyId, id });
 const WALL = face('x1#0', 'h1.wall'), TOP = face('x1#0', 'x1.end'), SIDE = face('x1#0', 'x1.side.1'), SIDE2 = face('x1#0', 'x1.side.2');
-const SHANK = face('p1#0', 'p1.side.0'), HEAD = face('p1#0', 'p1.start'), FLATX = face('p1#0', 'p1.face.3'), FLATY = face('p1#0', 'p1.face.4');
+const SHANK = face('p1#0', 'p1.side.0'), HEAD = face('p1#0', 'p1.start'), PINTOP = face('p1#0', 'p1.end'), FLATX = face('p1#0', 'p1.face.3'), FLATY = face('p1#0', 'p1.face.4');
 const close = (a: readonly number[], b: readonly number[], eps = 1e-6) => a.every((x, i) => Math.abs(x - b[i]) < eps);
 
 describe('what a pick can pair as', () => {
@@ -60,6 +60,12 @@ describe('a joint is planned from its picks before anything is added', () => {
 		expect(plan.sentence).toBe('Pin: 1 degree of freedom left, turns about Z.');
 		expect(plan.stays).toBe('x1#0'); expect(plan.moves).toBe('p1#0');
 		expect(plan.slots.map((s) => [s.shape, s.words])).toEqual([['round', 'Plate, hole wall'], ['round', 'Pin, round face 1'], ['flat', 'Plate, end face'], ['flat', 'Pin, start face']]);
+	});
+	it('a hinge picked top to top turns the pin over: the round pair is flipped so the solve holds both pairs (measured in the browser as a conflict before this)', () => {
+		const plan = planJoint(ctx(), 'hinge', [WALL, SHANK, TOP, PINTOP]);
+		expect(plan.reason).toBeNull(); expect(plan.ready).toBe(true);
+		expect(plan.mates.map((m) => [m.kind, !!m.flip])).toEqual([['concentric', true], ['coincident', false]]);
+		expect(planJoint(ctx(), 'hinge', [WALL, SHANK, TOP, HEAD]).mates.map((m) => !!m.flip)).toEqual([false, false]);
 	});
 	it('picks may come in either order within a pair and pairs in any order; the part named first still stays', () => {
 		const plan = planJoint(ctx(), 'hinge', [TOP, HEAD, SHANK, WALL]);
@@ -95,8 +101,11 @@ describe('a joint is planned from its picks before anything is added', () => {
 		expect(square.reason).toBeNull(); expect(square.ready).toBe(true); expect(square.freedom).toEqual({ dof: 1, translations: 1, slides: ['Z'], turns: [] });
 	});
 	it('a fixed joint leaves nothing, and every joint states its promise', () => {
-		const fixed = planJoint(ctx(), 'fixed', [WALL, SHANK, TOP, HEAD, SIDE, FLATX]);
-		expect(fixed.ready).toBe(true); expect(fixed.freedom?.dof).toBe(0);
+		const fixed = planJoint(ctx(), 'fixed', [TOP, HEAD, SIDE, FLATX, SIDE2, FLATY]);
+		expect(fixed.reason).toBeNull(); expect(fixed.ready).toBe(true); expect(fixed.freedom?.dof).toBe(0);
+		/* A pin held in its hole cannot also put a flat face against the plate's far side: the trial solve refuses it in the solver's words. */
+		const torn = planJoint(ctx(), 'fixed', [WALL, SHANK, TOP, HEAD, SIDE, FLATX]);
+		expect(torn.ready).toBe(false); expect(torn.reason).toBe('Pair 3 cannot hold together with the others. Pick a different face for pair 3.');
 		expect(Object.fromEntries(Object.entries(JOINTS).map(([k, j]) => [k, j.dof]))).toEqual({ hinge: 1, slider: 1, cylindrical: 2, planar: 3, fixed: 0 });
 	});
 	it('a single concentric mate on a flat face and a round face is refused up front with the solver pairing sentence (F047), and the round pair is accepted', () => {

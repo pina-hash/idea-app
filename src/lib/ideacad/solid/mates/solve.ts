@@ -385,3 +385,18 @@ export function addsToHold(model: ModelProjection, mate: ProposedMate): boolean 
 	const held = solver.rows(accepted.filter((x) => x.mover === mover), mover);
 	return rowRank([...held, ...solver.jacobian(c, mover)], RANK_TOLERANCE) > rowRank(held, RANK_TOLERANCE);
 }
+/**
+ * A TRIAL SOLVE of proposed mates alone, over the projection's bodies where
+ * they stand: the solver's own errors, in its own words, before anything is
+ * added. A joint asks this because a rank count cannot see orientation SENSE:
+ * a concentric pair keeps the sense it is closer to, and a flat pair asks for
+ * opposed faces, so a pin whose top is picked against a plate's top has to
+ * turn over, which the concentric pair's sense forbids until it is flipped.
+ */
+export function trialSolve(model: ModelProjection, mates: readonly ProposedMate[]): { errors: { feature: string; message: string }[] } {
+	const bodies = model.bodies.map((b) => ({ id: b.id, name: b.name, fixed: b.fixed, center: boundsCenter(b.bounds) }));
+	const sides = mates.map((m) => [frameFromProjection(model, m.a), frameFromProjection(model, m.b)] as const);
+	if (sides.some(([a, b]) => !a || !b)) return { errors: [{ feature: 'proposed-0', message: 'That pick is no longer on the model. Pick it again.' }] };
+	const result = solveAssembly({ bodies, mates: mates.map((m, i) => ({ feature: `proposed-${i}`, name: `Mate ${i + 1}`, kind: m.kind, value: m.value, flip: m.flip, a: sides[i][0]!, b: sides[i][1]! })) });
+	return { errors: result.errors };
+}

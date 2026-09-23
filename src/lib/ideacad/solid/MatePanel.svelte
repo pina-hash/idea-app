@@ -71,7 +71,7 @@
 			const spec = JOINTS[mode], ids = plan!.mates.map(() => newFeatureId());
 			const groups = new Set(api.manifest.features.filter((f) => f.type === 'mate' && (f as { joint?: string }).joint === mode).map((f) => (f as { group?: string }).group ?? f.id));
 			const name = `${spec.word} ${groups.size + 1}`, pairWord = (k: MateKind) => (k === 'concentric' ? 'round' : 'flat');
-			const commands: SolidCommand[] = plan!.mates.map((m, i) => ({ type: 'add-feature', feature: { id: ids[i], name: plan!.mates.length > 1 ? `${name} ${pairWord(m.kind)}${plan!.mates.filter((x, j) => j < i && x.kind === m.kind).length ? ` ${i + 1}` : ''}` : name, type: 'mate', kind: m.kind, a: m.a, b: m.b, joint: mode as JointKind, group: ids[0] } }));
+			const commands: SolidCommand[] = plan!.mates.map((m, i) => ({ type: 'add-feature', feature: { id: ids[i], name: plan!.mates.length > 1 ? `${name} ${pairWord(m.kind)}${plan!.mates.filter((x, j) => j < i && x.kind === m.kind).length ? ` ${i + 1}` : ''}` : name, type: 'mate', kind: m.kind, a: m.a, b: m.b, ...(m.flip ? { flip: true } : {}), joint: mode as JointKind, group: ids[0] } }));
 			await api.apply({ type: 'batch', commands }, `Add ${spec.word.toLowerCase()}`);
 		} catch (e) { refuse(e); }
 	}
