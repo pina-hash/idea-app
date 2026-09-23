@@ -85,4 +85,12 @@ describe('the magnetic auto-mate preview', () => {
 	it('an unknown body answers the delta unchanged', () => {
 		expect(matePreview(model(base), 'nobody', [1, 2, 3])).toEqual({ delta: [1, 2, 3], candidate: null, guides: [] });
 	});
+	it('a pin already concentric with its hole is dragged along the axis with no snap and no second concentric mate offered (F046); the unmated pin still snaps', () => {
+		const hole = cylinderBody('H', [1, 1, 0], 0.25, 1), pin = cylinderBody('P', [1, 1, 0], 0.25, 2);
+		const free = matePreview(model(hole, pin), 'P', [0, 0, 0.5]);
+		expect(free.candidate).toEqual({ kind: 'concentric', a: { bodyId: 'H', kind: 'face', id: 'H.side' }, b: { bodyId: 'P', kind: 'face', id: 'P.side' } });
+		const mated: ModelProjection = { ...model(hole, pin), mates: [{ feature: 'm1', kind: 'concentric', a: { kind: 'face', body: 'H', name: 'H.side' }, b: { kind: 'face', body: 'P', name: 'P.side' }, status: 'ok', residual: 0 }] };
+		const along = matePreview(mated, 'P', [0, 0, 0.5]);
+		expect(along).toEqual({ delta: [0, 0, 0.5], candidate: null, guides: [] });
+	});
 });

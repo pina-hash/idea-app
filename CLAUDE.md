@@ -92,6 +92,41 @@ have since left is exactly what he wants to be able to show, so `archived_at` on
     ARCHIVED document may be shared this way, and restoring one DELETES its class
     grants in the same statement.
 
+**THE DIRECT MODELER'S WORKSPACE STATE NEVER ENTERS ITS MANIFEST, BECAUSE
+`record()` IN `SolidWorkspace.svelte` DIFFS MANIFESTS.** Every difference
+between two manifests becomes a history row and a save, so hover, the rollback
+position, the time-lapse, hidden bodies, the view mode and panel layout live in
+the workspace or in the per-user preference store at
+`profiles.preferences.ideacad.solid` (`mergeSolidPreferences` in
+`$lib/ideacad/solid/preferences.ts`), which needed no migration. A hidden body
+therefore does not survive a reopen, and making it do so is a manifest decision
+that is Mr. Pina's to make, not a field to add (`docs/ideacad/VISION.md`, open
+questions).
+  - **`solidToSolidDistance` IS NOT A MINIMUM DISTANCE, AND NOTHING SAYS SO.**
+    On the vendored kernel it returns the nearest pair of CORNERS when the true
+    closest points lie inside a curved face. Measured: 0.564 in for a disk
+    0.125 in above a plate, and 1.0 for two OVERLAPPING boxes. Clearance and
+    interference go through `checkPair` / `minimumDistance` in
+    `$lib/ideacad/solid/analysis/interference.ts`, which starts from the
+    kernel's answer, refines, and calls a figure exact only when it equals the
+    bounding-box gap. A new caller of the kernel function is the defect this
+    replaced.
+  - **A TOOL SWEPT AGAINST ITS OWN PROFILE'S FACE NORMAL BREAKS THE BOOLEAN.**
+    Extruding a profile face opposite its normal makes a solid the kernel
+    reports as valid on its own, and `cut` or `fuse` against it produces an
+    invalid result, so every blind pocket sketched on a top face was refused
+    with "could not form a valid solid" from the day the modeler shipped. The
+    extrude executor in `features/core.ts` rebuilds the tool from the far end,
+    swept along the profile normal, when and only when the first boolean comes
+    back invalid; `tests/ideacad-solid-blind-pocket.test.ts` pins the exact
+    volume and the face names. Any new feature that sweeps a tool reuses that
+    fallback rather than rediscovering it.
+  - **TWO TESSELLATIONS, AND ONLY ONE MAY MOVE.** `DISPLAY_TESSELLATION` in
+    `$lib/ideacad/solid/engine.ts` is size-relative and is the display's to
+    tune; `EXPORT_TESSELLATION` feeds export and the advisory readouts, whose
+    stated tolerance rests on it, and
+    `tests/ideacad-solid-display-tessellation.test.ts` pins it.
+
 **MATERIALS ARE DATA, NOT CONSTANTS, AND THAT IS MR. PINA'S DECISION OF
 2026-09-12.** He rejected a bundle that hardcoded six materials into
 `src/lib/ideacad/blade/materials.ts`: a material is four numbers in a form, the
@@ -142,6 +177,12 @@ list anybody edits.
     lie; that is exactly what the custom layer is for. `pla` and `petg` are
     seeded RETIRED, and only because documents saved against the pre-0208
     hardcoded list name them.
+  - **THE DIRECT MODELER DOES NOT READ THIS TABLE, AND THAT IS AN UNMADE
+    DECISION RATHER THAN A DEFECT TO FIX SILENTLY.** `src/lib/ideacad/solid/`
+    takes its materials from `STOCK_MATERIALS` in
+    `$lib/ideacad/solid/advisory.ts`, a code constant, where the blade editor
+    reads 0208. Ledger 0296 raised it with Mr. Pina in
+    `docs/ideacad/VISION.md` rather than moving it.
   - **THE MATERIALS PANEL IS IN THE TREE PANE, NOT THE RULES RAIL, AND THE RAIL
     HAS NO ROOM.** Ledger 0178 put the rail's content 40px over its box by adding
     two rows, under a fold this container's Chromium draws no scrollbar for; it
@@ -2094,10 +2135,15 @@ picture into an initials tile with nothing saying why.
   renderable as a 24x24 mark nor ours to ship.
 
 **`preferences` is a shared JSONB blob with several independent namespaces**
-(`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`). Every write is a
+(`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`, `ideacad`). Every write is a
 whole-blob **spread-merge**, so a sibling namespace can never be clobbered; every
 read **validates values against their union** and DROPS an unrecognised one, so a
-stored value can never put the UI in a state no branch renders.
+stored value can never put the UI in a state no branch renders. **A NESTED
+NAMESPACE NEEDS THE MERGE AT EVERY LEVEL IT SHARES**: `ideacad` holds `panes`
+(the chooser's layout) and `solid` (the direct modeler's store), and the
+chooser's writer replaced the whole `ideacad` object until ledger 0296 made it
+merge, which is the sibling clobbering this rule exists to prevent, one level
+down.
 
 **A preference stores a DEFAULT, never the entry itself.** Remembering the last
 student, category or amount across sessions is how the wrong one gets charged.
@@ -4070,6 +4116,12 @@ These have each cost a debugging session. They are not hypothetical.
 - **An autofocus must be keyed on the ELEMENT, not on mount.** An input bound
   inside a snippet a child renders is not necessarily set at the parent's
   `onMount`, and the focus call is then a silent no-op.
+- **A CHILD'S TEARDOWN RUNS WHILE THE PARENT IS UPDATING, AND CAN READ THE
+  PREVIOUS SELECTION.** A teardown that "clears" something by calling back into
+  the parent repaints with state that is already stale: IdeaCAD's context bar
+  cleared its preview on unmount and left a consumed sketch drawn. Guard the
+  teardown on the child's own state (it clears only what it set) and make the
+  clearing function idempotent.
 
 ### DOM
 
@@ -4104,7 +4156,10 @@ These have each cost a debugging session. They are not hypothetical.
   nothing at all".
 - **Check `src/app.css`'s global class list before naming a component class.**
   `.callout` there is a flex ROW; a scoped `background` override does not undo an
-  inherited `display: flex`. Prefix component classes (`rb-`, `nb-`, `cd-`).
+  inherited `display: flex`. `.card` carries a vertical margin and `.field` is a
+  flex row with a bottom border, and three lanes of one night (ledger 0296) hit
+  them: a 51.7px gap between card rows that six layout changes did not move, and
+  a 44px row measuring 63.2px. Prefix component classes (`rb-`, `nb-`, `cd-`).
 - **A custom property defined as `var(<another custom property>)` resolves where it
   is DECLARED**, and inherits that resolved value down. Re-declare every such token
   inside each palette block, or a themed surface silently keeps the base theme's

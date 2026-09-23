@@ -93,11 +93,19 @@ export function extrude(ctx: ExecutorContext, f: FeatureOf<'extrude'>) {
 		const role = sweptRoles(ctx, solid, prefix, { plane, endNormal: dir }, mids);
 		if (!target) { ctx.addBody(solid, { naming: { role } }); return; }
 		/* Name the tool first, so the result can carry its faces by surface. */
-		const toolNames = new Map<number, string>();
-		for (const tf of k.getSolidFaces(solid)) { const r = role(tf); if (r) { k.setFaceName(tf, `${f.id}.${r}`); toolNames.set(tf, `${f.id}.${r}`); } }
-		const toolFaces = [...k.getSolidFaces(solid)];
-		const result = ctx.journal(f.operation === 'cut' ? k.cutJournaled(target.solid, solid) : k.fuseJournaled(target.solid, solid));
-		ctx.replaceBody(target, result, { carry: carryBySurface(ctx, toolFaces), role: (face) => { const r = role(face); return r ? `${r}` : undefined; } });
+		const named = (tool: number, roleOf: (face: number) => string | undefined) => { for (const tf of k.getSolidFaces(tool)) { const r = roleOf(tf); if (r) k.setFaceName(tf, `${f.id}.${r}`); } return [...k.getSolidFaces(tool)]; };
+		const combine = (tool: number) => f.operation === 'cut' ? k.cutJournaled(target.solid, tool) : k.fuseJournaled(target.solid, tool);
+		let toolFaces = named(solid, role), used = role, out = combine(solid);
+		/* A TOOL SWEPT AGAINST ITS OWN PROFILE'S NORMAL BREAKS THE BOOLEAN. Measured on the vendored kernel: a circle on a block's top face, pulled 0.5 in down into it, gave an invalid solid (the same tool swept up from the pocket floor cut cleanly), and a boss pulled down off a bottom face failed the same way; only a cut that broke out of the part happened to survive. That is a blind pocket, the commonest cut a student makes. So when the result is invalid and the sweep ran against the normal, the same tool is rebuilt from its far end and swept back along the normal: identical volume, identical names (the caps are still named against the sketch plane), and a cut that already worked is never rebuilt. */
+		if (dot(dir, plane.normal) < 0 && k.validateSolid(JSON.parse(out).solid) !== 0) {
+			const far = { ...plane, origin: add(plane.origin, scale(dir, length)) }, back = scale(dir, -1);
+			const flipped = regionFace(k, sk.entities, far, region);
+			const tool = k.extrude(flipped.face, ...back, length);
+			used = sweptRoles(ctx, tool, prefix, { plane, endNormal: dir }, mids);
+			toolFaces = named(tool, used); out = combine(tool);
+		}
+		const result = ctx.journal(out);
+		ctx.replaceBody(target, result, { carry: carryBySurface(ctx, toolFaces), role: (face) => { const r = used(face); return r ? `${r}` : undefined; } });
 	});
 	ctx.markConsumed(f.sketch);
 }

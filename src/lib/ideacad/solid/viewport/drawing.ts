@@ -22,7 +22,8 @@ import { dot, sub } from '../math';
 import { drop, lift } from '../sketch/model';
 import { arcEntities, circleEntities, polygonEntities, polylineEntities, rectangleEntities, type SketchDraft } from '../sketch/editor';
 import type { PlaneRef, SketchPlane, Vec2, Vec3 } from '../types';
-import { drawingReadout } from './readout';
+import { drawingReadout, readoutSettings } from './readout';
+import { hasTyped, startTypedDraw, typeKey, typedPoint, typedReadout, typesIntoField, type TypedDraw } from '../dimensions/typed-draw';
 
 export type DrawTool = 'rectangle' | 'circle' | 'line' | 'polygon' | 'arc';
 export const DRAW_TOOLS: readonly DrawTool[] = ['rectangle', 'circle', 'line', 'polygon', 'arc'];
@@ -50,7 +51,12 @@ export interface DrawingHost {
 	pointer(): { x: number; y: number };
 }
 
-interface Drawing { tool: DrawTool; plane: SketchPlane; ref: PlaneRef; start: Vec3; current: Vec3; points: Vec3[] }
+/** What a rectangle with no width or no height is told. */
+export const FLAT_RECTANGLE_REFUSAL = 'That rectangle has no width or no height. Drag across the plane from corner to corner, or turn the view to face it.';
+/** `typed` holds the sizes typed while this shape is drawn (friction F007): a rectangle's width and height, a circle's diameter, a polygon's radius, a line segment's length and angle. */
+interface Drawing { tool: DrawTool; plane: SketchPlane; ref: PlaneRef; start: Vec3; current: Vec3; points: Vec3[]; typed: TypedDraw | null }
+/** Tools drawn by a press and a second point: a drag, or a click, a move and a second click. */
+const DRAG_TOOLS: readonly DrawTool[] = ['rectangle', 'circle', 'polygon'];
 
 export class DrawingTool {
 	private drawing: Drawing | null = null;
@@ -62,15 +68,18 @@ export class DrawingTool {
 	down(e: PointerEvent, tool: DrawTool, drawPlane: DrawPlane): boolean {
 		const p = this.host.planeHit(e, drawPlane.plane);
 		if (!p) return false;
+		/* A second press finishes a rectangle, circle or polygon begun with a click, at the typed size if one was typed: click, move, type, click, as SolidWorks draws. */
+		if (this.drawing && DRAG_TOOLS.includes(this.drawing.tool) && this.drawing.tool === tool) { this.drawing.current = p; this.finishTyped(); return true; }
 		if (this.drawing && (tool === 'line' || tool === 'arc')) {
 			const d = this.drawing;
+			if (hasTyped(d.typed)) { const typed = this.typedCurrent(); d.points.push(typed); d.current = typed; d.typed = startTypedDraw(tool); this.redraw(); return true; }
 			d.points.push(p); d.current = p;
 			if (tool === 'arc' && d.points.length === 3) this.finishPolyline();
 			else if (d.points.length > 3 && Math.hypot(...sub(p, d.points[0])) < 0.08 / this.host.zoom()) { d.points.pop(); this.finishPolyline(); }
 			else this.redraw();
 			return true;
 		}
-		this.drawing = { tool, plane: drawPlane.plane, ref: drawPlane.ref, start: p, current: p, points: [p] };
+		this.drawing = { tool, plane: drawPlane.plane, ref: drawPlane.ref, start: p, current: p, points: [p], typed: startTypedDraw(tool) };
 		this.host.capture(e);
 		return true;
 	}
@@ -84,20 +93,52 @@ export class DrawingTool {
 	up(): boolean {
 		const d = this.drawing;
 		if (!d || d.tool === 'line' || d.tool === 'arc') return false;
-		if (Math.hypot(...sub(d.current, d.start)) > 1e-6) {
-			if (d.tool === 'polygon' && !polygonSidesOk(drawingSettings.polygonSides)) { this.host.error(POLYGON_SIDES_REFUSAL); return true; }
-			this.emit(this.drawnDraft(), d.ref);
-		}
+		/* A release after a drag finishes the shape (at the typed size, if one was typed); a release where the press began keeps drawing, so the second point can be a click. */
+		if (Math.hypot(...sub(d.current, d.start)) > 1e-6 || hasTyped(d.typed)) this.finishTyped();
 		return true;
 	}
 	key(e: KeyboardEvent): boolean {
+		if (this.typedKey(e)) return true;
 		if (e.key === 'Enter' && this.drawing) { this.finishPolyline(); return true; }
 		return false;
+	}
+	/**
+	 * A key typed while a shape is drawn: a digit (and then a unit) into the
+	 * active size, Tab to the next size, Backspace to take one off, Enter to
+	 * finish at the typed size (a line places its point and keeps going).
+	 * False for anything else, so Escape and a shortcut keep their meaning.
+	 */
+	typedKey(e: KeyboardEvent): boolean {
+		const d = this.drawing; if (!d?.typed || e.ctrlKey || e.metaKey || e.altKey) return false;
+		const field = d.typed.fields[d.typed.active];
+		if (e.key === 'Tab' || (e.key === 'Backspace' && field.text) || typesIntoField(e.key, field.text)) { d.typed = typeKey(d.typed, e.key, e.shiftKey); this.redraw(); return true; }
+		if (e.key === 'Enter' && hasTyped(d.typed)) {
+			if (d.tool === 'line') { const p = this.typedCurrent(); d.points.push(p); d.current = p; d.typed = startTypedDraw('line'); this.redraw(); return true; }
+			this.finishTyped(); return true;
+		}
+		return false;
+	}
+	/** The pointer with every typed size made true: the second point the shape is drawn to. */
+	private typedCurrent(): Vec3 {
+		const d = this.drawing!; if (!d.typed || !hasTyped(d.typed)) return d.current;
+		const from = d.tool === 'line' || d.tool === 'arc' ? d.points[d.points.length - 1] : d.start;
+		return lift(d.plane, typedPoint(d.typed, drop(d.plane, from), drop(d.plane, d.current), readoutSettings.unit));
+	}
+	/** Finish a rectangle, circle or polygon at its typed (or pointed) size. */
+	private finishTyped() {
+		const d = this.drawing; if (!d) return;
+		d.current = this.typedCurrent();
+		if (Math.hypot(...sub(d.current, d.start)) <= 1e-6) return;
+		if (d.tool === 'polygon' && !polygonSidesOk(drawingSettings.polygonSides)) { this.host.error(POLYGON_SIDES_REFUSAL); return; }
+		/* A rectangle dragged along a line (a plane seen edge on does this) encloses nothing: said now, rather than a sketch that cannot become a solid. */
+		if (d.tool === 'rectangle') { const [du, dv] = this.offsets(d.current); if (Math.abs(du) < 1e-9 || Math.abs(dv) < 1e-9) { this.cancel(); this.host.error(FLAT_RECTANGLE_REFUSAL); return; } }
+		this.emit(this.drawnDraft(), d.ref);
 	}
 	cancel() { this.drawing = null; this.host.clearGuides(); }
 	/** The live readout of what is being drawn, in inches, at the pointer. */
 	readout(): { text: string; point: { x: number; y: number } } | null {
 		const d = this.drawing; if (!d) return null;
+		if (d.typed && hasTyped(d.typed)) { const from = d.tool === 'line' || d.tool === 'arc' ? d.points[d.points.length - 1] : d.start; return { text: typedReadout(d.typed, drop(d.plane, from), drop(d.plane, d.current), readoutSettings.unit), point: this.host.pointer() }; }
 		const [du, dv] = this.offsets(d.current), last = d.points[d.points.length - 1], [su, sv] = this.offsets(d.current, last);
 		const input = { tool: d.tool, du, dv, segment: Math.hypot(...sub(d.current, last)), su, sv, sides: drawingSettings.polygonSides, ...(d.tool === 'arc' && d.points.length >= 2 ? { radius: Math.hypot(...sub(d.points[1], d.points[0])) } : {}) };
 		return { text: drawingReadout(input), point: this.host.pointer() };
@@ -106,7 +147,7 @@ export class DrawingTool {
 	private offsets(p: Vec3, from = this.drawing!.start): Vec2 { const plane = this.drawing!.plane, d = sub(p, from); return [dot(d, plane.u), dot(d, plane.v)]; }
 	/** The finished shape as sketch entities in the plane's own (u, v). */
 	private drawnDraft(): SketchDraft {
-		const d = this.drawing!, plane = d.plane, at = (p: Vec3) => drop(plane, p), start = at(d.start), current = at(d.current);
+		const d = this.drawing!, plane = d.plane, at = (p: Vec3) => drop(plane, p), start = at(d.start), current = at(this.typedCurrent());
 		if (d.tool === 'circle') return circleEntities(start, Math.hypot(current[0] - start[0], current[1] - start[1]));
 		if (d.tool === 'rectangle') return rectangleEntities(start, current);
 		if (d.tool === 'polygon') return polygonEntities(start, current, drawingSettings.polygonSides);
@@ -116,7 +157,7 @@ export class DrawingTool {
 	/** The outline of the shape in progress, for the guide. */
 	private outline(): Vec3[] {
 		const d = this.drawing!;
-		if (d.tool === 'line' || d.tool === 'arc') return [...d.points, d.current];
+		if (d.tool === 'line' || d.tool === 'arc') return [...d.points, this.typedCurrent()];
 		const draft = this.drawnDraft(), up = (p: Vec2): Vec3 => lift(d.plane, p);
 		const circle = draft.entities.find((e) => e.type === 'circle');
 		if (circle && circle.type === 'circle') { const c = draft.entities.find((e) => e.id === circle.center); const cx = c?.type === 'point' ? c.x : 0, cy = c?.type === 'point' ? c.y : 0; return Array.from({ length: 65 }, (_, i) => up([cx + circle.radius * Math.cos(i / 64 * Math.PI * 2), cy + circle.radius * Math.sin(i / 64 * Math.PI * 2)])); }

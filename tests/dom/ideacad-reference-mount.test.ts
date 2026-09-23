@@ -176,12 +176,26 @@ describe('the document\'s references', () => {
 		expect(f.clips).toEqual([PLANE, null]);
 		expect(section.textContent).toBe('Section');
 	});
-	it('the hint says how a reference becomes a revolve axis, a pattern axis or a mirror plane, and which to select first', () => {
+	/* The panel used to open with a lede and end with a paragraph on how to use a reference as an axis; F016/F053 took both out (no prose instructions), and the rule that replaced the pinned sentence is that every sentence left on the panel is a value, an offer or a row's own status. */
+	it('carries no instruction paragraph: every paragraph left is a row\'s own status, and the lost point\'s is the one there', () => {
 		const { m } = panel();
-		const hint = m.one('[data-testid="ideacad-reference-hint"]').textContent!;
-		expect(hint).toMatch(/revolve axis/); expect(hint).toMatch(/pattern axis/); expect(hint).toMatch(/mirror plane/);
-		expect(hint).toMatch(/select the sketch or the body first/);
-		expect(hint).toMatch(/shift-click/);
+		expect(m.all('[data-testid="ideacad-reference-hint"]')).toHaveLength(0);
+		const ps = m.all('p');
+		expect(ps).toHaveLength(1);
+		for (const p of ps) expect(p.getAttribute('role')).toMatch(/^(alert|status)$/);
+	});
+	it('folds the offers that are not ready until asked, keeps every ready one showing, and the fold says how many it hides', () => {
+		const { m } = panel();
+		const fold = m.one<HTMLButtonElement>('[data-testid="ideacad-reference-fold-construction"]');
+		expect(fold.getAttribute('aria-expanded')).toBe('false');
+		expect(fold.textContent).toContain('Show 4 not ready');
+		expect(m.all('.offers.folded li.waiting')).toHaveLength(12);
+		expect(m.all('.offers.folded li:not(.waiting)')).toHaveLength(4);
+		fold.click(); m.flush();
+		expect(fold.getAttribute('aria-expanded')).toBe('true');
+		expect(fold.textContent).toContain('Hide 4 not ready');
+		expect(m.all('.offers.folded li.waiting')).toHaveLength(8);
+		expect(m.all('button.offer')).toHaveLength(16);
 	});
 });
 describe('the datum planes', () => {

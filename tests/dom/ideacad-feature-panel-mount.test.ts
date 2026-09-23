@@ -28,7 +28,7 @@ import MeasurePanel from '$lib/ideacad/solid/MeasurePanel.svelte';
 import SectionPanel from '$lib/ideacad/solid/SectionPanel.svelte';
 import type { WorkspaceApi } from '$lib/ideacad/solid/workspace-api';
 import { featureOptions, resetFeatureOptions } from '$lib/ideacad/solid/features/options';
-import { emptyManifest, type BodyProjection, type ModelProjection, type ResolvedPlane, type Selection, type SolidCommand, type SolidManifest, type Vec3 } from '$lib/ideacad/solid/types';
+import { emptyManifest, type BodyProjection, type FeatureRow, type ModelProjection, type ResolvedPlane, type Selection, type SolidCommand, type SolidManifest, type Vec3 } from '$lib/ideacad/solid/types';
 import type { Tool } from '$lib/ideacad/solid/viewport';
 import { mountInto, type Mounted } from './mount';
 import { reactiveProps } from './reactive-props.svelte';
@@ -97,17 +97,22 @@ describe('the feature panel', () => {
 	});
 	it('fillet: the count reads the edge picks, options mirror into the store as typed with empty meaning unset, and Apply sends the feature with them; no edge is refused in a sentence', async () => {
 		const h = harness({ tool: 'fillet' }); const m = mountPanel(h);
-		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toContain('0 edges selected.');
+		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toContain('0 edges');
 		await press(m, 'ideacad-fillet-apply');
 		expect(h.applied).toHaveLength(0); expect(h.errors).toEqual(['Select an edge to round. Shift-click adds more; a selected face gives all its edges.']);
 		h.set({ selections: [pickEdge('edge:x1.end|x1.side.0'), pickEdge('edge:x1.end|x1.side.2')] }); m.flush();
-		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toContain('2 edges selected.');
-		expect(featureOptions.fillet).toEqual({ propagate: false, variableEnd: null, law: 'linear' });
+		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toContain('2 edges');
+		/* Tangent chain is ON by default, and the radius box's value is kept as the next default; unticked and ticked again it is both ways. */
+		expect(featureOptions.fillet).toEqual({ propagate: true, variableEnd: null, law: 'linear', radius: 0.25 });
+		tick(m, 'ideacad-fillet-propagate');
+		expect(featureOptions.fillet.propagate).toBe(false);
 		tick(m, 'ideacad-fillet-propagate'); type(m, 'ideacad-fillet-variable-end', '0.4');
-		expect(featureOptions.fillet).toEqual({ propagate: true, variableEnd: 0.4, law: 'linear' });
+		expect(featureOptions.fillet).toEqual({ propagate: true, variableEnd: 0.4, law: 'linear', radius: 0.25 });
 		choose(m, 'ideacad-fillet-law', 'scurve');
 		expect(featureOptions.fillet.law).toBe('scurve');
 		type(m, 'ideacad-fillet-radius', 'abc');
+		/* A box that is not a number is not remembered as one. */
+		expect(featureOptions.fillet.radius).toBeUndefined();
 		await press(m, 'ideacad-fillet-apply');
 		expect(h.applied).toHaveLength(0); expect(h.errors[1]).toBe('Enter a radius in inches, like 0.25.');
 		type(m, 'ideacad-fillet-radius', '-0.125');
@@ -125,18 +130,20 @@ describe('the feature panel', () => {
 	});
 	it('a selected face becomes its four edges through api.select, cleared first then appended, from FaceProjection.edges', async () => {
 		const h = harness({ tool: 'chamfer', selections: [pickFace('x1.end')] }); const m = mountPanel(h);
-		expect(m.one('[data-testid="ideacad-feature-face-edges"]').textContent).toBe("Use the 1 face' edges instead");
+		expect(m.one('[data-testid="ideacad-feature-face-edges"]').textContent).toBe('Edges of 1 face');
 		await press(m, 'ideacad-feature-face-edges');
 		expect(h.selected[0]).toBeNull();
 		expect(h.selected.slice(1)).toEqual(['edge:x1.end|x1.side.0', 'edge:x1.end|x1.side.1', 'edge:x1.end|x1.side.2', 'edge:x1.end|x1.side.3'].map(pickEdge));
-		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toContain('4 edges selected.');
+		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toContain('4 edges');
 		expect(m.all('[data-testid="ideacad-feature-face-edges"]')).toHaveLength(0);
 		type(m, 'ideacad-chamfer-distance2', '0.3'); type(m, 'ideacad-chamfer-angle', '30'); tick(m, 'ideacad-chamfer-propagate');
-		expect(featureOptions.chamfer).toEqual({ propagate: true, distance2: 0.3, angle: 30 });
+		/* The chain was on by default, so the tick turned it OFF: the feature carries no propagate key. */
+		expect(featureOptions.chamfer).toEqual({ propagate: false, distance2: 0.3, angle: 30, distance: 0.1 });
 		await press(m, 'ideacad-chamfer-apply');
 		expect(h.applied[0].label).toBe('Chamfer');
 		/* An angle outranks the second distance, exactly as the executor reads the feature. */
-		expect(h.applied[0].command).toMatchObject({ feature: { type: 'chamfer', distance: 0.1, angle: 30, propagate: true } });
+		expect(h.applied[0].command).toMatchObject({ feature: { type: 'chamfer', distance: 0.1, angle: 30 } });
+		expect((h.applied[0].command as unknown as { feature: Record<string, unknown> }).feature.propagate).toBeUndefined();
 		expect((h.applied[0].command as unknown as { feature: Record<string, unknown> }).feature.distance2).toBeUndefined();
 		expect((h.applied[0].command as unknown as { feature: { edges: unknown[] } }).feature.edges).toHaveLength(4);
 	});
@@ -212,7 +219,7 @@ describe('the feature panel', () => {
 		await press(m, 'ideacad-loft-apply');
 		expect(h.errors[1]).toBe('Select the first profile sketch, then shift-click each next one in order.');
 		h.set({ selections: [pickSketch('sA'), pickSketch('sB')] }); m.flush();
-		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toContain('2 profiles selected: Sketch A, Sketch B.');
+		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toContain('2 profiles: Sketch A, Sketch B');
 		tick(m, 'ideacad-loft-smooth');
 		await press(m, 'ideacad-loft-apply');
 		expect(h.applied[1]).toEqual({ label: 'Loft', command: { type: 'add-feature', feature: { id: '', name: '', type: 'loft', profiles: ['sA', 'sB'], smooth: true, operation: 'new', target: undefined } } });
@@ -224,10 +231,11 @@ describe('the feature panel', () => {
 		await press(m, 'ideacad-sweep-apply');
 		expect(h.applied[2]).toEqual({ label: 'Sweep', command: { type: 'add-feature', feature: { id: '', name: '', type: 'sweep', profile: 'sA', path: 'sB', operation: 'cut', target: 'x1#0' } } });
 		m.all<HTMLInputElement>('#ideacad-feature-more input')[3].click(); m.flush();
-		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toContain('Rib is not built in this build');
+		/* The panel's cue is one line with the way forward; the executor's full refusal is pinned in the blends engine test (F053). */
+		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toMatch(/^Rib: .*closed shape.*extrude/); expect(m.one('[data-testid="ideacad-feature-picks"]').textContent!.length).toBeLessThan(60);
 		expect(m.all('[data-testid="ideacad-feature-panel"] button.primary')).toHaveLength(0);
 	});
-	it('read-only: every option box still shows and NO apply, add-wall or remove control is rendered, against the same fixture writable', () => {
+	it('read-only: every option box still shows and NO apply, add-wall or remove control is rendered, against the same fixture writable', async () => {
 		const h = harness({ tool: 'shell', selections: [pickFace('x1.start')], canWrite: true }); const m = mountPanel(h);
 		featureOptions.shell.faceThickness = [{ face: { body: 'x1#0', name: 'x1.start' }, thickness: 0.2 }];
 		m.stop(); const m2 = mountPanel(h);
@@ -235,8 +243,140 @@ describe('the feature panel', () => {
 		expect(count(m2)).toEqual({ boxes: 2, apply: 1, add: 1, remove: 1 });
 		h.set({ canWrite: false }); m2.flush();
 		expect(count(m2)).toEqual({ boxes: 2, apply: 0, add: 0, remove: 0 });
+		/* Busy is aria-disabled, never bare disabled, so the control stays pressable and SAYS why instead of going dead; a press while busy sends nothing. */
 		h.set({ canWrite: true, busy: true }); m2.flush();
-		expect(m2.one<HTMLButtonElement>('[data-testid="ideacad-shell-apply"]').disabled).toBe(true);
+		const apply = m2.one<HTMLButtonElement>('[data-testid="ideacad-shell-apply"]');
+		expect(apply.getAttribute('aria-disabled')).toBe('true'); expect(apply.disabled).toBe(false);
+		apply.click(); await m2.settle();
+		expect(h.applied).toHaveLength(0); expect(h.errors.at(-1)).toBe('Wait for the model to finish updating.');
+		h.set({ busy: false }); m2.flush();
+		expect(apply.getAttribute('aria-disabled')).toBe('false');
+	});
+});
+
+describe('the blend refusals and the edge sets', () => {
+	const refusedRow = (over: Partial<FeatureRow> = {}): FeatureRow => ({ id: 'f2', index: 1, type: 'fillet', name: 'Fillet 2', status: 'error', summary: 'R 3 in · 1 edge', bodies: [], dependsOn: ['x1'], suppressed: false, message: 'That radius is too big for this edge. The largest that fits here is 0.499 in.', ...over });
+	const withFillet = (radius: number): SolidManifest => ({ ...manifest(), features: [...manifest().features, { id: 'f2', name: 'Fillet 2', type: 'fillet', edges: [{ body: 'x1#0', faces: ['x1.end', 'x1.side.0'] }], radius }] });
+	it('a refused round shows its row sentence with the way forward; pressing applies its commands in order, and stops at the first the workspace refuses', async () => {
+		const fix = { label: 'Add to Fillet 1', commands: [{ type: 'set-feature', id: 'f1', patch: { radius: 0.1 } }, { type: 'remove-feature', id: 'f2' }] as SolidCommand[] };
+		const h = harness({ tool: 'fillet', model: model({ features: [refusedRow({ message: 'This edge meets the round from Fillet 1 at a corner, which a separate round cannot blend.', help: { fix, where: [{ bodyId: 'x1#0', kind: 'edge', id: 'edge:x1.side.0|x1.end' }], detail: 'blend: unsupported vertex blend at Id(15): 2 stripes meet' } })] }) });
+		const hovered: (Selection[] | null)[] = [];
+		h.api.hover = (list) => { hovered.push(list); };
+		/* The first command lands (the manifest moves), the second is refused (it does not). */
+		let n = 0;
+		h.api.apply = async (command, label) => { h.applied.push({ command, label }); if (n++ === 0) h.set({ manifest: withFillet(0.1) }); };
+		const m = mountPanel(h);
+		const box = m.one('[data-testid="ideacad-blend-refusal"]');
+		expect(box.textContent).toContain('Fillet 2');
+		expect(box.textContent).toContain('This edge meets the round from Fillet 1 at a corner, which a separate round cannot blend.');
+		/* The kernel's own text is a development detail only. */
+		expect(m.all('[data-testid="ideacad-blend-detail"]')).toHaveLength(0);
+		/* Pointing at the refusal lights its edge under the id the projection uses now, whichever way the face names were joined. */
+		box.dispatchEvent(new Event('pointerenter')); m.flush();
+		expect(hovered.at(-1)).toEqual([{ bodyId: 'x1#0', kind: 'edge', id: 'edge:x1.end|x1.side.0' }]);
+		box.dispatchEvent(new Event('pointerleave')); m.flush();
+		expect(hovered.at(-1)).toBeNull();
+		expect(m.one('[data-testid="ideacad-blend-fix"]').textContent).toBe('Add to Fillet 1');
+		await press(m, 'ideacad-blend-fix');
+		expect(h.applied.map((a) => [a.command.type, a.label])).toEqual([['set-feature', 'Add to Fillet 1'], ['remove-feature', 'Delete Fillet 2']]);
+		n = 1; h.applied.length = 0;
+		await press(m, 'ideacad-blend-fix');
+		/* Refused at the first command: nothing after it is sent. */
+		expect(h.applied.map((a) => a.command.type)).toEqual(['set-feature']);
+		await m.stop();
+		const dev = await import('$app/environment') as unknown as { withDev<T>(v: boolean, fn: () => T): T };
+		const m2 = dev.withDev(true, () => mountPanel(h));
+		expect(m2.one('[data-testid="ideacad-blend-detail"]').textContent).toBe('blend: unsupported vertex blend at Id(15): 2 stripes meet');
+	});
+	it('a refused row the engine has not yet given help still offers its size, read back from its own sentence; a sentence with no size offers nothing; read-only offers nothing', async () => {
+		const h = harness({ tool: 'fillet', manifest: withFillet(3), model: model({ features: [refusedRow()] }) });
+		const m = mountPanel(h);
+		expect(m.one('[data-testid="ideacad-blend-fix"]').textContent).toBe('Use 0.499 in');
+		await press(m, 'ideacad-blend-fix');
+		expect(h.applied).toEqual([{ label: 'Use 0.499 in', command: { type: 'set-feature', id: 'f2', patch: { radius: 0.499 } } }]);
+		h.set({ model: model({ features: [refusedRow({ message: 'Several rounds meet at one corner here in a way that cannot be blended. Try fewer edges at a time.' })] }) }); m.flush();
+		expect(m.all('[data-testid="ideacad-blend-refusal"]')).toHaveLength(1);
+		expect(m.all('[data-testid="ideacad-blend-fix"]')).toHaveLength(0);
+		h.set({ model: model({ features: [refusedRow()] }), canWrite: false }); m.flush();
+		expect(m.all('[data-testid="ideacad-blend-refusal"]')).toHaveLength(1);
+		expect(m.all('[data-testid="ideacad-blend-fix"]')).toHaveLength(0);
+	});
+	it('the radius box starts at the last size used and follows a round made or resized elsewhere, but opening a document does not overwrite it', async () => {
+		featureOptions.fillet.radius = 0.3;
+		const h = harness({ tool: 'fillet', manifest: withFillet(0.75) });
+		const m = mountPanel(h);
+		const box = () => m.one<HTMLInputElement>('[data-testid="ideacad-fillet-radius"]').value;
+		expect(box()).toBe('0.3');
+		h.set({ manifest: withFillet(0.2) }); m.flush();
+		expect(box()).toBe('0.2');
+		expect(featureOptions.fillet.radius).toBe(0.2);
+		h.set({ manifest: manifest() }); m.flush();
+		expect(box()).toBe('0.2');
+	});
+	it('the shell thickness box follows a shell resized elsewhere, spelled as the Dimensions card spells it; opening does not overwrite it', () => {
+		const withShell = (thickness: number): SolidManifest => ({ ...manifest(), features: [...manifest().features, { id: 'sh1', name: 'Shell 1', type: 'shell', body: 'x1#0', thickness, openFaces: [] }] });
+		const h = harness({ tool: 'shell', manifest: withShell(0.4) }); const m = mountPanel(h);
+		const box = () => m.one<HTMLInputElement>('[data-testid="ideacad-shell-thickness"]').value;
+		expect(box()).toBe('0.1');
+		h.set({ manifest: withShell(0.1 + 0.2) }); m.flush();
+		expect(box()).toBe('0.3');
+		h.set({ manifest: manifest() }); m.flush();
+		expect(box()).toBe('0.3');
+	});
+	it('a picked round face shows the round that made it with its own size, and Set changes that feature; a face no round made shows none; read-only has no Set', async () => {
+		const h = harness({ tool: 'fillet', manifest: withFillet(0.75), selections: [pickFace('f2.blend.x1.end|x1.side.0')] });
+		const m = mountPanel(h);
+		const row = m.one('[data-testid="ideacad-blend-resize"]');
+		expect(row.textContent).toContain('Fillet 2');
+		expect(m.one<HTMLInputElement>('[data-testid="ideacad-blend-resize-value"]').value).toBe('0.75');
+		type(m, 'ideacad-blend-resize-value', '0.5');
+		await press(m, 'ideacad-blend-resize-set');
+		expect(h.applied).toEqual([{ label: 'Set Fillet 2', command: { type: 'set-feature', id: 'f2', patch: { radius: 0.5 } } }]);
+		type(m, 'ideacad-blend-resize-value', 'big');
+		await press(m, 'ideacad-blend-resize-set');
+		expect(h.applied).toHaveLength(1); expect(h.errors.at(-1)).toBe('Enter a radius in inches, like 0.25.');
+		h.set({ selections: [pickFace('x1.end')] }); m.flush();
+		expect(m.all('[data-testid="ideacad-blend-resize"]')).toHaveLength(0);
+		h.set({ selections: [pickFace('f2.blend.x1.end|x1.side.0')], canWrite: false }); m.flush();
+		expect(m.all('[data-testid="ideacad-blend-resize"]')).toHaveLength(1);
+		expect(m.all('[data-testid="ideacad-blend-resize-set"]')).toHaveLength(0);
+	});
+	it('a picked face with no edge picked is its rim: Round takes the four edges of the face with no second press, and Enter in the radius box presses Round', async () => {
+		const h = harness({ tool: 'fillet', selections: [pickFace('x1.end')] });
+		const m = mountPanel(h);
+		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toBe('1 face4 edges');
+		expect(m.one('[data-testid="ideacad-fillet-apply"]').textContent).toBe('Round 4 edges at 0.25 in');
+		const box = m.one<HTMLInputElement>('[data-testid="ideacad-fillet-radius"]');
+		type(m, 'ideacad-fillet-radius', '0.3');
+		box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await m.settle();
+		expect(h.applied).toHaveLength(1);
+		const sent = (h.applied[0].command as unknown as { feature: { edges: { faces: string[] }[]; radius: number } }).feature;
+		expect(sent.radius).toBe(0.3);
+		expect(sent.edges.map((e) => e.faces.join('|'))).toEqual(['x1.end|x1.side.0', 'x1.end|x1.side.1', 'x1.end|x1.side.2', 'x1.end|x1.side.3']);
+		/* Any other key types; it does not press. */
+		box.dispatchEvent(new KeyboardEvent('keydown', { key: '4', bubbles: true })); await m.settle();
+		expect(h.applied).toHaveLength(1);
+	});
+	it('one picked edge grows into every edge of the body, lit while the pointer is over it; a set that adds nothing is not offered; a face under a later shell offers the round before it', async () => {
+		const h = harness({ tool: 'fillet', selections: [pickEdge('edge:x1.end|x1.side.0')] });
+		const hovered: (Selection[] | null)[] = [];
+		h.api.hover = (list) => { hovered.push(list); };
+		const m = mountPanel(h);
+		/* This fixture carries no geometry, so only the sets that need none can grow: every edge of the body (the feature's set is the same four and is not offered twice). */
+		expect(m.all('[data-testid="ideacad-edge-sets"] button').map((b) => b.textContent)).toEqual(['All+3']);
+		const all = m.one('[data-testid="ideacad-edge-set-body"]');
+		all.dispatchEvent(new Event('pointerenter')); m.flush();
+		expect(hovered.at(-1)!.map((s) => s.id)).toEqual(['edge:x1.end|x1.side.0', 'edge:x1.end|x1.side.1', 'edge:x1.end|x1.side.2', 'edge:x1.end|x1.side.3']);
+		await press(m, 'ideacad-edge-set-body');
+		expect(h.selected.map((s) => s?.id)).toEqual(['edge:x1.end|x1.side.1', 'edge:x1.end|x1.side.2', 'edge:x1.end|x1.side.3']);
+		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toContain('4 edges');
+		expect(m.all('[data-testid="ideacad-edge-sets"]')).toHaveLength(0);
+		expect(m.all('[data-testid="ideacad-blend-before-shell"]')).toHaveLength(0);
+		h.set({ manifest: { ...manifest(), features: [...manifest().features, { id: 'sh1', name: 'Shell 1', type: 'shell', body: 'x1#0', thickness: 0.1, openFaces: [] }] } }); m.flush();
+		expect(m.one('[data-testid="ideacad-feature-panel"]').textContent).toContain('Before Shell 1, for even walls');
+		tick(m, 'ideacad-blend-before-shell');
+		await press(m, 'ideacad-fillet-apply');
+		expect(h.applied[0].command).toMatchObject({ type: 'add-feature', at: 1, feature: { type: 'fillet' } });
 	});
 });
 
@@ -274,7 +414,9 @@ describe('the section panel', () => {
 		expect(h.clips).toEqual([null]);
 		expect(m.one('[data-testid="ideacad-section-state"]').textContent).toBe('Off.');
 		await press(m, 'ideacad-section-on');
-		expect(h.clips.at(-1)).toEqual({ origin: [0, 0, 0], u: [1, 0, 0], v: [0, 1, 0], normal: [0, 0, 1] });
+		/* A datum section starts through the middle of the model (F042, W4): the harness body spans z 0 to 1, so Top cuts at z 0.5, not at the datum it only touches. */
+		expect(m.one<HTMLInputElement>('[data-testid="ideacad-section-offset"]').value).toBe('0.5');
+		expect(h.clips.at(-1)).toEqual({ origin: [0, 0, 0.5], u: [1, 0, 0], v: [0, 1, 0], normal: [0, 0, 1] });
 		expect(m.one('[data-testid="ideacad-section-state"]').textContent).toBe('Sectioned.');
 		type(m, 'ideacad-section-offset', '0.5'); tick(m, 'ideacad-section-flip');
 		expect(h.clips.at(-1)).toEqual({ origin: [0, 0, 0.5], u: [1, 0, 0], v: [-0, -1, -0], normal: [-0, -0, -1] });

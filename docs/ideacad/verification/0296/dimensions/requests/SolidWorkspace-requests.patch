@@ -1,0 +1,43 @@
+diff --git a/src/lib/ideacad/solid/SolidWorkspace.svelte b/src/lib/ideacad/solid/SolidWorkspace.svelte
+index dde431da..2186e4da 100644
+--- a/src/lib/ideacad/solid/SolidWorkspace.svelte
++++ b/src/lib/ideacad/solid/SolidWorkspace.svelte
+@@ -33,6 +33,8 @@
+ 	import FeaturePanel from './FeaturePanel.svelte';
+ 	import AddonPanel from './AddonPanel.svelte';
+ 	import DimensionPanel from './DimensionPanel.svelte';
++	import DimensionOverlay from './DimensionOverlay.svelte';
++	import { withDrivingSize } from './dimensions/drawn';
+ 	import MovePanel from './MovePanel.svelte';
+ 	import MeasurePanel from './MeasurePanel.svelte';
+ 	import SectionPanel from './SectionPanel.svelte';
+@@ -63,7 +65,7 @@
+ 	import { rectangleEntities, type SketchDraft } from './sketch/editor';
+ 	import { datumPlane, planeFromNormal } from './sketch/model';
+ 	import { refFromSelection } from './naming';
+-	import { newFeatureId } from './features';
++	import { newEntityId, newFeatureId } from './features';
+ 	import { download, sketchDxf,profileDxf,solidStl, solidThreeMf } from './export';
+ 	import type { WorkspaceApi } from './workspace-api';
+ 	import type { EdgeRef, EntityRef, FaceRef, Feature, MateKind, ModelProjection, ModelSnapshot, PlaneRef, ResolvedPlane, Selection, SolidCommand, SolidDocument, SolidHistoryAction, SolidManifest, SolidTransport } from './types';
+@@ -181,10 +183,10 @@
+ 		finally{busy=false;}
+ 	}
+ 	/** A drawn entity collection becomes a sketch feature on the plane it was drawn on, selected and ready to extrude. */
+-	async function createDraft(draft:SketchDraft,ref:PlaneRef){drafting=true;try{const id=newFeatureId();await apply({type:'add-feature',feature:{id,name:'',type:'sketch',plane:ref,entities:draft.entities,constraints:draft.constraints}},'Draw sketch');if(model.features.some(f=>f.id===id)){tool='extrude';select({bodyId:'',kind:'sketch',id});viewport.highlight();}}finally{drafting=false;}}
++	async function createDraft(draft:SketchDraft,ref:PlaneRef){drafting=true;try{const id=newFeatureId(),sized=withDrivingSize(draft,newEntityId);await apply({type:'add-feature',feature:{id,name:'',type:'sketch',plane:ref,entities:sized.entities,constraints:sized.constraints}},'Draw sketch');if(model.features.some(f=>f.id===id)){tool='extrude';select({bodyId:'',kind:'sketch',id});viewport.highlight();}}finally{drafting=false;}}
+ 	/** "Start from a box": a 2 x 2 in square on Top, pulled up 1 in, as one change, then selected. */
+ 	async function startFromBox(){
+-		const sketch=newFeatureId(),extrude=newFeatureId(),square=rectangleEntities([-1,-1],[1,1]);
++		const sketch=newFeatureId(),extrude=newFeatureId(),square=withDrivingSize(rectangleEntities([-1,-1],[1,1]),newEntityId);
+ 		const made=await applyAll([{type:'add-feature',feature:{id:sketch,name:'',type:'sketch',plane:{kind:'datum',datum:'XY'},entities:square.entities,constraints:square.constraints}},{type:'add-feature',feature:{id:extrude,name:'',type:'extrude',sketch,distance:1,operation:'new'}}],'Start from a box');
+ 		if(!made)return;const body=model.bodies.find(b=>b.createdBy===extrude)??model.bodies[0];if(body)select({bodyId:body.id,kind:'body',id:body.id});viewport.fit();canvas.focus();
+ 	}
+@@ -562,6 +564,7 @@
+ 		<aside class="tree-rail" aria-label="Design tree rail"><FeatureTree {api}/></aside>
+ 		<div class="workarea">
+ 			<canvas bind:this={canvas} tabindex="0" aria-label="3D model: select and drag geometry"></canvas>
++			<DimensionOverlay {api} hidden={loading||!!measure}/>
+ 			{#if bar&&selections.length&&(barItems.length||barCrumbs.length)}<ContextBar at={bar.at} touch={bar.touch} commands={barItems} crumbs={barCrumbs} onrun={(item)=>item.run?.()} oncrumb={(crumb)=>{viewport.setExternalHover(null);crumb.selections.forEach((s,i)=>select(s,i>0));}} onpreview={(crumb)=>viewport?.setExternalHover(crumb?crumb.selections:null)} onclose={()=>{bar=null;}}/>{/if}
+ 			{#if box&&boxStyle}<div class="box-select" class:crossing={box.mode==='crossing'} data-testid="ideacad-box-select" data-mode={box.mode} aria-hidden="true" style:left={`${boxStyle.left}px`} style:top={`${boxStyle.top}px`} style:width={`${boxStyle.width}px`} style:height={`${boxStyle.height}px`}><span>{BOX_WORDS[box.mode]}</span></div>{/if}
+ 			<nav class="tools" class:expanded={more} aria-label="Modeling tools">

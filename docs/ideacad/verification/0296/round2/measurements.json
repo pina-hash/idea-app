@@ -1,0 +1,681 @@
+{
+ "ideacad-solid-state-mates@1440": {
+  "steps": [
+   [
+    "click",
+    true
+   ],
+   [
+    "wait",
+    true
+   ],
+   [
+    "click",
+    true
+   ],
+   [
+    "click",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ]
+  ],
+  "sketchTools": [],
+  "treeFix": [],
+  "dimensionButtons": [
+   {
+    "text": "Set",
+    "w": 48.8,
+    "h": 44,
+    "left": 13,
+    "right": 13,
+    "top": 11.5,
+    "bottom": 11.5
+   }
+  ],
+  "dimensionFields": [
+   {
+    "unitInsideField": true,
+    "unitToButton": 7,
+    "fieldRight": 1361.2,
+    "formRight": 1416
+   }
+  ],
+  "mateButtons": [
+   {
+    "text": "Add hinge",
+    "w": 238,
+    "h": 44,
+    "left": 86,
+    "right": 86,
+    "top": 11.5,
+    "bottom": 11.5
+   }
+  ],
+  "panelsOverflow": 0,
+  "treeFixText": null
+ },
+ "ideacad-solid-state-mates@960": {
+  "steps": [
+   [
+    "click",
+    true
+   ],
+   [
+    "wait",
+    true
+   ],
+   [
+    "click",
+    true
+   ],
+   [
+    "click",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ]
+  ],
+  "sketchTools": [],
+  "treeFix": [],
+  "dimensionButtons": [
+   {
+    "text": "Set",
+    "w": 48.8,
+    "h": 44,
+    "left": 13,
+    "right": 13,
+    "top": 11.5,
+    "bottom": 11.5
+   }
+  ],
+  "dimensionFields": [
+   {
+    "unitInsideField": true,
+    "unitToButton": 7,
+    "fieldRight": 881.2,
+    "formRight": 936
+   }
+  ],
+  "mateButtons": [
+   {
+    "text": "Add hinge",
+    "w": 238,
+    "h": 44,
+    "left": 86,
+    "right": 86,
+    "top": 11.5,
+    "bottom": 11.5
+   }
+  ],
+  "panelsOverflow": 0,
+  "treeFixText": null
+ },
+ "ideacad-solid-state-mates@375": {
+  "steps": [
+   [
+    "click",
+    true
+   ],
+   [
+    "wait",
+    true
+   ],
+   [
+    "click",
+    true
+   ],
+   [
+    "click",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ]
+  ],
+  "sketchTools": [],
+  "treeFix": [],
+  "dimensionButtons": [
+   {
+    "text": "Set",
+    "w": 48.8,
+    "h": 44,
+    "left": 13,
+    "right": 13,
+    "top": 11.5,
+    "bottom": 11.5
+   }
+  ],
+  "dimensionFields": [
+   {
+    "unitInsideField": true,
+    "unitToButton": 7,
+    "fieldRight": 300.2,
+    "formRight": 355
+   }
+  ],
+  "mateButtons": [
+   {
+    "text": "Add hinge",
+    "w": 337,
+    "h": 44,
+    "left": 135.5,
+    "right": 135.5,
+    "top": 11.5,
+    "bottom": 11.5
+   }
+  ],
+  "panelsOverflow": 0,
+  "treeFixText": null
+ },
+ "ideacad-solid-state-fillet@1440": {
+  "steps": [
+   [
+    "click",
+    true
+   ],
+   [
+    "wait",
+    true
+   ],
+   [
+    "click",
+    false
+   ],
+   [
+    "eval-until",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ]
+  ],
+  "sketchTools": [],
+  "treeFix": [
+   {
+    "text": "Use 0.999 in",
+    "w": 102.5,
+    "h": 44,
+    "left": 13,
+    "right": 13,
+    "top": 12.5,
+    "bottom": 12.5
+   }
+  ],
+  "dimensionButtons": [
+   {
+    "text": "Set",
+    "w": 48.8,
+    "h": 44,
+    "left": 13,
+    "right": 13,
+    "top": 11.5,
+    "bottom": 11.5
+   }
+  ],
+  "dimensionFields": [
+   {
+    "unitInsideField": true,
+    "unitToButton": 7,
+    "fieldRight": 1361.2,
+    "formRight": 1416
+   }
+  ],
+  "mateButtons": [],
+  "panelsOverflow": 0,
+  "treeFixText": "Use 0.999 in"
+ },
+ "ideacad-solid-state-fillet@960": {
+  "steps": [
+   [
+    "click",
+    true
+   ],
+   [
+    "wait",
+    true
+   ],
+   [
+    "click",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ]
+  ],
+  "sketchTools": [],
+  "treeFix": [],
+  "dimensionButtons": [
+   {
+    "text": "Set",
+    "w": 48.8,
+    "h": 44,
+    "left": 13,
+    "right": 13,
+    "top": 11.5,
+    "bottom": 11.5
+   }
+  ],
+  "dimensionFields": [
+   {
+    "unitInsideField": true,
+    "unitToButton": 7,
+    "fieldRight": 881.2,
+    "formRight": 936
+   }
+  ],
+  "mateButtons": [],
+  "panelsOverflow": 0,
+  "treeFixText": "Use 0.999 in"
+ },
+ "ideacad-solid-state-fillet@375": {
+  "steps": [
+   [
+    "click",
+    true
+   ],
+   [
+    "wait",
+    true
+   ],
+   [
+    "click",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ]
+  ],
+  "sketchTools": [],
+  "treeFix": [],
+  "dimensionButtons": [
+   {
+    "text": "Set",
+    "w": 48.8,
+    "h": 44,
+    "left": 13,
+    "right": 13,
+    "top": 11.5,
+    "bottom": 11.5
+   }
+  ],
+  "dimensionFields": [
+   {
+    "unitInsideField": true,
+    "unitToButton": 7,
+    "fieldRight": 300.2,
+    "formRight": 355
+   }
+  ],
+  "mateButtons": [],
+  "panelsOverflow": 0,
+  "treeFixText": "Use 0.999 in"
+ },
+ "ideacad-solid-state-arc@1440": {
+  "steps": [
+   [
+    "click",
+    true
+   ],
+   [
+    "wait",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ]
+  ],
+  "sketchTools": [
+   {
+    "text": "Select",
+    "w": 73.1,
+    "h": 44,
+    "left": 17.2,
+    "right": 17.2,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Line",
+    "w": 60.3,
+    "h": 44,
+    "left": 17.2,
+    "right": 17.2,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Rectangle",
+    "w": 96.6,
+    "h": 44,
+    "left": 17.2,
+    "right": 17.2,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Circle",
+    "w": 57.8,
+    "h": 44,
+    "left": 11.7,
+    "right": 11.7,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Arc",
+    "w": 44,
+    "h": 44,
+    "left": 12.1,
+    "right": 12.1,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Polygon",
+    "w": 73.4,
+    "h": 44,
+    "left": 11.7,
+    "right": 11.7,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Trim",
+    "w": 50.8,
+    "h": 44,
+    "left": 11.7,
+    "right": 11.7,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Extend",
+    "w": 123,
+    "h": 44,
+    "left": 40,
+    "right": 40.1,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Fillet",
+    "w": 111,
+    "h": 44,
+    "left": 40,
+    "right": 40.1,
+    "top": 12.5,
+    "bottom": 12.5
+   }
+  ],
+  "treeFix": [],
+  "dimensionButtons": [],
+  "dimensionFields": [],
+  "mateButtons": [],
+  "panelsOverflow": 0,
+  "treeFixText": null
+ },
+ "ideacad-solid-state-arc@960": {
+  "steps": [
+   [
+    "click",
+    true
+   ],
+   [
+    "wait",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ]
+  ],
+  "sketchTools": [
+   {
+    "text": "Select",
+    "w": 73.1,
+    "h": 44,
+    "left": 17.2,
+    "right": 17.2,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Line",
+    "w": 60.3,
+    "h": 44,
+    "left": 17.2,
+    "right": 17.2,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Rectangle",
+    "w": 96.6,
+    "h": 44,
+    "left": 17.2,
+    "right": 17.2,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Circle",
+    "w": 57.8,
+    "h": 44,
+    "left": 11.7,
+    "right": 11.7,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Arc",
+    "w": 44,
+    "h": 44,
+    "left": 12.1,
+    "right": 12.1,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Polygon",
+    "w": 73.4,
+    "h": 44,
+    "left": 11.7,
+    "right": 11.7,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Trim",
+    "w": 50.8,
+    "h": 44,
+    "left": 11.7,
+    "right": 11.7,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Extend",
+    "w": 123,
+    "h": 44,
+    "left": 40,
+    "right": 40.1,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Fillet",
+    "w": 111,
+    "h": 44,
+    "left": 40,
+    "right": 40.1,
+    "top": 12.5,
+    "bottom": 12.5
+   }
+  ],
+  "treeFix": [],
+  "dimensionButtons": [],
+  "dimensionFields": [],
+  "mateButtons": [],
+  "panelsOverflow": 0,
+  "treeFixText": null
+ },
+ "ideacad-solid-state-arc@375": {
+  "steps": [
+   [
+    "click",
+    true
+   ],
+   [
+    "wait",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ]
+  ],
+  "sketchTools": [
+   {
+    "text": "Select",
+    "w": 66.7,
+    "h": 44,
+    "left": 14,
+    "right": 14,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Line",
+    "w": 53.9,
+    "h": 44,
+    "left": 14,
+    "right": 14,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Rectangle",
+    "w": 90.2,
+    "h": 44,
+    "left": 14,
+    "right": 14,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Circle",
+    "w": 62.4,
+    "h": 44,
+    "left": 14,
+    "right": 14,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Arc",
+    "w": 47.7,
+    "h": 44,
+    "left": 14,
+    "right": 14,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Polygon",
+    "w": 93.5,
+    "h": 44,
+    "left": 21.7,
+    "right": 21.7,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Trim",
+    "w": 70.9,
+    "h": 44,
+    "left": 21.7,
+    "right": 21.7,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Extend",
+    "w": 86.4,
+    "h": 44,
+    "left": 21.7,
+    "right": 21.7,
+    "top": 12.5,
+    "bottom": 12.5
+   },
+   {
+    "text": "Fillet",
+    "w": 74.3,
+    "h": 44,
+    "left": 21.7,
+    "right": 21.7,
+    "top": 12.5,
+    "bottom": 12.5
+   }
+  ],
+  "treeFix": [],
+  "dimensionButtons": [],
+  "dimensionFields": [],
+  "mateButtons": [],
+  "panelsOverflow": 0,
+  "treeFixText": null
+ }
+}

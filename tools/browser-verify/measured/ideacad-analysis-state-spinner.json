@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "ideacad-analysis-state-spinner.mjs",
+	"date": "2026-09-23T11:55:15.487Z",
+	"sha": "0de2e0fdffa79458ed8fb07e4ef75b6df861cce8",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 26,
+	"outsideRows": [],
+	"ms": 7114
+}

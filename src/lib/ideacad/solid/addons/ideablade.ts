@@ -158,7 +158,7 @@ export const defaultInputs = (t: AddonTool): AddonInputValues => Object.fromEntr
 export const ideaBlade: Addon = {
 	id: 'ideaBlade',
 	name: 'IdeaBlade',
-	description: 'The launcher blade project: its standard parts as tools, a starter part, the reference geometry a blade is built against, and the advisory checks against the class limits.',
+	description: 'Launcher blade parts, a starter and class-limit checks',
 	tools: [bladeProfileTool, hexCoreTool, collarTool, spinBoltTool],
 	starters: [{
 		id: 'default-part', name: 'IdeaBlade default part',

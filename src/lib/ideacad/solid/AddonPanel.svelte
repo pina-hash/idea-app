@@ -51,13 +51,13 @@
 </script>
 <section class="addons panel" aria-label="Add-ons" data-testid="ideacad-addon-panel">
 	<h2>Add-ons</h2>
-	<p class="lede">An add-on adds tools, a starter and reference geometry, and may advise. It never changes what the base tools do.</p>
 	{#each addons as addon (addon.id)}
 		{@const on = addonEnabled(api.model.addons, addon.id)}
 		<article class="addon" data-addon={addon.id} data-enabled={on}>
 			<button type="button" class="switch" class:selected={on} aria-pressed={on} disabled={locked} data-testid="ideacad-addon-switch" onclick={() => void toggle(addon)}>{addon.name} <span class="state">{on ? 'On' : 'Off'}</span></button>
 			<p class="description">{addon.description}</p>
 			{#if on}
+				{#if addon.tools.length}
 				<h3>Tools <span class="count">{addon.tools.length}</span></h3>
 				<ul class="tools">
 					{#each addon.tools as tool (tool.id)}
@@ -88,6 +88,7 @@
 						</li>
 					{/each}
 				</ul>
+				{/if}
 				{#if addon.starters.length}
 					<h3>Starters</h3>
 					<ul class="plans">{#each addon.starters as starter (starter.id)}<li><button type="button" class="plan" data-starter={starter.id} disabled={locked} onclick={() => void plan(starter.steps())}><span class="title">Start: {starter.name}</span><span class="sentence">{starter.description}</span></button></li>{/each}</ul>
@@ -107,7 +108,7 @@
 	{/each}
 </section>
 <style>
-	.addons{display:grid;gap:8px}h2{margin:0;font-size:18px}.lede,.description{margin:0;font-size:14px;color:var(--text-2)}
+	.addons{display:grid;gap:8px}h2{margin:0;font-size:18px}.description{margin:0;font-size:14px;color:var(--text-2)}
 	h3{margin:6px 0 0;display:flex;justify-content:space-between;align-items:baseline;font:600 15px Rajdhani,sans-serif;color:var(--text-1);border-bottom:1px solid var(--hairline);padding-bottom:4px}.count{font:12px 'Share Tech Mono',monospace;color:var(--text-2)}
 	.addon{display:grid;gap:8px}
 	button{min-height:44px;border:1px solid var(--boundary);border-radius:5px;background:transparent;color:var(--text-1);font:600 16px Rajdhani,sans-serif;cursor:pointer;text-align:left}button:disabled{opacity:.4;cursor:default}button:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
@@ -119,6 +120,6 @@
 	.field{display:grid;gap:4px;font-size:14px}.label{color:var(--text-1)}.label small{font:12px 'Share Tech Mono',monospace;color:var(--text-2)}.hint{color:var(--text-2);font-size:12px}
 	input,textarea{min-height:44px;width:100%;box-sizing:border-box;padding:0 8px;border:1px solid var(--boundary);border-radius:5px;background:var(--surface-0);color:var(--text-1);font:16px Rajdhani,sans-serif}textarea{padding:8px;font:15px 'Share Tech Mono',monospace;resize:vertical}
 	.run{background:var(--green);color:#15191d;border-color:var(--green);padding:0 16px}
-	.settings{width:100%;border-color:var(--green);color:var(--green)}
+	.settings{width:100%;padding:0 12px;border-color:var(--green);color:var(--green)}
 	.advisory{display:grid}
 </style>

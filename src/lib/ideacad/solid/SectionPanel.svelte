@@ -16,8 +16,19 @@
 	import type { WorkspaceApi } from './workspace-api';
 	import type { ResolvedPlane, Vec3 } from './types';
 	import { datumPlane, planeFromNormal } from './sketch/model';
+	import { DATUM_NAMES } from './viewport/reference-layer';
+	import { selectionWords } from './mates/words';
+	/* A datum is named as the viewport's plane label names it (Top, Front, Right); a picked face in the Mates panel's words. */
+	const DATUM_ORDER = ['XY', 'XZ', 'YZ'] as const;
 	let { api }: { api: WorkspaceApi } = $props();
-	let source = $state<string>('XY'), offset = $state('0'), flip = $state(false), on = $state(false);
+	/* F042: a datum section starts through the middle of the model, where it cuts something, not at the datum itself (which a part built on it only touches). */
+	function throughModel(datum: 'XY' | 'XZ' | 'YZ'): string {
+		const bodies = api.model.bodies; if (!bodies.length) return '0';
+		const lo = [0, 1, 2].map((i) => Math.min(...bodies.map((b) => b.bounds[i]))), hi = [0, 1, 2].map((i) => Math.max(...bodies.map((b) => b.bounds[i + 3])));
+		const p = datumPlane(datum), d = [0, 1, 2].reduce((sum, i) => sum + ((lo[i] + hi[i]) / 2 - p.origin[i]) * p.normal[i], 0);
+		return String(+d.toFixed(3));
+	}
+	let source = $state<string>('XY'), offset = $state(throughModel('XY')), flip = $state(false), on = $state(false);
 	const number = (v: string) => (v.trim() === '' ? NaN : Number(v.trim()));
 	const planes = $derived(api.model.references.filter((r) => r.kind === 'plane'));
 	const face = $derived.by(() => { const s = api.selections.find((x) => x.kind === 'face'); if (!s) return null; const f = api.model.bodies.find((b) => b.id === s.bodyId)?.faces.find((x) => x.id === s.id); return f && f.kind === 'plane' ? f : null; });
@@ -41,14 +52,13 @@
 </script>
 <section class="section panel" aria-label="Section view" data-testid="ideacad-section-panel">
 	<h2>Section view</h2>
-	<p class="hint">Cuts the view on a plane so the inside shows; the model is not changed. Everything on the plane's arrow side is hidden; caps are not drawn.</p>
-	<label>Plane<select value={source} onchange={(e) => (source = e.currentTarget.value)} data-testid="ideacad-section-source">
-		<option value="XY">XY datum</option><option value="XZ">XZ datum</option><option value="YZ">YZ datum</option>
+	<label>Plane<select value={source} onchange={(e) => { source = e.currentTarget.value; if (source === 'XY' || source === 'XZ' || source === 'YZ') offset = throughModel(source); }} data-testid="ideacad-section-source">
+		{#each DATUM_ORDER as d (d)}<option value={d}>{DATUM_NAMES[d]} plane</option>{/each}
 		{#each planes as p (p.feature)}<option value={`ref:${p.feature}`}>{p.name} (reference)</option>{/each}
-		<option value="face">Selected flat face{face ? `: ${face.id}` : ''}</option>
+		<option value="face">Selected flat face{face ? `: ${selectionWords({ model: api.model, manifest: api.manifest }, api.selections.find((x) => x.kind === 'face')!)}` : ''}</option>
 	</select></label>
 	<label>Offset (in)<input inputmode="decimal" bind:value={offset} data-testid="ideacad-section-offset" /></label>
-	<label class="toggle"><input type="checkbox" bind:checked={flip} data-testid="ideacad-section-flip" /><span>Flip <small>keep the other side instead</small></span></label>
+	<label class="toggle"><input type="checkbox" bind:checked={flip} data-testid="ideacad-section-flip" /><span>Flip side</span></label>
 	<p class="state" data-testid="ideacad-section-state" role="status">{on ? (plane ? 'Sectioned.' : `Section paused: ${why}`) : 'Off.'}</p>
 	<div class="actions">
 		{#if on}<button type="button" class="primary" aria-pressed="true" onclick={() => (on = false)} data-testid="ideacad-section-off">Off</button>{:else}<button type="button" class="primary" aria-pressed="false" onclick={start} data-testid="ideacad-section-on">Section</button>{/if}
@@ -57,10 +67,10 @@
 </section>
 <style>
 	.section{display:grid;gap:8px}h2{margin:0;font-size:18px}
-	.hint,.state{margin:0;color:var(--text-2);font-size:14px;line-height:1.4}.state{font:14px 'Share Tech Mono',monospace;color:var(--text-1)}
-	label{display:grid;gap:4px;font:600 14px Rajdhani,sans-serif;color:var(--text-2)}label small{font-weight:400;font-size:12px}
+	.state{margin:0;line-height:1.4;font:14px 'Share Tech Mono',monospace;color:var(--text-1)}
+	label{display:grid;gap:4px;font:600 14px Rajdhani,sans-serif;color:var(--text-2)}
 	input,select{min-height:44px;width:100%;box-sizing:border-box;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:16px Rajdhani,sans-serif;padding:0 8px}
-	.toggle{display:flex;align-items:center;gap:8px;min-height:44px;color:var(--text-1);cursor:pointer}.toggle input{width:20px;height:20px;min-height:0;margin:0;flex-shrink:0}.toggle small{display:block;font-size:12px;color:var(--text-2);font-weight:400}
+	.toggle{display:flex;align-items:center;gap:8px;min-height:44px;color:var(--text-1);cursor:pointer}.toggle input{width:20px;height:20px;min-height:0;margin:0;flex-shrink:0}
 	.actions{display:flex;gap:4px}.section .actions button{flex:1;min-height:44px;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:600 15px Rajdhani,sans-serif;cursor:pointer}
 	.section .actions button.primary{border-color:var(--green);color:var(--green)}
 </style>

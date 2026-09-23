@@ -41,16 +41,32 @@ import { dependsOnFeatures, featureSummary, upgradeManifest } from './features';
 import { reduce } from './commands';
 import { datumPlane, regionOutlines, solveSketch, planeFromNormal } from './sketch/model';
 import { EXECUTORS, solveMates } from './features/index';
+import { tangentChain } from './features/blends';
+import { checkInterference, checkPair, type InterferenceReport } from './analysis/interference';
 import type { ExecutorContext, LiveBody, MateState, Resolved, ResolvedRef, SketchState } from './features/context';
-import { emptyManifest, type AxisRef, type BodyProjection, type BodyRecord, type EdgeRef, type FaceRef, type Feature, type FeatureRow, type GeometryArtifact, type ModelProjection, type ModelSnapshot, type PlaneRef, type PointRef, type ResolvedAxis, type ResolvedPlane, type ResolvedPoint, type Selection, type SketchConstraint, type SketchEntity, type SolidCommand, type SolidManifest, type Vec3, type VertexRef, type LegacyManifest, type MateProjection, type ReferenceProjection, type SketchProjection } from './types';
+import { emptyManifest, type AxisRef, type BodyProjection, type BodyRecord, type EdgeRef, type FaceRef, type Feature, type FeatureHelp, type FeatureRow, type GeometryArtifact, type ModelProjection, type ModelSnapshot, type PlaneRef, type PointRef, type ResolvedAxis, type ResolvedPlane, type ResolvedPoint, type Selection, type SketchConstraint, type SketchEntity, type SolidCommand, type SolidManifest, type Vec3, type VertexRef, type LegacyManifest, type MateProjection, type ReferenceProjection, type SketchProjection } from './types';
 
 const json = <T = Record<string, any>>(input: unknown): T => (typeof input === 'string' ? JSON.parse(input) : input) as T;
 const clone = <T>(value: T): T => structuredClone(value);
 /** How many of the newest features keep a kernel checkpoint. See the header. */
 export const CHECKPOINT_WINDOW = 12;
+/**
+ * THE DISPLAY MESH IS SIZED TO THE MODEL; THE EXPORT MESH IS NOT. The per-face
+ * meshes the viewport draws take a chord of 2e-4 of the model's largest side
+ * (never finer than 1e-5 in) and a 0.06 rad angle, so a hole in a 6 in disk and
+ * a pin in a 0.5 in part both read round on screen. The whole-body mesh an STL,
+ * a 3MF and the advisory checks read stays at 0.002 in and 0.15 rad: the
+ * advisory band (`advisory.ts`) assumes that deflection.
+ */
+export const DISPLAY_TESSELLATION = { chordPerSize: 2e-4, minChord: 1e-5, angle: 0.06 } as const;
+export const EXPORT_TESSELLATION = { chord: 0.002, angle: 0.15 } as const;
+/** The display chord for a model whose largest side is `size` inches. */
+export const displayChord = (size: number) => Math.max(DISPLAY_TESSELLATION.minChord, DISPLAY_TESSELLATION.chordPerSize * (Number.isFinite(size) && size > 0 ? size : 1));
 
 interface State { bodies: Map<string, LiveBody>; order: string[]; refs: Map<string, ResolvedRef>; sketches: Map<string, SketchState>; mates: MateState[] }
-interface Result { status: FeatureRow['status']; message?: string; bodies: string[]; naming?: NamingReport }
+interface Result { status: FeatureRow['status']; message?: string; bodies: string[]; naming?: NamingReport; help?: FeatureHelp }
+/** One step of the time-lapse: the body order after a feature, the bodies that feature made or changed, and the sketches open then. */
+export interface TimelapseStep { order: string[]; changed: BodyProjection[]; sketches: SketchProjection[] }
 interface Pick { body: LiveBody; handle: number; kind: Selection['kind'] }
 interface Step { before: SolidManifest; after: SolidManifest }
 interface CachedBody { faces: BodyProjection['faces']; edges: BodyProjection['edges']; vertices: BodyProjection['vertices']; mesh: BodyProjection['mesh']; bounds: number[]; volume: number; centerOfMass: Vec3; inertia: number[]; handles: { faces: Map<string, number>; edges: Map<string, number>; vertices: Map<string, number> } }
@@ -72,7 +88,9 @@ export class SolidEngine {
 	private cache = new Map<number, CachedBody>();
 	private undoSteps: Step[] = [];
 	private redoSteps: Step[] = [];
-	private preview: { before: SolidManifest; command?: SolidCommand } | null = null;
+	private preview: { before: SolidManifest; command?: SolidCommand; limit: number | null } | null = null;
+	/* THE ROLLBACK BAR. Only features [0, limit) are built; the manifest keeps every feature. Null builds everything. It is workspace state and is never written into the manifest. */
+	private limit: number | null = null;
 	private lastReplay = { ms: 0, from: 0 };
 	private mateReport: ReturnType<typeof solveMates> = { moved: [], errors: [], dof: new Map(), residuals: new Map() };
 	private constructor(private k: BrepKernel) { this.base = k.checkpoint(); }
@@ -90,7 +108,8 @@ export class SolidEngine {
 			const body = this.live.bodies.get(id)!;
 			const existing = this.records.find((r) => r.id === id);
 			const feature = this.features.find((f) => f.id === body.createdBy);
-			next.push(existing ? { ...existing, artifact: body.artifact } : { id, name: feature?.type === 'body' ? feature.name : `Body ${next.length + 1}`, artifact: body.artifact, materialId: null, role: 'part' });
+			/* While rolled back a body is drawn as it stood at the bar; its record keeps the full build's artifact, so a save made rolled back does not record the shorter body as the part. */
+			next.push(existing ? { ...existing, artifact: this.limit !== null && /^[0-9a-f]{64}$/.test(existing.artifact) ? existing.artifact : body.artifact } : { id, name: feature?.type === 'body' ? feature.name : `Body ${next.length + 1}`, artifact: body.artifact, materialId: null, role: 'part' });
 		}
 		/* A body that is ABSENT but whose creating feature is still in the tree (suppressed, or failing because of an edit above it) keeps its record: dropping it here was persisted by the next save, and the body came back as `Body N` with no material, colour, role, mass or fixed flag once the feature was unsuppressed or repaired. Only a body whose feature is gone is gone. */
 		for (const r of this.records) {
@@ -148,7 +167,9 @@ export class SolidEngine {
 			faceName: (face) => k.getFaceName(face) || undefined,
 			warn: (message) => { warnings.push(message); },
 			volume: (solid) => engine.volume(solid),
-			extent: () => engine.extent()
+			extent: () => engine.extent(),
+			/* A drag frame skips a refused round's size search (features/blends.ts); only a settled build pays for it. */
+			preview: !!engine.preview
 		};
 		return ctx;
 	}
@@ -156,8 +177,14 @@ export class SolidEngine {
 		const cp = this.k.checkpoint();
 		try { return fn(); } finally { this.k.restore(cp); this.k.discardCheckpoint(cp); }
 	}
-	private volume(solid: number): number {
-		if (this.k.validateSolid(solid) !== 0) throw Error('This change could not form a valid solid. Try a different size.');
+	/** A combine, mirror or pattern sizes nothing, so its refusal names what the student can change instead (F009). */
+	private static readonly INVALID: Partial<Record<Feature['type'], string>> = {
+		boolean: 'These bodies could not be combined into one valid solid. Move one so they overlap by more than a sliver, or so they only meet face to face.',
+		mirror: 'The mirrored copy could not join the original as a valid solid. Try a plane that clears the body or lies on one of its flat faces.',
+		pattern: 'The copies could not form a valid solid. Change the spacing so they overlap by more, or not at all.'
+	};
+	private volume(solid: number, type?: Feature['type']): number {
+		if (this.k.validateSolid(solid) !== 0) throw Error((type && SolidEngine.INVALID[type]) ?? 'This change could not form a valid solid. Try a different size.');
 		let volume: number;
 		try { volume = json(this.k.massProperties(solid)).volume; } catch { throw Error('This change would remove the whole body. Use Delete to remove it.'); }
 		if (!Number.isFinite(volume) || volume <= 0) throw Error('This change would remove the whole body. Use Delete to remove it.');
@@ -175,10 +202,12 @@ export class SolidEngine {
 	private describeBody(id: string): string { return this.records.find((r) => r.id === id)?.name ?? id; }
 	/** The checkpoint standing after feature `i`, or the base for i < 0. Null when the window dropped it. */
 	private checkpointAfter(i: number): number | null { return i < 0 ? this.base : this.checkpoints[i] ?? null; }
-	private replayFrom(requested: number) {
+	private replayFrom(requested: number, onStep?: (index: number) => void) {
 		const started = performance.now();
-		const n = this.features.length;
-		let from = Math.max(0, Math.min(requested, n));
+		const n = this.features.length, stop = this.limit === null ? n : Math.max(0, Math.min(this.limit, n));
+		/* A feature past the rollback bar keeps the status its last full build gave it; it is not built. */
+		const prior = this.results.slice();
+		let from = Math.max(0, Math.min(requested, stop));
 		/* COMPACTION. `discardCheckpoint(id)` drops every checkpoint AFTER id as
 		   well (measured: discarding the oldest of 26 invalidated the newest 25), so
 		   the stack can only shrink from the top or be rebuilt from the base. It is
@@ -192,7 +221,7 @@ export class SolidEngine {
 		/* The restore rewound these solids under their handles; a cache entry keyed by handle would draw them where they were before the last solve or transform. */
 		for (const b of this.live.bodies.values()) this.cache.delete(b.solid);
 		this.states.length = from; this.checkpoints.length = from; this.results.length = from;
-		for (let i = from; i < n; i++) {
+		for (let i = from; i < stop; i++) {
 			const feature = this.features[i];
 			const touched = new Set<string>(), warnings: string[] = [];
 			const before = this.checkpointAfter(i - 1);
@@ -203,38 +232,41 @@ export class SolidEngine {
 				try {
 					const executor = EXECUTORS[feature.type] as (ctx: ExecutorContext, f: Feature) => void;
 					executor(this.context(feature, i, touched, warnings), feature);
-					for (const id of touched) { const b = this.live.bodies.get(id); if (b) this.volume(b.solid); }
+					for (const id of touched) { const b = this.live.bodies.get(id); if (b) this.volume(b.solid, feature.type); }
 					this.results[i] = { status: warnings.length ? 'warning' : 'ok', message: warnings[0], bodies: [...touched] };
 				} catch (error) {
 					this.k.restore(fallback);
 					this.live = i > 0 ? cloneState(this.states[i - 1]) : emptyState();
-					this.results[i] = { status: 'error', message: error instanceof Error ? error.message : String(error), bodies: [] };
+					this.results[i] = { status: 'error', message: error instanceof Error ? error.message : String(error), bodies: [], help: (error as { help?: FeatureHelp } | null)?.help };
 				}
 			}
 			if (before === null) this.k.discardCheckpoint(fallback);
 			this.states[i] = cloneState(this.live);
+			onStep?.(i);
 			/* Only the newest features keep a checkpoint; an edit above the window replays from the base. */
-			this.checkpoints[i] = i >= n - CHECKPOINT_WINDOW ? this.k.checkpoint() : null;
+			this.checkpoints[i] = i >= stop - CHECKPOINT_WINDOW ? this.k.checkpoint() : null;
 		}
+		for (let i = stop; i < n; i++) this.results[i] = this.features[i].suppressed ? { status: 'suppressed', bodies: [] } : prior[i] ?? { status: 'ok', bodies: [] };
 		this.mateReport = solveMates(this.context({ id: 'assembly', name: 'Assembly', type: 'delete', bodies: [] }, n, new Set(), []), this.live.bodies);
 		for (const id of this.mateReport.moved) { const b = this.live.bodies.get(id); if (b) { b.dirty = true; b.artifact = ''; } }
 		this.reconcileRecords();
 		this.picks.clear();
 		this.lastReplay = { ms: performance.now() - started, from };
 	}
-	/** The feature a command is about, whose own failure refuses the command rather than reddening a row. */
-	private commandFeature(command: SolidCommand): string | null {
-		if (command.type === 'add-feature') return command.feature.id;
-		if (command.type === 'set-feature' || command.type === 'suppress-feature') return command.id;
-		return null;
+	/** The features a command is about, whose own failure refuses the command rather than reddening a row. A batch (a joint's mates) is about every feature in it, so it is refused whole. */
+	private commandFeatures(command: SolidCommand): string[] {
+		if (command.type === 'batch') return command.commands.flatMap((c) => this.commandFeatures(c));
+		if (command.type === 'add-feature') return [command.feature.id];
+		if (command.type === 'set-feature' || command.type === 'suppress-feature') return [command.id];
+		return [];
 	}
-	/** A command whose OWN feature failed is refused with that feature's sentence, and the manifest is put back by the caller. */
+	/** A command whose OWN feature failed is refused with the first failing feature's sentence, and the manifest is put back by the caller. */
 	private refuseOwnFailure(command: SolidCommand, next: SolidManifest) {
-		const id = this.commandFeature(command);
-		if (!id) return;
-		const index = next.features.findIndex((f) => f.id === id);
-		const result = index >= 0 ? this.results[index] : undefined;
-		if (result?.status === 'error') throw Error(result.message ?? 'This change could not be made.');
+		for (const id of this.commandFeatures(command)) {
+			const index = next.features.findIndex((f) => f.id === id);
+			const result = index >= 0 ? this.results[index] : undefined;
+			if (result?.status === 'error') throw Error(result.message ?? 'This change could not be made.');
+		}
 	}
 	/** Replace the whole manifest, replaying only from the first feature that differs. */
 	private applyManifest(next: SolidManifest) {
@@ -401,39 +433,119 @@ export class SolidEngine {
 		for (const f of manifest.features) if (f.type === 'body' && !artifacts.has(f.artifact)) throw Error('A saved body is missing. Reload the document.');
 		const previous = this.manifest(), previousArtifacts = this.artifacts;
 		this.artifacts = artifacts;
+		const limit = this.limit;
+		this.limit = this.barAfterLoad(previous, manifest, limit);
 		try { this.applyManifest(manifest); }
-		catch (error) { this.artifacts = previousArtifacts; this.applyManifest(previous); throw error; }
+		catch (error) { this.artifacts = previousArtifacts; this.limit = limit; this.applyManifest(previous); throw error; }
 		if (resetHistory) { this.undoSteps = []; this.redoSteps = []; }
 		this.preview = null;
 		return this.project();
 	}
+	/**
+	 * WHILE ROLLED BACK, A NEW FEATURE GOES IN AT THE BAR. A command appends by
+	 * default, so the features it appended move to where the bar stands and the
+	 * bar moves past them; a feature placed explicitly keeps its place. The bar
+	 * then counts what is built: every feature that stood above it, plus what
+	 * went in there. A bar at the end is no rollback at all.
+	 */
+	private placeAtBar(before: SolidManifest, next: SolidManifest, limit: number | null): { next: SolidManifest; limit: number | null } {
+		if (limit === null) return { next, limit };
+		const old = new Set(before.features.map((f) => f.id)), built = new Set(before.features.slice(0, limit).map((f) => f.id));
+		let cut = next.features.length;
+		while (cut > 0 && !old.has(next.features[cut - 1].id)) cut--;
+		const tail = next.features.slice(cut), rest = next.features.slice(0, cut);
+		let at = 0;
+		rest.forEach((f, i) => { if (built.has(f.id) || !old.has(f.id)) at = i + 1; });
+		const features = [...rest.slice(0, at), ...tail, ...rest.slice(at)], bar = at + tail.length;
+		return { next: tail.length ? { ...next, features } : next, limit: bar >= features.length ? null : bar };
+	}
+	/** Move the rollback bar: build only features [0, index), or everything for null. The manifest does not change and no undo step is written. */
+	async rollback(index: number | null): Promise<ModelProjection> {
+		const n = this.features.length, next = index === null || !Number.isFinite(index) || index >= n ? null : Math.max(0, Math.floor(index));
+		if (next === this.limit) return this.project();
+		const start = performance.now(), from = Math.min(this.limit ?? n, next ?? n);
+		this.limit = next;
+		this.replayFrom(from);
+		return this.project(performance.now() - start);
+	}
+	/**
+	 * THE TIME-LAPSE, BUILT ONCE. One replay from the base, and after each
+	 * feature the bodies that feature made or changed, tessellated, plus the
+	 * body order and the open sketches. A step carries only what changed, so a
+	 * forty-feature part is not forty copies of its unchanged bodies; the main
+	 * thread keeps the steps and scrubbing swaps meshes it already holds, with
+	 * no kernel in the loop. The manifest, the history and the rollback bar are
+	 * as they were afterwards.
+	 */
+	async timelapse(): Promise<{ steps: TimelapseStep[]; ms: number }> {
+		const started = performance.now(), limit = this.limit, steps: TimelapseStep[] = [];
+		let handles = new Map<string, number>();
+		this.limit = null;
+		try {
+			this.replayFrom(0, (i) => {
+				const touched = new Set(this.results[i]?.bodies ?? []), next = new Map<string, number>(), changed: BodyProjection[] = [];
+				for (const id of this.live.order) {
+					const body = this.live.bodies.get(id)!; next.set(id, body.solid);
+					if (touched.has(id) || handles.get(id) !== body.solid) changed.push(this.stepBody(body));
+				}
+				handles = next;
+				steps.push({ order: [...this.live.order], changed, sketches: this.sketchProjections(this.live.sketches).filter((s) => !s.consumed) });
+			});
+		} finally {
+			this.limit = limit;
+			if (limit !== null) this.replayFrom(limit);
+		}
+		return { steps, ms: performance.now() - started };
+	}
+	/** A body as one time-lapse step draws it: faces, edges and corners, without the export mesh. */
+	private stepBody(body: LiveBody): BodyProjection {
+		const cached = this.bodyCache(body), record = this.records.find((r) => r.id === body.id) ?? { id: body.id, name: body.id, artifact: '', materialId: null, role: 'part' as const };
+		return { ...record, faces: cached.faces, edges: cached.edges, vertices: cached.vertices, mesh: { positions: new Float32Array(0), normals: new Float32Array(0), indices: new Uint32Array(0) }, bounds: cached.bounds, volume: cached.volume, centerOfMass: cached.centerOfMass, inertia: cached.inertia, createdBy: body.createdBy };
+	}
 	/** One edit, one undo step. */
 	async apply(command: SolidCommand): Promise<ModelProjection> {
-		const before = this.manifest(), start = performance.now();
+		const before = this.manifest(), limit = this.limit, start = performance.now();
 		try {
-			const next = reduce(before, command);
+			const placed = this.placeAtBar(before, reduce(before, command), limit), next = placed.next;
+			this.limit = placed.limit;
 			this.applyManifest(next);
 			this.refuseOwnFailure(command, next);
 			this.undoSteps.push({ before, after: this.manifest() }); this.redoSteps = [];
 			return this.project(performance.now() - start);
-		} catch (error) { this.applyManifest(before); throw error; }
+		} catch (error) { this.limit = limit; this.applyManifest(before); throw error; }
 	}
 	/** A gesture: every update applies the command to the state the gesture started from. */
-	async begin() { if (this.preview) await this.cancel(); this.preview = { before: this.manifest() }; return true; }
+	async begin() { if (this.preview) await this.cancel(); this.preview = { before: this.manifest(), limit: this.limit }; return true; }
 	async update(command: SolidCommand) {
 		if (!this.preview) throw Error('Start the gesture again.');
 		const p = this.preview, start = performance.now();
-		try { const next = reduce(p.before, command); this.applyManifest(next); this.refuseOwnFailure(command, next); p.command = command; return this.project(performance.now() - start); }
-		catch (error) { this.applyManifest(p.before); p.command = undefined; throw error; }
+		try { const placed = this.placeAtBar(p.before, reduce(p.before, command), p.limit), next = placed.next; this.limit = placed.limit; this.applyManifest(next); this.refuseOwnFailure(command, next); p.command = command; return this.project(performance.now() - start); }
+		catch (error) { this.limit = p.limit; this.applyManifest(p.before); p.command = undefined; throw error; }
 	}
 	async commit() {
 		const p = this.preview; this.preview = null;
 		if (p?.command) { this.undoSteps.push({ before: p.before, after: this.manifest() }); this.redoSteps = []; }
 		return this.project();
 	}
-	async cancel() { const p = this.preview; this.preview = null; if (p) this.applyManifest(p.before); return this.project(); }
-	async undo() { const step = this.undoSteps.pop(); if (step) { this.applyManifest(step.before); this.redoSteps.push(step); } return this.project(); }
-	async redo() { const step = this.redoSteps.pop(); if (step) { this.applyManifest(step.after); this.undoSteps.push(step); } return this.project(); }
+	async cancel() { const p = this.preview; this.preview = null; if (p) { this.limit = p.limit; this.applyManifest(p.before); } return this.project(); }
+	/**
+	 * WHERE THE BAR STANDS AFTER A WHOLE DOCUMENT IS LOADED OVER THIS ONE (the
+	 * workspace's undo and redo load the inverse tree). Nothing is reordered: the
+	 * bar stays after the last feature that was built, and a feature that came
+	 * back right at the bar (a redo of one added there) is built with it.
+	 */
+	private barAfterLoad(previous: SolidManifest, next: SolidManifest, limit: number | null): number | null {
+		if (limit === null) return null;
+		const old = new Set(previous.features.map((f) => f.id)), built = new Set(previous.features.slice(0, limit).map((f) => f.id));
+		let at = 0;
+		next.features.forEach((f, i) => { if (built.has(f.id)) at = i + 1; });
+		while (at < next.features.length && !old.has(next.features[at].id)) at++;
+		return at >= next.features.length ? null : at;
+	}
+	/** A bar that no longer stands before any feature is no rollback. */
+	private clampBar(n: number) { if (this.limit !== null && this.limit >= n) this.limit = null; }
+	async undo() { const step = this.undoSteps.pop(); if (step) { this.clampBar(step.before.features.length); this.applyManifest(step.before); this.redoSteps.push(step); } return this.project(); }
+	async redo() { const step = this.redoSteps.pop(); if (step) { this.clampBar(step.after.features.length); this.applyManifest(step.after); this.undoSteps.push(step); } return this.project(); }
 	/** The kernel's checkpoint count, for the tests that pin the window. */
 	checkpointCount() { return this.k.checkpointCount(); }
 	/** Solve a sketch's constraints without changing the document: the sketch editor's live preview. */
@@ -464,6 +576,8 @@ export class SolidEngine {
 		if (!result) throw Error('That selection changed. Select it again.');
 		return result;
 	}
+	/** Every body pair: exact interference volume, touching, or clearance (analysis/interference.ts). Its intersection solids live inside scratch, so nothing the check builds outlives the call. */
+	interference(): InterferenceReport { const bodies = this.live.order.map((id) => ({ id, solid: this.live.bodies.get(id)!.solid })); return this.scratch(() => checkInterference(this.k, bodies)); }
 	/** Measure between two selections: the kernel's distance, or an edge length / face area on one. */
 	measure(a: Selection, b?: Selection): { kind: string; value: number; points?: [Vec3, Vec3] } {
 		const k = this.k, pa = this.pick(a);
@@ -474,7 +588,7 @@ export class SolidEngine {
 			throw Error('Select an edge, a face or a body to measure it.');
 		}
 		const pb = this.pick(b);
-		if (pa.kind === 'body' && pb.kind === 'body') { const d = k.solidToSolidDistance(pa.handle, pb.handle); return { kind: 'distance', value: d[0], points: [[d[1], d[2], d[3]], [d[4], d[5], d[6]]] }; }
+		if (pa.kind === 'body' && pb.kind === 'body') { const p = this.scratch(() => checkPair(k, { id: 'a', solid: pa.handle }, { id: 'b', solid: pb.handle })); if (p.kind === 'unknown') throw Error(p.message ?? 'The kernel could not measure between these two bodies.'); return p.kind === 'interference' ? { kind: 'distance', value: 0, ...(p.point ? { points: [p.point, p.point] as [Vec3, Vec3] } : {}) } : { kind: 'distance', value: p.distance!, points: p.points }; }
 		const point = (p: Pick): Vec3 | null => p.kind === 'vertex' ? vector(k.getVertexPosition(p.handle)) : null;
 		const qa = point(pa), qb = point(pb);
 		if (qa && qb) return { kind: 'distance', value: Math.hypot(...sub(qa, qb)), points: [qa, qb] };
@@ -492,6 +606,24 @@ export class SolidEngine {
 		throw Error('Measure two corners, a corner and a face or edge, two flat faces, or two bodies.');
 	}
 
+	/**
+	 * SELECT TANGENT CHAIN: the edges that run on smoothly from the picked
+	 * ones, on their own body, by the SAME walk a fillet with propagation
+	 * takes (`tangentChain`), so what is selected is exactly what that fillet
+	 * would round. Answered as projection edge ids, seeds included.
+	 */
+	tangentEdges(seeds: Selection[]): Selection[] {
+		const picks = seeds.map((s) => this.pick(s)).filter((p) => p.kind === 'edge');
+		if (!picks.length) throw Error('Select an edge to follow its tangent chain.');
+		const out: Selection[] = [], seen = new Set<string>();
+		for (const bodyId of new Set(picks.map((p) => p.body.id))) {
+			const group = picks.filter((p) => p.body.id === bodyId), body = group[0].body, cached = this.bodyCache(body);
+			const idOf = new Map([...cached.handles.edges].map(([id, handle]) => [handle, id]));
+			for (const handle of tangentChain(this.k, body.solid, group.map((p) => p.handle))) { const id = idOf.get(handle); if (id && !seen.has(`${bodyId}/${id}`)) { seen.add(`${bodyId}/${id}`); out.push({ bodyId, kind: 'edge', id }); } }
+		}
+		return out;
+	}
+
 	/* --------------------------------------------------------- projection */
 	private bodyCache(body: LiveBody): CachedBody {
 		const k = this.k, solid = body.solid;
@@ -502,34 +634,42 @@ export class SolidEngine {
 		for (const face of faceHandles) { for (const edge of k.getFaceEdges(face)) edgeFaces.set(edge, [...(edgeFaces.get(edge) ?? []), faceNames.get(face)!]); for (const vertex of k.getFaceVertices(face)) vertexFaces.set(vertex, [...(vertexFaces.get(vertex) ?? []), faceNames.get(face)!]); }
 		const handles = { faces: new Map<string, number>(), edges: new Map<string, number>(), vertices: new Map<string, number>() };
 		/* Edges: grouped by their face pair; a pair with several edges takes ordinals by midpoint. */
-		const edgeGroups = new Map<string, { handle: number; mid: Vec3 }[]>();
-		for (const [handle, names] of edgeFaces) { const adjacent = [...new Set(names)].sort(); if (adjacent.length < 2) continue; const key = adjacent.join('|'); edgeGroups.set(key, [...(edgeGroups.get(key) ?? []), { handle, mid: this.edgeMid(handle) }]); }
+		/* A group keeps its own face list: a round's face is named `<fid>.blend.<A>|<B>`, so splitting the joined key on '|' would cut that one name into two. */
+		const edgeGroups = new Map<string, { faces: string[]; group: { handle: number; mid: Vec3 }[] }>();
+		for (const [handle, names] of edgeFaces) { const adjacent = [...new Set(names)].sort(); if (adjacent.length < 2) continue; const key = JSON.stringify(adjacent), entry = edgeGroups.get(key) ?? { faces: adjacent, group: [] }; entry.group.push({ handle, mid: this.edgeMid(handle) }); edgeGroups.set(key, entry); }
 		const edges: BodyProjection['edges'] = [], edgeIdOf = new Map<number, string>();
-		for (const [key, group] of edgeGroups) {
-			const faces = key.split('|');
+		for (const { faces, group } of edgeGroups.values()) {
 			const ordered = group.length > 1 ? [...group].sort((a, b) => anchorOrder(a.mid, b.mid)) : group;
 			ordered.forEach(({ handle, mid }, i) => { const id = edgeId(faces, group.length > 1 ? i : undefined); edgeIdOf.set(handle, id); handles.edges.set(id, handle); edges.push({ id, curve: k.getEdgeCurveType(handle), faces, points: new Float32Array(k.sampleEdge(handle, 0.002)), length: k.edgeLength(handle), mid, ordinal: group.length > 1 ? i : undefined }); });
 		}
-		const vertexGroups = new Map<string, { handle: number; point: Vec3 }[]>();
-		for (const [handle, names] of vertexFaces) { const adjacent = [...new Set(names)].sort(); if (adjacent.length < 3) continue; const key = adjacent.join('|'); vertexGroups.set(key, [...(vertexGroups.get(key) ?? []), { handle, point: vector(k.getVertexPosition(handle)) }]); }
+		const vertexGroups = new Map<string, { faces: string[]; group: { handle: number; point: Vec3 }[] }>();
+		for (const [handle, names] of vertexFaces) { const adjacent = [...new Set(names)].sort(); if (adjacent.length < 3) continue; const key = JSON.stringify(adjacent), entry = vertexGroups.get(key) ?? { faces: adjacent, group: [] }; entry.group.push({ handle, point: vector(k.getVertexPosition(handle)) }); vertexGroups.set(key, entry); }
 		const vertices: BodyProjection['vertices'] = [];
-		for (const [key, group] of vertexGroups) {
-			const faces = key.split('|');
+		for (const { faces, group } of vertexGroups.values()) {
 			const ordered = group.length > 1 ? [...group].sort((a, b) => anchorOrder(a.point, b.point)) : group;
 			ordered.forEach(({ handle, point }, i) => { const id = vertexId(faces, group.length > 1 ? i : undefined); handles.vertices.set(id, handle); vertices.push({ id, point, faces, ordinal: group.length > 1 ? i : undefined }); });
 		}
+		const ext = this.extent(), chord = displayChord(ext ? Math.max(...[0, 1, 2].map((i) => ext.max[i] - ext.min[i])) : 1);
 		const faces = faceHandles.map((handle) => {
-			const id = faceNames.get(handle)!, mesh = k.tessellateFace(handle, 0.002, 0.15), positions = new Float32Array(mesh.positions), normals = new Float32Array(mesh.normals), indices = mesh.indices; mesh.free();
+			const id = faceNames.get(handle)!, mesh = k.tessellateFace(handle, chord, DISPLAY_TESSELLATION.angle), positions = new Float32Array(mesh.positions), normals = new Float32Array(mesh.normals), indices = mesh.indices; mesh.free();
 			const surface = json(k.getAnalyticSurfaceParams(handle)), kind = k.getSurfaceType(handle), normal = kind === 'plane' ? vector(k.getFaceNormal(handle)) : ([0, 0, 0] as Vec3);
 			const center = faceAnchor(k, handle);
 			handles.faces.set(id, handle);
 			return { id, kind, center, normal, surface, area: k.faceArea(handle, 0.002), positions, normals, indices, edges: [...k.getFaceEdges(handle)].map((e) => edgeIdOf.get(e)).filter((e): e is string => !!e) };
 		});
-		const grouped = k.tessellateSolidGroupedBinary(solid, 0.002, 0.15), mesh = { positions: grouped.positions, normals: grouped.normals, indices: grouped.indices }; grouped.free();
+		const grouped = k.tessellateSolidGroupedBinary(solid, EXPORT_TESSELLATION.chord, EXPORT_TESSELLATION.angle), mesh = { positions: grouped.positions, normals: grouped.normals, indices: grouped.indices }; grouped.free();
 		const props = json(k.massProperties(solid));
 		const out: CachedBody = { faces, edges, vertices, mesh, bounds: [...k.boundingBox(solid)], volume: props.volume, centerOfMass: props.centerOfMass as Vec3, inertia: props.inertia as number[], handles };
 		this.cache.set(solid, out);
 		return out;
+	}
+	private sketchProjections(table: State['sketches']): SketchProjection[] {
+		const sketches: SketchProjection[] = [];
+		for (const [feature, s] of table) {
+			const f = this.features.find((x) => x.id === feature); if (!f) continue;
+			sketches.push({ feature, name: f.name, plane: s.plane, planeRef: f.type === 'sketch' ? f.plane : { kind: 'fixed', plane: s.plane }, entities: s.entities, constraints: s.constraints, solve: s.report, regions: regionOutlines(s.entities, s.plane), consumed: s.consumed });
+		}
+		return sketches;
 	}
 	project(operationMs = 0): ModelProjection {
 		this.picks.clear();
@@ -553,19 +693,15 @@ export class SolidEngine {
 			else if (ref.kind === 'axis') references.push({ feature, name: f.name, kind: 'axis', origin: ref.axis.origin, direction: ref.axis.direction, size });
 			else references.push({ feature, name: f.name, kind: 'point', origin: ref.point.point, size });
 		}
-		const sketches: SketchProjection[] = [];
-		for (const [feature, s] of this.live.sketches) {
-			const f = this.features.find((x) => x.id === feature); if (!f) continue;
-			sketches.push({ feature, name: f.name, plane: s.plane, planeRef: f.type === 'sketch' ? f.plane : { kind: 'fixed', plane: s.plane }, entities: s.entities, constraints: s.constraints, solve: s.report, regions: regionOutlines(s.entities, s.plane), consumed: s.consumed });
-			this.picks.set(this.key({ bodyId: '', kind: 'sketch', id: feature }), { body: { id: '', solid: 0, createdBy: feature, dirty: false, artifact: '' }, handle: 0, kind: 'sketch' });
-		}
+		const sketches = this.sketchProjections(this.live.sketches);
+		for (const s of sketches) this.picks.set(this.key({ bodyId: '', kind: 'sketch', id: s.feature }), { body: { id: '', solid: 0, createdBy: s.feature, dirty: false, artifact: '' }, handle: 0, kind: 'sketch' });
 		const features: FeatureRow[] = this.features.map((f, index) => {
 			const r = this.results[index] ?? { status: 'error', message: 'Not replayed.', bodies: [] };
 			const mateError = f.type === 'mate' ? this.mateReport.errors.find((e) => e.feature === f.id) : undefined;
-			return { id: f.id, index, type: f.type, name: f.name, status: mateError ? 'error' : r.status, message: mateError?.message ?? r.message, summary: featureSummary(f), bodies: r.bodies, dependsOn: dependsOnFeatures(f, this.features), suppressed: !!f.suppressed };
+			return { id: f.id, index, type: f.type, name: f.name, status: mateError ? 'error' : r.status, message: mateError?.message ?? r.message, help: mateError ? undefined : r.help, summary: featureSummary(f), bodies: r.bodies, dependsOn: dependsOnFeatures(f, this.features), suppressed: !!f.suppressed };
 		});
 		const mates: MateProjection[] = this.live.mates.map((m) => { const error = this.mateReport.errors.find((e) => e.feature === m.feature); return { feature: m.feature, kind: m.kind, a: m.a, b: m.b, value: m.value, status: error ? 'error' : 'ok', message: error?.message, residual: this.mateReport.residuals.get(m.feature) }; });
-		return { bodies, sketches, references, features, mates, addons: clone(this.addons), operationMs, replayMs: this.lastReplay.ms, replayedFrom: this.lastReplay.from, canUndo: !!this.undoSteps.length, canRedo: !!this.redoSteps.length };
+		return { bodies, sketches, references, features, mates, addons: clone(this.addons), operationMs, replayMs: this.lastReplay.ms, replayedFrom: this.lastReplay.from, canUndo: !!this.undoSteps.length, canRedo: !!this.redoSteps.length, rollbackIndex: this.limit };
 	}
 }
 function cross3(a: Vec3, b: Vec3): Vec3 { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }

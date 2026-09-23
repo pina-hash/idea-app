@@ -155,6 +155,26 @@ describe('views, empty states and creation', () => {
 		expect(full.m.all('[data-testid="empty"]')).toHaveLength(0);
 		expect(full.m.all('[data-testid="model-card"]')).toHaveLength(7);
 	});
+	it('embedded in the legacy chooser, the controls stay and the band does not come with them', async () => {
+		// The page's controls are grid items of the band (the toolbar is `display: contents` there), so the embedded
+		// mount, which draws no band, is the one place they could go missing with nothing on the full page to say so.
+		const api = createMemoryLaunchApi({ documents: FIXTURE_DOCUMENTS, folders: FIXTURE_FOLDERS, trash: FIXTURE_TRASH, now: () => FIXTURE_NOW });
+		const embedded = mountInto(Page, { api, rows: api.state.documents, folders: api.state.folders, onopen: () => {}, now: () => FIXTURE_NOW, embedded: true });
+		mounts.push(embedded);
+		const { m: full } = seeded();
+		// Both directions on one fixture: the band and its two logos on the full page, none of it embedded.
+		expect(full.all('header.masthead')).toHaveLength(1);
+		expect(full.all('header.masthead a[href="/"]')).toHaveLength(1);
+		expect(full.all('header.masthead h1 svg')).toHaveLength(1);
+		expect(embedded.all('header.masthead')).toHaveLength(0);
+		expect(embedded.all('a[href="/"]')).toHaveLength(0);
+		// And the same controls either way, in a toolbar of their own when embedded.
+		for (const m of [full, embedded]) {
+			expect(m.all('.toolbar [data-testid="new-model"]')).toHaveLength(1);
+			expect(m.all('.toolbar [data-testid="view-live"], .toolbar [data-testid="view-archived"], .toolbar [data-testid="view-trash"]')).toHaveLength(3);
+			expect(m.all('.toolbar input[type="search"]')).toHaveLength(1);
+		}
+	});
 	it('New model creates through the api and opens the new id', async () => {
 		const { m, api, opened } = seeded();
 		click(m.one('[data-testid="new-model"]')); await m.settle();

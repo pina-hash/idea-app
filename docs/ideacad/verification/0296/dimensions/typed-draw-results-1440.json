@@ -1,0 +1,108 @@
+{
+ "heldAt": {
+  "a": {
+   "x": 673,
+   "y": 533.5999999999999
+  },
+  "hit": "CANVAS.svelte-2gbmb1"
+ },
+ "readoutBeforeTyping": "0.011 × 0.298 in",
+ "focus": "CANVAS.svelte-2gbmb1",
+ "readoutHeld": "Width 2  Height [1]",
+ "afterHeld": [
+  {
+   "area": 2,
+   "dims": [
+    "distance=2.0000",
+    "distance=1.0000"
+   ],
+   "solve": "underConstrained"
+  }
+ ],
+ "readoutClick": "Width 3  Height [1.5]",
+ "afterClick": [
+  {
+   "area": 2,
+   "dims": [
+    "distance=2.0000",
+    "distance=1.0000"
+   ],
+   "solve": "underConstrained"
+  },
+  {
+   "area": 4.5,
+   "dims": [
+    "distance=3.0000",
+    "distance=1.5000"
+   ],
+   "solve": "underConstrained"
+  }
+ ],
+ "circleAt": {
+  "a": {
+   "x": 614,
+   "y": 334.59999999999997
+  },
+  "hit": "CANVAS.svelte-2gbmb1"
+ },
+ "readoutCircle": "Diameter [2]",
+ "afterCircle": [
+  {
+   "area": 2,
+   "dims": [
+    "distance=2.0000",
+    "distance=1.0000"
+   ],
+   "solve": "underConstrained"
+  },
+  {
+   "area": 4.5,
+   "dims": [
+    "distance=3.0000",
+    "distance=1.5000"
+   ],
+   "solve": "underConstrained"
+  },
+  {
+   "area": 3.1365,
+   "dims": [
+    "circleRadius=1.0000"
+   ],
+   "solve": "underConstrained"
+  }
+ ],
+ "afterMm": [
+  {
+   "area": 2,
+   "dims": [
+    "distance=2.0000",
+    "distance=1.0000"
+   ],
+   "solve": "underConstrained"
+  },
+  {
+   "area": 4.5,
+   "dims": [
+    "distance=3.0000",
+    "distance=1.5000"
+   ],
+   "solve": "underConstrained"
+  },
+  {
+   "area": 3.1365,
+   "dims": [
+    "circleRadius=1.0000"
+   ],
+   "solve": "underConstrained"
+  },
+  {
+   "area": 2,
+   "dims": [
+    "distance=2.0000",
+    "distance=1.0000"
+   ],
+   "solve": "underConstrained"
+  }
+ ],
+ "errors": []
+}

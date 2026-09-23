@@ -170,6 +170,8 @@ export interface FeatureBase {
 }
 
 export type MateKind = 'coincident' | 'concentric' | 'parallel' | 'perpendicular' | 'distance' | 'angle';
+/** A joint names what a set of mates lets a part DO; its mates carry it, and `group` (the first mate's id) keeps them one joint. */
+export type JointKind = 'fixed' | 'hinge' | 'slider' | 'cylindrical' | 'planar' | 'slot';
 
 export type Feature = FeatureBase & (
 	/** A body whose only parameter is its exact bytes: a v1 body, an import, or a copy. */
@@ -190,7 +192,7 @@ export type Feature = FeatureBase & (
 	| { type: 'plane'; definition: PlaneDefinition }
 	| { type: 'axis'; definition: AxisDefinition }
 	| { type: 'point'; definition: PointDefinition }
-	| { type: 'mate'; kind: MateKind; a: EntityRef; b: EntityRef; value?: number; flip?: boolean }
+	| { type: 'mate'; kind: MateKind; a: EntityRef; b: EntityRef; value?: number; flip?: boolean; joint?: JointKind; group?: string }
 	| { type: 'hole'; face: FaceRef; center: Vec2 | { kind: 'point'; point: PointRef }; standard: string; fit: 'tapped' | 'close' | 'normal' | 'custom'; diameter?: number; depth: number | 'through' }
 	| { type: 'draft'; faces: FaceRef[]; angle: number; pull: AxisRef; neutral: PlaneRef }
 	| { type: 'sweep'; profile: string; path: string | EdgeRef[]; operation: 'new' | 'add' | 'cut'; target?: string }
@@ -290,7 +292,18 @@ export interface FeatureRow {
 	/** Feature ids this one depends on; a reorder above any of them is refused. */
 	dependsOn: string[];
 	suppressed: boolean;
+	/** Beside a refusal: where on the model it happened, a one-click way forward, and the kernel's own text. Only set when status is `error`. */
+	help?: FeatureHelp;
 }
+/**
+ * A way forward a refusal offers, as ordinary commands the student presses
+ * once. Nothing is applied until they do, so the value they typed stays
+ * stored (no clamp). `value` is the size a size fix sets, for a test or a
+ * label to read without parsing the label.
+ */
+export interface FeatureFix { label: string; commands: SolidCommand[]; value?: number }
+/** What travels with a refused feature besides its sentence: the way forward (`fix`), any other ways (`more`), the edges it is about, and the kernel's own text, shown only in development. */
+export interface FeatureHelp { fix?: FeatureFix; more?: FeatureFix[]; where?: Selection[]; detail?: string }
 export interface ReferenceProjection {
 	feature: string; name: string; kind: 'plane' | 'axis' | 'point';
 	origin: Vec3; normal?: Vec3; direction?: Vec3; u?: Vec3; v?: Vec3;
@@ -314,6 +327,8 @@ export interface ModelProjection {
 	mates: MateProjection[];
 	addons: AddonState;
 	operationMs: number; replayMs?: number; replayedFrom?: number; canUndo: boolean; canRedo: boolean;
+	/** Where the rollback bar stands: only features [0, rollbackIndex) are built. Absent or null builds everything. Workspace state, never in the manifest. */
+	rollbackIndex?: number | null;
 }
 
 /* -------------------------------------------------------------------------
@@ -325,6 +340,8 @@ export type SolidCommand =
 	| { type: 'set-feature'; id: string; patch: Partial<Feature> & Record<string, unknown> }
 	| { type: 'remove-feature'; id: string }
 	| { type: 'move-feature'; id: string; to: number }
+	/** Move a node's features together (a feature and the sketches it is made from) as ONE edit: `to` is where the block goes in the list without it. Each member is checked exactly as `move-feature` checks it. */
+	| { type: 'move-features'; ids: string[]; to: number }
 	| { type: 'suppress-feature'; id: string; suppressed: boolean }
 	| { type: 'rename-feature'; id: string; name: string }
 	| { type: 'metadata'; bodyId: string; name?: string; materialId?: string | null; role?: BodyRole; massG?: number|null; massSource?: 'measured'|'bambu-studio'; color?: string | null; fixed?: boolean }
@@ -332,7 +349,9 @@ export type SolidCommand =
 	| { type: 'title'; title: string }
 	/** Convenience wrappers the tools use; each becomes an add-feature. */
 	| { type: 'sketch'; sketch: Sketch; planeRef?: PlaneRef }
-	| { type: 'delete'; selections: Selection[] };
+	| { type: 'delete'; selections: Selection[] }
+	/** Several edits as ONE step: one undo, one history label. A joint adds its mates this way. */
+	| { type: 'batch'; commands: SolidCommand[] };
 
 export interface SolidDocument {
 	id: string; title: string; conceptId: string; revision: number; canWrite: boolean;

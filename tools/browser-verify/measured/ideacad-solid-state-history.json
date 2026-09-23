@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "ideacad-solid-state-history.mjs",
+	"date": "2026-09-23T10:56:00.000Z",
+	"sha": "e8cb1ef9aa92391eff5d2baf6fb1859e9f19f790",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 38,
+	"outsideRows": [],
+	"ms": 15874
+}

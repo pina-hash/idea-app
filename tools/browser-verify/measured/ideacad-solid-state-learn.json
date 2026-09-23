@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "ideacad-solid-state-learn.mjs",
+	"date": "2026-09-23T12:42:07.123Z",
+	"sha": "e76fb1465b98af9fadac28c7e0c7fcdbe09bc611",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 20,
+	"outsideRows": [],
+	"ms": 11993
+}

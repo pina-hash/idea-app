@@ -16,6 +16,8 @@
  */
 import { edgeId, vertexId } from '../naming';
 import { TYPE_LABELS } from '../features';
+/* A face is named in the Mates panel's words ("side face 1", "hole wall"), never by its construction id, so the parameter form and the Mates panel read the same (F034). */
+import { faceWord } from '../mates/words';
 import type { AxisRef, EdgeRef, EntityRef, FaceRef, Feature, FeatureRow, ModelProjection, PlaneRef, PointRef, SolidManifest, VertexRef } from '../types';
 
 export type RefStatus = 'found' | 'missing' | 'reattached';
@@ -59,17 +61,17 @@ function referenceWords(id: string, kind: 'plane' | 'axis' | 'point', ctx: Param
 export function faceWords(ref: FaceRef, ctx: ParamContext): RefWords {
 	const body = ctx.model.bodies.find((b) => b.id === ref.body);
 	const status: RefStatus = !body ? 'missing' : reattached(ctx, 'face') ? 'reattached' : body.faces.some((f) => f.id === ref.name) ? 'found' : 'missing';
-	return { words: `face ${ref.name} on ${bodyName(ref.body, ctx)}`, status };
+	return { words: `${faceWord(ctx, body, ref.name)} on ${bodyName(ref.body, ctx)}`, status };
 }
 export function edgeWords(ref: EdgeRef, ctx: ParamContext): RefWords {
 	const body = ctx.model.bodies.find((b) => b.id === ref.body), id = edgeId(ref.faces, ref.ordinal);
 	const status: RefStatus = !body ? 'missing' : reattached(ctx, 'edge') ? 'reattached' : body.edges.some((e) => e.id === id) ? 'found' : 'missing';
-	return { words: `edge between ${ref.faces.join(' and ')} on ${bodyName(ref.body, ctx)}`, status };
+	return { words: `edge between ${ref.faces.map((f) => faceWord(ctx, body, f)).join(' and ')} on ${bodyName(ref.body, ctx)}`, status };
 }
 export function vertexWords(ref: VertexRef, ctx: ParamContext): RefWords {
 	const body = ctx.model.bodies.find((b) => b.id === ref.body), id = vertexId(ref.faces, ref.ordinal);
 	const status: RefStatus = !body ? 'missing' : reattached(ctx, 'corner') ? 'reattached' : body.vertices.some((v) => v.id === id) ? 'found' : 'missing';
-	return { words: `corner of ${ref.faces.join(', ')} on ${bodyName(ref.body, ctx)}`, status };
+	return { words: `corner of ${ref.faces.map((f) => faceWord(ctx, body, f)).join(', ')} on ${bodyName(ref.body, ctx)}`, status };
 }
 export function planeWords(ref: PlaneRef, ctx: ParamContext): RefWords {
 	if (ref.kind === 'datum') return { words: `${ref.datum} plane${ref.offset ? ` offset ${fix(ref.offset)} in` : ''}`, status: 'found' };

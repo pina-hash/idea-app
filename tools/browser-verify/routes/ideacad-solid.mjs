@@ -60,6 +60,13 @@ export default {
 		{ selector: '[data-testid="ideacad-feature-tree"] ol > li', label: 'feature rows (3, present)', expectPresent: 3, maxPresent: 3, expectVisible: 0 },
 		{ selector: '.solid-workspace canvas', label: 'the 3D viewport', expectPresent: 1, expectVisible: 1 },
 		{ selector: '.solid-workspace .tools', label: 'the tool palette', expectPresent: 1, expectVisible: 1 },
+		/* The view control names every standard view in words; the sketch-plane select it replaced is gone (a plane is pressed, or picked, instead). */
+		{ selector: '[data-testid="ideacad-view-controls"] .row button', label: 'the view control buttons, words not glyphs (at least Fit, Iso and Front before anything folds)', expectPresent: 3, expectVisible: 3 },
+		{ selector: '.solid-workspace .view-tools select', label: 'the retired XY/XZ/YZ select, absent', expectPresent: 0 },
+		/* The corner triad's slot, bottom-left; the world-origin axes it replaced are not in the DOM to count, so the pixels are canvasContent's. */
+		{ selector: '[data-testid="ideacad-triad"]', label: 'the corner triad slot', expectPresent: 1, maxPresent: 1 },
+		/* A part with features shows no start cue; the positive control is the empty-part state spec. */
+		{ selector: '[data-testid="ideacad-empty-cue"]', label: 'the empty-part cue, absent once there are features', expectPresent: 0 },
 		{ selector: '[data-testid="ideacad-replay"]', label: 'the replay readout, drawn after the axis replayed (dev only)', expectPresent: 1 },
 		/* No refusal is on screen after a clean build. Positive control: the tree above rendered. */
 		{ selector: '.solid-workspace .error', label: 'the refusal banner, absent on a clean build', expectPresent: 0 }
@@ -73,7 +80,7 @@ export default {
 	],
 	/* A STUDENT SURFACE AT EVERY WIDTH: 44px, no 24px relief, and the palette's icon buttons are in the sweep. */
 	tapTargets: [
-		{ selector: '.solid-workspace header button, .solid-workspace .tools button, .solid-workspace .view-tools button, .solid-workspace .view-tools select, .solid-workspace .right-tools button', label: 'the workspace chrome: header, palette, view and panel toggles', min: 44 }
+		{ selector: '.solid-workspace header button, .solid-workspace .tools button, .solid-workspace .view-tools .row button, .solid-workspace .right-tools button', label: 'the workspace chrome: header, palette, view control and panel toggles', min: 44 }
 	],
 	canvasContent: [{ selector: '.solid-workspace canvas', label: 'the 3D viewport' }],
 	/* The work area only: the tree rail is a closed slide-over at 375 and its rows are zero-box by design there. */

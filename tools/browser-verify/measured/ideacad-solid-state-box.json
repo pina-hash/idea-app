@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "ideacad-solid-state-box.mjs",
+	"date": "2026-09-23T08:40:14.804Z",
+	"sha": "ba0ea5a540cae626c2c3f6821279bab076c0de31",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 24,
+	"outsideRows": [],
+	"ms": 9570
+}

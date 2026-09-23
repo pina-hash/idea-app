@@ -24,6 +24,7 @@
 	 * transform the kernel refuses is the kernel's own sentence in the feature
 	 * row. Zero everywhere is refused as an empty form, not as a bad value.
 	 */
+	import { untrack } from 'svelte';
 	import * as THREE from 'three';
 	import type { WorkspaceApi } from './workspace-api';
 	import type { Vec3 } from './types';
@@ -60,6 +61,10 @@
 		void api.apply({ type: 'add-feature', feature: { id: '', name: '', type: 'transform', bodies: ids, matrix: matrix.transpose().toArray() } }, 'Rotate');
 	}
 	/* Each box mirrors into the module-level settings the drag reads; the boxes are the only writer. */
+	/* Settings changed while this panel is open (Preferences, Snaps) show here at once, not on the next open. */
+	$effect(() => { const s = api.prefs?.snaps; if (!s) return; untrack(() => { if (references !== s.references) references = s.references; if (bodies !== s.bodies) bodies = s.bodies; if (angles !== s.angles) angles = s.angles; }); });
+	/** A box ticked here is the student's setting too, so it survives a change made to any other group of settings. */
+	const saveSnaps = (patch: Partial<{ references: boolean; bodies: boolean; angles: boolean }>) => api.setPreference?.('snaps', { references, bodies, angles, ...patch });
 	$effect(() => { snapSettings.references = references; });
 	$effect(() => { snapSettings.bodies = bodies; });
 	$effect(() => { snapSettings.angles = angles; });
@@ -80,9 +85,9 @@
 		</div>
 		{#if api.canWrite}<button type="button" class="primary" onclick={rotate} disabled={api.busy} data-testid="ideacad-rotate-apply">Rotate about the centre</button>{/if}
 		<h3>Snapping while dragging</h3>
-		<label class="toggle"><input type="checkbox" bind:checked={references} data-testid="ideacad-snap-references" /><span>Snap to reference planes and axes</span></label>
-		<label class="toggle"><input type="checkbox" bind:checked={bodies} data-testid="ideacad-snap-bodies" /><span>Snap to other bodies' faces and corners</span></label>
-		<label class="toggle"><input type="checkbox" bind:checked={angles} data-testid="ideacad-snap-angles" /><span>Snap turns to {ANGLE_STEP}° steps</span></label>
+		<label class="toggle"><input type="checkbox" bind:checked={references} onchange={(e) => saveSnaps({ references: e.currentTarget.checked })} data-testid="ideacad-snap-references" /><span>Snap to reference planes and axes</span></label>
+		<label class="toggle"><input type="checkbox" bind:checked={bodies} onchange={(e) => saveSnaps({ bodies: e.currentTarget.checked })} data-testid="ideacad-snap-bodies" /><span>Snap to other bodies' faces and corners</span></label>
+		<label class="toggle"><input type="checkbox" bind:checked={angles} onchange={(e) => saveSnaps({ angles: e.currentTarget.checked })} data-testid="ideacad-snap-angles" /><span>Snap turns to {ANGLE_STEP}° steps</span></label>
 		<p class="hint" data-testid="ideacad-move-modifiers">{MODIFIER_WORDS.fine} {MODIFIER_WORDS.noSnap}</p>
 	</section>
 {/if}

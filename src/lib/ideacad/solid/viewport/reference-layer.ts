@@ -18,12 +18,22 @@
  * turn green together and the name reads in green beside a green outline.
  * The label is white on a dark pill so that tint lands on the WORD.
  *
- * THE DATUM PLANES ARE A MODULE-LEVEL SETTING the panel writes and this
- * layer reads. They are drawn faintly, at the engine's own reference size, and
- * they are NOT pickable: their `raycast` is a no-op, so a faint square across
- * the model never steals a press meant for a face. `onDatumPlanesChange` is
- * how the viewport learns to redraw when the setting moves.
- */
+ * THE DATUM PLANES ARE FRONT, TOP AND RIGHT, AND A MODULE-LEVEL SETTING
+ * DECIDES WHEN THEY ARE DRAWN: `auto` (the default) draws them while the
+ * document has no body, so a new part opens on the three planes a student can
+ * press to start sketching; `always` and `never` are the student's own
+ * choice, stored in preferences. They are NOT features and never enter the
+ * manifest. They ARE pickable once drawn: the outline and the name answer a
+ * press (so Select can pick a plane without a plane swallowing every click on
+ * empty space), and the fill answers a drawing tool, which sketches on it.
+ * Their selection id is `datum:<XY|XZ|YZ>`, and they carry `datum` rather
+ * than `plane`, so a drawing press resolves to the datum and never to a
+ * reference feature that does not exist. `onDatumPlanesChange` is how the
+ * viewport learns to redraw when the setting moves.
+ *
+ * THE NAMES ARE SOLIDWORKS', ON A Z-UP SCENE: Top is XY, Front is XZ (seen
+ * from -Y), Right is YZ (seen from +X). `DATUM_NAMES` is the one spelling.
+  */
 import * as THREE from 'three';
 import { PLANES } from '../math';
 import { DATUM_SELECTION_PREFIX, type Datum } from '../features/reference';
@@ -35,14 +45,23 @@ export const DATUM_COLOUR = '#7d8d97';
 /* -------------------------------------------------------------------------
  * THE DATUM-PLANE SETTING
  * ---------------------------------------------------------------------- */
-let datumShown = false;
+export type DatumPlaneMode = 'auto' | 'always' | 'never';
+export const DATUM_PLANE_MODES: readonly DatumPlaneMode[] = ['auto', 'always', 'never'];
+let datumMode: DatumPlaneMode = 'auto';
 const listeners = new Set<() => void>();
-export const datumPlanesShown = () => datumShown;
+export const datumPlaneMode = () => datumMode;
 /** Writes the setting and tells every listener; a write that changes nothing tells nobody. */
-export function setDatumPlanesShown(on: boolean) {
-	if (datumShown === on) return;
-	datumShown = on;
+export function setDatumPlaneMode(mode: DatumPlaneMode) {
+	if (datumMode === mode || !DATUM_PLANE_MODES.includes(mode)) return;
+	datumMode = mode;
 	for (const listener of [...listeners]) listener();
+}
+/** Whether the planes are shown on purpose, whatever the model holds. The reference panel's box reads and writes this: ticked is `always`, unticked goes back to `auto`. */
+export const datumPlanesShown = () => datumMode === 'always';
+export function setDatumPlanesShown(on: boolean) { setDatumPlaneMode(on ? 'always' : 'auto'); }
+/** Whether the planes are drawn for this model: always, never, or while there is no body yet. `forced` draws them regardless, for a moment a student asked to sketch on a plane. */
+export function datumPlanesVisible(model: ModelProjection, forced = false): boolean {
+	return forced || datumMode === 'always' || (datumMode === 'auto' && model.bodies.length === 0);
 }
 /** The viewport subscribes here and re-displays the model on a change. Returns the unsubscribe. */
 export function onDatumPlanesChange(listener: () => void): () => void {
@@ -151,18 +170,22 @@ export function datumSize(model: ModelProjection): number {
 	}
 	return Math.max(1, dims) * 0.6;
 }
-export const DATUM_PLANES: readonly Datum[] = ['XY', 'XZ', 'YZ'];
+/** Front, Top, Right: the order SolidWorks lists them. */
+export const DATUM_PLANES: readonly Datum[] = ['XZ', 'XY', 'YZ'];
+/** What a student calls each datum plane. */
+export const DATUM_NAMES: Readonly<Record<Datum, string>> = { XZ: 'Front', XY: 'Top', YZ: 'Right' };
+export interface DatumLayerOptions extends ReferenceLayerOptions { /** Draw the planes whatever the setting says. */ forced?: boolean }
 /**
- * The three datum planes, faintly, when the setting is on; nothing when it is
- * off. Not pickable, and carrying no `plane` so a drawing press can never
- * resolve to a reference that is not a feature. The viewport adds these to its
- * reference GROUP only, and redraws through `onDatumPlanesChange`.
+ * The three datum planes, faintly, named Front, Top and Right, when they are
+ * visible for this model; nothing otherwise. Each part carries the datum's
+ * selection and `datum`, and says which part it is: the viewport lets a
+ * drawing tool press the `fill` and lets Select pick only the `outline` and
+ * the `label`.
  */
-export function datumPlaneObjects(model: ModelProjection, options: ReferenceLayerOptions = {}): THREE.Object3D[] {
-	if (!datumShown) return [];
+export function datumPlaneObjects(model: ModelProjection, options: DatumLayerOptions = {}): THREE.Object3D[] {
+	if (!datumPlanesVisible(model, options.forced)) return [];
 	const out: THREE.Object3D[] = [];
 	const s = datumSize(model), make = options.label ?? canvasLabel, color = DATUM_COLOUR;
-	const unpickable = (object: THREE.Object3D) => { object.raycast = () => {}; return object; };
 	for (const name of DATUM_PLANES) {
 		const p = PLANES[name];
 		const selection: Selection = { bodyId: '', kind: 'reference', id: `${DATUM_SELECTION_PREFIX}${name}` };
@@ -172,13 +195,36 @@ export function datumPlaneObjects(model: ModelProjection, options: ReferenceLaye
 		const geometry = new THREE.BufferGeometry().setFromPoints(corners);
 		geometry.setIndex([0, 1, 2, 0, 2, 3]);
 		const fill = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.035, side: THREE.DoubleSide, depthWrite: false }));
-		fill.userData = userData;
-		out.push(unpickable(fill));
+		fill.userData = { ...userData, part: 'fill' };
+		out.push(fill);
 		const outline = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(corners), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.45 }));
-		outline.userData = userData;
-		out.push(unpickable(outline));
-		const label = labelSprite(name, corners[2], s * 0.1, color, userData, make, [0, 0.5]);
-		if (label) { (label.material as THREE.SpriteMaterial).opacity = 0.6; out.push(unpickable(label)); }
+		outline.userData = { ...userData, part: 'outline' };
+		out.push(outline);
+		const label = labelSprite(DATUM_NAMES[name], corners[2], s * 0.13, color, { ...userData, part: 'label' }, make, [0, 0.5]);
+		if (label) { (label.material as THREE.SpriteMaterial).opacity = 0.8; out.push(label); }
+	}
+	return out;
+}
+/** The axis colors of the corner triad, which the Origin marker repeats so the two read as one system. */
+export const AXIS_COLOURS = { x: '#ff6a5c', y: '#86e25f', z: '#5aa9ff' } as const;
+/**
+ * THE ORIGIN, drawn with the planes and only with them: three short arrows
+ * along +X, +Y and +Z from the origin in the triad's colors, a fifth of a
+ * plane's half-size long. It is a marker, not a pick target.
+ */
+export function originMarkerObjects(model: ModelProjection, options: DatumLayerOptions = {}): THREE.Object3D[] {
+	if (!datumPlanesVisible(model, options.forced)) return [];
+	const len = datumSize(model) * 0.22, head = len * 0.28;
+	const out: THREE.Object3D[] = [];
+	const axes: [THREE.Vector3, THREE.Vector3, string][] = [[new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), AXIS_COLOURS.x], [new THREE.Vector3(0, 1, 0), new THREE.Vector3(1, 0, 0), AXIS_COLOURS.y], [new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0), AXIS_COLOURS.z]];
+	for (const [dir, side, color] of axes) {
+		const tip = dir.clone().multiplyScalar(len), back = dir.clone().multiplyScalar(len - head), wing = side.clone().multiplyScalar(head * 0.45);
+		const points = [new THREE.Vector3(), tip, tip, back.clone().add(wing), tip, back.clone().sub(wing)];
+		const line = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true }));
+		line.renderOrder = 12;
+		line.userData = { origin: true };
+		line.raycast = () => {};
+		out.push(line);
 	}
 	return out;
 }

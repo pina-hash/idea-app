@@ -1,0 +1,30 @@
+diff --git a/src/lib/ideacad/solid/FeaturePanel.svelte b/src/lib/ideacad/solid/FeaturePanel.svelte
+index 5a4dcc38..f04bb8c6 100644
+--- a/src/lib/ideacad/solid/FeaturePanel.svelte
++++ b/src/lib/ideacad/solid/FeaturePanel.svelte
+@@ -28,6 +28,7 @@
+ 	import { refFromSelection } from './naming';
+ 	import { featureOptions, holeFeatureAt, withOptions } from './features/options';
+ 	import { HOLE_FIT_WORDS, HOLE_STANDARDS, describeHole, type HoleFit } from './features/holes';
++	import { editText } from './dimensions/model';
+ 	let { api }: { api: WorkspaceApi } = $props();
+ 	const BLEND_TOOLS = ['fillet', 'chamfer', 'shell', 'hole'];
+ 	const EXTRA_KINDS = ['draft', 'sweep', 'loft', 'rib'] as const;
+@@ -59,6 +60,17 @@
+ 		featureOptions.shell.faceThickness = walls.map((w) => ({ face: w.face, thickness: w.thickness }));
+ 		featureOptions.hole.standard = standard; featureOptions.hole.fit = fit; featureOptions.hole.diameter = optional(diameter); featureOptions.hole.depth = through ? 'through' : number(depth);
+ 	});
++	/* F026: the Radius, Distance and Thickness boxes follow the NEWEST fillet, chamfer and shell in the document, so after a drag or a typed value lands, the panel shows the number the model now holds rather than its own starting default. A box is rewritten only when that feature or its number changes, so a value being typed for the next one is left alone. */
++	const newest = <T extends Feature['type']>(type: T) => { const fs = api.manifest.features; for (let i = fs.length - 1; i >= 0; i--) if (fs[i].type === type) return fs[i] as Extract<Feature, { type: T }>; return null; };
++	let seen = { fillet: '', chamfer: '', shell: '' };
++	$effect(() => {
++		const f = newest('fillet'), c = newest('chamfer'), s = newest('shell');
++		const next = { fillet: f ? `${f.id}:${f.radius}` : '', chamfer: c ? `${c.id}:${c.distance}` : '', shell: s ? `${s.id}:${s.thickness}` : '' };
++		if (f && next.fillet !== seen.fillet) radius = editText(f.radius);
++		if (c && next.chamfer !== seen.chamfer) distance = editText(c.distance);
++		if (s && next.shell !== seen.shell) thickness = editText(s.thickness);
++		seen = next;
++	});
+ 	const holeWords = $derived(describeHole(standard, fit, optional(diameter) ?? undefined));
+ 	const refAxis = $derived(api.selections.find((s) => s.kind === 'reference' && api.model.references.find((r) => r.feature === s.id)?.kind === 'axis'));
+ 	const refPlane = $derived(api.selections.find((s) => s.kind === 'reference' && api.model.references.find((r) => r.feature === s.id)?.kind === 'plane'));

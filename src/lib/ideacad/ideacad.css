@@ -275,6 +275,17 @@
 	box-shadow: var(--ic-bevel);
 	cursor: pointer;
 }
+/* THE WORD NEVER TOUCHES THE PLATE'S EDGE. `app.css` zeroes every element's
+   padding and the rule above sets sizes and no padding, so a text button's
+   word sat 0 to 1px from its own border wherever a component had not said
+   otherwise: 25 controls on the front door alone, measured. This is the floor,
+   10px either side and 2px above and below, which clears the 6px and 2px a
+   bordered control keeps (IDEA_INTERFACE_STANDARDS 10). It is written at the
+   specificity of a bare `button`, so any component that sets its own padding
+   keeps it: the floor only fills in where nobody decided. */
+:where(.ic-root) button {
+	padding: 2px 10px;
+}
 .ic-root button:hover {
 	background: var(--ic-control-hover);
 	border-color: var(--ic-accent);
@@ -430,6 +441,7 @@
 	border: 0;
 	border-radius: 0;
 	min-height: 0;
+	padding: 0;
 }
 .ic-root .divider::after {
 	content: '';
@@ -623,7 +635,7 @@
 	display: inline-flex;
 	align-items: center;
 	min-height: 18px;
-	padding: 0 0.35rem;
+	padding: 0 0.4rem;
 	border: 1px solid currentColor;
 	border-radius: var(--ic-radius);
 	font: var(--ic-fs-eyebrow) / 1 var(--font-mono);
