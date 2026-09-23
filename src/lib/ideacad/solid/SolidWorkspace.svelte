@@ -122,7 +122,7 @@
 	let sketchPointer:((event:'down'|'move'|'up',at:[number,number],e:PointerEvent)=>boolean)|null=null;
 	let actions:SolidHistoryAction[]=[];let committed=false;let gestureBefore:ModelSnapshot|null=null;let gestureCenter:[number,number,number]=[0,0,0];
 	/* The model as it stood when the gesture began: a mate preview reads it, because during the drag `model` already shows the moved body. */
-	let gestureModel:ModelProjection=EMPTY_MODEL;let mateCandidate:{kind:MateKind;a:Selection;b:Selection}|null=null;
+	let gestureModel:ModelProjection=EMPTY_MODEL;let gestureInView=false;let mateCandidate:{kind:MateKind;a:Selection;b:Selection}|null=null;
 	let history:DirectRow[]=$state(untrack(()=>opened.history??[{seq:0,kind:'origin',path:'',after:opened.snapshot.manifest}]));
 	const historyState=$derived(foldGroups(groupHistory(history)));
 	const saveState=new SaveState({save:async()=>{
@@ -172,10 +172,12 @@
 	}
 	/** Features whose picks are spent once they exist: the next tool must not act on the faces a mate, a combine or a mirror was made from. */
 	const CONSUMES_PICKS=['mate','boolean','mirror'];
+	/** An edit that took a model that was wholly on screen partly off it refits the view (F040); a view zoomed in on a detail is left alone. */
+	function keepInView(wasInView:boolean){if(wasInView&&viewport&&!viewport.modelInView())viewport.fit();}
 	async function apply(command:SolidCommand,label:string){
 		if(!opened.canWrite||busy||loading)return;endLapse();busy=true;error='';
-		const before=currentSnapshot;let landed=false;
-		try{show(await client.request<ModelProjection>('apply',command));await record(label,before);landed=true;}
+		const before=currentSnapshot,inView=viewport?.modelInView()??false;let landed=false;
+		try{show(await client.request<ModelProjection>('apply',command));keepInView(inView);await record(label,before);landed=true;}
 		catch(err){error=err instanceof Error?err.message:String(err);show(await client.request<ModelProjection>('project'));}
 		finally{busy=false;}
 		if(landed&&command.type==='add-feature'&&CONSUMES_PICKS.includes(command.feature.type))select(null);
@@ -204,7 +206,7 @@
 	function sketchOnPlane(){planesForced=true;viewport.datumForced=true;viewport.display(model);setTool('rectangle');}
 	async function begin(next:Gesture){
 		if(!opened.canWrite)throw Error('This document is read-only.');
-		if(busy)throw Error('Finish the current change first.');gesture=next;gestureFeature=newFeatureId();gestureBefore=currentSnapshot;gestureCenter=[...(model.bodies.find(b=>b.id===next.selection.bodyId)?.centerOfMass??[0,0,0])];committed=false;gestureModel=model;mateCandidate=null;chainWanted=null;viewport?.setPreviewEdges(null);try{await client.request('begin');}catch(err){gesture=null;gestureBefore=null;throw err;}
+		if(busy)throw Error('Finish the current change first.');gesture=next;gestureFeature=newFeatureId();gestureBefore=currentSnapshot;gestureCenter=[...(model.bodies.find(b=>b.id===next.selection.bodyId)?.centerOfMass??[0,0,0])];committed=false;gestureModel=model;gestureInView=viewport?.modelInView()??false;mateCandidate=null;chainWanted=null;viewport?.setPreviewEdges(null);try{await client.request('begin');}catch(err){gesture=null;gestureBefore=null;throw err;}
 	}
 	/** The reference a feature stores for a selection, with its hint, from the projection the gesture started on. */
 	const refOf=(selection:Selection,from:ModelProjection)=>ref(selection,from);
@@ -274,7 +276,7 @@
 	async function end(){
 		if(committed)return;committed=true;busy=true;
 		const candidate=mateCandidate;mateCandidate=null;viewport.clearGuides();
-		try{await pumping;if(queued)await pump();show(await client.request<ModelProjection>('commit'));if(gestureBefore)await record(gesture?.handle?.mode==='ring'?'Rotate':(TOOLS.find(t=>t.id===gesture?.tool)?.name??'Edit solid'),gestureBefore);}
+		try{await pumping;if(queued)await pump();show(await client.request<ModelProjection>('commit'));keepInView(gestureInView);if(gestureBefore)await record(gesture?.handle?.mode==='ring'?'Rotate':(TOOLS.find(t=>t.id===gesture?.tool)?.name??'Edit solid'),gestureBefore);}
 		catch(err){error=err instanceof Error?err.message:String(err);}
 		finally{gesture=null;gestureBefore=null;measure=null;numeric=null;busy=false;}
 		/* A move that snapped to another body's face adds the mate it previewed, after the transform has landed; `ref` reads the faces where the bodies now sit. */
