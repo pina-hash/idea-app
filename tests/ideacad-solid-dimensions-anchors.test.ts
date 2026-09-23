@@ -215,6 +215,16 @@ describe('measured values and helpers', () => {
 		expect(measuredAnchors({ bodyId: 'x1#0', kind: 'face', id: 'x1.end' }, m)).toEqual([]);
 		expect(measuredAnchors(null, m)).toEqual([]);
 	});
+	it('a round edge shows its diameter across it, marked with the sign, instead of its length', () => {
+		/* A circle of radius 2 about (1, 1, 0.5) in the XY plane, sampled at 12 points. */
+		const pts = new Float32Array(Array.from({ length: 13 }, (_, i) => [1 + 2 * Math.cos(i / 12 * Math.PI * 2), 1 + 2 * Math.sin(i / 12 * Math.PI * 2), 0.5]).flat());
+		const m = model({ bodies: [body({ edges: [{ id: 'edge:a|c', curve: 'CIRCLE', points: pts, faces: ['a', 'c'], length: 4 * Math.PI, mid: [-1, 1, 0.5] }] })] });
+		const [a] = measuredAnchors({ bodyId: 'x1#0', kind: 'edge', id: 'edge:a|c' }, m);
+		expect(a.key).toBe('diameter'); expect(a.prefix).toBe('⌀');
+		close(a.at, [-1, 1, 0.5]);
+		close(a.away, [-1, 0, 0], 5);
+		close(a.lines[0][0], [3, 1, 0.5], 5); close(a.lines[0][1], [-1, 1, 0.5], 5);
+	});
 	it('facesOf finds only the faces the feature named, sorted', () => {
 		const m = model({ bodies: [body({ faces: [face('f1.blend.b', [0, 0, 0], [0, 0, 1]), face('f10.blend.a', [0, 0, 0], [0, 0, 1]), face('f1.blend.a', [0, 0, 0], [0, 0, 1])] })] });
 		expect(facesOf(m, 'f1', 'blend').map((f) => f.face.id)).toEqual(['f1.blend.a', 'f1.blend.b']);

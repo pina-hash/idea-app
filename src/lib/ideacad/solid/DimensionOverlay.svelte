@@ -28,7 +28,7 @@
 	import { onMount, untrack } from 'svelte';
 	import type { WorkspaceApi } from './workspace-api';
 	import { drivenDimensions, featureDimensions, sketchDimensions, type Dimension, type Measured } from './dimensions/model';
-	import { featureAnchors, measuredAnchors, sketchAnchors, type DimensionAnchor } from './dimensions/anchors';
+	import { featureAnchors, measuredAnchors, pixelsPerInch, sketchAnchors, type DimensionAnchor } from './dimensions/anchors';
 	import { labelEditText, labelTarget, labelText, readLabel, spreadLabels, type DisplayUnit, type LabelBox } from './dimensions/labels';
 	import type { Feature, SketchProjection, Vec3 } from './types';
 
@@ -41,6 +41,8 @@
 
 	/** How far a witness line stands off the geometry, in pixels. */
 	const GAP_PX = 14;
+	/** The sketch editor's glyph unit in pixels (`SketchEditor.svelte`: `7 / pixelsPerInch`), which an open sketch's numbers line up with. */
+	const EDITOR_GLYPH_PX = 7;
 	/** Past this many pixels of pointer travel on the model, a press is a drag and the labels step aside. */
 	const DRAG_PX = 4;
 	/** One number to draw: what it is, which feature it patches, and whether it may be typed. */
@@ -108,7 +110,11 @@
 		lastCamera = camera; lastFull = now;
 		if (key !== anchorKey || anchors.size === 0) {
 			const next = new Map<string, DimensionAnchor>();
-			if (sketchShown) for (const a of sketchAnchors(sketchShown, gap)) next.set(`${sketchShown.feature}:${a.key}`, a);
+			if (sketchShown) {
+				/* An OPEN sketch's editor already draws each dimension's witness and dimension lines (the gold glyphs of `viewport/sketch-layer.ts`, 7 px to a unit); the overlay then draws only the numbers, pinned on those lines, so no dimension is drawn twice. */
+				const open = sketchShown === openSketch, g = open ? EDITOR_GLYPH_PX / pixelsPerInch(project, sketchShown.plane) : gap;
+				for (const a of sketchAnchors(sketchShown, g)) next.set(`${sketchShown.feature}:${a.key}`, open ? { ...a, lines: [] } : a);
+			}
 			if (featureShown) for (const a of featureAnchors(featureShown, api.model, gap, project)) next.set(`${featureShown.id}:${a.key}`, a);
 			for (const a of measuredAnchors(primary, api.model)) next.set(`measured:${a.key}`, a);
 			anchors = next; anchorKey = key;
@@ -203,7 +209,8 @@
 			/* A value the engine refused leaves the document as it was, and the workspace has already said why; the box stays open with what was typed, so it can be corrected. */
 			const now = items.find((i) => i.id === item.id)?.dim.value;
 			const landed = now !== undefined && Math.abs(now - parsed.value) <= 1e-9 * Math.max(1, Math.abs(parsed.value));
-			if (landed && editing?.id === item.id) editing = null;
+			/* Focus goes back to the number just set, so Tab reaches the next one and Enter opens it again. */
+			if (landed && editing?.id === item.id) { editing = null; const id = item.id; setTimeout(() => labelEls.get(id)?.focus(), 0); }
 		} finally { pending = null; }
 	}
 	function cancel() { editing = null; }

@@ -148,6 +148,12 @@ describe('the dimension panel', () => {
 		expect(h.applied[0].label).toBe('Set Distance 1');
 		expect((h.applied[0].command as { id: string }).id).toBe('s1');
 	});
+	it('a sketch with no numbered constraint says it has no dimensions, not that its shape comes from what it was made on', () => {
+		const bare = model({ sketches: model().sketches.map((k) => ({ ...k, constraints: [{ id: 'kh', type: 'horizontal' as const, line: 'l0' }] })) });
+		const h = harness({ selections: [{ bodyId: '', kind: 'sketch', id: 's1' }], model: bare }); const m = mountPanel(h);
+		expect(m.all('li[data-dimension]')).toHaveLength(0);
+		expect(m.one('.note').textContent).toBe('Sketch 1 has no dimensions yet.');
+	});
 	it('a feature with no number says so in words rather than showing an empty list', () => {
 		const h = harness({ selections: [{ bodyId: '', kind: 'feature', id: 'b1' }] }); const m = mountPanel(h);
 		expect(m.all('input')).toHaveLength(0);
@@ -291,9 +297,14 @@ describe('the dimension overlay', () => {
 		/* Positive control on the same mount: the extrude that made the edge still offers its numbers as buttons. */
 		expect(m.all('button[data-dimension-label]').length).toBeGreaterThan(0);
 	});
-	it('the open sketch shows only its own numbers', async () => {
+	it('the open sketch shows only its own numbers, and no lines of its own: the editor\'s glyphs are the lines', async () => {
 		const h = harness({ editingSketch: 's1', selections: [{ bodyId: '', kind: 'sketch', id: 's1' }] }); const m = mountOverlay(h); await pass(m);
 		expect(labels(m).map((l) => l.getAttribute('data-dimension-label'))).toEqual(['s1:kw', 's1:kv']);
+		expect(m.all('.dim-lines polyline')).toHaveLength(0);
+		/* Positive control: the same sketch selected but not open draws a dimension line and two witness lines for each number. */
+		const closed = harness({ selections: [{ bodyId: '', kind: 'sketch', id: 's1' }] }); const c = mountOverlay(closed); await pass(c);
+		expect(labels(c)).toHaveLength(2);
+		expect(c.all('.dim-lines polyline')).toHaveLength(6);
 	});
 	it('the hidden prop takes the labels away, and nothing is left to press', async () => {
 		const h = harness({ selections: [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }] });

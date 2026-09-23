@@ -44,7 +44,8 @@
  * a bare number and a scale factor is a bare ratio (or a percentage).
  */
 import { DIMENSIONED } from '../sketch/model';
-import type { BodyProjection, Feature, ModelProjection, Selection, SketchProjection, Vec3 } from '../types';
+import { circleThrough } from '../mates/frames';
+import type { BodyProjection, EdgeProjection, Feature, ModelProjection, Selection, SketchProjection, Vec3 } from '../types';
 
 /* ------------------------------------------------------------- shapes */
 export type DimensionUnit = 'in' | 'deg' | 'count' | 'factor';
@@ -274,6 +275,17 @@ export function sketchDimensions(sketch: Pick<SketchProjection, 'feature' | 'con
 }
 
 /* ------------------------------------------------- measured values */
+/**
+ * The circle a CIRCLE edge lies on, read through three of its sampled points
+ * (the mate frames' own `circleThrough`), or null for any other curve or a
+ * polyline too short to say.
+ */
+export function circleOfEdge(edge: Pick<EdgeProjection, 'curve' | 'points'>): { center: Vec3; normal: Vec3; radius: number } | null {
+	const n = Math.floor(edge.points.length / 3);
+	if (edge.curve !== 'CIRCLE' || n < 3) return null;
+	const at = (i: number): Vec3 => [edge.points[3 * i], edge.points[3 * i + 1], edge.points[3 * i + 2]];
+	try { return circleThrough(at(0), at(Math.floor(n / 3)), at(Math.floor((2 * n) / 3))); } catch { return null; }
+}
 const measured = (key: string, label: string, value: number, unit: MeasuredUnit): Measured => ({ key, label, value, unit, driving: false });
 /** `bounds` is the kernel's `[min x, min y, min z, max x, max y, max z]`. */
 export const boundsSize = (bounds: readonly number[]): Vec3 => [bounds[3] - bounds[0], bounds[4] - bounds[1], bounds[5] - bounds[2]];
@@ -286,7 +298,12 @@ export function drivenDimensions(selection: Selection | null | undefined, model:
 	if (!selection) return [];
 	const body: BodyProjection | undefined = model.bodies.find((b) => b.id === selection.bodyId);
 	switch (selection.kind) {
-		case 'edge': { const edge = body?.edges.find((e) => e.id === selection.id); return edge ? [measured('length', 'Length', edge.length, 'in')] : []; }
+		case 'edge': {
+			const edge = body?.edges.find((e) => e.id === selection.id); if (!edge) return [];
+			/* A round edge (a hole's rim, a boss's top) also reads as its diameter, which is the number a student checks a hole against. */
+			const circle = circleOfEdge(edge);
+			return [measured('length', 'Length', edge.length, 'in'), ...(circle ? [measured('diameter', 'Diameter', 2 * circle.radius, 'in')] : [])];
+		}
 		case 'face': { const face = body?.faces.find((f) => f.id === selection.id); return face ? [measured('area', 'Area', face.area, 'in2')] : []; }
 		case 'vertex': { const v = body?.vertices.find((x) => x.id === selection.id); return v ? (['X', 'Y', 'Z'] as const).map((axis, i) => measured(`at.${axis.toLowerCase()}`, `At ${axis}`, v.point[i], 'in')) : []; }
 		case 'body': {

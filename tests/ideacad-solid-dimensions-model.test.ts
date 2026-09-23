@@ -333,5 +333,19 @@ describe('through the real engine', () => {
 		expect(drivenDimensions(null, m)).toEqual([]);
 		/* A sketch measures its enclosed area from the projection's regions. */
 		expect(drivenDimensions({ bodyId: '', kind: 'sketch', id: 's1' }, m).map((d) => [d.label, Number(d.value.toFixed(6)), d.unit])).toEqual([['Enclosed area', 12, 'in2']]);
+		/* A straight edge has no diameter (the positive control is the cylinder below). */
+		expect(drivenDimensions({ bodyId: body.id, kind: 'edge', id: edge.id }, m).some((d) => d.key === 'diameter')).toBe(false);
+	});
+	it('a round edge off the real kernel also reads as its diameter: a 0.75 in radius disk\'s rim is 1.5 across and 2 pi 0.75 around', async () => {
+		const e = await engine();
+		await e.apply({ type: 'add-feature', feature: { id: 'c1', name: 'Disk', type: 'sketch', plane: { kind: 'datum', datum: 'XY' }, entities: [{ id: 'o', type: 'point', x: 1, y: 2 }, { id: 'k', type: 'circle', center: 'o', radius: 0.75 }], constraints: [] } });
+		const m = await e.apply({ type: 'add-feature', feature: { id: 'x2', name: 'Extrude', type: 'extrude', sketch: 'c1', distance: 0.5, operation: 'new' } });
+		const body = m.bodies[0], rim = body.edges.find((ed) => ed.curve === 'CIRCLE');
+		expect(rim).toBeDefined();
+		const read = drivenDimensions({ bodyId: body.id, kind: 'edge', id: rim!.id }, m);
+		expect(read.map((d) => d.key)).toEqual(['length', 'diameter']);
+		expect(read[0].value).toBeCloseTo(2 * Math.PI * 0.75, 3);
+		expect(read[1].value).toBeCloseTo(1.5, 3);
+		expect(read.every((d) => d.driving === false)).toBe(true);
 	});
 });

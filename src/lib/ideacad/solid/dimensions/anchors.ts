@@ -20,7 +20,7 @@
  * then pushed along `away` by the overlay itself, in pixels.
  */
 import { lift, pointOf } from '../sketch/model';
-import { featureDimensions } from './model';
+import { circleOfEdge, featureDimensions } from './model';
 import type { Feature, FeatureOf, ModelProjection, ResolvedPlane, Selection, SketchConstraint, SketchEntity, SketchProjection, Vec2, Vec3 } from '../types';
 
 export interface DimensionAnchor {
@@ -256,14 +256,21 @@ function placeFeature(feature: Feature, model: ModelProjection, gap: number, pro
 /* ----------------------------------------------------------- measured values */
 /**
  * Where a measured value sits: an edge's length at the middle of the edge,
- * pushed out from its body. The other measured values (an area, a corner's
- * coordinates, a body's size) stay in the panel, where a list of numbers
- * reads better than numbers floating over a face.
+ * pushed out from its body, or a round edge's diameter across it. The other
+ * measured values (an area, a corner's coordinates, a body's size) stay in
+ * the panel, where a list of numbers reads better than numbers floating over
+ * a face.
  */
 export function measuredAnchors(selection: Selection | null | undefined, model: ModelProjection): DimensionAnchor[] {
 	if (!selection || selection.kind !== 'edge') return [];
 	const body = model.bodies.find((b) => b.id === selection.bodyId), edge = body?.edges.find((e) => e.id === selection.id);
 	if (!body || !edge) return [];
+	/* A round edge is read by its diameter, across the circle, as a hole is dimensioned; its length (the circumference) stays in the panel. */
+	const circle = circleOfEdge(edge);
+	if (circle) {
+		const out = norm(sub(edge.mid, circle.center)), far = sub(circle.center, mul(out, circle.radius));
+		return [{ key: 'diameter', feature: '', at: edge.mid, away: out, lines: [[far, edge.mid]], prefix: '⌀' }];
+	}
 	return [{ key: 'length', feature: '', at: edge.mid, away: norm(sub(edge.mid, boundsMiddle(body.bounds))), lines: [] }];
 }
 

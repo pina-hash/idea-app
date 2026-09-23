@@ -83,7 +83,7 @@
 				{/each}
 			</ul>
 		{:else if feature}
-			<p class="note">{feature.name} has no number to type. Its shape comes from what it was made on.</p>
+			<p class="note">{feature.type === 'sketch' ? `${feature.name} has no dimensions yet.` : `${feature.name} has no number to type. Its shape comes from what it was made on.`}</p>
 		{/if}
 		{#if measured.length}
 			<dl class="measured">
