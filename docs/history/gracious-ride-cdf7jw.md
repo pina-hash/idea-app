@@ -45,8 +45,11 @@ Screenshots of each area's final state are in `docs/ideacad/verification/0296/<a
 
 ## 2. What reached main, and what production serves
 
-- Branch head merged to `main`: **pending, written by the commit that follows the deploy**.
-- Version string production serves at `https://ideabosco.com/`: **pending, as above**.
+- Branch head merged to `main`: **`b2ab71ea`**, a fast-forward from `bf04a223` (no force), then
+  merged into `integration` as `df0d4012`.
+- Version string production serves at `https://ideabosco.com/`: **`IDEA Portal v1.1901 · b2ab71e`**,
+  read at 14:18 UTC on 2026-09-23 (it was `v1.1789 · bf04a22` before the push). This entry's
+  own commit, which only fills in these two lines, went to `main` after that reading.
 
 ## 3. Proposed SQL for 0226
 
