@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "classroom-view-people-sweep-fit.mjs",
+	"date": "2026-09-23T22:57:28.783Z",
+	"sha": "1f9abd4c73bdcae5323de05a7894cb762299823e",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 6,
+	"outsideRows": [],
+	"ms": 5676
+}

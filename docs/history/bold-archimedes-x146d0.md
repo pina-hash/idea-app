@@ -130,9 +130,12 @@ Each line is a package's own measured result; the full reports are summarized in
   both need a disclosure decision or a table, and neither was taken.
 - **An explicit photo pairing key and an upload idempotency column**: a migration each; the
   filename token and adjacency pairing, proven by enumeration to depth 8, were used instead.
-- **Shrinking a teacher's six tabs to one phone line.** It needs targets under 44px or a tab
-  hidden behind a scroll; at 375 the sixth wraps to a second line instead (recorded in
-  `FRICTION.md`).
+- **Letting a teacher's six tabs wrap on a phone, and shrinking them.** Merging the Live tab
+  made six, and at 375 the sixth wrapped (chrome 142px, and "Live" measured 39.3px wide,
+  under the floor). Shrinking the tabs under 44px and hiding one behind a scroll were both
+  refused; every tab took a 44px minimum width with `flex-shrink: 0`, and the gap between
+  the boxes went from 0.3rem to 0.1rem (the labels stay about 14px apart on the tabs' own
+  padding), so all six hold one line at 375 (341.5px of 343).
 - **The ITEM and GRADE+LEARN packages** (the ported assignment's rubric and returned score
   outside the document, the image lightbox, the comment bank, a classroom walkthrough) were
   planned and not started before this ship. The API usage limit stopped three running

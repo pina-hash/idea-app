@@ -1,13 +1,13 @@
 export default {
 	path: '/dev/classroom-nav',
-	label: "Section tab bar at five tabs, the class's Notebook tab inside the class, and the GREENLINE card in three states",
+	label: "Section tab bar at six tabs, the class's Notebook tab inside the class, and the GREENLINE card in three states",
 	/* THE DOORS THIS LANE ADDED, at the two widths, mounted through the REAL
 	   ClassroomShell fed by the REAL `sectionTabs()` and the REAL
 	   GreenlineDashboardCard fed by real `GreenlinePending` values.
 
 	   WHY THIS SPEC EXISTS RATHER THAN AN ASSERTION IN `tests/`. Everything
 	   below is geometric or perceptual -- a tap box, a contrast ratio against
-	   the ground the card actually sits on, whether five tabs still fit a
+	   the ground the card actually sits on, whether six tabs still fit a
 	   phone -- and `tests/dom/` has no layout engine, so every one of those
 	   claims written there would read zero and pass vacuously. The structural
 	   half (which tabs exist, which are offered to whom, which activates) is
@@ -20,15 +20,16 @@ export default {
 		{ selector: '[data-testid="section-tabs"] .sec-tab', label: 'section tabs', min: 4.5 }
 	],
 	tapTargets: [
-		{ selector: '[data-testid="section-tabs"] a', label: 'section tabs (five)', min: 44 },
+		{ selector: '[data-testid="section-tabs"] a', label: 'section tabs (six)', min: 44 },
 		{ selector: '[data-testid="greenline-cards"] a.btn', label: 'GREENLINE card, Open panel', min: 44 }
 	],
 	presence: [
-		/* Five tabs for a manager: 0086 added Duplicates once 0074's page and
+		/* Six tabs for a manager: 0086 added Duplicates once 0074's page and
 		   its `0187` were on `main`, and ledger 0297 replaced 0081's Check-ins
-		   departure with the class's own Notebook tab. A floor AND a ceiling,
-		   so a sixth tab appearing here is a finding. */
-		{ selector: 'a[data-testid^="section-tab-"]', label: 'section tabs (manager)', expectPresent: 5, maxPresent: 5, expectVisible: 5 },
+		   departure with the class's own Notebook tab and added Live. A floor
+		   AND a ceiling, so a seventh tab appearing here is a finding. */
+		{ selector: 'a[data-testid^="section-tab-"]', label: 'section tabs (manager)', expectPresent: 6, maxPresent: 6, expectVisible: 6 },
+		{ selector: '[data-testid="section-tab-live"]', label: 'the Live tab', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="section-tab-notebook"]', label: "the class's Notebook tab", expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="section-tab-check-ins"]', label: 'the retired check-ins departure (must be absent)', expectPresent: 0 },
 		{ selector: '[data-testid="section-tab-grades"]', label: 'Grades', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
@@ -87,7 +88,12 @@ export default {
 				style.textContent = '[data-testid="section-tabs"]{flex-wrap:nowrap !important}';
 				document.head.appendChild(style);
 				bar.getBoundingClientRect();
-				const overflowNowrap = d.scrollWidth > d.clientWidth;
+				/* Since ledger 0297 the chrome row contains its own overflow, so
+				   forcing one line no longer widens the DOCUMENT: it pushes the
+				   last tab past the viewport's edge, which is the harm itself. */
+				const overflowNowrap =
+					d.scrollWidth > d.clientWidth ||
+					tabs.some((a) => a.getBoundingClientRect().right > d.clientWidth + 0.5);
 				style.remove();
 				bar.getBoundingClientRect();
 				return [
@@ -98,12 +104,12 @@ export default {
 				];
 			}`,
 			expected: [
-				'tabs:5',
+				'tabs:6',
 				'document-overflows-with-wrap:false',
 				'rows-match-what-the-width-needs:true',
 				'nowrap-overflows-exactly-when-the-bar-is-too-wide:true'
 			],
-			label: 'the five shipped tabs wrap rather than pushing the document wider, and nowrap does overflow exactly where it would'
+			label: 'the six shipped tabs wrap rather than pushing the document wider, and nowrap does overflow exactly where it would'
 		}
 	]
 };

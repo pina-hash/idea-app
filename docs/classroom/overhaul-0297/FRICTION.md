@@ -246,7 +246,6 @@ Lines added after Phase 0 carry the round that found them. A line that has been 
 
 ## Found during the run (ledger 0297), still open at the ship
 
-- At 375 a teacher's six class tabs wrap to a second line (chrome 142px against 93px for a student); all six sit in one row on a laptop.
 - A long unit that continues into the next column of the class page carries no heading on its continuation.
 - A teacher's class page still gives the resting "Select all (20)" a row of its own.
 - The notebook capture's note has no local mirror yet; its photos do (IndexedDB).

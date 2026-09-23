@@ -1166,6 +1166,14 @@
 		   underline inside it. */
 		display: inline-flex;
 		align-items: center;
+		justify-content: center;
+		/* The floor is both ways: "Live" is four letters and measured 39.3px
+		   wide at the phone padding before this. An explicit `min-width`
+		   replaces a flex item's automatic minimum (its label's width), so
+		   `flex-shrink: 0` is what keeps a crowded row from squashing a tab
+		   under its own word; the bar wraps instead. */
+		min-width: 44px;
+		flex-shrink: 0;
 		padding: 0.5rem 0.9rem;
 		border-bottom: 2px solid transparent;
 		color: var(--text-2);
@@ -1214,13 +1222,16 @@
 		}
 		.sec-tabs {
 			margin-left: 0;
+			/* The tabs carry their own 0.45rem sides, so the labels stay about
+			   14px apart with no gap between the boxes. At the 0.3rem gap a
+			   teacher's six tabs measured 357.5px against 343px of bar at 375
+			   and wrapped to a second line (chrome 142px against 93px); at this
+			   gap they measure 341.5px and hold one line. Narrower than that
+			   they wrap, which is the fallback, never a tab under 44px. */
+			gap: 0.1rem;
 		}
-		/* A student's two tabs and a teacher's first five fit one phone line
-		   at this size (they wrapped to two at 0.78rem with 0.9rem sides). With
-		   the Live tab a teacher has six, and at 375 the sixth wraps to a
-		   second line (chrome 142px against 93px): shrinking the tabs under the
-		   44px floor or hiding one behind a scroll were both worse, and a
-		   teacher runs the class from a laptop, where all six sit in one row. */
+		/* A teacher's six tabs fit one phone line at this size (they wrapped to
+		   two at 0.78rem with 0.9rem sides). */
 		.sec-tab {
 			padding: 0.5rem 0.45rem;
 			font-size: 0.72rem;
