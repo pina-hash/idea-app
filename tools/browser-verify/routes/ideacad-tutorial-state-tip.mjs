@@ -18,21 +18,21 @@ export default {
 	prepare: [
 		{ waitFor: '() => !!window.ideaCadTutorial && !!document.querySelector(\'[data-command="extrude"]\')', timeoutMs: 30000 },
 		{ evaluate: '() => { const w = document.querySelector(\'[data-command="extrude"]\').closest(".tool-wrap"); w.dispatchEvent(new PointerEvent("pointerenter", { bubbles: false })); return !!w; }' },
-		{ waitFor: '() => { const t = document.querySelector(\'[data-command="extrude"] ~ .tip\'); if (!t || t.hidden || getComputedStyle(t).visibility !== "visible") return false; const a = document.querySelector(\'[data-command="extrude"]\').closest(".tools").getBoundingClientRect(), b = t.getBoundingClientRect(); return b.right <= a.left || b.left >= a.right || b.bottom <= a.top || b.top >= a.bottom; }', timeoutMs: 5000 }
+		{ waitFor: '() => { const t = document.querySelector(\'.tip[data-tip-for="extrude"]\'); if (!t || t.hidden || getComputedStyle(t).visibility !== "visible") return false; const a = document.querySelector(\'[data-command="extrude"]\').closest(".tools").getBoundingClientRect(), b = t.getBoundingClientRect(); return b.right <= a.left || b.left >= a.right || b.bottom <= a.top || b.top >= a.bottom; }', timeoutMs: 5000 }
 	],
 	presence: [
-		{ selector: '[data-command="extrude"] ~ .tip:not([hidden])', label: 'the Extrude card, open and clear of the whole palette', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-command="extrude"] ~ .tip .demo', label: 'the moving picture of the gesture', expectPresent: 1, expectVisible: 1 },
+		{ selector: '.tip[data-tip-for="extrude"]:not([hidden])', label: 'the Extrude card, open and clear of the whole palette', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '.tip[data-tip-for="extrude"] .demo', label: 'the moving picture of the gesture', expectPresent: 1, expectVisible: 1 },
 		{ selector: '.tip:not([hidden])', label: 'only one card at a time', expectPresent: 1, maxPresent: 1 }
 	],
 	textContains: [
-		{ selector: '[data-command="extrude"] ~ .tip', label: 'the name, the key and the line', must: ['Extrude', 'E', 'Pull a sketch into a solid'] }
+		{ selector: '.tip[data-tip-for="extrude"]', label: 'the name, the key and the line', must: ['Extrude', 'E', 'Pull a sketch into a solid'] }
 	],
 	contrast: [
-		{ selector: '[data-command="extrude"] ~ .tip .tip-head', label: 'the card heading', min: 4.5 },
-		{ selector: '[data-command="extrude"] ~ .tip .tip-line', label: 'the card line', min: 4.5 }
+		{ selector: '.tip[data-tip-for="extrude"] .tip-head', label: 'the card heading', min: 4.5 },
+		{ selector: '.tip[data-tip-for="extrude"] .tip-line', label: 'the card line', min: 4.5 }
 	],
 	tapTargets: [{ selector: '.tools button', label: 'every palette tool', min: 44 }],
-	layoutSanity: [{ root: '[data-command="extrude"] ~ .tip', label: 'the open card', reserved: null }],
+	layoutSanity: [{ root: '.tip[data-tip-for="extrude"]', label: 'the open card', reserved: null }],
 	ignoreConsole: []
 };

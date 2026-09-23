@@ -29,6 +29,9 @@
 	const uid=$props.id();
 	const tipId=`ic-tip-${uid}`,hintId=`ic-hint-${uid}`;
 	const HIDE_MS=500;
+	/* THE CARD AND THE HINT ARE MOVED TO THE ROOM'S ROOT (`.ic-root`, else <body>), not left inside the palette: the palette is its own stacking context (the workspace's `.tools` sits at z-index 5, under the empty-document cue at 6 and the panels at 7), so a card drawn inside it is painted UNDER those however high its own z-index. At the room's root it is above them, keeps the room's own tokens (they are declared on `.ic-root`, so <body> would repaint it in the portal's plate) and keeps this component's scoped class. The node is static in this component, so moving it cannot confuse a block's teardown, and `destroy` takes it away with the tool. */
+	function toRoom(node:HTMLElement){(node.parentElement?.closest('.ic-root')??document.body).appendChild(node);return {destroy(){node.remove();}};}
+	function keep(){if(hideTimer){clearTimeout(hideTimer);hideTimer=null;}}
 	const parts=$derived(splitShortcut(name));
 	const command=$derived(id??COMMANDS.find(c=>c.name===parts.name)?.id);
 	let wrap=$state<HTMLSpanElement>(),button=$state<HTMLButtonElement>(),tip=$state<HTMLSpanElement>(),first=$state<HTMLSpanElement>();
@@ -54,12 +57,12 @@
 	<button bind:this={button} type="button" class:active aria-label={name} aria-pressed={active} aria-describedby={showHint?`${tipId} ${hintId}`:tipId} data-command={command} onpointerdown={()=>{pressed=true;hideNow();}} {onclick}>
 		<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icon}/></svg>
 	</button>
-	<span class="tip" class:placed role="tooltip" id={tipId} hidden={!open} style:left={`${at.left}px`} style:top={`${at.top}px`} bind:this={tip} data-testid="ideacad-tool-tip">
+	<span class="tip" class:placed role="tooltip" id={tipId} hidden={!open} style:left={`${at.left}px`} style:top={`${at.top}px`} bind:this={tip} use:toRoom onpointerenter={keep} onpointerleave={hideLater} data-tip-for={command} data-testid="ideacad-tool-tip">
 		<strong class="tip-head"><span>{parts.name}</span>{#if parts.shortcut}<kbd>{parts.shortcut}</kbd>{/if}</strong>
 		<span class="tip-line">{description}</span>
 		{#if command}<ToolDemo tool={command}/>{/if}
 	</span>
-	{#if hint}<span class="first-use" id={hintId} hidden={!showHint} bind:this={first} style:left={`${hintAt.left}px`} style:top={`${hintAt.top}px`} data-testid="ideacad-tool-hint">{hint}</span>{/if}
+	<span class="first-use" id={hintId} hidden={!showHint} bind:this={first} use:toRoom style:left={`${hintAt.left}px`} style:top={`${hintAt.top}px`} data-hint-for={command} data-testid="ideacad-tool-hint">{hint ?? ''}</span>
 </span>
 <style>
 	.tool-wrap{position:relative;display:inline-flex;flex-shrink:0}button{width:44px;height:44px;display:grid;place-items:center;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--text-2)}button:hover,button:focus-visible{background:var(--surface-2);color:var(--text-1)}button.active{background:color-mix(in srgb,var(--green) 14%,var(--surface-1));color:var(--green);border-color:var(--green)}button:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
