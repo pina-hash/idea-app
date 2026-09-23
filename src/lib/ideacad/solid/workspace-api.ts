@@ -12,7 +12,6 @@
 import type { ModelProjection, ResolvedPlane, Selection, SketchConstraint, SketchEntity, SketchSolveReport, SolidCommand, SolidManifest, Vec3 } from './types';
 import type { Tool } from './viewport';
 import type { PreferenceGroup, SolidPreferences } from './preferences';
-import type { MenuItem } from './context-menu';
 
 export interface WorkspaceApi {
 	readonly model: ModelProjection;
@@ -57,8 +56,32 @@ export interface WorkspaceApi {
 	hover?(selections: Selection[] | null): void;
 	/** Hear what the pointer is over in the viewport: a selection, or null over empty space. The tree lights the matching row this way. Returns the unsubscribe. */
 	onHover?(listener: (selection: Selection | null) => void): () => void;
-	/** Open the workspace's one right-click menu at client pixels, with rows the caller builds (`context-menu.ts`: `commandItems` from the registry). */
-	contextMenu?(items: MenuItem[], at: { x: number; y: number }): void;
+	/** Open the workspace's one right-click menu with the caller's rows: the design tree's row menus draw in the same menu the viewport's right-click does. */
+	contextMenu?(request: WorkspaceMenuRequest): void;
+	/** Move the rollback bar: build only features [0, index), or everything for null. Workspace state: it never enters the manifest, and a feature added while rolled back goes in at the bar. */
+	rollback?(index: number | null): void | Promise<void>;
+	/** Where the rollback bar stands: the build index it stands before, or null at the end. */
+	readonly rollbackIndex?: number | null;
+}
+/** One row of a menu a panel hands the workspace. `refusal` set means the row is shown `aria-disabled` with the reason under its word, and a press says it where every refusal shows. */
+export interface WorkspaceMenuItem {
+	id: string;
+	label: string;
+	/** The drawing beside the word, as a 24-unit SVG path. */
+	icon?: string;
+	refusal?: string | null;
+	run(): void;
+}
+/** What a panel hands the workspace's right-click menu. */
+export interface WorkspaceMenuRequest {
+	/** What the menu is about, for a screen reader: "Extrude 1 actions". */
+	label: string;
+	/** Where the menu opens, in viewport pixels. */
+	x: number;
+	y: number;
+	items: WorkspaceMenuItem[];
+	/** Where focus returns when the menu closes. */
+	returnFocus?: HTMLElement | null;
 }
 export type SketchSolve = { entities: SketchEntity[]; report: SketchSolveReport };
 export type SketchSolveInput = { entities: SketchEntity[]; constraints: SketchConstraint[] };

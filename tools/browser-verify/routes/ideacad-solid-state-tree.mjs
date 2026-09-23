@@ -68,7 +68,7 @@ export default {
 		/* Press the Plate row: the parameter editor opens for it and its body is selected. */
 		{ click: '[data-testid="ideacad-feature-tree"] [data-row="ex1"] > .line button.row', until: '() => !!document.querySelector(\'[data-testid="ideacad-feature-params"]\')', attempts: 10, gapMs: 200, waitMs: 300 },
 		/* Open the Plate's row menu from its "⋯" control. */
-		{ click: '[data-testid="ideacad-feature-tree"] [data-row="ex1"] > .line button.row-more', until: '() => !!document.querySelector(\'[data-testid="ideacad-feature-tree"] [role="menu"]\')', attempts: 10, gapMs: 200, waitMs: 300 }
+		{ click: '[data-testid="ideacad-feature-tree"] [data-row="ex1"] > .line button.row-more', until: '() => !!document.querySelector(\'[data-testid="ideacad-context-menu"]\')', attempts: 10, gapMs: 200, waitMs: 300 }
 	],
 	presence: [
 		{ selector: '[data-testid="ideacad-feature-tree"]', label: 'the design tree', expectPresent: 1, expectVisible: 1 },
@@ -83,7 +83,8 @@ export default {
 		{ selector: '[data-testid="ideacad-feature-tree"] .status', label: 'a status word, absent on a clean build', expectPresent: 0 },
 		/* The selected row's one menu control, and no other row's. */
 		{ selector: '[data-testid="ideacad-feature-tree"] button.row-more', label: 'the menu control, on the selected row only (1)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="ideacad-feature-tree"] [role="menu"] [role="menuitem"]', label: "the Plate's menu: parameters, rename, suppress, up, down, delete (6)", expectPresent: 6, maxPresent: 6, expectVisible: 6 },
+		/* The row's menu is the workspace's one right-click menu, the same one the viewport opens. */
+		{ selector: '[data-testid="ideacad-context-menu"] [role="menuitem"]', label: "the Plate's menu: parameters, rename, suppress, up, down, delete (6)", expectPresent: 6, maxPresent: 6, expectVisible: 6 },
 		/* The flat tree's written-out action buttons and their reasons are gone. */
 		{ selector: '[data-testid="ideacad-feature-tree"] .actions, [data-testid="ideacad-feature-tree"] .edit-sketch', label: 'the old per-row action buttons, absent', expectPresent: 0 },
 		{ selector: '[data-testid="ideacad-feature-params"]', label: 'the parameter editor for the selected feature', expectPresent: 1, expectVisible: 1 },
@@ -94,18 +95,19 @@ export default {
 		{ selector: '[data-testid="ideacad-rollback-bar"]', label: 'the rollback bar, absent until the workspace can roll back', expectPresent: 0 }
 	],
 	textContains: [
-		{ selector: '[data-testid="ideacad-feature-tree"]', label: 'the tree names its planes and its rows, and says nothing about rows that are fine', must: ['Front Plane', 'Top Plane', 'Right Plane', 'Origin', 'Base sketch', 'Plate', 'Spin axis', 'Move up', 'Delete'], mustNot: ['Error', 'Draw a shape'] }
+		{ selector: '[data-testid="ideacad-feature-tree"]', label: 'the tree names its planes and its rows, and says nothing about rows that are fine', must: ['Front Plane', 'Top Plane', 'Right Plane', 'Origin', 'Base sketch', 'Plate', 'Spin axis'], mustNot: ['Error', 'Draw a shape'] },
+		{ selector: '[data-testid="ideacad-context-menu"]', label: "the Plate's menu names its moves and its delete", must: ['Move up', 'Delete'], mustNot: [] }
 	],
 	contrast: [
 		{ selector: '[data-testid="ideacad-feature-tree"] .name', label: 'a feature or plane name in the tree', min: 4.5 },
 		{ selector: '[data-testid="ideacad-feature-tree"] .summary', label: 'the number beside a feature name', min: 4.5 },
-		{ selector: '[data-testid="ideacad-feature-tree"] [role="menuitem"] .word', label: 'a menu entry', min: 4.5 },
-		{ selector: '[data-testid="ideacad-feature-tree"] [role="menuitem"] .reason', label: "a refused menu entry's reason", min: 4.5 },
+		{ selector: '[data-testid="ideacad-context-menu"] [role="menuitem"] .label', label: 'a menu entry', min: 4.5 },
+		{ selector: '[data-testid="ideacad-context-menu"] [role="menuitem"] .label small', label: "a refused menu entry's reason", min: 4.5 },
 		{ selector: '[data-testid="ideacad-feature-params"] .label', label: 'a parameter label', min: 4.5 }
 	],
 	/* A STUDENT SURFACE AT EVERY WIDTH: 44px, no 24px relief. */
 	tapTargets: [
-		{ selector: '[data-testid="ideacad-feature-tree"] button, [data-testid="ideacad-feature-tree"] input, [data-testid="ideacad-feature-tree"] select', label: 'the design tree rows, carets, eyes, menu, its entries and the parameter fields', min: 44 }
+		{ selector: '[data-testid="ideacad-feature-tree"] button, [data-testid="ideacad-feature-tree"] input, [data-testid="ideacad-feature-tree"] select, [data-testid="ideacad-context-menu"] button', label: 'the design tree rows, carets, eyes, menu, its entries and the parameter fields', min: 44 }
 	],
 	layoutSanity: [{ root: '.solid-workspace .tree-rail', label: 'the tree rail', reserved: null }],
 	ignoreConsole: []

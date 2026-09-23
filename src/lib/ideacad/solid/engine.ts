@@ -52,6 +52,8 @@ export const CHECKPOINT_WINDOW = 12;
 
 interface State { bodies: Map<string, LiveBody>; order: string[]; refs: Map<string, ResolvedRef>; sketches: Map<string, SketchState>; mates: MateState[] }
 interface Result { status: FeatureRow['status']; message?: string; bodies: string[]; naming?: NamingReport }
+/** One step of the time-lapse: the body order after a feature, the bodies that feature made or changed, and the sketches open then. */
+export interface TimelapseStep { order: string[]; changed: BodyProjection[]; sketches: SketchProjection[] }
 interface Pick { body: LiveBody; handle: number; kind: Selection['kind'] }
 interface Step { before: SolidManifest; after: SolidManifest }
 interface CachedBody { faces: BodyProjection['faces']; edges: BodyProjection['edges']; vertices: BodyProjection['vertices']; mesh: BodyProjection['mesh']; bounds: number[]; volume: number; centerOfMass: Vec3; inertia: number[]; handles: { faces: Map<string, number>; edges: Map<string, number>; vertices: Map<string, number> } }
@@ -73,7 +75,9 @@ export class SolidEngine {
 	private cache = new Map<number, CachedBody>();
 	private undoSteps: Step[] = [];
 	private redoSteps: Step[] = [];
-	private preview: { before: SolidManifest; command?: SolidCommand } | null = null;
+	private preview: { before: SolidManifest; command?: SolidCommand; limit: number | null } | null = null;
+	/* THE ROLLBACK BAR. Only features [0, limit) are built; the manifest keeps every feature. Null builds everything. It is workspace state and is never written into the manifest. */
+	private limit: number | null = null;
 	private lastReplay = { ms: 0, from: 0 };
 	private mateReport: ReturnType<typeof solveMates> = { moved: [], errors: [], dof: new Map(), residuals: new Map() };
 	private constructor(private k: BrepKernel) { this.base = k.checkpoint(); }
@@ -91,7 +95,8 @@ export class SolidEngine {
 			const body = this.live.bodies.get(id)!;
 			const existing = this.records.find((r) => r.id === id);
 			const feature = this.features.find((f) => f.id === body.createdBy);
-			next.push(existing ? { ...existing, artifact: body.artifact } : { id, name: feature?.type === 'body' ? feature.name : `Body ${next.length + 1}`, artifact: body.artifact, materialId: null, role: 'part' });
+			/* While rolled back a body is drawn as it stood at the bar; its record keeps the full build's artifact, so a save made rolled back does not record the shorter body as the part. */
+			next.push(existing ? { ...existing, artifact: this.limit !== null && /^[0-9a-f]{64}$/.test(existing.artifact) ? existing.artifact : body.artifact } : { id, name: feature?.type === 'body' ? feature.name : `Body ${next.length + 1}`, artifact: body.artifact, materialId: null, role: 'part' });
 		}
 		/* A body that is ABSENT but whose creating feature is still in the tree (suppressed, or failing because of an edit above it) keeps its record: dropping it here was persisted by the next save, and the body came back as `Body N` with no material, colour, role, mass or fixed flag once the feature was unsuppressed or repaired. Only a body whose feature is gone is gone. */
 		for (const r of this.records) {
@@ -176,10 +181,12 @@ export class SolidEngine {
 	private describeBody(id: string): string { return this.records.find((r) => r.id === id)?.name ?? id; }
 	/** The checkpoint standing after feature `i`, or the base for i < 0. Null when the window dropped it. */
 	private checkpointAfter(i: number): number | null { return i < 0 ? this.base : this.checkpoints[i] ?? null; }
-	private replayFrom(requested: number) {
+	private replayFrom(requested: number, onStep?: (index: number) => void) {
 		const started = performance.now();
-		const n = this.features.length;
-		let from = Math.max(0, Math.min(requested, n));
+		const n = this.features.length, stop = this.limit === null ? n : Math.max(0, Math.min(this.limit, n));
+		/* A feature past the rollback bar keeps the status its last full build gave it; it is not built. */
+		const prior = this.results.slice();
+		let from = Math.max(0, Math.min(requested, stop));
 		/* COMPACTION. `discardCheckpoint(id)` drops every checkpoint AFTER id as
 		   well (measured: discarding the oldest of 26 invalidated the newest 25), so
 		   the stack can only shrink from the top or be rebuilt from the base. It is
@@ -193,7 +200,7 @@ export class SolidEngine {
 		/* The restore rewound these solids under their handles; a cache entry keyed by handle would draw them where they were before the last solve or transform. */
 		for (const b of this.live.bodies.values()) this.cache.delete(b.solid);
 		this.states.length = from; this.checkpoints.length = from; this.results.length = from;
-		for (let i = from; i < n; i++) {
+		for (let i = from; i < stop; i++) {
 			const feature = this.features[i];
 			const touched = new Set<string>(), warnings: string[] = [];
 			const before = this.checkpointAfter(i - 1);
@@ -214,9 +221,11 @@ export class SolidEngine {
 			}
 			if (before === null) this.k.discardCheckpoint(fallback);
 			this.states[i] = cloneState(this.live);
+			onStep?.(i);
 			/* Only the newest features keep a checkpoint; an edit above the window replays from the base. */
-			this.checkpoints[i] = i >= n - CHECKPOINT_WINDOW ? this.k.checkpoint() : null;
+			this.checkpoints[i] = i >= stop - CHECKPOINT_WINDOW ? this.k.checkpoint() : null;
 		}
+		for (let i = stop; i < n; i++) this.results[i] = this.features[i].suppressed ? { status: 'suppressed', bodies: [] } : prior[i] ?? { status: 'ok', bodies: [] };
 		this.mateReport = solveMates(this.context({ id: 'assembly', name: 'Assembly', type: 'delete', bodies: [] }, n, new Set(), []), this.live.bodies);
 		for (const id of this.mateReport.moved) { const b = this.live.bodies.get(id); if (b) { b.dirty = true; b.artifact = ''; } }
 		this.reconcileRecords();
@@ -402,39 +411,105 @@ export class SolidEngine {
 		for (const f of manifest.features) if (f.type === 'body' && !artifacts.has(f.artifact)) throw Error('A saved body is missing. Reload the document.');
 		const previous = this.manifest(), previousArtifacts = this.artifacts;
 		this.artifacts = artifacts;
+		const limit = this.limit;
+		this.clampBar(manifest.features.length);
 		try { this.applyManifest(manifest); }
-		catch (error) { this.artifacts = previousArtifacts; this.applyManifest(previous); throw error; }
+		catch (error) { this.artifacts = previousArtifacts; this.limit = limit; this.applyManifest(previous); throw error; }
 		if (resetHistory) { this.undoSteps = []; this.redoSteps = []; }
 		this.preview = null;
 		return this.project();
 	}
+	/**
+	 * WHILE ROLLED BACK, A NEW FEATURE GOES IN AT THE BAR. A command appends by
+	 * default, so the features it appended move to where the bar stands and the
+	 * bar moves past them; a feature placed explicitly keeps its place. The bar
+	 * then counts what is built: every feature that stood above it, plus what
+	 * went in there. A bar at the end is no rollback at all.
+	 */
+	private placeAtBar(before: SolidManifest, next: SolidManifest, limit: number | null): { next: SolidManifest; limit: number | null } {
+		if (limit === null) return { next, limit };
+		const old = new Set(before.features.map((f) => f.id)), built = new Set(before.features.slice(0, limit).map((f) => f.id));
+		let cut = next.features.length;
+		while (cut > 0 && !old.has(next.features[cut - 1].id)) cut--;
+		const tail = next.features.slice(cut), rest = next.features.slice(0, cut);
+		let at = 0;
+		rest.forEach((f, i) => { if (built.has(f.id) || !old.has(f.id)) at = i + 1; });
+		const features = [...rest.slice(0, at), ...tail, ...rest.slice(at)], bar = at + tail.length;
+		return { next: tail.length ? { ...next, features } : next, limit: bar >= features.length ? null : bar };
+	}
+	/** Move the rollback bar: build only features [0, index), or everything for null. The manifest does not change and no undo step is written. */
+	async rollback(index: number | null): Promise<ModelProjection> {
+		const n = this.features.length, next = index === null || !Number.isFinite(index) || index >= n ? null : Math.max(0, Math.floor(index));
+		if (next === this.limit) return this.project();
+		const start = performance.now(), from = Math.min(this.limit ?? n, next ?? n);
+		this.limit = next;
+		this.replayFrom(from);
+		return this.project(performance.now() - start);
+	}
+	/**
+	 * THE TIME-LAPSE, BUILT ONCE. One replay from the base, and after each
+	 * feature the bodies that feature made or changed, tessellated, plus the
+	 * body order and the open sketches. A step carries only what changed, so a
+	 * forty-feature part is not forty copies of its unchanged bodies; the main
+	 * thread keeps the steps and scrubbing swaps meshes it already holds, with
+	 * no kernel in the loop. The manifest, the history and the rollback bar are
+	 * as they were afterwards.
+	 */
+	async timelapse(): Promise<{ steps: TimelapseStep[]; ms: number }> {
+		const started = performance.now(), limit = this.limit, steps: TimelapseStep[] = [];
+		let handles = new Map<string, number>();
+		this.limit = null;
+		try {
+			this.replayFrom(0, (i) => {
+				const touched = new Set(this.results[i]?.bodies ?? []), next = new Map<string, number>(), changed: BodyProjection[] = [];
+				for (const id of this.live.order) {
+					const body = this.live.bodies.get(id)!; next.set(id, body.solid);
+					if (touched.has(id) || handles.get(id) !== body.solid) changed.push(this.stepBody(body));
+				}
+				handles = next;
+				steps.push({ order: [...this.live.order], changed, sketches: this.sketchProjections(this.live.sketches).filter((s) => !s.consumed) });
+			});
+		} finally {
+			this.limit = limit;
+			if (limit !== null) this.replayFrom(limit);
+		}
+		return { steps, ms: performance.now() - started };
+	}
+	/** A body as one time-lapse step draws it: faces, edges and corners, without the export mesh. */
+	private stepBody(body: LiveBody): BodyProjection {
+		const cached = this.bodyCache(body), record = this.records.find((r) => r.id === body.id) ?? { id: body.id, name: body.id, artifact: '', materialId: null, role: 'part' as const };
+		return { ...record, faces: cached.faces, edges: cached.edges, vertices: cached.vertices, mesh: { positions: new Float32Array(0), normals: new Float32Array(0), indices: new Uint32Array(0) }, bounds: cached.bounds, volume: cached.volume, centerOfMass: cached.centerOfMass, inertia: cached.inertia, createdBy: body.createdBy };
+	}
 	/** One edit, one undo step. */
 	async apply(command: SolidCommand): Promise<ModelProjection> {
-		const before = this.manifest(), start = performance.now();
+		const before = this.manifest(), limit = this.limit, start = performance.now();
 		try {
-			const next = reduce(before, command);
+			const placed = this.placeAtBar(before, reduce(before, command), limit), next = placed.next;
+			this.limit = placed.limit;
 			this.applyManifest(next);
 			this.refuseOwnFailure(command, next);
 			this.undoSteps.push({ before, after: this.manifest() }); this.redoSteps = [];
 			return this.project(performance.now() - start);
-		} catch (error) { this.applyManifest(before); throw error; }
+		} catch (error) { this.limit = limit; this.applyManifest(before); throw error; }
 	}
 	/** A gesture: every update applies the command to the state the gesture started from. */
-	async begin() { if (this.preview) await this.cancel(); this.preview = { before: this.manifest() }; return true; }
+	async begin() { if (this.preview) await this.cancel(); this.preview = { before: this.manifest(), limit: this.limit }; return true; }
 	async update(command: SolidCommand) {
 		if (!this.preview) throw Error('Start the gesture again.');
 		const p = this.preview, start = performance.now();
-		try { const next = reduce(p.before, command); this.applyManifest(next); this.refuseOwnFailure(command, next); p.command = command; return this.project(performance.now() - start); }
-		catch (error) { this.applyManifest(p.before); p.command = undefined; throw error; }
+		try { const placed = this.placeAtBar(p.before, reduce(p.before, command), p.limit), next = placed.next; this.limit = placed.limit; this.applyManifest(next); this.refuseOwnFailure(command, next); p.command = command; return this.project(performance.now() - start); }
+		catch (error) { this.limit = p.limit; this.applyManifest(p.before); p.command = undefined; throw error; }
 	}
 	async commit() {
 		const p = this.preview; this.preview = null;
 		if (p?.command) { this.undoSteps.push({ before: p.before, after: this.manifest() }); this.redoSteps = []; }
 		return this.project();
 	}
-	async cancel() { const p = this.preview; this.preview = null; if (p) this.applyManifest(p.before); return this.project(); }
-	async undo() { const step = this.undoSteps.pop(); if (step) { this.applyManifest(step.before); this.redoSteps.push(step); } return this.project(); }
-	async redo() { const step = this.redoSteps.pop(); if (step) { this.applyManifest(step.after); this.undoSteps.push(step); } return this.project(); }
+	async cancel() { const p = this.preview; this.preview = null; if (p) { this.limit = p.limit; this.applyManifest(p.before); } return this.project(); }
+	/** A bar that no longer stands before any feature is no rollback. */
+	private clampBar(n: number) { if (this.limit !== null && this.limit >= n) this.limit = null; }
+	async undo() { const step = this.undoSteps.pop(); if (step) { this.clampBar(step.before.features.length); this.applyManifest(step.before); this.redoSteps.push(step); } return this.project(); }
+	async redo() { const step = this.redoSteps.pop(); if (step) { this.clampBar(step.after.features.length); this.applyManifest(step.after); this.undoSteps.push(step); } return this.project(); }
 	/** The kernel's checkpoint count, for the tests that pin the window. */
 	checkpointCount() { return this.k.checkpointCount(); }
 	/** Solve a sketch's constraints without changing the document: the sketch editor's live preview. */
@@ -550,6 +625,14 @@ export class SolidEngine {
 		this.cache.set(solid, out);
 		return out;
 	}
+	private sketchProjections(table: State['sketches']): SketchProjection[] {
+		const sketches: SketchProjection[] = [];
+		for (const [feature, s] of table) {
+			const f = this.features.find((x) => x.id === feature); if (!f) continue;
+			sketches.push({ feature, name: f.name, plane: s.plane, planeRef: f.type === 'sketch' ? f.plane : { kind: 'fixed', plane: s.plane }, entities: s.entities, constraints: s.constraints, solve: s.report, regions: regionOutlines(s.entities, s.plane), consumed: s.consumed });
+		}
+		return sketches;
+	}
 	project(operationMs = 0): ModelProjection {
 		this.picks.clear();
 		const liveHandles = new Set([...this.live.bodies.values()].map((b) => b.solid));
@@ -572,19 +655,15 @@ export class SolidEngine {
 			else if (ref.kind === 'axis') references.push({ feature, name: f.name, kind: 'axis', origin: ref.axis.origin, direction: ref.axis.direction, size });
 			else references.push({ feature, name: f.name, kind: 'point', origin: ref.point.point, size });
 		}
-		const sketches: SketchProjection[] = [];
-		for (const [feature, s] of this.live.sketches) {
-			const f = this.features.find((x) => x.id === feature); if (!f) continue;
-			sketches.push({ feature, name: f.name, plane: s.plane, planeRef: f.type === 'sketch' ? f.plane : { kind: 'fixed', plane: s.plane }, entities: s.entities, constraints: s.constraints, solve: s.report, regions: regionOutlines(s.entities, s.plane), consumed: s.consumed });
-			this.picks.set(this.key({ bodyId: '', kind: 'sketch', id: feature }), { body: { id: '', solid: 0, createdBy: feature, dirty: false, artifact: '' }, handle: 0, kind: 'sketch' });
-		}
+		const sketches = this.sketchProjections(this.live.sketches);
+		for (const s of sketches) this.picks.set(this.key({ bodyId: '', kind: 'sketch', id: s.feature }), { body: { id: '', solid: 0, createdBy: s.feature, dirty: false, artifact: '' }, handle: 0, kind: 'sketch' });
 		const features: FeatureRow[] = this.features.map((f, index) => {
 			const r = this.results[index] ?? { status: 'error', message: 'Not replayed.', bodies: [] };
 			const mateError = f.type === 'mate' ? this.mateReport.errors.find((e) => e.feature === f.id) : undefined;
 			return { id: f.id, index, type: f.type, name: f.name, status: mateError ? 'error' : r.status, message: mateError?.message ?? r.message, summary: featureSummary(f), bodies: r.bodies, dependsOn: dependsOnFeatures(f, this.features), suppressed: !!f.suppressed };
 		});
 		const mates: MateProjection[] = this.live.mates.map((m) => { const error = this.mateReport.errors.find((e) => e.feature === m.feature); return { feature: m.feature, kind: m.kind, a: m.a, b: m.b, value: m.value, status: error ? 'error' : 'ok', message: error?.message, residual: this.mateReport.residuals.get(m.feature) }; });
-		return { bodies, sketches, references, features, mates, addons: clone(this.addons), operationMs, replayMs: this.lastReplay.ms, replayedFrom: this.lastReplay.from, canUndo: !!this.undoSteps.length, canRedo: !!this.redoSteps.length };
+		return { bodies, sketches, references, features, mates, addons: clone(this.addons), operationMs, replayMs: this.lastReplay.ms, replayedFrom: this.lastReplay.from, canUndo: !!this.undoSteps.length, canRedo: !!this.redoSteps.length, rollbackIndex: this.limit };
 	}
 }
 function cross3(a: Vec3, b: Vec3): Vec3 { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }

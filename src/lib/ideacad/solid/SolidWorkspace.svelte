@@ -42,6 +42,8 @@
 	import PreferencesPanel from './PreferencesPanel.svelte';
 	import ContextMenu from './ContextMenu.svelte';
 	import ContextBar from './ContextBar.svelte';
+	import HistorySlider from './tree/HistorySlider.svelte';
+	import type { TimelapseStep } from './engine';
 	import { COMMANDS, CONTEXT_BAR, CONTEXT_MENUS, PICK_FILTER_KINDS, PICK_FILTER_WORDS, acceptsSelection, commandById, effectiveShortcuts, keyFromEvent, keyLabel, menuKindOf, pickFilterLabel, recordRecent, type Command, type CommandContext, type CommandGroup, type MenuKind, type PanelId, type PickFilterKind } from './command-registry';
 	import { breadcrumb, commandItems, selectionLabel, type Crumb, type MenuItem } from './context-menu';
 	import { BOX_WORDS } from './viewport/box-select';
@@ -65,8 +67,8 @@
 	import { refFromSelection } from './naming';
 	import { newFeatureId } from './features';
 	import { download, sketchDxf,profileDxf,solidStl, solidThreeMf } from './export';
-	import type { WorkspaceApi } from './workspace-api';
-	import type { EdgeRef, EntityRef, FaceRef, Feature, MateKind, ModelProjection, ModelSnapshot, PlaneRef, ResolvedPlane, Selection, SolidCommand, SolidDocument, SolidHistoryAction, SolidManifest, SolidTransport } from './types';
+	import type { WorkspaceApi, WorkspaceMenuRequest } from './workspace-api';
+	import type { BodyProjection, EdgeRef, EntityRef, FaceRef, Feature, MateKind, ModelProjection, ModelSnapshot, PlaneRef, ResolvedPlane, Selection, SolidCommand, SolidDocument, SolidHistoryAction, SolidManifest, SolidTransport } from './types';
 
 	let {document:opened,transport,advisoryTransport,onback,dev=false,preferences}:{document:SolidDocument;transport:SolidTransport;advisoryTransport?:AdvisoryTransport;onback:()=>void;dev?:boolean;preferences?:PreferenceStore}=$props();
 	/* The student's choices, applied to the module settings BEFORE any panel's script runs, so a panel that seeds its boxes from a module setting seeds them with the student's value. A store is only ever handed in once. */
@@ -92,7 +94,11 @@
 	let dockLeft=$state(12),dockRight=$state(12);
 	let editingSketch=$state<string|null>(null);
 	/* THE CHROME NEAR THE POINTER: the right-click menu (and what was under the pointer when it opened), the context toolbar with its breadcrumb (and what was under the click), and a box being dragged. */
-	let menu=$state.raw<{items:MenuItem[];at:{x:number;y:number};label:string}|null>(null),menuPick:ViewportPick|null=null;
+	let menu=$state.raw<{items:MenuItem[];at:{x:number;y:number};label:string;returnFocus?:HTMLElement|null}|null>(null),menuPick:ViewportPick|null=null;
+	/* THE ROLLBACK BAR AND THE TIME-LAPSE, both workspace state and never the manifest. `rollbackIndex` is the engine's (every projection carries it); the time-lapse is the steps the worker built once for this feature list, and `lapseStep` the one on screen, null for the live model. */
+	let rollbackIndex=$state<number|null>(null);
+	let lapse:{key:string;steps:BodyProjection[][];sketches:TimelapseStep['sketches'][]}|null=null,lapseBuilding:Promise<void>|null=null;
+	let lapseStep=$state<number|null>(null),historyHeight=$state(0);
 	let bar=$state.raw<{at:{x:number;y:number};touch?:boolean}|null>(null),barPick:ViewportPick|null=null;
 	let box=$state.raw<BoxState|null>(null);
 	/* Bodies hidden for this session only; never saved, always shown on screen as a count with a way back. */
@@ -135,14 +141,14 @@
 	const openSketches=$derived(model.sketches.filter(s=>!s.consumed));
 	const pickFilter=$derived(prefs.pick.only);
 	const hiddenCount=$derived(hiddenBodies.filter(id=>model.bodies.some(b=>b.id===id)).length);
-	function show(result:ModelProjection){model=result;if(planesForced&&result.features.length){planesForced=false;if(viewport)viewport.datumForced=false;}viewport?.display(result);}
+	function show(result:ModelProjection){model=result;rollbackIndex=result.rollbackIndex??null;lapseStep=null;if(planesForced&&result.features.length){planesForced=false;if(viewport)viewport.datumForced=false;}viewport?.display(result);}
 	function select(selection:Selection|null,append=false){
 		if(!selection){selections=[];bar=null;}
 		else if(append){const exists=selections.some(s=>s.bodyId===selection.bodyId&&s.id===selection.id&&s.kind===selection.kind);selections=exists?selections.filter(s=>!(s.bodyId===selection.bodyId&&s.id===selection.id)): [...selections,selection];}
 		else selections=[selection];
 		viewport?.highlight();
 	}
-	function setTool(next:Tool){if(gesture)void cancel();viewport?.clearDrawing();tool=next;error='';bar=null;if(next==='reference')referenceOpen=true;if(next==='mate')matesOpen=true;viewport?.highlight();canvas?.focus();}
+	function setTool(next:Tool){if(gesture)void cancel();viewport?.clearDrawing();if(next!=='fillet'&&next!=='chamfer'){chainWanted=null;viewport?.setPreviewEdges(null);}tool=next;error='';bar=null;if(next==='reference')referenceOpen=true;if(next==='mate')matesOpen=true;viewport?.highlight();canvas?.focus();}
 	function editSketch(id:string|null){
 		editingSketch=id;const sketch=id?model.sketches.find(s=>s.feature===id):null;bar=null;menu=null;
 		viewport.editingPlane=sketch?sketch.plane:null;viewport.editingSketchId=sketch?sketch.feature:null;if(sketch){viewport.lookAt(sketch.plane);select({bodyId:'',kind:'sketch',id:sketch.feature});}else viewport.highlight();
@@ -161,7 +167,7 @@
 	/** Features whose picks are spent once they exist: the next tool must not act on the faces a mate, a combine or a mirror was made from. */
 	const CONSUMES_PICKS=['mate','boolean','mirror'];
 	async function apply(command:SolidCommand,label:string){
-		if(!opened.canWrite||busy||loading)return;busy=true;error='';
+		if(!opened.canWrite||busy||loading)return;endLapse();busy=true;error='';
 		const before=currentSnapshot;let landed=false;
 		try{show(await client.request<ModelProjection>('apply',command));await record(label,before);landed=true;}
 		catch(err){error=err instanceof Error?err.message:String(err);show(await client.request<ModelProjection>('project'));}
@@ -192,10 +198,11 @@
 	function sketchOnPlane(){planesForced=true;viewport.datumForced=true;viewport.display(model);setTool('rectangle');}
 	async function begin(next:Gesture){
 		if(!opened.canWrite)throw Error('This document is read-only.');
-		if(busy)throw Error('Finish the current change first.');gesture=next;gestureFeature=newFeatureId();gestureBefore=currentSnapshot;gestureCenter=[...(model.bodies.find(b=>b.id===next.selection.bodyId)?.centerOfMass??[0,0,0])];committed=false;gestureModel=model;mateCandidate=null;try{await client.request('begin');}catch(err){gesture=null;gestureBefore=null;throw err;}
+		if(busy)throw Error('Finish the current change first.');gesture=next;gestureFeature=newFeatureId();gestureBefore=currentSnapshot;gestureCenter=[...(model.bodies.find(b=>b.id===next.selection.bodyId)?.centerOfMass??[0,0,0])];committed=false;gestureModel=model;mateCandidate=null;chainWanted=null;viewport?.setPreviewEdges(null);try{await client.request('begin');}catch(err){gesture=null;gestureBefore=null;throw err;}
 	}
 	/** The reference a feature stores for a selection, with its hint, from the projection the gesture started on. */
-	function ref(selection:Selection){const body=model.bodies.find(b=>b.id===selection.bodyId);if(!body)throw Error('Select something on a body.');return refFromSelection(selection,body);}
+	const refOf=(selection:Selection,from:ModelProjection)=>ref(selection,from);
+	function ref(selection:Selection,from:ModelProjection=model){const body=from.bodies.find(b=>b.id===selection.bodyId);if(!body)throw Error('Select something on a body.');return refFromSelection(selection,body);}
 	/** The selected reference of a kind, when one is among the selections: the axis a revolve or a pattern turns about or runs along, or the plane a mirror reflects across. A reference among the selections is the student's own say-so. */
 	function selectedReference(kind:'plane'|'axis'|'point'){for(const s of selections)if(s.kind==='reference'){const r=model.references.find(r=>r.feature===s.id);if(r?.kind===kind)return r;}return undefined;}
 	const mirrorPlane=$derived(selectedReference('plane'));
@@ -206,20 +213,25 @@
 	const feature=(f:FeatureInput):SolidCommand=>({type:'add-feature',feature:{id:gestureFeature,name:'',...f} as Feature});
 	function commandFor(value:DragValue):SolidCommand|null {
 		if(!gesture)return null;const {selection,tool:active,axis}=gesture;
+		/* EVERY REFERENCE COMES FROM THE MODEL AS THE GESTURE FOUND IT. During the drag `model` already shows the result (a rounded edge is gone, a pushed face has moved), so a reference built from it names geometry that is no longer there, and the drag froze at its first sample. */
+		const at=gestureModel,ref=(s:Selection)=>refOf(s,at);
 		if(selection.kind==='sketch'){
-			const sketch=model.sketches.find(s=>s.feature===selection.id);if(!sketch)return null;
+			const sketch=at.sketches.find(s=>s.feature===selection.id);if(!sketch)return null;
 			if(active==='revolve'){const about=selectedReference('axis');return feature({type:'revolve',sketch:selection.id,angle:value.angle,axis:about?{kind:'reference',feature:about.feature}:{kind:'sketch',feature:selection.id,axis:'v'},operation:'new'});}
 			const support=sketch.planeRef.kind==='face'?sketch.planeRef.face.body:undefined;
 			return feature({type:'extrude',sketch:selection.id,distance:value.distance,operation:support?(value.distance<0?'cut':'add'):'new',target:support});
 		}
 		if(active==='fillet'||active==='chamfer'){
-			const edges=[...selections.filter(s=>s.kind==='edge'),...(selection.kind==='edge'&&!selections.some(s=>s.id===selection.id)?[selection]:[])].map(s=>ref(s) as EdgeRef);
+			const picked=[...selections.filter(s=>s.kind==='edge'),...(selection.kind==='edge'&&!selections.some(s=>s.id===selection.id)?[selection]:[])];
+			/* A face pressed with Fillet or Chamfer rounds every edge around it. */
+			if(selection.kind==='face'){const face=at.bodies.find(b=>b.id===selection.bodyId)?.faces.find(f=>f.id===selection.id);for(const id of face?.edges??[])if(!picked.some(e=>e.bodyId===selection.bodyId&&e.id===id))picked.push({bodyId:selection.bodyId,kind:'edge',id});}
+			const edges=picked.map(s=>ref(s) as EdgeRef);
 			if(!edges.length)return null;
 			return active==='fillet'?feature(withOptions({type:'fillet',edges,radius:Math.abs(value.distance)})):feature(withOptions({type:'chamfer',edges,distance:Math.abs(value.distance)}));
 		}
 		if(active==='shell'){const open=[...selections.filter(s=>s.kind==='face'),...(selection.kind==='face'&&!selections.some(s=>s.id===selection.id)?[selection]:[])].map(s=>ref(s) as FaceRef);return feature(withOptions({type:'shell',body:selection.bodyId,thickness:Math.abs(value.distance),openFaces:open}));}
 		/* The hole tool: the press point on the face is the hole's centre; size, fit and depth come from the Feature panel. */
-		if(active==='hole'&&selection.kind==='face'){const body=model.bodies.find(b=>b.id===selection.bodyId),face=body?.faces.find(f=>f.id===selection.id);if(!body||!face)return null;return feature(holeFeatureAt(body,face,gesture.start));}
+		if(active==='hole'&&selection.kind==='face'){const body=at.bodies.find(b=>b.id===selection.bodyId),face=body?.faces.find(f=>f.id===selection.id);if(!body||!face)return null;return feature(holeFeatureAt(body,face,gesture.start));}
 		if(active==='linear-pattern'||active==='circular-pattern'){const along=selectedReference('axis');return feature({type:'pattern',body:selection.bodyId,mode:active==='linear-pattern'?'linear':'circular',axis:along?{kind:'reference',feature:along.feature}:{kind:'datum',axis:active==='linear-pattern'?'X':'Z'},spacing:active==='linear-pattern'?value.distance:360/value.count,count:value.count});}
 		if(active==='rotate'||active==='scale'||active==='move'){
 			if(active==='move'&&(selection.kind==='edge'||selection.kind==='vertex'))return feature({type:'move-selection',entity:ref(selection) as EdgeRef,delta:scaleVector(axis,value.distance)});
@@ -263,6 +275,77 @@
 		if(candidate&&!error){try{const a=ref(candidate.a),b=ref(candidate.b);await apply({type:'add-feature',feature:{id:'',name:'',type:'mate',kind:candidate.kind,a:{kind:'face',...a} as EntityRef,b:{kind:'face',...b} as EntityRef}},`Add ${candidate.kind} mate`);}catch(err){error=err instanceof Error?err.message:String(err);}}
 	}
 	async function cancel(){queued=null;try{await pumping;if(client){show(await client.request<ModelProjection>('cancel'));}}catch(err){error=err instanceof Error?err.message:String(err);}finally{gesture=null;gestureBefore=null;measure=null;numeric=null;mateCandidate=null;viewport?.clearGuides();}}
+	/* ------------------------------------------------------------------ THE BLEND PREVIEW */
+	/* Under Fillet or Chamfer, the edges a press would round are drawn before the press: an edge's tangent chain from the fillet's own walk in the worker (asked once per edge for this model, and never while a change is running), or every edge of a face. */
+	const chainCache=new Map<string,Selection[]>();let chainFor:ModelProjection|null=null,chainWanted:Selection|null=null,chainAsking=false;
+	function previewBlend(hovered:Selection|null){
+		const on=(tool==='fillet'||tool==='chamfer')&&!gesture&&!editingSketch&&lapseStep===null&&opened.canWrite;
+		if(!on||!hovered||(hovered.kind!=='edge'&&hovered.kind!=='face')){chainWanted=null;viewport?.setPreviewEdges(null);return;}
+		if(chainFor!==model){chainCache.clear();chainFor=model;}
+		if(hovered.kind==='face'){const face=model.bodies.find(b=>b.id===hovered.bodyId)?.faces.find(f=>f.id===hovered.id);chainWanted=null;viewport.setPreviewEdges((face?.edges??[]).map(id=>({bodyId:hovered.bodyId,kind:'edge' as const,id})));return;}
+		const known=chainCache.get(`${hovered.bodyId}/${hovered.id}`);
+		if(known){chainWanted=null;viewport.setPreviewEdges(known);return;}
+		viewport.setPreviewEdges([hovered]);chainWanted=hovered;void askChain();
+	}
+	async function askChain(){
+		if(chainAsking)return;chainAsking=true;
+		try{
+			while(chainWanted&&!busy&&!gesture){
+				const want=chainWanted,forModel=model;let chain:Selection[];
+				try{chain=await client.request<Selection[]>('tangent-chain',[want]);}catch{chain=[want];}
+				if(forModel!==model)break;
+				chainCache.set(`${want.bodyId}/${want.id}`,chain);
+				if(chainWanted===want){chainWanted=null;viewport?.setPreviewEdges(chain);}
+			}
+		}finally{chainAsking=false;}
+	}
+	/* ------------------------------------------------------------------ THE ROLLBACK BAR AND THE TIME-LAPSE */
+	/** Move the rollback bar: the worker builds only features [0, index) and nothing is recorded, because the bar is where the student is looking, not an edit. */
+	async function rollbackTo(index:number|null){
+		if(loading)return;if(gesture)await cancel();
+		/* A press while a change is running waits for it rather than doing nothing. */
+		while(busy)await new Promise(r=>setTimeout(r,30));
+		busy=true;error='';
+		try{show(await client.request<ModelProjection>('rollback',{index}));}
+		catch(err){error=err instanceof Error?err.message:String(err);}
+		finally{busy=false;}
+	}
+	/** The time-lapse's steps for THIS feature list, built by the worker once and kept until the list changes. */
+	function lapseKey(){return JSON.stringify(currentSnapshot.manifest.features);}
+	async function ensureLapse(){
+		const key=lapseKey();if(lapse?.key===key)return;
+		if(!lapseBuilding)lapseBuilding=(async()=>{
+			while(busy)await new Promise(r=>setTimeout(r,30));
+			busy=true;
+			try{
+				const {steps}=await client.request<{steps:TimelapseStep[];ms:number}>('timelapse');
+				/* Step k is the model with its first k features; each step lists its bodies by reference, so an unchanged body is one object shared by every step it stands in. */
+				const latest=new Map<string,BodyProjection>(),bodies:BodyProjection[][]=[[]],sketches:TimelapseStep['sketches'][]=[[]];
+				for(const step of steps){for(const b of step.changed)latest.set(b.id,b);bodies.push(step.order.map(id=>latest.get(id)).filter((b):b is BodyProjection=>!!b));sketches.push(step.sketches);}
+				lapse={key,steps:bodies,sketches};
+			}finally{busy=false;lapseBuilding=null;}
+		})();
+		await lapseBuilding;
+	}
+	/** Show build step k from the kept meshes, or the live model at the end. No kernel is asked. */
+	async function showStep(step:number){
+		const n=model.features.length;
+		if(step>=n){endLapse();return;}
+		try{await ensureLapse();}catch(err){error=err instanceof Error?err.message:String(err);return;}
+		if(!lapse||step>=lapse.steps.length)return;
+		lapseStep=step;
+		viewport?.display({...model,bodies:lapse.steps[step],sketches:lapse.sketches[step],references:[],mates:[]});
+	}
+	/** Back to the live model, as the student left it. */
+	function endLapse(){if(lapseStep===null)return;lapseStep=null;viewport?.display(model);}
+	/** "Roll back here": the step on screen becomes the rollback bar, and the next feature goes in there. */
+	async function rollbackHere(){const at=lapseStep;if(at===null)return;endLapse();await rollbackTo(at>=model.features.length?null:at);}
+	/** A row menu from a panel, drawn in the workspace's one menu: a refused row says why when pressed, exactly as a refused command does. */
+	function panelMenu(request:WorkspaceMenuRequest){
+		menuPick=null;bar=null;
+		const items:MenuItem[]=request.items.map(item=>({id:item.id,label:item.label,icon:item.icon,reason:item.refusal??null,run:()=>{if(item.refusal){error=item.refusal;return;}item.run();}}));
+		menu={items,at:{x:request.x,y:request.y},label:request.label,returnFocus:request.returnFocus??null};
+	}
 	async function undo(redo=false){if(!opened.canWrite||busy||loading||gesture)return;const target=redo?historyState.redoTarget:historyState.undoTarget;if(!target)return;busy=true;const before=currentSnapshot;try{const inverse=inverseOperation(serverManifest,target);show(await client.request<ModelProjection>('load',{manifest:inverse.after,artifacts:before.artifacts}));await record(redo?'Redo':'Undo',before,inverse.actions);title=currentSnapshot.manifest.title;}catch(err){error=err instanceof Error?err.message:String(err);}finally{busy=false;}}
 	async function enterNumeric(){
 		if(!opened.canWrite||loading)return;
@@ -512,14 +595,16 @@
 		get prefs(){return prefs;},setPreference:(group,value)=>prefStore.set(group,value),runCommand:(id)=>runById(id),
 		hover:(list)=>viewport?.setExternalHover(list),
 		onHover:(listener)=>{hoverListeners.add(listener);return()=>{hoverListeners.delete(listener);};},
-		contextMenu:(items,at)=>{menuPick=null;bar=null;menu={items,at,label:'Menu'};}
+		contextMenu:(request)=>panelMenu(request),
+		rollback:(index)=>rollbackTo(index),
+		get rollbackIndex(){return rollbackIndex;}
 	};
 	onMount(()=>{
 		const readRules=()=>{if(advisoryTransport)void advisoryTransport.read().then(value=>rules=value).catch(err=>error=err.message);};readRules();
 		window.addEventListener('focus',readRules);const ruleTimer=setInterval(readRules,60000);
 		client=new SolidClient();viewport=new SolidViewport(canvas,{getTool:()=>tool,getPlane:():DrawPlane=>defaultDrawPlane(),getSelections:()=>selections,canWrite:()=>opened.canWrite,select,begin,update,end:()=>void end(),cancel:()=>void cancel(),draft:(d,r)=>void createDraft(d,r),error:message=>error=message,sketchPointer:(event,at,e)=>sketchPointer?.(event,at,e)??false,
 			getPickFilter:()=>prefs.pick.only,
-			hover:(selection)=>{for(const listener of [...hoverListeners])listener(selection);},
+			hover:(selection)=>{for(const listener of [...hoverListeners])listener(selection);previewBlend(selection);},
 			contextMenu:(at,pick)=>openContextMenu(at,pick),
 			box:(state)=>{box=state;},
 			boxSelect:(picked,append)=>boxSelected(picked,append),
@@ -553,7 +638,7 @@
 </script>
 
 <svelte:window onkeydown={keydown}/>
-<section class="ic-root solid-workspace" class:save-failed={saveState.failed} class:tree-open={treeOpen} aria-label="IdeaCAD modeler" style:--dock-left={`${dockLeft}px`} style:--dock-right={`${dockRight}px`} style:--ic-tip-delay={`${prefs.hints.tooltipDelayMs}ms`}>
+<section class="ic-root solid-workspace" class:save-failed={saveState.failed} class:tree-open={treeOpen} aria-label="IdeaCAD modeler" style:--dock-left={`${dockLeft}px`} style:--dock-right={`${dockRight}px`} style:--ic-tip-delay={`${prefs.hints.tooltipDelayMs}ms`} style:--history-h={`${historyHeight}px`}>
 	<header>
 		<button class="documents" onclick={()=>void back()} aria-label="Documents">‹ <span>Documents</span></button>
 		<input class="document-title" aria-label="Document name" bind:value={title} readonly={!opened.canWrite||loading||busy} maxlength="120" onchange={()=>void apply({type:'title',title},'Rename document')}/>
@@ -567,7 +652,7 @@
 	</header>
 	<div class="body">
 		<aside class="tree-rail" aria-label="Design tree rail"><FeatureTree {api}/></aside>
-		<div class="workarea">
+		<div class="workarea" onpointerdowncapture={(e)=>{if(lapseStep!==null&&e.target===canvas)endLapse();}}>
 			<canvas bind:this={canvas} tabindex="0" aria-label="3D model: select and drag geometry"></canvas>
 			{#if bar&&selections.length&&(barItems.length||barCrumbs.length)}<ContextBar at={bar.at} touch={bar.touch} avoid={chromeRects} commands={barItems} crumbs={barCrumbs} onrun={(item)=>item.run?.()} oncrumb={(crumb)=>{viewport.setExternalHover(null);crumb.selections.forEach((s,i)=>select(s,i>0));}} onpreview={(crumb)=>viewport?.setExternalHover(crumb?crumb.selections:null)} onclose={()=>{bar=null;}}/>{/if}
 			{#if box&&boxStyle}<div class="box-select" class:crossing={box.mode==='crossing'} data-testid="ideacad-box-select" data-mode={box.mode} aria-hidden="true" style:left={`${boxStyle.left}px`} style:top={`${boxStyle.top}px`} style:width={`${boxStyle.width}px`} style:height={`${boxStyle.height}px`}><span>{BOX_WORDS[box.mode]}</span></div>{/if}
@@ -616,16 +701,19 @@
 			{#if measure&&!numeric}<output class="measure" style:left={`${Math.min(measure.x+16,(canvas?.clientWidth??1000)-160)}px`} style:top={`${measure.y+16}px`}>{measure.text}</output>{/if}
 			{#if numeric}<form class="number-entry" style:left={`${Math.min(numeric.x+16,(canvas?.clientWidth??1000)-170)}px`} style:top={`${Math.min(numeric.y+16,(canvas?.clientHeight??800)-64)}px`} onsubmit={(e)=>{e.preventDefault();void enterNumeric();}}><input bind:this={numericInput} bind:value={numeric.value} aria-label={numericPrompt(tool)} autocomplete="off"/><button type="submit" aria-label="Use exact value">↵</button></form>{/if}
 			{#if error}<div class="error" role="alert"><span>{error}</span><button aria-label="Dismiss message" onclick={()=>error=''}>×</button></div>{/if}
-			{#if menu}<ContextMenu items={menu.items} at={menu.at} label={menu.label} onclose={()=>{menu=null;menuPick=null;viewport?.setExternalHover(null);}}/>{/if}
+			{#if menu}<ContextMenu items={menu.items} at={menu.at} label={menu.label} onclose={()=>{const back=menu?.returnFocus;menu=null;menuPick=null;viewport?.setExternalHover(null);if(back?.isConnected)back.focus();}}/>{/if}
 			{#if search}<CommandSearch commands={search.group?COMMANDS.filter(c=>!OPENERS.includes(c.id)):COMMANDS} recent={prefs.commands.recent} keys={shortcuts.byCommand} group={search.group} at={search.at} unavailable={(c)=>c.unavailable?.(commandContext)??null} onrun={runCommand} onclose={()=>{search=null;canvas?.focus();}}/>{/if}
 		</div>
 	</div>
+	<div class="history-bar" bind:clientHeight={historyHeight}>{#if model.features.length&&!loading}<HistorySlider steps={model.features.length} step={lapseStep??rollbackIndex??model.features.length} labels={model.features.map(f=>f.name)} onstep={(i)=>void showStep(i)}/>{#if lapseStep!==null&&opened.canWrite&&lapseStep!==(rollbackIndex??model.features.length)}<button class="rollback-here" data-testid="ideacad-rollback-here" onclick={()=>void rollbackHere()}>Roll back here</button>{/if}{/if}</div>
 	{#if settingsOpen&&rules&&advisoryTransport}<div class="settings-overlay"><AdvisorySettings {rules} transport={advisoryTransport} onchange={value=>rules=value} onclose={()=>settingsOpen=false}/></div>{/if}
 	<footer><span>{model.bodies.length} {model.bodies.length===1?'body':'bodies'}</span><span>{model.features.length} features</span><span>{prefs.units.display==='mm'?'millimeters':'inches'}</span><span>{selections.length?`${selections.length} selected`:''}</span><span class="tool-name">{TOOLS.find(t=>t.id===tool)?.name}</span></footer>
 </section>
 
 <style>
 	/* THE SHELL'S TWO FLOATING CONTROLS ARE DOCKED IN THE FOOTER'S ENDS: Voice on the left, Report on the right, each 2px inside the 48px footer. The footer's words run between them (`--dock-left`, `--dock-right`, measured from the controls themselves), so neither covers a count, the tool strip or a panel at any width. */
+	/* THE HISTORY SLIDER is its own row between the work area and the footer, so it covers nothing and nothing covers it; the tree's slide-over stops above it. */
+	.history-bar{display:flex;flex-wrap:wrap;align-items:center;min-width:0;background:var(--surface-1)}.history-bar>:global(.history){flex:1 1 20rem;min-width:0}.rollback-here{flex:0 0 auto;margin:4px 8px;border-color:var(--boundary);background:var(--surface-2)}
 	:global(body:has(.solid-workspace) .sfb-shell){bottom:calc(2px + env(safe-area-inset-bottom, 0px));right:8px}
 	:global(body:has(.solid-workspace) .vnav-shell){bottom:calc(2px + env(safe-area-inset-bottom, 0px));left:8px}
 	@media(max-width:700px){:global(body:has(.solid-workspace) .sfb-word){display:none}}
@@ -635,7 +723,7 @@
 	.recovery{z-index:22}.recovery p{font-size:16px;color:var(--text-2)}
 	.document-save{min-width:0;display:flex;justify-content:flex-end}.document-save :global(.save-ind){max-width:100%;flex-wrap:nowrap}.document-save :global(.save-ind-text){min-width:0;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 	.solid-workspace{grid-template-columns:minmax(0,1fr)}
-	@media(max-width:700px){.solid-workspace.save-failed{grid-template-rows:52px minmax(0,1fr) 48px}}
+	@media(max-width:700px){.solid-workspace.save-failed{grid-template-rows:52px minmax(0,1fr) auto 48px}}
 	.top-bar{position:absolute;top:12px;left:76px;right:12px;display:flex;align-items:flex-start;gap:8px;z-index:8;pointer-events:none}.workarea:has(.tools.expanded) .top-bar{left:168px}.view-tools{flex:1 1 0;min-width:0;display:flex}.right-tools{pointer-events:auto}
 	.triad-slot{position:absolute;left:12px;bottom:12px;width:84px;height:84px;pointer-events:none}
 	/* A drag on the model never selects the page's words; a panel's own words still can be. */
@@ -646,11 +734,11 @@
 	.view-tools{gap:6px;align-items:flex-start}.pick-tools{display:flex;gap:4px;pointer-events:auto;flex:0 0 auto}.pick-tools button{display:inline-flex;align-items:center;gap:6px;padding:0 12px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px;white-space:nowrap}.pick-tools button span{max-width:150px;overflow:hidden;text-overflow:ellipsis}.pick-tools button.active{background:color-mix(in srgb,var(--green) 12%,var(--surface-1));border-color:var(--green);color:var(--green)}.pick-open:not(.active){padding:0;justify-content:center}.hidden-bodies{color:var(--ic-warn,var(--amber))}
 	.empty-slot{position:absolute;left:50%;top:68px;transform:translateX(-50%);z-index:6;pointer-events:none;width:max-content;max-width:calc(100% - 24px)}
 	.search-open,.prefs-open{display:inline-flex;align-items:center;gap:6px}.tree-toggle{align-items:center}
-	.solid-workspace{height:100%;min-height:0;display:grid;grid-template-rows:56px minmax(0,1fr) 48px;overflow:hidden;background:var(--surface-0);color:var(--text-1);font-family:Rajdhani,sans-serif}header{display:flex;gap:4px;align-items:center;padding:0 12px;background:var(--surface-1);border-bottom:1px solid var(--hairline);z-index:10}button,input{font:600 16px Rajdhani,sans-serif;color:var(--text-1);min-height:44px;min-width:44px;border:1px solid transparent;border-radius:5px;background:transparent}button{cursor:pointer;padding:0 12px}button:hover{background:var(--surface-2)}button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}button.active,button.selected{background:color-mix(in srgb,var(--green) 12%,var(--surface-1));border-color:var(--green);color:var(--green)}button:disabled{opacity:.4;cursor:default}.documents{display:flex;gap:8px;align-items:center}.document-title{max-width:300px;width:25vw;min-width:80px;font-size:21px;padding:0 12px;border-left:1px solid var(--hairline);border-radius:0}.document-save{flex:1;text-align:right;padding-right:12px}
+	.solid-workspace{height:100%;min-height:0;display:grid;grid-template-rows:56px minmax(0,1fr) auto 48px;overflow:hidden;background:var(--surface-0);color:var(--text-1);font-family:Rajdhani,sans-serif}header{display:flex;gap:4px;align-items:center;padding:0 12px;background:var(--surface-1);border-bottom:1px solid var(--hairline);z-index:10}button,input{font:600 16px Rajdhani,sans-serif;color:var(--text-1);min-height:44px;min-width:44px;border:1px solid transparent;border-radius:5px;background:transparent}button{cursor:pointer;padding:0 12px}button:hover{background:var(--surface-2)}button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}button.active,button.selected{background:color-mix(in srgb,var(--green) 12%,var(--surface-1));border-color:var(--green);color:var(--green)}button:disabled{opacity:.4;cursor:default}.documents{display:flex;gap:8px;align-items:center}.document-title{max-width:300px;width:25vw;min-width:80px;font-size:21px;padding:0 12px;border-left:1px solid var(--hairline);border-radius:0}.document-save{flex:1;text-align:right;padding-right:12px}
 	.body{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:0}.tree-rail{min-height:0;display:flex;flex-direction:column;background:var(--surface-1);border-right:1px solid var(--hairline);overflow:hidden}.tree-toggle{display:none}
 	.workarea{position:relative;min-height:0;overflow:hidden}canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}.tools{position:absolute;left:12px;top:12px;display:flex;flex-direction:column;padding:5px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:8px;z-index:5;max-height:calc(100% - 24px);flex-wrap:wrap;align-content:flex-start}.tools.expanded{display:grid;grid-template-columns:repeat(3,44px);grid-auto-rows:44px;width:auto;overflow-y:auto}.more{height:44px;padding:0;font-size:24px}.right-tools{flex:0 1 auto;display:flex;gap:4px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px;flex-wrap:wrap;justify-content:flex-end}.right-tools span{margin-left:6px;color:var(--text-2)}
 	.panels{position:absolute;right:12px;top:68px;bottom:12px;width:260px;display:flex;flex-direction:column;gap:8px;overflow:auto;z-index:7;pointer-events:none}.panels>:global(*){pointer-events:auto}
 	:global(.solid-workspace .panel){padding:10px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px}.panel h2{margin:0 0 8px;font-size:20px;padding:5px 10px;border-bottom:1px solid var(--hairline)}.panel>button{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left}.panel button span{font-size:13px;color:var(--text-2)}.body-actions{display:flex;flex-wrap:wrap;border-top:1px solid var(--hairline);margin-top:10px;padding-top:8px}.export-menu{position:absolute;top:8px;right:12px;z-index:15;width:245px}.measure,.number-entry{position:absolute;z-index:8;background:var(--surface-2);color:var(--text-1);border:1px solid var(--green);border-radius:5px;font:14px 'Share Tech Mono',monospace}.measure{padding:9px 12px;pointer-events:none}.number-entry{display:flex;width:170px}.number-entry input{width:120px;min-width:0;padding:0 8px;font-family:'Share Tech Mono',monospace}.error{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);max-width:min(600px,calc(100% - 30px));padding:8px 10px 8px 16px;display:flex;gap:10px;align-items:center;z-index:20;border:1px solid var(--ic-warn);border-radius:7px;background:var(--surface-1);font-size:17px}.error button{flex-shrink:0}.loading{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:21px}.read-only{position:absolute;bottom:12px;left:108px;padding:8px 12px;background:var(--surface-1);border:1px solid var(--hairline)}.replay{position:absolute;bottom:12px;right:12px;padding:4px 8px;font:11px 'Share Tech Mono',monospace;color:var(--text-2);background:var(--surface-1);border:1px solid var(--hairline);border-radius:4px}footer{display:flex;align-items:center;gap:20px;border-top:1px solid var(--hairline);padding:0 var(--dock-right,15px) 0 var(--dock-left,15px);font:11px 'Share Tech Mono',monospace;color:var(--text-2);min-width:0;overflow:hidden;white-space:nowrap}.tool-name{margin-left:auto}
-	@media(max-width:1023px){.body{grid-template-columns:minmax(0,1fr)}.tree-rail{display:none;position:absolute;left:0;top:56px;bottom:48px;width:min(300px,80vw);z-index:9}.tree-open .tree-rail{display:flex}.tree-toggle{display:inline-flex}}
-	@media(max-width:700px){.solid-workspace{grid-template-rows:52px minmax(0,1fr) 48px}header{padding:0 4px;gap:0}.documents span,.prefs-open span{display:none}.search-open{display:none}.document-save{position:absolute;bottom:5px;left:var(--dock-left,8px);right:var(--dock-right,8px);width:auto;justify-content:flex-start;z-index:12;padding:0;font-size:10px}.tool-name{display:none}.document-title{flex:1;width:80px;font-size:18px;padding:0 6px}header button{font-size:14px;padding:0 8px;white-space:nowrap}.export-open span{display:none}.tools{left:8px;right:8px;bottom:8px;top:auto;flex-direction:row;flex-wrap:nowrap!important;width:auto!important;overflow-x:auto;overflow-y:hidden;max-height:66px}.tools.expanded{display:grid;grid-template-columns:repeat(6,44px);grid-auto-rows:44px;max-height:none;overflow:visible;right:auto}.workarea:has(.tools.expanded) .triad-slot{bottom:206px}.workarea:has(.panels>:global(.panel)) .empty-slot{display:none}.top-bar,.workarea:has(.tools.expanded) .top-bar{left:8px;right:8px;top:8px;flex-direction:column;align-items:stretch}.right-tools{align-self:flex-end}.right-tools button{font-size:13px;padding:0 8px}.right-tools span{display:none}.panels{right:8px;left:8px;top:112px;bottom:80px;width:auto}.workarea:has(.tools.expanded) .panels{bottom:206px}.error{bottom:80px;font-size:16px}.triad-slot{left:8px;bottom:82px;width:64px;height:64px}.read-only{bottom:82px;left:80px}.empty-slot{top:120px}.tree-rail{top:52px;bottom:48px}footer{gap:10px;font-size:10px;align-items:flex-start;padding-top:8px}}
+	@media(max-width:1023px){.body{grid-template-columns:minmax(0,1fr)}.tree-rail{display:none;position:absolute;left:0;top:56px;bottom:calc(48px + var(--history-h,0px));width:min(300px,80vw);z-index:9}.tree-open .tree-rail{display:flex}.tree-toggle{display:inline-flex}}
+	@media(max-width:700px){.solid-workspace{grid-template-rows:52px minmax(0,1fr) auto 48px}header{padding:0 4px;gap:0}.documents span,.prefs-open span{display:none}.search-open{display:none}.document-save{position:absolute;bottom:5px;left:var(--dock-left,8px);right:var(--dock-right,8px);width:auto;justify-content:flex-start;z-index:12;padding:0;font-size:10px}.tool-name{display:none}.document-title{flex:1;width:80px;font-size:18px;padding:0 6px}header button{font-size:14px;padding:0 8px;white-space:nowrap}.export-open span{display:none}.tools{left:8px;right:8px;bottom:8px;top:auto;flex-direction:row;flex-wrap:nowrap!important;width:auto!important;overflow-x:auto;overflow-y:hidden;max-height:66px}.tools.expanded{display:grid;grid-template-columns:repeat(6,44px);grid-auto-rows:44px;max-height:none;overflow:visible;right:auto}.workarea:has(.tools.expanded) .triad-slot{bottom:206px}.workarea:has(.panels>:global(.panel)) .empty-slot{display:none}.top-bar,.workarea:has(.tools.expanded) .top-bar{left:8px;right:8px;top:8px;flex-direction:column;align-items:stretch}.right-tools{align-self:flex-end}.right-tools button{font-size:13px;padding:0 8px}.right-tools span{display:none}.panels{right:8px;left:8px;top:112px;bottom:80px;width:auto}.workarea:has(.tools.expanded) .panels{bottom:206px}.error{bottom:80px;font-size:16px}.triad-slot{left:8px;bottom:82px;width:64px;height:64px}.read-only{bottom:82px;left:80px}.empty-slot{top:120px}.tree-rail{top:52px;bottom:calc(48px + var(--history-h,0px))}footer{gap:10px;font-size:10px;align-items:flex-start;padding-top:8px}}
 </style>

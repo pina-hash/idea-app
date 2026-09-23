@@ -112,6 +112,8 @@ interface Options {
 export const LABEL_PX=20;
 /** The width of a hovered edge and of a selected edge, in CSS pixels: thick enough to see on a dark body at every zoom. */
 export const HOVER_EDGE_PX=5,SELECTED_EDGE_PX=3.5;
+/** The colour of the edges a blend under the pointer will round, before any press: not the hover's and not the selection's. */
+export const PREVIEW_COLOUR='#7fd4f0';
 export const EMPTY_MODEL: ModelProjection = {bodies:[],sketches:[],references:[],features:[],mates:[],addons:{ideaBlade:false},canUndo:false,canRedo:false,operationMs:0};
 export { bodyColour } from './appearance';
 type Role='face'|'edge'|'vertex'|'sketch-fill'|'sketch-line'|'reference'|'datum';
@@ -150,7 +152,7 @@ export class SolidViewport {
 	/** The milliseconds each hover pick took, newest last. */
 	readonly hoverCosts:number[]=[];
 	/* THE HOVER: what the pointer is over, and what a panel or the tree asks to preselect. */
-	private pointerHover:Selection|null=null;private externalHover:Selection[]=[];private hoverEvent:{clientX:number;clientY:number;altKey:boolean}|null=null;private hoverPending:(()=>void)|null=null;
+	private pointerHover:Selection|null=null;private externalHover:Selection[]=[];private previewEdges:Selection[]=[];private hoverEvent:{clientX:number;clientY:number;altKey:boolean}|null=null;private hoverPending:(()=>void)|null=null;
 	private shownSketches='';
 	constructor(private canvas:HTMLCanvasElement,private options:Options){
 		this.renderer=new THREE.WebGLRenderer({canvas,antialias:true});this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));this.renderer.setClearColor('#15191d');
@@ -306,7 +308,8 @@ export class SolidViewport {
 			else if(s.kind==='vertex'){const v=this.model.bodies.find(b=>b.id===s.bodyId)?.vertices.find(x=>x.id===s.id);if(!v||this.hiddenBodies.has(s.bodyId))return;const dot=new THREE.Points(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...v.point)]),new THREE.PointsMaterial({color,size:px*2.4,sizeAttenuation:false}));dot.renderOrder=order;dot.raycast=()=>{};this.overlay.add(dot);}
 		};
 		for(const s of selections)add(s,SELECTED_COLOUR,SELECTED_EDGE_PX,6);
-		for(const s of hovered)if(!this.matches(selections,s))add(s,HOVER_COLOUR,HOVER_EDGE_PX,7);
+		for(const s of this.previewEdges)if(!this.matches(selections,s))add(s,PREVIEW_COLOUR,HOVER_EDGE_PX,7);
+		for(const s of hovered)if(!this.matches(selections,s)&&!this.matches(this.previewEdges,s))add(s,HOVER_COLOUR,HOVER_EDGE_PX,7);
 		/* A face named from a list (Select Other, the tree, a crumb) may be behind the model: its outline is drawn through it, so the preview shows which face even from the far side. */
 		for(const s of this.externalHover)if(s.kind==='face'&&!this.matches(selections,s)){const face=this.model.bodies.find(b=>b.id===s.bodyId)?.faces.find(f=>f.id===s.id);for(const id of face?.edges??[])add({bodyId:s.bodyId,kind:'edge',id},HOVER_COLOUR,3,8,true);}
 	}
@@ -322,10 +325,12 @@ export class SolidViewport {
 		if(!this.externalHover.length&&!selections?.length)return;
 		const before=this.hoverSet();this.externalHover=[...(selections??[])];this.repaintHover(before);
 	}
+	/** The edges a Fillet or Chamfer under the pointer would round (its tangent chain), drawn before any press; null stops. */
+	setPreviewEdges(edges:readonly Selection[]|null){if(!this.previewEdges.length&&!edges?.length)return;this.previewEdges=[...(edges??[])];this.buildOverlay();this.invalidate();}
 	/** What the pointer is over right now. */
 	hovered(){return this.pointerHover;}
 	/** How many pick objects of each kind are drawn: a measurement reads it to say a consumed sketch is gone. */
-	drawnCounts(){return{faces:this.faces.length,edges:this.edges.length,vertices:this.vertices.length,sketches:this.sketchObjs.length,references:this.refObjects.length,datums:this.datumObjects.length,overlay:this.overlay.children.length,externalHover:this.externalHover.length,editing:this.editingSketchId};}
+	drawnCounts(){return{preview:this.previewEdges.length,faces:this.faces.length,edges:this.edges.length,vertices:this.vertices.length,sketches:this.sketchObjs.length,references:this.refObjects.length,datums:this.datumObjects.length,overlay:this.overlay.children.length,externalHover:this.externalHover.length,editing:this.editingSketchId};}
 	private setPointerHover(selection:Selection|null){
 		const same=selection&&this.pointerHover?selectionKey(selection)===selectionKey(this.pointerHover):selection===this.pointerHover;
 		this.canvas.style.cursor=isDrawTool(this.options.getTool())?'crosshair':selection?'pointer':'';

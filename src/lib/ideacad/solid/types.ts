@@ -314,6 +314,8 @@ export interface ModelProjection {
 	mates: MateProjection[];
 	addons: AddonState;
 	operationMs: number; replayMs?: number; replayedFrom?: number; canUndo: boolean; canRedo: boolean;
+	/** Where the rollback bar stands: only features [0, rollbackIndex) are built. Absent or null builds everything. Workspace state, never in the manifest. */
+	rollbackIndex?: number | null;
 }
 
 /* -------------------------------------------------------------------------
