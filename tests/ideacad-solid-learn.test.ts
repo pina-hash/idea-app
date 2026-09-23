@@ -156,6 +156,18 @@ describe('where a tool\'s card goes', () => {
 		const a = tool(12, 100), p = placeTip(a, { width: 240, height: 160 }, vp);
 		expect(p.side).toBe('right'); expect(p.left).toBe(64); expect(p.top).toBe(100);
 	});
+	it('in an expanded palette grid, clears the whole palette rather than covering the tools beside its own', () => {
+		const a = tool(60, 100), grid = { left: 12, right: 160 }, p = placeTip(a, { width: 240, height: 160 }, vp, 8, 8, grid);
+		expect(p.side).toBe('right'); expect(p.left).toBe(168);
+		/* A grid as wide as the phone has no room beside it, so the card goes above the whole grid, never over a row of it. */
+		const phoneGrid = { left: 8, right: 284, top: 568, bottom: 756 }, q = placeTip(tool(160, 700), { width: 260, height: 90 }, { width: 375, height: 812 }, 8, 8, phoneGrid);
+		expect(q.side).toBe('above'); expect(q.top + 90).toBeLessThanOrEqual(568);
+	});
+	it('takes a real DOMRect, whose sides are prototype getters, and still lines the card up with its tool', () => {
+		class Rect { constructor(private x: number, private y: number) {} get left() { return this.x; } get right() { return this.x + 44; } get top() { return this.y; } get bottom() { return this.y + 44; } get width() { return 44; } get height() { return 44; } }
+		const q = placeTip(new Rect(160, 700), { width: 200, height: 90 }, { width: 375, height: 812 }, 8, 8, { left: 8, right: 284, top: 568, bottom: 756 });
+		expect(q.left).toBe(160); expect(Number.isFinite(q.top)).toBe(true);
+	});
 	it('flips to the left at the right edge, and is pulled up off the bottom edge', () => {
 		const a = tool(1380, 860), s = { width: 240, height: 160 }, p = placeTip(a, s, vp);
 		expect(p.side).toBe('left'); expect(p.left + s.width).toBeLessThanOrEqual(1380);

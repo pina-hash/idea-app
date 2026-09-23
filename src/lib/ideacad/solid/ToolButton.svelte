@@ -42,7 +42,7 @@
 	function closed(){if(showing===self){showing=null;warmUntil=performance.now()+WARM_MS;}}
 	function hideLater(){if(showTimer){clearTimeout(showTimer);showTimer=null;}if(!open||hideTimer)return;hideTimer=setTimeout(()=>{hideTimer=null;open=false;closed();},HIDE_MS);}
 	function hideNow(){clear();if(open)closed();open=false;}
-	function place(el:HTMLElement|undefined){if(!el||!button)return null;const a=button.getBoundingClientRect(),r=el.getBoundingClientRect();const p=placeTip(a,{width:r.width,height:r.height},{width:window.innerWidth,height:window.innerHeight});return {left:Math.round(p.left),top:Math.round(p.top)};}
+	function place(el:HTMLElement|undefined){if(!el||!button)return null;const a=button.getBoundingClientRect(),r=el.getBoundingClientRect(),palette=button.closest('.tools')?.getBoundingClientRect();const p=placeTip(a,{width:r.width,height:r.height},{width:window.innerWidth,height:window.innerHeight},8,8,palette);return {left:Math.round(p.left),top:Math.round(p.top)};}
 	/* Measured after the card is drawn, then placed; it stays invisible for that one frame so it never flashes over the tool. */
 	$effect(()=>{if(!open||!tip)return;const p=place(tip);if(p){at=p;placed=true;}});
 	$effect(()=>{if(!open)return;const key=(e:KeyboardEvent)=>{if(e.key==='Escape')hideNow();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);});
