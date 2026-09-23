@@ -24,11 +24,13 @@
 	import { anchorPosition } from '$lib/shell/anchored';
 	import type { MenuItem } from './context-menu';
 	import type { Crumb } from './context-menu';
-	let { at, touch = false, commands, crumbs, onrun, oncrumb, onpreview, onclose }: {
+	let { at, touch = false, avoid = () => [], commands, crumbs, onrun, oncrumb, onpreview, onclose }: {
 		/** The pointer, in client pixels, where the selection was made. */
 		at: { x: number; y: number };
 		/** The selection was made with a finger or a pen: there is no hover to wait for, so the bar takes a tap at once. */
 		touch?: boolean;
+		/** The chrome it must not cover (the panels, the toolbars), in client pixels. */
+		avoid?: () => { left: number; top: number; right: number; bottom: number }[];
 		commands: MenuItem[];
 		crumbs: Crumb[];
 		onrun: (item: MenuItem) => void;
@@ -44,12 +46,25 @@
 	const REST_MS = 120;
 	/* Far enough away to fade, and far enough to close: the student has moved on. */
 	const FADE_PX = 180, CLOSE_PX = 360;
+	/**
+	 * Four places around the pointer (above or below it, reaching right or
+	 * left), each kept on screen by `anchorPosition`, and the one that covers
+	 * the least of the chrome it must avoid wins, above and to the right first.
+	 * A box around the pointer means every one clears it by a finger's width.
+	 */
 	function position() {
 		if (!bar) return;
-		const r = bar.getBoundingClientRect();
-		/* A box around the pointer, so the bar clears it by a finger's width either way. */
-		const p = anchorPosition({ left: at.x - 8, right: at.x + 8, top: at.y - 22, bottom: at.y + 22, width: 16, height: 44 }, { width: r.width, height: r.height }, { width: window.innerWidth, height: window.innerHeight }, { prefer: 'above', align: 'start', gap: 6, margin: 8 });
-		place = { left: p.left, top: p.top, side: p.side };
+		const r = bar.getBoundingClientRect(), size = { width: r.width, height: r.height }, view = { width: window.innerWidth, height: window.innerHeight };
+		const box = { left: at.x - 8, right: at.x + 8, top: at.y - 22, bottom: at.y + 22, width: 16, height: 44 };
+		const chrome = avoid();
+		const covered = (left: number, top: number) => chrome.reduce((sum, c) => sum + Math.max(0, Math.min(left + size.width, c.right) - Math.max(left, c.left)) * Math.max(0, Math.min(top + size.height, c.bottom) - Math.max(top, c.top)), 0);
+		let best: { left: number; top: number; side: 'above' | 'below'; cost: number } | null = null;
+		for (const prefer of ['above', 'below'] as const) for (const align of ['start', 'end'] as const) {
+			const p = anchorPosition(box, size, view, { prefer, align, gap: 6, margin: 8 });
+			const cost = covered(p.left, p.top);
+			if (!best || cost < best.cost - 0.5) best = { left: p.left, top: p.top, side: p.side, cost };
+		}
+		if (best) place = { left: best.left, top: best.top, side: best.side };
 	}
 	function distance(e: PointerEvent) {
 		if (!bar) return 0;

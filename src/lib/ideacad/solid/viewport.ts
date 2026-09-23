@@ -166,7 +166,7 @@ export class SolidViewport {
 			clearGuides:()=>{this.clear(this.guides);this.invalidate();},
 			error:message=>this.options.error(message),
 			draft:(draft,ref)=>this.options.draft(draft,ref),
-			capture:e=>this.canvas.setPointerCapture(e.pointerId),pointer:()=>this.pointer
+			capture:e=>this.capture(e.pointerId),pointer:()=>this.pointer
 		});
 		this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(canvas);this.resize();
 		const events={signal:this.abort.signal};
@@ -214,6 +214,8 @@ export class SolidViewport {
 		this.triadCamera.position.copy(dir.multiplyScalar(-5));this.triadCamera.quaternion.copy(this.camera.quaternion);this.triadCamera.updateMatrixWorld();
 		r.setScissorTest(true);r.setScissor(left,bottom,size,size);r.setViewport(left,bottom,size,size);r.autoClear=false;r.clearDepth();r.render(this.triadScene,this.triadCamera);r.autoClear=true;r.setScissorTest(false);r.setViewport(0,0,this.canvas.clientWidth,this.canvas.clientHeight);
 	}
+	/** Capture the pointer for a drag, as a courtesy: a pointer the browser no longer counts as active (a synthetic event, a lost touch) is simply not captured, and the drag goes on. */
+	private capture(pointerId:number){try{this.canvas.setPointerCapture(pointerId);}catch{/* not an active pointer */}}
 	private clear(group:THREE.Group){for(const object of [...group.children]){group.remove(object);disposeObject(object);}}
 	private geometry(mesh:{positions:Float32Array;normals:Float32Array;indices:Uint32Array}){const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(mesh.positions,3));geometry.setAttribute('normal',new THREE.BufferAttribute(mesh.normals,3));geometry.setIndex(new THREE.BufferAttribute(mesh.indices,1));return geometry;}
 	/* ------------------------------------------------------------------ DRAWING THE MODEL */
@@ -327,6 +329,8 @@ export class SolidViewport {
 	private setPointerHover(selection:Selection|null){
 		const same=selection&&this.pointerHover?selectionKey(selection)===selectionKey(this.pointerHover):selection===this.pointerHover;
 		this.canvas.style.cursor=isDrawTool(this.options.getTool())?'crosshair':selection?'pointer':'';
+		/* What the pointer is over, as a word a measurement can read. */
+		if(selection)this.canvas.dataset.hover=selection.kind;else delete this.canvas.dataset.hover;
 		if(same)return;
 		const before=this.hoverSet();this.pointerHover=selection;this.repaintHover(before);this.options.hover?.(selection);
 	}
@@ -399,14 +403,14 @@ export class SolidViewport {
 	/* ------------------------------------------------------------------ POINTER */
 	private async down(e:PointerEvent){
 		this.canvas.focus();this.pointer={x:e.offsetX,y:e.offsetY};this.press=null;
-		if(e.button===1){e.preventDefault();if(e.altKey)return;this.setRay(e);const hit=this.ray.intersectObjects(this.faces,false)[0],pivot=hit?.point.clone()??this.viewPlane(e);if(!pivot)return;this.orbit={x:e.clientX,y:e.clientY,pivot,mode:e.ctrlKey?'pan':e.shiftKey?'zoom':'orbit',pointerId:e.pointerId};this.canvas.setPointerCapture(e.pointerId);this.options.busyPointer?.();return;}
+		if(e.button===1){e.preventDefault();if(e.altKey)return;this.setRay(e);const hit=this.ray.intersectObjects(this.faces,false)[0],pivot=hit?.point.clone()??this.viewPlane(e);if(!pivot)return;this.orbit={x:e.clientX,y:e.clientY,pivot,mode:e.ctrlKey?'pan':e.shiftKey?'zoom':'orbit',pointerId:e.pointerId};this.capture(e.pointerId);this.options.busyPointer?.();return;}
 		if(e.button!==0)return;
-		if(this.editingPlane&&this.options.sketchPointer){const at=this.editingPoint(e);if(at&&this.options.sketchPointer('down',at,e)){this.canvas.setPointerCapture(e.pointerId);return;}}
+		if(this.editingPlane&&this.options.sketchPointer){const at=this.editingPoint(e);if(at&&this.options.sketchPointer('down',at,e)){this.capture(e.pointerId);return;}}
 		const tool=this.options.getTool(),pick=this.pickAt(e),hit=pick.hit;
 		if(isDrawTool(tool)&&this.options.canWrite()){this.options.busyPointer?.();this.drawingTool.down(e,tool,this.drawPlaneFor(hit));return;}
 		if(pick.gizmo){if(!e.shiftKey)this.startDrag(e,pick.gizmo,null,tool);return;}
 		/* EMPTY SPACE: a click clears the selection (unless Ctrl or Shift is held), a drag draws a box. The sketch being edited takes its own presses above. */
-		if(!hit){const append=e.ctrlKey||e.shiftKey||e.metaKey;this.boxing={x:e.clientX,y:e.clientY,append,pointerId:e.pointerId,active:false,mode:'window',rect:{left:e.clientX,top:e.clientY,right:e.clientX,bottom:e.clientY}};this.canvas.setPointerCapture(e.pointerId);return;}
+		if(!hit){const append=e.ctrlKey||e.shiftKey||e.metaKey;this.boxing={x:e.clientX,y:e.clientY,append,pointerId:e.pointerId,active:false,mode:'window',rect:{left:e.clientX,top:e.clientY,right:e.clientX,bottom:e.clientY}};this.capture(e.pointerId);return;}
 		let selection=hit.selection;
 		if(['rotate','scale','linear-pattern','circular-pattern'].includes(tool)&&selection.kind!=='sketch'&&selection.kind!=='reference')selection={bodyId:selection.bodyId,kind:'body',id:selection.bodyId};
 		/* Ctrl or Shift adds or takes away, as SolidWorks does; a plain press replaces. */
@@ -430,7 +434,7 @@ export class SolidViewport {
 		const gesture:Gesture={selection,tool,start,axis:Math.hypot(...normal)>.9?normal:[0,0,1],handle};
 		/* Snap targets and the body's own anchors are computed once at press: the anchors are the corners at the gesture's start, the targets are the other bodies. */
 		const snap=handle?{targets:snapTargetsFrom(this.model,[selection.bodyId]),anchors:bodyAnchors(this.model,selection.bodyId)}:undefined;
-		this.drag={gesture,x:e.clientX,y:e.clientY,ready:false,starting:false,pointerId:e.pointerId,snap};this.canvas.setPointerCapture(e.pointerId);
+		this.drag={gesture,x:e.clientX,y:e.clientY,ready:false,starting:false,pointerId:e.pointerId,snap};this.capture(e.pointerId);
 	}
 	private move(e:PointerEvent){
 		this.pointer={x:e.offsetX,y:e.offsetY};
@@ -533,6 +537,8 @@ export class SolidViewport {
 	projectPoint(point:Vec3){const p=new THREE.Vector3(...point).project(this.camera),r=this.canvas.getBoundingClientRect();return{x:r.left+(p.x+1)*r.width/2,y:r.top+(1-p.y)*r.height/2};}
 	/** The world point under a screen position on a plane, for a sketch editor's snapping and a mate preview. */
 	unproject(x:number,y:number,plane:ResolvedPlane):Vec3|null{const r=this.canvas.getBoundingClientRect();return this.planeHit({clientX:r.left+x,clientY:r.top+y},plane);}
+	/** The canvas as it renders now, RGBA from the bottom row up: two readings a pointer move apart are a pixel diff with no screenshot. */
+	readPixels(){this.pullOverlay();this.renderer.render(this.scene,this.camera);this.renderTriad();const gl=this.renderer.getContext(),pixels=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,pixels);return pixels;}
 	painted(){this.pullOverlay();this.renderer.render(this.scene,this.camera);const gl=this.renderer.getContext(),pixels=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,pixels);let different=0;for(let i=0;i<pixels.length;i+=4)if(Math.abs(pixels[i]-pixels[0])+Math.abs(pixels[i+1]-pixels[1])+Math.abs(pixels[i+2]-pixels[2])>40)different++;return{fraction:different/(pixels.length/4),width:gl.drawingBufferWidth,height:gl.drawingBufferHeight};}
 	destroy(){this.abort.abort();this.observer.disconnect();cancelAnimationFrame(this.frame);this.hoverPending?.();this.clear(this.solids);this.clear(this.sketchLayer);this.clear(this.refs);this.clear(this.overlay);this.clear(this.guides);this.clear(this.gizmo);this.renderer.dispose();}
 }
