@@ -18,7 +18,8 @@
 	import type { WorkspaceApi } from './workspace-api';
 	import { fieldsFor, patchFor, REF_STATUS_WORDS, typeLabel, type Field } from './tree/params';
 	import { STATUS_WORDS } from './tree/rows';
-	let { api, featureId }: { api: WorkspaceApi; featureId: string } = $props();
+	/** `open` folds the form away to its heading, so a short tree rail can give the list its room; the tree owns it, so "Edit parameters" can open it. */
+	let { api, featureId, open = $bindable(true) }: { api: WorkspaceApi; featureId: string; open?: boolean } = $props();
 	const feature = $derived(api.manifest.features.find((f) => f.id === featureId));
 	const row = $derived(api.model.features.find((r) => r.id === featureId));
 	const fields = $derived(feature ? fieldsFor(feature, { manifest: api.manifest, model: api.model, row }) : []);
@@ -56,7 +57,8 @@
 </script>
 {#if feature && row}
 	<section class="params" aria-label={`${feature.name} parameters`} data-testid="ideacad-feature-params">
-		<h3><span class="type">{typeLabel(feature.type)}</span>{feature.name}</h3>
+		<h3><button type="button" class="fold" aria-expanded={open} aria-controls="ideacad-feature-param-fields" onclick={() => (open = !open)}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg><span class="type">{typeLabel(feature.type)}</span><span class="title">{feature.name}</span></button></h3>
+		<div class="body" id="ideacad-feature-param-fields" hidden={!open}>
 		{#if row.message}<p class="message {row.status}" role={row.status === 'error' ? 'alert' : 'status'}><span class="glyph" aria-hidden="true">{STATUS_WORDS[row.status].glyph}</span> {STATUS_WORDS[row.status].word}: {row.message}</p>{/if}
 		<div class="fields">
 			{#each fields as field (field.id)}
@@ -77,10 +79,11 @@
 				{/if}
 			{/each}
 		</div>
+		</div>
 	</section>
 {/if}
 <style>
-	.params{padding:8px 10px 12px;font-family:Rajdhani,sans-serif;color:var(--text-1)}h3{margin:0 0 6px;font-size:16px;font-weight:600;display:flex;gap:8px;align-items:baseline;min-width:0}h3 .type{flex-shrink:0;font:11px 'Share Tech Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--text-2)}
+	.params{padding:0 10px 12px;font-family:Rajdhani,sans-serif;color:var(--text-1)}h3{margin:0 -10px 6px;font-size:16px;font-weight:600;min-width:0}.fold{width:100%;min-height:44px;display:flex;gap:8px;align-items:center;padding:0 10px;box-sizing:border-box;border:0;border-radius:0;background:transparent;box-shadow:none;color:inherit;font:inherit;text-align:left;cursor:pointer}.fold:hover{background:var(--surface-2)}.fold:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}.fold svg{flex-shrink:0;color:var(--text-2)}.fold[aria-expanded="true"] svg{transform:rotate(90deg)}.fold .title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}h3 .type{flex-shrink:0;font:11px 'Share Tech Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--text-2)}
 	.message{margin:0 0 8px;font-size:13px;line-height:1.4;color:var(--text-2)}.message.error{color:var(--ic-fail-ink,#e07474)}.message.warning{color:var(--ic-warn,var(--amber))}.glyph{font-size:12px}
 	.fields{display:grid;gap:8px}.field{display:grid;gap:4px;min-width:0}.label{font:12px 'Share Tech Mono',monospace;color:var(--text-2);display:flex;gap:6px;align-items:baseline}.unit,.count{color:var(--text-2);opacity:.85}
 	input,select{min-height:44px;width:100%;box-sizing:border-box;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:15px 'Share Tech Mono',monospace;padding:0 8px}input:disabled,select:disabled{opacity:.6}input:focus-visible,select:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
