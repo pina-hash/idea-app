@@ -186,7 +186,7 @@
 			{#if agenda.length > 0}
 				<section class="lp-agenda" aria-labelledby="lp-agenda-title" data-testid="projector-agenda">
 					<h2 id="lp-agenda-title" class="lp-label">Today</h2>
-					<ol class="lp-lines">
+					<ol class="lp-lines" style="--lines: {Math.max(agenda.length, 4)}">
 						{#each agenda as line, i (i)}
 							<li class="lp-line" data-testid="projector-agenda-line">{line}</li>
 						{/each}
@@ -200,7 +200,7 @@
 				</p>
 				{#if timer}
 					<div class="lp-timer" data-phase={phase} data-testid="projector-timer">
-						<span class="lp-digits">{timerDigits(timer, now)}</span>
+						<span class="lp-digits" style="--chars: {Math.max(timerDigits(timer, now).length, 4)}">{timerDigits(timer, now)}</span>
 						<span class="lp-word">{timerWord(timer, now)}</span>
 						{#if timerOvertime(timer, now)}
 							<span class="lp-over">Over by {timerOvertime(timer, now)}</span>
@@ -257,6 +257,11 @@
 		display: flex;
 		flex-direction: column;
 		min-height: 100dvh;
+		/* The app shell's global `main` rule caps every page at 880px and pads
+		   it; a wall display takes the whole window. */
+		max-width: none;
+		margin: 0;
+		padding: 0;
 		background: var(--surface-0);
 		color: var(--text-1);
 		font-family: var(--font-display);
@@ -332,6 +337,9 @@
 		align-items: flex-end;
 		gap: 2vh;
 		min-width: 0;
+		/* The digits size against this column as well as the screen, so an
+		   hour-long stopwatch ("1:02:05") fits beside the agenda. */
+		container-type: inline-size;
 	}
 	.lp-root[data-has-agenda='false'] .lp-time {
 		align-items: center;
@@ -345,6 +353,10 @@
 		border: 2px solid var(--boundary);
 		border-radius: var(--radius-card);
 	}
+	/* The shell prefixes every h2 with a green "// "; the wall reads a word. */
+	.lp-label::before {
+		content: none;
+	}
 	.lp-label {
 		margin: 0 0 1vh;
 		font-family: var(--font-mono);
@@ -353,13 +365,16 @@
 		text-transform: uppercase;
 		color: var(--text-2);
 	}
+	/* THE AGENDA SHRINKS WITH ITS LENGTH SO TWELVE LINES STILL FIT THE WALL:
+	   about 60% of the height shared between the lines, never above 4vh, and
+	   never below the 8H floor (1/50 of the screen height, 2vh) at twelve. */
 	.lp-lines {
 		margin: 0;
 		padding: 0 0 0 1.4em;
 		display: flex;
 		flex-direction: column;
-		gap: 1.4vh;
-		font-size: clamp(1.1rem, min(4vh, 2.8vw), 5rem);
+		gap: 1.2vh;
+		font-size: clamp(1.1rem, min(4vh, 2.8vw, calc(58vh / (var(--lines, 4) * 1.5))), 5rem);
 		line-height: 1.2;
 	}
 	.lp-line {
@@ -371,7 +386,7 @@
 	.lp-clock {
 		margin: 0;
 		font-family: var(--font-mono);
-		font-size: clamp(2rem, min(11vh, 8vw), 14rem);
+		font-size: clamp(2rem, min(11vh, 8vw, 20cqi), 14rem);
 		line-height: 1;
 		font-variant-numeric: tabular-nums;
 		color: var(--text-1);
@@ -392,7 +407,10 @@
 	}
 	.lp-digits {
 		font-family: var(--font-mono);
-		font-size: clamp(3rem, min(20vh, 14vw), 26rem);
+		/* As large as the screen allows (20vh), and never wider than the time
+		   column: a mono digit is about 0.55em, so the column holds
+		   --chars digits at 90cqi / (chars * 0.55). */
+		font-size: clamp(3rem, min(20vh, 14vw, calc(90cqi / (var(--chars, 4) * 0.55))), 26rem);
 		line-height: 1;
 		font-variant-numeric: tabular-nums;
 		color: var(--text-1);

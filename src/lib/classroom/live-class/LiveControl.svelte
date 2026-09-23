@@ -793,7 +793,9 @@
 	.classroom-page {
 		max-width: var(--cr-measure, var(--measure-split));
 		margin: 0 auto;
-		padding: 0 var(--cr-gutter, 1rem) 3rem;
+		/* 6rem at the foot: the floating report control sits over the last
+		   ~64px of the window, and the pick controls are the last row. */
+		padding: 0 var(--cr-gutter, 1rem) 6rem;
 	}
 	.lc-head {
 		display: flex;

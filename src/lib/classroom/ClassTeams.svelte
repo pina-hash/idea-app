@@ -72,6 +72,11 @@
 		margin: 0 0 var(--space-3);
 		min-width: 0;
 	}
+	/* One card, not a banner across the class pane: the width of a team card
+	   on the board below, a little more. */
+	.ct-mine {
+		max-width: 32rem;
+	}
 	.ct-mine-label {
 		margin: 0 0 var(--space-1);
 		font-family: var(--font-mono);
