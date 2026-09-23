@@ -1,7 +1,7 @@
 // THE LIGHT-GROUND INK TWINS (ledger 0297, package F1b).
 //
 // Space White turns the grounds a pathway chip, an avatar tile and a launcher
-// card sit on from near-black to near-white, and every identity colour in this
+// card sit on from near-black to near-white, and every identity color in this
 // app was tuned for the dark ones: four pathways, most avatar presets and nine
 // launcher accents are neon, and a neon word on a white panel measures 1.1 to
 // 2.3:1. So each of them gained a LIGHT TWIN -- `Pathway.inkOnLight`,
@@ -18,7 +18,7 @@
 // change to a ground re-measures every twin with no edit to this file.
 //
 // Why a test and not a harness: a twin that drifts off its hue or under its
-// floor renders perfectly and reads as a slightly different colour, which
+// floor renders perfectly and reads as a slightly different color, which
 // nobody reports. That is the silent regression the suite exists for.
 
 import { describe, expect, it } from 'vitest';
@@ -53,7 +53,7 @@ function rgbToHsl([r, g, b]: Rgb): [number, number, number] {
 	}
 	return [h, s * 100, l * 100];
 }
-/** A colour as this app writes one: `#rrggbb` or `hsl(h s% l%)`. Anything else throws, so a new spelling cannot pass by parsing to black. */
+/** A color as this app writes one: `#rrggbb` or `hsl(h s% l%)`. Anything else throws, so a new spelling cannot pass by parsing to black. */
 function parse(value: string): { rgb: Rgb; hsl: [number, number, number] } {
 	const v = value.trim();
 	const hex = v.match(/^#([0-9a-f]{6})$/i);
@@ -66,7 +66,7 @@ function parse(value: string): { rgb: Rgb; hsl: [number, number, number] } {
 		const [h, s, l] = hsl.slice(1).map(Number);
 		return { rgb: hslToRgb(h, s / 100, l / 100), hsl: [h, s, l] };
 	}
-	throw new Error(`unparsed colour ${value}`);
+	throw new Error(`unparsed color ${value}`);
 }
 const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
 const lum = ([r, g, b]: Rgb) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);

@@ -27,6 +27,8 @@
  * presence row above it. `getBoundingClientRect` is the instrument, not the
  * picture.
  */
+import { THEME_ROWS } from './_theme-shared.mjs';
+
 export default {
 	path: '/dev/profile-menu?state=open',
 	label: 'ProfileMenu panel open: every control at 44px, every preset named',
@@ -73,7 +75,10 @@ export default {
 		{ selector: '.pm-preset .pm-preset-word', label: 'a word on every preset', expectPresent: 8, expectVisible: 8 },
 		{ selector: '.pm-preset[aria-pressed="true"]', label: 'exactly one preset pressed', expectPresent: 1, maxPresent: 1 },
 		{ selector: '.pm-name-edit input', label: 'the name field, open', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '.pm-theme', label: 'theme radios', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
+		/* One radio per site theme, from the shared count: this read 2 after
+		   Space White made it 3 (ledger 0297), a stale figure on a surface the
+		   theme bundle never touched. */
+		{ selector: '.pm-theme', label: 'theme radios', expectPresent: THEME_ROWS, maxPresent: THEME_ROWS, expectVisible: THEME_ROWS },
 		/* THE PATHWAY CONTROL EXISTS AT ALL, which is the whole of ledger 0280:
 		   before it, `ProfileMenu` rendered the chip twice and wrote the column
 		   never, so a student who deferred the first-login sheet had no second

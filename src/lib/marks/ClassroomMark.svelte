@@ -17,7 +17,7 @@
 	 *
 	 * NOTHING IS HIDDEN AT REST, the rule every mark in this directory follows:
 	 * no opacity and no transform is declared outside a keyframe, so with the
-	 * animation cancelled a reduced-motion reader sees the finished cap with the
+	 * animation canceled a reduced-motion reader sees the finished cap with the
 	 * tassel hanging straight, never a frame caught mid-swing. Animation only
 	 * under prefers-reduced-motion: no-preference.
 	 *

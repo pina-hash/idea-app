@@ -17,7 +17,7 @@
 	 *
 	 * NOTHING IS HIDDEN AT REST, the rule every mark in this directory follows:
 	 * no opacity and no transform is declared outside a keyframe, so with the
-	 * animation cancelled a reduced-motion reader sees the finished lens at its
+	 * animation canceled a reduced-motion reader sees the finished lens at its
 	 * own size, never a frame caught mid-focus. Animation only under
 	 * prefers-reduced-motion: no-preference.
 	 *

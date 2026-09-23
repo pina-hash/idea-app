@@ -2004,10 +2004,13 @@ a:hover {
 	   mint rim-light, a pale brass, a pale patina, a sage and a warning
 	   orange -- 59 of them, which no theme could reach. They are named here
 	   ONCE and every rule below mixes them, so a theme moves five values
-	   rather than fifty-nine and the IDEA page paints to the byte what it
-	   painted before: `color-mix(in srgb, <hook> N%, transparent)` rasterises
-	   identically to `rgba(<hook>, N/100)`, measured in Chromium on all 228
-	   pairs this block uses (background and border, on the page ground). The
+	   rather than fifty-nine and the IDEA page paints what it painted
+	   before: `color-mix(in srgb, <hook> N%, transparent)` rasterizes
+	   identically to `rgba(<hook>, N/100)` as a fill, measured in Chromium on
+	   all 228 pairs this block uses (background and border, on the page
+	   ground). Inside a GRADIENT a mixed stop lands within one 8-bit level of
+	   the rgba() stop it replaced: 97 pixels at +/-1 on the Portal Updates
+	   divider, measured, and nothing a reader can see. The
 	   two that were already token values are written as the token (`--ice`,
 	   `--green`). Space White points each hook at its own ink in the block at
 	   the foot of this section. */
