@@ -14,6 +14,17 @@
 	--bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(0, 0, 0, 0.45), 0 2px 3px rgba(0, 0, 0, 0.45); /* @kind other */
 	--bevel-inset: inset 0 2px 4px rgba(0, 0, 0, 0.5), inset 0 -1px 0 rgba(255, 255, 255, 0.07); /* @kind other */
 
+	/* --- Elevation, the role layer's last entry (ledger 0297, see the role
+	   block in colors.css). Two steps and no more: a surface RESTING on the
+	   page, and a surface LIFTED over other content (a menu, a popover, a
+	   docked bar). On this dark plate a resting card is the machined press it
+	   has always been and a lifted one is the deep drop the classroom's own
+	   menus already write out by hand (the section switcher's 0 10px 30px at
+	   45%). Under Space White both become hard, blur-free edges: a soft shadow
+	   is glow in another costume, and the brief is "no glow and no blur". --- */
+	--elevation-1: var(--bevel-raised); /* @kind other */
+	--elevation-2: 0 10px 30px rgb(0 0 0 / 45%); /* @kind other */
+
 	/* --- Corner radii (small; technical, not soft) --- */
 	--radius-chip: 2px; /* badges, chips, status pills */
 	--radius-control: 3px; /* buttons, inputs */

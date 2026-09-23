@@ -124,6 +124,11 @@
 	--text-3: #4f6853;
 	--boundary: #64826b;
 	--green-tint: #093619;
+	/* The role layer's raised ground (colors.css), which in a dark register
+	   is the lightest step -- this theme's own --surface-2, as a literal for
+	   the alias reason colors.css gives. Nothing painted before ledger 0297
+	   reads it, so declaring it moves no pixel. */
+	--surface-raised: #0c150d;
 
 	/* --- The four luminance-held tiers. See the block above for why each of
 	   these is a solved value and not a chosen one. ------------------------ */

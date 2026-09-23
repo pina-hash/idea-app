@@ -18,6 +18,15 @@
    pathway, a brand) and it may not repaint a SEMANTIC one (the six state
    hues). What is left -- grounds, neutral text tiers, boundaries -- is what a
    theme is for.
+
+   ONE THEME IS ALLOWED THE SECOND, AND ONLY BECAUSE IT IS SCOPED. A light
+   theme cannot be read without repainting the semantic inks and the four
+   luminance-held tiers, so space-white.css does -- and its attribute is
+   written only on an allowlist of routes (`themeAttrFor` in src/lib/theme.ts),
+   which keeps it off FRC, FSP and every room with its own identity by
+   construction. IDENTITY stays forbidden for every theme, that one included.
+   `tests/theme-tokens.test.ts` holds all three rules.
    ========================================================================== */
 
 @import './matrix.css';
+@import './space-white.css';

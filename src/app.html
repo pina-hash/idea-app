@@ -45,6 +45,21 @@
 		<link rel="apple-touch-icon" href="/IDEA/apple-touch-icon.png" />
 		<link rel="manifest" href="/manifest.webmanifest" />
 		<meta name="theme-color" content="#0A0C0D" />
+		<!--
+			THE SITE THEME, BEFORE FIRST PAINT (ledger 0297). `hooks.server.ts`
+			replaces the marker below with a few bytes of inline script built by
+			`themeBootScript` in `src/lib/theme.ts`: it reads the stored choice
+			(`idea_site_theme`, the key every existing choice already lives in)
+			and looks it up in a table the SERVER filled by asking `themeAttrFor`,
+			the one function `ThemeRoot` also asks, whether each theme applies to
+			this request's session and path. So the attribute is on `<html>`
+			before the body is parsed, and hydration writes the same value again.
+			It sits AFTER the theme-color meta because it updates that meta.
+			A page with nothing to apply (signed out, or a room no theme reaches)
+			gets the marker removed and no script at all. Left unreplaced it is a
+			comment, which is why it is one.
+		-->
+		<!--idea-theme-boot-->
 		<title>IDEA</title>
 		%sveltekit.head%
 	</head>
