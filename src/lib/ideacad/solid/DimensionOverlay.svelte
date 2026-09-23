@@ -35,7 +35,7 @@
 	/** Members a workspace may offer the overlay; both optional, so a fake workspace in a test needs neither. */
 	type OverlayApi = WorkspaceApi & { onCameraChange?(listener: () => void): () => void; readonly dragging?: boolean };
 	/** The chrome drawn over the model that a label must not sit under, as a selector inside the overlay's own parent (the workspace's work area). */
-	const CHROME = ':scope > .panels > *, :scope > .tools, :scope > .top-bar .right-tools, :scope > .top-bar .view-tools > *, :scope > .export-menu, :scope > .error, :scope > .triad-slot, :scope > .empty-slot > *';
+	const CHROME = ':scope > .panels > *, :scope > .tools, :scope > .top-bar .right-tools, :scope > .top-bar .view-tools > *, :scope > .context-bar, :scope > .number-entry, :scope > .export-menu, :scope > .error, :scope > .triad-slot, :scope > .empty-slot > *';
 	let { api, hidden = false, avoid = CHROME }: { api: WorkspaceApi; hidden?: boolean; avoid?: string } = $props();
 	const host = $derived(api as OverlayApi);
 

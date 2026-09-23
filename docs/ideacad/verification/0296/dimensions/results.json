@@ -1,0 +1,1082 @@
+{
+ "375": {
+  "box": {
+   "count": 3,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0
+  },
+  "boxLabels": [
+   {
+    "id": "s1:kw",
+    "text": "4.000 in",
+    "x": 28,
+    "y": 483,
+    "w": 88,
+    "h": 44
+   },
+   {
+    "id": "s1:kh",
+    "text": "3.000 in",
+    "x": 229,
+    "y": 483,
+    "w": 88,
+    "h": 44
+   },
+   {
+    "id": "x1:distance",
+    "text": "1.000 in",
+    "x": 277,
+    "y": 423,
+    "w": 88,
+    "h": 44
+   }
+  ],
+  "editSelected": {
+   "value": "4",
+   "selected": true
+  },
+  "inputBox": {
+   "w": 128,
+   "h": 44
+  },
+  "afterWidth": {
+   "log": [
+    "Set Distance 1"
+   ],
+   "error": "",
+   "ms": 254,
+   "w": 6,
+   "label": "6.000 in"
+  },
+  "escape": {
+   "log": [
+    "Set Distance 1"
+   ],
+   "error": "",
+   "open": 0,
+   "label": "3.000 in",
+   "focused": "s1:kh"
+  },
+  "notANumber": {
+   "log": [
+    "Set Distance 1"
+   ],
+   "error": "Enter a number, like 1.5, 3/8, 1 1/2 or 25.4mm.",
+   "stillOpen": "deep"
+  },
+  "zeroDepth": {
+   "log": [
+    "Set Distance 1"
+   ],
+   "error": "Pull the sketch to give it depth.",
+   "stillOpen": "0",
+   "depth": 1
+  },
+  "duringDrag": {
+   "hidden": "hidden"
+  },
+  "afterOrbit": {
+   "visible": "visible",
+   "moved": [
+    58,
+    27,
+    42
+   ],
+   "summary": {
+    "count": 3,
+    "texts": [
+     "4.000 in",
+     "3.000 in",
+     "1.000 in"
+    ],
+    "minH": 44,
+    "minW": 88.015625,
+    "minGapX": 10,
+    "minGapY": 12.5,
+    "overlappingPairs": 0,
+    "worstOverlapPx2": 0,
+    "unreachable": [],
+    "underPanel": [],
+    "sideways": 0
+   }
+  },
+  "zoomed": {
+   "count": 3,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0
+  },
+  "zoomedOut": {
+   "count": 3,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0
+  },
+  "sketch": {
+   "count": 2,
+   "texts": [
+    "4.000 in",
+    "3.000 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 2,
+   "inputs": 0
+  },
+  "circle": {
+   "count": 1,
+   "texts": [
+    "⌀ 1.500 in"
+   ],
+   "minH": 44,
+   "minW": 105.4375,
+   "minGapX": 10,
+   "minGapY": 12,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 1,
+   "inputs": 0
+  },
+  "fillet": {
+   "count": 1,
+   "texts": [
+    "R 0.250 in"
+   ],
+   "minH": 44,
+   "minW": 104.515625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 1,
+   "inputs": 0
+  },
+  "edge": {
+   "count": 4,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in",
+    "3.000 inmeasured"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON",
+    "BUTTON",
+    "SPAN"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)",
+    "rgb(164, 173, 181)"
+   ],
+   "buttons": 3,
+   "inputs": 0
+  },
+  "mm": {
+   "count": 3,
+   "texts": [
+    "101.60 mm",
+    "76.20 mm",
+    "25.40 mm"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON",
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 3,
+   "inputs": 0
+  },
+  "readonly": {
+   "count": 3,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in"
+   ],
+   "minH": 44,
+   "minW": 86.8125,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "SPAN",
+    "SPAN",
+    "SPAN"
+   ],
+   "colors": [
+    "rgb(164, 173, 181)"
+   ],
+   "buttons": 0,
+   "inputs": 0
+  },
+  "circleEdit": "1.5",
+  "circleAfter": {
+   "log": [
+    "Set Diameter 1"
+   ],
+   "error": "",
+   "radius": 1,
+   "label": "⌀ 2.000 in"
+  },
+  "mmEdit": "25.4",
+  "mmAfter": {
+   "log": [
+    "Set Distance"
+   ],
+   "error": "",
+   "depth": 2,
+   "label": "50.80 mm"
+  },
+  "keyboardOpen": 1,
+  "costShown": {
+   "scriptMs": 22,
+   "layoutMs": 0,
+   "styleMs": 7,
+   "taskMs": 58
+  },
+  "costNone": {
+   "scriptMs": 0,
+   "layoutMs": 0,
+   "styleMs": 0,
+   "taskMs": 4
+  },
+  "costTurning": {
+   "scriptMs": 122,
+   "layoutMs": 10,
+   "styleMs": 13,
+   "taskMs": 307
+  },
+  "costTurningNone": {
+   "scriptMs": 43,
+   "layoutMs": 3,
+   "styleMs": 6,
+   "taskMs": 111
+  },
+  "errors": [
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ "960": {
+  "box": {
+   "count": 3,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0
+  },
+  "boxLabels": [
+   {
+    "id": "s1:kw",
+    "text": "4.000 in",
+    "x": 232,
+    "y": 558,
+    "w": 88,
+    "h": 44
+   },
+   {
+    "id": "s1:kh",
+    "text": "3.000 in",
+    "x": 563,
+    "y": 552,
+    "w": 88,
+    "h": 44
+   },
+   {
+    "id": "x1:distance",
+    "text": "1.000 in",
+    "x": 659,
+    "y": 426,
+    "w": 88,
+    "h": 44
+   }
+  ],
+  "editSelected": {
+   "value": "4",
+   "selected": true
+  },
+  "inputBox": {
+   "w": 128,
+   "h": 44
+  },
+  "afterWidth": {
+   "log": [
+    "Set Distance 1"
+   ],
+   "error": "",
+   "ms": 286,
+   "w": 6,
+   "label": "6.000 in"
+  },
+  "escape": {
+   "log": [
+    "Set Distance 1"
+   ],
+   "error": "",
+   "open": 0,
+   "label": "3.000 in",
+   "focused": "s1:kh"
+  },
+  "notANumber": {
+   "log": [
+    "Set Distance 1"
+   ],
+   "error": "Enter a number, like 1.5, 3/8, 1 1/2 or 25.4mm.",
+   "stillOpen": "deep"
+  },
+  "zeroDepth": {
+   "log": [
+    "Set Distance 1"
+   ],
+   "error": "Pull the sketch to give it depth.",
+   "stillOpen": "0",
+   "depth": 1
+  },
+  "duringDrag": {
+   "hidden": "hidden"
+  },
+  "afterOrbit": {
+   "visible": "visible",
+   "moved": [
+    95,
+    52,
+    74
+   ],
+   "summary": {
+    "count": 3,
+    "texts": [
+     "4.000 in",
+     "3.000 in",
+     "1.000 in"
+    ],
+    "minH": 44,
+    "minW": 88.015625,
+    "minGapX": 10,
+    "minGapY": 12.5,
+    "overlappingPairs": 0,
+    "worstOverlapPx2": 0,
+    "unreachable": [],
+    "underPanel": [],
+    "sideways": 0
+   }
+  },
+  "zoomed": {
+   "count": 3,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0
+  },
+  "zoomedOut": {
+   "count": 3,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0
+  },
+  "sketch": {
+   "count": 2,
+   "texts": [
+    "4.000 in",
+    "3.000 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 2,
+   "inputs": 0
+  },
+  "circle": {
+   "count": 1,
+   "texts": [
+    "⌀ 1.500 in"
+   ],
+   "minH": 44,
+   "minW": 105.4375,
+   "minGapX": 10,
+   "minGapY": 12,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 1,
+   "inputs": 0
+  },
+  "fillet": {
+   "count": 1,
+   "texts": [
+    "R 0.250 in"
+   ],
+   "minH": 44,
+   "minW": 104.515625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 1,
+   "inputs": 0
+  },
+  "edge": {
+   "count": 4,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in",
+    "3.000 inmeasured"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON",
+    "BUTTON",
+    "SPAN"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)",
+    "rgb(164, 173, 181)"
+   ],
+   "buttons": 3,
+   "inputs": 0
+  },
+  "mm": {
+   "count": 3,
+   "texts": [
+    "101.60 mm",
+    "76.20 mm",
+    "25.40 mm"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON",
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 3,
+   "inputs": 0
+  },
+  "readonly": {
+   "count": 3,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in"
+   ],
+   "minH": 44,
+   "minW": 86.8125,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "SPAN",
+    "SPAN",
+    "SPAN"
+   ],
+   "colors": [
+    "rgb(164, 173, 181)"
+   ],
+   "buttons": 0,
+   "inputs": 0
+  },
+  "circleEdit": "1.5",
+  "circleAfter": {
+   "log": [
+    "Set Diameter 1"
+   ],
+   "error": "",
+   "radius": 1,
+   "label": "⌀ 2.000 in"
+  },
+  "mmEdit": "25.4",
+  "mmAfter": {
+   "log": [
+    "Set Distance"
+   ],
+   "error": "",
+   "depth": 2,
+   "label": "50.80 mm"
+  },
+  "keyboardOpen": 1,
+  "costShown": {
+   "scriptMs": 35,
+   "layoutMs": 0,
+   "styleMs": 7,
+   "taskMs": 84
+  },
+  "costNone": {
+   "scriptMs": 0,
+   "layoutMs": 0,
+   "styleMs": 0,
+   "taskMs": 3
+  },
+  "costTurning": {
+   "scriptMs": 134,
+   "layoutMs": 13,
+   "styleMs": 13,
+   "taskMs": 377
+  },
+  "costTurningNone": {
+   "scriptMs": 39,
+   "layoutMs": 3,
+   "styleMs": 5,
+   "taskMs": 95
+  },
+  "errors": [
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ },
+ "1440": {
+  "box": {
+   "count": 3,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0
+  },
+  "boxLabels": [
+   {
+    "id": "s1:kw",
+    "text": "4.000 in",
+    "x": 472,
+    "y": 558,
+    "w": 88,
+    "h": 44
+   },
+   {
+    "id": "s1:kh",
+    "text": "3.000 in",
+    "x": 803,
+    "y": 552,
+    "w": 88,
+    "h": 44
+   },
+   {
+    "id": "x1:distance",
+    "text": "1.000 in",
+    "x": 899,
+    "y": 426,
+    "w": 88,
+    "h": 44
+   }
+  ],
+  "editSelected": {
+   "value": "4",
+   "selected": true
+  },
+  "inputBox": {
+   "w": 128,
+   "h": 44
+  },
+  "afterWidth": {
+   "log": [
+    "Set Distance 1"
+   ],
+   "error": "",
+   "ms": 315,
+   "w": 6,
+   "label": "6.000 in"
+  },
+  "escape": {
+   "log": [
+    "Set Distance 1"
+   ],
+   "error": "",
+   "open": 0,
+   "label": "3.000 in",
+   "focused": "s1:kh"
+  },
+  "notANumber": {
+   "log": [
+    "Set Distance 1"
+   ],
+   "error": "Enter a number, like 1.5, 3/8, 1 1/2 or 25.4mm.",
+   "stillOpen": "deep"
+  },
+  "zeroDepth": {
+   "log": [
+    "Set Distance 1"
+   ],
+   "error": "Pull the sketch to give it depth.",
+   "stillOpen": "0",
+   "depth": 1
+  },
+  "duringDrag": {
+   "hidden": "hidden"
+  },
+  "afterOrbit": {
+   "visible": "visible",
+   "moved": [
+    95,
+    52,
+    74
+   ],
+   "summary": {
+    "count": 3,
+    "texts": [
+     "4.000 in",
+     "3.000 in",
+     "1.000 in"
+    ],
+    "minH": 44,
+    "minW": 88.015625,
+    "minGapX": 10,
+    "minGapY": 12.5,
+    "overlappingPairs": 0,
+    "worstOverlapPx2": 0,
+    "unreachable": [],
+    "underPanel": [],
+    "sideways": 0
+   }
+  },
+  "zoomed": {
+   "count": 3,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0
+  },
+  "zoomedOut": {
+   "count": 3,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0
+  },
+  "sketch": {
+   "count": 2,
+   "texts": [
+    "4.000 in",
+    "3.000 in"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 2,
+   "inputs": 0
+  },
+  "circle": {
+   "count": 1,
+   "texts": [
+    "⌀ 1.500 in"
+   ],
+   "minH": 44,
+   "minW": 105.4375,
+   "minGapX": 10,
+   "minGapY": 12,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 1,
+   "inputs": 0
+  },
+  "fillet": {
+   "count": 1,
+   "texts": [
+    "R 0.250 in"
+   ],
+   "minH": 44,
+   "minW": 104.515625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 1,
+   "inputs": 0
+  },
+  "edge": {
+   "count": 4,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in",
+    "3.000 inmeasured"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON",
+    "BUTTON",
+    "SPAN"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)",
+    "rgb(164, 173, 181)"
+   ],
+   "buttons": 3,
+   "inputs": 0
+  },
+  "mm": {
+   "count": 3,
+   "texts": [
+    "101.60 mm",
+    "76.20 mm",
+    "25.40 mm"
+   ],
+   "minH": 44,
+   "minW": 88.015625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON",
+    "BUTTON",
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 3,
+   "inputs": 0
+  },
+  "readonly": {
+   "count": 3,
+   "texts": [
+    "4.000 in",
+    "3.000 in",
+    "1.000 in"
+   ],
+   "minH": 44,
+   "minW": 86.8125,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "SPAN",
+    "SPAN",
+    "SPAN"
+   ],
+   "colors": [
+    "rgb(164, 173, 181)"
+   ],
+   "buttons": 0,
+   "inputs": 0
+  },
+  "circleEdit": "1.5",
+  "circleAfter": {
+   "log": [
+    "Set Diameter 1"
+   ],
+   "error": "",
+   "radius": 1,
+   "label": "⌀ 2.000 in"
+  },
+  "mmEdit": "25.4",
+  "mmAfter": {
+   "log": [
+    "Set Distance"
+   ],
+   "error": "",
+   "depth": 2,
+   "label": "50.80 mm"
+  },
+  "keyboardOpen": 1,
+  "costShown": {
+   "scriptMs": 25,
+   "layoutMs": 0,
+   "styleMs": 7,
+   "taskMs": 77
+  },
+  "costNone": {
+   "scriptMs": 0,
+   "layoutMs": 0,
+   "styleMs": 0,
+   "taskMs": 4
+  },
+  "costTurning": {
+   "scriptMs": 151,
+   "layoutMs": 11,
+   "styleMs": 20,
+   "taskMs": 400
+  },
+  "costTurningNone": {
+   "scriptMs": 44,
+   "layoutMs": 3,
+   "styleMs": 6,
+   "taskMs": 132
+  },
+  "errors": [
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED",
+   "Failed to load resource: net::ERR_FAILED"
+  ]
+ }
+}
