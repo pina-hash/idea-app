@@ -15,6 +15,7 @@ import { formatSectionLabel } from '$lib/section-label';
 import type { ItemDoc, TiptapNode } from '$lib/classroom/classroom-doc';
 import { parseMarkdown } from '$lib/classroom/reference-spec';
 import type { UploadGate } from '$lib/classroom/upload-errors';
+import { SCHOOL_LOCALE, SCHOOL_TIME_ZONE, laCalendarDay } from '$lib/classroom/school-calendar';
 
 // ---------------------------------------------------------------------------
 // Row types (mirroring 0085's tables; embeds normalized by the helpers below)
@@ -959,19 +960,40 @@ export function itemTitle(item: ClassroomItem): string {
 	return firstLine.length > 80 ? `${firstLine.slice(0, 77)}...` : firstLine || 'Untitled';
 }
 
-export function formatDue(iso: string | null): string {
+/**
+ * A DUE DATE AS A STUDENT READS IT: "Aug 20, 11:59 PM".
+ *
+ * IN THE SCHOOL'S ZONE AND LOCALE, NAMED, ON BOTH SIDES OF HYDRATION (ledger
+ * 0297). It printed in the runtime's own zone, which is UTC on the server and
+ * the device's zone in the browser, so the server's HTML said
+ * `Due Thu, Aug 20, 12:00 AM` and the same row said `Due Wed, Aug 19, 5:00 PM`
+ * a moment later -- the wrong DAY on first paint for every student. The locale
+ * is pinned for the same reason: a browser set to another language rewrote the
+ * string after the server had written it.
+ *
+ * NO WEEKDAY. Student-facing copy names no weekday (OVERHAUL_0297 section 7,
+ * the materials rule), and this is the one string every classroom surface
+ * prints a due date with, so it is dropped here rather than at each caller.
+ *
+ * THE YEAR APPEARS ONLY WHEN IT IS NOT THIS YEAR, and "this year" is `today`
+ * when the caller has the loader's day to hand in. A caller without one falls
+ * back to reading the clock for that one comparison, which can only ever move
+ * the year in or out of the string on New Year's Eve.
+ */
+export function formatDue(iso: string | null, today?: string | null): string {
 	if (!iso) return 'No due date';
 	const d = new Date(iso);
 	if (Number.isNaN(d.getTime())) return '';
 	const opts: Intl.DateTimeFormatOptions = {
-		weekday: 'short',
 		month: 'short',
 		day: 'numeric',
 		hour: 'numeric',
-		minute: '2-digit'
+		minute: '2-digit',
+		timeZone: SCHOOL_TIME_ZONE
 	};
-	if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
-	return d.toLocaleString(undefined, opts);
+	const thisYear = (today ?? laCalendarDay(new Date())).slice(0, 4);
+	if (laCalendarDay(d).slice(0, 4) !== thisYear) opts.year = 'numeric';
+	return d.toLocaleString(SCHOOL_LOCALE, opts);
 }
 
 export function shortWhen(iso: string): string {
@@ -1334,6 +1356,56 @@ export function assignmentStandings(
 				roster: rosterSize
 			};
 		});
+}
+
+/**
+ * THE CHIP A STUDENT READS ON ONE OF THEIR ASSIGNMENTS: its words, its tone,
+ * and whether it is finished (which is what earns the row its checkmark).
+ *
+ * MISSING IS ASKED OF `assignmentStanding` AND OF NOTHING ELSE (ledger 0297).
+ * The class page's Missing filter, the to-do page's Missing view, the counts
+ * on My Classes and the home page, and this chip are one predicate: before
+ * this, a past-due assignment with nothing turned in was listed under Missing
+ * while its own row still read "Not started" in the same muted grey as one
+ * due next month (F3F5's report, FRICTION.md). Two spellings of "is this
+ * missing" is exactly how a chip and a filter come to disagree.
+ *
+ * `now` is the loader's one clock read, as an ISO instant. Null means the
+ * surface has no clock to ask, and then the chip says only what the work
+ * itself says, never a guess about the deadline.
+ *
+ * `missing` IS ITS OWN TONE, not `attention`: "In progress" already wears
+ * amber, and a missing assignment is the one state a student must not be able
+ * to mistake for work under way. The word leads, and the stylesheet adds a
+ * fill and a mark, so colour is never the only signal.
+ */
+export type WorkChipTone = 'good' | 'attention' | 'muted' | 'info' | 'missing';
+
+export interface WorkChip {
+	label: string;
+	tone: WorkChipTone;
+	/** Turned in or returned: the row gets a checkmark and counts toward a unit's progress. */
+	done: boolean;
+	missing: boolean;
+}
+
+export function studentWorkChip(
+	item: Pick<ClassroomItem, 'kind' | 'due_at' | 'points'>,
+	work: StudentWork | undefined,
+	now: string | null | undefined
+): WorkChip {
+	const mine: StudentWork = work ?? { state: 'not-started', score: null };
+	const standing = now ? assignmentStanding(item, mine, now) : null;
+	if (standing === 'missing') {
+		return {
+			label: mine.state === 'in-progress' ? 'Missing, draft saved' : 'Missing',
+			tone: 'missing',
+			done: false,
+			missing: true
+		};
+	}
+	const done = mine.state === 'submitted' || mine.state === 'returned';
+	return { label: workStateLabel(mine, item.points), tone: workStateTone(mine.state), done, missing: false };
 }
 
 /** Existing tones only -- crimson stays reserved for LIVE/REC/error. */

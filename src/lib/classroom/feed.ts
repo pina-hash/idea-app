@@ -21,12 +21,16 @@
  * crowding out time-sensitive work.
  */
 import {
+	assignmentStanding,
 	isUpdatedForViewer,
 	resolveFigureSrc,
+	studentWorkMap,
 	type ClassroomItem,
-	type ClassroomSection
+	type ClassroomSection,
+	type StudentWork
 } from '$lib/classroom/classroom';
 import { itemBodyDoc, itemCoverImage } from '$lib/classroom/classroom-doc';
+import { daysBetween, schoolDayOf } from '$lib/classroom/school-calendar';
 
 /** How far ahead "due soon" reaches. */
 export const DUE_SOON_DAYS = 7;
@@ -66,6 +70,12 @@ export interface FeedSubmission {
 	submitted_at?: string | null;
 	returned_at?: string | null;
 	graded_at?: string | null;
+	/**
+	 * The released score. Carried for the caller's OWN rows only (the shared
+	 * loader strips it from everybody else's), because only a student's own
+	 * to-do prints it, and only once the work is returned.
+	 */
+	score?: number | null;
 }
 
 export interface BuildFeedInput {
@@ -205,8 +215,13 @@ export function isAwaitingGrade(sub: FeedSubmission): boolean {
 	return Date.parse(sub.submitted_at) > Date.parse(sub.graded_at);
 }
 
-/** A released grade the student has not opened since it was released. */
-function isUnseenReturn(sub: FeedSubmission | undefined, item: ClassroomItem): boolean {
+/**
+ * A released grade the student has not opened since it was released. Exported
+ * for the to-do page (ledger 0297), which keeps such a row in view as
+ * "Returned, feedback to read" rather than letting it fall off the list the
+ * way it falls off this feed once opened.
+ */
+export function isUnseenReturn(sub: FeedSubmission | undefined, item: ClassroomItem): boolean {
 	if (!sub || sub.state !== 'returned' || !sub.returned_at) return false;
 	if (!item.viewed_at) return true;
 	return Date.parse(sub.returned_at) > Date.parse(item.viewed_at);
@@ -220,6 +235,23 @@ function dueWindow(item: ClassroomItem, now: Date): 'past' | 'soon' | 'later' | 
 	return due <= now.getTime() + DUE_SOON_DAYS * DAY_MS ? 'soon' : 'later';
 }
 
+/** A submission row as `studentWorkMap` reads it, so this feed asks the same missing predicate every other surface does. */
+function workOf(sub: FeedSubmission | undefined): StudentWork | undefined {
+	return sub ? studentWorkMap([{ item_id: sub.item_id, state: sub.state, score: sub.score ?? null }])[sub.item_id] : undefined;
+}
+
+/**
+ * WHETHER A CLASS IS ONE THE CALLER TEACHES, for the question each surface
+ * asks of it: teacher of record, or an admin (who manages every class). It
+ * mirrors `classroom_manages_section` without a round trip per class, and it
+ * only ever decides which QUESTION a surface answers -- RLS already decided
+ * what data exists to answer it with. Exported so the to-do page leaves out
+ * exactly the classes this feed treats as taught (ledger 0297).
+ */
+export function sectionManagedBy(section: ClassroomSection, myEmail: string, isAdmin: boolean): boolean {
+	return isAdmin || section.teacher_email.toLowerCase() === myEmail.trim().toLowerCase();
+}
+
 function studentReason(
 	item: ClassroomItem,
 	sub: FeedSubmission | undefined,
@@ -227,10 +259,17 @@ function studentReason(
 ): FeedReasonId | null {
 	if (item.kind === 'assignment') {
 		if (isUnseenReturn(sub, item)) return 'returned';
+		/*
+		 * OVERDUE IS `assignmentStanding`'s MISSING (ledger 0297), the one
+		 * predicate the class page's filter, its row chip, the to-do page and
+		 * every count read. It is the same rule this function always applied --
+		 * nothing turned in and the due instant behind `now` -- asked of the one
+		 * implementation rather than spelled here a second time.
+		 */
+		const standing = assignmentStanding(item, workOf(sub), now.toISOString());
 		if (isUnsubmitted(sub)) {
-			const when = dueWindow(item, now);
-			if (when === 'past') return 'overdue';
-			if (when === 'soon') return 'due-soon';
+			if (standing === 'missing') return 'overdue';
+			if (dueWindow(item, now) === 'soon') return 'due-soon';
 			/**
 			 * AN ASSIGNMENT WITH NO DUE DATE IS NOT ACTIONABLE, and `when ===
 			 * 'none'` used to return 'unsubmitted' here.
@@ -402,7 +441,7 @@ export function buildFeed(input: BuildFeedInput): SectionFeed[] {
 	}
 
 	return sections.map((section) => {
-		const manages = isAdmin || section.teacher_email.toLowerCase() === me;
+		const manages = sectionManagedBy(section, me, isAdmin);
 		const sectionItems = bySection.get(section.id) ?? [];
 
 		const urgent: FeedEntry[] = [];
@@ -489,10 +528,18 @@ export function toggleCollapsed(prefs: ClassroomFeedPrefs, sectionId: string): C
  * away, and 23 hours away at 11pm tonight is still "today".
  */
 function calendarDaysUntil(iso: string, now: Date): number | null {
-	const then = new Date(iso);
-	if (Number.isNaN(then.getTime())) return null;
-	const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-	return Math.round((startOf(then) - startOf(now)) / DAY_MS);
+	/*
+	 * ON THE SCHOOL'S CALENDAR, NOT THE RUNTIME'S (ledger 0297). This counted
+	 * midnights in the runtime's own zone, which is UTC while the server renders
+	 * on Vercel and the device's zone after hydration -- so from 5pm Pacific
+	 * onwards a deadline at 9am tomorrow read "Due today" in the server's HTML,
+	 * and the words could change under the reader as the page woke up. Both
+	 * days are America/Los_Angeles days now, from the one conversion the
+	 * check-ins already use, so the server and the browser count the same.
+	 */
+	const then = schoolDayOf(iso);
+	if (!then || Number.isNaN(now.getTime())) return null;
+	return daysBetween(schoolDayOf(now.toISOString())!, then);
 }
 
 /**
