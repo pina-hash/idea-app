@@ -488,7 +488,9 @@
 		background: var(--surface-1);
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
-		box-shadow: 0 10px 30px rgb(0 0 0 / 45%);
+		/* The lifted elevation, which is this exact value in the dark register
+		   and a hard ledge under Space White. */
+		box-shadow: var(--elevation-2);
 	}
 	.sw-item {
 		display: flex;

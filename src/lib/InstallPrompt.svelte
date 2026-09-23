@@ -154,6 +154,11 @@
 		border-radius: 10px;
 		box-shadow: 0 0 24px rgba(0, 0, 0, 0.55);
 	}
+	/* Under Space White the prompt lifts on the theme's hard elevation rather
+	   than a dark halo (ledger 0297, package F1b). */
+	:global(:root[data-theme='space-white']) .install-prompt {
+		box-shadow: var(--elevation-2);
+	}
 
 	.ip-body {
 		min-width: 0;

@@ -481,7 +481,7 @@
 								role="radio"
 								aria-checked={profile?.pathway === p.id}
 								disabled={busy}
-								style="--pw:{p.color}; --pw-ink:{p.ink}; --pw-bg:{withAlpha(p.color, 0.12)}"
+								style="--pw:{p.color}; --pw-ink:{p.ink}; --pw-ink-light:{p.inkOnLight}; --pw-bg:{withAlpha(p.color, 0.12)}"
 								onclick={() => choosePathway(p.id)}
 							>
 								<span class="pm-pathway-mark" aria-hidden="true">
@@ -546,17 +546,17 @@
 											<svg
 												viewBox="0 0 24 24"
 												fill="none"
-												stroke={p.fg}
+												stroke="currentColor"
 												stroke-width="1.5"
 												stroke-linecap="round"
 												stroke-linejoin="round"
-												style="color:{p.fg}"
+												style="--pm-preset-fg:{p.fg};--pm-preset-fg-light:{p.fgOnLight ?? p.fg}"
 											>
 												{#each presetMarks(p) as mark, i (i)}
 													<path
 														d={mark.d}
 														fill={mark.fill ?? 'none'}
-														stroke={mark.fill ? 'none' : (mark.stroke ?? p.fg)}
+														stroke={mark.fill ? 'none' : (mark.stroke ?? 'currentColor')}
 														stroke-width={mark.width ?? 1.5}
 														transform={markTransform(mark)}
 													/>
@@ -1148,8 +1148,19 @@
 		background: var(--bg1);
 	}
 	.pm-preset-mark svg {
+		/* The preset's own stroke, through a custom property so the theme below
+		   can hand it the light-ground twin (the same move Avatar.svelte makes). */
+		color: var(--pm-preset-fg);
 		width: 62%;
 		height: 62%;
+	}
+	:global(:root[data-theme='space-white']) .pm-preset-mark svg {
+		color: var(--pm-preset-fg-light, var(--pm-preset-fg));
+	}
+	/* A popover over a light page lifts on the theme's elevation token, which is
+	   a hard ledge with no blur; the dark theme's blurred drop is kept for it. */
+	:global(:root[data-theme='space-white']) .pm-panel {
+		box-shadow: var(--elevation-2);
 	}
 	.pm-preset-word {
 		font-family: var(--font-mono);
@@ -1214,6 +1225,11 @@
 		cursor: pointer;
 		color: var(--pw-ink, var(--text-2));
 		transition: border-color 0.2s ease;
+	}
+	/* Under Space White the tile is light and the word takes the pathway's
+	   light-ground ink (`inkOnLight` in $lib/pathways.ts, ledger 0297). */
+	:global(:root[data-theme='space-white']) .pm-pathway {
+		color: var(--pw-ink-light, var(--pw-ink, var(--text-2)));
 	}
 	.pm-pathway-mark {
 		width: 26px;

@@ -443,6 +443,17 @@
 		cursor: pointer;
 		box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 	}
+	/* UNDER SPACE WHITE (ledger 0297, package F1b): the floating pill is a
+	   control whose outer edge is the only thing separating it from a light
+	   page, so it takes the load-bearing boundary, and it lifts on the theme's
+	   hard elevation rather than a blurred dark drop. */
+	:global(:root[data-theme='space-white']) .sfb-trigger {
+		border-color: var(--boundary);
+		box-shadow: var(--elevation-2);
+	}
+	:global(:root[data-theme='space-white']) .sfb-relocated .sfb-trigger {
+		box-shadow: none;
+	}
 	.sfb-relocated .sfb-trigger {
 		box-shadow: none;
 	}
