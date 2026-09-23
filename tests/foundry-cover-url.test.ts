@@ -309,11 +309,34 @@ describe('no surface builds a public cover URL any more', () => {
 			(f) => f.includes(`routes${sep}foundry`) && f.endsWith('+page.svelte')
 		);
 		const passers = routes.filter((f) => readFileSync(f, 'utf8').includes('coverUrl='));
-		expect(passers.length).toBe(3);
+
+		/*
+			THE RULE, NOT A COUNT. This read `expect(passers.length).toBe(3)` and
+			went red the moment `/foundry/author` became the fourth surface to
+			render a cover -- a surface that passes every actual requirement
+			below. `CLAUDE.md` is explicit: generalize an assertion a legitimate
+			change breaks, never delete it and never merely bump the number. A
+			spelled-out count here was standing in for two different things, and
+			they are now asserted separately:
+
+			  the FLOOR    the sweep found routes at all, so the loop below is
+			               not iterating over nothing and passing vacuously.
+			  the RULE     every route that hands a cover down hands down THIS
+			               builder -- which is the thing this file exists to
+			               protect, and which a count never checked.
+
+			A new Foundry surface that renders a cover correctly now passes, and
+			one that renders a cover through anything else still reddens.
+		*/
+		expect(passers.length).toBeGreaterThan(0);
 		for (const f of passers) {
 			const s = readFileSync(f, 'utf8');
 			expect(s, f).toContain("from '$lib/foundry/covers'");
 			expect(s, f).toContain('coverUrl={foundryCoverUrl}');
 		}
+
+		// AND THE SWEEP IS LOOKING AT THE RIGHT PLACE, named so "it found
+		// something" cannot become true because an unrelated file moved.
+		expect(passers.some((f) => f.endsWith(`foundry${sep}+page.svelte`))).toBe(true);
 	});
 });

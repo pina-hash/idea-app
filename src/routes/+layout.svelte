@@ -22,9 +22,10 @@
 	import PathwayPicker from '$lib/PathwayPicker.svelte';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
 	import NavigationProgress from '$lib/NavigationProgress.svelte';
+	import VoiceNav from '$lib/voice/VoiceNav.svelte';
 	import ThemeRoot from '$lib/design-system/themes/ThemeRoot.svelte';
 	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
-	import { describeBuild } from '$lib/feedback/context';
+	import { describeBuild, feedbackExclusion } from '$lib/feedback/context';
 
 	let { data, children } = $props();
 	let { claims, supabase } = $derived(data);
@@ -60,6 +61,29 @@
 	const submitFeedback = $derived(feedbackWriter(supabase, claims?.sub));
 	const anonymousReport = $derived(feedbackIsAnonymous(supabase, claims?.sub));
 
+	/**
+	 * VOICE NAVIGATION READS THE SAME EXCLUSION REGISTRY THE REPORT CONTROL
+	 * DOES, and calls the one implementation rather than keeping a second list
+	 * of decks and games that would stop agreeing with it. The question both
+	 * are asking is identical -- may anything float over this surface -- and
+	 * `feedbackExclusion` is where it is answered, by route id, so a page added
+	 * under an excluded section inherits the answer.
+	 *
+	 * WHERE THE TWO PART COMPANY IS WHAT AN EXCLUSION MEANS. Every surface must
+	 * be able to report a defect, so the report control RELOCATES into that
+	 * surface's own chrome; voice navigation is a convenience, and a projected
+	 * deck, a race and a timed CAD run are each something a person is
+	 * deliberately inside. There it is simply absent.
+	 *
+	 * AND `hasError` IS DELIBERATELY NOT PASSED. That flag returns the `error`
+	 * rule, whose whole reason is that `+error.svelte` renders a report control
+	 * of its OWN and a second one floating over it would be a duplicate --
+	 * which is a fact about the report control and about nothing else. A failed
+	 * page is exactly where "go home" is worth being able to say, so voice
+	 * stays.
+	 */
+	const voiceSuppressed = $derived(feedbackExclusion(page.route.id) !== null);
+
 	onMount(() => {
 		const { data: authData } = supabase.auth.onAuthStateChange((_, newSession) => {
 			if (newSession?.expires_at !== claims?.exp) {
@@ -87,6 +111,16 @@
      pathway set (self-contained, reads page data like ProfileMenu). -->
 <PathwayPicker />
 <InstallPrompt />
+<!-- VOICE NAVIGATION, mounted here for the reason NavigationProgress and
+     SiteFeedback are: there are no layout resets in src/routes, so every page
+     route inherits it rather than having to remember one. It constructs no
+     recogniser until somebody presses Start, so nothing here asks for a
+     microphone, and a browser without the API renders nothing at all. -->
+<VoiceNav
+	signedIn={!!claims?.sub}
+	isAdmin={!!data.isAdmin}
+	suppressed={voiceSuppressed}
+/>
 <SiteFeedback
 	routeId={page.route.id}
 	pathname={page.url.pathname}

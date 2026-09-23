@@ -95,7 +95,42 @@ export function pickerOne(
 }
 
 /**
- * TEAMS OF ROUGHLY `size`, DEALT ROUND-ROBIN RATHER THAN SLICED.
+ * HOW MANY TEAMS THE TEACHER ASKED FOR, and there are two ways to ask.
+ *
+ * `size` is "teams of about three" and `count` is "seven teams". Both are
+ * legitimate things to want in front of a class and they are not
+ * interchangeable: a teacher with seven benches wants seven teams and should
+ * not have to solve `ceil(n / size) = 7` in their head, which is what this
+ * module made them do until now.
+ */
+export type PickerTeamMode = 'size' | 'count';
+
+/**
+ * THE COUNT, WHICHEVER WAY IT WAS ASKED FOR, AND IT IS ONE FUNCTION BECAUSE THE
+ * DEALER MUST NOT LEARN TWO SPELLINGS OF ITS OWN INPUT.
+ *
+ * `size` derives the count the way it always has: `ceil(n / size)`.
+ *
+ * `count` is the number itself, CLAMPED TO THE NUMBER OF PEOPLE. That clamp is
+ * the count-mode twin of the round-robin deal below, and it exists for the same
+ * reason. Dealing 3 students into 7 teams produces four EMPTY teams -- headed
+ * cards with no names under them -- which reads as a broken draw rather than as
+ * a teacher asking for more teams than they have students. A team nobody is on
+ * is not a smaller team, exactly as a team of one is not a smaller team.
+ *
+ * Zero, a negative, a non-finite value or an empty list is NO TEAMS rather than
+ * an error, in both modes: the surface offers a number input and a caller
+ * mid-keystroke is an ordinary state, not a fault.
+ */
+export function pickerTeamCount(population: number, mode: PickerTeamMode, value: number): number {
+	if (population < 1 || !Number.isFinite(value) || value < 1) return 0;
+	const v = Math.floor(value);
+	return mode === 'count' ? Math.min(v, population) : Math.ceil(population / v);
+}
+
+/**
+ * THE DEAL, AND IT IS THE ONLY COPY. Both public entry points route through it,
+ * so a mode can never acquire its own idea of how a team is filled.
  *
  * SLICING IS THE OBVIOUS IMPLEMENTATION AND IT IS THE WRONG ONE. Chunking a
  * shuffled list into runs of `size` leaves the remainder as a final team, so 13
@@ -104,26 +139,49 @@ export function pickerOne(
  * class size that is one more than a multiple -- which is most of them over a
  * term.
  *
- * So the team COUNT is decided first (`ceil(n / size)`) and the shuffled list is
- * then dealt one at a time across those teams, which guarantees every team is
- * within one member of every other. 13 in fours becomes 4, 3, 3, 3.
+ * So the team COUNT is decided first and the shuffled list is then dealt one at
+ * a time across those teams, which guarantees every team is within one member of
+ * every other. 13 in fours becomes 4, 3, 3, 3.
+ */
+function pickerDeal(
+	candidates: readonly PickerCandidate[],
+	count: number,
+	seed: number
+): PickerCandidate[][] {
+	if (count < 1) return [];
+	const teams: PickerCandidate[][] = Array.from({ length: count }, () => []);
+	pickerShuffle(candidates, seed).forEach((person, i) => {
+		teams[i % count].push(person);
+	});
+	return teams;
+}
+
+/**
+ * TEAMS OF ROUGHLY `size`, DEALT ROUND-ROBIN RATHER THAN SLICED.
  *
- * A `size` of zero or less, or an empty list, is no teams rather than an error:
- * the surface offers a number input and a caller mid-keystroke is an ordinary
- * state, not a fault.
+ * The original entry point, kept at its exact signature and exact behaviour.
+ * It is now a thin wrapper over `pickerTeamCount` + `pickerDeal`, which is what
+ * makes the size mode and the count mode provably one dealer rather than two.
  */
 export function pickerTeams(
 	candidates: readonly PickerCandidate[],
 	size: number,
 	seed: number
 ): PickerCandidate[][] {
-	if (candidates.length === 0 || !Number.isFinite(size) || size < 1) return [];
-	const count = Math.ceil(candidates.length / Math.floor(size));
-	const teams: PickerCandidate[][] = Array.from({ length: count }, () => []);
-	pickerShuffle(candidates, seed).forEach((person, i) => {
-		teams[i % count].push(person);
-	});
-	return teams;
+	return pickerDeal(candidates, pickerTeamCount(candidates.length, 'size', size), seed);
+}
+
+/**
+ * TEAMS BY EITHER MODE. The surface calls this one; `pickerTeams` remains for
+ * every caller that only ever meant a size.
+ */
+export function pickerTeamsBy(
+	candidates: readonly PickerCandidate[],
+	mode: PickerTeamMode,
+	value: number,
+	seed: number
+): PickerCandidate[][] {
+	return pickerDeal(candidates, pickerTeamCount(candidates.length, mode, value), seed);
 }
 
 /**

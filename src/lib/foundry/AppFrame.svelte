@@ -196,6 +196,41 @@
 		<p class="fdy-config">{configLine}</p>
 	{/if}
 	<!--
+		allow="fullscreen": REPORT 33b, AND IT IS THE HALF OF IT THAT THE STUDENT
+		WAS ACTUALLY DESCRIBING.
+
+		The Permissions-Policy default allowlist for `fullscreen` is `self`, and a
+		bundle is cross-origin BY DESIGN -- that is the whole point of the apps
+		host. So a game's OWN full-screen button, the one inside the document
+		calling `requestFullscreen()` on its own element, was refused by the
+		browser with nothing on screen to say why. From inside the game that reads
+		exactly as "doesn't full screen on mobile good", which is what Enrique
+		Mercado reported.
+
+		IT IS A DIFFERENT CONTROL FROM `AppStage`'s. That one is OURS: it puts
+		`.is-full` on the stage element in the PARENT document and then asks the
+		Fullscreen API for the stage. It worked and still works. This grant is
+		what lets the student's own button work, and neither one substitutes for
+		the other -- a game that hides its HUD and repaints on going full screen
+		can only do that from inside.
+
+		`allow="fullscreen"` AND NOT THE BARE `allowfullscreen` ATTRIBUTE. The
+		two are synonyms by specification and the attribute is the legacy
+		spelling; the Permissions-Policy form is the one every other feature would
+		be granted through, so using it means there is one place to read what this
+		frame may do rather than one attribute and one list.
+
+		IT DEFAULTS TO `'src'`, which is the frame's own origin and nothing else.
+		A bundle cannot pass the grant on to a third party it frames.
+
+		WHAT IS DELIBERATELY NOT GRANTED, so the next person does not have to
+		rediscover the shape: `gamepad`, `autoplay`, `xr-spatial-tracking` and
+		every other default-`self` feature are refused for exactly the same reason
+		fullscreen was, and each is its own decision with its own report behind
+		it. A gamepad in a student's racing game silently doing nothing is the
+		same defect one feature over; it has not been reported and is not fixed
+		here.
+
 		referrerpolicy="no-referrer": the request for a bundle carries no record of
 		which page of ours the viewer came from. It is a cross-site request either
 		way, so a referrer would be the origin only, but the origin is still more
@@ -207,6 +242,7 @@
 		class="fdy-frame"
 		style={fill ? '' : `height: ${height};`}
 		sandbox={sandboxFlags}
+		allow="fullscreen"
 		referrerpolicy="no-referrer"
 		{loading}
 	></iframe>

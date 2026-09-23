@@ -15,7 +15,7 @@ import { SolidEngine } from '../src/lib/ideacad/solid/engine';
 import { createKernel } from '../src/lib/ideacad/kernel/remus';
 import type { Feature, FeatureOf, SketchEntity, Vec2 } from '../src/lib/ideacad/solid/types';
 import { crossings, rayHit, curveParam, curvePoint, regions, solveSketch, pointOf, arcSweep, arcSweepToward, arcPoint, inconsistentArcs, TAU } from '../src/lib/ideacad/solid/sketch/model';
-import { trimEntity, extendEntity, filletCorner, joinPoints, snapPoint, chainDraft, polygonEntities, rectangleEntities, appendDraft, splitCurves, ensurePoint, arcDraft, type SketchDraft } from '../src/lib/ideacad/solid/sketch/editor';
+import { trimEntity, extendEntity, filletCorner, joinPoints, snapPoint, chainDraft, polygonEntities, rectangleEntities, appendDraft, splitCurves, ensurePoint, arcDraft, arcEntities, movePoints, type SketchDraft } from '../src/lib/ideacad/solid/sketch/editor';
 
 const WASM = new Uint8Array(readFileSync('static/ideacad/kernels/remus-9307e73.wasm'));
 const engines: SolidEngine[] = [];
@@ -380,5 +380,211 @@ describe('which arc a third click asks for', () => {
 		expect(inconsistentArcs([{ id: 'c', type: 'point', x: 0, y: 0 }, { id: 's', type: 'point', x: 0, y: 0 }, { id: 'e', type: 'point', x: 0, y: 0 }, { id: 'a', type: 'arc', center: 'c', start: 's', end: 'e' }])).toEqual(['a']);
 		/* And a sketch with no arc in it at all is not a finding. */
 		expect(inconsistentArcs(rect().entities)).toEqual([]);
+	});
+});
+
+/*
+ * DRAGGING AN ARC'S POINTS. Ledger 0275 fixed the arc TOOL so every arc it
+ * DRAWS has one radius by construction, and named this as the hole it left
+ * open: an arc's points can still be dragged, and a drag put either endpoint
+ * anywhere. Measured through this same `movePoints` before the repair, on a
+ * radius-1.000 arc whose end was dragged to (0, 2.5): `rStart` 1.000 against
+ * `rEnd` 2.500.
+ *
+ * Every expected value below is ANALYTIC -- a bearing chosen in degrees, a
+ * radius held at 1, a segment area from r^2/2 * (theta - sin theta) -- rather
+ * than a number read off the implementation and typed back in.
+ */
+describe("dragging an arc's points", () => {
+	const deg = (n: number) => n * 180 / Math.PI;
+	const at = (d: number, r = 1): Vec2 => [r * Math.cos(d * Math.PI / 180), r * Math.sin(d * Math.PI / 180)];
+	/** A radius-1 arc from bearing 0 to bearing 90 about the origin, with named ids. */
+	const arc90 = (): SketchDraft => ({ entities: [
+		{ id: 'c', type: 'point', x: 0, y: 0 }, { id: 's', type: 'point', x: 1, y: 0 }, { id: 'e', type: 'point', x: 0, y: 1 },
+		{ id: 'a', type: 'arc', center: 'c', start: 's', end: 'e' }
+	], constraints: [] });
+	const read = (d: SketchDraft) => {
+		const a = d.entities.find((x) => x.id === 'a') as Extract<SketchEntity, { type: 'arc' }>;
+		const c = pointOf(d.entities, a.center), st = pointOf(d.entities, a.start), en = pointOf(d.entities, a.end);
+		return { c, rStart: Math.hypot(st[0] - c[0], st[1] - c[1]), rEnd: Math.hypot(en[0] - c[0], en[1] - c[1]), sweep: deg(arcSweep(c, st, en)), start: pointOf(d.entities, 's'), end: pointOf(d.entities, 'e') };
+	};
+
+	it('sweeps a dragged ENDPOINT along the arc s own circle: the radius is held and the angle follows the cursor', () => {
+		/* Each case names where the cursor went and the BEARING that implies; the radius is 1 in every one of them because that is what is being held. */
+		const cases: [string, Vec2, number][] = [
+			['straight out along the same bearing', [0, 2.5], 90],
+			['straight in along the same bearing', [0, 0.4], 90],
+			['out and round to 45 degrees', [2, 2], 45],
+			['round to 170 degrees, a long way off the circle', at(170, 9), 170],
+			['round to -30 degrees', at(-30, 0.05), -30]
+		];
+		for (const [label, to, bearing] of cases) {
+			const moved = movePoints(arc90(), new Map([['e', to]]));
+			const r = read(moved);
+			expect(r.rStart, label).toBeCloseTo(1, 12);
+			expect(r.rEnd, label).toBeCloseTo(1, 12);
+			expect(inconsistentArcs(moved.entities), label).toEqual([]);
+			/* The end landed on the bearing the cursor asked for, at radius 1. */
+			expect(deg(Math.atan2(r.end[1], r.end[0])), label).toBeCloseTo(bearing, 9);
+			expect(Math.hypot(r.end[0], r.end[1]), label).toBeCloseTo(1, 12);
+			/* And the START never moved: sweeping one end is not re-radiusing the arc. */
+			expect(r.start, label).toEqual([1, 0]);
+			/*
+			 * THE POSITIVE CONTROL, and it is what says the case is not
+			 * vacuous: the cursor was genuinely off the circle, so a drag that
+			 * simply wrote the cursor position would have failed every
+			 * assertion above.
+			 */
+			expect(Math.abs(Math.hypot(to[0], to[1]) - 1), label).toBeGreaterThan(1e-3);
+		}
+	});
+
+	it('reads the radius from the end that did NOT move, so dragging the START sweeps too', () => {
+		const moved = movePoints(arc90(), new Map([['s', at(45, 2.5)]]));
+		const r = read(moved);
+		expect(r.rStart).toBeCloseTo(1, 12);
+		expect(r.rEnd).toBeCloseTo(1, 12);
+		/* The start swept to 45 degrees and the END is where it always was, so the arc now spans 45. */
+		expect(deg(Math.atan2(r.start[1], r.start[0]))).toBeCloseTo(45, 9);
+		expect(r.end).toEqual([0, 1]);
+		expect(r.sweep).toBeCloseTo(45, 9);
+	});
+
+	it('CARRIES both ends when the center alone moves, so the arc travels rather than deforming', () => {
+		const moved = movePoints(arc90(), new Map([['c', [0.3, 0.2]]]));
+		const r = read(moved);
+		expect(r.c).toEqual([0.3, 0.2]);
+		/* Both the radius AND the sweep survive, which is the half a re-radius would lose. */
+		expect(r.rStart).toBeCloseTo(1, 12);
+		expect(r.rEnd).toBeCloseTo(1, 12);
+		expect(r.sweep).toBeCloseTo(90, 9);
+		/* Rigidly: each end is exactly its old position plus the center's own delta. */
+		expect(r.start[0]).toBeCloseTo(1.3, 12); expect(r.start[1]).toBeCloseTo(0.2, 12);
+		expect(r.end[0]).toBeCloseTo(0.3, 12); expect(r.end[1]).toBeCloseTo(1.2, 12);
+	});
+
+	it('leaves a WHOLE-ENTITY drag exactly alone, writing the three positions it was handed', () => {
+		/* All three travel by one delta, so the radii still agree and there is nothing to repair. A repair that fired here would move a point the student placed. */
+		const moved = movePoints(arc90(), new Map<string, Vec2>([['c', [1, 1]], ['s', [2, 1]], ['e', [1, 2]]]));
+		const r = read(moved);
+		expect(r.c).toEqual([1, 1]);
+		expect(r.start).toEqual([2, 1]);
+		expect(r.end).toEqual([1, 2]);
+		expect(r.sweep).toBeCloseTo(90, 9);
+		expect(inconsistentArcs(moved.entities)).toEqual([]);
+	});
+
+	it('never touches an arc no part of which moved, even one already inconsistent', () => {
+		/* A document can already carry a broken arc (0275: through the old tool, and through this very drag). Opening it must not silently rewrite geometry nobody touched. */
+		const broken: SketchDraft = { entities: [
+			{ id: 'c', type: 'point', x: 0, y: 0 }, { id: 's', type: 'point', x: 1, y: 0 }, { id: 'e', type: 'point', x: 0, y: 3 },
+			{ id: 'a', type: 'arc', center: 'c', start: 's', end: 'e' },
+			{ id: 'q', type: 'point', x: 8, y: 8 }
+		], constraints: [] };
+		const moved = movePoints(broken, new Map([['q', [9, 9]]]));
+		expect(read(moved).end).toEqual([0, 3]);
+		expect(inconsistentArcs(moved.entities)).toEqual(['a']);
+		/* But dragging that arc's own end DOES repair it, which is what the sketch panel's notice tells a student to do. */
+		const repaired = movePoints(broken, new Map([['e', [0, 3.5]]]));
+		expect(inconsistentArcs(repaired.entities)).toEqual([]);
+		expect(read(repaired).end[1]).toBeCloseTo(1, 12);
+	});
+
+	it('turns a drag that used to break the extrude into one that extrudes, against the real kernel', async () => {
+		/*
+		 * THE CLAIM THE KERNEL HAS TO CASH. The profile is the arc plus its
+		 * chord, so the region is a circular SEGMENT: r^2/2 * (theta - sin
+		 * theta) at r = 1 and theta = pi/2 is pi/4 - 1/2, one inch thick.
+		 */
+		const profile = (entities: SketchEntity[]): Feature => ({ id: 'profile', name: 'Profile', type: 'sketch', plane: { kind: 'datum', datum: 'XY' }, entities, constraints: [] });
+		const build = async (entities: SketchEntity[]) => {
+			const e = await engine();
+			await e.apply({ type: 'add-feature', feature: profile(entities) });
+			return e.apply({ type: 'add-feature', feature: { id: 'x', name: 'Extrude', type: 'extrude', sketch: 'profile', distance: 1, operation: 'new' } });
+		};
+		const withChord = (d: SketchDraft): SketchEntity[] => [...d.entities, { id: 'l', type: 'line', a: 'e', b: 's' }];
+
+		/*
+		 * THE NEGATIVE CONTROL IS THE OLD BEHAVIOUR ITSELF: the end written
+		 * verbatim where the cursor went, which is exactly what `movePoints`
+		 * produced before the repair. The kernel refuses it outright.
+		 */
+		const raw = withChord(arc90()).map((x) => (x.id === 'e' ? { ...x, x: 0, y: 2.5 } : x)) as SketchEntity[];
+		expect(inconsistentArcs(raw)).toEqual(['a']);
+		await expect(build(raw)).rejects.toThrow(/edge vertices do not agree/);
+
+		/* The same drag through the real `movePoints` builds, and builds the segment the geometry says it should. */
+		const swept = withChord(movePoints(arc90(), new Map([['e', [0, 2.5]]])));
+		expect(inconsistentArcs(swept)).toEqual([]);
+		const ok = await build(swept);
+		expect(ok.bodies).toHaveLength(1);
+		expect(ok.bodies[0].volume).toBeCloseTo(Math.PI / 4 - 0.5, 3);
+	});
+});
+
+/*
+ * THE V1 DRAWING PATH'S ARC -- `arcEntities`, whose one caller is
+ * `viewport/drawing.ts` (drawing on a plane with NO sketch open). Ledger 0275
+ * fixed the identical always-counter-clockwise defect in the in-sketch arc
+ * tool and left this one because its caller sat outside that bundle's files.
+ * Measured on this function before the fix, center (0,0) and start (1,0): a
+ * click ten degrees clockwise gave 350.000 degrees, and a click 0.01in below
+ * the start gave 359.427.
+ */
+describe('the v1 drawing path s arc', () => {
+	const deg = (n: number) => n * 180 / Math.PI;
+	const C: Vec2 = [0, 0], S: Vec2 = [1, 0];
+	const at = (d: number, r = 1): Vec2 => [r * Math.cos(d * Math.PI / 180), r * Math.sin(d * Math.PI / 180)];
+	const read = (d: SketchDraft) => {
+		const a = d.entities.find((e) => e.type === 'arc') as Extract<SketchEntity, { type: 'arc' }>;
+		const c = pointOf(d.entities, a.center), st = pointOf(d.entities, a.start), en = pointOf(d.entities, a.end);
+		return { a, c, st, en, sweep: deg(arcSweep(c, st, en)) };
+	};
+
+	it('spans the angle the third click asked for, whichever side of the start it fell on', () => {
+		for (const d of [-179, -170, -90, -45, -10, -1, -0.573, 1, 10, 45, 90, 170, 179]) {
+			const r = read(arcEntities(C, S, at(d, 4)));
+			/* The span is the magnitude of the bearing clicked -- chosen here, not read off the code. */
+			expect(r.sweep, `${d} degrees`).toBeCloseTo(Math.abs(d), 6);
+			/*
+			 * THE POSITIVE CONTROL FOR THE DIRECTION HALF, and the reading a
+			 * revert lands back on: stored start-to-end ALWAYS, the arc would
+			 * span the complement for every clockwise click.
+			 */
+			const alwaysCcw = deg(arcSweep(C, S, arcPoint(C, S, arcSweepToward(C, S, at(d, 4)), 1)));
+			if (d < 0) expect(alwaysCcw, `${d} degrees`).toBeCloseTo(360 - Math.abs(d), 6);
+			else expect(alwaysCcw, `${d} degrees`).toBeCloseTo(d, 6);
+		}
+	});
+
+	it('reproduces 0275 s worst reported case as the small arc it was aimed at', () => {
+		/* A click 0.01in below the start measured 359.427 degrees before the fix -- a near-whole circle for a click a student aimed just under the start. */
+		const r = read(arcEntities(C, S, [1, -0.01]));
+		expect(r.sweep).toBeCloseTo(deg(Math.atan2(0.01, 1)), 6);
+		expect(r.sweep).toBeLessThan(1);
+	});
+
+	it('keeps one radius and keeps its chord, which is the difference from the in-sketch tool', () => {
+		for (const d of [-170, -90, -10, 10, 90, 170]) {
+			const draft = arcEntities(C, S, at(d, 7));
+			expect(inconsistentArcs(draft.entities), `${d} degrees`).toEqual([]);
+			const r = read(draft);
+			expect(Math.hypot(r.st[0], r.st[1]), `${d} degrees`).toBeCloseTo(1, 12);
+			expect(Math.hypot(r.en[0], r.en[1]), `${d} degrees`).toBeCloseTo(1, 12);
+			/* The chord joins the arc's own two ends, so a first drawing closes. */
+			const chord = draft.entities.find((e) => e.type === 'line') as Extract<SketchEntity, { type: 'line' }>;
+			expect([chord.a, chord.b].slice().sort(), `${d} degrees`).toEqual([r.a.start, r.a.end].slice().sort());
+		}
+	});
+
+	it('places the end where the in-sketch tool would, so the two paths draw one shape', () => {
+		/* Only the stored DIRECTION moved: the end POSITION is the same projection onto the radius it always was, and the same one `arcDraft` takes. */
+		for (const d of [-170, -90, -10, 10, 90, 170]) {
+			const v1 = read(arcEntities(C, S, at(d, 3)));
+			const inSketch = arcDraft({ at: C, kind: 'none' }, { at: S, kind: 'none' }, at(d, 3));
+			const a = inSketch.entities.find((e) => e.type === 'arc') as Extract<SketchEntity, { type: 'arc' }>;
+			const c = pointOf(inSketch.entities, a.center), st = pointOf(inSketch.entities, a.start), en = pointOf(inSketch.entities, a.end);
+			expect(v1.sweep, `${d} degrees`).toBeCloseTo(deg(arcSweep(c, st, en)), 9);
+		}
 	});
 });

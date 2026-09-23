@@ -90,6 +90,7 @@ import {
 	type ClassroomSection,
 	type ImportSummary,
 	type ItemInput,
+	type ItemSaved,
 	type ItemLink,
 	type LinkPreview,
 	type SectionDeleteResult,
@@ -878,7 +879,7 @@ async function saveItem(payload: {
 	sectionIds?: string[];
 	input: ItemInput;
 	published: boolean | null;
-}): Promise<TxResult<{ itemId: string; formattingDropped?: boolean }>> {
+}): Promise<TxResult<ItemSaved>> {
 	try {
 		const res = await fetch('/api/classroom/item', {
 			method: 'POST',
@@ -895,11 +896,26 @@ async function saveItem(payload: {
 				dueAt: payload.input.dueAt,
 				publishAt: payload.input.publishAt ?? null,
 				category: payload.input.category,
-				links: payload.input.links
+				links: payload.input.links,
+				// 0218, AND IT IS SENT ONLY WHEN A UNIT WAS ACTUALLY PICKED.
+				// Naming a new RPC parameter on every call would make a project
+				// that has not applied 0218 yet answer PGRST202 to every item
+				// creation; naming it only when the feature is in use means the
+				// ordinary save is byte-identical to the one before this field
+				// existed, and the degrade rung behind it only ever runs for a
+				// teacher who chose a unit. `undefined` is dropped by
+				// JSON.stringify, which is what makes "only when used" one
+				// expression rather than a branch.
+				unitId: payload.input.unitId ?? undefined
 			})
 		});
 		const body = (await res.json().catch(() => null)) as
-			| { error?: string; item_id?: string; formatting_dropped?: boolean }
+			| {
+					error?: string;
+					item_id?: string;
+					formatting_dropped?: boolean;
+					unit_dropped?: boolean;
+			  }
 			| null;
 		if (!res.ok) {
 			return { ok: false, message: body?.error ?? `Save failed (${res.status}).` };
@@ -912,7 +928,14 @@ async function saveItem(payload: {
 		// answered "nothing to export" rather than being filtered here -- one
 		// place decides what is exportable, and it is the one with the data.
 		pingClassroomExport(itemId);
-		return { ok: true, data: { itemId, formattingDropped: body?.formatting_dropped === true } };
+		return {
+			ok: true,
+			data: {
+				itemId,
+				formattingDropped: body?.formatting_dropped === true,
+				unitDropped: body?.unit_dropped === true
+			}
+		};
 	} catch (e) {
 		return { ok: false, message: (e as Error).message || 'Save failed.' };
 	}
@@ -2311,6 +2334,28 @@ async function loadGradingAcrossSections(
 			}
 		}
 	};
+}
+
+/**
+ * BATCH GRADING WITHOUT THE CROSS-CLASS READ (0288), for the per-section
+ * console at `/classroom/<section>/item/<item>/grade`.
+ *
+ * It is `createBulkGradingTransports` MINUS `loadAcross`, and it is written as
+ * exactly that -- one object spread, one key deleted -- rather than as a second
+ * factory that builds its own `gradeMany`. The batch write is one rule and
+ * there is one statement of it; a second copy here is the copy that stops
+ * agreeing about how a refusal reads, which on this path is the difference
+ * between "no grade was written" and thirty students silently half-graded.
+ *
+ * WHY THE PER-SECTION ROUTE CANNOT SIMPLY TAKE THE FULL OBJECT: `loadAcross`
+ * is what `GradingConsole.load()` branches on, so handing it over replaces that
+ * page's one class with every class the caller teaches the assignment in. That
+ * page already links to the console which does that on purpose. See
+ * `BulkGradingTransports.loadAcross` for the whole argument.
+ */
+export function createBatchGradingTransports(supabase: SupabaseClient): BulkGradingTransports {
+	const { loadAcross: _crossClass, ...batch } = createBulkGradingTransports(supabase);
+	return batch;
 }
 
 export function createBulkGradingTransports(supabase: SupabaseClient): BulkGradingTransports {

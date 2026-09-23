@@ -81,17 +81,24 @@ export default {
 		   which is the storage sentence CLAUDE.md calls unconditional. */
 		{ selector: '.fdy-issues', label: 'issues panels after the bad zip (failure + warning tones)', expectPresent: 2, maxPresent: 2 },
 		/*
-			TWO SENTENCES, not "at least one": the bad fixture trips a leading
-			slash (a failure) and the unconditional localStorage warning. One per
-			tone, which is what makes the two-panel row above and this row say
-			different things -- a count of 1 would pass on a panel that had lost
-			one of them, and the ceiling catches the reverse.
+			THREE SENTENCES, not "at least one": the bad fixture trips a leading
+			slash (a failure), the unconditional localStorage warning, and the
+			missing viewport meta. A count of 1 would pass on a panel that had
+			lost two of them, and the ceiling catches the reverse.
 
 			IT READ 4 UNTIL 2026-08-30. See the header: two of those four were
 			missing-asset warnings about CDN URLs, which `6cf8f11` stopped
-			emitting on purpose. Nothing here regressed.
+			emitting on purpose. Nothing regressed then either.
+
+			AND IT READ 2 UNTIL 0221, which added the viewport rule (report 33b):
+			a bundle whose entry file does not tell a phone how wide it is lays
+			out at about 980 pixels and is scaled down to fit. The fixture has no
+			viewport meta and so earns the warning, which is the rule working.
+			The COUNT moved rather than the fixture gaining the tag, because this
+			route is the surface a student reads a refusal on and a third real
+			sentence in that list is a better demonstration of it than two.
 		*/
-		{ selector: '.fdy-issue-message', label: 'refusal + warning sentences (leading slash, storage)', expectPresent: 2, maxPresent: 2 }
+		{ selector: '.fdy-issue-message', label: 'refusal + warning sentences (leading slash, storage, viewport)', expectPresent: 3, maxPresent: 3 }
 	],
 	contrast: [
 		{ selector: '.fdy-issue-message', label: 'refusal sentence on its panel', min: 4.5 }

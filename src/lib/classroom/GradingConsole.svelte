@@ -40,8 +40,10 @@
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
 	import {
+		BULK_PRESETS,
 		BULK_PRESET_LABEL,
 		applyPreset,
+		bottomLevelScores,
 		bulkCanSend,
 		bulkOutcome,
 		bulkPlan,
@@ -52,6 +54,12 @@
 		type BulkOutcome,
 		type BulkPreset
 	} from '$lib/classroom/grading-bulk';
+	import DictateButton from '$lib/classroom/DictateButton.svelte';
+	import {
+		GradingDictation,
+		appendDictation
+	} from '$lib/classroom/grading-dictation.svelte';
+	import { dictationConstructor, type SpeechRecognitionCtor } from '$lib/feedback/dictation';
 	import {
 		IDENTITY_NOTE,
 		buildGradingExport,
@@ -118,7 +126,8 @@
 		htmlWork = null,
 		live = null,
 		close = null,
-		presence = null
+		presence = null,
+		speech = undefined
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -140,16 +149,27 @@
 		transports: AssignmentTeacherTransports;
 		basePath?: string;
 		/**
-		 * GRADING AT SCALE, AND ABSENCE IS THE MECHANISM.
+		 * GRADING AT SCALE, AND ABSENCE IS THE MECHANISM -- AT TWO LEVELS SINCE
+		 * 0288, WHICH IS THE WHOLE OF WHAT CHANGED.
 		 *
-		 * Handed in, this console reads the assignment across EVERY class the
-		 * caller teaches it in, groups the roster by section, offers a tick box
-		 * per student and a batch bar, and commits through one statement (0175).
-		 * Omitted -- which is the per-section route at
-		 * `/classroom/<section>/item/<item>/grade` -- none of that markup exists:
-		 * there are no checkboxes to leave unchecked, no batch bar to disable and
-		 * no cross-section read to scope down. Single-section is structural here,
-		 * not a mode.
+		 * Handed in, this console offers a tick box per student, the presets and
+		 * a batch bar, and commits through one statement (0175). Omitted, none of
+		 * that markup exists: there are no checkboxes to leave unchecked and no
+		 * batch bar to disable. That much is as it was.
+		 *
+		 * WHAT MOVED IS THE CROSS-CLASS READ, which is now `bulk.loadAcross` and
+		 * is OPTIONAL. This prop used to carry both, so the per-section route at
+		 * `/classroom/<section>/item/<item>/grade` could not be given batch
+		 * grading without also being given every class the caller teaches the
+		 * assignment in -- a different page, which already exists at
+		 * `/classroom/grading/<itemId>` and which this console LINKS to. That is
+		 * why Mr. Pina filed "I must be able to quick return a zero" against a
+		 * console where every piece of the machinery already existed.
+		 *
+		 * So: the OBJECT says this console may write a batch; the METHOD says it
+		 * reads across classes. `createBatchGradingTransports` is the first
+		 * without the second. Single-section is still structural rather than a
+		 * mode -- it is just a second absence now instead of the same one.
 		 */
 		bulk?: BulkGradingTransports | null;
 		/**
@@ -217,6 +237,21 @@
 		 * asserting a student is away when the truth is that nobody asked.
 		 */
 		presence?: PresenceTransports | null;
+		/**
+		 * THE SPEECH CONSTRUCTOR, INJECTED, AND THREE VALUES MEAN THREE THINGS.
+		 *
+		 * `undefined` -- the default, and what both real routes hand in -- means
+		 * ASK THE BROWSER, so production behaves exactly as if this prop did not
+		 * exist. `null` means there is no speech service and no dictate control
+		 * renders anywhere, which is the honest Firefox/third-party-iPad state
+		 * and is also how a harness proves the absence. A constructor means use
+		 * this one, which is how a container with no microphone drives the whole
+		 * path.
+		 *
+		 * It is a CONSTRUCTOR rather than a boolean because the fake has to
+		 * deliver results: a flag could only ever prove the button renders.
+		 */
+		speech?: SpeechRecognitionCtor | null;
 	} = $props();
 
 	/**
@@ -287,33 +322,88 @@
 	const gateModule = $derived(spec?.approvalGate?.afterModule ?? null);
 
 	/**
-	 * THE WORK COLUMN IS A WHOLE DOCUMENT, NOT A FORM, AND THAT CHANGES THE
-	 * ARRANGEMENT RATHER THAN A NUMBER.
+	 * THE WORK COLUMN IS A WHOLE DOCUMENT, AND SINCE 0288 IT SITS BESIDE THE
+	 * RUBRIC LIKE EVERY OTHER WORK COLUMN. THIS BLOCK USED TO WITHHOLD THAT,
+	 * AND THE NUMBER IT WITHHELD IT ON WAS A HARNESS READING.
 	 *
-	 * With a spec, the work column and the rubric sit SIDE BY SIDE: a spec
-	 * render is short fields and reads fine in half the row. A ported HTML
-	 * assignment's work column is a page, and it does not fit -- MEASURED, in
-	 * the real console at two viewport widths: `main.cr-console` caps itself at
-	 * 960px (nav.ts's `console` measure), so the roster takes 320 and the work
-	 * split gets 562 AT 1440 AND AT 1920 ALIKE. Split `1.05fr : 1fr` that is
-	 * 280px of document, at every width there will ever be, with the worksheet's
-	 * own headings wrapping over three lines inside it.
+	 * It said: `main.cr-console` caps itself at 960px, so the split gets 562
+	 * "AT 1440 AND AT 1920 ALIKE", which at `1.05fr : 1fr` is 280px of
+	 * document, so the wide arrangement never has room. Every step of that was
+	 * measured -- on `/dev/html-assignment-grading`, which is the one surface
+	 * where it is true. THE HARNESS DOES NOT SET `--cr-measure-route`. The real
+	 * route does (`src/routes/classroom/+layout.svelte`, from
+	 * `classroomMeasure('item-grade') === 'console'`), and `--measure-console`
+	 * is `100%`, so `--cr-measure` falls back to `--measure-page` (60rem) in the
+	 * harness and resolves to the window on the page an instructor actually
+	 * opens. A harness missing a mechanism the real page has is CLAUDE.md's own
+	 * named failure, and this is what it costs: a layout decision made against a
+	 * width the surface never has.
 	 *
-	 * SO THE WIDE ARRANGEMENT NEVER HAS ROOM, and the answer is to drop it here
-	 * rather than lower a ratio into two columns too narrow to read. Withholding
-	 * `has-rubric` is the whole change: `.work-split` is already a flex COLUMN
-	 * without it and `:not(.has-rubric)` already carries the app frame's
-	 * single-scroller rules, so the document takes the full 562 and the rubric
-	 * stacks under it down a path that was measured before this existed. A
-	 * modifier class would have been a second arrangement to keep in step with
-	 * the first.
+	 * MEASURED ON THE REAL ROUTE'S CONDITION, same fixture, both widths:
+	 *   1440 -> main 1408, roster 320, split 1009.6, columns 509.7 / 485.5
+	 *   1920 -> main 1888, roster 320, split 1489.6, columns 755.6 / 719.6
+	 * So the document gets 509.7px at 1440, not 280 -- more than the whole
+	 * split was under the stale reading.
 	 *
-	 * IT ASKS THE SAME CONDITION THE RENDER BRANCH ASKS (`!spec && htmlWork`),
-	 * read off the same two values, because a layout that disagreed with the
-	 * branch it is laying out is how the rubric ends up beside a pane that is
-	 * not there.
+	 * AND THE DOCUMENT FITS, measured on the REAL ported worksheet
+	 * (`idea100-blade-01.ported.html`, 47 inputs, 2 tables) rather than on the
+	 * smoke fixture, at every column width the split can produce:
+	 *   297px -> 0px horizontal overflow, 11664px tall, 11 inputs clipped
+	 *   400px -> 0px, 9020px tall, 6 clipped
+	 *   510px -> 0px, 7617px tall, 6 clipped
+	 *   756px -> 0px, 6278px tall, 1 clipped
+	 *  1010px -> 0px, 5960px tall, 1 clipped   (what it gets TODAY, stacked)
+	 * It never overflows horizontally -- it is a responsive document -- so the
+	 * question was never "does it fit" but "how much taller does it get", and
+	 * at 1440 the answer is 7617 against 5960: 1657px more document scroll,
+	 * bought by taking the rubric out from UNDER 5960px of it and putting it
+	 * beside it in its own scroll container. That is the trade Mr. Pina asked
+	 * for in the words "a despicable amount of scrolling".
+	 *
+	 * THE FLOOR IS THE KNEE IN THAT TABLE AND IS THE ONE THING THIS ADDS.
+	 * Between 400px and 297px the document gains 2644px of height and five more
+	 * inputs clip; above 400px it is flat. From the split's own arithmetic,
+	 * measured twice and exact at both widths --
+	 *   column = (viewport - 444.8) * 0.5122
+	 * -- 400px of document needs 1226px of viewport, so the collapse sits at
+	 * 78rem (1248px, giving 411px). BELOW IT A DOCUMENT STACKS exactly as it
+	 * did before this bundle, down the path `:not(.has-rubric)` already carries.
+	 *
+	 * IT IS NOT A SECOND ARRANGEMENT. `document-work` re-points the COLLAPSE
+	 * POINT of the arrangement `has-rubric` already describes; it declares no
+	 * columns, no gap and no ratio of its own, so there is nothing for it to
+	 * fall out of step with. The previous author rejected a modifier class on
+	 * exactly that ground and the ground still holds -- which is why this is a
+	 * breakpoint and not a layout.
 	 */
 	const documentWork = $derived(!spec && !!htmlWork);
+
+	/**
+	 * DICTATED FEEDBACK (0288). Mr. Pina: "at the very least a transcription
+	 * audio feedback would save me a ton of time."
+	 *
+	 * ONE CONTROLLER FOR THE WHOLE CONSOLE, holding one speech session, so the
+	 * comment box and every criterion note share a microphone rather than
+	 * competing for it. `grading-dictation.svelte.ts` carries the argument; the
+	 * short version is that a rubric puts five of these buttons on one screen
+	 * and two live recognisers is a grader watching their words land in the
+	 * field they just stopped dictating into.
+	 *
+	 * `dictation` IS A PROP SO A HARNESS CAN DRIVE IT WITH NO MICROPHONE, which
+	 * is the only way any of this is verifiable in a container -- and undefined,
+	 * not null, is the "ask the browser" default, so the real routes hand in
+	 * nothing and get the real speech service. A browser without one renders no
+	 * button at all: absence is the mechanism, as it is in the report box this
+	 * borrows from.
+	 */
+	const dictate = new GradingDictation(
+		// UNTRACKED, the way the report box reads the same value: this is a
+		// one-time capability question asked at construction, and read tracked
+		// it is a `state_referenced_locally` warning about a reference that is
+		// correct. The constructor never changes for the life of a page.
+		untrack(() => (speech === undefined ? dictationConstructor() : speech))
+	);
+	$effect(() => () => dictate.destroy());
 
 	/**
 	 * DID THIS WORK CHANGE AFTER IT WAS GRADED. Derived per student through the
@@ -401,13 +491,33 @@
 	const avatarByEmail = $derived(
 		new Map((data?.roster ?? []).map((e) => [e.student_email, rosterSubject(e)]))
 	);
+	/**
+	 * THE THREE QUESTIONS `bulk` USED TO ANSWER AT ONCE (0288), separated.
+	 *
+	 * They are genuinely different, and collapsing them is what put every piece
+	 * of batch machinery on a route an instructor was not grading from:
+	 *
+	 *   batchReady      may this console WRITE many students at once?
+	 *   crossClassRead  does it READ the assignment across classes?
+	 *   crossClass      is more than one class actually on screen right now?
+	 *
+	 * The last is the narrowest and is the only one a section LABEL may read: a
+	 * cross-class console whose assignment happens to be posted to one class is
+	 * one class, and naming it on every row is noise about a distinction the
+	 * grader cannot see.
+	 */
+	const batchReady = $derived(!!bulk);
+	const crossClassRead = $derived(!!bulk?.loadAcross);
 	/** More than one class on screen: the state every section label exists for. */
-	const crossClass = $derived(!!bulk && activeSections.length > 1);
+	const crossClass = $derived(crossClassRead && activeSections.length > 1);
 
 	async function load() {
-		// ONE BRANCH, at the read. Everything downstream reads `data` and
-		// `sections` without asking which one filled them.
-		if (bulk) {
+		// ONE BRANCH, at the read, and it is the METHOD rather than the object:
+		// a console given the batch capability alone still reads its own one
+		// section, which is what keeps the per-section route the per-section
+		// route. Everything downstream reads `data` and `sections` without
+		// asking which one filled them.
+		if (bulk?.loadAcross) {
 			const res = await bulk.loadAcross(item.id);
 			if (!res.ok) {
 				loadError = res.message;
@@ -560,7 +670,13 @@
 		const bus = untrack(() => presence);
 		if (!bus) return;
 		try {
-			const payload = await bus.loadPresence(item.id, bulk ? null : section.id);
+			// THE SCOPE IS THE READ, NEVER THE WRITE (0288). `null` asks for every
+			// section the caller manages and `section.id` asks for this one, so
+			// this is `crossClassRead` and not `batchReady`: a per-section console
+			// that can return a zero to its class still reads that class's
+			// presence, and keyed on the OBJECT it would silently have started
+			// asking for every class the moment batch grading reached it.
+			const payload = await bus.loadPresence(item.id, crossClassRead ? null : section.id);
 			if (payload === null) {
 				// THE DEPLOYMENT HAS NO PRESENCE. Not an empty roster and not a
 				// failure: the transport's own `PGRST202` rung is the only thing
@@ -593,7 +709,9 @@
 		const bus = presence;
 		void item.id;
 		void section.id;
-		void bulk;
+		// The SCOPE, which is what a new read is for -- and the scope is the
+		// cross-class read, not the batch write. See `loadPresence` above.
+		void crossClassRead;
 		if (!bus) {
 			presenceData = null;
 			presenceStatus = 'pending';
@@ -800,6 +918,37 @@
 		scores = { ...scores, [c.id]: points };
 		overrideOpen = { ...overrideOpen, [c.id]: false };
 		needComment = needComment.filter((id) => id !== c.id);
+	}
+
+	/**
+	 * SCORE EVERY CRITERION AT ITS BOTTOM LEVEL (0288). Mr. Pina: "I must be
+	 * able to quick return a zero."
+	 *
+	 * ONE CONTROL SERVES BOTH PATHS, and that falls out of the console's own
+	 * shape rather than being arranged: `scores` is the state the rubric panel
+	 * binds AND the state `bulkPlan` sends to everybody ticked, so scoring the
+	 * bottom row once is a zero for the open student if nobody is ticked and a
+	 * zero for thirty if the `Nothing handed in` preset is. There is no separate
+	 * batch-zero to keep in step with a single-student zero.
+	 *
+	 * IT GOES THROUGH `pickLevel`, PER CRITERION, RATHER THAN ASSIGNING
+	 * `scores`. That is not tidiness: `pickLevel` also closes the override box
+	 * and drops the criterion from `needComment`, and a zero written straight
+	 * into `scores` while an override box was open would leave a criterion
+	 * showing a level and demanding a justification for a score it no longer
+	 * has. `bottomLevelScores` is the one place the LEVEL is read.
+	 *
+	 * IT IS NOT A COMMIT AND MUST NEVER BECOME ONE. It fills the form; Return to
+	 * student still arms and still confirms, and the batch still shows its plan
+	 * first. A one-press "zero everyone" with no plan in between is the one
+	 * gesture on this surface nobody could take back.
+	 */
+	function scoreEveryCriterionAtBottom() {
+		const bottom = bottomLevelScores(rubric);
+		for (const c of rubric ?? []) {
+			const points = bottom[c.id];
+			if (typeof points === 'number') pickLevel(c, points);
+		}
 	}
 
 	function toggleOverride(c: RubricCriterion) {
@@ -1086,8 +1235,6 @@
 	// it, then ticks everyone who earned the same and commits -- and can open any
 	// of them on the way past without losing the selection.
 	// -----------------------------------------------------------------------
-	/** The presets offered, in the order they are shown. */
-	const BULK_PRESETS: BulkPreset[] = ['all', 'submitted', 'ungraded', 'none'];
 	let picked = $state<string[]>([]);
 	let batchBusy = $state(false);
 	let outcome = $state<BulkOutcome | null>(null);
@@ -1922,8 +2069,8 @@
 				{#snippet rosterRow(s: StudentWork)}
 					{@const chip = statusChip(s)}
 					{@const short = incompleteCount(s)}
-					<li class="roster-item" class:pickable={!!bulk}>
-						{#if bulk}
+					<li class="roster-item" class:pickable={batchReady}>
+						{#if batchReady}
 							<!--
 								OUTSIDE THE BUTTON, and not only because a checkbox inside a
 								button is invalid: ticking a name and opening their work are
@@ -2101,13 +2248,18 @@
 						<p class="presence-warn" data-testid="presence-stale">{PRESENCE_STALE_NOTE}</p>
 					{/if}
 				{/if}
-				{#if bulk}
+				{#if batchReady}
 					<!--
-						THE PRESETS ARE THE POINT OF THE BULK PATH. Ticking thirty boxes
+						THE PRESETS ARE THE POINT OF THE BATCH PATH. Ticking thirty boxes
 						is not faster than grading thirty students; "everyone who handed
 						in" and "everyone not graded yet" are the two selections an
 						instructor actually makes, and the second is the one they reach
 						for after a partial pass.
+
+						ON `batchReady` AND NOT ON THE GROUPING (0288): these are the same
+						two selections whether the roster below them is one class or
+						three, and keying them to the cross-class read is what kept them
+						off the route Mr. Pina grades from.
 					-->
 					<div class="pick-presets" data-testid="pick-presets">
 						<span class="pick-presets-label">Select</span>
@@ -2123,6 +2275,8 @@
 							</button>
 						{/each}
 					</div>
+				{/if}
+				{#if crossClassRead}
 					{@const grouped = groupBySection(students, activeSections, sectionOf)}
 					{#each grouped.groups as group (group.section.id)}
 						<div class="roster-group" data-testid="roster-group">
@@ -2181,6 +2335,14 @@
 						exists for. The link is unconditional because the only thing that
 						could make it conditional is a count this page does not have, and a
 						path nobody can find is a path that was not built.
+
+						IT HANGS OFF `crossClassRead` AND NEVER OFF `batchReady` (0288),
+						and that is the whole reason the two were separated rather than
+						the per-section route simply being handed the full object. This
+						branch used to be `{:else}` of `{#if bulk}`, so the moment that
+						route gained batch grading the only route to the cross-class
+						console would have disappeared from it -- a page quietly becoming
+						the page it used to link to, with the link gone.
 					-->
 					<p class="cross-class-link">
 						<!-- `.tap-44` and not a bare inline link: the prose exemption is for a
@@ -2288,9 +2450,16 @@
 						SIDE BY SIDE: the work (left) and the rubric (right) each scroll
 						on their own, so scoring never means scrolling away from what is
 						being scored. Below ~900px this collapses to one stacked column
-						(the .console.split breakpoint's own convention).
+						(the .console.split breakpoint's own convention) -- and below
+						78rem when the work is a whole ported DOCUMENT rather than a spec
+						render, which needs more of the row before two columns are worth
+						having. See `documentWork` for the measurements behind that.
 					-->
-					<div class="work-split" class:has-rubric={!!rubric?.length && !documentWork}>
+					<div
+						class="work-split"
+						class:has-rubric={!!rubric?.length}
+						class:document-work={documentWork}
+					>
 						<!--
 							THE ONE SCROLL REGION WITH NOTHING FOCUSABLE IN IT. Above the
 							breakpoint this column scrolls on its own, and its content is a
@@ -2525,6 +2694,23 @@
 															aria-label={`Comment on ${c.criterion}`}
 															bind:value={critComments[c.id]}
 														></textarea>
+														<!--
+															KEYED ON THE CRITERION ID, which is the join key for
+															every answer stored under it and is permanent -- so
+															the controller can never hand a transcript to a
+															field that has been renamed out from under it.
+														-->
+														<DictateButton
+															dictation={dictate}
+															field={`crit:${c.id}`}
+															label={`the note on ${c.criterion}`}
+															disabled={busy || batchBusy}
+															append={(text) =>
+																(critComments[c.id] = appendDictation(
+																	critComments[c.id] ?? '',
+																	text
+																))}
+														/>
 													</div>
 												{:else if critComments[c.id]}
 													<p class="score-note">{critComments[c.id]}</p>
@@ -2576,13 +2762,67 @@
 												Extra credit is not available on this deployment yet.
 											</p>
 										{/if}
+										<!--
+											THE ZERO, IN ONE GESTURE (0288). Mr. Pina: "I must be able to
+											quick return a zero or incomplete assignments."
+
+											IT SITS WITH THE SCORES, NOT WITH THE BATCH, because it is a
+											fill of this form and the batch sends this form. Put in the
+											batch bar it would read as "zero everyone", which is a
+											different and much more frightening control, and it would be
+											unavailable to the single student it is most often wanted for.
+
+											IT SAYS WHAT IT WILL DO AND NOT WHAT IT MEANS. "Score every
+											criterion at its lowest level" is checkable against the rubric
+											on screen; "Give a zero" is a claim about a total that an
+											extra-credit award on the line above can falsify.
+
+											`aria-disabled`, never `disabled`, so it can explain itself --
+											a rubric with no criteria has nothing to score and a disabled
+											control swallows the pointer event that would say so.
+										-->
+										{#if rubric?.length}
+											<div class="zero-row">
+												<button
+													type="button"
+													class="btn secondary tiny"
+													data-testid="score-bottom-levels"
+													aria-disabled={busy || batchBusy}
+													onclick={() => {
+														if (busy || batchBusy) return;
+														scoreEveryCriterionAtBottom();
+													}}
+												>
+													Score every criterion at its lowest level
+												</button>
+												<span class="zero-note">
+													Fills the rubric. Nothing is sent until you return it.
+												</span>
+											</div>
+										{/if}
 										<div class="score-total">
 											Total: {liveAwarded} / {outOf} pts{#if extraCreditReady && (extraCreditNumber ?? 0) > 0}
 												&nbsp;<span class="ec-part"
 													>({liveTotal} rubric + {extraCreditNumber} extra credit)</span
 												>{/if}
 										</div>
-										<label class="comment-label" for="grade-comment">Comment to the student</label>
+										<div class="comment-head">
+											<label class="comment-label" for="grade-comment">Comment to the student</label>
+											<!--
+												THE TRANSCRIPT IS APPENDED TO WHAT IS IN THE BOX NOW,
+												read fresh at the moment the sentence lands rather than
+												snapshotted when the button was pressed -- so anything
+												typed while the person was also speaking survives.
+												`appendDictation` never removes a character.
+											-->
+											<DictateButton
+												dictation={dictate}
+												field="comment"
+												label="the comment to the student"
+												disabled={busy || batchBusy}
+												append={(text) => (comment = appendDictation(comment, text))}
+											/>
+										</div>
 										<textarea id="grade-comment" class="comment" rows="3" bind:value={comment}></textarea>
 										{#if gradeError}<p class="feedback error">{gradeError}</p>{/if}
 										{#if gradeNotice}<p class="feedback ok">{gradeNotice}</p>{/if}
@@ -2677,7 +2917,7 @@
 										</span>
 									</div>
 
-									{#if bulk}
+									{#if batchReady}
 										<!--
 											THE BATCH, UNDER THE RUBRIC THAT FEEDS IT.
 											It is here and not in a panel of its own because the scores
@@ -3122,9 +3362,11 @@
 		text-align: left;
 	}
 	/* -------------------------------------------------------------------
-	   GRADING AT SCALE. Everything below renders only when the bulk transport
-	   is handed in, so the per-section console's box model is byte-identical
-	   to what it was.
+	   GRADING AT SCALE. Everything below renders only when a BATCH transport is
+	   handed in, so a console given none is byte-identical to what it was.
+	   Since 0288 the per-section console is given one -- the grouping and the
+	   section labels are what it is still not given, and those key on
+	   `crossClassRead`.
 	   ------------------------------------------------------------------- */
 	.visually-hidden {
 		position: absolute;
@@ -3614,6 +3856,35 @@
 			grid-template-columns: 1fr;
 		}
 	}
+	/* A WHOLE DOCUMENT NEEDS MORE OF THE ROW BEFORE TWO COLUMNS ARE WORTH
+	   HAVING, AND 78rem IS WHERE THE MEASUREMENT SAYS SO (0288).
+
+	   `column = (viewport - 444.8) * 0.5122` -- the split's own arithmetic,
+	   exact at both widths it was read at -- so 78rem (1248px) is 411px of
+	   document. On the real ported worksheet that is the flat part of the
+	   curve: 400px is 9020px tall, 510px is 7617px, and 297px is 11664px with
+	   five more inputs clipped. Below this the document stacks exactly as it
+	   did before 0288, down `:not(.has-rubric)`'s own already-measured path.
+
+	   IT RE-POINTS A COLLAPSE, IT DOES NOT DECLARE AN ARRANGEMENT. There is no
+	   `grid-template-columns`, no gap and no ratio here that could drift from
+	   the rule above; a spec render and a document lay out identically wherever
+	   both are in two columns. */
+	@media (max-width: 78rem) {
+		/* BACK TO THE FLEX COLUMN, not merely to one grid track. `has-rubric`
+		   switched `display` to grid, and the application frame below hangs the
+		   two panes' independent scrolling off that same class -- so collapsing
+		   the TRACKS alone would leave a one-column grid whose first child
+		   scrolls inside a bounded row and whose second child lands in an
+		   implicit `auto` row underneath it, overflowing the pane. Reverting
+		   `display` puts a collapsed document on exactly the path
+		   `:not(.has-rubric)` already carries, which is the path it took before
+		   0288. */
+		.work-split.has-rubric.document-work {
+			display: flex;
+			flex-direction: column;
+		}
+	}
 
 	/* --- THE APPLICATION FRAME ---------------------------------------------
 	   Above the shell's own breakpoint the room is the viewport (`.cr-app` on
@@ -3745,6 +4016,39 @@
 			flex: none;
 		}
 	}
+
+	/* THE ONE BAND THIS BREAKPOINT COULD HAVE BROKEN: 1024px to 78rem, where a
+	   ported document is STACKED (the 78rem rule above) while still carrying
+	   `has-rubric`, inside an application frame that hangs two-pane scrolling
+	   off that same class.
+
+	   Without this the frame would bound the document in a `minmax(0, 1fr)` row
+	   and scroll it there, and the rubric -- a second child of a one-track grid
+	   -- would land in an implicit `auto` row underneath and simply overflow the
+	   pane, with no scrollbar of its own and no way to reach the bottom of it.
+	   Nothing on screen reports that, and it is only reachable between two
+	   breakpoints, which is exactly the shape that ships.
+
+	   SO A COLLAPSED DOCUMENT IS TOLD IT IS ONE SCROLLER, in the same words
+	   `:not(.has-rubric)` is told it a few rules up. BOUNDED AT BOTH ENDS on
+	   purpose: unbounded, `overflow-y: visible` on `.work-col` would reach the
+	   1440px and 1920px case too and take the two panes' independent scrolling
+	   away from the arrangement this bundle exists to switch on. */
+	@media (min-width: 1024px) and (max-width: 78rem) {
+		.work-split.has-rubric.document-work {
+			min-height: 0;
+			overflow-y: auto;
+			overscroll-behavior: contain;
+			grid-template-rows: none;
+			align-items: initial;
+		}
+		.work-split.has-rubric.document-work .work-col {
+			overflow-y: visible;
+			overscroll-behavior: auto;
+			padding-right: 0;
+		}
+	}
+
 	.gate-row {
 		display: flex;
 		justify-content: space-between;
@@ -4026,11 +4330,45 @@
 		font-size: 0.72rem;
 		color: var(--text-2);
 	}
+	/* THE ZERO CONTROL. A row of its own above the total, so the button and the
+	   sentence that qualifies it are read together rather than the button being
+	   read alone. `.cr-console .btn` already carries the 44px floor (see
+	   classroom.css), so nothing here sets a height. */
+	.zero-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-1);
+		margin-top: var(--space-2);
+	}
+	.zero-note {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--text-2);
+	}
+
 	.score-total {
 		margin: 0.6rem 0;
 		font-family: var(--font-mono);
 		font-size: 0.82rem;
 		color: var(--gold);
+	}
+	/* THE LABEL AND ITS DICTATE CONTROL SHARE A ROW (0288). Stacked, the
+	   control sat between the label and the box it writes into, which reads as
+	   a third field rather than as a way of filling the second. It wraps,
+	   because the live sentence beside the button is as long as whoever is
+	   speaking -- and the label's own bottom margin is dropped here so the two
+	   sit on one baseline; it is restored by the row's gap. */
+	.comment-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-1);
+		margin-bottom: var(--space-1);
+	}
+	.comment-head .comment-label {
+		margin-bottom: 0;
 	}
 	.comment-label {
 		display: block;

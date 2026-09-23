@@ -668,6 +668,82 @@ show.
       does not raise it again.
     - What an admin has that an author does not is still OTHER APPS, never more
       detail about one person.
+    - **AN AGGREGATE OVER ONE APP AND A COLUMN OVER EVERY APP ARE TWO
+      DIFFERENT DISCLOSURES, AND `0221` IS WHERE THAT LINE IS DRAWN.**
+      `foundry_play_counts` gained `seconds_played` and `plays_prev_7d` and
+      deliberately has **NO `players` COLUMN**. The per-app door
+      (`foundry_app_play_stats`) answers a distinct player count for ONE app
+      the caller named, which is what decision 07 opened; a cross-app one
+      would let a reader SCAN a whole gallery for the apps with exactly one
+      player, and on those apps `seconds_played` IS one named student's
+      playtime. The n=1 acceptance was about somebody opening one app, never
+      about handing out the list of every app where n is 1. `0221`'s own
+      apply-time guard raises if the column ever appears, and
+      `tests/db/foundry-play-boards.test.ts` asserts the absence with the
+      per-app read as its positive control.
+  - **THE GALLERY'S RANKED SECTIONS ARE THE LEADERBOARDS, AND THERE IS NO
+    BOARD PAGE.** Reports 30 and 32b are one surface: `FOUNDRY_GALLERY_BOARDS`
+    names four orders (trending, played, hours, new), `foundryBoards` returns
+    the ones with something to say, and every one of them is `sortGallery`'s
+    OWN ranking -- so there is one comparator on the surface rather than a
+    second ranking implementation over the same counts. A new board is an arm
+    in `foundrySortScore` plus a label; it is never a new page.
+    - **"TRENDING" IS A FORMULA AND NOT A WORD:** plays in the last seven days
+      MINUS plays in the seven before that (`foundryTrendScore`). A RISE, not a
+      level -- "Most played" is already the all-time level and "Played this
+      week" is already the recent one, so a board ranking on either is a copy
+      of one of them under a different heading.
+    - **A BOARD IS SUPPRESSED WHEN ITS SIGNAL IS FLAT, and none render at or
+      below `FOUNDRY_BOARD_SIZE` apps.** On a gallery nobody has played, three
+      of the four boards rank every app at zero and a stable sort renders the
+      IDENTICAL row three times under three headings -- which looks completely
+      normal and tells the reader something false, because a leaderboard
+      implies the order was earned.
+    - **`recent` AND `new` ARE TWO DIFFERENT QUESTIONS.** `recent` is
+      `foundry_list_apps`'s own `updated_at desc`, which a metadata edit moves;
+      `new` reads `created_at`, which nothing moves. Ranking "brand new" on
+      `updated_at` puts a four-term-old app first the day its author fixed a
+      typo in its tagline.
+    - **`trending` AND `new` ARE BOARD ORDERS AND ARE NOT IN
+      `FOUNDRY_GALLERY_SORTS`**, so `isGallerySort` refuses them: seven buttons
+      in one group is a control nobody reads at 375px, and a stored or URL
+      value must not be able to put the control into a pressed state with no
+      button under it.
+  - **SEARCH IS CLIENT-SIDE, MATCHES ANY TOKEN RATHER THAN EVERY ONE, AND THAT
+    IS FORCED BY THE REPORT THAT ASKED FOR IT.** `$lib/foundry/search.ts` runs
+    over the list the route already loaded. Requiring every query token to
+    match is the usual default and makes "Cookie Clicker" find nothing, which
+    is precisely the search report 32b calls broken -- one shared token
+    surfaces "Cookie Press" and everything else is RANKING. **The tolerance is
+    DAMERAU at k = 1, not Levenshtein**: `cookei` against `cookie` is an
+    adjacent TRANSPOSITION, the commonest typing mistake there is, and plain
+    Levenshtein scores it 2. Synonyms and `pg_trgm` are named in that file with
+    their costs and are deliberately not built.
+    - **IT SEARCHES THE NAME A CARD SHOWS, NEVER THE ONE A CHOSEN DISPLAY NAME
+      REPLACED.** It reads `foundryAuthorName`, so a student who has chosen a
+      display name cannot be found by their account name -- which is the
+      chosen-identity rule applied to a surface nobody thinks of as a surface.
+      Reaching for `displayName()` instead would also make the box a
+      disclosure by probe: type a suspected address, see whether anything
+      comes back.
+    - **IT IS COMPLETE ONLY WHILE `foundry_list_apps` RETURNS EVERYTHING.**
+      There is no pagination today, so this covers the whole gallery. A limit
+      added to that function silently turns this into a search over a page,
+      which is the failure to watch for; the answer at that point is the
+      database, not a bigger client.
+  - **A PUBLISHER HAS A PAGE AND THE DOOR IS AN APP, NEVER A PERSON.**
+    `/foundry/author/<owner uuid>` mounts `FoundryAuthorPage`;
+    `foundry_author_profile` (0221) answers NULL unless the caller can already
+    see at least one of that author's apps, so a uuid naming nobody answers
+    identically and the page cannot be used to probe for a student. Its app
+    list is `foundry_list_apps(p_owner)` -- the same function the gallery calls
+    with no owner, so there is no second population rule. It projects the
+    avatar and the pathway `gauntlet_leaderboards` has shown every signed-in
+    student since 0024 and 0038 (decision 14), and refuses the address,
+    `section_id`, `role` and `preferences` by name. **The author link lives on
+    `FoundryDetail`'s author line and not on a card**: a card is itself a link,
+    and an anchor inside an anchor stops the card being clickable past the
+    name.
   - **THE RESUME WINDOW IS THE RATE LIMIT, AND IT IS WRITTEN DOWN ONCE** --
     `_foundry_play_window()`, thirty minutes. The START resumes inside it and the
     PING refuses outside it, because they are the same rule about what one
@@ -825,6 +901,96 @@ AUTHORIZATION and the ROW, never the payload. That is what moved the cap from
     moved BELOW it -- it used to 503 a storage-backed public attachment on a
     deployment with no Google credentials, refusing a file it never needed Drive
     to serve.
+
+### CLASSROOM TEAMS -- a draw that persists, and a style keyed on MEMBERSHIP
+
+**THE RANDOM PICKER AND THE TEAMS FEATURE ARE TWO THINGS AND THE FIRST IS
+EPHEMERAL ON PURPOSE.** `src/lib/classroom/picker.ts` is a pure draw over names
+and a seed; `0223` is what makes one LAST. A teacher re-rolling in front of a
+class must not be writing rows on every press of Draw again, so **saving is a
+separate deliberate press and is never a side effect of drawing** -- the same
+rule Foundry states as "preflight passing is not submission".
+
+- **TWO WAYS TO ASK FOR A DRAW, ONE DEALER.** `pickerTeams(candidates, size,
+  seed)` keeps its exact original signature and behaviour;
+  `pickerTeamsBy(candidates, mode, value, seed)` is the surface's entry point
+  and takes `'size'` or `'count'`. Both route through one private dealer via
+  `pickerTeamCount`, so **the round-robin deal cannot acquire a second
+  spelling**. Do not replace the size mode and do not change the dealing.
+  - **COUNT MODE IS CLAMPED TO THE CLASS SIZE, and the clamp is the count-mode
+    twin of the round-robin deal.** Slicing leaves one student alone; an
+    unclamped count leaves EMPTY TEAMS -- headed cards with nobody under them --
+    which reads as a broken draw rather than as a teacher asking for more teams
+    than they have students. The panel says so BEFORE the draw
+    (`picker-count-clamped`), because a clamp nobody was told about reads as the
+    control being ignored.
+- **THE ROSTER IS REFERENCED, NEVER DUPLICATED, AND THE READ LEFT JOINS IT.** A
+  `classroom_team_members` row carries an EMAIL and nothing else; the name and
+  the active flag come from `classroom_enrollments` at read time.
+  `classroom_team_board` LEFT joins and projects `still_enrolled`. **An inner
+  join here silently shrinks a team every time somebody transfers out** -- which
+  is what every presence-shaped read in this app does -- and destroys the record
+  of who worked with whom in the one artifact that held it. A team holding a
+  student who left is the state that will ACTUALLY OCCUR, so it has a word for
+  it rather than erasing itself, on the surface and in the CSV alike.
+- **ONE STUDENT, ONE TEAM PER DRAW, IS A KEY AND NOT A CHECK.**
+  `classroom_teams` carries a redundant-looking `unique (id, team_set_id)` purely
+  so `classroom_team_members` can hold a COMPOSITE foreign key against it, with
+  `primary key (team_set_id, student_email)` beside it. The invalid state is
+  unrepresentable, so no RPC re-checks it and no raw insert routes around it.
+- **THE STYLE WRITE IS KEYED ON MEMBERSHIP, NOT OWNERSHIP, AND THAT IS THE ONE
+  PREDICATE THAT DOES NOT TRANSLATE.** `tournament_set_entry_style` authorizes on
+  `tournament_entries.user_id = auth.uid()`; **a team has no `user_id`, it has
+  members, keyed by email**. `_classroom_team_member` is new code rather than a
+  translation. Any member may write, **last write wins**, and `style_updated_by`
+  records who -- a deliberate DEPARTURE from `docs/decisions/entries/30-*`, whose
+  owner/manager/transfer shape rests on members holding DIFFERENT
+  RESPONSIBILITIES for a work product. A banner is not a work product. **The
+  agreed-manager alternative is one nullable column and one branch, and is the
+  right change the day somebody reports an actual dispute**; it is not worth
+  building before then. A section MANAGER may also write, which the tournament
+  rule deliberately does not allow a host, because a teacher who posted a banner
+  to a class needs to take one down without retiring the whole draw.
+- **AUDIENCE IS STATED, NOT INHERITED: PUBLIC MEANS THE CLASS.**
+  `tournament_entry_styles` is `anon`-readable because a TV projector holds no
+  session. **A team roster names students in a class**, so its audience is the
+  section's own enrolled students and its managers and NOBODY ELSE -- never
+  `anon`, at any posting state. All three tables have RLS on with NO POLICY and
+  no client grant, so either denies on its own, and every read and write goes
+  through a definer function.
+- **THE POSTING WINDOW IS A WINDOW ON THE TEAMS RECORD, NOT A FIELD ON AN ITEM.**
+  Making a posted roster a `classroom_items` row with an end date would inherit
+  the `(item_id, student_email, block_id)` answer model for something that takes
+  no answers. Visibility is DERIVED at call time by
+  `_classroom_team_set_visible`; there is no stored flag to go stale and no
+  sweep. Post and unpost are TWO verbs, because "post until Friday" and "take it
+  down" are different intentions and a single toggle taking a timestamp makes
+  the second one an argument value.
+- **THE SEED IS STORED AND IS IN THE EXPORT.** It is what makes a draw checkable
+  rather than merely plausible, and an export is the artifact that outlives the
+  screen. A persisted draw that lost its seed is a list of names with no way to
+  tell a draw from an arrangement.
+- **THE RENDERERS ARE THE TOURNAMENT MODULE'S, CONSUMED READ-ONLY.** `accentOf`,
+  `hasStyle`, `backgroundCss` and `bannerInk` all take `EntryStyleDraft`, a
+  `Pick` that EXCLUDES `entry_id` and `tournament_id`, so they accept a team
+  today with no adapter and no extraction. `teamStyle` in
+  `$lib/classroom/teams.ts` is the one projection. **Generalizing that module off
+  `TournamentEntry` is lane D2's work and must not be done twice**; when it
+  lands, that import is the one line that moves. The ink comes from `bannerInk`
+  and is never chosen at the call site -- a student may pick any background, and
+  a second answer to "which of dark or light survives on it" is how a team ends
+  up with black text on a black gradient.
+- **NO PRESET LIST LIVES IN SQL.** Badge and flourish ids are length-bounded free
+  text, validated by the client against `BADGES` and `FLOURISHES`. A CHECK
+  constraint would be a second copy of a list D2 is moving, and the copy that
+  cannot change without a migration.
+- **THE STUDENT-FACING SURFACE IS NOT BUILT, AND ITS ABSENCE IS A LANE BOUNDARY
+  RATHER THAN AN OVERSIGHT.** The class stream is `ClassView.svelte`, mounted
+  from `src/routes/classroom/[sectionId]/+layout.svelte`. Everything a posted
+  roster and a student style editor need is in place -- the window, the
+  audience-gated read, the membership-gated write -- and the MOUNT is whoever
+  owns those two files. **Until it exists, no `classroom-updates.json` entry
+  claiming students can see teams is true.**
 
 ### WHO IS WORKING -- an instrument's silence is never a fact about a student
 
@@ -1333,6 +1499,49 @@ below; a third mount is a caller of it, never a third handler.
 - **EVERY REFUSAL IS THE SAME BODYLESS 404.** A malformed URL, an unknown app,
   an unpublished version, another app's file, a missing row and a hidden app
   are indistinguishable from outside.
+- **THE FRAME GRANTS `allow="fullscreen"` AND NOTHING ELSE, AND THE SANDBOX IS
+  A SEPARATE LEVER FROM THE PERMISSIONS POLICY.** The default allowlist for
+  `fullscreen` is `self`, no response in this repository sends a
+  Permissions-Policy header, and a bundle is cross-origin BY DESIGN -- so a
+  game's own in-document full-screen button was refused by the browser with
+  nothing on screen to say why (report 33b). Measured as a pair in Chromium with
+  the production sandbox set and a real gesture: with the attribute
+  `document.fullscreenEnabled` is true and the request resolves, without it the
+  flag is false and the request throws "Disallowed by permissions policy".
+  - **IT IS A DIFFERENT CONTROL FROM `AppStage`'s**, which is the PARENT's and
+    always worked; neither substitutes for the other, because a game that
+    repaints on going full screen can only do that from inside.
+  - **EVERY OTHER DEFAULT-`self` FEATURE IS REFUSED** -- `gamepad`, `autoplay`,
+    `camera`, `xr-spatial-tracking` and the rest -- and each is its own decision
+    with its own report behind it. A gamepad in a student's racing game silently
+    doing nothing is this same defect one feature over; it has not been reported
+    and is not fixed. `tests/foundry-iframe-permissions.test.ts` pins each
+    refusal by name, over the file with its PROSE STRIPPED -- the comment above
+    the tag explains why `allowfullscreen` was not used, so a raw read finds the
+    word it is asserting the absence of.
+- **`src/app.html` CARRIES `viewport-fit=cover`, AND THE HALF THAT MATTERS IS
+  UNVERIFIABLE HERE.** Without it iOS insets the LAYOUT VIEWPORT to the safe
+  area, so `100dvh` is already the inset box and a full-screen stage visibly
+  stops short of the edges on a notched iPhone in landscape. No container in
+  this repository has WebKit and Chromium ignores the attribute on a desktop, so
+  what was measured is what it does NOT break: 9 route/width readings at
+  607x320, 375 and 1440, every one identical with and without it, including all
+  four `env(safe-area-inset-*)` values and the computed `100dvh`. **Six
+  components read those insets** (`InstallPrompt`, `SiteFeedback`,
+  `FrcInterestForm`, `CameraCapture`, `PhotoCorrector`, `/fsp/ask`) and every
+  one adds its own padding rather than relying on a pre-inset viewport, which is
+  why the change is safe to make on that evidence. Anything claiming this was
+  verified on Safari is wrong.
+- **PREFLIGHT WARNS ABOUT A MISSING VIEWPORT META AND MUST NEVER REFUSE ONE.**
+  `htmlDeclaresViewport` reads the RAW SOURCE rather than `HtmlFacts`, and that
+  is not laziness: `HtmlFacts` is produced by two different parsers (the
+  browser's `DOMParser` and deno-dom inside `foundry-ingest`), so a field added
+  to it has to be implemented in both or the server half reads `undefined` and
+  warns about every upload ever made. Both sides are handed the same `source`,
+  so a test over it cannot differ between them. It is a WARNING because an app
+  may legitimately be desktop-only and because every app already published
+  without the tag would start failing a check it passed on the day it was
+  uploaded.
 - **THE STORAGE SHIM IS INJECTED AGAIN, AND IT IS ALSO IN THE CONTRACT.** An
   opaque origin has no storage area and the `localStorage` GETTER THROWS, so
   the first line of a generated app that reads saved state takes the page down
@@ -1774,6 +1983,115 @@ load shadows** -- so it is in `page.data` everywhere.
 
 **Storage uploads write only into the user's own `<uid>/` folder**, enforced by
 Storage RLS, in every bucket that accepts a user upload.
+
+#### IDENTITY CUSTOMIZATION -- one pure layer, two render sites, and a restraint
+
+**A PERSON'S IDENTITY STYLE IS SIX FIELDS AND `$lib/identity-style.ts` IS THE
+ONE IMPLEMENTATION OF WHAT THEY MEAN** (0220): a background, an accent, a badge,
+a flourish and a tagline. It is the tournament layer's own registries and render
+helpers with the type widened off `EntryStyle`, and
+`$lib/tournaments/entry-styles.ts` RE-EXPORTS all of it -- so `accentOf`,
+`backgroundCss`, `bannerInk`, `hasStyle`, `BADGES` and `ACCENT_PRESETS` are one
+function object each, asserted by identity rather than by equality in
+`tests/identity-style-shared.test.ts`. **Do not write a second copy under a
+profile name.** Adding a badge or a flourish means editing that module AND
+`0064` AND `0220`, in the same change.
+
+- **THE COLUMNS ARE ON `profiles`, AND 0220 ADDS NO POLICY, NO GRANT AND NO
+  FUNCTION.** `0001`'s "update own profile" / "teachers update any profile" pair
+  is the whole write gate and "select own profile" / "teachers select all
+  profiles" the whole read gate, exactly as `0038` (pathway) and `0045`
+  (tour) rely on them. A `profile_styles` table would restate all four, which
+  is a second authorization model for one person's identity. **If a change here
+  ever needs a policy of its own, the shape was wrong** --
+  `tests/db/profile-identity-style.test.ts` asserts the policy list is still
+  the four.
+- **WHICH MEANS VALIDATION IS THE DATABASE'S, AS CHECK CONSTRAINTS, NOT AN
+  RPC'S.** A tournament style has one writer that validates before it inserts;
+  a profile style is written by the student's own browser under RLS, so the
+  constraints have to be complete rather than advisory. `backgroundCss`
+  re-validates a third time where the value meets a style attribute.
+- **AN IMAGE BACKGROUND IS REFUSED ON A PROFILE, AND THAT IS A DISCLOSURE
+  DECISION RATHER THAN A CAP.** A tournament banner may carry one because its
+  URL arrives through the RPC and names a bucket the student owns a folder in.
+  A profile is written directly, so an image background is an ARBITRARY https
+  URL every viewer's browser fetches automatically, on every surface that
+  person appears on -- their IP and Referer handed to whatever host a classmate
+  named. That is `resolveFigureSrc`'s same-origin rule in its second costume.
+  Solid and gradient are colours and carry no request.
+- **ONLY THE AMBIENT FLOURISHES ARE STORABLE.** An event flourish names a moment
+  a tournament has and a profile does not. `PROFILE_FLOURISHES` is DERIVED by
+  filtering on `kind`, never typed out, and the test reconciles it against
+  0220's own constraint in both directions.
+- **THE AVATAR TAKES THE ACCENT AND NOTHING ELSE; THE BANNER TAKES THE REST.**
+  `Avatar.svelte` reads one field, as the ring it already draws -- one
+  `border-color`, no extra node, no layer, no animation -- because a roster
+  draws thirty of them and the stated performance budget is a six-to-eight-year
+  -old school desktop. `IdentityBanner.svelte` carries the background, the
+  badge, the tagline and the ambient flourish and is mounted where ONE person
+  is shown. **Do not add a background wash, a badge pip or a flourish to the
+  avatar**, and do not gate the banner on a `size` threshold: whether a surface
+  wants a banner is the surface's call, not arithmetic's.
+- **THE BANNER'S BACKGROUND IS A WASH OVER THE ROOM'S PLATE, NEVER A FILL UNDER
+  THE TEXT, AND THAT IS MEASURED.** With the colour chosen freely,
+  `bannerInk`'s two-value rule bottoms out at **1.90:1** for the name at full
+  strength; max-contrast ink reaches only 3.98 and flips 35.7% of the colour
+  space; a black scrim needs 0.60 alpha and still leaves the tagline at 3.90.
+  At a 0.22 wash the ink is the room's own `--text-1` and the worst case is
+  **5.73:1**, so legibility is a property of the construction. **`bannerInk` is
+  therefore not called by `IdentityBanner`** -- it is still right for a surface
+  that paints at full strength, which the tournament banner does. **THE 1.90:1
+  FINDING IS THE TOURNAMENT BANNER'S TOO AND IS STILL OPEN**; fixing it changes
+  what a projector renders mid-tournament and needs its own visual pass.
+- **THE BADGE TAKES THE INK, NEVER THE ACCENT, because the accent and the
+  background are TWO FREE COLOURS** and no pairing of two free colours can be
+  guaranteed to contrast (measured: 2.11:1 for a red crown on amber). A badge is
+  a glyph somebody chose to display, so it is READ and takes the text tier. The
+  accent keeps the ring and the rule, which are decoration and which do clear
+  where the shipping arrangement puts them -- 3.31:1 worst of the nine on a bare
+  plate.
+- **A CONTRAST CHECK CANNOT SEE A `::before` WASH.** `checks-visual.mjs` walks
+  ANCESTORS for a background-color, so on a washed banner it reports the PAGE
+  plate (measured 14.66:1 where the real ground governs) and passes for a reason
+  nobody checked. The washed cases go through the `identity ink clears its own
+  washed ground` probe in `tools/browser-verify/routes/avatars.mjs`, which
+  composites the real computed values, scores EVERY gradient stop rather than a
+  mean, and reports the count it examined.
+- **SOMEBODY ELSE'S STYLE TRAVELS THROUGH THEIR SURFACE'S OWN RPC, and the
+  client half is already built.** `AvatarSubject` carries the six columns
+  structurally and `rosterSubject` / `gridStudentSubject` copy them across
+  PRESERVING `undefined`, which is the pre-0220 payload and is not the same as
+  a null somebody chose. No RPC projects them yet; each is a `select` widening
+  in that subsystem's own lane, and the day one lands every consumer of
+  `Avatar.svelte` renders it with no edit -- which is what 0179/0180 did for the
+  avatar columns. `tests/identity-consumer-inheritance.test.ts` proves both
+  directions on the real consumers. It used to also assert, from `git diff`,
+  that 0289 had not edited them; that could only pass on 0289's own branch and
+  was removed (ledger 0295).
+
+**AND THE AVATAR PRESET SET IS APPEND-ONLY, FOR THE REASON `curriculum.ts`'s
+`SECTIONS` IS.** `profiles.avatar` is free text holding `preset:<id>`, so every
+id may sit in a real row and dropping or renaming one turns somebody's chosen
+picture into an initials tile with nothing saying why.
+
+- **`presetMarks` IS THE ONE IMPLEMENTATION OF "how a preset draws".**
+  `Avatar.svelte` and `ProfileMenu.svelte`'s picker each carried their own
+  `<path d={preset.d} />`, which was survivable while a preset was one path; a
+  figurative mark makes two copies a cat with eyes beside a cat without them.
+  `AvatarMark` carries an optional `fill`, `stroke`, `width` and `rotate`, and a
+  filled mark says `currentColor` rather than a hex so a preset's colour is
+  never written down twice.
+- **A PRESET'S `fg` IS A GLYPH STROKE AND CARRIES THE 3:1 GRAPHICAL FLOOR, and
+  two of the original eight did not clear it.** `gear` measured 2.57:1 and
+  `wave` **1.33:1** on the portal grounds -- a picture that was very nearly not
+  there. Repaired by `--acc-ink`'s rule, LIGHTNESS ONLY with the hue and
+  saturation held. Anything added joins the pinned 62%/65% set, which is what
+  lets the whole set clear together rather than one entry at a time.
+- **THE TIERS ARE `geometric` / `creature` / `instrument`, and `undefined` means
+  geometric** so the original eight needed no edit to gain one. The creature
+  tier is the MASCOT PACK a student asked to add to, and its marks are ORIGINAL
+  line drawings in the house format -- a photograph or a meme image is neither
+  renderable as a 24x24 mark nor ours to ship.
 
 **`preferences` is a shared JSONB blob with several independent namespaces**
 (`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`). Every write is a
@@ -3129,6 +3447,49 @@ inside the function fails closed rather than falling through to a weaker path.
       renderer or sanitizer touches. `tests/feedback-untrusted-render.test.ts`
       asserts it for this surface specifically rather than inheriting the
       typed-document argument, which does not apply here.
+    - **THERE ARE THREE DOWNLOADS AND THE ARCHIVE IS THE ONE WITH THE PICTURES
+      IN IT.** `feedbackMarkdown` is the pasteable bundle and `feedbackJson` is
+      the rows; both NAME a screenshot and neither can carry one, because
+      `rowScreenshotPath` is a key into a private bucket.
+      `buildFeedbackArchive` (`$lib/feedback/archive.ts`) is the zip:
+      index.json, and per report a report.md with the image BESIDE it, named
+      from index.json's own `files` lookup. A folder of loose screenshots a
+      reader matches up by guessing is the problem it was built to end, so **no
+      report may point at an image that is not there and no image may be an
+      orphan** -- both directions, because a silently mismatched screenshot is
+      worse than no screenshot at all.
+      - **IT REUSES `$lib/foundry/zip-write.ts` AND A SECOND ZIP WRITER IS THE
+        THING TO REFUSE.** `buildZip` is a pure writer with no Foundry knowledge
+        in it; its folder says where it was born, not what it does. It BUFFERS,
+        which is why the archive carries an image budget
+        (`FEEDBACK_ARCHIVE_IMAGE_BUDGET`) rather than whatever the filter
+        matched: the bucket's own ceiling is 8 MiB an object, so an unbounded
+        batch is hundreds of MB of input plus output in a tab.
+      - **THE BYTES COME FROM AN INJECTED TRANSPORT, ON THE ADMIN'S OWN CLIENT,
+        AND NO POLICY WAS WIDENED TO GET THEM.** `feedback media admin read`
+        (0170) already gives an admin SELECT on every object in the bucket --
+        the same policy the thumbnail on the row goes through. It is a
+        `download` and NOT the load's signed URLs, which last five minutes: a
+        queue is worked through for longer, and an export pressed after they
+        expire would produce an archive with no images and no reason on screen.
+        **Absence of the transport removes the control**, so an archive of
+        reports whose every image failed is not a thing this console can make.
+      - **EVERY REPORT STATES HOW OLD ITS BUILD IS, AND THE REFERENCE POINT IS
+        THIS BUILD'S OWN COMMIT RATHER THAN `origin/main`.** A browser has no
+        git and cannot ask a remote for its head; the two agree on a production
+        deploy and not on a preview, so `feedbackBuildAge` NAMES what it counted
+        to. It reads `virtual:site-changelog` through `await import()` at the
+        press -- the payload boundary that module's own declaration sets -- and
+        every branch is a SENTENCE: no identifier captured, a build timestamp
+        rather than a commit, and a commit the log cannot hold (it omits merges
+        AND truncates on a shallow clone, and a reader told only one of those
+        concludes the wrong thing half the time).
+      - **`README.md` SAYS WHAT THE ARCHIVE IS AND NOTHING ABOUT PROCESS.** No
+        branching, no testing, no prompt: a session already has all of it from
+        this file and the standards, and a second copy would go stale and then
+        contradict them. `tests/feedback-archive.test.ts` sweeps for it.
+      - **THE SUBMITTER TOGGLE STILL DECIDES AND THE ARCHIVE SAYS WHICH WAY.**
+        It withholds a NAME, never a report: `tried` and the screenshot stay.
 - **EVERY SURFACE THAT PERSISTS WORK USES THE ONE SAVE STATE**
   (`$lib/save-state.svelte.ts`), never a sixth hand-rolled variant. It owns the five
   states (clean, dirty, writing, saved, failed), the 800ms debounce, backoff to
@@ -4556,16 +4917,24 @@ ROOM**; both of those had passed review in the room they were written for.
 
 **AND THE SAME ARITHMETIC BINDS A TOKEN MOVE, IN THE OTHER DIRECTION: A PORTAL
 TOKEN CANNOT BE RAISED TO FIX A PORTAL GROUND UNTIL THE LIGHT ROOMS THAT READ IT
-HAVE BEEN MEASURED.** `--dim` clears only the DARKEST of the three portal
-grounds -- 5.31 on `--bg0`, **4.46** on `--bg1`, **4.24** on `--bg2` -- and the
-obvious answer, lightening it (hue 105deg and 6.7% saturation held, 53.3% ->
-56%, `#8b9687`, giving 5.76 / 4.90 / 4.60), is REFUSED: `--dim` is also read by
+HAVE BEEN MEASURED.** `--dim` clears the two DARKER of the three portal
+grounds -- 5.31 on `--bg0`, **4.52** on `--bg1`, **4.24** on `--bg2`. **THAT
+MIDDLE FIGURE READ 4.46 UNTIL 2026-09-22, WHICH IS THE SIDE OF 4.5 THAT CHANGES
+THE VERDICT**, and it was corrected only because a bundle was issued to fix a
+`--bg1` call site that turned out not to need fixing (ledger 0286). #849080 on
+#1a2a1a is 4.52 under two independent instruments -- an sRGB computation and
+Chromium's own compositor through `npm run verify:browser` -- and every OTHER
+number in this paragraph reproduced exactly, which is what says the drift is
+this one figure rather than the whole row. The FRC readings below were NOT
+re-measured. Prefer the instrument to the number: composite the two colours and
+read the pixel back. The obvious answer, lightening it (hue 105deg and 6.7%
+saturation held, 53.3% -> 56%, `#8b9687`, giving 5.76 / 4.90 / 4.60), is REFUSED: `--dim` is also read by
 five FRC components on `.frc-root`'s paper, where it already measures 2.95 /
 3.23 and the candidate takes it to **2.72 / 2.98**. Degrading a room the sweep
 did not cover, to fix one it did, is the exact mistake this whole section
 exists to name. So the two failing CALL SITES took `--text-2` (the register's
 own token for secondary labels and meta, 6.91 / 5.88 / 5.51 on the same three
-grounds) and the token did not move. **`--dim` on `--bg1` or `--bg2` is still a
+grounds) and the token did not move. **`--dim` on `--bg2` is still a
 failure waiting for a use**, and FRC's own `--frc-gray` measures 2.77 on its own
 surface, so the room needs a hook of its own before either can be fixed
 properly. That is a bundle, not a line.
@@ -4872,6 +5241,32 @@ has. `ultracode` is a Claude Code setting and is never written into a Codex prom
     and an unanswered request cost 8s a page -- one run took 305 SECONDS), so
     **text is measured in the fallback stack**; and `prefers-reduced-motion` is
     `no-preference`, so that path is not exercised.
+  - **RUN ONE PASS AT A TIME. TWO CONCURRENT ONES MANUFACTURE FINDINGS IN
+    COMPONENTS NEITHER RUN TOUCHED.** Measured: a `--route grading` run started
+    while a full pass was still going reported five findings on
+    `classroom-split-s-1-manage-1-state-compose-assignment-rubric` -- including
+    `prepare-click [[data-testid="new-post"]] 1 matched, 12 attempt(s),
+    predicate never satisfied` -- and the same spec run alone reports **18
+    measurements, 0 outside threshold**. Two vite servers and two Chromiums on
+    this container starve a click's own predicate, and the result reads exactly
+    like a regression in somebody else's code. The same applies to running a
+    pass beside `npm test`, which additionally races the DB suite's one shared
+    cluster (see the parallelism trap). **A finding on a spec your diff cannot
+    reach is a re-run before it is a bug.**
+  - **A `/dev` HARNESS THAT MOUNTS A CLASSROOM SURFACE AND DOES NOT SET
+    `--cr-measure-route` MEASURES A WIDTH THE REAL ROUTE NEVER HAS.**
+    `src/routes/classroom/+layout.svelte` sets it from `classroomMeasure(loc)`;
+    a harness that omits it falls through `classroom.css` to `--measure-page`
+    (60rem), so `main` caps at 960px where the real page takes the window
+    (`--measure-console` is `100%`). **This is not hypothetical and it shipped a
+    wrong layout**: the rubric was withheld from every ported HTML assignment on
+    the reading "the split gets 562 at 1440 and at 1920 alike", which was true
+    of `/dev/html-assignment-grading` and false of the console -- the real
+    numbers are 1009.6 and 1489.6. That harness sets it now;
+    `/dev/grading-rubric` and `/dev/grading-bulk` still do not. **Check it
+    before reading any width off a classroom harness**, and set it (plus
+    `.cr-app` where the measure is `console`) rather than injecting it at
+    measurement time, or the fixture goes on lying to the next reader.
   - **A CHECK THAT HAS NEVER FAILED HAS NOT BEEN TESTED.** `--selftest` puts
     every check to a broken fixture AND a sound one and exits non-zero if the
     instrument is wrong; `--break <preset>` injects a defect into the REAL page

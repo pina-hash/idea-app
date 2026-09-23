@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "ideacad.mjs",
-	"date": "2026-09-14T07:33:51.410Z",
-	"sha": "b884daf26522e27dd0972ea8160b636b0e1ead0a",
-	"dirty": true,
+	"date": "2026-09-22T19:58:30.099Z",
+	"sha": "bddca62fbca9a8d5a5c7ba8cf03d1eb128f00c4f",
+	"dirty": false,
 	"widths": [
 		375,
 		1440
@@ -21,25 +21,7 @@
 			"path": "/dev/ideacad",
 			"width": 375,
 			"check": "tap-target",
-			"label": "a view toolbar control"
-		},
-		{
-			"path": "/dev/ideacad",
-			"width": 375,
-			"check": "tap-target",
 			"label": "a FeatureManager row"
-		},
-		{
-			"path": "/dev/ideacad",
-			"width": 375,
-			"check": "tap-target",
-			"label": "a concept strip control"
-		},
-		{
-			"path": "/dev/ideacad",
-			"width": 375,
-			"check": "tap-target",
-			"label": "Accept and Cancel"
 		},
 		{
 			"path": "/dev/ideacad",
@@ -68,14 +50,20 @@
 		{
 			"path": "/dev/ideacad",
 			"width": 375,
+			"check": "text-contains",
+			"label": "the rail names the physics and prints a real figure"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 375,
 			"check": "order-result",
 			"label": "the console, the viewport and the view toolbar are where they claim to be"
 		},
 		{
 			"path": "/dev/ideacad",
 			"width": 375,
-			"check": "order-result",
-			"label": "the standard-view list, opened through its own control"
+			"check": "layout-sanity",
+			"label": "the IdeaCAD console"
 		},
 		{
 			"path": "/dev/ideacad",
@@ -85,33 +73,15 @@
 		},
 		{
 			"path": "/dev/ideacad",
+			"width": 375,
+			"check": "distinguishable",
+			"label": "the IDEACAD eyebrow against the saved-state word"
+		},
+		{
+			"path": "/dev/ideacad",
 			"width": 1440,
 			"check": "contrast",
 			"label": "the sentence saying what the tree does not offer"
-		},
-		{
-			"path": "/dev/ideacad",
-			"width": 1440,
-			"check": "tap-target",
-			"label": "a view toolbar control"
-		},
-		{
-			"path": "/dev/ideacad",
-			"width": 1440,
-			"check": "tap-target",
-			"label": "a FeatureManager row"
-		},
-		{
-			"path": "/dev/ideacad",
-			"width": 1440,
-			"check": "tap-target",
-			"label": "a concept strip control"
-		},
-		{
-			"path": "/dev/ideacad",
-			"width": 1440,
-			"check": "tap-target",
-			"label": "Accept and Cancel"
 		},
 		{
 			"path": "/dev/ideacad",
@@ -128,21 +98,27 @@
 		{
 			"path": "/dev/ideacad",
 			"width": 1440,
+			"check": "text-contains",
+			"label": "the rail names the physics and prints a real figure"
+		},
+		{
+			"path": "/dev/ideacad",
+			"width": 1440,
 			"check": "order-result",
 			"label": "the console, the viewport and the view toolbar are where they claim to be"
 		},
 		{
 			"path": "/dev/ideacad",
 			"width": 1440,
-			"check": "order-result",
-			"label": "the standard-view list, opened through its own control"
+			"check": "layout-sanity",
+			"label": "the IdeaCAD console"
 		},
 		{
 			"path": "/dev/ideacad",
 			"width": 1440,
-			"check": "layout-sanity",
-			"label": "the IdeaCAD console"
+			"check": "distinguishable",
+			"label": "the IDEACAD eyebrow against the saved-state word"
 		}
 	],
-	"ms": 6093
+	"ms": 5364
 }

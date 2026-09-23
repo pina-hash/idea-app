@@ -52,7 +52,12 @@
 		MAPS_KIND_LABELS,
 		blankToNull,
 		formatInches,
+		mapsResolveWallThickness,
+		mapsThicknessChain,
+		mapsThicknessReady,
+		mapsWallThicknessOk,
 		mapsAllowedChildKinds,
+		mapsEffectiveNodeContent,
 		mapsAllowedKinds,
 		mapsItemLabel,
 		mapsKindPairOk,
@@ -179,6 +184,13 @@
 	let posX = $state(formatInches(base?.position_x_in ?? null));
 	let posY = $state(formatInches(base?.position_y_in ?? null));
 	let rotation = $state(formatInches(base?.rotation_deg ?? null));
+	/* 0224. Two fields and not one: `wallThickness` is THIS container's own
+	   wall, `defaultWallThickness` is what the things INSIDE it fall back to.
+	   A building's exterior wall and the partitions between its rooms are
+	   different numbers, which is the whole reason the schema carries two
+	   columns (0224 section 1). */
+	let wallThickness = $state(formatInches(base?.wall_thickness_in ?? null));
+	let defaultWallThickness = $state(formatInches(base?.default_wall_thickness_in ?? null));
 	let elevOrder = $state(base?.elevation_order == null ? '' : String(base.elevation_order));
 	let elevH = $state(formatInches(base?.elevation_h_in ?? null));
 	let elevW = $state(formatInches(base?.elevation_w_in ?? null));
@@ -206,6 +218,14 @@
 			posX.trim(),
 			posY.trim(),
 			rotation.trim(),
+			// 0224. WITHOUT THESE TWO the form reads CLEAN after somebody types
+			// a wall thickness: the unsaved-work guard does not fire, and the
+			// number is lost on the next navigation with nothing reporting it.
+			// The signature is the ONE comparison `EditBaseline` answers
+			// `changed` from, so a field missing from it is a field the surface
+			// cannot see being edited.
+			wallThickness.trim(),
+			defaultWallThickness.trim(),
 			elevOrder.trim(),
 			elevH.trim(),
 			elevW.trim()
@@ -246,6 +266,25 @@
 	const liveX = $derived(isCompartment ? null : inchesOrNull(posX));
 	const liveY = $derived(isCompartment ? null : inchesOrNull(posY));
 	const liveRotation = $derived(isCompartment ? null : inchesOrNull(rotation));
+	/* The typed wall, as the sheet draws it while it is being typed -- the same
+	   rule the outline and the rotation already follow. An EMPTY field is null
+	   here and PlanCanvas resolves the inherited building default from the
+	   tree, so the sheet never has to be told about inheritance twice. */
+	const liveWall = $derived(isCompartment ? null : inchesOrNull(wallThickness));
+	/* What this node's DESCENDANTS would inherit, resolved from the tree, so
+	   the form can say in words what an empty field will actually do. The
+	   chain starts at the PARENT: a node's own default is for the things
+	   inside it and is never its own wall. */
+	const inheritedWall = $derived.by(() => {
+		if (isCompartment || !parentNode) return null;
+		return mapsResolveWallThickness(
+			mapsThicknessChain(data.nodes, parentNode.id, (n) =>
+				mapsEffectiveNodeContent(n, pendingFor(data.pending, 'maps_nodes', n.id))
+			)
+		).thickness;
+	});
+	/** Whether this deployment has 0224 at all -- the select ladder's capability. */
+	const wallReady = $derived(mapsThicknessReady(data));
 	/* The compartment's OWN typed slot, height and width, as the elevation
 	   sketch draws them: typing 5 into the height makes the drawn drawer
 	   taller as it is typed, the plan-sheet rule one dimension over. */
@@ -325,6 +364,22 @@
 			if (rotation.trim() !== '' && parseInches(rotation).kind !== 'value') {
 				out.push('Rotation must be a number of degrees.');
 			}
+			// The client half of 0224's CHECK, said BEFORE the request leaves
+			// the machine -- which is the whole reason `mapsWallThicknessOk`
+			// mirrors `_maps_wall_thickness_ok` rather than the database being
+			// left to answer. Zero is deliberately allowed: it means a drawn
+			// line, and it is how somebody says "no wall here" inside a
+			// building that has a default.
+			for (const [label, value] of [
+				['Wall thickness', wallThickness],
+				['Default wall thickness', defaultWallThickness]
+			] as const) {
+				if (value.trim() === '') continue;
+				const parsed = parseInches(value);
+				if (parsed.kind !== 'value' || !mapsWallThicknessOk(parsed.value)) {
+					out.push(`${label} must be a number of inches, zero or more.`);
+				}
+			}
 		} else {
 			if (elevOrder.trim() !== '' && !/^-?\d+$/.test(elevOrder.trim())) {
 				out.push('Elevation slot must be a whole number (1 is the top).');
@@ -369,6 +424,16 @@
 			position_x_in: isCompartment ? null : inchesOrNull(posX),
 			position_y_in: isCompartment ? null : inchesOrNull(posY),
 			rotation_deg: isCompartment ? null : inchesOrNull(rotation),
+			// WITHHELD ENTIRELY where the ladder says this deployment has no
+			// 0224: writing a column PostgREST does not know about fails the
+			// whole save, so a pre-migration deployment must send neither key.
+			// Compartments carry no plan geometry, so they carry no wall.
+			...(wallReady && !isCompartment
+				? {
+						wall_thickness_in: inchesOrNull(wallThickness),
+						default_wall_thickness_in: inchesOrNull(defaultWallThickness)
+					}
+				: {}),
 			elevation_order: isCompartment && /^-?\d+$/.test(elevOrder.trim()) ? Number(elevOrder.trim()) : null,
 			elevation_h_in: isCompartment ? inchesOrNull(elevH) : null,
 			elevation_w_in: isCompartment ? inchesOrNull(elevW) : null
@@ -461,6 +526,8 @@
 			posX = formatInches(node.position_x_in);
 			posY = formatInches(node.position_y_in);
 			rotation = formatInches(node.rotation_deg);
+			wallThickness = formatInches(node.wall_thickness_in ?? null);
+			defaultWallThickness = formatInches(node.default_wall_thickness_in ?? null);
 			elevOrder = node.elevation_order == null ? '' : String(node.elevation_order);
 			elevH = formatInches(node.elevation_h_in);
 			elevW = formatInches(node.elevation_w_in);
@@ -575,6 +642,7 @@
 					parent={parentNode}
 					outline={liveOutline}
 					rotationDeg={liveRotation}
+					wallThicknessIn={liveWall}
 					x={liveX}
 					y={liveY}
 					{data}
@@ -747,6 +815,59 @@
 					<input id="{formKey}-rot" type="text" inputmode="decimal" bind:value={rotation} oninput={touch} autocomplete="off" />
 				</div>
 			</div>
+
+			<!-- 0224. THE CONTROLS ARE WITHHELD ENTIRELY where the select ladder
+			     says this deployment has no 0224 yet, rather than offered and
+			     disabled: a field whose value has nowhere to go is worse than
+			     no field, and the save path withholds the keys for the same
+			     reason. `wallReady` is FALSE until a rung that NAMED the
+			     columns actually answered, so "cannot tell" never renders as
+			     "no wall". -->
+			{#if wallReady}
+				<div class="inch-row" data-testid="maps-node-walls">
+					<div class="field">
+						<label for="{formKey}-wall">Wall thickness (in)</label>
+						<input
+							id="{formKey}-wall"
+							type="text"
+							inputmode="decimal"
+							bind:value={wallThickness}
+							oninput={touch}
+							autocomplete="off"
+							aria-describedby="{formKey}-wall-note"
+						/>
+						<!-- The sentence says what an EMPTY field will actually do,
+						     which is the one thing inheritance makes unobvious. It
+						     names the resolved number rather than "the default",
+						     because a person standing in a room wants the figure. -->
+						<p class="field-note" id="{formKey}-wall-note">
+							{#if inheritedWall !== null}
+								Left empty: {formatInches(inheritedWall)} in, from the default set further up.
+							{:else}
+								Left empty: drawn as a line, with no thickness.
+							{/if}
+							Measure the room on the inside. This wall is drawn outward from that, so
+							the size you typed stays the usable space.
+						</p>
+					</div>
+					<div class="field">
+						<label for="{formKey}-wall-default">Default for what is inside (in)</label>
+						<input
+							id="{formKey}-wall-default"
+							type="text"
+							inputmode="decimal"
+							bind:value={defaultWallThickness}
+							oninput={touch}
+							autocomplete="off"
+							aria-describedby="{formKey}-wall-default-note"
+						/>
+						<p class="field-note" id="{formKey}-wall-default-note">
+							What everything inside this one uses when it has no wall thickness of its
+							own. Not this one's own wall. Set it once on the building.
+						</p>
+					</div>
+				</div>
+			{/if}
 
 		</section>
 	{/if}
@@ -1216,6 +1337,19 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(min(8.5rem, 100%), 1fr));
 		gap: 0.7rem;
+	}
+	/* The wall row's two fields carry a sentence each, so they need more
+	   measure than the three bare numbers above them; at 8.5rem the note
+	   wraps to five lines beside a one-line label. `--text-2` and not
+	   `--dim`, which clears only the darkest of the three portal grounds. */
+	[data-testid='maps-node-walls'] {
+		grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
+	}
+	.field-note {
+		margin: 0.25rem 0 0;
+		font-size: 0.78rem;
+		line-height: 1.35;
+		color: var(--text-2, var(--dim));
 	}
 	.problems {
 		margin: 0;

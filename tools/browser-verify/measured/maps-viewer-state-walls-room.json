@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "maps-viewer-state-walls-room.mjs",
+	"date": "2026-09-22T19:45:10.990Z",
+	"sha": "8932bcbfb8bd83c47f94ee114bdba6e8ee3ced32",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 18,
+	"outsideRows": [],
+	"ms": 5849
+}

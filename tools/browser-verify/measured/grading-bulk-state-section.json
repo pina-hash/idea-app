@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "grading-bulk-state-section.mjs",
+	"date": "2026-09-22T19:46:14.225Z",
+	"sha": "306a497cd00be5ac479af5eef7cc04a5a39d0424",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 40,
+	"outsideRows": [],
+	"ms": 11487
+}

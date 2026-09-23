@@ -46,16 +46,34 @@ export default {
 			none after -- which the harness reports, where a click on a control
 			that is already pressed is recorded as a step that reached no state.
 		*/
+		/*
+			EVERY SELECTOR IN THIS SPEC IS SCOPED TO `.fdy-gal-mosaic`, THE FULL
+			LIST, AND THAT IS 0221's DOING.
+
+			This fixture has ELEVEN apps, which is past `FOUNDRY_BOARD_SIZE`, so
+			the gallery now renders four ranked sections above the list -- and a
+			board is `FoundryCard` too. Unscoped, `[data-testid="fdy-card"]`
+			counted 26 where this spec means 11, `img.fdy-card-shot` counted 23
+			where it means 8, and the Recent press below never satisfied its
+			predicate because a board card carries its own figure whatever the
+			LIST is ordered by.
+
+			The scoping is a correction to the spec and not a relaxation: this
+			route is about the MOSAIC -- its column arithmetic, its cover clamp,
+			its name plate -- and it always meant the list. That the boards are
+			also on the page is a separate fact, measured by
+			`routes/foundry-boards.mjs` on a route of its own.
+		*/
 		{
 			click: '.fdy-gal-sort-btn[data-sort="recent"]',
-			until: '() => document.querySelectorAll("[data-testid=\'fdy-card-plays\']").length === 0'
+			until: '() => document.querySelectorAll(".fdy-gal-mosaic [data-testid=\'fdy-card-plays\']").length === 0'
 		},
 		/* Every fixture cover decoded, so every card has been MEASURED. Until
 		   this holds the cards sit at the 3:2 fallback and every ratio below
 		   would be reading a placeholder. */
 		{
 			waitFor:
-				'() => [...document.querySelectorAll("img.fdy-card-shot")].every((i) => i.complete)'
+				'() => [...document.querySelectorAll(".fdy-gal-mosaic img.fdy-card-shot")].every((i) => i.complete)'
 		},
 		/* SETTLE BEFORE MEASURING. A read taken straight after the images decode
 		   catches the multicol mid-balance and reports a column count the page
@@ -75,13 +93,13 @@ export default {
 		   --------------------------------------------------------------- */
 		{
 			evaluate: `() => {
-				const cards = [...document.querySelectorAll('[data-testid="fdy-card"]')];
+				const cards = [...document.querySelectorAll('.fdy-gal-mosaic [data-testid="fdy-card"]')];
 				const ars = cards.map((c) => { const b = c.getBoundingClientRect(); return b.width / b.height; });
 				const lo = Math.min(...ars), hi = Math.max(...ars);
 				return cards.length + ' cards, ratio ' + lo.toFixed(3) + ' to ' + hi.toFixed(3);
 			}`,
 			until: `() => {
-				const cards = [...document.querySelectorAll('[data-testid="fdy-card"]')];
+				const cards = [...document.querySelectorAll('.fdy-gal-mosaic [data-testid="fdy-card"]')];
 				if (cards.length < 10) return false;
 				return cards.every((c) => {
 					const b = c.getBoundingClientRect();
@@ -100,10 +118,10 @@ export default {
 		   --------------------------------------------------------------- */
 		{
 			evaluate: `() => {
-				const hs = [...document.querySelectorAll('[data-testid="fdy-card"]')].map((c) => c.getBoundingClientRect().height);
+				const hs = [...document.querySelectorAll('.fdy-gal-mosaic [data-testid="fdy-card"]')].map((c) => c.getBoundingClientRect().height);
 				return 'tallest ' + Math.round(Math.max(...hs)) + 'px, shortest ' + Math.round(Math.min(...hs)) + 'px';
 			}`,
-			until: `() => [...document.querySelectorAll('[data-testid="fdy-card"]')].every((c) => c.getBoundingClientRect().height <= 667)`
+			until: `() => [...document.querySelectorAll('.fdy-gal-mosaic [data-testid="fdy-card"]')].every((c) => c.getBoundingClientRect().height <= 667)`
 		},
 
 		/* ---------------------------------------------------------------
@@ -124,13 +142,13 @@ export default {
 		{
 			evaluate: `() => {
 				const ul = document.querySelector('.fdy-gal-mosaic');
-				const xs = [...new Set([...document.querySelectorAll('[data-testid="fdy-card"]')].map((c) => Math.round(c.getBoundingClientRect().x)))];
+				const xs = [...new Set([...document.querySelectorAll('.fdy-gal-mosaic [data-testid="fdy-card"]')].map((c) => Math.round(c.getBoundingClientRect().x)))];
 				return xs.length + ' column(s) used at ' + window.innerWidth + 'px, list scrollW ' + ul.scrollWidth + '/' + ul.clientWidth;
 			}`,
 			until: `() => {
 				const ul = document.querySelector('.fdy-gal-mosaic');
 				if (!ul || ul.scrollWidth > ul.clientWidth) return false;
-				const xs = new Set([...document.querySelectorAll('[data-testid="fdy-card"]')].map((c) => Math.round(c.getBoundingClientRect().x)));
+				const xs = new Set([...document.querySelectorAll('.fdy-gal-mosaic [data-testid="fdy-card"]')].map((c) => Math.round(c.getBoundingClientRect().x)));
 				return window.innerWidth < 768 ? xs.size === 1 : xs.size > 1;
 			}`
 		},
@@ -146,12 +164,12 @@ export default {
 		   --------------------------------------------------------------- */
 		{
 			evaluate: `() => {
-				const ps = [...document.querySelectorAll('[data-testid="fdy-card-name"]')];
+				const ps = [...document.querySelectorAll('.fdy-gal-mosaic [data-testid="fdy-card-name"]')];
 				const hoverable = matchMedia('(hover: hover) and (min-width: 48rem)').matches;
 				return ps.length + ' plate(s), opacity ' + [...new Set(ps.map((p) => getComputedStyle(p).opacity))].join('/') + ', hover-reveal ' + hoverable;
 			}`,
 			until: `() => {
-				const ps = [...document.querySelectorAll('[data-testid="fdy-card-name"]')];
+				const ps = [...document.querySelectorAll('.fdy-gal-mosaic [data-testid="fdy-card-name"]')];
 				if (!ps.length) return false;
 				const hoverable = matchMedia('(hover: hover) and (min-width: 48rem)').matches;
 				return ps.every((p) => Number(getComputedStyle(p).opacity) === (hoverable ? 0 : 1));
@@ -325,7 +343,7 @@ export default {
 	presence: [
 		{ selector: '.harness h1', label: 'page heading', expectPresent: 1 },
 		{
-			selector: '[data-testid="fdy-card"]',
+			selector: '.fdy-gal-mosaic [data-testid="fdy-card"]',
 			label: 'mosaic cards',
 			expectPresent: 11,
 			maxPresent: 11
@@ -334,7 +352,7 @@ export default {
 		   locally with no request, so it is a `<span>` and not an `<img>`. The
 		   ceiling is the assertion as much as the floor. */
 		{
-			selector: 'img.fdy-card-shot',
+			selector: '.fdy-gal-mosaic img.fdy-card-shot',
 			label: 'uploaded covers (8 of 11 apps: 7 real + 1 whose request fails)',
 			expectPresent: 8,
 			maxPresent: 8
@@ -343,13 +361,13 @@ export default {
 		   `made` had widened to swallow a failure state, which is the defect
 		   that left an app's name nowhere on its card. */
 		{
-			selector: '.fdy-card-made',
+			selector: '.fdy-gal-mosaic .fdy-card-made',
 			label: 'generated covers (the 2 apps with no cover)',
 			expectPresent: 2,
 			maxPresent: 2
 		},
 		{
-			selector: '.fdy-card-made-name',
+			selector: '.fdy-gal-mosaic .fdy-card-made-name',
 			label: 'generated covers paint the app name as their art',
 			expectPresent: 2,
 			maxPresent: 2
@@ -369,7 +387,7 @@ export default {
 		   above, which reads `(hover: hover) and (min-width: 48rem)` itself.
 		*/
 		{
-			selector: '[data-testid="fdy-card-name"]',
+			selector: '.fdy-gal-mosaic [data-testid="fdy-card-name"]',
 			label: 'name plates (present on the 9 non-generated cards at both widths)',
 			expectPresent: 9,
 			maxPresent: 9,
@@ -380,7 +398,7 @@ export default {
 		   `prepare` click that reaches this state is itself a second one, since
 		   it only holds by going from ten chips to none. */
 		{
-			selector: '[data-testid="fdy-card-plays"]',
+			selector: '.fdy-gal-mosaic [data-testid="fdy-card-plays"]',
 			label: 'play counts under Recent (none, deliberately)',
 			expectPresent: 0,
 			maxPresent: 0

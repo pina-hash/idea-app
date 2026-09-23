@@ -2,6 +2,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import PeoplePanel from '$lib/classroom/PeoplePanel.svelte';
 	import { createClassroomTransports } from '$lib/classroom/transports';
+	import { createTeamTransports } from '$lib/classroom/teams';
 	import type { SectionGrid } from '$lib/notebook-review';
 	import type { PageData } from './$types';
 
@@ -28,6 +29,16 @@
 	// re-authorized by the RPC it calls, so this is plumbing, never a boundary.
 	// svelte-ignore state_referenced_locally
 	const transports = createClassroomTransports(data.supabase);
+
+	/**
+	 * The teams substrate (0223). Same shape and the same non-boundary status as
+	 * the transports above: every one of these RPCs re-checks the caller itself,
+	 * so this is plumbing. Handing the panel a non-null object is what turns the
+	 * Saved teams area on; a deployment without 0223 is detected by the board
+	 * call answering PGRST202, not by anything decided here.
+	 */
+	// svelte-ignore state_referenced_locally
+	const teams = createTeamTransports(data.supabase);
 </script>
 
 <PeoplePanel
@@ -35,6 +46,7 @@
 	roster={data.roster}
 	removalReady={data.removalReady}
 	{transports}
+	{teams}
 	{loadNotebookGrid}
 	onchanged={() => invalidateAll()}
 	ondeleted={() => goto('/classroom')}

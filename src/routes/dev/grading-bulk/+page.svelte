@@ -340,6 +340,34 @@
 		return next.score;
 	}
 
+	/**
+	 * THE THREE SHAPES THIS PROP CAN TAKE, and the middle one is what 0288
+	 * added (see `BulkGradingTransports.loadAcross`):
+	 *
+	 *   state=single   null           -- no batch at all, the pre-0175 console
+	 *   state=section  no loadAcross  -- batch over ONE section, which is what
+	 *                                    `/classroom/<s>/item/<i>/grade` hands in
+	 *   (default)      both           -- the cross-class console
+	 *
+	 * `state=section` is the one worth having a harness for, because it is the
+	 * combination where two absences have to hold at once: the batch bar must
+	 * be THERE and the section grouping, the section labels and the widened
+	 * presence scope must not be -- and the link to the cross-class console has
+	 * to survive, which before 0288 it could not have, since it lived in the
+	 * `{:else}` of the same conditional the batch bar lived in.
+	 *
+	 * It DELETES the key rather than setting it undefined, so the fixture is a
+	 * shape the real `createBatchGradingTransports` can actually produce (it
+	 * rest-spreads the key away). A fixture its producer cannot emit is the
+	 * thing that certifies a dead branch.
+	 */
+	const bulkForState = $derived.by(() => {
+		if (viewState === 'single') return null;
+		if (viewState !== 'section') return bulkTransports;
+		const { loadAcross: _across, ...batchOnly } = bulkTransports;
+		return batchOnly;
+	});
+
 	const bulkTransports: BulkGradingTransports = {
 		async loadAcross(itemId) {
 			note('loadAcross', { itemId, sections: sections.length });
@@ -538,7 +566,7 @@
 			spec={SPEC}
 			rubric={RUBRIC}
 			transports={teacherTransports}
-			bulk={viewState === 'single' ? null : bulkTransports}
+			bulk={bulkForState}
 		/>
 	{/key}
 

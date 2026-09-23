@@ -60,6 +60,25 @@ import { ByteBudget, ZipBudgetError, inflateEntry, readCentralDirectory } from '
 import { startTestDb, type TestDb } from './db/harness';
 
 /**
+ * A VIEWPORT META, PREPENDED TO EVERY ENTRY-FILE SOURCE IN THIS FILE.
+ *
+ * `scanHtml` warns once, on `FOUNDRY_ENTRY_FILE` only, when a page does not
+ * tell a phone how wide it is (report 33b) -- so a snippet fixture like
+ * `<img src="art/logo.png">` correctly earns that warning, and every
+ * assertion here about a DIFFERENT rule's exact warning set would be counting
+ * it. The fixtures carry the tag rather than the assertions filtering it out:
+ * a fixture that is a correct page is what these tests mean by "a page", and
+ * filtering would let a real regression in the viewport rule hide inside the
+ * filter. The rule has its own test in `tests/foundry-viewport-rule.test.ts`.
+ */
+const VIEWPORT_META = '<meta name="viewport" content="width=device-width, initial-scale=1">';
+
+/** A source string that is a page, for the rule above. */
+function page(html: string): string {
+	return `${VIEWPORT_META}\n${html}`;
+}
+
+/**
  * Just enough of the chain to reach 0101, which DEFINES
  * `_classroom_deck_path_ok`. 0130 calls that same function by name for
  * `student_app_files.path`, so this is the function the Foundry CHECK
@@ -677,7 +696,7 @@ describe('a missing reference is a warning, never a failure', () => {
 		const known = new Set([FOUNDRY_ENTRY_FILE]);
 		const scan = scanHtml(
 			FOUNDRY_ENTRY_FILE,
-			'<img src="art/logo.png">',
+			page('<img src="art/logo.png">'),
 			() => factsWithImg('art/logo.png'),
 			known
 		);
@@ -690,7 +709,7 @@ describe('a missing reference is a warning, never a failure', () => {
 		const known = new Set([FOUNDRY_ENTRY_FILE, 'art/logo.png']);
 		const scan = scanHtml(
 			FOUNDRY_ENTRY_FILE,
-			'<img src="art/logo.png">',
+			page('<img src="art/logo.png">'),
 			() => factsWithImg('art/logo.png'),
 			known
 		);
@@ -702,7 +721,7 @@ describe('a missing reference is a warning, never a failure', () => {
 		// The default: a caller not passing knownPaths (an existing test, or a
 		// caller that has not computed the final file set yet) gets the old
 		// behaviour, not a warning about every reference it never checked.
-		const scan = scanHtml(FOUNDRY_ENTRY_FILE, '<img src="art/logo.png">', () =>
+		const scan = scanHtml(FOUNDRY_ENTRY_FILE, page('<img src="art/logo.png">'), () =>
 			factsWithImg('art/logo.png')
 		);
 		expect(scan.warnings).toEqual([]);
@@ -724,7 +743,12 @@ describe('a missing reference is a warning, never a failure', () => {
 			title: 'Fixture',
 			inlineScripts: []
 		};
-		const scan = scanHtml(FOUNDRY_ENTRY_FILE, '<base href="https://example.com/app/">', () => facts, known);
+		const scan = scanHtml(
+			FOUNDRY_ENTRY_FILE,
+			page('<base href="https://example.com/app/">'),
+			() => facts,
+			known
+		);
 		// One warning: the base-href notice itself, never a "missing file"
 		// warning about the base tag's own address.
 		expect(scan.warnings).toHaveLength(1);

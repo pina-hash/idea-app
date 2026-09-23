@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import HallPass from '$lib/classroom/HallPass.svelte';
 	import PeoplePanel from '$lib/classroom/PeoplePanel.svelte';
+	import type { Team, TeamSet, TeamTransports } from '$lib/classroom/teams';
 	import type {
 		ClassroomEnrollment,
 		ClassroomPeopleTransports,
@@ -145,6 +146,123 @@
 	};
 
 	// -----------------------------------------------------------------------
+	// IN-MEMORY TEAMS (0223).
+	//
+	// THIS FIXTURE IS DELIBERATELY THE HOSTILE SHAPE FOR AN `$effect`. `board`
+	// reads and writes `teamSets`, which is `$state`, and calls `note`, which
+	// appends to another `$state` array. An effect that called it without
+	// `untrack` would take a dependency on everything it touches and re-trigger
+	// itself -- `effect_update_depth_exceeded` on mount, naming nothing about
+	// the transport. The production transport is a plain Supabase call with no
+	// reactivity in it, so only a harness like this one can exercise that, which
+	// is exactly why it is written this way.
+	//
+	// It is also the one fixture where the drawn teams are STYLED, because a
+	// student style editor is not mounted anywhere yet: the render path has to
+	// be drivable before the surface that writes it exists.
+	// -----------------------------------------------------------------------
+
+	const TEAM_SEED = '305441741';
+
+	function seededTeams(): TeamSet[] {
+		const names = ROSTER.slice(0, 8);
+		const mk = (n: number, from: number, to: number, extra: Partial<Team> = {}): Team => ({
+			id: `team-${n}`,
+			team_number: n,
+			name: null,
+			accent_color: null,
+			background_type: null,
+			background_value: null,
+			badge: null,
+			flourish: null,
+			tagline: null,
+			style_updated_by: null,
+			style_updated_at: null,
+			mine: false,
+			members: names.slice(from, to).map((e, i) => ({
+				student_email: e.student_email,
+				display_name: e.display_name,
+				// ONE MEMBER HAS LEFT THE CLASS, because that is the state that
+				// will actually occur and the one a screenshot needs to show.
+				still_enrolled: !(n === 2 && i === 0)
+			})),
+			...extra
+		});
+		return [
+			{
+				id: 'set-posted',
+				label: 'Build teams',
+				seed: TEAM_SEED,
+				mode: 'count',
+				mode_value: 3,
+				created_at: '2026-09-02T17:00:00.000Z',
+				posted_at: '2026-09-02T17:05:00.000Z',
+				visible_until: null,
+				showing: true,
+				teams: [
+					mk(1, 0, 3, {
+						name: 'The Gearboxes',
+						accent_color: '#3f8f5f',
+						background_type: 'gradient',
+						background_value: ['#0e1a12', '#1c3326'],
+						tagline: 'Built to last',
+						style_updated_by: 'alvarez.a@boscotech.net',
+						style_updated_at: '2026-09-02T17:30:00.000Z'
+					}),
+					mk(2, 3, 6, { name: 'Torque Squad', accent_color: '#b06be0' }),
+					mk(3, 6, 8)
+				]
+			},
+			{
+				id: 'set-draft',
+				label: 'Lab partners',
+				seed: '48879',
+				mode: 'size',
+				mode_value: 2,
+				created_at: '2026-09-01T17:00:00.000Z',
+				posted_at: null,
+				visible_until: null,
+				showing: false,
+				teams: [mk(1, 0, 2), mk(2, 2, 4)]
+			}
+		];
+	}
+
+	let teamSets = $state<TeamSet[]>(seededTeams());
+
+	const teamTransports: TeamTransports = {
+		async board() {
+			note('teams.board');
+			return { ok: true, manages: true, sets: teamSets };
+		},
+		async save(input) {
+			note(`teams.save ${input.label} (${input.mode} ${input.modeValue})`);
+			return { ok: true, id: 'set-new' };
+		},
+		async post(setId) {
+			note(`teams.post ${setId}`);
+			teamSets = teamSets.map((s) =>
+				s.id === setId ? { ...s, posted_at: '2026-09-02T18:00:00.000Z', showing: true } : s
+			);
+			return { ok: true };
+		},
+		async unpost(setId) {
+			note(`teams.unpost ${setId}`);
+			teamSets = teamSets.map((s) =>
+				s.id === setId ? { ...s, posted_at: null, visible_until: null, showing: false } : s
+			);
+			return { ok: true };
+		},
+		async archive(setId) {
+			note(`teams.archive ${setId}`);
+			teamSets = teamSets.filter((s) => s.id !== setId);
+			return { ok: true };
+		}
+		// `style` is OMITTED: no style editor is mounted yet, and absence is
+		// what removes the controls rather than a flag.
+	};
+
+	// -----------------------------------------------------------------------
 	// THE HALL PASS, IN THE TWO STATES 0174 ADDED.
 	// -----------------------------------------------------------------------
 
@@ -260,7 +378,12 @@
 			Export the roster, email the class, and the picker. Every write transport refuses here:
 			this harness is for the four read-only tools.
 		</p>
-		<PeoplePanel section={SECTION} roster={ROSTER} transports={peopleTransports} />
+		<PeoplePanel
+			section={SECTION}
+			roster={ROSTER}
+			transports={peopleTransports}
+			teams={teamTransports}
+		/>
 	</section>
 
 	{#if log.length}

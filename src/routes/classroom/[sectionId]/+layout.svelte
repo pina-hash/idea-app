@@ -438,12 +438,24 @@
 	`.compose-card` is the wrapper Surface B's specs select the kind toggle
 	through (`.compose-card .kind-toggle`); it is `display: contents` because
 	the layer inside it is fixed and the wrapper must take no box of its own.
+
+	`units` (0218) IS THIS CLASS'S COURSE'S UNITS, the same `data.units` the
+	class view is already handed, so a teacher can file an assignment as they
+	post it instead of posting it and then filing it. It is deliberately NOT
+	every course's units: the load reads `loadCourseUnits(supabase,
+	section.course_id)`, so posting to a section of a DIFFERENT course offers
+	nothing to file into there and the composer renders no picker for it. That
+	is a narrowing of the offer and never of the rule -- `classroom_create_item`
+	decides what it will accept, and filing from the class page still works for
+	every course. Widening it would mean widening the layout LOAD, which is a
+	different bundle's file.
 -->
 {#if composing}
 	<div class="compose-card" data-testid="compose-card">
 		<ContentComposer
 			mode="create"
 			sections={data.sections}
+			units={data.units}
 			initialTargets={[data.section.id]}
 			{transports}
 			{deckTransports}

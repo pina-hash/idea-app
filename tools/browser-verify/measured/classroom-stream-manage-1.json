@@ -1,15 +1,15 @@
 {
 	"schema": 1,
 	"spec": "classroom-stream-manage-1.mjs",
-	"date": "2026-09-12T05:18:26.073Z",
-	"sha": "949480c824e4521bac612836bb2dcf7e47aca1a8",
+	"date": "2026-09-23T04:21:07.285Z",
+	"sha": "ed7598a1ebc1dab098c333ca6b91e0ad8c7a0d76",
 	"dirty": false,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
-	"measurements": 10,
+	"measurements": 14,
 	"outsideRows": [],
-	"ms": 5323
+	"ms": 12196
 }

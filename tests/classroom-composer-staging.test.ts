@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
 	applyStagedExtras,
 	composerHasWork,
@@ -10,7 +11,13 @@ import {
 	type ComposerDraft,
 	type StagedExtrasTransports
 } from '../src/lib/classroom/composer-staging';
-import { DECK_UPLOAD_MAX_ZIP_BYTES } from '../src/lib/classroom/deck';
+import {
+	DECK_ACCEPT,
+	DECK_UPLOAD_MAX_ZIP_BYTES,
+	deckUploadIssue,
+	deckUploadTypeIssue
+} from '../src/lib/classroom/deck';
+import { matchesAccept } from '../src/lib/file-drop';
 import { validateSpec } from '../src/lib/classroom/assignment-spec';
 
 /**
@@ -269,6 +276,179 @@ describe('the deck size cap', () => {
 	});
 	it('accepts one exactly at the cap', () => {
 		expect(stagedDeckIssue(file('edge.zip', DECK_UPLOAD_MAX_ZIP_BYTES))).toBeNull();
+	});
+});
+
+/**
+ * THE DECK BOX USED TO TAKE ANYTHING, AND THAT IS WHAT MR. PINA REPORTED ON
+ * 2026-09-11 ("zip files should not be automatically assumed as presentation
+ * decks"). The premise is inverted -- nothing sniffs a file and routes it to
+ * the deck -- and the real defect is worse than the one described:
+ * `stagedDeckIssue` was `deckUploadSizeIssue(file.size)` and nothing else, so
+ * a PNG dropped on the deck box staged happily, reported "Deck ready", and
+ * failed server-side after Post.
+ *
+ * WHY THIS EARNS A TEST rather than a harness drive. The two paths into the
+ * box are a PICKER and a DROP, and their disagreement is the whole defect: the
+ * `<input>` carried `accept` and the `use:dropTarget` beside it did not, so
+ * the picker filtered and the drop did not, and NEITHER of them is visible
+ * from the other. A drop path that silently re-widened would look exactly like
+ * one that works, because the picker would still behave. So the two are
+ * asserted against the SAME predicate here, from the same constant.
+ *
+ * THE POSITIVE CONTROL IS IN EVERY HALF. A gate that refuses everything,
+ * including the zip it exists to admit, passes every refusal assertion it
+ * makes.
+ */
+describe('what the deck box will take', () => {
+	/** A file as a browser really hands one over, type included. */
+	function named(name: string, type: string, bytes = 1024): File {
+		return new File([new Uint8Array(bytes)], name, { type });
+	}
+
+	it('takes a zip -- the POSITIVE CONTROL for every refusal below', () => {
+		expect(deckUploadTypeIssue(named('deck.zip', 'application/zip'))).toBeNull();
+		expect(stagedDeckIssue(named('deck.zip', 'application/zip'))).toBeNull();
+	});
+
+	it('takes a zip whose type the platform could not determine', () => {
+		// `File.type` is legitimately EMPTY, which is the norm for a file
+		// dragged off some desktops. Keying on the type alone would refuse an
+		// ordinary deck.
+		expect(stagedDeckIssue(named('deck.zip', ''))).toBeNull();
+	});
+
+	it("takes Windows Explorer's spelling of a zip", () => {
+		// `application/x-zip-compressed`, which is what Explorer writes and
+		// which an allowlist of `application/zip` alone would refuse.
+		expect(stagedDeckIssue(named('deck.zip', 'application/x-zip-compressed'))).toBeNull();
+	});
+
+	it('takes a zip whose EXTENSION is the only clue, even with a wrong type', () => {
+		expect(stagedDeckIssue(named('deck.zip', 'application/octet-stream'))).toBeNull();
+	});
+
+	it('REFUSES a PNG, naming the file and saying what to do instead', () => {
+		const issue = stagedDeckIssue(named('diagram.png', 'image/png'));
+		expect(issue).toBeTruthy();
+		expect(issue).toContain('diagram.png');
+		expect(issue).toContain('not a zip');
+		// The sentence is actionable, not just a refusal: a picture belongs on
+		// the item as a file.
+		expect(issue).toContain('attach it as a file');
+	});
+
+	it('refuses a PDF and a bare folder-ish name too', () => {
+		expect(stagedDeckIssue(named('handout.pdf', 'application/pdf'))).toBeTruthy();
+		expect(stagedDeckIssue(named('Deck', ''))).toBeTruthy();
+	});
+
+	it('answers the TYPE first when a file is both wrong and oversize', () => {
+		// "Remove large media from the deck and upload it again" is useless
+		// advice about a photograph -- it describes work on a deck the person
+		// does not have. The more fundamental refusal is the actionable one.
+		const huge = named('photo.png', 'image/png', DECK_UPLOAD_MAX_ZIP_BYTES + 1);
+		expect(stagedDeckIssue(huge)).toContain('not a zip');
+		expect(stagedDeckIssue(huge)).not.toContain('MB limit');
+	});
+
+	it('still refuses an oversize ZIP on size, so the type gate did not swallow the cap', () => {
+		const issue = stagedDeckIssue(named('big.zip', 'application/zip', DECK_UPLOAD_MAX_ZIP_BYTES + 1));
+		expect(issue).toContain('MB limit');
+	});
+
+	/**
+	 * THE PARITY CLAIM, WHICH IS THE ONE THAT MATTERS.
+	 *
+	 * The drop path filters with `matchesAccept(f, DECK_ACCEPT)` and the picker
+	 * path answers with `stagedDeckIssue`. If those two ever disagree about a
+	 * file, one of the two doors takes something the other refuses -- which is
+	 * precisely the state this bundle found the box in. Asserted over a corpus
+	 * rather than a spot check, with the case count pinned so a corpus that
+	 * generated nothing cannot pass.
+	 */
+	describe('the drop and the picker agree, file for file', () => {
+		const CORPUS: { label: string; file: File }[] = [
+			{ label: 'a zip', file: named('deck.zip', 'application/zip') },
+			{ label: 'a typeless zip', file: named('deck.zip', '') },
+			{ label: "Explorer's zip", file: named('d.zip', 'application/x-zip-compressed') },
+			{ label: 'an uppercase extension', file: named('DECK.ZIP', '') },
+			{ label: 'a PNG', file: named('diagram.png', 'image/png') },
+			{ label: 'a JPEG', file: named('photo.jpg', 'image/jpeg') },
+			{ label: 'a PDF', file: named('handout.pdf', 'application/pdf') },
+			{ label: 'an HTML file', file: named('index.html', 'text/html') },
+			{ label: 'a JSON spec', file: named('spec.json', 'application/json') },
+			{ label: 'no extension at all', file: named('Deck', '') }
+		];
+
+		it('every case in the corpus gets the same answer from both doors', () => {
+			let accepted = 0;
+			let refused = 0;
+			for (const { label, file: f } of CORPUS) {
+				const dropTakesIt = matchesAccept(f, DECK_ACCEPT);
+				const pickerTakesIt = deckUploadTypeIssue(f) === null;
+				expect(dropTakesIt, `${label}: drop and picker disagree`).toBe(pickerTakesIt);
+				if (dropTakesIt) accepted += 1;
+				else refused += 1;
+			}
+			// BOTH counts, so neither an all-accept nor an all-refuse gate can
+			// satisfy the agreement assertion above vacuously.
+			expect(accepted).toBe(4);
+			expect(refused).toBe(6);
+			expect(accepted + refused).toBe(CORPUS.length);
+		});
+	});
+
+	it('deckUploadIssue is what stagedDeckIssue answers, so there is one rule and not two', () => {
+		for (const f of [
+			named('deck.zip', 'application/zip'),
+			named('diagram.png', 'image/png'),
+			named('big.zip', 'application/zip', DECK_UPLOAD_MAX_ZIP_BYTES + 1)
+		]) {
+			expect(stagedDeckIssue(f)).toBe(deckUploadIssue(f));
+		}
+	});
+});
+
+/**
+ * AND THE COMPOSER ACTUALLY WIRES BOTH DOORS TO IT.
+ *
+ * The three assertions above are about `deck.ts`. This one is about the
+ * component, and it is a SOURCE sweep rather than a mount because what is
+ * being asserted is the presence of an argument in a Svelte action's options
+ * object -- `tests/dom/` can mount the component but cannot see which options
+ * `use:dropTarget` was constructed with, and a drop synthesized against it
+ * would be asserting `file-drop`'s own filtering, which
+ * `tests/classroom-file-drop.test.ts` already owns.
+ */
+describe('the composer hands the picker rule to the drop', () => {
+	const src = readFileSync('src/lib/classroom/ContentComposer.svelte', 'utf8');
+	/** The deck box's own `use:dropTarget` options object. */
+	const deckDrop = (() => {
+		const at = src.indexOf('onfiles: onDeckDropFiles');
+		expect(at, 'the deck box drop target moved or was renamed').toBeGreaterThan(-1);
+		return src.slice(at, at + 400);
+	})();
+
+	it('passes `accept`, built from DECK_ACCEPT', () => {
+		expect(deckDrop).toContain('accept: (f) => matchesAccept(f, DECK_ACCEPT)');
+	});
+
+	it('passes `onrejected`, so a refused drop is not a silence', () => {
+		expect(deckDrop).toContain('onrejected: onDeckDropRejected');
+	});
+
+	it("the refusal handler reads stagedDeckIssue rather than writing a second sentence", () => {
+		const at = src.indexOf('function onDeckDropRejected');
+		expect(at).toBeGreaterThan(-1);
+		expect(src.slice(at, at + 260)).toContain('stagedDeckIssue(file)');
+	});
+
+	it('the input `accept` is the same constant and not a second literal', () => {
+		expect(src).toContain('accept={DECK_ACCEPT}');
+		// The literal it replaced must be gone from the component, or there are
+		// two statements of what a deck is again.
+		expect(src).not.toContain("accept=\".zip,application/zip");
 	});
 });
 

@@ -17,6 +17,7 @@
  * row carries a role, a pathway and a preferences blob it does not.
  */
 import { avatarSource, initials, type AvatarSource } from '$lib/profile';
+import type { BackgroundType, BackgroundValue, IdentityStyle } from '$lib/identity-style';
 
 /**
  * The fields an avatar actually needs. Anything with these can be rendered,
@@ -31,6 +32,75 @@ export interface AvatarSubject {
 	display_name?: string | null;
 	full_name?: string | null;
 	email?: string | null;
+	/**
+	 * THE SIX IDENTITY-STYLE COLUMNS (0220), READ THE SAME STRUCTURAL WAY THE
+	 * TWO AVATAR COLUMNS ARE, AND ABSENT FOR EXACTLY THE SAME REASON.
+	 *
+	 * This is the half of report 15 that is NOT free. The viewer's OWN style
+	 * arrives through `PROFILE_SELECT` in `$lib/profile.ts`, which is one
+	 * select this bundle owns, so every surface rendering the signed-in person
+	 * inherited it with no edit. SOMEBODY ELSE'S style cannot come that way:
+	 * a roster row is not a profile row, and `profiles` is own-row-or-admin, so
+	 * a classmate's style can only reach a surface through whichever SECURITY
+	 * DEFINER RPC already feeds it -- `classroom_section_roster`,
+	 * `notebook_get_section_grid`, the leaderboard's own function. Each of
+	 * those is a migration in that subsystem's own lane.
+	 *
+	 * SO THE PIPE IS BUILT AND THE TAP IS NOT TURNED, DELIBERATELY. These
+	 * fields are optional and read off a widened row shape, so the day one of
+	 * those RPCs projects the six columns, the adapters below pick them up and
+	 * every consumer of `Avatar.svelte` renders them WITH NO EDIT TO ANY
+	 * CONSUMER -- which is precisely how 0179 and 0180 lit up the avatar
+	 * columns on six surfaces that were read-only to the bundle that did it.
+	 * Until then every subject resolves to a null style and renders exactly as
+	 * it renders today. `tests/identity-consumer-inheritance.test.ts` proves
+	 * both halves of that sentence on the real components.
+	 *
+	 * THERE IS NO CAPABILITY FLAG HERE, and that is the same call
+	 * `rosterSubject` already made about `avatar`: an absent column and "chose
+	 * no accent" render the identical plain identity, so a flag would report
+	 * "unavailable" about the state almost everybody is in. The viewer's own
+	 * profile is the one place the distinction is real, because that is the
+	 * only place a CONTROL is offered -- and `profileStyleReady` carries it
+	 * there.
+	 */
+	style_background_type?: BackgroundType | null;
+	style_background_value?: BackgroundValue | null;
+	style_accent_color?: string | null;
+	style_badge?: string | null;
+	style_flourish?: string | null;
+	style_tagline?: string | null;
+}
+
+/**
+ * ANY SUBJECT'S IDENTITY STYLE, or null when it carries none. The mirror of
+ * `profileStyle` in `$lib/profile.ts`, and deliberately a second small
+ * function rather than a cast: a subject is a narrower shape than a profile
+ * and claiming otherwise is what `subjectAvatarRaw` already refuses to do.
+ *
+ * It answers NULL rather than an all-null style object, so `{#if style}` is
+ * the whole of what a render site needs and no component has to ask
+ * `hasStyle` before it decides whether to paint anything.
+ */
+export function subjectStyle(subject: AvatarSubject | null | undefined): IdentityStyle | null {
+	if (!subject) return null;
+	const style: IdentityStyle = {
+		background_type: subject.style_background_type ?? null,
+		background_value: subject.style_background_value ?? null,
+		accent_color: subject.style_accent_color ?? null,
+		badge: subject.style_badge ?? null,
+		flourish: subject.style_flourish ?? null,
+		tagline: subject.style_tagline ?? null
+	};
+	return (
+		style.background_type ||
+		style.accent_color ||
+		style.badge ||
+		style.flourish ||
+		style.tagline
+	)
+		? style
+		: null;
 }
 
 /**
@@ -185,13 +255,14 @@ export function rosterSubject(row: {
 	display_name?: string | null;
 	avatar?: string | null;
 	avatar_url?: string | null;
-}): AvatarSubject {
+} & Partial<IdentityStyleColumns>): AvatarSubject {
 	return {
 		avatar: row.avatar ?? null,
 		avatar_url: row.avatar_url ?? null,
 		display_name: row.display_name ?? null,
 		full_name: null,
-		email: row.student_email ?? null
+		email: row.student_email ?? null,
+		...styleColumnsOf(row)
 	};
 }
 /**
@@ -228,13 +299,47 @@ export function gridStudentSubject(row: {
 	email?: string | null;
 	avatar?: string | null;
 	avatar_url?: string | null;
-}): AvatarSubject {
+} & Partial<IdentityStyleColumns>): AvatarSubject {
 	return {
 		avatar: row.avatar ?? null,
 		avatar_url: row.avatar_url ?? null,
 		display_name: row.name ?? null,
 		full_name: null,
-		email: row.email ?? null
+		email: row.email ?? null,
+		...styleColumnsOf(row)
+	};
+}
+
+/**
+ * The six column names as they appear on a ROW, which is not the same shape as
+ * `IdentityStyle` (whose keys are the bare field names). Stated once so the
+ * two adapters above and any third one cannot spell them differently.
+ */
+export interface IdentityStyleColumns {
+	style_background_type: BackgroundType | null;
+	style_background_value: BackgroundValue | null;
+	style_accent_color: string | null;
+	style_badge: string | null;
+	style_flourish: string | null;
+	style_tagline: string | null;
+}
+
+/**
+ * Carries the six columns across from a row, PRESERVING UNDEFINED. It copies
+ * rather than coalescing to null on purpose: `undefined` is what a pre-0220
+ * RPC payload answers for these keys, and flattening it to null here would
+ * make an unapplied migration indistinguishable from a person who chose
+ * nothing -- which is survivable on a render surface and is not on the one
+ * that offers a control.
+ */
+function styleColumnsOf(row: Partial<IdentityStyleColumns>): Partial<IdentityStyleColumns> {
+	return {
+		style_background_type: row.style_background_type,
+		style_background_value: row.style_background_value,
+		style_accent_color: row.style_accent_color,
+		style_badge: row.style_badge,
+		style_flourish: row.style_flourish,
+		style_tagline: row.style_tagline
 	};
 }
 

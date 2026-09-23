@@ -24,7 +24,7 @@ import type { ClassroomItemKind } from '$lib/classroom/classroom';
 import type { CheckInDraft } from '$lib/classroom/class-check-ins';
 import { rubricFromSpec } from '$lib/classroom/assignment-spec';
 import type { AssignmentSpec, RubricCriterion } from '$lib/classroom/assignment-spec';
-import { deckUploadSizeIssue, type DeckTransports, type DeckUploadProgress } from '$lib/classroom/deck';
+import { deckUploadIssue, type DeckTransports, type DeckUploadProgress } from '$lib/classroom/deck';
 import { DEFAULT_ITEM_LAYOUT, sameLayout, type ItemLayout } from '$lib/classroom/attachments';
 
 /**
@@ -83,9 +83,20 @@ export function stagedSpecKind(kind: ClassroomItemKind): 'assignment' | 'referen
  * long someone waits. Telling them while they are picking the file is the only
  * moment the answer is useful; telling them after they have filled out the rest
  * of the form and pressed Post is the moment it is most annoying.
+ *
+ * THE SAME IS NOW TRUE OF THE KIND OF FILE, AND IT USED NOT TO BE. This
+ * returned `deckUploadSizeIssue(file.size)` and nothing else -- no extension
+ * check and no `File.type` check -- so a PNG dropped on the deck box staged
+ * happily, reported "Deck ready", and failed server-side after Post. That is
+ * what Mr. Pina's 2026-09-11 report is about, from the other end.
+ *
+ * IT DELEGATES RATHER THAN DECIDING. `deckUploadIssue` is in `deck.ts` beside
+ * the size cap and the `accept` string, because what a deck is made of is a
+ * fact about the FEATURE and the item page has a second deck door of its own.
+ * A predicate written out here would be a rule the other door could not reach.
  */
 export function stagedDeckIssue(file: File): string | null {
-	return deckUploadSizeIssue(file.size);
+	return deckUploadIssue(file);
 }
 
 /**
