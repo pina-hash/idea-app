@@ -35,7 +35,7 @@
  */
 import type { ExecutorContext } from './context';
 import type { BrepKernel } from '../../kernel/remus';
-import type { EdgeRef, FeatureHelp, FeatureOf, Selection, Vec3 } from '../types';
+import type { BodyProjection, EdgeProjection, EdgeRef, FaceProjection, Feature, FeatureFix, FeatureHelp, FeatureOf, Selection, Vec3 } from '../types';
 import { edgeId, surfaceKey } from '../naming';
 import { dot, unit, vector } from '../math';
 import { carryBySurface, finite, json, positive } from './core';
@@ -154,6 +154,23 @@ export const featureOfName = (name: string) => name.split('.')[0];
 /** The round or bevel feature a face name was made by, when it is a blend face. */
 export const blendFeatureOf = (name: string | undefined) => (name && /^[^.]+\.(blend|bevel|corner)\./.test(name) ? featureOfName(name) : undefined);
 const figure = (v: number) => `${floorFigure(v) === v ? v : Number(v.toFixed(4))} in`;
+
+/**
+ * THE BRIDGE until the engine copies `help` onto the feature row: the size fix
+ * read back out of the one sentence `refuse` writes for it, exactly, because
+ * `figure` wrote the numbers. Any other sentence, or a feature that is not the
+ * row's blend, is null. Once the row carries `help`, callers read that first.
+ */
+export function sizeFixFromSentence(row: { id: string; message?: string }, feature: Feature | undefined): FeatureFix | null {
+	const m = /The largest that fits here is ((\d+(?:\.\d+)?) in(?: (to|by) (\d+(?:\.\d+)?) in)?)\.$/.exec(row.message ?? '');
+	if (!m || !feature || feature.id !== row.id) return null;
+	const a = Number(m[2]), b = m[4] !== undefined ? Number(m[4]) : undefined;
+	let patch: Record<string, unknown>;
+	if (feature.type === 'fillet' && (m[3] === undefined || (m[3] === 'to' && feature.variable))) patch = { radius: a, ...(feature.variable && b !== undefined ? { variable: { ...feature.variable, end: b } } : {}) };
+	else if (feature.type === 'chamfer' && (m[3] === undefined || m[3] === 'by')) patch = { distance: a, ...(b !== undefined ? { distance2: b } : {}) };
+	else return null;
+	return { label: `Use ${m[1]}`, value: a, commands: [{ type: 'set-feature', id: row.id, patch }] };
+}
 
 /* Kernel geometry the refusal reads: which faces meet along an edge and at a corner, and whether two of them are tangent there. */
 type Vertexed = { ends: Map<number, [Vec3, Vec3]>; owners: Map<number, number[]>; faces: number[] };
@@ -331,6 +348,161 @@ function runBlend(ctx: ExecutorContext, f: Blend) {
 }
 export function fillet(ctx: ExecutorContext, f: FeatureOf<'fillet'>) { runBlend(ctx, f); }
 export function chamfer(ctx: ExecutorContext, f: FeatureOf<'chamfer'>) { runBlend(ctx, f); }
+
+/* -------------------------------------------------------------------------
+ * EDGE SETS OVER THE PROJECTION: one pick grown into the edges a round wants
+ * ---------------------------------------------------------------------- */
+
+/**
+ * PURE, OVER `BodyProjection`, NO KERNEL. These are what a selection
+ * accelerator offers after one pick (research section 4): the tangent chain,
+ * the face's loop, every edge a feature made, every edge of the body, and the
+ * convex or concave ones. They run on the main thread from the projection the
+ * viewport already holds, so a hover preview never waits on the worker.
+ *
+ * A face's normal at a point is read off its OWN display mesh (per-face
+ * tessellation keeps sharp normals, which is why it exists), at the mesh
+ * vertex nearest the point; the direction INTO a face from an edge is toward
+ * the centroid of that face's triangle nearest the edge's middle. Convexity is
+ * then the dihedral sign: from an edge, stepping into one face goes below the
+ * other face's tangent plane on a convex edge (a box's rim) and above it on a
+ * concave one (the inside corner of an L bracket).
+ */
+export type EdgeSetKind = 'chain' | 'loop' | 'feature' | 'body' | 'convex' | 'concave';
+/** `unknown` when the projection carries no geometry to read it from; nothing may treat that as smooth. */
+export type EdgeShape = 'convex' | 'concave' | 'smooth' | 'unknown';
+type PV = { positions: ArrayLike<number>; normals: ArrayLike<number>; indices: ArrayLike<number> };
+const at3 = (a: ArrayLike<number>, i: number): Vec3 => [a[3 * i], a[3 * i + 1], a[3 * i + 2]];
+const dist2 = (a: Vec3, b: Vec3) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+const sub3 = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const len3 = (a: Vec3) => Math.hypot(a[0], a[1], a[2]);
+const norm3 = (a: Vec3): Vec3 | null => { const n = len3(a); return n > 1e-12 ? [a[0] / n, a[1] / n, a[2] / n] : null; };
+/** A face's outward normal at the mesh vertex nearest `p`; a plane's own normal when it has no mesh. */
+export function faceNormalNear(face: FaceProjection, p: Vec3): Vec3 | null {
+	const m = face as PV, n = m.positions.length / 3;
+	if (!n) return face.kind === 'plane' ? norm3(face.normal) : null;
+	let best = 0, bd = Infinity;
+	for (let i = 0; i < n; i++) { const d = dist2(at3(m.positions, i), p); if (d < bd) { bd = d; best = i; } }
+	return norm3(at3(m.normals, best));
+}
+/** The unit direction from `p` on an edge into `face`, square to the edge's tangent `t`: toward the centroid of the face's triangle nearest `p`. */
+function intoFace(face: FaceProjection, p: Vec3, t: Vec3): Vec3 | null {
+	const m = face as PV;
+	let c: Vec3 | null = null, bd = Infinity;
+	for (let i = 0; i + 2 < m.indices.length; i += 3) {
+		const a = at3(m.positions, m.indices[i]), b = at3(m.positions, m.indices[i + 1]), d = at3(m.positions, m.indices[i + 2]);
+		const g: Vec3 = [(a[0] + b[0] + d[0]) / 3, (a[1] + b[1] + d[1]) / 3, (a[2] + b[2] + d[2]) / 3], q = dist2(g, p);
+		if (q < bd) { bd = q; c = g; }
+	}
+	if (!c) c = face.center;
+	const w = sub3(c, p), along = dot(w, t);
+	return norm3([w[0] - along * t[0], w[1] - along * t[1], w[2] - along * t[2]]);
+}
+/** The two ends of an edge's polyline and the tangent at each, pointing along the edge from its first point. */
+export function edgeEnds(edge: EdgeProjection): { a: Vec3; b: Vec3; ta: Vec3 | null; tb: Vec3 | null; closed: boolean } {
+	const p = edge.points, n = p.length / 3;
+	if (n < 2) return { a: edge.mid, b: edge.mid, ta: null, tb: null, closed: true };
+	const a = at3(p, 0), b = at3(p, n - 1), scale = Math.max(1e-9, edge.length);
+	/* A chord leaves an arc at half its own angle off the tangent (6.6 degrees on a 0.3 in round sampled at 0.002 in), so with three points the one-sided second-order difference is used, which is within about a degree. */
+	const end = (i0: number, i1: number, i2: number, sign: number): Vec3 | null => n < 3 ? norm3(sub3(at3(p, i1), at3(p, i0)).map((x) => x * sign) as Vec3) : norm3([0, 1, 2].map((k) => sign * (-3 * p[3 * i0 + k] + 4 * p[3 * i1 + k] - p[3 * i2 + k]) / 2) as Vec3);
+	return { a, b, ta: end(0, 1, 2, 1), tb: end(n - 1, n - 2, n - 3, -1), closed: len3(sub3(a, b)) < 1e-6 * Math.max(1, scale) };
+}
+/** The edge's tangent at its middle, from the polyline segment nearest `mid`. */
+function midTangent(edge: EdgeProjection): Vec3 | null {
+	const p = edge.points, n = p.length / 3;
+	let best: Vec3 | null = null, bd = Infinity;
+	for (let i = 0; i + 1 < n; i++) {
+		const a = at3(p, i), b = at3(p, i + 1), g: Vec3 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], d = dist2(g, edge.mid);
+		if (d < bd) { const t = norm3(sub3(b, a)); if (t) { bd = d; best = t; } }
+	}
+	return best;
+}
+/** Two unit directions within 3 degrees of parallel, either sense: loose enough for a sampled polyline's end, far tighter than any corner a student draws. */
+const PARALLEL = Math.cos(3 * Math.PI / 180);
+/**
+ * The faces beside each edge, read from `FaceProjection.edges` and never from
+ * `EdgeProjection.faces`: the projection builds the latter by splitting a
+ * joined key on `|`, which also splits a round's own name (`f1.blend.A|B`),
+ * so beside a round it lists pieces of names rather than faces.
+ */
+export function facesByEdge(body: BodyProjection): Map<string, FaceProjection[]> {
+	const out = new Map<string, FaceProjection[]>();
+	for (const f of body.faces) for (const id of f.edges) out.set(id, [...(out.get(id) ?? []), f]);
+	return out;
+}
+/** One spelling of an edge id whichever way its face names were joined: the pieces between `|`, sorted, and the ordinal. */
+export const edgeKey = (id: string) => { const m = /^edge:(.*?)(#\d+)?$/.exec(id); return m ? `${m[1].split('|').sort().join('|')}${m[2] ?? ''}` : id; };
+/** Convex, concave, or smooth (the faces meet without a corner, as beside a round). */
+export function edgeShape(body: BodyProjection, edge: EdgeProjection, beside: Map<string, FaceProjection[]> = facesByEdge(body)): EdgeShape {
+	const [fa, fb] = beside.get(edge.id) ?? [];
+	const t = midTangent(edge);
+	if (!fa || !fb || !t) return 'unknown';
+	const na = faceNormalNear(fa, edge.mid), nb = faceNormalNear(fb, edge.mid), da = intoFace(fa, edge.mid, t), db = intoFace(fb, edge.mid, t);
+	if (!na || !nb || !da || !db) return 'unknown';
+	if (Math.abs(dot(na, nb)) > PARALLEL) return 'smooth';
+	const s = dot(da, nb) + dot(db, na);
+	return s < -1e-6 ? 'convex' : s > 1e-6 ? 'concave' : 'smooth';
+}
+/** Edges reached from `seed` across shared ends where the run carries on smoothly: the edges' tangents line up, and every face beside the next edge is a face beside this one or meets one of them without a crease. The projection's twin of the kernel's `tangentChain`. */
+export function tangentChainEdges(body: BodyProjection, seed: string): string[] {
+	const byId = new Map(body.edges.map((e) => [e.id, e])), start = byId.get(seed);
+	if (!start) return [];
+	const ends = new Map(body.edges.map((e) => [e.id, edgeEnds(e)])), beside = facesByEdge(body);
+	const out: string[] = [], seen = new Set<string>(), queue = [seed];
+	const tol = 1e-5 * Math.max(1, ...body.bounds.map(Math.abs));
+	while (queue.length) {
+		const id = queue.shift()!; if (seen.has(id)) continue; seen.add(id); out.push(id);
+		const en = ends.get(id)!, mine = beside.get(id) ?? [];
+		if (en.closed) continue;
+		for (const [p, t] of [[en.a, en.ta], [en.b, en.tb]] as [Vec3, Vec3 | null][]) {
+			if (!t) continue;
+			for (const g of body.edges) {
+				if (seen.has(g.id)) continue;
+				const gn = ends.get(g.id)!; if (gn.closed) continue;
+				const tg = len3(sub3(gn.a, p)) < tol ? gn.ta : len3(sub3(gn.b, p)) < tol ? gn.tb : null;
+				if (!tg || Math.abs(dot(t, tg)) < PARALLEL) continue;
+				const agree = (beside.get(g.id) ?? []).every((B) => mine.includes(B) || mine.some((A) => { const na = faceNormalNear(A, p), nb = faceNormalNear(B, p); return !!na && !!nb && Math.abs(dot(na, nb)) > PARALLEL; }));
+				if (agree) queue.push(g.id);
+			}
+		}
+	}
+	return out;
+}
+/** A face's boundary. With `through`, only the loop that edge is on (a plate's outer rim, not the rim of a hole in it). */
+export function faceLoopEdges(body: BodyProjection, faceId: string, through?: string): string[] {
+	const f = body.faces.find((x) => x.id === faceId);
+	if (!f) return [];
+	if (!through || !f.edges.includes(through)) return [...f.edges];
+	const edges = f.edges.map((id) => body.edges.find((e) => e.id === id)).filter((e): e is EdgeProjection => !!e);
+	const ends = new Map(edges.map((e) => [e.id, edgeEnds(e)]));
+	const tol = 1e-5 * Math.max(1, ...body.bounds.map(Math.abs));
+	const touch = (x: string, y: string) => { const a = ends.get(x)!, b = ends.get(y)!; return [a.a, a.b].some((p) => [b.a, b.b].some((q) => len3(sub3(p, q)) < tol)); };
+	const out = [through], queue = [through];
+	while (queue.length) { const id = queue.shift()!; for (const e of edges) if (!out.includes(e.id) && touch(id, e.id)) { out.push(e.id); queue.push(e.id); } }
+	return f.edges.filter((id) => out.includes(id));
+}
+/** Every edge beside a face the feature made. */
+export function featureEdges(body: BodyProjection, featureId: string) { const beside = facesByEdge(body); return body.edges.filter((e) => (beside.get(e.id) ?? []).some((f) => featureOfName(f.id) === featureId)).map((e) => e.id); }
+export const bodyEdges = (body: BodyProjection) => body.edges.map((e) => e.id);
+export function edgesShaped(body: BodyProjection, shape: EdgeShape) { const beside = facesByEdge(body); return body.edges.filter((e) => edgeShape(body, e, beside) === shape).map((e) => e.id); }
+/**
+ * THE ONE ENTRY a selection accelerator calls: the edge ids `kind` grows a
+ * pick into, on the pick's body. `edge` seeds the chain and the loop; `face`
+ * names the loop's face (without one, the loop is the picked edge's first
+ * face); `feature` defaults to the feature that made the picked edge's
+ * first face. Empty when the seed is missing.
+ */
+export function edgeSet(body: BodyProjection, kind: EdgeSetKind, seed: { edge?: string; face?: string; feature?: string } = {}): string[] {
+	const edge = seed.edge ? body.edges.find((e) => e.id === seed.edge) : undefined;
+	switch (kind) {
+		case 'chain': return seed.edge ? tangentChainEdges(body, seed.edge) : [];
+		case 'loop': { const face = seed.face ?? (edge && facesByEdge(body).get(edge.id)?.[0]?.id); return face ? faceLoopEdges(body, face, seed.edge) : []; }
+		case 'feature': { const first = edge && facesByEdge(body).get(edge.id)?.[0]?.id; const fid = seed.feature ?? (first ? featureOfName(first) : seed.face ? featureOfName(seed.face) : undefined); return fid ? featureEdges(body, fid) : []; }
+		case 'body': return bodyEdges(body);
+		case 'convex': return edgesShaped(body, 'convex');
+		case 'concave': return edgesShaped(body, 'concave');
+	}
+}
 
 export function shell(ctx: ExecutorContext, f: FeatureOf<'shell'>) {
 	const k = ctx.k, thickness = positive(f.thickness, 'thickness');

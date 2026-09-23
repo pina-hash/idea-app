@@ -24,7 +24,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { SolidEngine } from '../src/lib/ideacad/solid/engine';
 import { EXECUTORS } from '../src/lib/ideacad/solid/features/index';
 import type { ExecutorContext } from '../src/lib/ideacad/solid/features/context';
-import { BlendRefusal, FIT_ATTEMPTS, floorFigure, largestThatFits, readKernelBlendError } from '../src/lib/ideacad/solid/features/blends';
+import { BlendRefusal, FIT_ATTEMPTS, edgeKey, edgeSet, edgeShape, facesByEdge, floorFigure, largestThatFits, readKernelBlendError, sizeFixFromSentence } from '../src/lib/ideacad/solid/features/blends';
 import type { EdgeRef, Feature, FeatureOf, ModelProjection, SolidCommand } from '../src/lib/ideacad/solid/types';
 import { refFromSelection } from '../src/lib/ideacad/solid/naming';
 
@@ -82,6 +82,11 @@ describe('the largest size that fits', () => {
 		expect(refusal.help.where).toEqual([{ bodyId: 'x1#0', kind: 'edge', id: 'edge:x1.end|x1.side.0' }]);
 		/* The kernel named its limit, so the search spent exactly one probe: the confirmation just under it. */
 		expect(log.scratches.at(-1)).toBe(1);
+		/* Until the engine carries help onto the row, the panel reads the same fix back out of the sentence: identical, both ways. */
+		const stored = (await e.snapshot()).manifest.features[2];
+		expect(sizeFixFromSentence(fillet, stored)).toEqual(refusal.help.fix);
+		expect(sizeFixFromSentence({ ...fillet, message: 'Several rounds meet at one corner here in a way that cannot be blended. Try fewer edges at a time.' }, stored)).toBeNull();
+		expect(sizeFixFromSentence(fillet, { ...stored, id: 'other' })).toBeNull();
 		const fixed = await press(e, refusal.help.fix!.commands);
 		expect(row(fixed, fillet.id).status).toBe('ok');
 		expect(fixed.bodies[0].volume).toBeCloseTo(4 * 3 * THICK - rounded(fit, 4), 9);
@@ -96,6 +101,7 @@ describe('the largest size that fits', () => {
 		expect(fit).toBeLessThan(THICK); expect(THICK - fit).toBeLessThanOrEqual(1e-3 + 1e-12);
 		expect(chamfer.message).toBe(`That chamfer is too big for this edge. The largest that fits here is ${fit} in.`);
 		expect(refusal.help.detail).toMatch(/Reduce the chamfer distance below 0\.5/);
+		expect(sizeFixFromSentence(chamfer, (await e.snapshot()).manifest.features[2])).toEqual(refusal.help.fix);
 		const fixed = await press(e, refusal.help.fix!.commands);
 		expect(row(fixed, chamfer.id).status).toBe('ok');
 		expect(fixed.bodies[0].volume).toBeCloseTo(4 * 3 * THICK - 0.5 * fit * fit * 4, 9);
@@ -122,6 +128,9 @@ describe('refusals that name an edge or a corner', () => {
 		expect(f2.message).toBe('1 of these edges is already rounded by Fillet 1, and the others meet that round at its corners. Rounds that share a corner have to be made together.');
 		const refusal = log.refusals.at(-1)!;
 		expect(refusal.help.where).toEqual([{ bodyId: 'x1#0', kind: 'edge', id: 'edge:f1.blend.x1.end|x1.side.0|x1.end' }]);
+		/* The projection joins a round's own name into its edge ids differently; `edgeKey` is the one spelling both sides compare by. */
+		const smoothEdge = m1.bodies[0].edges.find((x) => facesByEdge(m1.bodies[0]).get(x.id)!.map((f) => f.id).sort().join() === ['f1.blend.x1.end|x1.side.0', 'x1.end'].join())!;
+		expect(edgeKey(smoothEdge.id)).toBe(edgeKey(refusal.help.where![0].id));
 		expect(refusal.help.fix!.label).toBe('Add 3 edges to Fillet 1');
 		/* No kernel probe was spent: an edge with no corner to round is named before any size is tried. */
 		expect(log.scratches.at(-1)).toBe(0);
@@ -196,5 +205,61 @@ describe('the pure halves', () => {
 		expect(TRUE_MAX - searched.value!).toBeLessThan(TRUE_MAX * 0.02);
 		/* No size fits: two probes, a small one and a tiny one, then it stops. */
 		expect(largestThatFits(() => false, 3)).toEqual({ value: null, attempts: 2 });
+	});
+});
+
+describe('edge sets over the projection (no kernel in the helpers; the projections come from the real engine)', () => {
+	/** An L bracket: a 3 x 0.25 foot and a 0.25 x 2 wall, drawn on XZ and pulled 2 in. One inside corner, seventeen outside ones. */
+	async function bracket() {
+		const e = await SolidEngine.create(WASM); engines.push(e);
+		const pts: [number, number][] = [[0, 0], [3, 0], [3, 0.25], [0.25, 0.25], [0.25, 2], [0, 2]];
+		const entities: FeatureOf<'sketch'>['entities'] = [...pts.map(([x, y], i) => ({ id: `p${i}`, type: 'point' as const, x, y })), ...pts.map((_, i) => ({ id: `l${i}`, type: 'line' as const, a: `p${i}`, b: `p${(i + 1) % pts.length}` }))];
+		await add(e, { id: 's1', name: 'L', type: 'sketch', plane: { kind: 'datum', datum: 'XZ' }, entities, constraints: [] });
+		return add(e, { id: 'x1', name: 'Extrude 1', type: 'extrude', sketch: 's1', distance: 2, operation: 'new' });
+	}
+	it('convex and concave split an L bracket 17 to 1 by the dihedral sign, the one concave edge being the inside corner; a plain plate is 12 convex, 0 concave', async () => {
+		const m = await bracket(), body = m.bodies[0];
+		expect(body.edges).toHaveLength(18);
+		const concave = edgeSet(body, 'concave'), convex = edgeSet(body, 'convex');
+		expect(convex).toHaveLength(17); expect(concave).toHaveLength(1);
+		const inside = body.edges.find((x) => x.id === concave[0])!;
+		/* The inside corner runs along the pull at x = 0.25, z = 0.25. */
+		expect(inside.mid[0]).toBeCloseTo(0.25, 9); expect(inside.mid[2]).toBeCloseTo(0.25, 9);
+		const { m: p } = await plate();
+		expect(edgeSet(p.bodies[0], 'convex')).toHaveLength(12); expect(edgeSet(p.bodies[0], 'concave')).toHaveLength(0);
+		expect(edgeSet(p.bodies[0], 'body')).toHaveLength(12);
+	});
+	it('the tangent chain grows one rim edge of a box with rounded corners to all eight, agrees with the kernel walk, and stops at a sharp corner on a plain plate', async () => {
+		const { e, m } = await plate();
+		const vertical = [['x1.side.0', 'x1.side.1'], ['x1.side.1', 'x1.side.2'], ['x1.side.2', 'x1.side.3'], ['x1.side.0', 'x1.side.3']].map(([a, c]) => edgeRef(m, a, c));
+		const r = await add(e, { id: 'c1', name: 'Corners', type: 'fillet', edges: vertical, radius: 0.3 });
+		const body = r.bodies[0], top = body.faces.find((f) => f.id === 'x1.end')!;
+		const seed = edgeBetween(r, 'x1.end', 'x1.side.0').id;
+		const chain = edgeSet(body, 'chain', { edge: seed });
+		expect(chain).toHaveLength(8);
+		expect([...chain].sort()).toEqual([...top.edges].sort());
+		/* Four of them run beside the corner rounds, four beside the flat sides: every one of them is on the top face. */
+		expect(chain.filter((id) => id.includes('c1.blend.'))).toHaveLength(4);
+		expect(edgeSet(m.bodies[0], 'chain', { edge: edgeBetween(m, 'x1.end', 'x1.side.0').id })).toEqual([edgeBetween(m, 'x1.end', 'x1.side.0').id]);
+		/* The edge beside a round is smooth, neither convex nor concave. */
+		const beside = body.edges.find((x) => facesByEdge(body).get(x.id)!.map((f) => f.id).sort().join() === ['c1.blend.x1.side.0|x1.side.1', 'x1.side.0'].join())!;
+		expect(edgeShape(body, beside)).toBe('smooth');
+	});
+	it('a face loop through an edge is that loop only (the plate rim, not the hole rim); the feature set is the edges beside the faces a feature made', async () => {
+		const { e, m } = await plate();
+		const holed = await add(e, { id: 'h1', name: 'Hole 1', type: 'hole', face: refFromSelection({ bodyId: 'x1#0', kind: 'face', id: 'x1.end' }, m.bodies[0]) as never, center: [2, 1.5], standard: '1/4-20', fit: 'close', depth: 'through' });
+		const body = holed.bodies[0], top = body.faces.find((f) => f.id === 'x1.end')!;
+		expect(top.edges).toHaveLength(5);
+		const rim = edgeBetween(holed, 'x1.end', 'x1.side.0').id;
+		expect([...edgeSet(body, 'loop', { edge: rim, face: 'x1.end' })].sort()).toEqual(top.edges.filter((id) => !id.includes('h1.')).sort());
+		const holeRim = top.edges.find((id) => id.includes('h1.'))!;
+		expect(edgeSet(body, 'loop', { edge: holeRim, face: 'x1.end' })).toEqual([holeRim]);
+		expect(edgeSet(body, 'loop', { face: 'x1.end' })).toEqual(top.edges);
+		const holeEdges = edgeSet(body, 'feature', { feature: 'h1' });
+		expect(holeEdges.length).toBeGreaterThanOrEqual(2);
+		expect(holeEdges.every((id) => body.edges.find((x) => x.id === id)!.faces.some((f) => f.startsWith('h1.')))).toBe(true);
+		/* The hole's rims are convex, like every outside edge of a plate. */
+		expect(holeEdges.every((id) => edgeShape(body, body.edges.find((x) => x.id === id)!) === 'convex')).toBe(true);
+		expect(edgeSet(body, 'chain', {})).toEqual([]); expect(edgeSet(body, 'feature', { feature: 'nothing' })).toEqual([]);
 	});
 });
