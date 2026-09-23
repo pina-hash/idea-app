@@ -18,18 +18,57 @@
 	// `removed_at is null`, so a hand-rolled filter here is a second copy of a
 	// rule that can stop matching -- and a harness looser than the RPC it
 	// mirrors certifies a bug as fixed.
-	import { livePhotos } from '$lib/notebook';
+	import { livePhotos, outstandingSessions } from '$lib/notebook';
 	import { noteThreads } from '$lib/notebook-notes';
 	import type { NoteDoc, NotebookNoteRow, TiptapNode } from '$lib/notebook-notes';
 	import type { FolderResult, FolderTransports, NotebookFolder } from '$lib/notebook-folders';
-	import {
-		NOTEBOOK_THEMES,
-		setNotebookTheme,
-		type NotebookTheme
-	} from '$lib/notebook/notebook-theme.svelte';
 	import { setSiteTheme } from '$lib/theme.svelte';
+	import { SITE_THEMES, siteThemeAttr, type SiteTheme } from '$lib/theme';
+	import { NOTEBOOK_THEME_KEY } from '$lib/notebook/notebook-theme';
+	import '$lib/classroom/classroom.css';
+	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
+	import type { ClassroomSection } from '$lib/classroom/classroom';
+	import { sectionTitle } from '$lib/classroom/classroom';
+	import {
+		activeTab,
+		classroomCrumbs,
+		classroomMeasure,
+		locateClassroom,
+		sectionTabs
+	} from '$lib/classroom/nav';
 
 	/**
+	 * INSIDE THE REAL CLASSROOM SHELL (ledger 0297, package F4a). The notebook
+	 * lives inside the classroom now, so this harness mounts the real
+	 * `ClassroomShell` -- masthead, switcher, crumbs, tabs -- in a `.cr-root`
+	 * that carries the SAME `--cr-measure-route` and application frame
+	 * (`.cr-app`) the real route's layout sets from `classroomMeasure`, with
+	 * NotebookView as the frame's body exactly as the route mounts it:
+	 *
+	 *   (default)        the whole notebook, `/classroom/notebook`: every entry,
+	 *                    every class's check-ins, and a class picker for a free
+	 *                    entry (`?section=sec-2` is the class the student came
+	 *                    from).
+	 *   ?scope=class     one class's own Notebook tab, `/classroom/sec-1/notebook`:
+	 *                    the entries filed to that class and its check-ins, the
+	 *                    tab bar with Class | Notebook, and a free entry filed
+	 *                    to the class with no picker. Filtered HERE exactly as
+	 *                    the load filters (`section_id === 'sec-1'`).
+	 *   ?viewas=1        the admin's read-only preview: the shell's minimal mode
+	 *                    and the impersonation banner, no frame.
+	 *   ?site=<theme>    the site theme the room follows (idea, matrix,
+	 *                    space-white), through the shipping setter and the
+	 *                    document attribute.
+	 *   ?plate=<id>      plants a RETIRED notebook plate id in this browser's
+	 *                    storage before the notebook mounts, the state a
+	 *                    student who used the old picker arrives in (it used
+	 *                    to SET the plate; there is none to set). The
+	 *                    notebook answers it with the site theme and clears it,
+	 *                    which `notebook-plate-matrix.mjs` waits for.
+	 *
+	 * The dev controls sit BELOW the classroom's frame, so what the frame
+	 * measures at the top of the page is what the real route measures.
+	 *
 	 * Dev harness: mounts the REAL NotebookView with the five save transports
 	 * faked in memory, so the whole screen -- role branches, the session
 	 * quick-picks, the free-form path (photos AND the written-note tier), the
@@ -92,47 +131,66 @@
 	let bulk = $state(false);
 	/** The read-only preview an admin gets at /classroom/view-as/<email>/notebook. */
 	let viewAs = $state(page.url.searchParams.get('viewas') === '1');
+	const scopeClass = page.url.searchParams.get('scope') === 'class';
+	const HARNESS_SECTIONS: ClassroomSection[] = [
+		{
+			id: 'sec-1',
+			course_id: 'c-1',
+			label: 'Period 2',
+			block: 'B',
+			teacher_email: 'mr.teacher@boscotech.edu',
+			course: { id: 'c-1', code: 'ENG1H', title: 'Engineering I Honors', active: true }
+		},
+		{
+			id: 'sec-2',
+			course_id: 'c-2',
+			label: 'Period 4',
+			block: 'D',
+			teacher_email: 'mr.teacher@boscotech.edu',
+			course: { id: 'c-2', code: 'IDEA209H', title: 'IDEA Design II Honors', active: true }
+		}
+	];
+	const scopeSection = HARNESS_SECTIONS[0];
 
 	/**
-	 * THE PLATE, PINNED FROM THE URL ON EVERY LOAD, DEFAULT INCLUDED.
-	 *
-	 * `?plate=matrix` chooses the notebook's own fourth plate through the
-	 * SHIPPING setter; `?site=matrix` turns the SITE theme on through ITS
-	 * shipping setter (`setSiteTheme`, the call ProfileMenu makes) and leaves
-	 * the notebook on its default plate, which is the state report 29 exists
-	 * for: the default follows the site theme in CSS alone. The site store is
-	 * what the picker's `data-plate` reads, so the shipping store has to be
-	 * the thing that changes -- an attribute written by hand would paint the
-	 * plate and leave the control claiming otherwise (measured: `data-plate`
-	 * stayed `default` on a page painted matrix until this called the setter).
-	 * The ATTRIBUTE is still written here as well, because ThemeRoot gates
-	 * the real write on a session this dev page has none of; it is written
-	 * after ThemeRoot's own effect has run and removed it (ThemeRoot mounts
-	 * before the page in the root layout) and a zero-delay re-apply covers
-	 * any later ordering.
-	 *
-	 * AND WITH NO PARAM BOTH ARE SET BACK TO THEIR DEFAULTS, deliberately:
-	 * both setters persist to localStorage, so a harness that measured
-	 * `?plate=matrix` and then loaded this page bare would otherwise measure
-	 * the plain notebook on the matrix plate, with every contrast number
-	 * silently taken off the wrong ground. A harness page pins its own state
-	 * or it is not a fixture.
+	 * THE SITE THEME, PINNED FROM THE URL ON EVERY LOAD, DEFAULT INCLUDED.
+	 * There is no notebook plate any more (ledger 0297): the room follows the
+	 * site theme, so `?site=` is the whole of what this pins, through the
+	 * SHIPPING setter (`setSiteTheme`, the call ProfileMenu makes). The
+	 * ATTRIBUTE is written here as well, because ThemeRoot gates the real
+	 * write on a session this dev page has none of; it is written after
+	 * ThemeRoot's own effect has run and removed it, and a zero-delay re-apply
+	 * covers any later ordering. No param sets the default back, because the
+	 * setter persists: a page measured under one theme must not leak it into
+	 * the next load.
 	 */
-	const plateParam = page.url.searchParams.get('plate');
+	/**
+	 * A RETIRED PLATE, PLANTED BEFORE ANYTHING MOUNTS. This runs during the
+	 * component's own initialisation, which is before any child's effect, so
+	 * NotebookView's sweep finds it exactly as it would find a real student's.
+	 */
+	const plantedPlate = page.url.searchParams.get('plate');
+	if (plantedPlate !== null && typeof localStorage !== 'undefined') {
+		try {
+			localStorage.setItem(NOTEBOOK_THEME_KEY, plantedPlate);
+		} catch {
+			/* A blocked store plants nothing; the spec's wait then fails loudly. */
+		}
+	}
+
 	const siteParam = page.url.searchParams.get('site');
-	const plate: NotebookTheme = NOTEBOOK_THEMES.includes(plateParam as NotebookTheme)
-		? (plateParam as NotebookTheme)
-		: 'default';
+	const site: SiteTheme = SITE_THEMES.includes(siteParam as SiteTheme)
+		? (siteParam as SiteTheme)
+		: 'idea';
 	$effect(() => {
-		setNotebookTheme(plate);
 		const el = document.documentElement;
-		if (siteParam !== 'matrix') {
-			setSiteTheme('idea');
+		setSiteTheme(site);
+		const attr = siteThemeAttr(site);
+		if (!attr) {
 			el.removeAttribute('data-theme');
 			return;
 		}
-		setSiteTheme('matrix');
-		const apply = () => el.setAttribute('data-theme', 'matrix');
+		const apply = () => el.setAttribute('data-theme', attr);
 		apply();
 		const t = setTimeout(apply, 0);
 		return () => {
@@ -793,7 +851,7 @@
 	 * otherwise the harness would show a banner over content the page could not
 	 * actually have.
 	 */
-	const entries = $derived(
+	const allEntries = $derived(
 		photosReady && sessionsReady && draftsReady && historyReady && coalescingReady
 			? rawEntries
 			: rawEntries.map((entry) => ({
@@ -818,7 +876,22 @@
 						.map((n) => (coalescingReady ? n : { ...n, updated_at: undefined }))
 				}))
 	);
-	const sessions = $derived(account === 'student' && sessionsReady ? SESSIONS : []);
+	/**
+	 * A CLASS'S TAB IS THE LOAD'S TWO FILTERS, mirrored: the student's own
+	 * entries FILED TO THIS CLASS, and this class's check-in postings. The whole
+	 * notebook is every entry and every posting, exactly as before.
+	 */
+	const entries = $derived(
+		scopeClass ? allEntries.filter((e) => e.section_id === scopeSection.id) : allEntries
+	);
+	const sessions = $derived(
+		account === 'student' && sessionsReady
+			? scopeClass
+				? SESSIONS.filter((s) => s.section_id === scopeSection.id)
+				: SESSIONS
+			: []
+	);
+	const outstandingHere = $derived(outstandingSessions(sessions, entries).length);
 
 	/**
 	 * The deep link a Classroom stream card arrives on, driven from this page's
@@ -831,7 +904,7 @@
 	 * this student was already being offered.
 	 */
 	const askedCheckIn = page.url.searchParams.get('checkin');
-	const askedSection = page.url.searchParams.get('section');
+	const askedSection = page.url.searchParams.get('section') ?? (scopeClass ? 'sec-1' : null);
 	const initialCheckIn = $derived.by(() => {
 		if (!askedCheckIn) return null;
 		const match =
@@ -840,8 +913,47 @@
 				: null) ?? sessions.find((s) => s.id === askedCheckIn);
 		return match ? { sessionId: match.id, sectionId: match.section_id } : null;
 	});
-	const sectionLabel = $derived(account === 'student' ? 'Engineering I Honors' : null);
 	const canReview = $derived(account === 'instructor');
+
+	/**
+	 * THE CLASSROOM AROUND IT (ledger 0297). Two classes, matching the
+	 * fixture's two sections, so the whole notebook's class picker has a
+	 * choice to make and a class's tab has one class to file to.
+	 */
+	const classes = $derived(
+		account === 'plain'
+			? []
+			: HARNESS_SECTIONS.map((c) => ({ id: c.id, label: `${c.course?.code} · ${c.label}` }))
+	);
+	/** The whole notebook's default free-entry class: `?section=`, else none of the two. */
+	const defaultSectionId = $derived(
+		classes.find((c) => c.id === askedSection)?.id ?? (classes.length === 1 ? classes[0].id : null)
+	);
+	// The whole notebook's header chip, as the load builds it; a class's tab has none.
+	const sectionLabel = $derived(
+		scopeClass ? null : account === 'student' ? `${classes.length} classes` : null
+	);
+
+	/** Where this harness stands, as the real route's pathname, so the shell reads it the same way. */
+	const standIn = $derived(
+		viewAs
+			? '/classroom/view-as/ada.lovelace%40boscotech.net/notebook'
+			: scopeClass
+				? `/classroom/${scopeSection.id}/notebook`
+				: '/classroom/notebook'
+	);
+	const loc = $derived(locateClassroom(standIn));
+	const crumbs = $derived(classroomCrumbs(loc, { section: sectionTitle(scopeSection) }));
+	const measure = $derived(classroomMeasure(loc));
+	const tabs = $derived(
+		scopeClass
+			? sectionTabs(scopeSection.id).map((t) =>
+					t.id === 'notebook' && outstandingHere > 0
+						? { ...t, count: { count: outstandingHere, word: 'to do' } }
+						: t
+				)
+			: []
+	);
 
 	// PAST WHATEVER SURVIVED THE RELOAD, so a second session cannot mint an id
 	// a restored entry already carries.
@@ -1022,7 +1134,11 @@
 		const entry: NotebookEntry = {
 			id,
 			session_id: sessionId,
-			section_id: session ? session.section_id : null,
+			// Mirrors notebook_create_entry: a check-in's own posting, else the
+			// class the form named (ledger 0297 files a free entry to its class).
+			section_id: session
+				? session.section_id
+				: ((form.get('section_id') as string | null) ?? null),
 			folder_id: (form.get('folder_id') as string | null) ?? null,
 			pinned_at: null,
 			custom_label: (form.get('custom_label') as string | null) ?? null,
@@ -1521,6 +1637,90 @@
 
 <svelte:head><title>dev // notebook</title></svelte:head>
 
+<!--
+	THE CLASSROOM'S ROOM, exactly as src/routes/classroom/+layout.svelte renders
+	it for this place: `.cr-root`, the route's own measure, the application
+	frame wherever the measure is `console`, and the real shell. The dev
+	controls follow it, so the frame is the top of the page as it is in class.
+-->
+<div
+	class="cr-root"
+	class:cr-app={measure === 'console'}
+	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
+>
+	<ClassroomShell
+		basePath="/dev/notebook"
+		sections={HARNESS_SECTIONS}
+		currentSectionId={loc.sectionId}
+		{crumbs}
+		{tabs}
+		tab={activeTab(loc)}
+		canManage={false}
+		minimal={viewAs}
+		backHref="/dev/notebook"
+		backLabel="Pick a student"
+	>
+		{#if viewAs}
+			<ImpersonationBanner
+				email="ada.lovelace@boscotech.net"
+				displayName="Ada Lovelace"
+				exitHref="/dev/notebook"
+			/>
+		{/if}
+		<!-- Keyed on the simulated platform so switching remounts the component and
+		     its capture-path detection runs again from scratch. -->
+		{#key `${platform}|${viewAs}`}
+			<NotebookView
+				{entries}
+				{sessions}
+				{folders}
+				{sectionLabel}
+				canReview={viewAs ? false : canReview}
+				{configured}
+				{photosReady}
+				{sessionsReady}
+				{initialCheckIn}
+				{notesReady}
+				{foldersReady}
+				{pinsReady}
+				{activity}
+				{deletionReady}
+				{draftsReady}
+				deletedEntries={deletionReady ? deletedEntries : []}
+				uploadReady={viewAs ? false : uploadReady}
+				readOnly={viewAs}
+				ownsPage={!viewAs}
+				scopeSectionId={scopeClass && !viewAs ? scopeSection.id : null}
+				scopeLabel={scopeClass ? sectionTitle(scopeSection) : null}
+				classes={viewAs || scopeClass ? [] : classes}
+				{defaultSectionId}
+				allClassesHref={scopeClass && !viewAs ? '/dev/notebook?section=sec-1' : null}
+				reviewHref="/dev/notebook-review"
+				{historyReady}
+				{coalescingReady}
+				viewerId={VIEWER_ID}
+				createEntry={viewAs ? undefined : createEntry}
+				addPhoto={viewAs ? undefined : addPhoto}
+				createNote={viewAs ? undefined : createNote}
+				addNote={viewAs ? undefined : addNote}
+				editNote={viewAs ? undefined : editNote}
+				sealNotes={viewAs || !coalescingReady ? undefined : sealNotes}
+				folderTransports={!viewAs && foldersReady ? folderTransports : undefined}
+				setPinned={!viewAs && pinsReady ? setPinned : undefined}
+				deleteEntry={viewAs ? undefined : deleteEntry}
+				removePhoto={viewAs ? undefined : removePhoto}
+				setEntryLabel={viewAs ? undefined : setEntryLabel}
+				restoreEntry={viewAs ? undefined : restoreEntry}
+				restorePhoto={viewAs ? undefined : restorePhoto}
+				submitEntry={!viewAs && draftsReady ? submitEntry : undefined}
+				unsubmitEntry={!viewAs && draftsReady ? unsubmitEntry : undefined}
+				deleteNote={!viewAs && historyReady ? deleteNote : undefined}
+				restoreNote={!viewAs && historyReady ? restoreNote : undefined}
+			/>
+		{/key}
+	</ClassroomShell>
+</div>
+
 <div class="dev-bar">
 	<strong>dev harness</strong>
 	<label>
@@ -1573,59 +1773,6 @@
 {#if log.length}
 	<pre class="dev-log" data-testid="dev-log">{log.join('\n')}</pre>
 {/if}
-
-{#if viewAs}
-	<ImpersonationBanner
-		email="ada.lovelace@boscotech.net"
-		displayName="Ada Lovelace"
-		exitHref="/dev/notebook"
-	/>
-{/if}
-
-<!-- Keyed on the simulated platform so switching remounts the component and
-     its capture-path detection runs again from scratch. -->
-{#key `${platform}|${viewAs}`}
-	<NotebookView
-		{entries}
-		{sessions}
-		{folders}
-		{sectionLabel}
-		canReview={viewAs ? false : canReview}
-		{configured}
-		{photosReady}
-		{sessionsReady}
-		{initialCheckIn}
-		{notesReady}
-		{foldersReady}
-		{pinsReady}
-		{activity}
-		{deletionReady}
-		{draftsReady}
-		deletedEntries={deletionReady ? deletedEntries : []}
-		uploadReady={viewAs ? false : uploadReady}
-		readOnly={viewAs}
-		{historyReady}
-		{coalescingReady}
-		viewerId={VIEWER_ID}
-		createEntry={viewAs ? undefined : createEntry}
-		addPhoto={viewAs ? undefined : addPhoto}
-		createNote={viewAs ? undefined : createNote}
-		addNote={viewAs ? undefined : addNote}
-		editNote={viewAs ? undefined : editNote}
-		sealNotes={viewAs || !coalescingReady ? undefined : sealNotes}
-		folderTransports={!viewAs && foldersReady ? folderTransports : undefined}
-		setPinned={!viewAs && pinsReady ? setPinned : undefined}
-		deleteEntry={viewAs ? undefined : deleteEntry}
-		removePhoto={viewAs ? undefined : removePhoto}
-		setEntryLabel={viewAs ? undefined : setEntryLabel}
-		restoreEntry={viewAs ? undefined : restoreEntry}
-		restorePhoto={viewAs ? undefined : restorePhoto}
-		submitEntry={!viewAs && draftsReady ? submitEntry : undefined}
-		unsubmitEntry={!viewAs && draftsReady ? unsubmitEntry : undefined}
-		deleteNote={!viewAs && historyReady ? deleteNote : undefined}
-		restoreNote={!viewAs && historyReady ? restoreNote : undefined}
-	/>
-{/key}
 
 <style>
 	.dev-bar {

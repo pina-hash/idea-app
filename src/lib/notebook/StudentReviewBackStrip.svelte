@@ -18,22 +18,35 @@
 	 *
 	 * NULL IS THE ORDINARY CASE, not a fault -- an address typed straight into
 	 * the bar, or a link made before this existed -- and it gets the bare
-	 * `/notebook/review` this always used.
+	 * all-sections console.
+	 *
+	 * INSIDE THE CLASSROOM (ledger 0297) the way back is usually the CLASS'S OWN
+	 * Notebook tab, which is its grid for a manager; the load knows whether the
+	 * viewer manages the class and hands the answer in as `backHref`. Without
+	 * one the link is the all-sections console on the given section, through
+	 * the one helper that spells its address.
 	 */
+	import { notebookReviewHref } from '$lib/classroom/nav';
 
 	let {
 		displayName,
 		email,
-		sectionId = null
-	}: { displayName: string | null; email: string; sectionId?: string | null } = $props();
+		sectionId = null,
+		backHref = null,
+		backLabel = 'Section review'
+	}: {
+		displayName: string | null;
+		email: string;
+		sectionId?: string | null;
+		backHref?: string | null;
+		backLabel?: string;
+	} = $props();
 
-	const backHref = $derived(
-		sectionId ? `/notebook/review?section=${encodeURIComponent(sectionId)}` : '/notebook/review'
-	);
+	const href = $derived(backHref ?? notebookReviewHref(sectionId));
 </script>
 
 <div class="back-strip">
-	<a class="back" href={backHref} data-testid="back-to-review">&larr; Section review</a>
+	<a class="back tap-reach-44" {href} data-testid="back-to-review">&larr; {backLabel}</a>
 	<p class="who">
 		Reading <strong>{displayName ?? email}</strong>'s notebook. This is their whole notebook,
 		including entries they filed outside your class. You cannot change anything here.
@@ -42,8 +55,8 @@
 
 <style>
 	.back-strip {
-		max-width: var(--measure-split);
-		margin: var(--space-4) auto 0;
+		max-width: var(--cr-measure, var(--measure-split));
+		margin: var(--space-3) auto 0;
 		padding-inline: var(--cr-gutter, 1rem);
 		box-sizing: border-box;
 		display: grid;
@@ -57,9 +70,11 @@
 	.who {
 		margin: 0;
 		font-size: 0.85rem;
-		color: var(--dim);
+		/* --text-2, never --dim: --dim clears only the darkest portal ground
+		   (CLAUDE.md), and this strip sits on the classroom's own. */
+		color: var(--text-2);
 	}
 	.who strong {
-		color: var(--white);
+		color: var(--text-1);
 	}
 </style>

@@ -166,25 +166,29 @@
      .ic-root     IdeaCAD's Blade editor, which a schema-4 item page mounts for
                   a student inside the classroom (ItemDetail.svelte). IdeaCAD
                   is ledger 0296's and keeps its own look.
-     .nb-root     the notebook, which /classroom/view-as/<email>/notebook
-                  mounts inside the classroom shell. Package F4 makes the
-                  notebook follow the site theme and retires this entry.
+     .nb-island   the notebook's two full-screen photo overlays, the camera
+                  and the corrector (CameraCapture, PhotoCorrector), whose
+                  ground is the dark --nb-shot-* island in every theme so a
+                  drag quad and its handles keep their contrast over an
+                  arbitrary photograph. The NOTEBOOK ITSELF left this list in
+                  ledger 0297 (package F4a): it follows the site theme now,
+                  Space White included, and only the photo overlays stay dark.
      .deck-stage  the black projection stage around a slide deck
                   (DeckViewer.svelte), whose bar and controls are drawn for a
                   black ground by design.
 
    Each reads the semantic inks and the portal tiers off `<html>`, so under
    this theme each would inherit ink tuned for WHITE on a plate that is still
-   black -- IdeaCAD's accent is `--ic-accent: var(--green)`, the notebook's
-   brass is `--nb-accent: var(--gold)`, the deck's back control is --white on
-   a black scrim. The fix is to hand each island back the DEFAULT values of
+   black -- IdeaCAD's accent is `--ic-accent: var(--green)`, the photo
+   corrector's quad is --green and its count the brass, the deck's back
+   control is --white on a black scrim. The fix is to hand each island back the DEFAULT values of
    every token this theme moves.
 
    AT ZERO SPECIFICITY, WHICH IS THE WHOLE MECHANISM. Both halves of the
    selector are `:where()`, so this block is (0,0,0): it beats INHERITANCE
    (any matching declaration does) and loses to every rule a room writes for
    itself. IdeaCAD's own `--surface-0: var(--ic-ground)` on `.ic-root` and the
-   notebook's register aliases on `.nb-root` therefore still win, and this
+   photo overlays' own brass on `.nb-island` therefore still win, and this
    fills in only what the room left to `<html>` -- which is exactly the set
    that would otherwise arrive white-tuned.
 
@@ -197,7 +201,7 @@
    set from the stylesheets and holds this block to it in both directions --
    so a token added to either file cannot silently skip the islands.
    ========================================================================== */
-:where(:root[data-theme='space-white']) :where(.ic-root, .nb-root, .deck-stage) {
+:where(:root[data-theme='space-white']) :where(.ic-root, .nb-island, .deck-stage) {
 	--bg0: #121a12;
 	--bg1: #1a2a1a;
 	--bg2: #222e22;
@@ -250,10 +254,6 @@
 	--status-danger-fill: color-mix(in srgb, var(--crimson) 12%, transparent);
 	--status-info-fill: color-mix(in srgb, var(--cyan) 12%, transparent);
 	--signal-hot: var(--amber);
-	--nb-accent: var(--gold);
-	--nb-ok: color-mix(in srgb, var(--teal) 62%, #0e2417);
-	--nb-error: color-mix(in srgb, var(--crimson) 72%, #2b100d);
-	--nb-warn: color-mix(in srgb, var(--amber) 62%, #2b1a08);
 	--glow-green: 0 0 6px rgba(120, 184, 112, 0.48), 0 0 18px rgba(120, 184, 112, 0.2);
 	--glow-gold: 0 0 6px rgba(200, 168, 72, 0.48), 0 0 18px rgba(200, 168, 72, 0.2);
 	--glow-cyan: 0 0 6px rgba(90, 189, 168, 0.48), 0 0 18px rgba(90, 189, 168, 0.2);

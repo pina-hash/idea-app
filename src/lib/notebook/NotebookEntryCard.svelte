@@ -1918,6 +1918,31 @@
 	}
 
 	/*
+	 * AN OPEN ENTRY'S TITLE KEEPS A READABLE MEASURE AT EVERY WIDTH, which a
+	 * viewport query below could not promise (ledger 0297). Inside the
+	 * classroom the open entry sits in a detail pane, and a pane is narrower
+	 * than the window by the list beside it: measured at 1366x768 the pane
+	 * was 862px, the six labelled controls took about 620px of it, and the
+	 * title beside them wrapped to eight lines in 160px. So the row may wrap
+	 * wherever the title would get less than 28rem, and the controls take
+	 * the next line at the right, which is the arrangement the phone already
+	 * has. Scoped to the open entry: a collapsed row carries no controls and
+	 * must never wrap its checkbox away from its title.
+	 */
+	@media (min-width: 42rem) {
+		.entry.open .row {
+			flex-wrap: wrap;
+		}
+		.entry.open .disclosure {
+			flex: 1 1 28rem;
+		}
+		.entry.open .tools {
+			flex-wrap: wrap;
+			justify-content: flex-end;
+			margin-left: auto;
+		}
+	}
+	/*
 	 * Below this width six labelled controls and a readable title cannot
 	 * share one line, so the group takes its own. The words stay: shrinking
 	 * them back out to grey glyphs is what created the problem the labels

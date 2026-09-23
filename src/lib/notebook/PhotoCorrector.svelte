@@ -70,8 +70,20 @@
 	let loading = $state(true);
 	let working = $state(false);
 	let dragging = $state<number | null>(null);
+	let dialogEl = $state<HTMLDialogElement | null>(null);
 
 	onMount(() => {
+		/*
+		 * THE TOP LAYER, NOT A z-index (ledger 0297). This was a fixed `div` at
+		 * z-index 1000, which is only "on top" inside whatever stacking context
+		 * holds it -- and the notebook's room was one, below the classroom's own
+		 * header, so the title and the hint painted UNDER that header (a hit test
+		 * at the title landed on it) and the site's floating Voice control sat
+		 * over the primary button. `showModal()` lifts the overlay out of every
+		 * stacking context there is and makes the page behind it inert, so
+		 * nothing can paint over it or be reached through it.
+		 */
+		dialogEl?.showModal();
 		// `load` resolves rather than rejects on every failure path (see below),
 		// so there is no rejection here to go unhandled.
 		void load();
@@ -247,11 +259,16 @@
 		onDone(null);
 	}
 
-	function onKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
-			e.preventDefault();
-			skip();
-		}
+	/**
+	 * ESCAPE IS THE DIALOG'S `cancel`, answered as a skip. The browser would
+	 * otherwise close the modal on its own and leave the parent holding a
+	 * photo nobody decided about, so the default is prevented and the one
+	 * decision this step can make without a press -- keep the photo as it is --
+	 * is made instead. `cancel` does not bubble, so it is bound on the element.
+	 */
+	function onCancel(e: Event) {
+		e.preventDefault();
+		skip();
 	}
 
 	const polygonPoints = $derived(
@@ -263,13 +280,17 @@
 <!-- Drag continuation lives on the window so a finger sliding off the stage
      (or off the screen edge) keeps moving the handle instead of dropping it. -->
 <svelte:window
-	onkeydown={onKeydown}
 	onpointermove={moveDrag}
 	onpointerup={endDrag}
 	onpointercancel={endDrag}
 />
 
-<div class="pc-overlay" role="dialog" aria-modal="true" aria-label="Straighten photo">
+<dialog
+	bind:this={dialogEl}
+	class="pc-overlay nb-island"
+	aria-label="Straighten photo"
+	oncancel={onCancel}
+>
 	<header class="pc-head">
 		<div>
 			<span class="pc-title">Straighten this photo</span>
@@ -330,7 +351,7 @@
 			Reset corners
 		</button>
 	</footer>
-</div>
+</dialog>
 
 <style>
 	/* The overlay stays a DARK island inside the light notebook room, on
@@ -338,14 +359,38 @@
 	   arbitrary photos, and a light surround would fight the photo itself.
 	   Only the CHROME (type, buttons) speaks the editorial voice; the warm
 	   near-black ties it to the notebook's ink rather than the app shell. */
+	/* A MODAL <dialog> IN THE TOP LAYER, sized as the whole viewport. The UA
+	   gives a modal dialog a centred box with a margin, a border, a max size
+	   and a Canvas background; each is undone here so it is the full-bleed
+	   overlay it always was. `nb-island` keeps the semantic inks it draws with
+	   (the green quad, the brass count) tuned for this dark ground under a
+	   light site theme, and the brass is re-resolved HERE, against that. */
 	.pc-overlay {
 		position: fixed;
 		inset: 0;
-		z-index: 1000;
-		display: flex;
+		width: 100%;
+		height: 100%;
+		max-width: none;
+		max-height: none;
+		margin: 0;
+		border: 0;
+		box-sizing: border-box;
+		color: var(--nb-shot-ink);
 		flex-direction: column;
 		background: var(--nb-shot-ground);
 		padding: 0.9rem 1rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
+		--nb-accent: var(--gold);
+		--nb-accent-ink: var(--gold);
+	}
+	/* `display` ONLY WHILE OPEN: an author rule outranks the UA's
+	   `dialog:not([open]) { display: none }` whatever its specificity, so an
+	   unconditional flex would show the overlay in the page before
+	   `showModal()` had lifted it. */
+	.pc-overlay[open] {
+		display: flex;
+	}
+	.pc-overlay::backdrop {
+		background: var(--nb-shot-ground);
 	}
 	.pc-head {
 		flex: none;
@@ -496,6 +541,10 @@
 		text-shadow: none;
 	}
 	.pc-reset {
+		/* 15px measured at 375 (ledger 0297 Phase 0): a student-facing control
+		   under the 44px floor (IDEA_INTERFACE_STANDARDS 10). */
+		min-height: 44px;
+		padding: 0 var(--space-2);
 		background: none;
 		border: none;
 		color: color-mix(in srgb, var(--nb-shot-ink) 55%, transparent);

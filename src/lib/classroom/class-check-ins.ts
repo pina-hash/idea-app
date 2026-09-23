@@ -47,6 +47,7 @@ import type { NotebookFlagReason } from '$lib/notebook';
 import type { ItemDoc } from '$lib/classroom/classroom-doc';
 import type { TiptapNode } from '$lib/rich-text';
 import { streamItems, type ClassroomItem } from '$lib/classroom/classroom';
+import { classNotebookHref } from '$lib/classroom/nav';
 
 // ---------------------------------------------------------------------------
 // Rows
@@ -481,21 +482,32 @@ export interface ClassCheckInTransports {
 // ---------------------------------------------------------------------------
 
 /**
- * Where a check-in card goes: the student's own notebook, with this check-in
- * preselected for the upload flow.
+ * Where a check-in card goes: the student's own notebook IN THAT CLASS, with
+ * this check-in preselected for the upload flow.
+ *
+ * INSIDE THE CLASSROOM (ledger 0297). This used to open `/notebook`, a
+ * separate app with every class mixed together and a way back that went to
+ * the site's home page. The notebook is the class's own Notebook tab now, so a
+ * check-in opens there -- the posting's own class, the same tab the bar above
+ * it names -- and the student is still inside the class they were reading.
+ * `/notebook?checkin=&section=` still answers, by redirect, for any link that
+ * holds it.
  *
  * BOTH ids ride the link, and the section is not decoration. The upload flow
  * files an entry against a (check-in, class) PAIR -- that is the composite key
  * `notebook_entries` carries to `notebook_session_postings` -- and a student
  * enrolled in two classes that share a check-in has two of them to choose
  * between. The class page knows which one it is; the notebook cannot guess.
+ *
+ * `notebookPath` is for a harness mounted at a path of its own; left out, the
+ * link is the posting's own class's tab.
  */
-export function checkInHref(checkIn: ClassCheckIn, basePath = '/notebook'): string {
+export function checkInHref(checkIn: ClassCheckIn, notebookPath?: string): string {
 	const params = new URLSearchParams({
 		checkin: checkIn.session_id,
 		section: checkIn.section_id
 	});
-	return `${basePath}?${params.toString()}`;
+	return `${notebookPath ?? classNotebookHref(checkIn.section_id)}?${params.toString()}`;
 }
 
 // ---------------------------------------------------------------------------

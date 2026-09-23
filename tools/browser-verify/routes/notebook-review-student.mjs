@@ -77,7 +77,9 @@ export default {
 				// The way back carries the section the console was left on. Read off
 				// the href itself, never off a variable the page happens to expose.
 				const href = document.querySelector('[data-testid="back-to-review"]').getAttribute('href');
-				if (href !== '/notebook/review?section=11111111-2222-4333-8444-555555555555') {
+				// Inside the classroom since ledger 0297; a reviewer who does not
+				// manage the class goes back to the all-sections console on it.
+				if (href !== '/classroom/notebook/review?section=11111111-2222-4333-8444-555555555555') {
 					throw new Error('back link lost the section: ' + href);
 				}
 				return href;
@@ -90,9 +92,10 @@ export default {
 		{ selector: '[data-testid="staff-deleted-zone"]', label: 'staff Deleted section', expectPresent: 1, maxPresent: 1 },
 		/*
 			AND NO APPLICATION FRAME, WHICH THE `staff-deleted-zone` ROW ABOVE IS
-			HALF OF. This page keeps the notebook's masthead but is NOT the whole
-			page: the back strip is above the room and the Deleted section is
-			below it. `masthead` alone would have given it `cr-app`, and measured
+			HALF OF. This page is NOT the whole page: the back strip is above the
+			room and the Deleted section is below it, so the notebook is not the
+			frame's body (it scrolls as a document inside `.nb-read-page`, the
+			frame's body since ledger 0297), and measured
 			at 1440 with the frame on, `.nb-root` was a 900px viewport box
 			starting at y=127 inside a 1463px document, with the Deleted section
 			at y=1051 -- reachable only by scrolling the document past a

@@ -405,8 +405,11 @@ describe('a theme is a token layer, not a stylesheet', () => {
 		/* THE EIGHTH, AND THE FIRST THAT DECLARES TOKENS RATHER THAN A PROPERTY
 		   (ledger 0297). Space White is a light theme scoped to the classroom,
 		   and three dark surfaces are mounted INSIDE the classroom -- IdeaCAD's
-		   Blade editor on a schema-4 item, the notebook under view-as, and the
-		   deck's black projection stage. Each reads the semantic inks off
+		   Blade editor on a schema-4 item, the notebook's photo overlays (the
+		   camera and the corrector, `.nb-island`, which work on a photograph and
+		   stay dark on purpose), and the deck's black projection stage. The
+		   NOTEBOOK ITSELF left this list in ledger 0297: it follows the site
+		   theme now, so a Space White classroom has a Space White notebook. Each reads the semantic inks off
 		   <html>, so each would inherit white-tuned ink on a plate still black.
 		   This block hands each island the DEFAULT value of every token the
 		   theme moves, at zero specificity (`:where` on both halves) so every
@@ -415,7 +418,7 @@ describe('a theme is a token layer, not a stylesheet', () => {
 		   which ones from the stylesheets. */
 		{
 			selector:
-				/^:where\(:root\[data-theme='space-white'\]\) :where\(\.ic-root, \.nb-root, \.deck-stage\)$/,
+				/^:where\(:root\[data-theme='space-white'\]\) :where\(\.ic-root, \.nb-island, \.deck-stage\)$/,
 			why: "Space White's dark islands keep the default look inside a light page",
 			onlyDeclares: []
 		}
@@ -559,7 +562,13 @@ describe("Space White's dark islands: the block is DERIVED from the stylesheets,
 		const need = closure(new Set(Object.keys(moved)));
 		// The closure reaches aliases the theme never names, which is its point.
 		expect(need.has('--focus-ring')).toBe(true);
-		expect(need.has('--nb-accent')).toBe(true);
+		// GENERALIZED (ledger 0297): `--nb-accent` was the notebook's example
+		// here, an alias of `--gold` declared at :root. No notebook token lives
+		// at :root any more -- the room declares them on `.nb-root`, per site
+		// theme -- so the closure must reach none of them, and an island that
+		// still handed one back would be declaring a token nothing reads.
+		expect([...need].filter((n) => n.startsWith('--nb-'))).toEqual([]);
+		expect(Object.keys(island).filter((n) => n.startsWith('--nb-'))).toEqual([]);
 		expect(need.has('--accent-ink')).toBe(true);
 		expect([...need].sort()).toEqual(Object.keys(island).sort());
 	});
@@ -636,12 +645,31 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 	});
 
 	it('POSITIVE CONTROL: the classroom IS in scope, so the refusals above are the scope and not a dead function', () => {
-		for (const p of ['/classroom', '/classroom/s-1', '/classroom/s-1/item/i-1', '/reference/i-1', '/dev/themes', '/dev/classroom-split/s-1']) {
+		for (const p of [
+			'/classroom',
+			'/classroom/s-1',
+			'/classroom/s-1/item/i-1',
+			'/reference/i-1',
+			'/dev/themes',
+			'/dev/classroom-split/s-1',
+			// The notebook follows the site theme (ledger 0297): inside the
+			// classroom by prefix, its legacy address by its own entry, and
+			// its harnesses so a pass measures what the route paints.
+			'/classroom/notebook',
+			'/classroom/notebook/review',
+			'/classroom/s-1/notebook',
+			'/notebook',
+			'/notebook/review',
+			'/dev/notebook',
+			'/dev/notebook-review',
+			'/dev/navigation-room-nb'
+		]) {
 			expect(themeInScope(p), p).toBe(true);
 			expect(themeAttrFor('space-white', p, true), p).toBe('space-white');
 		}
 		// A near-miss spelling is not a prefix match.
 		expect(themeInScope('/classroomx')).toBe(false);
+		expect(themeInScope('/notebookx')).toBe(false);
 	});
 
 	it('an UNSCOPED theme is not route-limited: Matrix paints every room it always did', () => {

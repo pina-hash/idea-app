@@ -26,7 +26,7 @@
 // unnamed -- which is the 0098 failure, one migration later.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { load } from '../src/routes/notebook/+page.server';
+import { load } from '../src/routes/classroom/notebook/+page.server';
 import {
 	createClassroomSection,
 	createUser,
@@ -103,7 +103,7 @@ function runLoad(
 	user: SeededUser
 ) {
 	return (load as unknown as (event: unknown) => Promise<LoadResult>)({
-		url: new URL('http://localhost/notebook'),
+		url: new URL('http://localhost/classroom/notebook'),
 		locals: {
 			supabase: createPostgrestShim(database, keys, user.id),
 			claims: { sub: user.id, email: user.email, role: 'authenticated' }

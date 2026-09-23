@@ -23,11 +23,11 @@
 		type SessionItemTransports,
 		type StaffNoteTransports
 	} from '$lib/notebook/admin-actions';
-	import NotebookMasthead from '$lib/notebook/NotebookMasthead.svelte';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import { revealDetailPane } from '$lib/shell/reveal';
-	import { notebookThemeAttr } from '$lib/notebook/notebook-theme.svelte';
+	import { studentNotebookHref as studentNotebookPath } from '$lib/classroom/nav';
 	import '$lib/notebook/notebook-theme.css';
+	import { browserPlateStore, retireStoredNotebookPlate } from '$lib/notebook/notebook-theme';
 	import {
 		NOTEBOOK_LIVE_HINT,
 		NOTEBOOK_LIVE_LABEL,
@@ -100,7 +100,10 @@
 		adminLog = null,
 		itemLink = null,
 		staffNote = null,
-		viewerId = null
+		viewerId = null,
+		lockedSectionId = null,
+		initialMode = 'review',
+		reviewHref = null
 	}: {
 		sections: ReviewSection[];
 		isChair: boolean;
@@ -156,6 +159,23 @@
 		staffNote?: StaffNoteTransports | null;
 		/** The caller's own uuid, so the log can render their rows as "You". */
 		viewerId?: string | null;
+		/**
+		 * A CLASS'S OWN NOTEBOOK TAB (ledger 0297): the console for this one
+		 * section and no other. The section picker is not rendered -- the class
+		 * switcher in the classroom's masthead is how a teacher changes class --
+		 * and the selection cannot move off it. `sections` is still the viewer's
+		 * whole list, because the check-in manager posts a check-in to several of
+		 * their classes and an admin's entry move offers another section. Null is
+		 * the all-sections console with its picker.
+		 */
+		lockedSectionId?: string | null;
+		/** Which mode to open on: `checkins` is how the item page's duplicate-date refusal lands on the manager. */
+		initialMode?: 'review' | 'checkins';
+		/**
+		 * The all-sections console, offered beside a LOCKED console for a viewer
+		 * who reviews more than this one class. Null offers no link.
+		 */
+		reviewHref?: string | null;
 	} = $props();
 
 	/**
@@ -177,12 +197,15 @@
 	 * grid and pushed it off the first screen on every load.
 	 */
 	type Mode = 'review' | 'checkins' | 'grade' | 'log';
-	let mode = $state<Mode>('review');
+	// Seeded ONCE from the URL's own intent, then owned by the mode buttons.
+	// svelte-ignore state_referenced_locally
+	let mode = $state<Mode>(initialMode);
 
 	// Seeded ONCE, then owned by the picker: a later navigation within the
-	// console must not be yanked back to the id the URL arrived with.
+	// console must not be yanked back to the id the URL arrived with. A LOCKED
+	// console is seeded with its class and has no picker to move it.
 	// svelte-ignore state_referenced_locally
-	let sectionId = $state<string | null>(initialSectionId);
+	let sectionId = $state<string | null>(lockedSectionId ?? initialSectionId);
 	let unit = $state<number | null>(null);
 	/** null = "all units"; otherwise the selected unit number. */
 	let unitChoice = $state<string>('all');
@@ -279,25 +302,24 @@
 	 * COURTESY, NOT A BOUNDARY. The RPC re-checks every caller regardless of
 	 * what this returns.
 	 *
-	 * IT CARRIES `?section=` SO THE WAY BACK CAN. /notebook/review reads that
-	 * param and preselects the section (validated against the viewer's own
-	 * list there, so a foreign or made-up id just falls back to the default) --
-	 * and StudentReviewBackStrip's link is the only thing that puts one in
-	 * front of it. Without it, returning from a student reset the console to
-	 * the first section with the cursor gone, and the instructor re-found the
-	 * row by eye.
+	 * IT CARRIES `?section=` SO THE WAY BACK CAN. The student's page reads it
+	 * and builds its way back: the class's own Notebook tab for a manager of
+	 * that class, else the all-sections console on it (which validates the id
+	 * against the viewer's own list, so a foreign or made-up id just falls back
+	 * to the default). Without it, returning from a student reset the console
+	 * to the first section with the cursor gone, and the instructor re-found
+	 * the row by eye. The address itself is `studentNotebookHref` in nav.ts.
 	 *
-	 * THE UNIT IS NOT CARRIED, because /notebook/review reads no unit from the
-	 * URL: `unitChoice` is this component's own state and there is no
-	 * `?unit=` to hand it. Inventing one is a second piece of URL state to
-	 * keep valid against a section's own unit list, which is a bigger change
-	 * than this one and not this bundle's.
+	 * THE UNIT IS NOT CARRIED, because the console reads no unit from the URL:
+	 * `unitChoice` is this component's own state and there is no `?unit=` to
+	 * hand it. Inventing one is a second piece of URL state to keep valid
+	 * against a section's own unit list, which is a bigger change than this
+	 * one and not this bundle's.
 	 */
 	function studentNotebookHref(student: SectionGridData['students'][number]): string | null {
 		if (!student.email) return null;
 		if (!isChair && !student.enrolled) return null;
-		const href = `/notebook/review/student/${encodeURIComponent(student.email)}`;
-		return sectionId ? `${href}?section=${encodeURIComponent(sectionId)}` : href;
+		return studentNotebookPath(student.email, sectionId);
 	}
 
 	const section = $derived(sections.find((s) => s.id === sectionId) ?? null);
@@ -312,6 +334,11 @@
 	 * offering a control whose only possible answer is that refusal.
 	 */
 	const sectionManages = $derived(section?.manages ?? false);
+
+	/* A plate the retired picker stored is cleared here too (see NotebookView). */
+	$effect(() => {
+		retireStoredNotebookPlate(browserPlateStore());
+	});
 	/**
 	 * What SessionManager may TARGET: a check-in is authored only into
 	 * sections the viewer manages. For every pre-0169 viewer this is the whole
@@ -330,6 +357,12 @@
 	 * be refused.
 	 */
 	$effect(() => {
+		// A locked console never re-defaults: its class is the whole point, and
+		// the route has already put it on the list.
+		if (lockedSectionId) {
+			if (sectionId !== lockedSectionId) sectionId = lockedSectionId;
+			return;
+		}
 		if (!sections.some((s) => s.id === sectionId)) sectionId = sections[0]?.id ?? null;
 	});
 
@@ -893,20 +926,15 @@
 	const cursorSession = $derived(grid?.sessions.find((s) => s.id === cursor?.sessionId) ?? null);
 </script>
 
-<svelte:head>
-	<title>Section review // IDEA Notebook</title>
-</svelte:head>
-
 <svelte:window onkeydown={onWindowKey} />
 
-<!-- .nb-root scopes the notebook's editorial theme (notebook-theme.css) and,
-     through data-nb-theme, which of its four palettes is showing (the default
-     one follows the site theme); the review console lives in the same room as
-     the student feed, in every light.
-     `cr-app` is the shell's application frame: above 1024px this room IS the
-     viewport, and the body under the bar takes whatever is left. -->
-<div class="nb-root cr-app" data-nb-theme={notebookThemeAttr()}>
-<NotebookMasthead backHref="/notebook" backLabel="My Notebook" />
+<!-- .nb-root scopes the notebook's own room (notebook-theme.css), which
+     FOLLOWS THE SITE THEME (ledger 0297): no plate attribute, no picker, the
+     classroom's own register. `cr-app-body` makes this the body of the
+     classroom's application frame -- every route that mounts the console takes
+     `nav.ts`'s `console` measure -- so above 1024px the classroom's chrome
+     measures itself and the console takes whatever is left. -->
+<div class="nb-root cr-app-body nb-framed">
 
 {#snippet gridPane()}
 	{#if grid}
@@ -1106,14 +1134,19 @@
 		-->
 		<div class="console-bar">
 			<div class="bar-pickers">
-				<label class="field">
-					<span>Section</span>
-					<select bind:value={sectionId} data-testid="section-picker">
-						{#each sections as s (s.id)}
-							<option value={s.id}>{sectionName(s)}</option>
-						{/each}
-					</select>
-				</label>
+				<!-- A LOCKED console is one class's own Notebook tab: the class
+				     switcher in the masthead is how a teacher changes class, so a
+				     second class picker here would be two controls for one thing. -->
+				{#if !lockedSectionId}
+					<label class="field">
+						<span>Section</span>
+						<select bind:value={sectionId} data-testid="section-picker">
+							{#each sections as s (s.id)}
+								<option value={s.id}>{sectionName(s)}</option>
+							{/each}
+						</select>
+					</label>
+				{/if}
 				<label class="field unit">
 					<span>Unit</span>
 					<select bind:value={unitChoice} disabled={units.length === 0}>
@@ -1183,6 +1216,14 @@
 				{/if}
 			</div>
 
+			<!-- A LOCKED CONSOLE'S WAY TO THE OTHERS, for a viewer who reviews more
+			     than this class: the all-sections console, on this section. -->
+			{#if lockedSectionId && reviewHref && sections.length > 1}
+				<a class="bar-link tap-44" href={reviewHref} data-testid="all-sections-link"
+					>All sections &rsaquo;</a
+				>
+			{/if}
+
 			<div class="bar-status">
 				{#if loading}<span class="pill">Loading...</span>{/if}
 				<!--
@@ -1247,8 +1288,15 @@
 					the split IS the page here now that the chrome above it is one
 					bar, so each pane owns its own scroll at the height of the body
 					it is in -- no viewport arithmetic, and nothing above or below
-					it to be wrong about. `detailWidth="roomy"` because the panel is
-					read rather than filled in.
+					it to be wrong about. `detailWidth` is `roomy` WHILE AN ENTRY IS
+					IN THE PANEL, because an entry is read rather than filled in, and
+					`panel` otherwise (ledger 0297): with nothing filed the panel
+					holds a name, a sentence and at most the excusal control, and at
+					28rem it took the room the grid's last column needed -- measured,
+					the table was 782px in a 684px scrollport at 1366 and 816 in 758
+					at 1440, the Covered column cut in both. At 27rem the grid gets
+					846 and 920, and the width eases between the two because both
+					arrangements are the same two tracks.
 
 					Deliberately not an overlay: covering the grid would defeat the
 					whole point, which is moving from cell to cell.
@@ -1258,7 +1306,7 @@
 				<div class="console-split">
 					<ClassSplit
 						navWidth="wide"
-						detailWidth="roomy"
+						detailWidth={openEntry || entryLoading ? 'roomy' : 'panel'}
 						scroll="fill"
 						narrow="stack-nav-first"
 						bind:detailEl
@@ -1319,10 +1367,23 @@
 	.review-console {
 		max-width: none;
 		margin: 0;
-		padding: var(--space-3) 0 0;
+		/* The classroom's tab bar or crumbs above already carry the step. */
+		padding: 0;
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
+	}
+	/* THE BODY OF THE CLASSROOM'S FRAME (ledger 0297): a column whose one
+	   growable child is the console. Above 1024px split.css makes this
+	   `.cr-app-body` the rest of the viewport; below it everything flows. */
+	.nb-root.nb-framed {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+	.nb-framed > .review-console {
+		flex: 1 1 auto;
+		min-height: 0;
 	}
 	.console-split {
 		display: flex;
@@ -1338,7 +1399,8 @@
 	.action-note {
 		width: 100%;
 		min-width: 0;
-		max-width: var(--measure-split);
+		/* The classroom's own measure, so the bar starts on the crumbs' edge. */
+		max-width: var(--cr-measure, var(--measure-split));
 		margin-inline: auto;
 		padding-inline: var(--cr-gutter);
 		box-sizing: border-box;
@@ -1388,6 +1450,13 @@
 	.field select:focus {
 		outline: none;
 		border-color: var(--nb-accent);
+	}
+
+	.bar-link {
+		display: inline-flex;
+		align-items: center;
+		font-size: 0.85rem;
+		color: var(--nb-accent-ink);
 	}
 
 	.bar-modes {

@@ -26,9 +26,9 @@
  * the point of building them; `read()` answers `true` for an absent key, an
  * unreadable store and an unrecognised value alike.
  *
- * A reactive module-level `$state` backed by localStorage -- the
- * notebook-theme.svelte.ts convention, one directory over, for the same reason
- * it was chosen there: no migration, no route change, and no round trip
+ * A reactive module-level `$state` backed by localStorage -- the convention
+ * the notebook's plate picker used until ledger 0297 retired it, for the same
+ * reason it was chosen there: no migration, no route change, and no round trip
  * between pressing the switch and the switch taking effect.
  */
 
@@ -62,7 +62,7 @@ function read(viewerId: string | undefined): boolean {
 		if (stored === ON) return true;
 		// Absent, or a value no branch renders. Both take the default, and an
 		// unrecognised one is dropped rather than left to be re-read forever --
-		// the notebook-theme.svelte.ts rule.
+		// the rule the notebook's retired plate store kept too.
 		if (stored !== null) localStorage.removeItem(writingAidKey(viewerId));
 		return WRITING_AID_DEFAULT;
 	} catch {

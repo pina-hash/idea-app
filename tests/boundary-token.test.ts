@@ -39,6 +39,8 @@ import { join } from 'node:path';
 const ROOT = join(__dirname, '..');
 const COLORS = readFileSync(join(ROOT, 'src/lib/design-system/colors.css'), 'utf8');
 const NB_THEME = readFileSync(join(ROOT, 'src/lib/notebook/notebook-theme.css'), 'utf8');
+const SPACE_WHITE = readFileSync(join(ROOT, 'src/lib/design-system/themes/space-white.css'), 'utf8');
+const MATRIX = readFileSync(join(ROOT, 'src/lib/design-system/themes/matrix.css'), 'utf8');
 
 // --------------------------------------------------------------------------
 // WCAG contrast, computed here rather than read from anything under test.
@@ -106,53 +108,57 @@ function tokenIn(css: string, selector: string, name: string): string {
 // value at 2.66.
 // --------------------------------------------------------------------------
 
+// GENERALIZED (ledger 0297). The notebook's own plates (light, the console
+// default and IDEA) were three more rooms here. The notebook follows the SITE
+// theme now: `.nb-root` points its grounds and its boundary at the register
+// (`--nb-bg: var(--surface-0)`, `--nb-boundary: var(--boundary)`), so every
+// ground a notebook boundary can sit on IS a site theme's register ground, and
+// the rooms to measure are the site themes. The alias itself is asserted below,
+// because it is the half that makes this sweep cover the notebook at all.
+const REGISTER_GROUNDS = ['--surface-0', '--surface-1', '--surface-2', '--bg0', '--bg1', '--bg2'];
 const ROOMS = [
 	{
-		name: 'classroom + portal',
+		name: 'classroom + portal + notebook (IDEA)',
 		css: COLORS,
 		selector: ':root {',
 		boundary: '--boundary',
-		grounds: ['--surface-0', '--surface-1', '--surface-2', '--bg0', '--bg1', '--bg2']
+		grounds: REGISTER_GROUNDS
 	},
 	{
-		name: 'notebook light',
-		css: COLORS,
-		selector: ':root {',
-		boundary: '--nb-boundary',
-		grounds: ['--nb-bg', '--nb-surface', '--nb-surface-dim']
+		name: 'Space White (classroom and notebook)',
+		css: SPACE_WHITE,
+		selector: ":root[data-theme='space-white'] {",
+		boundary: '--boundary',
+		grounds: REGISTER_GROUNDS
 	},
 	{
-		// The DEFAULT plate: the classroom's console register. It replaced a warm
-		// near-black plate that was the dark half of an OS-driven pair and so had
-		// TWO entries here, a media query and an opt-in block kept in step. One
-		// default needs one selector, which is why this list is four rooms rather
-		// than five.
-		name: 'notebook default (console register)',
-		css: COLORS,
-		selector: ':not([data-nb-theme]) {',
-		boundary: '--nb-boundary',
-		grounds: ['--nb-bg', '--nb-surface', '--nb-surface-dim']
-	},
-	{
-		name: 'notebook idea',
-		css: COLORS,
-		selector: "[data-nb-theme='idea'] {",
-		boundary: '--nb-boundary',
-		grounds: ['--nb-bg', '--nb-surface', '--nb-surface-dim']
+		name: 'Matrix (classroom and notebook)',
+		css: MATRIX,
+		selector: ":root[data-theme='matrix'] {",
+		boundary: '--boundary',
+		grounds: REGISTER_GROUNDS
 	}
 ] as const;
 
 describe('the load-bearing boundary token', () => {
 	it('is declared for every room, and the notebook room aliases it', () => {
-		// Four palettes, and the count is asserted so a sweep that generated
+		// Three site themes, and the count is asserted so a sweep that generated
 		// nothing cannot pass silently.
-		expect(ROOMS.length).toBe(4);
+		expect(ROOMS.length).toBe(3);
 		for (const room of ROOMS) {
 			expect(tokenIn(room.css, room.selector, room.boundary), room.name).toMatch(/^#[0-9a-f]{6}$/i);
 		}
-		// Without this alias the notebook would inherit the :root value, which
-		// is measured against dark green plate and is 1.29:1 on paper.
-		expect(NB_THEME).toMatch(/--boundary:\s*var\(--nb-boundary\)/);
+		// THE NOTEBOOK READS THE SITE'S BOUNDARY AND GROUNDS, by alias. The
+		// direction reversed in ledger 0297: the room used to point `--boundary`
+		// at a per-plate `--nb-boundary`; now `--nb-boundary` points at the
+		// theme's `--boundary`, so the room cannot keep a value measured against
+		// a ground it is no longer on.
+		expect(tokenIn(COLORS, '\n.nb-root {', '--nb-boundary')).toBe('var(--boundary)');
+		expect(tokenIn(COLORS, '\n.nb-root {', '--nb-bg')).toBe('var(--surface-0)');
+		expect(tokenIn(COLORS, '\n.nb-root {', '--nb-surface')).toBe('var(--surface-1)');
+		expect(tokenIn(COLORS, '\n.nb-root {', '--nb-surface-dim')).toBe('var(--surface-2)');
+		// And nothing re-declares the register's boundary inside the room.
+		expect(NB_THEME).not.toMatch(/^\s*--boundary:/m);
 	});
 
 	it('clears 3:1 against every ground it can sit on, in every room', () => {
@@ -167,8 +173,8 @@ describe('the load-bearing boundary token', () => {
 				if (ratio < 3) failures.push(`${room.name}: ${fg} on ${g} (${bg}) = ${ratio.toFixed(2)}`);
 			}
 		}
-		// 6 portal/classroom grounds + 3 per notebook plate x 3 plates.
-		expect(cases, 'the sweep must actually generate its cases').toBe(15);
+		// 6 register grounds x 3 site themes.
+		expect(cases, 'the sweep must actually generate its cases').toBe(18);
 		expect(failures).toEqual([]);
 	});
 });

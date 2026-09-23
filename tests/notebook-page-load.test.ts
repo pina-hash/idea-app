@@ -1,6 +1,7 @@
 // tests/notebook-page-load.test.ts
 //
-// The student notebook's page load (/notebook), driven as the REAL shipped
+// The student notebook's page load (/classroom/notebook, which /notebook
+// redirects to since ledger 0297), driven as the REAL shipped
 // `load` against a REAL Postgres carrying the REAL migration chain through
 // 0099 -- and, separately, against one that genuinely has no notebook tables at
 // all.
@@ -84,7 +85,7 @@ import { deletedNoteThreads, noteThreads } from '../src/lib/notebook-notes';
 import type { NotebookEntry, NotebookSession } from '../src/lib/notebook';
 import { EMPTY_QUERY, applyQuery } from '../src/lib/notebook-folders';
 import type { NotebookFolder } from '../src/lib/notebook-folders';
-import { load } from '../src/routes/notebook/+page.server';
+import { load } from '../src/routes/classroom/notebook/+page.server';
 
 /** The chain the LIVE project carries: 0069 through 0119, on its dependencies. */
 const FULL_CHAIN = [
@@ -243,7 +244,7 @@ function runLoad(
 	query = ''
 ) {
 	return (load as unknown as (event: unknown) => Promise<LoadResult>)({
-		url: new URL(`http://localhost/notebook${query}`),
+		url: new URL(`http://localhost/classroom/notebook${query}`),
 		locals: {
 			supabase: createPostgrestShim(database, keys, user.id),
 			claims: { sub: user.id, email: user.email, role: 'authenticated' }

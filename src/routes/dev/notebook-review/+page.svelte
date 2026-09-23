@@ -1,6 +1,18 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import ReviewConsole from '$lib/notebook/ReviewConsole.svelte';
+	import '$lib/classroom/classroom.css';
+	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
+	import type { ClassroomSection } from '$lib/classroom/classroom';
+	import {
+		activeTab,
+		classroomCrumbs,
+		classroomMeasure,
+		locateClassroom,
+		sectionTabs
+	} from '$lib/classroom/nav';
+	import { setSiteTheme } from '$lib/theme.svelte';
+	import { SITE_THEMES, siteThemeAttr, type SiteTheme } from '$lib/theme';
 	import type { ItemDoc } from '$lib/classroom/classroom-doc';
 	import type { TiptapNode } from '$lib/rich-text';
 	import type { NotebookFlagReason, NotebookPhoto, NotebookStatus } from '$lib/notebook';
@@ -1237,6 +1249,67 @@
 	/** `?bare=1`: the console with none of the harness's own chrome. */
 	const bare = $derived(page.url.searchParams.get('bare') === '1');
 
+	/**
+	 * THE CLASSROOM AROUND IT (ledger 0297, package F4a). The console lives
+	 * inside the classroom now, in two places, and this harness mounts the
+	 * real `ClassroomShell` in a `.cr-root` carrying the SAME measure and
+	 * application frame the real route's layout sets:
+	 *
+	 *   (default)     the all-sections console, `/classroom/notebook/review`,
+	 *                 with its section picker.
+	 *   ?locked=1     a class's own Notebook tab for a manager,
+	 *                 `/classroom/<section>/notebook`: locked to `?section=`
+	 *                 (else P2), no section picker, the class's tabs above it,
+	 *                 and `?mode=checkins` opening on the check-in manager.
+	 *   ?site=<theme> the site theme the room follows.
+	 */
+	const locked = page.url.searchParams.get('locked') === '1';
+	const lockedId = $derived(locked ? (askedSection ?? 'sec-a') : null);
+	const lockedSection = $derived(SECTIONS.find((s) => s.id === lockedId) ?? null);
+	const standIn = $derived(lockedId ? `/classroom/${lockedId}/notebook` : '/classroom/notebook/review');
+	const loc = $derived(locateClassroom(standIn));
+	const measure = $derived(classroomMeasure(loc));
+	const shellSections = $derived<ClassroomSection[]>(
+		SECTIONS.map((sec) => ({
+			id: sec.id,
+			course_id: `c-${sec.id}`,
+			label: sec.label,
+			block: sec.block,
+			teacher_email: sec.teacher_email,
+			course: { id: `c-${sec.id}`, code: sec.course_code, title: sec.course_title, active: true }
+		}))
+	);
+	const crumbs = $derived(
+		classroomCrumbs(loc, {
+			section: lockedSection ? `${lockedSection.course_code} · ${lockedSection.label}` : null
+		})
+	);
+	const tabs = $derived(lockedId ? sectionTabs(lockedId) : []);
+	const askedMode = page.url.searchParams.get('mode') === 'checkins' ? 'checkins' : 'review';
+
+	/** The site theme, pinned from `?site=` exactly as /dev/notebook pins it. */
+	const siteParam = page.url.searchParams.get('site');
+	const site: SiteTheme = SITE_THEMES.includes(siteParam as SiteTheme)
+		? (siteParam as SiteTheme)
+		: 'idea';
+	$effect(() => {
+		const el = document.documentElement;
+		setSiteTheme(site);
+		const attr = siteThemeAttr(site);
+		if (!attr) {
+			el.removeAttribute('data-theme');
+			return;
+		}
+		const apply = () => el.setAttribute('data-theme', attr);
+		apply();
+		const t = setTimeout(apply, 0);
+		return () => {
+			clearTimeout(t);
+			setSiteTheme('idea');
+			el.removeAttribute('data-theme');
+		};
+	});
+
 	// ---- Documentation Check (0097 + Classroom's grading RPC), mirrored -----
 	//
 	// The store reproduces the rules the UI is written against, not a stub that
@@ -1470,12 +1543,42 @@
 <svelte:head><title>dev // notebook review</title></svelte:head>
 
 <!--
-	`?bare=1` hides the harness's OWN chrome. The console is a full-height
-	application above 1024px, so the bar and the log below it are the only
-	things that give this page a document scroll at all -- and measuring "the
-	console needs no scrolling" through them would be measuring the harness.
-	Bare mode is the shipping geometry, mounted by the shipping component.
+	THE CLASSROOM'S ROOM FIRST, exactly as src/routes/classroom/+layout.svelte
+	renders it for this place, and the harness's own chrome AFTER it, so the
+	application frame is the top of the page as it is in class. `?bare=1` still
+	drops the chrome entirely, which is the shipping geometry with nothing of
+	the harness's below it to scroll to.
 -->
+<div
+	class="cr-root"
+	class:cr-app={measure === 'console'}
+	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
+>
+	<ClassroomShell
+		basePath="/dev/notebook-review"
+		sections={shellSections}
+		currentSectionId={loc.sectionId}
+		{crumbs}
+		{tabs}
+		tab={activeTab(loc)}
+		canManage={true}
+	>
+		{#key `${viewer}|${lockedId}`}
+			<ReviewConsole
+				sections={visibleSections}
+				{isChair}
+				{configured}
+				initialSectionId={askedSection}
+				lockedSectionId={lockedId}
+				initialMode={askedMode}
+				reviewHref={lockedId ? `/dev/notebook-review?section=${lockedId}` : null}
+				{transports}
+				docCheck={docCheckReady ? docCheckTransports : null}
+			/>
+		{/key}
+	</ClassroomShell>
+</div>
+
 {#if !bare}
 <div class="harness-bar">
 	<strong>dev harness</strong>
@@ -1528,17 +1631,6 @@
 </div>
 {/if}
 
-{#key viewer}
-	<ReviewConsole
-		sections={visibleSections}
-		{isChair}
-		{configured}
-		initialSectionId={askedSection}
-		{transports}
-		docCheck={docCheckReady ? docCheckTransports : null}
-	/>
-{/key}
-
 {#if !bare}
 <section class="panel">
 	<h2>Transport log</h2>
@@ -1554,9 +1646,6 @@
 
 <style>
 	.harness-bar {
-		position: sticky;
-		top: 0;
-		z-index: 5;
 		display: flex;
 		align-items: center;
 		gap: 1rem;

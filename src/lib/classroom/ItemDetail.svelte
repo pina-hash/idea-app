@@ -1724,8 +1724,9 @@
 								<!-- ATTACH AND DETACH, the management half. The check-in
 								     itself reads in the content flow above for everyone.
 								     Editing its date, its name or which classes it runs in
-								     stays in /notebook/review's SessionManager, which owns
-								     the check-in; this only decides what it hangs off. -->
+								     stays in the check-in manager on the class's Notebook
+								     tab (SessionManager), which owns the check-in; this only
+								     decides what it hangs off. -->
 								<div class="insp-block">
 									<!-- UNCONDITIONAL, and it used to sit INSIDE the count test
 									     below -- so an item with no check-in attached yet rendered
@@ -1749,7 +1750,7 @@
 
 												IT WRITES THROUGH THE NARROW RPC and moves nothing else on the
 												check-in. Its date, its name and which classes it runs in stay in
-												/notebook/review's SessionManager, which owns them -- and which
+												the Notebook tab's check-in manager, which owns them -- and which
 												offers this same field on this same component, so a teacher who is
 												already in there fixing a date does not have to come here.
 
@@ -2038,7 +2039,9 @@
 					<!-- The same door the stream row offers, carrying both ids: the
 					     upload flow files against a (check-in, class) PAIR, and a
 					     student in two classes that share one has two to choose
-					     between. This page knows which; the notebook cannot guess. -->
+					     between. This page knows which; the notebook cannot guess.
+					     It opens the class's own Notebook tab (ledger 0297), so the
+					     student stays inside the class they were reading. -->
 					<a class="ci-link" href={checkInHref(checkIn)} data-testid="item-check-in-link">
 						{canManage ? 'Open the notebook' : 'Open your notebook'}
 					</a>

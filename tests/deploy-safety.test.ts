@@ -377,7 +377,9 @@ describe('the wiring, read off the source', () => {
 		expect(read('src/routes/classroom/[sectionId]/+layout.svelte')).toMatch(
 			/if \(!composing \|\| !composerDirty\) return;\s*return holdDeployReload\(/
 		);
-		const notebook = read('src/routes/notebook/+page.svelte');
+		// The notebook's transports moved out of its page into one module
+		// (ledger 0297), built by every surface that writes a notebook.
+		const notebook = read('src/lib/notebook/transports.ts');
 		expect(notebook.match(/trackInFlight\(/g)?.length).toBe(2);
 		expect(read('src/lib/feedback/SiteFeedback.svelte')).toMatch(
 			/if \(!open\) return;\s*return holdDeployReload\(/

@@ -1,8 +1,18 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import NotebookView from '$lib/notebook/NotebookView.svelte';
 	import NotebookDeletedZone from '$lib/notebook/NotebookDeletedZone.svelte';
 	import NotebookNoAccountNotice from '$lib/notebook/NotebookNoAccountNotice.svelte';
 	import StudentReviewBackStrip from '$lib/notebook/StudentReviewBackStrip.svelte';
+	import '$lib/classroom/classroom.css';
+	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
+	import {
+		classNotebookHref,
+		classroomCrumbs,
+		classroomMeasure,
+		locateClassroom,
+		notebookReviewHref
+	} from '$lib/classroom/nav';
 	import type { EntryActionResult, NotebookDeletedEntry, NotebookEntry, NotebookSession } from '$lib/notebook';
 	import type { NotebookFolder } from '$lib/notebook-folders';
 
@@ -307,6 +317,30 @@
 	 * assumed. NotebookDeletedZone owns its own in-flight/disabled state now;
 	 * this is only the transport.
 	 */
+	/**
+	 * THE CLASSROOM AROUND IT (ledger 0297, package F4a). The page lives at
+	 * `/classroom/notebook/review/student/<email>` now, inside the shell, with
+	 * the way back as crumbs the load builds: the class's own Notebook tab for
+	 * a manager of the class it was opened from (`?manager=1` here), else the
+	 * all-sections console. The measure and frame are the real layout's.
+	 */
+	const asManager = page.url.searchParams.get('manager') === '1';
+	const standIn = $derived(`/classroom/notebook/review/student/${encodeURIComponent(student.email)}`);
+	const loc = $derived(locateClassroom(standIn));
+	const measure = $derived(classroomMeasure(loc));
+	const returnTo = $derived(
+		fromSectionId && asManager
+			? [
+					{ label: 'ENG1H · Period 2', href: `/classroom/${fromSectionId}` },
+					{ label: 'Notebook', href: classNotebookHref(fromSectionId) }
+				]
+			: [{ label: 'Notebook review', href: notebookReviewHref(fromSectionId) }]
+	);
+	const crumbs = $derived(
+		classroomCrumbs(loc, { student: student.display_name ?? student.email, returnTo })
+	);
+	const backHref = $derived(returnTo[returnTo.length - 1].href);
+
 	async function restoreEntry(entryId: string): Promise<EntryActionResult> {
 		log = [...log, `rpc notebook_staff_restore_entry { p_entry_id: '${entryId}' }`];
 		await new Promise((r) => setTimeout(r, 120));
@@ -336,6 +370,51 @@
 		return { ok: true };
 	}
 </script>
+
+<!-- Everything below this line mounts the SAME components
+     src/routes/classroom/notebook/review/student/[studentEmail]/+page.svelte
+     mounts, inside the SAME room the classroom layout gives that place. -->
+<div
+	class="cr-root"
+	class:cr-app={measure === 'console'}
+	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
+>
+	<ClassroomShell basePath="/dev/notebook-review-student" {crumbs} canManage={false}>
+		<div class="cr-app-body nb-read-page" data-testid="nb-read-page">
+			<StudentReviewBackStrip
+				displayName={student.display_name}
+				email={student.email}
+				sectionId={fromSectionId}
+				{backHref}
+				backLabel={returnTo.length > 1 ? 'Class notebook' : 'Section review'}
+			/>
+
+			{#if student.user_id === null}
+				<NotebookNoAccountNotice displayName={student.display_name} email={student.email} />
+			{/if}
+
+			<NotebookView
+				{entries}
+				{sessions}
+				{folders}
+				{activity}
+				sectionLabel={student.section_label}
+				canReview={false}
+				ownsPage={false}
+				uploadReady={false}
+				readOnly
+			/>
+
+			<NotebookDeletedZone
+				entries={deletedEntries}
+				studentName={student.display_name ?? student.email}
+				studentUserId={student.user_id}
+				viewerId={VIEWER_ID}
+				{restoreEntry}
+			/>
+		</div>
+	</ClassroomShell>
+</div>
 
 <div class="dev-toolbar">
 	<strong>Dev harness</strong>
@@ -369,50 +448,13 @@
 	{/if}
 </div>
 
-<!-- Everything below this line mounts the SAME components
-     src/routes/notebook/review/student/[studentEmail]/+page.svelte mounts. -->
-
-<StudentReviewBackStrip
-	displayName={student.display_name}
-	email={student.email}
-	sectionId={fromSectionId}
-/>
-
-{#if student.user_id === null}
-	<NotebookNoAccountNotice displayName={student.display_name} email={student.email} />
-{/if}
-
-<!--
-	`ownsPage={false}`: NOT THE WHOLE PAGE. A back strip sits above this room and
-	the staff Deleted section sits below it, so the application frame `masthead`
-	would otherwise imply is wrong here. Measured with the frame on at 1440:
-	`.nb-root` was a 900px viewport box starting 127px down the page, inside a
-	1463px document, with the Deleted section at y=1051 reachable only by
-	scrolling past a full-viewport frame whose panes were scrolling too. Page
-	flow is the right shape for a surface with chrome on both sides of it.
--->
-<NotebookView
-	{entries}
-	{sessions}
-	{folders}
-	{activity}
-	sectionLabel={student.section_label}
-	canReview={false}
-	ownsPage={false}
-	uploadReady={false}
-	readOnly
-	homeHref="/notebook/review"
-/>
-
-<NotebookDeletedZone
-	entries={deletedEntries}
-	studentName={student.display_name ?? student.email}
-	studentUserId={student.user_id}
-	viewerId={VIEWER_ID}
-	{restoreEntry}
-/>
-
 <style>
+	@media (min-width: 1024px) {
+		.nb-read-page {
+			overflow-y: auto;
+			overscroll-behavior: contain;
+		}
+	}
 	.dev-toolbar {
 		max-width: var(--measure-split);
 		margin: 0.75rem auto 0;

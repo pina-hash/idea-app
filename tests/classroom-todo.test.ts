@@ -480,7 +480,9 @@ describe('the words on a row', () => {
 		expect(byKey('c-yesterday').state).toBe('Not filed yet');
 		expect(byKey('c-draft-late').state).toBe('Draft, not turned in');
 		expect(byKey('c-flagged').state).toBe('Needs another look');
-		expect(byKey('c-yesterday').href).toBe('/notebook?checkin=c-yesterday&section=s-eng');
+		// The class's own Notebook tab since the notebook moved inside the classroom
+	// (ledger 0297); the old /notebook address still redirects there.
+	expect(byKey('c-yesterday').href).toBe('/classroom/s-eng/notebook?checkin=c-yesterday&section=s-eng');
 	});
 });
 

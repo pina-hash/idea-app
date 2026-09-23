@@ -44,9 +44,8 @@
 		type NoteFlush
 	} from '$lib/notebook/notebook-shell';
 	import '$lib/notebook/notebook-theme.css';
+	import { browserPlateStore, retireStoredNotebookPlate } from '$lib/notebook/notebook-theme';
 	import { tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
-	import NotebookMasthead from '$lib/notebook/NotebookMasthead.svelte';
-	import { notebookThemeAttr } from '$lib/notebook/notebook-theme.svelte';
 	import {
 		ENTRY_SORTS,
 		deletedEntryTitle,
@@ -152,9 +151,13 @@
 		deletedEntries = [],
 		uploadReady = true,
 		readOnly = false,
-		homeHref = '/',
-		masthead = true,
-		ownsPage = undefined,
+		ownsPage = false,
+		scopeSectionId = null,
+		scopeLabel = null,
+		classes = [],
+		defaultSectionId = null,
+		reviewHref = '/classroom/notebook/review',
+		allClassesHref = null,
 		historyReady = true,
 		coalescingReady = false,
 		viewerId,
@@ -291,40 +294,50 @@
 		 * once at the top rather than inferred from six omitted props.
 		 */
 		readOnly?: boolean;
-		/** Where "Home" goes -- rewritten under /classroom/view-as/<email>. */
-		homeHref?: string;
 		/**
-		 * False removes the notebook's own masthead. The room still needs the
-		 * `.nb-root` wrapper and its theme -- that stays -- but a caller that
-		 * already sits inside another persistent bar (the view-as tree, under
-		 * ClassroomShell) would otherwise render two: the logo, the ProfileMenu
-		 * and a way back would both appear twice on one screen. `homeHref` still
-		 * has no effect when this is false, since there is no bar left to carry
-		 * the link.
-		 */
-		masthead?: boolean;
-		/**
-		 * WHETHER THIS COMPONENT IS THE WHOLE PAGE, which is what decides
-		 * whether it takes the application frame (`cr-app`: above 1024px the
-		 * room IS the viewport and each pane of the split owns its own scroll).
-		 * Undefined means "the same answer as `masthead`", because a mount that
-		 * suppresses the masthead is by definition already inside somebody
-		 * else's bar -- so /classroom/view-as needs to say nothing and gets the
-		 * right answer from the prop it already sets.
+		 * WHETHER THIS COMPONENT IS THE BODY OF THE CLASSROOM'S APPLICATION FRAME
+		 * (ledger 0297). The notebook lives inside the classroom shell now, and
+		 * the routes that are the notebook -- a class's own Notebook tab and the
+		 * whole notebook -- take `nav.ts`'s `console` measure, which makes
+		 * `.cr-root` the viewport above 1024px. Their page is then `.nb-root`, as
+		 * `.cr-app-body`: the chrome above measures itself, this takes the rest,
+		 * and each pane of the split owns its own scroll.
 		 *
-		 * THE ONE MOUNT WHERE THAT DEFAULT IS WRONG SAYS SO, AND IT WAS
-		 * MEASURED. `/notebook/review/student/<email>` keeps the masthead AND
-		 * renders a back strip above the room and a staff Deleted section
-		 * BELOW it. With the frame on, `.nb-root` was 900px starting at y=127
-		 * at 1440 -- 127px past the fold -- inside a 1463px document, with the
-		 * Deleted section at y=1051 reachable only by scrolling past a
-		 * full-viewport frame: the document scrolling around panes that also
-		 * scroll, which is the "bar inside a bar" this whole geometry exists to
-		 * avoid. It passes `ownsPage={false}` and flows.
+		 * FALSE IS PAGE FLOW, and it is the default: a mount with chrome of its own
+		 * above or below the notebook -- the per-student review page with its back
+		 * strip and staff Deleted section, the admin's view-as preview under its
+		 * impersonation banner -- flows in the document, where `scroll="fill"`
+		 * resolves against an auto height and degrades to page-flow by
+		 * construction.
 		 *
-		 * A mount that owns the page states nothing and gets the frame.
+		 * THE NOTEBOOK'S OWN MASTHEAD IS GONE, and with it the `masthead` and
+		 * `homeHref` props that used to decide this. The classroom's masthead,
+		 * switcher, crumbs and tabs are the chrome on every mount.
 		 */
 		ownsPage?: boolean;
+		/**
+		 * THE CLASS THIS NOTEBOOK IS SCOPED TO (a class's own Notebook tab), or
+		 * null for the whole notebook. A free entry -- "Something else" -- written
+		 * here is FILED TO THIS CLASS, which is what makes it count on the class's
+		 * grid at all; before ledger 0297 it was saved with no class. The load has
+		 * already narrowed the entries and check-ins to this class.
+		 */
+		scopeSectionId?: string | null;
+		/** The scoped class's name, for the head. */
+		scopeLabel?: string | null;
+		/**
+		 * THE STUDENT'S CLASSES, for the whole notebook's class picker: a free entry
+		 * written there is filed to the class picked, which starts on the class
+		 * the student came from (`defaultSectionId`). Empty offers no picker and
+		 * files a free entry to no class, which is right for somebody in no class.
+		 */
+		classes?: { id: string; label: string }[];
+		/** The class a free entry starts filed to on the whole notebook. */
+		defaultSectionId?: string | null;
+		/** Where the "Section review" chip goes, for a reviewer. */
+		reviewHref?: string;
+		/** A class's tab links to the whole notebook, carrying the class along. */
+		allClassesHref?: string | null;
 		/**
 		 * A note can be DELETED and an entry can show a HISTORY (0119). False
 		 * turns both off the same way `deletionReady` turns off 0116/0117: no
@@ -496,13 +509,11 @@
 	const detailHasContent = $derived(showEntry || composerMounted);
 
 	/**
-	 * WHETHER TO TAKE THE APPLICATION FRAME. `ownsPage` when the caller said so,
-	 * otherwise `masthead` -- see the prop's own comment for why that default is
-	 * the honest one and for the mount that has to override it. Written once,
-	 * read by both class directives, so the wrapper and the body can never
-	 * disagree about which shape this is.
+	 * WHETHER THIS IS THE BODY OF THE CLASSROOM'S APPLICATION FRAME. Written
+	 * once and read by the wrapper and the shell alike, so the two can never
+	 * disagree about which shape this is. See the prop's own comment.
 	 */
-	const framed = $derived(ownsPage ?? masthead);
+	const framed = $derived(ownsPage);
 
 	/** The split's detail pane, for revealDetailPane. See $lib/shell/reveal.ts. */
 	let detailEl = $state<HTMLElement | null>(null);
@@ -528,6 +539,15 @@
 			if (id) selectEntry(id);
 		})
 	);
+
+	/*
+	 * A PLATE THE RETIRED PICKER STORED IS CLEARED ON THE FIRST LOAD (ledger
+	 * 0297). It paints nothing -- the room follows the site theme whatever it
+	 * says -- and clearing it means no later feature can revive a stale id.
+	 */
+	$effect(() => {
+		retireStoredNotebookPlate(browserPlateStore());
+	});
 
 	/**
 	 * ONE guard for both ways staged work gets discarded: closing the composer,
@@ -646,6 +666,15 @@
 	 */
 	let selectedSectionId = $state<string | null>(linkedPick?.sectionId ?? null);
 	let sessionTouched = $state(linkedPick !== null);
+	/**
+	 * THE CLASS A FREE ENTRY IS FILED TO (ledger 0297), on the whole notebook
+	 * where there is more than one to choose from. Seeded ONCE from the class
+	 * the student came from and then owned by the picker -- the deep-link rule
+	 * `linkedPick` follows -- and never read on a class's own tab, where the
+	 * class is the answer (`sectionForFree`).
+	 */
+	// svelte-ignore state_referenced_locally
+	let freeSectionChoice = $state<string | null>(defaultSectionId ?? classes[0]?.id ?? null);
 	/** A short TITLE for the entry. Since 0078 it is never the note's text. */
 	let title = $state('');
 	/** Which folder this entry will be filed into; null is Unfiled. */
@@ -1352,6 +1381,35 @@
 		);
 	}
 
+	/**
+	 * WHICH CLASS A FREE ENTRY -- "Something else", no check-in -- IS FILED TO.
+	 *
+	 * It used to be none: the three create paths sent `section_id` only with a
+	 * check-in, so free work belonged to no class, never reached the class's
+	 * grid (whose free-entry counter only counts entries filed to it) and never
+	 * showed up on a class's own tab. Composed from inside a class it is that
+	 * class; on the whole notebook it is the class the picker holds. Both RPCs
+	 * accept a class with no check-in and check only that the class exists
+	 * (0118, 0129 -- deliberately not an enrollment check: filing your own
+	 * entry against a class discloses your own work to that teacher and nobody
+	 * else's to anyone).
+	 */
+	/**
+	 * WHICH CLASS A CHECK-IN IS FOR, named only where it could be confused: the
+	 * whole notebook spans every class, and two classes routinely share a
+	 * check-in's name and date (a teacher posts one to both periods), which
+	 * rendered two identical picks. A class's own tab is one class, and says
+	 * nothing extra.
+	 */
+	function pickClassLabel(sectionId: string | null | undefined): string | null {
+		if (scopeSectionId || classes.length < 2 || !sectionId) return null;
+		return classes.find((c) => c.id === sectionId)?.label ?? null;
+	}
+
+	function sectionForFree(): string | null {
+		return scopeSectionId ?? freeSectionChoice;
+	}
+
 	/** Takes the PAIR, so pressing one of two postings of a shared check-in
 	    files under the class whose button was pressed. */
 	function chooseSession(id: string | null, sectionId: string | null = null) {
@@ -1739,7 +1797,7 @@
 				custom_label: title.trim() || null,
 				folder_id: folderChoice,
 				session_id: selectedSession,
-				section_id: selectedSession ? sectionForPick() : null,
+				section_id: selectedSession ? sectionForPick() : sectionForFree(),
 				submitted: false,
 				// The very first autosave is a CREATE, and its revision is the one
 				// a ten-minute writing session keeps rewriting. Unmarked, that
@@ -1789,7 +1847,7 @@
 			custom_label: title.trim() || null,
 			folder_id: folderChoice,
 			session_id: selectedSession,
-			section_id: selectedSession ? sectionForPick() : null,
+			section_id: selectedSession ? sectionForPick() : sectionForFree(),
 			submitted
 			// No `autosave`: this is a button. The revision it creates is a
 			// boundary, so the next autosave writes past it rather than over it.
@@ -1837,6 +1895,10 @@
 			first.set('session_id', selectedSession);
 			const sectionId = sectionForPick();
 			if (sectionId) first.set('section_id', sectionId);
+		} else {
+			// A free entry belongs to the class it was written in (ledger 0297).
+			const free = sectionForFree();
+			if (free) first.set('section_id', free);
 		}
 		const trimmed = title.trim();
 		if (!selectedSession && trimmed) first.set('custom_label', trimmed);
@@ -2157,6 +2219,24 @@
 		if (!folders.some((f) => f.id === selection)) selection = 'all';
 	});
 
+	/**
+	 * What the folders-and-filters disclosure says while it is shut: the
+	 * folder in view, then how many filters narrow it, then the deleted view,
+	 * in words. The disclosure is closed on arrival, so this line is the only
+	 * thing on screen that says a list is narrowed.
+	 */
+	const filtersSummary = $derived.by(() => {
+		if (showingDeleted) return DELETED_FILTER.label;
+		const where =
+			selection === 'all'
+				? 'All entries'
+				: selection === 'unfiled'
+					? 'Unfiled'
+					: (folders.find((f) => f.id === selection)?.name ?? 'All entries');
+		const n = filters.length;
+		return n ? `${where} · ${n} ${n === 1 ? 'filter' : 'filters'} on` : where;
+	});
+
 	function toggleFilter(id: EntryFilterId) {
 		filters = filters.includes(id) ? filters.filter((f) => f !== id) : [...filters, id];
 	}
@@ -2471,33 +2551,26 @@
 />
 
 <!--
-	.nb-root scopes the notebook's editorial theme (notebook-theme.css) and
-	keeps it out of every other surface; data-nb-theme names the plate, and its
-	absence is the default plate, which follows the site theme.
+	.nb-root scopes the notebook's own room (notebook-theme.css) and keeps it out
+	of every other surface. It FOLLOWS THE SITE THEME now (ledger 0297): there is
+	no plate attribute and no plate picker, and the room reads the classroom's
+	own register -- IDEA, Matrix or Space White, whichever the site is on.
 
-	`cr-app` IS THE APPLICATION FRAME, AND ONLY WHEN THIS COMPONENT OWNS THE
-	PAGE. Above 1024px the frame is the viewport and the body under the head
-	takes what is left, so each pane of the split scrolls on its own -- the
-	review console's shape, and IDEA_INTERFACE_STANDARDS 1 ("the page does not
-	scroll; the panes do").
+	`cr-app-body` IS THE CLASSROOM'S APPLICATION FRAME'S BODY, AND ONLY WHEN THIS
+	COMPONENT IS THE PAGE. The notebook's routes take the `console` measure, so
+	above 1024px `.cr-root` is the viewport, the classroom's chrome measures
+	itself and this takes whatever is left -- and each pane of the split scrolls
+	on its own (IDEA_INTERFACE_STANDARDS 1, "the page does not scroll; the panes
+	do").
 
-	THE KEY IS A PROP, NEVER A BRANCH ON THE MOUNT. `framed` is `ownsPage` when
-	a caller states it and `masthead` otherwise -- see the two props' own
-	comments for why that default is honest and for the one mount that overrides
-	it. So /classroom/view-as, which already passes `masthead={false}` because
-	it sits under ClassroomShell, needs to say nothing.
-
-	AND THE ABSENCE OF THE FRAME IS WHAT MAKES `scroll="fill"` SAFE EVERYWHERE
-	ELSE: without a bounded parent, `height: 100%` resolves against an auto
-	height, the panes grow to their content and the surface degrades to exactly
-	`page-flow` -- split.css's own words -- so an unframed mount keeps the page
-	flow it has always run on with nothing special-casing it.
+	THE KEY IS A PROP, NEVER A BRANCH ON THE MOUNT. `framed` is `ownsPage`, and
+	its absence is what makes `scroll="fill"` safe everywhere else: without a
+	bounded parent, `height: 100%` resolves against an auto height, the panes
+	grow to their content and the surface degrades to exactly `page-flow` --
+	split.css's own words -- so an unframed mount keeps the page flow it has
+	always run on with nothing special-casing it.
 -->
-<div class="nb-root" class:cr-app={framed} data-nb-theme={notebookThemeAttr()}>
-{#if masthead}
-	<NotebookMasthead backHref={homeHref} backLabel="Home" />
-{/if}
-
+<div class="nb-root" class:cr-app-body={framed} class:nb-framed={framed}>
 {#snippet navPane()}
 	<!--
 		THE NAVIGATION PANE: a head that stays and a body that scrolls, holding
@@ -2701,7 +2774,29 @@
 					/>
 				{/if}
 
-				<!-- Rail and chips together: one filtering block, one rule under it. -->
+				<!--
+					Rail and chips together: one filtering block, one rule under it.
+
+					BEHIND A DISCLOSURE, CLOSED ON ARRIVAL, WITH THE SELECTION IN ITS
+					META (ledger 0297). Open, this block measured 277px of a 528px
+					pane at 1366x768 -- the rail wraps to lines of 44px chips and the
+					filters take two more -- which left the list 0 visible entries under
+					it. A folder and a filter are SET ONCE and then read, so what has to
+					stay on screen is WHICH ones are set, not the controls for setting
+					them: the meta says the folder, the filter count and the deleted
+					view in words, so a narrowed list never reads as a short one. The
+					shared Disclosure remembers a press per viewer, so a student who
+					keeps it open finds it open. Closed-by-default is `collapseWhen`
+					constant-true, the spelling the grading console's panels use.
+				-->
+				<div class="list-filters-disc">
+				<Disclosure
+					label="Folders and filters"
+					scope="notebook:list-filters"
+					collapseWhen={true}
+					testId="nb-filters-toggle"
+				>
+					{#snippet meta()}<span data-testid="nb-filters-summary">{filtersSummary}</span>{/snippet}
 				<div class="list-filters">
 					{#if !showingDeleted && foldersReady}
 						<FolderRail
@@ -2780,6 +2875,8 @@
 								</button>
 							{/if}
 						</div>
+				</div>
+				</Disclosure>
 				</div>
 
 				{#if showingDeleted}
@@ -3036,7 +3133,9 @@
 								>
 									<span class="pick-label">{s.session_label}</span>
 									<span class="pick-meta">
-										{sessionMeta(s)}
+										{#if pickClassLabel(s.section_id)}<span data-testid="pick-class"
+												>{pickClassLabel(s.section_id)}</span
+											>{' · '}{/if}{sessionMeta(s)}
 										<!-- A draft against this check-in is why it is still here
 										     rather than filed -- say so, so picking it again reads
 										     as "keep going" and not "start over". -->
@@ -3054,7 +3153,7 @@
 								onclick={() => chooseSession(null)}
 							>
 								<span class="pick-label">Something else</span>
-								<span class="pick-meta">No session needed</span>
+								<span class="pick-meta">Not for a check-in</span>
 							</button>
 						</div>
 					{:else}
@@ -3118,6 +3217,24 @@
 							of the note.
 						</span>
 					</label>
+					<!-- WHICH CLASS IT IS FOR, on the whole notebook only: a class's own
+					     tab files it to that class and asks nothing. Starts on the
+					     class the student came from. -->
+					{#if !scopeSectionId && classes.length > 0}
+						<label class="field label-field class-field">
+							<span>Class</span>
+							<select
+								bind:value={freeSectionChoice}
+								disabled={busy}
+								data-testid="new-entry-class"
+							>
+								{#each classes as c (c.id)}
+									<option value={c.id}>{c.label}</option>
+								{/each}
+								<option value={null}>Not for a class</option>
+							</select>
+						</label>
+					{/if}
 				{/if}
 
 				<!-- Filing is offered on BOTH tiers: which folder an entry lives
@@ -3362,7 +3479,7 @@
 
 {/snippet}
 
-<main class="nb-shell" class:cr-app-body={framed}>
+<main class="nb-shell" class:nb-shell-fill={framed}>
 	<!--
 		THE PAGE HEAD, NOT A HERO. The three-line paragraph that used to open this
 		page ("Photograph your engineering notebook pages...") was reading material
@@ -3376,11 +3493,16 @@
 		READ-ONLY MOUNTS ADDRESS THE READER, NOT THE AUTHOR: an instructor looking
 		at a student's notebook is told whose it is and who may see it, never
 		"only you". Same rule as `searchLabel` above.
+
+		ONE LINE, INSIDE THE CLASSROOM (ledger 0297). The "IDEA // Notebook"
+		eyebrow and the display-size title belonged to a separate app announcing
+		itself; the classroom's crumbs and tabs say where you are now, so the head
+		is the title, the one sentence and the status chips, on one row where the
+		window has room.
 	-->
 	<header class="nb-head nb-block" data-testid="nb-head">
 		<div class="head-title">
-			<div class="eyebrow">IDEA // Notebook</div>
-			<h1>{readOnly ? 'Notebook' : 'My Notebook'}</h1>
+			<h1>{readOnly ? 'Notebook' : 'My notebook'}</h1>
 			<p class="privacy" data-testid="nb-privacy">
 				{readOnly
 					? 'Only this student, their section instructor and the department chair can see this notebook.'
@@ -3422,8 +3544,15 @@
 			{#if sectionLabel}
 				<span class="chip">{sectionLabel}</span>
 			{/if}
-			{#if canReview}
-				<a class="chip chip-link" href="/notebook/review">Section review &rsaquo;</a>
+			<!-- A class's tab reaches the whole notebook, carrying the class along
+			     so a free entry written there still starts filed to it. -->
+			{#if allClassesHref}
+				<a class="chip chip-link" href={allClassesHref} data-testid="nb-all-classes"
+					>All classes &rsaquo;</a
+				>
+			{/if}
+			{#if canReview && reviewHref}
+				<a class="chip chip-link" href={reviewHref}>Section review &rsaquo;</a>
 			{/if}
 		</div>
 	</header>
@@ -3492,9 +3621,10 @@
 			`scroll="fill"`, WHERE THIS USED TO BE `page`. The argument for `page`
 			was the HERO: ~355px of chrome above the split and ~100px below it left
 			viewport-height panes overflowing the viewport, so the document scrolled
-			as well and a bar sat inside a bar. The hero is a head now -- measured
-			242px of chrome above the split at 1440, inside `cr-app`'s own frame,
-			which measures itself and gives the body the rest -- so nothing here
+			as well and a bar sat inside a bar. The hero is a head now, and since
+			ledger 0297 the frame is the CLASSROOM's: its shell is the `.cr-root`
+			frame, which measures its own chrome and gives this body the rest --
+			so nothing here
 			names a chrome height and there is no arithmetic left to be wrong about.
 			What `page` cost was the thing this pane is for: at 1440 the document
 			ran 1677px against a 900px viewport, so scrolling to the foot of a
@@ -3502,8 +3632,8 @@
 			feed took Turn in off screen.
 
 			THE OTHER HALF OF THE `page` ARGUMENT WAS /classroom/view-as, AND THE
-			FRAME ANSWERS IT WITHOUT A BRANCH HERE. That mount passes
-			`masthead={false}`, takes no `cr-app`, and `fill` then resolves against
+			FRAME ANSWERS IT WITHOUT A BRANCH HERE. That mount does not pass
+			`ownsPage`, so this root is no frame body, and `fill` then resolves against
 			an auto height and degrades to page-flow by construction (split.css's
 			own words). `revealDetailPane` is kept for exactly that mount, where the
 			detail column still starts wherever the document has scrolled to.
@@ -3551,14 +3681,15 @@
 	   bounding it and hands the page a second scrollbar. */
 	.nb-shell {
 		max-width: none;
-		/* Tighter at the top than the hero it replaced needed: the head is two
-		   lines and a strip of chips, and the work starts under it. */
-		padding: var(--space-5) 0 4.5rem;
+		/* No top padding of its own inside the classroom: the tab bar or the
+		   crumbs above already carry the step, and the head is one line. */
+		padding: 0 0 4.5rem;
 		display: flex;
 		flex-direction: column;
 		/* `margin: 0` IS LOAD-BEARING AND IS NOT TIDINESS. app.css gives every
-		   `main` a `margin: 0 auto`, and `cr-app` makes `.nb-root` a flex COLUMN
-		   at every width (only its viewport HEIGHT is above the breakpoint), so
+		   `main` a `margin: 0 auto`, and `.nb-framed` makes `.nb-root` a flex
+		   COLUMN at every width (only its viewport HEIGHT is above the
+		   breakpoint), so
 		   this element became a flex item -- and an auto cross-axis margin
 		   SWITCHES OFF `align-items: stretch`. The item is then sized
 		   `fit-content`, which cannot go below its own min-content, and the
@@ -3584,16 +3715,50 @@
 		/* Same trap one level in: the split's own panes size themselves. */
 		min-width: 0;
 	}
+	/* THE SPLIT TAKES THE ROW'S WIDTH AT EVERY WIDTH. Above 1024px split.css
+	   gives it `width: 100%`; below it the split is a flex item in this row
+	   with nothing saying so, and a flex item's width is its content's.
+	   Measured at 960: both read-only notebooks drew a 370px list in a 960px
+	   window (the review page and view-as alike, which is the page-flow
+	   mount), and the phone was only right because its content happened to
+	   be wider than the phone. */
+	.nb-split > :global(.cr-split) {
+		flex: 1 1 0%;
+		min-width: 0;
+	}
 	/* Pinned at the foot of the frame, as the review console's is, rather than
 	   growing to absorb the column. */
 	.nb-foot {
 		flex: none;
 	}
+	/* THE CLASSROOM'S OWN MEASURE (ledger 0297). Inside the shell the crumbs
+	   and tabs read `--cr-measure`, and this reads the same number, so the head,
+	   the notice strip and the split start on the same left edge as the chrome
+	   above them. It used to be capped at the split's own measure and centred
+	   while the split spanned the window: measured, the two left edges sat
+	   70px apart at 1366 and 330px apart on the read-only views at 1440. */
+	/* `width: 100%` BECAUSE THE FRAME IS A FLEX COLUMN: an auto-margined
+	   child of one shrinks to its content, so the head measured 1265px wide
+	   and centred at x=50 in a 1366 window while the split's panes started
+	   at x=32. */
 	.nb-block {
-		max-width: var(--measure-split);
+		width: 100%;
+		max-width: var(--cr-measure, var(--measure-split));
 		margin: 0 auto;
 		padding: 0 var(--cr-gutter);
 		box-sizing: border-box;
+	}
+	/* THE BODY OF THE CLASSROOM'S FRAME: a column whose one growable child is
+	   the shell. Above 1024px split.css makes this `.cr-app-body` the rest of
+	   the viewport; below it everything flows. */
+	.nb-root.nb-framed {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+	.nb-framed > .nb-shell {
+		flex: 1 1 auto;
+		min-height: 0;
 	}
 	.notice-strip {
 		margin-bottom: var(--space-4);
@@ -3638,10 +3803,12 @@
 	/* The rail and the chips are one filtering block with one rule under it,
 	   which is the rule the toolbar used to carry before the two halves parted
 	   company. */
-	.list-filters {
-		padding-bottom: var(--space-4);
+	.list-filters-disc {
 		margin-bottom: var(--space-2);
 		border-bottom: 1px solid var(--hairline);
+	}
+	.list-filters {
+		padding: var(--space-2) 0 var(--space-4);
 	}
 	.pane-head {
 		display: flex;
@@ -3672,8 +3839,12 @@
 	@media (min-width: 1024px) {
 		/* The pane IS the frame above the breakpoint (split.css draws it), so the
 		   list drops the card chrome it wears at phone width rather than sitting
-		   as a second box inside the first. */
-		.nb-pane-card {
+		   as a second box inside the first. Written under `.nb-root` because
+		   the room's own card skin (`.nb-root .card` in notebook-theme.css)
+		   is as specific as a bare class here and paints the card's ground
+		   back: measured, the pane drew a second 366px box in a 416px frame
+		   inside the classroom shell until this outranked it. */
+		.nb-root .nb-pane-card {
 			border: none;
 			background: none;
 			box-shadow: none;
@@ -3688,17 +3859,18 @@
 		/* Inside the frame the body IS the viewport's remainder, so the 4.5rem
 		   of tail the single-column page carries is 4.5rem the panes do not
 		   get. It is only ever the frame's, which is why it is compounded with
-		   `.cr-app-body` rather than written on `.nb-shell`: the view-as mount
+		   `.nb-shell-fill` rather than written on `.nb-shell`: the view-as mount
 		   is still a document and still wants its tail. */
-		.nb-shell.cr-app-body {
+		.nb-shell.nb-shell-fill {
 			padding-bottom: var(--space-3);
 		}
-		/* A FORM IS NOT PROSE, and it is not a photograph either. The detail pane
-		   reaches ~920px at 1440, where a single-line text input stops being
-		   scannable -- the same cap the classroom's composer takes. The open
-		   ENTRY keeps the whole pane, because a notebook page wants every pixel. */
+		/* THE FORM TAKES THE PANE (ledger 0297). It was capped at the form
+		   measure on the argument that a single-line input stops being scannable
+		   past ~48rem -- and measured, that cap left 94px of an 862px pane empty
+		   at 1366 and 218px of a 936px one at 1440, beside a note editor that
+		   wants every pixel of width it can get. The pane is the measure now;
+		   nothing in the form is a paragraph of prose. */
 		.compose-card {
-			max-width: var(--measure-form);
 			/* The card's own bottom padding would otherwise sit BELOW the pinned
 			   row as a strip of card the row cannot cover; the row carries the
 			   spacing instead. */
@@ -3726,26 +3898,31 @@
 	}
 	/* ---- the page head -------------------------------------------------
 	   Title on the left, status on the right, on one line where there is
-	   room and stacked where there is not. `align-items: flex-end` sits the
-	   chips on the baseline of the privacy line rather than floating them
-	   beside the eyebrow. */
+	   room and stacked where there is not. Inside the classroom (ledger 0297)
+	   the crumbs and tabs above already say where you are, so the head is one
+	   title-sized line and a rule, not a banner: the split starts a head
+	   shorter than it did. */
 	.nb-head {
 		display: flex;
-		align-items: flex-end;
+		align-items: center;
 		justify-content: space-between;
-		gap: var(--space-3) var(--space-5);
+		gap: var(--space-2) var(--space-5);
 		flex-wrap: wrap;
-		padding-bottom: var(--space-5);
-		margin-bottom: var(--space-5);
+		padding-bottom: var(--space-3);
+		margin-bottom: var(--space-3);
 		border-bottom: 1px solid var(--hairline);
 	}
 	.head-title {
 		min-width: 0;
 		flex: 1 1 20rem;
+		display: flex;
+		align-items: baseline;
+		flex-wrap: wrap;
+		gap: 0 var(--space-4);
 	}
 	.nb-head h1 {
-		margin: var(--space-1) 0 var(--space-2);
-		font-size: 1.85rem;
+		margin: 0;
+		font-size: 1.3rem;
 	}
 	/* One line, the room's secondary tier: it is the fact worth keeping from
 	   the paragraph it replaces, and it is not the work. */
@@ -3934,8 +4111,8 @@
 	   --text-3 the fill measures 1.09:1 against the card, i.e. the selected row
 	   stops being marked at all, which is the wash's entire job.
 
-	   NotebookThemeToggle's `.option.current .note` is the same rule for the same
-	   reason and predates this one; keep them in step. */
+	   The retired plate picker's `.option.current .note` was the same rule for
+	   the same reason; it left with the picker (ledger 0297). */
 	.pick.selected .pick-meta {
 		color: var(--text-2);
 	}

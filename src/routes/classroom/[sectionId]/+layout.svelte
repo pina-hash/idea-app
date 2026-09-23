@@ -14,7 +14,7 @@
 	} from '$lib/classroom/classroom';
 	import { COMPOSER_DISCARD_WARNING } from '$lib/classroom/composer-staging';
 	import { createClassroomLive } from '$lib/classroom/live';
-	import { locateClassroom, navKeepsComposer } from '$lib/classroom/nav';
+	import { classNotebookHref, locateClassroom, navKeepsComposer } from '$lib/classroom/nav';
 	import { holdDeployReload } from '$lib/shell/deploy-safety';
 	import {
 		createCheckInTransports,
@@ -309,15 +309,14 @@
 	}
 
 	/**
-	 * The notebook door for whoever is looking. A manager of this section gets the
-	 * review console already scoped to it -- `notebook_get_section_grid` asks
-	 * `classroom_manages_section`, the same question `canManage` is, so the link
-	 * can never offer a grid the database would refuse. Everyone else reading this
-	 * page is an actively enrolled student, and theirs is their own notebook.
+	 * THE CLASS'S OWN NOTEBOOK, for whoever is looking (ledger 0297). One address
+	 * for both roles now: the tab decides from the server's own `canManage`
+	 * whether it is the student's notebook in this class or the class's review,
+	 * so a check-in row links a student straight to their notebook with that
+	 * check-in chosen, and a manager to the class's grid -- both without leaving
+	 * the class.
 	 */
-	const notebookHref = $derived(
-		data.canManage ? `/notebook/review?section=${data.section.id}` : '/notebook'
-	);
+	const notebookHref = $derived(classNotebookHref(data.section.id));
 
 	/**
 	 * Folded units, optimistic locally so the caret turns on the click rather
