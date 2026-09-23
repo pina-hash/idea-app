@@ -192,7 +192,7 @@ describe('mates in sequence', () => {
 	});
 	it('a redundant mate adds nothing and says so, naming the mate that already holds the body', () => {
 		const r = solve([mate('coincident', side('A', F.aTop), side('B', F.bBottom)), mate('parallel', side('A', F.aTop), side('B', F.bBottom))]);
-		expect(r.errors).toEqual([{ feature: 'm2', message: 'Mate 2 adds nothing: Mate 1 already hold Bracket this way. Delete it, or mate a different face.' }]);
+		expect(r.errors).toEqual([{ feature: 'm2', message: 'Mate 2 adds nothing: Mate 1 already holds Bracket this way. Delete it, or mate a different face.' }]);
 		expect(r.dof.get('B')).toBe(3);
 	});
 	it('a mate on a body with no freedom left is refused by the names of what holds it', () => {

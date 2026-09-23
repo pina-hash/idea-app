@@ -28,7 +28,7 @@
  * is why the axis comes from the null space and not from the geometry alone.
  *
  * OVER-CONSTRAINT IS REPORTED BY NAME AND MOVES NOTHING. Three cases, three
- * sentences: the body has no freedom left (`already hold it in place`); the
+ * sentences: the body has no freedom left (`already holds it in place`); the
  * mate cannot be satisfied together with the earlier ones (`conflicts with`,
  * naming exactly the earlier mates whose removal would free it); and the mate
  * holds already without adding a constraint (`adds nothing`). In every case
@@ -39,7 +39,7 @@
  * earlier one is re-solved, and if it cannot be held it is reported with the
  * later mate's name rather than left silently broken.
  */
-import type { MateKind, ModelProjection, Vec3 } from '../types';
+import type { EntityRef, MateKind, ModelProjection, Vec3 } from '../types';
 import { add, cross, dot, scale, sub, unit } from '../math';
 import { boundsCenter, frameDirection, frameFromProjection, frameOrigin, transformFrame, type EntityFrame } from './frames';
 import { orientationSign, perpendicular, residual, residualReport, residualUnit, type Sign } from './constraints';
@@ -229,8 +229,8 @@ export function solveAssembly(input: AssemblyInput): AssemblyResult {
 			const earlierRows = solver.rows(earlier, mover);
 			if (earlier.length && rowRank(earlierRows, RANK_TOLERANCE) >= 6) {
 				record(c);
-				const names = list(earlier.map((e) => e.mate.name));
-				throw Error(holds() ? `${mate.name} adds nothing: ${names} already hold ${bodyName(mover)} this way. Delete it, or mate a different face.` : `${mate.name} would move ${bodyName(mover)}, but ${names} already hold it in place. Delete one of them first.`);
+				const names = list(earlier.map((e) => e.mate.name)), hold = earlier.length === 1 ? 'holds' : 'hold';
+				throw Error(holds() ? `${mate.name} adds nothing: ${names} already ${hold} ${bodyName(mover)} this way. Delete it, or mate a different face.` : `${mate.name} would move ${bodyName(mover)}, but ${names} already ${hold} it in place. Delete ${earlier.length === 1 ? 'it' : 'one of them'} first.`);
 			}
 			solver.kick(c, earlier, mover);
 			const worst = solver.refine([...earlier, c], mover);
@@ -240,9 +240,9 @@ export function solveAssembly(input: AssemblyInput): AssemblyResult {
 				throw Error(earlier.length ? `${mate.name} conflicts with ${names}: ${bodyName(mover)} cannot satisfy ${culprits.length === 1 ? 'both' : 'all of them'}. Delete one of them, or change its value.` : `${mate.name} cannot be satisfied by moving ${bodyName(mover)}. Pick different faces or change its value.`);
 			}
 			if (earlier.length && rowRank([...solver.rows(earlier, mover), ...solver.jacobian(c, mover)], RANK_TOLERANCE) === rowRank(solver.rows(earlier, mover), RANK_TOLERANCE)) {
-				const names = list(involved(earlier, c, mover).map((e) => e.mate.name));
+				const culprits = involved(earlier, c, mover), names = list(culprits.map((e) => e.mate.name));
 				solver.poses.set(mover, saved); record(c);
-				throw Error(`${mate.name} adds nothing: ${names} already hold ${bodyName(mover)} this way. Delete it, or mate a different face.`);
+				throw Error(`${mate.name} adds nothing: ${names} already ${culprits.length === 1 ? 'holds' : 'hold'} ${bodyName(mover)} this way. Delete it, or mate a different face.`);
 			}
 			accepted.push(c); record(c);
 			if (!placement.placedAt.has(mover)) placement.placedAt.set(mover, index);
@@ -285,7 +285,7 @@ export function solveAssembly(input: AssemblyInput): AssemblyResult {
  * projects the solver's own `freedom`; both go through `chooseMover` and
  * `freedomOf`, so they cannot disagree about a body.
  */
-export function freedomFromProjection(model: ModelProjection): Map<string, Freedom> {
+function acceptedFromProjection(model: ModelProjection) {
 	const bodies = model.bodies.map((b) => ({ id: b.id, name: b.name, fixed: b.fixed, center: boundsCenter(b.bounds) }));
 	const solver = new Solver(bodies);
 	const fixed = new Set(bodies.filter((b) => b.fixed).map((b) => b.id));
@@ -300,6 +300,10 @@ export function freedomFromProjection(model: ModelProjection): Map<string, Freed
 		if (choice.mover && !placement.placedAt.has(choice.mover)) placement.placedAt.set(choice.mover, index);
 		if (choice.anchored && !placement.placedAt.has(choice.anchored)) { placement.placedAt.set(choice.anchored, index); placement.ground.add(choice.anchored); }
 	});
+	return { solver, fixed, placement, accepted, named };
+}
+export function freedomFromProjection(model: ModelProjection): Map<string, Freedom> {
+	const { solver, fixed, placement, accepted, named } = acceptedFromProjection(model);
 	const out = new Map<string, Freedom>();
 	for (const id of named) {
 		if (!solver.bodies.has(id)) continue;
@@ -309,4 +313,57 @@ export function freedomFromProjection(model: ModelProjection): Map<string, Freed
 		out.set(id, f.dof === 6 && placement.ground.has(id) ? freeFreedom(true) : f);
 	}
 	return out;
+}
+/**
+ * WHAT HOLDS ONE BODY, read off the projection: the Jacobian rows of every
+ * accepted mate that body is the mover of, over the twist about its own
+ * centre. `mates/motion.ts` projects a drag onto their null space. A fixed body
+ * says so; a body no mate moves has no rows and is free.
+ */
+export function holdOf(model: ModelProjection, bodyId: string): { rows: number[][]; center: Vec3; fixed: boolean; ground: boolean } | null {
+	const { solver, fixed, placement, accepted } = acceptedFromProjection(model);
+	if (!solver.bodies.has(bodyId)) return null;
+	let rows: number[][] = [];
+	try { rows = solver.rows(accepted.filter((c) => c.mover === bodyId), bodyId); } catch { rows = []; }
+	return { rows, center: solver.center(bodyId), fixed: fixed.has(bodyId), ground: placement.ground.has(bodyId) };
+}
+/** One proposed mate, as the panel holds it before it is added. */
+export interface ProposedMate { kind: MateKind; a: EntityRef; b: EntityRef; value?: number; flip?: boolean }
+/**
+ * THE FREEDOM A SET OF PROPOSED MATES WOULD LEAVE, before anything is added:
+ * the same `chooseMover` (first body stays, second moves, a fixed body never
+ * moves) and the same `freedomOf` over the same residuals the solver will use,
+ * so a joint's promised count and the solver's own report cannot disagree.
+ * Answers the pairing sentence of the first mate these entities cannot take.
+ */
+export function proposedFreedom(model: ModelProjection, mates: readonly ProposedMate[]): { mover: string | null; freedom: Freedom } | { error: string } {
+	const bodies = model.bodies.map((b) => ({ id: b.id, name: b.name, fixed: b.fixed, center: boundsCenter(b.bounds) }));
+	const solver = new Solver(bodies), fixed = new Set(bodies.filter((b) => b.fixed).map((b) => b.id));
+	const constraints: Constraint[] = [];
+	let mover: string | null = null;
+	for (const [index, m] of mates.entries()) {
+		const a = frameFromProjection(model, m.a), b = frameFromProjection(model, m.b);
+		if (!a || !b) return { error: 'That pick is no longer on the model. Pick it again.' };
+		const choice = chooseMover(a.body, b.body, index, fixed, { placedAt: new Map(), ground: new Set() });
+		mover ??= choice.mover;
+		const c: Constraint = { mate: { feature: `proposed-${index}`, name: 'This mate', kind: m.kind, value: m.value, flip: m.flip, a, b }, a, b, sign: orientationSign(m.kind, a.frame, b.frame, m.flip), mover, index };
+		try { solver.evaluate(c); } catch (error) { return { error: error instanceof Error ? error.message : String(error) }; }
+		constraints.push(c);
+	}
+	if (!mover) return { mover: null, freedom: { dof: 0, translations: 0, slides: [], turns: [] } };
+	return { mover, freedom: freedomOf(solver.rows(constraints, mover), RANK_TOLERANCE) };
+}
+/**
+ * WHAT A MATE'S TROUBLE IS, read off the sentence this file wrote for it, so
+ * the stem a row is classified by and the sentence it came from live in one
+ * file: `adds nothing` is redundant; a mate that cannot hold together with
+ * others (or would move a part that cannot move) is a conflict and its
+ * sentence already names the other mates; anything else did not solve.
+ */
+export type MateTrouble = 'redundant' | 'conflict' | 'unsolved';
+export function mateTrouble(message: string | undefined): MateTrouble {
+	if (!message) return 'unsolved';
+	if (/ adds nothing: /.test(message)) return 'redundant';
+	if (/ conflicts with | no longer holds after | already holds? it in place| but both are fixed| but it is fixed/.test(message)) return 'conflict';
+	return 'unsolved';
 }

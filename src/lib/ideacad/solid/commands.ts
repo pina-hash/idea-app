@@ -106,6 +106,10 @@ export function reduce(current: SolidManifest, command: SolidCommand): SolidMani
 			m.features.push(feature);
 			return m;
 		}
+		case 'batch': {
+			if (!Array.isArray(command.commands) || !command.commands.length) throw Error('Nothing to change.');
+			return command.commands.reduce((next, c) => reduce(next, c), m);
+		}
 		case 'delete': {
 			const bodies = [...new Set(command.selections.filter((s) => s.kind === 'body').map((s) => s.bodyId))];
 			const sketches = command.selections.filter((s) => s.kind === 'sketch' || s.kind === 'feature' || s.kind === 'reference').map((s) => s.id);
