@@ -2065,7 +2065,9 @@ profile name.** Adding a badge or a flourish means editing that module AND
   in that subsystem's own lane, and the day one lands every consumer of
   `Avatar.svelte` renders it with no edit -- which is what 0179/0180 did for the
   avatar columns. `tests/identity-consumer-inheritance.test.ts` proves both
-  directions on consumers it also asserts were never edited.
+  directions on the real consumers. It used to also assert, from `git diff`,
+  that 0289 had not edited them; that could only pass on 0289's own branch and
+  was removed (ledger 0295).
 
 **AND THE AVATAR PRESET SET IS APPEND-ONLY, FOR THE REASON `curriculum.ts`'s
 `SECTIONS` IS.** `profiles.avatar` is free text holding `preset:<id>`, so every
