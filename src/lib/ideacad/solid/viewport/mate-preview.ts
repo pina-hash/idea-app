@@ -14,9 +14,16 @@
  * and `b` is the moving body's, because the solver keeps the first body a mate
  * names still and moves the second to it -- the body under the pointer is the
  * one that should move.
+ *
+ * A candidate the mover's existing mates already hold (a pin dragged along the
+ * hole it is already concentric with) is skipped by `addsToHold`, the solver's
+ * own rank test over the projection, so a drag within freedom never snaps to,
+ * or adds, a mate that adds nothing.
  */
 import type { BodyProjection, FaceProjection, MateKind, ModelProjection, Selection, Vec3 } from '../types';
 import { dot, sub, unit } from '../math';
+import { refFromSelection } from '../naming';
+import { addsToHold } from '../mates/solve';
 
 /** How close, in inches, a face or an axis has to come before it snaps. */
 export const MATE_SNAP_TOLERANCE = 0.15;
@@ -57,8 +64,14 @@ export function matePreview(model: ModelProjection, movingBodyId: string, delta:
 	if (!mover || !(tolerance > 0)) return NONE(delta);
 	type Candidate = { correction: Vec3; size: number; kind: MateKind; a: Selection; b: Selection; target: BodyProjection; targetFace: FaceProjection; face: FaceProjection };
 	let best: Candidate | null = null;
+	/* A snap that would add a mate the mover's existing mates already hold is no snap: the drag stays where it is and no redundant mate is offered (F046). Only asked when the model has mates at all. */
+	const adds = (kind: MateKind, target: BodyProjection, targetFace: FaceProjection, face: FaceProjection) => {
+		if (!model.mates.length) return true;
+		try { return addsToHold(model, { kind, a: { kind: 'face', ...refFromSelection({ bodyId: target.id, kind: 'face', id: targetFace.id }, target) } as never, b: { kind: 'face', ...refFromSelection({ bodyId: mover.id, kind: 'face', id: face.id }, mover) } as never }); } catch { return true; }
+	};
 	const consider = (size: number, correction: Vec3, kind: MateKind, face: FaceProjection, target: BodyProjection, targetFace: FaceProjection) => {
 		if (size > tolerance || (best && size >= best.size)) return;
+		if (!adds(kind, target, targetFace, face)) return;
 		best = { correction, size, kind, a: { bodyId: target.id, kind: 'face', id: targetFace.id }, b: { bodyId: mover.id, kind: 'face', id: face.id }, target, targetFace, face };
 	};
 	for (const face of mover.faces) {

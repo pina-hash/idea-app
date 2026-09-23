@@ -367,3 +367,21 @@ export function mateTrouble(message: string | undefined): MateTrouble {
 	if (/ conflicts with | no longer holds after | already holds? it in place| but both are fixed| but it is fixed/.test(message)) return 'conflict';
 	return 'unsolved';
 }
+/**
+ * DOES A PROPOSED MATE ADD ANYTHING to what already holds its moving body? The
+ * magnetic snap asks this before offering a mate, so dragging a pin along the
+ * hole it is already concentric with does not add a second concentric mate the
+ * solver can only call redundant (F046). The moving body is `b`'s, as the snap
+ * builds it; a mate that does not name a movable body adds nothing.
+ */
+export function addsToHold(model: ModelProjection, mate: ProposedMate): boolean {
+	const { solver, fixed, accepted } = acceptedFromProjection(model);
+	const a = frameFromProjection(model, mate.a), b = frameFromProjection(model, mate.b);
+	if (!a || !b) return false;
+	const mover = b.body && !fixed.has(b.body) ? b.body : a.body && !fixed.has(a.body) ? a.body : null;
+	if (!mover || !solver.bodies.has(mover)) return false;
+	const c: Constraint = { mate: { feature: 'proposed', name: 'This mate', kind: mate.kind, value: mate.value, flip: mate.flip, a, b }, a, b, sign: orientationSign(mate.kind, a.frame, b.frame, mate.flip), mover, index: accepted.length };
+	try { solver.evaluate(c); } catch { return false; }
+	const held = solver.rows(accepted.filter((x) => x.mover === mover), mover);
+	return rowRank([...held, ...solver.jacobian(c, mover)], RANK_TOLERANCE) > rowRank(held, RANK_TOLERANCE);
+}
