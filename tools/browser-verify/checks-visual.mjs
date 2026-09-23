@@ -527,6 +527,160 @@ export async function layoutSanity(
 }
 
 /* ------------------------------------------------------------------ *
+ * 2b. Control fit -- a label off its border, and no control on another
+ * ------------------------------------------------------------------ *
+ *
+ * LEDGER 0297, package F2, Mr. Pina's standing rules applied to the whole
+ * site: "button text never touches its border, on any page, at any width" and
+ * "nothing overlaps at half-screen width". Neither is a question any other
+ * check here asks. `tapTargets` measures a box and `layoutSanity` a box's
+ * place; a button whose words run into its own edge has a perfectly good box,
+ * and two controls painted on top of each other each have one too.
+ *
+ *   inset    for every rendered interactive element that DRAWS an edge (a
+ *            visible border, or a ground that differs from what is behind
+ *            it), the distance from its text to that edge on each side,
+ *            measured from the text's own rects through a Range -- the words
+ *            the reader sees, not the content box. Under `minInset` (4px) on
+ *            any side is a finding.
+ *   overlap  every pair of rendered interactive elements whose boxes
+ *            intersect by more than `overlapPx` square pixels, where neither
+ *            contains the other (a checkbox in its label is one control) and
+ *            the pair is not a label and the input it names.
+ *
+ * Both are COUNTED over a stated population and every finding names its
+ * element, so a zero says how many were looked at.
+ */
+export async function controlFit(
+	page,
+	{ label = 'control fit', root = null, interactive = INTERACTIVE, minInset = 4, overlapPx = 4 } = {}
+) {
+	await ensureHelpers(page);
+	const data = await page.evaluate(
+		({ root, interactive, minInset, overlapPx }) => {
+			const h = window.__bvHelpers;
+			const scope = root ? document.querySelector(root) : document.body;
+			if (!scope) return { scopeFound: false, root };
+			const name = (el) => {
+				const t = (el.textContent || el.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim().slice(0, 32);
+				return `${h.cssPath(el)}${t ? ` "${t}"` : ''}`;
+			};
+			const rendered = (el) => {
+				const cs = getComputedStyle(el);
+				if (cs.display === 'none' || cs.visibility !== 'visible' || el.hasAttribute('hidden')) return false;
+				/* The body of a CLOSED <details> still reports a box and a visible
+				   computed style in Chromium (it is hidden through the details
+				   content slot, not the cascade), so it is asked for directly. */
+				const shut = el.closest('details:not([open])');
+				if (shut && !(el.closest('summary') && el.closest('summary').parentElement === shut)) return false;
+				const r = el.getBoundingClientRect();
+				return r.width > 0.5 && r.height > 0.5;
+			};
+			const alpha = (c) => {
+				const m = /rgba?\(([^)]+)\)/.exec(c || '');
+				if (!m) return c && c !== 'transparent' ? 1 : 0;
+				const parts = m[1].split(/[ ,/]+/).filter(Boolean);
+				return parts.length > 3 ? Number(parts[3]) : 1;
+			};
+			const drawsEdge = (el, cs) => {
+				const bw = ['Top', 'Right', 'Bottom', 'Left'].some(
+					(s) => parseFloat(cs[`border${s}Width`]) > 0 && cs[`border${s}Style`] !== 'none' && alpha(cs[`border${s}Color`]) > 0.05
+				);
+				if (bw) return true;
+				if (alpha(cs.backgroundColor) <= 0.05) return false;
+				const parentBg = el.parentElement ? getComputedStyle(el.parentElement).backgroundColor : '';
+				return cs.backgroundColor !== parentBg;
+			};
+			const nodes = Array.from(scope.querySelectorAll(interactive)).filter(rendered);
+			const tight = [];
+			let edged = 0;
+			for (const el of nodes) {
+				const cs = getComputedStyle(el);
+				if (!drawsEdge(el, cs)) continue;
+				if (el.matches('input:not([type=button]):not([type=submit]), select, textarea')) continue;
+				const range = document.createRange();
+				range.selectNodeContents(el);
+				const rects = Array.from(range.getClientRects()).filter((r) => r.width > 0.5 && r.height > 0.5);
+				if (!rects.length) continue;
+				const b = el.getBoundingClientRect();
+				// A label cut off by its own control's overflow is a different
+				// defect (clipped text) and would read as a negative inset here.
+				const t = {
+					left: Math.max(b.left, Math.min(...rects.map((r) => r.left))),
+					right: Math.min(b.right, Math.max(...rects.map((r) => r.right))),
+					top: Math.max(b.top, Math.min(...rects.map((r) => r.top))),
+					bottom: Math.min(b.bottom, Math.max(...rects.map((r) => r.bottom)))
+				};
+				edged++;
+				const bl = parseFloat(cs.borderLeftWidth) || 0;
+				const br = parseFloat(cs.borderRightWidth) || 0;
+				const bt = parseFloat(cs.borderTopWidth) || 0;
+				const bb = parseFloat(cs.borderBottomWidth) || 0;
+				const inset = {
+					left: t.left - (b.left + bl),
+					right: b.right - br - t.right,
+					top: t.top - (b.top + bt),
+					bottom: b.bottom - bb - t.bottom
+				};
+				const worst = Object.entries(inset).sort((a, c) => a[1] - c[1])[0];
+				if (worst[1] < minInset - 0.25) tight.push(`${worst[0]} ${worst[1].toFixed(1)}px  ${name(el)}`);
+			}
+			const overlap = [];
+			/* A STICKY DOCK OVERLAYS WHAT SCROLLS UNDER IT BY DESIGN (an opaque
+			   ground and a z-index, the grading console's Return row), so a pair
+			   with one side inside a sticky box is not an overlap. A FIXED one is
+			   exactly what this is for -- a pill floating over a row -- and stays. */
+			const inSticky = (el) => {
+				for (let n = el, hops = 0; n && hops < 60; n = n.parentElement, hops++) {
+					if (getComputedStyle(n).position === 'sticky') return true;
+				}
+				return false;
+			};
+			const boxes = nodes.filter((el) => !inSticky(el)).map((el) => ({ el, r: el.getBoundingClientRect() }));
+			for (let i = 0; i < boxes.length; i++) {
+				for (let j = i + 1; j < boxes.length; j++) {
+					const a = boxes[i];
+					const c = boxes[j];
+					if (a.el.contains(c.el) || c.el.contains(a.el)) continue;
+					const la = a.el.closest('label');
+					const lc = c.el.closest('label');
+					if (la && (la === lc || la.contains(c.el) || (lc && lc.contains(a.el)))) continue;
+					if (a.el.tagName === 'LABEL' && a.el.control === c.el) continue;
+					if (c.el.tagName === 'LABEL' && c.el.control === a.el) continue;
+					const iw = Math.min(a.r.right, c.r.right) - Math.max(a.r.left, c.r.left);
+					const ih = Math.min(a.r.bottom, c.r.bottom) - Math.max(a.r.top, c.r.top);
+					if (iw > 0 && ih > 0 && iw * ih > overlapPx) {
+						overlap.push(`${(iw * ih).toFixed(0)}px2: ${name(a.el)}  x  ${name(c.el)}`);
+					}
+				}
+			}
+			return { scopeFound: true, root: root ?? 'body', population: nodes.length, edged, tight, overlap };
+		},
+		{ root, interactive, minInset, overlapPx }
+	);
+	if (!data.scopeFound) {
+		return {
+			check: 'control-fit',
+			label,
+			measured: `root selector ${root} matched NOTHING -- this sweep looked at no elements`,
+			threshold: `the root exists, then 0 labels within ${minInset}px of their edge and 0 overlapping controls`,
+			withinThreshold: false,
+			data
+		};
+	}
+	return {
+		check: 'control-fit',
+		label,
+		measured:
+			`${data.population} rendered control(s) in ${data.root}, ${data.edged} drawing an edge around a label; ` +
+			`${data.tight.length} label(s) under ${minInset}px from their edge, ${data.overlap.length} overlapping pair(s)`,
+		threshold: `0 labels within ${minInset}px of their edge, 0 overlapping controls (over ${overlapPx}px2)`,
+		withinThreshold: data.tight.length === 0 && data.overlap.length === 0 && data.population > 0,
+		data
+	};
+}
+
+/* ------------------------------------------------------------------ *
  * 3. Distinguishable -- two things that must read differently
  * ------------------------------------------------------------------ */
 

@@ -1691,7 +1691,9 @@
 		margin: 0 auto;
 		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
 	}
-	.classroom-page > .card {
+	/* The cards now sit inside the roster and side columns (ledger 0297). */
+	.people-roster > .card,
+	.people-side > .card {
 		margin-bottom: 1.1rem;
 	}
 	.classroom-page h2 {
