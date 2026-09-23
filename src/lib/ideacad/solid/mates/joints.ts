@@ -128,7 +128,12 @@ export function planJoint(ctx: Ctx, joint: JointKind, picks: readonly Selection[
 	if (moves === null && stays !== null && picks[1]) moves = stays === partOf(picks[1]) ? null : partOf(picks[1]);
 	const done = pairs.filter((p) => p.b).map((p) => p.shape as PairShape), half = pairs.find((p) => !p.b);
 	const recipe = spec.recipes.find((r) => fits(half ? [...done, half.shape as PairShape] : done, r)) ?? null;
-	if (!recipe) return { ...empty(`A ${spec.word.toLowerCase()} pairs ${recipeWords(spec.recipes[0])}.`), stays, moves };
+	if (!recipe) {
+		const sofar = half ? [...done, half.shape as PairShape] : done;
+		const others = JOINT_KINDS.filter((j) => j !== joint && JOINTS[j].recipes.some((r) => fits(sofar, r))).map((j) => JOINTS[j].word);
+		const offer = others.length ? ` These picks make a ${others.length === 1 ? others[0] : `${others.slice(0, -1).join(', ')} or ${others[others.length - 1]}`}.` : '';
+		return { ...empty(`A ${spec.word.toLowerCase()} pairs ${recipeWords(spec.recipes[0])}.${offer}`), stays, moves };
+	}
 	/* Slots: the pairs already made, in pick order, then what the recipe still wants. */
 	const left = [...recipe];
 	for (const s of done) left.splice(left.indexOf(s), 1);

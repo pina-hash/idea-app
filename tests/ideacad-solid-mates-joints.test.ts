@@ -85,6 +85,10 @@ describe('a joint is planned from its picks before anything is added', () => {
 		expect(plan.ready).toBe(false);
 		expect(plan.reason).toBe('Not a hinge. Pin: 1 degree of freedom left, slides along Z. Pick flat faces square to the round ones.');
 	});
+	it('picks the chosen joint cannot take name the joints they can make', () => {
+		expect(planJoint(ctx(), 'planar', [WALL, SHANK]).reason).toBe('A planar pairs flat to flat. These picks make a Hinge, Cylindrical or Fixed.');
+		expect(planJoint(ctx(), 'cylindrical', [TOP, HEAD]).reason).toBe('A cylindrical pairs round to round. These picks make a Hinge, Slider, Planar or Fixed.');
+	});
 	it('two picks on one part are refused naming the part', () => {
 		expect(planJoint(ctx(), 'cylindrical', [WALL, TOP]).reason).toBe('Both picks are on Plate. Pick one on each part.');
 	});
