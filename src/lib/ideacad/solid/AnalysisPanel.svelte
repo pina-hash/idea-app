@@ -37,12 +37,15 @@
 	import { STOCK_MATERIALS } from './advisory';
 	import { addonEnabled } from './addons/registry';
 	import { ENERGY_ADVICE_J_PER_KG, SPINNER_ADDON_ID, SPINNER_DEFAULTS, SPINNER_SOURCES, TIP_SPEED_ADVICE_MPH, spinnerReadout } from './addons/spinner';
+	import { FRC_ADDON_ID, FRC_REFERENCE, NM_PER_IN_LBF, freeSpeedFtPerS, gravityLeverIn, holdingTorqueNm, worstLeverIn } from './addons/frc';
 	import { BLOCKER_WORDS, centerOfGravity, inertiaAbout, massReport, massRows, radiusAbout, toKgM2, toLbIn2, type MassRow } from './analysis/mass';
 	import { tipReport } from './analysis/balance';
 	import { axisChoices, defaultAxisChoice, resolveAxis, selectedBodyIds } from './analysis/axes';
 	import { sortPairs, type InterferencePair, type InterferenceReport } from './analysis/interference';
 	import * as fmt from './analysis/format';
 	let { api }: { api: WorkspaceApi } = $props();
+	/** Heading ids for `aria-labelledby`, unique per mounted panel. */
+	const uid = $props.id();
 
 	const unit = $derived<fmt.LengthUnit>(api.prefs?.units.display === 'mm' ? 'mm' : 'in');
 	const bodies = $derived(api.model.bodies);
@@ -74,6 +77,8 @@
 	let typed = $state<Record<'rpm' | 'teeth' | 'attackInPerS' | 'volts', string>>({ rpm: String(SPINNER_DEFAULTS.rpm), teeth: String(SPINNER_DEFAULTS.teeth), attackInPerS: String(SPINNER_DEFAULTS.attackInPerS), volts: String(SPINNER_DEFAULTS.volts) });
 	/** `Number('')` is 0, a number nobody typed; an empty field is not a number. */
 	const number = (v: string) => (v.trim() === '' ? NaN : Number(v.trim()));
+	/** Typed and not a number. An empty field is empty, not wrong: its result reads Unknown. */
+	const invalid = (v: string) => v.trim() !== '' && !Number.isFinite(Number(v.trim()));
 	const spinnerInputs = $derived({ rpm: number(typed.rpm), teeth: number(typed.teeth), attackInPerS: number(typed.attackInPerS), volts: number(typed.volts) });
 	const tipRadius = $derived(axis ? radiusAbout(subject, axis) : null);
 	const spin = $derived(spinnerReadout(spinnerInputs, inertiaG === null ? null : toKgM2(inertiaG), tipRadius, report.totalG === null ? null : report.totalG / 1000));
@@ -83,6 +88,18 @@
 		{ key: 'attackInPerS', label: 'Attack', unit: 'in/s' },
 		{ key: 'volts', label: 'Battery', unit: 'V' }
 	];
+
+	/* ------------------------------------------------------------ FRC checks */
+	const frcOn = $derived(addonEnabled(api.model.addons, FRC_ADDON_ID));
+	/** The subject's mass, only when every body in it has one. */
+	const subjectG = $derived(subjectRows.length && subjectRows.every((r) => r.grams !== null) ? subjectRows.reduce((n, r) => n + r.grams!, 0) : null);
+	const armHere = $derived(subjectCg && axis && subjectG !== null ? holdingTorqueNm(subjectG / 1000, gravityLeverIn(subjectCg, axis)) : null);
+	const armLevel = $derived(subjectCg && axis && subjectG !== null ? holdingTorqueNm(subjectG / 1000, worstLeverIn(subjectCg, axis)) : null);
+	let drive = $state<Record<'rpm' | 'reduction', string>>({ rpm: '', reduction: '1' });
+	const wheelIn = $derived(choice?.radius !== undefined ? choice.radius * 2 : null);
+	const driveRpm = $derived(number(drive.rpm)), driveReduction = $derived(number(drive.reduction));
+	const freeSpeed = $derived(wheelIn !== null && Number.isFinite(driveRpm) && Number.isFinite(driveReduction) ? freeSpeedFtPerS(wheelIn, driveRpm, driveReduction) : null);
+	const torque = (nm: number) => `${fmt.sig(nm)} N·m`;
 
 	/* ---------------------------------------------------------- interference */
 	/** The worker's own sentence for a request it has no case for; the one answer that removes the section. */
@@ -214,8 +231,8 @@
 	{#if !bodies.length}
 		<p class="an-empty">No bodies</p>
 	{:else}
-		<section class="block" aria-labelledby="an-mass" data-testid="ideacad-analysis-mass">
-			<div class="head"><h3 id="an-mass">Mass</h3><output class:unknown={report.totalG === null} data-testid="ideacad-analysis-total">{report.totalG === null ? 'Unknown' : `${fmt.grams(report.totalG)} · ${fmt.pounds(report.totalG)}`}</output></div>
+		<section class="block" aria-labelledby={`${uid}-mass`} data-testid="ideacad-analysis-mass">
+			<div class="head"><h3 id={`${uid}-mass`}>Mass</h3><output class:unknown={report.totalG === null} data-testid="ideacad-analysis-total">{report.totalG === null ? 'Unknown' : `${fmt.grams(report.totalG)} · ${fmt.pounds(report.totalG)}`}</output></div>
 			<table class="rows">
 				<thead><tr><th scope="col">Body</th><th scope="col">Mass</th><th scope="col">Share</th></tr></thead>
 				<tbody>
@@ -236,8 +253,8 @@
 			</Disclosure>
 		</section>
 
-		<section class="block" aria-labelledby="an-balance" data-testid="ideacad-analysis-balance">
-			<div class="head"><h3 id="an-balance">Balance</h3>{#if report.cg}<button type="button" class="toggle" aria-pressed={showBalance} onclick={() => { showBalance = !showBalance; focus = null; }}>In view</button>{/if}</div>
+		<section class="block" aria-labelledby={`${uid}-balance`} data-testid="ideacad-analysis-balance">
+			<div class="head"><h3 id={`${uid}-balance`}>Balance</h3>{#if report.cg}<button type="button" class="toggle" aria-pressed={showBalance} onclick={() => { showBalance = !showBalance; focus = null; }}>In view</button>{/if}</div>
 			{#if report.cg}
 				<dl class="facts">
 					<dt>CG</dt><dd data-testid="ideacad-analysis-cg">{fmt.point(report.cg, unit, 2)} {unit}</dd>
@@ -246,6 +263,7 @@
 					<dd data-testid="ideacad-analysis-tip">
 						{#if !tip}Unknown{:else if tip.least}{signed(tip.least.angleDeg)} <span class="toward">{tip.stands ? 'toward' : 'past'} {tip.least.toward}</span>{:else if tip.footprint === 'line'}0° <span class="toward">rests on a line</span>{:else}0° <span class="toward">rests on a point</span>{/if}
 					</dd>
+					{#if tip?.least && tip.stands}<dt>Tips at</dt><dd data-testid="ideacad-analysis-tip-accel">{fmt.sig(tip.least.inside / tip.height)} g <span class="toward">sideways</span></dd>{/if}
 				</dl>
 			{:else}
 				<dl class="facts"><dt>CG</dt><dd class="unknown" data-testid="ideacad-analysis-cg">Unknown</dd></dl>
@@ -256,12 +274,13 @@
 					<li><code>CG = Σ m·c / Σ m</code><span>c: each body's center of mass</span></li>
 					<li><code>h = CG z − lowest z</code>{#if report.cgHeight !== null && report.cg}<span>{fmt.length(report.cg[2], unit)} − {fmt.length(report.groundZ ?? NaN, unit)}</span>{/if}</li>
 					<li><code>θ = atan(d / h)</code>{#if tip?.least}<span>d = {fmt.length(tip.least.inside, unit)}, h = {fmt.length(tip.height, unit)}</span>{/if}<span>d: CG to the footprint edge, on the ground. Standard statics.</span></li>
+					<li><code>a = g·d / h</code><span>Sideways acceleration that lifts the far side. Standard statics.</span></li>
 				</ul>
 			</Disclosure>
 		</section>
 
-		<section class="block" aria-labelledby="an-inertia" data-testid="ideacad-analysis-inertia">
-			<div class="head"><h3 id="an-inertia">Inertia</h3></div>
+		<section class="block" aria-labelledby={`${uid}-inertia`} data-testid="ideacad-analysis-inertia">
+			<div class="head"><h3 id={`${uid}-inertia`}>Inertia</h3></div>
 			<label class="an-field">Axis
 				<select value={axisId} data-testid="ideacad-analysis-axis" onchange={(e) => (picked = { key: selectionKey, id: e.currentTarget.value })}>
 					{#each choices as c (c.id)}<option value={c.id}>{c.label}</option>{/each}
@@ -292,12 +311,12 @@
 		</section>
 
 		{#if spinnerOn}
-			<section class="block" aria-labelledby="an-spinner" data-testid="ideacad-analysis-spinner">
-				<div class="head"><h3 id="an-spinner">Spinner weapon</h3></div>
+			<section class="block" aria-labelledby={`${uid}-spinner`} data-testid="ideacad-analysis-spinner">
+				<div class="head"><h3 id={`${uid}-spinner`}>Spinner weapon</h3></div>
 				<div class="inputs">
 					{#each SPINNER_FIELDS as f (f.key)}
-						<label class="an-field">{f.label}{#if f.unit} <small>{f.unit}</small>{/if}
-							<input type="text" inputmode="decimal" value={typed[f.key]} aria-invalid={!Number.isFinite(spinnerInputs[f.key])} data-input={f.key} oninput={(e) => (typed[f.key] = e.currentTarget.value)} />
+						<label class="an-field"><span>{f.label}{#if f.unit} <small>{f.unit}</small>{/if}</span>
+							<input type="text" inputmode="decimal" value={typed[f.key]} aria-invalid={invalid(typed[f.key])} data-input={f.key} oninput={(e) => (typed[f.key] = e.currentTarget.value)} />
 						</label>
 					{/each}
 				</div>
@@ -321,9 +340,36 @@
 			</section>
 		{/if}
 
+		{#if frcOn}
+			<section class="block" aria-labelledby={`${uid}-frc`} data-testid="ideacad-analysis-frc">
+				<div class="head"><h3 id={`${uid}-frc`}>FRC checks</h3><span class="an-chip">Estimate</span></div>
+				<dl class="facts">
+					<dt>Of</dt><dd class="subject">{subjectWord}</dd>
+					<dt>Hold here</dt>
+					<dd data-testid="ideacad-analysis-arm-here">{#if armHere === null}<span class="unknown">Unknown</span> <span class="toward">needs a CG</span>{:else}{torque(armHere)} <span class="toward">{fmt.sig(armHere / NM_PER_IN_LBF)} in·lbf</span>{/if}</dd>
+					<dt>Hold level</dt>
+					<dd data-testid="ideacad-analysis-arm-level">{#if armLevel === null}<span class="unknown">Unknown</span>{:else}{torque(armLevel)} <span class="toward">{fmt.sig(armLevel / NM_PER_IN_LBF)} in·lbf</span>{/if}</dd>
+				</dl>
+				<div class="inputs">
+					<label class="an-field"><span>Motor <small>RPM</small></span><input type="text" inputmode="decimal" value={drive.rpm} aria-invalid={invalid(drive.rpm)} data-input="motor-rpm" oninput={(e) => (drive.rpm = e.currentTarget.value)} /></label>
+					<label class="an-field"><span>Reduction <small>to 1</small></span><input type="text" inputmode="decimal" value={drive.reduction} aria-invalid={invalid(drive.reduction)} data-input="reduction" oninput={(e) => (drive.reduction = e.currentTarget.value)} /></label>
+				</div>
+				<dl class="facts">
+					<dt>Wheel</dt><dd data-testid="ideacad-analysis-wheel">{#if wheelIn === null}<span class="unknown">Unknown</span> <span class="toward">needs a round face</span>{:else}{fmt.length(wheelIn, unit)}{/if}</dd>
+					<dt>Free speed</dt><dd data-testid="ideacad-analysis-free-speed">{#if freeSpeed === null}<span class="unknown">Unknown</span>{:else}{fmt.sig(freeSpeed)} ft/s <span class="toward">{fmt.sig(freeSpeed * 0.3048)} m/s</span>{/if}</dd>
+				</dl>
+				<Disclosure label="Formulas" collapseWhen={true} testId="ideacad-analysis-frc-formulas">
+					<ul class="formulas">
+						<li><code>τ = m·g·d</code><span>d: the horizontal distance from the axis to the CG; level is the arm held flat.</span></li>
+						<li><code>v = π·D·n / (60·G)</code><span>D: the round face's diameter. No friction or efficiency loss.</span><a href={FRC_REFERENCE.url} target="_blank" rel="noreferrer">{FRC_REFERENCE.name}</a></li>
+					</ul>
+				</Disclosure>
+			</section>
+		{/if}
+
 		{#if supported === 'yes' && bodies.length > 1}
-			<section class="block" aria-labelledby="an-interference" data-testid="ideacad-analysis-interference" aria-busy={checking}>
-				<div class="head"><h3 id="an-interference">Interference</h3><output data-testid="ideacad-analysis-overlaps">{#if checking}Checking…{:else if found}{overlaps.length} overlap{overlaps.length === 1 ? '' : 's'}{/if}</output></div>
+			<section class="block" aria-labelledby={`${uid}-interference`} data-testid="ideacad-analysis-interference" aria-busy={checking}>
+				<div class="head"><h3 id={`${uid}-interference`}>Interference</h3><output data-testid="ideacad-analysis-overlaps">{#if checking}Checking…{:else if found}{overlaps.length} overlap{overlaps.length === 1 ? '' : 's'}{/if}</output></div>
 				{#if failed}<p class="an-said" role="status">{failed}</p>{/if}
 				{#if found}
 					<ul class="pairs" data-testid="ideacad-analysis-pairs">
@@ -352,13 +398,13 @@
 </section>
 
 <style>
-	.analysis{display:grid;gap:10px;min-width:0}
+	.analysis{display:grid;gap:10px;min-width:0}h2{margin:0;font-size:18px}
 	.block{display:grid;gap:6px;min-width:0;padding-top:6px;border-top:1px solid var(--hairline)}
 	/* The panel title's own band already rules off the first section. */
 	.block:first-of-type{border-top:0;padding-top:0}
 	.head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:28px}
 	h3{margin:0;font:var(--ic-fs-eyebrow,11px)/1.2 var(--font-mono,'Share Tech Mono',monospace);letter-spacing:var(--ic-track,.1em);text-transform:uppercase;color:var(--text-1)}
-	.head output{font:var(--ic-fs-num,14px)/1.2 var(--font-mono,'Share Tech Mono',monospace);color:var(--text-1);text-align:right}.head output.unknown{color:var(--ic-warn,var(--amber))}
+	.head output{font:var(--ic-fs-num,14px)/1.2 var(--font-mono,'Share Tech Mono',monospace);color:var(--text-1);text-align:right}.head output.unknown{color:var(--ic-warn,var(--amber))}.head .an-chip{margin-left:auto}
 	.an-empty,.an-said{margin:0;font:13px/1.4 var(--font-display,Rajdhani,sans-serif);color:var(--text-2)}
 	.an-said{color:var(--ic-warn,var(--amber))}
 	table.rows{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px}

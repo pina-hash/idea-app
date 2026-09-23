@@ -24,13 +24,15 @@ export interface AxisChoice {
 	axis: Axis | null;
 	through?: 'cg';
 	direction?: Vec3;
+	/** The radius of the round face or edge the axis came from, when it came from one: a wheel's radius, a bore's. */
+	radius?: number;
 }
 
 const WORLD: [string, Vec3][] = [['x', [1, 0, 0]], ['y', [0, 1, 0]], ['z', [0, 0, 1]]];
 const ON_BODY: Selection['kind'][] = ['body', 'face', 'edge', 'vertex'];
 
 /** The axis a selection names, if it names one. */
-export function axisFromSelection(model: Pick<ModelProjection, 'bodies' | 'references'>, selection: Selection): { label: string; axis: Axis } | null {
+export function axisFromSelection(model: Pick<ModelProjection, 'bodies' | 'references'>, selection: Selection): { label: string; axis: Axis; radius?: number } | null {
 	if (selection.kind === 'reference') {
 		const r = model.references.find((x) => x.feature === selection.id);
 		return r && r.kind === 'axis' && r.direction ? { label: r.name, axis: { origin: r.origin, direction: r.direction } } : null;
@@ -40,12 +42,12 @@ export function axisFromSelection(model: Pick<ModelProjection, 'bodies' | 'refer
 		if (selection.kind === 'face') {
 			const f = body.faces.find((x) => x.id === selection.id); if (!f || !['cylinder', 'cone', 'torus'].includes(f.kind)) return null;
 			const frame = frameFromSurface(f.kind, f.surface, f.center, f.normal);
-			return frame.kind === 'axis' ? { label: `${body.name} round face`, axis: { origin: frame.origin, direction: frame.direction } } : null;
+			return frame.kind === 'axis' ? { label: `${body.name} round face`, axis: { origin: frame.origin, direction: frame.direction }, ...(frame.radius !== undefined ? { radius: frame.radius } : {}) } : null;
 		}
 		if (selection.kind === 'edge') {
 			const e = body.edges.find((x) => x.id === selection.id); if (!e) return null;
 			const frame = edgeFrameFromProjection(e);
-			return frame.kind === 'axis' ? { label: `${body.name} ${e.curve === 'CIRCLE' ? 'round' : 'straight'} edge`, axis: { origin: frame.origin, direction: frame.direction } } : null;
+			return frame.kind === 'axis' ? { label: `${body.name} ${e.curve === 'CIRCLE' ? 'round' : 'straight'} edge`, axis: { origin: frame.origin, direction: frame.direction }, ...(frame.radius !== undefined ? { radius: frame.radius } : {}) } : null;
 		}
 	} catch { return null; }
 	return null;
@@ -56,7 +58,7 @@ export function axisChoices(model: Pick<ModelProjection, 'bodies' | 'references'
 	const out: AxisChoice[] = [];
 	for (const s of selections) {
 		const found = axisFromSelection(model, s);
-		if (found) out.push({ id: `sel:${s.bodyId}/${s.kind}/${s.id}`, label: found.label, axis: found.axis });
+		if (found) out.push({ id: `sel:${s.bodyId}/${s.kind}/${s.id}`, label: found.label, axis: found.axis, ...(found.radius !== undefined ? { radius: found.radius } : {}) });
 	}
 	for (const [n, d] of WORLD) out.push({ id: `cg-${n}`, label: `${n.toUpperCase()} through CG`, axis: null, through: 'cg', direction: d });
 	for (const [n, d] of WORLD) out.push({ id: `world-${n}`, label: `${n.toUpperCase()} axis`, axis: { origin: [0, 0, 0], direction: d } });

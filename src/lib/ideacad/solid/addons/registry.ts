@@ -86,6 +86,7 @@ export const ADDON_FUNCTIONS = ['run', 'advise', 'steps', 'step'] as const;
  * ---------------------------------------------------------------------- */
 import { ideaBlade } from './ideablade';
 import { spinnerWeapon } from './spinner';
+import { frcChecks } from './frc';
 
 /**
  * Every installed add-on, in the order the panel lists them. A FUNCTION rather
@@ -94,7 +95,7 @@ import { spinnerWeapon } from './spinner';
  * evaluation would hit the temporal dead zone whichever module a caller loads
  * first. Read at call time, both are initialised.
  */
-export function installedAddons(): readonly Addon[] { return [ideaBlade, spinnerWeapon]; }
+export function installedAddons(): readonly Addon[] { return [ideaBlade, spinnerWeapon, frcChecks]; }
 export const addonById = (id: string): Addon | undefined => installedAddons().find((a) => a.id === id);
 
 /**

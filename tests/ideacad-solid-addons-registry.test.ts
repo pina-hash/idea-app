@@ -18,7 +18,7 @@ import { CREATING_TYPES } from '../src/lib/ideacad/solid/features';
 import { emptyManifest, type BodyProjection, type FeatureRow, type ModelProjection, type SolidCommand } from '../src/lib/ideacad/solid/types';
 import type { WorkspaceApi } from '../src/lib/ideacad/solid/workspace-api';
 
-const SOURCES = ['src/lib/ideacad/solid/addons/registry.ts', 'src/lib/ideacad/solid/addons/ideablade.ts', 'src/lib/ideacad/solid/addons/spinner.ts'];
+const SOURCES = ['src/lib/ideacad/solid/addons/registry.ts', 'src/lib/ideacad/solid/addons/ideablade.ts', 'src/lib/ideacad/solid/addons/spinner.ts', 'src/lib/ideacad/solid/addons/frc.ts'];
 const PANEL = 'src/lib/ideacad/solid/AddonPanel.svelte';
 /** Code with its comments removed, so a docblock may NAME the property without the sweep reading the name as a hit. */
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1');
@@ -44,8 +44,8 @@ describe('the never-restrict property', () => {
 			for (const s of a.starters) check(a.id, s, STARTER_MEMBERS);
 			for (const r of a.references) check(a.id, r, REFERENCE_MEMBERS);
 		}
-		/* Positive control: the sweep counted the functions it walked past, per add-on. IdeaBlade has four tools, one starter, three references and an advise; the spinner weapon add-on carries none at all (its readout lives in the Analysis panel), which is what makes it unable to touch a document. */
-		expect(addons.map((a) => a.id)).toEqual(['ideaBlade', 'spinnerWeapon']);
+		/* Positive control: the sweep counted the functions it walked past, per add-on. IdeaBlade has four tools, one starter, three references and an advise; the spinner weapon and FRC checks add-ons carry none at all (their readouts live in the Analysis panel), which is what makes them unable to touch a document. */
+		expect(addons.map((a) => a.id)).toEqual(['ideaBlade', 'spinnerWeapon', 'frcChecks']);
 		expect(functions).toEqual({ ideaBlade: 4 + 1 + 3 + 1 });
 	});
 	it('no add-on source carries clamp, min(, max( or refuse in its code; the panel has no bounded or number-typed field; and the sweep finds a planted one', () => {

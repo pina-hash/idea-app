@@ -13,8 +13,9 @@
   States, from the bar or the query string: `?state=printed` (the everyday
   robot, whose CG is Unknown), `?select=disk` or `?select=bore` (a selection on
   the weapon), `?spinner=1` (the spinner add-on on), `?state=spinner` (both of
-  the last two at once), `?interference=off` (a workspace whose worker has no
-  interference request), `?readonly=1`.
+  the last two at once), `?frc=1` or `?state=frc` (the FRC checks add-on on,
+  the second with a wheel's round face selected), `?interference=off` (a
+  workspace whose worker has no interference request), `?readonly=1`.
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
@@ -23,32 +24,38 @@
 	import AnalysisPanel from '$lib/ideacad/solid/AnalysisPanel.svelte';
 	import { SAMPLE_INTERFERENCE, sampleModel, type SampleState } from '$lib/ideacad/solid/analysis/sample';
 	import { SPINNER_ADDON_ID } from '$lib/ideacad/solid/addons/spinner';
+	import { FRC_ADDON_ID } from '$lib/ideacad/solid/addons/frc';
 	import { emptyManifest, type ModelProjection, type Selection, type SolidCommand, type Vec3 } from '$lib/ideacad/solid/types';
 	import type { WorkspaceApi } from '$lib/ideacad/solid/workspace-api';
 
-	type Pick = 'none' | 'disk' | 'bore';
+	type Pick = 'none' | 'disk' | 'bore' | 'wheel';
 	/* Read once, before the panel mounts: the panel asks for interference on its first effect, which runs before this page's onMount. */
 	const query = page.url.searchParams;
 	/* `?state=spinner` is the add-on on with the bore selected, one word for the route spec's own path. */
-	const spinnerState = query.get('state') === 'spinner';
-	const firstPick: Pick = query.get('select') === 'disk' ? 'disk' : query.get('select') === 'bore' || spinnerState ? 'bore' : 'none';
-	let materials = $state<SampleState>(query.get('state') === 'printed' ? 'printed' : 'cited');
+	const spinnerState = query.get('state') === 'spinner', frcState = query.get('state') === 'frc';
+	const firstPick: Pick = query.get('select') === 'disk' ? 'disk' : query.get('select') === 'bore' || spinnerState ? 'bore' : query.get('select') === 'wheel' || frcState ? 'wheel' : 'none';
+	const firstMaterials: SampleState = query.get('state') === 'printed' ? 'printed' : 'cited';
+	let materials = $state<SampleState>(firstMaterials);
 	let pick = $state<Pick>(firstPick);
-	let spinner = $state(query.get('spinner') === '1' || spinnerState);
+	const firstSpinner = query.get('spinner') === '1' || spinnerState, firstFrc = query.get('frc') === '1' || frcState;
+	let spinner = $state(firstSpinner);
+	let frc = $state(firstFrc);
 	const interference = query.get('interference') !== 'off';
 	const readOnly = query.get('readonly') === '1';
 	let ready = $state(false);
-	let model = $state.raw<ModelProjection>(sampleModel(query.get('state') === 'printed' ? 'printed' : 'cited', query.get('spinner') === '1' || spinnerState ? { [SPINNER_ADDON_ID]: true } : {}));
+	const addonsFor = (s: boolean, f: boolean) => ({ ...(s ? { [SPINNER_ADDON_ID]: true } : {}), ...(f ? { [FRC_ADDON_ID]: true } : {}) });
+	let model = $state.raw<ModelProjection>(sampleModel(firstMaterials, addonsFor(firstSpinner, firstFrc)));
 	let guides = $state<{ points: Vec3[]; color?: string }[]>([]);
 	const applied: { command: SolidCommand; label: string }[] = [];
 	const requests: string[] = [];
 
-	const PICKS: Record<Pick, Selection[]> = { none: [], disk: [{ bodyId: 'disk#0', kind: 'body', id: 'disk#0' }], bore: [{ bodyId: 'disk#0', kind: 'face', id: 'disk.bore' }] };
+	const PICKS: Record<Pick, Selection[]> = { none: [], disk: [{ bodyId: 'disk#0', kind: 'body', id: 'disk#0' }], bore: [{ bodyId: 'disk#0', kind: 'face', id: 'disk.bore' }], wheel: [{ bodyId: 'wheel-l#0', kind: 'face', id: 'wheel-l.outer' }] };
 	let selections = $state<Selection[]>([...PICKS[firstPick]]);
-	function rebuild() { model = sampleModel(materials, spinner ? { [SPINNER_ADDON_ID]: true } : {}); }
+	function rebuild() { model = sampleModel(materials, addonsFor(spinner, frc)); }
 	function setState(next: SampleState) { materials = next; rebuild(); }
 	function setPick(next: Pick) { pick = next; selections = [...PICKS[next]]; }
 	function setSpinner(on: boolean) { spinner = on; rebuild(); }
+	function setFrc(on: boolean) { frc = on; rebuild(); }
 
 	const api: WorkspaceApi = {
 		get model() { return model; }, get manifest() { return emptyManifest(); }, get selections() { return selections; }, get canWrite() { return !readOnly; }, get busy() { return false; }, get tool() { return 'select' as const; }, get editingSketch() { return null; },
@@ -72,7 +79,7 @@
 	};
 
 	onMount(() => {
-		(window as unknown as { ideaCadAnalysis: unknown }).ideaCadAnalysis = { get guides() { return guides; }, get applied() { return applied; }, get requests() { return requests; }, get selections() { return selections; }, setState, setPick, setSpinner };
+		(window as unknown as { ideaCadAnalysis: unknown }).ideaCadAnalysis = { get guides() { return guides; }, get applied() { return applied; }, get requests() { return requests; }, get selections() { return selections; }, setState, setPick, setSpinner, setFrc };
 		ready = true;
 	});
 
@@ -96,7 +103,9 @@
 		<button type="button" aria-pressed={pick === 'none'} onclick={() => setPick('none')}>No pick</button>
 		<button type="button" aria-pressed={pick === 'disk'} onclick={() => setPick('disk')}>Disk</button>
 		<button type="button" aria-pressed={pick === 'bore'} onclick={() => setPick('bore')}>Bore</button>
+		<button type="button" aria-pressed={pick === 'wheel'} onclick={() => setPick('wheel')}>Wheel</button>
 		<button type="button" aria-pressed={spinner} onclick={() => setSpinner(!spinner)}>Spinner</button>
+		<button type="button" aria-pressed={frc} onclick={() => setFrc(!frc)}>FRC</button>
 	</div>
 	<div class="view" aria-hidden="true">
 		<svg viewBox={`0 0 ${VIEW.w} ${VIEW.h}`} preserveAspectRatio="xMidYMid meet">
@@ -126,8 +135,8 @@
 	.guide { fill: none; stroke-width: 2; }
 	/* The workspace's own panel column: 260px on the right, 68px down (`SolidWorkspace.svelte`), and full width below 700px. */
 	.panels { position: absolute; right: 12px; top: 68px; bottom: 64px; width: 260px; display: flex; flex-direction: column; gap: 8px; overflow: auto; z-index: 7; }
+	/* The one rule the workspace gives every panel (`:global(.solid-workspace .panel)`); a panel styles its own heading. */
 	.panels :global(.panel) { padding: 10px; background: var(--surface-1); border: 1px solid var(--boundary); border-radius: 7px; }
-	.panels :global(.panel h2) { margin: 0 0 8px; font-size: 20px; padding: 5px 10px; border-bottom: 1px solid var(--hairline); }
 	@media (max-width: 700px) {
 		.bar { right: 8px; left: 8px; top: 8px; }
 		.view { left: 8px; right: 8px; top: 120px; height: 200px; bottom: auto; }

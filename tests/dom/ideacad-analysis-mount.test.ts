@@ -67,6 +67,9 @@ describe('mass and balance', () => {
 		expect(m.one('[data-testid="ideacad-analysis-mass"] tbody tr').getAttribute('data-body')).toBe('disk#0');
 		expect(text(m, '[data-testid="ideacad-analysis-cg"]')).toMatch(/ in$/);
 		expect(text(m, '[data-testid="ideacad-analysis-tip"]')).toMatch(/°.*toward \+X/);
+		/* tan of the tip angle, as an acceleration: the same d / h, so it must agree with the angle shown. */
+		const angle = Number(text(m, '[data-testid="ideacad-analysis-tip"]').match(/^([\d.]+)°/)![1]), accel = Number(text(m, '[data-testid="ideacad-analysis-tip-accel"]').match(/^([\d.]+) g/)![1]);
+		expect(accel).toBeCloseTo(Math.tan((angle * Math.PI) / 180), 1);
 		expect(text(m, '[data-testid="ideacad-analysis-inertia-lb"]')).toMatch(/lb·in²$/);
 		expect(text(m, '[data-testid="ideacad-analysis-inertia-si"]')).toMatch(/kg·m²$/);
 		expect(m.all('[data-testid$="-blockers"]')).toHaveLength(0);
@@ -135,6 +138,22 @@ describe('the spinner add-on', () => {
 		const inputs = m.all<HTMLInputElement>('input');
 		expect(inputs.length).toBe(4);
 		for (const i of inputs) { expect(i.getAttribute('type')).toBe('text'); expect(i.hasAttribute('min')).toBe(false); expect(i.hasAttribute('max')).toBe(false); expect(i.getAttribute('inputmode')).toBe('decimal'); }
+	});
+});
+
+describe('the FRC checks add-on', () => {
+	it('absent while off; on, a selected wheel face gives the wheel, and typed values give the free speed', async () => {
+		const off = mountPanel(harness('cited')); await off.settle();
+		expect(off.all('[data-testid="ideacad-analysis-frc"]')).toHaveLength(0);
+		const m = mountPanel(harness('cited', { addons: { frcChecks: true }, selections: [{ bodyId: 'wheel-l#0', kind: 'face', id: 'wheel-l.outer' }] })); await m.settle();
+		expect(text(m, '[data-testid="ideacad-analysis-wheel"]')).toBe('1.500 in');
+		expect(text(m, '[data-testid="ideacad-analysis-free-speed"]')).toMatch(/^Unknown/);
+		const rpm = m.one<HTMLInputElement>('[data-input="motor-rpm"]'), ratio = m.one<HTMLInputElement>('[data-input="reduction"]');
+		rpm.value = '5676'; rpm.dispatchEvent(new Event('input', { bubbles: true }));
+		ratio.value = '8.45'; ratio.dispatchEvent(new Event('input', { bubbles: true })); await m.settle();
+		expect(text(m, '[data-testid="ideacad-analysis-free-speed"]')).toMatch(new RegExp(`^${((Math.PI * 1.5 * 5676) / (60 * 8.45) / 12).toFixed(2)} ft/s`));
+		/* The wheel turns about its own axis through its own CG: gravity has no lever there. */
+		expect(text(m, '[data-testid="ideacad-analysis-arm-here"]')).toMatch(/^0 N·m/);
 	});
 });
 
