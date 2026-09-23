@@ -40,6 +40,48 @@
 	} = $props();
 
 	const cssWidth = $derived(typeof width === 'number' ? `${width}px` : width);
+
+	/**
+	 * RIGHT-SIZED RASTERS, AND THE BROWSER PICKS (ledger 0297, package F1b).
+	 * The masthead drew this at 104px from a 2560px plate and a 1202px gear:
+	 * 2,603,273 bytes of PNG on every classroom and notebook page, about a
+	 * hundred times what a 104px mark needs. The same two images now also ship
+	 * at 128/256/512/1024px wide (the gear at the same 0.4695 proportion it is
+	 * drawn at), downsampled from these masters with premultiplied alpha, and
+	 * `srcset` + `sizes` let the browser take the smallest that covers the
+	 * drawn width at the screen's density: 10.8 KB + 8.4 KB at 104px on a 1x
+	 * screen, 28.1 KB + 18.3 KB on a 2x one. The masters stay the `src`
+	 * fallback and the reference the smaller files were made from.
+	 *
+	 * ONLY FOR THE DEFAULT SOURCES: a caller that hands in its own image has no
+	 * smaller copies, so it gets exactly what it asked for.
+	 *
+	 * `sizes` IS THE DRAWN WIDTH WHEN IT IS A LENGTH THE ATTRIBUTE CAN READ. A
+	 * number becomes px; a CSS expression (`clamp(...)`) is passed through; a
+	 * `var()` cannot appear in `sizes`, so the browser falls back to the
+	 * viewport width there and picks a larger copy -- still never the master.
+	 */
+	const DEFAULT_TEXT = '/IDEA/idea-logo-text.png';
+	const DEFAULT_GEAR = '/IDEA/idea-gear.png';
+	const TEXT_WIDTHS = [128, 256, 512, 1024] as const;
+	const GEAR_SHARE = 1202 / 2560;
+	const textSrcset = $derived(
+		srcText === DEFAULT_TEXT
+			? TEXT_WIDTHS.map((w) => `/IDEA/idea-logo-text-${w}.png ${w}w`).join(', ') + ', /IDEA/idea-logo-text.png 2560w'
+			: undefined
+	);
+	const gearSrcset = $derived(
+		srcGear === DEFAULT_GEAR
+			? TEXT_WIDTHS.map((w) => {
+					const g = Math.round(w * GEAR_SHARE);
+					return `/IDEA/idea-gear-${g}.png ${g}w`;
+				}).join(', ') + ', /IDEA/idea-gear.png 1202w'
+			: undefined
+	);
+	const textSizes = $derived(typeof width === 'number' ? `${width}px` : width);
+	const gearSizes = $derived(
+		typeof width === 'number' ? `${Math.round(width * GEAR_SHARE)}px` : `calc(${GEAR_SHARE.toFixed(4)} * ${width})`
+	);
 </script>
 
 <div class="idea-logo {className}" style="width: {cssWidth}; {style}">
@@ -47,11 +89,19 @@
 		class="gear"
 		class:spin
 		src={srcGear}
+		srcset={gearSrcset}
+		sizes={gearSrcset ? gearSizes : undefined}
 		alt=""
 		aria-hidden="true"
 		style="animation-duration: {duration}s"
 	/>
-	<img class="plate" src={srcText} {alt} />
+	<img
+		class="plate"
+		src={srcText}
+		srcset={textSrcset}
+		sizes={textSrcset ? textSizes : undefined}
+		{alt}
+	/>
 </div>
 
 <style>
