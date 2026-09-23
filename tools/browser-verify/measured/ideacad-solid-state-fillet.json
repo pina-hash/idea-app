@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "ideacad-solid-state-fillet.mjs",
-	"date": "2026-09-23T11:45:18.291Z",
-	"sha": "be16845b4c64fcbe495fa969ac3ca222af1f9080",
-	"dirty": true,
+	"date": "2026-09-23T11:55:15.487Z",
+	"sha": "0de2e0fdffa79458ed8fb07e4ef75b6df861cce8",
+	"dirty": false,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 36,
 	"outsideRows": [],
-	"ms": 21389
+	"ms": 7114
 }
