@@ -59,7 +59,12 @@ export const load: PageServerLoad = async ({ params, url, parent, locals: { supa
 			isChair: review?.access.isChair ?? false,
 			reviewConfigured: review?.configured ?? true,
 			docCheckReady: review?.docCheckReady ?? false,
-			initialMode: asked === 'checkins' ? ('checkins' as const) : ('review' as const),
+			initialMode:
+				asked === 'checkins'
+					? ('checkins' as const)
+					: asked === 'approve'
+						? ('approve' as const)
+						: ('review' as const),
 			viewerId: claims.sub
 		};
 	}

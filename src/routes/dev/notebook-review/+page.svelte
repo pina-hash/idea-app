@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { createClassroomPreferences } from '$lib/preferences/classroom';
+	import { provideClassroomPreferences } from '$lib/preferences/context';
 	import { page } from '$app/state';
 	import ReviewConsole from '$lib/notebook/ReviewConsole.svelte';
 	import '$lib/classroom/classroom.css';
@@ -1075,13 +1077,17 @@
 					error: 'Only the section instructor, a section reviewer, or a site admin can resolve notebook entries.'
 				};
 			}
+			// 0169's body stamps the review too (reviewed_by, reviewed_at), which
+			// is what takes a resolved entry out of the approve queue.
 			entries = entries.map((e) =>
 				e.id === entryId
 					? {
 							...e,
 							status: 'compliant',
 							flag_reason: null,
-							instructor_comment: comment ?? e.instructor_comment
+							instructor_comment: comment ?? e.instructor_comment,
+							reviewed_at: new Date().toISOString(),
+							reviewed_by: 'staff-uuid'
 						}
 					: e
 			);
@@ -1285,7 +1291,29 @@
 		})
 	);
 	const tabs = $derived(lockedId ? sectionTabs(lockedId) : []);
-	const askedMode = page.url.searchParams.get('mode') === 'checkins' ? 'checkins' : 'review';
+	const modeParam = page.url.searchParams.get('mode');
+	const askedMode = modeParam === 'checkins' ? 'checkins' : modeParam === 'approve' ? 'approve' : 'review';
+
+	/**
+	 * THE REVIEWER'S PREFERENCES, in memory (ledger 0297, package F4b), so the
+	 * approve queue has a "last looked" and a chip list the way it does inside
+	 * the classroom layout. `?looked=<iso>` seeds when this reviewer last looked
+	 * at the locked class; `window.__reviewPrefs()` reads what the queue wrote.
+	 */
+	const reviewPrefs = createClassroomPreferences({ viewer: 'harness-reviewer', account: null, storage: null });
+	{
+		const looked = page.url.searchParams.get('looked');
+		if (looked) {
+			reviewPrefs.set('notebookReview', {
+				...reviewPrefs.current.notebookReview,
+				lastLooked: { [page.url.searchParams.get('section') ?? 'sec-a']: looked }
+			});
+		}
+	}
+	provideClassroomPreferences(reviewPrefs);
+	if (typeof window !== 'undefined') {
+		(window as unknown as Record<string, unknown>).__reviewPrefs = () => structuredClone(reviewPrefs.current.notebookReview);
+	}
 
 	/** The site theme, pinned from `?site=` exactly as /dev/notebook pins it. */
 	const siteParam = page.url.searchParams.get('site');

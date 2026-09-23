@@ -38,6 +38,12 @@ export const OPEN_CORRECTOR = `async () => {
 }`;
 
 export const HIT_TESTS = `() => {
+	/* The corrector now opens from an entry further down the page (ledger 0297,
+	   F4b), so the page is scrolled back to the top first: the masthead has to
+	   be under the dialog for "the title overlaps it and is still on top" to
+	   be the claim it is. */
+	window.scrollTo({ top: 0, behavior: 'instant' });
+	document.querySelector('.cr-detail')?.scrollTo?.({ top: 0, behavior: 'instant' });
 	const dlg = document.querySelector('dialog.pc-overlay');
 	if (!dlg) return ['no corrector dialog'];
 	const header = document.querySelector('.cr-root .cr-header');
@@ -75,11 +81,36 @@ export default {
 			waitFor: '() => !!document.querySelector(\'.pick:not(.free)[aria-pressed="true"]\')',
 			timeoutMs: 15_000
 		},
+		/* STRAIGHTENING IS A CHOICE AFTER THE FACT NOW (ledger 0297, F4b): a
+		   picked photo no longer opens the corrector, it is saved to a draft at
+		   once, and the corrector opens from "Straighten page 1" on that entry.
+		   So the pick lands, the draft opens, and the corrector is opened from
+		   the entry, which is the only way a student reaches it here. */
 		{
 			evaluate: OPEN_CORRECTOR,
+			until: '() => !!document.querySelector(\'[data-testid="row-draft"], [data-testid="entry-draft-chip"]\')',
+			attempts: 1,
+			gapMs: 10_000
+		},
+		{
+			evaluate: `() => {
+				// The class tab lists ROWS beside the composer above 1024px and full
+				// cards in one column below it; either way, open the draft.
+				const chip = document.querySelector('[data-testid="row-draft"], [data-testid="entry-draft-chip"]');
+				let n = chip;
+				while (n && !n.querySelector('[data-testid="entry-open"], [data-testid="entry-disclosure"]')) n = n.parentElement;
+				const open = n && n.querySelector('[data-testid="entry-open"], [data-testid="entry-disclosure"]');
+				if (!open) return 'no open control';
+				if (open.getAttribute('aria-expanded') !== 'true') open.click();
+				return 'opened the draft';
+			}`,
+			until: '() => !!document.querySelector(\'[data-testid="entry-straighten"]\')',
+			attempts: 3,
+			gapMs: 1_000
+		},
+		{
+			click: '[data-testid="entry-straighten"]',
 			until: '() => !!document.querySelector("dialog.pc-overlay[open]") && !!document.querySelector("[data-testid=\'pc-handle-0\']")',
-			/* One pick, and time for it to land: a second attempt would queue a
-			   second photo rather than retry the first. */
 			attempts: 1,
 			gapMs: 10_000
 		}

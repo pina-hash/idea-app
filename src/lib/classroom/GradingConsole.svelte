@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { classNotebookHref } from '$lib/classroom/nav';
 	import Avatar from '$lib/Avatar.svelte';
 	import { rosterSubject } from '$lib/avatars';
 	import { tick, untrack, type Snippet } from 'svelte';
@@ -1737,6 +1738,13 @@
 		<div class="eyebrow">Grading</div>
 		<h1>{itemTitle(item)}</h1>
 		<p class="meta-line">{sectionTitle(section)} · out of {outOf} pts</p>
+		<!-- THE CLASS'S NOTEBOOK FROM THE GRADING CONSOLE (ledger 0297, package
+		     F4b): one link, to the class's Notebook tab, where the review grid, the
+		     approve queue and the Documentation Check all live. A link and not a
+		     panel: the notebook keeps its one scoring path. -->
+		<a class="tap-44 gc-notebook-link" href={classNotebookHref(section.id, basePath)} data-testid="grading-notebook-link"
+			>Notebook review and Documentation Check</a
+		>
 	</section>
 
 	{#if loadError}
@@ -3108,6 +3116,10 @@
 	.console-hero h1 {
 		font-size: 1.75rem;
 		line-height: 1.15;
+	}
+	.gc-notebook-link {
+		font-size: 0.85rem;
+		color: var(--body-link, var(--cyan));
 	}
 	.meta-line {
 		font-family: var(--font-mono);

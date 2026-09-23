@@ -48,6 +48,12 @@
 	import { itemLayoutKnown } from '$lib/classroom/attachments';
 	import PresenceHeartbeat from '$lib/classroom/presence/PresenceHeartbeat.svelte';
 	import { createPresenceBeatTransport } from '$lib/classroom/presence/transports';
+	import NotebookCapture from '$lib/notebook/NotebookCapture.svelte';
+	import { captureFiling } from '$lib/notebook/capture';
+	import { browserCaptureStore } from '$lib/notebook/capture-store';
+	import { createFindUpload, createNotebookTransports } from '$lib/notebook/transports';
+	import type { NotebookCaptureTransports } from '$lib/notebook/capture-queue';
+	import { classNotebookHref } from '$lib/classroom/nav';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -1008,6 +1014,43 @@
 	 * wired wastefully, and named here so the next reader does not take the
 	 * absence for a forgotten prop.
 	 */
+	/**
+	 * THE STUDENT'S NOTEBOOK CAPTURE FOR THIS ITEM (ledger 0297, package F4b).
+	 * Filed by the item: its check-in in this class when it has one, otherwise
+	 * the class with the item's title, decided against the layout's one clock
+	 * (`classClock.today`). The transports are the notebook's own, so a page
+	 * written here reaches the server by the path a page written in the notebook
+	 * does. Null for a manager, and wherever the load could not read a notebook,
+	 * which leaves the check-in card's link as the door, as it was.
+	 */
+	const captureTransports = $derived<NotebookCaptureTransports | null>(
+		data.notebook?.configured
+			? (() => {
+					const t = createNotebookTransports(data.supabase);
+					return {
+						createEntry: t.createEntry,
+						addPhoto: t.addPhoto,
+						findUpload: createFindUpload(data.supabase),
+						createNote: t.createNote,
+						addNote: t.addNote,
+						editNote: t.editNote,
+						submitEntry: t.submitEntry,
+						flushNote: t.flushNote
+					};
+				})()
+			: null
+	);
+	const captureFilingHere = $derived(
+		captureFiling({
+			sectionId: data.section.id,
+			itemId: data.item.id,
+			itemTitle: data.item.title,
+			checkIns: itemCheckIns,
+			today: data.classClock?.today ?? ''
+		})
+	);
+	const captureStore = browserCaptureStore();
+
 	const presenceBeat = $derived(
 		data.engine ? createPresenceBeatTransport(data.supabase, data.item.id) : null
 	);
@@ -1035,6 +1078,9 @@
 	revisionTransports={data.canManage ? revisionTransports : null}
 	checkIns={itemCheckIns}
 	checkInTransports={liveCheckInTransports}
+	notebookCapture={!data.canManage && data.notebook?.configured && data.claims?.sub
+		? notebookCapture
+		: null}
 	layoutTransports={liveLayoutTransports}
 	htmlAssignment={data.htmlAssignment}
 	ideacad={data.ideacad}
@@ -1055,6 +1101,23 @@
 	onchanged={() => invalidateAll()}
 	ondeleted={() => goto(`/classroom/${data.section.id}`)}
 />
+
+{#snippet notebookCapture()}
+	{#key captureFilingHere.key}
+		<NotebookCapture
+			viewerId={data.claims?.sub ?? ''}
+			filing={captureFilingHere}
+			entries={data.notebook?.entries ?? []}
+			uploadReady={data.notebook?.uploadReady ?? false}
+			draftsReady={data.notebook?.draftsReady ?? false}
+			coalescingReady={data.notebook?.coalescingReady ?? false}
+			transports={captureTransports}
+			store={captureStore}
+			notebookHref={classNotebookHref(data.section.id)}
+			onChanged={() => invalidateAll()}
+		/>
+	{/key}
+{/snippet}
 
 <!--
 	IT RENDERS NOTHING, WHICH IS THE POINT RATHER THAN A CONSEQUENCE. A student is

@@ -158,6 +158,7 @@
 		defaultSectionId = null,
 		reviewHref = '/classroom/notebook/review',
 		allClassesHref = null,
+		timelineHref = null,
 		historyReady = true,
 		coalescingReady = false,
 		viewerId,
@@ -338,6 +339,8 @@
 		reviewHref?: string;
 		/** A class's tab links to the whole notebook, carrying the class along. */
 		allClassesHref?: string | null;
+		/** This class's project timeline (ledger 0297, F4b); a class's own tab only. */
+		timelineHref?: string | null;
 		/**
 		 * A note can be DELETED and an entry can show a HISTORY (0119). False
 		 * turns both off the same way `deletionReady` turns off 0116/0117: no
@@ -921,6 +924,42 @@
 	 * with nothing new staged, there is still a real entry to turn in.
 	 */
 	const canTurnIn = $derived(canSubmit || !!savedDraftId);
+
+	/**
+	 * A PHOTO IS UPLOADED THE MOMENT IT IS STAGED, AS A DRAFT (ledger 0297,
+	 * package F4b). It used to wait in memory for Save draft or Turn in, so a
+	 * closed tab, a dead battery or a deploy took every page staged so far --
+	 * the blocking finding of the notebook audit. The draft is private to its
+	 * author at both read sites (0118), so saving it early shows nobody
+	 * anything, and turning it in stays the deliberate act it was.
+	 *
+	 * IT IS THE SAVE DRAFT PRESS, NOT A SECOND UPLOAD PATH: `runSave(false)`
+	 * creates the draft from the first photo or adds to the one this session
+	 * already made, through the same pairing rule and the same partial-failure
+	 * handling. Each staged photo is tried ONCE automatically (the WeakSet): a
+	 * photo that fails stays staged with its message and the Save draft button
+	 * retries it, rather than this effect retrying it in a loop. Deferred and
+	 * untracked, because `runSave` writes the state this effect reads.
+	 */
+	const autoUploadTried = new WeakSet<File>();
+	$effect(() => {
+		const ready =
+			staged.length > 0 &&
+			!stagerSettling &&
+			uploadReady &&
+			draftsReady &&
+			!readOnly &&
+			!busy &&
+			!!createEntry &&
+			!!addPhoto;
+		if (!ready) return;
+		const fresh = staged.filter((p) => !autoUploadTried.has(p.file));
+		if (!fresh.length) return;
+		untrack(() => {
+			for (const p of fresh) autoUploadTried.add(p.file);
+			queueMicrotask(() => void runSave(false));
+		});
+	});
 
 	// ---- autosave ------------------------------------------------------------
 	//
@@ -1642,6 +1681,23 @@
 		form.set('entry_id', entryId);
 		form.set('variant', 'enhanced');
 		return { originalOk: true, enhancedOk: (await addPhoto(form)).ok };
+	}
+
+	/**
+	 * A STRAIGHTENED COPY OF AN ENTRY'S LATEST PAGE, added after the fact
+	 * (ledger 0297, F4b). The card offers it only on the page
+	 * `straightenTarget` names -- the one an appended corrected row is
+	 * guaranteed to pair with -- and this sends it as the 'enhanced' variant.
+	 */
+	async function addCorrectedToEntry(entryId: string, file: File): Promise<EntryActionResult> {
+		if (readOnly || !addPhoto) return { ok: false, error: 'Adding photos is not available.' };
+		const form = new FormData();
+		form.set('photo', await prepared(file));
+		form.set('entry_id', entryId);
+		form.set('variant', 'enhanced');
+		const result = await addPhoto(form);
+		if (result.ok) onChanged?.();
+		return result.ok ? { ok: true } : { ok: false, error: result.error };
 	}
 
 	/** "photo 2" / "photos 2, 4" -- shared by both save paths. */
@@ -3008,6 +3064,7 @@
 											{historyReady}
 											{viewerId}
 											onAddPhotos={addPhoto ? addPhotosToEntry : undefined}
+											onAddCorrected={addPhoto ? addCorrectedToEntry : undefined}
 											onAddNote={addNote ? saveNoteToEntry : undefined}
 											onEditNote={editNote ? saveNoteEdit : undefined}
 											onMove={folderTransports ? moveOne : undefined}
@@ -3281,6 +3338,7 @@
 					bind:staged
 					bind:settling={stagerSettling}
 					disabled={busy}
+					correctFirst={false}
 					{uploadReady}
 					captureContext={{
 						session: selectedSession,
@@ -3459,6 +3517,7 @@
 					{historyReady}
 					{viewerId}
 					onAddPhotos={addPhoto ? addPhotosToEntry : undefined}
+											onAddCorrected={addPhoto ? addCorrectedToEntry : undefined}
 					onAddNote={addNote ? saveNoteToEntry : undefined}
 					onEditNote={editNote ? saveNoteEdit : undefined}
 					onMove={folderTransports ? moveOne : undefined}
@@ -3546,6 +3605,9 @@
 			{/if}
 			<!-- A class's tab reaches the whole notebook, carrying the class along
 			     so a free entry written there still starts filed to it. -->
+			{#if timelineHref}
+				<a class="chip chip-link" href={timelineHref} data-testid="nb-timeline">Timeline &rsaquo;</a>
+			{/if}
 			{#if allClassesHref}
 				<a class="chip chip-link" href={allClassesHref} data-testid="nb-all-classes"
 					>All classes &rsaquo;</a

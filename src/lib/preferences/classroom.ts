@@ -78,6 +78,23 @@ export const RETIRED_HINTS_MAX = 200;
  * left behind, so `@` picks are not remembered.
  */
 const RECENT_KEY = /^(cmd|class|unit|item):[A-Za-z0-9._-]{1,120}$/;
+
+/**
+ * THE NEXT-STEP COMMENTS A REVIEWER STARTS WITH (ledger 0297, research B1 and
+ * B5): checkmark-only notebook feedback produced no growth, and one specific
+ * next step did. Plain sentences a student can act on at the next entry; the
+ * reviewer edits the list and it is theirs from then on.
+ */
+export const NOTEBOOK_COMMENT_SEEDS: readonly string[] = [
+	'Date every entry.',
+	'Show why this iteration failed.',
+	'State the next test you will run.',
+	'Label the parts of your sketch.'
+];
+export const NOTEBOOK_COMMENT_MAX = 12;
+export const NOTEBOOK_COMMENT_LENGTH = 200;
+export const LAST_LOOKED_MAX = 60;
+const CLASS_KEY = /^[A-Za-z0-9._-]{1,64}$/;
 const HINT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 export interface ClassroomPreferences {
@@ -86,6 +103,16 @@ export interface ClassroomPreferences {
 	grading: { advanceAfterReturn: boolean };
 	guidance: { retiredHints: string[]; tour: TourState };
 	search: { recent: string[] };
+	/**
+	 * THE REVIEWER'S NOTEBOOK REVIEW DEFAULTS (ledger 0297, package F4b), both
+	 * per reviewer and so on the account. `lastLooked` is when this reviewer
+	 * last opened a class's approve queue, keyed by class id, and is what "new
+	 * since you last looked" measures from: a DEFAULT about where to start, never
+	 * a record about any entry. `comments` is the reviewer's own list of
+	 * next-step comments offered as chips, seeded with notebook practice and
+	 * edited in place.
+	 */
+	notebookReview: { lastLooked: Record<string, string>; comments: string[] };
 }
 export type ClassroomPreferenceGroup = keyof ClassroomPreferences;
 
@@ -94,7 +121,8 @@ export const CLASSROOM_PREFERENCE_HOMES: Readonly<Record<ClassroomPreferenceGrou
 	classView: 'account',
 	grading: 'account',
 	guidance: 'account',
-	search: 'device'
+	search: 'device',
+	notebookReview: 'account'
 };
 
 export function defaultClassroomPreferences(): ClassroomPreferences {
@@ -103,7 +131,8 @@ export function defaultClassroomPreferences(): ClassroomPreferences {
 		classView: { opensOn: 'all' },
 		grading: { advanceAfterReturn: false },
 		guidance: { retiredHints: [], tour: 'unseen' },
-		search: { recent: [] }
+		search: { recent: [] },
+		notebookReview: { lastLooked: {}, comments: [...NOTEBOOK_COMMENT_SEEDS] }
 	};
 }
 
@@ -128,6 +157,7 @@ export function readClassroomPreferences(raw: unknown): ClassroomPreferences {
 	const grading = isObject(r.grading) ? r.grading : {};
 	const guidance = isObject(r.guidance) ? r.guidance : {};
 	const search = isObject(r.search) ? r.search : {};
+	const review = isObject(r.notebookReview) ? r.notebookReview : {};
 	return {
 		display: { density: oneOf(display.density, DENSITIES, d.display.density) },
 		classView: { opensOn: oneOf(classView.opensOn, CLASS_OPENS_ON, d.classView.opensOn) },
@@ -138,12 +168,31 @@ export function readClassroomPreferences(raw: unknown): ClassroomPreferences {
 				d.guidance.retiredHints,
 			tour: oneOf(guidance.tour, TOUR_STATES, d.guidance.tour)
 		},
-		search: { recent: stringList(search.recent, (s) => RECENT_KEY.test(s), RECENT_MAX) ?? d.search.recent }
+		search: { recent: stringList(search.recent, (s) => RECENT_KEY.test(s), RECENT_MAX) ?? d.search.recent },
+		notebookReview: {
+			lastLooked: readLastLooked(review.lastLooked),
+			comments:
+				stringList(
+					review.comments,
+					(s) => s.trim().length > 0 && s.length <= NOTEBOOK_COMMENT_LENGTH,
+					NOTEBOOK_COMMENT_MAX
+				) ?? d.notebookReview.comments
+		}
 	};
 }
 
+/** Class id -> ISO instant; anything else is dropped, newest kept first. */
+function readLastLooked(v: unknown): Record<string, string> {
+	if (!isObject(v)) return {};
+	const pairs = Object.entries(v).filter(
+		([k, at]) => CLASS_KEY.test(k) && typeof at === 'string' && !Number.isNaN(Date.parse(at))
+	) as [string, string][];
+	pairs.sort((a, b) => Date.parse(b[1]) - Date.parse(a[1]));
+	return Object.fromEntries(pairs.slice(0, LAST_LOOKED_MAX));
+}
+
 export const CLASSROOM_PREFERENCE_SCHEMA: PreferenceSchema<ClassroomPreferences> = {
-	groups: ['display', 'classView', 'grading', 'guidance', 'search'],
+	groups: ['display', 'classView', 'grading', 'guidance', 'search', 'notebookReview'],
 	defaults: defaultClassroomPreferences,
 	read: readClassroomPreferences
 };

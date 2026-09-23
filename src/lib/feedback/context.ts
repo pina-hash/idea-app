@@ -73,8 +73,10 @@ export const CLASSROOM_SHELL_HARNESSES = [
 	'/dev/classroom-todo',
 	'/dev/classroom-view-as-notebook',
 	'/dev/notebook',
+	'/dev/notebook-capture',
 	'/dev/notebook-review',
 	'/dev/notebook-review-student',
+	'/dev/notebook-timeline',
 	'/dev/theme-switch'
 ] as const;
 

@@ -349,3 +349,26 @@ export function createNotebookTransports(supabase: SupabaseClient): NotebookWrit
 			rpcAction('notebook_restore_note', { p_note_id: noteId }, 'Could not restore that note.')()
 	};
 }
+
+/**
+ * WHICH ENTRY ALREADY HOLDS A PHOTO STORED UNDER THIS EXACT NAME (ledger 0297,
+ * package F4b), for the capture queue's retry. The photo routes have no
+ * idempotency key, so a retry whose first attempt has an unknown outcome asks
+ * this first (`captureLanded`'s rule, read on the server's own rows). A plain
+ * RLS-scoped select on the caller's own client: 0069's photo policy delegates
+ * to `notebook_can_read_entry`, so a student reads their own photos and a
+ * capture token is unique enough that nobody else's can match. A failed read
+ * answers `'unknown'` and the queue waits rather than guessing.
+ */
+export function createFindUpload(supabase: SupabaseClient) {
+	return async (uploadName: string): Promise<{ entryId: string } | null | 'unknown'> => {
+		const { data, error } = await supabase
+			.from('notebook_entry_photos')
+			.select('entry_id')
+			.eq('original_filename', uploadName)
+			.limit(1);
+		if (error) return 'unknown';
+		const row = ((data ?? []) as { entry_id?: string }[])[0];
+		return row?.entry_id ? { entryId: row.entry_id } : null;
+	};
+}

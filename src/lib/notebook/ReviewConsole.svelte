@@ -57,6 +57,11 @@
 	} from '$lib/notebook-review';
 	import type { DocCheckTransports } from '$lib/notebook-documentation-check';
 	import Pending from '$lib/Pending.svelte';
+	import ReviewQueue from '$lib/notebook/ReviewQueue.svelte';
+	import { approveAction, recordLook } from '$lib/notebook/review-queue';
+	import { laCalendarDay } from '$lib/classroom/school-calendar';
+	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
+	import { NOTEBOOK_COMMENT_SEEDS } from '$lib/preferences/classroom';
 
 	/**
 	 * The whole instructor review screen, factored out of /notebook/review so
@@ -170,7 +175,7 @@
 		 */
 		lockedSectionId?: string | null;
 		/** Which mode to open on: `checkins` is how the item page's duplicate-date refusal lands on the manager. */
-		initialMode?: 'review' | 'checkins';
+		initialMode?: 'review' | 'checkins' | 'approve';
 		/**
 		 * The all-sections console, offered beside a LOCKED console for a viewer
 		 * who reviews more than this one class. Null offers no link.
@@ -196,16 +201,53 @@
 	 * same complaint one layer up: the check-in manager used to sit ABOVE the
 	 * grid and pushed it off the first screen on every load.
 	 */
-	type Mode = 'review' | 'checkins' | 'grade' | 'log';
+	type Mode = 'review' | 'checkins' | 'grade' | 'log' | 'approve';
 	// Seeded ONCE from the URL's own intent, then owned by the mode buttons.
 	// svelte-ignore state_referenced_locally
 	let mode = $state<Mode>(initialMode);
+
+	/**
+	 * THE APPROVE QUEUE'S TWO DEFAULTS, from the reviewer's own preferences
+	 * (ledger 0297, package F4b): when they last looked at this class, and their
+	 * next-step chips. Absent a store (a harness, a surface outside the
+	 * classroom shell) the queue still works, on the seeds and with no "new
+	 * since" filter.
+	 */
+	const prefStore = classroomPreferences();
+	const prefView = prefStore ? reactivePreferences(prefStore) : null;
+	/** Read BEFORE this visit stamps it, so "new since" means since the last visit. */
+	let approveSince = $state<string | null>(null);
+
+	function openApprove() {
+		mode = 'approve';
+		const id = sectionId;
+		if (!prefStore || !id) return;
+		const review = prefStore.current.notebookReview;
+		approveSince = review.lastLooked[id] ?? null;
+		prefStore.set('notebookReview', { ...review, lastLooked: recordLook(review.lastLooked, id, new Date()) });
+	}
+
+	function saveReviewComments(list: string[]) {
+		if (!prefStore) return;
+		prefStore.set('notebookReview', { ...prefStore.current.notebookReview, comments: list });
+	}
+
+	/** One approval: an acknowledgement, or a resolve that carries the next step. */
+	async function approveOne(entryId: string, comment: string | null) {
+		if (approveAction(comment) === 'resolve') return transports.resolveEntry(entryId, comment);
+		if (!transports.acceptEntry) return { ok: false as const, error: 'Marking an entry reviewed is not available.' };
+		return transports.acceptEntry(entryId);
+	}
 
 	// Seeded ONCE, then owned by the picker: a later navigation within the
 	// console must not be yanked back to the id the URL arrived with. A LOCKED
 	// console is seeded with its class and has no picker to move it.
 	// svelte-ignore state_referenced_locally
 	let sectionId = $state<string | null>(lockedSectionId ?? initialSectionId);
+	// Arriving on `?mode=approve` looks at the class exactly as the button does;
+	// deferred, because it writes a preference while this component is mounting.
+	// svelte-ignore state_referenced_locally
+	if (initialMode === 'approve') queueMicrotask(openApprove);
 	let unit = $state<number | null>(null);
 	/** null = "all units"; otherwise the selected unit number. */
 	let unitChoice = $state<string>('all');
@@ -1171,6 +1213,14 @@
 				     not author the section's check-ins, so the tab is absent for a
 				     section they only review -- absence, not a disabled control,
 				     because there is nothing they could do to enable it here. -->
+				<button
+					type="button"
+					class="mode"
+					class:on={mode === 'approve'}
+					aria-pressed={mode === 'approve'}
+					data-testid="mode-approve"
+					onclick={openApprove}>Approve</button
+				>
 				{#if sectionManages}
 					<button
 						type="button"
@@ -1320,6 +1370,22 @@
 			{#if actionNote}
 				<p class="action-note" role="status" data-testid="action-note">{actionNote}</p>
 			{/if}
+		{:else if mode === 'approve'}
+			<div class="console-panel scrolls">
+				{#if grid}
+					{#key sectionId}
+						<ReviewQueue
+							{grid}
+							today={laCalendarDay(new Date(grid.generated_at))}
+							since={approveSince}
+							comments={prefView?.current.notebookReview.comments ?? [...NOTEBOOK_COMMENT_SEEDS]}
+							onSaveComments={prefStore ? saveReviewComments : null}
+							approve={approveOne}
+							onDone={() => refresh(sectionId, unit, { quiet: true })}
+						/>
+					{/key}
+				{/if}
+			</div>
 		{:else if mode === 'checkins' && sectionManages}
 			<div class="console-panel scrolls">
 				{#if sectionId}
