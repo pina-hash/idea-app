@@ -40,7 +40,7 @@ describe('every command is registered once', () => {
 			expect(c.name.length, c.id).toBeGreaterThan(1);
 			expect(c.description.length, c.id).toBeGreaterThan(8);
 			expect(c.description.length, c.id).toBeLessThan(90);
-			expect(c.description, c.id).not.toMatch(/\n|—/);
+			expect(c.description, c.id).not.toMatch(/\n|\u2014/);
 			expect(c.icon, c.id).toMatch(/^M/);
 			expect(COMMAND_GROUPS, c.id).toContain(c.group);
 		}
