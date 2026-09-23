@@ -87,8 +87,9 @@
 			<li><button type="button" class="task-row" class:now={rowState === 'now'} aria-current={rowState === 'now' ? 'step' : undefined} data-task={task.id} onclick={() => jump(i)}><span class="mark" aria-hidden="true">{rowState === 'done' ? '✓' : rowState === 'now' ? '▸' : i + 1}</span><span class="title">{task.title}</span><span class="meta">{rowState}</span></button></li>
 		{/each}
 	</ol>
+	<!-- Inside the panel, not beside it: a panel column that turns pointer events back on for its children must never make the ring catch the press meant for the control it rings. Fixed, so it is drawn over the control wherever the panel sits. -->
+	{#if ring}<span class="ring" aria-hidden="true" data-testid="ideacad-tutorial-ring" style:left={`${ring.left - 4}px`} style:top={`${ring.top - 4}px`} style:width={`${ring.width + 8}px`} style:height={`${ring.height + 8}px`}><span class="badge">{(current?.taskIndex ?? 0) + 1}</span></span>{/if}
 </section>
-{#if ring}<span class="ring" aria-hidden="true" data-testid="ideacad-tutorial-ring" style:left={`${ring.left - 4}px`} style:top={`${ring.top - 4}px`} style:width={`${ring.width + 8}px`} style:height={`${ring.height + 8}px`}><span class="badge">{(current?.taskIndex ?? 0) + 1}</span></span>{/if}
 <style>
 	.tutorial{display:grid;gap:6px}
 	.head{display:flex;align-items:center;gap:8px}
