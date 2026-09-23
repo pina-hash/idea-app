@@ -198,18 +198,37 @@
 		const v = number(resizeBox); if (!Number.isFinite(v)) { api.error(f.type === 'fillet' ? 'Enter a radius in inches, like 0.25.' : 'Enter a distance in inches, like 0.1.'); return; }
 		await api.apply({ type: 'set-feature', id: f.id, patch: f.type === 'fillet' ? { radius: v } : { distance: v } }, `Set ${f.name}`);
 	}
+	/**
+	 * The edges a Round or Bevel press takes: the picked edges, or, when only
+	 * faces are picked, every edge of those faces that has a corner (a face
+	 * picked means its rim, as in SolidWorks, with no second press). An edge
+	 * that is already smooth is left out, exactly as "Edges of" leaves it out.
+	 */
+	const faceRim = $derived.by(() => {
+		const out: Selection[] = [], seen = new Set<string>();
+		for (const s of faces) {
+			const body = api.model.bodies.find((b) => b.id === s.bodyId), face = body?.faces.find((f) => f.id === s.id);
+			if (!body || !face) continue;
+			const shapes = edgeShapes(body);
+			for (const id of face.edges) if (shapes.get(id) !== 'smooth' && !seen.has(`${s.bodyId}/${id}`)) { seen.add(`${s.bodyId}/${id}`); out.push({ bodyId: s.bodyId, kind: 'edge', id }); }
+		}
+		return out;
+	});
+	const taken = $derived(edges.length ? edges : faceRim);
 	async function fillet() {
 		if (api.busy) { api.error(BUSY); return; }
 		const r = number(radius); if (!Number.isFinite(r)) { api.error('Enter a radius in inches, like 0.25.'); return; }
-		if (!edges.length) { api.error('Select an edge to round. Shift-click adds more; a selected face gives all its edges.'); return; }
-		try { await send(withOptions({ type: 'fillet', edges: edges.map((s) => ref(s) as EdgeRef), radius: r }), 'Fillet', at()); } catch (e) { refuse(e); }
+		if (!taken.length) { api.error('Select an edge to round. Shift-click adds more; a selected face gives all its edges.'); return; }
+		try { await send(withOptions({ type: 'fillet', edges: taken.map((s) => ref(s) as EdgeRef), radius: r }), 'Fillet', at()); } catch (e) { refuse(e); }
 	}
 	async function chamfer() {
 		if (api.busy) { api.error(BUSY); return; }
 		const d = number(distance); if (!Number.isFinite(d)) { api.error('Enter a distance in inches, like 0.1.'); return; }
-		if (!edges.length) { api.error('Select an edge to bevel. Shift-click adds more; a selected face gives all its edges.'); return; }
-		try { await send(withOptions({ type: 'chamfer', edges: edges.map((s) => ref(s) as EdgeRef), distance: d }), 'Chamfer', at()); } catch (e) { refuse(e); }
+		if (!taken.length) { api.error('Select an edge to bevel. Shift-click adds more; a selected face gives all its edges.'); return; }
+		try { await send(withOptions({ type: 'chamfer', edges: taken.map((s) => ref(s) as EdgeRef), distance: d }), 'Chamfer', at()); } catch (e) { refuse(e); }
 	}
+	/** Enter in a size box does what the box's button does. */
+	const onEnter = (run: () => Promise<void>) => (e: KeyboardEvent) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); void run(); } };
 	/** Refused rounds and bevels, each with its way forward: the row's own help, or the size read back out of its sentence until the engine carries help onto the row. */
 	const refused = $derived(api.model.features.filter((r) => (r.type === 'fillet' || r.type === 'chamfer') && r.status === 'error').map((row) => ({ row, help: row.help ?? { fix: sizeFixFromSentence(row, api.manifest.features.find((f) => f.id === row.id)) ?? undefined } })));
 	/** Light the edges a refusal is about, as the projection names them now. */
@@ -284,8 +303,8 @@
 	<section class="feature panel" aria-label="Feature options" data-testid="ideacad-feature-panel" data-mode={mode}>
 		<h2>{WORDS[mode]}</h2>
 		{#if mode === 'fillet' || mode === 'chamfer'}
-			<p class="picks" data-testid="ideacad-feature-picks"><span class="count">{plural(edges.length, 'edge')}</span>{#if edges.length && edges.every((s) => s.bodyId === edges[0].bodyId)}<span class="on">{bodyName(edges[0].bodyId)}</span>{/if}{#if leftOut}<span class="cue" data-testid="ideacad-feature-left-out">{leftOut} smooth left out</span>{/if}</p>
-			{#if pickedBlend}<div class="resize" data-testid="ideacad-blend-resize"><span class="who-name">{pickedBlend.name}</span><label class="fp-field">{pickedBlend.type === 'fillet' ? 'R' : 'D'}<input inputmode="decimal" bind:value={resizeBox} aria-label={pickedBlend.type === 'fillet' ? `${pickedBlend.name} radius` : `${pickedBlend.name} distance`} data-testid="ideacad-blend-resize-value" /><span class="fp-unit">in</span></label>{#if editable}<button type="button" aria-disabled={api.busy} onclick={() => void resize()} data-testid="ideacad-blend-resize-set">Set</button>{/if}</div>{/if}
+			<p class="picks" data-testid="ideacad-feature-picks">{#if !edges.length && faces.length}<span class="count">{plural(faces.length, 'face')}</span><span class="on">{plural(faceRim.length, 'edge')}</span>{:else}<span class="count">{plural(edges.length, 'edge')}</span>{/if}{#if edges.length && edges.every((s) => s.bodyId === edges[0].bodyId)}<span class="on">{bodyName(edges[0].bodyId)}</span>{/if}{#if leftOut}<span class="cue" data-testid="ideacad-feature-left-out">{leftOut} smooth left out</span>{/if}</p>
+			{#if pickedBlend}<div class="resize" data-testid="ideacad-blend-resize"><span class="who-name">{pickedBlend.name}</span><label class="fp-field">{pickedBlend.type === 'fillet' ? 'R' : 'D'}<input inputmode="decimal" bind:value={resizeBox} onkeydown={onEnter(resize)} aria-label={pickedBlend.type === 'fillet' ? `${pickedBlend.name} radius` : `${pickedBlend.name} distance`} data-testid="ideacad-blend-resize-value" /><span class="fp-unit">in</span></label>{#if editable}<button type="button" aria-disabled={api.busy} onclick={() => void resize()} data-testid="ideacad-blend-resize-set">Set</button>{/if}</div>{/if}
 			{#if faces.length && !edges.length}<button type="button" class="wide" onclick={faceEdges} data-testid="ideacad-feature-face-edges">Edges of {plural(faces.length, 'face')}</button>{/if}
 			{#if sets.length}
 				<div class="grow" role="group" aria-label="Add edges" data-testid="ideacad-edge-sets">
@@ -293,22 +312,22 @@
 				</div>
 			{/if}
 			{#if mode === 'fillet'}
-				<label class="size">Radius<span class="fp-field"><input inputmode="decimal" bind:value={radius} data-testid="ideacad-fillet-radius" /><span class="fp-unit">in</span></span></label>
+				<label class="size">Radius<span class="fp-field"><input inputmode="decimal" bind:value={radius} onkeydown={onEnter(fillet)} data-testid="ideacad-fillet-radius" /><span class="fp-unit">in</span></span></label>
 				<label class="toggle"><input type="checkbox" bind:checked={propagate} data-testid="ideacad-fillet-propagate" /><span>Tangent chain</span></label>
 				<div class="rigor"><Disclosure label="Variable radius" collapseWhen={true} scope="ideacad-fillet-variable" testId="ideacad-fillet-variable">
 					<label class="size">End radius<span class="fp-field"><input inputmode="decimal" bind:value={variableEnd} data-testid="ideacad-fillet-variable-end" /><span class="fp-unit">in</span></span></label>
 					{#if variableEnd.trim() !== ''}<label class="size">Law<select value={law} onchange={(e) => (law = e.currentTarget.value as 'linear' | 'scurve')} data-testid="ideacad-fillet-law"><option value="linear">Linear</option><option value="scurve">S-curve</option></select></label>{/if}
 				</Disclosure></div>
 			{:else}
-				<label class="size">Distance<span class="fp-field"><input inputmode="decimal" bind:value={distance} data-testid="ideacad-chamfer-distance" /><span class="fp-unit">in</span></span></label>
+				<label class="size">Distance<span class="fp-field"><input inputmode="decimal" bind:value={distance} onkeydown={onEnter(chamfer)} data-testid="ideacad-chamfer-distance" /><span class="fp-unit">in</span></span></label>
 				<label class="size">Second<span class="fp-field"><input inputmode="decimal" bind:value={distance2} placeholder="same" data-testid="ideacad-chamfer-distance2" /><span class="fp-unit">in</span></span></label>
 				<label class="size">Angle<span class="fp-field"><input inputmode="decimal" bind:value={chamferAngle} placeholder="none" data-testid="ideacad-chamfer-angle" /><span class="fp-unit">°</span></span></label>
 				<label class="toggle"><input type="checkbox" bind:checked={chamferPropagate} data-testid="ideacad-chamfer-propagate" /><span>Tangent chain</span></label>
 			{/if}
 			{#if shellAhead}<label class="toggle cue-toggle"><input type="checkbox" bind:checked={beforeShell} data-testid="ideacad-blend-before-shell" /><span>Before {shellAhead.name}, for even walls</span></label>{/if}
 			{#if editable}
-				{#if mode === 'fillet'}<button type="button" class="wide primary" aria-disabled={api.busy} onclick={() => void fillet()} data-testid="ideacad-fillet-apply">Round {plural(edges.length, 'edge')} at {radius.trim() || '?'} in</button>
-				{:else}<button type="button" class="wide primary" aria-disabled={api.busy} onclick={() => void chamfer()} data-testid="ideacad-chamfer-apply">Bevel {plural(edges.length, 'edge')} at {distance.trim() || '?'} in</button>{/if}
+				{#if mode === 'fillet'}<button type="button" class="wide primary" aria-disabled={api.busy} onclick={() => void fillet()} data-testid="ideacad-fillet-apply">Round {plural(taken.length, 'edge')} at {radius.trim() || '?'} in</button>
+				{:else}<button type="button" class="wide primary" aria-disabled={api.busy} onclick={() => void chamfer()} data-testid="ideacad-chamfer-apply">Bevel {plural(taken.length, 'edge')} at {distance.trim() || '?'} in</button>{/if}
 			{/if}
 			{#each refused as { row, help } (row.id)}
 				<div class="refusal" role="group" aria-label={row.name} data-testid="ideacad-blend-refusal" data-row={row.id} onpointerenter={() => showWhere(help.where)} onpointerleave={() => api.hover?.(null)}>

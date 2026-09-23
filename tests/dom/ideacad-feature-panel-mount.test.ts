@@ -330,6 +330,22 @@ describe('the blend refusals and the edge sets', () => {
 		expect(m.all('[data-testid="ideacad-blend-resize"]')).toHaveLength(1);
 		expect(m.all('[data-testid="ideacad-blend-resize-set"]')).toHaveLength(0);
 	});
+	it('a picked face with no edge picked is its rim: Round takes the four edges of the face with no second press, and Enter in the radius box presses Round', async () => {
+		const h = harness({ tool: 'fillet', selections: [pickFace('x1.end')] });
+		const m = mountPanel(h);
+		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toBe('1 face4 edges');
+		expect(m.one('[data-testid="ideacad-fillet-apply"]').textContent).toBe('Round 4 edges at 0.25 in');
+		const box = m.one<HTMLInputElement>('[data-testid="ideacad-fillet-radius"]');
+		type(m, 'ideacad-fillet-radius', '0.3');
+		box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await m.settle();
+		expect(h.applied).toHaveLength(1);
+		const sent = (h.applied[0].command as unknown as { feature: { edges: { faces: string[] }[]; radius: number } }).feature;
+		expect(sent.radius).toBe(0.3);
+		expect(sent.edges.map((e) => e.faces.join('|'))).toEqual(['x1.end|x1.side.0', 'x1.end|x1.side.1', 'x1.end|x1.side.2', 'x1.end|x1.side.3']);
+		/* Any other key types; it does not press. */
+		box.dispatchEvent(new KeyboardEvent('keydown', { key: '4', bubbles: true })); await m.settle();
+		expect(h.applied).toHaveLength(1);
+	});
 	it('one picked edge grows into every edge of the body, lit while the pointer is over it; a set that adds nothing is not offered; a face under a later shell offers the round before it', async () => {
 		const h = harness({ tool: 'fillet', selections: [pickEdge('edge:x1.end|x1.side.0')] });
 		const hovered: (Selection[] | null)[] = [];
