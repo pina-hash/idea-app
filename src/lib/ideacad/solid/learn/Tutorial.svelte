@@ -41,8 +41,12 @@
 	/* The ring on the real control: re-measured on a short timer while a step is showing, because the palette, the context toolbar and the panels move. */
 	let panel = $state<HTMLElement>();
 	let ring = $state<{ left: number; top: number; width: number; height: number } | null>(null);
+	/* A tool folded under More rings the More button instead (`data-more-tools`), so the student opens it and the ring moves onto the tool. */
 	function target(id: string): HTMLElement | null {
-		for (const el of document.querySelectorAll<HTMLElement>(`[data-command="${CSS.escape(id)}"]`)) {
+		return visible(`[data-command="${CSS.escape(id)}"]`) ?? (commandById(id)?.tool ? visible('[data-more-tools]') : null);
+	}
+	function visible(selector: string): HTMLElement | null {
+		for (const el of document.querySelectorAll<HTMLElement>(selector)) {
 			if (panel?.contains(el)) continue;
 			const r = el.getBoundingClientRect();
 			if (r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < window.innerHeight && r.left < window.innerWidth) return el;
