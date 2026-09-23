@@ -1,5 +1,39 @@
 import { beforeNavigate, goto } from '$app/navigation';
 import type { SaveState } from '$lib/save-state.svelte';
+import { beginResumedNavigation } from '$lib/shell/deploy-safety';
+
+/**
+ * HOW LONG THE FLUSH MAY TAKE BEFORE THE GUARD ASKS ANYWAY: twelve seconds.
+ *
+ * `SaveState` gives a write no deadline of its own, so a request that never
+ * answers held every in-app link on the page dead, silently, for as long as it
+ * hung -- measured on the real `AssignmentEngine`: a hung write, a link clicked,
+ * and the address unchanged at 300ms, 1s, 3s and 8s with nothing on screen but
+ * "Saving..." on the card. Twelve seconds is the machine's own retry ladder
+ * (800 + 1600 + 3200 + 6400ms of backoff between its five attempts), so a save
+ * that is genuinely retrying through a bad patch of wifi gets its whole ladder
+ * before anybody is asked, and one that has simply hung is asked about instead
+ * of trapping the person on the page. The write is not abandoned by asking: it
+ * keeps going, and a surface with a draft mirror still holds what was typed.
+ */
+export const SAVE_GUARD_FLUSH_TIMEOUT_MS = 12_000;
+
+/** Resolves true when the flush settles, false when the deadline wins. */
+function settlesWithin(work: Promise<void>, ms: number): Promise<boolean> {
+	return new Promise((resolve) => {
+		const timer = setTimeout(() => resolve(false), ms);
+		work.then(
+			() => {
+				clearTimeout(timer);
+				resolve(true);
+			},
+			() => {
+				clearTimeout(timer);
+				resolve(true);
+			}
+		);
+	});
+}
 
 /**
  * THE ONE NAVIGATION GUARD over a SaveState.
@@ -42,6 +76,17 @@ import type { SaveState } from '$lib/save-state.svelte';
  * query-string change by re-running the load against the same component
  * instance, so the surface survives it and warning would be a lie people learn
  * to click through. The flush still happens; only the question is skipped.
+ *
+ * THE FLUSH HAS A DEADLINE (`SAVE_GUARD_FLUSH_TIMEOUT_MS`), after which the
+ * question is asked exactly as if the flush had failed, because to the person
+ * waiting on a dead link a hung save and a failed one are the same thing.
+ *
+ * THE RE-ISSUED NAVIGATION IS MARKED (`beginResumedNavigation`). It has to be a
+ * `goto`, and `$lib/shell/DeployWatch.svelte` refuses to reload on a
+ * programmatic `goto` -- so without the mark, a page with unsaved work could
+ * never take a new version of the site, which is the page that most needs the
+ * flush-then-upgrade order this gives it: the save is acknowledged first, and
+ * only then does the navigation happen, as a full load if one is due.
  */
 export function guardSaveNavigation(
 	state: SaveState,
@@ -73,11 +118,12 @@ export function guardSaveNavigation(
 		}
 
 		const url = nav.to?.url ?? null;
+		const originalType = nav.type;
 		const sameRoute = !!nav.to?.route.id && nav.to.route.id === nav.from?.route.id;
 		nav.cancel();
 
 		void (async () => {
-			await state.saveNow();
+			await settlesWithin(state.saveNow(), SAVE_GUARD_FLUSH_TIMEOUT_MS);
 			// THE STATE'S OWN WARNING OUTRANKS THE RESIDUAL ONE: a flush that could
 			// not land is the case this guard exists for, and it is the more
 			// surprising loss of the two.
@@ -86,10 +132,12 @@ export function guardSaveNavigation(
 				!remaining || sameRoute || window.confirm(`${remaining}\n\nLeave anyway?`);
 			if (!proceed || !url) return;
 			resuming = true;
+			const endResume = beginResumedNavigation(url, originalType);
 			try {
 				await goto(url);
 			} finally {
 				resuming = false;
+				endResume();
 			}
 		})();
 	});

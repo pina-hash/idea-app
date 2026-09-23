@@ -11,6 +11,7 @@
 	import type { TiptapNode } from '$lib/notebook-notes';
 	import type { NoteFlush } from '$lib/notebook/notebook-shell';
 	import type { FolderResult, FolderTransports } from '$lib/notebook-folders';
+	import { trackInFlight } from '$lib/shell/deploy-safety';
 
 	/**
 	 * Thin wrapper: the whole screen is NotebookView (so /dev/notebook mounts
@@ -90,8 +91,17 @@
 		return { ok: true, noteId: (body.note as { note_id?: string } | undefined)?.note_id };
 	}
 
+	/**
+	 * THE TWO PHOTO POSTS HOLD OFF A DEPLOY RELOAD while they are in flight
+	 * (`trackInFlight`): an in-app navigation lets a photo finish uploading, a
+	 * full page load kills it, and the picture is a File handle that existed
+	 * nowhere but in this browser. The results are returned untouched.
+	 */
 	async function createEntry(form: FormData): Promise<CreateEntryResult> {
-		return readEntry(await post('/api/notebook/upload', form), 'The upload failed.');
+		return readEntry(
+			await trackInFlight(post('/api/notebook/upload', form), 'uploading notebook photos'),
+			'The upload failed.'
+		);
 	}
 
 	async function createNote(payload: NotePayload): Promise<CreateEntryResult> {
@@ -99,7 +109,10 @@
 	}
 
 	async function addPhoto(form: FormData): Promise<AddPhotoResult> {
-		const { body } = await post('/api/notebook/add-photo', form);
+		const { body } = await trackInFlight(
+			post('/api/notebook/add-photo', form),
+			'adding a notebook photo'
+		);
 		if (!body.ok) return { ok: false, error: (body.error as string) || 'The upload failed.' };
 		return { ok: true };
 	}

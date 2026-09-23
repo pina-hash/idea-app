@@ -15,6 +15,7 @@
 	import { COMPOSER_DISCARD_WARNING } from '$lib/classroom/composer-staging';
 	import { createClassroomLive } from '$lib/classroom/live';
 	import { locateClassroom, navKeepsComposer } from '$lib/classroom/nav';
+	import { holdDeployReload } from '$lib/shell/deploy-safety';
 	import {
 		createCheckInTransports,
 		createClassroomTransports,
@@ -246,6 +247,20 @@
 			return;
 		}
 		nav.cancel();
+	});
+
+	/**
+	 * A POST WITH WORK IN IT HOLDS OFF A DEPLOY RELOAD. Moving between items in
+	 * this class keeps the composer and its staged files, which is the point of
+	 * mounting it here; a full page load would take both, so no new version of
+	 * the site is taken by reloading while one is open with anything in it (see
+	 * `$lib/shell/deploy-safety`). It also asks before the page unloads, which
+	 * is what stops SvelteKit's own reload after a failed download from
+	 * discarding the post without a word.
+	 */
+	$effect(() => {
+		if (!composing || !composerDirty) return;
+		return holdDeployReload('an unsaved post', { warnOnUnload: true });
 	});
 
 	/**
