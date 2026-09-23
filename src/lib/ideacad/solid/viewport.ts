@@ -136,6 +136,11 @@ export class SolidViewport {
 	private index=new Map<string,THREE.Object3D[]>();private bodyFaces=new Map<string,THREE.Object3D[]>();
 	/** Draw Front, Top and Right whatever the preference says, for a student who just asked to sketch on a plane. */
 	datumForced=false;
+	private datumDrawnForced=false;
+	/** Whether a datum plane or the Origin is selected or preselected, which draws the planes whatever the setting. */
+	private datumWanted(){return [...this.options.getSelections(),...this.externalHover].some(s=>s.kind==='reference'&&s.id.startsWith('datum:'));}
+	/** Redraw when that answer changed since the planes were last drawn; true when it did (the redraw repaints everything). */
+	private datumRedraw(){if(!this.model||this.datumForced||this.datumWanted()===this.datumDrawnForced)return false;this.display(this.model);return true;}
 	/** The corner triad: its own scene and camera, and the box it is drawn in, in canvas pixels from the bottom-left. */
 	private triadScene=new THREE.Scene();private triadCamera=new THREE.OrthographicCamera(-1.42,1.42,1.42,-1.42,.1,20);private triadBox={left:12,bottom:12,size:0};private triadSlot:HTMLElement|null=null;
 	triadShown=true;
@@ -255,8 +260,10 @@ export class SolidViewport {
 		this.buildSketches();
 		for(const ref of model.references)for(const object of referenceObjects(ref)){this.refs.add(object);this.refObjects.push(object);this.register(object,'reference');}
 		/* Front, Top and Right and the Origin, when the preference (or a student's own press) says so. Pickable, but lowest of everything: a face, an edge or a reference always wins the press. */
-		for(const object of datumPlaneObjects(model,{forced:this.datumForced})){this.refs.add(object);this.datumObjects.push(object);this.register(object,'datum');}
-		for(const object of originMarkerObjects(model,{forced:this.datumForced}))this.refs.add(object);
+		/* A plane or the Origin picked or pointed at from the tree is drawn whatever the setting, so pressing its row always shows something. */
+		const forced=this.datumForced||this.datumWanted();this.datumDrawnForced=forced;
+		for(const object of datumPlaneObjects(model,{forced})){this.refs.add(object);this.datumObjects.push(object);this.register(object,'datum');}
+		for(const object of originMarkerObjects(model,{forced}))this.refs.add(object);
 		this.highlight();
 		/* The model moved under a pointer that did not: what it is over is asked again. */
 		if(this.hoverEvent&&this.idle())this.scheduleHover(this.hoverEvent);
@@ -294,6 +301,7 @@ export class SolidViewport {
 	}
 	/** Every pick object, repainted: after a selection changes. */
 	highlight(){
+		if(this.datumRedraw())return;
 		if(this.sketchKey()!==this.shownSketches)this.buildSketches();
 		const selections=this.options.getSelections(),hovered=this.hoverSet();
 		for(const object of [...this.faces,...this.sketchObjs,...this.edges,...this.vertices,...this.refObjects,...this.datumObjects])this.paint(object,selections,hovered);
@@ -303,6 +311,7 @@ export class SolidViewport {
 	private objectsFor(s:Selection){return s.kind==='body'?this.bodyFaces.get(s.bodyId)??[]:this.index.get(selectionKey(s))??[];}
 	/** Repaint only what the hover touched: the objects of the old hover and of the new one. */
 	private repaintHover(before:readonly Selection[]){
+		if(this.datumRedraw())return;
 		if(this.sketchKey()!==this.shownSketches){this.buildSketches();this.highlight();return;}
 		const selections=this.options.getSelections(),hovered=this.hoverSet(),touched=new Set<THREE.Object3D>();
 		for(const s of [...before,...hovered])for(const o of this.objectsFor(s))touched.add(o);
