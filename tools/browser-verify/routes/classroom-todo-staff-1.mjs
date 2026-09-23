@@ -7,11 +7,12 @@
  * positive control: four of them, as on the student's page.
  */
 import { MY_CLASSES } from './_classroom-todo.mjs';
+import { OPEN_SHELL_MENU } from './_shell-menu.mjs';
 
 export default {
 	path: `${MY_CLASSES}?staff=1`,
 	label: 'My Classes (teacher): no to-do counts and no to-do door',
-	prepare: [{ waitFor: '() => document.querySelectorAll(\'.class-cta\').length >= 4', timeoutMs: 20000 }],
+	prepare: [{ waitFor: '() => document.querySelectorAll(\'.class-cta\').length >= 4', timeoutMs: 20000 }, OPEN_SHELL_MENU],
 	presence: [
 		{ selector: '.class-cta', label: 'the four class cards (positive control)', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
 		{ selector: '[data-testid="class-owed"]', label: 'no per-class counts', expectPresent: 0 },

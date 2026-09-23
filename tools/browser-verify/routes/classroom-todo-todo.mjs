@@ -18,11 +18,12 @@
  *   - every control and every row clears 44px (a student surface).
  */
 import { TODO, TODO_COUNTS, TODO_PRESSED, TODO_READY, TODO_ROWS, TODO_STATES } from './_classroom-todo.mjs';
+import { OPEN_SHELL_MENU } from './_shell-menu.mjs';
 
 export default {
 	path: TODO,
 	label: "A student's to-do across classes: Assigned",
-	prepare: [TODO_READY],
+	prepare: [TODO_READY, OPEN_SHELL_MENU],
 	orderResult: [
 		{
 			label: 'every owed row, grouped by the school week, in reading order',

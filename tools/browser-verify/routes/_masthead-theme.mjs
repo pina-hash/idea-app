@@ -11,10 +11,12 @@
  * they are recorded at a floor of 0, the way the `themes*` specs record the
  * dark palettes -- only Space White is built for the wall.
  */
+import { OPEN_SHELL_MENU } from './_shell-menu.mjs';
 export const mastheadThemeSpec = (theme) => ({
 	path: `/dev/theme-switch?state=${theme}`,
 	label: `Classroom masthead under the ${theme} theme: switcher, trail, switch word and a card of the register`,
 	prepare: [
+		OPEN_SHELL_MENU,
 		{
 			waitFor:
 				theme === 'idea'
@@ -32,13 +34,13 @@ export const mastheadThemeSpec = (theme) => ({
 	],
 	contrast: [
 		{ selector: '[data-testid="theme-switch"] .ts-word', label: 'the switch word', min: 4.5 },
-		{ selector: '.sw-trigger .sw-name', label: 'class switcher name', min: 4.5 },
-		{ selector: '.sw-trigger .sw-code', label: 'class switcher course code', min: 4.5 },
+		{ selector: '.cls-icon .cls-code', label: 'class icon code (report 26)', min: 4.5 },
+		{ selector: '.cls-icon .cls-sub', label: 'class icon section', min: 4.5 },
 		{ selector: '[data-testid="crumbs"] a, [data-testid="crumbs"] [aria-current]', label: 'trail', min: 4.5 },
 		{ selector: '.ts-copy', label: 'card body copy', min: 4.5 },
 		{ selector: '.ts-eyebrow, .ts-meta', label: 'card micro-label and meta', min: 4.5 },
 		{ selector: '.ts-chip', label: 'status chips on their fills', min: 4.5 },
-		{ selector: '.ts-copy, .sw-trigger .sw-name', label: 'body copy on the wall [recorded, not gated]', min: 0, projector: true },
+		{ selector: '.ts-copy, .cls-icon .cls-code', label: 'body copy on the wall [recorded, not gated]', min: 0, projector: true },
 		{ selector: '.ts-eyebrow, .ts-meta, .ts-chip, [data-testid="theme-switch"] .ts-word', label: 'muted copy and status on the wall [recorded, not gated]', min: 0, projector: true }
 	],
 	tapTargets: [{ selector: '[data-testid="theme-switch"]', label: 'the switch', min: 44 }]

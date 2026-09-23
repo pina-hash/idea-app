@@ -124,7 +124,7 @@
 		 * vocabulary and every control's box are identical, which is what keeps
 		 * the harness's measurements the shipping ones.
 		 */
-		place = 'shell' as 'shell' | 'inline'
+		place = 'shell' as 'shell' | 'inline' | 'header'
 	}: {
 		signedIn?: boolean;
 		isAdmin?: boolean;
@@ -132,7 +132,7 @@
 		navigate?: (href: string) => void;
 		recognizer?: SpeechRecognitionCtor | null | undefined;
 		startOpen?: boolean;
-		place?: 'shell' | 'inline';
+		place?: 'shell' | 'inline' | 'header';
 	} = $props();
 
 	/**
@@ -435,6 +435,23 @@
 	   on itself. */
 	.vnav-inline .vnav-panel {
 		max-width: 100%;
+	}
+	/* DOCKED IN A MASTHEAD (ledger 0297): the classroom's own chrome carries
+	   the control on every classroom and notebook page, so nothing floats over
+	   a row's checkbox, a grip or a Return button. The trigger sits in the
+	   header's row and the panel drops BELOW it, anchored to the trigger's
+	   right edge -- the header is at the top of the page, so the shell's
+	   upward-opening column would open off-screen. */
+	.vnav-header {
+		position: relative;
+		flex-direction: column;
+	}
+	.vnav-header .vnav-panel {
+		position: absolute;
+		top: calc(100% + 0.35rem);
+		right: 0;
+		z-index: 40;
+		width: min(28rem, calc(100vw - 1.5rem));
 	}
 
 	.vnav {

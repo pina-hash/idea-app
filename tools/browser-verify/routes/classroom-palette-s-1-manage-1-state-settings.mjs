@@ -13,6 +13,7 @@
  * instead of offering one.
  */
 import { MANAGER, READY } from './_classroom-palette.mjs';
+import { OPEN_SHELL_MENU } from './_shell-menu.mjs';
 
 const SETTINGS_OPEN = '() => !!document.querySelector(\'dialog[data-testid="classroom-settings"]\')';
 
@@ -21,6 +22,7 @@ export default {
 	aliasOf: MANAGER,
 	label: 'Classroom settings (teacher): density and the view a class opens on',
 	prepare: [
+		OPEN_SHELL_MENU,
 		READY,
 		{ click: '[data-testid="settings-trigger"]', until: SETTINGS_OPEN },
 		{

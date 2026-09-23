@@ -120,6 +120,14 @@ body:has(.cr-root) {
 :root[data-theme='space-white'] .cr-root .app-header {
 	border-bottom-color: var(--boundary);
 }
+/* THE PROFILE MENU'S TRIGGER IS A 44px BOX IN THIS MASTHEAD (ledger 0297). It
+   paints 34px everywhere and reaches 44 with `.tap-reach-44`, because on the
+   69 other pages that render it a taller box would grow the row it sits in.
+   This row is already 44px tall (every other control in it is), so here the
+   box itself can take the floor and cost nothing -- measured 100.6x34 before. */
+.cr-root .cr-header .pm-trigger {
+	min-height: 44px;
+}
 
 /* --- Typography -----------------------------------------------------------
    Orbitron is the page title and the brand mark ONLY. Below that: Rajdhani at
@@ -570,6 +578,28 @@ body:has(.cr-root) {
 	margin: 0.2rem 0 0.45rem;
 	text-wrap: balance;
 	overflow-wrap: anywhere;
+}
+
+/* --- The list beside an open item: no box in a box (ledger 0297) --------
+   With an item open the class list sits in the 26rem nav pane, which is
+   already a framed region with its own 24px inset -- and each unit was a
+   second framed card inside it, with its own 16px of padding. Rows used 297px
+   of a 416px pane. Inside the narrow pane the unit is its header and its rows
+   on the pane's own ground: the unit header's rule and the pane frame carry
+   the structure, and the rows get the width back. The full-width stream (no
+   item open) keeps its cards, because there they are side by side and the
+   frame is what separates one column from the next. */
+@media (min-width: 1024px) {
+	.cr-root .cr-split.has-detail > .cr-nav {
+		padding-inline: var(--space-3);
+	}
+	.cr-root .cr-split.has-detail > .cr-nav .group-card {
+		border: none;
+		background: none;
+		border-radius: 0;
+		padding-inline: 0;
+		border-top: 1px solid var(--hairline);
+	}
 }
 
 /* --- The nav-collapse toggle ("Hide other items") ------------------------

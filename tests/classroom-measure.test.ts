@@ -87,9 +87,13 @@ describe('the classroom chrome is as wide as the page under it', () => {
 
 	it('the shell chrome reads the same property, not a literal', () => {
 		const shell = read('src/lib/classroom/ClassroomShell.svelte');
-		// Both the trail and the tabs.
+		// GENERALIZED (ledger 0297): the trail and the tabs share ONE row now,
+		// `.cr-chrome`, so the measure is declared once, on that row, and the
+		// row spans it (`width: 100%`) rather than shrink-wrapping in the split's
+		// flex column.
 		const uses = shell.match(/max-width:\s*var\(--cr-measure,\s*var\(--measure-page\)\)/g) ?? [];
-		expect(uses.length).toBe(2);
+		expect(uses.length).toBe(1);
+		expect(shell).toMatch(/\.cr-chrome \{[^}]*width: 100%;[^}]*max-width: var\(--cr-measure, var\(--measure-page\)\)/);
 		// And neither of them is still pinned to the old literal.
 		expect(shell).not.toMatch(/max-width:\s*60rem/);
 	});
@@ -238,7 +242,8 @@ describe('one page gutter, read by everything', () => {
 		// pinned the BLOCK sides to 0 -- incidental to the gutter, and it broke
 		// the moment the trail took the vertical room its 44px tap reach needs.
 		// Parse the shorthand and assert what the gutter actually governs.
-		const rows = ['.crumbs', '.sec-tabs'];
+		// GENERALIZED (ledger 0297): one row carries both now.
+		const rows = ['.cr-chrome'];
 		for (const sel of rows) {
 			// Sliced rather than matched: the rule body is bounded by the first
 			// closing brace, and a selector carries a dot a regex would have to escape.
@@ -305,9 +310,12 @@ describe('one page gutter, read by everything', () => {
 		expect(css).toMatch(/\.cr-split\s*\{[\s\S]*?gap:\s*var\(--space-5\)/);
 	});
 
-	it('the tab bar leaves a full step under it, not 0.9rem', () => {
+	it('the chrome row leaves a full step under it, not 0.9rem', () => {
+		// GENERALIZED (ledger 0297): the step now sits under the one row that
+		// carries the trail and the tabs, and it is a token from the scale
+		// (16px, over the 14.4px that was the tightest gap on the screen).
 		const shell = read('src/lib/classroom/ClassroomShell.svelte');
-		expect(shell).toMatch(/\.sec-tabs\s*\{[\s\S]*?margin:\s*0 auto var\(--space-5\)/);
+		expect(shell).toMatch(/\.cr-chrome\s*\{[\s\S]*?margin:\s*0 auto var\(--space-[45]\)/);
 	});
 });
 

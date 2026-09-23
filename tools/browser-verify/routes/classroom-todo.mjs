@@ -13,11 +13,12 @@
  * carries no counts and no door.
  */
 import { MY_CLASSES } from './_classroom-todo.mjs';
+import { OPEN_SHELL_MENU } from './_shell-menu.mjs';
 
 export default {
 	path: MY_CLASSES,
 	label: 'My Classes (student): what each class owes, and the door to the to-do',
-	prepare: [{ waitFor: '() => !!document.querySelector(\'[data-testid="my-classes-todo"]\')', timeoutMs: 20000 }],
+	prepare: [{ waitFor: '() => !!document.querySelector(\'[data-testid="my-classes-todo"]\')', timeoutMs: 20000 }, OPEN_SHELL_MENU],
 	orderResult: [
 		{
 			label: "each class's counts, in card order",

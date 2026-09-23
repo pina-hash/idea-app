@@ -28,6 +28,7 @@
  */
 export type FeedbackExclusionId =
 	| 'deck'
+	| 'classroom'
 	| 'gauntlet'
 	| 'greenline'
 	| 'vanguard'
@@ -53,6 +54,28 @@ export interface FeedbackExclusionRule {
 const under = (prefix: string) => (routeId: string) =>
 	routeId === prefix || routeId.startsWith(prefix + '/');
 
+/**
+ * The `/dev` harnesses that mount the REAL ClassroomShell, which carries the
+ * relocated Report and Voice controls in its header. Exported so a test can
+ * sweep src/routes/dev for every harness that imports the shell and fail when
+ * one is missing from this list (a harness showing both the floating pill and
+ * the docked one measures an arrangement production never has).
+ */
+export const CLASSROOM_SHELL_HARNESSES = [
+	'/dev/animated-logo-room',
+	'/dev/classroom',
+	'/dev/classroom-nav',
+	'/dev/classroom-palette',
+	'/dev/classroom-split',
+	'/dev/classroom-stream',
+	'/dev/classroom-todo',
+	'/dev/classroom-view-as-notebook',
+	'/dev/notebook',
+	'/dev/notebook-review',
+	'/dev/notebook-review-student',
+	'/dev/theme-switch'
+] as const;
+
 export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 	{
 		id: 'deck',
@@ -69,6 +92,37 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 			/^\/classroom\/\[sectionId\]\/item\/\[itemId\]\/deck$/.test(routeId) ||
 			under('/dev/classroom-deck')(routeId),
 		samples: ['/classroom/[sectionId]/item/[itemId]/deck', '/dev/classroom-deck']
+	},
+	{
+		id: 'classroom',
+		label: 'IDEA Classroom and the notebook inside it',
+		relocatedTo: 'the classroom header, beside Search and Settings (the Menu on a narrow window)',
+		// LEDGER 0297, report 34's neighbour: the floating Report and Voice pills
+		// sat over live classroom content on every class and notebook page -- a
+		// row's checkbox and grip, a menu trigger, People's Deactivate and Remove,
+		// the grading dock's Return button at 960, the photo corrector's buttons
+		// -- and a hit test at the overlap answered the pill. The room has chrome
+		// of its own on every one of those pages, so both controls dock into it
+		// (ClassroomShell mounts SiteFeedback at `place="relocated"` and VoiceNav
+		// at `place="header"`), and nothing floats over the class any more.
+		//
+		// AFTER THE DECK, which is the one classroom route with chrome of its own
+		// (its bar) and which this rule must not claim: the first match wins.
+		// The dev harnesses that mount the real ClassroomShell are listed so a
+		// measurement there sees the production arrangement and not a pill over
+		// the fixture with a second copy in the header.
+		match: (routeId) =>
+			under('/classroom')(routeId) || CLASSROOM_SHELL_HARNESSES.some((p) => under(p)(routeId)),
+		samples: [
+			'/classroom',
+			'/classroom/[sectionId]',
+			'/classroom/[sectionId]/item/[itemId]',
+			'/classroom/[sectionId]/people',
+			'/classroom/[sectionId]/notebook',
+			'/classroom/notebook',
+			'/classroom/todo',
+			'/dev/classroom-split/[sectionId]'
+		]
 	},
 	{
 		id: 'gauntlet',

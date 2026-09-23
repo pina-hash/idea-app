@@ -1922,9 +1922,12 @@
 					<Pending label={bulkPending} variant="inline" />
 				</span>
 			{:else if bulkSelected.size === 0}
-				<span class="bulk-hint" data-testid="bulk-hint">
-					Tick items to publish, file or delete several at once.
-				</span>
+				<!-- NO SENTENCE AT REST (ledger 0297). "Tick items to publish, file or
+				     delete several at once." sat on its own row above every class a
+				     teacher opened; a control that needs a sentence explaining it is
+				     the wrong control, and the row's checkboxes and Select all name
+				     themselves (each checkbox's label names its item). The actions
+				     appear, named, the moment anything is ticked. -->
 			{:else}
 				<span class="bulk-count" data-testid="bulk-count">{bulkSelected.size} selected</span>
 			{/if}
@@ -2319,6 +2322,31 @@
 		   in this same sheet below here and would win the tie. */
 		break-inside: avoid;
 	}
+	/* ...EXCEPT A UNIT LONG ENOUGH TO BE THE VOID ITSELF (ledger 0297). With
+	   every card unbreakable, the balanced column height can never be lower
+	   than the tallest unit, so one long unit beside short ones leaves the
+	   column holding the short one mostly empty: measured on
+	   /dev/classroom-stream (units of 3, 18, 2, 5 and 4 items) at 1440, a
+	   426x702px hole under Unit 1, 401x702 at 1366 and 452x395 at 960 --
+	   the same defect the grid had, arriving through balancing instead of rows.
+	   No order-preserving arrangement of unbreakable boxes can close it; only
+	   letting the long unit continue into the next column can. So a unit of
+	   ten or more rows MAY break, between rows only (a row never splits, and
+	   the header never parts from its first row), and each fragment is drawn
+	   as a whole framed card (`box-decoration-break: clone`). A short unit,
+	   which fits a column anyway, still never breaks, which keeps the argument
+	   above for every case it was written for. */
+	.stream > :global(.group-card:has(.rows > li:nth-child(10))) {
+		break-inside: auto;
+		-webkit-box-decoration-break: clone;
+		box-decoration-break: clone;
+	}
+	.stream :global(.group-bar) {
+		break-after: avoid;
+	}
+	.stream :global(.row-wrap) {
+		break-inside: avoid;
+	}
 	/* A CLASS WITH TWO UNITS MUST NOT LAY ITSELF OUT IN TWO COLUMNS AND A VOID
 	   WHERE A THIRD WOULD GO. That was `auto-fit`'s job -- it COLLAPSES a track
 	   nothing was placed in and lets the rest share the width -- and multicol
@@ -2432,30 +2460,24 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 	}
+	/* At rest the bar is its Select all alone, at the row's end. */
 	.bulk-bar.resting {
 		background: none;
 		border-color: transparent;
-		padding-inline: 0;
+		padding: 0;
+		justify-content: flex-end;
+		margin-bottom: var(--space-3);
 	}
 	.bulk-pending {
 		display: inline-flex;
 		align-items: center;
 		min-width: 0;
 	}
-	.bulk-count,
-	.bulk-hint {
+	.bulk-count {
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--text-2);
 		margin-right: var(--space-1);
-	}
-	/* The sentence gives way before the control does: on a 356px pane the
-	   Select all button keeps its width and the hint wraps under it rather than
-	   pushing the row sideways. */
-	.bulk-hint {
-		flex: 1 1 12rem;
-		min-width: 0;
-		line-height: 1.35;
 	}
 	/* THIS BAR DELETES SEVERAL ITEMS AT ONCE, so its controls take the same
 	   44px floor the console and the engine host do (classroom.css), not the
@@ -2565,14 +2587,16 @@
 		font-size: 0.7rem;
 		color: var(--text-2);
 	}
-	/* ONE LINE, TRUNCATING. A unit name is authored freely, and a two-line
-	   heading in a 26rem pane costs a row of content every time. */
+	/* A UNIT'S NAME WRAPS RATHER THAN TRUNCATING (ledger 0297). It was one line
+	   with an ellipsis, which printed "MATERIALS AND TESTI..." (232px of text
+	   in 230px) -- a unit is how a student finds the work, and a name cut off
+	   is a name they cannot read. A second line costs 12px; a guessed name
+	   costs the task. */
 	.group-label {
 		flex: 1 1 auto;
 		min-width: 0;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
+		overflow-wrap: anywhere;
+		line-height: 1.35;
 		font-family: var(--font-mono);
 		font-size: 0.78rem;
 		letter-spacing: 0.08em;

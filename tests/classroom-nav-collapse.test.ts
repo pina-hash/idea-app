@@ -203,7 +203,10 @@ describe('the shipped shell wires the toggle to canCollapseNav, not to a wider c
 		const shell = read(SHELL);
 		// Still exactly the same gate it always was -- the toggle's own
 		// {#if showNavToggle} is nested INSIDE this, never wrapping it.
-		expect(shell).toContain('{#if !minimal && crumbs.length > 1}');
+		// GENERALIZED (ledger 0297): the trail sits inside the chrome row, which
+		// carries the minimal-mode gate; the trail's own gate is the crumb count.
+		expect(shell).toContain('{#if !minimal && (crumbs.length > 1 ||');
+		expect(shell).toContain('{#if crumbs.length > 1}');
 	});
 
 	it('is keyed per viewer, the disclosure.ts model, not per browser', () => {

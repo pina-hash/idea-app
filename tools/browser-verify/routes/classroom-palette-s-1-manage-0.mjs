@@ -16,11 +16,12 @@
  *     three student chips as its positive control.
  */
 import { READY, STREAM_ROWS, STUDENT } from './_classroom-palette.mjs';
+import { OPEN_SHELL_MENU } from './_shell-menu.mjs';
 
 export default {
 	path: STUDENT,
 	label: 'Class page at rest (student): header tools and the class search bar',
-	prepare: [READY],
+	prepare: [READY, OPEN_SHELL_MENU],
 	presence: [
 		{ selector: '[data-testid="palette-trigger"]', label: 'the Search control in the header', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="settings-trigger"]', label: 'the Settings control in the header', expectPresent: 1, maxPresent: 1, expectVisible: 1 },

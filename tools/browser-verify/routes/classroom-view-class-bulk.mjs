@@ -24,7 +24,10 @@ export default {
 		   rendered at height 0 would satisfy a present-count and satisfy
 		   nobody else. */
 		{ selector: '[data-testid="bulk-bar"]', label: 'bulk bar at rest (before any selection)', expectPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="bulk-hint"]', label: 'resting sentence naming what the checkboxes do', expectPresent: 1, expectVisible: 1 },
+		/* NO RESTING SENTENCE (ledger 0297): the prose row is gone; the bar at
+		   rest is its Select all, and the actions name themselves once shown. */
+		{ selector: '[data-testid="bulk-hint"]', label: 'no resting sentence', expectPresent: 0 },
+		{ selector: '[data-testid="bulk-select-all"]', label: 'Select all at rest (positive control)', expectPresent: 1, expectVisible: 1 },
 		/* At rest the ACTIONS are absent, not disabled: five greyed controls
 		   above every class is the clutter this deliberately is not, and a
 		   `disabled` control cannot explain itself either (CLAUDE.md). */
@@ -41,7 +44,6 @@ export default {
 		{ selector: '[data-testid="units-prompt"]', label: 'units prompt (absent: this course already has units)', expectPresent: 0 }
 	],
 	contrast: [
-		{ selector: '[data-testid="bulk-hint"]', label: 'resting sentence', min: 4.5 },
 		{ selector: '[data-testid^="group-select-"]', label: 'per-group select-all label', min: 4.5 },
 		{ selector: '.row-name', label: 'item title (the row identity)', min: 4.5 }
 	],
@@ -62,7 +64,7 @@ export default {
 		{ selector: '.menu-trigger', label: 'row actions menu (32px wide by row exception, 44 tall)', min: 32 }
 	],
 	textContains: [
-		{ selector: '[data-testid="bulk-hint"]', label: 'the sentence names the three actions', must: ['publish', 'file', 'delete'] },
+		{ selector: '[data-testid="bulk-select-all"]', label: 'Select all names its count', must: ['Select all ('] },
 		/* An empty unit must say how to file into it, and name WHERE the
 		   control is: filing moved into the row's overflow menu deliberately and
 		   the copy said only "a row's Unit box", which is a box nobody can see. */
