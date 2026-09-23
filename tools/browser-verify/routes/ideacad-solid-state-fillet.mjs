@@ -51,7 +51,9 @@ export default {
 		{ selector: '[data-testid="ideacad-edge-sets"] button', label: 'the edge sets one pick grows into: Loop and All on a box', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 		{ selector: '[data-testid="ideacad-blend-refusal"]', label: 'the refused round, beside its way forward', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="ideacad-blend-fix"]', label: 'the one-click largest radius that fits', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="ideacad-fillet-variable-end"]', label: 'variable radius, folded away until asked for', expectPresent: 1, maxPresent: 1, expectVisible: 0, maxVisible: 0 }
+		{ selector: '[data-testid="ideacad-fillet-variable-end"]', label: 'variable radius, folded away until asked for', expectPresent: 1, maxPresent: 1, expectVisible: 0, maxVisible: 0 },
+		/* The design tree's refused row offers the same way forward. The tree is always mounted and is a slide-over below 1024px, so only its presence is width-independent; at 1440 it measured 102.5x44 with 13px from its text to each side (round 2 merge). */
+		{ selector: '[data-testid="ideacad-tree-fix"]', label: 'the refused row in the tree, offering the same largest radius', expectPresent: 1, maxPresent: 1, expectVisible: 0 }
 	],
 	textContains: [
 		{ selector: '[data-testid="ideacad-feature-panel"]', label: 'labels, values and the refusal in words, and none of the instructions or kernel text', must: ['1 edge', 'Radius', 'Tangent propagation', 'Variable radius', 'That radius is too big for this edge. The largest that fits here is 0.999 in.', 'Use 0.999 in'], mustNot: ['Shift-click', 'drag any selected edge', 'Propagate along tangent edges', 'blend cliff', 'Id(', 'available radius'] }

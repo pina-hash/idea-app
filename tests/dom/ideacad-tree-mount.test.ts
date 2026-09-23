@@ -520,4 +520,15 @@ describe('a refused row', () => {
 		expect(r.all('[data-testid="ideacad-tree-fix"]')).toHaveLength(0);
 		expect(r.all('[data-row="f1"] .message')).toHaveLength(1);
 	});
+	it('a refused round the engine has not yet given help offers the size its own sentence names; any other sentence offers nothing', async () => {
+		const api = fakeApi(); Object.assign(api.api.model.features.find((r) => r.id === 'f1')!, { status: 'error', message: 'That radius is too big for this edge. The largest that fits here is 0.999 in.' });
+		const m = mountInto(Tree, { api: api.api }); mounted.push(m);
+		const fix = m.one<HTMLButtonElement>('[data-testid="ideacad-tree-fix"]');
+		expect(fix.textContent).toBe('Use 0.999 in');
+		fix.click(); await m.settle();
+		expect(api.commands).toEqual([{ command: { type: 'set-feature', id: 'f1', patch: { radius: 0.999 } }, label: 'Use 0.999 in' }]);
+		const other = fakeApi(); Object.assign(other.api.model.features.find((r) => r.id === 'f1')!, { status: 'error', message: 'Select an edge.' });
+		const o = mountInto(Tree, { api: other.api }); mounted.push(o);
+		expect(o.all('[data-testid="ideacad-tree-fix"]')).toHaveLength(0);
+	});
 });

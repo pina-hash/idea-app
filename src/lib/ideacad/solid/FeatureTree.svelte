@@ -52,7 +52,7 @@
 	import { treeApi, type TreeMenuItem, type TreeMenuRequest } from './tree/api';
 	import type { WorkspaceApi } from './workspace-api';
 	import type { FeatureFix, FeatureRow, Selection, SolidCommand } from './types';
-	import { edgeKey } from './features/blends';
+	import { edgeKey, sizeFixFromSentence } from './features/blends';
 	let { api }: { api: WorkspaceApi } = $props();
 	const tree = $derived(treeApi(api));
 	const rows = $derived(api.model.features);
@@ -124,6 +124,8 @@
 		}
 		api.hover?.(null);
 	}
+	/** The row's own fix, or, until the engine carries help onto every row, the size its sentence names (the Feature panel's same fallback). */
+	const fixFor = (row: FeatureRow): FeatureFix | null => row.help?.fix ?? (row.type === 'fillet' || row.type === 'chamfer' ? sizeFixFromSentence(row, api.manifest.features.find((f) => f.id === row.id)) : null);
 	/** Light the edges a refusal is about, matched by edge key so an edge renumbered by the rebuild still lights. */
 	function showWhere(where: Selection[] | undefined) {
 		const out: Selection[] = [];
@@ -343,7 +345,7 @@
 		{#if selected && api.canWrite && renaming !== row.id}<button class="row-more" type="button" aria-haspopup="menu" aria-expanded={!!menu} aria-label={`${row.name} actions`} onclick={(e) => rowMenu(row, e, e.currentTarget as HTMLElement)}>⋯</button>{/if}
 	</div>
 	{#if row.message}<p class="message" role={row.status === 'error' ? 'alert' : 'status'}>{row.message}</p>{/if}
-	{#if row.status === 'error' && row.help?.fix && api.canWrite}{@const fix = row.help.fix}<button class="fix" type="button" aria-disabled={api.busy} onclick={() => void pressFix(row, fix)} onpointerenter={() => showWhere(row.help?.where)} onpointerleave={() => api.hover?.(null)} onfocus={() => showWhere(row.help?.where)} onblur={() => api.hover?.(null)} data-testid="ideacad-tree-fix">{fix.label}</button>{/if}
+	{#if row.status === 'error' && api.canWrite && fixFor(row)}{@const fix = fixFor(row)!}<button class="fix" type="button" aria-disabled={api.busy} onclick={() => void pressFix(row, fix)} onpointerenter={() => showWhere(row.help?.where)} onpointerleave={() => api.hover?.(null)} onfocus={() => showWhere(row.help?.where)} onblur={() => api.hover?.(null)} data-testid="ideacad-tree-fix">{fix.label}</button>{/if}
 {/snippet}
 <section class="tree" aria-label="Design tree" data-testid="ideacad-feature-tree" bind:this={sectionEl}>
 	<h2>Features <span class="count">{rows.length}</span></h2>
