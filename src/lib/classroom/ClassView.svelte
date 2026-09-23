@@ -44,8 +44,7 @@
 		shortWhen,
 		sortUnits,
 		unitIdFor,
-		workStateLabel,
-		workStateTone,
+		studentWorkChip,
 		EMPTY_STREAM_FILTER,
 		STREAM_KIND_LABELS,
 		STREAM_STATUS_LABELS,
@@ -440,6 +439,19 @@
 	/** The unfiltered group, which every order write reads. */
 	function fullGroupItems(groupId: string): ClassroomItem[] {
 		return groups.find((g) => g.id === groupId)?.items ?? [];
+	}
+	/**
+	 * A UNIT'S PROGRESS FOR A STUDENT (ledger 0297): how many of its
+	 * assignments are finished, read off `standingCounts` over the WHOLE unit
+	 * (never the filtered rows) with the same work map and clock the chips use,
+	 * so "2 of 3 done" and the checkmarks on the rows below it are one answer.
+	 * Null for a manager, and for a unit with no assignment in it.
+	 */
+	function unitProgress(groupId: string): { done: number; total: number } | null {
+		if (canManage) return null;
+		const c = standingCounts(fullGroupItems(groupId), [], filterCtx);
+		const total = c.todo + c.missing + c.done;
+		return total ? { done: c.done, total } : null;
 	}
 	const shownCount = $derived(shownItems.length + streamCheckIns(shownCheckIns).length);
 	const totalCount = $derived(items.length + listedCheckIns.length);
@@ -1413,8 +1425,23 @@
 							</span>
 						{/if}
 						{#if my}
-							<span class="chip tone-{workStateTone(my.state)}" data-testid="work-status">
-								{workStateLabel(my, item.points)}
+							<!-- ONE CHIP DECISION (ledger 0297): `studentWorkChip` asks the
+							     same missing predicate the Missing filter and the to-do page
+							     ask, so a row the filter lists as Missing never reads "Not
+							     started". A finished row carries a checkmark, a missing one
+							     a mark and a fill, each beside the word. -->
+							{@const chip = studentWorkChip(item, my, clock?.now)}
+							<span
+								class="chip work-chip tone-{chip.tone}"
+								data-testid="work-status"
+								data-missing={chip.missing ? 'true' : undefined}
+							>
+								{#if chip.missing}
+									<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>
+								{:else if chip.done}
+									<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.done} /></svg>
+								{/if}
+								{chip.label}
 							</span>
 						{/if}
 						{@render badges(item)}
@@ -2079,6 +2106,19 @@
 						>
 							<span class="group-caret" aria-hidden="true">{folded ? '▸' : '▾'}</span>
 							<span class="group-label">{group.label}</span>
+							{#if unitProgress(group.id)}
+								{@const progress = unitProgress(group.id)!}
+								<span
+									class="group-progress"
+									class:complete={progress.done === progress.total}
+									data-testid="unit-progress"
+								>
+									{#if progress.done === progress.total}
+										<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.done} /></svg>
+									{/if}
+									{progress.done} of {progress.total} done
+								</span>
+							{/if}
 							<span class="group-count">
 								{entries.length}
 								{entries.length === 1 ? 'item' : 'items'}
@@ -2935,6 +2975,45 @@
 	}
 	.tone-muted {
 		color: var(--text-2);
+	}
+	/* MISSING IS ITS OWN TONE (`studentWorkChip`): the word leads, and a mark,
+	   a fill and the heavier weight set it apart from "In progress", which wears
+	   the same hue as an outline only. Never colour alone. */
+	.tone-missing {
+		color: var(--amber);
+		border-color: var(--amber);
+		background: color-mix(in srgb, var(--amber) 14%, transparent);
+		font-weight: 700;
+	}
+	.work-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.2rem;
+	}
+	.chip-mark {
+		flex: none;
+		width: 0.7rem;
+		height: 0.7rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	/* A unit's progress for a student: mono like the count beside it, and green
+	   with a checkmark only once every assignment in it is finished. */
+	.group-progress {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.2rem;
+		font-family: var(--font-mono);
+		font-size: 0.66rem;
+		color: var(--text-2);
+		white-space: nowrap;
+	}
+	.group-progress.complete {
+		color: var(--green);
 	}
 
 	.sr-only {

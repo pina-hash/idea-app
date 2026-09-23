@@ -3,6 +3,8 @@
 	import { sectionTitle, sortSections, emailLocal, type ClassroomSection } from '$lib/classroom/classroom';
 	import { recentUpdates, updateDateLabel } from '$lib/classroom/updates';
 	import { formatSectionLabel } from '$lib/section-label';
+	import { summaryWords, type TodoSummaries } from '$lib/classroom/todo';
+	import { ICONS } from '$lib/shell/commands';
 
 	/**
 	 * The classroom home: one card per section the caller can see (their
@@ -17,15 +19,26 @@
 	let {
 		ready = true,
 		isStaff = false,
-		sections
+		sections,
+		todo = null,
+		todoHref = '/classroom/todo'
 	}: {
 		ready?: boolean;
 		isStaff?: boolean;
 		sections: ClassroomSection[];
+		/**
+		 * WHAT EACH CLASS OWES, for a student (ledger 0297): the to-do's own
+		 * counts per class and across all of them, from the same rows the to-do
+		 * page lists. Null (staff, or a read that failed) removes the counts and
+		 * the door, rather than printing zeros nobody computed.
+		 */
+		todo?: TodoSummaries | null;
+		todoHref?: string;
 	} = $props();
 
 	const ordered = $derived(sortSections(sections));
 	const recent = recentUpdates(3);
+	const totalWords = $derived(todo ? summaryWords(todo.total) : null);
 </script>
 
 <svelte:head>
@@ -48,6 +61,25 @@
 		{#if isStaff}
 			<p class="staff-line">
 				<a class="btn secondary" href="/classroom/admin">Courses &amp; setup</a>
+			</p>
+		{/if}
+		{#if todo && totalWords}
+			<!-- The door to everything owed across these classes, with the two
+			     numbers that ask for something now. -->
+			<p class="staff-line">
+				<a class="todo-link" href={todoHref} data-testid="my-classes-todo">
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.checklist} /></svg>
+					<span class="todo-link-word">To-do</span>
+					{#if totalWords.missing}
+						<span class="owed owed-missing">
+							<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>
+							{totalWords.missing}
+						</span>
+					{/if}
+					{#if totalWords.dueThisWeek}
+						<span class="owed">{totalWords.dueThisWeek}</span>
+					{/if}
+				</a>
 			</p>
 		{/if}
 	</section>
@@ -95,6 +127,23 @@
 							&nbsp;&middot; {emailLocal(s.teacher_email)}
 						</span>
 					</span>
+					{#if todo?.bySection[s.id]}
+						{@const words = summaryWords(todo.bySection[s.id])}
+						{#if words.missing || words.dueThisWeek}
+							<!-- Zero is no news, so a class with nothing owed says nothing. -->
+							<span class="class-owed" data-testid="class-owed">
+								{#if words.missing}
+									<span class="owed owed-missing">
+										<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>
+										{words.missing}
+									</span>
+								{/if}
+								{#if words.dueThisWeek}
+									<span class="owed">{words.dueThisWeek}</span>
+								{/if}
+							</span>
+						{/if}
+					{/if}
 					<span class="class-cta">Open &#9656;</span>
 				</a>
 			{/each}
@@ -262,6 +311,71 @@
 		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		color: var(--text-2);
+	}
+	/* WHAT A CLASS OWES (ledger 0297): words, not a bare number, and the
+	   missing count wears the missing tone with its mark beside it. */
+	.class-owed {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+	}
+	.owed {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		padding: 0.12rem 0.5rem;
+		border: 1px solid var(--cyan);
+		border-radius: 999px;
+		color: var(--cyan);
+		white-space: nowrap;
+	}
+	.owed svg {
+		width: 11px;
+		height: 11px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2.2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	.owed-missing {
+		color: var(--amber);
+		border-color: var(--amber);
+		background: color-mix(in srgb, var(--amber) 14%, transparent);
+		font-weight: 700;
+	}
+	/* The door: the header tools' look, 44px, a glyph and a word before the
+	   counts. */
+	.todo-link {
+		display: inline-flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.45rem;
+		min-height: 44px;
+		padding: 0.35rem 0.8rem;
+		background: var(--surface-1);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	.todo-link:hover {
+		border-color: var(--gold);
+	}
+	.todo-link > svg {
+		width: 18px;
+		height: 18px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.7;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		color: var(--text-2);
+	}
+	.todo-link-word {
+		font-weight: 600;
 	}
 	.class-cta {
 		margin-top: auto;

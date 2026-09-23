@@ -12,6 +12,9 @@
 	import CodeCounter from '$lib/CodeCounter.svelte';
 	import HomeTour from '$lib/tour/HomeTour.svelte';
 	import ClassroomFeed from '$lib/classroom/ClassroomFeed.svelte';
+	import TodoDoor from '$lib/classroom/TodoDoor.svelte';
+	import { buildTodo, todoSections, todoSummary } from '$lib/classroom/todo';
+	import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
 	import {
 		buildFeed,
 		readFeedPrefs,
@@ -55,7 +58,13 @@
 	// of you right now. RLS already decided what came back; buildFeed only ranks
 	// it, and `isAdmin` mirrors classroom_manages_section so the card asks the
 	// teacher's question rather than the student's.
-	const now = new Date();
+	// THE LOADER'S ONE CLOCK READ (ledger 0297), so the server's render and the
+	// hydrated page rank and word every deadline against the same instant. A
+	// load with no classroom read (signed out, a harness) carries none, and only
+	// then does the page read the clock itself.
+	const fallbackNow = new Date();
+	const clock = $derived(data.feedClock ?? null);
+	const now = $derived(clock ? new Date(clock.now) : fallbackNow);
 	const classroomFeeds = $derived(
 		buildFeed({
 			sections: (data.feedSections ?? []) as ClassroomSection[],
@@ -129,6 +138,41 @@
 
 	/** Apps first for a student, for a manager, or when there is no class to put above them. */
 	const appsFirst = $derived(isStudent || managesAnySection || !hasClasses);
+
+	/**
+	 * WHAT A STUDENT OWES, ABOVE THE FOLD (ledger 0297). Apps come first for a
+	 * student (report 21, above), which leaves the class cards below the first
+	 * screen: measured at 1366x768 the first card starts at y=917. So a
+	 * one-line door with the to-do's own counts ("2 missing, 3 due this week")
+	 * sits between the banner and the apps, where it is on screen on arrival,
+	 * and the order Mr. Pina chose does not move. The rows are `buildTodo`'s
+	 * over the same read the feed ranks, so the door and the to-do page cannot
+	 * name different numbers. Only for a signed-in viewer with a class they do
+	 * not teach; a teacher's home is unchanged.
+	 */
+	const todoRows = $derived(
+		signedIn && clock
+			? buildTodo({
+					sections: (data.feedSections ?? []) as ClassroomSection[],
+					items: (data.feedItems ?? []) as ClassroomItem[],
+					submissions: (data.feedSubmissions ?? []) as FeedSubmission[],
+					checkIns: (data.feedCheckIns ?? []) as ClassCheckIn[],
+					myEmail: (claims?.email as string | undefined) ?? '',
+					isAdmin,
+					clock
+				})
+			: []
+	);
+	const hasStudentClasses = $derived(
+		signedIn &&
+			!isTeacher &&
+			todoSections(
+				(data.feedSections ?? []) as ClassroomSection[],
+				(claims?.email as string | undefined) ?? '',
+				isAdmin
+			).length > 0
+	);
+	const todoTotal = $derived(clock ? todoSummary(todoRows, clock.today) : null);
 
 	// Collapse state, persisted per USER in profiles.preferences.classroomFeed
 	// (the AppLauncher pattern), so a folded class stays folded on their phone
@@ -537,6 +581,7 @@
 					onToggle={toggleFeedCard}
 					ready={data.classroomReady !== false}
 					{now}
+					todoHref={hasStudentClasses ? '/classroom/todo' : null}
 				/>
 			{:else}
 				<div class="course-card section-card feed-card">
@@ -563,6 +608,12 @@
 	{#snippet portalApps()}
 		<AppLauncher onRequireSignIn={(next) => signInWithGoogle(next)} />
 	{/snippet}
+
+	{#if hasStudentClasses && todoTotal}
+		<div class="todo-strip-wrap">
+			<TodoDoor href="/classroom/todo" summary={todoTotal} />
+		</div>
+	{/if}
 
 	{#if appsFirst}
 		{@render portalApps()}
@@ -663,3 +714,22 @@
      re-anchor the tour's fixed-position spotlight and callout. -->
 <HomeTour bind:this={homeTour} />
 
+
+<style>
+	/* The to-do door (ledger 0297) sits in the launcher's own column: the same
+	   1100px measure and the same gutters, so its edges line up with the app
+	   cards directly under it. Above the stacking layer the page's canvas sits
+	   on, like the launcher and the class cards. */
+	.todo-strip-wrap {
+		position: relative;
+		z-index: 1;
+		max-width: 1100px;
+		margin: 0 auto 1.5rem;
+		padding: 0 2rem;
+	}
+	@media (max-width: 768px) {
+		.todo-strip-wrap {
+			padding: 0 1rem;
+		}
+	}
+</style>

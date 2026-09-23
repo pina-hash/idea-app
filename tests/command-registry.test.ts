@@ -131,7 +131,7 @@ describe('who gets what: the role filter, both directions', () => {
 		expect(managerOnly.map((c) => c.id)).toEqual([]);
 		// Positive control: the same fixture yields the student's own filters.
 		expect(studentOnly.map((c) => c.id).sort()).toEqual(
-			['class.show-done', 'class.show-missing', 'class.show-todo', 'go.notebook'].sort()
+			['class.show-done', 'class.show-missing', 'class.show-todo', 'go.notebook', 'go.todo'].sort()
 		);
 	});
 
@@ -151,7 +151,7 @@ describe('who gets what: the role filter, both directions', () => {
 		const studentIds = new Set(COMMANDS.filter((c) => c.role === 'student').map((c) => c.id));
 		expect(studentRows.filter((c) => managerIds.has(c.id))).toHaveLength(0);
 		expect(managerRows.filter((c) => studentIds.has(c.id))).toHaveLength(0);
-		expect(studentRows.filter((c) => studentIds.has(c.id)).length).toBe(4);
+		expect(studentRows.filter((c) => studentIds.has(c.id)).length).toBe(5);
 		expect(managerRows.filter((c) => managerIds.has(c.id)).length).toBe(7);
 	});
 

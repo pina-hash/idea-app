@@ -59,7 +59,9 @@ const SURFACES: { place: ClassroomPlace; path: string; file: string }[] = [
 		place: 'feedback',
 		path: '/classroom/feedback',
 		file: 'src/lib/classroom/FeedbackConsole.svelte'
-	}
+	},
+	// The cross-class to-do (ledger 0297): groups in columns, the split's width.
+	{ place: 'todo', path: '/classroom/todo', file: 'src/lib/classroom/TodoPage.svelte' }
 ];
 
 /** The one width declaration on a surface's own content column. */
@@ -113,6 +115,7 @@ describe('the classroom chrome is as wide as the page under it', () => {
 			'admin',
 			'updates',
 			'feedback',
+			'todo',
 			'view-as',
 			'other'
 		];

@@ -13,153 +13,74 @@ import {
 	loadCourseUnits,
 	mergeInstructorMaterials
 } from '$lib/classroom/transports';
-import {
-	checkInIsScheduled,
-	checkInStatus,
-	laCalendarDay,
-	type ClassCheckIn
-} from '$lib/classroom/class-check-ins';
-import type { ItemDoc } from '$lib/classroom/classroom-doc';
+import { checkInIsScheduled, laCalendarDay, type ClassCheckIn } from '$lib/classroom/class-check-ins';
 import type { HallPassState } from '$lib/classroom/hall-pass';
 import type { SongQueueState } from '$lib/classroom/song-queue';
-import { NOTEBOOK_POSTING_SELECTS } from '$lib/notebook-selects';
+import { readCheckInPostings, readOwnCheckIns, type CheckInPostings } from '$lib/classroom/student-work';
 import { gridSummary, type SectionGrid } from '$lib/notebook-review';
 import type { LayoutServerLoad } from './$types';
 
 /**
  * The check-ins scheduled for THIS class (0098), without anybody's status.
  *
- * `notebook_session_postings` and `notebook_sessions` are both readable by any
- * signed-in user (`using (true)`) and carry nothing private -- a check-in id
- * beside a class id, and a label with a date. The `.eq` is what scopes this to
- * one class, and it is a scoping filter rather than a privacy one; the STATUS
- * reads below are where privacy actually lives.
- *
- * Reuses NOTEBOOK_POSTING_SELECTS rather than writing a second select string:
- * that one names an embedded resource, PostgREST resolves embeds against real
- * foreign keys, and tests/notebook-page-load.test.ts already holds it against
- * the live catalog. A private copy here would be a second assertion about the
- * schema with nothing checking it -- which is exactly how the /notebook load
- * came to embed a key 0098 had removed.
- */
-interface PostingRow {
-	section_id: string;
-	/** 0120's column. Absent on the narrow rung, which is what null covers. */
-	item_id?: string | null;
-	notebook_sessions: {
-		id: string;
-		unit_number: number;
-		session_date: string;
-		session_label: string;
-		/** 0123's column. Absent on either narrower rung. */
-		guidance_doc?: ItemDoc | null;
-	} | null;
-}
-
-/**
- * The check-ins, and whether this project can say which item each one hangs off.
- *
- * TWO RUNGS (NOTEBOOK_POSTING_SELECTS), widest first, for the reason every
- * ladder here exists: migrations are pasted in by hand, so a deploy sitting
- * between 0119 and 0120 is a real state and PostgREST rejects the whole select
- * when it names `item_id` on a schema without it. Degrading costs exactly one
- * capability -- every check-in keeps its own stream row, which is what they all
- * did before 0120 -- rather than costing the page its check-ins.
- *
- * `linksReady` is what the page reads to know WHICH of those two worlds it is
- * in. It starts false and is turned on only by the rung that actually carried
- * the column succeeding.
+ * THE READ IS `readCheckInPostings` in $lib/classroom/student-work (ledger
+ * 0297), called with this one class: the to-do page reads every class's
+ * check-ins at once through the same function, so the posting ladder -- its
+ * rungs, its capabilities and its row shape -- is written once. `linksReady`
+ * and `guidanceReady` mean exactly what they always did.
  */
 async function sectionCheckIns(
 	supabase: SupabaseClient,
 	sectionId: string
-): Promise<{
-	rows: Omit<ClassCheckIn, 'status' | 'flag_reason'>[];
-	linksReady: boolean;
-	/** 0123: whether this project can carry a guidance prompt at all. */
-	guidanceReady: boolean;
-} | null> {
-	for (const rung of NOTEBOOK_POSTING_SELECTS) {
-		/**
-		 * A CHECK-IN DATED IN THE FUTURE IS READ, AND THEN NAMED -- WHICH IS NOT
-		 * WHERE THIS STARTED.
-		 *
-		 * This read had NO DATE BOUND, and nothing downstream supplied one:
-		 * `checkInStatus` had no clock in it, so a check-in a teacher scheduled
-		 * for next month came back with no entry against it, resolved to
-		 * `missing`, and `isOutstanding` counted it. A student opening their
-		 * class page in August was told he owed work due in October -- and
-		 * because the stream is newest-first by date, the thing he did not owe
-		 * was the first row on the page, in the attention tone. THAT FAILURE IS
-		 * REAL AND IS WHY THE BOUND EXISTED; nothing below weakens it.
-		 *
-		 * THE BOUND WAS `.lte('notebook_sessions.session_date', <LA today>)` AND
-		 * IT IS GONE, because hiding was the best answer available and no longer
-		 * is. It was defensible while there was no vocabulary for "not asked for
-		 * yet": a row that cannot be told apart from work is better absent than
-		 * mislabelled. `0140` gave the teacher's grid that vocabulary -- a cell
-		 * dated ahead of today reads `scheduled`, stays on the grid, and stops
-		 * counting -- and the two halves of one feature reading off two
-		 * different ideas is what this removes. A student now sees the same
-		 * check-in their teacher scheduled, said in the same word.
-		 *
-		 * WHAT MAKES A RENDERED ROW SAFE WHERE AN UNMARKED ONE WAS NOT, in three
-		 * parts, each of which is independently load-bearing:
-		 *
-		 *   1. IT IS NOT COUNTED. `checkInStatus` resolves it to `scheduled`,
-		 *      and `isOutstanding` is a WHITELIST that does not name it -- so
-		 *      the badge ClassView draws from this same array cannot include it.
-		 *      That is the original defect, closed at the arithmetic rather than
-		 *      at the read.
-		 *   2. IT IS NOT TONED AS WORK. `scheduled` takes the `excused` tone and
-		 *      a label that says "Not due yet" in words.
-		 *   3. IT IS NOT AT THE TOP. `mergeCheckIns` appends a scheduled check-in
-		 *      after everything else instead of inserting it by date, so the
-		 *      first row a student reads is still the newest thing that is
-		 *      actually theirs to do.
-		 *
-		 * THE MANAGER GETS THE SAME ROW, and this is the direction the bound was
-		 * worst in: it took a teacher's own scheduled check-in off their own
-		 * class page, which is the mistake `0140` refused to repeat on the grid
-		 * ("a grid that hid what they had just scheduled would be hiding their
-		 * own work from them"). A manager's check-in carries a null status for
-		 * every other state, because a teacher files nothing; `scheduled` is the
-		 * one status that is a fact about the DAY rather than about a person, so
-		 * it is the one they carry.
-		 */
-		const { data, error: postingError } = await supabase
-			.from('notebook_session_postings')
-			.select(rung.select)
-			.eq('section_id', sectionId);
-		if (postingError) continue;
-		const rows = ((data ?? []) as unknown as PostingRow[])
-			.filter(
-				(r): r is PostingRow & { notebook_sessions: NonNullable<PostingRow['notebook_sessions']> } =>
-					Boolean(r.notebook_sessions)
-			)
-			.map((r) => ({
-				session_id: r.notebook_sessions.id,
-				section_id: r.section_id,
-				unit_number: r.notebook_sessions.unit_number,
-				session_date: r.notebook_sessions.session_date,
-				session_label: r.notebook_sessions.session_label,
-				// On the narrow rung the column was never asked for, so nothing is
-				// linked -- which is exactly the behaviour of a project without
-				// 0120, rather than a guess about one.
-				item_id: r.item_id ?? null,
-				// Same shape, one migration later: undefined on any rung that did
-				// not ask, which every reader renders as no prompt.
-				guidance_doc: r.notebook_sessions.guidance_doc
-			}));
-		// The guidance rung is the widest, so it also carries `item_id`; a rung
-		// that carries the prompt necessarily carries the link too.
-		const guidanceReady = rung.capability === 'checkInGuidance';
-		return { rows, linksReady: guidanceReady || rung.capability === 'checkInItems', guidanceReady };
-	}
-	// null means "the notebook is not here", which the page renders as no
-	// check-ins at all rather than as an error -- migrations are applied by hand,
-	// so a deploy without them is a real state.
-	return null;
+): Promise<CheckInPostings | null> {
+	/**
+	 * A CHECK-IN DATED IN THE FUTURE IS READ, AND THEN NAMED -- WHICH IS NOT
+	 * WHERE THIS STARTED.
+	 *
+	 * This read had NO DATE BOUND, and nothing downstream supplied one:
+	 * `checkInStatus` had no clock in it, so a check-in a teacher scheduled
+	 * for next month came back with no entry against it, resolved to
+	 * `missing`, and `isOutstanding` counted it. A student opening their
+	 * class page in August was told he owed work due in October -- and
+	 * because the stream is newest-first by date, the thing he did not owe
+	 * was the first row on the page, in the attention tone. THAT FAILURE IS
+	 * REAL AND IS WHY THE BOUND EXISTED; nothing below weakens it.
+	 *
+	 * THE BOUND WAS `.lte('notebook_sessions.session_date', <LA today>)` AND
+	 * IT IS GONE, because hiding was the best answer available and no longer
+	 * is. It was defensible while there was no vocabulary for "not asked for
+	 * yet": a row that cannot be told apart from work is better absent than
+	 * mislabelled. `0140` gave the teacher's grid that vocabulary -- a cell
+	 * dated ahead of today reads `scheduled`, stays on the grid, and stops
+	 * counting -- and the two halves of one feature reading off two
+	 * different ideas is what this removes. A student now sees the same
+	 * check-in their teacher scheduled, said in the same word.
+	 *
+	 * WHAT MAKES A RENDERED ROW SAFE WHERE AN UNMARKED ONE WAS NOT, in three
+	 * parts, each of which is independently load-bearing:
+	 *
+	 *   1. IT IS NOT COUNTED. `checkInStatus` resolves it to `scheduled`,
+	 *      and `isOutstanding` is a WHITELIST that does not name it -- so
+	 *      the badge ClassView draws from this same array cannot include it.
+	 *      That is the original defect, closed at the arithmetic rather than
+	 *      at the read.
+	 *   2. IT IS NOT TONED AS WORK. `scheduled` takes the `excused` tone and
+	 *      a label that says "Not due yet" in words.
+	 *   3. IT IS NOT AT THE TOP. `mergeCheckIns` appends a scheduled check-in
+	 *      after everything else instead of inserting it by date, so the
+	 *      first row a student reads is still the newest thing that is
+	 *      actually theirs to do.
+	 *
+	 * THE MANAGER GETS THE SAME ROW, and this is the direction the bound was
+	 * worst in: it took a teacher's own scheduled check-in off their own
+	 * class page, which is the mistake `0140` refused to repeat on the grid
+	 * ("a grid that hid what they had just scheduled would be hiding their
+	 * own work from them"). A manager's check-in carries a null status for
+	 * every other state, because a teacher files nothing; `scheduled` is the
+	 * one status that is a fact about the DAY rather than about a person, so
+	 * it is the one they carry.
+	 */
+	return readCheckInPostings(supabase, [sectionId]);
 }
 
 /**
@@ -379,111 +300,19 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 	let sectionOutstanding: number | null = null;
 
 	if (checkInRows?.rows.length && !canManage) {
-		const sessionIds = checkInRows.rows.map((c) => c.session_id);
-		/**
-		 * DELETED ENTRIES ARE EXCLUDED (0116), AND THE FILTER DEGRADES.
-		 *
-		 * Without the exclusion a student who removed a check-in entry would keep
-		 * reading as "filed" on their own class page -- and a deleted FLAGGED
-		 * entry would keep the card red for work that is no longer there.
-		 *
-		 * The retry is not caution: `deleted_at` does not exist before 0116, and
-		 * PostgREST rejects a filter on an unknown column, so a single filtered
-		 * read would come back empty on a pre-0116 project and every check-in on
-		 * the page would silently read "missing" -- a wrong answer with no error
-		 * anywhere, which is the worst shape this failure can take. So the
-		 * filtered read is tried first and the original is the fallback.
+		/*
+		 * THE STATUS READ AND THE RANKING OF A STUDENT'S ENTRIES INTO ONE STATUS
+		 * are `readOwnCheckIns` in $lib/classroom/student-work (ledger 0297): the
+		 * to-do page asks the same question of every class at once, and a second
+		 * copy of "which entry decides" is the copy that stops agreeing. It keeps
+		 * every rule this block used to spell out -- deleted entries excluded (0116)
+		 * through a three-rung ladder that degrades rather than blanking, a draft
+		 * ranked below a turned-in entry (0118), an excusal beating a draft,
+		 * `scheduled` handed in from `checkInIsScheduled` against this load's own
+		 * `today`, and no flag reason on a draft -- and it is pinned to the caller
+		 * both ways described above.
 		 */
-		/**
-		 * THREE RUNGS, WIDEST FIRST -- the notebook feed's own ladder rule, and
-		 * this read needs it for the same reason twice over. `submitted_at` does
-		 * not exist before 0118 and `deleted_at` does not before 0116, and
-		 * PostgREST rejects a select OR a filter naming an unknown column, so a
-		 * single wide read would come back empty on either older project and
-		 * every check-in on the page would silently read "missing" -- a wrong
-		 * answer with no error anywhere, which is the worst shape this can take.
-		 *
-		 * `drafts` rides back with the rows because the caller cannot tell an
-		 * absent column from a null one, and the two mean opposite things: on a
-		 * pre-0118 project every entry was turned in, so an unknown reads as
-		 * SUBMITTED, never as a draft.
-		 */
-		const readEntries = async (): Promise<{ rows: unknown[] | null; drafts: boolean }> => {
-			const base = (select: string) =>
-				supabase
-					.from('notebook_entries')
-					.select(select)
-					.eq('student_id', claims.sub)
-					.eq('section_id', params.sectionId)
-					.in('session_id', sessionIds);
-			const withDrafts = await base('session_id, status, flag_reason, submitted_at').is(
-				'deleted_at',
-				null
-			);
-			if (!withDrafts.error) return { rows: withDrafts.data, drafts: true };
-			const filtered = await base('session_id, status, flag_reason').is('deleted_at', null);
-			if (!filtered.error) return { rows: filtered.data, drafts: false };
-			const plain = await base('session_id, status, flag_reason');
-			return { rows: plain.data, drafts: false };
-		};
-		const [{ rows: entryRows, drafts: draftsReady }, { data: excusalRows }] = await Promise.all([
-			readEntries(),
-			supabase
-				.from('notebook_session_excusals')
-				.select('session_id')
-				.eq('student_id', claims.sub)
-				.in('session_id', sessionIds)
-		]);
-
-		type EntryRow = {
-			session_id: string;
-			status: 'compliant' | 'flagged' | 'pending_review';
-			flag_reason: ClassCheckIn['flag_reason'];
-			submitted_at?: string | null;
-		};
-		/**
-		 * A student may hold SEVERAL entries against one check-in (nothing forbids
-		 * adding a second page). The one that decides the status is the one that
-		 * still wants something: a flag outranks anything else, then an awaited
-		 * review, then filed -- the same precedence cellDisplay uses on the grid.
-		 *
-		 * A DRAFT RANKS LAST, BELOW `filed` (0118). That is not a demotion of the
-		 * draft, it is what makes the pair read correctly: a student who turned
-		 * one page in and is still working on a second HAS filed this check-in,
-		 * and reporting the draft over the submitted entry would ask them to do
-		 * something they already did. A flagged entry still outranks a draft --
-		 * the instructor asking for another look is the more urgent of the two.
-		 */
-		const rank = { flagged: 0, pending_review: 1, compliant: 2, draft: 3 } as const;
-		// An UNKNOWN `submitted_at` (a narrower rung, where the column does not
-		// exist) reads as submitted, never as a draft -- see readEntries.
-		const isSubmitted = (row: EntryRow) => (draftsReady ? row.submitted_at !== null : true);
-		const rankOf = (row: EntryRow) => (isSubmitted(row) ? rank[row.status] : rank.draft);
-		const bySession = new Map<string, EntryRow>();
-		for (const row of (entryRows ?? []) as EntryRow[]) {
-			const held = bySession.get(row.session_id);
-			if (!held || rankOf(row) < rankOf(held)) bySession.set(row.session_id, row);
-		}
-		const excused = new Set(
-			((excusalRows ?? []) as { session_id: string }[]).map((r) => r.session_id)
-		);
-
-		checkIns = checkInRows.rows.map((c) => {
-			const entry = bySession.get(c.session_id);
-			return {
-				...c,
-				status: checkInStatus(
-					entry ? { status: entry.status, submitted: isSubmitted(entry) } : entry,
-					excused.has(c.session_id),
-					checkInIsScheduled(c.session_date, today)
-				),
-				// A DRAFT SHOWS NO FLAG REASON even if the row carries one: a flag is
-				// an instructor's note about work they were shown, and an entry
-				// pulled back to a draft is not that any more.
-				flag_reason:
-					entry?.status === 'flagged' && isSubmitted(entry) ? (entry.flag_reason ?? null) : null
-			};
-		});
+		checkIns = await readOwnCheckIns(supabase, claims.sub, checkInRows.rows, today);
 	} else if (checkInRows?.rows.length) {
 		/**
 		 * A MANAGER CARRIES EXACTLY ONE STATUS, AND IT IS THE ONE THAT IS NOT

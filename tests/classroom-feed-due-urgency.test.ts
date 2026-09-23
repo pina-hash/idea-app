@@ -15,9 +15,17 @@
 // A boundary with no test at its edge is a boundary nobody has checked.
 //
 // THE CLOCK IS PINNED AND MID-MORNING ON PURPOSE. Calendar-day arithmetic runs
-// in local time, so a test instant near midnight would put "tomorrow" and "in
-// 24 hours" on different days and read as a bug in the code. 10:00 leaves 14
-// hours of headroom either side of every case below.
+// on the SCHOOL'S calendar, America/Los_Angeles (ledger 0297: it used to run in
+// the runtime's own zone, which is UTC while the server renders), so a test
+// instant near midnight would put "tomorrow" and "in 24 hours" on different
+// days and read as a bug in the code. 10:00 leaves 14 hours of headroom either
+// side of every case below.
+//
+// AND IT IS PINNED IN THAT ZONE, NOT IN THE RUNNER'S. Every instant below is
+// built from a Los Angeles wall clock (`laInstant`), so this file means the
+// same thing on a laptop in California, a CI runner in UTC and anywhere else.
+// It used to anchor on the runner's local midnight, which agreed with the code
+// only while the code also counted in the runner's zone.
 
 import { describe, expect, it } from 'vitest';
 import {
@@ -29,15 +37,38 @@ import {
 } from '$lib/classroom/feed';
 import type { ClassroomItem } from '$lib/classroom/classroom';
 
-const NOW = new Date(2026, 9, 15, 10, 0, 0, 0); // 15 Oct 2026, 10:00 local
+/**
+ * The instant at which a Los Angeles wall clock reads year-month-day
+ * hours:minutes. Guesses as though the zone were a fixed UTC-8 and corrects by
+ * the zone's real reading twice, which settles on either side of a daylight
+ * saving change (Nov 1 2026 falls inside the sweeps below). `day` may run past
+ * the end of a month; `Date.UTC` carries it over.
+ */
+function laInstant(year: number, month: number, day: number, hours = 10, minutes = 0): Date {
+	const want = Date.UTC(year, month, day, hours, minutes);
+	const fmt = new Intl.DateTimeFormat('en-US', {
+		timeZone: 'America/Los_Angeles',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		hourCycle: 'h23'
+	});
+	let t = want + 8 * 3_600_000;
+	for (let i = 0; i < 2; i += 1) {
+		const part = (type: string) => Number(fmt.formatToParts(new Date(t)).find((p) => p.type === type)!.value);
+		t += want - Date.UTC(part('year'), part('month') - 1, part('day'), part('hour'), part('minute'));
+	}
+	return new Date(t);
+}
+
+const NOW = laInstant(2026, 9, 15, 10); // 15 Oct 2026, 10:00 in Los Angeles
 const MINUTE = 60_000;
 
-/** Local-midnight-anchored: `at(1, 0, 0)` is 00:00 tomorrow. */
+/** School-midnight-anchored: `at(1, 0, 0)` is 00:00 tomorrow in Los Angeles. */
 function at(days: number, hours = 10, minutes = 0): string {
-	const d = new Date(NOW);
-	d.setDate(d.getDate() + days);
-	d.setHours(hours, minutes, 0, 0);
-	return d.toISOString();
+	return laInstant(2026, 9, 15 + days, hours, minutes).toISOString();
 }
 
 function entry(reason: FeedReasonId, due: string | null): FeedEntry {

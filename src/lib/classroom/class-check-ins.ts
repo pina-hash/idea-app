@@ -142,32 +142,12 @@ export interface ClassCheckIn {
 // ---------------------------------------------------------------------------
 
 /**
- * TODAY, ON THE CALENDAR `session_date` IS WRITTEN IN.
- *
- * `notebook_sessions.session_date` is a bare DATE, and every rule that
- * adjudicates one compares it in America/Los_Angeles:
- * `notebook_get_section_grid`'s `on_time` is
- * `(upload_timestamp at time zone 'America/Los_Angeles')::date <= se.session_date`
- * (0094/0098), and `0140`'s `scheduled` arm is `se.session_date > v_today`
- * where `v_today` is that same conversion. A server reading UTC instead would
- * run seven or eight hours ahead, so every evening between 5pm Pacific and
- * midnight UTC the next day's check-in would already read as due -- a smaller
- * copy of the exact defect the `scheduled` state exists to remove, arriving in
- * the hours a teacher actually lays the next day out.
- *
- * IT TAKES `now` RATHER THAN READING A CLOCK, and that is the whole point of
- * it being here. A pure function that reaches for `new Date()` is the defect no
- * probe catches; a pure function handed an instant is assertable at a pinned
- * one, including the instants where the two calendars disagree. THE LOADER
- * READS THE CLOCK, ONCE, and hands the day down -- there is exactly one idea of
- * "today" on this surface and it is the loader's.
- *
- * `en-CA` is the YYYY-MM-DD spelling, which is the string the column holds, so
- * every comparison against it is a plain lexical one with no parsing in it.
+ * TODAY, ON THE CALENDAR `session_date` IS WRITTEN IN. The function and its
+ * reasoning live in `$lib/classroom/school-calendar` now, beside the due-date
+ * arithmetic that reads the same calendar (ledger 0297); it is re-exported
+ * here so every existing import keeps working.
  */
-export function laCalendarDay(now: Date): string {
-	return now.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
-}
+export { laCalendarDay } from '$lib/classroom/school-calendar';
 
 /**
  * IS THIS CHECK-IN DATED AFTER TODAY -- that is, has it been asked for yet?

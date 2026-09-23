@@ -55,6 +55,7 @@
 		palette = null,
 		preferences = null,
 		loadStudents = null,
+		todoHref = null,
 		children
 	}: {
 		sections?: ClassroomSection[];
@@ -89,6 +90,12 @@
 		preferences?: PreferenceStore<ClassroomPreferences> | null;
 		/** A manager's roster for the palette's `@` search. */
 		loadStudents?: ((sectionId: string) => Promise<PaletteStudent[]>) | null;
+		/**
+		 * THE TO-DO DOOR (ledger 0297): where a student's cross-class to-do lives.
+		 * Null removes the control; the layout hands it to a viewer who is not
+		 * staff, which is who the page lists work for.
+		 */
+		todoHref?: string | null;
 		children: import('svelte').Snippet;
 	} = $props();
 
@@ -271,6 +278,19 @@
 	<div class="header-right">
 		{#if minimal}
 			<a class="btn secondary" href={backHref}>&lsaquo; {backLabel}</a>
+		{/if}
+		{#if todoHref && !minimal}
+			<!-- The to-do door (ledger 0297): one element, the header tools' own
+			     look, current when it is the page on screen. -->
+			<a
+				class="shell-tool todo-door"
+				href={todoHref}
+				aria-current={loc.place === 'todo' ? 'page' : undefined}
+				data-testid="todo-door"
+			>
+				<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.checklist} /></svg>
+				<span class="shell-tool-word">To-do</span>
+			</a>
 		{/if}
 		{#if palette}
 			<button
@@ -564,6 +584,13 @@
 		stroke-linecap: round;
 		stroke-linejoin: round;
 		color: var(--text-2);
+	}
+	.todo-door {
+		text-decoration: none;
+	}
+	.todo-door[aria-current='page'] {
+		border-color: var(--green);
+		box-shadow: inset 0 -3px 0 var(--green);
 	}
 	.shell-tool-keys {
 		font-family: var(--font-mono);
