@@ -90,7 +90,10 @@ describe('a joint is planned from its picks before anything is added', () => {
 		expect(planJoint(ctx(), 'cylindrical', [TOP, HEAD]).reason).toBe('A cylindrical pairs round to round. These picks make a Hinge, Slider, Planar or Fixed.');
 	});
 	it('two picks on one part are refused naming the part', () => {
-		expect(planJoint(ctx(), 'cylindrical', [WALL, TOP]).reason).toBe('Both picks are on Plate. Pick one on each part.');
+		const same = planJoint(ctx(), 'cylindrical', [WALL, TOP]);
+		expect(same.reason).toBe('Both picks are on Plate. Pick one on each part.');
+		/* The refused picks stay on screen in their own words and shapes, beside the reason. */
+		expect(same.slots.map((s) => [s.shape, s.words ?? null])).toEqual([['round', 'Plate, hole wall'], ['flat', 'Plate, end face']]);
 	});
 	it('a cylindrical joint is one concentric pair and leaves a slide and a turn; planar is one flat pair and leaves three', () => {
 		const cyl = planJoint(ctx(), 'cylindrical', [WALL, SHANK]);

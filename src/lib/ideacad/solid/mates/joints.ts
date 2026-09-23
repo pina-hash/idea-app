@@ -104,7 +104,9 @@ const fits = (shapes: readonly PairShape[], recipe: readonly PairShape[]) => { c
 /** Reads the picks as a joint: which slots they fill, what is still wanted, and whether the result is the joint it claims. */
 export function planJoint(ctx: Ctx, joint: JointKind, picks: readonly Selection[]): JointPlan {
 	const spec = JOINTS[joint];
-	const empty = (reason: string | null, slots: JointSlot[] = spec.recipes[0].flatMap((shape) => [{ shape }, { shape }])): JointPlan => ({ joint, slots, stays: null, moves: null, reason, ready: false, mates: [], freedom: null, sentence: null });
+	/* The slots as picked so far, even when the picks are refused, so a student sees what they picked beside the reason. */
+	const picked = (): JointSlot[] => { const slots: JointSlot[] = spec.recipes[0].flatMap((shape) => [{ shape }, { shape }]); picks.slice(0, 6).forEach((p, i) => { const own = pickShape(ctx.model, p); const shape = own === 'round' || own === 'flat' || own === 'line' ? own : slots[i]?.shape ?? 'flat'; slots[i] = { shape, pick: p, words: selectionWords(ctx, p) }; }); return slots; };
+	const empty = (reason: string | null, slots: JointSlot[] = picked()): JointPlan => ({ joint, slots, stays: null, moves: null, reason, ready: false, mates: [], freedom: null, sentence: null });
 	const shapes = picks.map((p) => pickShape(ctx.model, p));
 	const bad = shapes.findIndex((s) => s === null || s === 'point');
 	if (bad >= 0) return empty(`${selectionWords(ctx, picks[bad])} cannot hold a ${spec.word.toLowerCase()}. Pick a round face, a flat face or a straight edge.`);
