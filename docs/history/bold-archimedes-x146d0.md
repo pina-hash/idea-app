@@ -35,18 +35,18 @@ friction log are in `docs/classroom/overhaul-0297/` (`AUDIT.md`, `CLAIMS.md`, `M
 
 ## 2. What `main` carries and what production serves
 
-- The merge commit pushed to `main`: **MERGE_SHA** (a `--no-ff` merge of this branch, so it
-  reverts as one commit with `git revert -m 1 MERGE_SHA`).
+- The merge commit pushed to `main`: **`601f9797`** (a `--no-ff` merge of this branch, so it
+  reverts as one commit with `git revert -m 1 601f9797`).
 - **The version production serves could not be read from this container.** `curl` to
   `https://ideabosco.com/` is refused by the container's egress proxy (403 on CONNECT, measured
-  again at the ship), and no tool here reaches a Vercel deployment. So this session does
+  again at the ship, and the fetch tool is refused by the same proxy), and no tool here reaches a Vercel deployment. So this session does
   **not** claim the build is live: a push is not a deploy until the served `v1.N · <sha>`
   matches, and that comparison is Mr. Pina's to make on the home page's version stamp. The
   smoke checks the brief lists (`/` 200 on the merged sha, the `/_app/immutable/` entry
   scripts 200, `/classroom` and `/notebook` answering 303 to `/` signed out) were not run for
-  the same reason. If the served page is broken: `git revert -m 1 MERGE_SHA`, push to `main`
+  the same reason. If the served page is broken: `git revert -m 1 601f9797`, push to `main`
   the same way, and confirm the revert is served.
-- CI on the pushed sha: CI_STATUS
+- CI on the pushed sha: CI succeeded on `f7712432`, the branch tip that was verified and merged (run 1614, the same tree as the merge). On the merge commit `601f9797` the Migrate workflow succeeded with nothing to apply, and CI (run 1615) was still running when this entry was written; its result is on the commit in GitHub. `main` moved `33849402..601f9797`, and `integration` took `main` as `cb50509b` (`de52de44..cb50509b`), its tree identical to `main`'s.
 
 ## 3. `0227_PROPOSED.sql`
 
@@ -210,16 +210,16 @@ lifting decision 3's exclusions for the home banner and the deck's back control.
 - `svelte-check` 0 errors, 37 warnings in 20 files (31 `state_referenced_locally`, 5
   `css_unused_selector`, 1 `perf_avoid_nested_class`), the Phase 0 baseline, before and after
   every package and on the merged tree.
-- The full suite on the merged, committed tree: SUITE_RESULT.
-- CI-equivalent steps run under Node NODE_MAJOR (CI pins 24, which this container does not
-  have): CHECKS_RESULT.
+- The full suite on the merged, committed tree: 593 test files and 11,249 tests passed, 0 failed, on `f7712432` (the summary line read and the output searched for failures, never the exit code).
+- CI-equivalent steps run under Node 22 (CI pins 24, which this container does not
+  have): `npm run check` 0 errors and 37 warnings in 20 files; `node tools/check-vanguard-changelog.mjs` found the entry for VERSION 214; `npm run history:verify` lossless; `npm run build` exit 0; `node tools/claude-md-check.mjs` agrees with the tree; `npm run verify:counts -- --check` both regions agree.
 - Browser: every package measured its own surfaces at 375, 960, 1366 and 1440 in this
   container's Chromium with fallback fonts (web fonts are blocked here) and
   `prefers-reduced-motion: no-preference`; the merged tree was re-measured on the class
   page, the Live tab, the projector, the theme switch and every notebook harness: 56 runs,
   784 measurements, 2 outside, both a stale expectation (the teacher class page correctly
   has two `.cr-select` since the find bar), fixed in the spec and re-measured at 0.
-  `npm run verify:readme` measured every spec the packages added: README_RESULT.
+  `npm run verify:readme` measured every spec the packages added: one pass over the 214 specs on this run's surfaces (428 runs, 7,274 measurements, 19 outside), then the 98 the tab fix could reach again (196 runs, 2,874 measurements, 0 outside). Across this run's specs the store holds 13 findings and every one predates the run: `grading-incomplete` (11) and `spec-table?empty=1` (2), with the same rows in their measurements from `4cd231ed`. The `/dev/tour` fragment also matched the tournament harnesses; their measurement files were restored rather than committed, since that room is not this run's. The whole store: 353 specs, 12,214 measurements, 211 outside.
 - Mutation proofs, each from a byte copy and md5-restored, summary lines read from stdout
   and stderr: F2 5 of 5, F4b 10 of 10, LIVE 10 of 10, F6 4 of 4, TODO 7 of 7 (one only by its
   unit test, because RLS never hands the database test a classmate's row), F3F5 7 of 7, F1b 8 of 8.
@@ -234,10 +234,10 @@ This run merged its own branch straight to `main`, the route Mr. Pina approved o
 2026-09-23, so the checklist is recorded rather than used as a gate.
 
 1. `origin/main` an ancestor of `origin/integration`: not applicable, direct merge approved
-   2026-09-23. GATE1_READING
+   2026-09-23. (`git merge-base --is-ancestor origin/main origin/integration` exited 0 at the merge.)
 2. Branch contained in `origin/integration` with CI green on its tip: not applicable, direct
    merge approved 2026-09-23.
-3. The merge into `main` is clean: GATE3_READING
+3. The merge into `main` is clean: clean. `git merge --no-ff` of the branch into `origin/main` exited 0 with no conflict, the merged tree was identical to the verified branch tip, `git diff origin/main HEAD --stat -- supabase/migrations/ materials/` was empty, and no path the ledger reserves for 0296 (`src/lib/ideacad/**`, `src/routes/ideacad/**`, `docs/ideacad/**`, `IdeaCadMark.svelte`, the `ideacad-*` harnesses and specs) or `supabase/**`, `.github/workflows/**` or `vercel.json` was in the diff.
 4. Deploy probe, or its record-backed substitute: **vacuous under decision 34**, not passed.
    The migration delta is empty: `git diff --name-only origin/main...HEAD --
    supabase/migrations/` names nothing, so there is no migration whose applied record could
