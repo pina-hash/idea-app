@@ -5,6 +5,9 @@
 	import ClassView from '$lib/classroom/ClassView.svelte';
 	import HallPass from '$lib/classroom/HallPass.svelte';
 	import SongQueue from '$lib/classroom/SongQueue.svelte';
+	import LiveDoor from '$lib/classroom/live-class/LiveDoor.svelte';
+	import { liveItemChoices } from '$lib/classroom/live-class/grid';
+	import { createPresenceTransports } from '$lib/classroom/presence/transports';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import {
 		readClassViewPrefs,
@@ -98,6 +101,13 @@
 	 */
 	// svelte-ignore state_referenced_locally
 	const live = createClassroomLive(data.supabase);
+	/**
+	 * THE LIVE DOOR'S COUNT (ledger 0297): a manager's class page asks presence
+	 * about the assignment the Live tab would open on, so the way in says how
+	 * many students are on it before anybody opens anything.
+	 */
+	// svelte-ignore state_referenced_locally
+	const presenceTransports = createPresenceTransports(data.supabase, '');
 	/**
 	 * THE 0193 WRITES, built once and handed down ONLY when the load's probe
 	 * says the columns exist (`layoutReady`). Null removes the placement, order
@@ -315,6 +325,13 @@
 	 * can never offer a grid the database would refuse. Everyone else reading this
 	 * page is an actively enrolled student, and theirs is their own notebook.
 	 */
+	const liveChoice = $derived(
+		data.canManage
+			? (liveItemChoices(items, Date.parse(data.classClock.now), data.classClock.today).find((c) => c.signal) ??
+					null)
+			: null
+	);
+
 	const notebookHref = $derived(
 		data.canManage ? `/notebook/review?section=${data.section.id}` : '/notebook'
 	);
@@ -385,7 +402,7 @@
 		The ROW renders only when at least one of them does, so a class with
 		neither carries no empty strip.
 	-->
-	{#if data.hallPass || data.songQueue}
+	{#if data.hallPass || data.songQueue || data.canManage}
 		<div class="class-tools" data-testid="class-tools">
 			{#if data.hallPass}
 				<HallPass
@@ -405,6 +422,15 @@
 					{now}
 					{live}
 					tool
+				/>
+			{/if}
+			{#if data.canManage}
+				<LiveDoor
+					href={`/classroom/${data.section.id}/live`}
+					sectionId={data.section.id}
+					choice={liveChoice}
+					presence={presenceTransports}
+					{live}
 				/>
 			{/if}
 		</div>

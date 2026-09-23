@@ -59,22 +59,24 @@ describe('control 1: a caller who manages no section is offered no manage-only t
 		expect(visible.map((t) => t.id)).toEqual(['class']);
 		// Named absences, not just a count: a tab renamed rather than removed
 		// would keep the count and lose the meaning.
+		expect(visible.some((t) => t.id === 'live')).toBe(false);
 		expect(visible.some((t) => t.id === 'people')).toBe(false);
 		expect(visible.some((t) => t.id === 'grades')).toBe(false);
 		expect(visible.some((t) => t.id === 'duplicates')).toBe(false);
 		expect(visible.some((t) => t.id === 'check-ins')).toBe(false);
 	});
 
-	it('POSITIVE CONTROL: a manager sees all five, so the absences above are the predicate', () => {
+	it('POSITIVE CONTROL: a manager sees all six, so the absences above are the predicate', () => {
 		const visible = visibleSectionTabs(tabs, true);
 		expect(visible.map((t) => t.id)).toEqual([
 			'class',
+			'live',
 			'people',
 			'grades',
 			'duplicates',
 			'check-ins'
 		]);
-		expect(visible.length).toBe(5);
+		expect(visible.length).toBe(6);
 	});
 
 	it('the shell filters through that one function and does not spell it again', () => {
@@ -203,13 +205,13 @@ describe('control 3: every section tab still resolves', () => {
 	 * check names the file it looked for. The duplicates tab is absent from
 	 * both directions on purpose -- see the last block.
 	 */
-	it('the shipped set is exactly these five, in reading order', () => {
-		expect(tabs.map((t) => t.id)).toEqual(['class', 'people', 'grades', 'duplicates', 'check-ins']);
+	it('the shipped set is exactly these six, in reading order', () => {
+		expect(tabs.map((t) => t.id)).toEqual(['class', 'live', 'people', 'grades', 'duplicates', 'check-ins']);
 	});
 
 	it('every in-classroom tab points at a page that exists on disk', () => {
 		const internal = tabs.filter((t) => !t.external);
-		expect(internal.length).toBe(4);
+		expect(internal.length).toBe(5);
 		for (const t of internal) {
 			const file = routeFileFor(t.href);
 			expect(existsSync(new URL(`../${file}`, import.meta.url)), `${t.id} -> ${file}`).toBe(true);

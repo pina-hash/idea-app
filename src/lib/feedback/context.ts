@@ -28,6 +28,7 @@
  */
 export type FeedbackExclusionId =
 	| 'deck'
+	| 'projector'
 	| 'gauntlet'
 	| 'greenline'
 	| 'vanguard'
@@ -69,6 +70,17 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 			/^\/classroom\/\[sectionId\]\/item\/\[itemId\]\/deck$/.test(routeId) ||
 			under('/dev/classroom-deck')(routeId),
 		samples: ['/classroom/[sectionId]/item/[itemId]/deck', '/dev/classroom-deck']
+	},
+	{
+		id: 'projector',
+		label: 'Class projector view',
+		relocatedTo: "the projector view's own strip, beside Full screen",
+		// The class's wall display (ledger 0297): the agenda, the clock and the
+		// timer, projected. A floating control over it is on the wall in front of
+		// the class, exactly as it would be over a deck.
+		match: (routeId) =>
+			routeId === '/classroom/[sectionId]/live/projector' || under('/dev/classroom-projector')(routeId),
+		samples: ['/classroom/[sectionId]/live/projector', '/dev/classroom-projector']
 	},
 	{
 		id: 'gauntlet',

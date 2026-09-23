@@ -19,7 +19,7 @@ export interface Crumb {
 	href?: string;
 }
 
-export type SectionTabId = 'class' | 'people' | 'grades' | 'duplicates' | 'check-ins';
+export type SectionTabId = 'class' | 'live' | 'people' | 'grades' | 'duplicates' | 'check-ins';
 
 export interface SectionTab {
 	id: SectionTabId;
@@ -48,6 +48,8 @@ export type ClassroomPlace =
 	| 'people'
 	| 'grades'
 	| 'duplicates'
+	| 'live'
+	| 'live-projector'
 	| 'item'
 	| 'item-grade'
 	| 'item-deck'
@@ -99,6 +101,11 @@ export function locateClassroom(pathname: string): ClassroomLocation {
 	if (rest[1] === 'people') return { place: 'people', sectionId, itemId: null };
 	if (rest[1] === 'grades') return { place: 'grades', sectionId, itemId: null };
 	if (rest[1] === 'duplicates') return { place: 'duplicates', sectionId, itemId: null };
+	// THE LIVE CLASS (ledger 0297): the teacher's control view, and the
+	// projector page under it, which renders no shell at all.
+	if (rest[1] === 'live') {
+		return { place: rest[2] === 'projector' ? 'live-projector' : 'live', sectionId, itemId: null };
+	}
 	if (rest[1] === 'item' && rest[2]) {
 		const itemId = rest[2];
 		if (rest[3] === 'grade') return { place: 'item-grade', sectionId, itemId };
@@ -152,6 +159,10 @@ export function locateClassroom(pathname: string): ClassroomLocation {
 export function sectionTabs(sectionId: string, basePath = '/classroom'): SectionTab[] {
 	return [
 		{ id: 'class', label: 'Class', href: `${basePath}/${sectionId}`, manageOnly: false },
+		// THE FRONT OF THE ROOM (ledger 0297): second, because it is the class
+		// page's own companion during a period, and the control view is where the
+		// projector, the timer and "who is working" live.
+		{ id: 'live', label: 'Live', href: `${basePath}/${sectionId}/live`, manageOnly: true },
 		{ id: 'people', label: 'People', href: `${basePath}/${sectionId}/people`, manageOnly: true },
 		{ id: 'grades', label: 'Grades', href: `${basePath}/${sectionId}/grades`, manageOnly: true },
 		{
@@ -267,6 +278,7 @@ export function navKeepsComposer(sectionId: string, pathname: string, basePath =
  */
 export function activeTab(loc: ClassroomLocation): SectionTabId | null {
 	if (loc.place === 'section') return 'class';
+	if (loc.place === 'live') return 'live';
 	if (loc.place === 'people') return 'people';
 	if (loc.place === 'grades') return 'grades';
 	if (loc.place === 'duplicates') return 'duplicates';
@@ -334,6 +346,16 @@ export function classroomMeasure(loc: ClassroomLocation): ClassroomMeasure | nul
 		case 'todo':
 			return 'split';
 		/**
+		 * THE LIVE CONTROL VIEW takes the split's width too: its tools sit in a
+		 * column beside the class's names, and a 60rem page would squeeze the
+		 * grid of who is working into the middle of a wide laptop screen. The
+		 * projector page renders no shell, so it asks for no measure.
+		 */
+		case 'live':
+			return 'split';
+		case 'live-projector':
+			return null;
+		/**
 		 * NULL, not a width. `view-as` is one place covering two genuinely
 		 * different pages -- the 46rem student picker and a notebook mounted
 		 * under somebody else's shell -- and it runs the shell in minimal mode,
@@ -379,6 +401,9 @@ export function classroomCrumbs(
 			return [home, section(false), { label: 'Grades' }];
 		case 'duplicates':
 			return [home, section(false), { label: 'Duplicates' }];
+		case 'live':
+		case 'live-projector':
+			return [home, section(false), { label: 'Live' }];
 		case 'item':
 			return [home, section(false), { label: labels.item || 'Item' }];
 		case 'item-grade':

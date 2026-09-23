@@ -61,7 +61,11 @@ const SURFACES: { place: ClassroomPlace; path: string; file: string }[] = [
 		file: 'src/lib/classroom/FeedbackConsole.svelte'
 	},
 	// The cross-class to-do (ledger 0297): groups in columns, the split's width.
-	{ place: 'todo', path: '/classroom/todo', file: 'src/lib/classroom/TodoPage.svelte' }
+	{ place: 'todo', path: '/classroom/todo', file: 'src/lib/classroom/TodoPage.svelte' },
+	// The teacher's live control view (ledger 0297, LIVE): a grid of names beside
+	// the timer and the agenda, the split's width. The projector is absent on
+	// purpose: it is a full-window display with no content column, like the deck.
+	{ place: 'live', path: '/classroom/s-1/live', file: 'src/lib/classroom/live-class/LiveControl.svelte' }
 ];
 
 /** The one width declaration on a surface's own content column. */
@@ -116,6 +120,8 @@ describe('the classroom chrome is as wide as the page under it', () => {
 			'updates',
 			'feedback',
 			'todo',
+			'live',
+			'live-projector',
 			'view-as',
 			'other'
 		];
