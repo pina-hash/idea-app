@@ -97,8 +97,9 @@
 	label{display:grid;gap:4px;min-width:0;font:600 14px Rajdhani,sans-serif;color:var(--text-2)}
 	.words{display:flex;flex-wrap:wrap;gap:6px;align-items:baseline}.words small{font:12px 'Share Tech Mono',monospace;color:var(--text-2)}.words em{font:12px 'Share Tech Mono',monospace;font-style:normal;color:var(--ic-warn,var(--amber))}
 	/* `padding:0` is stated because the room gives a span inside a label 9.6px of vertical padding (measured: 63.2px tall around a 42px input). The 44px floor is the field's `min-height`, never a height. */
-	.field{display:flex;align-items:center;min-height:44px;padding:0;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0)}
-	input{flex:1;min-width:0;min-height:42px;border:0;background:transparent;color:var(--text-1);padding:0 8px;font:16px 'Share Tech Mono',monospace}input:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
+	.field{display:flex;align-items:center;min-width:0;min-height:44px;padding:0;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0)}
+	/* `width:0` with `flex:1 1 0` takes the box's own intrinsic width (about 150px for an input) out of the row's minimum, which in a 260px panel pushed the unit word past the panel's edge and under the Set button. */
+	input{flex:1 1 0;width:0;min-width:0;min-height:42px;border:0;background:transparent;color:var(--text-1);padding:0 8px;font:16px 'Share Tech Mono',monospace}input:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
 	.unit{padding:0 8px;font:12px 'Share Tech Mono',monospace;color:var(--text-2)}
 	button{min-height:44px;min-width:44px;padding:0 12px;border:1px solid var(--green);border-radius:4px;background:var(--surface-0);color:var(--green);font:600 16px Rajdhani,sans-serif;cursor:pointer}button:disabled{opacity:.4;cursor:default}
 	.readonly{display:flex;justify-content:space-between;gap:8px;min-height:44px;align-items:center;padding:0 8px;font:600 14px Rajdhani,sans-serif;color:var(--text-2)}output{font:14px 'Share Tech Mono',monospace;color:var(--text-1)}
