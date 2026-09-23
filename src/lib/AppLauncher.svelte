@@ -29,6 +29,7 @@
 		type HomepagePrefs,
 		type PortalApp
 	} from '$lib/portal-apps';
+	import { supabaseProfileIo, writeProfileNamespace } from '$lib/preferences/profile-io';
 
 	/**
 	 * The homepage app launcher: ONE flat grid in curated order, optionally
@@ -86,13 +87,12 @@
 			saving = true;
 			saveError = '';
 		}
-		const merged = { ...(profile?.preferences ?? {}), homepage: next };
-		const { error } = await supabase
-			.from('profiles')
-			.update({ preferences: merged })
-			.eq('id', claims.sub);
+		// READ THEN MERGE (ledger 0297): the row as it stands now, never the
+		// page-load snapshot, which is what let a pin erase a fold made a moment
+		// earlier. Only `homepage` is replaced; every sibling is kept.
+		const res = await writeProfileNamespace(supabaseProfileIo(supabase, claims.sub), 'homepage', next);
 		if (!opts.silent) {
-			if (error) saveError = error.message;
+			if (!res.ok) saveError = res.message;
 			saving = false;
 		}
 	};

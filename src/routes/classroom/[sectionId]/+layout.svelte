@@ -33,6 +33,9 @@
 		mergeInstructorMaterials,
 		runClassroomExport
 	} from '$lib/classroom/transports';
+	import { supabaseProfileIo, writeProfileNamespace } from '$lib/preferences/profile-io';
+	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
+	import { classOpensOnFor } from '$lib/preferences/classroom';
 	import type { LayoutData } from './$types';
 
 	/**
@@ -342,9 +345,21 @@
 			? collapsed.filter((id) => id !== groupId)
 			: [...collapsed, groupId];
 		if (!data.claims?.sub) return;
-		const merged = { ...(data.preferences ?? {}), classroomUnits: next };
-		await data.supabase.from('profiles').update({ preferences: merged }).eq('id', data.claims.sub);
+		// READ THEN MERGE (ledger 0297): the row as it stands now, not the
+		// page-load snapshot, so a fold never erases a namespace another surface
+		// wrote since this page loaded, and a later write never erases the fold.
+		await writeProfileNamespace(supabaseProfileIo(data.supabase, data.claims.sub), 'classroomUnits', next);
 	}
+
+	/**
+	 * THE VIEW A CLASS OPENS ON, the viewer's own default from the classroom
+	 * preference store the outer layout provides (null in a harness without
+	 * one). A default, never the last filter used: a class that silently opened
+	 * on yesterday's search would look like it had lost its items.
+	 */
+	const classPrefStore = classroomPreferences();
+	const classPrefs = classPrefStore ? reactivePreferences(classPrefStore) : null;
+	const opensOn = $derived(classOpensOnFor(classPrefs?.current.classView.opensOn ?? 'all', data.canManage));
 </script>
 
 {#snippet classList()}
@@ -412,6 +427,8 @@
 		onCompose={data.canManage ? toggleComposer : null}
 		notice={composeNotice}
 		onToggleGroup={toggleGroup}
+		{opensOn}
+		clock={data.classClock}
 		{transports}
 		{unitTransports}
 		{deckTransports}

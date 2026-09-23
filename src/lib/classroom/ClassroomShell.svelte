@@ -14,6 +14,13 @@
 	} from '$lib/classroom/nav';
 	import { navCollapseKey, readNavCollapsed, writeNavCollapsed } from '$lib/classroom/nav-collapse';
 	import { formatSectionLabel } from '$lib/section-label';
+	import CommandPalette from '$lib/shell/CommandPalette.svelte';
+	import ClassroomSettings from '$lib/classroom/ClassroomSettings.svelte';
+	import { ICONS, keysFor, surfaceFor } from '$lib/shell/commands';
+	import { registerCommandHandler } from '$lib/shell/command-handlers';
+	import type { PaletteSources, PaletteStudent } from '$lib/shell/palette';
+	import type { ClassroomPreferences } from '$lib/preferences/classroom';
+	import type { PreferenceStore } from '$lib/preferences/store';
 
 	/**
 	 * The persistent room every /classroom page renders inside.
@@ -44,6 +51,9 @@
 		basePath = '/classroom',
 		backHref = '/classroom',
 		backLabel = 'Classroom',
+		palette = null,
+		preferences = null,
+		loadStudents = null,
 		children
 	}: {
 		sections?: ClassroomSection[];
@@ -67,6 +77,17 @@
 		/** The way up in minimal mode, where there is no switcher to be the way up. */
 		backHref?: string;
 		backLabel?: string;
+		/**
+		 * WHAT THE COMMAND PALETTE SEARCHES (ledger 0297): the class the layout
+		 * loaded, the switcher's classes, the viewer's check-ins. Null removes the
+		 * Search control AND the Ctrl+K listener -- absence is the mechanism, the
+		 * way an omitted transport removes its control.
+		 */
+		palette?: PaletteSources | null;
+		/** The classroom preference store. Null removes the Settings control. */
+		preferences?: PreferenceStore<ClassroomPreferences> | null;
+		/** A manager's roster for the palette's `@` search. */
+		loadStudents?: ((sectionId: string) => Promise<PaletteStudent[]>) | null;
 		children: import('svelte').Snippet;
 	} = $props();
 
@@ -117,6 +138,39 @@
 	// The filter is `visibleSectionTabs` in nav.ts -- see its header for why it
 	// is not written out here.
 	const visibleTabs = $derived(visibleSectionTabs(tabs, canManage));
+
+	/*
+	 * THE PALETTE'S VIEW OF WHERE IT IS. Inside a class the role is the
+	 * server's `canManage` for that class; outside one, staff are offered the
+	 * staff doors. Presentation only, like the tabs: every destination re-checks.
+	 */
+	let paletteEl = $state<ReturnType<typeof CommandPalette> | null>(null);
+	let settingsEl = $state<ReturnType<typeof ClassroomSettings> | null>(null);
+	const paletteRole = $derived<'student' | 'manager'>(
+		currentSectionId ? (canManage ? 'manager' : 'student') : isStaff || isAdmin ? 'manager' : 'student'
+	);
+	const paletteEnv = $derived({
+		role: paletteRole,
+		surface: surfaceFor(page.url.pathname, basePath),
+		sectionId: currentSectionId,
+		itemId: loc.itemId,
+		itemKind: loc.itemId ? (palette?.items.find((i) => i.id === loc.itemId)?.kind ?? null) : null,
+		basePath,
+		isStaff,
+		isAdmin
+	});
+	/* The shortcut, spelled for this keyboard (Cmd on a Mac), for the tooltip. */
+	let platform = $state('');
+	$effect(() => {
+		platform = navigator.platform ?? '';
+	});
+	const paletteKeys = $derived(keysFor('Ctrl K', platform));
+
+	/* Settings is a registry command as well as a header control. */
+	$effect(() => {
+		if (!preferences) return;
+		return registerCommandHandler('settings.open', () => settingsEl?.open());
+	});
 
 	/**
 	 * Dismiss on POINTERDOWN, not click, and ignore a target already detached --
@@ -217,9 +271,47 @@
 		{#if minimal}
 			<a class="btn secondary" href={backHref}>&lsaquo; {backLabel}</a>
 		{/if}
+		{#if palette}
+			<button
+				type="button"
+				class="shell-tool"
+				title="Search and commands ({paletteKeys})"
+				data-testid="palette-trigger"
+				onclick={() => paletteEl?.open('search')}
+			>
+				<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.search} /></svg>
+				<span class="shell-tool-word">Search</span>
+				<kbd class="shell-tool-keys" aria-hidden="true">{paletteKeys}</kbd>
+			</button>
+		{/if}
+		{#if preferences}
+			<button
+				type="button"
+				class="shell-tool"
+				title="Classroom settings"
+				data-testid="settings-trigger"
+				onclick={() => settingsEl?.open()}
+			>
+				<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.settings} /></svg>
+				<span class="shell-tool-word">Settings</span>
+			</button>
+		{/if}
 		<ProfileMenu />
 	</div>
 </div>
+
+{#if palette}
+	<CommandPalette
+		bind:this={paletteEl}
+		sources={palette}
+		env={paletteEnv}
+		{preferences}
+		{loadStudents}
+	/>
+{/if}
+{#if preferences}
+	<ClassroomSettings bind:this={settingsEl} {preferences} role={paletteRole} />
+{/if}
 
 {#if !minimal && crumbs.length > 1}
 	<nav class="crumbs" aria-label="Breadcrumb" data-testid="crumbs">
@@ -438,6 +530,48 @@
 		background: var(--hairline);
 	}
 
+	/* THE HEADER'S TWO TOOLS (ledger 0297): a glyph AND a word, 44px, and the
+	   palette's shortcut printed beside its word where there is a keyboard to
+	   press it on. `.header-right` is the shared flex row; these only say how
+	   each control looks. */
+	.shell-tool {
+		appearance: none;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		min-height: 44px;
+		padding: 0 0.7rem;
+		background: var(--surface-1);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
+		font: inherit;
+		font-size: 0.86rem;
+		cursor: pointer;
+	}
+	.shell-tool:hover {
+		border-color: var(--gold);
+	}
+	.shell-tool svg {
+		flex: none;
+		width: 18px;
+		height: 18px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.7;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		color: var(--text-2);
+	}
+	.shell-tool-keys {
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		padding: 0.05rem 0.35rem;
+		color: var(--text-2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+	}
+
 	/* THE CHROME IS AS WIDE AS THE PAGE UNDER IT. Both read `--cr-measure`,
 	   which src/routes/classroom/+layout.svelte sets once per route from
 	   nav.ts's `classroomMeasure` -- so the trail and the tabs line up with a
@@ -650,6 +784,13 @@
 		.sw-menu {
 			left: auto;
 			right: 0;
+		}
+		/* A phone has no keyboard shortcut to show, and the word keeps its place. */
+		.shell-tool {
+			padding: 0 0.55rem;
+		}
+		.shell-tool-keys {
+			display: none;
 		}
 		/* No phone override for the trail and the tabs: `--cr-gutter` is already
 		   the narrow number below the desktop breakpoint, and a second literal

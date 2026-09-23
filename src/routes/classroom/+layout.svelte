@@ -10,6 +10,15 @@
 		locateClassroom,
 		sectionTabs
 	} from '$lib/classroom/nav';
+	import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
+	import type { ClassroomItem, ClassroomUnit } from '$lib/classroom/classroom';
+	import {
+		CLASSROOM_PREFERENCES_NAMESPACE,
+		createClassroomPreferences
+	} from '$lib/preferences/classroom';
+	import { provideClassroomPreferences, reactivePreferences } from '$lib/preferences/context';
+	import { namespaceOf, profileNamespaceWriter, supabaseProfileIo } from '$lib/preferences/profile-io';
+	import type { PaletteSources, PaletteStudent } from '$lib/shell/palette';
 
 	/**
 	 * The classroom's own room.
@@ -83,12 +92,65 @@
 	 * it asked for the console measure.
 	 */
 	const isConsole = $derived(measure === 'console');
+
+	/**
+	 * THE CLASSROOM'S ONE PREFERENCE STORE (ledger 0297), created ONCE here
+	 * because this layout is not remounted as the URL moves between classes and
+	 * items, and handed down by context. Device groups live in this browser per
+	 * viewer; account groups in `profiles.preferences.classroom`, written
+	 * read-then-merge so no other namespace is ever clobbered. Signed out, the
+	 * account groups simply live for the session.
+	 */
+	// The client and the viewer are one per session, captured once on purpose.
+	// svelte-ignore state_referenced_locally
+	const viewer = (data.claims?.sub as string | undefined) ?? null;
+	// svelte-ignore state_referenced_locally
+	const preferences = createClassroomPreferences({
+		viewer,
+		account: viewer
+			? {
+					initial: namespaceOf(page.data.userProfile?.preferences, CLASSROOM_PREFERENCES_NAMESPACE),
+					writer: profileNamespaceWriter(
+						supabaseProfileIo(data.supabase, viewer),
+						CLASSROOM_PREFERENCES_NAMESPACE
+					)
+				}
+			: null
+	});
+	provideClassroomPreferences(preferences);
+	const prefs = reactivePreferences(preferences);
+
+	/**
+	 * WHAT THE PALETTE SEARCHES, from data the pages below already loaded:
+	 * `page.data` merges the section layout's items, units and check-ins down,
+	 * and the switcher's list is this layout's own. Nothing is fetched for it.
+	 * The section only counts when it is the class in the URL.
+	 */
+	const paletteSources = $derived<PaletteSources>({
+		section: section && section.id === loc.sectionId ? section : null,
+		items: ((page.data.items as ClassroomItem[] | undefined) ?? []).filter(Boolean),
+		units: (page.data.units as ClassroomUnit[] | undefined) ?? [],
+		sections: data.navSections ?? [],
+		checkIns: (page.data.checkIns as ClassCheckIn[] | undefined) ?? []
+	});
+
+	/** A manager's roster for `@`, loaded on the palette's first open in a class, managers dropped. */
+	async function loadStudents(sectionId: string): Promise<PaletteStudent[]> {
+		const { loadSectionRoster } = await import('$lib/classroom/transports');
+		const { splitRoster } = await import('$lib/classroom/classroom');
+		const res = await loadSectionRoster(data.supabase, sectionId);
+		if (!res.ok) return [];
+		return splitRoster(res.data.rows)
+			.students.filter((r) => r.active)
+			.map((r) => ({ email: r.student_email, name: r.display_name || r.student_email }));
+	}
 </script>
 
 <div
 	class="cr-root"
 	class:cr-app={isConsole}
 	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
+	data-density={prefs.current.display.density}
 >
 	<ClassroomShell
 		sections={data.navSections ?? []}
@@ -102,6 +164,9 @@
 		minimal={loc.place === 'view-as'}
 		backHref={atPicker ? '/classroom' : '/classroom/view-as'}
 		backLabel={atPicker ? 'Classroom' : 'Pick a student'}
+		palette={loc.place === 'view-as' ? null : paletteSources}
+		preferences={loc.place === 'view-as' ? null : preferences}
+		loadStudents={page.data.canManage === true ? loadStudents : null}
 	>
 		{@render children()}
 	</ClassroomShell>

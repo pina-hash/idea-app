@@ -2,6 +2,7 @@
 	import LogView from '$lib/coin-desk/LogView.svelte';
 	import { untrack } from 'svelte';
 	import { readCoinDeskPrefs, type CoinDeskPrefs } from '$lib/coin-desk';
+	import { supabaseProfileIo, writeProfileNamespace } from '$lib/preferences/profile-io';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -29,8 +30,10 @@
 		prefs = next;
 		const uid = data.claims?.sub;
 		if (!uid) return;
-		const merged = { ...(data.userProfile?.preferences ?? {}), coinDesk: next };
-		await data.supabase.from('profiles').update({ preferences: merged }).eq('id', uid);
+		// Merged into the row as it stands NOW rather than the page-load
+		// snapshot (ledger 0297), so a namespace another page wrote since this
+		// one loaded -- the classroom's settings, a unit fold -- is kept.
+		await writeProfileNamespace(supabaseProfileIo(data.supabase, uid), 'coinDesk', next);
 	}
 </script>
 

@@ -160,8 +160,11 @@ describe('a panel anchored against the viewport', () => {
  * literals in one `const`, so they parse.
  */
 function gradeKeys(): KeyBinding<string>[] {
-	const src = read(CONSOLE);
-	const block = src.match(/const GRADE_KEYS: KeyBinding<GradeAction>\[\] = \[([\s\S]*?)\n\t\];/);
+	// The table moved out of the component into its own module (ledger 0297,
+	// so the command registry's shortcut legend reads the same array); every
+	// assertion below is unchanged and still reads the shipping source.
+	const src = read('src/lib/classroom/grading-keys.ts');
+	const block = src.match(/const GRADE_KEYS: KeyBinding<GradeAction>\[\] = \[([\s\S]*?)\n\];/);
 	expect(block, 'GRADE_KEYS is not where the test expects it').not.toBeNull();
 	const body = block![1];
 	const out: KeyBinding<string>[] = [];
