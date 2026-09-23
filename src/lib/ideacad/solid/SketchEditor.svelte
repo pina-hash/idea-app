@@ -107,7 +107,7 @@
 	}
 	function sync() {
 		tool = session.tool; selected = [...session.selected]; hovered = session.hovered;
-		drawingNote = session.tool === 'line' && session.anchorCount ? `${session.anchorCount} point${session.anchorCount === 1 ? '' : 's'} placed. Click the first point to close, or press Enter to stop.` : session.tool === 'arc' && session.anchorCount ? (session.anchorCount === 1 ? 'Center placed. Click where the arc starts.' : 'Start placed. Swing around to where it ends. Hold Shift for the long way around.') : session.pendingFillet && sketch ? `${entityLabel(sketch.entities, session.pendingFillet)} picked. Click the line it meets.` : '';
+		drawingNote = session.tool === 'line' && session.anchorCount ? `${session.anchorCount} point${session.anchorCount === 1 ? '' : 's'} placed; click the first to close, Enter to stop` : session.tool === 'arc' && session.anchorCount ? (session.anchorCount === 1 ? 'Center placed; click where it starts' : 'Start placed; swing around to where it ends, Shift for the long way') : session.pendingFillet && sketch ? `${entityLabel(sketch.entities, session.pendingFillet)} picked. Click the line it meets.` : '';
 		tick++;
 		const id = api.editingSketch, key = session.selected.join(','); if (!id || key === published) return;
 		published = key;
