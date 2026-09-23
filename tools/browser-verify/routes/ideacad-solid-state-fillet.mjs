@@ -56,7 +56,9 @@ export default {
 		{ selector: '[data-testid="ideacad-tree-fix"]', label: 'the refused row in the tree, offering the same largest radius', expectPresent: 1, maxPresent: 1, expectVisible: 0 }
 	],
 	textContains: [
-		{ selector: '[data-testid="ideacad-feature-panel"]', label: 'labels, values and the refusal in words, and none of the instructions or kernel text', must: ['1 edge', 'Radius', 'Tangent propagation', 'Variable radius', 'That radius is too big for this edge. The largest that fits here is 0.999 in.', 'Use 0.999 in'], mustNot: ['Shift-click', 'drag any selected edge', 'Propagate along tangent edges', 'blend cliff', 'Id(', 'available radius'] }
+		{ selector: '[data-testid="ideacad-feature-panel"]', label: 'labels, values and the refusal in words, and none of the instructions', must: ['1 edge', 'Radius', 'Tangent propagation', 'Variable radius', 'That radius is too big for this edge. The largest that fits here is 0.999 in.', 'Use 0.999 in'], mustNot: ['Shift-click', 'drag any selected edge', 'Propagate along tangent edges'] },
+		/* Since the engine carries a refusal's help onto its row (W4), this dev page also shows the kernel's text as the DEVELOPMENT detail under the buttons, as ideacad-fillet-panel-state-corner does; the sentence a student reads carries none of it, and the real route (not dev) renders no detail at all. */
+		{ selector: '[data-testid="ideacad-blend-refusal"] p:last-of-type', label: 'the student sentence, apart from the development detail', must: ['That radius is too big for this edge. The largest that fits here is 0.999 in.'], mustNot: ['blend cliff', 'Id(', 'available radius'] }
 	],
 	contrast: [
 		{ selector: '[data-testid="ideacad-blend-refusal"] p', label: 'the refusal sentence and the name above it', min: 4.5 },

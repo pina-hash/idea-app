@@ -414,7 +414,9 @@ describe('the section panel', () => {
 		expect(h.clips).toEqual([null]);
 		expect(m.one('[data-testid="ideacad-section-state"]').textContent).toBe('Off.');
 		await press(m, 'ideacad-section-on');
-		expect(h.clips.at(-1)).toEqual({ origin: [0, 0, 0], u: [1, 0, 0], v: [0, 1, 0], normal: [0, 0, 1] });
+		/* A datum section starts through the middle of the model (F042, W4): the harness body spans z 0 to 1, so Top cuts at z 0.5, not at the datum it only touches. */
+		expect(m.one<HTMLInputElement>('[data-testid="ideacad-section-offset"]').value).toBe('0.5');
+		expect(h.clips.at(-1)).toEqual({ origin: [0, 0, 0.5], u: [1, 0, 0], v: [0, 1, 0], normal: [0, 0, 1] });
 		expect(m.one('[data-testid="ideacad-section-state"]').textContent).toBe('Sectioned.');
 		type(m, 'ideacad-section-offset', '0.5'); tick(m, 'ideacad-section-flip');
 		expect(h.clips.at(-1)).toEqual({ origin: [0, 0, 0.5], u: [1, 0, 0], v: [-0, -1, -0], normal: [-0, -0, -1] });

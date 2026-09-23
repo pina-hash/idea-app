@@ -299,8 +299,11 @@ export class SolidViewport {
 	focusSketch(sketch:SketchProjection|null,inset={left:0,right:0,top:0,bottom:0}){
 		this.sketchOnTop();if(!sketch){this.invalidate();return;}
 		const points:Vec3[]=[];for(const e of sketch.entities){if(e.type==='point')points.push(lift(sketch.plane,[e.x,e.y]));else for(const p of samples(sketch.entities,e))points.push(lift(sketch.plane,p));}
-		this.lookAt(sketch.plane);if(!points.length)return;
-		const b=new THREE.Box3().setFromPoints(points.map(p=>new THREE.Vector3(...p))),center=b.getCenter(new THREE.Vector3());this.camera.position.add(center.clone().sub(this.target));this.target.copy(center);this.camera.updateMatrixWorld();
+		/* A sketch with nothing drawn, or one point, has no size to frame: the view stays as the caller left it (the workspace has already faced the plane). */
+		const b=new THREE.Box3().setFromPoints(points.map(p=>new THREE.Vector3(...p)));
+		if(!points.length||b.getSize(new THREE.Vector3()).length()<1e-6){this.invalidate();return;}
+		this.lookAt(sketch.plane);
+		const center=b.getCenter(new THREE.Vector3());this.camera.position.add(center.clone().sub(this.target));this.target.copy(center);this.camera.updateMatrixWorld();
 		const local=points.map(p=>new THREE.Vector3(...p).applyMatrix4(this.camera.matrixWorldInverse)),box=new THREE.Box3().setFromPoints(local),size=box.getSize(new THREE.Vector3());
 		/* Framed in the part of the view the chrome leaves free (the palette, the top bar, the panel column), not under a panel. */
 		const w=Math.max(1,this.canvas.clientWidth),h=Math.max(1,this.canvas.clientHeight),freeW=Math.max(w*.3,w-inset.left-inset.right),freeH=Math.max(h*.3,h-inset.top-inset.bottom);
