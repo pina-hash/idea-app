@@ -50,7 +50,7 @@
 	import { refFromSelection } from './naming';
 	import { featureOptions, holeFeatureAt, withOptions } from './features/options';
 	import { HOLE_FIT_WORDS, HOLE_STANDARDS, describeHole, type HoleFit } from './features/holes';
-	import { blendFeatureOf, edgeKey, edgeSet, edgeShape, facesByEdge, featureOfName, sizeFixFromSentence, type EdgeSetKind, type EdgeShape } from './features/blends';
+	import { blendFeatureOf, edgeKey, edgeSet, edgeShapes, facesByEdge, featureOfName, sizeFixFromSentence, type EdgeSetKind, type EdgeShape } from './features/blends';
 	let { api }: { api: WorkspaceApi } = $props();
 	const BLEND_TOOLS = ['fillet', 'chamfer', 'shell', 'hole'];
 	const EXTRA_KINDS = ['draft', 'sweep', 'loft', 'rib'] as const;
@@ -133,9 +133,9 @@
 	 */
 	const sets = $derived.by(() => {
 		if (!seed || !seedBody) return [];
-		const body = seedBody, picked = new Set(edges.filter((s) => s.bodyId === body.id).map((s) => s.id)), shapes = new Map<string, EdgeShape>();
-		/* Each edge's shape read once per selection, shared by every set below: the convex and concave sets and the smooth-edge filter would otherwise each walk every face mesh again. */
-		const shapeOf = (id: string) => { if (!shapes.has(id)) { const e = body.edges.find((x) => x.id === id); shapes.set(id, e ? edgeShape(body, e, beside ?? undefined) : 'unknown'); } return shapes.get(id)!; };
+		const body = seedBody, picked = new Set(edges.filter((s) => s.bodyId === body.id).map((s) => s.id)), shapes = edgeShapes(body);
+		/* Each edge's shape is read once per MODEL (`edgeShapes` caches on the projection), so a new pick on the same model walks no face mesh at all. */
+		const shapeOf = (id: string): EdgeShape => shapes.get(id) ?? 'unknown';
 		const from = seed.kind === 'edge' ? { edge: seed.id } : { face: seed.id, feature: featureOfName(seed.id) };
 		const seen = new Set<string>(), out: { kind: EdgeSetKind; word: string; title: string; ids: string[]; adds: number }[] = [];
 		for (const g of GROW) {
@@ -163,7 +163,8 @@
 		let skipped = 0;
 		const ids = faces.flatMap((s) => {
 			const body = api.model.bodies.find((b) => b.id === s.bodyId), face = body?.faces.find((f) => f.id === s.id);
-			return (face?.edges ?? []).filter((id) => { const e = body?.edges.find((x) => x.id === id); const keep = !e || !body || edgeShape(body, e) !== 'smooth'; if (!keep) skipped++; return keep; }).map((id) => ({ bodyId: s.bodyId, kind: 'edge' as const, id }));
+			const shapes = body ? edgeShapes(body) : null;
+			return (face?.edges ?? []).filter((id) => { const keep = shapes?.get(id) !== 'smooth'; if (!keep) skipped++; return keep; }).map((id) => ({ bodyId: s.bodyId, kind: 'edge' as const, id }));
 		});
 		if (!ids.length) { api.error(skipped ? 'Every edge of that face is already smooth, so there is no corner to round.' : 'Select a face to take its edges.'); return; }
 		api.select(null);

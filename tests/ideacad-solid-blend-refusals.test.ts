@@ -24,7 +24,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { SolidEngine } from '../src/lib/ideacad/solid/engine';
 import { EXECUTORS } from '../src/lib/ideacad/solid/features/index';
 import type { ExecutorContext } from '../src/lib/ideacad/solid/features/context';
-import { BlendRefusal, FIT_ATTEMPTS, edgeKey, edgeSet, edgeShape, facesByEdge, floorFigure, largestThatFits, readKernelBlendError, sizeFixFromSentence } from '../src/lib/ideacad/solid/features/blends';
+import { BlendRefusal, FIT_ATTEMPTS, edgeKey, edgeSet, edgeShape, edgeShapes, facesByEdge, floorFigure, largestThatFits, readKernelBlendError, sizeFixFromSentence } from '../src/lib/ideacad/solid/features/blends';
 import type { EdgeRef, Feature, FeatureOf, ModelProjection, SolidCommand } from '../src/lib/ideacad/solid/types';
 import { refFromSelection } from '../src/lib/ideacad/solid/naming';
 
@@ -259,6 +259,11 @@ describe('edge sets over the projection (no kernel in the helpers; the projectio
 		const inside = body.edges.find((x) => x.id === concave[0])!;
 		/* The inside corner runs along the pull at x = 0.25, z = 0.25. */
 		expect(inside.mid[0]).toBeCloseTo(0.25, 9); expect(inside.mid[2]).toBeCloseTo(0.25, 9);
+		/* Read once per projection: a second ask of the same body is the same map, and a structured clone (what the worker hands back) is computed afresh and agrees. */
+		expect(edgeShapes(body)).toBe(edgeShapes(body));
+		const again = structuredClone(body);
+		expect(edgeShapes(again)).not.toBe(edgeShapes(body));
+		expect([...edgeShapes(again)]).toEqual([...edgeShapes(body)]);
 		const { m: p } = await plate();
 		expect(edgeSet(p.bodies[0], 'convex')).toHaveLength(12); expect(edgeSet(p.bodies[0], 'concave')).toHaveLength(0);
 		expect(edgeSet(p.bodies[0], 'body')).toHaveLength(12);
