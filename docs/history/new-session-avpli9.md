@@ -447,6 +447,14 @@ before. It has been red ever since and nothing re-measured it.
 
 The file restored byte-identical (md5-checked), as the mutation proof's does.
 
+**AND THE SHARED TOOL FOR THIS NOW EXISTS, one merge too late to have been
+used.** `tools/mutate-check.mjs` landed on `main` from another lane while this
+bundle was in flight, and it answers the same three traps this bundle's
+throwaway script answered independently: restore from a byte copy rather than
+git, parse the summary line rather than the exit code, and read both streams. A
+future lane should reach for it rather than writing an eleventh ad-hoc script,
+which is what both of us did.
+
 ### What was NOT verified
 
 - **No real microphone, anywhere.** Every path was driven through a stubbed
