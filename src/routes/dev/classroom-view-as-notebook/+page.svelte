@@ -81,7 +81,6 @@
 	];
 
 	const activity = entries.map((e) => ({ id: e.id, last_activity_at: e.upload_timestamp }));
-	const base = $derived(`/classroom/view-as/${encodeURIComponent(student.email)}`);
 </script>
 
 <div class="dev-toolbar">
@@ -128,8 +127,6 @@
 				canReview={false}
 				uploadReady={false}
 				readOnly
-				homeHref={base}
-				masthead={false}
 			/>
 		{/if}
 	</ClassroomShell>

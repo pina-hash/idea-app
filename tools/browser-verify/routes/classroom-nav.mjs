@@ -1,6 +1,6 @@
 export default {
 	path: '/dev/classroom-nav',
-	label: 'Section tab bar at five tabs, with the check-ins departure and the GREENLINE card in three states',
+	label: "Section tab bar at five tabs, the class's Notebook tab inside the class, and the GREENLINE card in three states",
 	/* THE DOORS THIS LANE ADDED, at the two widths, mounted through the REAL
 	   ClassroomShell fed by the REAL `sectionTabs()` and the REAL
 	   GreenlineDashboardCard fed by real `GreenlinePending` values.
@@ -20,15 +20,17 @@ export default {
 		{ selector: '[data-testid="section-tabs"] .sec-tab', label: 'section tabs', min: 4.5 }
 	],
 	tapTargets: [
-		{ selector: '[data-testid="section-tabs"] a', label: 'section tabs (five, including the departure)', min: 44 },
+		{ selector: '[data-testid="section-tabs"] a', label: 'section tabs (five)', min: 44 },
 		{ selector: '[data-testid="greenline-cards"] a.btn', label: 'GREENLINE card, Open panel', min: 44 }
 	],
 	presence: [
-		/* Five tabs for a manager: 0081 added the departure, 0086 added
-		   Duplicates once 0074's page and its `0187` were on `main`. A floor
-		   AND a ceiling, so a sixth tab appearing here is a finding. */
-		{ selector: '[data-testid^="section-tab-"]', label: 'section tabs (manager)', expectPresent: 5, maxPresent: 5, expectVisible: 5 },
-		{ selector: '[data-testid="section-tab-check-ins"]', label: 'the check-ins departure', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		/* Five tabs for a manager: 0086 added Duplicates once 0074's page and
+		   its `0187` were on `main`, and ledger 0297 replaced 0081's Check-ins
+		   departure with the class's own Notebook tab. A floor AND a ceiling,
+		   so a sixth tab appearing here is a finding. */
+		{ selector: 'a[data-testid^="section-tab-"]', label: 'section tabs (manager)', expectPresent: 5, maxPresent: 5, expectVisible: 5 },
+		{ selector: '[data-testid="section-tab-notebook"]', label: "the class's Notebook tab", expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="section-tab-check-ins"]', label: 'the retired check-ins departure (must be absent)', expectPresent: 0 },
 		{ selector: '[data-testid="section-tab-grades"]', label: 'Grades', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		/* THE TAB THIS BUNDLE LANDED. It was asserted at exactly 0 here for one
 		   bundle, against Grades as the positive control, because the page it

@@ -1,42 +1,40 @@
 /**
- * THE NOTEBOOK UNDER THE SITE'S MATRIX THEME (generalized in ledger 0297,
- * package F4a, from "the default plate following the site theme").
+ * THE NOTEBOOK UNDER SPACE WHITE, THE SITE'S LIGHT THEME (ledger 0297, package
+ * F4a). Space White is scoped to the classroom, and the notebook lives there
+ * now, so a student who turns it on gets a white notebook -- where until this
+ * package the notebook was a dark island inside a white classroom. The
+ * room's grounds and inks alias the Space White register, and the notebook-only
+ * inks (the review grid's seven states, the folders, the status inks, brass)
+ * are authored for these grounds in colors.css and pinned by
+ * tests/notebook-theme.test.ts. The photo overlays stay dark (`.nb-island`),
+ * which `notebook-state-corrector-site-space-white.mjs` measures.
  *
- * There is one way in now, not two: the notebook has no plate of its own, so
- * what changes colour here changes because `<html data-theme="matrix">` is
- * set -- the room's grounds and inks alias the site register, and the few
- * notebook-only tokens are authored for this theme in colors.css. `?site=`
- * writes the attribute (the dev page does it; ThemeRoot gates the real write
- * on a session this page has none of).
- *
- * THE CONTRAST ROWS ARE THE SAME SELECTORS AS `notebook-site-space-white.mjs`
- * and `notebook-plate-matrix.mjs` (the default theme), so the three themes'
+ * THE CONTRAST ROWS ARE THE SAME SELECTORS AS `notebook-site-matrix.mjs` and
+ * `notebook-plate-matrix.mjs` (the default theme), so the three themes'
  * numbers read row for row.
  */
 export default {
-	path: '/dev/notebook?site=matrix',
-	label: 'Notebook under the SITE Matrix theme (data-theme on html, no plate of its own)',
+	path: '/dev/notebook?site=space-white',
+	label: 'Notebook under Space White (the site theme reaches the notebook; no dark island)',
 	prepare: [
 		{
 			waitFor: '() => !!document.querySelector(\'.pick:not(.free)[aria-pressed="true"]\')',
 			timeoutMs: 15_000
 		},
 		{
-			waitFor: '() => document.documentElement.getAttribute("data-theme") === "matrix"',
+			waitFor: '() => document.documentElement.getAttribute("data-theme") === "space-white"',
 			timeoutMs: 5_000
 		}
 	],
 	presence: [
-		{ selector: 'html[data-theme="matrix"]', label: 'the site theme attribute is on <html>', expectPresent: 1, maxPresent: 1 },
+		{ selector: 'html[data-theme="space-white"]', label: 'the site theme attribute is on <html>', expectPresent: 1, maxPresent: 1 },
 		{ selector: '.nb-root', label: 'the notebook mounted', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-nb-theme]', label: 'a plate attribute anywhere (must be absent)', expectPresent: 0 },
 		{ selector: '[data-testid="nb-theme-toggle"]', label: 'the retired plate picker (must be absent)', expectPresent: 0 },
-		/* THE NOTEBOOK'S GROUND IS OPAQUE UNDER MATRIX, AND THAT IS AN OPEN
-		   QUESTION RATHER THAN A RULE. The classroom lets the rain through its
-		   gutters; whether the notebook should, now that it lives in the
-		   classroom, is Mr. Pina's call (themes/matrix.css records it). What is
-		   measured is that no rain canvas exists on this page. */
-		{ selector: '.bg-fx canvas', label: 'matrix rain canvas (absent on this page)', expectPresent: 0 }
+		/* NOT A DARK ISLAND. The room used to be one of Space White's islands and
+		   kept the default look inside a white classroom; only the photo
+		   overlays are now. */
+		{ selector: '.nb-root.nb-island, .nb-root .nb-island', label: 'a dark island on the notebook at rest (must be absent)', expectPresent: 0 }
 	],
 	contrast: [
 		{ selector: '[data-testid="nb-privacy"]', label: 'head privacy line (--text-2)', min: 4.5 },
