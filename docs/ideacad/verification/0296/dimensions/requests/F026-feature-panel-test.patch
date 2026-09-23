@@ -1,0 +1,25 @@
+diff --git a/tests/dom/ideacad-feature-panel-mount.test.ts b/tests/dom/ideacad-feature-panel-mount.test.ts
+index d042143f..10ac0580 100644
+--- a/tests/dom/ideacad-feature-panel-mount.test.ts
++++ b/tests/dom/ideacad-feature-panel-mount.test.ts
+@@ -302,3 +302,20 @@ describe('the section panel', () => {
+ 		for (const box of numericBoxes(m)) { expect(box.hasAttribute('min')).toBe(false); expect(box.hasAttribute('step')).toBe(false); }
+ 	});
+ });
++
++describe('the option boxes follow the model (F026)', () => {
++	it('the Radius box shows the newest fillet\'s own radius, follows a new one, and leaves a value being typed alone', () => {
++		const withFillet = (id: string, radius: number): SolidManifest => ({ ...manifest(), features: [...manifest().features, { id, name: 'Fillet', type: 'fillet', edges: [], radius }] });
++		const h = harness({ tool: 'fillet', manifest: withFillet('f1', 0.2) }); const m = mountPanel(h);
++		const box = () => m.one<HTMLInputElement>('[data-testid="ideacad-fillet-radius"]').value;
++		expect(box()).toBe('0.2');
++		type(m, 'ideacad-fillet-radius', '0.5');
++		h.set({ busy: true }); m.flush(); h.set({ busy: false }); m.flush();
++		expect(box()).toBe('0.5');
++		h.set({ manifest: withFillet('f2', 0.35) }); m.flush();
++		expect(box()).toBe('0.35');
++		/* Negative control: with no fillet in the document the box keeps its starting value. */
++		const bare = mountPanel(harness({ tool: 'fillet' }));
++		expect(bare.one<HTMLInputElement>('[data-testid="ideacad-fillet-radius"]').value).toBe('0.25');
++	});
++});
