@@ -1,6 +1,6 @@
 {
 	"schema": 1,
-	"spec": "ideacad-solid-state-tree.mjs",
+	"spec": "ideacad-tree.mjs",
 	"date": "2026-09-23T08:08:55.852Z",
 	"sha": "3aebf2a6ef0e515e2a61193e827abd46bc0953b9",
 	"dirty": true,
@@ -9,7 +9,7 @@
 		1440
 	],
 	"runs": 2,
-	"measurements": 62,
+	"measurements": 56,
 	"outsideRows": [],
 	"ms": 20404
 }
