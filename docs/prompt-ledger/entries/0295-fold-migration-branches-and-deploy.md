@@ -7,7 +7,7 @@
   `docs/history/<this branch>.md`; `classroom-updates.json` and
   `tools/browser-verify/README.md` / `measured/*.json` for conflict resolution only
 - Migration permitted: none written; burns two declined numbers. Claims: 0219, 0222
-- Status: issued
+- Status: pushed
 - Branch: `claude/new-session-zsum4t`
 - Notes: No SQL authored and no file under `src/`, `supabase/` or `tests/` edited by
   hand; everything there arrived through the five merges.
