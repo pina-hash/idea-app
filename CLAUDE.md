@@ -1135,6 +1135,27 @@ scrolling content is two lines of text on top of each other.
   tells a covered control from a clickable one. `tests/dom/` has no layout
   engine and reads every box as zero.
 
+### WHAT A STUDENT OWES -- one predicate, one read, one day
+
+**"MISSING" HAS ONE IMPLEMENTATION: `assignmentStanding` AND `checkInStanding`
+in `$lib/classroom/classroom.ts` (ledger 0297).** The class filter, the row chip,
+the to-do page, the home feed's overdue case and every count ask it. A second
+spelling of "past due and nothing turned in" is how a row reads "Not started"
+while the Missing filter lists it, which is exactly what shipped before it.
+Undated work is never Missing and never counted; it is listed last.
+
+- **OWED WORK IS ONE READ.** `loadClassroomWork` in
+  `$lib/classroom/student-work.ts` is the home page's, the classroom index's and
+  the to-do page's load: classes, items, the caller's own submissions and
+  check-ins, and ONE clock read handed down as `{ now, today }`. Another
+  student's score never enters that payload. A check-in's status is keyed on
+  the session AND the section, never on the session alone.
+- **A DUE DATE IS THE SCHOOL'S DAY.** `$lib/classroom/school-calendar.ts` is the
+  one conversion (`laCalendarDay`, `schoolDayOf`, weeks starting Sunday) and
+  reads no clock; `formatDue` prints in America/Los_Angeles and names no
+  weekday. A browser's own zone deciding "due today" is the evening bug the
+  notebook grid already had.
+
 ### PORTED HTML ASSIGNMENTS -- a second origin split, and the ONE rule that outranks the rest
 
 **A PORTED HTML ASSIGNMENT IS A WHOLE DOCUMENT A STUDENT WORKS INSIDE**, served
@@ -2140,8 +2161,15 @@ picture into an initials tile with nothing saying why.
   renderable as a 24x24 mark nor ours to ship.
 
 **`preferences` is a shared JSONB blob with several independent namespaces**
-(`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`, `ideacad`). Every write is a
-whole-blob **spread-merge**, so a sibling namespace can never be clobbered; every
+(`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`, `ideacad`, `classroom`). Every
+write goes through **`$lib/preferences/profile-io`**, which READS THE ROW FIRST and
+merges one namespace, in one queue per tab (ledger 0297): a writer spreading the
+page-load snapshot was measured erasing a sibling's write one click later (a folded
+class card lost to a pinned app), so a direct `.update({ preferences` outside that
+module and IdeaCAD's own read-first store is the defect, and
+`tests/preferences-store.test.ts` sweeps for it. Each `classroom` group records
+whether it follows the device or the account (`$lib/preferences/classroom.ts`). Every
+write is a whole-blob **spread-merge**, so a sibling namespace can never be clobbered; every
 read **validates values against their union** and DROPS an unrecognised one, so a
 stored value can never put the UI in a state no branch renders. **A NESTED
 NAMESPACE NEEDS THE MERGE AT EVERY LEVEL IT SHARES**: `ideacad` holds `panes`
@@ -3093,6 +3121,37 @@ inside the function fails closed rather than falling through to a weaker path.
   second thing that can fail inside it turns a 500 into a 500 with no log at all.
   The message it returns for a 500 is GENERIC -- an internal error's own text can
   carry a query, a path or a token, and that value is rendered to the caller.
+  **`src/hooks.client.ts` is its client twin (ledger 0297)**: it mints the same
+  kind of id for a client-side failure and marks a failed chunk load with
+  `App.Error.chunk`, which is what makes `+error.svelte` offer Try again.
+- **A NEW VERSION OF THE SITE ARRIVES ONLY AT A NAVIGATION THE PERSON MADE, AND
+  ONE FUNCTION DECIDES WHEN (ledger 0297, F6).** Every push to `main` is a
+  production deploy and several land in a school day, so `svelte.config.js` polls
+  (`kit.version.pollInterval`, 120 s) and `DeployWatch.svelte`, mounted once in
+  the root layout, asks `deployReloadVerdict` in `$lib/shell/deploy-safety.ts` on
+  every `onNavigate`. It reloads only for a link, a back/forward, or a goto the
+  save guard re-issued after its flush; only when the path changes; never from a
+  fullscreen element; never from a route in `PROJECTOR_ROUTES` (the deck, the
+  tournament TV stage, `/fsp/live`, GREENLINE, GAUNTLET, IdeaCAD, and any
+  projected view added later); never while a hold is active. An idle page never
+  reloads, because the only trigger is a navigation.
+  - **`onNavigate`, NEVER `beforeNavigate`, AND NEVER THE DOCUMENTED SNIPPET.**
+    The order of `beforeNavigate` callbacks between a layout and a page flips
+    within a session, and assigning `location.href` there fires `beforeunload`
+    synchronously, which turns the save guard's flush-then-navigate into a native
+    Leave dialog. `onNavigate` runs only for navigations no guard cancelled, after
+    the URL moved, so the reload is `location.reload()`.
+  - **ANYTHING A FULL LOAD WOULD DESTROY HOLDS THE RELOAD**, through
+    `holdDeployReload` or `trackInFlight`: every classroom upload
+    (`uploadClassroomFile`), the staged deck unpack, the notebook's photo posts,
+    an open composer with work in it, an open feedback box. **A new upload path
+    or a new projected surface joins them in the same change**; forgetting one is
+    silent until a deploy lands mid-upload.
+  - **NEVER RELOAD FROM `vite:preloadError`.** It only asks for a version check.
+    A failed route chunk is SvelteKit's to recover (it reloads the target when the
+    version changed), a failed editor chunk degrades to a plain textarea written
+    through the same document path, and the save guard's flush has a deadline
+    (`SAVE_GUARD_FLUSH_TIMEOUT_MS`) so a hung save cannot freeze a link.
 - **Proxy routes serving bytes from the app's own origin use a MIME ALLOWLIST,
   never an echo of the upstream header** -- same-origin `text/html` runs as script.
   Anything outside the allowlist is served `application/octet-stream` + `nosniff`.
@@ -3308,7 +3367,9 @@ inside the function fails closed rather than falling through to a weaker path.
     reproduces a smaller copy of the same bug every evening, which is when a
     teacher lays out the next day. **ONE CLOCK, IN THE LOADER.** The grid reads
     it in SQL, once per payload; the class page reads `new Date()` once in
-    `+layout.server.ts`, converts it with `laCalendarDay` and hands the STRING
+    `+layout.server.ts`, converts it with `laCalendarDay` (which lives in
+    `$lib/classroom/school-calendar.ts` since ledger 0297, where `formatDue`
+    and the feed's due arithmetic read the same day) and hands the STRING
     down. `checkInStatus` takes a BOOLEAN and `checkInIsScheduled` takes two day
     strings -- neither reaches for a clock, which is what makes both assertable
     at a pinned instant. A second idea of "is this due yet" is the pair that
@@ -3822,6 +3883,15 @@ inside the function fails closed rather than falling through to a weaker path.
     clears only the darkest of the three portal grounds. Measured in all three
     rooms it ships in: portal 5.88:1, classroom card 7.27:1, and the notebook's
     default / light / IDEA plates at 7.27 / 7.75 / 9.18:1.
+- **EVERY ACTION IS REGISTERED ONCE, IN `$lib/shell/commands.ts`, AND THE
+  PALETTE, THE LEGEND AND VOICE READ IT (ledger 0297).** A console's keys are
+  registered by IMPORTING its table (`GRADE_KEYS` from
+  `$lib/classroom/grading-keys.ts`, `REVIEW_KEYS`), never by retyping them, so
+  the legend cannot describe a key the console does not bind. A `run` command
+  is offered only while a surface has registered its handler through
+  `registerCommandHandler`, so the palette never offers something that does
+  nothing. Role and context only decide what is OFFERED; the destination
+  re-checks access, as every route already does.
 - **A change signal must be worth trusting.** An "Updated" badge is stamped only by a
   real content change to something already visible -- publishing, scheduling, pinning,
   reordering and filing are NOT edits, and neither is a save that changed nothing.
@@ -4948,7 +5018,8 @@ the source of truth; **do not invent colours or swap fonts.**
     desaturating is how a brand quietly stops being itself.** If a colour cannot
     clear while staying recognisable, say so and stop.
     - **THIS IS NOT A LAUNCHER RULE, IT IS THE RULE, and there are three of it
-      now.** `--acc-ink` for a card, `--violet-ink` for anything painting a WORD
+      on a dark ground and four light-ground twins beside them (ledger 0297,
+      see the scoped-theme rule below).** `--acc-ink` for a card, `--violet-ink` for anything painting a WORD
       in `--violet` (the raw accent measures 2.88 / 2.45 / 2.30 as text on
       `--bg0` / `--bg1` / `--bg2` -- not a near-miss, unreadable), and
       `Pathway.ink` in `src/lib/pathways.ts` beside `Pathway.color`. In each the
@@ -4972,6 +5043,56 @@ the source of truth; **do not invent colours or swap fonts.**
     only makes the right thing available.
 - **Background:** the `.bg-fx` scanline + vignette overlay, disabled under reduced
   motion. Legibility first.
+- **A SITE THEME MAY BE ROUTE-SCOPED, AND SPACE WHITE IS (ledger 0297).**
+  `SCOPED_SITE_THEMES` names the themes that apply only inside
+  `THEME_SCOPE_PREFIXES` (the classroom, the reference viewer, the notebook) and
+  `THEME_SCOPE_EXACT` (the home page, as the exact path `/` and never as a
+  prefix, because every route starts with a slash). `themeInScope` matches on a
+  path boundary and FAILS CLOSED, so `/classroomx` is out and a room nobody
+  listed keeps its own look. **`themeAttrFor` in `src/lib/theme.ts` is THE ONE
+  decision** -- session gate, default and scope -- and both `ThemeRoot` and the
+  pre-paint script read it; a second spelling is a room that flashes white or
+  stays dark with nothing to compare the two.
+  - **THE THEME IS SET BEFORE FIRST PAINT, AND THE SERVER SENDS ANSWERS, NOT
+    RULES.** `src/app.html` carries `THEME_BOOT_MARKER`; the `themeBoot` handle,
+    sequenced after `authGuard` in `hooks.server.ts`, replaces it with a script
+    that is a LOOKUP TABLE: the server evaluates `themeAttrFor` for every theme
+    on this path and session, and the script only looks up the stored
+    `localStorage` value. No scope logic runs in the browser, so it cannot
+    disagree with the server's. `THEME_BOOT_HARNESSES` are the only routes
+    where the server assumes a dev session.
+  - **A SCOPED THEME MAY REPAINT A SEMANTIC HUE FOR ITS GROUND, AN UNSCOPED ONE
+    MAY NOT**, and it moves lightness only. `tests/theme-tokens.test.ts` asserts
+    it, and sweeps the route scope in both directions (the FRC, FSP, Foundry,
+    GAUNTLET, GREENLINE, VANGUARD, Maps, Tournaments, coin and IdeaCAD rooms and
+    the `/a/`, `/b/` and `/hx/` document routes stay OUT).
+  - **DARK ISLANDS STAY DARK THROUGH ONE ZERO-SPECIFICITY BLOCK** in
+    `src/lib/design-system/themes/space-white.css`,
+    `:where(.ic-root, .nb-island, .deck-stage)`, which restores every token the
+    theme moves plus its dependency closure. The test DERIVES the closure, so a
+    token added to the theme without its island restore reddens. The photo
+    corrector and the camera wear `.nb-island`; projected slides stay dark.
+  - **A LIGHT THEME HAS LIGHT-GROUND TWINS FOR EVERY IDENTITY INK, and the
+    rule is the ink rule above.** `Pathway.inkOnLight`, `fgOnLight` on an
+    avatar preset, `AVATAR_TINTS_ON_LIGHT`, and a Space White `--acc-ink` per
+    launcher card: the identity color never moves, the twin moves lightness
+    only. `tests/space-white-inks.test.ts` parses the real grounds out of the
+    theme file. A hover wash under a light theme mixes into `--bg1`, never into
+    transparent, or it disappears on white. A theme difference inside a
+    component is a theme-keyed override there, never a new token in the theme
+    file: theme files hold tokens only.
+  - **THE PROJECTOR IS A MEASURED CONDITION, NOT A MODE.** `PROJECTOR_MODEL` in
+    `tools/browser-verify/checks.mjs` (300:1 native, 10% ambient wash) is
+    recorded beside every contrast reading, with floors of 4.5 for body text,
+    3.0 for muted and status text, 2.0 for a boundary and 1.1 for a ground
+    step. Space White clears every one; IDEA and Matrix do not and were left
+    untouched by design.
+  - **THE HOME EMBLEM IS SERVED AS A `srcset` OVER RIGHT-SIZED COPIES** under
+    `static/IDEA/`, never as the 2.6 MB source, and sits in a display window on
+    Space White rather than being recolored. `.legacy-index` reads its neon
+    tints through `--li-*` room hooks so a light theme can point them at its
+    inks. App marks follow the once-only standard `IdeaCadMark` set: one pass,
+    rest frame held, nothing hidden in a base state.
 
 ### Scoped themes are deliberately off-brand, and stay in their room
 
