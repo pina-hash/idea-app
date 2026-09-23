@@ -24,6 +24,9 @@
 	let prefs = $state.raw(store.current);
 	store.subscribe((p) => (prefs = p));
 	const PALETTE: Tool[] = ['select', 'rectangle', 'circle', 'line', 'extrude', 'fillet', 'move'];
+	/* Folded under More, as in the workspace: the tutorial rings More for a tool it names that is not on the palette. */
+	const MORE: Tool[] = ['mate', 'measure'];
+	let more = $state(false);
 	let tool = $state<Tool>('select');
 	let features = $state.raw<Feature[]>([]);
 	let model = $state.raw<ModelProjection>({ bodies: [], sketches: [], references: [], features: [], mates: [], addons: {} as ModelProjection['addons'], operationMs: 0, canUndo: false, canRedo: false });
@@ -66,6 +69,8 @@
 <main class="ic-root harness" style:--ic-tip-delay={`${prefs.hints.tooltipDelayMs}ms`}>
 	<nav class="tools" aria-label="Tools">
 		{#each PALETTE as id (id)}{@const c = commandById(id)!}<ToolButton name={keyFor(id) ? `${c.name} (${keyFor(id)})` : c.name} description={c.description} icon={c.icon} active={tool === id} hint={firstUseHint(id, prefs.hints.retired)} onclick={() => (tool = id)} />{/each}
+		{#if more}{#each MORE as id (id)}{@const c = commandById(id)!}<ToolButton name={c.name} description={c.description} icon={c.icon} active={tool === id} hint={firstUseHint(id, prefs.hints.retired)} onclick={() => (tool = id)} />{/each}{/if}
+		<button type="button" class="more" data-more-tools aria-label={more ? 'Fewer tools' : 'More tools'} aria-expanded={more} onclick={() => (more = !more)}>{more ? '−' : '⋯'}</button>
 	</nav>
 	<section class="stage" aria-label="Stand-in viewport" data-testid="tutorial-stage">
 		<p class="facts">Tool <b>{tool}</b> · {model.sketches.length} sketches · {model.bodies.length} bodies · {model.mates.length} mates · {prefs.hints.retired.length} hints retired</p>
@@ -79,6 +84,7 @@
 	.tools { display: flex; flex-direction: column; gap: 4px; padding: 8px; border-right: 1px solid var(--hairline); }
 	.stage { min-width: 0; padding: 16px; font: 15px/1.3 Rajdhani, sans-serif; color: var(--text-1); }
 	.facts { margin: 0 0 12px; }
+	.more { width: 44px; height: 44px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text-2); font-size: 22px; }
 	.pretend { display: flex; flex-wrap: wrap; gap: 6px; }
 	.pretend button { min-height: 44px; padding: 4px 12px; border: 1px dashed var(--boundary); border-radius: 4px; background: transparent; color: var(--text-2); font: 15px Rajdhani, sans-serif; }
 	.panels { padding: 12px; border-left: 1px solid var(--hairline); overflow: auto; }
