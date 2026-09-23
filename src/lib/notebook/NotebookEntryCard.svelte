@@ -29,6 +29,7 @@
 		type StagedPhoto
 	} from '$lib/notebook';
 	import { restoreKeepsPairing } from '$lib/notebook/capture';
+	import { displayPhotoName } from '$lib/notebook';
 	import {
 		entryPreview,
 		folderById,
@@ -1057,7 +1058,7 @@
 						{#each removed as photo (photo.id)}
 							<li>
 								<span class="removed-name">
-									{photo.original_filename ?? `Photo ${photo.sequence_order}`}
+									{photo.original_filename ? displayPhotoName(photo.original_filename) : `Photo ${photo.sequence_order}`}
 								</span>
 								<span class="removed-when">Removed {when(photo.removed_at ?? '')}</span>
 								<!-- ONLY WHERE IT KEEPS EVERY PAGE PAIRED (ledger 0297,

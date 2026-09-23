@@ -13,6 +13,7 @@
  */
 
 import {
+	CAPTURE_TOKEN_TAIL,
 	photoPages,
 	type NotebookEntry,
 	type NotebookPhoto,
@@ -53,6 +54,8 @@ export interface CaptureFiling {
 	sessionId: string | null;
 	customLabel: string | null;
 	key: string;
+	/** What an entry filed here is called: the check-in's label, or the item title. */
+	label: string;
 }
 
 /** A title capped at the label column's limit, in code points; empty is null. */
@@ -98,14 +101,16 @@ export function captureFiling(input: {
 			sectionId: input.sectionId,
 			sessionId: checkIn.session_id,
 			customLabel: null,
-			key: `session:${input.sectionId}:${checkIn.session_id}`
+			key: `session:${input.sectionId}:${checkIn.session_id}`,
+			label: checkIn.session_label
 		};
 	}
 	return {
 		sectionId: input.sectionId,
 		sessionId: null,
 		customLabel: captureLabel(input.itemTitle),
-		key: `item:${input.sectionId}:${input.itemId}`
+		key: `item:${input.sectionId}:${input.itemId}`,
+		label: captureLabel(input.itemTitle) ?? 'Untitled item'
 	};
 }
 
@@ -163,7 +168,7 @@ export function continuedDraft<E extends Pick<NotebookEntry, 'section_id' | 'ses
  * two captures colliding is not a case worth a branch.
  */
 export const CAPTURE_TOKEN_LENGTH = 8;
-const TOKEN_TAIL = new RegExp(`-c([a-z0-9]{${CAPTURE_TOKEN_LENGTH}})(\\.[a-z0-9]{1,5})?$`, 'i');
+const TOKEN_TAIL = CAPTURE_TOKEN_TAIL;
 
 export function captureToken(random: (n: number) => Uint8Array = defaultRandom): string {
 	const bytes = random(CAPTURE_TOKEN_LENGTH);

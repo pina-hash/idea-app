@@ -190,7 +190,12 @@
 			removed_at: null
 		}))
 	);
-	const straightenKey = $derived(uploadReady && writable ? (straightenTarget(sequence)?.id ?? null) : null);
+	const straightenKey = $derived.by(() => {
+		if (!uploadReady || !writable) return null;
+		const key = straightenTarget(sequence)?.id ?? null;
+		// Not on a page that has not landed: its copy would only queue behind it.
+		return key && items.some((i) => i.token === key && i.state === 'failed') ? null : key;
+	});
 	const pending = $derived(items.filter((i) => capturePending(i.state)).length);
 	const failed = $derived(items.some((i) => i.state === 'failed'));
 	/** Behind a failed photo, in order: they wait for it (a failure holds the line). */
@@ -572,7 +577,7 @@
 				{#each filed as e (e.id)}
 					<li>
 						<a href={notebookHref} class="nbc-filed-link tap-44">
-							<span class="nbc-filed-title">{entryTitle(e)}</span>
+							<span class="nbc-filed-title">{e.session_id || e.custom_label ? filing.label : entryTitle(e)}</span>
 							<span class="nbc-filed-meta">
 								{filedWhen(e.upload_timestamp)} · {livePhotos(e.photos).length}
 								{livePhotos(e.photos).length === 1 ? 'photo' : 'photos'} · {filedLabel(e)}
@@ -765,6 +770,7 @@
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
+		align-items: flex-start;
 		min-height: 44px;
 		padding: var(--space-1, 0.25rem) 0;
 		text-decoration: none;

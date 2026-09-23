@@ -71,7 +71,8 @@ describe('filing: check-in first, otherwise the class and the item title', () =>
 			sectionId: SECTION,
 			sessionId: 'sess-a',
 			customLabel: null,
-			key: `session:${SECTION}:sess-a`
+			key: `session:${SECTION}:sess-a`,
+			label: 'Gearbox teardown'
 		});
 	});
 
@@ -87,7 +88,8 @@ describe('filing: check-in first, otherwise the class and the item title', () =>
 			sectionId: SECTION,
 			sessionId: null,
 			customLabel: 'Bridge truss lab',
-			key: `item:${SECTION}:item-9`
+			key: `item:${SECTION}:item-9`,
+			label: 'Bridge truss lab'
 		});
 	});
 
@@ -240,7 +242,8 @@ function queue(store: MemoryCaptureStore, t: CaptureTransports, entryId: string 
 			sectionId: SECTION,
 			sessionId,
 			customLabel: sessionId ? null : 'Bridge truss lab',
-			key: sessionId ? `session:${SECTION}:${sessionId}` : `item:${SECTION}:item-9`
+			key: sessionId ? `session:${SECTION}:${sessionId}` : `item:${SECTION}:item-9`,
+			label: 'Bridge truss lab'
 		},
 		entryId,
 		transports: t,
@@ -322,7 +325,7 @@ describe('upload on take: the first photo creates a draft, every later one joins
 		};
 		const q = new CaptureQueue({
 			viewer: 'student-1',
-			filing: { sectionId: SECTION, sessionId: null, customLabel: 'X', key: 'item:x' },
+			filing: { sectionId: SECTION, sessionId: null, customLabel: 'X', key: 'item:x', label: 'X' },
 			entryId: null,
 			transports: slow,
 			store,
@@ -449,7 +452,7 @@ describe('THE RETRY THAT DOES NOT DUPLICATE A PAGE', () => {
 		await queue(store, server.transports).add(photo('mine.jpg'));
 		const other = new CaptureQueue({
 			viewer: 'student-2',
-			filing: { sectionId: SECTION, sessionId: 'sess-a', customLabel: null, key: `session:${SECTION}:sess-a` },
+			filing: { sectionId: SECTION, sessionId: 'sess-a', customLabel: null, key: `session:${SECTION}:sess-a`, label: 'Gearbox teardown' },
 			entryId: null,
 			transports: server.transports,
 			store,

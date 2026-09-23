@@ -1,5 +1,6 @@
 <script lang="ts">
 	import {
+		displayPhotoName,
 		driveOpenUrl,
 		pageKey,
 		pagePhoto,
@@ -268,7 +269,7 @@
 						<span class="variant">corrected</span>
 					{/if}
 					{#if photo.original_filename}
-						<span class="filename">{photo.original_filename}</span>
+						<span class="filename">{displayPhotoName(photo.original_filename)}</span>
 					{/if}
 					{#if onRemove}
 						<button
