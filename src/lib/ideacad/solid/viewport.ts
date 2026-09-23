@@ -147,6 +147,8 @@ export class SolidViewport {
 	private ray=new THREE.Raycaster();private frame=0;private observer:ResizeObserver;private abort=new AbortController();
 	private model:ModelProjection=EMPTY_MODEL;
 	private orbit:{x:number;y:number;pivot:THREE.Vector3;mode:'orbit'|'pan'|'zoom';pointerId:number}|null=null;
+	/** A right press not yet a drag: past a few pixels it orbits (Ctrl or Shift pans); released in place it opens the menu. `menu` holds a menu the browser asked for at the press (it does, on macOS and Linux), until the release says which it was. */
+	private right:{x:number;y:number;pointerId:number;pivot:THREE.Vector3|null;pan:boolean;menu:{x:number;y:number;alt:boolean}|null}|null=null;private rightOrbitEnded=0;
 	private drag:{gesture:Gesture;x:number;y:number;ready:boolean;starting:boolean;last?:DragValue;pointerId:number;snap?:{targets:SnapTarget[];anchors:Vec3[]}}|null=null;
 	/** A press on empty space: a click clears the selection, a drag past the threshold is a box. */
 	private boxing:{x:number;y:number;append:boolean;pointerId:number;active:boolean;mode:BoxMode;rect:ScreenRect}|null=null;
@@ -193,7 +195,7 @@ export class SolidViewport {
 		canvas.addEventListener('pointerleave',()=>{if(!this.drag&&!this.boxing&&!this.orbit){this.hoverEvent=null;this.setPointerHover(null);}},events);
 		canvas.addEventListener('wheel',e=>this.wheel(e),{...events,passive:false});
 		/* The browser's own menu never opens over the model; IdeaCAD's does, built from what is under the pointer. */
-		canvas.addEventListener('contextmenu',e=>{e.preventDefault();if(this.orbit||this.drag||this.boxing||this.editingPlane||!this.options.contextMenu)return;this.options.contextMenu({x:e.clientX,y:e.clientY},this.pickAt({clientX:e.clientX,clientY:e.clientY,altKey:e.altKey}));},events);
+		canvas.addEventListener('contextmenu',e=>{e.preventDefault();if(this.right){if(!this.orbit)this.right.menu={x:e.clientX,y:e.clientY,alt:e.altKey};return;}if(performance.now()-this.rightOrbitEnded<500)return;this.openMenu({x:e.clientX,y:e.clientY,alt:e.altKey});},events);
 		canvas.addEventListener('auxclick',e=>{if(e.button===1)e.preventDefault();},events);
 		canvas.addEventListener('keydown',e=>{if(this.drawingTool.key(e)){e.preventDefault();this.invalidate();}},events);
 		/* The datum-plane setting is written by the reference panel; a change redraws the scene. destroy() aborts, which unsubscribes. */
@@ -431,9 +433,12 @@ export class SolidViewport {
 		return boxSelect(this.model,rect,mode,boxKinds(this.options.getTool(),this.options.getPickFilter?.()??[]),{project:p=>this.projectPoint(p),visible:points=>this.visibleAny(points),hidden:this.hiddenBodies});
 	}
 	/* ------------------------------------------------------------------ POINTER */
+	private openMenu(m:{x:number;y:number;alt:boolean}){if(this.orbit||this.drag||this.boxing||this.editingPlane||!this.options.contextMenu)return;this.options.contextMenu({x:m.x,y:m.y},this.pickAt({clientX:m.x,clientY:m.y,altKey:m.alt}));}
 	private async down(e:PointerEvent){
 		this.canvas.focus();this.pointer={x:e.offsetX,y:e.offsetY};this.press=null;
 		if(e.button===1){e.preventDefault();if(e.altKey)return;this.setRay(e);const hit=this.ray.intersectObjects(this.faces,false)[0],pivot=hit?.point.clone()??this.viewPlane(e);if(!pivot)return;this.orbit={x:e.clientX,y:e.clientY,pivot,mode:e.ctrlKey?'pan':e.shiftKey?'zoom':'orbit',pointerId:e.pointerId};this.capture(e.pointerId);this.options.busyPointer?.();return;}
+		/* A right press orbits once it moves, so a two-button mouse or a trackpad's two-finger click can turn the model; a right click in place still opens the menu. */
+		if(e.button===2){if(this.editingPlane||this.drag||this.boxing)return;this.setRay(e);const hit=this.ray.intersectObjects(this.faces,false)[0];this.right={x:e.clientX,y:e.clientY,pointerId:e.pointerId,pivot:hit?.point.clone()??this.viewPlane(e)??null,pan:e.ctrlKey||e.shiftKey,menu:null};this.capture(e.pointerId);return;}
 		if(e.button!==0)return;
 		if(this.editingPlane&&this.options.sketchPointer){const at=this.editingPoint(e);if(at&&this.options.sketchPointer('down',at,e)){this.capture(e.pointerId);return;}}
 		const tool=this.options.getTool(),pick=this.pickAt(e),hit=pick.hit;
@@ -468,6 +473,7 @@ export class SolidViewport {
 	}
 	private move(e:PointerEvent){
 		this.pointer={x:e.offsetX,y:e.offsetY};
+		if(this.right&&!this.orbit){const r=this.right;if(!r.pivot||Math.hypot(e.clientX-r.x,e.clientY-r.y)<5)return;this.orbit={x:r.x,y:r.y,pivot:r.pivot,mode:r.pan?'pan':'orbit',pointerId:r.pointerId};r.menu=null;this.options.busyPointer?.();}
 		if(this.orbit){const o=this.orbit,dx=e.clientX-o.x,dy=e.clientY-o.y;o.x=e.clientX;o.y=e.clientY;e.preventDefault();
 			if(o.mode==='orbit')orbitCamera(this.camera,this.target,o.pivot,dx,dy,this.canvas.clientWidth);
 			else if(o.mode==='zoom'){this.camera.zoom*=Math.exp(-dy/200);this.camera.updateProjectionMatrix();}
@@ -499,6 +505,7 @@ export class SolidViewport {
 		d.last=value;this.options.update(value);
 	}
 	private up(e:PointerEvent){
+		if(this.right&&e.button===2){const r=this.right;this.right=null;if(this.orbit){this.orbit=null;this.rightOrbitEnded=performance.now();this.invalidate();}else if(r.menu)this.openMenu(r.menu);return;}
 		const press=this.press;this.press=null;
 		/* A plain click on one of several selected items, which did not become a drag: now it is selected alone. */
 		if(press?.reselect&&!this.drag?.starting){this.options.select(press.reselect,false);this.highlight();}
@@ -518,6 +525,8 @@ export class SolidViewport {
 	drawingReadout(){return this.drawingTool.readout();}
 	private wheel(e:WheelEvent){e.preventDefault();const before=this.viewPlane(e);this.camera.zoom*=Math.exp(-e.deltaY*.001);this.camera.updateProjectionMatrix();const after=this.viewPlane(e);if(before&&after){const delta=before.sub(after);this.camera.position.add(delta);this.target.add(delta);}this.camera.updateMatrixWorld();this.drawGizmo();this.invalidate();}
 	/* ------------------------------------------------------------------ CAMERA */
+	/** Every corner of the solids' bounds is on screen (true with no solids). The workspace refits after an edit that took an in-view model out of view, and never otherwise, so a view somebody zoomed in on stays theirs. */
+	modelInView(){if(!this.solids.children.length)return true;const b=new THREE.Box3().setFromObject(this.solids);if(b.isEmpty())return true;this.camera.updateMatrixWorld();for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z]){const p=new THREE.Vector3(x,y,z).project(this.camera);if(Math.abs(p.x)>1.001||Math.abs(p.y)>1.001)return false;}return true;}
 	fit(){
 		/* An empty part fits its Front, Top and Right planes, at a size that leaves the top of the view for the start cue. */
 		const onlyPlanes=!this.solids.children.length&&!this.sketchLayer.children.length;
@@ -563,7 +572,7 @@ export class SolidViewport {
 	isDrawing(){return this.drawingTool.active;}
 	/** A box, a drag or an orbit is in progress. */
 	isPointerBusy(){return !!(this.boxing?.active||this.drag||this.orbit);}
-	cancel(){this.orbit=null;this.drag=null;this.press=null;if(this.boxing){this.boxing=null;this.options.box?.(null);}this.clearDrawing();this.options.cancel();this.invalidate();}
+	cancel(){this.orbit=null;this.right=null;this.drag=null;this.press=null;if(this.boxing){this.boxing=null;this.options.box?.(null);}this.clearDrawing();this.options.cancel();this.invalidate();}
 	projectPoint(point:Vec3){const p=new THREE.Vector3(...point).project(this.camera),r=this.canvas.getBoundingClientRect();return{x:r.left+(p.x+1)*r.width/2,y:r.top+(1-p.y)*r.height/2};}
 	/** The world point under a screen position on a plane, for a sketch editor's snapping and a mate preview. */
 	unproject(x:number,y:number,plane:ResolvedPlane):Vec3|null{const r=this.canvas.getBoundingClientRect();return this.planeHit({clientX:r.left+x,clientY:r.top+y},plane);}

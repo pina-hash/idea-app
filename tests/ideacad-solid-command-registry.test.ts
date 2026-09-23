@@ -35,7 +35,9 @@ describe('every command is registered once', () => {
 			/* The selection commands the right-click menu and the context toolbar run (ledger 0296, stage W2). */
 			'sketch-on', 'edit-sketch', 'fillet-face-edges', 'select-other', 'select-tangent', 'select-loop', 'pick-filter', 'hide-body', 'show-bodies', 'mirror-body', 'body-appearance',
 			/* The display modes (ledger 0296, stage W3). */
-			'display-menu', 'display-shaded-edges', 'display-shaded', 'display-hidden-lines', 'display-wireframe'];
+			'display-menu', 'display-shaded-edges', 'display-shaded', 'display-hidden-lines', 'display-wireframe',
+			/* The Analysis panel (ledger 0296, stage W4). */
+			'panel-analysis'];
 		for (const id of actions) { expect(commandById(id), id).toBeDefined(); expect(commandById(id)!.tool, id).toBeUndefined(); }
 		expect(COMMANDS).toHaveLength(TOOL_IDS_BEFORE.length + actions.length);
 	});

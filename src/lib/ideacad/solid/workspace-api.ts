@@ -7,7 +7,8 @@
  * `apply` is the ONLY way a panel changes the document, and the label it
  * passes is what the history row and the undo button say. A panel never holds
  * kernel state; what it needs beyond the projection it asks for with
- * `request` (a sketch solve, a measurement), which is the worker passthrough.
+ * `request` (a sketch solve, a measurement), which is the worker passthrough;
+ * `interference` returns an `InterferenceReport` (analysis/interference.ts).
  */
 import type { ModelProjection, ResolvedPlane, Selection, SketchConstraint, SketchEntity, SketchSolveReport, SolidCommand, SolidManifest, Vec3 } from './types';
 import type { Tool } from './viewport';
@@ -31,7 +32,7 @@ export interface WorkspaceApi {
 	/** While a sketch is open, the sketch editor installs this to receive viewport presses in the sketch plane's (u, v) coordinates; return true to consume the event. Null uninstalls. */
 	setSketchPointer(handler: ((event: 'down' | 'move' | 'up', at: [number, number], e: PointerEvent) => boolean) | null): void;
 	/** Worker passthrough. `sketch-solve` returns `{entities, report}`; `measure` returns `{kind, value, points?}`. */
-	request<T>(method: 'sketch-solve' | 'measure' | 'project' | 'snapshot', value?: unknown): Promise<T>;
+	request<T>(method: 'sketch-solve' | 'measure' | 'project' | 'snapshot' | 'interference', value?: unknown): Promise<T>;
 	/** Screen position of a world point, for labels beside geometry. */
 	project(point: [number, number, number]): { x: number; y: number };
 	/** Show a sentence where every other refusal shows. */

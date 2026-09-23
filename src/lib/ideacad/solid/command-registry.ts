@@ -26,7 +26,7 @@ export type CommandGroup = 'Select' | 'Sketch' | 'Features' | 'Move' | 'Assembly
 /** The groups in the order search and the preferences panel list them. */
 export const COMMAND_GROUPS: readonly CommandGroup[] = ['Select', 'Sketch', 'Features', 'Move', 'Assembly', 'Reference', 'Inspect', 'Edit', 'View', 'Panels', 'File', 'Help'];
 export type ViewName = 'front' | 'top' | 'right' | 'iso';
-export type PanelId = 'objects' | 'reference' | 'mates' | 'section' | 'addons';
+export type PanelId = 'objects' | 'reference' | 'mates' | 'section' | 'addons' | 'analysis';
 
 /** What a command can act on: the kinds it takes and how many. `min` 0 means it also runs with nothing selected. */
 export interface SelectionRule { kinds: readonly EntityKind[]; min: number; max?: number }
@@ -167,6 +167,7 @@ export const COMMANDS: readonly Command[] = [
 	{ id: 'panel-objects', name: 'Objects', description: 'Bodies and open sketches, with their material and color.', icon: 'M4 7l8-4 8 4-8 4zM4 12l8 4 8-4M4 17l8 4 8-4', group: 'Panels', keywords: ['bodies', 'material', 'color', 'mass'], run: (ctx) => ctx.togglePanel('objects') },
 	{ id: 'panel-reference', name: 'Reference panel', description: 'Planes, axes and points.', icon: 'M3 17l6-12 12 0-6 12zM12 5v14M6 11h12', group: 'Panels', run: (ctx) => ctx.togglePanel('reference') },
 	{ id: 'panel-mates', name: 'Mates panel', description: 'How bodies fit together.', icon: 'M3 8h8v8H3zM13 8h8v8h-8zM11 12h2', group: 'Panels', keywords: ['assembly'], run: (ctx) => ctx.togglePanel('mates') },
+	{ id: 'panel-analysis', name: 'Analysis', description: 'Mass, balance, inertia and clashes between bodies.', icon: 'M4 20h16M6 20V10M11 20V4M16 20v-7M21 20V8', group: 'Panels', keywords: ['mass', 'weight', 'center of gravity', 'center of mass', 'cg', 'inertia', 'moment of inertia', 'mass properties', 'tip', 'balance', 'interference', 'clash', 'clearance', 'spinner', 'frc'], run: (ctx) => ctx.togglePanel('analysis') },
 	{ id: 'panel-section', name: 'Section', description: 'Cut the view open along a plane.', icon: 'M4 4h16v16H4zM4 13h16', group: 'Panels', keywords: ['section view', 'cut away'], run: (ctx) => ctx.togglePanel('section') },
 	{ id: 'panel-addons', name: 'Add-ons', description: 'Optional helpers such as IdeaBlade.', icon: 'M4 4h16v16H4zM12 8v8M8 12h8', group: 'Panels', keywords: ['ideablade', 'plugins', 'advisory'], run: (ctx) => ctx.togglePanel('addons') },
 

@@ -30,6 +30,7 @@
 	import SketchEditor from './SketchEditor.svelte';
 	import ReferencePanel from './ReferencePanel.svelte';
 	import MatePanel from './MatePanel.svelte';
+	import AnalysisPanel from './AnalysisPanel.svelte';
 	import FeaturePanel from './FeaturePanel.svelte';
 	import AddonPanel from './AddonPanel.svelte';
 	import DimensionPanel from './DimensionPanel.svelte';
@@ -81,7 +82,7 @@
 	let client:SolidClient;let viewport:SolidViewport;
 	let model:ModelProjection=$state(EMPTY_MODEL);
 	let selections:Selection[]=$state([]),tool:Tool=$state('select');
-	let error=$state(''),loading=$state(true),busy=$state(false),more=$state(false),objectsOpen=$state(false),addonOpen=$state(false),exportOpen=$state(false),treeOpen=$state(false),referenceOpen=$state(false),matesOpen=$state(false),sectionOpen=$state(false);
+	let error=$state(''),loading=$state(true),busy=$state(false),more=$state(false),objectsOpen=$state(false),addonOpen=$state(false),exportOpen=$state(false),treeOpen=$state(false),referenceOpen=$state(false),matesOpen=$state(false),sectionOpen=$state(false),analysisOpen=$state(false),panelsFolded=$state(false);
 	let reopenConfirm=$state(false);
 	/* Transient chrome: command search (and the view menu, which is the same list narrowed), the preferences panel. */
 	let search=$state<{at:{x:number;y:number};group?:CommandGroup}|null>(null),prefsOpen=$state(false);
@@ -121,7 +122,7 @@
 	let sketchPointer:((event:'down'|'move'|'up',at:[number,number],e:PointerEvent)=>boolean)|null=null;
 	let actions:SolidHistoryAction[]=[];let committed=false;let gestureBefore:ModelSnapshot|null=null;let gestureCenter:[number,number,number]=[0,0,0];
 	/* The model as it stood when the gesture began: a mate preview reads it, because during the drag `model` already shows the moved body. */
-	let gestureModel:ModelProjection=EMPTY_MODEL;let mateCandidate:{kind:MateKind;a:Selection;b:Selection}|null=null;
+	let gestureModel:ModelProjection=EMPTY_MODEL;let gestureInView=false;let mateCandidate:{kind:MateKind;a:Selection;b:Selection}|null=null;
 	let history:DirectRow[]=$state(untrack(()=>opened.history??[{seq:0,kind:'origin',path:'',after:opened.snapshot.manifest}]));
 	const historyState=$derived(foldGroups(groupHistory(history)));
 	const saveState=new SaveState({save:async()=>{
@@ -153,7 +154,7 @@
 		else selections=[selection];
 		viewport?.highlight();
 	}
-	function setTool(next:Tool){if(gesture)void cancel();viewport?.clearDrawing();if(next!=='fillet'&&next!=='chamfer'){chainWanted=null;viewport?.setPreviewEdges(null);}tool=next;error='';bar=null;if(next==='reference')referenceOpen=true;if(next==='mate')matesOpen=true;viewport?.highlight();canvas?.focus();}
+	function setTool(next:Tool){if(gesture)void cancel();panelsFolded=false;viewport?.clearDrawing();if(next!=='fillet'&&next!=='chamfer'){chainWanted=null;viewport?.setPreviewEdges(null);}tool=next;error='';bar=null;if(next==='reference')referenceOpen=true;if(next==='mate')matesOpen=true;viewport?.highlight();canvas?.focus();}
 	function editSketch(id:string|null){
 		editingSketch=id;const sketch=id?model.sketches.find(s=>s.feature===id):null;bar=null;menu=null;
 		viewport.editingPlane=sketch?sketch.plane:null;viewport.editingSketchId=sketch?sketch.feature:null;if(sketch){viewport.lookAt(sketch.plane);select({bodyId:'',kind:'sketch',id:sketch.feature});}else viewport.highlight();
@@ -171,10 +172,12 @@
 	}
 	/** Features whose picks are spent once they exist: the next tool must not act on the faces a mate, a combine or a mirror was made from. */
 	const CONSUMES_PICKS=['mate','boolean','mirror'];
+	/** An edit that took a model that was wholly on screen partly off it refits the view (F040); a view zoomed in on a detail is left alone. */
+	function keepInView(wasInView:boolean){if(wasInView&&viewport&&!viewport.modelInView())viewport.fit();}
 	async function apply(command:SolidCommand,label:string){
 		if(!opened.canWrite||busy||loading)return;endLapse();busy=true;error='';
-		const before=currentSnapshot;let landed=false;
-		try{show(await client.request<ModelProjection>('apply',command));await record(label,before);landed=true;}
+		const before=currentSnapshot,inView=viewport?.modelInView()??false;let landed=false;
+		try{show(await client.request<ModelProjection>('apply',command));keepInView(inView);await record(label,before);landed=true;}
 		catch(err){error=err instanceof Error?err.message:String(err);show(await client.request<ModelProjection>('project'));}
 		finally{busy=false;}
 		if(landed&&command.type==='add-feature'&&CONSUMES_PICKS.includes(command.feature.type))select(null);
@@ -203,7 +206,7 @@
 	function sketchOnPlane(){planesForced=true;viewport.datumForced=true;viewport.display(model);setTool('rectangle');}
 	async function begin(next:Gesture){
 		if(!opened.canWrite)throw Error('This document is read-only.');
-		if(busy)throw Error('Finish the current change first.');gesture=next;gestureFeature=newFeatureId();gestureBefore=currentSnapshot;gestureCenter=[...(model.bodies.find(b=>b.id===next.selection.bodyId)?.centerOfMass??[0,0,0])];committed=false;gestureModel=model;mateCandidate=null;chainWanted=null;viewport?.setPreviewEdges(null);try{await client.request('begin');}catch(err){gesture=null;gestureBefore=null;throw err;}
+		if(busy)throw Error('Finish the current change first.');gesture=next;gestureFeature=newFeatureId();gestureBefore=currentSnapshot;gestureCenter=[...(model.bodies.find(b=>b.id===next.selection.bodyId)?.centerOfMass??[0,0,0])];committed=false;gestureModel=model;gestureInView=viewport?.modelInView()??false;mateCandidate=null;chainWanted=null;viewport?.setPreviewEdges(null);try{await client.request('begin');}catch(err){gesture=null;gestureBefore=null;throw err;}
 	}
 	/** The reference a feature stores for a selection, with its hint, from the projection the gesture started on. */
 	const refOf=(selection:Selection,from:ModelProjection)=>ref(selection,from);
@@ -273,7 +276,7 @@
 	async function end(){
 		if(committed)return;committed=true;busy=true;
 		const candidate=mateCandidate;mateCandidate=null;viewport.clearGuides();
-		try{await pumping;if(queued)await pump();show(await client.request<ModelProjection>('commit'));if(gestureBefore)await record(gesture?.handle?.mode==='ring'?'Rotate':(TOOLS.find(t=>t.id===gesture?.tool)?.name??'Edit solid'),gestureBefore);}
+		try{await pumping;if(queued)await pump();show(await client.request<ModelProjection>('commit'));keepInView(gestureInView);if(gestureBefore)await record(gesture?.handle?.mode==='ring'?'Rotate':(TOOLS.find(t=>t.id===gesture?.tool)?.name??'Edit solid'),gestureBefore);}
 		catch(err){error=err instanceof Error?err.message:String(err);}
 		finally{gesture=null;gestureBefore=null;measure=null;numeric=null;busy=false;}
 		/* A move that snapped to another body's face adds the mate it previewed, after the transform has landed; `ref` reads the faces where the bodies now sit. */
@@ -411,7 +414,7 @@
 		for(const s of selections){if(s.kind==='face'){const body=model.bodies.find(b=>b.id===s.bodyId),face=body?.faces.find(f=>f.id===s.id);if(body&&face&&face.kind==='plane')return{plane:planeFromNormal(face.normal,face.center),ref:{kind:'face' as const,face:{body:body.id,name:face.id,hint:{kind:face.kind,center:face.center,normal:face.normal,area:face.area}}}};}if(isDatum(s)){const datum=s.id.slice(DATUM_SELECTION_PREFIX.length) as Datum;return{plane:datumPlane(datum),ref:{kind:'datum' as const,datum}};}if(s.kind==='reference'){const r=model.references.find(r=>r.feature===s.id);if(r?.kind==='plane')return{plane:{origin:r.origin,u:r.u!,v:r.v!,normal:r.normal!},ref:{kind:'reference' as const,feature:r.feature}};}}
 		const datum=viewport?.facingDatum()??'XY';return{plane:datumPlane(datum),ref:{kind:'datum' as const,datum}};
 	}
-	function togglePanel(panel:PanelId){if(panel==='objects')objectsOpen=!objectsOpen;else if(panel==='reference')referenceOpen=!referenceOpen;else if(panel==='mates')matesOpen=!matesOpen;else if(panel==='section')sectionOpen=!sectionOpen;else addonOpen=!addonOpen;}
+	function togglePanel(panel:PanelId){panelsFolded=false;if(panel==='objects')objectsOpen=!objectsOpen;else if(panel==='reference')referenceOpen=!referenceOpen;else if(panel==='mates')matesOpen=!matesOpen;else if(panel==='section')sectionOpen=!sectionOpen;else if(panel==='analysis')analysisOpen=!analysisOpen;else addonOpen=!addonOpen;}
 	/** Show or hide Front, Top and Right: the student's choice, stored, so it holds on every document. */
 	function togglePlanes(){const shown=datumPlanesVisible(model,planesForced);planesForced=false;viewport.datumForced=false;prefStore.set('view',{...prefs.view,planes:shown?'never':'always'});}
 	function openSearch(group?:CommandGroup){const r=canvas.getBoundingClientRect(),p=viewport?.pointerPosition()??{x:r.width/2,y:r.height/3};const inside=p.x>0&&p.y>0&&p.x<r.width&&p.y<r.height;search={at:inside?{x:r.left+p.x,y:r.top+p.y}:{x:r.left+r.width/2-170,y:r.top+80},group};}
@@ -681,7 +684,7 @@
 					</div>
 					<ViewControls items={viewItems} onrun={runById}/>
 				</div>
-				<div class="right-tools"><button class:active={objectsOpen} onclick={()=>objectsOpen=!objectsOpen}>Objects <span>{model.bodies.length+openSketches.length}</span></button><button class:active={referenceOpen} onclick={()=>referenceOpen=!referenceOpen}>Reference</button><button class:active={matesOpen} onclick={()=>matesOpen=!matesOpen}>Mates</button><button class:active={sectionOpen} aria-pressed={sectionOpen} onclick={()=>sectionOpen=!sectionOpen}>Section</button><button class:active={addonOpen} onclick={()=>addonOpen=!addonOpen}>Add-ons</button></div>
+				<div class="right-tools"><button class:active={objectsOpen} aria-pressed={objectsOpen} onclick={()=>togglePanel('objects')}>Objects <span>{model.bodies.length+openSketches.length}</span></button><button class:active={referenceOpen} aria-pressed={referenceOpen} onclick={()=>togglePanel('reference')}>Reference</button><button class:active={matesOpen} aria-pressed={matesOpen} onclick={()=>togglePanel('mates')}>Mates</button><button class:active={analysisOpen} aria-pressed={analysisOpen} onclick={()=>togglePanel('analysis')}>Analysis</button><button class:active={sectionOpen} aria-pressed={sectionOpen} onclick={()=>togglePanel('section')}>Section</button><button class:active={addonOpen} aria-pressed={addonOpen} onclick={()=>togglePanel('addons')}>Add-ons</button></div>
 			</div>
 			<div class="triad-slot" bind:this={triadSlot} aria-hidden="true" data-testid="ideacad-triad" data-shown={prefs.view.triad}></div>
 			{#if !loading&&opened.canWrite&&!model.features.length&&!editingSketch}<div class="empty-slot"><EmptyCue onsketch={sketchOnPlane} onbox={()=>void startFromBox()} {busy}/></div>{/if}
@@ -689,7 +692,8 @@
 			{#if !opened.canWrite}<div class="read-only">{opened.deletedAt?'In the trash':opened.archivedAt?'Archived':'View only'}</div>{/if}
 			{#if model.replayMs!==undefined&&model.replayMs>0&&dev}<div class="replay" data-testid="ideacad-replay">replayed from {model.replayedFrom} in {model.replayMs.toFixed(1)} ms</div>{/if}
 			{#if saveState.failed}<aside class="recovery panel" aria-label="Save recovery"><h2>Changes not saved</h2><p>{saveState.message}</p><button onclick={()=>void exportFile('ideacad')}>Save backup</button>{#if reopenConfirm}<p>Discard unsaved changes and open the saved model?</p><button disabled={busy} onclick={()=>void reopenSaved()}>Discard and reopen</button><button onclick={()=>reopenConfirm=false}>Cancel</button>{:else}<button disabled={busy} onclick={()=>reopenConfirm=true}>Reopen saved model</button>{/if}</aside>{/if}
-			<div class="panels">
+			<div class="panels" class:folded={panelsFolded}>
+				<button class="sheet-handle" data-testid="ideacad-sheet-handle" aria-expanded={!panelsFolded} onclick={()=>panelsFolded=!panelsFolded}><span class="grip" aria-hidden="true"></span>Panels<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
 				{#if prefsOpen}<PreferencesPanel store={prefStore} {prefs} onclose={()=>{prefsOpen=false;}}/>{/if}
 				{#if editingSketch}<SketchEditor {api}/>{/if}
 				<FeaturePanel {api}/>
@@ -699,6 +703,7 @@
 				{#if sectionOpen}<SectionPanel {api}/>{/if}
 				{#if referenceOpen}<ReferencePanel {api}/>{/if}
 				{#if matesOpen}<MatePanel {api}/>{/if}
+				{#if analysisOpen}<AnalysisPanel {api}/>{/if}
 				{#if objectsOpen}
 					<aside class="objects panel" aria-label="Objects"><h2>Objects</h2>
 						{#each openSketches as sketch (sketch.feature)}<button class:selected={selections.some(s=>s.id===sketch.feature)} onclick={()=>{select({bodyId:'',kind:'sketch',id:sketch.feature});setTool('extrude');}}>◇ {sketch.name}<span>{sketch.regions.length?`${sketch.regions.length} closed`:'open'}</span></button>{/each}
@@ -751,7 +756,9 @@
 	.body{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:0}.tree-rail{min-height:0;display:flex;flex-direction:column;background:var(--surface-1);border-right:1px solid var(--hairline);overflow:hidden}.tree-toggle{display:none}
 	.workarea{position:relative;min-height:0;overflow:hidden}canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}.tools{position:absolute;left:12px;top:12px;display:flex;flex-direction:column;padding:5px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:8px;z-index:5;max-height:calc(100% - 24px);flex-wrap:wrap;align-content:flex-start}.tools.expanded{display:grid;grid-template-columns:repeat(3,44px);grid-auto-rows:44px;width:auto;overflow-y:auto}.more{height:44px;padding:0;font-size:24px}.right-tools{flex:0 1 auto;display:flex;gap:4px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px;flex-wrap:wrap;justify-content:flex-end}.right-tools span{margin-left:6px;color:var(--text-2)}
 	.panels{position:absolute;right:12px;top:68px;bottom:12px;width:260px;display:flex;flex-direction:column;gap:8px;overflow:auto;z-index:7;pointer-events:none}.panels>:global(*){pointer-events:auto}
+	/* ON A PHONE THE PANELS ARE A BOTTOM SHEET under one handle, so the model above them stays visible and reachable; folding hides the panels without unmounting them. */
+	.sheet-handle{display:none;position:sticky;top:0;z-index:1;flex:none;align-items:center;justify-content:center;gap:8px;width:100%;padding:0 12px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px;font-size:15px}.sheet-handle .grip{width:28px;height:4px;border-radius:2px;background:var(--text-2)}.panels.folded .sheet-handle svg{transform:rotate(180deg)}
 	:global(.solid-workspace .panel){padding:10px;background:var(--surface-1);border:1px solid var(--boundary);border-radius:7px}.panel h2{margin:0 0 8px;font-size:20px;padding:5px 10px;border-bottom:1px solid var(--hairline)}.panel>button{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left}.panel button span{font-size:13px;color:var(--text-2)}.body-actions{display:flex;flex-wrap:wrap;border-top:1px solid var(--hairline);margin-top:10px;padding-top:8px}.export-menu{position:absolute;top:8px;right:12px;z-index:15;width:245px}.measure,.number-entry{position:absolute;z-index:8;background:var(--surface-2);color:var(--text-1);border:1px solid var(--green);border-radius:5px;font:14px 'Share Tech Mono',monospace}.measure{padding:9px 12px;pointer-events:none}.number-entry{display:flex;width:170px}.number-entry input{width:120px;min-width:0;padding:0 8px;font-family:'Share Tech Mono',monospace}.error{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);max-width:min(600px,calc(100% - 30px));padding:8px 10px 8px 16px;display:flex;gap:10px;align-items:center;z-index:20;border:1px solid var(--ic-warn);border-radius:7px;background:var(--surface-1);font-size:17px}.error button{flex-shrink:0}.loading{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:21px}.read-only{position:absolute;bottom:12px;left:108px;padding:8px 12px;background:var(--surface-1);border:1px solid var(--hairline)}.replay{position:absolute;bottom:12px;right:12px;padding:4px 8px;font:11px 'Share Tech Mono',monospace;color:var(--text-2);background:var(--surface-1);border:1px solid var(--hairline);border-radius:4px}footer{display:flex;align-items:center;gap:20px;border-top:1px solid var(--hairline);padding:0 var(--dock-right,15px) 0 var(--dock-left,15px);font:11px 'Share Tech Mono',monospace;color:var(--text-2);min-width:0;overflow:hidden;white-space:nowrap}.tool-name{margin-left:auto}
 	@media(max-width:1023px){.body{grid-template-columns:minmax(0,1fr)}.tree-rail{display:none;position:absolute;left:0;top:56px;bottom:calc(48px + var(--history-h,0px) + var(--error-h,0px));width:min(300px,80vw);z-index:9}.tree-open .tree-rail{display:flex}.tree-toggle{display:inline-flex}}
-	@media(max-width:700px){.solid-workspace{grid-template-rows:52px minmax(0,1fr) auto 48px}header{padding:0 4px;gap:0}.documents span,.prefs-open span{display:none}.search-open{display:none}.document-save{position:absolute;bottom:5px;left:var(--dock-left,8px);right:var(--dock-right,8px);width:auto;justify-content:flex-start;z-index:12;padding:0;font-size:10px}.tool-name{display:none}.document-title{flex:1;width:80px;font-size:18px;padding:0 6px}header button{font-size:14px;padding:0 8px;white-space:nowrap}.export-open span{display:none}.tools{left:8px;right:8px;bottom:8px;top:auto;flex-direction:row;flex-wrap:nowrap!important;width:auto!important;overflow-x:auto;overflow-y:hidden;max-height:66px}.tools.expanded{display:grid;grid-template-columns:repeat(6,44px);grid-auto-rows:44px;max-height:none;overflow:visible;right:auto}.workarea:has(.tools.expanded) .triad-slot{bottom:206px}.workarea:has(.panels>:global(.panel)) .empty-slot{display:none}.top-bar,.workarea:has(.tools.expanded) .top-bar{left:8px;right:8px;top:8px;flex-direction:column;align-items:stretch}.right-tools{align-self:flex-end}.right-tools button{font-size:13px;padding:0 8px}.right-tools span{display:none}.panels{right:8px;left:8px;top:112px;bottom:80px;width:auto}.workarea:has(.tools.expanded) .panels{bottom:206px}.error{bottom:80px;font-size:16px}.triad-slot{left:8px;bottom:82px;width:64px;height:64px}.read-only{bottom:82px;left:80px}.empty-slot{top:120px}.tree-rail{top:52px;bottom:calc(48px + var(--history-h,0px) + var(--error-h,0px))}footer{gap:10px;font-size:10px;align-items:flex-start;padding-top:8px}}
+	@media(max-width:700px){.solid-workspace{grid-template-rows:52px minmax(0,1fr) auto 48px}header{padding:0 4px;gap:0}.documents span,.prefs-open span{display:none}.search-open{display:none}.document-save{position:absolute;bottom:5px;left:var(--dock-left,8px);right:var(--dock-right,8px);width:auto;justify-content:flex-start;z-index:12;padding:0;font-size:10px}.tool-name{display:none}.document-title{flex:1;width:80px;font-size:18px;padding:0 6px}header button{font-size:14px;padding:0 8px;white-space:nowrap}.export-open span{display:none}.tools{left:8px;right:8px;bottom:8px;top:auto;flex-direction:row;flex-wrap:nowrap!important;width:auto!important;overflow-x:auto;overflow-y:hidden;max-height:66px}.tools.expanded{display:grid;grid-template-columns:repeat(6,44px);grid-auto-rows:44px;max-height:none;overflow:visible;right:auto}.workarea:has(.tools.expanded) .triad-slot{bottom:206px}.workarea:has(.panels>:global(.panel)) .empty-slot{display:none}.top-bar,.workarea:has(.tools.expanded) .top-bar{left:8px;right:8px;top:8px;flex-direction:column;align-items:stretch}.right-tools{align-self:flex-end}.right-tools button{font-size:13px;padding:0 8px}.right-tools span{display:none}.panels{right:8px;left:8px;top:auto;bottom:max(80px,var(--error-h,0px));max-height:min(40%,calc(100% - 200px));width:auto}.workarea:has(.tools.expanded) .panels{bottom:max(206px,var(--error-h,0px))}.panels:has(>:global(.panel)) .sheet-handle{display:flex}.panels.folded>:global(:not(.sheet-handle)){display:none}.right-tools{max-width:100%;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;gap:0}.right-tools button{flex:none;padding:0 7px}.panels.folded{left:auto}.panels.folded .sheet-handle{width:auto}.error{bottom:80px;font-size:16px}.triad-slot{left:8px;bottom:82px;width:64px;height:64px}.read-only{bottom:82px;left:80px}.empty-slot{top:120px}.tree-rail{top:52px;bottom:calc(48px + var(--history-h,0px) + var(--error-h,0px))}footer{gap:10px;font-size:10px;align-items:flex-start;padding-top:8px}}
 </style>
