@@ -161,9 +161,16 @@
 		viewport?.highlight();
 	}
 	function setTool(next:Tool){if(gesture)void cancel();panelsFolded=false;viewport?.clearDrawing();if(next!=='fillet'&&next!=='chamfer'){chainWanted=null;viewport?.setPreviewEdges(null);}tool=next;error='';bar=null;if(next==='reference')referenceOpen=true;if(next==='mate')matesOpen=true;viewport?.highlight();canvas?.focus();}
+	/** How far the palette, the top bar and the panel column reach into the canvas on each side, in CSS pixels. */
+	function chromeInset(){
+		const c=canvas?.getBoundingClientRect(),q=(sel:string)=>workareaEl?.querySelector(sel)?.getBoundingClientRect(),tools=q('.tools'),top=q('.top-bar'),panels=q('.panels');
+		if(!c)return{left:0,right:0,top:0,bottom:0};
+		const phone=c.width<=700,sheetTop=panels&&panels.height>0?panels.top:c.bottom;
+		return{left:!phone&&tools?Math.max(0,tools.right-c.left):0,right:!phone&&panels?Math.max(0,c.right-panels.left):0,top:top?Math.max(0,top.bottom-c.top):0,bottom:phone?Math.max(0,c.bottom-sheetTop):0};
+	}
 	function editSketch(id:string|null){
 		editingSketch=id;const sketch=id?model.sketches.find(s=>s.feature===id):null;bar=null;menu=null;
-		viewport.editingPlane=sketch?sketch.plane:null;viewport.editingSketchId=sketch?sketch.feature:null;if(sketch){viewport.lookAt(sketch.plane);select({bodyId:'',kind:'sketch',id:sketch.feature});}else viewport.highlight();
+		viewport.editingPlane=sketch?sketch.plane:null;viewport.editingSketchId=sketch?sketch.feature:null;if(sketch){treeOpen=false;select({bodyId:'',kind:'sketch',id:sketch.feature});void tick().then(()=>{if(editingSketch===sketch.feature)viewport.focusSketch(sketch,chromeInset());});}else{viewport.focusSketch(null);viewport.highlight();}
 	}
 	async function record(label:string,before:ModelSnapshot,changes?:SolidHistoryAction['changes']){
 		const after=await client.request<ModelSnapshot>('snapshot');currentSnapshot=after;

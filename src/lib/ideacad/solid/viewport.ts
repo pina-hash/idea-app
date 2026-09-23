@@ -59,7 +59,7 @@ import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { orbitCamera } from './camera';
 import { dot, sub, vector } from './math';
-import { datumPlane, planeFromNormal } from './sketch/model';
+import { datumPlane, lift, planeFromNormal, samples } from './sketch/model';
 import { buildTriad, triadHandle, type TriadHandle } from './viewport/triad';
 import { sketchObjects, HOVER_COLOUR, SELECTED_COLOUR } from './viewport/sketch-layer';
 import { referenceObjects, datumPlaneObjects, originMarkerObjects, onDatumPlanesChange, AXIS_COLOURS } from './viewport/reference-layer';
@@ -286,7 +286,26 @@ export class SolidViewport {
 		for(const o of this.sketchObjs){const key=selectionKey(o.userData.selection as Selection);this.index.delete(key);}
 		this.clear(this.sketchLayer);this.sketchObjs=[];
 		for(const sketch of this.model.sketches){if(!this.sketchShown(sketch))continue;for(const object of sketchObjects(sketch)){this.sketchLayer.add(object);this.sketchObjs.push(object);this.register(object,object.userData.region?'sketch-fill':'sketch-line');}}
-		this.shownSketches=this.sketchKey();
+		this.shownSketches=this.sketchKey();this.sketchOnTop();
+	}
+	/** The sketch being edited draws over the bodies, so a sketch on a face or inside a part is never hidden by the solid it sits on; every other sketch keeps the depth test. */
+	private sketchOnTop(){for(const o of this.sketchObjs){if(!o.userData.entity)continue;const on=(o.userData.selection as Selection).id===this.editingSketchId,m=(o as THREE.Line).material as THREE.Material;if(m.depthTest===!on)continue;m.depthTest=!on;o.renderOrder=on?11:0;m.needsUpdate=true;}}
+	/**
+	 * Opening a sketch to edit: face its plane and frame what it holds (F006), instead of keeping the old zoom with the plane's origin at the centre.
+	 * An empty sketch keeps the zoom. Closing (null) only puts the depth test back.
+	 */
+	focusSketch(sketch:SketchProjection|null,inset={left:0,right:0,top:0,bottom:0}){
+		this.sketchOnTop();if(!sketch){this.invalidate();return;}
+		const points:Vec3[]=[];for(const e of sketch.entities){if(e.type==='point')points.push(lift(sketch.plane,[e.x,e.y]));else for(const p of samples(sketch.entities,e))points.push(lift(sketch.plane,p));}
+		this.lookAt(sketch.plane);if(!points.length)return;
+		const b=new THREE.Box3().setFromPoints(points.map(p=>new THREE.Vector3(...p))),center=b.getCenter(new THREE.Vector3());this.camera.position.add(center.clone().sub(this.target));this.target.copy(center);this.camera.updateMatrixWorld();
+		const local=points.map(p=>new THREE.Vector3(...p).applyMatrix4(this.camera.matrixWorldInverse)),box=new THREE.Box3().setFromPoints(local),size=box.getSize(new THREE.Vector3());
+		/* Framed in the part of the view the chrome leaves free (the palette, the top bar, the panel column), not under a panel. */
+		const w=Math.max(1,this.canvas.clientWidth),h=Math.max(1,this.canvas.clientHeight),freeW=Math.max(w*.3,w-inset.left-inset.right),freeH=Math.max(h*.3,h-inset.top-inset.bottom);
+		this.camera.zoom=.6*Math.min((this.camera.right-this.camera.left)*freeW/w/Math.max(size.x,1e-7),(this.camera.top-this.camera.bottom)*freeH/h/Math.max(size.y,1e-7));this.camera.updateProjectionMatrix();
+		const perPixel=(this.camera.right-this.camera.left)/this.camera.zoom/w,right=new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion),up=new THREE.Vector3(0,1,0).applyQuaternion(this.camera.quaternion);
+		const shift=right.multiplyScalar((inset.right-inset.left)/2*perPixel).add(up.multiplyScalar((inset.top-inset.bottom)/2*perPixel));this.camera.position.add(shift);this.target.add(shift);
+		this.camera.updateMatrixWorld();this.drawGizmo();this.invalidate();
 	}
 	/* ------------------------------------------------------------------ THE THREE LOOKS */
 	/** Whether an object's selection is selected: named exactly, or a face of a selected body (a body's edges keep their own colour, so its shape still reads). */
