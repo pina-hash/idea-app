@@ -44,6 +44,7 @@
 	 * yet (`draft`, `sweep`, `loft`) opens the same section the moment it does;
 	 * until then those live under "More features" beside the blend tools.
 	 */
+	import { DATUM_NAMES } from './viewport/reference-layer';
 	import { untrack } from 'svelte';
 	import { dev } from '$app/environment';
 	import Disclosure from '$lib/Disclosure.svelte';
@@ -252,7 +253,7 @@
 		if (!faces.length) { api.error('Select the flat faces to draft.'); return; }
 		const pullRef: AxisRef = pull === 'reference' ? (refAxis ? { kind: 'reference', feature: refAxis.id } : (api.error('Select a reference axis for the pull direction, or pick X, Y or Z.'), null)!) : { kind: 'datum', axis: pull };
 		if (!pullRef) return;
-		const neutralRef: PlaneRef = neutral === 'reference' ? (refPlane ? { kind: 'reference', feature: refPlane.id } : (api.error('Select a reference plane as the neutral plane, or pick XY, XZ or YZ.'), null)!) : { kind: 'datum', datum: neutral };
+		const neutralRef: PlaneRef = neutral === 'reference' ? (refPlane ? { kind: 'reference', feature: refPlane.id } : (api.error('Select a reference plane as the neutral plane, or pick Top, Front or Right.'), null)!) : { kind: 'datum', datum: neutral };
 		if (!neutralRef) return;
 		try { await send({ type: 'draft', faces: faces.map((s) => ref(s) as FaceRef), angle: a, pull: pullRef, neutral: neutralRef }, 'Draft'); } catch (e) { refuse(e); }
 	}
@@ -345,7 +346,7 @@
 			<p class="picks" data-testid="ideacad-feature-picks"><span class="count">{plural(faces.length, 'flat face')}</span></p>
 			<label class="size">Angle<span class="fp-field"><input inputmode="decimal" bind:value={draftAngle} data-testid="ideacad-draft-angle" /><span class="fp-unit">°</span></span></label>
 			<label>Pull direction<select value={pull} onchange={(e) => (pull = e.currentTarget.value as typeof pull)} data-testid="ideacad-draft-pull"><option value="X">X axis</option><option value="Y">Y axis</option><option value="Z">Z axis</option><option value="reference">Selected reference axis</option></select></label>
-			<label>Neutral plane<select value={neutral} onchange={(e) => (neutral = e.currentTarget.value as typeof neutral)} data-testid="ideacad-draft-neutral"><option value="XY">XY</option><option value="XZ">XZ</option><option value="YZ">YZ</option><option value="reference">Selected reference plane</option></select></label>
+			<label>Neutral plane<select value={neutral} onchange={(e) => (neutral = e.currentTarget.value as typeof neutral)} data-testid="ideacad-draft-neutral"><option value="XY">{DATUM_NAMES.XY}</option><option value="XZ">{DATUM_NAMES.XZ}</option><option value="YZ">{DATUM_NAMES.YZ}</option><option value="reference">Selected reference plane</option></select></label>
 			{#if editable}<button type="button" class="wide primary" aria-disabled={api.busy} onclick={() => void draft()} data-testid="ideacad-draft-apply">Draft {plural(faces.length, 'face')} at {draftAngle.trim() || '?'}°</button>{/if}
 		{:else if mode === 'sweep' || mode === 'loft'}
 			<p class="picks" data-testid="ideacad-feature-picks">{#if mode === 'sweep'}<span class="count">Profile: {sketches[0] ? sketchName(sketches[0].id) : 'none'}</span><span class="count">Path: {sketches[1] ? sketchName(sketches[1].id) : edges.length ? plural(edges.length, 'model edge') : 'none'}</span>{:else}<span class="count">{plural(sketches.length, 'profile')}{sketches.length ? `: ${sketches.map((s) => sketchName(s.id)).join(', ')}` : ''}</span>{/if}</p>

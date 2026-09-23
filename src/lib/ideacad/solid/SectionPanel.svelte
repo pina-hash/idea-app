@@ -21,7 +21,14 @@
 	/* A datum is named as the viewport's plane label names it (Top, Front, Right); a picked face in the Mates panel's words. */
 	const DATUM_ORDER = ['XY', 'XZ', 'YZ'] as const;
 	let { api }: { api: WorkspaceApi } = $props();
-	let source = $state<string>('XY'), offset = $state('0'), flip = $state(false), on = $state(false);
+	/* F042: a datum section starts through the middle of the model, where it cuts something, not at the datum itself (which a part built on it only touches). */
+	function throughModel(datum: 'XY' | 'XZ' | 'YZ'): string {
+		const bodies = api.model.bodies; if (!bodies.length) return '0';
+		const lo = [0, 1, 2].map((i) => Math.min(...bodies.map((b) => b.bounds[i]))), hi = [0, 1, 2].map((i) => Math.max(...bodies.map((b) => b.bounds[i + 3])));
+		const p = datumPlane(datum), d = [0, 1, 2].reduce((sum, i) => sum + ((lo[i] + hi[i]) / 2 - p.origin[i]) * p.normal[i], 0);
+		return String(+d.toFixed(3));
+	}
+	let source = $state<string>('XY'), offset = $state(throughModel('XY')), flip = $state(false), on = $state(false);
 	const number = (v: string) => (v.trim() === '' ? NaN : Number(v.trim()));
 	const planes = $derived(api.model.references.filter((r) => r.kind === 'plane'));
 	const face = $derived.by(() => { const s = api.selections.find((x) => x.kind === 'face'); if (!s) return null; const f = api.model.bodies.find((b) => b.id === s.bodyId)?.faces.find((x) => x.id === s.id); return f && f.kind === 'plane' ? f : null; });
@@ -45,7 +52,7 @@
 </script>
 <section class="section panel" aria-label="Section view" data-testid="ideacad-section-panel">
 	<h2>Section view</h2>
-	<label>Plane<select value={source} onchange={(e) => (source = e.currentTarget.value)} data-testid="ideacad-section-source">
+	<label>Plane<select value={source} onchange={(e) => { source = e.currentTarget.value; if (source === 'XY' || source === 'XZ' || source === 'YZ') offset = throughModel(source); }} data-testid="ideacad-section-source">
 		{#each DATUM_ORDER as d (d)}<option value={d}>{DATUM_NAMES[d]} plane</option>{/each}
 		{#each planes as p (p.feature)}<option value={`ref:${p.feature}`}>{p.name} (reference)</option>{/each}
 		<option value="face">Selected flat face{face ? `: ${selectionWords({ model: api.model, manifest: api.manifest }, api.selections.find((x) => x.kind === 'face')!)}` : ''}</option>

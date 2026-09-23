@@ -57,6 +57,7 @@
 			<button type="button" class="switch" class:selected={on} aria-pressed={on} disabled={locked} data-testid="ideacad-addon-switch" onclick={() => void toggle(addon)}>{addon.name} <span class="state">{on ? 'On' : 'Off'}</span></button>
 			<p class="description">{addon.description}</p>
 			{#if on}
+				{#if addon.tools.length}
 				<h3>Tools <span class="count">{addon.tools.length}</span></h3>
 				<ul class="tools">
 					{#each addon.tools as tool (tool.id)}
@@ -87,6 +88,7 @@
 						</li>
 					{/each}
 				</ul>
+				{/if}
 				{#if addon.starters.length}
 					<h3>Starters</h3>
 					<ul class="plans">{#each addon.starters as starter (starter.id)}<li><button type="button" class="plan" data-starter={starter.id} disabled={locked} onclick={() => void plan(starter.steps())}><span class="title">Start: {starter.name}</span><span class="sentence">{starter.description}</span></button></li>{/each}</ul>
