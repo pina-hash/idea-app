@@ -44,6 +44,27 @@
 		page.status === 404 ? 'That page is not here' : 'Something went wrong'
 	);
 	const errorId = $derived(page.error?.id ?? null);
+
+	/**
+	 * A PIECE OF THE SITE THAT FAILED TO DOWNLOAD (`hooks.client.ts` sets
+	 * `chunk`), which is almost always a deploy that renamed the site's files
+	 * under an open tab, or a network blip. Loading the page again is the fix,
+	 * so it is offered as a control rather than described. `location.reload()`
+	 * and not a link: the address is already the page that failed.
+	 */
+	const chunkFailure = $derived(page.error?.chunk === true);
+
+	/**
+	 * THE WAY BACK TO THE CLASS, for a failure anywhere inside one. Not offered
+	 * on the class page itself, where it would be a link to the page that just
+	 * failed.
+	 */
+	const classHref = $derived.by(() => {
+		const sectionId = page.params.sectionId;
+		if (!sectionId) return null;
+		const href = `/classroom/${sectionId}`;
+		return page.url.pathname === href || page.url.pathname === `${href}/` ? null : href;
+	});
 </script>
 
 <svelte:head>
@@ -69,6 +90,12 @@
 			{/if}
 		</dl>
 		<div class="btn-row">
+			{#if chunkFailure}
+				<button type="button" class="btn" onclick={() => location.reload()}>Try again</button>
+			{/if}
+			{#if classHref}
+				<a class="btn" href={classHref}>Back to the class</a>
+			{/if}
 			<a class="btn" href="/">Back to the portal</a>
 			<SiteFeedback
 				place="relocated"
