@@ -300,6 +300,7 @@
 	.rq-chip.on {
 		border-color: var(--accent-ink, var(--green));
 		background: var(--accent-fill, var(--surface-2));
+		color: var(--accent-on-fill, var(--text-1));
 		font-weight: 600;
 	}
 	.rq-chip input {
