@@ -13,6 +13,14 @@
  *
  * NOTHING IS CLAMPED HERE. A value is a finite number or absent; what the
  * kernel refuses is the feature row's sentence.
+ *
+ * TANGENT CHAIN IS ON BY DEFAULT, for the round and the bevel alike: a
+ * round the kernel cannot stop partway along a smooth run of edges is the
+ * commonest refusal, and one pick carrying on around a rounded corner is
+ * what a student expects (research section 4). A box's edge is its own
+ * chain, so on sharp geometry it changes nothing. The last radius and
+ * distance used are kept here too (`radius`, `distance`, absent until one
+ * is used), so the next round starts at the size the student last chose.
  */
 import type { BodyProjection, FaceProjection, FaceRef, Feature, Selection, Vec3 } from '../types';
 import { drop, planeFromNormal } from '../sketch/model';
@@ -20,14 +28,14 @@ import { refFromSelection } from '../naming';
 import type { HoleFit } from './holes';
 
 export interface FeatureOptions {
-	fillet: { propagate: boolean; variableEnd: number | null; law: 'linear' | 'scurve' };
-	chamfer: { propagate: boolean; distance2: number | null; angle: number | null };
+	fillet: { propagate: boolean; variableEnd: number | null; law: 'linear' | 'scurve'; radius?: number };
+	chamfer: { propagate: boolean; distance2: number | null; angle: number | null; distance?: number };
 	shell: { faceThickness: { face: FaceRef; thickness: number }[] };
 	hole: { standard: string; fit: HoleFit; diameter: number | null; depth: number | 'through' };
 }
 export const DEFAULT_FEATURE_OPTIONS = (): FeatureOptions => ({
-	fillet: { propagate: false, variableEnd: null, law: 'linear' },
-	chamfer: { propagate: false, distance2: null, angle: null },
+	fillet: { propagate: true, variableEnd: null, law: 'linear' },
+	chamfer: { propagate: true, distance2: null, angle: null },
 	shell: { faceThickness: [] },
 	hole: { standard: '1/4-20', fit: 'close', diameter: null, depth: 'through' }
 });

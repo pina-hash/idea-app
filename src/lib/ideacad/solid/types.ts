@@ -290,7 +290,18 @@ export interface FeatureRow {
 	/** Feature ids this one depends on; a reorder above any of them is refused. */
 	dependsOn: string[];
 	suppressed: boolean;
+	/** Beside a refusal: where on the model it happened, a one-click way forward, and the kernel's own text. Only set when status is `error`. */
+	help?: FeatureHelp;
 }
+/**
+ * A way forward a refusal offers, as ordinary commands the student presses
+ * once. Nothing is applied until they do, so the value they typed stays
+ * stored (no clamp). `value` is the size a size fix sets, for a test or a
+ * label to read without parsing the label.
+ */
+export interface FeatureFix { label: string; commands: SolidCommand[]; value?: number }
+/** What travels with a refused feature besides its sentence. `detail` is the kernel's own text, shown only in development. */
+export interface FeatureHelp { fix?: FeatureFix; where?: Selection[]; detail?: string }
 export interface ReferenceProjection {
 	feature: string; name: string; kind: 'plane' | 'axis' | 'point';
 	origin: Vec3; normal?: Vec3; direction?: Vec3; u?: Vec3; v?: Vec3;
