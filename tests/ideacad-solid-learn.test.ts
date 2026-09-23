@@ -12,7 +12,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Feature, FeatureRow, MateProjection, ModelProjection, SketchProjection } from '../src/lib/ideacad/solid/types';
 import { TUTORIAL, TUTORIAL_STEPS, advance, firstStepOf, tasksDone, tutorialFacts, tutorialPosition, tutorialProgress } from '../src/lib/ideacad/solid/learn/tutorial';
-import { FIRST_USE_HINTS, firstUseHint, retireAfterUse, toolHintId } from '../src/lib/ideacad/solid/learn/hints';
+import { FIRST_USE_HINTS, firstUseHint, retireAfterUse, retireInStore, toolHintId } from '../src/lib/ideacad/solid/learn/hints';
+import { MemoryPreferenceStore } from '../src/lib/ideacad/solid/preferences';
 import { cssTimeMs, placeTip, splitShortcut } from '../src/lib/ideacad/solid/learn/tip-place';
 import { DEMO_TOOLS } from '../src/lib/ideacad/solid/learn/demos';
 import { COMMANDS, TOOL_IDS, commandById } from '../src/lib/ideacad/solid/command-registry';
@@ -126,6 +127,16 @@ describe('hints that retire', () => {
 		const retired = ['tool-fillet'];
 		expect(retireAfterUse(retired, 'fillet', before, [{ id: 's1' }, { id: 'f2' }])).toBe(retired);
 		expect(retireAfterUse(retired, 'select', before, [{ id: 's1' }, { id: 'f2' }])).toBe(retired);
+	});
+	it('through the store: a used tool retires once and stores only the retired id; a change that added nothing writes nothing', () => {
+		const store = new MemoryPreferenceStore({ hints: { tooltipDelayMs: 250 } });
+		expect(retireInStore(store, 'rectangle', [], [])).toBe(false);
+		expect(store.stored()).toEqual({ hints: { tooltipDelayMs: 250 } });
+		expect(retireInStore(store, 'rectangle', [], [{ id: 's1' }])).toBe(true);
+		expect(store.stored()).toEqual({ hints: { tooltipDelayMs: 250, retired: ['tool-rectangle'] } });
+		expect(retireInStore(store, 'rectangle', [{ id: 's1' }], [{ id: 's1' }, { id: 's2' }])).toBe(false);
+		expect(firstUseHint('rectangle', store.current.hints.retired)).toBeNull();
+		expect(firstUseHint('circle', store.current.hints.retired)).toBe(FIRST_USE_HINTS.circle);
 	});
 	it('every hint is one short line for a real tool, and its id passes the preferences\' rule', () => {
 		for (const [tool, line] of Object.entries(FIRST_USE_HINTS)) {

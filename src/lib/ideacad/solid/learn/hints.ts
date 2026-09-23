@@ -9,6 +9,7 @@
  * what to store; nothing here reads a clock or the DOM.
  */
 import type { Feature } from '../types';
+import type { PreferenceStore } from '../preferences';
 
 /** One line each, the gesture and nothing else. A tool with no line shows no hint. */
 export const FIRST_USE_HINTS: Readonly<Record<string, string>> = {
@@ -56,4 +57,18 @@ export function retireAfterUse(retired: readonly string[], tool: string, before:
 	if (retired.includes(id)) return retired;
 	const had = new Set(before.map((f) => f.id));
 	return after.some((f) => !had.has(f.id)) ? [...retired, id] : retired;
+}
+
+/**
+ * The workspace's whole part, in one call: after a change made with `tool`
+ * armed, retire that tool's hint in the student's store. Writes nothing when
+ * nothing retires, so an ordinary edit is not a preferences save. Returns
+ * whether it wrote.
+ */
+export function retireInStore(store: Pick<PreferenceStore, 'current' | 'set'>, tool: string, before: readonly Pick<Feature, 'id'>[], after: readonly Pick<Feature, 'id'>[]): boolean {
+	const hints = store.current.hints;
+	const retired = retireAfterUse(hints.retired, tool, before, after);
+	if (retired === hints.retired) return false;
+	store.set('hints', { ...hints, retired: [...retired] });
+	return true;
 }
