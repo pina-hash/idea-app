@@ -165,7 +165,8 @@ const figure = (v: number) => `${floorFigure(v) === v ? v : Number(v.toFixed(4))
  * row's blend, is null. Once the row carries `help`, callers read that first.
  */
 export function sizeFixFromSentence(row: { id: string; message?: string }, feature: Feature | undefined): FeatureFix | null {
-	const m = /The largest that fits here is ((\d+(?:\.\d+)?) in(?: (to|by) (\d+(?:\.\d+)?) in)?)\.$/.exec(row.message ?? '');
+	/* Only the sentence whose headline IS the size: where a size is offered second (after leaving out the edges that run into another round), offering it alone would make it the headline. */
+	const m = /^That (?:radius|chamfer) is too big for (?:this edge|these edges)\. The largest that fits here is ((\d+(?:\.\d+)?) in(?: (to|by) (\d+(?:\.\d+)?) in)?)\.$/.exec(row.message ?? '');
 	if (!m || !feature || feature.id !== row.id) return null;
 	const a = Number(m[2]), b = m[4] !== undefined ? Number(m[4]) : undefined;
 	let patch: Record<string, unknown>;
@@ -275,7 +276,8 @@ function refuse(ctx: ExecutorContext, f: Blend, body: { id: string; solid: numbe
 		}
 		return out;
 	};
-	const detail = raw;
+	/* The kernel's own text, when the kernel was asked at all; an edge refused before any kernel call has none. */
+	const detail = raw || undefined;
 	if (smooth.length) {
 		const sharp = handles.filter((e) => !smooth.includes(e));
 		const rounded = [...touching(smooth, true).keys()][0];
@@ -351,7 +353,7 @@ function runBlend(ctx: ExecutorContext, f: Blend) {
 	const { body, picked, refs, handles } = blendEdges(ctx, f);
 	const t = topology(k, body.solid);
 	const smooth = picked.filter((e) => smoothEdge(k, t, e));
-	if (smooth.length) throw refuse(ctx, f, body, refs, handles, 'smooth edge picked', smooth);
+	if (smooth.length) throw refuse(ctx, f, body, refs, handles, '', smooth);
 	const sources = [...k.getSolidFaces(body.solid)];
 	let solid: number;
 	try {
