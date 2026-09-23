@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy, untrack } from 'svelte';
 	import { docText, docToTiptap, type NoteDoc, type TiptapNode } from '$lib/notebook-notes';
-	import { docFromPlainText } from '$lib/classroom/classroom-doc';
+	import { plainTextNote } from '$lib/notebook/capture';
 	import { requestVersionCheck } from '$lib/shell/deploy-safety';
 	import { NOTE_SCHEMA_OPTIONS } from '$lib/rich-text-schema';
 	/**
@@ -169,10 +169,7 @@
 
 	function typedPlain(text: string) {
 		plainText = text;
-		const blocks: NoteDoc = docFromPlainText(text).flatMap((b) =>
-			b.type === 'p' ? [{ type: 'p' as const, runs: b.runs }] : []
-		);
-		const doc = docToTiptap(blocks);
+		const doc = plainTextNote(text);
 		liveDoc = doc;
 		onchange(doc);
 	}

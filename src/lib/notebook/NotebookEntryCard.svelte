@@ -28,6 +28,7 @@
 		type NotebookEntry,
 		type StagedPhoto
 	} from '$lib/notebook';
+	import { restoreKeepsPairing } from '$lib/notebook/capture';
 	import {
 		entryPreview,
 		folderById,
@@ -1059,15 +1060,29 @@
 									{photo.original_filename ?? `Photo ${photo.sequence_order}`}
 								</span>
 								<span class="removed-when">Removed {when(photo.removed_at ?? '')}</span>
-								<button
-									type="button"
-									class="btn secondary restore-photo-btn"
-									disabled={restoringPhotoId === photo.id}
-									data-testid="restore-photo"
-									onclick={() => restorePhotoOne(photo.id)}
-								>
-									{restoringPhotoId === photo.id ? 'Restoring...' : 'Restore'}
-								</button>
+								<!-- ONLY WHERE IT KEEPS EVERY PAGE PAIRED (ledger 0297,
+								     `restoreKeepsPairing`): a corrected version, or an
+								     original that would land between another page and
+								     its correction, says why instead of offering a
+								     button whose result would put a photo on the wrong
+								     page. -->
+								{#if restoreKeepsPairing(entry.photos, photo.id)}
+									<button
+										type="button"
+										class="btn secondary restore-photo-btn"
+										disabled={restoringPhotoId === photo.id}
+										data-testid="restore-photo"
+										onclick={() => restorePhotoOne(photo.id)}
+									>
+										{restoringPhotoId === photo.id ? 'Restoring...' : 'Restore'}
+									</button>
+								{:else}
+									<span class="removed-when" data-testid="restore-photo-refused">
+										{photo.variant === 'enhanced'
+											? 'Straightened copy, not restorable'
+											: 'Would join the wrong page'}
+									</span>
+								{/if}
 							</li>
 						{/each}
 					</ul>
