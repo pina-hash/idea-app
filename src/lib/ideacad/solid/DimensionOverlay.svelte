@@ -170,7 +170,8 @@
 			stop = soon(() => { if (alive) layout(); });
 			return () => { alive = false; stop(); off(); };
 		}
-		const tick = () => { if (!alive) return; layout(); stop = soon(tick); };
+		/* While the labels are stepped aside (a drag, a drawing) nothing is placed; the next pass after they return places everything. */
+		const tick = () => { if (!alive) return; if (shown) layout(); else lastCamera = ''; stop = soon(tick); };
 		stop = soon(tick, 16);
 		return () => { alive = false; stop(); };
 	});
