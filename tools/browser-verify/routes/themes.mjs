@@ -15,7 +15,7 @@
  * a measurement: two runs, same number, or one of them reddens.
  */
 import { SETTLE_ENTRANCE } from './_shared.mjs';
-import { BOARD_CELLS } from './_theme-shared.mjs';
+import { BOARD_CELLS, LAUNCHER_CARDS, washoutRows } from './_theme-shared.mjs';
 
 export default {
 	path: '/dev/themes',
@@ -38,7 +38,7 @@ export default {
 		   card including the three admin-only ones is on screen. A floor AND a
 		   ceiling: a launcher that quietly rendered one card would satisfy a
 		   floor of 1 and tell nobody. */
-		{ selector: '.launcher .app-card', label: 'launcher cards', expectPresent: 12, maxPresent: 12 },
+		{ selector: '.launcher .app-card', label: 'launcher cards', expectPresent: LAUNCHER_CARDS, maxPresent: LAUNCHER_CARDS },
 		/* The theme control itself, closed. Two radios, in the menu, which is
 		   shut until something opens it -- so present 0 is correct here and the
 		   themed spec is where the control is measured. */
@@ -69,7 +69,12 @@ export default {
 	   browser and is in the history entry. */
 	contrast: [
 		{ selector: '.harness h1', label: 'page heading', min: 4.5 },
-		{ selector: '.harness .note', label: 'note copy', min: 4.5 }
+		{ selector: '.harness .note', label: 'note copy', min: 4.5 },
+		/* THE PROJECTOR TABLE FOR THE DEFAULT PALETTE (ledger 0297), RECORDED
+		   AND NOT GATED, for the reason the board is not gated above: IDEA is
+		   a dark palette, this model is expected to fail it, and the brief
+		   says to record the numbers rather than fix IDEA here. */
+		...washoutRows('idea', { gate: false })
 	],
 	tapTargets: [{ selector: '.switch .sw', label: 'theme switch buttons', min: 44 }],
 	/* `.bg-fx` is unthemed here: its own scanline lives on a ::after, which

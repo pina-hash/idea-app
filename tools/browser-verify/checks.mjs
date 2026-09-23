@@ -320,9 +320,56 @@ export async function horizontalScroll(page, { tolerancePx = 0.5 } = {}) {
 }
 
 /* ------------------------------------------------------------------ *
+ * 2a. The PROJECTOR-WASHOUT model (ledger 0297, package F1a)
+ * ------------------------------------------------------------------ */
+/**
+ * WHAT A 300:1 PROJECTOR IN A LIT ROOM DOES TO A PAIR OF COLOURS. Mr. Pina
+ * recorded on 2026-09-16 that his classroom projector's blacks are not dark
+ * enough: dark grounds wash out. The research report (Part C2) states the
+ * model this implements, as a model rather than a measurement of his room:
+ *
+ *   - the projector's own ANSI contrast is 300:1, so black is not 0 but 1/300
+ *     of white, and every luminance is lifted onto that floor:
+ *       L -> L * (1 - 1/300) + 1/300
+ *   - ambient light equal to 10% of white lands on every pixel alike:
+ *       + 0.10
+ *   - the ratio is L'hi / L'lo with NO +0.05 flare term, because the ambient
+ *     term IS the flare, measured rather than assumed.
+ *
+ * It reproduces the research's own figures exactly: #0D1311 on #F7F9F9 is
+ * 9.56:1 washed, and #78b870 on #0a0c0b is 4.65:1. A dark theme loses most of
+ * its range to the floor (a card one step off its page reads 1.02-1.03 washed,
+ * i.e. panels vanish), which is the whole point of measuring it.
+ *
+ * The composited foreground and ground come from the SAME in-page resolution
+ * every contrast row uses (`groundOf`, alpha composited), so a washed number
+ * and a WCAG number on one row are two readings of one pair of pixels.
+ */
+export const PROJECTOR_MODEL = { contrast: 300, ambient: 0.1 };
+const relLum = (c) => {
+	const f = (v) => {
+		const s = v / 255;
+		return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+	};
+	return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+};
+export const washLuminance = (l) => l * (1 - 1 / PROJECTOR_MODEL.contrast) + 1 / PROJECTOR_MODEL.contrast + PROJECTOR_MODEL.ambient;
+/** The washed ratio of two opaque {r,g,b} colours, hi over lo. */
+export function washedRatio(a, b) {
+	const x = washLuminance(relLum(a));
+	const y = washLuminance(relLum(b));
+	return Math.max(x, y) / Math.min(x, y);
+}
+
+/* ------------------------------------------------------------------ *
  * 2. Contrast against the REAL rendered ground
  * ------------------------------------------------------------------ */
-export async function contrast(page, { selector, label = selector, min = 4.5, all = false } = {}) {
+/**
+ * `projector: true` judges the row by the WASHED ratio (2a above) instead of
+ * the WCAG one; both are reported on every result either way, so a reader
+ * sees what a monitor gives and what the wall gives side by side.
+ */
+export async function contrast(page, { selector, label = selector, min = 4.5, all = false, projector = false } = {}) {
 	await ensureHelpers(page);
 	const data = await page.evaluate(
 		({ selector, all }) => {
@@ -356,7 +403,9 @@ export async function contrast(page, { selector, label = selector, min = 4.5, al
 		{ selector, all }
 	);
 
-	const worst = data.results.reduce((a, r) => (a === null || r.ratio < a.ratio ? r : a), null);
+	for (const r of data.results) r.washed = +washedRatio(r.fg, r.ground).toFixed(2);
+	const key = projector ? 'washed' : 'ratio';
+	const worst = data.results.reduce((a, r) => (a === null || r[key] < a[key] ? r : a), null);
 	return {
 		check: 'contrast',
 		selector,
@@ -364,9 +413,11 @@ export async function contrast(page, { selector, label = selector, min = 4.5, al
 		measured:
 			data.matchCount === 0
 				? 'no match'
-				: `${worst.ratio}:1  fg ${rgbStr(worst.fg)} on ${rgbStr(worst.ground)} (ground from ${worst.groundSource})`,
-		threshold: `${min}:1`,
-		withinThreshold: data.matchCount > 0 && worst.ratio >= min,
+				: projector
+					? `${worst.washed}:1 washed (WCAG ${worst.ratio}:1)  fg ${rgbStr(worst.fg)} on ${rgbStr(worst.ground)} (ground from ${worst.groundSource})`
+					: `${worst.ratio}:1  fg ${rgbStr(worst.fg)} on ${rgbStr(worst.ground)} (ground from ${worst.groundSource})`,
+		threshold: projector ? `${min}:1 washed (300:1 projector, +10% ambient)` : `${min}:1`,
+		withinThreshold: data.matchCount > 0 && worst[key] >= min,
 		matchCount: data.matchCount,
 		data
 	};
