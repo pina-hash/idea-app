@@ -121,7 +121,10 @@
 			boxes.push({ id: item.id, x: target.x, y: target.y, w: size.w, h: size.h, item, anchor, point, text });
 		}
 		const obstacles: LabelBox[] = [];
-		for (const el of element.parentElement?.querySelectorAll(avoid) ?? []) {
+		let chrome: Iterable<Element> = [];
+		/* A selector the page cannot answer costs the avoidance, never the labels. */
+		try { chrome = element.parentElement?.querySelectorAll(avoid) ?? []; } catch { chrome = []; }
+		for (const el of chrome) {
 			const r = el.getBoundingClientRect();
 			if (r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden') obstacles.push({ id: '', x: r.left - rect.left + r.width / 2, y: r.top - rect.top + r.height / 2, w: r.width, h: r.height });
 		}

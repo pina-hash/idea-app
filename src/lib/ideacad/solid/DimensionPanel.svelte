@@ -26,7 +26,8 @@
 	 * `max` OR `step`; the kernel's answer is the only refusal of a value.
 	 *
 	 * WHICH FEATURE: the open sketch when there is one; a selected feature,
-	 * sketch or reference by its own id; a selected body, face, edge or corner
+	 * sketch or reference by its own id (a selected sketch lists its
+	 * constraints, exactly as it does open); a selected body, face, edge or corner
 	 * through the feature that created the body, so selecting an extruded box
 	 * offers the extrude's distance. Read-only documents show the same numbers
 	 * as text: absence of the input is the mechanism, not a flag on it.
@@ -44,10 +45,12 @@
 	});
 	const feature = $derived(featureId ? (api.manifest.features.find((f) => f.id === featureId) ?? null) : null);
 	const row = $derived(featureId ? (api.model.features.find((f) => f.id === featureId) ?? null) : null);
-	const dimensions = $derived<Dimension[]>(editingSketch ? sketchDimensions(editingSketch) : feature ? featureDimensions(feature) : []);
+	/* A sketch selected but not open shows its own numbers too: its constraints are the only numbers it has, and "no number to type" beside a sketch that carries a width was a sentence the viewport's labels contradicted. */
+	const sketchShown = $derived(editingSketch ?? (feature?.type === 'sketch' ? (api.model.sketches.find((s) => s.feature === feature.id) ?? null) : null));
+	const dimensions = $derived<Dimension[]>(sketchShown ? sketchDimensions(sketchShown) : feature ? featureDimensions(feature) : []);
 	const measured = $derived(editingSketch ? [] : drivenDimensions(primary, api.model));
-	const trouble = $derived(new Set(editingSketch?.solve.trouble ?? []));
-	const unsatisfied = $derived(editingSketch?.solve.classification === 'unsatisfied');
+	const trouble = $derived(new Set(sketchShown?.solve.trouble ?? []));
+	const unsatisfied = $derived(sketchShown?.solve.classification === 'unsatisfied');
 	async function submit(d: Dimension, text: string) {
 		const parsed = parseDimension(text, d.unit);
 		if (!parsed.ok) { api.error(parsed.reason); return; }
@@ -99,7 +102,7 @@
 	/* `padding:0` is stated because the room gives a span inside a label 9.6px of vertical padding (measured: 63.2px tall around a 42px input). The 44px floor is the field's `min-height`, never a height. */
 	.field{display:flex;align-items:center;min-width:0;min-height:44px;padding:0;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0)}
 	/* `width:0` with `flex:1 1 0` takes the box's own intrinsic width (about 150px for an input) out of the row's minimum, which in a 260px panel pushed the unit word past the panel's edge and under the Set button. */
-	input{flex:1 1 0;width:0;min-width:0;min-height:42px;border:0;background:transparent;color:var(--text-1);padding:0 8px;font:16px 'Share Tech Mono',monospace}input:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
+	.field input{flex:1 1 0;width:0;min-width:0;min-height:42px;border:0;background:transparent;color:var(--text-1);padding:0 8px;font:16px 'Share Tech Mono',monospace}.field input:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
 	.unit{padding:0 8px;font:12px 'Share Tech Mono',monospace;color:var(--text-2)}
 	button{min-height:44px;min-width:44px;padding:0 12px;border:1px solid var(--green);border-radius:4px;background:var(--surface-0);color:var(--green);font:600 16px Rajdhani,sans-serif;cursor:pointer}button:disabled{opacity:.4;cursor:default}
 	.readonly{display:flex;justify-content:space-between;gap:8px;min-height:44px;align-items:center;padding:0 8px;font:600 14px Rajdhani,sans-serif;color:var(--text-2)}output{font:14px 'Share Tech Mono',monospace;color:var(--text-1)}

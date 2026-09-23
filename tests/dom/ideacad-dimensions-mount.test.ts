@@ -23,12 +23,15 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Component } from 'svelte';
 import DimensionPanel from '$lib/ideacad/solid/DimensionPanel.svelte';
+import DimensionOverlay from '$lib/ideacad/solid/DimensionOverlay.svelte';
+import { defaultPreferences, type SolidPreferences } from '$lib/ideacad/solid/preferences';
 import type { WorkspaceApi } from '$lib/ideacad/solid/workspace-api';
 import { emptyManifest, type ModelProjection, type Selection, type SolidCommand, type SolidManifest } from '$lib/ideacad/solid/types';
 import { mountInto, type Mounted } from './mount';
 import { reactiveProps } from './reactive-props.svelte';
 
 const Panel = DimensionPanel as unknown as Component<Record<string, unknown>>;
+const Overlay = DimensionOverlay as unknown as Component<Record<string, unknown>>;
 
 const SKETCH = { id: 's1', name: 'Sketch 1', type: 'sketch', plane: { kind: 'datum', datum: 'XY' }, entities: [
 		{ id: 'p0', type: 'point', x: 0, y: 0 }, { id: 'p1', type: 'point', x: 4, y: 0 }, { id: 'p2', type: 'point', x: 4, y: 3 }, { id: 'p3', type: 'point', x: 0, y: 3 },
@@ -52,13 +55,14 @@ const model = (over: Partial<ModelProjection> = {}): ModelProjection => ({ ...EM
 		{ id: 'b1', index: 2, type: 'boolean', name: 'Combine 1', status: 'ok', summary: 'union', bodies: [], dependsOn: ['x1'], suppressed: false }
 	], ...over });
 
-interface Harness { api: WorkspaceApi; applied: { command: SolidCommand; label: string }[]; errors: string[]; set(over: Partial<{ selections: Selection[]; canWrite: boolean; busy: boolean; editingSketch: string | null; model: ModelProjection; manifest: SolidManifest }>): void }
+type HarnessState = { selections: Selection[]; canWrite: boolean; busy: boolean; editingSketch: string | null; model: ModelProjection; manifest: SolidManifest; prefs: SolidPreferences | undefined };
+interface Harness { api: WorkspaceApi; applied: { command: SolidCommand; label: string }[]; errors: string[]; set(over: Partial<HarnessState>): void }
 /** A WorkspaceApi that records: what the panel applied, with what label, and what it refused. */
-function harness(initial: Partial<{ selections: Selection[]; canWrite: boolean; busy: boolean; editingSketch: string | null; model: ModelProjection; manifest: SolidManifest }> = {}): Harness {
-	const state = reactiveProps({ selections: [] as Selection[], canWrite: true, busy: false, editingSketch: null as string | null, model: model(), manifest: manifest(), ...initial });
+function harness(initial: Partial<HarnessState> = {}): Harness {
+	const state = reactiveProps({ selections: [] as Selection[], canWrite: true, busy: false, editingSketch: null as string | null, model: model(), manifest: manifest(), prefs: undefined as SolidPreferences | undefined, ...initial });
 	const applied: Harness['applied'] = [], errors: string[] = [];
 	const api: WorkspaceApi = {
-		get model() { return state.model; }, get manifest() { return state.manifest; }, get selections() { return state.selections; }, get canWrite() { return state.canWrite; }, get busy() { return state.busy; }, get tool() { return 'select' as const; }, get editingSketch() { return state.editingSketch; },
+		get model() { return state.model; }, get manifest() { return state.manifest; }, get selections() { return state.selections; }, get canWrite() { return state.canWrite; }, get busy() { return state.busy; }, get tool() { return 'select' as const; }, get editingSketch() { return state.editingSketch; }, get prefs() { return state.prefs; },
 		apply: async (command, label) => { applied.push({ command, label }); }, select: () => {}, setTool: () => {}, editSketch: () => {}, setSketchPointer: () => {},
 		request: async () => { throw Error('not in this test'); }, project: () => ({ x: 0, y: 0 }), error: (m) => { errors.push(m); }, guide: () => {}, clearGuides: () => {}, clip: () => {}, lookAt: () => {}, fit: () => {}, unproject: () => null
 	};
@@ -134,6 +138,16 @@ describe('the dimension panel', () => {
 		expect(b.one('output').textContent).toBe('1.000 in');
 		expect(b.one('.readonly').textContent).toContain('Distance');
 	});
+	it('a sketch SELECTED but not open lists its own constraints, and none of the extrude\'s', () => {
+		/* Before, a selected sketch fell through to its feature parameters, of which a sketch has none, and the panel said it had no number to type beside a sketch that carried two. */
+		const h = harness({ selections: [{ bodyId: '', kind: 'sketch', id: 's1' }] }); const m = mountPanel(h);
+		expect(m.all('li[data-dimension]').map((li) => li.getAttribute('data-dimension'))).toEqual(['kw', 'kv']);
+		expect(m.all('.note')).toHaveLength(0);
+		submit(m, 'kw', '6');
+		expect(h.applied).toHaveLength(1);
+		expect(h.applied[0].label).toBe('Set Distance 1');
+		expect((h.applied[0].command as { id: string }).id).toBe('s1');
+	});
 	it('a feature with no number says so in words rather than showing an empty list', () => {
 		const h = harness({ selections: [{ bodyId: '', kind: 'feature', id: 'b1' }] }); const m = mountPanel(h);
 		expect(m.all('input')).toHaveLength(0);
@@ -192,5 +206,99 @@ describe('the dimension panel', () => {
 		const unnamed = harness({ editingSketch: 's1', model: model({ sketches: [{ ...m0.sketches[0], solve: { converged: false, classification: 'unsatisfied', dof: 0, maxResidual: 1, trouble: [] } }] }) }); const c = mountPanel(unnamed);
 		expect(c.all('li.trouble')).toHaveLength(0); expect(c.all('em')).toHaveLength(0);
 		expect(c.one('.refused').textContent).toBe('Cannot be solved: these dimensions ask for what the sketch cannot do at once. Change one of them.');
+	});
+});
+
+/* ------------------------------------------------------------------ the overlay */
+// THE DIMENSION OVERLAY, MOUNTED over the same stand-in workspace (ledger 0296,
+// F025). What is here is structure and wiring: which numbers become buttons,
+// what a press opens, what Enter applies and with what label, what Escape and a
+// refusal leave behind, and that read-only is ABSENCE of the control. Where the
+// labels land on screen is geometry, which happy-dom cannot measure; the
+// anchors are proven in `tests/ideacad-solid-dimensions-anchors.test.ts` and
+// the placement in a real Chromium on `/dev/ideacad-dimensions`.
+describe('the dimension overlay', () => {
+	function mountOverlay(h: Harness) { const m = mountInto(Overlay, { api: h.api }); mounted.push(m); return m; }
+	/* The overlay places its labels on a frame-or-timeout loop; two timeouts' worth lets one pass run. */
+	const pass = async (m: Mounted) => { m.flush(); await new Promise((r) => setTimeout(r, 180)); m.flush(); };
+	const labels = (m: Mounted) => m.all<HTMLElement>('[data-dimension-label]');
+	const open = async (m: Mounted, id: string) => { m.one<HTMLButtonElement>(`button[data-dimension-label="${id}"]`).click(); m.flush(); await pass(m); return m.one<HTMLInputElement>(`[data-dimension-input="${id}"]`); };
+	const type = (m: Mounted, input: HTMLInputElement, text: string) => { input.value = text; input.dispatchEvent(new Event('input', { bubbles: true })); input.form!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); m.flush(); };
+
+	it('draws nothing with nothing selected, and the box\'s width, height and depth once its body is', async () => {
+		const h = harness(); const m = mountOverlay(h); await pass(m);
+		expect(labels(m)).toHaveLength(0);
+		h.set({ selections: [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }] }); await pass(m);
+		expect(labels(m).map((l) => l.getAttribute('data-dimension-label'))).toEqual(['s1:kw', 's1:kv', 'x1:distance']);
+		expect(labels(m).map((l) => l.textContent)).toEqual(['4.000 in', '3.000 in', '1.000 in']);
+		expect(labels(m).every((l) => l.tagName === 'BUTTON')).toBe(true);
+	});
+	it('a press opens a box holding the number; Enter sets it exactly as the panel does, on the sketch, labelled "Set Distance 1"', async () => {
+		const h = harness({ selections: [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }] }); const m = mountOverlay(h); await pass(m);
+		const input = await open(m, 's1:kw');
+		expect(input.value).toBe('4');
+		for (const a of ['min', 'max', 'step']) expect(input.hasAttribute(a)).toBe(false);
+		type(m, input, '6'); await pass(m);
+		expect(h.applied).toHaveLength(1);
+		expect(h.applied[0].label).toBe('Set Distance 1');
+		const command = h.applied[0].command as { type: string; id: string; patch: { constraints: { id: string; value?: number }[] } };
+		expect(command.type).toBe('set-feature'); expect(command.id).toBe('s1');
+		expect(command.patch.constraints.find((c) => c.id === 'kw')?.value).toBe(6);
+		expect(command.patch.constraints.find((c) => c.id === 'kv')?.value).toBe(3);
+	});
+	it('the feature\'s own number patches the feature: the depth is set-feature on the extrude', async () => {
+		const h = harness({ selections: [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }] }); const m = mountOverlay(h); await pass(m);
+		type(m, await open(m, 'x1:distance'), '2.5'); await pass(m);
+		expect(h.applied).toEqual([{ command: { type: 'set-feature', id: 'x1', patch: { distance: 2.5 } }, label: 'Set Distance' }]);
+	});
+	it('Escape closes the box and applies nothing', async () => {
+		const h = harness({ selections: [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }] }); const m = mountOverlay(h); await pass(m);
+		const input = await open(m, 's1:kv');
+		input.value = '9'; input.dispatchEvent(new Event('input', { bubbles: true }));
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); m.flush();
+		expect(m.all('[data-dimension-input]')).toHaveLength(0);
+		expect(h.applied).toHaveLength(0);
+	});
+	it('text that is not a number is the parser\'s sentence through api.error; nothing is applied and the box keeps what was typed', async () => {
+		const h = harness({ selections: [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }] }); const m = mountOverlay(h); await pass(m);
+		const input = await open(m, 'x1:distance');
+		type(m, input, 'deep'); await pass(m);
+		expect(h.applied).toHaveLength(0);
+		expect(h.errors).toEqual(['Enter a number, like 1.5, 3/8, 1 1/2 or 25.4mm.']);
+		expect(m.one<HTMLInputElement>('[data-dimension-input="x1:distance"]').value).toBe('deep');
+	});
+	it('millimeters: labels read in mm and a bare typed number is millimeters, stored as inches', async () => {
+		const h = harness({ selections: [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }], prefs: { ...defaultPreferences(), units: { display: 'mm' } } }); const m = mountOverlay(h); await pass(m);
+		expect(labels(m).map((l) => l.textContent)).toEqual(['101.60 mm', '76.20 mm', '25.40 mm']);
+		const input = await open(m, 'x1:distance');
+		expect(input.value).toBe('25.4');
+		type(m, input, '50.8'); await pass(m);
+		expect((h.applied[0].command as { patch: { distance: number } }).patch.distance).toBeCloseTo(2, 12);
+	});
+	it('a read-only document shows every number and has no control: absence, counted against the same fixture writable', async () => {
+		const open_ = harness({ selections: [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }] }); const a = mountOverlay(open_); await pass(a);
+		expect(a.all('button[data-dimension-label]')).toHaveLength(3);
+		const shut = harness({ selections: [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }], canWrite: false }); const b = mountOverlay(shut); await pass(b);
+		expect(b.all('button')).toHaveLength(0); expect(b.all('input')).toHaveLength(0);
+		expect(b.all('span[data-dimension-label]').map((l) => l.textContent)).toEqual(['4.000 in', '3.000 in', '1.000 in']);
+	});
+	it('a selected edge shows its length as measured, in gray words, and never as a control', async () => {
+		const h = harness({ selections: [{ bodyId: 'x1#0', kind: 'edge', id: 'edge:x1.end|x1.side.0' }] }); const m = mountOverlay(h); await pass(m);
+		const measured = m.one<HTMLElement>('[data-dimension-label="measured:length"]');
+		expect(measured.tagName).toBe('SPAN');
+		expect(measured.textContent).toBe('4.000 inmeasured');
+		expect(measured.querySelector('small')?.textContent).toBe('measured');
+		/* Positive control on the same mount: the extrude that made the edge still offers its numbers as buttons. */
+		expect(m.all('button[data-dimension-label]').length).toBeGreaterThan(0);
+	});
+	it('the open sketch shows only its own numbers', async () => {
+		const h = harness({ editingSketch: 's1', selections: [{ bodyId: '', kind: 'sketch', id: 's1' }] }); const m = mountOverlay(h); await pass(m);
+		expect(labels(m).map((l) => l.getAttribute('data-dimension-label'))).toEqual(['s1:kw', 's1:kv']);
+	});
+	it('the hidden prop takes the labels away, and nothing is left to press', async () => {
+		const h = harness({ selections: [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }] });
+		const m = mountInto(Overlay, { api: h.api, hidden: true }); mounted.push(m); await pass(m);
+		expect(labels(m)).toHaveLength(0);
+		expect(m.one('[data-testid="ideacad-dimension-overlay"]').getAttribute('aria-hidden')).toBe('true');
 	});
 });

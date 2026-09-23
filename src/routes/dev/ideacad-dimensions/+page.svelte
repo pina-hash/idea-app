@@ -73,7 +73,7 @@
 	let prefs = $state.raw({ ...defaultPreferences(), units: { display: (scenario === 'mm' ? 'mm' : 'in') as 'in' | 'mm' } });
 	function pick(what: string) {
 		editingSketch = null; error = '';
-		if (what === 'box' || what === 'mm' || what === 'readonly') selections = [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }];
+		if (what === 'box' || what === 'mm' || what === 'readonly' || what === 'editing') selections = [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }];
 		else if (what === 'sketch') { selections = [{ bodyId: '', kind: 'sketch', id: 's1' }]; editingSketch = 's1'; }
 		else if (what === 'circle') selections = [{ bodyId: '', kind: 'sketch', id: 's2' }];
 		else if (what === 'fillet') selections = [{ bodyId: 'x1#0', kind: 'feature', id: 'f1' }];
