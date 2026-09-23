@@ -170,6 +170,8 @@ export interface FeatureBase {
 }
 
 export type MateKind = 'coincident' | 'concentric' | 'parallel' | 'perpendicular' | 'distance' | 'angle';
+/** A joint names what a set of mates lets a part DO; its mates carry it, and `group` (the first mate's id) keeps them one joint. */
+export type JointKind = 'fixed' | 'hinge' | 'slider' | 'cylindrical' | 'planar' | 'slot';
 
 export type Feature = FeatureBase & (
 	/** A body whose only parameter is its exact bytes: a v1 body, an import, or a copy. */
@@ -190,7 +192,7 @@ export type Feature = FeatureBase & (
 	| { type: 'plane'; definition: PlaneDefinition }
 	| { type: 'axis'; definition: AxisDefinition }
 	| { type: 'point'; definition: PointDefinition }
-	| { type: 'mate'; kind: MateKind; a: EntityRef; b: EntityRef; value?: number; flip?: boolean }
+	| { type: 'mate'; kind: MateKind; a: EntityRef; b: EntityRef; value?: number; flip?: boolean; joint?: JointKind; group?: string }
 	| { type: 'hole'; face: FaceRef; center: Vec2 | { kind: 'point'; point: PointRef }; standard: string; fit: 'tapped' | 'close' | 'normal' | 'custom'; diameter?: number; depth: number | 'through' }
 	| { type: 'draft'; faces: FaceRef[]; angle: number; pull: AxisRef; neutral: PlaneRef }
 	| { type: 'sweep'; profile: string; path: string | EdgeRef[]; operation: 'new' | 'add' | 'cut'; target?: string }
@@ -347,7 +349,9 @@ export type SolidCommand =
 	| { type: 'title'; title: string }
 	/** Convenience wrappers the tools use; each becomes an add-feature. */
 	| { type: 'sketch'; sketch: Sketch; planeRef?: PlaneRef }
-	| { type: 'delete'; selections: Selection[] };
+	| { type: 'delete'; selections: Selection[] }
+	/** Several edits as ONE step: one undo, one history label. A joint adds its mates this way. */
+	| { type: 'batch'; commands: SolidCommand[] };
 
 export interface SolidDocument {
 	id: string; title: string; conceptId: string; revision: number; canWrite: boolean;
