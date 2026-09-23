@@ -110,31 +110,35 @@ export function floorFigure(v: number): number {
 	return r > v ? Number(((k - 1) * step).toPrecision(3)) : r;
 }
 /**
- * The largest size `fits` accepts below `requested`, which failed. `hint` is
- * the kernel's own limit when it named one (a strict bound: measured, a 0.5
- * in plate refuses a 0.5 in round and takes 0.499), tried first at a hair
- * under it. Otherwise a bounded search: a small size first, because a
- * refusal no size can cure (two rounds meeting at a corner) fails there at
- * once, then halving the gap on figures a student could type. Every size
- * returned was tried and fitted; null means none did within `budget`.
+ * The largest size `fits` accepts below `requested`, which failed. `limit` is
+ * the kernel's own bound when it named one, and it is STRICT (measured: a
+ * 0.5 in plate refuses a 0.5 in round and takes 0.499), so the first try is a
+ * hair under it and a size at or above it is never tried again. `guesses` are
+ * other likely bounds (the radius of a round these edges run along), tried a
+ * hair under each, largest first. Then a bounded search: a small size first,
+ * because a refusal no size cures fails there at once, then halving the gap on
+ * figures a student could type. Every size returned was tried and fitted;
+ * null means none did within the budget. `exact` says the search closed the
+ * gap to one figure, so "the largest" is true; otherwise the answer is only
+ * the largest it FOUND, and a caller must say so.
  */
-export function largestThatFits(fits: (v: number) => boolean, requested: number, hint?: number, budget = FIT_ATTEMPTS, budgetMs = FIT_BUDGET_MS): { value: number | null; attempts: number } {
-	let attempts = 0, bad = requested;
+export function largestThatFits(fits: (v: number) => boolean, requested: number, limit?: number, budget = FIT_ATTEMPTS, budgetMs = FIT_BUDGET_MS, guesses: number[] = []): { value: number | null; attempts: number; exact: boolean } {
+	let attempts = 0, bad = requested, good = 0;
 	const started = performance.now(), late = () => attempts > 0 && performance.now() - started > budgetMs;
 	const attempt = (v: number) => { attempts++; return fits(v); };
-	if (hint !== undefined && hint > 0 && hint < requested) {
-		const c = floorFigure(hint * (1 - 1e-9));
-		if (c > 0) { if (attempt(c)) return { value: c, attempts }; bad = c; }
-	}
-	let good = 0;
-	for (const lo of [floorFigure(bad / 64), floorFigure(bad / 4096)]) { if (!(lo > 0) || attempts >= budget || late()) break; if (attempt(lo)) { good = lo; break; } bad = lo; }
-	if (!good) return { value: null, attempts };
+	if (limit !== undefined && limit > 0 && limit < bad) bad = limit;
+	const firsts = [...new Set([...(limit !== undefined && limit > 0 && limit <= requested ? [limit] : []), ...guesses.filter((g) => g > 0 && g < bad)].map((g) => floorFigure(g * (1 - 1e-9))))].filter((c) => c > 0 && c < requested).sort((a, b) => b - a);
+	for (const c of firsts) { if (c >= bad || attempts >= budget || late()) continue; if (attempt(c)) { good = c; break; } bad = c; }
+	if (!good) for (const lo of [floorFigure(bad / 64), floorFigure(bad / 4096)]) { if (!(lo > 0) || attempts >= budget || late()) break; if (attempt(lo)) { good = lo; break; } bad = lo; }
+	if (!good) return { value: null, attempts, exact: false };
+	const between = () => floorFigure(bad / good > 4 ? Math.sqrt(good * bad) : (good + bad) / 2);
 	while (attempts < budget && !late()) {
-		const mid = floorFigure(bad / good > 4 ? Math.sqrt(good * bad) : (good + bad) / 2);
+		const mid = between();
 		if (!(mid > good && mid < bad)) break;
 		if (attempt(mid)) good = mid; else bad = mid;
 	}
-	return { value: good, attempts };
+	const mid = between();
+	return { value: good, attempts, exact: !(mid > good && mid < bad) };
 }
 /** What the kernel's text says went wrong, and the limit it named when it named one. */
 export type KernelBlendIssue = { kind: 'cliff' | 'setback' | 'vertex' | 'trim' | 'curved' | 'boundary' | 'self' | 'partial' | 'other'; limit?: number };
@@ -166,7 +170,7 @@ const figure = (v: number) => `${floorFigure(v) === v ? v : Number(v.toFixed(4))
  */
 export function sizeFixFromSentence(row: { id: string; message?: string }, feature: Feature | undefined): FeatureFix | null {
 	/* Only the sentence whose headline IS the size: where a size is offered second (after leaving out the edges that run into another round), offering it alone would make it the headline. */
-	const m = /^That (?:radius|chamfer) is too big for (?:this edge|these edges)\. The largest that fits here is ((\d+(?:\.\d+)?) in(?: (to|by) (\d+(?:\.\d+)?) in)?)\.$/.exec(row.message ?? '');
+	const m = /^That (?:radius|chamfer) is too big for (?:this edge|these edges)\. The largest (?:found )?that fits here is ((\d+(?:\.\d+)?) in(?: (to|by) (\d+(?:\.\d+)?) in)?)\.$/.exec(row.message ?? '');
 	if (!m || !feature || feature.id !== row.id) return null;
 	const a = Number(m[2]), b = m[4] !== undefined ? Number(m[4]) : undefined;
 	let patch: Record<string, unknown>;
@@ -302,20 +306,25 @@ function refuse(ctx: ExecutorContext, f: Blend, body: { id: string; solid: numbe
 	const hint = issue.limit !== undefined && (f.type === 'fillet' ? !f.variable && issue.kind === 'cliff' : f.distance2 === undefined && issue.kind === 'setback') ? issue.limit : undefined;
 	const probe = (v: number) => blendFits(ctx, body.solid, { ...f, ...sizedPatch(f, v) } as Blend, handles);
 	const where = handles.map(edgeSel);
+	/* Which of the student's own picks run into an earlier round or bevel: along the run the chain carries them on (the arc down the side of a big round) or at a corner. */
+	const runOf = (h: number) => (f.propagate ? tangentChain(k, body.solid, [h]) : [h]);
+	const hits = refs.map((h) => [...touching(runOf(h), false).keys()]);
+	const struck = refs.map((_, i) => i).filter((i) => hits[i].length);
+	/* A round running along an earlier one usually fits just under that one's radius, so each such radius is a first guess. */
+	const guesses = f.type === 'fillet' ? [...new Set(struck.flatMap((i) => hits[i]))].map((fid) => ctx.manifest.features.find((x) => x.id === fid)).flatMap((x) => (x?.type === 'fillet' && !x.variable ? [x.radius] : [])) : [];
 	/* A drag refuses frame after frame; the search is for the refusal a student stops on, so a preview frame only says what went wrong. */
-	const fit = issue.kind !== 'boundary' && !ctx.preview ? largestThatFits(probe, primary, hint).value : null;
+	const found = issue.kind !== 'boundary' && !ctx.preview ? largestThatFits(probe, primary, hint, FIT_ATTEMPTS, FIT_BUDGET_MS, guesses) : { value: null, exact: false };
+	const fit = found.value;
 	let sizeFix: FeatureFix | undefined, sizeWords = '';
 	if (fit !== null) {
 		const patch = sizedPatch(f, fit) as { radius?: number; distance?: number; distance2?: number; variable?: { end: number } };
 		sizeWords = f.type === 'fillet' ? (patch.variable ? `${figure(patch.radius!)} to ${figure(patch.variable.end)}` : figure(patch.radius!)) : patch.distance2 !== undefined ? `${figure(patch.distance!)} by ${figure(patch.distance2)}` : figure(patch.distance!);
 		sizeFix = { label: `Use ${sizeWords}`, value: fit, commands: [{ type: 'set-feature', id: f.id, patch }] };
 	}
-	/* Which of the student's own picks run into an earlier round or bevel: along the run the chain carries them on (the arc down the side of a big round) or at a corner. */
-	const runOf = (h: number) => (f.propagate ? tangentChain(k, body.solid, [h]) : [h]);
-	const hits = refs.map((h) => [...touching(runOf(h), false).keys()]);
-	const struck = refs.map((_, i) => i).filter((i) => hits[i].length);
+	/* "The largest" only when the search closed the gap; a search the budget cut short says what it found. Honest numbers. */
+	const largest = `The largest ${found.exact ? '' : 'found '}that fits here is ${sizeWords}.`;
 	/* A size close to what was asked is the answer; one far below it (0.0153 for a 0.2 in round) is a symptom of running into the earlier round, which is the thing to say. */
-	if (sizeFix && (fit! >= primary / 2 || !struck.length)) return new BlendRefusal(`That ${f.type === 'fillet' ? 'radius' : 'chamfer'} is too big for ${these}. The largest that fits here is ${sizeWords}.`, { where, detail, fix: sizeFix });
+	if (sizeFix && (fit! >= primary / 2 || !struck.length)) return new BlendRefusal(`That ${f.type === 'fillet' ? 'radius' : 'chamfer'} is too big for ${these}. ${largest}`, { where, detail, fix: sizeFix });
 	if (struck.length) {
 		const fid = hits[struck[0]][0], name = nameOf(fid), their = ctx.manifest.features.find((x) => x.id === fid)?.type === 'chamfer' ? 'bevel' : 'round';
 		const whose = (one: string, many: string) => (struck.length === refs.length ? plural(refs.length, `This edge ${one}`, `These edges ${many}`) : `${struck.length} of these edges ${struck.length === 1 ? one : many}`);
@@ -329,7 +338,7 @@ function refuse(ctx: ExecutorContext, f: Blend, body: { id: string; solid: numbe
 		if (sizeFix) fixes.push(sizeFix);
 		const help: FeatureHelp = { where: struck.map((i) => edgeSel(refs[i])), detail, ...(fixes.length ? { fix: fixes[0] } : {}), ...(fixes.length > 1 ? { more: fixes.slice(1) } : {}) };
 		if (into && sameSize) return new BlendRefusal(`${whose('meets', 'meet')} the ${their} from ${name} at a corner. ${word === 'round' ? 'Rounds' : 'Bevels'} that share a corner have to be made together.`, help);
-		return new BlendRefusal(`${whose('runs', 'run')} into the ${their} from ${name}, where a ${word} this size cannot meet it.${sizeFix ? ` The largest that fits here is ${sizeWords}.` : ''}`, help);
+		return new BlendRefusal(`${whose('runs', 'run')} into the ${their} from ${name}, where a ${word} this size cannot meet it.${sizeFix ? ` ${largest}` : ''}`, help);
 	}
 	const sentence: Record<KernelBlendIssue['kind'], string> = {
 		cliff: `That ${f.type === 'fillet' ? 'radius' : 'chamfer'} is too big for ${these}, and no smaller size fits either. Try fewer edges at a time.`,

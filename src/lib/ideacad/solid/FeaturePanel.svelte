@@ -50,7 +50,7 @@
 	import { refFromSelection } from './naming';
 	import { featureOptions, holeFeatureAt, withOptions } from './features/options';
 	import { HOLE_FIT_WORDS, HOLE_STANDARDS, describeHole, type HoleFit } from './features/holes';
-	import { edgeKey, edgeSet, edgeShape, facesByEdge, featureOfName, sizeFixFromSentence, type EdgeSetKind } from './features/blends';
+	import { edgeKey, edgeSet, edgeShape, facesByEdge, featureOfName, sizeFixFromSentence, type EdgeSetKind, type EdgeShape } from './features/blends';
 	let { api }: { api: WorkspaceApi } = $props();
 	const BLEND_TOOLS = ['fillet', 'chamfer', 'shell', 'hole'];
 	const EXTRA_KINDS = ['draft', 'sweep', 'loft', 'rib'] as const;
@@ -133,13 +133,15 @@
 	 */
 	const sets = $derived.by(() => {
 		if (!seed || !seedBody) return [];
-		const body = seedBody, picked = new Set(edges.filter((s) => s.bodyId === body.id).map((s) => s.id)), shape = new Map<string, boolean>();
-		const sharp = (id: string) => { if (!shape.has(id)) { const e = body.edges.find((x) => x.id === id); shape.set(id, !!e && edgeShape(body, e, beside ?? undefined) !== 'smooth'); } return shape.get(id)!; };
+		const body = seedBody, picked = new Set(edges.filter((s) => s.bodyId === body.id).map((s) => s.id)), shapes = new Map<string, EdgeShape>();
+		/* Each edge's shape read once per selection, shared by every set below: the convex and concave sets and the smooth-edge filter would otherwise each walk every face mesh again. */
+		const shapeOf = (id: string) => { if (!shapes.has(id)) { const e = body.edges.find((x) => x.id === id); shapes.set(id, e ? edgeShape(body, e, beside ?? undefined) : 'unknown'); } return shapes.get(id)!; };
 		const from = seed.kind === 'edge' ? { edge: seed.id } : { face: seed.id, feature: featureOfName(seed.id) };
 		const seen = new Set<string>(), out: { kind: EdgeSetKind; word: string; title: string; ids: string[]; adds: number }[] = [];
 		for (const g of GROW) {
 			if (seed.kind !== 'edge' && (g.kind === 'chain' || g.kind === 'loop')) continue;
-			const ids = edgeSet(body, g.kind, from).filter(sharp), key = [...ids].sort().join(','), adds = ids.filter((id) => !picked.has(id)).length;
+			const ids = g.kind === 'convex' || g.kind === 'concave' ? body.edges.map((e) => e.id).filter((id) => shapeOf(id) === g.kind) : edgeSet(body, g.kind, from).filter((id) => shapeOf(id) !== 'smooth');
+			const key = [...ids].sort().join(','), adds = ids.filter((id) => !picked.has(id)).length;
 			if (!adds || seen.has(key)) continue;
 			seen.add(key); out.push({ ...g, ids, adds });
 		}
@@ -275,16 +277,16 @@
 				</div>
 			{/if}
 			{#if mode === 'fillet'}
-				<label class="size">Radius<span class="field"><input inputmode="decimal" bind:value={radius} data-testid="ideacad-fillet-radius" /><span class="unit">in</span></span></label>
+				<label class="size">Radius<span class="fp-field"><input inputmode="decimal" bind:value={radius} data-testid="ideacad-fillet-radius" /><span class="fp-unit">in</span></span></label>
 				<label class="toggle"><input type="checkbox" bind:checked={propagate} data-testid="ideacad-fillet-propagate" /><span>Tangent chain</span></label>
 				<div class="rigor"><Disclosure label="Variable radius" collapseWhen={true} scope="ideacad-fillet-variable" testId="ideacad-fillet-variable">
-					<label class="size">End radius<span class="field"><input inputmode="decimal" bind:value={variableEnd} data-testid="ideacad-fillet-variable-end" /><span class="unit">in</span></span></label>
+					<label class="size">End radius<span class="fp-field"><input inputmode="decimal" bind:value={variableEnd} data-testid="ideacad-fillet-variable-end" /><span class="fp-unit">in</span></span></label>
 					{#if variableEnd.trim() !== ''}<label class="size">Law<select value={law} onchange={(e) => (law = e.currentTarget.value as 'linear' | 'scurve')} data-testid="ideacad-fillet-law"><option value="linear">Linear</option><option value="scurve">S-curve</option></select></label>{/if}
 				</Disclosure></div>
 			{:else}
-				<label class="size">Distance<span class="field"><input inputmode="decimal" bind:value={distance} data-testid="ideacad-chamfer-distance" /><span class="unit">in</span></span></label>
-				<label class="size">Second<span class="field"><input inputmode="decimal" bind:value={distance2} placeholder="same" data-testid="ideacad-chamfer-distance2" /><span class="unit">in</span></span></label>
-				<label class="size">Angle<span class="field"><input inputmode="decimal" bind:value={chamferAngle} placeholder="none" data-testid="ideacad-chamfer-angle" /><span class="unit">°</span></span></label>
+				<label class="size">Distance<span class="fp-field"><input inputmode="decimal" bind:value={distance} data-testid="ideacad-chamfer-distance" /><span class="fp-unit">in</span></span></label>
+				<label class="size">Second<span class="fp-field"><input inputmode="decimal" bind:value={distance2} placeholder="same" data-testid="ideacad-chamfer-distance2" /><span class="fp-unit">in</span></span></label>
+				<label class="size">Angle<span class="fp-field"><input inputmode="decimal" bind:value={chamferAngle} placeholder="none" data-testid="ideacad-chamfer-angle" /><span class="fp-unit">°</span></span></label>
 				<label class="toggle"><input type="checkbox" bind:checked={chamferPropagate} data-testid="ideacad-chamfer-propagate" /><span>Tangent chain</span></label>
 			{/if}
 			{#if shellAhead}<label class="toggle cue-toggle"><input type="checkbox" bind:checked={beforeShell} data-testid="ideacad-blend-before-shell" /><span>Before {shellAhead.name}, for even walls</span></label>{/if}
@@ -303,9 +305,9 @@
 			{/each}
 		{:else if mode === 'shell'}
 			<p class="picks" data-testid="ideacad-feature-picks"><span class="count">{plural(faces.length, 'open face')}</span></p>
-			<label class="size">Wall<span class="field"><input inputmode="decimal" bind:value={thickness} data-testid="ideacad-shell-thickness" /><span class="unit">in</span></span></label>
+			<label class="size">Wall<span class="fp-field"><input inputmode="decimal" bind:value={thickness} data-testid="ideacad-shell-thickness" /><span class="fp-unit">in</span></span></label>
 			<h3>Own walls</h3>
-			<label class="size">Selected face<span class="field"><input inputmode="decimal" bind:value={wallThickness} data-testid="ideacad-shell-wall-thickness" /><span class="unit">in</span></span></label>
+			<label class="size">Selected face<span class="fp-field"><input inputmode="decimal" bind:value={wallThickness} data-testid="ideacad-shell-wall-thickness" /><span class="fp-unit">in</span></span></label>
 			{#if editable}<button type="button" class="wide" aria-disabled={api.busy} onclick={addWall} data-testid="ideacad-shell-add-wall">Set this face's wall</button>{/if}
 			{#if walls.length}
 				<ul class="walls" data-testid="ideacad-shell-walls">
@@ -321,14 +323,14 @@
 			<fieldset class="fits" data-testid="ideacad-hole-fit"><legend>Fit</legend>
 				{#each Object.entries(HOLE_FIT_WORDS) as [id, w] (id)}<label class="toggle" title={w.sentence}><input type="radio" name="ideacad-hole-fit" value={id} bind:group={fit} /><span>{w.word}</span></label>{/each}
 			</fieldset>
-			{#if fit === 'custom'}<label class="size">Diameter<span class="field"><input inputmode="decimal" bind:value={diameter} data-testid="ideacad-hole-diameter" /><span class="unit">in</span></span></label>{/if}
+			{#if fit === 'custom'}<label class="size">Diameter<span class="fp-field"><input inputmode="decimal" bind:value={diameter} data-testid="ideacad-hole-diameter" /><span class="fp-unit">in</span></span></label>{/if}
 			<p class="readout" data-testid="ideacad-hole-words">Drills {holeWords}</p>
 			<label class="toggle"><input type="checkbox" bind:checked={through} data-testid="ideacad-hole-through" /><span>Through all</span></label>
-			{#if !through}<label class="size">Depth<span class="field"><input inputmode="decimal" bind:value={depth} data-testid="ideacad-hole-depth" /><span class="unit">in</span></span></label>{/if}
+			{#if !through}<label class="size">Depth<span class="fp-field"><input inputmode="decimal" bind:value={depth} data-testid="ideacad-hole-depth" /><span class="fp-unit">in</span></span></label>{/if}
 			{#if editable}<button type="button" class="wide primary" aria-disabled={api.busy} onclick={() => void drill()} data-testid="ideacad-hole-apply">Drill at the face center</button>{/if}
 		{:else if mode === 'draft'}
 			<p class="picks" data-testid="ideacad-feature-picks"><span class="count">{plural(faces.length, 'flat face')}</span></p>
-			<label class="size">Angle<span class="field"><input inputmode="decimal" bind:value={draftAngle} data-testid="ideacad-draft-angle" /><span class="unit">°</span></span></label>
+			<label class="size">Angle<span class="fp-field"><input inputmode="decimal" bind:value={draftAngle} data-testid="ideacad-draft-angle" /><span class="fp-unit">°</span></span></label>
 			<label>Pull direction<select value={pull} onchange={(e) => (pull = e.currentTarget.value as typeof pull)} data-testid="ideacad-draft-pull"><option value="X">X axis</option><option value="Y">Y axis</option><option value="Z">Z axis</option><option value="reference">Selected reference axis</option></select></label>
 			<label>Neutral plane<select value={neutral} onchange={(e) => (neutral = e.currentTarget.value as typeof neutral)} data-testid="ideacad-draft-neutral"><option value="XY">XY</option><option value="XZ">XZ</option><option value="YZ">YZ</option><option value="reference">Selected reference plane</option></select></label>
 			{#if editable}<button type="button" class="wide primary" aria-disabled={api.busy} onclick={() => void draft()} data-testid="ideacad-draft-apply">Draft {plural(faces.length, 'face')} at {draftAngle.trim() || '?'}°</button>{/if}
@@ -352,8 +354,8 @@
 	.picks{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}.picks .count{color:var(--text-1);font:600 15px Rajdhani,sans-serif}.picks .on{font:13px 'Share Tech Mono',monospace}.picks .cue{font-size:13px}
 	label{display:grid;gap:4px;font:600 14px Rajdhani,sans-serif;color:var(--text-2)}
 	input,select{min-height:44px;width:100%;box-sizing:border-box;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:16px Rajdhani,sans-serif;padding:0 8px}
-	/* A size row: the word, then the box with its unit beside it, on one line, so a column of sizes reads as a list of values. */
-	.size{grid-template-columns:minmax(0,1fr) minmax(0,9.5rem);align-items:center;gap:8px}.field{display:flex;align-items:center;gap:6px;min-width:0}.field input{flex:1;min-width:0}.unit{font:13px 'Share Tech Mono',monospace;color:var(--text-2);min-width:1.4em}
+	/* A size row: the word, then the box with its unit beside it, on one line, so a column of sizes reads as a list of values. `fp-` because `src/app.css` owns a global `.field` (a key/value row with padding and a rule), which stretched this row to 63 px. */
+	.size{grid-template-columns:minmax(0,1fr) minmax(0,9.5rem);align-items:center;gap:8px}.fp-field{display:flex;align-items:center;gap:6px;min-width:0}.fp-field input{flex:1;min-width:0}.fp-unit{font:13px 'Share Tech Mono',monospace;color:var(--text-2);min-width:1.4em}
 	.toggle{display:flex;align-items:center;gap:8px;min-height:44px;color:var(--text-1);cursor:pointer}.toggle input{width:20px;height:20px;min-height:0;min-width:0;margin:0;flex-shrink:0}
 	.cue-toggle span{font-weight:500;color:var(--text-2)}
 	.fits{margin:0;padding:0 8px 4px;border:1px solid var(--hairline);border-radius:4px;display:grid}.fits legend{font:600 14px Rajdhani,sans-serif;color:var(--text-2);padding:0 4px}

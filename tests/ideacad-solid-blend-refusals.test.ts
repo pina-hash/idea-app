@@ -193,7 +193,8 @@ describe('a round that runs into a much bigger one', () => {
 		const refused = await add(e, { id: '', name: '', type: 'fillet', edges: sharp.map((id) => refFromSelection({ bodyId: 'x1#0', kind: 'edge', id }, body) as EdgeRef), radius: 0.2, propagate: true } as Feature);
 		const f2 = refused.features[3], refusal = log.refusals.at(-1)!;
 		expect(f2.status).toBe('error');
-		expect(f2.message).toMatch(/^2 of these edges run into the round from Fillet 1, where a round this size cannot meet it\. The largest that fits here is \d+(\.\d+)? in\.$/);
+		/* The search may be cut short by its time budget here, and then the sentence says it is the largest FOUND rather than claiming the largest. */
+		expect(f2.message).toMatch(/^2 of these edges run into the round from Fillet 1, where a round this size cannot meet it\. The largest (found )?that fits here is \d+(\.\d+)? in\.$/);
 		expect(refusal.help.fix!.label).toBe('Leave out 2 edges');
 		expect(refusal.help.more!.map((x) => x.label)).toEqual([expect.stringMatching(/^Use \d+(\.\d+)? in$/)]);
 		expect(refusal.help.more![0].value!).toBeLessThan(0.1);
@@ -221,8 +222,13 @@ describe('the pure halves', () => {
 		for (const v of [0.4999999995, 2.996999, 0.1414213562, 0.0123456, 7]) expect(floorFigure(v)).toBeLessThanOrEqual(v);
 		const TRUE_MAX = 0.3172, tried: number[] = [];
 		const fits = (v: number) => { tried.push(v); return v < TRUE_MAX; };
+		/* A named limit is strict: one try a hair under it, and the gap to it is one figure, so "the largest" is true. */
 		const hinted = largestThatFits(fits, 3, TRUE_MAX);
-		expect(hinted).toEqual({ value: 0.317, attempts: 1 });
+		expect(hinted).toEqual({ value: 0.317, attempts: 1, exact: true });
+		/* A guess is not a bound: tried first, then the search carries on above it toward the next failure. */
+		tried.length = 0;
+		const guessed = largestThatFits(fits, 3, undefined, FIT_ATTEMPTS, 60_000, [0.25]);
+		expect(tried[0]).toBe(0.249); expect(guessed.value!).toBeGreaterThan(0.249); expect(guessed.value!).toBeLessThan(TRUE_MAX);
 		tried.length = 0;
 		const searched = largestThatFits(fits, 3);
 		expect(searched.attempts).toBeLessThanOrEqual(FIT_ATTEMPTS);
@@ -230,7 +236,9 @@ describe('the pure halves', () => {
 		expect(searched.value!).toBeLessThan(TRUE_MAX);
 		expect(TRUE_MAX - searched.value!).toBeLessThan(TRUE_MAX * 0.02);
 		/* No size fits: two probes, a small one and a tiny one, then it stops. */
-		expect(largestThatFits(() => false, 3)).toEqual({ value: null, attempts: 2 });
+		expect(largestThatFits(() => false, 3)).toEqual({ value: null, attempts: 2, exact: false });
+		/* A search stopped by its attempt budget before closing the gap does not claim the largest. */
+		expect(largestThatFits(fits, 3, undefined, 3).exact).toBe(false);
 	});
 });
 
