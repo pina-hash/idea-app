@@ -922,6 +922,42 @@
 	 */
 	const canTurnIn = $derived(canSubmit || !!savedDraftId);
 
+	/**
+	 * A PHOTO IS UPLOADED THE MOMENT IT IS STAGED, AS A DRAFT (ledger 0297,
+	 * package F4b). It used to wait in memory for Save draft or Turn in, so a
+	 * closed tab, a dead battery or a deploy took every page staged so far --
+	 * the blocking finding of the notebook audit. The draft is private to its
+	 * author at both read sites (0118), so saving it early shows nobody
+	 * anything, and turning it in stays the deliberate act it was.
+	 *
+	 * IT IS THE SAVE DRAFT PRESS, NOT A SECOND UPLOAD PATH: `runSave(false)`
+	 * creates the draft from the first photo or adds to the one this session
+	 * already made, through the same pairing rule and the same partial-failure
+	 * handling. Each staged photo is tried ONCE automatically (the WeakSet): a
+	 * photo that fails stays staged with its message and the Save draft button
+	 * retries it, rather than this effect retrying it in a loop. Deferred and
+	 * untracked, because `runSave` writes the state this effect reads.
+	 */
+	const autoUploadTried = new WeakSet<File>();
+	$effect(() => {
+		const ready =
+			staged.length > 0 &&
+			!stagerSettling &&
+			uploadReady &&
+			draftsReady &&
+			!readOnly &&
+			!busy &&
+			!!createEntry &&
+			!!addPhoto;
+		if (!ready) return;
+		const fresh = staged.filter((p) => !autoUploadTried.has(p.file));
+		if (!fresh.length) return;
+		untrack(() => {
+			for (const p of fresh) autoUploadTried.add(p.file);
+			queueMicrotask(() => void runSave(false));
+		});
+	});
+
 	// ---- autosave ------------------------------------------------------------
 	//
 	// WHAT THIS REPLACED. The composer had no persistence mechanism at all:
