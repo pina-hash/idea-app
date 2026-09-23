@@ -53,8 +53,8 @@ const VISITOR = { signedIn: false, isAdmin: false };
 const SPOKEN: [string, string][] = [
 	['classroom', '/classroom'],
 	['go to my classes', '/classroom'],
-	['Open my notebook.', '/notebook'],
-	['take me to the notebook', '/notebook'],
+	['Open my notebook.', '/classroom/notebook'],
+	['take me to the notebook', '/classroom/notebook'],
 	['idea cad', '/ideacad'],
 	['cad', '/ideacad'],
 	['maps', '/maps'],

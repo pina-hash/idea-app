@@ -255,7 +255,7 @@ describe('every phrase in the vocabulary navigates where the list says', () => {
 		const rec = listen(m);
 		rec.say('Go to my notebook.');
 		m.flush();
-		expect(went).toEqual(['/notebook']);
+		expect(went).toEqual(['/classroom/notebook']);
 	});
 
 	/**

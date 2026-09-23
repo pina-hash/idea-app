@@ -84,7 +84,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		title: 'My Notebook',
 		sub: 'Photograph your engineering notebook pages and keep every entry in one place.',
 		icon: 'notebook',
-		href: '/notebook',
+		href: '/classroom/notebook',
 		cta: 'Open',
 		// Every signed-in account, whatever their role: a notebook is a
 		// personal record, not a student-only surface.
