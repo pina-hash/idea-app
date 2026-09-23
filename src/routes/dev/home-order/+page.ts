@@ -2,6 +2,8 @@ import { dev } from '$app/environment';
 import { error } from '@sveltejs/kit';
 import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 import type { FeedSubmission } from '$lib/classroom/feed';
+import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
+import { readClassroomClock } from '$lib/classroom/student-work';
 import type { PageLoad } from './$types';
 
 /**
@@ -75,9 +77,9 @@ function item(sectionId: string, n: number, dueAt?: string): ClassroomItem {
 		 * measure the section offset against two empty cards.
 		 *
 		 * `Date.now()` AND NOT `NOW`, WHICH IS THE TRAP. This route mounts the
-		 * REAL `src/routes/+page.svelte`, and that page ranks with
-		 * `const now = new Date()` -- the live clock, which no fixture can
-		 * freeze. Dated off `NOW` instead, these items were ~50 days out by the
+		 * REAL `src/routes/+page.svelte`, and that page ranks against the
+		 * loader's clock, which this harness reads live (`readClassroomClock` in
+		 * the load below) exactly as the server load does. Dated off `NOW` instead, these items were ~50 days out by the
 		 * time anyone opened the page, ranked `later`, and produced exactly the
 		 * empty cards this line exists to prevent. Measured in a browser: 0 rows
 		 * dated off `NOW`, 6 dated off `Date.now()`.
@@ -148,11 +150,27 @@ export const load: PageLoad = async ({ url }) => {
 	 * days` (see `item`), because that is what the section-offset measurements
 	 * this route exists for were taken against.
 	 */
+	/**
+	 * THE PAGE'S ONE CLOCK READ, the way `+page.server.ts` hands it over
+	 * (ledger 0297). Without it the page falls back to reading its own clock
+	 * and the To-do door, which only renders off a loader's clock, never
+	 * mounts, so this harness could not measure where it sits.
+	 */
+	const clock = readClassroomClock();
+
+	/**
+	 * THE END OF THE SCHOOL'S CALENDAR DAY, not the machine's. The feed words a
+	 * deadline by the America/Los_Angeles day (one clock, ledger 0297), so a
+	 * date built on the runtime's own midnight names the wrong day whenever the
+	 * machine and the school disagree about the date, which a UTC container
+	 * does every evening. -07:00 lands at 23:59 in daylight time and 22:59 in
+	 * standard time, the same calendar day either way.
+	 */
 	const dueAtFor = (days: number) => {
-		const d = new Date();
-		d.setDate(d.getDate() + days);
-		d.setHours(23, 59, 0, 0);
-		return d.toISOString();
+		const day = new Date(Date.parse(`${clock.today}T12:00:00Z`) + days * 86_400_000)
+			.toISOString()
+			.slice(0, 10);
+		return new Date(`${day}T23:59:00-07:00`).toISOString();
 	};
 
 	/**
@@ -203,6 +221,8 @@ export const load: PageLoad = async ({ url }) => {
 		feedSections: sections,
 		feedItems: items,
 		feedSubmissions: submissions,
+		feedCheckIns: [] as ClassCheckIn[],
+		feedClock: clock,
 		// What the root layout normally supplies, overridden here so the page and
 		// the launcher both see a signed-in viewer of the chosen role.
 		claims: { sub: 'harness-user', email: me },
