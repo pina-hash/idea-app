@@ -57,7 +57,7 @@
 <style>
 	.section{display:grid;gap:8px}h2{margin:0;font-size:18px}
 	.state{margin:0;line-height:1.4;font:14px 'Share Tech Mono',monospace;color:var(--text-1)}
-	label{display:grid;gap:4px;font:600 14px Rajdhani,sans-serif;color:var(--text-2)}label small{font-weight:400;font-size:12px}
+	label{display:grid;gap:4px;font:600 14px Rajdhani,sans-serif;color:var(--text-2)}
 	input,select{min-height:44px;width:100%;box-sizing:border-box;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:16px Rajdhani,sans-serif;padding:0 8px}
 	.toggle{display:flex;align-items:center;gap:8px;min-height:44px;color:var(--text-1);cursor:pointer}.toggle input{width:20px;height:20px;min-height:0;margin:0;flex-shrink:0}
 	.actions{display:flex;gap:4px}.section .actions button{flex:1;min-height:44px;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:600 15px Rajdhani,sans-serif;cursor:pointer}

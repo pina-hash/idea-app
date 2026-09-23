@@ -58,5 +58,5 @@
 	.tip{position:fixed;z-index:60;display:grid;gap:2px;width:max-content;min-width:180px;max-width:min(260px,calc(100vw - 16px));box-sizing:border-box;padding:10px 12px;background:var(--surface-2);border:1px solid var(--boundary);border-radius:6px;color:var(--text-1);font:16px/1.3 Rajdhani,sans-serif;text-align:left;visibility:hidden}.tip.placed{visibility:visible}.tip[hidden]{display:none}
 	.tip-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-weight:700;font-size:18px}.tip-head kbd{font:12px 'Share Tech Mono',monospace;color:var(--cyan);border:1px solid var(--boundary);border-radius:3px;padding:1px 6px}
 	.tip-line{color:var(--text-2)}
-	.first-use{position:fixed;z-index:55;width:max-content;max-width:min(240px,calc(100vw - 16px));box-sizing:border-box;padding:6px 10px;background:var(--surface-1);border:1px solid var(--green);border-radius:5px;color:var(--text-1);font:15px/1.25 Rajdhani,sans-serif;pointer-events:none}.first-use[hidden]{display:none}
+	.first-use{position:fixed;z-index:55;width:max-content;max-width:min(340px,calc(100vw - 16px));box-sizing:border-box;padding:6px 10px;background:var(--surface-1);border:1px solid var(--green);border-radius:5px;color:var(--text-1);font:15px/1.25 Rajdhani,sans-serif;pointer-events:none}.first-use[hidden]{display:none}
 </style>

@@ -71,11 +71,11 @@
 
 	<h3>By construction <span class="count" data-testid="ideacad-reference-ready-construction">{readyCount(byConstruction)} of {byConstruction.length} ready</span></h3>
 	<div class="inputs">
-		<label>Plane<select bind:value={datum} data-testid="ideacad-reference-datum"><option>XY</option><option>XZ</option><option>YZ</option></select></label>
-		<label>Axis<select bind:value={axis} data-testid="ideacad-reference-axis"><option>X</option><option>Y</option><option>Z</option></select></label>
-		<label>Offset <small>in</small><input inputmode="decimal" bind:value={offset} data-testid="ideacad-reference-offset" /></label>
-		<label>Angle <small>°</small><input inputmode="decimal" bind:value={angle} data-testid="ideacad-reference-angle" /></label>
-		<label class="wide">Point x, y, z <small>in</small><input bind:value={coords} data-testid="ideacad-reference-coordinates" /></label>
+		<label><span class="cap">Plane</span><select bind:value={datum} data-testid="ideacad-reference-datum"><option>XY</option><option>XZ</option><option>YZ</option></select></label>
+		<label><span class="cap">Axis</span><select bind:value={axis} data-testid="ideacad-reference-axis"><option>X</option><option>Y</option><option>Z</option></select></label>
+		<label><span class="cap">Offset <small>in</small></span><input inputmode="decimal" bind:value={offset} data-testid="ideacad-reference-offset" /></label>
+		<label><span class="cap">Angle <small>°</small></span><input inputmode="decimal" bind:value={angle} data-testid="ideacad-reference-angle" /></label>
+		<label class="wide"><span class="cap">Point x, y, z <small>in</small></span><input bind:value={coords} data-testid="ideacad-reference-coordinates" /></label>
 	</div>
 	{@render offerList(byConstruction, 'construction')}
 
@@ -100,11 +100,11 @@
 	h3{margin:6px 0 0;display:flex;justify-content:space-between;align-items:baseline;font:600 15px Rajdhani,sans-serif;color:var(--text-1);border-bottom:1px solid var(--hairline);padding-bottom:4px}
 	.reference h3 .count{font:12px 'Share Tech Mono',monospace;color:var(--text-2)}
 	.offers,.list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
-	.inputs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.inputs .wide{grid-column:1/-1}
+	.inputs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.inputs .wide{grid-column:span 2}
 	.offers.folded li.waiting{display:none}.offers.folded:not(:has(li:not(.waiting))){display:none}
 	.reference .fold{display:flex;align-items:center;gap:6px;min-height:44px;width:100%;box-sizing:border-box;padding:4px 8px;border:1px dashed var(--boundary);border-radius:4px;background:transparent;color:var(--text-2);font:15px Rajdhani,sans-serif;cursor:pointer;text-align:left}
 	.caret{width:1em}
-	label{display:grid;gap:2px;font:600 14px Rajdhani,sans-serif;color:var(--text-2)}label small{font-weight:400}
+	label{display:grid;gap:2px;font:600 14px Rajdhani,sans-serif;color:var(--text-2)}.cap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cap small{font-weight:400}
 	input,select{min-height:44px;width:100%;box-sizing:border-box;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:16px Rajdhani,sans-serif;padding:0 8px}
 	.reference .offer{display:grid;gap:2px;width:100%;min-height:44px;box-sizing:border-box;text-align:left;padding:6px 8px;border:1px solid var(--boundary);border-radius:4px;background:var(--surface-0);color:var(--text-1);font:16px Rajdhani,sans-serif;cursor:pointer}
 	.reference .offer.ready{border-color:var(--green)}
