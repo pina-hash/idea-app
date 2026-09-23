@@ -424,7 +424,7 @@ export class SolidEngine {
 		const previous = this.manifest(), previousArtifacts = this.artifacts;
 		this.artifacts = artifacts;
 		const limit = this.limit;
-		this.clampBar(manifest.features.length);
+		this.limit = this.barAfterLoad(previous, manifest, limit);
 		try { this.applyManifest(manifest); }
 		catch (error) { this.artifacts = previousArtifacts; this.limit = limit; this.applyManifest(previous); throw error; }
 		if (resetHistory) { this.undoSteps = []; this.redoSteps = []; }
@@ -518,6 +518,20 @@ export class SolidEngine {
 		return this.project();
 	}
 	async cancel() { const p = this.preview; this.preview = null; if (p) { this.limit = p.limit; this.applyManifest(p.before); } return this.project(); }
+	/**
+	 * WHERE THE BAR STANDS AFTER A WHOLE DOCUMENT IS LOADED OVER THIS ONE (the
+	 * workspace's undo and redo load the inverse tree). Nothing is reordered: the
+	 * bar stays after the last feature that was built, and a feature that came
+	 * back right at the bar (a redo of one added there) is built with it.
+	 */
+	private barAfterLoad(previous: SolidManifest, next: SolidManifest, limit: number | null): number | null {
+		if (limit === null) return null;
+		const old = new Set(previous.features.map((f) => f.id)), built = new Set(previous.features.slice(0, limit).map((f) => f.id));
+		let at = 0;
+		next.features.forEach((f, i) => { if (built.has(f.id)) at = i + 1; });
+		while (at < next.features.length && !old.has(next.features[at].id)) at++;
+		return at >= next.features.length ? null : at;
+	}
 	/** A bar that no longer stands before any feature is no rollback. */
 	private clampBar(n: number) { if (this.limit !== null && this.limit >= n) this.limit = null; }
 	async undo() { const step = this.undoSteps.pop(); if (step) { this.clampBar(step.before.features.length); this.applyManifest(step.before); this.redoSteps.push(step); } return this.project(); }

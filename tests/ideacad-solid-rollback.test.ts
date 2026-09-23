@@ -65,6 +65,21 @@ describe('the rollback bar builds only the features above it', () => {
 		const forward = await e.rollback(null);
 		expect(height(forward.bodies[0].volume)).toBeCloseTo(2.875, 9);
 	});
+	it('the workspace undo and redo (a whole tree loaded over this one) keep the bar after what was built', async () => {
+		const e = await engine(); await stack(e);
+		await e.rollback(3);
+		const before = (await e.snapshot());
+		await add(e, push('pd', 1));
+		const withInsert = (await e.snapshot());
+		/* Undo: the tree without the inserted push. The bar goes back to where it stood. */
+		const undone = await e.load(before, false);
+		expect(undone.rollbackIndex).toBe(3);
+		expect(height(undone.bodies[0].volume)).toBeCloseTo(1.5, 9);
+		/* Redo: the push comes back at the bar and is built with it. */
+		const redone = await e.load(withInsert, false);
+		expect(redone.rollbackIndex).toBe(4);
+		expect(height(redone.bodies[0].volume)).toBeCloseTo(2.5, 9);
+	});
 	it('a gesture while rolled back inserts at the bar and a cancelled one leaves the bar where it was', async () => {
 		const e = await engine(); await stack(e);
 		await e.rollback(2);
