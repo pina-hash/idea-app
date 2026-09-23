@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import ThemeSwitch from '$lib/shell/ThemeSwitch.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import { sectionTitle, sortSections, type ClassroomSection } from '$lib/classroom/classroom';
 	import {
@@ -217,6 +218,7 @@
 		{#if minimal}
 			<a class="btn secondary" href={backHref}>&lsaquo; {backLabel}</a>
 		{/if}
+		<ThemeSwitch />
 		<ProfileMenu />
 	</div>
 </div>
