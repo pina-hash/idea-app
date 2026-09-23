@@ -328,3 +328,24 @@ export function plainTextNote(text: string): TiptapNode {
 	);
 	return docToTiptap(blocks);
 }
+
+/** "Sep 23" in the school's own calendar, no weekday (ledger 0297, TODO). */
+export function filedWhen(iso: string): string {
+	const d = new Date(iso);
+	if (Number.isNaN(d.getTime())) return '';
+	return d.toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+		timeZone: 'America/Los_Angeles'
+	});
+}
+
+/**
+ * Is this a file the notebook takes as a photo? The TYPE or the EXTENSION,
+ * never the type alone: `File.type` is legitimately empty for HEIC off an
+ * iPhone (CLAUDE.md, the DOM traps).
+ */
+export function looksLikePhoto(file: Pick<File, 'type' | 'name'>): boolean {
+	if (file.type?.startsWith('image/')) return true;
+	return /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i.test(file.name ?? '');
+}

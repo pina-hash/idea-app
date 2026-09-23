@@ -35,7 +35,15 @@
  * copies `items` into its own state on each change.
  */
 
-import type { AddPhotoResult, CreateEntryResult } from '$lib/notebook';
+import type {
+	AddPhotoResult,
+	CreateEntryResult,
+	EntryActionResult,
+	NotePayload,
+	NoteSaveResult
+} from '$lib/notebook';
+import type { TiptapNode } from '$lib/notebook-notes';
+import type { NoteFlush } from '$lib/notebook/notebook-shell';
 import {
 	captureToken,
 	captureUploadName,
@@ -78,6 +86,20 @@ export interface CaptureTransports {
 	findUpload: (uploadName: string) => Promise<{ entryId: string } | null | 'unknown'>;
 }
 
+/**
+ * Everything the capture surface is handed. Each is the SAME transport the
+ * notebook itself uses (`createNotebookTransports`), plus the retry's read,
+ * so a page written from an item and a page written in the notebook reach the
+ * server by one path. Absent altogether, the capture renders nothing to press.
+ */
+export interface NotebookCaptureTransports extends CaptureTransports {
+	createNote: (payload: NotePayload) => Promise<CreateEntryResult>;
+	addNote: (entryId: string, doc: TiptapNode, autosave?: boolean) => Promise<NoteSaveResult>;
+	editNote: (noteId: string, doc: TiptapNode, autosave?: boolean) => Promise<NoteSaveResult>;
+	submitEntry: (entryId: string) => Promise<EntryActionResult>;
+	flushNote?: (payload: NoteFlush) => void;
+}
+
 export interface CaptureQueueOptions {
 	viewer: string;
 	filing: CaptureFiling;
@@ -111,6 +133,7 @@ export class CaptureQueue {
 	#onChange: () => void;
 	#prepare: (file: File) => Promise<File>;
 	#running: Promise<void> | null = null;
+	#lock: Promise<void> | null = null;
 	#closed = false;
 
 	constructor(o: CaptureQueueOptions) {
@@ -251,6 +274,27 @@ export class CaptureQueue {
 		await this.drain();
 	}
 
+	/**
+	 * RUN A CREATE THE QUEUE MUST NOT RACE. The note's first save and the
+	 * first photo can each create the draft; run through here, the note waits
+	 * for any upload already under way, and no photo starts a create while the
+	 * note's is in flight -- it joins the entry the note made instead. Two
+	 * drafts for one capture is the failure this exists to prevent.
+	 */
+	async createExclusively<T>(fn: () => Promise<T>): Promise<T> {
+		while (this.#running || this.#lock) {
+			await (this.#running ?? this.#lock);
+		}
+		let release!: () => void;
+		this.#lock = new Promise<void>((r) => (release = r));
+		try {
+			return await fn();
+		} finally {
+			this.#lock = null;
+			release();
+		}
+	}
+
 	/** Start the next draft: after Turn in, nothing here continues that entry. */
 	startNewDraft(): void {
 		this.entryId = null;
@@ -301,6 +345,7 @@ export class CaptureQueue {
 		const form = new FormData();
 		form.set('photo', photo);
 		try {
+			while (!this.entryId && this.#lock) await this.#lock;
 			if (!this.entryId) {
 				if (item.variant !== 'original') {
 					// Nothing to correct yet: a corrected version cannot start an entry.

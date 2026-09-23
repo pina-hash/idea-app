@@ -67,76 +67,10 @@ export async function loadStudentNotebook({
 }) {
 	const access = await notebookAccess(supabase, claims.sub, claims.email as string | undefined);
 
-	/**
-	 * WIDEST FIRST, DROPPING ONE CAPABILITY PER RUNG. Migrations here are
-	 * applied by hand, so a deploy sitting between two of them is a real state,
-	 * not a hypothetical one -- and an unknown column or an unresolvable embed
-	 * fails the WHOLE select, so a single wide read would blank a notebook full
-	 * of perfectly readable entries over one missing extra. The rungs and what
-	 * each one adds live in $lib/notebook-selects.
-	 *
-	 * THE DELETED FILTER RIDES ONLY THE RUNGS THAT CARRY THE COLUMN (0116).
-	 * `deleted_at` does not exist on a project without 0116, and PostgREST fails
-	 * a select for an unknown column in a FILTER exactly as it does for one in
-	 * the column list -- so applying `.is('deleted_at', null)` unconditionally
-	 * would fail every rung, the scalar probe `configured` is decided on
-	 * included, and report a fully working notebook as missing. That is the 0098
-	 * failure verbatim.
-	 *
-	 * WHICH RUNGS THOSE ARE IS THE RUNG'S OWN `excludeDeleted`, NOT SOMETHING
-	 * DERIVED HERE. This asked `capability === 'deletion'` until 0118 added a
-	 * wider rung above it, which then carried `deleted_at` and quietly stopped
-	 * filtering on it -- deleted entries back in the feed, no error anywhere.
-	 * See $lib/notebook-selects.
-	 */
-	const read = (select: string, excludeDeleted: boolean) => {
-		let query = supabase
-			.from('notebook_entries')
-			.select(select)
-			.order('upload_timestamp', { ascending: false });
-		/**
-		 * A CLASS'S TAB READS MY ROWS FILED TO THIS CLASS, and both filters are
-		 * stated rather than left to the policy. RLS returns a staff account's
-		 * reviewable entries alongside their own (the doctrine above), which is
-		 * right for "a notebook" and wrong for "MY notebook in this class" --
-		 * CLAUDE.md's authorization-versus-attribution rule. The whole-notebook
-		 * read is byte-identical to what it always was.
-		 */
-		if (sectionId) query = query.eq('student_id', claims.sub).eq('section_id', sectionId);
-		return excludeDeleted ? query.is('deleted_at', null) : query;
-	};
-
-	let entryRows: unknown[] | null = null;
-	let entryError: unknown = null;
-	/**
-	 * Every capability starts unavailable and is turned ON by the rung that
-	 * carries it succeeding -- so a capability can only be reported present
-	 * because a read that actually included it came back, never by default.
-	 */
-	const ready: Record<string, boolean> = {
-		coalescing: false,
-		history: false,
-		drafts: false,
-		deletion: false,
-		pins: false,
-		folders: false,
-		notes: false,
-		photos: false
-	};
-	for (const rung of NOTEBOOK_ENTRY_SELECTS) {
-		const result = await read(rung.select, rung.excludeDeleted);
-		entryRows = result.data as unknown[] | null;
-		entryError = result.error;
-		if (!entryError) {
-			// This rung carries its own capability and every narrower one below it.
-			let reached = false;
-			for (const r of NOTEBOOK_ENTRY_SELECTS) {
-				if (r === rung) reached = true;
-				if (reached && r.capability) ready[r.capability] = true;
-			}
-			break;
-		}
-	}
+	const { entries, entryError, ready } = await readStudentEntries(
+		supabase,
+		sectionId ? { studentId: claims.sub, sectionId } : null
+	);
 
 	/**
 	 * The ONLY thing that hides the page, and it is answered by the last rung:
@@ -187,65 +121,6 @@ export async function loadStudentNotebook({
 	 * could have changed one.
 	 */
 	const coalescingReady = ready.coalescing;
-
-	const entries: NotebookEntry[] = (entryRows ?? []).map((r) => {
-		const row = r as unknown as Record<string, unknown>;
-		return {
-			id: row.id as string,
-			session_id: (row.session_id as string | null) ?? null,
-			section_id: (row.section_id as string | null) ?? null,
-			folder_id: (row.folder_id as string | null) ?? null,
-			pinned_at: (row.pinned_at as string | null) ?? null,
-			custom_label: (row.custom_label as string | null) ?? null,
-			upload_timestamp: row.upload_timestamp as string,
-			/**
-			 * NOT `?? null` (0118), and the difference is the whole failure this
-			 * guards against. On a rung without the column the value is
-			 * `undefined`, and defaulting that to null would report EVERY entry
-			 * on a pre-0118 project as an unturned-in draft -- a notebook full of
-			 * turned-in work suddenly reading as nothing handed in. So the fall
-			 * back is the entry's own upload stamp, which is exactly what 0118's
-			 * backfill writes for the same rows.
-			 */
-			submitted_at: draftsReady
-				? ((row.submitted_at as string | null) ?? null)
-				: (row.upload_timestamp as string),
-			status: row.status as NotebookEntry['status'],
-			/**
-			 * NOT `?? null` (0119), for the reason `submitted_at` above is not
-			 * either: `undefined` on a narrower rung means the column was never
-			 * asked for, and flattening that to null would tell the timeline that
-			 * nobody has ever reviewed the entry. Left `undefined` there, so the
-			 * history emits no review event rather than a wrong one.
-			 */
-			reviewed_at: historyReady ? ((row.reviewed_at as string | null) ?? null) : undefined,
-			flag_reason: (row.flag_reason as NotebookEntry['flag_reason']) ?? null,
-			instructor_comment: (row.instructor_comment as string | null) ?? null,
-			// Filled in below from its own read, never an embed: since 0098 there
-			// is no foreign key between notebook_entries and notebook_sessions for
-			// PostgREST to resolve one through.
-			session: null,
-			// Removed photos (0116) are dropped by `livePhotos` at every render,
-			// count and copy site rather than here, so a surface that reads
-			// `entry.photos` straight cannot miss the filter. A read on a narrower
-			// rung carries no `removed_at` at all, and every photo is live.
-			photos: (row.notebook_entry_photos as NotebookEntry['photos']) ?? [],
-			// Every revision, not just the current one: the feed shows a note's
-			// history, and which revision counts is derived (noteThreads), never
-			// stored. Photo visibility and note visibility both delegate to
-			// notebook_can_read_entry, so this needs no filter of its own.
-			//
-			// DELETED NOTES (0119) ARE CARRIED THROUGH HERE UNFILTERED, exactly
-			// as removed photos are one line up, and dropped by `noteThreads` at
-			// every render, count, title and copy site -- so a surface reading
-			// `entry.notes` straight cannot miss the filter, and the one surface
-			// that WANTS them (`deletedNoteThreads`, for the removed-notes
-			// disclosure and the entry history) still has them to read. A read on
-			// a narrower rung carries no `deleted_at` at all, and every note is
-			// live.
-			notes: (row.notebook_entry_notes as NotebookEntry['notes']) ?? []
-		};
-	});
 
 	/**
 	 * WHICH CHECK-IN EACH LINKED ENTRY WAS FILED AGAINST -- a SEPARATE read,
@@ -637,4 +512,152 @@ export async function loadStudentNotebook({
 		entries,
 		sessions
 	};
+}
+
+/**
+ * THE STUDENT'S OWN ENTRIES, DOWN THE SELECT LADDER, MAPPED ONCE (ledger 0297,
+ * package F4b). Extracted from `loadStudentNotebook` unchanged so the item
+ * page's capture block reads the same rows through the same rungs and the same
+ * mapping, rather than a second hand-shaped read of `notebook_entries`.
+ *
+ * `scope` null is the whole-notebook read, byte-identical to what it always
+ * was; a scope narrows to one student's rows filed to one class.
+ */
+export async function readStudentEntries(
+	supabase: SupabaseClient,
+	scope: { studentId: string; sectionId: string } | null
+): Promise<{ entries: NotebookEntry[]; entryError: unknown; ready: Record<string, boolean> }> {
+	/**
+	 * WIDEST FIRST, DROPPING ONE CAPABILITY PER RUNG. Migrations here are
+	 * applied by hand, so a deploy sitting between two of them is a real state,
+	 * not a hypothetical one -- and an unknown column or an unresolvable embed
+	 * fails the WHOLE select, so a single wide read would blank a notebook full
+	 * of perfectly readable entries over one missing extra. The rungs and what
+	 * each one adds live in $lib/notebook-selects.
+	 *
+	 * THE DELETED FILTER RIDES ONLY THE RUNGS THAT CARRY THE COLUMN (0116).
+	 * `deleted_at` does not exist on a project without 0116, and PostgREST fails
+	 * a select for an unknown column in a FILTER exactly as it does for one in
+	 * the column list -- so applying `.is('deleted_at', null)` unconditionally
+	 * would fail every rung, the scalar probe `configured` is decided on
+	 * included, and report a fully working notebook as missing. That is the 0098
+	 * failure verbatim.
+	 *
+	 * WHICH RUNGS THOSE ARE IS THE RUNG'S OWN `excludeDeleted`, NOT SOMETHING
+	 * DERIVED HERE. This asked `capability === 'deletion'` until 0118 added a
+	 * wider rung above it, which then carried `deleted_at` and quietly stopped
+	 * filtering on it -- deleted entries back in the feed, no error anywhere.
+	 * See $lib/notebook-selects.
+	 */
+	const read = (select: string, excludeDeleted: boolean) => {
+		let query = supabase
+			.from('notebook_entries')
+			.select(select)
+			.order('upload_timestamp', { ascending: false });
+		/**
+		 * A CLASS'S TAB READS MY ROWS FILED TO THIS CLASS, and both filters are
+		 * stated rather than left to the policy. RLS returns a staff account's
+		 * reviewable entries alongside their own (the doctrine above), which is
+		 * right for "a notebook" and wrong for "MY notebook in this class" --
+		 * CLAUDE.md's authorization-versus-attribution rule. The whole-notebook
+		 * read is byte-identical to what it always was.
+		 */
+		if (scope) query = query.eq('student_id', scope.studentId).eq('section_id', scope.sectionId);
+		return excludeDeleted ? query.is('deleted_at', null) : query;
+	};
+
+	let entryRows: unknown[] | null = null;
+	let entryError: unknown = null;
+	/**
+	 * Every capability starts unavailable and is turned ON by the rung that
+	 * carries it succeeding -- so a capability can only be reported present
+	 * because a read that actually included it came back, never by default.
+	 */
+	const ready: Record<string, boolean> = {
+		coalescing: false,
+		history: false,
+		drafts: false,
+		deletion: false,
+		pins: false,
+		folders: false,
+		notes: false,
+		photos: false
+	};
+	for (const rung of NOTEBOOK_ENTRY_SELECTS) {
+		const result = await read(rung.select, rung.excludeDeleted);
+		entryRows = result.data as unknown[] | null;
+		entryError = result.error;
+		if (!entryError) {
+			// This rung carries its own capability and every narrower one below it.
+			let reached = false;
+			for (const r of NOTEBOOK_ENTRY_SELECTS) {
+				if (r === rung) reached = true;
+				if (reached && r.capability) ready[r.capability] = true;
+			}
+			break;
+		}
+	}
+
+	const draftsReady = ready.drafts;
+	const historyReady = ready.history;
+	const entries: NotebookEntry[] = (entryRows ?? []).map((r) => {
+		const row = r as unknown as Record<string, unknown>;
+		return {
+			id: row.id as string,
+			session_id: (row.session_id as string | null) ?? null,
+			section_id: (row.section_id as string | null) ?? null,
+			folder_id: (row.folder_id as string | null) ?? null,
+			pinned_at: (row.pinned_at as string | null) ?? null,
+			custom_label: (row.custom_label as string | null) ?? null,
+			upload_timestamp: row.upload_timestamp as string,
+			/**
+			 * NOT `?? null` (0118), and the difference is the whole failure this
+			 * guards against. On a rung without the column the value is
+			 * `undefined`, and defaulting that to null would report EVERY entry
+			 * on a pre-0118 project as an unturned-in draft -- a notebook full of
+			 * turned-in work suddenly reading as nothing handed in. So the fall
+			 * back is the entry's own upload stamp, which is exactly what 0118's
+			 * backfill writes for the same rows.
+			 */
+			submitted_at: draftsReady
+				? ((row.submitted_at as string | null) ?? null)
+				: (row.upload_timestamp as string),
+			status: row.status as NotebookEntry['status'],
+			/**
+			 * NOT `?? null` (0119), for the reason `submitted_at` above is not
+			 * either: `undefined` on a narrower rung means the column was never
+			 * asked for, and flattening that to null would tell the timeline that
+			 * nobody has ever reviewed the entry. Left `undefined` there, so the
+			 * history emits no review event rather than a wrong one.
+			 */
+			reviewed_at: historyReady ? ((row.reviewed_at as string | null) ?? null) : undefined,
+			flag_reason: (row.flag_reason as NotebookEntry['flag_reason']) ?? null,
+			instructor_comment: (row.instructor_comment as string | null) ?? null,
+			// Filled in below from its own read, never an embed: since 0098 there
+			// is no foreign key between notebook_entries and notebook_sessions for
+			// PostgREST to resolve one through.
+			session: null,
+			// Removed photos (0116) are dropped by `livePhotos` at every render,
+			// count and copy site rather than here, so a surface that reads
+			// `entry.photos` straight cannot miss the filter. A read on a narrower
+			// rung carries no `removed_at` at all, and every photo is live.
+			photos: (row.notebook_entry_photos as NotebookEntry['photos']) ?? [],
+			// Every revision, not just the current one: the feed shows a note's
+			// history, and which revision counts is derived (noteThreads), never
+			// stored. Photo visibility and note visibility both delegate to
+			// notebook_can_read_entry, so this needs no filter of its own.
+			//
+			// DELETED NOTES (0119) ARE CARRIED THROUGH HERE UNFILTERED, exactly
+			// as removed photos are one line up, and dropped by `noteThreads` at
+			// every render, count, title and copy site -- so a surface reading
+			// `entry.notes` straight cannot miss the filter, and the one surface
+			// that WANTS them (`deletedNoteThreads`, for the removed-notes
+			// disclosure and the entry history) still has them to read. A read on
+			// a narrower rung carries no `deleted_at` at all, and every note is
+			// live.
+			notes: (row.notebook_entry_notes as NotebookEntry['notes']) ?? []
+		};
+	});
+
+	return { entries, entryError, ready };
 }
