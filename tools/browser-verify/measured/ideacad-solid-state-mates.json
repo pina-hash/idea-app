@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "ideacad-solid-state-mates.mjs",
-	"date": "2026-09-23T11:20:25.529Z",
-	"sha": "419220a40ee2178d2e0b46be6a778a3d166963e7",
-	"dirty": false,
+	"date": "2026-09-23T11:26:31.232Z",
+	"sha": "eac43567687310985e0c71d5496cc090439f826a",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 40,
 	"outsideRows": [],
-	"ms": 21625
+	"ms": 21199
 }
