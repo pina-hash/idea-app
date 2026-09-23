@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { classGlyph, classGlyphCode, compactSectionField, CLASS_GLYPH_MAX } from '../src/lib/classroom/class-glyph';
-import { CLASSROOM_SHELL_HARNESSES, feedbackExclusion } from '../src/lib/feedback/context';
+import { CLASSROOM_SHELL_HARNESSES, CLASSROOM_SURFACE_HARNESSES, feedbackExclusion } from '../src/lib/feedback/context';
 
 const ROOT = new URL('../', import.meta.url).pathname;
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -105,5 +105,15 @@ describe('Report and Voice are docked in the classroom chrome, never floating ov
 		expect(found.size).toBeGreaterThan(5);
 		expect([...found].sort()).toEqual([...CLASSROOM_SHELL_HARNESSES].sort());
 		for (const h of CLASSROOM_SHELL_HARNESSES) expect(feedbackExclusion(h)?.id, h).toBe('classroom');
+	});
+
+	it('the shell-less classroom harnesses exist and are claimed too', () => {
+		const devRoot = join(ROOT, 'src/routes/dev');
+		for (const h of CLASSROOM_SURFACE_HARNESSES) {
+			expect(statSync(join(devRoot, h.slice('/dev/'.length), '+page.svelte')).isFile(), h).toBe(true);
+			expect(feedbackExclusion(h)?.id, h).toBe('classroom');
+			// None of them is a shell harness: the two lists do not overlap.
+			expect((CLASSROOM_SHELL_HARNESSES as readonly string[]).includes(h), h).toBe(false);
+		}
 	});
 });

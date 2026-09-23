@@ -76,6 +76,21 @@ export const CLASSROOM_SHELL_HARNESSES = [
 	'/dev/theme-switch'
 ] as const;
 
+/**
+ * The `/dev` harnesses that mount a classroom SURFACE without the shell around
+ * it (the grading console, People). In production those surfaces sit under
+ * `/classroom`, where the controls are docked in the header and nothing
+ * floats over them, so the harness takes the same exclusion: a floating pill
+ * over the grading dock in a harness is an arrangement production never has.
+ */
+export const CLASSROOM_SURFACE_HARNESSES = [
+	'/dev/grading',
+	'/dev/grading-bulk',
+	'/dev/grading-rubric',
+	'/dev/presence',
+	'/dev/instructor-tools'
+] as const;
+
 export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 	{
 		id: 'deck',
@@ -112,7 +127,9 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 		// measurement there sees the production arrangement and not a pill over
 		// the fixture with a second copy in the header.
 		match: (routeId) =>
-			under('/classroom')(routeId) || CLASSROOM_SHELL_HARNESSES.some((p) => under(p)(routeId)),
+			under('/classroom')(routeId) ||
+			CLASSROOM_SHELL_HARNESSES.some((p) => under(p)(routeId)) ||
+			CLASSROOM_SURFACE_HARNESSES.some((p) => under(p)(routeId)),
 		samples: [
 			'/classroom',
 			'/classroom/[sectionId]',

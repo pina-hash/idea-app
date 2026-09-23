@@ -1607,7 +1607,9 @@
 		keyNote = null;
 		requestSelect(next);
 		// The loop lands somewhere DEFINED and visible: the first criterion's
-		// level control, which is where the next decision is made.
+		// level control, which is where the next decision is made -- unless the
+		// unsaved bar went up instead, which takes the focus itself.
+		if (pending) return;
 		if (criteria.length) void focusLevel(0, roveIndex(0));
 	}
 
