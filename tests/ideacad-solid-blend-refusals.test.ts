@@ -198,6 +198,8 @@ describe('a round that runs into a much bigger one', () => {
 		expect(refusal.help.more!.map((x) => x.label)).toEqual([expect.stringMatching(/^Use \d+(\.\d+)? in$/)]);
 		expect(refusal.help.more![0].value!).toBeLessThan(0.1);
 		expect(log.scratches.at(-1)).toBeLessThanOrEqual(FIT_ATTEMPTS + 1);
+		/* The size is second here, so the bridge that reads a size back out of a sentence offers nothing for this one rather than promoting the tiny size to the headline. */
+		expect(sizeFixFromSentence(f2, (await e.snapshot()).manifest.features[3])).toBeNull();
 		const fixed = await press(e, refusal.help.fix!.commands);
 		expect(fixed.features[3].status).toBe('ok');
 		expect(fixed.features[3].summary).toBe('R 0.2 in · 1 edge');
