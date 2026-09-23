@@ -225,12 +225,39 @@ export const AVATAR_TINTS = [
  * identity at all still has to paint something, and this is a decoration.
  */
 export function avatarTint(key: string | null | undefined): string {
+	return AVATAR_TINTS[avatarTintIndex(key)];
+}
+
+/** Which of the eight a person is, so the light-ground ink is the SAME person's hue. */
+function avatarTintIndex(key: string | null | undefined): number {
 	const k = (key ?? '').trim().toLowerCase();
-	if (!k) return AVATAR_TINTS[0];
+	if (!k) return 0;
 	// djb2, which is enough for eight buckets and is stable across engines.
 	let h = 5381;
 	for (let i = 0; i < k.length; i++) h = ((h << 5) + h + k.charCodeAt(i)) | 0;
-	return AVATAR_TINTS[Math.abs(h) % AVATAR_TINTS.length];
+	return Math.abs(h) % AVATAR_TINTS.length;
+}
+
+/**
+ * THE SAME EIGHT TINTS FOR A LIGHT GROUND (ledger 0297, package F1b), and the
+ * same move the dark set made: ONE pinned lightness for the whole set, hue and
+ * saturation held, so the set clears together rather than one at a time. On
+ * Space White the tile's ground is the light inset (#edf1f0) and the dark
+ * set's 70-78% lightness measured under 2:1 there. 30% is the brightest
+ * lightness at which all eight clear 4.5:1 as TEXT on every Space White
+ * ground the tile can sit on -- worst 4.57, and 3.79 under the
+ * projector-washout model. Derived from `AVATAR_TINTS` rather than typed, so
+ * a ninth hue gains its light twin with no second edit;
+ * `tests/space-white-inks.test.ts` measures every one.
+ */
+export const AVATAR_TINT_LIGHTNESS_ON_LIGHT = 30;
+export const AVATAR_TINTS_ON_LIGHT: readonly string[] = AVATAR_TINTS.map((t) =>
+	t.replace(/\s[\d.]+%\)$/, ` ${AVATAR_TINT_LIGHTNESS_ON_LIGHT}%)`)
+);
+
+/** A person's initials ink on a light ground: `avatarTint`'s own hue, the set's light lightness. */
+export function avatarTintOnLight(key: string | null | undefined): string {
+	return AVATAR_TINTS_ON_LIGHT[avatarTintIndex(key)];
 }
 
 /**

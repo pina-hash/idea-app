@@ -274,6 +274,11 @@
 		opacity: 0;
 		outline: none;
 	}
+	/* Under Space White the callout lifts on the theme's hard elevation rather
+	   than a blurred dark drop (ledger 0297, package F1b). */
+	:global(:root[data-theme='space-white']) .tour-callout {
+		box-shadow: var(--elevation-2);
+	}
 	.tour-callout.ready {
 		opacity: 1;
 		transition: opacity 0.18s ease;

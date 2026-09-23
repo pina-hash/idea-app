@@ -158,11 +158,17 @@ export interface SaveTeamStyleInput {
 // Pure helpers
 // ---------------------------------------------------------------------------
 
+/** The six columns a team's look is made of: what `teamStyle` reads, and all it reads. */
+export type TeamStyleFields = Pick<
+	Team,
+	'background_type' | 'background_value' | 'accent_color' | 'badge' | 'flourish' | 'tagline'
+>;
+
 /**
  * The style a team carries, in the exact shape the tournament renderers take.
  * One projection, so no surface reaches into a team row field by field.
  */
-export function teamStyle(team: Team): EntryStyleDraft {
+export function teamStyle(team: TeamStyleFields): EntryStyleDraft {
 	return {
 		background_type: team.background_type,
 		background_value: team.background_value,
@@ -171,6 +177,31 @@ export function teamStyle(team: Team): EntryStyleDraft {
 		flourish: team.flourish,
 		tagline: team.tagline
 	};
+}
+
+/**
+ * A TEAM'S OWN COLOURS AS INLINE CUSTOM PROPERTIES (`--team-accent`,
+ * `--team-bg`, `--team-ink`), for any surface that draws a team card. It moved
+ * here from PeoplePanel when the class page began drawing posted teams for the
+ * students (ledger 0297), so the teacher's board and the class's board read one
+ * answer rather than two.
+ *
+ * THE INK COMES FROM `bannerInk` AND IS NOT CHOSEN AT A CALL SITE. A student
+ * may pick any background; which of dark or light text survives on it is
+ * arithmetic the tournament module already does, and a second answer to that
+ * question is how a team ends up with black text on a black gradient with
+ * nothing on screen reporting it.
+ */
+export function teamStyleVars(team: TeamStyleFields): string {
+	const style = teamStyle(team);
+	const bg = backgroundCss(style);
+	return [
+		`--team-accent: ${accentOf(style)}`,
+		bg ? `--team-ink: ${bannerInk(style)}` : null,
+		bg ? `--team-bg: ${bg}` : null
+	]
+		.filter(Boolean)
+		.join('; ');
 }
 
 /**

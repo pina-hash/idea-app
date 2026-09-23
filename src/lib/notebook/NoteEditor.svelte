@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onDestroy, untrack } from 'svelte';
-	import { docToTiptap, type NoteDoc, type TiptapNode } from '$lib/notebook-notes';
+	import { docText, docToTiptap, type NoteDoc, type TiptapNode } from '$lib/notebook-notes';
+	import { plainTextNote } from '$lib/notebook/capture';
+	import { requestVersionCheck } from '$lib/shell/deploy-safety';
 	import { NOTE_SCHEMA_OPTIONS } from '$lib/rich-text-schema';
 	/**
 	 * THE PURE MODULE, NOT `$lib/notebook/grid`. The index re-exports the
@@ -112,6 +114,65 @@
 	let host = $state<HTMLDivElement | null>(null);
 	let editor = $state<Editor | null>(null);
 	let failed = $state(false);
+
+	/**
+	 * WHAT IS TYPED WHEN THE EDITOR COULD NOT LOAD.
+	 *
+	 * The editor is a separate download, and after a deploy renames the site's
+	 * files an open tab can ask for one that no longer exists. That used to
+	 * leave a box with nothing editable in it under a note promising plain text,
+	 * and every keystroke landed nowhere. So a failed load puts a working plain
+	 * textarea in the editor's place, and what is typed reaches the caller
+	 * through the SAME `onchange`, as paragraphs of plain text -- the classroom's
+	 * `docFromPlainText`, the one reader of that shape, whose paragraphs of
+	 * plain runs are exactly a note's.
+	 *
+	 * SEEDED WITH THE NOTE'S OWN TEXT, one paragraph per line (a grid's cells as
+	 * one line per row, the way the note's own plain-text projection reads
+	 * them), so a revision or a restored draft starts from what is there.
+	 * `onready` still fires, with the document the editor WOULD have been seeded
+	 * from, so the caller's baseline and the draft mirror hold the real note
+	 * until something is typed here; only typing replaces the formatting, and
+	 * the note below says so.
+	 */
+	let plainText = $state('');
+
+	/** An editor document's text, one entry per block, for the seed only. */
+	function editorLines(node: TiptapNode | null | undefined, out: string[] = []): string[] {
+		if (!node) return out;
+		if (node.type === GRID_NODE_NAME) {
+			const rows: unknown = node.attrs?.rows;
+			for (const row of Array.isArray(rows) ? rows : []) {
+				if (!Array.isArray(row)) continue;
+				const line = row.filter((cell) => typeof cell === 'string' && cell !== '').join(' ');
+				if (line) out.push(line);
+			}
+			return out;
+		}
+		const children = node.content ?? [];
+		if (children.some((c) => typeof c.text === 'string')) {
+			out.push(children.map((c) => c.text ?? '').join(''));
+			return out;
+		}
+		for (const child of children) editorLines(child, out);
+		return out;
+	}
+
+	function plainTextSeed(): string {
+		const lines = initialDoc
+			? editorLines(initialDoc)
+			: value && value.length
+				? docText(value).split('\n')
+				: [];
+		return lines.filter((line) => line.trim() !== '').join('\n\n');
+	}
+
+	function typedPlain(text: string) {
+		plainText = text;
+		const doc = plainTextNote(text);
+		liveDoc = doc;
+		onchange(doc);
+	}
 
 	/**
 	 * THE WRITING AID: autocorrect and the tolerance callout, one switch.
@@ -284,9 +345,16 @@
 				liveDoc = ready;
 				onready?.(ready);
 			} catch {
-				// A note is still writable without formatting; say so rather than
-				// leaving an inert box.
+				// A note is still writable without formatting: the textarea below
+				// takes the editor's place (see `plainText`), and the site is asked,
+				// unthrottled, whether a new version is live -- a chunk that failed
+				// to download is the strongest sign there is.
+				plainText = plainTextSeed();
 				failed = true;
+				const seeded = initialDoc ?? docToTiptap(value ?? []);
+				liveDoc = seeded;
+				onready?.(seeded);
+				requestVersionCheck({ force: true });
 			}
 		})();
 
@@ -493,9 +561,21 @@
 		>
 	</div>
 
-	<div class="note-surface" class:empty={active.empty} data-placeholder={placeholder}>
-		<div bind:this={host}></div>
-	</div>
+	{#if failed}
+		<textarea
+			class="note-surface note-plain"
+			value={plainText}
+			{placeholder}
+			{disabled}
+			aria-label={label}
+			data-testid="note-editor-plain"
+			oninput={(e) => typedPlain(e.currentTarget.value)}
+		></textarea>
+	{:else}
+		<div class="note-surface" class:empty={active.empty} data-placeholder={placeholder}>
+			<div bind:this={host}></div>
+		</div>
+	{/if}
 
 	<!--
 		THE BAND, and only when there is one. `ToleranceCallout` renders no
@@ -636,6 +716,22 @@
 		left: 0.8rem;
 		color: var(--text-3);
 		pointer-events: none;
+	}
+	/* The fallback textarea wears the editor surface's own box and type, with
+	   the editable area's own minimum height, and drops what a textarea brings. */
+	.note-plain {
+		display: block;
+		width: 100%;
+		box-sizing: border-box;
+		min-height: calc(6.5rem + 2 * var(--space-3));
+		border: 0;
+		background: transparent;
+		font-family: inherit;
+		resize: vertical;
+	}
+	.note-plain:focus-visible {
+		outline: 1px solid var(--focus-ring);
+		outline-offset: -2px;
 	}
 	.editor-note {
 		margin: 0;

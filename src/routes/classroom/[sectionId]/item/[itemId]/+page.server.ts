@@ -16,6 +16,7 @@ import {
 } from '$lib/classroom/html-assignment/mount';
 import { loadHtmlAssignment } from '$lib/classroom/html-assignment/load';
 import { validateReferenceSpec, type ReferenceSpec } from '$lib/classroom/reference-spec';
+import { loadItemNotebook } from '$lib/server/notebook-capture';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -64,6 +65,22 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 
 	let item = normalizeItemRow(itemRow as unknown as Record<string, unknown>);
 	const canManage = manages === true;
+	/**
+	 * THE STUDENT'S NOTEBOOK CAPTURE FOR THIS ITEM (ledger 0297, package F4b):
+	 * whether uploads are configured, whether drafts exist, and what they have
+	 * already filed for it. Started here and awaited at the return, so it runs
+	 * beside the item's own reads rather than after them. A manager gets none:
+	 * the capture is a student's own notebook, and a manager's read would
+	 * return every student's rows. An announcement gets none either: it asks
+	 * for no work.
+	 */
+	const notebookRead =
+		canManage || item.kind === 'post'
+			? null
+			: loadItemNotebook(supabase, claims.sub, params.sectionId, {
+					id: item.id,
+					title: item.title ?? null
+				});
 	if (canManage) {
 		// Instructor-only materials (0090), manager reads only -- see
 		// mergeInstructorMaterials for why this is never fetched for a student.
@@ -229,6 +246,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		 * difference between "this is a v1 assignment" and "this deployment
 		 * could not say".
 		 */
-		htmlAssignmentReady
+		htmlAssignmentReady,
+		notebook: notebookRead ? await notebookRead : null
 	};
 };

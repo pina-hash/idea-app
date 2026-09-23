@@ -82,7 +82,7 @@
 	<title>Grades &middot; {sectionTitle(section)} // IDEA Classroom</title>
 </svelte:head>
 
-<main class="classroom-page">
+<main class="classroom-page cr-instructor-surface">
 	<section class="hero">
 		<div class="eyebrow">{section.course?.code ?? 'IDEA // Classroom'}</div>
 		<h1>Grades</h1>
@@ -202,7 +202,7 @@
 
 <style>
 	.classroom-page {
-		max-width: var(--cr-measure, var(--measure-page));
+		max-width: var(--cr-measure, var(--measure-split));
 		margin: 0 auto;
 		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
 	}

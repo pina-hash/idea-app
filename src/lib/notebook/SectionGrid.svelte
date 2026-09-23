@@ -722,7 +722,8 @@
 	 * five of them below even 3:1. The glyph is text at 14.4px, so 4.5:1 is the
 	 * bar it has to clear, and it was not close.
 	 *
-	 * The values now come from --nb-cell-* (colors.css), declared once per plate.
+	 * The values now come from --nb-cell-* (colors.css), declared once per site
+	 * theme (ledger 0297: the notebook's own plates are retired).
 	 * What is NOT per-plate, and is still the locked contract: the glyphs, the
 	 * 1.9rem cell box, the 0.35/0.4rem density, Share Tech Mono, and the hue
 	 * identity of each state (green = on time, amber = late, cyan = awaiting,

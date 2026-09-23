@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
+	import { goto } from '$app/navigation';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
@@ -43,8 +44,17 @@
 		shortWhen,
 		sortUnits,
 		unitIdFor,
-		workStateLabel,
-		workStateTone,
+		studentWorkChip,
+		EMPTY_STREAM_FILTER,
+		STREAM_KIND_LABELS,
+		STREAM_STATUS_LABELS,
+		checkInPassesFilter,
+		itemPassesFilter,
+		standingCounts,
+		streamFilterActive,
+		type StreamFilter,
+		type StreamKindFilter,
+		type StreamStatusFilter,
 		type ClassroomComposerTransports,
 		type ClassroomItem,
 		type ClassroomSection,
@@ -60,13 +70,15 @@
 		checkInStatusLabel,
 		checkInTone,
 		streamCheckIns,
-		outstandingBadge,
 		mergeCheckIns,
-		outstandingCheckIns,
 		type ClassCheckIn
 	} from '$lib/classroom/class-check-ins';
 	import { flagReasonLabel } from '$lib/notebook';
 	import { formatSectionLabel } from '$lib/section-label';
+	import { matchesQuery } from '$lib/shell/search';
+	import { ICONS } from '$lib/shell/commands';
+	import { registerCommandHandler } from '$lib/shell/command-handlers';
+	import type { ClassOpensOn } from '$lib/preferences/classroom';
 
 	/**
 	 * ONE view of a class's content, grouped by the units its teacher authored.
@@ -111,7 +123,9 @@
 		loadExportStatuses = null,
 		retryExport = null,
 		onchanged = null,
-		layoutTransports = null
+		layoutTransports = null,
+		opensOn = 'all',
+		clock = null
 	}: {
 		section: ClassroomSection;
 		items: ClassroomItem[];
@@ -132,6 +146,11 @@
 		basePath?: string;
 		notebookHref?: string | null;
 		checkIns?: ClassCheckIn[];
+		/**
+		 * Unread here since ledger 0297: the count moved onto the class's Notebook
+		 * tab, which the classroom layout builds from the same load. Kept so every
+		 * mount that hands it in still types.
+		 */
 		sectionOutstanding?: number | null;
 		/**
 		 * The CALLER'S OWN standing on each assignment, keyed by item id. Empty for
@@ -204,6 +223,19 @@
 		 * from the composer rather than offering a write the database refuses.
 		 */
 		layoutTransports?: ClassroomLayoutTransports | null;
+		/**
+		 * THE STATUS FILTER THIS CLASS OPENS ON (ledger 0297), the viewer's own
+		 * default from the classroom settings, already narrowed to their role.
+		 * A default, never the last filter used.
+		 */
+		opensOn?: ClassOpensOn;
+		/**
+		 * THE CLASS LOADER'S ONE CLOCK READ, as an instant and as the Los Angeles
+		 * day. The status filter (To do, Missing, Done) needs it and reads no
+		 * clock of its own, so a surface that cannot hand one over offers no
+		 * status filter at all.
+		 */
+		clock?: { now: string; today: string } | null;
 	} = $props();
 
 	let unitsOpen = $state(false);
@@ -343,7 +375,225 @@
 	 * into, and it has to be visible to be a target) and hidden from a student,
 	 * for whom it is a heading over nothing.
 	 */
-	const groups = $derived(classGroups(items, units, { includeEmptyUnits: canManage }));
+	/*
+	 * A CHECK-IN WITH NO ITEM RENDERS ONLY IN THE UNFILED GROUP (`entriesFor`),
+	 * and `classGroups` makes that group only for unfiled ITEMS -- so in a class
+	 * whose every item is filed, a standalone check-in was on no row at all,
+	 * while the notebook badge above still counted it. Found by the status
+	 * filter (ledger 0297), whose chips count check-ins: a count of rows the
+	 * page cannot show is the thing a filter must never print.
+	 */
+	const groups = $derived.by(() => {
+		const base = classGroups(items, units, { includeEmptyUnits: canManage });
+		if (streamCheckIns(checkIns).length && !base.some((g) => g.id === UNFILED_GROUP_ID)) {
+			base.push({ id: UNFILED_GROUP_ID, unit: null, label: 'Not in a unit', items: [] });
+		}
+		return base;
+	});
+
+	/**
+	 * SEARCH AND FILTER (ledger 0297, report 19). A SECOND AXIS over the
+	 * teacher's units, never a replacement for them: matches stay inside their
+	 * own unit, in the teacher's order, and anything narrowing the page says so
+	 * in a count beside a Clear control. The rules are `$lib/classroom/classroom`'s
+	 * (`itemPassesFilter`, `checkInPassesFilter`) and the text rule is
+	 * `$lib/shell/search`'s, the palette's own.
+	 *
+	 * IT NARROWS WHAT IS RENDERED AND NOTHING ELSE. Every ORDER write (a drag, a
+	 * menu move, filing) keeps reading the unfiltered `groups`, and dragging is
+	 * off while a filter is on: renumbering a unit from the rows a search left on
+	 * screen would reorder the hidden ones by accident.
+	 */
+	/** A status this viewer can be offered, or everything: the one place that rule is spelled. */
+	function allowedStatus(status: StreamStatusFilter): StreamStatusFilter {
+		if (status === 'drafts') return canManage ? status : 'all';
+		if (status === 'todo' || status === 'missing' || status === 'done') return !canManage && clock ? status : 'all';
+		return status;
+	}
+	/* THE FIRST PAINT ALREADY WEARS THE DEFAULT, so a class that opens on To do
+	   does not render everything and then jump. The effect below keeps it in
+	   step afterwards; this is only the starting value. */
+	// svelte-ignore state_referenced_locally
+	let filter = $state<StreamFilter>({ ...EMPTY_STREAM_FILTER, status: allowedStatus(opensOn) });
+	let searchEl = $state<HTMLInputElement | null>(null);
+	const filtering = $derived(streamFilterActive(filter));
+	const unitNames = $derived(new Map(units.map((u) => [u.id, u.name])));
+	const filterCtx = $derived({
+		work,
+		now: clock?.now ?? '',
+		today: clock?.today ?? '',
+		unitNames,
+		matches: matchesQuery
+	});
+	const listedCheckIns = $derived(streamCheckIns(checkIns));
+	const shownItems = $derived(filtering ? items.filter((i) => itemPassesFilter(i, filter, filterCtx)) : items);
+	const shownCheckIns = $derived(
+		filtering ? checkIns.filter((c) => checkInPassesFilter(c, filter, filterCtx)) : checkIns
+	);
+	const shownGroups = $derived.by(() => {
+		if (!filtering) return groups;
+		const narrowed = classGroups(shownItems, units, { includeEmptyUnits: false });
+		const anyCheckIn = streamCheckIns(shownCheckIns).length > 0;
+		if (anyCheckIn && !narrowed.some((g) => g.id === UNFILED_GROUP_ID)) {
+			narrowed.push({ id: UNFILED_GROUP_ID, unit: null, label: 'Not in a unit', items: [] });
+		}
+		return narrowed.filter((g) => g.items.length > 0 || (g.id === UNFILED_GROUP_ID && anyCheckIn));
+	});
+	/** The unfiltered group, which every order write reads. */
+	function fullGroupItems(groupId: string): ClassroomItem[] {
+		return groups.find((g) => g.id === groupId)?.items ?? [];
+	}
+	/**
+	 * A UNIT'S PROGRESS FOR A STUDENT (ledger 0297): how many of its
+	 * assignments are finished, read off `standingCounts` over the WHOLE unit
+	 * (never the filtered rows) with the same work map and clock the chips use,
+	 * so "2 of 3 done" and the checkmarks on the rows below it are one answer.
+	 * Null for a manager, and for a unit with no assignment in it.
+	 */
+	function unitProgress(groupId: string): { done: number; total: number } | null {
+		if (canManage) return null;
+		const c = standingCounts(fullGroupItems(groupId), [], filterCtx);
+		const total = c.todo + c.missing + c.done;
+		return total ? { done: c.done, total } : null;
+	}
+	const shownCount = $derived(shownItems.length + streamCheckIns(shownCheckIns).length);
+	const totalCount = $derived(items.length + listedCheckIns.length);
+
+	/** The kinds this class actually holds; a select with one real choice is not offered. */
+	const kindOptions = $derived.by((): StreamKindFilter[] => {
+		const present = new Set<StreamKindFilter>(items.map((i) => i.kind));
+		if (listedCheckIns.length) present.add('check-in');
+		const order: StreamKindFilter[] = ['assignment', 'material', 'post', 'check-in'];
+		const kinds = order.filter((k) => present.has(k));
+		return kinds.length > 1 ? ['all', ...kinds] : [];
+	});
+	/** A student's own standing, counted over everything loaded, for the chips. */
+	const counts = $derived(
+		clock ? standingCounts(items, listedCheckIns, filterCtx) : { todo: 0, missing: 0, done: 0 }
+	);
+	const draftCount = $derived(canManage ? items.filter((i) => !i.published).length : 0);
+	/**
+	 * THE STATUS CHIPS, per role. A student with a clock gets their own work in
+	 * three states; a manager gets Drafts when there is one. Nothing else is
+	 * offered, because a chip whose only outcome is an empty page is not a
+	 * filter.
+	 */
+	const statusOptions = $derived.by((): StreamStatusFilter[] => {
+		if (canManage) return draftCount > 0 || filter.status === 'drafts' ? ['drafts'] : [];
+		if (!clock) return [];
+		return counts.todo + counts.missing + counts.done > 0 || filter.status !== 'all'
+			? ['todo', 'missing', 'done']
+			: [];
+	});
+	function statusCount(s: StreamStatusFilter): number {
+		return s === 'drafts' ? draftCount : s === 'all' ? totalCount : counts[s];
+	}
+	const STATUS_GLYPHS: Record<StreamStatusFilter, string> = {
+		all: ICONS.filter,
+		todo: ICONS.todo,
+		missing: ICONS.missing,
+		done: ICONS.done,
+		drafts: ICONS.draft
+	};
+
+	/**
+	 * EVERY FILTER CHANGE GOES THROUGH HERE, and it clears the bulk selection: a
+	 * checked row a filter just hid is a row the next Delete would take with
+	 * nobody able to see it, which is the hazard select-all already refuses.
+	 */
+	function setFilter(next: Partial<StreamFilter>) {
+		const merged = { ...filter, ...next };
+		merged.status = allowedStatus(merged.status);
+		filter = merged;
+		if (bulkSelected.size) {
+			bulkSelected = new Set();
+			armBulkDelete = false;
+		}
+	}
+	function clearFilter() {
+		setFilter({ ...EMPTY_STREAM_FILTER });
+	}
+	function toggleStatus(status: StreamStatusFilter) {
+		setFilter({ status: filter.status === status ? 'all' : status });
+	}
+
+	/*
+	 * THE DEFAULT VIEW. A new class starts from the viewer's default with an
+	 * empty search; a changed default (the settings panel) moves only the
+	 * status, so it takes effect in front of them without eating a search.
+	 * Plain lets, not $state: written here, never read by another effect.
+	 */
+	// svelte-ignore state_referenced_locally
+	let appliedSection: string | null = section.id;
+	// svelte-ignore state_referenced_locally
+	let appliedOpensOn: string | null = opensOn;
+	$effect(() => {
+		const sectionId = section.id;
+		const want = opensOn;
+		if (sectionId === appliedSection && want === appliedOpensOn) return;
+		const newClass = sectionId !== appliedSection;
+		appliedSection = sectionId;
+		appliedOpensOn = want;
+		untrack(() => setFilter(newClass ? { ...EMPTY_STREAM_FILTER, status: want } : { status: want }));
+	});
+
+	/** Show one unit: clear what would hide it, unfold it, and bring it on screen. */
+	async function revealUnit(unitId?: string) {
+		if (!unitId) return;
+		if (filtering) clearFilter();
+		if (collapsed.includes(unitId)) await onToggleGroup?.(unitId);
+		if (!menuHost?.offsetParent) await goto(`${basePath}/${section.id}`);
+		await tick();
+		menuHost
+			?.querySelector(`[data-group-id="${CSS.escape(unitId)}"]`)
+			?.scrollIntoView({ block: 'start', behavior: 'instant' });
+	}
+
+	/**
+	 * A filter chosen from the palette. On an item page where the class list is
+	 * not on screen (a phone, or a narrow window), the class page is where the
+	 * narrowed list can be seen, so it goes there.
+	 */
+	async function filterFromPalette(next: Partial<StreamFilter>) {
+		setFilter(next);
+		if (!menuHost?.offsetParent) await goto(`${basePath}/${section.id}`);
+	}
+
+	/** The class search, from the palette or `/`: on screen first, then focused. */
+	async function focusSearch() {
+		if (!searchEl?.offsetParent) await goto(`${basePath}/${section.id}`);
+		await tick();
+		searchEl?.focus();
+		searchEl?.select();
+	}
+
+	/*
+	 * WHAT THIS PAGE CAN RUN FROM THE PALETTE (`$lib/shell/command-handlers`).
+	 * Registered while mounted and per role, so a student is never offered New
+	 * post and a manager is never offered their own "Missing".
+	 */
+	$effect(() => {
+		const offs = [
+			registerCommandHandler('class.search', () => focusSearch()),
+			registerCommandHandler('class.show-assignments', () => filterFromPalette({ kind: 'assignment' })),
+			registerCommandHandler('class.reveal-unit', (id) => revealUnit(id))
+		];
+		if (canManage) {
+			offs.push(registerCommandHandler('class.show-drafts', () => filterFromPalette({ status: 'drafts' })));
+		} else if (clock) {
+			offs.push(registerCommandHandler('class.show-todo', () => filterFromPalette({ status: 'todo' })));
+			offs.push(registerCommandHandler('class.show-missing', () => filterFromPalette({ status: 'missing' })));
+			offs.push(registerCommandHandler('class.show-done', () => filterFromPalette({ status: 'done' })));
+		}
+		if (canManage && transports && onCompose) {
+			offs.push(registerCommandHandler('class.new-post', () => onCompose?.()));
+		}
+		return () => offs.forEach((off) => off());
+	});
+	$effect(() => {
+		if (!filtering) return;
+		return registerCommandHandler('class.clear-filters', () => clearFilter());
+	});
 
 	/**
 	 * A SELECTION IS SCOPED TO ONE CLASS AND ONE UNIT STRUCTURE. `selectionScopeKey`
@@ -387,19 +637,16 @@
 				// the Stream it was written for, and it would make every syllabus and
 				// handout vanish from this page. The group's order is already the
 				// one classGroups decided.
-				mergeCheckIns(groupItems, checkIns)
+				mergeCheckIns(groupItems, shownCheckIns)
 			: groupItems.map((item) => ({ kind: 'item' as const, key: `item:${item.id}`, item }));
 	}
-
-	const outstanding = $derived(
-		outstandingBadge(canManage ? sectionOutstanding : outstandingCheckIns(checkIns))
-	);
 
 	/** With nothing filed and no units, the single group needs no heading at all. */
 	const bare = $derived(groups.length === 1 && groups[0].id === UNFILED_GROUP_ID && !orderedUnits.length);
 
 	function isCollapsed(id: string): boolean {
-		return !bare && collapsed.includes(id);
+		// A search shows its matches in a folded unit too; the fold itself is kept.
+		return !bare && !filtering && collapsed.includes(id);
 	}
 
 	function updated(item: ClassroomItem): boolean {
@@ -544,7 +791,7 @@
 	function sortOptions(groupId: string, groupItems: ClassroomItem[]) {
 		return {
 			items: '[data-sort-item]',
-			disabled: !editable || busy,
+			disabled: !editable || busy || filtering,
 			zones: '.group-card',
 			ondrop: (from: number, to: number) => void dropReorder(groupId, groupItems, from, to),
 			ondropzone: (from: number, zone: HTMLElement) => void dropIntoZone(groupId, from, zone)
@@ -658,7 +905,7 @@
 	 * any of these counts.
 	 */
 	const openGroupIds = $derived(
-		groups.filter((g) => !isCollapsed(g.id)).flatMap((g) => g.items.map((i) => i.id))
+		shownGroups.filter((g) => !isCollapsed(g.id)).flatMap((g) => g.items.map((i) => i.id))
 	);
 
 	function allSelected(ids: string[]): boolean {
@@ -1177,8 +1424,23 @@
 							</span>
 						{/if}
 						{#if my}
-							<span class="chip tone-{workStateTone(my.state)}" data-testid="work-status">
-								{workStateLabel(my, item.points)}
+							<!-- ONE CHIP DECISION (ledger 0297): `studentWorkChip` asks the
+							     same missing predicate the Missing filter and the to-do page
+							     ask, so a row the filter lists as Missing never reads "Not
+							     started". A finished row carries a checkmark, a missing one
+							     a mark and a fill, each beside the word. -->
+							{@const chip = studentWorkChip(item, my, clock?.now)}
+							<span
+								class="chip work-chip tone-{chip.tone}"
+								data-testid="work-status"
+								data-missing={chip.missing ? 'true' : undefined}
+							>
+								{#if chip.missing}
+									<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>
+								{:else if chip.done}
+									<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.done} /></svg>
+								{/if}
+								{chip.label}
 							</span>
 						{/if}
 						{@render badges(item)}
@@ -1508,18 +1770,17 @@
 	</header>
 
 	<!--
-		ONE ACTIONS ROW: what you can DO from this pane, in one place.
+		ONE ACTIONS ROW: what a manager can DO from this pane, in one place.
 
-		The notebook link used to sit at the far end of the meta line, competing
-		with a string that truncates -- a link squeezed by an ellipsis is a link
-		that moves as the class name changes. It is a destination, not metadata,
-		so it reads here beside the other things this pane can take you to, and
-		the meta line gets the whole width to truncate into.
-
-		The row renders for a student too (their own notebook is the one thing in
-		it), which is why it is not inside the `editable` branch.
+		THE NOTEBOOK LINK LEFT THIS ROW (ledger 0297). It was "My notebook" (or
+		"Notebook" for a manager) with a bare count beside it, and it left the
+		classroom for a separate app. The notebook is the class's own Notebook tab
+		now, in the tab bar above this pane for students and managers alike, and
+		the count sits on the tab with its word -- so this row is a manager's
+		tools and nothing else, and a student's class page gives the row back.
+		`notebookHref` still drives each check-in row's link below.
 	-->
-	{#if editable || notebookHref}
+	{#if editable}
 		<div class="pane-tools" data-testid="pane-tools">
 			{#if editable && onCompose}
 				<button
@@ -1543,20 +1804,82 @@
 					{unitsOpen ? 'Close units' : orderedUnits.length ? `Units (${orderedUnits.length})` : 'Add units'}
 				</button>
 			{/if}
-			{#if notebookHref}
-				<a class="manage-link" href={notebookHref} data-testid="class-notebook-link">
-					{canManage ? 'Notebook' : 'My notebook'}
-					{#if outstanding !== null}
-						<span
-							class="outstanding-badge"
-							data-testid="notebook-outstanding"
-							title={canManage
-								? 'Check-ins this class is behind on'
-								: 'Check-ins that still need something from you'}>{outstanding}</span
-						>
-					{/if}
-				</a>
+		</div>
+	{/if}
+
+	<!--
+		SEARCH AND FILTER (ledger 0297, report 19). One wrapping row: the search
+		field, the kind select where the class holds more than one kind, the
+		status chips (a student's own work: To do, Missing, Done; a manager's
+		Drafts, when there is one), and, whenever anything is narrowing the page,
+		the count and Clear. A filtered class can therefore never pass for a
+		class that lost its items. Everything here is 44px: this pane is the
+		student's class page.
+	-->
+	{#if totalCount > 0}
+		<div class="find" data-testid="stream-find">
+			<label class="find-field">
+				<svg class="find-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.search} /></svg>
+				<span class="sr-only">Search this class</span>
+				<input
+					bind:this={searchEl}
+					class="find-input"
+					type="search"
+					value={filter.query}
+					placeholder="Search this class"
+					autocomplete="off"
+					spellcheck="false"
+					data-testid="stream-search"
+					oninput={(e) => setFilter({ query: e.currentTarget.value })}
+					onkeydown={(e) => {
+						if (e.key === 'Escape' && filter.query) {
+							e.preventDefault();
+							e.stopPropagation();
+							setFilter({ query: '' });
+						}
+					}}
+				/>
+			</label>
+			{#if kindOptions.length}
+				<label class="find-kind">
+					<span class="sr-only">Show only</span>
+					<select
+						class="cr-select"
+						value={filter.kind}
+						data-testid="stream-kind"
+						onchange={(e) => setFilter({ kind: e.currentTarget.value as StreamKindFilter })}
+					>
+						{#each kindOptions as k (k)}
+							<option value={k}>{STREAM_KIND_LABELS[k]}</option>
+						{/each}
+					</select>
+				</label>
 			{/if}
+			{#if statusOptions.length}
+				<div class="find-chips" role="group" aria-label="Show by status" data-testid="stream-status">
+					{#each statusOptions as st (st)}
+						<button
+							type="button"
+							class="find-chip"
+							data-status={st}
+							aria-pressed={filter.status === st}
+							data-testid="stream-status-{st}"
+							onclick={() => toggleStatus(st)}
+						>
+							<svg viewBox="0 0 24 24" aria-hidden="true"><path d={STATUS_GLYPHS[st]} /></svg>
+							{STREAM_STATUS_LABELS[st]}
+							<span class="find-count">{statusCount(st)}</span>
+						</button>
+					{/each}
+				</div>
+			{/if}
+			{#if filtering}
+				<div class="find-result" data-testid="stream-find-result">
+					<span>{shownCount} of {totalCount} shown</span>
+					<button type="button" class="find-clear" data-testid="stream-clear" onclick={clearFilter}>Clear</button>
+				</div>
+			{/if}
+			<p class="sr-only" aria-live="polite">{filtering ? `${shownCount} of ${totalCount} shown` : ''}</p>
 		</div>
 	{/if}
 
@@ -1599,9 +1922,12 @@
 					<Pending label={bulkPending} variant="inline" />
 				</span>
 			{:else if bulkSelected.size === 0}
-				<span class="bulk-hint" data-testid="bulk-hint">
-					Tick items to publish, file or delete several at once.
-				</span>
+				<!-- NO SENTENCE AT REST (ledger 0297). "Tick items to publish, file or
+				     delete several at once." sat on its own row above every class a
+				     teacher opened; a control that needs a sentence explaining it is
+				     the wrong control, and the row's checkboxes and Select all name
+				     themselves (each checkbox's label names its item). The actions
+				     appear, named, the moment anything is ticked. -->
 			{:else}
 				<span class="bulk-count" data-testid="bulk-count">{bulkSelected.size} selected</span>
 			{/if}
@@ -1735,7 +2061,7 @@
 		measurement the column width comes from.
 	-->
 	<div class="stream" bind:this={menuHost}>
-		{#each groups as group (group.id)}
+		{#each shownGroups as group (group.id)}
 			{@const entries = entriesFor(group.id, group.items)}
 			{@const folded = isCollapsed(group.id)}
 			<!--
@@ -1767,6 +2093,19 @@
 						>
 							<span class="group-caret" aria-hidden="true">{folded ? '▸' : '▾'}</span>
 							<span class="group-label">{group.label}</span>
+							{#if unitProgress(group.id)}
+								{@const progress = unitProgress(group.id)!}
+								<span
+									class="group-progress"
+									class:complete={progress.done === progress.total}
+									data-testid="unit-progress"
+								>
+									{#if progress.done === progress.total}
+										<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.done} /></svg>
+									{/if}
+									{progress.done} of {progress.total} done
+								</span>
+							{/if}
 							<span class="group-count">
 								{entries.length}
 								{entries.length === 1 ? 'item' : 'items'}
@@ -1823,7 +2162,7 @@
 						either), and the two commits are closed over THIS group so an
 						index the action hands back is read against the rows it counted.
 					-->
-					<ul class="rows" id={`group-${group.id}`} use:sortDrag={sortOptions(group.id, group.items)}>
+					<ul class="rows" id={`group-${group.id}`} use:sortDrag={sortOptions(group.id, fullGroupItems(group.id))}>
 						{#if entries.length === 0}
 							<!--
 								THE EMPTY UNIT SAYS HOW TO FILL IT, and now leads with the two
@@ -1855,7 +2194,7 @@
 							{#if entry.kind === 'check-in'}
 								{@render checkInRow(entry.checkIn)}
 							{:else}
-								{@render itemRow(entry.item, group.items, group.id)}
+								{@render itemRow(entry.item, fullGroupItems(group.id), group.id)}
 							{/if}
 						{/each}
 					</ul>
@@ -1863,6 +2202,13 @@
 			</section>
 		{/each}
 	</div>
+
+	{#if filtering && shownCount === 0}
+		<section class="card find-none" data-testid="stream-find-none">
+			<p class="note">No items match.</p>
+			<button type="button" class="find-clear" onclick={clearFilter}>Clear</button>
+		</section>
+	{/if}
 
 	<!-- `streamCheckIns`, not `checkIns`: one attached to an item (0120) is not
 	     an answer to "is this class empty", because the item it renders on is
@@ -1976,6 +2322,31 @@
 		   in this same sheet below here and would win the tie. */
 		break-inside: avoid;
 	}
+	/* ...EXCEPT A UNIT LONG ENOUGH TO BE THE VOID ITSELF (ledger 0297). With
+	   every card unbreakable, the balanced column height can never be lower
+	   than the tallest unit, so one long unit beside short ones leaves the
+	   column holding the short one mostly empty: measured on
+	   /dev/classroom-stream (units of 3, 18, 2, 5 and 4 items) at 1440, a
+	   426x702px hole under Unit 1, 401x702 at 1366 and 452x395 at 960 --
+	   the same defect the grid had, arriving through balancing instead of rows.
+	   No order-preserving arrangement of unbreakable boxes can close it; only
+	   letting the long unit continue into the next column can. So a unit of
+	   ten or more rows MAY break, between rows only (a row never splits, and
+	   the header never parts from its first row), and each fragment is drawn
+	   as a whole framed card (`box-decoration-break: clone`). A short unit,
+	   which fits a column anyway, still never breaks, which keeps the argument
+	   above for every case it was written for. */
+	.stream > :global(.group-card:has(.rows > li:nth-child(10))) {
+		break-inside: auto;
+		-webkit-box-decoration-break: clone;
+		box-decoration-break: clone;
+	}
+	.stream :global(.group-bar) {
+		break-after: avoid;
+	}
+	.stream :global(.row-wrap) {
+		break-inside: avoid;
+	}
 	/* A CLASS WITH TWO UNITS MUST NOT LAY ITSELF OUT IN TWO COLUMNS AND A VOID
 	   WHERE A THIRD WOULD GO. That was `auto-fit`'s job -- it COLLAPSES a track
 	   nothing was placed in and lets the rest share the width -- and multicol
@@ -2046,25 +2417,6 @@
 	.pane-code {
 		color: var(--cyan);
 	}
-	/* The notebook link, now a peer of the buttons in the actions row rather
-	   than the last thing on a truncating meta line. `margin-left: auto` puts it
-	   at the far end of the row, which is where a destination belongs beside
-	   two things that open panels. */
-	.manage-link {
-		/* 17.4px measured. A student's own way into their notebook from the
-		   class page, so it takes the floor (IDEA_INTERFACE_STANDARDS 10). */
-		display: inline-flex;
-		align-items: center;
-		min-height: 44px;
-		flex: none;
-		margin-left: auto;
-		align-self: center;
-		color: var(--gold);
-		font-family: var(--font-mono);
-		font-size: 0.68rem;
-		white-space: nowrap;
-	}
-
 	/* --- The actions row ---------------------------------------------------
 	   What used to be two full cards holding one button each. A whole step out
 	   from the header above it and from the content below it, so it reads as
@@ -2077,9 +2429,9 @@
 		margin-bottom: var(--space-4);
 	}
 	/* Both classes, per the `.cr-root .btn.tiny` note on `.group-bar` below.
-	   These measured 24px beside a `.manage-link` that had already taken the
-	   floor with its own comment, so one row carried two different answers to
-	   the same question. New post and Units are this pane's primary actions. */
+	   These measured 24px beside a notebook link that had already taken the
+	   floor, so one row carried two different answers to the same question.
+	   New post and Units are this pane's primary actions. */
 	.pane-tools .btn,
 	.pane-tools .btn.tiny {
 		min-height: 44px;
@@ -2108,30 +2460,24 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 	}
+	/* At rest the bar is its Select all alone, at the row's end. */
 	.bulk-bar.resting {
 		background: none;
 		border-color: transparent;
-		padding-inline: 0;
+		padding: 0;
+		justify-content: flex-end;
+		margin-bottom: var(--space-3);
 	}
 	.bulk-pending {
 		display: inline-flex;
 		align-items: center;
 		min-width: 0;
 	}
-	.bulk-count,
-	.bulk-hint {
+	.bulk-count {
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--text-2);
 		margin-right: var(--space-1);
-	}
-	/* The sentence gives way before the control does: on a 356px pane the
-	   Select all button keeps its width and the hint wraps under it rather than
-	   pushing the row sideways. */
-	.bulk-hint {
-		flex: 1 1 12rem;
-		min-width: 0;
-		line-height: 1.35;
 	}
 	/* THIS BAR DELETES SEVERAL ITEMS AT ONCE, so its controls take the same
 	   44px floor the console and the engine host do (classroom.css), not the
@@ -2163,18 +2509,6 @@
 	}
 	.bulk-bar .danger:hover:not(:disabled) {
 		color: var(--crimson);
-	}
-	.outstanding-badge {
-		display: inline-block;
-		margin-left: var(--space-1);
-		min-width: 1.05rem;
-		text-align: center;
-		font-family: var(--font-mono);
-		font-size: 0.62rem;
-		color: var(--surface-0);
-		background: var(--gold);
-		border-radius: 999px;
-		padding: 0.02rem 0.32rem;
 	}
 	.note {
 		color: var(--text-2);
@@ -2253,14 +2587,16 @@
 		font-size: 0.7rem;
 		color: var(--text-2);
 	}
-	/* ONE LINE, TRUNCATING. A unit name is authored freely, and a two-line
-	   heading in a 26rem pane costs a row of content every time. */
+	/* A UNIT'S NAME WRAPS RATHER THAN TRUNCATING (ledger 0297). It was one line
+	   with an ellipsis, which printed "MATERIALS AND TESTI..." (232px of text
+	   in 230px) -- a unit is how a student finds the work, and a name cut off
+	   is a name they cannot read. A second line costs 12px; a guessed name
+	   costs the task. */
 	.group-label {
 		flex: 1 1 auto;
 		min-width: 0;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
+		overflow-wrap: anywhere;
+		line-height: 1.35;
 		font-family: var(--font-mono);
 		font-size: 0.78rem;
 		letter-spacing: 0.08em;
@@ -2617,6 +2953,45 @@
 	.tone-muted {
 		color: var(--text-2);
 	}
+	/* MISSING IS ITS OWN TONE (`studentWorkChip`): the word leads, and a mark,
+	   a fill and the heavier weight set it apart from "In progress", which wears
+	   the same hue as an outline only. Never colour alone. */
+	.tone-missing {
+		color: var(--amber);
+		border-color: var(--amber);
+		background: color-mix(in srgb, var(--amber) 14%, transparent);
+		font-weight: 700;
+	}
+	.work-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.2rem;
+	}
+	.chip-mark {
+		flex: none;
+		width: 0.7rem;
+		height: 0.7rem;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2.4;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	/* A unit's progress for a student: mono like the count beside it, and green
+	   with a checkmark only once every assignment in it is finished. */
+	.group-progress {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.2rem;
+		font-family: var(--font-mono);
+		font-size: 0.66rem;
+		color: var(--text-2);
+		white-space: nowrap;
+	}
+	.group-progress.complete {
+		color: var(--green);
+	}
 
 	.sr-only {
 		position: absolute;
@@ -2702,6 +3077,11 @@
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
 		box-shadow: 0 10px 26px rgb(0 0 0 / 45%);
+	}
+	/* Under Space White a popover lifts on the theme's hard elevation rather
+	   than a blurred dark drop (ledger 0297); the dark theme keeps its own. */
+	:global(:root[data-theme='space-white']) .menu {
+		box-shadow: var(--elevation-2);
 	}
 	.menu button,
 	.menu a {
@@ -2868,5 +3248,140 @@
 		.row-detail {
 			padding-left: 0.4rem;
 		}
+	}
+
+	/* SEARCH AND FILTER. One wrapping row, so a wide pane spends one 44px line on
+	   it and the 26rem navigation pane wraps it to two or three. The field grows
+	   and is capped, so it never becomes a 1200px box above a stream laid out in
+	   columns; everything else takes its own width. */
+	.find {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
+		margin: 0 0 var(--space-4);
+		min-width: 0;
+	}
+	/* A 10rem basis is what lets the field and the kind select share one row
+	   at 375 (measured: 13rem put the select on a row of its own, 52px more
+	   chrome above the first item on a phone). */
+	.find-field {
+		flex: 1 1 10rem;
+		max-width: 30rem;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		min-height: 44px;
+		padding: 0 0.7rem;
+		background: var(--surface-2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		box-sizing: border-box;
+	}
+	.find-field:focus-within {
+		outline: 2px solid var(--focus-ring);
+		outline-offset: 1px;
+	}
+	.find-glyph,
+	.find-chip svg {
+		flex: none;
+		width: 18px;
+		height: 18px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.7;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		color: var(--text-2);
+	}
+	.find-input {
+		flex: 1 1 auto;
+		min-width: 0;
+		min-height: 42px;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: inherit;
+		outline: none;
+	}
+	.find-input::placeholder {
+		color: var(--text-2);
+	}
+	.find-kind {
+		flex: 0 1 auto;
+		min-width: 0;
+	}
+	.find-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		min-width: 0;
+	}
+	.find-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		min-height: 44px;
+		padding: 0 0.75rem;
+		background: var(--surface-1);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
+		font: inherit;
+		cursor: pointer;
+	}
+	.find-chip:hover {
+		border-color: var(--gold);
+	}
+	/* Pressed is an edge, a rule and the fill, never the hue alone. */
+	.find-chip[aria-pressed='true'] {
+		background: var(--surface-2);
+		border-color: var(--green);
+		box-shadow: inset 0 -2px 0 var(--green);
+	}
+	.find-chip[data-status='missing'] svg {
+		color: var(--amber);
+	}
+	.find-chip[data-status='done'] svg {
+		color: var(--green);
+	}
+	.find-count {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-2);
+	}
+	.find-result {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+		font-family: var(--font-mono);
+		font-size: 0.74rem;
+		color: var(--text-2);
+	}
+	.find-clear {
+		min-height: 44px;
+		padding: 0 0.8rem;
+		background: var(--surface-1);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
+		font-family: var(--font-mono);
+		font-size: 0.74rem;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+	}
+	.find-clear:hover {
+		border-color: var(--gold);
+	}
+	.find-none {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-3);
+	}
+	.find-none .note {
+		margin: 0;
 	}
 </style>

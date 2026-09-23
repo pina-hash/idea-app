@@ -232,6 +232,19 @@ export interface AvatarPreset {
 	/** Glyph stroke color (theme hex). */
 	fg: string;
 	/**
+	 * THE SAME STROKE FOR A LIGHT GROUND (ledger 0297, package F1b): `fg`'s own
+	 * hue and saturation at the brightest lightness that clears the 3:1
+	 * graphical floor on every Space White ground the tile can sit on. `fg` is
+	 * tuned for the dark tile and several of them are neon (the hex prism is
+	 * #00ff41, 1.3:1 on a light panel), so under a light theme the picture
+	 * would very nearly not be there -- the gear/wave failure this set was
+	 * already repaired for once, on the other ground. Equal to `fg` where `fg`
+	 * already clears. Optional in the type so a preset shape built in a test
+	 * need not carry one; every entry in `AVATAR_PRESETS` does, and
+	 * `tests/space-white-inks.test.ts` holds each to its floor and to its hue.
+	 */
+	fgOnLight?: string;
+	/**
 	 * SVG path data, 24x24 viewBox, stroked. STILL REQUIRED AND STILL THE
 	 * PRIMARY PATH: every one of the eight original presets is exactly this
 	 * field and nothing else, so widening the type cost them no edit.
@@ -267,14 +280,14 @@ export function markTransform(mark: AvatarMark): string | undefined {
 export const AVATAR_PRESETS: AvatarPreset[] = [
 	// --- The original eight. Ids, labels and artwork unchanged; see the header
 	//     for the two lightness repairs.
-	{ id: 'hex', label: 'Hex prism', fg: '#00ff41', d: 'M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5zM12 2.5v9.5m0 0l8.2 4.75M12 12l-8.2 4.75' },
-	{ id: 'cube', label: 'Iso cube', fg: '#00f0ff', d: 'M12 3l7 4v10l-7 4-7-4V7zM5 7l7 4 7-4M12 11v10' },
-	{ id: 'triad', label: 'Origin triad', fg: '#c8ff00', d: 'M12 13V4m0 9l7.5 4.5M12 13l-7.5 4.5M12 13h.01' },
-	{ id: 'reticle', label: 'Reticle', fg: '#88ddff', d: 'M12 5a7 7 0 110 14 7 7 0 010-14zm0-3v4m0 12v4M2 12h4m12 0h4' },
-	{ id: 'bolt', label: 'Bolt', fg: '#00aa88', d: 'M13 2L6 13.5h5L10 22l8-11.5h-5.5z' },
-	{ id: 'gear', label: 'Gear', fg: '#4785ad', d: 'M12 8.5a3.5 3.5 0 110 7 3.5 3.5 0 010-7zm0-6v4m0 11v4m9.5-9.5h-4m-11 0h-4m15.8-6.3l-2.9 2.9M7.6 16.4l-2.9 2.9m14.6 0l-2.9-2.9M7.6 7.6L4.7 4.7' },
-	{ id: 'wave', label: 'Waveform', fg: '#a74fff', d: 'M2 12h3l2-6 3 12 3-9 2 5 2-2h5' },
-	{ id: 'delta', label: 'Delta wing', fg: '#ff8c00', d: 'M12 3l8.5 17.5L12 17l-8.5 3.5zM12 3v14' },
+	{ id: 'hex', label: 'Hex prism', fg: '#00ff41', fgOnLight: 'hsl(135.3 100% 29%)', d: 'M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5zM12 2.5v9.5m0 0l8.2 4.75M12 12l-8.2 4.75' },
+	{ id: 'cube', label: 'Iso cube', fg: '#00f0ff', fgOnLight: 'hsl(183.5 100% 29.5%)', d: 'M12 3l7 4v10l-7 4-7-4V7zM5 7l7 4 7-4M12 11v10' },
+	{ id: 'triad', label: 'Origin triad', fg: '#c8ff00', fgOnLight: 'hsl(72.9 100% 27%)', d: 'M12 13V4m0 9l7.5 4.5M12 13l-7.5 4.5M12 13h.01' },
+	{ id: 'reticle', label: 'Reticle', fg: '#88ddff', fgOnLight: 'hsl(197.1 100% 37.5%)', d: 'M12 5a7 7 0 110 14 7 7 0 010-14zm0-3v4m0 12v4M2 12h4m12 0h4' },
+	{ id: 'bolt', label: 'Bolt', fg: '#00aa88', fgOnLight: 'hsl(168 100% 28%)', d: 'M13 2L6 13.5h5L10 22l8-11.5h-5.5z' },
+	{ id: 'gear', label: 'Gear', fg: '#4785ad', fgOnLight: '#4785ad', d: 'M12 8.5a3.5 3.5 0 110 7 3.5 3.5 0 010-7zm0-6v4m0 11v4m9.5-9.5h-4m-11 0h-4m15.8-6.3l-2.9 2.9M7.6 16.4l-2.9 2.9m14.6 0l-2.9-2.9M7.6 7.6L4.7 4.7' },
+	{ id: 'wave', label: 'Waveform', fg: '#a74fff', fgOnLight: '#a74fff', d: 'M2 12h3l2-6 3 12 3-9 2 5 2-2h5' },
+	{ id: 'delta', label: 'Delta wing', fg: '#ff8c00', fgOnLight: 'hsl(32.9 100% 38%)', d: 'M12 3l8.5 17.5L12 17l-8.5 3.5zM12 3v14' },
 
 	// --- MASCOTS. This is the pack report 24 asked to add to and that did not
 	//     exist; the cat is the answer to that ask, drawn here as an ORIGINAL
@@ -284,7 +297,7 @@ export const AVATAR_PRESETS: AvatarPreset[] = [
 	{
 		id: 'cat',
 		label: 'Cat',
-		fg: '#ddaf6e',
+		fg: '#ddaf6e', fgOnLight: 'hsl(35.1 62% 41%)',
 		tier: 'creature',
 		d: 'M5.4 13.8a6.6 6.6 0 1 1 13.2 0 6.6 6.6 0 0 1-13.2 0z',
 		marks: [
@@ -299,7 +312,7 @@ export const AVATAR_PRESETS: AvatarPreset[] = [
 	{
 		id: 'fox',
 		label: 'Fox',
-		fg: '#dd8a6e',
+		fg: '#dd8a6e', fgOnLight: 'hsl(15.1 62% 51.5%)',
 		tier: 'creature',
 		d: 'M12 21.4 7 15.2 7.8 8.4 12 10.4l4.2-2 .8 6.8z',
 		marks: [
@@ -312,7 +325,7 @@ export const AVATAR_PRESETS: AvatarPreset[] = [
 	{
 		id: 'owl',
 		label: 'Owl',
-		fg: '#6eb8dd',
+		fg: '#6eb8dd', fgOnLight: 'hsl(200 62% 44%)',
 		tier: 'creature',
 		d: 'M12 3.8c4.1 0 6.9 3 6.9 7.2 0 5.5-3 9.2-6.9 9.2s-6.9-3.7-6.9-9.2c0-4.2 2.8-7.2 6.9-7.2z',
 		marks: [
@@ -327,7 +340,7 @@ export const AVATAR_PRESETS: AvatarPreset[] = [
 	{
 		id: 'bear',
 		label: 'Bear',
-		fg: '#af6edd',
+		fg: '#af6edd', fgOnLight: 'hsl(275.1 62% 61%)',
 		tier: 'creature',
 		d: 'M5.6 13.6a6.4 6.4 0 1 1 12.8 0 6.4 6.4 0 0 1-12.8 0z',
 		marks: [
@@ -341,7 +354,7 @@ export const AVATAR_PRESETS: AvatarPreset[] = [
 	{
 		id: 'axolotl',
 		label: 'Axolotl',
-		fg: '#dd6eb8',
+		fg: '#dd6eb8', fgOnLight: 'hsl(320 62% 56%)',
 		tier: 'creature',
 		d: 'M12 6.2c3 0 5.4 2.3 5.4 5.1 0 1.4-.6 2.7-1.5 3.6l.9 5.6H7.2l.9-5.6a5 5 0 0 1-1.5-3.6c0-2.8 2.4-5.1 5.4-5.1z',
 		marks: [
@@ -357,7 +370,7 @@ export const AVATAR_PRESETS: AvatarPreset[] = [
 	{
 		id: 'compass',
 		label: 'Compass',
-		fg: '#6edddd',
+		fg: '#6edddd', fgOnLight: 'hsl(180 62% 34%)',
 		tier: 'instrument',
 		d: 'M12 5.2 7 19.6M12 5.2l5 14.4',
 		marks: [
@@ -369,7 +382,7 @@ export const AVATAR_PRESETS: AvatarPreset[] = [
 	{
 		id: 'turbine',
 		label: 'Turbine',
-		fg: '#6edda6',
+		fg: '#6edda6', fgOnLight: 'hsl(150.3 62% 35%)',
 		tier: 'instrument',
 		d: 'M12 10.3a1.7 1.7 0 1 1 0 3.4 1.7 1.7 0 0 1 0-3.4z',
 		marks: [
@@ -381,7 +394,7 @@ export const AVATAR_PRESETS: AvatarPreset[] = [
 	{
 		id: 'circuit',
 		label: 'Circuit',
-		fg: '#a6dd6e',
+		fg: '#a6dd6e', fgOnLight: 'hsl(89.7 62% 34%)',
 		tier: 'instrument',
 		d: 'M8.4 8.4h7.2v7.2H8.4z',
 		marks: [
@@ -393,7 +406,7 @@ export const AVATAR_PRESETS: AvatarPreset[] = [
 	{
 		id: 'orbit',
 		label: 'Orbit',
-		fg: '#6e81dd',
+		fg: '#6e81dd', fgOnLight: 'hsl(229.7 62% 62.5%)',
 		tier: 'instrument',
 		d: 'M12 7.9a4.1 4.1 0 1 1 0 8.2 4.1 4.1 0 0 1 0-8.2z',
 		marks: [

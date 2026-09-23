@@ -224,7 +224,7 @@
 						class:selected={selected === p.id}
 						type="button"
 						disabled={saving}
-						style="--pw:{p.color}; --pw-ink:{p.ink}; --pw-bg:{withAlpha(p.color, 0.1)}; --pw-line:{withAlpha(p.color, 0.45)}"
+						style="--pw:{p.color}; --pw-ink:{p.ink}; --pw-ink-light:{p.inkOnLight}; --pw-bg:{withAlpha(p.color, 0.1)}; --pw-line:{withAlpha(p.color, 0.45)}"
 						onclick={() => (selected = p.id)}
 					>
 						<svg
@@ -396,6 +396,35 @@
 	.pwp-option:hover {
 		border-color: var(--pw-line);
 		background: var(--pw-bg);
+	}
+	/* UNDER SPACE WHITE (ledger 0297, package F1b), where this sheet opens over
+	   the home page. The option's word takes the pathway's light-ground ink
+	   (`inkOnLight` in $lib/pathways.ts); the panel lifts on the theme's hard
+	   elevation rather than a blurred drop; the glows go, since a glow has no
+	   light-ground equivalent -- a selected option still has its identity
+	   edge, its tint and its tick; and the controls' outer edges take the
+	   load-bearing boundary. */
+	:global(:root[data-theme='space-white']) .pwp-option {
+		color: var(--pw-ink-light, var(--pw-ink));
+		border-color: var(--boundary);
+	}
+	:global(:root[data-theme='space-white']) .pwp-option.selected {
+		border-color: var(--pw);
+		box-shadow: none;
+	}
+	:global(:root[data-theme='space-white']) .pwp-panel {
+		box-shadow: var(--elevation-2);
+	}
+	:global(:root[data-theme='space-white']) .pwp-confirm {
+		background: color-mix(in srgb, var(--green) 8%, transparent);
+		border-color: var(--boundary);
+	}
+	:global(:root[data-theme='space-white']) .pwp-confirm:hover:not(:disabled) {
+		border-color: var(--green);
+		box-shadow: none;
+	}
+	:global(:root[data-theme='space-white']) .pwp-later {
+		border-color: var(--boundary);
 	}
 	.pwp-option.selected {
 		border-color: var(--pw);

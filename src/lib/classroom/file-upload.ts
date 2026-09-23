@@ -29,6 +29,7 @@
  */
 
 import { putFileWithProgress } from '$lib/classroom/upload-progress';
+import { trackInFlight } from '$lib/shell/deploy-safety';
 import {
 	classifyUploadError,
 	tooLarge,
@@ -151,7 +152,23 @@ function refusalFrom(payload: SignResponse | null, status: number, role: UploadR
 	});
 }
 
-export async function uploadClassroomFile(req: UploadRequest): Promise<UploadOutcome> {
+/**
+ * THE ONE ENTRY POINT, AND IT HOLDS OFF A DEPLOY RELOAD UNTIL THE FILE LANDS.
+ *
+ * Every classroom file -- a handout, a hand-in, an answer key, a picture from
+ * inside a ported worksheet -- comes through here, so this is the single place
+ * an upload in flight can be seen from outside. An in-app navigation lets the
+ * PUT and the record finish in the background (nothing aborts them); a full
+ * page load kills both silently. `trackInFlight` is what tells
+ * `$lib/shell/DeployWatch.svelte` not to take a new version of the site by
+ * reloading while one is on its way, and makes the browser ask before the page
+ * unloads for any other reason. The outcome is returned untouched.
+ */
+export function uploadClassroomFile(req: UploadRequest): Promise<UploadOutcome> {
+	return trackInFlight(sendClassroomFile(req), `uploading "${req.file.name}"`);
+}
+
+async function sendClassroomFile(req: UploadRequest): Promise<UploadOutcome> {
 	const { role, itemId, file } = req;
 	const endpoints = ENDPOINTS[role];
 

@@ -457,20 +457,34 @@ describe('the grid is still the grid', () => {
 		// box on all three plates and nothing reports it. Asserted against the
 		// component's own rules and against the token file, so a state added to
 		// the registry without a colour reddens here rather than on screen.
+		//
+		// GENERALIZED (ledger 0297): "all three plates" were the notebook's own
+		// default, light and IDEA palettes. The notebook follows the SITE theme
+		// now, so the grounds a cell can sit on are the dark register (IDEA,
+		// and Matrix, which re-declares only what its green ground moves) and
+		// Space White's paper. A token must be in both blocks: the base
+		// `.nb-root` block the dark themes read, and Space White's.
 		const src = gridSrc();
 		const colors = read('src/lib/design-system/colors.css');
+		const block = (opener: string) => {
+			const at = colors.indexOf(opener);
+			expect(at, `colors.css has no ${opener} block`).toBeGreaterThan(-1);
+			return colors.slice(at, colors.indexOf('\n}', at));
+		};
+		const dark = block('\n.nb-root {');
+		const paper = block(":root[data-theme='space-white'] .nb-root {");
+		let checked = 0;
 		for (const state of CELL_STATES) {
 			expect(src, `${state.key} has no cell rule`).toContain(`.cell.${state.key} {`);
 			const rule = src.slice(src.indexOf(`.cell.${state.key} {`));
 			const body = rule.slice(0, rule.indexOf('}'));
 			const token = (body.match(/var\((--nb-cell-[a-z-]+)\)/) ?? [])[1];
 			expect(token, `${state.key} paints with no --nb-cell-* token`).toBeTruthy();
-			// Declared on the light plate (:root) and on BOTH dark plates.
-			expect(
-				colors.split(`${token}:`).length - 1,
-				`${token} is not declared on all three plates`
-			).toBe(3);
+			expect(dark, `${token} is not declared for the dark themes`).toContain(`${token}:`);
+			expect(paper, `${token} is not declared for Space White`).toContain(`${token}:`);
+			checked++;
 		}
+		expect(checked).toBe(CELL_STATES.length);
 	});
 
 	it('keeps the cell box, the density and Share Tech Mono', () => {
@@ -513,7 +527,9 @@ describe('the grid is still the grid', () => {
 
 describe('live updates', () => {
 	const console_ = () => read('src/lib/notebook/ReviewConsole.svelte');
-	const route = () => read('src/routes/notebook/review/+page.svelte');
+	// The console's transports moved out of the route into one module (ledger
+	// 0297), built by the all-sections console and a class's Notebook tab.
+	const route = () => read('src/lib/notebook/review-transports.ts');
 
 	it('keeps the load-time fetch, so a dead socket degrades to what shipped', () => {
 		// Realtime is an UPDATE path. A console that only ever painted from

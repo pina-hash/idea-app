@@ -44,7 +44,11 @@
 	} = $props();
 
 	let frame = $state<HTMLIFrameElement | null>(null);
-	let stage = $state<HTMLDivElement | null>(null);
+	/* Full screen takes the WHOLE viewer, bar included (ledger 0297): the bar is
+	   a strip above the stage, never over it, so going full screen keeps the
+	   way back and Exit full screen on screen without anything floating over
+	   the projected slide. */
+	let pageEl = $state<HTMLDivElement | null>(null);
 	let showIndex = $state(false);
 	let isFull = $state(false);
 
@@ -69,7 +73,7 @@
 			if (document.fullscreenElement) {
 				await document.exitFullscreen();
 			} else {
-				await stage?.requestFullscreen();
+				await pageEl?.requestFullscreen();
 			}
 		} catch {
 			// A browser (or an embedded pane) that refuses fullscreen is not an
@@ -95,8 +99,48 @@
 	<title>{deck.title} // deck</title>
 </svelte:head>
 
-<div class="deck-page">
-	<div class="deck-stage" bind:this={stage} class:full={isFull}>
+<!--
+	THE BAR IS A STRIP ABOVE THE STAGE, NOT A SCRIM OVER IT (ledger 0297,
+	report 34: "the back button on this page should be in the top left of the
+	screen, all back buttons should be somewhere on the top left of the
+	screen"). It used to be a 58px gradient absolutely positioned over the
+	bottom of the slide frame, with Back at the bottom left -- so the way out
+	was at the wrong corner, the scrim sat in the photograph of every projected
+	lesson, and at 375 the Report control ran off the right edge. Now the page is
+	a column: the bar first, in the flow and wrapping onto a second line where it
+	must, and the stage below it taking what is left, so the deck letterboxes
+	inside its own frame and nothing floats over the projected image. This
+	supersedes rebuild-plan decision 3's "deck stage untouched" for the bar's
+	position only; the stage, the frame and the deck inside it are unchanged.
+-->
+<!-- `deck-stage` names the WHOLE viewer as the dark island Space White leaves
+     dark (themes/space-white.css), bar included: the bar is on the black stage
+     ground and must keep its dark tokens with it. -->
+<div class="deck-page deck-stage" bind:this={pageEl} class:full={isFull}>
+	<div class="deck-bar" data-testid="deck-bar">
+		<a class="deck-btn deck-back" href={backHref} data-testid="deck-back">&lsaquo; {backLabel}</a>
+		<span class="deck-title">{deck.title}</span>
+		<span class="deck-spacer"></span>
+		{#if deck.slides.length}
+			<button
+				type="button"
+				class="deck-btn"
+				aria-expanded={showIndex}
+				aria-controls="deck-index"
+				onclick={toggleIndex}
+			>
+				{deck.slides.length} slides
+			</button>
+		{/if}
+		<button type="button" class="deck-btn" onclick={toggleFullscreen}>
+			{isFull ? 'Exit full screen' : 'Full screen'}
+		</button>
+		{#if controls}
+			<span class="deck-extra">{@render controls()}</span>
+		{/if}
+	</div>
+
+	<div class="deck-screen">
 		<iframe
 			bind:this={frame}
 			{src}
@@ -107,35 +151,13 @@
 			sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
 		></iframe>
 
-		<div class="deck-bar">
-			<a class="deck-btn" href={backHref}>&lsaquo; {backLabel}</a>
-			<span class="deck-title">{deck.title}</span>
-			<span class="deck-spacer"></span>
-			{#if deck.slides.length}
-				<button
-					type="button"
-					class="deck-btn"
-					aria-expanded={showIndex}
-					aria-controls="deck-index"
-					onclick={toggleIndex}
-				>
-					{deck.slides.length} slides
-				</button>
-			{/if}
-			<button type="button" class="deck-btn" onclick={toggleFullscreen}>
-				{isFull ? 'Exit full screen' : 'Full screen'}
-			</button>
-			{#if controls}
-				<span class="deck-extra">{@render controls()}</span>
-			{/if}
-		</div>
-
 		{#if showIndex && deck.slides.length}
 			<!--
 				A READ-ONLY index. It says what is in the deck and how far through a
 				label sits; it does not jump, because jumping means driving
 				deck-stage from outside and guessing at its state. Arrow keys, in
-				the deck itself, are how you move.
+				the deck itself, are how you move. It opens only when asked for and
+				closes from the same control in the bar.
 			-->
 			<div class="deck-index" id="deck-index">
 				<p class="deck-index-note">Use the arrow keys in the deck to move between slides.</p>
@@ -153,11 +175,14 @@
 	.deck-page {
 		position: fixed;
 		inset: 0;
+		display: flex;
+		flex-direction: column;
 		background: #000;
 	}
-	.deck-stage {
-		position: absolute;
-		inset: 0;
+	.deck-screen {
+		position: relative;
+		flex: 1 1 auto;
+		min-height: 0;
 		background: #000;
 	}
 	.deck-frame {
@@ -170,24 +195,17 @@
 		background: #000;
 	}
 	.deck-bar {
-		position: absolute;
-		left: 0;
-		right: 0;
-		bottom: 0;
+		flex: none;
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.4rem;
-		padding: 0.45rem 0.6rem;
-		background: linear-gradient(to top, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0));
-		/* Chrome sits over the deck; it must never eat a click meant for a slide. */
-		pointer-events: none;
-	}
-	.deck-bar > * {
-		pointer-events: auto;
+		padding: 0.4rem 0.6rem;
+		background: #0a0a0a;
+		border-bottom: 1px solid var(--line);
 	}
 	.deck-spacer {
 		flex: 1;
-		pointer-events: none;
 	}
 	.deck-extra {
 		display: inline-flex;
@@ -230,7 +248,7 @@
 	.deck-index {
 		position: absolute;
 		right: 0.6rem;
-		bottom: 3.6rem;
+		top: 0.6rem;
 		width: min(22rem, calc(100vw - 1.2rem));
 		max-height: min(60vh, 30rem);
 		overflow: auto;

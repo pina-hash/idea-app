@@ -44,6 +44,19 @@ export interface Pathway {
 	 * to `color` where the identity already carries text. See the file header.
 	 */
 	ink: string;
+	/**
+	 * THE SAME INK FOR A LIGHT GROUND (ledger 0297, package F1b). `ink` is
+	 * tuned for the portal's dark grounds, and four of the six identities are
+	 * neon (IDEA's #00FF41 is 1.3:1 on a light panel). Under Space White the
+	 * chip's word and glyph take this instead: the identity's own hue and
+	 * saturation, LIGHTNESS ONLY, at the brightest value that clears 4.5:1 on
+	 * every Space White ground AND on the chip's own 12% and the picker's 10%
+	 * tint of the identity over each -- the contract `ink` carries, on the
+	 * other ground. The fill and the edge keep the identity, which is the rule.
+	 * `tests/space-white-inks.test.ts` measures every one against the theme
+	 * file's own grounds.
+	 */
+	inkOnLight: string;
 	/** lucide icon name (for reference; the markup below is what renders). */
 	iconName: string;
 	/** Inner SVG markup of the icon (24x24 viewBox, stroked, currentColor). */
@@ -56,6 +69,7 @@ export const PATHWAYS: Pathway[] = [
 		label: 'IDEA',
 		color: '#00FF41',
 		ink: '#00FF41', // identity clears unaided: 7.77-9.97 on the chip tint
+		inkOnLight: 'hsl(135.3 100% 22%)',
 		iconName: 'box',
 		icon: '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>'
 	},
@@ -64,6 +78,7 @@ export const PATHWAYS: Pathway[] = [
 		label: 'ACE',
 		color: '#FF8C00',
 		ink: '#FF8C00', // identity clears unaided: 5.02-6.37
+		inkOnLight: 'hsl(32.9 100% 28%)',
 		iconName: 'building-2',
 		icon: '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>'
 	},
@@ -72,6 +87,7 @@ export const PATHWAYS: Pathway[] = [
 		label: 'BMET',
 		color: '#B47CFF',
 		ink: '#BC8AFF', // hsl(265.6 100% 74.3%) -> 77%. 4.15-5.26 -> 4.69-5.94
+		inkOnLight: 'hsl(265.6 100% 52.5%)',
 		iconName: 'dna',
 		icon: '<path d="m10 16 1.5 1.5"/><path d="m14 8-1.5-1.5"/><path d="M15 2c-1.798 1.998-2.518 3.995-2.807 5.993"/><path d="m16.5 10.5 1 1"/><path d="m17 6-2.891-2.891"/><path d="M2 15c6.667-6 13.333 0 20-6"/><path d="m20 9 .891.891"/><path d="M3.109 14.109 4 15"/><path d="m6.5 12.5 1 1"/><path d="m7 18 2.891 2.891"/><path d="M9 22c1.798-1.998 2.518-3.995 2.807-5.993"/>'
 	},
@@ -80,6 +96,7 @@ export const PATHWAYS: Pathway[] = [
 		label: 'CSEE',
 		color: '#3D7DFF',
 		ink: '#6B9CFF', // hsl(220.2 100% 62%) -> 71%. 3.31-4.17 -> 4.64-5.85
+		inkOnLight: 'hsl(220.2 100% 44.5%)',
 		iconName: 'cpu',
 		icon: '<path d="M12 20v2"/><path d="M12 2v2"/><path d="M17 20v2"/><path d="M17 2v2"/><path d="M2 12h2"/><path d="M2 17h2"/><path d="M2 7h2"/><path d="M20 12h2"/><path d="M20 17h2"/><path d="M20 7h2"/><path d="M7 20v2"/><path d="M7 2v2"/><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/>'
 	},
@@ -88,6 +105,7 @@ export const PATHWAYS: Pathway[] = [
 		label: 'MSET',
 		color: '#FF2E2E',
 		ink: '#FF6666', // hsl(0 100% 59%) -> 70%. 3.54-4.39 -> 4.57-5.68
+		inkOnLight: 'hsl(0 100% 36%)',
 		iconName: 'hexagon',
 		icon: '<path d="M21 16v-8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>'
 	},
@@ -96,6 +114,7 @@ export const PATHWAYS: Pathway[] = [
 		label: 'MAT',
 		color: '#FFE600',
 		ink: '#FFE600', // identity clears unaided: 8.14-10.49
+		inkOnLight: 'hsl(54.1 100% 22%)',
 		iconName: 'aperture',
 		icon: '<circle cx="12" cy="12" r="10"/><path d="m14.31 8 5.74 9.94"/><path d="M9.69 8h11.48"/><path d="m7.38 12 5.74-9.94"/><path d="M9.69 16 3.95 6.06"/><path d="M14.31 16H2.83"/><path d="m16.62 12-5.74 9.94"/>'
 	}

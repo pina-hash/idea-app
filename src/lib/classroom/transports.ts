@@ -69,6 +69,7 @@ import {
 import { deckUploadSizeIssue, normalizeDeckRow, type ClassroomDeck, type DeckTransports } from './deck';
 import { DeckUploadCancelled, logDeckUpload, postDeckZip, type DeckUploadError } from './deck-upload';
 import { uploadClassroomFile } from './file-upload';
+import { holdDeployReload } from '$lib/shell/deploy-safety';
 import {
 	RENAME_REFUSALS,
 	withItemLayout,
@@ -668,6 +669,11 @@ export const deckTransports: DeckTransports = {
 		}
 
 		let jobId: string | null = null;
+		// THE WHOLE JOB HOLDS OFF A DEPLOY RELOAD, not only the upload: the
+		// unpacking below is driven by THIS page, so a reload between stages
+		// leaves half a deck that nothing will ever finish or sweep. Released in
+		// the `finally`, on every path out.
+		const releaseHold = holdDeployReload('uploading a deck', { warnOnUnload: true });
 		try {
 			onProgress?.({ phase: 'preparing', loaded: 0, total: file.size });
 
@@ -760,6 +766,7 @@ export const deckTransports: DeckTransports = {
 			logDeckUpload('upload failed', { code: err.code, detail: err.detail, message: err.message });
 			return { ok: false, code: err.code, message: err.message || 'Upload failed.' };
 		} finally {
+			releaseHold();
 			// An unfinished job holds a Drive folder of half a deck and the
 			// staged zip. Abandoning it sweeps BOTH, so a failure leaves no
 			// partial deck and nothing orphaned.

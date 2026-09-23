@@ -47,6 +47,7 @@ import type { NotebookFlagReason } from '$lib/notebook';
 import type { ItemDoc } from '$lib/classroom/classroom-doc';
 import type { TiptapNode } from '$lib/rich-text';
 import { streamItems, type ClassroomItem } from '$lib/classroom/classroom';
+import { classNotebookHref } from '$lib/classroom/nav';
 
 // ---------------------------------------------------------------------------
 // Rows
@@ -142,32 +143,12 @@ export interface ClassCheckIn {
 // ---------------------------------------------------------------------------
 
 /**
- * TODAY, ON THE CALENDAR `session_date` IS WRITTEN IN.
- *
- * `notebook_sessions.session_date` is a bare DATE, and every rule that
- * adjudicates one compares it in America/Los_Angeles:
- * `notebook_get_section_grid`'s `on_time` is
- * `(upload_timestamp at time zone 'America/Los_Angeles')::date <= se.session_date`
- * (0094/0098), and `0140`'s `scheduled` arm is `se.session_date > v_today`
- * where `v_today` is that same conversion. A server reading UTC instead would
- * run seven or eight hours ahead, so every evening between 5pm Pacific and
- * midnight UTC the next day's check-in would already read as due -- a smaller
- * copy of the exact defect the `scheduled` state exists to remove, arriving in
- * the hours a teacher actually lays the next day out.
- *
- * IT TAKES `now` RATHER THAN READING A CLOCK, and that is the whole point of
- * it being here. A pure function that reaches for `new Date()` is the defect no
- * probe catches; a pure function handed an instant is assertable at a pinned
- * one, including the instants where the two calendars disagree. THE LOADER
- * READS THE CLOCK, ONCE, and hands the day down -- there is exactly one idea of
- * "today" on this surface and it is the loader's.
- *
- * `en-CA` is the YYYY-MM-DD spelling, which is the string the column holds, so
- * every comparison against it is a plain lexical one with no parsing in it.
+ * TODAY, ON THE CALENDAR `session_date` IS WRITTEN IN. The function and its
+ * reasoning live in `$lib/classroom/school-calendar` now, beside the due-date
+ * arithmetic that reads the same calendar (ledger 0297); it is re-exported
+ * here so every existing import keeps working.
  */
-export function laCalendarDay(now: Date): string {
-	return now.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
-}
+export { laCalendarDay } from '$lib/classroom/school-calendar';
 
 /**
  * IS THIS CHECK-IN DATED AFTER TODAY -- that is, has it been asked for yet?
@@ -501,21 +482,32 @@ export interface ClassCheckInTransports {
 // ---------------------------------------------------------------------------
 
 /**
- * Where a check-in card goes: the student's own notebook, with this check-in
- * preselected for the upload flow.
+ * Where a check-in card goes: the student's own notebook IN THAT CLASS, with
+ * this check-in preselected for the upload flow.
+ *
+ * INSIDE THE CLASSROOM (ledger 0297). This used to open `/notebook`, a
+ * separate app with every class mixed together and a way back that went to
+ * the site's home page. The notebook is the class's own Notebook tab now, so a
+ * check-in opens there -- the posting's own class, the same tab the bar above
+ * it names -- and the student is still inside the class they were reading.
+ * `/notebook?checkin=&section=` still answers, by redirect, for any link that
+ * holds it.
  *
  * BOTH ids ride the link, and the section is not decoration. The upload flow
  * files an entry against a (check-in, class) PAIR -- that is the composite key
  * `notebook_entries` carries to `notebook_session_postings` -- and a student
  * enrolled in two classes that share a check-in has two of them to choose
  * between. The class page knows which one it is; the notebook cannot guess.
+ *
+ * `notebookPath` is for a harness mounted at a path of its own; left out, the
+ * link is the posting's own class's tab.
  */
-export function checkInHref(checkIn: ClassCheckIn, basePath = '/notebook'): string {
+export function checkInHref(checkIn: ClassCheckIn, notebookPath?: string): string {
 	const params = new URLSearchParams({
 		checkin: checkIn.session_id,
 		section: checkIn.section_id
 	});
-	return `${basePath}?${params.toString()}`;
+	return `${notebookPath ?? classNotebookHref(checkIn.section_id)}?${params.toString()}`;
 }
 
 // ---------------------------------------------------------------------------

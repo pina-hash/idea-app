@@ -1,0 +1,125 @@
+<script lang="ts">
+	import { invalidateAll } from '$app/navigation';
+	import NotebookView from '$lib/notebook/NotebookView.svelte';
+	import NotebookDeletedZone from '$lib/notebook/NotebookDeletedZone.svelte';
+	import NotebookNoAccountNotice from '$lib/notebook/NotebookNoAccountNotice.svelte';
+	import StudentReviewBackStrip from '$lib/notebook/StudentReviewBackStrip.svelte';
+	import type { EntryActionResult } from '$lib/notebook';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
+
+	/**
+	 * Restoring one of this student's deleted entries (0117,
+	 * notebook_staff_restore_entry). Direct to the RPC -- the same shape the
+	 * folder writes in /notebook/+page.svelte use, since there is no server
+	 * work of its own between here and the call.
+	 *
+	 * NO OWNERSHIP CHECK HERE, ON PURPOSE: unlike the student's own
+	 * "Recently deleted" list, a manager may attempt to restore ANY of this
+	 * student's deleted entries regardless of who removed it -- the RPC's own
+	 * `classroom_manages_section(...) or notebook_manages_student(...)` gate is
+	 * the real boundary, not a flag this page would have to keep in sync with it.
+	 */
+	async function restoreEntry(entryId: string): Promise<EntryActionResult> {
+		const { error } = await data.supabase.rpc('notebook_staff_restore_entry', {
+			p_entry_id: entryId
+		});
+		if (error) return { ok: false, error: error.message?.trim() || 'Could not restore that entry.' };
+		await invalidateAll();
+		return { ok: true };
+	}
+</script>
+
+<!--
+	NO TRANSPORTS AT ALL, which is the mechanism rather than the statement:
+	every write prop on NotebookView is optional and an omitted one removes the
+	control it drives -- the "Add an entry" form, the folder manager, bulk move,
+	pinning, and each card's own add-photos / add-note / re-file controls. There
+	is nothing here to call, and 0106 ships no write RPC beside the read.
+
+	The migration flags are all TRUE because the payload only exists at all when
+	0106 applied on top of them: the RPC selects folders, notes, pinned_at and
+	the activity view directly, so a project missing any of those fails the load
+	rather than degrading into a half-view that would misreport what the student
+	has written. `uploadReady` is false since no upload is offered.
+
+	`canReview` is FALSE deliberately. The "Section review" link would loop back
+	into a console that flags and grades, from a surface whose whole point is
+	reading; the way back is the banner's own link to the grid this arrived from.
+-->
+<svelte:head>
+	<title>{data.student.display_name ?? data.student.email} · Notebook // IDEA Classroom</title>
+</svelte:head>
+
+<!--
+	THE BODY OF THE CLASSROOM'S APPLICATION FRAME, AND IT SCROLLS (ledger 0297).
+	This place takes the `console` measure, so above 1024px `.cr-root` is the
+	viewport and this element gets whatever the chrome leaves. Everything here is
+	page-flow -- the back strip, the read-only notebook and the staff Deleted
+	section below it -- so the body is the one scroll container, rather than a
+	viewport frame around content that runs past it.
+-->
+<div class="cr-app-body nb-read-page" data-testid="nb-read-page">
+<StudentReviewBackStrip
+	displayName={data.student.display_name}
+	email={data.student.email}
+	sectionId={data.fromSectionId}
+	backHref={data.backHref}
+	backLabel={data.notebookReturnTo.length > 1 ? 'Class notebook' : 'Section review'}
+/>
+
+{#if data.student.user_id === null}
+	<NotebookNoAccountNotice displayName={data.student.display_name} email={data.student.email} />
+{/if}
+
+<!--
+	`ownsPage={false}`: NOT THE WHOLE PAGE. A back strip sits above this room and
+	the staff Deleted section sits below it, so the notebook flows inside the
+	scrolling body above rather than taking the frame. Measured with a frame on
+	at 1440 (before ledger 0297): `.nb-root` was a 900px viewport box starting
+	127px down the page, with the Deleted section reachable only by scrolling
+	past a full-viewport frame whose panes were scrolling too.
+-->
+<NotebookView
+	entries={data.entries}
+	sessions={data.sessions}
+	folders={data.folders}
+	activity={data.activity}
+	sectionLabel={data.sectionLabel}
+	canReview={false}
+	ownsPage={false}
+	uploadReady={false}
+	readOnly
+/>
+
+<!--
+	`studentUserId` and `viewerId` are what let each row say WHO removed it. The
+	list is mixed -- the payload carries no `deleted_by` filter, deliberately --
+	so without them the section could only make one claim over both kinds, and
+	the one it used to make named the student for staff removals too.
+
+	The restore transport is withheld for a 0169 reviewer-only viewer:
+	`notebook_staff_restore_entry` stays manage-gated (restore is deletion's undo,
+	and neither is review), and absence of the prop is what removes the control --
+	the same mechanism as every omitted transport above. The two are orthogonal:
+	attribution says who removed a row, `canRestore` says whether this viewer may
+	undo it, and a reviewer who may not restore still reads the correct name.
+-->
+<NotebookDeletedZone
+	entries={data.deletedEntries}
+	studentName={data.student.display_name ?? data.student.email}
+	studentUserId={data.student.user_id}
+	viewerId={data.viewerId}
+	restoreEntry={data.canRestore ? restoreEntry : undefined}
+/>
+</div>
+
+<style>
+	@media (min-width: 1024px) {
+		.nb-read-page {
+			overflow-y: auto;
+			overscroll-behavior: contain;
+		}
+	}
+</style>

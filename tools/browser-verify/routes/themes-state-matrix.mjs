@@ -13,7 +13,7 @@
  *
  *  2. THE LAUNCHER'S ACCENTS DID NOT MOVE. `--acc-primary`/`--acc-secondary`
  *     are IDENTITY (matrix.css's header states the rule): a theme that painted
- *     twelve cards one green would make the grid unreadable, which is the
+ *     every card one green would make the grid unreadable, which is the
  *     single worst thing this feature could do. The distinct-pair count here
  *     and in `themes.mjs` are compared by a reader looking at two rows;
  *     `tests/theme-tokens.test.ts` pins the same claim off the stylesheet so
@@ -40,7 +40,7 @@
  *     but can very easily make a control invisible.
  */
 import { SETTLE_ENTRANCE } from './_shared.mjs';
-import { boardContrast, BOARD_CELLS } from './_theme-shared.mjs';
+import { boardContrast, BOARD_CELLS, LAUNCHER_CARDS, THEME_ROWS, washoutRows } from './_theme-shared.mjs';
 
 export default {
 	path: '/dev/themes?state=matrix',
@@ -60,7 +60,7 @@ export default {
 		{ evaluate: SETTLE_ENTRANCE, label: 'settle the launcher entrance' },
 		{
 			click: '.pm-trigger',
-			until: `() => document.querySelectorAll('.pm-theme').length === 2`,
+			until: `() => document.querySelectorAll('.pm-theme').length === ${THEME_ROWS}`,
 			label: 'open the profile menu onto the theme control'
 		},
 		{
@@ -90,7 +90,7 @@ export default {
 			expectPresent: BOARD_CELLS,
 			maxPresent: BOARD_CELLS
 		},
-		{ selector: '.launcher .app-card', label: 'launcher cards', expectPresent: 12, maxPresent: 12 },
+		{ selector: '.launcher .app-card', label: 'launcher cards', expectPresent: LAUNCHER_CARDS, maxPresent: LAUNCHER_CARDS },
 		/* Exactly one canvas, inside the shell layer, and running. A second one
 		   would be two loops painting one field; none would be the theme
 		   silently back to a hatch. */
@@ -98,7 +98,7 @@ export default {
 		{ selector: '.bg-fx > canvas[data-motion="running"]', label: 'the rain canvas is running', expectPresent: 1, maxPresent: 1 },
 		/* Two radios, one of them checked, and exactly one. A picker that lost
 		   its selected state reads as "no theme is on" beside a themed page. */
-		{ selector: '.pm-theme', label: 'theme radios (menu open)', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
+		{ selector: '.pm-theme', label: 'theme radios (menu open)', expectPresent: THEME_ROWS, maxPresent: THEME_ROWS, expectVisible: THEME_ROWS },
 		{
 			selector: '.pm-theme[aria-checked="true"]',
 			label: 'exactly one radio checked',
@@ -115,7 +115,12 @@ export default {
 		{ selector: '.harness h1', label: 'page heading', min: 4.5 },
 		{ selector: '.harness .note', label: 'note copy', min: 4.5 },
 		{ selector: '.pm-theme-name', label: 'theme option name', min: 4.5 },
-		{ selector: '.pm-theme-note', label: 'theme option note', min: 4.5 }
+		{ selector: '.pm-theme-note', label: 'theme option note', min: 4.5 },
+		/* THE PROJECTOR TABLE FOR MATRIX (ledger 0297), RECORDED AND NOT GATED.
+		   A black-ground theme under a 300:1 projector in a lit room is the
+		   case Mr. Pina reported; these rows put its numbers beside Space
+		   White's rather than asserting a floor Matrix was never built for. */
+		...washoutRows('matrix', { gate: false })
 	],
 	tapTargets: [
 		{ selector: '.pm-theme', label: 'theme radios', min: 44 },

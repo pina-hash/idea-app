@@ -15,6 +15,7 @@ import { formatSectionLabel } from '$lib/section-label';
 import type { ItemDoc, TiptapNode } from '$lib/classroom/classroom-doc';
 import { parseMarkdown } from '$lib/classroom/reference-spec';
 import type { UploadGate } from '$lib/classroom/upload-errors';
+import { SCHOOL_LOCALE, SCHOOL_TIME_ZONE, laCalendarDay } from '$lib/classroom/school-calendar';
 
 // ---------------------------------------------------------------------------
 // Row types (mirroring 0085's tables; embeds normalized by the helpers below)
@@ -959,19 +960,40 @@ export function itemTitle(item: ClassroomItem): string {
 	return firstLine.length > 80 ? `${firstLine.slice(0, 77)}...` : firstLine || 'Untitled';
 }
 
-export function formatDue(iso: string | null): string {
+/**
+ * A DUE DATE AS A STUDENT READS IT: "Aug 20, 11:59 PM".
+ *
+ * IN THE SCHOOL'S ZONE AND LOCALE, NAMED, ON BOTH SIDES OF HYDRATION (ledger
+ * 0297). It printed in the runtime's own zone, which is UTC on the server and
+ * the device's zone in the browser, so the server's HTML said
+ * `Due Thu, Aug 20, 12:00 AM` and the same row said `Due Wed, Aug 19, 5:00 PM`
+ * a moment later -- the wrong DAY on first paint for every student. The locale
+ * is pinned for the same reason: a browser set to another language rewrote the
+ * string after the server had written it.
+ *
+ * NO WEEKDAY. Student-facing copy names no weekday (OVERHAUL_0297 section 7,
+ * the materials rule), and this is the one string every classroom surface
+ * prints a due date with, so it is dropped here rather than at each caller.
+ *
+ * THE YEAR APPEARS ONLY WHEN IT IS NOT THIS YEAR, and "this year" is `today`
+ * when the caller has the loader's day to hand in. A caller without one falls
+ * back to reading the clock for that one comparison, which can only ever move
+ * the year in or out of the string on New Year's Eve.
+ */
+export function formatDue(iso: string | null, today?: string | null): string {
 	if (!iso) return 'No due date';
 	const d = new Date(iso);
 	if (Number.isNaN(d.getTime())) return '';
 	const opts: Intl.DateTimeFormatOptions = {
-		weekday: 'short',
 		month: 'short',
 		day: 'numeric',
 		hour: 'numeric',
-		minute: '2-digit'
+		minute: '2-digit',
+		timeZone: SCHOOL_TIME_ZONE
 	};
-	if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
-	return d.toLocaleString(undefined, opts);
+	const thisYear = (today ?? laCalendarDay(new Date())).slice(0, 4);
+	if (laCalendarDay(d).slice(0, 4) !== thisYear) opts.year = 'numeric';
+	return d.toLocaleString(SCHOOL_LOCALE, opts);
 }
 
 export function shortWhen(iso: string): string {
@@ -1334,6 +1356,56 @@ export function assignmentStandings(
 				roster: rosterSize
 			};
 		});
+}
+
+/**
+ * THE CHIP A STUDENT READS ON ONE OF THEIR ASSIGNMENTS: its words, its tone,
+ * and whether it is finished (which is what earns the row its checkmark).
+ *
+ * MISSING IS ASKED OF `assignmentStanding` AND OF NOTHING ELSE (ledger 0297).
+ * The class page's Missing filter, the to-do page's Missing view, the counts
+ * on My Classes and the home page, and this chip are one predicate: before
+ * this, a past-due assignment with nothing turned in was listed under Missing
+ * while its own row still read "Not started" in the same muted grey as one
+ * due next month (F3F5's report, FRICTION.md). Two spellings of "is this
+ * missing" is exactly how a chip and a filter come to disagree.
+ *
+ * `now` is the loader's one clock read, as an ISO instant. Null means the
+ * surface has no clock to ask, and then the chip says only what the work
+ * itself says, never a guess about the deadline.
+ *
+ * `missing` IS ITS OWN TONE, not `attention`: "In progress" already wears
+ * amber, and a missing assignment is the one state a student must not be able
+ * to mistake for work under way. The word leads, and the stylesheet adds a
+ * fill and a mark, so colour is never the only signal.
+ */
+export type WorkChipTone = 'good' | 'attention' | 'muted' | 'info' | 'missing';
+
+export interface WorkChip {
+	label: string;
+	tone: WorkChipTone;
+	/** Turned in or returned: the row gets a checkmark and counts toward a unit's progress. */
+	done: boolean;
+	missing: boolean;
+}
+
+export function studentWorkChip(
+	item: Pick<ClassroomItem, 'kind' | 'due_at' | 'points'>,
+	work: StudentWork | undefined,
+	now: string | null | undefined
+): WorkChip {
+	const mine: StudentWork = work ?? { state: 'not-started', score: null };
+	const standing = now ? assignmentStanding(item, mine, now) : null;
+	if (standing === 'missing') {
+		return {
+			label: mine.state === 'in-progress' ? 'Missing, draft saved' : 'Missing',
+			tone: 'missing',
+			done: false,
+			missing: true
+		};
+	}
+	const done = mine.state === 'submitted' || mine.state === 'returned';
+	return { label: workStateLabel(mine, item.points), tone: workStateTone(mine.state), done, missing: false };
 }
 
 /** Existing tones only -- crimson stays reserved for LIVE/REC/error. */
@@ -2002,4 +2074,193 @@ export function importReasonLabel(reason: string | undefined): string {
 		default:
 			return reason ?? 'refused';
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Searching and filtering one class (ledger 0297, report 19)
+//
+// "It would be nice to have more organization on the website with
+// assignments." Units already group a class; what was missing is a SECOND
+// AXIS a person controls: find an item by name, show one kind, and for a
+// student, show where their own work stands.
+//
+// A FILTER IS NOT THE DUE-DATE BUCKETING `classGroups` DROPPED ON PURPOSE.
+// That decision replaced the teacher's structure with somebody else's order;
+// this keeps the teacher's units and the teacher's order and only NARROWS what
+// is inside them, with a count and a clear control on screen whenever it does.
+//
+// IT RUNS OVER THE LOADED ITEMS, NEVER THE DOM. A folded unit renders no rows
+// (measured: folding one unit took 50 item links to 14), so anything reading
+// the page would miss exactly what somebody folded away.
+//
+// ONE CLOCK. `now` is the instant the class LOADER read once (the same read it
+// turns into `today` for the check-ins), handed down as a string; nothing here
+// reads a clock. An assignment is MISSING once that instant is past its due
+// time and nothing was turned in: `due_at` is a timestamp, so it is compared
+// as one -- a deadline at 8am is past at 3pm, which is what "deadlines are
+// firm" means. A check-in is adjudicated on its DATE against `today`, the
+// America/Los_Angeles day `session_date` is written in (class-check-ins.ts).
+// ---------------------------------------------------------------------------
+
+export const STREAM_KIND_FILTERS = ['all', 'assignment', 'material', 'post', 'check-in'] as const;
+export type StreamKindFilter = (typeof STREAM_KIND_FILTERS)[number];
+export const STREAM_STATUS_FILTERS = ['all', 'todo', 'missing', 'done', 'drafts'] as const;
+export type StreamStatusFilter = (typeof STREAM_STATUS_FILTERS)[number];
+
+export interface StreamFilter {
+	query: string;
+	kind: StreamKindFilter;
+	status: StreamStatusFilter;
+}
+
+export const EMPTY_STREAM_FILTER: StreamFilter = { query: '', kind: 'all', status: 'all' };
+
+/** The words a kind option wears. Check-ins are not a `classroom_items` kind, so they are named here. */
+export const STREAM_KIND_LABELS: Record<StreamKindFilter, string> = {
+	all: 'All kinds',
+	assignment: 'Assignments',
+	material: 'Materials',
+	post: 'Announcements',
+	'check-in': 'Check-ins'
+};
+
+export const STREAM_STATUS_LABELS: Record<StreamStatusFilter, string> = {
+	all: 'Everything',
+	todo: 'To do',
+	missing: 'Missing',
+	done: 'Done',
+	drafts: 'Drafts'
+};
+
+/** Whether anything is narrowing the class right now. */
+export function streamFilterActive(f: StreamFilter): boolean {
+	return f.query.trim() !== '' || f.kind !== 'all' || f.status !== 'all';
+}
+
+export type WorkStanding = 'todo' | 'missing' | 'done';
+
+/**
+ * WHERE A STUDENT STANDS ON ONE ASSIGNMENT, for the status filter.
+ *
+ * Turned in (submitted or returned) is DONE, from `studentWorkMap`'s own
+ * states. Anything else past its due instant is MISSING. Everything else is TO
+ * DO, including an assignment with no due date: the home feed leaves undated
+ * work out of its COUNT because a count that never stops counting is not
+ * believed, but this is a list a student asked for, and hiding an undated
+ * assignment from "what have I not done" is the worse miss. Not an assignment
+ * is null: a material or an announcement has no standing to filter on.
+ */
+export function assignmentStanding(
+	item: Pick<ClassroomItem, 'kind' | 'due_at'>,
+	work: StudentWork | undefined,
+	now: string
+): WorkStanding | null {
+	if (item.kind !== 'assignment') return null;
+	if (work && (work.state === 'submitted' || work.state === 'returned')) return 'done';
+	const due = item.due_at ? Date.parse(item.due_at) : Number.NaN;
+	const at = Date.parse(now);
+	if (Number.isFinite(due) && Number.isFinite(at) && due < at) return 'missing';
+	return 'todo';
+}
+
+/** The fields of a check-in this module reads. Structural, so this file keeps no import of the check-in module (which imports it). */
+export interface FilterableCheckIn {
+	session_label: string;
+	session_date: string;
+	unit_number: number;
+	status: string | null;
+}
+
+/**
+ * WHERE A STUDENT STANDS ON ONE CHECK-IN, from the status the loader already
+ * worked out. Filed, awaiting review and excused are DONE. Nothing filed or a
+ * draft not turned in is MISSING once its day is behind today and TO DO on the
+ * day itself; a flagged entry is TO DO, because the student is being asked to
+ * add to it. `scheduled` is NULL: it has not been asked for yet, and it stays
+ * out of every total by not being named (the `isOutstanding` rule). A manager's
+ * check-in carries no status and is null too.
+ */
+export function checkInStanding(
+	checkIn: Pick<FilterableCheckIn, 'status' | 'session_date'>,
+	today: string
+): WorkStanding | null {
+	switch (checkIn.status) {
+		case 'filed':
+		case 'awaiting_review':
+		case 'excused':
+			return 'done';
+		case 'missing':
+		case 'draft':
+			return checkIn.session_date < today ? 'missing' : 'todo';
+		case 'flagged':
+			return 'todo';
+		default:
+			return null;
+	}
+}
+
+export interface StreamFilterContext {
+	/** The viewer's own work, keyed by item id (empty for a manager). */
+	work: Record<string, StudentWork>;
+	/** The loader's one clock read, as an ISO instant. */
+	now: string;
+	/** The same read as the America/Los_Angeles day. */
+	today: string;
+	/** Unit names by id, so a unit's name finds its items. */
+	unitNames: ReadonlyMap<string, string>;
+	/**
+	 * The ONE text rule (`$lib/shell/search`'s `matchesQuery`), handed in so
+	 * this module keeps its imports and the class page and the palette cannot
+	 * disagree about what matches.
+	 */
+	matches: (query: string, fields: readonly (string | null | undefined)[]) => boolean;
+}
+
+/** Whether one item survives the filter. Status needs a standing; a kind of `check-in` is never an item. */
+export function itemPassesFilter(item: ClassroomItem, filter: StreamFilter, ctx: StreamFilterContext): boolean {
+	if (filter.kind === 'check-in') return false;
+	if (filter.kind !== 'all' && item.kind !== filter.kind) return false;
+	if (filter.status === 'drafts') {
+		if (item.published) return false;
+	} else if (filter.status !== 'all') {
+		if (assignmentStanding(item, ctx.work[item.id], ctx.now) !== filter.status) return false;
+	}
+	const unit = item.unit_id ? ctx.unitNames.get(item.unit_id) : undefined;
+	return ctx.matches(filter.query, [
+		itemTitle(item),
+		unit,
+		itemKindLabel(item.kind),
+		item.category,
+		...item.attachments.map((a) => a.filename)
+	]);
+}
+
+/** Whether one check-in row survives the filter. It has a kind of its own and no unit. */
+export function checkInPassesFilter(
+	checkIn: FilterableCheckIn,
+	filter: StreamFilter,
+	ctx: StreamFilterContext
+): boolean {
+	if (filter.kind !== 'all' && filter.kind !== 'check-in') return false;
+	if (filter.status === 'drafts') return false;
+	if (filter.status !== 'all' && checkInStanding(checkIn, ctx.today) !== filter.status) return false;
+	return ctx.matches(filter.query, [checkIn.session_label, 'check-in', `unit ${checkIn.unit_number}`]);
+}
+
+/** How many of the viewer's own assignments and check-ins stand in each state, for the chips' counts. */
+export function standingCounts(
+	items: readonly ClassroomItem[],
+	checkIns: readonly FilterableCheckIn[],
+	ctx: Pick<StreamFilterContext, 'work' | 'now' | 'today'>
+): Record<WorkStanding, number> {
+	const out: Record<WorkStanding, number> = { todo: 0, missing: 0, done: 0 };
+	for (const item of items) {
+		const s = assignmentStanding(item, ctx.work[item.id], ctx.now);
+		if (s) out[s] += 1;
+	}
+	for (const c of checkIns) {
+		const s = checkInStanding(c, ctx.today);
+		if (s) out[s] += 1;
+	}
+	return out;
 }

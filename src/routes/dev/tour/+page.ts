@@ -4,6 +4,7 @@ import type { JwtPayload } from '@supabase/supabase-js';
 import type { PageLoad } from './$types';
 import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 import type { FeedSubmission } from '$lib/classroom/feed';
+import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
 import {
 	makeStubSupabase,
 	profileForMode,
@@ -87,6 +88,11 @@ export const load: PageLoad = async ({ url }) => {
 		feedItems: [] as ClassroomItem[],
 		feedSubmissions: [] as FeedSubmission[],
 		feedManagerEmails: {} as Record<string, string[]>,
+		// The shared owed-work read's check-ins and its one clock read (ledger
+		// 0297). None and no clock: the page falls back to its own, exactly as a
+		// signed-out load does.
+		feedCheckIns: [] as ClassCheckIn[],
+		feedClock: null as { now: string; today: string } | null,
 		// The home page's data shape carries this now (the launcher's admin-only
 		// review badge). Null is the not-an-admin answer, so no badge renders.
 		foundryReviewPending: null as number | null

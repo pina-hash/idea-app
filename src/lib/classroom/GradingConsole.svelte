@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { classNotebookHref } from '$lib/classroom/nav';
 	import Avatar from '$lib/Avatar.svelte';
 	import { rosterSubject } from '$lib/avatars';
 	import { tick, untrack, type Snippet } from 'svelte';
@@ -8,7 +9,8 @@
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import SubmissionFileList from '$lib/classroom/SubmissionFileList.svelte';
 	import { anchored } from '$lib/shell/anchored';
-	import { isTypingTarget, keyAction, type KeyBinding } from '$lib/shell/keys';
+	import { isTypingTarget, keyAction } from '$lib/shell/keys';
+	import { GRADE_KEYS, type GradeAction } from '$lib/classroom/grading-keys';
 	import Pending from '$lib/Pending.svelte';
 	import {
 		criterionIncomplete,
@@ -871,6 +873,16 @@
 			return;
 		}
 		pending = { next };
+		/* THE BAR TAKES THE FOCUS AND THE KEYS (ledger 0297). Pressing N or P
+		   after picking a level without S raised this bar and left every key
+		   dead -- Escape and S included -- with focus still on the level button
+		   and "Save draft, then switch" twelve Shift+Tab presses away. Focus
+		   lands on the bar's first action, and `onWindowKey` answers S and
+		   Escape while it is up. A level's descriptor tip closes too: the bar
+		   pushes the rubric down and a tip left open kept its old coordinates,
+		   over the key legend. */
+		hoveredLevel = null;
+		void tick().then(() => dirtySaveEl?.focus());
 	}
 
 	function applySelect(next: StudentWork | null) {
@@ -1509,6 +1521,7 @@
 	// would be clipped by it.
 	// -----------------------------------------------------------------------
 	let hoveredLevel = $state<string | null>(null);
+	let dirtySaveEl = $state<HTMLButtonElement | null>(null);
 	let levelEls = $state<Record<string, HTMLElement | null>>({});
 	const levelKey = (ci: number, li: number) => `${ci}:${li}`;
 
@@ -1522,77 +1535,10 @@
 	// shared with the notebook's review console; the actions below are this
 	// surface's own.
 	// -----------------------------------------------------------------------
-	type GradeAction =
-		| 'level-1'
-		| 'level-2'
-		| 'level-3'
-		| 'level-4'
-		| 'crit-prev'
-		| 'crit-next'
-		| 'level-prev'
-		| 'level-next'
-		| 'student-prev'
-		| 'student-next'
-		| 'save'
-		| 'return'
-		| 'close';
-
-	/**
-	 * THE LEGEND AND THE HANDLER ARE ONE LIST, so a key that stops working stops
-	 * being advertised.
-	 *
-	 * WHY THESE KEYS:
-	 *   * 1-4 pick a level directly. A criterion may hold at most four levels
-	 *     (the SQL constraint), so the digits cover every rubric exactly, and
-	 *     "the top level is 1" matches the order they are printed in.
-	 *   * Up/down move between criteria, left/right between levels inside one --
-	 *     the axes the grid on screen already has.
-	 *   * TAB is the browser's, not ours. Each criterion's level group is a
-	 *     roving tabindex with exactly one tabbable button, so Tab lands on the
-	 *     next criterion by native focus order. Swallowing Tab would trap focus
-	 *     in the rubric with no way out, which is a worse bargain than any
-	 *     shortcut is worth.
-	 *   * N and P are next and previous student: the pager convention, single
-	 *     letters that do not collide with the digits, and both readable as
-	 *     words in the legend.
-	 *   * S saves a draft, which is safe and reversible.
-	 *   * R RETURNS THE GRADE TO THE STUDENT, which is neither, so it is armed
-	 *     first and confirmed by a second R -- the same two-step every other
-	 *     irreversible control on the site uses. Escape or any other key
-	 *     disarms.
-	 *   * Escape closes the student and goes back to the roster (and is caught
-	 *     by the dirty guard like every other way out).
-	 */
-	const GRADE_KEYS: KeyBinding<GradeAction>[] = [
-		{
-			keys: '1 – 4',
-			label: 'Pick level',
-			action: 'level-1',
-			dispatch: { '1': 'level-1', '2': 'level-2', '3': 'level-3', '4': 'level-4' }
-		},
-		{
-			keys: '↑ ↓',
-			label: 'Criterion',
-			action: 'crit-next',
-			dispatch: { ArrowUp: 'crit-prev', ArrowDown: 'crit-next' }
-		},
-		{
-			keys: '← →',
-			label: 'Level',
-			action: 'level-next',
-			dispatch: { ArrowLeft: 'level-prev', ArrowRight: 'level-next' }
-		},
-		{ keys: 'Tab', label: 'Next criterion', native: true },
-		{
-			keys: 'N / P',
-			label: 'Next / previous student',
-			action: 'student-next',
-			dispatch: { n: 'student-next', p: 'student-prev' }
-		},
-		{ keys: 'S', label: 'Save draft', action: 'save', dispatch: { s: 'save' } },
-		{ keys: 'R R', label: 'Return to student', action: 'return', dispatch: { r: 'return' } },
-		{ keys: 'Esc', label: 'Back to roster', action: 'close', dispatch: { Escape: 'close' } }
-	];
+	// THE TABLE ITSELF LIVES IN `$lib/classroom/grading-keys` now, character for
+	// character, so the command registry's shortcut legend reads the same array
+	// this console dispatches from. What each key DOES stays here, in
+	// `runAction`, which is the only place that knows the selected criterion.
 
 	/** Which criterion the keys act on. Follows focus and every key that moves. */
 	let critIndex = $state(0);
@@ -1662,7 +1608,9 @@
 		keyNote = null;
 		requestSelect(next);
 		// The loop lands somewhere DEFINED and visible: the first criterion's
-		// level control, which is where the next decision is made.
+		// level control, which is where the next decision is made -- unless the
+		// unsaved bar went up instead, which takes the focus itself.
+		if (pending) return;
 		if (criteria.length) void focusLevel(0, roveIndex(0));
 	}
 
@@ -1735,7 +1683,22 @@
 	}
 
 	function onWindowKey(event: KeyboardEvent) {
-		if (!data || pending) return;
+		if (!data) return;
+		if (pending) {
+			// Only the bar's own two answers, and never while typing.
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				pending = null;
+				return;
+			}
+			const t = event.target as HTMLElement | null;
+			if (t && isTypingTarget(t)) return;
+			if ((event.key === 's' || event.key === 'S') && !event.ctrlKey && !event.metaKey && !event.altKey) {
+				event.preventDefault();
+				if (!busy) void saveThenSwitch();
+			}
+			return;
+		}
 		const target = event.target as (HTMLElement & { isContentEditable?: boolean }) | null;
 		// NOTHING FIRES WHILE SOMEBODY IS TYPING. The console has a comment box,
 		// a per-criterion comment box and a numeric override field; a grader
@@ -1766,12 +1729,22 @@
 	`cr-console` is a plain hook for the room-level rules that have to reach
 	inside the classroom's own stylesheet -- the 44px control sizing, which
 	cannot be written in a scoped block because `.btn` is an app-shell class.
+	`cr-instructor-surface` (ledger 0297) is this surface DECLARING itself
+	instructor-only, the named class IDEA_INTERFACE_STANDARDS 10 requires before
+	a compact density may style anything here below 44px.
 -->
-<main class="grading-page cr-console cr-app-body">
+<main class="grading-page cr-console cr-app-body" class:cr-instructor-surface={true}>
 	<section class="hero console-hero">
 		<div class="eyebrow">Grading</div>
 		<h1>{itemTitle(item)}</h1>
 		<p class="meta-line">{sectionTitle(section)} · out of {outOf} pts</p>
+		<!-- THE CLASS'S NOTEBOOK FROM THE GRADING CONSOLE (ledger 0297, package
+		     F4b): one link, to the class's Notebook tab, where the review grid, the
+		     approve queue and the Documentation Check all live. A link and not a
+		     panel: the notebook keeps its one scoring path. -->
+		<a class="tap-44 gc-notebook-link" href={classNotebookHref(section.id, basePath)} data-testid="grading-notebook-link"
+			>Notebook review and Documentation Check</a
+		>
 	</section>
 
 	{#if loadError}
@@ -2423,7 +2396,14 @@
 								discards it.
 							</p>
 							<span class="dirty-actions">
-								<button type="button" class="btn tiny" disabled={busy} onclick={saveThenSwitch}>
+								<button
+									type="button"
+									class="btn tiny"
+									disabled={busy}
+									onclick={saveThenSwitch}
+									bind:this={dirtySaveEl}
+									aria-keyshortcuts="S"
+								>
 									Save draft, then switch
 								</button>
 								<button
@@ -3137,6 +3117,10 @@
 		font-size: 1.75rem;
 		line-height: 1.15;
 	}
+	.gc-notebook-link {
+		font-size: 0.85rem;
+		color: var(--body-link, var(--cyan));
+	}
 	.meta-line {
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
@@ -3687,6 +3671,21 @@
 		letter-spacing: 0;
 		color: var(--text-2);
 	}
+	/* THE COUNT IS THE NUMBER A TEACHER ACTS ON, SO IT NEVER ELLIPSISES (ledger
+	   0297). Disclosure's meta slot truncates, which is right for a free-text
+	   summary and wrong here: "2 open · 0 closed" measured 35 of its 103px at
+	   1440, 1366 and 960, and 26px at 375, because the label and the Show word
+	   take the roster pane's width first. On this one trigger the row may wrap,
+	   and the count keeps its whole width, on the label's line where it fits
+	   and on its own line under it where it does not. */
+	:global([data-testid='close-disclosure'].disc-trigger) {
+		flex-wrap: wrap;
+	}
+	:global([data-testid='close-disclosure'] .disc-meta) {
+		overflow: visible;
+		text-overflow: clip;
+		flex: 0 0 auto;
+	}
 	.close-order,
 	.close-confirm {
 		margin: 0;
@@ -3883,6 +3882,12 @@
 		.work-split.has-rubric.document-work {
 			display: flex;
 			flex-direction: column;
+			/* STRETCH, or the column shrink-wraps the ported document's iframe to
+			   its default 300px (ledger 0297: 300px wide in a 562px pane at 960,
+			   262px dead). The base rule's `align-items: start` is right for the
+			   grid it was written for and wrong for this column; the 1024-to-78rem
+			   band below already reset it, and this is the rest of the range. */
+			align-items: stretch;
 		}
 	}
 
@@ -4231,6 +4236,11 @@
 		visibility: hidden;
 		pointer-events: none;
 	}
+	/* Under Space White a popover lifts on the theme's hard elevation rather
+	   than a blurred dark drop (ledger 0297); the dark theme keeps its own. */
+	:global(:root[data-theme='space-white']) .level-tip {
+		box-shadow: var(--elevation-2);
+	}
 	@media (prefers-reduced-motion: no-preference) {
 		.level-tip {
 			transition: opacity 0.12s ease;
@@ -4447,9 +4457,16 @@
 	   THE SAVE MARKER TAKES ITS OWN LINE (`flex-basis: 100%`) because it is not
 	   a control and must not be sized like one -- and when it has nothing to say
 	   it renders nothing, so the line costs nothing. */
+	/* A LABEL NEVER BREAKS INSIDE ITS BUTTON (ledger 0297): at 5rem a button
+	   could shrink under its own words and put "Next student ›" on two lines
+	   with the chevron alone on the second. The basis is the label's own width
+	   (`auto`), the row wraps a whole button onto the next line instead, and the
+	   buttons on a line still share it. */
 	.grade-actions > button {
-		flex: 1 1 5rem;
+		flex: 1 1 auto;
 		min-width: 0;
+		white-space: nowrap;
+		justify-content: center;
 	}
 	/* `:global` because the element belongs to `SaveIndicator`, and a DIRECT-CHILD
 	   selector so the Retry and Save controls inside it are not sized as dock

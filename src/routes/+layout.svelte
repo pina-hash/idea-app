@@ -22,6 +22,7 @@
 	import PathwayPicker from '$lib/PathwayPicker.svelte';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
 	import NavigationProgress from '$lib/NavigationProgress.svelte';
+	import DeployWatch from '$lib/shell/DeployWatch.svelte';
 	import VoiceNav from '$lib/voice/VoiceNav.svelte';
 	import ThemeRoot from '$lib/design-system/themes/ThemeRoot.svelte';
 	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
@@ -102,6 +103,11 @@
      `$app/state` and draws nothing until a navigation has been in flight for
      NAV_INDICATOR_DELAY_MS, so an instant click stays silent. -->
 <NavigationProgress />
+<!-- DEPLOY SAFETY, mounted once here beside the indicator and for the same
+     reason: every page route inherits it. It renders nothing, and it takes a new
+     version of the site only at a navigation the person made, never under an idle,
+     fullscreen or projected page; see $lib/shell/deploy-safety. -->
+<DeployWatch />
 <!-- THE SITE THEME, written onto <html> and nowhere else. Mounted here for the
      reason the two above it are: there are no layout resets in src/routes, so
      every page route inherits it. It renders nothing; see the component. -->

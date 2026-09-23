@@ -8,6 +8,7 @@
 	} from '$lib/profile';
 	import {
 		avatarTint,
+		avatarTintOnLight,
 		proxiedAvatarSource,
 		subjectAvatar,
 		subjectInitials,
@@ -205,13 +206,14 @@
 	const source = $derived(proxiedAvatarSource(chosen, resolved, fallbackText));
 	const failed = $derived(source.kind === 'image' && failedUrl === source.url);
 	const tint = $derived(avatarTint(tintKey));
+	const tintOnLight = $derived(avatarTintOnLight(tintKey));
 	const px = $derived(`${size}px`);
 </script>
 
 <span
 	class="avatar"
 	class:accented={!!accent}
-	style="width:{px};height:{px};min-width:{px};--avatar-tint:{tint}{accent
+	style="width:{px};height:{px};min-width:{px};--avatar-tint:{tint};--avatar-tint-light:{tintOnLight}{accent
 		? `;--avatar-accent:${accent}`
 		: ''}"
 	aria-hidden="true"
@@ -235,20 +237,26 @@
 		     `color` carries the stroke so a filled mark can say
 		     `fill="currentColor"` and pick up the preset's own colour without
 		     each entry repeating its hex. -->
+		<!-- THE STROKE IS `currentColor` AND THE COLOR IS TWO CUSTOM PROPERTIES
+		     (ledger 0297, package F1b): the preset's dark-tile `fg` and its
+		     light-ground twin `fgOnLight`, and the stylesheet picks by theme. It
+		     used to be the hex in the attribute, which no theme can reach; the
+		     paint on the dark tile is the same value it always was. -->
 		<svg
+			class="preset"
 			viewBox="0 0 24 24"
 			fill="none"
-			stroke={source.preset.fg}
+			stroke="currentColor"
 			stroke-width="1.5"
 			stroke-linecap="round"
 			stroke-linejoin="round"
-			style="color:{source.preset.fg}"
+			style="--avatar-fg:{source.preset.fg};--avatar-fg-light:{source.preset.fgOnLight ?? source.preset.fg}"
 		>
 			{#each presetMarks(source.preset) as mark, i (i)}
 				<path
 					d={mark.d}
 					fill={mark.fill ?? 'none'}
-					stroke={mark.fill ? 'none' : (mark.stroke ?? source.preset.fg)}
+					stroke={mark.fill ? 'none' : (mark.stroke ?? 'currentColor')}
 					stroke-width={mark.width ?? 1.5}
 					transform={markTransform(mark)}
 				/>
@@ -306,5 +314,22 @@
 		color: var(--avatar-tint, var(--green, #00ff41));
 		letter-spacing: 0.05em;
 		line-height: 1;
+	}
+	.avatar svg.preset {
+		color: var(--avatar-fg);
+	}
+	/* UNDER SPACE WHITE THE TILE IS LIGHT, SO THE INK IS THE LIGHT TWIN (ledger
+	   0297, package F1b). The tile's ground is `--bg2`, which the theme turns
+	   into its light inset; the dark set's tints and a neon preset stroke read
+	   under 2:1 there. Each twin is the same hue at a lightness measured for
+	   the light ground (`AVATAR_TINTS_ON_LIGHT`, `fgOnLight`), so a person
+	   keeps their color and their picture stays legible. The theme's
+	   attribute is written only on in-scope routes, so a roster in any other
+	   room paints exactly what it did. */
+	:global(:root[data-theme='space-white']) .initials {
+		color: var(--avatar-tint-light, var(--avatar-tint));
+	}
+	:global(:root[data-theme='space-white']) .avatar svg.preset {
+		color: var(--avatar-fg-light, var(--avatar-fg));
 	}
 </style>

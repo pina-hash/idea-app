@@ -4,7 +4,7 @@ export default {
 	/*
 		WHY THIS ROUTE IS LISTED AT ALL: it is the OTHER surface that mounts
 		`NotebookView` with `readOnly` and no deleted list, and it is the one
-		nobody looks at. `/notebook/review/student/[email]` at least renders a
+		nobody looks at. `/classroom/notebook/review/student/[email]` at least renders a
 		staff Deleted section below the view, so the phantom "Recently deleted"
 		chip there sat visibly beside a real one. Here there is NO zone at all,
 		so the chip was the page's only deleted affordance and it was
@@ -26,8 +26,10 @@ export default {
 		{ selector: '.nb-root', label: 'NotebookView mounted (read-only)', expectPresent: 1, maxPresent: 1 },
 		/*
 			NO APPLICATION FRAME HERE, AND THIS IS THE HALF THAT MATTERS. The
-			notebook takes `cr-app` -- a viewport-height frame whose panes own
-			their own scroll -- only when it OWNS the page, which `masthead` says.
+			notebook is the body of a viewport-height frame whose panes own their
+			own scroll only when it OWNS the page, which `ownsPage` says (ledger
+			0297: the frame is the classroom's `.cr-app`, the room its
+			`.cr-app-body`).
 			This mount is inside the classroom's own shell and impersonation
 			banner, so a frame would be 100dvh of notebook starting BELOW that
 			chrome and would clip the bottom of the list by exactly its height,

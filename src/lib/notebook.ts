@@ -200,7 +200,22 @@ function photoFilenameTitle(photos: NotebookPhoto[]): string | null {
 		.sort((a, b) => a.sequence_order - b.sequence_order)
 		.find((p) => p.original_filename?.trim());
 	const filename = named?.original_filename?.trim();
-	return filename ? stripExtension(filename) : null;
+	return filename ? stripExtension(displayPhotoName(filename)) : null;
+}
+
+/**
+ * THE TOKEN A CAPTURED PHOTO TRAVELS UNDER (ledger 0297, package F4b). The
+ * photo routes have no idempotency key and the row stores no size, so a
+ * captured photo's `original_filename` carries `-c<8 characters>` for the
+ * retry to find (`captureUploadName` in `$lib/notebook/capture`). It is
+ * bookkeeping, never something a person reads, so every surface that shows a
+ * filename shows it through `displayPhotoName`.
+ */
+export const CAPTURE_TOKEN_TAIL = /-c([a-z0-9]{8})(\.[a-z0-9]{1,5})?$/i;
+
+/** A stored filename as a person should read it: the capture token dropped. */
+export function displayPhotoName(name: string): string {
+	return name.replace(CAPTURE_TOKEN_TAIL, (_all, _token, ext: string | undefined) => ext ?? '');
 }
 
 export function entryTitle(

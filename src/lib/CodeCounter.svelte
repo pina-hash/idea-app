@@ -240,6 +240,10 @@
 	   header. It reaches 44px through `.tap-reach-44`, which grows the HIT AREA
 	   with a pseudo-element and leaves the layout alone; growing the box would
 	   push the banner taller on every page load. */
+	/* THE TINTS READ THE LANDING PAGE'S ROOM HOOKS (`--li-*` on `.legacy-index`,
+	   src/app.css), with the page's own values as the fallback for a mount
+	   outside it (/dev/code-census), so a theme that repoints the page repoints
+	   this chip with it. */
 	.loc-chip {
 		display: inline-flex;
 		align-items: center;
@@ -250,8 +254,8 @@
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--cyan);
-		background: rgba(147, 214, 200, 0.05);
-		border: 1px solid rgba(147, 214, 200, 0.3);
+		background: color-mix(in srgb, var(--li-patina, #93d6c8) 5%, transparent);
+		border: 1px solid color-mix(in srgb, var(--li-patina, #93d6c8) 30%, transparent);
 		padding: 0.3rem 0.7rem;
 		border-radius: 2px;
 		cursor: pointer;
@@ -268,7 +272,7 @@
 	.loc-chip:hover,
 	.loc-chip:focus-visible {
 		color: var(--green);
-		border-color: rgba(143, 224, 138, 0.5);
+		border-color: color-mix(in srgb, var(--li-mint, #8fe08a) 50%, transparent);
 	}
 	/* `--text-2`, NOT `--dim`, AND THAT IS THE DOCUMENTED FIX RATHER THAN A
 	   PREFERENCE. `--dim` clears 4.5:1 only on the DARKEST of the three portal
@@ -318,7 +322,7 @@
 		pointer-events: none;
 		max-width: min(24rem, calc(100vw - 2rem));
 		background: var(--bg2, #16211a);
-		border: 1px solid rgba(147, 214, 200, 0.3);
+		border: 1px solid color-mix(in srgb, var(--li-patina, #93d6c8) 30%, transparent);
 		border-radius: 2px;
 		padding: 0.35rem 0.55rem;
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
@@ -337,7 +341,7 @@
 		max-height: min(72vh, 36rem);
 		overflow: auto;
 		background: var(--bg1, #121a12);
-		border: 1px solid rgba(143, 224, 138, 0.3);
+		border: 1px solid color-mix(in srgb, var(--li-mint, #8fe08a) 30%, transparent);
 		border-radius: 3px;
 		padding: 0.9rem;
 		color: var(--white);
@@ -347,7 +351,9 @@
 		text-align: left;
 		text-transform: none;
 		letter-spacing: normal;
-		box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+		/* The landing page's popover shadow, through its room hook so Space
+		   White can hand the lifted elevation in its place. */
+		box-shadow: var(--li-pop-shadow, 0 18px 50px rgba(0, 0, 0, 0.55));
 	}
 
 	.loc-head {
@@ -386,7 +392,7 @@
 	.loc-close:hover,
 	.loc-axis:hover {
 		color: var(--green);
-		border-color: rgba(143, 224, 138, 0.5);
+		border-color: color-mix(in srgb, var(--li-mint, #8fe08a) 50%, transparent);
 	}
 	/* PRESSED IS A BORDER, A GROUND AND AN INK -- three changes, so the active
 	   axis is not distinguishable by hue alone. `aria-pressed` carries it for
@@ -394,7 +400,7 @@
 	.loc-axis-on {
 		color: var(--green);
 		border-color: var(--green);
-		background: rgba(143, 224, 138, 0.1);
+		background: color-mix(in srgb, var(--li-mint, #8fe08a) 10%, transparent);
 	}
 
 	.loc-summary {

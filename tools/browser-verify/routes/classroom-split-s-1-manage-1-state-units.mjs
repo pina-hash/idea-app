@@ -38,6 +38,31 @@ export default {
 			until: '() => window.__composeProbe().unitOrders.length > 0',
 			waitMs: 200
 		},
+		/* INTO VIEW BEFORE THE CLICK (ledger 0297). With the class's chrome as
+		   it is after the notebook moved into the class (a Notebook tab where
+		   the Check-ins departure was, and the notebook link gone from the
+		   pane's tool row), row 2's Rename sits at y=839 at 375, under the Voice
+		   float fixed to the bottom of a 900px viewport: the real click landed
+		   on the float (measured, elementFromPoint answered span.vnav-word) and
+		   this step failed through twelve attempts. A person scrolls; the
+		   harness does not, so the step brings the control to the middle of the
+		   viewport first and every measurement after it reads the page as
+		   scrolled. Where the row sat before the move was not measured. */
+		{
+			evaluate: `() => {
+				const b = document.querySelector('[data-testid="unit-row"]:nth-child(2) [data-testid="unit-rename"]');
+				b.scrollIntoView({ block: 'center', behavior: 'instant' });
+				const r = b.getBoundingClientRect();
+				const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+				return 'Rename at y=' + Math.round(r.top) + ', hit-tests to itself: ' + (hit === b || b.contains(hit));
+			}`,
+			until: `() => {
+				const b = document.querySelector('[data-testid="unit-row"]:nth-child(2) [data-testid="unit-rename"]');
+				const r = b.getBoundingClientRect();
+				const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+				return hit === b || b.contains(hit);
+			}`
+		},
 		{
 			click: '[data-testid="unit-row"]:nth-child(2) [data-testid="unit-rename"]',
 			until: '() => !!document.querySelector(\'[data-testid="unit-rename-input"]\')'

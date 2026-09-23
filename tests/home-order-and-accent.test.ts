@@ -927,6 +927,64 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		expect(launcher).not.toContain('m16 4 11 6-11 6L5 10l11-6Z');
 	});
 
+	// The Classroom and Notebook marks were REDESIGNED IN PLACE to the IdeaCAD
+	// standard (ledger 0297, package F1b): layered geometry, faces mixed from
+	// currentColor, a hook family a host can point at its own tokens, and a
+	// `once` prop whose half cycle ends on the rest frame. Each case below is the
+	// IdeaCAD case above pointed at one mark, with the keyframe reader shared.
+	const markFrames = (styleBody: string, name: string, prop: string) => {
+		const body = styleBody.match(new RegExp(`@keyframes ${name}\\s*\\{((?:[^{}]*\\{[^{}]*\\})*)[^{}]*\\}`))?.[1] ?? '';
+		const out: [number, string][] = [];
+		for (const block of body.matchAll(/([\d%,\s]+)\{([^}]*)\}/g)) {
+			const value = block[2].match(new RegExp(`(?:^|;|\\s)${prop}:\\s*([^;]+)`))?.[1].trim();
+			if (value === undefined) continue;
+			for (const offset of block[1].split(',')) if (offset.trim()) out.push([parseFloat(offset), value]);
+		}
+		return out.sort((a, b) => a[0] - b[0]);
+	};
+	const markAt50 = (f: [number, string][]) => [f.filter(([o]) => o <= 50).at(-1)?.[1], f.find(([o]) => o >= 50)?.[1]];
+	const MARK_CASES = [
+		{ file: 'ClassroomMark', app: 'classroom', prefix: 'cm-', keyframes: 'cm-swing', rest: 'rotate(0deg)', hook: '--crm-' },
+		{ file: 'NotebookMark', app: 'notebook', prefix: 'nm-', keyframes: 'nm-focus', rest: 'scale(1)', hook: '--nbm-' }
+	] as const;
+	for (const c of MARK_CASES) {
+		it(`gives the ${c.app} card a layered mark that hides nothing at rest and settles on its rest frame`, () => {
+			const mark = readFileSync(`src/lib/marks/${c.file}.svelte`, 'utf8');
+			expect(mark).toContain('prefers-reduced-motion: no-preference');
+			expect(mark).toMatch(new RegExp(`animation:\\s*${c.prefix}`));
+
+			// Nothing at opacity 0 and nothing under a transform OUTSIDE a keyframe;
+			// `transform-origin` is the one `transform` word allowed.
+			const styleBody = mark.slice(mark.indexOf('<style>'));
+			const outsideKeyframes = styleBody.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
+			expect(outsideKeyframes).not.toMatch(/opacity:\s*0/);
+			expect(outsideKeyframes).not.toMatch(/transform:/);
+
+			// No literal color: currentColor, with the faces mixed from it and a
+			// hook family in front of every paint.
+			expect(mark).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+			expect(mark).toContain('stroke="currentColor"');
+			for (const tier of ['edge', 'hl', 'top', 'right', 'left']) expect(mark).toContain(`var(${c.hook}${tier},`);
+			// Three shaded tiers, as the IdeaCAD mark has, so it is a solid and not a line.
+			for (const pct of ['46%', '26%', '12%']) expect(mark).toContain(`color-mix(in srgb, currentColor ${pct}, transparent)`);
+
+			// Half a cycle ends on the rest state. Positive control first: the
+			// reader found the keyframe set and both of its ends.
+			const f = markFrames(styleBody, c.keyframes, 'transform');
+			expect(f.length).toBeGreaterThanOrEqual(3);
+			expect(f[0]).toEqual([0, c.rest]);
+			expect(f.at(-1)).toEqual([100, c.rest]);
+			expect(markAt50(f)).toEqual([c.rest, c.rest]);
+			expect(mark).toContain('animation-iteration-count: 0.5');
+			expect(mark).toMatch(/let \{ once = false \}/);
+
+			// And the launcher still renders it from its own call site.
+			const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
+			expect(launcher).toContain(`id === '${c.app}'`);
+			expect(launcher).toContain(`<${c.file} />`);
+		});
+	}
+
 	it('never moves an identity colour for contrast, only the ink', () => {
 		// FRC is the one card whose brand colour cannot carry text on --bg1: pure
 		// #ED1C24 measured 3.41:1 there. The fix moved --acc-ink and left FIRST red

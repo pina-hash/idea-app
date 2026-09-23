@@ -1,0 +1,275 @@
+/* ==========================================================================
+   SPACE WHITE. Mr. Pina's words (ledger 0297): "a really clean, like futuristic
+   space console, white theme option to IDEA Classroom (shows better on the
+   projector and looks clean)", and on 2026-09-16 he recorded that his
+   classroom projector's blacks are not dark enough, so dark elements and dark
+   backgrounds wash out. It is an OPTION beside IDEA and Matrix, never a
+   replacement for either.
+
+   ------------------------------------------------------------------------
+   THE CHARACTER, AND WHERE EACH HALF OF IT LIVES.
+
+     - Cool off-white grounds with a faint green cast -- not warm paper, and
+       not the notebook's light plate. Page #e8eceb under panels #f7f9f9, a
+       near-white raised ground (#fbfcfc, never #ffffff) and a slightly
+       recessed inset (#edf1f0).
+     - Near-black ink (#0d1311), with the secondary and tertiary tiers on the
+       same cool hue.
+     - STRUCTURE IS CARRIED BY LINES, NOT FILL STEPS. Page against panel is
+       1.13:1, which is a surface change a person can see on a monitor and a
+       projector cannot be relied on to keep, so the load-bearing boundary
+       (#6f7c78) does the separating: 3.65 on the page, 4.11 on a panel.
+     - THE IDEA GREEN IS DARKENED INTO INK for words, icons and the selection
+       mark, and kept at full brightness only as a large field
+       (`--accent-field`, the brand #78b870). Every semantic hue takes the same
+       move -- hue and saturation held, lightness only, the house rule for a
+       derived ink (--acc-ink, --violet-ink, Pathway.ink) -- so green is still
+       green, copper is still copper and a reader still tells six states apart.
+     - NO GLOW AND NO BLUR ANYWHERE. A glow has no light-ground equivalent; the
+       glow, bevel and texture tokens are zero-size transparent shadows and
+       `none` here, and the lifted elevation is a hard, blur-free edge.
+     - Mono uppercase micro-labels above values are a RECIPE the role block in
+       colors.css states; components adopt it in the sweep that follows this
+       file (F1b), not here.
+
+   ------------------------------------------------------------------------
+   WHY THIS THEME MAY REPAINT WHAT MATRIX MAY NOT, AND WHAT PAYS FOR IT.
+
+   matrix.css's header states the rule a theme obeys: it never repaints an
+   IDENTITY colour, never repaints a SEMANTIC one, and holds the luminance of
+   --white, --dim, --ice and --gear, because those four are read in rooms no
+   theme is measured in (FRC paints --dim on white paper; FSP reads --white on
+   navy). A light theme cannot keep the second and third halves and be
+   readable: --green on a white panel is 2.2:1 and --white would be ivory on
+   ivory. So this theme repaints the semantic inks and those four tiers -- and
+   keeps the IDENTITY rule exactly (no --acc-* here; the launcher's per-app
+   accents are the sweep's to re-ink, never a theme's).
+
+   WHAT PAYS FOR IT IS THE ROUTE SCOPE. `themeAttrFor` in `src/lib/theme.ts`
+   writes `data-theme='space-white'` only on an allowlist of routes (the
+   classroom and the reference viewer today), so FRC, FSP and every room with
+   its own identity never carry the attribute and render in the default look
+   by construction. `tests/theme-tokens.test.ts` holds both halves: a theme
+   that repaints a semantic or luminance-held token must be one of the scoped
+   themes, and the scope must answer "out" for FRC and FSP.
+
+   ------------------------------------------------------------------------
+   MEASURED, WCAG 2.x and under the projector-washout model (a 300:1
+   projector with ambient light at 10% of white added to every pixel:
+   L' = L(1 - 1/300) + 1/300 + 0.10, ratio L'hi / L'lo), worst ground of the
+   six this theme paints (page, panel, inset, raised, the --plate featured
+   panel and the --green-tint selected row). /dev/themes renders the board and
+   `tools/browser-verify/routes/themes-state-space-white.mjs` asserts it.
+
+     role            WCAG worst      washed worst
+     --text-1        14.44 plate      7.86 plate
+     --text-2         7.90 plate      5.52 plate
+     --text-3         4.89 plate      3.93 plate
+     --white         14.44 plate      7.86 plate
+     --ice            6.49 plate      4.84 plate
+     --dim            5.36 plate      4.21 plate
+     --gear           4.60 plate      3.76 plate
+     --boundary       3.34 plate      2.92 plate   (3.50 / 3.05 on the tint)
+     --green          4.77 plate      3.86 plate
+     --gold           4.91 plate      3.95 plate
+     --cyan           4.86 plate      3.92 plate   (also the focus ring)
+     --amber          5.87 plate      4.50 plate
+     --teal           5.89 plate      4.51 plate
+     --violet-ink     5.68 plate      4.40 plate
+     --crimson        4.86 plate      3.92 plate
+     --signal-hot     4.50 plate      3.69 plate
+
+   The accent and status fills carry their inks at 5.01 (ok), 6.06 (warn),
+   4.87 (danger) and 5.07 (info); --edge, the label on a gold or green plate,
+   reads 6.04 on --gold; the page against a panel is 1.13 (1.12 washed).
+   ========================================================================== */
+
+:root[data-theme='space-white'] {
+	/* --- Grounds, the portal set and the console register alike. -------- */
+	--bg0: #e8eceb;
+	--bg1: #f7f9f9;
+	--bg2: #edf1f0;
+	--plate: #dde3e1;
+	/* --edge is read as the LABEL on a --gold or --green plate (the required
+	   callout's tag), so on a light theme it is the light side. */
+	--edge: #f7f9f9;
+	--surface-0: #e8eceb;
+	--surface-1: #f7f9f9;
+	--surface-2: #edf1f0;
+	--surface-raised: #fbfcfc;
+	--green-tint: #dcebd8;
+
+	/* --- Ink. The portal's four neutral tiers and the register's three. --- */
+	--text-1: #0d1311;
+	--text-2: #384340;
+	--text-3: #56625e;
+	--white: #0d1311;
+	--ice: #43504b;
+	--dim: #505c58;
+	--gear: #5a6662;
+
+	/* --- Lines. --hairline stays decoration (1.4:1) and --boundary carries
+	   the structure. --line is the portal's quiet card edge; --line-strong
+	   its active edge, in the green ink. -------------------------------- */
+	--boundary: #6f7c78;
+	--hairline: rgba(13, 19, 17, 0.16);
+	--line: rgba(13, 19, 17, 0.22);
+	--line-strong: rgba(59, 108, 54, 0.6);
+
+	/* --- The semantic inks, lightness only (see the header). -------------- */
+	--green: #3b6c36;
+	--gold: #715d22;
+	--cyan: #2b6a5d;
+	--amber: #77491b;
+	--teal: #245e3c;
+	--violet: #6e4fa5;
+	--violet-ink: #624697;
+	--crimson: #b42b2b;
+
+	/* --- The roles that part company from --green on a light ground. The
+	   ink, fill and on-fill roles are aliases in colors.css and follow the
+	   inks above with no line here: the ink IS the fill (#3b6c36 under a
+	   --bg0 label reads 5.21), which is how a primary button stays one
+	   colour. The field is the brand at full brightness, for a large area
+	   only -- it is 2.24:1 on a panel and must never carry a word. The status
+	   fills are PINNED, never mixed from the ink above them. ------------- */
+	--accent-field: #78b870;
+	--status-ok-fill: #ddebda;
+	--status-warn-fill: #f2e3d0;
+	--status-danger-fill: #f6dcdc;
+	--status-info-fill: #d8eae6;
+	--signal-hot: #a64918;
+
+	/* --- No glow and no blur. A zero-size transparent shadow rather than
+	   `none`, because these tokens sit inside shadow LISTS
+	   (`var(--bevel-raised), 0 0 16px ...`) where `none` would void the whole
+	   declaration. The resting elevation is flat; the lifted one is a hard
+	   3px ledge with no blur radius. ---------------------------------- */
+	--glow-green: 0 0 0 transparent;
+	--glow-gold: 0 0 0 transparent;
+	--glow-cyan: 0 0 0 transparent;
+	--bevel-raised: 0 0 0 transparent;
+	--bevel-inset: 0 0 0 transparent;
+	--elevation-1: 0 0 0 transparent;
+	--elevation-2: 0 3px 0 rgba(13, 19, 17, 0.14);
+	--texture-brushed: none;
+	--texture-vignette: none;
+}
+
+/* ==========================================================================
+   THE DARK ISLANDS: a room with a plate of its own keeps its own look when it
+   is mounted INSIDE a Space White page.
+
+   The route scope keeps this theme off every room's own route, but three dark
+   surfaces are mounted inside routes it does cover:
+
+     .ic-root     IdeaCAD's Blade editor, which a schema-4 item page mounts for
+                  a student inside the classroom (ItemDetail.svelte). IdeaCAD
+                  is ledger 0296's and keeps its own look.
+     .nb-island   the notebook's two full-screen photo overlays, the camera
+                  and the corrector (CameraCapture, PhotoCorrector), whose
+                  ground is the dark --nb-shot-* island in every theme so a
+                  drag quad and its handles keep their contrast over an
+                  arbitrary photograph. The NOTEBOOK ITSELF left this list in
+                  ledger 0297 (package F4a): it follows the site theme now,
+                  Space White included, and only the photo overlays stay dark.
+     .deck-stage  the black projection stage around a slide deck
+                  (DeckViewer.svelte), whose bar and controls are drawn for a
+                  black ground by design.
+
+   Each reads the semantic inks and the portal tiers off `<html>`, so under
+   this theme each would inherit ink tuned for WHITE on a plate that is still
+   black -- IdeaCAD's accent is `--ic-accent: var(--green)`, the photo
+   corrector's quad is --green and its count the brass, the deck's back
+   control is --white on a black scrim. The fix is to hand each island back the DEFAULT values of
+   every token this theme moves.
+
+   AT ZERO SPECIFICITY, WHICH IS THE WHOLE MECHANISM. Both halves of the
+   selector are `:where()`, so this block is (0,0,0): it beats INHERITANCE
+   (any matching declaration does) and loses to every rule a room writes for
+   itself. IdeaCAD's own `--surface-0: var(--ic-ground)` on `.ic-root` and the
+   photo overlays' own brass on `.nb-island` therefore still win, and this
+   fills in only what the room left to `<html>` -- which is exactly the set
+   that would otherwise arrive white-tuned.
+
+   AND IT REDECLARES THE ALIASES TOO, not only the literals. A var() alias
+   resolves where it is DECLARED, so `--focus-ring: var(--cyan)` computed on
+   `<html>` under this theme reaches an island as the light theme's cyan
+   whatever this block does to --cyan. Every token whose value DEPENDS on one
+   this theme moves is here, with its colors.css / effects.css / surfaces.css
+   declaration copied verbatim, and `tests/theme-tokens.test.ts` derives that
+   set from the stylesheets and holds this block to it in both directions --
+   so a token added to either file cannot silently skip the islands.
+   ========================================================================== */
+:where(:root[data-theme='space-white']) :where(.ic-root, .nb-island, .deck-stage) {
+	--bg0: #121a12;
+	--bg1: #1a2a1a;
+	--bg2: #222e22;
+	--plate: #2c3c2c;
+	--green: #78b870;
+	--gold: #c8a848;
+	--cyan: #5abda8;
+	--amber: #d08030;
+	--teal: #3ea368;
+	--violet: #7050a8;
+	--violet-ink: #a08ac7;
+	--white: #eae6d8;
+	--dim: #849080;
+	--ice: #a9bcab;
+	--gear: #75846f;
+	--edge: #0d120c;
+	--crimson: #d95f5f;
+	--line: rgba(145, 165, 130, 0.27);
+	--line-strong: rgba(120, 184, 112, 0.58);
+	--surface-page: var(--bg0);
+	--surface-card: var(--bg1);
+	--surface-input: var(--bg2);
+	--text-body: var(--white);
+	--text-muted: var(--dim);
+	--text-accent: var(--green);
+	--text-meta: var(--cyan);
+	--border-hairline: var(--line);
+	--border-active: var(--line-strong);
+	--focus-ring: var(--cyan);
+	--surface-0: #0a0c0b;
+	--surface-1: #101312;
+	--surface-2: #161a18;
+	--hairline: rgba(255, 255, 255, 0.08);
+	--boundary: #6f7b73;
+	--text-1: #e7eae8;
+	--text-2: #9aa49d;
+	--text-3: #5c665f;
+	--green-tint: #0e3b1f;
+	--surface-raised: #161a18;
+	--accent-ink: var(--green);
+	--accent-fill: var(--green);
+	--accent-on-fill: var(--bg0);
+	--accent-field: var(--green);
+	--status-ok: var(--green);
+	--status-warn: var(--amber);
+	--status-danger: var(--crimson);
+	--status-info: var(--cyan);
+	--status-ok-fill: color-mix(in srgb, var(--green) 12%, transparent);
+	--status-warn-fill: color-mix(in srgb, var(--amber) 12%, transparent);
+	--status-danger-fill: color-mix(in srgb, var(--crimson) 12%, transparent);
+	--status-info-fill: color-mix(in srgb, var(--cyan) 12%, transparent);
+	--signal-hot: var(--amber);
+	--glow-green: 0 0 6px rgba(120, 184, 112, 0.48), 0 0 18px rgba(120, 184, 112, 0.2);
+	--glow-gold: 0 0 6px rgba(200, 168, 72, 0.48), 0 0 18px rgba(200, 168, 72, 0.2);
+	--glow-cyan: 0 0 6px rgba(90, 189, 168, 0.48), 0 0 18px rgba(90, 189, 168, 0.2);
+	--bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(0, 0, 0, 0.45), 0 2px 3px rgba(0, 0, 0, 0.45);
+	--bevel-inset: inset 0 2px 4px rgba(0, 0, 0, 0.5), inset 0 -1px 0 rgba(255, 255, 255, 0.07);
+	--elevation-1: var(--bevel-raised);
+	--elevation-2: 0 10px 30px rgb(0 0 0 / 45%);
+	--texture-brushed:
+		repeating-linear-gradient(
+			0deg,
+			rgba(234, 230, 216, 0.016) 0px,
+			rgba(234, 230, 216, 0.016) 1px,
+			transparent 1px,
+			transparent 3px
+		);
+	--texture-vignette:
+		radial-gradient(ellipse at 50% -20%, rgba(143, 224, 138, 0.05), transparent 55%),
+		radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.4) 100%);
+}
