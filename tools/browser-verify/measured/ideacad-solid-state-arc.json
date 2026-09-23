@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "ideacad-solid-state-arc.mjs",
-	"date": "2026-09-23T13:57:15.144Z",
-	"sha": "4cd231edaf3967d6260433c582271a3f0c3a1bde",
+	"date": "2026-09-23T14:16:01.519Z",
+	"sha": "165f36d042fc5a5705d1a61db69aceb2f0f15aa1",
 	"dirty": false,
 	"widths": [
 		375,
@@ -10,19 +10,6 @@
 	],
 	"runs": 2,
 	"measurements": 38,
-	"outsideRows": [
-		{
-			"path": "/dev/ideacad-solid?state=arc",
-			"width": 375,
-			"check": "canvas-content",
-			"label": "the viewport with the drawn arc"
-		},
-		{
-			"path": "/dev/ideacad-solid?state=arc",
-			"width": 1440,
-			"check": "canvas-content",
-			"label": "the viewport with the drawn arc"
-		}
-	],
-	"ms": 5622
+	"outsideRows": [],
+	"ms": 25725
 }
