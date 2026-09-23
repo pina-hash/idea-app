@@ -125,3 +125,26 @@ when it becomes blocking; until then the session builds the default and says so.
   evidence in the research, and a guardian channel does not exist today).
 - Whether any AI-assisted grading (drafted comments, imported grades) belongs in the grading
   console, given the AI policy levels he assigns per module.
+- Raised by ledger 0297 (the default each one ships with is in brackets):
+  - The names "Space White" and "Light" for the white theme and its one-tap button. [Built with those names.]
+  - Whether a name drawn by the random picker may show on the projector wall, and whether a
+    phone should be able to drive the projector, which needs a server channel and is a
+    disclosure decision. [A pick shows only when the teacher presses Show; no phone remote.]
+  - Whether today's agenda should follow the teacher from one device to another, which needs a
+    table per class and day. [Kept on the device.]
+  - Whether a student's notebook card should say "Late" when the teacher's grid does. [It does
+    not; the student's status words are unchanged.]
+  - Whether a next step written while approving should also mark the entry compliant (today's
+    one writer of a teacher comment does), or ride with a plain acknowledgement. [It marks it.]
+  - The notebook streak: consecutive class days with an entry, where a today with nothing filed
+    yet does not break it. [Built that way; never ranked.]
+  - The class icon format (the course code without "IDEA", over the period and block) and the
+    width below which the header's tools fold into a Menu. [1180px.]
+  - Whether a long unit may continue into the next column of the class page without repeating
+    its heading. [It does; short units never split.]
+  - Weeks in the to-do start on Sunday, undated work is listed last, and due dates name no
+    weekday for teachers either. [Built that way.]
+  - How long a student is shown as idle on the Live grid, and whether its door count should
+    leave staff out. [5 minutes; staff are left out of the grid only.]
+  - Whether the notebook capture should also be on the class page, not only on an assignment.
+    [Assignment page only.]

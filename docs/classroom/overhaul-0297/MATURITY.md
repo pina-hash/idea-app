@@ -32,4 +32,52 @@ Lowest at Phase 0: **1** (Live class and the teacher at the front; Notebook inte
 
 ## Re-scores
 
-(Appended as rounds land, each with its evidence.)
+One round landed before the ship: the foundation (F1a, F1b, F2, F3 with F5, F4a, F4b, F6) plus the two lowest-scoring areas that the foundation left furthest behind (the student to-do and the live class). Each score below is re-derived from that package's own measurements, taken in this container's Chromium on `/dev` harnesses at 375, 960, 1366 and 1440. **No area is scored 4**: the rubric's 4 requires holding up under real class use, and nothing here was driven by a signed-in person on production.
+
+| Area | Phase 0 | After | Evidence |
+|---|---|---|---|
+| Live class and the teacher at the front | 1 | **3** | The Live tab (managers) shows who is working on today's assignment, a 5/10/15-minute timer, the hall pass, today's agenda and a seeded random pick, and opens a projector window that fills the screen: smallest wall text 17.6px at 1280x800 and 23.8px at 1920x1080, washed-out contrast 8.53 to 9.56 on Space White. 12 runs, 166 measurements, 0 outside; 10 of 10 privacy mutations killed. Held from 4: two monitors, a real projector and real hall-pass RPCs were not driven. |
+| Notebook integration with the classroom | 1 | **3** | A Notebook tab in every class (student notebook or the class's review from the server's `canManage`), the whole notebook and review inside the classroom shell, the site theme instead of plates, capture from the assignment page, and every old address redirected (review addresses gate first, 404 to a non-reviewer). Notebook specs 48+48+38 runs, 0 outside. |
+| Search, command palette and shortcuts | 1 | **3** | Ctrl K / Cmd K from every classroom and notebook page, `#` `@` `>` prefixes, one-typo tolerance, a `?` legend built from the consoles' own key tables, and a search box with To do / Missing / Done inside each class. 24 runs, 0 outside; palette rows 59.5px. |
+| Customization and preferences | 1 | **2** | A Settings panel with the view each class opens on and a Reset per group, compact density for instructor surfaces, the one-tap Light switch, and remembered reviewer defaults; every write reads first (the fold-lost-to-a-pin defect measured at Phase 0 is fixed, mutation-killed). Held at 2: grading defaults are stored but not offered, and there are no pane-width or sort preferences. |
+| Learnability without instruction | 1 | **1** | Unchanged in substance. The palette's `?` legend and the class search make the keys and the work findable, and the resting "Tick items to publish" sentence is gone, but the only walkthrough is still the home tour, no classroom or notebook surface teaches itself, and nothing was built for a teacher. **This is the lowest score and the next round's first target.** |
+| Shell, navigation and layout | 2 | **3** | One-row header at every width (60 to 69px, was 81.9 at 1440 and 133.9 at 375), each class a 44px icon, the trail from the content's left edge, the split starting at y=127 (was 201) at 1440 and 178 (was 250) at 375, an item using its whole pane (936px at 1440, was 736), Report and Voice docked (64 of 64 class-page controls hit-test to themselves at 960 and 375, was covered). A teacher's six tabs wrap to two lines at 375 (chrome 142px), recorded. |
+| Visual design and themes | 2 | **3** | Space White on the classroom, notebook, reference viewer and home; 0 of 130 role cells below WCAG and 0 below the washed-out projector floors; the theme set before first paint in 5 of 5 loads (31 to 40ms against first paint at 144 to 232ms, was 34 unthemed frames); IDEA and Matrix pixel-identical outside the listed changes. |
+| Banners, mastheads and home entry | 2 | **3** | The home banner and launcher follow the theme, the emblem is 19 KB instead of 2.6 MB, a signed-in hero is 104px at 1366x768 (was 540) so Your Classes is above the fold (y=400, was 835), and new Classroom and My Notebook marks. Home theme specs 194 measurements, 0 outside. |
+| Class stream and organization | 2 | **3** | Find bar with kind filter and To do / Missing / Done chips inside teacher order, "Missing" and "N of M done" per unit, and long units continuing into the next column so the 426x702px hole under a short unit is gone (column bottoms 652, 652, 555 at 1440). |
+| Student to-do, due dates and missing work | 2 | **3** | A to-do page across every class (Assigned, Missing, Done, weekly groups, a class filter), "N missing" and "N due this week" on My Classes, a one-line door above the home apps (y=604 at 1366x768), and due dates on the school's own day. 24 runs, 372 measurements, 0 outside; 6 of 6 mutations killed. |
+| Item page (student) | 2 | **2** | The item uses its whole pane with prose capped per paragraph, its title fits a phone, and notebook capture sits in its check-in card. Held at 2: a ported HTML assignment still shows no rubric, returned score or teacher comment outside the document, and a v1 rubric still sits below Submit; no image lightbox. |
+| People, teams and class tools | 2 | **3** | Tools beside the roster from 1100px and first below it (y=298 at 960, was about 3962), the Draw result directly under Draw, 86 of 86 chips at 44px, and posted teams visible to the class on the class page, names only. |
+| Notebook capture | 2 | **3** | One-step capture from the assignment page, each page on the device in 148 to 155ms and uploaded as a draft in about 0.9s at 400ms latency, a reload keeps it, a retry never doubles it, and straightening is optional afterwards. iOS at 375: 9 taps and 1 swipe (was 12 and 4); laptop drop: 4 actions. |
+| Notebook review and grading | 2 | **3** | The review is each class's Notebook tab, with one-pass Approve for a class day with next steps, and the grid fits at 1366 (796 of 796px, was 684 of 782). |
+| Decks, media and embeds | 2 | **2** | The deck's controls are a strip above the stage with Back at the top left, and Report ends inside the viewport at 375 (was off it). Held at 2: body images are still fixed-size with no lightbox, image attachments still download, there is no gallery, and YouTube links still render bare. |
+| Speed, reliability and deploy safety | 2 | **3** | A deploy reaches an open page only at a navigation, never mid-typing, mid-upload or on a projected screen (32 runs, 0 outside; 4 production-build proofs); a failed chunk offers Try again and a failed editor chunk degrades to a plain box that saves; the emblem is 2.58 MB lighter; photos survive a reload. The teacher composer and v3 documents still have no local mirror. |
+| Accessibility and legibility | 2 | **3** | The home page's controls are 44px at every width (Sign in was 23.6), projector legibility is measured on every contrast reading, a new check counts text touching its border and controls overlapping (36 runs, 0 findings), and the floating pills no longer cover controls. |
+| Creation and composer (teacher) | 3 | **3** | Kind tabs, Post-to labels and Add link at 44px. Held at 3: the two-column form was not built, and report 21 (a spec or document dropped on the title is staged as a student-visible file) is still open. |
+| Grading and feedback | 3 | **3** | The ported document fills its pane, the open/closed count wraps, and the dead-keys state after N is fixed (driven: N, Escape, S saves and moves on). No comment bank or cross-class queue yet. |
+
+## Final (ledger 0297 ship), lowest first
+
+| Area | Before | After |
+|---|---|---|
+| Learnability without instruction | 1 | 1 |
+| Customization and preferences | 1 | 2 |
+| Item page (student) | 2 | 2 |
+| Decks, media and embeds | 2 | 2 |
+| Live class and the teacher at the front | 1 | 3 |
+| Notebook integration with the classroom | 1 | 3 |
+| Search, command palette and shortcuts | 1 | 3 |
+| Shell, navigation and layout | 2 | 3 |
+| Visual design and themes | 2 | 3 |
+| Banners, mastheads and home entry | 2 | 3 |
+| Class stream and organization | 2 | 3 |
+| Student to-do, due dates and missing work | 2 | 3 |
+| People, teams and class tools | 2 | 3 |
+| Notebook capture | 2 | 3 |
+| Notebook review and grading | 2 | 3 |
+| Speed, reliability and deploy safety | 2 | 3 |
+| Accessibility and legibility | 2 | 3 |
+| Creation and composer (teacher) | 3 | 3 |
+| Grading and feedback | 3 | 3 |
+
+Lowest at the ship: **1** (Learnability without instruction), where it was 1 across five areas at Phase 0. Under the catch-up rule every area now at 3 sits two above the lowest and gets no new depth work (defect fixes still land) until Learnability reaches 2; the next round is Learnability first, then Customization, the student item page and decks and media.

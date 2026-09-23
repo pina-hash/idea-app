@@ -243,3 +243,16 @@ Lines added after Phase 0 carry the round that found them. A line that has been 
 - **minor** @375, 960, 1440 [claims-prefs-keys] Grading roster opens with two 36-word prose notices (off-roster response set, manager on roster) above the names.
 - **minor** @1440 [claims-prefs-keys] Notebook review carries prose hints ('Arrow keys move; the entry beside the grid follows. Click a student's name...' and 'Click a page, or press Enter, to read it full screen.').
 - **minor** @375 [claims-prefs-keys] Grading shortcuts are invisible until a student is opened; at 375 the legend sits 4,125px down the page.
+
+## Found during the run (ledger 0297), still open at the ship
+
+- At 375 a teacher's six class tabs wrap to a second line (chrome 142px against 93px for a student); all six sit in one row on a laptop.
+- A long unit that continues into the next column of the class page carries no heading on its continuation.
+- A teacher's class page still gives the resting "Select all (20)" a row of its own.
+- The notebook capture's note has no local mirror yet; its photos do (IndexedDB).
+- The Live door on the class page counts presence rows and cannot leave staff out (the class page has no roster); production writes no manager rows.
+- The notebook timeline is one reading column at 1440.
+- A student's notebook card never says "Late" while the teacher's grid does (a decision for Mr. Pina, not a defect).
+- `shortWhen` and `editedWhen` in the class stream still format in the browser's zone, not the school's day.
+- Most `/dev` harnesses do not mount `ClassroomShell`, so their header tools cannot be measured there.
+- The browser runner's height is fixed at 900, so 1280x800 and 1920x1080 needed a hand-written script.
