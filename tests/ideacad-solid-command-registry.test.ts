@@ -33,7 +33,9 @@ describe('every command is registered once', () => {
 	it('the non-tool commands the workspace promises are all there, and none of them arms a tool', () => {
 		const actions = ['undo', 'redo', 'delete', 'fit', 'view-front', 'view-top', 'view-right', 'view-iso', 'normal-to', 'planes', 'view-menu', 'panel-objects', 'panel-reference', 'panel-mates', 'panel-section', 'panel-addons', 'export', 'search', 'preferences', 'help',
 			/* The selection commands the right-click menu and the context toolbar run (ledger 0296, stage W2). */
-			'sketch-on', 'edit-sketch', 'fillet-face-edges', 'select-other', 'select-tangent', 'select-loop', 'pick-filter', 'hide-body', 'show-bodies', 'mirror-body', 'body-appearance'];
+			'sketch-on', 'edit-sketch', 'fillet-face-edges', 'select-other', 'select-tangent', 'select-loop', 'pick-filter', 'hide-body', 'show-bodies', 'mirror-body', 'body-appearance',
+			/* The display modes (ledger 0296, stage W3). */
+			'display-menu', 'display-shaded-edges', 'display-shaded', 'display-hidden-lines', 'display-wireframe'];
 		for (const id of actions) { expect(commandById(id), id).toBeDefined(); expect(commandById(id)!.tool, id).toBeUndefined(); }
 		expect(COMMANDS).toHaveLength(TOOL_IDS_BEFORE.length + actions.length);
 	});

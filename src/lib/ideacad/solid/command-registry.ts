@@ -18,7 +18,7 @@
  * else is refused by sentence, never silently taken: digits, the point and
  * the minus sign type values, Escape clears, Enter finishes, Tab moves focus.
  */
-import type { Tool } from './viewport';
+import type { DisplayMode, Tool } from './viewport';
 import type { EntityKind, Selection } from './types';
 import { isDrawTool } from './viewport/drawing';
 
@@ -76,6 +76,9 @@ export interface CommandContext {
 	openPickFilter(): void;
 	/** Drill a hole where the menu was opened, when it was opened on a face. False when there is no such point. */
 	drillAtMenuPoint?(): boolean;
+	/** Draw the model shaded, shaded with edges, with hidden lines, or as a wireframe; and open the list of those. */
+	setDisplayMode?(mode: DisplayMode): void;
+	openDisplayMenu?(): void;
 }
 
 export interface Command {
@@ -154,6 +157,11 @@ export const COMMANDS: readonly Command[] = [
 	{ id: 'view-iso', name: 'Isometric', description: 'Look at the model from a corner.', icon: 'M12 2l9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10', group: 'View', keywords: ['iso', '3d', 'standard view'], run: (ctx) => ctx.view('iso') },
 	{ id: 'normal-to', name: 'Normal To', description: 'Face the selected flat face, plane or sketch. Press again to flip.', icon: 'M4 15h16M12 15V3m-4 4 4-4 4 4M7 19h10', group: 'View', accepts: { kinds: ['face', 'reference', 'sketch'], min: 1, max: 1 }, keywords: ['perpendicular', 'face on', 'look at'], run: (ctx) => ctx.normalTo(), unavailable: (ctx) => (ctx.canNormalTo ? null : 'Select a flat face or plane') },
 	{ id: 'planes', name: 'Show planes', description: 'Show or hide the Front, Top and Right planes.', icon: 'M3 17l6-12h12l-6 12zM9 5l6 12', group: 'View', keywords: ['datum', 'reference planes', 'front plane', 'top plane', 'right plane', 'origin'], run: (ctx) => ctx.togglePlanes() },
+	{ id: 'display-menu', name: 'Display', description: 'Shaded, with edges, hidden lines or wireframe.', icon: 'M4 5h16v14H4zM4 5l16 14', group: 'View', keywords: ['display style', 'shading', 'render mode'], run: (ctx) => ctx.openDisplayMenu?.() },
+	{ id: 'display-shaded-edges', name: 'Shaded with edges', description: 'Draw the faces shaded and every visible edge.', icon: 'M12 2l9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10', group: 'View', keywords: ['display style', 'shaded with edges'], run: (ctx) => ctx.setDisplayMode?.('shaded-edges') },
+	{ id: 'display-shaded', name: 'Shaded', description: 'Draw the faces shaded, with no edge lines.', icon: 'M12 2l9 5v10l-9 5-9-5z', group: 'View', keywords: ['display style', 'shading'], run: (ctx) => ctx.setDisplayMode?.('shaded') },
+	{ id: 'display-hidden-lines', name: 'Hidden lines visible', description: 'Draw edges behind the faces as dashed lines.', icon: 'M12 2l9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v2m0 3v2m0 3v0', group: 'View', keywords: ['display style', 'hidden edges', 'dashed'], run: (ctx) => ctx.setDisplayMode?.('hidden-lines') },
+	{ id: 'display-wireframe', name: 'Wireframe', description: 'Draw every edge and no faces.', icon: 'M12 2l9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10M3 17l9-5 9 5', group: 'View', keywords: ['display style', 'wire frame', 'edges only'], run: (ctx) => ctx.setDisplayMode?.('wireframe') },
 	{ id: 'view-menu', name: 'View menu', description: 'Pick a view by name.', icon: 'M12 2l9 5v10l-9 5-9-5V7zM12 12l9-5M12 12v10M12 12L3 7', group: 'View', keys: ['Space'], keywords: ['orientation', 'views'], run: (ctx) => ctx.openSearch('View') },
 
 	{ id: 'panel-objects', name: 'Objects', description: 'Bodies and open sketches, with their material and color.', icon: 'M4 7l8-4 8 4-8 4zM4 12l8 4 8-4M4 17l8 4 8-4', group: 'Panels', keywords: ['bodies', 'material', 'color', 'mass'], run: (ctx) => ctx.togglePanel('objects') },

@@ -96,14 +96,14 @@
 
 <style>
 	.context-menu { position: fixed; z-index: 60; min-width: 200px; max-width: min(320px, calc(100vw - 16px)); max-height: calc(100vh - 16px); overflow-y: auto; display: flex; flex-direction: column; padding: 4px; background: var(--surface-1); border: 1px solid var(--boundary); border-radius: 8px; font-family: Rajdhani, sans-serif; color: var(--text-1); user-select: none; -webkit-user-select: none; }
-	button { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 44px; padding: 2px 12px; font: 600 16px Rajdhani, sans-serif; color: var(--text-1); text-align: left; background: transparent; border: 1px solid transparent; border-radius: 5px; cursor: pointer; }
+	button { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 44px; padding: 4px 12px; font: 600 16px Rajdhani, sans-serif; color: var(--text-1); text-align: left; background: transparent; border: 1px solid transparent; border-radius: 5px; cursor: pointer; }
 	button:hover, button:focus-visible { background: color-mix(in srgb, var(--green) 12%, var(--surface-1)); outline: none; }
 	button:focus-visible { box-shadow: inset 0 0 0 2px var(--cyan); }
 	button[aria-disabled='true'] { color: var(--text-2); }
 	button[aria-checked='true'] { color: var(--green); }
 	.menu-back { border-bottom: 1px solid var(--hairline); border-radius: 5px 5px 0 0; margin-bottom: 2px; color: var(--text-2); }
 	.label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-	.label small { margin-left: 8px; font-weight: 500; font-size: 13px; color: var(--text-2); }
+	.label small { display: block; margin: 0; white-space: normal; line-height: 1.2; font-weight: 500; font-size: 13px; color: var(--text-2); }
 	.blank { width: 20px; }
 	.more { font-size: 20px; color: var(--text-2); }
 	kbd { font: 12px 'Share Tech Mono', monospace; color: var(--text-1); padding: 2px 6px; border: 1px solid var(--boundary); border-radius: 4px; background: var(--surface-2); }

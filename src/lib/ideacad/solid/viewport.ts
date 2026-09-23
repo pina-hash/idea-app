@@ -53,6 +53,7 @@
  * angle) and stayed behind as a ghost when its body moved.
  */
 import * as THREE from 'three';
+import type { ViewMode } from './preferences';
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
@@ -114,6 +115,12 @@ export const LABEL_PX=20;
 export const HOVER_EDGE_PX=5,SELECTED_EDGE_PX=3.5;
 /** The colour of the edges a blend under the pointer will round, before any press: not the hover's and not the selection's. */
 export const PREVIEW_COLOUR='#7fd4f0';
+/** How the model is drawn: shaded with its edges (the default), shaded alone, shaded with hidden edges drawn dashed through the faces, or edges alone. */
+export type DisplayMode=ViewMode;
+/** The colour of an edge drawn through the faces in the hidden-lines mode: dimmer than a visible edge, and dashed so it never reads as one. */
+export const HIDDEN_EDGE_COLOUR='#6d8290';
+/** A visible edge's colour per mode: dark on the shaded faces, light where there are no faces behind it to read against. */
+const EDGE_COLOURS:Record<DisplayMode,string>={'shaded-edges':'#394c59','shaded':'#394c59','hidden-lines':'#1d272e','wireframe':'#a9bccb'};
 export const EMPTY_MODEL: ModelProjection = {bodies:[],sketches:[],references:[],features:[],mates:[],addons:{ideaBlade:false},canUndo:false,canRedo:false,operationMs:0};
 export { bodyColour } from './appearance';
 type Role='face'|'edge'|'vertex'|'sketch-fill'|'sketch-line'|'reference'|'datum';
@@ -152,6 +159,8 @@ export class SolidViewport {
 	/** The milliseconds each hover pick took, newest last. */
 	readonly hoverCosts:number[]=[];
 	/* THE HOVER: what the pointer is over, and what a panel or the tree asks to preselect. */
+	/** The display mode (`DisplayMode`), a student preference; the model is redrawn when it changes. */
+	private displayMode:DisplayMode='shaded-edges';
 	private pointerHover:Selection|null=null;private externalHover:Selection[]=[];private previewEdges:Selection[]=[];private hoverEvent:{clientX:number;clientY:number;altKey:boolean}|null=null;private hoverPending:(()=>void)|null=null;
 	private shownSketches='';
 	constructor(private canvas:HTMLCanvasElement,private options:Options){
@@ -234,10 +243,12 @@ export class SolidViewport {
 		for(const body of model.bodies){
 			if(this.hiddenBodies.has(body.id))continue;
 			const colour=bodyColour(body,this.materialColours.get(body.materialId??''));
-			for(const face of body.faces){const mesh=new THREE.Mesh(this.geometry(face),new THREE.MeshStandardMaterial({color:colour,metalness:.42,roughness:.4,side:THREE.DoubleSide}));mesh.userData={selection:{bodyId:body.id,kind:'face',id:face.id},normal:face.normal,center:face.center,base:colour,kind:face.kind};this.solids.add(mesh);this.faces.push(mesh);this.register(mesh,'face');}
+			for(const face of body.faces){const mesh=new THREE.Mesh(this.geometry(face),new THREE.MeshStandardMaterial({color:colour,metalness:.42,roughness:.4,side:THREE.DoubleSide,polygonOffset:this.displayMode==='hidden-lines',polygonOffsetFactor:1,polygonOffsetUnits:1}));mesh.userData={selection:{bodyId:body.id,kind:'face',id:face.id},normal:face.normal,center:face.center,base:colour,kind:face.kind};this.solids.add(mesh);this.faces.push(mesh);this.register(mesh,'face');}
 			for(const edge of body.edges){
 				const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(edge.points,3));
-				const line=new THREE.Line(geometry,new THREE.LineBasicMaterial({color:'#394c59'}));line.userData={selection:{bodyId:body.id,kind:'edge',id:edge.id},base:'#394c59'};this.solids.add(line);this.edges.push(line);this.register(line,'edge');
+				const line=new THREE.Line(geometry,new THREE.LineBasicMaterial({color:EDGE_COLOURS[this.displayMode]}));line.userData={selection:{bodyId:body.id,kind:'edge',id:edge.id},base:EDGE_COLOURS[this.displayMode]};this.solids.add(line);this.edges.push(line);this.register(line,'edge');
+				/* Hidden lines: the same edge again, dashed and dimmer, drawn only where a face is in front of it. Never picked. */
+				if(this.displayMode==='hidden-lines'){const dash=Math.max(1e-4,this.modelSize(model)*.012);const hidden=new THREE.Line(geometry,new THREE.LineDashedMaterial({color:HIDDEN_EDGE_COLOUR,dashSize:dash,gapSize:dash*.8,depthFunc:THREE.GreaterDepth,depthWrite:false,transparent:true,opacity:.75}));hidden.computeLineDistances();hidden.raycast=()=>{};hidden.renderOrder=2;this.solids.add(hidden);}
 			}
 			for(const vertex of body.vertices){const point=new THREE.Points(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...vertex.point)]),new THREE.PointsMaterial({color:'#e7f6ff',size:6,sizeAttenuation:false,transparent:true,opacity:0}));point.userData={selection:{bodyId:body.id,kind:'vertex',id:vertex.id},base:'#e7f6ff'};this.solids.add(point);this.vertices.push(point);this.register(point,'vertex');}
 		}
@@ -274,12 +285,12 @@ export class SolidViewport {
 		const sel=this.matches(selections,s),hov=!sel&&this.matches(hovered,s);
 		const m=(object as THREE.Mesh).material as THREE.Material&{color?:THREE.Color;size?:number};const role=object.userData.role as Role;
 		const base=p.color??'#91a2ad';
-		if(role==='face'){m.color?.set(sel?SELECTED_COLOUR:base);if(hov&&m.color)m.color.lerp(new THREE.Color(HOVER_COLOUR),.42);}
+		if(role==='face'){m.color?.set(sel?SELECTED_COLOUR:base);if(hov&&m.color)m.color.lerp(new THREE.Color(HOVER_COLOUR),.42);/* Wireframe draws no face, except the one selected or pointed at, so a pick is still seen. */m.visible=this.displayMode!=='wireframe'||sel||hov;}
 		else if(role==='vertex'){m.color?.set(sel?SELECTED_COLOUR:HOVER_COLOUR);m.opacity=0;/* the dot is drawn in the overlay, over the faces */}
 		else if(role==='datum'){m.color?.set(sel?SELECTED_COLOUR:hov?HOVER_COLOUR:base);m.opacity=object.userData.part==='fill'?(sel?.09:hov?.12:p.opacity):sel||hov?1:p.opacity;}
 		else if(role==='sketch-fill'){m.color?.set(sel?SELECTED_COLOUR:hov?HOVER_COLOUR:base);m.opacity=sel||hov?Math.min(.5,p.opacity*2.2+.04):p.opacity;}
 		else if(role==='reference'&&(object as THREE.Mesh).isMesh){m.color?.set(sel?SELECTED_COLOUR:hov?HOVER_COLOUR:base);m.opacity=sel||hov?Math.min(.3,p.opacity*2.5):p.opacity;}
-		else {m.color?.set(sel?SELECTED_COLOUR:hov?HOVER_COLOUR:base);if(role==='sketch-line')m.opacity=sel||hov?1:p.opacity;}
+		else {m.color?.set(sel?SELECTED_COLOUR:hov?HOVER_COLOUR:base);if(role==='sketch-line')m.opacity=sel||hov?1:p.opacity;/* Shaded alone draws no edge line; a selected or hovered one is drawn thick in the overlay whatever the mode. */if(role==='edge')m.visible=this.displayMode!=='shaded';}
 	}
 	/** Every pick object, repainted: after a selection changes. */
 	highlight(){
@@ -327,10 +338,15 @@ export class SolidViewport {
 	}
 	/** The edges a Fillet or Chamfer under the pointer would round (its tangent chain), drawn before any press; null stops. */
 	setPreviewEdges(edges:readonly Selection[]|null){if(!this.previewEdges.length&&!edges?.length)return;this.previewEdges=[...(edges??[])];this.buildOverlay();this.invalidate();}
+	/** Draw the model in another display mode. */
+	setDisplayMode(mode:DisplayMode){if(mode===this.displayMode)return;this.displayMode=mode;if(this.model)this.display(this.model);}
+	get mode(){return this.displayMode;}
+	/** The largest side of the model's box, for sizes drawn in model units (the hidden-line dashes). */
+	private modelSize(model:ModelProjection){let lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];for(const b of model.bodies)for(let i=0;i<3;i++){lo[i]=Math.min(lo[i],b.bounds[i]);hi[i]=Math.max(hi[i],b.bounds[i+3]);}const d=Math.max(hi[0]-lo[0],hi[1]-lo[1],hi[2]-lo[2]);return Number.isFinite(d)?d:1;}
 	/** What the pointer is over right now. */
 	hovered(){return this.pointerHover;}
 	/** How many pick objects of each kind are drawn: a measurement reads it to say a consumed sketch is gone. */
-	drawnCounts(){return{preview:this.previewEdges.length,faces:this.faces.length,edges:this.edges.length,vertices:this.vertices.length,sketches:this.sketchObjs.length,references:this.refObjects.length,datums:this.datumObjects.length,overlay:this.overlay.children.length,externalHover:this.externalHover.length,editing:this.editingSketchId};}
+	drawnCounts(){return{mode:this.displayMode,triangles:this.faces.reduce((n,f)=>n+((f as THREE.Mesh).geometry.index?.count??0)/3,0),preview:this.previewEdges.length,faces:this.faces.length,edges:this.edges.length,vertices:this.vertices.length,sketches:this.sketchObjs.length,references:this.refObjects.length,datums:this.datumObjects.length,overlay:this.overlay.children.length,externalHover:this.externalHover.length,editing:this.editingSketchId};}
 	private setPointerHover(selection:Selection|null){
 		const same=selection&&this.pointerHover?selectionKey(selection)===selectionKey(this.pointerHover):selection===this.pointerHover;
 		this.canvas.style.cursor=isDrawTool(this.options.getTool())?'crosshair':selection?'pointer':'';

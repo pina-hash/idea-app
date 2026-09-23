@@ -49,6 +49,18 @@ const json = <T = Record<string, any>>(input: unknown): T => (typeof input === '
 const clone = <T>(value: T): T => structuredClone(value);
 /** How many of the newest features keep a kernel checkpoint. See the header. */
 export const CHECKPOINT_WINDOW = 12;
+/**
+ * THE DISPLAY MESH IS SIZED TO THE MODEL; THE EXPORT MESH IS NOT. The per-face
+ * meshes the viewport draws take a chord of 2e-4 of the model's largest side
+ * (never finer than 1e-5 in) and a 0.06 rad angle, so a hole in a 6 in disk and
+ * a pin in a 0.5 in part both read round on screen. The whole-body mesh an STL,
+ * a 3MF and the advisory checks read stays at 0.002 in and 0.15 rad: the
+ * advisory band (`advisory.ts`) assumes that deflection.
+ */
+export const DISPLAY_TESSELLATION = { chordPerSize: 2e-4, minChord: 1e-5, angle: 0.06 } as const;
+export const EXPORT_TESSELLATION = { chord: 0.002, angle: 0.15 } as const;
+/** The display chord for a model whose largest side is `size` inches. */
+export const displayChord = (size: number) => Math.max(DISPLAY_TESSELLATION.minChord, DISPLAY_TESSELLATION.chordPerSize * (Number.isFinite(size) && size > 0 ? size : 1));
 
 interface State { bodies: Map<string, LiveBody>; order: string[]; refs: Map<string, ResolvedRef>; sketches: Map<string, SketchState>; mates: MateState[] }
 interface Result { status: FeatureRow['status']; message?: string; bodies: string[]; naming?: NamingReport }
@@ -612,14 +624,15 @@ export class SolidEngine {
 			const ordered = group.length > 1 ? [...group].sort((a, b) => anchorOrder(a.point, b.point)) : group;
 			ordered.forEach(({ handle, point }, i) => { const id = vertexId(faces, group.length > 1 ? i : undefined); handles.vertices.set(id, handle); vertices.push({ id, point, faces, ordinal: group.length > 1 ? i : undefined }); });
 		}
+		const ext = this.extent(), chord = displayChord(ext ? Math.max(...[0, 1, 2].map((i) => ext.max[i] - ext.min[i])) : 1);
 		const faces = faceHandles.map((handle) => {
-			const id = faceNames.get(handle)!, mesh = k.tessellateFace(handle, 0.002, 0.15), positions = new Float32Array(mesh.positions), normals = new Float32Array(mesh.normals), indices = mesh.indices; mesh.free();
+			const id = faceNames.get(handle)!, mesh = k.tessellateFace(handle, chord, DISPLAY_TESSELLATION.angle), positions = new Float32Array(mesh.positions), normals = new Float32Array(mesh.normals), indices = mesh.indices; mesh.free();
 			const surface = json(k.getAnalyticSurfaceParams(handle)), kind = k.getSurfaceType(handle), normal = kind === 'plane' ? vector(k.getFaceNormal(handle)) : ([0, 0, 0] as Vec3);
 			const center = faceAnchor(k, handle);
 			handles.faces.set(id, handle);
 			return { id, kind, center, normal, surface, area: k.faceArea(handle, 0.002), positions, normals, indices, edges: [...k.getFaceEdges(handle)].map((e) => edgeIdOf.get(e)).filter((e): e is string => !!e) };
 		});
-		const grouped = k.tessellateSolidGroupedBinary(solid, 0.002, 0.15), mesh = { positions: grouped.positions, normals: grouped.normals, indices: grouped.indices }; grouped.free();
+		const grouped = k.tessellateSolidGroupedBinary(solid, EXPORT_TESSELLATION.chord, EXPORT_TESSELLATION.angle), mesh = { positions: grouped.positions, normals: grouped.normals, indices: grouped.indices }; grouped.free();
 		const props = json(k.massProperties(solid));
 		const out: CachedBody = { faces, edges, vertices, mesh, bounds: [...k.boundingBox(solid)], volume: props.volume, centerOfMass: props.centerOfMass as Vec3, inertia: props.inertia as number[], handles };
 		this.cache.set(solid, out);

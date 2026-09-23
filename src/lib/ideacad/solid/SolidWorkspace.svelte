@@ -48,7 +48,7 @@
 	import { breadcrumb, commandItems, selectionLabel, type Crumb, type MenuItem } from './context-menu';
 	import { BOX_WORDS } from './viewport/box-select';
 	import { edgeLoop, loopFace } from './viewport/edge-loop';
-	import { MemoryPreferenceStore, applyToModules, captureFromModules, changedGroups, type PreferenceStore } from './preferences';
+	import { MemoryPreferenceStore, applyToModules, captureFromModules, changedGroups, type PreferenceStore, type SolidPreferences } from './preferences';
 	import { onDatumPlanesChange, datumPlanesVisible, DATUM_NAMES } from './viewport/reference-layer';
 	import { DATUM_SELECTION_PREFIX, type Datum } from './features/reference';
 	import { holeFeatureAt, withOptions } from './features/options';
@@ -99,6 +99,8 @@
 	let rollbackIndex=$state<number|null>(null);
 	let lapse:{key:string;steps:BodyProjection[][];sketches:TimelapseStep['sketches'][]}|null=null,lapseBuilding:Promise<void>|null=null;
 	let lapseStep=$state<number|null>(null),historyHeight=$state(0);
+	/* What each time-lapse step cost to put on screen, in ms: read by the dev hook, never shown. */
+	const swapCosts:number[]=[];
 	let bar=$state.raw<{at:{x:number;y:number};touch?:boolean}|null>(null),barPick:ViewportPick|null=null;
 	let box=$state.raw<BoxState|null>(null);
 	/* Bodies hidden for this session only; never saved, always shown on screen as a count with a way back. */
@@ -136,7 +138,7 @@
 	const shortcuts=$derived(effectiveShortcuts(prefs.shortcuts));
 	const keyFor=(id:string)=>{const k=shortcuts.byCommand.get(id)?.[0];return k?keyLabel(k):'';};
 	/* The view control's words, in the order they matter; the last ones fold into its Views menu first when the row is short. */
-	const VIEW_ITEMS:{id:string;label:string}[]=[{id:'fit',label:'Fit'},{id:'view-iso',label:'Iso'},{id:'view-front',label:'Front'},{id:'view-top',label:'Top'},{id:'normal-to',label:'Normal to'},{id:'view-right',label:'Right'}];
+	const VIEW_ITEMS:{id:string;label:string}[]=[{id:'fit',label:'Fit'},{id:'view-iso',label:'Iso'},{id:'display-menu',label:'Display'},{id:'view-front',label:'Front'},{id:'view-top',label:'Top'},{id:'normal-to',label:'Normal to'},{id:'view-right',label:'Right'}];
 	const viewItems:ViewItem[]=$derived(VIEW_ITEMS.map(v=>{const c=commandById(v.id)!,k=keyFor(v.id);return{id:v.id,label:v.label,title:`${c.name}${k?` (${k})`:''}`,reason:v.id==='normal-to'&&!normalTarget()?'Select a flat face or plane':null};}));
 	const openSketches=$derived(model.sketches.filter(s=>!s.consumed));
 	const pickFilter=$derived(prefs.pick.only);
@@ -275,6 +277,13 @@
 		if(candidate&&!error){try{const a=ref(candidate.a),b=ref(candidate.b);await apply({type:'add-feature',feature:{id:'',name:'',type:'mate',kind:candidate.kind,a:{kind:'face',...a} as EntityRef,b:{kind:'face',...b} as EntityRef}},`Add ${candidate.kind} mate`);}catch(err){error=err instanceof Error?err.message:String(err);}}
 	}
 	async function cancel(){queued=null;try{await pumping;if(client){show(await client.request<ModelProjection>('cancel'));}}catch(err){error=err instanceof Error?err.message:String(err);}finally{gesture=null;gestureBefore=null;measure=null;numeric=null;mateCandidate=null;viewport?.clearGuides();}}
+	/** How the model is drawn, as checkbox rows in the one menu, opened under the view control's Display button. */
+	const DISPLAY_ROWS:{id:string;mode:SolidPreferences['view']['mode']}[]=[{id:'display-shaded-edges',mode:'shaded-edges'},{id:'display-shaded',mode:'shaded'},{id:'display-hidden-lines',mode:'hidden-lines'},{id:'display-wireframe',mode:'wireframe'}];
+	function openDisplayMenu(){
+		const r=document.querySelector('.solid-workspace [data-view="display-menu"]')?.getBoundingClientRect()??canvas?.getBoundingClientRect();
+		menuPick=null;bar=null;
+		menu={items:DISPLAY_ROWS.map(d=>{const c=commandById(d.id)!;return{id:d.id,label:c.name,icon:c.icon,checked:prefs.view.mode===d.mode,run:()=>prefStore.set('view',{...prefs.view,mode:d.mode})};}),at:r?{x:r.left,y:r.bottom}:{x:40,y:120},label:'Display'};
+	}
 	/* ------------------------------------------------------------------ THE BLEND PREVIEW */
 	/* Under Fillet or Chamfer, the edges a press would round are drawn before the press: an edge's tangent chain from the fillet's own walk in the worker (asked once per edge for this model, and never while a change is running), or every edge of a face. */
 	const chainCache=new Map<string,Selection[]>();let chainFor:ModelProjection|null=null,chainWanted:Selection|null=null,chainAsking=false;
@@ -334,7 +343,7 @@
 		try{await ensureLapse();}catch(err){error=err instanceof Error?err.message:String(err);return;}
 		if(!lapse||step>=lapse.steps.length)return;
 		lapseStep=step;
-		viewport?.display({...model,bodies:lapse.steps[step],sketches:lapse.sketches[step],references:[],mates:[]});
+		const t=performance.now();viewport?.display({...model,bodies:lapse.steps[step],sketches:lapse.sketches[step],references:[],mates:[]});swapCosts.push(performance.now()-t);if(swapCosts.length>200)swapCosts.shift();
 	}
 	/** Back to the live model, as the student left it. */
 	function endLapse(){if(lapseStep===null)return;lapseStep=null;viewport?.display(model);}
@@ -407,6 +416,7 @@
 		get selections(){return selections;},get canUndo(){return !!historyState.undoTarget&&opened.canWrite;},get canRedo(){return !!historyState.redoTarget&&opened.canWrite;},get canWrite(){return opened.canWrite&&!loading;},get canNormalTo(){return !!normalTarget();},
 		setTool,undo:()=>void undo(),redo:()=>void undo(true),deleteSelection,fit:()=>viewport.fit(),view:(v)=>viewport.view(v),
 		normalTo:()=>{const plane=normalTarget();if(plane)viewport.normalTo(plane);},togglePlanes,togglePanel,
+		setDisplayMode:(mode)=>prefStore.set('view',{...prefs.view,mode}),openDisplayMenu:()=>openDisplayMenu(),
 		openExport:()=>exportOpen=!exportOpen,openSearch,openPreferences:()=>{prefsOpen=!prefsOpen;},
 		/* Help is the searchable list of every command until the tutorial lands; it never opens nothing. */
 		openHelp:()=>openSearch(),
@@ -614,11 +624,11 @@
 				bar={at,touch};},
 			busyPointer:()=>{bar=null;menu=null;}});
 		for(const m of STOCK_MATERIALS)if(m.color)viewport.materialColours.set(m.id,m.color);
-		viewport.triadShown=prefs.view.triad;viewport.setTriadSlot(triadSlot??null);
+		viewport.triadShown=prefs.view.triad;viewport.setDisplayMode(prefs.view.mode);viewport.setTriadSlot(triadSlot??null);
 		/* A press anywhere on the model closes the value box: what was typed there was for what is no longer being pointed at. */
 		canvas.addEventListener('pointerdown',()=>{if(numeric)closeNumeric();},{capture:true});
 		/* PREFERENCES: a change from the preferences panel reaches the module settings and the viewport; a panel that wrote a module setting (a snap box, the polygon sides, a fillet option, the planes box) is read back into the store a moment later. */
-		const unsubscribe=prefStore.subscribe(next=>{prefs=next;applyToModules(next);if(viewport){viewport.triadShown=next.view.triad;viewport.invalidate();}});
+		const unsubscribe=prefStore.subscribe(next=>{prefs=next;applyToModules(next);if(viewport){viewport.triadShown=next.view.triad;viewport.setDisplayMode(next.view.mode);viewport.invalidate();}});
 		let captureTimer:ReturnType<typeof setTimeout>|undefined;
 		const captureModules=()=>{const next=captureFromModules(prefStore.current);for(const group of changedGroups(prefStore.current,next))prefStore.set(group,next[group] as never);};
 		const scheduleCapture=()=>{clearTimeout(captureTimer);captureTimer=setTimeout(captureModules,300);};
@@ -629,7 +639,7 @@
 		const docks=typeof ResizeObserver==='function'?new ResizeObserver(measureDocks):null;const watchDocks=()=>{for(const el of document.querySelectorAll('.vnav-shell .vnav-trigger,.sfb-shell .sfb-trigger'))docks?.observe(el);measureDocks();};watchDocks();const dockTimer=setTimeout(watchDocks,800);window.addEventListener('resize',measureDocks);
 		client.request<ModelProjection>('load',opened.snapshot).then(async result=>{show(result);currentSnapshot=await client.request<ModelSnapshot>('snapshot');viewport.fit();loading=false;saveState.markSaved();}).catch(err=>{error=err.message;loading=false;});
 		const unbind=saveState.attach();
-		if(dev)(window as unknown as {ideaCadSolid:unknown}).ideaCadSolid={get model(){return model;},get snapshot(){return currentSnapshot;},get busy(){return busy||loading||!!pumping||drafting;},get selections(){return selections;},apply,select,setTool,editSketch,project:(p:[number,number,number])=>viewport.projectPoint(p),painted:()=>viewport.painted(),fit:()=>viewport.fit(),view:(v:'iso'|'top'|'front'|'right'|'normal')=>v==='normal'?commandContext.normalTo():viewport.view(v),save:()=>saveState.saveNow(),undo,frameCosts:viewport.frameCosts,hoverCosts:viewport.hoverCosts,get hovered(){return viewport.hovered();},drawn:()=>viewport.drawnCounts(),pixels:()=>viewport.readPixels(),hover:(list:Selection[]|null)=>viewport.setExternalHover(list),request:(method:string,value?:unknown)=>client.request(method,value),get prefs(){return prefs;},preferences:prefStore,triad:()=>viewport.triadRect(),get tool(){return tool;}};
+		if(dev)(window as unknown as {ideaCadSolid:unknown}).ideaCadSolid={get model(){return model;},get snapshot(){return currentSnapshot;},get busy(){return busy||loading||!!pumping||drafting;},get selections(){return selections;},apply,select,setTool,editSketch,project:(p:[number,number,number])=>viewport.projectPoint(p),painted:()=>viewport.painted(),fit:()=>viewport.fit(),view:(v:'iso'|'top'|'front'|'right'|'normal')=>v==='normal'?commandContext.normalTo():viewport.view(v),save:()=>saveState.saveNow(),undo,frameCosts:viewport.frameCosts,hoverCosts:viewport.hoverCosts,swapCosts,get hovered(){return viewport.hovered();},drawn:()=>viewport.drawnCounts(),pixels:()=>viewport.readPixels(),hover:(list:Selection[]|null)=>viewport.setExternalHover(list),request:(method:string,value?:unknown)=>client.request(method,value),get prefs(){return prefs;},preferences:prefStore,triad:()=>viewport.triadRect(),get tool(){return tool;}};
 		return()=>{clearInterval(ruleTimer);window.removeEventListener('focus',readRules);unbind();unsubscribe();offDatum();clearTimeout(captureTimer);captureModules();void prefStore.flush();window.removeEventListener('change',scheduleCapture,true);window.removeEventListener('input',scheduleCapture,true);docks?.disconnect();clearTimeout(dockTimer);window.removeEventListener('resize',measureDocks);viewport.destroy();client.destroy();};
 	});
 	onDestroy(()=>saveState.destroy());

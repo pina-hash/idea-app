@@ -78,6 +78,12 @@
 					<label class="row"><input type="radio" name="ic-planes" checked={prefs.view.planes === mode} onchange={() => store.set('view', { ...prefs.view, planes: mode as SolidPreferences['view']['planes'] })} />{word}</label>
 				{/each}
 			</fieldset>
+			<fieldset>
+				<legend>Display</legend>
+				{#each [['shaded-edges', 'Shaded with edges'], ['shaded', 'Shaded'], ['hidden-lines', 'Hidden lines visible'], ['wireframe', 'Wireframe']] as [mode, word] (mode)}
+					<label class="row"><input type="radio" name="ic-display" checked={prefs.view.mode === mode} onchange={() => store.set('view', { ...prefs.view, mode: mode as SolidPreferences['view']['mode'] })} />{word}</label>
+				{/each}
+			</fieldset>
 			<label class="row"><input type="checkbox" checked={prefs.view.triad} onchange={(e) => store.set('view', { ...prefs.view, triad: e.currentTarget.checked })} />Corner triad</label>
 			<button type="button" class="reset" onclick={() => reset('view')}>Reset view</button>
 		{:else if group === 'toolbar'}
