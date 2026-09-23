@@ -495,7 +495,7 @@
 			not.
 		-->
 		<div class="header-left">
-			<a class="logo logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
+			<a class="logo logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width="clamp(72px, 19vw, 104px)" /></a>
 			<CodeCounter census={codeCensus} />
 		</div>
 		<div class="header-right">
