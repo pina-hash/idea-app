@@ -45,6 +45,17 @@
  * every surface, always. The cost is named rather than hidden -- the theme
  * disappears at sign-out, which is surprising exactly once and is the safe
  * direction of surprising.
+ *
+ * ---------------------------------------------------------------------------
+ * THE GATE, THE DEFAULT AND THE ROUTE SCOPE ARE ONE PURE FUNCTION NOW,
+ * `themeAttrFor` in `$lib/theme`, and this module does not restate any of
+ * them. `ThemeRoot` asks it on every client-side change and the server asks it
+ * to build the pre-paint boot script's table (ledger 0297), so the first paint
+ * and the hydrated page answer the same question the same way. The one theme
+ * with a route scope, Space White, has a second control beside the profile
+ * menu -- `$lib/shell/ThemeSwitch.svelte` in the classroom's header -- and it
+ * is gated on the same session, so "the theme is on only where its control is
+ * reachable" still holds.
  */
 
 import {
@@ -53,18 +64,25 @@ import {
 	SITE_THEME_KEY,
 	SITE_THEMES,
 	siteThemeAttr,
-	type SiteTheme
+	type SiteTheme,
+	type SiteThemeAttr
 } from '$lib/theme';
 
 export {
 	DEFAULT_SITE_THEME,
 	readStoredTheme,
+	SCOPED_SITE_THEMES,
+	SITE_THEME_COLORS,
 	SITE_THEME_KEY,
 	SITE_THEMES,
 	SITE_THEME_LABELS,
 	SITE_THEME_NOTES,
 	siteThemeAttr,
-	type SiteTheme
+	themeAttrFor,
+	themeColorFor,
+	themeInScope,
+	type SiteTheme,
+	type SiteThemeAttr
 } from '$lib/theme';
 
 function read(): SiteTheme {
@@ -80,7 +98,16 @@ function read(): SiteTheme {
 	}
 }
 
-let theme = $state<SiteTheme>(read());
+/* The first read is taken once and handed to both, so the remembered dark
+   theme is seeded from a plain value rather than from the `$state` (a read of
+   the rune here would only ever capture its initial value, which is exactly
+   what the compiler warns about). */
+const initialTheme = read();
+let theme = $state<SiteTheme>(initialTheme);
+
+/** The light theme the one-tap switch turns on, and the dark one it returns to (see below). */
+const LIGHT_THEME: SiteTheme = 'space-white';
+let lastDark: SiteTheme = initialTheme === LIGHT_THEME ? DEFAULT_SITE_THEME : initialTheme;
 
 export function siteTheme(): SiteTheme {
 	return theme;
@@ -88,6 +115,7 @@ export function siteTheme(): SiteTheme {
 
 export function setSiteTheme(next: SiteTheme) {
 	theme = next;
+	if (next !== LIGHT_THEME) lastDark = next;
 	if (typeof localStorage === 'undefined') return;
 	try {
 		/* TURNING IT OFF IS A REMOVAL, NOT A STORED 'idea'. The default is the
@@ -103,6 +131,32 @@ export function setSiteTheme(next: SiteTheme) {
 }
 
 /** What the attribute is right now, for the one component that writes it. */
-export function siteThemeAttrNow(): 'matrix' | undefined {
+export function siteThemeAttrNow(): SiteThemeAttr | undefined {
 	return siteThemeAttr(theme);
+}
+
+/* ---------------------------------------------------------------------------
+ * THE ONE-TAP SWITCH (`$lib/shell/ThemeSwitch.svelte`) IS A TOGGLE BETWEEN
+ * SPACE WHITE AND WHATEVER DARK THEME WAS SHOWING, and "whatever was showing"
+ * has to be remembered somewhere or a Matrix user who taps it on and off
+ * lands on IDEA. It is remembered HERE, in memory, and deliberately not in a
+ * second storage key: the persisted preference is still exactly one value,
+ * and the cost is named rather than hidden -- a Matrix user who reloads while
+ * on Space White and then taps the switch off gets IDEA, and the profile
+ * menu's rows are one step away for Matrix. A second key is a second copy of
+ * the preference that can disagree with the first.
+ * ------------------------------------------------------------------------- */
+/** Is the light theme the stored choice right now. */
+export function lightThemeOn(): boolean {
+	return theme === LIGHT_THEME;
+}
+
+/** The switch's one action: light on, or back to the dark theme it replaced. */
+export function toggleLightTheme() {
+	if (theme === LIGHT_THEME) {
+		setSiteTheme(lastDark);
+	} else {
+		lastDark = theme;
+		setSiteTheme(LIGHT_THEME);
+	}
 }

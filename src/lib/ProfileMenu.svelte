@@ -830,10 +830,13 @@
 				     session gate in ThemeRoot is paired with: the theme is on exactly
 				     where the thing that turns it off is reachable.
 
-				     RADIOS, NOT A SWITCH. Two states today and a third is a file, so a
-				     boolean control would have to be rebuilt the first time somebody
-				     adds one -- and a radio group already says "these are the choices,
-				     this is the current one" without a label anybody has to read twice.
+				     RADIOS, NOT A SWITCH. Two states when this was written and a third
+				     arrived as a file (Space White, ledger 0297), which is exactly the
+				     case a boolean control would have had to be rebuilt for -- and a
+				     radio group already says "these are the choices, this is the
+				     current one" without a label anybody has to read twice. The
+				     classroom's one-tap `ThemeSwitch` is a shortcut to one of these
+				     rows, not a second picker.
 				     Each row carries its name AND what it is for: "Matrix" is a name
 				     nobody can infer a look from, exactly as "IDEA" is in the
 				     notebook's own picker. -->
@@ -1513,7 +1516,9 @@
 	   written as literals ON PURPOSE: it has to show a theme that is NOT
 	   currently applied, so it cannot read the tokens, which are whatever is
 	   showing now. The values are the ones in colors.css and
-	   design-system/themes/matrix.css. */
+	   design-system/themes/matrix.css and space-white.css: Space White's is its
+	   page ground against its green INK, the two things that say "white
+	   console" at 26px. */
 	.pm-theme-swatch {
 		flex: 0 0 auto;
 		width: 26px;
@@ -1526,6 +1531,9 @@
 	}
 	.pm-theme-swatch[data-theme-swatch='matrix'] {
 		background: linear-gradient(135deg, #040804 0 50%, #00ff41 50% 100%);
+	}
+	.pm-theme-swatch[data-theme-swatch='space-white'] {
+		background: linear-gradient(135deg, #e8eceb 0 50%, #3b6c36 50% 100%);
 	}
 	.pm-theme-text {
 		display: grid;

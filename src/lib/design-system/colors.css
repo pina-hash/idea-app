@@ -119,6 +119,82 @@
 	--text-3: #5c665f; /* tertiary: separators, disabled, decorative */
 	--green-tint: #0e3b1f; /* selected-row and emphasis fills */
 
+	/* --- THE ROLE LAYER (ledger 0297, package F1) ---------------------------
+	   What a classroom, notebook, shell or home component asks for, by the JOB
+	   the colour does rather than by which hue it happens to be. It exists so a
+	   theme can move a role without a component knowing which theme is on:
+	   Space White (themes/space-white.css) is the first theme that has to move
+	   ink AND fill AND ground at once, and a component that reads --green for
+	   a word, a button and a banner cannot be told apart from one that means
+	   three different things by it.
+
+	   MOST OF IT ALREADY EXISTS AS THE CONSOLE REGISTER ABOVE, AND THOSE NAMES
+	   ARE THE ROLES -- not aliases of them. A var() alias resolves where it is
+	   DECLARED (the trap this file documents three times), and .nb-root,
+	   .fg-root and .ic-root each redeclare the register for their own plate, so
+	   an alias such as "--ground-panel: var(--surface-1)" declared here would
+	   carry THIS plate's panel into every one of those rooms. The register
+	   names travel correctly because each room redeclares them itself:
+
+	     ground  page   --surface-0        ink  primary    --text-1
+	             panel  --surface-1             secondary  --text-2
+	             inset  --surface-2             tertiary   --text-3
+	             raised --surface-raised   line decorative --hairline
+	     selected fill  --green-tint            load-bearing --boundary
+	     focus ring     --focus-ring
+
+	   --surface-raised is the one new ground: a menu, a popover or a docked
+	   bar lifted over the panel. In this dark register "raised" is the
+	   lightest step, which is --surface-2's own value -- written as a literal,
+	   not as var(--surface-2), for the reason above. A room that redeclares the
+	   register redeclares this with it (the notebook's F4 sweep owns that).
+
+	   WHAT IS ADDED BELOW IS WHAT THE REGISTER HAD NO NAME FOR. Each is an
+	   alias of a SEMANTIC hue, which no in-scope room redeclares (GAUNTLET and
+	   the FSP deck do, and neither reads these), so the alias is safe to
+	   declare here. A room that ever redeclares --green redeclares this set
+	   beside it.
+
+	     accent  ink   words, icons, the selection mark    --accent-ink
+	             fill  a primary button's plate            --accent-fill
+	             on    the label ON that plate             --accent-on-fill
+	             field full-brightness brand green, large  --accent-field
+	                   areas only (a banner, a hero band)
+	     status  inks as TEXT, 4.5:1 on every ground; fills behind a chip or a
+	             line, never mixed from the ink under a light theme (the
+	             "fill is pinned" rule, colors.css's --nb-cell-* block):
+	                   success --status-ok     / --status-ok-fill
+	                   warning --status-warn   / --status-warn-fill
+	                   danger  --status-danger / --status-danger-fill  (live and error)
+	                   info    --status-info   / --status-info-fill
+	     signal  the ONE hot mark, "now / you are here"      --signal-hot
+
+	   On this dark plate the accent's ink, fill and field are all the one
+	   --green, and the hot signal borrows copper (--amber) because the dark
+	   palette has no fourth warm hue to give it. That makes hot and warning one
+	   colour HERE, which is why a hot mark always carries a glyph and a word.
+	   Under Space White the four accent roles and the signal part company.
+
+	   A MONO MICRO-LABEL ABOVE A VALUE is --font-mono at --fs-label, uppercase,
+	   --track-label, in --text-2 (typography.css); it is a recipe, not a token.
+	   Elevation (--elevation-1, --elevation-2) is in effects.css. ------------ */
+	--surface-raised: #161a18;
+	--accent-ink: var(--green);
+	--accent-fill: var(--green);
+	--accent-on-fill: var(--bg0);
+	--accent-field: var(--green);
+	--status-ok: var(--green);
+	--status-warn: var(--amber);
+	--status-danger: var(--crimson);
+	--status-info: var(--cyan);
+	/* The classroom's own fill: 12% of the ink over whatever is behind it, the
+	   mix classroom components already write out by hand. */
+	--status-ok-fill: color-mix(in srgb, var(--green) 12%, transparent);
+	--status-warn-fill: color-mix(in srgb, var(--amber) 12%, transparent);
+	--status-danger-fill: color-mix(in srgb, var(--crimson) 12%, transparent);
+	--status-info-fill: color-mix(in srgb, var(--cyan) 12%, transparent);
+	--signal-hot: var(--amber);
+
 	/* --- Notebook editorial room (--nb-*) ---------------------------------
 	   A light, editorial palette used ONLY by the digital notebook surfaces
 	   (scoped under .nb-root in src/lib/notebook/notebook-theme.css). New

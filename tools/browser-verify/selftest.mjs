@@ -166,6 +166,40 @@ const CASES = [
 		}
 	},
 	{
+		/* THE PROJECTOR-WASHOUT OPTION (ledger 0297). The broken fixture is
+		   chosen so that ONLY the washout can catch it: the portal's own --dim
+		   on --bg0 clears WCAG at 5.31:1 and drops to 3.26:1 once a 300:1
+		   projector and 10% ambient light are applied -- so a check that
+		   silently ignored `projector: true` and judged the WCAG ratio would
+		   come back GREEN here, and the assert says so in words. The sound
+		   fixture is the research's own worked example, #0D1311 on #F7F9F9,
+		   which the model puts at 9.56:1. Both expected figures were computed
+		   OUTSIDE this instrument (the sRGB luminance formula in a separate
+		   Python session), so the assert is not the implementation agreeing
+		   with itself. */
+		group: 'contrast (projector washout)',
+		bad: {
+			name: 'the portal --dim on --bg0: passes WCAG, fails on the wall',
+			html: shell('<div style="background:#121a12;padding:8px"><p id="t" style="color:#849080">secondary label</p></div>'),
+			run: (p) => contrast(p, { selector: '#t', min: 4.5, all: true, projector: true }),
+			expect: 'outside',
+			assert: (r) => {
+				const x = r.data.results[0];
+				if (!x) return 'no element measured';
+				if (x.ratio < 4.5) return `the fixture was meant to PASS plain WCAG and read ${x.ratio}:1, so it does not isolate the washout`;
+				if (Math.abs(x.washed - 3.26) > 0.02) return `washed ${x.washed}:1, expected 3.26 from the model`;
+				return null;
+			}
+		},
+		good: {
+			name: "Space White's body ink on its panel (the research's 9.56:1)",
+			html: shell('<div style="background:#f7f9f9;padding:8px"><p id="t" style="color:#0d1311">body copy</p></div>'),
+			run: (p) => contrast(p, { selector: '#t', min: 4.5, all: true, projector: true }),
+			expect: 'within',
+			assert: (r) => (Math.abs((r.data.results[0]?.washed ?? 0) - 9.56) <= 0.02 ? null : `washed ${r.data.results[0]?.washed}:1, expected 9.56`)
+		}
+	},
+	{
 		group: 'tap-target',
 		bad: {
 			name: 'a 20px control',

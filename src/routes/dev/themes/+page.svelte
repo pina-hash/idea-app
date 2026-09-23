@@ -55,22 +55,37 @@
 	 * sixty-four-cell table is measured too -- see the history entry -- it is
 	 * just not what this page asserts.
 	 */
-	type Role = { token: string; label: string; min: number };
+	/**
+	 * `wash` IS THE PROJECTOR FLOOR (ledger 0297), stamped as `data-wash` beside
+	 * `data-min` so a spec sweeps the washed ratio by the same attribute trick
+	 * it sweeps WCAG by. The model is `PROJECTOR_MODEL` in
+	 * tools/browser-verify/checks.mjs (a 300:1 projector, 10% ambient light).
+	 * Body copy keeps 4.5 on the wall; muted copy and status inks keep 3.0,
+	 * the large-text floor, because under the washout a reader at the back of a
+	 * room is reading them as they would large text or not at all; a
+	 * load-bearing line keeps 2.0, tighter than the 1.5 the brief allowed,
+	 * because a 1px line also loses contrast to anti-aliasing on top of the
+	 * washout (research Part C2) and 1.5 is where a line stops being seen.
+	 * Only the Space White spec GATES on these; the IDEA and Matrix specs
+	 * record the same numbers at a floor of 0, because a dark palette under
+	 * this model is expected to fail and fixing IDEA is not this page's job.
+	 */
+	type Role = { token: string; label: string; min: number; wash: number };
 	const ROLES: Record<string, Role> = {
-		white: { token: '--white', label: 'white body', min: 4.5 },
-		'text-1': { token: '--text-1', label: 'text-1 body', min: 4.5 },
-		'text-2': { token: '--text-2', label: 'text-2 meta', min: 4.5 },
-		ice: { token: '--ice', label: 'ice disabled', min: 4.5 },
-		dim: { token: '--dim', label: 'dim secondary', min: 4.5 },
+		white: { token: '--white', label: 'white body', min: 4.5, wash: 4.5 },
+		'text-1': { token: '--text-1', label: 'text-1 body', min: 4.5, wash: 4.5 },
+		'text-2': { token: '--text-2', label: 'text-2 meta', min: 4.5, wash: 4.5 },
+		ice: { token: '--ice', label: 'ice disabled', min: 4.5, wash: 3 },
+		dim: { token: '--dim', label: 'dim secondary', min: 4.5, wash: 3 },
 		/* --gear is read as TEXT exactly once (MarkdownText, on a classroom
 		   surface), so it owes the text floor on the grounds it is read on. */
-		gear: { token: '--gear', label: 'gear chrome', min: 4.5 },
+		gear: { token: '--gear', label: 'gear chrome', min: 4.5, wash: 3 },
 		/* A boundary is a graphical object, not text: 3:1
 		   (IDEA_INTERFACE_STANDARDS 10). */
-		boundary: { token: '--boundary', label: 'boundary', min: 3 },
+		boundary: { token: '--boundary', label: 'boundary', min: 3, wash: 2 },
 		/* Tertiary decoration -- separators, disabled glyphs, decorative rules.
 		   colors.css measures it at 2.9:1 on --surface-1 deliberately. */
-		'text-3': { token: '--text-3', label: 'text-3 decorative', min: 0 }
+		'text-3': { token: '--text-3', label: 'text-3 decorative', min: 0, wash: 3 }
 	};
 
 	const ALL: string[] = Object.keys(ROLES);
@@ -90,6 +105,54 @@
 		{ token: '--surface-2', label: 'surface-2 input', roles: ALL },
 		{ token: '--plate', label: 'plate hero panel', roles: COPY },
 		{ token: '--green-tint', label: 'green-tint selected row', roles: ROW }
+	];
+
+	/**
+	 * THE ROLE BOARD (ledger 0297): the role layer colors.css completed -- the
+	 * status inks, the accent ink, the hot signal and the focus ring -- on the
+	 * seven grounds a classroom surface can put them on, plus each status ink
+	 * on its OWN fill and the two ground steps a projector has to keep. It is a
+	 * second section with its own count rather than more cells on the board
+	 * above, because the Matrix spec asserts that board by floor and these
+	 * pairings were never claimed for a dark palette. Only the Space White
+	 * spec gates on it.
+	 */
+	type SRole = { token: string; label: string; min: number; wash: number };
+	const SROLES: SRole[] = [
+		{ token: '--status-ok', label: 'ok', min: 4.5, wash: 3 },
+		{ token: '--status-warn', label: 'warning', min: 4.5, wash: 3 },
+		{ token: '--status-danger', label: 'danger / live', min: 4.5, wash: 3 },
+		{ token: '--status-info', label: 'info', min: 4.5, wash: 3 },
+		{ token: '--signal-hot', label: 'hot signal', min: 4.5, wash: 3 },
+		{ token: '--accent-ink', label: 'accent ink', min: 4.5, wash: 3 },
+		{ token: '--gold', label: 'gold', min: 4.5, wash: 3 },
+		{ token: '--teal', label: 'teal', min: 4.5, wash: 3 },
+		{ token: '--violet-ink', label: 'violet ink', min: 4.5, wash: 3 },
+		/* The focus ring is a graphical object: 3:1, and a line on the wall. */
+		{ token: '--focus-ring', label: 'focus ring', min: 3, wash: 2 }
+	];
+	const SGROUNDS = [
+		{ token: '--surface-0', label: 'page' },
+		{ token: '--surface-1', label: 'panel' },
+		{ token: '--surface-2', label: 'inset' },
+		{ token: '--surface-raised', label: 'raised' },
+		{ token: '--bg0', label: 'bg0' },
+		{ token: '--bg1', label: 'bg1' },
+		{ token: '--bg2', label: 'bg2' }
+	];
+	const SFILLS = [
+		{ ink: '--status-ok', fill: '--status-ok-fill', label: 'ok on its fill' },
+		{ ink: '--status-warn', fill: '--status-warn-fill', label: 'warning on its fill' },
+		{ ink: '--status-danger', fill: '--status-danger-fill', label: 'danger on its fill' },
+		{ ink: '--status-info', fill: '--status-info-fill', label: 'info on its fill' }
+	];
+	/* A GROUND STEP, measured as "text" in the upper ground's colour on the
+	   lower one, so the ordinary contrast instrument reads the step. On a
+	   monitor a panel is told from its page by this; on the wall it has to
+	   keep 1.1 or the boundary has to carry it alone. */
+	const SSTEPS = [
+		{ upper: '--surface-1', lower: '--surface-0', label: 'panel on page' },
+		{ upper: '--bg1', lower: '--bg0', label: 'card on portal page' }
 	];
 
 	const current = $derived(siteTheme());
@@ -131,8 +194,8 @@
 	<p class="note">
 		Dev-only (404 in production; no auth, no Supabase). The switch below is the same
 		<code>setSiteTheme</code> call the profile menu makes. The launcher underneath is the real
-		component: a theme may repaint chrome and may never repaint an app's accent, so the twelve
-		cards must stay tellable apart with the theme on.
+		component: a theme may repaint chrome and may never repaint an app's accent, so every
+		card must stay tellable apart with the theme on.
 	</p>
 
 	<div class="switch" data-testid="theme-switch">
@@ -159,9 +222,50 @@
 							class="role"
 							style="color: var({ROLES[key].token})"
 							data-role={ROLES[key].token}
-							data-min={ROLES[key].min}>{ROLES[key].label}</span
+							data-min={ROLES[key].min}
+							data-wash={ROLES[key].wash}>{ROLES[key].label}</span
 						>
 					{/each}
+				</div>
+			</div>
+		{/each}
+	</section>
+
+	<section class="sboard" data-testid="role-board">
+		<h2>Role board: status, accent, signal, focus</h2>
+		{#each SGROUNDS as g (g.token)}
+			<div class="ground" style="background: var({g.token})" data-ground={g.token}>
+				<span class="gname" style="color: var(--text-2)">{g.label}</span>
+				<div class="roles">
+					{#each SROLES as r (r.token)}
+						<span class="role" style="color: var({r.token})" data-srole={r.token} data-min={r.min} data-wash={r.wash}
+							>{r.label}</span
+						>
+					{/each}
+				</div>
+			</div>
+		{/each}
+		<div class="ground" style="background: var(--surface-1)" data-ground="fills">
+			<span class="gname" style="color: var(--text-2)">each status ink on its own fill, on a panel</span>
+			<div class="roles">
+				{#each SFILLS as f (f.fill)}
+					<span
+						class="role chip"
+						style="color: var({f.ink}); background: var({f.fill})"
+						data-srole={f.fill}
+						data-min="4.5"
+						data-wash="3">{f.label}</span
+					>
+				{/each}
+			</div>
+		</div>
+		{#each SSTEPS as st (st.label)}
+			<div class="ground" style="background: var({st.lower})" data-ground={st.lower}>
+				<span class="gname" style="color: var(--text-2)">ground step: {st.label}</span>
+				<div class="roles">
+					<span class="role step" style="color: var({st.upper})" data-sstep={st.upper} data-min="0" data-wash="1.1"
+						>&#9632;&#9632;&#9632;&#9632; {st.label}</span
+					>
 				</div>
 			</div>
 		{/each}
@@ -273,5 +377,13 @@
 	.role {
 		font-size: 0.9rem;
 		line-height: 1.5;
+	}
+	.sboard {
+		display: grid;
+		gap: 0.35rem;
+	}
+	.chip {
+		padding: 0.1rem 0.45rem;
+		border-radius: var(--radius-chip);
 	}
 </style>

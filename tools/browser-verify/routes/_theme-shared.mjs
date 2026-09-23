@@ -35,6 +35,63 @@ export const boardContrast = (prefix) =>
 export const BOARD_CELLS = 54;
 
 /**
+ * THE ROLE BOARD (ledger 0297): ten role inks on seven grounds plus each of
+ * the four status inks on its own fill, and the two ground-step cells beside
+ * them. Pinned for the reason BOARD_CELLS is -- a sweep that matched nothing
+ * reports nothing.
+ */
+export const ROLE_CELLS = 74;
+export const STEP_CELLS = 2;
+
+/**
+ * THE LAUNCHER'S CARD COUNT, written once for the three theme specs. It read
+ * 12 in each of them and the launcher renders 13 on this tree (the IdeaCAD
+ * card landed after the specs were written), so all three reported a finding
+ * on a surface this bundle never touched. Still an exact count, for the reason
+ * BOARD_CELLS is one.
+ */
+export const LAUNCHER_CARDS = 13;
+
+/** How many themes the picker lists; the profile menu renders one radio each. */
+export const THEME_ROWS = 3;
+
+/**
+ * THE PROJECTOR-WASHOUT ROWS, one per floor the board stamps as `data-wash`.
+ * The model is `PROJECTOR_MODEL` in ../checks.mjs: a 300:1 projector with
+ * ambient light at 10% of white added to every pixel, L' = L(1 - 1/300) +
+ * 1/300 + 0.10, ratio L'hi / L'lo with no flare term. `gate: false` records
+ * the numbers at a floor of 0 -- a dark palette is expected to fail this
+ * model, and IDEA and Matrix are measured to be reported, not fixed here.
+ */
+export const WASH_FLOORS = [
+	{ wash: '4.5', label: 'body copy on the wall (4.5 washed)' },
+	{ wash: '3', label: 'muted copy and status inks on the wall (3.0 washed)' },
+	{ wash: '2', label: 'load-bearing lines on the wall (2.0 washed)' }
+];
+export const washoutRows = (prefix, { gate }) => [
+	...WASH_FLOORS.map(({ wash, label }) => ({
+		selector: `.board [data-role][data-wash="${wash}"]`,
+		label: `${prefix}: projector, ${label}${gate ? '' : ' [recorded, not gated]'}`,
+		min: gate ? Number(wash) : 0,
+		projector: true
+	})),
+	/* The role board carries no body-copy row: every ink on it is a status,
+	   accent or signal colour (3.0 washed) or the focus ring (2.0 washed). */
+	...WASH_FLOORS.filter(({ wash }) => wash !== '4.5').map(({ wash, label }) => ({
+		selector: `.sboard [data-srole][data-wash="${wash}"]`,
+		label: `${prefix}: projector, role board, ${label}${gate ? '' : ' [recorded, not gated]'}`,
+		min: gate ? Number(wash) : 0,
+		projector: true
+	})),
+	{
+		selector: '.sboard [data-sstep]',
+		label: `${prefix}: projector, panels separable, ground step (1.1 washed)${gate ? '' : ' [recorded, not gated]'}`,
+		min: gate ? 1.1 : 0,
+		projector: true
+	}
+];
+
+/**
  * THE ROOMS THE RAIN REACHES INTO (ledger 0117, report 25), one spec per
  * room from this factory -- the classroom and the Foundry; the notebook's
  * pair was withdrawn when ledger 0119's own Matrix plate landed saying no
@@ -60,7 +117,7 @@ export const roomSpec = (room, rootClass) => ({
 		{ evaluate: SETTLE_ENTRANCE, label: 'settle the launcher entrance' },
 		{
 			click: '.pm-trigger',
-			until: `() => document.querySelectorAll('.pm-theme').length === 2`,
+			until: `() => document.querySelectorAll('.pm-theme').length === ${THEME_ROWS}`,
 			label: 'open the profile menu onto the theme control'
 		},
 		{
