@@ -188,6 +188,13 @@ describe('hover links: which row made the geometry under the pointer', () => {
 		expect(rowForSelection({ bodyId: 'x1#0', kind: 'edge', id: 'edge:f1.blend.x1.end|x1.side.0|x1.start#2' }, rows)).toBe('f1');
 		expect(rowForSelection({ bodyId: 'x1#0', kind: 'vertex', id: 'vertex:x1.end|x1.side.0|x1.side.1' }, rows)).toBe('x1');
 	});
+	it('a face on a copy belongs to the feature that made the copy, not the one it was copied from', () => {
+		const withPattern = [...rows, { id: 'pat', index: 4 }];
+		expect(rowForSelection({ bodyId: 'pat#2', kind: 'face', id: 'x1.end' }, withPattern)).toBe('pat');
+		expect(rowForSelection({ bodyId: 'pat#2', kind: 'edge', id: 'edge:x1.end|x1.side.0' }, withPattern)).toBe('pat');
+		/* Control: the same face on the original body is still the extrude's. */
+		expect(rowForSelection({ bodyId: 'x1#0', kind: 'face', id: 'x1.end' }, withPattern)).toBe('x1');
+	});
 	it('a body, a sketch, a sketch entity, a reference and a datum', () => {
 		expect(rowForSelection({ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }, rows)).toBe('x1');
 		expect(rowForSelection({ bodyId: '', kind: 'sketch', id: 's1' }, rows)).toBe('s1');

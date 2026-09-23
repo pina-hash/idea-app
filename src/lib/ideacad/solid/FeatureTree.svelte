@@ -60,6 +60,8 @@
 	const nesting = $derived(nodes.some((n) => n.children.length > 0));
 	const selectedId = $derived(selectedFeatureId(api.selections, rows));
 	const selectedRow = $derived(rows.find((r) => r.id === selectedId) ?? null);
+	/* A face, an edge or a body picked in the viewport names no row, but it was MADE by one: that row is marked and brought into view, as SolidWorks does, so a pick teaches which feature a face came from. */
+	const ownerId = $derived(selectedId ? null : rowForSelection(api.selections[0] ?? null, rows));
 	const editable = $derived(api.canWrite && !api.busy);
 	/* Collapsed by default, like SolidWorks. A row opened or closed by hand keeps that; a nested row that becomes selected opens its parent once. */
 	let expanded = $state<Record<string, boolean>>({});
@@ -101,7 +103,7 @@
 	/* A nested row that becomes selected opens its parent, once, and the selected row scrolls into view, as SolidWorks does for a pick in the viewport. */
 	let revealed: string | null = null;
 	$effect(() => {
-		const id = selectedId, parent = id ? parentOf.get(id) : undefined;
+		const id = selectedId ?? (ownerId && !ownerId.startsWith('datum:') ? ownerId : null), parent = id ? parentOf.get(id) : undefined;
 		if (id === revealed) return;
 		revealed = id;
 		untrack(() => { if (parent && expanded[parent] === undefined) expanded[parent] = true; });
@@ -344,13 +346,13 @@
 		<ol bind:this={listEl} aria-label="Features in order">
 			{#each nodes as node, position (node.row.id)}
 				{@const row = node.row}
-				<li class={row.status} class:selected={row.id === selectedId} class:editing={api.editingSketch === row.id} class:linked={linked === row.id || (!isOpen(row.id) && node.children.some((c) => c.id === linked))} class:rolled-back={rolledBack(row, barIndex)} class:dragging={dragging === row.id} class:drop-before={dropAt?.id === row.id && dropAt.before} class:drop-after={dropAt?.id === row.id && !dropAt.before} class:drop-refused={dropAt?.id === row.id && !!dropAt.plan.refusal} class:bar-before={barPreview === position} class:bar-after={barPreview === nodes.length && position === nodes.length - 1} data-row={row.id} ondragover={(e) => dragOver(node, position, e)} ondrop={(e) => drop(node, e)}>
+				<li class={row.status} class:selected={row.id === selectedId} class:editing={api.editingSketch === row.id} class:linked={linked === row.id || (!isOpen(row.id) && node.children.some((c) => c.id === linked))} class:owner={ownerId === row.id} class:rolled-back={rolledBack(row, barIndex)} class:dragging={dragging === row.id} class:drop-before={dropAt?.id === row.id && dropAt.before} class:drop-after={dropAt?.id === row.id && !dropAt.before} class:drop-refused={dropAt?.id === row.id && !!dropAt.plan.refusal} class:bar-before={barPreview === position} class:bar-after={barPreview === nodes.length && position === nodes.length - 1} data-row={row.id} ondragover={(e) => dragOver(node, position, e)} ondrop={(e) => drop(node, e)}>
 					{#if canRollback && barPosition === 0 && position === 0}{@render bar()}{/if}
 					{@render line(row, node)}
 					{#if node.children.length}
 						<ol class="children" id={`ideacad-tree-children-${row.id}`} hidden={!isOpen(row.id)} aria-label={`${row.name} is made from`}>
 							{#each node.children as child (child.id)}
-								<li class={child.status} class:selected={child.id === selectedId} class:editing={api.editingSketch === child.id} class:linked={linked === child.id && isOpen(row.id)} class:rolled-back={rolledBack(child, barIndex)} data-row={child.id}>
+								<li class={child.status} class:selected={child.id === selectedId} class:editing={api.editingSketch === child.id} class:linked={linked === child.id && isOpen(row.id)} class:owner={ownerId === child.id} class:rolled-back={rolledBack(child, barIndex)} data-row={child.id}>
 									{@render line(child, null)}
 								</li>
 							{/each}
@@ -369,7 +371,7 @@
 	.tree{display:flex;flex-direction:column;min-height:0;height:100%;font-family:Rajdhani,sans-serif;color:var(--text-1)}h2{margin:0;padding:8px 10px;font-size:17px;border-bottom:1px solid var(--hairline);flex-shrink:0}h2 .count{color:var(--text-2);font:12px 'Share Tech Mono',monospace;margin-left:6px}
 	.scroll{overflow:auto;min-height:0;flex:1 1 auto;padding:4px}
 	ul,ol{list-style:none;margin:0;padding:0}/* A folded list is not rendered, and says so to every descendant: `hidden` alone leaves a row's own computed style reading visible. */ol.children[hidden]{visibility:hidden}.refs{padding-bottom:4px;margin-bottom:4px;border-bottom:1px solid var(--hairline)}
-	li{border-radius:4px;position:relative}li.selected>.line{background:var(--green-tint,color-mix(in srgb,var(--green) 12%,var(--surface-1)))}li.editing>.line{box-shadow:inset var(--ic-rail,3px) 0 0 var(--green)}li.linked>.line{box-shadow:inset var(--ic-rail,3px) 0 0 var(--cyan);background:var(--surface-2)}li.dragging{opacity:.5}
+	li{border-radius:4px;position:relative}li.selected>.line{background:var(--green-tint,color-mix(in srgb,var(--green) 12%,var(--surface-1)))}li.editing>.line{box-shadow:inset var(--ic-rail,3px) 0 0 var(--green)}li.linked>.line{box-shadow:inset var(--ic-rail,3px) 0 0 var(--cyan);background:var(--surface-2)}li.owner>.line{box-shadow:inset var(--ic-rail,3px) 0 0 var(--green)}li.owner>.line .icon{color:var(--green)}li.dragging{opacity:.5}
 	/* WHERE A DROP OR THE BAR WILL LAND: a line drawn over the edge between two rows, so marking it moves nothing. */
 	li.drop-before::before,li.drop-after::after,li.bar-before::before,li.bar-after::after{content:'';position:absolute;left:0;right:0;height:3px;border-radius:2px;background:var(--green);pointer-events:none;z-index:1}li.drop-before::before,li.bar-before::before{top:-2px}li.drop-after::after,li.bar-after::after{bottom:-2px}li.drop-refused::before,li.drop-refused::after{background:var(--ic-fail-ink,#e07474)}li.bar-before::before,li.bar-after::after{background:var(--cyan)}
 	li.rolled-back>.line .icon,li.rolled-back>.line .name,li.rolled-back>.line .summary{opacity:.55}li.rolled-back>.line .name{font-style:italic}

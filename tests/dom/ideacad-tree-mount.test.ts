@@ -95,6 +95,20 @@ describe('selecting', () => {
 		expect(api.selects.at(-1)).toEqual({ selection: feature('x1'), append: true });
 		expect(api.commands).toHaveLength(0);
 	});
+	it('a face picked in the viewport marks the row that made it; a picked sketch line marks its sketch and opens its parent', async () => {
+		const face = tree({ selections: [{ bodyId: 'x1#0', kind: 'face', id: 'x1.end' }] });
+		await face.m.settle();
+		expect(face.m.all('li.owner').map((l) => (l as HTMLElement).dataset.row)).toEqual(['x1']);
+		expect(face.m.all('li.selected')).toHaveLength(0);
+		const line = tree({ selections: [{ bodyId: 's1', kind: 'sketch-entity', id: 'l0' }] });
+		await line.m.settle();
+		expect(line.m.all('li.owner').map((l) => (l as HTMLElement).dataset.row)).toEqual(['s1']);
+		expect(line.m.one<HTMLOListElement>('#ideacad-tree-children-x1').hidden).toBe(false);
+		/* A selected ROW is a selection, not an owner mark: pressing a row marks it selected and nothing owned. */
+		const row = tree({ selections: [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }, feature('x1')] });
+		expect(row.m.all('li.owner')).toHaveLength(0);
+		expect(row.m.all('li.selected').map((l) => (l as HTMLElement).dataset.row)).toEqual(['x1']);
+	});
 	it('a nested sketch that becomes selected opens its parent', async () => {
 		const { m } = tree({ selections: [feature('s1', 'sketch')] });
 		await m.settle();

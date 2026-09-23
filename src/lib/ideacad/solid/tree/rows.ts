@@ -15,7 +15,7 @@ import { reduce } from '../commands';
 import { REFERENCE_TYPES, featureOfId, reorderRange } from '../features';
 import type { Feature, FeatureRow, FeatureStatus, FeatureType, Selection, SolidCommand, SolidManifest } from '../types';
 
-/** The glyph AND the word, always together: colour is never the only signal and a glyph alone is not a word. */
+/** The glyph AND the word, always together: color is never the only signal and a glyph alone is not a word. */
 export const STATUS_WORDS: Record<FeatureStatus, { word: string; glyph: string }> = {
 	ok: { word: 'OK', glyph: '●' },
 	error: { word: 'Error', glyph: '⚠' },
@@ -222,7 +222,10 @@ export const rolledBack = (row: Pick<FeatureRow, 'index'>, index: number | null 
  * null. A face is named by the feature that created it (the id before its
  * first '.'); an edge or a vertex is named by the faces that meet there, and
  * belongs to the LATEST of their features, which is the one that made it; a
- * body belongs to the feature that created it.
+ * body belongs to the feature that created it. A pattern or mirror copy keeps
+ * its source's face names on a body of its own, so the body's feature is a
+ * candidate too, and the latest still wins: a face on the third copy belongs
+ * to the pattern, not to the extrude it was copied from.
  */
 export function rowForSelection(selection: Selection | null, rows: readonly Pick<FeatureRow, 'id' | 'index'>[]): string | null {
 	if (!selection) return null;
@@ -233,11 +236,10 @@ export function rowForSelection(selection: Selection | null, rows: readonly Pick
 		case 'reference': return selection.id.startsWith('datum:') ? selection.id : known(selection.id);
 		case 'sketch-entity': return known(selection.bodyId);
 		case 'body': return known(featureOfId(selection.id));
-		case 'face': return known(selection.id.split('.')[0]);
-		case 'edge': case 'vertex': {
-			const names = selection.id.replace(/^(edge|vertex):/, '').replace(/#\d+$/, '').split('|');
+		case 'face': case 'edge': case 'vertex': {
+			const names = selection.kind === 'face' ? [selection.id] : selection.id.replace(/^(edge|vertex):/, '').replace(/#\d+$/, '').split('|');
 			let best: string | null = null;
-			for (const name of names) { const id = name.split('.')[0]; if (at.has(id) && (best === null || at.get(id)! > at.get(best)!)) best = id; }
+			for (const id of [...names.map((name) => name.split('.')[0]), featureOfId(selection.bodyId)]) if (at.has(id) && (best === null || at.get(id)! > at.get(best)!)) best = id;
 			return best;
 		}
 		default: return null;
