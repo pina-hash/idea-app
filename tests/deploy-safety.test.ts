@@ -129,6 +129,7 @@ describe('rule: never reload FROM a projector surface', () => {
 		const ids = PROJECTOR_ROUTES.map((r) => r.id);
 		for (const id of [
 			'/classroom/[sectionId]/item/[itemId]/deck',
+			'/classroom/[sectionId]/live/projector',
 			'/tournaments/[id]/tv',
 			'/fsp/live',
 			'/greenline',
@@ -141,6 +142,7 @@ describe('rule: never reload FROM a projector surface', () => {
 
 	const refused: string[] = [
 		'/classroom/[sectionId]/item/[itemId]/deck',
+		'/classroom/[sectionId]/live/projector',
 		'/tournaments/[id]/tv',
 		'/fsp/live',
 		'/greenline',
@@ -156,6 +158,9 @@ describe('rule: never reload FROM a projector surface', () => {
 
 	const allowed: string[] = [
 		'/classroom/[sectionId]',
+		// The teacher's own control view is a laptop screen, not the wall: a
+		// deploy may reload it like any other page. Only the projector is held.
+		'/classroom/[sectionId]/live',
 		'/classroom/[sectionId]/item/[itemId]',
 		'/tournaments/[id]',
 		'/gauntletx',

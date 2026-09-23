@@ -113,7 +113,11 @@ export const ICONS = {
 	unit: 'M4 6h16M4 12h16M4 18h10',
 	student: 'M12 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 0 0 0 7zM5 20.5a7 7 0 0 1 14 0',
 	grade: 'M5 19l4-1 10-10-3-3L6 15zM14 7l3 3',
-	admin: 'M12 9a3 3 0 1 0 0 6a3 3 0 0 0 0-6zM12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1'
+	admin: 'M12 9a3 3 0 1 0 0 6a3 3 0 0 0 0-6zM12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1',
+	live: 'M12 11a1.5 1.5 0 1 0 0 3a1.5 1.5 0 0 0 0-3zM8.5 8.5a5 5 0 0 0 0 8M15.5 8.5a5 5 0 0 1 0 8M5.5 5.5a9 9 0 0 0 0 14M18.5 5.5a9 9 0 0 1 0 14',
+	projector: 'M3 5h18v11H3zM8 20h8M12 16v4',
+	timer: 'M12 7a7 7 0 1 0 0 14a7 7 0 0 0 0-14zM12 10.5V14l2 2M9.5 3h5',
+	pick: 'M5 5h14v14H5zM9 9h.01M15 15h.01M12 12h.01M15 9h.01M9 15h.01'
 } as const;
 
 /* -------------------------------------------------------------------------
@@ -231,6 +235,46 @@ const CORE: readonly ShellCommand[] = [
 		context: 'class',
 		keywords: ['stream', 'units', 'items', 'classwork'],
 		href: tabHref('class')
+	},
+	{
+		id: 'class.live',
+		name: 'Live class',
+		icon: ICONS.live,
+		description: 'Who is working right now, the timer, the agenda and the projector.',
+		role: 'manager',
+		context: 'class',
+		keywords: ['presence', 'working', 'timer', 'agenda', 'projector', 'hall pass', 'random', 'front of the room'],
+		href: tabHref('live')
+	},
+	{
+		id: 'live.projector',
+		name: 'Open the projector',
+		icon: ICONS.projector,
+		description: 'The agenda, the clock and the timer, in a window for the wall.',
+		role: 'manager',
+		context: 'class',
+		keywords: ['wall', 'display', 'screen', 'present', 'board'],
+		run: true
+	},
+	{
+		id: 'live.timer',
+		name: 'Start or pause the timer',
+		icon: ICONS.timer,
+		description: 'Starts ten minutes when nothing is set, or pauses the one running.',
+		role: 'manager',
+		context: 'class',
+		keywords: ['countdown', 'stopwatch', 'clock', 'minutes'],
+		run: true
+	},
+	{
+		id: 'live.pick',
+		name: 'Pick a student',
+		icon: ICONS.pick,
+		description: 'A random name from the students on the page.',
+		role: 'manager',
+		context: 'class',
+		keywords: ['random', 'call on', 'cold call', 'name', 'draw'],
+		run: true
 	},
 	{
 		id: 'class.people',

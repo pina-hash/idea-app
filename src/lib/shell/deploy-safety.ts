@@ -101,8 +101,9 @@ export interface ProjectorRoute {
  * deck by a reload is the deck loading fresh, which is fine.
  *
  * APPEND-ONLY IN SPIRIT, EXTENSIBLE IN FACT: a new projector or in-memory
- * surface adds one line here. The live-class package's present/projector route
- * is expected to be the next entry (see the slot at the end).
+ * surface adds one line here, the way the class projector view did (ledger
+ * 0297, the live class). That page never navigates and loads nothing after its
+ * first render, so this entry is the belt to its braces.
  */
 export const PROJECTOR_ROUTES: readonly ProjectorRoute[] = [
 	{
@@ -114,10 +115,12 @@ export const PROJECTOR_ROUTES: readonly ProjectorRoute[] = [
 	{ id: '/fsp/live', match: 'tree', why: 'the FSP live question display' },
 	{ id: '/greenline', match: 'tree', why: 'a GREENLINE race or build, held in memory' },
 	{ id: '/gauntlet', match: 'tree', why: 'a GAUNTLET run or room, some of them timed' },
-	{ id: '/ideacad', match: 'tree', why: "IdeaCAD's in-memory model" }
-	// THE LIVE-CLASS SLOT. The live-class package's present/projector route
-	// (the teacher's wall view: agenda, timer, hall pass) is added here as one
-	// more entry, `match: 'tree'` if it has sub-views.
+	{ id: '/ideacad', match: 'tree', why: "IdeaCAD's in-memory model" },
+	{
+		id: '/classroom/[sectionId]/live/projector',
+		match: 'exact',
+		why: "a class's projector view: agenda, clock and running timer on the wall"
+	}
 ];
 
 /** Is `routeId` one of the registered projector surfaces (or below one)? */

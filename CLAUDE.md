@@ -1030,13 +1030,14 @@ rule Foundry states as "preflight passing is not submission".
   text, validated by the client against `BADGES` and `FLOURISHES`. A CHECK
   constraint would be a second copy of a list D2 is moving, and the copy that
   cannot change without a migration.
-- **THE STUDENT-FACING SURFACE IS NOT BUILT, AND ITS ABSENCE IS A LANE BOUNDARY
-  RATHER THAN AN OVERSIGHT.** The class stream is `ClassView.svelte`, mounted
-  from `src/routes/classroom/[sectionId]/+layout.svelte`. Everything a posted
-  roster and a student style editor need is in place -- the window, the
-  audience-gated read, the membership-gated write -- and the MOUNT is whoever
-  owns those two files. **Until it exists, no `classroom-updates.json` entry
-  claiming students can see teams is true.**
+- **A POSTED ROSTER IS ON THE CLASS PAGE NOW (ledger 0297), AND THE STYLE
+  EDITOR IS STILL NOT.** `ClassTeams.svelte` (over `$lib/classroom/class-teams.ts`)
+  is mounted from `src/routes/classroom/[sectionId]/+layout.svelte`: it renders
+  only a set `_classroom_team_set_visible` answers for, names only (never an
+  address), the viewer's own team marked, closed by default. A student editing
+  their team's banner has the membership-gated write waiting and no control
+  yet, so no `classroom-updates.json` entry may claim students can style a
+  team.
 
 ### WHO IS WORKING -- an instrument's silence is never a fact about a student
 
@@ -1135,7 +1136,31 @@ scrolling content is two lines of text on top of each other.
   tells a covered control from a clickable one. `tests/dom/` has no layout
   engine and reads every box as zero.
 
-### WHAT A STUDENT OWES -- one predicate, one read, one day
+### THE LIVE CLASS -- the projector reads nothing private
+
+**THE LIVE TAB IS A MANAGER'S CONTROL VIEW AND THE PROJECTOR IS A SECOND WINDOW
+IT FEEDS, AND ONLY WHAT THE CONTROL VIEW CHOOSES TO SEND EVER REACHES THE WALL
+(ledger 0297).** `/classroom/<id>/live` (404 to anyone who cannot manage the
+section) holds who is working, the timer, the hall pass, today's agenda and the
+random picker; `/classroom/<id>/live/projector` is `+page@.svelte`, a reset to
+the ROOT layout, so it inherits the site theme and drops the classroom chrome.
+It loads the class label and nothing that names a person.
+
+- **`buildProjectorFrame` IS THE ONE PROJECTION AND `parseProjectorFrame`
+  RE-VALIDATES ON THE WAY IN.** A frame crosses a same-browser `BroadcastChannel`
+  (with a `localStorage` fallback), and the projector keeps only
+  `PROJECTOR_FRAME_KEYS` and the two hall-pass words, so a control view that
+  grew a field cannot put it on a wall by accident. There is no server channel,
+  which is why a phone cannot drive it; adding one is a disclosure decision.
+- **A PICKED NAME REACHES THE WALL ONLY ON AN EXPLICIT Show**, with its seed;
+  who is working, presence and a student's hall-pass NAME never do.
+- **A PROJECTED ROUTE JOINS `PROJECTOR_ROUTES` AND `FEEDBACK_EXCLUSIONS` IN THE
+  SAME CHANGE**, the first so a deploy never reloads it mid-lesson and the
+  second so the report control relocates into the wall strip rather than
+  floating over a projected image. Wall text is sized to be read from the back
+  of the room and measured under the projector wash (`PROJECTOR_MODEL`).
+
+
 
 **"MISSING" HAS ONE IMPLEMENTATION: `assignmentStanding` AND `checkInStanding`
 in `$lib/classroom/classroom.ts` (ledger 0297).** The class filter, the row chip,
@@ -3132,8 +3157,9 @@ inside the function fails closed rather than falling through to a weaker path.
   every `onNavigate`. It reloads only for a link, a back/forward, or a goto the
   save guard re-issued after its flush; only when the path changes; never from a
   fullscreen element; never from a route in `PROJECTOR_ROUTES` (the deck, the
-  tournament TV stage, `/fsp/live`, GREENLINE, GAUNTLET, IdeaCAD, and any
-  projected view added later); never while a hold is active. An idle page never
+  tournament TV stage, the classroom projector, `/fsp/live`, GREENLINE,
+  GAUNTLET, IdeaCAD, and any projected view added later); never while a hold
+  is active. An idle page never
   reloads, because the only trigger is a navigation.
   - **`onNavigate`, NEVER `beforeNavigate`, AND NEVER THE DOCUMENTED SNIPPET.**
     The order of `beforeNavigate` callbacks between a layout and a page flips
@@ -3519,7 +3545,7 @@ inside the function fails closed rather than falling through to a weaker path.
   disable.
 - **EVERY SURFACE REPORTS ITS OWN DEFECTS, AND THE AFFORDANCE IS MOUNTED ONCE IN
   THE ROOT LAYOUT.** `SiteFeedback.svelte` sits in `src/routes/+layout.svelte`;
-  there are no layout resets in `src/routes`, so that mount is what makes
+  the one layout reset in `src/routes` is the classroom projector (below), so that mount is what makes
   coverage something a new route INHERITS rather than has to remember. **Do not
   mount it per page** -- that is the rejected alternative, and
   `tests/feedback-coverage.test.ts` sweeps every `+page.svelte` and reddens if it
@@ -3810,7 +3836,7 @@ inside the function fails closed rather than falling through to a weaker path.
 - **A NAVIGATION IS THE ONE PENDING STATE THAT IS GLOBAL, AND IT IS MOUNTED
   ONCE.** `NavigationProgress.svelte` reads `navigating` from `$app/state` and
   sits in `src/routes/+layout.svelte` beside `SiteFeedback`, for the same
-  reason: there are no layout resets in `src/routes`, so every page route
+  reason: apart from the classroom projector's one reset, nothing in `src/routes` escapes the root layout, so every page route
   INHERITS the indicator instead of having to remember one. This is the
   deliberate opposite of the save state's per-instance rule -- a save state is
   per-surface because a global one would speak for work it cannot see, and a

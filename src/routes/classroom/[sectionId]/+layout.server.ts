@@ -17,6 +17,7 @@ import { checkInIsScheduled, laCalendarDay, type ClassCheckIn } from '$lib/class
 import type { HallPassState } from '$lib/classroom/hall-pass';
 import type { SongQueueState } from '$lib/classroom/song-queue';
 import { readCheckInPostings, readOwnCheckIns, type CheckInPostings } from '$lib/classroom/student-work';
+import { loadPostedTeams } from '$lib/classroom/class-teams';
 import { gridSummary, type SectionGrid } from '$lib/notebook-review';
 import type { LayoutServerLoad } from './$types';
 
@@ -239,6 +240,14 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 	 */
 	const clockRead = new Date();
 	const today = laCalendarDay(clockRead);
+
+	/**
+	 * THE TEAMS THIS CLASS CAN SEE (0223, mounted by ledger 0297), started
+	 * beside the reads below so it costs no round trip of its own, and read
+	 * through the same audience-gated board the People tab posts from. It fails
+	 * soft to an empty list; see `$lib/classroom/class-teams`.
+	 */
+	const teamsRead = loadPostedTeams(supabase, params.sectionId);
 
 	const [{ data: manages }, content, checkInRows, hallPass, songQueue, layoutReady] = await Promise.all([
 		supabase.rpc('classroom_manages_section', { p_section_id: params.sectionId }),
@@ -490,6 +499,8 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		 */
 		songQueue,
 		sectionOutstanding,
+		/** The posted teams, projected to names: what the class page draws for everyone. */
+		teams: await teamsRead,
 		/**
 		 * THE SAME ONE CLOCK READ, handed down (ledger 0297) so the class page's
 		 * status filter asks "is this past due" against the instant this load

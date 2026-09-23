@@ -48,14 +48,12 @@
 	} from '$lib/classroom/picker';
 	import {
 		TEAM_WINDOW_WORDS,
-		accentOf,
-		backgroundCss,
-		bannerInk,
 		canStyleTeam,
 		hasStyle,
 		teamDriftNote,
 		teamLabel,
 		teamStyle,
+		teamStyleVars,
 		teamWindowEnd,
 		teamWindowState,
 		type Team,
@@ -506,26 +504,12 @@
 	}
 
 	/**
-	 * A team's own colours, as inline custom properties. Read through
-	 * `$lib/tournaments/entry-styles`'s pure functions, which already take the
-	 * draft shape -- no adapter, and no second implementation of what a style
-	 * renders as.
+	 * A team's own colours, as inline custom properties: `teamStyleVars`, the
+	 * one projection the class page's posted-teams board reads too (ledger
+	 * 0297), so the two boards cannot paint one team two ways.
 	 */
 	function teamCardStyle(team: Team): string {
-		const style = teamStyle(team);
-		const bg = backgroundCss(style);
-		return [
-			`--team-accent: ${accentOf(style)}`,
-			// THE INK COMES FROM `bannerInk` AND IS NOT CHOSEN HERE. A student
-			// may pick any background; which of dark or light text survives on it
-			// is arithmetic the tournament module already does, and a second
-			// answer to that question is how a team ends up with black text on a
-			// black gradient with nothing on screen reporting it.
-			bg ? `--team-ink: ${bannerInk(style)}` : null,
-			bg ? `--team-bg: ${bg}` : null
-		]
-			.filter(Boolean)
-			.join('; ');
+		return teamStyleVars(team);
 	}
 
 	/** The row whose Remove is armed. Only ever one, and never across a reload. */

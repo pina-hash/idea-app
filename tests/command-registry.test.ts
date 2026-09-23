@@ -103,6 +103,7 @@ describe('the registry itself', () => {
 		const tabs = sectionTabs('s-1', '/classroom');
 		for (const [id, tab] of [
 			['class.stream', 'class'],
+			['class.live', 'live'],
 			['class.people', 'people'],
 			['class.grades', 'grades'],
 			['class.duplicates', 'duplicates'],
@@ -140,7 +141,18 @@ describe('who gets what: the role filter, both directions', () => {
 		const manager = commandsFor(env({ role: 'manager', isStaff: true, handlers: ALL_HANDLERS }));
 		expect(manager.filter((c) => c.role === 'student').map((c) => c.id)).toEqual([]);
 		const managerOnly = manager.filter((c) => c.role === 'manager').map((c) => c.id);
-		for (const id of ['class.people', 'class.grades', 'class.duplicates', 'class.new-post', 'class.show-drafts', 'go.admin']) {
+		for (const id of [
+			'class.people',
+			'class.grades',
+			'class.duplicates',
+			'class.new-post',
+			'class.show-drafts',
+			'go.admin',
+			'class.live',
+			'live.projector',
+			'live.timer',
+			'live.pick'
+		]) {
 			expect(managerOnly).toContain(id);
 		}
 	});
@@ -166,9 +178,9 @@ describe('who gets what: the role filter, both directions', () => {
 		expect(managerRows.filter((c) => studentIds.has(c.id))).toHaveLength(0);
 		// Five: "Open to-do" joined the student set (ledger 0297, the to-do).
 		expect(studentRows.filter((c) => studentIds.has(c.id)).length).toBe(5);
-		// Six, where it was seven: `class.check-ins` left the manager set for the
-		// `any` notebook tab (ledger 0297).
-		expect(managerRows.filter((c) => managerIds.has(c.id)).length).toBe(6);
+		// Ten: `class.check-ins` left the manager set for the `any` notebook tab,
+		// and the Live tab brought four (ledger 0297).
+		expect(managerRows.filter((c) => managerIds.has(c.id)).length).toBe(10);
 	});
 
 	it('Courses and setup is a staff door on top of the role', () => {
