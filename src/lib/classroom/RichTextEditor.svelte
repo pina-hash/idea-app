@@ -861,6 +861,11 @@
 		border-radius: var(--radius-card);
 		box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
 	}
+	/* Under Space White a popover lifts on the theme's hard elevation rather
+	   than a blurred dark drop (ledger 0297); the dark theme keeps its own. */
+	:global(:root[data-theme='space-white']) .link-pop {
+		box-shadow: var(--elevation-2);
+	}
 	.link-input {
 		width: 15rem;
 		max-width: 52vw;

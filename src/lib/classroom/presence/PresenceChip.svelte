@@ -98,6 +98,13 @@
 	.pchip {
 		--pchip-viewing-ink: #4ebc7b;
 	}
+	/* UNDER SPACE WHITE THE FILL IS LIGHT, and the lightened teal above is the
+	   wrong direction for it (about 2.3:1 on the theme's light inset). The
+	   theme's own --teal is already that hue carried to a light ground, so the
+	   chip reads it straight (ledger 0297, package F1b). */
+	:global(:root[data-theme='space-white']) .pchip {
+		--pchip-viewing-ink: var(--teal);
+	}
 	.tone-working {
 		color: var(--green);
 		border-color: var(--green);

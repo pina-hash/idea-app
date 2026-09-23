@@ -113,6 +113,13 @@ body:has(.cr-root) {
 	position: relative;
 	z-index: 2;
 }
+/* UNDER SPACE WHITE THE MASTHEAD'S EDGE CARRIES THE STRUCTURE (ledger 0297,
+   package F1b). A light panel on a light page is 1.13:1, which a washed
+   projector does not keep, so the one line between the chrome and the class is
+   the load-bearing boundary -- the same edge the home page's header takes. */
+:root[data-theme='space-white'] .cr-root .app-header {
+	border-bottom-color: var(--boundary);
+}
 
 /* --- Typography -----------------------------------------------------------
    Orbitron is the page title and the brand mark ONLY. Below that: Rajdhani at
@@ -670,6 +677,13 @@ body:has(.cr-root) {
 	background: var(--surface-2);
 	color: var(--text-1);
 }
+/* THE OPEN LIST FOLLOWS THE THEME (ledger 0297, package F1b). `color-scheme:
+   dark` above is what paints the browser's own dropdown dark, and under Space
+   White it painted a dark list under a light select: the one surface of this
+   control no stylesheet reaches except through this property. */
+:root[data-theme='space-white'] .cr-root .cr-select {
+	color-scheme: light;
+}
 
 /* --- Drag to reorder: the painted half of $lib/classroom/sort-drag ---------
    The action paints `translateY` transforms on the rows a drag passes and
@@ -691,6 +705,11 @@ body:has(.cr-root) {
 	box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
 	background: var(--surface-2);
 	cursor: grabbing;
+}
+/* A row lifted over a light page takes the theme's hard elevation, not a
+   blurred drop; the dark theme keeps the shadow it was drawn with. */
+:root[data-theme='space-white'] .cr-root .is-sorting .is-dragging {
+	box-shadow: var(--elevation-2);
 }
 .cr-root .is-sorting,
 .cr-root .is-sorting * {

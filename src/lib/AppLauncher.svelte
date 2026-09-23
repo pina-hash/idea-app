@@ -749,13 +749,20 @@
 		/* NO ACCENT RULE, DELIBERATELY: brass is right for this card and brass is
 		   the shared default, so declaring it would only put a second copy of the
 		   default somewhere it can drift. What the notebook does declare is a
-		   TEXTURE, because paper is the one thing that room is actually about --
-		   ruled lines at the plate's own off-white (#fafaf7, --nb-bg on the light
-		   palette), 7px apart, at 2.5%. */
+		   TEXTURE, because ruled paper is the one thing that room is about --
+		   7px apart, at 2.5%.
+
+		   THE RULE'S INK QUOTES THE CLASSROOM NOW, NOT THE RETIRED PAPER PLATE
+		   (ledger 0297, package F1b). It was the light plate's own off-white
+		   (#fafaf7), and the notebook is moving inside the classroom, whose plate
+		   the light one no longer is. The lines take the classroom register's
+		   primary ink, `--text-1`, so they are the room's own writing color on
+		   every theme -- near-white rules on the dark card, near-black rules on
+		   Space White's light one -- and they never need a second value. */
 		--card-texture: repeating-linear-gradient(
 			0deg,
-			rgba(250, 250, 247, 0.025) 0px,
-			rgba(250, 250, 247, 0.025) 1px,
+			color-mix(in srgb, var(--text-1) 2.5%, transparent) 0px,
+			color-mix(in srgb, var(--text-1) 2.5%, transparent) 1px,
 			transparent 1px,
 			transparent 7px
 		);
@@ -956,7 +963,7 @@
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--amber);
-		border: 1px solid rgba(208, 128, 48, 0.55);
+		border: 1px solid color-mix(in srgb, var(--amber) 55%, transparent);
 		border-radius: 999px;
 		padding: 0.05rem 0.45rem;
 		white-space: nowrap;
@@ -1134,6 +1141,129 @@
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.62rem;
 		color: var(--dim);
+	}
+
+	/* ======================================================================
+	   UNDER SPACE WHITE: LIGHT CARDS, RE-PINNED INKS (ledger 0297, package
+	   F1b). Two treatments were measured before this one was chosen, on the
+	   theme's own grounds (card #f7f9f9, page #e8eceb, CTA hover #edf1f0):
+
+	   (a) LIGHT CARDS, each card's --acc-ink re-pinned for the light ground.
+	       Every identity as authored fails as text on the light card -- 1.12
+	       (Ledger) to 2.29 (Tournaments), FRC alone at 4.15 -- so the ink
+	       moves, LIGHTNESS ONLY, hue and saturation held to a tenth, to the
+	       BRIGHTEST value that clears 4.5 on the card, on its hover wash and on
+	       the CTA hover fill, 3:1 for the 75% edge against the page, and 3.0
+	       under the projector-washout model. Worst of the nine: 4.51 (FRC on
+	       its wash); washed 4.08 (FRC).
+	   (b) DARK INSTRUMENT PLATES: every card keeps its dark ground on the
+	       light page. Identity untouched (6.23 to 12.78:1 on the plate, washed
+	       3.95 to 7.64), and the plate reads 12.68:1 against the page.
+
+	   (a) SHIPS. (b) keeps thirteen dark rectangles with their glows on a page
+	   whose whole character is no glow and no dark block, and it needs a
+	   second copy of the dark token closure inside the cards, which is the
+	   drift the theme's own island block exists to avoid. What (a) costs is
+	   stated rather than hidden: at a lightness that carries text the greens
+	   converge (the tightest pair, Tournaments against Maps, falls from
+	   deltaE00 9.0 as authored to 3.5), so on this theme a card is told apart
+	   by its mark, its title and its 2px strip -- which keeps the identity
+	   pair at full brightness, because the strip is the brand and carries no
+	   word.
+
+	   Nothing here is a theme file's: the theme may not declare an identity
+	   token (tests/theme-tokens.test.ts), so the card re-pins its OWN ink,
+	   keyed on the attribute, exactly where its dark ink is declared. The
+	   default pair needs no line: --gold is already the theme's own ink.
+	   ====================================================================== */
+	:global(:root[data-theme='space-white']) .app-card {
+		/* No glow and no blur: the halo tokens go flat, and the icon's
+		   drop-shadow filter goes with them rather than filtering nothing. */
+		--acc-glow: transparent;
+		--acc-hover-glow: transparent;
+		/* The hover wash is laid over the CARD's own ground, not left
+		   transparent over the page. On the dark default the page is darker
+		   than the card and a see-through wash only adds contrast; here it is
+		   the other way round, and a 5% veil over #e8eceb took every card
+		   title under 4.5 on hover (measured: FRC 4.02, GAUNTLET 4.16). Mixed
+		   into --bg1 it is the same tint on the ground the inks were pinned
+		   against. */
+		--acc-wash: color-mix(in srgb, var(--acc-ink) 5%, var(--bg1));
+	}
+	:global(:root[data-theme='space-white']) .app-icon,
+	:global(:root[data-theme='space-white']) .app-icon.frc-icon :global(.frc-icon-img) {
+		filter: none;
+	}
+	:global(:root[data-theme='space-white']) a.app-card:hover .app-cta {
+		box-shadow: none;
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='gauntlet'],
+	:global(:root[data-theme='space-white']) .app-card[data-app='vanguard'] {
+		/* #00ff41, hsl(135.3 100% 50%): 5.03 on the card. */
+		--acc-ink: hsl(135.3 100% 24.5%);
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='frc'] {
+		/* #ed1c24, hsl(357.7 85.3% 52%): 4.90 on the card. FIRST red itself
+		   measures 4.15 here, so the ink moves six points, not sixteen. */
+		--acc-ink: hsl(357.7 85.3% 46%);
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='greenline'] {
+		/* #2ae57e, hsl(147 78.2% 53.1%): 5.20 on the card. */
+		--acc-ink: hsl(147 78.2% 26.5%);
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='coins'] {
+		/* #c8ff00, hsl(72.9 100% 50%): 5.31 on the card. */
+		--acc-ink: hsl(72.9 100% 22%);
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='tournaments'] {
+		/* #0fbe7a, hsl(156.7 85.4% 40.2%): 5.12 on the card. */
+		--acc-ink: hsl(156.7 85.4% 25.5%);
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='foundry'] {
+		/* #f6952f, hsl(30.8 91.7% 57.5%): 5.15 on the card. */
+		--acc-ink: hsl(30.8 91.7% 33%);
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='maps'] {
+		/* #40e3b1, hsl(161.6 74.4% 57.1%): 5.27 on the card. */
+		--acc-ink: hsl(161.6 74.4% 26.5%);
+	}
+	/* GREENLINE's mark draws its start line and its lapping machine in a
+	   literal near-white (#eafff3, the game's signature highlight), which on
+	   the light card is 1.05:1 -- the icon read as an empty ring. Here they
+	   take the card's own re-pinned ink, as the track already does; a CSS
+	   `stroke` outranks the presentation attribute, so the mark itself is not
+	   edited and the dark card paints exactly what it did. */
+	:global(:root[data-theme='space-white']) .app-card[data-app='greenline'] .app-icon :global(:is(.gl-line, .gl-trail, .gl-marker)) {
+		stroke: currentColor;
+	}
+	:global(:root[data-theme='space-white']) .app-card[data-app='dashboard'] {
+		/* #78b870, hsl(113.3 33.6% 58%): 5.39 on the card. */
+		--acc-ink: hsl(113.3 33.6% 33.5%);
+	}
+	/* The bar's and the tools' own controls: their outer edge is the theme's
+	   load-bearing boundary, and the neon hover and pin tints become the
+	   theme's inks. */
+	:global(:root[data-theme='space-white']) .bar-btn,
+	:global(:root[data-theme='space-white']) .bar-select,
+	:global(:root[data-theme='space-white']) .app-tools button {
+		border-color: var(--boundary);
+	}
+	:global(:root[data-theme='space-white']) .bar-btn:hover,
+	:global(:root[data-theme='space-white']) .bar-btn.active,
+	:global(:root[data-theme='space-white']) .bar-select:hover,
+	:global(:root[data-theme='space-white']) .bar-select:focus-visible,
+	:global(:root[data-theme='space-white']) .app-tools button:hover {
+		border-color: var(--green);
+	}
+	:global(:root[data-theme='space-white']) .app-tools .pin.pinned {
+		border-color: var(--gold);
+		text-shadow: none;
+	}
+	:global(:root[data-theme='space-white']) .pin-mark {
+		text-shadow: none;
+	}
+	:global(:root[data-theme='space-white']) .legacy-badge {
+		border-color: color-mix(in srgb, var(--amber) 55%, transparent);
 	}
 	@media (max-width: 768px) {
 		.launcher {

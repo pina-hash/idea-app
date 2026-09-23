@@ -80,7 +80,7 @@ export const SITE_THEME_LABELS: Record<SiteTheme, string> = {
 export const SITE_THEME_NOTES: Record<SiteTheme, string> = {
 	idea: 'The standard green-metal palette',
 	matrix: 'Black ground, phosphor green, falling code',
-	'space-white': 'A white console for the projector and bright rooms, on classroom pages'
+	'space-white': 'A white console for the projector and bright rooms, on the home and classroom pages'
 };
 
 /**
@@ -124,14 +124,22 @@ export function themeColorFor(attr: SiteThemeAttr | undefined): string {
  * than a light theme it was never checked against.
  *
  * THE LIST IS WHAT HAS BEEN MEASURED UNDER SPACE WHITE, AND NO MORE (ledger
- * 0297, packages F1a and F4a). The classroom and the public reference viewer,
- * which mount the same `.cr-root` surfaces, and the notebook, which lives
- * inside the classroom now and follows the site theme (F4a). `/notebook`
- * itself only redirects into `/classroom`, so its entry decides nothing a page
- * paints; it is listed so the old address answers exactly as its new one
- * would. The home page is the brief's scope too and is F1b's: its hero and
- * launcher paint literal dark values a token theme cannot reach. Adding it is
- * one entry here plus its line in the test.
+ * 0297). The classroom and the public reference viewer, which mount the same
+ * `.cr-root` surfaces (package F1a); the notebook, which lives inside the
+ * classroom now and follows the site theme (package F4a) -- `/notebook` itself
+ * only redirects into `/classroom`, so its entry decides nothing a page paints
+ * and is listed so the old address answers exactly as its new one would; and
+ * the HOME PAGE (package F1b), once its header, hero, launcher cards and class
+ * feed were swept off their literal dark values. Adding a route is one entry
+ * here plus its line in the test.
+ *
+ * THE HOME PAGE IS AN EXACT PATH, NEVER A PREFIX, AND THAT IS WHY IT HAS A
+ * LIST OF ITS OWN. Every route in the site starts with `/`, so `/` in the
+ * prefix list is one careless edit away from putting a light theme on FRC's
+ * paper and FSP's navy -- the rooms this whole scope exists to keep it off.
+ * `THEME_SCOPE_EXACT` matches the one string and nothing under it, and
+ * `/archive`, which shares the home page's `.legacy-index` stylesheet, stays
+ * out until somebody measures it.
  * ======================================================================== */
 
 /** The themes whose attribute is written only on in-scope routes. */
@@ -139,6 +147,9 @@ export const SCOPED_SITE_THEMES: readonly SiteTheme[] = ['space-white'];
 
 /** Production route prefixes a scoped theme covers: the prefix itself or anything under it. */
 export const THEME_SCOPE_PREFIXES: readonly string[] = ['/classroom', '/reference', '/notebook'];
+
+/** Production paths a scoped theme covers EXACTLY, with nothing under them: the home page. */
+export const THEME_SCOPE_EXACT: readonly string[] = ['/'];
 
 /**
  * THE `/dev` HARNESSES THAT STAND IN FOR THOSE ROUTES, matched as a raw
@@ -171,13 +182,21 @@ export const THEME_SCOPE_DEV_PREFIXES: readonly string[] = [
 	// The notebook's harnesses (ledger 0297, package F4a): the notebook follows
 	// the site theme inside the classroom now, so each is measured under it.
 	'/dev/notebook',
-	'/dev/navigation-room-nb'
+	'/dev/navigation-room-nb',
+	/* The home page's harnesses (package F1b): the REAL `src/routes/+page.svelte`
+	   (/dev/home-order), its class feed inside the page's own `.legacy-index`
+	   wrapper (/dev/home-feed), and the emblem on its grounds
+	   (/dev/animated-logo). */
+	'/dev/home-order',
+	'/dev/home-feed',
+	'/dev/animated-logo'
 ];
 
 /** Is this path one a scoped theme may paint? */
 export function themeInScope(pathname: string): boolean {
 	const p = pathname || '/';
 	if (p.startsWith('/dev/')) return THEME_SCOPE_DEV_PREFIXES.some((d) => p.startsWith(d));
+	if (THEME_SCOPE_EXACT.includes(p)) return true;
 	return THEME_SCOPE_PREFIXES.some((x) => p === x || p.startsWith(x + '/'));
 }
 
@@ -248,7 +267,7 @@ export const THEME_BOOT_MARKER = '<!--idea-theme-boot-->';
  * still does. A harness that fakes claims and is not listed simply gets no
  * pre-paint in dev, which is the pre-0297 behaviour and paints nothing wrong.
  */
-export const THEME_BOOT_HARNESSES: readonly string[] = ['/dev/themes', '/dev/theme-switch'];
+export const THEME_BOOT_HARNESSES: readonly string[] = ['/dev/themes', '/dev/theme-switch', '/dev/home-order'];
 
 /** Whether a listed harness is showing its faked session for this request. */
 export function themeBootHarnessSession(pathname: string, signedOutParam: string | null): boolean {

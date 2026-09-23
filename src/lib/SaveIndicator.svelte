@@ -139,6 +139,11 @@
 		letter-spacing: 0.05em;
 		cursor: pointer;
 	}
+	/* A control's outer edge is load-bearing, and on Space White's light
+	   ground the decorative hairline reads about 1.4:1 (ledger 0297). */
+	:global(:root[data-theme='space-white']) .save-ind-btn {
+		border-color: var(--boundary);
+	}
 	.save-ind-btn:hover:not(:disabled) {
 		border-color: var(--green);
 		color: var(--green);

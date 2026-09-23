@@ -3054,6 +3054,11 @@
 		border-radius: var(--radius-card);
 		box-shadow: 0 10px 26px rgb(0 0 0 / 45%);
 	}
+	/* Under Space White a popover lifts on the theme's hard elevation rather
+	   than a blurred dark drop (ledger 0297); the dark theme keeps its own. */
+	:global(:root[data-theme='space-white']) .menu {
+		box-shadow: var(--elevation-2);
+	}
 	.menu button,
 	.menu a {
 		appearance: none;

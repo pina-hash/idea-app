@@ -38,6 +38,7 @@ import { fileURLToPath } from 'node:url';
 import {
 	SCOPED_SITE_THEMES,
 	SITE_THEMES,
+	THEME_SCOPE_EXACT,
 	THEME_SCOPE_PREFIXES,
 	themeAttrFor,
 	themeInScope,
@@ -670,6 +671,45 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 		// A near-miss spelling is not a prefix match.
 		expect(themeInScope('/classroomx')).toBe(false);
 		expect(themeInScope('/notebookx')).toBe(false);
+	});
+
+	/* THE HOME PAGE IS IN SCOPE AS ONE EXACT PATH (ledger 0297, package F1b),
+	   and this is the assertion that keeps it one. Every route in the site
+	   begins with `/`, so the failure it guards against is the careless edit
+	   that puts `/` in the PREFIX list -- which would reach FRC's paper and
+	   FSP's navy in one line and redden nothing else in this file, because the
+	   rooms-out sweep above would still read "out" for any room whose path the
+	   prefix matcher happened to reject. Both directions, on the same function:
+	   `/` is in, and nothing that merely starts with it is. */
+	it('the home page is in scope as an EXACT path, and nothing under it rides in with it', () => {
+		// IN: the page itself, for a signed-in visitor, and its harnesses.
+		expect(THEME_SCOPE_EXACT).toContain('/');
+		expect(themeInScope('/')).toBe(true);
+		for (const t of SCOPED_SITE_THEMES) expect(themeAttrFor(t, '/', true), `${t} on /`).toBe(t);
+		expect(themeInScope('/dev/home-order')).toBe(true);
+		// Signed out is still the default, on the home page as everywhere.
+		for (const t of SCOPED_SITE_THEMES) expect(themeAttrFor(t, '/', false), `${t} on / signed out`).toBeUndefined();
+		// OUT: every path under `/` that is not itself in scope, the rooms first.
+		const underRoot = ['/frc', '/fsp', '/fsp/live', '/archive', '/foundry', '/gauntlet', '/index.html', '//', '/209h', '/coins/'];
+		for (const p of underRoot) {
+			expect(themeInScope(p), p).toBe(false);
+			for (const t of SCOPED_SITE_THEMES) expect(themeAttrFor(t, p, true), `${t} on ${p}`).toBeUndefined();
+		}
+		// And the structural half: `/` is never a PREFIX, and every exact path is
+		// a path rather than a pattern.
+		expect(THEME_SCOPE_PREFIXES).not.toContain('/');
+		for (const x of THEME_SCOPE_EXACT) expect(x).toMatch(/^\/[a-z0-9-]*$/);
+	});
+
+	it('POSITIVE CONTROL: the same sweep catches `/` put in the PREFIX list', () => {
+		/* The matcher is re-run by hand with `/` added to the prefixes, which is
+		   the one-line edit the test above exists to refuse; it must put FRC in
+		   scope, or the refusal above is not what keeps FRC out. The mutant is a
+		   local copy of the rule, not a file edit. */
+		const mutant = (p: string) => [...THEME_SCOPE_PREFIXES, '/'].some((x) => p === x || p.startsWith(x === '/' ? x : x + '/'));
+		expect(mutant('/frc')).toBe(true);
+		expect(mutant('/fsp/live')).toBe(true);
+		expect(themeInScope('/frc')).toBe(false);
 	});
 
 	it('an UNSCOPED theme is not route-limited: Matrix paints every room it always did', () => {
