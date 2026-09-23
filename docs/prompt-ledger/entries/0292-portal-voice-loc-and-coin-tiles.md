@@ -80,3 +80,15 @@
   `ideacad` card landed on 2026-09-13, the day after that spec was last
   measured. REPORTED AS A STANDING GAP rather than fixed here: the specs are
   not this lane's.
+  MERGED `main` (1ec2f640 -> bf04a223) INTO THE LANE, clean, no conflicts, and
+  main already carried this bundle's first four commits through integration.
+  The merged tree holds the svelte-check baseline (0/37/20) and both counts
+  regions agree. The suite on it is 548 files, 10,491 tests, ONE failure --
+  `tests/identity-style-shared.test.ts`, WHICH IS NOT THIS LANE'S AND IS RED ON
+  `main` ITSELF. Its `before` is `git show origin/main:src/lib/profile.ts`, so
+  it asserts two presets differ from main and could only pass while its own
+  change was unmerged; `bf04a223` merged it and `moved` is now []. Measured:
+  gear was #3b6e8f at 1ec2f640 and is #4785ad on main and in the tree. NOT
+  FIXED HERE (another lane's file, and the repair is a design decision), but it
+  will redden every lane's suite until it is, and a standing failure is what
+  hides the next real one.
