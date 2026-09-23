@@ -260,6 +260,8 @@
 		.ic-logo .cube { width: 30px; height: 30px; }
 		.links .wide { display: none; }
 		.new .accept { flex: 1 1 auto; }
+		/* Naming on a phone: the name on its own row, then Create and open with Cancel beside it rather than under it. */
+		.new-form label { flex-basis: 100%; }
 		.sort { justify-self: start; }
 		.views { justify-self: stretch; }
 		.views button { flex: 1 1 0; }
