@@ -34,5 +34,6 @@
 	li { padding: 6px 10px; border: 1px dashed var(--boundary); border-radius: 4px; color: var(--text-2); }
 	li.built { border-style: solid; color: var(--text-1); background: var(--surface-2); }
 	li.newest { border-color: var(--green); color: var(--green); }
-	footer { min-width: 0; }
+	/* The root layout's Voice and Report controls float in the bottom corners of every page; the workspace lifts them above its own footer, and the slider has to sit clear of them the same way. Here it sits above them. */
+	footer { min-width: 0; padding-bottom: 60px; }
 </style>

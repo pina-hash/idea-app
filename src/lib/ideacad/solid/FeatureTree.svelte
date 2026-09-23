@@ -368,7 +368,7 @@
 <style>
 	.tree{display:flex;flex-direction:column;min-height:0;height:100%;font-family:Rajdhani,sans-serif;color:var(--text-1)}h2{margin:0;padding:8px 10px;font-size:17px;border-bottom:1px solid var(--hairline);flex-shrink:0}h2 .count{color:var(--text-2);font:12px 'Share Tech Mono',monospace;margin-left:6px}
 	.scroll{overflow:auto;min-height:0;flex:1 1 auto;padding:4px}
-	ul,ol{list-style:none;margin:0;padding:0}.refs{padding-bottom:4px;margin-bottom:4px;border-bottom:1px solid var(--hairline)}
+	ul,ol{list-style:none;margin:0;padding:0}/* A folded list is not rendered, and says so to every descendant: `hidden` alone leaves a row's own computed style reading visible. */ol.children[hidden]{visibility:hidden}.refs{padding-bottom:4px;margin-bottom:4px;border-bottom:1px solid var(--hairline)}
 	li{border-radius:4px;position:relative}li.selected>.line{background:var(--green-tint,color-mix(in srgb,var(--green) 12%,var(--surface-1)))}li.editing>.line{box-shadow:inset var(--ic-rail,3px) 0 0 var(--green)}li.linked>.line{box-shadow:inset var(--ic-rail,3px) 0 0 var(--cyan);background:var(--surface-2)}li.dragging{opacity:.5}
 	/* WHERE A DROP OR THE BAR WILL LAND: a line drawn over the edge between two rows, so marking it moves nothing. */
 	li.drop-before::before,li.drop-after::after,li.bar-before::before,li.bar-after::after{content:'';position:absolute;left:0;right:0;height:3px;border-radius:2px;background:var(--green);pointer-events:none;z-index:1}li.drop-before::before,li.bar-before::before{top:-2px}li.drop-after::after,li.bar-after::after{bottom:-2px}li.drop-refused::before,li.drop-refused::after{background:var(--ic-fail-ink,#e07474)}li.bar-before::before,li.bar-after::after{background:var(--cyan)}
