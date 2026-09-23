@@ -48,10 +48,25 @@
 	into a console that flags and grades, from a surface whose whole point is
 	reading; the way back is the banner's own link to the grid this arrived from.
 -->
+<svelte:head>
+	<title>{data.student.display_name ?? data.student.email} · Notebook // IDEA Classroom</title>
+</svelte:head>
+
+<!--
+	THE BODY OF THE CLASSROOM'S APPLICATION FRAME, AND IT SCROLLS (ledger 0297).
+	This place takes the `console` measure, so above 1024px `.cr-root` is the
+	viewport and this element gets whatever the chrome leaves. Everything here is
+	page-flow -- the back strip, the read-only notebook and the staff Deleted
+	section below it -- so the body is the one scroll container, rather than a
+	viewport frame around content that runs past it.
+-->
+<div class="cr-app-body nb-read-page" data-testid="nb-read-page">
 <StudentReviewBackStrip
 	displayName={data.student.display_name}
 	email={data.student.email}
 	sectionId={data.fromSectionId}
+	backHref={data.backHref}
+	backLabel={data.notebookReturnTo.length > 1 ? 'Class notebook' : 'Section review'}
 />
 
 {#if data.student.user_id === null}
@@ -60,12 +75,11 @@
 
 <!--
 	`ownsPage={false}`: NOT THE WHOLE PAGE. A back strip sits above this room and
-	the staff Deleted section sits below it, so the application frame `masthead`
-	would otherwise imply is wrong here. Measured with the frame on at 1440:
-	`.nb-root` was a 900px viewport box starting 127px down the page, inside a
-	1463px document, with the Deleted section at y=1051 reachable only by
-	scrolling past a full-viewport frame whose panes were scrolling too. Page
-	flow is the right shape for a surface with chrome on both sides of it.
+	the staff Deleted section sits below it, so the notebook flows inside the
+	scrolling body above rather than taking the frame. Measured with a frame on
+	at 1440 (before ledger 0297): `.nb-root` was a 900px viewport box starting
+	127px down the page, with the Deleted section reachable only by scrolling
+	past a full-viewport frame whose panes were scrolling too.
 -->
 <NotebookView
 	entries={data.entries}
@@ -77,7 +91,6 @@
 	ownsPage={false}
 	uploadReady={false}
 	readOnly
-	homeHref="/notebook/review"
 />
 
 <!--
@@ -100,3 +113,13 @@
 	viewerId={data.viewerId}
 	restoreEntry={data.canRestore ? restoreEntry : undefined}
 />
+</div>
+
+<style>
+	@media (min-width: 1024px) {
+		.nb-read-page {
+			overflow-y: auto;
+			overscroll-behavior: contain;
+		}
+	}
+</style>

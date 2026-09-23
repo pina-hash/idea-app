@@ -82,40 +82,25 @@
 	/* --- Transitions --- */
 	--ease: 0.2s ease; /* @kind other */
 
-	/* --- Notebook editorial room (--nb-*) ---------------------------------
-	   Effects for the notebook's light skin (see colors.css for the palette
-	   and .nb-root in src/lib/notebook/notebook-theme.css for the scope).
-	   Deliberately the OPPOSITE move from the machined bevel: paper casts a
-	   soft ambient shadow instead of reading as pressed metal, and corners
-	   are generous rather than technical. Nothing outside .nb-root reads
-	   these. ------------------------------------------------------------- */
-	--nb-shadow: 0 1px 2px rgba(38, 34, 27, 0.05), 0 10px 28px rgba(38, 34, 27, 0.06); /* @kind other */
 	/* THE TWO NOTEBOOK RADII ARE GONE. --nb-radius (10px) and
 	   --nb-radius-control (6px) were the room's own corner scale; the notebook
 	   reads --radius-card (4px) and --radius-control (3px) now, the same two the
 	   classroom does. This is a real visual change -- 47 corners tighten -- and
 	   it is the point: a shared radius is most of what makes two rooms read as
-	   one product. The soft paper SHADOW below stays notebook-only, because the
+	   one product. The card SHADOW below stays notebook-only, because the
 	   design system has no --shadow-* family for it to join. */
 }
 
-/* The DEFAULT palette's counterpart (see the DEFAULT block in colors.css). A
-   shadow tinted with the light theme's ink is invisible on a dark ground, so
-   the raised card would read as flat: this is a true shade instead, deeper and
-   tighter, doing the lifting the paper shadow does on white. Radii are
-   unchanged -- the room's proportions do not depend on the light.
-
-   ONE SELECTOR NOW, where this used to be a media query plus a matching
-   `[data-nb-theme='dark']` block kept in step with it. The default plate is the
-   console register unconditionally, so prefers-color-scheme no longer selects
-   anything in this room. */
-.nb-root:not([data-nb-theme]) {
+/* THE NOTEBOOK'S CARD SHADOW (--nb-shadow), on the room and following the site
+   theme (ledger 0297; see the notebook block in colors.css). A true shade on
+   the two dark themes -- a shadow tinted with ink is invisible on a dark
+   ground, so the raised card would read as flat -- and NONE under Space White,
+   which carries structure with lines and allows no blur anywhere: a card there
+   is its surface step and its hairline, exactly as the classroom's are. Nothing
+   outside .nb-root reads this. */
+.nb-root {
 	--nb-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 28px rgba(0, 0, 0, 0.42); /* @kind other */
 }
-
-/* The IDEA palette takes the same true shade: a shadow tinted with either
-   theme's ink is invisible on a dark ground. Radii are shared by all three --
-   the room's proportions do not depend on the light. */
-.nb-root[data-nb-theme='idea'] {
-	--nb-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 28px rgba(0, 0, 0, 0.42); /* @kind other */
+:root[data-theme='space-white'] .nb-root {
+	--nb-shadow: 0 0 0 transparent; /* @kind other */
 }

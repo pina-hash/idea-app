@@ -106,7 +106,8 @@ describe('the registry itself', () => {
 			['class.people', 'people'],
 			['class.grades', 'grades'],
 			['class.duplicates', 'duplicates'],
-			['class.check-ins', 'check-ins']
+			// ledger 0297: the Check-ins tab became the class's Notebook tab.
+			['class.notebook', 'notebook']
 		] as const) {
 			const href = commandById(id)!.href!(env({ role: 'manager' }));
 			expect(href, id).toBe(tabs.find((t) => t.id === tab)!.href);
@@ -139,9 +140,21 @@ describe('who gets what: the role filter, both directions', () => {
 		const manager = commandsFor(env({ role: 'manager', isStaff: true, handlers: ALL_HANDLERS }));
 		expect(manager.filter((c) => c.role === 'student').map((c) => c.id)).toEqual([]);
 		const managerOnly = manager.filter((c) => c.role === 'manager').map((c) => c.id);
-		for (const id of ['class.people', 'class.grades', 'class.duplicates', 'class.check-ins', 'class.new-post', 'class.show-drafts', 'go.admin']) {
+		for (const id of ['class.people', 'class.grades', 'class.duplicates', 'class.new-post', 'class.show-drafts', 'go.admin']) {
 			expect(managerOnly).toContain(id);
 		}
+	});
+
+	// GENERALIZED (ledger 0297): `class.check-ins` was a manager's departure to
+	// the review console. The class's Notebook tab replaced it and every member
+	// of the class has one -- the student's own notebook, or the manager's
+	// review -- so the command is `any`, and both roles are offered it.
+	it("a class's Notebook tab is offered to both roles, as the tab is", () => {
+		const notebook = commandById('class.notebook')!;
+		expect(notebook.role).toBe('any');
+		expect(commandsFor(env({ role: 'student', handlers: ALL_HANDLERS }))).toContain(notebook);
+		expect(commandsFor(env({ role: 'manager', handlers: ALL_HANDLERS }))).toContain(notebook);
+		expect(commandById('class.check-ins')).toBeNull();
 	});
 
 	it('the palette rows follow the same rule: counts on one fixture, both roles', () => {
@@ -152,7 +165,9 @@ describe('who gets what: the role filter, both directions', () => {
 		expect(studentRows.filter((c) => managerIds.has(c.id))).toHaveLength(0);
 		expect(managerRows.filter((c) => studentIds.has(c.id))).toHaveLength(0);
 		expect(studentRows.filter((c) => studentIds.has(c.id)).length).toBe(4);
-		expect(managerRows.filter((c) => managerIds.has(c.id)).length).toBe(7);
+		// Six, where it was seven: `class.check-ins` left the manager set for the
+		// `any` notebook tab (ledger 0297).
+		expect(managerRows.filter((c) => managerIds.has(c.id)).length).toBe(6);
 	});
 
 	it('Courses and setup is a staff door on top of the role', () => {
@@ -221,6 +236,15 @@ describe('where: context, handlers and the legend', () => {
 		// A student's notebook opened from the console answers none of its keys.
 		expect(surfaceFor('/notebook/review/student/ana%40boscotech.net')).toBe('notebook');
 		expect(surfaceFor('/notebook')).toBe('notebook');
+		// Inside the classroom (ledger 0297): the review console and the whole
+		// notebook by address, and a class's own Notebook tab by ROLE, because
+		// the one URL is the review for a manager and the notebook for a student.
+		expect(surfaceFor('/classroom/notebook/review')).toBe('notebook-review');
+		expect(surfaceFor('/classroom/notebook/review/student/ana%40boscotech.net')).toBe('notebook');
+		expect(surfaceFor('/classroom/notebook')).toBe('notebook');
+		expect(surfaceFor('/classroom/s-1/notebook', '/classroom', 'manager')).toBe('notebook-review');
+		expect(surfaceFor('/classroom/s-1/notebook', '/classroom', 'student')).toBe('notebook');
+		expect(surfaceFor('/classroom/s-1/notebook')).toBe('notebook');
 		expect(surfaceFor('/dev/palette/s-1/item/i-1/grade', '/dev/palette')).toBe('grading');
 	});
 });
@@ -361,7 +385,7 @@ describe('the palette rows', () => {
 		expect(searchPalette('@ana', student)).toEqual([]);
 		// A student's door is their notebook in this class, not their address.
 		expect(manager.find((e) => e.kind === 'student')!.href).toBe(
-			'/notebook/review/student/ana%40boscotech.net?section=s-1'
+			'/classroom/notebook/review/student/ana%40boscotech.net?section=s-1'
 		);
 	});
 

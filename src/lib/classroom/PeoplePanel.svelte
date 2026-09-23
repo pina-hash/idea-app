@@ -24,6 +24,7 @@
 		type ReviewTransports
 	} from '$lib/notebook-review';
 	import { formatSectionLabel } from '$lib/section-label';
+	import { classNotebookHref } from '$lib/classroom/nav';
 	import Pending from '$lib/Pending.svelte';
 	import {
 		classEmailList,
@@ -1522,7 +1523,7 @@
 				{#if notebook.sessions === 0}
 					<p class="note empty-state" data-testid="nb-compliance-empty">
 						No notebook check-ins are scheduled for this class yet.
-						<a href={`/notebook/review?section=${section.id}`}>Add one in the review console</a>.
+						<a href={`${classNotebookHref(section.id)}?mode=checkins`}>Add one on the Notebook tab</a>.
 					</p>
 				{:else}
 					<p class="nb-line" data-testid="nb-compliance-line">
@@ -1566,7 +1567,7 @@
 						<p class="note" data-testid="nb-all-clear">Everyone is up to date on every check-in.</p>
 					{/if}
 					<p class="note">
-						<a href={`/notebook/review?section=${section.id}`}>Open the review console</a>
+						<a href={classNotebookHref(section.id)}>Open the Notebook tab</a>
 						to read entries, flag work and grade the Documentation Check.
 					</p>
 				{/if}

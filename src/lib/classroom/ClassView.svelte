@@ -71,9 +71,7 @@
 		checkInStatusLabel,
 		checkInTone,
 		streamCheckIns,
-		outstandingBadge,
 		mergeCheckIns,
-		outstandingCheckIns,
 		type ClassCheckIn
 	} from '$lib/classroom/class-check-ins';
 	import { flagReasonLabel } from '$lib/notebook';
@@ -149,6 +147,11 @@
 		basePath?: string;
 		notebookHref?: string | null;
 		checkIns?: ClassCheckIn[];
+		/**
+		 * Unread here since ledger 0297: the count moved onto the class's Notebook
+		 * tab, which the classroom layout builds from the same load. Kept so every
+		 * mount that hands it in still types.
+		 */
 		sectionOutstanding?: number | null;
 		/**
 		 * The CALLER'S OWN standing on each assignment, keyed by item id. Empty for
@@ -625,10 +628,6 @@
 				mergeCheckIns(groupItems, shownCheckIns)
 			: groupItems.map((item) => ({ kind: 'item' as const, key: `item:${item.id}`, item }));
 	}
-
-	const outstanding = $derived(
-		outstandingBadge(canManage ? sectionOutstanding : outstandingCheckIns(checkIns))
-	);
 
 	/** With nothing filed and no units, the single group needs no heading at all. */
 	const bare = $derived(groups.length === 1 && groups[0].id === UNFILED_GROUP_ID && !orderedUnits.length);
@@ -1744,18 +1743,17 @@
 	</header>
 
 	<!--
-		ONE ACTIONS ROW: what you can DO from this pane, in one place.
+		ONE ACTIONS ROW: what a manager can DO from this pane, in one place.
 
-		The notebook link used to sit at the far end of the meta line, competing
-		with a string that truncates -- a link squeezed by an ellipsis is a link
-		that moves as the class name changes. It is a destination, not metadata,
-		so it reads here beside the other things this pane can take you to, and
-		the meta line gets the whole width to truncate into.
-
-		The row renders for a student too (their own notebook is the one thing in
-		it), which is why it is not inside the `editable` branch.
+		THE NOTEBOOK LINK LEFT THIS ROW (ledger 0297). It was "My notebook" (or
+		"Notebook" for a manager) with a bare count beside it, and it left the
+		classroom for a separate app. The notebook is the class's own Notebook tab
+		now, in the tab bar above this pane for students and managers alike, and
+		the count sits on the tab with its word -- so this row is a manager's
+		tools and nothing else, and a student's class page gives the row back.
+		`notebookHref` still drives each check-in row's link below.
 	-->
-	{#if editable || notebookHref}
+	{#if editable}
 		<div class="pane-tools" data-testid="pane-tools">
 			{#if editable && onCompose}
 				<button
@@ -1778,20 +1776,6 @@
 				>
 					{unitsOpen ? 'Close units' : orderedUnits.length ? `Units (${orderedUnits.length})` : 'Add units'}
 				</button>
-			{/if}
-			{#if notebookHref}
-				<a class="manage-link" href={notebookHref} data-testid="class-notebook-link">
-					{canManage ? 'Notebook' : 'My notebook'}
-					{#if outstanding !== null}
-						<span
-							class="outstanding-badge"
-							data-testid="notebook-outstanding"
-							title={canManage
-								? 'Check-ins this class is behind on'
-								: 'Check-ins that still need something from you'}>{outstanding}</span
-						>
-					{/if}
-				</a>
 			{/if}
 		</div>
 	{/if}
@@ -2365,25 +2349,6 @@
 	.pane-code {
 		color: var(--cyan);
 	}
-	/* The notebook link, now a peer of the buttons in the actions row rather
-	   than the last thing on a truncating meta line. `margin-left: auto` puts it
-	   at the far end of the row, which is where a destination belongs beside
-	   two things that open panels. */
-	.manage-link {
-		/* 17.4px measured. A student's own way into their notebook from the
-		   class page, so it takes the floor (IDEA_INTERFACE_STANDARDS 10). */
-		display: inline-flex;
-		align-items: center;
-		min-height: 44px;
-		flex: none;
-		margin-left: auto;
-		align-self: center;
-		color: var(--gold);
-		font-family: var(--font-mono);
-		font-size: 0.68rem;
-		white-space: nowrap;
-	}
-
 	/* --- The actions row ---------------------------------------------------
 	   What used to be two full cards holding one button each. A whole step out
 	   from the header above it and from the content below it, so it reads as
@@ -2396,9 +2361,9 @@
 		margin-bottom: var(--space-4);
 	}
 	/* Both classes, per the `.cr-root .btn.tiny` note on `.group-bar` below.
-	   These measured 24px beside a `.manage-link` that had already taken the
-	   floor with its own comment, so one row carried two different answers to
-	   the same question. New post and Units are this pane's primary actions. */
+	   These measured 24px beside a notebook link that had already taken the
+	   floor, so one row carried two different answers to the same question.
+	   New post and Units are this pane's primary actions. */
 	.pane-tools .btn,
 	.pane-tools .btn.tiny {
 		min-height: 44px;
@@ -2482,18 +2447,6 @@
 	}
 	.bulk-bar .danger:hover:not(:disabled) {
 		color: var(--crimson);
-	}
-	.outstanding-badge {
-		display: inline-block;
-		margin-left: var(--space-1);
-		min-width: 1.05rem;
-		text-align: center;
-		font-family: var(--font-mono);
-		font-size: 0.62rem;
-		color: var(--surface-0);
-		background: var(--gold);
-		border-radius: 999px;
-		padding: 0.02rem 0.32rem;
 	}
 	.note {
 		color: var(--text-2);

@@ -152,7 +152,7 @@
 	);
 	const paletteEnv = $derived({
 		role: paletteRole,
-		surface: surfaceFor(page.url.pathname, basePath),
+		surface: surfaceFor(page.url.pathname, basePath, paletteRole),
 		sectionId: currentSectionId,
 		itemId: loc.itemId,
 		itemKind: loc.itemId ? (palette?.items.find((i) => i.id === loc.itemId)?.kind ?? null) : null,
@@ -412,7 +412,9 @@
 				href={t.href}
 				data-testid="section-tab-{t.id}"
 			>
-				{t.label}{#if t.external}<span class="sec-tab-out" aria-hidden="true">&rsaquo;</span>{/if}
+				{t.label}{#if t.count}<span class="sec-tab-count" data-testid="section-tab-{t.id}-count"
+						>{t.count.count} {t.count.word}</span
+					>{/if}{#if t.external}<span class="sec-tab-out" aria-hidden="true">&rsaquo;</span>{/if}
 			</a>
 		{/each}
 	</nav>
@@ -754,6 +756,17 @@
 	   the label was not already going to cost it. */
 	.sec-tab-out {
 		margin-left: 0.3rem;
+	}
+	/* THE NOTEBOOK TAB'S COUNT (ledger 0297): the number and its word, in the
+	   tab's own ink on a pinned status fill -- never a bare digit and never the
+	   hue alone. It reads the site role tokens, so it follows the theme. */
+	.sec-tab-count {
+		margin-left: 0.45rem;
+		padding: 0.05rem 0.4rem;
+		border-radius: var(--radius-control);
+		background: var(--status-warn-fill);
+		color: var(--text-1);
+		white-space: nowrap;
 	}
 
 	/* NO NAV-COLLAPSE TOGGLE BELOW THE SPLIT'S OWN BREAKPOINT (split.css's

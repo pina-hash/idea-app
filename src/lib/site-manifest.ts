@@ -109,11 +109,18 @@ export const APPS: SiteApp[] = [
 		id: 'notebook',
 		label: 'Notebook',
 		prefixes: [
+			// `/notebook` is a redirect now (ledger 0297); the notebook's own
+			// routes live inside the classroom, and are claimed HERE rather than
+			// by the classroom's prefix below because this entry is matched first.
 			'src/routes/notebook/',
+			'src/routes/classroom/notebook/',
+			'src/routes/classroom/[sectionId]/notebook/',
 			'src/lib/notebook/',
 			'src/lib/notebook.ts',
 			'src/lib/notebook-review.ts',
 			'src/lib/notebook-documentation-check.ts',
+			'src/lib/server/notebook-student.ts',
+			'src/lib/server/notebook-review-console.ts',
 			'src/routes/api/notebook/',
 			'src/routes/dev/notebook/',
 			'src/routes/dev/notebook-review/'

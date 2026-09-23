@@ -55,8 +55,13 @@
 	let notice = $state<string | null>(null);
 	/** Set on teardown so an in-flight start() cannot attach a live stream. */
 	let closed = false;
+	let dialogEl = $state<HTMLDialogElement | null>(null);
 
 	onMount(() => {
+		/* THE TOP LAYER, NOT A z-index (ledger 0297): see PhotoCorrector. A fixed
+		   div at z-index 1000 sat under the classroom's header and under the
+		   site's floating Voice control, which covered this Cancel at 375. */
+		dialogEl?.showModal();
 		void start('environment');
 	});
 
@@ -128,17 +133,19 @@
 		void start(facing === 'environment' ? 'user' : 'environment');
 	}
 
-	function onKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
-			e.preventDefault();
-			onCancel();
-		}
+	/** Escape is the dialog's `cancel`: prevented, and answered as Cancel. */
+	function onDialogCancel(e: Event) {
+		e.preventDefault();
+		onCancel();
 	}
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
-<div class="cc-overlay" role="dialog" aria-modal="true" aria-label="Take a photo">
+<dialog
+	bind:this={dialogEl}
+	class="cc-overlay nb-island"
+	aria-label="Take a photo"
+	oncancel={onDialogCancel}
+>
 	<header class="cc-head">
 		<span class="cc-title">Take a photo</span>
 		<p class="cc-hint">Fill the frame with the page, then tap the shutter.</p>
@@ -186,7 +193,7 @@
 			<span class="cc-spacer" aria-hidden="true"></span>
 		{/if}
 	</footer>
-</div>
+</dialog>
 
 <style>
 	/* Same dark island as PhotoCorrector, and for the same reason: a live
@@ -194,11 +201,27 @@
 	.cc-overlay {
 		position: fixed;
 		inset: 0;
-		z-index: 1000;
-		display: flex;
+		width: 100%;
+		height: 100%;
+		max-width: none;
+		max-height: none;
+		margin: 0;
+		border: 0;
+		box-sizing: border-box;
+		color: var(--nb-shot-ink);
 		flex-direction: column;
 		background: var(--nb-shot-ground);
 		padding: 0.9rem 1rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
+		--nb-accent: var(--gold);
+		--nb-accent-ink: var(--gold);
+	}
+	/* See PhotoCorrector: display only while open, and the backdrop is the
+	   overlay's own ground. */
+	.cc-overlay[open] {
+		display: flex;
+	}
+	.cc-overlay::backdrop {
+		background: var(--nb-shot-ground);
 	}
 	.cc-head {
 		flex: none;
@@ -275,6 +298,11 @@
 	.cc-spacer {
 		min-width: 5.2rem;
 		text-align: center;
+	}
+	/* 40px measured at 375 (ledger 0297 Phase 0), on a student-facing control:
+	   the 44px floor (IDEA_INTERFACE_STANDARDS 10). */
+	.cc-secondary {
+		min-height: 44px;
 	}
 	.cc-secondary {
 		background: none;

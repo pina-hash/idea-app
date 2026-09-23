@@ -19,7 +19,7 @@ export interface Crumb {
 	href?: string;
 }
 
-export type SectionTabId = 'class' | 'people' | 'grades' | 'duplicates' | 'check-ins';
+export type SectionTabId = 'class' | 'notebook' | 'people' | 'grades' | 'duplicates';
 
 export interface SectionTab {
 	id: SectionTabId;
@@ -38,8 +38,21 @@ export interface SectionTab {
 	 * tab that silently never highlights reads as a broken tab. The shell marks
 	 * these with a trailing guillemet and withholds `aria-current` from them,
 	 * exactly as the class stream marks a link out.
+	 *
+	 * NO TAB CARRIES IT TODAY (ledger 0297). The one that did, "Check-ins", went
+	 * to `/notebook/review` in another room; the notebook is a tab of the class
+	 * now, so every tab is a view of this class and the flag has no user. It is
+	 * kept because the shell still honours it, and a door out that comes back
+	 * must be marked as one.
 	 */
 	external?: boolean;
+	/**
+	 * A COUNT ON THE TAB, WITH ITS WORD (ledger 0297): the Notebook tab's "3 to
+	 * do" for a student, "3 behind" for a manager. Never a bare number, whose
+	 * meaning would live in a tooltip a phone cannot hover. Set by the layout
+	 * from numbers the page already loaded; `sectionTabs` never sets it.
+	 */
+	count?: { count: number; word: string } | null;
 }
 
 export type ClassroomPlace =
@@ -51,6 +64,14 @@ export type ClassroomPlace =
 	| 'item'
 	| 'item-grade'
 	| 'item-deck'
+	/** A class's own notebook: the student's notebook in this class, or a manager's review of it. */
+	| 'notebook'
+	/** The student's whole notebook, every class (`/classroom/notebook`). */
+	| 'notebook-home'
+	/** The all-sections review console (`/classroom/notebook/review`). */
+	| 'notebook-review'
+	/** One student's whole notebook, read-only, for a reviewer. */
+	| 'notebook-student'
 	| 'admin'
 	| 'updates'
 	| 'feedback'
@@ -86,6 +107,19 @@ export function locateClassroom(pathname: string): ClassroomLocation {
 
 	const head = rest[0];
 	if (head === 'view-as') return { place: 'view-as', sectionId: null, itemId: null };
+	/*
+	 * THE NOTEBOOK'S OWN PLACES, BEFORE THE SECTION BRANCH (ledger 0297). They
+	 * are static segments and a section id is a uuid, so the two can never be
+	 * the same string -- but read after the section branch, `/classroom/notebook`
+	 * would be a section called "notebook", exactly the way view-as would be.
+	 */
+	if (head === 'notebook') {
+		if (rest[1] === 'review') {
+			if (rest[2] === 'student' && rest[3]) return { place: 'notebook-student', sectionId: null, itemId: null };
+			return { place: 'notebook-review', sectionId: null, itemId: null };
+		}
+		return { place: 'notebook-home', sectionId: null, itemId: null };
+	}
 	if (head === 'admin' || head === 'manage') return { place: 'admin', sectionId: null, itemId: null };
 	if (head === 'updates') return { place: 'updates', sectionId: null, itemId: null };
 	if (head === 'feedback') return { place: 'feedback', sectionId: null, itemId: null };
@@ -95,6 +129,7 @@ export function locateClassroom(pathname: string): ClassroomLocation {
 	if (rest[1] === 'people') return { place: 'people', sectionId, itemId: null };
 	if (rest[1] === 'grades') return { place: 'grades', sectionId, itemId: null };
 	if (rest[1] === 'duplicates') return { place: 'duplicates', sectionId, itemId: null };
+	if (rest[1] === 'notebook') return { place: 'notebook', sectionId, itemId: null };
 	if (rest[1] === 'item' && rest[2]) {
 		const itemId = rest[2];
 		if (rest[3] === 'grade') return { place: 'item-grade', sectionId, itemId };
@@ -105,49 +140,39 @@ export function locateClassroom(pathname: string): ClassroomLocation {
 }
 
 /**
- * A section's tabs. Order is the reading order: content, then people, then
- * marks, then the check-ins that hang off them.
+ * A section's tabs, in reading order: the class, its notebook, then the
+ * manager's views of people, marks and duplicate drafts.
  *
- * CHECK-INS IS A DEPARTURE, NOT A ROUTE OF OURS, and that is the whole reason
- * it carries `external`. The check-in manager is `SessionManager` under
- * `/notebook/review`, which owns the date, the label and the guidance; the
- * classroom is where a check-in is CREATED (0120 hangs one off an item) and
- * until this tab existed the only path from here to there was a link inside
- * the People tab's Notebook-compliance card, which renders only when that
- * panel's grid transport is handed in. So an instructor who attached a
- * check-in to an item had no way from the class to the console that manages
- * it, and `ItemDetail`'s duplicate-date refusal still tells them to "edit the
- * existing one" without saying where.
+ * THE NOTEBOOK IS A TAB OF THE CLASS, FOR EVERYBODY IN IT (ledger 0297, Mr.
+ * Pina's words: "Integrate the notebook into IDEA Classroom with IDEA
+ * Classroom being the driving force"). It is NOT `manageOnly`: a student's tab
+ * is their own notebook filtered to this class, with the composer, and a
+ * manager's is this class's review -- the compliance grid, the check-in
+ * manager and the Documentation Check -- locked to this section. The route
+ * decides which from the server's own `canManage`, so the tab is one href and
+ * the destination is the gate.
  *
- * `?section=` IS WHAT MAKES IT A TAB RATHER THAN A LINK TO A HUB.
- * `/notebook/review` reads that parameter and preselects the section, and it
- * VALIDATES it against the caller's own accessible list rather than passing it
- * through -- so a manager lands on this class's grid and anyone else lands on
- * their default, which is courtesy on top of a boundary
- * (`notebook_get_section_grid` refuses a section the caller neither teaches
- * nor administers whatever the URL says).
+ * IT REPLACED A DEPARTURE. The manager's way to the check-in manager used to
+ * be a "Check-ins" tab that LEFT the classroom for `/notebook/review`, a
+ * second app with its own masthead and no class switcher. That tab is gone
+ * rather than re-pointed: a class with two doors to the same console is a
+ * class a teacher has to learn twice. Its old address still answers, by
+ * redirect, for every link and bookmark that holds it.
  *
- * IT IS `manageOnly` AND THE TAB IS NOT THE GATE. `/notebook/review` answers
- * 404 to a non-reviewer, and a manager of a section is by construction inside
- * that page's own population -- `canManage` is teacher of record or admin, and
- * both are tiers `notebookAccess` recognizes -- so the tab is offered exactly
- * where it resolves, and withholding it decides nothing.
+ * SECOND, NOT LAST. For a student the bar is "Class | Notebook" whichever slot
+ * it takes; for a manager the class's two working surfaces come before the
+ * three reports, and it is the reports that wrap to a second row on a phone.
  *
- * THE DUPLICATES TAB SITS ABOVE THE DEPARTURE BECAUSE IT IS A VIEW AND NOT A
- * DOOR OUT. It was deliberately withheld for one bundle -- 0074's page and its
- * `0187` were on an unmerged branch, and a tab pointing at them would have been
- * a 404 offered to every manager, strictly worse than the typed URL it
- * replaces. The page landed, so the tab did, and the pairing is asserted in
- * BOTH directions by `tests/classroom-nav-doors.test.ts`: neither half may
- * stand without the other. It took six edits and not four -- this union, this
- * list, `ClassroomPlace`, `locateClassroom`'s `rest[1]` branch, `activeTab`'s
- * case and `classroomCrumbs`'s. `classroomMeasure` needs nothing: an unlisted
- * place already falls through to `page`, which is what a report table wants,
- * and it stays unlisted.
+ * THE DUPLICATES TAB AND ITS PAGE STAND OR FALL TOGETHER, asserted in BOTH
+ * directions by `tests/classroom-nav-doors.test.ts`. A new tab takes six
+ * edits -- this union, this list, `ClassroomPlace`, `locateClassroom`'s
+ * `rest[1]` branch, `activeTab`'s case and `classroomCrumbs`'s -- plus a
+ * `classroomMeasure` case wherever `page` is the wrong width.
  */
 export function sectionTabs(sectionId: string, basePath = '/classroom'): SectionTab[] {
 	return [
 		{ id: 'class', label: 'Class', href: `${basePath}/${sectionId}`, manageOnly: false },
+		{ id: 'notebook', label: 'Notebook', href: classNotebookHref(sectionId, basePath), manageOnly: false },
 		{ id: 'people', label: 'People', href: `${basePath}/${sectionId}/people`, manageOnly: true },
 		{ id: 'grades', label: 'Grades', href: `${basePath}/${sectionId}/grades`, manageOnly: true },
 		{
@@ -155,49 +180,79 @@ export function sectionTabs(sectionId: string, basePath = '/classroom'): Section
 			label: 'Duplicates',
 			href: `${basePath}/${sectionId}/duplicates`,
 			manageOnly: true
-		},
-		{
-			id: 'check-ins',
-			label: 'Check-ins',
-			// NOT `basePath`: the review console is a real route in another room,
-			// so the dev harnesses link at the shipping URL rather than at a
-			// harness path that answers nothing.
-			href: `/notebook/review?section=${encodeURIComponent(sectionId)}`,
-			manageOnly: true,
-			external: true
 		}
 	];
 }
 
 /**
+ * A CLASS'S NOTEBOOK, as a URL. One spelling, read by the tab above, the class
+ * page's own notebook link, a check-in's deep link and the item page's check-in
+ * block, so none of them can point somewhere the tab does not.
+ */
+export function classNotebookHref(sectionId: string, basePath = '/classroom'): string {
+	// Encoded as a path segment: a section id is a uuid in every real row,
+	// and this is what keeps a harness id or a hand-typed one from ever
+	// becoming two segments.
+	return `${basePath}/${encodeURIComponent(sectionId)}/notebook`;
+}
+
+/**
+ * THE STUDENT'S WHOLE NOTEBOOK, every class, inside the classroom shell. The
+ * class a student came from rides along as `?section=`, which the load
+ * validates against their own classes and uses only as the default class a
+ * free entry is filed to.
+ */
+export function notebookHomeHref(fromSectionId: string | null = null, basePath = '/classroom'): string {
+	return fromSectionId
+		? `${basePath}/notebook?section=${encodeURIComponent(fromSectionId)}`
+		: `${basePath}/notebook`;
+}
+
+/** The all-sections review console, for a reviewer with more than one class or none they manage. */
+export function notebookReviewHref(sectionId: string | null = null, basePath = '/classroom'): string {
+	return sectionId
+		? `${basePath}/notebook/review?section=${encodeURIComponent(sectionId)}`
+		: `${basePath}/notebook/review`;
+}
+
+/** One student's whole notebook, read-only, for a reviewer; `?section=` is the way back. */
+export function studentNotebookHref(
+	email: string,
+	fromSectionId: string | null = null,
+	basePath = '/classroom'
+): string {
+	const href = `${basePath}/notebook/review/student/${encodeURIComponent(email)}`;
+	return fromSectionId ? `${href}?section=${encodeURIComponent(fromSectionId)}` : href;
+}
+
+/**
  * THE DUPLICATE-DATE REFUSAL, WITH ITS DESTINATION (prompt 0081 wrote the
- * sentence, prompt 0086 corrected where it points, prompt 0098 landed it).
+ * sentence, prompt 0086 corrected where it points, prompt 0098 landed it,
+ * ledger 0297 moved it into the class).
  *
- * `ItemDetail` refuses a second check-in on a date an item already has one,
- * and for two bundles the sentence ended "edit the existing one instead"
- * without saying where. The existing one lives in the check-in manager under
- * `/notebook/review`, which is the class's Check-ins tab -- NOT the
- * Duplicates tab, which is about duplicate DRAFTS, a different object. The
- * address is read off `sectionTabs` rather than spelled again here, so the
- * sentence and the tab cannot point two different ways. And it is a LINK, not
- * only a sentence: 0081's wording said "the Check-ins tab above", but the
- * section tab bar does not render on the item page (`activeTab` is null for
- * `item`, so `ClassroomShell` draws no tabs there), so a sentence alone would
- * name chrome that is not on screen.
+ * `ItemDetail` refuses a second check-in on a date an item already has one.
+ * The existing one lives in the check-in manager, which is a MODE of this
+ * class's Notebook tab for a manager -- NOT the Duplicates tab, which is about
+ * duplicate DRAFTS, a different object. The address is the notebook tab's own
+ * href from `sectionTabs` plus `?mode=checkins`, which the tab reads to open
+ * straight on the manager, so the sentence and the tab cannot point two
+ * different ways. And it is a LINK, not only a sentence: the section tab bar
+ * does not render on the item page (`activeTab` is null for `item`), so a
+ * sentence alone would name chrome that is not on screen.
  */
 export function checkInDuplicateRefusal(
 	sectionId: string,
 	basePath = '/classroom'
 ): { message: string; href: string; linkLabel: string } {
-	const tab = sectionTabs(sectionId, basePath).find((t) => t.id === 'check-ins');
-	if (!tab) throw new Error('sectionTabs no longer carries a check-ins tab');
+	const tab = sectionTabs(sectionId, basePath).find((t) => t.id === 'notebook');
+	if (!tab) throw new Error('sectionTabs no longer carries a notebook tab');
 	return {
 		message:
 			'This item already has a check-in on that date. Pick a different date, or edit the ' +
-			'existing one in the check-in manager, which is this class\'s Check-ins tab. A duplicate ' +
+			"existing one in the check-in manager, on this class's Notebook tab. A duplicate " +
 			"would put a second column on every affected class's grid and ask students for the same " +
 			'page twice.',
-		href: tab.href,
+		href: `${tab.href}?mode=checkins`,
 		linkLabel: 'Open the check-in manager'
 	};
 }
@@ -213,7 +268,8 @@ export function checkInDuplicateRefusal(
  *
  * IT IS NOT A GATE AND MUST NEVER BE READ AS ONE. Every manage-only
  * destination refuses a non-manager itself: `/classroom/<id>/people` and
- * `/classroom/<id>/grades` 404, and `/notebook/review` 404s a non-reviewer.
+ * `/classroom/<id>/grades` 404, and a class's Notebook tab decides from the
+ * server's own `canManage` whether it is the student's notebook or the review.
  * What this decides is what a caller is SHOWN, which is a different job from
  * what they may reach, and `tests/classroom-nav-doors.test.ts` opens this
  * predicate to prove the tests are watching it rather than the fixture.
@@ -256,13 +312,12 @@ export function navKeepsComposer(sectionId: string, pathname: string, basePath =
 /**
  * Which tab a location sits on, or null when it is not a section-level route.
  *
- * NO CASE FOR `check-ins`, AND ADDING ONE IS THE MISTAKE TO AVOID: that tab's
- * href is `/notebook/review`, which `locateClassroom` reads as `other` because
- * it is not a /classroom path at all. There is no `ClassroomLocation` this
- * could return it for, so a case would be dead code that reads as coverage.
+ * The notebook tab activates on its own place, like every other tab: it is a
+ * route of the class now, not a departure (see `sectionTabs`).
  */
 export function activeTab(loc: ClassroomLocation): SectionTabId | null {
 	if (loc.place === 'section') return 'class';
+	if (loc.place === 'notebook') return 'notebook';
 	if (loc.place === 'people') return 'people';
 	if (loc.place === 'grades') return 'grades';
 	if (loc.place === 'duplicates') return 'duplicates';
@@ -323,6 +378,20 @@ export function classroomMeasure(loc: ClassroomLocation): ClassroomMeasure | nul
 		case 'item-grade':
 			return 'console';
 		/**
+		 * THE NOTEBOOK IS A WORKING SURFACE AND USES THE WINDOW (ledger 0297).
+		 * A student's notebook is a list beside an open entry or the composer,
+		 * and a manager's is the review console -- a grid beside an entry -- so
+		 * each is an application frame, not a column: the same answer grading
+		 * takes, for the same reason. The read-only notebook a reviewer opens
+		 * for one student takes it too; its page scrolls inside the frame's body
+		 * rather than the document.
+		 */
+		case 'notebook':
+		case 'notebook-home':
+		case 'notebook-review':
+		case 'notebook-student':
+			return 'console';
+		/**
 		 * NULL, not a width. `view-as` is one place covering two genuinely
 		 * different pages -- the 46rem student picker and a notebook mounted
 		 * under somebody else's shell -- and it runs the shell in minimal mode,
@@ -348,7 +417,19 @@ export function classroomMeasure(loc: ClassroomLocation): ClassroomMeasure | nul
  */
 export function classroomCrumbs(
 	loc: ClassroomLocation,
-	labels: { section?: string | null; item?: string | null } = {},
+	labels: {
+		section?: string | null;
+		item?: string | null;
+		/** The student whose notebook a reviewer is reading (`notebook-student`). */
+		student?: string | null;
+		/**
+		 * WHERE A READ-ONLY STUDENT NOTEBOOK GOES BACK TO. That page has no class
+		 * in its path, so the class grid it was opened from arrives as crumbs the
+		 * load built (it validates the class and knows whether the viewer manages
+		 * it); without them the way back is the all-sections console.
+		 */
+		returnTo?: Crumb[] | null;
+	} = {},
 	basePath = '/classroom'
 ): Crumb[] {
 	const home: Crumb = { label: 'My Classes', href: basePath };
@@ -368,6 +449,20 @@ export function classroomCrumbs(
 			return [home, section(false), { label: 'Grades' }];
 		case 'duplicates':
 			return [home, section(false), { label: 'Duplicates' }];
+		case 'notebook':
+			return [home, section(false), { label: 'Notebook' }];
+		case 'notebook-home':
+			return [home, { label: 'My notebook' }];
+		case 'notebook-review':
+			return [home, { label: 'Notebook review' }];
+		case 'notebook-student':
+			return [
+				home,
+				...(labels.returnTo?.length
+					? labels.returnTo
+					: [{ label: 'Notebook review', href: `${basePath}/notebook/review` }]),
+				{ label: labels.student || 'Student notebook' }
+			];
 		case 'item':
 			return [home, section(false), { label: labels.item || 'Item' }];
 		case 'item-grade':

@@ -124,19 +124,21 @@ export function themeColorFor(attr: SiteThemeAttr | undefined): string {
  * than a light theme it was never checked against.
  *
  * THE LIST IS WHAT HAS BEEN MEASURED UNDER SPACE WHITE, AND NO MORE (ledger
- * 0297, package F1a). The classroom and the public reference viewer, which
- * mount the same `.cr-root` surfaces. The home page and the notebook are the
- * brief's scope too and are NOT here yet: the home hero, the launcher and the
- * notebook's plates paint literal dark values a token theme cannot reach, so
- * turning the attribute on there before their sweep (F1b, F4) would ship a
- * half-light page. Adding either is one entry here plus its line in the test.
+ * 0297, packages F1a and F4a). The classroom and the public reference viewer,
+ * which mount the same `.cr-root` surfaces, and the notebook, which lives
+ * inside the classroom now and follows the site theme (F4a). `/notebook`
+ * itself only redirects into `/classroom`, so its entry decides nothing a page
+ * paints; it is listed so the old address answers exactly as its new one
+ * would. The home page is the brief's scope too and is F1b's: its hero and
+ * launcher paint literal dark values a token theme cannot reach. Adding it is
+ * one entry here plus its line in the test.
  * ======================================================================== */
 
 /** The themes whose attribute is written only on in-scope routes. */
 export const SCOPED_SITE_THEMES: readonly SiteTheme[] = ['space-white'];
 
 /** Production route prefixes a scoped theme covers: the prefix itself or anything under it. */
-export const THEME_SCOPE_PREFIXES: readonly string[] = ['/classroom', '/reference'];
+export const THEME_SCOPE_PREFIXES: readonly string[] = ['/classroom', '/reference', '/notebook'];
 
 /**
  * THE `/dev` HARNESSES THAT STAND IN FOR THOSE ROUTES, matched as a raw
@@ -165,7 +167,11 @@ export const THEME_SCOPE_DEV_PREFIXES: readonly string[] = [
 	'/dev/upload-limits',
 	'/dev/attach-reach',
 	'/dev/assignment-mirror',
-	'/dev/ai-level-badge-reference'
+	'/dev/ai-level-badge-reference',
+	// The notebook's harnesses (ledger 0297, package F4a): the notebook follows
+	// the site theme inside the classroom now, so each is measured under it.
+	'/dev/notebook',
+	'/dev/navigation-room-nb'
 ];
 
 /** Is this path one a scoped theme may paint? */

@@ -1,41 +1,58 @@
-<script lang="ts">
-	import ReviewConsole from '$lib/notebook/ReviewConsole.svelte';
-	import type { NotebookFlagReason, NotebookPhoto } from '$lib/notebook';
-	import { MANAGE_SESSION_SELECTS, REVIEW_ENTRY_SELECTS } from '$lib/notebook-selects';
-	import { saveSessionGuidance } from '$lib/check-in-guidance';
-	import type {
-		GridSession,
-		ReviewEntry,
-		ReviewResult,
-		ReviewTransports,
-		SectionGrid,
-		SessionInput
-	} from '$lib/notebook-review';
-	import type { RubricCriterion } from '$lib/classroom/assignment-spec';
-	import type {
-		DocCheckResult,
-		DocCheckSubmission,
-		DocCheckTransports,
-		GradeOutcome,
-		LinkableItem,
-		UnitItemLink
-	} from '$lib/notebook-documentation-check';
-	import type {
-		AdminLogRow,
-		AdminLogTransports,
-		EntryMoveResult,
-		EntryMoveTransports,
-		ExcusalRow,
-		ExcusalTransports,
-		LinkTargetItem,
-		SessionItemLink,
-		SessionItemTransports,
-		StaffNoteTransports
-	} from '$lib/notebook/admin-actions';
-	import type { PageData } from './$types';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import ReviewConsole from '$lib/notebook/ReviewConsole.svelte';
+import type { NotebookFlagReason, NotebookPhoto } from '$lib/notebook';
+import { MANAGE_SESSION_SELECTS, REVIEW_ENTRY_SELECTS } from '$lib/notebook-selects';
+import { saveSessionGuidance } from '$lib/check-in-guidance';
+import type {
+	GridSession,
+	ReviewEntry,
+	ReviewResult,
+	ReviewTransports,
+	SectionGrid,
+	SessionInput
+} from '$lib/notebook-review';
+import type { RubricCriterion } from '$lib/classroom/assignment-spec';
+import type {
+	DocCheckResult,
+	DocCheckSubmission,
+	DocCheckTransports,
+	GradeOutcome,
+	LinkableItem,
+	UnitItemLink
+} from '$lib/notebook-documentation-check';
+import type {
+	AdminLogRow,
+	AdminLogTransports,
+	EntryMoveResult,
+	EntryMoveTransports,
+	ExcusalRow,
+	ExcusalTransports,
+	LinkTargetItem,
+	SessionItemLink,
+	SessionItemTransports,
+	StaffNoteTransports
+} from '$lib/notebook/admin-actions';
 
-	let { data }: { data: PageData } = $props();
-
+/**
+ * THE REVIEW CONSOLE'S TRANSPORTS, ONE MODULE FOR EVERY MOUNT (ledger 0297,
+ * package F4a).
+ *
+ * These lived inside `src/routes/notebook/review/+page.svelte`, the one route
+ * that mounted `ReviewConsole`. The console is now ALSO a class's own Notebook
+ * tab for a manager of that section (`/classroom/<id>/notebook`), locked to the
+ * class, beside the all-sections console at `/classroom/notebook/review` -- so
+ * the calls moved here before a second route could copy them. Nothing about
+ * any call changed in the move: every one runs as the CALLER'S OWN session
+ * through the browser client, so 0069's RLS and the SECURITY DEFINER RPCs' own
+ * instructor-or-admin checks are what actually decide the answer.
+ *
+ * `reviewConsoleTransports` is also the ONE statement of which bundles a
+ * viewer is handed, from `isChair` (which is `isAdmin()` resolved server-side
+ * by `notebookAccess`, never `role === 'teacher'`) and `docCheckReady` (the
+ * load's 0097 probe). That is presentation: an absent transport removes its
+ * control, and each RPC refuses a caller it does not admit regardless.
+ */
+export function createReviewConsoleTransports(supabase: SupabaseClient) {
 	/**
 	 * The one place the real server calls live. Every transport runs as the
 	 * CALLER'S OWN session through the browser client, so 0069's RLS and the
@@ -81,7 +98,7 @@
 			// this one -- filtering the embed would answer "which of these did I
 			// ask about", which is the one thing the "posted to" line must not
 			// say. So the postings are read first, then the check-ins by id.
-			const posted = await data.supabase
+			const posted = await supabase
 				.from('notebook_session_postings')
 				.select('session_id')
 				.eq('section_id', sectionId);
@@ -101,7 +118,7 @@
 			let rows: unknown[] | null = null;
 			let error: unknown = null;
 			for (const rung of MANAGE_SESSION_SELECTS) {
-				const res = await data.supabase
+				const res = await supabase
 					.from('notebook_sessions')
 					.select(rung.select)
 					.in('id', ids)
@@ -133,7 +150,7 @@
 		},
 
 		async saveSession(input: SessionInput) {
-			const { data: result, error } = await data.supabase.rpc('notebook_admin_upsert_session', {
+			const { data: result, error } = await supabase.rpc('notebook_admin_upsert_session', {
 				p_section_ids: input.section_ids,
 				p_unit_number: input.unit_number,
 				p_session_date: input.session_date,
@@ -145,7 +162,7 @@
 		},
 
 		async deleteSession(sessionId) {
-			const { data: result, error } = await data.supabase.rpc('notebook_admin_delete_session', {
+			const { data: result, error } = await supabase.rpc('notebook_admin_delete_session', {
 				p_session_id: sessionId
 			});
 			if (error) return fail(error, 'Could not delete that check-in.');
@@ -153,7 +170,7 @@
 		},
 
 		async addSessionSections(sessionId, sectionIds) {
-			const { data: result, error } = await data.supabase.rpc('notebook_add_session_postings', {
+			const { data: result, error } = await supabase.rpc('notebook_add_session_postings', {
 				p_session_id: sessionId,
 				p_section_ids: sectionIds
 			});
@@ -162,7 +179,7 @@
 		},
 
 		async removeSessionSection(sessionId, sectionId) {
-			const { data: result, error } = await data.supabase.rpc(
+			const { data: result, error } = await supabase.rpc(
 				'notebook_remove_session_posting',
 				{ p_session_id: sessionId, p_section_id: sectionId }
 			);
@@ -174,7 +191,7 @@
 		},
 
 		async loadGrid(sectionId, unitNumber) {
-			const { data: result, error } = await data.supabase.rpc('notebook_get_section_grid', {
+			const { data: result, error } = await supabase.rpc('notebook_get_section_grid', {
 				p_section_id: sectionId,
 				p_unit_number: unitNumber
 			});
@@ -194,7 +211,7 @@
 			// real catalog by tests/notebook-page-load.test.ts rather than by
 			// nothing at all.
 			const read = (select: string) =>
-				data.supabase.from('notebook_entries').select(select).eq('id', entryId).maybeSingle();
+				supabase.from('notebook_entries').select(select).eq('id', entryId).maybeSingle();
 
 			// Widest first, then one capability at a time -- see the array's own
 			// comment for why each embed has to degrade on its own.
@@ -260,7 +277,7 @@
 		},
 
 		async flagEntry(entryId, reason, comment) {
-			const { error } = await data.supabase.rpc('notebook_flag_entry', {
+			const { error } = await supabase.rpc('notebook_flag_entry', {
 				p_entry_id: entryId,
 				p_flag_reason: reason,
 				p_instructor_comment: comment
@@ -270,7 +287,7 @@
 		},
 
 		async resolveEntry(entryId, comment) {
-			const { error } = await data.supabase.rpc('notebook_resolve_entry', {
+			const { error } = await supabase.rpc('notebook_resolve_entry', {
 				p_entry_id: entryId,
 				p_instructor_comment: comment
 			});
@@ -279,7 +296,7 @@
 		},
 
 		async acceptEntry(entryId) {
-			const { error } = await data.supabase.rpc('notebook_accept_entry', {
+			const { error } = await supabase.rpc('notebook_accept_entry', {
 				p_entry_id: entryId
 			});
 			if (error) return fail(error, 'Could not mark that entry reviewed.');
@@ -287,7 +304,7 @@
 		},
 
 		async unacceptEntry(entryId) {
-			const { error } = await data.supabase.rpc('notebook_unaccept_entry', {
+			const { error } = await supabase.rpc('notebook_unaccept_entry', {
 				p_entry_id: entryId
 			});
 			if (error) return fail(error, 'Could not undo that review.');
@@ -313,7 +330,7 @@
 		 * notebook-review.ts for why re-reading beats patching.
 		 */
 		subscribe(sectionId, onChange, onStatus) {
-			const channel = data.supabase
+			const channel = supabase
 				.channel(`notebook-review-${sectionId}`)
 				.on(
 					'postgres_changes',
@@ -353,12 +370,12 @@
 					onStatus(status === 'SUBSCRIBED' ? 'live' : 'stalled');
 				});
 			return () => {
-				data.supabase.removeChannel(channel);
+				supabase.removeChannel(channel);
 			};
 		},
 
 		async deleteEntry(entryId) {
-			const { error } = await data.supabase.rpc('notebook_staff_delete_entry', {
+			const { error } = await supabase.rpc('notebook_staff_delete_entry', {
 				p_entry_id: entryId
 			});
 			if (error) return fail(error, 'Could not delete that entry.');
@@ -366,7 +383,7 @@
 		},
 
 		async deleteNote(noteId) {
-			const { error } = await data.supabase.rpc('notebook_staff_delete_note', {
+			const { error } = await supabase.rpc('notebook_staff_delete_note', {
 				p_note_id: noteId
 			});
 			if (error) return fail(error, 'Could not delete that note.');
@@ -390,7 +407,7 @@
 		async load(sectionId, unitNumber) {
 			// The link, RLS-scoped to whoever manages the section (0097). A
 			// missing row is the ordinary unlinked state, not an error.
-			const linkRes = await data.supabase
+			const linkRes = await supabase
 				.from('notebook_unit_items')
 				.select('section_id, unit_number, item_id')
 				.eq('section_id', sectionId)
@@ -407,7 +424,7 @@
 			// and what 0097 will accept. The !inner embed IS the "posted to this
 			// section" filter, so the picker can never offer something the link
 			// RPC would refuse.
-			const candidateRes = await data.supabase
+			const candidateRes = await supabase
 				.from('classroom_items')
 				.select('id, title, points, classroom_postings!inner(section_id)')
 				.eq('classroom_postings.section_id', sectionId)
@@ -429,12 +446,12 @@
 			}
 
 			const [itemRes, rubricRes, submissionRes] = await Promise.all([
-				data.supabase
+				supabase
 					.from('classroom_items')
 					.select('id, title, points')
 					.eq('id', link.item_id)
 					.maybeSingle(),
-				data.supabase
+				supabase
 					.from('classroom_rubrics')
 					.select('criteria')
 					.eq('item_id', link.item_id)
@@ -442,7 +459,7 @@
 				// No .eq('student_email', ...) anywhere: classroom_submissions is
 				// already scoped to own-rows-or-reviewer, so the filtering IS the
 				// policy (the /coin-balance doctrine).
-				data.supabase
+				supabase
 					.from('classroom_submissions')
 					.select(
 						'student_email, state, score, rubric_scores, criterion_comments, teacher_comment, graded_at, returned_at'
@@ -478,7 +495,7 @@
 		},
 
 		async linkItem(sectionId, unitNumber, itemId) {
-			const { error } = await data.supabase.rpc('notebook_link_unit_item', {
+			const { error } = await supabase.rpc('notebook_link_unit_item', {
 				p_section_id: sectionId,
 				p_unit_number: unitNumber,
 				p_item_id: itemId
@@ -488,7 +505,7 @@
 		},
 
 		async unlinkItem(sectionId, unitNumber) {
-			const { error } = await data.supabase.rpc('notebook_unlink_unit_item', {
+			const { error } = await supabase.rpc('notebook_unlink_unit_item', {
 				p_section_id: sectionId,
 				p_unit_number: unitNumber
 			});
@@ -497,7 +514,7 @@
 		},
 
 		async installRubric(itemId, criteria) {
-			const { error } = await data.supabase.rpc('classroom_set_rubric', {
+			const { error } = await supabase.rpc('classroom_set_rubric', {
 				p_item_id: itemId,
 				p_criteria: criteria
 			});
@@ -506,7 +523,7 @@
 		},
 
 		async gradeSubmission(itemId, studentEmail, scores, comment, release, criterionComments) {
-			const { data: result, error } = await data.supabase.rpc('classroom_grade_submission', {
+			const { data: result, error } = await supabase.rpc('classroom_grade_submission', {
 				p_item_id: itemId,
 				p_student_email: studentEmail,
 				p_scores: scores,
@@ -528,16 +545,8 @@
 	 * table's own RLS is what decides the answer. Nothing here re-implements a
 	 * permission rule.
 	 *
-	 * WHAT THIS ROUTE DOES DECIDE is which bundles to hand in at all, and it
-	 * decides it from `data.isChair` -- which is `isAdmin()` resolved
-	 * server-side by `notebookAccess`, not `role === 'teacher'`. That is
-	 * PRESENTATION (CLAUDE.md's "hiding a control is presentation, the function
-	 * refusing is the boundary"): an admin-only bundle withheld from an
-	 * instructor means there is no write to execute, and the RPC would raise for
-	 * them anyway if a client sent one.
-	 *
-	 * THE SPLIT IS NOT UNIFORM, AND THAT IS THE POINT OF FIVE FIELDS RATHER THAN
-	 * ONE `isAdmin` FLAG:
+	 * WHICH BUNDLES A VIEWER IS HANDED is `reviewConsoleTransports` below, from
+	 * `isChair` -- see its header for the split, which is not uniform:
 	 *
 	 *   excusals.load     INSTRUCTOR   0098's SELECT policy on the table
 	 *   excusals.set      ADMIN        notebook_admin_set_excusal: is_admin()
@@ -563,7 +572,7 @@
 	const excusalTransports: ExcusalTransports = {
 		async load(sessionIds) {
 			if (sessionIds.length === 0) return { ok: true, value: [] };
-			const { data: rows, error } = await data.supabase
+			const { data: rows, error } = await supabase
 				.from('notebook_session_excusals')
 				.select('session_id, student_id, excused_at, excused_by, note')
 				.in('session_id', sessionIds);
@@ -573,7 +582,7 @@
 		// ADMIN ONLY. Handed in below on `isChair` alone; the RPC raises
 		// "Only a site admin can excuse notebook sessions." regardless.
 		async set(input) {
-			const { data: result, error } = await data.supabase.rpc('notebook_admin_set_excusal', {
+			const { data: result, error } = await supabase.rpc('notebook_admin_set_excusal', {
 				p_session_id: input.sessionId,
 				p_student_id: input.studentId,
 				p_excused: input.excused,
@@ -592,7 +601,7 @@
 	 */
 	const entryMoveTransports: EntryMoveTransports = {
 		async move(input) {
-			const { data: result, error } = await data.supabase.rpc('notebook_admin_override_entry', {
+			const { data: result, error } = await supabase.rpc('notebook_admin_override_entry', {
 				p_entry_id: input.entryId,
 				p_set_session: input.setSession,
 				p_session_id: input.sessionId,
@@ -615,7 +624,7 @@
 	 */
 	const adminLogTransports: AdminLogTransports = {
 		async load(limit) {
-			const { data: rows, error } = await data.supabase
+			const { data: rows, error } = await supabase
 				.from('notebook_admin_log')
 				.select('id, actor_id, action, section_id, session_id, entry_id, student_id, details, created_at')
 				.order('created_at', { ascending: false })
@@ -628,7 +637,7 @@
 	/** The undo for the staff note delete this console has always offered. */
 	const staffNoteTransports: StaffNoteTransports = {
 		async restore(noteId) {
-			const { error } = await data.supabase.rpc('notebook_staff_restore_note', {
+			const { error } = await supabase.rpc('notebook_staff_restore_note', {
 				p_note_id: noteId
 			});
 			if (error) return adminFail(error, 'Could not restore that note.');
@@ -640,7 +649,7 @@
 		async load(sectionId) {
 			// RLS-scoped: notebook_session_postings is readable by any signed-in
 			// user (0098), which is also why the grid is what gates section access.
-			const { data: rows, error } = await data.supabase
+			const { data: rows, error } = await supabase
 				.from('notebook_session_postings')
 				.select('session_id, section_id, item_id')
 				.eq('section_id', sectionId);
@@ -654,7 +663,7 @@
 			// shape the Documentation Check's own candidate read uses, minus the
 			// `kind` filter: a check-in can hang off a material as readily as an
 			// assignment, and 0120 constrains it to neither.
-			const { data: rows, error } = await data.supabase
+			const { data: rows, error } = await supabase
 				.from('classroom_items')
 				.select('id, title, classroom_postings!inner(section_id)')
 				.eq('classroom_postings.section_id', sectionId)
@@ -669,7 +678,7 @@
 			return { ok: true, value };
 		},
 		async link(sessionId, sectionId, itemId) {
-			const { data: result, error } = await data.supabase.rpc('notebook_link_session_item', {
+			const { data: result, error } = await supabase.rpc('notebook_link_session_item', {
 				p_session_id: sessionId,
 				p_section_id: sectionId,
 				p_item_id: itemId
@@ -678,7 +687,7 @@
 			return { ok: true, value: result as { linked: number } };
 		},
 		async unlink(sessionId, sectionId) {
-			const { data: result, error } = await data.supabase.rpc('notebook_unlink_session_item', {
+			const { data: result, error } = await supabase.rpc('notebook_unlink_session_item', {
 				p_session_id: sessionId,
 				p_section_id: sectionId
 			});
@@ -687,32 +696,60 @@
 		}
 	};
 
-	/**
-	 * THE ADMIN HALF OF THE EXCUSAL BUNDLE, assembled here rather than inside
-	 * CellExcusal: the component asks whether it HAS a `set`, never who the
-	 * viewer is, so there is one statement of the rule and it is this line.
-	 */
-	const excusalsForViewer: ExcusalTransports = $derived(
-		data.isChair ? excusalTransports : { load: excusalTransports.load }
-	);
-
 	function docFail(err: unknown, fallback: string): DocCheckResult<never> {
 		const message = (err as { message?: string } | null)?.message?.trim();
 		return { ok: false, error: message || fallback };
 	}
-</script>
 
-<ReviewConsole
-	sections={data.sections}
-	isChair={data.isChair}
-	configured={data.configured}
-	initialSectionId={data.initialSectionId}
-	{transports}
-	docCheck={data.docCheckReady ? docCheckTransports : null}
-	excusals={excusalsForViewer}
-	entryMove={data.isChair ? entryMoveTransports : null}
-	adminLog={data.isChair ? adminLogTransports : null}
-	staffNote={staffNoteTransports}
-	itemLink={itemLinkTransports}
-	viewerId={data.viewerId}
-/>
+	return {
+		transports,
+		docCheckTransports,
+		excusalTransports,
+		entryMoveTransports,
+		adminLogTransports,
+		staffNoteTransports,
+		itemLinkTransports
+	};
+}
+
+/** What `ReviewConsole` is handed, by the prop name it takes. */
+export interface ReviewConsoleBundle {
+	transports: ReviewTransports;
+	docCheck: DocCheckTransports | null;
+	excusals: ExcusalTransports;
+	entryMove: EntryMoveTransports | null;
+	adminLog: AdminLogTransports | null;
+	staffNote: StaffNoteTransports;
+	itemLink: SessionItemTransports;
+}
+
+/**
+ * WHICH BUNDLES THIS VIEWER IS HANDED. The split is not uniform, and that is
+ * the point of five fields rather than one `isAdmin` flag:
+ *
+ *   excusals.load     INSTRUCTOR   0098's SELECT policy on the table
+ *   excusals.set      ADMIN        notebook_admin_set_excusal: is_admin()
+ *   entryMove         ADMIN        notebook_admin_override_entry: is_admin()
+ *   adminLog          ADMIN        the table's own policy: is_admin()
+ *   staffNote         INSTRUCTOR   classroom_manages_section OR
+ *                                    notebook_manages_student
+ *   itemLink          INSTRUCTOR   classroom_manages_section
+ *
+ * THE ADMIN HALF OF THE EXCUSAL BUNDLE is assembled here rather than inside
+ * CellExcusal: the component asks whether it HAS a `set`, never who the viewer
+ * is, so there is one statement of the rule and it is this function.
+ */
+export function reviewConsoleTransports(
+	built: ReturnType<typeof createReviewConsoleTransports>,
+	viewer: { isChair: boolean; docCheckReady: boolean }
+): ReviewConsoleBundle {
+	return {
+		transports: built.transports,
+		docCheck: viewer.docCheckReady ? built.docCheckTransports : null,
+		excusals: viewer.isChair ? built.excusalTransports : { load: built.excusalTransports.load },
+		entryMove: viewer.isChair ? built.entryMoveTransports : null,
+		adminLog: viewer.isChair ? built.adminLogTransports : null,
+		staffNote: built.staffNoteTransports,
+		itemLink: built.itemLinkTransports
+	};
+}

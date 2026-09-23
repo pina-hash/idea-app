@@ -1,151 +1,77 @@
 /**
- * THE NOTEBOOK PLATE REGISTRY: plain data and pure helpers, no runes, no
- * storage, no DOM. `notebook-theme.svelte.ts` is the reactive half and imports
- * this; the split is `$lib/theme.ts` / `$lib/theme.svelte.ts`'s, for the same
- * reason -- every rule in this file is assertable in the `node` test project
- * with no compiler, no browser and no localStorage to stub.
+ * THE NOTEBOOK'S RETIRED PLATES, AND WHAT A STORED ONE MEANS NOW.
  *
- * FOUR PLATES. `default` is the classroom's console register and FOLLOWS THE
- * SITE THEME: it means "the same surfaces as your classes", and the site theme
- * is what decides what the classes look like, so when the site is on Matrix
- * the default plate paints Matrix too (in CSS alone -- see the matrix block in
- * notebook-theme.css). `light` and `idea` are explicit choices and do NOT
- * follow the site theme, because the notebook has its own reasons for each:
- * paper for reading photographs in bright light, and the program's own
- * colours. `matrix` is the fourth, an explicit choice that paints the
- * identical values whatever the site theme is.
+ * The notebook used to paint a plate of its own -- default, light, IDEA or
+ * Matrix -- chosen from a picker in its own masthead and stored per browser
+ * under `idea_notebook_theme`. Ledger 0297 (package F4a) retired both, on Mr.
+ * Pina's words of 2026-09-23: "visually and functionally the IDEA notebook
+ * should follow IDEA Classroom, not the other way around." The notebook lives
+ * inside the classroom and paints whatever the SITE theme is (IDEA, Matrix or
+ * Space White); there is no second control for it.
+ *
+ * A STORED PLATE MUST NEVER ERROR OR STRAND A STUDENT. Every value a browser
+ * can hold -- the four live ids, the retired 'dark' and 'system', and anything
+ * a corrupted or hand-edited store holds -- resolves to the site theme, which
+ * the student changes from their profile menu or the classroom's Light
+ * button. The key is removed the first time a notebook surface loads, so the
+ * answer does not have to be given again and a later feature cannot revive a
+ * stale id by reusing the name.
+ *
+ * PLAIN DATA AND PURE FUNCTIONS: no runes, no DOM. The storage is handed in, so
+ * every rule here is assertable in the `node` test project, and every touch is
+ * inside a try/catch -- a blocked or throwing store costs the tidy-up, never
+ * the page.
  */
 
-export type NotebookTheme = 'default' | 'light' | 'idea' | 'matrix';
-
-/** The storage key, named here so the module and its tests cannot disagree.
- *  Unchanged from the three-plate picker: a stored 'light' or 'idea' keeps
- *  meaning what it meant. */
+/** The storage key the retired picker wrote. Named here so the sweep and its test cannot disagree. */
 export const NOTEBOOK_THEME_KEY = 'idea_notebook_theme';
 
-/** Every state, in the order the picker lists them. */
-export const NOTEBOOK_THEMES: NotebookTheme[] = ['default', 'light', 'idea', 'matrix'];
+/**
+ * Every plate id that was really written to a student's browser: the four the
+ * picker offered, and 'dark' and 'system' from the plates before them. Kept as
+ * the record of what `readStoredNotebookTheme` has to answer, not as a list
+ * anything offers.
+ */
+export const RETIRED_NOTEBOOK_PLATES = ['default', 'light', 'idea', 'matrix', 'dark', 'system'] as const;
 
 /**
- * The DEFAULT is the ABSENCE of the attribute, so the `:not([data-nb-theme])`
- * palette block is the only thing deciding -- rather than a value the CSS
- * would have to special-case.
+ * WHAT A STORED VALUE PAINTS NOW: the site theme, for every value there is.
+ * `null` means nothing was stored. Never throws, whatever it is handed.
  */
-export const DEFAULT_NOTEBOOK_THEME: NotebookTheme = 'default';
-
-/**
- * What goes on `.nb-root`. `undefined` for the default, for the reason above.
- * A pure function of the id so nothing has to spell `=== 'default'` twice.
- */
-export function notebookThemeAttrFor(theme: NotebookTheme): 'light' | 'idea' | 'matrix' | undefined {
-	return theme === DEFAULT_NOTEBOOK_THEME ? undefined : (theme as 'light' | 'idea' | 'matrix');
+export function readStoredNotebookTheme(raw: unknown): 'site' | null {
+	return raw === null || raw === undefined ? null : 'site';
 }
 
+/** The slice of `Storage` the sweep needs, so a test can hand in a stub. */
+export type NotebookPlateStore = Pick<Storage, 'getItem' | 'removeItem'>;
+
 /**
- * An unrecognised or retired id answers NULL rather than falling back
- * silently -- the caller drops the key. 'dark' and 'system' are the two ids
- * that were really written to students' browsers and both MUST answer null:
- * the retired warm plate is answered here and nowhere else, so no CSS block,
- * no attribute value and no picker row has to keep existing for it.
+ * CLEAR A STORED PLATE, ONCE. Returns the value that was there (so a caller
+ * and a test can see what was answered), or null when there was none or the
+ * store could not be read. Never throws.
  */
-export function readStoredNotebookTheme(raw: string | null): NotebookTheme | null {
-	if (raw === null) return null;
-	return NOTEBOOK_THEMES.includes(raw as NotebookTheme) ? (raw as NotebookTheme) : null;
+export function retireStoredNotebookPlate(store: NotebookPlateStore | null | undefined): string | null {
+	if (!store) return null;
+	let stored: string | null = null;
+	try {
+		stored = store.getItem(NOTEBOOK_THEME_KEY);
+	} catch {
+		return null;
+	}
+	if (readStoredNotebookTheme(stored) === null) return null;
+	try {
+		store.removeItem(NOTEBOOK_THEME_KEY);
+	} catch {
+		// A blocked store keeps the value; it paints nothing either way.
+	}
+	return stored;
 }
 
-export const NOTEBOOK_THEME_LABELS: Record<NotebookTheme, string> = {
-	default: 'Default',
-	light: 'Light',
-	idea: 'IDEA',
-	matrix: 'Matrix'
-};
-
-/**
- * What each option is FOR, shown under its name in the picker. A list of
- * one-word names says nothing about why you would pick one, and "IDEA" and
- * "Matrix" in particular are names nobody can infer a look from. The Default
- * row's note is the STATIC form; the picker renders `notebookDefaultNote`
- * there instead, so the row says what it follows right now.
- */
-export const NOTEBOOK_THEME_NOTES: Record<NotebookTheme, string> = {
-	default: 'The same surfaces as your classes, on any site theme',
-	light: 'Warm paper',
-	idea: 'Green-black, in the program colours',
-	matrix: 'Black ground and phosphor type, in here only'
-};
-
-/**
- * The same states as a word short enough to sit ON the trigger, so the
- * masthead control is not a bare glyph whose meaning only a tooltip carries.
- * The full phrase above stays the accessible name.
- */
-export const NOTEBOOK_THEME_SHORT: Record<NotebookTheme, string> = {
-	default: 'Default',
-	light: 'Light',
-	idea: 'IDEA',
-	matrix: 'Matrix'
-};
-
-/**
- * THE SITE THEME AS THE DOCUMENT CARRIES IT -- the value of `<html
- * data-theme>` -- and NOT the preference store. Both functions below take it,
- * because both are mirrors of a CSS selector
- * (`:root[data-theme='matrix'] .nb-root:not([data-nb-theme])`) that keys on
- * the attribute, and a mirror keyed on a different input is a second
- * definition rather than a mirror.
- *
- * THE TWO REALLY DO DIVERGE, MEASURED. `ThemeRoot` writes the attribute only
- * while there is a SESSION (see `$lib/theme.svelte.ts` for why: the control
- * that turns a theme off lives in ProfileMenu, which renders nothing when
- * signed out). Driven in Chromium with `data-theme="matrix"` on `<html>` and
- * the store untouched, the room painted the matrix ground (#020402) while the
- * picker -- reading the store -- reported `data-plate="default"` and told the
- * student "Following the site theme: the same surfaces as your classes",
- * against a black notebook. Reading the store here would be a second copy of
- * ThemeRoot's session gate, and a second copy is the one that stops agreeing.
- *
- * `undefined`/`null` is the ordinary answer for "no site theme", which is what
- * the default IDEA palette is, and it is also the pre-observer state.
- */
-export type SiteThemeAttr = string | null | undefined;
-
-/**
- * Which plate is PAINTED for a choice under the site theme the document is
- * carrying. The default plate defers to it (the CSS does this on its own;
- * this is the same rule stated once in TypeScript, so a harness and the
- * picker can read it); every explicit choice paints itself.
- */
-export function notebookPlate(
-	theme: NotebookTheme,
-	site: SiteThemeAttr
-): 'default' | 'light' | 'idea' | 'matrix' {
-	if (theme === DEFAULT_NOTEBOOK_THEME && site === 'matrix') return 'matrix';
-	return theme;
-}
-
-/**
- * The Default row's note, saying what it follows RIGHT NOW rather than
- * describing the mechanism. On the standard site theme the answer is the
- * classroom's own surfaces; on Matrix it names Matrix, so a student who
- * picked it on the site can see why the notebook already looks like it.
- */
-export function notebookDefaultNote(site: SiteThemeAttr): string {
-	if (site === 'matrix') return 'Following the site theme: Matrix right now';
-	return 'Following the site theme: the same surfaces as your classes';
-}
-
-/**
- * THE PICKER TRIGGER'S ACCESSIBLE NAME, and the one place the two answers are
- * said together. The visible WORD on the trigger stays the CHOSEN state,
- * deliberately: the menu it opens ticks that row, and a control reading
- * "Matrix" over a menu whose current row is "Default" contradicts itself. But
- * a reader whose notebook is black and whose control says "Default" is told
- * nothing by that word alone, so the name carries the painted plate as well,
- * and only when the two differ -- "Appearance: Default, showing Matrix".
- */
-export function notebookPickerName(theme: NotebookTheme, site: SiteThemeAttr): string {
-	const painted = notebookPlate(theme, site);
-	const chosen = NOTEBOOK_THEME_LABELS[theme];
-	if (painted === theme) return `Appearance: ${chosen}`;
-	return `Appearance: ${chosen}, showing ${NOTEBOOK_THEME_LABELS[painted]}`;
+/** The page's own storage, when there is one to reach. Never throws. */
+export function browserPlateStore(): NotebookPlateStore | null {
+	try {
+		return typeof localStorage === 'undefined' ? null : localStorage;
+	} catch {
+		return null;
+	}
 }

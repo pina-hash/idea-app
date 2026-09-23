@@ -186,7 +186,9 @@ const CORE: readonly ShellCommand[] = [
 		role: 'student',
 		context: 'global',
 		keywords: ['entries', 'photos', 'check-in', 'journal'],
-		href: () => '/notebook'
+		// The whole notebook, every class, inside the classroom (ledger 0297).
+		// `/notebook` still answers, by redirect, for every link that holds it.
+		href: (env) => `${env.basePath}/notebook`
 	},
 	{
 		id: 'go.updates',
@@ -250,14 +252,17 @@ const CORE: readonly ShellCommand[] = [
 		href: tabHref('duplicates')
 	},
 	{
-		id: 'class.check-ins',
-		name: 'Check-ins',
+		// The class's own Notebook tab (ledger 0297): a student's notebook in
+		// this class, or a manager's review of it, which is where the check-in
+		// manager lives now. One command for both, because it is one tab.
+		id: 'class.notebook',
+		name: 'Notebook',
 		icon: ICONS.checkIns,
-		description: 'The notebook review for this class.',
-		role: 'manager',
+		description: "This class's notebook: your entries, or the class's review.",
+		role: 'any',
 		context: 'class',
-		keywords: ['notebook', 'review', 'entries'],
-		href: tabHref('check-ins')
+		keywords: ['notebook', 'review', 'entries', 'check-ins', 'photos'],
+		href: tabHref('notebook')
 	},
 	{
 		id: 'class.new-post',
@@ -471,13 +476,31 @@ export function isLegendKey(event: { key: string; ctrlKey?: boolean; metaKey?: b
 /**
  * Which screen a pathname is, for the legend and the context filter. Only the
  * review console itself is `notebook-review`: a student's notebook opened from
- * it (`/notebook/review/student/...`) is a notebook, and answers none of the
+ * it (`.../review/student/...`) is a notebook, and answers none of the
  * console's keys.
+ *
+ * A CLASS'S NOTEBOOK TAB IS BOTH, BY ROLE (ledger 0297). `/classroom/<id>/notebook`
+ * is the student's own notebook for a student and the review console for a
+ * manager of the class -- one tab, two destinations the route picks from the
+ * server's own `canManage` -- so the path alone cannot say, and the caller
+ * passes the role it already holds. Without one it answers `notebook`, the
+ * reading that offers no console keys.
+ *
+ * The retired `/notebook` addresses still answer, by redirect, and still
+ * classify, so a surface that has not caught up reads the right legend.
  */
-export function surfaceFor(pathname: string, basePath = '/classroom'): CommandSurface {
+export function surfaceFor(
+	pathname: string,
+	basePath = '/classroom',
+	role: 'student' | 'manager' | null = null
+): CommandSurface {
 	const path = pathname.replace(/\/+$/, '');
-	if (path === '/notebook/review') return 'notebook-review';
+	if (path === '/notebook/review' || path === `${basePath}/notebook/review`) return 'notebook-review';
 	if (/^\/notebook(\/|$)/.test(path)) return 'notebook';
+	if (path.startsWith(`${basePath}/notebook`)) return 'notebook';
+	if (path.startsWith(basePath) && /\/[^/]+\/notebook$/.test(path.slice(basePath.length))) {
+		return role === 'manager' ? 'notebook-review' : 'notebook';
+	}
 	if (path.startsWith(basePath) && /\/item\/[^/]+\/grade$/.test(path)) return 'grading';
 	return 'classroom';
 }

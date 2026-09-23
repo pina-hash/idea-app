@@ -32,6 +32,7 @@ import {
 	type ClassCheckIn
 } from '$lib/classroom/class-check-ins';
 import { formatSectionLabel } from '$lib/section-label';
+import { studentNotebookHref } from '$lib/classroom/nav';
 import { ICONS, runnableCommands, type CommandEnv } from './commands';
 import { rankByQuery, type Searchable } from './search';
 
@@ -157,7 +158,7 @@ export function paletteEntries(sources: PaletteSources, env: CommandEnv): Palett
 		}
 		// The student's own check-ins, each a door into their notebook with the
 		// check-in already chosen. A manager's carry no personal status, and
-		// their door to check-ins is the Check-ins action.
+		// their door to check-ins is the Notebook action.
 		if (env.role === 'student') {
 			for (const c of streamCheckIns([...sources.checkIns])) {
 				out.push({
@@ -226,7 +227,7 @@ export function paletteEntries(sources: PaletteSources, env: CommandEnv): Palett
 				icon: ICONS.student,
 				detail: 'Notebook in this class',
 				also: [p.email],
-				href: `/notebook/review/student/${encodeURIComponent(p.email)}?section=${encodeURIComponent(env.sectionId)}`
+				href: studentNotebookHref(p.email, env.sectionId)
 			});
 		}
 	}
