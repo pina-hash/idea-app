@@ -128,3 +128,24 @@ merged to `main` and nothing was deployed.
 Production is therefore **ahead of the deployed app**: it now carries 0220, 0221, 0223
 and 0224. That is the ordinary safe direction, since each is additive, but it should
 not stay that way for long.
+
+## The inheritance test's git-diff block, removed on Mr. Pina's authorisation
+
+The describe block "the consumers inherit it, and this bundle did not edit them" is gone
+from `tests/identity-consumer-inheritance.test.ts`. Its claim was that ledger 0289 left
+seven identity consumers unedited. **That was true when 0289 reported it**, on 0289's own
+branch. It was removed because it recorded a one-time fact about one lane's diff as a
+property of whatever tree it ran on:
+
+- It failed on every merged tree, because 0293 legitimately edits `PeoplePanel.svelte`.
+- It would have failed on `main` forever, because there `origin/main...HEAD` is empty and
+  its positive control requires a non-empty diff.
+
+The fact itself belongs here, not in a test. Every rendering describe block in that file
+is kept, and those are the real proof: styled payload in, accent out, with the pre-0220
+shape as the negative control.
+
+The block "PeoplePanel inherits an identity accent with no edit to it" was also retitled,
+to "PeoplePanel paints a roster row's identity accent, and nothing on the pre-0220 shape",
+because 0293 did edit PeoplePanel. The file's header comment, and the one `CLAUDE.md`
+sentence that described the git-diff assertion, were corrected to match.

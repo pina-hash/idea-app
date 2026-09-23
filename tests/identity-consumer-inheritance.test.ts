@@ -11,10 +11,12 @@
 // shape fails silently: the surfaces keep rendering plain identities, which is
 // also exactly what "nobody has customized anything yet" looks like.
 //
-// SO THE TEST IS BOTH DIRECTIONS ON THE REAL COMPONENTS. Every file mounted
-// below is asserted UNTOUCHED by this bundle (the first test reads the git
-// diff), then handed a payload whose rows carry the six 0220 columns, and the
-// accent has to come out the other side. The negative control is the identical
+// SO THE TEST IS BOTH DIRECTIONS ON THE REAL COMPONENTS. Every consumer mounted
+// below is handed a payload whose rows carry the six 0220 columns, and the
+// accent has to come out the other side. (That 0289 left these consumers
+// untouched was true when it reported and is recorded in
+// `docs/history/new-session-zsum4t.md`; a git-diff assertion of it could only
+// ever pass on 0289's own branch, so it was removed.) The negative control is the identical
 // payload with the columns ABSENT -- which is the pre-0220 RPC shape and the
 // state every deployment is in today -- where the accent must not appear.
 //
@@ -30,7 +32,6 @@
 // exist. No geometry is asserted -- the `node` project has no layout engine at
 // all, so a box read here would be vacuous.
 
-import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import SectionGrid from '$lib/notebook/SectionGrid.svelte';
@@ -54,48 +55,6 @@ const STYLE = {
 };
 
 const strip = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '');
-
-/**
- * THE THREE CONSUMERS, AND THE ASSERTION THAT THIS BUNDLE DID NOT TOUCH THEM.
- * Read off git rather than stated, because "we did not edit it" is precisely
- * the kind of claim that is true when written and false a week later.
- */
-const UNEDITED = [
-	'src/lib/notebook/SectionGrid.svelte',
-	'src/lib/classroom/PeoplePanel.svelte',
-	'src/lib/classroom/GradingConsole.svelte',
-	'src/lib/notebook/EntryReview.svelte',
-	'src/lib/notebook/ReviewConsole.svelte',
-	'src/routes/gauntlet/leaderboard/+page.svelte',
-	'src/routes/dashboard/+page.svelte'
-];
-
-describe('the consumers inherit it, and this bundle did not edit them', () => {
-	it('left every identity consumer untouched since origin/main', () => {
-		/* `git diff --name-only origin/main...HEAD` is the lane's whole diff.
-		   If the branch point cannot be resolved (a shallow clone, a detached
-		   checkout) the test FAILS rather than skipping: a sweep that silently
-		   did not run is the instrument defect this repo keeps finding. */
-		let changed: string[];
-		try {
-			changed = execFileSync('git', ['diff', '--name-only', 'origin/main...HEAD'], {
-				encoding: 'utf8'
-			})
-				.split('\n')
-				.filter(Boolean);
-		} catch (err) {
-			throw new Error(`could not read this lane's diff, so nothing was checked: ${err}`);
-		}
-		/* POSITIVE CONTROL: the diff is non-empty and contains the files this
-		   bundle DID change, so an empty list cannot pass for a clean sweep. */
-		expect(changed.length, 'an empty diff means the sweep read nothing').toBeGreaterThan(0);
-		expect(changed).toContain('src/lib/Avatar.svelte');
-
-		for (const f of UNEDITED) {
-			expect(changed, `${f} is an identity consumer this bundle must not edit`).not.toContain(f);
-		}
-	});
-});
 
 // ---------------------------------------------------------------------------
 // SectionGrid -- the notebook check-in grid's row header.
@@ -219,7 +178,7 @@ function renderPeople(styled: boolean): string {
 	);
 }
 
-describe('PeoplePanel inherits an identity accent with no edit to it', () => {
+describe('PeoplePanel paints a roster row\'s identity accent, and nothing on the pre-0220 shape', () => {
 	const styled = renderPeople(true);
 	const plain = renderPeople(false);
 
