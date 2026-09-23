@@ -174,8 +174,11 @@ describe('axes and subjects the selection implies', () => {
 		expect(none.map((c) => c.id)).toEqual(['cg-x', 'cg-y', 'cg-z', 'world-x', 'world-y', 'world-z', 'ref:axis1']);
 		expect(resolveAxis(none[2], [1, 2, 3])).toEqual({ origin: [1, 2, 3], direction: [0, 0, 1] });
 		expect(resolveAxis(none[2], null)).toBeNull();
-		/* A flat or a missing face names no axis. */
+		/* A flat or a missing face names no axis, and neither does a datum plane; a datum axis is the world axis. */
 		expect(axisFromSelection(m, { bodyId: 'chassis#0', kind: 'face', id: 'nope' })).toBeNull();
+		expect(axisFromSelection(m, { bodyId: '', kind: 'reference', id: 'datum:XY' })).toBeNull();
+		expect(axisFromSelection(m, { bodyId: '', kind: 'reference', id: 'datum:Y' })).toEqual({ label: 'Y axis', axis: { origin: [0, 0, 0], direction: [0, 1, 0] } });
+		expect(axisFromSelection(m, { bodyId: '', kind: 'reference', id: 'axis1' })).toMatchObject({ label: 'Weapon axis' });
 	});
 	it('a selection on a body names that body; a reference names none', () => {
 		const m = sampleModel('cited');

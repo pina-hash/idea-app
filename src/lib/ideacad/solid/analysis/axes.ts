@@ -34,6 +34,9 @@ const ON_BODY: Selection['kind'][] = ['body', 'face', 'edge', 'vertex'];
 /** The axis a selection names, if it names one. */
 export function axisFromSelection(model: Pick<ModelProjection, 'bodies' | 'references'>, selection: Selection): { label: string; axis: Axis; radius?: number } | null {
 	if (selection.kind === 'reference') {
+		/* A datum axis the viewport draws (`datum:X`, `datum:Y`, `datum:Z`) is the world axis through the Origin; a datum PLANE names no axis. */
+		const datum = /^datum:([XYZ])$/.exec(selection.id)?.[1] as 'X' | 'Y' | 'Z' | undefined;
+		if (datum) return { label: `${datum} axis`, axis: { origin: [0, 0, 0], direction: WORLD.find(([n]) => n === datum.toLowerCase())![1] } };
 		const r = model.references.find((x) => x.feature === selection.id);
 		return r && r.kind === 'axis' && r.direction ? { label: r.name, axis: { origin: r.origin, direction: r.direction } } : null;
 	}
