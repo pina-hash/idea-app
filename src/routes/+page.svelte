@@ -314,8 +314,20 @@
 			const ctx = canvas.getContext('2d')!;
 			// Pull the particle color from the design-system --green token so the
 			// field tracks the theme instead of hardcoding a palette value.
-			const particleColor =
+			const readGreen = () =>
 				getComputedStyle(document.documentElement).getPropertyValue('--green').trim() || '#8fe08a';
+			let particleColor = readGreen();
+			/* AND RE-READ IT WHEN THE THEME CHANGES (ledger 0297, package F1b). It
+			   was read once at mount, so a theme picked from the profile menu left
+			   the field in the old theme's green until a reload -- a page loaded
+			   in Space White and switched back to IDEA drew Space White's dark ink
+			   on the dark page. The theme is an attribute on <html>, and that
+			   attribute is the one thing to watch. */
+			const themeWatch = new MutationObserver(() => {
+				particleColor = readGreen();
+			});
+			themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+			cleanups.push(() => themeWatch.disconnect());
 			let W = 0;
 			let H = 0;
 			const resize = () => {
@@ -371,11 +383,16 @@
 			const particles = Array.from({ length: 120 }, () => new Particle());
 			let raf = 0;
 			const animate = () => {
-				ctx.clearRect(0, 0, W, H);
-				particles.forEach((p) => {
-					p.update();
-					p.draw();
-				});
+				/* A theme that switches the field off (Space White, Matrix) takes the
+				   canvas's box away in CSS; drawing into a canvas with no box is
+				   work nobody sees, so the frame is skipped until it has one again. */
+				if (canvas.offsetWidth > 0) {
+					ctx.clearRect(0, 0, W, H);
+					particles.forEach((p) => {
+						p.update();
+						p.draw();
+					});
+				}
 				raf = requestAnimationFrame(animate);
 			};
 			animate();
@@ -469,49 +486,72 @@
 		<p class="auth-error">{errorMessage}</p>
 	{/if}
 
-	<section class="hero" data-tour="hero">
-		<div class="hero-eyebrow">Don Bosco Technical Institute - Technology Pathway</div>
+	<!--
+		THE HERO IS THE FRONT DOOR FOR A VISITOR AND A STATUS LINE FOR A STUDENT
+		(ledger 0297, package F1b). Signed out it is the landing page: the
+		school, the programme, what costs nothing and what signing in adds. Signed
+		in, the same 540px told a student to "Sign in for your classes" and put
+		Your Classes at y=835 on a 1366x768 laptop (below the fold) and y=1340 on
+		a phone, measured on /dev/home-order. So a signed-in visitor gets the
+		programme's name and the three stats as ONE compact row, with the eyebrow
+		and the sign-in pitch left out rather than hidden, and the stats keep
+		their markup so the Active Courses tile is still the same element
+		`tests/home-order-and-accent.test.ts` reads for every viewer.
+
+		THE STAT VALUES TAKE CLASSES, NOT INLINE STYLES. They carried their own
+		`color` and a literal ice glow inline, which no theme could reach; the
+		classes read the semantic tokens and the page's glow tokens, which Space
+		White flattens.
+	-->
+	<section class="hero" class:compact={signedIn} data-tour="hero">
+		{#if !signedIn}
+			<div class="hero-eyebrow">Don Bosco Technical Institute - Technology Pathway</div>
+		{/if}
 		<h1>Integrated Design, Engineering <span class="accent">&amp;</span> Art</h1>
-		<!--
-			ADDRESSED TO ANYONE AT THE SCHOOL, WHICH IS REPORT 13 (Mr. Pina,
-			2026-09-11): the subtitle "needs to be updated to properly reflect the
-			latest state of the website as a whole and not just for IDEA students
-			but for anyone who visits, the whole school".
+		{#if !signedIn}
+			<!--
+				ADDRESSED TO ANYONE AT THE SCHOOL, WHICH IS REPORT 13 (Mr. Pina,
+				2026-09-11): the subtitle "needs to be updated to properly reflect
+				the latest state of the website as a whole and not just for IDEA
+				students but for anyone who visits, the whole school".
 
-			The text it replaces -- "Your classes, your notebook, your coin
-			balance, and the training and games that go with them. Sign in and
-			everything saves." -- was authored in 9e23c961 on 2026-08-15 and was
-			every-clause about a signed-in IDEA student. FOUR launcher cards omit
-			`requiresAuth` and are reachable signed out (IDEA Maps, the IDEA Coin
-			Ledger, VANGUARD and Tournaments; see $lib/portal-apps.ts, whose maps
-			entry states the reason), so a visitor who read the old line and did
-			not sign in was told nothing about the four things already open to
-			them.
+				The text it replaces -- "Your classes, your notebook, your coin
+				balance, and the training and games that go with them. Sign in and
+				everything saves." -- was authored in 9e23c961 on 2026-08-15 and was
+				every-clause about a signed-in IDEA student. FOUR launcher cards omit
+				`requiresAuth` and are reachable signed out (IDEA Maps, the IDEA Coin
+				Ledger, VANGUARD and Tournaments; see $lib/portal-apps.ts, whose maps
+				entry states the reason), so a visitor who read the old line and did
+				not sign in was told nothing about the four things already open to
+				them.
 
-			Three sentences, one claim each, in the order a stranger needs them:
-			what this is, what costs nothing, what signing in adds. The public
-			surfaces are named rather than gestured at, because "some things are
-			public" is not something anyone can act on.
-		-->
-		<p class="hero-sub">
-			Built for the whole school, not just the IDEA pathway. IDEA Maps, tournaments, the coin
-			leaderboard, and VANGUARD are open to anyone. Sign in for your classes, notebook, and coin
-			balance.
-		</p>
+				Three sentences, one claim each, in the order a stranger needs them:
+				what this is, what costs nothing, what signing in adds. The public
+				surfaces are named rather than gestured at, because "some things are
+				public" is not something anyone can act on. It is the VISITOR'S
+				sentence, so a signed-in reader, who is past its last clause, does
+				not get it.
+			-->
+			<p class="hero-sub">
+				Built for the whole school, not just the IDEA pathway. IDEA Maps, tournaments, the coin
+				leaderboard, and VANGUARD are open to anyone. Sign in for your classes, notebook, and coin
+				balance.
+			</p>
+		{/if}
 		<div class="hero-meta">
 			<div class="hero-stat">
 				<span class="value">{courseCount}</span>
 				<span class="label">Active Courses</span>
 			</div>
 			<div class="hero-stat">
-				<span class="value" style="color:var(--gold);text-shadow:var(--glow-gold);animation-delay:0.8s">2026-27</span>
+				<span class="value v-year">2026-27</span>
 				<span class="label">School Year</span>
 			</div>
 			<div class="hero-stat">
-				<span class="value">
-					<span style="color:var(--cyan); text-shadow:var(--glow-cyan)">Mr. Pina</span>
-					<span style="color:var(--dim); margin: 0 0.4rem; font-size:0.9em">/</span>
-					<span style="color:var(--ice); text-shadow: 0 0 6px rgba(169,188,171,0.45), 0 0 18px rgba(169,188,171,0.2)">Mr. Cosso</span>
+				<span class="value v-staff">
+					<span class="v-staff-a">Mr. Pina</span>
+					<span class="v-staff-sep">/</span>
+					<span class="v-staff-b">Mr. Cosso</span>
 				</span>
 				<span class="label">Instructors</span>
 			</div>

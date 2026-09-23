@@ -163,20 +163,14 @@ export default {
 		{ selector: '.pwp-scrim', label: 'scrim (gone with it)', expectPresent: 0, expectVisible: 0 },
 		{ selector: '.pwp-hint', label: 'exit hint (gone with it)', expectPresent: 0, expectVisible: 0 },
 		{ selector: '.legacy-index .hero h1', label: 'home hero heading', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '.legacy-index .hero-sub', label: 'hero subtitle', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		/* The subtitle is the SIGNED-OUT hero's since ledger 0297 (package F1b):
+		   a signed-in viewer gets the compact hero, so this signed-in page
+		   carries none. Its words and its contrast are pinned where its audience
+		   is, in home-order-signedout-1.mjs. */
+		{ selector: '.legacy-index .hero-sub', label: 'hero subtitle (signed-out only)', expectPresent: 0, maxPresent: 0 },
 		{ selector: '.legacy-index header', label: 'sticky masthead', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
-	/* REPORT 13 (Mr. Pina, 2026-09-11): the subtitle had to stop addressing only
-	   signed-in IDEA students. FOUR launcher cards omit `requiresAuth` and are
-	   reachable signed out, and the copy now names them, so a visitor learns
-	   what costs nothing. Pinned on the load-bearing phrases rather than the
-	   whole sentence: a wording pass should be free, and quietly dropping the
-	   schoolwide framing or the no-account half should not. */
-	textContains: [
-		{ selector: '.legacy-index .hero-sub', text: 'whole school', label: 'subtitle addresses the whole school' },
-		{ selector: '.legacy-index .hero-sub', text: 'open to anyone', label: 'subtitle names what needs no account' }
-	],
 	contrast: [
-		{ selector: '.legacy-index .hero-sub', label: 'hero subtitle on the page plate', min: 4.5 }
+		{ selector: '.legacy-index .hero h1', label: 'hero title on the page plate', min: 4.5 }
 	]
 };

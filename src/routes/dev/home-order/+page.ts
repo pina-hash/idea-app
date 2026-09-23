@@ -166,6 +166,18 @@ export const load: PageLoad = async ({ url }) => {
 	const isTeacher = role === 'teacher';
 	const me = isTeacher ? TEACHER : STUDENT;
 
+	/**
+	 * `?signedout=1` DROPS THE SESSION and returns what the page's own server
+	 * load returns with none: no claims, no profile, no sections. It is the only
+	 * way to put the SIGNED-OUT landing page on screen through the real
+	 * component, and the landing page keeps the full hero that a signed-in
+	 * visitor no longer gets (ledger 0297, package F1b). It is also the parameter
+	 * the pre-paint theme boot reads, which is why this harness is listed in
+	 * `THEME_BOOT_HARNESSES`: the server assumes a session here exactly when this
+	 * load hands the page one.
+	 */
+	const signedOut = url.searchParams.get('signedout') === '1';
+
 	// A teacher of record on every section, or somebody else's teacher.
 	const sections = Array.from({ length: classes }, (_, i) =>
 		section(i + 1, isTeacher ? TEACHER : TEACHER)
@@ -200,22 +212,24 @@ export const load: PageLoad = async ({ url }) => {
 	return {
 		// What the page's own server load returns.
 		classroomReady: true,
-		feedSections: sections,
-		feedItems: items,
-		feedSubmissions: submissions,
+		feedSections: signedOut ? [] : sections,
+		feedItems: signedOut ? [] : items,
+		feedSubmissions: signedOut ? [] : submissions,
 		// What the root layout normally supplies, overridden here so the page and
 		// the launcher both see a signed-in viewer of the chosen role.
-		claims: { sub: 'harness-user', email: me },
-		userProfile: {
-			id: 'harness-user',
-			role: isTeacher ? 'teacher' : 'student',
-			display_name: isTeacher ? 'T. Vargas' : 'Alice Alvarez',
-			avatar: null,
-			pathway: 'IDEA',
-			preferences: {}
-		},
-		isAdmin: admin,
-		foundryReviewPending: pending,
-		harness: { role, classes, rows, admin, due: dueOffsets }
+		claims: signedOut ? null : { sub: 'harness-user', email: me },
+		userProfile: signedOut
+			? null
+			: {
+					id: 'harness-user',
+					role: isTeacher ? 'teacher' : 'student',
+					display_name: isTeacher ? 'T. Vargas' : 'Alice Alvarez',
+					avatar: null,
+					pathway: 'IDEA',
+					preferences: {}
+				},
+		isAdmin: signedOut ? false : admin,
+		foundryReviewPending: signedOut ? null : pending,
+		harness: { role, classes, rows, admin, due: dueOffsets, signedOut }
 	};
 };
