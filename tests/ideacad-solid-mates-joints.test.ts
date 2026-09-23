@@ -119,12 +119,12 @@ describe('a joint lands as one step', () => {
 	it('a batch command adds every mate in one reduce, in order, and an empty batch is refused', () => {
 		const base = manifest();
 		const next = reduce(base, { type: 'batch', commands: [
-			{ type: 'add-feature', feature: { id: 'j1', name: 'Hinge 1 round', type: 'mate', kind: 'concentric', a: { kind: 'face', body: 'x1#0', name: 'h1.wall' }, b: { kind: 'face', body: 'p1#0', name: 'p1.side.0' }, joint: 'hinge', group: 'j1' } },
-			{ type: 'add-feature', feature: { id: 'j2', name: 'Hinge 1 flat', type: 'mate', kind: 'coincident', a: { kind: 'face', body: 'x1#0', name: 'x1.end' }, b: { kind: 'face', body: 'p1#0', name: 'p1.start' }, joint: 'hinge', group: 'j1' } }
+			{ type: 'add-feature', feature: { id: 'j1', name: 'Hinge 1 axis', type: 'mate', kind: 'concentric', a: { kind: 'face', body: 'x1#0', name: 'h1.wall' }, b: { kind: 'face', body: 'p1#0', name: 'p1.side.0' }, joint: 'hinge', group: 'j1' } },
+			{ type: 'add-feature', feature: { id: 'j2', name: 'Hinge 1 face', type: 'mate', kind: 'coincident', a: { kind: 'face', body: 'x1#0', name: 'x1.end' }, b: { kind: 'face', body: 'p1#0', name: 'p1.start' }, joint: 'hinge', group: 'j1' } }
 		] });
 		expect(next.features.slice(-2).map((f) => f.id)).toEqual(['j1', 'j2']);
 		expect(base.features).toHaveLength(3);
-		expect(summary(next.features[3])).toBe('hinge, concentric');
+		expect(summary(next.features[3])).toBe('hinge');
 		expect(() => reduce(base, { type: 'batch', commands: [] })).toThrow('Nothing to change.');
 		/* A failing member refuses the whole batch: nothing half-lands. */
 		expect(() => reduce(base, { type: 'batch', commands: [{ type: 'remove-feature', id: 'x1' }, { type: 'remove-feature', id: 'nope' }] })).toThrow();

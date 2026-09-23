@@ -193,7 +193,7 @@ describe('mates against the real kernel', () => {
 		expect(plan.slots[1].words).toMatch(new RegExp(`^${pinName}, round face \\d+$`));
 		const m = await e.apply({ type: 'batch', commands: plan.mates.map((mt, i) => ({ type: 'add-feature', feature: { id: `j${i}`, name: `Hinge 1 ${i}`, type: 'mate', kind: mt.kind, a: mt.a, b: mt.b, joint: 'hinge', group: 'j0' } })) });
 		expect(row(m, 'j0').status).toBe('ok'); expect(row(m, 'j1').status).toBe('ok');
-		expect(row(m, 'j0').summary).toBe('hinge, concentric');
+		expect(row(m, 'j0').summary).toBe('hinge');
 		const pin = body(m, 'x4#0');
 		expect(pin.dof).toBe(1);
 		expect((pin.bounds[0] + pin.bounds[3]) / 2).toBeCloseTo(2, 9); expect((pin.bounds[1] + pin.bounds[4]) / 2).toBeCloseTo(1.5, 9); expect(pin.bounds[2]).toBeCloseTo(1, 9);

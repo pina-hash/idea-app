@@ -62,7 +62,7 @@ export function featureSummary(f: Feature): string {
 		case 'plane': return f.definition.kind === 'offset' ? fmt(f.definition.offset) : f.definition.kind === 'angle' ? fmt(f.definition.angle, '°') : f.definition.kind;
 		case 'axis': return f.definition.kind;
 		case 'point': return f.definition.kind === 'coordinates' ? f.definition.point.map((n) => Number(n.toFixed(3))).join(', ') : f.definition.kind;
-		case 'mate': return `${f.joint ? `${f.joint}, ` : ''}${f.value !== undefined ? `${f.kind} ${fmt(f.value, f.kind === 'angle' ? '°' : ' in')}` : f.kind}`;
+		case 'mate': return f.joint ? f.joint : f.value !== undefined ? `${f.kind} ${fmt(f.value, f.kind === 'angle' ? '°' : ' in')}` : f.kind;
 		case 'hole': return `${f.standard} ${f.fit}`;
 		case 'draft': return fmt(f.angle, '°');
 		case 'sweep': return f.operation;

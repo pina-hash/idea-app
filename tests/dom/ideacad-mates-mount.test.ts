@@ -230,7 +230,7 @@ describe('the mate panel', () => {
 		const batch = h.applied[0].command as Extract<SolidCommand, { type: 'batch' }>;
 		expect(batch.type).toBe('batch'); expect(batch.commands).toHaveLength(2);
 		const features = batch.commands.map((c) => (c as Extract<SolidCommand, { type: 'add-feature' }>).feature as Extract<SolidManifest['features'][number], { type: 'mate' }>);
-		expect(features.map((f) => [f.name, f.kind, f.joint])).toEqual([['Hinge 1 round', 'concentric', 'hinge'], ['Hinge 1 flat', 'coincident', 'hinge']]);
+		expect(features.map((f) => [f.name, f.kind, f.joint])).toEqual([['Hinge 1 axis', 'concentric', 'hinge'], ['Hinge 1 face', 'coincident', 'hinge']]);
 		expect(features[0].id).toBeTruthy(); expect(features.every((f) => f.group === features[0].id)).toBe(true);
 		expect(features.every((f) => f.a.kind === 'face' && f.a.body === 'x1#0' && f.b.kind === 'face' && f.b.body === 'x2#0')).toBe(true);
 		/* Listed: one row for the joint, both mates under it, and Delete removes the group in one step. */

@@ -70,7 +70,7 @@
 			}
 			const spec = JOINTS[mode], ids = plan!.mates.map(() => newFeatureId());
 			const groups = new Set(api.manifest.features.filter((f) => f.type === 'mate' && (f as { joint?: string }).joint === mode).map((f) => (f as { group?: string }).group ?? f.id));
-			const name = `${spec.word} ${groups.size + 1}`, pairWord = (k: MateKind) => (k === 'concentric' ? 'round' : 'flat');
+			const name = `${spec.word} ${groups.size + 1}`, pairWord = (k: MateKind) => (k === 'concentric' ? 'axis' : 'face');
 			const commands: SolidCommand[] = plan!.mates.map((m, i) => ({ type: 'add-feature', feature: { id: ids[i], name: plan!.mates.length > 1 ? `${name} ${pairWord(m.kind)}${plan!.mates.filter((x, j) => j < i && x.kind === m.kind).length ? ` ${i + 1}` : ''}` : name, type: 'mate', kind: m.kind, a: m.a, b: m.b, ...(m.flip ? { flip: true } : {}), joint: mode as JointKind, group: ids[0] } }));
 			await api.apply({ type: 'batch', commands }, `Add ${spec.word.toLowerCase()}`);
 		} catch (e) { refuse(e); }
@@ -82,7 +82,7 @@
 			const f = featureOf(m.feature), joint = f?.joint && JOINTS[f.joint] ? f.joint : null, key = joint ? f?.group ?? m.feature : m.feature;
 			const found = byGroup.get(key);
 			if (found) { found.mates.push(m); continue; }
-			const entry: Entry = { id: key, joint, name: joint ? (f?.name ?? '').replace(/ (round|flat)( \d+)?$/, '') || JOINTS[joint].word : f?.name ?? 'Mate', mates: [m] };
+			const entry: Entry = { id: key, joint, name: joint ? (f?.name ?? '').replace(/ (axis|face)( \d+)?$/, '') || JOINTS[joint].word : f?.name ?? 'Mate', mates: [m] };
 			byGroup.set(key, entry); out.push(entry);
 		}
 		return out;
@@ -180,13 +180,15 @@
 	</ul>
 </section>
 <style>
-	.mates{display:grid;gap:10px;min-width:0}h2{margin:0;font-size:18px}h2 span{color:var(--text-2);font:12px var(--font-mono,'Share Tech Mono',monospace);margin-left:6px}
+	.mates{display:grid;gap:10px;min-width:0;container-type:inline-size}h2{margin:0;font-size:18px}h2 span{color:var(--text-2);font:12px var(--font-mono,'Share Tech Mono',monospace);margin-left:6px}
 	.note,p{margin:0;color:var(--text-2);font-size:14px;line-height:1.35;overflow-wrap:anywhere;min-width:0}
 	form.create{display:grid;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--hairline);min-width:0}
 	label{display:grid;gap:4px;font:600 14px var(--font-display,Rajdhani,sans-serif);color:var(--text-2);min-width:0}
 	label.check{display:flex;align-items:center;gap:8px;min-height:44px;color:var(--text-1);cursor:pointer}label.check input{width:22px;height:22px;min-height:0;margin:0;padding:0;flex:none}
 	fieldset{margin:0;min-width:0;border:1px solid var(--hairline);border-radius:4px}legend{padding:0 4px;font:600 14px var(--font-display,Rajdhani,sans-serif);color:var(--text-2)}
 	fieldset.modes{padding:2px 6px 6px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+	/* A phone-width panel is about 360px: three tiles a row saves a whole row of height (measured 359px at 375). */
+	@container (min-width: 330px){fieldset.modes{grid-template-columns:repeat(3,minmax(0,1fr))}}
 	.tile{position:relative;display:flex;align-items:center;gap:6px;min-height:44px;padding:2px 6px 2px 8px;border:1px solid var(--boundary);border-radius:4px;color:var(--text-1);cursor:pointer;box-sizing:border-box}
 	.tile input{position:absolute;opacity:0;width:1px;height:1px;margin:0;min-height:0;pointer-events:none}
 	.tile svg{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
