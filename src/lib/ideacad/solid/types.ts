@@ -327,6 +327,8 @@ export type SolidCommand =
 	| { type: 'set-feature'; id: string; patch: Partial<Feature> & Record<string, unknown> }
 	| { type: 'remove-feature'; id: string }
 	| { type: 'move-feature'; id: string; to: number }
+	/** Move a node's features together (a feature and the sketches it is made from) as ONE edit: `to` is where the block goes in the list without it. Each member is checked exactly as `move-feature` checks it. */
+	| { type: 'move-features'; ids: string[]; to: number }
 	| { type: 'suppress-feature'; id: string; suppressed: boolean }
 	| { type: 'rename-feature'; id: string; name: string }
 	| { type: 'metadata'; bodyId: string; name?: string; materialId?: string | null; role?: BodyRole; massG?: number|null; massSource?: 'measured'|'bambu-studio'; color?: string | null; fixed?: boolean }

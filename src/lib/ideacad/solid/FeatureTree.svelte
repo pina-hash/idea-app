@@ -121,6 +121,8 @@
 	/** Every step of a node move, in order, stopping at the first that does not land. */
 	async function steps(plan: NodeMove, label: string) {
 		if (plan.refusal || !plan.commands) { api.error(plan.refusal ?? ''); return; }
+		/* A node that carries its sketches moves as one edit: one history row, one undo. */
+		if (plan.atomic && plan.commands.length > 1) { await run(plan.atomic, label); return; }
 		for (const command of plan.commands) {
 			const before = api.manifest.features.map((f) => f.id).join();
 			await run(command, label);

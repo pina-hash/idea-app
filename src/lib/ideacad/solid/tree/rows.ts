@@ -154,6 +154,8 @@ export interface NodeMove {
 	commands: SolidCommand[] | null;
 	/** The reducer's sentence, or the tree-end sentence, when the move cannot happen. */
 	refusal: string | null;
+	/** The whole move as one `move-features` edit, when there is a move to make. */
+	atomic?: SolidCommand;
 }
 /**
  * The steps that put `members` (in build order) together just before or just
@@ -177,7 +179,8 @@ export function planNodeMove(manifest: SolidManifest, members: readonly string[]
 	if (!commands.length) return { commands: [], refusal: null };
 	let m = manifest;
 	for (const command of commands) { try { m = reduce(m, command); } catch (error) { return { commands: null, refusal: error instanceof Error ? error.message : String(error) }; } }
-	return { commands, refusal: null };
+	/* The same move as ONE edit, so carrying a sketch is one history row and one undo. */
+	return { commands, refusal: null, atomic: { type: 'move-features', ids: block, to: at } };
 }
 /** One step up and one step down for a top-level node, carrying its nested sketches, each with the reducer's own reason when it is refused. */
 export function nodeMoveOptions(manifest: SolidManifest, nodes: readonly TreeNode[], id: string): { up: NodeMove; down: NodeMove } {

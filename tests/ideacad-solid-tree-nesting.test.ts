@@ -110,7 +110,9 @@ describe('a node moves with its nested sketches, and the reducer decides', () =>
 		expect(x1.down.commands).toBeNull();
 		expect(x1.down.refusal).toMatch(/Fillet 1 uses Extrude 1, so it cannot move below it/);
 		const pl1 = nodeMoveOptions(m, nodes, 'pl1');
-		expect(pl1.up).toEqual({ commands: [{ type: 'move-feature', id: 'pl1', to: 4 }], refusal: null });
+		expect(pl1.up).toMatchObject({ commands: [{ type: 'move-feature', id: 'pl1', to: 4 }], refusal: null });
+		/* The same move as one edit (ledger 0296 W3): it lands the order the steps land. */
+		expect(replay(m, [pl1.up.atomic!])).toEqual(replay(m, pl1.up.commands!));
 		expect(pl1.down).toEqual({ commands: null, refusal: LAST_IN_TREE });
 	});
 	it('carries the sketch when the node moves above a row the sketch was below', () => {
@@ -124,6 +126,9 @@ describe('a node moves with its nested sketches, and the reducer decides', () =>
 		expect(replay(m, up.commands!)).toEqual(['sk', 'ex', 'pl']);
 		/* And the same as a drop of the node before the plane. */
 		expect(replay(m, planNodeMove(m, ['sk', 'ex'], ['pl'], 'before').commands!)).toEqual(['sk', 'ex', 'pl']);
+		/* Carrying the sketch is ONE edit: one command, one history row, one undo. */
+		expect(up.atomic).toEqual({ type: 'move-features', ids: ['sk', 'ex'], to: 0 });
+		expect(replay(m, [up.atomic!])).toEqual(['sk', 'ex', 'pl']);
 	});
 	it('refuses, in the reducer\'s words, when a carried sketch is built on the row it would pass', () => {
 		const features: Feature[] = [{ id: 'pl', name: 'Plane 1', type: 'plane', definition: { kind: 'offset', from: { kind: 'datum', datum: 'XY' }, offset: 2 } }, sketch('sk', 'Sketch 1', { kind: 'reference', feature: 'pl' }), extrude('ex', 'sk')];
@@ -131,6 +136,8 @@ describe('a node moves with its nested sketches, and the reducer decides', () =>
 		const up = nodeMoveOptions(m, nodes, 'ex').up;
 		expect(up.commands).toBeNull();
 		expect(up.refusal).toBe('Sketch 1 uses Plane 1, so it cannot move above it.');
+		/* The one-edit form refuses with the same sentence, member by member. */
+		expect(() => reduce(m, { type: 'move-features', ids: ['sk', 'ex'], to: 0 })).toThrow('Sketch 1 uses Plane 1, so it cannot move above it.');
 	});
 	it('moves a node down past another node, moving only its own rows, and leaves the manifest it read alone', () => {
 		const features: Feature[] = [sketch('s1'), extrude('e1', 's1'), sketch('s2'), extrude('e2', 's2')];
@@ -140,6 +147,7 @@ describe('a node moves with its nested sketches, and the reducer decides', () =>
 		expect(down.commands!.map((c) => (c as { id: string }).id).every((id) => ['s1', 'e1'].includes(id))).toBe(true);
 		expect(replay(m, down.commands!)).toEqual(['s2', 'e2', 's1', 'e1']);
 		expect(replay(m, nodeMoveOptions(m, nodes, 'e2').up.commands!)).toEqual(['s2', 'e2', 's1', 'e1']);
+		expect(replay(m, [down.atomic!])).toEqual(['s2', 'e2', 's1', 'e1']);
 		expect(JSON.stringify(m)).toBe(before);
 	});
 	it('a drop onto its own place is no step at all', () => {

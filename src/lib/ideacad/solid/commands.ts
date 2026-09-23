@@ -59,6 +59,20 @@ export function reduce(current: SolidManifest, command: SolidCommand): SolidMani
 			m.features = without;
 			return m;
 		}
+		case 'move-features': {
+			const ids = m.features.map((f) => f.id), moving = new Set(command.ids);
+			if (!command.ids.length || command.ids.some((id) => !ids.includes(id))) throw Error('That feature is no longer in the tree.');
+			const rest = ids.filter((id) => !moving.has(id)), block = ids.filter((id) => moving.has(id)), to = command.to;
+			if (!Number.isInteger(to) || to < 0 || to > rest.length) throw Error('Invalid tree position.');
+			const target = [...rest.slice(0, to), ...block, ...rest.slice(to)];
+			/* The same single steps a hand would take, each checked by `move-feature`'s own rule: a block moving up goes front first, one moving down back first, so no member is lifted past something the finished order keeps on its other side. */
+			let next = m;
+			const current = [...ids];
+			const step = (id: string, i: number) => { next = reduce(next, { type: 'move-feature', id, to: i }); current.splice(current.indexOf(id), 1); current.splice(i, 0, id); };
+			if (to <= ids.indexOf(block[0])) { for (let i = 0; i < target.length; i++) if (current[i] !== target[i]) step(target[i], i); }
+			else for (let i = target.length - 1; i >= 0; i--) if (current[i] !== target[i]) step(target[i], i);
+			return next;
+		}
 		case 'suppress-feature': {
 			const { feature, index } = featureAt(m, command.id);
 			m.features[index] = { ...feature, suppressed: command.suppressed || undefined };
