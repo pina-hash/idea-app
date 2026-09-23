@@ -128,7 +128,7 @@
 				<label class="tile" data-joint="mate"><input type="radio" name="mate-mode" value="mate" bind:group={mode} />{@render glyph('M3 8h8v8H3zM13 8h8v8h-8zM11 12h2')}<span class="t"><b>One mate</b><small>any</small></span></label>
 			</fieldset>
 			{#if mode === 'mate'}
-				<fieldset class="kinds" data-testid="ideacad-mate-kind"><legend>Kind</legend>{#each MATE_KINDS as k (k)}<label class="check kind-option" class:unfit={!!kindFit?.[k]}><input type="radio" name="mate-kind" value={k} bind:group={kind} /> {MATE_WORDS[k]}</label>{/each}</fieldset>
+				<fieldset class="kinds" data-testid="ideacad-mate-kind"><legend>Kind</legend>{#each MATE_KINDS as k (k)}<label class="tile kind-option" class:unfit={!!kindFit?.[k]}><input type="radio" name="mate-kind" value={k} bind:group={kind} /><span class="t"><b>{MATE_WORDS[k]}</b></span></label>{/each}</fieldset>
 				{#if takesValue(kind)}<label class="value">{kind === 'distance' ? 'Distance (in)' : 'Angle (degrees)'}<input type="text" inputmode="decimal" bind:value data-testid="ideacad-mate-value" /></label>{/if}
 				<ol class="slots" data-testid="ideacad-mate-picks">
 					{#each ['Stays', 'Moves'] as role, i (role)}<li class:filled={!!picks[i]} class:next={i === firstEmpty}><span class="shape">{role}</span><span class="who">{picks[i] ? selectionWords(ctx, picks[i]) : 'Pick'}</span></li>{/each}
@@ -188,14 +188,14 @@
 	fieldset{margin:0;min-width:0;border:1px solid var(--hairline);border-radius:4px}legend{padding:0 4px;font:600 14px var(--font-display,Rajdhani,sans-serif);color:var(--text-2)}
 	fieldset.modes{padding:2px 6px 6px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
 	/* A phone-width panel is about 360px: three tiles a row saves a whole row of height (measured 359px at 375). */
-	@container (min-width: 330px){fieldset.modes{grid-template-columns:repeat(3,minmax(0,1fr))}}
+	@container (min-width: 330px){fieldset.modes,fieldset.kinds{grid-template-columns:repeat(3,minmax(0,1fr))}}
 	.tile{position:relative;display:flex;align-items:center;gap:6px;min-height:44px;padding:2px 6px 2px 8px;border:1px solid var(--boundary);border-radius:4px;color:var(--text-1);cursor:pointer;box-sizing:border-box}
 	.tile input{position:absolute;opacity:0;width:1px;height:1px;margin:0;min-height:0;pointer-events:none}
 	.tile svg{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 	.tile .t{display:grid;min-width:0;line-height:1.1}.tile b{font:600 15px var(--font-display,Rajdhani,sans-serif);overflow-wrap:anywhere}.tile small{font:12px var(--font-mono,'Share Tech Mono',monospace);color:var(--text-2)}
 	.tile:has(input:checked){border-color:var(--green);box-shadow:inset 4px 0 0 var(--green);background:var(--surface-2)}.tile:has(input:checked) b{color:var(--green)}
 	.tile:has(input:focus-visible){outline:2px solid var(--green);outline-offset:1px}
-	fieldset.kinds{padding:0 6px 4px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 6px}.kind-option.unfit{color:var(--text-2);text-decoration:line-through;text-decoration-thickness:1px}
+	fieldset.kinds{padding:2px 6px 6px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.kind-option.unfit b{color:var(--text-2);text-decoration:line-through;text-decoration-thickness:1px}
 	ol.slots{list-style:none;margin:0;padding:0;display:grid;gap:4px;min-width:0}
 	.slots li{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px;min-height:32px;padding:2px 8px;border:1px dashed var(--hairline);border-radius:4px}
 	.slots li.filled{border-style:solid;border-color:var(--boundary)}.slots li.next{border-color:var(--green)}
