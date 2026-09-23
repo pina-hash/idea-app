@@ -1,0 +1,194 @@
+{
+ "ideacad-solid-state-mates@375": {
+  "steps": [
+   [
+    "click",
+    true
+   ],
+   [
+    "wait",
+    true
+   ],
+   [
+    "click",
+    true
+   ],
+   [
+    "click",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ]
+  ],
+  "sketchTools": [],
+  "treeFix": [],
+  "dimensionButtons": [
+   {
+    "text": "Set",
+    "w": 48.8,
+    "h": 44,
+    "left": 13,
+    "right": 13,
+    "top": 11.5,
+    "bottom": 11.5
+   }
+  ],
+  "dimensionFields": [
+   {
+    "unitInsideField": true,
+    "unitToButton": 7,
+    "fieldRight": 300.2,
+    "formRight": 355
+   }
+  ],
+  "mateButtons": [
+   {
+    "text": "Add hinge",
+    "w": 337,
+    "h": 44,
+    "left": 135.5,
+    "right": 135.5,
+    "top": 11.5,
+    "bottom": 11.5
+   }
+  ],
+  "panelsOverflow": 0,
+  "overlap": {
+   "bar": {
+    "x": 8,
+    "y": 279.21875,
+    "r": 338.8125,
+    "b": 380.21875
+   },
+   "dim": {
+    "x": 8,
+    "y": 279.40625,
+    "r": 367,
+    "b": 432
+   },
+   "mates": {
+    "x": 8,
+    "y": 440,
+    "r": 367,
+    "b": 952.921875
+   },
+   "alert": {
+    "x": 93.75,
+    "y": 479.8125,
+    "r": 281.25,
+    "b": 581
+   },
+   "barOverDim": [
+    330.8,
+    100.8
+   ],
+   "barOverMates": [
+    330.8,
+    0
+   ],
+   "alertOverMates": [
+    187.5,
+    101.2
+   ]
+  },
+  "treeFixText": null
+ },
+ "ideacad-solid-state-mates@960": {
+  "steps": [
+   [
+    "click",
+    true
+   ],
+   [
+    "wait",
+    true
+   ],
+   [
+    "click",
+    true
+   ],
+   [
+    "click",
+    true
+   ],
+   [
+    "eval-until",
+    true
+   ]
+  ],
+  "sketchTools": [],
+  "treeFix": [],
+  "dimensionButtons": [
+   {
+    "text": "Set",
+    "w": 48.8,
+    "h": 44,
+    "left": 13,
+    "right": 13,
+    "top": 11.5,
+    "bottom": 11.5
+   }
+  ],
+  "dimensionFields": [
+   {
+    "unitInsideField": true,
+    "unitToButton": 7,
+    "fieldRight": 881.2,
+    "formRight": 936
+   }
+  ],
+  "mateButtons": [
+   {
+    "text": "Add hinge",
+    "w": 238,
+    "h": 44,
+    "left": 86,
+    "right": 86,
+    "top": 11.5,
+    "bottom": 11.5
+   }
+  ],
+  "panelsOverflow": 0,
+  "overlap": {
+   "bar": {
+    "x": 65.40625,
+    "y": 579.4375,
+    "r": 396.21875,
+    "b": 680.4375
+   },
+   "dim": {
+    "x": 688,
+    "y": 124,
+    "r": 948,
+    "b": 276.59375
+   },
+   "mates": {
+    "x": 688,
+    "y": 284.59375,
+    "r": 948,
+    "b": 864.40625
+   },
+   "alert": {
+    "x": 276.0703125,
+    "y": 721,
+    "r": 683.9296875,
+    "b": 783
+   },
+   "barOverDim": [
+    0,
+    0
+   ],
+   "barOverMates": [
+    0,
+    101
+   ],
+   "alertOverMates": [
+    0,
+    62
+   ]
+  },
+  "treeFixText": null
+ }
+}

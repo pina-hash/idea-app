@@ -185,7 +185,7 @@
    ],
    [
     "click",
-    true
+    false
    ],
    [
     "eval-until",
