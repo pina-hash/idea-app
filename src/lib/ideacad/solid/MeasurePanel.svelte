@@ -19,6 +19,7 @@
 	 */
 	import { onDestroy, untrack } from 'svelte';
 	import type { WorkspaceApi } from './workspace-api';
+	import { selectionWords } from './mates/words';
 	import type { Selection, Vec3 } from './types';
 	let { api }: { api: WorkspaceApi } = $props();
 	type Measurement = { kind: string; value: number; points?: [Vec3, Vec3] };
@@ -29,9 +30,8 @@
 	const key = $derived(picks.map((p) => `${p.bodyId}/${p.kind}/${p.id}`).join(' + '));
 	let result = $state<Measurement | null>(null), pending = $state(false);
 	let current = '';
-	const bodyName = (id: string) => api.model.bodies.find((b) => b.id === id)?.name ?? id;
-	const word = (k: Selection['kind']) => (k === 'vertex' ? 'corner' : k);
-	const describe = (s: Selection) => (s.kind === 'body' ? `${bodyName(s.bodyId)} (body)` : `${bodyName(s.bodyId)}, ${s.id} (${word(s.kind)})`);
+	/* A pick reads as the Mates panel reads it ("Body 1, hole wall"), never as a construction id (F034). */
+	const describe = (s: Selection) => (s.kind === 'body' ? `${selectionWords({ model: api.model, manifest: api.manifest }, s)} (body)` : selectionWords({ model: api.model, manifest: api.manifest }, s));
 	const shown = $derived(result ? `${Number(result.value.toFixed(4))}${WORDS[result.kind]?.unit ?? ''}` : '');
 	$effect(() => {
 		const k = key, list = picks;

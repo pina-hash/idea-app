@@ -152,12 +152,13 @@ describe('the dimension panel', () => {
 		const bare = model({ sketches: model().sketches.map((k) => ({ ...k, constraints: [{ id: 'kh', type: 'horizontal' as const, line: 'l0' }] })) });
 		const h = harness({ selections: [{ bodyId: '', kind: 'sketch', id: 's1' }], model: bare }); const m = mountPanel(h);
 		expect(m.all('li[data-dimension]')).toHaveLength(0);
-		expect(m.one('.note').textContent).toBe('Sketch 1 has no dimensions yet.');
+		/* A status value, not a sentence: the heading already names the sketch (F053). */
+		expect(m.one('.note').textContent).toBe('No dimensions yet'); expect(m.one('h2 span').textContent).toBe('Sketch 1');
 	});
 	it('a feature with no number says so in words rather than showing an empty list', () => {
 		const h = harness({ selections: [{ bodyId: '', kind: 'feature', id: 'b1' }] }); const m = mountPanel(h);
 		expect(m.all('input')).toHaveLength(0);
-		expect(m.one('.note').textContent).toBe('Combine 1 has no number to type. Its shape comes from what it was made on.');
+		expect(m.one('.note').textContent).toBe('No size to type'); expect(m.one('h2 span').textContent).toBe('Combine 1');
 	});
 	it('the Set button is disabled while the workspace is busy, and enabled otherwise', () => {
 		const h = harness({ selections: [{ bodyId: '', kind: 'feature', id: 'x1' }] }); const m = mountPanel(h);

@@ -231,7 +231,8 @@ describe('the feature panel', () => {
 		await press(m, 'ideacad-sweep-apply');
 		expect(h.applied[2]).toEqual({ label: 'Sweep', command: { type: 'add-feature', feature: { id: '', name: '', type: 'sweep', profile: 'sA', path: 'sB', operation: 'cut', target: 'x1#0' } } });
 		m.all<HTMLInputElement>('#ideacad-feature-more input')[3].click(); m.flush();
-		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toContain('Rib is not built in this build');
+		/* The panel's cue is one line with the way forward; the executor's full refusal is pinned in the blends engine test (F053). */
+		expect(m.one('[data-testid="ideacad-feature-picks"]').textContent).toMatch(/^Rib: .*closed shape.*extrude/); expect(m.one('[data-testid="ideacad-feature-picks"]').textContent!.length).toBeLessThan(60);
 		expect(m.all('[data-testid="ideacad-feature-panel"] button.primary')).toHaveLength(0);
 	});
 	it('read-only: every option box still shows and NO apply, add-wall or remove control is rendered, against the same fixture writable', async () => {
@@ -311,6 +312,16 @@ describe('the blend refusals and the edge sets', () => {
 		expect(featureOptions.fillet.radius).toBe(0.2);
 		h.set({ manifest: manifest() }); m.flush();
 		expect(box()).toBe('0.2');
+	});
+	it('the shell thickness box follows a shell resized elsewhere, spelled as the Dimensions card spells it; opening does not overwrite it', () => {
+		const withShell = (thickness: number): SolidManifest => ({ ...manifest(), features: [...manifest().features, { id: 'sh1', name: 'Shell 1', type: 'shell', body: 'x1#0', thickness, openFaces: [] }] });
+		const h = harness({ tool: 'shell', manifest: withShell(0.4) }); const m = mountPanel(h);
+		const box = () => m.one<HTMLInputElement>('[data-testid="ideacad-shell-thickness"]').value;
+		expect(box()).toBe('0.1');
+		h.set({ manifest: withShell(0.1 + 0.2) }); m.flush();
+		expect(box()).toBe('0.3');
+		h.set({ manifest: manifest() }); m.flush();
+		expect(box()).toBe('0.3');
 	});
 	it('a picked round face shows the round that made it with its own size, and Set changes that feature; a face no round made shows none; read-only has no Set', async () => {
 		const h = harness({ tool: 'fillet', manifest: withFillet(0.75), selections: [pickFace('f2.blend.x1.end|x1.side.0')] });

@@ -24,7 +24,9 @@
 	import type { FeatureRow, ReferenceProjection, ResolvedPlane, Vec3 } from './types';
 	import { REFERENCE_TYPES } from './features';
 	import { referenceOffers, type Datum, type DatumAxis, type ReferenceOffer } from './features/reference';
-	import { datumPlanesShown, setDatumPlanesShown } from './viewport/reference-layer';
+	import { DATUM_NAMES, datumPlanesShown, setDatumPlanesShown } from './viewport/reference-layer';
+	/* A datum is named as the viewport's plane label names it (Top, Front, Right), never by its axis pair. */
+	const DATUM_ORDER = ['XY', 'XZ', 'YZ'] as const;
 	let { api }: { api: WorkspaceApi } = $props();
 	let datum = $state<Datum>('XY'), axis = $state<DatumAxis>('Z'), offset = $state('1'), angle = $state('45'), coords = $state('0, 0, 0');
 	let showDatum = $state(datumPlanesShown()), sectioned = $state<string | null>(null);
@@ -71,7 +73,7 @@
 
 	<h3>By construction <span class="count" data-testid="ideacad-reference-ready-construction">{readyCount(byConstruction)} of {byConstruction.length} ready</span></h3>
 	<div class="inputs">
-		<label><span class="cap">Plane</span><select bind:value={datum} data-testid="ideacad-reference-datum"><option>XY</option><option>XZ</option><option>YZ</option></select></label>
+		<label><span class="cap">Plane</span><select bind:value={datum} data-testid="ideacad-reference-datum">{#each DATUM_ORDER as d (d)}<option value={d}>{DATUM_NAMES[d]} plane</option>{/each}</select></label>
 		<label><span class="cap">Axis</span><select bind:value={axis} data-testid="ideacad-reference-axis"><option>X</option><option>Y</option><option>Z</option></select></label>
 		<label><span class="cap">Offset <small>in</small></span><input inputmode="decimal" bind:value={offset} data-testid="ideacad-reference-offset" /></label>
 		<label><span class="cap">Angle <small>°</small></span><input inputmode="decimal" bind:value={angle} data-testid="ideacad-reference-angle" /></label>

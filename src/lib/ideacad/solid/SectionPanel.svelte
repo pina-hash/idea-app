@@ -16,6 +16,10 @@
 	import type { WorkspaceApi } from './workspace-api';
 	import type { ResolvedPlane, Vec3 } from './types';
 	import { datumPlane, planeFromNormal } from './sketch/model';
+	import { DATUM_NAMES } from './viewport/reference-layer';
+	import { selectionWords } from './mates/words';
+	/* A datum is named as the viewport's plane label names it (Top, Front, Right); a picked face in the Mates panel's words. */
+	const DATUM_ORDER = ['XY', 'XZ', 'YZ'] as const;
 	let { api }: { api: WorkspaceApi } = $props();
 	let source = $state<string>('XY'), offset = $state('0'), flip = $state(false), on = $state(false);
 	const number = (v: string) => (v.trim() === '' ? NaN : Number(v.trim()));
@@ -42,9 +46,9 @@
 <section class="section panel" aria-label="Section view" data-testid="ideacad-section-panel">
 	<h2>Section view</h2>
 	<label>Plane<select value={source} onchange={(e) => (source = e.currentTarget.value)} data-testid="ideacad-section-source">
-		<option value="XY">Top plane (XY)</option><option value="XZ">Front plane (XZ)</option><option value="YZ">Right plane (YZ)</option>
+		{#each DATUM_ORDER as d (d)}<option value={d}>{DATUM_NAMES[d]} plane</option>{/each}
 		{#each planes as p (p.feature)}<option value={`ref:${p.feature}`}>{p.name} (reference)</option>{/each}
-		<option value="face">Selected flat face{face ? `: ${face.id}` : ''}</option>
+		<option value="face">Selected flat face{face ? `: ${selectionWords({ model: api.model, manifest: api.manifest }, api.selections.find((x) => x.kind === 'face')!)}` : ''}</option>
 	</select></label>
 	<label>Offset (in)<input inputmode="decimal" bind:value={offset} data-testid="ideacad-section-offset" /></label>
 	<label class="toggle"><input type="checkbox" bind:checked={flip} data-testid="ideacad-section-flip" /><span>Flip side</span></label>

@@ -52,6 +52,7 @@
 	import { refFromSelection } from './naming';
 	import { featureOptions, holeFeatureAt, withOptions } from './features/options';
 	import { HOLE_FIT_WORDS, HOLE_STANDARDS, describeHole, type HoleFit } from './features/holes';
+	import { editText } from './dimensions/model';
 	import { blendFeatureOf, edgeKey, edgeSetOffers, edgeShapes, facesByEdge, featureOfName, sizeFixFromSentence } from './features/blends';
 	let { api }: { api: WorkspaceApi } = $props();
 	const BLEND_TOOLS = ['fillet', 'chamfer', 'shell', 'hole'];
@@ -89,17 +90,17 @@
 		featureOptions.shell.faceThickness = walls.map((w) => ({ face: w.face, thickness: w.thickness }));
 		featureOptions.hole.standard = standard; featureOptions.hole.fit = fit; featureOptions.hole.diameter = optional(diameter); featureOptions.hole.depth = through ? 'through' : number(depth);
 	});
-	/* The boxes follow a round or bevel made or resized anywhere: a drag, a typed number, a fix. The first reading only learns what is there, so opening a document keeps the student's own last size. */
+	/* The boxes follow a round, bevel or shell made or resized anywhere: a drag, a typed number, a fix. The first reading only learns what is there, so opening a document keeps the student's own last size. `editText` is the size boxes' one spelling of a number, so 0.30000000000000004 reads 0.3 here as it does in the Dimensions card (F026). */
 	let known: Map<string, number> | null = null;
 	$effect(() => {
 		const features = api.manifest.features;
 		untrack(() => {
 			const next = new Map<string, number>();
 			for (const f of features) {
-				if (f.type !== 'fillet' && f.type !== 'chamfer') continue;
-				const size = f.type === 'fillet' ? f.radius : f.distance;
+				if (f.type !== 'fillet' && f.type !== 'chamfer' && f.type !== 'shell') continue;
+				const size = f.type === 'fillet' ? f.radius : f.type === 'chamfer' ? f.distance : f.thickness;
 				next.set(f.id, size);
-				if (known && known.get(f.id) !== size && Number.isFinite(size)) { if (f.type === 'fillet') radius = String(size); else distance = String(size); }
+				if (known && known.get(f.id) !== size && Number.isFinite(size)) { const text = editText(size); if (f.type === 'fillet') radius = text; else if (f.type === 'chamfer') distance = text; else thickness = text; }
 			}
 			known = next;
 		});
@@ -352,7 +353,7 @@
 			<label>Result<select value={operation} onchange={(e) => (operation = e.currentTarget.value as typeof operation)} data-testid="ideacad-feature-operation"><option value="new">New body</option><option value="add">Add to the selected body</option><option value="cut">Cut from the selected body</option></select></label>
 			{#if editable}<button type="button" class="wide primary" aria-disabled={api.busy} onclick={() => void (mode === 'sweep' ? sweep() : loft())} data-testid="ideacad-{mode}-apply">{mode === 'sweep' ? 'Sweep the profile along the path' : `Loft ${plural(sketches.length, 'profile')}`}</button>{/if}
 		{:else if mode === 'rib'}
-			<p class="note" data-testid="ideacad-feature-picks">Rib is not built in this build: the kernel cannot extend an open sketch to the body. Draw the rib as a closed shape and extrude it instead.</p>
+			<p class="note" data-testid="ideacad-feature-picks">Rib: draw a closed shape and extrude it</p>
 		{/if}
 		<button type="button" class="more" aria-expanded={moreOpen} aria-controls="ideacad-feature-more" onclick={() => (moreOpen = !moreOpen)} data-testid="ideacad-feature-more">{moreOpen ? '▾' : '▸'} More features</button>
 		<div id="ideacad-feature-more" class="extra" hidden={!moreOpen}>
