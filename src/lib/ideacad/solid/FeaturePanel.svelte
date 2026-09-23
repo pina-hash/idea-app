@@ -20,7 +20,9 @@
 	 * is that a number IS one, in the executor's own words.
 	 *
 	 * THE BLEND SECTION IS LABELS, VALUES AND ONE-CLICK WAYS FORWARD, NO PROSE.
-	 * One pick grows into an edge set (tangent chain, the face's loop, the
+	 * The chain toggle says "Tangent propagation", SolidWorks' own word for it,
+ * so a student moving between the two finds it under the name they know.
+ * One pick grows into an edge set (tangent chain, the face's loop, the
 	 * feature's edges, every edge, the outside or inside edges), each lit in
 	 * the viewport while the pointer is over it (`features/blends.ts` computes
 	 * them from the projection, no worker call). A refused round keeps the
@@ -288,7 +290,7 @@
 			{/if}
 			{#if mode === 'fillet'}
 				<label class="size">Radius<span class="fp-field"><input inputmode="decimal" bind:value={radius} onkeydown={onEnter(fillet)} data-testid="ideacad-fillet-radius" /><span class="fp-unit">in</span></span></label>
-				<label class="toggle"><input type="checkbox" bind:checked={propagate} data-testid="ideacad-fillet-propagate" /><span>Tangent chain</span></label>
+				<label class="toggle"><input type="checkbox" bind:checked={propagate} data-testid="ideacad-fillet-propagate" /><span>Tangent propagation</span></label>
 				<div class="rigor"><Disclosure label="Variable radius" collapseWhen={true} scope="ideacad-fillet-variable" testId="ideacad-fillet-variable">
 					<label class="size">End radius<span class="fp-field"><input inputmode="decimal" bind:value={variableEnd} data-testid="ideacad-fillet-variable-end" /><span class="fp-unit">in</span></span></label>
 					{#if variableEnd.trim() !== ''}<label class="size">Law<select value={law} onchange={(e) => (law = e.currentTarget.value as 'linear' | 'scurve')} data-testid="ideacad-fillet-law"><option value="linear">Linear</option><option value="scurve">S-curve</option></select></label>{/if}
@@ -297,7 +299,7 @@
 				<label class="size">Distance<span class="fp-field"><input inputmode="decimal" bind:value={distance} onkeydown={onEnter(chamfer)} data-testid="ideacad-chamfer-distance" /><span class="fp-unit">in</span></span></label>
 				<label class="size">Second<span class="fp-field"><input inputmode="decimal" bind:value={distance2} placeholder="same" data-testid="ideacad-chamfer-distance2" /><span class="fp-unit">in</span></span></label>
 				<label class="size">Angle<span class="fp-field"><input inputmode="decimal" bind:value={chamferAngle} placeholder="none" data-testid="ideacad-chamfer-angle" /><span class="fp-unit">°</span></span></label>
-				<label class="toggle"><input type="checkbox" bind:checked={chamferPropagate} data-testid="ideacad-chamfer-propagate" /><span>Tangent chain</span></label>
+				<label class="toggle"><input type="checkbox" bind:checked={chamferPropagate} data-testid="ideacad-chamfer-propagate" /><span>Tangent propagation</span></label>
 			{/if}
 			{#if shellAhead}<label class="toggle cue-toggle"><input type="checkbox" bind:checked={beforeShell} data-testid="ideacad-blend-before-shell" /><span>Before {shellAhead.name}, for even walls</span></label>{/if}
 			{#if editable}

@@ -54,7 +54,7 @@ export default {
 		{ selector: '[data-testid="ideacad-fillet-variable-end"]', label: 'variable radius, folded away until asked for', expectPresent: 1, maxPresent: 1, expectVisible: 0, maxVisible: 0 }
 	],
 	textContains: [
-		{ selector: '[data-testid="ideacad-feature-panel"]', label: 'labels, values and the refusal in words, and none of the instructions or kernel text', must: ['1 edge', 'Radius', 'Tangent chain', 'Variable radius', 'That radius is too big for this edge. The largest that fits here is 0.999 in.', 'Use 0.999 in'], mustNot: ['Shift-click', 'drag any selected edge', 'Propagate along tangent edges', 'blend cliff', 'Id(', 'available radius'] }
+		{ selector: '[data-testid="ideacad-feature-panel"]', label: 'labels, values and the refusal in words, and none of the instructions or kernel text', must: ['1 edge', 'Radius', 'Tangent propagation', 'Variable radius', 'That radius is too big for this edge. The largest that fits here is 0.999 in.', 'Use 0.999 in'], mustNot: ['Shift-click', 'drag any selected edge', 'Propagate along tangent edges', 'blend cliff', 'Id(', 'available radius'] }
 	],
 	contrast: [
 		{ selector: '[data-testid="ideacad-blend-refusal"] p', label: 'the refusal sentence and the name above it', min: 4.5 },
