@@ -256,6 +256,11 @@ describe('sketchDimensions', () => {
 		const dims = sketchDimensions({ feature: 's1', constraints: rect(4, 3).constraints });
 		expect(dims.map((d) => [d.key, d.label, d.detail, d.value, d.unit])).toEqual([['kw', 'Distance 1', 'p0 to p1', 4, 'in'], ['kh', 'Distance 2', 'p1 to p2', 3, 'in']]);
 		expect(dims.every((d) => d.driving)).toBe(true);
+		/* With the entities, the detail is a word a student reads instead of two entity ids. */
+		const worded = sketchDimensions({ feature: 's1', constraints: rect(4, 3).constraints, entities: rect(4, 3).entities });
+		expect(worded.map((d) => d.detail)).toEqual(['horizontal', 'vertical']);
+		const skew = sketchDimensions({ feature: 's1', constraints: [{ id: 'kd', type: 'distance', a: 'p0', b: 'p2', value: 5 }, { id: 'kr', type: 'circleRadius', circle: 'c', value: 1 }], entities: rect(4, 3).entities });
+		expect(skew.map((d) => d.detail)).toEqual(['aligned', 'circle']);
 		/* The whole DIMENSIONED census gets a row, and nothing outside it does. */
 		const all: FeatureOf<'sketch'>['constraints'] = [
 			{ id: 'a', type: 'distance', a: 'p', b: 'q', value: 1 }, { id: 'b', type: 'pointLineDistance', point: 'p', line: 'l', value: 2 }, { id: 'c', type: 'angle', l1: 'l', l2: 'm', value: 30 },

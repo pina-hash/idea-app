@@ -188,7 +188,8 @@ describe('the dimension panel', () => {
 		const inputs = m.all<HTMLInputElement>('input');
 		expect(inputs).toHaveLength(2);
 		expect(inputs.map((i) => i.value)).toEqual(['4', '3']);
-		expect(m.all('.words').map((l) => l.textContent)).toEqual(['Distance 1p0 to p1', 'Distance 2p1 to p2']);
+		/* The detail names what each number measures in a word (the width is horizontal, the height vertical), never the entity ids behind it. */
+		expect(m.all('.words').map((l) => l.textContent)).toEqual(['Distance 1horizontal', 'Distance 2vertical']);
 		expect(m.all('.unit').map((u) => u.textContent)).toEqual(['in', 'in']);
 		expect(m.all('dl')).toHaveLength(0);
 		submit(m, 'kv', '5');

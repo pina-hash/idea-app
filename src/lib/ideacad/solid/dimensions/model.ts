@@ -45,7 +45,7 @@
  */
 import { DIMENSIONED } from '../sketch/model';
 import { circleThrough } from '../mates/frames';
-import type { BodyProjection, EdgeProjection, Feature, ModelProjection, Selection, SketchProjection, Vec3 } from '../types';
+import type { BodyProjection, EdgeProjection, Feature, ModelProjection, Selection, SketchEntity, SketchProjection, Vec3 } from '../types';
 
 /* ------------------------------------------------------------- shapes */
 export type DimensionUnit = 'in' | 'deg' | 'count' | 'factor';
@@ -262,13 +262,14 @@ const CONSTRAINT_WORDS: Partial<Record<SketchProjection['constraints'][number]['
  * patch rewrites the whole `constraints` array with one value moved, which is
  * what `set-feature` on the sketch feature carries.
  */
-export function sketchDimensions(sketch: Pick<SketchProjection, 'feature' | 'constraints'>): Dimension[] {
+export function sketchDimensions(sketch: Pick<SketchProjection, 'feature' | 'constraints'> & { entities?: readonly SketchEntity[] }): Dimension[] {
 	const out: Dimension[] = [], counts = new Map<string, number>();
 	for (const c of sketch.constraints) {
 		if (!DIMENSIONED.includes(c.type) || !('value' in c)) continue;
 		const word = CONSTRAINT_WORDS[c.type] ?? c.type;
 		const n = (counts.get(word) ?? 0) + 1; counts.set(word, n);
-		const detail = c.type === 'distance' ? `${c.a} to ${c.b}` : c.type === 'pointLineDistance' ? `${c.point} to ${c.line}` : c.type === 'angle' ? `${c.l1} to ${c.l2}` : c.type === 'circleRadius' ? c.circle : c.type === 'arcRadius' ? c.arc : c.point;
+		/* With the entities to hand the detail says what the number measures in words a student reads ("horizontal", "circle"); without them, the entity ids, which is all there is. */
+		const detail = (sketch.entities ? detailWord(sketch.entities, c) : null) ?? (c.type === 'distance' ? `${c.a} to ${c.b}` : c.type === 'pointLineDistance' ? `${c.point} to ${c.line}` : c.type === 'angle' ? `${c.l1} to ${c.l2}` : c.type === 'circleRadius' ? c.circle : c.type === 'arcRadius' ? c.arc : c.point);
 		out.push(dim(c.id, `${word} ${n}`, c.value, c.type === 'angle' ? 'deg' : 'in', (value) => ({ constraints: sketch.constraints.map((k) => (k.id === c.id ? { ...k, value } : k)) }), detail));
 	}
 	return out;
@@ -296,6 +297,25 @@ export function featureForSelection(selection: Selection | null | undefined, mod
 		if (made && features.some((f) => f.id === made) && (made === creator || !!row?.bodies.includes(selection.bodyId))) return made;
 	}
 	return creator;
+}
+
+/** What a sketch number measures, in a word: a distance is horizontal, vertical or aligned by where its two points sit; a radius is a circle's or an arc's. Null when the entities do not say. */
+function detailWord(entities: readonly SketchEntity[], c: SketchProjection['constraints'][number]): string | null {
+	const at = (id: string) => { const p = entities.find((e) => e.id === id); return p && p.type === 'point' ? p : null; };
+	switch (c.type) {
+		case 'distance': {
+			const a = at(c.a), b = at(c.b); if (!a || !b) return null;
+			const dx = Math.abs(b.x - a.x), dy = Math.abs(b.y - a.y), tol = 1e-9 * Math.max(1, dx, dy);
+			return dy <= tol && dx > tol ? 'horizontal' : dx <= tol && dy > tol ? 'vertical' : 'aligned';
+		}
+		case 'pointLineDistance': return 'point to line';
+		case 'angle': return 'between lines';
+		case 'circleRadius': return 'circle';
+		case 'arcRadius': return 'arc';
+		case 'fixX': return 'from the vertical axis';
+		case 'fixY': return 'from the horizontal axis';
+		default: return null;
+	}
 }
 
 /* ------------------------------------------------- measured values */
