@@ -42,7 +42,7 @@
 <section class="section panel" aria-label="Section view" data-testid="ideacad-section-panel">
 	<h2>Section view</h2>
 	<label>Plane<select value={source} onchange={(e) => (source = e.currentTarget.value)} data-testid="ideacad-section-source">
-		<option value="XY">XY datum</option><option value="XZ">XZ datum</option><option value="YZ">YZ datum</option>
+		<option value="XY">Top plane (XY)</option><option value="XZ">Front plane (XZ)</option><option value="YZ">Right plane (YZ)</option>
 		{#each planes as p (p.feature)}<option value={`ref:${p.feature}`}>{p.name} (reference)</option>{/each}
 		<option value="face">Selected flat face{face ? `: ${face.id}` : ''}</option>
 	</select></label>
