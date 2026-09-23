@@ -1215,8 +1215,12 @@
 		.sec-tabs {
 			margin-left: 0;
 		}
-		/* A teacher's five tabs fit one phone line at this size (measured: they
-		   wrapped to two at 0.78rem with 0.9rem sides, 92.8px of chrome). */
+		/* A student's two tabs and a teacher's first five fit one phone line
+		   at this size (they wrapped to two at 0.78rem with 0.9rem sides). With
+		   the Live tab a teacher has six, and at 375 the sixth wraps to a
+		   second line (chrome 142px against 93px): shrinking the tabs under the
+		   44px floor or hiding one behind a scroll were both worse, and a
+		   teacher runs the class from a laptop, where all six sit in one row. */
 		.sec-tab {
 			padding: 0.5rem 0.45rem;
 			font-size: 0.72rem;
