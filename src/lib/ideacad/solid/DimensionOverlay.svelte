@@ -28,9 +28,9 @@
 	import { onMount, untrack } from 'svelte';
 	import type { WorkspaceApi } from './workspace-api';
 	import { drivenDimensions, featureDimensions, featureForSelection, sketchDimensions, type Dimension, type Measured } from './dimensions/model';
-	import { featureAnchors, measuredAnchors, pixelsPerInch, sketchAnchors, type DimensionAnchor } from './dimensions/anchors';
+	import { facesOf, featureAnchors, measuredAnchors, pixelsPerInch, sketchAnchors, type DimensionAnchor } from './dimensions/anchors';
 	import { labelEditText, labelTarget, labelText, readLabel, spreadLabels, type DisplayUnit, type LabelBox } from './dimensions/labels';
-	import type { Feature, SketchProjection, Vec3 } from './types';
+	import type { Feature, Selection, SketchProjection, Vec3 } from './types';
 
 	/** Members a workspace may offer the overlay; both optional, so a fake workspace in a test needs neither. */
 	type OverlayApi = WorkspaceApi & { onCameraChange?(listener: () => void): () => void; readonly dragging?: boolean };
@@ -190,6 +190,24 @@
 	});
 	const shown = $derived(!hidden && !dragging && !host.dragging);
 
+	/* ------------------------------------------------------------ what a number names */
+	/**
+	 * The geometry a number controls, lit in the viewport while the pointer or
+	 * the focus is on its label, exactly as the pointer's own hover lights it:
+	 * a sketch number its sketch, a feature number the faces that feature
+	 * made (else the bodies it changed), a measured value what was measured.
+	 */
+	function geometryOf(item: Item): Selection[] {
+		if (item.group === 'measured') return primary ? [primary] : [];
+		if (item.group === 'sketch') return [{ bodyId: '', kind: 'sketch', id: item.feature }];
+		const faces = facesOf(api.model, item.feature);
+		if (faces.length) return faces.map(({ body, face }) => ({ bodyId: body.id, kind: 'face' as const, id: face.id }));
+		return (api.model.features.find((r) => r.id === item.feature)?.bodies ?? []).map((id) => ({ bodyId: id, kind: 'body' as const, id }));
+	}
+	let lit = false;
+	function light(item: Item | null) { if (!item && !lit) return; lit = !!item; api.hover?.(item ? geometryOf(item) : null); }
+	onMount(() => () => { if (lit) api.hover?.(null); });
+
 	/* ------------------------------------------------------------ editing */
 	function open(item: Item) {
 		if (!item.driving) return;
@@ -246,7 +264,7 @@
 							<input use:focusBox={editing.text} oninput={(e) => { if (editing) editing.text = e.currentTarget.value; }} aria-label={`${item.word}, ${display === 'mm' && item.dim.unit === 'in' ? 'millimeters' : item.dim.unit === 'in' ? 'inches' : item.dim.unit === 'deg' ? 'degrees' : item.dim.unit === 'count' ? 'copies' : 'ratio'}`} autocomplete="off" spellcheck="false" onkeydown={(e) => keydown(e, item)} onblur={() => { if (pending !== p.id) cancel(); }} data-dimension-input={p.id} />
 						</form>
 					{:else if item.driving}
-						<button type="button" class="dim-label" class:conflicts={item.conflicts} use:register={p.id} aria-label={`${item.word} ${p.text}${item.conflicts ? ', conflicts' : ''}`} aria-busy={pending === p.id ? 'true' : undefined} data-dimension-label={p.id} onclick={() => open(item)}>{p.text}{#if item.conflicts}<small>conflicts</small>{/if}</button>
+						<button type="button" class="dim-label" class:conflicts={item.conflicts} use:register={p.id} aria-label={`${item.word} ${p.text}${item.conflicts ? ', conflicts' : ''}`} aria-busy={pending === p.id ? 'true' : undefined} data-dimension-label={p.id} onclick={() => open(item)} onpointerenter={() => light(item)} onpointerleave={() => light(null)} onfocus={() => light(item)} onblur={() => light(null)}>{p.text}{#if item.conflicts}<small>conflicts</small>{/if}</button>
 					{:else}
 						<span class="dim-label driven" use:register={p.id} data-dimension-label={p.id}>{p.text}{#if item.group === 'measured'}<small>measured</small>{/if}</span>
 					{/if}

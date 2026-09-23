@@ -1,186 +1,4 @@
 {
- "960": {
-  "cue": {
-   "features": [
-    "sketch:ok",
-    "extrude:ok"
-   ],
-   "selections": [
-    "body:f2dcaf50d20b2#0"
-   ],
-   "bounds": [
-    -1,
-    -1,
-    0,
-    1,
-    1,
-    1
-   ],
-   "error": "",
-   "panelRadius": null,
-   "labels": [
-    {
-     "id": "f887219037fef:eda50a98b",
-     "text": "2.000 in",
-     "h": 44,
-     "reachable": true
-    },
-    {
-     "id": "f887219037fef:e01d4c355",
-     "text": "2.000 in",
-     "h": 44,
-     "reachable": true
-    },
-    {
-     "id": "f2dcaf50d20b2:distance",
-     "text": "1.000 in",
-     "h": 44,
-     "reachable": true
-    }
-   ],
-   "overChrome": 0
-  },
-  "topFace": {
-   "features": [
-    "sketch:ok",
-    "extrude:ok"
-   ],
-   "selections": [
-    "face:f2dcaf50d20b2.end"
-   ],
-   "bounds": [
-    -1,
-    -1,
-    0,
-    1,
-    1,
-    1
-   ],
-   "error": "",
-   "panelRadius": null,
-   "labels": [
-    {
-     "id": "f887219037fef:eda50a98b",
-     "text": "2.000 in",
-     "h": 44,
-     "reachable": true
-    },
-    {
-     "id": "f887219037fef:e01d4c355",
-     "text": "2.000 in",
-     "h": 44,
-     "reachable": true
-    },
-    {
-     "id": "f2dcaf50d20b2:distance",
-     "text": "1.000 in",
-     "h": 44,
-     "reachable": true
-    }
-   ],
-   "overChrome": 0
-  },
-  "edgePicked": {
-   "features": [
-    "sketch:ok",
-    "extrude:ok"
-   ],
-   "selections": [
-    "edge:edge:f2dcaf50d20b2.end|f2dcaf50d20b2.side.0"
-   ],
-   "bounds": [
-    -1,
-    -1,
-    0,
-    1,
-    1,
-    1
-   ],
-   "error": "",
-   "panelRadius": "0.25"
-  },
-  "filleted": {
-   "features": [
-    "sketch:ok",
-    "extrude:ok",
-    "fillet:ok"
-   ],
-   "selections": [
-    "edge:edge:f2dcaf50d20b2.end|f2dcaf50d20b2.side.0"
-   ],
-   "bounds": [
-    -1,
-    -1,
-    0,
-    1,
-    1,
-    1
-   ],
-   "fillet": 0.2,
-   "error": "",
-   "panelRadius": "0.25"
-  },
-  "blendFace": {
-   "features": [
-    "sketch:ok",
-    "extrude:ok",
-    "fillet:ok"
-   ],
-   "selections": [
-    "face:fd3a53b29efb8.blend.f2dcaf50d20b2.end|f2dcaf50d20b2.side.0"
-   ],
-   "bounds": [
-    -1,
-    -1,
-    0,
-    1,
-    1,
-    1
-   ],
-   "fillet": 0.2,
-   "error": "",
-   "panelRadius": null,
-   "labels": [
-    {
-     "id": "fd3a53b29efb8:radius",
-     "text": "R 0.200 in",
-     "h": 44,
-     "reachable": true
-    }
-   ],
-   "overChrome": 0
-  },
-  "radiusSet": {
-   "features": [
-    "sketch:ok",
-    "extrude:ok",
-    "fillet:ok"
-   ],
-   "selections": [
-    "face:fd3a53b29efb8.blend.f2dcaf50d20b2.end|f2dcaf50d20b2.side.0"
-   ],
-   "bounds": [
-    -1,
-    -1,
-    0,
-    1,
-    1,
-    1
-   ],
-   "fillet": 0.3,
-   "error": "",
-   "panelRadius": null,
-   "labels": [
-    {
-     "id": "fd3a53b29efb8:radius",
-     "text": "R 0.300 in",
-     "h": 44,
-     "reachable": true
-    }
-   ]
-  },
-  "errors": []
- },
  "1440": {
   "cue": {
    "features": [
@@ -188,7 +6,7 @@
     "extrude:ok"
    ],
    "selections": [
-    "body:f26f47ef8ce6f#0"
+    "body:fdf4764a1f4ea#0"
    ],
    "bounds": [
     -1,
@@ -202,19 +20,19 @@
    "panelRadius": null,
    "labels": [
     {
-     "id": "f2b62eb978433:ee446209c",
+     "id": "f9129273de646:e631c65fb",
      "text": "2.000 in",
      "h": 44,
      "reachable": true
     },
     {
-     "id": "f2b62eb978433:edd05b95e",
+     "id": "f9129273de646:e242bb8f5",
      "text": "2.000 in",
      "h": 44,
      "reachable": true
     },
     {
-     "id": "f26f47ef8ce6f:distance",
+     "id": "fdf4764a1f4ea:distance",
      "text": "1.000 in",
      "h": 44,
      "reachable": true
@@ -228,7 +46,7 @@
     "extrude:ok"
    ],
    "selections": [
-    "face:f26f47ef8ce6f.end"
+    "face:fdf4764a1f4ea.end"
    ],
    "bounds": [
     -1,
@@ -242,19 +60,19 @@
    "panelRadius": null,
    "labels": [
     {
-     "id": "f2b62eb978433:ee446209c",
+     "id": "f9129273de646:e631c65fb",
      "text": "2.000 in",
      "h": 44,
      "reachable": true
     },
     {
-     "id": "f2b62eb978433:edd05b95e",
+     "id": "f9129273de646:e242bb8f5",
      "text": "2.000 in",
      "h": 44,
      "reachable": true
     },
     {
-     "id": "f26f47ef8ce6f:distance",
+     "id": "fdf4764a1f4ea:distance",
      "text": "1.000 in",
      "h": 44,
      "reachable": true
@@ -262,13 +80,18 @@
    ],
    "overChrome": 0
   },
+  "hoverDepth": {
+   "before": 0,
+   "during": 6,
+   "after": 0
+  },
   "edgePicked": {
    "features": [
     "sketch:ok",
     "extrude:ok"
    ],
    "selections": [
-    "edge:edge:f26f47ef8ce6f.end|f26f47ef8ce6f.side.0"
+    "edge:edge:fdf4764a1f4ea.end|fdf4764a1f4ea.side.0"
    ],
    "bounds": [
     -1,
@@ -288,7 +111,7 @@
     "fillet:ok"
    ],
    "selections": [
-    "edge:edge:f26f47ef8ce6f.end|f26f47ef8ce6f.side.0"
+    "edge:edge:fdf4764a1f4ea.end|fdf4764a1f4ea.side.0"
    ],
    "bounds": [
     -1,
@@ -309,7 +132,7 @@
     "fillet:ok"
    ],
    "selections": [
-    "face:f71308bdf7655.blend.f26f47ef8ce6f.end|f26f47ef8ce6f.side.0"
+    "face:f2d8930045f95.blend.fdf4764a1f4ea.end|fdf4764a1f4ea.side.0"
    ],
    "bounds": [
     -1,
@@ -324,7 +147,7 @@
    "panelRadius": null,
    "labels": [
     {
-     "id": "f71308bdf7655:radius",
+     "id": "f2d8930045f95:radius",
      "text": "R 0.200 in",
      "h": 44,
      "reachable": true
@@ -339,7 +162,7 @@
     "fillet:ok"
    ],
    "selections": [
-    "face:f71308bdf7655.blend.f26f47ef8ce6f.end|f26f47ef8ce6f.side.0"
+    "face:f2d8930045f95.blend.fdf4764a1f4ea.end|fdf4764a1f4ea.side.0"
    ],
    "bounds": [
     -1,
@@ -354,7 +177,7 @@
    "panelRadius": null,
    "labels": [
     {
-     "id": "f71308bdf7655:radius",
+     "id": "f2d8930045f95:radius",
      "text": "R 0.300 in",
      "h": 44,
      "reachable": true

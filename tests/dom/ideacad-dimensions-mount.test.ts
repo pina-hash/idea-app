@@ -315,6 +315,21 @@ describe('the dimension overlay', () => {
 		expect(kv.getAttribute('aria-label')).toBe('Distance 2 3.000 in, conflicts');
 		expect(kw.querySelector('small')).toBeNull();
 	});
+	it('pointing at a number lights what it controls, and leaving it stops', async () => {
+		const h = harness({ selections: [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }] });
+		const lit: (Selection[] | null)[] = [];
+		const api = Object.assign(Object.create(Object.getPrototypeOf(h.api)), h.api) as WorkspaceApi;
+		Object.defineProperties(api, Object.getOwnPropertyDescriptors(h.api));
+		(api as { hover?: (s: Selection[] | null) => void }).hover = (s) => { lit.push(s); };
+		const m = mountInto(Overlay, { api }); mounted.push(m); await pass(m);
+		const width = m.one<HTMLElement>('button[data-dimension-label="s1:kw"]'), depth = m.one<HTMLElement>('button[data-dimension-label="x1:distance"]');
+		width.dispatchEvent(new PointerEvent('pointerenter')); width.dispatchEvent(new PointerEvent('pointerleave'));
+		depth.dispatchEvent(new PointerEvent('pointerenter'));
+		expect(lit[0]).toEqual([{ bodyId: '', kind: 'sketch', id: 's1' }]);
+		expect(lit[1]).toBeNull();
+		/* The extrude's number lights the faces the extrude made (the fixture's one face, x1.end). */
+		expect(lit[2]).toEqual([{ bodyId: 'x1#0', kind: 'face', id: 'x1.end' }]);
+	});
 	it('the hidden prop takes the labels away, and nothing is left to press', async () => {
 		const h = harness({ selections: [{ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }] });
 		const m = mountInto(Overlay, { api: h.api, hidden: true }); mounted.push(m); await pass(m);
