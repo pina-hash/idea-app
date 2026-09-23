@@ -22,6 +22,12 @@ declare global {
 		interface Error {
 			message: string;
 			id?: string;
+			/**
+			 * Set by `hooks.client.ts` when the failure was a piece of the site that
+			 * could not be downloaded, which `+error.svelte` answers with Try again.
+			 * Never set on the server.
+			 */
+			chunk?: boolean;
 		}
 		interface Locals {
 			supabase: SupabaseClient;
