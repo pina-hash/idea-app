@@ -527,10 +527,13 @@ owned a disjoint set of files, and sent the writer tested requests. Round 1 was
 the foundation (writer stages 1 and 2) beside the front door, the design tree
 and analysis. Round 2 was dimensions, fillets, assembly and learning. Writer
 stage 3 wired the tree into the workspace and built rollback, the time-lapse,
-the fillet preview and view modes. A final integration stage merges the round 2
-branches and mounts what they built. Where an area below says a piece was
-measured "on its harness" or "with its patch applied", mounting it in the
-workspace was that final stage's job when this section was written.
+the fillet preview and view modes. Writer stage 4 merged the round 2 branches
+and mounted what they built: the sizes overlay, typed sizes while drawing, the
+fillet help on tree rows, move within freedom for joints, the Learn panel and
+hints, and the Analysis toggle (commits 7e257d60, 38667e2e, 5427e7e1). One
+round 2 piece was not wired: the fillet edge-set accelerator near the pointer
+(the helpers exist in `features/blends.ts` as `edgeSetOffers`). The ending then
+fixed blind pockets (below, part features).
 
 **What did not change.** No migration: nothing was written under
 `supabase/migrations/`. The manifest format did not change, so every saved
@@ -637,11 +640,26 @@ leaves its angle free), and splines.
 **3. Part features.** A click with the Hole tool drills where the face was
 clicked (measured: 2 clicks, 2 holes, 1 body, 0 errors), and the tool says so.
 "Start from a box" on an empty part adds a 2 x 2 in sketch and a 1 in extrude as
-one change and one undo, and a refusal puts the model back. Still open: a circle
-sketched on the top face of a filleted block and pushed down was refused with
-"This change could not form a valid solid. Try a different size." at 1440, which
-is what blocks the tutorial's cut step; patterns copy bodies, not features;
-there is no counterbore or countersink.
+one change and one undo, and a refusal puts the model back.
+
+**A blind pocket from a face sketch cuts now, and had never cut before.** A
+circle sketched in the middle of a block's top face and pushed 0.5 in down was
+refused with "This change could not form a valid solid. Try a different size."
+The cause, measured against the vendored kernel: a tool swept AGAINST its own
+profile's normal makes `cutJournaled` and `fuseJournaled` return an invalid
+solid, while the identical cylinder swept the other way (from the pocket floor
+up) cuts cleanly; starting the tool 0.001 in above the face does not help. It
+was the same on `main` at `bf04a223`, so every interior blind pocket had always
+been refused; a cut that broke out of an edge, or went all the way through,
+happened to survive. The extrude executor (`features/core.ts`) now rebuilds such
+a tool from its far end and sweeps it back along the normal, only when the first
+result is invalid, so a cut that already worked is never rebuilt and its bytes
+do not change. The caps are still named against the sketch plane, so the pocket
+floor is `<fid>.end` and the wall `<fid>.side.0`.
+`tests/ideacad-solid-blind-pocket.test.ts` pins the exact pocket volume (to
+1e-6), the names, a boss pulled down off a bottom face, and an unchanged
+through-cut; removing the fix fails it. Still open: patterns copy bodies, not
+features; there is no counterbore or countersink.
 
 **4. Fillets and chamfers.** Mr. Pina said they "totally suck". What changed:
 
@@ -688,9 +706,9 @@ there is no counterbore or countersink.
   alone fails at all 16 corners, so the refusal cannot say which corner is the
   problem.
 
-The live drag and the preview are on the overnight branch. Everything else in
-this list is on the fillets branch, and `FeatureRow.help` needs the engine to
-carry it.
+All of this is mounted: the engine carries a refusal's help onto the
+`FeatureRow`, and the design tree's error row offers the same one-click fix as
+the panel. Not wired: the edge-set accelerator near the pointer.
 
 **5. Reference geometry.** Front, Top and Right are named everywhere through
 `DATUM_NAMES`: Front is XZ, Top is XY and Right is YZ. They are datum planes,
@@ -703,7 +721,7 @@ plane row's menu starts a sketch on that plane and opens it, and selecting a
 plane or the Origin in the tree draws the planes whatever the setting. Plane and
 reference names stay 20 px tall on screen at every zoom. A selected reference
 axis drives revolve and both patterns, and a selected reference or datum plane
-drives mirror. On the learning branch the Reference panel lost its prose and
+drives mirror. The Reference panel lost its prose and
 folds the offers that are not ready behind "Show N not ready": 2013 px tall at
 1440 in the audit, 711 px after. Not built: per-plane visibility (the tree's eye
 shows or hides all three), and the Origin as a pick target.
@@ -757,7 +775,7 @@ resemble SolidWorks' FeatureManager.
 after a draw used to give plates of 2, 0.25, 0.25 and 25 in, and now gave
 exactly 0.25 in 9 of 9 trials across three widths. Digits typed before the box
 has focus are added in order, and an Enter pressed while the worker is busy
-waits for it. On the dimensions branch, `DimensionOverlay.svelte` draws every
+waits for it. `DimensionOverlay.svelte`, mounted over the canvas, draws every
 driving size beside the geometry it controls, as a button at least 44 px tall in
 the display unit, with dimension, witness and leader lines, placed through
 `api.project`. `dimensions/anchors.ts` gives exactly one anchor per feature
@@ -848,9 +866,17 @@ small Origin marker is drawn while the planes are.
 - **Orbit frame cost with hover in place:** the 402-face prism a median 14.5 to
   14.7 ms after, against 15.8 to 16.8 before; the box 0.5 to 0.6 against 0.8 to
   1.0.
-- Not built: section caps and a view cube.
+- **Writer stage 4:** a right drag orbits (Ctrl or Shift pans) and a right
+  click in place still opens the menu; Fit frames the model in the area the
+  palette, the top bar and an open panel column leave free; an edit that takes a
+  model that was wholly on screen partly off screen refits it; Edit sketch
+  faces the plane, frames the sketch in the free area and draws it over the
+  body. Below 700 px the panels are a bottom sheet under one Panels handle that
+  folds without unmounting.
+- Not built: section caps and a view cube. A datum section now starts through
+  the model's centre.
 
-**10. Assembly** (assembly branch: `mates/joints.ts`, `mates/words.ts`,
+**10. Assembly** (`mates/joints.ts`, `mates/words.ts`,
 `mates/motion.ts`, `MatePanel.svelte`). The Mates panel opens on joints named by
 what the part should do, each showing the freedom it leaves: Hinge (1), Slider
 (1), Cylindrical (2), Planar (3), Fixed (0) and Pin in slot (2), plus One mate.
@@ -907,10 +933,11 @@ assumed.
   tests) and FRC checks (arm holding torque from the model's own center of
   gravity, drivetrain free speed; motor RPM is left blank rather than guessed).
 
-The analysis modules are merged on the overnight branch. Mounting the panel, the
-worker's interference op, and moving Measure's body-to-body distance off the
-kernel's number are the final integration's work; until then Measure still
-reports the kernel's value.
+The Analysis panel opens from an Analysis toggle beside Objects and from the
+`panel-analysis` command; the worker's `interference` op backs its clash list,
+and Measure's body-to-body distance now goes through `checkPair` rather than
+the kernel's `solidToSolidDistance`, which returns nearest corners on curved
+faces rather than a true minimum.
 
 **12. Materials and appearance.** Unchanged. The Analysis panel's Material
 select on a blocking body sends the same command `BodyProperties` sends. The
@@ -936,13 +963,12 @@ the name, the key, the one-line description and, for 17 tools, a looping picture
 of the gesture that stops under reduced motion, and it is placed beside the
 whole palette so it covered 0 px² of any tool at any width. An empty part shows
 one line, "Press a plane to sketch on it", with "Sketch on a plane" and "Start
-from a box". Also on the learning branch: a five-task, eleven-step tutorial
+from a box". A Learn button in the header opens a five-task, eleven-step tutorial
 (draw a rectangle, pull it into a solid, round an edge, cut a hole, mate two
 parts) that never blocks the work, rings the real control, and counts a step
 done from what the student did after the step began; first-use hints that retire
 once the tool has made a feature; and the instruction prose removed from the
-Reference, Section, Measure, Add-ons and Body properties panels. Mounting the
-Learn control and the hints is the final integration's.
+Reference, Section, Measure, Add-ons and Body properties panels.
 
 **16. Customization.** The preferences store above, and the command registry,
 `command-registry.ts`, as the one list of the 23 tools and the view, edit,

@@ -144,3 +144,13 @@ Recorded here so a session does not answer them silently. Each goes to
   unbuilt.
 - Whether any simulation beyond closed-form checks and exact geometry (for example linear
   static stress) belongs in IdeaCAD at all, given the density rule and his framing.
+- Raised by ledger 0296: whether a part used several times in one file (four wheels) should
+  become one definition with several placements, so editing one edits all, and "make
+  unique" breaks the link. It changes the saved document format, so it was not started.
+- Raised by ledger 0296: whether the solid modeler's materials should come from the
+  admin-edited materials table (his 2026-09-12 decision that materials are data) instead of
+  the fixed list it still carries.
+- Raised by ledger 0296: whether hiding a body should be saved with the document, so it is
+  still hidden when the file is reopened. Today hiding lasts only until the file closes.
+- Raised by ledger 0296: whether Front, Top and Right should show until the first solid (the
+  default chosen) or always, as SolidWorks does until they are hidden.
