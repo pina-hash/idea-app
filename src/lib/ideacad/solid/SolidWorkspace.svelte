@@ -434,8 +434,10 @@
 	/** Face the selected flat face or plane and arm Rectangle: a press anywhere then draws on that plane. */
 	function sketchOn(){const plane=normalTarget();if(!plane){error='Select a flat face or plane to sketch on.';return;}viewport.lookAt(plane);setTool('rectangle');}
 	/** Hole from a menu opened on a face drills where the menu was opened, in one press. */
-	function drillAtMenuPoint(){
-		const hit=(menuPick??barPick)?.best;if(!hit||hit.selection.kind!=='face'||!opened.canWrite)return false;
+	function drillAtMenuPoint(){const hit=(menuPick??barPick)?.best;return hit?drillAt(hit):false;}
+	/** A hole where a pick landed on a face, with the Hole options the Feature panel holds. */
+	function drillAt(hit:{selection:Selection;point:[number,number,number]}){
+		if(hit.selection.kind!=='face'||!opened.canWrite)return false;
 		const body=model.bodies.find(b=>b.id===hit.selection.bodyId),face=body?.faces.find(f=>f.id===hit.selection.id);if(!body||!face)return false;
 		void apply({type:'add-feature',feature:{id:newFeatureId(),name:'',...holeFeatureAt(body,face,hit.point)} as Feature},'Hole');return true;
 	}
@@ -521,7 +523,10 @@
 			contextMenu:(at,pick)=>openContextMenu(at,pick),
 			box:(state)=>{box=state;},
 			boxSelect:(picked,append)=>boxSelected(picked,append),
-			clicked:(at,touch)=>{menu=null;if(!selections.length||editingSketch){bar=null;return;}barPick=viewport.pickAt({clientX:at.x,clientY:at.y});bar={at,touch};},
+			clicked:(at,touch)=>{menu=null;if(!selections.length||editingSketch){bar=null;return;}barPick=viewport.pickAt({clientX:at.x,clientY:at.y});
+				/* The Hole tool's own words: a CLICK on a face drills it there. A drag still sizes nothing and drills at the press, as before. */
+				if(tool==='hole'&&barPick.best?.selection.kind==='face'&&drillAt(barPick.best)){bar=null;return;}
+				bar={at,touch};},
 			busyPointer:()=>{bar=null;menu=null;}});
 		for(const m of STOCK_MATERIALS)if(m.color)viewport.materialColours.set(m.id,m.color);
 		viewport.triadShown=prefs.view.triad;viewport.setTriadSlot(triadSlot??null);

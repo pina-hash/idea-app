@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SketchConstraint, SketchEntity, Vec3 } from '../src/lib/ideacad/solid/types';
 import { editingGuides, constraintGlyph, constraintGlyphs, snapStrokes, sketchObjects, GLYPH_COLOUR, POINT_COLOUR, SELECTED_COLOUR, HOVER_COLOUR, SNAP_COLOUR, PREVIEW_COLOUR } from '../src/lib/ideacad/solid/viewport/sketch-layer';
-import { DrawingTool, drawingSettings, polygonSidesOk, POLYGON_SIDES_REFUSAL, type DrawingHost } from '../src/lib/ideacad/solid/viewport/drawing';
+import { DrawingTool, drawingSettings, polygonSidesOk, FLAT_RECTANGLE_REFUSAL, POLYGON_SIDES_REFUSAL, type DrawingHost } from '../src/lib/ideacad/solid/viewport/drawing';
 import { datumPlane } from '../src/lib/ideacad/solid/sketch/model';
 import { rectangleEntities, SketchSession, type SketchDraft } from '../src/lib/ideacad/solid/sketch/editor';
 
@@ -106,6 +106,14 @@ describe('the drawing tools emit entity collections', () => {
 		expect(d.entities.filter((e) => e.type === 'point')).toHaveLength(4); expect(d.entities.filter((e) => e.type === 'line')).toHaveLength(4); expect(d.constraints).toHaveLength(4);
 		expect(calls.draft[0].ref).toEqual({ kind: 'datum', datum: 'XY' });
 		expect(tool.active).toBe(false);
+	});
+	it('a rectangle dragged along a line is refused by sentence and makes no sketch; a thin one is kept (no clamp)', () => {
+		const { h, calls } = host(), tool = new DrawingTool(h);
+		tool.down(press(0, 0), 'rectangle', drawPlane); tool.move(press(400, 0)); expect(tool.up()).toBe(true);
+		expect(calls.errors).toEqual([FLAT_RECTANGLE_REFUSAL]); expect(calls.draft).toHaveLength(0); expect(tool.active).toBe(false);
+		/* Positive control: a rectangle a hundredth of a pixel tall is a rectangle. */
+		tool.down(press(0, 0), 'rectangle', drawPlane); tool.move(press(400, 0.01)); tool.up();
+		expect(calls.draft).toHaveLength(1); expect(calls.errors).toHaveLength(1);
 	});
 	it('a polygon reads its side count from drawingSettings, the readout names it, and a count under three is refused by sentence', () => {
 		const { h, calls } = host(), tool = new DrawingTool(h);

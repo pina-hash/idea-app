@@ -50,6 +50,8 @@ export interface DrawingHost {
 	pointer(): { x: number; y: number };
 }
 
+/** What a rectangle with no width or no height is told. */
+export const FLAT_RECTANGLE_REFUSAL = 'That rectangle has no width or no height. Drag across the plane from corner to corner, or turn the view to face it.';
 interface Drawing { tool: DrawTool; plane: SketchPlane; ref: PlaneRef; start: Vec3; current: Vec3; points: Vec3[] }
 
 export class DrawingTool {
@@ -86,6 +88,8 @@ export class DrawingTool {
 		if (!d || d.tool === 'line' || d.tool === 'arc') return false;
 		if (Math.hypot(...sub(d.current, d.start)) > 1e-6) {
 			if (d.tool === 'polygon' && !polygonSidesOk(drawingSettings.polygonSides)) { this.host.error(POLYGON_SIDES_REFUSAL); return true; }
+			/* A rectangle dragged along a line (a plane seen edge on does this) encloses nothing: said now, rather than a sketch that cannot become a solid. */
+			if (d.tool === 'rectangle') { const [du, dv] = this.offsets(d.current); if (Math.abs(du) < 1e-9 || Math.abs(dv) < 1e-9) { this.cancel(); this.host.error(FLAT_RECTANGLE_REFUSAL); return true; } }
 			this.emit(this.drawnDraft(), d.ref);
 		}
 		return true;
