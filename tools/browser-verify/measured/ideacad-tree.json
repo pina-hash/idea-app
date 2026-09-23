@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "ideacad-tree.mjs",
-	"date": "2026-09-23T08:08:55.852Z",
-	"sha": "3aebf2a6ef0e515e2a61193e827abd46bc0953b9",
-	"dirty": true,
+	"date": "2026-09-23T08:15:10.651Z",
+	"sha": "e367dfbcaca2472cdbc5236073f7c324acb67e1f",
+	"dirty": false,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 56,
 	"outsideRows": [],
-	"ms": 20404
+	"ms": 11764
 }
