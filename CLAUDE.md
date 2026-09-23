@@ -3322,6 +3322,14 @@ inside the function fails closed rather than falling through to a weaker path.
     `min(count, floor((width + gap) / (col + gap)))`, so panels share the whole
     measure where there is room and still drop to one column in a narrow pane.
     Cap every count the content can fall short of.
+  - **A LONG PANEL MAY CONTINUE INTO THE NEXT COLUMN, AND ONLY A LONG ONE.**
+    `break-inside: avoid` on every unit left a 426x702px hole under a short unit
+    at 1440, and no order-preserving arrangement of unbreakable boxes removes
+    it. So ClassView lets a unit of ten or more rows break BETWEEN rows (its
+    header stays with its first row, each part keeps its frame through
+    `box-decoration-break: clone`) and a short unit still never breaks
+    (ledger 0297). The continuation carries no header of its own, which is
+    recorded as open rather than solved.
   - **THE ROW GAP IS A MARGIN ON THE PANEL**, because multicol has no row gap;
     and the reading order changes from row-major to column-major, which for an
     ordered list of units is the order they are numbered in.
@@ -3491,6 +3499,12 @@ inside the function fails closed rather than falling through to a weaker path.
   control inside a locked density contract, where inflating it would break a real
   invariant to satisfy a guideline written for standalone controls -- say so
   rather than breaking the contract.
+  - **IN THE CLASSROOM THAT DECLARATION IS `.cr-instructor-surface` AND IT
+    NEEDS A SECOND CONDITION (ledger 0297).** `.cr-root .btn.tiny` is 44px; it
+    drops to 24px only under `.cr-root[data-density='compact']` AND inside
+    `.cr-instructor-surface`, so compact is something a teacher chose on a
+    surface that says it is theirs, and a student surface is 44px in every
+    density. `tests/classroom-shell-chrome.test.ts` holds both halves.
   - **THE FLOOR IS `min-height`, NEVER A HEIGHT, and never a snap to the nearest
     token.** Rounding to reach a floor rounds BOTH ways: a mechanical sweep that
     snaps takes a 43px control to 41px and reports success. The notebook's plate
@@ -3554,7 +3568,13 @@ inside the function fails closed rather than falling through to a weaker path.
     is `FEEDBACK_EXCLUSIONS` in `src/lib/feedback/context.ts`, matched on ROUTE ID
     so a page added under an excluded section inherits it. A surface that takes
     the control off the shell mounts it itself at `place="relocated"` (the deck
-    bar, the GAUNTLET viewport footer, GREENLINE's own menus, the error page). A
+    bar, the GAUNTLET viewport footer, GREENLINE's own menus, the error page,
+    the classroom header and the classroom projector's wall strip). **Every
+    route under `/classroom` is the `classroom` category since ledger 0297**:
+    the floating Report and Voice pills won hit tests over row controls, People's
+    Remove and the grading dock, so `ClassroomShell` docks both (`VoiceNav` at
+    `place="header"`), and a `/dev` harness that mounts the real shell is listed
+    in `CLASSROOM_SHELL_HARNESSES` so it measures the production arrangement. A
     category with nowhere to relocate to is an exclusion that deleted the control.
   - **CONTEXT IS CAPTURED, NEVER TYPED**, through `captureMeta`: route id, path,
     role, section, viewport, clock time, and the build. A field somebody has to
