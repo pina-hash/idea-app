@@ -274,6 +274,51 @@ function chainOf(data: MapsViewerData, nodeId: string) {
 }
 
 /**
+ * THE SAME MAP WITH WALLS ON IT (0224). A SEPARATE fixture rather than a
+ * thickness added to the one above, deliberately: every existing harness state
+ * has to keep rendering byte-identically, because "an existing published row
+ * renders the same before and after" is decision 36's central promise and the
+ * first thing the browser pass proves. A number typed into the shared fixture
+ * would have quietly moved all twelve of them.
+ *
+ * WHAT EACH FIGURE IS FOR, so the drawing can be read as evidence rather than
+ * as a picture:
+ *
+ *   * THE BUILDING: 12 inch exterior wall, 5 inch DEFAULT for its rooms. Two
+ *     different numbers on one node, which is the pair a single column could
+ *     not hold and the reason 0224 has two.
+ *   * MACHINE SHOP: no wall of its own, so it INHERITS the building's 5. The
+ *     drawing shows an inherited default reaching a room that never named one.
+ *   * MILL ROOM: ZERO, explicitly. Zero stops the inheritance walk, so it
+ *     draws as a line beside a sibling drawing a band -- which is the whole of
+ *     why zero is a legal value distinct from null.
+ *   * WELD BAY: 8 inches on a five-sided room ROTATED 12 degrees, which is the
+ *     mitered polygon offset and the rotation agreement in one shape.
+ *   * TOOL CHEST A: 1 inch inside a 400 inch room. At 375px that is under one
+ *     device pixel, which is the NARROW-WIDTH case decision 36 asked the
+ *     renderer to answer: the band thins away and the hairline is what is
+ *     left, exactly as it was before 0224.
+ */
+export function mapsViewerWallFixture(): MapsViewerData {
+	const data = mapsViewerFixture();
+	const set = (id: string, own: number | null, def: number | null = null) => {
+		const n = data.nodes.find((x) => x.id === id);
+		if (!n) throw new Error(`wall fixture: no node ${id}`);
+		n.wall_thickness_in = own;
+		n.default_wall_thickness_in = def;
+	};
+	set(VFIX.building, 12, 5);
+	set(VFIX.machineShop, null, null);
+	set(VFIX.millRoom, 0, null);
+	set(VFIX.undrawnRoom, 8, null);
+	set(VFIX.toolChest, 1, null);
+	// The ladder's capability: this payload came off a rung that NAMED the
+	// columns, so the surfaces may believe a null.
+	data.thicknessReady = true;
+	return data;
+}
+
+/**
  * A deliberately SIMPLE matcher: every indexed string joined and asked whether
  * it contains each typed term. It stands in for reachability, never for rank.
  */

@@ -91,7 +91,29 @@
 		-->
 		{#if author || authorClass}
 			<p class="fdy-detail-by">
-				{#if author}<span class="fdy-author">{author}</span>{/if}
+				<!--
+					THE NAME IS A LINK TO THE AUTHOR'S PAGE (report 31), and it is a
+					link only when there IS a name: a bare class with an anchor
+					round it would be a door labelled "Engineering I Honors" that
+					leads to one person.
+
+					IT IS HERE AND NOT ON THE CARD, and that is structural rather
+					than a preference. A gallery card is itself a link, and an
+					anchor inside an anchor is invalid markup that browsers resolve
+					by closing the outer one -- so the card would stop being
+					clickable past the author's name. The detail pane's author line
+					is outside any link, which is what makes this the one place the
+					control can go.
+
+					IT RENDERS IN THE REVIEW QUEUE TOO, because this component is
+					the ONE render path both surfaces share and has no staff branch
+					in it. That costs nothing: the page it points at refuses any
+					author whose work the caller cannot already see, and a reviewer
+					can already see everything on this screen.
+				-->
+				{#if author}
+					<a class="fdy-author" href="/foundry/author/{app.owner}">{author}</a>
+				{/if}
 				{#if authorClass}<span class="fdy-class">{authorClass}</span>{/if}
 			</p>
 		{/if}

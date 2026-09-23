@@ -118,7 +118,29 @@ export default {
 		{ selector: '[data-testid="gc-case"] .roster-row .avatar', label: 'a face on every grading roster row', expectPresent: 18, maxPresent: 18 },
 		{ selector: '[data-case="gc-without"] .roster-row img', label: 'pre-0179 grading roster: no image', expectPresent: 0 },
 		{ selector: '[data-case="gc-with"] .roster-row img', label: 'with avatars: four real images', expectPresent: 4, maxPresent: 4 },
-		{ selector: '[data-case="gc-mixed"] .roster-row img', label: 'mixed: one surviving image (the 404 swapped)', expectPresent: 1, maxPresent: 1 }
+		{ selector: '[data-case="gc-mixed"] .roster-row img', label: 'mixed: one surviving image (the 404 swapped)', expectPresent: 1, maxPresent: 1 },
+
+		/* -----------------------------------------------------------------
+		   LEDGER 0289. The preset sweep is the browser half of "every avatar
+		   id that ever shipped still renders": the registry is 17 entries and
+		   every one of them has to put a mark on screen through the REAL
+		   component. A count read off the registry would be circular, so the
+		   number is written down here and the tier counts below add up to it.
+		   ----------------------------------------------------------------- */
+		{ selector: '[data-testid="preset-cell"]', label: 'every preset in the registry', expectPresent: 17, maxPresent: 17 },
+		{ selector: '[data-testid="preset-cell"] .avatar svg', label: 'and every one of them drew a glyph', expectPresent: 17, maxPresent: 17 },
+		{ selector: '[data-testid="preset-tier"][data-tier="geometric"] [data-testid="preset-cell"]', label: 'the eight original marks, untouched', expectPresent: 8, maxPresent: 8 },
+		{ selector: '[data-testid="preset-tier"][data-tier="creature"] [data-testid="preset-cell"]', label: 'the mascot pack report 24 asked for', expectPresent: 5, maxPresent: 5 },
+		{ selector: '[data-testid="preset-tier"][data-tier="instrument"] [data-testid="preset-cell"]', label: 'the instrument tier', expectPresent: 4, maxPresent: 4 },
+		/* A FIGURATIVE MARK IS MULTI-PATH AND THE ORIGINALS ARE NOT, which is
+		   the whole of what widening the type bought. The cat is six paths; if
+		   `presetMarks` regressed to `preset.d` alone this reads 1. */
+		{ selector: '[data-preset="cat"] .avatar svg path', label: 'the cat draws all seven of its marks', expectPresent: 7, maxPresent: 7 },
+		{ selector: '[data-preset="hex"] .avatar svg path', label: 'and an original mark still draws exactly one', expectPresent: 1, maxPresent: 1 },
+
+		{ selector: '[data-testid="identity-case"]', label: 'the seven identity style cases', expectPresent: 7, maxPresent: 7 },
+		{ selector: '[data-testid="thirty-avatar-row"]', label: 'thirty accented avatars (the arrangement that ships)', expectPresent: 30, maxPresent: 30 },
+		{ selector: '[data-testid="thirty-banner-row"]', label: 'thirty banners (the arrangement that was rejected)', expectPresent: 30, maxPresent: 30 }
 	],
 	contrast: [
 		{ selector: '.harness h1', label: 'h1 on its plate', min: 4.5 },
@@ -134,9 +156,78 @@ export default {
 		   clear here. `all: true` so the worst of the eighteen is reported. */
 		{ selector: '[data-case="without"] tbody .initials', label: 'every tile tint on the notebook plate', min: 4.5, all: true },
 		{ selector: '[data-case="without"] .student-name', label: 'the grid name beside the face', min: 4.5, all: true },
-		{ selector: '[data-case="panel-with"] .eyebrow', label: 'the entry panel eyebrow beside its face', min: 4.5, all: true }
+		{ selector: '[data-case="panel-with"] .eyebrow', label: 'the entry panel eyebrow beside its face', min: 4.5, all: true },
+
+		/* -----------------------------------------------------------------
+		   LEDGER 0289, AND THESE ARE THE ROWS THAT WOULD HAVE CAUGHT WHAT
+		   MEASURING CAUGHT.
+
+		   The banner's background is a WASH over the room's plate rather than
+		   a fill under the text, because a fill bottoms out at 1.90:1 for the
+		   name (the argument and the numbers are in
+		   `IdentityBanner.svelte`'s own header). These read the COMPOSITED
+		   value on the real rendered ground, which is the only reading that
+		   includes the wash -- a regex over the stylesheet would report the
+		   plate and miss it entirely.
+
+		   `all: true` throughout, so the WORST of the six cases is what is
+		   reported rather than whichever one happens to be first.
+		   ----------------------------------------------------------------- */
+		/* THE UNSTYLED BANNER ONLY. `[data-case="no-style"]` has no wash over
+		   it, so its ground genuinely IS the page plate and this reading is
+		   the composited truth.
+
+		   THE STYLED CASES ARE **NOT** MEASURED HERE, AND THAT IS THE POINT OF
+		   THE PROBE FURTHER DOWN. The wash is a `::before` layer, and the
+		   contrast check walks ANCESTORS for a background-color -- so on a
+		   washed banner it reports `ground from html > body` and scores the ink
+		   against the page plate, which is a number that is true of a surface
+		   nobody is looking at. Measured: 14.66:1 against the body where the
+		   real washed ground is what matters. A row that passes for a reason
+		   nobody checked is worse than no row, so the styled cases go through
+		   `identity ink clears its own washed ground` below instead. */
+		{ selector: '[data-case="no-style"] .idb-name', label: 'the unstyled banner name, on the real page ground', min: 4.5, all: true },
+		{ selector: '[data-testid="preset-cell"] .preset-word', label: 'every preset name under its mark', min: 4.5, all: true },
+		{ selector: '[data-testid="thirty-avatar-row"] .roster-name', label: 'thirty names beside thirty accented faces', min: 4.5, all: true }
 	],
 	orderResult: [
+		{
+			/* ==================================================================
+			   THE WASHED GROUND, COMPOSITED FROM THE REAL COMPUTED VALUES.
+
+			   The contrast check cannot reach a `::before` layer (see the note
+			   in the contrast block), so this probe does the compositing the
+			   checker cannot: it reads the wash layer's own
+			   `background-color` / `background-image` and its `opacity`
+			   straight off `getComputedStyle(el, '::before')`, reads the ground
+			   UNDER it by walking to the first ancestor with a non-transparent
+			   background, composites, and scores the ink against the result.
+
+			   EVERY STOP OF A GRADIENT IS SCORED, not an average: a gradient's
+			   light end is where the ink fails first, and a mean would hide
+			   exactly the case this exists to catch.
+
+			   WHAT IT IS NOT: a rasterized pixel read. The values are the
+			   browser's own computed ones rather than a screenshot sample, so
+			   this catches a wrong colour, a wrong opacity and a wrong ink and
+			   would NOT catch something painting over the top of it. The
+			   surface was also rasterized and looked at; both are in this
+			   bundle's history entry.
+
+			   IT REPORTS THE WORST CASE AND THE COUNT IT EXAMINED. A probe that
+			   found no banners would otherwise report a perfect score, which is
+			   the vacuous pass this whole spec is written against. */
+			label: 'identity ink clears its own washed ground',
+			evaluate:
+				'() => { const par = (c) => { const m = String(c).match(/[\\d.]+/g); return m ? m.slice(0, 3).map(Number) : null; }; const lum = (p) => { const f = (v) => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(p[0]) + 0.7152 * f(p[1]) + 0.0722 * f(p[2]); }; const ratio = (a, b) => { const x = lum(a), y = lum(b); const hi = Math.max(x, y), lo = Math.min(x, y); return (hi + 0.05) / (lo + 0.05); }; const over = (fg, bg, a) => fg.map((v, i) => v * a + bg[i] * (1 - a)); const groundOf = (el) => { let n = el; while (n && n !== document.documentElement) { const c = par(getComputedStyle(n).backgroundColor); const al = String(getComputedStyle(n).backgroundColor).match(/[\\d.]+/g); if (c && (!al || al.length < 4 || Number(al[3]) > 0.9)) return c; n = n.parentElement; } return [0, 0, 0]; }; const cards = [...document.querySelectorAll(\'[data-testid="identity-case"] .idb.styled.has-bg\')]; if (!cards.length) return ["NO WASHED BANNERS FOUND: the probe examined nothing"]; let worst = 99, worstWhat = ""; let n = 0; for (const card of cards) { const pre = getComputedStyle(card, "::before"); const a = Number(pre.opacity); const img = pre.backgroundImage; const stops = []; if (img && img !== "none") { for (const m of img.matchAll(/rgba?\\([^)]+\\)/g)) stops.push(par(m[0])); } const solid = par(pre.backgroundColor); if (!stops.length && solid) stops.push(solid); if (!stops.length) continue; const under = groundOf(card.parentElement || card); for (const sel of [".idb-name", ".idb-tagline"]) { const t = card.querySelector(sel); if (!t) continue; const ink = par(getComputedStyle(t).color); if (!ink) continue; for (const st of stops) { n++; const ground = over(st, under, a); const r = ratio(ink, ground); if (r < worst) { worst = r; worstWhat = sel + " on rgb(" + ground.map(Math.round).join(",") + ")"; } } } } return ["examined " + n + " ink/stop pairs across " + cards.length + " washed banners", worst >= 4.5 ? "worst " + worst.toFixed(2) + ":1 PASSES 4.5" : "WORST " + worst.toFixed(2) + ":1 FAILS 4.5 at " + worstWhat]; }',
+			expected: [
+				'examined 10 ink/stop pairs across 4 washed banners',
+				/* The number is the MEASURED worst case, written down so a
+				   regression moves it rather than merely staying above a floor.
+				   The gradient's lighter stop is what produces it. */
+				'worst 7.36:1 PASSES 4.5'
+			]
+		},
 		{
 			/* PROMPT 0052, AND IT IS THE PRIVACY CLAIM RATHER THAN A LAYOUT
 			   ONE. 0181 closes the avatars bucket, so a picture can now be

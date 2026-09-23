@@ -152,6 +152,34 @@ export function mapsOutlineOk(outline: unknown): outline is MapsOutline {
 }
 
 /**
+ * Mirror of `_maps_wall_thickness_ok` (0224). A thickness is null -- nobody
+ * answered -- or a real, non-negative number of inches.
+ *
+ * WHY NaN AND INFINITY ARE NAMED RATHER THAN ASSUMED AWAY. The SQL side has to
+ * refuse them explicitly because Postgres `numeric` sorts NaN ABOVE every
+ * non-NaN value, so a plain `>= 0` admits it. JavaScript's ordering is the
+ * opposite -- `NaN >= 0` is false -- so a mirror written as `>= 0` would agree
+ * with the SQL by accident on NaN and DISAGREE on `Infinity`, which passes
+ * `>= 0` in both languages. `Number.isFinite` is what makes the two answer the
+ * same at every input rather than at most of them.
+ *
+ * ITS DOMAIN IS `number | null` AND `undefined` IS REFUSED, deliberately. Null
+ * is SQL's null: a legal answer meaning nobody typed one. `undefined` is what a
+ * pre-0224 select rung leaves behind, which is not a value being validated at
+ * all -- a surface asking that question reads `thicknessReady` off the ladder
+ * and does not come here. A mirror looser than the predicate it mirrors does
+ * not fail loudly, it certifies a bug.
+ *
+ * Pinned against the deployed function in `tests/maps-kind-rules.test.ts`,
+ * exactly as `mapsOutlineOk` and `mapsKindPairOk` are.
+ */
+export function mapsWallThicknessOk(thickness: unknown): boolean {
+	if (thickness === null) return true;
+	if (typeof thickness !== 'number') return false;
+	return Number.isFinite(thickness) && thickness >= 0;
+}
+
+/**
  * A typed inch value. Plain decimal inches ("28", "3.75", ".5"); whitespace
  * trimmed the person's way. Returns null for anything that is not one number,
  * so the caller can refuse before the request rather than after. An empty
@@ -236,6 +264,15 @@ export interface MapsNode {
 	elevation_order: number | null;
 	elevation_h_in: number | string | null;
 	elevation_w_in: number | string | null;
+	/**
+	 * 0224. OPTIONAL rather than nullable, and the difference is the select
+	 * ladder: a deployment sitting before 0224 answers a rung that does not
+	 * NAME these columns, so they are UNDEFINED there and null only where 0224
+	 * has been applied and nobody typed a number. "Cannot tell" and "no wall"
+	 * must not be one value -- see `MAPS_NODE_COLUMNS` in `selects.ts`.
+	 */
+	wall_thickness_in?: number | string | null;
+	default_wall_thickness_in?: number | string | null;
 	status: MapsStatus;
 	published_at: string | null;
 	created_at: string;
@@ -311,6 +348,15 @@ export interface MapsEditorData {
 	pending: MapsPending[];
 	/** 0163's photo rows. A photo has no publish state: it is content of its owner. */
 	photos: MapsPhoto[];
+	/**
+	 * 0224's select-ladder capability. TRUE only when the rung that actually
+	 * answered NAMED `wall_thickness_in`, so a deployment sitting before 0224
+	 * reads false and every wall control is withheld rather than offered with
+	 * nowhere to write. Optional so a fixture that predates the ladder is not
+	 * a type error, and read through `mapsThicknessReady` so "not stated" and
+	 * "cannot tell" are one answer in one place.
+	 */
+	thicknessReady?: boolean;
 }
 
 export function pendingFor(pending: MapsPending[], table: MapsTable, id: string): MapsPending | null {
@@ -483,6 +529,10 @@ export interface MapsNodeContent {
 	elevation_order: number | null;
 	elevation_h_in: number | null;
 	elevation_w_in: number | null;
+	/** 0224. This node's own wall, inches. Null is "no answer" and draws a line. */
+	wall_thickness_in: number | null;
+	/** 0224. What this node's DESCENDANTS inherit. Never this node's own wall. */
+	default_wall_thickness_in: number | null;
 }
 
 export interface MapsItemTypeContent {
@@ -570,7 +620,15 @@ export function mapsNodeContent(row: Partial<MapsNode>): MapsNodeContent {
 		rotation_deg: num(row.rotation_deg),
 		elevation_order: row.elevation_order ?? null,
 		elevation_h_in: num(row.elevation_h_in),
-		elevation_w_in: num(row.elevation_w_in)
+		elevation_w_in: num(row.elevation_w_in),
+		// `num` folds undefined to null, which is right HERE and only here: a
+		// content snapshot is a write shape, and a pre-0224 deployment writing
+		// null into a column it does not have is a column that does not exist
+		// rather than a value. Where the DISTINCTION matters -- whether this
+		// deployment can answer at all -- read `thicknessReady` off the select
+		// ladder, never the content.
+		wall_thickness_in: num(row.wall_thickness_in),
+		default_wall_thickness_in: num(row.default_wall_thickness_in)
 	};
 }
 
@@ -798,6 +856,234 @@ export function mapsFootprint(outline: MapsOutline, rotationDeg: number | null):
 	return { minX, minY, maxX, maxY };
 }
 
+// ---------------------------------------------------------------------------
+// WALL THICKNESS -- decision 36, built by migration 0224.
+//
+// THE TYPED OUTLINE IS THE INTERIOR FACE of the space it describes, so a wall
+// is a band lying OUTWARD from it. Everything in this section derives the
+// OUTER face; the INNER face needs no function at all, because it is
+// `mapsShapeCorners`/`mapsFootprint` of the outline exactly as typed. That
+// asymmetry IS the decision: it is what makes every row written before 0224
+// mean exactly what it meant before 0224, with no backfill.
+//
+// A THICKNESS OF NULL OR ZERO RETURNS THE INNER FACE UNCHANGED, by the same
+// object where it can be, so "no wall" is not a separate code path that could
+// drift from the old behaviour -- it IS the old behaviour.
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether THIS deployment can answer a wall-thickness question at all -- the
+ * select ladder's capability, read in one place so no surface spells out
+ * "did the wide rung answer" a second time.
+ *
+ * FALSE IS "CANNOT TELL", NEVER "NO WALL". A surface reading false withholds
+ * the thickness controls and draws exactly what it drew before 0224; a surface
+ * reading true with a null value draws a line because somebody chose one. The
+ * default is FALSE, so a payload built before this flag existed -- a fixture,
+ * an older harness -- degrades to the old drawing rather than claiming a
+ * capability nothing granted.
+ */
+export function mapsThicknessReady(data: { thicknessReady?: boolean }): boolean {
+	return data.thicknessReady === true;
+}
+
+/** Ancestor-chain resolution's answer: the number, and where it came from. */
+export type MapsThicknessSource = 'own' | 'inherited' | 'none';
+
+/**
+ * A node's effective wall thickness: its OWN value, else the nearest ANCESTOR
+ * carrying a `default_wall_thickness_in`, else null.
+ *
+ * `chain` is the node's own content FIRST, then its ancestors nearest-first.
+ * Passing the chain rather than looking it up keeps this pure and keeps the
+ * caller's own idea of "content" -- the editor's is pending-aware and the
+ * viewer's is not, and a lookup written in here would have to pick one.
+ *
+ * ZERO STOPS THE WALK, which is the whole reason zero is a legal value
+ * distinct from null (0224's column comment). A room given zero draws a line
+ * even inside a building whose default is six inches; a room given nothing
+ * inherits the six.
+ */
+export function mapsResolveWallThickness(chain: readonly MapsNodeContent[]): {
+	thickness: number | null;
+	source: MapsThicknessSource;
+} {
+	if (chain.length === 0) return { thickness: null, source: 'none' };
+	const own = chain[0].wall_thickness_in;
+	if (own !== null) return { thickness: own, source: 'own' };
+	for (let i = 1; i < chain.length; i += 1) {
+		const fallback = chain[i].default_wall_thickness_in;
+		if (fallback !== null) return { thickness: fallback, source: 'inherited' };
+	}
+	return { thickness: null, source: 'none' };
+}
+
+/**
+ * The content chain for `mapsResolveWallThickness`: this node first, then its
+ * ancestors. `contentOf` is the caller's own reader, so the editor passes its
+ * pending-aware one and the viewer passes the plain one and neither has a
+ * second idea of what a node currently says.
+ *
+ * The 50-hop bound is `mapsNodePath`'s, for the same reason: the tree trigger
+ * makes a cycle unrepresentable, and a walk that trusts that completely is one
+ * that hangs the tab if it is ever wrong.
+ */
+export function mapsThicknessChain(
+	nodes: MapsNode[],
+	nodeId: string,
+	contentOf: (node: MapsNode) => MapsNodeContent
+): MapsNodeContent[] {
+	const byId = new Map(nodes.map((n) => [n.id, n]));
+	const chain: MapsNodeContent[] = [];
+	let cursor = byId.get(nodeId) ?? null;
+	let hops = 0;
+	while (cursor && hops < 50) {
+		chain.push(contentOf(cursor));
+		cursor = cursor.parent_id ? (byId.get(cursor.parent_id) ?? null) : null;
+		hops += 1;
+	}
+	return chain;
+}
+
+/**
+ * MITER LIMIT for the polygon offset below. At a concave corner the two offset
+ * edges meet far outside the shape -- the sharper the notch the further -- and
+ * an unclamped miter on a 5 degree notch throws a spike twenty wall-thicknesses
+ * long across the drawing. Four is the value every CAD and stroke renderer
+ * uses for the same reason; past it the corner is cut off rather than drawn,
+ * which is visibly a blunted corner instead of invisibly a wrong plan.
+ */
+const MITER_LIMIT = 4;
+
+/**
+ * A closed polygon pushed OUTWARD by `t`, mitered at every corner.
+ *
+ * WHICH WAY IS OUT is read from the SIGNED AREA rather than assumed from the
+ * winding somebody typed: a person entering a polygon in the shelf form has no
+ * idea they are choosing a direction, and a shape wound the other way would
+ * otherwise grow its wall INWARD and eat the room. With shoelace area A, the
+ * outward unit normal of the edge p -> q is `sign(A) * (dy, -dx) / len`. That
+ * reduces EXACTLY to the rect answer on a rectangle-shaped polygon, which is
+ * what `tests/maps-placement.test.ts` pins rather than taking on trust.
+ *
+ * DEGENERATE INPUT IS RETURNED UNCHANGED, never guessed at: a zero-area shape
+ * has no inside for a wall to be outside of, and a repeated point has no edge
+ * direction. A drawing that quietly invents a wall is worse than one that
+ * draws the line it was given.
+ */
+function offsetPolygonOutward(points: [number, number][], t: number): [number, number][] {
+	const n = points.length;
+	if (n < 3 || !(t > 0)) return points;
+
+	let area2 = 0;
+	for (let i = 0; i < n; i += 1) {
+		const [x1, y1] = points[i];
+		const [x2, y2] = points[(i + 1) % n];
+		area2 += x1 * y2 - x2 * y1;
+	}
+	if (area2 === 0) return points;
+	const sign = area2 > 0 ? 1 : -1;
+
+	// One outward unit normal per EDGE i, the edge from point i to point i+1.
+	const normals: [number, number][] = [];
+	for (let i = 0; i < n; i += 1) {
+		const [x1, y1] = points[i];
+		const [x2, y2] = points[(i + 1) % n];
+		const dx = x2 - x1;
+		const dy = y2 - y1;
+		const len = Math.hypot(dx, dy);
+		if (!(len > 0)) return points;
+		normals.push([(sign * dy) / len, (-sign * dx) / len]);
+	}
+
+	const out: [number, number][] = [];
+	for (let i = 0; i < n; i += 1) {
+		const [vx, vy] = points[i];
+		// Vertex i is where the edge BEFORE it meets the edge AT it.
+		const [ax, ay] = normals[(i - 1 + n) % n];
+		const [bx, by] = normals[i];
+		let mx = ax + bx;
+		let my = ay + by;
+		const mlen = Math.hypot(mx, my);
+		if (!(mlen > 1e-9)) {
+			// A 180 degree reversal: the two faces point opposite ways and there
+			// is no miter. Offset along the outgoing edge's own normal, which is
+			// the flat answer rather than an infinite one.
+			out.push([vx + bx * t, vy + by * t]);
+			continue;
+		}
+		mx /= mlen;
+		my /= mlen;
+		const cos = mx * bx + my * by;
+		const reach = Math.abs(cos) > 1e-9 ? t / cos : t * MITER_LIMIT;
+		const clamped = Math.max(-t * MITER_LIMIT, Math.min(t * MITER_LIMIT, reach));
+		out.push([vx + mx * clamped, vy + my * clamped]);
+	}
+	return out;
+}
+
+/**
+ * The OUTER face's corner points, in the node's own frame, rotated about the
+ * position origin exactly as `mapsShapeCorners` rotates the inner face -- so
+ * the two faces of one wall can never be drawn at two different angles.
+ *
+ * THE RECT BRANCH IS EXACT AND IS NOT A SECOND IMPLEMENTATION OF THE RULE. A
+ * rect's outer face is `(-t,-t)` to `(w+t,h+t)` and nothing else; routing it
+ * through the miter arithmetic would put a float error into the one case that
+ * is most of the data and that a person reads off a dimension line. The
+ * general path is proven to REDUCE to it, on a rectangle-shaped polygon, in
+ * `tests/maps-placement.test.ts` -- which is how two paths are allowed to
+ * exist: by measuring that they agree, not by asserting it.
+ */
+export function mapsOuterCorners(
+	outline: MapsOutline,
+	thickness: number | null,
+	rotationDeg: number | null
+): [number, number][] {
+	const t = thickness ?? 0;
+	if (!(t > 0)) return mapsShapeCorners(outline, rotationDeg);
+	const base: [number, number][] =
+		outline.kind === 'rect'
+			? [
+					[-t, -t],
+					[outline.w + t, -t],
+					[outline.w + t, outline.h + t],
+					[-t, outline.h + t]
+				]
+			: offsetPolygonOutward(outline.points, t);
+	const theta = (rotationDeg ?? 0) * DEG;
+	const cos = Math.cos(theta);
+	const sin = Math.sin(theta);
+	return base.map(([x, y]) => [x * cos - y * sin, x * sin + y * cos]);
+}
+
+/**
+ * The OUTER face's extent relative to the position origin -- the box a placed
+ * shape's WALLS occupy, where `mapsFootprint` is the box its INSIDE occupies.
+ *
+ * With no thickness this returns `mapsFootprint`'s own answer, by calling it,
+ * so "no wall" cannot become a second arithmetic that drifts.
+ */
+export function mapsOuterFootprint(
+	outline: MapsOutline,
+	thickness: number | null,
+	rotationDeg: number | null
+): MapsBox {
+	const t = thickness ?? 0;
+	if (!(t > 0)) return mapsFootprint(outline, rotationDeg);
+	let minX = Infinity;
+	let minY = Infinity;
+	let maxX = -Infinity;
+	let maxY = -Infinity;
+	for (const [rx, ry] of mapsOuterCorners(outline, t, rotationDeg)) {
+		minX = Math.min(minX, rx);
+		minY = Math.min(minY, ry);
+		maxX = Math.max(maxX, rx);
+		maxY = Math.max(maxY, ry);
+	}
+	return { minX, minY, maxX, maxY };
+}
+
 /** The box a node occupies in its PARENT's frame, or null when it is not placed. */
 export function mapsPlacedBox(content: {
 	outline: MapsOutline | null;
@@ -816,10 +1102,27 @@ export function mapsPlacedBox(content: {
 	};
 }
 
-/** A neighbour a shape can snap against: a sibling's box, or the parent's own walls. */
+/**
+ * A neighbour a shape can snap against: a sibling's box, or the parent's own
+ * walls.
+ *
+ * EXACTLY ONE FACE PER TARGET, AND WHICH ONE IS DECIDED BY THE RELATIONSHIP
+ * (decision 36). A wall has two faces now, but a shape being placed can only
+ * ever meet one of them: it is INSIDE its parent, so it meets the parent's
+ * INNER face -- which is the outline exactly as typed -- and it is BESIDE a
+ * sibling, so it meets that sibling's OUTER face. Offering both faces of the
+ * parent would offer a placement outside the building, which means nothing.
+ *
+ * That is also what keeps `mapsPlaceShape`'s tie-break sound: still one box
+ * per target, so a tie is still broken toward the parent, and the sentence its
+ * header used to carry -- "a wall is the edge somebody means" -- becomes "a
+ * wall is the FACE somebody means", which this field names out loud.
+ */
 export interface MapsSnapTarget {
 	label: string;
 	box: MapsBox;
+	/** Which face of the target this box is. Named in `label` too, for the snap note. */
+	face: 'inner' | 'outer';
 }
 
 export interface MapsPlacement {
@@ -842,7 +1145,14 @@ const round2 = (v: number) => Math.round(v * 100) / 100;
  * (its left onto the neighbour's right) and aligned with one (its left onto
  * the neighbour's left) by the same arithmetic. The nearest candidate inside
  * `toleranceIn` wins; a tie takes the first, which is the parent's own wall,
- * because a wall is the edge somebody means when two candidates coincide.
+ * because a wall is the face somebody means when two candidates coincide.
+ *
+ * `footprint` IS THE MOVER'S OUTER FACE since 0224, and every target carries
+ * exactly one face of its own (see `MapsSnapTarget`), so the arithmetic here
+ * did not change at all -- the same `edge - own` over the same one box per
+ * target. What changed is which boxes the caller hands in. With no thickness
+ * set anywhere the outer face and the inner face are the same box, so this
+ * function answers every placement exactly as it did before 0224.
  *
  * An unsnapped value is rounded to 2 decimal places. That is a DISPLAY
  * decision about a number a pointer produced, never a grid: a typed 3.756 is
@@ -902,6 +1212,27 @@ export function mapsPlaceShape(args: {
  * walls first (so a wall wins a tie), then every SIBLING that is itself placed.
  * A sibling with no outline or no position is not a target, because there is
  * no edge to snap to -- it is not silently treated as sitting at the origin.
+ *
+ * TWO FACES, ONE PER RELATIONSHIP (decision 36, and see `MapsSnapTarget`):
+ *
+ *   * THE PARENT'S INNER FACE, which is the outline exactly as typed and so is
+ *     byte-identical arithmetic to what this function returned before 0224. A
+ *     toolbox pushed against the wall of a room sits against the plaster, not
+ *     inside the stud cavity. This is where the decision pays for itself: the
+ *     commonest snap in the editor did not move at all.
+ *   * A SIBLING'S OUTER FACE, grown by that sibling's own resolved thickness.
+ *     Two rooms side by side in a building do not share an interior surface --
+ *     there is a wall between them, and each room's typed outline stops at its
+ *     own side of it.
+ *
+ * The mover presents its OWN outer face, which is `mapsOuterFootprint` at the
+ * call site rather than anything this function can see. With no thickness
+ * anywhere the outer face IS the inner face, so every placement this function
+ * drove before 0224 is answered identically after it.
+ *
+ * `data.nodes` is walked for each sibling's thickness chain, which is why a
+ * sibling's INHERITED building default reaches its snap box with no second
+ * lookup and no second idea of what the default is.
  */
 export function mapsSnapTargets(
 	data: MapsEditorData,
@@ -910,24 +1241,41 @@ export function mapsSnapTargets(
 ): MapsSnapTarget[] {
 	const targets: MapsSnapTarget[] = [];
 	if (!parent) return targets;
-	// The parent's walls come from its EFFECTIVE content -- the staged pending
-	// edit when one exists -- for the same reason the siblings below do: the
-	// canvas draws the frame from that content, and a shape that snapped to a
-	// wall the drawing does not show is a shape that snapped somewhere other
-	// than where it looks.
-	const parentOutline = mapsEffectiveNodeContent(
-		parent,
-		pendingFor(data.pending, 'maps_nodes', parent.id)
-	).outline;
+	// Every content read here is the EFFECTIVE one -- the staged pending edit
+	// when there is one -- because the canvas draws the frame and the siblings
+	// from that content, and a shape that snapped to a wall the drawing does
+	// not show is a shape that snapped somewhere other than where it looks.
+	const contentOf = (node: MapsNode) =>
+		mapsEffectiveNodeContent(node, pendingFor(data.pending, 'maps_nodes', node.id));
+
+	const parentOutline = contentOf(parent).outline;
 	if (parentOutline) {
-		const f = mapsFootprint(parentOutline, null);
-		targets.push({ label: `the ${MAPS_KIND_LABELS[parent.kind].toLowerCase()} walls`, box: f });
+		targets.push({
+			label: `the inside face of the ${MAPS_KIND_LABELS[parent.kind].toLowerCase()} walls`,
+			box: mapsFootprint(parentOutline, null),
+			face: 'inner'
+		});
 	}
 	for (const sibling of data.nodes) {
 		if (sibling.parent_id !== parent.id || sibling.id === selfId) continue;
-		const pending = pendingFor(data.pending, 'maps_nodes', sibling.id);
-		const box = mapsPlacedBox(mapsEffectiveNodeContent(sibling, pending));
-		if (box) targets.push({ label: sibling.name, box });
+		const content = contentOf(sibling);
+		if (!content.outline || content.position_x_in === null || content.position_y_in === null) {
+			continue;
+		}
+		const { thickness } = mapsResolveWallThickness(
+			mapsThicknessChain(data.nodes, sibling.id, contentOf)
+		);
+		const f = mapsOuterFootprint(content.outline, thickness, content.rotation_deg);
+		targets.push({
+			label: thickness ? `the outside face of ${sibling.name}` : sibling.name,
+			box: {
+				minX: content.position_x_in + f.minX,
+				minY: content.position_y_in + f.minY,
+				maxX: content.position_x_in + f.maxX,
+				maxY: content.position_y_in + f.maxY
+			},
+			face: 'outer'
+		});
 	}
 	return targets;
 }

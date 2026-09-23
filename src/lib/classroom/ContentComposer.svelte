@@ -42,6 +42,7 @@
 		DECK_UPLOAD_MAX_ZIP_BYTES,
 		deckProgressLabel,
 		deckProgressPercent,
+		DECK_ACCEPT,
 		type DeckTransports,
 		type DeckUploadProgress
 	} from '$lib/classroom/deck';
@@ -82,7 +83,9 @@
 		type ClassroomComposerTransports,
 		type ClassroomItem,
 		type ClassroomItemKind,
+		sortUnits,
 		type ClassroomSection,
+		type ClassroomUnit,
 		type TxResult
 	} from '$lib/classroom/classroom';
 	import {
@@ -95,6 +98,7 @@
 		createDropController,
 		dropTarget,
 		filesFromClipboard,
+		matchesAccept,
 		type DragLikeEvent
 	} from '$lib/file-drop';
 
@@ -147,6 +151,7 @@
 		mode = 'create',
 		kind = $bindable('post'),
 		sections = [],
+		units = [],
 		initialTargets = [],
 		item = null,
 		transports,
@@ -172,6 +177,21 @@
 		kind?: ClassroomItemKind;
 		/** Every section the caller manages: publish targets, and linkage on edit. */
 		sections?: ClassroomSection[];
+		/**
+		 * 0111'S UNITS, so an item can be filed as it is created (0218).
+		 *
+		 * EMPTY REMOVES THE CONTROL, which is the same rule the five staged
+		 * extras follow: a caller that has no units to offer -- a course with
+		 * none authored yet, a deployment that predates 0111, a surface that
+		 * simply does not pass them -- renders no picker rather than a control
+		 * that could not file anything. It is not a flag beside the control; it
+		 * is the absence of anything to choose.
+		 *
+		 * SCOPED TO THE COURSES BEING POSTED TO, not handed down verbatim: a
+		 * unit belongs to a course, so the choices are recomputed from whatever
+		 * "Post to" currently has checked. See `unitChoices`.
+		 */
+		units?: ClassroomUnit[];
 		/**
 		 * Sections pre-checked under "Post to" on create. The class page passes
 		 * the class being looked at, because posting from inside a class means
@@ -615,6 +635,21 @@
 	function onDeckDropFiles(files: File[]) {
 		const file = files[0];
 		if (file) stageDeckFile(file);
+	}
+
+	/**
+	 * A DROP THE BOX'S OWN `accept` REFUSED, said out loud.
+	 *
+	 * `dropTarget` filters before it hands anything over, so without this the
+	 * refused file would simply vanish and the box would appear to do nothing --
+	 * which is the failure mode the gate exists to replace, not a smaller
+	 * version of it. THE SENTENCE IS `stagedDeckIssue`'s, not a second one
+	 * written here: the picker path and the drop path must read identically,
+	 * because their disagreement was the whole defect.
+	 */
+	function onDeckDropRejected(files: File[]) {
+		const file = files[0];
+		if (file) deckIssue = stagedDeckIssue(file);
 	}
 
 	/**
@@ -1150,11 +1185,25 @@
 	const linkIds = $derived(linkableSections.filter((s) => linkTargets[s.id]).map((s) => s.id));
 
 	/**
-	 * THE COURSE SCOPE FOR THE GRADING-CATEGORY DATALIST: `classroom_units`'s
-	 * own scope, not the section -- a teacher's vocabulary follows the course
-	 * rather than one block of it. On create that is wherever "Post to" is
-	 * currently checked; on edit it is wherever the item already posts, since
-	 * the "Post to" checklist itself only renders on create.
+	 * WHICH COURSES IS THIS GOING TO -- asked ONCE, and read by TWO things now.
+	 *
+	 * It is `classroom_units`'s own scope, not the section: a teacher's
+	 * vocabulary follows the course rather than one block of it. On create
+	 * that is wherever "Post to" is currently checked; on edit it is wherever
+	 * the item already posts, since the "Post to" checklist itself only renders
+	 * on create.
+	 *
+	 * THE NAME IS NARROWER THAN THE JOB, DELIBERATELY, AND SAYS SO HERE. The
+	 * grading-category datalist was the first reader and the unit picker (0218)
+	 * is the second, so `unitChoices` reads THIS rather than deriving the same
+	 * set again -- two spellings of "which courses is this going to" would
+	 * disagree in exactly the place it matters, the moment somebody changes
+	 * "Post to" with a unit already chosen. It keeps the `category` name
+	 * because `tests/classroom-composer-effect-reactivity.test.ts` pins that
+	 * identifier while asserting this effect tracks its scope, and that file
+	 * belongs to a different lane; renaming it here would have meant editing a
+	 * sweep outside this bundle's scope to satisfy a cosmetic preference. A
+	 * third reader should still read it rather than write a second derived.
 	 */
 	const categoryCourseIds = $derived(
 		Array.from(
@@ -1165,6 +1214,78 @@
 			)
 		).sort()
 	);
+	/**
+	 * THE UNITS A PERSON MAY ACTUALLY PICK RIGHT NOW (0218).
+	 *
+	 * `units` is what the caller handed down -- in the class layout, the units
+	 * of the class being looked at. The CHOICES are those of them whose course
+	 * is among the ones "Post to" currently names, because a unit belongs to a
+	 * course and `classroom_create_item` refuses one whose course no target
+	 * section shares. Offering a unit the database would refuse is a control
+	 * whose only possible outcome is a refusal, which this repo does not ship.
+	 *
+	 * EMPTY MEANS NO PICKER AT ALL. There is nothing to file into, so there is
+	 * nothing to choose, and a select whose only entry is "No unit" is a
+	 * control that cannot do anything.
+	 */
+	const unitChoices = $derived(
+		// `sortUnits` rather than a sort written out here: the class page's unit
+		// groups are ordered by it, and a picker that listed them in a second
+		// order would be a second statement of the teacher's own arrangement.
+		// It also treats a 0 `sort_order` as unset and collates numerically,
+		// which a plain comparator does not.
+		sortUnits(units.filter((u) => categoryCourseIds.includes(u.course_id)))
+	);
+	/** Null is unfiled, and unfiled is the default. */
+	let unitId = $state<string | null>(null);
+	/**
+	 * Said out loud when a "Post to" change took the chosen unit out of scope.
+	 *
+	 * THE CLEARING IS NOT SILENT, AND THAT IS THE WHOLE POINT OF THIS FIELD.
+	 * A teacher can legitimately pick Unit 3 of Engineering I and then change
+	 * the class list to a section of a different course -- that is an ordinary
+	 * sequence, not misuse -- and the unit no longer applies. Dropping it
+	 * quietly would post the item unfiled while the form had said otherwise,
+	 * which is the defect this bundle exists to remove wearing a different
+	 * hat. Keeping it instead would hand the database a unit it will refuse,
+	 * after the teacher has filled in the rest of the form and pressed Post.
+	 * So it is cleared AND announced, and the RPC still refuses independently
+	 * -- that gate is the boundary, this is only the courtesy that stops
+	 * anyone reaching it.
+	 */
+	let unitNote = $state<string | null>(null);
+	$effect(() => {
+		// TRACKED, and nothing injected is called here: this reads component
+		// state and writes component state, with no transport and no prop
+		// callback in it, so there is no caller-supplied code to untrack.
+		const chosen = unitId;
+		if (!chosen) return;
+		const live = unitChoices;
+		if (live.some((u) => u.id === chosen)) return;
+		// THE LOOKUP GOES INSIDE THE UNTRACK WITH THE WRITES, and it costs this
+		// effect nothing: it already depends on `units` through `unitChoices`
+		// one line up. `units.find(...)` is pure over prop data, but the
+		// reactivity sweep judges a call by its SITE and not by its name --
+		// `find` is on the pure-collection list, so a transport that happened
+		// to be called `x.find(...)` would be waved through on the method alone
+		// across three hundred components. Untracking it is one line; an
+		// allowlist entry is a standing exemption somebody has to keep reading.
+		untrack(() => {
+			const name = units.find((u) => u.id === chosen)?.name ?? 'That unit';
+			unitId = null;
+			unitNote = `${name} is not a unit of the classes you picked, so this will post without a unit.`;
+		});
+	});
+	/**
+	 * `$props.id()` MAY BE CALLED ONCE PER COMPONENT, and `categoryListId`
+	 * already spends it. Derived from that one, exactly as `screenTitleId`
+	 * above already is -- and `$derived.by` for the same reason that one uses
+	 * it: `categoryListId` is declared further down, and a bare `$derived`
+	 * template literal is type-checked eagerly and reads as a use before
+	 * declaration.
+	 */
+	const unitSelectId = $derived.by(() => `${categoryListId}-unit`);
+
 	/**
 	 * SUGGESTIONS ONLY, never a constraint: the field beneath this stays a
 	 * plain free-text input regardless of what lands here. Refetched whenever
@@ -1352,7 +1473,15 @@
 			category: category.trim() || null,
 			links: links
 				.map((r) => ({ label: r.label.trim(), url: r.url.trim() }))
-				.filter((r) => r.url !== '')
+				.filter((r) => r.url !== ''),
+			// 0218, CREATE ONLY. On an edit the item already exists and filing
+			// it belongs to `classroom_set_item_unit` -- the row menu, the bulk
+			// move, the drag onto a group header -- so sending one from here
+			// would be a second write path to the same column.
+			// `classroom_update_item` has no parameter for it and must not gain
+			// one; the transport drops an undefined field, so the update call's
+			// body is unchanged.
+			unitId: mode === 'create' ? unitId : undefined
 		};
 	}
 
@@ -1656,6 +1785,20 @@
 				'formatting (lists, headings, bold) was not saved -- this classroom is running an ' +
 					'older database that cannot store it. The text is safe; ask an admin to apply the ' +
 					'pending migration, then re-apply the formatting'
+			);
+		}
+
+		// 0218, and the same argument one block up: a unit was CHOSEN and this
+		// deployment has nowhere to put it. Reported as a failure rather than
+		// absorbed, because a picker that silently does nothing is the whole
+		// defect this bundle removed. It is the recoverable one of the two --
+		// the item is posted, and filing it from the class page is one click --
+		// so the sentence says that rather than only naming the fault.
+		if (res.data.unitDropped) {
+			failures.push(
+				'the unit was not set -- this classroom is running an older database that cannot ' +
+					'file an item as it is created. The post itself is up; file it from the class ' +
+					'page, or ask an admin to apply the pending migration'
 			);
 		}
 
@@ -2004,6 +2147,15 @@
 			stagedCheckIn = null;
 			stagedCheckInSessionId = null;
 			deckIssue = null;
+			// THE UNIT RESETS TOO (0218), with `category` and for the same
+			// reason. A unit left selected would file the NEXT post into it
+			// without anybody choosing that -- which is the same class of
+			// defect as the one this picker fixed, since what lands in the
+			// filing is again something the teacher did not actively pick. A
+			// posting run into one unit costs one more selection each time,
+			// which is a choice being made rather than assumed.
+			unitId = null;
+			unitNote = null;
 			// The next post starts from the default placement, and the database
 			// holds the default for a row that does not exist yet.
 			layout = { ...DEFAULT_ITEM_LAYOUT };
@@ -2426,14 +2578,24 @@
 	{#if canStageDeck}
 		<!-- THE SHARED DROP TARGET, same primitive as everything else. Disabled
 		     once a deck is staged: the "Remove deck" step is what makes room for
-		     a replacement, exactly as the plain picker below is only offered then. -->
+		     a replacement, exactly as the plain picker below is only offered then.
+
+		     AND IT HANDS THE PICKER'S OWN RULE IN AS `accept`, so a drop can
+		     never take what the picker beside it would refuse -- `DECK_ACCEPT`
+		     is ONE value read twice, the attribute below and the predicate
+		     here, which is the shape `SpecImporter` already uses. It used to
+		     pass no `accept` at all while the input carried one, so a PNG
+		     dropped here staged as a deck and failed after Post. `onrejected`
+		     is what keeps the refusal from being a silence. -->
 		<div
 			class="attach-editor"
 			class:is-drop-active={deckDragActive}
 			use:dropTarget={{
 				onfiles: onDeckDropFiles,
+				onrejected: onDeckDropRejected,
 				onactive: (a) => (deckDragActive = a),
-				disabled: !!stagedDeck || busy
+				disabled: !!stagedDeck || busy,
+				accept: (f) => matchesAccept(f, DECK_ACCEPT)
 			}}
 		>
 			<span class="mini-label">Presentation deck</span>
@@ -2475,7 +2637,7 @@
 					type="file"
 					class="file-input"
 					data-testid="staged-deck-input"
-					accept=".zip,application/zip,application/x-zip-compressed"
+					accept={DECK_ACCEPT}
 					onchange={pickDeck}
 				/>
 			{/if}
@@ -2864,6 +3026,48 @@
 						</label>
 					{/each}
 				</div>
+			{/if}
+			<!--
+				THE UNIT (0218), DIRECTLY UNDER "Post to" BECAUSE THAT IS WHAT
+				SCOPES IT. A unit belongs to a course, so which units exist is a
+				consequence of which classes are checked above -- putting the
+				picker anywhere else would separate the choice from the thing
+				that decides what it may be.
+
+				IT IS NOT ASSIGNMENT-ONLY. `unit_id` is on `classroom_items`
+				whatever the kind, and a teacher filing a reference document or
+				an announcement into Unit 3 is doing the ordinary thing, so this
+				sits outside the assignment-only block that holds points, the
+				due date and the grading category.
+
+				NO CHOICES, NO CONTROL. An empty `unitChoices` renders nothing at
+				all rather than a select whose only entry is "No unit" -- there
+				is nothing to file into, so there is nothing to choose.
+			-->
+			{#if unitChoices.length}
+				<label class="unit-pick">
+					<span class="mini-label" id={unitSelectId}>Unit</span>
+					<select
+						bind:value={unitId}
+						aria-labelledby={unitSelectId}
+						data-testid="composer-unit-select"
+					>
+						<!-- UNFILED IS THE DEFAULT AND IT IS FIRST, so someone who
+						     ignores this control gets exactly what every post got
+						     before it existed. `null` rather than '' so the value
+						     the transport reads needs no second spelling. -->
+						<option value={null}>No unit</option>
+						{#each unitChoices as u (u.id)}
+							<option value={u.id}>{u.name}</option>
+						{/each}
+					</select>
+					<span class="hint">
+						Optional. You can also file it later from the class page.
+					</span>
+				</label>
+			{/if}
+			{#if unitNote}
+				<p class="feedback error" data-testid="composer-unit-note">{unitNote}</p>
 			{/if}
 		</div>
 	{:else if item}
@@ -3507,6 +3711,23 @@
 	}
 	.target-picker {
 		margin: 0.6rem 0;
+	}
+	/* THE UNIT PICKER (0218). A block label over a full-width select, matching
+	   the form's other labelled fields; the select takes the form's own control
+	   height, which already clears the 44px student-facing floor this surface
+	   is measured against -- the composer is reachable from a phone and is not
+	   an instructor-density surface, so it does not take the 24px floor. */
+	.unit-pick {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		margin: 0.6rem 0 0;
+		min-width: 0;
+	}
+	.unit-pick select {
+		width: 100%;
+		min-height: 44px;
+		min-width: 0;
 	}
 	.linkage {
 		border-top: 1px solid var(--hairline);

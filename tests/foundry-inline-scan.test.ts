@@ -16,6 +16,23 @@ import {
 import { FOUNDRY_STORAGE_SHIM_JS } from '../src/lib/foundry/storage-shim.ts';
 
 /**
+ * THE VIEWPORT META RIDES ON THE DOCTYPE LINE, AND THAT IS NOT A STYLE CHOICE.
+ *
+ * `scanHtml` warns once on `FOUNDRY_ENTRY_FILE` when a page does not tell a
+ * phone how wide it is (report 33b), so every fixture here would earn that
+ * warning and every exact warning count in this file would be counting it.
+ * The fixtures carry the tag rather than the assertions filtering it out.
+ *
+ * IT CANNOT GO ON A LINE OF ITS OWN. This file's whole subject is LINE NUMBERS
+ * -- `PAGE` has its line numbers written in comments beside it and several
+ * assertions name a specific one -- so inserting a line would move every one of
+ * them and the fixes would look like the test agreeing with a regression.
+ * Appending to the doctype, which is line 1 in every fixture here and is never
+ * itself an asserted location, changes no line number at all.
+ */
+const VP = '<meta name="viewport" content="width=device-width, initial-scale=1">';
+
+/**
  * INLINE SCRIPTS, AND THE LINE NUMBER THAT HAS TO BE RIGHT.
  *
  * `scanJs` only ever read `.js` files, which meant every JavaScript rule was
@@ -64,7 +81,7 @@ const SCRIPT_C =
  * count them without running anything.
  */
 const PAGE = [
-	'<!doctype html>', //                                            1
+	`<!doctype html>${VP}`, //                                       1
 	'<html lang="en">', //                                           2
 	'<head>', //                                                     3
 	'<meta charset="utf-8">', //                                     4
@@ -120,7 +137,7 @@ describe('inline scripts are scanned, with the file s own line numbers', () => {
 
 	it('refuses an absolute-path import from an inline script, at the right line', () => {
 		const script = "\nimport confetti from '/lib/canvas-confetti.js';\n";
-		const page = ['<!doctype html>', '<head></head>', '<body>', '<script type="module">', "import confetti from '/lib/canvas-confetti.js';", '</script>', '</body>'].join('\n');
+		const page = [`<!doctype html>${VP}`, '<head></head>', '<body>', '<script type="module">', "import confetti from '/lib/canvas-confetti.js';", '</script>', '</body>'].join('\n');
 		const scan = scanHtml('index.html', page, readerFor([script]));
 		expect(scan.failures).toHaveLength(1);
 		// Line 5: doctype, head, body, the opening <script>, then the import.
@@ -134,7 +151,7 @@ describe('inline scripts are scanned, with the file s own line numbers', () => {
 	 * nothing is reported twice.
 	 */
 	it('does not double-report a script that carries a src', () => {
-		const page = '<!doctype html>\n<script src="/lib/x.js"></script>\n';
+		const page = `<!doctype html>${VP}\n<script src="/lib/x.js"></script>\n`;
 		const scan = scanHtml(
 			'index.html',
 			page,
@@ -152,7 +169,7 @@ describe('inline scripts are scanned, with the file s own line numbers', () => {
 	 */
 	it('says nothing at all about a CDN script tag', () => {
 		const src = 'https://unpkg.com/react@18/umd/react.production.min.js';
-		const page = `<!doctype html>\n<script src="${src}"></script>\n`;
+		const page = `<!doctype html>${VP}\n<script src="${src}"></script>\n`;
 		const scan = scanHtml(
 			'index.html',
 			page,
@@ -177,7 +194,9 @@ describe('inline scripts are scanned, with the file s own line numbers', () => {
 
 	it('scans every block, not just the first', () => {
 		const noisy = '\nlocalStorage.clear();\n';
-		const page = ['<script>', 'localStorage.clear();', '</script>', '<p>x</p>', '<script>', 'localStorage.clear();', '</script>'].join('\n');
+		// VP rides on the first line, not a line of its own: the assertion below
+		// names lines 2 and 6.
+		const page = [`${VP}<script>`, 'localStorage.clear();', '</script>', '<p>x</p>', '<script>', 'localStorage.clear();', '</script>'].join('\n');
 		const scan = scanHtml('index.html', page, readerFor([noisy, noisy]));
 		// Two identical blocks resolve to their own positions, because
 		// `LineFinder` advances a cursor per needle.
@@ -224,7 +243,7 @@ describe('inline scripts are scanned, with the file s own line numbers', () => {
 	});
 
 	it('ignores an empty or whitespace-only block rather than reporting on it', () => {
-		const scan = scanHtml('index.html', '<script>\n\n</script>', readerFor(['\n\n']));
+		const scan = scanHtml('index.html', `${VP}<script>\n\n</script>`, readerFor(['\n\n']));
 		expect(scan.failures).toEqual([]);
 		expect(scan.warnings).toEqual([]);
 	});
@@ -408,7 +427,7 @@ describe('the storage shim is recognised in every version this platform shipped'
 		expect(FOUNDRY_KNOWN_SHIMS[0]).toBe(FOUNDRY_STORAGE_SHIM_JS);
 
 		for (const [i, shim] of FOUNDRY_KNOWN_SHIMS.entries()) {
-			const scan = scanHtml('index.html', '<html></html>', readerFor([shim]));
+			const scan = scanHtml('index.html', `<html>${VP}</html>`, readerFor([shim]));
 			expect(scan.failures, `shim ${i} failures`).toEqual([]);
 			expect(scan.warnings, `shim ${i} warnings`).toEqual([]);
 		}
@@ -423,7 +442,7 @@ describe('the storage shim is recognised in every version this platform shipped'
 	it('scans a script that merely resembles a shim, retired text included', () => {
 		for (const [i, shim] of FOUNDRY_KNOWN_SHIMS.entries()) {
 			const tampered = `${shim}\nlocalStorage.setItem('mine', '1');`;
-			const scan = scanHtml('index.html', '<html></html>', readerFor([tampered]));
+			const scan = scanHtml('index.html', `<html>${VP}</html>`, readerFor([tampered]));
 			expect(scan.warnings.length, `tampered ${i}`).toBeGreaterThan(0);
 			expect(scan.warnings[0]!.message).toContain('localStorage');
 		}
@@ -438,7 +457,7 @@ describe('the storage shim is recognised in every version this platform shipped'
 			v.split('\n').map((l) => `\t\t${l}`).join('\n')
 		);
 		for (const [i, shim] of reindented.entries()) {
-			const scan = scanHtml('index.html', '<html></html>', readerFor([shim]));
+			const scan = scanHtml('index.html', `<html>${VP}</html>`, readerFor([shim]));
 			expect(scan.warnings, `reindented ${i}`).toEqual([]);
 		}
 
@@ -446,7 +465,7 @@ describe('the storage shim is recognised in every version this platform shipped'
 		// shim is not whitespace, so it is scanned.
 		const renamed = FOUNDRY_STORAGE_SHIM_JS.replace("install('localStorage')", "install('localStorage');install('localStorage')");
 		expect(renamed).not.toBe(FOUNDRY_STORAGE_SHIM_JS);
-		const scan = scanHtml('index.html', '<html></html>', readerFor([renamed]));
+		const scan = scanHtml('index.html', `<html>${VP}</html>`, readerFor([renamed]));
 		expect(scan.warnings.length).toBeGreaterThan(0);
 	});
 

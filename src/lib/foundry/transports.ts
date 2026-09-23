@@ -190,6 +190,41 @@ export interface FoundryAuthor {
 	owner_class: string | null;
 }
 
+/**
+ * WHO A PUBLISHER IS, as `foundry_author_profile` (0221) projects them.
+ *
+ * REPORT 31 ASKED FOR "their profile ... comprehensive with their IDEA profile,
+ * their profile picture and everything", and this is the whole of what
+ * "everything" resolves to once the refusals are applied. It extends
+ * `FoundryAuthor` rather than restating its three fields, so the name ladder
+ * (`foundryAuthorName`) and the class rule (`foundryAuthorClass`) work on this
+ * shape unchanged and there is no second idea of what an author is called.
+ *
+ * THERE IS NO EMAIL HERE EITHER, and the reason is the one on `FoundryAuthor`:
+ * a granted path from a name to an address is a school directory. The definer
+ * behind this has no column for one and no parameter that could ask.
+ *
+ * `avatar`, `avatar_url` AND `pathway` ARE NOT A NEW TIER. `gauntlet_leaderboards`
+ * has projected all three to every signed-in student since 0024 and 0038, and
+ * decision 14 (2026-09-12, KEEP) settled the question they raise: anyone signed
+ * in sees anyone's photo. The bucket is private and `Avatar.svelte` asks for
+ * the bytes through `/api/avatar/<key>` exactly as it does everywhere else.
+ *
+ * `app_count` IS THIS CALLER'S OWN VIEW, not the author's real total: it runs
+ * through the same population predicate as the list beneath it, so an author
+ * reading their own page counts their drafts and a classmate counts what a
+ * classmate can see. A header that outran its own list would be the defect.
+ */
+export interface FoundryAuthorCard extends FoundryAuthor {
+	owner: string;
+	avatar: string | null;
+	avatar_url: string | null;
+	pathway: string | null;
+	app_count: number;
+	/** `min(created_at)` over the apps this caller can see. */
+	first_published_at: string | null;
+}
+
 export interface FoundryApp extends FoundryAuthor {
 	id: string;
 	slug: string;
@@ -213,6 +248,35 @@ export interface FoundryAppSummary extends FoundryAuthor {
 	slug: string;
 	title: string;
 	tagline: string | null;
+	/**
+	 * 0221. `foundry_list_apps` HAS ALWAYS PROJECTED THIS and the client was the
+	 * only thing dropping it, so declaring it is a type change and not a
+	 * payload change -- no migration, no widened read, nothing new reaching
+	 * anybody. It is here because `foundrySearch` reads it: a student searching
+	 * for "a game about a frog" is searching the sentence the author wrote
+	 * about their app, and a search over titles alone answers that with
+	 * nothing.
+	 *
+	 * IT IS ALREADY PUBLIC. `FoundryDetail` renders it on the gallery's detail
+	 * pane to every signed-in caller, so making it searchable exposes no field
+	 * that was not already on the page one tap away.
+	 *
+	 * OPTIONAL BECAUSE OF FIXTURES rather than because of the RPC: every dev
+	 * harness and every card test builds this shape by hand, and requiring a
+	 * description on a fixture about sort order is how an invented sentence
+	 * ends up being what a search is verified against.
+	 */
+	description?: string | null;
+	/**
+	 * 0221. The author's uuid, which `foundry_list_apps` has always projected
+	 * and the client dropped. It is the address of their profile page and
+	 * nothing else -- it is an opaque id, it names no person to anybody who
+	 * does not already hold it, and the route it points at refuses any uuid
+	 * whose apps the caller cannot already see.
+	 *
+	 * Optional for the fixture reason the two fields around it carry.
+	 */
+	owner?: string;
 	cover_path: string | null;
 	published_version_id: string | null;
 	published_ordinal: number | null;
@@ -230,7 +294,26 @@ export interface FoundryAppSummary extends FoundryAuthor {
 	live_unreviewed_version_id?: string | null;
 	metadata_flagged_at: string | null;
 	hidden_at: string | null;
+	/**
+	 * WHEN THE APP WAS LAST TOUCHED, which a metadata edit moves. It is what
+	 * `foundry_list_apps` orders on and therefore what the "Recent" sort means.
+	 */
 	updated_at: string;
+	/**
+	 * 0221. WHEN THE APP WAS FIRST MADE, which nothing moves. Also always
+	 * projected by `foundry_list_apps` and also previously dropped here.
+	 *
+	 * IT IS A SECOND FIELD AND NOT A REUSE OF `updated_at`, because report 32b
+	 * asked for a "brand new" section and those are two different questions: an
+	 * app published last term whose author fixed a typo in its tagline this
+	 * morning is the most recently UPDATED app on the site and is not new.
+	 * Ranking one on the other is the defect that would look like working code.
+	 *
+	 * Optional for the fixture reason above; `foundrySortScore` reads a missing
+	 * one as zero, which puts it last in a "brand new" ranking rather than
+	 * throwing.
+	 */
+	created_at?: string | null;
 }
 
 /* -------------------------------------------------------------------------

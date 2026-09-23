@@ -30,7 +30,21 @@ const store = {
 		// first-login PathwayPicker never overlays this page (it targets
 		// students with no pathway; /dev/pathways is its harness).
 		pathway: 'IDEA' as string | null,
-		preferences: {} as Record<string, unknown>
+		preferences: {} as Record<string, unknown>,
+		/**
+		 * THE 0220 STYLE COLUMNS, PRESENT AND NULL -- which is the state every
+		 * real row is in until somebody customizes something, and is NOT the
+		 * same as absent. `profileStyleReady` keys on `undefined`, so seeding
+		 * these as null is what makes the Identity section appear at all; the
+		 * `?style=absent` switch below is the other state, where 0220 is not
+		 * applied and the section must be GONE rather than broken.
+		 */
+		style_background_type: null as string | null,
+		style_background_value: null as unknown,
+		style_accent_color: null as string | null,
+		style_badge: null as string | null,
+		style_flourish: null as string | null,
+		style_tagline: null as string | null
 	}
 };
 
@@ -114,9 +128,31 @@ export const load: PageLoad = async ({ url }) => {
 		const seed = url.searchParams.get('pathway');
 		if (seed) store.profile.pathway = seed === 'none' ? null : seed;
 	}
+	/**
+	 * `?style=absent` DROPS THE SIX COLUMNS ENTIRELY, which is the pre-0220
+	 * deployment -- the migration is pasted by hand, so a client shipped ahead
+	 * of it is a real state and not a hypothetical. The Identity section must
+	 * be ABSENT there rather than present and refusing every save: a control
+	 * whose only possible outcome is a refusal must not be offered.
+	 * `?style=set` seeds a fully customized identity so the banner, the badge
+	 * and the tagline are drivable without pressing six controls first.
+	 */
+	const styleMode = url.searchParams.get('style');
+	const row: Record<string, unknown> = { ...store.profile };
+	if (styleMode === 'absent') {
+		for (const k of Object.keys(row)) if (k.startsWith('style_')) delete row[k];
+	} else if (styleMode === 'set' && row.style_accent_color == null) {
+		row.style_background_type = 'gradient';
+		row.style_background_value = ['#3e7bfa', '#8e5bf0'];
+		row.style_accent_color = '#22cccc';
+		row.style_badge = 'rocket';
+		row.style_flourish = 'glow-pulse';
+		row.style_tagline = 'CAD or nothing';
+		Object.assign(store.profile, row);
+	}
 	return {
 		claims: { sub: store.profile.id, email: store.profile.email },
-		userProfile: { ...store.profile },
+		userProfile: row,
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		supabase: makeStubSupabase(refuse) as any
 	};

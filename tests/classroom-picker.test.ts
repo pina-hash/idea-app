@@ -29,7 +29,9 @@ import {
 	pickerSeedFrom,
 	pickerSeedLabel,
 	pickerShuffle,
+	pickerTeamCount,
 	pickerTeams,
+	pickerTeamsBy,
 	type PickerCandidate
 } from '../src/lib/classroom/picker';
 
@@ -194,5 +196,168 @@ describe('the draw says it was a draw', () => {
 
 	test('one student reads as a singular', () => {
 		expect(pickerDrawNote(1, pickerPool(NAMES(1), new Set()))).toContain('1 student,');
+	});
+});
+
+// ===========================================================================
+// COUNT MODE: "seven teams", not "teams of about three"
+// ===========================================================================
+//
+// THE ASK THAT PRODUCED THIS. A teacher with seven benches wants seven teams,
+// and until now the only control was Team size -- so getting seven out of it
+// meant solving `ceil(n / size) = 7` in your head, in front of a class. Count
+// mode is the other way of asking for the same draw.
+//
+// WHERE THE EXPECTED SIZES COME FROM, and it is not the implementation.
+// Dealing `n` shuffled students one at a time across `c` teams gives, by the
+// definition of round-robin and nothing else:
+//
+//     (n mod c) teams of ceil(n / c), and the remaining teams of floor(n / c)
+//
+// That is stated here as `expectedSizes` and computed from `n` and `c` alone.
+// A dealer that agreed with itself but not with that arithmetic goes red.
+//
+// AND THE CLAMP IS THE REASON THIS IS NOT JUST `count` PASSED THROUGH. Asking
+// for more teams than there are students produces EMPTY TEAMS -- headed cards
+// with nobody under them -- which is the count-mode twin of the lone-student
+// defect the round-robin deal exists to prevent, and reads as a broken draw
+// rather than as a teacher asking for too many.
+
+/** (n mod c) teams of ceil(n/c), then the rest of floor(n/c). Sorted descending. */
+function expectedSizes(n: number, c: number): number[] {
+	const big = Math.ceil(n / c);
+	const small = Math.floor(n / c);
+	const bigCount = n % c;
+	return [
+		...Array.from({ length: bigCount }, () => big),
+		...Array.from({ length: c - bigCount }, () => small)
+	].sort((a, b) => b - a);
+}
+
+describe('count mode gives exactly the number of teams that was asked for', () => {
+	// Every remainder class of n mod c, for a spread of counts a real class
+	// would use, over class sizes that bracket a real roster.
+	for (const count of [2, 3, 4, 5, 6, 7, 8]) {
+		for (let n = count; n <= count * 3 + 2; n++) {
+			test(`${n} students into ${count} teams: ${expectedSizes(n, count).join('/')}`, () => {
+				const teams = pickerTeamsBy(NAMES(n), 'count', count, 0xc0ffee + n * 31 + count);
+				expect(teams).toHaveLength(count);
+				expect(teams.map((t) => t.length).sort((a, b) => b - a)).toEqual(expectedSizes(n, count));
+				// Nobody is lost and nobody is dealt twice.
+				expect(emails(teams.flat())).toEqual(emails(NAMES(n)));
+			});
+		}
+	}
+
+	test('every team is within one member of every other, which is the whole point of dealing', () => {
+		for (let n = 1; n <= 40; n++) {
+			for (let c = 1; c <= Math.min(n, 12); c++) {
+				const sizes = pickerTeamsBy(NAMES(n), 'count', c, 7).map((t) => t.length);
+				expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1);
+			}
+		}
+	});
+
+	test('nobody is ever left on their own unless the count genuinely asks for it', () => {
+		// 13 students, 4 teams -> 4,3,3,3. The slicing implementation this
+		// module exists to avoid would give 4,4,4,1.
+		expect(
+			pickerTeamsBy(NAMES(13), 'count', 4, 42)
+				.map((t) => t.length)
+				.sort((a, b) => b - a)
+		).toEqual([4, 3, 3, 3]);
+	});
+});
+
+describe('asking for more teams than there are students', () => {
+	test('is clamped to one team per student, never padded with empty teams', () => {
+		const teams = pickerTeamsBy(NAMES(3), 'count', 7, 1);
+		expect(teams).toHaveLength(3);
+		expect(teams.map((t) => t.length)).toEqual([1, 1, 1]);
+		expect(teams.some((t) => t.length === 0)).toBe(false);
+	});
+
+	test('and the clamp holds for every count above the class size', () => {
+		for (let c = 5; c <= 20; c++) {
+			expect(pickerTeamsBy(NAMES(4), 'count', c, c)).toHaveLength(4);
+		}
+	});
+});
+
+describe('the two modes are one dealer, asked two different questions', () => {
+	test('a count derived from a size gives the identical draw at the same seed', () => {
+		// 19 students in teams of 3 is ceil(19/3) = 7 teams. Asking for 7 teams
+		// directly must produce the SAME teams, member for member -- if it does
+		// not, the two modes have acquired separate dealers.
+		const roster = NAMES(19);
+		const bySize = pickerTeamsBy(roster, 'size', 3, 0xabcdef);
+		const byCount = pickerTeamsBy(roster, 'count', 7, 0xabcdef);
+		expect(bySize).toHaveLength(7);
+		expect(byCount.map((t) => emails(t))).toEqual(bySize.map((t) => emails(t)));
+	});
+
+	test('the original size entry point is unchanged by the refactor', () => {
+		for (let n = 0; n <= 30; n++) {
+			for (const size of [1, 2, 3, 4, 5, 7, 20]) {
+				expect(pickerTeams(NAMES(n), size, 99)).toEqual(
+					pickerTeamsBy(NAMES(n), 'size', size, 99)
+				);
+			}
+		}
+	});
+});
+
+describe('pickerTeamCount answers the arithmetic on its own', () => {
+	test('size mode is ceil(n / size)', () => {
+		for (const [n, size, want] of [
+			[19, 3, 7],
+			[13, 4, 4],
+			[12, 4, 3],
+			[1, 3, 1],
+			[20, 1, 20]
+		] as const) {
+			expect(pickerTeamCount(n, 'size', size)).toBe(want);
+		}
+	});
+
+	test('count mode is the number itself, capped at the class size', () => {
+		expect(pickerTeamCount(19, 'count', 7)).toBe(7);
+		expect(pickerTeamCount(3, 'count', 7)).toBe(3);
+		expect(pickerTeamCount(7, 'count', 7)).toBe(7);
+	});
+
+	test('a fractional input is floored in both modes rather than producing a fractional count', () => {
+		expect(pickerTeamCount(10, 'count', 3.9)).toBe(3);
+		expect(pickerTeamCount(10, 'size', 3.9)).toBe(Math.ceil(10 / 3));
+	});
+
+	test('an empty class, a zero, a negative and a non-finite value are all NO TEAMS, in both modes', () => {
+		for (const mode of ['size', 'count'] as const) {
+			expect(pickerTeamCount(0, mode, 3)).toBe(0);
+			expect(pickerTeamCount(10, mode, 0)).toBe(0);
+			expect(pickerTeamCount(10, mode, -2)).toBe(0);
+			expect(pickerTeamCount(10, mode, Number.NaN)).toBe(0);
+			expect(pickerTeamCount(10, mode, Number.POSITIVE_INFINITY)).toBe(0);
+			// And the dealer agrees, which is what the surface actually calls
+			// while somebody is mid-keystroke in the number input.
+			expect(pickerTeamsBy(NAMES(10), mode, 0, 1)).toEqual([]);
+			expect(pickerTeamsBy([], mode, 3, 1)).toEqual([]);
+		}
+	});
+});
+
+describe('a count-mode draw is as reproducible as a size-mode one', () => {
+	test('the same names, mode, value and seed give byte-identical teams', () => {
+		const roster = NAMES(23);
+		const a = pickerTeamsBy(roster, 'count', 6, 0x5eed);
+		const b = pickerTeamsBy(roster, 'count', 6, 0x5eed);
+		expect(a.map((t) => t.map((p) => p.email))).toEqual(b.map((t) => t.map((p) => p.email)));
+	});
+
+	test('a different seed moves somebody, so the seed is genuinely driving the draw', () => {
+		const roster = NAMES(23);
+		const a = pickerTeamsBy(roster, 'count', 6, 1);
+		const b = pickerTeamsBy(roster, 'count', 6, 2);
+		expect(a.map((t) => t.map((p) => p.email))).not.toEqual(b.map((t) => t.map((p) => p.email)));
 	});
 });

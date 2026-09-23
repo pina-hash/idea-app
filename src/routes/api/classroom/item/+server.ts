@@ -50,6 +50,8 @@ interface SaveBody {
 	publishAt?: unknown;
 	category?: unknown;
 	links?: unknown;
+	/** 0218, create only. Absent means unfiled, which is every pre-0218 save. */
+	unitId?: unknown;
 }
 
 /**
@@ -105,6 +107,18 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	let formattingDropped = false;
 
 	/**
+	 * Did the chain below have to give up the UNIT to get the save through?
+	 * (0218.) Same shape and same reason as `formattingDropped` above: a field
+	 * the teacher CHOSE was dropped to reach a backend that has no parameter
+	 * for it, the save then succeeded, and the composer says so rather than
+	 * reporting a clean post. It is the smaller loss of the two -- the item is
+	 * up, every word is there, and filing it from the class page is one click
+	 * -- but a unit picker that silently does nothing is exactly the failure
+	 * this bundle exists to remove, so it is reported rather than absorbed.
+	 */
+	let unitDropped = false;
+
+	/**
 	 * Two OPTIONAL parameters, two migrations, applied by hand and separately --
 	 * so this drops them one at a time rather than all at once. Dropping both on
 	 * the first refusal would cost a project that HAS 0108 its rich body to work
@@ -118,6 +132,21 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	 */
 	async function callWithDegrade(fn: 'classroom_create_item' | 'classroom_update_item', args: Record<string, unknown>) {
 		let res = await supabase.rpc(fn, args);
+		// 0218'S RUNG, AND IT IS FIRST BECAUSE THE ORDER IS NEWEST-FIRST. It
+		// only ever runs for a call that NAMED `p_unit_id`, which the client
+		// does only when a teacher actually picked a unit -- so an ordinary
+		// save never reaches this line and the chain below it is untouched.
+		// `args` is narrowed for the rungs that follow, or a second refusal
+		// would put the unknown parameter straight back.
+		if (isMissingSignature(res.error) && 'p_unit_id' in args) {
+			const { p_unit_id: _noUnit, ...withoutUnit } = args;
+			args = withoutUnit;
+			res = await supabase.rpc(fn, args);
+			// Set on the DROP, not on the success: a later rung may still have
+			// to give up something else, and the unit is gone either way. It is
+			// only ever REPORTED on a response that also carries an item id.
+			unitDropped = true;
+		}
 		if (isMissingSignature(res.error) && 'p_publish_at' in args) {
 			const { p_publish_at: _dropped, ...rest } = args;
 			res = await supabase.rpc(fn, rest);
@@ -169,7 +198,23 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		return json({ error: 'Pick at least one class to post to.' }, { status: 400 });
 	}
 
-	const { data, error } = await callWithDegrade('classroom_create_item', {
+	/**
+	 * 0218. THE UNIT IS NAMED ONLY WHEN ONE WAS PICKED, which is what keeps the
+	 * ordinary save's argument set byte-identical to the pre-0218 one. A
+	 * deployment that has not applied 0218 yet therefore answers every normal
+	 * creation exactly as it did, and only a teacher who chose a unit reaches
+	 * the degrade rung above.
+	 *
+	 * NO VALIDATION HERE, DELIBERATELY. Whether this unit belongs to a course
+	 * these sections are in is `classroom_create_item`'s question, asked with
+	 * `classroom_units` and `classroom_sections` in front of it; a copy of that
+	 * rule in this handler would be a second statement of it that could stop
+	 * agreeing, and this route is explicitly not the authorization boundary.
+	 * The refusal comes back as the RPC's own sentence and is rendered verbatim.
+	 */
+	const unitId = typeof body.unitId === 'string' && body.unitId !== '' ? body.unitId : null;
+
+	const createArgs: Record<string, unknown> = {
 		p_kind: kind,
 		p_section_ids: sectionIds,
 		p_title: title,
@@ -181,10 +226,18 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		p_resources: links,
 		p_body_doc: shaped.doc,
 		p_publish_at: publishAt
-	});
+	};
+	if (unitId) createArgs.p_unit_id = unitId;
+
+	const { data, error } = await callWithDegrade('classroom_create_item', createArgs);
 	if (error) return json({ error: error.message ?? 'Save failed.' }, { status: 400 });
 
 	const itemId = (data as { item_id?: string } | null)?.item_id;
 	if (!itemId) return json({ error: 'The item was not created.' }, { status: 400 });
-	return json({ ok: true, item_id: itemId, formatting_dropped: formattingDropped });
+	return json({
+		ok: true,
+		item_id: itemId,
+		formatting_dropped: formattingDropped,
+		unit_dropped: unitDropped
+	});
 };

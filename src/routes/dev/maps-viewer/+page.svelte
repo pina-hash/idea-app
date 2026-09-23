@@ -3,12 +3,25 @@
 	import type { MapsSearchRow } from '$lib/maps/transports';
 	import '$lib/shell/split.css';
 	import MapsViewer from '$lib/maps/viewer/MapsViewer.svelte';
-	import { mapsViewerFixture, memoryMapsViewerTransports, VFIX } from './fixture';
+	import {
+		mapsViewerFixture,
+		mapsViewerWallFixture,
+		memoryMapsViewerTransports,
+		VFIX
+	} from './fixture';
 
-	// One living fixture and one transport for the page's life, so the search
-	// log the harness accumulates is the same object across navigations.
+	/* TWO LIVING FIXTURES, AND THE WALL ONE IS SEPARATE ON PURPOSE. Decision
+	   36's central promise is that an existing row renders the same before and
+	   after, so every state that existed before 0224 must keep reading the
+	   fixture that existed before 0224 -- a thickness added to the shared
+	   object would have moved all twelve of them at once and there would be
+	   nothing left to compare against. Both are built once for the page's
+	   life, so the search log the harness accumulates is the same object
+	   across navigations. */
 	const fixture = mapsViewerFixture();
+	const wallFixture = mapsViewerWallFixture();
 	const transports = memoryMapsViewerTransports(fixture);
+	const wallTransports = memoryMapsViewerTransports(wallFixture);
 
 	/**
 	 * A named state is a POSITION, expressed the way the viewer expresses one:
@@ -29,8 +42,16 @@
 		'stage-room': `at=${VFIX.building}&to=item:${VFIX.shopCaliper}&q=caliper`,
 		'stage-unit': `at=${VFIX.machineShop}&to=item:${VFIX.shopCaliper}&q=caliper`,
 		'stage-elevation': `at=${VFIX.toolChest}&to=item:${VFIX.shopCaliper}&q=caliper`,
-		'stage-end': `at=${VFIX.drawer1}&item=${VFIX.shopCaliper}&to=item:${VFIX.shopCaliper}&q=caliper`
+		'stage-end': `at=${VFIX.drawer1}&item=${VFIX.shopCaliper}&to=item:${VFIX.shopCaliper}&q=caliper`,
+		// 0224. `walls` is the BUILDING drawn as the frame: its own 12 inch
+		// exterior, the Machine Shop inheriting 5, the Mill Room's explicit
+		// zero and the Weld Bay's mitered, rotated polygon, all in one
+		// drawing. `walls-room` is one level down, where a 1 inch chest wall
+		// in a 400 inch room is the sub-pixel case at 375px.
+		walls: `at=${VFIX.building}`,
+		'walls-room': `at=${VFIX.machineShop}`
 	};
+
 
 	/**
 	 * The URL the component is given. When `?state=` names one, the harness's
@@ -48,6 +69,9 @@
 	});
 
 	let { data }: { data: { state: string | null; initialResults: MapsSearchRow[] } } = $props();
+
+	/** Which fixture a state reads. Only the two `walls*` states carry any. */
+	const usesWalls = $derived(data.state === 'walls' || data.state === 'walls-room');
 </script>
 
 <svelte:head>
@@ -69,7 +93,12 @@
 	</p>
 	<div class="cr-app-body">
 		{#key data.state}
-			<MapsViewer data={fixture} {search} {transports} initialResults={data.initialResults} />
+			<MapsViewer
+				data={usesWalls ? wallFixture : fixture}
+				{search}
+				transports={usesWalls ? wallTransports : transports}
+				initialResults={data.initialResults}
+			/>
 		{/key}
 	</div>
 </main>

@@ -9,6 +9,8 @@
  * point of serving the tree as a unit.
  */
 
+import { matchesAccept } from '$lib/file-drop';
+
 /**
  * A deck zip has to fit inside ONE serverless request body: the upload now
  * goes through OUR server (which then does the Drive write on the caller's
@@ -39,6 +41,69 @@ export function deckUploadSizeIssue(bytes: number): string | null {
 		'single upload. Remove large media (gifs, video) from the deck and attach it to the item ' +
 		'separately instead, then upload the deck zip again.'
 	);
+}
+
+/**
+ * WHAT THE DECK BOX ACCEPTS, WRITTEN ONCE -- the same string is the
+ * `<input accept>` and the drop rule, so the picker and the drop cannot come
+ * to disagree about what a deck is.
+ *
+ * IT SITS HERE RATHER THAN IN `composer-staging.ts` BECAUSE IT IS A FACT ABOUT
+ * THE FEATURE, NOT ABOUT THE COMPOSER. What a deck is made of is this module's
+ * subject -- the size cap beside it already is, and the server imports that
+ * constant rather than keeping a second copy of the number. The item page has
+ * its own separate deck door (`DeckPanel.svelte`), so a rule kept in the
+ * composer's staging module would be a rule the other door could not reach.
+ *
+ * AND `.zip` HERE IS NOT THE `accept` THE REPO FORBIDS. "No `accept` on a
+ * plain picker, on either side" is a policy about what a PERSON may hand in --
+ * a student's homework, a teacher's handout -- and this is not that box: a
+ * deck is a zip by construction, because the server unpacks it into a file
+ * manifest and serves the tree. `tests/classroom-attachment-mime.test.ts`
+ * exempts this one input by its own testid for exactly that reason.
+ */
+export const DECK_ACCEPT = '.zip,application/zip,application/x-zip-compressed';
+
+/**
+ * Is this file a deck zip at all? Null when it is, a sentence when it is not.
+ *
+ * THIS IS THE DEFECT MR. PINA REPORTED, FROM THE OTHER END. He wrote that
+ * "zip files should not be automatically assumed as presentation decks", and
+ * the premise is inverted: nothing sniffs a file and routes it to the deck.
+ * What the code did was assume ANYTHING dropped on the deck box was a deck --
+ * the staged check was `deckUploadSizeIssue(file.size)` and nothing else, no
+ * extension and no type -- so a PNG staged happily, reported "Deck ready",
+ * and failed server-side after Post. The composer's own comment beside the
+ * ported-document picker already named this as "the measured shape not to
+ * repeat".
+ *
+ * THE EXTENSION AND THE TYPE ARE BOTH ACCEPTED, EITHER ALONE. That is
+ * `matchesAccept`'s rule and it is the browser's own: `File.type` is
+ * legitimately EMPTY when the platform cannot determine a media type, and a
+ * zip dragged off a desktop routinely arrives with none, while a zip written
+ * by Windows Explorer arrives as `application/x-zip-compressed` rather than
+ * `application/zip`. Keying on either alone refuses ordinary files.
+ */
+export function deckUploadTypeIssue(file: File): string | null {
+	if (matchesAccept(file, DECK_ACCEPT)) return null;
+	const name = (file.name ?? '').trim();
+	return (
+		`${name || 'That file'} is not a zip, so it cannot be a presentation deck. A deck is a ` +
+		'Claude Design project HTML export, zipped with hidden files included. To put a picture ' +
+		'or a document in front of the class, attach it as a file above instead.'
+	);
+}
+
+/**
+ * THE ONE ANSWER for a file offered to the deck box, whichever way it arrived.
+ *
+ * TYPE BEFORE SIZE, deliberately. A 10 MB photograph is both the wrong kind of
+ * file and too big, and "remove large media from the deck and upload it again"
+ * is useless advice about a photograph -- it describes work on a deck the
+ * person does not have. The more fundamental refusal is the actionable one.
+ */
+export function deckUploadIssue(file: File): string | null {
+	return deckUploadTypeIssue(file) ?? deckUploadSizeIssue(file.size);
 }
 
 export interface DeckSlide {

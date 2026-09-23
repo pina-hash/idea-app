@@ -11,6 +11,32 @@
 	 * one device pixel at every scale, so a small room does not draw with fat
 	 * walls.
 	 *
+	 * A WALL IS A BAND WITH A REAL DIMENSION (decision 36, migration 0224), AND
+	 * THE HAIRLINE IS ITS FLOOR RATHER THAN ITS REPLACEMENT. This is the one
+	 * place the paragraph above is deliberately reversed: a six inch wall is
+	 * six inches of the drawing, filled between the typed outline (its INTERIOR
+	 * face) and the outer face lying outward from it, so the plan stops showing
+	 * a line where real material is -- which is what Mr. Pina reported.
+	 *
+	 * THE NARROW-WIDTH ANSWER, which the decision named as this component's own
+	 * to give: the band is drawn at its true size and NEVER inflated, and the
+	 * inner path keeps its `non-scaling-stroke` hairline underneath it. A site
+	 * plan 2000 inches wide at 375px draws an inch at 0.19 device pixels, so a
+	 * five inch wall is under one pixel and the band alone would thin to
+	 * nothing -- and the hairline is exactly what is left, which is exactly
+	 * what was on screen before 0224. Zoom in and the band grows out of the
+	 * hairline continuously. The alternative, a minimum band width in pixels,
+	 * was rejected for the reason this file already gives about the 44px floor:
+	 * inflating a shape makes the drawing lie about the dimension it exists to
+	 * show, and a wall drawn fatter than it is would be a plan somebody could
+	 * measure a room off wrongly.
+	 *
+	 * THE BAND IS `fill-rule: evenodd` OVER TWO SUBPATHS, outer then inner --
+	 * an annulus -- rather than a thick stroke on the outline. A stroke
+	 * straddles its path half in and half out, so a six inch stroke would put
+	 * three inches of wall INSIDE the room and silently contradict the whole
+	 * decision.
+	 *
 	 * THE SHAPES ARE LINKS, NOT `<g>` ELEMENTS WITH CLICK HANDLERS. A room on a
 	 * plan is a place you can go, so it is an `<a>` with an href: it works with
 	 * a keyboard, it works with the middle mouse button, it can be copied, and
@@ -102,11 +128,17 @@
 	const DRAG_PX = 4;
 
 	const pad = $derived(Math.max((view.frame.maxX - view.frame.minX) * 0.02, 2));
+	/* THE PAD HAS TO CLEAR THE FRAME'S OWN WALL, or the band the frame just
+	   gained is drawn outside the viewBox and clipped away -- a wall that is
+	   correct in the DOM and invisible on screen, which is the worst of the
+	   three outcomes. Only the frame's band matters here: a child's wall lies
+	   outward from a shape that is already inside the frame. */
+	const outward = $derived(Math.max(pad, view.frameThickness ?? 0));
 	const base = $derived<MapsViewBox>({
-		x: view.frame.minX - pad,
-		y: view.frame.minY - pad,
-		w: view.frame.maxX - view.frame.minX + pad * 2,
-		h: view.frame.maxY - view.frame.minY + pad * 2
+		x: view.frame.minX - outward,
+		y: view.frame.minY - outward,
+		w: view.frame.maxX - view.frame.minX + outward * 2,
+		h: view.frame.maxY - view.frame.minY + outward * 2
 	});
 	const widthIn = $derived(Math.round(view.frame.maxX - view.frame.minX));
 	const heightIn = $derived(Math.round(view.frame.maxY - view.frame.minY));
@@ -148,6 +180,32 @@
 
 	const pathOf = (points: [number, number][]) =>
 		points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x} ${y}`).join(' ') + ' Z';
+	/**
+	 * THE WALL BAND: outer ring, then inner ring, as one path. With
+	 * `fill-rule: evenodd` the region between them fills and the interior does
+	 * not -- which is an annulus of the real wall thickness, at any shape and
+	 * any number of corners, with no per-edge arithmetic in the renderer.
+	 */
+	const ringPath = (outer: [number, number][], inner: [number, number][]) =>
+		`${pathOf(outer)} ${pathOf(inner)}`;
+
+	/**
+	 * The frame's INNER ring, as a path. It is the frame BOX rather than the
+	 * frame's own corners, which is exact for a rect and squares off a polygon
+	 * container -- and squaring it off here would draw a wall that disagrees
+	 * with the `<rect class="mv-frame">` beside it, which is drawn from the
+	 * same box. The two agree by construction because they read the same four
+	 * numbers; a polygon container's own corner path is a separate improvement
+	 * that belongs with fixing `mapsFootprint`'s bounding box (see the spec's
+	 * deliberately-undecided list).
+	 */
+	const frameCorners = $derived<[number, number][]>([
+		[view.frame.minX, view.frame.minY],
+		[view.frame.maxX, view.frame.minY],
+		[view.frame.maxX, view.frame.maxY],
+		[view.frame.minX, view.frame.maxY]
+	]);
+
 	/** The label anchor: the shape's own centre, so a rotated shape still reads. */
 	const centreOf = (points: [number, number][]) => {
 		let x = 0;
@@ -366,6 +424,17 @@
 			aria-label={`Plan of ${frameLabel}, ${widthIn} by ${heightIn} inches`}
 			preserveAspectRatio="xMidYMid meet"
 		>
+			{#if view.frameOuter}
+				<!-- The frame's own wall: the room the reader is standing in, and
+				     the most visible wall on the drawing. Painted FIRST, under
+				     everything, because it is the ground the plan sits on. -->
+				<path
+					class="mv-wall mv-wall-frame"
+					d={ringPath(view.frameOuter, frameCorners)}
+					data-testid="maps-viewer-frame-wall"
+					data-thickness-in={view.frameThickness}
+				/>
+			{/if}
 			<rect
 				class="mv-frame"
 				x={view.frame.minX}
@@ -392,6 +461,18 @@
 					onblur={() => onhot?.(null)}
 				>
 					<title>{shape.node.name} ({mapsKindWord(shape.node)}){here ? ', open' : ''}</title>
+					{#if shape.outerPoints}
+						<!-- The wall sits INSIDE the link, because a wall belongs to
+						     the room it encloses: pointing at it marks the same
+						     shape and opens the same place. -->
+						<path
+							class="mv-wall"
+							d={ringPath(shape.outerPoints, shape.points)}
+							data-testid="maps-viewer-shape-wall"
+							data-node-wall={shape.node.id}
+							data-thickness-in={shape.thickness}
+						/>
+					{/if}
 					<path d={pathOf(shape.points)} />
 					{#if labelShown(shape)}
 						{@const at = labelPlace(shape, c)}
@@ -530,7 +611,30 @@
 		stroke-width: 2;
 		vector-effect: non-scaling-stroke;
 	}
-	.mv-shape path {
+	/* THE WALL BAND. It is FILL ONLY and carries no stroke of its own: the
+	   hairline that reads at small scales is the inner path's, drawn over it,
+	   so the wall never draws two lines where there is one surface. It is also
+	   `pointer-events: none` -- the fill is material, and the link's own hit
+	   area is the room, so a wall that swallowed the pointer would make the
+	   room next door harder to reach on a phone. */
+	/* EVERY `.mv-shape` STROKE RULE IS WRITTEN `path:not(.mv-wall)`, AND THAT
+	   IS NOT TIDINESS. The band is a `<path>` INSIDE the shape's own `<a>`
+	   (a wall belongs to the room it encloses), so `.mv-shape path` reached it
+	   at higher specificity than this block and the band drew its own 1.5px
+	   non-scaling stroke on top of the shape's -- two lines where there is one
+	   surface, and worst exactly where it matters, at the sub-pixel widths
+	   where the hairline is all that is left. `verify:browser` measured it as
+	   `THE BAND IS ALSO STROKED`; nothing on screen at 1440px showed it. */
+	.mv-wall {
+		fill: var(--mv-wall-fill);
+		fill-rule: evenodd;
+		stroke: none;
+		pointer-events: none;
+	}
+	.mv-wall-frame {
+		fill: var(--mv-wall-frame-fill);
+	}
+	.mv-shape path:not(.mv-wall) {
 		fill: var(--mv-shape-fill);
 		stroke: var(--mv-accent);
 		stroke-width: 1.5;
@@ -543,9 +647,9 @@
 		   whole shape group and can be invisible on a dark plate. */
 		cursor: pointer;
 	}
-	.mv-shape:hover path,
-	.mv-shape:focus-visible path,
-	.mv-shape.is-hot path {
+	.mv-shape:hover path:not(.mv-wall),
+	.mv-shape:focus-visible path:not(.mv-wall),
+	.mv-shape.is-hot path:not(.mv-wall) {
 		fill: var(--mv-shape-fill-hover);
 		stroke: var(--mv-accent-strong);
 		stroke-width: 2.5;
@@ -555,12 +659,12 @@
 	}
 	/* THE OPEN THING: heavier, in the accent, with its own word under the
 	   name. A second state and a second word, never a second gold. */
-	.mv-shape.is-here path {
+	.mv-shape.is-here path:not(.mv-wall) {
 		fill: var(--mv-shape-fill-hover);
 		stroke: var(--mv-accent-strong);
 		stroke-width: 3;
 	}
-	.mv-shape.is-marked path {
+	.mv-shape.is-marked path:not(.mv-wall) {
 		/* THE FOUND THING. Gold fill, gold stroke, and a heavier weight -- three
 		   signals, because colour is never the only one. The row in the list
 		   beside the drawing carries the WORD ("found here"), which is the

@@ -473,6 +473,40 @@ export const SURPLUS = {
 	blockedChild: 'node-dup-4-bench'
 } as const;
 
+/**
+ * THE SAME EDITOR OVER A MAP THAT HAS WALLS ON IT (0224). A SEPARATE fixture,
+ * for the reason the viewer's is separate: every existing `?state=` has to
+ * keep measuring what it measured, because "an existing row behaves exactly as
+ * it did" is decision 36's central promise and `maps-edit-state-place.mjs`'s
+ * snap arithmetic is one of the places it would show up first. A thickness
+ * typed into the shared fixture would have moved that check's expected inch
+ * value silently.
+ *
+ * The numbers are chosen so the two FACES are visibly different things:
+ *
+ *   * THE MACHINE SHOP carries a 9 inch wall. It is the parent, so the snap
+ *     target it offers is its INNER face -- the outline exactly as typed --
+ *     and `maps-edit-state-place.mjs`'s 30in answer must be unchanged by it.
+ *     That is the assertion decision 36 exists for.
+ *   * TOOL CHEST A carries 3 inches. It is a SIBLING of the shape being
+ *     placed, so the face it offers is its OUTER one, three inches wider on
+ *     every side than the box the editor drew before.
+ */
+export function mapsEditFixtureWithWalls(): MapsEditorData {
+	const data = mapsEditFixture();
+	const set = (id: string, own: number | null, def: number | null = null) => {
+		const n = data.nodes.find((x) => x.id === id);
+		if (!n) throw new Error(`wall fixture: no node ${id}`);
+		n.wall_thickness_in = own;
+		n.default_wall_thickness_in = def;
+	};
+	set(FIX.building, 12, 6);
+	set(FIX.machineShop, 9, null);
+	set(FIX.toolChest, 3, null);
+	data.thicknessReady = true;
+	return data;
+}
+
 export function mapsEditFixtureWithSurplus(): MapsEditorData {
 	const data = mapsEditFixture();
 	const at = (minutes: number) => new Date(Date.parse(T) + minutes * 60_000).toISOString();

@@ -58,7 +58,12 @@ export default {
 	presence: [
 		{ selector: '.harness h1', label: 'page heading', expectPresent: 1 },
 		{ selector: '[data-testid="foundry-gallery-grid"] li', label: 'gallery cards', expectPresent: 3, maxPresent: 3 },
-		{ selector: '.fdy-gal-sort-btn', label: 'gallery sort buttons', expectPresent: 3, maxPresent: 3 },
+		/* FIVE SINCE 0221: `recent`, `played`, `played7d`, and report 30's
+		   `hours` and `versions`. The ceiling is the assertion -- a sixth button
+		   would mean somebody added a board order to the control, which the two
+		   board-only orders (`trending`, `new`) are deliberately kept out of:
+		   seven buttons in one group is a control nobody reads at 375. */
+		{ selector: '.fdy-gal-sort-btn', label: 'gallery sort buttons', expectPresent: 5, maxPresent: 5 },
 		/*
 			TWO OF THREE FIXTURE APPS CARRY A NONZERO PLAY COUNT; the third is
 			zero on purpose (`playCountLabel` renders no chip for zero), so this

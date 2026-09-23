@@ -17,6 +17,8 @@
 // restored md5-identical and re-run green.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { startMapsDb, OWNER_EMAIL } from './db/maps-fixture';
 import { createUser, type SeededUser, type TestDb } from './db/harness';
 import {
@@ -26,6 +28,7 @@ import {
 	mapsAllowedKinds,
 	mapsKindPairOk,
 	mapsOutlineOk,
+	mapsWallThicknessOk,
 	type MapsKind
 } from '../src/lib/maps/maps';
 
@@ -33,7 +36,13 @@ let db: TestDb;
 let admin: SeededUser;
 
 beforeAll(async () => {
+	// 0224 is applied ON TOP of the shared maps chain rather than folded into
+	// it, because `startMapsDb`'s chain is what every other maps suite reads
+	// and widening it from here would change what they are testing.
 	db = await startMapsDb();
+	await db.sql(
+		readFileSync(join(process.cwd(), 'supabase/migrations/0224_maps_wall_thickness.sql'), 'utf8')
+	);
 	admin = await createUser(db, OWNER_EMAIL, 'Site Owner');
 	await db.sql(`insert into public.app_admins (email) values ($1) on conflict do nothing`, [
 		OWNER_EMAIL
@@ -142,6 +151,67 @@ describe('the root rule and the re-kind child check, against the real trigger', 
 			await q(`delete from public.maps_nodes where id = $1`, [building]);
 			await q(`delete from public.maps_nodes where id = $1`, [site]);
 		});
+	});
+});
+
+describe('mapsWallThicknessOk mirrors _maps_wall_thickness_ok (0224)', () => {
+	/**
+	 * The corpus, and why each member earns its place. The two languages
+	 * DISAGREE about non-finite numbers by default, so the interesting cases
+	 * are not the ordinary ones: Postgres `numeric` sorts NaN ABOVE every
+	 * non-NaN value, so `NaN >= 0` is TRUE there and FALSE in JavaScript, and
+	 * `Infinity >= 0` is true in BOTH. A mirror written as a bare `>= 0` on
+	 * each side would therefore agree by accident on one and be wrong on the
+	 * other, with the wrongness reaching the drawing as a shape that vanishes.
+	 * That is the pair this corpus exists to catch.
+	 */
+	const CORPUS: { label: string; sql: string; value: number | null }[] = [
+		{ label: 'null (nobody answered)', sql: 'null', value: null },
+		{ label: 'zero (a drawn line)', sql: '0', value: 0 },
+		{ label: 'a fractional wall', sql: '5.5', value: 5.5 },
+		{ label: 'a thick wall', sql: '1200', value: 1200 },
+		{ label: 'just below zero', sql: '-0.001', value: -0.001 },
+		{ label: 'negative', sql: '-1', value: -1 },
+		{ label: 'NaN', sql: `'NaN'::numeric`, value: Number.NaN },
+		{ label: 'Infinity', sql: `'Infinity'::numeric`, value: Number.POSITIVE_INFINITY },
+		{
+			label: '-Infinity',
+			sql: `'-Infinity'::numeric`,
+			value: Number.NEGATIVE_INFINITY
+		}
+	];
+
+	it(`agrees with the deployed function on all ${CORPUS.length} corpus values, none of which answers NULL`, async () => {
+		expect(CORPUS.length).toBe(9); // the denominator
+		for (const { label, sql, value } of CORPUS) {
+			const { rows } = await db.sql<{ ok: boolean; is_null: boolean }>(
+				`select public._maps_wall_thickness_ok(${sql}) as ok,
+					public._maps_wall_thickness_ok(${sql}) is null as is_null`
+			);
+			// A gate that answers NULL does not refuse -- `if not <gate>` does
+			// not fire on NULL, so the write is ACCEPTED. Asserted separately
+			// from the verdict because they are wildly different outcomes.
+			expect(rows[0].is_null, `${label}: SQL answered NULL`).toBe(false);
+			expect(mapsWallThicknessOk(value), label).toBe(rows[0].ok);
+		}
+		// Positive control on the corpus itself: it holds both verdicts, so an
+		// all-true or all-false mirror could not pass the loop above.
+		expect(CORPUS.some(({ value }) => mapsWallThicknessOk(value))).toBe(true);
+		expect(CORPUS.some(({ value }) => !mapsWallThicknessOk(value))).toBe(true);
+	});
+
+	it('leaves _maps_outline_ok alone: thickness is a COLUMN, not a key in the jsonb', async () => {
+		// 0224's section 2. If somebody ever moves thickness into the outline,
+		// this is the assertion that has to be deliberately deleted rather than
+		// quietly drifting -- and the client mirror beside it would have to
+		// start validating a key it does not know about today.
+		const { rows } = await db.sql<{ silent: boolean }>(
+			`select position('thickness' in p.prosrc) = 0 as silent
+			 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+			 where n.nspname = 'public' and p.proname = '_maps_outline_ok'`
+		);
+		expect(rows[0].silent).toBe(true);
+		expect(mapsOutlineOk({ kind: 'rect', w: 10, h: 5, wall_thickness_in: 3 })).toBe(true);
 	});
 });
 

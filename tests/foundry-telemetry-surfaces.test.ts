@@ -148,11 +148,41 @@ describe('the ordering arithmetic', () => {
 	it('coerces the bigint strings PostgREST actually returns', () => {
 		// A bigint arrives as a STRING. Compared as strings, "9" sorts above
 		// "10", which is a wrong ranking that looks entirely plausible.
+		//
+		// ALL FOUR FIGURES, because 0221's two are bigints exactly as 0139's
+		// two are, and `seconds_played` is the one where a string comparison
+		// would be least visible: an hours board is read as words ("2h 5m"),
+		// so a wrongly ordered one looks like a correct board about a gallery
+		// that happens to be ordered that way.
 		const map = foundryPlayCountMap([
-			{ app_id: 'x', plays: '10' as unknown as number, plays_7d: '9' as unknown as number }
+			{
+				app_id: 'x',
+				plays: '10' as unknown as number,
+				plays_7d: '9' as unknown as number,
+				plays_prev_7d: '2' as unknown as number,
+				seconds_played: '7200' as unknown as number
+			}
 		]);
-		expect(map.x).toEqual({ plays: 10, plays7d: 9 });
+		expect(map.x).toEqual({ plays: 10, plays7d: 9, playsPrev7d: 2, seconds: 7200 });
 		expect(foundryPlayCountMap(null)).toEqual({});
+	});
+
+	/**
+	 * THE LADDER, AND IT IS THE CASE THIS FEATURE WILL ACTUALLY BE IN FOR A
+	 * WHILE. Migrations here are applied by hand, so a deployment carrying 0204
+	 * and not yet 0221 is a real state, and on it `foundry_play_counts` returns
+	 * rows with three keys. A map that came back with `undefined` for the other
+	 * two would make `foundryTrendScore` produce NaN, and NaN in a comparator
+	 * does not throw -- it silently leaves the list in whatever order it was
+	 * already in, which is indistinguishable from a board that decided nothing
+	 * was trending.
+	 */
+	it('reads a pre-0221 row as zeroes rather than as undefined', () => {
+		const map = foundryPlayCountMap([
+			{ app_id: 'x', plays: '4' as unknown as number, plays_7d: '1' as unknown as number }
+		]);
+		expect(map.x).toEqual({ plays: 4, plays7d: 1, playsPrev7d: 0, seconds: 0 });
+		expect(Number.isNaN(map.x.playsPrev7d as number)).toBe(false);
 	});
 });
 

@@ -2,7 +2,44 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<!--
+			viewport-fit=cover: REPORT 33b, AND IT IS THE HALF THAT CANNOT BE
+			VERIFIED IN THIS REPOSITORY. Read the rest of this comment before
+			changing it.
+
+			WITHOUT IT, iOS uses `viewport-fit=contain` and INSETS THE LAYOUT
+			VIEWPORT to the safe area. `100dvh` is then already the inset box, so
+			`AppStage`'s full-screen state -- `position: fixed; inset: 0; height:
+			100dvh` -- sizes itself to a rectangle that stops short of the edges,
+			and on a notched iPhone in LANDSCAPE, which is what 607x320 is, the
+			black bars are wide and obvious. A full screen that visibly does not
+			reach the screen is what "doesn't full screen on mobile good"
+			describes as well as anything else does.
+
+			WITH IT, the layout viewport is the whole display and the insets become
+			something a page ASKS FOR through `env(safe-area-inset-*)` rather than
+			something imposed on every element. Six components already do exactly
+			that -- InstallPrompt, SiteFeedback, FrcInterestForm, CameraCapture,
+			PhotoCorrector and /fsp/ask -- which is the population this change
+			interacts with, and every one of them was written to add its own
+			padding rather than to rely on the viewport being pre-inset.
+
+			TWO ROUTES ALREADY SHIP IT, which is the nearest thing to a precedent
+			in this tree: `/fsp/ask` and `/fsp/frc-interest` each override this
+			meta in their own `<svelte:head>` with `viewport-fit=cover`, and have
+			done without complaint. That is evidence and not proof: those are two
+			pages and this is every page.
+
+			IT IS PORTAL-WIDE AND NO CONTAINER IN THIS REPOSITORY HAS WEBKIT. The
+			behaviour this changes is Safari's; Chromium ignores `viewport-fit`
+			entirely on a desktop and has no notch to inset around. So what was
+			measured here is what it does NOT break -- the six safe-area users and
+			the stage's full-screen geometry, at 375, 607x320 and 1440 in Chromium
+			-- and the half that matters is UNVERIFIED on the engine it is for.
+			The history entry for this bundle names the one check to run on a real
+			iPhone.
+		-->
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<link rel="icon" href="/IDEA/favicon.ico" sizes="any" />
 		<link rel="icon" type="image/svg+xml" href="/IDEA/favicon.svg" />
 		<link rel="apple-touch-icon" href="/IDEA/apple-touch-icon.png" />

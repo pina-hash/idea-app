@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "instructor-tools-tool-teams.mjs",
+	"date": "2026-09-22T19:08:16.571Z",
+	"sha": "359c77d5365c00266bba6a6e11977a233e5edb91",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 74,
+	"outsideRows": [],
+	"ms": 15643
+}
