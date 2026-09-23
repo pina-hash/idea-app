@@ -30,6 +30,7 @@
 	import SketchEditor from './SketchEditor.svelte';
 	import ReferencePanel from './ReferencePanel.svelte';
 	import MatePanel from './MatePanel.svelte';
+	import AnalysisPanel from './AnalysisPanel.svelte';
 	import FeaturePanel from './FeaturePanel.svelte';
 	import AddonPanel from './AddonPanel.svelte';
 	import DimensionPanel from './DimensionPanel.svelte';
@@ -81,7 +82,7 @@
 	let client:SolidClient;let viewport:SolidViewport;
 	let model:ModelProjection=$state(EMPTY_MODEL);
 	let selections:Selection[]=$state([]),tool:Tool=$state('select');
-	let error=$state(''),loading=$state(true),busy=$state(false),more=$state(false),objectsOpen=$state(false),addonOpen=$state(false),exportOpen=$state(false),treeOpen=$state(false),referenceOpen=$state(false),matesOpen=$state(false),sectionOpen=$state(false);
+	let error=$state(''),loading=$state(true),busy=$state(false),more=$state(false),objectsOpen=$state(false),addonOpen=$state(false),exportOpen=$state(false),treeOpen=$state(false),referenceOpen=$state(false),matesOpen=$state(false),sectionOpen=$state(false),analysisOpen=$state(false);
 	let reopenConfirm=$state(false);
 	/* Transient chrome: command search (and the view menu, which is the same list narrowed), the preferences panel. */
 	let search=$state<{at:{x:number;y:number};group?:CommandGroup}|null>(null),prefsOpen=$state(false);
@@ -411,7 +412,7 @@
 		for(const s of selections){if(s.kind==='face'){const body=model.bodies.find(b=>b.id===s.bodyId),face=body?.faces.find(f=>f.id===s.id);if(body&&face&&face.kind==='plane')return{plane:planeFromNormal(face.normal,face.center),ref:{kind:'face' as const,face:{body:body.id,name:face.id,hint:{kind:face.kind,center:face.center,normal:face.normal,area:face.area}}}};}if(isDatum(s)){const datum=s.id.slice(DATUM_SELECTION_PREFIX.length) as Datum;return{plane:datumPlane(datum),ref:{kind:'datum' as const,datum}};}if(s.kind==='reference'){const r=model.references.find(r=>r.feature===s.id);if(r?.kind==='plane')return{plane:{origin:r.origin,u:r.u!,v:r.v!,normal:r.normal!},ref:{kind:'reference' as const,feature:r.feature}};}}
 		const datum=viewport?.facingDatum()??'XY';return{plane:datumPlane(datum),ref:{kind:'datum' as const,datum}};
 	}
-	function togglePanel(panel:PanelId){if(panel==='objects')objectsOpen=!objectsOpen;else if(panel==='reference')referenceOpen=!referenceOpen;else if(panel==='mates')matesOpen=!matesOpen;else if(panel==='section')sectionOpen=!sectionOpen;else addonOpen=!addonOpen;}
+	function togglePanel(panel:PanelId){if(panel==='objects')objectsOpen=!objectsOpen;else if(panel==='reference')referenceOpen=!referenceOpen;else if(panel==='mates')matesOpen=!matesOpen;else if(panel==='section')sectionOpen=!sectionOpen;else if(panel==='analysis')analysisOpen=!analysisOpen;else addonOpen=!addonOpen;}
 	/** Show or hide Front, Top and Right: the student's choice, stored, so it holds on every document. */
 	function togglePlanes(){const shown=datumPlanesVisible(model,planesForced);planesForced=false;viewport.datumForced=false;prefStore.set('view',{...prefs.view,planes:shown?'never':'always'});}
 	function openSearch(group?:CommandGroup){const r=canvas.getBoundingClientRect(),p=viewport?.pointerPosition()??{x:r.width/2,y:r.height/3};const inside=p.x>0&&p.y>0&&p.x<r.width&&p.y<r.height;search={at:inside?{x:r.left+p.x,y:r.top+p.y}:{x:r.left+r.width/2-170,y:r.top+80},group};}
@@ -681,7 +682,7 @@
 					</div>
 					<ViewControls items={viewItems} onrun={runById}/>
 				</div>
-				<div class="right-tools"><button class:active={objectsOpen} onclick={()=>objectsOpen=!objectsOpen}>Objects <span>{model.bodies.length+openSketches.length}</span></button><button class:active={referenceOpen} onclick={()=>referenceOpen=!referenceOpen}>Reference</button><button class:active={matesOpen} onclick={()=>matesOpen=!matesOpen}>Mates</button><button class:active={sectionOpen} aria-pressed={sectionOpen} onclick={()=>sectionOpen=!sectionOpen}>Section</button><button class:active={addonOpen} onclick={()=>addonOpen=!addonOpen}>Add-ons</button></div>
+				<div class="right-tools"><button class:active={objectsOpen} onclick={()=>objectsOpen=!objectsOpen}>Objects <span>{model.bodies.length+openSketches.length}</span></button><button class:active={referenceOpen} onclick={()=>referenceOpen=!referenceOpen}>Reference</button><button class:active={matesOpen} onclick={()=>matesOpen=!matesOpen}>Mates</button><button class:active={analysisOpen} aria-pressed={analysisOpen} onclick={()=>analysisOpen=!analysisOpen}>Analysis</button><button class:active={sectionOpen} aria-pressed={sectionOpen} onclick={()=>sectionOpen=!sectionOpen}>Section</button><button class:active={addonOpen} onclick={()=>addonOpen=!addonOpen}>Add-ons</button></div>
 			</div>
 			<div class="triad-slot" bind:this={triadSlot} aria-hidden="true" data-testid="ideacad-triad" data-shown={prefs.view.triad}></div>
 			{#if !loading&&opened.canWrite&&!model.features.length&&!editingSketch}<div class="empty-slot"><EmptyCue onsketch={sketchOnPlane} onbox={()=>void startFromBox()} {busy}/></div>{/if}
@@ -699,6 +700,7 @@
 				{#if sectionOpen}<SectionPanel {api}/>{/if}
 				{#if referenceOpen}<ReferencePanel {api}/>{/if}
 				{#if matesOpen}<MatePanel {api}/>{/if}
+				{#if analysisOpen}<AnalysisPanel {api}/>{/if}
 				{#if objectsOpen}
 					<aside class="objects panel" aria-label="Objects"><h2>Objects</h2>
 						{#each openSketches as sketch (sketch.feature)}<button class:selected={selections.some(s=>s.id===sketch.feature)} onclick={()=>{select({bodyId:'',kind:'sketch',id:sketch.feature});setTool('extrude');}}>◇ {sketch.name}<span>{sketch.regions.length?`${sketch.regions.length} closed`:'open'}</span></button>{/each}

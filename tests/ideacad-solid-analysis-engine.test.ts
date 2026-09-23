@@ -79,4 +79,19 @@ describe('analysis over the engine\'s own projection', () => {
 		/* And it runs again, on the same live bodies, with the same answer. */
 		expect(interference(e).pairs[0].volume).toBeCloseTo(1, 9);
 	});
+	it('Measure between two bodies reads the true gap beside a curved face, and zero where two bodies overlap', async () => {
+		const e = await engine();
+		await add(e, rect('s1', 0, 0, 4, 2)); await add(e, { id: 'a', name: 'Plate', type: 'extrude', sketch: 's1', distance: 1, operation: 'new' });
+		await add(e, rect('s2', 3, 1, 5, 3)); await add(e, { id: 'b', name: 'Block', type: 'extrude', sketch: 's2', distance: 2, operation: 'new' });
+		await add(e, { id: 's3', name: 's3', type: 'sketch', plane: { kind: 'datum', datum: 'XY' }, entities: [{ id: 'c', type: 'point', x: 1, y: -1.1 }, { id: 'k', type: 'circle', center: 'c', radius: 1 }], constraints: [] });
+		await add(e, { id: 'c', name: 'Wheel', type: 'extrude', sketch: 's3', distance: 1, operation: 'new' });
+		await add(e, { id: 's4', name: 's4', type: 'sketch', plane: { kind: 'datum', datum: 'XY', offset: 1.125 }, entities: [{ id: 'c', type: 'point', x: 1.5, y: 1 }, { id: 'k', type: 'circle', center: 'c', radius: 0.75 }], constraints: [] });
+		await add(e, { id: 'd', name: 'Disk', type: 'extrude', sketch: 's4', distance: 0.25, operation: 'new' });
+		const body = (id: string) => ({ bodyId: id, kind: 'body' as const, id });
+		expect(e.measure(body('a#0'), body('b#0'))).toMatchObject({ kind: 'distance', value: 0 });
+		/* Hand: the wheel's rim comes to y = -0.1 at x = 1, inside the plate's own x range, so the gap is 0.1 to its side face. */
+		expect(e.measure(body('a#0'), body('c#0')).value).toBeCloseTo(0.1, 6);
+		/* Hand: a disk whose bottom sits 0.125 above the plate's top, wholly over it. */
+		expect(e.measure(body('a#0'), body('d#0')).value).toBeCloseTo(0.125, 6);
+	});
 });

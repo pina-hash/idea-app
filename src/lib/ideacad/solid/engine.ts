@@ -42,6 +42,7 @@ import { reduce } from './commands';
 import { datumPlane, regionOutlines, solveSketch, planeFromNormal } from './sketch/model';
 import { EXECUTORS, solveMates } from './features/index';
 import { tangentChain } from './features/blends';
+import { checkInterference, checkPair, type InterferenceReport } from './analysis/interference';
 import type { ExecutorContext, LiveBody, MateState, Resolved, ResolvedRef, SketchState } from './features/context';
 import { emptyManifest, type AxisRef, type BodyProjection, type BodyRecord, type EdgeRef, type FaceRef, type Feature, type FeatureRow, type GeometryArtifact, type ModelProjection, type ModelSnapshot, type PlaneRef, type PointRef, type ResolvedAxis, type ResolvedPlane, type ResolvedPoint, type Selection, type SketchConstraint, type SketchEntity, type SolidCommand, type SolidManifest, type Vec3, type VertexRef, type LegacyManifest, type MateProjection, type ReferenceProjection, type SketchProjection } from './types';
 
@@ -566,6 +567,8 @@ export class SolidEngine {
 		if (!result) throw Error('That selection changed. Select it again.');
 		return result;
 	}
+	/** Every body pair: exact interference volume, touching, or clearance (analysis/interference.ts). Its intersection solids live inside scratch, so nothing the check builds outlives the call. */
+	interference(): InterferenceReport { const bodies = this.live.order.map((id) => ({ id, solid: this.live.bodies.get(id)!.solid })); return this.scratch(() => checkInterference(this.k, bodies)); }
 	/** Measure between two selections: the kernel's distance, or an edge length / face area on one. */
 	measure(a: Selection, b?: Selection): { kind: string; value: number; points?: [Vec3, Vec3] } {
 		const k = this.k, pa = this.pick(a);
@@ -576,7 +579,7 @@ export class SolidEngine {
 			throw Error('Select an edge, a face or a body to measure it.');
 		}
 		const pb = this.pick(b);
-		if (pa.kind === 'body' && pb.kind === 'body') { const d = k.solidToSolidDistance(pa.handle, pb.handle); return { kind: 'distance', value: d[0], points: [[d[1], d[2], d[3]], [d[4], d[5], d[6]]] }; }
+		if (pa.kind === 'body' && pb.kind === 'body') { const p = this.scratch(() => checkPair(k, { id: 'a', solid: pa.handle }, { id: 'b', solid: pb.handle })); if (p.kind === 'unknown') throw Error(p.message ?? 'The kernel could not measure between these two bodies.'); return p.kind === 'interference' ? { kind: 'distance', value: 0, ...(p.point ? { points: [p.point, p.point] as [Vec3, Vec3] } : {}) } : { kind: 'distance', value: p.distance!, points: p.points }; }
 		const point = (p: Pick): Vec3 | null => p.kind === 'vertex' ? vector(k.getVertexPosition(p.handle)) : null;
 		const qa = point(pa), qb = point(pb);
 		if (qa && qb) return { kind: 'distance', value: Math.hypot(...sub(qa, qb)), points: [qa, qb] };

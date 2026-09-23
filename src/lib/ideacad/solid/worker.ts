@@ -21,6 +21,7 @@ self.onmessage=({data})=>{
 				case 'profile': result=engine.planarProfile(data.value);break;
 				case 'sketch-solve': result=engine.solveSketch(data.value as {entities:SketchEntity[];constraints:SketchConstraint[]});break;
 				case 'measure': result=engine.measure((data.value as {a:Selection;b?:Selection}).a,(data.value as {a:Selection;b?:Selection}).b);break;
+				case 'interference': result=engine.interference();break;
 				case 'rollback': result=await engine.rollback((data.value as {index:number|null}).index);break;
 				case 'timelapse': result=await engine.timelapse();break;
 				case 'tangent-chain': result=engine.tangentEdges(data.value as Selection[]);break;
