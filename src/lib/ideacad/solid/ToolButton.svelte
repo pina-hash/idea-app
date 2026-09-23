@@ -1,3 +1,8 @@
+<script lang="ts" module>
+	/* ONE CARD AT A TIME, AND A WARM PALETTE: moving from one tool to the next while a card is showing (or just after one closed) opens the next at once and closes the last, the way a desktop CAD palette behaves, rather than waiting the delay again with two cards briefly on screen. */
+	let showing: { close(): void } | null = null, warmUntil = 0;
+	const WARM_MS = 300;
+</script>
 <script lang="ts">
 	/**
 	 * ONE PALETTE TOOL AND ITS CARD. The card waits for the student's own delay
@@ -31,16 +36,19 @@
 	let showTimer:ReturnType<typeof setTimeout>|null=null,hideTimer:ReturnType<typeof setTimeout>|null=null;
 	const clear=()=>{if(showTimer)clearTimeout(showTimer);if(hideTimer)clearTimeout(hideTimer);showTimer=hideTimer=null;};
 	function delay(){try{return cssTimeMs(wrap?getComputedStyle(wrap).getPropertyValue('--ic-tip-delay'):null,400);}catch{return 400;}}
-	function show(){if(pressed)return;if(hideTimer){clearTimeout(hideTimer);hideTimer=null;}if(open||showTimer)return;showTimer=setTimeout(()=>{showTimer=null;placed=false;open=true;},delay());}
-	function hideLater(){if(showTimer){clearTimeout(showTimer);showTimer=null;}if(!open||hideTimer)return;hideTimer=setTimeout(()=>{hideTimer=null;open=false;},HIDE_MS);}
-	function hideNow(){clear();open=false;}
+	const self={close:()=>hideNow()};
+	function openNow(){showTimer=null;if(showing&&showing!==self)showing.close();showing=self;placed=false;open=true;}
+	function show(){if(pressed)return;if(hideTimer){clearTimeout(hideTimer);hideTimer=null;}if(open||showTimer)return;const warm=(showing&&showing!==self)||performance.now()<warmUntil;if(warm)openNow();else showTimer=setTimeout(openNow,delay());}
+	function closed(){if(showing===self){showing=null;warmUntil=performance.now()+WARM_MS;}}
+	function hideLater(){if(showTimer){clearTimeout(showTimer);showTimer=null;}if(!open||hideTimer)return;hideTimer=setTimeout(()=>{hideTimer=null;open=false;closed();},HIDE_MS);}
+	function hideNow(){clear();if(open)closed();open=false;}
 	function place(el:HTMLElement|undefined){if(!el||!button)return null;const a=button.getBoundingClientRect(),r=el.getBoundingClientRect();const p=placeTip(a,{width:r.width,height:r.height},{width:window.innerWidth,height:window.innerHeight});return {left:Math.round(p.left),top:Math.round(p.top)};}
 	/* Measured after the card is drawn, then placed; it stays invisible for that one frame so it never flashes over the tool. */
 	$effect(()=>{if(!open||!tip)return;const p=place(tip);if(p){at=p;placed=true;}});
 	$effect(()=>{if(!open)return;const key=(e:KeyboardEvent)=>{if(e.key==='Escape')hideNow();};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);});
 	const showHint=$derived(!!hint&&active&&!open);
 	$effect(()=>{if(!showHint||!first)return;const p=place(first);if(p)hintAt=p;});
-	$effect(()=>()=>clear());
+	$effect(()=>()=>{clear();if(showing===self)showing=null;});
 </script>
 <span class="tool-wrap" bind:this={wrap} role="presentation" onpointerenter={show} onpointerleave={()=>{pressed=false;hideLater();}} onfocusin={(e)=>{if((e.target as HTMLElement).matches?.(':focus-visible'))show();}} onfocusout={hideNow}>
 	<button bind:this={button} type="button" class:active aria-label={name} aria-pressed={active} aria-describedby={showHint?`${tipId} ${hintId}`:tipId} data-command={command} onpointerdown={()=>{pressed=true;hideNow();}} {onclick}>
