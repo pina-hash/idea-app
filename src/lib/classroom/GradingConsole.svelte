@@ -872,6 +872,16 @@
 			return;
 		}
 		pending = { next };
+		/* THE BAR TAKES THE FOCUS AND THE KEYS (ledger 0297). Pressing N or P
+		   after picking a level without S raised this bar and left every key
+		   dead -- Escape and S included -- with focus still on the level button
+		   and "Save draft, then switch" twelve Shift+Tab presses away. Focus
+		   lands on the bar's first action, and `onWindowKey` answers S and
+		   Escape while it is up. A level's descriptor tip closes too: the bar
+		   pushes the rubric down and a tip left open kept its old coordinates,
+		   over the key legend. */
+		hoveredLevel = null;
+		void tick().then(() => dirtySaveEl?.focus());
 	}
 
 	function applySelect(next: StudentWork | null) {
@@ -1510,6 +1520,7 @@
 	// would be clipped by it.
 	// -----------------------------------------------------------------------
 	let hoveredLevel = $state<string | null>(null);
+	let dirtySaveEl = $state<HTMLButtonElement | null>(null);
 	let levelEls = $state<Record<string, HTMLElement | null>>({});
 	const levelKey = (ci: number, li: number) => `${ci}:${li}`;
 
@@ -1669,7 +1680,22 @@
 	}
 
 	function onWindowKey(event: KeyboardEvent) {
-		if (!data || pending) return;
+		if (!data) return;
+		if (pending) {
+			// Only the bar's own two answers, and never while typing.
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				pending = null;
+				return;
+			}
+			const t = event.target as HTMLElement | null;
+			if (t && isTypingTarget(t)) return;
+			if ((event.key === 's' || event.key === 'S') && !event.ctrlKey && !event.metaKey && !event.altKey) {
+				event.preventDefault();
+				if (!busy) void saveThenSwitch();
+			}
+			return;
+		}
 		const target = event.target as (HTMLElement & { isContentEditable?: boolean }) | null;
 		// NOTHING FIRES WHILE SOMEBODY IS TYPING. The console has a comment box,
 		// a per-criterion comment box and a numeric override field; a grader
@@ -2360,7 +2386,14 @@
 								discards it.
 							</p>
 							<span class="dirty-actions">
-								<button type="button" class="btn tiny" disabled={busy} onclick={saveThenSwitch}>
+								<button
+									type="button"
+									class="btn tiny"
+									disabled={busy}
+									onclick={saveThenSwitch}
+									bind:this={dirtySaveEl}
+									aria-keyshortcuts="S"
+								>
 									Save draft, then switch
 								</button>
 								<button
@@ -3624,6 +3657,21 @@
 		letter-spacing: 0;
 		color: var(--text-2);
 	}
+	/* THE COUNT IS THE NUMBER A TEACHER ACTS ON, SO IT NEVER ELLIPSISES (ledger
+	   0297). Disclosure's meta slot truncates, which is right for a free-text
+	   summary and wrong here: "2 open · 0 closed" measured 35 of its 103px at
+	   1440, 1366 and 960, and 26px at 375, because the label and the Show word
+	   take the roster pane's width first. On this one trigger the row may wrap,
+	   and the count keeps its whole width, on the label's line where it fits
+	   and on its own line under it where it does not. */
+	:global([data-testid='close-disclosure'].disc-trigger) {
+		flex-wrap: wrap;
+	}
+	:global([data-testid='close-disclosure'] .disc-meta) {
+		overflow: visible;
+		text-overflow: clip;
+		flex: 0 0 auto;
+	}
 	.close-order,
 	.close-confirm {
 		margin: 0;
@@ -3820,6 +3868,12 @@
 		.work-split.has-rubric.document-work {
 			display: flex;
 			flex-direction: column;
+			/* STRETCH, or the column shrink-wraps the ported document's iframe to
+			   its default 300px (ledger 0297: 300px wide in a 562px pane at 960,
+			   262px dead). The base rule's `align-items: start` is right for the
+			   grid it was written for and wrong for this column; the 1024-to-78rem
+			   band below already reset it, and this is the rest of the range. */
+			align-items: stretch;
 		}
 	}
 
@@ -4389,9 +4443,16 @@
 	   THE SAVE MARKER TAKES ITS OWN LINE (`flex-basis: 100%`) because it is not
 	   a control and must not be sized like one -- and when it has nothing to say
 	   it renders nothing, so the line costs nothing. */
+	/* A LABEL NEVER BREAKS INSIDE ITS BUTTON (ledger 0297): at 5rem a button
+	   could shrink under its own words and put "Next student ›" on two lines
+	   with the chevron alone on the second. The basis is the label's own width
+	   (`auto`), the row wraps a whole button onto the next line instead, and the
+	   buttons on a line still share it. */
 	.grade-actions > button {
-		flex: 1 1 5rem;
+		flex: 1 1 auto;
 		min-width: 0;
+		white-space: nowrap;
+		justify-content: center;
 	}
 	/* `:global` because the element belongs to `SaveIndicator`, and a DIRECT-CHILD
 	   selector so the Retry and Save controls inside it are not sized as dock
