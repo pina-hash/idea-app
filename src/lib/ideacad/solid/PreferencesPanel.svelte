@@ -50,6 +50,16 @@
 		if (key) setKey(id, key);
 	}
 	onMount(() => { window.addEventListener('keydown', capture, { capture: true }); return () => window.removeEventListener('keydown', capture, { capture: true }); });
+	function choose(id: (typeof GROUPS)[number]['id']) { group = id; refusal = ''; recording = null; }
+	/* The groups are one tab stop; the arrows, Home and End move between them, as a tab list does. */
+	function tabKey(e: KeyboardEvent) {
+		const i = GROUPS.findIndex((g) => g.id === group);
+		const next = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? (i + 1) % GROUPS.length : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? (i - 1 + GROUPS.length) % GROUPS.length : e.key === 'Home' ? 0 : e.key === 'End' ? GROUPS.length - 1 : -1;
+		if (next < 0) return;
+		const list = e.currentTarget as HTMLElement;
+		e.preventDefault(); choose(GROUPS[next].id);
+		queueMicrotask(() => list.querySelector<HTMLButtonElement>(`[data-group="${GROUPS[next].id}"]`)?.focus());
+	}
 	function reset(g: PreferenceGroup) { refusal = ''; recording = null; store.reset(g); }
 	const delayText = (ms: number) => String(ms);
 	function setDelay(text: string) { const n = Number(text.trim()); if (text.trim() === '' || !Number.isFinite(n) || n < 0) { refusal = 'Enter a delay of 0 ms or more.'; return; } refusal = ''; store.set('hints', { ...prefs.hints, tooltipDelayMs: n }); }
@@ -57,8 +67,8 @@
 
 <aside class="panel prefs-panel" aria-label="Preferences" data-testid="ideacad-preferences">
 	<div class="head"><h2>Preferences</h2><button type="button" class="close" onclick={onclose}>Close</button></div>
-	<div class="groups" role="tablist" aria-label="Preference groups">
-		{#each GROUPS as g (g.id)}<button type="button" role="tab" aria-selected={group === g.id} class:current={group === g.id} onclick={() => { group = g.id; refusal = ''; recording = null; }}>{g.label}</button>{/each}
+	<div class="groups" role="tablist" aria-label="Preference groups" tabindex="-1" onkeydown={tabKey}>
+		{#each GROUPS as g (g.id)}<button type="button" role="tab" data-group={g.id} aria-selected={group === g.id} tabindex={group === g.id ? 0 : -1} class:current={group === g.id} onclick={() => choose(g.id)}>{g.label}</button>{/each}
 	</div>
 	<div class="body" role="tabpanel">
 		{#if group === 'view'}

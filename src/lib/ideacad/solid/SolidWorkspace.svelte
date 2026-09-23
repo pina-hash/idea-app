@@ -325,7 +325,8 @@
 	/* The value box. A digit, a point or a minus with something selected, or while a drawing is becoming a sketch, opens it; digits that arrive before it has focus are appended in order, never dropped. */
 	function numericKey(key:string){
 		if(numeric){numeric.value+=key;focusNumeric();return true;}
-		if(!selections.length&&!drafting)return false;
+		/* A value is typed for geometry: a feature row or a plane picked on its own takes no number here (its panel does). */
+		if(!selections.some(s=>s.kind==='face'||s.kind==='edge'||s.kind==='vertex'||s.kind==='sketch'||s.kind==='body')&&!drafting)return false;
 		const p=viewport?.pointerPosition()??{x:0,y:0};numeric={value:key,x:p.x,y:p.y};focusNumeric();return true;
 	}
 	function focusNumeric(){void tick().then(()=>{if(!numericInput||document.activeElement===numericInput)return;numericInput.focus();const end=numericInput.value.length;numericInput.setSelectionRange(end,end);});}
