@@ -793,9 +793,10 @@
 	.classroom-page {
 		max-width: var(--cr-measure, var(--measure-split));
 		margin: 0 auto;
-		/* 6rem at the foot: the floating report control sits over the last
-		   ~64px of the window, and the pick controls are the last row. */
-		padding: 0 var(--cr-gutter, 1rem) 6rem;
+		/* Report and Voice are docked in the classroom header now (the
+		   `classroom` feedback exclusion), so nothing floats over the pick
+		   controls in the last row and the foot needs only ordinary room. */
+		padding: 0 var(--cr-gutter, 1rem) 2rem;
 	}
 	.lc-head {
 		display: flex;

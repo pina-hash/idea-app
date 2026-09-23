@@ -176,13 +176,13 @@ block behind until the next branch's CI says so. Closing that is a change to
 
 | Count | Value |
 | --- | --- |
-| Route specs (`routes/*.mjs`, `_`-prefixed excluded) | 340 |
+| Route specs (`routes/*.mjs`, `_`-prefixed excluded) | 349 |
 | Distinct routes those specs drive (alias-resolved, query string stripped) | 112 |
 | Directories under `src/routes/dev` with a page (the candidate set) | 141 |
 | Widths | 2 (375, 1440) |
-| Route/width runs a full pass makes (specs x widths) | 680 |
+| Route/width runs a full pass makes (specs x widths) | 698 |
 
-<!-- counts:static:data {"schema":1,"specs":340,"routes":112,"devPages":141,"widths":[375,1440],"runs":680} -->
+<!-- counts:static:data {"schema":1,"specs":349,"routes":112,"devPages":141,"widths":[375,1440],"runs":698} -->
 <!-- counts:static:end -->
 
 ### Measured -- summed from `measured/`, one file per route spec
@@ -660,6 +660,7 @@ threshold exists it is printed beside the measurement, never instead of it.
 | `dom-order` | Which of two rendered elements precedes the other, read from `compareDocumentPosition` -- never a computed boolean the page happens to expose |
 | `order-result` | An array a page-side action wrote (a dev transport's own call log), compared element-for-element against what it should have written -- for a claim about a WRITE, where a fixture backed by static data never re-renders to prove it on screen. A non-array on either side is refused IN WORDS, never as a silent red |
 | `motion` | Per ELEMENT, in BOTH media states: how many elements animate under `no-preference`, and how many are still moving, still transformed or unpainted under `reduce`, plus the lowest resting opacity in the set |
+| `control-fit` | Two counts over every rendered control under a root (ledger 0297): labels whose TEXT sits under 4px from the edge its control draws (read from the words' own rects through a Range, on controls with a visible border or their own ground), and pairs of controls whose boxes intersect with neither containing the other -- skipping the body of a closed `<details>` (Chromium still reports a box for it) and anything inside a sticky dock, which overlays what scrolls under it by design. The `*-sweep-fit` specs run it over the classroom harnesses (`_fit-sweep.mjs`); run them at `--width 375 --width 960 --width 1366 --width 1440` |
 | `console-errors` | Console errors and uncaught exceptions during the run |
 | `readout-near-pointer` | A REAL DRAG: presses where a page-side probe says, moves in steps, and at each step reads whether a readout exists and how far its nearest edge sits from the pointer -- the worst distance and the count of steps with no readout. For a value that floats beside the cursor while dragging, which no static read can see because the element is not there until the drag is (`checks-visual.mjs`; `--break readout-away` is its live control) |
 

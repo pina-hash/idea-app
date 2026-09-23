@@ -550,7 +550,7 @@
 		{crumbs}
 		{tabs}
 		tab={activeTab(loc)}
-		canManage={true}
+		canManage={manage}
 	>
 		{#if split}
 			<ClassSplit

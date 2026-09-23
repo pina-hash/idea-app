@@ -15,7 +15,7 @@ export default {
 	   THE SWITCHER IS THE POSITIVE CONTROL. Without it, "no tabs" cannot be
 	   told from "the harness rendered no shell". */
 	presence: [
-		{ selector: '[data-testid="section-switcher"]', label: 'class switcher (positive control: the shell is mounted)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="class-strip"]', label: 'class row in the masthead (positive control: the shell is mounted)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="section-tabs"]', label: 'the tab bar (a student has two tabs now)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: 'a[data-testid^="section-tab-"]', label: 'section tabs for a student: Class and Notebook', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 		{ selector: '[data-testid="section-tab-notebook"]', label: "the class's Notebook tab", expectPresent: 1, maxPresent: 1, expectVisible: 1 },
@@ -27,7 +27,7 @@ export default {
 		{ selector: '[data-testid="greenline-pending"]', label: 'GREENLINE cards still render (second positive control)', expectPresent: 3, maxPresent: 3 }
 	],
 	tapTargets: [
-		{ selector: '[data-testid="section-switcher"]', label: 'class switcher', min: 44 },
+		{ selector: '[data-testid="class-icon"]', label: 'class icons (report 26)', min: 44 },
 		{ selector: '[data-testid="section-tabs"] a', label: "a student's two tabs", min: 44 }
 	]
 };

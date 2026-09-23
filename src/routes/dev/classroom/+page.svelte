@@ -29,7 +29,8 @@
 		classroomCrumbs,
 		classroomMeasure,
 		locateClassroom,
-		sectionTabs
+		sectionTabs,
+		type ClassroomPlace
 	} from '$lib/classroom/nav';
 	import type { ItemDoc } from '$lib/classroom/classroom-doc';
 	import type { ClassroomDeck, DeckTransports } from '$lib/classroom/deck';
@@ -2154,9 +2155,36 @@
 	 * component keeps its own fallback -- exactly what the real shell does on an
 	 * unrecognized path).
 	 */
+	/* EVERY VIEW GETS THE MEASURE ITS REAL ROUTE GETS (ledger 0297, harness
+	   fidelity). This set it for `grade` alone, so an item, People or Grades read
+	   off this harness measured the 60rem fallback where production gives the
+	   item its pane and the management pages the screen. */
+	const HARNESS_PLACE: Record<string, ClassroomPlace> = {
+		grade: 'item-grade',
+		people: 'people',
+		grades: 'grades',
+		item: 'item',
+		'item-teacher': 'item',
+		assignment: 'item',
+		'instructor-copy': 'item',
+		class: 'section',
+		'class-teacher': 'section',
+		'class-bulk': 'section',
+		'class-bulk-student': 'section',
+		'class-empty': 'section',
+		home: 'home',
+		'home-empty': 'home',
+		'home-notready': 'home',
+		'home-staff-empty': 'home',
+		admin: 'admin',
+		'admin-notready': 'admin',
+		feedback: 'feedback',
+		'feedback-notready': 'feedback',
+		updates: 'updates'
+	};
 	const harnessMeasure = $derived(
 		classroomMeasure({
-			place: view === 'grade' ? 'item-grade' : 'other',
+			place: HARNESS_PLACE[view] ?? 'other',
 			sectionId: 's-1',
 			itemId: 'i-1'
 		})

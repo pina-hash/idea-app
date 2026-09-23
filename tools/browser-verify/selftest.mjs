@@ -43,7 +43,7 @@ import {
 	prepareWaitResult,
 	prepareEvalResult
 } from './checks.mjs';
-import { canvasContent, layoutSanity, distinguishable, installCanvasReadback, readoutNearPointer } from './checks-visual.mjs';
+import { canvasContent, layoutSanity, controlFit, distinguishable, installCanvasReadback, readoutNearPointer } from './checks-visual.mjs';
 
 const shell = (body, head = '') =>
 	`<!doctype html><html><head><meta name="viewport" content="width=device-width"><style>
@@ -1215,6 +1215,43 @@ const CASES = [
 			canvasReadback: true,
 			html: glShell(true),
 			run: (p) => canvasContent(p, { selector: '#c', label: 'the fixture canvas' }),
+			expect: 'within'
+		}
+	},
+	{
+		/* LEDGER 0297: "button text never touches its border". The bad fixture
+		   is a bordered button with no inline padding, its word flush against
+		   both edges; the good one is the same button with 12px of padding. */
+		group: 'control-fit (a label touching its own border)',
+		bad: {
+			name: 'a bordered button with its word flush against the edge',
+			html: shell('<div id="r"><button style="border:1px solid #9ab;background:#123;color:#eee;padding:12px 0;min-height:44px;font:16px monospace">Return</button></div>'),
+			run: (p) => controlFit(p, { root: '#r', label: 'the fixture' }),
+			expect: 'outside',
+			assert: (r) => (r.data.tight.length === 1 && r.data.overlap.length === 0 ? null : `expected 1 tight 0 overlap, got ${r.data.tight.length}/${r.data.overlap.length}`)
+		},
+		good: {
+			name: 'the same button with 12px of inline padding',
+			html: shell('<div id="r"><button style="border:1px solid #9ab;background:#123;color:#eee;padding:12px;min-height:44px;font:16px monospace">Return</button></div>'),
+			run: (p) => controlFit(p, { root: '#r', label: 'the fixture' }),
+			expect: 'within'
+		}
+	},
+	{
+		/* "Nothing overlaps at half-screen width": a floating control over a
+		   row's checkbox is the shape the classroom shipped. */
+		group: 'control-fit (one control painted over another)',
+		bad: {
+			name: 'a fixed pill over a row checkbox',
+			html: shell('<div id="r"><label style="display:block;padding:12px"><input type="checkbox" style="width:20px;height:20px"> row</label><button style="position:fixed;left:0;top:0;width:120px;height:44px;padding:0 12px">Voice</button></div>'),
+			run: (p) => controlFit(p, { root: '#r', label: 'the fixture' }),
+			expect: 'outside',
+			assert: (r) => (r.data.overlap.length >= 1 ? null : `expected an overlapping pair, got ${r.data.overlap.length}`)
+		},
+		good: {
+			name: 'the same two controls side by side',
+			html: shell('<div id="r"><label style="display:inline-block;padding:12px"><input type="checkbox" style="width:20px;height:20px"> row</label><button style="width:120px;height:44px;padding:0 12px">Voice</button></div>'),
+			run: (p) => controlFit(p, { root: '#r', label: 'the fixture' }),
 			expect: 'within'
 		}
 	},

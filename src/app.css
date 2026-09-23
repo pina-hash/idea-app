@@ -2203,6 +2203,51 @@ a:hover {
 	opacity: 0.6;
 	cursor: default;
 }
+/* ON A PHONE THE HEADER IS TWO TIDY ROWS, NOT THREE RAGGED ONES (ledger
+   0297). Signed in, the actions wrapped under the logo and then wrapped again
+   inside themselves: 162px of banner at 375. Below 520px the header is a grid
+   -- the logo and the profile menu on the first row, the class chip and Take
+   the tour on the second -- by letting the two groups' children take grid
+   cells directly (`display: contents`). Nothing is dropped and nothing
+   truncates. */
+@media (max-width: 520px) {
+	.legacy-index header:has(.auth-block .pm-root) {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		align-items: center;
+		gap: 0.5rem 0.6rem;
+		padding-block: 0.6rem;
+	}
+	.legacy-index header:has(.auth-block .pm-root) .header-right {
+		display: contents;
+	}
+	.legacy-index header:has(.auth-block .pm-root) .auth-block {
+		grid-column: 2;
+		grid-row: 1;
+		justify-self: end;
+	}
+	.legacy-index header:has(.auth-block .pm-root) .class-chip {
+		grid-column: 1;
+		grid-row: 2;
+		justify-self: start;
+	}
+	.legacy-index header:has(.auth-block .pm-root) .tour-link {
+		grid-column: 2;
+		grid-row: 2;
+		justify-self: end;
+	}
+}
+/* THE HOME HEADER'S CONTROLS TAKE THE 44px FLOOR (ledger 0297). The home page
+   is a student surface, and Sign in measured 71x23.6px signed out -- the one
+   control a visitor has to press -- with the class chip and Take the tour at
+   the same 24px. `min-height` and centring only; the type, the letter spacing
+   and the chip look are untouched. */
+.legacy-index .header-right :is(.class-chip, .auth-link) {
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box;
+}
 /* Header "Take the tour" entry: persistent but quiet (dim until hovered, when
    the shared .auth-link:hover green takes over). */
 .legacy-index .tour-link {

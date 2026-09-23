@@ -16,10 +16,13 @@
  * class switcher, the trail, and a card of the register's tiers and status
  * chips. Run `--width 1280` for the projector profile.
  */
+import { OPEN_SHELL_MENU } from './_shell-menu.mjs';
+
 export default {
 	path: '/dev/theme-switch',
 	label: 'Classroom masthead: the one-tap Space White switch, on, off and on again',
 	prepare: [
+		OPEN_SHELL_MENU,
 		{
 			click: '[data-testid="theme-switch"]',
 			until: `() => document.documentElement.getAttribute('data-theme') === 'space-white' && document.querySelector('[data-testid="theme-switch"]').getAttribute('aria-pressed') === 'true' && localStorage.getItem('idea_site_theme') === 'space-white' && document.querySelector('meta[name="theme-color"]').content === '#E8ECEB'`,
@@ -46,13 +49,13 @@ export default {
 	],
 	contrast: [
 		{ selector: '[data-testid="theme-switch"] .ts-word', label: 'the switch word', min: 4.5 },
-		{ selector: '.sw-trigger .sw-name', label: 'class switcher name', min: 4.5 },
-		{ selector: '.sw-trigger .sw-code', label: 'class switcher course code (gold ink)', min: 4.5 },
+		{ selector: '.cls-icon .cls-code', label: 'class icon code (report 26)', min: 4.5 },
+		{ selector: '.cls-icon .cls-sub', label: 'class icon section', min: 4.5 },
 		{ selector: '[data-testid="crumbs"] a, [data-testid="crumbs"] [aria-current]', label: 'trail', min: 4.5 },
 		{ selector: '.ts-copy', label: 'card body copy', min: 4.5 },
 		{ selector: '.ts-eyebrow, .ts-meta', label: 'card micro-label and meta', min: 4.5 },
 		{ selector: '.ts-chip', label: 'status chips on their fills', min: 4.5 },
-		{ selector: '.ts-copy, .sw-trigger .sw-name', label: 'body copy on the wall', min: 4.5, projector: true },
+		{ selector: '.ts-copy, .cls-icon .cls-code', label: 'body copy on the wall', min: 4.5, projector: true },
 		{ selector: '.ts-eyebrow, .ts-meta, .ts-chip, [data-testid="theme-switch"] .ts-word', label: 'muted copy and status on the wall', min: 3, projector: true }
 	],
 	tapTargets: [{ selector: '[data-testid="theme-switch"]', label: 'the switch', min: 44 }]

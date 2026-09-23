@@ -203,7 +203,10 @@ describe('the shipped shell wires the toggle to canCollapseNav, not to a wider c
 		const shell = read(SHELL);
 		// Still exactly the same gate it always was -- the toggle's own
 		// {#if showNavToggle} is nested INSIDE this, never wrapping it.
-		expect(shell).toContain('{#if !minimal && crumbs.length > 1}');
+		// GENERALIZED (ledger 0297): the trail sits inside the chrome row, which
+		// carries the minimal-mode gate; the trail's own gate is the crumb count.
+		expect(shell).toContain('{#if !minimal && (crumbs.length > 1 ||');
+		expect(shell).toContain('{#if crumbs.length > 1}');
 	});
 
 	it('is keyed per viewer, the disclosure.ts model, not per browser', () => {
@@ -267,9 +270,14 @@ describe('the CSS mechanism hides a view, never removes content', () => {
 
 	it('never touches the detail pane\'s reading measure -- widening the split must not widen the sentences', () => {
 		const raw = read(CSS);
-		// The rule that pins the item's prose to --measure-reading regardless of
-		// how much room the pane has is untouched by this change.
-		expect(raw).toMatch(/\.cr-split > \.cr-detail \{\s*--cr-measure: var\(--measure-reading\);/);
+		// GENERALIZED (ledger 0297): the item's PROSE is what keeps the reading
+		// measure now, not the whole page -- the detail pane's content uses the
+		// pane and the paragraph is capped. The guarantee this test exists for is
+		// unchanged: however much room the pane is handed, a sentence is never
+		// wider than --measure-reading.
+		expect(raw).toMatch(
+			/\.cr-root :where\(\.classroom-page\.item-page\)\s*:where\(p, li[^)]*\) \{\s*max-width: var\(--measure-reading\);/
+		);
 		// And the new RULE BODY (comments stripped) never sets --cr-measure.
 		const css = stripComments(raw);
 		const block = css.slice(css.indexOf('@media screen and (min-width: 1024px)'));
@@ -285,9 +293,13 @@ describe('the CSS mechanism hides a view, never removes content', () => {
 	});
 });
 
-describe('classroomMeasure agrees the item page keeps its own reading measure', () => {
-	it('item resolves to reading, same as before this change', () => {
-		expect(classroomMeasure(locateClassroom('/classroom/s-1/item/i-1'))).toBe('reading');
+describe('classroomMeasure gives the item its pane and leaves the sentences to the prose cap', () => {
+	// GENERALIZED (ledger 0297): this read "item resolves to reading". The item
+	// page's width is the pane's now and its prose is capped by the rule asserted
+	// above; the changelog, which is nothing but sentences, still reads.
+	it('item resolves to the split measure, updates still to reading', () => {
+		expect(classroomMeasure(locateClassroom('/classroom/s-1/item/i-1'))).toBe('split');
+		expect(classroomMeasure(locateClassroom('/classroom/updates'))).toBe('reading');
 	});
 });
 

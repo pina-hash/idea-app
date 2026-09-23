@@ -222,7 +222,10 @@ describe('every exclusion is by category, and each has a positive control', () =
 	);
 
 	it('an ordinary route keeps the shell control (the whole-file positive control)', () => {
-		for (const routeId of ['/', '/notebook', '/classroom/[sectionId]', '/greenline/builder']) {
+		// '/classroom/[sectionId]' left this list in ledger 0297: the classroom
+		// docks the control in its own header now (the `classroom` rule), and
+		// '/foundry' took its place as a second ordinary signed-in surface.
+		for (const routeId of ['/', '/notebook', '/foundry', '/greenline/builder']) {
 			expect(feedbackExclusion(routeId)).toBeNull();
 			expect(triggers({ place: 'shell', routeId, pathname: routeId })).toBe(1);
 		}
@@ -239,6 +242,7 @@ describe('every exclusion is by category, and each has a positive control', () =
 		const relocations: Record<string, string> = {
 			deck: 'src/routes/classroom/[sectionId]/item/[itemId]/deck/+page.svelte',
 			gauntlet: 'src/routes/gauntlet/+layout.svelte',
+			classroom: 'src/lib/classroom/ClassroomShell.svelte',
 			error: 'src/routes/+error.svelte',
 			projector: 'src/routes/classroom/[sectionId]/live/projector/+page@.svelte'
 		};

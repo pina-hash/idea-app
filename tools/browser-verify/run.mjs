@@ -39,7 +39,7 @@ import {
 	prepareWaitResult,
 	prepareEvalResult
 } from './checks.mjs';
-import { canvasContent, layoutSanity, distinguishable, installCanvasReadback, readoutNearPointer } from './checks-visual.mjs';
+import { canvasContent, layoutSanity, controlFit, distinguishable, installCanvasReadback, readoutNearPointer } from './checks-visual.mjs';
 import { probeEnvironment } from './probe.mjs';
 import { runSelfTest } from './selftest.mjs';
 import { WIDTHS, selectRoutes, urlFor } from './routes.mjs';
@@ -240,6 +240,15 @@ function printDetail(r, indent = '        ') {
 	if (r.check === 'canvas-content' && r.data?.results === undefined) {
 		/* The reasons an invisible canvas gave, when that is what carried it. */
 		for (const why of r.data?.reasons ?? []) console.log(`${indent}not visible: ${why}`);
+	}
+	if (r.check === 'control-fit') {
+		for (const [name, rows] of [
+			['label near its edge', r.data?.tight ?? []],
+			['overlapping', r.data?.overlap ?? []]
+		]) {
+			for (const row of rows.slice(0, 8)) console.log(`${indent}${name}: ${row}`);
+			if (rows.length > 8) console.log(`${indent}${name}: ... and ${rows.length - 8} more`);
+		}
 	}
 	if (r.check === 'layout-sanity') {
 		const bucket = (name, rows, counted) => {
@@ -524,6 +533,7 @@ async function runRoute(browser, origin, spec, width, opts) {
 		   the surface issued rather than the first. */
 		for (const c of spec.canvasContent ?? []) results.push(await canvasContent(page, c));
 		for (const l of spec.layoutSanity ?? []) results.push(await layoutSanity(page, l));
+		for (const c of spec.controlFit ?? []) results.push(await controlFit(page, c));
 		for (const d of spec.distinguishable ?? []) results.push(await distinguishable(page, d));
 		/* A real drag, after everything static has been read: it moves the model. */
 		for (const r of spec.readoutNearPointer ?? []) results.push(await readoutNearPointer(page, r));
