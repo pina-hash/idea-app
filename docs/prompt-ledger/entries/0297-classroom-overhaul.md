@@ -28,7 +28,7 @@
   written from a branch), `.github/workflows/**`, `vercel.json`, and the other apps' own
   surfaces beyond measuring them under Space White and scoping the theme.
 - Migration permitted: no. Claims: 0227. Highest on origin/main at issue: 0224
-- Status: issued
+- Status: pushed
 - Branch: assigned by the harness, started from `origin/main`; the final report names it.
 - Notes: 0227 is reserved for proposed SQL only, at
   `docs/classroom/overhaul-0297/0227_PROPOSED.sql`, never under `supabase/migrations/`; it is
