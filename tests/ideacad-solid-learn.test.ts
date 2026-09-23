@@ -91,7 +91,7 @@ describe('the task list and the stored progress', () => {
 		expect(TUTORIAL.map((t) => t.id)).toEqual(['draw', 'pull', 'round', 'cut', 'mate']);
 		for (const s of TUTORIAL_STEPS) {
 			expect(commandById(s.command), s.id).toBeDefined();
-			expect(s.line, s.id).not.toMatch(/\n|—/);
+			expect(s.line, s.id).not.toMatch(/\n|\u2014/);
 			expect(s.line.split(/[.!?]\s/).length, s.id).toBe(1);
 			/* The preferences' own hint id rule, so a stored step survives the read. */
 			expect(s.id).toMatch(/^[a-z0-9][a-z0-9-]{0,63}$/);
@@ -142,7 +142,7 @@ describe('hints that retire', () => {
 		for (const [tool, line] of Object.entries(FIRST_USE_HINTS)) {
 			expect(TOOL_IDS as readonly string[], tool).toContain(tool);
 			expect(line.length, tool).toBeLessThanOrEqual(48);
-			expect(line, tool).not.toMatch(/\.\s|—/);
+			expect(line, tool).not.toMatch(/\.\s|\u2014/);
 			expect(toolHintId(tool)).toMatch(/^[a-z0-9][a-z0-9-]{0,63}$/);
 		}
 	});

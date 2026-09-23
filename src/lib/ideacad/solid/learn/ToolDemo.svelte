@@ -6,7 +6,7 @@
 	 * with motion reduced, or before the animation starts, the finished result
 	 * is drawn in full, so the still picture says the same thing. The thing the
 	 * tool makes is green, what it started from is the quiet ink, and the
-	 * pointer is cyan; the card's words say the rest, so colour is never the only
+	 * pointer is cyan; the card's words say the rest, so color is never the only
 	 * signal.
 	 */
 	import { hasDemo } from './demos';
