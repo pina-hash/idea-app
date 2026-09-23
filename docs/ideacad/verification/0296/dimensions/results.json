@@ -56,7 +56,7 @@
     "Set Distance 1"
    ],
    "error": "",
-   "ms": 272,
+   "ms": 253,
    "w": 6,
    "label": "6.000 in"
   },
@@ -399,28 +399,28 @@
   },
   "keyboardOpen": 1,
   "costShown": {
-   "scriptMs": 29,
+   "scriptMs": 36,
    "layoutMs": 0,
-   "styleMs": 9,
-   "taskMs": 94
+   "styleMs": 8,
+   "taskMs": 87
   },
   "costNone": {
    "scriptMs": 0,
    "layoutMs": 0,
    "styleMs": 0,
-   "taskMs": 142
+   "taskMs": 6
   },
   "costTurning": {
-   "scriptMs": 140,
-   "layoutMs": 14,
-   "styleMs": 14,
-   "taskMs": 305
+   "scriptMs": 155,
+   "layoutMs": 12,
+   "styleMs": 15,
+   "taskMs": 491
   },
   "costTurningNone": {
-   "scriptMs": 61,
+   "scriptMs": 66,
    "layoutMs": 4,
-   "styleMs": 7,
-   "taskMs": 170
+   "styleMs": 8,
+   "taskMs": 178
   },
   "errors": [
    "Failed to load resource: net::ERR_FAILED",
@@ -497,7 +497,7 @@
     "Set Distance 1"
    ],
    "error": "",
-   "ms": 280,
+   "ms": 308,
    "w": 6,
    "label": "6.000 in"
   },
@@ -840,28 +840,28 @@
   },
   "keyboardOpen": 1,
   "costShown": {
-   "scriptMs": 37,
+   "scriptMs": 27,
    "layoutMs": 0,
    "styleMs": 7,
-   "taskMs": 92
+   "taskMs": 81
   },
   "costNone": {
    "scriptMs": 0,
    "layoutMs": 0,
    "styleMs": 0,
-   "taskMs": 5
+   "taskMs": 4
   },
   "costTurning": {
-   "scriptMs": 156,
-   "layoutMs": 15,
-   "styleMs": 18,
-   "taskMs": 475
+   "scriptMs": 151,
+   "layoutMs": 11,
+   "styleMs": 15,
+   "taskMs": 478
   },
   "costTurningNone": {
-   "scriptMs": 68,
+   "scriptMs": 53,
    "layoutMs": 4,
    "styleMs": 7,
-   "taskMs": 177
+   "taskMs": 136
   },
   "errors": [
    "Failed to load resource: net::ERR_FAILED",
@@ -938,7 +938,7 @@
     "Set Distance 1"
    ],
    "error": "",
-   "ms": 345,
+   "ms": 295,
    "w": 6,
    "label": "6.000 in"
   },
@@ -1281,28 +1281,28 @@
   },
   "keyboardOpen": 1,
   "costShown": {
-   "scriptMs": 36,
+   "scriptMs": 22,
    "layoutMs": 0,
-   "styleMs": 12,
-   "taskMs": 94
+   "styleMs": 8,
+   "taskMs": 59
   },
   "costNone": {
    "scriptMs": 0,
    "layoutMs": 0,
    "styleMs": 0,
-   "taskMs": 144
+   "taskMs": 5
   },
   "costTurning": {
-   "scriptMs": 135,
+   "scriptMs": 148,
    "layoutMs": 11,
-   "styleMs": 15,
-   "taskMs": 292
+   "styleMs": 14,
+   "taskMs": 375
   },
   "costTurningNone": {
-   "scriptMs": 54,
-   "layoutMs": 4,
-   "styleMs": 9,
-   "taskMs": 147
+   "scriptMs": 49,
+   "layoutMs": 3,
+   "styleMs": 7,
+   "taskMs": 123
   },
   "errors": [
    "Failed to load resource: net::ERR_FAILED",
