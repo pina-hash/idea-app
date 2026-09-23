@@ -1394,6 +1394,18 @@
 	 * entry against a class discloses your own work to that teacher and nobody
 	 * else's to anyone).
 	 */
+	/**
+	 * WHICH CLASS A CHECK-IN IS FOR, named only where it could be confused: the
+	 * whole notebook spans every class, and two classes routinely share a
+	 * check-in's name and date (a teacher posts one to both periods), which
+	 * rendered two identical picks. A class's own tab is one class, and says
+	 * nothing extra.
+	 */
+	function pickClassLabel(sectionId: string | null | undefined): string | null {
+		if (scopeSectionId || classes.length < 2 || !sectionId) return null;
+		return classes.find((c) => c.id === sectionId)?.label ?? null;
+	}
+
 	function sectionForFree(): string | null {
 		return scopeSectionId ?? freeSectionChoice;
 	}
@@ -3121,7 +3133,9 @@
 								>
 									<span class="pick-label">{s.session_label}</span>
 									<span class="pick-meta">
-										{sessionMeta(s)}
+										{#if pickClassLabel(s.section_id)}<span data-testid="pick-class"
+												>{pickClassLabel(s.section_id)}</span
+											>{' · '}{/if}{sessionMeta(s)}
 										<!-- A draft against this check-in is why it is still here
 										     rather than filed -- say so, so picking it again reads
 										     as "keep going" and not "start over". -->
