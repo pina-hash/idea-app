@@ -274,6 +274,30 @@ export function sketchDimensions(sketch: Pick<SketchProjection, 'feature' | 'con
 	return out;
 }
 
+/* ------------------------------------------------- which feature */
+/**
+ * The feature whose numbers a selection offers: a feature, sketch or
+ * reference by its own id; a FACE by the feature that made that face (its
+ * construction name starts with the feature id, `naming.ts`), so pressing a
+ * fillet's round face offers the fillet's radius and a hole's wall its
+ * diameter, as SolidWorks shows a face's own feature; anything else on a body
+ * (a body, an edge, a corner, a face whose name no longer names a feature in
+ * the list, or a face a copy carried over from its source) by the feature
+ * that created the body. The Dimensions panel and
+ * the viewport's numbers ask this one question the same way.
+ */
+export function featureForSelection(selection: Selection | null | undefined, model: Pick<ModelProjection, 'bodies' | 'features'>, features: readonly Pick<Feature, 'id'>[]): string | null {
+	if (!selection) return null;
+	if (selection.kind === 'feature' || selection.kind === 'sketch' || selection.kind === 'reference') return selection.id;
+	const creator = model.bodies.find((b) => b.id === selection.bodyId)?.createdBy ?? null;
+	if (selection.kind === 'face') {
+		/* The naming feature counts only if it made or changed THIS body: a patterned or mirrored copy keeps its source's face names, and its numbers are the pattern's. */
+		const made = selection.id.split('.')[0], row = model.features.find((r) => r.id === made);
+		if (made && features.some((f) => f.id === made) && (made === creator || !!row?.bodies.includes(selection.bodyId))) return made;
+	}
+	return creator;
+}
+
 /* ------------------------------------------------- measured values */
 /**
  * The circle a CIRCLE edge lies on, read through three of its sampled points

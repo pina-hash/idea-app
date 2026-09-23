@@ -27,22 +27,19 @@
 	 *
 	 * WHICH FEATURE: the open sketch when there is one; a selected feature,
 	 * sketch or reference by its own id (a selected sketch lists its
-	 * constraints, exactly as it does open); a selected body, face, edge or corner
-	 * through the feature that created the body, so selecting an extruded box
-	 * offers the extrude's distance. Read-only documents show the same numbers
-	 * as text: absence of the input is the mechanism, not a flag on it.
+	 * constraints, exactly as it does open); a face through the feature that
+	 * made it, so a fillet's round face offers the fillet's radius; a body,
+	 * edge or corner through the feature that created the body, so selecting
+	 * an extruded box offers the extrude's distance (`featureForSelection`).
+	 * Read-only documents show the same numbers as text: absence of the input
+	 * is the mechanism, not a flag on it.
 	 */
 	import type { WorkspaceApi } from './workspace-api';
-	import { drivenDimensions, editText, featureDimensions, formatDimension, parseDimension, sketchDimensions, unitWord, type Dimension } from './dimensions/model';
+	import { drivenDimensions, editText, featureDimensions, featureForSelection, formatDimension, parseDimension, sketchDimensions, unitWord, type Dimension } from './dimensions/model';
 	let { api }: { api: WorkspaceApi } = $props();
 	const primary = $derived(api.selections[0] ?? null);
 	const editingSketch = $derived(api.editingSketch ? (api.model.sketches.find((s) => s.feature === api.editingSketch) ?? null) : null);
-	const featureId = $derived.by(() => {
-		if (editingSketch) return editingSketch.feature;
-		if (!primary) return null;
-		if (primary.kind === 'feature' || primary.kind === 'sketch' || primary.kind === 'reference') return primary.id;
-		return api.model.bodies.find((b) => b.id === primary.bodyId)?.createdBy ?? null;
-	});
+	const featureId = $derived(editingSketch ? editingSketch.feature : featureForSelection(primary, api.model, api.manifest.features));
 	const feature = $derived(featureId ? (api.manifest.features.find((f) => f.id === featureId) ?? null) : null);
 	const row = $derived(featureId ? (api.model.features.find((f) => f.id === featureId) ?? null) : null);
 	/* A sketch selected but not open shows its own numbers too: its constraints are the only numbers it has, and "no number to type" beside a sketch that carries a width was a sentence the viewport's labels contradicted. */

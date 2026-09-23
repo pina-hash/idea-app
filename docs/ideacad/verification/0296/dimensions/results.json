@@ -56,7 +56,7 @@
     "Set Distance 1"
    ],
    "error": "",
-   "ms": 298,
+   "ms": 250,
    "w": 6,
    "label": "6.000 in"
   },
@@ -217,6 +217,29 @@
    "buttons": 1,
    "inputs": 0
   },
+  "blend": {
+   "count": 1,
+   "texts": [
+    "R 0.250 in"
+   ],
+   "minH": 44,
+   "minW": 104.515625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 1,
+   "inputs": 0
+  },
   "hole": {
    "count": 2,
    "texts": [
@@ -376,10 +399,10 @@
   },
   "keyboardOpen": 1,
   "costShown": {
-   "scriptMs": 27,
+   "scriptMs": 25,
    "layoutMs": 0,
    "styleMs": 8,
-   "taskMs": 66
+   "taskMs": 62
   },
   "costNone": {
    "scriptMs": 0,
@@ -388,18 +411,19 @@
    "taskMs": 4
   },
   "costTurning": {
-   "scriptMs": 138,
+   "scriptMs": 141,
    "layoutMs": 10,
    "styleMs": 13,
-   "taskMs": 345
+   "taskMs": 362
   },
   "costTurningNone": {
-   "scriptMs": 49,
-   "layoutMs": 3,
+   "scriptMs": 57,
+   "layoutMs": 4,
    "styleMs": 6,
-   "taskMs": 120
+   "taskMs": 132
   },
   "errors": [
+   "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
@@ -473,7 +497,7 @@
     "Set Distance 1"
    ],
    "error": "",
-   "ms": 267,
+   "ms": 257,
    "w": 6,
    "label": "6.000 in"
   },
@@ -612,6 +636,29 @@
    "inputs": 0
   },
   "fillet": {
+   "count": 1,
+   "texts": [
+    "R 0.250 in"
+   ],
+   "minH": 44,
+   "minW": 104.515625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 1,
+   "inputs": 0
+  },
+  "blend": {
    "count": 1,
    "texts": [
     "R 0.250 in"
@@ -796,7 +843,7 @@
    "scriptMs": 21,
    "layoutMs": 0,
    "styleMs": 7,
-   "taskMs": 58
+   "taskMs": 57
   },
   "costNone": {
    "scriptMs": 0,
@@ -805,18 +852,19 @@
    "taskMs": 4
   },
   "costTurning": {
-   "scriptMs": 134,
-   "layoutMs": 10,
-   "styleMs": 14,
-   "taskMs": 357
+   "scriptMs": 127,
+   "layoutMs": 9,
+   "styleMs": 12,
+   "taskMs": 334
   },
   "costTurningNone": {
-   "scriptMs": 55,
-   "layoutMs": 4,
-   "styleMs": 7,
-   "taskMs": 151
+   "scriptMs": 51,
+   "layoutMs": 3,
+   "styleMs": 5,
+   "taskMs": 110
   },
   "errors": [
+   "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
@@ -890,7 +938,7 @@
     "Set Distance 1"
    ],
    "error": "",
-   "ms": 319,
+   "ms": 338,
    "w": 6,
    "label": "6.000 in"
   },
@@ -1029,6 +1077,29 @@
    "inputs": 0
   },
   "fillet": {
+   "count": 1,
+   "texts": [
+    "R 0.250 in"
+   ],
+   "minH": 44,
+   "minW": 104.515625,
+   "minGapX": 10,
+   "minGapY": 12.5,
+   "overlappingPairs": 0,
+   "worstOverlapPx2": 0,
+   "unreachable": [],
+   "underPanel": [],
+   "sideways": 0,
+   "tags": [
+    "BUTTON"
+   ],
+   "colors": [
+    "rgb(230, 233, 236)"
+   ],
+   "buttons": 1,
+   "inputs": 0
+  },
+  "blend": {
    "count": 1,
    "texts": [
     "R 0.250 in"
@@ -1210,30 +1281,31 @@
   },
   "keyboardOpen": 1,
   "costShown": {
-   "scriptMs": 21,
+   "scriptMs": 45,
    "layoutMs": 0,
-   "styleMs": 7,
-   "taskMs": 56
+   "styleMs": 8,
+   "taskMs": 106
   },
   "costNone": {
    "scriptMs": 0,
    "layoutMs": 0,
    "styleMs": 0,
-   "taskMs": 4
+   "taskMs": 123
   },
   "costTurning": {
-   "scriptMs": 141,
-   "layoutMs": 10,
-   "styleMs": 13,
-   "taskMs": 375
+   "scriptMs": 150,
+   "layoutMs": 12,
+   "styleMs": 19,
+   "taskMs": 324
   },
   "costTurningNone": {
-   "scriptMs": 50,
-   "layoutMs": 3,
+   "scriptMs": 54,
+   "layoutMs": 4,
    "styleMs": 6,
-   "taskMs": 117
+   "taskMs": 128
   },
   "errors": [
+   "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",
    "Failed to load resource: net::ERR_FAILED",

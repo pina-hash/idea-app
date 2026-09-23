@@ -15,8 +15,9 @@
 	 * projector the overlay is handed as `api.project`, so a label beside an
 	 * edge on screen is beside that edge in the projection too. `?state=` picks
 	 * what is selected: `box` (default), `sketch` (the sketch open for editing),
-	 * `circle`, `fillet`, `hole`, `edge` (a measured length), `rim` (a hole's
-	 * rim, measured as its diameter), `editing`, `mm`, `readonly`.
+	 * `circle`, `fillet`, `blend` (the fillet's own round face), `hole`, `edge`
+	 * (a measured length), `rim` (a hole's rim, measured as its diameter),
+	 * `editing`, `mm`, `readonly`.
 	 */
 	import { onMount } from 'svelte';
 	import '$lib/ideacad/ideacad.css';
@@ -85,6 +86,7 @@
 		else if (what === 'fillet') selections = [{ bodyId: 'x1#0', kind: 'feature', id: 'f1' }];
 		else if (what === 'edge') selections = [{ bodyId: 'x1#0', kind: 'edge', id: 'edge:x1.end|x1.side.1' }];
 		else if (what === 'hole') selections = [{ bodyId: 'x1#0', kind: 'feature', id: 'h1' }];
+		else if (what === 'blend') selections = [{ bodyId: 'x1#0', kind: 'face', id: 'f1.blend.x1.end|x1.side.0' }];
 		else if (what === 'rim') selections = [{ bodyId: 'x1#0', kind: 'edge', id: 'edge:h1.wall|x1.end' }];
 		else selections = [];
 	}

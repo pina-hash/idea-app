@@ -17,7 +17,7 @@
 // x = 2 below y = 0 and its height label at y = 1.5 right of x = 4.
 import { describe, expect, it } from 'vitest';
 import { HOLE_OFFSET, facesOf, featureAnchors, featureMiddle, measuredAnchors, pixelsPerInch, sketchAnchors, sketchConstraintAnchor } from '../src/lib/ideacad/solid/dimensions/anchors';
-import { featureDimensions, sketchDimensions } from '../src/lib/ideacad/solid/dimensions/model';
+import { featureDimensions, featureForSelection, sketchDimensions } from '../src/lib/ideacad/solid/dimensions/model';
 import { datumPlane } from '../src/lib/ideacad/solid/sketch/model';
 import type { BodyProjection, Feature, FeatureOf, FeatureRow, ModelProjection, ResolvedPlane, SketchConstraint, SketchEntity, SketchProjection, Vec3 } from '../src/lib/ideacad/solid/types';
 
@@ -244,5 +244,29 @@ describe('measured values and helpers', () => {
 	});
 	it('pixelsPerInch reads the longer of the plane\'s two axes on screen', () => {
 		expect(pixelsPerInch((p) => ({ x: p[0] * 50, y: p[1] * 20 }), datumPlane('XY'))).toBeCloseTo(50, 9);
+	});
+});
+
+describe('which feature a selection offers', () => {
+	const m = model({ bodies: [body({ faces: [face('x1.end', [0, 0, 1], [0, 0, 1]), face('f1.blend.x1.end|x1.side.0', [0, 0, 1], [0, 0, 1]), face('gone.end', [0, 0, 1], [0, 0, 1])] }), body({ id: 'n1#0', createdBy: 'n1', faces: [face('x1.end', [5, 0, 1], [0, 0, 1])] })],
+		features: [row('x1', 'extrude', ['x1#0']), row('f1', 'fillet', ['x1#0']), row('n1', 'pattern', ['n1#0'])] });
+	const features = [{ id: 's1' }, { id: 'x1' }, { id: 'f1' }];
+	it('a face offers the feature that made it: the fillet\'s round face its fillet, the top face its extrude', () => {
+		expect(featureForSelection({ bodyId: 'x1#0', kind: 'face', id: 'f1.blend.x1.end|x1.side.0' }, m, features)).toBe('f1');
+		expect(featureForSelection({ bodyId: 'x1#0', kind: 'face', id: 'x1.end' }, m, features)).toBe('x1');
+	});
+	it('a face whose name names no feature in the list, a body and an edge fall back to the feature that made the body', () => {
+		expect(featureForSelection({ bodyId: 'x1#0', kind: 'face', id: 'gone.end' }, m, features)).toBe('x1');
+		expect(featureForSelection({ bodyId: 'x1#0', kind: 'body', id: 'x1#0' }, m, features)).toBe('x1');
+		expect(featureForSelection({ bodyId: 'x1#0', kind: 'edge', id: 'edge:f1.blend.a|x1.end' }, m, features)).toBe('x1');
+	});
+	it('a patterned copy keeps its source\'s face names, and its face offers the pattern, not the source\'s extrude', () => {
+		expect(featureForSelection({ bodyId: 'n1#0', kind: 'face', id: 'x1.end' }, m, [...features, { id: 'n1' }])).toBe('n1');
+	});
+	it('a feature, a sketch or a reference is itself; nothing is nothing', () => {
+		expect(featureForSelection({ bodyId: '', kind: 'feature', id: 'f1' }, m, features)).toBe('f1');
+		expect(featureForSelection({ bodyId: '', kind: 'sketch', id: 's1' }, m, features)).toBe('s1');
+		expect(featureForSelection(null, m, features)).toBeNull();
+		expect(featureForSelection({ bodyId: 'nope', kind: 'body', id: 'nope' }, m, features)).toBeNull();
 	});
 });

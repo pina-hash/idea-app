@@ -27,7 +27,7 @@
 	 */
 	import { onMount, untrack } from 'svelte';
 	import type { WorkspaceApi } from './workspace-api';
-	import { drivenDimensions, featureDimensions, sketchDimensions, type Dimension, type Measured } from './dimensions/model';
+	import { drivenDimensions, featureDimensions, featureForSelection, sketchDimensions, type Dimension, type Measured } from './dimensions/model';
 	import { featureAnchors, measuredAnchors, pixelsPerInch, sketchAnchors, type DimensionAnchor } from './dimensions/anchors';
 	import { labelEditText, labelTarget, labelText, readLabel, spreadLabels, type DisplayUnit, type LabelBox } from './dimensions/labels';
 	import type { Feature, SketchProjection, Vec3 } from './types';
@@ -53,10 +53,10 @@
 	const display = $derived<DisplayUnit>(api.prefs?.units.display === 'mm' ? 'mm' : 'in');
 	const primary = $derived(api.selections[0] ?? null);
 	const openSketch = $derived(api.editingSketch ? (api.model.sketches.find((s) => s.feature === api.editingSketch) ?? null) : null);
-	/** The feature whose numbers show: the one selected, or the one that made the selected body, face, edge or corner. The Dimensions panel answers the same question the same way. */
+	/** The feature whose numbers show: the one selected, the one that made the selected face, or the one that made the body under a selected edge or corner (`featureForSelection`, which the Dimensions panel asks too). */
 	const selectedFeature = $derived.by((): Feature | null => {
-		if (openSketch || !primary) return null;
-		const id = primary.kind === 'feature' || primary.kind === 'sketch' || primary.kind === 'reference' ? primary.id : (api.model.bodies.find((b) => b.id === primary.bodyId)?.createdBy ?? null);
+		if (openSketch) return null;
+		const id = featureForSelection(primary, api.model, api.manifest.features);
 		return id ? (api.manifest.features.find((f) => f.id === id) ?? null) : null;
 	});
 	/** A feature made from a sketch also shows the sketch's numbers, so selecting a box offers its width, its height and its depth together. */
