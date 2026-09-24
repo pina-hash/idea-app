@@ -2628,10 +2628,9 @@
 				{/if}
 			{:else}
 				<p class="hint">
-					A Claude Design project HTML zip, exported with hidden files included -- the image
-					framing lives in one of them. Capped at
-					{Math.floor(DECK_UPLOAD_MAX_ZIP_BYTES / 1024 / 1024)} MB, so attach gifs and video as
-					files above instead of embedding them.
+					A Claude Design project HTML zip with its hidden files (the image framing is in one of
+					them), up to {Math.floor(DECK_UPLOAD_MAX_ZIP_BYTES / 1024 / 1024)} MB. Gifs and video belong
+					in Files above.
 				</p>
 				<input
 					type="file"
@@ -2945,7 +2944,7 @@
 		</span>
 		<p class="hint">
 			Answer keys, facilitation notes, source files. Visible only to this item's teachers of
-			record and admins -- students never see this section or know it exists.
+			record and admins; students never see this section or know it exists.
 		</p>
 
 		<div class="resources-editor">
@@ -3124,9 +3123,9 @@
 		<p class="hint">
 			{#if scheduledAhead}
 				Students see this from {new Date(localInputToIso(publishAt) ?? '').toLocaleString()}. Until
-				then it is yours alone -- you can keep editing it, and no one is told it changed.
+				then it is yours alone, and editing it tells no one.
 			{:else}
-				Leave empty to post immediately. Set a future time and students see it then, not before.
+				Empty posts it now. Students see a scheduled post from its time, not before.
 			{/if}
 		</p>
 	</div>

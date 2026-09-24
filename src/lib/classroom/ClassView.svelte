@@ -1401,18 +1401,18 @@
 						{#if item.attachments.length || item.links.length}
 							<span class="row-inds" aria-hidden="true">
 								{#if item.attachments.length}
-									<span class="ind" data-testid="chip-files" title="{item.attachments.length} file{item.attachments.length === 1 ? '' : 's'} attached">
+									<span class="ind" data-testid="chip-files">
 										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
 											<path d="M20 11.5l-8 8a5 5 0 0 1-7-7l8.5-8.5a3.4 3.4 0 0 1 4.8 4.8L9.7 17.4a1.8 1.8 0 0 1-2.5-2.5l7.8-7.8" />
-										</svg>{item.attachments.length}
+										</svg>{item.attachments.length} {item.attachments.length === 1 ? 'file' : 'files'}
 									</span>
 								{/if}
 								{#if item.links.length}
-									<span class="ind" data-testid="chip-links" title="{item.links.length} link{item.links.length === 1 ? '' : 's'}">
+									<span class="ind" data-testid="chip-links">
 										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
 											<path d="M10 13.5a4 4 0 0 0 5.7 0l3-3A4 4 0 0 0 13 4.8l-1.7 1.7" />
 											<path d="M14 10.5a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 19.2l1.7-1.7" />
-										</svg>{item.links.length}
+										</svg>{item.links.length} {item.links.length === 1 ? 'link' : 'links'}
 									</span>
 								{/if}
 							</span>
@@ -2181,9 +2181,7 @@
 							<li class="empty-row" class:drop-hint={editable && !!unitTransports} data-testid="group-empty-hint">
 								<p class="note">
 									{#if editable && unitTransports}
-										Drag items here, or tick items and press File here. You can also open a
-										row's actions menu (&#8942;) and pick this unit under Unit, or use File
-										into&hellip; in the bar above.
+										Empty. Drop items here, or use File here.
 									{:else}
 										Nothing here yet.
 									{/if}

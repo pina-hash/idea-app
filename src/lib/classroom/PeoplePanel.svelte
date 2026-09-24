@@ -1,4 +1,5 @@
 <script lang="ts">
+	import InfoTip from '$lib/classroom/InfoTip.svelte';
 	import Avatar from '$lib/Avatar.svelte';
 	import { rosterSubject } from '$lib/avatars';
 	import { tick, untrack } from 'svelte';
@@ -1544,9 +1545,13 @@
 					     can never diverge on what a state is called or looks like. -->
 					<div class="nb-tallies">
 						{#each CELL_STATES as state (state.key)}
-							<span class="nb-tally nb-{state.key}" title={state.hint} data-testid="nb-tally-{state.key}">
-								<span class="nb-glyph" aria-hidden="true">{state.glyph}</span>
-								{state.label}
+							<!-- What a state MEANS is an InfoTip, not a `title` a phone cannot
+							     hover (ledger 0297, LEARN). -->
+							<span class="nb-tally nb-{state.key}" data-testid="nb-tally-{state.key}">
+								<InfoTip tip={state.hint}
+									><span class="nb-glyph" aria-hidden="true">{state.glyph}</span>
+									{state.label}</InfoTip
+								>
 								<strong>{notebook.counts[state.key]}</strong>
 							</span>
 						{/each}
@@ -1573,8 +1578,7 @@
 						<p class="note" data-testid="nb-all-clear">Everyone is up to date on every check-in.</p>
 					{/if}
 					<p class="note">
-						<a href={classNotebookHref(section.id)}>Open the Notebook tab</a>
-						to read entries, flag work and grade the Documentation Check.
+						<a href={classNotebookHref(section.id)}>Notebook review and Documentation Check</a>
 					</p>
 				{/if}
 			{/if}

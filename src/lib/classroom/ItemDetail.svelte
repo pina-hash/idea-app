@@ -2654,8 +2654,7 @@
 					     student waiting for a form that was never coming. This assignment
 					     genuinely has no online hand-in; the instructions say where the
 					     work goes. -->
-					This assignment has no online hand-in. Follow the instructions above --
-					your teacher has said there how to turn this one in.
+					This assignment has no online hand-in; the instructions above say how to turn it in.
 				</p>
 			</section>
 		{/if}
