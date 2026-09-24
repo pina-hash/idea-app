@@ -234,15 +234,25 @@ describe('a student sees the returned grade and the comment on EVERY engine', ()
 });
 
 describe('the rubric is findable BEFORE the work, on every engine', () => {
-	test.each(ENGINES)('%s: one "How this is graded" disclosure, above the work', (kind) => {
+	test.each(ENGINES)('%s: one "How this is graded" disclosure, after the instructions, before the work', (kind) => {
 		const html = studentPage(kind, null);
 		expect(count(html, 'data-testid="item-rubric"'), `${kind}: the rubric`).toBe(1);
 		expect(count(html, CRITERION), `${kind}: one copy of the criteria`).toBe(1);
 		expect(html).toContain('How this is graded');
-		// Above the writing and the work surface. The instructions disclosure
-		// is a fixed landmark every engine renders (the item has a body).
+		// BETWEEN TWO LANDMARKS EVERY ENGINE RENDERS: the instructions (the item
+		// has a body) and the work surface, which is `engine-host` for a spec or
+		// a ported assignment and `engine-slot` for the IdeaCAD door. Above the
+		// instructions was measured and refused: four leveled criteria open are
+		// 1054px at 375, which pushed the instructions to y 1350 on a phone.
 		const rubricAt = html.indexOf('data-testid="item-rubric"');
-		expect(rubricAt).toBeLessThan(html.indexOf('data-testid="item-body-disclosure"'));
+		const bodyAt = html.indexOf('data-testid="item-body-disclosure"');
+		const work = ['class="engine-host', 'class="card engine-slot']
+			.map((needle) => html.indexOf(needle))
+			.filter((at) => at >= 0);
+		expect(bodyAt, `${kind}: the instructions landmark`).toBeGreaterThanOrEqual(0);
+		expect(work.length, `${kind}: the work landmark`).toBeGreaterThan(0);
+		expect(rubricAt).toBeGreaterThan(bodyAt);
+		expect(rubricAt).toBeLessThan(Math.min(...work));
 	});
 
 	test('a manager reads the same stored rubric, open, with no returned card', () => {

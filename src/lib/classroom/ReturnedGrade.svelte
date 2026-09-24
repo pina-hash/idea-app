@@ -58,9 +58,12 @@
 		Returned{submission.score != null ? `: ${submission.score} / ${outOf} pts` : ''}
 	</h3>
 	{#if submission.teacher_comment}
+		<!-- The text sits in its OWN element, flush against its tags: the comment
+		     keeps the teacher's line breaks (`pre-wrap`), and a template's own
+		     indentation inside that element would print as a leading space. -->
 		<p class="grade-comment" data-testid="returned-grade-comment">
 			<span class="comment-label">Teacher comment</span>
-			{submission.teacher_comment}
+			<span class="comment-text">{submission.teacher_comment}</span>
 		</p>
 	{/if}
 	{#if rubric?.length}
@@ -92,8 +95,11 @@
 		margin: 0;
 		font-size: 0.95rem;
 		line-height: 1.5;
-		white-space: pre-wrap;
 		overflow-wrap: anywhere;
+	}
+	.comment-text {
+		display: block;
+		white-space: pre-wrap;
 	}
 	.comment-label {
 		display: block;

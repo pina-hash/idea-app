@@ -2141,29 +2141,6 @@
 		</section>
 	{/if}
 
-	<!--
-		HOW THIS IS GRADED, BEFORE THE WORK (ledger 0297, package ITEM). Every
-		engine, near the top, from the stored rubric. Reading, so it collapses
-		once this student has started (`workStarted`, latched by Disclosure) and
-		stays open for a manager, who has no work of their own -- the rule
-		playing out rather than a second rule. A returned grade replaces it: the
-		returned card below is the SCORED copy of the same rubric, and two copies
-		of one table on one page is the duplicate CLAUDE.md refuses.
-	-->
-	{#if gradingRubric?.length && !returnedSubmission}
-		<section class="card rubric-card" data-testid="item-rubric">
-			<Disclosure
-				label="How this is graded"
-				heading={2}
-				scope={`item:${item.id}:rubric`}
-				collapseWhen={workStarted}
-				testId="item-rubric-disclosure"
-			>
-				<RubricView criteria={gradingRubric} title="Criteria" />
-			</Disclosure>
-		</section>
-	{/if}
-
 	<!-- A MATERIAL WITH A REFERENCE DOCUMENT RENDERS THE DOCUMENT. Without one it
 	     renders its written details exactly as every material always has, which
 	     is what keeps every pre-0092 material untouched.
@@ -2237,6 +2214,35 @@
 	     author said so (see `layout`, and the two renders before the body). -->
 	{#if layout.links === 'bottom'}{@render linksCard()}{/if}
 	{#if layout.files === 'bottom'}{@render filesCard()}{/if}
+
+	<!--
+		HOW THIS IS GRADED, BEFORE THE WORK (ledger 0297, package ITEM). Every
+		engine, from the stored rubric, AFTER the instructions and BEFORE the work
+		surface: it used to be the last card below Submit on a spec assignment
+		and absent from parent chrome on a ported one. Not above the
+		instructions, and that was measured: four leveled criteria are 1054px
+		open at 375, which put the instructions at y 1350 on a phone.
+
+		Reading, so it collapses once this student has started (`workStarted`,
+		latched by Disclosure) and stays open for a manager, who has no work of
+		their own -- the rule playing out rather than a second rule. A returned
+		grade replaces it: the returned card is the SCORED copy of the same
+		rubric, and two copies of one table on one page is the duplicate
+		CLAUDE.md refuses.
+	-->
+	{#if gradingRubric?.length && !returnedSubmission}
+		<section class="card rubric-card" data-testid="item-rubric">
+			<Disclosure
+				label="How this is graded"
+				heading={2}
+				scope={`item:${item.id}:rubric`}
+				collapseWhen={workStarted}
+				testId="item-rubric-disclosure"
+			>
+				<RubricView criteria={gradingRubric} title="Criteria" />
+			</Disclosure>
+		</section>
+	{/if}
 
 	<!--
 		THE ENGINE SLOT: a student's own hand-in, or -- same slot, same position
