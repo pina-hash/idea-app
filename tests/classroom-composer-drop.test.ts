@@ -182,7 +182,7 @@ describe('a zip of pictures is read in the browser and becomes ordinary files', 
 		expect(surveyZip(new Uint8Array([1, 2, 3]))).toBeNull();
 	});
 
-	it('the size cap states the size AND the limit, and is the classroom upload cap', () => {
+	it('the size cap states the size AND the limit', () => {
 		const big = { name: 'huge.zip', size: GALLERY_ZIP_MAX_BYTES + 1 } as File;
 		const line = galleryZipIssue(big) ?? '';
 		expect(line).toContain('huge.zip');

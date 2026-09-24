@@ -36,11 +36,18 @@ import { isImageFilename } from '$lib/classroom/classroom';
 import { CLASSROOM_UPLOAD_MAX_BYTES } from '$lib/classroom/file-upload';
 
 /**
- * THE LARGEST ZIP READ IN THE BROWSER: the same 200 MB as one classroom upload.
- * The whole archive is held in memory to read it (the reader walks the central
- * directory from the end), and the school's desktops are six to eight years
- * old, so the cap is the one number a teacher already meets on every other
- * upload rather than a new one.
+ * THE LARGEST ZIP READ IN THE BROWSER, AND IT IS A MEMORY CEILING, NOT AN
+ * UPLOAD ONE. The zip itself is never sent anywhere: the whole archive is held
+ * in memory to read it (the reader walks the central directory from the end),
+ * and the school's desktops are six to eight years old. It borrows the
+ * client-side figure `uploadClassroomFile` already refuses above, so no new
+ * number enters the classroom.
+ *
+ * EACH PICTURE INSIDE THEN MEETS THE ORDINARY PER-FILE CEILING, WHICH IS
+ * LOWER: `0185` set the classroom buckets to 45 MiB under the project's global
+ * limit (`PORTAL_UPLOAD_MAX_BYTES` in $lib/upload-limits), and that refusal is
+ * the upload path's own, per file, with its own sentence. This module does not
+ * restate it.
  */
 export const GALLERY_ZIP_MAX_BYTES = CLASSROOM_UPLOAD_MAX_BYTES;
 
