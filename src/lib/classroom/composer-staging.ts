@@ -100,6 +100,27 @@ export function stagedDeckIssue(file: File): string | null {
 }
 
 /**
+ * WHAT A SPEC FILE IS, WRITTEN ONCE. It was a constant inside
+ * `SpecImporter.svelte`, which was fine while the importer's own picker and
+ * drop were its only readers; the composer's form-wide drop now routes a spec
+ * dropped anywhere on the form to the importer (ledger 0297, report 21), and a
+ * second copy of this string there would be the rule that stops agreeing.
+ */
+export const SPEC_ACCEPT = '.json,application/json';
+
+/**
+ * THE SENTENCE FOR A FILE THE SPEC IMPORTER WILL NOT TAKE, moved out of
+ * `SpecImporter.svelte` byte for byte for the same reason: the importer's box
+ * and anything routing to it must refuse with the same words.
+ */
+export function specFileRefusal(files: readonly File[]): string {
+	const names = files.map((f) => f.name).filter(Boolean);
+	return names.length === 1
+		? `${names[0]} is not a .json file. Drop the spec JSON, or paste it into the box.`
+		: `Those ${files.length} files are not .json. Drop the spec JSON, or paste it into the box.`;
+}
+
+/**
  * WHAT THE STAGED RUBRIC BECOMES WHEN A SPEC IS STAGED.
  *
  * A SPEC'S RUBRIC AND AN ITEM'S RUBRIC ARE TWO DIFFERENT RECORDS, and nothing

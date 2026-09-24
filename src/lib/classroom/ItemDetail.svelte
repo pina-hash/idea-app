@@ -141,6 +141,7 @@
 	import Disclosure from '$lib/Disclosure.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import DeckPanel from '$lib/classroom/DeckPanel.svelte';
+	import type { PanelUpload } from '$lib/classroom/FileUploadPanel.svelte';
 	import ItemBody from '$lib/classroom/ItemBody.svelte';
 	import LinkPreviewCard from '$lib/classroom/LinkPreviewCard.svelte';
 	import ReferenceDoc from '$lib/classroom/ReferenceDoc.svelte';
@@ -890,6 +891,27 @@
 	}
 
 	const canManageDeck = $derived(canManage && !!deckTransports);
+	/**
+	 * A GALLERY ZIP ON AN ITEM THAT EXISTS (ledger 0297, report 23) uploads its
+	 * pictures as ORDINARY attachments through the composer transport's own
+	 * `uploadAttachment` -- which is `uploadClassroomFile({ role: 'attachment' })`
+	 * -- adapted to the upload panel's shape exactly as the composer adapts it.
+	 * Null without the transport, which removes the gallery choice.
+	 */
+	const galleryUpload = $derived.by((): PanelUpload | null => {
+		const t = transports;
+		if (!canManage || !t) return null;
+		return async ({ itemId: target, file, onProgress }) => {
+			const res = await t.uploadAttachment(target, file, onProgress);
+			if (res.ok) return { ok: true, storageKey: '' };
+			return {
+				ok: false,
+				gate: res.gate ?? 'server',
+				message: res.message,
+				retryable: res.retryable ?? false
+			};
+		};
+	});
 	const canManageCheckIn = $derived(canManage && !!checkInTransports);
 	/**
 	 * Whether a guidance prompt can be WRITTEN from this page (0123). Its own
@@ -1275,7 +1297,9 @@
 			     minus whatever a figure in the spec above already rendered inline --
 			     see `specProse` -- so a file authored as a figure is not also a
 			     download row for the same image. -->
-			<AttachmentList attachments={listedAttachments} figureRefs={canManage} />
+			<!-- `gallery`: two or more pictures show as a grid of tiles that open
+			     the lightbox (ledger 0297, report 23); other files stay rows. -->
+			<AttachmentList attachments={listedAttachments} figureRefs={canManage} gallery />
 		</section>
 	{/if}
 {/snippet}
@@ -1569,6 +1593,7 @@
 										transports={deckTransports}
 										mode="manage"
 										{onchanged}
+										{galleryUpload}
 									/>
 								</div>
 							{/if}

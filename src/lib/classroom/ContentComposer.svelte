@@ -26,6 +26,15 @@
 	import { movedList, sortDrag } from '$lib/classroom/sort-drag';
 	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
+	import ZipChoice from '$lib/classroom/ZipChoice.svelte';
+	import { composerDropSummary, HTML_DROP_BUSY, splitComposerDrop } from '$lib/classroom/composer-drop';
+	import {
+		extractGalleryPictures,
+		galleryZipIssue,
+		pictureCount,
+		surveyZip,
+		type ZipSurvey
+	} from '$lib/classroom/gallery-zip';
 	import type { CheckInDraft, ClassCheckInTransports } from '$lib/classroom/class-check-ins';
 	import { itemBodyDoc, type TiptapNode } from '$lib/classroom/classroom-doc';
 	import {
@@ -42,6 +51,7 @@
 		DECK_UPLOAD_MAX_ZIP_BYTES,
 		deckProgressLabel,
 		deckProgressPercent,
+		deckUploadTypeIssue,
 		DECK_ACCEPT,
 		type DeckTransports,
 		type DeckUploadProgress
@@ -627,14 +637,121 @@
 		const file = input.files?.[0] ?? null;
 		input.value = '';
 		if (!file) return;
-		stageDeckFile(file);
+		offerZipFromBox(file);
 	}
 
 	/** A drop or a paste onto the staged-deck editor, first file only -- the
 	 *  picker beside it takes no `multiple` either. */
 	function onDeckDropFiles(files: File[]) {
 		const file = files[0];
-		if (file) stageDeckFile(file);
+		if (file) offerZipFromBox(file);
+	}
+
+	/**
+	 * A ZIP OFFERED TO THE PRESENTATION BOX ASKS WHAT IT IS (ledger 0297, report
+	 * 23): the same box takes a presentation or a gallery of pictures. The TYPE
+	 * is still judged here, with the box's own sentence, because a PNG is
+	 * neither; the deck's SIZE cap is judged only when Presentation is chosen,
+	 * because a 60 MB zip of photographs is a perfectly good gallery and would
+	 * otherwise be refused for being too big to be something it is not.
+	 */
+	function offerZipFromBox(file: File) {
+		const typeIssue = deckUploadTypeIssue(file);
+		if (typeIssue) {
+			deckIssue = typeIssue;
+			return;
+		}
+		deckIssue = null;
+		offerZips([file], 'box');
+	}
+
+	// --- The zip choice (ledger 0297, package ITEM; report 23) ----------------
+	//
+	// Every zip that reaches the form -- picked in the presentation box, dropped
+	// on it, or dropped anywhere else on the form -- waits here for the teacher
+	// to say what it is. Its directory is read at once (nothing is unpacked), so
+	// the Gallery button can say how many pictures it adds. A gallery becomes
+	// ORDINARY attachments through the Files panel, the one upload path, so a
+	// second zip simply adds more pictures and each one stays staged with its
+	// own Retry until it lands.
+	interface PendingZip {
+		key: number;
+		file: File;
+		/** Dropped on the form (may also be attached as a plain file) or offered
+		 *  to the presentation box (a presentation or a gallery). */
+		source: 'root' | 'box';
+		survey: ZipSurvey | null;
+		issue: string | null;
+		working: string | null;
+	}
+	let zipQueue = $state<PendingZip[]>([]);
+	let zipKey = 0;
+	/** What the last gallery added, and anything it left out. */
+	let zipNotice = $state<string | null>(null);
+	let zipSkipped = $state<string[]>([]);
+
+	function patchZip(key: number, patch: Partial<PendingZip>) {
+		zipQueue = zipQueue.map((z) => (z.key === key ? { ...z, ...patch } : z));
+	}
+	function dropZip(key: number) {
+		zipQueue = zipQueue.filter((z) => z.key !== key);
+	}
+
+	function offerZips(files: File[], source: 'root' | 'box') {
+		for (const file of files) {
+			const key = ++zipKey;
+			const issue = galleryZipIssue(file);
+			zipQueue = [...zipQueue, { key, file, source, survey: null, issue, working: null }];
+			if (!issue) void surveyPending(key, file);
+		}
+	}
+
+	async function surveyPending(key: number, file: File) {
+		try {
+			const survey = surveyZip(new Uint8Array(await file.arrayBuffer()));
+			patchZip(
+				key,
+				survey
+					? { survey }
+					: { issue: `${file.name} could not be opened as a zip. Zip it again and try once more.` }
+			);
+		} catch {
+			patchZip(key, { issue: `${file.name} could not be read. Choose it again.` });
+		}
+	}
+
+	function zipAsPresentation(z: PendingZip) {
+		stageDeckFile(z.file);
+		dropZip(z.key);
+	}
+
+	async function zipAsGallery(z: PendingZip) {
+		patchZip(z.key, { working: `Unpacking the pictures in ${z.file.name}...` });
+		try {
+			const out = await extractGalleryPictures(new Uint8Array(await z.file.arrayBuffer()), z.survey);
+			if (out.error && !out.files.length) {
+				patchZip(z.key, { working: null, issue: out.error });
+				return;
+			}
+			if (out.files.length) filePanel?.add(out.files);
+			zipNotice =
+				`${pictureCount(out.files.length)} from ${z.file.name} added to Files; they upload when you save.` +
+				(out.error ? ` ${out.error}` : '');
+			zipSkipped = out.skipped;
+			dropZip(z.key);
+		} catch (e) {
+			patchZip(z.key, {
+				working: null,
+				issue: `${z.file.name} could not be unpacked (${(e as Error).message || 'unknown error'}).`
+			});
+		}
+	}
+
+	function zipAsFile(z: PendingZip) {
+		filePanel?.add([z.file]);
+		zipNotice = `${z.file.name} added to Files as a file.`;
+		zipSkipped = [];
+		dropZip(z.key);
 	}
 
 	/**
@@ -963,14 +1080,40 @@
 	// The paste half is NOT registered here: the root's own `onpaste` already
 	// routes a pasted image and already asks `claimPaste`.
 	let composerDragActive = $state(false);
+	/**
+	 * THE ROOT HANDS EACH FILE TO THE TARGET WHOSE TYPE RULE IT MATCHES (ledger
+	 * 0297, package ITEM; report 21). It used to call `filePanel.add` for
+	 * everything, so a spec `.json` or a ported `.html` dropped on the title was
+	 * staged as a file the whole class could read while the box built for it
+	 * never heard about it. `splitComposerDrop` is the decision (a pure
+	 * function, `tests/classroom-composer-drop.test.ts`); this only carries it
+	 * out. A target not on this form leaves its files as ordinary files.
+	 */
+	let specImporter = $state<SpecImporter | null>(null);
+	function routeComposerDrop(files: File[]) {
+		const split = splitComposerDrop(files, {
+			spec: canStageSpec && !!specKind && !!specImporter,
+			html: canStageHtml,
+			zip: attachmentsEnabled || canStageDeck
+		});
+		if (split.files.length) filePanel?.add(split.files);
+		if (split.spec.length) specImporter?.importFile(split.spec);
+		let htmlBusy = false;
+		if (split.html.length) {
+			// The box takes one document and is shut while it holds one; the
+			// root says so in words rather than staging it anywhere else.
+			if (stagedHtml || htmlReading || busy) htmlBusy = true;
+			else void stageHtmlFile(split.html[0]);
+		}
+		if (split.zip.length) offerZips(split.zip, 'root');
+		const summary = composerDropSummary(htmlBusy ? { ...split, html: [] } : split);
+		pasteHint = [summary, htmlBusy ? HTML_DROP_BUSY : null].filter(Boolean).join(' ') || null;
+		setTimeout(() => (pasteHint = null), 6000);
+	}
 	function composerDropZone(node: HTMLElement, initial: { disabled: boolean }) {
 		let disabled = initial.disabled;
 		const controller = createDropController({
-			onfiles: (files) => {
-				filePanel?.add(files);
-				pasteHint = `${files.length} dropped file${files.length === 1 ? '' : 's'} attached.`;
-				setTimeout(() => (pasteHint = null), 4000);
-			},
+			onfiles: (files) => routeComposerDrop(files),
 			onactive: (a) => (composerDragActive = a)
 		});
 		const asDrag = (e: Event) => e as unknown as DragLikeEvent;
@@ -1567,7 +1710,12 @@
 	 * `htmlAssignment: draft.htmlAssignment ? 1 : 0` beside `deck` and `spec`,
 	 * and this clause goes.
 	 */
-	const dirty = $derived(baseline.changed(composerDraftSignature(draft)) || !!stagedHtml);
+	// A ZIP WAITING FOR ITS CHOICE IS WORK TOO (ledger 0297): its File handle
+	// exists only in this tab's memory, exactly like a staged file, so closing
+	// the form over one asks first.
+	const dirty = $derived(
+		baseline.changed(composerDraftSignature(draft)) || !!stagedHtml || zipQueue.length > 0
+	);
 	$effect(() => {
 		// `dirty` tracked, the notification untracked: `ondirtychange` belongs to
 		// whoever mounted this form and may read or write state of its own.
@@ -2248,6 +2396,29 @@
 	</svg>
 {/snippet}
 
+{#snippet zipChoices()}
+	<!-- EACH ZIP WAITING FOR THE TEACHER TO SAY WHAT IT IS (ledger 0297, report
+	     23). One place on the form: the presentation box when this form has
+	     one, the Files section otherwise (an edit, where the item page owns
+	     the presentation). A form-level drop may also attach it as a file; a
+	     zip offered to the presentation box came there to be one of the two. -->
+	{#each zipQueue as z (z.key)}
+		<ZipChoice
+			file={z.file}
+			survey={z.survey}
+			issue={z.issue}
+			working={z.working}
+			onpresentation={canStageDeck ? () => zipAsPresentation(z) : null}
+			presentationUnavailable={stagedDeck
+				? 'A presentation is already staged. Remove it to use this zip as the presentation.'
+				: null}
+			ongallery={attachmentsEnabled ? () => void zipAsGallery(z) : null}
+			onattach={attachmentsEnabled && z.source === 'root' ? () => zipAsFile(z) : null}
+			oncancel={() => dropZip(z.key)}
+		/>
+	{/each}
+{/snippet}
+
 {#snippet placement(group: 'files' | 'links', testId: string)}
 	{#if layoutTransports}
 		<div
@@ -2547,7 +2718,16 @@
 				}}
 			/>
 			{#if pasteHint}
-				<p class="feedback ok">{pasteHint}</p>
+				<p class="feedback ok" data-testid="composer-drop-note">{pasteHint}</p>
+			{/if}
+			{#if !canStageDeck}{@render zipChoices()}{/if}
+			{#if zipNotice}
+				<p class="feedback ok" data-testid="composer-gallery-note">{zipNotice}</p>
+			{/if}
+			{#if zipSkipped.length}
+				<ul class="feedback" data-testid="composer-gallery-skipped">
+					{#each zipSkipped as line (line)}<li>{line}</li>{/each}
+				</ul>
 			{/if}
 			{#if mode === 'edit' && existing.length}
 				<!-- The composer is manager-only by construction, so the reference is
@@ -2598,7 +2778,8 @@
 				accept: (f) => matchesAccept(f, DECK_ACCEPT)
 			}}
 		>
-			<span class="mini-label">Presentation deck</span>
+			<span class="mini-label">Presentation or gallery</span>
+			{@render zipChoices()}
 			{#if stagedDeck}
 				<p class="spec-line">
 					<span class="ok-dot"></span>
@@ -2628,10 +2809,9 @@
 				{/if}
 			{:else}
 				<p class="hint">
-					A Claude Design project HTML zip, exported with hidden files included -- the image
-					framing lives in one of them. Capped at
-					{Math.floor(DECK_UPLOAD_MAX_ZIP_BYTES / 1024 / 1024)} MB, so attach gifs and video as
-					files above instead of embedding them.
+					A zip. A Claude Design project export (up to
+					{Math.floor(DECK_UPLOAD_MAX_ZIP_BYTES / 1024 / 1024)} MB, hidden files included)
+					becomes the presentation; a zip of pictures becomes a gallery.
 				</p>
 				<input
 					type="file"
@@ -2905,6 +3085,7 @@
 			     validated JSON comes back through `onstage` and is applied the
 			     moment the create call returns an id. -->
 			<SpecImporter
+				bind:this={specImporter}
 				kind={specKind}
 				itemId={null}
 				staged={stagedSpecShown}

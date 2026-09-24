@@ -4,6 +4,7 @@
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import { EditBaseline } from '$lib/edit-baseline.svelte';
 	import { dropTarget, matchesAccept } from '$lib/file-drop';
+	import { SPEC_ACCEPT, specFileRefusal } from '$lib/classroom/composer-staging';
 	import {
 		validateSpec,
 		type AssignmentSpec,
@@ -289,9 +290,10 @@
 	/**
 	 * WHAT THIS IMPORT ACCEPTS, WRITTEN ONCE -- the same string is the
 	 * `<input accept>` and the drop rule, so the picker and the drop cannot
-	 * come to disagree about what a spec file is.
+	 * come to disagree about what a spec file is. It lives in
+	 * composer-staging.ts since ledger 0297, because the composer's form-wide
+	 * drop routes a spec to this importer by the same rule.
 	 */
-	const SPEC_ACCEPT = '.json,application/json';
 	/** Said out loud when a drop was refused, so nothing appears to do nothing. */
 	let dropNote = $state<string | null>(null);
 	let dropActive = $state(false);
@@ -340,11 +342,24 @@
 	}
 
 	function refusedSpec(files: File[]) {
-		const names = files.map((f) => f.name).filter(Boolean);
-		dropNote =
-			names.length === 1
-				? `${names[0]} is not a .json file. Drop the spec JSON, or paste it into the box.`
-				: `Those ${files.length} files are not .json. Drop the spec JSON, or paste it into the box.`;
+		dropNote = specFileRefusal(files);
+	}
+
+	/**
+	 * A SPEC HANDED IN FROM OUTSIDE THIS BOX (ledger 0297, report 21): the
+	 * composer's form-wide drop routes a `.json` dropped on the title or the
+	 * body here rather than onto the class's Files list. It is the SAME path a
+	 * drop on this box takes (`droppedSpec`), with the box opened first so the
+	 * teacher sees where it went. A file this box would refuse is refused with
+	 * this box's own sentence.
+	 */
+	export function importFile(files: File[]) {
+		if (!files.length) return;
+		open = true;
+		const taken = files.filter((f) => matchesAccept(f, SPEC_ACCEPT));
+		const refused = files.filter((f) => !matchesAccept(f, SPEC_ACCEPT));
+		if (taken.length) droppedSpec(taken);
+		else if (refused.length) refusedSpec(refused);
 	}
 
 	function commitSpec(value: unknown): Promise<{ ok: boolean; message?: string }> {
