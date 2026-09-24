@@ -255,3 +255,15 @@ Lines added after Phase 0 carry the round that found them. A line that has been 
 - `shortWhen` and `editedWhen` in the class stream still format in the browser's zone, not the school's day.
 - Most `/dev` harnesses do not mount `ClassroomShell`, so their header tools cannot be measured there.
 - The browser runner's height is fixed at 900, so 1280x800 and 1920x1080 needed a hand-written script.
+
+## Found in round 2, still open
+
+- The update log's open month is still 19,497px at 1440, because nearly every entry is from September.
+- The classroom tour dims Space White with the same dark overlay it uses on the dark themes, which is heavy on white; Skip and close measure 4.52:1 on the IDEA dark theme, just over the floor.
+- On a class page the tour's grading-keys and Approve steps fall back to their tabs, and the student's add-to-notebook step appears only on an assignment with a check-in.
+- The empty-unit line is still an instruction (21 words), pinned by a spec because it names every way to file into a unit.
+- A ported HTML worksheet keeps no local copy of unsaved answers (a design is in the history entry).
+- Every picture on an item joins one gallery; named galleries need a column.
+- `/dev/grading-incomplete` clicks before the console has mounted (fails the same way on the tree before this run); the spec needs a wait.
+- The browser spec runner has no key-press step, and `derived-numbers` goes red for every new spec until `verify:readme` measures it.
+- `/dev/composer-attach` does not load `classroom.css`, so it measures a composer the real route never shows.

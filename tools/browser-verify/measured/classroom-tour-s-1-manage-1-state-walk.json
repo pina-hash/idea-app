@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "classroom-tour-s-1-manage-1-state-walk.mjs",
+	"date": "2026-09-24T01:51:06.949Z",
+	"sha": "17b56904dd3aae05ad434b319d8bae655bb94299",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 32,
+	"outsideRows": [],
+	"ms": 6069
+}

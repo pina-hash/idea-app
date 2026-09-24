@@ -420,9 +420,6 @@
 				layout="strip"
 				bind:viewerIndex
 			/>
-			<p class="hint">
-				Click a page, or press <kbd>Enter</kbd>, to read it full screen.
-			</p>
 		</div>
 	{:else if !noteCount}
 		<p class="empty">This entry has no photos and no written notes.</p>
@@ -690,11 +687,6 @@
 		display: grid;
 		gap: var(--space-2);
 	}
-	.hint {
-		margin: 0;
-		font-size: 0.74rem;
-		color: var(--text-2);
-	}
 	.empty {
 		color: var(--text-2);
 		font-size: 0.9rem;
@@ -745,13 +737,6 @@
 		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		opacity: 0.75;
-	}
-	.hint kbd {
-		padding: 0.05em 0.3em;
-		border: 1px solid currentColor;
-		border-radius: 3px;
-		font-family: var(--font-mono);
-		font-size: 0.68rem;
 	}
 
 	.review-form {

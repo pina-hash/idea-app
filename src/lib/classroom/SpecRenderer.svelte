@@ -26,6 +26,9 @@
 	import FileUploadPanel, { type PanelUpload } from '$lib/classroom/FileUploadPanel.svelte';
 	import type { UploadedFileRow } from '$lib/classroom/file-upload';
 	import { filesFromClipboard, pasteRouteMessage } from '$lib/file-drop';
+	import Lightbox from '$lib/media/Lightbox.svelte';
+	import EnlargeCue from '$lib/media/EnlargeCue.svelte';
+	import type { LightboxImage } from '$lib/media/lightbox';
 
 	/**
 	 * The student renderer for one assignment spec: modules in order with
@@ -416,6 +419,32 @@
 	}
 
 	/**
+	 * AN EVIDENCE PHOTO OPENS LARGE (ledger 0297, package ITEM). Each shot was a
+	 * link to the proxy in a new tab, which answers `Content-Disposition:
+	 * attachment`, so tapping a photo to check it was in focus downloaded it.
+	 * The viewer pages through the pictures of the ZONE that was tapped, which
+	 * is the set a student (or a teacher reading it in the grading console,
+	 * which mounts this renderer read-only) is looking at.
+	 */
+	let zoneView = $state<{ blockId: string; index: number } | null>(null);
+	const zoneImages = $derived<LightboxImage[]>(
+		zoneView
+			? (zoneFiles.get(zoneView.blockId) ?? []).filter(isImage).map((f) => ({
+					key: f.id,
+					src: submissionFileSrc(f.id),
+					alt: f.caption ?? f.filename,
+					caption: f.caption ? `${f.caption} (${f.filename})` : f.filename,
+					downloadHref: submissionFileSrc(f.id),
+					downloadName: f.filename
+				}))
+			: []
+	);
+	function openZoneShot(blockId: string, f: SubmissionFileRow) {
+		const at = (zoneFiles.get(blockId) ?? []).filter(isImage).findIndex((x) => x.id === f.id);
+		if (at >= 0) zoneView = { blockId, index: at };
+	}
+
+	/**
 	 * The module the progress chip and the "has this been started" signal are
 	 * computed over. Identical to the module itself everywhere except a surface
 	 * that captures no files (`fileNotice`), where the file blocks come OUT of
@@ -668,11 +697,12 @@
 											     a short-lived signed URL (0133), and for a Drive-backed one
 											     it streams the bytes as it always has. Neither this
 											     component nor the student knows which. -->
-											<a
+											<button
+												type="button"
 												class="zone-shot"
-												href={submissionFileSrc(f.id)}
-												target="_blank"
-												rel="noopener noreferrer"
+												aria-label={`Open ${f.caption ?? f.filename} larger`}
+												data-testid="zone-shot-open"
+												onclick={() => openZoneShot(block.id, f)}
 											>
 												<img
 													src={submissionFileSrc(f.id)}
@@ -680,7 +710,8 @@
 													loading="lazy"
 													onerror={() => (brokenThumbs = { ...brokenThumbs, [f.id]: true })}
 												/>
-											</a>
+												<EnlargeCue />
+											</button>
 										{:else}
 											<a class="zone-file" href={submissionFileSrc(f.id)} target="_blank" rel="noopener noreferrer">{f.filename}</a>
 										{/if}
@@ -793,6 +824,19 @@
 		</section>
 	{/if}
 {/each}
+
+{#if zoneImages.length}
+	<Lightbox
+		images={zoneImages}
+		index={zoneView?.index ?? null}
+		label="Photo evidence"
+		onIndex={(n) => {
+			if (zoneView) zoneView = { ...zoneView, index: n };
+		}}
+		onClose={() => (zoneView = null)}
+		testId="zone-lightbox"
+	/>
+{/if}
 
 <style>
 	.module {
@@ -1258,6 +1302,20 @@
 		min-height: 44px;
 		line-height: 0;
 		border-radius: var(--radius-card);
+		/* A <button> now (it opens the lightbox), so its own UA chrome goes. */
+		appearance: none;
+		position: relative;
+		padding: 0;
+		margin: 0;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		cursor: zoom-in;
+	}
+	.zone-shot:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
 	}
 	/* THE PICTURE'S BOX IS THE PICTURE, WHICH IS WHY BOTH DIMENSIONS ARE
 	   AUTOMATIC. This was `width: 100%` with a `max-height` cap and

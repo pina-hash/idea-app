@@ -2012,20 +2012,23 @@
 						</p>
 					{/if}
 					{#if offRosterCount > 0}
+						<!-- The count and what it means, and the door to the roster as a
+						     link word rather than a sentence telling somebody to go there
+						     (ledger 0297, LEARN). -->
 						<p class="off-roster" data-testid="off-roster-notice">
-							{offRosterCount} response {offRosterCount === 1 ? 'set' : 'sets'} on this assignment
-							{offRosterCount === 1 ? 'belongs' : 'belong'} to somebody who is not on this class
-							roster, so {offRosterCount === 1 ? 'it is' : 'they are'} not listed, counted or
-							exported here. Check the roster on the People tab if that is unexpected.
+							{offRosterCount} response {offRosterCount === 1 ? 'set' : 'sets'} from somebody not on
+							this class roster {offRosterCount === 1 ? 'is' : 'are'} not listed, counted or exported.
+							Roster: <a href="{basePath}/{section.id}/people">People tab</a>.
 						</p>
 					{/if}
 					{#if managerCount > 0}
 						<p class="manager-note" data-testid="manager-notice">
 							{managerCount}
-							{managerCount === 1 ? 'person on this roster' : 'people on this roster'} can manage this
-							class, so {managerCount === 1 ? 'their row is' : 'their rows are'} not listed, counted or
-							exported as student work: {work.managers.join(', ')}. Remove the enrollment on the People
-							tab to take {managerCount === 1 ? 'it' : 'them'} off the roster entirely.
+							{managerCount === 1 ? 'person on this roster manages' : 'people on this roster manage'} this
+							class and {managerCount === 1 ? 'is' : 'are'} not listed, counted or exported as student
+							work: {work.managers.join(', ')}. Enrollments: <a href="{basePath}/{section.id}/people"
+								>People tab</a
+							>.
 						</p>
 					{/if}
 				</div>

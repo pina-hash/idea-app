@@ -14,6 +14,95 @@
 	"entries": [
 		{
 			"date": "2026-09-23",
+			"title": "A short tour of the classroom",
+			"body": "The first time you open a class, a line under the header offers to show you around. Press Show me around to see where your to-do, class search, Missing, notebook and Search are, or Not now to skip it. You can take the tour any time with the Tour button at the top of a class page (inside Menu on a phone), or by searching for Take the tour.",
+			"tags": [
+				"Classes",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Make the class list wider or narrower",
+			"body": "With something open beside the class list on a computer, drag the line between the list and what you opened, or select it and use the arrow keys. Settings has Narrower and Wider too, and Reset puts it back. This is saved on that computer only.",
+			"tags": [
+				"Classes",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Choose what your to-do opens on",
+			"body": "Settings now has To-do opens on, so you can start on Missing if you like. Every group in Settings says whether it is saved on this device or on your account, and has its own Reset.",
+			"tags": [
+				"Classwork",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "The update log is grouped by month",
+			"body": "This page now groups changes by month, with the newest month open and older months folded. Each day's changes sit under one date. Press a month's name to open it.",
+			"tags": [
+				"Classes"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Tips open with a tap, and counts say what they count",
+			"body": "The small tips beside labels now open when you tap them on a phone, and close when you tap somewhere else. File and link counts on a class page now say files and links instead of showing a bare number.",
+			"tags": [
+				"Classes",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Your grade and your teacher's comment, on every assignment",
+			"body": "When an assignment comes back, the score, your teacher's comment and the rubric breakdown now show near the top of the page for every kind of assignment, including worksheets and IdeaCAD work. The comment comes first, so read it before the breakdown.",
+			"tags": [
+				"Classwork",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "See how you will be graded before you start",
+			"body": "Assignments now show a How this is graded section right after the instructions, with every rubric level. It folds away once you start working; tap it to open it again.",
+			"tags": [
+				"Classwork",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Pictures open large",
+			"body": "Tap any picture in a post, a handout, a photo you handed in or a photo gallery to open it full screen. Zoom in, move around the picture with the arrow buttons or by dragging, and use Download to save the original.",
+			"tags": [
+				"Classwork",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Photo galleries and video previews",
+			"body": "A set of photos on a post now shows as a gallery you can flip through. A YouTube link on its own line shows the video's picture; tap it to open the video.",
+			"tags": [
+				"Classwork",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-23",
+			"title": "Move through a presentation by tapping",
+			"body": "In a class presentation, use the Previous and Next buttons, or open the slide list and tap a slide to jump to it. This works on a phone, where there are no arrow keys.",
+			"tags": [
+				"Classwork",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-23",
 			"title": "A white theme for bright rooms and the projector",
 			"body": "Class pages, your notebook and the home page can now be white. Press the Light button at the top of any class page, next to your profile picture, to switch, and press it again to go back. You can also pick Space White in your profile menu. It stays easy to read on the classroom projector and in a bright room, and your app cards, pathway chip and profile picture stay readable on it. Your choice is remembered on that device. Games and the other apps keep their own look, and slides you present stay dark.",
 			"tags": [
