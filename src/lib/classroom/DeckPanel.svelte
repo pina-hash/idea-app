@@ -1,17 +1,28 @@
 <script lang="ts">
 	import {
+		DECK_ACCEPT,
 		DECK_UPLOAD_MAX_ZIP_BYTES,
 		deckProgressLabel,
 		deckProgressPercent,
 		deckSizeLine,
 		deckThumbnailSrc,
 		deckUploadSizeIssue,
+		deckUploadTypeIssue,
 		deckViewerHref,
 		type ClassroomDeck,
 		type DeckTransports,
 		type DeckUploadProgress
 	} from '$lib/classroom/deck';
-	import { dropTarget } from '$lib/file-drop';
+	import { dropTarget, matchesAccept } from '$lib/file-drop';
+	import ZipChoice from '$lib/classroom/ZipChoice.svelte';
+	import FileUploadPanel, { type PanelUpload } from '$lib/classroom/FileUploadPanel.svelte';
+	import {
+		extractGalleryPictures,
+		galleryZipIssue,
+		pictureCount,
+		surveyZip,
+		type ZipSurvey
+	} from '$lib/classroom/gallery-zip';
 
 	/**
 	 * The deck on one classroom item: how a student opens it, and how a teacher
@@ -46,7 +57,8 @@
 		canManage = false,
 		transports = null,
 		mode = 'full',
-		onchanged = null
+		onchanged = null,
+		galleryUpload = null
 	}: {
 		deck?: ClassroomDeck | null;
 		itemId: string;
@@ -71,6 +83,16 @@
 		 */
 		mode?: 'full' | 'view' | 'manage';
 		onchanged?: (() => void | Promise<void>) | null;
+		/**
+		 * THE GALLERY PATH ON AN ITEM THAT EXISTS (ledger 0297, report 23): the
+		 * ordinary attachment upload, injected. Given, a zip picked or dropped
+		 * here asks whether it is a presentation or a gallery, and a gallery's
+		 * pictures upload as ORDINARY attachments through a FileUploadPanel --
+		 * the one upload component, with its per-file progress, error and
+		 * Retry. Absent, a zip goes straight to the deck upload exactly as
+		 * before, because a choice with one answer is not a choice.
+		 */
+		galleryUpload?: PanelUpload | null;
 	} = $props();
 
 	let busy = $state(false);
@@ -173,19 +195,111 @@
 
 	function onpick(event: Event) {
 		const file = (event.currentTarget as HTMLInputElement).files?.[0];
-		if (file) void send(file, null);
+		if (file) offer(file);
 	}
 
 	/**
-	 * A drop or a paste onto this panel -- the SAME `send` the picker's
-	 * `onchange` calls, on the FIRST file only, exactly as the picker (no
-	 * `multiple`) already only ever takes one. No new validation: whatever
-	 * lands still goes through the same size check and the same upload call,
-	 * and a file that is not a deck zip is refused exactly where it always was.
+	 * A drop or a paste onto this panel -- the SAME path the picker's
+	 * `onchange` takes, on the FIRST file only, exactly as the picker (no
+	 * `multiple`) already only ever takes one.
 	 */
 	function onDropFiles(files: File[]) {
 		const file = files[0];
+		if (file) offer(file);
+	}
+
+	/**
+	 * THE DROP REFUSES WHAT THE PICKER REFUSES, WITH THE SAME SENTENCE (ledger
+	 * 0297, report 21). This drop target had no `accept` while its picker named
+	 * `.zip`, so a dropped PDF was POSTed to the server and refused there, after
+	 * the wait. `DECK_ACCEPT` is now read by both, and a refused drop says
+	 * `deckUploadTypeIssue`'s own words rather than doing nothing.
+	 */
+	function onDropRejected(files: File[]) {
+		const file = files[0];
+		if (!file) return;
+		error = deckUploadTypeIssue(file);
+		errorCode = null;
+	}
+
+	// --- presentation or gallery (ledger 0297, report 23) --------------------
+	interface Offered {
+		file: File;
+		survey: ZipSurvey | null;
+		issue: string | null;
+		working: string | null;
+	}
+	let offered = $state<Offered | null>(null);
+	let galleryPanel = $state<FileUploadPanel | null>(null);
+	/** Pictures handed to the gallery panel whose uploads have not settled. */
+	let galleryPending = $state(false);
+	let galleryNote = $state<string | null>(null);
+	let gallerySkipped = $state<string[]>([]);
+
+	function offer(file: File) {
+		const typeIssue = deckUploadTypeIssue(file);
+		if (typeIssue) {
+			error = typeIssue;
+			errorCode = null;
+			if (input) input.value = '';
+			return;
+		}
+		if (!galleryUpload) {
+			void send(file, null);
+			return;
+		}
+		error = null;
+		errorCode = null;
+		galleryNote = null;
+		gallerySkipped = [];
+		const issue = galleryZipIssue(file);
+		offered = { file, survey: null, issue, working: null };
+		if (input) input.value = '';
+		if (!issue) void surveyOffered(file);
+	}
+
+	async function surveyOffered(file: File) {
+		try {
+			const survey = surveyZip(new Uint8Array(await file.arrayBuffer()));
+			if (offered?.file !== file) return;
+			offered = survey
+				? { ...offered, survey }
+				: { ...offered, issue: `${file.name} could not be opened as a zip. Zip it again and try once more.` };
+		} catch {
+			if (offered?.file === file) offered = { ...offered, issue: `${file.name} could not be read. Choose it again.` };
+		}
+	}
+
+	function asPresentation() {
+		const file = offered?.file;
+		offered = null;
 		if (file) void send(file, null);
+	}
+
+	async function asGallery() {
+		if (!offered) return;
+		const { file, survey } = offered;
+		offered = { ...offered, working: `Unpacking the pictures in ${file.name}...` };
+		const out = await extractGalleryPictures(new Uint8Array(await file.arrayBuffer()), survey);
+		if (out.error && !out.files.length) {
+			offered = { file, survey, issue: out.error, working: null };
+			return;
+		}
+		offered = null;
+		gallerySkipped = out.skipped;
+		galleryNote = `${pictureCount(out.files.length)} from ${file.name}` + (out.error ? `. ${out.error}` : '');
+		galleryPending = out.files.length > 0;
+		galleryPanel?.add(out.files);
+	}
+
+	/** Every picture landed (the panel holds only what did not): refresh the
+	 *  item once, so the gallery shows the new tiles. */
+	async function galleryCount(n: number) {
+		if (n === 0 && galleryPending) {
+			galleryPending = false;
+			galleryNote = galleryNote ? `${galleryNote} added to this item.` : null;
+			await onchanged?.();
+		}
 	}
 
 	function confirmEntry() {
@@ -226,10 +340,16 @@
 		class:card={mode !== 'manage'}
 		class:is-drop-active={dragActive}
 		data-testid="deck-panel-{mode}"
-		use:dropTarget={{ onfiles: onDropFiles, onactive: (a) => (dragActive = a), disabled: !showManage || busy }}
+		use:dropTarget={{
+			onfiles: onDropFiles,
+			onrejected: onDropRejected,
+			onactive: (a) => (dragActive = a),
+			disabled: !showManage || busy,
+			accept: (f) => matchesAccept(f, DECK_ACCEPT)
+		}}
 	>
 		{#if mode === 'manage'}
-			<h3 class="deck-manage-label">Presentation deck</h3>
+			<h3 class="deck-manage-label">{galleryUpload ? 'Presentation or gallery' : 'Presentation deck'}</h3>
 		{:else}
 			<h2>Presentation</h2>
 		{/if}
@@ -275,11 +395,13 @@
 					<input
 						bind:this={input}
 						type="file"
-						accept=".zip,application/zip,application/x-zip-compressed"
+						accept={DECK_ACCEPT}
 						disabled={busy}
 						onchange={onpick}
 					/>
-					<span class="btn secondary">{busy ? 'Uploading...' : deck ? 'Replace deck' : 'Upload a deck'}</span>
+					<span class="btn secondary">
+						{busy ? 'Uploading...' : galleryUpload ? 'Upload a zip' : deck ? 'Replace deck' : 'Upload a deck'}
+					</span>
 				</label>
 				{#if deck}
 					<button type="button" class="deck-remove" disabled={busy} onclick={remove}>
@@ -287,6 +409,38 @@
 					</button>
 				{/if}
 			</div>
+			{#if offered}
+				<ZipChoice
+					file={offered.file}
+					survey={offered.survey}
+					issue={offered.issue}
+					working={offered.working}
+					onpresentation={asPresentation}
+					ongallery={galleryUpload ? () => void asGallery() : null}
+					oncancel={() => (offered = null)}
+				/>
+			{/if}
+			{#if galleryUpload}
+				<!-- THE GALLERY'S PICTURES, uploading. The one upload component, so
+				     each picture has its own progress, its own reason if it fails
+				     and its own Retry; what landed leaves the list. -->
+				<div class="deck-gallery" class:idle={!galleryPending} data-testid="deck-gallery-upload">
+					<FileUploadPanel
+						bind:this={galleryPanel}
+						role="attachment"
+						{itemId}
+						upload={galleryUpload}
+						label="Gallery pictures"
+						autoStart
+						showPreviews
+						oncountchange={(n) => void galleryCount(n)}
+					/>
+				</div>
+				{#if galleryNote}<p class="deck-notice" data-testid="deck-gallery-note">{galleryNote}</p>{/if}
+				{#each gallerySkipped as line (line)}
+					<p class="deck-warn">{line}</p>
+				{/each}
+			{/if}
 			{#if progress}
 				<div class="deck-progress">
 					<div
@@ -310,6 +464,13 @@
 						{/if}
 					</div>
 				</div>
+			{/if}
+			{#if galleryUpload}
+				<p class="deck-hint">
+					A zip of pictures becomes a gallery on this item, each picture uploaded on its own, so
+					the {Math.floor(DECK_UPLOAD_MAX_ZIP_BYTES / 1024 / 1024)} MB presentation limit does not
+					apply to it.
+				</p>
 			{/if}
 			{#if !deck}
 				<p class="deck-hint">
@@ -362,6 +523,12 @@
 	.deck-card {
 		margin-top: var(--space-4);
 		position: relative;
+	}
+	/* The gallery panel shows only while pictures are in it: at rest it is a
+	   picker the "Upload a zip" control above already offers, and two pickers
+	   for one box is one too many. */
+	.deck-gallery.idle {
+		display: none;
 	}
 	.deck-card.is-drop-active {
 		/* outline, never border: draws outside the box, no layout shift. */

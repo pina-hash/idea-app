@@ -46,7 +46,23 @@
 	 * somebody will press to get rid of it.
 	 */
 	let dismissed = $state(false);
-	const shown = $derived((hovered || focused) && !dismissed);
+	/**
+	 * A TAP PINS IT OPEN (ledger 0297, LEARN). A phone cannot hover, and a tap
+	 * does not reliably focus a button (Safari never does), so on a touch
+	 * screen hover and focus both came and went inside one tap and the tip was
+	 * never readable -- which is the one thing this component exists to fix.
+	 * A press toggles it; a press anywhere else, Escape, or leaving with the
+	 * keyboard closes it.
+	 */
+	let pinned = $state(false);
+	const shown = $derived((hovered || focused || pinned) && !dismissed);
+
+	function onWindowPointerDown(event: PointerEvent) {
+		if (!pinned) return;
+		const target = event.target as Node | null;
+		if (target && triggerEl?.contains(target)) return;
+		pinned = false;
+	}
 
 	function onKeydown(event: KeyboardEvent) {
 		if (event.key !== 'Escape' || !shown) return;
@@ -54,19 +70,23 @@
 		// also fire: the visible panel is what the press was aimed at.
 		event.stopPropagation();
 		dismissed = true;
+		pinned = false;
 		// Focus RETURNED, which for this control means kept: the trigger is where
 		// the person already was, and moving them anywhere else would be worse.
 		triggerEl?.focus();
 	}
 </script>
 
+<svelte:window onpointerdown={onWindowPointerDown} />
+
 {#if hasTip}
 	<span class="info-tip">
 		<!-- A real <button>, not a <span tabindex="0">: a non-interactive element
 		     given a tabindex is exactly the a11y trap this exists to avoid, and a
 		     button is keyboard-focusable (and reachable by touch) with no extra
-		     attribute at all. It does nothing on click -- the tooltip is a
-		     hover/focus affordance -- so it is reset to look like plain text. -->
+		     attribute at all. A click pins the tip open (the touch path, see
+		     `pinned`) and does nothing else, so it is reset to look like plain
+		     text. -->
 		<button
 			type="button"
 			class="info-tip-trigger tap-reach-44"
@@ -83,6 +103,11 @@
 			}}
 			onblur={() => {
 				focused = false;
+				dismissed = false;
+				pinned = false;
+			}}
+			onclick={() => {
+				pinned = !pinned;
 				dismissed = false;
 			}}
 			onkeydown={onKeydown}

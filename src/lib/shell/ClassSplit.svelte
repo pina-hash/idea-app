@@ -1,4 +1,14 @@
 <script lang="ts">
+	import {
+		NAV_WIDTH_DEFAULT_REM,
+		NAV_WIDTH_MAX_REM,
+		NAV_WIDTH_MIN_REM,
+		NAV_WIDTH_STEP_REM,
+		navWidthRem,
+		navWidthWords
+	} from '$lib/preferences/classroom';
+	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
+
 	/**
 	 * THE TWO-PANE MASTER-DETAIL SHELL, as geometry only.
 	 *
@@ -33,6 +43,7 @@
 		detailWidth = 'panel',
 		scroll = 'panes',
 		detailEl = $bindable(null),
+		resizable = true,
 		nav,
 		overlay = null,
 		children
@@ -153,6 +164,19 @@
 		 * one, and so the reference is typed.
 		 */
 		detailEl?: HTMLElement | null;
+		/**
+		 * THE LIST'S WIDTH IS ADJUSTABLE, as a knob on this one split (ledger
+		 * 0297, LEARN) rather than a second split: a keyboard-operable separator
+		 * between the panes, remembered per device in the classroom's `display`
+		 * preference group, reset from Settings. It exists only where all four
+		 * hold: this prop is not false, the classroom's preference store is in
+		 * context (`$lib/preferences/context` -- so the coin desk, Foundry and
+		 * Maps, which mount this split outside the classroom, never get it), the
+		 * orientation is `list`, and something is open. EVERY SURFACE'S DEFAULT
+		 * WIDTH IS UNCHANGED: with no stored width no style is written and the
+		 * column is `--measure-nav`, exactly as before.
+		 */
+		resizable?: boolean;
 		nav: import('svelte').Snippet;
 		/**
 		 * SOMETHING THAT IS NOT A ROUTE, TAKING THE DETAIL PANE. In the classroom
@@ -167,9 +191,92 @@
 		overlay?: import('svelte').Snippet | null;
 		children: import('svelte').Snippet;
 	} = $props();
+
+	/*
+	 * THE WIDTH KNOB. The store is read from context ONCE, at construction, like
+	 * any context; the width is read reactively off it. A drag previews locally
+	 * and writes on release, so a drag is one write and not one per pixel.
+	 */
+	const store = classroomPreferences();
+	const prefs = store ? reactivePreferences(store) : null;
+	const stored = $derived(prefs ? prefs.current.display.navWidth : null);
+	const canResize = $derived(resizable && !!store && navWidth === 'list');
+	let dragRem = $state<number | null>(null);
+	const shownRem = $derived(dragRem ?? navWidthRem(stored));
+	/** A width is written only once somebody chose one, so the default path is byte-for-byte the old one. */
+	const sized = $derived(canResize && (dragRem !== null || stored !== null));
+	const navId = $props.id();
+	let splitEl = $state<HTMLElement | null>(null);
+
+	/** The widest the list may be in THIS window: the stored clamp, and the item beside it kept at 32rem. */
+	function maxRemNow(): number {
+		if (!splitEl) return NAV_WIDTH_MAX_REM;
+		const cs = getComputedStyle(splitEl);
+		const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+		const inner = splitEl.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+		const gap = parseFloat(cs.columnGap) || 0;
+		const fit = Math.floor((inner - gap) / root) - 32;
+		return Math.max(NAV_WIDTH_MIN_REM, Math.min(NAV_WIDTH_MAX_REM, fit));
+	}
+
+	function commit(rem: number | null) {
+		if (!store) return;
+		const current = store.current.display;
+		store.set('display', { ...current, navWidth: rem });
+	}
+
+	function clampRem(rem: number): number {
+		return Math.max(NAV_WIDTH_MIN_REM, Math.min(maxRemNow(), Math.round(rem)));
+	}
+
+	function onSeparatorKey(e: KeyboardEvent) {
+		const now = shownRem;
+		let next: number | null = null;
+		if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = now - NAV_WIDTH_STEP_REM;
+		else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = now + NAV_WIDTH_STEP_REM;
+		else if (e.key === 'PageDown') next = now - 4 * NAV_WIDTH_STEP_REM;
+		else if (e.key === 'PageUp') next = now + 4 * NAV_WIDTH_STEP_REM;
+		else if (e.key === 'Home') next = NAV_WIDTH_MIN_REM;
+		else if (e.key === 'End') next = NAV_WIDTH_MAX_REM;
+		else if (e.key === 'Enter') {
+			e.preventDefault();
+			commit(null);
+			return;
+		}
+		if (next === null) return;
+		e.preventDefault();
+		commit(clampRem(next));
+	}
+
+	/* A drag: the pointer's distance from the list's left edge, in whole rem. */
+	let dragFrom: { left: number; root: number } | null = null;
+	function onSeparatorDown(e: PointerEvent) {
+		if (e.button !== 0) return;
+		const nav = splitEl?.querySelector<HTMLElement>(':scope > .cr-nav');
+		if (!nav) return;
+		e.preventDefault();
+		(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+		dragFrom = {
+			left: nav.getBoundingClientRect().left,
+			root: parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+		};
+		dragRem = shownRem;
+	}
+	function onSeparatorMove(e: PointerEvent) {
+		if (!dragFrom) return;
+		dragRem = clampRem((e.clientX - dragFrom.left) / dragFrom.root);
+	}
+	function onSeparatorUp() {
+		if (!dragFrom) return;
+		const rem = dragRem;
+		dragFrom = null;
+		dragRem = null;
+		if (rem !== null) commit(rem);
+	}
 </script>
 
 <div
+	bind:this={splitEl}
 	class="cr-split"
 	class:has-detail={hasDetail}
 	class:narrow-stack={narrow === 'stack' || narrow === 'stack-nav-first'}
@@ -178,9 +285,47 @@
 	class:detail-roomy={detailWidth === 'roomy'}
 	class:page-flow={scroll === 'page'}
 	class:fill-height={scroll === 'fill'}
+	class:nav-resizable={canResize && hasDetail}
+	class:nav-sized={sized}
+	class:nav-dragging={dragRem !== null}
+	style:--cr-nav-size={sized ? `${shownRem}rem` : undefined}
 	data-testid="class-split"
 >
-	<div class="cr-nav" data-testid="class-nav-pane">{@render nav()}</div>
+	<div class="cr-nav" id={navId} data-testid="class-nav-pane">{@render nav()}</div>
+	{#if canResize && hasDetail}
+		<!-- THE SEPARATOR (WAI-ARIA window splitter): the arrow keys step it, Page
+		     Up and Page Down step it four at a time, Home and End go to the ends,
+		     Enter and a double-click put it back to standard, and a drag moves it.
+		     Its single-pointer twin is Narrower and Wider in Settings. It takes no
+		     grid track (it is positioned into the gap between the panes), so the
+		     split's own easing still interpolates. -->
+		<!-- A FOCUSABLE SEPARATOR IS A WIDGET in WAI-ARIA (the window splitter
+		     pattern: it takes focus and a value), which Svelte's static list of
+		     non-interactive roles does not know, so these two notices are about
+		     the list, not the element. -->
+		<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+		<div
+			class="cr-split-sep"
+			role="separator"
+			aria-orientation="vertical"
+			aria-controls={navId}
+			aria-label="List width"
+			aria-valuemin={NAV_WIDTH_MIN_REM}
+			aria-valuemax={NAV_WIDTH_MAX_REM}
+			aria-valuenow={shownRem}
+			aria-valuetext={navWidthWords(shownRem === NAV_WIDTH_DEFAULT_REM ? null : shownRem)}
+			tabindex="0"
+			data-testid="split-separator"
+			onkeydown={onSeparatorKey}
+			onpointerdown={onSeparatorDown}
+			onpointermove={onSeparatorMove}
+			onpointerup={onSeparatorUp}
+			onpointercancel={onSeparatorUp}
+			ondblclick={() => commit(null)}
+		>
+			<span class="cr-split-grip" aria-hidden="true"></span>
+		</div>
+	{/if}
 	<div class="cr-detail" data-testid="class-detail-pane" bind:this={detailEl}>
 		{#if overlay}
 			<div class="cr-detail-compose" data-testid="class-detail-overlay">{@render overlay()}</div>

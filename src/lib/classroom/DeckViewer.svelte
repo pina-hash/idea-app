@@ -4,14 +4,22 @@
 	/**
 	 * A deck, full-bleed, in an iframe pointed at its own entry page.
 	 *
-	 * THE VIEWER HOSTS THE DECK, IT DOES NOT DRIVE IT. deck-stage.js already
-	 * implements ArrowLeft/ArrowRight navigation inside the deck, so the only
-	 * thing this component has to get right is that the deck HAS KEYBOARD FOCUS:
-	 * the iframe is focused on load, and every control here hands focus straight
-	 * back after it acts. Nothing sends synthetic keys into the frame and nothing
-	 * tries to jump to a slide -- that would mean guessing at deck-stage's
-	 * internal state, which is precisely the interference the slide index is
-	 * supposed to avoid.
+	 * THE VIEWER HOSTS THE DECK, AND DRIVES IT ONLY THROUGH ITS PUBLIC API.
+	 * deck-stage.js implements ArrowLeft/ArrowRight inside the deck, so the deck
+	 * must HAVE KEYBOARD FOCUS: the iframe is focused on load, and every control
+	 * here hands focus straight back after it acts. Nothing sends synthetic keys
+	 * into the frame.
+	 *
+	 * A PHONE HAS NO ARROW KEYS (ledger 0297, package ITEM), and the slide index
+	 * used to be read-only with a sentence telling a phone to use them. So the
+	 * viewer now reads deck-stage's DOCUMENTED public API -- `goTo(i)`, `next()`,
+	 * `prev()`, and the `slidechange` event it dispatches on itself -- off the
+	 * frame's own document, which is same-origin by the sandbox below. That is
+	 * not guessing at internal state: those four names are the component's
+	 * published interface ("Public API" in deck-stage.js). A deck with no
+	 * deck-stage (or one this build cannot reach) simply offers no Previous /
+	 * Next and a read-only index, exactly as before -- absence removes the
+	 * control.
 	 *
 	 * SANDBOX, DELIBERATELY WITH BOTH allow-scripts AND allow-same-origin. A deck
 	 * is HTML and JavaScript: without scripts it does not run at all, and without
@@ -54,6 +62,128 @@
 
 	const src = $derived(deckEntrySrc(deck));
 
+	/** deck-stage's public surface, the four names it publishes. */
+	interface DeckStageApi extends HTMLElement {
+		goTo(i: number): void;
+		next(): void;
+		prev(): void;
+		readonly index: number;
+		readonly length: number;
+	}
+	/** The deck's own stage, when this frame has one this page can reach. */
+	let stageApi = $state<DeckStageApi | null>(null);
+	/** The slide on screen, from the deck's own `slidechange`. */
+	let current = $state<number | null>(null);
+	let total = $state(0);
+	let detachStage: (() => void) | null = null;
+
+	/**
+	 * FIND THE DECK'S STAGE AND LISTEN TO IT, and say whether it was found.
+	 * Every read is guarded: a frame whose document is not reachable (a
+	 * different origin, a document still loading) or holds no `deck-stage`
+	 * leaves `stageApi` null, which is the old read-only viewer.
+	 */
+	function connectStage(): boolean {
+		detachStage?.();
+		detachStage = null;
+		stageApi = null;
+		current = null;
+		try {
+			const doc = frame?.contentDocument;
+			const el = doc?.querySelector('deck-stage') as DeckStageApi | null;
+			if (!doc || !el) return false;
+			if (typeof el.goTo !== 'function') {
+				// Present but not yet upgraded: the deck's script defines it after
+				// parsing. Ask again the moment it does, once.
+				const registry = doc.defaultView?.customElements;
+				registry
+					?.whenDefined('deck-stage')
+					.then(() => {
+						if (!stageApi) connectStage();
+					})
+					.catch(() => {});
+				return false;
+			}
+			stageApi = el;
+			current = typeof el.index === 'number' ? el.index : null;
+			total = typeof el.length === 'number' ? el.length : deck.slides.length;
+			const onChange = (e: Event) => {
+				const detail = (e as CustomEvent<{ index?: number; total?: number }>).detail;
+				if (typeof detail?.index === 'number') current = detail.index;
+				if (typeof detail?.total === 'number') total = detail.total;
+			};
+			doc.addEventListener('slidechange', onChange);
+			detachStage = () => doc.removeEventListener('slidechange', onChange);
+			return true;
+		} catch {
+			stageApi = null;
+			return false;
+		}
+	}
+
+	/**
+	 * WAIT FOR THE STAGE, BECAUSE A CLAUDE DESIGN EXPORT BUILDS IT LATE.
+	 *
+	 * The exported page is a `<x-dc>` template whose runtime loads React (and
+	 * Babel) from a CDN and only THEN renders `<deck-stage>` -- measured on
+	 * /dev/classroom-deck with those scripts served locally: at `load` the
+	 * document holds no `deck-stage` at all, and it appears once the runtime
+	 * has booted. So a look at `load` and one more a moment later would miss it
+	 * on every slow school connection. The frame's own document is watched
+	 * until the element arrives, for thirty seconds at most; a deck that never
+	 * builds one keeps the read-only index, which is what it always had.
+	 */
+	let stopWatch: (() => void) | null = null;
+	function watchForStage() {
+		stopWatch?.();
+		stopWatch = null;
+		if (connectStage()) return;
+		let doc: Document | null = null;
+		try {
+			doc = frame?.contentDocument ?? null;
+		} catch {
+			doc = null;
+		}
+		const root = doc?.documentElement;
+		const Observer = doc?.defaultView?.MutationObserver;
+		if (!root || !Observer) return;
+		const observer = new Observer(() => {
+			if (connectStage()) stop();
+		});
+		observer.observe(root, { childList: true, subtree: true });
+		const timer = setTimeout(stop, 30_000);
+		function stop() {
+			observer.disconnect();
+			clearTimeout(timer);
+			if (stopWatch === stop) stopWatch = null;
+		}
+		stopWatch = stop;
+	}
+
+	$effect(() => () => {
+		detachStage?.();
+		stopWatch?.();
+	});
+
+	function goToSlide(i: number) {
+		try {
+			stageApi?.goTo(i);
+		} catch {
+			/* a deck that refuses a jump keeps its own slide */
+		}
+		showIndex = false;
+		focusDeck();
+	}
+	function stepSlide(delta: 1 | -1) {
+		try {
+			if (delta > 0) stageApi?.next();
+			else stageApi?.prev();
+		} catch {
+			/* as above */
+		}
+		focusDeck();
+	}
+
 	/**
 	 * The deck's arrow keys only work while the frame has focus, and a click on
 	 * any chrome here takes it away. Every control calls this afterwards.
@@ -66,6 +196,8 @@
 		// Deferred a tick: focusing inside the load handler can lose the race
 		// with the frame's own first paint on a cold document.
 		queueMicrotask(focusDeck);
+		// The stage may not exist yet: see `watchForStage`.
+		watchForStage();
 	}
 
 	async function toggleFullscreen() {
@@ -121,12 +253,29 @@
 		<a class="deck-btn deck-back" href={backHref} data-testid="deck-back">&lsaquo; {backLabel}</a>
 		<span class="deck-title">{deck.title}</span>
 		<span class="deck-spacer"></span>
+		{#if stageApi}
+			<!-- TAP TO MOVE (ledger 0297): the deck's own next/prev, for a phone
+			     and for anybody not at a keyboard. Present only when the deck
+			     publishes them. -->
+			<span class="deck-step" role="group" aria-label="Slides">
+				<button type="button" class="deck-btn" data-testid="deck-prev" onclick={() => stepSlide(-1)}>
+					&lsaquo; Previous
+				</button>
+				{#if current !== null && total}
+					<span class="deck-pos" data-testid="deck-position" aria-live="polite">{current + 1} / {total}</span>
+				{/if}
+				<button type="button" class="deck-btn" data-testid="deck-next" onclick={() => stepSlide(1)}>
+					Next &rsaquo;
+				</button>
+			</span>
+		{/if}
 		{#if deck.slides.length}
 			<button
 				type="button"
 				class="deck-btn"
 				aria-expanded={showIndex}
 				aria-controls="deck-index"
+				data-testid="deck-index-toggle"
 				onclick={toggleIndex}
 			>
 				{deck.slides.length} slides
@@ -153,17 +302,36 @@
 
 		{#if showIndex && deck.slides.length}
 			<!--
-				A READ-ONLY index. It says what is in the deck and how far through a
-				label sits; it does not jump, because jumping means driving
-				deck-stage from outside and guessing at its state. Arrow keys, in
-				the deck itself, are how you move. It opens only when asked for and
-				closes from the same control in the bar.
+				THE INDEX JUMPS WHEN THE DECK LETS IT (ledger 0297). Each entry is a
+				44px button calling the deck's own `goTo`, and the slide on screen is
+				marked in a word as well as a tint. A deck with no reachable stage
+				keeps the read-only list, where the arrow keys in the deck are how
+				you move -- the one case its sentence is still true.
 			-->
-			<div class="deck-index" id="deck-index">
-				<p class="deck-index-note">Use the arrow keys in the deck to move between slides.</p>
+			<div class="deck-index" id="deck-index" data-testid="deck-index">
+				{#if !stageApi}
+					<p class="deck-index-note">Use the arrow keys in the deck to move between slides.</p>
+				{/if}
 				<ol>
 					{#each deck.slides as slide (slide.index)}
-						<li><span class="deck-index-n">{slide.index + 1}</span>{slide.label}</li>
+						<li>
+							{#if stageApi}
+								<button
+									type="button"
+									class="deck-index-go"
+									class:on={current === slide.index}
+									aria-current={current === slide.index ? 'true' : undefined}
+									data-testid="deck-index-go"
+									onclick={() => goToSlide(slide.index)}
+								>
+									<span class="deck-index-n">{slide.index + 1}</span>
+									<span class="deck-index-label">{slide.label}</span>
+									{#if current === slide.index}<span class="deck-index-here">On screen</span>{/if}
+								</button>
+							{:else}
+								<span class="deck-index-n">{slide.index + 1}</span>{slide.label}
+							{/if}
+						</li>
 					{/each}
 				</ol>
 			</div>
@@ -283,6 +451,59 @@
 		font-size: 0.66rem;
 		color: var(--gold);
 		min-width: 1.4rem;
+	}
+	.deck-step {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+	.deck-pos {
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		color: var(--white);
+		min-width: 3.2rem;
+		text-align: center;
+		font-variant-numeric: tabular-nums;
+	}
+	/* 44px, a whole row: on a phone the index is how a slide is reached. */
+	.deck-index-go {
+		appearance: none;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		width: 100%;
+		min-height: 44px;
+		padding: 0.25rem 0.45rem;
+		border: 1px solid transparent;
+		border-radius: 6px;
+		background: none;
+		color: var(--white);
+		font: inherit;
+		font-size: 0.82rem;
+		text-align: left;
+		cursor: pointer;
+		overflow-wrap: anywhere;
+	}
+	.deck-index-go:hover,
+	.deck-index-go:focus-visible {
+		border-color: var(--gold);
+		outline: none;
+	}
+	.deck-index-go.on {
+		border-color: var(--line);
+		background: rgba(255, 255, 255, 0.06);
+	}
+	.deck-index-label {
+		flex: 1 1 auto;
+		min-width: 0;
+	}
+	.deck-index-here {
+		flex: none;
+		font-family: var(--font-mono);
+		font-size: 0.6rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--gold);
 	}
 	@media (max-width: 520px) {
 		.deck-title {

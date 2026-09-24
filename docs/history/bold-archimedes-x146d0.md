@@ -57,8 +57,11 @@ straightened-photo pairing stays adjacency; the reviewer's defaults and the clas
 default live in the preferences blob). Three candidates were named and each waits on a
 decision rather than on SQL: a per-class, per-day agenda table so the Live agenda follows a
 teacher across devices; an explicit photo pairing key and an upload idempotency column,
-which would retire the filename token; and a per-assignment "collects a submission" flag so
-an undated assignment could count as owed. None is written.
+which would retire the filename token; a per-assignment "collects a submission" flag so
+an undated assignment could count as owed; and (round 2) a nullable, length-bounded gallery
+name on `classroom_attachments` so one item can hold several named photo galleries, which
+would give the upload-record RPC one more parameter under the additive-arity rule and the
+attachment select ladder one more rung. None is written.
 
 ## 4. What shipped, by area
 
@@ -204,6 +207,53 @@ lifting decision 3's exclusions for the home banner and the deck's back control.
 - **Presentations** have Back at the top left and their buttons in a strip above the slides.
 - **Students have a To-do page** listing what is assigned, missing and done in every class.
   "Missing" means past its due time with nothing turned in.
+- **Tour** (top right, or inside Menu) walks you through all of the above, one step at a
+  time. The first time you open a class it offers itself once in a line under the header;
+  Not now makes it go away, and the Tour button brings it back whenever you want it.
+- **Pictures open large**: tap any picture (in a post, a handout, a student's hand-in or a
+  gallery) to see it full screen, zoom, and Download the original. **Dropping a zip of
+  pictures** on a post asks whether it is a presentation or a gallery; choose Image gallery
+  and every picture is added. A dropped assignment file or document now goes to its own box
+  instead of the general file list.
+- **When you return an assignment**, the student sees the score, then your comment, then the
+  rubric, on every kind of assignment, including the ported worksheets and IdeaCAD work.
+- **Settings** says, for every choice, whether it is saved on this device or on your
+  account, and each group has a Reset. With an item open you can drag the line beside the
+  class list to make the list wider or narrower.
+
+## Round 2 (after the first ship)
+
+The first ship left Learnability at 1 and Customization, the student item page, and decks and
+media at 2, so under the brief's catch-up rule a second round went to exactly those, with no
+depth work on grading or the composer (both at 3). Two packages, merged into this branch after
+the first ship and verified the same way.
+
+- **LEARN.** A teacher tour and a student tour on the existing spotlight engine
+  (`$lib/tour/classroom-tours.ts`, `ClassroomTour.svelte`), launched from a Tour control in the
+  header and offered once, recorded as offered the moment it shows; a palette command "Take the
+  tour"; instruction paragraphs across the harness states cut from 13 to 5 (Phase 0 counted
+  15), the composer's hints from 186 words to 154, title-only tooltips on the teacher class
+  page from 16 to 13, and `InfoTip` opening on a tap; the update log grouped by month (56,446px
+  to 19,497px at 1440, 97,060px to 36,932px at 375) with its intro reading the report control's
+  real label; a class-list width knob on `ClassSplit` (one per device, 18 to 40rem, keyboard,
+  drag and Narrower/Wider); Settings groups that say where they live, each with Reset; the
+  to-do's opening view and the Grades order as defaults. 7 of 7 mutations killed plus an end to
+  end browser mutation (a student handed the teacher tour: 6 findings).
+- **ITEM.** `ReturnedGrade.svelte`, one returned card (score, comment, breakdown) on every
+  engine, in parent chrome for ported HTML and IdeaCAD; "How this is graded" after the
+  instructions; one picture viewer (`$lib/media/Lightbox.svelte`) from every picture source,
+  with Download and button alternatives to every drag; zip-of-pictures galleries through
+  ordinary attachments (`ZipChoice.svelte`, `gallery-zip.ts`); YouTube thumbnails
+  (`$lib/youtube.ts`, re-exported by GAUNTLET's authoring module); drop routing by each box's own
+  accept rule (`composer-drop.ts`); Previous, Next and a tap-to-jump slide list in the deck; the
+  4 MiB deck cap kept, with the reason written into `deck.ts`. 6 of 6 mutations killed.
+- **Not built in round 2, and why.** The ported worksheet's local answers mirror: it changes
+  what a student's worksheet opens on after a lost connection and needs a place in parent
+  chrome to show a conflict, so it is a design for Mr. Pina (a second caller of
+  `assignment-draft-mirror.ts` keyed by block id through `planAssignmentRestore`, a restored
+  answer marked unsaved so it saves, and its own "backup unavailable" sentence). Named
+  galleries (a column). Teacher controls on gallery tiles.
+- **Merged**: ROUND2_MERGE_SHA on `main`; the verification of the round-2 tree is ROUND2_VERIFY.
 
 ## Verification
 

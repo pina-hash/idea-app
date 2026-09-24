@@ -19,11 +19,13 @@
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
 	import VoiceNav from '$lib/voice/VoiceNav.svelte';
 	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
-	import { describeBuild } from '$lib/feedback/context';
+	import { describeBuild, REPORT_LABEL_SHORT } from '$lib/feedback/context';
 	import { version as buildId } from '$app/environment';
 	import { deploy } from 'virtual:site-versions';
 	import CommandPalette from '$lib/shell/CommandPalette.svelte';
 	import ClassroomSettings from '$lib/classroom/ClassroomSettings.svelte';
+	import ClassroomTour from '$lib/tour/ClassroomTour.svelte';
+	import { classroomTourFor } from '$lib/tour/classroom-tours';
 	import { ICONS, keysFor, surfaceFor } from '$lib/shell/commands';
 	import { registerCommandHandler } from '$lib/shell/command-handlers';
 	import type { PaletteSources, PaletteStudent } from '$lib/shell/palette';
@@ -197,6 +199,25 @@
 		platform = navigator.platform ?? '';
 	});
 	const paletteKeys = $derived(keysFor('Ctrl K', platform));
+
+	/*
+	 * THE WALKTHROUGH (ledger 0297, LEARN). Which tour is `classroomTourFor`'s
+	 * answer from the same facts the palette's role reads: inside a class, the
+	 * server's `canManage`; outside one, the staff flag. It is offered once,
+	 * never in somebody else's classroom (view-as) and never on a deck, which
+	 * may be on the wall.
+	 */
+	let tourEl = $state<ReturnType<typeof ClassroomTour> | null>(null);
+	let tourTrigger = $state<HTMLElement | null>(null);
+	const classroomTour = $derived(
+		classroomTourFor({ inClass: !!currentSectionId, canManage, isStaff, isAdmin })
+	);
+	/** Focus after a run: the Tour control, or the Menu that holds it below the fold. */
+	function tourReturnFocus(): HTMLElement | null {
+		if (tourTrigger && tourTrigger.getClientRects().length) return tourTrigger;
+		const menu = switcherEl?.querySelector<HTMLElement>('.menu-trigger');
+		return menu && menu.getClientRects().length ? menu : null;
+	}
 
 	/* Settings is a registry command as well as a header control. */
 	$effect(() => {
@@ -493,12 +514,24 @@
 				</button>
 			{/if}
 			<ThemeSwitch />
+			{#if !minimal}
+				<button
+					type="button"
+					class="shell-tool"
+					data-testid="tour-trigger"
+					bind:this={tourTrigger}
+					onclick={() => tourEl?.start()}
+				>
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.tour} /></svg>
+					<span class="shell-tool-word">Tour</span>
+				</button>
+			{/if}
 			{#if loc.place !== 'item-deck'}
 				<span class="shell-docked" data-testid="shell-docked">
 					<VoiceNav {signedIn} isAdmin={!!page.data?.isAdmin} place="header" />
 					<SiteFeedback
 						place="relocated"
-						label="Report"
+						label={REPORT_LABEL_SHORT}
 						routeId={page.route.id}
 						pathname={page.url.pathname}
 						role={page.data.userProfile?.role ?? null}
@@ -513,6 +546,17 @@
 		<ProfileMenu />
 	</div>
 </div>
+
+{#if !minimal}
+	<ClassroomTour
+		bind:this={tourEl}
+		tour={classroomTour}
+		{preferences}
+		canOffer={loc.place !== 'item-deck'}
+		returnFocus={tourReturnFocus}
+		onstart={closeMenu}
+	/>
+{/if}
 
 {#if palette}
 	<CommandPalette

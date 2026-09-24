@@ -3433,18 +3433,17 @@
 				{#if !canSubmit && !savedDraftId && !busy}
 					<p class="note submit-hint" data-testid="nb-submit-hint">
 						{#if !noteAllowed}
-							Add a photo to save this entry.
+							This entry needs a photo.
 						{:else if !uploadReady}
-							Photo uploads are unavailable on this deployment, so write something instead to
-							save this entry.
+							Photo uploads are unavailable here, so this entry needs some writing.
 						{:else}
-							Add a photo or write something to save this entry. Either one is enough.
+							This entry needs a photo or some writing; either one is enough.
 						{/if}
 					</p>
 				{/if}
 				{#if savedDraftId && !canSubmit && !busy}
 					<p class="note submit-hint" data-testid="nb-draft-pending">
-						This draft is saved. Turn it in when you are ready, or add more first.
+						This draft is saved.
 					</p>
 				{/if}
 

@@ -12,13 +12,38 @@
 import { matchesAccept } from '$lib/file-drop';
 
 /**
- * A deck zip has to fit inside ONE serverless request body: the upload now
- * goes through OUR server (which then does the Drive write on the caller's
- * behalf), and Vercel caps a request body at roughly 4.5 MB. This mirrors
- * the exact same figure classroom attachments already use for the exact
- * same reason (src/lib/server/classroom-attachments.ts, MAX_ATTACHMENT_BYTES)
- * -- "roughly" is not a number to cut close to, so this stays comfortably
- * under it with room for the multipart envelope.
+ * THE CAP IS THE TRANSPORT'S, AND THE TRANSPORT IS ONE MULTIPART POST THROUGH
+ * OUR OWN FUNCTION. Re-derived for ledger 0297 (package ITEM), because the
+ * browser refusing at 4 MiB while `DECK_LIMITS.maxZipBytes` in
+ * $lib/server/classroom-decks.ts reads 150 MiB looked like two answers to one
+ * question. It is two questions:
+ *
+ *   - THIS number is what one request may carry. `postDeckZip`
+ *     (deck-upload.ts) posts the whole zip as `multipart/form-data` to
+ *     /api/classroom/deck, whose handler buffers it (`request.formData()`, then
+ *     `arrayBuffer()`) and writes it to Drive on the caller's behalf. The route
+ *     refuses any body over `MAX_REQUEST_BYTES`, which it derives from THIS
+ *     constant plus a 128 KiB envelope margin, so the browser and the route
+ *     cannot disagree. 4 MiB plus that margin is 4.32 MB, under the ~4.5 MB
+ *     serverless body cap it was chosen against.
+ *   - 150 MiB is the INGEST guard, not a transport. `planDeck` applies it to
+ *     the archive it reads back out of Drive's staging folder, one entry at a
+ *     time, beside the per-file and total-unpacked zip-bomb limits. It is what
+ *     a zip already in Drive may be; nothing a browser sends reaches it,
+ *     because the route has refused anything past 4.32 MB first. A client cap
+ *     set to it would let a teacher pick a 100 MB deck, watch it upload, and
+ *     be refused by the route at the end -- the refusal-after-the-wait this
+ *     module exists to move up front.
+ *
+ * WHY IT DID NOT MOVE. CLAUDE.md records that Vercel now accepts larger bodies
+ * and says, in the same breath, not to raise a constant like this one without
+ * measuring: the bytes are still buffered whole in the function, and nobody in
+ * this container can deploy a function to measure the real ceiling or its
+ * memory. So the number stands, and the answer for anything large is a path
+ * that does not go through a function body at all -- which is why a zip of
+ * PICTURES no longer meets this cap: the zip choice turns it into a gallery,
+ * read in the browser and uploaded picture by picture straight to the bucket
+ * ($lib/classroom/gallery-zip). Only a Presentation choice asks this question.
  *
  * Mirrored server-side by $lib/server/classroom-decks.ts, which imports this
  * exact constant rather than a second copy of the number: the client refuses

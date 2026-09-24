@@ -1,4 +1,5 @@
 <script lang="ts">
+	import InfoTip from '$lib/classroom/InfoTip.svelte';
 	import { untrack } from 'svelte';
 	import Avatar from '$lib/Avatar.svelte';
 	import { gridStudentSubject } from '$lib/avatars';
@@ -83,15 +84,13 @@
 	const sessions = $derived(sessionsInOrder(grid.sessions));
 	const index = $derived(cellIndex(grid));
 	const summaries = $derived(summarize(grid));
-	/**
-	 * Whether the hint should mention the name link at all. It is per-student
-	 * (0106 refuses a student who has left the class, and a read-only mount
-	 * passes no `studentHref`), so a blanket sentence would promise something
-	 * this particular roster may not offer.
+	/*
+	 * THE HOW-TO LINE UNDER THE GRID IS GONE (ledger 0297, LEARN): "Arrow keys
+	 * move; the entry beside the grid follows. Click a student's name..." The
+	 * keys are in the console's own legend and in `?`, and a student's name
+	 * that opens their notebook is drawn as a link. The legend above the grid,
+	 * which carries what each cell MEANS, is untouched.
 	 */
-	const anyStudentLink = $derived(
-		!!studentHref && grid.students.some((s) => studentHref(s) !== null)
-	);
 
 	/**
 	 * Does this payload carry the acknowledgement dimension at all (0121)? On a
@@ -249,9 +248,13 @@
 		<h2>Compliance grid</h2>
 		<ul class="legend">
 			{#each CELL_STATES as state (state.key)}
-				<li title={state.hint}>
-					<span class="chip {state.key}" aria-hidden="true">{state.glyph}</span>
-					{state.label}
+				<!-- What a state MEANS is an InfoTip, not a `title` a phone cannot
+				     hover (ledger 0297, LEARN). The chip and the word are unchanged. -->
+				<li>
+					<InfoTip tip={state.hint}
+						><span class="chip {state.key}" aria-hidden="true">{state.glyph}</span>
+						{state.label}</InfoTip
+					>
 				</li>
 			{/each}
 			{#if reviewReady}
@@ -259,9 +262,11 @@
 				     box are a locked contract. Acknowledgement is a separate question
 				     from what the cell says about the work, so it is a separate mark
 				     in a separate corner, and it carries a word here like the rest. -->
-				<li title="Filed, and nobody has looked at it yet.">
-					<span class="chip plain" aria-hidden="true"><span class="todo-dot"></span></span>
-					Not reviewed
+				<li>
+					<InfoTip tip="Filed, and nobody has looked at it yet."
+						><span class="chip plain" aria-hidden="true"><span class="todo-dot"></span></span>
+						Not reviewed</InfoTip
+					>
 				</li>
 			{/if}
 		</ul>
@@ -404,10 +409,6 @@
 				</tbody>
 			</table>
 		</div>
-		<p class="grid-hint">
-			Arrow keys move; the entry beside the grid follows.{#if anyStudentLink}{' '}Click a student's
-				name to read their whole notebook.{/if}
-		</p>
 	{/if}
 </section>
 
@@ -440,11 +441,6 @@
 	.grid-head h2 {
 		margin: 0;
 		font-size: 1.05rem;
-	}
-	.grid-hint {
-		margin: 0;
-		font-size: 0.74rem;
-		color: var(--text-2);
 	}
 	.legend {
 		list-style: none;

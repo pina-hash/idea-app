@@ -56,14 +56,26 @@ One round landed before the ship: the foundation (F1a, F1b, F2, F3 with F5, F4a,
 | Creation and composer (teacher) | 3 | **3** | Kind tabs, Post-to labels and Add link at 44px. Held at 3: the two-column form was not built, and report 21 (a spec or document dropped on the title is staged as a student-visible file) is still open. |
 | Grading and feedback | 3 | **3** | The ported document fills its pane, the open/closed count wraps, and the dead-keys state after N is fixed (driven: N, Escape, S saves and moves on). No comment bank or cross-class queue yet. |
 
-## Final (ledger 0297 ship), lowest first
+## Round 2 (after the first ship)
+
+The catch-up rule sent this round to the lowest areas only: Learnability (1), then Customization, the student item page, and decks and media (2). Grading and the composer, at 3, got no depth work; the composer's drop routing is a defect fix. Measured the same way as round 1, on `/dev` harnesses at 375, 960, 1366 and 1440.
+
+| Area | After round 1 | After round 2 | Evidence |
+|---|---|---|---|
+| Learnability without instruction | 1 | **2** | A teacher tour (11 steps) and a student tour (7), each step naming a real control, launched from a Tour control in the header and offered once, never blocking; instruction paragraphs across the harness states cut from 13 to 5; the update log grouped by month (56,446px to 19,497px at 1440); tips open on a tap. Held at 2: 13 title-only tooltips remain on the teacher class page, the tour's grading and Approve steps fall back to their tabs on a class page, and nothing was tried with a real new user. |
+| Customization and preferences | 2 | **3** | Class-list width by keyboard, drag or Narrower/Wider, one per device (18 to 40rem, detail never under 32rem); the to-do's opening view and the Grades order as defaults; every Settings group says "This device" or "Your account" and has its own Reset. The grading preference is not offered because nothing reads it. |
+| Item page (student) | 2 | **3** | The returned score, comment, then breakdown on every engine (spec, ported HTML, IdeaCAD), the comment 28px under the score at every width (was 1065px down at 375); "How this is graded" after the instructions (y=464 at 375) and before the work. Held from 4: the ported worksheet still has no local answers mirror. |
+| Decks, media and embeds | 2 | **3** | One full-screen picture viewer from every picture source with zoom, button alternatives to every drag and Download; zip-of-pictures galleries (two columns at 375, six at 1440); YouTube thumbnails with no referrer; Previous, Next and a tap-to-jump slide list in the deck. Named galleries need a column. |
+| Creation and composer (teacher) | 3 | **3** | Defect fixed: a dropped spec, HTML document or zip reaches its own box and the box scrolls into view (was 1297px below the title at 375), never the general file list. |
+
+## Final (ledger 0297, after round 2), lowest first
 
 | Area | Before | After |
 |---|---|---|
-| Learnability without instruction | 1 | 1 |
-| Customization and preferences | 1 | 2 |
-| Item page (student) | 2 | 2 |
-| Decks, media and embeds | 2 | 2 |
+| Learnability without instruction | 1 | 2 |
+| Customization and preferences | 1 | 3 |
+| Item page (student) | 2 | 3 |
+| Decks, media and embeds | 2 | 3 |
 | Live class and the teacher at the front | 1 | 3 |
 | Notebook integration with the classroom | 1 | 3 |
 | Search, command palette and shortcuts | 1 | 3 |
@@ -80,4 +92,4 @@ One round landed before the ship: the foundation (F1a, F1b, F2, F3 with F5, F4a,
 | Creation and composer (teacher) | 3 | 3 |
 | Grading and feedback | 3 | 3 |
 
-Lowest at the ship: **1** (Learnability without instruction), where it was 1 across five areas at Phase 0. Under the catch-up rule every area now at 3 sits two above the lowest and gets no new depth work (defect fixes still land) until Learnability reaches 2; the next round is Learnability first, then Customization, the student item page and decks and media.
+Lowest at the second ship: **2** (Learnability without instruction), where Phase 0 had five areas at 1. Every other area is at 3, one above the lowest, so the catch-up rule no longer bars depth work anywhere; the next round's first target is still Learnability (the remaining title-only tooltips, and a tour tried with a real new teacher), and no area claims 4 until it has held up under real class use.

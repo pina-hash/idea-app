@@ -1234,8 +1234,9 @@
 				{#if docCheck && sectionManages}
 					<!-- A real `disabled`, and only that: a disabled control does not
 					     receive the tap, so nothing here promises an explanation on
-					     press. The `title` is what a hover reads; the unit picker
-					     above is where the answer is. -->
+					     press. THE REASON IS IN THE LABEL (ledger 0297, LEARN): it used
+					     to live only in the `title`, which a phone cannot hover, so a
+					     reviewer on a tablet saw a dead button and no reason. -->
 					<button
 						type="button"
 						class="mode"
@@ -1246,7 +1247,8 @@
 						title={unit === null
 							? 'Pick a unit above: a Documentation Check grades one unit.'
 							: 'Grade this unit as a Documentation Check'}
-						onclick={() => (mode = 'grade')}>Grade unit</button
+						onclick={() => (mode = 'grade')}
+						>{unit === null ? 'Grade unit (pick a unit)' : 'Grade unit'}</button
 					>
 				{/if}
 				<!-- ADMIN ONLY, and the ABSENCE of the transport is what withholds it,

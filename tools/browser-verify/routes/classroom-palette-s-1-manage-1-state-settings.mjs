@@ -7,7 +7,10 @@
  * ACCOUNT and lands in the profile row's `classroom` namespace through the
  * shipping read-then-merge writer -- beside `homepage`, which must survive the
  * write untouched. The class page takes the new default in front of the
- * teacher (the Drafts chip pressed) without a reload.
+ * teacher (the Drafts chip pressed) without a reload. The first visit also
+ * records the classroom tour as offered (ledger 0297, LEARN), through the same
+ * writer and before any click, so the row carries both groups and still
+ * leaves `homepage` alone.
  *
  * Every group has a Reset, and a group still at its default says "Default"
  * instead of offering one.
@@ -37,13 +40,13 @@ export default {
 	],
 	orderResult: [
 		{
-			label: 'density on the device, the class view on the account, homepage untouched',
+			label: 'density on the device, the class view and the tour offer on the account, homepage untouched',
 			evaluate:
 				'() => { const p = window.__paletteProbe(); return [p.density, JSON.stringify(p.local), JSON.stringify(p.row)]; }',
 			expected: [
 				'compact',
 				'{"display":{"density":"compact"}}',
-				'{"homepage":{"pinned":["gauntlet"]},"classroom":{"classView":{"opensOn":"drafts"}}}'
+				'{"homepage":{"pinned":["gauntlet"]},"classroom":{"guidance":{"tours":{"teacher":"offered","student":"unseen"}},"classView":{"opensOn":"drafts"}}}'
 			]
 		}
 	],

@@ -18,6 +18,7 @@
 		undatedBoundary,
 		type GradingOrderKey
 	} from '$lib/classroom/grading-order';
+	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
 
 	/**
 	 * Every assignment in one class, with where its grading stands and a direct
@@ -60,14 +61,24 @@
 	 * and the claim "the list is in due order" has to be assertable without
 	 * rendering anything.
 	 *
-	 * THE CONTROL IS PER VISIT AND IS NOT REMEMBERED, which is a real cost and
-	 * is stated rather than hidden: a teacher who prefers the marking queue
-	 * picks it again next time they open the tab. Persisting it means a new
-	 * namespace in `profiles.preferences` and a write path from this page, which
-	 * is a larger change than the one the report asked for; the DEFAULT is the
-	 * half that matters and the default is now the date.
+	 * THE CONTROL IS REMEMBERED NOW, AS A DEFAULT (ledger 0297, LEARN). This
+	 * said it was per visit because persisting it needed a namespace and a write
+	 * path; the classroom's preference store is both, so the teacher's last
+	 * order is the one the tab opens on next time, on any computer (the
+	 * `grading` group follows the account), and Settings says so and resets it.
+	 * A SORT IS SAFE TO REMEMBER FROM THE CONTROL because it hides nothing; a
+	 * filter is remembered only when chosen in Settings. With no store (a
+	 * harness) it is per visit exactly as before, starting from the date.
 	 */
-	let orderKey = $state<GradingOrderKey>(GRADING_ORDER_DEFAULT);
+	const prefStore = classroomPreferences();
+	const prefs = prefStore ? reactivePreferences(prefStore) : null;
+	let localOrder = $state<GradingOrderKey>(GRADING_ORDER_DEFAULT);
+	/* Read off the store while there is one, so a Reset in Settings reorders the open tab too. */
+	const orderKey = $derived<GradingOrderKey>(prefs ? prefs.current.grading.gradesOrder : localOrder);
+	function chooseOrder(key: GradingOrderKey) {
+		if (prefStore) prefStore.set('grading', { ...prefStore.current.grading, gradesOrder: key });
+		else localOrder = key;
+	}
 	const ordered = $derived(orderStandings(standings, orderKey));
 	/**
 	 * Where the undated rows begin, or -1. Only ever drawn under `due`: under
@@ -123,7 +134,7 @@
 							class:is-on={orderKey === opt.key}
 							aria-pressed={orderKey === opt.key}
 							data-testid={`grades-order-${opt.key}`}
-							onclick={() => (orderKey = opt.key)}
+							onclick={() => chooseOrder(opt.key)}
 						>
 							{opt.label}
 						</button>

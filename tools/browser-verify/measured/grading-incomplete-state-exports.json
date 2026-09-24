@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "grading-incomplete-state-exports.mjs",
-	"date": "2026-09-23T22:57:28.783Z",
-	"sha": "1f9abd4c73bdcae5323de05a7894cb762299823e",
+	"date": "2026-09-24T01:51:06.949Z",
+	"sha": "17b56904dd3aae05ad434b319d8bae655bb94299",
 	"dirty": false,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 52,
 	"outsideRows": [],
-	"ms": 5676
+	"ms": 6069
 }

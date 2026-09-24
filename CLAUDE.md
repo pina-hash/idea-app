@@ -1162,6 +1162,32 @@ It loads the class label and nothing that names a person.
 
 
 
+### THE CLASSROOM TOUR -- offered once, recorded when shown
+
+**`classroomTourFor` in `$lib/tour/classroom-tours.ts` IS THE ONE DECISION OF
+WHICH TOUR A PERSON GETS (ledger 0297).** Inside a class the teacher tour goes
+only to someone who manages THAT class; staff status decides only outside a
+class, so a teacher enrolled in somebody else's class gets the student tour
+there. Both tours run on `SpotlightTour`, which drops a step whose target is
+absent, and every step names its targets by `data-testid` hook, tried in order;
+`tests/classroom-tour.test.ts` sweeps `src/` for every hook, so **a surface a
+step names keeps its hook**, and a step names a control by its printed word.
+
+- **THE OFFER IS RECORDED AS `offered` THE MOMENT IT SHOWS, AND STAYS ON
+  SCREEN.** Recording on the answer offers it forever to someone who walks
+  away; removing it on the write removes it the moment it appears. The state
+  lives in the preferences store's `guidance` group (account), a finished run
+  is never taken back by a replay, and Reset in Settings brings the offer back.
+- **THE OFFER NEVER BLOCKS.** One row under the header, nothing focused and
+  nothing paused, never on a projected deck; Escape answers it only when the
+  key press is plainly meant for it.
+- **THE REPORT CONTROL'S WORDS ARE `REPORT_LABEL` AND `REPORT_LABEL_SHORT`** in
+  `$lib/feedback/context.ts`; any copy that tells somebody to press it reads
+  them, because the updates page pointed at a "Feedback button" for weeks after
+  the button said "Report a problem".
+- **`InfoTip` OPENS ON A TAP AND STAYS OPEN UNTIL A TAP ELSEWHERE, ESCAPE OR
+  BLUR.** A tip a phone cannot open is a `title` by another name.
+
 ### NOTEBOOK CAPTURE -- where the work is, and never only in memory
 
 **A STUDENT ADDS TO THEIR NOTEBOOK FROM THE ASSIGNMENT PAGE, AND IT FILES ITSELF
@@ -1202,6 +1228,48 @@ the columns were all there.
   RANKED** (`$lib/notebook/timeline.ts`, `classDayStreak`): a student's own count
   of consecutive class days with an entry, where a today with nothing filed yet
   does not break it, and no surface compares one student's streak to another's.
+
+### THE ITEM PAGE'S MEDIA AND FEEDBACK -- one card, one viewer, one router
+
+**A RETURNED GRADE IS ONE CARD ON EVERY ENGINE, AND THE COMMENT COMES BEFORE
+THE BREAKDOWN (ledger 0297).** `ReturnedGrade.svelte` renders the score, the
+teacher's comment, then `RubricView`; `AssignmentEngine` mounts it for a spec
+assignment and `ItemDetail` mounts it in PARENT CHROME for a ported HTML
+document and an IdeaCAD link, never inside the sandboxed frame. At 375 the
+comment used to sit 1065px under the grade. Before work starts, "How this is
+graded" is a `Disclosure` over the stored rubric (never a spec-derived copy),
+placed after the instructions and before the work, and a returned card replaces
+it so the rubric is never shown twice.
+
+- **EVERY PICTURE IN THE CLASSROOM OPENS IN `$lib/media/Lightbox.svelte`**, a
+  native `<dialog>` on `$lib/panzoom` (no second pan/zoom), with Download as an
+  `<a download>` to the same proxy URL the thumbnail uses, so no serve route
+  changed. Body figures, handouts and galleries, imageZone photos, hand-ins
+  (which is also the grading console's view) and authored figures all open it,
+  and `PhotoViewer` is a thin wrapper over it. Every drag has a button
+  alternative that appears only for an axis the picture actually overflows.
+- **A ZIP OF PICTURES IS A GALLERY WITH NO MIGRATION.** `ZipChoice.svelte` asks
+  in words (Presentation, Image gallery, Attach as a file); `gallery-zip.ts`
+  reads the zip in the browser with Foundry's reader and uploads each picture as
+  an ordinary attachment through `uploadClassroomFile`, so a second zip adds to
+  the same set. **Named, separate galleries need a column** and are not encoded
+  in filenames.
+- **A DROPPED FILE GOES TO THE BOX WHOSE OWN ACCEPT RULE MATCHES IT.**
+  `composerDropRoute` in `$lib/classroom/composer-drop.ts` reads each box's own
+  constant (`SPEC_ACCEPT`, `HTML_DOCUMENT_ACCEPT`, `DECK_ACCEPT`), the composer's
+  root never takes a file a nested box should have, and the drop scrolls the
+  receiving box into view. `FileUploadPanel` still accepts every type.
+- **THE DECK CAP IS THE TRANSPORT'S, AND 4 MiB IS IT.** A deck uploads as one
+  multipart POST that our own function buffers; the 150 MiB figure is a guard on
+  the zip already stored in Drive and no browser request reaches it. Raising the
+  client cap needs one measured request on a Vercel preview first.
+- **A CLAUDE DESIGN DECK BUILDS `<deck-stage>` LATE.** Its export loads React
+  from a CDN before the element exists, so `DeckViewer` keeps watching the frame
+  after `load`; a control wired only at `load` never appears.
+- **A YOUTUBE LINK GETS A THUMBNAIL CARD ONLY ON YOUTUBE'S OWN HOSTS, AFTER
+  `safeHref`, WHERE IT IS A PARAGRAPH OR ENDS ONE** (`$lib/youtube.ts`, which
+  `gauntlet/authoring.ts` re-exports), with `referrerpolicy="no-referrer"`, no
+  server fetch and no new document node. Decision 23 stands.
 
 ### WHAT A STUDENT OWES -- one predicate, one read, one day
 
@@ -3311,7 +3379,15 @@ inside the function fails closed rather than falling through to a weaker path.
   mounted in somebody else's shell, `fill` when the caller gives the split a
   bounded box and the panes take its height -- the only one that names no
   viewport arithmetic), `navWidth`, `detailWidth` (`panel` | `roomy`), `narrow`
-  (`swap` | `stack` | `stack-nav-first`), `overlay`.
+  (`swap` | `stack` | `stack-nav-first`), `overlay`, and `resizable` (ledger
+  0297): a classroom `navWidth="list"` split that finds the classroom
+  preference store in context and has something open gets a `role="separator"`
+  in the gap (it takes no grid track, so the one-pane collapse keeps its
+  easing), keyboard-operable, with Narrower and Wider in Settings as the
+  single-pointer alternative. The width is one per DEVICE (`display.navWidth`,
+  `clampNavWidth` keeps whole rem from 18 to 40 and stores the default as null)
+  and the detail pane never drops under 32rem; every other split is unchanged
+  and `resizable={false}` opts out.
 - **A full-height surface is `.cr-app` + `.cr-app-body` around a `scroll="fill"`
   split**, not a `100vh - <chrome>` calculation. The chrome height is not a
   constant -- a hero wraps, a notice appears, someone else's banner sits above --
@@ -3395,7 +3471,9 @@ inside the function fails closed rather than falling through to a weaker path.
   circle, bang, E, dash, and since 0140 the guillemet), Share Tech Mono and the
   1.9rem cell box are a LOCKED CONTRACT.** Verify byte-identical after any
   restyle. Do not put words in a cell to satisfy a label audit -- the
-  always-visible legend and the hint above the grid carry the meaning.
+  always-visible legend carries the meaning, with each state's hint one tap
+  away as an `InfoTip` since ledger 0297 (there is no longer a how-to line
+  under the grid, and there was never a hint above it).
   - **A NEW DIMENSION GETS ITS OWN MARK, NEVER A NEW GLYPH OR A NEW HUE. A NEW
     VALUE OF THE EXISTING DIMENSION GETS BOTH.** This rule used to read "never a
     seventh glyph or a seventh hue" flatly, and 0140 is what showed the sentence
