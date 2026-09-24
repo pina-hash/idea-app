@@ -22,27 +22,12 @@ import {
 
 /**
  * Extract a bare YouTube video id from a URL or an already-bare id (feature 4).
- * Returns '' when nothing valid is found, so the form can flag bad input and
- * `buildPayload` simply omits an empty tutorial. Accepts watch, youtu.be, embed,
- * shorts, and live URL shapes.
+ * It lives in `$lib/youtube` since ledger 0297, where the classroom reads the
+ * same answer for a video link in an item's body, and is RE-EXPORTED here so
+ * every GAUNTLET caller and test keeps importing it from this module.
  */
-export function normalizeYouTubeId(input: string): string {
-	const s = (input ?? '').trim();
-	if (!s) return '';
-	if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
-	const patterns = [
-		/[?&]v=([A-Za-z0-9_-]{11})/,
-		/youtu\.be\/([A-Za-z0-9_-]{11})/,
-		/\/embed\/([A-Za-z0-9_-]{11})/,
-		/\/shorts\/([A-Za-z0-9_-]{11})/,
-		/\/live\/([A-Za-z0-9_-]{11})/
-	];
-	for (const re of patterns) {
-		const m = s.match(re);
-		if (m) return m[1];
-	}
-	return '';
-}
+import { normalizeYouTubeId } from '$lib/youtube';
+export { normalizeYouTubeId };
 
 /**
  * A focus region as edited in the form: percent (0 to 100) of the page,

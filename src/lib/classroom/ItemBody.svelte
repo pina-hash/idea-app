@@ -11,6 +11,10 @@
 	} from '$lib/classroom/classroom-doc';
 	import { resolveFigureSrc, type ClassroomAttachment } from '$lib/classroom/classroom';
 	import { itemParts } from '$lib/rich-text-doc';
+	import Lightbox from '$lib/media/Lightbox.svelte';
+	import EnlargeCue from '$lib/media/EnlargeCue.svelte';
+	import type { LightboxImage } from '$lib/media/lightbox';
+	import { paragraphVideo, youtubeThumbnailUrl, type ParagraphVideo } from '$lib/youtube';
 
 	/**
 	 * The ONE way a classroom item's body is rendered anywhere in this app.
@@ -92,6 +96,60 @@
 			public: publicAttachments
 		});
 	}
+
+	/**
+	 * EVERY FIGURE THAT RESOLVED, IN READING ORDER, AS THE LIGHTBOX'S PICTURES
+	 * (ledger 0297, package ITEM; report 35). A body figure was a 22rem box with
+	 * no action: a 1202x1202 photograph of a part could not be made any bigger.
+	 * It is a button now, and the viewer pages through every figure in the
+	 * body, so a teacher's five-photo walkthrough reads as five pictures rather
+	 * than five separate openings.
+	 *
+	 * ONLY WHAT RESOLVED IS HERE: a refused or unresolved reference renders its
+	 * marker and never reaches an attribute (CLAUDE.md), so it has no src to
+	 * open either. Download is the same URL the figure came from.
+	 */
+	const figures = $derived.by(() => {
+		const byBlock = new Map<number, number>();
+		const images: LightboxImage[] = [];
+		doc.forEach((block, i) => {
+			if (block.type !== 'img') return;
+			const src = figure(block);
+			if (!src.ok) return;
+			const ref = block.src.trim();
+			const name = ref.toLowerCase().startsWith('attachment:')
+				? ref.slice('attachment:'.length).trim()
+				: (ref.split('/').pop() ?? '');
+			byBlock.set(i, images.length);
+			images.push({
+				key: `figure-${i}`,
+				src: src.src,
+				alt: block.alt,
+				caption: block.alt,
+				downloadHref: src.src,
+				downloadName: name || null
+			});
+		});
+		return { byBlock, images };
+	});
+	let figureOpen = $state<number | null>(null);
+
+	/**
+	 * A PARAGRAPH THAT IS A YOUTUBE LINK, OR ENDS ON ONE, GETS A THUMBNAIL CARD
+	 * (ledger 0297, package ITEM; report 20). The Links list already showed a
+	 * card for the same URL while the body showed bare underlined text.
+	 *
+	 * NO FETCH AND NO NEW NODE TYPE. The card is drawn from the link that is
+	 * already in the typed document, the still is YouTube's fixed public image
+	 * URL fetched by the reader's own browser with no referrer, and decision 23
+	 * (the link-preview fetcher) is not touched. The document, its SQL gate and
+	 * the editor are all unchanged: this is a way of READING a link.
+	 */
+	function videoOf(runs: ItemInline[]): ParagraphVideo | null {
+		return paragraphVideo(runs, (run) => safeHref(run.href));
+	}
+	/** A still that failed to load keeps its card, with the play mark alone. */
+	let brokenStill = $state<Record<string, true>>({});
 </script>
 
 {#snippet runs(list: ItemInline[])}
@@ -141,15 +199,31 @@
 <div class="item-body" class:compact>
 	{#each doc as block, i (i)}
 		{#if block.type === 'p'}
-			<p>{@render runs(block.runs)}</p>
+			{@const video = videoOf(block.runs)}
+			{#if !video?.alone}
+				<p>{@render runs(block.runs)}</p>
+			{/if}
+			{#if video}{@render videoCard(video)}{/if}
 		{:else if block.type === 'h3'}
 			<h3>{@render runs(block.runs)}</h3>
 		{:else if block.type === 'h4'}
 			<h4>{@render runs(block.runs)}</h4>
 		{:else if block.type === 'img'}
 			{@const src = figure(block)}
+			{@const at = figures.byBlock.get(i)}
 			<figure class="item-figure">
-				{#if src.ok}
+				{#if src.ok && at !== undefined}
+					<button
+						type="button"
+						class="item-figure-open"
+						aria-label={`Open ${block.alt} larger`}
+						data-testid="item-figure-open"
+						onclick={() => (figureOpen = at)}
+					>
+						<img src={src.src} alt={block.alt} loading="lazy" />
+						<EnlargeCue />
+					</button>
+				{:else if src.ok}
 					<img src={src.src} alt={block.alt} loading="lazy" />
 				{:else}
 					<div class="item-figure-missing">Image unavailable</div>
@@ -161,6 +235,46 @@
 		{/if}
 	{/each}
 </div>
+
+{#snippet videoCard(video: ParagraphVideo)}
+	<a
+		class="item-video"
+		href={video.href}
+		target="_blank"
+		rel="noopener noreferrer"
+		data-testid="item-video"
+	>
+		<span class="item-video-frame">
+			{#if !brokenStill[video.id]}
+				<img
+					src={youtubeThumbnailUrl(video.id)}
+					alt=""
+					loading="lazy"
+					referrerpolicy="no-referrer"
+					onerror={() => (brokenStill = { ...brokenStill, [video.id]: true })}
+				/>
+			{/if}
+			<span class="item-video-play" aria-hidden="true">
+				<svg viewBox="0 0 24 24" focusable="false"><path d="M9 7.5v9l7.5-4.5z" /></svg>
+			</span>
+		</span>
+		<span class="item-video-text">
+			<span class="item-video-label">{video.label}</span>
+			<span class="item-video-meta">YouTube video &middot; opens in a new tab</span>
+		</span>
+	</a>
+{/snippet}
+
+{#if figures.images.length}
+	<Lightbox
+		images={figures.images}
+		index={figureOpen}
+		label="Pictures in this post"
+		onIndex={(n) => (figureOpen = n)}
+		onClose={() => (figureOpen = null)}
+		testId="item-figure-lightbox"
+	/>
+{/if}
 
 <style>
 	.item-body {
@@ -209,6 +323,29 @@
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		background: var(--surface-2, var(--bg2));
+	}
+	/* THE FIGURE AS A CONTROL: no chrome of its own, the picture IS the
+	   target, and the Enlarge cue in its corner is the visible word.
+	   `inline-block` + `max-width` keeps the button the picture's own width,
+	   so the frame never stands wider than what it frames. */
+	.item-body .item-figure-open {
+		appearance: none;
+		position: relative;
+		display: inline-block;
+		max-width: 100%;
+		padding: 0;
+		margin: 0;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		line-height: 0;
+		cursor: zoom-in;
+		border-radius: var(--radius-card);
+	}
+	.item-body .item-figure-open:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
 	}
 	/* The marker for a reference nothing could load: a word, never a broken
 	   image and never an empty box. Colour is not the only signal -- the
@@ -268,5 +405,86 @@
 		color: var(--body-link, var(--cyan));
 		text-decoration: underline;
 		text-underline-offset: 2px;
+	}
+
+	/* THE VIDEO CARD. A block like a figure: the still on the left, the link's
+	   own words beside it, and the whole card one link, 44px and more at every
+	   width. The still is 16:9 over the portal ground with `cover`, because a
+	   `hqdefault` still is 4:3 with the video letterboxed inside it and the
+	   bars are not the picture. */
+	.item-video {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		max-width: 30rem;
+		min-height: 44px;
+		margin: 0 0 0.7rem;
+		padding: 0.45rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		background: var(--surface-2, var(--bg2));
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	.item-video:hover {
+		border-color: var(--body-link, var(--cyan));
+	}
+	.item-video:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
+	}
+	.item-video-frame {
+		position: relative;
+		flex: 0 0 auto;
+		width: 9rem;
+		aspect-ratio: 16 / 9;
+		overflow: hidden;
+		border-radius: calc(var(--radius-card) - 2px);
+		background: #0b0a08;
+	}
+	.item-video-frame img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+	.item-video-play {
+		position: absolute;
+		inset: 0;
+		display: grid;
+		place-items: center;
+	}
+	.item-video-play svg {
+		width: 2.1rem;
+		height: 2.1rem;
+		padding: 0.35rem;
+		border-radius: 999px;
+		background: rgba(8, 10, 8, 0.72);
+		fill: #f2f1ea;
+	}
+	.item-video-text {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		min-width: 0;
+	}
+	.item-video-label {
+		font-weight: 600;
+		line-height: 1.3;
+		overflow-wrap: anywhere;
+	}
+	.item-video-meta {
+		font-family: var(--font-mono);
+		font-size: 0.66rem;
+		letter-spacing: 0.04em;
+		color: var(--text-2);
+	}
+	.item-body.compact .item-video-frame {
+		width: 7rem;
+	}
+	@media (max-width: 30rem) {
+		.item-video-frame {
+			width: 6.5rem;
+		}
 	}
 </style>
