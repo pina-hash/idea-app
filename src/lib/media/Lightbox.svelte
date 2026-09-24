@@ -323,7 +323,7 @@
 		<div class="lb-shell">
 			<div class="lb-top">
 				<span class="lb-caption" data-testid="{testId}-caption">
-					{current.caption || current.alt}
+					<span class="lb-name">{current.caption || current.alt}</span>
 					{#if countLabel}<span class="lb-count" data-testid="{testId}-count">{countLabel}</span>{/if}
 				</span>
 				{#if current.downloadHref}
@@ -400,15 +400,19 @@
 					</span>
 				{/if}
 
-				<span class="lb-group" role="group" aria-label="Zoom">
-					<button type="button" class="lb-btn" onclick={zoomOut} data-testid="{testId}-zoom-out">
-						<span class="lb-glyph" aria-hidden="true">&minus;</span> Zoom out
-					</button>
-					<button type="button" class="lb-btn" onclick={fit} data-testid="{testId}-fit">Fit</button>
-					<button type="button" class="lb-btn" onclick={zoomIn} data-testid="{testId}-zoom-in">
-						<span class="lb-glyph" aria-hidden="true">+</span> Zoom in
-					</button>
-				</span>
+				<!-- No zoom over a picture that did not load: three controls whose
+				     only outcome is nothing, beside the sentence saying why. -->
+				{#if !(shownId && broken[shownId])}
+					<span class="lb-group" role="group" aria-label="Zoom">
+						<button type="button" class="lb-btn" onclick={zoomOut} data-testid="{testId}-zoom-out">
+							<span class="lb-glyph" aria-hidden="true">&minus;</span> Zoom out
+						</button>
+						<button type="button" class="lb-btn" onclick={fit} data-testid="{testId}-fit">Fit</button>
+						<button type="button" class="lb-btn" onclick={zoomIn} data-testid="{testId}-zoom-in">
+							<span class="lb-glyph" aria-hidden="true">+</span> Zoom in
+						</button>
+					</span>
+				{/if}
 
 				{#if canPan}
 					<!-- THE SINGLE-POINTER ALTERNATIVE TO DRAGGING (WCAG 2.5.7). The
@@ -483,11 +487,22 @@
 		padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 	}
 
+	/* ONE ROW AT 375: the name gives way (an ellipsis) and the count and the
+	   two controls do not. A 12rem basis here put Close on a second row at
+	   375, 44px of chrome taken from the picture. */
+	.lb-top {
+		flex-wrap: nowrap;
+	}
 	.lb-caption {
-		flex: 1 1 12rem;
+		flex: 1 1 0;
 		min-width: 0;
+		display: flex;
+		align-items: baseline;
 		font-weight: 600;
 		font-size: 0.92rem;
+	}
+	.lb-name {
+		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -498,6 +513,8 @@
 		font-weight: 400;
 		font-size: 0.76rem;
 		color: var(--text-2);
+		flex: none;
+		white-space: nowrap;
 	}
 
 	.lb-group {
