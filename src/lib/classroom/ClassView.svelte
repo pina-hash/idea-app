@@ -2181,7 +2181,8 @@
 							<li class="empty-row" class:drop-hint={editable && !!unitTransports} data-testid="group-empty-hint">
 								<p class="note">
 									{#if editable && unitTransports}
-										Empty. Drop items here, or use File here.
+										Empty. Drag items here, tick items and press File here, or use a row's actions
+										menu (&#8942;) or File into&hellip; above.
 									{:else}
 										Nothing here yet.
 									{/if}
