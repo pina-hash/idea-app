@@ -253,7 +253,7 @@ the first ship and verified the same way.
   `assignment-draft-mirror.ts` keyed by block id through `planAssignmentRestore`, a restored
   answer marked unsaved so it saves, and its own "backup unavailable" sentence). Named
   galleries (a column). Teacher controls on gallery tiles.
-- **Merged**: ROUND2_MERGE_SHA on `main`; the verification of the round-2 tree is ROUND2_VERIFY.
+- **Merged**: `07954ab7` (`0c7bb59e..07954ab7`, a `--no-ff` merge, revertible with `git revert -m 1 07954ab7`; `integration` took it as `ca293a2a`) on `main`; the verification of the round-2 tree is on `1f4f4828`, the exact tree merged: `npm run check` 0 errors and 37 warnings in 20 files (31/5/1); the full suite 599 test files and 11,347 tests passed, 0 failed; the VANGUARD changelog check, `npm run history:verify`, `npm run build`, `node tools/claude-md-check.mjs` and `npm run verify:counts -- --check` all passed; GitHub CI succeeded on that sha (run 1623). `npm run verify:readme` measured every spec on this run's surfaces again (424 runs, 6,728 measurements, 13 outside, the same 13 pre-existing rows as round 1), and the store now covers all 370 specs. As with the first ship, the version production serves could not be read from this container.
 
 ## Verification
 
