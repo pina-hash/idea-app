@@ -148,3 +148,15 @@ when it becomes blocking; until then the session builds the default and says so.
     leave staff out. [5 minutes; staff are left out of the grid only.]
   - Whether the notebook capture should also be on the class page, not only on an assignment.
     [Assignment page only.]
+  - Whether every existing user should be offered the classroom tour once after the deploy, teachers
+    mid-class included (one row, never blocking), or whether the offer should wait. [Offered once.]
+  - Whether one item should hold several named photo galleries, which needs a column. [All of an
+    item's pictures form one gallery.]
+  - Whether a ported HTML worksheet should keep a copy of unsaved answers in the browser, which
+    changes what a worksheet opens on after a lost connection. [Not built; the design is in the history
+    entry.]
+  - Whether a teacher's gallery tiles should carry Rename, Remove and Move controls. [Not built.]
+  - The presentation upload limit (4 MB): raising it needs one measured upload on a preview first.
+    [4 MB.]
+  - One class-list width across a person's classes on a device, and the Grades order remembered
+    from the control itself. [Both built that way.]
