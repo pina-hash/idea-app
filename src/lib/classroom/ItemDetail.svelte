@@ -130,6 +130,8 @@
 	import Pending from '$lib/Pending.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import AssignmentEngine from '$lib/classroom/AssignmentEngine.svelte';
+	import ReturnedGrade from '$lib/classroom/ReturnedGrade.svelte';
+	import RubricView from '$lib/classroom/RubricView.svelte';
 	import InstructorCopy from '$lib/classroom/InstructorCopy.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
@@ -791,6 +793,46 @@
 				responsesMap(engine.responses),
 				filesByBlockCount(engine.files)
 			)
+	);
+
+	/**
+	 * THE RUBRIC A STUDENT IS GRADED AGAINST, BEFORE THEY START, ON EVERY ENGINE
+	 * (ledger 0297, package ITEM). It used to be the last card of the v1 engine,
+	 * below Submit (y~4884 of 5994px at 1366), and a ported HTML worksheet showed
+	 * none at all in parent chrome. It is a "How this is graded" disclosure near
+	 * the top of the item now.
+	 *
+	 * THE STORED RUBRIC, NEVER A SPEC-DERIVED COPY. `classroom_rubrics` is what
+	 * grading reads (CLAUDE.md: a spec's rubric and an item's rubric are two
+	 * different records, and only one is graded against). A student's read of it
+	 * arrives in the engine slice; a manager's in `rubric`. Both are that row.
+	 */
+	const gradingRubric = $derived<RubricCriterion[] | null>(
+		item.kind !== 'assignment' ? null : canManage ? rubric : (engine?.rubric ?? null)
+	);
+	/**
+	 * A RETURNED GRADE, READ OFF THE STUDENT'S OWN SLICE. The v1 engine renders
+	 * its own (it owns the submission machinery); this is what the v3 and v4
+	 * branches below mount in PARENT CHROME, beside the frame, because a
+	 * returned grade is never the sandboxed document's to show.
+	 */
+	const returnedSubmission = $derived(
+		!canManage && engine?.submission?.state === 'returned' ? engine.submission : null
+	);
+	/**
+	 * "HAS THE WORK STARTED", widened past the v1 spec to the other engines'
+	 * own evidence, still read off the slice this page already holds: a saved
+	 * answer on a ported worksheet (its answers are ordinary response rows), a
+	 * file handed in, or a submission that is in. The rubric folds away on a
+	 * return visit once any of those is true, which is the reading-collapses
+	 * rule (IDEA_INTERFACE_STANDARDS 1); the Disclosure latches it.
+	 */
+	const workStarted = $derived(
+		started ||
+			(!!engine &&
+				(engine.submission?.state === 'submitted' ||
+					(htmlMount === 'html' && engine.responses.length > 0) ||
+					engine.files.length > 0))
 	);
 
 	// --- The inspector ----------------------------------------------------
@@ -2074,6 +2116,29 @@
 		</section>
 	{/if}
 
+	<!--
+		HOW THIS IS GRADED, BEFORE THE WORK (ledger 0297, package ITEM). Every
+		engine, near the top, from the stored rubric. Reading, so it collapses
+		once this student has started (`workStarted`, latched by Disclosure) and
+		stays open for a manager, who has no work of their own -- the rule
+		playing out rather than a second rule. A returned grade replaces it: the
+		returned card below is the SCORED copy of the same rubric, and two copies
+		of one table on one page is the duplicate CLAUDE.md refuses.
+	-->
+	{#if gradingRubric?.length && !returnedSubmission}
+		<section class="card rubric-card" data-testid="item-rubric">
+			<Disclosure
+				label="How this is graded"
+				heading={2}
+				scope={`item:${item.id}:rubric`}
+				collapseWhen={workStarted}
+				testId="item-rubric-disclosure"
+			>
+				<RubricView criteria={gradingRubric} title="Criteria" />
+			</Disclosure>
+		</section>
+	{/if}
+
 	<!-- A MATERIAL WITH A REFERENCE DOCUMENT RENDERS THE DOCUMENT. Without one it
 	     renders its written details exactly as every material always has, which
 	     is what keeps every pre-0092 material untouched.
@@ -2173,6 +2238,12 @@
 	-->
 	{#if item.kind === 'assignment'}
 		{#if ideacad?.standalone}
+			{#if returnedSubmission}
+				<!-- The returned grade on an IdeaCAD assignment whose work happens
+				     in the IdeaCAD app (ledger 0297): above the door, as its own
+				     card, so it is not a card inside a card. -->
+				<ReturnedGrade submission={returnedSubmission} rubric={engine?.rubric ?? null} points={item.points} />
+			{/if}
 			<section class="card engine-slot"><h2 class="section-label">IdeaCAD</h2><a class="button tap-44" href="/ideacad">Open IdeaCAD →</a></section>
 		{:else if ideacadMountState === 'ideacad' && ideacad}
 			<!--
@@ -2201,6 +2272,12 @@
 			-->
 			<section class="engine-host">
 				<h2 class="section-label">{canManage ? 'Assignment' : 'Your work'}</h2>
+				{#if returnedSubmission}
+					<!-- The returned grade on an IdeaCAD assignment (ledger 0297): in the
+					     item page's own chrome, above the editor. IdeaCAD's files are
+					     not touched; this is the page's branch. -->
+					<ReturnedGrade submission={returnedSubmission} rubric={engine?.rubric ?? null} points={item.points} />
+				{/if}
 				<!--
 					WHOSE WORK IS ON SCREEN, AND THE WAY BACK OUT (ledger 0217).
 
@@ -2495,6 +2572,14 @@
 				<h2 class="section-label">
 					{#if htmlWorkingCopy}Your working copy{:else if htmlAnswers}Your work{:else}Assignment{/if}
 				</h2>
+				<!-- THE RETURNED GRADE, IN PARENT CHROME, ABOVE THE FRAME (ledger
+				     0297). The payload always carried it; nothing rendered it, so a
+				     student's only trace of a graded worksheet was a chip on the
+				     class row. Never inside the document: a returned grade is the
+				     parent's, exactly as Submit and a restored picture are. -->
+				{#if returnedSubmission}
+					<ReturnedGrade submission={returnedSubmission} rubric={engine?.rubric ?? null} points={item.points} />
+				{/if}
 				{#if !htmlServed}
 					<!--
 						THE FRAME WOULD 404, AND ONLY A MANAGER CAN BE HERE TO SEE IT.

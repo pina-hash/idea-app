@@ -1,6 +1,6 @@
 <script lang="ts">
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
-	import RubricView from '$lib/classroom/RubricView.svelte';
+	import ReturnedGrade from '$lib/classroom/ReturnedGrade.svelte';
 	import SubmissionFileList from '$lib/classroom/SubmissionFileList.svelte';
 	import FileUploadPanel, { type PanelUpload } from '$lib/classroom/FileUploadPanel.svelte';
 	import type { UploadedFileRow } from '$lib/classroom/file-upload';
@@ -9,7 +9,6 @@
 		DECLARATION_TEXT,
 		filesByBlockCount,
 		gateApproved,
-		rubricTotal,
 		specUnmet,
 		submissionEditable,
 		submissionStateLabel,
@@ -611,8 +610,6 @@
 		notice = 'Unsubmitted. You can keep working and submit again.';
 		await refresh();
 	}
-
-	const outOf = $derived(rubric ? rubricTotal(rubric) : (item.points ?? 0));
 </script>
 
 <div class="engine">
@@ -695,28 +692,16 @@
 
 	{#if notice}<p class="feedback ok">{notice}</p>{/if}
 
-	<!-- Returned grade -->
+	<!-- Returned grade: ONE card for every engine (ReturnedGrade), with the
+	     teacher's comment directly under the score and the breakdown after it
+	     (ledger 0297, package ITEM). -->
 	{#if returned && submission}
-		<section class="card grade-card">
-			<h3 class="grade-head">
-				Returned{submission.score != null ? `: ${submission.score} / ${outOf} pts` : ''}
-			</h3>
-			{#if rubric?.length}
-				<RubricView
-					criteria={rubric}
-					scores={submission.rubric_scores ?? {}}
-					comments={submission.criterion_comments ?? null}
-					title="Rubric breakdown"
-				/>
-			{/if}
-			{#if submission.teacher_comment}
-				<p class="grade-comment">
-					<span class="comment-label">Teacher comment</span>
-					{submission.teacher_comment}
-				</p>
-			{/if}
-			<p class="note">You can revise and resubmit; your teacher will see the new version.</p>
-		</section>
+		<ReturnedGrade
+			{submission}
+			{rubric}
+			points={item.points}
+			note="You can revise and resubmit; your teacher will see the new version."
+		/>
 	{/if}
 
 	<!--
@@ -854,13 +839,12 @@
 		</div>
 	{/if}
 
-	<!-- The rubric as a promise (pre-submission; the returned card shows the
-	     scored copy above) -->
-	{#if rubric?.length && !returned}
-		<section class="card">
-			<RubricView criteria={rubric} />
-		</section>
-	{/if}
+	<!-- THE RUBRIC AS A PROMISE MOVED UP (ledger 0297, package ITEM). It was the
+	     last card here, below Submit -- measured at y~4884 of 5994px at 1366,
+	     six screens down, with nothing near the top saying it existed. It is
+	     ItemDetail's "How this is graded" disclosure now, near the top of the
+	     item for EVERY engine, reading the same stored rubric. One copy, not
+	     two: the returned card above is the scored copy. -->
 </div>
 
 <style>
@@ -920,31 +904,6 @@
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
-	}
-	.grade-card {
-		border-color: var(--line-strong);
-		display: flex;
-		flex-direction: column;
-		gap: 0.6rem;
-	}
-	.grade-head {
-		margin: 0;
-		color: var(--green);
-		font-size: 1rem;
-	}
-	.grade-comment {
-		margin: 0;
-		font-size: 0.9rem;
-		white-space: pre-wrap;
-	}
-	.comment-label {
-		display: block;
-		font-family: var(--font-mono);
-		font-size: 0.62rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--cyan);
-		margin-bottom: 0.15rem;
 	}
 	.locked-card {
 		border-color: var(--cyan);
