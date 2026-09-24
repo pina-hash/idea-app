@@ -14,10 +14,15 @@
 	 * to what had it -- the palette's shape, for the palette's reasons.
 	 */
 	import {
-		CLASSROOM_SETTINGS,
 		groupIsDefault,
 		homeLabel,
+		navWidthRem,
+		navWidthWords,
+		settingsForRole,
 		CLASSROOM_PREFERENCE_HOMES,
+		NAV_WIDTH_MAX_REM,
+		NAV_WIDTH_MIN_REM,
+		NAV_WIDTH_STEP_REM,
 		type ClassroomPreferences,
 		type SettingRole
 	} from '$lib/preferences/classroom';
@@ -39,7 +44,8 @@
 
 	const prefs = $derived(reactivePreferences(preferences));
 	const current = $derived(prefs.current);
-	const offered = $derived(CLASSROOM_SETTINGS.filter((s) => s.roles.includes(role)));
+	/* One section per group, because Reset is per group (see `settingsForRole`). */
+	const offered = $derived(settingsForRole(role));
 
 	export function open() {
 		if (isOpen) return;
@@ -98,7 +104,19 @@
 		return String((current[group] as Record<string, unknown>)[field] ?? '');
 	}
 
-	const recentCount = $derived(current.search.recent.length);
+	/*
+	 * THE LIST WIDTH, ONE STEP AT A TIME (ledger 0297, LEARN). This is the
+	 * single-pointer twin of the split's separator (WCAG 2.5.7): the separator
+	 * takes a drag or the arrow keys, and these two presses reach every width it
+	 * can. The store clamps, so a press at an end changes nothing, and the
+	 * control at that end says so with `aria-disabled` rather than going dead.
+	 */
+	const navWidth = $derived(navWidthRem(current.display.navWidth));
+	function stepNavWidth(delta: number) {
+		const next = navWidth + delta * NAV_WIDTH_STEP_REM;
+		if (next < NAV_WIDTH_MIN_REM || next > NAV_WIDTH_MAX_REM) return;
+		preferences.set('display', { ...current.display, navWidth: next });
+	}
 </script>
 
 {#snippet home(group: keyof ClassroomPreferences)}
@@ -140,40 +158,67 @@
 			<button type="button" class="cs-btn" data-testid="settings-close" onclick={close}>Close</button>
 		</div>
 		<div class="cs-body">
-			{#each offered as s (s.group)}
-				<section class="cs-group" data-group={s.group} data-testid="settings-group">
+			{#each offered as g (g.group)}
+				<section class="cs-group" data-group={g.group} data-testid="settings-group">
 					<div class="cs-group-head">
-						<h3 class="cs-group-title" id="cs-{s.group}">{s.title}</h3>
-						{@render home(s.group)}
-						{@render reset(s.group, s.title)}
+						<h3 class="cs-group-title" id="cs-{g.group}">{g.title}</h3>
+						{@render home(g.group)}
+						{@render reset(g.group, g.title)}
 					</div>
-					<div class="cs-options" role="radiogroup" aria-labelledby="cs-{s.group}">
-						{#each s.options(role) as o (o.value)}
-							<label class="cs-option" data-testid="settings-option-{s.group}-{o.value}">
-								<input
-									type="radio"
-									name="cs-{s.group}"
-									value={o.value}
-									checked={valueOf(s.group, s.field) === o.value}
-									onchange={() => choose(s.group, s.field, o.value)}
-								/>
-								<span>{o.label}</span>
-							</label>
-						{/each}
-					</div>
+					{#each g.settings as s (s.title)}
+						<div class="cs-setting">
+							<span class="cs-setting-title" id="cs-{g.group}-{s.title.replaceAll(' ', '-')}">{s.title}</span>
+							{#if s.kind === 'width'}
+								<div
+									class="cs-options"
+									role="group"
+									aria-labelledby="cs-{g.group}-{s.title.replaceAll(' ', '-')}"
+									data-testid="settings-nav-width"
+								>
+									<button
+										type="button"
+										class="cs-btn"
+										data-testid="settings-nav-narrower"
+										aria-disabled={navWidth <= NAV_WIDTH_MIN_REM}
+										onclick={() => stepNavWidth(-1)}>Narrower</button
+									>
+									<output class="cs-value" data-testid="settings-nav-width-value" aria-live="polite"
+										>{navWidthWords(current.display.navWidth)}</output
+									>
+									<button
+										type="button"
+										class="cs-btn"
+										data-testid="settings-nav-wider"
+										aria-disabled={navWidth >= NAV_WIDTH_MAX_REM}
+										onclick={() => stepNavWidth(1)}>Wider</button
+									>
+								</div>
+							{:else if s.kind === 'summary'}
+								<p class="cs-value" data-testid="settings-summary-{g.group}">{s.summary(current, role)}</p>
+							{:else}
+								<div
+									class="cs-options"
+									role="radiogroup"
+									aria-labelledby="cs-{g.group}-{s.title.replaceAll(' ', '-')}"
+								>
+									{#each s.options(role) as o (o.value)}
+										<label class="cs-option" data-testid="settings-option-{g.group}-{o.value}">
+											<input
+												type="radio"
+												name="cs-{g.group}-{s.field}"
+												value={o.value}
+												checked={valueOf(g.group, s.field) === o.value}
+												onchange={() => choose(g.group, s.field, o.value)}
+											/>
+											<span>{o.label}</span>
+										</label>
+									{/each}
+								</div>
+							{/if}
+						</div>
+					{/each}
 				</section>
 			{/each}
-			<section class="cs-group" data-group="search" data-testid="settings-group">
-				<div class="cs-group-head">
-					<h3 class="cs-group-title">Recent searches</h3>
-					{@render home('search')}
-					{@render reset('search', 'Recent searches')}
-				</div>
-				<p class="cs-value" data-testid="settings-recent-count">
-					{recentCount}
-					{recentCount === 1 ? 'pick remembered' : 'picks remembered'}
-				</p>
-			</section>
 		</div>
 	</dialog>
 {/if}
@@ -184,7 +229,9 @@
 		inset: 0;
 		margin: max(6vh, 16px) auto auto;
 		width: min(30rem, calc(100vw - 32px));
-		max-height: min(36rem, calc(100dvh - 12vh));
+		/* Six groups now (ledger 0297, LEARN): tall enough to show most of them
+		   at 1366x768 before the panel scrolls. */
+		max-height: min(48rem, calc(100dvh - 12vh));
 		padding: 0;
 		background: var(--surface-1);
 		color: var(--text-1);
@@ -235,6 +282,27 @@
 	.cs-group-title {
 		margin: 0;
 		font-size: 0.98rem;
+	}
+	.cs-setting {
+		display: grid;
+		gap: var(--space-1);
+	}
+	.cs-setting-title {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.04em;
+		color: var(--text-2);
+	}
+	.cs-btn[aria-disabled='true'] {
+		opacity: 0.55;
+		cursor: default;
+	}
+	.cs-options output.cs-value {
+		display: inline-flex;
+		align-items: center;
+		min-width: 9rem;
+		justify-content: center;
+		color: var(--text-1);
 	}
 	.cs-home {
 		display: inline-flex;

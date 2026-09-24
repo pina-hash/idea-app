@@ -390,9 +390,7 @@
 		{#if checking}
 			Checking the photo...
 		{:else}
-			JPEG, PNG, WebP or HEIC, taken here or sent to this device by text, AirDrop or email.
-			Large photos are shrunk to fit before they upload, and you can straighten and clean up
-			each one first.
+			JPEG, PNG, WebP or HEIC. Large photos are shrunk to fit before they upload.
 		{/if}
 	</span>
 </div>

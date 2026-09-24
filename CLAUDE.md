@@ -1162,6 +1162,32 @@ It loads the class label and nothing that names a person.
 
 
 
+### THE CLASSROOM TOUR -- offered once, recorded when shown
+
+**`classroomTourFor` in `$lib/tour/classroom-tours.ts` IS THE ONE DECISION OF
+WHICH TOUR A PERSON GETS (ledger 0297).** Inside a class the teacher tour goes
+only to someone who manages THAT class; staff status decides only outside a
+class, so a teacher enrolled in somebody else's class gets the student tour
+there. Both tours run on `SpotlightTour`, which drops a step whose target is
+absent, and every step names its targets by `data-testid` hook, tried in order;
+`tests/classroom-tour.test.ts` sweeps `src/` for every hook, so **a surface a
+step names keeps its hook**, and a step names a control by its printed word.
+
+- **THE OFFER IS RECORDED AS `offered` THE MOMENT IT SHOWS, AND STAYS ON
+  SCREEN.** Recording on the answer offers it forever to someone who walks
+  away; removing it on the write removes it the moment it appears. The state
+  lives in the preferences store's `guidance` group (account), a finished run
+  is never taken back by a replay, and Reset in Settings brings the offer back.
+- **THE OFFER NEVER BLOCKS.** One row under the header, nothing focused and
+  nothing paused, never on a projected deck; Escape answers it only when the
+  key press is plainly meant for it.
+- **THE REPORT CONTROL'S WORDS ARE `REPORT_LABEL` AND `REPORT_LABEL_SHORT`** in
+  `$lib/feedback/context.ts`; any copy that tells somebody to press it reads
+  them, because the updates page pointed at a "Feedback button" for weeks after
+  the button said "Report a problem".
+- **`InfoTip` OPENS ON A TAP AND STAYS OPEN UNTIL A TAP ELSEWHERE, ESCAPE OR
+  BLUR.** A tip a phone cannot open is a `title` by another name.
+
 ### NOTEBOOK CAPTURE -- where the work is, and never only in memory
 
 **A STUDENT ADDS TO THEIR NOTEBOOK FROM THE ASSIGNMENT PAGE, AND IT FILES ITSELF
@@ -3311,7 +3337,15 @@ inside the function fails closed rather than falling through to a weaker path.
   mounted in somebody else's shell, `fill` when the caller gives the split a
   bounded box and the panes take its height -- the only one that names no
   viewport arithmetic), `navWidth`, `detailWidth` (`panel` | `roomy`), `narrow`
-  (`swap` | `stack` | `stack-nav-first`), `overlay`.
+  (`swap` | `stack` | `stack-nav-first`), `overlay`, and `resizable` (ledger
+  0297): a classroom `navWidth="list"` split that finds the classroom
+  preference store in context and has something open gets a `role="separator"`
+  in the gap (it takes no grid track, so the one-pane collapse keeps its
+  easing), keyboard-operable, with Narrower and Wider in Settings as the
+  single-pointer alternative. The width is one per DEVICE (`display.navWidth`,
+  `clampNavWidth` keeps whole rem from 18 to 40 and stores the default as null)
+  and the detail pane never drops under 32rem; every other split is unchanged
+  and `resizable={false}` opts out.
 - **A full-height surface is `.cr-app` + `.cr-app-body` around a `scroll="fill"`
   split**, not a `100vh - <chrome>` calculation. The chrome height is not a
   constant -- a hero wraps, a notice appears, someone else's banner sits above --
@@ -3395,7 +3429,9 @@ inside the function fails closed rather than falling through to a weaker path.
   circle, bang, E, dash, and since 0140 the guillemet), Share Tech Mono and the
   1.9rem cell box are a LOCKED CONTRACT.** Verify byte-identical after any
   restyle. Do not put words in a cell to satisfy a label audit -- the
-  always-visible legend and the hint above the grid carry the meaning.
+  always-visible legend carries the meaning, with each state's hint one tap
+  away as an `InfoTip` since ledger 0297 (there is no longer a how-to line
+  under the grid, and there was never a hint above it).
   - **A NEW DIMENSION GETS ITS OWN MARK, NEVER A NEW GLYPH OR A NEW HUE. A NEW
     VALUE OF THE EXISTING DIMENSION GETS BOTH.** This rule used to read "never a
     seventh glyph or a seventh hue" flatly, and 0140 is what showed the sentence

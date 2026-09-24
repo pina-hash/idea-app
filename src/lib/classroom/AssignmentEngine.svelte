@@ -827,7 +827,7 @@
 			<h3 class="section-label">Still unfinished</h3>
 			<p class="preflight-note" data-testid="engine-unfinished-note">
 				{editable
-					? 'You can submit without finishing these. Your teacher sees this same list beside your work.'
+					? 'Submitting does not need these finished. Your teacher sees this same list beside your work.'
 					: 'You submitted with these unfinished. Your teacher sees this same list beside your work.'}
 			</p>
 			<ul class="unmet-list">

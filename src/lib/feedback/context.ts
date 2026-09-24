@@ -62,6 +62,16 @@ const under = (prefix: string) => (routeId: string) =>
  * one is missing from this list (a harness showing both the floating pill and
  * the docked one measures an arrangement production never has).
  */
+/**
+ * THE REPORT CONTROL'S WORD, spelled once (ledger 0297, LEARN). The floating
+ * pill reads the long form; the classroom header docks it with the short one.
+ * A page that tells somebody where to report reads it from here, because the
+ * update log's intro pointed at a "Feedback button" for months after the
+ * control stopped being called that.
+ */
+export const REPORT_LABEL = 'Report a problem';
+export const REPORT_LABEL_SHORT = 'Report';
+
 export const CLASSROOM_SHELL_HARNESSES = [
 	'/dev/animated-logo-room',
 	'/dev/classroom',
@@ -71,6 +81,7 @@ export const CLASSROOM_SHELL_HARNESSES = [
 	'/dev/classroom-split',
 	'/dev/classroom-stream',
 	'/dev/classroom-todo',
+	'/dev/classroom-tour',
 	'/dev/classroom-view-as-notebook',
 	'/dev/notebook',
 	'/dev/notebook-capture',

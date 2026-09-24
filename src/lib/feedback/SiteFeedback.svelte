@@ -13,6 +13,7 @@
 		captureMeta,
 		contextOf,
 		feedbackExclusion,
+		REPORT_LABEL,
 		type BuildStamp
 	} from './context';
 	import type { SupabaseClient } from '@supabase/supabase-js';
@@ -69,7 +70,7 @@
 		status = null,
 		errorMessage = null,
 		errorId = null,
-		label = 'Report a problem',
+		label = REPORT_LABEL,
 		dictation = undefined,
 		now = () => Date.now()
 	}: {
@@ -403,7 +404,7 @@
 			screenshotNote={attachNote}
 			{dictation}
 			onClose={() => (open = false)}
-			title={status === null ? 'Report a problem' : `Report this ${status}`}
+			title={status === null ? REPORT_LABEL : `Report this ${status}`}
 			note={noteFor}
 		/>
 	</div>
