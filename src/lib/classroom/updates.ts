@@ -85,6 +85,25 @@ export function updatesByMonth(updates: readonly ClassroomUpdate[] = CLASSROOM_U
 	return months.sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0));
 }
 
+/**
+ * One month's entries by DAY, newest first, keeping the file's order inside a
+ * day. The day is printed once as a heading instead of on every entry, which
+ * is most of what made the page long: 84 entries in one month is about a dozen
+ * days.
+ */
+export function updatesByDay(entries: readonly ClassroomUpdate[]): { date: string; entries: ClassroomUpdate[] }[] {
+	const days: { date: string; entries: ClassroomUpdate[] }[] = [];
+	for (const u of entries) {
+		let day = days.find((d) => d.date === u.date);
+		if (!day) {
+			day = { date: u.date, entries: [] };
+			days.push(day);
+		}
+		day.entries.push(u);
+	}
+	return days.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+}
+
 /** "September 2026" from "2026-09". */
 export function monthLabel(key: string): string {
 	const [y, m] = key.split('-').map((n) => Number.parseInt(n, 10));

@@ -51,7 +51,7 @@ import {
 	settingsForRole
 } from '$lib/preferences/classroom';
 import { MemoryPreferenceStore, compactPreferences } from '$lib/preferences/store';
-import { CLASSROOM_UPDATES, monthLabel, updatesByMonth } from '$lib/classroom/updates';
+import { CLASSROOM_UPDATES, monthLabel, updatesByDay, updatesByMonth } from '$lib/classroom/updates';
 import { STREAM_STATUS_LABELS } from '$lib/classroom/classroom';
 import { sectionTabs } from '$lib/classroom/nav';
 
@@ -324,6 +324,19 @@ describe('the update log by month', () => {
 		for (const m of months) {
 			for (const e of m.entries) expect(e.date.slice(0, 7)).toBe(m.key);
 			for (let i = 1; i < m.entries.length; i++) expect(m.entries[i - 1].date >= m.entries[i].date).toBe(true);
+		}
+	});
+
+	it('inside a month, one group per day, newest first, every entry once and in file order within a day', () => {
+		for (const m of updatesByMonth()) {
+			const days = updatesByDay(m.entries);
+			expect(days.flatMap((d) => d.entries)).toHaveLength(m.entries.length);
+			for (let i = 1; i < days.length; i++) expect(days[i - 1].date > days[i].date).toBe(true);
+			for (const d of days) {
+				for (const e of d.entries) expect(e.date).toBe(d.date);
+				const inFile = m.entries.filter((e) => e.date === d.date);
+				expect(d.entries).toEqual(inFile);
+			}
 		}
 	});
 
