@@ -148,7 +148,13 @@
 	function restoreFocus(previous: Element | null) {
 		const shown = (el: HTMLElement | null) =>
 			!!el && el.isConnected && el.getClientRects().length > 0 && !el.closest('[inert]');
-		const back = previous instanceof HTMLElement ? previous : null;
+		// The body is "nothing had focus", never somewhere to put it back: a tour
+		// started from a button that then went away (the classroom's offer)
+		// leaves the body active, and focusing it strands a keyboard reader.
+		const back =
+			previous instanceof HTMLElement && previous !== document.body && previous !== document.documentElement
+				? previous
+				: null;
 		if (shown(back)) {
 			back!.focus({ preventScroll: true });
 			return;
