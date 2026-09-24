@@ -73,7 +73,7 @@
 	<p class="zip-line">
 		<span class="zip-name">{file.name}</span>
 		<span class="zip-meta">
-			{formatBytes(file.size)}{#if survey && !issue} &middot; {pictureCount(pictures)}{/if}
+			{formatBytes(file.size)}{#if survey && !issue}{` \u00b7 ${pictureCount(pictures)}`}{/if}
 		</span>
 	</p>
 	{#if issue}

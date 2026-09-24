@@ -465,6 +465,13 @@
 					</div>
 				</div>
 			{/if}
+			{#if galleryUpload}
+				<p class="deck-hint">
+					A zip of pictures becomes a gallery on this item, each picture uploaded on its own, so
+					the {Math.floor(DECK_UPLOAD_MAX_ZIP_BYTES / 1024 / 1024)} MB presentation limit does not
+					apply to it.
+				</p>
+			{/if}
 			{#if !deck}
 				<p class="deck-hint">
 					Export from Claude Design as a project HTML zip with hidden files included -- the image

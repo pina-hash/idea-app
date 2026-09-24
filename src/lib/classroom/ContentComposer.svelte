@@ -27,7 +27,12 @@
 	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import ZipChoice from '$lib/classroom/ZipChoice.svelte';
-	import { composerDropSummary, HTML_DROP_BUSY, splitComposerDrop } from '$lib/classroom/composer-drop';
+	import {
+		composerDropSummary,
+		HTML_DROP_BUSY,
+		splitComposerDrop,
+		type ComposerDropSplit
+	} from '$lib/classroom/composer-drop';
 	import {
 		extractGalleryPictures,
 		galleryZipIssue,
@@ -1109,9 +1114,49 @@
 		const summary = composerDropSummary(htmlBusy ? { ...split, html: [] } : split);
 		pasteHint = [summary, htmlBusy ? HTML_DROP_BUSY : null].filter(Boolean).join(' ') || null;
 		setTimeout(() => (pasteHint = null), 6000);
+		revealDropDestination(split);
+	}
+
+	/** The composer's own root, for the drop reveal below. Plain, not `$state`:
+	 *  it is read only inside a timer, never in a render. */
+	let dropRoot: HTMLElement | null = null;
+
+	/**
+	 * THE BOX A DROPPED FILE WENT TO IS BROUGHT INTO VIEW (ledger 0297). A file
+	 * let go on the title is routed to a box that can sit a screen or more
+	 * below it -- measured on /dev/composer-drop, the zip choice landed 1297px
+	 * under the title at 375 and 1155px under it at 1440 -- and a choice the
+	 * teacher cannot see is a zip that seems to have vanished. `nearest`, so a
+	 * box already on screen does not move the page at all. The one that needs
+	 * an answer wins: a zip's choice, then the spec, then the document, then
+	 * the Files list. A timer rather than an animation frame: the box renders
+	 * on the next tick, and a throttled tab never runs a frame.
+	 */
+	function revealDropDestination(split: ComposerDropSplit) {
+		const root = dropRoot;
+		if (!root) return;
+		const selector = split.zip.length
+			? '[data-testid="zip-choice"]'
+			: split.spec.length
+				? '[data-testid="spec-paste"]'
+				: split.html.length
+					? '[data-testid="staged-html"]'
+					: split.files.length
+						? '.fup[data-role="attachment"]'
+						: null;
+		if (!selector) return;
+		setTimeout(() => {
+			const all = root.querySelectorAll<HTMLElement>(selector);
+			const target = all[all.length - 1];
+			if (!target) return;
+			const still =
+				typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+			target.scrollIntoView({ block: 'nearest', behavior: still ? 'instant' : 'smooth' });
+		}, 80);
 	}
 	function composerDropZone(node: HTMLElement, initial: { disabled: boolean }) {
 		let disabled = initial.disabled;
+		dropRoot = node;
 		const controller = createDropController({
 			onfiles: (files) => routeComposerDrop(files),
 			onactive: (a) => (composerDragActive = a)
@@ -1147,6 +1192,7 @@
 				if (disabled) composerDragActive = false;
 			},
 			destroy() {
+				if (dropRoot === node) dropRoot = null;
 				node.removeEventListener('dragenter', onDragEnter);
 				node.removeEventListener('dragover', onDragOver);
 				node.removeEventListener('dragleave', onDragLeave);
