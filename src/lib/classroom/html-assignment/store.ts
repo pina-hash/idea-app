@@ -71,6 +71,15 @@ export const HTML_DOCUMENT_MAX_BYTES = 2 * 1024 * 1024;
 const HTML_EXTENSIONS = ['.html', '.htm'];
 const HTML_MIME = 'text/html';
 
+/**
+ * THE SAME RULE IN `matchesAccept`'s SHAPE, for a surface ROUTING a file to the
+ * ported-document box rather than judging it (the composer's form-wide drop,
+ * ledger 0297). Built from the two constants above, so there is one list of
+ * what an HTML document is called. The box's own picker still carries no
+ * `accept` (the repo's rule); `stagedHtmlIssue` is what judges a file there.
+ */
+export const HTML_DOCUMENT_ACCEPT = [...HTML_EXTENSIONS, HTML_MIME].join(',');
+
 function hasHtmlExtension(name: string): boolean {
 	const lower = (name ?? '').toLowerCase();
 	return HTML_EXTENSIONS.some((ext) => lower.endsWith(ext));

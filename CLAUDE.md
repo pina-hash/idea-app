@@ -1229,6 +1229,48 @@ the columns were all there.
   of consecutive class days with an entry, where a today with nothing filed yet
   does not break it, and no surface compares one student's streak to another's.
 
+### THE ITEM PAGE'S MEDIA AND FEEDBACK -- one card, one viewer, one router
+
+**A RETURNED GRADE IS ONE CARD ON EVERY ENGINE, AND THE COMMENT COMES BEFORE
+THE BREAKDOWN (ledger 0297).** `ReturnedGrade.svelte` renders the score, the
+teacher's comment, then `RubricView`; `AssignmentEngine` mounts it for a spec
+assignment and `ItemDetail` mounts it in PARENT CHROME for a ported HTML
+document and an IdeaCAD link, never inside the sandboxed frame. At 375 the
+comment used to sit 1065px under the grade. Before work starts, "How this is
+graded" is a `Disclosure` over the stored rubric (never a spec-derived copy),
+placed after the instructions and before the work, and a returned card replaces
+it so the rubric is never shown twice.
+
+- **EVERY PICTURE IN THE CLASSROOM OPENS IN `$lib/media/Lightbox.svelte`**, a
+  native `<dialog>` on `$lib/panzoom` (no second pan/zoom), with Download as an
+  `<a download>` to the same proxy URL the thumbnail uses, so no serve route
+  changed. Body figures, handouts and galleries, imageZone photos, hand-ins
+  (which is also the grading console's view) and authored figures all open it,
+  and `PhotoViewer` is a thin wrapper over it. Every drag has a button
+  alternative that appears only for an axis the picture actually overflows.
+- **A ZIP OF PICTURES IS A GALLERY WITH NO MIGRATION.** `ZipChoice.svelte` asks
+  in words (Presentation, Image gallery, Attach as a file); `gallery-zip.ts`
+  reads the zip in the browser with Foundry's reader and uploads each picture as
+  an ordinary attachment through `uploadClassroomFile`, so a second zip adds to
+  the same set. **Named, separate galleries need a column** and are not encoded
+  in filenames.
+- **A DROPPED FILE GOES TO THE BOX WHOSE OWN ACCEPT RULE MATCHES IT.**
+  `composerDropRoute` in `$lib/classroom/composer-drop.ts` reads each box's own
+  constant (`SPEC_ACCEPT`, `HTML_DOCUMENT_ACCEPT`, `DECK_ACCEPT`), the composer's
+  root never takes a file a nested box should have, and the drop scrolls the
+  receiving box into view. `FileUploadPanel` still accepts every type.
+- **THE DECK CAP IS THE TRANSPORT'S, AND 4 MiB IS IT.** A deck uploads as one
+  multipart POST that our own function buffers; the 150 MiB figure is a guard on
+  the zip already stored in Drive and no browser request reaches it. Raising the
+  client cap needs one measured request on a Vercel preview first.
+- **A CLAUDE DESIGN DECK BUILDS `<deck-stage>` LATE.** Its export loads React
+  from a CDN before the element exists, so `DeckViewer` keeps watching the frame
+  after `load`; a control wired only at `load` never appears.
+- **A YOUTUBE LINK GETS A THUMBNAIL CARD ONLY ON YOUTUBE'S OWN HOSTS, AFTER
+  `safeHref`, WHERE IT IS A PARAGRAPH OR ENDS ONE** (`$lib/youtube.ts`, which
+  `gauntlet/authoring.ts` re-exports), with `referrerpolicy="no-referrer"`, no
+  server fetch and no new document node. Decision 23 stands.
+
 ### WHAT A STUDENT OWES -- one predicate, one read, one day
 
 **"MISSING" HAS ONE IMPLEMENTATION: `assignmentStanding` AND `checkInStanding`
