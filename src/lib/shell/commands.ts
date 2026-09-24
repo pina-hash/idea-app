@@ -117,7 +117,8 @@ export const ICONS = {
 	live: 'M12 11a1.5 1.5 0 1 0 0 3a1.5 1.5 0 0 0 0-3zM8.5 8.5a5 5 0 0 0 0 8M15.5 8.5a5 5 0 0 1 0 8M5.5 5.5a9 9 0 0 0 0 14M18.5 5.5a9 9 0 0 1 0 14',
 	projector: 'M3 5h18v11H3zM8 20h8M12 16v4',
 	timer: 'M12 7a7 7 0 1 0 0 14a7 7 0 0 0 0-14zM12 10.5V14l2 2M9.5 3h5',
-	pick: 'M5 5h14v14H5zM9 9h.01M15 15h.01M12 12h.01M15 9h.01M9 15h.01'
+	pick: 'M5 5h14v14H5zM9 9h.01M15 15h.01M12 12h.01M15 9h.01M9 15h.01',
+	tour: 'M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 0 0 0-17zM9.5 14.5l1.5-4.5 4.5-1.5-1.5 4.5z'
 } as const;
 
 /* -------------------------------------------------------------------------
@@ -157,10 +158,23 @@ const CORE: readonly ShellCommand[] = [
 		id: 'settings.open',
 		name: 'Classroom settings',
 		icon: ICONS.settings,
-		description: 'Density, the view a class opens on, and a reset for each.',
+		description: 'Density, list width, what a class opens on, and a reset for each.',
 		role: 'any',
 		context: 'global',
 		keywords: ['preferences', 'customize', 'density', 'compact', 'options'],
+		run: true
+	},
+	{
+		// The classroom walkthrough (ledger 0297, LEARN): the teacher's for a
+		// manager of the class on screen, the student's for everyone else. The
+		// shell's `ClassroomTour` registers the handler and picks which.
+		id: 'tour.start',
+		name: 'Take the tour',
+		icon: ICONS.tour,
+		description: 'A short walk past the controls on this page.',
+		role: 'any',
+		context: 'global',
+		keywords: ['show me around', 'help', 'walkthrough', 'guide', 'tutorial', 'new', 'learn', 'how'],
 		run: true
 	},
 	{

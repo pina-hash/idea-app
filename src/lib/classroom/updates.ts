@@ -55,3 +55,39 @@ export function updateDateLabel(date: string): string {
 		day: 'numeric'
 	});
 }
+
+/** One calendar month of the log: its key (`YYYY-MM`), its name, its entries newest first. */
+export interface UpdateMonth {
+	key: string;
+	label: string;
+	entries: ClassroomUpdate[];
+}
+
+/**
+ * THE LOG BY MONTH, newest month first (ledger 0297, LEARN). The page used to
+ * be one list of every entry -- 176 of them, 42,751px tall at 1440 -- so the
+ * newest month is open and every older month folds behind its own name.
+ * Grouping reads the month straight off the `YYYY-MM-DD` in the file, never
+ * through a `Date`, so no time zone can move an entry into its neighbour.
+ * The label is en-US, fixed, so the server and the browser print the same one.
+ */
+export function updatesByMonth(updates: readonly ClassroomUpdate[] = CLASSROOM_UPDATES): UpdateMonth[] {
+	const months: UpdateMonth[] = [];
+	for (const u of updates) {
+		const key = u.date.slice(0, 7);
+		let month = months.find((m) => m.key === key);
+		if (!month) {
+			month = { key, label: monthLabel(key), entries: [] };
+			months.push(month);
+		}
+		month.entries.push(u);
+	}
+	return months.sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0));
+}
+
+/** "September 2026" from "2026-09". */
+export function monthLabel(key: string): string {
+	const [y, m] = key.split('-').map((n) => Number.parseInt(n, 10));
+	if (!y || !m) return key;
+	return new Date(y, m - 1, 1).toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+}

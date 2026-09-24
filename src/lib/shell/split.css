@@ -634,6 +634,96 @@
 	}
 }
 
+/* --- The list width knob (ledger 0297, LEARN) ------------------------------
+   A PERSON'S WIDTH FOR THE LIST BESIDE WHAT THEY OPENED, and the separator
+   that sets it. `ClassSplit` writes `--cr-nav-size` inline ONLY once somebody
+   chose a width (`nav-sized`), so every surface's default is byte-for-byte
+   the `--measure-nav` column it always had.
+
+   THE ITEM KEEPS 32rem WHATEVER WAS STORED. A width chosen on a 1920 screen
+   is read on a 1366 laptop too, so the column is `min()`ed against what the
+   split can spare: the list never takes the item below 32rem plus the gap.
+   Only in the has-detail state; nothing-open is still the whole width. The
+   two-track shape is unchanged, so the easing above still interpolates. */
+.cr-split-sep {
+	display: none;
+}
+@media (min-width: 1024px) {
+	.cr-split.nav-sized:not(.nav-wide).has-detail {
+		--cr-nav-w: min(var(--cr-nav-size), calc(100% - 32rem - var(--space-5)));
+	}
+	/* A drag follows the pointer; easing would make it lag behind it. */
+	.cr-split.nav-dragging {
+		transition: none;
+	}
+	.cr-split.nav-resizable {
+		position: relative;
+	}
+	/* IN THE GAP, NOT IN A TRACK: positioned into the detail's grid area and
+	   pulled left by the gap, so it covers exactly the 24px between the panes
+	   and takes no column of its own. */
+	.cr-split-sep {
+		display: flex;
+		align-items: flex-start;
+		justify-content: center;
+		/* The grip sits a little way down rather than mid-pane: on a long
+		   page-flow list the middle can be far below the fold. */
+		padding-top: min(30vh, 12rem);
+		box-sizing: border-box;
+		position: absolute;
+		grid-column: 2;
+		grid-row: 1;
+		top: 0;
+		bottom: 0;
+		left: calc(-1 * var(--space-5));
+		width: var(--space-5);
+		cursor: col-resize;
+		touch-action: none;
+		outline: none;
+		z-index: 2;
+	}
+	/* The rule is the resting mark, a HAIRLINE because it decorates a gap the
+	   pane frames already separate; the grip is the shape that says it moves. */
+	.cr-split-sep::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: calc(50% - 1px);
+		width: 2px;
+		background: transparent;
+		border-radius: 1px;
+	}
+	.cr-split-grip {
+		position: relative;
+		width: 8px;
+		height: 44px;
+		border-radius: 4px;
+		border: 1px solid var(--boundary);
+		background:
+			radial-gradient(circle, var(--text-2) 1.2px, transparent 1.6px) center 10px / 100% 12px repeat-y,
+			var(--surface-1);
+	}
+	.cr-split-sep:hover::before,
+	.cr-split-sep:focus-visible::before,
+	.cr-split.nav-dragging .cr-split-sep::before {
+		background: var(--boundary);
+	}
+	.cr-split-sep:hover .cr-split-grip,
+	.cr-split-sep:focus-visible .cr-split-grip,
+	.cr-split.nav-dragging .cr-split-grip {
+		border-color: var(--green);
+	}
+	.cr-split-sep:focus-visible .cr-split-grip {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
+	}
+	/* Hiding the list (the item page's "Hide other items") leaves nothing to size. */
+	.cr-root:has([data-testid='nav-collapse-toggle'][aria-pressed='true']) .cr-split-sep {
+		display: none;
+	}
+}
+
 /* --- The composer, in the detail pane ------------------------------------
    Composing takes the pane the detail would have. A navigation pane is ~26rem
    and a full authoring form does not fit in it -- it was never a question of

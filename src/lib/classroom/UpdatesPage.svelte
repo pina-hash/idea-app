@@ -1,6 +1,8 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
-	import { CLASSROOM_UPDATES, updateDateLabel } from '$lib/classroom/updates';
+	import Disclosure from '$lib/Disclosure.svelte';
+	import { REPORT_LABEL_SHORT } from '$lib/feedback/context';
+	import { CLASSROOM_UPDATES, updateDateLabel, updatesByMonth } from '$lib/classroom/updates';
 
 	/**
 	 * The student-facing classroom update log. Presentation only (the
@@ -12,7 +14,27 @@
 	// No props: the page is the changelog file, and the report affordance now
 	// comes from the shell rather than from a control each page mounts itself.
 	const updates = CLASSROOM_UPDATES;
+	/*
+	 * BY MONTH, THE NEWEST OPEN (ledger 0297, LEARN). Each month is a
+	 * Disclosure, so its region is hidden in CSS and never removed (it prints),
+	 * and a month somebody opened or closed stays that way for them. The newest
+	 * month follows no latch: it is open because it is what the page is for.
+	 */
+	const months = updatesByMonth(updates);
 </script>
+
+{#snippet entry(u: (typeof updates)[number])}
+	<article class="card update" data-testid="update-entry">
+		<div class="update-head">
+			<span class="update-when">{updateDateLabel(u.date)}</span>
+			{#each u.tags as tag (tag)}
+				<span class="chip">{tag}</span>
+			{/each}
+		</div>
+		<h3>{u.title}</h3>
+		<p class="update-body">{u.body}</p>
+	</article>
+{/snippet}
 
 <svelte:head>
 	<title>What's new // IDEA Classroom</title>
@@ -27,9 +49,9 @@
 	<section class="hero">
 		<div class="eyebrow">IDEA // Classroom</div>
 		<h1>What's new</h1>
-		<p class="lead">
-			Everything that has changed in Classroom, newest first. If something here does not match
-			what you are seeing, tell us with the Feedback button at the bottom.
+		<p class="lead" data-testid="updates-lead">
+			Everything that has changed in IDEA Classroom, newest first. If something here does not match
+			what you see, press {REPORT_LABEL_SHORT} at the top of the page.
 		</p>
 	</section>
 
@@ -38,17 +60,23 @@
 			<p class="note">Nothing logged yet.</p>
 		</section>
 	{:else}
-		{#each updates as u (u.date + u.title)}
-			<article class="card update">
-				<div class="update-head">
-					<span class="update-when">{updateDateLabel(u.date)}</span>
-					{#each u.tags as tag (tag)}
-						<span class="chip">{tag}</span>
+		{#each months as m, i (m.key)}
+			<section class="update-month" data-testid="update-month" data-month={m.key}>
+				<Disclosure
+					label={m.label}
+					heading={2}
+					collapseWhen={i > 0}
+					scope={`classroom-updates:${m.key}`}
+					testId={`update-month-${m.key}`}
+				>
+					{#snippet meta()}
+						<span class="month-count">{m.entries.length} {m.entries.length === 1 ? 'update' : 'updates'}</span>
+					{/snippet}
+					{#each m.entries as u (u.date + u.title)}
+						{@render entry(u)}
 					{/each}
-				</div>
-				<h2>{u.title}</h2>
-				<p class="update-body">{u.body}</p>
-			</article>
+				</Disclosure>
+			</section>
 		{/each}
 	{/if}
 
@@ -86,9 +114,20 @@
 		border-radius: 999px;
 		padding: 0.02rem 0.45rem;
 	}
-	.update h2 {
+	.update h3 {
 		margin: 0 0 0.35rem;
 		font-size: 1.05rem;
+	}
+	.update-month {
+		margin-bottom: var(--space-3);
+	}
+	.update-month :global(.update:first-child) {
+		margin-top: var(--space-2);
+	}
+	.month-count {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-2);
 	}
 	.update-body {
 		margin: 0;

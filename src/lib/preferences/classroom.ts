@@ -18,13 +18,17 @@
  *   classView ACCOUNT. Which filter a class opens on is a working habit, not a
  *                      property of a screen; it should greet a student the same
  *                      way on a phone and on a lab computer.
- *   grading   ACCOUNT. How somebody grades (advance after Return) is the same at
- *                      any desk. Carried for the grading package to read; no
- *                      surface reads it yet, so the settings panel does not offer
- *                      it (a control whose only outcome is nothing is not offered).
+ *   grading   ACCOUNT. How somebody grades is the same at any desk. The order
+ *                      the Grades tab lists by is read (ledger 0297, LEARN);
+ *                      `advanceAfterReturn` is STILL READ BY NOTHING, so the
+ *                      panel does not offer it (a control whose only outcome is
+ *                      nothing is not offered) and it stays in the schema only so
+ *                      the grading package can wire it without a second schema.
  *   guidance  ACCOUNT. A hint retired or a tour finished on one computer must not
- *                      come back on the next one. Carried for the learnability
- *                      package; not offered in the panel yet, for the same reason.
+ *                      come back on the next one. The classroom walkthroughs read
+ *                      and write it (`$lib/tour/classroom-tours`), so the panel
+ *                      offers it: whether each tour was offered, and a Reset that
+ *                      makes it offer itself again.
  *   search    DEVICE.  The palette's recent picks are written on every use. In the
  *                      profile row that is a write per palette run -- the shape the
  *                      launcher's per-open usage write had, which is what fed the
@@ -39,6 +43,8 @@
  * ones the Phase 0 audit named: it ships in every page payload, it is per
  * account (not shared between two teachers), and it needs a size cap on read.
  */
+import { GRADING_ORDER_DEFAULT, GRADING_ORDER_OPTIONS, type GradingOrderKey } from '$lib/classroom/grading-order';
+import { TODO_VIEW_LABELS, type TodoView } from '$lib/classroom/todo';
 import {
 	LocalPreferenceStore,
 	MemoryPreferenceStore,
@@ -67,8 +73,73 @@ export type Density = (typeof DENSITIES)[number];
 export const CLASS_OPENS_ON = ['all', 'todo', 'missing', 'drafts'] as const;
 export type ClassOpensOn = (typeof CLASS_OPENS_ON)[number];
 
-export const TOUR_STATES = ['unseen', 'finished', 'dismissed'] as const;
+/**
+ * WHERE A WALKTHROUGH STANDS FOR ONE PERSON (ledger 0297, LEARN). `offered` is
+ * written the moment the first-visit offer is shown, which is what makes it
+ * offered ONCE: it is never shown again for any state but `unseen`, whether the
+ * person answered it or walked away (`shouldOfferTour` in
+ * `$lib/tour/classroom-tours`). `finished` and `dismissed` record how a run
+ * ended; neither re-offers. Reset puts it back to `unseen`.
+ */
+export const TOUR_STATES = ['unseen', 'offered', 'finished', 'dismissed'] as const;
 export type TourState = (typeof TOUR_STATES)[number];
+
+/**
+ * THE TWO CLASSROOM WALKTHROUGHS, each with its own state, because one person
+ * can be both: a teacher who is also enrolled in somebody else's class is
+ * offered the student tour there and the teacher tour in their own. The step
+ * lists live in `$lib/tour/classroom-tours`; the ids live here because the
+ * schema validates them.
+ */
+export const CLASSROOM_TOUR_IDS = ['teacher', 'student'] as const;
+export type ClassroomTourId = (typeof CLASSROOM_TOUR_IDS)[number];
+
+/**
+ * THE LIST PANE'S WIDTH beside something open, in rem (ledger 0297, LEARN).
+ * Null is the layout's own width (`--measure-nav`, 26rem), which is what every
+ * surface still gets until somebody drags the separator. The clamp is what
+ * the layout supports: below 18rem a class row's title wraps to three lines,
+ * above 40rem the item beside it is under half of a 1366px screen, and
+ * split.css keeps the item at least 32rem wide at any window width on top of
+ * this. Whole rem only, so the keyboard step and the stored value agree.
+ */
+export const NAV_WIDTH_MIN_REM = 18;
+export const NAV_WIDTH_MAX_REM = 40;
+export const NAV_WIDTH_DEFAULT_REM = 26;
+export const NAV_WIDTH_STEP_REM = 1;
+
+/** A stored or typed width to a value the split can render: a whole rem in range, or null (the default). */
+export function clampNavWidth(value: unknown): number | null {
+	if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+	const whole = Math.round(value);
+	if (whole < NAV_WIDTH_MIN_REM) return NAV_WIDTH_MIN_REM;
+	if (whole > NAV_WIDTH_MAX_REM) return NAV_WIDTH_MAX_REM;
+	return whole === NAV_WIDTH_DEFAULT_REM ? null : whole;
+}
+
+/** The width a surface draws: the stored value, or the default. */
+export function navWidthRem(stored: number | null): number {
+	return stored ?? NAV_WIDTH_DEFAULT_REM;
+}
+
+/**
+ * THE ORDER THE GRADES TAB LISTS BY, remembered as a DEFAULT (ledger 0297,
+ * LEARN). Read off `GRADING_ORDER_OPTIONS` so a new order is one entry there.
+ * A sort is remembered from the control itself because it reorders and hides
+ * nothing; a FILTER (the to-do's view, the class page's chips) is remembered
+ * only when chosen in Settings, because a remembered filter hides work.
+ */
+export const GRADES_ORDERS: readonly GradingOrderKey[] = GRADING_ORDER_OPTIONS.map((o) => o.key);
+
+/**
+ * WHICH VIEW THE TO-DO OPENS ON, as a default chosen in Settings. `done` is not
+ * offered: a to-do that opens on finished work is one that hides what is owed.
+ * The class filter beside it is never remembered at all -- a to-do reopening on
+ * one class is how the rest of a student's missing work drops out of view,
+ * which is the "remembered entry" CLAUDE.md forbids.
+ */
+export const TODO_OPENS_ON = ['assigned', 'missing'] as const satisfies readonly TodoView[];
+export type TodoOpensOn = (typeof TODO_OPENS_ON)[number];
 
 export const RECENT_MAX = 20;
 export const RETIRED_HINTS_MAX = 200;
@@ -98,10 +169,10 @@ const CLASS_KEY = /^[A-Za-z0-9._-]{1,64}$/;
 const HINT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 export interface ClassroomPreferences {
-	display: { density: Density };
-	classView: { opensOn: ClassOpensOn };
-	grading: { advanceAfterReturn: boolean };
-	guidance: { retiredHints: string[]; tour: TourState };
+	display: { density: Density; navWidth: number | null };
+	classView: { opensOn: ClassOpensOn; todoOpensOn: TodoOpensOn };
+	grading: { advanceAfterReturn: boolean; gradesOrder: GradingOrderKey };
+	guidance: { retiredHints: string[]; tours: Record<ClassroomTourId, TourState> };
 	search: { recent: string[] };
 	/**
 	 * THE REVIEWER'S NOTEBOOK REVIEW DEFAULTS (ledger 0297, package F4b), both
@@ -127,10 +198,10 @@ export const CLASSROOM_PREFERENCE_HOMES: Readonly<Record<ClassroomPreferenceGrou
 
 export function defaultClassroomPreferences(): ClassroomPreferences {
 	return {
-		display: { density: 'comfortable' },
-		classView: { opensOn: 'all' },
-		grading: { advanceAfterReturn: false },
-		guidance: { retiredHints: [], tour: 'unseen' },
+		display: { density: 'comfortable', navWidth: null },
+		classView: { opensOn: 'all', todoOpensOn: 'assigned' },
+		grading: { advanceAfterReturn: false, gradesOrder: GRADING_ORDER_DEFAULT },
+		guidance: { retiredHints: [], tours: { teacher: 'unseen', student: 'unseen' } },
 		search: { recent: [] },
 		notebookReview: { lastLooked: {}, comments: [...NOTEBOOK_COMMENT_SEEDS] }
 	};
@@ -159,14 +230,26 @@ export function readClassroomPreferences(raw: unknown): ClassroomPreferences {
 	const search = isObject(r.search) ? r.search : {};
 	const review = isObject(r.notebookReview) ? r.notebookReview : {};
 	return {
-		display: { density: oneOf(display.density, DENSITIES, d.display.density) },
-		classView: { opensOn: oneOf(classView.opensOn, CLASS_OPENS_ON, d.classView.opensOn) },
-		grading: { advanceAfterReturn: bool(grading.advanceAfterReturn, d.grading.advanceAfterReturn) },
+		display: {
+			density: oneOf(display.density, DENSITIES, d.display.density),
+			// Out of range is clamped rather than dropped: somebody who dragged the
+			// list as wide as it went meant "wide", and a later, tighter clamp
+			// should keep them at its own widest rather than snapping them back.
+			navWidth: clampNavWidth(display.navWidth)
+		},
+		classView: {
+			opensOn: oneOf(classView.opensOn, CLASS_OPENS_ON, d.classView.opensOn),
+			todoOpensOn: oneOf(classView.todoOpensOn, TODO_OPENS_ON, d.classView.todoOpensOn)
+		},
+		grading: {
+			advanceAfterReturn: bool(grading.advanceAfterReturn, d.grading.advanceAfterReturn),
+			gradesOrder: oneOf(grading.gradesOrder, GRADES_ORDERS, d.grading.gradesOrder)
+		},
 		guidance: {
 			retiredHints:
 				stringList(guidance.retiredHints, (s) => HINT_ID.test(s), RETIRED_HINTS_MAX) ??
 				d.guidance.retiredHints,
-			tour: oneOf(guidance.tour, TOUR_STATES, d.guidance.tour)
+			tours: readTours(guidance.tours)
 		},
 		search: { recent: stringList(search.recent, (s) => RECENT_KEY.test(s), RECENT_MAX) ?? d.search.recent },
 		notebookReview: {
@@ -179,6 +262,19 @@ export function readClassroomPreferences(raw: unknown): ClassroomPreferences {
 				) ?? d.notebookReview.comments
 		}
 	};
+}
+
+/**
+ * Each known tour's state; an unknown tour id or an unknown state is dropped to
+ * `unseen`. A pre-LEARN `guidance.tour` (a single state F3F5 reserved and no
+ * build ever wrote) is ignored rather than guessed at: nothing can tell which
+ * tour it would have meant.
+ */
+function readTours(v: unknown): Record<ClassroomTourId, TourState> {
+	const r = isObject(v) ? v : {};
+	const out = {} as Record<ClassroomTourId, TourState>;
+	for (const id of CLASSROOM_TOUR_IDS) out[id] = oneOf(r[id], TOUR_STATES, 'unseen');
+	return out;
 }
 
 /** Class id -> ISO instant; anything else is dropped, newest kept first. */
@@ -228,8 +324,14 @@ export const INSTRUCTOR_SURFACE_CLASS = 'cr-instructor-surface';
 
 /* -------------------------------------------------------------------------
  * WHAT THE SETTINGS PANEL OFFERS. Only settings a surface actually reads are
- * listed; `grading` and `guidance` join this list in the bundle that wires a
- * reader for them.
+ * listed (ledger 0297, LEARN, moved several in): the list width the split
+ * reads, the view the to-do opens on, the order the Grades tab lists by, the
+ * tours' state and the notebook review's defaults. `grading.advanceAfterReturn`
+ * is still read by nothing and is still not offered.
+ *
+ * THE PANEL IS ONE SECTION PER GROUP, because Reset is per group: a group that
+ * holds two settings (density and the list width) gets one Reset that puts
+ * both back, and says so by sitting under one heading.
  * ---------------------------------------------------------------------- */
 
 export type SettingRole = 'student' | 'manager';
@@ -239,18 +341,63 @@ export interface SettingOption<V extends string> {
 	label: string;
 }
 
-export interface ChoiceSetting {
+interface SettingBase {
 	group: ClassroomPreferenceGroup;
-	/** The group's heading on the panel. */
+	/** The setting's own label, under its group's heading. */
 	title: string;
 	/** Who is offered it. A student has no instructor surfaces to make compact. */
 	roles: readonly SettingRole[];
+}
+
+/** A radio group over one field. */
+export interface ChoiceSetting extends SettingBase {
+	kind?: 'choice';
 	/** The field and the choices, per role (the class-view choices differ by role). */
 	field: string;
 	options: (role: SettingRole) => readonly SettingOption<string>[];
 }
 
-export const CLASSROOM_SETTINGS: readonly ChoiceSetting[] = [
+/** The list pane's width: Narrower and Wider, the single-pointer twin of the split's separator. */
+export interface WidthSetting extends SettingBase {
+	kind: 'width';
+	field: 'navWidth';
+}
+
+/** A group whose value is not chosen here, only read out and reset (recent picks, a tour's state). */
+export interface SummarySetting extends SettingBase {
+	kind: 'summary';
+	summary: (p: ClassroomPreferences, role: SettingRole) => string;
+}
+
+export type ClassroomSetting = ChoiceSetting | WidthSetting | SummarySetting;
+
+/** Each group's heading on the panel. */
+export const CLASSROOM_GROUP_TITLES: Readonly<Record<ClassroomPreferenceGroup, string>> = {
+	display: 'Display',
+	classView: 'Where things open',
+	grading: 'Grading',
+	guidance: 'Tours',
+	search: 'Recent searches',
+	notebookReview: 'Notebook review'
+};
+
+/** A tour's state, in words, for the panel. */
+export const TOUR_STATE_WORDS: Readonly<Record<TourState, string>> = {
+	unseen: 'Not offered yet',
+	offered: 'Offered',
+	finished: 'Taken',
+	dismissed: 'Skipped'
+};
+
+/** The width a list is drawn at, in words: how far from the standard width, in steps. */
+export function navWidthWords(stored: number | null): string {
+	const delta = navWidthRem(stored) - NAV_WIDTH_DEFAULT_REM;
+	if (delta === 0) return 'Standard';
+	const n = Math.abs(delta);
+	return `${n} ${n === 1 ? 'step' : 'steps'} ${delta > 0 ? 'wider' : 'narrower'}`;
+}
+
+export const CLASSROOM_SETTINGS: readonly ClassroomSetting[] = [
 	{
 		group: 'display',
 		title: 'Density',
@@ -260,6 +407,13 @@ export const CLASSROOM_SETTINGS: readonly ChoiceSetting[] = [
 			{ value: 'comfortable', label: 'Comfortable' },
 			{ value: 'compact', label: 'Compact' }
 		]
+	},
+	{
+		kind: 'width',
+		group: 'display',
+		title: 'List width',
+		roles: ['student', 'manager'],
+		field: 'navWidth'
 	},
 	{
 		group: 'classView',
@@ -277,8 +431,63 @@ export const CLASSROOM_SETTINGS: readonly ChoiceSetting[] = [
 						{ value: 'todo', label: 'To do' },
 						{ value: 'missing', label: 'Missing' }
 					]
+	},
+	{
+		group: 'classView',
+		title: 'To-do opens on',
+		// A teacher has no to-do page (the door is handed to a viewer who is not staff).
+		roles: ['student'],
+		field: 'todoOpensOn',
+		options: () => TODO_OPENS_ON.map((v) => ({ value: v, label: TODO_VIEW_LABELS[v] }))
+	},
+	{
+		group: 'grading',
+		title: 'Grades lists by',
+		roles: ['manager'],
+		field: 'gradesOrder',
+		options: () => GRADING_ORDER_OPTIONS.map((o) => ({ value: o.key, label: o.label }))
+	},
+	{
+		kind: 'summary',
+		group: 'guidance',
+		title: 'Classroom tour',
+		roles: ['student', 'manager'],
+		summary: (p, role) => TOUR_STATE_WORDS[p.guidance.tours[role === 'manager' ? 'teacher' : 'student']]
+	},
+	{
+		kind: 'summary',
+		group: 'notebookReview',
+		title: 'Next steps and last looked',
+		roles: ['manager'],
+		summary: (p) => {
+			const c = p.notebookReview.comments.length;
+			const l = Object.keys(p.notebookReview.lastLooked).length;
+			return `${c} ${c === 1 ? 'next step' : 'next steps'} · last looked in ${l} ${l === 1 ? 'class' : 'classes'}`;
+		}
+	},
+	{
+		kind: 'summary',
+		group: 'search',
+		title: 'Remembered picks',
+		roles: ['student', 'manager'],
+		summary: (p) => {
+			const n = p.search.recent.length;
+			return `${n} ${n === 1 ? 'pick remembered' : 'picks remembered'}`;
+		}
 	}
 ];
+
+/** The settings a role is offered, one entry per group in schema order, each with its settings. */
+export function settingsForRole(
+	role: SettingRole
+): { group: ClassroomPreferenceGroup; title: string; settings: ClassroomSetting[] }[] {
+	const out: { group: ClassroomPreferenceGroup; title: string; settings: ClassroomSetting[] }[] = [];
+	for (const group of CLASSROOM_PREFERENCE_SCHEMA.groups) {
+		const settings = CLASSROOM_SETTINGS.filter((s) => s.group === group && s.roles.includes(role));
+		if (settings.length) out.push({ group, title: CLASSROOM_GROUP_TITLES[group], settings });
+	}
+	return out;
+}
 
 /** The panel's word for where a group lives, so nobody has to guess which choices follow them. */
 export function homeLabel(group: ClassroomPreferenceGroup): string {

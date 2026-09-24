@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
+	import { isTypingTarget } from '$lib/shell/keys';
 	import type { TourCloseReason, TourStep } from './tour';
 
 	/**
@@ -21,13 +22,26 @@
 	 *   click the control it is pointing at; the catcher returns on the next
 	 *   step. If that click navigates or starts an OAuth redirect, the tour needs
 	 *   no teardown of its own -- the page is leaving.
+	 * - FOCUS RETURNS (ledger 0297, LEARN). Whatever held focus when the tour
+	 *   opened gets it back when the tour closes, by any exit; if that element
+	 *   is gone or hidden (the button that started it was inside a menu that
+	 *   closed), `returnFocus` names where focus goes instead. A tour that left
+	 *   focus on a callout that no longer exists strands a keyboard reader at
+	 *   the top of the document.
+	 * - THE KEYS NEVER TAKE A KEYSTROKE FROM A FIELD. Enter and the arrows move
+	 *   the tour only when focus is not in something being typed in -- an
+	 *   `interactive` step can point at an input, and a reader typing into it
+	 *   must keep their own Enter and arrows. Escape still closes the tour.
 	 */
 	let {
 		steps,
-		onclose
+		onclose,
+		returnFocus = null
 	}: {
 		steps: TourStep[];
 		onclose: (reason: TourCloseReason) => void;
+		/** Where focus goes on close when the element that had it is gone or hidden. */
+		returnFocus?: (() => HTMLElement | null) | null;
 	} = $props();
 
 	const PAD = 6; // spotlight breathing room around the target
@@ -114,7 +128,14 @@
 		if (e.key === 'Escape') {
 			e.preventDefault();
 			onclose('closed');
-		} else if (e.key === 'Enter' || e.key === 'ArrowRight') {
+			return;
+		}
+		const target = e.target as { tagName?: string; isContentEditable?: boolean } | null;
+		if (target && isTypingTarget(target)) return;
+		// A focused tour control answers Enter itself (it is a button); taking it
+		// here as well would press Next twice, or Next on top of Skip.
+		if (e.key === 'Enter' && target instanceof HTMLElement && target.closest('.tour-callout button')) return;
+		if (e.key === 'Enter' || e.key === 'ArrowRight') {
 			e.preventDefault();
 			next();
 		} else if (e.key === 'ArrowLeft') {
@@ -123,11 +144,25 @@
 		}
 	}
 
+	/** Focus back where it was, or where the caller says, or nowhere worse than the body. */
+	function restoreFocus(previous: Element | null) {
+		const shown = (el: HTMLElement | null) =>
+			!!el && el.isConnected && el.getClientRects().length > 0 && !el.closest('[inert]');
+		const back = previous instanceof HTMLElement ? previous : null;
+		if (shown(back)) {
+			back!.focus({ preventScroll: true });
+			return;
+		}
+		const fallback = returnFocus?.() ?? null;
+		if (shown(fallback)) fallback!.focus({ preventScroll: true });
+	}
+
 	onMount(() => {
+		const previous = document.activeElement;
 		visible = steps.filter((s) => !!findTarget(s));
 		if (!visible.length) {
 			onclose('closed');
-			return;
+			return () => restoreFocus(previous);
 		}
 		index = 0;
 		showStep();
@@ -153,6 +188,7 @@
 			window.removeEventListener('scroll', remeasure, { capture: true });
 			queued = false;
 			clearTimeout(animTimer);
+			restoreFocus(previous);
 		};
 	});
 
@@ -205,22 +241,38 @@
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="tour-step-title"
+		aria-describedby="tour-step-body"
 		tabindex="-1"
+		data-testid="tour-callout"
+		data-step={index}
+		data-target={step.target}
 		bind:this={calloutEl}
 	>
 		<div class="tour-top">
-			<span class="tour-count">{index + 1} of {visible.length}</span>
-			<button class="tour-x tap-44" type="button" aria-label="Close tour" onclick={() => onclose('closed')}>
+			<span class="tour-count" data-testid="tour-count">{index + 1} of {visible.length}</span>
+			<button
+				class="tour-x tap-44"
+				type="button"
+				aria-label="Close tour"
+				data-testid="tour-close"
+				onclick={() => onclose('closed')}
+			>
 				&times;
 			</button>
 		</div>
 		<h3 id="tour-step-title">{step.title}</h3>
-		<p class="tour-body">{step.body}</p>
+		<p class="tour-body" id="tour-step-body" data-testid="tour-body">{step.body}</p>
 		<div class="tour-actions">
-			<button class="tour-skip tap-44" type="button" onclick={() => onclose('skipped')}>Skip tour</button>
+			<button class="tour-skip tap-44" type="button" data-testid="tour-skip" onclick={() => onclose('skipped')}
+				>Skip tour</button
+			>
 			<span class="tour-nav">
-				<button class="tour-btn tap-44" type="button" disabled={index === 0} onclick={back}>Back</button>
-				<button class="tour-btn primary tap-44" type="button" onclick={next}>{last ? 'Done' : 'Next'}</button>
+				<button class="tour-btn tap-44" type="button" disabled={index === 0} data-testid="tour-back" onclick={back}
+					>Back</button
+				>
+				<button class="tour-btn primary tap-44" type="button" data-testid="tour-next" onclick={next}
+					>{last ? 'Done' : 'Next'}</button
+				>
 			</span>
 		</div>
 	</div>

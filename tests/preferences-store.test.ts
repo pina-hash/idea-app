@@ -53,8 +53,23 @@ import {
 	defaultClassroomPreferences,
 	groupIsDefault,
 	readClassroomPreferences,
-	recordRecentPick
+	recordRecentPick,
+	type ClassroomPreferences
 } from '$lib/preferences/classroom';
+
+/**
+ * ONE GROUP WITH SOME FIELDS CHANGED, the rest at their defaults. The groups
+ * grew fields (ledger 0297, LEARN: the list width, the to-do default, the
+ * Grades order, the tours), and a caller hands `set` a whole group -- every
+ * shipping caller spreads the group as it stands. What each test below asserts
+ * about the SPARSE form is unchanged: a default field is never stored.
+ */
+function part<G extends keyof ClassroomPreferences>(
+	group: G,
+	value: Partial<ClassroomPreferences[G]>
+): ClassroomPreferences[G] {
+	return { ...defaultClassroomPreferences()[group], ...value } as ClassroomPreferences[G];
+}
 
 /* -------------------------------------------------------------------------
  * AN IN-MEMORY PROFILE ROW, with latency on both halves so two writers can
@@ -237,15 +252,22 @@ describe('the classroom schema validates on read', () => {
 			display: { density: 'enormous' },
 			classView: { opensOn: 'missing' },
 			grading: { advanceAfterReturn: 'yes' },
-			guidance: { retiredHints: ['open-palette', 'Bad Id', 7, 'open-palette'], tour: 'finished' },
+			// `tour` is the single state F3F5 reserved and no build ever wrote; it is
+			// ignored (the per-tour states replaced it, ledger 0297 LEARN), and an
+			// unknown tour id and an unknown state beside a valid one are dropped.
+			guidance: {
+				retiredHints: ['open-palette', 'Bad Id', 7, 'open-palette'],
+				tour: 'finished',
+				tours: { teacher: 'finished', student: 'enormous', janitor: 'offered' }
+			},
 			search: { recent: ['cmd:go.home', 'student:ana@boscotech.net', 'item:abc-1', 42] },
 			commentBank: { entries: ['kept by the store, not by the reader'] }
 		});
 		expect(p).toEqual({
-			display: { density: 'comfortable' },
-			classView: { opensOn: 'missing' },
-			grading: { advanceAfterReturn: false },
-			guidance: { retiredHints: ['open-palette'], tour: 'finished' },
+			display: { density: 'comfortable', navWidth: null },
+			classView: { opensOn: 'missing', todoOpensOn: 'assigned' },
+			grading: { advanceAfterReturn: false, gradesOrder: 'due' },
+			guidance: { retiredHints: ['open-palette'], tours: { teacher: 'finished', student: 'unseen' } },
 			search: { recent: ['cmd:go.home', 'item:abc-1'] },
 			// Absent from the stored value, so the group reads as its default
 			// (ledger 0297, F4b): the seeded next-step chips, no last look.
@@ -284,7 +306,8 @@ describe('the classroom schema validates on read', () => {
 		expect(classOpensOnFor('todo', true)).toBe('all');
 		expect(classOpensOnFor('missing', true)).toBe('all');
 		// And every value the panel offers resolves to itself for that role.
-		const setting = CLASSROOM_SETTINGS.find((s) => s.group === 'classView')!;
+		const setting = CLASSROOM_SETTINGS.find((s) => s.group === 'classView' && 'field' in s && s.field === 'opensOn')!;
+		if (!('options' in setting)) throw new Error('the class-view setting is a choice');
 		for (const role of ['student', 'manager'] as const) {
 			for (const o of setting.options(role)) {
 				expect(classOpensOnFor(o.value as never, role === 'manager')).toBe(o.value);
@@ -301,7 +324,18 @@ describe('the classroom schema validates on read', () => {
 
 	it('every group has a home, and the panel offers only live settings', () => {
 		expect(Object.keys(CLASSROOM_PREFERENCE_HOMES).sort()).toEqual([...CLASSROOM_PREFERENCE_SCHEMA.groups].sort());
-		expect(CLASSROOM_SETTINGS.map((s) => s.group)).toEqual(['display', 'classView']);
+		// Every group a surface reads is offered (ledger 0297, LEARN moved the
+		// list width, the to-do default, the Grades order, the tours and the
+		// notebook review's defaults in), and the ONE field nothing reads --
+		// `grading.advanceAfterReturn` -- is offered by no setting at all.
+		expect([...new Set(CLASSROOM_SETTINGS.map((s) => s.group))].sort()).toEqual(
+			['classView', 'display', 'grading', 'guidance', 'notebookReview', 'search']
+		);
+		const fields = CLASSROOM_SETTINGS.flatMap((s) => ('field' in s ? [`${s.group}.${s.field}`] : []));
+		expect(fields).not.toContain('grading.advanceAfterReturn');
+		expect(fields).toEqual(
+			expect.arrayContaining(['display.density', 'display.navWidth', 'classView.opensOn', 'classView.todoOpensOn', 'grading.gradesOrder'])
+		);
 	});
 });
 
@@ -310,20 +344,20 @@ describe('MemoryPreferenceStore', () => {
 		const store = new MemoryPreferenceStore(CLASSROOM_PREFERENCE_SCHEMA);
 		const seen: unknown[] = [];
 		store.subscribe((p) => seen.push(p.display.density));
-		store.set('display', { density: 'compact' });
-		store.set('display', { density: 'compact' });
+		store.set('display', part('display', { density: 'compact' }));
+		store.set('display', part('display', { density: 'compact' }));
 		expect(seen).toEqual(['compact']);
 		expect(store.stored()).toEqual({ display: { density: 'compact' } });
 		// An invalid value takes its default, like a stored one would.
-		store.set('display', { density: 'enormous' as never });
+		store.set('display', part('display', { density: 'enormous' as never }));
 		expect(store.current.display.density).toBe('comfortable');
 		expect(store.stored()).toEqual({});
 	});
 
 	it('reset puts one group back and leaves the others', () => {
 		const store = new MemoryPreferenceStore(CLASSROOM_PREFERENCE_SCHEMA);
-		store.set('display', { density: 'compact' });
-		store.set('classView', { opensOn: 'todo' });
+		store.set('display', part('display', { density: 'compact' }));
+		store.set('classView', part('classView', { opensOn: 'todo' }));
 		store.reset('display');
 		expect(store.current.display.density).toBe('comfortable');
 		expect(store.current.classView.opensOn).toBe('todo');
@@ -338,7 +372,7 @@ describe('MemoryPreferenceStore', () => {
 			display: { density: 'compact' }
 		});
 		expect(store.current.display.density).toBe('compact');
-		store.set('grading', { advanceAfterReturn: true });
+		store.set('grading', part('grading', { advanceAfterReturn: true }));
 		expect(store.stored()).toEqual({
 			commentBank: { entries: ['Nice work'] },
 			display: { density: 'compact' },
@@ -362,7 +396,7 @@ describe('LocalPreferenceStore', () => {
 		const storage = mapStorage();
 		const key = classroomLocalKey('u-1');
 		const store = new LocalPreferenceStore(CLASSROOM_PREFERENCE_SCHEMA, key, storage);
-		store.set('display', { density: 'compact' });
+		store.set('display', part('display', { density: 'compact' }));
 		expect(JSON.parse(storage.map.get(key)!)).toEqual({ display: { density: 'compact' } });
 		store.reset('display');
 		expect(storage.map.has(key)).toBe(false);
@@ -374,9 +408,10 @@ describe('LocalPreferenceStore', () => {
 
 	it('is per viewer: another viewer on the same browser starts from defaults', () => {
 		const storage = mapStorage();
-		new LocalPreferenceStore(CLASSROOM_PREFERENCE_SCHEMA, classroomLocalKey('u-1'), storage).set('display', {
-			density: 'compact'
-		});
+		new LocalPreferenceStore(CLASSROOM_PREFERENCE_SCHEMA, classroomLocalKey('u-1'), storage).set(
+			'display',
+			part('display', { density: 'compact' })
+		);
 		const other = new LocalPreferenceStore(CLASSROOM_PREFERENCE_SCHEMA, classroomLocalKey('u-2'), storage);
 		expect(other.current.display.density).toBe('comfortable');
 		expect(classroomLocalKey(null)).toMatch(/anon$/);
@@ -387,7 +422,7 @@ describe('LocalPreferenceStore', () => {
 		const key = classroomLocalKey('u-1');
 		const tabA = new LocalPreferenceStore(CLASSROOM_PREFERENCE_SCHEMA, key, storage);
 		const tabB = new LocalPreferenceStore(CLASSROOM_PREFERENCE_SCHEMA, key, storage);
-		tabA.set('display', { density: 'compact' });
+		tabA.set('display', part('display', { density: 'compact' }));
 		tabB.set('search', { recent: ['item:x'] });
 		expect(JSON.parse(storage.map.get(key)!)).toEqual({
 			display: { density: 'compact' },
@@ -409,12 +444,12 @@ describe('LocalPreferenceStore', () => {
 		};
 		const store = new LocalPreferenceStore(CLASSROOM_PREFERENCE_SCHEMA, 'k', throwing);
 		expect(store.current).toEqual(defaultClassroomPreferences());
-		expect(() => store.set('display', { density: 'compact' })).not.toThrow();
+		expect(() => store.set('display', part('display', { density: 'compact' }))).not.toThrow();
 		expect(store.current.display.density).toBe('compact');
 		expect(() => store.reset('display')).not.toThrow();
 		// No storage at all is the same answer.
 		const none = new LocalPreferenceStore(CLASSROOM_PREFERENCE_SCHEMA, 'k', null);
-		expect(() => none.set('display', { density: 'compact' })).not.toThrow();
+		expect(() => none.set('display', part('display', { density: 'compact' }))).not.toThrow();
 	});
 
 	it('a corrupt slot reads as the defaults', () => {
@@ -448,9 +483,9 @@ describe('ProfilePreferenceStore: debounced, fail-soft', () => {
 	it('a run of changes inside the debounce is ONE write carrying every changed group', async () => {
 		const { writer, calls } = recordingWriter();
 		const store = new ProfilePreferenceStore(CLASSROOM_PREFERENCE_SCHEMA, undefined, writer, 400);
-		store.set('classView', { opensOn: 'todo' });
-		store.set('grading', { advanceAfterReturn: true });
-		store.set('classView', { opensOn: 'missing' });
+		store.set('classView', part('classView', { opensOn: 'todo' }));
+		store.set('grading', part('grading', { advanceAfterReturn: true }));
+		store.set('classView', part('classView', { opensOn: 'missing' }));
 		expect(calls).toHaveLength(0);
 		await vi.advanceTimersByTimeAsync(399);
 		expect(calls).toHaveLength(0);
@@ -475,11 +510,11 @@ describe('ProfilePreferenceStore: debounced, fail-soft', () => {
 	it('a write that does not land keeps the choice, says so, and is retried with the next change', async () => {
 		const { writer, calls } = recordingWriter([false, true]);
 		const store = new ProfilePreferenceStore(CLASSROOM_PREFERENCE_SCHEMA, undefined, writer, 400);
-		store.set('classView', { opensOn: 'todo' });
+		store.set('classView', part('classView', { opensOn: 'todo' }));
 		await store.flush();
 		expect(store.failed).toBe(true);
 		expect(store.current.classView.opensOn).toBe('todo');
-		store.set('grading', { advanceAfterReturn: true });
+		store.set('grading', part('grading', { advanceAfterReturn: true }));
 		await store.flush();
 		expect(store.failed).toBe(false);
 		// The retry carries the group that failed as well as the new one.
@@ -493,7 +528,7 @@ describe('ProfilePreferenceStore: debounced, fail-soft', () => {
 			}
 		};
 		const store = new ProfilePreferenceStore(CLASSROOM_PREFERENCE_SCHEMA, undefined, writer);
-		store.set('classView', { opensOn: 'todo' });
+		store.set('classView', part('classView', { opensOn: 'todo' }));
 		await expect(store.flush()).resolves.toBeUndefined();
 		expect(store.failed).toBe(true);
 	});
@@ -508,9 +543,9 @@ describe('createClassroomPreferences: each group goes to its home', () => {
 			account: { initial: undefined, writer: profileNamespaceWriter(r.io, 'classroom') },
 			storage
 		});
-		store.set('display', { density: 'compact' });
+		store.set('display', part('display', { density: 'compact' }));
 		store.set('search', { recent: ['cmd:go.home'] });
-		store.set('classView', { opensOn: 'todo' });
+		store.set('classView', part('classView', { opensOn: 'todo' }));
 		await store.flush();
 		expect(JSON.parse(storage.map.get(classroomLocalKey('u-1'))!)).toEqual({
 			display: { density: 'compact' },
@@ -534,13 +569,13 @@ describe('createClassroomPreferences: each group goes to its home', () => {
 		expect(store.current.classView.opensOn).toBe('missing');
 		const seen: string[] = [];
 		store.subscribe((p) => seen.push(p.display.density));
-		store.set('display', { density: 'compact' });
+		store.set('display', part('display', { density: 'compact' }));
 		expect(seen).toEqual(['compact']);
 	});
 
 	it('with no account backend the account groups live for the session and never throw', () => {
 		const store = createClassroomPreferences({ viewer: null, account: null, storage: null });
-		store.set('classView', { opensOn: 'drafts' });
+		store.set('classView', part('classView', { opensOn: 'drafts' }));
 		expect(store.current.classView.opensOn).toBe('drafts');
 	});
 });
