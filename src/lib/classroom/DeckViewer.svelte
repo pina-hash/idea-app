@@ -78,12 +78,12 @@
 	let detachStage: (() => void) | null = null;
 
 	/**
-	 * FIND THE DECK'S STAGE AND LISTEN TO IT. Every read is guarded: a frame
-	 * whose document is not reachable (a different origin, a document still
-	 * loading) or holds no `deck-stage` leaves `stageApi` null, which is the
-	 * old read-only viewer.
+	 * FIND THE DECK'S STAGE AND LISTEN TO IT, and say whether it was found.
+	 * Every read is guarded: a frame whose document is not reachable (a
+	 * different origin, a document still loading) or holds no `deck-stage`
+	 * leaves `stageApi` null, which is the old read-only viewer.
 	 */
-	function connectStage() {
+	function connectStage(): boolean {
 		detachStage?.();
 		detachStage = null;
 		stageApi = null;
@@ -91,7 +91,7 @@
 		try {
 			const doc = frame?.contentDocument;
 			const el = doc?.querySelector('deck-stage') as DeckStageApi | null;
-			if (!doc || !el) return;
+			if (!doc || !el) return false;
 			if (typeof el.goTo !== 'function') {
 				// Present but not yet upgraded: the deck's script defines it after
 				// parsing. Ask again the moment it does, once.
@@ -102,7 +102,7 @@
 						if (!stageApi) connectStage();
 					})
 					.catch(() => {});
-				return;
+				return false;
 			}
 			stageApi = el;
 			current = typeof el.index === 'number' ? el.index : null;
@@ -114,12 +114,56 @@
 			};
 			doc.addEventListener('slidechange', onChange);
 			detachStage = () => doc.removeEventListener('slidechange', onChange);
+			return true;
 		} catch {
 			stageApi = null;
+			return false;
 		}
 	}
 
-	$effect(() => () => detachStage?.());
+	/**
+	 * WAIT FOR THE STAGE, BECAUSE A CLAUDE DESIGN EXPORT BUILDS IT LATE.
+	 *
+	 * The exported page is a `<x-dc>` template whose runtime loads React (and
+	 * Babel) from a CDN and only THEN renders `<deck-stage>` -- measured on
+	 * /dev/classroom-deck with those scripts served locally: at `load` the
+	 * document holds no `deck-stage` at all, and it appears once the runtime
+	 * has booted. So a look at `load` and one more a moment later would miss it
+	 * on every slow school connection. The frame's own document is watched
+	 * until the element arrives, for thirty seconds at most; a deck that never
+	 * builds one keeps the read-only index, which is what it always had.
+	 */
+	let stopWatch: (() => void) | null = null;
+	function watchForStage() {
+		stopWatch?.();
+		stopWatch = null;
+		if (connectStage()) return;
+		let doc: Document | null = null;
+		try {
+			doc = frame?.contentDocument ?? null;
+		} catch {
+			doc = null;
+		}
+		const root = doc?.documentElement;
+		const Observer = doc?.defaultView?.MutationObserver;
+		if (!root || !Observer) return;
+		const observer = new Observer(() => {
+			if (connectStage()) stop();
+		});
+		observer.observe(root, { childList: true, subtree: true });
+		const timer = setTimeout(stop, 30_000);
+		function stop() {
+			observer.disconnect();
+			clearTimeout(timer);
+			if (stopWatch === stop) stopWatch = null;
+		}
+		stopWatch = stop;
+	}
+
+	$effect(() => () => {
+		detachStage?.();
+		stopWatch?.();
+	});
 
 	function goToSlide(i: number) {
 		try {
@@ -152,13 +196,8 @@
 		// Deferred a tick: focusing inside the load handler can lose the race
 		// with the frame's own first paint on a cold document.
 		queueMicrotask(focusDeck);
-		// deck-stage defines itself from a script in the deck, which may run
-		// after `load` has already fired on a fast cache; ask now and once more
-		// a moment later rather than waiting on a signal the deck never sends.
-		connectStage();
-		setTimeout(() => {
-			if (!stageApi) connectStage();
-		}, 400);
+		// The stage may not exist yet: see `watchForStage`.
+		watchForStage();
 	}
 
 	async function toggleFullscreen() {
