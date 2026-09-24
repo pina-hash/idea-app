@@ -7,6 +7,9 @@
 		type MarkdownNode
 	} from '$lib/classroom/reference-spec';
 	import { resolveFigureSrc, type ClassroomAttachment } from '$lib/classroom/classroom';
+	import Lightbox from '$lib/media/Lightbox.svelte';
+	import EnlargeCue from '$lib/media/EnlargeCue.svelte';
+	import type { LightboxImage } from '$lib/media/lightbox';
 
 	/**
 	 * Authored prose rendered as real elements.
@@ -53,6 +56,37 @@
 	const nodes = $derived<MarkdownNode[]>(parseMarkdown(body));
 
 	const figureSrc = (src: string) => resolveFigureSrc(src, attachments, { public: publicAttachments });
+
+	/**
+	 * EVERY FIGURE THAT RESOLVED OPENS LARGE (ledger 0297, package ITEM): a
+	 * spec's instruction figure and a reference document's diagram are the
+	 * same kind of picture as an item body's, and get the same viewer.
+	 * Unresolved references render their marker and have no src to open.
+	 */
+	const figures = $derived.by(() => {
+		const byNode = new Map<number, number>();
+		const images: LightboxImage[] = [];
+		nodes.forEach((node, i) => {
+			if (node.type !== 'figure') return;
+			const resolved = figureSrc(node.src);
+			if (!resolved.ok) return;
+			const ref = node.src.trim();
+			const name = ref.toLowerCase().startsWith('attachment:')
+				? ref.slice('attachment:'.length).trim()
+				: (ref.split('/').pop() ?? '');
+			byNode.set(i, images.length);
+			images.push({
+				key: `md-figure-${i}`,
+				src: resolved.src,
+				alt: node.alt,
+				caption: node.alt,
+				downloadHref: resolved.src,
+				downloadName: name || null
+			});
+		});
+		return { byNode, images };
+	});
+	let figureOpen = $state<number | null>(null);
 </script>
 
 {#snippet inline(runs: InlineRun[])}
@@ -136,13 +170,23 @@
 			</blockquote>
 		{:else if node.type === 'figure'}
 			{@const resolved = figureSrc(node.src)}
+			{@const at = figures.byNode.get(ni)}
 			<figure class="md-figure" class:unresolved={!resolved.ok}>
 				{#if resolved.ok}
 					<!-- The alt IS the caption, deliberately: one authored string, so a
 					     reader using a screen reader and a reader looking at the page
 					     are told the same thing, and neither can be given a description
 					     the other does not have. -->
-					<img src={resolved.src} alt={node.alt} loading="lazy" />
+					<button
+						type="button"
+						class="md-figure-open"
+						aria-label={`Open ${node.alt} larger`}
+						data-testid="md-figure-open"
+						onclick={() => (figureOpen = at ?? null)}
+					>
+						<img src={resolved.src} alt={node.alt} loading="lazy" />
+						<EnlargeCue />
+					</button>
 				{:else}
 					<!-- NEVER A BROKEN IMAGE ELEMENT AND NEVER SILENCE. An `img` with a
 					     refused src would either 404 in the layout or, worse, render as
@@ -165,6 +209,17 @@
 		{/if}
 	{/each}
 </div>
+
+{#if figures.images.length}
+	<Lightbox
+		images={figures.images}
+		index={figureOpen}
+		label="Figures"
+		onIndex={(n) => (figureOpen = n)}
+		onClose={() => (figureOpen = null)}
+		testId="md-figure-lightbox"
+	/>
+{/if}
 
 <style>
 	/* SPACING TIERS. Most room above an authored heading, less between
@@ -345,6 +400,28 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
+	}
+	/* THE FIGURE AS A CONTROL (ledger 0297): the button is the flex item now,
+	   so IT takes `align-self: flex-start` and the picture's own width, and the
+	   img inside keeps every rule below. */
+	.md :global(.md-figure-open) {
+		appearance: none;
+		position: relative;
+		align-self: flex-start;
+		max-width: 100%;
+		padding: 0;
+		margin: 0;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		line-height: 0;
+		cursor: zoom-in;
+		border-radius: var(--radius-card);
+	}
+	.md :global(.md-figure-open:focus-visible) {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
 	}
 	.md :global(.md-figure img) {
 		display: block;

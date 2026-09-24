@@ -5,6 +5,9 @@
 		submissionFileSrc,
 		type SubmissionFileRow
 	} from '$lib/classroom/assignment-spec';
+	import Lightbox from '$lib/media/Lightbox.svelte';
+	import EnlargeCue from '$lib/media/EnlargeCue.svelte';
+	import type { LightboxImage } from '$lib/media/lightbox';
 
 	/**
 	 * The plain (non-block) hand-in files on a submission: image thumbnail with
@@ -30,6 +33,30 @@
 	// hiccup), so a failed image falls back to the file row rather than a
 	// broken-image glyph.
 	let broken = $state<Record<string, boolean>>({});
+
+	/**
+	 * THE PICTURES ON THIS LIST OPEN LARGE (ledger 0297, package ITEM). A
+	 * thumbnail was a link to the proxy in a new tab, which answers
+	 * `Content-Disposition: attachment`, so "look closer" downloaded the photo.
+	 * The grading console mounts this same list for "Files handed in", so a
+	 * teacher reading a photographed page gets the same zoom a student does.
+	 */
+	const pictures = $derived(files.filter((f) => isSubmissionFileImage(f) && !broken[f.id]));
+	const lightboxImages = $derived<LightboxImage[]>(
+		pictures.map((f) => ({
+			key: f.id,
+			src: submissionFileSrc(f.id),
+			alt: f.caption ?? f.filename,
+			caption: f.caption ? `${f.caption} (${f.filename})` : f.filename,
+			downloadHref: submissionFileSrc(f.id),
+			downloadName: f.filename
+		}))
+	);
+	let openAt = $state<number | null>(null);
+	function openPicture(f: SubmissionFileRow) {
+		const at = pictures.findIndex((p) => p.id === f.id);
+		if (at >= 0) openAt = at;
+	}
 </script>
 
 {#if files.length}
@@ -37,14 +64,21 @@
 		{#each files as f (f.id)}
 			<li class="file-row" class:image={isSubmissionFileImage(f) && !broken[f.id]}>
 				{#if isSubmissionFileImage(f) && !broken[f.id]}
-					<a class="file-preview" href={submissionFileSrc(f.id)} target="_blank" rel="noopener noreferrer">
+					<button
+						type="button"
+						class="file-preview"
+						aria-label={`Open ${f.caption ?? f.filename} larger`}
+						data-testid="submission-file-preview"
+						onclick={() => openPicture(f)}
+					>
 						<img
 							src={submissionFileSrc(f.id)}
 							alt={f.caption ?? f.filename}
 							loading="lazy"
 							onerror={() => (broken = { ...broken, [f.id]: true })}
 						/>
-					</a>
+						<EnlargeCue />
+					</button>
 				{/if}
 				<span class="file-meta">
 					<a class="file-name" href={submissionFileSrc(f.id)} target="_blank" rel="noopener noreferrer">
@@ -70,6 +104,17 @@
 	</ul>
 {:else}
 	<p class="note">{emptyText}</p>
+{/if}
+
+{#if lightboxImages.length}
+	<Lightbox
+		images={lightboxImages}
+		index={openAt}
+		label="Files handed in"
+		onIndex={(n) => (openAt = n)}
+		onClose={() => (openAt = null)}
+		testId="submission-lightbox"
+	/>
 {/if}
 
 <style>
@@ -109,6 +154,18 @@
 		overflow: hidden;
 		background: var(--surface-2);
 		line-height: 0;
+		/* A <button> now (it opens the lightbox), so its own UA chrome goes. */
+		appearance: none;
+		position: relative;
+		padding: 0;
+		margin: 0;
+		color: inherit;
+		font: inherit;
+		cursor: zoom-in;
+	}
+	.file-preview:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
 	}
 	.file-preview img {
 		display: block;

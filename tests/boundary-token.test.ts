@@ -215,7 +215,7 @@ describe('the decorative hairline, which must NOT be raised', () => {
 			['src/lib/classroom/RubricView.svelte', '.rubric-head'],
 			['src/lib/notebook/SectionGrid.svelte', 'th'],
 			['src/lib/notebook/EntryThumb.svelte', '.thumb'],
-			['src/lib/notebook/PhotoViewer.svelte', '.pv-bottom'],
+			['src/lib/media/Lightbox.svelte', '.lb-bottom'],
 			['src/lib/classroom/classroom.css', '.cr-root .tool-rule']
 		];
 		expect(DECORATIVE.length, 'the sample must not shrink to nothing').toBe(12);

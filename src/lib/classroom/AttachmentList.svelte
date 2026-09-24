@@ -10,6 +10,9 @@
 	} from '$lib/classroom/classroom';
 	import { reorderIds } from '$lib/classroom/attachments';
 	import { sortDrag } from '$lib/classroom/sort-drag';
+	import Lightbox from '$lib/media/Lightbox.svelte';
+	import EnlargeCue from '$lib/media/EnlargeCue.svelte';
+	import type { LightboxImage } from '$lib/media/lightbox';
 
 	/**
 	 * Attachments on a post or an assignment. ONE renderer, mounted by the
@@ -45,7 +48,8 @@
 		figureRefs = false,
 		onreorder = null,
 		onrename = null,
-		renameBlocked = null
+		renameBlocked = null,
+		gallery = false
 	}: {
 		attachments: ClassroomAttachment[];
 		/** Teacher-only; omitted entirely on the student-facing views. */
@@ -103,6 +107,17 @@
 		 * arrives before anything is typed rather than after.
 		 */
 		renameBlocked?: ((a: ClassroomAttachment) => string | null) | null;
+		/**
+		 * THE GALLERY (ledger 0297, package ITEM; reports 23 and 35). Given, and
+		 * with two or more pictures on a list that carries no authoring control,
+		 * the pictures render as a grid of tiles ABOVE the other files, and every
+		 * tile opens the lightbox on the whole set. An image zip a teacher chose
+		 * to post as a gallery lands here as ordinary attachments, so several
+		 * zips simply add more tiles. The composer's list, which reorders and
+		 * renames, never takes it: a tile has no room for Move and Rename, and a
+		 * list somebody is editing reads better as rows.
+		 */
+		gallery?: boolean;
 	} = $props();
 
 	const srcOf = (a: ClassroomAttachment) => resolveSrc?.(a) ?? attachmentSrc(a.id);
@@ -145,6 +160,38 @@
 	// hiccup), so a failed image falls back to the file row rather than a
 	// broken-image glyph.
 	let broken = $state<Record<string, boolean>>({});
+
+	/**
+	 * EVERY PICTURE IN THE LIST, AS THE LIGHTBOX'S SET (ledger 0297, package
+	 * ITEM). A thumbnail used to be a link to the proxy in a new tab, and the
+	 * proxy answers `Content-Disposition: attachment` -- so "look closer"
+	 * DOWNLOADED the photograph. It opens large now, with zoom, and Download is
+	 * a deliberate control inside the viewer pointing at that same URL.
+	 * A picture that failed to decode is not in the set; it is a file row.
+	 */
+	const pictures = $derived(attachments.filter((a) => isImageAttachment(a) && !broken[a.id]));
+	const lightboxImages = $derived<LightboxImage[]>(
+		pictures.map((a) => ({
+			key: a.id,
+			src: srcOf(a),
+			alt: a.filename,
+			caption: a.filename,
+			downloadHref: srcOf(a),
+			downloadName: a.filename
+		}))
+	);
+	let openAt = $state<number | null>(null);
+	function openPicture(a: ClassroomAttachment) {
+		const at = pictures.findIndex((p) => p.id === a.id);
+		if (at >= 0) openAt = at;
+	}
+	/** Tiles only on a read surface, and only when there is a set to page. */
+	const asGallery = $derived(
+		gallery && pictures.length >= 2 && !onreorder && !onrename && !onremove
+	);
+	const rows = $derived(
+		asGallery ? attachments.filter((a) => !(isImageAttachment(a) && !broken[a.id])) : attachments
+	);
 
 	/**
 	 * THE ONE REORDER. `sortDrag`'s `ondrop` (a pointer drag, or an arrow key
@@ -251,7 +298,47 @@
 	const sortable = $derived(!!onreorder && attachments.length > 1);
 </script>
 
-{#if attachments.length}
+{#if asGallery}
+	<!-- THE GALLERY GRID. Tiles are comparable things of one size, so this is a
+	     grid (a row of comparable things), never the multi-column stack the
+	     class stream uses for panels of unequal height. Each tile is ONE
+	     button that opens the whole set at that picture; the filename under
+	     it is the visible word. -->
+	<ul class="attach-gallery" data-testid="attach-gallery">
+		{#each pictures as a (a.id)}
+			<li class="gallery-tile" data-testid="attach-gallery-tile">
+				<button
+					type="button"
+					class="gallery-open"
+					aria-label={`Open ${a.filename} larger`}
+					data-testid="attach-gallery-open"
+					onclick={() => openPicture(a)}
+				>
+					<img
+						src={srcOf(a)}
+						alt={a.filename}
+						loading="lazy"
+						onerror={() => (broken = { ...broken, [a.id]: true })}
+					/>
+					<EnlargeCue />
+				</button>
+				<span class="gallery-name">{a.filename}</span>
+				{#if figureRefs}
+					<button
+						type="button"
+						class="attach-ref"
+						data-testid="attach-figure-ref"
+						onclick={() => copyRef(a)}
+					>
+						{copied === a.id ? 'Reference copied' : 'Copy figure reference'}
+					</button>
+				{/if}
+			</li>
+		{/each}
+	</ul>
+{/if}
+
+{#if rows.length}
 	<!-- `sortDrag` is bound whether or not `onreorder` is given and simply
 	     DISABLED without it -- but with no grip rendered there is nothing for
 	     the pointer or the arrow keys to start from, so absence removes the
@@ -260,7 +347,7 @@
 		class="attach-list"
 		use:sortDrag={{ items: '.attach-row', ondrop: move, disabled: !sortable }}
 	>
-		{#each attachments as a, i (a.id)}
+		{#each rows as a, i (a.id)}
 			<li
 				class="attach-row"
 				class:image={isImageAttachment(a) && !broken[a.id]}
@@ -268,14 +355,21 @@
 				data-testid="attach-row"
 			>
 				{#if isImageAttachment(a) && !broken[a.id]}
-					<a class="attach-preview" href={srcOf(a)} target="_blank" rel="noopener noreferrer">
+					<button
+						type="button"
+						class="attach-preview"
+						aria-label={`Open ${a.filename} larger`}
+						data-testid="attach-preview"
+						onclick={() => openPicture(a)}
+					>
 						<img
 							src={srcOf(a)}
 							alt={a.filename}
 							loading="lazy"
 							onerror={() => (broken = { ...broken, [a.id]: true })}
 						/>
-					</a>
+						<EnlargeCue />
+					</button>
 				{/if}
 				{#if renamingId === a.id}
 					<!-- THE INLINE RENAME. Enter saves, Escape cancels, and the
@@ -385,7 +479,7 @@
 								type="button"
 								class="attach-btn quiet"
 								data-testid="attach-move-down"
-								aria-disabled={i === attachments.length - 1}
+								aria-disabled={i === rows.length - 1}
 								onclick={() => move(i, i + 1)}
 							>
 								Move down
@@ -427,6 +521,17 @@
 	</ul>
 {/if}
 
+{#if lightboxImages.length}
+	<Lightbox
+		images={lightboxImages}
+		index={openAt}
+		label="Pictures"
+		onIndex={(n) => (openAt = n)}
+		onClose={() => (openAt = null)}
+		testId="attach-lightbox"
+	/>
+{/if}
+
 <style>
 	.attach-list {
 		list-style: none;
@@ -464,6 +569,66 @@
 		overflow: hidden;
 		background: var(--surface-2);
 		line-height: 0;
+		/* A <button> now (it opens the lightbox), so its own UA chrome goes. */
+		appearance: none;
+		position: relative;
+		padding: 0;
+		margin: 0;
+		color: inherit;
+		font: inherit;
+		cursor: zoom-in;
+	}
+	.attach-preview:focus-visible,
+	.gallery-open:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
+	}
+	.attach-gallery {
+		list-style: none;
+		margin: 0.6rem 0 0;
+		padding: 0;
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(min(9.5rem, 100%), 1fr));
+		gap: var(--space-2);
+	}
+	.gallery-tile {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		min-width: 0;
+	}
+	.gallery-open {
+		appearance: none;
+		position: relative;
+		display: block;
+		width: 100%;
+		aspect-ratio: 4 / 3;
+		padding: 0;
+		margin: 0;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		overflow: hidden;
+		background: var(--surface-2);
+		color: inherit;
+		font: inherit;
+		line-height: 0;
+		cursor: zoom-in;
+	}
+	/* `contain`, not `cover`: a tile shows the whole picture, because the
+	   cropped-off edge of a photograph of a part is routinely the measurement
+	   somebody needs (the composer preview's own rule). */
+	.gallery-open img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+	}
+	.gallery-name {
+		font-size: 0.78rem;
+		color: var(--text-2);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.attach-preview img {
 		display: block;
