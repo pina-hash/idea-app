@@ -588,7 +588,7 @@
 		margin: 0.6rem 0 0;
 		padding: 0;
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(min(9.5rem, 100%), 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(min(8rem, 100%), 1fr));
 		gap: var(--space-2);
 	}
 	.gallery-tile {

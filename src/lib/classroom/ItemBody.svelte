@@ -259,7 +259,9 @@
 			</span>
 		</span>
 		<span class="item-video-text">
-			<span class="item-video-label">{video.label}</span>
+			<!-- A bare pasted URL is its own label, and a 43-character address
+			     broken over three lines at 375 says less than two words do. -->
+			<span class="item-video-label">{video.label === video.href ? 'Watch on YouTube' : video.label}</span>
 			<span class="item-video-meta">YouTube video &middot; opens in a new tab</span>
 		</span>
 	</a>

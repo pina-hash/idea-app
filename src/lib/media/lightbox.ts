@@ -136,15 +136,18 @@ export function lightboxPan(
 }
 
 /**
- * WHETHER PANNING MEANS ANYTHING RIGHT NOW: the picture, at this scale, is
- * bigger than the stage on at least one axis. The pan controls render only
- * then, so a fitted picture is never offered four buttons that do nothing.
- * Half a pixel of slack so a fit that rounds to the stage's own size is not
- * read as an overflow.
+ * WHETHER PANNING MEANS ANYTHING RIGHT NOW, PER AXIS: the picture, at this
+ * scale, is bigger than the stage on that axis. The Move controls render only
+ * for an axis that overflows, so a fitted picture is never offered buttons that
+ * do nothing -- and neither is a tall photo zoomed on a wide screen, which
+ * overflows top to bottom and still fits side to side (measured on the gallery
+ * harness at 1366 and 1440: a Left press there moved nothing). Half a pixel of
+ * slack so a fit that rounds to the stage's own size is not read as an
+ * overflow.
  */
-export function lightboxCanPan(view: View, stage: Size, content: Size): boolean {
-	if (!(stage.w > 0 && stage.h > 0 && content.w > 0 && content.h > 0)) return false;
-	return content.w * view.s > stage.w + 0.5 || content.h * view.s > stage.h + 0.5;
+export function lightboxPanAxes(view: View, stage: Size, content: Size): { x: boolean; y: boolean } {
+	if (!(stage.w > 0 && stage.h > 0 && content.w > 0 && content.h > 0)) return { x: false, y: false };
+	return { x: content.w * view.s > stage.w + 0.5, y: content.h * view.s > stage.h + 0.5 };
 }
 
 /**

@@ -44,10 +44,10 @@
 	import Pending from '$lib/Pending.svelte';
 	import {
 		LIGHTBOX_ZOOM_STEP,
-		lightboxCanPan,
 		lightboxCountLabel,
 		lightboxKeyAction,
 		lightboxPan,
+		lightboxPanAxes,
 		lightboxRetrySrc,
 		type LightboxImage
 	} from '$lib/media/lightbox';
@@ -112,7 +112,8 @@
 
 	const stageBox = $derived<Size>({ w: W, h: H });
 	const contentBox = $derived<Size>({ w: naturalW, h: naturalH });
-	const canPan = $derived(lightboxCanPan({ s, tx, ty }, stageBox, contentBox));
+	const panAxes = $derived(lightboxPanAxes({ s, tx, ty }, stageBox, contentBox));
+	const canPan = $derived(panAxes.x || panAxes.y);
 
 	const panZoomHost: PanZoomHost = {
 		getView: () => ({ s, tx, ty }),
@@ -412,13 +413,20 @@
 				{#if canPan}
 					<!-- THE SINGLE-POINTER ALTERNATIVE TO DRAGGING (WCAG 2.5.7). The
 					     word "Move" is the group's visible label; each arrow names
-					     its direction for a reader. -->
+					     its direction for a reader, and only a direction the
+					     picture overflows in is offered. -->
 					<span class="lb-group lb-pan" role="group" aria-label="Move the picture" data-testid="{testId}-pan">
 						<span class="lb-group-word" aria-hidden="true">Move</span>
-						<button type="button" class="lb-btn lb-square" onclick={() => pan('left')} aria-label="Move left">&#8592;</button>
-						<button type="button" class="lb-btn lb-square" onclick={() => pan('up')} aria-label="Move up">&#8593;</button>
-						<button type="button" class="lb-btn lb-square" onclick={() => pan('down')} aria-label="Move down">&#8595;</button>
-						<button type="button" class="lb-btn lb-square" onclick={() => pan('right')} aria-label="Move right">&#8594;</button>
+						{#if panAxes.x}
+							<button type="button" class="lb-btn lb-square" onclick={() => pan('left')} aria-label="Move left">&#8592;</button>
+						{/if}
+						{#if panAxes.y}
+							<button type="button" class="lb-btn lb-square" onclick={() => pan('up')} aria-label="Move up">&#8593;</button>
+							<button type="button" class="lb-btn lb-square" onclick={() => pan('down')} aria-label="Move down">&#8595;</button>
+						{/if}
+						{#if panAxes.x}
+							<button type="button" class="lb-btn lb-square" onclick={() => pan('right')} aria-label="Move right">&#8594;</button>
+						{/if}
 					</span>
 				{/if}
 
