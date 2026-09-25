@@ -39,6 +39,7 @@ import {
 	type FeedbackFilter
 } from '../src/lib/feedback/console';
 import { SECTIONS } from '../src/lib/curriculum';
+import { handleLegacySessionProbe } from '../src/lib/server/legacy-feedback-post';
 
 /**
  * EVERY SURFACE REPORTS ITS OWN DEFECTS, asserted where it fails SILENTLY.
@@ -320,6 +321,21 @@ describe('every page a +server.ts serves as HTML carries a report control, or sa
 			expect(html, f).toContain(f);
 			expect(injectsReport(f), f).toBe(false);
 		}
+	});
+
+	it('the session probe answers one boolean, privately, for either kind of reader', async () => {
+		// The one session-dependent answer on the assignment path. Cached and
+		// shared, a "yes" would send the next signed-out reader's report to the
+		// signed-in route (and a refusal); anything more than the boolean would be
+		// a disclosure on a route any page can call.
+		const yes = handleLegacySessionProbe({ sub: 'u-1' });
+		const no = handleLegacySessionProbe(null);
+		for (const r of [yes, no]) {
+			expect(r.headers.get('cache-control')).toBe('private, no-store');
+			expect(r.headers.get('vary')).toBe('Cookie');
+		}
+		expect(await yes.json()).toEqual({ signedIn: true });
+		expect(await no.json()).toEqual({ signedIn: false });
 	});
 
 	it('the assignment page stays session-independent, so its shared cache stays shared', () => {
