@@ -519,6 +519,15 @@
 			errorMsg = 'Write something first.';
 			return;
 		}
+		// AN EMPTIED BOX IS NOT SAVED AND MUST NOT SAY IT WAS (ledger 0298 review).
+		// A note cannot be stored empty (0125's floor), so the draft still holds
+		// the words last saved; "Saved" here would tell a student who cleared the
+		// box that the note is gone when it is not.
+		if (!hasText) {
+			errorMsg =
+				'The box is empty, and a note cannot be saved empty. Your draft still holds what was last saved; delete it from your notebook if you do not want it.';
+			return;
+		}
 		busy = true;
 		errorMsg = null;
 		try {
