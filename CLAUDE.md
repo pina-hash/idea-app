@@ -5183,7 +5183,8 @@ the source of truth; **do not invent colours or swap fonts.**
   - **THE FRC MARK IS NEVER ANIMATED, and that outranks matching the cards either
     side of it.** FIRST's brand guidelines prohibit altering the mark, and motion
     is an alteration. Every other app mark is a component in `$lib/marks` with a
-    3-4.6s loop gated behind `prefers-reduced-motion: no-preference`, and
+    3-4.6s cycle gated behind `prefers-reduced-motion: no-preference`, which the
+    launcher plays ONCE (each mark's `once` prop, ledger 0298), and
     **nothing is hidden in a base state**: with the animation cancelled every
     animated element is at full opacity and no transform, so a reduced-motion
     reader sees the whole glyph.
@@ -5278,11 +5279,22 @@ the source of truth; **do not invent colours or swap fonts.**
     step. Space White clears every one; IDEA and Matrix do not and were left
     untouched by design.
   - **THE HOME EMBLEM IS SERVED AS A `srcset` OVER RIGHT-SIZED COPIES** under
-    `static/IDEA/`, never as the 2.6 MB source, and sits in a display window on
-    Space White rather than being recolored. `.legacy-index` reads its neon
-    tints through `--li-*` room hooks so a light theme can point them at its
-    inks. App marks follow the once-only standard `IdeaCadMark` set: one pass,
-    rest frame held, nothing hidden in a base state.
+    `static/IDEA/`, never as the 2.6 MB source, and on Space White it is a LIGHT
+    LOCKUP, not the dark one in a display window (decision 40 item 2, which
+    retired 0297's window): the same geometry repainted in
+    `tools/idea_logo_vector.py` (brand-green plate, lettering re-inked dark,
+    steel gear kept) and rasterised by `tools/idea_emblem_raster.mjs`.
+    `AnimatedLogo`'s own stylesheet picks the pair off the pre-paint theme
+    attribute, so there is no flash, and the light pair is `loading="lazy"`, so
+    a dark theme never fetches it. `.legacy-index` reads its neon tints through
+    `--li-*` room hooks so a light theme can point them at its inks. App marks
+    follow the once-only standard `IdeaCadMark` set: one pass, rest frame held,
+    nothing hidden in a base state, and the launcher mounts every mark `once`.
+  - **HOVER IS A ROLE, `--hover-ink`, NOT A HUE** (decision 40 item 1): brass on
+    the dark themes, Space White's green ink there, because a lightness-only
+    gold over white is brown (#715d22). A `:hover` rule that wants the brass
+    reads the role. The launcher's four accent-less cards take the green ink on
+    Space White for the same reason; gold stays for true special callouts.
 
 ### Scoped themes are deliberately off-brand, and stay in their room
 
