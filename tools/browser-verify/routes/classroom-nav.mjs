@@ -1,13 +1,13 @@
 export default {
 	path: '/dev/classroom-nav',
-	label: "Section tab bar at six tabs, the class's Notebook tab inside the class, and the GREENLINE card in three states",
+	label: "Section tab bar at five tabs, the class's Notebook tab inside the class, Duplicates out of the bar, and the GREENLINE card in three states",
 	/* THE DOORS THIS LANE ADDED, at the two widths, mounted through the REAL
 	   ClassroomShell fed by the REAL `sectionTabs()` and the REAL
 	   GreenlineDashboardCard fed by real `GreenlinePending` values.
 
 	   WHY THIS SPEC EXISTS RATHER THAN AN ASSERTION IN `tests/`. Everything
 	   below is geometric or perceptual -- a tap box, a contrast ratio against
-	   the ground the card actually sits on, whether six tabs still fit a
+	   the ground the card actually sits on, whether five tabs still fit a
 	   phone -- and `tests/dom/` has no layout engine, so every one of those
 	   claims written there would read zero and pass vacuously. The structural
 	   half (which tabs exist, which are offered to whom, which activates) is
@@ -20,25 +20,26 @@ export default {
 		{ selector: '[data-testid="section-tabs"] .sec-tab', label: 'section tabs', min: 4.5 }
 	],
 	tapTargets: [
-		{ selector: '[data-testid="section-tabs"] a', label: 'section tabs (six)', min: 44 },
+		{ selector: '[data-testid="section-tabs"] a', label: 'section tabs (five)', min: 44 },
 		{ selector: '[data-testid="greenline-cards"] a.btn', label: 'GREENLINE card, Open panel', min: 44 }
 	],
 	presence: [
-		/* Six tabs for a manager: 0086 added Duplicates once 0074's page and
-		   its `0187` were on `main`, and ledger 0297 replaced 0081's Check-ins
-		   departure with the class's own Notebook tab and added Live. A floor
-		   AND a ceiling, so a seventh tab appearing here is a finding. */
-		{ selector: 'a[data-testid^="section-tab-"]', label: 'section tabs (manager)', expectPresent: 6, maxPresent: 6, expectVisible: 6 },
+		/* Five tabs for a manager: ledger 0297 replaced 0081's Check-ins
+		   departure with the class's own Notebook tab and added Live, and ledger
+		   0298 (report 28) took Duplicates out of the bar. A floor AND a
+		   ceiling, so a sixth tab appearing here is a finding. */
+		{ selector: 'a[data-testid^="section-tab-"]', label: 'section tabs (manager)', expectPresent: 5, maxPresent: 5, expectVisible: 5 },
 		{ selector: '[data-testid="section-tab-live"]', label: 'the Live tab', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="section-tab-notebook"]', label: "the class's Notebook tab", expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="section-tab-check-ins"]', label: 'the retired check-ins departure (must be absent)', expectPresent: 0 },
 		{ selector: '[data-testid="section-tab-grades"]', label: 'Grades', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		/* THE TAB THIS BUNDLE LANDED. It was asserted at exactly 0 here for one
-		   bundle, against Grades as the positive control, because the page it
-		   points at was on an unmerged branch. Both halves are on `main` now and
-		   `tests/classroom-nav-doors.test.ts` refuses either one without the
-		   other; this is the same pairing measured on a rendered bar. */
-		{ selector: '[data-testid="section-tab-duplicates"]', label: 'the duplicates tab', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		/* DUPLICATES IS NOT A TAB (ledger 0298, report 28): its page, its 404
+		   gate and its palette command stay, and its door on the class page is
+		   measured by classroom-tour-s-1-manage-1-tour-offered-dupes-2.mjs.
+		   Asserted absent on the rendered bar, with Grades above as the
+		   positive control; `tests/classroom-nav-doors.test.ts` holds the page
+		   and its doors together. */
+		{ selector: '[data-testid="section-tab-duplicates"]', label: 'the duplicates tab (out of the bar)', expectPresent: 0 },
 		{ selector: '[data-testid="greenline-pending"]', label: 'GREENLINE pending line, all three states', expectPresent: 3, maxPresent: 3, expectVisible: 3 }
 	],
 	textContains: [
@@ -104,12 +105,12 @@ export default {
 				];
 			}`,
 			expected: [
-				'tabs:6',
+				'tabs:5',
 				'document-overflows-with-wrap:false',
 				'rows-match-what-the-width-needs:true',
 				'nowrap-overflows-exactly-when-the-bar-is-too-wide:true'
 			],
-			label: 'the six shipped tabs wrap rather than pushing the document wider, and nowrap does overflow exactly where it would'
+			label: 'the five shipped tabs wrap rather than pushing the document wider, and nowrap does overflow exactly where it would'
 		}
 	]
 };

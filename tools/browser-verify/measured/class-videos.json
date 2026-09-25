@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "class-videos.mjs",
+	"date": "2026-09-25T08:11:43.308Z",
+	"sha": "624237859f250b246aa065ea8d55c0260c65ac36",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 68,
+	"outsideRows": [],
+	"ms": 7807
+}

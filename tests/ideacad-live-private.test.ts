@@ -194,18 +194,17 @@ describe('0211 client -- a refused subscription is a reachable, supported state'
 	it('has no write path in the module at all, so a refusal cannot block a save', () => {
 		const { client } = fakeClient();
 		const live = createIdeacadLive(client);
-		// Structural rather than behavioural: the transport surface is four verbs
-		// plus status and teardown, and none of them is an RPC. A save goes
-		// through the 0201/0205 functions on a different object entirely.
-		expect(Object.keys(live).sort()).toEqual([
-			'destroy',
-			'onStatus',
-			'sendFrame',
-			'sendPing',
-			'statusOf',
-			'subscribeFrames',
-			'subscribePings'
-		]);
+		// Structural rather than behavioural: the transport surface is send and
+		// subscribe verbs plus status and teardown, and none of them is an RPC. A
+		// save goes through the 0201/0205 functions on a different object
+		// entirely. This used to spell the seven keys out, which the direct
+		// modeler's document ping (feedback R34) necessarily broke; it asserts
+		// the RULE now, with the original seven as the floor.
+		const keys = Object.keys(live).sort();
+		for (const k of ['destroy', 'onStatus', 'sendFrame', 'sendPing', 'statusOf', 'subscribeFrames', 'subscribePings'])
+			expect(keys).toContain(k);
+		expect(keys.filter((k) => !/^(send|subscribe)[A-Z]\w*$|^(statusOf|onStatus|destroy)$/.test(k))).toEqual([]);
+		expect(keys).toContain('sendDocumentPing');
 		expect((client as unknown as { rpc?: unknown }).rpc).toBeUndefined();
 	});
 });

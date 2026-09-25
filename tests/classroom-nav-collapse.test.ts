@@ -7,7 +7,13 @@ import {
 	locateClassroom,
 	type ClassroomPlace
 } from '../src/lib/classroom/nav';
-import { navCollapseKey, readNavCollapsed, writeNavCollapsed } from '../src/lib/classroom/nav-collapse';
+import {
+	navCollapseKey,
+	navCollapsedFor,
+	navCollapseWorkSurface,
+	readNavCollapseChoice,
+	writeNavCollapseChoice
+} from '../src/lib/classroom/nav-collapse';
 
 /**
  * "I WANT TO PRIORITIZE THE ACTUAL ASSIGNMENT AND THE ABILITY TO HIDE THE REST
@@ -60,7 +66,7 @@ describe('navCollapseKey: per person, not per item', () => {
 	});
 });
 
-describe('readNavCollapsed / writeNavCollapsed: a blocked or full store costs the memory, never the control', () => {
+describe('readNavCollapseChoice / writeNavCollapseChoice: a blocked or full store costs the memory, never the control', () => {
 	function fakeStore() {
 		const map = new Map<string, string>();
 		const store = {
@@ -72,40 +78,94 @@ describe('readNavCollapsed / writeNavCollapsed: a blocked or full store costs th
 		return map;
 	}
 
-	it('reads back exactly what was written, and clears rather than writing false', () => {
+	/*
+	 * GENERALIZED (ledger 0298, report 25) FROM "clears rather than writing
+	 * false". That was right while "nothing stored" and "expanded" meant the
+	 * same thing; a work surface now opens collapsed by default, so an explicit
+	 * expand is a third answer and has to be written. What stays true: exactly
+	 * one slot per viewer, and it reads back exactly what was chosen.
+	 */
+	it('reads back exactly the choice written, both ways, and never chose is its own answer', () => {
 		const map = fakeStore();
 		try {
 			const key = navCollapseKey('user-a');
-			expect(readNavCollapsed(key)).toBe(false);
-			writeNavCollapsed(key, true);
-			expect(readNavCollapsed(key)).toBe(true);
+			expect(readNavCollapseChoice(key)).toBeNull();
+			writeNavCollapseChoice(key, 'collapsed');
+			expect(readNavCollapseChoice(key)).toBe('collapsed');
+			expect(map.get(key)).toBe('1');
+			writeNavCollapseChoice(key, 'expanded');
+			expect(readNavCollapseChoice(key)).toBe('expanded');
+			expect(map.get(key)).toBe('0');
 			expect(map.size).toBe(1);
-			writeNavCollapsed(key, false);
-			// A person who has never touched the control and one who explicitly
-			// put it back leave the same, empty trace.
-			expect(readNavCollapsed(key)).toBe(false);
-			expect(map.size).toBe(0);
 		} finally {
 			delete (globalThis as Record<string, unknown>).localStorage;
 		}
 	});
 
-	it('degrades to "not collapsed" with no store at all, rather than throwing', () => {
-		expect(typeof localStorage).toBe('undefined');
-		const key = navCollapseKey('user-a');
-		expect(() => writeNavCollapsed(key, true)).not.toThrow();
-		expect(readNavCollapsed(key)).toBe(false);
+	it("a '1' stored before ledger 0298 is still that person's explicit collapse", () => {
+		const map = fakeStore();
+		try {
+			const key = navCollapseKey('user-a');
+			map.set(key, '1');
+			expect(readNavCollapseChoice(key)).toBe('collapsed');
+			// On an ordinary item too, where the default would show the list.
+			expect(navCollapsedFor(readNavCollapseChoice(key), false)).toBe(true);
+		} finally {
+			delete (globalThis as Record<string, unknown>).localStorage;
+		}
 	});
 
-	it('an unrecognised stored value reads as not collapsed rather than throwing', () => {
+	it('degrades to "never chose" with no store at all, rather than throwing', () => {
+		expect(typeof localStorage).toBe('undefined');
+		const key = navCollapseKey('user-a');
+		expect(() => writeNavCollapseChoice(key, 'collapsed')).not.toThrow();
+		expect(readNavCollapseChoice(key)).toBeNull();
+	});
+
+	it('an unrecognised stored value reads as never chose rather than throwing', () => {
 		const map = fakeStore();
 		try {
 			const key = navCollapseKey('user-a');
 			map.set(key, 'yes');
-			expect(readNavCollapsed(key)).toBe(false);
+			expect(readNavCollapseChoice(key)).toBeNull();
 		} finally {
 			delete (globalThis as Record<string, unknown>).localStorage;
 		}
+	});
+});
+
+describe('navCollapsedFor: the choice wins, and the item decides only for somebody who never chose', () => {
+	it('never chose: a work surface opens collapsed and anything else opens with the list', () => {
+		expect(navCollapsedFor(null, true)).toBe(true);
+		expect(navCollapsedFor(null, false)).toBe(false);
+	});
+	it('an explicit choice holds on every kind of item', () => {
+		for (const work of [true, false]) {
+			expect(navCollapsedFor('expanded', work)).toBe(false);
+			expect(navCollapsedFor('collapsed', work)).toBe(true);
+		}
+	});
+});
+
+describe('navCollapseWorkSurface: read off the same payload keys the item page hands ItemDetail', () => {
+	const assignment = (over: Record<string, unknown> = {}) => ({ id: 'i-1', kind: 'assignment', ...over });
+	const doc = { documentId: 'd-1', manifest: {}, filename: 'w.html', updatedAt: null };
+
+	it('a ported HTML worksheet, a manager\'s spec and a student\'s engine spec are work surfaces', () => {
+		expect(navCollapseWorkSurface({ item: assignment({ assignment_schema_version: 3 }), htmlAssignment: doc }, 'i-1')).toBe(true);
+		expect(navCollapseWorkSurface({ item: assignment(), spec: { modules: [] } }, 'i-1')).toBe(true);
+		expect(navCollapseWorkSurface({ item: assignment(), engine: { spec: { modules: [] } } }, 'i-1')).toBe(true);
+	});
+
+	it('and nothing else is: a plain assignment, a material, a document that could not be opened, another item', () => {
+		expect(navCollapseWorkSurface({ item: assignment(), spec: null, engine: { spec: null } }, 'i-1')).toBe(false);
+		expect(navCollapseWorkSurface({ item: { id: 'i-1', kind: 'material' }, spec: { modules: [] } }, 'i-1')).toBe(false);
+		// Schema 3 with no document is `htmlAssignmentMount`'s `unavailable`: a sentence, not a worksheet.
+		expect(navCollapseWorkSurface({ item: assignment({ assignment_schema_version: 3 }), htmlAssignment: null }, 'i-1')).toBe(false);
+		// A payload that has not caught up with the URL decides nothing for the next item.
+		expect(navCollapseWorkSurface({ item: assignment(), spec: { modules: [] } }, 'i-2')).toBe(false);
+		expect(navCollapseWorkSurface(null, 'i-1')).toBe(false);
+		expect(navCollapseWorkSurface({ item: assignment(), spec: { modules: [] } }, null)).toBe(false);
 	});
 });
 
@@ -185,8 +245,9 @@ describe('the shipped shell wires the toggle to canCollapseNav, not to a wider c
 		expect(shell).toContain('aria-pressed={navCollapsed}');
 		// A glyph alone is not a control (IDEA_INTERFACE_STANDARDS): the label
 		// carries the two states in words.
-		expect(shell).toContain("'Show other items'");
-		expect(shell).toContain("'Hide other items'");
+		// GENERALIZED (ledger 0298): the words name what they act on now.
+		expect(shell).toContain("'Show class list'");
+		expect(shell).toContain("'Hide class list'");
 	});
 
 	it('sits inside the SAME breadcrumb nav, as a second child -- not a replacement for the trail', () => {
@@ -217,8 +278,14 @@ describe('the shipped shell wires the toggle to canCollapseNav, not to a wider c
 
 	it('persists across a remount via localStorage, not only module state', () => {
 		const shell = read(SHELL);
-		expect(shell).toContain('writeNavCollapsed(');
-		expect(shell).toContain('readNavCollapsed(');
+		expect(shell).toContain('writeNavCollapseChoice(');
+		expect(shell).toContain('readNavCollapseChoice(');
+	});
+
+	it('stores the CHOICE and derives the state, never the other way round (the Disclosure rule)', () => {
+		const shell = read(SHELL);
+		expect(shell).toMatch(/const navCollapsed = \$derived\(navCollapsedFor\(navChoice, navWorkSurface\)\)/);
+		expect(shell).toMatch(/navCollapseWorkSurface\(page\.data, loc\.itemId\)/);
 	});
 
 	it("disappears below the split's own breakpoint, matched exactly", () => {

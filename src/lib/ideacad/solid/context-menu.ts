@@ -14,6 +14,7 @@
  * breadcrumb read "End face of Extrude 1", "Front plane", "Sketch 2": the
  * feature's name as the tree shows it, never an internal id.
  */
+import { anchorPosition, type AnchorBox, type AnchorSize } from '$lib/shell/anchored';
 import { acceptReason, commandById, keyLabel, type Command, type CommandContext } from './command-registry';
 import { DATUM_SELECTION_PREFIX, type Datum } from './features/reference';
 import { DATUM_NAMES } from './viewport/reference-layer';
@@ -31,7 +32,7 @@ export interface MenuItem {
 	reason?: string | null;
 	/** A checkbox row, and whether it is ticked. */
 	checked?: boolean;
-	/** A row that opens a list in place of the menu, with a way back. */
+	/** A row that opens a list: beside the menu on a mouse with room, in place of it with a way back otherwise (`submenuLayout`). */
 	items?: MenuItem[];
 	run?: () => void;
 	/** Called with true while the row is hovered or focused and false once it is not: Select Other previews each candidate this way. */
@@ -49,6 +50,74 @@ export function commandItems(ids: readonly string[], ctx: CommandContext, keys: 
 		out.push({ id, label: label?.(c) ?? c.name, icon: c.icon, keys: key ? keyLabel(key) : undefined, reason: c.unavailable?.(ctx) ?? acceptReason(c, ctx.selections), run: () => run(c) });
 	}
 	return out;
+}
+
+/* -------------------------------------------------------------------------
+ * WHERE A ROW'S LIST OPENS: beside the menu on a mouse, in place on a finger
+ * ---------------------------------------------------------------------- */
+
+/** How long the pointer rests on a row with a list before the list opens beside the menu. */
+export const SUBMENU_OPEN_MS = 150;
+/**
+ * How long an open list waits before it closes or changes once the pointer
+ * moves off its row. A diagonal move from a row to the list beside the menu
+ * crosses the rows below it, and a list that closed on the first of them could
+ * never be reached; entering the list inside this window keeps it.
+ */
+export const SUBMENU_GRACE_MS = 300;
+/** `.context-menu`'s own `max-width` and its distance from the window's edge, in px: the widest a list beside the menu can be. */
+export const MENU_MAX_WIDTH = 320;
+export const MENU_MARGIN = 8;
+
+/**
+ * BESIDE OR IN PLACE, decided once per menu from the pointer and the room. A
+ * list opens beside the menu only on a FINE pointer (a mouse or a pen,
+ * `(pointer: fine)`), and only when one side of the menu has room for the
+ * widest list a panel can be. A finger, or a window with no room on either side
+ * (a phone), keeps the in-place list with its Back row, which cannot run off
+ * the screen.
+ */
+export function submenuLayout(finePointer: boolean, menu: Pick<AnchorBox, 'left' | 'right'>, viewportWidth: number): 'side' | 'inline' {
+	if (!finePointer) return 'inline';
+	const room = Math.max(viewportWidth - MENU_MARGIN - menu.right, menu.left - MENU_MARGIN);
+	return room >= MENU_MAX_WIDTH ? 'side' : 'inline';
+}
+
+export interface SubmenuPlacement {
+	left: number;
+	top: number;
+	/** Which side of the menu it went to, after any flip. */
+	side: 'right' | 'left';
+	/** Level with the row's top (`start`), or flipped up to end level with its bottom (`end`) near the window's foot. */
+	align: 'start' | 'end';
+}
+
+/**
+ * WHERE A LIST BESIDE THE MENU GOES: to the right of the menu with its first
+ * row level with the row that opened it, flipped to the left at the window's
+ * right edge, and flipped up to end level with the row near the window's foot.
+ *
+ * It is `anchorPosition` from `$lib/shell/anchored` with the axes swapped.
+ * That function puts a panel above or below an anchor, lined up with the
+ * anchor's start or end edge, and flips either at the window's edge; a list
+ * beside a menu is the same problem turned on its side, so the boxes go in
+ * transposed (x for y) and the answer comes back transposed, and the flip
+ * arithmetic stays in one place rather than gaining a second copy here.
+ *
+ * `row` is the row that opened the list and `menu` the panel it is in: the
+ * list sits against the PANEL's edge, not the row's, so it never covers the
+ * menu. `inset` is the list's own padding and border above its first row, so
+ * its first ROW, not its frame, lines up with the row that opened it.
+ */
+export function submenuPlacement(row: Pick<AnchorBox, 'top' | 'bottom'>, menu: Pick<AnchorBox, 'left' | 'right'>, panel: AnchorSize, viewport: AnchorSize, inset = 0, gap = 0): SubmenuPlacement {
+	const top = row.top - inset, bottom = row.bottom + inset;
+	const t = anchorPosition(
+		{ left: top, right: bottom, top: menu.left, bottom: menu.right, width: bottom - top, height: menu.right - menu.left },
+		{ width: panel.height, height: panel.width },
+		{ width: viewport.height, height: viewport.width },
+		{ prefer: 'below', align: 'start', gap, margin: MENU_MARGIN }
+	);
+	return { left: t.top, top: t.left, side: t.side === 'below' ? 'right' : 'left', align: t.align };
 }
 
 /* -------------------------------------------------------------------------

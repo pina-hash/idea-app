@@ -12,6 +12,17 @@ import type { PageLoad } from './$types';
  *
  *   ?role=student   the class page as a student reads it: no door, their team
  *   ?teams=none     nothing posted: no teams region at all
+ *
+ * The door's own worst cases (ledger 0298, R21: the count wrapped "0" over
+ * "on" in a three-tool row at 871px), combinable:
+ *
+ *   ?count=<n>      the presence read answers n students on the page
+ *   ?title=long     an assignment title longer than any row can hold
+ *   ?music=1        the REAL SongQueue tool between the pass and the door, the
+ *                   order the section layout mounts all three in
+ *   ?pane=<rem>     the ROW capped at <rem> (not the pane: the default 26rem
+ *                   class-list pane hands its row about 23rem after padding)
+ *   ?theme=space-white   the light theme, forced (no session to reach it)
  */
 export const load: PageLoad = () => {
 	if (!dev) error(404, 'Not found');

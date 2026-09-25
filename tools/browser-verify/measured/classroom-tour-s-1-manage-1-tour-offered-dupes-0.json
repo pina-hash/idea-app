@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "classroom-tour-s-1-manage-1-tour-offered-dupes-0.mjs",
+	"date": "2026-09-25T08:23:26.377Z",
+	"sha": "c8d995819d5a430bf7da7470c3798460b8312d02",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 16,
+	"outsideRows": [],
+	"ms": 6512
+}

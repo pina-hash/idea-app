@@ -1,7 +1,8 @@
 /**
  * THE CLASSROOM MASTHEAD (ledger 0297, package F2): class icons in the banner
- * (report 26) and the Report and Voice controls docked into the room's own
- * chrome instead of floating over its content.
+ * (report 26) and the Report control docked into the room's own chrome
+ * instead of floating over its content (Voice, docked beside it until ledger
+ * 0298, is the command palette's Speak control now).
  *
  * Two guarantees here would regress SILENTLY, which is why they are tests and
  * not only a browser spec:
@@ -56,14 +57,23 @@ describe('a class glyph is derived from the course code and the section', () => 
 	});
 });
 
-describe('Report and Voice are docked in the classroom chrome, never floating over it', () => {
-	it('the shell mounts both, relocated, on the same component the root mounts', () => {
+describe('Report is docked in the classroom chrome, and nothing floats over it', () => {
+	/*
+	 * GENERALIZED (ledger 0298, report 31) FROM "the shell mounts both". Voice
+	 * has no control of its own any more, docked or floating: it is the command
+	 * palette's Speak button. What stays true is that nothing floats over the
+	 * class -- so the assertion is now that no voice pill is mounted anywhere,
+	 * with the palette's microphone as the positive control that voice was
+	 * moved rather than dropped.
+	 */
+	it('the shell mounts Report relocated, and neither the shell nor the root mounts a voice pill', () => {
 		const shell = read('src/lib/classroom/ClassroomShell.svelte');
 		expect(shell).toMatch(/<SiteFeedback[\s\S]*?place="relocated"/);
-		expect(shell).toMatch(/<VoiceNav[^>]*place="header"/);
-		// And the root's floating VoiceNav stands down wherever feedback does.
-		const layout = read('src/routes/+layout.svelte');
-		expect(layout).toContain('feedbackExclusion(page.route.id) !== null');
+		expect(shell).not.toMatch(/VoiceNav/);
+		expect(read('src/routes/+layout.svelte')).not.toMatch(/VoiceNav/);
+		// POSITIVE CONTROL: the palette the shell mounts carries the microphone.
+		expect(shell).toMatch(/<CommandPalette/);
+		expect(read('src/lib/shell/CommandPalette.svelte')).toContain('data-testid="palette-mic"');
 	});
 
 	it('every classroom route is claimed, except the deck, which has its own bar', () => {

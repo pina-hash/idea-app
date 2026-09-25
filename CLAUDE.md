@@ -58,6 +58,13 @@ per 0161's own header), and the portal shell
 `ideacad_predictions` and `ideacad_materials`. The feature tree is the document and every geometry and physics
 readout is derived from it. Realtime broadcast is only the speed layer: the database poll
 is the floor, frames are roster- and revision-filtered, and no frame can write state.
+**The direct modeler (solid-v1, what `/ideacad` opens) has had the same shape since ledger
+0298**: after each accepted save it sends a ping carrying only a document id, a concept id
+and a revision, every open copy also reads the committed revision every `SOLID_LIVE_POLL_MS`
+and on focus, and `liveDecide` in `$lib/ideacad/solid/live-sync.ts` is the one decision. A
+copy with unsaved work is never replayed over (it is told in words and offered the newer
+version); a copy whose own save is in flight waits, because the newer revision may be its
+own. A ping is a reason to read the database and nothing else.
 
 **A DOCUMENT IS ARCHIVED, NEVER DELETED, AND THAT IS MR. PINA'S DECISION OF
 2026-09-13** (`docs/decisions/entries/29-*`, built as `0214`). He brings up past
@@ -131,6 +138,21 @@ questions).
     tune; `EXPORT_TESSELLATION` feeds export and the advisory readouts, whose
     stated tolerance rests on it, and
     `tests/ideacad-solid-display-tessellation.test.ts` pins it.
+  - **THE KERNEL ROUNDS A CORNER WITH A SHARP THIRD EDGE AS A BALL AND A FLAT STEP.**
+    Where a round ends at a convex corner whose third edge is left sharp (rounding
+    only the four top edges of a block is the common case), the vendored kernel
+    builds the ball-shaped corner that is only right when all three edges are
+    rounded and closes the gap with a FLAT face, a notch r cubed times (2/3 minus
+    pi/6) short of a true round per corner. That, and not the display mesh TRIAGE
+    suspected, is R06 (ledger 0298, measured on the real kernel). The feature row
+    DISCLOSES it (`flatSteps` in `features/blends.ts`) and
+    `tests/ideacad-solid-fillet-corner.test.ts` reddens the day a kernel fixes it.
+    Repairing it changes stored geometry and face names, so it is Mr. Pina's call
+    or an upstream fix, never a quiet patch.
+  - **A TRANSLUCENT FILL COPLANAR WITH A MODEL FACE Z-FIGHTS, AND `depthWrite:
+    false` DOES NOT STOP IT** (the depth TEST still runs). The datum-plane fill in
+    `viewport/reference-layer.ts` carries a polygon offset for exactly this; any
+    new plane-like overlay drawn where a face can lie needs the same.
 
 **MATERIALS ARE DATA, NOT CONSTANTS, AND THAT IS MR. PINA'S DECISION OF
 2026-09-12.** He rejected a bundle that hardcoded six materials into
@@ -1307,7 +1329,13 @@ it so the rubric is never shown twice.
 - **A YOUTUBE LINK GETS A THUMBNAIL CARD ONLY ON YOUTUBE'S OWN HOSTS, AFTER
   `safeHref`, WHERE IT IS A PARAGRAPH OR ENDS ONE** (`$lib/youtube.ts`, which
   `gauntlet/authoring.ts` re-exports), with `referrerpolicy="no-referrer"`, no
-  server fetch and no new document node. Decision 23 stands.
+  server fetch and no new document node. Decision 23 stands. **The "ends one"
+  limit is about prose, not about videos**: the class page's closed Videos
+  section (`ClassVideos.svelte` over `$lib/classroom/class-videos.ts`, ledger
+  0298) cards EVERY such link in the loaded items, mid-sentence ones too, with
+  the same two predicates, never reads `instructorLinks`, and never lists a
+  video from a draft or a scheduled item (a manager is told how many it holds
+  back).
 
 ### WHAT A STUDENT OWES -- one predicate, one read, one day
 
@@ -2380,7 +2408,8 @@ picture into an initials tile with nothing saying why.
   renderable as a 24x24 mark nor ours to ship.
 
 **`preferences` is a shared JSONB blob with several independent namespaces**
-(`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`, `ideacad`, `classroom`). Every
+(`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`, `ideacad`, `classroom`,
+`quickNote`). Every
 write goes through **`$lib/preferences/profile-io`**, which READS THE ROW FIRST and
 merges one namespace, in one queue per tab (ledger 0297): a writer spreading the
 page-load snapshot was measured erasing a sibling's write one click later (a folded
@@ -3229,6 +3258,23 @@ with its own answer for the rows already stored.
 
 ## Client data access
 
+### A READ THAT CAN RETURN MORE THAN 1000 ROWS IS PAGED
+
+**PostgREST caps one response at the project's `max_rows` (1000 by default on
+Supabase) and says nothing.** A read with one row per student per block --
+`classroom_responses`, module approvals, hand-in files -- crosses that on one
+large worksheet (a 63-block worksheet at 16 students), and every row past the cap
+was simply missing: until ledger 0298 a grading screen could show a student's
+answers blank on such an item. `readWorkPages` in `src/lib/classroom/transports.ts`
+is the grading pager: ordered on the table's own key so no row repeats or is
+skipped, a short page ends it, a later page's failure keeps what arrived, and rows
+are deduplicated on the key because a student saving mid-read shifts every offset.
+`readAllPages` in `src/lib/classroom/student-work.ts` is the completeness pager and
+answers null instead of a partial set, because a partial set would judge a student.
+Pick the one whose failure answer is right for the surface; a third pager is a
+third set of edge cases. `tests/classroom-grading-work-paging.test.ts` drives the
+real loads against a fake that enforces the cap.
+
 ### Select ladders (widen-then-degrade)
 
 Migrations are applied by hand and separately, so **a deployment sitting between
@@ -3364,7 +3410,8 @@ inside the function fails closed rather than falling through to a weaker path.
   - **ANYTHING A FULL LOAD WOULD DESTROY HOLDS THE RELOAD**, through
     `holdDeployReload` or `trackInFlight`: every classroom upload
     (`uploadClassroomFile`), the staged deck unpack, the notebook's photo posts,
-    an open composer with work in it, an open feedback box. **A new upload path
+    an open composer with work in it, an open feedback box, a header quick note
+    with writing the server has not got. **A new upload path
     or a new projected surface joins them in the same change**; forgetting one is
     silent until a deploy lands mid-upload.
   - **NEVER RELOAD FROM `vite:preloadError`.** It only asks for a version check.
@@ -3418,6 +3465,14 @@ inside the function fails closed rather than falling through to a weaker path.
 
 ### Structure
 
+- **A PLAN OR JUDGMENT COMPUTED INSIDE A CLASS-CRITICAL SURFACE'S RENDER IS
+  GUARDED, SO A THROW COSTS THAT CONTROL AND SAYS SO, NEVER THE SURFACE.** A
+  stored document can be legal in the database and still surprise the client (a
+  module title that is a number passed 0195's check and threw in a filename
+  fold). The grading console's Download all files and the Live tab's finished-
+  worksheet judgment both compute under a catch for that reason (ledger 0298);
+  unguarded, one odd assignment took down the whole console or the whole live
+  control view.
 - **Presentation components take state via props and emit intent via callbacks.**
   No component fetches its own data. The route owns the load and the transports.
 - **Server calls are INJECTED as a transports object.** The real route points them
@@ -3478,8 +3533,10 @@ inside the function fails closed rather than falling through to a weaker path.
   below it the document scrolls as it always did.
 - **NOTHING OPEN IS ONE PANE, at every width.** `hasDetail` false renders no detail
   pane and gives the navigation the whole measure; it is not a placeholder state.
-  A surface whose detail pane always holds something (the notebook's compose form,
-  the coin desk's logging form) passes `hasDetail` and simply never collapses.
+  A surface whose detail pane always holds something (the coin desk's logging
+  form) passes `hasDetail` and simply never collapses. The notebook's composer
+  is no longer one (ledger 0298): it heads the log in the navigation pane, and
+  the detail pane is only ever an entry somebody opened.
   **The list is then responsible for USING the width** -- a fixed-width column
   centred in the room it was just given is the same defect one level in. ClassView
   lays its unit groups out in COLUMNS for exactly this (see the column rule
@@ -3775,9 +3832,10 @@ inside the function fails closed rather than falling through to a weaker path.
     bar, the GAUNTLET viewport footer, GREENLINE's own menus, the error page,
     the classroom header and the classroom projector's wall strip). **Every
     route under `/classroom` is the `classroom` category since ledger 0297**:
-    the floating Report and Voice pills won hit tests over row controls, People's
-    Remove and the grading dock, so `ClassroomShell` docks both (`VoiceNav` at
-    `place="header"`), and a `/dev` harness that mounts the real shell is listed
+    the floating Report pill won hit tests over row controls, People's Remove
+    and the grading dock, so `ClassroomShell` docks it (voice has no pill of its
+    own since ledger 0298: it is the command palette's Speak control), and a
+    `/dev` harness that mounts the real shell is listed
     in `CLASSROOM_SHELL_HARNESSES` so it measures the production arrangement.
     **Report has its own header slot and never folds into the Menu** (report 30:
     folded below 1180px, it read as missing); on a phone it stacks its word under
@@ -3975,6 +4033,12 @@ inside the function fails closed rather than falling through to a weaker path.
       starts carrying a document acquires it that day, and the reason it is on
       this list rather than in the notebook's own file is that nothing warned
       the first time.
+    - **A SECOND SURFACE WITH THE SAME PAYLOAD IS A CALLER, NOT A MIRROR.** The
+      header's quick note (ledger 0298) writes a notebook note, so it is
+      mirrored through the notebook's own module under the reserved
+      `QUICK_NOTE_RECORD`, vocabulary check included; `latestMirror` skips that
+      record, so the notebook composer never adopts the quick note's writing
+      and two editors never write one note chain.
   - **Pending work is FLUSHED before a navigation, and only a flush that cannot
     land raises a question.** The correct answer to "you have unsaved work" is
     "then save it"; a confirm on every move is a confirm nobody reads.
@@ -4137,7 +4201,17 @@ inside the function fails closed rather than falling through to a weaker path.
     rooms it ships in: portal 5.88:1, classroom card 7.27:1, and the notebook's
     default / light / IDEA plates at 7.27 / 7.75 / 9.18:1.
 - **EVERY ACTION IS REGISTERED ONCE, IN `$lib/shell/commands.ts`, AND THE
-  PALETTE, THE LEGEND AND VOICE READ IT (ledger 0297).** A console's keys are
+  PALETTE, THE LEGEND AND VOICE READ IT (ledger 0297).** **Voice reads it
+  THROUGH the palette since ledger 0298 (report 31)**, and until then it did
+  not read it at all (its vocabulary was the launcher's apps): it is the
+  palette's Speak control, its vocabulary is the palette's own rows, and
+  `matchSpoken` in `$lib/voice/commands.ts` is the one matcher -- EXACT, so a
+  near-miss or a tie acts on nothing and the words stay in the field for the
+  ranked list, and an interim result acts only after `VOICE_INTERIM_STABLE_MS`
+  of stillness AND only while no other listed name begins with it (a pause
+  between "Lab 3" and "report" must not open "Lab 3"; the final result
+  settles it). A second vocabulary or a floating Voice pill is the thing not
+  to rebuild. A console's keys are
   registered by IMPORTING its table (`GRADE_KEYS` from
   `$lib/classroom/grading-keys.ts`, `REVIEW_KEYS`), never by retyping them, so
   the legend cannot describe a key the console does not bind. A `run` command
@@ -4454,6 +4528,18 @@ These have each cost a debugging session. They are not hypothetical.
 
 ### DOM
 
+- **A COMPONENT'S OR ROUTE'S STYLESHEET STAYS IN THE PAGE AFTER A CLIENT-SIDE
+  NAVIGATION, AND IT ARRIVES WHEN THE MODULE IS IMPORTED, MOUNTED OR NOT.** So a
+  rule styling `html`, `body` or `:root` carries a `body:has(.<room>)` condition,
+  a global rule names a class, and a full-window app is `position: fixed; inset:
+  0` rather than a locked document. IdeaCAD's unscoped
+  `:global(html),:global(body){overflow:hidden}` left every later page in the tab
+  unscrollable until a reload, on any route that merely imported it (ledger 0298,
+  reports R29 and R07). `tests/no-global-document-lock.test.ts` compiles every
+  non-dev component and fails on the unscoped form. Locking the page's scroll is
+  `lockDocumentScroll()` from `$lib/shell/scroll-lock` (counted, restores what was
+  there when the LAST holder releases), never a hand-written save and restore of
+  `body.style.overflow`.
 - **Attach interaction listeners with `addEventListener`, never a delegated
   framework binding**, on anything that might move into a Document
   Picture-in-Picture window -- a delegated handler registers on the main document's
@@ -5464,7 +5550,8 @@ properly. That is a bundle, not a line.
     `--nb-accent-wash` is a veil laid on a ground, and on a dark ground it lightens
     the ground out from under the tier below it: measured on the retired plates,
     `--text-3` failed six of nine plate-by-ground combinations (3.30 to 4.31) while
-    `--text-2` cleared all nine. `NotebookView`'s `.pick.selected .pick-meta`
+    `--text-2` cleared all nine. `ComposerFiling`'s `.pick.selected .pick-meta`
+    (the check-in picks behind the composer's "Filed to ..., Change", ledger 0298)
     implements this; a surface putting muted copy on a selected row joins it.
     **Lowering the wash is the rejected alternative**: at the 6% that would rescue
     `--text-3` the fill reads 1.09:1 against its card and the row stops being

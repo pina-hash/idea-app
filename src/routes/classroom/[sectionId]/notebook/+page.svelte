@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import NotebookView from '$lib/notebook/NotebookView.svelte';
 	import ReviewConsole from '$lib/notebook/ReviewConsole.svelte';
 	import { createNotebookTransports } from '$lib/notebook/transports';
@@ -9,6 +10,11 @@
 	} from '$lib/notebook/review-transports';
 	import { sectionTitle } from '$lib/classroom/classroom';
 	import { classNotebookHref, notebookHomeHref, notebookReviewHref } from '$lib/classroom/nav';
+	import {
+		quickNoteHidden,
+		quickNoteProfileIo,
+		setQuickNoteHidden
+	} from '$lib/notebook/quick-note-state.svelte';
 	import type { PageData } from './$types';
 
 	/**
@@ -31,6 +37,15 @@
 	const writes = createNotebookTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const review = createReviewConsoleTransports(data.supabase);
+
+	/* The Inbox (ledger 0298): see the whole notebook's page for both of these. */
+	const initialView = $derived(page.url.searchParams.get('view') === 'inbox' ? 'inbox' : 'feed');
+	const viewerId = $derived(data.viewerId ?? '');
+	const quickNoteShown = $derived(!quickNoteHidden(viewerId, page.data.userProfile?.preferences));
+	function setQuickNoteShown(shown: boolean) {
+		if (!viewerId) return;
+		void setQuickNoteHidden(viewerId, !shown, quickNoteProfileIo(data.supabase, viewerId));
+	}
 </script>
 
 <svelte:head>
@@ -88,5 +103,8 @@
 		timelineHref={`${classNotebookHref(data.section.id)}/timeline`}
 		{...writes}
 		onChanged={() => invalidateAll()}
+		{initialView}
+		{quickNoteShown}
+		onQuickNoteShown={setQuickNoteShown}
 	/>
 {/if}

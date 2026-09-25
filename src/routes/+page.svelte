@@ -6,11 +6,13 @@
 	import { groupEntriesByMonth, type VersionEntry } from '$lib/site-versions';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import QuickNoteDock from '$lib/notebook/QuickNoteDock.svelte';
 	import AppLauncher from '$lib/AppLauncher.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import Pending from '$lib/Pending.svelte';
 	import CodeCounter from '$lib/CodeCounter.svelte';
 	import HomeTour from '$lib/tour/HomeTour.svelte';
+	import HomeTourOffer from '$lib/tour/HomeTourOffer.svelte';
 	import ClassroomFeed from '$lib/classroom/ClassroomFeed.svelte';
 	import TodoDoor from '$lib/classroom/TodoDoor.svelte';
 	import { buildTodo, todoSections, todoSummary } from '$lib/classroom/todo';
@@ -502,7 +504,7 @@
 			{#if classChip}
 				<a class="class-chip" href="/classroom">{classChip}</a>
 			{/if}
-			<button class="auth-link tour-link" type="button" onclick={() => homeTour?.start()}>
+			<button class="auth-link tour-link" type="button" data-tour="tour-trigger" onclick={() => homeTour?.start()}>
 				Take the tour
 			</button>
 			<div class="auth-block">
@@ -510,6 +512,9 @@
 					{#if isAdmin}
 						<a class="auth-link" href="/dashboard">Admin</a>
 					{/if}
+					<!-- The quick note (ledger 0298): beside the profile menu, in this
+					     header's own control style; see QuickNoteDock. -->
+					<QuickNoteDock place="home" triggerClass="auth-link tap-reach-44" />
 					<ProfileMenu />
 				{:else}
 					<button
@@ -525,6 +530,10 @@
 			</div>
 		</div>
 	</header>
+
+	<!-- The home tour, offered once to anybody who finished an older one (ledger
+	     0298). In the flow under the header; the tour itself mounts at the end. -->
+	<HomeTourOffer onstart={() => homeTour?.start()} />
 
 	{#if errorMessage}
 		<p class="auth-error">{errorMessage}</p>

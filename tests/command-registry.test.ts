@@ -33,7 +33,7 @@ import {
 } from '$lib/shell/commands';
 import { GRADE_KEYS } from '$lib/classroom/grading-keys';
 import { REVIEW_KEYS } from '$lib/notebook-review';
-import { sectionTabs } from '$lib/classroom/nav';
+import { classDuplicatesHref, sectionTabs } from '$lib/classroom/nav';
 import { matchesQuery, rankByQuery, tokenFit } from '$lib/shell/search';
 import { paletteEntries, parsePaletteQuery, searchPalette, type PaletteSources } from '$lib/shell/palette';
 import type { ClassroomItem, ClassroomSection, ClassroomUnit } from '$lib/classroom/classroom';
@@ -106,13 +106,17 @@ describe('the registry itself', () => {
 			['class.live', 'live'],
 			['class.people', 'people'],
 			['class.grades', 'grades'],
-			['class.duplicates', 'duplicates'],
 			// ledger 0297: the Check-ins tab became the class's Notebook tab.
 			['class.notebook', 'notebook']
 		] as const) {
 			const href = commandById(id)!.href!(env({ role: 'manager' }));
 			expect(href, id).toBe(tabs.find((t) => t.id === tab)!.href);
 		}
+		// ledger 0298: Duplicates left the tab bar; its command points where
+		// the class page's door does, through the one spelling of the address.
+		expect(commandById('class.duplicates')!.href!(env({ role: 'manager' }))).toBe(
+			classDuplicatesHref('s-1', '/classroom')
+		);
 	});
 });
 

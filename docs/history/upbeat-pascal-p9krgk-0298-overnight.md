@@ -1,5 +1,5 @@
 ---
-title: "Ledger 0298, the overnight run of 2026-09-25: every no-migration fix from the feedback export, built as implement-then-review agent pairs in six tiers; Tiers A and B live on main, Tiers C, D and E staged and held for after 15:30 Pacific, Tier F documents and two unapplied SQL proposals, and a pre-existing FRC completion hole found (`claude/upbeat-pascal-p9krgk`)"
+title: "Ledger 0298, the overnight run of 2026-09-25: every no-migration fix from the feedback export, built as implement-then-review agent pairs in six tiers; Tiers A and B and the Tier A follow-ups live on main (including a silent 1000-row cap on grading reads, present since 2026-08-11), Tiers C, D and E staged and held for after 15:30 Pacific, a pre-existing notebook autosave defect fixed, Tier F documents and three unapplied SQL proposals, and a pre-existing FRC completion hole found (`claude/upbeat-pascal-p9krgk`)"
 date: 2026-09-25
 branches: [claude/upbeat-pascal-p9krgk]
 migrations: []
@@ -15,7 +15,8 @@ carries a suffix because `docs/history/upbeat-pascal-p9krgk.md` already exists o
 written earlier by the router session that wrote the round's brief, and the round's prompt says a
 slug that already has an entry takes a suffix and says why.
 
-No migration was written or applied. The two SQL files 0228 and 0229 are PROPOSALS under
+No migration was written or applied. The three SQL files 0228, 0229 and
+`NNNN_classroom_worksheet_answers.sql` are PROPOSALS under
 `docs/feedback/2026-09-25/overnight/proposed/`, never under `supabase/`, and nothing applies them.
 
 **Where everything is.**
@@ -29,14 +30,24 @@ No migration was written or applied. The two SQL files 0228 and 0229 are PROPOSA
   light emblem and redrawn marks (7, 8), the profile pop-up (9), the Foundry sort control (10),
   tournament settings (11). Tier F rode along because it ships no product code: the FRC brief,
   the two SQL proposals with their `tests/db` files, and a `/dev`-only shape mockup.
-- **Tiers C and E are staged on the local branch `wt/cde`** (worktree `/home/user/wt-cde`, head
-  `7fadc2aa`) and **HELD until after 15:30 Pacific**: IdeaCAD live sync, snapping, the fillet
-  corner warning and side submenus (C); items 12 to 18 and 20 (E).
-- **Tier D (the notebook) is on the local branch `wt/notebook`** and held the same way. See the
-  Tier D section for what is built and what is still running.
-- **A Tier A follow-up is on this branch and not yet shipped**: `3d58c0fa` (a wording fix) and
-  `db7a2a0f` (the live class grid reads a finished worksheet as Complete), with the Grades tab and
-  the cross-class grading console still in progress. See TODO-A2 below.
+- **The Tier A follow-ups are live on `main` at `33245e80`**, merged at 05:33 Pacific and live at
+  05:33:44, from tested commit `4b4efb0e`: a finished worksheet reads Complete on the Live tab and
+  on the all-classes grading console, and the grading reads no longer stop silently at PostgREST's
+  1000-row cap, a defect present since grading shipped on 2026-08-11.
+- **Everything held is staged on the local branch `wt/cde`** (worktree `/home/user/wt-cde`) and
+  **HELD until after 15:30 Pacific**: Tier C (IdeaCAD live sync, snapping, the fillet corner warning,
+  side submenus), Tier D (the quick note, the Inbox, the notebook log and its templates) and Tier E
+  (items 12 to 18 and 20). `wt/cde` also carries the shipped follow-ups and the notebook autosave
+  fix below, so it is `main` plus the held work. The orchestrator moves
+  `claude/upbeat-pascal-p9krgk` to this staged work before the final report, so C, D and E sit on
+  the shipping branch, gated, and merge to `main` after 15:30 Pacific (by this session on a
+  scheduled check-in if it is still running, or by Mr. Pina).
+- **A pre-existing notebook autosave defect, live on `main`**, found by the Tier D reviewer, was
+  ported to `main`'s code as its own fix (`419170a4`, specs `a3027001` and `19f8fb3d`, update log
+  `5e40b3a8`), because it is a fix to shipped code and need not wait for Tier D. Its gate and ship
+  are recorded in its own section below.
+- **This entry** was first committed as a draft on the branch (`c72f030e`, which reached `main`
+  with the follow-ups); this is its finished form.
 
 ## How it ran
 
@@ -69,10 +80,12 @@ two passes manufacture findings) and `git.lock` (every commit). Agents never com
   tree. Tier B's first four items ran in `wt/tierb` and were merged into the branch (`b1db851f`);
   item 6 and the classroom hover sweep ran in the main tree after Tier A shipped. Tier C ran in
   `wt/ideacad`, Tier D in `wt/notebook`, Tier E in `wt/tiere`, `wt/tiere2` and `wt/tiere3`, Tier F
-  in `wt/docs` (merged as `960b1b1f`). The staged `wt/cde` merges `wt/tiere` (`4349e61c`),
-  `wt/tiere2` (`4e3e009a`), `wt/ideacad` (`f858d42d`) and `wt/tiere3` (`e6128606`). Shipping went
-  through a separate `ship-main` worktree (`/home/user/wt-gate`). An unfinished later tier could
-  therefore never ride a Tier A merge.
+  in `wt/docs` (merged as `960b1b1f`). The Tier A follow-ups and the autosave port ran in the main
+  tree. The staged `wt/cde` merges `wt/tiere` (`4349e61c`), `wt/tiere2` (`4e3e009a`), `wt/ideacad`
+  (`f858d42d`), `wt/tiere3` (`e6128606`), the shipped follow-ups at `4b4efb0e` (`c386715f`),
+  `wt/notebook` (`9c3cf60c`) and the autosave fix (`01d64b71`). Shipping went through a separate
+  `ship-main` worktree (`/home/user/wt-gate`). An unfinished later tier could therefore never ride a
+  Tier A merge.
 - **Every item had an implementer and then an adversarial reviewer**, a second agent that re-ran
   svelte-check, the tests, the browser specs and the mutation proofs itself, and fixed what it
   found. Every review returned `ship`, and every one of them found something. The most important
@@ -114,6 +127,13 @@ two passes manufacture findings) and `git.lock` (every commit). Agents never com
   - coin: an empty roster produced "every active student is already in a coin section";
   - quick note: moving between two headers mid-note lost the last typed word, and the quick note
     kept autosaving into a draft after it was turned in;
+  - student log: a template pressed over a filled grid wiped the grid, and the reviewer found the
+    pre-existing autosave defect (below);
+  - Tier A consistency follow-up: a stored manifest that throws inside the walk would have taken
+    down the whole Live control view (timer, hall pass, projector feed);
+  - row cap: offset paging while a class saves returned a photo twice where two pages met;
+  - autosave port: Turn in pressed during the first save dropped the words typed during it
+    (reasoned by the implementer, driven in the browser by the reviewer);
   - FRC brief: `frc_quiz_start` trusts a caller-supplied answer key (below);
   - 0228: the follow-on lock plan named two lock sites where the chain has seven checks in five
     functions;
@@ -138,9 +158,10 @@ two passes manufacture findings) and `git.lock` (every commit). Agents never com
   time reads late. Kept, because decision 37's wording is about when the work was finished and
   the only stored instant is the last write. Proposal 0228's revision history would make it exact.
 - **The teacher's home to-grade tally does not count finished worksheets.** The status reviewer
-  removed that read for its cost (the 30 s admin load above). The grading console roster does say
-  Complete. A definer-function proposal (`classroom_worksheet_answers(p_item_ids uuid[])`,
-  checking `_classroom_manages_item` once per item, 0166 grant shape) is recorded under Deferred.
+  removed that read for its cost (the 30 s admin load above). The grading console roster and the
+  Live tab do say Complete. The Grades tab waits on the same cost; the definer-function proposal
+  that would serve both, `NNNN_classroom_worksheet_answers.sql`, is written and tested (Tier A
+  follow-ups, below).
 
 **Shipping gates.** Each tier merged `origin/main` in, then ran svelte-check, `npm run build` and
 the full suite, reading summary lines and stderr.
@@ -150,6 +171,8 @@ the full suite, reading summary lines and stderr.
   control on `/assignments/MSET-Mold-01`.
 - Tier B: svelte-check 0 / 37 / 20, build OK, full suite 610 of 610 files and 11567 tests.
   Merged as `ab70d8c1`; live confirmed including the light emblem assets.
+- Tier A follow-ups: svelte-check 0 / 37 / 20, build OK, full suite 613 of 613 files and 11597
+  tests, from tested commit `4b4efb0e`. Merged as `33245e80` at 05:33 Pacific, live at 05:33:44.
 - Browser-verify totals stayed at **211 measurements outside threshold, identical to the
   baseline's 211**, across 370 to 477 specs as the tiers added them: every measurement added
   tonight is inside threshold.
@@ -157,8 +180,23 @@ the full suite, reading summary lines and stderr.
   and E finish on the branch and merge after 15:30". Landing unannounced interface changes minutes
   before first period with nobody watching (a class list hidden by default on worksheets, voice
   moving into Search, a Note button in every header, IdeaCAD warnings appearing on old parts) was
-  judged worse than a few hours' delay. The staged `wt/cde` passed svelte-check 0 / 37 / 20 and the
-  full suite 620 of 620 files, 11680 tests. Tier D's gate: see TODO-D.
+  judged worse than a few hours' delay. Staged gates on `wt/cde`: with C and E alone, svelte-check
+  0 / 37 / 20 and the full suite 620 of 620 files, 11680 tests. After Tier D merged: svelte-check
+  0 / 37 / 20; `verify:browser` on the header, quick note, tours and palette 176 route/width runs,
+  2870 measurements, 0 outside threshold; the full suite 625 of 625 files and 11747 tests, with 2
+  teardown `57P01` errors attributed to `tests/notebook-guidance-propagates.test.ts`, a file
+  unchanged tonight that passes alone twice with no error (the same class as the baseline's
+  teardown error); both notebook latency specs pass on the staged branch (38 measurements, 0
+  outside).
+- **Conflicts the orchestrator resolved on `wt/cde`:** ClassroomShell's `.nav-toggle:hover` (kept
+  `--hover-ink`); the VoiceNav import dropped and QuickNoteDock kept; `CLASSROOM_SHELL_HARNESSES`
+  as the union (`quick-note`, `theme-switch`, `themes-shape`); `tests/home-tour.test.ts`'s
+  `ARRIVING` emptied now that `qn-trigger` exists (`fec54a28`); NotebookView, the `/dev/notebook`
+  harness and `notebook-latency-1200` keep Tier D's version of the same autosave fix; browser-verify
+  counts regenerated. CLAUDE.md rules added on the staged branch in `dba97b80` (stylesheets outlive
+  a client-side navigation; paging past `max_rows`; guarding a plan inside a class-critical render;
+  the direct modeler's live layer; the kernel's ball-and-flat-step corner; coplanar translucent
+  fills). Update-log entries for C, D and E are in `48c89f40`.
 
 ## Tier A: needed in class on Friday (live at `d0fb9841`)
 
@@ -221,9 +259,10 @@ the full suite, reading summary lines and stderr.
   completion. `readAllPages` pages past PostgREST's 1,000-row cap and gives up at 10,000; any failed
   or throwing read answers "cannot tell" and the page behaves as before, never as "complete".
 - **Commits:** `6782861e`, `99d0b0a7`, `6cf971c9`, `fe8c491b` (CLAUDE.md "WHAT A STUDENT OWES"
-  corrected in place), `2070af0a` (harnesses); review `8186a3b6`, `431e6d21`; a later follow-up
-  `3d58c0fa` fixes the reviewer's cosmetic "Work: photo photo added after grading" wording (on
-  this branch, not yet shipped).
+  corrected in place), `2070af0a` (harnesses); review `8186a3b6`, `431e6d21`. The reviewer's
+  cosmetic "Work: photo photo added after grading" was fixed by the orchestrator in `3d58c0fa`
+  (now "had a picture added after grading"; `html-assignment-grading-state-graded` re-measured, 54
+  measurements, 0 outside), shipped with the follow-ups at `33245e80`.
 - **Measured by the implementer.** `/dev/classroom-standing` mounts the real ClassView, MyClasses
   and ClassroomFeed over one fixture: class page Missing 3 beside My Classes "3 missing", rows
   Complete, late / Check-in: Not filed yet / Complete / Missing / Missing, chips at least 98x44,
@@ -366,23 +405,147 @@ the full suite, reading summary lines and stderr.
   console's off-roster sentence. A scale probe: 4000 files, 200 students, 6 sections planned in 38
   to 49 ms. At the 500 MiB budget, peak memory is about 1 to 1.5 GB in the teacher's tab.
 
-### TODO-A2: the Tier A consistency follow-up (in progress on this branch, not shipped)
+## Tier A follow-ups (live at `33245e80`)
 
-Three surfaces still read a finished worksheet the old way and can disagree with the class page:
-the live class grid, the Grades tab (`assignmentStandings` counts only `state=submitted` as
-awaiting) and the cross-class console `/classroom/grading/[itemId]` (no `htmlWork` snippet, so a
-student with answers and no files reads "Nothing handed in yet"). A follow-up agent owns them.
+Two follow-ups to shipped Tier A work shipped together: `main` `33245e80`, merged at 05:33
+Pacific and live at 05:33:44, from tested commit `4b4efb0e` (svelte-check 0 / 37 / 20, build OK,
+full suite 613 of 613 files and 11597 tests). With them went the orchestrator's `3d58c0fa`, the
+grading console's "had a picture added after grading" wording.
 
-- **Done so far, `db7a2a0f`:** the Live tab reads a finished worksheet as Needs grading, Complete
-  or Complete, late, and never Missing. `readWorksheetManifests` and `worksheetCompletedAt` were
-  split out of `readWorksheetCompletions` and exported, so there is one completeness rule, and the
-  manifest arrives through `withWorksheetManifest` (two reads pinned to the item, no answers read).
-  Its commit message reports the grading read at 272 to 291 ms before and 234 to 313 ms after on
-  the test cluster (30 students, a 60-block worksheet), the manifest read 2 to 4 ms, and 6 mutants
-  killed with a no-op control surviving.
-- TODO-A2: the orchestrator fills in the Grades tab, the cross-class console (uncommitted
-  `HtmlGradingWork.svelte` in the tree at the time of writing), the review verdict, and whether
-  and when it shipped.
+### A finished worksheet reads Complete on every teacher surface that can afford it
+
+Three surfaces still read a finished worksheet the old way and could disagree with the class
+page: the Live tab grid, the Grades tab (`assignmentStandings` counts only `state=submitted` as
+awaiting) and the cross-class console `/classroom/grading/[itemId]`, whose work column had no
+`htmlWork` snippet. The rule for each was to feed the SAME completion input and to accept a surface
+only if its load grew by under about 300 ms on the test cluster (one section of 30, worksheets of
+20, 40 and 60 blocks, 3,150 answers, as a non-admin teacher). Commits `db7a2a0f`, `f1914a81`,
+`b2f2acdf`; review `72d4cb38`, `3b066554`.
+
+- **The Live tab grid (`db7a2a0f`).** The grading read it already polls every 60 s holds every
+  answer on the item, so only the manifest was missing; `withWorksheetManifest` adds it (two reads
+  pinned to the item, never an answers read). `readWorksheetManifests` and `worksheetCompletedAt`
+  were split out of `readWorksheetCompletions` and exported, and the grid marks rows through
+  `withWorksheetCompletions`, so there is still one completeness rule. A finished worksheet reads
+  Needs grading with "Complete" or "Complete, late", then Handed in with Graded, and never Missing;
+  a failed manifest read gives exactly the old grid. `loadGrading` took 272 to 291 ms before and 234
+  to 313 ms after (the manifest read, 1.7 to 4.4 ms, runs in parallel); four sections, 965 to 1109
+  against 997 to 1067 ms. A finished student now drops out of the random picker's "present" pool,
+  as one who handed in a spec assignment does.
+- **The cross-class console (`f1914a81`).** The per-class grade route's work snippet became one
+  component, `HtmlGradingWork.svelte`, mounted by both routes off the same engine decision, so there
+  is no second copy and no new read. Negative control: the old route shape fails 5 of 12 checks with
+  "Nothing handed in yet." on screen. The implementer also found that a student whose only files hung
+  off blocks had read an EMPTY work pane there.
+- **The Grades tab stays as it was, deliberately (`b2f2acdf`).** Reading every student's answers
+  through the per-row policy took 2.27 to 2.60 s against a 17 to 44 ms load (four sections: the
+  paged read took 17.9 to 51.1 s and gave up past its 10,000-row cap). The written proposal is
+  `docs/feedback/2026-09-25/overnight/proposed/NNNN_classroom_worksheet_answers.sql`, a definer
+  function `classroom_worksheet_answers(p_item_ids uuid[], p_section_id uuid default null)` whose
+  reach is `classroom_can_review_submission`'s body written set-wise, in the 0166 grant shape, with
+  apply-time self-checks. Its test, `tests/db/proposed-worksheet-answers.test.ts` (8 tests, the chain
+  0001 to 0224), compares it with RLS caller by caller. It measured 36 to 51 ms narrowed to one class
+  at one and at four sections; the client half is unwritten and it needs a ledger number. The
+  teacher's home tally waits on the same proposal.
+- **Review.** `worksheetCompletedAt` ran with no catch inside the Live control view's `$derived`
+  grid. `htmlManifestShaped` only checks that `modules` is an array, so a manifest with a null module
+  passes and throws in the walk, and that would have taken down the whole Live control view in front
+  of a class: timer, hall pass and projector feed. `3b066554` gives back the student's own row on a
+  throw, pinned by a test and a mutant. `72d4cb38` corrected two stale sentences (a route comment,
+  and CLAUDE.md's Grades-tab load, 17 to 44 ms not 17 to 33).
+- **Measured.** 9 new tests in `tests/classroom-live-worksheet.test.ts` plus the reviewer's
+  null-module case; 6 implementer and 4 reviewer mutants killed, with a no-op control surviving
+  each time; for the proposal, 2 mutants refused at apply by its own self-check and 4 more killed
+  by its test, with a comment-edit control surviving. `verify:browser` over every
+  `/dev/classroom-live` and `/dev/html-assignment-grading` spec at 375 and 1440: 40 runs, 514
+  measurements, 0 outside. Live cell contrast: name 15.42:1, detail 7.27:1, Missing mark 6.06:1.
+- **Still open.** `GradingConsole.svelte`'s `completionOf` restates `worksheetCompletedAt`'s
+  judgment instead of calling it, and neither it nor `HtmlGradingWork`'s `hxFrameSeed` has the
+  Live grid's catch (stored manifests are validated at import, so this is defence in depth).
+
+### Grading reads stopped silently at 1000 rows
+
+The implementer of the follow-up above found that `loadItemWork` in
+`src/lib/classroom/transports.ts` read an item's answers in one unpaged request, and PostgREST
+stops at `max_rows` (1000 by default on Supabase, and in `supabase/config.toml`) without an error.
+Commits `9a1773f9`; review `4b4efb0e`.
+
+- **For Mr. Pina, in one sentence:** since grading first shipped on 2026-08-11 (`528e9f32`), the
+  per-class and all-classes grading screens, the Live tab grid and the graded-work export could show
+  a student's answers as blank once one assignment held more than 1000 answers across its classes (a
+  63-question worksheet reaches that at 16 students), and the Grades tab counts could come up short
+  past 1000 submissions. Production's own `max_rows` could not be read from here.
+- **What changed (`9a1773f9`).** `readWorkPages` (with `WORK_PAGE_ROWS` 1000 and `WORK_MAX_PAGES`
+  60) pages four reads: the item's responses (ordered on the primary key, `student_email` then
+  `block_id`), the module approvals, the hand-in files (`sort_order` then `id`), and the Grades tab's
+  submissions read. It is a sibling of `readAllPages`, not a caller, because `readAllPages` answers
+  null on any error, which is wrong for a grading screen: a first-page error answers exactly as the
+  old single read did, and a later-page error keeps what arrived. The paged file list also feeds
+  tonight's Download all files, which could otherwise have left files out past 1000 hand-ins, and
+  the student's own item page (one short page there). A new test drives the real
+  `loadGrading`, `loadAcross` and Grades load against a fake that enforces the cap; its positive
+  control is that the old shapes return exactly 1000.
+- **Review (`4b4efb0e`).** Offset paging is only correct on a table nobody writes to, and a class
+  writes during the read: a student's first answer or a new photo is an INSERT that shifts every
+  later row, so the last row of one page came back at the top of the next (a photo shown and zipped
+  twice, and counted twice toward its block's minimum), and a delete skipped one. `readWorkPages`
+  now takes a REQUIRED key, drops a row it has already seen, and starts each later page
+  `WORK_PAGE_OVERLAP` (50) rows early. Insert and delete race tests fail on the pre-review pager. A
+  read that fits in one page is still exactly one request with the same rows.
+- **Measured.** 11 tests; mutants (no dedupe 7 failed, no overlap 3, the exact pre-review pager 4,
+  single page 7, a randomised file key 2) all killed; 29 files that drive these reads, 622 tests,
+  pass. No `/dev` harness mounts the real transports, so no browser pass exercises the paging.
+- **Still open.** `classroom_section_roster(null)` is also capped at 1000 rows for an admin (it
+  truncates only past 1000 total enrollments; measure with
+  `select count(*) from classroom_enrollments where active`); `countOrphanedAnswers` on the item
+  page counts by `.length` and tops out at 1000 (the confirmation gate still fires); there is no
+  on-screen note when a later page fails; the home feed's teacher-side submissions read in
+  `loadClassroomWork` is also unpaged, so its "N to grade" chip can undercount; a skip is still
+  possible if more than 50 rows before a page boundary are deleted in the gap between two requests
+  (keyset paging would close it); the Grades tab's counts include a co-posted item's students from
+  the teacher's other classes against this class's roster size.
+
+## The pre-existing notebook autosave defect (found by the Tier D reviewer, ported to `main`'s code)
+
+**What was wrong, live today.** `NotebookView`'s autosave `$effect` called `save.markDirty` only
+when `autosaveDue` flipped from false to true, and it stays true through continuous typing. So the
+first write went out, the student kept typing during it, the write landed, and nothing marked the
+machine dirty again: a whole further paragraph was never written while the indicator read "Saved
+<time>". Separately, the autosave CREATE advanced the baseline to whatever was on screen when the
+answer came back, not to what it sent, so words typed during the create's round trip were marked
+acknowledged without being sent. The Tier D reviewer found both (`65af4451` on `wt/notebook`); this
+is the port to `main`'s code as its own fix.
+
+- **What changed (`419170a4`).** The effect now reads `noteDraft` and `title` tracked, so every real
+  change re-arms `markDirty` (still inside `untrack`, still gated on `due`), and `rememberDraft`
+  takes the `sent` document and label from the autosave create, so the baseline advances to the
+  words SENT. The button creates are unchanged. The two halves are one commit and must ship
+  together: the create half alone was measured WORSE than `main` (no write at all after the create).
+- **Measured.** The new spec `notebook-latency-1200` (`a3027001`, over `/dev/notebook?latency=1200`)
+  was RED on `main` before the fix, 6 of 20 outside threshold at each width (after the create the
+  store held only "First words of the entry." while the indicator read Saved, and the unsent words
+  sat in the device backup), and GREEN after, 0 of 20 at 375 and 1440. With either half reverted
+  alone it goes red again (2 and 8 of 20). svelte-check 0 / 37 / 20; 11 files, 283 tests pass.
+- **Review (`19f8fb3d`).** The implementer had reached the worst consequence by reading the code;
+  the reviewer drove it: on pre-fix code, Turn in pressed during the first save turned the entry in
+  holding only the first words, showed "Entry turned in.", cleared the box and left no backup, so the
+  words typed during the save were gone everywhere (2 of 18 outside threshold at each width, 0 of 18
+  after). The reviewer also moved the harness's `-> holds` log below the last refusal. Together the
+  two specs measure 38, 0 outside.
+- **Behaviour change a class may notice:** the first save now waits for an 800 ms PAUSE in typing
+  rather than leaving 800 ms after the first keystroke, which is how `SaveState` is designed to be
+  driven and how assignments already save; the 400 ms device backup covers the gap. After a failed
+  save, typing now retries after the next pause instead of staying failed until Retry.
+- **Still open:** `rememberDraft` reads the selected check-in when the create's answer returns, not
+  when it was sent, so changing the filing during an in-flight create can record the wrong session.
+  Update-log entry `5e40b3a8`.
+
+Its gate and ship are recorded below by the orchestrator.
+
+It shipped on its own as a fix to shipped code: `main` `c4dc2ae8`, merged at 06:59 Pacific,
+from tested commit `5e40b3a8` (svelte-check 0 errors / 37 warnings / 20 files, `npm run build`
+OK, full suite 613 of 613 files and 11597 tests). The staged branch keeps the notebook tier's
+own version of the same fix, which carries the filing lock this one does not have.
 
 ## Tier B: the rest of round 1's P1 (live at `ab70d8c1`)
 
@@ -624,7 +787,9 @@ student with answers and no files reads "Nothing handed in yet"). A follow-up ag
 - **Measured.** 82 measurements, 0 outside, before review; 68 in the harness and 66 on the real
   modeler after, 0 outside; a broken build put 16 of 66 outside.
 
-## Tier D: the notebook, first bundle (on `wt/notebook`, held)
+## Tier D: the notebook, first bundle (staged on `wt/cde`, held)
+
+Both halves were built and reviewed `ship`.
 
 ### Quick note and the Inbox (R33)
 
@@ -659,14 +824,52 @@ student with answers and no files reads "Nothing handed in yet"). A follow-up ag
 
 ### The student log and the three templates (R32)
 
-TODO-D: the second-half agent (`implement:studentlog` in `wf_14029fae-c91`) was still running when
-this entry was written; its uncommitted files on `wt/notebook` included `log.ts`,
-`note-templates.ts`, `NoteTemplates.svelte`, `NotebookHead.svelte`, `CheckInState.svelte` and
-`ComposerFiling.svelte`. The orchestrator fills in what it built, its review, the Tier D gate
-numbers, and the merge (the home-tour reviewer's dry run found `wt/tiere3` and `wt/notebook` merge
-cleanly on `src/routes/+page.svelte` and conflict only on `src/lib/feedback/context.ts`, from other
-Tier E work). Once Tier D lands, remove `qn-trigger` from `ARRIVING` in `tests/home-tour.test.ts`
-and walk the student home tour once to confirm the Note step.
+- **What changed.** A student's notebook opens on their own log: their entries newest first, with
+  one composer heading the navigation pane at every width (a writing box, three templates, Take a
+  photo and Choose a photo, Turn in and Save draft). The detail pane holds only an entry somebody
+  opened. The check-in, title, class and folder sit behind one line, "Filed to <where> <state chip>
+  Change" (`ComposerFiling.svelte` over the shared `Disclosure`), and the check-in status is a chip
+  (`CheckInState.svelte`) in the header and on that line, worded by the classroom's own
+  `checkInStatusLabel` and `checkInStanding` through `log.ts`, so there is no second vocabulary.
+  The how-to prose is gone; every refusal, error and the no-autosave notice stay (CLAUDE.md requires
+  saying so when autosave is off). The templates (Design decision, Test result, Build log) live in
+  `note-templates.ts` as bold-run paragraphs, so no new node, no mirror vocabulary change and no
+  gate change; a template appends and never replaces. `NotebookHead.svelte` shows the next check-in;
+  "New entry" replaces the wide-screen Close. NotebookView went from 4761 to 4453 lines. The review
+  grid and review console files are untouched. Commits `738e1ccb`, `abdd0806`; review `220ea87c`,
+  `0179586c`, `65af4451`, `f7f36410`.
+- **Decisions taken unattended.** Turn in plus Save draft stay rather than one Save (a draft-only
+  Save would hide new entries from the teacher's grid in class; a turn-in-only Save would remove the
+  private draft). Today's auto-pick of the nearest outstanding check-in stays, as TRIAGE R32(a) says,
+  rather than filing exactly like the quick note, which never picks a check-in and so would stop a
+  photo answering today's check-in by default.
+- **Measured.** 15 template tests (17 after review) build every template through the real editor
+  schema, the mirror vocabulary and the server normalizer; a heading-node mutant fails 9 of 15.
+  `verify:browser` over every `/dev/notebook*` spec plus view-as: 58 runs, 1110 measurements, 0
+  outside; the review grid's 30 cells stay 30.4x30.4px (1.9rem) with its glyph contrasts unchanged.
+- **Review: four real defects, fixed and proven.** (1) A template pressed over a box holding only a
+  filled grid replaced the grid, because "empty" was decided by text and a grid is an atom with no
+  text (grid present 0 times after the press, measured at 375); `noteIsBlank` now asks of the
+  blocks. (2) Once the first autosave had made a draft, every later save only adds to it, but
+  "Filed to" read the live picks, so writing first and then pressing Change moved the line and
+  nothing on the server: the line said check-in B while Turn in turned in A. `savedDraftFiling` now
+  records what the create was SENT with, the line reads it, and the picks lock with one sentence
+  ("This draft is already filed here. New entry starts one you can file somewhere else."); bare
+  template headings no longer create a draft, so "template, then Change" still works. (3) "This
+  draft is saved." stayed on screen over new, unsaved writing. (4) The pre-existing autosave defect,
+  in its own section above. Also fixed: a Turn in during a settling photo claimed there was no photo,
+  Manage folders did nothing in an empty notebook, and two new control edges took `--boundary`.
+  After: 36 files, 907 tests; 108 route/width runs and 1688 measurements, 0 outside, including all
+  10 review-grid and console specs.
+- **Still open.** Re-filing a draft after its first typed words means New entry, which leaves a
+  private draft behind (moving a draft needs a write path this bundle does not have); the chips'
+  "Not due yet" uses the browser's `todayIso()` where CLAUDE.md wants one LA clock read in the
+  loader; no check-in chip on individual feed rows; capture on the class page (TRIAGE R32(c)) and an
+  `item_id` link on entries (a migration) are not built.
+
+**Tier D on the staged branch.** `wt/notebook` merged into `wt/cde` as `9c3cf60c`; `fec54a28`
+empties `ARRIVING` in `tests/home-tour.test.ts` now that `qn-trigger` exists, so the hook sweep
+covers the Note step. The staged gates are in "How it ran".
 
 ## Tier E: round 1's P2 and P3 (staged on `wt/cde`, held)
 
@@ -897,6 +1100,15 @@ not 3 to 4x. Nothing is applied to a real surface; he approves first.
 - **The `:global(main)` leak** did not reproduce in dev and is fixed on reasoning about production
   CSS order; the fix is safe either way.
 - **R07 on a real tournament page** at 5120x2626 with real data.
+- **The row cap in production.** Production's `max_rows` could not be read (the 1000 is Supabase's
+  default and the local `supabase/config.toml`); `.range()` with the `!inner` embed filter on the
+  live server, sequential-page latency on a real connection, and the admin's total enrollment count
+  behind `classroom_section_roster(null)` were not measured. No `/dev` harness mounts the real
+  transports, so no browser pass exercises the paging. If production's `max_rows` is below 1000 the
+  first page comes back short and the read stops, no worse than before.
+- **The notebook fixes on a real network.** The autosave port and the Tier D notebook were driven
+  only through `/dev/notebook` with in-memory transports delayed 1200 ms; no real slow network, no
+  real Drive photo upload, and no signed-in `/classroom/notebook`.
 
 ## Claims in the brief or TRIAGE that were wrong
 
@@ -968,6 +1180,25 @@ not 3 to 4x. Nothing is applied to a real surface; he approves first.
 - R33: only the two PHOTO posts use `trackInFlight`, not `createNote` or `editNote`; no student RPC
   moves an entry (`notebook_admin_override_entry` is admin-only); CLAUDE.md's "a third mirror is a
   third module" is about a new payload, and the quick note is the same payload.
+- R32: TRIAGE's NotebookView figures (4657 lines, composer at 3170 to 3476) had drifted to 4761 and
+  about 3272; the no-autosave note it lists as prose to delete is required by CLAUDE.md, so it stays
+  as one sentence; the composer's "Photos attach when you save" sentence was already false since
+  ledger 0297 F4b; a one-box Save that "files itself exactly as the quick note does" cannot hold
+  without changing what the teacher's grid counts; CLAUDE.md's `.pick.selected .pick-meta` and "the
+  notebook's compose form" sentences became false and were corrected in place.
+- Tier A follow-ups: the Live grid's hand-in data comes from the client-side `loadGrading`
+  transport, not the Live page's server loader; on the cross-class console a student whose only files
+  hung off blocks read an EMPTY work pane, not only "Nothing handed in yet"; CLAUDE.md called the
+  grading roster THE teacher surface that says Complete; `loadItemWork`'s answers read was unpaged,
+  so "the console already holds its one item's answers" held only up to 1000 rows; the implementer's
+  claim that CLAUDE.md states PostgREST's 1000-row truncation was false (it comes from
+  `supabase/config.toml` and the `readAllPages` comment); the row-cap task named only
+  `classroom_responses`, while approvals, files and the Grades submissions read had the same shape.
+- The autosave port: `--route notebook-latency-1200` matches nothing (the filter is a substring of
+  the spec's path, so it is `--route 'notebook?latency=1200'`); `65af4451`'s comment and the
+  implementer's correction of it were each wrong in one detail (an unchanged transaction during an
+  in-flight write only flickers the indicator; `autosaveDraft` re-checks `autosaveDue` and sends
+  nothing).
 - R35 and QUEUE: the quiz is not practically passable by picking the longest option (0.0 to 0.9% per
   attempt, 98 to 141 hours of expected cooldown, F1 and F3 never), but it can be bypassed entirely
   (above); only Speedrun is a live GAUNTLET mode; MDM-8 has 6 drill answers and Foundation's written
@@ -995,7 +1226,10 @@ not 3 to 4x. Nothing is applied to a real surface; he approves first.
   "nothing is recorded or sent"; the home tour's "never later than the deploy" cut-off reasoning;
   the live-sync "1440" readings (a 712px window); the live door's "about 200px"; the timer's
   mutation md5 (an earlier draft); the Space White extra download (10.1 KB, not 19 KB); the
-  profile's "about 8px" covered option (22.6px).
+  profile's "about 8px" covered option (22.6px); the row-cap pager's "no row repeats or is skipped"
+  (true only of a table nobody writes to during the read); the student log's "Filed to cannot say one
+  place while the save goes to another" (false once a draft exists), and its "both chips then read
+  Draft" (true only of the harness, which pushes the new entry into its feed at once).
 
 ## Deferred and open
 
@@ -1014,18 +1248,26 @@ not 3 to 4x. Nothing is applied to a real surface; he approves first.
   captions stay in "names left out" exports (both paths; a disclosure decision); "Complete, late" by
   last edit and untouched checkboxes; the full `/profile` page (a slug reservation migration).
 
+**SQL written and tested but unnumbered:** `NNNN_classroom_worksheet_answers.sql`, which would let
+the Grades tab and the teacher's home tally count finished worksheets (its client half is unwritten
+and it needs a ledger number).
+
 **SQL described in prose, not written:** a server guard in `tournament_update` for the qualifying and
 score-entry edges, and `tournament_clear_qual_pools`; `notebook_file_draft(p_entry_id, p_section_id,
-p_session_id)` for atomic filing (it would let photo drafts be filed and leave no copy in Recently
-deleted); `classroom_worksheet_answers(p_item_ids uuid[])` so the teacher tally can count finished
-worksheets; an insert-only-if-unplaced coin RPC and a weekly cap on Weekly Wage; the 0228 follow-on
-lock file (items a to h); an `ideacad_beat_part` narrowing for a deactivated class editor.
+p_session_id)` for atomic filing (it would let photo drafts be filed, move a saved draft to another
+check-in, and leave no copy in Recently deleted); an insert-only-if-unplaced coin RPC and a weekly
+cap on Weekly Wage; the 0228 follow-on lock file (items a to h); an `ideacad_beat_part` narrowing
+for a deactivated class editor; a count RPC for the home feed's "N to grade" tally.
 
 **Open in shipped or staged work.**
 
-- TODO-A2 above (the Grades tab and cross-class console), and the cross-class console's missing
-  `htmlWork` snippet; "Header:" in the console against "Identity:" in the export; `uniqueSheetName`
-  deduplicates case-sensitively where Excel does not.
+- Grading: the row-cap items in the follow-ups section (`classroom_section_roster(null)` for an
+  admin, `countOrphanedAnswers`, no on-screen note for a failed later page, the home feed's unpaged
+  teacher-side submissions read, co-posted students in the Grades counts); `GradingConsole`'s
+  `completionOf` restating `worksheetCompletedAt` with no catch; the flip-only `markDirty` pattern
+  in `GradingConsole.svelte` (the Tier D reviewer saw it and did not examine it); "Header:" in the
+  console against "Identity:" in the export; `uniqueSheetName` deduplicates case-sensitively where
+  Excel does not.
 - Space White rest-state brass left for its own ink decision: ClassView `.detail-open a`, ItemDetail
   `.ci-link`, LinkPreviewCard `.lp-fallback`, MyClasses `.note a` and the class card's icon, code and
   CTA, SpecImporter `.state-tag.on`, SpotlightTour's primary Next button (both tours); the notebook's
@@ -1043,19 +1285,22 @@ lock file (items a to h); an `ideacad_beat_part` narrowing for a deactivated cla
   transport; `/dev/ideacad-*` harness copies of the unscoped lock remain (the sweep excludes `/dev`);
   class-only global rules are not swept.
 - Tier D: two tabs restoring one quick-note mirror can make a duplicate draft; the Inbox's filing
-  leaves the old copy in Recently deleted; no Note control on the home page from 521 to 899px.
-- Tiers C, D and E merge after 15:30 Pacific or are left for Mr. Pina (see TODO-D for Tier D's gate).
+  leaves the old copy in Recently deleted; no Note control on the home page from 521 to 899px;
+  re-filing a saved draft means New entry; the chips' `todayIso()` clock; the autosave create still
+  reads the check-in at answer time, not send time.
+- Tiers C, D and E merge to `main` after 15:30 Pacific from `claude/upbeat-pascal-p9krgk`, once the
+  orchestrator has moved it to the staged work, by this session on a scheduled check-in if it is
+  still running, or by Mr. Pina.
 - Smaller: a shared class-tools shell for the three copies of the tool type; a `TourOffer.svelte`
   shared by the two tour offers; posted teams on the home page and My Classes; a sentence for a
   student on no team; `saveProfile` clears `busy` without `finally`; decision 39's Build line should
   read CLOSED by `20426fe5` and `a29b4ebd` with `f1349783`; the stale notebook tagline in
   `portal-apps.ts`; the pre-existing `/dev/foundry-gallery?state=full-screen` rows at 375.
-- Candidate CLAUDE.md rules the agents proposed and did not write, for a later session to weigh: a
-  component's stylesheet stays in the page after a client-side navigation (and arrives on import);
-  `lockDocumentScroll` is the one body scroll lock; an export mounted in a class-critical surface
-  computes under a try/catch; the spec export's golden is regenerated only deliberately; a popover in
-  a masthead clamps to the viewport and stays above fixed floating controls; the kernel's
-  ball-and-step corner and the signed `pointLineDistance`; a translucent reference fill coplanar with
-  a face z-fights; the direct modeler's live layer rules; a coin bulk path is a move; a mirror writes
-  synchronously at teardown and pagehide; a ProseMirror editor removed while focused dispatches a
-  blur inside Svelte's block update.
+- CLAUDE.md rules. Added on the staged branch in `dba97b80`: stylesheets outlive a client-side
+  navigation; paging past `max_rows`; guarding a plan inside a class-critical render; the direct
+  modeler's live layer; the kernel's ball-and-flat-step corner; coplanar translucent fills. Proposed
+  by agents and not written, for a later session to weigh: `lockDocumentScroll` is the one body
+  scroll lock; the spec export's golden is regenerated only deliberately; a popover in a masthead
+  clamps to the viewport and stays above fixed floating controls; the signed `pointLineDistance`; a
+  coin bulk path is a move; a mirror writes synchronously at teardown and pagehide; a ProseMirror
+  editor removed while focused dispatches a blur inside Svelte's block update.

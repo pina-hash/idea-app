@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "classroom-palette-s-1-manage-1-state-voice.mjs",
+	"date": "2026-09-25T09:13:29.768Z",
+	"sha": "475592d5e452727c6c73d11f4f306f3d77b21899",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 32,
+	"outsideRows": [],
+	"ms": 12719
+}

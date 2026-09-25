@@ -73,6 +73,27 @@ const MENU_STEP = (who: 'teacher' | 'student'): ClassroomTourStep => ({
 	]
 });
 
+/**
+ * THE CLASS LIST TOGGLE, shared by both tours (ledger 0298, report 25:
+ * students never put the class list away to make room for a worksheet). It is
+ * on screen only on an item page above 1024px, beside the item's title, so the
+ * step drops everywhere else. Its word changes with the state, so the step
+ * names both.
+ */
+const CLASS_LIST_STEP: ClassroomTourStep = {
+	id: 'class-list',
+	variants: [
+		{
+			target: tid('nav-collapse-toggle'),
+			title: 'Class list',
+			/* Not "assignments": only the ones answered on the page (a ported HTML
+			   worksheet or a spec assignment, `navCollapseWorkSurface`) open with it
+			   hidden, and a plain hand-in assignment opens with it shown. */
+			body: 'Hide class list gives this page the whole width, and Show class list brings it back. Worksheets and assignments you fill in on the page open with it hidden.'
+		}
+	]
+};
+
 /** The last stop of both tours: where to find this again. */
 const TOUR_AGAIN: ClassroomTourStep = {
 	id: 'tour-again',
@@ -109,6 +130,7 @@ export const TEACHER_TOUR: readonly ClassroomTourStep[] = [
 		]
 	},
 	MENU_STEP('teacher'),
+	CLASS_LIST_STEP,
 	{
 		id: 'new-post',
 		command: 'class.new-post',
@@ -216,6 +238,7 @@ export const STUDENT_TOUR: readonly ClassroomTourStep[] = [
 		]
 	},
 	MENU_STEP('student'),
+	CLASS_LIST_STEP,
 	{
 		id: 'class-search',
 		command: 'class.search',

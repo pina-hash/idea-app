@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "ideacad-context-menu-pointer-coarse.mjs",
+	"date": "2026-09-25T09:09:52.214Z",
+	"sha": "9b9f8655f5901c864daaf81fcd33d34f6bf3f78a",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 16,
+	"outsideRows": [],
+	"ms": 9821
+}

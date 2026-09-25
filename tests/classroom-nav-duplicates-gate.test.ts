@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { load } from '../src/routes/classroom/[sectionId]/duplicates/+page.server';
-import { sectionTabs, visibleSectionTabs } from '../src/lib/classroom/nav';
+import { classDuplicatesHref, sectionTabs, visibleSectionTabs } from '../src/lib/classroom/nav';
+import { commandsFor } from '../src/lib/shell/commands';
 
 /**
- * THE DUPLICATES TAB IS A DOOR AND NOT A LOCK, AND THIS IS THE HALF THAT SAYS SO
- * FROM THE ROUTE'S OWN SIDE.
+ * THE DUPLICATES DOORS ARE DOORS AND NOT A LOCK, AND THIS IS THE HALF THAT SAYS
+ * SO FROM THE ROUTE'S OWN SIDE.
  *
- * `tests/classroom-nav-doors.test.ts` asserts the tab exists exactly while the
- * page does. That pairing says nothing about who may walk through it, and the
+ * `tests/classroom-nav-doors.test.ts` asserts the doors exist exactly while the
+ * page does. Since ledger 0298 (report 28) those doors are the palette's
+ * `class.duplicates` command and the class page's door beside Drafts -- no
+ * longer a tab. That pairing says nothing about who may walk through it, and the
  * failure mode it cannot see is the one that matters: a later bundle reading
  * `visibleSectionTabs` as the access decision and quietly relaxing the page,
  * on the grounds that "a student is never offered the link anyway". That
@@ -45,13 +48,29 @@ const run = (manages: boolean) =>
 		locals: { supabase: client(manages), claims: { sub: 'u-1' } }
 	});
 
-describe('the duplicates tab is not the gate', () => {
-	it('a non-manager is offered no tab', () => {
-		const offered = visibleSectionTabs(sectionTabs('s-1'), false);
-		expect(offered.some((t) => t.id === 'duplicates')).toBe(false);
-		// POSITIVE CONTROL: the tab really is in the set being filtered, so the
-		// absence above is the predicate and not a renamed id.
-		expect(sectionTabs('s-1').some((t) => t.id === 'duplicates')).toBe(true);
+describe('the duplicates doors are not the gate', () => {
+	/*
+	 * GENERALIZED (ledger 0298) FROM "a non-manager is offered no tab". The
+	 * page is not a tab for ANYONE now, and the door that remains in the
+	 * registry is the palette command: a student is not offered it, a manager
+	 * is, and neither offer is what keeps a student out.
+	 */
+	it('a non-manager is offered no door: no tab, and no palette command', () => {
+		expect(visibleSectionTabs(sectionTabs('s-1'), false).some((t) => t.href.endsWith('/duplicates'))).toBe(false);
+		const env = (role: 'student' | 'manager') => ({
+			role,
+			surface: 'classroom' as const,
+			sectionId: 's-1',
+			itemId: null,
+			basePath: '/classroom',
+			handlers: new Set<string>()
+		});
+		expect(commandsFor(env('student')).some((c) => c.id === 'class.duplicates')).toBe(false);
+		// POSITIVE CONTROL: the command is in the registry and a manager is
+		// offered it, pointing at the page, so the absence above is the role
+		// filter and not a renamed id.
+		const managers = commandsFor(env('manager')).find((c) => c.id === 'class.duplicates');
+		expect(managers?.href?.({ ...env('manager') })).toBe(classDuplicatesHref('s-1'));
 	});
 
 	it('and is refused by the page itself, which never asks whether a tab was shown', async () => {

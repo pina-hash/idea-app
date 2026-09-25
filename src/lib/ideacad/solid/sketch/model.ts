@@ -455,6 +455,10 @@ export function crossings(entities: readonly SketchEntity[], curve: CurveEntity,
 	}
 	return out.sort((x, y) => x.t - y.t);
 }
+/** Where two curves cross on BOTH finite extents: what the snapping in `snap.ts` offers as an intersection, through the same support arithmetic `crossings` uses, so the two can never disagree about whether a pair meets. */
+export function crossingsBetween(entities: readonly SketchEntity[], a: CurveEntity, b: CurveEntity, eps = 1e-7): Vec2[] {
+	return supportCrossings(support(entities, a), support(entities, b)).filter((p) => paramIfOn(entities, a, p, eps) !== null && paramIfOn(entities, b, p, eps) !== null);
+}
 /** Where a ray from `from` along `direction` first meets any curve other than `except`, as the distance along the ray and the curve it met. */
 export function rayHit(entities: readonly SketchEntity[], from: Vec2, direction: Vec2, except: string, eps = 1e-7): { distance: number; point: Vec2; other: string } | null {
 	const n = Math.hypot(direction[0], direction[1]); if (n < 1e-12) return null;

@@ -1,298 +1,256 @@
 // tests/voice-commands.test.ts
 //
-// THE VOICE VOCABULARY, WHOSE REGRESSIONS ARE ALL SILENT.
+// THE PALETTE'S MICROPHONE, AND WHAT IT WILL ACT ON. Its regressions are all
+// silent.
 //
-// Voice navigation has no visible failure mode worth the name: a phrase that
-// stops matching does nothing, a phrase that starts matching the WRONG
-// destination moves somebody off the page they were on, and a vocabulary that
-// quietly narrows to nothing still renders a control that listens politely and
-// never acts. None of those reddens anything on screen, and none of them is
-// something a person would think to re-check.
+// Voice has no visible failure mode worth the name: a name that stops matching
+// does nothing, a name that starts matching the WRONG row moves somebody off
+// the page they were on, and a vocabulary that quietly narrows still renders a
+// Speak control that listens politely and never acts. None of those reddens
+// anything on screen.
 //
-// THREE GUARANTEES ARE PINNED HERE:
+// SINCE LEDGER 0298 (report 31) voice is a microphone inside the command
+// palette and its vocabulary IS the palette's rows (`paletteEntries`, whose
+// actions are `runnableCommands` over `commandsFor(env)`), so four guarantees
+// are pinned here:
 //
-//  1. THE TABLE IS UNAMBIGUOUS. No phrase reaches two destinations, and no
-//     destination phrase is shadowed by an action phrase. A collision is the
-//     one failure that navigates somewhere real and wrong.
-//  2. THE ROUTES ARE THE REGISTRY'S. Every destination's href is an href
-//     `PORTAL_APPS` actually carries, so a card whose route moves takes the
-//     spoken command with it rather than leaving a phrase pointing at a 404.
-//  3. THE VOCABULARY IS GATED BY AUDIENCE. An admin surface is not sayable by
-//     a student and an auth-only one is not sayable signed out -- the list a
-//     person is shown has to be the list that works, which is the whole claim
-//     the feature rests on.
+//  1. EXACT, AND ONLY EXACT. An utterance acts on a row only when it IS that
+//     row's name after normalisation and one stripped verb. A near-miss, a
+//     prefix and a plural act on nothing. No edit distance.
+//  2. A TIE ACTS ON NOTHING. Two rows answering to one spoken name is a list
+//     to choose from, never a guess.
+//  3. THE VOCABULARY IS THE PALETTE'S, SO IT IS GATED BY THE PALETTE'S ROLE
+//     FILTER. A manager can say "grades"; a student saying the same word acts
+//     on nothing, because no such row is theirs.
+//  4. STOP BEATS EVERYTHING, including a row that happens to be named for it.
 //
-// THE EXPECTED VALUES BELOW ARE TYPED BY HAND FROM THE REGISTRY, not derived
-// from the matcher. A table built by calling `voiceDestinations` and then
-// asserting `matchUtterance` agrees with it cannot fail.
+// THE EXPECTED VALUES ARE TYPED BY HAND from the registry and the fixture, not
+// derived from the matcher. A table built by calling the matcher and then
+// asserting the matcher agrees with it cannot fail.
 
 import { describe, expect, it } from 'vitest';
 import {
-	EXTRA_DESTINATIONS,
-	SPOKEN_ALIASES,
-	VOICE_ACTIONS,
+	VOICE_INTERIM_STABLE_MS,
 	VOICE_PRIVACY_NOTE,
-	matchUtterance,
-	missNote,
+	VOICE_SHORT_NOTE,
+	VOICE_STOP_PHRASES,
+	matchSpoken,
+	spokenForms,
 	spokenKey,
 	utteranceKey,
-	voiceDestinations
+	voiceMissNote
 } from '$lib/voice/commands';
-import { PORTAL_APPS } from '$lib/portal-apps';
+import { COMMANDS, type CommandEnv } from '$lib/shell/commands';
+import { paletteEntries, type PaletteSources } from '$lib/shell/palette';
+import type { ClassroomItem, ClassroomSection, ClassroomUnit } from '$lib/classroom/classroom';
 
-const ADMIN = { signedIn: true, isAdmin: true };
-const STUDENT = { signedIn: true, isAdmin: false };
-const VISITOR = { signedIn: false, isAdmin: false };
-
-/**
- * WHAT A PERSON SAYS, AND WHERE IT MUST LAND. Written out from
- * `src/lib/portal-apps.ts` by reading the `href` off each entry, deliberately
- * NOT by calling anything in the module under test. A route that moves in the
- * registry and not here is a mismatch this file reports rather than absorbs.
- */
-const SPOKEN: [string, string][] = [
-	['classroom', '/classroom'],
-	['go to my classes', '/classroom'],
-	['Open my notebook.', '/classroom/notebook'],
-	['take me to the notebook', '/classroom/notebook'],
-	['idea cad', '/ideacad'],
-	['cad', '/ideacad'],
-	['maps', '/maps'],
-	['show me idea maps', '/maps'],
-	['find a tool', '/maps'],
-	['coin ledger', '/coins/index.html'],
-	['my balance', '/coins/index.html'],
-	['leaderboard', '/coins/index.html'],
-	['gauntlet', '/gauntlet'],
-	['launch gauntlet', '/gauntlet'],
-	['f r c', '/frc'],
-	['robotics', '/frc'],
-	['green line', '/greenline'],
-	['vanguard please', '/vanguard/'],
-	['foundry', '/foundry'],
-	['student apps', '/foundry'],
-	['tournaments', '/tournaments'],
-	['brackets', '/tournaments'],
-	['coin desk', '/coin-desk'],
-	['admin dashboard', '/dashboard'],
-	['home', '/'],
-	['whats new', '/classroom/updates'],
-	['course archive', '/archive']
-];
-
-describe('the spoken vocabulary reaches the right route', () => {
-	const destinations = voiceDestinations(ADMIN);
-
-	it.each(SPOKEN)('%s -> %s', (said, href) => {
-		const match = matchUtterance(said, destinations);
-		expect(match.kind).toBe('go');
-		if (match.kind !== 'go') return;
-		expect(match.destination.href).toBe(href);
-	});
-
-	// A sweep that generated nothing passes every `it.each` in it.
-	it('measures the whole table', () => {
-		expect(SPOKEN.length).toBe(27);
-	});
+const SECTION = {
+	id: 's-1',
+	course_id: 'c-1',
+	label: 'Period 2',
+	block: 'B',
+	teacher_email: 'vargas@boscotech.edu',
+	active: true,
+	course: { id: 'c-1', code: 'ENG1H', title: 'Engineering 1 Honors', active: true }
+} as ClassroomSection;
+const UNITS = [{ id: 'u-1', course_id: 'c-1', name: 'Bridges', sort_order: 1 }] as ClassroomUnit[];
+const item = (id: string, title: string, kind: ClassroomItem['kind']) =>
+	({
+		id,
+		kind,
+		title,
+		body: '',
+		body_doc: null,
+		points: null,
+		due_at: null,
+		category: null,
+		published: true,
+		pinned: false,
+		unit_id: 'u-1',
+		sort_order: 0,
+		attachments: [],
+		links: [],
+		postings: [{ section_id: 's-1' }]
+	}) as unknown as ClassroomItem;
+const SOURCES: PaletteSources = {
+	section: SECTION,
+	items: [item('i-1', 'Truss bridge build', 'assignment'), item('i-2', 'Sketching reference', 'material')],
+	units: UNITS,
+	sections: [SECTION],
+	checkIns: []
+};
+const env = (role: 'student' | 'manager'): CommandEnv => ({
+	role,
+	surface: 'classroom',
+	sectionId: 's-1',
+	itemId: null,
+	itemKind: null,
+	basePath: '/classroom',
+	isStaff: role === 'manager',
+	isAdmin: false,
+	handlers: new Set(COMMANDS.filter((c) => c.run).map((c) => c.id))
 });
+const rows = (role: 'student' | 'manager') => paletteEntries(SOURCES, env(role));
+const hit = (said: string, role: 'student' | 'manager') => {
+	const m = matchSpoken(said, rows(role));
+	return m.kind === 'one' ? m.entry.key : m.kind;
+};
 
 describe('normalisation', () => {
 	it('folds case, punctuation and spacing into one key', () => {
-		expect(spokenKey('IDEA // GAUNTLET')).toBe('idea gauntlet');
-		expect(spokenKey('  Coin  Desk. ')).toBe('coin desk');
-		expect(spokenKey("What's new?")).toBe('what s new');
+		expect(spokenKey('  Truss-Bridge, BUILD! ')).toBe('truss bridge build');
+		expect(spokenKey('Café')).toBe('cafe');
 	});
-
 	it('strips one leading verb and one trailing courtesy, longest verb first', () => {
-		expect(utteranceKey('go to maps')).toBe('maps');
-		expect(utteranceKey('take me to the notebook')).toBe('notebook');
-		expect(utteranceKey('open gauntlet please')).toBe('gauntlet');
-	});
-
-	/**
-	 * THE STRIP THAT WOULD EMPTY THE STRING IS REFUSED, and this is the case it
-	 * exists for: "go" on its own must MISS, not become '' and then match
-	 * whichever phrase happens to normalise to nothing.
-	 */
-	it('refuses a strip that would leave nothing behind', () => {
+		expect(utteranceKey('go to grades please')).toBe('grades');
+		expect(utteranceKey('take me to the grades')).toBe('grades');
 		expect(utteranceKey('go')).toBe('go');
-		expect(utteranceKey('open')).toBe('open');
-		expect(utteranceKey('please')).toBe('please');
-		expect(matchUtterance('go', voiceDestinations(ADMIN)).kind).toBe('none');
+	});
+	it('a name is sayable with and without its own leading verb', () => {
+		expect(spokenForms('Open to-do')).toEqual(['open to do', 'to do']);
+		expect(spokenForms('Grades')).toEqual(['grades']);
+		expect(spokenForms('!!')).toEqual([]);
 	});
 });
 
-describe('a miss does nothing and says what it heard', () => {
-	const destinations = voiceDestinations(ADMIN);
-
-	// The POSITIVE CONTROL for the three refusals below: the same matcher, the
-	// same destination list, one utterance that does resolve. Without it, a
-	// matcher that refused everything would pass all three.
-	it('resolves a real phrase from the same list', () => {
-		expect(matchUtterance('notebook', destinations).kind).toBe('go');
+describe('exact, and only exact', () => {
+	it('the row a manager names, with or without a verb, and with the service\'s punctuation', () => {
+		expect(hit('Grades', 'manager')).toBe('cmd:class.grades');
+		expect(hit('open grades', 'manager')).toBe('cmd:class.grades');
+		expect(hit('Go to grades, please.', 'manager')).toBe('cmd:class.grades');
+		expect(hit('truss bridge build', 'manager')).toBe('item:i-1');
+		expect(hit('open the truss bridge build', 'student')).toBe('item:i-1');
+		expect(hit('bridges', 'student')).toBe('unit:u-1');
 	});
-
-	it.each([
-		'what is the weather',
-		'delete everything',
-		'gauntlets' // one letter off a real phrase: the near-miss case
-	])('%s is not a command', (said) => {
-		const match = matchUtterance(said, destinations);
-		expect(match.kind).toBe('none');
+	it('a near-miss, a prefix and a plural act on nothing', () => {
+		for (const said of ['grade', 'gradez', 'truss bridge', 'truss bridge builds', 'bridge', 'sketching'])
+			expect(hit(said, 'manager'), said).toBe('none');
 	});
-
-	it('hands the heard words back so the person can correct themselves', () => {
-		const match = matchUtterance('Go to the gauntlets!', destinations);
-		expect(match.kind).toBe('none');
-		expect(match.heard).toBe('gauntlets');
-		expect(missNote(match.heard)).toContain('gauntlets');
-	});
-
-	it('says something useful when nothing was heard at all', () => {
-		expect(missNote('')).toMatch(/nothing was heard/i);
+	it('a tie is a list, never a guess', () => {
+		const tied = [
+			{ key: 'a', name: 'Notebook' },
+			{ key: 'b', name: 'notebook.' }
+		];
+		const m = matchSpoken('notebook', tied);
+		expect(m.kind).toBe('many');
+		if (m.kind === 'many') expect(m.entries.map((e) => e.key)).toEqual(['a', 'b']);
+		// And one row listed twice under one key is still one row.
+		expect(matchSpoken('notebook', [tied[0], tied[0]]).kind).toBe('one');
 	});
 });
 
-describe('the table is unambiguous', () => {
-	/**
-	 * EVERY PHRASE REACHES EXACTLY ONE THING. Checked over the ADMIN
-	 * vocabulary, which is the widest -- a collision that only exists for an
-	 * admin is still a collision, and the narrower audiences are subsets.
-	 */
-	it('no phrase reaches two destinations', () => {
-		const seen = new Map<string, string>();
-		const collisions: string[] = [];
-		for (const d of voiceDestinations(ADMIN)) {
-			for (const phrase of d.phrases) {
-				const prior = seen.get(phrase);
-				if (prior) collisions.push(`"${phrase}" -> ${prior} and ${d.id}`);
-				else seen.set(phrase, d.id);
+/**
+ * A PARTIAL RESULT IS WHAT WAS HEARD SO FAR (ledger 0298 review). "Lab 3" held
+ * still while the speaker draws breath before "report" must not open "Lab 3";
+ * the final result must. Both directions, and a partial with nothing that could
+ * grow out of it still acts at once -- which is the whole point of acting on a
+ * partial at all.
+ */
+describe('a partial result waits while a longer name still begins with it', () => {
+	const labs = [
+		{ key: 'item:lab3', name: 'Lab 3' },
+		{ key: 'item:lab3r', name: 'Lab 3 report' },
+		{ key: 'item:quiz', name: 'Quiz' }
+	];
+	it('a partial that a longer name begins with acts on nothing, and names both', () => {
+		const m = matchSpoken('lab 3', labs, { partial: true });
+		expect(m.kind).toBe('many');
+		if (m.kind === 'many') expect(m.entries.map((e) => e.key)).toEqual(['item:lab3', 'item:lab3r']);
+		// Through a stripped verb too: "open lab 3" is still the start of "Lab 3 report".
+		expect(matchSpoken('open lab 3', labs, { partial: true }).kind).toBe('many');
+	});
+	it('the FINAL result for the same words acts on the exact row', () => {
+		const m = matchSpoken('lab 3', labs);
+		expect(m.kind === 'one' ? m.entry.key : m.kind).toBe('item:lab3');
+	});
+	it('POSITIVE CONTROL: a partial nothing longer begins with acts at once', () => {
+		const q = matchSpoken('quiz', labs, { partial: true });
+		expect(q.kind === 'one' ? q.entry.key : q.kind).toBe('item:quiz');
+		const r = matchSpoken('lab 3 report', labs, { partial: true });
+		expect(r.kind === 'one' ? r.entry.key : r.kind).toBe('item:lab3r');
+		// A word that merely starts the same letters is not a longer NAME: "Lab 30" does not hold up "Lab 3".
+		const thirty = matchSpoken('lab 3', [labs[0], { key: 'item:lab30', name: 'Lab 30' }], { partial: true });
+		expect(thirty.kind === 'one' ? thirty.entry.key : thirty.kind).toBe('item:lab3');
+	});
+});
+
+describe('the vocabulary is the palette\'s, so it is gated by the palette\'s role filter', () => {
+	it('a student saying a manager\'s action acts on nothing; a manager saying it acts', () => {
+		for (const said of ['grades', 'people', 'live class', 'new post']) {
+			expect(hit(said, 'student'), said).toBe('none');
+			expect(hit(said, 'manager'), said).toMatch(/^cmd:class\./);
+		}
+	});
+	it('POSITIVE CONTROL: a student\'s own action is sayable by a student', () => {
+		expect(hit('show missing work', 'student')).toBe('cmd:class.show-missing');
+		expect(hit('show missing work', 'manager')).toBe('none');
+	});
+	it('every action the palette offers is sayable by its own name (none is shadowed into silence)', () => {
+		let checked = 0;
+		for (const role of ['student', 'manager'] as const) {
+			const all = rows(role);
+			for (const row of all.filter((r) => r.kind === 'action')) {
+				checked++;
+				const m = matchSpoken(row.name, all);
+				const keys = m.kind === 'one' ? [m.entry.key] : m.kind === 'many' ? m.entries.map((e) => e.key) : [];
+				expect(keys, `${role}: ${row.name}`).toContain(row.key);
 			}
 		}
-		expect(collisions).toEqual([]);
-		// The sweep found something to look at.
-		expect(seen.size).toBeGreaterThan(30);
-	});
-
-	it('no action phrase is shadowed by a destination phrase', () => {
-		const destinationPhrases = new Set(voiceDestinations(ADMIN).flatMap((d) => d.phrases));
-		const shadowed: string[] = [];
-		for (const action of VOICE_ACTIONS) {
-			for (const phrase of action.phrases) {
-				if (destinationPhrases.has(spokenKey(phrase))) shadowed.push(`${action.id}: ${phrase}`);
-			}
-		}
-		expect(shadowed).toEqual([]);
-	});
-
-	it('every phrase is already normalised, so a table entry cannot be unsayable', () => {
-		const raw: string[] = [];
-		for (const d of voiceDestinations(ADMIN)) {
-			for (const phrase of d.phrases) if (spokenKey(phrase) !== phrase) raw.push(phrase);
-		}
-		for (const a of VOICE_ACTIONS) {
-			for (const phrase of a.phrases) if (spokenKey(phrase) !== phrase) raw.push(phrase);
-		}
-		expect(raw).toEqual([]);
+		expect(checked).toBeGreaterThanOrEqual(20);
 	});
 });
 
-describe('the vocabulary is derived from the registry, not retyped', () => {
-	/**
-	 * THE REASON THE DERIVATION EXISTS: a card added to the launcher is sayable
-	 * the day it ships, with no table entry anywhere. Asserted by finding an app
-	 * with NO alias entry and checking its title still resolves.
-	 */
-	it('an app with no alias entry is still reachable by its title', () => {
-		const destinations = voiceDestinations(ADMIN);
-		const unaliased = PORTAL_APPS.filter((a) => !SPOKEN_ALIASES[a.id]);
-		// A control on the sweep: if every app gained an alias, this assertion
-		// would pass over an empty set and prove nothing, so say so.
-		if (unaliased.length === 0) {
-			// Synthesised check: every app's normalised title is in its own phrases.
-			for (const app of PORTAL_APPS) {
-				const d = destinations.find((x) => x.id === app.id);
-				expect(d?.phrases).toContain(spokenKey(app.title));
-			}
-			return;
-		}
-		for (const app of unaliased) {
-			const match = matchUtterance(app.title, destinations);
-			expect(match.kind).toBe('go');
-			if (match.kind === 'go') expect(match.destination.id).toBe(app.id);
-		}
-	});
-
-	it('every destination href is one the registry actually carries', () => {
-		const known = new Set(PORTAL_APPS.map((a) => a.href));
-		const extras = new Set(EXTRA_DESTINATIONS.map((d) => d.href));
-		for (const d of voiceDestinations(ADMIN)) {
-			expect(known.has(d.href) || extras.has(d.href)).toBe(true);
-		}
-	});
-
-	it('every alias key names an app that exists', () => {
-		const ids = new Set(PORTAL_APPS.map((a) => a.id));
-		expect(Object.keys(SPOKEN_ALIASES).filter((id) => !ids.has(id))).toEqual([]);
+describe('stop beats everything', () => {
+	it('every stop phrase stops, even over a row named for it', () => {
+		const rowsWithCancel = [{ key: 'item:x', name: 'Cancel' }, ...rows('manager')];
+		for (const said of VOICE_STOP_PHRASES) expect(matchSpoken(said, rowsWithCancel).kind, said).toBe('stop');
+		expect(matchSpoken('Stop listening.', []).kind).toBe('stop');
 	});
 });
 
-describe('who may say what', () => {
-	/**
-	 * BOTH DIRECTIONS, WITH COUNTS, because an absence assertion cannot tell
-	 * "the gate holds" from "the vocabulary came back empty".
-	 */
-	it('an admin surface is sayable by an admin and by nobody else', () => {
-		const forAdmin = voiceDestinations(ADMIN);
-		const forStudent = voiceDestinations(STUDENT);
-		expect(forAdmin.filter((d) => d.id === 'coin-desk')).toHaveLength(1);
-		expect(forAdmin.filter((d) => d.id === 'dashboard')).toHaveLength(1);
-		expect(forStudent.filter((d) => d.id === 'coin-desk')).toHaveLength(0);
-		expect(forStudent.filter((d) => d.id === 'dashboard')).toHaveLength(0);
-		// Positive control: the student vocabulary is not simply empty.
-		expect(forStudent.length).toBeGreaterThan(8);
-		expect(matchUtterance('coin desk', forStudent).kind).toBe('none');
-		expect(matchUtterance('coin desk', forAdmin).kind).toBe('go');
+describe('what a miss says', () => {
+	it('names what it heard, and where to look', () => {
+		expect(voiceMissNote(matchSpoken('gradez', rows('manager')))).toBe(
+			'Heard "gradez". Nothing is named exactly that, so the closest matches are listed. Pick one, or say a name from the list.'
+		);
+		expect(voiceMissNote(matchSpoken('notebook', [{ key: 'a', name: 'Notebook' }, { key: 'b', name: 'Notebook' }]))).toBe(
+			'Heard "notebook", which names 2 things. Pick one from the list, or say more of its name.'
+		);
+		expect(voiceMissNote({ kind: 'none', heard: '' })).toBe('Nothing was heard yet. Say the name of anything in the list.');
 	});
-
-	it('an auth-only surface is not sayable signed out, and a public one is', () => {
-		const forVisitor = voiceDestinations(VISITOR);
-		const ids = forVisitor.map((d) => d.id);
-		// The four cards that deliberately omit requiresAuth, per the registry.
-		expect(ids).toContain('maps');
-		expect(ids).toContain('coins');
-		expect(ids).toContain('vanguard');
-		expect(ids).toContain('tournaments');
-		expect(ids).not.toContain('classroom');
-		expect(ids).not.toContain('notebook');
-		expect(matchUtterance('my notebook', forVisitor).kind).toBe('none');
-		expect(matchUtterance('vanguard', forVisitor).kind).toBe('go');
-	});
-});
-
-describe('the actions', () => {
-	it('resolve, and stop is among them', () => {
-		const destinations = voiceDestinations(ADMIN);
-		expect(matchUtterance('go back', destinations)).toMatchObject({ kind: 'act' });
-		expect(matchUtterance('scroll to top', destinations)).toMatchObject({ kind: 'act' });
-		const stop = matchUtterance('stop listening', destinations);
-		expect(stop.kind).toBe('act');
-		if (stop.kind === 'act') expect(stop.action.id).toBe('stop');
+	it('an interim result waits about 300ms of stillness', () => {
+		expect(VOICE_INTERIM_STABLE_MS).toBe(300);
 	});
 });
 
 describe('the sentence a person reads before the microphone is asked for', () => {
 	/**
-	 * PINNED BY MEANING, NOT BY BYTES. These four claims are the whole privacy
-	 * story: off until pressed, not remembered, nothing recorded, nothing sent.
-	 * A rewrite that drops one of them is the regression worth catching, and a
-	 * byte-for-byte pin would redden on every comma.
+	 * PINNED BY MEANING, NOT BY BYTES: off until pressed, off again on close,
+	 * nothing recorded, nothing sent.
 	 */
 	it('states all four claims', () => {
 		const note = VOICE_PRIVACY_NOTE.toLowerCase();
-		expect(note).toContain('off until you press');
-		expect(note).toContain('reload');
+		expect(note).toContain('off until you press speak');
+		expect(note).toContain('closing search turns it off');
 		expect(note).toContain('never records audio');
 		expect(note).toContain('never sends what you say anywhere');
+	});
+	/**
+	 * AND IT DOES NOT CLAIM MORE THAN THE PORTAL CAN (ledger 0298 review). The
+	 * browser's speech service is remote in Chrome and Edge (Google's) and in
+	 * Safari (Apple's), so "nothing is sent" is false of the browser; both
+	 * sentences say whose service listens and keep the "never" claims on the
+	 * portal. A later edit restoring "nothing is recorded or sent" reads fine and
+	 * is untrue, which is why it is asserted rather than reviewed.
+	 */
+	it('names whose service hears the audio, and keeps every "never" on the portal', () => {
+		const note = VOICE_PRIVACY_NOTE.toLowerCase();
+		expect(note).toContain('google');
+		expect(note).toContain('apple');
+		expect(note).toContain('the portal never');
+		const short = VOICE_SHORT_NOTE.toLowerCase();
+		expect(short).toContain('speech service');
+		expect(short).toContain('the portal');
+		expect(short).not.toMatch(/nothing is (recorded or )?sent/);
 	});
 });

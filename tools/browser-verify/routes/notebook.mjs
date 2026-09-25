@@ -1,3 +1,5 @@
+import { COMPOSER_CONTRAST, OPEN_FILING, WAIT_AUTOPICK } from './_notebook-log.mjs';
+
 // original array position 18 of 25 -- see ../README.md for what `order` means
 export const order = 18;
 
@@ -87,11 +89,19 @@ export default {
 		assumption whose bracket was measured, not a proven fix for a race
 		nobody here could make fire.
 	*/
+	/*
+		THE CHECK-IN PICKS LIVE BEHIND "Filed to ..., Change" SINCE LEDGER 0298
+		(R32): the composer files itself, and the picks, the title, the class and
+		the folder are one press away rather than the form's first question. So
+		the wait below is unchanged -- the picks are in the DOM from the first
+		frame, hidden, and the auto-pick still presses one -- and "Change" is
+		pressed before the free-entry pick is, because a hidden button cannot
+		take a real click. `notebook-state-log.mjs` measures the screen as a student
+		lands on it, with nothing opened.
+	*/
 	prepare: [
-		{
-			waitFor: '() => !!document.querySelector(\'.pick:not(.free)[aria-pressed="true"]\')',
-			timeoutMs: 15_000
-		},
+		WAIT_AUTOPICK,
+		OPEN_FILING,
 		{
 			click: '.pick.free',
 			until: '() => document.querySelector(".pick.free").getAttribute("aria-pressed") === "true"'
@@ -134,7 +144,12 @@ export default {
 		/* THE HERO'S LEAD PARAGRAPH IS GONE, and this is the absence row paired
 		   with the head's presence above it. */
 		{ selector: '.nb-root .hero, .nb-root .lead', label: 'the old hero and its lead paragraph (removed)', expectPresent: 0 },
-		{ selector: '.compose-card label.label-field', label: 'free-entry title + folder fields (both stacked, not row-flex)', expectPresent: 2 },
+		/* Behind "Change": the title, the class (whole notebook) and the folder,
+		   each a stacked label -- never the shared row-flex `.field`. */
+		{ selector: '.compose-card label.label-field', label: 'free-entry title, class and folder fields (stacked, not row-flex)', expectPresent: 3, maxPresent: 3, expectVisible: 3 },
+		{ selector: '.nb-pane-card > .compose-card[data-testid="nb-compose"]', label: 'the composer, at the head of the log', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '.cr-detail [data-testid="nb-compose"]', label: 'a composer in the detail pane (must be absent)', expectPresent: 0 },
+		{ selector: '[data-testid="nb-compose-trigger"], [data-testid="nb-compose-close"]', label: 'the old New entry / Close pair (must be absent)', expectPresent: 0 },
 		/*
 			THE POSITIVE CONTROL FOR `/dev/notebook-review-student`'s ABSENCE ROW.
 			That page asserts the "Recently deleted" chip does NOT render, because
@@ -191,7 +206,10 @@ export default {
 		{ selector: '.list-head .rail, .list-head .chips', label: 'no rail or filter chips in the pinned head (must be absent)', expectPresent: 0 }
 	],
 	contrast: [
-		{ selector: '.compose-card .hint', label: 'title field hint copy', min: 4.5 },
+		...COMPOSER_CONTRAST,
+		{ selector: '[data-testid="nb-filing-manage-folders"]', label: 'Manage folders (brass, a box now)', min: 4.5 },
+		{ selector: '.pick:not(.selected) .pick-meta', label: 'check-in pick meta (--text-3)', min: 4.5 },
+		{ selector: '.pick.selected .pick-meta', label: 'check-in pick meta on the selected wash (--text-2)', min: 4.5 },
 		/* The head's one sentence (--text-2) and the two chips' muted words, on
 		   the plate the student lands on. The matrix routes measure the same
 		   selectors on the fourth plate. */
@@ -252,7 +270,10 @@ export default {
 		   the moment to pin them. */
 		{ selector: '.chips .chip-toggle', label: 'filter chips', min: 44 },
 		{ selector: '[data-testid="nb-filters-toggle"]', label: 'folders-and-filters trigger', min: 44 },
-		{ selector: '[data-testid="new-entry-class"]', label: 'free-entry class picker', min: 44 }
+		{ selector: '[data-testid="new-entry-class"]', label: 'free-entry class picker', min: 44 },
+		{ selector: '[data-testid="nb-filing-toggle"]', label: '"Filed to ..., Change"', min: 44 },
+		{ selector: '[data-testid="nb-filing-manage-folders"]', label: 'Manage folders (a box, where it was a prose link)', min: 44 },
+		{ selector: '[data-testid="nb-templates"] .template', label: 'the three templates', min: 44 }
 	],
 	/* TWO `.tap-reach-44` SURFACES, BOTH FIXED, and both are here because 0044
 	   measured every user of that class and found these two had no row of any
@@ -282,8 +303,10 @@ export default {
 	   Measured 79.6 wide before this bundle; a reach that stopped clearing 44
 	   here would be the clipping ancestor the class's own header names. */
 	tapReach: [
-		{ selector: '.swatch', label: 'folder colour swatches (fixed 2026-09-05)', min: 44 },
-		{ selector: '.compose-card .hint .inline-link', label: 'Manage folders prose link (the one reach left in the view)', min: 44 }
+		/* The Manage folders prose link that sat beside this row is a 44px BOX
+		   now (ledger 0298: the hint it sat in was an instruction, and went), so
+		   it is measured under `tapTargets`; the swatches stay the view's reach. */
+		{ selector: '.swatch', label: 'folder colour swatches (fixed 2026-09-05)', min: 44 }
 	],
 	/*
 		THE FEED'S PHOTO THUMBNAILS 401 FOR THE SAME REASON EVERY OTHER

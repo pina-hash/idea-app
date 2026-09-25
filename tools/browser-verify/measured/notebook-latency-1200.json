@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "notebook-latency-1200.mjs",
-	"date": "2026-09-25T13:25:24.248Z",
-	"sha": "a3027001e602829f608238acef8dd7219508adba",
+	"date": "2026-09-25T12:45:33.334Z",
+	"sha": "0179586ceec7b8f29b5e8d345540f8d8c2e2644a",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 20,
 	"outsideRows": [],
-	"ms": 23768
+	"ms": 34217
 }

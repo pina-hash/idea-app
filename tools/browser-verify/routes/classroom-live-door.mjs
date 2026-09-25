@@ -12,7 +12,7 @@
 export default {
 	path: '/dev/classroom-live-door',
 	label: 'Class page: the Live door (teacher) and the posted teams',
-	prepare: [{ waitFor: `() => /\\d+ on /.test(document.querySelector('[data-testid="live-door-count"]')?.textContent || '')`, timeoutMs: 20000 }],
+	prepare: [{ waitFor: `() => /^\\d+ on$/.test((document.querySelector('[data-testid="live-door-count"]')?.textContent || '').trim())`, timeoutMs: 20000 }],
 	orderResult: [
 		{
 			label: 'the door names the count and the assignment, and links there',

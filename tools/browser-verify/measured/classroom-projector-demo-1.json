@@ -1,15 +1,15 @@
 {
 	"schema": 1,
 	"spec": "classroom-projector-demo-1.mjs",
-	"date": "2026-09-24T01:51:06.949Z",
-	"sha": "17b56904dd3aae05ad434b319d8bae655bb94299",
+	"date": "2026-09-25T06:06:52.558Z",
+	"sha": "65bf8a6df7f7204cd581c7a4cb2caf9ab9276784",
 	"dirty": false,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
-	"measurements": 46,
+	"measurements": 56,
 	"outsideRows": [],
-	"ms": 6069
+	"ms": 7889
 }
