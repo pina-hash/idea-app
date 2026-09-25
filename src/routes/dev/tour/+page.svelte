@@ -18,9 +18,20 @@
 	const MODES = [
 		{ id: 'anon', label: 'Anonymous', hint: 'phase A auto-launch (sign-in step)' },
 		{ id: 'student', label: 'First-time student', hint: 'phase B auto-launch (home walk)' },
-		{ id: 'done', label: 'Tour done', hint: 'no auto-launch, header replay only' },
-		{ id: 'picker', label: 'Pathway picker first', hint: 'tour waits for the picker' }
+		{ id: 'done', label: 'Tour done', hint: 'seen this tour: no auto-launch, no offer, header replay only' },
+		{ id: 'picker', label: 'Pathway picker first', hint: 'tour waits for the picker' },
+		{ id: 'old', label: 'Old tour done', hint: 'seen the tour before it was rewritten: the one-line offer' }
 	];
+
+	/* Who is signed in, kept across a mode change (`?role=teacher&admin=1` is staff). */
+	const WHO = [
+		{ q: '', label: 'Student' },
+		{ q: '&role=teacher', label: 'Staff' },
+		{ q: '&role=teacher&admin=1', label: 'Staff admin' }
+	];
+	const who = $derived(
+		data.userProfile?.role === 'teacher' ? (data.isAdmin ? WHO[2].q : WHO[1].q) : WHO[0].q
+	);
 
 	const reset = () => {
 		try {
@@ -81,13 +92,19 @@
 	</div>
 	<div class="th-row th-modes">
 		{#each MODES as m (m.id)}
-			<a href="?mode={m.id}" data-sveltekit-reload class:active={data.mode === m.id} title={m.hint}>
+			<a href="?mode={m.id}{who}" data-sveltekit-reload class:active={data.mode === m.id} title={m.hint}>
 				{m.label}
 			</a>
 		{/each}
 	</div>
+	<div class="th-row th-modes">
+		{#each WHO as w (w.label)}
+			<a href="?mode={data.mode}{w.q}" data-sveltekit-reload class:active={who === w.q}>{w.label}</a>
+		{/each}
+	</div>
 	<div class="th-state">
-		mode={data.mode} &middot; tour_completed_at={String(store.tourCompletedAt)}
+		mode={data.mode} &middot; role={data.userProfile?.role ?? 'none'}{data.isAdmin ? ' (admin)' : ''} &middot;
+		tour_completed_at={String(store.tourCompletedAt)}
 	</div>
 	{#if store.log.length}
 		<div class="th-log">

@@ -542,6 +542,7 @@
 			aria-haspopup="menu"
 			aria-expanded={open}
 			aria-label="Profile menu"
+			data-tour="profile"
 			onclick={() => (open ? close() : (open = true))}
 		>
 			<Avatar {profile} size={30} />

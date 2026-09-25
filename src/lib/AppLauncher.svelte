@@ -417,7 +417,7 @@
 {/snippet}
 
 <section class="launcher" aria-label="Portal apps">
-	<div class="launcher-bar">
+	<div class="launcher-bar" data-tour="app-tools">
 		<span class="launcher-title">Apps</span>
 		<span class="launcher-actions">
 			{#if saving}<span class="launcher-note">Saving...</span>{/if}
@@ -443,9 +443,11 @@
 		</span>
 	</div>
 
-	<!-- The tour points at the CARDS, not the title/actions strip above them.
-	     While customizing, every child is a static reorderable div rather than a
-	     link, so the grid is a real list and each card a listitem -- which is both
+	<!-- The home tour gives every CARD its own step (`data-tour={app.id}`), and
+	     its Apps step points at the strip above, where Customize and the sort
+	     menu it names are (ledger 0298). While customizing, every child is a
+	     static reorderable div rather than a link, so the grid is a real list
+	     and each card a listitem -- which is both
 	     honest for assistive tech and what gives the drop targets their role. -->
 	<div
 		class="app-grid"
