@@ -9,6 +9,16 @@
 		type CoinSectionRow,
 		type CoinSectionStudentRow
 	} from './sections';
+	import {
+		buildRosterImportPlan,
+		readCoinPlacement,
+		samePlannedAdds,
+		studentCount,
+		type ClassRosterTransports,
+		type RosterImportPlan
+	} from './roster-import';
+	import { sectionTitle, type ClassroomSection } from '$lib/classroom/classroom';
+	import Pending from '$lib/Pending.svelte';
 
 	/**
 	 * Section management: create/edit sections (reusing curriculum.ts's class
@@ -24,11 +34,18 @@
 	let {
 		supabase,
 		sections = $bindable<CoinSectionRow[]>([]),
-		configured = true
+		configured = true,
+		classRoster
 	}: {
 		supabase: SupabaseClient;
 		sections?: CoinSectionRow[];
 		configured?: boolean;
+		/**
+		 * The classroom roster read behind "Import from class roster"
+		 * (roster-import.ts). OPTIONAL, and its absence removes that control
+		 * and nothing else.
+		 */
+		classRoster?: ClassRosterTransports;
 	} = $props();
 
 	async function refreshSections() {
@@ -161,6 +178,8 @@
 		assignEmails = '';
 		assignError = '';
 		assignResults = null;
+		resetImport();
+		if (classRoster && classes === null) void loadClasses();
 		if (!roster[s.id]) await loadRoster(s.id);
 	}
 
@@ -191,6 +210,172 @@
 		assignEmails = '';
 		await loadRoster(sectionId);
 		await refreshSections();
+	}
+
+	// ---------------------------------------------------------------------
+	// Import from a class roster (roster-import.ts has the rules). Adds only;
+	// it never removes anybody from this section or moves anybody out of
+	// another one. Driven from event handlers, never an effect.
+	// ---------------------------------------------------------------------
+	let classes = $state<ClassroomSection[] | null>(null);
+	let classesLoading = $state(false);
+	let classesError = $state('');
+	let importClassId = $state('');
+	let importPlan = $state<RosterImportPlan | null>(null);
+	let importPlanning = $state(false);
+	let importBusy = $state(false);
+	let importError = $state('');
+	let importNotice = $state('');
+	let importOutcome = $state<{
+		plan: RosterImportPlan;
+		className: string;
+		added: string[];
+		refused: AssignResult[];
+	} | null>(null);
+	/** Stale-answer guard: a slower preview for a class no longer chosen is dropped. */
+	let importSeq = 0;
+
+	/** A finished class is not somewhere a coin roster is filled from. */
+	const importableClasses = $derived((classes ?? []).filter((c) => c.active !== false));
+
+	function className(id: string): string {
+		const c = classes?.find((x) => x.id === id);
+		return c ? sectionTitle(c) : 'that class';
+	}
+
+	function coinSectionName(id: string): string {
+		const s = sections.find((x) => x.id === id);
+		return s ? sectionDisplayName(s) : id;
+	}
+
+	function resetImport() {
+		importSeq++;
+		importClassId = '';
+		importPlan = null;
+		importPlanning = false;
+		importError = '';
+		importNotice = '';
+		importOutcome = null;
+	}
+
+	async function loadClasses() {
+		if (!classRoster) return;
+		classesLoading = true;
+		classesError = '';
+		try {
+			const res = await classRoster.listClasses();
+			if (res.ok) classes = res.data;
+			else classesError = res.message;
+		} catch (e) {
+			classesError = (e as Error).message || 'Could not load the class list.';
+		} finally {
+			classesLoading = false;
+		}
+	}
+
+	function planFor(classId: string, sectionId: string) {
+		const transports = classRoster as ClassRosterTransports;
+		return buildRosterImportPlan(
+			{
+				loadRoster: (id) => transports.loadRoster(id),
+				readPlacement: (emails) => readCoinPlacement(supabase, emails)
+			},
+			classId,
+			sectionId
+		);
+	}
+
+	async function previewImport(sectionId: string) {
+		const classId = importClassId;
+		const seq = ++importSeq;
+		importPlan = null;
+		importError = '';
+		importNotice = '';
+		importOutcome = null;
+		if (!classId || !classRoster) {
+			importPlanning = false;
+			return;
+		}
+		importPlanning = true;
+		try {
+			const res = await planFor(classId, sectionId);
+			if (seq !== importSeq) return;
+			if (res.ok) importPlan = res.data;
+			else importError = res.message;
+		} catch (e) {
+			if (seq === importSeq) importError = (e as Error).message || 'Could not read that class roster.';
+		} finally {
+			if (seq === importSeq) importPlanning = false;
+		}
+	}
+
+	async function runImport(sectionId: string) {
+		const shown = importPlan;
+		if (!shown || !shown.add.length || !classRoster || importBusy) return;
+		const seq = ++importSeq;
+		importBusy = true;
+		importError = '';
+		importNotice = '';
+		try {
+			// RE-PLANNED AT THE PRESS. The count on the button was true when it
+			// was drawn; somebody may have moved a student since (the per-row
+			// remove above, another tab). Writing a list nobody saw is refused.
+			const fresh = await planFor(shown.classId, sectionId);
+			if (seq !== importSeq) return;
+			if (!fresh.ok) {
+				importPlan = null;
+				importError = fresh.message;
+				return;
+			}
+			if (!samePlannedAdds(shown, fresh.data)) {
+				importPlan = fresh.data;
+				importNotice =
+					'The class or this coin section changed since that count was worked out. Check the new count and press again.';
+				return;
+			}
+			const resp = await supabase.rpc('coin_admin_assign_section_students', {
+				p_section_id: sectionId,
+				p_emails: fresh.data.add
+			});
+			// Past this point the write has been sent, so the roster is refreshed
+			// whatever happens to the panel; only the words are guarded.
+			if (resp.error) {
+				if (seq === importSeq) importError = resp.error.message;
+				return;
+			}
+			const results = ((resp.data as { results?: AssignResult[] } | null)?.results ?? []) as AssignResult[];
+			if (seq === importSeq) {
+				importOutcome = {
+					plan: fresh.data,
+					className: className(fresh.data.classId),
+					added: results.filter((r) => r.ok).map((r) => r.email),
+					refused: results.filter((r) => !r.ok)
+				};
+				importPlan = null;
+			}
+			await loadRoster(sectionId);
+			await refreshSections();
+		} catch (e) {
+			if (seq === importSeq) importError = (e as Error).message || 'The import did not finish.';
+		} finally {
+			importBusy = false;
+		}
+	}
+
+	/** "Jordan Kim (Engineering I Honors ...)", for the ones left where they are. */
+	function elsewhereList(plan: RosterImportPlan): string {
+		return plan.elsewhere
+			.map((e) => `${plan.names.get(e.email) ?? e.email} (${coinSectionName(e.sectionId)})`)
+			.join(', ');
+	}
+
+	/** The rows the import did not count, in one sentence, or '' when there were none. */
+	function skippedLine(plan: RosterImportPlan): string {
+		const parts: string[] = [];
+		if (plan.managers) parts.push(`${plan.managers} ${plan.managers === 1 ? 'person who teaches' : 'people who teach'} the class`);
+		if (plan.inactive) parts.push(`${plan.inactive} inactive enrollment${plan.inactive === 1 ? '' : 's'}`);
+		if (plan.invalid) parts.push(`${plan.invalid} address${plan.invalid === 1 ? '' : 'es'} with no @`);
+		return parts.length ? `Not counted: ${parts.join(', ')}.` : '';
 	}
 </script>
 
@@ -228,7 +413,7 @@
 						</span>
 					</div>
 					<div class="actions">
-						<button class="mini" onclick={() => toggleExpand(s)}>
+						<button class="mini" data-testid="cd-section-manage" onclick={() => toggleExpand(s)}>
 							{expandedId === s.id ? 'close' : 'manage'}
 						</button>
 						<button class="mini" onclick={() => startEdit(s)}>edit</button>
@@ -337,6 +522,122 @@
 								</button>
 							</div>
 						</div>
+
+						{#if classRoster}
+							<div class="import-row" data-testid="cd-roster-import">
+								<label for={`import-class-${s.id}`}>Import from class roster</label>
+								<p class="note">
+									Adds a class's active students to this coin section. Nobody is removed, and a
+									student already in another coin section stays there.
+								</p>
+								{#if classesLoading}
+									<Pending label="Loading classes" />
+								{:else if classesError}
+									<p class="feedback error">{classesError}</p>
+								{:else if classes !== null && !importableClasses.length}
+									<p class="note">There are no active classes to import from.</p>
+								{:else}
+									<select
+										id={`import-class-${s.id}`}
+										class="import-select"
+										data-testid="cd-roster-import-class"
+										bind:value={importClassId}
+										disabled={importBusy}
+										onchange={(e) => {
+											// Read off the event, so the preview never depends on
+											// which of the binding and this handler ran first.
+											importClassId = e.currentTarget.value;
+											void previewImport(s.id);
+										}}
+									>
+										<option value="">Choose a class&hellip;</option>
+										{#each importableClasses as c (c.id)}
+											<option value={c.id}>{sectionTitle(c)}</option>
+										{/each}
+									</select>
+								{/if}
+
+								{#if importPlanning}
+									<Pending label="Reading that class roster" />
+								{/if}
+								{#if importError}
+									<p class="feedback error" data-testid="cd-roster-import-error">{importError}</p>
+								{/if}
+								{#if importNotice}
+									<p class="feedback notice">{importNotice}</p>
+								{/if}
+
+								{#if importPlan}
+									<div class="import-plan" data-testid="cd-roster-import-plan">
+										{#if importPlan.already.length}
+											<p class="note">
+												{studentCount(importPlan.already.length)} from this class
+												{importPlan.already.length === 1 ? 'is' : 'are'} already in this coin section.
+											</p>
+										{/if}
+										{#if importPlan.elsewhere.length}
+											<p class="note">
+												{studentCount(importPlan.elsewhere.length)}
+												{importPlan.elsewhere.length === 1 ? 'is' : 'are'} in another coin section
+												and will stay there: {elsewhereList(importPlan)}.
+											</p>
+										{/if}
+										{#if skippedLine(importPlan)}
+											<p class="note">{skippedLine(importPlan)}</p>
+										{/if}
+										{#if importPlan.add.length}
+											<div class="btn-row">
+												<button
+													class="btn"
+													data-testid="cd-roster-import-go"
+													disabled={importBusy}
+													onclick={() => runImport(s.id)}
+												>
+													{importBusy
+														? 'Adding…'
+														: `Add ${studentCount(importPlan.add.length)} from ${className(importPlan.classId)}`}
+												</button>
+											</div>
+										{:else}
+											<p class="note" data-testid="cd-roster-import-nothing">
+												Nobody to add: every active student on this roster is already in a coin
+												section.
+											</p>
+										{/if}
+									</div>
+								{/if}
+
+								{#if importOutcome}
+									<div class="import-outcome" role="status" data-testid="cd-roster-import-outcome">
+										<p class="feedback ok">
+											Added {studentCount(importOutcome.added.length)} from {importOutcome.className}.
+										</p>
+										{#if importOutcome.refused.length}
+											<p class="feedback error">
+												Refused: {importOutcome.refused
+													.map((r) => `${r.email}${r.reason ? ` (${r.reason.replace(/_/g, ' ')})` : ''}`)
+													.join(', ')}
+											</p>
+										{/if}
+										{#if importOutcome.plan.already.length}
+											<p class="note">
+												{studentCount(importOutcome.plan.already.length)}
+												{importOutcome.plan.already.length === 1 ? 'was' : 'were'} already in this coin
+												section.
+											</p>
+										{/if}
+										{#if importOutcome.plan.elsewhere.length}
+											<p class="note">
+												Left in their own coin section: {elsewhereList(importOutcome.plan)}.
+											</p>
+										{/if}
+										{#if skippedLine(importOutcome.plan)}
+											<p class="note">{skippedLine(importOutcome.plan)}</p>
+										{/if}
+									</div>
+								{/if}
+							</div>
+						{/if}
 					</div>
 				{/if}
 			{/each}
@@ -616,5 +917,65 @@
 		gap: 0.85rem;
 		flex-wrap: wrap;
 		margin-top: 0.4rem;
+	}
+	/* Import from class roster: the assign row's shape, one rule below it. */
+	.import-row {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		margin-top: 0.7rem;
+		padding-top: 0.7rem;
+		border-top: 1px solid var(--line);
+		min-width: 0;
+	}
+	.import-row > label {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--green);
+	}
+	.import-row .note {
+		margin: 0;
+	}
+	.import-select {
+		background: var(--bg0);
+		border: 1px solid var(--boundary, var(--line));
+		border-radius: 4px;
+		color: var(--white);
+		font-family: 'Rajdhani', sans-serif;
+		font-size: 1rem;
+		padding: 0.45rem 0.6rem;
+		/* A control somebody taps: the floor, never a height. */
+		min-height: 44px;
+		max-width: 100%;
+	}
+	.import-select:focus {
+		outline: 2px solid var(--cyan);
+		outline-offset: 1px;
+	}
+	.import-plan,
+	.import-outcome {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		min-width: 0;
+	}
+	/* The count is on a button that owns its row; a long class name wraps
+	   inside it rather than widening the page. */
+	.import-plan .btn {
+		white-space: normal;
+		text-align: left;
+		max-width: 100%;
+	}
+	.feedback.ok {
+		color: var(--green);
+		border: 1px solid var(--green);
+		margin-bottom: 0;
+	}
+	.feedback.notice {
+		color: var(--cyan);
+		border: 1px solid var(--cyan);
+		margin-bottom: 0;
 	}
 </style>
