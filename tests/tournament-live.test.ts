@@ -212,14 +212,13 @@ describe('hostSectionOrder puts the match card first the moment there is a brack
 		for (const s of statuses) expect(hostSectionOrder(s).at(-1)).toBe('danger');
 	});
 
-	it('settings sits under the phase card before the bracket and never above the match card after it', () => {
-		for (const s of ['draft', 'registration_open', 'seeding'] as TournamentStatus[]) {
-			expect(hostSectionOrder(s).indexOf('settings')).toBe(1);
-		}
-		for (const s of ['live', 'complete'] as TournamentStatus[]) {
+	it('settings sits directly above the danger zone, below every card a host works in', () => {
+		for (const s of statuses) {
 			const order = hostSectionOrder(s);
-			expect(order.indexOf('settings')).toBeGreaterThan(order.indexOf('matches'));
-			expect(order.indexOf('settings')).toBe(order.length - 2);
+			expect(order.indexOf('settings'), s).toBe(order.length - 2);
+			for (const busy of ['phase', 'entries', 'matches'] as HostSection[]) {
+				expect(order.indexOf('settings'), `${s}: ${busy}`).toBeGreaterThan(order.indexOf(busy));
+			}
 		}
 	});
 });

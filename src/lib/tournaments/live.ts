@@ -110,10 +110,12 @@ export type HostSection =
 /**
  * THE ORDER A HOST'S CONSOLE LAYS ITS CARDS OUT, BY PHASE.
  *
- * SETTINGS (ledger 0298, R02) sits right under the phase card while the
- * format can still change, and drops to just above the danger zone once the
- * bracket exists: by then only the name and description move, and it must
- * not stand between a host and the match control.
+ * SETTINGS (ledger 0298, R02) sits directly above the danger zone in every
+ * phase. It is edited rarely and it is tall (measured 726px at 375 and 722px
+ * at 1440 before the bracket), so placed second it would push the entry list,
+ * the card a host works in all through registration, most of a phone screen
+ * down; after the bracket it must not stand between a host and the match
+ * control either.
  *
  * Before the bracket exists the console is a setup form and reads top to
  * bottom in the order the work happens: open registration, seed the field,
@@ -134,7 +136,7 @@ export function hostSectionOrder(status: TournamentStatus): HostSection[] {
 	if (status === 'live' || status === 'complete') {
 		return ['matches', ...setup, 'settings', 'danger'];
 	}
-	return ['phase', 'settings', ...setup.slice(1), 'matches', 'danger'];
+	return [...setup, 'matches', 'settings', 'danger'];
 }
 
 /**
