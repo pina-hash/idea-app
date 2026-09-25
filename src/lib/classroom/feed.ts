@@ -76,6 +76,14 @@ export interface FeedSubmission {
 	 * to-do prints it, and only once the work is returned.
 	 */
 	score?: number | null;
+	/**
+	 * A PORTED WORKSHEET FINISHED BY FILLING IT IN (decision 37, ledger 0298):
+	 * the instant `hxCompletion` gives, attached by the loader
+	 * (`withWorksheetCompletions`). DERIVED, NEVER SELECTED -- the table has no
+	 * such column. Only ever on a `draft` row, which may be a row the loader
+	 * added because saving an answer creates none.
+	 */
+	completed_at?: string | null;
 }
 
 export interface BuildFeedInput {
@@ -207,8 +215,17 @@ function isUnsubmitted(sub: FeedSubmission | undefined): boolean {
  * Waiting on the teacher. A resubmission after a return is submitted AGAIN
  * with the old `graded_at` still on the row, so a bare "graded_at is null"
  * check would quietly drop every resubmission out of the grading queue.
+ *
+ * A FINISHED PORTED WORKSHEET NOBODY HAS GRADED IS WAITING TOO (decision 37,
+ * ledger 0298): it has no turn-in, so without this term the tally never
+ * counted one. It is the same `completed_at` the student's own chip reads,
+ * from the same `hxCompletion`, so "Complete" on their row and "1 to grade" on
+ * the teacher's are one answer. ONCE GRADED IT LEAVES the tally even if the
+ * student edits afterwards: that is the grading console's "changed after
+ * grading" mark, not a new hand-in, because nothing was handed in again.
  */
 export function isAwaitingGrade(sub: FeedSubmission): boolean {
+	if (sub.state === 'draft') return typeof sub.completed_at === 'string' && !sub.graded_at;
 	if (sub.state !== 'submitted') return false;
 	if (!sub.graded_at) return true;
 	if (!sub.submitted_at) return false;
@@ -237,7 +254,11 @@ function dueWindow(item: ClassroomItem, now: Date): 'past' | 'soon' | 'later' | 
 
 /** A submission row as `studentWorkMap` reads it, so this feed asks the same missing predicate every other surface does. */
 function workOf(sub: FeedSubmission | undefined): StudentWork | undefined {
-	return sub ? studentWorkMap([{ item_id: sub.item_id, state: sub.state, score: sub.score ?? null }])[sub.item_id] : undefined;
+	return sub
+		? studentWorkMap([
+				{ item_id: sub.item_id, state: sub.state, score: sub.score ?? null, completed_at: sub.completed_at }
+			])[sub.item_id]
+		: undefined;
 }
 
 /**
@@ -267,7 +288,10 @@ function studentReason(
 		 * implementation rather than spelled here a second time.
 		 */
 		const standing = assignmentStanding(item, workOf(sub), now.toISOString());
-		if (isUnsubmitted(sub)) {
+		// A FINISHED WORKSHEET IS NOT "Due tomorrow" (decision 37): its row is a
+		// draft, which is "not handed in" to `isUnsubmitted`, and finishing it is
+		// the hand-in. `done` is the one predicate's answer, asked, not re-spelled.
+		if (isUnsubmitted(sub) && standing !== 'done') {
 			if (standing === 'missing') return 'overdue';
 			if (dueWindow(item, now) === 'soon') return 'due-soon';
 			/**

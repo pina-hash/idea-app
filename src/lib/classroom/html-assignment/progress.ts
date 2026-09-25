@@ -72,7 +72,14 @@
 
 import type { HtmlAssignmentManifest, HtmlBlock, HtmlBlockType } from './manifest';
 import type { HxImageState } from './bridge';
-import { hxIncompleteBlocks } from './answers';
+import type { SubmissionFileRow } from '$lib/classroom/assignment-spec';
+import {
+	hxFileIdsByField,
+	hxImagesFromFiles,
+	hxIncompleteBlocks,
+	hxValuesFromResponses,
+	type HxResponseRow
+} from './answers';
 
 // ---------------------------------------------------------------------------
 // The copy. Every word the rail shows lives here, once.
@@ -417,4 +424,91 @@ export function hxProgressModuleLine(mod: HxProgressModule): string {
 export function hxProgressSummary(progress: HxProgress): string {
 	const row = hxProgressStageRow(progress.stage);
 	return `${progress.percent}% filled in. ${row.label}. ${progress.metBlocks} of ${progress.totalBlocks} answers in.`;
+}
+
+// ---------------------------------------------------------------------------
+// COMPLETE IS TURNED IN (decision 37, ledger 0298).
+// ---------------------------------------------------------------------------
+
+/**
+ * One stored answer as a completeness read needs it: the progress rail's own
+ * row shape plus the instant it last changed. `updated_at` is optional only
+ * because a caller's type may not promise it; every read behind this selects
+ * it (it is 0086's own column, not a rung).
+ */
+export type HxCompletionResponse = HxResponseRow & { updated_at?: string | null };
+
+/** One hand-in file, with the instant it arrived when the read carried it. */
+export type HxCompletionFile = SubmissionFileRow & { created_at?: string | null };
+
+export interface HxCompletion {
+	/** `hxProgress(...).complete`: every counted block met. */
+	complete: boolean;
+	/**
+	 * When the work reached its current, complete state: the latest change
+	 * among the answers and photographs the worksheet counts. Null when it is
+	 * not complete, or when no timestamp could be read.
+	 */
+	at: string | null;
+}
+
+/**
+ * IS THIS STUDENT'S WORKSHEET FINISHED, AND WHEN -- THE ONE COMPLETENESS
+ * PREDICATE every owed-work surface reads (decision 37): the chip, the
+ * filters, the to-do, the home feed, the class page, the teacher's to-grade
+ * tally and the grading console's roster.
+ *
+ * IT IS `hxProgress` REACHING 100%, called and never re-derived, so "Complete"
+ * on a row and "All filled in" on the rail above the worksheet are one answer.
+ * NOT `hxIncompleteBlocks` ALONE: that is the sentence count, which finds
+ * nothing to object to in an empty worksheet whose manifest asks for no
+ * sentences -- a student who opened it and typed nothing would read as done.
+ * Every counted block has to hold a stored answer as well.
+ *
+ * THE ROWS ARE ONE STUDENT'S, and that is the caller's to guarantee: this
+ * function has no email in it, so rows from two people handed in together
+ * would make one worksheet out of both. Every loader groups by
+ * `(item_id, student_email)` first.
+ *
+ * THE TIME IS THE LATEST `updated_at` (an answer) or `created_at` (the
+ * photograph standing for an image block) among the blocks the bar counts.
+ * The table keeps only the last change to each answer (0086), so an edit made
+ * after the deadline moves the work's finishing time past it -- which is the
+ * reading decision 37 asks for, the way unsubmitting and turning in again late
+ * does elsewhere. A value that does not parse is skipped rather than guessed.
+ */
+export function hxCompletion(
+	manifest: HtmlAssignmentManifest,
+	responses: readonly HxCompletionResponse[],
+	files: readonly HxCompletionFile[] = []
+): HxCompletion {
+	const values = hxValuesFromResponses(manifest, responses);
+	const images = hxImagesFromFiles(manifest, files);
+	const progress = hxProgress(manifest, values, images);
+	if (!progress.complete) return { complete: false, at: null };
+
+	const rowByBlock = new Map<string, HxCompletionResponse>();
+	for (const row of responses) rowByBlock.set(row.block_id, row);
+	const fileIds = hxFileIdsByField(manifest, files);
+	const fileById = new Map(files.map((f) => [f.id, f] as const));
+
+	let latest = Number.NEGATIVE_INFINITY;
+	let latestIso: string | null = null;
+	const consider = (value: string | null | undefined) => {
+		if (!value) return;
+		const ms = Date.parse(value);
+		if (!Number.isFinite(ms) || ms <= latest) return;
+		latest = ms;
+		latestIso = new Date(ms).toISOString();
+	};
+	for (const block of progress.blocks) {
+		if (block.weight <= 0) continue;
+		if (block.type === 'image') {
+			const id = fileIds.get(block.field);
+			consider(id ? fileById.get(id)?.created_at : null);
+		} else {
+			consider(rowByBlock.get(block.blockId)?.updated_at);
+		}
+	}
+	return { complete: true, at: latestIso };
 }

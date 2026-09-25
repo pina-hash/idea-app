@@ -34,6 +34,7 @@ import {
 	itemTitle,
 	studentWorkChip,
 	studentWorkMap,
+	workIsComplete,
 	formatDue,
 	type ClassroomItem,
 	type ClassroomSection,
@@ -152,7 +153,14 @@ export function buildTodo(input: TodoInput): TodoRow[] {
 		if ((sub.student_email ?? '').toLowerCase() === me) own.set(sub.item_id, sub);
 	}
 	const work = studentWorkMap(
-		[...own.values()].map((s) => ({ item_id: s.item_id, state: s.state, score: s.score ?? null }))
+		[...own.values()].map((s) => ({
+			item_id: s.item_id,
+			state: s.state,
+			score: s.score ?? null,
+			// A finished ported worksheet (decision 37), carried through so this
+			// list asks the one predicate the class page and the feed ask.
+			completed_at: s.completed_at
+		}))
 	);
 
 	const rows: TodoRow[] = [];
@@ -174,7 +182,9 @@ export function buildTodo(input: TodoInput): TodoRow[] {
 			view: viewOf(standing),
 			dueDay: schoolDayOf(item.due_at),
 			dueAt: item.due_at ?? null,
-			doneAt: chip.done ? (sub?.returned_at ?? sub?.submitted_at ?? null) : null,
+			doneAt: chip.done
+				? (sub?.returned_at ?? sub?.submitted_at ?? (workIsComplete(work[item.id]) ? work[item.id].completedAt || null : null))
+				: null,
 			createdAt: item.created_at ?? null,
 			state: chip.label,
 			tone: chip.tone,
@@ -460,7 +470,14 @@ function schoolDate(day: string): string {
  */
 export function todoWhen(row: TodoRow, today: string): string {
 	if (row.view === 'done' && row.kind === 'assignment' && row.doneAt) {
-		const verb = row.state.startsWith('Returned') ? 'Returned' : 'Turned in';
+		// "Completed" for a ported worksheet finished by filling it in (decision
+		// 37): nothing was turned in, and the chip beside this already says
+		// "Complete", so the verb agrees with it.
+		const verb = row.state.startsWith('Returned')
+			? 'Returned'
+			: row.state.startsWith('Complete')
+				? 'Completed'
+				: 'Turned in';
 		const day = schoolDayOf(row.doneAt);
 		return day ? `${verb} ${nearDay(day, today) ?? schoolDate(day)}` : verb;
 	}

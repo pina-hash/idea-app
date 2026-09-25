@@ -1092,7 +1092,10 @@ async function selectSubmissions(
  * before 0133, and it is the answer to "what did we always have".
  */
 export const SUBMISSION_FILE_SELECT =
-	'id, submission_id, block_id, caption, filename, mime_type, size_bytes, sort_order';
+	// `created_at` is 0086's own column too (ledger 0298): it is what says when a
+	// photograph arrived, for a ported worksheet's "Complete, late" and the
+	// grading console's per-block "changed after grading".
+	'id, submission_id, block_id, caption, filename, mime_type, size_bytes, sort_order, created_at';
 
 /**
  * + 0133's storage key. ITS OWN RUNG, and the capability it reports is
