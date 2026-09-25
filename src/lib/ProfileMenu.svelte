@@ -554,7 +554,7 @@
 						{:else}
 							<!-- THE NAME IS NOT TINTED BY PATHWAY (decision 40's side
 							     question, report R19). It painted the RAW identity as
-							     text -- IDEA's #00FF41 read about 1.4:1 on Space White's
+							     text -- IDEA's #00FF41 measured 1.29:1 on Space White's
 							     light panel -- and on the dark themes three of the six
 							     identities fail 4.5:1 as a word. It takes `--text-1`,
 							     and the `PathwayChip` beside it carries the colour with

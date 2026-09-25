@@ -67,10 +67,10 @@ export const classroomProfileMenuSpec = (theme) => ({
 		},
 		{
 			/* THE NAME IS NOT TINTED BY PATHWAY (decision 40, report R19). The
-			   harness seeds IDEA, whose raw identity is the #00FF41 that read
-			   about 1.4:1 on Space White's panel. Compared against --text-1
-			   resolved in the panel, so a retune of the token cannot redden it
-			   and any tint does. */
+			   harness seeds IDEA, whose raw identity is the #00FF41 that
+			   measured 1.29:1 on Space White's panel before this fix.
+			   Compared against --text-1 resolved in the panel, so a retune of
+			   the token cannot redden it and any tint does. */
 			label: 'the display name reads --text-1',
 			evaluate: `() => { const el = document.querySelector('.pm-name'); const probe = document.createElement('span'); probe.style.color = 'var(--text-1)'; document.querySelector('.pm-panel').appendChild(probe); const want = getComputedStyle(probe).color; probe.remove(); const got = el ? getComputedStyle(el).color : 'NO NAME'; return [got === want ? 'name is --text-1' : 'TINTED ' + got + ' (text-1 is ' + want + ')']; }`,
 			expected: ['name is --text-1']
