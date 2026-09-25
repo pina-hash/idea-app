@@ -27,6 +27,10 @@
 	const legacy = $derived(page.url.searchParams.get('legacy') === '1');
 	const direct = untrack(() => createSolidTransports(data.supabase));
 	const launchApi: LaunchApi = { ...direct, create: (title) => direct.transport.create(title) };
+	/* THE LIVE LAYER (feedback R34): every open workspace pings the others after a save and polls the database as its floor.
+	   One transport for the page; each workspace opens and closes its own channel through it. The address is only so the
+	   reader's own edits from another window read "you". */
+	const live = untrack(() => direct.live((data.claims as { email?: string } | null)?.email ?? null));
 	let Workspace = $state<typeof import('$lib/ideacad/solid/SolidWorkspace.svelte').default | null>(null);
 	let solid: SolidDocument | null = $state.raw(null), opening = $state(''), openRefusal = $state('');
 	let launch: { refresh(notice?: string): Promise<void> } | undefined = $state();
@@ -56,7 +60,7 @@
 	<IdeaCadApp supabase={data.supabase} userId={data.userId} documents={data.documents} sources={data.sources} initialLayout={data.initialLayout} directDocuments={data.directDocuments} directError={data.directError} />
 {:else}
 	{#if solid && Workspace}
-		<div class="direct-frame">{#key solid.id}<Workspace document={solid} transport={direct.transport} advisoryTransport={direct.advisoryTransport} preferences={solidPreferences} onback={() => { solid = null; void launch?.refresh(); }} />{/key}</div>
+		<div class="direct-frame">{#key solid.id}<Workspace document={solid} transport={direct.transport} advisoryTransport={direct.advisoryTransport} preferences={solidPreferences} {live} onback={() => { solid = null; void launch?.refresh(); }} />{/key}</div>
 	{/if}
 	<main class="launch-main" hidden={solid !== null && Workspace !== null}>
 		<LaunchPage bind:this={launch} api={launchApi} rows={data.directDocuments} folders={data.directFolders} sources={data.sources} storageMessage={data.directFoldersError} refusal={openRefusal || data.directError} {opening} onopen={(id) => void open(id)} />
