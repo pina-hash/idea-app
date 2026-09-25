@@ -29,6 +29,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	FOUNDRY_GALLERY_DEFAULT_SORT,
 	FOUNDRY_GALLERY_SORTS,
+	FOUNDRY_PLAY_COUNTS_UNKNOWN_NOTE,
 	foundrySortFigure,
 	foundrySortHasSignal,
 	foundrySortNote,
@@ -252,6 +253,36 @@ describe('the sentence beside the control', () => {
 		for (const o of FOUNDRY_GALLERY_SORTS) {
 			expect(() => foundrySortNote([], {}, o.id)).not.toThrow();
 		}
+	});
+
+	/**
+	 * A COUNT READ THAT FAILED IS NOT "NOTHING HAS BEEN PLAYED". The route
+	 * degrades a failed `foundry_play_counts` read to no counts, which is the
+	 * same input as a gallery nobody has played -- so without the flag the page
+	 * would state, about every app on it, something the instrument never said.
+	 * Both directions on the same input: unknown says it could not load, known
+	 * says nothing was played, and the orders that read no counts are untouched.
+	 */
+	it('says the counts could not be loaded, never that nothing was played, when the read failed', () => {
+		let checked = 0;
+		for (const o of FOUNDRY_GALLERY_SORTS) {
+			const unknown = foundrySortNote(APPS, {}, o.id, false);
+			if (o.ranksPlays) {
+				expect(unknown, o.id).toBe(FOUNDRY_PLAY_COUNTS_UNKNOWN_NOTE);
+				// POSITIVE CONTROL: the identical input with the read answered.
+				expect(foundrySortNote(APPS, {}, o.id, true), o.id).toBe(o.flat);
+				expect(unknown, o.id).not.toBe(o.flat);
+				checked++;
+			} else {
+				expect(unknown, o.id).toBe(foundrySortNote(APPS, {}, o.id, true));
+			}
+		}
+		expect(checked).toBe(4);
+		// And it says nothing false about the order either: every app ties at
+		// zero, so the list really is in the order it arrived.
+		expect(FOUNDRY_PLAY_COUNTS_UNKNOWN_NOTE).toContain('recently updated order');
+		expect(sortGallery(APPS, {}, 'played').map((a) => a.id)).toEqual(APPS.map((a) => a.id));
+		expect(FOUNDRY_PLAY_COUNTS_UNKNOWN_NOTE).not.toContain('—');
 	});
 });
 

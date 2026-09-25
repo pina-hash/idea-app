@@ -674,8 +674,28 @@ export function foundrySortHasSignal(
 }
 
 /**
+ * WHAT A PLAY ORDER SAYS WHEN THE COUNTS NEVER ARRIVED, which is not what it
+ * says when they arrived and were zero.
+ *
+ * The gallery load degrades a failed `foundry_play_counts` read to NO COUNTS
+ * rather than taking the page down, and no counts is every app tied at zero --
+ * the exact input on which the flat sentences say "Nothing has been played here
+ * yet". Printed there, that is a false statement about every app on the page
+ * made by an instrument that simply did not answer. So a load that could not
+ * read the counts says THAT, and the list is still in recently updated order,
+ * which is true: every app scores zero and the sort is stable.
+ */
+export const FOUNDRY_PLAY_COUNTS_UNKNOWN_NOTE =
+	'Play counts could not be loaded just now, so the list is in recently updated order. Reloading the page may bring them back.';
+
+/**
  * THE SENTENCE BESIDE THE CONTROL: what the order counts, or, when it has
- * nothing to rank, that it has nothing to rank.
+ * nothing to rank, that it has nothing to rank -- or, for an order that ranks
+ * on plays, that the plays could not be read (`countsKnown` false).
+ *
+ * `countsKnown` DEFAULTS TO TRUE because every caller but the real route hands
+ * in counts it made itself; the route passes false when its count read failed,
+ * so "not read" and "read, and zero" never share a sentence.
  *
  * Pure, and it takes the gallery as data, so which sentence a reader sees
  * under which counts is assertable with no browser. The component only
@@ -684,8 +704,10 @@ export function foundrySortHasSignal(
 export function foundrySortNote(
 	apps: readonly FoundrySortable[],
 	counts: FoundryPlayCounts,
-	sort: FoundryGallerySort
+	sort: FoundryGallerySort,
+	countsKnown = true
 ): string {
 	const option = gallerySortOption(sort);
+	if (!countsKnown && option.ranksPlays) return FOUNDRY_PLAY_COUNTS_UNKNOWN_NOTE;
 	return option.flat && !foundrySortHasSignal(apps, counts, sort) ? option.flat : option.rule;
 }

@@ -756,7 +756,12 @@ show.
       cannot, so `foundrySortNote` swaps the option's rule for its flat
       sentence whenever `foundrySortHasSignal` says so. A flat sentence that
       names an order must be true of it, which is why only the all-tied cases
-      say "recently updated order".
+      say "recently updated order". **A COUNT READ THAT FAILED IS NOT ZERO
+      PLAYS**: the gallery load degrades a failed `foundry_play_counts` read to
+      no counts, the same input as an unplayed gallery, so it also returns
+      `playCountsKnown` and a play order then reads
+      `FOUNDRY_PLAY_COUNTS_UNKNOWN_NOTE` instead of "Nothing has been played
+      here yet" -- an instrument's silence is never a fact about the apps.
     - **THE FIGURE ON A CARD IS THE ORDER IN FORCE'S OWN METRIC**
       (`foundrySortFigure`), and nothing under an order that ranks on a date.
       Until decision 39 the list printed PLAYS under Most hours and Most

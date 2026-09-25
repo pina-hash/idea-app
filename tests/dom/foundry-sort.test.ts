@@ -42,6 +42,7 @@ import FoundryGallery from '../../src/lib/foundry/FoundryGallery.svelte';
 import {
 	FOUNDRY_GALLERY_DEFAULT_SORT,
 	FOUNDRY_GALLERY_SORTS,
+	FOUNDRY_PLAY_COUNTS_UNKNOWN_NOTE,
 	FOUNDRY_PLAY_COVERAGE_NOTE,
 	gallerySortOption,
 	isGallerySort,
@@ -319,6 +320,24 @@ describe('what the control says beside itself', () => {
 		// And moving to an order that is flat on this gallery changes the words.
 		choose(played, live!, 'trending');
 		expect(noteText(played)).toBe(gallerySortOption('trending').flat);
+	});
+
+	/**
+	 * A FAILED COUNT READ IS NOT AN UNPLAYED GALLERY. The route hands in empty
+	 * counts either way; `playCountsKnown` is what tells them apart, and the
+	 * component has to honour it or it prints "Nothing has been played" about
+	 * apps it simply could not read.
+	 */
+	it('says the counts could not be loaded when the route could not read them', async () => {
+		const unread = gallery({ playCounts: {}, playCountsKnown: false });
+		expect(noteText(unread)).toBe(FOUNDRY_PLAY_COUNTS_UNKNOWN_NOTE);
+		// An order that reads no counts keeps its own rule.
+		choose(unread, live!, 'new');
+		expect(noteText(unread)).toBe(gallerySortOption('new').rule);
+		await live!.stop();
+		// POSITIVE CONTROL: the identical empty counts, read and answered.
+		const read = gallery({ playCounts: {}, playCountsKnown: true });
+		expect(noteText(read)).toBe(gallerySortOption('played').flat);
 	});
 
 	/**

@@ -95,6 +95,15 @@
 		 */
 		playCounts = {},
 		/**
+		 * FALSE WHEN THE ROUTE'S COUNT READ FAILED, so `playCounts` is empty
+		 * because nothing answered rather than because nothing was played. The
+		 * sentence beside the control then says the counts could not be loaded
+		 * instead of "Nothing has been played here yet", which on that input
+		 * would be a false statement about every app on the page. Defaults to
+		 * true: a harness or a test hands in counts it made itself.
+		 */
+		playCountsKnown = true,
+		/**
 		 * THE STAFF ROUTE FOR THE APP THAT IS OPEN, OR NOTHING.
 		 *
 		 * WHAT IT CLOSES. Every admin control in this feature -- approve, reject,
@@ -158,6 +167,7 @@
 		onSelect: (slug: string | null) => void;
 		appsOrigin?: string | undefined;
 		playCounts?: FoundryPlayCounts;
+		playCountsKnown?: boolean;
 		staffHref?: string | null;
 		playStats?: FoundryPlayStatsTransport | undefined;
 		myPlayStats?: FoundryMyPlayStatsTransport | undefined;
@@ -227,7 +237,7 @@
 	 * the words carry it instead.
 	 */
 	const option = $derived(gallerySortOption(sort));
-	const sortNote = $derived(foundrySortNote(apps, playCounts, sort));
+	const sortNote = $derived(foundrySortNote(apps, playCounts, sort, playCountsKnown));
 
 	/**
 	 * THE COLUMN CEILING, CAPPED AT THE NUMBER OF CARDS.
