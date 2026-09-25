@@ -79,8 +79,10 @@
 --
 --      * The part-WRITER writes open by themselves. _ideacad_part_writer's wide
 --        rung calls _ideacad_can_write_document, so a class editor can claim a
---        part, keep its heartbeat, release their own hold, add a concept to a
---        part and choose a part's active concept -- five assembly writes, all
+--        part, add a concept to a part and choose a part's active concept (the
+--        three RPCs that gate on _ideacad_part_writer), and then keep the
+--        heartbeat and release their own hold (which gate on the hold itself,
+--        held_by = the caller, and on no predicate) -- five assembly writes, all
 --        measured in the test -- with no change to that function.
 --      * The four writes that gate on _ideacad_part_owner DIRECTLY
 --        (ideacad_add_part, ideacad_update_part_meta, ideacad_assign_part, and
@@ -177,10 +179,12 @@
 --
 -- This project's default privileges hand every new function a DIRECT anon
 -- grant and every new table all seven privileges for both client roles, and a
--- revoke from public alone removes neither. So the three new functions and the
+-- revoke from public alone removes neither. So the four new functions and the
 -- new table revoke from public, anon, authenticated and service_role BY NAME
--- and grant back exactly what they mean: EXECUTE on the functions to
--- authenticated and service_role, SELECT on the table to authenticated.
+-- and grant back exactly what they mean: EXECUTE on the three client functions
+-- to authenticated and service_role, EXECUTE on the private reach-count helper
+-- (_ideacad_class_edit_reach) to NOBODY (only the definer functions above it
+-- call it), and SELECT on the table to authenticated.
 --
 -- THE TWO REPLACED FUNCTIONS ARE NOT RE-GRANTED, deliberately. A create or
 -- replace preserves the whole ACL (0205 measured it), and touching the grant
@@ -196,9 +200,10 @@
 -- It is ADDITIVE. Two functions are replaced with their signatures and return
 -- shapes unchanged (_ideacad_document_role gains one arm;
 -- ideacad_shared_with_me gains one union arm and reorders its tie-break), a
--- table and three functions are new, and no deployed client names any of the
--- three. Apply it before or after any deploy. The CLIENT that offers "Give the
--- class edit access" must not reach production before this is applied, or it
+-- table and four functions are new (three a client may call, one private
+-- helper), and no deployed client names any of them. Apply it before or after
+-- any deploy. The CLIENT that offers "Give the class edit access" must not
+-- reach production before this is applied, or it
 -- must treat PGRST202 on ideacad_grant_class_edit as "not available" and
 -- remove the control, per CLAUDE.md's RPC degradation rule.
 --
@@ -218,15 +223,30 @@
 -- WHAT UNDOES IT, IN THIS ORDER
 -- ===========================================================================
 --
---   1. Re-paste 0214's _ideacad_document_role (0214 section 4) and
---      ideacad_shared_with_me (0214 section 7). FIRST, because a SQL function
---      body naming a table is not a recorded dependency: drop the table while
---      the role function still names it and EVERY IdeaCAD read errors at its
---      next call, since every read policy asks the role.
---   2. Drop the three functions: ideacad_grant_class_edit(uuid,uuid),
---      ideacad_revoke_class_edit(uuid,uuid), ideacad_class_edit_grants(uuid).
---   3. Drop table public.ideacad_section_edit_grants. tools/apply-migration.mjs
---      refuses a drop table by design, so an undo is pasted by hand.
+-- THE UNDO IS A FILE, undo-0229_ideacad_class_edit_grant.sql beside this one,
+-- and the test applies it and asserts that every function in public comes back
+-- to exactly the source and ACL it had before this file. It does, in order:
+--
+--   1. Re-creates 0214's _ideacad_document_role and ideacad_shared_with_me,
+--      each copied byte for byte from 0214 (the test asserts the copy). FIRST,
+--      because a SQL function body naming a table is not a recorded dependency:
+--      drop the table while the role function still names it and EVERY IdeaCAD
+--      read errors at its next call, since every read policy asks the role.
+--      DO NOT RE-PASTE 0214'S SECTIONS 4 AND 7 WHOLE INSTEAD: they also hold
+--      _ideacad_can_write_document, _ideacad_part_owner,
+--      ideacad_share_document_with_section, ideacad_unshare_document_from_section
+--      and ideacad_open_shared_document, which 0216 replaced, and re-pasting
+--      them reverts 0216's solid-v1 refusals.
+--   2. Refuses if anything other than this file's own functions still names
+--      the table or any of the four functions (a plpgsql caller is not a
+--      recorded dependency either).
+--   3. Drops the four functions and then public.ideacad_section_edit_grants.
+--      tools/apply-migration.mjs refuses a drop table by design, so the undo is
+--      pasted by hand.
+--
+-- IT IS ONLY CORRECT WHILE THIS FILE IS THE LAST ONE TO REPLACE THOSE TWO
+-- FUNCTIONS. A later file that replaces either one makes step 1 a revert of
+-- that file too; grep supabase/migrations for both names before pasting it.
 --
 -- Nothing else moves. No existing row is written by this file.
 --
@@ -236,10 +256,13 @@
 --
 --   * Move it to supabase/migrations/0229_ideacad_class_edit_grant.sql and
 --     point PROPOSED at the new path in the test.
---   * Classify the three new functions in
---     tests/db/ideacad-grants-anon-execute-surface.test.ts (kind client) and
---     add ideacad_section_edit_grants to its IDEACAD_SELECT_TABLES; that test
---     FAILS on an unclassified ideacad function, deliberately.
+--   * Classify the three client functions in
+--     tests/db/ideacad-grants-anon-execute-surface.test.ts (kind client), the
+--     helper _ideacad_class_edit_reach there too (kind definer), and add
+--     ideacad_section_edit_grants to its IDEACAD_SELECT_TABLES; that test FAILS
+--     on an unclassified ideacad function, deliberately.
+--   * Move undo-0229_ideacad_class_edit_grant.sql with it (anywhere that is
+--     NOT supabase/migrations/) and point UNDO at it in the test.
 --   * Edit CLAUDE.md's "A CLASS GRANT IS A SECOND TABLE AND IS ALWAYS A
 --     VIEWER" paragraph in place, naming decision 38 and this file.
 --   * Write the client half and its classroom-updates entry.
@@ -546,8 +569,38 @@ end
 $sharedwithme$;
 
 -- ---------------------------------------------------------------------------
--- 4. THE THREE FUNCTIONS: grant, revoke, and the list on one document.
+-- 4. THE FOUR FUNCTIONS: the reach count, grant, revoke, and the list on one
+--    document.
 -- ---------------------------------------------------------------------------
+
+-- HOW MANY STUDENTS A CLASS EDIT GRANT REACHES: the class's ACTIVE students,
+-- less the document's owner, who could already edit. ONE definition, because
+-- the grant answers it ("5 students can now edit this") and the list answers it
+-- again beside each class, and two spellings of one count are two numbers a
+-- teacher sees disagree on one screen: the first draft of this file counted the
+-- owner in the list and not in the grant, and answered 5 and then 6 for the
+-- same class. A count, never a list of addresses (see the grant).
+--
+-- is distinct from, not <>: a document id that matches nothing projects a
+-- NULL owner, and <> against NULL would count nobody rather than the class.
+create or replace function public._ideacad_class_edit_reach(
+	p_document_id uuid,
+	p_section_id uuid
+)
+returns integer
+language sql
+stable
+security definer
+set search_path = ''
+as $classeditreach$
+	select count(*)::integer
+	from public.classroom_enrollments ce
+	where ce.section_id = p_section_id
+		and ce.active
+		and ce.student_email is distinct from (
+			select d.student_email from public.ideacad_documents d where d.id = p_document_id
+		);
+$classeditreach$;
 
 -- GRANT. The document row lock is taken FIRST, and it is the same lock the
 -- archive paths and every direct save take, so a grant cannot interleave with
@@ -619,9 +672,7 @@ begin
 	-- A COUNT, NEVER A LIST OF ADDRESSES: what the surface needs is "27 students
 	-- can now edit this", and a roster in a grant payload is a disclosure the
 	-- button does not need. The owner is not counted: they could already.
-	select count(*)::integer into v_reached
-	from public.classroom_enrollments ce
-	where ce.section_id = g.section_id and ce.active and ce.student_email <> d.student_email;
+	v_reached := public._ideacad_class_edit_reach(g.document_id, g.section_id);
 
 	return jsonb_build_object('ok', true,
 		'grant', jsonb_build_object(
@@ -670,7 +721,8 @@ end
 $revokeclassedit$;
 
 -- THE LIST ON ONE DOCUMENT, for its owner and its manager. Counts, not names,
--- for the same reason the grant answers a count.
+-- for the same reason the grant answers a count, and the SAME count under the
+-- same key (activeStudents), from the same helper.
 create or replace function public.ideacad_class_edit_grants(p_document_id uuid)
 returns jsonb
 language plpgsql
@@ -692,10 +744,7 @@ begin
 			'label', s.label,
 			'grantedBy', eg.granted_by,
 			'grantedAt', eg.granted_at,
-			'activeEnrollments', (
-				select count(*) from public.classroom_enrollments ce
-				where ce.section_id = eg.section_id and ce.active
-			)
+			'activeStudents', public._ideacad_class_edit_reach(eg.document_id, eg.section_id)
 		) order by s.label, s.id), '[]'::jsonb)
 		from public.ideacad_section_edit_grants eg
 		join public.classroom_sections s on s.id = eg.section_id
@@ -722,6 +771,11 @@ grant execute on function
 	public.ideacad_class_edit_grants(uuid)
 	to authenticated, service_role;
 
+-- The reach count is called only from inside the definer functions above, which
+-- run as its owner, so no client role holds it and nothing is granted back.
+revoke all on function public._ideacad_class_edit_reach(uuid, uuid)
+	from public, anon, authenticated, service_role;
+
 -- ---------------------------------------------------------------------------
 -- 6. THE SELF-CHECK. It reads the catalog back rather than trusting that the
 --    statements above ran, and it raises, so a partial apply rolls back whole.
@@ -746,8 +800,10 @@ declare
 		'public.ideacad_shared_with_me(uuid)'
 	];
 	v_definer text[] := array[
-		'public._ideacad_document_role(uuid)'
+		'public._ideacad_document_role(uuid)',
+		'public._ideacad_class_edit_reach(uuid,uuid)'
 	];
+	v_arm text;
 begin
 	-- (a) THE INSTRUMENT CONTROL, first. app_short_link_target is granted to
 	--     anon on purpose, so a sweep that cannot see that grant cannot see any.
@@ -785,7 +841,7 @@ begin
 	--     the signature trap.
 	for r in
 		select unnest(array[
-			'_ideacad_document_role', 'ideacad_shared_with_me',
+			'_ideacad_document_role', 'ideacad_shared_with_me', '_ideacad_class_edit_reach',
 			'ideacad_grant_class_edit', 'ideacad_revoke_class_edit', 'ideacad_class_edit_grants'
 		]) as nm
 	loop
@@ -796,14 +852,22 @@ begin
 	end loop;
 
 	-- (d) THE ROLE READS THE ROSTER LIVE. Read out of prosrc, so this is what
-	--     is DEPLOYED and not what this file intended.
+	--     is DEPLOYED and not what this file intended. It reads the EDIT ARM
+	--     ALONE -- the text from the table name to its own then 'editor' --
+	--     because 0214's viewer arm below it already says classroom_enrollments
+	--     and ce.active, so a check over the whole body passes with the new arm
+	--     missing its roster terms entirely (measured: the first draft of this
+	--     check did exactly that).
 	select p.prosrc into v_src
 	from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 	where n.nspname = 'public' and p.proname = '_ideacad_document_role';
-	if position('ideacad_section_edit_grants' in v_src) = 0
-		or position('classroom_enrollments' in v_src) = 0
-		or position('ce.active' in v_src) = 0 then
-		raise exception '0229: the deployed _ideacad_document_role does not read ideacad_section_edit_grants against the ACTIVE roster.';
+	v_arm := substring(v_src from 'ideacad_section_edit_grants(.*?)then ''editor''');
+	if v_arm is null
+		or position('classroom_enrollments' in v_arm) = 0
+		or position('eg.document_id = p_document_id' in v_arm) = 0
+		or position('ce.student_email = v.email' in v_arm) = 0
+		or position('ce.active' in v_arm) = 0 then
+		raise exception '0229: the class edit arm of the deployed _ideacad_document_role does not read ideacad_section_edit_grants against the caller''s ACTIVE enrollment on this document.';
 	end if;
 
 	-- (e) EVERY GATE THE CLASS EDITOR HAS TO REACH STILL ASKS THE ROLE. If one
@@ -954,7 +1018,8 @@ commit;
 --   not exists (select 1 from pg_attribute where attname = 'role' and not attisdropped
 --     and attrelid in (to_regclass('public.ideacad_section_edit_grants'), to_regclass('public.ideacad_section_grants')))
 -- union all select 'the role reads edit grants against the active roster',
---   position('ideacad_section_edit_grants' in (select prosrc from pg_proc where oid = 'public._ideacad_document_role(uuid)'::regprocedure)) > 0
+--   coalesce(position('ce.active' in substring((select prosrc from pg_proc where oid = 'public._ideacad_document_role(uuid)'::regprocedure) from 'ideacad_section_edit_grants(.*?)then ''editor''')) > 0, false)
+--   and coalesce(position('ce.student_email = v.email' in substring((select prosrc from pg_proc where oid = 'public._ideacad_document_role(uuid)'::regprocedure) from 'ideacad_section_edit_grants(.*?)then ''editor''')) > 0, false)
 -- union all select 'discovery lists a blade document a class can edit',
 --   position('ideacad_section_edit_grants' in (select prosrc from pg_proc where oid = 'public.ideacad_shared_with_me(uuid)'::regprocedure)) > 0
 -- union all select 'the assembly owner is still only the owner',
@@ -967,6 +1032,9 @@ commit;
 --   has_function_privilege('authenticated', 'public.ideacad_grant_class_edit(uuid,uuid)', 'execute')
 --   and has_function_privilege('authenticated', 'public.ideacad_revoke_class_edit(uuid,uuid)', 'execute')
 --   and has_function_privilege('authenticated', 'public.ideacad_class_edit_grants(uuid)', 'execute')
+-- union all select 'no client role holds the reach-count helper',
+--   not has_function_privilege('anon', 'public._ideacad_class_edit_reach(uuid,uuid)', 'execute')
+--   and not has_function_privilege('authenticated', 'public._ideacad_class_edit_reach(uuid,uuid)', 'execute')
 -- union all select 'no client role can write the table',
 --   not has_table_privilege('anon', 'public.ideacad_section_edit_grants', 'SELECT')
 --   and not has_table_privilege('authenticated', 'public.ideacad_section_edit_grants', 'INSERT')

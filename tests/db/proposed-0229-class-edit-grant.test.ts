@@ -19,7 +19,9 @@
  *     exactly as for a personal editor (the proposal's decision 2);
  *   * 0214's archived-only viewer share, and every answer every seeded person
  *     got about every seeded document, is unchanged by the apply;
- *   * anon executes none of it, and a second paste changes nothing.
+ *   * anon executes none of it, and a second paste changes nothing;
+ *   * the undo file beside it puts every function in public back to exactly
+ *     the source and ACL it had before the apply, and 0229 applies again after.
  *
  * WHEN THE PROPOSAL IS PROMOTED to supabase/migrations/, point PROPOSED at the
  * new path and keep every assertion. The chain stays pinned at 0224 because the
@@ -35,6 +37,12 @@ import { scanFile } from '../../tools/apply-migration.mjs';
 
 const PROPOSED = 'docs/feedback/2026-09-25/overnight/proposed/0229_ideacad_class_edit_grant.sql';
 const PROPOSED_SQL = readFileSync(fileURLToPath(new URL(`../../${PROPOSED}`, import.meta.url)), 'utf8');
+const UNDO = 'docs/feedback/2026-09-25/overnight/proposed/undo-0229_ideacad_class_edit_grant.sql';
+const UNDO_SQL = readFileSync(fileURLToPath(new URL(`../../${UNDO}`, import.meta.url)), 'utf8');
+const MIGRATION_0214 = readFileSync(
+	fileURLToPath(new URL('../../supabase/migrations/0214_ideacad_document_archive.sql', import.meta.url)),
+	'utf8'
+);
 const CHAIN = readdirSync(new URL('../../supabase/migrations', import.meta.url))
 	.filter((f) => /^\d{4}_.*\.sql$/.test(f) && Number(f.slice(0, 4)) <= 224)
 	.sort();
@@ -46,6 +54,8 @@ const NEW_FUNCTIONS = [
 	'public.ideacad_revoke_class_edit(uuid,uuid)',
 	'public.ideacad_class_edit_grants(uuid)'
 ] as const;
+/** Called only from inside the definer functions above; no client role holds it. */
+const REACH_HELPER = 'public._ideacad_class_edit_reach(uuid,uuid)';
 
 let db: TestDb;
 let teacher: SeededUser, otherTeacher: SeededUser, owner: SeededUser, classmate: SeededUser;
@@ -59,6 +69,7 @@ type Corpus = Record<string, unknown>;
 let corpusBefore: Corpus;
 let verificationBeforeApply: 'ok' | 'not ok' | 'threw';
 let aclBefore: Record<string, string | null>;
+let functionsBefore: Record<string, { src: string; acl: string | null }>;
 
 async function call<T = any>(user: SeededUser, expression: string, params: unknown[] = []): Promise<T> {
 	return db.asUser(user.id, async (q) => (await q(`select ${expression} as result`, params)).rows[0].result as T);
@@ -139,6 +150,15 @@ async function acl(signature: string): Promise<string | null> {
 		[signature]
 	);
 	return rows[0].acl;
+}
+/** Every function in public, by signature: its source and its ACL. What the undo must restore. */
+async function publicFunctions(): Promise<Record<string, { src: string; acl: string | null }>> {
+	const { rows } = await db.sql<{ sig: string; src: string; acl: string | null }>(
+		`select p.oid::regprocedure::text as sig, p.prosrc as src, p.proacl::text as acl
+		 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+		 where n.nspname = 'public'`
+	);
+	return Object.fromEntries(rows.map((r) => [r.sig, { src: r.src, acl: r.acl }]));
 }
 async function editGrantRows() {
 	return (
@@ -289,6 +309,7 @@ beforeAll(async () => {
 		role: await acl('public._ideacad_document_role(uuid)'),
 		shared: await acl('public.ideacad_shared_with_me(uuid)')
 	};
+	functionsBefore = await publicFunctions();
 
 	try {
 		const { rows } = await db.sql<{ ok: boolean }>(verificationQuery());
@@ -314,15 +335,42 @@ describe('0229 is appliable the way it would be applied', () => {
 		expect(scan.statements).toBeGreaterThan(10);
 	});
 
-	it('carries no paste trap, and the check finds one when one is planted', () => {
+	it('carries no paste trap, nor does its undo, and the check finds one when one is planted', () => {
 		expect(pasteTrap(PROPOSED_SQL)).toEqual([]);
+		expect(pasteTrap(UNDO_SQL)).toEqual([]);
 		expect(pasteTrap('select 1; -- a $tag$ in a comment\n')).toHaveLength(1);
 		expect(pasteTrap('create function f() as $x$ select 1;\n')).toHaveLength(1);
 	});
 
+	it('the undo is refused by the apply tool for its drop table and nothing else, so a person pastes it', () => {
+		const scan = scanFile(UNDO_SQL);
+		expect(scan.findings.map((f: { kind: string; what: string }) => [f.kind, f.what])).toEqual([['refuse', 'drop table']]);
+		expect(scan.selfManagedTransaction).toBe(true);
+	});
+
+	it("the undo re-creates 0214's two functions verbatim, never a reconstruction", () => {
+		const statement = (sql: string, head: string, tag: string) => {
+			const start = sql.indexOf(head);
+			const end = sql.indexOf(`${tag};`, start);
+			if (start < 0 || end < 0) return null;
+			return sql.slice(start, end + tag.length + 1);
+		};
+		for (const [head, tag] of [
+			['create or replace function public._ideacad_document_role(', '$role$'],
+			['create or replace function public.ideacad_shared_with_me(', '$sharedwithme$']
+		]) {
+			const inUndo = statement(UNDO_SQL, head, tag);
+			expect(inUndo, head).not.toBeNull();
+			expect(inUndo!.length).toBeGreaterThan(200);
+			// The same statement as 0214's, character for character, and NOT 0229's.
+			expect(inUndo).toBe(statement(MIGRATION_0214, head, tag));
+			expect(inUndo).not.toBe(statement(PROPOSED_SQL, head, tag));
+		}
+	});
+
 	it('its own verification query, run as written, answers ok on every row, and did not before the apply', async () => {
 		const { rows } = await db.sql<{ what: string; ok: boolean }>(verificationQuery());
-		expect(rows.length).toBe(8);
+		expect(rows.length).toBe(9);
 		expect(rows.filter((r) => r.ok !== true)).toEqual([]);
 		// The control: the same query against the database BEFORE the file.
 		expect(verificationBeforeApply).not.toBe('ok');
@@ -428,7 +476,8 @@ describe('who may grant a class edit access', () => {
 			const list = await call(who, 'public.ideacad_class_edit_grants($1::uuid)', [bladeDoc]);
 			expect(list.ok).toBe(true);
 			expect(list.grants).toHaveLength(1);
-			expect(list.grants[0]).toMatchObject({ sectionId: sectionA, label: 'Period 1', activeEnrollments: 6 });
+			// The SAME count the grant answered (5, owner excluded), under the same key.
+			expect(list.grants[0]).toMatchObject({ sectionId: sectionA, label: 'Period 1', activeStudents: 5 });
 		}
 		for (const who of [classmate, stranger, otherTeacher]) {
 			expect(await call(who, 'public.ideacad_class_edit_grants($1::uuid)', [bladeDoc])).toMatchObject({
@@ -447,6 +496,40 @@ describe('who may grant a class edit access', () => {
 		expect(await visible(stranger)).toBe(0);
 		expect(await visible(otherTeacher)).toBe(0);
 		expect(await visible(nextYear)).toBe(0);
+	});
+
+	it('shows a grant to a class the owner is NOT in to the owner through the manager arm, and counts it the same way twice', async () => {
+		// Period 3 is posted and the owner is enrolled only in Period 1, so the
+		// only policy arm that can show the owner this row is the document one.
+		const granted = await call(teacher, 'public.ideacad_grant_class_edit($1::uuid, $2::uuid)', [bladeDoc, sectionC]);
+		expect(granted).toMatchObject({ ok: true, grant: { sectionId: sectionC, label: 'Period 3' } });
+		expect(granted.activeStudents).toBe(2); // nextYear, crossover
+		const rowsFor = async (who: SeededUser) =>
+			(
+				await db.asUser(who.id, (q) =>
+					q<{ section_id: string }>(
+						'select section_id from public.ideacad_section_edit_grants where document_id = $1 order by section_id',
+						[bladeDoc]
+					)
+				)
+			).rows.map((r) => r.section_id);
+		expect((await rowsFor(owner)).sort()).toEqual([sectionA, sectionC].sort());
+		expect(await rowsFor(nextYear)).toEqual([sectionC]);
+		expect(await rowsFor(classmate)).toEqual([sectionA]);
+		expect(await rowsFor(stranger)).toEqual([]);
+		expect(await rowsFor(otherTeacher)).toEqual([]);
+		// The list answers each class with the count its grant answered.
+		const list = await call(owner, 'public.ideacad_class_edit_grants($1::uuid)', [bladeDoc]);
+		expect(list.grants.map((g: { label: string; activeStudents: number }) => [g.label, g.activeStudents])).toEqual([
+			['Period 1', 5],
+			['Period 3', granted.activeStudents]
+		]);
+		expect(await call(teacher, 'public.ideacad_revoke_class_edit($1::uuid, $2::uuid)', [bladeDoc, sectionC])).toEqual({
+			ok: true,
+			removed: 1
+		});
+		expect((await editGrantRows()).length).toBe(2);
+		expect(await gates(nextYear, bladeDoc)).toMatchObject({ write: false });
 	});
 });
 
@@ -769,6 +852,13 @@ describe('anon reaches none of it, and the grants are what 0166 says', () => {
 			);
 			expect(rows[0], signature).toEqual({ anon: false, authed: true });
 		}
+		const helper = await db.sql<{ anon: boolean; authed: boolean; service: boolean }>(
+			`select has_function_privilege('anon', $1, 'execute') as anon,
+			        has_function_privilege('authenticated', $1, 'execute') as authed,
+			        has_function_privilege('service_role', $1, 'execute') as service`,
+			[REACH_HELPER]
+		);
+		expect(helper.rows[0]).toEqual({ anon: false, authed: false, service: false });
 		const control = await db.sql<{ anon: boolean }>(
 			`select has_function_privilege('anon', 'public.app_short_link_target(text)', 'execute') as anon`
 		);
@@ -818,10 +908,12 @@ describe('a second paste changes nothing', () => {
 		const arity = await db.sql<{ proname: string; n: number }>(
 			`select p.proname, count(*)::int as n from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
 			 where ns.nspname = 'public' and p.proname in
-			   ('_ideacad_document_role', 'ideacad_shared_with_me', 'ideacad_grant_class_edit', 'ideacad_revoke_class_edit', 'ideacad_class_edit_grants')
+			   ('_ideacad_document_role', 'ideacad_shared_with_me', '_ideacad_class_edit_reach',
+			    'ideacad_grant_class_edit', 'ideacad_revoke_class_edit', 'ideacad_class_edit_grants')
 			 group by p.proname order by p.proname`
 		);
 		expect(arity.rows).toEqual([
+			{ proname: '_ideacad_class_edit_reach', n: 1 },
 			{ proname: '_ideacad_document_role', n: 1 },
 			{ proname: 'ideacad_class_edit_grants', n: 1 },
 			{ proname: 'ideacad_grant_class_edit', n: 1 },
@@ -832,5 +924,32 @@ describe('a second paste changes nothing', () => {
 			`select policyname from pg_policies where schemaname = 'public' and tablename = 'ideacad_section_edit_grants'`
 		);
 		expect(policies.rows).toHaveLength(1);
+	});
+});
+
+describe('the undo takes 0229 back out, and only 0229', () => {
+	it('restores every function in public to its pre-0229 source and ACL, drops the table, re-pastes cleanly, and 0229 applies again after it', async () => {
+		// The control: with 0229 applied the snapshot differs from the one taken
+		// before it, so an equality below cannot be a comparison of two nothings.
+		const applied = await publicFunctions();
+		expect(applied).not.toEqual(functionsBefore);
+		expect(Object.keys(functionsBefore).length).toBeGreaterThan(100);
+
+		await db.sql(UNDO_SQL);
+		expect(await publicFunctions()).toEqual(functionsBefore);
+		const table = await db.sql<{ t: string | null }>(`select to_regclass('public.ideacad_section_edit_grants')::text as t`);
+		expect(table.rows[0].t).toBeNull();
+		// 0214's viewer share lives in its own table and is untouched.
+		expect((await db.sql('select count(*)::int as n from public.ideacad_section_grants')).rows[0].n).toBe(1);
+		// A class editor is nobody's editor any more; a personal editor still is.
+		expect(await gates(classmate, bladeDoc)).toMatchObject({ role: null, write: false });
+		expect(await gates(peditor, bladeDoc)).toMatchObject({ role: 'editor', write: true });
+
+		await db.sql(UNDO_SQL);
+		expect(await publicFunctions()).toEqual(functionsBefore);
+
+		await db.sql(PROPOSED_SQL);
+		expect(await publicFunctions()).toEqual(applied);
+		expect(await editGrantRows()).toEqual([]);
 	});
 });

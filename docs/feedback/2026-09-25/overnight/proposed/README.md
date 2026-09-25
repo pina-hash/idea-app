@@ -91,8 +91,9 @@ ledger and must land **after** 0228: it refuses to apply without 0228's table.
 
 ## 0229: a live class EDIT grant on an IdeaCAD document (decision 38)
 
-- **File:** `0229_ideacad_class_edit_grant.sql`. **Test:**
-  `tests/db/proposed-0229-class-edit-grant.test.ts` (33 tests, green, about 7 s over the same full
+- **Files:** `0229_ideacad_class_edit_grant.sql` and its undo, `undo-0229_ideacad_class_edit_grant.sql`
+  (named so it can never be taken for a migration). **Test:**
+  `tests/db/proposed-0229-class-edit-grant.test.ts` (37 tests, green, about 7 s over the same full
   chain through 0224).
 - **What it does.** A teacher can give a whole class edit access to one LIVE IdeaCAD document, blade
   or direct (solid). "The class" is read from `classroom_enrollments` at every write, so a student
@@ -100,7 +101,10 @@ ledger and must land **after** 0228: it refuses to apply without 0228's table.
   loses access in that same statement. It is one new table, `ideacad_section_edit_grants` (keyed
   `(document_id, section_id)`, **no role column**: every row means editor), plus three new functions
   (`ideacad_grant_class_edit`, `ideacad_revoke_class_edit`, `ideacad_class_edit_grants`), all
-  returning `{ok: false, reason, message}` refusals. It also inserts ONE arm into
+  returning `{ok: false, reason, message}` refusals, and one private helper,
+  `_ideacad_class_edit_reach`, which no client role holds. The grant and the list both report
+  `activeStudents` (the class's active students, less the document's owner) from that one helper,
+  so the two numbers a teacher sees cannot disagree. It also inserts ONE arm into
   `_ideacad_document_role` and one union arm into `ideacad_shared_with_me` (blade discovery). Every
   write gate already asks the role, so the class editor reaches the concept writers,
   `ideacad_apply_actions`, the part-writer assembly writes, `ideacad_save_direct_document` and realtime
@@ -117,9 +121,10 @@ ledger and must land **after** 0228: it refuses to apply without 0228's table.
 - **Decisions taken for Mr. Pina, each written in the file's header. Read the first one first:**
   1. **A class editor gets exactly what a personal editor gets, and `_ideacad_part_owner` is NOT
      widened.** Decision 38 says both write predicates must admit the class editor "or five assembly
-     writes silently stay closed". The part-WRITER writes (claim, heartbeat, release own hold, new
-     concept on a part, set a part's active concept) open on their own through
-     `_ideacad_part_writer`'s wide rung, and the test runs all five as a class editor. The four writes
+     writes silently stay closed". Claiming a part, adding a concept to a part and setting a part's
+     active concept gate on `_ideacad_part_writer`, and open on their own through its wide rung; the
+     heartbeat and releasing your own hold gate on the hold itself, so they follow from the claim.
+     The test runs all five as a class editor. The four writes
      that gate on `_ideacad_part_owner` directly (add a part, rename or reorder one, reassign one,
      release somebody else's hold) belong to the **assembly owner** (0207: "THE ASSEMBLY OWNER HAS
      FULL CONTROL"). A personal editor cannot do them today. `ideacad_assign_part` overrides a LIVE
@@ -153,18 +158,35 @@ ledger and must land **after** 0228: it refuses to apply without 0228's table.
   The file's own self-check **refuses to apply** the bare `revoke ... from public` form that 0201
   used, and names all three functions. The file's own verification query (section 8) runs in the
   test: every row is ok after the apply, and the query does not pass before it.
+
+  **Adversarial review (same night), eight more mutants, all killed, both files restored
+  md5-identical:** the class edit arm without `ce.active`, and without the caller's own enrollment
+  term (the permissive one), are now each **refused at apply** by the self-check, which reads the
+  edit arm alone (the first draft checked the whole function body, where 0214's viewer arm already
+  says `ce.active`, so it passed with the new arm missing both terms); the policy without its
+  document-manager arm: 5 failing tests (that arm was not exercised before, because every owner in
+  the fixture was also in the granted class); the policy made `using (true)`: 6; the reach count
+  including the owner: 13; the list counting on its own with the owner included, which is what the
+  first draft shipped (5 from the grant, 6 from the list, for the same class): 6; the undo leaving
+  the helper behind: 1; the undo's copy of 0214's role drifting by one term: 2.
 - **Known gap, not closed here:** `ideacad_beat_part` checks only that the caller holds the part. A
   deactivated class editor whose tab stays open therefore keeps a held part until they close the tab.
   Every write they try is refused, and the owner's reassign or release clears the hold. A revoked
   personal editor has the same gap today. Closing it narrows `ideacad_beat_part`, so it needs its
   own file.
-- **Undo** (in this order, by hand): re-paste 0214's `_ideacad_document_role` (section 4) and
-  `ideacad_shared_with_me` (section 7) **first**, then drop the three functions, then drop the table.
-  The order matters because Postgres does not record a SQL function's reference to a table as a
-  dependency: dropping the table first would break every IdeaCAD read.
+- **Undo:** paste `undo-0229_ideacad_class_edit_grant.sql` by hand (the apply tool refuses its drop
+  table). It re-creates 0214's `_ideacad_document_role` and `ideacad_shared_with_me` **first**,
+  copied verbatim from 0214 (the test asserts the copy), then refuses if anything outside 0229
+  still names the table or its functions, then drops the four functions and the table. The test
+  applies it twice and asserts that **every function in `public` is back to exactly its pre-0229
+  source and ACL**, and that 0229 applies again afterwards. **Do not undo by re-pasting 0214's
+  sections 4 and 7 whole**: they also hold `_ideacad_can_write_document`, `_ideacad_part_owner` and
+  three share functions that 0216 replaced, and pasting them reverts 0216's refusals for direct
+  documents. The undo is only correct while 0229 is the last file to replace those two functions.
 - **Promoting it also means** two more edits:
-  - classify the three functions in `tests/db/ideacad-grants-anon-execute-surface.test.ts` and add
-    the table to its `IDEACAD_SELECT_TABLES` (that test fails on an unclassified IdeaCAD function);
+  - classify the three client functions in `tests/db/ideacad-grants-anon-execute-surface.test.ts`
+    (and `_ideacad_class_edit_reach` as definer), and add the table to its `IDEACAD_SELECT_TABLES`
+    (that test fails on an unclassified IdeaCAD function);
   - edit CLAUDE.md's "A CLASS GRANT IS A SECOND TABLE AND IS ALWAYS A VIEWER" paragraph in place,
     naming decision 38.
 
