@@ -22,7 +22,7 @@
 		type NotebookSession,
 		type NotePayload
 	} from '$lib/notebook';
-	import type { NoteDoc, NotebookNoteRow, TiptapNode } from '$lib/notebook-notes';
+	import { docSummary, type NoteDoc, type NotebookNoteRow, type TiptapNode } from '$lib/notebook-notes';
 	import { QUICK_NOTE_HARNESS, type QuickNoteTransports } from '$lib/notebook/quick-note-transports';
 	import { quickNoteHidden, setQuickNoteHidden } from '$lib/notebook/quick-note-state.svelte';
 
@@ -86,6 +86,15 @@
 
 	const signedOut = page.url.searchParams.get('signedout') === '1';
 	const failing = page.url.searchParams.get('fail');
+	/**
+	 * `?latency=<ms>` holds every note write that long before it lands, so a
+	 * write can be IN FLIGHT when the header is remounted (the Remount header
+	 * control below, which is what moving between the home page and a class does
+	 * to the real control). Logged at dispatch, landed after the wait.
+	 */
+	const latency = Math.max(0, Number(page.url.searchParams.get('latency') ?? 0) || 0);
+	const land = () => (latency ? new Promise<void>((resolve) => setTimeout(resolve, latency)) : Promise.resolve());
+	let shellKey = $state(0);
 
 	// ---- the in-memory notebook ---------------------------------------------
 
@@ -159,6 +168,7 @@
 			)} autosave=${JSON.stringify(payload.autosave === true)}`
 		];
 		if (failing === 'create') return { ok: false, error: 'The server is unreachable (dev harness).', retryable: false };
+		await land();
 		const doc = await normalize(payload.content);
 		if ('error' in doc) return { ok: false, error: doc.error, retryable: false };
 		const id = `new-${++seq}`;
@@ -185,6 +195,7 @@
 
 	async function editNote(noteId: string, content: TiptapNode, autosave = false): Promise<NoteSaveResult> {
 		log = [...log, `POST /api/notebook/edit-note note_id=${JSON.stringify(noteId)} autosave=${autosave}`];
+		await land();
 		const owner = entries.find((e) => e.notes.some((n) => n.note_id === noteId));
 		if (!owner) return { ok: false, error: 'That note does not exist.', retryable: false };
 		const doc = await normalize(content);
@@ -200,6 +211,7 @@
 
 	async function addNote(entryId: string, content: TiptapNode, autosave = false): Promise<NoteSaveResult> {
 		log = [...log, `POST /api/notebook/add-note entry_id=${JSON.stringify(entryId)} autosave=${autosave}`];
+		await land();
 		const doc = await normalize(content);
 		if ('error' in doc) return { ok: false, error: doc.error, retryable: false };
 		const noteId = `n-${++seq}`;
@@ -247,6 +259,7 @@
 <svelte:head><title>Quick note harness</title></svelte:head>
 
 <div class="cr-root" style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}>
+	{#key shellKey}
 	<ClassroomShell
 		basePath={BASE}
 		sections={SECTIONS}
@@ -282,9 +295,21 @@
 				<ol data-testid="qn-log">
 					{#each log as line, i (i)}<li>{line}</li>{/each}
 				</ol>
+				<!-- Unmounts the whole shell and mounts it again, as moving between the
+				     home page and a class does to the real header's quick note. -->
+				<button type="button" data-testid="qnh-remount" onclick={() => (shellKey += 1)}>Remount header</button>
+				<h2>Stored drafts and entries</h2>
+				<ol data-testid="qnh-store">
+					{#each entries as e (e.id)}
+						<li data-store-id={e.id} data-submitted={e.submitted_at ? 'yes' : 'no'}>
+							{e.id} {e.submitted_at ? 'turned-in' : 'draft'}: {e.notes.map((n) => docSummary(n.content, 500)).join(' | ')}
+						</li>
+					{/each}
+				</ol>
 			</section>
 		</main>
 	</ClassroomShell>
+	{/key}
 </div>
 
 <style>
