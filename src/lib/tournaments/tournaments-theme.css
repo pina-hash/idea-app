@@ -372,3 +372,39 @@
 	padding: 1.5rem;
 	overflow: auto;
 }
+
+/* ==========================================================================
+   THE REPORT BOX, ON THIS ROOM'S PLATE (report 35, 2026-09-25).
+
+   The report control and its box are mounted once in the ROOT layout, as a
+   sibling of `.tnm-root`, so the room's aliases above (declared on the
+   wrapper) never reach them and the box opened on the portal's green plate
+   inside this room. `SiteFeedback.svelte` reads `--fb-room-*` hooks with the
+   site token as fallback; this block declares them on `body`, the ancestor
+   the room and the box share, only while a tournaments page is on screen.
+   HOOK DECLARATIONS ONLY.
+
+   `body` cannot see the `--tnm-*` tokens, so every value is a LITERAL named
+   for its token. RESTRAINT HOLDS: no emerald in the box. Its primary action
+   stays the platform `--green`, which is what this room's own `.btn` is
+   (see "THE ROOM AT PAGE SCALE" above), and the semantic save and danger inks
+   are the platform's, measured above against these same three grounds. The
+   one new value is the control edge: `--tnm-line-strong` is a 22% veil, and a
+   control's outer edge owes 3:1, so it is `--tnm-ink-dim` moved in LIGHTNESS
+   ONLY to 45% (#6b7a73).
+
+   Measured, WCAG 2.x relative luminance (panel #16211c / bg #0e1412 /
+   panel-2 #1c2a24):
+     ink        #edede8   14.10 / 15.86 / 12.72
+     muted      #93a09a    6.10 /  6.86 /  5.50
+     edge       #6b7a73    3.67 /  4.13 /  3.31   (bar 3.0)
+   ========================================================================== */
+body:has(.tnm-root) {
+	--fb-room-bg: #16211c; /* --tnm-panel */
+	--fb-room-bg-deep: #0e1412; /* --tnm-bg */
+	--fb-room-field: #1c2a24; /* --tnm-panel-2 */
+	--fb-room-shade: rgba(14, 20, 18, 0.82); /* --tnm-bg, as a veil */
+	--fb-room-ink: #edede8; /* --tnm-ink */
+	--fb-room-ink-muted: #93a09a; /* --tnm-ink-dim */
+	--fb-room-edge: #6b7a73; /* --tnm-ink-dim, 60% -> 45% lightness */
+}
