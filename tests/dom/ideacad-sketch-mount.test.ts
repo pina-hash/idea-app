@@ -86,7 +86,8 @@ describe('the sketch editor, mounted', () => {
 		expect(m.one('[data-testid="ideacad-sketch-selection"]').textContent).toContain('Line 1 selected');
 		expect(h.selected[h.selected.length - 1]).toEqual([{ bodyId: '', kind: 'sketch-entity', id: 's1/l0' }]);
 		const words = m.all<HTMLButtonElement>('[data-testid="ideacad-sketch-selection"] button').map((b) => b.textContent);
-		expect(words).toEqual(expect.arrayContaining(['Delete', 'Horizontal', 'Vertical'])); expect(m.all('[data-testid="ideacad-sketch-selection"] form')).toHaveLength(1);
+		/* Line 1 already carries the fixture's horizontal constraint (`kh`), so Horizontal is not offered a second time: a duplicate adds no freedom and reads "Over defined". */
+		expect(words).toEqual(expect.arrayContaining(['Delete', 'Vertical'])); expect(words).not.toContain('Horizontal'); expect(m.all('[data-testid="ideacad-sketch-selection"] form')).toHaveLength(1);
 		const guidesBefore = h.guides.length;
 		const key = new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true });
 		window.dispatchEvent(key);

@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "quick-note-state-emptied.mjs",
+	"date": "2026-09-25T10:34:10.366Z",
+	"sha": "46e8dbce31305fac7c8d3d4c8c12ae6891e2a0f1",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 28,
+	"outsideRows": [],
+	"ms": 24335
+}

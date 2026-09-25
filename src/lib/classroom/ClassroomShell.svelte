@@ -13,11 +13,18 @@
 		type SectionTabId,
 		classroomPathname
 	} from '$lib/classroom/nav';
-	import { navCollapseKey, readNavCollapsed, writeNavCollapsed } from '$lib/classroom/nav-collapse';
+	import {
+		navCollapseKey,
+		navCollapsedFor,
+		navCollapseWorkSurface,
+		readNavCollapseChoice,
+		writeNavCollapseChoice,
+		type NavCollapseChoice
+	} from '$lib/classroom/nav-collapse';
 	import { formatSectionLabel } from '$lib/section-label';
 	import { classGlyph } from '$lib/classroom/class-glyph';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
-	import VoiceNav from '$lib/voice/VoiceNav.svelte';
+	import QuickNoteDock from '$lib/notebook/QuickNoteDock.svelte';
 	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
 	import { describeBuild, REPORT_LABEL_SHORT } from '$lib/feedback/context';
 	import { version as buildId } from '$app/environment';
@@ -115,18 +122,30 @@
 	let stripEl = $state<HTMLElement | null>(null);
 
 	/*
-	 * REPORT AND VOICE LIVE IN THIS HEADER (ledger 0297). `FEEDBACK_EXCLUSIONS`
-	 * takes both floating pills off every classroom route (its `classroom`
-	 * rule), and this is where they reappear, so nothing floats over a row, a
-	 * grip or a Return button. The same props the root mount hands SiteFeedback,
-	 * derived the same way the GAUNTLET layout derives them for its own
-	 * relocation: one predicate for the writer and the anonymous flag.
+	 * REPORT LIVES IN THIS HEADER (ledger 0297). `FEEDBACK_EXCLUSIONS` takes
+	 * the floating pill off every classroom route (its `classroom` rule), and
+	 * this is where it reappears, so nothing floats over a row, a grip or a
+	 * Return button. VOICE HAS NO CONTROL HERE ANY MORE (ledger 0298, report
+	 * 31): it is the Speak button inside the command palette, which is on
+	 * every classroom page already. The same props the root mount hands
+	 * SiteFeedback, derived the same way the GAUNTLET layout derives them for
+	 * its own relocation: one predicate for the writer and the anonymous flag.
 	 * Not on the deck: that route has its own bar and its own relocation.
 	 */
 	const feedbackBuild = describeBuild(deploy, buildId);
+
+	/*
+	 * THE QUICK NOTE (ledger 0298). Its control is in the row from 560px up; below
+	 * that it folds into the Menu as the first entry, because in the row it took
+	 * the last class icon off a phone (measured at 375: the class row went from
+	 * 65.4px to 11.6px, under one 46.7px icon). The dock says whether it is here
+	 * at all (`available`), so the Menu entry exists exactly when the control
+	 * does, and both open the ONE panel the dock owns.
+	 */
+	let quickNoteDock = $state<ReturnType<typeof QuickNoteDock> | null>(null);
+	let quickNoteHere = $state(false);
 	const feedbackSubmit = $derived(feedbackWriter(page.data.supabase, page.data.claims?.sub));
 	const feedbackAnonymous = $derived(feedbackIsAnonymous(page.data.supabase, page.data.claims?.sub));
-	const signedIn = $derived(!!page.data?.claims?.sub);
 
 	/**
 	 * THE NAV-COLLAPSE TOGGLE (see $lib/classroom/nav-collapse.ts for why this
@@ -144,6 +163,14 @@
 	 * become reactive (it is not). Keyed on the viewer, like a disclosure --
 	 * this is a decision about how this person reads, not about the screen
 	 * in front of them.
+	 *
+	 * WHAT IS STORED IS THE CHOICE, NOT THE STATE (ledger 0298, report 25): a
+	 * ported HTML worksheet or a spec assignment opens with the list put away
+	 * unless this person has pressed the control before, and the state on
+	 * screen is `navCollapsedFor(choice, workSurface)`. `workSurface` is read
+	 * off the item page's own payload (`page.data`), the same keys the page
+	 * hands `ItemDetail`, so a harness that loads an item the way the real
+	 * route does gets the real default.
 	 */
 	/* Read through `classroomPathname` so a harness mounting this shell under
 	   another base sees the same place the shipping route does -- the collapse
@@ -151,20 +178,33 @@
 	   control measured nothing (prompt 0098, item H). */
 	const loc = $derived(locateClassroom(classroomPathname(page.url.pathname, basePath)));
 	const showNavToggle = $derived(!minimal && canCollapseNav(loc));
+	/*
+	 * THE ASSIGNMENT'S TITLE FOR A QUICK NOTE: the trail's ITEM crumb, never the
+	 * last one. Under the item page (its grading console) the last crumb is the
+	 * page's name, "Grading", which would become the note's title everywhere.
+	 */
+	const quickNoteItemTitle = $derived.by(() => {
+		if (!loc.itemId) return null;
+		if (loc.place === 'item') return crumbs.at(-1)?.label ?? null;
+		const itemPath = `/item/${loc.itemId}`;
+		return crumbs.find((c) => c.href?.endsWith(itemPath))?.label ?? null;
+	});
 	const viewer = $derived((page.data?.claims?.sub as string | undefined) ?? null);
 	const navCollapseStorageKey = $derived(navCollapseKey(viewer));
-	const storedNavCollapsed = $derived(readNavCollapsed(navCollapseStorageKey));
-	let navCollapseOverride = $state<{ key: string; collapsed: boolean } | null>(null);
-	const navCollapsed = $derived(
-		navCollapseOverride && navCollapseOverride.key === navCollapseStorageKey
-			? navCollapseOverride.collapsed
-			: storedNavCollapsed
+	const storedNavChoice = $derived(readNavCollapseChoice(navCollapseStorageKey));
+	let navChoiceOverride = $state<{ key: string; choice: NavCollapseChoice } | null>(null);
+	const navChoice = $derived(
+		navChoiceOverride && navChoiceOverride.key === navCollapseStorageKey
+			? navChoiceOverride.choice
+			: storedNavChoice
 	);
+	const navWorkSurface = $derived(navCollapseWorkSurface(page.data, loc.itemId));
+	const navCollapsed = $derived(navCollapsedFor(navChoice, navWorkSurface));
 
 	function toggleNavCollapsed() {
-		const next = !navCollapsed;
-		navCollapseOverride = { key: navCollapseStorageKey, collapsed: next };
-		writeNavCollapsed(navCollapseStorageKey, next);
+		const choice = navCollapsed ? 'expanded' : 'collapsed';
+		navChoiceOverride = { key: navCollapseStorageKey, choice };
+		writeNavCollapseChoice(navCollapseStorageKey, choice);
 	}
 
 	const ordered = $derived(sortSections(sections));
@@ -469,6 +509,22 @@
 					{/if}
 				</div>
 			{/if}
+			{#if quickNoteHere && !minimal && loc.place !== 'item-deck'}
+				<!-- The quick note's Menu entry, shown only below 560px, where the
+				     row's own Note control is folded away (see `quickNoteDock`). -->
+				<button
+					type="button"
+					class="shell-tool quicknote-menu-item"
+					data-testid="quicknote-menu-item"
+					onclick={(event) => {
+						closeMenu();
+						quickNoteDock?.open(switcherEl?.querySelector<HTMLElement>('.menu-trigger') ?? event.currentTarget);
+					}}
+				>
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.draft} /></svg>
+					<span class="shell-tool-word">Note</span>
+				</button>
+			{/if}
 			{#if todoHref && !minimal}
 				<!-- The to-do door (ledger 0297): one element, the header tools' own
 				     look, current when it is the page on screen. -->
@@ -527,16 +583,11 @@
 					<span class="shell-tool-word">Tour</span>
 				</button>
 			{/if}
-			{#if loc.place !== 'item-deck'}
-				<span class="shell-docked" data-testid="shell-docked">
-					<VoiceNav {signedIn} isAdmin={!!page.data?.isAdmin} place="header" />
-				</span>
-			{/if}
 		</div>
 		<!--
 			REPORT HAS ITS OWN SLOT AND NEVER FOLDS INTO THE MENU (report 30,
 			2026-09-25: "the report button has to be immediately accessible").
-			It used to sit in `.shell-docked` beside Voice, inside the tools the
+			It used to sit in a docked group beside Voice, inside the tools the
 			fold hides below 1180px, so on a narrow window -- where most of that
 			evening's reports were filed -- it was one press inside Menu and read
 			as missing (report 20). It is outside `.shell-tools` now, so the fold
@@ -546,6 +597,26 @@
 			keeps a class icon beside it. Not on the deck, which has its own
 			bar and its own relocation.
 		-->
+		<!--
+			THE QUICK NOTE (ledger 0298, R33) docks here, beside Report and outside
+			the fold, for the reason Report does: a control that is one press inside
+			Menu reads as missing. Below 560px there is no room for it in the row
+			without losing the last class icon, so there it is the Menu's first
+			entry instead (`quicknote-menu-item`, and the CSS at the fold). Never
+			floating (0297 took the floating pills off the classroom), never on the
+			deck, never in view-as. `QuickNoteDock` decides the rest -- signed in,
+			not hidden, not a projected route -- and renders nothing otherwise.
+		-->
+		{#if !minimal && loc.place !== 'item-deck'}
+			<QuickNoteDock
+				bind:this={quickNoteDock}
+				bind:available={quickNoteHere}
+				sectionId={currentSectionId}
+				sectionLabel={current ? sectionTitle(current) : null}
+				itemTitle={quickNoteItemTitle}
+				anchorFallback={() => switcherEl?.querySelector<HTMLElement>('.menu-trigger')}
+			/>
+		{/if}
 		{#if loc.place !== 'item-deck' && feedbackSubmit}
 			<span class="shell-report" data-testid="shell-report">
 				<SiteFeedback
@@ -633,12 +704,20 @@
 					running, keeps its scroll position and its folded groups, and gets no
 					`{#if}` of its own -- collapsed is a view state, never a content one.
 
-					WHY IT SITS BESIDE THE TRAIL. The trail is the only chrome an item page
-					has (the section tabs above never render for `item` -- see `tab` being
-					null there), and the two controls answer the same question together:
-					how do I get back, and how do I put the rest of the class away while I
-					read this one. Hiding one must never cost the other, which is why this
-					is a second child of `.crumbs` rather than a replacement for it.
+					WHY IT SITS BESIDE THE ITEM'S TITLE. The trail is the only chrome an
+					item page has (the section tabs above never render for `item` -- see
+					`tab` being null there), its last crumb IS the item's title, and the two
+					controls answer the same question together: how do I get back, and how
+					do I put the rest of the class away while I read this one. Hiding one
+					must never cost the other, which is why this is a second child of
+					`.crumbs` rather than a replacement for it. It used to sit at the far
+					end of the row, 900px from anything it was about at 1440, and students
+					never found it (report 25); `.crumbs` now packs it straight after the
+					title, and it says what it does to the class list in words.
+
+					A WORK SURFACE OPENS WITH THE LIST PUT AWAY (ledger 0298): a ported
+					HTML worksheet or a spec assignment, unless this person has pressed
+					this before. See `navCollapseWorkSurface` and `navCollapsedFor`.
 
 					ONLY ON THE ITEM PAGE (`canCollapseNav`). On the class list nothing is
 					open, so the list already has the whole split to itself (split.css's
@@ -658,10 +737,10 @@
 						data-testid="nav-collapse-toggle"
 						onclick={toggleNavCollapsed}
 					>
-						<span class="nav-toggle-caret" aria-hidden="true">{navCollapsed ? '▸' : '▾'}</span>
-						<span class="nav-toggle-label"
-							>{navCollapsed ? 'Show other items' : 'Hide other items'}</span
+						<svg class="nav-toggle-glyph" viewBox="0 0 24 24" aria-hidden="true"
+							><path d={ICONS.classList} />{#if !navCollapsed}<path d={ICONS.classListPane} />{/if}</svg
 						>
+						<span class="nav-toggle-label">{navCollapsed ? 'Show class list' : 'Hide class list'}</span>
 					</button>
 				{/if}
 			</nav>
@@ -954,11 +1033,6 @@
 		align-items: center;
 		gap: var(--space-2);
 	}
-	.shell-docked {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-2);
-	}
 	/* Docked, the report control is one of the header's tools and takes their
 	   shape and their load-bearing edge rather than the floating pill's. Its
 	   slot sits OUTSIDE `.shell-tools`, so the fold below never hides it. */
@@ -1027,9 +1101,9 @@
 	   BELOW 1180px the tools do not fit beside a class row worth having, so
 	   they fold behind the Menu button and the class list folds in with them.
 	   The breakpoint is where the full row stops fitting a teacher's masthead
-	   (logo, Classes, Search, Settings, Light, Voice, Report and the profile
-	   menu); a student's row carries To-do as well. It is the same DOM in both
-	   arrangements -- one copy of every control -- so no test id is doubled and
+	   (logo, Classes, Search, Settings, Light, Tour, Report and the profile
+	   menu; Voice left the row for the palette in ledger 0298); a student's
+	   row carries To-do as well. It is the same DOM in both arrangements -- one copy of every control -- so no test id is doubled and
 	   no control has a second handler to keep in step. REPORT IS NOT IN WHAT
 	   FOLDS: its slot is outside `.shell-tools` (report 30). */
 	@media (max-width: 1179.98px) {
@@ -1079,25 +1153,9 @@
 			padding-top: var(--space-1);
 		}
 		.shell-tool,
-		.shell-docked,
 		.shell-tools :global(.theme-switch) {
 			width: 100%;
 			justify-content: flex-start;
-		}
-		.shell-docked {
-			flex-direction: column;
-			align-items: stretch;
-		}
-		.shell-docked :global(.vnav),
-		.shell-docked :global(.vnav-row),
-		.shell-docked :global(.vnav-trigger) {
-			width: 100%;
-			justify-content: flex-start;
-		}
-		/* Inside the Menu the voice panel opens in the flow under its button. */
-		.shell-docked :global(.vnav-header .vnav-panel) {
-			position: static;
-			width: 100%;
 		}
 	}
 
@@ -1129,6 +1187,32 @@
 		}
 	}
 
+	/* --- The quick note folds into the Menu below 560px (ledger 0298) ---------
+	   Measured on /dev/quick-note with the profile menu present: in the row the
+	   Note control (45.8px stacked) left the class row 11.6px at 375, under the
+	   46.7px of one class icon. Folded, the row reads 65.4px at 375 (what it read
+	   before the quick note existed), 88.8 at 480 and 98.7 at 559; in its row
+	   form (75.1px) from 560 it reads 80.1 at 560 and 98.7 from 600 up. So below
+	   560 the row's control is not drawn and the Menu carries a Note entry that
+	   opens the same panel; above it the Menu entry is not drawn. One of the two
+	   is on screen at any width, never both. */
+	.shell-tool.quicknote-menu-item {
+		display: none;
+	}
+	@media (max-width: 559.98px) {
+		/* The dock's wrapper takes no flex slot either, or its empty box would
+		   still cost the row a gap; the panel inside it is positioned. */
+		.header-right :global(.qn) {
+			display: contents;
+		}
+		.header-right :global(.qn-trigger) {
+			display: none;
+		}
+		.shell-tool.quicknote-menu-item {
+			display: inline-flex;
+		}
+	}
+
 	/* --- The trail and the tabs: one row that spans the content -------------
 	   THE CHROME IS AS WIDE AS THE PAGE UNDER IT. It reads `--cr-measure`,
 	   which src/routes/classroom/+layout.svelte sets once per route from
@@ -1157,13 +1241,16 @@
 	   stays) and never down into a tab. It is 20px shorter than the padding and
 	   margin that used to buy the same clearance. */
 	.crumbs {
-		/* THE ROW HOLDS THE TRAIL AND THE NAV-COLLAPSE TOGGLE, one on each end. */
+		/* THE ROW HOLDS THE TRAIL AND THE NAV-COLLAPSE TOGGLE, the toggle packed
+		   straight after the trail's last crumb, which on an item page is the
+		   item's own title (report 25: at the far end of the row it was found by
+		   nobody). A long title wraps the toggle onto its own line, still first. */
 		display: flex;
 		flex: 1 1 18rem;
 		flex-wrap: wrap;
 		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-2) var(--space-4);
+		justify-content: flex-start;
+		gap: var(--space-2) var(--space-3);
 		min-width: 0;
 		min-height: 44px;
 	}
@@ -1214,33 +1301,39 @@
 		color: var(--boundary);
 	}
 
-	/* THE NAV-COLLAPSE TOGGLE. A real button, not a bare glyph; `.tap-44`
-	   (src/app.css) buys the 44px floor, and `flex: none` keeps it from being
-	   squeezed by a long trail. */
+	/* THE NAV-COLLAPSE TOGGLE. A real button with a glyph AND its word, not a
+	   bare caret; `.tap-44` (src/app.css) buys the 44px floor, and `flex: none`
+	   keeps it from being squeezed by a long trail. It reads in the body ink
+	   (`--text-1`), not the trail's quieter tier: it is the one control on this
+	   row that changes the page, and the report was that nobody saw it. */
 	.nav-toggle {
 		appearance: none;
 		display: inline-flex;
 		flex: none;
 		align-items: center;
-		gap: 0.35rem;
-		padding: 0.3rem 0.6rem;
+		gap: 0.45rem;
+		padding: 0.3rem 0.7rem;
 		background: var(--surface-1);
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
-		color: var(--text-2);
+		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: 0.74rem;
 		letter-spacing: 0.04em;
 		cursor: pointer;
 	}
 	.nav-toggle:hover {
-		color: var(--text-1);
 		border-color: var(--hover-ink);
 	}
-	.nav-toggle-caret {
-		font-size: 0.65rem;
-		color: var(--text-2);
+	.nav-toggle-glyph {
 		flex: none;
+		width: 18px;
+		height: 18px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.7;
+		stroke-linecap: round;
+		stroke-linejoin: round;
 	}
 
 	/* THE TAB BAR. It WRAPS rather than overflowing (see the comment above the

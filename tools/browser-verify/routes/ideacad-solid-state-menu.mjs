@@ -36,7 +36,7 @@ export default {
 	presence: [
 		{ selector: '[data-testid="ideacad-context-menu"]', label: 'the menu', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="ideacad-context-menu"] [data-menu-row]', label: 'nine rows for a face', expectPresent: 9, maxPresent: 9, expectVisible: 9 },
-		{ selector: '[data-testid="ideacad-context-menu"] [data-command="select-other"][aria-haspopup="menu"]', label: 'Select Other opens its list in place', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="ideacad-context-menu"] [data-command="select-other"][aria-haspopup="menu"]', label: 'Select Other opens a list', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="ideacad-context-menu"] [data-menu-row] p', label: 'no prose in a row', expectPresent: 0 }
 	],
 	textContains: [{ selector: '[data-testid="ideacad-context-menu"]', label: 'what a face offers', must: ['Sketch', 'Extrude', 'Fillet face edges', 'Shell', 'Hole', 'Measure', 'Normal To', 'Select other', 'Hide body'] }],

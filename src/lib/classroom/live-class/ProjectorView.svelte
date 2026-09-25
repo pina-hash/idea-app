@@ -4,13 +4,21 @@
 	import { isTypingTarget } from '$lib/shell/keys';
 	import {
 		clockParts,
-		timerDigits,
+		formatReadout,
+		tickEachFrame,
+		timerFinal,
+		timerHoldMs,
 		timerOvertime,
 		timerPhase,
+		timerReadout,
 		timerReset,
+		timerTicking,
 		timerToggle,
 		timerWord,
-		wallDateLabel
+		wallDateLabel,
+		TIMER_FINAL_MS,
+		type LiveTimer,
+		type TimerReadout
 	} from './timer';
 	import {
 		newerFrame,
@@ -87,7 +95,59 @@
 	const frame = $derived(held && held.day === today ? held : null);
 	const agenda = $derived(frame?.agenda ?? []);
 	const timer = $derived(frame?.timer ?? null);
-	const phase = $derived(timer ? timerPhase(timer, now) : null);
+
+	/*
+	 * THE TIMER'S OWN INSTANT. The page clock above moves four times a second,
+	 * which is right for everything else here; the digits read tenths, and
+	 * hundredths in a countdown's last ten seconds, so while a timer is COUNTING
+	 * a second reading is taken on every frame (`tickEachFrame`: an animation
+	 * frame OR a timeout, never a frame alone). The timer reads the later of
+	 * the two, so the slow clock carries it whenever the frame loop is off -- a
+	 * paused, ready or finished timer runs no loop at all -- and handing over
+	 * between them can never step the digits backwards. The digits are derived
+	 * from that instant at every paint, never counted by ticks.
+	 */
+	let frameNow = $state(0);
+	const timerNow = $derived(Math.max(now, frameNow));
+	const ticking = $derived(timerTicking(timer, timerNow));
+	$effect(() => {
+		if (!ticking) return;
+		// TRACKED: a new timer (a press, in either window) restarts the loop, so
+		// its first reading is the next frame rather than the end of a sleep.
+		const t = timer;
+		const read = clock;
+		return tickEachFrame(() => {
+			const at = read();
+			frameNow = at;
+			return t ? timerHoldMs(t, at, 'wall') : undefined;
+		});
+	});
+	const phase = $derived(timer ? timerPhase(timer, timerNow) : null);
+	const readout = $derived(timer ? timerReadout(timer, timerNow, 'wall') : null);
+	/** The last ten seconds of a countdown that has started: the warn edge, and the beat while it runs. */
+	const final = $derived(!!timer && (phase === 'running' || phase === 'paused') && timerFinal(timer, timerNow));
+	const word = $derived(timer ? timerWord(timer, timerNow) : '');
+	const overtime = $derived(timer ? timerOvertime(timer, timerNow) : null);
+
+	/*
+	 * THE DIGITS ARE SIZED ONCE PER TIMER, NOT PER READING. The time column fits
+	 * `--chars` monospace cells, the fraction drawn at FRACTION_SCALE of the
+	 * whole's size (one number, handed to the stylesheet as `--frac`). Sized off
+	 * the current reading, the digits would grow at 9:59 and shrink again at the
+	 * switch to hundredths; a countdown is sized by the widest it will read (its
+	 * full length, or "0:09.99"), a stopwatch, which grows, by what it reads now.
+	 */
+	const FRACTION_SCALE = 0.6;
+	const cells = (r: TimerReadout) => r.whole.length + r.fraction.length * FRACTION_SCALE;
+	function wallCells(t: LiveTimer, current: TimerReadout): number {
+		const widths = [cells(current)];
+		if (t.mode === 'countdown') {
+			widths.push(cells(timerReadout(timerReset(t), 0, 'wall')));
+			widths.push(cells(formatReadout(TIMER_FINAL_MS - 10, 'up', 2)));
+		}
+		return Math.max(4, ...widths);
+	}
+	const faceCells = $derived(timer && readout ? wallCells(timer, readout) : 4);
 
 	let channel: ProjectorChannel | null = null;
 	function onMessage(message: ProjectorMessage) {
@@ -198,12 +258,30 @@
 				<p class="lp-clock" data-testid="projector-clock">
 					{wallClock.time}<span class="lp-period">{wallClock.period}</span>
 				</p>
-				{#if timer}
-					<div class="lp-timer" data-phase={phase} data-testid="projector-timer">
-						<span class="lp-digits" style="--chars: {Math.max(timerDigits(timer, now).length, 4)}">{timerDigits(timer, now)}</span>
-						<span class="lp-word">{timerWord(timer, now)}</span>
-						{#if timerOvertime(timer, now)}
-							<span class="lp-over">Over by {timerOvertime(timer, now)}</span>
+				{#if timer && readout}
+					<div class="lp-timer" data-phase={phase} data-final={final} data-testid="projector-timer">
+						<!-- THE BEAT AND THE FINISH. One ring on the timer's edge, drawn
+						     as an outline so it never widens the page. In the last ten
+						     seconds it is re-made each time the whole second changes, so
+						     its pulse lands with the digit; when time is up it bursts
+						     once. Both move only under `no-preference`; under reduced
+						     motion the ring rests on the edge, still. -->
+						{#if final && phase === 'running'}
+							{#key readout.whole}
+								<span class="lp-ring lp-pulse" aria-hidden="true" data-testid="projector-timer-pulse"></span>
+							{/key}
+						{:else if phase === 'done'}
+							<span class="lp-ring lp-burst" aria-hidden="true" data-testid="projector-timer-burst"></span>
+						{/if}
+						<span
+							class="lp-digits"
+							style="--chars: {faceCells}; --frac: {FRACTION_SCALE}"
+							data-testid="projector-timer-digits"
+							><span class="lp-whole">{readout.whole}</span><span class="lp-frac">{readout.fraction}</span></span
+						>
+						<span class="lp-word">{word}</span>
+						{#if overtime}
+							<span class="lp-over">Over by {overtime}</span>
 						{/if}
 					</div>
 				{/if}
@@ -397,6 +475,7 @@
 		color: var(--text-2);
 	}
 	.lp-timer {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		align-items: inherit;
@@ -405,15 +484,90 @@
 		border-radius: var(--radius-card);
 		background: var(--surface-1);
 	}
+	/* THE LAST TEN SECONDS, STILL: the edge takes the warning ink. With the
+	   hundredths appearing beside the seconds it is never colour alone, and it
+	   is what reduced motion keeps of the beat below. */
+	.lp-timer[data-final='true'] {
+		border-color: var(--status-warn);
+	}
 	.lp-digits {
 		font-family: var(--font-mono);
 		/* As large as the screen allows (20vh), and never wider than the time
 		   column: a mono digit is about 0.55em, so the column holds
-		   --chars digits at 90cqi / (chars * 0.55). */
+		   --chars cells at 90cqi / (chars * 0.55). A fraction digit counts as
+		   --frac of a cell, the size it is drawn at. */
 		font-size: clamp(3rem, min(20vh, 14vw, calc(90cqi / (var(--chars, 4) * 0.55))), 26rem);
 		line-height: 1;
 		font-variant-numeric: tabular-nums;
 		color: var(--text-1);
+		/* A bump scales from the middle, so it grows into the timer's own padding. */
+		transform-origin: center;
+	}
+	.lp-frac {
+		font-size: calc(var(--frac, 0.6) * 1em);
+	}
+	/* THE RING sits exactly on the timer's 3px edge (an outline at offset 0 of
+	   the padding box), so at rest it IS the edge. It is an OUTLINE and not a
+	   transform or a box: an outline is ink overflow, which never adds to a
+	   page's scrollable area, so a pulse at the window's edge cannot make the
+	   wall scroll. */
+	.lp-ring {
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		color: var(--status-warn);
+		outline: 3px solid currentColor;
+		outline-offset: 0;
+		pointer-events: none;
+	}
+	/* MOTION, AND ONLY UNDER no-preference: outline-offset and opacity on one
+	   ring, one bump of the digits' transform when time is up. Nothing loops:
+	   the pulse is re-made once a second by the markup, and the burst and the
+	   bump run once and rest where the still state rests. */
+	@media (prefers-reduced-motion: no-preference) {
+		.lp-pulse {
+			animation: lp-pulse 900ms ease-out both;
+		}
+		.lp-burst {
+			animation: lp-burst 1400ms ease-out both;
+		}
+		.lp-timer[data-phase='done'] .lp-digits {
+			animation: lp-bump 700ms ease-out both;
+		}
+	}
+	@keyframes lp-pulse {
+		from {
+			outline-offset: 0;
+			opacity: 0.9;
+		}
+		to {
+			outline-offset: 2.5vh;
+			opacity: 0;
+		}
+	}
+	@keyframes lp-burst {
+		0% {
+			outline-offset: 0;
+			opacity: 1;
+		}
+		60% {
+			opacity: 0.6;
+		}
+		100% {
+			outline-offset: 6vh;
+			opacity: 0;
+		}
+	}
+	@keyframes lp-bump {
+		0% {
+			transform: scale(1);
+		}
+		30% {
+			transform: scale(1.08);
+		}
+		100% {
+			transform: scale(1);
+		}
 	}
 	.lp-word {
 		font-family: var(--font-mono);

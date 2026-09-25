@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "classroom-live-door-count-27-title-long-pane-26.mjs",
+	"date": "2026-09-25T05:18:25.497Z",
+	"sha": "6064a101314e754f1785d2d60a41698448037928",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 26,
+	"outsideRows": [],
+	"ms": 5550
+}

@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "ideacad-solid-state-snap.mjs",
+	"date": "2026-09-25T05:54:07.283Z",
+	"sha": "c86408a93cea11b2914adbc3ed315e4b12fb2a94",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 44,
+	"outsideRows": [],
+	"ms": 33233
+}

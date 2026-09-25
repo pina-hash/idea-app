@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "notebook-state-log-filed-lock.mjs",
+	"date": "2026-09-25T12:17:51.494Z",
+	"sha": "abdd0806538827afd4927256fddf66b022f4a980",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 32,
+	"outsideRows": [],
+	"ms": 27350
+}

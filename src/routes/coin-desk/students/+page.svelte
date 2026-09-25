@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import SectionManager from '$lib/coin-desk/SectionManager.svelte';
 	import BalanceAdminPanel from '$lib/coin-desk/BalanceAdminPanel.svelte';
+	import { classRosterTransports } from '$lib/coin-desk/roster-import';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -13,12 +14,21 @@
 	// untrack: taking the load's value as the STARTING point is the whole
 	// intent here; SectionManager owns it from that moment on.
 	let sections = $state(untrack(() => data.sections));
+
+	// "Import from class roster" reads the classroom roster through its one
+	// reader, on the admin's own client; the coin write is still SectionManager's.
+	const classRoster = $derived(classRosterTransports(data.supabase));
 </script>
 
 <svelte:head>
 	<title>Students // Coin Desk</title>
 </svelte:head>
 
-<SectionManager supabase={data.supabase} bind:sections configured={data.sectionsConfigured} />
+<SectionManager
+	supabase={data.supabase}
+	bind:sections
+	configured={data.sectionsConfigured}
+	{classRoster}
+/>
 
 <BalanceAdminPanel supabase={data.supabase} categoryKinds={data.categoryKinds} />

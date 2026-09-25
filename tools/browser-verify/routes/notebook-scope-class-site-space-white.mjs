@@ -22,6 +22,6 @@ export default {
 		...base.contrast,
 		{ selector: '.pick:not(.selected) .pick-meta', label: 'check-in pick meta on the recessed card (--text-3)', min: 4.5 },
 		{ selector: '.pick.selected .pick-meta', label: 'check-in pick meta on the selected wash (--text-2)', min: 4.5 },
-		{ selector: '.compose-card .inline-link', label: 'prose link (brass)', min: 4.5 }
+		{ selector: '[data-testid="nb-filing-manage-folders"]', label: 'Manage folders (brass, a box where it was a prose link)', min: 4.5 }
 	]
 };

@@ -17,7 +17,7 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { checkInDuplicateRefusal, sectionTabs } from '../src/lib/classroom/nav';
+import { checkInDuplicateRefusal, classDuplicatesHref, sectionTabs } from '../src/lib/classroom/nav';
 
 describe('the duplicate-date refusal carries its destination', () => {
 	// GENERALIZED (ledger 0297): the check-in manager moved from a Check-ins tab
@@ -32,10 +32,10 @@ describe('the duplicate-date refusal carries its destination', () => {
 		expect(r.linkLabel).toBe('Open the check-in manager');
 	});
 
-	it('is the Notebook tab and not the Duplicates tab (a duplicate check-in is not a duplicate draft)', () => {
+	it('is the Notebook tab and not the Duplicates page (a duplicate check-in is not a duplicate draft)', () => {
 		const r = checkInDuplicateRefusal('sec-42');
-		const dup = sectionTabs('sec-42').find((t) => t.id === 'duplicates')!;
-		expect(r.href).not.toBe(dup.href);
+		// ledger 0298: Duplicates is a page with doors, not a tab; its one address.
+		expect(r.href).not.toBe(classDuplicatesHref('sec-42'));
 		expect(r.message).not.toMatch(/Duplicates/);
 	});
 

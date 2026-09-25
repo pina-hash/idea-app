@@ -11,6 +11,7 @@ import type { ClassroomEnrollment, ClassroomItem, ClassroomSection } from '$lib/
 import type { GradingData, ResponseRow, SubmissionRow } from '$lib/classroom/assignment-spec';
 import type { HallPassManagerState } from '$lib/classroom/hall-pass';
 import { PRESENCE_LIMITS_FALLBACK, type PresencePayload, type PresenceRow } from '$lib/classroom/presence/state';
+import { countdown, stopwatch, type LiveTimer } from '$lib/classroom/live-class/timer';
 
 export const BASE = '/dev/classroom-live';
 export const PROJECTOR_HREF = '/dev/classroom-projector';
@@ -32,6 +33,40 @@ export const SECTION: ClassroomSection = {
 export const CLASS_LABEL = 'IDEA209H · Period 3 · Block 3';
 
 export const today = (now = Date.now()) => laCalendarDay(new Date(now));
+
+/**
+ * THE TIMERS EITHER HARNESS CAN SEED (ledger 0298), from the instant `now`:
+ *
+ *   running    a ten-minute countdown 1:23 in (the wall reads 8:37.0)
+ *   ready      a ten-minute countdown, set and not started
+ *   final      a ten-minute countdown with 7.42 s left, running
+ *   paused     the same, paused
+ *   done       a ten-minute countdown that ran out 32 s ago
+ *   stopwatch  a stopwatch 1:02:05.34 in
+ *
+ * With `?clock=pinned` a harness's clock stops at `now`, so the last-seconds
+ * and finished faces hold still and read exactly (0:07.42, 0:00.00); without
+ * it they run on the real clock, which is how a person watches them.
+ */
+export function demoTimer(kind: string | null, now: number): LiveTimer | null {
+	const TEN = 600_000;
+	switch (kind) {
+		case 'running':
+			return countdown(10, now - 83_000);
+		case 'ready':
+			return countdown(10, now, false);
+		case 'final':
+			return { mode: 'countdown', durationMs: TEN, startedAt: now - (TEN - 7_420), bankedMs: 0 };
+		case 'paused':
+			return { mode: 'countdown', durationMs: TEN, startedAt: null, bankedMs: TEN - 7_420 };
+		case 'done':
+			return { mode: 'countdown', durationMs: TEN, startedAt: now - (TEN + 32_000), bankedMs: 0 };
+		case 'stopwatch':
+			return stopwatch(now - 3_725_340);
+		default:
+			return null;
+	}
+}
 
 /** 11:58pm on the school day, in whichever offset Los Angeles is on. */
 function tonight(day: string): string {
@@ -67,7 +102,15 @@ export function items(now = Date.now()): ClassroomItem[] {
 		item({ id: ASSIGNMENT_ID, title: 'Truss sketch', due_at: tonight(day) }),
 		item({ id: 'i-levers', kind: 'material', title: 'Slides: levers and linkages', points: null, first_published_at: ago(2 * 3600, now) }),
 		// Scheduled to open later today, so it is on the agenda but held back from the wall.
-		item({ id: 'i-quiz', title: 'Quiz 2: gear ratios', publish_at: ahead(90 * 60, now), first_published_at: null }),
+		// Ninety minutes on, but never past 23:57 of the school day: after 22:30
+		// Pacific a plain +90 lands tomorrow, drops off today's agenda, and the
+		// `classroom-live` spec's agenda row went red every night for that reason.
+		item({
+			id: 'i-quiz',
+			title: 'Quiz 2: gear ratios',
+			publish_at: new Date(Math.min(now + 90 * 60_000, Date.parse(tonight(day)) - 60_000)).toISOString(),
+			first_published_at: null
+		}),
 		item({ id: 'i-bridge', title: 'Cantilever bridge', due_at: ahead(4 * 86_400, now) })
 	];
 }

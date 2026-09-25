@@ -142,12 +142,16 @@ export function entriesInFiling<E extends Pick<NotebookEntry, 'section_id' | 'se
  * THE DRAFT A CAPTURE CONTINUES: the newest entry in this filing that has not
  * been turned in. Read from the server's own list, so a reload, a second tab
  * and a return visit all add to the same draft rather than starting another.
+ *
+ * `exclude` is the draft the header's quick note is still writing (ledger 0298
+ * review). A quick note on an assignment page files exactly as a capture does,
+ * so without it the card would continue that draft and put a second editor on
+ * the quick note's own note chain, each autosave replacing the other's words.
  */
-export function continuedDraft<E extends Pick<NotebookEntry, 'section_id' | 'session_id' | 'custom_label' | 'upload_timestamp' | 'submitted_at'>>(
-	entries: readonly E[],
-	filing: CaptureFiling
-): E | null {
-	return entriesInFiling(entries, filing).find((e) => e.submitted_at === null) ?? null;
+export function continuedDraft<
+	E extends Pick<NotebookEntry, 'id' | 'section_id' | 'session_id' | 'custom_label' | 'upload_timestamp' | 'submitted_at'>
+>(entries: readonly E[], filing: CaptureFiling, exclude: string | null = null): E | null {
+	return entriesInFiling(entries, filing).find((e) => e.submitted_at === null && e.id !== exclude) ?? null;
 }
 
 // ---------------------------------------------------------------------------

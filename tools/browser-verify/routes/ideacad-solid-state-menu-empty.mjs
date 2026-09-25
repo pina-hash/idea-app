@@ -2,9 +2,10 @@
  * THE RIGHT-CLICK MENU ON EMPTY SPACE. Ledger 0296, stage W2.
  *
  * Off the model, the menu offers what applies to the whole view: the views
- * (a list opened in place), Fit, Show or Hide planes, the pick filter (a
- * list of boxes opened in place) and command search. Five rows, 44px each,
- * and the browser's own menu never opens.
+ * (a list), Fit, Show or Hide planes, the pick filter (a list of boxes) and
+ * command search. Five rows, 44px each, and the browser's own menu never
+ * opens. A list opens beside the menu on a mouse and in place on a phone
+ * (R04, ledger 0298); `ideacad-solid-state-menu-side` measures that.
  */
 import { BOX_READY, pointerSource } from './_ideacad-pointer.mjs';
 
@@ -33,7 +34,7 @@ export default {
 	],
 	presence: [
 		{ selector: '[data-testid="ideacad-context-menu"] [data-menu-row]', label: 'five rows off the model', expectPresent: 5, maxPresent: 5, expectVisible: 5 },
-		{ selector: '[data-testid="ideacad-context-menu"] [aria-haspopup="menu"]', label: 'the views and the pick filter open in place', expectPresent: 2, maxPresent: 2, expectVisible: 2 }
+		{ selector: '[data-testid="ideacad-context-menu"] [aria-haspopup="menu"]', label: 'the views and the pick filter each open a list', expectPresent: 2, maxPresent: 2, expectVisible: 2 }
 	],
 	textContains: [{ selector: '[data-testid="ideacad-context-menu"]', label: 'what empty space offers', must: ['Views', 'Fit', 'Show planes', 'Pick filter', 'Search commands'] }],
 	contrast: [{ selector: '[data-testid="ideacad-context-menu"] [data-menu-row] .label', label: 'a menu row', min: 4.5 }],

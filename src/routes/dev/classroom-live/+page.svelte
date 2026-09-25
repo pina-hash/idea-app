@@ -6,6 +6,8 @@
 	import { classroomCrumbs, classroomMeasure, locateClassroom, sectionTabs } from '$lib/classroom/nav';
 	import { createClassroomPreferences } from '$lib/preferences/classroom';
 	import type { PaletteSources } from '$lib/shell/palette';
+	import { browser } from '$app/environment';
+	import { buildProjectorFrame, projectorStorageKey } from '$lib/classroom/live-class/projector';
 	import type { ClassroomLive } from '$lib/classroom/live';
 	import type {
 		HallPassClosed,
@@ -22,6 +24,7 @@
 		SECTION,
 		VIEWER,
 		checkIns,
+		demoTimer,
 		grading,
 		hallPass,
 		items,
@@ -49,6 +52,31 @@
 
 	const presenceOff = page.url.searchParams.get('presence') === 'off';
 	const themeParam = page.url.searchParams.get('theme');
+
+	/* A TIMER ALREADY ON THE WALL (ledger 0298). `?timer=<kind>` writes a frame
+	   holding the fixture's `demoTimer` to this device's projector slot BEFORE
+	   the control view mounts, which is exactly what a reload mid-period finds:
+	   LiveControl adopts a stored frame's timer on mount. `?clock=pinned` stops
+	   the control view's clock at load, so the last seconds and the finish hold
+	   still for a spec to read. */
+	const timerKind = page.url.searchParams.get('timer');
+	const pinned = page.url.searchParams.get('clock') === 'pinned';
+	const PIN = Date.now();
+	if (browser && timerKind) {
+		try {
+			const frame = buildProjectorFrame({
+				day: today(PIN),
+				at: PIN,
+				agenda: [],
+				timer: demoTimer(timerKind, PIN),
+				hallPass: null,
+				pick: null
+			});
+			localStorage.setItem(projectorStorageKey(VIEWER, SECTION.id), JSON.stringify(frame));
+		} catch {
+			/* Storage blocked: the control view starts with no timer. */
+		}
+	}
 
 	/* FORCED THEME ATTRIBUTE. A harness holds no session, so ThemeRoot's own
 	   decision is always "none" here (F1a's note); the attribute is written the
@@ -192,6 +220,7 @@
 			peopleHref="/dev/classroom-tools"
 			gradeHrefFor={(id) => `/dev/grading-bulk?item=${id}`}
 			initialItemId={page.url.searchParams.get('item')}
+			clock={pinned ? () => PIN : undefined}
 			{random}
 		/>
 	</ClassroomShell>

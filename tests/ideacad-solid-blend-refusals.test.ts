@@ -146,7 +146,9 @@ describe('refusals that name an edge or a corner', () => {
 		expect(log.scratches.at(-1)).toBe(0);
 		const fixed = await press(e, refusal.help.fix!.commands);
 		expect(fixed.features.map((f) => f.id)).toEqual(['s1', 'x1', 'f1']);
-		expect(row(fixed, 'f1').status).toBe('ok');
+		/* Built, with the kernel's flat step at each corner where the round meets a sharp vertical edge (R06, tests/ideacad-solid-fillet-corner.test.ts). */
+		expect(row(fixed, 'f1').status).toBe('warning');
+		expect(row(fixed, 'f1').message).toMatch(/^At 4 corners this round meets edges left sharp/);
 		expect(fixed.bodies[0].faces.filter((f) => f.id.startsWith('f1.blend.') && f.kind === 'cylinder')).toHaveLength(4);
 		const straight = 2 * rounded(r, 4 - 2 * r) + 2 * rounded(r, 3 - 2 * r);
 		expect(fixed.bodies[0].volume).toBeLessThan(6 - straight);
@@ -163,7 +165,9 @@ describe('refusals that name an edge or a corner', () => {
 		expect(log.scratches.at(-1)).toBeLessThanOrEqual(FIT_ATTEMPTS);
 		const fixed = await press(e, refusal.help.fix!.commands);
 		expect(fixed.features.map((f) => f.id)).toEqual(['s1', 'x1', 'f1']);
-		expect(row(fixed, 'f1').status).toBe('ok');
+		/* Built, with the kernel's flat step at the one corner the two rounds share (R06). */
+		expect(row(fixed, 'f1').status).toBe('warning');
+		expect(row(fixed, 'f1').message).toMatch(/^At 1 corner this round meets an edge left sharp/);
 		const far = await add(e, { id: 'f3', name: 'Fillet 3', type: 'fillet', edges: [edgeRef(m, 'x1.start', 'x1.side.2')], radius: 0.1 });
 		expect(row(far, 'f3').status).toBe('ok');
 	});

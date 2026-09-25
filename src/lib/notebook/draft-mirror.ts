@@ -53,6 +53,21 @@ export const DRAFT_MIRROR_PREFIX = 'notebook_draft_mirror:';
 export const NEW_RECORD = 'new';
 
 /**
+ * THE QUICK NOTE'S OWN SLOT (ledger 0298, R33): `notebook_draft_mirror:<viewer>:quick`.
+ *
+ * The header's quick note is a notebook note, so it is mirrored through THIS
+ * module -- the same eight properties, the same vocabulary check -- rather
+ * than a third mirror of its own. But it is a DIFFERENT SURFACE from the
+ * composer, and `latestMirror` below answers "the newest slot for this
+ * viewer", which without an exclusion would hand the quick note's writing to
+ * the notebook composer the next time it mounted: the composer would put it in
+ * its own box and adopt the quick note's draft, and two editors would then be
+ * writing one note chain. So the composer's read skips this record, and the
+ * quick note reads its own key directly (`readMirror`).
+ */
+export const QUICK_NOTE_RECORD = 'quick';
+
+/**
  * Past this a mirror is treated as abandoned rather than as lost work.
  *
  * Twenty-four hours, not seven days. These are shared school lab machines, the
@@ -381,9 +396,11 @@ export function latestMirror(
 	const store = storage();
 	if (!store) return null;
 	const mine = `${DRAFT_MIRROR_PREFIX}${viewerId || 'anon'}:`;
+	// The quick note's slot belongs to another surface (see QUICK_NOTE_RECORD).
+	const quick = `${mine}${QUICK_NOTE_RECORD}`;
 	let best: { key: string; mirror: DraftMirror } | null = null;
 	for (const key of mirrorKeys(store)) {
-		if (!key.startsWith(mine)) continue;
+		if (!key.startsWith(mine) || key === quick) continue;
 		const mirror = readMirror(key, now);
 		if (!mirror) continue;
 		if (!best || mirror.at > best.mirror.at) best = { key, mirror };

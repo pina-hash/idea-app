@@ -385,7 +385,65 @@ function runBlend(ctx: ExecutorContext, f: Blend) {
 	}
 	const between = f.type === 'fillet' ? 'blend' : 'bevel';
 	const journaled = f.type === 'fillet' ? !f.variable : f.angle === undefined;
+	const message = f.type === 'fillet' ? flatStepWarning(flatSteps(k, sources, solid)) : undefined;
+	if (message) ctx.warn(message);
 	ctx.replaceBody(body, solid, journaled ? { between } : { carry: carryBySurface(ctx, sources), between });
+}
+/**
+ * The row's words for `flatSteps`. The advice (add the sharp edge) is given
+ * only for a step beside a ball, because that is the one kind it was measured
+ * to fix: on a box corner, rounding the third edge too makes a true ball
+ * corner. A step with no ball beside it is a round that stops flat under a
+ * corner it cannot reach, such as vertical edges rounded after the top was
+ * chamfered, and there adding the chamfer's edges is refused at every size
+ * (measured at 0.05 to 0.2 on a 0.1 bevel), so offering it would send a
+ * student straight to a refusal.
+ */
+export function flatStepWarning({ steps, balls }: { steps: number; balls: number }): string | undefined {
+	if (!steps) return undefined;
+	if (balls === steps) return steps === 1
+		? 'At 1 corner this round meets an edge left sharp, and IdeaCAD cannot blend the two yet, so it leaves a small flat step there. Add that sharp edge to this round for a smooth corner.'
+		: `At ${steps} corners this round meets edges left sharp, and IdeaCAD cannot blend them yet, so it leaves a small flat step at each. Add those sharp edges to this round for smooth corners.`;
+	if (!balls) return steps === 1
+		? 'At 1 corner this round runs into faces IdeaCAD cannot blend it into yet, so it stops with a small flat step there.'
+		: `At ${steps} corners this round runs into faces IdeaCAD cannot blend it into yet, so it stops with a small flat step at each.`;
+	return `At ${steps} corners this round stops with a small flat step, because IdeaCAD cannot blend it into the faces there yet. ${balls === 1 ? 'At the one where it meets an edge left sharp, add that edge to this round for a smooth corner.' : `At the ${balls} where it meets an edge left sharp, add those edges to this round for smooth corners.`}`;
+}
+/**
+ * THE KERNEL'S TWO-OF-THREE CORNER (report R06, measured in
+ * `tests/ideacad-solid-fillet-corner.test.ts`). Where a round ends at a convex
+ * corner whose third edge is left sharp, the vendored kernel builds the
+ * spherical corner that is right only when all three edges are rounded, and
+ * closes the gap it leaves with a FLAT face in the plane through the ball's
+ * centre, square to the sharp edge: a notch r³(2/3 - π/6) short of the true
+ * round, which reads on screen as an open, broken corner. Every kernel fillet
+ * entry point does it (or cannot close the shell at all), so it is disclosed
+ * rather than repaired here; repairing it changes the geometry and the face
+ * names of every document that already holds such a corner.
+ *
+ * A constant-radius round makes cylinders, tori, spheres and patches, never a
+ * plane, so a planar face in the result lying in no plane the body already
+ * had is that step, one per corner. A face the round only trimmed keeps its
+ * plane and is not counted.
+ *
+ * `balls` counts the steps sharing an edge with a spherical face: the corner
+ * above. A step with no ball beside it is the other kind, a round capped flat
+ * under a corner it cannot reach (vertical edges rounded after the top edges
+ * were chamfered leave a downward ledge r²(1 - π/4) in area at each corner),
+ * and `flatStepWarning` words the two differently.
+ */
+function flatSteps(k: BrepKernel, sources: readonly number[], solid: number): { steps: number; balls: number } {
+	const planeOf = (face: number) => { const p = json(k.getAnalyticSurfaceParams(face)); return { n: unit(vector(p.normal ?? [0, 0, 1])), d: Number(p.d ?? 0) }; };
+	const before = sources.filter((face) => k.getSurfaceType(face) === 'plane').map(planeOf);
+	const faces = [...k.getSolidFaces(solid)];
+	const found = faces.filter((face) => {
+		if (k.getSurfaceType(face) !== 'plane') return false;
+		const p = planeOf(face);
+		return !before.some((b) => dot(b.n, p.n) > 1 - 1e-9 && Math.abs(b.d - p.d) <= 1e-7 * Math.max(1, Math.abs(b.d)));
+	});
+	if (!found.length) return { steps: 0, balls: 0 };
+	const ballEdges = new Set<number>(faces.filter((face) => k.getSurfaceType(face) === 'sphere').flatMap((face) => [...k.getFaceEdges(face)]));
+	return { steps: found.length, balls: found.filter((face) => [...k.getFaceEdges(face)].some((e) => ballEdges.has(e))).length };
 }
 export function fillet(ctx: ExecutorContext, f: FeatureOf<'fillet'>) { runBlend(ctx, f); }
 export function chamfer(ctx: ExecutorContext, f: FeatureOf<'chamfer'>) { runBlend(ctx, f); }

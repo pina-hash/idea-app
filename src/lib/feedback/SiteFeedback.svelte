@@ -361,6 +361,7 @@
 			type="button"
 			class="sfb-trigger"
 			class:sfb-trigger-error={status !== null}
+			data-tour="report"
 			onclick={openBox}
 			onpointerenter={preload}
 			onpointerdown={preload}

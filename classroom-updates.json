@@ -14,6 +14,171 @@
 	"entries": [
 		{
 			"date": "2026-09-25",
+			"title": "Shared IdeaCAD models update while you work",
+			"body": "When someone else saves a change to an IdeaCAD model you both have open, it now shows up on your screen within a few seconds without refreshing, and a line under the model says who changed it. If you have unsaved changes of your own, IdeaCAD keeps them and tells you a newer version exists. Press Save backup first if you want to keep your version, then Load newer version. Next to the save status, IdeaCAD says Live when changes arrive right away, or Live unavailable when it is checking every 12 seconds instead.",
+			"tags": [
+				"IdeaCAD",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "The IdeaCAD save warning is now on screen",
+			"body": "If IdeaCAD cannot save your model, the Changes not saved box now appears just above the bottom bar with its Save backup button. Before, it could end up out of sight.",
+			"tags": [
+				"IdeaCAD",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "IdeaCAD sketches snap to more places and keep things lined up",
+			"body": "When you draw in an IdeaCAD sketch, your click now snaps to the middle of a line, anywhere along a line, circle or arc, where two lines cross, and in line with a point you just passed over. A small label next to the pointer says what it will snap to, and the sketch keeps that relation (such as Midpoint or Point on line) so it stays put when you change a size later. Press Undo once to take back the line and its relation together. Hold Ctrl (Cmd on a Mac) to place a point freely with no snapping.",
+			"tags": [
+				"IdeaCAD",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "More relations for selected sketch pieces",
+			"body": "Select sketch pieces to see new relation buttons: Coincident, Horizontal or Vertical for two points, Symmetric for two points and a line, Point on line, Collinear for two lines, and Tangent where a line and an arc, or two arcs, meet at an end. A relation the sketch already has is not offered twice.",
+			"tags": [
+				"IdeaCAD",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Split a sketch with a line drawn edge to edge",
+			"body": "When a line you draw in an IdeaCAD sketch snaps onto the edge of a shape, it stays on that edge but does not cut the shape yet. To split the shape into two areas you can extrude separately, choose Extend and click near each end of the line.",
+			"tags": [
+				"IdeaCAD"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "IdeaCAD tells you when a rounded corner has a flat step",
+			"body": "If you round edges that meet at a corner where another edge is left sharp (for example, rounding only the four top edges of a block), IdeaCAD leaves a small flat step at that corner instead of a smooth one. The round now shows a warning that says so. For a smooth corner, add the sharp edge at that corner to the same round.",
+			"tags": [
+				"IdeaCAD"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "No more streaks on faces that sit on a reference plane",
+			"body": "A part you draw starting at the origin has faces lying right on the Front, Top or Right plane. With the planes showing, those faces could look streaked with light and dark wedges. They now look solid.",
+			"tags": [
+				"IdeaCAD",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "IdeaCAD right-click lists open to the side",
+			"body": "In IdeaCAD, when you right-click and rest your mouse on a row with an arrow (Views, Recent, Pick filter or Select other), its list now opens in a panel beside the menu, like desktop CAD programs. Near the right edge of the screen it opens on the left instead. The right arrow key opens a list and the left arrow key or Escape goes back. On a phone or tablet, a tap still opens the list inside the menu with a Back row, the same as before.",
+			"tags": [
+				"IdeaCAD"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "The class timer on the projector counts in tenths, and the last ten seconds show hundredths",
+			"body": "When your teacher puts a timer or stopwatch on the projector, it now counts in tenths of a second. In the last ten seconds of a countdown it shows hundredths, the edge of the timer changes color, and a ring pulses once a second. When time is up the ring flashes once. If the computer running the projector is set to reduce motion, the pulse and flash are left out and only the color changes.",
+			"tags": [
+				"Classes",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Every video in your class, in one place",
+			"body": "If your class has YouTube videos in its posts, your class page now has a Videos section under the search box. Press it to see every video as a picture you can press to watch it on YouTube. Under each one, Posted in takes you back to the post it came from, where the instructions are, and Also in lists any other post that shares it. Searching the class narrows the videos too.",
+			"tags": [
+				"Classes",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "More room for your worksheet",
+			"body": "When you open an HTML worksheet or an assignment you fill in on the page, the list of the class's other items now starts hidden, so the work gets the whole screen. Press Show class list beside the title to bring it back; the site remembers your choice on that computer. The classroom tour now points to this button.",
+			"tags": [
+				"Classes",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Voice commands moved into Search",
+			"body": "The floating Voice button is gone. In the classroom, open Search (the Search button, or Ctrl K), press Speak, and say the exact name of something in the list, like an assignment or one of your classes. If what you say does not match exactly one thing, your words stay in the search box so you can pick from the list, and nothing opens by mistake. Your browser's own speech service turns your voice into text; the site keeps no recording.",
+			"tags": [
+				"Classes"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "A new tour of the home page",
+			"body": "The tour on the home page now shows every app you can open, your profile menu (your picture, pathway, Identity and the theme, including the light Space White theme), your to-do, your classes, and where to report a problem. If you took the old tour, you will see one line near the top of the home page offering the new one, once: press Show me around, or Not now. Take the tour at the top of the page shows it again any time.",
+			"tags": [
+				"Home",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Quick notes from any class page",
+			"body": "There is a Note button at the top of every class and notebook page (on a phone it is inside Menu), and on the home page on phones and wide screens. Type a note and it saves itself as a private draft in your notebook while you type. Only you can see it until you turn it in. A note written on an assignment page is filed to that class under the assignment's name. Press Save when you are done, or Open notebook to find it.",
+			"tags": [
+				"Notebook",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Your notebook has an Inbox",
+			"body": "Press Inbox in your notebook to see your drafts that are not on a check-in yet, newest first. One press files a draft to your class's check-in (or to your class when it has none open). It is still a draft there, so turn it in when it is ready. Drafts with photos stay where they are for now; open them to finish them.",
+			"tags": [
+				"Notebook",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "You can hide the Note button",
+			"body": "Do not want the Note button? Open it and press Hide this button. You can turn it back on from your notebook's Inbox with Show the Note button in the page header.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Your notebook opens on your own log",
+			"body": "The notebook now opens on your own entries, newest first, with one writing box at the top. Write in it or add a photo, and it saves itself as a private draft filed to today's check-in, the same as before. To put it somewhere else, or to give it a title or a folder, press Change next to Filed to. Press Turn in when it is ready for your teacher, or New entry to keep your draft and start another. Once a draft is saved, Filed to shows where it is and it stays there.",
+			"tags": [
+				"Notebook",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Three quick templates for notebook entries",
+			"body": "Under the writing box, Design decision, Test result and Build log each add a few headings to your entry, with the cursor under the first one. They are only a start: write under them, change them, or delete them. A template never replaces a grid you already filled in.",
+			"tags": [
+				"Notebook",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Your next check-in shows its status in words",
+			"body": "The top of your notebook shows your next check-in with a word that says where you stand, such as Not filed yet, Draft, not turned in, or All filed. Press it to file what you write next to that check-in. If you press Turn in with nothing written and no photo, the notebook now tells you why.",
+			"tags": [
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-09-25",
 			"title": "Your notebook keeps saving while you type on a slow connection",
 			"body": "If you kept typing in your notebook while a save was still on its way, the words you added could be left unsaved even though the box said Saved, and pressing Turn in at that moment could leave them out. Now every word you type is saved a moment after you pause, and Saved only shows once your words really are saved.",
 			"tags": [

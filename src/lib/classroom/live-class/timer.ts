@@ -19,6 +19,16 @@
  * ClassroomScreen's teachers use the time widgets most (timer, clock,
  * stopwatch), which is the research this set comes from: three presets, a
  * custom length, start, pause, reset, one minute more, and a stopwatch.
+ *
+ * PARTS OF A SECOND (ledger 0298, R27's tail). The control view reads to the
+ * hundredth always; the wall reads to the tenth, and to the hundredth in a
+ * countdown's last ten seconds (`timerReadout`, `timerFinal`). The digits are
+ * still DERIVED from the clock at every paint, never counted by ticks, so a
+ * late or skipped tick shows the right time a moment later rather than a wrong
+ * one. The one thing here that is not arithmetic is `tickEachFrame`, which
+ * schedules those paints on an animation frame OR a timeout, never a frame
+ * alone; it reads no clock and takes its scheduler as a parameter, so it is as
+ * assertable as the rest.
  */
 
 import { SCHOOL_LOCALE, SCHOOL_TIME_ZONE } from '$lib/classroom/school-calendar';
@@ -159,29 +169,223 @@ export function parseTimerMinutes(input: string | number | null | undefined): nu
 	return minutes;
 }
 
+/** How many decimal places of a second a readout shows: none, tenths or hundredths. */
+export type TimerPlaces = 0 | 1 | 2;
+
+/** A readout's step in ms, per number of places. */
+const PLACE_MS: Record<TimerPlaces, number> = { 0: 1000, 1: 100, 2: 10 };
+
 /**
- * A DURATION AS THE WALL READS IT: `m:ss`, or `h:mm:ss` from an hour up.
- *
- * `round` decides which way a part-second goes, and the two modes want
- * different answers: a countdown ROUNDS UP, so it reads 10:00 for the whole of
- * its first second and reaches 0:00 exactly when time is up, never a second
- * early; a stopwatch rounds down, so it reads 0:00 until a whole second has
- * actually passed.
+ * A READOUT IN TWO PARTS: `whole` is `m:ss` (or `h:mm:ss` from an hour up),
+ * the part a class reads from the back of the room, and `fraction` is `.d` or
+ * `.dd` (empty at no places), which a face draws smaller beside it. `text` is
+ * the two together.
  */
-export function formatDuration(ms: number, round: 'up' | 'down' = 'down'): string {
-	const safe = Number.isFinite(ms) ? Math.max(0, ms) : 0;
-	const total = round === 'up' ? Math.ceil(safe / 1000) : Math.floor(safe / 1000);
-	const h = Math.floor(total / 3600);
-	const m = Math.floor((total % 3600) / 60);
-	const s = total % 60;
-	const ss = String(s).padStart(2, '0');
-	return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+export interface TimerReadout {
+	whole: string;
+	fraction: string;
+	text: string;
 }
 
-/** What the timer's big digits read at `now`. */
+/**
+ * A DURATION AS A FACE READS IT, to `places` decimal places of a second.
+ *
+ * `round` decides which way the part below the last place goes, and the two
+ * modes want different answers: a countdown ROUNDS UP, so it reads 10:00.00
+ * until a whole hundredth has gone and reaches 0:00.00 exactly when time is
+ * up, never a step early; a stopwatch rounds down, so it reads 0:00.00 until a
+ * hundredth has actually passed. The rounding happens ONCE, in whole steps of
+ * the last place shown, and the whole and the fraction are both cut from that
+ * one number -- which is what stops a countdown reading "0:10.99" (a rounded-up
+ * whole beside a separately rounded fraction).
+ *
+ * Negative, infinite and NaN inputs read as zero: a face never shows a minus.
+ */
+export function formatReadout(ms: number, round: 'up' | 'down', places: TimerPlaces): TimerReadout {
+	const safe = Number.isFinite(ms) ? Math.max(0, ms) : 0;
+	const step = PLACE_MS[places];
+	const perSecond = 1000 / step;
+	const steps = round === 'up' ? Math.ceil(safe / step) : Math.floor(safe / step);
+	const total = Math.floor(steps / perSecond);
+	const h = Math.floor(total / 3600);
+	const m = Math.floor((total % 3600) / 60);
+	const ss = String(total % 60).padStart(2, '0');
+	const whole = h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+	const fraction = places === 0 ? '' : `.${String(steps % perSecond).padStart(places, '0')}`;
+	return { whole, fraction, text: whole + fraction };
+}
+
+/**
+ * A DURATION IN WHOLE SECONDS: `m:ss`, or `h:mm:ss` from an hour up. The
+ * overtime line and the whole-second face read this; it is `formatReadout` at
+ * no places, so there is one formatter.
+ */
+export function formatDuration(ms: number, round: 'up' | 'down' = 'down'): string {
+	return formatReadout(ms, round, 0).whole;
+}
+
+/** What the timer's big digits read at `now`, to the whole second. */
 export function timerDigits(t: LiveTimer, now: number): string {
 	if (t.mode === 'stopwatch') return formatDuration(timerElapsed(t, now), 'down');
 	return formatDuration(Math.max(0, timerRemaining(t, now)), 'up');
+}
+
+/**
+ * WHICH FACE IS READING. The teacher's control view is a laptop at arm's
+ * length; the wall is read from the back of the room.
+ */
+export type TimerFace = 'control' | 'wall';
+
+/**
+ * A COUNTDOWN'S LAST STRETCH, in ms. R27 asked for "counting milliseconds";
+ * the 2026-09-25 triage's default for decision owed (6), taken overnight, is
+ * hundredths on the control view always and on the wall only in this stretch,
+ * tenths otherwise. A wall of hundredths for ten minutes is a blur the back row
+ * cannot read, and the last ten seconds is when a class is watching the clock.
+ */
+export const TIMER_FINAL_MS = 10_000;
+
+/**
+ * IS A COUNTDOWN IN ITS LAST TEN SECONDS? Judged on the face at hundredths, so
+ * the wall switches exactly where the digits cross 10.00 and never shows
+ * "0:10.00": at 10.000 s left it reads 0:10.0, at 9.990 s it reads 0:09.99. A
+ * countdown that has run out counts (its face holds 0:00.00); a stopwatch
+ * never does.
+ */
+export function timerFinal(t: LiveTimer, now: number): boolean {
+	if (t.mode !== 'countdown') return false;
+	const step = PLACE_MS[2];
+	return Math.ceil(Math.max(0, timerRemaining(t, now)) / step) < TIMER_FINAL_MS / step;
+}
+
+/** How many places a face shows at `now`: hundredths on the control view, the wall's rule above. */
+export function timerPlaces(t: LiveTimer, now: number, face: TimerFace): TimerPlaces {
+	if (face === 'control') return 2;
+	return timerFinal(t, now) ? 2 : 1;
+}
+
+/** What a face's big digits read at `now`, with the parts of a second that face shows. */
+export function timerReadout(t: LiveTimer, now: number, face: TimerFace): TimerReadout {
+	const places = timerPlaces(t, now, face);
+	if (t.mode === 'stopwatch') return formatReadout(timerElapsed(t, now), 'down', places);
+	return formatReadout(Math.max(0, timerRemaining(t, now)), 'up', places);
+}
+
+/**
+ * HOW LONG A FACE WILL HOLD STILL from `now`, in ms: the time until the last
+ * place it shows next steps, or until the wall switches from tenths to
+ * hundredths, whichever comes first. The wall at tenths changes ten times a
+ * second, so its frame loop sleeps between those rather than re-reading the
+ * clock sixty times a second for nothing; the control view's hundredths step
+ * faster than a frame, so it reads every frame. Infinity for a timer that is
+ * not counting (stopped, or a countdown that has run out and holds 0:00.00).
+ */
+export function timerHoldMs(t: LiveTimer, now: number, face: TimerFace): number {
+	if (t.startedAt === null) return Infinity;
+	const step = PLACE_MS[timerPlaces(t, now, face)];
+	if (t.mode === 'stopwatch') return step - (timerElapsed(t, now) % step);
+	const remaining = timerRemaining(t, now);
+	if (remaining <= 0) return Infinity;
+	// A countdown rounds up, so its face steps as `remaining` falls onto a
+	// multiple of the step: from 7420 at tenths ("7.5") it holds 20 ms.
+	const toStep = ((remaining - 1) % step) + 1;
+	const final = TIMER_FINAL_MS - PLACE_MS[2];
+	return face === 'wall' && remaining > final ? Math.min(toStep, remaining - final) : toStep;
+}
+
+/**
+ * DOES A FACE NEED A FRESH READING EVERY FRAME? Only while its digits move: a
+ * timer that is running and has not run out. A ready, paused or finished one
+ * shows the same digits until somebody presses something (the overtime line
+ * counts whole seconds, which the page's own slower clock covers), so no frame
+ * loop runs for a timer left on the wall all period.
+ */
+export function timerTicking(t: LiveTimer | null, now: number): boolean {
+	return t !== null && t.startedAt !== null && timerPhase(t, now) !== 'done';
+}
+
+/**
+ * THE FLOOR UNDER A FRAME THAT NEVER COMES, in ms. A window the browser has
+ * stopped painting (hidden, minimised, covered) runs no animation frame at all,
+ * so every tick is also scheduled as a timeout. The browser may stretch that
+ * further in a hidden window, which costs nothing: the digits are derived from
+ * the clock, so a late tick shows the right time, just later.
+ */
+export const TIMER_TICK_FLOOR_MS = 50;
+
+/** What `tickEachFrame` schedules with, injected so a test can hand it fakes. */
+export interface FrameHost {
+	requestAnimationFrame?: ((callback: () => void) => number) | null;
+	cancelAnimationFrame?: ((handle: number) => void) | null;
+	setTimeout: (callback: () => void, ms: number) => unknown;
+	clearTimeout: (handle: unknown) => void;
+}
+
+/** This page's own scheduler. No animation frame where there is none (a server render, a worker). */
+export function browserFrameHost(): FrameHost {
+	const g = globalThis as typeof globalThis & {
+		requestAnimationFrame?: (cb: () => void) => number;
+		cancelAnimationFrame?: (handle: number) => void;
+	};
+	return {
+		requestAnimationFrame:
+			typeof g.requestAnimationFrame === 'function' ? (cb) => g.requestAnimationFrame!(cb) : null,
+		cancelAnimationFrame: typeof g.cancelAnimationFrame === 'function' ? (h) => g.cancelAnimationFrame!(h) : null,
+		setTimeout: (cb, ms) => g.setTimeout(cb, ms),
+		clearTimeout: (h) => g.clearTimeout(h as ReturnType<typeof setTimeout>)
+	};
+}
+
+/**
+ * CALL `tick` ON EVERY FRAME, OR EVERY `floorMs` WHERE NO FRAME COMES, until
+ * the returned function is called. RAF-OR-TIMEOUT, NEVER RAF ALONE (CLAUDE.md,
+ * DOM): each tick is scheduled BOTH ways, whichever fires first runs it and
+ * cancels the other, so a painting window ticks on its frames and a window the
+ * browser stopped painting still ticks on the timeout. Nothing runs
+ * synchronously: the first tick is the first frame or timeout after the call.
+ *
+ * A tick may answer how long its face will hold still (`timerHoldMs`). Longer
+ * than `floorMs`, the loop SLEEPS on a timeout for that long and then asks for
+ * the next frame-or-timeout, so the paint still lands on the first frame after
+ * the digits change; shorter, or no answer, and it simply runs every frame.
+ */
+export function tickEachFrame(
+	tick: () => number | void,
+	host: FrameHost = browserFrameHost(),
+	floorMs = TIMER_TICK_FLOOR_MS
+): () => void {
+	let stopped = false;
+	let frame: number | null = null;
+	let timeout: unknown = null;
+	const cancel = () => {
+		if (frame !== null) host.cancelAnimationFrame?.(frame);
+		if (timeout !== null) host.clearTimeout(timeout);
+		frame = null;
+		timeout = null;
+	};
+	const run = () => {
+		cancel();
+		if (stopped) return;
+		const hold = tick();
+		if (stopped) return;
+		if (typeof hold === 'number' && hold > floorMs && Number.isFinite(hold)) {
+			timeout = host.setTimeout(() => {
+				timeout = null;
+				if (!stopped) schedule();
+			}, hold);
+		} else {
+			schedule();
+		}
+	};
+	const schedule = () => {
+		if (host.requestAnimationFrame) frame = host.requestAnimationFrame(run);
+		timeout = host.setTimeout(run, floorMs);
+	};
+	schedule();
+	return () => {
+		stopped = true;
+		cancel();
+	};
 }
 
 /** How far past the end a countdown is, as "0:32", or null while it has time left. */
