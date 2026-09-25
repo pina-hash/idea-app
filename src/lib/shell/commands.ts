@@ -33,7 +33,7 @@
  */
 import { GRADE_KEYS } from '$lib/classroom/grading-keys';
 import { REVIEW_KEYS } from '$lib/notebook-review';
-import { sectionTabs, type SectionTabId } from '$lib/classroom/nav';
+import { classDuplicatesHref, sectionTabs, type SectionTabId } from '$lib/classroom/nav';
 import type { KeyBinding } from './keys';
 
 export type CommandRole = 'any' | 'student' | 'manager';
@@ -314,14 +314,17 @@ const CORE: readonly ShellCommand[] = [
 		href: tabHref('grades')
 	},
 	{
+		// NOT A TAB SINCE LEDGER 0298 (report 28): this command and the class
+		// page's door beside Drafts are the page's two ways in, and both read
+		// `classDuplicatesHref`, so they cannot point two ways.
 		id: 'class.duplicates',
 		name: 'Duplicates',
 		icon: ICONS.duplicates,
 		description: 'Drafts that repeat something already posted.',
 		role: 'manager',
 		context: 'class',
-		keywords: ['copies', 'repeated'],
-		href: tabHref('duplicates')
+		keywords: ['copies', 'repeated', 'duplicate drafts'],
+		href: (env) => (env.sectionId ? classDuplicatesHref(env.sectionId, env.basePath) : null)
 	},
 	{
 		// The class's own Notebook tab (ledger 0297): a student's notebook in

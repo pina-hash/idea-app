@@ -37,7 +37,8 @@
 	const crumbs = classroomCrumbs(loc, { section: 'IDEA209H · Period 1' });
 
 	/**
-	 * THE TABS THAT SHIP, FROM THE REAL FUNCTION -- five of them now.
+	 * THE TABS THAT SHIP, FROM THE REAL FUNCTION -- five of them now (ledger
+	 * 0298 took Duplicates out of the bar; its door is on the class page).
 	 *
 	 * THIS USED TO BE FOUR PLUS A LOCAL `withDuplicates` FIXTURE, and the
 	 * fixture is gone rather than kept beside the real thing. 0081 built it

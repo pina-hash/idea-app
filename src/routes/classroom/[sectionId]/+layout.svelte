@@ -39,6 +39,7 @@
 		runClassroomExport
 	} from '$lib/classroom/transports';
 	import { supabaseProfileIo, writeProfileNamespace } from '$lib/preferences/profile-io';
+	import { loadDuplicateDraftCount } from '$lib/classroom/duplicate-count';
 	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
 	import { classOpensOnFor } from '$lib/preferences/classroom';
 	import type { LayoutData } from './$types';
@@ -476,6 +477,7 @@
 		loadExportStatuses={(ids) => loadExportStatuses(data.supabase, ids)}
 		retryExport={runClassroomExport}
 		onchanged={() => invalidateAll()}
+		loadDuplicateCount={data.canManage ? () => loadDuplicateDraftCount(data.supabase, data.section.id) : null}
 	/>
 {/snippet}
 

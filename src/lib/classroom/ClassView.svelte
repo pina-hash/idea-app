@@ -83,6 +83,8 @@
 	import { ICONS } from '$lib/shell/commands';
 	import { registerCommandHandler } from '$lib/shell/command-handlers';
 	import type { ClassOpensOn } from '$lib/preferences/classroom';
+	import { classDuplicatesHref } from '$lib/classroom/nav';
+	import { duplicateDoorLabel } from '$lib/classroom/duplicate-count';
 
 	/**
 	 * ONE view of a class's content, grouped by the units its teacher authored.
@@ -129,7 +131,8 @@
 		onchanged = null,
 		layoutTransports = null,
 		opensOn = 'all',
-		clock = null
+		clock = null,
+		loadDuplicateCount = null
 	}: {
 		section: ClassroomSection;
 		items: ClassroomItem[];
@@ -240,6 +243,14 @@
 		 * status filter at all.
 		 */
 		clock?: { now: string; today: string } | null;
+		/**
+		 * THE DUPLICATES DOOR'S COUNT (ledger 0298, report 28): the Duplicates
+		 * page left the tab bar, and its door here renders only when this answers
+		 * a number above zero. `$lib/classroom/duplicate-count.ts` is the real
+		 * transport (0187's own function); null here, or a null answer, is no
+		 * door -- which is every student's case and every read-only surface's.
+		 */
+		loadDuplicateCount?: (() => Promise<number | null>) | null;
 	} = $props();
 
 	let unitsOpen = $state(false);
@@ -505,6 +516,38 @@
 		clock ? standingCounts(items, checkIns, filterCtx) : { todo: 0, missing: 0, done: 0 }
 	);
 	const draftCount = $derived(canManage ? items.filter((i) => !i.published).length : 0);
+	/**
+	 * THE DUPLICATES DOOR (ledger 0298, report 28), beside the Drafts chip and
+	 * only when the class has duplicate drafts. Asked of 0187 through the
+	 * injected `loadDuplicateCount`, and only when a duplicate is even possible:
+	 * a manager with at least two drafts (0187 groups copies of one draft, so
+	 * one draft can never be a duplicate). Re-asked when the draft count moves,
+	 * which is what a publish or a delete on this page does. A stale answer --
+	 * another class's, or one overtaken by a newer ask -- is dropped.
+	 *
+	 * TRACK THE INPUTS, UNTRACK THE CALL (CLAUDE.md): the loader is somebody
+	 * else's code, so only its invocation runs untracked.
+	 */
+	let duplicateCount = $state(0);
+	let duplicateAsk = 0;
+	$effect(() => {
+		const load = canManage ? loadDuplicateCount : null;
+		const sectionId = section.id;
+		const drafts = draftCount;
+		const ask = ++duplicateAsk;
+		if (!load || drafts < 2) {
+			duplicateCount = 0;
+			return;
+		}
+		untrack(() => load()).then(
+			(n) => {
+				if (ask === duplicateAsk && sectionId === section.id) duplicateCount = n ?? 0;
+			},
+			() => {
+				if (ask === duplicateAsk) duplicateCount = 0;
+			}
+		);
+	});
 	/**
 	 * THE STATUS CHIPS, per role. A student with a clock gets their own work in
 	 * three states; a manager gets Drafts when there is one. Nothing else is
@@ -1934,6 +1977,16 @@
 						</button>
 					{/each}
 				</div>
+			{/if}
+			{#if canManage && duplicateCount > 0}
+				<!-- THE DUPLICATES DOOR (ledger 0298, report 28): the page left the
+				     tab bar, and this is where it is found when there is something
+				     to act on -- beside Drafts, a link rather than a filter, quiet
+				     until then because it is not rendered at all. -->
+				<a class="find-door" href={classDuplicatesHref(section.id, basePath)} data-testid="stream-duplicates-door">
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.duplicates} /></svg>
+					{duplicateDoorLabel(duplicateCount)}
+				</a>
 			{/if}
 			{#if filtering}
 				<div class="find-result" data-testid="stream-find-result">
@@ -3424,6 +3477,34 @@
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		color: var(--text-2);
+	}
+	/* THE DUPLICATES DOOR: a link, so no chip edge and no pressed state -- the
+	   quiet end of the row, in the secondary ink, underlined like every other
+	   link out of a toolbar. 44px tall like everything in this pane. */
+	.find-door {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		min-height: 44px;
+		padding: 0 0.4rem;
+		color: var(--text-2);
+		font-family: var(--font-mono);
+		font-size: 0.74rem;
+		text-decoration: underline;
+		text-underline-offset: 0.2em;
+	}
+	.find-door:hover {
+		color: var(--text-1);
+	}
+	.find-door svg {
+		flex: none;
+		width: 16px;
+		height: 16px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.7;
+		stroke-linecap: round;
+		stroke-linejoin: round;
 	}
 	.find-result {
 		display: inline-flex;

@@ -3,11 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import {
 	activeTab,
+	classDuplicatesHref,
+	classroomCrumbs,
 	locateClassroom,
 	sectionTabs,
 	visibleSectionTabs,
 	type SectionTab
 } from '../src/lib/classroom/nav';
+import { commandById } from '../src/lib/shell/commands';
+import { duplicateDoorLabel, loadDuplicateDraftCount } from '../src/lib/classroom/duplicate-count';
+import { EMPTY_ANSWER as EMPTY_DUPLICATES } from '../src/lib/classroom/DuplicateDrafts.svelte';
 import { loadGreenlinePending, pendingBreakdown, pendingLabel } from '../src/lib/greenline/moderation';
 import GreenlineDashboardCard from '../src/lib/greenline/GreenlineDashboardCard.svelte';
 
@@ -69,20 +74,17 @@ describe('control 1: a caller who manages no section is offered no manage-only t
 		expect(visible.some((t) => t.id === 'live')).toBe(false);
 		expect(visible.some((t) => t.id === 'people')).toBe(false);
 		expect(visible.some((t) => t.id === 'grades')).toBe(false);
-		expect(visible.some((t) => t.id === 'duplicates')).toBe(false);
 	});
 
-	it('POSITIVE CONTROL: a manager sees all six, so the absences above are the predicate', () => {
+	/*
+	 * GENERALIZED (ledger 0298, report 28): six became five. Duplicates is a
+	 * page with doors now, not a tab; the last block below holds the page and
+	 * its doors together.
+	 */
+	it('POSITIVE CONTROL: a manager sees all five, so the absences above are the predicate', () => {
 		const visible = visibleSectionTabs(tabs, true);
-		expect(visible.map((t) => t.id)).toEqual([
-			'class',
-			'live',
-			'notebook',
-			'people',
-			'grades',
-			'duplicates'
-		]);
-		expect(visible.length).toBe(6);
+		expect(visible.map((t) => t.id)).toEqual(['class', 'live', 'notebook', 'people', 'grades']);
+		expect(visible.length).toBe(5);
 	});
 
 	it('the shell filters through that one function and does not spell it again', () => {
@@ -210,18 +212,19 @@ describe('control 3: every section tab still resolves', () => {
 	 * A TAB'S HREF IS CHECKED AGAINST THE TREE, not against a list written
 	 * here. Remove `people` from `sectionTabs` and the `expect(ids)` below
 	 * names it; point a tab at a path with no page behind it and the existence
-	 * check names the file it looked for. The duplicates tab is absent from
-	 * both directions on purpose -- see the last block.
+	 * check names the file it looked for. Duplicates is not a tab since ledger
+	 * 0298 -- see the last block, which holds its page and its doors together.
 	 */
-	it('the shipped set is exactly these six, in reading order', () => {
-		expect(tabs.map((t) => t.id)).toEqual(['class', 'live', 'notebook', 'people', 'grades', 'duplicates']);
+	it('the shipped set is exactly these five, in reading order', () => {
+		expect(tabs.map((t) => t.id)).toEqual(['class', 'live', 'notebook', 'people', 'grades']);
 	});
 
 	it('every in-classroom tab points at a page that exists on disk', () => {
 		const internal = tabs.filter((t) => !t.external);
-		// Six: the notebook came inside the class and the Live tab joined it
-		// (ledger 0297); no tab is a departure any more.
-		expect(internal.length).toBe(6);
+		// Five: the notebook came inside the class and the Live tab joined it
+		// (ledger 0297), and Duplicates left the bar (ledger 0298); no tab is a
+		// departure.
+		expect(internal.length).toBe(5);
 		for (const t of internal) {
 			const file = routeFileFor(t.href);
 			expect(existsSync(new URL(`../${file}`, import.meta.url)), `${t.id} -> ${file}`).toBe(true);
@@ -268,60 +271,108 @@ describe('control 3: every section tab still resolves', () => {
 	});
 });
 
-describe('the duplicates tab and its page stand or fall together', () => {
+describe('the duplicates page and its doors stand or fall together', () => {
 	/**
-	 * BOTH HALVES HAVE LANDED, AND THE BICONDITIONAL IS WHAT KEPT THEM
-	 * HONEST WHILE ONLY ONE HAD. 0081 withheld the tab because 0074's page was
-	 * on an unmerged branch behind an unapplied migration, and a tab for it
-	 * would have been a 404 offered to every manager -- worse than the typed
-	 * URL it replaces. The page landed on `main` with `0187`; this test went
-	 * red with both parents green, which is exactly what it was written to do,
-	 * and 0086 answered it with the tab. It is left pointing BOTH ways: delete
-	 * the page and it reddens naming the orphaned tab, delete the tab and it
-	 * reddens naming the orphaned page.
+	 * GENERALIZED (ledger 0298, report 28) FROM "the duplicates tab and its
+	 * page stand or fall together". The biconditional is the same one: 0081
+	 * withheld the tab because 0074's page was on an unmerged branch behind an
+	 * unapplied migration, and a tab for it would have been a 404 offered to
+	 * every manager; 0086 landed the tab once the page landed. Mr. Pina then
+	 * asked for the TAB to go ("I don't think I'm going to ever use it very
+	 * often ... put somewhere out of the way"), so what must stand with the
+	 * page is its DOORS: the `class.duplicates` palette command and the class
+	 * page's door beside the Drafts filter, both reading `classDuplicatesHref`.
+	 * It still points BOTH ways: delete the page and it reddens naming the
+	 * orphaned doors, delete the doors and it reddens naming the orphaned page.
 	 */
-	it('no tab names it while no page answers it', () => {
-		const pageExists = existsSync(
-			new URL('../src/routes/classroom/[sectionId]/duplicates/+page.svelte', import.meta.url)
-		);
-		const tabExists = sectionTabs('s-1').some((t) => t.href.endsWith('/duplicates'));
+	const pageExists = existsSync(
+		new URL('../src/routes/classroom/[sectionId]/duplicates/+page.svelte', import.meta.url)
+	);
+	const view = read('src/lib/classroom/ClassView.svelte');
+	const commandHref = commandById('class.duplicates')?.href?.({
+		role: 'manager',
+		surface: 'classroom',
+		sectionId: 's-1',
+		itemId: null,
+		basePath: '/classroom',
+		handlers: new Set()
+	});
+	const doors = {
+		palette: commandHref === classDuplicatesHref('s-1'),
+		classPage:
+			view.includes('classDuplicatesHref(section.id, basePath)') &&
+			view.includes('data-testid="stream-duplicates-door"')
+	};
+
+	it('the page has doors exactly while it answers, and no tab', () => {
 		expect(
-			tabExists,
+			doors.palette && doors.classPage,
 			pageExists
-				? 'the duplicates page has landed: add its tab, per the patch in nav.ts'
-				: 'the duplicates page is not on this base, so a tab for it would 404'
+				? 'the duplicates page is here: it needs its palette command and its class-page door'
+				: 'the duplicates page is not on this base, so a door to it would 404'
 		).toBe(pageExists);
+		// POSITIVE CONTROL for the door being a DOOR and not a tab: the bar has
+		// five tabs and none of them names the page.
+		expect(sectionTabs('s-1').length).toBe(5);
+		expect(sectionTabs('s-1').some((t) => t.href.endsWith('/duplicates'))).toBe(false);
+		expect(classDuplicatesHref('s-1')).toBe('/classroom/s-1/duplicates');
+		expect(classDuplicatesHref('a b/c')).toBe('/classroom/a%20b%2Fc/duplicates');
 	});
 
-	it('the deferred patch note stands exactly while the tab does not', () => {
-		// GENERALIZED FROM "nav.ts carries the patch", which landing the tab
-		// legitimately broke. A note telling a reader how to add a tab that is
-		// already there is worse than no note -- it reads as work outstanding.
-		// So the note and the tab are mutually exclusive, and this bites in both
-		// directions: re-withdraw the tab without restoring the note and it is
-		// red, leave the note standing over a shipped tab and it is red.
+	it('the deferred patch note does not stand while the page has its doors', () => {
+		// GENERALIZED FROM "the note stands exactly while the tab does not". A
+		// note telling a reader how to add a way in that is already there is
+		// worse than no note -- it reads as work outstanding.
 		const nav = read('src/lib/classroom/nav.ts');
-		const noteStands = nav.includes('duplicate-drafts-count-wzworl');
-		const tabStands = sectionTabs('s-1').some((t) => t.href.endsWith('/duplicates'));
-		expect(
-			noteStands,
-			tabStands
-				? 'the tab has landed, so the patch note in nav.ts is stale: remove it'
-				: 'the tab is withheld, so nav.ts must carry the patch that lands it'
-		).toBe(!tabStands);
+		expect(nav.includes('duplicate-drafts-count-wzworl')).toBe(!(doors.palette && doors.classPage));
 	});
 
-	it('the tab activates on its own page, and is an in-classroom view not a departure', () => {
-		const dupes = sectionTabs('s-1').find((t) => t.id === 'duplicates') as SectionTab;
-		expect(dupes.manageOnly).toBe(true);
-		expect(dupes.external).toBeUndefined();
-		expect(dupes.href).toBe('/classroom/s-1/duplicates');
-		expect(activeTab(locateClassroom(dupes.href))).toBe('duplicates');
-		// GENERALIZED (ledger 0297): it used to sit above the one departure, the
-		// Check-ins tab. That tab is gone into the class's Notebook tab, so the
-		// rule left is that it is last among the manage-only views and is not a
-		// door out.
-		const ids = sectionTabs('s-1').map((t) => t.id);
-		expect(ids.at(-1)).toBe('duplicates');
+	it('the page is a place in the class with a trail back, not a tab the bar lights', () => {
+		const loc = locateClassroom('/classroom/s-1/duplicates');
+		expect(loc.place).toBe('duplicates');
+		// No tab claims it, so no tab bar renders there (the shell's
+		// `visibleTabs.length > 1 && tab` guard), exactly as on an item page...
+		expect(activeTab(loc)).toBeNull();
+		// ...and the trail is the way back to the class page it was opened from.
+		expect(classroomCrumbs(loc, { section: 'IDEA209H Block 3' })).toEqual([
+			{ label: 'My Classes', href: '/classroom' },
+			{ label: 'IDEA209H Block 3', href: '/classroom/s-1' },
+			{ label: 'Duplicates' }
+		]);
+	});
+
+	it('the class-page door is a manager\'s, counted by 0187 itself, and only when there are duplicates', () => {
+		// The door renders only for a manager with a count above zero...
+		expect(view).toMatch(/\{#if canManage && duplicateCount > 0\}/);
+		// ...the count is asked only of a manager's injected loader, untracked...
+		expect(view).toMatch(/const load = canManage \? loadDuplicateCount : null;/);
+		expect(view).toMatch(/untrack\(\(\) => load\(\)\)/);
+		// ...and the class page hands a loader only to a manager, calling the SAME
+		// function the page calls, so the door and the page cannot disagree.
+		const layout = read('src/routes/classroom/[sectionId]/+layout.svelte');
+		expect(layout).toMatch(
+			/loadDuplicateCount=\{data\.canManage \? \(\) => loadDuplicateDraftCount\(data\.supabase, data\.section\.id\) : null\}/
+		);
+		expect(read('src/lib/classroom/duplicate-count.ts')).toContain("rpc('classroom_duplicate_drafts'");
+		expect(read('src/routes/classroom/[sectionId]/duplicates/+page.server.ts')).toContain(
+			"rpc('classroom_duplicate_drafts'"
+		);
+	});
+
+	it('the count is the page\'s own surplus, and "could not tell" is never a number', async () => {
+		const client = (answer: unknown) =>
+			({ rpc: async () => answer }) as unknown as Parameters<typeof loadDuplicateDraftCount>[0];
+		expect(
+			await loadDuplicateDraftCount(client({ data: { groups: [], totals: { surplus: 3 } }, error: null }), 's-1')
+		).toBe(3);
+		expect(await loadDuplicateDraftCount(client({ data: EMPTY_DUPLICATES, error: null }), 's-1')).toBe(0);
+		expect(await loadDuplicateDraftCount(client({ data: null, error: { code: 'PGRST202' } }), 's-1')).toBeNull();
+		expect(await loadDuplicateDraftCount(client({ data: null, error: { code: '42501' } }), 's-1')).toBeNull();
+		const throwing = { rpc: async () => { throw new Error('offline'); } } as unknown as Parameters<
+			typeof loadDuplicateDraftCount
+		>[0];
+		expect(await loadDuplicateDraftCount(throwing, 's-1')).toBeNull();
+		expect(duplicateDoorLabel(1)).toBe('1 duplicate draft');
+		expect(duplicateDoorLabel(3)).toBe('3 duplicate drafts');
 	});
 });
