@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "tour-mode-student.mjs",
-	"date": "2026-09-25T09:40:57.662Z",
-	"sha": "83be5b9ed0b37b64c1edbc007a3187b5c5788dca",
-	"dirty": true,
+	"date": "2026-09-25T09:53:28.750Z",
+	"sha": "fdd29460b9d52e5dfa1bbed6859654fa2edf9690",
+	"dirty": false,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 40,
 	"outsideRows": [],
-	"ms": 15189
+	"ms": 29244
 }
