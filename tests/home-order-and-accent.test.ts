@@ -592,7 +592,7 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		// the generic inline fallback glyph.
 		const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
 		expect(launcher).toContain("id === 'foundry'");
-		expect(launcher).toContain('<FoundryMark />');
+		expect(launcher).toContain('<FoundryMark once />');
 
 		// THE MARK STOPS WHEN NOBODY CAN SEE IT (the MoltenSeam contract, scaled
 		// down to a card): an IntersectionObserver plus a visibilitychange
@@ -856,8 +856,8 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		// NO LITERAL COLOUR ANYWHERE. The card resolves currentColor to
 		// --acc-ink, which for this card defaults to the jade --acc-primary; a
 		// hex baked into the mark would survive a later accent change and
-		// silently stop matching the card around it. GreenlineMark is the one
-		// mark that does hardcode a hex, and it is not the pattern to copy.
+		// silently stop matching the card around it. GreenlineMark was the one
+		// mark that hardcoded a hex until ledger 0298 redrew it on currentColor.
 		expect(mark).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
 		expect(mark).toContain('stroke="currentColor"');
 
@@ -866,7 +866,7 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		// card appears, correctly coloured, wearing somebody else's shape.
 		const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
 		expect(launcher).toContain("id === 'maps'");
-		expect(launcher).toContain('<MapsMark />');
+		expect(launcher).toContain('<MapsMark once />');
 	});
 
 	it('gives the IdeaCAD card an animated extrude mark that hides nothing at rest', () => {
@@ -910,20 +910,25 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 		const rise = frames('im-rise', 'transform');
 		const grow = frames('im-grow', 'transform');
 		const shade = frames('im-shade', 'opacity');
+		// The hole cut into the top face (ledger 0298): it opens after the
+		// extrude and is open at the rest frame, the same half-cycle rule.
+		const cut = frames('im-cut', 'transform');
 		// Positive control on the reader: each set was found and has its ends.
 		expect(rise.length).toBeGreaterThanOrEqual(4);
 		expect(grow.length).toBeGreaterThanOrEqual(4);
 		expect(shade.length).toBeGreaterThanOrEqual(4);
+		expect(cut.length).toBeGreaterThanOrEqual(4);
 		expect(at50(rise)).toEqual(['translateY(0)', 'translateY(0)']);
 		expect(at50(grow)).toEqual(['scaleY(1)', 'scaleY(1)']);
 		expect(at50(shade)).toEqual(['1', '1']);
+		expect(at50(cut)).toEqual(['scale(1)', 'scale(1)']);
 		expect(mark).toContain('animation-iteration-count: 0.5');
 
 		// The launcher renders it, and the inline cube it replaced is gone
 		// rather than left as a second drawing of the same logo.
 		const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
 		expect(launcher).toContain("id === 'ideacad'");
-		expect(launcher).toContain('<IdeaCadMark />');
+		expect(launcher).toContain('<IdeaCadMark once />');
 		expect(launcher).not.toContain('m16 4 11 6-11 6L5 10l11-6Z');
 	});
 
@@ -981,9 +986,93 @@ describe('launcher accents are stylesheet data, never an inline style', () => {
 			// And the launcher still renders it from its own call site.
 			const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
 			expect(launcher).toContain(`id === '${c.app}'`);
-			expect(launcher).toContain(`<${c.file} />`);
+			expect(launcher).toContain(`<${c.file} once />`);
 		});
 	}
+
+	// THE GREENLINE AND ADMIN MARKS WERE REDRAWN TO THE IDEACAD STANDARD
+	// (ledger 0298, decision 40 item 3): layered geometry, faces mixed from
+	// currentColor at the three tiers, a hook family, no literal color, and a
+	// `once` whose half cycle ends on the rest frame. The rest frame here sits
+	// in the MIDDLE of every keyframe set (the start is somewhere else -- the
+	// machine below its hover height, a knob elsewhere on its slot), so the
+	// assertion is the IdeaCAD one: both neighbours of 50% are the rest value.
+	const REDRAWN = [
+		{
+			file: 'GreenlineMark',
+			app: 'greenline',
+			prefix: 'gl-',
+			hook: '--glm-',
+			sets: [
+				['gl-hover', 'transform', 'translateY(0)'],
+				['gl-thrust', 'opacity', '1'],
+				['gl-line', 'stroke-dashoffset', '0']
+			]
+		},
+		{
+			file: 'DashboardMark',
+			app: 'dashboard',
+			prefix: 'dm-',
+			hook: '--dbm-',
+			sets: [
+				['dm-k1', 'transform', 'translate(0, 0)'],
+				['dm-k2', 'transform', 'translate(0, 0)'],
+				['dm-k3', 'transform', 'translate(0, 0)'],
+				['dm-lamp', 'opacity', '1']
+			]
+		}
+	] as const;
+	for (const c of REDRAWN) {
+		it(`gives the ${c.app} card a redrawn solid mark that hides nothing at rest and settles on its rest frame`, () => {
+			const mark = readFileSync(`src/lib/marks/${c.file}.svelte`, 'utf8');
+			expect(mark).toContain('prefers-reduced-motion: no-preference');
+			expect(mark).toMatch(new RegExp(`animation:\\s*${c.prefix}`));
+			const styleBody = mark.slice(mark.indexOf('<style>'));
+			const outsideKeyframes = styleBody.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
+			expect(outsideKeyframes).not.toMatch(/opacity:\s*0/);
+			expect(outsideKeyframes).not.toMatch(/transform:/);
+			expect(outsideKeyframes).not.toMatch(/stroke-dashoffset:/);
+			// No literal color anywhere, which is what retired the launcher's
+			// Space White re-ink rule for GREENLINE's near-white strokes.
+			expect(mark).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+			expect(mark).toContain('stroke="currentColor"');
+			for (const tier of ['edge', 'hl', 'top', 'right', 'left']) expect(mark).toContain(`var(${c.hook}${tier},`);
+			for (const pct of ['46%', '26%', '12%']) expect(mark).toContain(`color-mix(in srgb, currentColor ${pct}, transparent)`);
+			for (const [name, prop, rest] of c.sets) {
+				const f = markFrames(styleBody, name, prop);
+				// Positive control: the reader found the set and both of its ends.
+				expect(f.length, name).toBeGreaterThanOrEqual(4);
+				expect(markAt50(f), name).toEqual([rest, rest]);
+			}
+			expect(mark).toContain('animation-iteration-count: 0.5');
+			expect(mark).toMatch(/let \{ once = false \}/);
+			const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
+			expect(launcher).toContain(`id === '${c.app}'`);
+			expect(launcher).toContain(`<${c.file} once />`);
+		});
+	}
+
+	it('mounts EVERY launcher mark with `once`, and every mark in $lib/marks accepts it', () => {
+		/* NO CARD LOOPS FOREVER (ledger 0298, decision 40 item 3). The launcher
+		   used to mount every mark looping, so a grid of glyphs never stopped
+		   moving and IdeaCAD's showed a collapsed diamond for 18% of every
+		   loop. A mark mounted without `once` still type-checks and still looks
+		   right in a screenshot, so the mount is asserted here. */
+		const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
+		const snippet = launcher.slice(launcher.indexOf('{#snippet appIcon'), launcher.indexOf('{/snippet}', launcher.indexOf('{#snippet appIcon')));
+		const mounts = [...snippet.matchAll(/<([A-Z][A-Za-z]*Mark)\b([^>]*)\/>/g)];
+		// Positive control: the reader found the marks the launcher imports.
+		const imported = [...launcher.matchAll(/import ([A-Z][A-Za-z]*Mark) from '\$lib\/marks\//g)].map((m) => m[1]);
+		expect(imported.length).toBeGreaterThanOrEqual(12);
+		expect(mounts.map((m) => m[1]).sort()).toEqual([...imported].sort());
+		for (const m of mounts) expect(m[2], m[1]).toMatch(/\bonce\b/);
+		for (const name of imported) {
+			const mark = readFileSync(`src/lib/marks/${name}.svelte`, 'utf8');
+			expect(mark, name).toMatch(/let \{[^}]*\bonce = false\b[^}]*\}/);
+			expect(mark, name).toContain('class:once');
+			expect(mark, name).toMatch(/\.once[^{]*\{\s*animation-iteration-count:\s*(0\.5|1);/);
+		}
+	});
 
 	it('never moves an identity colour for contrast, only the ink', () => {
 		// FRC is the one card whose brand colour cannot carry text on --bg1: pure

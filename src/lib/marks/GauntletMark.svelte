@@ -1,3 +1,13 @@
+<script lang="ts">
+	/**
+	 * `once` PLAYS ONE CYCLE, THEN THE BASE STYLES -- THE DRAWN GLYPH -- TAKE
+	 * OVER (ledger 0298). The launcher passes it so no card loops forever;
+	 * /dev/marks leaves it off so the reduced-motion sweep has a running
+	 * animation to measure.
+	 */
+	let { once = false }: { once?: boolean } = $props();
+</script>
+
 <!--
 	GAUNTLET homepage mark: an original wireframe CAD part (extruded hex boss on
 	a dashed sketch profile) with a feature-tree motif and an animated machining
@@ -6,7 +16,7 @@
 	Strokes inherit currentColor; accents read the gold/lime token. Animation
 	only runs under prefers-reduced-motion: no-preference.
 -->
-<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<svg class:once viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 	<!-- Feature tree rail -->
 	<g class="tree" stroke-width="1.1">
 		<path d="M5 10v20" opacity="0.5" />
@@ -57,6 +67,14 @@
 		}
 		.node.n3 {
 			animation: gm-blink 3.6s infinite 2.4s;
+		}
+		/* One cycle, then the base styles: the rest frame. Named class by class,
+		   not `.once *`: Svelte leaves a bare `*` unscoped, which is one class
+		   short of a compound rule like `.node.n1` and loses to it. */
+		.once .scan,
+		.once .sketch-ring,
+		.once .node {
+			animation-iteration-count: 1;
 		}
 	}
 	@keyframes gm-scan {

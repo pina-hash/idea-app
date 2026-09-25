@@ -15,7 +15,7 @@
  * a measurement: two runs, same number, or one of them reddens.
  */
 import { SETTLE_ENTRANCE } from './_shared.mjs';
-import { BOARD_CELLS, LAUNCHER_CARDS, washoutRows } from './_theme-shared.mjs';
+import { BOARD_CELLS, LAUNCHER_CARDS, launcherRows, washoutRows } from './_theme-shared.mjs';
 
 export default {
 	path: '/dev/themes',
@@ -74,9 +74,30 @@ export default {
 		   AND NOT GATED, for the reason the board is not gated above: IDEA is
 		   a dark palette, this model is expected to fail it, and the brief
 		   says to record the numbers rather than fix IDEA here. */
-		...washoutRows('idea', { gate: false })
+		...washoutRows('idea', { gate: false }),
+		...launcherRows({ gateWall: false })
 	],
 	tapTargets: [{ selector: '.switch .sw', label: 'theme switch buttons', min: 44 }],
+	/* NO LAUNCHER MARK LOOPS FOREVER (ledger 0298, decision 40 item 3). The
+	   launcher mounts every mark with `once`; after the longest single cycle
+	   (FoundryMark's 6.8s) nothing inside a card's icon may still be running.
+	   Before the change every mark here looped, so this read 12 marks and a
+	   running count above zero -- which is the direction a dropped `once`
+	   regresses in, silently: the grid looks right in any one frame. The
+	   Foundry mark pauses itself while off screen, and a paused animation is
+	   not a running one. */
+	orderResult: [
+		{
+			label: 'every launcher mark plays once and rests: nothing still running after the longest cycle',
+			evaluate: `async () => {
+				await new Promise((r) => setTimeout(r, 7500));
+				const marks = [...document.querySelectorAll('.launcher .app-icon svg')];
+				const running = marks.flatMap((m) => m.getAnimations({ subtree: true })).filter((a) => a.playState === 'running').length;
+				return ['marks ' + marks.length, 'still running ' + running];
+			}`,
+			expected: ['marks 12', 'still running 0']
+		}
+	],
 	/* `.bg-fx` is unthemed here: its own scanline lives on a ::after, which
 	   `getAnimations` on the element cannot see, so the ELEMENT carries no
 	   animation at all on the base palette. The themed spec says `never` too

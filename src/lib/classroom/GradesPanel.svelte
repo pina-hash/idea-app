@@ -309,7 +309,7 @@
 		color: var(--text-1);
 	}
 	.grade-main:hover .grade-title {
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	.grade-text {
 		display: flex;

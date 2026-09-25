@@ -24,6 +24,8 @@
  * width's answer -- the pass runs every spec at 375 and 1440, so a predicate
  * that only described 1440 would redden at 375 for being right.
  */
+import { choose, DEAD_SPACE } from './foundry-boards.mjs';
+
 export default {
 	path: '/dev/foundry-mosaic',
 	label: 'Foundry gallery mosaic (arbitrary cover shapes, clamp, name plate)',
@@ -48,26 +50,20 @@ export default {
 		*/
 		/*
 			EVERY SELECTOR IN THIS SPEC IS SCOPED TO `.fdy-gal-mosaic`, THE FULL
-			LIST, AND THAT IS 0221's DOING.
+			LIST. That was 0221's doing: from then until decision 39 this
+			eleven-app fixture also rendered four ranked sections above the list,
+			each made of `FoundryCard`s, and an unscoped card selector counted 26
+			where this spec means 11. The sections are gone, so the scoping no
+			longer changes a count -- it stays because this route is about the
+			MOSAIC and always meant the list.
 
-			This fixture has ELEVEN apps, which is past `FOUNDRY_BOARD_SIZE`, so
-			the gallery now renders four ranked sections above the list -- and a
-			board is `FoundryCard` too. Unscoped, `[data-testid="fdy-card"]`
-			counted 26 where this spec means 11, `img.fdy-card-shot` counted 23
-			where it means 8, and the Recent press below never satisfied its
-			predicate because a board card carries its own figure whatever the
-			LIST is ordered by.
-
-			The scoping is a correction to the spec and not a relaxation: this
-			route is about the MOSAIC -- its column arithmetic, its cover clamp,
-			its name plate -- and it always meant the list. That the boards are
-			also on the page is a separate fact, measured by
-			`routes/foundry-boards.mjs` on a route of its own.
+			THE CONTROL IS A NATIVE `<select>` SINCE DECISION 39, so choosing
+			Recently updated is a `change` rather than a click.
 		*/
-		{
-			click: '.fdy-gal-sort-btn[data-sort="recent"]',
-			until: '() => document.querySelectorAll(".fdy-gal-mosaic [data-testid=\'fdy-card-plays\']").length === 0'
-		},
+		choose(
+			'recent',
+			'() => document.querySelectorAll(".fdy-gal-mosaic [data-testid=\'fdy-card-plays\']").length === 0'
+		),
 		/* Every fixture cover decoded, so every card has been MEASURED. Until
 		   this holds the cards sit at the 3:2 fallback and every ratio below
 		   would be reading a placeholder. */
@@ -83,6 +79,16 @@ export default {
 			evaluate: '() => new Promise((r) => setTimeout(() => r("settled"), 900))',
 			until: '() => true'
 		},
+
+		/* ---------------------------------------------------------------
+		   NO DEAD SPACE FROM A PORTRAIT COVER (decision 39's report). The
+		   ranked sections put cards in flex ROWS, where one tall cover made
+		   the whole row tall with nothing beside the landscape cards. This
+		   fixture carries a 1:9 and a 1179x2556 upload; in the multicol list
+		   the worst gap between two cards in one column must be the card's
+		   own 12px margin. See `DEAD_SPACE` in `routes/foundry-boards.mjs`.
+		   --------------------------------------------------------------- */
+		DEAD_SPACE,
 
 		/* ---------------------------------------------------------------
 		   EVERY CARD'S SHAPE IS INSIDE THE CLAMP.
@@ -132,12 +138,24 @@ export default {
 		   WHAT THIS STEP CANNOT SEE, stated so nobody reads it as wider
 		   than it is: whether the COLUMN CEILING is capped at the card
 		   count. Raising `--fdy-cols` to 40 changes nothing measurable
-		   here, because 1294px of pane only fits five 15rem columns
-		   anyway and this fixture has eleven cards -- the ceiling only
-		   binds when there are FEWER cards than the width allows. That
-		   property is structural, not geometric, and is asserted in
+		   here, because above 30.75rem of pane the per-width fill
+		   (`--fdy-fill-<c>`, `foundryMosaicFill`) decides the count and
+		   this fixture has eleven cards -- the ceiling only binds when
+		   there are FEWER cards than the width allows. That property is
+		   structural, not geometric, and is asserted in
 		   `tests/dom/foundry-card-mosaic.test.ts`, where a mutant raising
-		   it reddens.
+		   it reddens. Whether any column is left EMPTY is the dead-space
+		   step above.
+
+		   ELEVEN CARDS FILL FOUR COLUMNS AT 1440, NOT FIVE, SINCE
+		   `foundryMosaicFill` (decision 39's bundle). Eleven cards of one
+		   shape in five columns need three rows, which four columns hold,
+		   so the fifth would have been empty. This fixture's shapes are
+		   deliberately pathological (a 1:9 and a 9:1), so here the cost is
+		   a longer ragged bottom rather than a saved column: measured
+		   1075/976/1002/431px column heights at four against
+		   595/585/443/621/522px at five. Screenshot-shaped covers are the
+		   ordinary case, and for those the fifth column was dead space.
 		   --------------------------------------------------------------- */
 		{
 			evaluate: `() => {

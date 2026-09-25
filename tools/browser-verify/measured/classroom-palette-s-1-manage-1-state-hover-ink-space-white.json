@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "classroom-palette-s-1-manage-1-state-hover-ink-space-white.mjs",
+	"date": "2026-09-25T09:35:41.427Z",
+	"sha": "83be5b9ed0b37b64c1edbc007a3187b5c5788dca",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 20,
+	"outsideRows": [],
+	"ms": 11461
+}

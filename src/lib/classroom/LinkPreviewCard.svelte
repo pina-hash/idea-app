@@ -109,7 +109,7 @@
 		border-color: var(--line-strong);
 	}
 	.lp:hover .lp-title {
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	.lp-thumb {
 		flex: none;

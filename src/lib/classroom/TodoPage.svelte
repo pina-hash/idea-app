@@ -289,7 +289,7 @@
 		cursor: pointer;
 	}
 	.todo-view:hover {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 	}
 	.todo-view[aria-pressed='true'] {
 		background: var(--surface-2);

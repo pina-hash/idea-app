@@ -375,7 +375,7 @@
 		border-color: var(--line-strong);
 	}
 	a.rb-card:hover .rb-card-title {
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	.rb-card-title {
 		font-size: 0.95rem;

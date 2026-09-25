@@ -43,6 +43,7 @@ import {
 	playCountLabel,
 	sortGallery
 } from '../src/lib/foundry/telemetry';
+import { load as galleryLoad } from '../src/routes/foundry/+page.server';
 
 const REPO = fileURLToPath(new URL('..', import.meta.url));
 const read = (rel: string) => readFileSync(join(REPO, rel), 'utf8');
@@ -92,9 +93,16 @@ describe('the review queue records nothing', () => {
 });
 
 describe('the coverage sentence travels with the figures', () => {
-	it('is written once and rendered by the one component that shows counts', () => {
+	it('is written once and rendered by every component that shows counts', () => {
 		const stats = read('src/lib/foundry/FoundryPlayStats.svelte');
 		expect(stats).toContain('FOUNDRY_PLAY_COVERAGE_NOTE');
+		// THE GALLERY'S CARDS CARRY A PLAY FIGURE UNDER EVERY PLAY ORDER, and the
+		// note used to live inside the ranked-sections region decision 39
+		// deleted. Dropping it from the gallery with that region would have been
+		// silent: every figure still renders and nothing throws.
+		// `tests/dom/foundry-sort.test.ts` asserts WHEN it renders.
+		const gallery = read('src/lib/foundry/FoundryGallery.svelte');
+		expect(gallery).toContain('{FOUNDRY_PLAY_COVERAGE_NOTE}');
 		// It says the thing it has to say: that the share-link route is not
 		// counted. Asserted by MEANING rather than by exact bytes, so rewording
 		// the sentence is allowed and dropping the fact is not.
@@ -108,6 +116,55 @@ describe('the coverage sentence travels with the figures', () => {
 			.filter((f) => f.endsWith('.svelte'))
 			.filter((f) => read(`src/lib/foundry/${f}`).includes('share link is not counted'));
 		expect(literal).toEqual([]);
+	});
+});
+
+/**
+ * THE GALLERY LOAD SAYS WHETHER ITS COUNTS ARE REAL. A failed
+ * `foundry_play_counts` read degrades to no counts (the page must not go down
+ * for a figure), and no counts is the same input as a gallery nobody has
+ * played -- so without this flag the sort control's sentence would state
+ * "Nothing has been played here yet" about every app on the page. Silent: the
+ * page renders, nothing throws, and the sentence reads as a fact. Driven on the
+ * REAL load with a stub client, both directions on the same caller.
+ */
+describe('the gallery load tells an unread count from a zero', () => {
+	async function drive(countsFail: boolean) {
+		const supabase = {
+			rpc: async (name: string) => {
+				if (name === 'foundry_list_apps') return { data: [], error: null };
+				if (name === 'foundry_play_counts') {
+					return countsFail
+						? { data: null, error: { message: 'fetch failed', code: '' } }
+						: { data: [], error: null };
+				}
+				throw new Error(`unexpected rpc ${name}`);
+			}
+		};
+		return (await galleryLoad({
+			locals: { supabase },
+			url: new URL('https://ideabosco.com/foundry'),
+			parent: async () => ({ foundryAccess: { open: true, closed: [] } })
+		} as unknown as Parameters<typeof galleryLoad>[0])) as {
+			playCounts: Record<string, unknown>;
+			playCountsKnown: boolean;
+		};
+	}
+
+	it('reports the counts unknown when the read failed, and known when it answered', async () => {
+		const failed = await drive(true);
+		expect(failed.playCounts).toEqual({});
+		expect(failed.playCountsKnown).toBe(false);
+		// POSITIVE CONTROL: the identical load whose read answered, with nothing.
+		const answered = await drive(false);
+		expect(answered.playCounts).toEqual({});
+		expect(answered.playCountsKnown).toBe(true);
+	});
+
+	it('the route hands the flag to the gallery', () => {
+		expect(read('src/routes/foundry/+page.svelte')).toContain(
+			'playCountsKnown={data.playCountsKnown}'
+		);
 	});
 });
 

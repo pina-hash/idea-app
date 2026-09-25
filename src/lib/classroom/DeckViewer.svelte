@@ -410,8 +410,8 @@
 		align-items: center;
 	}
 	.deck-btn:hover {
-		color: var(--gold);
-		border-color: var(--gold);
+		color: var(--hover-ink);
+		border-color: var(--hover-ink);
 	}
 	.deck-index {
 		position: absolute;
@@ -486,7 +486,7 @@
 	}
 	.deck-index-go:hover,
 	.deck-index-go:focus-visible {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 		outline: none;
 	}
 	.deck-index-go.on {

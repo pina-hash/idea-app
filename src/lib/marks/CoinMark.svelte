@@ -1,5 +1,13 @@
 <script lang="ts">
 	import { COIN_SYMBOL } from '$lib/coin-format';
+
+	/**
+	 * `once` PLAYS ONE CYCLE, THEN THE BASE STYLES -- THE DRAWN GLYPH -- TAKE
+	 * OVER (ledger 0298). The launcher passes it so no card loops forever;
+	 * /dev/marks leaves it off so the reduced-motion sweep has a running
+	 * animation to measure.
+	 */
+	let { once = false }: { once?: boolean } = $props();
 </script>
 
 <!--
@@ -12,7 +20,7 @@
 	point so the edge reads as an edge. Animation only runs under
 	prefers-reduced-motion: no-preference.
 -->
-<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<svg class:once viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 	<g class="coin">
 		<circle class="ring" cx="20" cy="20" r="13" />
 		<circle cx="20" cy="20" r="10.4" opacity="0.45" />
@@ -49,6 +57,13 @@
 		}
 		.ring {
 			animation: coin-edge-shade 4.6s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+		}
+		/* One cycle, then the base styles: the rest frame. Named class by class,
+		   not `.once *`: Svelte leaves a bare `*` unscoped, which is one class
+		   short of a compound rule like `.node.n1` and loses to it. */
+		.once .coin,
+		.once .ring {
+			animation-iteration-count: 1;
 		}
 	}
 	@keyframes coin-flip {

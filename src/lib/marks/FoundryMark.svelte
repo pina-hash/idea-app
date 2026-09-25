@@ -34,6 +34,14 @@
 	 */
 	import { onMount } from 'svelte';
 
+	/**
+	 * `once` PLAYS ONE CYCLE, THEN THE BASE STYLES -- THE DRAWN GLYPH -- TAKE
+	 * OVER (ledger 0298). The launcher passes it so no card loops forever;
+	 * /dev/marks leaves it off so the reduced-motion sweep has a running
+	 * animation to measure.
+	 */
+	let { once = false }: { once?: boolean } = $props();
+
 	let el: SVGSVGElement | null = $state(null);
 	let onScreen = $state(true);
 	let tabVisible = $state(true);
@@ -56,7 +64,7 @@
 	});
 </script>
 
-<svg
+<svg class:once
 	viewBox="0 0 32 32"
 	fill="none"
 	stroke="currentColor"
@@ -98,6 +106,13 @@
 		svg[data-paused] .drip,
 		svg[data-paused] .melt {
 			animation-play-state: paused;
+		}
+		/* One cycle, then the base styles: the rest frame. Named class by class,
+		   not `.once *`: Svelte leaves a bare `*` unscoped, which is one class
+		   short of a compound rule like `.node.n1` and loses to it. */
+		.once .drip,
+		.once .melt {
+			animation-iteration-count: 1;
 		}
 	}
 

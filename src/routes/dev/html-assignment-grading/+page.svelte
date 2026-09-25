@@ -28,6 +28,8 @@
 	import '$lib/classroom/classroom.css';
 	import { createMemoryClassroomLive, type ClassroomLive } from '$lib/classroom/live';
 	import { assignmentLockState } from '$lib/classroom/html-assignment/lock';
+	import { onMount } from 'svelte';
+	import { readXlsxWorkbook } from '$lib/xlsx-read';
 
 	/** `empty` selects the student with nothing stored; `broken` points the one
 	    photo at a URL that cannot decode, so the fallback row is measurable. */
@@ -59,6 +61,19 @@
 	const late = $derived(viewState === 'late');
 	const graded = $derived(viewState === 'graded');
 	const partial = $derived(viewState === 'partial');
+	/**
+	 * `export` IS THE GRADED-WORK EXPORT OF A WORKSHEET (ledger 0298, R24),
+	 * with EVERY manifest block type answered somewhere in the class: the
+	 * fixture's own text, longText, checkbox and image, plus a second module
+	 * carrying a radio and two tables (one stored as a list of objects, one as
+	 * a list of lists), an answer to a block the manifest no longer declares,
+	 * and a third student. Alice was returned and then edited her reflection
+	 * and added her photo, both after the grade and after the due instant;
+	 * Bruno is part way; Cara finished on time. The exports are INTERCEPTED
+	 * (below) and read back, so a pass compares real files against values typed
+	 * from this fixture.
+	 */
+	const exporting = $derived(viewState === 'export');
 	/** `live=stalled` makes the bus report the one status the memory twin never
 	    produces on its own, which is the one that earns a sentence. */
 	const liveStalled = $derived(page.url.searchParams.get('live') === 'stalled');
@@ -107,7 +122,10 @@
 		publish_at: null
 	};
 	/** `late` gives the item a due instant between Alice's answers and her photo. */
-	const ITEM = $derived({ ...ITEM_BASE, due_at: late ? iso(1.1) : null } as unknown as ClassroomItem);
+	const ITEM = $derived({
+		...ITEM_BASE,
+		due_at: late || exporting ? iso(1.1) : null
+	} as unknown as ClassroomItem);
 
 	/**
 	 * THE FIELDS ARE THE `/hx/worksheet` FIXTURE'S OWN (`teamName`,
@@ -154,6 +172,41 @@
 	} as unknown as HtmlAssignmentManifest;
 
 	const RUBRIC: RubricCriterion[] = MANIFEST.modules[0].criteria as unknown as RubricCriterion[];
+
+	/**
+	 * THE EXPORT STATE'S MANIFEST: the fixture's own, plus a module holding the
+	 * two block types it lacks. The `/hx/worksheet` document has no inputs for
+	 * the new fields, which costs nothing here -- the frame is read only and
+	 * the export reads the stored rows, never the document.
+	 */
+	const EXPORT_MANIFEST = {
+		...MANIFEST,
+		modules: [
+			...MANIFEST.modules,
+			{
+				id: 'hxw-build',
+				title: 'Build',
+				points: 5,
+				audience: 'individual',
+				blocks: [
+					{ id: 'hxw-material', field: 'material', type: 'radio' },
+					{ id: 'hxw-measure', field: 'measurements', type: 'table' },
+					{ id: 'hxw-grid', field: 'grid', type: 'table' }
+				],
+				criteria: []
+			}
+		]
+	} as unknown as HtmlAssignmentManifest;
+	const manifest = $derived(exporting ? EXPORT_MANIFEST : MANIFEST);
+
+	/** Cara, who is on the roster only in the export state. */
+	const CARA: ClassroomEnrollment = {
+		section_id: SECTION_ID,
+		student_email: 'cara@boscotech.net',
+		display_name: 'Cara Chen',
+		active: true,
+		manages: false
+	};
 
 	const ROSTER: ClassroomEnrollment[] = [
 		{
@@ -261,6 +314,98 @@
 		}
 	];
 
+	/*
+		THE EXPORT STATE'S ROWS. Every instant is relative to the fixture's own
+		clock: the grade is at 1.5 days ago and the due instant at 1.1, so
+		Alice's reflection (1.2) and photo (1.0) are both after the grade and her
+		photo is after the due instant.
+	*/
+	const EXPORT_SUBMISSIONS: SubmissionRow[] = [
+		{
+			id: 'sub-alice',
+			item_id: ITEM_ID,
+			student_email: 'alice@boscotech.net',
+			state: 'returned',
+			submitted_at: null,
+			returned_at: iso(1.5),
+			rubric_scores: { work: 5 },
+			criterion_comments: null,
+			score: 5,
+			teacher_comment: 'Add the photo of the fillet.',
+			graded_by: TEACHER,
+			graded_at: iso(1.5),
+			updated_at: iso(1.5)
+		},
+		{
+			id: 'sub-cara',
+			item_id: ITEM_ID,
+			student_email: 'cara@boscotech.net',
+			state: 'draft',
+			submitted_at: null,
+			returned_at: null,
+			rubric_scores: null,
+			criterion_comments: null,
+			score: null,
+			teacher_comment: null,
+			graded_by: null,
+			graded_at: null,
+			updated_at: iso(3)
+		}
+	] as unknown as SubmissionRow[];
+
+	const answer = (email: string, block: string, value: ResponseRow['value'], daysAgo: number): ResponseRow =>
+		({ item_id: ITEM_ID, student_email: email, block_id: block, value, updated_at: iso(daysAgo) }) as ResponseRow;
+	const ALICE_E = 'alice@boscotech.net';
+	const BRUNO_E = 'bruno@boscotech.net';
+	const CARA_E = 'cara@boscotech.net';
+	const EXPORT_RESPONSES: ResponseRow[] = [
+		...RESPONSES,
+		answer(ALICE_E, 'hxw-material', { text: 'aluminum' }, 2),
+		answer(
+			ALICE_E,
+			'hxw-measure',
+			{
+				text: JSON.stringify([
+					{ limit: 'Diameter (in)', measured: '2.5' },
+					{ limit: 'Mass (g)', measured: '' },
+					{ limit: '', measured: '' }
+				])
+			},
+			2
+		),
+		answer(ALICE_E, 'hxw-grid', { text: JSON.stringify([['pass', 'mm'], ['1', 0.4]]) }, 2),
+		answer(ALICE_E, 'hxw-old', { text: 'From the first upload' }, 4),
+		answer(BRUNO_E, 'hxw-reflection', { text: 'It bent.' }, 2),
+		answer(BRUNO_E, 'hxw-done', { checked: [false] }, 2),
+		answer(
+			BRUNO_E,
+			'hxw-measure',
+			{ text: JSON.stringify([{ limit: 'Diameter (in)', measured: '3', note: 'rough' }]) },
+			2
+		),
+		answer(CARA_E, 'hxw-team', { text: 'Team Vega' }, 3),
+		answer(CARA_E, 'hxw-reflection', { text: 'The hub cracked first. I thickened the web.' }, 3),
+		answer(CARA_E, 'hxw-done', { checked: [true] }, 3),
+		answer(CARA_E, 'hxw-material', { text: 'steel' }, 3),
+		answer(CARA_E, 'hxw-measure', { text: JSON.stringify([{ limit: 'Diameter (in)', measured: '2.4' }]) }, 3),
+		answer(CARA_E, 'hxw-grid', { text: JSON.stringify([['fail', 'mm']]) }, 3)
+	];
+	const EXPORT_FILES: SubmissionFileRow[] = [
+		...FILES,
+		{
+			id: 'f-photo-cara',
+			submission_id: 'sub-cara',
+			block_id: 'hxw-photo',
+			filename: 'hub-web.png',
+			caption: null,
+			mime_type: 'application/octet-stream',
+			sort_order: 1,
+			created_at: iso(3)
+		}
+	];
+	// svelte-ignore state_referenced_locally
+	registerLocalSubmissionFileUrl('f-photo-cara', PNG);
+
 	let log = $state<string[]>([]);
 	function note(what: string) {
 		log = [...log, what];
@@ -287,7 +432,7 @@
 			return {
 				ok: true,
 				data: {
-					roster: ROSTER,
+					roster: exporting ? [...ROSTER, CARA] : ROSTER,
 					/*
 						THE CLOSED STATE IS APPLIED HERE AND NOT IN THE FIXTURE CONST,
 						for the same reason the empty state is: `loadGrading` runs per
@@ -301,7 +446,9 @@
 						a close and a student's own hand-in, and stamping it here would
 						make this fixture measure the wrong one of the two.
 					*/
-					submissions: closed
+					submissions: exporting
+						? EXPORT_SUBMISSIONS
+						: closed
 						? SUBMISSIONS.map((r) =>
 								r.student_email === 'alice@boscotech.net'
 									? { ...r, state: 'submitted' as const, submitted_at: null }
@@ -314,8 +461,8 @@
 							: SUBMISSIONS,
 					// The empty state is the SAME fixture with the stored rows taken
 					// away, so the only difference on screen is the one being measured.
-					responses: wantEmpty ? [] : RESPONSES,
-					files: wantEmpty || partial ? [] : FILES,
+					responses: wantEmpty ? [] : exporting ? EXPORT_RESPONSES : RESPONSES,
+					files: wantEmpty || partial ? [] : exporting ? EXPORT_FILES : FILES,
 					filesStorageReady: true,
 					extraCreditReady: true,
 					approvals: []
@@ -353,11 +500,128 @@
 	};
 
 	const htmlSrc = $derived(htmlAssignmentSrc('', 'worksheet'));
-	const htmlFields = $derived(htmlFieldToBlockId(MANIFEST));
+	const htmlFields = $derived(htmlFieldToBlockId(manifest));
 
 	function seedFor(student: StudentWork) {
-		return hxFrameSeed(MANIFEST, student.responses, student.files);
+		return hxFrameSeed(manifest, student.responses, student.files);
 	}
+
+	// -----------------------------------------------------------------------
+	// THE EXPORT CAPTURE (ledger 0298, R24), the `/dev/grading-incomplete`
+	// shape: the console's exports end in a real `<a download>` click, which a
+	// headless pass cannot read, so `URL.createObjectURL` is wrapped to keep the
+	// Blob and the anchor's `click` to record it instead of navigating. Every
+	// capture came out of pressing the control a teacher presses. What is kept
+	// is READ BACK OUT OF THE FILE -- the JSON parsed, the workbook inflated
+	// through `$lib/xlsx-read`, the CSV split -- never off the builder.
+	// -----------------------------------------------------------------------
+	interface Capture {
+		id: number;
+		name: string;
+		kind: 'json' | 'xlsx' | 'csv' | 'other';
+		size: number;
+		/** The read-back, serialized for a browser pass to parse. */
+		data: string;
+	}
+	let captures = $state<Capture[]>([]);
+	let captureSeq = 0;
+
+	/** What a pass needs out of a JSON export, per student, parsed back out of the file. */
+	function jsonReadback(text: string): string {
+		try {
+			const parsed = JSON.parse(text);
+			const a = parsed.assignments?.[0] ?? {};
+			return JSON.stringify({
+				schemaVersion: parsed.export?.schemaVersion ?? null,
+				spec: a.spec ?? null,
+				manifestModules: (a.manifest?.modules ?? []).map((m: { id: string }) => m.id),
+				students: (a.students ?? []).map(
+					(st: {
+						label: string;
+						submission: { stateLabel: string; changedAfterGrading: unknown };
+						completeness: { basis?: string; complete: boolean; late?: boolean; unmetCount: number };
+						responses: {
+							blockId: string;
+							blockType: string;
+							prompt: string;
+							started: boolean;
+							value: unknown;
+							changedAfterGrading?: { kind: string } | null;
+						}[];
+					}) => ({
+						label: st.label,
+						state: st.submission.stateLabel,
+						changed: !!st.submission.changedAfterGrading,
+						basis: st.completeness.basis ?? null,
+						complete: st.completeness.complete,
+						late: st.completeness.late ?? null,
+						unmet: st.completeness.unmetCount,
+						responses: st.responses.map((r) => ({
+							blockId: r.blockId,
+							type: r.blockType,
+							prompt: r.prompt,
+							started: r.started,
+							value: r.value,
+							changed: r.changedAfterGrading?.kind ?? null
+						}))
+					})
+				)
+			});
+		} catch (err) {
+			return JSON.stringify({ unreadable: err instanceof Error ? err.message : String(err) });
+		}
+	}
+
+	onMount(() => {
+		const realCreate = URL.createObjectURL.bind(URL);
+		const realClick = HTMLAnchorElement.prototype.click;
+		const blobs = new Map<string, Blob>();
+		const record = (name: string, kind: Capture['kind'], size: number, data: string) => {
+			captures = [...captures, { id: ++captureSeq, name, kind, size, data }];
+		};
+		URL.createObjectURL = (obj: Blob | MediaSource) => {
+			const url = realCreate(obj);
+			if (obj instanceof Blob) blobs.set(url, obj);
+			return url;
+		};
+		HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+			const blob = blobs.get(this.href);
+			if (!blob || !this.download) return realClick.call(this);
+			const name = this.download;
+			if (name.endsWith('.json')) {
+				void blob.text().then((text) => record(name, 'json', blob.size, jsonReadback(text)));
+			} else if (name.endsWith('.csv')) {
+				void blob.text().then((text) => record(name, 'csv', blob.size, JSON.stringify(text)));
+			} else if (name.endsWith('.xlsx')) {
+				void blob
+					.arrayBuffer()
+					.then((buf) => readXlsxWorkbook(new Uint8Array(buf)))
+					.then((wb) =>
+						record(
+							name,
+							'xlsx',
+							blob.size,
+							JSON.stringify(
+								Object.fromEntries(
+									[...wb.entries()].map(([sheet, v]) => [sheet, { header: v.header, rows: v.rows }])
+								)
+							)
+						)
+					)
+					.catch((err) =>
+						record(name, 'xlsx', blob.size, JSON.stringify({ unreadable: String(err) }))
+					);
+			} else {
+				record(name, 'other', blob.size, '');
+			}
+			// Deliberately NOT calling through: a real download in a headless
+			// pass is a file nothing here can read.
+		};
+		return () => {
+			URL.createObjectURL = realCreate;
+			HTMLAnchorElement.prototype.click = realClick;
+		};
+	});
 </script>
 
 <svelte:head><title>dev: grading console, ported HTML assignment</title></svelte:head>
@@ -408,6 +672,7 @@
 			<a class="hx-state" class:is-on={late} href="/dev/html-assignment-grading?state=late">finished late</a>
 			<a class="hx-state" class:is-on={graded} href="/dev/html-assignment-grading?state=graded">changed after grading</a>
 			<a class="hx-state" class:is-on={partial} href="/dev/html-assignment-grading?state=partial">photo missing</a>
+			<a class="hx-state" class:is-on={exporting} href="/dev/html-assignment-grading?state=export">graded-work export</a>
 		</nav>
 	</header>
 
@@ -421,7 +686,7 @@
 			{live}
 			close={closeAssignment}
 			{htmlWork}
-			manifest={MANIFEST}
+			{manifest}
 		/>
 	{/key}
 
@@ -441,6 +706,27 @@
 			readOnly
 		/>
 	{/snippet}
+
+	<section class="hx-captures" aria-label="Exported files" data-testid="hx-captures">
+		<h2>Exported files</h2>
+		{#if captures.length}
+			<ul>
+				{#each captures as c (c.id)}
+					<li
+						data-testid="hx-capture"
+						data-name={c.name}
+						data-kind={c.kind}
+						data-size={c.size}
+						data-readback={c.data}
+					>
+						{c.name} ({c.kind}, {c.size} bytes)
+					</li>
+				{/each}
+			</ul>
+		{:else}
+			<p data-testid="hx-capture-empty">Nothing exported yet.</p>
+		{/if}
+	</section>
 
 	<section class="hx-log" aria-label="Transport calls">
 		<h2>Transport calls</h2>
@@ -489,8 +775,24 @@
 		color: var(--green);
 		border-color: var(--green);
 	}
-	.hx-log {
+	.hx-log,
+	.hx-captures {
 		margin-top: var(--space-4, 1.2rem);
+	}
+	.hx-captures h2 {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--text-2);
+	}
+	.hx-captures ul,
+	.hx-captures p {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-2);
+		padding-left: 1.2rem;
+		overflow-wrap: anywhere;
 	}
 	.hx-log h2 {
 		font-family: var(--font-mono);

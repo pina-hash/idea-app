@@ -111,6 +111,30 @@ export function foundryMosaicColumns(cardCount: number, maxColumns: number): num
 }
 
 /**
+ * THE COLUMNS A BALANCED MOSAIC ACTUALLY FILLS WHEN THE WIDTH HOLDS
+ * `widthColumns`, WHICH IS FEWER THAN THE WIDTH HOLDS MORE OFTEN THAN IT LOOKS.
+ *
+ * Capping at the card count (above) is not enough. `column-fill: balance`
+ * minimises HEIGHT, not spread: nine cards of one shape in a pane that holds
+ * four columns need three rows, three rows of three is nine, and the fourth
+ * column is left EMPTY -- measured on `/dev/foundry-boards` at 1152px as a
+ * whole column of dead space beside the list, the complaint decision 39 was
+ * filed about. Student covers are mostly browser screenshots of one shape, so
+ * equal heights are the ordinary case, not the corner.
+ *
+ * So the ceiling for a width that holds `c` columns is the fewest columns that
+ * still need only `ceil(n / c)` rows: `ceil(n / ceil(n / c))`. Those columns
+ * are then WIDER rather than one of them empty. With cards of unequal height
+ * it can ask for one column fewer than balance would have used, which trades a
+ * narrower card for a wider one and never leaves a column of void.
+ */
+export function foundryMosaicFill(cardCount: number, widthColumns: number): number {
+	const n = !Number.isFinite(cardCount) || cardCount <= 0 ? 1 : Math.floor(cardCount);
+	const c = Math.max(1, Math.min(Number.isFinite(widthColumns) ? Math.floor(widthColumns) : 1, n));
+	return Math.ceil(n / Math.ceil(n / c));
+}
+
+/**
  * THE HEAT BAND, IN DEGREES, THAT A GENERATED COVER MAY NEVER LAND IN.
  *
  * `forge.css` gives the amber `--fg-heat-*` scale ONE meaning in this room --

@@ -8,12 +8,13 @@
  * scorer whose phrase bonus stopped outranking an accumulation of single
  * tokens.
  *
- * IT ALSO MEASURES WHAT SEARCHING TAKES AWAY. Typing replaces the ranked
- * sections and hides the sort control, because a person who has typed
- * something is looking for one app and four ranked rows above their results
- * are four things in the way of it. Those two absences are asserted here with
- * the same weight as the result itself: the boards are `expectPresent: 0`
- * against a run on the same route where they are 4.
+ * IT ALSO MEASURES WHAT SEARCHING TAKES AWAY. Typing hides the sort control
+ * and the sentences beside it, because a person who has typed something is
+ * looking for one app and the results are ranked by relevance, not by the
+ * order the control names. Those absences are asserted here with the same
+ * weight as the result itself: the control is `expectPresent: 0` against a
+ * run on the same route (`routes/foundry-boards.mjs`) where it is 1. (Until
+ * decision 39 typing also replaced four ranked sections; they are gone.)
  */
 
 /**
@@ -24,7 +25,7 @@
  */
 const type = (q) => ({
 	evaluate: `() => { const el = document.querySelector('[data-testid="foundry-gallery-search"]'); if (!el) return 'NO SEARCH BOX'; el.value = ${JSON.stringify(q)}; el.dispatchEvent(new Event('input', { bubbles: true })); return 'typed: ' + el.value; }`,
-	until: `() => document.querySelectorAll('[data-testid="foundry-gallery-boards"]').length === 0`
+	until: `() => document.querySelectorAll('[data-testid="foundry-gallery-sort"]').length === 0`
 });
 
 export default {
@@ -46,18 +47,17 @@ export default {
 			expectPresent: 1,
 			expectVisible: 1
 		},
-		/* THE TWO ABSENCES. Both are 4 and 5 respectively on the unsearched run
-		   of this same route, which is the positive control that makes these
-		   mean something. */
+		/* THE ABSENCES. Each is 1 on the unsearched run of this same route,
+		   which is the positive control that makes these mean something. */
 		{
-			selector: '[data-testid="foundry-gallery-boards"]',
-			label: 'ranked sections are replaced by results, not stacked above them',
+			selector: '[data-testid="foundry-gallery-sort"]',
+			label: 'the sort control steps out of the way while searching',
 			expectPresent: 0,
 			maxPresent: 0
 		},
 		{
-			selector: '.fdy-gal-sort-btn',
-			label: 'the sort control steps out of the way while searching',
+			selector: '[data-testid="foundry-play-coverage"]',
+			label: 'no play note while the cards carry no play figure',
 			expectPresent: 0,
 			maxPresent: 0
 		},

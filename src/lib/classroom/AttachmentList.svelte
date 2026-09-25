@@ -685,7 +685,7 @@
 		min-width: 0;
 	}
 	.attach-name:hover {
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	.attach-glyph {
 		flex: none;
@@ -725,8 +725,8 @@
 		cursor: pointer;
 	}
 	.attach-ref:hover {
-		color: var(--gold);
-		border-color: var(--gold);
+		color: var(--hover-ink);
+		border-color: var(--hover-ink);
 	}
 	/* PRE-EXISTING, and raised in the same pass for the same reason: it is the
 	   adjacent sibling in this row and also measured 16px. One compliant control
@@ -771,8 +771,8 @@
 		color: var(--text-2);
 	}
 	.attach-btn:hover {
-		color: var(--gold);
-		border-color: var(--gold);
+		color: var(--hover-ink);
+		border-color: var(--hover-ink);
 	}
 	.attach-btn[aria-disabled='true'] {
 		opacity: 0.45;

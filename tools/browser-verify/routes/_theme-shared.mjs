@@ -169,3 +169,36 @@ export const roomSpec = (room, rootClass) => ({
 	],
 	tapTargets: [{ selector: '.pm-theme', label: 'theme radios', min: 44 }]
 });
+
+/* THE LAUNCHER'S GLYPHS AND DEFAULT INKS, card by card (ledger 0298,
+   decision 40 items 1 and 3). Every mark is measured at the launcher's own
+   34px against its own card: the `.app-icon`'s colour is the glyph's edge
+   stroke (the faces are translucent mixes of it), so this is the contrast the
+   drawing is carried by, held to the 3:1 a graphical object owes. The three
+   redrawn marks and the four cards that paint from the shared default are
+   named one by one, because a worst-of-all row hides a single card. */
+export const launcherRows = ({ gateWall }) => [
+	{ selector: '.launcher .app-card .app-icon', label: 'every card glyph at 34px on its card (3:1, graphical)', min: 3 },
+	...['ideacad', 'greenline', 'dashboard'].map((id) => ({
+		selector: `.launcher .app-card[data-app='${id}'] .app-icon`,
+		label: `redrawn mark: ${id} at 34px (3:1, graphical)`,
+		min: 3
+	})),
+	...['classroom', 'notebook', 'ideacad', 'coin-desk'].map((id) => ({
+		selector: `.launcher .app-card[data-app='${id}'] .app-title`,
+		label: `default card ${id}: title`,
+		min: 4.5
+	})),
+	{
+		selector: '.launcher .app-card .app-icon',
+		label: `on the wall: every card glyph (2.0 washed, graphical)${gateWall ? '' : ' [recorded, not gated]'}`,
+		min: gateWall ? 2 : 0,
+		projector: true
+	},
+	{
+		selector: ".launcher .app-card:is([data-app='classroom'], [data-app='notebook'], [data-app='ideacad'], [data-app='coin-desk']) .app-title",
+		label: `on the wall: default card titles (3.0 washed)${gateWall ? '' : ' [recorded, not gated]'}`,
+		min: gateWall ? 3 : 0,
+		projector: true
+	}
+];

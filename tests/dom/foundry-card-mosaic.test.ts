@@ -21,8 +21,9 @@
 // which branch rendered, and the pure arithmetic behind the shape. NOT geometry,
 // NOT contrast and NOT a tap target: happy-dom has no layout engine, so a box
 // reads 0 and a colour reads '' and both pass vacuously (see
-// `tests/dom/README.md`). That the mosaic is five columns at 1440 and one at
-// 375, that the tallest card is 610px, and that the plate clears contrast are
+// `tests/dom/README.md`). That the mosaic is several columns at 1440 and one
+// at 375, leaves no empty column beside the list and no gap between cards in a
+// column, that the tallest card is 610px, and that the plate clears contrast are
 // `verify:browser`'s claims and live in
 // `tools/browser-verify/routes/foundry-mosaic.mjs`.
 //
@@ -40,6 +41,7 @@ import {
 	coverAspectIsClamped,
 	foundryGeneratedHue,
 	foundryMosaicColumns,
+	foundryMosaicFill,
 	hueIsHeat
 } from '../../src/lib/foundry/mosaic';
 import { mountInto, type Mounted } from './mount';
@@ -249,6 +251,13 @@ describe('the gallery mounts the card and owns the ranking', () => {
 		// Three apps, so three columns and never five: multicol has no
 		// `auto-fit`, and the spare columns would be empty.
 		expect(ul.getAttribute('style')).toContain('--fdy-cols: 3');
+		// And every width's fill is handed to CSS as data, so the container
+		// queries have a value to pick at each width. Three cards fill two
+		// columns where two fit and three wherever three or more fit.
+		const style = ul.getAttribute('style') ?? '';
+		expect(style).toContain('--fdy-fill-2: 2');
+		expect(style).toContain('--fdy-fill-3: 3');
+		expect(style).toContain('--fdy-fill-5: 3');
 	});
 
 	/**
@@ -264,21 +273,23 @@ describe('the gallery mounts the card and owns the ranking', () => {
 	 * about the count rule under any default. Which order the gallery opens on
 	 * is `tests/dom/foundry-sort.test.ts`'s claim and is made in one place.
 	 */
-	it('a play ranking shows counts on the ranked cards; Recent shows none', () => {
+	it('a play ranking shows counts on the ranked cards; Recently updated shows none', () => {
 		const counts = {
-			[WITH_COVER.id]: { plays: 42, plays7d: 5 },
-			[NO_COVER.id]: { plays: 3, plays7d: 3 },
-			[BAD_KEY.id]: { plays: 0, plays7d: 0 }
+			[WITH_COVER.id]: { plays: 42, plays7d: 5, seconds: 5400 },
+			[NO_COVER.id]: { plays: 3, plays7d: 3, seconds: 0 },
+			[BAD_KEY.id]: { plays: 0, plays7d: 0, seconds: 0 }
 		};
 		const c = gallery({ playCounts: counts });
+		// THE CONTROL IS A NATIVE `<select>` SINCE DECISION 39, so choosing an
+		// order is a value plus the `change` event `bind:value` listens for.
 		const press = (id: string) => {
-			(
-				[...c.querySelectorAll('.fdy-gal-sort-btn')].find(
-					(b) => b.getAttribute('data-sort') === id
-				) as HTMLButtonElement
-			).click();
+			const sel = c.querySelector<HTMLSelectElement>('select[data-testid="foundry-gallery-sort"]')!;
+			sel.value = id;
+			sel.dispatchEvent(new Event('change', { bubbles: true }));
 			live!.flush();
 		};
+		const figures = () =>
+			[...c.querySelectorAll('[data-testid="fdy-card-plays"]')].map((e) => e.textContent?.trim());
 
 		// Under a play ranking: two of three. The third app has zero plays and
 		// `playCountLabel` renders nothing for zero, which is the assertion as
@@ -286,9 +297,16 @@ describe('the gallery mounts the card and owns the ranking', () => {
 		press('played');
 		expect(c.querySelectorAll('[data-testid="fdy-card-plays"]')).toHaveLength(2);
 
-		// Under Recent: none at all. A number on every card of a gallery nobody
-		// ordered by plays reads as a verdict on the work. The line above is the
-		// POSITIVE CONTROL for this one, on the same mount and the same fixture.
+		// Under Most hours the figure is the TIME, and only the one app with any
+		// time gets one. Before decision 39 the list printed its PLAY count here,
+		// a number that did not explain the order it sat in.
+		press('hours');
+		expect(figures()).toEqual(['1h 30m']);
+
+		// Under Recently updated: none at all. A number on every card of a
+		// gallery nobody ordered by a count reads as a verdict on the work. The
+		// lines above are the POSITIVE CONTROL for this one, on the same mount
+		// and the same fixture.
 		press('recent');
 		expect(c.querySelectorAll('[data-testid="fdy-card-plays"]')).toHaveLength(0);
 	});
@@ -343,6 +361,38 @@ describe('the clamp arithmetic', () => {
 		]) {
 			expect(clampCoverAspect(w, h), `${w}x${h}`).toBeNull();
 		}
+	});
+
+	/**
+	 * THE FILL, AGAINST AN EXPECTED VALUE THAT DOES NOT COME FROM THE FORMULA.
+	 * The property a balanced multicol has for cards of one shape: it uses the
+	 * FEWEST columns that hold the cards in the same number of rows the width
+	 * allows. So the answer is found here by SEARCH -- count down from the
+	 * width's columns while the row count stays the same -- rather than by
+	 * the closed form the implementation uses, over every count to 60 and
+	 * every width to 8 columns.
+	 */
+	it('the fill is the fewest columns that keep the same number of rows', () => {
+		let checked = 0;
+		for (let n = 1; n <= 60; n++) {
+			for (let c = 1; c <= 8; c++) {
+				const width = Math.min(c, n);
+				const rows = Math.ceil(n / width);
+				let fewest = width;
+				while (fewest > 1 && Math.ceil(n / (fewest - 1)) === rows) fewest--;
+				expect(foundryMosaicFill(n, c), `${n} cards, ${c} columns wide`).toBe(fewest);
+				expect(foundryMosaicFill(n, c)).toBeLessThanOrEqual(width);
+				checked++;
+			}
+		}
+		expect(checked).toBe(480);
+		// The measured case that started it: nine cards where four columns fit
+		// fill three, and the fourth was dead space at 1152px.
+		expect(foundryMosaicFill(9, 4)).toBe(3);
+		// POSITIVE CONTROL that it is not simply the card-count cap.
+		expect(foundryMosaicColumns(9, 4)).toBe(4);
+		expect(foundryMosaicFill(0, 5)).toBe(1);
+		expect(foundryMosaicFill(Number.NaN, 5)).toBe(1);
 	});
 
 	it('the column ceiling never exceeds the number of cards, and is never zero', () => {

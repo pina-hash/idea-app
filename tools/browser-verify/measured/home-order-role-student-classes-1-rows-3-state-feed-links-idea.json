@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "home-order-role-student-classes-1-rows-3-state-feed-links-idea.mjs",
+	"date": "2026-09-25T09:30:57.496Z",
+	"sha": "83be5b9ed0b37b64c1edbc007a3187b5c5788dca",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 22,
+	"outsideRows": [],
+	"ms": 9082
+}

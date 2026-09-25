@@ -78,6 +78,7 @@ export const CLASSROOM_SHELL_HARNESSES = [
 	'/dev/classroom-live',
 	'/dev/classroom-nav',
 	'/dev/classroom-palette',
+	'/dev/classroom-profile-menu',
 	'/dev/classroom-split',
 	'/dev/classroom-stream',
 	'/dev/classroom-todo',
@@ -90,7 +91,8 @@ export const CLASSROOM_SHELL_HARNESSES = [
 	'/dev/notebook-review',
 	'/dev/notebook-review-student',
 	'/dev/notebook-timeline',
-	'/dev/theme-switch'
+	'/dev/theme-switch',
+	'/dev/themes-shape'
 ] as const;
 
 /**

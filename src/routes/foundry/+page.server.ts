@@ -46,7 +46,7 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, url, parent }) => {
 	const { foundryAccess } = await parent();
 	if (foundryAccess && foundryAccess.open === false && foundryClosureBlocks('gallery')) {
-		return { apps: [] as FoundryAppSummary[], selected: null, playCounts: {} };
+		return { apps: [] as FoundryAppSummary[], selected: null, playCounts: {}, playCountsKnown: true };
 	}
 
 	const { data: apps, error: listErr } = await locals.supabase.rpc('foundry_list_apps');
@@ -68,8 +68,13 @@ export const load: PageServerLoad = async ({ locals, url, parent }) => {
 	 * fine. So the failure degrades to NO COUNTS: the cards lose their play
 	 * chips, the popularity tabs order on ties, and the gallery renders. Erroring
 	 * would take a working page down for a figure nobody came for.
+	 *
+	 * BUT NO COUNTS BECAUSE THE READ FAILED IS NOT ZERO PLAYS, and the page must
+	 * not say it is: `playCountsKnown` tells the gallery which one it has, so
+	 * the sentence beside its sort control says the counts could not be loaded
+	 * rather than "Nothing has been played here yet".
 	 */
-	const { data: countRows } = await locals.supabase.rpc('foundry_play_counts');
+	const { data: countRows, error: countErr } = await locals.supabase.rpc('foundry_play_counts');
 
 	const slug = url.searchParams.get('app');
 	let selected: FoundryApp | null = null;
@@ -88,6 +93,7 @@ export const load: PageServerLoad = async ({ locals, url, parent }) => {
 	return {
 		apps: (apps ?? []) as FoundryAppSummary[],
 		selected,
-		playCounts: foundryPlayCountMap((countRows ?? null) as FoundryPlayCountRow[] | null)
+		playCounts: foundryPlayCountMap((countRows ?? null) as FoundryPlayCountRow[] | null),
+		playCountsKnown: !countErr
 	};
 };

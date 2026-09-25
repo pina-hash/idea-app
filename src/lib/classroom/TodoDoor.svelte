@@ -63,7 +63,7 @@
 		text-decoration: none;
 	}
 	.td-door:hover {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 	}
 	.td-door:focus-visible {
 		outline: 2px solid var(--green);

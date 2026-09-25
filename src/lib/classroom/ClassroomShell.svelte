@@ -755,7 +755,7 @@
 		white-space: nowrap;
 	}
 	.shell-back:hover {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 		text-decoration: none;
 	}
 
@@ -804,7 +804,7 @@
 		line-height: 1.1;
 	}
 	.cls-icon:hover {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 		text-decoration: none;
 	}
 	.cls-code {
@@ -859,7 +859,7 @@
 	.sw-trigger.on,
 	.menu-trigger:hover,
 	.menu-trigger[aria-expanded='true'] {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 	}
 	.sw-name {
 		white-space: nowrap;
@@ -988,7 +988,7 @@
 		white-space: nowrap;
 	}
 	.shell-tool:hover {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 	}
 	.shell-tool svg {
 		flex: none;
@@ -1199,7 +1199,7 @@
 		text-underline-offset: 0.2em;
 	}
 	.crumbs a:hover {
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	/* The current crumb wraps rather than ellipsising: the row is wide enough
 	   to say the whole title (it was cut at 22rem in an 828px row). */
@@ -1235,7 +1235,7 @@
 	}
 	.nav-toggle:hover {
 		color: var(--text-1);
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 	}
 	.nav-toggle-caret {
 		font-size: 0.65rem;

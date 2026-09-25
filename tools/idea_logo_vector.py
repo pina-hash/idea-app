@@ -32,6 +32,42 @@ IVORY_HI, IVORY_LO = "#F2EEE5", "#D3CBBC"
 IVORY_OUTLINE = "#262B24"
 LETTER_SHADOW = "#0F1A12"
 
+# ---- the palette as one value -----------------------------------------------
+# Every colour the emblem layers paint, keyed by the job it does, so a second
+# palette can be handed to the SAME geometry. DARK is the sampled palette above,
+# spelled out once more as a dict; every default output of this file is built
+# from it and is byte-identical to what the constants alone produced.
+DARK = dict(
+    steel_hi=STEEL_HI, steel_mid=STEEL_MID, steel_lo=STEEL_LO, steel_outline=STEEL_OUTLINE,
+    rim_hi=RIM_HI, rim_lo=RIM_LO,
+    plate_top=PLATE_TOP, plate_mid=PLATE_MID, plate_lo=PLATE_LO, plate_outline=PLATE_OUTLINE,
+    groove=PLATE_OUTLINE, groove_opacity=0.6,
+    glow_hi=GLOW_HI, glow_mid=GLOW_MID, glow_lo=GLOW_LO, halo=GLOW_MID, halo_opacity=0.22,
+    letter_hi=IVORY_HI, letter_lo=IVORY_LO, letter_outline=IVORY_OUTLINE,
+    letter_shadow=LETTER_SHADOW, letter_shadow_opacity=0.8,
+    bevel_deep="#5F5D55", bevel_mid="#B9B2A3", bevel_lit=IVORY_HI,
+)
+
+# THE LIGHT LOCKUP (ledger 0298, decision 40 item 2): the emblem for a light
+# console, where the dark plate read as a dark tile on a white masthead. The
+# GEOMETRY does not move -- it is the same gear, plate and traced letters as
+# DARK -- only the paint does, and the green identity is kept: the plate is the
+# brand green (#78b870, the value Space White calls --accent-field and keeps
+# at full brightness for a large field only) worked into the same top-lit
+# gradient the dark plate has, its edge and groove in the theme's green ink,
+# the inset line a pale highlight on the field rather than a glow, and the
+# ivory lettering re-inked to a near-black green so it reads on that field.
+# The steel gear keeps its steel; only its outline deepens to the theme's ink.
+LIGHT = dict(DARK,
+    steel_outline="#1B2A1F",
+    plate_top="#9DD294", plate_mid="#80BF77", plate_lo="#69A862", plate_outline="#1F3A22",
+    groove="#2F5C2D", groove_opacity=0.35,
+    glow_hi="#FAFDF8", glow_mid="#E9F5E5", glow_lo="#D2EACB", halo="#FFFFFF", halo_opacity=0.18,
+    letter_hi="#223A28", letter_lo="#0F1A12", letter_outline="#0B140E",
+    letter_shadow="#2F5C2D", letter_shadow_opacity=0.45,
+    bevel_deep="#08100A", bevel_mid="#1A2B1F", bevel_lit="#4F7556",
+)
+
 # ---- gear (source px) ------------------------------------------------------
 GEAR_CX, GEAR_CY, GEAR_R = 611.0, 582.0, 568.0
 TEETH, ROOT, BORE, RIM_OUT = 14, 0.88, 0.655, 0.708
@@ -135,23 +171,24 @@ def poly_path(pts):
     return "M " + " L ".join("%.1f %.1f" % (x, y) for x, y in pts) + " Z"
 
 
-def defs(prefix=""):
+def defs(prefix="", pal=DARK):
     p = prefix
+    P = pal
     return f"""<defs>
 <linearGradient id="{p}steel" x1="0" y1="0" x2="1" y2="1">
-  <stop offset="0" stop-color="{STEEL_HI}"/><stop offset="0.5" stop-color="{STEEL_MID}"/><stop offset="1" stop-color="{STEEL_LO}"/>
+  <stop offset="0" stop-color="{P["steel_hi"]}"/><stop offset="0.5" stop-color="{P["steel_mid"]}"/><stop offset="1" stop-color="{P["steel_lo"]}"/>
 </linearGradient>
 <linearGradient id="{p}rim" x1="0" y1="0" x2="1" y2="1">
-  <stop offset="0" stop-color="{RIM_HI}"/><stop offset="1" stop-color="{RIM_LO}"/>
+  <stop offset="0" stop-color="{P["rim_hi"]}"/><stop offset="1" stop-color="{P["rim_lo"]}"/>
 </linearGradient>
 <linearGradient id="{p}plate" x1="0" y1="0" x2="0" y2="1">
-  <stop offset="0" stop-color="{PLATE_TOP}"/><stop offset="0.45" stop-color="{PLATE_MID}"/><stop offset="1" stop-color="{PLATE_LO}"/>
+  <stop offset="0" stop-color="{P["plate_top"]}"/><stop offset="0.45" stop-color="{P["plate_mid"]}"/><stop offset="1" stop-color="{P["plate_lo"]}"/>
 </linearGradient>
 <linearGradient id="{p}glow" x1="0" y1="0" x2="0" y2="1">
-  <stop offset="0" stop-color="{GLOW_HI}"/><stop offset="0.5" stop-color="{GLOW_MID}"/><stop offset="1" stop-color="{GLOW_LO}"/>
+  <stop offset="0" stop-color="{P["glow_hi"]}"/><stop offset="0.5" stop-color="{P["glow_mid"]}"/><stop offset="1" stop-color="{P["glow_lo"]}"/>
 </linearGradient>
 <linearGradient id="{p}ivory" x1="0" y1="0" x2="0" y2="1">
-  <stop offset="0" stop-color="{IVORY_HI}"/><stop offset="1" stop-color="{IVORY_LO}"/>
+  <stop offset="0" stop-color="{P["letter_hi"]}"/><stop offset="1" stop-color="{P["letter_lo"]}"/>
 </linearGradient>
 <linearGradient id="{p}tile" x1="0" y1="0" x2="0.3" y2="1">
   <stop offset="0" stop-color="#1C2123"/><stop offset="1" stop-color="#070909"/>
@@ -159,29 +196,29 @@ def defs(prefix=""):
 </defs>"""
 
 
-def gear_svg(scale=1.0, cx=GEAR_CX, cy=GEAR_CY, r=GEAR_R, outline=GEAR_OUTLINE_W, prefix="", bore=BORE, rim_out=RIM_OUT):
+def gear_svg(scale=1.0, cx=GEAR_CX, cy=GEAR_CY, r=GEAR_R, outline=GEAR_OUTLINE_W, prefix="", bore=BORE, rim_out=RIM_OUT, pal=DARK):
     """Steel gear with dark outline, bevel, and green inner rim. Bore is open."""
     r_in = r * rim_out
     body = gear_ring_path(cx, cy, r, r_in)
     rim = annulus_path(cx, cy, r * rim_out, r * bore)
     # inset bevel: a lighter copy of the ring, slightly smaller, clipped to the body
     return f"""<g>
-<path d="{body}" fill-rule="evenodd" fill="{STEEL_OUTLINE}" stroke="{STEEL_OUTLINE}" stroke-width="{outline*0.9:.1f}" stroke-linejoin="round"/>
+<path d="{body}" fill-rule="evenodd" fill="{pal["steel_outline"]}" stroke="{pal["steel_outline"]}" stroke-width="{outline*0.9:.1f}" stroke-linejoin="round"/>
 <path d="{gear_ring_path(cx, cy, r - outline*0.55, r_in + outline*0.35)}" fill-rule="evenodd" fill="url(#{prefix}steel)"/>
-<path d="{gear_ring_path(cx, cy, r - outline*1.15, r_in + outline*0.9)}" fill-rule="evenodd" fill="none" stroke="{STEEL_HI}" stroke-opacity="0.35" stroke-width="{outline*0.35:.1f}"/>
-<path d="{rim}" fill-rule="evenodd" fill="url(#{prefix}rim)" stroke="{STEEL_OUTLINE}" stroke-width="{outline*0.16:.1f}"/>
+<path d="{gear_ring_path(cx, cy, r - outline*1.15, r_in + outline*0.9)}" fill-rule="evenodd" fill="none" stroke="{pal["steel_hi"]}" stroke-opacity="0.35" stroke-width="{outline*0.35:.1f}"/>
+<path d="{rim}" fill-rule="evenodd" fill="url(#{prefix}rim)" stroke="{pal["steel_outline"]}" stroke-width="{outline*0.16:.1f}"/>
 </g>"""
 
 
-def plate_svg(x0=PX0, y0=PY0, x1=PX1, y1=PY1, c=CHAMFER, inset=GLOW_INSET, gw=GLOW_W, accent=True, prefix=""):
+def plate_svg(x0=PX0, y0=PY0, x1=PX1, y1=PY1, c=CHAMFER, inset=GLOW_INSET, gw=GLOW_W, accent=True, prefix="", pal=DARK):
     outer = octagon(x0, y0, x1, y1, c)
     ci = c - inset * (math.sqrt(2) - 1)  # keep the inset line's chamfer parallel
     ci = c - inset * 0.414
     inner = octagon(x0 + inset, y0 + inset, x1 - inset, y1 - inset, ci)
     g = f"""<g>
-<path d="{outer}" fill="{PLATE_OUTLINE}" stroke="{PLATE_OUTLINE}" stroke-width="10" stroke-linejoin="round"/>
+<path d="{outer}" fill="{pal["plate_outline"]}" stroke="{pal["plate_outline"]}" stroke-width="10" stroke-linejoin="round"/>
 <path d="{octagon(x0+4, y0+4, x1-4, y1-4, c-2)}" fill="url(#{prefix}plate)"/>
-<path d="{inner}" fill="none" stroke="{PLATE_OUTLINE}" stroke-opacity="0.6" stroke-width="{gw*1.9:.1f}"/>
+<path d="{inner}" fill="none" stroke="{pal["groove"]}" stroke-opacity="{pal["groove_opacity"]}" stroke-width="{gw*1.9:.1f}"/>
 """
     if accent:
         # glow line with the double-slash break at lower right, in source px, scaled to this plate
@@ -195,33 +232,33 @@ def plate_svg(x0=PX0, y0=PY0, x1=PX1, y1=PY1, c=CHAMFER, inset=GLOW_INSET, gw=GL
         gi = octagon(x0 + inset, y0 + inset, x1 - inset, y1 - inset, ci)
         # draw the closed inner octagon minus the bottom segment between the break points, then the slash pieces
         # simplest faithful approach: full loop, then paint the gap in plate colour, then draw slashes
-        g += f'<path d="{gi}" fill="none" stroke="{GLOW_MID}" stroke-opacity="0.22" stroke-width="{gw*3.2:.1f}" stroke-linejoin="round"/>\n'
+        g += f'<path d="{gi}" fill="none" stroke="{pal["halo"]}" stroke-opacity="{pal["halo_opacity"]}" stroke-width="{gw*3.2:.1f}" stroke-linejoin="round"/>\n'
         g += f'<path d="{gi}" fill="none" stroke="url(#{prefix}glow)" stroke-width="{gw}" stroke-linejoin="round"/>\n'
-        g += f'<rect x="{b_left:.1f}" y="{yb-gw:.1f}" width="{b_resume-b_left:.1f}" height="{gw*2:.1f}" fill="{PLATE_LO}"/>\n'
+        g += f'<rect x="{b_left:.1f}" y="{yb-gw:.1f}" width="{b_resume-b_left:.1f}" height="{gw*2:.1f}" fill="{pal["plate_lo"]}"/>\n'
         g += f'<path d="M {b_left:.1f} {yb:.1f} L {b_top[0]:.1f} {b_top[1]:.1f}" stroke="url(#{prefix}glow)" stroke-width="{gw}" stroke-linecap="butt"/>\n'
         s2a = S(1991, 890); s2b = S(2108, 771)
         g += f'<path d="M {s2a[0]:.1f} {s2a[1]:.1f} L {s2b[0]:.1f} {s2b[1]:.1f}" stroke="url(#{prefix}glow)" stroke-width="{gw}" stroke-linecap="butt"/>\n'
     else:
-        g += f'<path d="{inner}" fill="none" stroke="{GLOW_MID}" stroke-opacity="0.22" stroke-width="{gw*3.2:.1f}" stroke-linejoin="round"/>\n'
+        g += f'<path d="{inner}" fill="none" stroke="{pal["halo"]}" stroke-opacity="{pal["halo_opacity"]}" stroke-width="{gw*3.2:.1f}" stroke-linejoin="round"/>\n'
         g += f'<path d="{inner}" fill="none" stroke="url(#{prefix}glow)" stroke-width="{gw}" stroke-linejoin="round"/>\n'
     return g + "</g>"
 
 
-def letters_svg(outline=7.0, shadow=(5, 6), which=None, prefix=""):
+def letters_svg(outline=7.0, shadow=(5, 6), which=None, prefix="", pal=DARK):
     """Ivory letters with the source's bevel: dark outline, light rim, thin dark ridge, then flat ivory."""
     g = "<g>"
     sel = [L for L in LETTERS if not which or L["name"] in which]
     for L in sel:
         d = poly_path(L["pts"])
-        g += (f'<path d="{d}" transform="translate({shadow[0]},{shadow[1]})" fill="{LETTER_SHADOW}" fill-opacity="0.8" '
-              f'stroke="{LETTER_SHADOW}" stroke-opacity="0.8" stroke-width="{outline}" stroke-linejoin="round"/>')
+        g += (f'<path d="{d}" transform="translate({shadow[0]},{shadow[1]})" fill="{pal["letter_shadow"]}" fill-opacity="{pal["letter_shadow_opacity"]}" '
+              f'stroke="{pal["letter_shadow"]}" stroke-opacity="{pal["letter_shadow_opacity"]}" stroke-width="{outline}" stroke-linejoin="round"/>')
     for L in sel:
         d = poly_path(L["pts"]); cp = f'clip-path="url(#{prefix}clip_{L["name"]})"'
         g += f'<path d="{d}" fill="url(#{prefix}ivory)"/>'
-        g += f'<path d="{d}" fill="none" stroke="#5F5D55" stroke-width="{outline*3.2:.1f}" stroke-linejoin="round" {cp}/>'
-        g += f'<path d="{d}" fill="none" stroke="#B9B2A3" stroke-width="{outline*2.3:.1f}" stroke-linejoin="round" transform="translate({outline*0.3:.1f},{outline*0.3:.1f})" {cp}/>'
-        g += f'<path d="{d}" fill="none" stroke="{IVORY_HI}" stroke-width="{outline*2.3:.1f}" stroke-linejoin="round" transform="translate({-outline*0.3:.1f},{-outline*0.3:.1f})" {cp}/>'
-        g += f'<path d="{d}" fill="none" stroke="{IVORY_OUTLINE}" stroke-width="{outline}" stroke-linejoin="round"/>'
+        g += f'<path d="{d}" fill="none" stroke="{pal["bevel_deep"]}" stroke-width="{outline*3.2:.1f}" stroke-linejoin="round" {cp}/>'
+        g += f'<path d="{d}" fill="none" stroke="{pal["bevel_mid"]}" stroke-width="{outline*2.3:.1f}" stroke-linejoin="round" transform="translate({outline*0.3:.1f},{outline*0.3:.1f})" {cp}/>'
+        g += f'<path d="{d}" fill="none" stroke="{pal["bevel_lit"]}" stroke-width="{outline*2.3:.1f}" stroke-linejoin="round" transform="translate({-outline*0.3:.1f},{-outline*0.3:.1f})" {cp}/>'
+        g += f'<path d="{d}" fill="none" stroke="{pal["letter_outline"]}" stroke-width="{outline}" stroke-linejoin="round"/>'
     return g + "</g>"
 
 
@@ -236,6 +273,32 @@ def full_logo_svg(w=SRC_W, h=SRC_H, background=None):
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" height="{h}">'
             + defs() + letter_clips() + bg
             + gear_svg() + plate_svg() + letters_svg() + "</svg>")
+
+
+# ---- the site emblem's two layers (ledger 0298) ----------------------------
+# `src/lib/brand/AnimatedLogo.svelte` draws the emblem as TWO images: the plate
+# with its letters on the full 2560 x 1204 source canvas, and the gear alone on
+# a 1202 x 1202 canvas that spins behind it. The component seats the gear at
+# the canvas's top-left with `top: -1.2%` (14.4 source px up) and rotates it
+# about the IMAGE CENTRE, so the gear is drawn at the centre of its own canvas
+# here -- a true spin -- which puts it within 10 source px of the measured hub
+# at (611, 582): 0.4 px at the 104 px masthead.
+EMBLEM_GEAR_CANVAS = 1202
+
+
+def emblem_text_svg(pal=DARK, prefix="e"):
+    """The plate and its letters, no gear, transparent, on the source canvas."""
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {SRC_W} {SRC_H}" width="{SRC_W}" height="{SRC_H}">'
+            + defs(prefix, pal) + letter_clips(prefix)
+            + plate_svg(prefix=prefix, pal=pal) + letters_svg(prefix=prefix, pal=pal) + "</svg>")
+
+
+def emblem_gear_svg(pal=DARK, prefix="g"):
+    """The gear alone, centred on its own square canvas, transparent."""
+    C = EMBLEM_GEAR_CANVAS
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {C} {C}" width="{C}" height="{C}">'
+            + defs(prefix, pal)
+            + gear_svg(cx=C / 2, cy=C / 2, prefix=prefix, pal=pal) + "</svg>")
 
 
 def plate_tile_svg(S, chamfer=0.135, accent=True, prefix="", bleed_square=False):
@@ -296,6 +359,20 @@ def icon_svg(size=512, mode="stack", maskable=False, k=None):
 
 if __name__ == "__main__":
     import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--emblem":
+        # python3 tools/idea_logo_vector.py --emblem light <outdir>
+        # Writes the two emblem layers as SVG. No rasteriser is imported: the
+        # PNG copies the site serves are rendered from these by
+        # `node tools/idea_emblem_raster.mjs <outdir>`, through the Chromium the
+        # browser pass already uses, because this container has no cairosvg.
+        name = sys.argv[2] if len(sys.argv) > 2 else "light"
+        out = sys.argv[3] if len(sys.argv) > 3 else "emblem"
+        pal = {"light": LIGHT, "dark": DARK}[name]
+        os.makedirs(out, exist_ok=True)
+        open(f"{out}/idea-logo-text-{name}.svg", "w").write(emblem_text_svg(pal))
+        open(f"{out}/idea-gear-{name}.svg", "w").write(emblem_gear_svg(pal))
+        print("ok")
+        sys.exit(0)
     import cairosvg
     out = sys.argv[1] if len(sys.argv) > 1 else "v2"
     os.makedirs(out, exist_ok=True)

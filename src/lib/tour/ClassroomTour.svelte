@@ -244,7 +244,7 @@
 		white-space: nowrap;
 	}
 	.tour-offer-btn:hover {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 	}
 	/* The primary is marked by an edge and a rule as well as its colour. */
 	.tour-offer-btn.primary {

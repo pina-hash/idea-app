@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "foundry-boards-state-hours.mjs",
+	"date": "2026-09-25T06:34:41.500Z",
+	"sha": "1ac087332afd0135ef7bded2f173f083f5436a09",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 16,
+	"outsideRows": [],
+	"ms": 5898
+}
