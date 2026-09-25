@@ -8,6 +8,8 @@
 	import Pending from '$lib/Pending.svelte';
 	import LinkPreviewCard from '$lib/classroom/LinkPreviewCard.svelte';
 	import UnitManager from '$lib/classroom/UnitManager.svelte';
+	import ClassVideos from '$lib/classroom/ClassVideos.svelte';
+	import { classVideos } from '$lib/classroom/class-videos';
 	import { sortDrag } from '$lib/classroom/sort-drag';
 	import { anchored } from '$lib/shell/anchored';
 	import { itemLayoutOf, type ClassroomLayoutTransports } from '$lib/classroom/attachments';
@@ -467,6 +469,18 @@
 	}
 	const shownCount = $derived(shownItems.length + streamCheckIns(shownCheckIns).length);
 	const totalCount = $derived(items.length + listedCheckIns.length);
+	/**
+	 * EVERY VIDEO IN WHAT THE PAGE IS SHOWING (ledger 0298, R08), in the page's
+	 * own reading order, so the first item to post a video is the first one a
+	 * reader meets. Derived from the loaded items (`$lib/classroom/class-videos`),
+	 * with no read of its own; the filter row narrows it like the rows.
+	 */
+	const videoIndex = $derived(
+		classVideos(
+			shownGroups.flatMap((g) => g.items),
+			clock ? new Date(clock.now) : new Date()
+		)
+	);
 
 	/** The kinds this class actually holds; a select with one real choice is not offered. */
 	const kindOptions = $derived.by((): StreamKindFilter[] => {
@@ -1929,6 +1943,18 @@
 			{/if}
 			<p class="sr-only" aria-live="polite">{filtering ? `${shownCount} of ${totalCount} shown` : ''}</p>
 		</div>
+	{/if}
+
+	<!-- VIDEOS (ledger 0298, R08): a closed section under the search row, only
+	     when the class has one, and not beside an open item, where this list
+	     is the navigation column. See ClassVideos for why it is not a kind. -->
+	{#if !asPane && videoIndex.videos.length}
+		<ClassVideos
+			index={videoIndex}
+			itemHref={(id) => `${basePath}/${section.id}/item/${id}`}
+			scope={`class-videos:${section.id}`}
+			showHeld={canManage}
+		/>
 	{/if}
 
 	<!--
