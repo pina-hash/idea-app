@@ -427,6 +427,7 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 	private filters: Filter[] = [];
 	private orderBy: { column: string; ascending: boolean } | null = null;
 	private limitTo: number | null = null;
+	private offsetBy = 0;
 	private singleRow = false;
 
 	constructor(
@@ -514,6 +515,20 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 		return this;
 	}
 
+	/**
+	 * PostgREST's `.range(from, to)`, rows `from` through `to` inclusive -- the
+	 * paged read a completeness load makes so a response PostgREST truncates at
+	 * `max_rows` is never judged as the whole (ledger 0298). An offset and a
+	 * limit, nothing more; the `count` a real server returns beside it is not
+	 * modelled, so a caller here pages on the short last page instead, which is
+	 * its own documented fallback.
+	 */
+	range(from: number, to: number) {
+		this.offsetBy = from;
+		this.limitTo = to - from + 1;
+		return this;
+	}
+
 	maybeSingle() {
 		this.singleRow = true;
 		return this;
@@ -594,7 +609,8 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 				(this.orderBy
 					? ` order by t.${quote(this.orderBy.column)} ${this.orderBy.ascending ? 'asc' : 'desc'}`
 					: '') +
-				(this.limitTo !== null ? ` limit ${this.limitTo}` : '');
+				(this.limitTo !== null ? ` limit ${this.limitTo}` : '') +
+				(this.offsetBy > 0 ? ` offset ${this.offsetBy}` : '');
 		} catch (error) {
 			if (error instanceof UnresolvableEmbed) {
 				// PostgREST's own code for an embed it cannot resolve.

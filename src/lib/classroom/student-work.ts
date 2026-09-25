@@ -45,12 +45,19 @@ import {
 	type ClassroomItem,
 	type ClassroomSection
 } from '$lib/classroom/classroom';
-import { SECTION_SELECT, selectItemsWithDoc } from '$lib/classroom/transports';
+import { SECTION_SELECT, htmlManifestShaped, selectItemsWithDoc } from '$lib/classroom/transports';
 import { checkInIsScheduled, checkInStatus, type ClassCheckIn } from '$lib/classroom/class-check-ins';
 import { sectionManagedBy, type FeedSubmission } from '$lib/classroom/feed';
 import { laCalendarDay } from '$lib/classroom/school-calendar';
 import type { ItemDoc } from '$lib/classroom/classroom-doc';
 import { NOTEBOOK_POSTING_SELECTS } from '$lib/notebook-selects';
+import { isHtmlAssignment } from '$lib/classroom/html-assignment/mount';
+import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
+import {
+	hxCompletion,
+	type HxCompletionFile,
+	type HxCompletionResponse
+} from '$lib/classroom/html-assignment/progress';
 
 /** The loader's one clock read: the instant, and the school day it falls on. */
 export interface ClassroomClock {
@@ -288,6 +295,261 @@ export async function readOwnCheckIns(
 }
 
 // ---------------------------------------------------------------------------
+// Ported worksheets: finishing one is turning it in (decision 37, ledger 0298)
+// ---------------------------------------------------------------------------
+
+/** One page of a paged read. PostgREST caps a response at `max_rows` (1000 on this project and on a hosted default). */
+export const WORKSHEET_PAGE_ROWS = 1000;
+/** The most rows a completeness read will page through before it gives up and reports "cannot tell". */
+export const WORKSHEET_MAX_ROWS = 10 * WORKSHEET_PAGE_ROWS;
+
+/**
+ * HOW FAR BACK THE TEACHER'S TO-GRADE TALLY LOOKS FOR A FINISHED WORKSHEET, in
+ * days past the due instant. A student's OWN worksheets are judged whatever
+ * their date; a teacher's tally reads every student's answers, which grows by
+ * a class's worth of rows with every worksheet posted, so it is bounded to the
+ * work that can still be arriving. An undated worksheet is always read. Past
+ * the window a worksheet is still counted in its own grading console, which
+ * reads that one item.
+ */
+export const WORKSHEET_TALLY_WINDOW_DAYS = 21;
+
+type PagedAnswer = PromiseLike<{ data: unknown; error: unknown; count?: number | null }>;
+
+/**
+ * EVERY ROW A QUERY MATCHES, NOT THE FIRST THOUSAND.
+ *
+ * A response PostgREST truncates at `max_rows` comes back with no error, and
+ * for a completeness read that is the defect this bundle exists to fix, one
+ * level down: a worksheet whose last answers fell past row 1000 reads as
+ * unfinished. So the read pages, advancing by the rows it actually received
+ * (a server capping lower than a page still loses nothing), stops on the exact
+ * `count` when the server gives one and on a short page when it does not, and
+ * answers NULL -- "cannot tell" -- on any error or past `maxRows`. Null is what
+ * every caller turns into today's behaviour, never into "complete".
+ */
+export async function readAllPages<T>(
+	page: (from: number, to: number) => PagedAnswer,
+	maxRows = WORKSHEET_MAX_ROWS
+): Promise<T[] | null> {
+	const rows: T[] = [];
+	for (;;) {
+		const from = rows.length;
+		const { data, error, count } = await page(from, from + WORKSHEET_PAGE_ROWS - 1);
+		if (error) return null;
+		const got = (Array.isArray(data) ? data : []) as T[];
+		rows.push(...got);
+		const total = typeof count === 'number' ? count : null;
+		if (total !== null ? rows.length >= total : got.length < WORKSHEET_PAGE_ROWS) return rows;
+		// The server says there is more and handed over nothing: a read that
+		// cannot finish is not one to judge a student by.
+		if (!got.length) return null;
+		if (rows.length >= maxRows) return null;
+	}
+}
+
+/** One stored answer, as the completeness read selects it. */
+interface WorksheetResponseRow extends HxCompletionResponse {
+	item_id: string;
+	student_email: string;
+}
+
+/** One hand-in file, with the submission it hangs off. */
+type WorksheetFileRow = HxCompletionFile & {
+	classroom_submissions: { item_id: string; student_email: string } | null;
+};
+
+/**
+ * The file columns the completeness read needs: `hxImagesFromFiles`' own
+ * inputs plus `created_at`, which is 0086's own column (never a rung) and is
+ * what says when a photograph arrived.
+ */
+const WORKSHEET_FILE_SELECT =
+	'id, submission_id, block_id, caption, filename, mime_type, sort_order, created_at, classroom_submissions!inner(item_id, student_email)';
+
+/** The key a (worksheet, student) pair is held under. Emails are compared lowercased, as 0086 stores them. */
+export function worksheetKey(itemId: string, email: string): string {
+	return `${itemId} ${email.trim().toLowerCase()}`;
+}
+
+/**
+ * WHICH OF THESE ASSIGNMENTS ARE FINISHED PORTED WORKSHEETS, AND FOR WHOM, AND
+ * WHEN: `worksheetKey(item, email)` to the instant `hxCompletion` gives, for
+ * every pair whose worksheet is complete. NULL when any read could not answer,
+ * which every caller renders as today's behaviour (the row's own state and
+ * nothing more) -- never as complete.
+ *
+ * FOUR READS IN TWO ROUNDS, ONE PER TABLE, NO MATTER HOW MANY ITEMS. First the
+ * item's own `assignment_schema_version` (the discriminator every rendering
+ * surface reads, CLAUDE.md's ported-assignment rule) beside the manifests
+ * (`classroom_html_assignments`, readable wherever the item is, 0195); then,
+ * for the worksheets only, the answers and the photographs. A spec assignment
+ * never pays for an answers read.
+ *
+ * EVERY READ RUNS AS THE CALLER, AND RLS DECIDES WHOSE ROWS COME BACK:
+ * `classroom_responses` is own-row-or-reviewer, so a student receives their
+ * own answers and a teacher their students'. ATTRIBUTION IS THE ROW'S OWN
+ * `student_email`, grouped before anything is judged, so a classmate's answer
+ * can never finish somebody else's worksheet. `onlyEmail` pins both answer
+ * reads to one person as well, for a surface computing "my" standing that a
+ * manager of a co-posted class could otherwise read other people's rows on --
+ * the class layout's attribution rule, not a privacy boundary.
+ */
+export async function readWorksheetCompletions(
+	supabase: SupabaseClient,
+	itemIds: readonly string[],
+	options: { onlyEmail?: string | null } = {}
+): Promise<Map<string, string> | null> {
+	// A THROW IS "CANNOT TELL" TOO. This read decorates a page whose real
+	// content is the list of classes; nothing it does may take that list down.
+	try {
+		return await worksheetCompletions(supabase, itemIds, options);
+	} catch {
+		return null;
+	}
+}
+
+async function worksheetCompletions(
+	supabase: SupabaseClient,
+	itemIds: readonly string[],
+	options: { onlyEmail?: string | null }
+): Promise<Map<string, string> | null> {
+	const ids = [...new Set(itemIds)];
+	const out = new Map<string, string>();
+	if (!ids.length) return out;
+
+	const [versions, docs] = await Promise.all([
+		supabase.from('classroom_items').select('id, assignment_schema_version').in('id', ids),
+		supabase.from('classroom_html_assignments').select('item_id, manifest').in('item_id', ids)
+	]);
+	if (versions.error || docs.error) return null;
+	const stamped = new Set(
+		((versions.data ?? []) as { id: string; assignment_schema_version?: unknown }[])
+			.filter((row) => isHtmlAssignment(row))
+			.map((row) => row.id)
+	);
+	const manifests = new Map<string, HtmlAssignmentManifest>();
+	for (const row of (docs.data ?? []) as { item_id: string; manifest: unknown }[]) {
+		// A stamped item with a manifest this cannot map is one no answer could
+		// be keyed back to: it stays out, and reads exactly as it did.
+		if (stamped.has(row.item_id) && htmlManifestShaped(row.manifest)) manifests.set(row.item_id, row.manifest);
+	}
+	const worksheetIds = [...manifests.keys()];
+	if (!worksheetIds.length) return out;
+
+	const email = options.onlyEmail ? options.onlyEmail.trim().toLowerCase() : null;
+	const [responses, files] = await Promise.all([
+		readAllPages<WorksheetResponseRow>((from, to) => {
+			let q = supabase
+				.from('classroom_responses')
+				.select('item_id, student_email, block_id, value, updated_at', { count: 'exact' })
+				.in('item_id', worksheetIds);
+			if (email) q = q.eq('student_email', email);
+			return q.order('item_id').order('student_email').order('block_id').range(from, to);
+		}),
+		readAllPages<WorksheetFileRow>((from, to) => {
+			let q = supabase
+				.from('classroom_submission_files')
+				.select(WORKSHEET_FILE_SELECT, { count: 'exact' })
+				.in('classroom_submissions.item_id', worksheetIds)
+				.not('block_id', 'is', null);
+			if (email) q = q.eq('classroom_submissions.student_email', email);
+			return q.order('id').range(from, to);
+		})
+	]);
+	if (!responses || !files) return null;
+
+	const answers = new Map<string, WorksheetResponseRow[]>();
+	for (const row of responses) {
+		const key = worksheetKey(row.item_id, row.student_email ?? '');
+		const list = answers.get(key);
+		if (list) list.push(row);
+		else answers.set(key, [row]);
+	}
+	const photos = new Map<string, WorksheetFileRow[]>();
+	for (const file of files) {
+		const owner = file.classroom_submissions;
+		if (!owner) continue;
+		const key = worksheetKey(owner.item_id, owner.student_email ?? '');
+		const list = photos.get(key);
+		if (list) list.push(file);
+		else photos.set(key, [file]);
+	}
+	for (const key of new Set([...answers.keys(), ...photos.keys()])) {
+		const itemId = key.slice(0, key.indexOf(' '));
+		const manifest = manifests.get(itemId);
+		if (!manifest) continue;
+		const done = hxCompletion(manifest, answers.get(key) ?? [], photos.get(key) ?? []);
+		// Complete with no readable instant cannot happen through this read (both
+		// selects carry the column); if it ever does, it is complete and not late.
+		if (done.complete) out.set(key, done.at ?? '');
+	}
+	return out;
+}
+
+/**
+ * THE COMPLETIONS, ON THE SUBMISSION ROWS EVERY OWED-WORK SURFACE ALREADY
+ * READS, so the home page, My Classes, the to-do and the feed's tally take the
+ * new input without a new parameter anywhere.
+ *
+ * A ROW THAT IS NOT A DRAFT IS LEFT ALONE: submitted (turned in or closed) and
+ * returned already say where the work stands.
+ *
+ * A FINISHED WORKSHEET WITH NO ROW GETS ONE, and that is the common case
+ * rather than an edge: `classroom_save_response` never creates a submission
+ * row (only a file, a grade, a submit or a close does), so a worksheet with
+ * every answer typed and no photograph has no row at all. The row added is a
+ * `draft` -- which is exactly what the absence of a row already meant to every
+ * reader of this list (`FeedSubmission`'s own doc) -- carrying `completed_at`.
+ * Nothing on it is invented: no score, no timestamps.
+ */
+export function withWorksheetCompletions<T extends { item_id: string; student_email?: string | null; state: string }>(
+	rows: readonly T[],
+	completions: ReadonlyMap<string, string> | null,
+	blank: (itemId: string, email: string) => T
+): T[] {
+	if (!completions || !completions.size) return [...rows];
+	const seen = new Set<string>();
+	const out = rows.map((row) => {
+		const key = worksheetKey(row.item_id, row.student_email ?? '');
+		seen.add(key);
+		const at = completions.get(key);
+		return at !== undefined && row.state === 'draft' ? { ...row, completed_at: at } : row;
+	});
+	for (const [key, at] of completions) {
+		if (seen.has(key)) continue;
+		const space = key.indexOf(' ');
+		out.push({ ...blank(key.slice(0, space), key.slice(space + 1)), completed_at: at });
+	}
+	return out;
+}
+
+/**
+ * The assignments a completeness read is worth making for, out of a list of
+ * items: every assignment in a class the caller takes, and in a class they
+ * teach only the ones inside `WORKSHEET_TALLY_WINDOW_DAYS` (the tally's bound).
+ * Which of them are worksheets is the read's own first question.
+ */
+export function worksheetCandidates(
+	items: readonly ClassroomItem[],
+	takes: (item: ClassroomItem) => boolean,
+	teaches: (item: ClassroomItem) => boolean,
+	now: string
+): string[] {
+	const from = Date.parse(now) - WORKSHEET_TALLY_WINDOW_DAYS * 86_400_000;
+	return items
+		.filter((item) => item.kind === 'assignment')
+		.filter((item) => {
+			if (takes(item)) return true;
+			if (!teaches(item)) return false;
+			if (!item.due_at) return true;
+			const due = Date.parse(item.due_at);
+			return !Number.isFinite(due) || !Number.isFinite(from) || due >= from;
+		})
+		.map((item) => item.id);
+}
+
+// ---------------------------------------------------------------------------
 // The one query set
 // ---------------------------------------------------------------------------
 
@@ -409,10 +671,47 @@ export async function loadClassroomWork(
 		);
 	}
 
+	const isAdmin = await options.isAdmin;
+
+	/**
+	 * FINISHED PORTED WORKSHEETS (decision 37, ledger 0298). A worksheet has no
+	 * turn-in, so without this every one of them read "Missing" from its due
+	 * instant until a grade was returned, on this list and on every surface
+	 * built from it, and the teacher's to-grade tally never counted one. The
+	 * read is `readWorksheetCompletions` and the rows it adds or marks are
+	 * `withWorksheetCompletions`'s; a read that cannot answer changes nothing.
+	 */
+	if (items.length) {
+		const managed = new Set(sections.filter((s) => sectionManagedBy(s, me, isAdmin)).map((s) => s.id));
+		// A worksheet of mine that is already turned in, closed or handed back
+		// says where it stands on its own row; only an open one is worth a read.
+		const settled = new Set(
+			submissions
+				.filter((s) => (s.student_email ?? '').toLowerCase() === me && s.state !== 'draft')
+				.map((s) => s.item_id)
+		);
+		const candidates = worksheetCandidates(
+			items,
+			(item) =>
+				!settled.has(item.id) &&
+				item.postings.some((p) => sectionIds.includes(p.section_id) && !managed.has(p.section_id)),
+			(item) => item.postings.some((p) => managed.has(p.section_id)),
+			clock.now
+		);
+		const completions = await readWorksheetCompletions(supabase, candidates);
+		submissions = withWorksheetCompletions(submissions, completions, (item_id, student_email) => ({
+			item_id,
+			student_email,
+			state: 'draft',
+			submitted_at: null,
+			returned_at: null,
+			graded_at: null
+		}));
+	}
+
 	let checkIns: ClassCheckIn[] = [];
 	let checkInsReady = false;
 	if (options.checkIns) {
-		const isAdmin = await options.isAdmin;
 		const studentSectionIds = sections.filter((s) => !sectionManagedBy(s, me, isAdmin)).map((s) => s.id);
 		if (studentSectionIds.length) {
 			const postings = await readCheckInPostings(supabase, studentSectionIds);
