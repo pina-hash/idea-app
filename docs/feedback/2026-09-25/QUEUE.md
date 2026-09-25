@@ -16,6 +16,21 @@ A brief written today about session 4 goes stale the moment session 1 moves the 
 | later | Tournament banner image (needs a column and an RPC); linkage motion like motiongen (R15); theme wallpapers and per-app backdrops (R09, R10) | R01 R15 R09 R10 | R01 yes | open |
 | waits on him | Hex_Spacer calls perfect parts out of tolerance (R03). Needs two SQL reads first; see TRIAGE | R03 | maybe | two queries to run |
 
+## Every session ships straight to `main`
+
+Approved by Mr. Pina on 2026-09-25: each session merges its own branch into `main` as each
+priority tier goes green, without waiting on the `integration` sweep, so work is live as soon
+as it is done. For sessions 2 and 3, which carry migrations, merging to `main` also triggers
+`.github/workflows/migrate.yml`, which applies the lowest unapplied migration. The client
+deploy and the apply then race, so those migrations must be ADDITIVE in CLAUDE.md's sense:
+new functions or new arities beside the old ones, never a drop the running client still calls.
+The session states in its report that it checked this.
+
+## Running in parallel without costing a lane
+
+Session 5 (the FRC design brief) writes documents only and owns only `docs/frc/**`, so it can
+run at the same time as round 1 at no risk. Everything else waits its turn.
+
 ## Session 4 defaults (a correction is one line)
 
 - Quick notes are PRIVATE drafts until the student files them or turns them in (0118 already

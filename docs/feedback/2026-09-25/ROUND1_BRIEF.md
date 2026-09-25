@@ -15,7 +15,8 @@
 ## 1. The job
 
 Fix what is broken in class today, then land as many of the listed fixes as the run allows,
-in the priority order below, and ship. **No migration in this round** (section 6). Commit and
+in the priority order below, and ship each priority tier to `main` as soon as it is green
+(section 7). **No migration in this round** (section 6). Commit and
 push in coherent slices as you go, so an interrupted run still leaves landed work behind.
 
 **Never break what his classes use today.** He is teaching from this site every period. A
@@ -207,5 +208,5 @@ Nothing runs `verify:readme` until every agent is done and the tree is committed
 Write your history entry at `docs/history/<branch slug>.md`, with what was measured, what was
 NOT verified, and every claim in this brief or TRIAGE that was wrong. Correct CLAUDE.md in
 place wherever its truth changed (the Foundry boards block, the report-control fold, the voice
-pill, the home tour, the teams paragraph if it was wrong). Then follow the prompt's ending for
-the merge.
+pill, the home tour, the teams paragraph if it was wrong). Ship to `main` tier by tier, as the prompt's
+shipping section says: each tier merges and goes live as soon as its checks are clean.
