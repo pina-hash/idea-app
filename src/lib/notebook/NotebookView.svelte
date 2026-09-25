@@ -1100,8 +1100,23 @@
 	// `untrack` around both calls, the EntryNotes rule: they READ the phase they
 	// may then write, so a tracked call re-runs this effect on every transition
 	// and turns `saved` straight back into `dirty`.
+	//
+	// EVERY CHANGE RE-ARMS IT, NOT ONLY THE FLIP INTO "due" (ledger 0298).
+	// `SaveState.markDirty` is written to be called on every keystroke -- an
+	// edit made while a write is in flight sets its `pending` flag, and the
+	// settle path sends it the moment that write lands. This effect read only
+	// the boolean `autosaveDue`, which stays `true` through continuous typing, so
+	// it fired once: the first write went out, the student kept typing while it
+	// was in flight, the write landed, and nothing ever marked the machine dirty
+	// again. Measured on `/dev/notebook?latency=1200`: the words typed during
+	// the write were never sent while the indicator read "Saved". The content is
+	// read HERE, tracked, so each real change is one more `markDirty`; `due`
+	// still decides whether there is anything to write, so once the server holds
+	// what is on screen an editor transaction that changed nothing arms nothing.
 	$effect(() => {
 		const due = autosaveDue;
+		void noteDraft;
+		void title;
 		untrack(() => {
 			if (due) save.markDirty();
 			// `saved` and `failed` are reports of a WRITE and stand until the next
@@ -1755,16 +1770,32 @@
 	 * note chain and the stored title are recorded with it, because they are
 	 * what the next write has to diff against.
 	 */
-	function rememberDraft(entryId: string, noteId: string | undefined, wroteNote: boolean) {
+	function rememberDraft(
+		entryId: string,
+		noteId: string | undefined,
+		wroteNote: boolean,
+		/**
+		 * WHAT THE CREATE ACTUALLY CARRIED, when the box could change while it
+		 * was in flight -- which is the AUTOSAVE's create, the one write that
+		 * does not set `busy` and so leaves the editor live. The baseline has to
+		 * advance to the words SENT, never to the words on screen when the answer
+		 * comes back: advancing to the latter marked everything typed during the
+		 * round trip as acknowledged, so a student who typed a few words on a
+		 * slow connection, stopped, and pressed Turn in had those words dropped
+		 * from the entry (`persistNote` has always taken the sent copy; this is
+		 * the same rule for the create). Ledger 0298.
+		 */
+		sent?: { doc: TiptapNode | null; label: string | null }
+	) {
 		savedDraftId = entryId;
 		savedDraftSession = selectedSession;
-		savedLabel = title.trim() || null;
+		savedLabel = sent ? sent.label : title.trim() || null;
 		if (wroteNote) {
 			savedNoteId = noteId ?? null;
 			// The transport did not say which chain. Fail the NEXT text write
 			// closed rather than starting a second note on this entry.
 			noteChainUnknown = !noteId;
-			autosaveBaseline.advance(noteDraft);
+			autosaveBaseline.advance(sent ? sent.doc : noteDraft);
 			// The create carried the note, so it is acknowledged -- and this is the
 			// moment the session's slot MOVES from `new` to the entry's own id, so
 			// both are cleared (`clearComposerMirrors` is called after
@@ -1848,9 +1879,12 @@
 			// A create needs real text: a title alone is not an entry any RPC can
 			// make. Nothing to do until there is something to write.
 			if (!noteDue) return { ok: true };
+			// What this create carries, kept so `rememberDraft` acknowledges exactly
+			// these words and not whatever was typed while it was in flight.
+			const sent = { doc: noteDraft as TiptapNode, label: title.trim() || null };
 			const saved = await createNote!({
-				content: noteDraft as TiptapNode,
-				custom_label: title.trim() || null,
+				content: sent.doc,
+				custom_label: sent.label,
 				folder_id: folderChoice,
 				session_id: selectedSession,
 				section_id: selectedSession ? sectionForPick() : sectionForFree(),
@@ -1864,7 +1898,7 @@
 			if (!saved.ok) {
 				return { ok: false, retryable: saved.retryable !== false, message: saved.error };
 			}
-			rememberDraft(saved.entryId, saved.noteId, true);
+			rememberDraft(saved.entryId, saved.noteId, true, sent);
 			// Revision 1 went in marked replaceable (`autosave` above), so it owes
 			// a boundary exactly as an autosaved edit does.
 			headUnsealed = coalescingReady;
