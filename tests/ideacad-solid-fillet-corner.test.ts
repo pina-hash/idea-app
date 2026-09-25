@@ -41,6 +41,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { SolidEngine, DISPLAY_TESSELLATION, displayChord } from '../src/lib/ideacad/solid/engine';
 import type { EdgeRef, Feature, FeatureOf, ModelProjection } from '../src/lib/ideacad/solid/types';
 import { refFromSelection } from '../src/lib/ideacad/solid/naming';
+import { flatStepWarning } from '../src/lib/ideacad/solid/features/blends';
 
 const WASM = new Uint8Array(readFileSync('static/ideacad/kernels/remus-9307e73.wasm'));
 const engines: SolidEngine[] = [];
@@ -195,6 +196,40 @@ describe('R06: the kernel rounds a corner with a sharp third edge as a ball and 
 		const e = await engine(), m0 = await box(e);
 		const bevel = await add(e, { id: 'c1', name: 'Chamfer 1', type: 'chamfer', edges: [edge(m0, VERTICAL), edge(m0, TOP_RIGHT)], distance: 0.25 });
 		expect(bevel.features.find((f) => f.id === 'c1')!.status).toBe('ok');
+	});
+	it('a round capped flat under a chamfered corner warns WITHOUT the advice, because adding the chamfer\'s edges there is refused', async () => {
+		const r = 0.2, d = 0.1, e = await engine(), m0 = await box(e);
+		const bevel = await add(e, { id: 'c1', name: 'Chamfer 1', type: 'chamfer', edges: TOP_FOUR.map((p) => edge(m0, p)), distance: d });
+		/* Four 45 degree bevels mitred at the corners: d²/2 along the 14 in perimeter, less the four corner pyramids counted twice, d³/3 each. */
+		expect(bevel.bodies[0].volume).toBeCloseTo(12 - (d * d / 2) * 14 + 4 * d ** 3 / 3, 9);
+		const verticals = bevel.bodies[0].edges.filter((ed) => ed.faces.every((n) => n.startsWith('x1.side.'))).map((ed) => refFromSelection({ bodyId: 'x1#0', kind: 'edge', id: ed.id }, bevel.bodies[0]) as EdgeRef);
+		expect(verticals).toHaveLength(4);
+		const m = await add(e, { id: 'f1', name: 'Fillet 1', type: 'fillet', edges: verticals, radius: r });
+		/* Measured: the round runs straight to z = 1 - d and stops, capped by a DOWNWARD flat face the size of its own cross-section, with no ball. */
+		expect(m.bodies[0].volume).toBeCloseTo(bevel.bodies[0].volume - 4 * quarterRound(r, 1 - d), 9);
+		const caps = m.bodies[0].faces.filter((f) => f.id.startsWith('f1.') && f.kind === 'plane');
+		expect(caps).toHaveLength(4);
+		for (const c of caps) { expect(c.normal.map((x) => Math.round(x) + 0)).toEqual([0, 0, -1]); expect(c.center[2]).toBeCloseTo(1 - d, 9); expect(c.area).toBeCloseTo(r * r * (1 - Math.PI / 4), 6); }
+		expect(m.bodies[0].faces.filter((f) => f.kind === 'sphere')).toHaveLength(0);
+		const row = m.features.find((f) => f.id === 'f1')!;
+		expect(row.status).toBe('warning');
+		expect(row.message).toBe('At 4 corners this round runs into faces IdeaCAD cannot blend it into yet, so it stops with a small flat step at each.');
+		/* The other direction, and the reason the advice is withheld: rounding the bevels' mitre edges with it is refused, at this size and well below it. */
+		for (const size of [r, 0.05]) {
+			const e2 = await engine(), n0 = await box(e2);
+			const nb = await add(e2, { id: 'c1', name: 'Chamfer 1', type: 'chamfer', edges: TOP_FOUR.map((p) => edge(n0, p)), distance: d });
+			const pick = (pred: (names: string[]) => boolean) => nb.bodies[0].edges.filter((ed) => pred(ed.faces)).map((ed) => refFromSelection({ bodyId: 'x1#0', kind: 'edge', id: ed.id }, nb.bodies[0]) as EdgeRef);
+			const mitres = pick((names) => names.every((n) => n.startsWith('c1.bevel.')));
+			expect(mitres).toHaveLength(4);
+			await expect(add(e2, { id: 'f1', name: 'Fillet 1', type: 'fillet', edges: [...pick((names) => names.every((n) => n.startsWith('x1.side.'))), ...mitres], radius: size })).rejects.toThrow(/run into the bevel/);
+		}
+	});
+	it('the words: the advice only where every step sits beside a ball, and a mixed round says which', () => {
+		expect(flatStepWarning({ steps: 0, balls: 0 })).toBeUndefined();
+		expect(flatStepWarning({ steps: 1, balls: 1 })).toMatch(/^At 1 corner .*Add that sharp edge to this round for a smooth corner\.$/);
+		expect(flatStepWarning({ steps: 2, balls: 0 })).toBe('At 2 corners this round runs into faces IdeaCAD cannot blend it into yet, so it stops with a small flat step at each.');
+		expect(flatStepWarning({ steps: 1, balls: 0 })).not.toMatch(/Add/);
+		expect(flatStepWarning({ steps: 3, balls: 1 })).toBe('At 3 corners this round stops with a small flat step, because IdeaCAD cannot blend it into the faces there yet. At the one where it meets an edge left sharp, add that edge to this round for a smooth corner.');
 	});
 	it('the true round is buildable in this kernel, so the defect is in its corner blend: the intersection of the two one-edge rounds is the mitre to 1e-5, with no ball and no step', async () => {
 		const r = 0.25, e2 = await engine(), m0 = await box(e2), { k: k2, solid: base } = kernelOf(e2, m0);
