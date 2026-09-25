@@ -230,6 +230,7 @@ describe('R06: the kernel rounds a corner with a sharp third edge as a ball and 
 		expect(flatStepWarning({ steps: 2, balls: 0 })).toBe('At 2 corners this round runs into faces IdeaCAD cannot blend it into yet, so it stops with a small flat step at each.');
 		expect(flatStepWarning({ steps: 1, balls: 0 })).not.toMatch(/Add/);
 		expect(flatStepWarning({ steps: 3, balls: 1 })).toBe('At 3 corners this round stops with a small flat step, because IdeaCAD cannot blend it into the faces there yet. At the one where it meets an edge left sharp, add that edge to this round for a smooth corner.');
+		expect(flatStepWarning({ steps: 5, balls: 2 })).toBe('At 5 corners this round stops with a small flat step, because IdeaCAD cannot blend it into the faces there yet. At the 2 where it meets an edge left sharp, add those edges to this round for smooth corners.');
 	});
 	it('the true round is buildable in this kernel, so the defect is in its corner blend: the intersection of the two one-edge rounds is the mitre to 1e-5, with no ball and no step', async () => {
 		const r = 0.25, e2 = await engine(), m0 = await box(e2), { k: k2, solid: base } = kernelOf(e2, m0);

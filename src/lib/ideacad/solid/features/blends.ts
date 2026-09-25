@@ -407,7 +407,7 @@ export function flatStepWarning({ steps, balls }: { steps: number; balls: number
 	if (!balls) return steps === 1
 		? 'At 1 corner this round runs into faces IdeaCAD cannot blend it into yet, so it stops with a small flat step there.'
 		: `At ${steps} corners this round runs into faces IdeaCAD cannot blend it into yet, so it stops with a small flat step at each.`;
-	return `At ${steps} corners this round stops with a small flat step, because IdeaCAD cannot blend it into the faces there yet. At the ${balls === 1 ? 'one' : balls} where it meets an edge left sharp, add that edge to this round for a smooth corner.`;
+	return `At ${steps} corners this round stops with a small flat step, because IdeaCAD cannot blend it into the faces there yet. ${balls === 1 ? 'At the one where it meets an edge left sharp, add that edge to this round for a smooth corner.' : `At the ${balls} where it meets an edge left sharp, add those edges to this round for smooth corners.`}`;
 }
 /**
  * THE KERNEL'S TWO-OF-THREE CORNER (report R06, measured in
