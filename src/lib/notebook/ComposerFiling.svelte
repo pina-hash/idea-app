@@ -282,8 +282,14 @@
 		cursor: pointer;
 		font: inherit;
 	}
-	.pick:hover {
+	.pick:hover:not(:disabled) {
 		border-color: var(--nb-hairline-strong);
+	}
+	/* Locked once the composer's draft is filed (see `locked`): shown, never
+	   offered as a press. The pressed pick keeps its gold, which is the
+	   answer to "where is it filed". */
+	.pick:disabled {
+		cursor: default;
 	}
 	/* Gold is the active state -- the one thread back to the platform. */
 	.pick.selected {
