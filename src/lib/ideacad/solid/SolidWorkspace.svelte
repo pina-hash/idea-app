@@ -75,8 +75,10 @@
 	import { download, sketchDxf,profileDxf,solidStl, solidThreeMf } from './export';
 	import type { WorkspaceApi, WorkspaceMenuRequest } from './workspace-api';
 	import type { BodyProjection, EdgeRef, EntityRef, FaceRef, Feature, MateKind, ModelProjection, ModelSnapshot, PlaneRef, ResolvedPlane, Selection, SolidCommand, SolidDocument, SolidHistoryAction, SolidManifest, SolidTransport } from './types';
+	import { LIVE_WORDS, SOLID_LIVE_POLL_MS, SOLID_LIVE_TICK_MS, appendPulled, changedBy, committedSeq, liveDecide, liveHead, liveLoaded, liveNeedsRead, livePing, liveSaved, liveStart, liveStatusDetail, liveStatusWord, newerSentence, updatedSentence, type PulledModel, type SolidLiveConnection, type SolidLiveTransport } from './live-sync';
+	import type { IdeacadLiveStatus } from '../live';
 
-	let {document:opened,transport,advisoryTransport,onback,dev=false,preferences}:{document:SolidDocument;transport:SolidTransport;advisoryTransport?:AdvisoryTransport;onback:()=>void;dev?:boolean;preferences?:PreferenceStore}=$props();
+	let {document:opened,transport,advisoryTransport,onback,dev=false,preferences,live}:{document:SolidDocument;transport:SolidTransport;advisoryTransport?:AdvisoryTransport;onback:()=>void;dev?:boolean;preferences?:PreferenceStore;/** The live layer (feedback R34, `live-sync.ts`). ABSENT REMOVES IT: no word, no poll, no ping. */live?:SolidLiveTransport}=$props();
 	/* The student's choices, applied to the module settings BEFORE any panel's script runs, so a panel that seeds its boxes from a module setting seeds them with the student's value. A store is only ever handed in once. */
 	const prefStore:PreferenceStore=untrack(()=>preferences)??new MemoryPreferenceStore();
 	applyToModules(prefStore.current);
@@ -135,10 +137,106 @@
 		const batch=actions.slice(),last=batch[batch.length-1];
 		try{
 			const saved=await transport.save({documentId:opened.id,conceptId:opened.conceptId,expectedRevision:revision,requestId:batch[0].id,title:last.after.title,snapshot:{manifest:last.after,artifacts:currentSnapshot.artifacts},actions:batch});
-			revision=saved.revision;const sent=new Set(batch.map(a=>a.id));actions=actions.filter(a=>!sent.has(a.id));void sendThumbnail();return {ok:true};
+			revision=saved.revision;const sent=new Set(batch.map(a=>a.id));actions=actions.filter(a=>!sent.has(a.id));liveAccepted(saved.revision);void sendThumbnail();return {ok:true};
 		}catch(err){const message=err instanceof Error?err.message:String(err);return {ok:false,retryable:!message.includes('changed in another')&&!message.includes('read-only')&&!message.includes('permission')&&!message.includes('not supported'),message};}
 	}});
 	guardSaveNavigation(saveState,{warning:'Your latest model changes have not been saved.',enabled:()=>opened.canWrite});
+	/* ------------------------------------------------------------------ THE LIVE LAYER (feedback R34)
+	   The rules are `live-sync.ts`'s header: a ping is a hint to read the database and writes nothing; the poll is the floor;
+	   a clean, idle session replays the newer rows; a session with unsaved work keeps it and is told in words; a busy one waits.
+	   `liveState` is plain, not a rune: only the three values the markup reads below it are state. */
+	const liveTransport=untrack(()=>live);
+	let liveState=untrack(()=>liveStart(opened.id,opened.conceptId,opened.revision));
+	let liveStatus=$state<IdeacadLiveStatus|undefined>(undefined),liveNote=$state<string|null>(null),liveWaiting=$state(false);
+	/* The dirty session's offer: which revision it is about, and who made it (labels from `changedBy`, empty when that could not be read). */
+	let liveOffer=$state.raw<{revision:number;who:string[]}|null>(null);
+	let liveConnection:SolidLiveConnection|null=null,liveChecking=false,liveRecheck=false,livePulling=false,livePullAfter=0;
+	/* Set when the workspace unmounts. A read already on the wire when the student leaves must not then drive the worker or reopen a document nobody is looking at. */
+	let liveClosed=false;
+	/** A save this session made was accepted: note it, then tell every other open copy to read the database. */
+	function liveAccepted(next:number){if(!liveTransport)return;liveState=liveSaved(liveState,next);liveConnection?.send({documentId:opened.id,conceptId:opened.conceptId,revision:next});}
+	/** What the session is doing, in the three facts `liveDecide` weighs. Busy is anything a model swap would pull out from under the student. */
+	function liveSession(){return{pending:actions.length>0||saveState.phase==='dirty'||saveState.failed,writing:saveState.phase==='writing',idle:!busy&&!loading&&!gesture&&!pumping&&!drafting&&!editingSketch&&lapseStep===null&&rollbackIndex===null&&!numeric&&!menu&&!box};}
+	const liveClock=()=>new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+	/** THE POLL FLOOR: read the committed revision. A read already on the wire is followed by exactly one more, so a ping that lands mid-read is not lost. */
+	async function liveCheck(){
+		if(!liveTransport||liveClosed)return;
+		if(liveChecking){liveRecheck=true;return;}
+		liveChecking=true;
+		try{do{liveRecheck=false;try{liveState=liveHead(liveState,await liveTransport.head(opened.conceptId));}catch{/* Best effort: a failed read is retried by the next tick of the poll and never touches the model or the save. */}}while(liveRecheck);}
+		finally{liveChecking=false;}
+		await liveAct();
+	}
+	/** Ask the one decision and do what it says. Runs every tick with no network unless there is something to fetch. */
+	async function liveAct(){
+		if(!liveTransport||liveClosed)return;
+		const session=liveSession(),action=liveDecide(liveState,session);
+		/* "Waiting" is about the student being busy, never about this layer's own pull (which holds `busy` while it loads) or a save on the wire. */
+		liveWaiting=action==='wait'&&!session.writing&&!livePulling;
+		if(action==='current'){liveOffer=null;return;}
+		if(action==='offer'){await liveName();return;}
+		if(action==='pull'&&Date.now()>=livePullAfter)await livePull();
+	}
+	/** A session with unsaved work is told who saved the newer version. The rows are read for their names only and never applied. */
+	async function liveName(){
+		if(!liveTransport||livePulling||liveOffer?.revision===liveState.remote)return;
+		const target=liveState.remote;let who:string[]=[];livePulling=true;
+		try{const pulled=await liveTransport.pull({documentId:opened.id,conceptId:opened.conceptId,afterSeq:committedSeq(history,revision),have:new Set(),artifacts:false});who=changedBy(pulled.rows,liveTransport.viewerEmail);}
+		catch{/* Naming is a courtesy: the offer stands without a name. */}
+		finally{livePulling=false;}
+		if(!liveClosed&&liveDecide(liveState,liveSession())==='offer')liveOffer={revision:target,who};
+	}
+	/** A clean, idle session replays the rows after its own last one through the worker, exactly as an open would load them. */
+	async function livePull(){
+		if(!liveTransport||livePulling)return;
+		livePulling=true;
+		try{
+			const from=history.length-1,have=new Set(currentSnapshot.artifacts.map(a=>a.hash));
+			let pulled;
+			/* A read that failed on the wire waits for the next poll rather than retrying every tick; the model on screen is the one it was. */
+			try{pulled=await liveTransport.pull({documentId:opened.id,conceptId:opened.conceptId,afterSeq:from,have,artifacts:true});}catch{livePullAfter=Date.now()+SOLID_LIVE_POLL_MS;return;}
+			/* The session may have moved while the rows were on the wire. They apply only to the session they were read for, still clean and idle. */
+			if(liveClosed||liveDecide(liveState,liveSession())!=='pull'||history.length-1!==from)return;
+			const who=updatedSentence(changedBy(pulled.rows,liveTransport.viewerEmail));
+			let next:PulledModel<SolidManifest>|null=null;
+			try{next=appendPulled<SolidManifest>(history,pulled.rows);}catch{next=null;}
+			if(!next||next.revision<=revision){
+				/* Rows that do not continue this history are never replayed. A clean session loses nothing by reopening, so it takes the whole saved model the ordinary way instead. */
+				livePullAfter=Date.now()+SOLID_LIVE_POLL_MS;await reopenSaved();
+				if(liveState.local>=liveState.remote)liveNote=`${who} at ${liveClock()}.`;
+				return;
+			}
+			const before=currentSnapshot;busy=true;
+			try{
+				const shown=await client.request<ModelProjection>('load',{manifest:next.manifest,artifacts:[...before.artifacts,...pulled.artifacts]});
+				const snapshot=await client.request<ModelSnapshot>('snapshot');
+				show(shown);serverManifest=next.manifest;currentSnapshot=snapshot;history=next.history;revision=next.revision;title=snapshot.manifest.title;
+				liveState=liveLoaded(liveState,next.revision);liveOffer=null;bar=null;
+				if(selections.some(s=>s.bodyId&&!model.bodies.some(b=>b.id===s.bodyId)))select(null);
+				liveNote=`${who} at ${liveClock()}.`;
+			}catch{
+				/* The worker refused the newer model: put the one it had back, and wait for the next poll. */
+				livePullAfter=Date.now()+SOLID_LIVE_POLL_MS;
+				try{show(await client.request<ModelProjection>('load',before));currentSnapshot=before;}catch(err){error=err instanceof Error?err.message:String(err);}
+			}finally{busy=false;}
+		}finally{livePulling=false;}
+	}
+	/** After the document is reopened from the server, the session holds whatever it read. */
+	function liveReopened(next:number){liveState=liveLoaded(liveState,next);liveOffer=null;liveWaiting=false;}
+	onMount(()=>{
+		if(!liveTransport)return;
+		liveConnection=liveTransport.connect?.(opened.id,{
+			ping:(p)=>{const next=livePing(liveState,p);if(next===liveState)return;liveState=next;if(liveNeedsRead(liveState))void liveCheck();},
+			status:(s)=>{if(s==='refused'&&liveStatus!=='refused')liveNote=LIVE_WORDS.unavailableDetail;liveStatus=s;}
+		})??null;
+		if(!liveConnection){liveStatus='refused';liveNote=LIVE_WORDS.unavailableDetail;}
+		/* Timers, never animation frames: a background tab never ticks one, and the focus and visibility reads below cover the return. */
+		const poll=setInterval(()=>void liveCheck(),SOLID_LIVE_POLL_MS),tick=setInterval(()=>void liveAct(),SOLID_LIVE_TICK_MS);
+		const onFocus=()=>void liveCheck(),onVisible=()=>{if(document.visibilityState==='visible')void liveCheck();};
+		window.addEventListener('focus',onFocus);document.addEventListener('visibilitychange',onVisible);
+		void liveCheck();
+		return()=>{liveClosed=true;clearInterval(poll);clearInterval(tick);window.removeEventListener('focus',onFocus);document.removeEventListener('visibilitychange',onVisible);liveConnection?.close();liveConnection=null;};
+	});
 	const selectedBody=$derived(model.bodies.find(b=>b.id===selections[0]?.bodyId));
 	const selectedSketch=$derived(model.sketches.find(s=>s.feature===selections[0]?.id&&selections[0]?.kind==='sketch'));
 	/* The palette shows the student's own quick set, in their order; the armed tool joins it while it is armed, so the palette always shows what is active. */
@@ -402,7 +500,7 @@
 	async function back(){if(gesture)await end();await saveState.saveNow();if(saveState.dirty)return;onback();}
 	async function reopenSaved(){
 		if(busy)return;busy=true;error='';
-		try{const fresh=await transport.open(opened.id);show(await client.request<ModelProjection>('load',fresh.snapshot));opened=fresh;serverManifest=fresh.snapshot.manifest;currentSnapshot=await client.request<ModelSnapshot>('snapshot');title=fresh.title;revision=fresh.revision;history=fresh.history??[];actions=[];select(null);viewport.fit();saveState.markSaved();reopenConfirm=false;}
+		try{const fresh=await transport.open(opened.id);show(await client.request<ModelProjection>('load',fresh.snapshot));opened=fresh;serverManifest=fresh.snapshot.manifest;currentSnapshot=await client.request<ModelSnapshot>('snapshot');title=fresh.title;revision=fresh.revision;history=fresh.history??[];actions=[];select(null);viewport.fit();saveState.markSaved();reopenConfirm=false;liveReopened(fresh.revision);}
 		catch(err){error=err instanceof Error?err.message:String(err);}finally{busy=false;}
 	}
 	async function exportFile(kind:'3mf'|'stl'|'dxf'|'ideacad'){
@@ -689,7 +787,7 @@
 	<header>
 		<button class="documents" onclick={()=>void back()} aria-label="Documents">‹ <span>Documents</span></button>
 		<input class="document-title" aria-label="Document name" bind:value={title} readonly={!opened.canWrite||loading||busy} maxlength="120" onchange={()=>void apply({type:'title',title},'Rename document')}/>
-		<div class="document-save"><SaveIndicator state={saveState} hideClean={false}/></div>
+		<div class="document-save" class:has-live={!!liveTransport}><SaveIndicator state={saveState} hideClean={false}/>{#if liveTransport}<span class="live-state" data-testid="ideacad-live-state" data-status={liveStatus??'connecting'} title={liveStatusDetail(liveStatus)}><span class="live-dot" aria-hidden="true"></span><span class="live-word">{liveStatusWord(liveStatus)}</span></span>{/if}</div>
 		<button aria-label="Undo" onclick={()=>void undo()} disabled={!historyState.undoTarget||!opened.canWrite||busy}>↶</button>
 		<button aria-label="Redo" onclick={()=>void undo(true)} disabled={!historyState.redoTarget||!opened.canWrite||busy}>↷</button>
 		<button class="search-open" class:active={!!search&&!search.group} aria-label="Search commands" title={keyFor('search')?`Search commands (${keyFor('search')})`:'Search commands'} onclick={()=>search&&!search.group?search=null:runById('search')}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 17a7 7 0 1 1 0-14 7 7 0 0 1 0 14zM15 15l6 6"/></svg><span>Search</span></button>
@@ -724,7 +822,6 @@
 			{#if loading}<div class="loading" role="status">Loading geometry…</div>{/if}
 			{#if !opened.canWrite}<div class="read-only">{opened.deletedAt?'In the trash':opened.archivedAt?'Archived':'View only'}</div>{/if}
 			{#if model.replayMs!==undefined&&model.replayMs>0&&dev}<div class="replay" data-testid="ideacad-replay">replayed from {model.replayedFrom} in {model.replayMs.toFixed(1)} ms</div>{/if}
-			{#if saveState.failed}<aside class="recovery panel" aria-label="Save recovery"><h2>Changes not saved</h2><p>{saveState.message}</p><button onclick={()=>void exportFile('ideacad')}>Save backup</button>{#if reopenConfirm}<p>Discard unsaved changes and open the saved model?</p><button disabled={busy} onclick={()=>void reopenSaved()}>Discard and reopen</button><button onclick={()=>reopenConfirm=false}>Cancel</button>{:else}<button disabled={busy} onclick={()=>reopenConfirm=true}>Reopen saved model</button>{/if}</aside>{/if}
 			<div class="panels" class:folded={panelsFolded}>
 				<button class="sheet-handle" data-testid="ideacad-sheet-handle" aria-expanded={!panelsFolded} onclick={()=>panelsFolded=!panelsFolded}><span class="grip" aria-hidden="true"></span>Panels<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
 				{#if helpOpen}<Tutorial {api} onclose={()=>{helpOpen=false;}}/>{/if}
@@ -757,7 +854,8 @@
 			{#if search}<CommandSearch commands={search.group?COMMANDS.filter(c=>!OPENERS.includes(c.id)):COMMANDS} recent={prefs.commands.recent} keys={shortcuts.byCommand} group={search.group} at={search.at} unavailable={(c)=>c.unavailable?.(commandContext)??null} onrun={runCommand} onclose={()=>{search=null;canvas?.focus();}}/>{/if}
 		</div>
 	</div>
-	<div class="history-bar" bind:clientHeight={historyHeight}>{#if model.features.length&&!loading}<HistorySlider steps={model.features.length} step={lapseStep??rollbackIndex??model.features.length} labels={model.features.map(f=>f.name)} onstep={(i)=>void showStep(i)}/>{#if lapseStep!==null&&opened.canWrite&&lapseStep!==(rollbackIndex??model.features.length)}<button class="rollback-here" data-testid="ideacad-rollback-here" onclick={()=>void rollbackHere()}>Roll back here</button>{/if}{/if}</div>
+	<!-- ONE RECOVERY SURFACE FOR BOTH WAYS OF LEARNING ABOUT A NEWER VERSION: the live layer's offer (a session with unsaved work, told as soon as the database is ahead) and a save that failed. Same two controls, so a newer version is never loaded over unsaved work without a backup offered and a second press. It is in the history row, IN FLOW, for the same reason as the note below: see the style block. -->
+	<div class="history-bar" bind:clientHeight={historyHeight}>{#if saveState.failed||liveOffer}<aside class="recovery panel" aria-label={liveOffer?LIVE_WORDS.newerHeading:'Save recovery'} data-testid="ideacad-recovery"><h2>{liveOffer?LIVE_WORDS.newerHeading:'Changes not saved'}</h2>{#if liveOffer}<p data-testid="ideacad-live-offer">{newerSentence(liveOffer.who)} {LIVE_WORDS.kept}</p>{/if}{#if saveState.failed&&!(liveOffer&&saveState.message?.includes('changed in another'))}<p>{saveState.message}</p>{/if}<button onclick={()=>void exportFile('ideacad')}>Save backup</button>{#if reopenConfirm}<p>{liveOffer?LIVE_WORDS.loadConfirm:'Discard unsaved changes and open the saved model?'}</p><button disabled={busy} onclick={()=>void reopenSaved()}>{liveOffer?LIVE_WORDS.loadConfirmed:'Discard and reopen'}</button><button onclick={()=>reopenConfirm=false}>Cancel</button>{:else}<button disabled={busy} onclick={()=>reopenConfirm=true}>{liveOffer?LIVE_WORDS.load:'Reopen saved model'}</button>{/if}</aside>{/if}{#if liveTransport}<div class="live-note" role="status" data-testid="ideacad-live-note">{#if liveWaiting&&!liveOffer&&!saveState.failed}<div><span>{LIVE_WORDS.waiting}</span></div>{:else if liveNote&&!liveOffer&&!saveState.failed}<div><span>{liveNote}</span><button aria-label="Dismiss message" onclick={()=>liveNote=null}>×</button></div>{/if}</div>{/if}{#if model.features.length&&!loading}<HistorySlider steps={model.features.length} step={lapseStep??rollbackIndex??model.features.length} labels={model.features.map(f=>f.name)} onstep={(i)=>void showStep(i)}/>{#if lapseStep!==null&&opened.canWrite&&lapseStep!==(rollbackIndex??model.features.length)}<button class="rollback-here" data-testid="ideacad-rollback-here" onclick={()=>void rollbackHere()}>Roll back here</button>{/if}{/if}</div>
 	{#if settingsOpen&&rules&&advisoryTransport}<div class="settings-overlay"><AdvisorySettings {rules} transport={advisoryTransport} onchange={value=>rules=value} onclose={()=>settingsOpen=false}/></div>{/if}
 	<footer><span>{model.bodies.length} {model.bodies.length===1?'body':'bodies'}</span><span>{model.features.length} features</span><span>{prefs.units.display==='mm'?'millimeters':'inches'}</span><span>{selections.length?`${selections.length} selected`:''}</span><span class="tool-name">{TOOLS.find(t=>t.id===tool)?.name}</span></footer>
 </section>
@@ -770,7 +868,16 @@
 	:global(body:has(.solid-workspace) .vnav-shell){bottom:calc(2px + env(safe-area-inset-bottom, 0px));left:8px}
 	@media(max-width:700px){:global(body:has(.solid-workspace) .sfb-word){display:none}}
 	.settings-overlay{position:absolute;inset:0;z-index:40;background:#0008;display:grid;place-items:center}.solid-workspace{position:relative}
-	.recovery{z-index:22}.recovery p{font-size:16px;color:var(--text-2)}
+	/* THE RECOVERY PANEL IS A BLOCK IN THE HISTORY ROW, IN FLOW. It used to sit in the work area after the canvas, which is 100% of an `overflow: hidden` box, so it rendered BELOW what anyone could see: present, "visible" to every presence check, and reachable only by a script that scrolls a hidden overflow (measured with the live layer's offer: both buttons failed a hit test at 1440 and 375). Placed over the model instead, it covered 7 of a 718px window's top-bar controls and 6 at 375. In flow it covers nothing and the model gives up the height while it is up. */
+	.recovery{flex:1 1 100%;order:-2;min-width:0;margin:6px 8px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}.recovery h2,.recovery p{flex:1 1 100%;margin:0}.recovery p{font-size:16px;color:var(--text-2)}.recovery.panel>button{width:auto;flex:0 0 auto;border-color:var(--boundary);background:var(--surface-2)}
+	/* THE LIVE LAYER: the channel's word beside the save indicator (a word and a dot, never the dot alone), and one line of news at the top of the model. The note's region is always mounted and only its text moves, so a screen reader that observes a status region from the start hears the change. */
+	/* THE WORD GIVES WAY AND NEVER PAINTS OUTSIDE ITS BOX. The save line is `flex:1; min-width:0` in a top bar that is already full below about 1100px, so a word that would not shrink ran out of it to the left: measured over the document name by 142px in 702 and 800px windows and by 25px at 1024. It now shrinks first (the save indicator keeps its room), ellipsises, and is removed below 100px of save line rather than leaving a sliver of pill; a refused channel is still said in words by the note in the history row. On a phone the save line sits over the footer, and a 26px pill reached 3px into the footer's counts: it is 18px there. */
+	.document-save.has-live{container-type:inline-size}
+	.live-state{display:inline-flex;align-items:center;gap:6px;flex:0 50 auto;min-width:0;overflow:hidden;margin-left:8px;padding:0 9px;min-height:26px;border:1px solid var(--boundary);border-radius:999px;font:13px 'Share Tech Mono',monospace;color:var(--text-2);white-space:nowrap}.live-dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--text-2)}.live-word{min-width:0;overflow:hidden;text-overflow:ellipsis}
+	@container (max-width:100px){.live-state{display:none}}
+	@media(max-width:700px){.live-state{min-height:18px;padding:0 7px;margin-left:6px;font-size:11px;line-height:14px}}.live-state[data-status='live'] .live-dot{background:var(--green)}.live-state[data-status='refused'] .live-dot{background:var(--ic-warn,var(--amber))}
+	/* THE NOTE IS A LINE IN THE HISTORY ROW, IN FLOW, SO IT CANNOT COVER A CONTROL AT ANY WIDTH. It was first an overlay at the top of the model, and measured that way it sat over a tool at 718px and five controls at 375px. Empty, the region is a zero-height box; the tree's slide-over already stops above this row. */
+	.live-note{flex:1 1 100%;order:-1;min-width:0}.live-note>div{display:flex;align-items:center;gap:6px;padding:0 4px 0 14px;border-bottom:1px solid var(--hairline);font-size:16px;color:var(--text-1)}.live-note>div>span{flex:1 1 auto;padding:10px 0;min-width:0}.live-note>div:not(:has(button))>span{padding-right:10px}
 	.document-save{min-width:0;display:flex;justify-content:flex-end}.document-save :global(.save-ind){max-width:100%;flex-wrap:nowrap}.document-save :global(.save-ind-text){min-width:0;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 	.solid-workspace{grid-template-columns:minmax(0,1fr)}
 	@media(max-width:700px){.solid-workspace.save-failed{grid-template-rows:52px minmax(0,1fr) auto 48px}}

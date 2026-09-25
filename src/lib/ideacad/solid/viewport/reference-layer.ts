@@ -194,7 +194,8 @@ export function datumPlaneObjects(model: ModelProjection, options: DatumLayerOpt
 		const corners = [o.clone().sub(u).sub(v), o.clone().add(u).sub(v), o.clone().add(u).add(v), o.clone().sub(u).add(v)];
 		const geometry = new THREE.BufferGeometry().setFromPoints(corners);
 		geometry.setIndex([0, 1, 2, 0, 2, 3]);
-		const fill = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.035, side: THREE.DoubleSide, depthWrite: false }));
+		/* Pushed back in depth so a model face lying IN the plane (a part sketched at the origin) always wins: at equal depth the test chose triangle by triangle and the face showed a fan of light and dark wedges (report R06, `ideacad-solid-state-coplanar-plane`). 2 clears the faces' own offset of 1 in hidden-lines mode. */
+		const fill = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.035, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 }));
 		fill.userData = { ...userData, part: 'fill' };
 		out.push(fill);
 		const outline = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(corners), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.45 }));

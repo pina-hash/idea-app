@@ -37,13 +37,24 @@
 	 * Delete and Backspace are swallowed at the window while a sketch is
 	 * open, selection or none: the workspace's own Delete removes the
 	 * SELECTED FEATURE, which while editing is the sketch itself.
+	 *
+	 * THE SNAP IS SAID TWICE, IN TWO PLACES, FOR TWO READERS. Beside the
+	 * pointer, a cue with a glyph and a word ("Midpoint", "On line") says what
+	 * a press will land on without the student looking away from the model;
+	 * it is `aria-hidden` and ignores the pointer, so it can never take a
+	 * press. In the panel, one line says the same thing as a sentence and
+	 * names the relation the press will ADD, which is what a screen reader
+	 * and a student wondering where a relation came from both need. Holding
+	 * Ctrl (Command on a Mac) places freely, and both say so. The cue is moved
+	 * to the room's root, as a tool tip is, because the panels are their own
+	 * stacking context and a bottom sheet that folds hides its children.
 	 */
 	import { onDestroy, onMount, untrack } from 'svelte';
 	import type { WorkspaceApi } from './workspace-api';
 	import type { FeatureOf, ResolvedPlane, SketchProjection } from './types';
-	import { SketchSession, constraintLabel, constraintOffers, entityLabel, type Commit, type ConstraintOffer, type SessionContext, type SessionResult, type SketchTool } from './sketch/editor';
+	import { SketchSession, constraintLabel, constraintOffers, entityLabel, snapCue, snapSentence, type Commit, type ConstraintOffer, type SessionContext, type SessionResult, type SketchDraft, type SketchTool } from './sketch/editor';
 	import { inconsistentArcs, lift } from './sketch/model';
-	import { editingGuides } from './viewport/sketch-layer';
+	import { editingGuides, SNAP_COLOUR } from './viewport/sketch-layer';
 	import { drawingSettings, polygonSidesOk, POLYGON_SIDES_REFUSAL } from './viewport/drawing';
 
 	let { api }: { api: WorkspaceApi } = $props();
@@ -58,7 +69,7 @@
 		{ id: 'arc', word: 'Arc', hint: 'Center, start, then swing around to where it ends; Shift for the long way', write: true },
 		{ id: 'polygon', word: 'Polygon', hint: 'Drag from the center to a corner', write: true },
 		{ id: 'trim', word: 'Trim', hint: 'Click the piece to remove', write: true },
-		{ id: 'extend', word: 'Extend', hint: 'Click near a line\'s end to run it on', write: true },
+		{ id: 'extend', word: 'Extend', hint: 'Click near a line\'s end to run it on, or to join it to the edge it stops on', write: true },
 		{ id: 'fillet', word: 'Fillet', hint: 'Click a corner, or two lines, to round it', write: true }
 	];
 	const session = new SketchSession();
@@ -69,8 +80,12 @@
 	let sidesText = $state(String(drawingSettings.polygonSides)), filletText = $state('0.25'), extrudeText = $state('1');
 	let chosenRegions = $state<string[]>([]);
 	let chain: Promise<void> = Promise.resolve();
+	/* The live snap, as the panel's sentence and the cue beside the pointer. Written by `sync`, which every pointer and key event already calls. */
+	let snapNote = $state(''), cue = $state<{ x: number; y: number; glyph: string; word: string; kind: string } | null>(null);
+	/* Whether the pointer is over the model: the cue belongs beside the pointer only there, and the sketch hears no event when the pointer leaves for the panel. */
+	let overCanvas = false;
 	const live = $derived(sketch ? selected.filter((id) => sketch.entities.some((e) => e.id === id)) : []);
-	const offers = $derived<ConstraintOffer[]>(sketch && api.canWrite ? constraintOffers(sketch.entities, live) : []);
+	const offers = $derived<ConstraintOffer[]>(sketch && api.canWrite ? constraintOffers(sketch.entities, live, sketch.constraints) : []);
 	const trouble = $derived(new Set(sketch?.solve.trouble ?? []));
 	const activeTool = $derived(TOOLS.find((t) => t.id === tool) ?? TOOLS[0]);
 	/* A hover id can outlive its entity by one commit (a fillet removes the corner under the pointer), so the note names only what is still there. */
@@ -95,10 +110,25 @@
 
 	/** Pixels per sketch inch right now, from two lifted points: the one conversion every tolerance uses. */
 	function pixelsPerInch(plane: ResolvedPlane) { const a = api.project(lift(plane, [0, 0])), b = api.project(lift(plane, [1, 0])); return Math.max(1e-6, Math.hypot(b.x - a.x, b.y - a.y)); }
-	function context(s: SketchProjection | null = sketch, shift = false): SessionContext | null {
+	function context(s: SketchProjection | null = sketch, shift = false, free = false): SessionContext | null {
 		if (!s) return null;
 		const px = pixelsPerInch(s.plane);
-		return { entities: s.entities, constraints: s.constraints, tolerance: 8 / px, snapRadius: 12 / px, polygonSides: drawingSettings.polygonSides, filletRadius: Number(filletText), shift, canWrite: api.canWrite };
+		return { entities: s.entities, constraints: s.constraints, tolerance: 8 / px, snapRadius: 12 / px, polygonSides: drawingSettings.polygonSides, filletRadius: Number(filletText), shift, free, canWrite: api.canWrite };
+	}
+	/** What the snap line says with nothing snapped: what snapping does in this tool, and how to turn it off. Empty for a tool that does not snap. */
+	function idleNote(t: SketchTool): string {
+		if (t === 'select') return 'Drop a point on a line, arc or midpoint to keep it there. Hold Ctrl (Cmd on a Mac) to move freely.';
+		if (t === 'line' || t === 'arc' || t === 'rectangle' || t === 'circle' || t === 'polygon') return 'Snaps to points, midpoints, lines, arcs and crossings. Hold Ctrl (Cmd on a Mac) to place freely.';
+		return '';
+	}
+	/** The snap line and the cue, from the session as it now stands. */
+	function snapState(s: SketchProjection | null) {
+		const snap = session.liveSnap, free = session.freeAt;
+		snapNote = !s || !api.canWrite ? '' : snap ? snapSentence(snap, session.infers, (id) => entityLabel(s.entities, id)) : free ? 'Placing freely: no snap and no relation.' : idleNote(session.tool);
+		const at = snap?.at ?? free;
+		if (!s || !api.canWrite || !at || !overCanvas) { cue = null; return; }
+		const p = api.project(lift(s.plane, at)), word = snap ? snapCue(snap) : { glyph: '·', word: 'Free' };
+		cue = { x: Math.max(0, Math.min(p.x + 16, window.innerWidth - 160)), y: Math.max(0, Math.min(p.y + 16, window.innerHeight - 32)), ...word, kind: snap?.kind ?? 'free' };
 	}
 	/** Applies in order, and waits out a replay another panel started rather than letting `api.apply` drop the command. */
 	function commit(c: Commit) {
@@ -107,6 +137,7 @@
 	}
 	function sync() {
 		tool = session.tool; selected = [...session.selected]; hovered = session.hovered;
+		snapState(sketch);
 		drawingNote = session.tool === 'line' && session.anchorCount ? `${session.anchorCount} point${session.anchorCount === 1 ? '' : 's'} placed; click the first to close, Enter to stop` : session.tool === 'arc' && session.anchorCount ? (session.anchorCount === 1 ? 'Center placed; click where it starts' : 'Start placed; swing around to where it ends, Shift for the long way') : session.pendingFillet && sketch ? `${entityLabel(sketch.entities, session.pendingFillet)} picked. Click the line it meets.` : '';
 		tick++;
 		const id = api.editingSketch, key = session.selected.join(','); if (!id || key === published) return;
@@ -120,7 +151,7 @@
 		if (result.changed || result.commit) sync();
 	}
 	function pointer(event: 'down' | 'move' | 'up', at: [number, number], e: PointerEvent): boolean {
-		const ctx = context(sketch, e.shiftKey); if (!ctx) return false;
+		const ctx = context(sketch, e.shiftKey, e.ctrlKey || e.metaKey); if (!ctx) return false;
 		settle(event === 'down' ? session.down(at, ctx) : event === 'move' ? session.move(at, ctx) : session.up(at, ctx));
 		return true;
 	}
@@ -157,7 +188,14 @@
 		const s = sketch; if (!s) return;
 		let value: number | undefined;
 		if (offer.value !== undefined) { value = Number((text ?? '').trim()); if (text === undefined || text.trim() === '' || !Number.isFinite(value)) { api.error(`Enter a number for ${offer.label.toLowerCase()}.`); return; } }
-		commit({ label: `Add ${offer.label.toLowerCase()}`, sketch: { entities: [...s.entities], constraints: [...s.constraints, ...offer.build(value)] } });
+		const current: SketchDraft = { entities: [...s.entities], constraints: [...s.constraints] };
+		let next: SketchDraft;
+		/* An offer that rewrites the graph (a join, a construction line) may refuse in a sentence, which shows where every other refusal shows. */
+		try { next = offer.apply ? offer.apply(current) : { entities: current.entities, constraints: [...current.constraints, ...offer.build(value)] }; }
+		catch (err) { api.error(err instanceof Error ? err.message : String(err)); return; }
+		commit({ label: `Add ${offer.label.toLowerCase()}`, sketch: next });
+		/* A join removes one of the points that were selected, so the selection is spent. */
+		if (offer.apply) { session.selected = []; sync(); }
 	}
 	function removeConstraint(id: string) { const s = sketch; if (!s) return; commit({ label: 'Remove constraint', sketch: { entities: [...s.entities], constraints: s.constraints.filter((c) => c.id !== id) } }); }
 	function setConstraintValue(id: string, text: string) {
@@ -194,14 +232,30 @@
 	 * to remove. `setModifier` answers whether anything on screen actually
 	 * changes, so every other key costs no redraw.
 	 */
-	function modifier(e: KeyboardEvent) { if (e.key === 'Shift' && sketch && session.setModifier(e.type === 'keydown')) sync(); }
+	function modifier(e: KeyboardEvent) {
+		if (!sketch) return;
+		if (e.key === 'Shift' && session.setModifier(e.type === 'keydown')) sync();
+		/* Ctrl or Command, the same way: the snap is taken again where the pointer already is, so the cue changes on the key. */
+		if (e.key === 'Control' || e.key === 'Meta') { const ctx = context(sketch, e.shiftKey); if (ctx && session.setFree(e.ctrlKey || e.metaKey, ctx)) sync(); }
+	}
+	/* Captured, so it has run before the viewport hands the same event to the sketch and `sync` reads it. */
+	function whereIsPointer(e: PointerEvent) {
+		const over = e.target instanceof HTMLCanvasElement;
+		if (over === overCanvas) return;
+		overCanvas = over;
+		if (!over && cue) cue = null;
+	}
+	/** Move the cue to the room's root, the way a tool tip is moved (`ToolButton.svelte`): the node is static here, so moving it cannot confuse a block's teardown. */
+	function toRoom(node: HTMLElement) { (node.parentElement?.closest('.ic-root') ?? document.body).appendChild(node); return { destroy() { node.remove(); } }; }
 
 	onMount(() => {
 		api.setSketchPointer(pointer);
 		window.addEventListener('keydown', keydown, { capture: true });
 		window.addEventListener('keydown', modifier);
 		window.addEventListener('keyup', modifier);
-		return () => { window.removeEventListener('keydown', keydown, { capture: true }); window.removeEventListener('keydown', modifier); window.removeEventListener('keyup', modifier); };
+		window.addEventListener('pointermove', whereIsPointer, { capture: true, passive: true });
+		window.addEventListener('pointerdown', whereIsPointer, { capture: true, passive: true });
+		return () => { window.removeEventListener('keydown', keydown, { capture: true }); window.removeEventListener('keydown', modifier); window.removeEventListener('keyup', modifier); window.removeEventListener('pointermove', whereIsPointer, { capture: true }); window.removeEventListener('pointerdown', whereIsPointer, { capture: true }); };
 	});
 	onDestroy(() => { api.setSketchPointer(null); api.clearGuides(); });
 	/* The editing look follows the sketch, the selection, the hover and every session change; the workspace's tool joins because its Escape/setTool clears the guides. */
@@ -210,6 +264,7 @@
 	$effect(() => { const t = api.tool; if (t === 'rectangle' || t === 'circle' || t === 'line' || t === 'polygon' || t === 'arc') untrack(() => setTool(t)); });
 </script>
 <section class="sketch-editor panel" aria-label="Sketch editor" data-testid="ideacad-sketch-editor">
+	<div class="snap-cue" use:toRoom hidden={!cue} aria-hidden="true" data-testid="ideacad-sketch-snap-cue" data-snap={cue?.kind ?? ''} style:left={`${cue?.x ?? 0}px`} style:top={`${cue?.y ?? 0}px`}><span class="glyph" style:color={SNAP_COLOUR}>{cue?.glyph ?? ''}</span><span class="word">{cue?.word ?? ''}</span></div>
 	<!-- Done sits in the head row, not at the foot: a tall panel's foot scrolls under the workspace's floating report control (measured at 1440: the click was intercepted), and the one control every student needs must never need a scroll. -->
 	<div class="head"><h2>{sketch?.name ?? 'Sketch'}</h2><button type="button" class="done" onclick={() => { const id = api.editingSketch; api.editSketch(null); if (id) api.select({ bodyId: '', kind: 'sketch', id }); }}>Done</button></div>
 	{#if sketch}
@@ -220,6 +275,7 @@
 			{#each TOOLS.filter((t) => api.canWrite || !t.write) as t (t.id)}<button type="button" class="tool" class:active={tool === t.id} aria-pressed={tool === t.id} onclick={() => setTool(t.id)}>{t.word}</button>{/each}
 		</div>
 		<p class="hint" data-testid="ideacad-sketch-hint">{drawingNote || hoverNote || activeTool.hint}</p>
+		{#if snapNote}<p class="snap-note" data-testid="ideacad-sketch-snap">{snapNote}</p>{/if}
 		{#if api.canWrite}
 			<div class="settings">
 				<label><span>Polygon sides</span><input name="sides" inputmode="numeric" autocomplete="off" value={sidesText} onchange={(e) => setSides(e.currentTarget.value)} /></label>
@@ -270,7 +326,10 @@
 	{/if}
 </section>
 <style>
-	.sketch-editor{display:grid;gap:8px}.head{display:flex;justify-content:space-between;align-items:center;gap:8px}h2{margin:0;font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}h3{margin:0;font-size:15px;color:var(--text-2)}.status,.count,.hint{margin:0;color:var(--text-2);font-size:14px;line-height:1.35}.arc-notice{margin:0;color:var(--amber);font-size:14px;line-height:1.35}
+	.sketch-editor{display:grid;gap:8px}.head{display:flex;justify-content:space-between;align-items:center;gap:8px}h2{margin:0;font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}h3{margin:0;font-size:15px;color:var(--text-2)}.status,.count,.hint,.snap-note{margin:0;color:var(--text-2);font-size:14px;line-height:1.35}
+	/* Three lines are held for the snap sentence, so the panel below it does not jump as the pointer moves from one snap to the next. */
+	.snap-note{min-height:calc(3 * 1.35em)}
+	.snap-cue{position:fixed;z-index:60;display:flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid var(--boundary);border-radius:5px;background:var(--surface-1);color:var(--text-1);font:600 14px/1.3 Rajdhani,sans-serif;white-space:nowrap;pointer-events:none}.snap-cue[hidden]{display:none}.snap-cue .glyph{font-size:15px;line-height:1}.arc-notice{margin:0;color:var(--amber);font-size:14px;line-height:1.35}
 	/* Wrapping rows of buttons that grow to fill each row, never a fixed column count: three columns in a 260px panel left 'Rectangle' touching its own border. Each button is at least its word plus its 10px padding. */
 	.tools{display:flex;flex-wrap:wrap;gap:4px}.tools button{flex:1 1 auto}
 	button{min-height:44px;min-width:44px;padding:0 10px;border:1px solid var(--boundary);border-radius:5px;background:var(--surface-0);color:var(--text-1);font:600 15px Rajdhani,sans-serif;cursor:pointer}button:hover{background:var(--surface-2)}button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}

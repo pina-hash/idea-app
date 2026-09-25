@@ -362,7 +362,7 @@ describe('constraint offers and labels', () => {
 		const s = rectangle();
 		expect(constraintOffers(s.entities, ['l0']).map((o) => o.key)).toEqual(['horizontal', 'vertical', 'distance']);
 		expect(constraintOffers(s.entities, ['l0']).find((o) => o.key === 'distance')!.value).toBe(4);
-		expect(constraintOffers(s.entities, ['l0', 'l1']).map((o) => o.key)).toEqual(['parallel', 'perpendicular', 'equal', 'angle']);
+		expect(constraintOffers(s.entities, ['l0', 'l1']).map((o) => o.key)).toEqual(['parallel', 'perpendicular', 'equal', 'collinear', 'angle']);
 		expect(constraintOffers(s.entities, ['l0', 'l1']).find((o) => o.key === 'angle')!.value).toBeCloseTo(90, 9);
 		expect(constraintOffers(s.entities, ['p0', 'p2']).find((o) => o.key === 'distance')!.value).toBe(5);
 		expect(constraintOffers(s.entities, ['p0']).map((o) => o.key)).toEqual(['fix']);

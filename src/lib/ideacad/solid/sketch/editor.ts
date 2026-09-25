@@ -25,7 +25,11 @@
  */
 import { newEntityId } from '../features';
 import { pointOf, samples, isCurve, crossings, curveParam, rayHit, curveLength, arcPoint, arcSweepToward, TAU, type CurveEntity } from './model';
+import { snapPoint, snapRelations, snapLevel, sameRelation, trivialRelation, withRelations, nearestOnCurve, type Snap } from './snap';
 import type { SketchConstraint, SketchEntity, Vec2 } from '../types';
+
+/* Snapping lives in `snap.ts`; these are re-exported so every caller keeps one import. */
+export { snapPoint, snapRelations, snapCue, snapSentence, snapLevel, sameRelation, trivialRelation, withRelations, nearestOnCurve, type Snap, type SnapKind, type SnapContext, type SnapCurve, type Level } from './snap';
 
 export interface SketchDraft { entities: SketchEntity[]; constraints: SketchConstraint[] }
 export type SketchTool = 'select' | 'line' | 'rectangle' | 'circle' | 'arc' | 'polygon' | 'trim' | 'extend' | 'fillet' | 'dimension';
@@ -183,12 +187,18 @@ export function entityLabel(entities: readonly SketchEntity[], id: string): stri
 	const word = { point: 'Point', line: 'Line', circle: 'Circle', arc: 'Arc' }[e.type];
 	return `${word} ${entities.filter((x) => x.type === e.type).indexOf(e) + 1}`;
 }
-/** Drop points nothing names (fixed ones stay, as `removeEntity` keeps them) and constraints naming anything gone. */
+/**
+ * Drop points nothing names (fixed ones stay, as `removeEntity` keeps them),
+ * constraints naming anything gone, and relations the graph has made TRIVIAL
+ * (`trivialRelation`): a join or a trim can turn a point a snap held on a line
+ * into that line's own end, and the solver reads the leftover as a redundant
+ * equation, which reads "Over defined" on a sketch that is not.
+ */
 export function pruneDraft(sketch: SketchDraft): SketchDraft {
 	const used = new Set<string>(); for (const e of sketch.entities) if (e.type !== 'point') for (const id of entityPoints(sketch.entities, e.id)) used.add(id);
 	const entities = sketch.entities.filter((e) => e.type !== 'point' || used.has(e.id) || e.fixed);
 	const ids = new Set(entities.map((e) => e.id));
-	return { entities, constraints: sketch.constraints.filter((c) => Object.values(c).every((v) => typeof v !== 'string' || v === c.id || v === c.type || ids.has(v))) };
+	return { entities, constraints: sketch.constraints.filter((c) => Object.values(c).every((v) => typeof v !== 'string' || v === c.id || v === c.type || ids.has(v)) && !trivialRelation(entities, c)) };
 }
 /** A point at `at`: an existing one within `tolerance` is reused, so two curves meeting there share it; otherwise a new one is appended. */
 export function ensurePoint(sketch: SketchDraft, at: Vec2, tolerance = 1e-6): { sketch: SketchDraft; id: string; created: boolean } {
@@ -293,6 +303,17 @@ export function trimEntity(sketch: SketchDraft, id: string, at: Vec2, tolerance 
  * curve it meets, and that curve is split there so the two share the point.
  * The end point moves when this line alone names it, so a corner shared with
  * another line is not dragged; a new point takes its place instead.
+ *
+ * AN END THAT ALREADY LIES ON ANOTHER CURVE'S MIDDLE IS JOINED THERE, NOT RUN
+ * PAST IT. Snapping (`snap.ts`) puts an end exactly ON an edge and holds it
+ * with a Point on line (or on arc) relation without cutting the edge, so the
+ * two touch but share no point and the region graph does not close. The ray
+ * below skips a curve at distance zero, so without this branch the one tool
+ * that makes that junction refused with "Nothing lies ahead" on a line that
+ * visibly meets an edge (measured: a snapped divider across a rectangle could
+ * not be made into two regions at all, where the same line drawn short and
+ * extended made two). A whole circle is left to the ray: one point cannot
+ * split it (`splitCurves`).
  */
 export function extendEntity(sketch: SketchDraft, id: string, at: Vec2, tolerance = 1e-6): SketchDraft {
 	const line = sketch.entities.find((e) => e.id === id);
@@ -300,6 +321,9 @@ export function extendEntity(sketch: SketchDraft, id: string, at: Vec2, toleranc
 	const a = pointOf(sketch.entities, line.a), b = pointOf(sketch.entities, line.b);
 	const fromB = Math.hypot(at[0] - b[0], at[1] - b[1]) < Math.hypot(at[0] - a[0], at[1] - a[1]);
 	const end = fromB ? line.b : line.a, from = fromB ? b : a, back = fromB ? a : b;
+	const touching = sketch.entities.filter((e): e is CurveEntity => isCurve(e) && e.type !== 'circle' && e.id !== id && !entityPoints(sketch.entities, e.id).includes(end))
+		.filter((c) => { const p = nearestOnCurve(sketch.entities, c, from); return !!p && Math.hypot(p[0] - from[0], p[1] - from[1]) <= tolerance; });
+	if (touching.length) return pruneDraft(splitCurves(clone(sketch), new Map(touching.map((c) => [c.id, [end]]))));
 	const hit = rayHit(sketch.entities, from, [from[0] - back[0], from[1] - back[1]], id);
 	if (!hit) throw Error('Nothing lies ahead of this line to extend to. Draw what it should meet first.');
 	let next = clone(sketch);
@@ -455,46 +479,34 @@ export function movePoints(sketch: SketchDraft, moves: ReadonlyMap<string, Vec2>
 	return { entities: sketch.entities.map((e) => { if (e.type !== 'point') return e; const to = repair.get(e.id) ?? moves.get(e.id); return to ? { ...e, x: to[0], y: to[1] } : e; }), constraints: sketch.constraints };
 }
 
-/* ------------------------------------------------------------- snapping */
-export type SnapKind = 'point' | 'origin' | 'horizontal' | 'vertical' | 'none';
-export interface Snap { at: Vec2; kind: SnapKind; point?: string; reference?: Vec2 }
-export interface SnapContext { entities: readonly SketchEntity[]; radius: number; exclude?: ReadonlySet<string>; reference?: Vec2 | null }
-/**
- * Where a press or a drag lands: on an existing point within the radius
- * (which the caller then SHARES), on the origin, level or plumb with the
- * reference point, or where the pointer is. Points win over the origin and
- * the origin over an alignment, so the smallest target is always reachable.
- */
-export function snapPoint(at: Vec2, ctx: SnapContext): Snap {
-	let best: { id: string; d: number } | null = null;
-	for (const e of ctx.entities) {
-		if (e.type !== 'point' || ctx.exclude?.has(e.id)) continue;
-		const d = Math.hypot(e.x - at[0], e.y - at[1]);
-		if (d <= ctx.radius && (!best || d < best.d)) best = { id: e.id, d };
-	}
-	if (best) { const p = pointOf(ctx.entities, best.id); return { at: p, kind: 'point', point: best.id }; }
-	if (Math.hypot(at[0], at[1]) <= ctx.radius) return { at: [0, 0], kind: 'origin' };
-	if (ctx.reference) {
-		const du = Math.abs(at[0] - ctx.reference[0]), dv = Math.abs(at[1] - ctx.reference[1]);
-		if (dv <= ctx.radius && dv <= du) return { at: [at[0], ctx.reference[1]], kind: 'horizontal', reference: ctx.reference };
-		if (du <= ctx.radius) return { at: [ctx.reference[0], at[1]], kind: 'vertical', reference: ctx.reference };
-	}
-	return { at, kind: 'none' };
-}
-
 /* --------------------------------------------------------- chain drafts */
-/** One corner of a line chain or an arc: where it landed and, when it snapped to an existing point, which point it IS. */
-export interface Anchor { at: Vec2; point?: string; kind: SnapKind }
-/** A line chain through anchors: new points where none was shared, one line per step, and a horizontal/vertical constraint where a step snapped level or plumb. Closed chains return to the first anchor. */
+/**
+ * One corner of a line chain, an arc, or the first press of a rectangle or a
+ * circle: where it landed and how. When it snapped to an existing point, the
+ * point it IS; when it snapped onto a curve, the curves (`snapRelations`
+ * turns them into the relation that keeps it there); when the step to it is
+ * level or plumb, which.
+ */
+export type Anchor = Pick<Snap, 'at' | 'point' | 'kind' | 'curves' | 'level'>;
+/** The anchor a snap makes: the fields a draft needs and nothing about how the marker is drawn. */
+export const anchorOf = (s: Snap): Anchor => ({ at: s.at, kind: s.kind, ...(s.point ? { point: s.point } : {}), ...(s.curves ? { curves: s.curves } : {}), ...(s.level ? { level: s.level } : {}) });
+/**
+ * A line chain through anchors: new points where none was shared, one line per
+ * step, the relation each new point's snap earned (a Midpoint, a point on a
+ * line, circle or arc), and a horizontal/vertical constraint where a step
+ * snapped level or plumb. Closed chains return to the first anchor. Every
+ * inferred relation is in the SAME draft as the lines, so the one history
+ * step the panel commits takes them away together on an undo.
+ */
 export function chainDraft(anchors: readonly Anchor[], closed: boolean): SketchDraft {
 	const entities: SketchEntity[] = [], constraints: SketchConstraint[] = [];
-	const ids = anchors.map((a) => { if (a.point) return a.point; const id = newEntityId(); entities.push({ id, type: 'point', x: a.at[0], y: a.at[1] }); return id; });
+	const ids = anchors.map((a) => { if (a.point) return a.point; const id = newEntityId(); entities.push({ id, type: 'point', x: a.at[0], y: a.at[1] }); constraints.push(...snapRelations(a, id)); return id; });
 	const steps = closed ? anchors.length : anchors.length - 1;
 	for (let i = 0; i < steps; i++) {
 		const a = ids[i], b = ids[(i + 1) % ids.length]; if (a === b) continue;
 		const id = newEntityId(); entities.push({ id, type: 'line', a, b });
-		const kind = closed && i === steps - 1 ? 'none' : anchors[i + 1].kind;
-		if (kind === 'horizontal' || kind === 'vertical') constraints.push({ id: newEntityId(), type: kind, line: id });
+		const level = closed && i === steps - 1 ? undefined : snapLevel(anchors[i + 1]);
+		if (level) constraints.push({ id: newEntityId(), type: level, line: id });
 	}
 	return { entities, constraints };
 }
@@ -526,12 +538,12 @@ export function chainDraft(anchors: readonly Anchor[], closed: boolean): SketchD
 export function arcDraft(center: Anchor, start: Anchor, towards: Vec2, major = false): SketchDraft {
 	const sweep = arcSweepToward(center.at, start.at, towards, major);
 	const end = arcPoint(center.at, start.at, sweep, 1);
-	const entities: SketchEntity[] = [];
-	const id = (a: Anchor) => { if (a.point) return a.point; const pid = newEntityId(); entities.push({ id: pid, type: 'point', x: a.at[0], y: a.at[1] }); return pid; };
+	const entities: SketchEntity[] = [], constraints: SketchConstraint[] = [];
+	const id = (a: Anchor) => { if (a.point) return a.point; const pid = newEntityId(); entities.push({ id: pid, type: 'point', x: a.at[0], y: a.at[1] }); constraints.push(...snapRelations(a, pid)); return pid; };
 	const c = id(center), s = id(start), e = newEntityId();
 	entities.push({ id: e, type: 'point', x: end[0], y: end[1] });
 	entities.push({ id: newEntityId(), type: 'arc', center: c, start: sweep > 0 ? s : e, end: sweep > 0 ? e : s });
-	return { entities, constraints: [] };
+	return { entities, constraints };
 }
 /** A draft whose one point `from` is replaced by the sketch's existing point `to`: how a drag-drawn circle centers on a corner that is already there. */
 export function sharePoint(draft: SketchDraft, from: string, to: string): SketchDraft {
@@ -544,63 +556,127 @@ export interface ConstraintOffer {
 	key: string; label: string;
 	/** The number the offer starts from, for one that carries a value. Absent for a relation. */
 	value?: number; unit?: 'in' | 'deg';
-	/** The constraints to add; `value` is ignored by a relation. `structural` offers rewrite the graph instead (Join points). */
+	/** The constraints to add; `value` is ignored by a relation. Empty for an offer that rewrites the graph instead. */
 	build(value?: number): SketchConstraint[];
+	/**
+	 * An offer that REWRITES THE GRAPH rather than adding constraints alone,
+	 * and is applied to the whole sketch: Coincident on two points JOINS them
+	 * (the drag-and-drop join, because a coincident constraint over two point
+	 * ids would look closed and bound no region), and Horizontal or Vertical
+	 * between two points that no line joins draws a CONSTRUCTION line between
+	 * them to carry the relation, since the solver's horizontal and vertical
+	 * take a line and the stored vocabulary may not grow a point-to-point
+	 * kind. May throw a sentence.
+	 */
+	apply?(sketch: SketchDraft): SketchDraft;
 }
 const CONSTRAINT_WORDS: Record<SketchConstraint['type'], string> = {
 	coincident: 'Coincident', distance: 'Distance', pointLineDistance: 'Distance to line', horizontal: 'Horizontal', vertical: 'Vertical', angle: 'Angle', parallel: 'Parallel', perpendicular: 'Perpendicular',
 	equalLength: 'Equal length', circleRadius: 'Radius', arcRadius: 'Radius', equalRadius: 'Equal radius', pointOnCircle: 'Point on circle', pointOnArc: 'Point on arc', tangentLineArc: 'Tangent', tangentArcArc: 'Tangent',
 	concentric: 'Concentric', midpoint: 'Midpoint', symmetric: 'Symmetric', fixX: 'Fix X', fixY: 'Fix Y'
 };
-/** The word for a constraint and the entities it names, for a list row. */
+/** The word for a constraint and the entities it names, for a list row. A distance to a line of exactly zero is the POINT ON LINE relation (`snap.ts` says why it is spelled that way) and is listed as one, with no number to type. */
 export function constraintLabel(entities: readonly SketchEntity[], c: SketchConstraint): { word: string; names: string; value?: number; unit?: 'in' | 'deg' } {
 	const names = Object.entries(c).filter(([k, v]) => k !== 'id' && k !== 'type' && typeof v === 'string').map(([, v]) => entityLabel(entities, v as string)).join(', ');
+	if (isOnLine(c)) return { word: 'Point on line', names };
 	return { word: CONSTRAINT_WORDS[c.type], names, ...('value' in c ? { value: c.value, unit: c.type === 'angle' ? 'deg' as const : 'in' as const } : {}) };
 }
+/** A point held on a line: the zero distance a snap or the Point on line offer writes. */
+export const isOnLine = (c: SketchConstraint): c is Extract<SketchConstraint, { type: 'pointLineDistance' }> => c.type === 'pointLineDistance' && c.value === 0;
 const lineAngle = (entities: readonly SketchEntity[], l: Extract<SketchEntity, { type: 'line' }>) => { const a = pointOf(entities, l.a), b = pointOf(entities, l.b); return Math.atan2(b[1] - a[1], b[0] - a[0]); };
 const radiusOf = (entities: readonly SketchEntity[], e: CurveEntity) => e.type === 'circle' ? e.radius : e.type === 'arc' ? Math.hypot(...([pointOf(entities, e.start)[0] - pointOf(entities, e.center)[0], pointOf(entities, e.start)[1] - pointOf(entities, e.center)[1]] as Vec2)) : 0;
+/** The point two curves share at an END of each (never a center): where a tangency between them can be pinned. */
+function sharedEnd(a: CurveEntity, b: CurveEntity): string | null {
+	const ends = (c: CurveEntity) => (c.type === 'line' ? [c.a, c.b] : c.type === 'arc' ? [c.start, c.end] : []);
+	return ends(a).find((id) => ends(b).includes(id)) ?? null;
+}
+/** Whether two points can be joined: the sentence `joinPoints` would refuse with is the answer. */
+function joinable(entities: readonly SketchEntity[], a: string, b: string): boolean {
+	try { joinPoints({ entities: [...entities], constraints: [] }, a, b); return true; } catch { return false; }
+}
 /**
  * What can be constrained from what is selected. Each offer is one button in
  * the panel; those with a `value` also get an input seeded with the measured
  * number, which the student may change to anything finite -- the solver is
  * the only thing that refuses a value.
+ *
+ * `existing`, when given, is the sketch's own constraint list, and a RELATION
+ * it already holds is not offered again: a second Horizontal on a line adds
+ * no freedom and the sketch then reads "Over defined".
+ *
+ * THE KERNEL'S VOCABULARY DECIDES WHAT IS OFFERED FROM WHAT. Tangent is
+ * offered only where a line and an arc, or two arcs, SHARE AN END: the
+ * kernel's tangent pins the two directions at one named point and does not
+ * pull two curves apart onto each other (measured: a line and an arc a unit
+ * apart converge with the arc turned parallel and still a unit away). A
+ * circle has no ends and is offered no tangent. Collinear is each END of the
+ * second line held at zero distance from the first, skipping an end the two
+ * already share, which would be an equation that removes nothing.
  */
-export function constraintOffers(entities: readonly SketchEntity[], selected: readonly string[]): ConstraintOffer[] {
+export function constraintOffers(entities: readonly SketchEntity[], selected: readonly string[], existing?: readonly SketchConstraint[]): ConstraintOffer[] {
 	const picked = selected.map((id) => entities.find((e) => e.id === id)).filter((e): e is SketchEntity => !!e);
 	const kinds = picked.map((e) => e.type).sort().join('+');
 	const out: ConstraintOffer[] = [];
 	const id = () => newEntityId();
 	const distance = (a: string, b: string, value: number) => out.push({ key: 'distance', label: 'Distance', value, unit: 'in', build: (v) => [{ id: id(), type: 'distance', a, b, value: v ?? value }] });
+	const onLine = (point: string, line: string): SketchConstraint => ({ id: id(), type: 'pointLineDistance', point, line, value: 0 });
+	type Pt = Extract<SketchEntity, { type: 'point' }>; type Ln = Extract<SketchEntity, { type: 'line' }>;
 	if (kinds === 'line') {
-		const l = picked[0] as Extract<SketchEntity, { type: 'line' }>;
+		const l = picked[0] as Ln;
 		out.push({ key: 'horizontal', label: 'Horizontal', build: () => [{ id: id(), type: 'horizontal', line: l.id }] }, { key: 'vertical', label: 'Vertical', build: () => [{ id: id(), type: 'vertical', line: l.id }] });
 		distance(l.a, l.b, curveLength(entities, l));
 	} else if (kinds === 'point') {
-		const p = picked[0] as Extract<SketchEntity, { type: 'point' }>;
+		const p = picked[0] as Pt;
 		out.push({ key: 'fix', label: 'Fix in place', build: () => [{ id: id(), type: 'fixX', point: p.id, value: p.x }, { id: id(), type: 'fixY', point: p.id, value: p.y }] });
 	} else if (kinds === 'point+point') {
-		const [a, b] = picked as Extract<SketchEntity, { type: 'point' }>[];
+		const [a, b] = picked as Pt[];
+		/* The point that survives a join keeps its place, so a FIXED one survives; otherwise the one picked first. */
+		const keep = b.fixed && !a.fixed ? b : a, gone = keep === a ? b : a;
+		if (joinable(entities, gone.id, keep.id)) out.push({ key: 'coincident', label: 'Coincident', build: () => [], apply: (sketch) => joinPoints(sketch, gone.id, keep.id) });
+		const joining = entities.find((e): e is Ln => e.type === 'line' && ((e.a === a.id && e.b === b.id) || (e.a === b.id && e.b === a.id)));
+		for (const level of ['horizontal', 'vertical'] as const) {
+			const label = level === 'horizontal' ? 'Horizontal' : 'Vertical';
+			if (joining) out.push({ key: level, label, build: () => [{ id: id(), type: level, line: joining.id }] });
+			else out.push({ key: level, label, build: () => [], apply: (sketch) => { const line = id(); return { entities: [...sketch.entities, { id: line, type: 'line', a: a.id, b: b.id, construction: true }], constraints: [...sketch.constraints, { id: id(), type: level, line }] }; } });
+		}
 		distance(a.id, b.id, Math.hypot(b.x - a.x, b.y - a.y));
+	} else if (kinds === 'line+point+point') {
+		const [a, b] = picked.filter((e): e is Pt => e.type === 'point'), axis = picked.find((e): e is Ln => e.type === 'line')!;
+		/* A point ON the axis (one of its ends) mirrors onto itself, so the other would have to be the same point: nothing to offer. */
+		if (![axis.a, axis.b].includes(a.id) && ![axis.a, axis.b].includes(b.id)) out.push({ key: 'symmetric', label: 'Symmetric', build: () => [{ id: id(), type: 'symmetric', a: a.id, b: b.id, axis: axis.id }] });
 	} else if (kinds === 'circle' || kinds === 'arc') {
 		const c = picked[0] as CurveEntity;
 		out.push({ key: 'radius', label: 'Radius', value: radiusOf(entities, c), unit: 'in', build: (v) => [c.type === 'circle' ? { id: id(), type: 'circleRadius', circle: c.id, value: v ?? radiusOf(entities, c) } : { id: id(), type: 'arcRadius', arc: c.id, value: v ?? radiusOf(entities, c) }] });
 	} else if (kinds === 'line+line') {
-		const [l1, l2] = picked as Extract<SketchEntity, { type: 'line' }>[];
+		const [l1, l2] = picked as Ln[];
 		const angle = ((lineAngle(entities, l2) - lineAngle(entities, l1)) * 180 / Math.PI + 360) % 360;
-		out.push({ key: 'parallel', label: 'Parallel', build: () => [{ id: id(), type: 'parallel', l1: l1.id, l2: l2.id }] }, { key: 'perpendicular', label: 'Perpendicular', build: () => [{ id: id(), type: 'perpendicular', l1: l1.id, l2: l2.id }] }, { key: 'equal', label: 'Equal length', build: () => [{ id: id(), type: 'equalLength', l1: l1.id, l2: l2.id }] }, { key: 'angle', label: 'Angle', value: angle, unit: 'deg', build: (v) => [{ id: id(), type: 'angle', l1: l1.id, l2: l2.id, value: v ?? angle }] });
+		const loose = [l2.a, l2.b].filter((p) => p !== l1.a && p !== l1.b);
+		out.push({ key: 'parallel', label: 'Parallel', build: () => [{ id: id(), type: 'parallel', l1: l1.id, l2: l2.id }] }, { key: 'perpendicular', label: 'Perpendicular', build: () => [{ id: id(), type: 'perpendicular', l1: l1.id, l2: l2.id }] }, { key: 'equal', label: 'Equal length', build: () => [{ id: id(), type: 'equalLength', l1: l1.id, l2: l2.id }] });
+		if (loose.length) out.push({ key: 'collinear', label: 'Collinear', build: () => loose.map((p) => onLine(p, l1.id)) });
+		out.push({ key: 'angle', label: 'Angle', value: angle, unit: 'deg', build: (v) => [{ id: id(), type: 'angle', l1: l1.id, l2: l2.id, value: v ?? angle }] });
+	} else if (kinds === 'arc+line') {
+		const l = picked.find((e): e is Ln => e.type === 'line')!, arc = picked.find((e): e is Extract<SketchEntity, { type: 'arc' }> => e.type === 'arc')!, at = sharedEnd(l, arc);
+		if (at) out.push({ key: 'tangent', label: 'Tangent', build: () => [{ id: id(), type: 'tangentLineArc', line: l.id, arc: arc.id, point: at }] });
 	} else if (kinds === 'arc+arc' || kinds === 'circle+circle' || kinds === 'arc+circle') {
 		const [a, b] = picked as CurveEntity[];
 		out.push({ key: 'equalRadius', label: 'Equal radius', build: () => [{ id: id(), type: 'equalRadius', a: a.id, b: b.id }] }, { key: 'concentric', label: 'Concentric', build: () => [{ id: id(), type: 'concentric', a: a.id, b: b.id }] });
+		const at = kinds === 'arc+arc' ? sharedEnd(a, b) : null;
+		if (at) out.push({ key: 'tangent', label: 'Tangent', build: () => [{ id: id(), type: 'tangentArcArc', arc1: a.id, arc2: b.id, point: at }] });
 	} else if (kinds === 'line+point') {
-		const p = picked.find((e) => e.type === 'point') as Extract<SketchEntity, { type: 'point' }>, l = picked.find((e) => e.type === 'line') as Extract<SketchEntity, { type: 'line' }>;
+		const p = picked.find((e) => e.type === 'point') as Pt, l = picked.find((e) => e.type === 'line') as Ln;
 		const a = pointOf(entities, l.a), b = pointOf(entities, l.b), len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
 		const gap = Math.abs((b[0] - a[0]) * (a[1] - p.y) - (a[0] - p.x) * (b[1] - a[1])) / len;
-		out.push({ key: 'midpoint', label: 'Midpoint', build: () => [{ id: id(), type: 'midpoint', point: p.id, line: l.id }] }, { key: 'pointLineDistance', label: 'Distance to line', value: gap, unit: 'in', build: (v) => [{ id: id(), type: 'pointLineDistance', point: p.id, line: l.id, value: v ?? gap }] });
+		out.push({ key: 'midpoint', label: 'Midpoint', build: () => [{ id: id(), type: 'midpoint', point: p.id, line: l.id }] });
+		/* A line's own end is on it already: the relation would be an equation that removes nothing. */
+		if (p.id !== l.a && p.id !== l.b) out.push({ key: 'onLine', label: 'Point on line', build: () => [onLine(p.id, l.id)] });
+		out.push({ key: 'pointLineDistance', label: 'Distance to line', value: gap, unit: 'in', build: (v) => [{ id: id(), type: 'pointLineDistance', point: p.id, line: l.id, value: v ?? gap }] });
 	} else if (kinds === 'circle+point' || kinds === 'arc+point') {
-		const p = picked.find((e) => e.type === 'point') as Extract<SketchEntity, { type: 'point' }>, c = picked.find((e) => e.type !== 'point') as CurveEntity;
+		const p = picked.find((e) => e.type === 'point') as Pt, c = picked.find((e) => e.type !== 'point') as CurveEntity;
 		out.push({ key: 'on', label: c.type === 'circle' ? 'Point on circle' : 'Point on arc', build: () => [c.type === 'circle' ? { id: id(), type: 'pointOnCircle', point: p.id, circle: c.id } : { id: id(), type: 'pointOnArc', point: p.id, arc: c.id }] });
 	}
-	return out;
+	if (!existing?.length) return out;
+	/* A relation (no number, no rewrite) the sketch already holds, word for word, is not offered twice. */
+	return out.filter((o) => o.value !== undefined || o.apply || !o.build().every((c) => existing.some((e) => sameRelation(e, c))));
 }
 
 /* -------------------------------------------------------------- session */
@@ -610,6 +686,8 @@ export interface SessionContext {
 	tolerance: number; snapRadius: number;
 	polygonSides: number; filletRadius: number;
 	shift?: boolean; canWrite: boolean;
+	/** Ctrl or Command held on this event: place freely, with no snap and so no inferred relation. */
+	free?: boolean;
 }
 export interface Commit { label: string; sketch: SketchDraft }
 export interface SessionResult { changed: boolean; commit?: Commit; error?: string }
@@ -618,6 +696,12 @@ export interface SessionResult { changed: boolean; commit?: Commit; error?: stri
 export interface SessionPreview { polylines: Vec2[][]; snap: Snap | null; moved: { entities: SketchEntity[]; curves: string[] } | null; anchors: Vec2[] }
 interface Drag { origin: Vec2; points: string[]; single: string | null; from: Map<string, Vec2>; current: Map<string, Vec2>; moved: boolean; snap: Snap | null }
 const CURVE_KINDS: readonly SketchEntity['type'][] = ['line', 'circle', 'arc'];
+/** How many points the pointer passed over are remembered as alignment sources. Three is enough to line up with a corner just touched, few enough that the dashed guides do not fire at everything on screen. */
+const WOKEN_LIMIT = 3;
+/** The tools whose presses are snapped at all. Trim, extend, fillet and dimension pick an entity instead. */
+const SNAPPING_TOOLS: readonly SketchTool[] = ['line', 'arc', 'rectangle', 'circle', 'polygon'];
+/** A draft whose point `id` gains the relations its first press snapped into. */
+const relate = (draft: SketchDraft, id: string, anchor: Anchor): SketchDraft => ({ entities: draft.entities, constraints: [...draft.constraints, ...snapRelations(anchor, id)] });
 const circleOutline = (c: Vec2, r: number, n = 64): Vec2[] => Array.from({ length: n + 1 }, (_, i) => [c[0] + r * Math.cos(i / n * TAU), c[1] + r * Math.sin(i / n * TAU)] as Vec2);
 export class SketchSession {
 	tool: SketchTool = 'select';
@@ -627,6 +711,12 @@ export class SketchSession {
 	pendingFillet: string | null = null;
 	/** Shift, as of the last pointer or key event: the arc tool's long-way-round. Held here rather than read from the context inside `preview`, because the panel redraws the preview OUTSIDE a pointer event and so has no modifier to hand it. */
 	private major = false;
+	/** Ctrl or Command, as of the last pointer or key event: place freely. Held here for the same reason `major` is. */
+	private free = false;
+	/** Where the pointer last was, in the plane: what a modifier pressed without moving re-snaps from. */
+	private pointer: Vec2 | null = null;
+	/** Points the pointer passed over, newest first: the alignment guides' sources. */
+	private woken: string[] = [];
 	private anchors: Anchor[] = [];
 	private dragFrom: Anchor | null = null;
 	private cursor: Snap | null = null;
@@ -634,14 +724,63 @@ export class SketchSession {
 	get anchorCount() { return this.anchors.length; }
 	get drawing() { return this.anchors.length > 0 || !!this.dragFrom; }
 	get dragging() { return !!this.drag?.moved; }
-	setTool(tool: SketchTool) { if (tool !== this.tool) { this.tool = tool; this.anchors = []; this.dragFrom = null; this.drag = null; this.pendingFillet = null; this.cursor = null; this.major = false; } }
+	/** The snap a press would take right now, for the cursor cue and the panel's sentence: a dragged point's, or a drawing tool's. Null when nothing is snapped. */
+	get liveSnap(): Snap | null {
+		const snap = this.drag?.moved ? this.drag.snap : SNAPPING_TOOLS.includes(this.tool) && !this.dragFrom ? this.cursor : null;
+		return snap && snap.kind !== 'none' ? snap : null;
+	}
+	/** Where the pointer is while Ctrl or Command is placing it freely; null when that is not the question (no pointer yet, or nothing that snaps). */
+	get freeAt(): Vec2 | null { return this.free && this.pointer && ((this.drag?.moved && this.drag.single) || (SNAPPING_TOOLS.includes(this.tool) && !this.dragFrom && !(this.tool === 'arc' && this.anchors.length === 2))) ? this.pointer : null; }
+	/**
+	 * What a snap turns into for the tool in hand: the relation that holds a
+	 * new point where it landed (`point`), and the step's own level or plumb
+	 * (`step`). A polygon's press is its CENTER, which is not a point in the
+	 * sketch, so it adds nothing; an arc adds the point's relation to its
+	 * center and start; a rectangle's or circle's first press to its corner or
+	 * center; only a line chain has a step to level.
+	 */
+	get infers(): { point: boolean; step: boolean } {
+		if (this.drag?.moved) return { point: !!this.drag.single, step: false };
+		if (this.tool === 'line') return { point: true, step: true };
+		if (this.tool === 'arc') return { point: this.anchors.length < 2, step: false };
+		return { point: this.tool === 'rectangle' || this.tool === 'circle', step: false };
+	}
+	setTool(tool: SketchTool) { if (tool !== this.tool) { this.tool = tool; this.anchors = []; this.dragFrom = null; this.drag = null; this.pendingFillet = null; this.cursor = null; this.major = false; this.woken = []; } }
 	/** Shift pressed or released while no pointer event is in flight. Answers whether anything on screen changes, so a key that cannot move the preview costs no redraw. */
 	setModifier(shift: boolean): boolean {
 		if (shift === this.major) return false;
 		this.major = shift;
 		return this.tool === 'arc' && this.anchors.length === 2 && !!this.cursor;
 	}
-	private snapAt(at: Vec2, ctx: SessionContext, reference: Vec2 | null = null, exclude?: ReadonlySet<string>): Snap { return snapPoint(at, { entities: ctx.entities, radius: ctx.snapRadius, reference, exclude }); }
+	/**
+	 * Ctrl or Command pressed or released while no pointer event is in flight:
+	 * the snap is taken again from where the pointer already is, so the marker
+	 * and the cue change on the key and not on the next nudge of the mouse.
+	 * Answers whether anything on screen changed.
+	 */
+	setFree(free: boolean, ctx: SessionContext): boolean {
+		if (free === this.free) return false;
+		this.free = free;
+		if (!this.pointer) return false;
+		const before = this.liveSnap;
+		this.move(this.pointer, { ...ctx, free });
+		return before !== this.liveSnap || !!this.freeAt;
+	}
+	/** Where the alignment guides come from: the points passed over that are still in the sketch, and the corners of the chain already placed. */
+	private wokenAt(ctx: SessionContext): Vec2[] {
+		const out: Vec2[] = [];
+		const add = (p: Vec2) => { if (!out.some((q) => near(q, p, 1e-9))) out.push(p); };
+		for (const id of this.woken) { const p = ctx.entities.find((e) => e.id === id); if (p?.type === 'point') add([p.x, p.y]); }
+		for (const a of this.anchors) add(a.at);
+		return out;
+	}
+	/** A point the pointer passed over joins the alignment sources, newest first. */
+	private wake(snap: Snap | null) {
+		if (snap?.kind !== 'point' || !snap.point) return;
+		this.woken = [snap.point, ...this.woken.filter((id) => id !== snap.point)].slice(0, WOKEN_LIMIT);
+	}
+	/** `guides` false leaves out every alignment guide as well as the reference: the arc's third click, which is a direction (see `arcSnap`). */
+	private snapAt(at: Vec2, ctx: SessionContext, reference: Vec2 | null = null, exclude?: ReadonlySet<string>, guides = true): Snap { return snapPoint(at, { entities: ctx.entities, radius: ctx.snapRadius, reference, exclude, woken: guides ? this.wokenAt(ctx) : [], free: this.free }); }
 	/**
 	 * Where an arc click lands. THE THIRD ONE IS A DIRECTION, so what comes
 	 * back for it is the point on the arc's own circle that the click points
@@ -665,8 +804,13 @@ export class SketchSession {
 		 * the reported defect in miniature. An exact quarter is worth less
 		 * than a direction that always follows the click, and a sketch that
 		 * needs the quarter exactly has a dimension for it.
+		 *
+		 * THE ALIGNMENT GUIDES ARE LEFT OUT OF THE THIRD CLICK FOR THE SAME
+		 * REASON, and this is not hypothetical: with them in, a click at 170
+		 * degrees on a unit arc sat 0.17 in off the center's own level guide,
+		 * inside the snap radius, and committed 180.
 		 */
-		const snap = this.snapAt(at, ctx, this.anchors.length === 1 ? this.anchors[0].at : null);
+		const snap = this.anchors.length < 2 ? this.snapAt(at, ctx, this.anchors.length === 1 ? this.anchors[0].at : null) : this.snapAt(at, ctx, null, undefined, false);
 		if (this.anchors.length < 2) return snap;
 		const [c, s] = this.anchors;
 		/*
@@ -692,6 +836,7 @@ export class SketchSession {
 	private refuse = (error: string): SessionResult => ({ changed: true, error });
 	down(at: Vec2, ctx: SessionContext): SessionResult {
 		const tool = this.tool;
+		this.free = !!ctx.free; this.pointer = at;
 		if (tool === 'select' || tool === 'dimension') {
 			const pick = pickEntity(ctx.entities, at, ctx.tolerance);
 			if (!pick) { this.selected = ctx.shift ? this.selected : []; this.drag = null; return { changed: true }; }
@@ -709,7 +854,7 @@ export class SketchSession {
 		if (tool === 'line') {
 			const reference = this.anchors.length ? this.anchors[this.anchors.length - 1].at : null;
 			const snap = this.snapAt(at, ctx, reference);
-			const anchor: Anchor = { at: snap.at, point: snap.point, kind: snap.kind };
+			const anchor = anchorOf(snap);
 			const first = this.anchors[0];
 			if (first && this.anchors.length >= 2 && ((first.point && first.point === anchor.point) || (!first.point && near(first.at, anchor.at, ctx.snapRadius)))) return this.finishChain(ctx, true);
 			const last = this.anchors[this.anchors.length - 1];
@@ -723,7 +868,7 @@ export class SketchSession {
 			if (this.anchors.length < 2) {
 				/* Refused on the SECOND click rather than after a third: a start on top of its own center has no radius, and finding that out costs one more click than it needs to. */
 				if (this.anchors.length === 1 && near(snap.at, this.anchors[0].at, 1e-9)) return this.refuse('Pick the start of the arc away from its center.');
-				this.anchors.push({ at: snap.at, point: snap.point, kind: snap.kind });
+				this.anchors.push(anchorOf(snap));
 				return { changed: true };
 			}
 			const [c, s] = this.anchors;
@@ -735,7 +880,7 @@ export class SketchSession {
 		}
 		if (tool === 'rectangle' || tool === 'circle' || tool === 'polygon') {
 			const snap = this.snapAt(at, ctx, null);
-			this.dragFrom = { at: snap.at, point: snap.point, kind: snap.kind };
+			this.dragFrom = anchorOf(snap);
 			this.cursor = snap;
 			return { changed: true };
 		}
@@ -760,12 +905,13 @@ export class SketchSession {
 		return { changed: false };
 	}
 	move(at: Vec2, ctx: SessionContext): SessionResult {
+		this.free = !!ctx.free; this.pointer = at;
 		const d = this.drag;
 		if (d) {
 			const dx = at[0] - d.origin[0], dy = at[1] - d.origin[1];
 			if (!d.moved && Math.hypot(dx, dy) <= ctx.tolerance) return { changed: false };
 			d.moved = true;
-			if (d.single) { const snap = this.snapAt(at, ctx, null, new Set([d.single])); d.snap = snap; d.current = new Map([[d.single, snap.at]]); }
+			if (d.single) { const snap = this.snapAt(at, ctx, null, new Set([d.single])); d.snap = snap; d.current = new Map([[d.single, snap.at]]); this.wake(snap); }
 			else { d.snap = null; d.current = new Map([...d.from].map(([id, p]) => [id, [p[0] + dx, p[1] + dy] as Vec2])); }
 			return { changed: true };
 		}
@@ -774,6 +920,7 @@ export class SketchSession {
 		else if ((this.tool === 'rectangle' || this.tool === 'circle' || this.tool === 'polygon') && !this.dragFrom) this.cursor = this.snapAt(at, ctx, null);
 		else if (this.dragFrom) this.cursor = { at, kind: 'none' };
 		else this.cursor = null;
+		if (!this.dragFrom) this.wake(this.cursor);
 		const kinds = this.tool === 'select' || this.tool === 'dimension' || this.tool === 'fillet' ? undefined : this.tool === 'trim' || this.tool === 'extend' ? CURVE_KINDS : null;
 		const hovered = kinds === null ? null : pickEntity(ctx.entities, at, ctx.tolerance, kinds)?.entity ?? null;
 		const changed = hovered !== this.hovered || this.drawing || this.tool !== 'select';
@@ -789,15 +936,18 @@ export class SketchSession {
 				try { return { changed: true, commit: { label: 'Join points', sketch: joinPoints(this.current(ctx), d.single, d.snap.point) } }; }
 				catch (err) { return this.refuse(err instanceof Error ? err.message : String(err)); }
 			}
-			return { changed: true, commit: { label: d.single ? 'Move point' : `Move ${entityLabel(ctx.entities, this.selected[0] ?? '').split(' ')[0].toLowerCase()}`, sketch: movePoints(this.current(ctx), d.current) } };
+			const moved = movePoints(this.current(ctx), d.current);
+			/* A point dropped onto a curve or a midpoint keeps the relation that snap earned, in the same step as the move, so one undo takes both. */
+			if (d.single && d.snap?.curves?.length) return { changed: true, commit: { label: 'Move point', sketch: { entities: moved.entities, constraints: withRelations(moved.entities, moved.constraints, snapRelations(d.snap, d.single)) } } };
+			return { changed: true, commit: { label: d.single ? 'Move point' : `Move ${entityLabel(ctx.entities, this.selected[0] ?? '').split(' ')[0].toLowerCase()}`, sketch: moved } };
 		}
 		const from = this.dragFrom;
 		if (from) {
 			this.dragFrom = null;
 			if (near(from.at, at, ctx.tolerance)) return { changed: true };
-			if (this.tool === 'rectangle') { const draft = rectangleEntities(from.at, at); const first = draft.entities[0]; return { changed: true, commit: { label: 'Draw rectangle', sketch: this.draft(from.point ? sharePoint(draft, first.id, from.point) : draft, ctx) } }; }
+			if (this.tool === 'rectangle') { const draft = rectangleEntities(from.at, at); const first = draft.entities[0]; return { changed: true, commit: { label: 'Draw rectangle', sketch: this.draft(from.point ? sharePoint(draft, first.id, from.point) : relate(draft, first.id, from), ctx) } }; }
 			const r = Math.hypot(at[0] - from.at[0], at[1] - from.at[1]);
-			if (this.tool === 'circle') { const draft = circleEntities(from.at, r); return { changed: true, commit: { label: 'Draw circle', sketch: this.draft(from.point ? sharePoint(draft, draft.entities[0].id, from.point) : draft, ctx) } }; }
+			if (this.tool === 'circle') { const draft = circleEntities(from.at, r); return { changed: true, commit: { label: 'Draw circle', sketch: this.draft(from.point ? sharePoint(draft, draft.entities[0].id, from.point) : relate(draft, draft.entities[0].id, from), ctx) } }; }
 			if (this.tool === 'polygon') {
 				if (!(Number.isInteger(ctx.polygonSides) && ctx.polygonSides >= 3)) return this.refuse('A polygon needs a whole number of sides, at least 3.');
 				return { changed: true, commit: { label: `Draw ${ctx.polygonSides}-sided polygon`, sketch: this.draft(polygonEntities(from.at, at, ctx.polygonSides), ctx) } };

@@ -6,12 +6,16 @@ import type {AdvisoryLimits,AdvisoryRules,AdvisoryTransport} from './advisory';
 import {normalizeDocument,normalizeFolder,normalizeTrashed,type LaunchDocument,type LaunchFolder,type TrashedDocument} from './launch/library';
 import type {TrashReceipt} from './launch/api';
 import {STORAGE_UNAVAILABLE} from './launch/wording';
+import {createIdeacadLive} from '../live';
+import {artifactHashes,connectIdeacadLive,readHistoryAfter,type SolidLiveTransport} from './live-sync';
 
 /** One row of `ideacad_direct_documents`, normalised (`launch/library.ts`): 0217's fields are present on every deployment, defaulted to what is true before it is applied. */
 export type DirectSummary=LaunchDocument;
 export class SolidConflict extends Error {}
 const bytes=(value:string)=>Uint8Array.from(atob(value.replace(/\s/g,'')),c=>c.charCodeAt(0));
 const base64=(value:Uint8Array)=>{let text='';for(let i=0;i<value.length;i+=16384)text+=String.fromCharCode(...value.subarray(i,i+16384));return btoa(text);};
+/** Does this artifact's content hash to its own name? Every BREP byte this module hands the kernel passes it first, on open and on a live pull alike. */
+const intact=async(artifact:GeometryArtifact)=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',artifact.bytes as Uint8Array<ArrayBuffer>))].map(n=>n.toString(16).padStart(2,'0')).join('')===artifact.hash;
 export function createSolidTransports(supabase:SupabaseClient){
 	async function rpc(name:string,args?:Record<string,unknown>):Promise<any>{const {data,error}=await supabase.rpc(name,args);if(error)throw Error(error.message);if(data===null)throw Error('The server returned no document data.');return data;}
 	/* THE STORAGE CALLS DEGRADE ON `PGRST202` ALONE (CLAUDE.md, RPC degradation): a function 0217 adds is absent on a
@@ -19,17 +23,21 @@ export function createSolidTransports(supabase:SupabaseClient){
 	   error is the function's own refusal and is shown verbatim where the student pressed. */
 	async function storage(name:string,args?:Record<string,unknown>):Promise<any>{const {data,error}=await supabase.rpc(name,args);if(error)throw Error(error.code==='PGRST202'?STORAGE_UNAVAILABLE:error.message);return data;}
 	const payloads=new Map<string,Record<string,unknown>>(),accepted=new Map<string,number>(),observed=new Map<string,number>();
+	/** The BREP bytes for `hashes`, fetched a hundred at a time, added to `into`. Integrity is the caller's `intact` pass. */
+	async function readArtifacts(documentId:string,hashes:string[],into=new Map<string,GeometryArtifact>()){
+		for(let i=0;i<hashes.length;i+=100){const data=await rpc('ideacad_read_brep_artifacts',{p_document_id:documentId,p_hashes:hashes.slice(i,i+100)});for(const a of data)into.set(a.hash,{hash:a.hash,bytes:bytes(a.data)});}
+		return into;
+	}
 	async function document(payload:any):Promise<SolidDocument>{
 		const m=payload.concept?.features;if(!(m?.format==='ideacad-solid-v1'||m?.format==='ideacad-solid-v2')||m.kernel!==emptyManifest().kernel)throw Error('This document requires its original geometry reader.');
 		const doc:SolidDocument={id:payload.document.id,title:m.title,conceptId:payload.concept.id,revision:payload.concept.revision,canWrite:payload.canWrite===true,owner:payload.document.student_email,archivedAt:payload.document.archived_at,deletedAt:payload.document.deleted_at??null,snapshot:{manifest:m,artifacts:[]}};
 		const pinned=await readPinnedHistory((after,limit)=>rpc('ideacad_direct_concept_history',{p_concept_id:doc.conceptId,p_after_seq:after,p_limit:limit}));
 		const validated=historyAtRevision(pinned.rows,doc.revision,m);doc.history=pinned.rows.filter(r=>r.seq<=validated.lastSeq);
-		const hashes=new Set<string>();
-		const collect=(v:unknown)=>{if(!v||typeof v!=='object')return;for(const [key,value]of Object.entries(v)){if(key==='artifact'&&typeof value==='string'&&/^[a-f0-9]{64}$/.test(value))hashes.add(value);else collect(value);}};collect(m);collect(doc.history);
+		const hashes=artifactHashes(m,doc.history);
 		const all=new Map<string,GeometryArtifact>();for(const a of payload.artifacts??[])all.set(a.hash,{hash:a.hash,bytes:bytes(a.data)});
-		const missing=[...hashes].filter(h=>!all.has(h));for(let i=0;i<missing.length;i+=100){const data=await rpc('ideacad_read_brep_artifacts',{p_document_id:doc.id,p_hashes:missing.slice(i,i+100)});for(const a of data)all.set(a.hash,{hash:a.hash,bytes:bytes(a.data)});}
+		await readArtifacts(doc.id,[...hashes].filter(h=>!all.has(h)),all);
 		if([...hashes].some(h=>!all.has(h)))throw Error('A saved body is missing. The document has not been changed.');
-		for(const artifact of all.values()){const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',artifact.bytes as Uint8Array<ArrayBuffer>))].map(n=>n.toString(16).padStart(2,'0')).join('');if(hash!==artifact.hash)throw Error('A saved body failed its integrity check.');}
+		for(const artifact of all.values())if(!(await intact(artifact)))throw Error('A saved body failed its integrity check.');
 		doc.snapshot.artifacts=[...all.values()];return doc;
 	}
 	const transport:SolidTransport={
@@ -59,7 +67,33 @@ export function createSolidTransports(supabase:SupabaseClient){
 		thumbnail:async(documentId,dataUrl)=>{const {error}=await supabase.rpc('ideacad_set_direct_document_thumbnail',{p_document_id:documentId,p_thumbnail:dataUrl});if(error&&error.code!=='PGRST202')throw Error(error.message);}
 	};
 	const advisoryTransport:AdvisoryTransport={read:()=>rpc('ideacad_advisory_rules'),save:async(expectedRevision:number,limits:AdvisoryLimits):Promise<AdvisoryRules>=>{const result=await rpc('ideacad_set_advisory_rules',{p_expected_revision:expectedRevision,p_limits:limits});if(!result.ok)throw new SolidConflict('Another administrator changed these limits. Close and reopen settings to load the latest revision.');return result.current;}};
-	return {transport,advisoryTransport,list:async():Promise<DirectSummary[]>=>((await rpc('ideacad_direct_documents')) as unknown[]).map(normalizeDocument),link:(id:string,itemId:string)=>rpc('ideacad_link_direct_document',{p_document_id:id,p_item_id:itemId}),share:(id:string,email:string,role:'viewer'|'editor'|'none')=>role==='none'?rpc('ideacad_unshare_document',{p_document_id:id,p_grantee_email:email}):rpc('ideacad_share_direct_document',{p_document_id:id,p_grantee_email:email,p_role:role}),archive:(id:string,archived:boolean)=>rpc('ideacad_set_direct_document_archived',{p_document_id:id,p_archived:archived}),
+	/**
+	 * THE DIRECT MODELER'S LIVE LAYER (feedback R34), built per workspace by the route with the reader's own address.
+	 * `connect` opens its OWN private-channel client and destroys it on close, so a workspace's teardown can never take
+	 * another surface's channel with it. `head` is the poll floor: one column of one row, `ideacad_concepts.revision`,
+	 * under the 0205 read policy (`_ideacad_can_read_document`), so it answers exactly who may open the document.
+	 * `pull` is 0216's `ideacad_direct_concept_history` read after the session's last committed row, and the bytes those
+	 * rows name come through the same `ideacad_read_brep_artifacts` and the same integrity check as an open.
+	 */
+	const live=(viewerEmail?:string|null):SolidLiveTransport=>({
+		viewerEmail:viewerEmail??null,
+		connect:(documentId,handlers)=>{const channel=createIdeacadLive(supabase);return connectIdeacadLive(channel,documentId,handlers,()=>channel.destroy());},
+		head:async(conceptId)=>{
+			const {data,error}=await supabase.from('ideacad_concepts').select('revision').eq('id',conceptId).maybeSingle();
+			if(error)throw Error(error.message);if(!data)throw Error('That document does not exist.');
+			const revision=Number((data as {revision?:unknown}).revision);if(!Number.isSafeInteger(revision)||revision<1)throw Error('The server returned no model revision.');
+			return revision;
+		},
+		pull:async({documentId,conceptId,afterSeq,have,artifacts})=>{
+			const {rows,head}=await readHistoryAfter((after,limit)=>rpc('ideacad_direct_concept_history',{p_concept_id:conceptId,p_after_seq:after,p_limit:limit}),afterSeq);
+			if(!artifacts)return {rows,head,artifacts:[]};
+			const wanted=[...artifactHashes(rows)].filter(h=>!have.has(h)),got=await readArtifacts(documentId,wanted);
+			if(wanted.some(h=>!got.has(h)))throw Error('A saved body is missing from the newer version.');
+			for(const artifact of got.values())if(!(await intact(artifact)))throw Error('A saved body failed its integrity check.');
+			return {rows,head,artifacts:[...got.values()]};
+		}
+	});
+	return {transport,advisoryTransport,live,list:async():Promise<DirectSummary[]>=>((await rpc('ideacad_direct_documents')) as unknown[]).map(normalizeDocument),link:(id:string,itemId:string)=>rpc('ideacad_link_direct_document',{p_document_id:id,p_item_id:itemId}),share:(id:string,email:string,role:'viewer'|'editor'|'none')=>role==='none'?rpc('ideacad_unshare_document',{p_document_id:id,p_grantee_email:email}):rpc('ideacad_share_direct_document',{p_document_id:id,p_grantee_email:email,p_role:role}),archive:(id:string,archived:boolean)=>rpc('ideacad_set_direct_document_archived',{p_document_id:id,p_archived:archived}),
 		classShare:(id:string,sectionId:string,remove=false)=>rpc(remove?'ideacad_unshare_direct_document_from_section':'ideacad_share_direct_document_with_section',{p_document_id:id,p_section_id:sectionId}),
 		sections:async(itemId:string):Promise<{id:string;label:string}[]>=>{const {data,error}=await supabase.from('classroom_postings').select('section_id,classroom_sections!inner(id,label)').eq('item_id',itemId);if(error)throw Error(error.message);return(data??[]).map((r:any)=>({id:r.section_id,label:r.classroom_sections.label}));},
 		/* 0217: the trash, folders, tags, rename and duplicate. Names and parameter spellings are the migration's own;
