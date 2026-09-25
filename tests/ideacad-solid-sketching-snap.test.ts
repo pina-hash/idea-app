@@ -22,7 +22,7 @@ import { createKernel } from '../src/lib/ideacad/kernel/remus';
 import { emptyManifest, type Feature, type FeatureOf, type SketchConstraint, type SketchEntity } from '../src/lib/ideacad/solid/types';
 import { validateFeature, validateManifest } from '../src/lib/ideacad/solid/validate';
 import { pointOf, regions, solveSketch } from '../src/lib/ideacad/solid/sketch/model';
-import { SketchSession, chainDraft, constraintLabel, constraintOffers, joinPoints, rectangleEntities, snapPoint, snapRelations, snapCue, snapSentence, type SessionContext, type SketchDraft, type Snap, type SnapKind } from '../src/lib/ideacad/solid/sketch/editor';
+import { SketchSession, chainDraft, constraintLabel, constraintOffers, extendEntity, joinPoints, rectangleEntities, snapPoint, snapRelations, snapCue, snapSentence, type SessionContext, type SketchDraft, type Snap, type SnapKind } from '../src/lib/ideacad/solid/sketch/editor';
 import { constraintGlyph, snapStrokes } from '../src/lib/ideacad/solid/viewport/sketch-layer';
 
 const WASM = new Uint8Array(readFileSync('static/ideacad/kernels/remus-9307e73.wasm'));
@@ -174,6 +174,26 @@ describe('what a snap adds', () => {
 		const elsewhere: SketchDraft = { ...s, entities: [...s.entities, P('z', 3, 0)] };
 		expect(joinPoints(elsewhere, 'q', 'z').constraints).toEqual([expect.objectContaining({ type: 'pointLineDistance', point: 'z', line: 'l' })]);
 	});
+	it('a divider snapped edge to edge becomes two regions when Extend is clicked at each end, and the relations it no longer needs go', async () => {
+		/* The workflow snapping would otherwise break: a line that stops ON an edge has no stub for Trim, and Extend's ray skips an edge at distance zero. */
+		const s = rect(), session = new SketchSession(); session.setTool('line');
+		session.move([1.1, 3.05], ctx(s)); session.down([1.1, 3.05], ctx(s));
+		session.move([1.05, 0.08], ctx(s)); session.down([1.05, 0.08], ctx(s));
+		const drawn = session.key('Enter', ctx(s)).commit!.sketch, divider = newOf(s, drawn).find((e) => e.type === 'line')!.id;
+		/* The positive control: the snap alone holds the ends on the edges and cuts nothing. */
+		expect(types(drawn.constraints).filter((t) => t === 'pointLineDistance')).toHaveLength(2);
+		expect(regions(drawn.entities)).toHaveLength(1);
+		const both = extendEntity(extendEntity(drawn, divider, [1.1, 2.9]), divider, [1.1, 0.1]);
+		expect(regions(both.entities).map((r) => r.area).sort((x, y) => x - y)).toEqual([expect.closeTo(3.3, 9), expect.closeTo(8.7, 9)]);
+		/* Each end is now an end of an edge piece, so holding it on that edge would be an equation that removes nothing. */
+		expect(types(both.constraints)).not.toContain('pointLineDistance');
+		const k = await createKernel(WASM);
+		const r = solveSketch(k, both);
+		expect(r.report.converged).toBe(true); expect(['solved', 'underConstrained']).toContain(r.report.classification); expect(r.report.trouble).toEqual([]);
+		k.free();
+		/* An end touching nothing still runs on along the ray, and one with nothing ahead still refuses. */
+		expect(() => extendEntity(rect(), 'l0', [2, 0])).toThrow(/Nothing lies ahead/);
+	});
 });
 
 describe('the words and the marks', () => {
@@ -288,6 +308,10 @@ describe('against the real kernel', () => {
 			expect(pointOf(r.entities, 'r')[1]).toBeCloseTo(0, 9);
 			/* A construction line bounds no region, so the relation drew nothing a profile could pick up. */
 			expect(regions(r.entities)).toEqual([]);
+			/* That alone cannot fail -- one line between two loose points bounds nothing either way -- so the line is put ACROSS a closed outline too: as construction the rectangle stays one region, and the same line drawn solid would cut it in two. */
+			const box = rect(), across = constraintOffers(box.entities, ['p0', 'p2'], box.constraints).find((o) => o.key === 'horizontal')!.apply!(box);
+			expect(regions(across.entities)).toHaveLength(1);
+			expect(regions(across.entities.map((x) => (x.type === 'line' && x.construction ? { ...x, construction: false } : x)))).toHaveLength(2);
 		}
 		{
 			const e = [fixed('a', 0, 0), fixed('b', 4, 0), L('l', 'a', 'b'), P('p', 2, 1)];

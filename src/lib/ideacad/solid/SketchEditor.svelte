@@ -69,7 +69,7 @@
 		{ id: 'arc', word: 'Arc', hint: 'Center, start, then swing around to where it ends; Shift for the long way', write: true },
 		{ id: 'polygon', word: 'Polygon', hint: 'Drag from the center to a corner', write: true },
 		{ id: 'trim', word: 'Trim', hint: 'Click the piece to remove', write: true },
-		{ id: 'extend', word: 'Extend', hint: 'Click near a line\'s end to run it on', write: true },
+		{ id: 'extend', word: 'Extend', hint: 'Click near a line\'s end to run it on, or to join it to the edge it stops on', write: true },
 		{ id: 'fillet', word: 'Fillet', hint: 'Click a corner, or two lines, to round it', write: true }
 	];
 	const session = new SketchSession();

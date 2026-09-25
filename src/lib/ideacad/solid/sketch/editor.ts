@@ -25,7 +25,7 @@
  */
 import { newEntityId } from '../features';
 import { pointOf, samples, isCurve, crossings, curveParam, rayHit, curveLength, arcPoint, arcSweepToward, TAU, type CurveEntity } from './model';
-import { snapPoint, snapRelations, snapLevel, sameRelation, trivialRelation, withRelations, type Snap } from './snap';
+import { snapPoint, snapRelations, snapLevel, sameRelation, trivialRelation, withRelations, nearestOnCurve, type Snap } from './snap';
 import type { SketchConstraint, SketchEntity, Vec2 } from '../types';
 
 /* Snapping lives in `snap.ts`; these are re-exported so every caller keeps one import. */
@@ -303,6 +303,17 @@ export function trimEntity(sketch: SketchDraft, id: string, at: Vec2, tolerance 
  * curve it meets, and that curve is split there so the two share the point.
  * The end point moves when this line alone names it, so a corner shared with
  * another line is not dragged; a new point takes its place instead.
+ *
+ * AN END THAT ALREADY LIES ON ANOTHER CURVE'S MIDDLE IS JOINED THERE, NOT RUN
+ * PAST IT. Snapping (`snap.ts`) puts an end exactly ON an edge and holds it
+ * with a Point on line (or on arc) relation without cutting the edge, so the
+ * two touch but share no point and the region graph does not close. The ray
+ * below skips a curve at distance zero, so without this branch the one tool
+ * that makes that junction refused with "Nothing lies ahead" on a line that
+ * visibly meets an edge (measured: a snapped divider across a rectangle could
+ * not be made into two regions at all, where the same line drawn short and
+ * extended made two). A whole circle is left to the ray: one point cannot
+ * split it (`splitCurves`).
  */
 export function extendEntity(sketch: SketchDraft, id: string, at: Vec2, tolerance = 1e-6): SketchDraft {
 	const line = sketch.entities.find((e) => e.id === id);
@@ -310,6 +321,9 @@ export function extendEntity(sketch: SketchDraft, id: string, at: Vec2, toleranc
 	const a = pointOf(sketch.entities, line.a), b = pointOf(sketch.entities, line.b);
 	const fromB = Math.hypot(at[0] - b[0], at[1] - b[1]) < Math.hypot(at[0] - a[0], at[1] - a[1]);
 	const end = fromB ? line.b : line.a, from = fromB ? b : a, back = fromB ? a : b;
+	const touching = sketch.entities.filter((e): e is CurveEntity => isCurve(e) && e.type !== 'circle' && e.id !== id && !entityPoints(sketch.entities, e.id).includes(end))
+		.filter((c) => { const p = nearestOnCurve(sketch.entities, c, from); return !!p && Math.hypot(p[0] - from[0], p[1] - from[1]) <= tolerance; });
+	if (touching.length) return pruneDraft(splitCurves(clone(sketch), new Map(touching.map((c) => [c.id, [end]]))));
 	const hit = rayHit(sketch.entities, from, [from[0] - back[0], from[1] - back[1]], id);
 	if (!hit) throw Error('Nothing lies ahead of this line to extend to. Draw what it should meet first.');
 	let next = clone(sketch);

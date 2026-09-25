@@ -47,8 +47,12 @@
  *
  * THE POINT IS NOT SPLIT INTO THE CURVE IT LANDED ON. A line ending on the
  * middle of an edge is held there by its relation, but the edge is not cut, so
- * the closed regions are exactly what they were; Trim is still what makes a
- * T-junction. Cutting the edge would change what a region IS on a press that
+ * the closed regions are exactly what they were. EXTEND, clicked near that
+ * end, is what makes it a T-junction: it cuts the edge at the end the snap
+ * put there (`extendEntity`). Trim cannot -- a line that stops ON an edge has
+ * no stub past it to trim -- and before Extend learned this, a divider drawn
+ * edge to edge with snapping on could never become two regions. Cutting the
+ * edge on the press itself would change what a region IS on a press that
  * only meant to line something up.
  */
 import { newEntityId } from '../features';
