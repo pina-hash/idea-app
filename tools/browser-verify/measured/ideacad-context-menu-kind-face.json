@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "ideacad-context-menu-kind-face.mjs",
+	"date": "2026-09-25T07:34:31.716Z",
+	"sha": "4b0e11aaf0b2364a66151d9cace589daad8af1d8",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 16,
+	"outsideRows": [],
+	"ms": 8707
+}
