@@ -247,9 +247,9 @@ export function homeTourDefs(tour: HomeTourId, isAdmin: boolean): HomeTourStep[]
 					body: say(
 						{
 							student:
-								'Your picture and pathway. Open it to change either one, set your Identity, and pick a Theme like Space White, the light one.',
+								'Your picture and pathway. Open it for Change picture, Pathway, Identity and Theme, where Space White is the light one.',
 							teacher:
-								'Your picture and name. Open it to change your picture, set your Identity, and pick a Theme; Space White reads best on a projector.'
+								'Your picture and name. Open it for Change picture, Identity and Theme; Space White reads best on a projector.'
 						},
 						tour
 					)
@@ -264,7 +264,7 @@ export function homeTourDefs(tour: HomeTourId, isAdmin: boolean): HomeTourStep[]
 				{
 					target: tid('qn-trigger'),
 					title: 'Note',
-					body: "Note jots down a private note from any page. It waits in your notebook's Inbox until you file it to a class."
+					body: "Note jots down a private note from any page. Written in a class it is filed there; anywhere else it waits in your notebook's Inbox."
 				}
 			]
 		},
