@@ -5,6 +5,8 @@
 	import { createClassroomLive } from '$lib/classroom/live';
 	import { createPresenceTransports } from '$lib/classroom/presence/transports';
 	import { createHallPassTransports, createTeacherEngineTransports } from '$lib/classroom/transports';
+	import { withWorksheetManifest } from '$lib/classroom/live-class/grid';
+	import { readWorksheetManifests } from '$lib/classroom/student-work';
 	import type { PageData } from './$types';
 
 	/**
@@ -26,6 +28,18 @@
 	const presence = createPresenceTransports(data.supabase, '');
 	// svelte-ignore state_referenced_locally
 	const teacher = createTeacherEngineTransports(data.supabase);
+	/**
+	 * THE GRADING READ, WITH A PORTED WORKSHEET'S MANIFEST BESIDE IT (decision
+	 * 37, ledger 0298), so a student who filled in every block reads Complete
+	 * on this grid as on their class page rather than Missing. The answers were
+	 * already in the grading read; the manifest is two small reads pinned to the
+	 * item, and a manifest that cannot be read leaves the grid as it was.
+	 */
+	// svelte-ignore state_referenced_locally
+	const client = data.supabase;
+	const loadGrading = withWorksheetManifest(teacher.loadGrading, async (itemId) =>
+		(await readWorksheetManifests(client, [itemId]))?.get(itemId) ?? null
+	);
 
 	const base = $derived(`/classroom/${data.section.id}`);
 </script>
@@ -45,7 +59,7 @@
 	{hallPassTransports}
 	{live}
 	{presence}
-	loadGrading={teacher.loadGrading}
+	{loadGrading}
 	projectorHref={`${base}/live/projector`}
 	peopleHref={`${base}/people`}
 	gradeHrefFor={(itemId) => `${base}/item/${itemId}/grade`}

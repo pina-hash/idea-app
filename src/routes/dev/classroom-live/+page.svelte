@@ -28,6 +28,8 @@
 		presence,
 		today
 	} from './fixture';
+	import { WORKSHEET_ID, WORKSHEET_MANIFEST, worksheetGrading, worksheetItem } from './worksheet';
+	import { withWorksheetManifest } from '$lib/classroom/live-class/grid';
 
 	/*
 	 * THE REAL LIVE CONTROL VIEW, in the REAL shell, mounted the way
@@ -123,7 +125,29 @@
 	const presenceTransports = presenceOff
 		? null
 		: { loadPresence: async (itemId: string) => presence(itemId) };
-	const loadGrading = async (itemId: string) => ({ ok: true as const, data: grading(itemId) });
+	/*
+	 * A PORTED WORKSHEET (ledger 0298): `?item=i-gears` adds it to the chooser
+	 * and opens on it, and the grading read goes through the SAME
+	 * `withWorksheetManifest` the live route wraps its read in, with the
+	 * manifest answered from memory. `worksheet=broken` makes that manifest read
+	 * throw, which must leave the grid exactly as it was before a worksheet
+	 * could read Complete here. Without the parameter every other live spec
+	 * measures the page it always did.
+	 */
+	const withWorksheet = page.url.searchParams.get('item') === WORKSHEET_ID;
+	const manifestBroken = page.url.searchParams.get('worksheet') === 'broken';
+	const liveItems = withWorksheet ? [...items(), worksheetItem()] : items();
+	const loadGrading = withWorksheetManifest(
+		async (itemId: string) => ({
+			ok: true as const,
+			data: itemId === WORKSHEET_ID ? worksheetGrading() : grading(itemId)
+		}),
+		async (itemId: string) => {
+			note(`grading: manifest(${itemId})`);
+			if (manifestBroken) throw new Error('The manifest read failed (harness).');
+			return itemId === WORKSHEET_ID ? WORKSHEET_MANIFEST : null;
+		}
+	);
 
 	/* A pinned entropy source, so a pick is the same pick on every run. */
 	let r = 0.137;
@@ -156,7 +180,7 @@
 			section={SECTION}
 			viewer={VIEWER}
 			today={today()}
-			items={items()}
+			items={liveItems}
 			checkIns={checkIns()}
 			roster={ROSTER}
 			hallPass={hallPass()}

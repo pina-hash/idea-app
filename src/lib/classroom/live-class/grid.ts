@@ -23,6 +23,17 @@
  * (TODO's report): a past-due assignment with nothing handed in carries a
  * Missing mark on this grid for exactly the students it would say Missing to.
  *
+ * A FINISHED PORTED WORKSHEET IS HANDED IN HERE TOO (decision 37, ledger
+ * 0298). It has no turn-in, so without its manifest this grid read a student
+ * who had filled in every block as working or away, and past the due time as
+ * Missing, while their own class page said Complete. The grading payload
+ * already carries the item's answers and photographs, so the only thing added
+ * is the manifest (`LiveGradingData.worksheet`, from `withWorksheetManifest`),
+ * judged by `worksheetCompletedAt` and put on the row by
+ * `withWorksheetCompletions`: the same judgment and the same rule the class
+ * page, the home page and the to-do read. No manifest (a spec assignment, or a
+ * read that could not answer) is exactly the grid it was.
+ *
  * NO CLOCK IS READ HERE. `now` is threaded in by the control view, which reads
  * one clock for the timer, the wall clock and this grid, so the three cannot
  * disagree in one paint.
@@ -43,16 +54,20 @@ import {
 	type SubmissionRow
 } from '$lib/classroom/assignment-spec';
 import { assignmentLockState } from '$lib/classroom/html-assignment/lock';
+import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 import { isAwaitingGrade } from '$lib/classroom/feed';
 import {
 	assignmentStanding,
 	itemTitle,
 	splitRoster,
+	studentWorkChip,
 	type ClassroomEnrollment,
 	type ClassroomItem,
-	type StudentWork as WorkSummary
+	type StudentWork as WorkSummary,
+	type TxResult
 } from '$lib/classroom/classroom';
 import { schoolDayOf } from '$lib/classroom/school-calendar';
+import { withWorksheetCompletions, worksheetCompletedAt, worksheetKey } from '$lib/classroom/student-work';
 
 /**
  * HOW LONG WITHOUT TYPING BEFORE A STUDENT WHO HAS THE ASSIGNMENT OPEN READS AS
@@ -148,21 +163,52 @@ export interface LiveCell {
 	present: boolean;
 }
 
-/** The submission columns the hand-in half reads, and nothing else. */
+/**
+ * The submission columns the hand-in half reads, and nothing else, plus the
+ * derived `completed_at` a finished ported worksheet carries (never selected:
+ * `withWorksheetCompletions` puts it on a draft row, the feed's own rule).
+ */
 export type HandInFacts = Pick<
 	SubmissionRow,
 	'item_id' | 'student_email' | 'state' | 'submitted_at' | 'graded_at'
->;
+> & { completed_at?: string | null };
+
+/**
+ * THE GRADING PAYLOAD THE GRID READS: `loadGrading`'s own, plus the item's
+ * manifest when the item is a ported worksheet. Optional, so a payload without
+ * it (a spec assignment, a harness, a read that could not answer) is the grid
+ * it always was.
+ */
+export type LiveGradingData = GradingData & { worksheet?: HtmlAssignmentManifest | null };
 
 /** The hand-in half, as the lock module and the feed judge it. */
 function handInState(
-	submission: HandInFacts | null
+	submission: HandInFacts | null,
+	item?: Pick<ClassroomItem, 'due_at'> | null
 ): { state: 'needs-grading' | 'submitted'; detail: string } | null {
 	if (!submission) return null;
 	if (submission.state === 'returned') return { state: 'submitted', detail: 'Returned' };
 	const lock = assignmentLockState(submission);
 	if (lock === 'closed') return { state: 'submitted', detail: 'Closed' };
-	if (lock !== 'turned-in') return null;
+	if (lock !== 'turned-in') {
+		/*
+		 * FINISHED BY FILLING IT IN (decision 37): a draft carrying the derived
+		 * `completed_at`. Waiting is `isAwaitingGrade`'s answer, the feed's own,
+		 * and the word is the student's own chip's ("Complete", or "Complete,
+		 * late" when the work was finished after the due instant), so this row
+		 * and their class page cannot say two different things.
+		 */
+		if (submission.state === 'draft' && typeof submission.completed_at === 'string') {
+			if (!isAwaitingGrade(submission)) return { state: 'submitted', detail: 'Graded' };
+			const chip = studentWorkChip(
+				{ kind: 'assignment', due_at: item?.due_at ?? null, points: null },
+				{ state: 'in-progress', score: null, completedAt: submission.completed_at },
+				null
+			);
+			return { state: 'needs-grading', detail: chip.label };
+		}
+		return null;
+	}
 	if (isAwaitingGrade(submission)) {
 		return {
 			state: 'needs-grading',
@@ -210,9 +256,11 @@ export function liveCellState(facts: {
 	now: number;
 	limits?: PresenceLimits;
 	arrivedAt?: number | null;
+	/** The item's due instant, which is what says whether a finished worksheet was finished late. */
+	item?: Pick<ClassroomItem, 'due_at'> | null;
 }): { state: LiveCellState; detail: string | null } {
 	const limits = facts.limits ?? PRESENCE_LIMITS_FALLBACK;
-	const handIn = handInState(facts.submission);
+	const handIn = handInState(facts.submission, facts.item);
 	if (handIn) return handIn;
 	if (!facts.signal) return { state: 'no-signal', detail: null };
 	const answered = facts.presence === 'ready' || facts.presence === 'stale';
@@ -257,10 +305,14 @@ function workArrived(s: StudentWork): boolean {
 	return !!s.submission || s.responses.length > 0 || s.files.length > 0;
 }
 
-/** A grading-payload submission as the one Missing predicate reads it. */
-function workSummary(s: StudentWork): WorkSummary {
+/**
+ * A grading-payload submission as the one Missing predicate reads it, with the
+ * derived `completed_at` carried the way `studentWorkMap` carries it, so a
+ * finished worksheet is `done` to `assignmentStanding` here as on the class page.
+ */
+function workSummary(s: StudentWork, facts: HandInFacts | null): WorkSummary {
 	const state = s.submission?.state ?? null;
-	return {
+	const out: WorkSummary = {
 		state:
 			state === 'returned'
 				? 'returned'
@@ -271,6 +323,34 @@ function workSummary(s: StudentWork): WorkSummary {
 						: 'not-started',
 		score: null
 	};
+	if (typeof facts?.completed_at === 'string') out.completedAt = facts.completed_at;
+	return out;
+}
+
+/**
+ * THE ROW THE HAND-IN HALF READS: the student's own submission, or -- when the
+ * item is a ported worksheet and `worksheetCompletedAt` says this student's
+ * answers finish it -- that row as `withWorksheetCompletions` leaves it: a
+ * draft (or no row at all) carries `completed_at`, a row that is turned in,
+ * closed or returned keeps its own word. Called with a one-entry map rather
+ * than restating the rule, so the grid cannot attach an instant to a row the
+ * class page would not.
+ */
+function handInFacts(
+	s: StudentWork,
+	itemId: string,
+	worksheet: HtmlAssignmentManifest | null | undefined
+): HandInFacts | null {
+	if (!worksheet) return s.submission;
+	const at = worksheetCompletedAt(worksheet, s.responses, s.files);
+	if (at === null) return s.submission;
+	const id = s.submission?.item_id ?? itemId;
+	const [row] = withWorksheetCompletions<HandInFacts>(
+		s.submission ? [s.submission] : [],
+		new Map([[worksheetKey(id, s.email), at]]),
+		(item_id, student_email) => ({ item_id, student_email, state: 'draft', submitted_at: null, graded_at: null })
+	);
+	return row ?? s.submission;
 }
 
 /**
@@ -281,10 +361,11 @@ function workSummary(s: StudentWork): WorkSummary {
  * never shows a manager as a student while it waits.
  */
 export function liveCells(input: {
-	item: Pick<ClassroomItem, 'kind' | 'due_at'> | null;
+	item: (Pick<ClassroomItem, 'kind' | 'due_at'> & { id?: string }) | null;
 	/** Does the item's page send heartbeats? Assignments do; materials and announcements do not. */
 	signal: boolean;
-	grading: GradingData | null;
+	/** The hand-in read, carrying the worksheet's manifest when the item is one (`LiveGradingData`). */
+	grading: LiveGradingData | null;
 	roster: readonly ClassroomEnrollment[];
 	presence: PresencePayload | null;
 	presenceStatus: LivePresenceStatus;
@@ -312,21 +393,25 @@ export function liveCells(input: {
 	const byEmail = new Map((input.presence?.students ?? []).map((r) => [r.student_email, r]));
 	const limits = input.presence?.limits ?? PRESENCE_LIMITS_FALLBACK;
 	const nowIso = new Date(input.now).toISOString();
+	const worksheet = input.grading?.worksheet ?? null;
+	const itemId = input.item?.id ?? '';
 	return rows
 		.filter((s) => s.active)
 		.map((s) => {
+			const facts = handInFacts(s, itemId, worksheet);
 			const { state, detail } = liveCellState({
-				submission: s.submission,
+				submission: facts,
 				workArrived: workArrived(s),
 				row: byEmail.get(s.email) ?? null,
 				presence: input.presenceStatus,
 				signal: input.signal,
 				now: input.now,
 				limits,
-				arrivedAt: input.arrivals?.get(s.email) ?? null
+				arrivedAt: input.arrivals?.get(s.email) ?? null,
+				item: input.item
 			});
 			const missing = input.item
-				? assignmentStanding(input.item, workSummary(s), nowIso) === 'missing'
+				? assignmentStanding(input.item, workSummary(s, facts), nowIso) === 'missing'
 				: false;
 			return {
 				email: s.email,
@@ -337,6 +422,37 @@ export function liveCells(input: {
 				present: state === 'working' || state === 'idle'
 			};
 		});
+}
+
+/**
+ * THE LIVE VIEW'S GRADING READ, WITH THE WORKSHEET'S MANIFEST BESIDE IT
+ * (decision 37, ledger 0298). `loadGrading` is the grading console's own read,
+ * which already carries every answer and photograph on the ONE item, pinned to
+ * that item; `readManifest` is two small reads pinned to the same id and never
+ * an answers read (`readWorksheetManifests`). So a finished worksheet costs
+ * this view the manifest and nothing else: measured on the test cluster, one
+ * section of 30 on a 60-block worksheet, the grading read took 259 to 289ms
+ * and the manifest 3.6 to 4.4ms, in parallel with it.
+ *
+ * THE MANIFEST NEVER DECIDES WHETHER THE READ SUCCEEDS. A manifest read that
+ * fails or throws is `worksheet: null`, which is the grid as it was before a
+ * worksheet could read Complete here: never "complete", never an error on a
+ * screen a teacher is running a class from.
+ */
+export function withWorksheetManifest(
+	loadGrading: (itemId: string, sectionId: string) => Promise<TxResult<GradingData>>,
+	readManifest: (itemId: string) => Promise<HtmlAssignmentManifest | null>
+): (itemId: string, sectionId: string) => Promise<TxResult<LiveGradingData>> {
+	return async (itemId, sectionId) => {
+		const [res, worksheet] = await Promise.all([
+			loadGrading(itemId, sectionId),
+			Promise.resolve()
+				.then(() => readManifest(itemId))
+				.catch(() => null)
+		]);
+		if (!res.ok) return res;
+		return { ok: true, data: { ...res.data, worksheet: worksheet ?? null } };
+	};
 }
 
 /** How many students sit in each state, every state named (zero included). */
