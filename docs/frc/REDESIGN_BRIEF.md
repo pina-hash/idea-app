@@ -15,6 +15,11 @@ follows your answers.
   a notebook build log, or a bench task a reviewer watched. A quiz is never the finish line.
 - Everything those four proofs need already exists on the site. **The first build needs no
   database change.**
+- **One thing to know first:** today a student who calls the database directly, instead of
+  using the quiz page, can mark any FRC unit complete without taking the quiz (checked on a test
+  copy of the real database tonight, section 1). So today's completion records are not proof of
+  anything. The plan reads a bench sign-off from the reviewer's approval, which a student cannot
+  write, and a later database fix closes the quiz.
 - Four questions for you are in section 4, each with a recommended answer. If you agree with
   all four, "go with the defaults" is a complete reply.
 
@@ -31,9 +36,17 @@ follows your answers.
   15 minutes, then an hour after each fail. The other five (MDM-4 to MDM-8) are labelled
   "GAUNTLET" on screen but actually ask for a Google Drive link to a SolidWorks file, which a
   person approves.
-- **Progress.** One saved row per finished unit. Only a quiz pass or a reviewer's approve
-  writes it. The rank (Rookie, Technician, Builder, Engineer) counts CAD units only;
+- **Progress.** One saved row per finished unit, written by a quiz pass or a reviewer's
+  approve. The rank (Rookie, Technician, Builder, Engineer) counts CAD units only;
   Foundation earns nothing.
+- **The hole.** Students cannot write that row directly, but the quiz's database functions
+  (`frc_quiz_start`, `0040`) store whatever answer key and pass mark the CALLER sends, and the
+  page is the only thing that sends the right ones. Measured on a test database built from the
+  real migrations: a plain student account, calling the two functions directly with a key of
+  its own, got a completion row for MDM-4 (a Drive-link unit with no quiz at all) and for an
+  invented id, with no reviewer involved. The waits between attempts are checked by the site's
+  quiz route, not by the database, so a direct call skips them too. Nothing here says anyone
+  has done it; section 7 has a query that would show it.
 - **Review.** Reviewers are a list you add by hand (mentors and student leads, school accounts
   only). They use `/frc/review`. The admin dashboard carries a second copy of the same queue.
 
@@ -44,8 +57,9 @@ and has nowhere to go.
 One correction to last night's triage: it said the quiz "can be passed by picking the longest
 option". The longest option is the right one 56 percent of the time, which is a real flaw, but
 passing a single attempt that way happens less than 1 percent of the time and costs days of
-waiting (`docs/frc/quiz-bank-bias-report.md`). The quiz is not too easy. It is the wrong kind
-of test.
+waiting (`docs/frc/quiz-bank-bias-report.md`). Taken through the page, the quiz is not too
+easy; it is the wrong kind of test. Taken around the page (the hole above), it is no test at
+all.
 
 ## 2. What to keep and what to drop
 
@@ -53,10 +67,10 @@ of test.
 
 | What | Where | Why |
 |---|---|---|
-| The progress table and its locked write path | `supabase/migrations/0039_frc_user_progress.sql`, `0041_frc_progress_lockdown.sql`, `src/lib/frc/progression.ts` | Nobody can mark their own work done by writing to it |
+| The progress table and its write functions | `supabase/migrations/0039_frc_user_progress.sql`, `0041_frc_progress_lockdown.sql`, `src/lib/frc/progression.ts` | Keeps every finished unit on record. Not proof on its own until the quiz hole is closed (section 1) |
 | The reviewer list and console | `0167_frc_reviewer_tier.sql`, `src/lib/server/frc-review.ts`, `src/routes/frc/review/` | Becomes the bench sign-off desk |
 | The "ready, please check" request | `frc_gate_submissions` (`0042`), `src/lib/frc/gate-submissions.ts`, `FrcReviewConsole.svelte` | A student can already ask for a check with a note, and a reviewer can approve or send it back with feedback. Keep the flow, drop the Drive link |
-| The quiz engine | `src/lib/server/frc/quiz-engine.ts`, `quiz-service.ts`, `src/routes/frc/[domain]/[unit]/quiz/+server.ts` | Never sends answers to the browser. Right for a short safety check before a bench sign-off, nothing more |
+| The quiz engine | `src/lib/server/frc/quiz-engine.ts`, `quiz-service.ts`, `src/routes/frc/[domain]/[unit]/quiz/+server.ts` | Never sends answers to the browser. Right for a short safety check before a bench sign-off, nothing more. Its database half needs the fix in section 5 before a pass means anything |
 | The written material | `mdm-content-seed.md`, `foundation-content-seed.md`, `src/lib/frc/assets/diagrams/` | Good reading for skill pages |
 | The link shelf | `FRC_REFERENCES` in `src/lib/frc/track.ts`, `/frc/references` | Links out rather than rewriting reference material |
 | The FRC look | `src/lib/frc/frc-theme.css`, `FrcShell.svelte`, the logos | FIRST brand rules. Stays its own room; Space White stays out |
@@ -89,13 +103,14 @@ scoring path for work already graded once).
 
 | Proof | Where the student does it | Who says it is done | Where "done" is recorded | Database change? |
 |---|---|---|---|---|
-| **GAUNTLET clear** | A Speedrun challenge written for FRC | The run itself | GAUNTLET's own run record; `/frc` reads it | None |
+| **GAUNTLET clear** | A Speedrun challenge written for FRC | The run itself | GAUNTLET's own run record; `/frc` reads it, and a run held for verification counts only once it is ranked | None |
 | **Graded hand-in**: an IdeaCAD part with the FRC check, a drawing, a design write-up | An assignment in an FRC class in the classroom | You, in the grading console, against a rubric | The classroom grade; `/frc` reads it | None |
 | **Notebook build log** | A notebook check-in on the FRC class | You, or a staff notebook reviewer for that class, in the notebook review console | The notebook review; `/frc` reads it | None |
-| **Bench sign-off**: a tool, a crimp, a wiring check, a code deploy | In the shop, in person | A reviewer who watched it | The progress table, when the reviewer approves the request | None (see question 3) |
+| **Bench sign-off**: a tool, a crimp, a wiring check, a code deploy | In the shop, in person | A reviewer who watched it | The approved sign-off request, which only a reviewer can set (the progress table also gets a row, but a student can write that one today) | None (see question 3) |
 
 - **A safety check** is a short quiz placed in front of a bench sign-off ("pass the drill press
-  check, then ask a reviewer to watch you"). It never counts as a skill on its own.
+  check, then ask a reviewer to watch you"). It never counts as a skill on its own. Until the
+  quiz hole is fixed a student can skip it, so the reviewer watching the task is the real check.
 - **An IdeaCAD part** is handed in by linking the student's IdeaCAD document to an IdeaCAD
   assignment in the FRC class, which already works. The FRC check's typed numbers (motor speed,
   gear reduction) are not saved in the document today, so the assignment also asks for a
@@ -113,8 +128,9 @@ scoring path for work already graded once).
 
 **The FRC class.** One classroom section for Team 5669, created and enrolled the normal way.
 Two details: its course code must not start with "IDEA" (Foundry treats any course whose code
-starts with IDEA as the student's IDEA class), and its assignments can carry no points so the
-class never turns into a grade. A student not on the team can still read every skill page;
+starts with IDEA as the student's IDEA class), and its assignments carry a rubric (its score
+is what says a skill is met) but no points. Because it is a class of its own, nothing it
+records reaches an IDEA class's grades. A student not on the team can still read every skill page;
 only the hand-in lives in the class.
 
 **Track outline** (the list is yours; this is shape only): Shop and Safety (everyone starts
@@ -192,8 +208,9 @@ has skills, never as an empty shelf. A table like this is enough:
 - **Look:** FRC keeps its navy and red room. (Making the report box match the room is a
   separate fix in tonight's round.)
 - **Credit for old units:** shown as earlier training, never converted into a new skill
-  automatically, because the new skills ask for proof the old quiz never did. A reviewer can
-  sign off quickly for a student who already has the skill.
+  automatically, because the new skills ask for proof the old quiz never did, and an old row
+  may not even mean the quiz was taken (section 1). A reviewer can sign off quickly for a
+  student who already has the skill.
 
 ## 5. The first build, once you answer
 
@@ -207,19 +224,25 @@ seed files, `docs/frc/` and `tests/frc-*`.
    link into data.
 2. **The new pages:** skills map, skill page, my record, the team view (admins only at first),
    and `/frc/review` as the sign-off desk with the Drive link made optional.
-3. **"Done" is read, not copied.** A GAUNTLET clear, a classroom grade at or above the skill's
-   bar, or an accepted build log is read from where it already lives. Only bench sign-offs and
-   safety checks write the progress table. Nothing is written twice.
+3. **"Done" is read, not copied.** A ranked GAUNTLET clear, a classroom grade at or above the
+   skill's bar (a rubric score, since the items carry no points), or an accepted build log is
+   read from where it already lives. A bench sign-off is read from the approved request in
+   `frc_gate_submissions`, never from `frc_user_progress` alone: a student can write a progress
+   row today (section 1) and cannot set a request to approved (the `0042` row rules allow a
+   student only `submitted`). Approving still writes the progress row, as it does today, so old
+   and new records stay in one table. Nothing is scored twice.
 4. **Retire** the Drive-link gate (pending requests stay reviewable until the queue is empty),
    the CAD-only rank, the four-step unit stepper and the dashboard's duplicate queue.
 
 **What must stay resolvable, so nobody's finished work goes missing:**
-- **Unit ids.** Every id a stored row can hold: F1 to F5 and MDM-1 to MDM-10 (the only ones any
-  control could write), plus MDM-11 to MDM-16 as a precaution, since the approve function takes
-  any text. They live in `frc_user_progress`, `frc_quiz_attempts` and `frc_gate_submissions`.
-  They stay in the registry with their titles, flagged retired, and no new skill reuses one of
-  those strings. No row is deleted or rewritten. This is the same rule as the classroom
-  section list: a registry whose ids sit in real rows only ever grows.
+- **Unit ids.** Every id finished work can sit under: F1 to F5 and MDM-1 to MDM-10 (the only
+  ones any control on the site could write), plus MDM-11 to MDM-16 as a precaution, since the
+  approve function takes any text. (A direct call through the quiz hole can write any string at
+  all; those rows are not finished work and need no page.) They live in `frc_user_progress`,
+  `frc_quiz_attempts` and `frc_gate_submissions`. They stay in the registry with their titles,
+  flagged retired, and no new skill reuses one of those strings. No row is deleted or
+  rewritten. This is the rule CLAUDE.md states for `SECTIONS` in `src/lib/curriculum.ts`: a
+  registry whose ids sit in real rows only ever grows.
 - **Addresses.** `/frc/foundation/1` to `/5` and `/frc/cad-mechanical/1` to `/10` keep
   answering, with a 307 to the skill page that now holds that reading. `/frc`,
   `/frc/references` and `/frc/review` keep their addresses.
@@ -228,6 +251,12 @@ seed files, `docs/frc/` and `tests/frc-*`.
 already applied (0039 to 0042, 0167, and the classroom, notebook, GAUNTLET and IdeaCAD ones).
 Later, each as its own reviewed migration in the house grant shape, and each additive so the
 deployed site never breaks while it applies:
+- **Close the quiz hole, first.** `frc_quiz_start` must stop accepting an answer key and pass
+  mark from its caller: either the question banks move into a table the database draws from
+  itself, or the start is callable only with a server-held credential (which would make the
+  quiz route a sixth reader of the service key, a decision of its own under CLAUDE.md). Until
+  then no quiz pass or progress row counts as proof of anything. Needed before any safety check
+  gates a sign-off by itself.
 - **Record the signer and refuse self sign-off** on a bench skill, and make un-signing a
   recorded reversal instead of a delete. Same function names and inputs as today. Needed
   before student leads sign off.
@@ -260,21 +289,42 @@ new skill page and gets a browser check at 375 and 1440 pixels.
 
 ## 7. What was not checked, and one optional query
 
-Not checked: how many students have FRC progress in production, whether 0167 is applied and
-who is on the reviewer list, what `frc-app` contains, whether an IdeaCAD assignment shows the
+Not checked: how many students have FRC progress in production, whether anyone has used the
+quiz hole, whether 0167 is applied and who is on the reviewer list, what `frc-app` contains, whether an IdeaCAD assignment shows the
 ordinary file hand-in beside the document link, and git history before 2026-09-14 (this copy
 of the repository is shallow).
 
-If you want the first of those before answering, this is read-only and safe to paste into the
-Supabase SQL editor:
+If you want the first of those before answering, these two are read-only and safe to paste
+into the Supabase SQL editor. Run each box on its own: the editor shows only the last result
+of a paste, so pasting both at once hides the first.
+
+What is on record:
 
 ```sql
-select unit_id, count(*) as students from public.frc_user_progress group by unit_id order by unit_id;
-select status, count(*) as requests from public.frc_gate_submissions group by status;
-select count(*) as reviewers from public.frc_reviewers;
+select 'progress ' || unit_id as what, count(*) as how_many from public.frc_user_progress group by unit_id
+union all
+select 'requests ' || status, count(*) from public.frc_gate_submissions group by status
+union all
+select 'reviewers', count(*) from public.frc_reviewers
+order by 1;
 ```
 
-If the last line says the table does not exist, 0167 is not applied.
+If it answers that `public.frc_reviewers` does not exist, 0167 is not applied; delete the last
+two lines before `order by` and run it again.
+
+Whether any quiz pass looks sealed by something other than the quiz page:
+
+```sql
+select unit_id, pass_percent, jsonb_array_length(sealed) as questions, count(*) as passes
+from public.frc_quiz_attempts
+where status = 'passed'
+group by unit_id, pass_percent, jsonb_array_length(sealed)
+order by unit_id;
+```
+
+Today's page always seals a pass mark of 90, with 10 questions for MDM-1, 8 for F1 and 6 for
+F2 to F5, MDM-2, MDM-3, MDM-9 and MDM-10, and for those ten units only. A row that does not
+match was made either under an older bank setting or not by the page, and is worth a look.
 
 ---
 
@@ -307,6 +357,17 @@ tonight. These were wrong or incomplete:
   their own units (`frc gate update teacher` in `0042`, re-gated in `0167`, has no own-row
   exclusion, and `frc_mark_complete` accepts the caller's own id), and `frc_user_progress` has
   no signer column.
+- **"frc_user_progress plus the locked-down write path" (worth keeping).** Missed by the triage
+  and by this brief's first draft, found on review: `frc_quiz_start` (`0040`) is granted to
+  `authenticated` and stores the `p_sealed` key and `p_pass_percent` its caller sends, and
+  `frc_quiz_grade` then writes the completion. The server route supplies honest values, but
+  nothing makes a caller use the route. Measured on the real `0039` to `0042`, `0137` and
+  `0167` chain as a plain student: a one-question key with pass mark 0 wrote a
+  `frc_user_progress` row for `MDM-4` (no bank) and for an invented id, 0 rows before and 1
+  after, with the inverted expectation failing as the control. Cooldowns live only in the
+  route (`quiz-service.ts`), so they do not apply either. This is why a bench sign-off must be
+  read from an approved `frc_gate_submissions` row, and why closing it is the first later
+  migration in section 5.
 - **Worth knowing, not wrong:** the notebook section reviewer list (`0169`) admits
   `@boscotech.edu` only, while the FRC reviewer list (`0167`) admits `@boscotech.net` too, so a
   student lead can be an FRC reviewer but never a notebook reviewer; and a classroom section is
@@ -321,5 +382,6 @@ and 16 CAD titles with 10 CAD units authored; the quiz banks (32 items for MDM-1
 for F1 to F5, MDM-2, 3, 9 and 10) at `passPercent` 90 with cooldowns 60, 300, 900 and 3600
 seconds (`track.ts` line 242); the prefix-only model-gate check; the Drive-link form; client
 writes to `frc_user_progress` revoked by `0041`, with `frc_quiz_grade`, `frc_mark_complete` and
-`frc_unmark_complete` as the only writers; the CAD-only rank; the `0167` reviewer tier and its
-404 console; and the dashboard's duplicate queue and progress list.
+`frc_unmark_complete` as the only writers (true of the functions; see the bullet above for why
+that is not a lock); the CAD-only rank; the `0167` reviewer tier and its 404 console; and the
+dashboard's duplicate queue and progress list.
