@@ -15,7 +15,7 @@ export default {
 	label: 'Grading console: the answers changed after grading, each with its time',
 	prepare: OPEN_ALICE,
 	orderResult: [
-		{ label: 'the two blocks that moved, newest first', evaluate: CHANGED_BLOCKS, expected: ['Work: photo photo added after grading', 'Work: reflection changed after grading'] },
+		{ label: 'the two blocks that moved, newest first', evaluate: CHANGED_BLOCKS, expected: ['Work: photo had a picture added after grading', 'Work: reflection changed after grading'] },
 		{
 			label: 'every entry carries its own time',
 			evaluate: `() => [...document.querySelectorAll('[data-testid="changed-block"]')].map((li) => / at \\S/.test(li.textContent))`,
