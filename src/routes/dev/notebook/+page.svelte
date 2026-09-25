@@ -96,7 +96,12 @@
 	 */
 
 	type Account = 'student' | 'instructor' | 'plain';
-	let account = $state<Account>('student');
+	/* `?account=instructor|plain` starts on that account, so a route spec can
+	   land on it without driving the select (ledger 0298). */
+	const accountParam = page.url.searchParams.get('account');
+	let account = $state<Account>(
+		accountParam === 'instructor' || accountParam === 'plain' ? accountParam : 'student'
+	);
 	let configured = $state(true);
 	/**
 	 * The two capabilities that are about a READ rather than a migration: the
@@ -117,7 +122,7 @@
 	 * indicator that must not read "Saved" for a request that did not land, and
 	 * neither is checkable against transports that always succeed.
 	 */
-	let writesFail = $state(false);
+	let writesFail = $state(page.url.searchParams.get('fail') === 'notes');
 	let historyReady = $state(true);
 	let coalescingReady = $state(true);
 	/** The "self" side of every deleted-note fixture below (0119). */
@@ -128,7 +133,7 @@
 	 * guarantee (a match beyond the rendered window must still be findable)
 	 * are drivable rather than argued about.
 	 */
-	let bulk = $state(false);
+	let bulk = $state(page.url.searchParams.get('bulk') === '1');
 	/** The read-only preview an admin gets at /classroom/view-as/<email>/notebook. */
 	let viewAs = $state(page.url.searchParams.get('viewas') === '1');
 	const scopeClass = page.url.searchParams.get('scope') === 'class';

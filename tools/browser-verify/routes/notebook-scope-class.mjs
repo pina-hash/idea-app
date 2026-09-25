@@ -1,3 +1,5 @@
+import { COMPOSER_CONTRAST, OPEN_FILING, WAIT_AUTOPICK } from './_notebook-log.mjs';
+
 /**
  * A CLASS'S OWN NOTEBOOK TAB, AS A STUDENT SEES IT (ledger 0297, package F4a).
  *
@@ -17,11 +19,11 @@
 export default {
 	path: '/dev/notebook?scope=class',
 	label: "A class's Notebook tab, student (filtered to the class, inside the classroom shell)",
+	/* The picks are behind "Filed to ..., Change" since ledger 0298, so it is
+	   pressed before the free-entry pick is. */
 	prepare: [
-		{
-			waitFor: '() => !!document.querySelector(\'.pick:not(.free)[aria-pressed="true"]\')',
-			timeoutMs: 15_000
-		},
+		WAIT_AUTOPICK,
+		OPEN_FILING,
 		{
 			click: '.pick.free',
 			until: '() => document.querySelector(".pick.free").getAttribute("aria-pressed") === "true"'
@@ -37,13 +39,16 @@ export default {
 		{ selector: '[data-testid="nb-all-classes"]', label: 'the way to the whole notebook', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="new-entry-class"]', label: 'a class picker (must be absent: this tab IS the class)', expectPresent: 0 },
 		{ selector: '[data-testid="pick-class"]', label: 'a class named on a pick (must be absent: one class)', expectPresent: 0 },
-		{ selector: '[data-testid="nb-theme-toggle"], [data-nb-theme]', label: 'the retired plate picker or a plate attribute (must be absent)', expectPresent: 0 }
+		{ selector: '[data-testid="nb-theme-toggle"], [data-nb-theme]', label: 'the retired plate picker or a plate attribute (must be absent)', expectPresent: 0 },
+		/* THE CLASS TAB FILES A FREE ENTRY TO ITS CLASS: the line says so, in
+		   the class's own name, with no picker behind it. */
+		{ selector: '[data-testid="nb-filed-to"]', label: 'where the next save goes', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	contrast: [
 		{ selector: '[data-testid="section-tab-notebook-count"]', label: 'the tab count words', min: 4.5 },
 		{ selector: '.nb-head h1', label: 'title (--text-1)', min: 4.5 },
 		{ selector: '[data-testid="nb-privacy"]', label: 'head privacy line (--text-2)', min: 4.5 },
-		{ selector: '.compose-card .hint', label: 'composer hint (--text-3)', min: 4.5 }
+		...COMPOSER_CONTRAST
 	],
 	tapTargets: [
 		{ selector: '[data-testid="section-tab-class"], [data-testid="section-tab-notebook"]', label: 'the two class tabs', min: 44 },
