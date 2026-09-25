@@ -8,8 +8,11 @@
 -- docs/feedback/2026-09-25/overnight/proposed/ and NEVER under
 -- supabase/migrations/ until a session promotes it (see PROMOTING IT, below).
 -- tests/db/proposed-0228-response-history.test.ts applies it from THIS path
--- over the real chain through 0224, so every claim below about behaviour was
--- measured against a real Postgres rather than argued.
+-- over the real chain below 0228 (0001 to 0224 on 2026-09-25), so every claim
+-- below about what one caller's save does was measured against a real Postgres
+-- rather than argued. The claims about CONCURRENT writers -- the per-block
+-- advisory lock, and the grade race under KNOWN LIMIT -- are reasoned from the
+-- code and were NOT measured: the harness drives one connection at a time.
 --
 -- ===========================================================================
 -- WHAT THIS FILE DOES, IN ONE SENTENCE
@@ -76,6 +79,11 @@
 --                   single `graded_at` column cannot. A baseline takes the grade
 --                   only when its value was written after it (`updated_at >
 --                   graded_at`), which is `postGradeChange`'s own derivation.
+--                   A BASELINE CAN ONLY KNOW THE LATEST GRADE, because that is
+--                   all `graded_at` holds: a value written between two grades
+--                   given before this file existed reads NULL (no grade before
+--                   it), although an earlier grade did precede it. What it does
+--                   say truly is that the value stood at the latest grade.
 --
 -- ===========================================================================
 -- COALESCING: ONE REVISION PER BLOCK PER 10-MINUTE BURST, FROZEN AT A GRADE
@@ -167,9 +175,10 @@
 --      student who had turned work in would still be able to write after the
 --      end-of-unit close, and no predicate over the row could tell. Doing it
 --      right needs a new fact on the row.
---   2. DOING IT RIGHT RE-SIGNS FOUR LIVE FUNCTIONS AND ADDS A COLUMN, which is a
---      different risk from an additive table and deserves its own census, its
---      own test and its own revert.
+--   2. DOING IT RIGHT RE-SIGNS SEVEN LIVE FUNCTIONS, ADDS A COLUMN AND
+--      BACKFILLS IT (items b, c, d and h below), which is a different risk from
+--      an additive table and deserves its own census, its own test and its own
+--      revert.
 --   3. HISTORY CANNOT BE BACKFILLED. Every day this table is absent is edits
 --      nobody can ever see, so the additive half must not wait on, or be
 --      reverted with, the riskier half. This file is useful the day it lands:
@@ -179,16 +188,32 @@
 -- THE FOLLOW-ON FILE, STATED PRECISELY (it needs a number from the ledger;
 -- 0229 is decision 38's):
 --   a. `alter table public.classroom_submissions add column if not exists
---      closed_at timestamptz;` -- nullable, NO backfill. It is the instructor's
---      close as its own fact, because a close placed over a hand-in is
---      otherwise invisible on the row.
+--      closed_at timestamptz;` -- nullable. It is the instructor's close as its
+--      own fact, because a close placed over a hand-in is otherwise invisible
+--      on the row. Its backfill is item h, and is NOT optional.
 --   b. ONE private predicate, `_classroom_submission_locked(state,
 --      submitted_at, closed_at)`, true exactly when `state = 'submitted' and
---      (submitted_at is null or closed_at is not null)`. `classroom_save_response`
---      calls it in place of `v_state = 'submitted'`, and the eight-argument
---      `classroom_add_submission_file` calls it at BOTH of its lock checks (the
---      first read and the post-insert re-read). A 'returned' row stays open,
---      which keeps 0198's "returning a grade re-opens" exactly.
+--      (submitted_at is null or closed_at is not null)`, called in place of
+--      `v_state = 'submitted'` at EVERY site that refuses a student write with
+--      `'reason', 'locked'`. Swept on 2026-09-25 over the chain through 0224,
+--      that is SEVEN checks in FIVE live functions, not two:
+--        `classroom_save_response` (0197);
+--        the eight-argument `classroom_add_submission_file` (0197), at BOTH
+--          its first read and its post-insert re-read;
+--        `classroom_open_submission` (0134), at BOTH its checks -- this is the
+--          SIGN step of every storage-backed photo hand-in
+--          (`/api/classroom/submission-file/sign`), so a file left out here
+--          locks every camera upload while typing is open;
+--        `classroom_delete_submission_file` (0133);
+--        `classroom_set_submission_file_caption` (0086).
+--      The follow-on must re-derive that list from `prosrc` at apply time and
+--      REFUSE if any function still carries the bare `v_state = 'submitted'`
+--      lock beside a `'locked'` refusal, because a site missed here is text
+--      open and photos shut with nothing on screen saying why.
+--      `classroom_submit_assignment` (0160) also reads `v_state = 'submitted'`,
+--      but as "already turned in", which is a different question and stays.
+--      A 'returned' row stays open, which keeps 0198's "returning a grade
+--      re-opens" exactly.
 --   c. `classroom_close_assignment` stamps `closed_at = now()` on every row it
 --      closes, INCLUDING a student's own hand-in, which keeps its state and its
 --      `submitted_at` (the fact that they turned it in themselves survives) and
@@ -210,6 +235,28 @@
 --      select-ladder rung that includes `closed_at`; until that rung comes
 --      back it keeps today's predicate (`turned-in` is locked), so a client
 --      that ships first never offers a write the database will refuse.
+--   h. EVERY CLOSE GIVEN BEFORE THE FOLLOW-ON EXISTS CARRIES NO `closed_at`,
+--      so item b alone would silently re-open some of them. Two shapes, and
+--      only one can be recovered:
+--        * A 'returned' row an instructor then closed. 0198's close turns
+--          `returned` into `submitted` and keeps the `submitted_at` of the
+--          student's earlier hand-in, so under item b it reads as a student's
+--          own turn-in and OPENS. It is recognisable: state 'submitted',
+--          `returned_at` set, and `submitted_at` null or not after
+--          `returned_at` (a real resubmission re-stamps `submitted_at` past
+--          `returned_at`). Backfill `closed_at` on exactly those, from
+--          `updated_at` (the nearest time the row holds; a later draft grade
+--          moves it), once, inside a catalog guard on the column's own
+--          existence.
+--        * A student's own hand-in an instructor then closed. 0198 reports it
+--          `changed: false` and writes nothing, so there is NO trace and it
+--          cannot be told from a hand-in nobody closed. Under decision 37 an
+--          ungraded hand-in is meant to be editable anyway, so opening these
+--          is the decision's intent, but the census must COUNT the turned-in
+--          rows on items that show any close (a `submitted` row with a null
+--          `submitted_at` on the same item) and name the number, so the
+--          teacher knows how many hand-ins a past close may have meant to
+--          hold.
 --   `classroom_submit_assignment` and `classroom_grade_submission` are not
 --   touched by it. The Submit button's removal, and moving the declaration and
 --   preflight onto the page as a visible check, are the client half of
@@ -266,18 +313,27 @@
 -- guard stands aside.
 --
 -- ===========================================================================
--- KNOWN LIMIT: A FIRST GRADE RACING A SAVE
+-- KNOWN LIMIT: A GRADE RACING A SAVE (reasoned, not measured)
 -- ===========================================================================
 --
 -- The boundary is read from `classroom_submissions.graded_at` inside the save,
--- under FOR SHARE, so a grade being written to an EXISTING submission row makes
--- the save wait for it and then see it. A ported worksheet's student often has
--- NO submission row until the first grade creates one, and a row that does not
--- exist cannot be locked: a save landing in the same few milliseconds as a
--- FIRST grade can be absorbed into the pre-grade head. The revision's own
--- timestamps still show it (`started_at` before the grade, `saved_at` at it).
--- Closing it would mean grading taking a lock the save also takes, which is a
--- change to the grading function and is not worth it for a millisecond window.
+-- under FOR SHARE. That makes a save wait for a grade only once the grade has
+-- taken the row: `classroom_grade_submission` stamps `graded_at` with its
+-- TRANSACTION START (`v_now := now()`) but locks the row only at its upsert,
+-- after reading the rubric and checking every score. So there are two windows,
+-- both a few milliseconds wide in the single-student case:
+--   * no submission row yet (a ported worksheet's student usually has none
+--     until the first grade creates one), where there is nothing to lock; and
+--   * an existing row, between the grade's start and its upsert. A bulk grade
+--     (0175) is ONE transaction for the whole class, so for the last student
+--     in it this window is the length of the whole batch.
+-- In either, a save can be absorbed into the pre-grade head and commit before
+-- the grade does. The tell is on the revision itself: `after_grade_at` older
+-- than the grade (or NULL) while `saved_at` is LATER than that grade's
+-- `graded_at`. A history panel should mark such a revision "saved while the
+-- grade was being written" rather than present it as the graded value.
+-- Closing the window would mean grading taking a lock the save also takes, at
+-- its start, which is a change to the grading function and is not this file's.
 --
 -- ===========================================================================
 -- PROMOTING IT (the session that ships decision 37's migration half)
@@ -285,8 +341,10 @@
 --
 --   1. `git mv` this file to supabase/migrations/0228_classroom_response_revisions.sql
 --      and change the one PROPOSAL path constant in the test. The test's chain
---      filter (files numbered 0224 and below) keeps it measuring the deployed
---      gate first either way.
+--      filter takes every file numbered BELOW 0228, so it measures whatever
+--      production will hold just before this file, including any of 0225 to
+--      0227 that landed first. If it is promoted under another number, move
+--      that bound with it.
 --   2. Edit CLAUDE.md's append-only paragraph (see COALESCING above) in the
 --      same change, and add a docs/history entry.
 --   3. No grant list needs an entry: the table is SELECT-only to
@@ -373,6 +431,7 @@ declare
 	v_moved bigint;
 	v_turned_in bigint;
 	v_turned_in_graded bigint;
+	v_closed_after_return bigint;
 	v_closed bigint;
 begin
 	select count(*) into v_answers from public.classroom_responses;
@@ -387,16 +446,18 @@ begin
 
 	select count(*) filter (where state = 'submitted' and submitted_at is not null),
 		count(*) filter (where state = 'submitted' and submitted_at is not null and graded_at is not null),
+		count(*) filter (where state = 'submitted' and submitted_at is not null
+			and returned_at is not null and submitted_at <= returned_at),
 		count(*) filter (where state = 'submitted' and submitted_at is null)
-	into v_turned_in, v_turned_in_graded, v_closed
+	into v_turned_in, v_turned_in_graded, v_closed_after_return, v_closed
 	from public.classroom_submissions;
 
 	raise notice '0228: % stored answer row(s) have no history yet. Each gets a baseline revision holding its current value the first time it is overwritten; a row never edited again needs none.',
 		v_answers;
-	raise notice '0228: % answer row(s) belong to graded work, and % of those were already edited after the grade. Their graded value was overwritten before history existed and nothing can recover it; from this file on, the value standing at a grade is kept.',
+	raise notice '0228: % answer row(s) belong to graded work, and % of those were saved again after the grade (a re-save of the same value counts too, because it moves updated_at). Where the value did change, the graded value was overwritten before history existed and nothing can recover it; from this file on, the value standing at a grade is kept.',
 		v_graded_answers, v_moved;
-	raise notice '0228: % submission(s) are turned in by the student (% of them graded) and % are closed by an instructor. This file changes NEITHER lock. The first number is what the split-out lock change would make editable.',
-		v_turned_in, v_turned_in_graded, v_closed;
+	raise notice '0228: % submission(s) carry a student turn-in stamp and are locked (% of them graded); % of those are a returned row an instructor then closed; % more are locked by an instructor close alone. This file changes NEITHER lock. The split-out lock change would make the first number editable, less the returned-then-closed rows its item h keeps closed.',
+		v_turned_in, v_turned_in_graded, v_closed_after_return, v_closed;
 end
 $census$;
 

@@ -1,12 +1,16 @@
 // tests/db/proposed-0228-response-history.test.ts
 //
 // THE PROPOSED 0228 (decision 37: an answer's edit history), APPLIED FROM ITS
-// PROPOSED PATH OVER THE REAL CHAIN THROUGH 0224, which is exactly what
-// production holds. Nothing here applies it anywhere else: the file under test
-// lives in docs/feedback/2026-09-25/overnight/proposed/ and is read from there.
-// When a session promotes it into supabase/migrations/, the ONE line to change
-// is PROPOSAL below; the chain filter (files numbered 0224 and below) keeps the
-// first pass measuring the DEPLOYED gate either way.
+// PROPOSED PATH OVER THE REAL CHAIN BELOW 0228 -- on 2026-09-25 that is 0001
+// through 0224, which is exactly what production holds. Nothing here applies it
+// anywhere else: the file under test lives in
+// docs/feedback/2026-09-25/overnight/proposed/ and is read from there. When a
+// session promotes it into supabase/migrations/, the ONE line to change is
+// PROPOSAL below. The chain filter takes every file numbered BELOW 0228 rather
+// than pinning 0224, so the first pass measures what production will hold just
+// before 0228 applies: if 0225 to 0227 land first and one of them touches
+// `classroom_save_response`, this file goes red (the diff guard refuses) instead
+// of staying green over a chain production will no longer have.
 //
 // ===========================================================================
 // WHAT THIS FILE PROVES, AND HOW EACH EXPECTED VALUE IS SOURCED
@@ -66,9 +70,11 @@ const PROPOSAL = fileURLToPath(
 	)
 );
 
-/** Production's chain: every migration numbered 0224 and below, in order. */
+/** Production's chain as it will stand just before this file: every migration
+    numbered below 0228, in order (0001 to 0224 on 2026-09-25). If the file is
+    promoted under a different number, this bound moves with it. */
 const DEPLOYED = readdirSync(new URL('../../supabase/migrations', import.meta.url))
-	.filter((f) => /^\d{4}_.*\.sql$/.test(f) && Number(f.slice(0, 4)) <= 224)
+	.filter((f) => /^\d{4}_.*\.sql$/.test(f) && Number(f.slice(0, 4)) < 228)
 	.sort();
 const FIXTURE_COMPLETION = '../../tests/db/full-chain-fixture-completion.sql';
 
@@ -758,7 +764,18 @@ describe('proposed 0228: an answer keeps its edit history, and the save gate ans
 			[1, 'baseline', { text: 'First draft.' }, null, null],
 			[2, 'save', { text: 'Edited after the grade.' }, 1, graded!.getTime()]
 		]);
-		expect(rows[0].started_at.getTime()).toBeLessThan(graded!.getTime());
+		// Compared in SQL, at the column's microsecond precision: a JS Date keeps
+		// milliseconds, and the save and the grade above land about 3 to 5 ms
+		// apart here, which is too close to trust a truncated comparison with.
+		const { rows: order } = await db.sql<{ before: boolean }>(
+			`select v.started_at < s.graded_at as before
+			   from public.classroom_response_revisions v
+			   join public.classroom_submissions s
+			     on s.item_id = v.item_id and s.student_email = v.student_email
+			  where v.item_id = $1 and v.student_email = $2 and v.block_id = 'h-text' and v.revision = 1`,
+			[hSpec, ben.email]
+		);
+		expect(order).toEqual([{ before: true }]);
 	});
 
 	it('coalesces a burst: a second edit inside the window replaces the head, and started_at does not move', async () => {

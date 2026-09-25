@@ -16,7 +16,10 @@ chain through 0224. A proposal is only as good as that test: run it before trust
 
 1. A session with working credentials (or Mr. Pina, by hand) **promotes** it: `git mv` the file to
    `supabase/migrations/` under the same name, and change the one path constant at the top of its
-   test. The test's chain filter keeps measuring the deployed functions first either way.
+   test. Then check the test's chain filter covers every migration that has landed BELOW the
+   proposal's number by then, because that is what production will hold when it applies. 0228's
+   test takes every file below 0228 on its own; 0229's pins 0224 on purpose, so if any of 0225 to
+   0228 has landed first, raise that bound before trusting a green run.
 2. Run that one test file (`npx vitest run tests/db/<its test>`), read the `Tests` summary line and
    stderr, and follow the file's own "PROMOTING IT" notes (a CLAUDE.md edit, a `docs/history/`
    entry, a ledger entry).
@@ -59,8 +62,11 @@ ledger and must land **after** 0228: it refuses to apply without 0228's table.
   break the close Mr. Pina asked for in 0198: the test measures that closing an assignment leaves a
   student's own turned-in row **byte-identical** (`changed: false`), so no rule over that row can
   tell "turned in" from "turned in, then closed". Doing it right needs a `closed_at` column and
-  re-signs four live functions, so it gets its own file, stated precisely in 0228's header
-  (items a to g), which must land after 0228.
+  re-signs seven live functions (the five that refuse a write as `locked`, at seven checks, plus
+  close and unsubmit), so it gets its own file, stated precisely in 0228's header (items a to h),
+  which must land after 0228. Item b lists the five: missing `classroom_open_submission` would
+  leave every camera upload locked while typing is open. Item h is the backfill for closes given
+  before `closed_at` exists, without which a returned-then-closed row silently re-opens.
 - **Safety nets inside the file.** It refuses to replace `classroom_save_response` unless the
   deployed body is exactly 0197's (md5, carriage returns ignored), so it cannot silently revert a
   later hotfix; it checks the table's columns, the one overload, every refusal literal, the position
@@ -74,9 +80,11 @@ ledger and must land **after** 0228: it refuses to apply without 0228's table.
   caught by the same test (the student read his own 7 revisions where 0 is right). Removing the
   grade boundary is refused at apply; with the fixture's grade half disabled, two boundary tests
   fail. Granting `anon` SELECT is refused at apply.
-- **Known limit, written in the header:** a save landing in the same few milliseconds as a
-  student's FIRST grade (when no submission row exists yet to lock) can be absorbed into the
-  pre-grade revision; its timestamps still show it.
+- **Known limit, written in the header (reasoned, not measured):** a save that lands while a grade
+  is being written can be absorbed into the pre-grade revision. The window is a few milliseconds
+  for one student (before the grade's upsert takes the row, or always when no row exists yet), and
+  the whole batch for the last student in a bulk grade. The revision shows it: `saved_at` later
+  than the grade while `after_grade_at` is older.
 - **Undo** (in this order, by hand): re-run section 4 of
   `supabase/migrations/0197_classroom_html_assignment_write_gate.sql`, then drop the helper, then
   drop the table (which loses every recorded revision).
