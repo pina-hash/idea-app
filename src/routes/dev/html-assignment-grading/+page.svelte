@@ -1,12 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
-	import HtmlAssignmentFrame from '$lib/classroom/html-assignment/HtmlAssignmentFrame.svelte';
-	import { hxFrameSeed } from '$lib/classroom/html-assignment/answers';
-	import {
-		htmlAssignmentSrc,
-		htmlFieldToBlockId
-	} from '$lib/classroom/html-assignment/mount';
+	import HtmlGradingWork from '$lib/classroom/html-assignment/HtmlGradingWork.svelte';
+	import type { HtmlAssignmentData } from '$lib/classroom/html-assignment/mount';
+	import type { BulkGradingTransports } from '$lib/classroom/grading-bulk';
 	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import {
 		registerLocalSubmissionFileUrl,
@@ -27,7 +24,6 @@
 	// which is a worse fixture than no wrapper at all.
 	import '$lib/classroom/classroom.css';
 	import { createMemoryClassroomLive, type ClassroomLive } from '$lib/classroom/live';
-	import { assignmentLockState } from '$lib/classroom/html-assignment/lock';
 	import { onMount } from 'svelte';
 	import { readXlsxWorkbook } from '$lib/xlsx-read';
 
@@ -74,6 +70,23 @@
 	 * from this fixture.
 	 */
 	const exporting = $derived(viewState === 'export');
+	/**
+	 * `unpublished` IS THE ITEM NOBODY CAN SEE YET (ledger 0278's answers
+	 * without the document). `/hx/` refuses a document whose item is not live,
+	 * so the work column prints the notice and then the student's answers read
+	 * straight from their rows. This branch had never been rendered in a browser
+	 * while this harness carried its own copy of the work snippet; it mounts the
+	 * routes' shared `HtmlGradingWork` now, so it is.
+	 */
+	const unpublished = $derived(viewState === 'unpublished');
+	/**
+	 * `console=across` MOUNTS THE CONSOLE THE WAY `/classroom/grading/<item>`
+	 * DOES (ledger 0298): a bulk transport carrying `loadAcross`, no live bus
+	 * and no close control, and the same `HtmlGradingWork` in the work column.
+	 * Before this bundle that route handed in no snippet, and the column read
+	 * "Nothing handed in yet" for a student with every answer typed.
+	 */
+	const across = $derived(page.url.searchParams.get('console') === 'across');
 	/** `live=stalled` makes the bus report the one status the memory twin never
 	    produces on its own, which is the one that earns a sentence. */
 	const liveStalled = $derived(page.url.searchParams.get('live') === 'stalled');
@@ -119,11 +132,15 @@
 		created_at: iso(4),
 		updated_at: iso(4),
 		attachments: [],
-		publish_at: null
+		publish_at: null,
+		// THE DISCRIMINATOR A REAL LOAD STAMPS (`loadHtmlAssignment`), which is
+		// what `htmlAssignmentMount` reads inside the work column.
+		assignment_schema_version: 3
 	};
 	/** `late` gives the item a due instant between Alice's answers and her photo. */
 	const ITEM = $derived({
 		...ITEM_BASE,
+		published: !unpublished,
 		due_at: late || exporting ? iso(1.1) : null
 	} as unknown as ClassroomItem);
 
@@ -499,12 +516,36 @@
 		announce: (sectionId, topic) => bus.announce(sectionId, topic)
 	};
 
-	const htmlSrc = $derived(htmlAssignmentSrc('', 'worksheet'));
-	const htmlFields = $derived(htmlFieldToBlockId(manifest));
+	/**
+	 * WHAT A GRADE ROUTE'S LOAD HANDS THE WORK COLUMN: the `/hx/worksheet`
+	 * fixture document with this page's manifest. The src is resolved inside
+	 * `HtmlGradingWork` exactly as the routes resolve it, with no sandbox origin
+	 * (the dev and preview configuration).
+	 */
+	const HX = $derived<HtmlAssignmentData>({
+		documentId: 'worksheet',
+		manifest,
+		filename: 'worksheet.html',
+		updatedAt: null
+	});
 
-	function seedFor(student: StudentWork) {
-		return hxFrameSeed(manifest, student.responses, student.files);
-	}
+	/**
+	 * THE CROSS-CLASS READ, IN MEMORY: the per-class payload with the one
+	 * section in play, which is what `loadGradingAcrossSections` returns for a
+	 * teacher of one class. The batch write is refused outright; this state is
+	 * about what the work column shows.
+	 */
+	const acrossBulk: BulkGradingTransports = {
+		async loadAcross() {
+			note('loadAcross');
+			const res = await transports.loadGrading(ITEM_ID, SECTION_ID);
+			return res.ok ? { ok: true, data: { sections: [SECTION], data: res.data } } : res;
+		},
+		async gradeMany() {
+			note('gradeMany');
+			return { ok: false, message: 'The harness writes no grades.' };
+		}
+	};
 
 	// -----------------------------------------------------------------------
 	// THE EXPORT CAPTURE (ledger 0298, R24), the `/dev/grading-incomplete`
@@ -659,8 +700,8 @@
 		<h1>Grading console, ported HTML assignment</h1>
 		<p class="hx-note">
 			The REAL <code>GradingConsole</code> with <code>spec = null</code> -- the real
-			schema-3 configuration -- and the REAL <code>HtmlAssignmentFrame</code> in its work
-			pane, pointed at the real <code>/hx/worksheet</code>. Before ledger 0141 no
+			schema-3 configuration -- and the grade routes' REAL <code>HtmlGradingWork</code> in its
+			work pane, whose frame is pointed at the real <code>/hx/worksheet</code>. Before ledger 0141 no
 			<code>htmlWork</code> snippet was passed and this pane was empty.
 		</p>
 		<nav class="hx-states">
@@ -673,38 +714,30 @@
 			<a class="hx-state" class:is-on={graded} href="/dev/html-assignment-grading?state=graded">changed after grading</a>
 			<a class="hx-state" class:is-on={partial} href="/dev/html-assignment-grading?state=partial">photo missing</a>
 			<a class="hx-state" class:is-on={exporting} href="/dev/html-assignment-grading?state=export">graded-work export</a>
+			<a class="hx-state" class:is-on={unpublished} href="/dev/html-assignment-grading?state=unpublished">not published</a>
+			<a class="hx-state" class:is-on={across} href="/dev/html-assignment-grading?console=across">all classes console</a>
 		</nav>
 	</header>
 
-	{#key `${viewState}|${liveStalled}`}
+	{#key `${viewState}|${liveStalled}|${across}`}
 		<GradingConsole
 			section={SECTION}
 			item={ITEM}
 			spec={null}
 			rubric={RUBRIC}
 			{transports}
-			{live}
-			close={closeAssignment}
+			live={across ? null : live}
+			close={across ? null : closeAssignment}
+			bulk={across ? acrossBulk : null}
 			{htmlWork}
 			{manifest}
 		/>
 	{/key}
 
 	{#snippet htmlWork(student: StudentWork)}
-		{@const seed = seedFor(student)}
-		<!-- THE LOCK IS HANDED DOWN HERE EXACTLY AS THE REAL GRADE ROUTE HANDS IT,
-		     off the student's own row through the one predicate, so the harness
-		     measures the same expression production renders. -->
-		<HtmlAssignmentFrame
-			src={htmlSrc}
-			title={ITEM.title ?? 'Assignment'}
-			fieldToBlockId={htmlFields}
-			values={seed.values}
-			images={seed.images}
-			saved={null}
-			lock={assignmentLockState(student.submission)}
-			readOnly
-		/>
+		<!-- THE ROUTES' OWN COMPONENT, not a copy of it: both grade routes mount
+		     `HtmlGradingWork`, and so does this page. -->
+		<HtmlGradingWork {student} item={ITEM} htmlAssignment={HX} sandboxOrigin="" />
 	{/snippet}
 
 	<section class="hx-captures" aria-label="Exported files" data-testid="hx-captures">

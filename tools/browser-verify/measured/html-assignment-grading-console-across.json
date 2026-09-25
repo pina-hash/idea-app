@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "html-assignment-grading-console-across.mjs",
+	"date": "2026-09-25T11:01:28.621Z",
+	"sha": "db7a2a0f9d5ca9785a9bf330635376642498750e",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 24,
+	"outsideRows": [],
+	"ms": 9396
+}

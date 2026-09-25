@@ -40,6 +40,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 const src = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
 
 const GRADE_PAGE = '../src/routes/classroom/[sectionId]/item/[itemId]/grade/+page.svelte';
+/** The cross-class console, which mounts the same work component (ledger 0298). */
+const ACROSS_PAGE = '../src/routes/classroom/grading/[itemId]/+page.svelte';
+/** Both consoles' work column for a ported document. */
+const GRADING_WORK = '../src/lib/classroom/html-assignment/HtmlGradingWork.svelte';
 const GRADE_LOAD = '../src/routes/classroom/[sectionId]/item/[itemId]/grade/+page.server.ts';
 const ITEM_LOAD = '../src/routes/classroom/[sectionId]/item/[itemId]/+page.server.ts';
 
@@ -225,31 +229,41 @@ describe('the wiring, swept as source', () => {
 		expect(s).toContain('htmlAssignmentReady');
 	});
 
-	it('the grade page passes an htmlWork snippet, which is the whole fix', () => {
-		const s = src(GRADE_PAGE);
-		expect(s).toContain('htmlWork');
-		expect(s).toContain('HtmlAssignmentFrame');
+	it('both grade pages pass an htmlWork snippet mounting the ONE work component, which is the whole fix', () => {
+		// BOTH CONSOLES, since ledger 0298: the cross-class console handed in no
+		// snippet and read "Nothing handed in yet" for a finished worksheet.
+		for (const page of [GRADE_PAGE, ACROSS_PAGE]) {
+			const s = src(page);
+			expect(s, page).toContain('htmlWork');
+			expect(s, page).toContain('<HtmlGradingWork');
+			// No second frame mount beside it: a copy is how the two drift.
+			expect(s, page).not.toContain('<HtmlAssignmentFrame');
+		}
+		const w = src(GRADING_WORK);
+		expect(w).toContain('<HtmlAssignmentFrame');
 		// READ-ONLY IS THE ABSENCE OF A WRITE PATH. A grader handed any of these
 		// four is a grader editing a student's answers, so their absence is
 		// asserted rather than `readOnly` alone.
 		for (const cb of ['onchange=', 'onimage=', 'onimageremove=', 'onimagecaption=']) {
-			expect(s, `the grading mount must not hand down ${cb}`).not.toContain(cb);
+			expect(w, `the grading mount must not hand down ${cb}`).not.toContain(cb);
 		}
-		expect(s).toContain('readOnly');
+		expect(w).toContain('readOnly');
 	});
 
-	it('withholds a leftover spec from a ported item, so one engine renders', () => {
+	it('withholds a leftover spec from a ported item, so one engine renders, on both consoles', () => {
 		// A schema-3 item may carry a spec row from before its conversion, and
 		// `GradingConsole` branches `{#if spec}` first -- so handing both down
 		// would render the superseded engine in the grading console while the
 		// student's own page renders the document. The manifest decides, which is
 		// the order every other rendering surface takes.
-		const s = src(GRADE_PAGE);
-		expect(s).toContain("spec={htmlMount === 'spec' ? data.spec : null}");
-		expect(s, 'the two props read ONE expression').toContain(
-			"htmlWork={htmlMount === 'spec' ? null : htmlWork}"
-		);
-		expect(s, 'never the raw spec').not.toContain('spec={data.spec}');
+		for (const page of [GRADE_PAGE, ACROSS_PAGE]) {
+			const s = src(page);
+			expect(s, page).toContain("spec={htmlMount === 'spec' ? data.spec : null}");
+			expect(s, `${page}: the two props read ONE expression`).toContain(
+				"htmlWork={htmlMount === 'spec' ? null : htmlWork}"
+			);
+			expect(s, `${page}: never the raw spec`).not.toContain('spec={data.spec}');
+		}
 	});
 
 	it('both loads share ONE ladder rather than each carrying a copy', () => {
@@ -289,13 +303,13 @@ describe('the wiring, swept as source', () => {
  * it. So the answers are projected from the same seed the document would have
  * been given.
  *
- * WHAT THIS FILE CANNOT SAY, and it is said out loud rather than left implied:
- * no `/dev` route drives the grade page's `!served` branch. The harness at
- * `/dev/html-assignment-grading` mounts its OWN `htmlWork` snippet, which has
- * never carried that branch, so the MARKUP around this projection has not been
- * rendered in a browser -- before this bundle or after it. What is pinned here
- * is every decision the projection makes; adding an unpublished state to that
- * harness is the follow-up.
+ * THE MARKUP AROUND THIS PROJECTION IS RENDERED IN A BROWSER NOW. This said no
+ * `/dev` route drove the grade page's `!served` branch, because the harness at
+ * `/dev/html-assignment-grading` carried its OWN copy of the `htmlWork`
+ * snippet. Since ledger 0298 the branch lives in `HtmlGradingWork`, which both
+ * grade routes and that harness mount, and `?state=unpublished` measures it
+ * (`tools/browser-verify/routes/html-assignment-grading-state-unpublished.mjs`).
+ * What is pinned here is every decision the projection makes.
  */
 describe('htmlAnswerSheet, the answers a grader reads when the document cannot be served', () => {
 	const MANIFEST = {
