@@ -147,6 +147,12 @@ visual language is mockups-first: a `/dev` before/after page he approves, then t
 
 Say which row applies, in one line, in the prompt file's header.
 
+**Who presses start.** A session launched from inside another session (`create_session`) takes no
+effort setting and gets no Workflow tool. `ultracode` in its prompt then does nothing, and it runs
+at the default effort. Measured on 2026-09-25: the overnight run started that way at medium effort,
+and was stopped two minutes in. So an ultracode prompt is always handed to Mr. Pina to start, with
+the model and effort named. Only a session that needs neither may be launched for him.
+
 ## 8. Close the round
 
 1. Copy `mark-seen.sql` to `docs/feedback/<date>/MARK_SEEN.sql`. Report ids are not
