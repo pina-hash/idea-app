@@ -192,3 +192,73 @@ ledger and must land **after** 0228: it refuses to apply without 0228's table.
 
   **Re-pasting 0214 after this file silently removes the class editor**, so re-paste this file after
   it.
+
+## Unnumbered: a teacher's read of finished worksheets, for the Grades tab and the home tally (decision 37)
+
+- **File:** `NNNN_classroom_worksheet_answers.sql`. **It needs a number from the ledger before it
+  is promoted**: none was reserved for it (it came out of the consistency follow-up to Tier A item
+  3, after 0228 and 0229 were allocated). **Test:** `tests/db/proposed-worksheet-answers.test.ts`
+  (8 tests, green, about 5 s over every migration in `supabase/migrations/`, 0001 to 0224). On
+  promotion, change its path constant and bound its chain below the new number.
+- **Why it exists.** Finishing a ported HTML worksheet is turning it in, and that is derived from the
+  student's answers by `hxCompletion`. Tonight the class page, the home page, My Classes, the to-do,
+  the grading console's roster and (new tonight) the Live tab's grid all say Complete. **The Grades
+  tab and the teacher's home to-grade tally still do not**, because they summarise a whole class and
+  would have to read every student's answers, and `classroom_responses` is policed per row: the
+  review predicate runs once for every answer. Measured on the test cluster as a non-admin teacher,
+  one class of 30, three worksheets of 20, 40 and 60 blocks (3,150 answers):
+
+  | read | time |
+  | --- | --- |
+  | the Grades tab's load as it stands | 17 to 44 ms |
+  | a bare `count(*)` of those answers through RLS | 507 to 616 ms |
+  | the paged read the client makes (`readWorksheetCompletions`) | 2,273 to 2,595 ms |
+  | the same with four classes of 30 on those worksheets (12,600 answers) | count 4.9 to 5.2 s; the paged read passed its 10,000-row cap and answered "cannot tell" |
+  | **this function, narrowed to the one class** | **36 to 51 ms, at one class and at four** |
+  | the client half on its answer (manifests plus `worksheetCompletedAt` for 90 pairs) | 27 to 31 ms |
+
+  So the Grades tab was **left exactly as it is tonight** (the brief's bar was under about 300 ms
+  added), and with this function it would add about 70 to 80 ms.
+- **What it does.** `classroom_worksheet_answers(p_item_ids uuid[], p_section_id uuid default null)`
+  returns one jsonb, `{answers, files}`: the stored answers and the block photographs on those items
+  that the caller may review. It asks `classroom_manages_section` **once per posting**, joins those
+  sections' enrollments (not filtered to active, exactly as `classroom_can_review_submission` is
+  not), and joins the answers to that. That join IS the review predicate's own body, written set-wise,
+  so the reach cannot widen. `p_section_id` narrows it to one class (the Grades tab), and NULL means
+  every class the caller manages (the home tally). A student, and anyone who manages nothing, get an
+  empty answer; `anon` holds no grant. At most 200 items per call.
+- **It returns values, not a verdict, on purpose.** The completeness rule is `hxCompletion`, and a
+  SQL copy of "what counts as an answer" per block type would be a second one. The client groups the
+  rows by `worksheetKey` and judges each pair with `worksheetCompletedAt`, the same judgment the
+  student's own read uses (the test does exactly that). **It returns one jsonb rather than a set**,
+  because PostgREST caps a set-returning RPC at `max_rows` (1000 here) without an error.
+- **Payload.** The answers' values travel: 582 KB for the three worksheets above. The client half
+  should therefore ask only for worksheets that can still be waiting to be marked (a worksheet whose
+  every active student already has a returned or closed row drops out), which keeps a term's worth of
+  finished-and-returned worksheets out of the read.
+- **Measured tonight** (all from the test, both directions on a worksheet co-posted to two classes
+  with different teachers): each teacher receives exactly what RLS gives them as a reviewer, their
+  own class only; an inactive student is still read; an admin receives everybody; a student receives
+  nothing although her own read of the table returns her 2 rows; `anon` is refused; the class
+  parameter narrows to that class and to nothing for a class the caller does not teach. Mutation
+  proof, the file copied aside and restored from that copy, md5-checked (`e230b8e9...` before and
+  after): dropping the manage condition, and the bare `revoke ... from public` form, are each
+  **refused at apply** by the self-check; with the self-check disabled, dropping the manage condition
+  fails 4 tests, reaching every student with an answer on a reached item fails 3, `anon` keeping
+  execute fails 1, and ignoring the class parameter fails 1. A comment edit (the control) survives.
+- **The client half is not written**, because shipped code may not call a function production does
+  not have. When it is promoted: (1) in `student-work.ts`, a sibling of `readWorksheetCompletions`
+  that calls this RPC and hands the rows to the same grouping and `worksheetCompletedAt`, answering
+  null on `PGRST202` or any error (today's behaviour); (2) in
+  `src/routes/classroom/[sectionId]/grades/+page.server.ts`, run it beside the submissions read with
+  `p_section_id`, put the answer on the rows with `withWorksheetCompletions`, and let
+  `assignmentStandings` in `classroom.ts` count a draft carrying `completed_at` as `awaiting` (the
+  tab's own definition is "handed in and not yet returned", so a finished worksheet that is graded but
+  not returned stays awaiting, exactly as a spec assignment's graded, unreturned `submitted` row does);
+  (3) the home tally in `loadClassroomWork` for the classes a teacher manages, with NULL for the
+  class, which `isAwaitingGrade` in `feed.ts` already counts the moment a row carries `completed_at`.
+  CLAUDE.md's "THE READ IS PINNED TO THE CALLER'S OWN ADDRESS" paragraph names this as waiting and
+  would be edited in place in that bundle.
+- **Deploy ordering:** none. The function is new; a client that calls it degrades on `PGRST202`.
+- **Undo:** `drop function if exists public.classroom_worksheet_answers(uuid[], uuid);` (nothing else
+  names it).

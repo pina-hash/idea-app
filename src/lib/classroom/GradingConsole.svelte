@@ -2491,7 +2491,7 @@
 									{#each selectedBlockChanges as change (change.blockId)}
 										<li data-testid="changed-block">
 											<span class="changed-block-name">{blockName(change.blockId)}</span>
-											{change.kind === 'file' ? 'photo added' : 'changed'} after grading at {stamp(change.at)}
+											{change.kind === 'file' ? 'had a picture added' : 'changed'} after grading at {stamp(change.at)}
 										</li>
 									{/each}
 								</ul>

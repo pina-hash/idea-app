@@ -65,9 +65,10 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		supabase.from('classroom_assignment_specs').select('spec').eq('item_id', item.id).maybeSingle(),
 		supabase.from('classroom_rubrics').select('criteria').eq('item_id', item.id).maybeSingle(),
 		// THE PORTED DOCUMENT, IF THIS IS ONE (ledger 0298), through the same
-		// ladder the per-class console runs. Read only so "Download all files" can
-		// name a block by its module and field instead of its id; this page's work
-		// column is unchanged.
+		// ladder the per-class console runs. "Download all files" names a block by
+		// its module and field from it, and the work column mounts
+		// `HtmlGradingWork` on it (the read-only document, or the answers when the
+		// item is not live), exactly as the per-class console does.
 		loadHtmlAssignment(supabase, item, item.kind)
 	]);
 

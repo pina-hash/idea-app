@@ -1357,11 +1357,16 @@ Undated work is never Missing and never counted; it is listed last.
     30 cost 8.1 to 8.8 seconds per count as a student unpinned and 2 to 3ms
     pinned, and 3.6 to 3.9 seconds as an admin reading everybody's. So
     `loadClassroomWork` reads only the classes the caller takes
-    (`worksheetCandidates`), with `onlyEmail`, and the
-    grading console's roster, which already holds its one item's answers, is
-    the teacher surface that says Complete. The home tally counting a finished
-    worksheet waits for a definer function answering per item (decision 37's
-    migration half); `isAwaitingGrade` already counts one the moment a row
+    (`worksheetCandidates`), with `onlyEmail`, and the teacher surfaces that
+    say Complete are the ones that already hold ONE item's answers: the
+    grading console's roster, and the Live tab's grid, which judges the
+    grading read it already polls with `worksheetCompletedAt` against the
+    manifest from `readWorksheetManifests` (two reads pinned to the item, never
+    an answers read). The home tally and the Grades tab counting a finished
+    worksheet wait for a definer function answering per item (decision 37's
+    migration half): the Grades tab would read every worksheet in the class,
+    measured at 2.3 seconds for three worksheets and thirty students against a
+    17 to 44ms load. `isAwaitingGrade` already counts one the moment a row
     carries `completed_at`.
 
 - **OWED WORK IS ONE READ.** `loadClassroomWork` in

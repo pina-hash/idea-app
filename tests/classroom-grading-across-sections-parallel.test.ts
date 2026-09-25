@@ -96,7 +96,10 @@ function recordingClient(): Recorder {
 
 	const builder = (table: string) => {
 		const self: Record<string, unknown> = {};
-		for (const method of ['select', 'eq', 'order', 'in', 'limit']) {
+		// `range` since ledger 0298: the per-student-per-block reads page past
+		// PostgREST's row cap. Every page answers the whole (empty or one-row)
+		// table here, which is a short page, so each read still sends once.
+		for (const method of ['select', 'eq', 'order', 'in', 'limit', 'range']) {
 			self[method] = () => self;
 		}
 		self.then = (
