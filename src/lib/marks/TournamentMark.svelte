@@ -1,3 +1,13 @@
+<script lang="ts">
+	/**
+	 * `once` PLAYS ONE CYCLE, THEN THE BASE STYLES -- THE DRAWN GLYPH -- TAKE
+	 * OVER (ledger 0298). The launcher passes it so no card loops forever;
+	 * /dev/marks leaves it off so the reduced-motion sweep has a running
+	 * animation to measure.
+	 */
+	let { once = false }: { once?: boolean } = $props();
+</script>
+
 <!--
 	Tournaments homepage mark: the double-elimination bracket -- two pairs
 	converging through a spine into a final node -- exactly the geometry this
@@ -16,7 +26,7 @@
 	is the top-edge strip and nothing else. Animation only runs under
 	prefers-reduced-motion: no-preference.
 -->
-<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<svg class:once viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 	<path class="pair upper" d="M4 6h6M4 12h6M10 6v6M10 9h4" />
 	<path class="pair lower" d="M4 20h6M4 26h6M10 20v6M10 23h4" />
 	<path class="spine" d="M14 9v14M14 16h5" />
@@ -44,6 +54,14 @@
 		}
 		.final {
 			animation: tm-ring 4.2s ease-in-out infinite 1.5s;
+		}
+		/* One cycle, then the base styles: the rest frame. Named class by class,
+		   not `.once *`: Svelte leaves a bare `*` unscoped, which is one class
+		   short of a compound rule like `.node.n1` and loses to it. */
+		.once .pair,
+		.once .spine,
+		.once .final {
+			animation-iteration-count: 1;
 		}
 	}
 	/* Base opacity is 1 at both ends: the walk DIPS and returns rather than
