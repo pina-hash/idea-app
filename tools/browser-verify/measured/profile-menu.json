@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "profile-menu.mjs",
-	"date": "2026-09-24T01:51:06.949Z",
-	"sha": "17b56904dd3aae05ad434b319d8bae655bb94299",
-	"dirty": false,
+	"date": "2026-09-25T05:52:38.650Z",
+	"sha": "d72ec18309f9ff6a122b4272147eb10082dc6ba8",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 14,
 	"outsideRows": [],
-	"ms": 6069
+	"ms": 8298
 }

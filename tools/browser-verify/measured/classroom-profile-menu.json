@@ -1,6 +1,6 @@
 {
 	"schema": 1,
-	"spec": "profile-menu-style-set.mjs",
+	"spec": "classroom-profile-menu.mjs",
 	"date": "2026-09-25T05:52:38.650Z",
 	"sha": "d72ec18309f9ff6a122b4272147eb10082dc6ba8",
 	"dirty": true,
@@ -9,7 +9,7 @@
 		1440
 	],
 	"runs": 2,
-	"measurements": 56,
+	"measurements": 72,
 	"outsideRows": [],
 	"ms": 8298
 }
