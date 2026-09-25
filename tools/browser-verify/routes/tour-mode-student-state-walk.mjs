@@ -56,9 +56,26 @@ export default {
 			expected: ['true', 'true', 'true', 'true', 'true', 'true', 'true', 'true', 'true']
 		},
 		{
-			label: 'no staff-only step (Coin Desk, Admin), and no quick note on a build without one',
-			evaluate: titlesInclude(['Coin Desk', 'Admin', 'Note']),
-			expected: ['false', 'false', 'false']
+			label: 'no staff-only step (Coin Desk, Admin)',
+			evaluate: titlesInclude(['Coin Desk', 'Admin']),
+			expected: ['false', 'false']
+		},
+		{
+			// The quick note arrives with the notebook bundle (ledger 0298, Tier D).
+			// Written as an EQUALITY so it holds on a tree with the bundle and on one
+			// without: a Note step exactly when the page shows its trigger, never a
+			// step for a control that is not there and never a trigger the tour
+			// skips. "No Note step" would go red the day the bundle merges.
+			label: 'a Note step exactly when the page shows the quick note trigger',
+			evaluate: `() => {
+				const w = window.__tourWalk;
+				if (!w) return ['NO WALK'];
+				const t = document.querySelector('[data-testid="qn-trigger"]');
+				const r = t ? t.getBoundingClientRect() : null;
+				const shown = !!r && r.width > 0 && r.height > 0;
+				return [String(w.titles.includes('Note') === shown)];
+			}`,
+			expected: ['true']
 		},
 		{ label: 'page order: the to-do before the apps', evaluate: walkedBefore('Your to-do', 'Apps'), expected: ['true'] },
 		{ label: 'page order: a student gets the apps before the classes', evaluate: walkedBefore('Apps', 'Your classes'), expected: ['true'] },
