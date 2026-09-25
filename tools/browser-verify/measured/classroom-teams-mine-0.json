@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "classroom-teams-mine-0.mjs",
+	"date": "2026-09-25T07:27:23.246Z",
+	"sha": "431e6d21ecf08695df8e2d8d328ba2d8277b00c9",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 14,
+	"outsideRows": [],
+	"ms": 4564
+}

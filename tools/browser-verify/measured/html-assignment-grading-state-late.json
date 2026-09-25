@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "html-assignment-grading-state-late.mjs",
+	"date": "2026-09-25T06:17:27.717Z",
+	"sha": "997c37541e337be96ed741facb1c187b9ae803e3",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 16,
+	"outsideRows": [],
+	"ms": 7825
+}

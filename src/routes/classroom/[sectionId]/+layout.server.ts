@@ -16,7 +16,13 @@ import {
 import { checkInIsScheduled, laCalendarDay, type ClassCheckIn } from '$lib/classroom/class-check-ins';
 import type { HallPassState } from '$lib/classroom/hall-pass';
 import type { SongQueueState } from '$lib/classroom/song-queue';
-import { readCheckInPostings, readOwnCheckIns, type CheckInPostings } from '$lib/classroom/student-work';
+import {
+	readCheckInPostings,
+	readOwnCheckIns,
+	readWorksheetCompletions,
+	withWorksheetCompletions,
+	type CheckInPostings
+} from '$lib/classroom/student-work';
 import { loadPostedTeams } from '$lib/classroom/class-teams';
 import { gridSummary, type SectionGrid } from '$lib/notebook-review';
 import type { LayoutServerLoad } from './$types';
@@ -414,11 +420,46 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 	if (!canManage) {
 		const assignmentIds = items.filter((i) => i.kind === 'assignment').map((i) => i.id);
 		if (assignmentIds.length) {
+			/*
+			 * `student_email` rides along for ATTRIBUTION (ledger 0298), the
+			 * check-in reads' own rule above: a student who manages ANOTHER class an
+			 * item is co-posted to can legitimately read every student's row on it,
+			 * and "my standing" must be computed from mine alone.
+			 */
+			const me = ((claims.email as string | undefined) ?? '').trim().toLowerCase();
 			const { data: rows } = await supabase
 				.from('classroom_submissions')
-				.select('item_id, state, score')
+				.select('item_id, student_email, state, score')
 				.in('item_id', assignmentIds);
-			work = studentWorkMap((rows ?? []) as SubmissionSummary[]);
+			// With no address to attribute by, every row is kept, which is what
+			// this page did before it read one: dropping them all would turn every
+			// finished assignment back to Missing.
+			const mine = ((rows ?? []) as (SubmissionSummary & { student_email?: string | null })[]).filter(
+				(r) => !me || !r.student_email || r.student_email.toLowerCase() === me
+			);
+			/*
+			 * A FINISHED PORTED WORKSHEET IS DONE HERE TOO (decision 37), from the
+			 * same `readWorksheetCompletions` the home page, My Classes and the
+			 * to-do read, pinned to this student. Only an open worksheet is worth
+			 * the read; a turned-in, closed or returned one already says where it
+			 * stands. A read that cannot answer leaves `work` as it always was.
+			 */
+			const settled = new Set(mine.filter((r) => r.state !== 'draft').map((r) => r.item_id));
+			const completions = me
+				? await readWorksheetCompletions(
+						supabase,
+						assignmentIds.filter((id) => !settled.has(id)),
+						{ onlyEmail: me }
+					)
+				: null;
+			work = studentWorkMap(
+				withWorksheetCompletions(mine, completions, (item_id, student_email) => ({
+					item_id,
+					student_email,
+					state: 'draft',
+					score: null
+				}))
+			);
 		}
 	}
 

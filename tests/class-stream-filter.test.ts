@@ -254,3 +254,64 @@ describe('the filter, both directions', () => {
 		]);
 	});
 });
+
+// ---------------------------------------------------------------------------
+// A CHECK-IN HANGING OFF AN ITEM (0120) HAS NO ROW OF ITS OWN: the count, the
+// chip and the filter find it on its item (ledger 0298, R14). Before, the class
+// page counted only check-ins with a stream row, so a past-day check-in on the
+// day's material read "1 missing" on My Classes and the to-do and 0 here.
+// ---------------------------------------------------------------------------
+
+describe('an attached check-in is counted, chipped and filtered on its item', () => {
+	const ATTACHED: FilterableCheckIn = {
+		session_label: 'Day 15 gear sketches',
+		session_date: '2026-08-26',
+		unit_number: 2,
+		status: 'missing'
+	};
+	const FILED: FilterableCheckIn = { ...ATTACHED, session_label: 'Day 16 gear test', status: 'filed' };
+	const withAttached = (c: FilterableCheckIn): StreamFilterContext => ({
+		...ctx,
+		attached: new Map([['handout', [c]]])
+	});
+	const shownWith = (c: FilterableCheckIn, filter: StreamFilter) =>
+		ITEMS.filter((i) => itemPassesFilter(i, filter, withAttached(c))).map((i) => i.id);
+
+	it('the count takes every check-in handed in, attached ones included: one more missing, not one fewer', () => {
+		const base = standingCounts(ITEMS, CHECK_INS, ctx);
+		expect(standingCounts(ITEMS, [...CHECK_INS, ATTACHED], ctx)).toEqual({ ...base, missing: base.missing + 1 });
+	});
+
+	it('Missing keeps the material its missing check-in hangs off, and Done does not (and the reverse for a filed one)', () => {
+		expect(shownWith(ATTACHED, f({ status: 'missing' }))).toEqual(['past-due', 'handout']);
+		expect(shownWith(ATTACHED, f({ status: 'done' }))).toEqual(['turned-in', 'returned']);
+		expect(shownWith(FILED, f({ status: 'done' }))).toEqual(['turned-in', 'returned', 'handout']);
+		expect(shownWith(FILED, f({ status: 'missing' }))).toEqual(['past-due']);
+	});
+
+	it('with no attached map the material is in no status at all, exactly as before', () => {
+		for (const status of ['todo', 'missing', 'done'] as const) {
+			expect(shownItems(f({ status }))).not.toContain('handout');
+		}
+	});
+
+	it('the Check-ins kind keeps the item carrying one, and its label finds it', () => {
+		expect(shownWith(ATTACHED, f({ kind: 'check-in' }))).toEqual(['handout']);
+		expect(shownWith(ATTACHED, f({ kind: 'check-in', status: 'missing' }))).toEqual(['handout']);
+		expect(shownWith(ATTACHED, f({ kind: 'check-in', status: 'done' }))).toEqual([]);
+		expect(shownWith(ATTACHED, f({ query: 'gear sketches' }))).toEqual(['handout']);
+	});
+
+	it('a finished ported worksheet is Done here too, from the one standing', () => {
+		const done: StreamFilterContext = {
+			...ctx,
+			work: { ...WORK, 'past-due': { state: 'in-progress', score: null, completedAt: '2026-08-27T14:00:00Z' } }
+		};
+		expect(ITEMS.filter((i) => itemPassesFilter(i, f({ status: 'done' }), done)).map((i) => i.id)).toEqual([
+			'past-due',
+			'turned-in',
+			'returned'
+		]);
+		expect(ITEMS.filter((i) => itemPassesFilter(i, f({ status: 'missing' }), done)).map((i) => i.id)).toEqual([]);
+	});
+});

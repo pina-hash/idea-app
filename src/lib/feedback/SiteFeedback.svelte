@@ -433,23 +433,32 @@
 		min-width: 44px;
 		padding: 0 0.9rem;
 		appearance: none;
-		background: var(--surface-2, #0d1a12);
-		border: 1px solid var(--hairline, rgba(140, 220, 160, 0.22));
+		/* EVERY PAINTED VALUE READS A ROOM HOOK FIRST (report 35, 2026-09-25),
+		   with the site token as the fallback -- see the scrim block at the
+		   bottom of this file for the whole hook set and why a room declares
+		   it on `body:has(.<room>)` rather than on its own wrapper. With no
+		   room hook set, every line below resolves to exactly what it did. */
+		background: var(--fb-room-bg, var(--surface-2, #0d1a12));
+		/* THE LOAD-BEARING EDGE, NOT THE HAIRLINE. The pill's outer edge is the
+		   only thing separating a control from the page under it, which is what
+		   `--boundary` exists for (CLAUDE.md, "A BOUNDARY THAT CARRIES MEANING").
+		   It was `--hairline` everywhere but Space White: measured 1.18:1 against
+		   the portal page at 375 and 1.22:1 at 1440, a control nobody could see
+		   the edge of (report 20: "the report button does not show up"). */
+		border: 1px solid var(--fb-room-edge, var(--boundary, rgba(140, 220, 160, 0.22)));
 		border-radius: 999px;
-		color: var(--text-2, #9fb8a6);
-		font-family: var(--font-mono, 'Share Tech Mono', monospace);
+		color: var(--fb-room-ink-muted, var(--text-2, #9fb8a6));
+		font-family: var(--fb-room-font-mono, var(--font-mono, 'Share Tech Mono', monospace));
 		font-size: 0.7rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		cursor: pointer;
-		box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+		box-shadow: var(--fb-room-lift, 0 6px 18px rgba(0, 0, 0, 0.35));
 	}
-	/* UNDER SPACE WHITE (ledger 0297, package F1b): the floating pill is a
-	   control whose outer edge is the only thing separating it from a light
-	   page, so it takes the load-bearing boundary, and it lifts on the theme's
-	   hard elevation rather than a blurred dark drop. */
+	/* UNDER SPACE WHITE (ledger 0297, package F1b): the pill lifts on the
+	   theme's hard elevation rather than a blurred dark drop. Its load-bearing
+	   edge used to be set here too; every theme takes it now (above). */
 	:global(:root[data-theme='space-white']) .sfb-trigger {
-		border-color: var(--boundary);
 		box-shadow: var(--elevation-2);
 	}
 	:global(:root[data-theme='space-white']) .sfb-relocated .sfb-trigger {
@@ -460,14 +469,14 @@
 	}
 	.sfb-trigger:hover,
 	.sfb-trigger:focus-visible {
-		color: var(--text-1, #dff3e3);
-		border-color: var(--green, #3ddc84);
+		color: var(--fb-room-ink, var(--text-1, #dff3e3));
+		border-color: var(--fb-room-accent, var(--green, #3ddc84));
 		outline: none;
 	}
 	.sfb-trigger-error {
 		/* An error page is the one place this is the primary action. */
-		color: var(--text-1, #dff3e3);
-		border-color: var(--green, #3ddc84);
+		color: var(--fb-room-ink, var(--text-1, #dff3e3));
+		border-color: var(--fb-room-accent, var(--green, #3ddc84));
 	}
 	.sfb-glyph {
 		display: grid;
@@ -496,7 +505,7 @@
 	.sfb-load-failed {
 		margin: 0.4rem 0 0;
 		max-width: 16rem;
-		color: var(--amber, #d08030);
+		color: var(--fb-room-danger, var(--amber, #d08030));
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
 		font-size: 0.68rem;
 		line-height: 1.4;
@@ -551,31 +560,71 @@
 	   GREENLINE is untouched by construction: it mounts `FeedbackBox` itself,
 	   under its own `.gp-feedback :global(.fb-scrim)` override, and every new
 	   hook defaults to the literal the component painted before.
+
+	   THE BOX MATCHES THE ROOM IT OPENS IN (report 35, 2026-09-25: on /frc
+	   "the report a problem pop-up should exactly match the color scheme of
+	   the page"). The shell's mount is a SIBLING of every room's wrapper, not
+	   a descendant, so a room's re-pointed tokens (`.frc-root`'s paper,
+	   `.fg-root`'s forge) can never reach it by inheritance -- which is why
+	   the GAUNTLET case above works (it mounts INSIDE `.gt-root`) and the
+	   FRC one never did. So every value here reads a ROOM HOOK first, with
+	   the site token as the fallback (the `--disc-accent` / `--body-link`
+	   mechanism), and a room that is not the site theme declares the hooks
+	   on `body:has(.<room>)` in its own stylesheet, where `body` is the
+	   common ancestor. The hooks are:
+	     --fb-room-bg, --fb-room-bg-deep, --fb-room-field   the grounds
+	     --fb-room-shade                                    the veil
+	     --fb-room-ink, --fb-room-ink-muted                 text, 4.5:1
+	     --fb-room-edge                                     control edges, 3:1
+	     --fb-room-accent                                   primary action
+	     --fb-room-danger, --fb-room-live                   refusal, open mic
+	     --fb-room-ok, --fb-room-info, --fb-room-warn,
+	     --fb-room-error                                    the save line
+	     --fb-room-font, --fb-room-font-mono, --fb-room-lift
+	   A room sets only what differs; the rest falls through to the site
+	   theme. An in-scope room (the classroom, the notebook, the home page)
+	   sets none, so the box follows the site theme there -- Space White
+	   included. Every value a room declares is measured in its own file.
 	*/
 	.sfb-host :global(.fb-scrim) {
-		--fb-bg: var(--bg1);
-		--fb-bg-deep: var(--bg0);
-		--fb-shade: color-mix(in srgb, var(--bg0) 82%, transparent);
-		--fb-ink: var(--white);
-		--fb-ink-dim: var(--text-2);
-		--fb-ink-faint: var(--text-2);
-		--fb-line: var(--boundary);
-		--fb-line-strong: var(--boundary);
-		--fb-accent: var(--green);
+		--fb-bg: var(--fb-room-bg, var(--bg1));
+		--fb-bg-deep: var(--fb-room-bg-deep, var(--bg0));
+		--fb-shade: var(--fb-room-shade, color-mix(in srgb, var(--bg0) 82%, transparent));
+		--fb-ink: var(--fb-room-ink, var(--white));
+		--fb-ink-dim: var(--fb-room-ink-muted, var(--text-2));
+		--fb-ink-faint: var(--fb-room-ink-muted, var(--text-2));
+		--fb-line: var(--fb-room-edge, var(--boundary));
+		--fb-line-strong: var(--fb-room-edge, var(--boundary));
+		--fb-accent: var(--fb-room-accent, var(--green));
 		/* The FULL accent on the primary edge and the selected chip, not the
 		   component's 45% / 55% tints: measured, the tints of this green read
 		   2.37:1 and 2.83:1 against --bg2, and a control's outer edge owes 3:1.
 		   `.btn` in the shell draws its edge in --green for the same reason. */
-		--fb-accent-edge: var(--green);
-		--fb-accent-edge-on: var(--green);
-		--fb-danger: var(--amber);
+		--fb-accent-edge: var(--fb-room-accent, var(--green));
+		--fb-accent-edge-on: var(--fb-room-accent, var(--green));
+		--fb-danger: var(--fb-room-danger, var(--amber));
 		/* An open microphone is live/rec, which is what --crimson is reserved
 		   for; it paints a dot and an edge beside the word STOP, never a word. */
-		--fb-live: var(--crimson);
-		--fb-field: var(--bg2);
-		--fb-chip: var(--bg2);
-		--fb-control: var(--bg2);
-		--fb-font: var(--font-display);
-		--fb-font-mono: var(--font-mono);
+		--fb-live: var(--fb-room-live, var(--crimson));
+		--fb-field: var(--fb-room-field, var(--bg2));
+		--fb-chip: var(--fb-room-field, var(--bg2));
+		--fb-control: var(--fb-room-field, var(--bg2));
+		--fb-font: var(--fb-room-font, var(--font-display));
+		--fb-font-mono: var(--fb-room-font-mono, var(--font-mono));
+		/* THE SAVE INDICATOR INSIDE THE BOX reads its own four hooks with the
+		   raw semantic tokens as fallback, and those are tuned for a dark
+		   plate: on a light room's paper "Unsaved changes" in --amber is about
+		   3:1. So the box hands them the room's measured inks when a room has
+		   them, and the same raw tokens when it does not -- which is exactly
+		   what the indicator read before. */
+		--save-ok: var(--fb-room-ok, var(--green));
+		--save-info: var(--fb-room-info, var(--cyan));
+		--save-warn: var(--fb-room-warn, var(--amber));
+		/* NOT --crimson, and the same call `--fb-danger` makes above: the
+		   "Not saved" line sits on the box's plate, where --crimson measured
+		   4.14:1 on the portal theme against --amber's 4.90, and --crimson is
+		   reserved for live and rec. The word and the "!" mark carry the state;
+		   the hue only has to be readable. */
+		--save-error: var(--fb-room-error, var(--amber));
 	}
 </style>

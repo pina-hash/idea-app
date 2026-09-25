@@ -126,3 +126,26 @@ export async function handleLegacyFeedbackPost(
 	if (feedbackIssue(message)) return refuse('message_empty', 200);
 	return refuse('server_refused', 502);
 }
+
+/**
+ * "IS THIS READER SIGNED IN?", FOR A LEGACY PAGE WHOSE BYTES EVERY READER
+ * SHARES (report 20, 2026-09-25).
+ *
+ * `/assignments/<slug>` is served from one shared cache entry with no
+ * `Vary: Cookie`, so its injected report panel cannot be told at serve time
+ * whether the reader has a session -- that answer would be served to the next
+ * thirty readers too. The panel asks here instead, when the box OPENS, and
+ * this answer is the only session-dependent thing on that path.
+ *
+ * `private, no-store` IS THE WHOLE POINT: a cached "yes" handed to the next
+ * reader is exactly the leak the page itself avoids. It says one boolean and
+ * nothing else -- no name, no role, no address -- because the only question
+ * the panel has is which of two routes a report takes and whether to offer a
+ * way to be reached.
+ */
+export function handleLegacySessionProbe(claims: { sub: string } | null | undefined): Response {
+	return json(
+		{ signedIn: !!claims },
+		{ headers: { 'cache-control': 'private, no-store', vary: 'Cookie' } }
+	);
+}

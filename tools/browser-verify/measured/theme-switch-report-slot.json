@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "theme-switch-report-slot.mjs",
+	"date": "2026-09-25T05:14:41.242Z",
+	"sha": "04fcefd75f049a84cd25836e3f4a6b03a7eee5d5",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 22,
+	"outsideRows": [],
+	"ms": 10731
+}

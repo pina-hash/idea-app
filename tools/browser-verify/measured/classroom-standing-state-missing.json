@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "classroom-standing-state-missing.mjs",
+	"date": "2026-09-25T06:51:23.101Z",
+	"sha": "40a55dda4df5f3bf7d9f0ed156a6fd0baa29e590",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 18,
+	"outsideRows": [],
+	"ms": 12318
+}

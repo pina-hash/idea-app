@@ -21,6 +21,8 @@
 	} from '$lib/classroom/transports';
 	import { createClassroomLive } from '$lib/classroom/live';
 	import { createPresenceTransports } from '$lib/classroom/presence/transports';
+	import { createBulkFileSource } from '$lib/classroom/bulk-download-source';
+	import { blockLabelsFromManifest, blockLabelsFromSpec } from '$lib/classroom/bulk-download';
 	import { assignmentLockState } from '$lib/classroom/html-assignment/lock';
 	import { itemTitle } from '$lib/classroom/classroom';
 	import type { StudentWork } from '$lib/classroom/assignment-spec';
@@ -111,6 +113,20 @@
 			: null
 	);
 
+	/**
+	 * "DOWNLOAD ALL FILES" (ledger 0298). The bytes come off the teacher's own
+	 * browser client; the only thing this page adds is what each block is
+	 * CALLED, from the same engine decision the work column takes -- the
+	 * manifest for a ported document, the spec otherwise. A block neither names
+	 * still exports, under its id.
+	 */
+	const fileDownload = $derived(
+		createBulkFileSource(
+			data.supabase,
+			htmlMount === 'spec' ? blockLabelsFromSpec(data.spec) : blockLabelsFromManifest(manifest)
+		)
+	);
+
 	const htmlSrc = $derived(
 		data.htmlAssignment
 			? htmlAssignmentSrc(publicEnv.PUBLIC_HX_SANDBOX_ORIGIN, data.htmlAssignment.documentId)
@@ -156,6 +172,8 @@
 	{presence}
 	close={transports.closeAssignment}
 	htmlWork={htmlMount === 'spec' ? null : htmlWork}
+	manifest={htmlMount === 'html' ? manifest : null}
+	{fileDownload}
 />
 
 <!--

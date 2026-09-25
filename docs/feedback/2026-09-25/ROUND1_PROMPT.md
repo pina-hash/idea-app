@@ -1,4 +1,4 @@
-# Round 1 prompt, ready to paste
+# Round 1 prompt: SUPERSEDED on 2026-09-25 by OVERNIGHT_PROMPT.md. Do not paste.
 
 Start a NEW Claude Code session on `pina-hash/idea-app` from `main`, with model Opus 5.5 and
 ultracode on. Paste everything between the two rules below, once. A prompt that has

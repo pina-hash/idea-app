@@ -483,7 +483,15 @@
 		try {
 			const res = await fn();
 			msg = res.ok ? { ok: true, text: okText } : { ok: false, text: res.message ?? 'That did not work.' };
-			if (res.ok) await loadTeams();
+			if (res.ok) {
+				await loadTeams();
+				// Post, take down and retire change what the CLASS PAGE shows, and
+				// the section layout's load never re-runs on the way from here to
+				// the Class tab, so without this the teacher read the class page as
+				// it was before the post (ledger 0298, R23). The roster edits above
+				// already refresh the page this way.
+				await onchanged?.();
+			}
 		} finally {
 			teamsBusy = false;
 			armedRetire = null;

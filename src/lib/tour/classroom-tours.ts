@@ -29,6 +29,7 @@
  */
 import type { ClassroomTourId, TourState } from '$lib/preferences/classroom';
 import type { TourCloseReason, TourStep } from './tour';
+import { REPORT_LABEL_SHORT } from '$lib/feedback/context';
 
 /** One place a step can point, with the words for that place. */
 export interface TourVariant {
@@ -55,6 +56,8 @@ const tid = (id: string) => `[data-testid="${id}"]`;
  * Below 1180px the header's tools fold into one Menu button (ClassroomShell),
  * so every tool step's target is hidden and drops; this one names what is
  * inside instead. Above 1180px the Menu button is hidden and this drops.
+ * Report is NOT inside it: it keeps its own slot in the header row at every
+ * width (report 30), so the sentence says where it is instead.
  */
 const MENU_STEP = (who: 'teacher' | 'student'): ClassroomTourStep => ({
 	id: 'menu',
@@ -64,8 +67,8 @@ const MENU_STEP = (who: 'teacher' | 'student'): ClassroomTourStep => ({
 			title: 'Menu',
 			body:
 				who === 'teacher'
-					? 'Menu holds Search, Settings, the Light switch, Report and Tour, and lists your classes by name. {mod} K opens Search from anywhere.'
-					: 'Menu holds To-do, Search, Settings, the Light switch, Report and Tour. It also lists your classes by name.'
+					? `Menu holds Search, Settings, the Light switch, Tour and your classes by name; ${REPORT_LABEL_SHORT} stays beside it. {mod} K opens Search from anywhere.`
+					: `Menu holds To-do, Search, Settings, the Light switch, Tour and your classes by name. ${REPORT_LABEL_SHORT} stays beside it.`
 		}
 	]
 });

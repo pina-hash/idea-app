@@ -52,3 +52,49 @@
 .fsp-root a {
 	color: var(--fsp-navy-2);
 }
+
+/* ==========================================================================
+   THE REPORT BOX, IN THIS ROOM'S PALETTE (report 35, 2026-09-25).
+
+   The report control and its box are mounted once in the ROOT layout, as a
+   sibling of `.fsp-root`, so nothing declared on the room's wrapper reaches
+   them and the box opened in the IDEA dark theme over this light page.
+   `SiteFeedback.svelte` reads `--fb-room-*` hooks with the site token as
+   fallback; this block declares them on `body`, the ancestor the room and the
+   box share, only while an FSP page is on screen. HOOK DECLARATIONS ONLY.
+
+   `body` cannot see the `--fsp-*` tokens (declared on the descendant
+   `.fsp-root`), so every value is a LITERAL named for its token. The one new
+   value is the control edge: `--fsp-line` #d7dee6 is a hairline (1.36 on
+   white), and a control's outer edge owes 3:1, so it moves in LIGHTNESS ONLY
+   to 55% (#728aa7). "Unsaved changes" takes the muted ink, because the gold
+   fails as text on white and the warn orange is this room's error colour.
+
+   Measured, WCAG 2.x relative luminance, against the box's two grounds
+   (surface #ffffff / page #f2f5f8):
+     ink        #16202b   16.46 / 15.05
+     muted      #5b6b7a    5.48 /  5.01
+     accent     #123a5e   11.72 / 10.71   (--fsp-navy-2)
+     saved      #1a7f4b    5.02 /  4.59   (--fsp-ok)
+     danger     #b23b0e    5.96 /  5.44   (--fsp-warn)
+     edge       #728aa7    3.55 /  3.25   (bar 3.0)
+   ========================================================================== */
+body:has(.fsp-root) {
+	--fb-room-bg: #ffffff; /* --fsp-surface */
+	--fb-room-bg-deep: #f2f5f8; /* --fsp-surface-2 */
+	--fb-room-field: #f2f5f8; /* --fsp-surface-2 */
+	--fb-room-shade: rgba(6, 24, 43, 0.55); /* --fsp-navy-deep, as a veil */
+	--fb-room-ink: #16202b; /* --fsp-ink */
+	--fb-room-ink-muted: #5b6b7a; /* --fsp-muted */
+	--fb-room-edge: #728aa7; /* --fsp-line, 87% -> 55% lightness */
+	--fb-room-accent: #123a5e; /* --fsp-navy-2 */
+	--fb-room-danger: #b23b0e; /* --fsp-warn */
+	--fb-room-live: #b23b0e; /* --fsp-warn: an open microphone, beside the word STOP */
+	--fb-room-ok: #1a7f4b; /* --fsp-ok */
+	--fb-room-info: #123a5e; /* --fsp-navy-2 */
+	--fb-room-warn: #5b6b7a; /* --fsp-muted */
+	--fb-room-error: #b23b0e; /* --fsp-warn */
+	--fb-room-font: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; /* --fsp-font */
+	--fb-room-font-mono: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+	--fb-room-lift: 0 2px 8px rgba(6, 24, 43, 0.18);
+}

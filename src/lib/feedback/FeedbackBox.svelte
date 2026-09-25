@@ -724,6 +724,12 @@
 		overflow-y: auto;
 		padding: 0.9rem 1.05rem 1rem;
 		background: linear-gradient(180deg, var(--fb-bg) 0%, var(--fb-bg-deep) 100%);
+		/* Under the gradient, never seen: the gradient is opaque. It is here so a
+		   contrast read that cannot see through a background-image lands on the
+		   box's own deep plate rather than walking out to the veil behind it
+		   (measured: on a light room that walk reported the title at 1.09:1 on
+		   the dark scrim while it sat at 15:1 on its real ground). */
+		background-color: var(--fb-bg-deep);
 		border: 1px solid var(--fb-line);
 		border-top-color: var(--fb-line-strong);
 		border-radius: 3px;

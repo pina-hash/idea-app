@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "classroom-teams-later-posted.mjs",
+	"date": "2026-09-25T08:17:44.543Z",
+	"sha": "21fdeb96503eba31ec1b07dd5219557cc9e62412",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 20,
+	"outsideRows": [],
+	"ms": 17049
+}

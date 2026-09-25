@@ -39,6 +39,7 @@ import {
 	type FeedbackFilter
 } from '../src/lib/feedback/console';
 import { SECTIONS } from '../src/lib/curriculum';
+import { handleLegacySessionProbe } from '../src/lib/server/legacy-feedback-post';
 
 /**
  * EVERY SURFACE REPORTS ITS OWN DEFECTS, asserted where it fails SILENTLY.
@@ -183,6 +184,174 @@ describe('coverage is structural, not per page', () => {
 			return !src.includes('place="relocated"');
 		});
 		expect(offenders).toEqual([]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// 1b. A PAGE SERVED FROM A +server.ts INHERITS NOTHING
+// ---------------------------------------------------------------------------
+
+/**
+ * EVERY PAGE THE SITE SERVES AS HTML CARRIES A REPORT CONTROL, OR SAYS WHY NOT
+ * (report 20, 2026-09-25: "must be available on every single possible page").
+ *
+ * The root-layout mount covers every `+page.svelte`, which is what the block
+ * above proves. A `+server.ts` that answers with a document renders no layout
+ * and inherits nothing, so `/assignments/<slug>` shipped with no control at all
+ * for as long as it existed, and nothing anywhere said so -- the silent kind of
+ * gap this file exists for. So the sweep reads every non-dev `+server.ts`,
+ * decides whether it can answer with HTML (its own source, or a module it
+ * imports, names `text/html` outside a comment), and requires each one either
+ * to inject a report control or to be named below WITH THE REASON.
+ *
+ * An exemption is a decision, and a stale one is a lie: an exempt route that
+ * stops serving HTML, or starts carrying a control, reddens until the entry is
+ * removed.
+ */
+const SERVER_ROUTES = ROUTE_FILES.filter(
+	(f) => f.endsWith('/+server.ts') && !f.startsWith('src/routes/dev/')
+);
+
+/** A comment is not a response: strip block and line comments before asking. */
+function codeOnly(src: string): string {
+	return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\w])\/\/.*$/gm, '$1');
+}
+
+/** The local modules a route file imports, resolved to repo paths. */
+function localImports(file: string, src: string): string[] {
+	const out: string[] = [];
+	for (const m of src.matchAll(/from\s+'([^']+)'/g)) {
+		const spec = m[1];
+		let base: string | null = null;
+		if (spec.startsWith('$lib/')) base = 'src/lib/' + spec.slice('$lib/'.length);
+		else if (spec.startsWith('.')) base = new URL(spec, new URL(file, 'file:///')).pathname.slice(1);
+		if (!base) continue;
+		for (const cand of [base, `${base}.ts`, `${base}/index.ts`]) {
+			try {
+				if (statSync(fileURLToPath(new URL(cand, ROOT))).isFile()) {
+					out.push(cand);
+					break;
+				}
+			} catch {
+				/* not this spelling */
+			}
+		}
+	}
+	return out;
+}
+
+/**
+ * `text/html` AS A RESPONSE TYPE, not as a word: a content-type header, a
+ * stored type tested with `startsWith`, or a MIME map value carrying a charset.
+ * An `accept:` header on an outbound fetch (link previews) or a set of types a
+ * source viewer decodes (Foundry) is not a page this site serves, and counting
+ * either made three JSON routes read as documents.
+ */
+const HTML_RESPONSE = /['"]content-type['"]\s*:\s*['"]text\/html|startsWith\(\s*['"]text\/html|:\s*['"]text\/html;\s*charset/i;
+
+function servesHtml(file: string): boolean {
+	const src = read(file);
+	if (HTML_RESPONSE.test(codeOnly(src))) return true;
+	return localImports(file, src).some((m) => HTML_RESPONSE.test(codeOnly(read(m))));
+}
+
+/** A route that injects a report control into what it serves. */
+function injectsReport(file: string): boolean {
+	const src = codeOnly(read(file));
+	return (
+		src.includes('injectLegacyReportPanel(') ||
+		src.includes('legacyReportPanelScript(') ||
+		// VANGUARD's own injected panel (a migration candidate, CLAUDE.md).
+		src.includes('__ideaVanguardReport')
+	);
+}
+
+const HTML_EXEMPT: Record<string, string> = {
+	'src/routes/a/[appId]/[...path]/+server.ts':
+		"a student's own app, served byte for byte on the apps origin: injecting anything breaks the byte rule and the origin split, and the gallery around it carries the control",
+	'src/routes/b/[appId]/[versionId]/[...path]/+server.ts':
+		"a student's own build, the frame src on the apps origin: the byte rule and the origin split again, and the page framing it carries the control",
+	'src/routes/hx/[docId]/+server.ts':
+		'a ported HTML assignment document, framed by the item page whose chrome already carries the control; its bytes are the author\'s and its CSP sandboxes it',
+	'src/routes/foundry/preview/[appId]/[versionId]/[...path]/+server.ts':
+		"an author's own draft build, served sandboxed with no allow-same-origin: student bytes, opened from /foundry/mine, which carries the control",
+	'src/routes/foundry/download/[appId]/[versionId]/+server.ts':
+		"answers a zip download; its only HTML is the Foundry-closed refusal, whose CSP is default-src 'none', so no script could run in it",
+	'src/routes/foundry/starter/+server.ts':
+		"a file DOWNLOAD (content-disposition: attachment) of the starter index.html, never shown as a page; its refusal is the same default-src 'none' page",
+	'src/routes/api/classroom/deck/[deck_id]/[...path]/+server.ts':
+		"an instructor's uploaded deck files, framed by the deck viewer, whose bar carries the relocated control",
+	'src/routes/api/classroom/deck/+server.ts':
+		'a JSON upload API; it only imports the deck module whose MIME map names text/html',
+	'src/routes/admin/drive-connect/callback/+server.ts':
+		'shows a Google Drive refresh token to an admin exactly once; nothing is injected into a page that carries a credential'
+};
+
+describe('every page a +server.ts serves as HTML carries a report control, or says why not', () => {
+	const html = SERVER_ROUTES.filter(servesHtml);
+
+	it('sweeps a real set of server routes and finds the HTML-serving ones', () => {
+		// Case counts, so a walk or a detector that found nothing cannot pass.
+		expect(SERVER_ROUTES.length).toBeGreaterThan(40);
+		expect(html.length).toBeGreaterThanOrEqual(10);
+		// Positive controls for the detector: one route that names text/html
+		// itself, and two that reach it only through an import.
+		expect(html).toContain('src/routes/assignments/[slug]/+server.ts');
+		expect(html).toContain('src/routes/a/[appId]/[...path]/+server.ts');
+		expect(html).toContain('src/routes/hx/[docId]/+server.ts');
+		// ...and a JSON route that must not be caught by a comment.
+		expect(html).not.toContain('src/routes/api/feedback/+server.ts');
+	});
+
+	it('the carried-over assignment page now injects one (the gap report 20 found)', () => {
+		expect(injectsReport('src/routes/assignments/[slug]/+server.ts')).toBe(true);
+		// The other two legacy surfaces, which already did.
+		expect(injectsReport('src/routes/coins/[...path]/+server.ts')).toBe(true);
+		expect(injectsReport('src/routes/vanguard/+server.ts')).toBe(true);
+	});
+
+	it('every HTML route injects a control or is exempt with a reason', () => {
+		const bare = html.filter((f) => !injectsReport(f) && !(f in HTML_EXEMPT));
+		expect(bare).toEqual([]);
+		for (const [f, why] of Object.entries(HTML_EXEMPT)) expect(why.trim().length, f).toBeGreaterThan(20);
+	});
+
+	it('no exemption is stale: each still serves HTML and still carries no control', () => {
+		for (const f of Object.keys(HTML_EXEMPT)) {
+			expect(html, f).toContain(f);
+			expect(injectsReport(f), f).toBe(false);
+		}
+	});
+
+	it('the session probe answers one boolean, privately, for either kind of reader', async () => {
+		// The one session-dependent answer on the assignment path. Cached and
+		// shared, a "yes" would send the next signed-out reader's report to the
+		// signed-in route (and a refusal); anything more than the boolean would be
+		// a disclosure on a route any page can call.
+		const yes = handleLegacySessionProbe({ sub: 'u-1' });
+		const no = handleLegacySessionProbe(null);
+		for (const r of [yes, no]) {
+			expect(r.headers.get('cache-control')).toBe('private, no-store');
+			expect(r.headers.get('vary')).toBe('Cookie');
+		}
+		expect(await yes.json()).toEqual({ signedIn: true });
+		expect(await no.json()).toEqual({ signedIn: false });
+	});
+
+	it('the assignment page stays session-independent, so its shared cache stays shared', () => {
+		// The route is a public cache entry with no `Vary: Cookie` (thirty phones
+		// on one QR code inside a minute). Its panel asks for the session at open;
+		// the route itself must read nothing that varies by reader.
+		const src = codeOnly(read('src/routes/assignments/[slug]/+server.ts'));
+		expect(src).toContain('ASSIGNMENT_REPORT_OPTIONS');
+		expect(src).toMatch(/'cache-control': 'public, max-age=0, s-maxage=60, must-revalidate'/);
+		expect(src).not.toMatch(/\bvary\b/i);
+		expect(src).not.toMatch(/locals|cookies|claims|getSession|request\.headers/);
+		// Positive control: the Ledger's route DOES read the session and DOES
+		// vary, which is the arrangement the assignment page must not copy.
+		const coins = codeOnly(read('src/routes/coins/[...path]/+server.ts'));
+		expect(coins).toMatch(/claims/);
+		expect(coins).toMatch(/vary: 'Cookie'/);
 	});
 });
 

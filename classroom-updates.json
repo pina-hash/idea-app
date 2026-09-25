@@ -13,6 +13,73 @@
 	],
 	"entries": [
 		{
+			"date": "2026-09-25",
+			"title": "Pages scroll again after using IdeaCAD",
+			"body": "After you opened IdeaCAD, the pages you went to next could get stuck: no scrollbar, and the bottom of the page cut off until you refreshed. That is fixed. Pages scroll normally after you leave IdeaCAD, with no refresh needed.",
+			"tags": [
+				"fix",
+				"IdeaCAD",
+				"Everywhere"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Your class page counts every notebook check-in",
+			"body": "When a notebook check-in goes with the day's material, your class page now counts it and shows it on that material's row, so the Missing number on the class page matches My Classes and your to-do. Press Missing to find the material whose check-in still needs filing.",
+			"tags": [
+				"fix",
+				"Classes",
+				"Notebook"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Finished HTML worksheets count as done",
+			"body": "HTML worksheets have no Turn in button. Now, once every answer is filled in and every photo it asks for is added, the worksheet shows Complete and counts as done on your class page, My Classes, your to-do and the home page. If your last change came after the due time it shows Complete, late. You can still change your answers, and if you change one after it has been graded, your teacher sees which answer changed and when.",
+			"tags": [
+				"fix",
+				"Classwork",
+				"worksheets"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Your team shows at the top of the class page",
+			"body": "When your teacher posts teams, your own team appears first on the class page, with its name and everyone on it. You do not need to reload: if the class page is already open, the teams appear within about a minute, or as soon as you come back to the tab. The full list of every team is right below it; press Show to open it.",
+			"tags": [
+				"Classes",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Report is always on screen in the classroom",
+			"body": "The Report button no longer hides inside the Menu when your window is narrow. It sits at the top right of every classroom page, just before your profile picture, at any window size. Press it whenever something looks wrong, right where you are.",
+			"tags": [
+				"Reporting a problem",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Report a problem from an assignment page",
+			"body": "Assignment pages you open from a handout or a QR code now have a Report button in the bottom-left corner. It sends your report to the same place as the button on every other page. If you are signed in the report comes from your account; if you are not, it carries no name, and you can leave a way to be reached if you want an answer.",
+			"tags": [
+				"Reporting a problem",
+				"Everywhere",
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "The report box matches the page you are on",
+			"body": "When you open Report a problem on the FRC pages, the Foundry, Tournaments or the FSP pages, the box now uses that page's own colors instead of the dark IDEA look. On classroom pages it follows your theme, including Space White.",
+			"tags": [
+				"Reporting a problem",
+				"Appearance"
+			]
+		},
+		{
 			"date": "2026-09-23",
 			"title": "A short tour of the classroom",
 			"body": "The first time you open a class, a line under the header offers to show you around. Press Show me around to see where your to-do, class search, Missing, notebook and Search are, or Not now to skip it. You can take the tour any time with the Tour button at the top of a class page (inside Menu on a phone), or by searching for Take the tour.",

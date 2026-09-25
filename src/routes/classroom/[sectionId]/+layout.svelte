@@ -6,6 +6,7 @@
 	import HallPass from '$lib/classroom/HallPass.svelte';
 	import SongQueue from '$lib/classroom/SongQueue.svelte';
 	import ClassTeams from '$lib/classroom/ClassTeams.svelte';
+	import { refreshPostedTeams, teamsManageLink } from '$lib/classroom/class-teams';
 	import LiveDoor from '$lib/classroom/live-class/LiveDoor.svelte';
 	import { liveItemChoices } from '$lib/classroom/live-class/grid';
 	import { createPresenceTransports } from '$lib/classroom/presence/transports';
@@ -435,9 +436,18 @@
 			{/if}
 		</div>
 	{/if}
-	{#if data.teams?.length}
-		<ClassTeams sets={data.teams} />
-	{/if}
+	<!-- Everyone's: the student's own team first, the board closed below it.
+	     `manage` is the teacher's one-line "Teams posted until" strip and its
+	     People link; null for a student removes it. Mounted whether or not
+	     anything is posted (it renders nothing then) so `refresh` can find a
+	     draw posted after this load, which never re-runs inside the class
+	     (ledger 0298, R23). -->
+	<ClassTeams
+		sets={data.teams}
+		manage={data.canManage ? teamsManageLink(data.section.id) : null}
+		today={data.classClock?.today ?? null}
+		refresh={() => refreshPostedTeams(data.supabase, data.section.id)}
+	/>
 	<ClassView
 		section={data.section}
 		{items}

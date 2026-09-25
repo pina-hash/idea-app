@@ -180,6 +180,27 @@ body:has(.fg-root) {
 	background: #0d0c0a;
 }
 
+/* THE REPORT BOX, ON THE FORGE'S PLATE (report 35, 2026-09-25). The report
+   control and its box are mounted once in the ROOT layout, a sibling of
+   `.fg-root`, so the aliases above never reach them and the box opened on the
+   portal's green plate inside the forge. `SiteFeedback.svelte` reads
+   `--fb-room-*` hooks with the site token as fallback; this block declares
+   them on `body`, the ancestor the room and the box share, only while a
+   Foundry page is on screen. HOOK DECLARATIONS ONLY. `body` cannot see the
+   `--fg-*` tokens, so every value is a LITERAL named for its token, already
+   measured in the table at the top of this file (ink, ink-2 and the boundary
+   on surface, bg and surface-2). Green stays the primary action and the heat
+   scale stays out of the box: a report is not work in progress. */
+body:has(.fg-root) {
+	--fb-room-bg: #14110d; /* --fg-surface */
+	--fb-room-bg-deep: #0d0c0a; /* --fg-bg */
+	--fb-room-field: #1b1712; /* --fg-surface-2 */
+	--fb-room-shade: rgba(13, 12, 10, 0.82); /* --fg-bg, as a veil */
+	--fb-room-ink: #ece8e0; /* --fg-ink */
+	--fb-room-ink-muted: #a39d92; /* --fg-ink-2 */
+	--fb-room-edge: #80796d; /* --fg-boundary */
+}
+
 /* --- Typography: the platform's own, with the shell chrome neutralized ----
    Orbitron is the wordmark and the page title only; below that Rajdhani for
    reading and Share Tech Mono for chrome, exactly the classroom's ladder. The

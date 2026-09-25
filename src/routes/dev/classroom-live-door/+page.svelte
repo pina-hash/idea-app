@@ -43,6 +43,8 @@
 		{
 			id: 'set-1',
 			label: 'Lab pairs',
+			posted_at: new Date(now - 3_600_000).toISOString(),
+			visible_until: null,
 			teams: [
 				team('t-1', 1, ['Ana Reyes', 'Ben Okafor', 'Cruz Delgado'], {
 					name: 'Torque Squad',

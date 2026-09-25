@@ -46,7 +46,7 @@
 import type { NotebookFlagReason } from '$lib/notebook';
 import type { ItemDoc } from '$lib/classroom/classroom-doc';
 import type { TiptapNode } from '$lib/rich-text';
-import { streamItems, type ClassroomItem } from '$lib/classroom/classroom';
+import { checkInStanding, streamItems, type ClassroomItem } from '$lib/classroom/classroom';
 import { classNotebookHref } from '$lib/classroom/nav';
 
 // ---------------------------------------------------------------------------
@@ -690,6 +690,57 @@ export function streamCheckIns(checkIns: ClassCheckIn[]): ClassCheckIn[] {
 export function checkInsForItem(checkIns: ClassCheckIn[], itemId: string): ClassCheckIn[] {
 	if (!itemId) return [];
 	return checkIns.filter((c) => c.item_id === itemId);
+}
+
+/**
+ * EVERY ATTACHED CHECK-IN, GROUPED BY THE ITEM IT HANGS OFF (ledger 0298, R14),
+ * for the class LIST: the chip on each item row, and the filter that has to
+ * keep that row when the check-in is what matches. `checkInsForItem` is the
+ * same question asked of one item by the item page; this is it asked once for
+ * a whole list, so a class of forty items does not walk the check-ins forty
+ * times. An unlinked check-in is not in it -- it has its own stream row.
+ */
+export function checkInsByItem(checkIns: readonly ClassCheckIn[]): Map<string, ClassCheckIn[]> {
+	const out = new Map<string, ClassCheckIn[]>();
+	for (const c of checkIns) {
+		if (!c.item_id) continue;
+		const list = out.get(c.item_id);
+		if (list) list.push(c);
+		else out.set(c.item_id, [c]);
+	}
+	return out;
+}
+
+/**
+ * THE CHIP AN ATTACHED CHECK-IN WEARS ON ITS ITEM'S ROW (ledger 0298, R14):
+ * the word, the tone and the two marks, from the SAME status words and tone
+ * as a check-in's own row and from `checkInStanding`, the predicate the to-do
+ * and the counts ask.
+ *
+ * "Check-in: " LEADS THE WORD because the row already carries the item's own
+ * chip, and "Not filed yet" beside "Complete" has to say which of the two
+ * things on the row it is about. A check-in past its day and not filed takes
+ * the `missing` tone, the way the to-do's own row for it does, so the row the
+ * Missing count points to shows why it is there. Null for a check-in with no
+ * status of the viewer's own (every manager).
+ */
+export function attachedCheckInChip(
+	checkIn: ClassCheckIn,
+	today: string,
+	flagLabel?: (reason: ClassCheckIn['flag_reason']) => string | null
+): { label: string; tone: 'good' | 'attention' | 'muted' | 'info' | 'missing'; missing: boolean; done: boolean } | null {
+	if (!checkIn.status) return null;
+	const standing = checkInStanding(checkIn, today);
+	const word =
+		checkIn.status === 'flagged'
+			? (flagLabel?.(checkIn.flag_reason) ?? checkInStatusLabel(checkIn.status))
+			: checkInStatusLabel(checkIn.status);
+	return {
+		label: `Check-in: ${word}`,
+		tone: standing === 'missing' ? 'missing' : checkInTone(checkIn.status),
+		missing: standing === 'missing',
+		done: standing === 'done'
+	};
 }
 
 /** "Unit 3 · Oct 14" -- the check-in card's own meta line. */

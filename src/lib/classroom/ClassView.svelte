@@ -71,6 +71,8 @@
 		checkInTone,
 		streamCheckIns,
 		mergeCheckIns,
+		checkInsByItem,
+		attachedCheckInChip,
 		type ClassCheckIn
 	} from '$lib/classroom/class-check-ins';
 	import { flagReasonLabel } from '$lib/notebook';
@@ -418,12 +420,19 @@
 	let searchEl = $state<HTMLInputElement | null>(null);
 	const filtering = $derived(streamFilterActive(filter));
 	const unitNames = $derived(new Map(units.map((u) => [u.id, u.name])));
+	/**
+	 * THE CHECK-INS HANGING OFF EACH ITEM (0120), which have no row of their own
+	 * here: each is drawn as a chip on its item, and the filter keeps that item
+	 * when the check-in is what matches (ledger 0298, R14).
+	 */
+	const attachedByItem = $derived(checkInsByItem(checkIns));
 	const filterCtx = $derived({
 		work,
 		now: clock?.now ?? '',
 		today: clock?.today ?? '',
 		unitNames,
-		matches: matchesQuery
+		matches: matchesQuery,
+		attached: attachedByItem
 	});
 	const listedCheckIns = $derived(streamCheckIns(checkIns));
 	const shownItems = $derived(filtering ? items.filter((i) => itemPassesFilter(i, filter, filterCtx)) : items);
@@ -462,14 +471,24 @@
 	/** The kinds this class actually holds; a select with one real choice is not offered. */
 	const kindOptions = $derived.by((): StreamKindFilter[] => {
 		const present = new Set<StreamKindFilter>(items.map((i) => i.kind));
-		if (listedCheckIns.length) present.add('check-in');
+		// An attached check-in is a check-in on this page too, drawn on its item.
+		if (listedCheckIns.length || attachedByItem.size) present.add('check-in');
 		const order: StreamKindFilter[] = ['assignment', 'material', 'post', 'check-in'];
 		const kinds = order.filter((k) => present.has(k));
 		return kinds.length > 1 ? ['all', ...kinds] : [];
 	});
-	/** A student's own standing, counted over everything loaded, for the chips. */
+	/**
+	 * A student's own standing, counted over everything loaded, for the chips.
+	 *
+	 * EVERY CHECK-IN, NOT ONLY THE ONES WITH A ROW OF THEIR OWN (ledger 0298,
+	 * R14). This read `listedCheckIns`, which drops every check-in hanging off an
+	 * item, so a past-day check-in on the day's material counted "1 missing" on
+	 * My Classes, the home page and the to-do and 0 here. The to-do lists every
+	 * one, and this is now the same set -- each attached one visible as the chip
+	 * on its item, which is the row the Missing filter keeps for it.
+	 */
 	const counts = $derived(
-		clock ? standingCounts(items, listedCheckIns, filterCtx) : { todo: 0, missing: 0, done: 0 }
+		clock ? standingCounts(items, checkIns, filterCtx) : { todo: 0, missing: 0, done: 0 }
 	);
 	const draftCount = $derived(canManage ? items.filter((i) => !i.published).length : 0);
 	/**
@@ -625,10 +644,13 @@
 	 * dressed up as a link. On a class with no units at all this is the whole
 	 * view, which is exactly the merged list the Stream used to be.
 	 *
-	 * A CHECK-IN ATTACHED TO AN ITEM (0120) IS NOT HERE AT ALL. It renders on
-	 * that item, in whatever unit the item is filed under, and `mergeCheckIns`
-	 * drops it -- so this list never has to know the rule, and no group can grow
-	 * a second row for something already on the page.
+	 * A CHECK-IN ATTACHED TO AN ITEM (0120) HAS NO ROW HERE. It is drawn as a
+	 * chip on that item's row (`attachedCheckInChip`, ledger 0298), in whatever
+	 * unit the item is filed under, and `mergeCheckIns` drops it -- so this list
+	 * never has to know the rule, and no group can grow a second row for
+	 * something already on the page. This comment used to say it "renders on
+	 * that item", which was true only of the ITEM PAGE: the list drew nothing
+	 * for it at all, while every count elsewhere counted it.
 	 */
 	function entriesFor(groupId: string, groupItems: ClassroomItem[]) {
 		return groupId === UNFILED_GROUP_ID
@@ -1312,9 +1334,11 @@
 {#snippet itemRow(item: ClassroomItem, groupItems: ClassroomItem[], groupId: string)}
 	<!--
 		A STUDENT ALWAYS SEES WHERE THEY STAND ON AN ASSIGNMENT, including when
-		that is "nothing yet": no submission row is exactly what not-started means
-		(0086 creates the row on the first save), and rendering nothing would leave
-		the one state a student most needs to notice as the only silent one.
+		that is "nothing yet": no submission row is what not-started means for
+		everything a row can say (saving an answer creates none; a file, a grade
+		or a submit does, and a finished ported worksheet arrives from the loader
+		as a row carrying `completed_at`), and rendering nothing would leave the
+		one state a student most needs to notice as the only silent one.
 		Managers get no chip at all -- `work` is empty for them by construction,
 		because they have no personal standing on their own assignment.
 	-->
@@ -1442,6 +1466,30 @@
 								{/if}
 								{chip.label}
 							</span>
+						{/if}
+						{#if !canManage && clock}
+							<!-- THE CHECK-IN THIS ITEM CARRIES (0120), ON ITS ROW (ledger 0298,
+							     R14): the one place the class list draws it, so the row the
+							     Missing count points to says why it is there. The words and
+							     tone are the check-in's own; "Check-in:" says which of the
+							     two chips on the row it is. -->
+							{#each attachedByItem.get(item.id) ?? [] as ci (`${ci.session_id}:${ci.section_id}`)}
+								{@const cchip = attachedCheckInChip(ci, clock.today, flagReasonLabel)}
+								{#if cchip}
+									<span
+										class="chip work-chip tone-{cchip.tone}"
+										data-testid="item-check-in-status"
+										data-missing={cchip.missing ? 'true' : undefined}
+									>
+										{#if cchip.missing}
+											<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>
+										{:else if cchip.done}
+											<svg class="chip-mark" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.done} /></svg>
+										{/if}
+										{cchip.label}
+									</span>
+								{/if}
+							{/each}
 						{/if}
 						{@render badges(item)}
 						{#if exportFailed(exportStatusFor(item.id))}

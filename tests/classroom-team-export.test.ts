@@ -308,18 +308,63 @@ describe('a posting end built from a number of days', () => {
 		expect(teamWindowEnd(NOW, -3)).toBeNull();
 	});
 
-	test('one day lands at the END of that day, not at the same clock time tomorrow', () => {
-		const end = teamWindowEnd(NOW, 1)!;
-		const d = new Date(end);
-		// "post these for a day" means through tomorrow, which is the whole
-		// reason this is not `now + 24h`.
-		expect(d.getHours()).toBe(23);
-		expect(d.getMinutes()).toBe(59);
-		expect(d.getTime()).toBeGreaterThan(NOW);
+	/*
+	 * "TODAY" ENDS AT THE END OF TODAY, IN LOS ANGELES (ledger 0298, R23). It
+	 * used to add a day and set 23:59 on the RUNTIME's clock, so the People
+	 * tab's "today" option ran through the end of TOMORROW in the browser's
+	 * zone. 8pm Pacific on 2026-09-27 (2026-09-28T03:00:00Z) is the instrument:
+	 * the school's day is the 27th while UTC's is already the 28th, so a clock
+	 * reading the wrong calendar lands a day out. The expected instants are
+	 * written by hand from the offsets (PDT is UTC-7, PST UTC-8), never produced
+	 * by the code under test.
+	 */
+	const EIGHT_PM_PACIFIC = Date.parse('2026-09-28T03:00:00.000Z');
+
+	test('today, at 8pm Pacific, ends at 11:59:59 PM Pacific the same evening', () => {
+		expect(teamWindowEnd(EIGHT_PM_PACIFIC, 1)).toBe('2026-09-28T06:59:59.999Z');
+	});
+
+	test('the answer does not move with the zone the code runs in', () => {
+		const saved = process.env.TZ;
+		try {
+			// The local hour at the pinned instant in each zone: the positive control
+			// that switching the zone really moved the runtime's clock, so the
+			// assertion beside it cannot pass by never leaving one zone.
+			const localHour: Record<string, number> = {
+				UTC: 3,
+				'America/New_York': 23,
+				'Pacific/Auckland': 16,
+				'America/Los_Angeles': 20
+			};
+			for (const [tz, hour] of Object.entries(localHour)) {
+				process.env.TZ = tz;
+				expect(new Date(EIGHT_PM_PACIFIC).getHours(), `${tz} local hour`).toBe(hour);
+				expect(teamWindowEnd(EIGHT_PM_PACIFIC, 1), tz).toBe('2026-09-28T06:59:59.999Z');
+			}
+		} finally {
+			if (saved === undefined) delete process.env.TZ;
+			else process.env.TZ = saved;
+		}
+	});
+
+	test('thirty seconds before midnight, today is still today and still ahead', () => {
+		const late = Date.parse('2026-09-28T06:59:30.000Z');
+		expect(teamWindowEnd(late, 1)).toBe('2026-09-28T06:59:59.999Z');
+		expect(Date.parse(teamWindowEnd(late, 1)!)).toBeGreaterThan(late);
+	});
+
+	test('five days posted on a Monday morning runs through Friday night', () => {
+		// 8am Pacific, Monday 2026-09-28.
+		expect(teamWindowEnd(Date.parse('2026-09-28T15:00:00.000Z'), 5)).toBe('2026-10-03T06:59:59.999Z');
+	});
+
+	test('a window that crosses the November clock change ends on standard time', () => {
+		// 8am Pacific, Thursday 2026-10-29 (PDT); five days ends Monday 2026-11-02 (PST).
+		expect(teamWindowEnd(Date.parse('2026-10-29T15:00:00.000Z'), 5)).toBe('2026-11-03T07:59:59.999Z');
 	});
 
 	test('the end always sits after the start, which is what 0223 CHECKs', () => {
-		for (const days of [1, 2, 5, 7, 30]) {
+		for (const days of [1, 2, 5, 7, 14, 30]) {
 			expect(Date.parse(teamWindowEnd(NOW, days)!)).toBeGreaterThan(NOW);
 		}
 	});

@@ -1034,7 +1034,17 @@ rule Foundry states as "preflight passing is not submission".
   EDITOR IS STILL NOT.** `ClassTeams.svelte` (over `$lib/classroom/class-teams.ts`)
   is mounted from `src/routes/classroom/[sectionId]/+layout.svelte`: it renders
   only a set `_classroom_team_set_visible` answers for, names only (never an
-  address), the viewer's own team marked, closed by default. A student editing
+  address). Since ledger 0298 every own-team card comes FIRST and open
+  (`ownTeams`), the whole draw sits closed below it, and a teacher gets one
+  line saying until when, linking to People (`postedTeamsNotice`,
+  `teamsManageLink`). "Today" on the post control ends at the end of today in
+  Los Angeles (`teamWindowEnd` over `schoolDayEnd`), never the browser's
+  tomorrow. **The section layout's load never re-runs on a navigation inside
+  the class**, so a draw posted after a page opened reached nobody who had it
+  open, the teacher pressing Class straight after People included; so
+  `ClassTeams` is mounted whether or not anything is posted and re-reads
+  through `refreshPostedTeams` every `CLASS_TEAMS_POLL_MS` and on focus, and
+  People's post, take-down and retire call `onchanged`. A student editing
   their team's banner has the membership-gated write waiting and no control
   yet, so no `classroom-updates.json` entry may claim students can style a
   team.
@@ -1279,6 +1289,46 @@ the to-do page, the home feed's overdue case and every count ask it. A second
 spelling of "past due and nothing turned in" is how a row reads "Not started"
 while the Missing filter lists it, which is exactly what shipped before it.
 Undated work is never Missing and never counted; it is listed last.
+
+- **ONE PREDICATE IS NOT ENOUGH: ITS INPUTS ARE ONE SET TOO, AND UNTIL LEDGER
+  0298 THEY WERE NOT.** This section said the surfaces "cannot disagree" because
+  they asked one function, while the class page handed it only the check-ins
+  with a stream row of their own and the to-do handed it all of them; a
+  check-in attached to an item (0120) read "1 missing" on My Classes and the
+  to-do and 0 on the class page, with nothing there to show for it. Every
+  surface now hands in EVERY check-in: the class page draws an attached one as
+  a chip on its item (`attachedCheckInChip`, grouped once by `checkInsByItem`)
+  and its filter keeps that item when the check-in is what matches.
+- **A FINISHED PORTED WORKSHEET IS DONE, AND THAT IS A DERIVED INPUT, NEVER A
+  STATE (decision 37).** A schema-3 document has no turn-in, so every one read
+  Missing from its due instant until a grade was returned. `hxCompletion` in
+  `$lib/classroom/html-assignment/progress.ts` is the progress rail reaching
+  100% (never `hxIncompleteBlocks` alone, which passes an empty worksheet whose
+  manifest asks for no sentences), and `readWorksheetCompletions` reads it from
+  the caller's own answers and photos -- paged, because PostgREST truncates at
+  1000 rows without an error -- for the home page, My Classes, the to-do and the
+  class page alike. Its answer rides on the submission rows as a derived
+  completed_at (`withWorksheetCompletions`), so `assignmentStanding`, the chip
+  ("Complete", or "Complete, late" in a word and a tone), the filters and
+  `isAwaitingGrade` all read it with no new parameter anywhere.
+  **Saving an answer creates no submission row** (only a file, a grade, a submit
+  or a close does), so a finished worksheet with none gets a derived draft row.
+  **The state is never moved to `submitted`**: that locks saves (0197). A read
+  that cannot answer changes nothing.
+  - **THE READ IS PINNED TO THE CALLER'S OWN ADDRESS, ALWAYS, AND THE TEACHER'S
+    HOME TALLY DOES NOT GET ONE.** `classroom_responses` is policed per row
+    (own address, or `classroom_can_review_submission`), so an answers read
+    with no `student_email` filter visits every classmate's answer to refuse
+    it: measured on the test cluster, one 60-block worksheet in four classes of
+    30 cost 8.1 to 8.8 seconds per count as a student unpinned and 2 to 3ms
+    pinned, and 3.6 to 3.9 seconds as an admin reading everybody's. So
+    `loadClassroomWork` reads only the classes the caller takes
+    (`worksheetCandidates`), with `onlyEmail`, and the
+    grading console's roster, which already holds its one item's answers, is
+    the teacher surface that says Complete. The home tally counting a finished
+    worksheet waits for a definer function answering per item (decision 37's
+    migration half); `isAwaitingGrade` already counts one the moment a row
+    carries `completed_at`.
 
 - **OWED WORK IS ONE READ.** `loadClassroomWork` in
   `$lib/classroom/student-work.ts` is the home page's, the classroom index's and
@@ -3695,7 +3745,10 @@ inside the function fails closed rather than falling through to a weaker path.
     the floating Report and Voice pills won hit tests over row controls, People's
     Remove and the grading dock, so `ClassroomShell` docks both (`VoiceNav` at
     `place="header"`), and a `/dev` harness that mounts the real shell is listed
-    in `CLASSROOM_SHELL_HARNESSES` so it measures the production arrangement. A
+    in `CLASSROOM_SHELL_HARNESSES` so it measures the production arrangement.
+    **Report has its own header slot and never folds into the Menu** (report 30:
+    folded below 1180px, it read as missing); on a phone it stacks its word under
+    its glyph so a class icon still fits. A
     category with nowhere to relocate to is an exclusion that deleted the control.
   - **CONTEXT IS CAPTURED, NEVER TYPED**, through `captureMeta`: route id, path,
     role, section, viewport, clock time, and the build. A field somebody has to
@@ -4988,10 +5041,18 @@ served STRING, never to the source file on disk.
   IMPORTED -- the kind list, the caps, the refusal wording, `describeBuild` --
   and the row lands in `app_feedback` through the same two endpoints as every
   other surface. **`$lib/server/legacy-feedback-post.ts` is the one signed-in
-  handler**, called by `/api/vanguard-feedback` and `/api/coin-feedback`, which
-  differ by one `app` string; the ANONYMOUS endpoint is taken from the shared
-  constant and no caller can override it, so a signed-out report cannot be
-  pointed anywhere but `/api/feedback`.
+  handler**, called by `/api/vanguard-feedback`, `/api/coin-feedback` and
+  `/api/assignment-feedback`, which differ by one `app` string; the ANONYMOUS
+  endpoint is taken from the shared constant and no caller can override it, so a
+  signed-out report cannot be pointed anywhere but `/api/feedback`.
+  - **A LEGACY PAGE IN A SHARED CACHE ASKS FOR THE SESSION; IT IS NEVER TOLD
+    (report 20).** The Ledger bakes `signedIn` into its bytes and pays with
+    `Vary: Cookie`. `/assignments/<slug>` is one public cache entry for a whole
+    class and must not vary, so its panel (`injectLegacyReportPanel` with
+    `ASSIGNMENT_REPORT_OPTIONS`) asks `GET /api/assignment-feedback`
+    (`private, no-store`) when the box OPENS, and sends nothing until it knows.
+    `tests/feedback-coverage.test.ts` sweeps every non-dev `+server.ts` that can
+    answer with HTML and requires a control or a named exemption with a reason.
 - **VANGUARD'S OWN INJECTED PANEL PREDATES THAT MODULE AND IS A MIGRATION
   CANDIDATE, NOT A SECOND SANCTIONED PATTERN** (the standing the hand-rolled
   disclosures have). It is woven into the GAME -- it wears `.fbovl` so the
@@ -5281,7 +5342,11 @@ audit finds and a change review never does. Written as a hook the
 shell renders byte-identically and the room points the name at the corrected
 value it already has (`--nb-accent-ink`, `--nb-error`) -- and the hook is
 declared ON THE ROOM'S OWN WRAPPER, never on the component, or it sits on a
-descendant and beats the room. **MEASURE WHEN A SHARED COMPONENT ENTERS A NEW
+descendant and beats the room. **The one exception is a component mounted as the
+room's SIBLING**, which no wrapper declaration can reach: the root-mounted report
+box reads `--fb-room-bg` and its siblings (`SiteFeedback.svelte` lists them), and
+each out-of-scope room declares them on `body:has(.<room>)` in its own
+stylesheet, as literals (report 35). **MEASURE WHEN A SHARED COMPONENT ENTERS A NEW
 ROOM**; both of those had passed review in the room they were written for.
 
 **AND THE SAME ARITHMETIC BINDS A TOKEN MOVE, IN THE OTHER DIRECTION: A PORTAL
@@ -5552,6 +5617,12 @@ has. `ultracode` is a Claude Code setting and is never written into a Codex prom
 - **Only one Claude Code session per working directory, ever.** Use a git
   worktree for a parallel lane -- two sessions in one directory share a working
   tree, and each will commit the other's half-finished edits.
+- **FEEDBACK BECOMES WORK THROUGH A ROUND, AND A ROUND BUILDS NOTHING.** An uploaded
+  feedback-console export is triaged by `.claude/skills/feedback-round/SKILL.md` into
+  a dated folder under `docs/feedback/`: a grounded triage, decisions in `docs/decisions/`, a queue, and
+  the next session's prompt. **The export is a student record and this repository is
+  public**, so the only committed report text is what `tools/feedback_triage_md.py` renders,
+  and it refuses while any reporter identity from `tools/feedback_digest.py` appears in it.
 - **Commit and push every session.** Do not leave work uncommitted -- merged to
   `main` where the work is single-item, or landed on its `lane/` branch with
   the branch's status reported.

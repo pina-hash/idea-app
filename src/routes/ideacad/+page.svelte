@@ -65,6 +65,9 @@
 
 <style>
 	.direct-frame { position: fixed; inset: 0; z-index: 50; }
-	.launch-main { min-height: 100vh; background: #0e1114; }
+	/* app.css gives every main a reading column; this one owns the window. It
+	   used to come from the route layout's `:global(main)`, which outlived the
+	   route (ledger 0298). */
+	.launch-main { min-height: 100vh; background: #0e1114; max-width: none; margin: 0; padding: 0; }
 	.launch-main[hidden] { display: none; }
 </style>

@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "grading-files-source-broken.mjs",
+	"date": "2026-09-25T06:44:17.465Z",
+	"sha": "2070af0ab44be4a308dbdd2e045bf3200d45c9b2",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 22,
+	"outsideRows": [],
+	"ms": 13453
+}

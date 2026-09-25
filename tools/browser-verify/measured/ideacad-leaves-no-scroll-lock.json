@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "ideacad-leaves-no-scroll-lock.mjs",
+	"date": "2026-09-25T05:38:10.219Z",
+	"sha": "fe8c491b700d165b689b990e67af00cd5f357ffc",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 12,
+	"outsideRows": [],
+	"ms": 14737
+}
