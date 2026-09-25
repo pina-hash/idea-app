@@ -86,7 +86,10 @@ const CLASS_LIST_STEP: ClassroomTourStep = {
 		{
 			target: tid('nav-collapse-toggle'),
 			title: 'Class list',
-			body: 'Hide class list gives this page the whole width, and Show class list brings it back. Worksheets and assignments open with it hidden.'
+			/* Not "assignments": only the ones answered on the page (a ported HTML
+			   worksheet or a spec assignment, `navCollapseWorkSurface`) open with it
+			   hidden, and a plain hand-in assignment opens with it shown. */
+			body: 'Hide class list gives this page the whole width, and Show class list brings it back. Worksheets and assignments you fill in on the page open with it hidden.'
 		}
 	]
 };
