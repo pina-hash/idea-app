@@ -304,7 +304,9 @@
 	 * ranked list to answer; an interim one simply waits for more.
 	 */
 	function voiceHeard(text: string, final: boolean) {
-		const match = matchSpoken(text, entries);
+		/* A PARTIAL waits while a longer name still begins with it ("Lab 3" while
+		   "Lab 3 report" is listed); the final result settles it. */
+		const match = matchSpoken(text, entries, { partial: !final });
 		if (match.kind === 'stop') {
 			endVoice();
 			voiceNote = 'Stopped listening.';

@@ -4113,7 +4113,9 @@ inside the function fails closed rather than falling through to a weaker path.
   `matchSpoken` in `$lib/voice/commands.ts` is the one matcher -- EXACT, so a
   near-miss or a tie acts on nothing and the words stay in the field for the
   ranked list, and an interim result acts only after `VOICE_INTERIM_STABLE_MS`
-  of stillness. A second vocabulary or a floating Voice pill is the thing not
+  of stillness AND only while no other listed name begins with it (a pause
+  between "Lab 3" and "report" must not open "Lab 3"; the final result
+  settles it). A second vocabulary or a floating Voice pill is the thing not
   to rebuild. A console's keys are
   registered by IMPORTING its table (`GRADE_KEYS` from
   `$lib/classroom/grading-keys.ts`, `REVIEW_KEYS`), never by retyping them, so

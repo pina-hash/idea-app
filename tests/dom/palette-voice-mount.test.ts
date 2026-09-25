@@ -109,8 +109,8 @@ const mounted: Mounted[] = [];
 const click = (el: Element) => el.dispatchEvent(new Event('click', { bubbles: true }));
 
 /** Mount, open with Ctrl+K from the page, and hand back the mount. */
-function openPalette(recognizer: SpeechRecognitionCtor | null | undefined = FakeCtor): Mounted {
-	const m = mountInto(Palette, { sources: SOURCES, env: ENV, recognizer });
+function openPalette(recognizer: SpeechRecognitionCtor | null | undefined = FakeCtor, sources: PaletteSources = SOURCES): Mounted {
+	const m = mountInto(Palette, { sources, env: ENV, recognizer });
 	mounted.push(m);
 	document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true, cancelable: true }));
 	m.flush();
@@ -237,6 +237,25 @@ describe('an interim result acts only once it has held still', () => {
 		expect(gotos()).toEqual([]);
 		expect(rec.calls).toEqual(['start']);
 		expect(input(m).value).toBe('grades for block');
+	});
+
+	it('a stable partial that a longer name begins with waits for the final result, which then acts', async () => {
+		vi.useFakeTimers();
+		const REPORT = { ...ITEM, id: 'i-2', title: 'Truss bridge build report' } as unknown as ClassroomItem;
+		const m = openPalette(FakeCtor, { ...SOURCES, items: [ITEM, REPORT] });
+		const rec = speak(m);
+		// The speaker draws breath after "build"; the partial holds far past the window.
+		rec.hearing('truss bridge build');
+		m.flush();
+		await vi.advanceTimersByTimeAsync(VOICE_INTERIM_STABLE_MS * 4);
+		expect(gotos()).toEqual([]);
+		expect(rec.calls).toEqual(['start']);
+		// The service then says the sentence is over, and the exact row opens.
+		rec.say('truss bridge build');
+		await vi.advanceTimersByTimeAsync(0);
+		m.flush();
+		expect(gotos()).toEqual(['/classroom/s-1/item/i-1']);
+		expect(rec.calls).toContain('abort');
 	});
 });
 

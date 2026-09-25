@@ -138,6 +138,41 @@ describe('exact, and only exact', () => {
 	});
 });
 
+/**
+ * A PARTIAL RESULT IS WHAT WAS HEARD SO FAR (ledger 0298 review). "Lab 3" held
+ * still while the speaker draws breath before "report" must not open "Lab 3";
+ * the final result must. Both directions, and a partial with nothing that could
+ * grow out of it still acts at once -- which is the whole point of acting on a
+ * partial at all.
+ */
+describe('a partial result waits while a longer name still begins with it', () => {
+	const labs = [
+		{ key: 'item:lab3', name: 'Lab 3' },
+		{ key: 'item:lab3r', name: 'Lab 3 report' },
+		{ key: 'item:quiz', name: 'Quiz' }
+	];
+	it('a partial that a longer name begins with acts on nothing, and names both', () => {
+		const m = matchSpoken('lab 3', labs, { partial: true });
+		expect(m.kind).toBe('many');
+		if (m.kind === 'many') expect(m.entries.map((e) => e.key)).toEqual(['item:lab3', 'item:lab3r']);
+		// Through a stripped verb too: "open lab 3" is still the start of "Lab 3 report".
+		expect(matchSpoken('open lab 3', labs, { partial: true }).kind).toBe('many');
+	});
+	it('the FINAL result for the same words acts on the exact row', () => {
+		const m = matchSpoken('lab 3', labs);
+		expect(m.kind === 'one' ? m.entry.key : m.kind).toBe('item:lab3');
+	});
+	it('POSITIVE CONTROL: a partial nothing longer begins with acts at once', () => {
+		const q = matchSpoken('quiz', labs, { partial: true });
+		expect(q.kind === 'one' ? q.entry.key : q.kind).toBe('item:quiz');
+		const r = matchSpoken('lab 3 report', labs, { partial: true });
+		expect(r.kind === 'one' ? r.entry.key : r.kind).toBe('item:lab3r');
+		// A word that merely starts the same letters is not a longer NAME: "Lab 30" does not hold up "Lab 3".
+		const thirty = matchSpoken('lab 3', [labs[0], { key: 'item:lab30', name: 'Lab 30' }], { partial: true });
+		expect(thirty.kind === 'one' ? thirty.entry.key : thirty.kind).toBe('item:lab3');
+	});
+});
+
 describe('the vocabulary is the palette\'s, so it is gated by the palette\'s role filter', () => {
 	it('a student saying a manager\'s action acts on nothing; a manager saying it acts', () => {
 		for (const said of ['grades', 'people', 'live class', 'new post']) {

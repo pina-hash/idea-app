@@ -148,19 +148,41 @@ export type VoiceMatch<E extends SpeakableEntry = SpeakableEntry> =
  * spoken form of every row's name; one row is a match, two or more is a list to
  * choose from, none is a search. Rows are de-duplicated by key, so an entry the
  * palette lists once is counted once however many of its forms matched.
+ *
+ * A PARTIAL RESULT IS STILL A LIST WHILE ANOTHER NAME BEGINS WITH IT
+ * (`partial: true`, ledger 0298 review). An interim result is what the service
+ * has heard SO FAR, and a person drawing breath between "Lab 3" and "report"
+ * holds it still for well over `VOICE_INTERIM_STABLE_MS` -- so where a class
+ * lists both "Lab 3" and "Lab 3 report", acting on the exact match to what was
+ * heard so far opens the item they were not asking for, with nothing on screen
+ * saying so. Such a partial answers `many` (the exact row plus every row that
+ * could still grow out of it), which acts on nothing, and the FINAL result a
+ * moment later settles it exactly as before. A final result is never treated
+ * this way: once the service says the sentence is over, "Lab 3" means "Lab 3".
  */
-export function matchSpoken<E extends SpeakableEntry>(raw: string, entries: readonly E[]): VoiceMatch<E> {
+export function matchSpoken<E extends SpeakableEntry>(
+	raw: string,
+	entries: readonly E[],
+	options: { partial?: boolean } = {}
+): VoiceMatch<E> {
 	const forms = spokenForms(raw);
 	const heard = utteranceKey(raw);
 	if (!forms.length) return { kind: 'none', heard };
 	if (forms.some((f) => (VOICE_STOP_PHRASES as readonly string[]).includes(f))) return { kind: 'stop', heard };
 	const found = new Map<string, E>();
+	const growing = new Map<string, E>();
 	for (const entry of entries) {
 		if (found.has(entry.key)) continue;
 		const names = spokenForms(entry.name);
 		if (names.some((n) => forms.includes(n))) found.set(entry.key, entry);
+		else if (options.partial && names.some((n) => forms.some((f) => n.startsWith(f + ' '))))
+			growing.set(entry.key, entry);
 	}
 	const hits = [...found.values()];
+	if (hits.length === 1 && options.partial) {
+		const more = [...growing.values()].filter((e) => !found.has(e.key));
+		if (more.length) return { kind: 'many', entries: [...hits, ...more], heard };
+	}
 	if (hits.length === 1) return { kind: 'one', entry: hits[0], heard };
 	if (hits.length > 1) return { kind: 'many', entries: hits, heard };
 	return { kind: 'none', heard };
