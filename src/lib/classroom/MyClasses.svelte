@@ -362,7 +362,7 @@
 		text-decoration: none;
 	}
 	.todo-link:hover {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 	}
 	.todo-link > svg {
 		width: 18px;

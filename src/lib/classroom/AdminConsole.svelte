@@ -379,7 +379,7 @@
 		font-size: 0.95rem;
 	}
 	.section-link:hover .section-name {
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	.section-jump {
 		margin-left: auto;
