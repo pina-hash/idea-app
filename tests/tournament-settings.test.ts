@@ -316,8 +316,10 @@ describe('one form, mounted by both routes', () => {
 		// live in the component alone.
 		const form = read('src/lib/tournaments/TournamentSettingsForm.svelte');
 		// The draft follows a co-host's write through the pure rebase above,
-		// not a second rule written inline in the component.
-		expect(form).toMatch(/draft = rebaseDraft\(base, draft, next\)/);
+		// and a lock that arrives mid-edit through effectiveDraft, not a second
+		// rule written inline in the component.
+		expect(form).toMatch(/d = rebaseDraft\(base, d, next\)/);
+		expect(form).toMatch(/effectiveDraft\(next, d, held\)/);
 		for (const field of ['quals_enabled', 'score_entry', 'best_of_default', 'team_size', 'grand_final']) {
 			expect(form, field).toContain(`data-field="${field}"`);
 			expect(created, field).not.toContain(`data-field="${field}"`);

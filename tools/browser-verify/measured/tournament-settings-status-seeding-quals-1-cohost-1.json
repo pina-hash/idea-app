@@ -1,6 +1,6 @@
 {
 	"schema": 1,
-	"spec": "tournament-settings-status-live.mjs",
+	"spec": "tournament-settings-status-seeding-quals-1-cohost-1.mjs",
 	"date": "2026-09-25T09:01:38.264Z",
 	"sha": "fccb8f48598533325279ed247b834ca1f34a70df",
 	"dirty": true,
@@ -9,7 +9,7 @@
 		1440
 	],
 	"runs": 2,
-	"measurements": 50,
+	"measurements": 20,
 	"outsideRows": [],
 	"ms": 5670
 }

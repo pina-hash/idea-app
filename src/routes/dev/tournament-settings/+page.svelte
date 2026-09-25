@@ -18,10 +18,13 @@
 	 *   &team=N                            the largest roster registered (the team-size floor)
 	 *   &overrides=1                       the stored config carries per-round overrides
 	 *   &refuse=host|team|<text>           the stand-in refuses every call, verbatim
+	 *   &quals=1                           qualifying on in the stored config with no pools yet
 	 *   &cohost=1                          a button that plays a co-host's rename arriving
 	 *                                      the way the host console's refetch delivers it
 	 *                                      (a whole new row object), so the draft's
-	 *                                      field-by-field carry-over can be driven
+	 *                                      field-by-field carry-over can be driven, and
+	 *                                      one that plays a co-host drawing pools (the
+	 *                                      qualifying lock arriving mid-edit)
 	 */
 	import { page } from '$app/state';
 	import TournamentSettingsForm from '$lib/tournaments/TournamentSettingsForm.svelte';
@@ -44,7 +47,9 @@
 	const status: TournamentStatus = STATUSES.includes(q.get('status') as TournamentStatus)
 		? (q.get('status') as TournamentStatus)
 		: 'draft';
-	const pools = int(q.get('pools'));
+	const initialPools = int(q.get('pools'));
+	// $state so the co-host control can draw pools mid-edit.
+	let pools = $state(initialPools);
 	const results = int(q.get('results'));
 	const team = int(q.get('team'));
 	const overrides = q.get('overrides') === '1';
@@ -63,7 +68,7 @@
 		name: 'Spring Rocket League Cup',
 		description: 'Two-on-two, best of three. Bring a controller.',
 		config: {
-			quals_enabled: pools > 0,
+			quals_enabled: initialPools > 0 || q.get('quals') === '1',
 			score_entry: true,
 			best_of_default: 3,
 			best_of: {
@@ -93,6 +98,13 @@
 			name: 'Spring Rocket League Cup (renamed by a co-host)',
 			config: { ...stored.config }
 		};
+	}
+
+	/** A co-host drawing qualifying pools: the refetch brings a pool count
+	 * and the same stored row again, as a new object. */
+	function cohostDrawPools() {
+		pools = 2;
+		stored = { ...stored, config: { ...stored.config } };
 	}
 
 	/** The stand-in for 0192's `tournament_update`: the format lock and the
@@ -186,6 +198,12 @@
 					class="btn secondary"
 					data-action="harness-cohost-rename"
 					onclick={cohostRename}>Co-host renames the event</button
+				>
+				<button
+					type="button"
+					class="btn secondary"
+					data-action="harness-cohost-pools"
+					onclick={cohostDrawPools}>Co-host draws qualifying pools</button
 				>
 			</section>
 		{/if}

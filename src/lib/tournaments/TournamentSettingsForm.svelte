@@ -29,6 +29,7 @@
 		bestOfChoices,
 		draftFromStored,
 		draftSignature,
+		effectiveDraft,
 		hiddenRoundOverrides,
 		OPEN_LOCKS,
 		rebaseDraft,
@@ -82,10 +83,20 @@
 	$effect(() => {
 		const next = stored;
 		const sig = storedSig;
+		const held = locks;
 		untrack(() => {
-			if (sig === draftSignature(base)) return;
-			draft = rebaseDraft(base, draft, next);
-			base = next;
+			let d = draft;
+			if (sig !== draftSignature(base)) {
+				d = rebaseDraft(base, d, next);
+				base = next;
+			}
+			// A lock that arrives while its field holds an edit (a co-host drew
+			// pools, recorded a qualifying result, or generated the bracket)
+			// puts that field back on the stored value: a disabled control must
+			// never show a value the save would not send.
+			const kept = effectiveDraft(next, d, held);
+			if (draftSignature(kept) !== draftSignature(d)) d = kept;
+			if (d !== draft) draft = d;
 		});
 	});
 
