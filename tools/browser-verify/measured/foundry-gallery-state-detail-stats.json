@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "foundry-gallery-state-detail-stats.mjs",
-	"date": "2026-09-25T05:41:37.730Z",
-	"sha": "20426fe5e2d5a6aa7db28fbf7bd6ede535d718d9",
+	"date": "2026-09-25T06:34:41.500Z",
+	"sha": "1ac087332afd0135ef7bded2f173f083f5436a09",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 52,
 	"outsideRows": [],
-	"ms": 6269
+	"ms": 5898
 }

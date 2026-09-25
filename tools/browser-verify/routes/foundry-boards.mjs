@@ -31,7 +31,7 @@ export const FIGURES = `() => [...document.querySelectorAll('.fdy-gal-mosaic [da
 
 	ACROSS: a balanced multicol minimises height, not spread, so nine cards of
 	one shape where four columns fit filled three and left the fourth EMPTY --
-	measured at 1152px before `foundryMosaicFill`, a 252px strip of nothing
+	measured at 1152px before `foundryMosaicFill`, a 254.5px strip of nothing
 	beside the list. So the strip between the last card's right edge and the
 	list's own right edge is read too, and must be under a pixel.
 
