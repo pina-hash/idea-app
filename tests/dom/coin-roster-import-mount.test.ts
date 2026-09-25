@@ -245,3 +245,51 @@ describe('Import from class roster: what reaches the assign RPC', () => {
 		expect(mounted.target.textContent).toContain('changed since that count was worked out');
 	});
 });
+
+describe('Import from class roster: the words do not claim what the plan does not hold', () => {
+	it('a roster with no active student says so, rather than "already in a coin section"', async () => {
+		// Only the teacher and a student who left: nobody is placed anywhere,
+		// so "every active student is already in a coin section" would be a
+		// claim about nobody.
+		const empty: ClassRosterTransports = {
+			listClasses: classRoster.listClasses,
+			loadRoster: async () => ({
+				ok: true,
+				data: {
+					rows: [enrollment('teacher@boscotech.edu', { manages: true }), enrollment('left@boscotech.net', { active: false })],
+					managesReady: true
+				}
+			})
+		};
+		const wire: Wire = { assigned: [], placementReads: [] };
+		mounted = mountInto(Manager, { supabase: coinClient(startingPlacement(), wire), sections: SECTIONS, classRoster: empty });
+		await openManage(mounted);
+		await chooseClass(mounted, CLASS.id);
+
+		const nothing = (mounted.one('[data-testid="cd-roster-import-nothing"]').textContent ?? '').replace(/\s+/g, ' ');
+		expect(nothing).toContain('no active students');
+		expect(nothing).not.toContain('already in a coin section');
+		expect(mounted.all('[data-testid="cd-roster-import-go"]')).toHaveLength(0);
+		expect(wire.assigned).toHaveLength(0);
+	});
+
+	it('a student left in an ARCHIVED coin section is named with the word archived, and only then', async () => {
+		async function planText(sections: CoinSectionRow[]): Promise<string> {
+			const wire: Wire = { assigned: [], placementReads: [] };
+			const m = mountInto(Manager, { supabase: coinClient(startingPlacement(), wire), sections, classRoster });
+			await openManage(m);
+			await chooseClass(m, CLASS.id);
+			const text = (m.one('[data-testid="cd-roster-import-plan"]').textContent ?? '').replace(/\s+/g, ' ');
+			await m.stop();
+			return text;
+		}
+		const archived = await planText([SECTIONS[0], { ...SECTIONS[1], active: false }]);
+		const live = await planText(SECTIONS);
+
+		expect(archived).toContain('elsewhere@boscotech.net (Makeup group, archived)');
+		// The other direction: the same student in the same section, live, is
+		// named without the word.
+		expect(live).toContain('elsewhere@boscotech.net (Makeup group)');
+		expect(live).not.toContain('archived');
+	});
+});

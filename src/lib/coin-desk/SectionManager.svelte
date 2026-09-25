@@ -243,9 +243,14 @@
 		return c ? sectionTitle(c) : 'that class';
 	}
 
+	/**
+	 * An ARCHIVED coin section says so: a student left in one is not paid when
+	 * the active section is, and the name alone does not tell an admin that.
+	 */
 	function coinSectionName(id: string): string {
 		const s = sections.find((x) => x.id === id);
-		return s ? sectionDisplayName(s) : id;
+		if (!s) return id;
+		return s.active ? sectionDisplayName(s) : `${sectionDisplayName(s)}, archived`;
 	}
 
 	function resetImport() {
@@ -579,7 +584,8 @@
 											<p class="note">
 												{studentCount(importPlan.elsewhere.length)}
 												{importPlan.elsewhere.length === 1 ? 'is' : 'are'} in another coin section
-												and will stay there: {elsewhereList(importPlan)}.
+												and will stay there: {elsewhereList(importPlan)}. To move one here, paste
+												their address in the box above.
 											</p>
 										{/if}
 										{#if skippedLine(importPlan)}
@@ -598,10 +604,17 @@
 														: `Add ${studentCount(importPlan.add.length)} from ${className(importPlan.classId)}`}
 												</button>
 											</div>
-										{:else}
+										{:else if importPlan.already.length || importPlan.elsewhere.length}
 											<p class="note" data-testid="cd-roster-import-nothing">
 												Nobody to add: every active student on this roster is already in a coin
 												section.
+											</p>
+										{:else}
+											<!-- No active student at all (an empty class, or only its
+											     teachers and students who left): "already in a coin
+											     section" would be a claim about nobody. -->
+											<p class="note" data-testid="cd-roster-import-nothing">
+												Nobody to add: this class roster has no active students.
 											</p>
 										{/if}
 									</div>
@@ -929,7 +942,7 @@
 		min-width: 0;
 	}
 	.import-row > label {
-		font-family: 'Share Tech Mono', monospace;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
@@ -943,7 +956,7 @@
 		border: 1px solid var(--boundary, var(--line));
 		border-radius: 4px;
 		color: var(--white);
-		font-family: 'Rajdhani', sans-serif;
+		font-family: var(--font-display);
 		font-size: 1rem;
 		padding: 0.45rem 0.6rem;
 		/* A control somebody taps: the floor, never a height. */
