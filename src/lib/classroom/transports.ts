@@ -970,6 +970,51 @@ async function deleteItem(id: string): Promise<TxResult<undefined>> {
 	}
 }
 
+/** One page of a grading read. PostgREST caps one response at the project's `max_rows` (1000 by default on Supabase). */
+export const WORK_PAGE_ROWS = 1000;
+/** The most pages a grading read asks for (60,000 rows), so a server that keeps answering full pages cannot loop it forever. */
+export const WORK_MAX_PAGES = 60;
+
+/** One page's answer, as a PostgREST builder resolves it. */
+export type WorkPage = PromiseLike<{ data: unknown; error: unknown }>;
+
+/**
+ * EVERY ROW A GRADING READ MATCHES, NOT THE FIRST THOUSAND (ledger 0298).
+ *
+ * A response PostgREST truncates at `max_rows` comes back with NO error, so an
+ * unpaged `.eq('item_id', ...)` over one-row-per-student-per-block silently
+ * dropped everything past row 1000: a 63-block worksheet crosses it at 16
+ * students, and the console, the Live grid and the export then showed those
+ * students' answers blank. `page(from, to)` MUST order on a total order (the
+ * primary key's own columns), or a row can repeat or be skipped between pages.
+ *
+ * It advances by the rows it actually RECEIVED and stops on a short page.
+ *
+ * THE FIRST PAGE ANSWERS EXACTLY AS THE OLD SINGLE READ DID -- its `data` and
+ * its `error`, untouched -- so every caller's error handling and every ladder
+ * rung decided on it is unchanged. A LATER page that errors keeps what arrived
+ * before it, which is never less than the old single read returned.
+ *
+ * A sibling of `readAllPages` in `student-work.ts` rather than a caller of it:
+ * that one answers null on any error or past its cap, which is right for a
+ * completeness verdict and wrong for a grading screen, which shows what it has.
+ */
+export async function readWorkPages(
+	page: (from: number, to: number) => WorkPage
+): Promise<{ data: unknown; error: unknown }> {
+	const first = await page(0, WORK_PAGE_ROWS - 1);
+	if (first.error || !Array.isArray(first.data)) return first;
+	const rows: unknown[] = [...first.data];
+	let got = first.data.length;
+	for (let pages = 1; got >= WORK_PAGE_ROWS && pages < WORK_MAX_PAGES; pages++) {
+		const next = await page(rows.length, rows.length + WORK_PAGE_ROWS - 1);
+		if (next.error || !Array.isArray(next.data)) break;
+		rows.push(...next.data);
+		got = next.data.length;
+	}
+	return { data: rows, error: null };
+}
+
 /**
  * EVERY GRADING SURFACE'S WORK ROWS, from one place.
  *
@@ -991,17 +1036,30 @@ async function loadItemWork(
 	supabase: SupabaseClient,
 	itemId: string
 ): Promise<Omit<GradingData, 'roster'>> {
+	// Responses and approvals are one row per student per block (or module), so
+	// they are PAGED on their primary key's own columns. Submissions are one row
+	// per student and stay a single read.
 	const [submissionsRes, responsesRes, filesRes, approvalsRes] = await Promise.all([
 		selectSubmissions(supabase, itemId, false),
-		supabase
-			.from('classroom_responses')
-			.select('item_id, student_email, block_id, value, updated_at')
-			.eq('item_id', itemId),
+		readWorkPages((from, to) =>
+			supabase
+				.from('classroom_responses')
+				.select('item_id, student_email, block_id, value, updated_at')
+				.eq('item_id', itemId)
+				.order('student_email')
+				.order('block_id')
+				.range(from, to)
+		),
 		selectSubmissionFiles(supabase, itemId),
-		supabase
-			.from('classroom_module_approvals')
-			.select('item_id, student_email, module_id, approved_by, approved_at')
-			.eq('item_id', itemId)
+		readWorkPages((from, to) =>
+			supabase
+				.from('classroom_module_approvals')
+				.select('item_id, student_email, module_id, approved_by, approved_at')
+				.eq('item_id', itemId)
+				.order('student_email')
+				.order('module_id')
+				.range(from, to)
+		)
 	]);
 	return {
 		submissions: ((submissionsRes.data ?? []) as unknown as Record<string, unknown>[]).map(
@@ -1120,13 +1178,27 @@ export const SUBMISSION_FILE_SELECT =
  */
 export const SUBMISSION_FILE_SELECT_STORAGE = `${SUBMISSION_FILE_SELECT}, storage_key`;
 
-/** The embedded parent, which is how both call sites scope to one item. */
-function submissionFileQuery(supabase: SupabaseClient, itemId: string, columns: string) {
+/**
+ * The embedded parent, which is how both call sites scope to one item. ONE PAGE
+ * of it (`readWorkPages`): a class's hand-ins can pass 1000 rows, and the
+ * grading console and the all-files zip both read this list. `id` after
+ * `sort_order` makes the order total, so no file repeats or is skipped between
+ * pages; files sharing a `sort_order` used to come back in no stated order.
+ */
+function submissionFileQuery(
+	supabase: SupabaseClient,
+	itemId: string,
+	columns: string,
+	from: number,
+	to: number
+) {
 	return supabase
 		.from('classroom_submission_files')
 		.select(`${columns}, classroom_submissions!inner(item_id)`)
 		.eq('classroom_submissions.item_id', itemId)
-		.order('sort_order');
+		.order('sort_order')
+		.order('id')
+		.range(from, to);
 }
 
 export interface SubmissionFilesResult {
@@ -1150,11 +1222,15 @@ async function selectSubmissionFiles(
 	supabase: SupabaseClient,
 	itemId: string
 ): Promise<SubmissionFilesResult> {
-	const wide = await submissionFileQuery(supabase, itemId, SUBMISSION_FILE_SELECT_STORAGE);
+	const wide = await readWorkPages((from, to) =>
+		submissionFileQuery(supabase, itemId, SUBMISSION_FILE_SELECT_STORAGE, from, to)
+	);
 	if (!wide.error) {
 		return { rows: (wide.data ?? []) as unknown as SubmissionFileRow[], storageReady: true, error: null };
 	}
-	const narrow = await submissionFileQuery(supabase, itemId, SUBMISSION_FILE_SELECT);
+	const narrow = await readWorkPages((from, to) =>
+		submissionFileQuery(supabase, itemId, SUBMISSION_FILE_SELECT, from, to)
+	);
 	return {
 		rows: (narrow.data ?? []) as unknown as SubmissionFileRow[],
 		storageReady: false,
