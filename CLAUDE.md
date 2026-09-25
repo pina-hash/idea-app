@@ -1274,7 +1274,12 @@ it so the rubric is never shown twice.
 - **A YOUTUBE LINK GETS A THUMBNAIL CARD ONLY ON YOUTUBE'S OWN HOSTS, AFTER
   `safeHref`, WHERE IT IS A PARAGRAPH OR ENDS ONE** (`$lib/youtube.ts`, which
   `gauntlet/authoring.ts` re-exports), with `referrerpolicy="no-referrer"`, no
-  server fetch and no new document node. Decision 23 stands.
+  server fetch and no new document node. Decision 23 stands. **The "ends one"
+  limit is about prose, not about videos**: the class page's closed Videos
+  section (`ClassVideos.svelte` over `$lib/classroom/class-videos.ts`, ledger
+  0298) cards EVERY such link in the loaded items, mid-sentence ones too, with
+  the same two predicates, and never reads `instructorLinks`, a draft or a
+  scheduled item.
 
 ### WHAT A STUDENT OWES -- one predicate, one read, one day
 
