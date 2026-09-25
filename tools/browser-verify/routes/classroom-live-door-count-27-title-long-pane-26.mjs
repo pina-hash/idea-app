@@ -1,10 +1,13 @@
 import { DOOR_GEOMETRY, TYPE_PAIRING, doorExpected, doorReady, doorVerdicts } from './_classroom-live-door.mjs';
 
 /**
- * THE NARROWEST ROW THE DOOR IS HANDED (ledger 0298, R21): the class-tools row
- * capped at 26rem, the class list's default width beside an open item, with
- * the pass and the door sharing it. At 1440 that puts the door near 200px,
- * too narrow for the word and the status on one line, so the status takes a
+ * A NARROW DOOR SHARING ITS ROW (ledger 0298, R21): the class-tools row capped
+ * at 26rem with the pass and the door sharing it, which puts the door near
+ * 200px. That is NOT the default class list: the list's pane is 26rem but its
+ * padding hands the row about 23rem (366px, measured), where every tool takes
+ * its own line and the door is 366px wide. A door this narrow is a list
+ * widened to about 28rem, or a phone near 430px, with two tools in the row.
+ * Too narrow for the word and the status on one line, so the status takes a
  * line of its own under the word -- as one piece, count and "on" together,
  * the title ellipsized. At 375 the row is the phone's width and the two tools
  * stack, so the status sits beside the word again. Where it sits is printed

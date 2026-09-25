@@ -20,8 +20,8 @@ import type { PageLoad } from './$types';
  *   ?title=long     an assignment title longer than any row can hold
  *   ?music=1        the REAL SongQueue tool between the pass and the door, the
  *                   order the section layout mounts all three in
- *   ?pane=<rem>     the row capped at a class-list pane's width (26 is the
- *                   list's default beside an open item)
+ *   ?pane=<rem>     the ROW capped at <rem> (not the pane: the default 26rem
+ *                   class-list pane hands its row about 23rem after padding)
  *   ?theme=space-white   the light theme, forced (no session to reach it)
  */
 export const load: PageLoad = () => {

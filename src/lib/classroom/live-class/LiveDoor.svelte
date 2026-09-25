@@ -106,10 +106,12 @@
 	    names the shared home all three belong in.
 	  - THE COUNT AND "on" ARE ONE UNBREAKABLE PIECE (`nowrap`, `flex: none`),
 	    and the TITLE is the only thing that gives: it ellipsizes on one line.
-	  - WHEN THE ROW IS TOO NARROW FOR THE WORD AND THE STATUS SIDE BY SIDE (a
-	    class-list pane beside an open item hands the door about 200px), the
-	    status takes a line of its own under the word rather than clipping the
-	    count, and the door grows past 44px instead of overflowing it.
+	  - WHEN THE DOOR IS TOO NARROW FOR THE WORD AND THE STATUS SIDE BY SIDE
+	    (about 195-230px: it shares a row of about 25rem with one other tool,
+	    which a class list widened to 28rem or a phone near 430px produces; the
+	    default 26rem list hands its row 366px and every tool gets its own
+	    line), the status takes a line of its own under the word rather than
+	    clipping the count, and the door grows past 44px instead of overflowing.
 -->
 <a class="ld-door" href={target} data-testid="live-door">
 	<span class="ld-glyph" aria-hidden="true">{count ? '●' : '○'}</span>

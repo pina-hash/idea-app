@@ -30,9 +30,12 @@
 	 *   ?title=long   an assignment title longer than any row can hold
 	 *   ?music=1      the song queue's tool between the pass and the door, the
 	 *                 order the real layout mounts all three in
-	 *   ?pane=<rem>   the row capped at a class-list pane's width (the list is
-	 *                 26rem by default beside an open item), the narrowest row
-	 *                 the door is handed
+	 *   ?pane=<rem>   the ROW capped at <rem>. Not the pane: the class-list pane
+	 *                 carries 1.5rem of padding a side, so its default 26rem
+	 *                 hands the row about 23rem (366px), where every tool takes
+	 *                 a line of its own and the door is 366px wide. A door near
+	 *                 200px is a row of 25rem or so (a list widened to about
+	 *                 28rem, or a phone near 430px) with two tools sharing it
 	 *   ?theme=space-white   the same row on the light theme
 	 */
 	const themeParam = params.get('theme');
