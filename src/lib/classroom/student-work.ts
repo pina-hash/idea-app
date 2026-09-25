@@ -417,22 +417,8 @@ async function worksheetCompletions(
 	const out = new Map<string, string>();
 	if (!ids.length) return out;
 
-	const [versions, docs] = await Promise.all([
-		supabase.from('classroom_items').select('id, assignment_schema_version').in('id', ids),
-		supabase.from('classroom_html_assignments').select('item_id, manifest').in('item_id', ids)
-	]);
-	if (versions.error || docs.error) return null;
-	const stamped = new Set(
-		((versions.data ?? []) as { id: string; assignment_schema_version?: unknown }[])
-			.filter((row) => isHtmlAssignment(row))
-			.map((row) => row.id)
-	);
-	const manifests = new Map<string, HtmlAssignmentManifest>();
-	for (const row of (docs.data ?? []) as { item_id: string; manifest: unknown }[]) {
-		// A stamped item with a manifest this cannot map is one no answer could
-		// be keyed back to: it stays out, and reads exactly as it did.
-		if (stamped.has(row.item_id) && htmlManifestShaped(row.manifest)) manifests.set(row.item_id, row.manifest);
-	}
+	const manifests = await worksheetManifests(supabase, ids);
+	if (!manifests) return null;
 	const worksheetIds = [...manifests.keys()];
 	if (!worksheetIds.length) return out;
 
@@ -478,12 +464,79 @@ async function worksheetCompletions(
 		const itemId = key.slice(0, key.indexOf(' '));
 		const manifest = manifests.get(itemId);
 		if (!manifest) continue;
-		const done = hxCompletion(manifest, answers.get(key) ?? [], photos.get(key) ?? []);
-		// Complete with no readable instant cannot happen through this read (both
-		// selects carry the column); if it ever does, it is complete and not late.
-		if (done.complete) out.set(key, done.at ?? '');
+		const at = worksheetCompletedAt(manifest, answers.get(key) ?? [], photos.get(key) ?? []);
+		if (at !== null) out.set(key, at);
 	}
 	return out;
+}
+
+/**
+ * WHICH OF THESE ITEMS ARE PORTED WORKSHEETS, AND THEIR MANIFESTS: the first
+ * round of `readWorksheetCompletions`, on its own, for a surface that already
+ * holds one item's answers and needs only the manifest to judge them (the live
+ * class grid, ledger 0298). Two small reads pinned to the item ids, neither of
+ * them an answers read: the item's own `assignment_schema_version` (the
+ * discriminator every rendering surface reads) beside the manifest
+ * (`classroom_html_assignments`, readable wherever the item is, 0195).
+ *
+ * NULL ON ANY ERROR OR THROW, "cannot tell", which every caller turns into
+ * today's behaviour. An item that is not a worksheet is simply not in the map.
+ */
+export async function readWorksheetManifests(
+	supabase: SupabaseClient,
+	itemIds: readonly string[]
+): Promise<Map<string, HtmlAssignmentManifest> | null> {
+	try {
+		return await worksheetManifests(supabase, [...new Set(itemIds)]);
+	} catch {
+		return null;
+	}
+}
+
+async function worksheetManifests(
+	supabase: SupabaseClient,
+	ids: readonly string[]
+): Promise<Map<string, HtmlAssignmentManifest> | null> {
+	const manifests = new Map<string, HtmlAssignmentManifest>();
+	if (!ids.length) return manifests;
+	const [versions, docs] = await Promise.all([
+		supabase.from('classroom_items').select('id, assignment_schema_version').in('id', ids),
+		supabase.from('classroom_html_assignments').select('item_id, manifest').in('item_id', ids)
+	]);
+	if (versions.error || docs.error) return null;
+	const stamped = new Set(
+		((versions.data ?? []) as { id: string; assignment_schema_version?: unknown }[])
+			.filter((row) => isHtmlAssignment(row))
+			.map((row) => row.id)
+	);
+	for (const row of (docs.data ?? []) as { item_id: string; manifest: unknown }[]) {
+		// A stamped item with a manifest this cannot map is one no answer could
+		// be keyed back to: it stays out, and reads exactly as it did.
+		if (stamped.has(row.item_id) && htmlManifestShaped(row.manifest)) manifests.set(row.item_id, row.manifest);
+	}
+	return manifests;
+}
+
+/**
+ * ONE STUDENT'S FINISHED-WORKSHEET INSTANT, from answers and photographs a
+ * surface already holds: `hxCompletion`'s instant when the worksheet is
+ * complete, or NULL when it is not. This is the judgment the paged read above
+ * makes for every (worksheet, student) pair, written once so a surface that
+ * already loaded one item's rows (the grading payload the live class grid
+ * polls) asks the same question rather than a second copy of it.
+ *
+ * Complete with no readable instant answers the EMPTY STRING, which every
+ * reader treats as complete and never late: both of the paged read's selects
+ * carry the column, so it cannot happen through it, and a surface's own rows
+ * missing a stamp are not evidence that a student was late.
+ */
+export function worksheetCompletedAt(
+	manifest: HtmlAssignmentManifest,
+	responses: readonly HxCompletionResponse[],
+	files: readonly HxCompletionFile[]
+): string | null {
+	const done = hxCompletion(manifest, responses, files);
+	return done.complete ? (done.at ?? '') : null;
 }
 
 /**

@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { env as publicEnv } from '$env/dynamic/public';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
+	import HtmlGradingWork from '$lib/classroom/html-assignment/HtmlGradingWork.svelte';
 	import {
 		createBulkGradingTransports,
 		createTeacherEngineTransports
@@ -9,6 +11,7 @@
 	import { htmlAssignmentMount } from '$lib/classroom/html-assignment/mount';
 	import { htmlManifestShaped } from '$lib/classroom/transports';
 	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
+	import type { StudentWork } from '$lib/classroom/assignment-spec';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -56,5 +59,26 @@
 	rubric={data.rubric}
 	{transports}
 	{bulk}
+	htmlWork={htmlMount === 'spec' ? null : htmlWork}
 	{fileDownload}
 />
+
+<!--
+	THE WORK COLUMN FOR A PORTED WORKSHEET (ledger 0298). This console used to
+	hand in no snippet, so with no spec its work column fell through to "Nothing
+	handed in yet" for a student who had typed every answer and attached no
+	file, beside a roster chip that said Complete. It is the per-class grade
+	route's own component, mounted the same way off the same one expression
+	(`htmlMount`), so the two consoles show a worksheet identically: the
+	read-only document, the answers when the item is not live, the sentence
+	when there is no document. The load already read the document for
+	"Download all files"; nothing new is read.
+-->
+{#snippet htmlWork(student: StudentWork)}
+	<HtmlGradingWork
+		{student}
+		item={data.item}
+		htmlAssignment={data.htmlAssignment}
+		sandboxOrigin={publicEnv.PUBLIC_HX_SANDBOX_ORIGIN}
+	/>
+{/snippet}

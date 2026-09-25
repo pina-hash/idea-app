@@ -53,14 +53,33 @@ function frameMounts(file: string): string[] {
 	return out;
 }
 
-const GRADING_ROUTE = 'src/routes/classroom/[sectionId]/item/[itemId]/grade/+page.svelte';
+/**
+ * THE GRADING CONSOLES' WORK COLUMN FOR A PORTED WORKSHEET (ledger 0298). It
+ * was the per-class grade route's own snippet; the cross-class console had
+ * none, so both routes now mount this one component and the frame mount the
+ * sweep below reads lives HERE. The two routes are swept for mounting it and
+ * for mounting no frame of their own beside it.
+ */
+const GRADING_ROUTE = 'src/lib/classroom/html-assignment/HtmlGradingWork.svelte';
+const GRADE_ROUTES = [
+	'src/routes/classroom/[sectionId]/item/[itemId]/grade/+page.svelte',
+	'src/routes/classroom/grading/[itemId]/+page.svelte'
+];
 const ITEM_DETAIL = 'src/lib/classroom/ItemDetail.svelte';
 
 describe('the grading console hands down no write path for a ported worksheet', () => {
 	it('mounts the frame exactly once, so the sweep below has something to sweep', () => {
 		const mounts = frameMounts(GRADING_ROUTE);
-		console.log(`    [readonly] grading route: ${mounts.length} HtmlAssignmentFrame mount(s)`);
+		console.log(`    [readonly] grading work column: ${mounts.length} HtmlAssignmentFrame mount(s)`);
 		expect(mounts).toHaveLength(1);
+	});
+
+	it('both grade routes mount that component and no frame of their own', () => {
+		for (const route of GRADE_ROUTES) {
+			const source = readFileSync(resolve(ROOT, route), 'utf8');
+			expect(source, route).toContain('<HtmlGradingWork');
+			expect(frameMounts(route), route).toHaveLength(0);
+		}
 	});
 
 	it('passes readOnly and NONE of the four write callbacks', () => {
@@ -115,10 +134,12 @@ describe('the grading console hands down no write path for a ported worksheet', 
 		// anywhere is handing down a write path, and the four-callback sweep
 		// above would not see it because that component mounts the frame inside
 		// ITSELF.
-		const grading = readFileSync(resolve(ROOT, GRADING_ROUTE), 'utf8');
-		expect(grading).not.toContain('HtmlInstructorCopy');
-		expect(grading).not.toContain('htmlInstructorAnswers');
-		console.log('    [readonly] grading route: 0 HtmlInstructorCopy mount(s)');
+		for (const file of [GRADING_ROUTE, ...GRADE_ROUTES]) {
+			const grading = readFileSync(resolve(ROOT, file), 'utf8');
+			expect(grading, file).not.toContain('HtmlInstructorCopy');
+			expect(grading, file).not.toContain('htmlInstructorAnswers');
+		}
+		console.log('    [readonly] grading work column and both grade routes: 0 HtmlInstructorCopy mount(s)');
 
 		// THE POSITIVE CONTROL, same `includes`, same run: the item page DOES
 		// mount it, so "not found" is the grading route and not a broken search.
