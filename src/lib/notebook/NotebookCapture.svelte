@@ -33,6 +33,7 @@
 		straightenTarget,
 		type CaptureFiling
 	} from '$lib/notebook/capture';
+	import { quickNoteWritingEntry } from '$lib/notebook/quick-note-state.svelte';
 	import {
 		CaptureQueue,
 		CAPTURE_WAITING_NOTE,
@@ -96,8 +97,16 @@
 
 	// The draft and the filing are READ ONCE, at mount: this surface is keyed on
 	// the filing by its caller, and a reload after Turn in re-seeds it.
+	//
+	// NOT THE DRAFT THE HEADER'S QUICK NOTE IS STILL WRITING (ledger 0298
+	// review). A quick note on an assignment page is filed exactly as this card
+	// files (the class, titled by the item), so its draft is the newest one in
+	// this filing -- and continuing it would put a second editor on the quick
+	// note's own note chain, each autosave replacing the other's words. Once
+	// the quick note is saved it lets go of the draft, and this card continues
+	// it as usual.
 	// svelte-ignore state_referenced_locally
-	const startDraft = continuedDraft(entries, filing);
+	const startDraft = continuedDraft(entries, filing, quickNoteWritingEntry());
 
 	const writable = $derived(!!transports && draftsReady);
 	/** Everything already filed here except the draft this surface is writing. */

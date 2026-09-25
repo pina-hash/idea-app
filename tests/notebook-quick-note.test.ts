@@ -37,6 +37,7 @@ import {
 	quickNotePrefValue,
 	removeInboxCopy
 } from '$lib/notebook/quick-note';
+import { continuedDraft, type CaptureFiling } from '$lib/notebook/capture';
 import type { NotebookEntry, NotebookSession, NotePayload } from '$lib/notebook';
 import type { NotebookNoteRow } from '$lib/notebook-notes';
 
@@ -390,5 +391,44 @@ describe('fileDraft', () => {
 			expect(out.ok).toBe(false);
 		}
 		expect(f.calls).toEqual([]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// The assignment page's capture card never continues the quick note's draft
+// ---------------------------------------------------------------------------
+
+describe('continuedDraft beside a live quick note', () => {
+	// A quick note on an assignment page is filed exactly as the capture card
+	// files (the class, titled by the item). While the quick note is still
+	// writing its draft, the card must not continue it: that would be a second
+	// editor on the quick note's own note chain, each autosave replacing the
+	// other's words. Silent, so asserted here.
+	const filing: CaptureFiling = {
+		sectionId: 's-1',
+		sessionId: null,
+		customLabel: 'Truss bridge analysis',
+		key: 'class:s-1:i-1',
+		label: 'Truss bridge analysis'
+	};
+	const older = entry('capture-older', {
+		section_id: 's-1',
+		custom_label: 'Truss bridge analysis',
+		upload_timestamp: '2026-09-20T09:00:00Z'
+	});
+	const quick = entry('quick-live', {
+		section_id: 's-1',
+		custom_label: 'Truss bridge analysis',
+		upload_timestamp: '2026-09-20T11:00:00Z'
+	});
+
+	it('continues the newest draft in the filing when no quick note is writing (the positive control)', () => {
+		expect(continuedDraft([older, quick], filing)?.id).toBe('quick-live');
+		expect(continuedDraft([older, quick], filing, null)?.id).toBe('quick-live');
+	});
+
+	it('skips the draft the quick note is writing, and continues the one before it', () => {
+		expect(continuedDraft([older, quick], filing, 'quick-live')?.id).toBe('capture-older');
+		expect(continuedDraft([quick], filing, 'quick-live')).toBeNull();
 	});
 });
