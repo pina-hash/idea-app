@@ -48,8 +48,9 @@
 		<div class="eyebrow">IDEA // Tournaments</div>
 		<h1>New tournament</h1>
 		<p class="lead">
-			You become the first host and can add co-hosts later from the host console. Every setting
-			here can be changed there until the bracket is generated.
+			You become the first host and can add co-hosts later from the host console. You can change
+			these settings there too; parts of the format lock once qualifying or the bracket starts, and
+			the console says which and why.
 		</p>
 	</section>
 
