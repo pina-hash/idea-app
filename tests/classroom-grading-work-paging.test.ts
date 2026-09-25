@@ -27,6 +27,7 @@ import { describe, expect, it } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
 	WORK_MAX_PAGES,
+	WORK_PAGE_OVERLAP,
 	WORK_PAGE_ROWS,
 	createBulkGradingTransports,
 	createTeacherEngineTransports,
@@ -140,7 +141,11 @@ interface Sent {
  */
 function cappedClient(
 	tables: Record<string, Row[]>,
-	opts: { failRequest?: (sent: Sent, index: number) => boolean } = {}
+	opts: {
+		failRequest?: (sent: Sent, index: number) => boolean;
+		/** Runs as a request arrives, before it is answered: a class writing between two pages. */
+		beforeRequest?: (sent: Sent, tables: Record<string, Row[]>) => void;
+	} = {}
 ) {
 	const sent: Sent[] = [];
 	const builder = (table: string) => {
@@ -154,6 +159,7 @@ function cappedClient(
 		self.maybeSingle = () => self;
 		self.then = (resolve: (v: { data: unknown; error: unknown }) => unknown) => {
 			const index = sent.push(q) - 1;
+			opts.beforeRequest?.(q, tables);
 			if (opts.failRequest?.(q, index)) {
 				return Promise.resolve({ data: null, error: { message: 'boom', code: '57014' } }).then(resolve);
 			}
@@ -237,12 +243,14 @@ describe('the grading work reads page past the 1000-row cap', () => {
 		// The stable order is the primary key's own: student, then block.
 		const keys = responses.map(keyOf);
 		expect(keys).toEqual([...keys].sort());
-		// Three pages, the last one short.
+		// Three pages, each after the first reaching WORK_PAGE_OVERLAP rows back,
+		// the last one short.
 		const pages = sent.filter((s) => s.table === 'classroom_responses');
+		expect(WORK_PAGE_OVERLAP).toBe(50);
 		expect(pages.map((p) => p.range)).toEqual([
 			[0, 999],
-			[1000, 1999],
-			[2000, 2999]
+			[950, 1949],
+			[1900, 2899]
 		]);
 		expect(pages[0].orders).toEqual(['student_email', 'block_id']);
 
@@ -275,35 +283,115 @@ describe('the grading work reads page past the 1000-row cap', () => {
 	});
 
 	it('a later page that errors keeps what arrived before it, never less than the old read', async () => {
+		let responseReads = 0;
 		const { client } = cappedClient(TABLES(), {
-			failRequest: (s) => s.table === 'classroom_responses' && (s.range?.[0] ?? 0) >= 2000
+			failRequest: (s) => s.table === 'classroom_responses' && ++responseReads === 3
 		});
 		const res = await createTeacherEngineTransports(client).loadGrading(ITEM, 's1');
 		expect(res.ok).toBe(true);
 		if (!res.ok) throw new Error('unreachable');
-		expect(res.data.responses.length).toBe(2000);
-		expect(new Set((res.data.responses as unknown as Row[]).map(keyOf)).size).toBe(2000);
+		// Page one's 1000 plus page two's 950 it had not seen: more than the old read's 1000.
+		expect(res.data.responses.length).toBe(1950);
+		expect(new Set((res.data.responses as unknown as Row[]).map(keyOf)).size).toBe(1950);
+	});
+
+	/*
+	 * A LIVE CLASS WRITES BETWEEN TWO PAGES, and the pages are separate requests.
+	 * A student's first answer to a block INSERTS a row, which moves every later
+	 * row one place along; a photo removed DELETES one, which moves them back.
+	 * Paging by offset alone then shows a row twice (a photograph counted twice
+	 * toward its block's minimum, zipped twice) or skips one.
+	 */
+	it('a row INSERTED between two pages arrives once, and nothing is lost', async () => {
+		const tables = TABLES();
+		const originals = new Set(tables.classroom_responses.filter((r) => r.item_id === ITEM).map(keyOf));
+		const originalFiles = new Set(tables.classroom_submission_files.map((f) => String(f.id)));
+		const inserted = { responses: false, files: false };
+		const { client } = cappedClient(tables, {
+			beforeRequest: (s, t) => {
+				if (s.table === 'classroom_responses' && s.range?.[0] && !inserted.responses) {
+					inserted.responses = true;
+					// Sorts first: s00's answer to a block that sorts before b00.
+					t.classroom_responses.push({
+						item_id: ITEM,
+						student_email: STUDENTS[0],
+						block_id: 'a-new',
+						value: {},
+						updated_at: '2026-09-25T15:00:00Z'
+					});
+				}
+				if (s.table === 'classroom_submission_files' && s.range?.[0] && !inserted.files) {
+					inserted.files = true;
+					t.classroom_submission_files.push({
+						...t.classroom_submission_files[0],
+						id: 'f-!new',
+						sort_order: 1
+					});
+				}
+			}
+		});
+		const res = await createTeacherEngineTransports(client).loadGrading(ITEM, 's1');
+		expect(res.ok).toBe(true);
+		if (!res.ok) throw new Error('unreachable');
+		expect(inserted).toEqual({ responses: true, files: true });
+		const responses = res.data.responses as unknown as Row[];
+		expect(new Set(responses.map(keyOf)).size).toBe(responses.length);
+		expect([...originals].every((k) => responses.some((r) => keyOf(r) === k))).toBe(true);
+		const fileIds = res.data.files.map((f) => f.id);
+		expect(new Set(fileIds).size).toBe(fileIds.length);
+		expect([...originalFiles].every((id) => fileIds.includes(id))).toBe(true);
+	});
+
+	it('a row DELETED between two pages does not pull an unseen row past the boundary', async () => {
+		const tables = TABLES();
+		const originals = new Set(tables.classroom_responses.filter((r) => r.item_id === ITEM).map(keyOf));
+		let deleted = false;
+		const { client } = cappedClient(tables, {
+			beforeRequest: (s, t) => {
+				if (s.table !== 'classroom_responses' || !s.range?.[0] || deleted) return;
+				deleted = true;
+				// The first row page one already carried, so nothing it holds is lost.
+				const first = `${STUDENTS[0]} ${BLOCKS[0]}`;
+				const at = t.classroom_responses.findIndex((r) => r.item_id === ITEM && keyOf(r) === first);
+				t.classroom_responses.splice(at, 1);
+			}
+		});
+		const res = await createTeacherEngineTransports(client).loadGrading(ITEM, 's1');
+		expect(res.ok).toBe(true);
+		if (!res.ok) throw new Error('unreachable');
+		expect(deleted).toBe(true);
+		const got = new Set((res.data.responses as unknown as Row[]).map(keyOf));
+		expect(res.data.responses.length).toBe(2345);
+		expect([...originals].filter((k) => !got.has(k))).toEqual([]);
 	});
 });
 
 describe('readWorkPages stops', () => {
 	it('at its page cap when a server answers full pages forever', async () => {
 		let calls = 0;
-		const out = await readWorkPages(async (from, to) => {
-			calls++;
-			return { data: Array.from({ length: to - from + 1 }, (_, i) => from + i), error: null };
-		});
+		const out = await readWorkPages<number>(
+			async (from, to) => {
+				calls++;
+				return { data: Array.from({ length: to - from + 1 }, (_, i) => from + i), error: null };
+			},
+			(n) => String(n)
+		);
 		expect(calls).toBe(WORK_MAX_PAGES);
-		expect((out.data as number[]).length).toBe(WORK_MAX_PAGES * WORK_PAGE_ROWS);
+		const rows = out.data as number[];
+		expect(rows.length).toBe(WORK_PAGE_ROWS + (WORK_MAX_PAGES - 1) * (WORK_PAGE_ROWS - WORK_PAGE_OVERLAP));
+		expect(new Set(rows).size).toBe(rows.length);
 		expect(out.error).toBeNull();
 	});
 
 	it('after exactly one request when the first page is short', async () => {
 		let calls = 0;
-		const out = await readWorkPages(async () => {
-			calls++;
-			return { data: [1, 2, 3], error: null };
-		});
+		const out = await readWorkPages<number>(
+			async () => {
+				calls++;
+				return { data: [1, 2, 3], error: null };
+			},
+			(n) => String(n)
+		);
 		expect(calls).toBe(1);
 		expect(out.data).toEqual([1, 2, 3]);
 	});

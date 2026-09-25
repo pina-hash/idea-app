@@ -94,15 +94,19 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		// so this needs no rung and cannot degrade anything. PAGED (ledger 0298):
 		// every assignment times every student it may review passes 1000 rows
 		// within a term, and PostgREST drops the rest without an error.
-		// `(item_id, student_email)` is unique (0086), so the order is total.
-		const { data } = await readWorkPages((from, to) =>
-			supabase
-				.from('classroom_submissions')
-				.select('item_id, state, score, graded_at, submitted_at')
-				.in('item_id', assignmentIds)
-				.order('item_id')
-				.order('student_email')
-				.range(from, to)
+		// `(item_id, student_email)` is unique (0086), so the order is total, and
+		// it is selected because it is also the key a row seen on two pages is
+		// counted once by. It is used for nothing else and never leaves the load.
+		const { data } = await readWorkPages(
+			(from, to) =>
+				supabase
+					.from('classroom_submissions')
+					.select('item_id, student_email, state, score, graded_at, submitted_at')
+					.in('item_id', assignmentIds)
+					.order('item_id')
+					.order('student_email')
+					.range(from, to),
+			(r) => `${r.item_id}\u0000${r.student_email}`
 		);
 		submissions = (data ?? []) as SubmissionSummary[];
 		rows = (data ?? []) as PostGradeRow[];
