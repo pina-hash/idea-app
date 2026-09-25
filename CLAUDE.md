@@ -1360,7 +1360,7 @@ Undated work is never Missing and never counted; it is listed last.
     worksheet wait for a definer function answering per item (decision 37's
     migration half): the Grades tab would read every worksheet in the class,
     measured at 2.3 seconds for three worksheets and thirty students against a
-    17 to 33ms load. `isAwaitingGrade` already counts one the moment a row
+    17 to 44ms load. `isAwaitingGrade` already counts one the moment a row
     carries `completed_at`.
 
 - **OWED WORK IS ONE READ.** `loadClassroomWork` in
