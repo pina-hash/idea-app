@@ -273,8 +273,15 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 	}
 
 	function close() {
+		var wasOpen = !!panel && panel.style.display !== 'none';
 		if (panel) panel.style.display = 'none';
 		setStatus('');
+		/* Focus goes back to the control that opened the box, without scrolling:
+		   the Ledger's trigger sits in a header that may be far above the reader. */
+		if (wasOpen) {
+			var b = document.getElementById(BTN_ID);
+			if (b) { try { b.focus({ preventScroll: true }); } catch (e) {} }
+		}
 	}
 
 	/* THE TWO SENTENCES SAY DIFFERENT THINGS, NOT THE SAME THING TWICE, and the
@@ -465,6 +472,12 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 
 		card.addEventListener('click', function (e) { e.stopPropagation(); });
 		panel.addEventListener('click', function () { close(); });
+		/* Escape closes it, answered on the panel itself so it only ever hears a
+		   key pressed while the box has focus, and stopped there so a page's own
+		   Escape handler (a lightbox, a modal) does not also act on it. */
+		panel.addEventListener('keydown', function (e) {
+			if (e.key === 'Escape' || e.key === 'Esc') { e.preventDefault(); e.stopPropagation(); close(); }
+		});
 		panel.appendChild(card);
 		(document.body || document.documentElement).appendChild(panel);
 		applySession();
@@ -570,6 +583,18 @@ export function legacyReportPanelScript(opts: LegacyReportOptions): string {
 
 	function mount() {
 		if (document.getElementById(BTN_ID)) return;
+		/* A VISIBLE POINTER INSIDE THE BOX, WHATEVER THE PAGE DOES WITH ITS OWN.
+		   The Blade Rulebook hides the native cursor on every element
+		   (\`*,*::before,*::after{cursor:none}\`) and draws its own dot at
+		   z-index 99999, which this panel sits above -- measured, the scrim, the
+		   card, the text box and the trigger's word all computed \`cursor: none\`,
+		   so the pointer vanished the moment the box opened. An id selector
+		   outranks that universal rule without \`!important\`, so a page that
+		   styles its cursor with \`!important\` (the crosshair pages) keeps its
+		   own look, which is visible and theirs to choose. */
+		var cur = document.createElement('style');
+		cur.textContent = '#' + ID + ', #' + ID + ' * { cursor: auto; } #' + BTN_ID + ' * { cursor: inherit; }';
+		(document.head || document.documentElement).appendChild(cur);
 		if (CFG.mount === 'float') {
 			P = pageIsLight() ? LIGHT : DARK;
 			mountFloat();
