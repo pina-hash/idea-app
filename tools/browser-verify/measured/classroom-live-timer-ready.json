@@ -1,6 +1,6 @@
 {
 	"schema": 1,
-	"spec": "classroom-projector-demo-1.mjs",
+	"spec": "classroom-live-timer-ready.mjs",
 	"date": "2026-09-25T06:06:52.558Z",
 	"sha": "65bf8a6df7f7204cd581c7a4cb2caf9ab9276784",
 	"dirty": false,
@@ -9,7 +9,7 @@
 		1440
 	],
 	"runs": 2,
-	"measurements": 56,
+	"measurements": 30,
 	"outsideRows": [],
 	"ms": 7889
 }

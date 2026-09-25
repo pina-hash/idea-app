@@ -1134,6 +1134,25 @@ export function createFakeLedger(getCurrentStudentEmail: () => string = () => 'a
 					}
 				};
 			}
+			if (table === 'coin_section_students') {
+				// 0073's admin-read placement table, for "Import from class
+				// roster": `select(...).in('student_email', [...])`, the one shape
+				// readCoinPlacement uses. One row per student, because the real
+				// table is keyed on the email alone.
+				return {
+					select(_cols: string) {
+						return {
+							in(_col: string, values: string[]) {
+								const wanted = new Set(values);
+								const rows = Array.from(sectionStudents.entries())
+									.filter(([email]) => wanted.has(email))
+									.map(([student_email, section_id]) => ({ student_email, section_id }));
+								return Promise.resolve({ data: rows, error: null });
+							}
+						};
+					}
+				};
+			}
 			if (table === 'coin_balances') return makeBalancesQuery();
 			if (table === 'coin_categories') return makeCategoriesQuery();
 			if (table === 'coin_transactions') return makeTransactionsQuery();

@@ -90,57 +90,117 @@
 	});
 </script>
 
+<!--
+	ONE OF THE CLASS TOOLS, AND IT READS AS ONE (ledger 0298, R21). The door
+	used to set "Live class" in the display face at 600 beside a smaller mono
+	count, and the bare text "{count} on" was an anonymous flex item whose
+	automatic minimum is its min-content -- the word "on" alone -- so in a
+	three-tool row at 871px it shrank by wrapping, "0" over "on", while the title
+	was squeezed to a sliver. Now:
+
+	  - THE WORD AND THE STATUS WEAR THE TOOL SHELL'S TYPE, the same mono,
+	    uppercase word and lowercase trailing chip the hall pass and the music
+	    tool beside it wear, so the row is three of one thing. The rules are
+	    restated here with an `ld-` prefix because the shell's `ctool-` rules are
+	    scoped to HallPass.svelte and SongQueue.svelte; the note on those two
+	    names the shared home all three belong in.
+	  - THE COUNT AND "on" ARE ONE UNBREAKABLE PIECE (`nowrap`, `flex: none`),
+	    and the TITLE is the only thing that gives: it ellipsizes on one line.
+	  - WHEN THE DOOR IS TOO NARROW FOR THE WORD AND THE STATUS SIDE BY SIDE
+	    (about 195-230px: it shares a row of about 25rem with one other tool,
+	    which a class list widened to 28rem or a phone near 430px produces; the
+	    default 26rem list hands its row 366px and every tool gets its own
+	    line), the status takes a line of its own under the word rather than
+	    clipping the count, and the door grows past 44px instead of overflowing.
+-->
 <a class="ld-door" href={target} data-testid="live-door">
 	<span class="ld-glyph" aria-hidden="true">{count ? '●' : '○'}</span>
 	<span class="ld-word">Live class</span>
 	{#if count !== null && choice}
-		<span class="ld-count" data-testid="live-door-count">
-			{count} on <span class="ld-item">{choice.title}</span>
+		<span class="ld-status" data-testid="live-door-status">
+			<span class="ld-count" data-testid="live-door-count">{count} on</span>
+			<span class="ld-item" data-testid="live-door-item" title={choice.title}>{choice.title}</span>
 		</span>
 	{/if}
 </a>
 
 <style>
 	.ld-door {
-		display: inline-flex;
+		/* The tool trigger's box: `min-height`, never a height, so a status that
+		   takes its own line grows the door instead of clipping it. `flex-wrap`
+		   is what lets it take that line: the status carries a small basis, so
+		   it shares the word's line whenever the count and a few letters of the
+		   title fit there, and moves under it only when they do not. */
+		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.5rem;
+		column-gap: 0.6rem;
+		row-gap: 0.15rem;
 		min-height: 44px;
 		min-width: 0;
-		padding: 0 0.85rem;
+		padding: 0.5rem 0.9rem;
 		box-sizing: border-box;
 		background: var(--surface-1);
 		border: 1px solid var(--boundary);
-		border-radius: var(--radius-control);
+		border-radius: var(--radius-card, 10px);
 		color: var(--text-1);
+		font-family: var(--font-mono);
+		font-size: 0.82rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
 		text-decoration: none;
 	}
 	.ld-door:hover {
 		border-color: var(--accent-ink);
 		text-decoration: none;
 	}
+	.ld-door:focus-visible {
+		outline: 2px solid var(--accent-ink);
+		outline-offset: 2px;
+	}
 	.ld-glyph {
-		font-family: var(--font-mono);
+		/* The width of the other tools' 18px glyphs, so the three words start at
+		   the same distance from their edges. */
+		flex: none;
+		width: 18px;
+		text-align: center;
+		letter-spacing: 0;
 		color: var(--status-ok);
 	}
 	.ld-word {
-		font-weight: 600;
+		flex: none;
 		white-space: nowrap;
 	}
-	.ld-count {
-		display: inline-flex;
+	.ld-status {
+		/* The tool chip's register: smaller, lowercase, secondary ink, pushed to
+		   the trailing edge so the status lines up with the chips beside it.
+		   It reads as the sentence it always was, "27 on Truss sketch", with no
+		   separator spending the title's room. The basis is the count and about
+		   ten letters of the title: less room than that on the word's line and
+		   the status takes its own. */
+		flex: 1 1 16ch;
+		display: flex;
 		align-items: baseline;
-		gap: 0.3rem;
+		justify-content: flex-end;
+		gap: 0.45em;
 		min-width: 0;
-		font-family: var(--font-mono);
-		font-size: 0.8rem;
+		font-size: 0.74rem;
+		letter-spacing: 0.06em;
+		text-transform: none;
 		color: var(--text-2);
-		overflow: hidden;
+	}
+	.ld-count {
+		/* The count and "on" never part: the defect this fixes. */
+		flex: none;
+		white-space: nowrap;
+		color: var(--text-1);
 	}
 	.ld-item {
+		/* The one thing that gives. */
+		flex: 0 1 auto;
+		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		min-width: 0;
 	}
 </style>

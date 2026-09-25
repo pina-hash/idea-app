@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "coin-desk-state-roster-imported.mjs",
+	"date": "2026-09-25T05:55:39.122Z",
+	"sha": "16a57bcf52b65407bdff8da9ce3f9f0e11c705cb",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 28,
+	"outsideRows": [],
+	"ms": 10059
+}

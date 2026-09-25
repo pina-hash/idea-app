@@ -23,11 +23,15 @@
 		countdown,
 		parseTimerMinutes,
 		stopwatch,
-		timerDigits,
+		tickEachFrame,
 		timerExtend,
+		timerFinal,
+		timerHoldMs,
 		timerOvertime,
 		timerPhase,
+		timerReadout,
 		timerReset,
+		timerTicking,
 		timerToggle,
 		timerWord,
 		THINK_TIME_MINUTES,
@@ -147,9 +151,10 @@
 	let now = $state(clock());
 	$effect(() => {
 		const read = clock;
-		// rAF-or-timeout, never rAF alone: a backgrounded window never ticks an
+		// A timeout, not an animation frame: a backgrounded window never ticks an
 		// animation frame, and a projector control left behind the wall must not
-		// stop keeping time.
+		// stop keeping time. The timer's digits take a faster reading of their
+		// own below (`tickEachFrame`, an animation frame OR a timeout).
 		const timer = setInterval(() => (now = read()), 250);
 		return () => clearInterval(timer);
 	});
@@ -169,7 +174,43 @@
 	let timer = $state<LiveTimer | null>(null);
 	let customMinutes = $state<string | number>('');
 	const customLength = $derived(parseTimerMinutes(customMinutes));
-	const phase = $derived(timer ? timerPhase(timer, now) : null);
+
+	/*
+	 * THE TIMER'S OWN INSTANT. The one clock above stays at four readings a
+	 * second for everything else on this page (a faster one would re-derive the
+	 * wall clock, the hall pass and the agenda on every frame for nothing). The
+	 * digits read hundredths, so while a timer is COUNTING a second reading is
+	 * taken on every frame -- an animation frame OR a timeout, never a frame
+	 * alone (`tickEachFrame`) -- and the timer reads the later of the two. A
+	 * ready, paused or finished timer runs no frame loop; the slow clock carries
+	 * it, and taking the later reading means the hand-over never steps the
+	 * digits backwards. The digits are derived from that instant, never counted.
+	 */
+	let frameNow = $state(0);
+	const timerNow = $derived(Math.max(now, frameNow));
+	const ticking = $derived(timerTicking(timer, timerNow));
+	$effect(() => {
+		if (!ticking) return;
+		// TRACKED: a new timer (a press, in either window) restarts the loop, so
+		// its first reading is the next frame rather than the end of a sleep.
+		const t = timer;
+		const read = clock;
+		return tickEachFrame(() => {
+			const at = read();
+			frameNow = at;
+			return t ? timerHoldMs(t, at, 'control') : undefined;
+		});
+	});
+	const phase = $derived(timer ? timerPhase(timer, timerNow) : null);
+	const readout = $derived(timer ? timerReadout(timer, timerNow, 'control') : null);
+	/** The last ten seconds of a countdown that has started. */
+	const final = $derived(!!timer && (phase === 'running' || phase === 'paused') && timerFinal(timer, timerNow));
+	/**
+	 * What the digits are keyed on: the whole second while the last ten seconds
+	 * RUN, so each new second re-makes the digits and replays their beat; one
+	 * constant otherwise, so nothing is re-made on an ordinary frame.
+	 */
+	const beat = $derived(final && phase === 'running' && readout ? readout.whole : phase === 'done' ? 'done' : '');
 
 	function setTimer(next: LiveTimer | null) {
 		timer = next;
@@ -195,7 +236,7 @@
 		setTimer(timerExtend(timer, clock()));
 	}
 	function toggleLabel(t: LiveTimer): string {
-		const p = timerPhase(t, now);
+		const p = timerPhase(t, timerNow);
 		if (p === 'running') return 'Pause';
 		if (p === 'paused') return 'Resume';
 		if (p === 'done') return 'Restart';
@@ -555,12 +596,16 @@
 		<div class="lc-side">
 			<section class="lc-panel" aria-labelledby="lc-timer-title" data-testid="live-timer">
 				<h2 id="lc-timer-title" class="lc-panel-title">Timer</h2>
-				{#if timer}
-					<div class="lc-readout" data-phase={phase} data-testid="live-timer-readout">
-						<span class="lc-digits">{timerDigits(timer, now)}</span>
-						<span class="lc-word">{timerWord(timer, now)}</span>
-						{#if timerOvertime(timer, now)}
-							<span class="lc-over">Over by {timerOvertime(timer, now)}</span>
+				{#if timer && readout}
+					<div class="lc-readout" data-phase={phase} data-final={final} data-testid="live-timer-readout">
+						{#key beat}
+							<span class="lc-digits" data-testid="live-timer-digits"
+								><span class="lc-whole">{readout.whole}</span><span class="lc-frac">{readout.fraction}</span></span
+							>
+						{/key}
+						<span class="lc-word">{timerWord(timer, timerNow)}</span>
+						{#if timerOvertime(timer, timerNow)}
+							<span class="lc-over">Over by {timerOvertime(timer, timerNow)}</span>
 						{/if}
 					</div>
 					<div class="lc-row">
@@ -900,11 +945,53 @@
 		gap: 0.2rem var(--space-3);
 	}
 	.lc-digits {
+		display: inline-block;
 		font-family: var(--font-mono);
 		font-size: 3rem;
 		line-height: 1;
 		font-variant-numeric: tabular-nums;
 		color: var(--text-1);
+		/* A beat grows to the right, into the panel, never over its left edge. */
+		transform-origin: left center;
+	}
+	/* The hundredths, smaller: the seconds are what a glance reads. */
+	.lc-frac {
+		font-size: 0.6em;
+	}
+	/* THE LAST TEN SECONDS, STILL: the digits take the warning ink, the same
+	   ink the overtime line already reads in on this panel. */
+	.lc-readout[data-final='true'] .lc-digits {
+		color: var(--status-warn);
+	}
+	/* MOTION, ONLY UNDER no-preference: in the last ten seconds each new second
+	   re-makes the digits (the markup keys them on it) and they beat once; when
+	   time is up they bump once. Nothing loops, and both rest unscaled. */
+	@media (prefers-reduced-motion: no-preference) {
+		.lc-readout[data-final='true'][data-phase='running'] .lc-digits {
+			animation: lc-beat 450ms ease-out both;
+		}
+		.lc-readout[data-phase='done'] .lc-digits {
+			animation: lc-bump 700ms ease-out both;
+		}
+	}
+	@keyframes lc-beat {
+		0% {
+			transform: scale(1.08);
+		}
+		100% {
+			transform: scale(1);
+		}
+	}
+	@keyframes lc-bump {
+		0% {
+			transform: scale(1);
+		}
+		30% {
+			transform: scale(1.15);
+		}
+		100% {
+			transform: scale(1);
+		}
 	}
 	.lc-word {
 		font-family: var(--font-mono);

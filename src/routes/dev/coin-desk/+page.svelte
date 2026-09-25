@@ -22,6 +22,10 @@
 		listRoleDefinitions,
 		listCategories
 	} from './fake-ledger';
+	import { createFakeClassRoster } from './fake-classes';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
 
 	/**
 	 * Dev harness: mirrors the /coin-desk ROUTE GROUP -- the same sub-nav
@@ -111,6 +115,19 @@
 	 * now, with no page driving them.
 	 */
 	const supabase = createFakeLedger() as unknown as SupabaseClient;
+
+	/**
+	 * STUDENTS -> "manage" on a section -> "Import from class roster": the
+	 * classroom half in memory (fake-classes.ts). Against the first section,
+	 * "IDEA 100 · Section 1 · Block 3" previews "Add 27 students" with one
+	 * already there, one left in another coin section, a teacher and an
+	 * inactive enrollment not counted; "IDEA 209H" has nobody to add.
+	 * `?roster=none` omits the transport (the control must go) and
+	 * `?roster=degraded` answers a roster with no manager flag (it must refuse).
+	 */
+	const classRoster = $derived(
+		data.rosterMode === 'none' ? undefined : createFakeClassRoster(data.rosterMode)
+	);
 
 	let migrationApplied = $state(true);
 	let sectionsApplied = $state(true);
@@ -210,7 +227,12 @@
 				{onPrefs}
 			/>
 		{:else if area === 'students'}
-			<SectionManager {supabase} bind:sections={sectionsState} configured={sectionsApplied} />
+			<SectionManager
+				{supabase}
+				bind:sections={sectionsState}
+				configured={sectionsApplied}
+				{classRoster}
+			/>
 			<BalanceAdminPanel {supabase} categoryKinds={harnessCategoryKinds} />
 		{:else if area === 'contracts'}
 			<ContractsManager {supabase} sections={activeSections()} configured={contractsApplied} />

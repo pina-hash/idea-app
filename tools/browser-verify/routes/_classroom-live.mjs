@@ -57,3 +57,55 @@ export const ROSTER_ON_WALL = `() => {
 	const text = document.body.innerText;
 	return [names.filter((n) => text.includes(n)).join(', ') || 'none', text.includes('@') ? 'an address' : 'no address'];
 }`;
+
+/**
+ * THE TIMER, WATCHED FOR A SECOND (ledger 0298). Reads the readout's text on
+ * every animation frame for `ms` and stashes what it saw on
+ * `window.__bvTimerSample`: how many DIFFERENT readings (the digits are derived
+ * from the clock on every frame the timer's own loop runs, so this counts
+ * paints that changed the face), how many frames ran, and the gaps between
+ * them (p50, p95, longest), which is frame pacing on THIS machine and is
+ * reported, never gated -- the container is shared and its numbers are not an
+ * old school desktop's. Returns the whole sample as a string, which the step
+ * prints.
+ */
+export const sampleTimer = (selector, ms = 1000) => `async () => {
+	const read = () => document.querySelector(${JSON.stringify(selector)})?.textContent ?? '';
+	const seen = new Set();
+	const gaps = [];
+	let frames = 0;
+	await new Promise((done) => {
+		requestAnimationFrame((t0) => {
+			let last = t0;
+			const step = (t) => {
+				frames++;
+				gaps.push(t - last);
+				last = t;
+				seen.add(read());
+				if (t - t0 < ${ms}) requestAnimationFrame(step);
+				else done();
+			};
+			requestAnimationFrame(step);
+		});
+	});
+	gaps.sort((a, b) => a - b);
+	const at = (p) => +gaps[Math.min(gaps.length - 1, Math.floor(p * gaps.length))].toFixed(1);
+	const s = { distinct: seen.size, frames, p50: at(0.5), p95: at(0.95), longest: +gaps[gaps.length - 1].toFixed(1), first: [...seen].slice(0, 3) };
+	window.__bvTimerSample = s;
+	return 'in ${ms}ms: ' + s.distinct + ' distinct readings over ' + s.frames + ' frames; frame gap p50 ' + s.p50 + 'ms, p95 ' + s.p95 + 'ms, longest ' + s.longest + 'ms; first ' + s.first.join(' | ');
+}`;
+
+/** The verdict on that sample: at least `min` different readings in the window. */
+export const timerTicked = (min) => `() => {
+	const s = window.__bvTimerSample;
+	return [s && s.distinct >= ${min} ? 'at least ${min} distinct readings' : 'only ' + (s ? s.distinct : 'no sample') + ' distinct readings'];
+}`;
+
+/** A readout's text, split into its two drawn parts, as the face shows them. */
+export const READOUT_PARTS = (root) => `() => {
+	const r = document.querySelector(${JSON.stringify(root)});
+	if (!r) return ['no readout'];
+	const whole = r.querySelector('.lp-whole, .lc-whole')?.textContent ?? '';
+	const frac = r.querySelector('.lp-frac, .lc-frac')?.textContent ?? '';
+	return [whole, frac];
+}`;

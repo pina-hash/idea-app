@@ -1,6 +1,6 @@
 {
 	"schema": 1,
-	"spec": "classroom-live-door-role-student.mjs",
+	"spec": "classroom-live-door-count-27-title-long-music-1-theme-space-white.mjs",
 	"date": "2026-09-25T05:18:25.497Z",
 	"sha": "6064a101314e754f1785d2d60a41698448037928",
 	"dirty": true,
@@ -9,7 +9,7 @@
 		1440
 	],
 	"runs": 2,
-	"measurements": 26,
+	"measurements": 28,
 	"outsideRows": [],
 	"ms": 5550
 }
