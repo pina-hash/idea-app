@@ -41,6 +41,10 @@ open or edit a document.
 - **The words**: "Live" or "Live unavailable" beside the save indicator, from the
   channel status ("Connecting" until it answers; "cannot tell" never reads as live).
   A refused channel also says, once, that the model still checks every 12 seconds.
+  The word gives way rather than crowding the top bar: it shrinks first, ellipsises,
+  and is removed when the save line has under 100px (windows narrower than about
+  950px, where the save indicator itself already has no room), so it never paints
+  over the document name. On a phone it is an 18px line that clears the footer.
 - **Optional as a whole.** `SolidWorkspace` takes `live?: SolidLiveTransport`; absent,
   there is no word, no poll and no ping. `/ideacad` wires it
   (`createSolidTransports(...).live(email)`); the legacy chooser at
