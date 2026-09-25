@@ -153,7 +153,25 @@
 	const board = SAVED.map((s) => ({ ...s, showing: teamWindowState(s, now) === 'showing' })).filter(
 		(s) => teacher || s.showing
 	);
-	const teams = postedTeamSets(board);
+	const posted = postedTeamSets(board);
+
+	/* `?later=posted`: THE PAGE LOADED BEFORE THE TEACHER POSTED (ledger 0298,
+	   R23). The section layout's load answered nothing and never re-runs inside
+	   the class, so the only way the draw arrives is the component's own
+	   `refresh` -- the layout hands it the same read through
+	   `refreshPostedTeams`. Here the database "posts" when a spec sets
+	   `window.__teamsPostedNow`: before that the refresh answers nothing posted,
+	   after it the posted board, so a run can hold the page in the before state
+	   and then watch the draw arrive. Every other mode's refresh answers exactly
+	   what the load did, which writes nothing. */
+	const later = params.get('later') === 'posted';
+	const teams = later ? [] : posted;
+	let refreshes = $state(0);
+	async function refresh() {
+		refreshes += 1;
+		const postedNow = (globalThis as { __teamsPostedNow?: boolean }).__teamsPostedNow === true;
+		return later && !postedNow ? [] : posted;
+	}
 
 	const hallPass: HallPassState = teacher
 		? { scope: 'manager', section_id: SECTION.id, taken: false, mine: false, open: null, history: [] }
@@ -200,6 +218,7 @@
 	class="cr-root harness-page"
 	data-testid="class-teams-harness"
 	data-teams={teams.length}
+	data-refreshes={refreshes}
 	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
 >
 	<ClassSplit hasDetail={false} nav={classList}>{@render nothing()}</ClassSplit>
@@ -211,9 +230,7 @@
 	<div class="class-tools" data-testid="class-tools">
 		<HallPass sectionId={SECTION.id} state={hallPass} transports={null} {now} tool />
 	</div>
-	{#if teams?.length}
-		<ClassTeams sets={teams} manage={teacher ? teamsManageLink(SECTION.id) : null} {today} />
-	{/if}
+	<ClassTeams sets={teams} manage={teacher ? teamsManageLink(SECTION.id) : null} {today} {refresh} />
 	<ClassView section={SECTION} items={ITEMS} canManage={teacher} basePath={BASE} />
 {/snippet}
 

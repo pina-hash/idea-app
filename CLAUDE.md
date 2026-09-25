@@ -1039,7 +1039,12 @@ rule Foundry states as "preflight passing is not submission".
   line saying until when, linking to People (`postedTeamsNotice`,
   `teamsManageLink`). "Today" on the post control ends at the end of today in
   Los Angeles (`teamWindowEnd` over `schoolDayEnd`), never the browser's
-  tomorrow. A student editing
+  tomorrow. **The section layout's load never re-runs on a navigation inside
+  the class**, so a draw posted after a page opened reached nobody who had it
+  open, the teacher pressing Class straight after People included; so
+  `ClassTeams` is mounted whether or not anything is posted and re-reads
+  through `refreshPostedTeams` every `CLASS_TEAMS_POLL_MS` and on focus, and
+  People's post, take-down and retire call `onchanged`. A student editing
   their team's banner has the membership-gated write waiting and no control
   yet, so no `classroom-updates.json` entry may claim students can style a
   team.

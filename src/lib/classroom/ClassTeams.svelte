@@ -1,7 +1,14 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import { teamLabel, teamStyleVars, hasStyle, teamStyle } from '$lib/classroom/teams';
-	import { ownTeams, postedTeamsNotice, type ClassTeam, type ClassTeamSet } from '$lib/classroom/class-teams';
+	import {
+		CLASS_TEAMS_POLL_MS,
+		ownTeams,
+		postedTeamsNotice,
+		type ClassTeam,
+		type ClassTeamSet
+	} from '$lib/classroom/class-teams';
 
 	/**
 	 * THE TEAMS A TEACHER POSTED, ON THE CLASS PAGE (ledger 0297, reordered in
@@ -28,21 +35,84 @@
 	 *
 	 * NAMES ONLY. The projection this reads carries no address, and nothing
 	 * here asks for one.
+	 *
+	 * IT IS MOUNTED WHETHER OR NOT ANYTHING IS POSTED, AND RENDERS NOTHING WHEN
+	 * NOTHING IS (ledger 0298, R23). The section layout's load never re-runs on
+	 * a navigation inside the class, so a draw posted after the page loaded
+	 * reached nobody who had it open -- the teacher included, pressing the Class
+	 * tab straight after posting from People. `refresh` re-asks the same
+	 * audience-gated read on `CLASS_TEAMS_POLL_MS` while the tab is visible and
+	 * at once when it comes back into view; omitted, the component is what the
+	 * page load handed it and nothing else (absence is the mechanism).
 	 */
 	let {
 		sets,
 		manage = null,
-		today = null
+		today = null,
+		refresh = null
 	}: {
 		sets: ClassTeamSet[];
 		/** Where a teacher manages the draw (the People tab). Null for a student: no strip. */
 		manage?: { href: string; label: string } | null;
 		/** The loader's school day, so the strip's date prints the year only when it is not this year. */
 		today?: string | null;
+		/** Re-reads the posted draws: the projection, or null when the read failed. */
+		refresh?: (() => Promise<ClassTeamSet[] | null>) | null;
 	} = $props();
 
-	const own = $derived(ownTeams(sets));
-	const notice = $derived(manage ? postedTeamsNotice(sets, today) : null);
+	/**
+	 * The page load's answer, overlaid with whatever a refresh has since
+	 * learned -- HallPass's `local` pattern, keyed on WHICH page-load answer it
+	 * overlays. When the page's own `sets` move (a reload, `invalidateAll` after
+	 * a post, another class), the overlay no longer matches and the page load
+	 * wins again. `$state.raw`, so `over` stays the very array it was read over
+	 * and the identity test means what it says. A failed refresh keeps what is
+	 * on screen.
+	 */
+	let local = $state.raw<{ over: ClassTeamSet[]; sets: ClassTeamSet[] } | null>(null);
+	const shown = $derived(local && local.over === sets ? local.sets : sets);
+
+	const own = $derived(ownTeams(shown));
+	const notice = $derived(manage ? postedTeamsNotice(shown, today) : null);
+
+	/**
+	 * THE POLL. The effect reads `refresh` and nothing else; the timer and the
+	 * listener run outside the tracking scope, and the call itself is
+	 * untracked, so the work takes no dependency on the state it writes. A
+	 * sequence number drops an answer that arrives after a newer one, and an
+	 * answer identical to what is on screen writes nothing.
+	 */
+	$effect(() => {
+		const read = refresh;
+		if (!read || typeof document === 'undefined') return;
+		let alive = true;
+		let asked = 0;
+		const tick = () => {
+			if (document.hidden) return;
+			const mine = ++asked;
+			// The page-load answer this ask is about. If the page's own data moves
+			// while the ask is in flight (another class, `invalidateAll`), the
+			// answer is about a page that is gone and is dropped.
+			const over = sets;
+			void untrack(() => read())
+				.then((next) => {
+					if (!alive || mine !== asked || !next || over !== sets) return;
+					const onScreen = local && local.over === over ? local.sets : over;
+					if (JSON.stringify(next) === JSON.stringify(onScreen)) return;
+					local = { over, sets: next };
+				})
+				.catch(() => {});
+		};
+		const timer = setInterval(tick, CLASS_TEAMS_POLL_MS);
+		document.addEventListener('visibilitychange', tick);
+		window.addEventListener('focus', tick);
+		return () => {
+			alive = false;
+			clearInterval(timer);
+			document.removeEventListener('visibilitychange', tick);
+			window.removeEventListener('focus', tick);
+		};
+	});
 </script>
 
 {#snippet card(team: ClassTeam, isOwn: boolean)}
@@ -63,6 +133,7 @@
 	</div>
 {/snippet}
 
+{#if shown.length}
 <section class="ct-root" data-testid="class-teams" aria-label="Teams">
 	{#each own as o (`${o.set.id}:${o.team.id}`)}
 		<div class="ct-mine" data-testid="class-team-mine-wrap">
@@ -80,7 +151,7 @@
 		</p>
 	{/if}
 
-	{#each sets as set (set.id)}
+	{#each shown as set (set.id)}
 		<Disclosure
 			label={`All teams · ${set.label}`}
 			scope={`class-teams:${set.id}`}
@@ -98,6 +169,7 @@
 		</Disclosure>
 	{/each}
 </section>
+{/if}
 
 <style>
 	.ct-root {

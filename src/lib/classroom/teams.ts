@@ -271,10 +271,10 @@ export const TEAM_WINDOW_WORDS: Record<ReturnType<typeof teamWindowState>, strin
 };
 
 /**
- * A POSTING END, FROM A NUMBER OF SCHOOL DAYS COUNTING TODAY, and it lands at
- * the END of the last one rather than at the same clock time days later: "post
- * these for the week" on a Monday means through Friday, not until Friday
- * morning. One day is today.
+ * A POSTING END, FROM A NUMBER OF CALENDAR DAYS COUNTING TODAY (on the
+ * school's calendar; weekends count), and it lands at the END of the last one
+ * rather than at the same clock time days later: "post these for the week" on
+ * a Monday means through Friday, not until Friday morning. One day is today.
  *
  * THE DAY IS THE SCHOOL'S, IN AMERICA/LOS_ANGELES, and that is ledger 0298's
  * repair. This used to add `days` to the date and set 23:59 on the BROWSER'S

@@ -24,7 +24,7 @@ import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
 import { createPostgrestShim, loadForeignKeys } from './db/postgrest-shim';
-import { loadPostedTeams, postedTeamSets } from '../src/lib/classroom/class-teams';
+import { loadPostedTeams, postedTeamSets, refreshPostedTeams } from '../src/lib/classroom/class-teams';
 import { teamWindowEnd } from '../src/lib/classroom/teams';
 
 const CHAIN = [
@@ -176,6 +176,25 @@ describe('the class page reads the posted draw, as names', () => {
 		expect(await loadPostedTeams(throwing as never, sectionId)).toEqual([]);
 		expect(postedTeamSets([])).toEqual([]);
 	});
+
+	it('a REFRESH that fails answers null, never the empty list, so the page keeps what it shows', async () => {
+		// The refresh re-reads an open class page (ledger 0298, R23). "The read
+		// failed" and "nothing is posted" must be two answers there, or one
+		// dropped request takes the posted teams off every open page.
+		const failing = { rpc: async () => ({ data: null, error: { code: 'XX000', message: 'boom' } }) };
+		expect(await refreshPostedTeams(failing as never, sectionId)).toBeNull();
+		const missing = { rpc: async () => ({ data: null, error: { code: 'PGRST202', message: 'missing' } }) };
+		expect(await refreshPostedTeams(missing as never, sectionId)).toBeNull();
+		const throwing = {
+			rpc: async () => {
+				throw new Error('network');
+			}
+		};
+		expect(await refreshPostedTeams(throwing as never, sectionId)).toBeNull();
+		// POSITIVE CONTROL: the real read answers the student the posted draw.
+		const live = await refreshPostedTeams(createPostgrestShim(db, fks, alice.id) as never, sectionId);
+		expect(live?.map((s) => s.id)).toEqual([postedId]);
+	});
 });
 
 // ===========================================================================
@@ -239,7 +258,26 @@ describe('the class page mounts it for everyone', () => {
 		expect(server).toMatch(/teams: await teamsRead/);
 		// Not behind canManage: the class sees it, and so does the teacher. Only
 		// the teacher's strip (`manage`) is keyed on managing the class.
-		expect(page).toMatch(/\{#if data\.teams\?\.length\}[\s\S]{0,400}?<ClassTeams\s+sets=\{data\.teams\}/);
+		expect(page).toMatch(/<ClassTeams\s+sets=\{data\.teams\}/);
 		expect(page).toMatch(/manage=\{data\.canManage \? teamsManageLink\(data\.section\.id\) : null\}/);
+		// MOUNTED WHETHER OR NOT ANYTHING IS POSTED, AND HANDED ITS REFRESH
+		// (ledger 0298, R23). This layout's load never re-runs on a navigation
+		// inside the class, so a gate on the load's answer would hide a draw
+		// posted after the page opened from everybody who had it open.
+		expect(page).not.toMatch(/\{#if[^}]*data\.teams/);
+		expect(page).toMatch(/refresh=\{\(\) => refreshPostedTeams\(data\.supabase, data\.section\.id\)\}/);
+	});
+
+	it('posting, taking down and retiring from People refresh the page, so the Class tab is not stale', () => {
+		const panel = readFileSync(new URL('../src/lib/classroom/PeoplePanel.svelte', import.meta.url), 'utf8');
+		const people = readFileSync(new URL('../src/routes/classroom/[sectionId]/people/+page.svelte', import.meta.url), 'utf8');
+		const body = /async function runTeamAction\([\s\S]*?\n\t}\n/.exec(panel)?.[0] ?? '';
+		// POSITIVE CONTROL: the function was found, and it is the one the three
+		// team actions go through.
+		expect(body).toMatch(/await loadTeams\(\)/);
+		expect((panel.match(/runTeamAction\(/g) ?? []).length).toBeGreaterThanOrEqual(4);
+		expect(body).toMatch(/await onchanged\?\.\(\)/);
+		// ...and on the real People page `onchanged` re-runs every load.
+		expect(people).toMatch(/onchanged=\{\(\) => invalidateAll\(\)\}/);
 	});
 });

@@ -101,10 +101,11 @@ export function ownTeams(sets: readonly ClassTeamSet[]): OwnTeam[] {
  * WHERE A TEACHER MANAGES A DRAW: the People tab, read from `sectionTabs` so
  * the link and the tab bar cannot name two different places.
  */
-export function teamsManageLink(sectionId: string): { href: string; label: string } {
+export function teamsManageLink(sectionId: string): { href: string; label: string } | null {
 	const tab = sectionTabs(sectionId).find((t) => t.id === 'people');
-	// The People tab is always in the list; the fallback only keeps the type total.
-	return tab ? { href: tab.href, label: tab.label } : { href: `/classroom/${sectionId}/people`, label: 'People' };
+	// No typed fallback URL: a second spelling of the People route is the thing
+	// this reads `sectionTabs` to avoid. Without the tab there is no strip.
+	return tab ? { href: tab.href, label: tab.label } : null;
 }
 
 /**
@@ -128,9 +129,44 @@ export function postedTeamsNotice(sets: readonly ClassTeamSet[], today?: string 
 	if (sets.length === 1) {
 		return soonest ? `Teams posted until ${formatDue(soonest, today)}` : 'Teams posted until you take them down';
 	}
+	// Two or more: the soonest end is the one a teacher acts on, and it is not
+	// necessarily the first board listed (the board is newest draw first).
 	return soonest
-		? `${sets.length} team draws posted, the first until ${formatDue(soonest, today)}`
+		? `${sets.length} team draws posted; the next comes down ${formatDue(soonest, today)}`
 		: `${sets.length} team draws posted until you take them down`;
+}
+
+/**
+ * HOW OFTEN AN OPEN CLASS PAGE RE-ASKS FOR POSTED TEAMS (ledger 0298, R23).
+ *
+ * The section layout's load runs once per visit to the class: a navigation
+ * between the class's own tabs and items never re-runs it (its only input is
+ * the section id), so a draw posted while a student already had the class
+ * open never reached them, and a teacher who posted from People and pressed
+ * the Class tab read the page as it was BEFORE the post. The class page
+ * therefore re-reads the same audience-gated board on this interval while the
+ * tab is visible, and at once when the tab comes back into view -- the hall
+ * pass's own polling shape.
+ */
+export const CLASS_TEAMS_POLL_MS = 60_000;
+
+/**
+ * THE SAME READ, FOR A REFRESH: the projection when the board answered, and
+ * NULL when it did not. A refresh that failed must keep what is on screen, so
+ * "the read failed" cannot be the same answer as "nothing is posted"; the page
+ * load's `loadPostedTeams` folds the two together because it has nothing on
+ * screen to keep.
+ */
+export async function refreshPostedTeams(
+	supabase: SupabaseClient,
+	sectionId: string
+): Promise<ClassTeamSet[] | null> {
+	try {
+		const res = await createTeamTransports(supabase).board(sectionId);
+		return res.ok ? postedTeamSets(res.sets) : null;
+	} catch {
+		return null;
+	}
 }
 
 /** The class page's read: the same audience-gated board the People tab uses. */
@@ -138,10 +174,5 @@ export async function loadPostedTeams(
 	supabase: SupabaseClient,
 	sectionId: string
 ): Promise<ClassTeamSet[]> {
-	try {
-		const res = await createTeamTransports(supabase).board(sectionId);
-		return res.ok ? postedTeamSets(res.sets) : [];
-	} catch {
-		return [];
-	}
+	return (await refreshPostedTeams(supabase, sectionId)) ?? [];
 }
