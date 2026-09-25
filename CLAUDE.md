@@ -1280,6 +1280,34 @@ spelling of "past due and nothing turned in" is how a row reads "Not started"
 while the Missing filter lists it, which is exactly what shipped before it.
 Undated work is never Missing and never counted; it is listed last.
 
+- **ONE PREDICATE IS NOT ENOUGH: ITS INPUTS ARE ONE SET TOO, AND UNTIL LEDGER
+  0298 THEY WERE NOT.** This section said the surfaces "cannot disagree" because
+  they asked one function, while the class page handed it only the check-ins
+  with a stream row of their own and the to-do handed it all of them; a
+  check-in attached to an item (0120) read "1 missing" on My Classes and the
+  to-do and 0 on the class page, with nothing there to show for it. Every
+  surface now hands in EVERY check-in: the class page draws an attached one as
+  a chip on its item (`attachedCheckInChip`, grouped once by `checkInsByItem`)
+  and its filter keeps that item when the check-in is what matches.
+- **A FINISHED PORTED WORKSHEET IS DONE, AND THAT IS A DERIVED INPUT, NEVER A
+  STATE (decision 37).** A schema-3 document has no turn-in, so every one read
+  Missing from its due instant until a grade was returned. `hxCompletion` in
+  `$lib/classroom/html-assignment/progress.ts` is the progress rail reaching
+  100% (never `hxIncompleteBlocks` alone, which passes an empty worksheet whose
+  manifest asks for no sentences), and `readWorksheetCompletions` reads it from
+  the caller's own answers and photos -- paged, because PostgREST truncates at
+  1000 rows without an error -- for the home page, My Classes, the to-do and the
+  class page alike. Its answer rides on the submission rows as a derived
+  completed_at (`withWorksheetCompletions`), so `assignmentStanding`, the chip
+  ("Complete", or "Complete, late" in a word and a tone), the filters and the
+  teacher's `isAwaitingGrade` all read it with no new parameter anywhere.
+  **Saving an answer creates no submission row** (only a file, a grade, a submit
+  or a close does), so a finished worksheet with none gets a derived draft row.
+  **The state is never moved to `submitted`**: that locks saves (0197). The
+  teacher's tally reads only worksheets due within
+  `WORKSHEET_TALLY_WINDOW_DAYS`; the grading console judges its own item
+  whatever its date. A read that cannot answer changes nothing.
+
 - **OWED WORK IS ONE READ.** `loadClassroomWork` in
   `$lib/classroom/student-work.ts` is the home page's, the classroom index's and
   the to-do page's load: classes, items, the caller's own submissions and
