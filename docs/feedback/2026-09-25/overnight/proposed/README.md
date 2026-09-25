@@ -80,3 +80,85 @@ ledger and must land **after** 0228: it refuses to apply without 0228's table.
 - **Undo** (in this order, by hand): re-run section 4 of
   `supabase/migrations/0197_classroom_html_assignment_write_gate.sql`, then drop the helper, then
   drop the table (which loses every recorded revision).
+
+## 0229: a live class EDIT grant on an IdeaCAD document (decision 38)
+
+- **File:** `0229_ideacad_class_edit_grant.sql`. **Test:**
+  `tests/db/proposed-0229-class-edit-grant.test.ts` (33 tests, green, about 7 s over the same full
+  chain through 0224).
+- **What it does.** A teacher can give a whole class edit access to one LIVE IdeaCAD document, blade
+  or direct (solid). "The class" is read from `classroom_enrollments` at every write, so a student
+  who joins later can edit from the statement that enrolls them, and a student who is deactivated
+  loses access in that same statement. It is one new table, `ideacad_section_edit_grants` (keyed
+  `(document_id, section_id)`, **no role column**: every row means editor), plus three new functions
+  (`ideacad_grant_class_edit`, `ideacad_revoke_class_edit`, `ideacad_class_edit_grants`), all
+  returning `{ok: false, reason, message}` refusals. It also inserts ONE arm into
+  `_ideacad_document_role` and one union arm into `ideacad_shared_with_me` (blade discovery). Every
+  write gate already asks the role, so the class editor reaches the concept writers,
+  `ideacad_apply_actions`, the part-writer assembly writes, `ideacad_save_direct_document` and realtime
+  send and receive, without any write gate being rewritten. The self-check refuses to apply if any of
+  those gates has stopped asking the role.
+- **What stays exactly as it was.** 0214's archived-only VIEWER share is untouched: its table, its
+  three functions and every row in it, which all stay viewers. The test records every answer every
+  seeded person gets about every seeded document: the seven gate predicates, realtime send and
+  receive, and both discovery reads, 96 entries across 12 people and 3 documents. It then applies the
+  file and compares: **0 differences**. It also compares the ACLs of both replaced functions byte for
+  byte. There is no deploy ordering. The file is additive, and no deployed client names the new
+  functions. The client that offers the control must either degrade on `PGRST202` or ship after the
+  apply.
+- **Decisions taken for Mr. Pina, each written in the file's header. Read the first one first:**
+  1. **A class editor gets exactly what a personal editor gets, and `_ideacad_part_owner` is NOT
+     widened.** Decision 38 says both write predicates must admit the class editor "or five assembly
+     writes silently stay closed". The part-WRITER writes (claim, heartbeat, release own hold, new
+     concept on a part, set a part's active concept) open on their own through
+     `_ideacad_part_writer`'s wide rung, and the test runs all five as a class editor. The four writes
+     that gate on `_ideacad_part_owner` directly (add a part, rename or reorder one, reassign one,
+     release somebody else's hold) belong to the **assembly owner** (0207: "THE ASSEMBLY OWNER HAS
+     FULL CONTROL"). A personal editor cannot do them today. `ideacad_assign_part` overrides a LIVE
+     hold, so giving it to thirty students would let any one of them take a part out of a
+     classmate's hands mid-edit. The test asserts that the class editor and the personal editor are
+     refused the same four. Changing this is one disjunct in `_ideacad_part_owner`, and the
+     self-check names the line.
+  2. **Only the teacher of the target class (or an admin) may grant**, and only on a document they own
+     or manage. A student owner is refused (`not_your_class`); per-person sharing stays their tool.
+  3. **Revoking** is open to the document's owner, its manager, or the class's teacher. It is never
+     refused because the document or the posting changed since the grant.
+  4. **A grant can only add access**: a student with a personal viewer grant who is in an edit class
+     is an editor.
+  5. **Live documents only**: an archived or trashed document is refused. If a document is archived
+     after the grant, the class can still read it but cannot write to it. Restoring it keeps the edit
+     grant (restoring still deletes only 0214's viewer rows).
+  6. **A blade document can only be granted to a class its assignment is posted to**, because blade
+     discovery is keyed on the item. A direct document has no such rule, because
+     `ideacad_direct_documents` already lists everything the caller can read.
+- **Measured tonight:** mutation proof over nine mutants. The file was copied aside first, restored
+  from that copy, and md5-checked (`33114b38...` before and after). Every mutant was killed:
+  - dropping the live-roster (`ce.active`) term: 1 failing test;
+  - dropping the "who is enrolled" term, so any grant makes everybody an editor: 7 failing tests;
+  - skipping the class-teacher check: 1;
+  - skipping the archived check: 5;
+  - ranking a class edit grant below a personal viewer in discovery: 1;
+  - letting anybody revoke: 2;
+  - two mutants that change an answer that existed BEFORE the file: 2 failing tests each, both caught
+    by the before-and-after comparison.
+
+  The file's own self-check **refuses to apply** the bare `revoke ... from public` form that 0201
+  used, and names all three functions. The file's own verification query (section 8) runs in the
+  test: every row is ok after the apply, and the query does not pass before it.
+- **Known gap, not closed here:** `ideacad_beat_part` checks only that the caller holds the part. A
+  deactivated class editor whose tab stays open therefore keeps a held part until they close the tab.
+  Every write they try is refused, and the owner's reassign or release clears the hold. A revoked
+  personal editor has the same gap today. Closing it narrows `ideacad_beat_part`, so it needs its
+  own file.
+- **Undo** (in this order, by hand): re-paste 0214's `_ideacad_document_role` (section 4) and
+  `ideacad_shared_with_me` (section 7) **first**, then drop the three functions, then drop the table.
+  The order matters because Postgres does not record a SQL function's reference to a table as a
+  dependency: dropping the table first would break every IdeaCAD read.
+- **Promoting it also means** two more edits:
+  - classify the three functions in `tests/db/ideacad-grants-anon-execute-surface.test.ts` and add
+    the table to its `IDEACAD_SELECT_TABLES` (that test fails on an unclassified IdeaCAD function);
+  - edit CLAUDE.md's "A CLASS GRANT IS A SECOND TABLE AND IS ALWAYS A VIEWER" paragraph in place,
+    naming decision 38.
+
+  **Re-pasting 0214 after this file silently removes the class editor**, so re-paste this file after
+  it.
