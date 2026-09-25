@@ -3735,7 +3735,10 @@ inside the function fails closed rather than falling through to a weaker path.
     the floating Report and Voice pills won hit tests over row controls, People's
     Remove and the grading dock, so `ClassroomShell` docks both (`VoiceNav` at
     `place="header"`), and a `/dev` harness that mounts the real shell is listed
-    in `CLASSROOM_SHELL_HARNESSES` so it measures the production arrangement. A
+    in `CLASSROOM_SHELL_HARNESSES` so it measures the production arrangement.
+    **Report has its own header slot and never folds into the Menu** (report 30:
+    folded below 1180px, it read as missing); on a phone it stacks its word under
+    its glyph so a class icon still fits. A
     category with nowhere to relocate to is an exclusion that deleted the control.
   - **CONTEXT IS CAPTURED, NEVER TYPED**, through `captureMeta`: route id, path,
     role, section, viewport, clock time, and the build. A field somebody has to
@@ -5028,10 +5031,18 @@ served STRING, never to the source file on disk.
   IMPORTED -- the kind list, the caps, the refusal wording, `describeBuild` --
   and the row lands in `app_feedback` through the same two endpoints as every
   other surface. **`$lib/server/legacy-feedback-post.ts` is the one signed-in
-  handler**, called by `/api/vanguard-feedback` and `/api/coin-feedback`, which
-  differ by one `app` string; the ANONYMOUS endpoint is taken from the shared
-  constant and no caller can override it, so a signed-out report cannot be
-  pointed anywhere but `/api/feedback`.
+  handler**, called by `/api/vanguard-feedback`, `/api/coin-feedback` and
+  `/api/assignment-feedback`, which differ by one `app` string; the ANONYMOUS
+  endpoint is taken from the shared constant and no caller can override it, so a
+  signed-out report cannot be pointed anywhere but `/api/feedback`.
+  - **A LEGACY PAGE IN A SHARED CACHE ASKS FOR THE SESSION; IT IS NEVER TOLD
+    (report 20).** The Ledger bakes `signedIn` into its bytes and pays with
+    `Vary: Cookie`. `/assignments/<slug>` is one public cache entry for a whole
+    class and must not vary, so its panel (`injectLegacyReportPanel` with
+    `ASSIGNMENT_REPORT_OPTIONS`) asks `GET /api/assignment-feedback`
+    (`private, no-store`) when the box OPENS, and sends nothing until it knows.
+    `tests/feedback-coverage.test.ts` sweeps every non-dev `+server.ts` that can
+    answer with HTML and requires a control or a named exemption with a reason.
 - **VANGUARD'S OWN INJECTED PANEL PREDATES THAT MODULE AND IS A MIGRATION
   CANDIDATE, NOT A SECOND SANCTIONED PATTERN** (the standing the hand-rolled
   disclosures have). It is woven into the GAME -- it wears `.fbovl` so the
@@ -5321,7 +5332,11 @@ audit finds and a change review never does. Written as a hook the
 shell renders byte-identically and the room points the name at the corrected
 value it already has (`--nb-accent-ink`, `--nb-error`) -- and the hook is
 declared ON THE ROOM'S OWN WRAPPER, never on the component, or it sits on a
-descendant and beats the room. **MEASURE WHEN A SHARED COMPONENT ENTERS A NEW
+descendant and beats the room. **The one exception is a component mounted as the
+room's SIBLING**, which no wrapper declaration can reach: the root-mounted report
+box reads `--fb-room-bg` and its siblings (`SiteFeedback.svelte` lists them), and
+each out-of-scope room declares them on `body:has(.<room>)` in its own
+stylesheet, as literals (report 35). **MEASURE WHEN A SHARED COMPONENT ENTERS A NEW
 ROOM**; both of those had passed review in the room they were written for.
 
 **AND THE SAME ARITHMETIC BINDS A TOKEN MOVE, IN THE OTHER DIRECTION: A PORTAL
