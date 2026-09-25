@@ -92,6 +92,8 @@
 		type AssignmentLockState
 	} from '$lib/classroom/html-assignment/lock';
 	import Disclosure from '$lib/Disclosure.svelte';
+	import BulkFileDownload from '$lib/classroom/BulkFileDownload.svelte';
+	import type { BulkFileSource } from '$lib/classroom/bulk-download-source';
 	import PresenceLine from '$lib/classroom/presence/PresenceLine.svelte';
 	import {
 		PRESENCE_POLL_MS,
@@ -134,7 +136,8 @@
 		live = null,
 		close = null,
 		presence = null,
-		speech = undefined
+		speech = undefined,
+		fileDownload = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -268,6 +271,12 @@
 		 * deliver results: a flag could only ever prove the button renders.
 		 */
 		speech?: SpeechRecognitionCtor | null;
+		/**
+		 * EVERY STUDENT FILE AS ONE ZIP (ledger 0298), AND ABSENCE REMOVES THE
+		 * CONTROL. `BulkFileDownload` renders nothing without it, so a read-only
+		 * mount and a harness proving the absence have no button at all.
+		 */
+		fileDownload?: BulkFileSource | null;
 	} = $props();
 
 	/**
@@ -2066,6 +2075,23 @@
 								<p class="export-note" data-testid="export-note">{exportNote}</p>
 							{/if}
 						</div>
+						<!-- EVERY STUDENT FILE AS ONE ZIP (ledger 0298). The class is the export
+						     picker's, the selection is the tick boxes', and the standing column
+						     is the roster chip's own words, so the file and the console agree. -->
+						<BulkFileDownload
+							source={fileDownload}
+							{item}
+							{data}
+							sections={activeSections}
+							scopeSection={exportSection}
+							selected={picked}
+							standingOf={(email) => {
+								const s = students.find((row) => row.email === email);
+								return s ? statusChip(s).label : '';
+							}}
+							{outOf}
+							save={download}
+						/>
 					</Disclosure>
 					{#if returnedCount < students.length}
 						<p class="csv-hint">
@@ -4033,6 +4059,20 @@
 			min-height: 0;
 			overflow-y: auto;
 			overscroll-behavior: contain;
+		}
+		/* THE CROSS-CLASS ROSTER IS GROUPS, AND EACH GROUP IS A FLEX ITEM OF
+		   `.roster` TOO (ledger 0298). With no `min-height: 0` a group's automatic
+		   minimum is its whole content, so two long classes won the flex fight and
+		   took `.roster-tools` below to nothing: measured on /dev/grading-files at
+		   1440x900, the tools region 0px tall with 199px of content in it, and the
+		   Export graded work trigger answered `elementFromPoint` with a class
+		   heading, so no click could open it. Made a column, the group shrinks
+		   and its own list scrolls under its heading, exactly as the one-class
+		   list does. */
+		.roster-group {
+			display: flex;
+			flex-direction: column;
+			min-height: 0;
 		}
 		/* THE NAMES GET A FLOOR, WRITTEN AS A CEILING ON THE THING THAT WAS
 		   STARVING THEM (0278), AND THE DIRECTION IS THE WHOLE LESSON.
