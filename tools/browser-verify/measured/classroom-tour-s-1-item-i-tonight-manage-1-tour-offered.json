@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "classroom-tour-s-1-item-i-tonight-manage-1-tour-offered.mjs",
+	"date": "2026-09-25T08:06:40.138Z",
+	"sha": "5af17331b6e68f6f31278ed0a4d5e089fd90a9fa",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 10,
+	"outsideRows": [],
+	"ms": 13471
+}

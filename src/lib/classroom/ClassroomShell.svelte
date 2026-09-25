@@ -13,7 +13,14 @@
 		type SectionTabId,
 		classroomPathname
 	} from '$lib/classroom/nav';
-	import { navCollapseKey, readNavCollapsed, writeNavCollapsed } from '$lib/classroom/nav-collapse';
+	import {
+		navCollapseKey,
+		navCollapsedFor,
+		navCollapseWorkSurface,
+		readNavCollapseChoice,
+		writeNavCollapseChoice,
+		type NavCollapseChoice
+	} from '$lib/classroom/nav-collapse';
 	import { formatSectionLabel } from '$lib/section-label';
 	import { classGlyph } from '$lib/classroom/class-glyph';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
@@ -144,6 +151,14 @@
 	 * become reactive (it is not). Keyed on the viewer, like a disclosure --
 	 * this is a decision about how this person reads, not about the screen
 	 * in front of them.
+	 *
+	 * WHAT IS STORED IS THE CHOICE, NOT THE STATE (ledger 0298, report 25): a
+	 * ported HTML worksheet or a spec assignment opens with the list put away
+	 * unless this person has pressed the control before, and the state on
+	 * screen is `navCollapsedFor(choice, workSurface)`. `workSurface` is read
+	 * off the item page's own payload (`page.data`), the same keys the page
+	 * hands `ItemDetail`, so a harness that loads an item the way the real
+	 * route does gets the real default.
 	 */
 	/* Read through `classroomPathname` so a harness mounting this shell under
 	   another base sees the same place the shipping route does -- the collapse
@@ -153,18 +168,20 @@
 	const showNavToggle = $derived(!minimal && canCollapseNav(loc));
 	const viewer = $derived((page.data?.claims?.sub as string | undefined) ?? null);
 	const navCollapseStorageKey = $derived(navCollapseKey(viewer));
-	const storedNavCollapsed = $derived(readNavCollapsed(navCollapseStorageKey));
-	let navCollapseOverride = $state<{ key: string; collapsed: boolean } | null>(null);
-	const navCollapsed = $derived(
-		navCollapseOverride && navCollapseOverride.key === navCollapseStorageKey
-			? navCollapseOverride.collapsed
-			: storedNavCollapsed
+	const storedNavChoice = $derived(readNavCollapseChoice(navCollapseStorageKey));
+	let navChoiceOverride = $state<{ key: string; choice: NavCollapseChoice } | null>(null);
+	const navChoice = $derived(
+		navChoiceOverride && navChoiceOverride.key === navCollapseStorageKey
+			? navChoiceOverride.choice
+			: storedNavChoice
 	);
+	const navWorkSurface = $derived(navCollapseWorkSurface(page.data, loc.itemId));
+	const navCollapsed = $derived(navCollapsedFor(navChoice, navWorkSurface));
 
 	function toggleNavCollapsed() {
-		const next = !navCollapsed;
-		navCollapseOverride = { key: navCollapseStorageKey, collapsed: next };
-		writeNavCollapsed(navCollapseStorageKey, next);
+		const choice = navCollapsed ? 'expanded' : 'collapsed';
+		navChoiceOverride = { key: navCollapseStorageKey, choice };
+		writeNavCollapseChoice(navCollapseStorageKey, choice);
 	}
 
 	const ordered = $derived(sortSections(sections));
@@ -633,12 +650,20 @@
 					running, keeps its scroll position and its folded groups, and gets no
 					`{#if}` of its own -- collapsed is a view state, never a content one.
 
-					WHY IT SITS BESIDE THE TRAIL. The trail is the only chrome an item page
-					has (the section tabs above never render for `item` -- see `tab` being
-					null there), and the two controls answer the same question together:
-					how do I get back, and how do I put the rest of the class away while I
-					read this one. Hiding one must never cost the other, which is why this
-					is a second child of `.crumbs` rather than a replacement for it.
+					WHY IT SITS BESIDE THE ITEM'S TITLE. The trail is the only chrome an
+					item page has (the section tabs above never render for `item` -- see
+					`tab` being null there), its last crumb IS the item's title, and the two
+					controls answer the same question together: how do I get back, and how
+					do I put the rest of the class away while I read this one. Hiding one
+					must never cost the other, which is why this is a second child of
+					`.crumbs` rather than a replacement for it. It used to sit at the far
+					end of the row, 900px from anything it was about at 1440, and students
+					never found it (report 25); `.crumbs` now packs it straight after the
+					title, and it says what it does to the class list in words.
+
+					A WORK SURFACE OPENS WITH THE LIST PUT AWAY (ledger 0298): a ported
+					HTML worksheet or a spec assignment, unless this person has pressed
+					this before. See `navCollapseWorkSurface` and `navCollapsedFor`.
 
 					ONLY ON THE ITEM PAGE (`canCollapseNav`). On the class list nothing is
 					open, so the list already has the whole split to itself (split.css's
@@ -658,10 +683,10 @@
 						data-testid="nav-collapse-toggle"
 						onclick={toggleNavCollapsed}
 					>
-						<span class="nav-toggle-caret" aria-hidden="true">{navCollapsed ? '▸' : '▾'}</span>
-						<span class="nav-toggle-label"
-							>{navCollapsed ? 'Show other items' : 'Hide other items'}</span
+						<svg class="nav-toggle-glyph" viewBox="0 0 24 24" aria-hidden="true"
+							><path d={ICONS.classList} />{#if !navCollapsed}<path d={ICONS.classListPane} />{/if}</svg
 						>
+						<span class="nav-toggle-label">{navCollapsed ? 'Show class list' : 'Hide class list'}</span>
 					</button>
 				{/if}
 			</nav>
@@ -1157,13 +1182,16 @@
 	   stays) and never down into a tab. It is 20px shorter than the padding and
 	   margin that used to buy the same clearance. */
 	.crumbs {
-		/* THE ROW HOLDS THE TRAIL AND THE NAV-COLLAPSE TOGGLE, one on each end. */
+		/* THE ROW HOLDS THE TRAIL AND THE NAV-COLLAPSE TOGGLE, the toggle packed
+		   straight after the trail's last crumb, which on an item page is the
+		   item's own title (report 25: at the far end of the row it was found by
+		   nobody). A long title wraps the toggle onto its own line, still first. */
 		display: flex;
 		flex: 1 1 18rem;
 		flex-wrap: wrap;
 		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-2) var(--space-4);
+		justify-content: flex-start;
+		gap: var(--space-2) var(--space-3);
 		min-width: 0;
 		min-height: 44px;
 	}
@@ -1214,33 +1242,39 @@
 		color: var(--boundary);
 	}
 
-	/* THE NAV-COLLAPSE TOGGLE. A real button, not a bare glyph; `.tap-44`
-	   (src/app.css) buys the 44px floor, and `flex: none` keeps it from being
-	   squeezed by a long trail. */
+	/* THE NAV-COLLAPSE TOGGLE. A real button with a glyph AND its word, not a
+	   bare caret; `.tap-44` (src/app.css) buys the 44px floor, and `flex: none`
+	   keeps it from being squeezed by a long trail. It reads in the body ink
+	   (`--text-1`), not the trail's quieter tier: it is the one control on this
+	   row that changes the page, and the report was that nobody saw it. */
 	.nav-toggle {
 		appearance: none;
 		display: inline-flex;
 		flex: none;
 		align-items: center;
-		gap: 0.35rem;
-		padding: 0.3rem 0.6rem;
+		gap: 0.45rem;
+		padding: 0.3rem 0.7rem;
 		background: var(--surface-1);
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-card);
-		color: var(--text-2);
+		color: var(--text-1);
 		font-family: var(--font-mono);
-		font-size: 0.7rem;
+		font-size: 0.74rem;
 		letter-spacing: 0.04em;
 		cursor: pointer;
 	}
 	.nav-toggle:hover {
-		color: var(--text-1);
 		border-color: var(--gold);
 	}
-	.nav-toggle-caret {
-		font-size: 0.65rem;
-		color: var(--text-2);
+	.nav-toggle-glyph {
 		flex: none;
+		width: 18px;
+		height: 18px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.7;
+		stroke-linecap: round;
+		stroke-linejoin: round;
 	}
 
 	/* THE TAB BAR. It WRAPS rather than overflowing (see the comment above the

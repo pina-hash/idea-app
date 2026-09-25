@@ -118,7 +118,10 @@ export const ICONS = {
 	projector: 'M3 5h18v11H3zM8 20h8M12 16v4',
 	timer: 'M12 7a7 7 0 1 0 0 14a7 7 0 0 0 0-14zM12 10.5V14l2 2M9.5 3h5',
 	pick: 'M5 5h14v14H5zM9 9h.01M15 15h.01M12 12h.01M15 9h.01M9 15h.01',
-	tour: 'M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 0 0 0-17zM9.5 14.5l1.5-4.5 4.5-1.5-1.5 4.5z'
+	tour: 'M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 0 0 0-17zM9.5 14.5l1.5-4.5 4.5-1.5-1.5 4.5z',
+	/** The item page's class list toggle: a window with a list column, and the list's rows while it is on screen. */
+	classList: 'M3.5 5h17v14h-17zM9.5 5v14',
+	classListPane: 'M5.5 8.5h2M5.5 11.5h2M5.5 14.5h2'
 } as const;
 
 /* -------------------------------------------------------------------------
