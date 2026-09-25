@@ -156,6 +156,7 @@
 	{presence}
 	close={transports.closeAssignment}
 	htmlWork={htmlMount === 'spec' ? null : htmlWork}
+	manifest={htmlMount === 'html' ? manifest : null}
 />
 
 <!--

@@ -36,11 +36,14 @@
 		studentWorkRows
 	}	from '$lib/classroom/assignment-spec';
 	import {
+		completionIsLate,
 		itemTitle,
 		sectionTitle,
 		type ClassroomItem,
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
+	import { hxCompletion } from '$lib/classroom/html-assignment/progress';
+	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import {
 		BULK_PRESETS,
 		BULK_PRESET_LABEL,
@@ -72,6 +75,7 @@
 		type ExportScope,
 		postGradeChange,
 		postGradeChangeLabel,
+		postGradeBlockChanges,
 		type PostGradeChange
 	} from '$lib/classroom/grading-export';
 	import { buildXlsx } from '$lib/xlsx';
@@ -126,6 +130,7 @@
 		basePath = '/classroom',
 		bulk = null,
 		htmlWork = null,
+		manifest = null,
 		live = null,
 		close = null,
 		presence = null,
@@ -194,6 +199,15 @@
 		 * placeholder saying what the grader is not being shown.
 		 */
 		htmlWork?: Snippet<[StudentWork]> | null;
+		/**
+		 * THE PORTED WORKSHEET'S MANIFEST (0195, schema 3), or null for every
+		 * spec assignment. It is what lets the roster say "Complete" for a
+		 * worksheet with every answer in (decision 37, ledger 0298) through
+		 * `hxCompletion`, the same predicate the student's own chip and the home
+		 * tally read, and what names a block in "changed after grading". Absent,
+		 * the roster reads exactly as it did: no worksheet is judged complete.
+		 */
+		manifest?: HtmlAssignmentManifest | null;
 		/**
 		 * LIVE NOTICES, AND THE POLL UNDERNEATH THEM IS NOT OPTIONAL WITH IT.
 		 *
@@ -419,6 +433,8 @@
 		) as Map<string, PostGradeChange | null>
 	);
 	const selectedChange = $derived(selected ? (changedFor.get(selected.email) ?? null) : null);
+	/** Per block, from the same `graded_at` (ledger 0298). */
+	const selectedBlockChanges = $derived(selected ? postGradeBlockChanges(selected) : []);
 	const changedCount = $derived([...changedFor.values()].filter(Boolean).length);
 
 	/**
@@ -1066,8 +1082,55 @@
 				? { label: ASSIGNMENT_LOCK_CHIP.closed, cls: 'closed' }
 				: { label: ASSIGNMENT_LOCK_CHIP['turned-in'], cls: 'submitted' };
 		}
+		/*
+		 * A FINISHED PORTED WORKSHEET IS COMPLETE, NOT "In progress" (decision
+		 * 37, ledger 0298): it has no turn-in, so this is the only word for a
+		 * student who has done all of it. `hxCompletion` is the one predicate the
+		 * student's chip and the home tally read too; late says so in a word and
+		 * in amber, never silently.
+		 */
+		const done = completionOf(s);
+		if (done) {
+			return completionIsLate(item, done)
+				? { label: 'Complete, late', cls: 'late' }
+				: { label: 'Complete', cls: 'submitted' };
+		}
 		if (s.responses.length || s.files.length) return { label: 'In progress', cls: 'progress' };
 		return { label: 'Not submitted', cls: 'none' };
+	}
+
+	/**
+	 * WHEN THIS STUDENT'S WORKSHEET BECAME COMPLETE, or null: not a worksheet,
+	 * not complete, or already turned in some other way (a close, a return).
+	 * An empty string is "complete, instant unknown", which is never late.
+	 */
+	function completionOf(s: StudentWork): string | null {
+		if (!manifest) return null;
+		const state = s.submission?.state ?? null;
+		if (state === 'submitted' || state === 'returned') return null;
+		const done = hxCompletion(manifest, s.responses, s.files);
+		return done.complete ? (done.at ?? '') : null;
+	}
+
+	/**
+	 * A BLOCK'S NAME, for "changed after grading": the worksheet's own module
+	 * title and field when there is a manifest, the spec module's title when
+	 * there is a spec, and the block id when neither knows it -- an id is still
+	 * an answer an instructor can find.
+	 */
+	function blockName(blockId: string): string {
+		if (manifest) {
+			for (const b of manifest.header ?? []) if (b.id === blockId) return `Header: ${b.field}`;
+			for (const m of manifest.modules ?? []) {
+				for (const b of m.blocks ?? []) if (b.id === blockId) return `${m.title}: ${b.field}`;
+			}
+		}
+		if (spec) {
+			for (const m of spec.modules ?? []) {
+				for (const b of (m.blocks ?? []) as { id?: string }[]) if (b.id === blockId) return `${m.title}: ${blockId}`;
+			}
+		}
+		return blockId;
 	}
 
 	/**
@@ -2382,6 +2445,23 @@
 									{stamp(selectedChange.at)}. Grading again clears this.
 								</p>
 							{/if}
+							<!--
+								WHERE, NOT ONLY THAT (decision 37, ledger 0298): every answer, and
+								every photograph in a block, that moved after the grade, with its
+								own time, newest first. Rendered on its own rather than under the
+								line above, because a photograph added after grading is a block
+								change the line does not count.
+							-->
+							{#if selectedBlockChanges.length}
+								<ul class="changed-blocks" data-testid="changed-blocks">
+									{#each selectedBlockChanges as change (change.blockId)}
+										<li data-testid="changed-block">
+											<span class="changed-block-name">{blockName(change.blockId)}</span>
+											{change.kind === 'file' ? 'photo added' : 'changed'} after grading at {stamp(change.at)}
+										</li>
+									{/each}
+								</ul>
+							{/if}
 							</div>
 						</div>
 						<button type="button" class="btn secondary tiny" onclick={() => requestSelect(null)}>
@@ -3649,6 +3729,12 @@
 		color: var(--teal);
 		border-color: var(--teal);
 	}
+	/* COMPLETE, LATE (decision 37): --amber, this file's warning edge, because
+	   late work is a fact the grader acts on; the WORD says late either way. */
+	.roster-chip.late {
+		color: var(--amber);
+		border-color: var(--amber);
+	}
 	/* CLOSED IS NOT SUBMITTED AND MUST NOT LOOK LIKE IT. --cyan is this file's
 	   "the student handed it in"; a close is an act of the instructor's, so it
 	   takes --violet through --violet-ink, which is the corrected value the
@@ -3734,6 +3820,18 @@
 	.roster-chip.changed {
 		color: var(--amber);
 		border-color: var(--amber);
+	}
+	/* The blocks that moved after the grade: the changed line's own register,
+	   one per line so a long worksheet's list reads down rather than wrapping. */
+	.changed-blocks {
+		margin: 0.25rem 0 0;
+		padding-left: 1.1rem;
+		font-size: 0.8125rem;
+		line-height: 1.45;
+		color: var(--text-2);
+	}
+	.changed-block-name {
+		color: var(--text-1);
 	}
 	.roster-chip.incomplete {
 		color: var(--gold);
