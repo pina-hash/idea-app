@@ -57,7 +57,7 @@ const under = (prefix: string) => (routeId: string) =>
 
 /**
  * The `/dev` harnesses that mount the REAL ClassroomShell, which carries the
- * relocated Report and Voice controls in its header. Exported so a test can
+ * relocated Report control in its header. Exported so a test can
  * sweep src/routes/dev for every harness that imports the shell and fail when
  * one is missing from this list (a harness showing both the floating pill and
  * the docked one measures an arrangement production never has).
@@ -147,9 +147,10 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 		// row's checkbox and grip, a menu trigger, People's Deactivate and Remove,
 		// the grading dock's Return button at 960, the photo corrector's buttons
 		// -- and a hit test at the overlap answered the pill. The room has chrome
-		// of its own on every one of those pages, so both controls dock into it
-		// (ClassroomShell mounts SiteFeedback at `place="relocated"` and VoiceNav
-		// at `place="header"`), and nothing floats over the class any more.
+		// of its own on every one of those pages, so Report docks into it
+		// (ClassroomShell mounts SiteFeedback at `place="relocated"`), and nothing
+		// floats over the class any more. Voice has no pill at all since ledger
+		// 0298 (report 31): it is the command palette's Speak control.
 		//
 		// REPORT NEVER FOLDS INTO THE MENU (report 30, 2026-09-25). Below 1180px
 		// the header's tools fold behind one Menu button; Report used to fold with

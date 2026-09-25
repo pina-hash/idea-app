@@ -19,7 +19,12 @@ export interface Crumb {
 	href?: string;
 }
 
-export type SectionTabId = 'class' | 'live' | 'notebook' | 'people' | 'grades' | 'duplicates';
+/**
+ * THE TABS A CLASS HAS. `duplicates` left this union with its tab (ledger 0298,
+ * report 28): the page is a place (`ClassroomPlace` below), not a tab, and its
+ * doors are `classDuplicatesHref`'s callers.
+ */
+export type SectionTabId = 'class' | 'live' | 'notebook' | 'people' | 'grades';
 
 export interface SectionTab {
 	id: SectionTabId;
@@ -172,13 +177,21 @@ export function locateClassroom(pathname: string): ClassroomLocation {
  *
  * SECOND, NOT LAST. For a student the bar is "Class | Notebook" whichever slot
  * it takes; for a manager the class's two working surfaces come before the
- * three reports, and it is the reports that wrap to a second row on a phone.
+ * reports.
  *
- * THE DUPLICATES TAB AND ITS PAGE STAND OR FALL TOGETHER, asserted in BOTH
- * directions by `tests/classroom-nav-doors.test.ts`. A new tab takes six
- * edits -- this union, this list, `ClassroomPlace`, `locateClassroom`'s
- * `rest[1]` branch, `activeTab`'s case and `classroomCrumbs`'s -- plus a
- * `classroomMeasure` case wherever `page` is the wrong width.
+ * DUPLICATES IS NOT A TAB ANY MORE (ledger 0298, report 28: "I don't think
+ * I'm going to ever use [it] very often ... put somewhere out of the way"). The
+ * page, its 404 gate and its palette command all stay; what left is the tab,
+ * which spent a sixth of a teacher's bar on a page with nothing to act on most
+ * days. Its doors are `classDuplicatesHref`: the `class.duplicates` command,
+ * and a door beside the class page's Drafts filter that renders only when the
+ * class has duplicate drafts. `tests/classroom-nav-doors.test.ts` asserts the
+ * page and its doors stand or fall together, in both directions.
+ *
+ * A NEW TAB takes six edits -- this union, this list, `ClassroomPlace`,
+ * `locateClassroom`'s `rest[1]` branch, `activeTab`'s case and
+ * `classroomCrumbs`'s -- plus a `classroomMeasure` case wherever `page` is the
+ * wrong width.
  */
 export function sectionTabs(sectionId: string, basePath = '/classroom'): SectionTab[] {
 	return [
@@ -189,14 +202,23 @@ export function sectionTabs(sectionId: string, basePath = '/classroom'): Section
 		{ id: 'live', label: 'Live', href: `${basePath}/${sectionId}/live`, manageOnly: true },
 		{ id: 'notebook', label: 'Notebook', href: classNotebookHref(sectionId, basePath), manageOnly: false },
 		{ id: 'people', label: 'People', href: `${basePath}/${sectionId}/people`, manageOnly: true },
-		{ id: 'grades', label: 'Grades', href: `${basePath}/${sectionId}/grades`, manageOnly: true },
-		{
-			id: 'duplicates',
-			label: 'Duplicates',
-			href: `${basePath}/${sectionId}/duplicates`,
-			manageOnly: true
-		}
+		{ id: 'grades', label: 'Grades', href: `${basePath}/${sectionId}/grades`, manageOnly: true }
 	];
+}
+
+/**
+ * A CLASS'S DUPLICATE DRAFTS PAGE, as a URL (ledger 0298, report 28). One
+ * spelling, read by the palette's `class.duplicates` command and the class
+ * page's Drafts door, so the two cannot point two ways -- the job `sectionTabs`
+ * did for them while the page was a tab. Encoded as a path segment, as
+ * `classNotebookHref` is.
+ *
+ * IT IS A DOOR, NOT A GATE: the page 404s for anybody who does not manage the
+ * section (`tests/classroom-nav-duplicates-gate.test.ts`), whoever built the
+ * link.
+ */
+export function classDuplicatesHref(sectionId: string, basePath = '/classroom'): string {
+	return `${basePath}/${encodeURIComponent(sectionId)}/duplicates`;
 }
 
 /**
@@ -247,7 +269,7 @@ export function studentNotebookHref(
  *
  * `ItemDetail` refuses a second check-in on a date an item already has one.
  * The existing one lives in the check-in manager, which is a MODE of this
- * class's Notebook tab for a manager -- NOT the Duplicates tab, which is about
+ * class's Notebook tab for a manager -- NOT the Duplicates page, which is about
  * duplicate DRAFTS, a different object. The address is the notebook tab's own
  * href from `sectionTabs` plus `?mode=checkins`, which the tab reads to open
  * straight on the manager, so the sentence and the tab cannot point two
@@ -336,7 +358,9 @@ export function activeTab(loc: ClassroomLocation): SectionTabId | null {
 	if (loc.place === 'live') return 'live';
 	if (loc.place === 'people') return 'people';
 	if (loc.place === 'grades') return 'grades';
-	if (loc.place === 'duplicates') return 'duplicates';
+	/* `duplicates` is NOT a tab (ledger 0298): it answers null, as an item
+	   does, so no tab bar claims it and the trail -- My Classes / Class /
+	   Duplicates -- is the way back to the class page it was opened from. */
 	return null;
 }
 

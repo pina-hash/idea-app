@@ -6,8 +6,9 @@
  * an optional default shortcut, keywords for search, and exactly one way to
  * happen: an `href` it navigates to, or a runtime handler the surface that can
  * do it registers under the same id (`./command-handlers.ts`). The palette,
- * the shortcut legend, the settings panel's own door and (later) row menus and
- * tooltips read THIS list; nothing hard-codes a tool list twice.
+ * the palette's Speak control (whose vocabulary is the palette's own rows,
+ * ledger 0298), the shortcut legend, the settings panel's own door and (later)
+ * row menus and tooltips read THIS list; nothing hard-codes a tool list twice.
  *
  * IDS ARE STABLE. A recent pick is stored as `cmd:<id>` on the device
  * (`$lib/preferences/classroom`), so a command is renamed by its `name`, never
@@ -33,7 +34,7 @@
  */
 import { GRADE_KEYS } from '$lib/classroom/grading-keys';
 import { REVIEW_KEYS } from '$lib/notebook-review';
-import { sectionTabs, type SectionTabId } from '$lib/classroom/nav';
+import { classDuplicatesHref, sectionTabs, type SectionTabId } from '$lib/classroom/nav';
 import type { KeyBinding } from './keys';
 
 export type CommandRole = 'any' | 'student' | 'manager';
@@ -118,7 +119,12 @@ export const ICONS = {
 	projector: 'M3 5h18v11H3zM8 20h8M12 16v4',
 	timer: 'M12 7a7 7 0 1 0 0 14a7 7 0 0 0 0-14zM12 10.5V14l2 2M9.5 3h5',
 	pick: 'M5 5h14v14H5zM9 9h.01M15 15h.01M12 12h.01M15 9h.01M9 15h.01',
-	tour: 'M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 0 0 0-17zM9.5 14.5l1.5-4.5 4.5-1.5-1.5 4.5z'
+	tour: 'M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 0 0 0-17zM9.5 14.5l1.5-4.5 4.5-1.5-1.5 4.5z',
+	/** The item page's class list toggle: a window with a list column, and the list's rows while it is on screen. */
+	classList: 'M3.5 5h17v14h-17zM9.5 5v14',
+	classListPane: 'M5.5 8.5h2M5.5 11.5h2M5.5 14.5h2',
+	/** The palette's Speak control (ledger 0298, report 31). */
+	mic: 'M9 6a3 3 0 0 1 6 0v5a3 3 0 0 1-6 0zM5 11a7 7 0 0 0 14 0M12 18v3'
 } as const;
 
 /* -------------------------------------------------------------------------
@@ -311,14 +317,17 @@ const CORE: readonly ShellCommand[] = [
 		href: tabHref('grades')
 	},
 	{
+		// NOT A TAB SINCE LEDGER 0298 (report 28): this command and the class
+		// page's door beside Drafts are the page's two ways in, and both read
+		// `classDuplicatesHref`, so they cannot point two ways.
 		id: 'class.duplicates',
 		name: 'Duplicates',
 		icon: ICONS.duplicates,
 		description: 'Drafts that repeat something already posted.',
 		role: 'manager',
 		context: 'class',
-		keywords: ['copies', 'repeated'],
-		href: tabHref('duplicates')
+		keywords: ['copies', 'repeated', 'duplicate drafts'],
+		href: (env) => (env.sectionId ? classDuplicatesHref(env.sectionId, env.basePath) : null)
 	},
 	{
 		// The class's own Notebook tab (ledger 0297): a student's notebook in

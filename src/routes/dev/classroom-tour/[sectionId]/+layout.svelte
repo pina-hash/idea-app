@@ -53,6 +53,17 @@
 			/* storage blocked: the default width */
 		}
 	}
+
+	/**
+	 * `?dupes=<n>` (ledger 0298, report 28) adds n more copies of the class's
+	 * one draft, so the class page's Duplicates door has something behind it.
+	 * Latched on first read, like the tour seed: item links carry no query.
+	 */
+	let dupeCopies: number | null = null;
+	export function seedDupes(url: URL): number {
+		if (dupeCopies === null) dupeCopies = Math.max(0, Math.min(5, Number(url.searchParams.get('dupes') ?? 0) || 0));
+		return dupeCopies;
+	}
 </script>
 
 <script lang="ts">
@@ -133,7 +144,32 @@
 	);
 	const tabs = $derived(loc.sectionId ? sectionTabs(loc.sectionId, TOUR_BASE) : []);
 	const checkIns = $derived(data.section.id === 's-1' ? (manage ? MANAGER_CHECK_INS : STUDENT_CHECK_INS) : []);
-	const items = $derived(manage ? data.items : data.items.filter((i) => i.published));
+	/* The seeded copies of the draft: a manager sees them, and RLS would never
+	   hand a student a draft at all. */
+	const copies = seedDupes(page.url);
+	const extraDrafts = $derived.by(() => {
+		const draft = data.items.find((i) => !i.published);
+		return draft
+			? Array.from({ length: copies }, (_, n) => ({ ...draft, id: `${draft.id}-copy-${n + 1}`, sort_order: draft.sort_order + n + 1 }))
+			: [];
+	});
+	const items = $derived(manage ? [...data.items, ...extraDrafts] : data.items.filter((i) => i.published));
+	/**
+	 * THE DUPLICATES DOOR'S COUNT, in memory: 0187's grouping (author, kind,
+	 * title, body, drafts only) over what this manager's list holds, standing in
+	 * for `loadDuplicateDraftCount`'s RPC exactly as the other stubs here stand
+	 * in for theirs. Handed only to a manager, as the real section layout does.
+	 */
+	async function loadDuplicateCount(): Promise<number | null> {
+		await new Promise((r) => setTimeout(r, 40));
+		const groups = new Map<string, number>();
+		for (const i of items) {
+			if (i.published) continue;
+			const k = [i.author_email, i.kind, i.title, i.body].join('\u0000');
+			groups.set(k, (groups.get(k) ?? 0) + 1);
+		}
+		return [...groups.values()].reduce((n, c) => n + c - 1, 0);
+	}
 
 	const paletteSources = $derived<PaletteSources>({
 		section: data.section.id === loc.sectionId ? data.section : null,
@@ -218,6 +254,7 @@
 		notebookHref="/dev/notebook"
 		{opensOn}
 		clock={CLOCK}
+		loadDuplicateCount={manage ? loadDuplicateCount : null}
 	/>
 {/snippet}
 

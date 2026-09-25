@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "class-videos-state-pane.mjs",
+	"date": "2026-09-25T09:04:03.433Z",
+	"sha": "a8eb56897eaf7d439def97350082f73e534d6180",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 18,
+	"outsideRows": [],
+	"ms": 12313
+}
