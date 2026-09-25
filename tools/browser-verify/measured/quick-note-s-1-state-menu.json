@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "quick-note-s-1-state-menu.mjs",
+	"date": "2026-09-25T09:18:22.339Z",
+	"sha": "431e6d21ecf08695df8e2d8d328ba2d8277b00c9",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 18,
+	"outsideRows": [],
+	"ms": 8511
+}
