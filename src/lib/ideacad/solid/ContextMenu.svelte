@@ -22,7 +22,10 @@
 	 *   press opens it at once. The right arrow opens it and moves into it,
 	 *   and the left arrow or Escape closes it and goes back to its row. ONE
 	 *   TIMER PER PANEL (`timers[level]`), on `setTimeout` and never on
-	 *   `requestAnimationFrame`, which a background window never ticks.
+	 *   `requestAnimationFrame`, which a background window never ticks. ONLY A
+	 *   MOUSE drives the timers: a finger on a touch-screen laptop (whose main
+	 *   pointer is its trackpad, so this layout) opens a list by a press, and
+	 *   its lift is not a leave.
 	 * - IN PLACE, with a Back row first, on a finger or in a window with no
 	 *   room beside the menu (a phone), because a flyout there would run off
 	 *   the screen. This was the only way until R04 and is unchanged: a press
@@ -111,10 +114,13 @@
 		const to = submenuPlacement({ top: r.top, bottom: r.bottom }, { left: m.left, right: m.right }, { width: p.width, height: p.height }, { width: window.innerWidth, height: window.innerHeight }, inset);
 		sides = sides.map((s, k) => (k === level ? { ...s, place: { left: to.left, top: to.top, side: to.side } } : s));
 	}
-	/** The pointer rests on row `i` of panel `level`. In place it only lights the row; beside the menu it also asks for that row's list, or for the open one to close, after the wait. */
-	function hover(level: number, i: number, item: MenuItem) {
+	/**
+	 * The pointer rests on row `i` of panel `level`. In place it only lights the row; beside the menu a MOUSE also asks for that row's list, or for the open one to close, after the wait.
+	 * ONLY A MOUSE RESTS. A finger or a pen on a touch-screen laptop (whose main pointer is its trackpad, so the lists open beside the menu) sends an enter and, once it lifts, a leave with nothing under it, before its click; timed on those, a list a tap opened closed 300 ms later, under a box it had just ticked. For them a press opens a list and nothing is timed.
+	 */
+	function hover(level: number, i: number, item: MenuItem, pointerType: string) {
 		preview(item);
-		if (layout !== 'side') return;
+		if (layout !== 'side' || pointerType !== 'mouse') return;
 		const child = sides[level];
 		if (child && child.from === i) cancel(level);
 		else if (hasList(item)) later(level, child ? SUBMENU_GRACE_MS : SUBMENU_OPEN_MS, () => void openSide(level, i, item, false));
@@ -123,8 +129,8 @@
 	}
 	/* Entering a list keeps it: whatever the panels before it were about to do to it is called off. */
 	function enter(level: number) { for (let k = 0; k < level; k++) cancel(k); }
-	/* Leaving every panel closes the lists beside the menu, after the same wait, and calls off a list the pointer only crossed on its way out. */
-	function leave(e: PointerEvent) { const to = e.relatedTarget as Node | null; if (to && inMenu(to)) return; if (layout !== 'side') return; cancelAll(); if (sides.length) later(0, SUBMENU_GRACE_MS, () => closeSides(0)); }
+	/* A MOUSE leaving every panel closes the lists beside the menu, after the same wait, and calls off a list it only crossed on its way out. A finger lifting is not a leave (see `hover`). */
+	function leave(e: PointerEvent) { const to = e.relatedTarget as Node | null; if (to && inMenu(to)) return; if (layout !== 'side' || e.pointerType !== 'mouse') return; cancelAll(); if (sides.length) later(0, SUBMENU_GRACE_MS, () => closeSides(0)); }
 
 	/* A checkbox that stays open shows its new state at once; the caller's own rows are read again only when it reopens. */
 	let toggled = $state<Record<string, boolean>>({});
@@ -168,7 +174,7 @@
 </script>
 
 {#snippet row(item: MenuItem, i: number, level: number)}
-	<button type="button" role={item.checked !== undefined ? 'menuitemcheckbox' : 'menuitem'} aria-checked={item.checked !== undefined ? isChecked(item) : undefined} aria-haspopup={item.items ? 'menu' : undefined} aria-expanded={item.items && layout === 'side' ? sides[level]?.from === i : undefined} aria-disabled={item.reason ? 'true' : undefined} data-menu-row data-index={i} data-command={item.id} onclick={(e) => activate(item, level, i, e)} onpointerenter={() => hover(level, i, item)} onpointerleave={() => preview(null)} onfocus={() => preview(item)} onblur={() => preview(null)}>
+	<button type="button" role={item.checked !== undefined ? 'menuitemcheckbox' : 'menuitem'} aria-checked={item.checked !== undefined ? isChecked(item) : undefined} aria-haspopup={item.items ? 'menu' : undefined} aria-expanded={item.items && layout === 'side' ? sides[level]?.from === i : undefined} aria-disabled={item.reason ? 'true' : undefined} data-menu-row data-index={i} data-command={item.id} onclick={(e) => activate(item, level, i, e)} onpointerenter={(e) => hover(level, i, item, e.pointerType)} onpointerleave={() => preview(null)} onfocus={() => preview(item)} onblur={() => preview(null)}>
 		{#if item.checked !== undefined}
 			<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v16H4z" />{#if isChecked(item)}<path d="M8 12l3 3 5-6" />{/if}</svg>
 		{:else if item.icon}

@@ -24,7 +24,7 @@ const HELPERS = `
 	const menu = () => document.querySelector('[data-testid="ideacad-context-menu"]');
 	const sub = () => document.querySelector('[data-testid="ideacad-context-submenu"]');
 	const row = (root, id) => root && root.querySelector('[data-command="' + id + '"]');
-	const pe = (el, type, relatedTarget = null) => el && el.dispatchEvent(new PointerEvent(type, { bubbles: false, cancelable: false, pointerType: 'mouse', relatedTarget }));
+	const pe = (el, type, relatedTarget = null, pointerType = 'mouse') => el && el.dispatchEvent(new PointerEvent(type, { bubbles: false, cancelable: false, pointerType, relatedTarget }));
 	const kd = (el, key) => el && el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
 	const box = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
 	const hits = (root) => { const rows = [...root.querySelectorAll('[data-menu-row]')]; return { rows: rows.length, hit: rows.filter((b) => { const r = b.getBoundingClientRect(); const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return at && at.closest('[data-menu-row]') === b; }).length }; };
@@ -95,6 +95,31 @@ export const graceAndKeys = (rowId, otherId) => source(`
 	return Object.entries(window.__icMenuGrace).map(([k, v]) => k + ' ' + v).join(', ');
 `);
 export const GRACE_HELD = '() => { const g = window.__icMenuGrace; if (!g) return false; if (innerWidth < 1000) return g.layout === "inline"; return g.layout === "side" && g.kept && g.beforeGrace && g.closedOnRest && g.reopened && g.leftDuringGrace && g.closedOnLeave && g.keyOpened && g.keyBack && g.escapeBack && g.finalOpen; }';
+
+/**
+ * A FINGER ON A SCREEN WHOSE MAIN POINTER IS A MOUSE (a touch-screen laptop),
+ * so the menu is in its beside-the-menu layout. A tap sends `pointerenter` and
+ * then, once the finger lifts, `pointerleave` with nothing under it -- in
+ * Chrome the leave arrives BEFORE the click. The tap order is played here as
+ * it arrives: a tap on Pick filter opens its list, and a tap on one of its
+ * boxes (which stay open) ticks it and leaves the list OPEN 500 ms later. A
+ * leave that closed the lists for any pointer, not only a mouse, closed that
+ * list 300 ms after every tap. At 375 the same taps work in place.
+ */
+export const fingerTaps = () => source(`
+	await reopen('empty');
+	const m = menu(), layout = m.dataset.submenus;
+	const tap = async (panel, el) => { pe(panel, 'pointerenter', null, 'touch'); pe(el, 'pointerenter', null, 'touch'); pe(el, 'pointerleave', null, 'touch'); pe(panel, 'pointerleave', null, 'touch'); el.dispatchEvent(new PointerEvent('click', { bubbles: true, cancelable: true, detail: 1, pointerType: 'touch' })); await wait(60); };
+	await tap(m, row(m, 'pick-filter'));
+	const list = layout === 'side' ? sub() : menu();
+	const opened = !!list && !!row(list, 'pick-face');
+	if (!opened) { window.__icMenuFinger = { layout, opened }; return 'a tap on Pick filter opened no list (' + layout + ')'; }
+	await tap(list, row(list, 'pick-face')); await wait(440);
+	const after = layout === 'side' ? sub() : menu(), box1 = after && row(after, 'pick-face');
+	window.__icMenuFinger = { layout, opened, held: !!box1, ticked: !!box1 && box1.getAttribute('aria-checked') === 'true' };
+	return 'a finger (' + layout + '): a tap opened the pick filter, a tap on Faces ' + (window.__icMenuFinger.ticked ? 'ticked it' : 'did not tick it') + ', and 500 ms later the list is ' + (box1 ? 'still open' : 'CLOSED');
+`);
+export const FINGER_HELD = '() => { const f = window.__icMenuFinger; return !!f && f.layout === (innerWidth >= 1000 ? "side" : "inline") && f.opened && f.held && f.ticked; }';
 
 /**
  * PREVIEW ON EVERY PATH, on Select other's candidates, read off the harness's

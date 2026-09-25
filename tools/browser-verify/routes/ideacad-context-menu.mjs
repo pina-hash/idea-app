@@ -12,10 +12,15 @@
  * back to Views. At 375 (no room either side): a rest opens nothing and a press
  * opens the list IN PLACE with its Back row, exactly as before R04.
  *
+ * A FINGER on the same wide screen (a touch-screen laptop, whose main pointer
+ * is its trackpad): a tap opens Pick filter's list and a tap on one of its
+ * boxes ticks it and leaves the list open, because only a MOUSE resting and
+ * leaving drives the timers. At 375 the same taps work in place.
+ *
  * The static checks measure the list open: beside the menu at 1440, in place at
  * 375. `view-front` is one of its rows, so it is visible at both widths.
  */
-import { GRACE_HELD, MENU_READY, graceAndKeys, restHeld, restOn } from './_ideacad-menu.mjs';
+import { FINGER_HELD, GRACE_HELD, MENU_READY, fingerTaps, graceAndKeys, restHeld, restOn } from './_ideacad-menu.mjs';
 
 const ROWS = '[data-testid="ideacad-context-menu"] [data-menu-row], [data-testid="ideacad-context-submenu"] [data-menu-row]';
 export default {
@@ -24,6 +29,7 @@ export default {
 	prepare: [
 		{ waitFor: MENU_READY },
 		{ evaluate: restOn('views'), until: restHeld('right', 5), attempts: 3, gapMs: 300 },
+		{ evaluate: fingerTaps(), until: FINGER_HELD, attempts: 3, gapMs: 300 },
 		{ evaluate: graceAndKeys('views', 'fit'), until: GRACE_HELD, attempts: 3, gapMs: 300 }
 	],
 	presence: [
