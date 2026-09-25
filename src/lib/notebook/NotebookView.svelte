@@ -8,6 +8,8 @@
 	import NotebookEntryCard from '$lib/notebook/NotebookEntryCard.svelte';
 	import FolderRail from '$lib/notebook/FolderRail.svelte';
 	import FolderManager from '$lib/notebook/FolderManager.svelte';
+	import NotebookInbox from '$lib/notebook/NotebookInbox.svelte';
+	import { inboxDrafts } from '$lib/notebook/quick-note';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { tick, untrack } from 'svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
@@ -180,7 +182,10 @@
 		unsubmitEntry,
 		deleteNote,
 		restoreNote,
-		onChanged
+		onChanged,
+		initialView = 'feed',
+		quickNoteShown = null,
+		onQuickNoteShown = undefined
 	}: {
 		entries: NotebookEntry[];
 		sessions: NotebookSession[];
@@ -428,6 +433,15 @@
 		restoreNote?: (noteId: string) => Promise<EntryActionResult>;
 		/** Called after any successful save so the page can refresh its data. */
 		onChanged?: () => void;
+		/**
+		 * WHICH LIST THE PANE OPENS ON (ledger 0298): the feed, or the Inbox of
+		 * drafts that answer no check-in, which is where every quick note lands.
+		 * The header's "Open notebook" link asks for the Inbox (`?view=inbox`).
+		 */
+		initialView?: 'feed' | 'inbox';
+		/** Whether the header's Note button is shown, for the Inbox's own switch; null offers no switch. */
+		quickNoteShown?: boolean | null;
+		onQuickNoteShown?: (shown: boolean) => void;
 	} = $props();
 
 	// ---- the two panes ------------------------------------------------------
@@ -2517,6 +2531,20 @@
 	});
 
 	/**
+	 * THE INBOX SWAPS THE LIST THE WAY "Recently deleted" DOES (ledger 0298), and
+	 * the two are exclusive: each replaces the whole feed with a list of its own.
+	 * It is a view over `entries` (drafts that answer no check-in), never a filter
+	 * composed with the chips, so opening it needs no reset of the search.
+	 */
+	// svelte-ignore state_referenced_locally
+	let showingInbox = $state(initialView === 'inbox' && !readOnly);
+
+	/* Opening the deleted view closes the Inbox. */
+	$effect(() => {
+		if (showingDeleted) untrack(() => (showingInbox = false));
+	});
+
+	/**
 	 * NOTHING TO LIST -- asked ONCE, because the pane is a head and a body now
 	 * and both halves have to answer it. The head withholds the search and the
 	 * list controls (a search box over nothing is a control whose only outcome is
@@ -2527,7 +2555,47 @@
 	 * loaded list that `entries` never contained, and its own empty state lives
 	 * inside it.
 	 */
-	const listEmpty = $derived(entries.length === 0 && !showingDeleted);
+	const listEmpty = $derived(entries.length === 0 && !showingDeleted && !showingInbox);
+
+	// ---- the Inbox (ledger 0298) --------------------------------------------
+
+	/** How many drafts the Inbox holds, by the Inbox's own rule (`inboxDrafts`). */
+	const inboxCount = $derived(inboxDrafts(entries).length);
+
+	function toggleInbox() {
+		showingInbox = !showingInbox;
+		if (showingInbox) showingDeleted = false;
+	}
+
+	/* A query-only navigation keeps this component, so a later `?view=inbox` (the
+	   header's "Open notebook" pressed while already here) is followed too. */
+	$effect(() => {
+		if (initialView !== 'inbox' || readOnly) return;
+		untrack(() => {
+			showingInbox = true;
+			showingDeleted = false;
+		});
+	});
+
+	/**
+	 * Open a draft from the Inbox: into the pane beside the list above the
+	 * breakpoint, expanded in place in the feed below it -- the two ways a row
+	 * of the feed opens, so the Inbox needs no third.
+	 */
+	function openFromInbox(id: string) {
+		if (wide) {
+			selectEntry(id);
+			return;
+		}
+		showingInbox = false;
+		clearQuery();
+		expanded.add(id);
+		void tick().then(() =>
+			document
+				.querySelector(`[data-entry-id="${CSS.escape(id)}"]`)
+				?.scrollIntoView({ block: 'start', behavior: 'instant' })
+		);
+	}
 	let restoringId = $state<string | null>(null);
 	let restoreError = $state<string | null>(null);
 
@@ -2663,7 +2731,23 @@
 		-->
 		<div class="list-head">
 			<div class="pane-head">
-				<h2>{readOnly ? 'Entries' : 'My entries'}</h2>
+				<h2>{readOnly ? 'Entries' : showingInbox ? 'Inbox' : 'My entries'}</h2>
+				{#if !readOnly && draftsReady}
+					<!--
+						THE INBOX (ledger 0298): drafts that answer no check-in, which is
+						where every quick note lands. A toggle like Recently deleted, with
+						its count in words beside its name, at every width.
+					-->
+					<button
+						type="button"
+						class="btn secondary inbox-toggle"
+						data-testid="nb-inbox-toggle"
+						aria-pressed={showingInbox}
+						onclick={toggleInbox}
+					>
+						{showingInbox ? 'All entries' : `Inbox (${inboxCount})`}
+					</button>
+				{/if}
 				{#if !readOnly && wide}
 					<!--
 						THE PANE KEEPS ONLY THE TRIGGER. The form itself is far too wide for
@@ -2684,7 +2768,7 @@
 				{/if}
 			</div>
 
-			{#if !listEmpty}
+			{#if !listEmpty && !showingInbox}
 				<div class="toolbar">
 					{#if !showingDeleted}
 						<label class="search">
@@ -2784,7 +2868,22 @@
 		     height, so this box has nothing to scroll inside and the whole
 		     column flows exactly as it did before it had a head. -->
 		<div class="list-body">
-			{#if listEmpty}
+			{#if showingInbox}
+				<NotebookInbox
+					{entries}
+					{sessions}
+					{classes}
+					{scopeSectionId}
+					{scopeLabel}
+					today={todayIso()}
+					{createNote}
+					{deleteEntry}
+					onOpen={openFromInbox}
+					{onChanged}
+					{quickNoteShown}
+					{onQuickNoteShown}
+				/>
+			{:else if listEmpty}
 				<p class="note empty-state">
 					{#if readOnly}
 						Nothing in this notebook yet.
@@ -3029,7 +3128,7 @@
 							<h3 class="group-head">{group.label}</h3>
 							<ol class="entries">
 								{#each group.entries as entry (entry.id)}
-									<li>
+									<li data-entry-id={entry.id}>
 										<!--
 											foldersReady / pinsReady say the MIGRATION is applied, so
 											the folder chip and the pin indicator render from them.
@@ -3883,8 +3982,13 @@
 		margin: 0;
 	}
 	.compose-trigger,
-	.compose-close {
+	.compose-close,
+	.inbox-toggle {
 		flex: none;
+	}
+	/* The heading takes the slack, so the Inbox toggle and New entry sit together at the end. */
+	.pane-head h2 {
+		flex: 1 1 auto;
 	}
 	/* Hidden, not unmounted -- see the markup. */
 	.compose-card.behind {

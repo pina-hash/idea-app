@@ -220,6 +220,20 @@ const CORE: readonly ShellCommand[] = [
 		href: (env) => `${env.basePath}/notebook`
 	},
 	{
+		// THE QUICK NOTE (ledger 0298, R33): the header's Note control, by name.
+		// `QuickNoteDock` registers the handler only while the control is on
+		// screen, so a viewer who hid it is not offered a command that does
+		// nothing. Anyone signed in may keep a notebook, so the role is `any`.
+		id: 'notebook.quick-note',
+		name: 'Quick note',
+		icon: ICONS.draft,
+		description: 'Write a private note to your notebook without leaving this page.',
+		role: 'any',
+		context: 'global',
+		keywords: ['note', 'jot', 'notebook', 'write', 'draft', 'scratch', 'inbox'],
+		run: true
+	},
+	{
 		id: 'go.updates',
 		name: 'Classroom updates',
 		icon: ICONS.updates,

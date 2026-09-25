@@ -2342,7 +2342,8 @@ picture into an initials tile with nothing saying why.
   renderable as a 24x24 mark nor ours to ship.
 
 **`preferences` is a shared JSONB blob with several independent namespaces**
-(`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`, `ideacad`, `classroom`). Every
+(`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`, `ideacad`, `classroom`,
+`quickNote`). Every
 write goes through **`$lib/preferences/profile-io`**, which READS THE ROW FIRST and
 merges one namespace, in one queue per tab (ledger 0297): a writer spreading the
 page-load snapshot was measured erasing a sibling's write one click later (a folded
@@ -3326,7 +3327,8 @@ inside the function fails closed rather than falling through to a weaker path.
   - **ANYTHING A FULL LOAD WOULD DESTROY HOLDS THE RELOAD**, through
     `holdDeployReload` or `trackInFlight`: every classroom upload
     (`uploadClassroomFile`), the staged deck unpack, the notebook's photo posts,
-    an open composer with work in it, an open feedback box. **A new upload path
+    an open composer with work in it, an open feedback box, a header quick note
+    with writing the server has not got. **A new upload path
     or a new projected surface joins them in the same change**; forgetting one is
     silent until a deploy lands mid-upload.
   - **NEVER RELOAD FROM `vite:preloadError`.** It only asks for a version check.
@@ -3937,6 +3939,12 @@ inside the function fails closed rather than falling through to a weaker path.
       starts carrying a document acquires it that day, and the reason it is on
       this list rather than in the notebook's own file is that nothing warned
       the first time.
+    - **A SECOND SURFACE WITH THE SAME PAYLOAD IS A CALLER, NOT A MIRROR.** The
+      header's quick note (ledger 0298) writes a notebook note, so it is
+      mirrored through the notebook's own module under the reserved
+      `QUICK_NOTE_RECORD`, vocabulary check included; `latestMirror` skips that
+      record, so the notebook composer never adopts the quick note's writing
+      and two editors never write one note chain.
   - **Pending work is FLUSHED before a navigation, and only a flush that cannot
     land raises a question.** The correct answer to "you have unsaved work" is
     "then save it"; a confirm on every move is a confirm nobody reads.
