@@ -642,3 +642,107 @@ describe('worksheetTableRows', () => {
 		});
 	});
 });
+
+describe('what the review of R24 added (ledger 0298)', () => {
+	/*
+		A HEADER PHOTO IS IDENTITY TOO. The header is the student's name, team
+		and date, and a manifest may put an image there. With names left out,
+		its answer cell has to say it was withheld (it used to print a blank,
+		which reads as "no photo"), and its filename and caption must not be
+		listed in the JSON's files or on the Files sheet. The caption here
+		carries Alice's name, so a byte search is a real probe; the named export
+		is its positive control.
+	*/
+	const HEADSHOT = 'zephyrine-headshot.png';
+	const WITH_HEADSHOT: HtmlAssignmentManifest = {
+		...MANIFEST,
+		header: [...(MANIFEST.header ?? []), { id: 'hd-face', field: 'headshot', type: 'image' }]
+	};
+	const ALICE_FACE: StudentWork = {
+		...ALICE,
+		files: [
+			...ALICE.files,
+			{
+				id: 'fa-face',
+				submission_id: 'sub-a',
+				block_id: 'hd-face',
+				filename: HEADSHOT,
+				caption: 'Zephyrine at the bench',
+				mime_type: 'application/octet-stream',
+				sort_order: 3,
+				created_at: '2026-09-15T18:00:00.000Z'
+			} as SubmissionFileRow
+		]
+	};
+	const faceInput = (identity: ExportIdentity) =>
+		input({ manifest: WITH_HEADSHOT, roster: [ALICE_FACE, BRUNO, CARA], identity });
+
+	it('INCLUDED: the header photo is listed and named in its cell (the positive control)', async () => {
+		const payload = buildGradingExport(faceInput('included'));
+		const alice = payload.assignments[0].students[0];
+		expect(alice.files.map((f) => f.filename)).toContain(HEADSHOT);
+		const wb = await readXlsxWorkbook(await buildXlsx(gradingExportSheets(payload)));
+		const answers = wb.get(WORKSHEET_ANSWERS_SHEET)!;
+		expect(answers.rows[0][answers.header.indexOf('Identity: headshot')]).toBe(
+			`${HEADSHOT} (Zephyrine at the bench)`
+		);
+		expect(wb.get('Files')!.rows.some((row) => row.includes(HEADSHOT))).toBe(true);
+	});
+
+	it('OMITTED: the header photo is withheld in its cell, and listed nowhere', async () => {
+		const payload = buildGradingExport(faceInput('omitted'));
+		const alice = payload.assignments[0].students[0];
+		expect(alice.files.map((f) => f.filename)).toEqual(['blade-root.png', 'blade-root-fillet.png']);
+		const face = alice.responses.find((e) => e.blockId === 'hd-face')!;
+		expect(face.value).toEqual({ withheld: true });
+		expect(face.started).toBe(true);
+		const wb = await readXlsxWorkbook(await buildXlsx(gradingExportSheets(payload)));
+		const answers = wb.get(WORKSHEET_ANSWERS_SHEET)!;
+		expect(answers.rows[0][answers.header.indexOf('Identity: headshot')]).toBe(WORKSHEET_WITHHELD_CELL);
+		const text = gradingExportJson(payload);
+		const parts = [...(await readXlsxParts(await buildXlsx(gradingExportSheets(payload)))).values()].join('\n');
+		for (const needle of [HEADSHOT, 'Zephyrine', ALICE_NAME]) {
+			expect(text).not.toContain(needle);
+			expect(parts).not.toContain(needle);
+		}
+	});
+
+	/*
+		A DOCUMENT IMPORTED OVER A SPEC ASSIGNMENT leaves the spec's answers
+		behind under block ids the manifest does not declare, and a spec
+		table's `rows` or a checklist's several ticks are shapes the bridge
+		reads as nothing or as one tick. They are exported as stored, never as
+		an empty answer.
+	*/
+	it('a removed block the bridge cannot read whole is exported as stored, and counts as started', async () => {
+		const rows = [{ member: 'Rib', force: '40' }];
+		const ALICE_OLD: StudentWork = {
+			...ALICE,
+			responses: [
+				...ALICE.responses,
+				r(ALICE_EMAIL, 'old-table', { rows }, '2026-09-12T18:00:00.000Z'),
+				r(ALICE_EMAIL, 'old-list', { checked: [true, false, true] }, '2026-09-12T18:00:00.000Z'),
+				r(ALICE_EMAIL, 'old-empty', { rows: [] }, '2026-09-12T18:00:00.000Z')
+			]
+		};
+		const payload = buildGradingExport(input({ roster: [ALICE_OLD, BRUNO, CARA] }));
+		const alice = payload.assignments[0].students[0];
+		const at = (id: string) => alice.responses.find((e) => e.blockId === id)!;
+		expect(at('old-table').value).toEqual({ stored: { rows } });
+		expect(at('old-table').started).toBe(true);
+		expect(at('old-list').value).toEqual({ stored: { checked: [true, false, true] } });
+		// A lone text and an empty value keep the bridge's own reading.
+		expect(at('old-q').value).toEqual({ text: 'From the first upload' });
+		expect(at('old-empty').value).toEqual({ text: '' });
+		expect(at('old-empty').started).toBe(false);
+		const answers = (await readXlsxWorkbook(await buildXlsx(gradingExportSheets(payload)))).get(WORKSHEET_ANSWERS_SHEET)!;
+		const cell = (id: string) => answers.rows[0][answers.header.indexOf(`${id} (no longer in the worksheet)`)];
+		expect(cell('old-table')).toBe(JSON.stringify({ rows }));
+		expect(cell('old-list')).toBe(JSON.stringify({ checked: [true, false, true] }));
+		// Withheld with names left out, like every removed block.
+		const anon = buildGradingExport(input({ roster: [ALICE_OLD, BRUNO, CARA], identity: 'omitted' }));
+		expect(anon.assignments[0].students[0].responses.find((e) => e.blockId === 'old-table')!.value).toEqual({
+			withheld: true
+		});
+	});
+});

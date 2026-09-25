@@ -550,6 +550,12 @@ interface ManifestContext {
 	labels: Map<string, BlockLabel>;
 	/** Every manifest block by id, header included, for `minSentences`. */
 	blocks: Map<string, HtmlBlock>;
+	/**
+	 * The HEADER's block ids: the student's identity (name, team, date), so an
+	 * export with names left out withholds what is stored under them, a photo
+	 * on one included.
+	 */
+	headerIds: Set<string>;
 	item: ClassroomItem;
 }
 
@@ -569,6 +575,11 @@ function manifestContext(
 		manifest,
 		labels: blockLabelsFromManifest(manifest),
 		blocks: new Map(manifestBlocks(manifest).map((b) => [b.id, b] as const)),
+		headerIds: new Set(
+			htmlAnswerSheet(manifest, {}, {})
+				.filter((g) => g.moduleId === null)
+				.flatMap((g) => g.cells.map((c) => c.blockId))
+		),
 		item
 	};
 }
@@ -742,6 +753,12 @@ function worksheetEntries(
 	for (const r of row.responses) {
 		if (hx.blocks.has(r.block_id)) continue;
 		const value = hxBridgeValue(r.value);
+		// A ROW THE BRIDGE CANNOT READ WHOLE IS EXPORTED AS STORED. Importing a
+		// document over an item that was a SPEC assignment (0195 stamps schema 3
+		// on any item) leaves that item's spec answers behind -- a table's `rows`,
+		// a checklist's several `checked` -- and reading those through the bridge
+		// would print a filled table as an empty answer, or three ticks as one.
+		const stored = removedAnswerStored(r.value);
 		out.push({
 			moduleId: null,
 			moduleTitle: null,
@@ -749,20 +766,49 @@ function worksheetEntries(
 			field: r.block_id,
 			blockType: WORKSHEET_REMOVED_TYPE,
 			prompt: `${r.block_id} (no longer in the worksheet)`,
-			started: value !== null && value !== '',
+			started: stored !== null || (value !== null && value !== ''),
 			// WITHHELD WHEN NAMES ARE LEFT OUT, because nothing says what a block
 			// that has left the manifest used to be, and it may have been the
 			// header's own name field.
 			value:
 				identity === 'omitted'
 					? { withheld: true }
-					: typeof value === 'boolean'
-						? { checked: value }
-						: { text: value ?? '' },
+					: stored !== null
+						? { stored }
+						: typeof value === 'boolean'
+							? { checked: value }
+							: { text: value ?? '' },
 			changedAfterGrading: changeOf(r.block_id)
 		});
 	}
 	return out;
+}
+
+/**
+ * A REMOVED BLOCK'S STORED VALUE, VERBATIM, WHEN THE BRIDGE WOULD LOSE PART OF
+ * IT, or null when `hxBridgeValue` reads it whole (a lone `text`, a single
+ * `checked`, or nothing stored). Anything else -- `rows`, several ticks, a text
+ * beside rows -- is handed back as it sits in the table.
+ */
+function removedAnswerStored(value: unknown): Record<string, unknown> | null {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+	const v = value as Record<string, unknown>;
+	const keys = Object.keys(v).filter((k) => {
+		const held = v[k];
+		return held !== undefined && held !== null && held !== '' && !(Array.isArray(held) && !held.length);
+	});
+	if (!keys.length) return null;
+	if (keys.length === 1 && keys[0] === 'text' && typeof v.text === 'string') return null;
+	if (
+		keys.length === 1 &&
+		keys[0] === 'checked' &&
+		Array.isArray(v.checked) &&
+		v.checked.length === 1 &&
+		typeof v.checked[0] === 'boolean'
+	) {
+		return null;
+	}
+	return v;
 }
 
 /** What a withheld identity answer reads as in the workbook. */
@@ -885,11 +931,17 @@ function exportStudent(
 	hx: ManifestContext | null = null
 ): ExportedStudent {
 	const named = identity === 'included';
-	const files: ExportedFile[] = row.files.map((f) => ({
-		filename: f.filename,
-		blockId: f.block_id,
-		caption: f.caption
-	}));
+	// A PHOTO ON A WORKSHEET'S HEADER IS IDENTITY, like the answers beside it:
+	// with names left out it is not listed, its filename and caption included.
+	// Only ever a filter on a manifest walk, so a spec export's list is untouched.
+	const withheldFiles = hx && !named ? hx.headerIds : null;
+	const files: ExportedFile[] = row.files
+		.filter((f) => !(withheldFiles && f.block_id && withheldFiles.has(f.block_id)))
+		.map((f) => ({
+			filename: f.filename,
+			blockId: f.block_id,
+			caption: f.caption
+		}));
 	const responses = responsesMap(row.responses);
 	const byBlock = filesByBlockCount(row.files);
 	const state = row.submission?.state ?? null;
@@ -1276,18 +1328,24 @@ function answerCell(entry: ExportedResponse, tableSheetFor: Map<string, string>)
 		const items = (v.items ?? []) as { label: string; checked: boolean }[];
 		return items.map((i) => `${i.checked ? '[x]' : '[ ]'} ${i.label}`).join('\n');
 	}
+	// A WITHHELD WORKSHEET ANSWER SAYS SO, AHEAD OF EVERY TYPE BRANCH: a header
+	// photo read through the image branch below printed a blank, which reads as
+	// "no photo" rather than "left out of this file". `field` is present only on
+	// an entry walked from a manifest, so no spec block can reach this.
+	if (entry.field !== undefined && v.withheld === true) return WORKSHEET_WITHHELD_CELL;
 	if (entry.blockType === 'imageZone' || (entry.field !== undefined && entry.blockType === 'image')) {
 		const files = (v.files ?? []) as { filename: string; caption: string | null }[];
 		return files.map((f) => (f.caption ? `${f.filename} (${f.caption})` : f.filename)).join('\n');
 	}
 	// A PORTED WORKSHEET'S OWN TYPES (ledger 0298, R24). `field` is present only
 	// on an entry walked from a manifest, so no spec block can reach these.
-	if (entry.field !== undefined && v.withheld === true) return WORKSHEET_WITHHELD_CELL;
 	if (entry.field !== undefined && entry.blockType !== 'table') {
 		if (entry.blockType === 'text' || entry.blockType === 'longText') return String(v.text ?? '');
 		if (entry.blockType === 'radio') return typeof v.choice === 'string' ? v.choice : '';
 		// Blank for NEVER ANSWERED, which is not the same claim as "No".
 		if (entry.blockType === 'checkbox') return typeof v.checked === 'boolean' ? yesNo(v.checked) : '';
+		// A removed block's answer the bridge could not read whole, as stored.
+		if (v.stored && typeof v.stored === 'object') return JSON.stringify(v.stored);
 		if (typeof v.checked === 'boolean') return yesNo(v.checked);
 		if (typeof v.text === 'string') return v.text;
 		return v.value === null || v.value === undefined ? '' : String(v.value);
