@@ -559,6 +559,17 @@ describe("Space White's dark islands: the block is DERIVED from the stylesheets,
 		expect(island['--green']).toBe('#78b870');
 	});
 
+	it('the hover ink is brass on the base palette and green under Space White, and an island hands the brass back (decision 40)', () => {
+		/* A hover role, not a hue: every :hover rule that painted --gold reads
+		   --hover-ink, so the one theme on which a lightness-only gold is brown
+		   can point hovers at its green with no component knowing. Both ends are
+		   asserted, because a base value of green would repaint every dark hover
+		   and a Space White value of gold would be the brown this exists to end. */
+		expect(base['--hover-ink']).toBe('var(--gold)');
+		expect(moved['--hover-ink']).toBe('var(--green)');
+		expect(island['--hover-ink']).toBe('var(--gold)');
+	});
+
 	it('the island block declares exactly the dependency closure of what the theme moves', () => {
 		const need = closure(new Set(Object.keys(moved)));
 		// The closure reaches aliases the theme never names, which is its point.

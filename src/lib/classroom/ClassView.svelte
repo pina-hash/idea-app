@@ -2791,7 +2791,7 @@
 		font-size: 0.7rem;
 	}
 	.row-expand:hover {
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	.row-expand.spacer {
 		cursor: default;
@@ -2812,7 +2812,7 @@
 		color: var(--text-1);
 	}
 	a.row-main:hover .row-title {
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	.kind-glyph {
 		flex: none;
@@ -3148,7 +3148,7 @@
 	.menu button:hover:not(:disabled),
 	.menu a:hover {
 		background: var(--surface-2);
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	.menu button:disabled {
 		color: var(--text-3);
@@ -3380,7 +3380,7 @@
 		cursor: pointer;
 	}
 	.find-chip:hover {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 	}
 	/* Pressed is an edge, a rule and the fill, never the hue alone. */
 	.find-chip[aria-pressed='true'] {
@@ -3420,7 +3420,7 @@
 		cursor: pointer;
 	}
 	.find-clear:hover {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 	}
 	.find-none {
 		display: flex;

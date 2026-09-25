@@ -727,34 +727,62 @@ show.
       apply-time guard raises if the column ever appears, and
       `tests/db/foundry-play-boards.test.ts` asserts the absence with the
       per-app read as its positive control.
-  - **THE GALLERY'S RANKED SECTIONS ARE THE LEADERBOARDS, AND THERE IS NO
-    BOARD PAGE.** Reports 30 and 32b are one surface: `FOUNDRY_GALLERY_BOARDS`
-    names four orders (trending, played, hours, new), `foundryBoards` returns
-    the ones with something to say, and every one of them is `sortGallery`'s
-    OWN ranking -- so there is one comparator on the surface rather than a
-    second ranking implementation over the same counts. A new board is an arm
-    in `foundrySortScore` plus a label; it is never a new page.
+  - **THE GALLERY IS ONE LIST WITH ONE SORT CONTROL, AND THERE ARE NO RANKED
+    SECTIONS AND NO BOARD PAGE** (decision 39, `docs/decisions/entries/39-*`).
+    This rule used to read "THE GALLERY'S RANKED SECTIONS ARE THE
+    LEADERBOARDS": 0221 answered reports 30 and 32b with up to four
+    sideways-scrolling "boards" above the list, and Mr. Pina filed that on
+    2026-09-25 as dead space and a stack of scrollbars and asked for one
+    drop-down that sorts every app. The dead space had a cause worth keeping:
+    a card is its cover's own shape, so one portrait cover in a flex ROW made
+    the whole row tall; the multicol mosaic has no rows to lock.
+    `FOUNDRY_GALLERY_SORTS` is every order, in the order the native `<select>`
+    lists them (Most played first; the default is still its own constant,
+    `FOUNDRY_GALLERY_DEFAULT_SORT`, per decision 04), and every one is
+    `sortGallery`'s OWN ranking -- one comparator, never a second ranking
+    implementation over the same counts. A new order is an arm in
+    `foundrySortScore` plus an option; it is never a new page or a new section.
+    The order stays out of the URL (decision 04).
     - **"TRENDING" IS A FORMULA AND NOT A WORD:** plays in the last seven days
       MINUS plays in the seven before that (`foundryTrendScore`). A RISE, not a
       level -- "Most played" is already the all-time level and "Played this
-      week" is already the recent one, so a board ranking on either is a copy
-      of one of them under a different heading.
-    - **A BOARD IS SUPPRESSED WHEN ITS SIGNAL IS FLAT, and none render at or
-      below `FOUNDRY_BOARD_SIZE` apps.** On a gallery nobody has played, three
-      of the four boards rank every app at zero and a stable sort renders the
-      IDENTICAL row three times under three headings -- which looks completely
-      normal and tells the reader something false, because a leaderboard
-      implies the order was earned.
+      week" is already the recent one, so an order ranking on either is a copy
+      of one of them under a different label.
+    - **AN ORDER WITH NOTHING TO RANK SAYS SO, IN WORDS BESIDE THE CONTROL.**
+      On a gallery nobody has played, every play order ranks every app at zero
+      and a stable sort renders the list exactly as it arrived -- which looks
+      ranked and tells the reader something false, because a ranking implies
+      the order was earned. The boards hid themselves when flat; one list
+      cannot, so `foundrySortNote` swaps the option's rule for its flat
+      sentence whenever `foundrySortHasSignal` says so. A flat sentence that
+      names an order must be true of it, which is why only the all-tied cases
+      say "recently updated order". **A COUNT READ THAT FAILED IS NOT ZERO
+      PLAYS**: the gallery load degrades a failed `foundry_play_counts` read to
+      no counts, the same input as an unplayed gallery, so it also returns
+      `playCountsKnown` and a play order then reads
+      `FOUNDRY_PLAY_COUNTS_UNKNOWN_NOTE` instead of "Nothing has been played
+      here yet" -- an instrument's silence is never a fact about the apps.
+    - **THE FIGURE ON A CARD IS THE ORDER IN FORCE'S OWN METRIC**
+      (`foundrySortFigure`), and nothing under an order that ranks on a date.
+      Until decision 39 the list printed PLAYS under Most hours and Most
+      updated, a number that did not explain the order it sat in.
+    - **`FOUNDRY_PLAY_COVERAGE_NOTE` SITS BESIDE THE CONTROL WHENEVER THE ORDER
+      RANKS ON PLAYS (`ranksPlays`), zero included**, and still renders on a
+      one-app gallery that has no control, because its one card still carries
+      a figure. It lived inside the boards region, so deleting that region
+      without moving it would have stripped it from every figure silently.
     - **`recent` AND `new` ARE TWO DIFFERENT QUESTIONS.** `recent` is
       `foundry_list_apps`'s own `updated_at desc`, which a metadata edit moves;
-      `new` reads `created_at`, which nothing moves. Ranking "brand new" on
+      `new` reads `created_at`, which nothing moves. Ranking "Newest" on
       `updated_at` puts a four-term-old app first the day its author fixed a
       typo in its tagline.
-    - **`trending` AND `new` ARE BOARD ORDERS AND ARE NOT IN
-      `FOUNDRY_GALLERY_SORTS`**, so `isGallerySort` refuses them: seven buttons
-      in one group is a control nobody reads at 375px, and a stored or URL
-      value must not be able to put the control into a pressed state with no
-      button under it.
+    - **`trending` AND `new` ARE OPTIONS, AND `isGallerySort` ADMITS THEM.**
+      They were board-only orders, refused on the grounds that seven buttons in
+      one group is a control nobody reads at 375px; a `<select>` holds seven at
+      every width. The rule underneath did not move: a stored or URL value must
+      never put the control into a state with no option under it, so
+      `isGallerySort` admits exactly the offered ids, and the select's own
+      value goes through it before it becomes state.
   - **SEARCH IS CLIENT-SIDE, MATCHES ANY TOKEN RATHER THAN EVERY ONE, AND THAT
     IS FORCED BY THE REPORT THAT ASKED FOR IT.** `$lib/foundry/search.ts` runs
     over the list the route already loaded. Requiring every query token to
@@ -5221,7 +5249,8 @@ the source of truth; **do not invent colours or swap fonts.**
   - **THE FRC MARK IS NEVER ANIMATED, and that outranks matching the cards either
     side of it.** FIRST's brand guidelines prohibit altering the mark, and motion
     is an alteration. Every other app mark is a component in `$lib/marks` with a
-    3-4.6s loop gated behind `prefers-reduced-motion: no-preference`, and
+    3-4.6s cycle gated behind `prefers-reduced-motion: no-preference`, which the
+    launcher plays ONCE (each mark's `once` prop, ledger 0298), and
     **nothing is hidden in a base state**: with the animation cancelled every
     animated element is at full opacity and no transform, so a reduced-motion
     reader sees the whole glyph.
@@ -5316,11 +5345,22 @@ the source of truth; **do not invent colours or swap fonts.**
     step. Space White clears every one; IDEA and Matrix do not and were left
     untouched by design.
   - **THE HOME EMBLEM IS SERVED AS A `srcset` OVER RIGHT-SIZED COPIES** under
-    `static/IDEA/`, never as the 2.6 MB source, and sits in a display window on
-    Space White rather than being recolored. `.legacy-index` reads its neon
-    tints through `--li-*` room hooks so a light theme can point them at its
-    inks. App marks follow the once-only standard `IdeaCadMark` set: one pass,
-    rest frame held, nothing hidden in a base state.
+    `static/IDEA/`, never as the 2.6 MB source, and on Space White it is a LIGHT
+    LOCKUP, not the dark one in a display window (decision 40 item 2, which
+    retired 0297's window): the same geometry repainted in
+    `tools/idea_logo_vector.py` (brand-green plate, lettering re-inked dark,
+    steel gear kept) and rasterised by `tools/idea_emblem_raster.mjs`.
+    `AnimatedLogo`'s own stylesheet picks the pair off the pre-paint theme
+    attribute, so there is no flash, and the light pair is `loading="lazy"`, so
+    a dark theme never fetches it. `.legacy-index` reads its neon tints through
+    `--li-*` room hooks so a light theme can point them at its inks. App marks
+    follow the once-only standard `IdeaCadMark` set: one pass, rest frame held,
+    nothing hidden in a base state, and the launcher mounts every mark `once`.
+  - **HOVER IS A ROLE, `--hover-ink`, NOT A HUE** (decision 40 item 1): brass on
+    the dark themes, Space White's green ink there, because a lightness-only
+    gold over white is brown (#715d22). A `:hover` rule that wants the brass
+    reads the role. The launcher's four accent-less cards take the green ink on
+    Space White for the same reason; gold stays for true special callouts.
 
 ### Scoped themes are deliberately off-brand, and stay in their room
 

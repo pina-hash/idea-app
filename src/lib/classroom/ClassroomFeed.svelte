@@ -470,6 +470,20 @@
 		color: var(--green);
 	}
 	/*
+	 * SPACE WHITE TAKES THE BRASS OFF IT (ledger 0298, decision 40 item 1). A
+	 * lightness-only gold on a white ground is the brown #715d22, so there the
+	 * link takes the home page's own link pair instead -- cyan at rest, green
+	 * under the pointer, as Sign in, Tour and every text button on the page
+	 * already are. Both halves are restated because the themed rest rule
+	 * outranks the plain hover one. The dark themes keep the brass.
+	 */
+	:global(:root[data-theme='space-white']) .feed-todo-all {
+		color: var(--cyan);
+	}
+	:global(:root[data-theme='space-white']) .feed-todo-all:hover {
+		color: var(--green);
+	}
+	/*
 	 * "OPEN CLASS" measured 40.9px tall at 375 (FRICTION.md, student to-do):
 	 * the shared app.css rule gives it padding and no floor. The floor is added
 	 * here, on this component's own link, so the other `.feed-more` surfaces

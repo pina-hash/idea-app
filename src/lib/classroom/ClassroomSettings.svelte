@@ -344,7 +344,7 @@
 		margin-left: auto;
 	}
 	.cs-btn:hover {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 	}
 	.cs-options {
 		display: flex;

@@ -581,7 +581,7 @@
 		min-width: 0;
 	}
 	.deck-open:hover {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 	}
 	.deck-thumb {
 		flex: none;
@@ -719,7 +719,7 @@
 	}
 	.deck-cancel:hover {
 		color: var(--text-1);
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 	}
 	.deck-hint,
 	.deck-warn,

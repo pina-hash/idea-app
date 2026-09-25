@@ -2086,47 +2086,14 @@ a:hover {
 	text-shadow: none;
 	letter-spacing: normal;
 }
-/* THE EMBLEM ON A LIGHT CONSOLE SITS IN A DISPLAY WINDOW (ledger 0297, package
-   F1b). The emblem is a dark green plate with ivory letters and a steel gear,
-   drawn for a dark ground; on Space White's light masthead it read as a dark
-   sticker (Phase 0 measured 45% of it as opaque dark green-gray metal). Recoloring
-   it would be a new mark, and the design standard keeps it green under any
-   accent, so the MARK does not move: the masthead gives it a window -- a
-   dark glass mixed from the console's own ink and green, chamfered like the
-   emblem's plate -- which is how a white instrument panel carries a lit
-   display. Every masthead that
-   seats the emblem wears `.logo-mark` (home and classroom today), and the
-   attribute is only ever written on in-scope routes, so no other room sees it.
-
-   A PSEUDO-ELEMENT, NOT A PADDED BOX: the window reaches past the emblem's own
-   box, so the header row it sits in keeps its exact height and the logo keeps
-   its exact position -- the theme adds paint and moves nothing. `isolation`
-   gives the emblem the stacking context the window needs to sit behind it and
-   in front of the header. */
-:root[data-theme='space-white'] .logo-mark .idea-logo {
-	isolation: isolate;
-}
-:root[data-theme='space-white'] .logo-mark .idea-logo::before {
-	content: '';
-	position: absolute;
-	inset: -4px -8px -4px -6px;
-	z-index: -1;
-	/* The glass is the console's ink with a third of its green in it, so it
-	   reads as the emblem's own plate carried out to a frame rather than as a
-	   black box, and it is chamfered the way the emblem's plate and the home
-	   stats plate are. */
-	background: color-mix(in srgb, var(--green) 28%, var(--text-1));
-	clip-path: polygon(
-		6px 0%,
-		calc(100% - 6px) 0%,
-		100% 6px,
-		100% calc(100% - 6px),
-		calc(100% - 6px) 100%,
-		6px 100%,
-		0% calc(100% - 6px),
-		0% 6px
-	);
-}
+/* THE EMBLEM ON A LIGHT CONSOLE IS THE LIGHT LOCKUP, NOT A DARK ONE IN A WINDOW
+   (ledger 0298, decision 40 item 2, which amends 0297's choice). The dark
+   window this block used to paint behind `.logo-mark .idea-logo` under Space
+   White is gone: `AnimatedLogo` carries a light copy of the emblem generated
+   from `tools/idea_logo_vector.py` -- the brand-green plate, the lettering
+   re-inked dark, the steel gear kept -- and its own stylesheet shows that pair
+   under the theme attribute, so every masthead that seats the emblem follows
+   the theme with nothing here. */
 /* THE LEFT GROUP: the emblem and the lines-of-code readout, together, so the
    readout rides the logo's row rather than the actions row. In `.header-right`
    it pushed the sign-in block onto a third row and grew the banner by 33.2px at
@@ -3348,10 +3315,19 @@ a:hover {
    (3:1 or better, measured by the home spec) rather than a tint that reads
    1.4:1. Decoration -- a rule between two rows inside a card -- keeps its
    tint.
+
+   AND NO BRASS (ledger 0298, decision 40 item 1). "Lightness only" applied
+   to a yellow hue on a white ground lands on brown -- --gold is #715d22
+   here -- so the page's brass hook and the two words it painted in gold
+   (the class chip and the school year) take the theme's greens instead:
+   the chip is a way into the classroom, so it takes the green ink; the year
+   is a date, so it takes --cyan, the register's metadata ink. Hovers read
+   --hover-ink, which this theme points at the same green. The dark themes
+   keep every brass value they had.
    ========================================================================== */
 :root[data-theme='space-white'] .legacy-index {
 	--li-mint: var(--green);
-	--li-brass: var(--gold);
+	--li-brass: var(--green);
 	--li-patina: var(--cyan);
 	--li-sage: var(--dim);
 	--li-fix: var(--amber);
@@ -3377,7 +3353,32 @@ a:hover {
 :root[data-theme='space-white']
 	.legacy-index
 	:is(.class-chip, .auth-link, .changelog-toggle, .gc-link):hover {
-	border-color: var(--green);
+	border-color: var(--hover-ink);
+}
+:root[data-theme='space-white'] .legacy-index .class-chip {
+	color: var(--green);
+}
+:root[data-theme='space-white'] .legacy-index .hero-stat .value.v-year {
+	color: var(--cyan);
+}
+/* The class feed's "Open class" link painted gold at rest too (its sibling
+   "See all in To-do" is ClassroomFeed's own rule and moves there). Both take
+   the page's link pair -- cyan at rest, green on hover, as the banner's
+   Sign in and Tour links are -- rather than green at rest, because a green
+   link with a green hover changes nothing under the pointer. The hover is
+   restated because this rest rule outranks the plain one. */
+:root[data-theme='space-white'] .legacy-index .feed-more {
+	color: var(--cyan);
+}
+:root[data-theme='space-white'] .legacy-index .feed-more:hover {
+	color: var(--green);
+}
+/* The changelog's "visual" tag keeps its gold word (a category, painted the
+   way every theme paints it), so its edge keeps the gold too: with the brass
+   hook pointed at green above, the chip would otherwise be a brown word in a
+   green frame, the "feature" tag's frame. */
+:root[data-theme='space-white'] .legacy-index .cl-tag.cl-type-visual {
+	border-color: color-mix(in srgb, var(--gold) 35%, transparent);
 }
 /* A still stat: an animation of a transparent shadow is a style recalc every
    frame for nothing. */

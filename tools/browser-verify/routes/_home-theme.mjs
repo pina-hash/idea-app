@@ -26,22 +26,35 @@ const STUDENT_CARDS = LAUNCHER_CARDS - 2;
  * the theme that exists for the projector -- and IDEA and Matrix record the
  * same rows at a floor of 0, the way the `themes*` specs do.
  *
- * THE EMBLEM'S WINDOW. Under Space White the masthead gives the emblem a dark
- * glass behind it (a `::before` on `.logo-mark .idea-logo`), and under the
- * other two it has none. A pseudo-element has no selector a presence row can
- * read, so an `orderResult` probe reads its computed `content` and background.
+ * THE EMBLEM'S LOCKUP (ledger 0298, decision 40 item 2). Under Space White the
+ * banner shows the LIGHT copy of the emblem and under the other two the dark
+ * one, chosen by `AnimatedLogo`'s own stylesheet off the theme attribute. The
+ * dark "display window" 0297 painted behind the emblem is gone, and the probe
+ * says so in both directions: which pair is on screen, whether a `::before`
+ * window is still drawn, and which emblem files the page actually FETCHED --
+ * because the light pair is `loading="lazy"`, and the claim that it costs the
+ * dark themes no bytes is a claim about the network, not about the paint.
+ *
+ * THE FOUR CARDS THAT DECLARE NO ACCENT are measured one by one here, because
+ * under Space White their ink moved off the brown gold onto the theme's green
+ * (decision 40 item 1) and a worst-of-all row would hide a single card.
  */
 /* A STUDENT with one class: the viewer the home page is for, and the only
    fixture whose banner carries the class chip (staff get none). The teacher
    and admin cards are measured by the unit test over their inks
    (tests/space-white-inks.test.ts) and by /dev/themes, which renders all
    thirteen. */
-const HOME = '/dev/home-order?role=student&classes=1&rows=3';
+export const HOME = '/dev/home-order?role=student&classes=1&rows=3';
+
+/* The student-visible cards that declare no accent of their own and so paint
+   from the launcher's shared default (the Coin Desk is the fourth, and is
+   admin-only; /dev/themes measures it). */
+const DEFAULT_CARDS = ['classroom', 'notebook', 'ideacad'];
 
 const ROW = (id) => `.pm-theme:has([data-theme-swatch="${id}"])`;
 
 /** Reach `theme` through the profile menu, then close it again. IDEA is the state a fresh browser already has. */
-const reach = (theme) =>
+export const reach = (theme) =>
 	theme === 'idea'
 		? [
 				{
@@ -84,13 +97,23 @@ const BOOT_PROBE = (theme) => `async () => {
 	return [inHead ? 'boot script in <head>' : 'boot script OUTSIDE <head>', 'stored ${theme} paints ' + (out.a ?? 'nothing')];
 }`;
 
-/* The window's computed state, in words, for `orderResult`. */
-const WINDOW_PROBE = `() => {
+/* The emblem's computed state, in words, for `orderResult`: whether a window
+   is drawn behind it, and how many of the layers on screen are the light pair. */
+const EMBLEM_PROBE = `() => {
 	const logo = document.querySelector('.legacy-index .logo-mark .idea-logo');
 	if (!logo) return ['NO EMBLEM IN THE BANNER'];
 	const b = getComputedStyle(logo, '::before');
-	const has = b.content !== 'none' && b.content !== 'normal' && b.backgroundColor !== 'rgba(0, 0, 0, 0)';
-	return [has ? 'emblem sits in a window' : 'emblem has no window'];
+	const windowed = b.content !== 'none' && b.content !== 'normal' && b.backgroundColor !== 'rgba(0, 0, 0, 0)';
+	const shown = [...logo.querySelectorAll('img')].filter((i) => i.getBoundingClientRect().width > 0);
+	const light = shown.filter((i) => /-light/.test(i.getAttribute('src') || '')).length;
+	return [windowed ? 'emblem sits in a window' : 'no window behind the emblem', 'layers on screen ' + shown.length + ', light ' + light];
+}`;
+
+/* Which emblem files the page fetched, off the resource timeline. */
+const FETCH_PROBE = `() => {
+	const names = performance.getEntriesByType('resource').map((e) => e.name).filter((n) => /\\/IDEA\\/idea-(logo-text|gear)/.test(n));
+	const light = names.filter((n) => /-light/.test(n)).length;
+	return ['dark emblem fetched ' + (names.length - light > 0 ? 'yes' : 'no'), 'light emblem fetched ' + (light > 0 ? 'yes' : 'no')];
 }`;
 
 /* Every ground a card title can sit on, read off the page: the ink of each
@@ -130,6 +153,9 @@ export const homeThemeSpec = (theme) => {
 			{ selector: '.launcher .launcher-title', label: 'launcher heading', min: 4.5 },
 			{ selector: '.launcher .bar-btn', label: 'launcher bar buttons', min: 4.5 },
 			{ selector: '.launcher .app-card .app-title', label: 'every card title on its card', min: 4.5 },
+			...DEFAULT_CARDS.map((id) => ({ selector: `.launcher .app-card[data-app='${id}'] .app-title`, label: `default card ${id}: title`, min: 4.5 })),
+			{ selector: '.launcher .app-card .app-icon', label: 'every card glyph at 34px on its card (3:1, graphical)', min: 3 },
+			{ selector: '.legacy-index .hero-stat .value.v-year', label: 'hero: the school year', min: 4.5 },
 			{ selector: '.launcher .app-card .app-cta', label: 'every card call to action', min: 4.5 },
 			{ selector: '.legacy-index .year-label', label: 'Your Classes heading', min: 4.5 },
 			{ selector: '[data-tour="classes"] .course-id', label: 'feed: course code', min: 4.5 },
@@ -147,7 +173,8 @@ export const homeThemeSpec = (theme) => {
 				label: `on the wall: accent and muted copy (3.0 washed)${note}`,
 				min: wall(3),
 				projector: true
-			}
+			},
+			{ selector: '.launcher .app-card .app-icon', label: `on the wall: every card glyph (2.0 washed, graphical)${note}`, min: wall(2), projector: true }
 		],
 		tapTargets: [{ selector: '.launcher .app-card', label: 'launcher cards', min: 44 }],
 		orderResult: [
@@ -161,9 +188,14 @@ export const homeThemeSpec = (theme) => {
 				expected: theme === 'idea' ? ['boot script in <head>', 'stored idea paints nothing'] : ['boot script in <head>', `stored ${theme} paints ${theme}`]
 			},
 			{
-				label: theme === 'space-white' ? 'the emblem sits in its window on the light banner' : 'the emblem has no window on a dark banner',
-				evaluate: WINDOW_PROBE,
-				expected: [theme === 'space-white' ? 'emblem sits in a window' : 'emblem has no window']
+				label: theme === 'space-white' ? 'the banner shows the light lockup, with no window behind it' : 'the banner shows the dark lockup, with no window behind it',
+				evaluate: EMBLEM_PROBE,
+				expected: ['no window behind the emblem', `layers on screen 2, light ${theme === 'space-white' ? 2 : 0}`]
+			},
+			{
+				label: theme === 'space-white' ? 'the light pair was fetched (the dark pair is eager, so it was too)' : 'the lazy light pair cost this theme no bytes',
+				evaluate: FETCH_PROBE,
+				expected: ['dark emblem fetched yes', `light emblem fetched ${theme === 'space-white' ? 'yes' : 'no'}`]
 			}
 		]
 	};

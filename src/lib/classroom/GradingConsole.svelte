@@ -147,8 +147,9 @@
 		 * document IS the assignment -- so the mounting surface hands this
 		 * `null`, and everything that reads it here is already written for that:
 		 * the unmet list is empty (there is no spec to check against), the
-		 * approval gate does not render, the export marks completeness "No spec",
-		 * and `levelShort` answers from RUNG ONE, its own stored `short`, which
+		 * approval gate does not render, the graded-work export walks the
+		 * `manifest` prop instead (ledger 0298, R24; "No spec" only when neither
+		 * arrived), and `levelShort` answers from RUNG ONE, its own stored `short`, which
 		 * the manifest contract makes REQUIRED and non-empty on every level for
 		 * exactly this reason. Rung two -- the spec paired on the descriptor --
 		 * is never reached and never needed. What DOES change is the work column:
@@ -207,8 +208,10 @@
 		 * spec assignment. It is what lets the roster say "Complete" for a
 		 * worksheet with every answer in (decision 37, ledger 0298) through
 		 * `hxCompletion`, the same predicate the student's own chip and the home
-		 * tally read, and what names a block in "changed after grading". Absent,
-		 * the roster reads exactly as it did: no worksheet is judged complete.
+		 * tally read, and what names a block in "changed after grading". It is
+		 * also what the graded-work export walks for the answers, the table
+		 * sheets and the completeness column (R24). Absent, the roster reads
+		 * exactly as it did: no worksheet is judged complete.
 		 */
 		manifest?: HtmlAssignmentManifest | null;
 		/**
@@ -1510,6 +1513,10 @@
 			section: exportSection,
 			item,
 			spec,
+			// A PORTED WORKSHEET EXPORTS ITS ANSWERS FROM ITS MANIFEST (ledger 0298,
+			// R24); the module reads it only when `spec` is null, so a spec
+			// assignment exports exactly as it always has.
+			manifest,
 			rubric,
 			roster: exportRoster,
 			selectedEmail,

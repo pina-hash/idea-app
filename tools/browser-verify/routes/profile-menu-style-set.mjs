@@ -68,8 +68,11 @@ export default {
 			   is LATCHED inside `Disclosure` so a student's own press sticks.
 			   Printed rather than assumed, because a section that arrived OPEN
 			   would make every geometry number below a measurement of a
-			   different panel. */
-			evaluate: `() => { const b = [...document.querySelectorAll('.pm-panel .disc-trigger')].find((t) => t.textContent.includes('Identity')); return b ? 'Identity disclosure arrives aria-expanded=' + b.getAttribute('aria-expanded') : 'NO IDENTITY DISCLOSURE -- the section did not render'; }`,
+			   different panel. Since ledger 0298 it is also not REMEMBERED
+			   (no `scope`), so it arrives closed on every open of the menu, and
+			   it is addressed by its own hook: the panel has a second
+			   disclosure now, Change picture, and it comes first. */
+			evaluate: `() => { const b = document.querySelector('[data-testid="pm-identity-toggle"]'); return b ? 'Identity disclosure arrives aria-expanded=' + b.getAttribute('aria-expanded') : 'NO IDENTITY DISCLOSURE -- the section did not render'; }`,
 			label: 'the identity section arrives closed'
 		},
 		{
@@ -82,8 +85,8 @@ export default {
 			   ("the predicate ALREADY HELD, so the click never fired -- this
 			   step reached no state"), and every control below was measured
 			   present-and-invisible. */
-			click: '.pm-panel .disc-trigger',
-			until: `() => document.querySelector('.pm-panel .disc-trigger').getAttribute('aria-expanded') === 'true'`,
+			click: '[data-testid="pm-identity-toggle"]',
+			until: `() => document.querySelector('[data-testid="pm-identity-toggle"]').getAttribute('aria-expanded') === 'true'`,
 			label: 'expand Identity and wait for aria-expanded'
 		},
 		{
@@ -141,7 +144,6 @@ export default {
 	],
 	contrast: [
 		{ selector: '.pm-swatch .pm-swatch-word', label: 'every control word', min: 4.5, all: true },
-		{ selector: '.pm-tier-name', label: 'the preset tier headings', min: 4.5, all: true },
 		{ selector: '.pm-hint', label: 'the sentence explaining what identity is for', min: 4.5 },
 		{ selector: '.pm-preview .idb-name', label: 'the name on the live preview', min: 4.5 }
 	],
@@ -170,29 +172,25 @@ export default {
 		},
 		{
 			/* ==================================================================
-			   THE LAST CONTROL IN THE PANEL IS STILL REACHABLE WITH THE SECTION
-			   OPEN, MEASURED THE WAY THIS PANEL IS ALREADY MEASURED.
+			   SIGN OUT IS ON SCREEN WITH THE SECTION OPEN, AND THE PANEL IS ITS
+			   OWN SCROLLER NOW -- WHICH THIS ROW USED TO FORBID.
 
-			   THE PREDICATE IS `profile-menu-state-open.mjs`'s, DELIBERATELY,
-			   and the first draft of this probe invented a second one and was
-			   WRONG because of it. It asked whether Sign out was inside the
-			   VIEWPORT and reported "AND IT IS UNREACHABLE: bottom 1678 of 900
-			   with no scroll" -- which read as a real defect and produced a
-			   `max-height` / `overflow-y: auto` on `.pm-panel` that had to be
-			   backed out. This panel is NOT its own scroller by design: it is
-			   reachable by scrolling the DOCUMENT, which is what the older spec
-			   asserts and what it was still asserting while this one claimed a
-			   defect. Two probes answering one question is the pair that stops
-			   agreeing, and here they disagreed on the very first run.
-
-			   So the question asked is the established one -- is it inside the
-			   document's scroll extent -- about the SIGN OUT control
-			   specifically, because that is the row this bundle pushed down and
-			   the one a student needs after using the section.
+			   It read "the panel is still not its own scroller", because ledger
+			   0289 backed a `max-height` out on the argument that the panel is
+			   reachable by scrolling the DOCUMENT. That argument held on a page
+			   that scrolls and failed in the classroom's application frame, where
+			   above 1024px the document is the window with `overflow: hidden`
+			   and nothing scrolls it: report R18 is that half of the panel,
+			   unreachable. Ledger 0298 clamps the panel to the window and makes
+			   Sign out a sticky footer, so the question is now the one a student
+			   actually has after customizing: is Sign out on screen, and does it
+			   take the press. Hit-tested at its own centre, and the panel is
+			   asserted to end inside the window. `classroom-profile-menu.mjs` is
+			   the frame itself.
 			   ================================================================== */
-			label: 'sign out is still reachable with the identity section open',
-			evaluate: `() => { const out = document.querySelector('.pm-signout'); const panel = document.querySelector('.pm-panel'); if (!out || !panel) return ['MISSING: panel=' + !!panel + ' signout=' + !!out]; const d = document.documentElement; const bottom = out.getBoundingClientRect().bottom + d.scrollTop; const extent = Math.max(d.scrollHeight, document.body.scrollHeight); return [bottom <= extent + 1 ? 'reachable by scrolling the document' : 'CLIPPED: sign out at ' + Math.round(bottom) + ' past document extent ' + Math.round(extent), panel.scrollHeight <= panel.clientHeight + 1 ? 'the panel is still not its own scroller' : 'THE PANEL BECAME ITS OWN SCROLLER ' + panel.scrollHeight + '>' + panel.clientHeight]; }`,
-			expected: ['reachable by scrolling the document', 'the panel is still not its own scroller']
+			label: 'sign out is on screen and takes the press with the identity section open',
+			evaluate: `() => { const out = document.querySelector('.pm-signout'); const panel = document.querySelector('.pm-panel'); if (!out || !panel) return ['MISSING: panel=' + !!panel + ' signout=' + !!out]; const p = panel.getBoundingClientRect(); const r = out.getBoundingClientRect(); const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return [p.bottom <= innerHeight + 0.5 ? 'panel ends inside the window' : 'PANEL RUNS PAST: ' + Math.round(p.bottom) + ' of ' + innerHeight, panel.scrollHeight > panel.clientHeight + 1 ? 'the panel scrolls inside itself' : 'PANEL DOES NOT SCROLL ' + panel.scrollHeight + ' in ' + panel.clientHeight, h && (h === out || out.contains(h)) ? 'sign out takes the press' : 'SIGN OUT COVERED BY ' + (h ? h.tagName + '.' + h.className : 'nothing')]; }`,
+			expected: ['panel ends inside the window', 'the panel scrolls inside itself', 'sign out takes the press']
 		},
 		{
 			/* THE PREVIEW IS THE REAL COMPONENT AND IT AGREES WITH THE STORED

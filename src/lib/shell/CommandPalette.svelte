@@ -438,7 +438,7 @@
 		cursor: pointer;
 	}
 	.cp-btn:hover {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 	}
 	.cp-scopes {
 		display: flex;

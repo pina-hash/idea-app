@@ -272,32 +272,41 @@
 	that outranks looking consistent with the cards either side of it, so it is
 	an <img> and it does not move. `coin-balance` has no app pointing at it and
 	is left inline as the generic fallback branch rather than promoted.
+
+	EVERY MARK PLAYS ONCE HERE AND RESTS ON ITS FINISHED FRAME (ledger 0298,
+	decision 40 item 3). The launcher used to mount them looping, so a grid of
+	eleven glyphs never stopped moving and IdeaCAD's showed a collapsed diamond
+	for 18% of every loop; a card is a door, not a screensaver. `once` is each
+	mark's own prop and each mark decides what "once" means for its keyframes
+	(half a cycle where the rest frame sits at 50%, one cycle where it sits at
+	both ends). `/dev/marks` mounts them WITHOUT it, because the reduced-motion
+	sweep needs an animation still running to measure.
 -->
 {#snippet appIcon(id: string)}
 	{#if id === 'vanguard'}
-		<VanguardMark />
+		<VanguardMark once />
 	{:else if id === 'gauntlet'}
-		<GauntletMark />
+		<GauntletMark once />
 	{:else if id === 'greenline'}
-		<GreenlineMark />
+		<GreenlineMark once />
 	{:else if id === 'coins'}
-		<CoinMark />
+		<CoinMark once />
 	{:else if id === 'classroom'}
-		<ClassroomMark />
+		<ClassroomMark once />
 	{:else if id === 'notebook'}
-		<NotebookMark />
+		<NotebookMark once />
 	{:else if id === 'tournament'}
-		<TournamentMark />
+		<TournamentMark once />
 	{:else if id === 'coin-desk'}
-		<CoinDeskMark />
+		<CoinDeskMark once />
 	{:else if id === 'dashboard'}
-		<DashboardMark />
+		<DashboardMark once />
 	{:else if id === 'foundry'}
-		<FoundryMark />
+		<FoundryMark once />
 	{:else if id === 'maps'}
-		<MapsMark />
+		<MapsMark once />
 	{:else if id === 'ideacad'}
-		<IdeaCadMark />
+		<IdeaCadMark once />
 	{:else if id === 'frc'}
 		<!-- Official FIRST icon (emblem only), used unmodified: intrinsic
 		     dimensions set so width:auto preserves the exact aspect (no crop or
@@ -653,7 +662,7 @@
 
 	   As a stylesheet rule keyed on an attribute, the same data sits INSIDE the
 	   cascade: the default above is live for the four cards that declare nothing
-	   (classroom, notebook, coins, coin-desk), a new app needs no entry anywhere
+	   (classroom, notebook, ideacad, coin-desk), a new app needs no entry anywhere
 	   to look right, and overriding one card is one selector rather than a
 	   registry edit. The attribute is `data-app`, which both card branches
 	   already carried for the tour and for drag-and-drop.
@@ -1173,10 +1182,22 @@
 
 	   Nothing here is a theme file's: the theme may not declare an identity
 	   token (tests/theme-tokens.test.ts), so the card re-pins its OWN ink,
-	   keyed on the attribute, exactly where its dark ink is declared. The
-	   default pair needs no line: --gold is already the theme's own ink.
+	   keyed on the attribute, exactly where its dark ink is declared.
+
+	   THE DEFAULT PAIR'S INK IS GREEN HERE, NOT GOLD (ledger 0298, decision
+	   40 item 1). This paragraph used to say the default needed no line
+	   because "--gold is already the theme's own ink" -- and it was: #715d22,
+	   the brown every lightness-only yellow lands on over white, which is what
+	   painted Classroom, My Notebook, Coin Desk and IdeaCAD olive. The four
+	   cards that declare no accent take the theme's green ink for their word,
+	   glyph and edge; the IDENTITY does not move, so the brass-to-green strip
+	   along each card's top edge still paints the shared pair at full
+	   strength. A card that re-pins its own ink below wins on specificity, so
+	   this reaches exactly the cards with nothing of their own.
 	   ====================================================================== */
 	:global(:root[data-theme='space-white']) .app-card {
+		/* #3b6c36: 5.88 on the card, 3.0+ washed; see the home spec. */
+		--acc-ink: var(--green);
 		/* No glow and no blur: the halo tokens go flat, and the icon's
 		   drop-shadow filter goes with them rather than filtering nothing. */
 		--acc-glow: transparent;
@@ -1227,18 +1248,19 @@
 		/* #40e3b1, hsl(161.6 74.4% 57.1%): 5.27 on the card. */
 		--acc-ink: hsl(161.6 74.4% 26.5%);
 	}
-	/* GREENLINE's mark draws its start line and its lapping machine in a
-	   literal near-white (#eafff3, the game's signature highlight), which on
-	   the light card is 1.05:1 -- the icon read as an empty ring. Here they
-	   take the card's own re-pinned ink, as the track already does; a CSS
-	   `stroke` outranks the presentation attribute, so the mark itself is not
-	   edited and the dark card paints exactly what it did. */
-	:global(:root[data-theme='space-white']) .app-card[data-app='greenline'] .app-icon :global(:is(.gl-line, .gl-trail, .gl-marker)) {
-		stroke: currentColor;
-	}
 	:global(:root[data-theme='space-white']) .app-card[data-app='dashboard'] {
 		/* #78b870, hsl(113.3 33.6% 58%): 5.39 on the card. */
 		--acc-ink: hsl(113.3 33.6% 33.5%);
+	}
+	/* GAUNTLET's and VANGUARD's marks paint their accent strokes from
+	   `var(--gold, ...)` -- the sketch and scan line, the thruster -- which on
+	   this theme is #715d22, brown, beside a green glyph. Inside the icon only,
+	   --gold points at the card's own re-pinned ink, the way the GAUNTLET room
+	   re-points it at its lime; the marks are not edited and the dark cards
+	   paint exactly what they did. */
+	:global(:root[data-theme='space-white']) .app-card[data-app='gauntlet'] .app-icon,
+	:global(:root[data-theme='space-white']) .app-card[data-app='vanguard'] .app-icon {
+		--gold: var(--acc-ink);
 	}
 	/* The bar's and the tools' own controls: their outer edge is the theme's
 	   load-bearing boundary, and the neon hover and pin tints become the
@@ -1248,12 +1270,14 @@
 	:global(:root[data-theme='space-white']) .app-tools button {
 		border-color: var(--boundary);
 	}
-	:global(:root[data-theme='space-white']) .bar-btn:hover,
 	:global(:root[data-theme='space-white']) .bar-btn.active,
-	:global(:root[data-theme='space-white']) .bar-select:hover,
-	:global(:root[data-theme='space-white']) .bar-select:focus-visible,
-	:global(:root[data-theme='space-white']) .app-tools button:hover {
+	:global(:root[data-theme='space-white']) .bar-select:focus-visible {
 		border-color: var(--green);
+	}
+	:global(:root[data-theme='space-white']) .bar-btn:hover,
+	:global(:root[data-theme='space-white']) .bar-select:hover,
+	:global(:root[data-theme='space-white']) .app-tools button:hover {
+		border-color: var(--hover-ink);
 	}
 	:global(:root[data-theme='space-white']) .app-tools .pin.pinned {
 		border-color: var(--gold);

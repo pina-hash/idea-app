@@ -193,7 +193,7 @@
 		min-width: 0;
 	}
 	.file-name:hover {
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	.file-glyph {
 		flex: none;

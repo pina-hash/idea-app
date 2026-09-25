@@ -139,7 +139,7 @@
 		border-bottom: none;
 	}
 	.student-row:hover .student-name {
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	.student-main {
 		display: flex;

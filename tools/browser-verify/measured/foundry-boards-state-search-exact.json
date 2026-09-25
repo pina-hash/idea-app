@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "foundry-boards-state-search-exact.mjs",
-	"date": "2026-09-23T13:57:15.144Z",
-	"sha": "4cd231edaf3967d6260433c582271a3f0c3a1bde",
-	"dirty": false,
+	"date": "2026-09-25T06:34:41.500Z",
+	"sha": "1ac087332afd0135ef7bded2f173f083f5436a09",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 18,
 	"outsideRows": [],
-	"ms": 5622
+	"ms": 5898
 }

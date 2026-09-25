@@ -139,6 +139,12 @@
 	--status-danger-fill: #f6dcdc;
 	--status-info-fill: #d8eae6;
 	--signal-hot: #a64918;
+	/* THE HOVER INK IS GREEN HERE (ledger 0298, decision 40 item 1), not the
+	   brass it is on the dark themes: --gold on this ground is #715d22, the
+	   brown a lightness-only yellow always lands on, and a hover is where a
+	   person sees it most. 4.77 on the plate, 3.86 washed (the --green row
+	   above); gold stays for the special-callout chips it is named for. */
+	--hover-ink: var(--green);
 
 	/* --- No glow and no blur. A zero-size transparent shadow rather than
 	   `none`, because these tokens sit inside shadow LISTS
@@ -254,6 +260,7 @@
 	--status-danger-fill: color-mix(in srgb, var(--crimson) 12%, transparent);
 	--status-info-fill: color-mix(in srgb, var(--cyan) 12%, transparent);
 	--signal-hot: var(--amber);
+	--hover-ink: var(--gold);
 	--glow-green: 0 0 6px rgba(120, 184, 112, 0.48), 0 0 18px rgba(120, 184, 112, 0.2);
 	--glow-gold: 0 0 6px rgba(200, 168, 72, 0.48), 0 0 18px rgba(200, 168, 72, 0.2);
 	--glow-cyan: 0 0 6px rgba(90, 189, 168, 0.48), 0 0 18px rgba(90, 189, 168, 0.2);

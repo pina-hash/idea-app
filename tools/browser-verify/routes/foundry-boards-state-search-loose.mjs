@@ -22,7 +22,7 @@
  */
 const type = (q) => ({
 	evaluate: `() => { const el = document.querySelector('[data-testid="foundry-gallery-search"]'); if (!el) return 'NO SEARCH BOX'; el.value = ${JSON.stringify(q)}; el.dispatchEvent(new Event('input', { bubbles: true })); return 'typed: ' + el.value; }`,
-	until: `() => document.querySelectorAll('[data-testid="foundry-gallery-boards"]').length === 0`
+	until: `() => document.querySelectorAll('[data-testid="foundry-gallery-sort"]').length === 0`
 });
 
 export default {

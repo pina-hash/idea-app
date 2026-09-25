@@ -270,8 +270,11 @@
 			border-color 0.15s ease,
 			transform 0.1s ease;
 	}
+	/* The edge under the pointer reads the hover role token, not --acc: --acc
+	   is --gold under another name, which Space White turns brown (ledger
+	   0298, decision 40 item 1). Brass on the dark themes, as before. */
 	.class-card:hover {
-		border-color: var(--acc);
+		border-color: var(--hover-ink);
 	}
 	.class-card:active {
 		transform: translateY(1px);
@@ -362,7 +365,7 @@
 		text-decoration: none;
 	}
 	.todo-link:hover {
-		border-color: var(--gold);
+		border-color: var(--hover-ink);
 	}
 	.todo-link > svg {
 		width: 18px;

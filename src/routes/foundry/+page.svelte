@@ -200,6 +200,7 @@
 		apps={data.apps}
 		selected={data.selected}
 		playCounts={data.playCounts}
+		playCountsKnown={data.playCountsKnown}
 		{transports}
 		coverUrl={foundryCoverUrl}
 		{staffHref}
