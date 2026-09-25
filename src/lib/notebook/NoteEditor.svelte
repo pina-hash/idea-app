@@ -95,7 +95,11 @@
 		onready?: (doc: TiptapNode) => void;
 		disabled?: boolean;
 		placeholder?: string;
-		autofocus?: boolean;
+		/**
+		 * Tiptap's own values: `true`/`'start'`, `'end'`, or a document position
+		 * (a template puts the cursor under its first heading, ledger 0298).
+		 */
+		autofocus?: boolean | 'start' | 'end' | number;
 		label?: string;
 		/**
 		 * WHOSE writing aid preference this is. A shop workstation is shared, so

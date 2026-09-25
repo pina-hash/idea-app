@@ -62,7 +62,9 @@
 		collapseWhen = false,
 		heading = null,
 		testId = null,
-		bodyClass = ''
+		bodyClass = '',
+		showWord = 'Show',
+		hideWord = 'Hide'
 	}: {
 		/** The visible word on the trigger. A glyph alone is not a control. */
 		label: string;
@@ -88,6 +90,14 @@
 		heading?: 2 | 3 | 4 | null;
 		testId?: string | null;
 		bodyClass?: string;
+		/**
+		 * The trigger's closed and open words. "Show" and "Hide" unless a panel
+		 * that holds CHOICES rather than reading says what pressing it does
+		 * (the notebook's "Filed to ..., Change", ledger 0298). Still words:
+		 * the caret is never the only signal.
+		 */
+		showWord?: string;
+		hideWord?: string;
 	} = $props();
 
 	/** `aria-controls` needs a real id, and two panels on one page need two. */
@@ -172,7 +182,7 @@
 		<!-- The word, not only the caret: a tooltip is not discoverable and a
 		     phone cannot hover. It is also what tells a reader that the hidden
 		     material is still there. -->
-		<span class="disc-action">{open ? 'Hide' : 'Show'}</span>
+		<span class="disc-action">{open ? hideWord : showWord}</span>
 	</button>
 {/snippet}
 

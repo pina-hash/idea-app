@@ -3442,8 +3442,10 @@ inside the function fails closed rather than falling through to a weaker path.
   below it the document scrolls as it always did.
 - **NOTHING OPEN IS ONE PANE, at every width.** `hasDetail` false renders no detail
   pane and gives the navigation the whole measure; it is not a placeholder state.
-  A surface whose detail pane always holds something (the notebook's compose form,
-  the coin desk's logging form) passes `hasDetail` and simply never collapses.
+  A surface whose detail pane always holds something (the coin desk's logging
+  form) passes `hasDetail` and simply never collapses. The notebook's composer
+  is no longer one (ledger 0298): it heads the log in the navigation pane, and
+  the detail pane is only ever an entry somebody opened.
   **The list is then responsible for USING the width** -- a fixed-width column
   centred in the room it was just given is the same defect one level in. ClassView
   lays its unit groups out in COLUMNS for exactly this (see the column rule
@@ -5422,7 +5424,8 @@ properly. That is a bundle, not a line.
     `--nb-accent-wash` is a veil laid on a ground, and on a dark ground it lightens
     the ground out from under the tier below it: measured on the retired plates,
     `--text-3` failed six of nine plate-by-ground combinations (3.30 to 4.31) while
-    `--text-2` cleared all nine. `NotebookView`'s `.pick.selected .pick-meta`
+    `--text-2` cleared all nine. `ComposerFiling`'s `.pick.selected .pick-meta`
+    (the check-in picks behind the composer's "Filed to ..., Change", ledger 0298)
     implements this; a surface putting muted copy on a selected row joins it.
     **Lowering the wash is the rejected alternative**: at the 6% that would rescue
     `--text-3` the fill reads 1.09:1 against its card and the row stops being

@@ -9,7 +9,12 @@
 	import FolderRail from '$lib/notebook/FolderRail.svelte';
 	import FolderManager from '$lib/notebook/FolderManager.svelte';
 	import NotebookInbox from '$lib/notebook/NotebookInbox.svelte';
+	import NotebookHead from '$lib/notebook/NotebookHead.svelte';
+	import ComposerFiling from '$lib/notebook/ComposerFiling.svelte';
+	import NoteTemplates from '$lib/notebook/NoteTemplates.svelte';
 	import { inboxDrafts } from '$lib/notebook/quick-note';
+	import { templateCursor, withTemplate, type NoteTemplate } from '$lib/notebook/note-templates';
+	import { checkInClassLabel, checkInState, filedToWords, logCheckIn } from '$lib/notebook/log';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { tick, untrack } from 'svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
@@ -56,8 +61,6 @@
 		nearestOutstanding,
 		outstandingSessions,
 		photoCountLabel,
-		sessionHasDraft,
-		sessionMeta,
 		sortEntries,
 		todayIso,
 		type ActivityMap,
@@ -456,14 +459,6 @@
 	 */
 	let selectedId = $state<string | null>(null);
 
-	/**
-	 * Whether the compose form is showing. Only meaningful above the breakpoint:
-	 * below it the form is the page's own first block and has always been there,
-	 * so `composerMounted` ignores this and the trigger that toggles it is not
-	 * rendered.
-	 */
-	let composing = $state(true);
-
 	// After hydration, so the first client render matches the server's.
 	$effect(() => watchSplitWidth());
 	const wide = $derived(splitIsWide());
@@ -476,12 +471,13 @@
 	});
 
 	/**
-	 * The composer exists whenever this surface can write at all: above the
-	 * breakpoint while it is open, below it always. A read-only preview gets
-	 * none -- and gets no trigger either, so the detail pane opens on the empty
-	 * state, which is the whole of what that surface has to offer.
+	 * THE COMPOSER EXISTS WHENEVER THIS SURFACE CAN WRITE AT ALL, at every width
+	 * (ledger 0298, R32). It is the top of the student's own log -- one box at
+	 * the head of the feed, in the navigation pane -- rather than a form that
+	 * takes the detail pane and has to be opened and closed, so there is no
+	 * trigger and no Close any more. A read-only preview gets none.
 	 */
-	const composerMounted = $derived(!readOnly && (!wide || composing));
+	const composerMounted = $derived(!readOnly);
 
 	/**
 	 * IS THERE A "RECENTLY DELETED" LIST TO OFFER -- the one predicate behind
@@ -514,16 +510,14 @@
 	/** The open entry only ever takes a pane; below the breakpoint it expands in place. */
 	const showEntry = $derived(wide && !!selectedEntry);
 	/**
-	 * NOTHING OPEN IS ONE PANE. With the composer closed and no entry picked the
-	 * detail pane is NOT RENDERED and the list takes the whole measure
-	 * (IDEA_INTERFACE_STANDARDS 1: a persistent second column holding a
-	 * placeholder spends most of a desktop screen saying nothing). This used to
-	 * render a "Pick an entry on the left" paragraph in the pane instead, on
-	 * every read-only mount and on a student's own view the moment they closed
-	 * the form -- and a 26rem list beside 900px of one sentence. The feed then
-	 * USES the width it is given: see `.entries` below.
+	 * NOTHING OPEN IS ONE PANE. With no entry picked the detail pane is NOT
+	 * RENDERED and the log -- the composer and the feed under it -- takes the
+	 * whole measure (IDEA_INTERFACE_STANDARDS 1: a persistent second column
+	 * holding a placeholder spends most of a desktop screen saying nothing).
+	 * The detail pane is only ever an entry somebody opened (ledger 0298); the
+	 * composer lives at the head of the log and no longer claims it.
 	 */
-	const detailHasContent = $derived(showEntry || composerMounted);
+	const detailHasContent = $derived(showEntry);
 
 	/**
 	 * WHETHER THIS IS THE BODY OF THE CLASSROOM'S APPLICATION FRAME. Written
@@ -543,7 +537,18 @@
 		// row far down the feed would otherwise render above where the click
 		// happened and look like nothing happened at all. `tick` first: the pane
 		// has to hold the entry before its position means anything.
-		void tick().then(() => revealDetailPane(detailEl));
+		void tick().then(() => {
+			revealDetailPane(detailEl);
+			/* AND THE ROW STAYS WHERE IT CAN BE SEEN (ledger 0298). Opening an
+			   entry narrows the log to 26rem, which re-lays the composer at its
+			   head as one column; the row that was pressed moved down with it --
+			   measured 669 to 797px in a pane ending at 836, half off the foot.
+			   `nearest` moves nothing when it is already in view, and the pane's
+			   `scroll-padding-top` keeps it out from under the sticky head. */
+			document
+				.querySelector(`.nb-pane-card [data-entry-id="${CSS.escape(id)}"]`)
+				?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+		});
 	}
 
 	/*
@@ -567,69 +572,41 @@
 	});
 
 	/**
-	 * ONE guard for both ways staged work gets discarded: closing the composer,
-	 * and navigating off the notebook.
-	 */
-	function confirmDiscard(): boolean {
-		if (!composerMounted) return true;
-		// WHAT IS ACTUALLY AT STAKE, not what is on the screen: text autosave has
-		// already written into this session's draft is on the server, and asking
-		// about it is the question people learn to click through.
-		if (!notebookComposerHasWork(composerUnsaved)) return true;
-		return window.confirm(`${NOTEBOOK_DISCARD_WARNING}\n\nDiscard it?`);
-	}
-
-	/**
-	 * "Discard it?" has to MEAN it. The staged photos and the typed title live
-	 * on this component, not inside the form's markup, so closing without
-	 * clearing them would keep them alive behind an unmounted form and hand them
-	 * straight back on the next open -- a second answer to a question already
-	 * answered. `resetForm` runs while the stager is still mounted, so its own
-	 * object URLs are released rather than leaked.
-	 */
-	function closeComposer() {
-		if (!confirmDiscard()) return;
-		/**
-		 * A CONFIRMED DISCARD IS THE OTHER THING THAT ENDS A MIRROR'S LIFE, and
-		 * it is not an acknowledgement -- it is the student answering "discard
-		 * it?" with yes. Leaving the slot would hand the same words back on the
-		 * next load, which is a second answer to a question already answered.
-		 */
-		clearComposerMirrors();
-		resetForm();
-		composing = false;
-	}
-
-	/**
-	 * The head's check-in chip: pick that session and bring the composer into
-	 * view. The composer is already the first block below the breakpoint and a
-	 * pane above it, so this is a selection plus a scroll, never a second form.
+	 * THE HEAD'S CHECK-IN CHIP: file the next save to that check-in and put the
+	 * cursor in the box. The composer is the top of the log at every width, so
+	 * this is a selection and a focus, never a second form -- and it takes the
+	 * list back to the log from the Inbox or the deleted view, which hide it.
 	 */
 	function focusCheckIn() {
 		if (!nextCheckIn) return;
 		chooseSession(nextCheckIn.id, nextCheckIn.section_id);
-		composing = true;
-		selectedId = null;
-		void tick().then(() => revealDetailPane(detailEl));
+		showingInbox = false;
+		showingDeleted = false;
+		void tick().then(focusComposer);
+	}
+
+	/** The composer's own box, focused and brought into view. */
+	let composerEl = $state<HTMLElement | null>(null);
+	/**
+	 * THE LIST HEAD'S OWN HEIGHT, MEASURED, as the pane's `scroll-padding-top`
+	 * above the breakpoint, where the head stays at the top of the scrolling log.
+	 * Measured rather than written down because the head wraps -- one line in a
+	 * wide pane, three in a 26rem one -- and a constant here would be wrong the
+	 * first time it did.
+	 */
+	let listHeadHeight = $state(0);
+	function focusComposer() {
+		const box = composerEl?.querySelector<HTMLElement>(
+			'.note-input, [data-testid="note-editor-plain"]'
+		);
+		if (box) box.focus();
+		else composerEl?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
 	}
 
 	/** The head's drafts chip: the Drafts filter, applied rather than toggled. */
 	function showDrafts() {
 		showingDeleted = false;
 		if (!filters.includes(DRAFT_FILTER.id)) filters = [...filters, DRAFT_FILTER.id];
-	}
-
-	/**
-	 * The navigation pane's only compose control. Bringing the form forward from
-	 * behind an open entry is not a close, so it deselects rather than toggling.
-	 */
-	function toggleComposer() {
-		if (composing && !selectedId) {
-			closeComposer();
-			return;
-		}
-		composing = true;
-		selectedId = null;
 	}
 
 	/**
@@ -892,6 +869,12 @@
 	const draftCount = $derived(
 		draftsReady ? entries.filter((e) => e.submitted_at === null).length : 0
 	);
+	/**
+	 * THE CHECK-IN AS A CHIP (ledger 0298, R32): the same check-in `nextCheckIn`
+	 * names, with a word and a tone for where the student stands on it -- or
+	 * "All filed" once nothing is outstanding. The words are the classroom's.
+	 */
+	const headCheckIn = $derived(logCheckIn(sessions, entries, todayIso()));
 
 	/** How the feed is ordered under the pins. Not persisted: it is a way of
 	    looking at the notebook for a minute, not a setting. */
@@ -1376,6 +1359,34 @@
 	const showGuidance = $derived(hasGuidance(pickedGuidance));
 
 	/**
+	 * "FILED TO ..." (ledger 0298, R32): where the next save goes, in words, and
+	 * where the student stands on the check-in it answers. Both read the SAME
+	 * picks the save sequencing reads (`selectedSession`, `sectionForFree`,
+	 * `folderChoice`), so the line cannot say one place while the save goes to
+	 * another.
+	 */
+	const filedState = $derived(
+		pickedSession ? checkInState(pickedSession, entries, todayIso()) : null
+	);
+	const filedWhere = $derived.by(() => {
+		const classFor = (id: string | null) =>
+			id === null
+				? null
+				: id === scopeSectionId
+					? (scopeLabel ?? classes.find((c) => c.id === id)?.label ?? null)
+					: (classes.find((c) => c.id === id)?.label ?? null);
+		return filedToWords({
+			sessionLabel: pickedSession?.session_label ?? null,
+			classLabel: pickedSession
+				? checkInClassLabel(pickedSession.section_id, { scopeSectionId, classes })
+				: classFor(sectionForFree()),
+			folderName: folderChoice
+				? (orderedFolders.find((f) => f.id === folderChoice)?.name ?? null)
+				: null
+		});
+	});
+
+	/**
 	 * HAS THIS STUDENT STARTED. The collapse signal for the guidance panel, and
 	 * it is DERIVED from state the composer already holds rather than from a new
 	 * prop, a store or a second read -- `notebookComposerHasWork` is the same
@@ -1447,18 +1458,6 @@
 	 * entry against a class discloses your own work to that teacher and nobody
 	 * else's to anyone).
 	 */
-	/**
-	 * WHICH CLASS A CHECK-IN IS FOR, named only where it could be confused: the
-	 * whole notebook spans every class, and two classes routinely share a
-	 * check-in's name and date (a teacher posts one to both periods), which
-	 * rendered two identical picks. A class's own tab is one class, and says
-	 * nothing extra.
-	 */
-	function pickClassLabel(sectionId: string | null | undefined): string | null {
-		if (scopeSectionId || classes.length < 2 || !sectionId) return null;
-		return classes.find((c) => c.id === sectionId)?.label ?? null;
-	}
-
 	function sectionForFree(): string | null {
 		return scopeSectionId ?? freeSectionChoice;
 	}
@@ -1559,6 +1558,7 @@
 		 * now, and the next thing that bumps the key must not resurrect this.
 		 */
 		restoredDoc = null;
+		editorFocus = false;
 		mirrorNote = null;
 		/**
 		 * `mirrorHeldNote` DELIBERATELY SURVIVES THIS, and so does its key. What
@@ -1934,7 +1934,7 @@
 			// point may ever call createNote again in this composer session --
 			// only add to the entry this id names (the saveTarget guarantee).
 			rememberDraft(saved.entryId, saved.noteId, true);
-			successMsg = 'Draft saved. Keep writing, or turn it in when you are ready.';
+			successMsg = 'Draft saved.';
 			// The words stay in the box and `rememberDraft` has already advanced
 			// the baseline to them, so nothing is owed. See `checkpoint` for why
 			// clearing the box here would cost the paragraph that was just saved.
@@ -2238,13 +2238,90 @@
 		return { ok: true };
 	}
 
+	/**
+	 * WHY A PRESS DID NOTHING, SAID WHEN IT IS PRESSED (ledger 0298, R32).
+	 *
+	 * The composer used to carry the answer as a sentence under the buttons the
+	 * whole time the box was empty ("This entry needs a photo or some writing"),
+	 * which is an instruction a student reads before doing anything and never
+	 * again. The buttons are `aria-disabled` instead of `disabled` -- a disabled
+	 * control swallows its own press, so it can never explain itself -- and the
+	 * same sentence arrives the moment somebody presses one with nothing to save.
+	 * It clears itself as soon as there is something to save.
+	 */
+	let composerRefusal = $state<string | null>(null);
+	function nothingToSave(): string {
+		if (!noteAllowed) return 'This entry needs a photo.';
+		if (!uploadReady) return 'Photo uploads are unavailable here, so this entry needs some writing.';
+		return 'This entry needs a photo or some writing; either one is enough.';
+	}
+	$effect(() => {
+		if (canSubmit) untrack(() => (composerRefusal = null));
+	});
+
 	async function onTurnInSubmit(e: SubmitEvent) {
 		e.preventDefault();
+		if (busy) return;
+		if (!canTurnIn) {
+			composerRefusal = nothingToSave();
+			return;
+		}
+		composerRefusal = null;
 		await runSave(true);
 	}
 
 	async function onSaveDraftClick() {
+		if (busy) return;
+		if (!canSaveDraft) {
+			composerRefusal = savedDraftId ? 'This draft is saved.' : nothingToSave();
+			return;
+		}
+		composerRefusal = null;
 		await runSave(false);
+	}
+
+	/**
+	 * A TEMPLATE'S HEADINGS, INTO THE BOX (ledger 0298, R32). The editor takes
+	 * its document once, at mount, so the note arrives as the seed of a fresh
+	 * instance -- the same remount a mirror restore and `resetForm` already use
+	 * -- and nothing typed is lost: `withTemplate` appends under any writing.
+	 * An empty free entry takes the template's name as its title, which is the
+	 * name it would otherwise have had to be given by hand.
+	 */
+	let editorFocus = $state<boolean | number | 'end'>(false);
+	function insertTemplate(template: NoteTemplate) {
+		if (busy || !noteAllowed) return;
+		const empty = !tiptapHasText(noteDraft);
+		const next = withTemplate(noteDraft, template);
+		restoredDoc = next;
+		noteDraft = next;
+		if (empty && selectedSession === null && !title.trim()) title = template.label;
+		editorFocus = empty ? templateCursor(template) : 'end';
+		noteKey += 1;
+	}
+
+	/**
+	 * THE EXPLICIT NEW-RECORD ACTION (CLAUDE.md, "A manual save is a
+	 * checkpoint, not a finish"). Save draft keeps this composer on the draft it
+	 * made, so the next paragraph is more of the same entry; this is how a
+	 * student leaves that draft where it is and starts another. It used to be the
+	 * wide composer's Close, which went with the composer's own pane.
+	 *
+	 * What is owed is sent first; only what no write can carry (a photo that
+	 * would not upload) is worth the question, and a confirmed discard ends that
+	 * slot's life exactly as Close did.
+	 */
+	async function startNewEntry() {
+		if (busy) return;
+		await save.saveNow();
+		if (busy) return;
+		const left = notebookComposerHasWork(composerUnsaved);
+		if (left && !window.confirm(`${NOTEBOOK_DISCARD_WARNING}\n\nDiscard it?`)) return;
+		if (left) clearComposerMirrors();
+		resetForm();
+		composerRefusal = null;
+		successMsg = null;
+		editorFocus = true;
 	}
 
 	/** EntryNotes hands back a saved revision; the feed then reloads. */
@@ -2695,15 +2772,233 @@
 	always run on with nothing special-casing it.
 -->
 <div class="nb-root" class:cr-app-body={framed} class:nb-framed={framed}>
+{#snippet composer()}
+	<!--
+		THE ONE-BOX COMPOSER (ledger 0298, R32): write, add a photo, save. It files
+		itself -- to the check-in nearest today, the class the notebook is on and
+		the folder filed in last, exactly the picks this component has always
+		defaulted to -- and every one of those sits behind "Filed to ..., Change"
+		rather than being asked first.
+
+		`class:behind` rather than `{#if}`, for the reason it always was: the
+		Inbox and the deleted view replace the list, and staged photos are File
+		handles that exist nowhere but in this browser's memory, so hiding the
+		composer must not destroy it.
+
+		NO INSTRUCTIONS IN IT (docs/classroom/VISION.md, "No prose instructions in
+		the interface"). What is left in words is a refusal, a failure, a state
+		the student has to know about (a restored or held draft, a notebook that
+		cannot autosave here) and the placeholder in the box.
+	-->
+	<section
+		class="compose-card"
+		class:behind={showingInbox || showingDeleted}
+		data-testid="nb-compose"
+		aria-labelledby="nb-compose-title"
+		bind:this={composerEl}
+	>
+		<h2 id="nb-compose-title" class="sr-only">New entry</h2>
+
+		{#if !uploadReady}
+			<p class="feedback error">
+				Photo storage is not configured on the server yet, so photo uploads are turned off.
+				You can still write a note.
+			</p>
+		{/if}
+		{#if !notesReady}
+			<p class="feedback error" data-testid="nb-notes-unavailable">
+				Written notes are not available on this project yet. Apply migration
+				<code>0078_notebook_entry_notes.sql</code> in the Supabase SQL editor. Photos work
+				as normal.
+			</p>
+		{/if}
+		{#if !foldersReady}
+			<p class="feedback error" data-testid="nb-folders-unavailable">
+				Folders are not available on this project yet. Apply migration
+				<code>0088_notebook_folders.sql</code> in the Supabase SQL editor. Everything else
+				works as normal.
+			</p>
+		{/if}
+		{#if recoveryNote}
+			<p class="feedback error" role="status" data-testid="nb-recovery">{recoveryNote}</p>
+		{/if}
+		<!-- WHAT THIS BROWSER PUT BACK, and a backup this build found and would
+		     not open. Beside each other rather than inside the note field: a
+		     restore can also have put a title and a check-in back, and the
+		     sentence is about all of it. Never on screen together -- one mirror is
+		     read per mount, and a held one was not restored. -->
+		{#if mirrorNote}
+			<p class="feedback error" role="status" data-testid="nb-mirror-restored">{mirrorNote}</p>
+		{/if}
+		{#if mirrorHeldNote}
+			<p class="feedback error" role="status" data-testid="nb-mirror-held">{mirrorHeldNote}</p>
+		{/if}
+
+		<form class="compose-form" onsubmit={onTurnInSubmit}>
+			<!--
+				WHAT THE INSTRUCTOR ASKED FOR (0123), above the box, because it is the
+				instruction the writing answers. The shared Disclosure on the shared
+				rule, keyed on the check-in: it collapses once the work has started,
+				and moving between two check-ins shows each one's own remembered
+				answer. ItemBody, because this IS a classroom item body.
+			-->
+			{#if showGuidance && pickedGuidance}
+				<div class="nb-guidance" data-testid="check-in-guidance-panel">
+					<Disclosure
+						label="What to do"
+						scope={`check-in:${selectedSession}:guidance`}
+						collapseWhen={composerStarted}
+						testId="check-in-guidance-disclosure"
+					>
+						{#snippet meta()}{pickedSession?.session_label ?? ''}{/snippet}
+						<ItemBody item={{ body: '', body_doc: pickedGuidance }} compact />
+					</Disclosure>
+				</div>
+			{/if}
+
+			<div class="compose-write">
+				<!--
+					ONE editor, in one block on purpose: its position and its `{#key}`
+					never change with the filing, so moving between a check-in and a
+					free entry never remounts Tiptap and never drops what was typed.
+				-->
+				{#if noteAllowed}
+					<div class="note-field" data-testid="nb-compose-box">
+						{#key noteKey}
+							<!-- `initialDoc`, not `value`: what the mirror kept, and what a
+							     template adds, is the EDITOR'S own shape. -->
+							<NoteEditor
+								initialDoc={restoredDoc}
+								onchange={(doc) => (noteDraft = doc)}
+								disabled={busy}
+								{viewerId}
+								label="New entry"
+								placeholder="What did you work on?"
+								autofocus={editorFocus}
+							/>
+						{/key}
+						{#if mirrorBlocked}
+							<p class="hint" role="status" data-testid="nb-mirror-unavailable">
+								{MIRROR_UNAVAILABLE_NOTE}
+							</p>
+						{/if}
+					</div>
+					<NoteTemplates onInsert={insertTemplate} disabled={busy} />
+				{/if}
+			</div>
+
+			<div class="compose-send">
+				<!-- Either half saves an entry; nothing here is a mode. -->
+				<PhotoStager
+					bind:this={stager}
+					bind:staged
+					bind:settling={stagerSettling}
+					disabled={busy}
+					correctFirst={false}
+					compact
+					{uploadReady}
+					captureContext={{
+						session: selectedSession,
+						section: selectedSectionId,
+						title,
+						folder: folderChoice
+					}}
+				/>
+
+				<ComposerFiling
+					where={filedWhere}
+					state={filedState}
+					{open}
+					{entries}
+					{draftsReady}
+					{selectedSession}
+					{selectedSectionId}
+					onChoose={chooseSession}
+					{classes}
+					{scopeSectionId}
+					bind:title
+					bind:freeSectionChoice
+					bind:folderChoice
+					{foldersReady}
+					folders={orderedFolders}
+					onFolderChange={() => (folderTouched = true)}
+					onManageFolders={folderTransports ? () => (managerOpen = true) : undefined}
+					{busy}
+				/>
+
+				<!-- A STATE, NOT AN INSTRUCTION: without it a composer that does not
+				     save itself looks identical to one that does. -->
+				{#if !autosaveReady && noteAllowed}
+					<p class="note no-autosave-note" data-testid="nb-no-autosave-note">
+						Your writing is not saved automatically here.
+					</p>
+				{/if}
+				{#if composerRefusal}
+					<p class="refusal" role="status" data-testid="nb-compose-refusal">{composerRefusal}</p>
+				{/if}
+
+				<div class="actions">
+					<!-- Primary, and the form's submit: Enter turns the entry in. -->
+					<button
+						class="btn"
+						type="submit"
+						data-testid="nb-turn-in"
+						disabled={busy}
+						aria-disabled={!canTurnIn}
+					>
+						{busy ? 'Saving...' : 'Turn in'}
+					</button>
+					{#if draftsReady}
+						<button
+							type="button"
+							class="btn secondary"
+							data-testid="nb-save-draft"
+							disabled={busy}
+							aria-disabled={!canSaveDraft}
+							onclick={onSaveDraftClick}
+						>
+							{busy ? 'Saving...' : 'Save draft'}
+						</button>
+						{#if savedDraftId && !busy}
+							<button
+								type="button"
+								class="btn secondary"
+								data-testid="nb-new-entry"
+								onclick={startNewEntry}
+							>
+								New entry
+							</button>
+						{/if}
+					{/if}
+					{#if progress}<span class="progress">{progress}</span>{/if}
+					<!-- WHERE AN AUTOSAVE SPEAKS: per-instance, inside the surface that
+					     owns the work; `saved` carries the clock time. -->
+					{#if autosaveReady}
+						<SaveIndicator state={save} />
+					{/if}
+				</div>
+			</div>
+		</form>
+	</section>
+{/snippet}
+
 {#snippet navPane()}
 	<!--
-		THE NAVIGATION PANE: a head that stays and a body that scrolls, holding
-		the folder rail, the filters and the list. Above the breakpoint it is
-		bounded by the pane's own frame, so it drops the card chrome it wears at
-		phone width (see .nb-pane-card below) -- a card inside a frame is two
-		boxes saying the same thing.
+		THE NAVIGATION PANE IS THE STUDENT'S LOG (ledger 0298, R32): the one-box
+		composer at the top, then the list's head, then the feed. Above the
+		breakpoint the pane is bounded by its own frame, drops the card chrome it
+		wears at phone width (see .nb-pane-card below), and scrolls as ONE column:
+		the composer scrolls away with the feed and the list's head stays at the
+		top of the pane once it reaches it.
 	-->
-	<section class="card nb-pane-card" data-testid="nb-entries">
+	<section
+		class="card nb-pane-card"
+		data-testid="nb-entries"
+		style:--nb-list-head-h="{listHeadHeight}px"
+	>
+		{#if composerMounted}
+			{@render composer()}
+		{/if}
 		<!--
 			THE LIST PANE IS A HEAD AND A BODY, AND WHICH ROW GOES WHERE WAS A
 			MEASUREMENT RATHER THAN A TASTE. Above the breakpoint the pane is
@@ -2729,7 +3024,7 @@
 			column-flex children take the container's width instead and let the
 			strip scroll inside it.
 		-->
-		<div class="list-head">
+		<div class="list-head" bind:offsetHeight={listHeadHeight}>
 			<div class="pane-head">
 				<h2>{readOnly ? 'Entries' : showingInbox ? 'Inbox' : 'My entries'}</h2>
 				{#if !readOnly && draftsReady}
@@ -2746,24 +3041,6 @@
 						onclick={toggleInbox}
 					>
 						{showingInbox ? 'All entries' : `Inbox (${inboxCount})`}
-					</button>
-				{/if}
-				{#if !readOnly && wide}
-					<!--
-						THE PANE KEEPS ONLY THE TRIGGER. The form itself is far too wide for
-						26rem and takes the detail pane; this is the one control that opens
-						it. Below the breakpoint there is nothing to trigger -- the form is
-						the first block on the page, as it has always been -- so it is not
-						rendered there at all.
-					-->
-					<button
-						type="button"
-						class="btn secondary compose-trigger"
-						data-testid="nb-compose-trigger"
-						aria-pressed={composerMounted && !showEntry}
-						onclick={toggleComposer}
-					>
-						New entry
 					</button>
 				{/if}
 			</div>
@@ -2888,7 +3165,7 @@
 					{#if readOnly}
 						Nothing in this notebook yet.
 					{:else}
-						No entries yet. Photograph a page or write a note and it will show up here.
+						No entries yet.
 					{/if}
 					{#if deletedOffered}
 						<button
@@ -3204,394 +3481,6 @@
 {/snippet}
 
 {#snippet detailPane()}
-	{#if composerMounted}
-		<!--
-			`class:behind` rather than `{#if}`: opening an entry HIDES this form, it
-			does not destroy it. Staged photos are File handles that exist nowhere
-			but in this browser's memory, so an {#if} here would throw them away on
-			a click, and the entry you clicked would be the last thing you saw
-			before losing them.
-		-->
-		<section class="card compose-card" class:behind={showEntry} data-testid="nb-compose">
-			<div class="pane-head">
-				<h2>New entry</h2>
-				{#if wide}
-					<button
-						type="button"
-						class="btn secondary compose-close"
-						data-testid="nb-compose-close"
-						onclick={closeComposer}
-					>
-						Close
-					</button>
-				{/if}
-			</div>
-
-			{#if !uploadReady}
-				<p class="feedback error">
-					Photo storage is not configured on the server yet, so photo uploads are turned off.
-					You can still write a note.
-				</p>
-			{/if}
-			{#if !notesReady}
-				<p class="feedback error" data-testid="nb-notes-unavailable">
-					Written notes are not available on this project yet. Apply migration
-					<code>0078_notebook_entry_notes.sql</code> in the Supabase SQL editor. Photos work
-					as normal.
-				</p>
-			{/if}
-			{#if !foldersReady}
-				<p class="feedback error" data-testid="nb-folders-unavailable">
-					Folders are not available on this project yet. Apply migration
-					<code>0088_notebook_folders.sql</code> in the Supabase SQL editor. Everything else
-					works as normal.
-				</p>
-			{/if}
-			{#if recoveryNote}
-				<p class="feedback error" role="status" data-testid="nb-recovery">{recoveryNote}</p>
-			{/if}
-			<!-- WHAT THIS BROWSER PUT BACK. Beside the capture-recovery note rather
-			     than inside the note field, because a restore can also have put a
-			     title and a check-in back and the sentence is about all of it. -->
-			{#if mirrorNote}
-				<p class="feedback error" role="status" data-testid="nb-mirror-restored">{mirrorNote}</p>
-			{/if}
-			<!-- A BACKUP THIS BUILD FOUND AND WOULD NOT OPEN. It sits beside the
-			     restore note rather than replacing it because the two can never be
-			     on screen together -- one mirror is read per mount, and a held one
-			     was not restored -- and because a held backup is about the whole
-			     composer exactly as a restore is, not about the note field. It is
-			     `role="status"` and not an alert: nothing has failed and nothing is
-			     lost, which is precisely what the sentence says. -->
-			{#if mirrorHeldNote}
-				<p class="feedback error" role="status" data-testid="nb-mirror-held">{mirrorHeldNote}</p>
-			{/if}
-
-			<form onsubmit={onTurnInSubmit}>
-				<fieldset class="picker">
-					<legend>What is this for?</legend>
-					{#if open.length}
-						<div class="quick-picks">
-							<!-- Keyed on the PAIR, not the check-in id. One canonical
-							     check-in posted to two of this student's classes arrives
-							     as two postings sharing an id (0098), which a bare `s.id`
-							     key would reject as a duplicate -- and they are genuinely
-							     two picks, because the entry is filed under one class or
-							     the other. -->
-							{#each open as s (`${s.id}:${s.section_id}`)}
-								{@const picked = selectedSession === s.id && selectedSectionId === s.section_id}
-								<button
-									type="button"
-									class="pick"
-									class:selected={picked}
-									aria-pressed={picked}
-									onclick={() => chooseSession(s.id, s.section_id)}
-								>
-									<span class="pick-label">{s.session_label}</span>
-									<span class="pick-meta">
-										{#if pickClassLabel(s.section_id)}<span data-testid="pick-class"
-												>{pickClassLabel(s.section_id)}</span
-											>{' · '}{/if}{sessionMeta(s)}
-										<!-- A draft against this check-in is why it is still here
-										     rather than filed -- say so, so picking it again reads
-										     as "keep going" and not "start over". -->
-										{#if draftsReady && sessionHasDraft(s, entries)}
-											· <span data-testid="pick-draft">Draft in progress</span>
-										{/if}
-									</span>
-								</button>
-							{/each}
-							<button
-								type="button"
-								class="pick free"
-								class:selected={selectedSession === null}
-								aria-pressed={selectedSession === null}
-								onclick={() => chooseSession(null)}
-							>
-								<span class="pick-label">Something else</span>
-								<span class="pick-meta">Not for a check-in</span>
-							</button>
-						</div>
-					{:else}
-						<p class="note no-sessions">
-							{sessions.length
-								? 'You are up to date on every check-in for your class. This entry will be saved on its own.'
-								: 'You have no scheduled check-ins, so this entry will be saved on its own.'}
-						</p>
-					{/if}
-				</fieldset>
-
-				<!--
-					WHAT THE INSTRUCTOR ASKED FOR (0123), directly under the control that
-					picks the check-in and above everything the student fills in. The
-					picker is the FIRST control in this form, so by the time anyone is
-					typing the prompt is already on screen -- putting it below the photo
-					stager or beside the editor would be putting the instruction after
-					the work it is instructions for.
-
-					THE SHARED Disclosure, on the shared rule. `.nb-root` already points
-					`--disc-accent` and `--disc-focus` at the brass accent, so the panel
-					is this room's without a line of styling here. `collapseWhen` is the
-					only thing this surface decides, and it decides it from state it
-					already held.
-
-					IT IS KEYED ON THE CHECK-IN, which is what makes moving between two
-					check-ins show each one's own remembered answer rather than carrying
-					the last one's -- `scope` changing is enough for that, and the `{#if}`
-					around it never removes NoteEditor from the form.
-				-->
-				{#if showGuidance && pickedGuidance}
-					<div class="nb-guidance" data-testid="check-in-guidance-panel">
-						<Disclosure
-							label="What to do"
-							scope={`check-in:${selectedSession}:guidance`}
-							collapseWhen={composerStarted}
-							testId="check-in-guidance-disclosure"
-						>
-							{#snippet meta()}{pickedSession?.session_label ?? ''}{/snippet}
-							<!-- ItemBody, because this IS a classroom item body: the same
-							     closed shape, written in the same editor, past the same SQL
-							     gate. A second renderer is how two surfaces come to disagree
-							     about what a bulleted list looks like. -->
-							<ItemBody item={{ body: '', body_doc: pickedGuidance }} compact />
-						</Disclosure>
-					</div>
-				{/if}
-
-				{#if selectedSession === null}
-					<label class="field label-field">
-						<span>Title <span class="optional">(optional)</span></span>
-						<input
-							type="text"
-							bind:value={title}
-							maxlength="200"
-							placeholder="e.g. Gearbox sketches"
-							disabled={busy}
-						/>
-						<span class="hint">
-							Blank is fine: the entry takes its name from the photo, or from the first words
-							of the note.
-						</span>
-					</label>
-					<!-- WHICH CLASS IT IS FOR, on the whole notebook only: a class's own
-					     tab files it to that class and asks nothing. Starts on the
-					     class the student came from. -->
-					{#if !scopeSectionId && classes.length > 0}
-						<label class="field label-field class-field">
-							<span>Class</span>
-							<select
-								bind:value={freeSectionChoice}
-								disabled={busy}
-								data-testid="new-entry-class"
-							>
-								{#each classes as c (c.id)}
-									<option value={c.id}>{c.label}</option>
-								{/each}
-								<option value={null}>Not for a class</option>
-							</select>
-						</label>
-					{/if}
-				{/if}
-
-				<!-- Filing is offered on BOTH tiers: which folder an entry lives
-				     in is the student's own view of their notebook, and has
-				     nothing to do with whether an instructor asked for the page. -->
-				{#if foldersReady}
-					<label class="field label-field folder-field">
-						<span>Folder <span class="optional">(optional)</span></span>
-						<select
-							bind:value={folderChoice}
-							disabled={busy}
-							data-testid="new-entry-folder"
-							onchange={() => (folderTouched = true)}
-						>
-							<option value={null}>Unfiled</option>
-							{#each orderedFolders as f (f.id)}
-								<option value={f.id}>{f.name}</option>
-							{/each}
-						</select>
-						<span class="hint">
-							{#if orderedFolders.length}
-								Starts on the folder you filed in last.
-							{:else}
-								You have no folders yet.
-							{/if}
-							<button
-								type="button"
-								class="inline-link tap-reach-44"
-								onclick={() => (managerOpen = true)}
-								disabled={busy}>Manage folders</button
-							>
-						</span>
-					</label>
-				{/if}
-
-				<!--
-					BOTH HALVES, ALWAYS, on both tiers. Either one on its own saves the
-					entry; the pair saves a photographed page with something written
-					about it. Nothing here is a mode, so nothing has to be chosen
-					before the student knows what they have.
-				-->
-				<PhotoStager
-					bind:this={stager}
-					bind:staged
-					bind:settling={stagerSettling}
-					disabled={busy}
-					correctFirst={false}
-					{uploadReady}
-					captureContext={{
-						session: selectedSession,
-						section: selectedSectionId,
-						title,
-						folder: folderChoice
-					}}
-				/>
-
-				<!--
-					ONE editor, in one block on purpose. Rendering a second instance
-					inside a branch would put it at a different position in the DOM, so
-					moving between a check-in and a free entry would remount Tiptap and
-					silently drop whatever the student had typed. Here the position and
-					the `{#key}` never change, so the draft survives every move the form
-					allows.
-				-->
-				{#if noteAllowed}
-					<div class="field note-field">
-						<span class="photo-label">Write about it</span>
-						{#key noteKey}
-							<!-- `initialDoc`, not `value`: what the mirror kept is the EDITOR'S
-							     own shape, and the normalizer that would turn it into a stored
-							     NoteDoc is `$lib/server` and unreachable from here. -->
-							<NoteEditor
-								initialDoc={restoredDoc}
-								onchange={(doc) => (noteDraft = doc)}
-								disabled={busy}
-								{viewerId}
-							/>
-						{/key}
-						{#if mirrorBlocked}
-							<p class="hint" role="status" data-testid="nb-mirror-unavailable">
-								{MIRROR_UNAVAILABLE_NOTE}
-							</p>
-						{/if}
-						<span class="hint">
-							Writing alone is enough to save an entry, and so is a photo. Either can be added
-							to later, and your own writing stays editable.
-						</span>
-					</div>
-				{/if}
-
-				<!--
-					EVERY EXPLANATORY SENTENCE SITS ABOVE THE ACTIONS ROW, and that is
-					forced by the row being PINNED rather than a preference about reading
-					order. Above the breakpoint the row is `position: sticky; bottom: 0`
-					inside the detail pane's own scroll (see the media query), so anything
-					under it is a paragraph that can never be reached: the sticky row
-					stops at the foot of the pane and the copy is pinned out of sight
-					behind it. They read in the order a student needs them -- what happens
-					to the writing, then what is stopping the save -- and the controls
-					they describe are underneath.
-				-->
-				<!-- SAID PLAINLY, because the two halves of this form are persisted
-				     in completely different ways and nothing on screen would
-				     otherwise show it. A staged photo is a file in this browser and
-				     nothing else; there is no request that carries it without
-				     uploading it, so no autosave can protect it. -->
-				{#if autosaveReady}
-					<p class="note autosave-note" data-testid="nb-autosave-note">
-						{#if staged.length}
-							Your writing saves itself as a draft as you go. Photos attach when you save the
-							entry, so use Save draft or Turn in before you leave this page.
-						{:else}
-							Your writing saves itself as a draft as you go, and stays private until you turn
-							it in. Photos attach when you save the entry.
-						{/if}
-					</p>
-					<!--
-						AND WHEN IT IS NOT AVAILABLE, SAY SO. Without this branch the
-						surface is SILENT about it: the reassuring sentence above and
-						the SaveIndicator beside it are both inside `autosaveReady`, so
-						a student on a deployment without 0118 gets a composer that
-						looks identical to one that saves itself and does not. The
-						sentence is the only thing on screen that can tell them apart.
-
-						Gated on `noteAllowed` rather than shown unconditionally: with
-						notes off there is no writing box, so there is no claim to make
-						about what happens to writing. `readOnly` is already excluded by
-						`noteAllowed` itself.
-					-->
-				{:else if noteAllowed}
-					<p class="note no-autosave-note" data-testid="nb-no-autosave-note">
-						Your writing is not saved automatically here. Use Save draft as you go, and Turn
-						in when you are ready.
-					</p>
-				{/if}
-				<!-- SAYS WHICH HALF IS MISSING, and never names photos alone: the
-				     student is being stopped by a rule with two ways to satisfy it,
-				     so both have to be on screen at the moment they are stopped. -->
-				{#if !canSubmit && !savedDraftId && !busy}
-					<p class="note submit-hint" data-testid="nb-submit-hint">
-						{#if !noteAllowed}
-							This entry needs a photo.
-						{:else if !uploadReady}
-							Photo uploads are unavailable here, so this entry needs some writing.
-						{:else}
-							This entry needs a photo or some writing; either one is enough.
-						{/if}
-					</p>
-				{/if}
-				{#if savedDraftId && !canSubmit && !busy}
-					<p class="note submit-hint" data-testid="nb-draft-pending">
-						This draft is saved.
-					</p>
-				{/if}
-
-				<!--
-					PINNED TO THE FOOT OF THE PANE above the breakpoint, so Turn in and
-					Save draft -- the two acts this whole form exists for -- are on screen
-					however far down it the student is. Measured before: at 1440 the
-					row sat at y=1376 in a 900px viewport -- 476px below the fold --
-					and the only way to it was scrolling the DOCUMENT, which took the
-					feed beside it off screen on the way. It now sits at the foot of
-					a 619px pane whose form scrolls 1171px underneath it. Below the
-					breakpoint it flows exactly
-					where it always did: a bar pinned over a phone's viewport covers the
-					control a thumb is reaching for, and the phone form is short enough
-					that the row is reached by scrolling to the end of it.
-				-->
-				<div class="actions">
-					<button class="btn" type="submit" data-testid="nb-turn-in" disabled={busy || !canTurnIn}>
-						{busy ? 'Saving...' : 'Turn in'}
-					</button>
-					<!--
-						SAVE DRAFT IS BUTTON-TYPE, so pressing Enter in the form always
-						turns the entry in (the primary action) and never quietly saves a
-						draft instead.
-					-->
-					{#if draftsReady}
-						<button
-							type="button"
-							class="btn secondary"
-							data-testid="nb-save-draft"
-							disabled={busy || !canSaveDraft}
-							onclick={onSaveDraftClick}
-						>
-							{busy ? 'Saving...' : 'Save draft'}
-						</button>
-					{/if}
-					{#if progress}<span class="progress">{progress}</span>{/if}
-					<!-- WHERE AN AUTOSAVE SPEAKS. Per-instance and inside the surface
-					     that owns the work, never a shell banner; `saved` carries the
-					     clock time of the acknowledgement, and a failed write offers
-					     its own Retry. -->
-					{#if autosaveReady}
-						<SaveIndicator state={save} />
-					{/if}
-				</div>
-			</form>
-		</section>
-	{/if}
-
 	{#if showEntry && selectedEntry}
 		<!--
 			KEYED ON THE ENTRY, so moving from one to the next is a fresh card
@@ -3658,63 +3547,22 @@
 		window has room.
 	-->
 	<header class="nb-head nb-block" data-testid="nb-head">
-		<div class="head-title">
-			<h1>{readOnly ? 'Notebook' : 'My notebook'}</h1>
-			<p class="privacy" data-testid="nb-privacy">
-				{readOnly
-					? 'Only this student, their section instructor and the department chair can see this notebook.'
-					: 'Only you, your section instructor and the department chair can see this notebook.'}
-			</p>
-		</div>
-		<!--
-			ACTIONABLE FIRST, IDENTITY LAST. The check-in and the drafts are what
-			need doing; the class and the review link say where you are. Ordered
-			this way the strip also packs better at 375: the two short chips
-			(drafts, class) share a line under the wide check-in one, where the
-			old order put the class chip on a line of its own above it.
-		-->
-		<div class="head-status" data-testid="nb-status">
-			{#if !readOnly && configured && sessionsReady && nextCheckIn}
-				<button
-					type="button"
-					class="chip chip-due"
-					data-testid="nb-next-check-in"
-					onclick={focusCheckIn}
-				>
-					<span class="chip-key">Next check-in</span>
-					<span class="chip-val">{nextCheckIn.session_label}</span>
-					<span class="chip-meta">{sessionMeta(nextCheckIn)}</span>
-				</button>
-			{/if}
-			{#if configured && draftsReady && draftCount > 0}
-				<button
-					type="button"
-					class="chip chip-drafts"
-					data-testid="nb-drafts-chip"
-					aria-pressed={filters.includes(DRAFT_FILTER.id) && !showingDeleted}
-					onclick={showDrafts}
-				>
-					<span class="chip-val">{draftCount === 1 ? '1 draft' : `${draftCount} drafts`}</span>
-					<span class="chip-meta">{readOnly ? 'not turned in' : 'to turn in'}</span>
-				</button>
-			{/if}
-			{#if sectionLabel}
-				<span class="chip">{sectionLabel}</span>
-			{/if}
-			<!-- A class's tab reaches the whole notebook, carrying the class along
-			     so a free entry written there still starts filed to it. -->
-			{#if timelineHref}
-				<a class="chip chip-link" href={timelineHref} data-testid="nb-timeline">Timeline &rsaquo;</a>
-			{/if}
-			{#if allClassesHref}
-				<a class="chip chip-link" href={allClassesHref} data-testid="nb-all-classes"
-					>All classes &rsaquo;</a
-				>
-			{/if}
-			{#if canReview && reviewHref}
-				<a class="chip chip-link" href={reviewHref}>Section review &rsaquo;</a>
-			{/if}
-		</div>
+		<NotebookHead
+			{readOnly}
+			{configured}
+			{sessionsReady}
+			{draftsReady}
+			checkIn={headCheckIn}
+			{draftCount}
+			draftsPressed={filters.includes(DRAFT_FILTER.id) && !showingDeleted}
+			{sectionLabel}
+			{timelineHref}
+			{allClassesHref}
+			{canReview}
+			{reviewHref}
+			onCheckIn={focusCheckIn}
+			onDrafts={showDrafts}
+		/>
 	</header>
 
 	<!--
@@ -3928,19 +3776,28 @@
 	}
 	/* The blocks outside the split keep the old card rhythm. */
 	.nb-block.card,
-	.nb-pane-card,
-	.compose-card {
+	.nb-pane-card {
 		margin-bottom: var(--space-5);
 	}
 	.nb-shell h2 {
 		margin-top: 0;
 	}
-	/* --- the list pane: a head and a body ---------------------------------
-	   The column shape is INERT until the pane is bounded -- above the
-	   breakpoint split.css gives a fill-height nav pane's direct child
-	   `max-height: 100%`, at which point the head stays and the body scrolls.
-	   Everywhere else (a phone, the view-as mount) this is an auto-height
-	   column, `overflow-y: auto` has nothing to scroll, and the pane flows. */
+	/* --- the log pane: the composer, a head and a body ----------------------
+	   ONE COLUMN IN DOCUMENT ORDER AT EVERY WIDTH (ledger 0298, R32): the
+	   composer, then the list's head, then the feed. Below the breakpoint (and
+	   on the view-as mount at any width) nothing is bounded and the three simply
+	   flow, composer first, which is the order a phone reads them in.
+
+	   ABOVE IT THE PANE ITSELF IS THE SCROLLER -- split.css bounds a fill-height
+	   nav pane's direct child at `max-height: 100%` -- so the composer scrolls
+	   away with the feed and the head STICKS at the top of the pane once it gets
+	   there. This used to pin the head as a flex sibling of a scrolling body,
+	   which cannot put the composer ABOVE the head and still let it scroll: a
+	   flex sibling above a pinned head is pinned too, and the composer is too
+	   tall to pin in a 26rem pane beside an open entry. The sticky head needs no
+	   hand-written offset -- it is `top: 0` -- and its `scroll-padding` is the
+	   head's own MEASURED height (`listHeadHeight`), never a constant, so a
+	   control focused under it is brought out from behind it. */
 	.nb-pane-card {
 		display: flex;
 		flex-direction: column;
@@ -3949,16 +3806,11 @@
 	}
 	/* Block-level children, never a grid track: see the markup comment for the
 	   folder rail's min-content contribution and what a grid does with it. */
-	.list-head {
+	.compose-card,
+	.list-head,
+	.list-body {
 		flex: none;
 		min-width: 0;
-	}
-	.list-body {
-		flex: 1 1 auto;
-		min-height: 0;
-		min-width: 0;
-		overflow-y: auto;
-		overscroll-behavior: contain;
 	}
 	/* The rail and the chips are one filtering block with one rule under it,
 	   which is the rule the toolbar used to carry before the two halves parted
@@ -3981,12 +3833,10 @@
 	.pane-head h2 {
 		margin: 0;
 	}
-	.compose-trigger,
-	.compose-close,
 	.inbox-toggle {
 		flex: none;
 	}
-	/* The heading takes the slack, so the Inbox toggle and New entry sit together at the end. */
+	/* The heading takes the slack, so the Inbox toggle sits at the end. */
 	.pane-head h2 {
 		flex: 1 1 auto;
 	}
@@ -4017,9 +3867,34 @@
 			/* BOTH margins, not just the bottom one. `.card`'s 1.25rem top margin
 			   is outside the box `max-height: 100%` caps, so the pane's own
 			   scrollport overflowed by exactly that margin -- a 20px second
-			   scrollbar on the pane, which scrolls the head this bundle just
-			   pinned. Measured 637 against a 617px scrollport before, 617 after. */
+			   scrollbar on the pane. Measured 637 against a 617px scrollport
+			   before, 617 after. */
 			margin: 0;
+			/* The log scrolls as one column; see the section header above. */
+			overflow-y: auto;
+			overscroll-behavior: contain;
+			scroll-padding-top: var(--nb-list-head-h, 0px);
+		}
+		/* STICKS WITH A z-index AND AN OPAQUE GROUND (CLAUDE.md, the sticky
+		   header trap): positioned rows paint in tree order and would otherwise
+		   paint straight over it, and a see-through head over moving text is
+		   two lines on top of each other. 3, one above the grid editor's own
+		   sticky cells (2), which can sit in the composer scrolling under it. */
+		.list-head {
+			position: sticky;
+			top: 0;
+			z-index: 3;
+			background: var(--nb-bg);
+		}
+		/* The composer's own box at desktop width, where the pane has no card
+		   chrome: it is the one thing on the page that is being written, so it
+		   reads as raised paper above a feed that sits on the ground. */
+		.nb-pane-card > .compose-card {
+			margin-top: var(--space-1);
+			padding: var(--space-4);
+			border: 1px solid var(--boundary);
+			border-radius: var(--radius-card);
+			background: var(--surface-1);
 		}
 		/* Inside the frame the body IS the viewport's remainder, so the 4.5rem
 		   of tail the single-column page carries is 4.5rem the panes do not
@@ -4028,37 +3903,6 @@
 		   is still a document and still wants its tail. */
 		.nb-shell.nb-shell-fill {
 			padding-bottom: var(--space-3);
-		}
-		/* THE FORM TAKES THE PANE (ledger 0297). It was capped at the form
-		   measure on the argument that a single-line input stops being scannable
-		   past ~48rem -- and measured, that cap left 94px of an 862px pane empty
-		   at 1366 and 218px of a 936px one at 1440, beside a note editor that
-		   wants every pixel of width it can get. The pane is the measure now;
-		   nothing in the form is a paragraph of prose. */
-		.compose-card {
-			/* The card's own bottom padding would otherwise sit BELOW the pinned
-			   row as a strip of card the row cannot cover; the row carries the
-			   spacing instead. */
-			padding-bottom: 0;
-		}
-		/* THE ACTIONS ROW IS PINNED TO THE FOOT OF THE PANE'S OWN SCROLL. The
-		   nearest scrollport is `.cr-detail`, which `scroll="fill"` makes the
-		   scrolling box, so `bottom: 0` is the foot of the pane rather than of
-		   the document. It takes the CARD'S OWN SURFACE and a hairline rather
-		   than sitting translucent: the form scrolls underneath it, and a
-		   see-through bar over moving text is unreadable in exactly the moment
-		   somebody is deciding whether to press it.
-
-		   The bottom padding is the card's, given back to the row so the two
-		   buttons are not flush against the pane's edge. */
-		.actions {
-			position: sticky;
-			bottom: 0;
-			z-index: 1;
-			margin-top: var(--space-3);
-			padding: var(--space-3) 0 var(--space-2);
-			background: var(--surface-1);
-			border-top: 1px solid var(--hairline);
 		}
 	}
 	/* ---- the page head -------------------------------------------------
@@ -4076,111 +3920,6 @@
 		padding-bottom: var(--space-3);
 		margin-bottom: var(--space-3);
 		border-bottom: 1px solid var(--hairline);
-	}
-	.head-title {
-		min-width: 0;
-		flex: 1 1 20rem;
-		display: flex;
-		align-items: baseline;
-		flex-wrap: wrap;
-		gap: 0 var(--space-4);
-	}
-	.nb-head h1 {
-		margin: 0;
-		font-size: 1.3rem;
-	}
-	/* One line, the room's secondary tier: it is the fact worth keeping from
-	   the paragraph it replaces, and it is not the work. */
-	.privacy {
-		margin: 0;
-		font-size: 0.9rem;
-		color: var(--text-2);
-		max-width: 40rem;
-	}
-	.head-status {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--space-2);
-		flex: 0 1 auto;
-	}
-	.chip {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-1);
-		font-size: 0.78rem;
-		font-weight: 500;
-		letter-spacing: 0.02em;
-		padding: var(--space-1) var(--space-3);
-		border: 1px solid var(--nb-hairline-strong);
-		border-radius: 999px;
-		color: var(--text-2);
-		/* Every chip in the head clears the floor, control or not: the two
-		   that ARE controls sit beside the two that are not, and a strip whose
-		   members differ by 14px in height reads as two rows that failed to
-		   line up (IDEA_INTERFACE_STANDARDS 10). */
-		min-height: 44px;
-		box-sizing: border-box;
-	}
-	.chip-link {
-		color: var(--nb-accent-ink);
-		border-color: color-mix(in srgb, var(--nb-accent) 45%, transparent);
-		text-decoration: none;
-	}
-	.chip-link:hover {
-		border-color: var(--nb-accent-ink);
-		background: var(--nb-accent-wash);
-		text-decoration: none;
-	}
-	/* THE TWO ACTIONABLE CHIPS. A key, a value and a meta word, so "Next
-	   check-in  Week 3  Unit 2, Thu" reads as a label and its answer rather
-	   than as a sentence somebody has to parse. The check-in chip carries the
-	   brass thread because it is the primary thing to do; the drafts chip
-	   carries the WARNING thread the draft chip on a card already wears, so
-	   the same fact reads the same in both places. */
-	.chip-due,
-	.chip-drafts {
-		font: inherit;
-		font-size: 0.78rem;
-		cursor: pointer;
-		background: var(--surface-1);
-		text-align: left;
-	}
-	.chip-due {
-		border-color: var(--nb-accent);
-		color: var(--text-1);
-	}
-	.chip-due:hover {
-		background: var(--nb-accent-wash);
-	}
-	.chip-drafts {
-		border-color: color-mix(in srgb, var(--nb-warn) 55%, transparent);
-		color: var(--text-1);
-	}
-	.chip-drafts:hover,
-	.chip-drafts[aria-pressed='true'] {
-		background: color-mix(in srgb, var(--nb-warn) 10%, transparent);
-		border-color: var(--nb-warn);
-	}
-	.chip-key {
-		color: var(--nb-accent-ink);
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		font-size: 0.66rem;
-	}
-	.chip-val {
-		font-weight: 600;
-	}
-	.chip-drafts .chip-val {
-		color: var(--nb-warn);
-	}
-	/* MUTED COPY ON A CHIP TAKES --text-2, NEVER --text-3: the chip's own
-	   hover fill is a wash over the card, which is the ground the tertiary
-	   tier was never measured on (see .pick.selected .pick-meta). */
-	.chip-meta {
-		color: var(--text-2);
-		font-weight: 400;
 	}
 	.note {
 		color: var(--text-2);
@@ -4206,87 +3945,6 @@
 		background: color-mix(in srgb, var(--nb-ok) 5%, transparent);
 	}
 
-	/* ---- add an entry ---- */
-	.picker {
-		border: none;
-		padding: 0;
-		margin: 0 0 var(--space-4);
-	}
-	.picker legend {
-		font-size: 0.7rem;
-		font-weight: 600;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
-		color: var(--text-3);
-		padding: 0;
-		margin-bottom: var(--space-2);
-	}
-	.quick-picks {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
-		gap: var(--space-2);
-	}
-	.pick {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-1);
-		text-align: left;
-		/* 44px: a student-facing control at every width, and the one this
-		   form opens on. Measured 42px before the floor was written down. */
-		min-height: 44px;
-		box-sizing: border-box;
-		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-control);
-		background: var(--surface-2);
-		color: var(--text-1);
-		cursor: pointer;
-		font: inherit;
-	}
-	.pick:hover {
-		border-color: var(--nb-hairline-strong);
-	}
-	/* Gold is the active state -- the one thread back to the platform. */
-	.pick.selected {
-		border-color: var(--nb-accent);
-		background: var(--nb-accent-wash);
-	}
-	.pick-label {
-		font-weight: 600;
-	}
-	.pick-meta {
-		font-size: 0.73rem;
-		color: var(--text-3);
-	}
-	/* MUTED COPY ON AN ACTIVE FILL TAKES --text-2, NEVER --text-3, and this is a
-	   measured rule rather than a preference. --text-3 is real muted copy in this
-	   room (see notebook-theme.css), but it is tuned against the three PLATE
-	   grounds -- and the selected state replaces this button's ground with
-	   --nb-accent-wash, which lightens it out from under the text. Measured by
-	   compositing the wash onto its real ground and painting the result to a
-	   canvas: 3.63:1 on the default plate and 3.55:1 on IDEA, against a 4.5 bar,
-	   with light passing at 4.81 only because paper barely moves under a 13%
-	   veil. --text-2 clears on all three (5.31 / 7.04 / 6.33) and on every ground
-	   the wash can land on, the worst of the nine being 4.89.
-
-	   The nested "Draft in progress" span inherits this, which is why it is not
-	   named separately.
-
-	   LOWERING THE WASH IS THE REJECTED ALTERNATIVE: at the 6% needed to clear
-	   --text-3 the fill measures 1.09:1 against the card, i.e. the selected row
-	   stops being marked at all, which is the wash's entire job.
-
-	   The retired plate picker's `.option.current .note` was the same rule for
-	   the same reason; it left with the picker (ledger 0297). */
-	.pick.selected .pick-meta {
-		color: var(--text-2);
-	}
-	.pick.free .pick-label {
-		color: var(--nb-accent-ink);
-	}
-	.no-sessions {
-		margin: 0;
-	}
 	/* The instructor's prompt (0123). A framed block rather than loose prose,
 	   so it reads as somebody else's words in a form full of the student's --
 	   and `min-width: 0` because a grid child's automatic minimum is its
@@ -4329,29 +3987,23 @@
 			border-color: var(--hairline);
 		}
 	}
-	.submit-hint {
-		margin: var(--space-2) 0 0;
-		color: var(--text-3);
-		font-size: 0.85rem;
-	}
-	.autosave-note {
-		margin: var(--space-2) 0 0;
-		color: var(--text-3);
-		font-size: 0.85rem;
-	}
 	/*
-	 * The same shape as `.autosave-note` and one tier less faint. It carries
-	 * something the student has to ACT on rather than a reassurance, so it
-	 * keeps `.note`'s own `--text-2` instead of dropping to `--text-3` -- and
-	 * it stays a plain sentence, not a warning colour: nothing has gone wrong.
+	 * A STATE THE STUDENT HAS TO KNOW, not a warning colour: nothing has gone
+	 * wrong, the writing simply is not saved by itself here. `.note`'s own
+	 * `--text-2`.
 	 */
 	.no-autosave-note {
-		margin: var(--space-2) 0 0;
+		margin: 0;
 		font-size: 0.85rem;
 	}
-	.label-field .optional {
-		color: var(--text-3);
-		font-weight: 400;
+	/* What a press with nothing to save is told, where the press was. The
+	   room's secondary ink, measured for text on the card and the page. */
+	.refusal {
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--text-1);
+		padding-left: var(--space-2);
+		border-left: 3px solid var(--nb-warn);
 	}
 	.hint {
 		display: block;
@@ -4359,50 +4011,81 @@
 		font-size: 0.8rem;
 		margin-top: var(--space-1);
 	}
-	/* THE SHARED .field CLASS (app.css) IS A ROW FLEX, justify-content:
-	   space-between, no wrap -- it is a key/value row, built for a profile or
-	   course header, not a label wrapping a stacked input and hint. Every
-	   label here carries `.field` for its border-bottom rhythm only, so every
-	   one of them has to override the row back to a column, not just the two
-	   that happened to also carry `.folder-field`. Unoverridden, the title
-	   field's label laid its heading, its input and its hint sentence out
-	   side by side with no wrap, and the long hint sentence forced the row --
-	   and the document -- 10.5px past the viewport at 375px, silently, because
-	   `body` clips horizontal overflow and nothing else on the page moved. */
-	.label-field {
+
+	/* ---- the one-box composer (ledger 0298, R32) ------------------------
+	   THE TOP OF THE LOG: the box, the templates, the photos, where it is
+	   filed, and the two acts. One column in a narrow pane; in a pane wide
+	   enough for two, the writing takes the left and everything about sending
+	   it takes the right, so neither half is a row of two buttons stretched
+	   across 1300px. The breakpoint is the COMPOSER's own width, because the
+	   same component sits in a 26rem list beside an open entry and in the
+	   whole measure when nothing is open. */
+	.compose-card {
+		container: nb-compose / inline-size;
+		min-width: 0;
+		padding-bottom: var(--space-4);
+		margin-bottom: var(--space-4);
+		border-bottom: 1px solid var(--hairline);
+	}
+	.compose-form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		min-width: 0;
+	}
+	.compose-write,
+	.compose-send {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		min-width: 0;
+	}
+	.note-field {
 		display: flex;
 		flex-direction: column;
 		align-items: stretch;
+		min-width: 0;
 	}
-	.note-field,
-	.folder-field {
-		margin-top: var(--space-4);
-		display: flex;
-		flex-direction: column;
-		align-items: stretch;
-	}
-	.folder-field select {
-		font: inherit;
-		max-width: 20rem;
-	}
-	.photo-label {
-		display: block;
-		margin-bottom: var(--space-1);
-		font-weight: 600;
+	/* A wrapping ROW, not a grid: the guidance takes a line of its own and the
+	   two halves share the next, the writing taking the larger share. */
+	@container nb-compose (min-width: 50rem) {
+		.compose-form {
+			flex-direction: row;
+			flex-wrap: wrap;
+			align-items: flex-start;
+			column-gap: var(--space-5);
+		}
+		.compose-form > .nb-guidance {
+			flex: 1 1 100%;
+		}
+		.compose-write {
+			flex: 3 1 0;
+		}
+		.compose-send {
+			flex: 2 1 17rem;
+		}
 	}
 	.actions {
 		display: flex;
 		align-items: center;
 		gap: var(--space-3);
-		margin-top: var(--space-4);
 		flex-wrap: wrap;
 	}
-	/* The shared .btn class pads to ~39px, under the 44px touch target these two
-	   need: turning an entry in and saving a draft are the two actions this
-	   whole form exists for. Scoped here rather than raised on .btn itself,
-	   which is used everywhere in the app at its existing size. */
+	/* The shared .btn class pads to ~39px, under the 44px touch target these
+	   need: turning an entry in and saving a draft are the two acts this whole
+	   form exists for. Scoped here rather than raised on .btn itself. */
 	.actions .btn {
 		min-height: 2.75rem;
+	}
+	/* `aria-disabled`, never `disabled`, so a press can say why it did nothing
+	   (`composerRefusal`); drawn as the room's own disabled button. */
+	:global(.nb-root) .actions .btn[aria-disabled='true'],
+	:global(.nb-root) .actions .btn[aria-disabled='true']:hover {
+		background: var(--surface-2);
+		border-color: var(--nb-hairline-strong);
+		color: var(--text-3);
+		cursor: not-allowed;
+		box-shadow: none;
 	}
 	.progress {
 		font-size: 0.8rem;
@@ -4443,20 +4126,34 @@
 	   what put three text controls under the 44px floor: the line they shared
 	   with the sort and the count had no room to give them. A grid of rows
 	   has nothing to share. */
-	/* A COLUMN AND NOT A GRID, for the reason the markup comment gives: a
-	   single implicit `auto` track sizes to its widest item's min-content, and
-	   a row of controls that must WRAP has a large one. A column-flex child
-	   takes the container's width and wraps inside it. */
+	/* NOT A GRID, for the reason the markup comment gives: a single implicit
+	   `auto` track sizes to its widest item's min-content, and a row of
+	   controls that must WRAP has a large one.
+
+	   A WRAPPING ROW OF TWO BLOCKS (ledger 0298), where it was a column: the
+	   search and the list controls share ONE line when the pane has room for
+	   both -- the whole measure, with nothing open -- and stack exactly as they
+	   did in a phone or a 26rem pane. The controls stay one block with their
+	   own wrap, so no line is ever shared between the sort and a 44px button
+	   again, which is what the column was protecting. Measured at 1440: the
+	   head of the log is a line shorter, and that line is a feed row. */
 	.toolbar {
 		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2) var(--space-4);
 		padding-bottom: var(--space-4);
 		margin-bottom: var(--space-2);
 		border-bottom: 1px solid var(--hairline);
 	}
 	.toolbar > * {
 		min-width: 0;
+	}
+	.toolbar > .search {
+		flex: 1 1 18rem;
+	}
+	.toolbar > .tools {
+		flex: 1 1 auto;
 	}
 	.search {
 		/* 22px measured (the label is the target; the input inside it has no
@@ -4753,9 +4450,4 @@
 		border: 0;
 	}
 
-	@media (max-width: 540px) {
-		.quick-picks {
-			grid-template-columns: 1fr;
-		}
-	}
 </style>

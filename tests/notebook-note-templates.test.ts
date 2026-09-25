@@ -1,0 +1,96 @@
+/**
+ * THE NOTEBOOK'S THREE LIGHT TEMPLATES (ledger 0298, R32) STAY INSIDE THE NOTE
+ * VOCABULARY. A regression here is silent in the worst way: Tiptap does not
+ * refuse a document naming a node its schema lacks, it throws the WHOLE
+ * document away (the defect `$lib/notebook/draft-mirror` records), so a
+ * template edited to use a real heading would arrive as an empty box -- and a
+ * draft written from one would be HELD by every deployed build's mirror
+ * instead of restored. So every template is built through the REAL editor
+ * schema, the mirror's vocabulary check and the REAL server normalizer.
+ *
+ * The wording is Mr. Pina's to edit (`NOTE_TEMPLATES`), so nothing here pins a
+ * string; it pins what any wording must stay inside.
+ */
+import { describe, expect, it } from 'vitest';
+import { Node as PMNode } from '@tiptap/pm/model';
+import {
+	NOTE_TEMPLATES,
+	templateBlocks,
+	templateCursor,
+	withTemplate
+} from '../src/lib/notebook/note-templates';
+import {
+	NOTE_MIRROR_VOCABULARY,
+	V1_MIRROR_VOCABULARY,
+	mirrorVersionFor,
+	unknownTypes
+} from '../src/lib/notebook/draft-mirror';
+import { normalizeNoteDoc } from '../src/lib/server/notebook-notes';
+import { docText } from '../src/lib/notebook-notes';
+import { canHold, editorDoc, noteSchema, pmDoc, pmHeading, pmPara, pmText } from './rich-text-fixtures';
+
+describe('the note templates', () => {
+	it('is a non-empty list with unique ids, a word each and at least one heading', () => {
+		expect(NOTE_TEMPLATES.length).toBeGreaterThanOrEqual(3);
+		expect(new Set(NOTE_TEMPLATES.map((t) => t.id)).size).toBe(NOTE_TEMPLATES.length);
+		for (const t of NOTE_TEMPLATES) {
+			expect(t.label.trim().length, t.id).toBeGreaterThan(0);
+			expect(t.headings.length, t.id).toBeGreaterThan(0);
+			for (const h of t.headings) expect(h.trim().length, t.id).toBeGreaterThan(0);
+		}
+	});
+
+	it('the schema check bites: a real heading is a document the note editor cannot hold', () => {
+		// The negative control for the loop below, so "holds" cannot pass because
+		// `canHold` answers yes to everything.
+		expect(canHold(noteSchema, pmDoc(pmHeading(3, pmText('The problem')), pmPara()))).toBe(false);
+		expect(canHold(noteSchema, pmDoc(pmPara(pmText('The problem'))))).toBe(true);
+	});
+
+	for (const t of NOTE_TEMPLATES) {
+		describe(t.label, () => {
+			const doc = withTemplate(null, t);
+
+			it('is a document the real note editor can hold, exactly as written', () => {
+				// `editorDoc` returns ProseMirror's own serialization of the node it
+				// built, so equality also says the template carries no key the
+				// editor would never emit.
+				expect(editorDoc(noteSchema, doc)).toEqual(doc);
+			});
+
+			it('uses only what the draft mirror can restore on every deployed build', () => {
+				expect(unknownTypes(doc, NOTE_MIRROR_VOCABULARY)).toEqual([]);
+				expect(unknownTypes(doc, V1_MIRROR_VOCABULARY)).toEqual([]);
+				expect(mirrorVersionFor(doc)).toBe(1);
+			});
+
+			it('passes the real server normalizer with every heading still in it', () => {
+				const result = normalizeNoteDoc(doc);
+				expect(result.ok).toBe(true);
+				if (!result.ok) return;
+				const text = docText(result.doc);
+				for (const h of t.headings) expect(text).toContain(h);
+			});
+
+			it('puts the cursor in the empty paragraph under the first heading', () => {
+				const node = PMNode.fromJSON(noteSchema, doc);
+				const at = node.resolve(templateCursor(t));
+				expect(at.parent.type.name).toBe('paragraph');
+				expect(at.parent.content.size).toBe(0);
+				// The second top-level block: the heading is the first.
+				expect(at.index(0)).toBe(1);
+			});
+		});
+	}
+
+	it('keeps every word already in the box and adds the headings after them', () => {
+		const t = NOTE_TEMPLATES[0];
+		const mine = editorDoc(noteSchema, pmDoc(pmPara(pmText('Measured the bracket twice.'))));
+		const next = withTemplate(mine as never, t);
+		expect(next.content?.[0]).toEqual((mine as { content: unknown[] }).content[0]);
+		expect(next.content?.slice(1)).toEqual(templateBlocks(t));
+		// An EMPTY box (Tiptap seeds one empty paragraph) is replaced, not appended to.
+		const empty = withTemplate({ type: 'doc', content: [{ type: 'paragraph' }] }, t);
+		expect(empty.content).toEqual(templateBlocks(t));
+	});
+});
