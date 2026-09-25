@@ -28,8 +28,11 @@
 //     classroom.css): the rule is true only while the room is on the page, so
 //     a stylesheet left behind by a navigation matches nothing. A theme
 //     attribute is NOT a room: `:root[data-theme=x] { ... }` still outlives
-//     the page that carried it.
-//  2. A compiled rule that names NO class, id, attribute or `:has(` at all
+//     the page that carried it. AND THE `:has()` MUST NAME A ROOM -- a class,
+//     id or attribute inside it, not under a `:not()`. `body:has(main)` and
+//     `body:has(*)` spell the convention and match on every page, so they
+//     leak exactly as a bare `body` does.
+//  2. A compiled rule that names NO class, id, attribute or room `:has(` at all
 //     (`main`, `a`, `*`) matches something on every page, so it leaks the same
 //     way whatever its subject. IdeaCAD's own route layout carried
 //     `:global(main) { max-width: none; margin: 0; padding: 0 }`, which took
@@ -87,10 +90,12 @@ function contains(node: Node, hit: (n: Node) => boolean): boolean {
 	for (const k of Object.keys(node)) if (k !== 'metadata' && contains(node[k], hit)) return true;
 	return false;
 }
-const containsHas = (node: Node) => contains(node, (n) => n.type === 'PseudoClassSelector' && n.name === 'has');
 /** Names something narrower than an element type: a class, an id or an attribute. */
 const containsName = (node: Node) =>
 	contains(node, (n) => n.type === 'ClassSelector' || n.type === 'IdSelector' || n.type === 'AttributeSelector');
+/** A `:has()` that names a room. `:has(main)` or `:has(*)` is true on every page and conditions nothing. */
+const containsHas = (node: Node) =>
+	contains(node, (n) => n.type === 'PseudoClassSelector' && n.name === 'has' && containsName(n.args));
 
 /** Is this compound about the document itself: `html`, `body`, `:root`, or an `:is()` of one? */
 function compoundIsDocument(rel: Node): boolean {
@@ -238,6 +243,9 @@ describe('the analyzer, on a planted component (the positive control)', () => {
 	:global(main) { max-width: none; padding: 0; }
 	:global(a:not(.x)) { color: red; }
 	:global(*) { outline: 0; }
+	:global(body:has(main)) { overflow: hidden; }
+	:global(body:has(:not(.x))) { overflow: hidden; }
+	:global(main:has(p)) { padding: 0; }
 
 	/* Scoped, or naming something narrower than an element: none of these may
 	   be reported as unscoped. */
@@ -274,7 +282,10 @@ describe('the analyzer, on a planted component (the positive control)', () => {
 			':root { --bare-root-escapes: 1 }',
 			'main { max-width: none; padding: 0 }',
 			'a:not(.x) { color: red }',
-			'* { outline: 0 }'
+			'* { outline: 0 }',
+			'body:has(main) { overflow: hidden }',
+			'body:has(:not(.x)) { overflow: hidden }',
+			'main:has(p) { padding: 0 }'
 		]);
 	});
 
