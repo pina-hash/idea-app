@@ -138,12 +138,24 @@ export default {
 		   WHAT THIS STEP CANNOT SEE, stated so nobody reads it as wider
 		   than it is: whether the COLUMN CEILING is capped at the card
 		   count. Raising `--fdy-cols` to 40 changes nothing measurable
-		   here, because 1294px of pane only fits five 15rem columns
-		   anyway and this fixture has eleven cards -- the ceiling only
-		   binds when there are FEWER cards than the width allows. That
-		   property is structural, not geometric, and is asserted in
+		   here, because above 30.75rem of pane the per-width fill
+		   (`--fdy-fill-<c>`, `foundryMosaicFill`) decides the count and
+		   this fixture has eleven cards -- the ceiling only binds when
+		   there are FEWER cards than the width allows. That property is
+		   structural, not geometric, and is asserted in
 		   `tests/dom/foundry-card-mosaic.test.ts`, where a mutant raising
-		   it reddens.
+		   it reddens. Whether any column is left EMPTY is the dead-space
+		   step above.
+
+		   ELEVEN CARDS FILL FOUR COLUMNS AT 1440, NOT FIVE, SINCE
+		   `foundryMosaicFill` (decision 39's bundle). Eleven cards of one
+		   shape in five columns need three rows, which four columns hold,
+		   so the fifth would have been empty. This fixture's shapes are
+		   deliberately pathological (a 1:9 and a 9:1), so here the cost is
+		   a longer ragged bottom rather than a saved column: measured
+		   1075/976/1002/431px column heights at four against
+		   595/585/443/621/522px at five. Screenshot-shaped covers are the
+		   ordinary case, and for those the fifth column was dead space.
 		   --------------------------------------------------------------- */
 		{
 			evaluate: `() => {

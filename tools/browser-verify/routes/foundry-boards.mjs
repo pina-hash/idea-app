@@ -21,13 +21,22 @@ export const SLUGS = `() => [...document.querySelectorAll('.fdy-gal-mosaic [data
 export const FIGURES = `() => [...document.querySelectorAll('.fdy-gal-mosaic [data-testid="fdy-card-plays"]')].map((e) => e.textContent.trim())`;
 
 /*
-	NO DEAD SPACE, MEASURED RATHER THAN ASSERTED BY ABSENCE OF A REGION. The
-	boards' dead space was a flex ROW made tall by one portrait cover; the
-	mosaic is multicol, so the only gap between two cards in one column should
-	be the card's own bottom margin (0.75rem, 12px). This reads the WORST gap
-	between vertically adjacent cards in every column, and reports the ragged
-	bottom (the spread of column bottoms) beside it for the reader, unasserted:
-	that is the ordinary end of a balanced multicol, not dead space.
+	NO DEAD SPACE, MEASURED RATHER THAN ASSERTED BY ABSENCE OF A REGION, in
+	both directions it can take.
+
+	DOWN: the boards' dead space was a flex ROW made tall by one portrait
+	cover; the mosaic is multicol, so the only gap between two cards in one
+	column should be the card's own bottom margin (0.75rem, 12px). This reads
+	the WORST gap between vertically adjacent cards in every column.
+
+	ACROSS: a balanced multicol minimises height, not spread, so nine cards of
+	one shape where four columns fit filled three and left the fourth EMPTY --
+	measured at 1152px before `foundryMosaicFill`, a 252px strip of nothing
+	beside the list. So the strip between the last card's right edge and the
+	list's own right edge is read too, and must be under a pixel.
+
+	The column heights are reported beside them, unasserted: a ragged bottom is
+	the ordinary end of a balanced multicol, not dead space.
 */
 export const DEAD_SPACE = {
 	evaluate: `() => {
@@ -37,7 +46,8 @@ export const DEAD_SPACE = {
 		let worst = 0; const bottoms = [];
 		for (const bs of cols.values()) { bs.sort((a, b) => a.top - b.top); for (let i = 1; i < bs.length; i++) worst = Math.max(worst, bs[i].top - bs[i - 1].bottom); bottoms.push(bs[bs.length - 1].bottom); }
 		const top = Math.min(...lis.map((li) => li.getBoundingClientRect().top));
-		return lis.length + ' cards in ' + cols.size + ' column(s) at ' + window.innerWidth + 'px; worst gap between two cards in a column ' + worst.toFixed(1) + 'px; column heights ' + bottoms.map((b) => Math.round(b - top)).join('/') + 'px (the ragged end of a balanced multicol, unasserted)';
+		const strip = document.querySelector('.fdy-gal-mosaic').getBoundingClientRect().right - Math.max(...lis.map((li) => li.getBoundingClientRect().right));
+		return lis.length + ' cards in ' + cols.size + ' column(s) at ' + window.innerWidth + 'px; worst gap between two cards in a column ' + worst.toFixed(1) + 'px; empty strip right of the last column ' + strip.toFixed(1) + 'px; column heights ' + bottoms.map((b) => Math.round(b - top)).join('/') + 'px (the ragged end of a balanced multicol, unasserted)';
 	}`,
 	until: `() => {
 		const lis = [...document.querySelectorAll('.fdy-gal-mosaic > li')];
@@ -45,7 +55,8 @@ export const DEAD_SPACE = {
 		const cols = new Map();
 		for (const li of lis) { const b = li.getBoundingClientRect(); const x = Math.round(b.left); if (!cols.has(x)) cols.set(x, []); cols.get(x).push(b); }
 		for (const bs of cols.values()) { bs.sort((a, b) => a.top - b.top); for (let i = 1; i < bs.length; i++) if (bs[i].top - bs[i - 1].bottom > 13) return false; }
-		return true;
+		const strip = document.querySelector('.fdy-gal-mosaic').getBoundingClientRect().right - Math.max(...lis.map((li) => li.getBoundingClientRect().right));
+		return strip <= 1;
 	}`
 };
 

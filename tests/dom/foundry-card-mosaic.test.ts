@@ -21,8 +21,9 @@
 // which branch rendered, and the pure arithmetic behind the shape. NOT geometry,
 // NOT contrast and NOT a tap target: happy-dom has no layout engine, so a box
 // reads 0 and a colour reads '' and both pass vacuously (see
-// `tests/dom/README.md`). That the mosaic is five columns at 1440 and one at
-// 375, that the tallest card is 610px, and that the plate clears contrast are
+// `tests/dom/README.md`). That the mosaic is several columns at 1440 and one
+// at 375, leaves no empty column beside the list and no gap between cards in a
+// column, that the tallest card is 610px, and that the plate clears contrast are
 // `verify:browser`'s claims and live in
 // `tools/browser-verify/routes/foundry-mosaic.mjs`.
 //
@@ -40,6 +41,7 @@ import {
 	coverAspectIsClamped,
 	foundryGeneratedHue,
 	foundryMosaicColumns,
+	foundryMosaicFill,
 	hueIsHeat
 } from '../../src/lib/foundry/mosaic';
 import { mountInto, type Mounted } from './mount';
@@ -249,6 +251,13 @@ describe('the gallery mounts the card and owns the ranking', () => {
 		// Three apps, so three columns and never five: multicol has no
 		// `auto-fit`, and the spare columns would be empty.
 		expect(ul.getAttribute('style')).toContain('--fdy-cols: 3');
+		// And every width's fill is handed to CSS as data, so the container
+		// queries have a value to pick at each width. Three cards fill two
+		// columns where two fit and three wherever three or more fit.
+		const style = ul.getAttribute('style') ?? '';
+		expect(style).toContain('--fdy-fill-2: 2');
+		expect(style).toContain('--fdy-fill-3: 3');
+		expect(style).toContain('--fdy-fill-5: 3');
 	});
 
 	/**
@@ -352,6 +361,38 @@ describe('the clamp arithmetic', () => {
 		]) {
 			expect(clampCoverAspect(w, h), `${w}x${h}`).toBeNull();
 		}
+	});
+
+	/**
+	 * THE FILL, AGAINST AN EXPECTED VALUE THAT DOES NOT COME FROM THE FORMULA.
+	 * The property a balanced multicol has for cards of one shape: it uses the
+	 * FEWEST columns that hold the cards in the same number of rows the width
+	 * allows. So the answer is found here by SEARCH -- count down from the
+	 * width's columns while the row count stays the same -- rather than by
+	 * the closed form the implementation uses, over every count to 60 and
+	 * every width to 8 columns.
+	 */
+	it('the fill is the fewest columns that keep the same number of rows', () => {
+		let checked = 0;
+		for (let n = 1; n <= 60; n++) {
+			for (let c = 1; c <= 8; c++) {
+				const width = Math.min(c, n);
+				const rows = Math.ceil(n / width);
+				let fewest = width;
+				while (fewest > 1 && Math.ceil(n / (fewest - 1)) === rows) fewest--;
+				expect(foundryMosaicFill(n, c), `${n} cards, ${c} columns wide`).toBe(fewest);
+				expect(foundryMosaicFill(n, c)).toBeLessThanOrEqual(width);
+				checked++;
+			}
+		}
+		expect(checked).toBe(480);
+		// The measured case that started it: nine cards where four columns fit
+		// fill three, and the fourth was dead space at 1152px.
+		expect(foundryMosaicFill(9, 4)).toBe(3);
+		// POSITIVE CONTROL that it is not simply the card-count cap.
+		expect(foundryMosaicColumns(9, 4)).toBe(4);
+		expect(foundryMosaicFill(0, 5)).toBe(1);
+		expect(foundryMosaicFill(Number.NaN, 5)).toBe(1);
 	});
 
 	it('the column ceiling never exceeds the number of cards, and is never zero', () => {

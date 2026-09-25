@@ -51,7 +51,7 @@
 	import FoundryCard from './FoundryCard.svelte';
 	import FoundryDetail from './FoundryDetail.svelte';
 	import FoundryPlayStats from './FoundryPlayStats.svelte';
-	import { foundryMosaicColumns } from './mosaic.ts';
+	import { foundryMosaicColumns, foundryMosaicFill } from './mosaic.ts';
 	import { foundrySearch, foundrySearchEmptyNote } from './search.ts';
 	import {
 		FOUNDRY_GALLERY_DEFAULT_SORT,
@@ -245,6 +245,21 @@
 	 * is being overridden.
 	 */
 	const mosaicColumns = $derived(foundryMosaicColumns(ordered.length, 5));
+
+	/**
+	 * AND THE COLUMNS A BALANCED MOSAIC WILL ACTUALLY FILL AT EACH WIDTH, which
+	 * is fewer than the card count more often than it looks: nine cards of one
+	 * shape in a pane that holds four columns fill three and leave the fourth
+	 * EMPTY (`foundryMosaicFill` has the arithmetic). The width is CSS's to know
+	 * and the count is ours, so every width's answer is handed over as data and
+	 * a container query below picks the one for the pane it is in -- no script
+	 * measures anything, and the server render is already right.
+	 */
+	const mosaicStyle = $derived(
+		[`--fdy-cols: ${mosaicColumns}`]
+			.concat([2, 3, 4, 5].map((c) => `--fdy-fill-${c}: ${foundryMosaicFill(ordered.length, c)}`))
+			.join('; ')
+	);
 </script>
 
 <ClassSplit hasDetail={selected !== null} narrow="swap" scroll="fill" detailWidth="roomy">
@@ -392,11 +407,7 @@
 					</button>
 				</div>
 			{:else}
-				<ul
-					class="fdy-gal-mosaic"
-					data-testid="foundry-gallery-grid"
-					style="--fdy-cols: {mosaicColumns}"
-				>
+				<ul class="fdy-gal-mosaic" data-testid="foundry-gallery-grid" style={mosaicStyle}>
 					{#each ordered as app (app.id)}
 						<!--
 							THE FIGURE IS THE CALLER'S DECISION, NOT THE CARD'S, and it is
@@ -496,11 +507,15 @@
 </ClassSplit>
 
 <style>
+	/* A NAMED CONTAINER, so the mosaic's column rules below can ask how wide
+	   the list is -- not the viewport, which says nothing about a pane beside
+	   an open app. Named so no unnamed query inside a card resolves to it. */
 	.fdy-gal-pane {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4, 1rem);
 		min-width: 0;
+		container: fdy-gal / inline-size;
 	}
 
 	/* A row of its own above the student page, so nothing about the app's own
@@ -721,6 +736,15 @@
 	   spare ones empty. `--fdy-cols` is capped at the number of cards by
 	   `foundryMosaicColumns`.
 
+	   AND AT EACH WIDTH THE COUNT IS THE COLUMNS BALANCE WILL ACTUALLY FILL
+	   (`--fdy-fill-<c>`, `foundryMosaicFill`). Balance minimises height, not
+	   spread, so nine cards of one shape where four columns fit fill three and
+	   leave the fourth empty -- measured at 1152px on `/dev/foundry-boards`,
+	   the width decision 39 was filed at. The thresholds are where `c`
+	   columns of 15rem with 0.75rem gaps first fit, `c * 15 + (c - 1) *
+	   0.75` rem, which is the same arithmetic multicol does to cut columns;
+	   below 30.75rem one column is all that fits and `--fdy-cols` stands.
+
 	   15rem is measured rather than round: it is the narrowest column in
 	   which a 2:1 card -- the widest shape the clamp permits -- still holds
 	   its name plate on one line at this type size.
@@ -732,6 +756,30 @@
 		columns: 15rem var(--fdy-cols, 1);
 		column-gap: var(--space-3, 0.75rem);
 		column-fill: balance;
+	}
+
+	@container fdy-gal (min-width: 30.75rem) {
+		.fdy-gal-mosaic {
+			column-count: var(--fdy-fill-2, var(--fdy-cols, 1));
+		}
+	}
+
+	@container fdy-gal (min-width: 46.5rem) {
+		.fdy-gal-mosaic {
+			column-count: var(--fdy-fill-3, var(--fdy-cols, 1));
+		}
+	}
+
+	@container fdy-gal (min-width: 62.25rem) {
+		.fdy-gal-mosaic {
+			column-count: var(--fdy-fill-4, var(--fdy-cols, 1));
+		}
+	}
+
+	@container fdy-gal (min-width: 78rem) {
+		.fdy-gal-mosaic {
+			column-count: var(--fdy-fill-5, var(--fdy-cols, 1));
+		}
 	}
 
 	/* Multicol has no row gap, so the gap between two cards in one column is
