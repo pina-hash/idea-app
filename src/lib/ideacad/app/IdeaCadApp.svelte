@@ -426,9 +426,13 @@
 
 <style>
 	.direct-frame{position:fixed;inset:0;z-index:50}.rules-overlay{position:fixed;inset:0;z-index:70;background:#0008;display:grid;place-items:center}
-	:global(html), :global(body) { width: 100%; height: 100%; overflow: hidden; }
-	:global(body) { margin: 0; }
-	.app-shell { max-width:none; margin:0; padding:0; width: 100vw; height: 100vh; overflow: hidden; display: grid; grid-template-rows: 52px minmax(0, 1fr); background: var(--surface-0); color: var(--text-1); font-family: Rajdhani, sans-serif; }
+	/* THE SHELL OWNS THE WINDOW BY BEING FIXED, NEVER BY LOCKING THE DOCUMENT.
+	   A `:global(html), :global(body) { overflow: hidden }` here used to do it,
+	   and a client-side navigation never removes a route's stylesheet, so after
+	   one visit to IdeaCAD every later page in the tab could not scroll until a
+	   reload (ledger 0298, R29). A fixed box covers the window with nothing to
+	   leak; `tests/no-global-document-lock.test.ts` refuses the old rule. */
+	.app-shell { position: fixed; inset: 0; max-width:none; margin:0; padding:0; overflow: hidden; display: grid; grid-template-rows: 52px minmax(0, 1fr); background: var(--surface-0); color: var(--text-1); font-family: Rajdhani, sans-serif; }
 	.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 	/* THE COMMAND BAR SPEAKS THE EDITOR'S LANGUAGE: 12px Share Tech Mono at
