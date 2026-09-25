@@ -1,6 +1,6 @@
 {
 	"schema": 1,
-	"spec": "tour-mode-picker.mjs",
+	"spec": "tour-mode-student-state-walk.mjs",
 	"date": "2026-09-25T09:40:57.662Z",
 	"sha": "83be5b9ed0b37b64c1edbc007a3187b5c5788dca",
 	"dirty": true,
@@ -9,7 +9,7 @@
 		1440
 	],
 	"runs": 2,
-	"measurements": 24,
+	"measurements": 54,
 	"outsideRows": [],
 	"ms": 15189
 }

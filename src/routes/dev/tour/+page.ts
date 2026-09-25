@@ -5,11 +5,13 @@ import type { PageLoad } from './$types';
 import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 import type { FeedSubmission } from '$lib/classroom/feed';
 import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
+import { readClassroomClock } from '$lib/classroom/student-work';
 import {
 	makeStubSupabase,
 	profileForMode,
 	seedPreferences,
-	type TourHarnessMode
+	type TourHarnessMode,
+	type TourHarnessRole
 } from './store.svelte';
 
 /**
@@ -24,11 +26,21 @@ import {
  *   done    - tour already completed: no auto-launch, header replay only
  *   picker  - student with no pathway: the pathway picker owns the screen first,
  *             the tour waits for it
+ *   old     - finished the tour BEFORE it was rewritten (a stamp older than
+ *             HOME_TOUR_VERSION): nothing starts, the one-line offer shows
+ *
+ * `?role=teacher` signs in STAFF instead of a student, and `?admin=1` makes
+ * that person an admin, which is what puts the two admin-only cards (Coin
+ * Desk, Admin) in the launcher and so in the tour. Neither is an access
+ * decision: the real page reads both off the root layout, and this route 404s
+ * in production either way. The staff tour and the student tour are two
+ * different step lists (`homeTourFor`), so both directions of "staff-only
+ * steps are absent for a student" are measured here.
  */
 export const ssr = false;
 export const prerender = false;
 
-const MODES: TourHarnessMode[] = ['anon', 'student', 'done', 'picker'];
+const MODES: TourHarnessMode[] = ['anon', 'student', 'done', 'picker', 'old'];
 
 const HARNESS_SECTION: ClassroomSection = {
 	id: 'dev-section-1',
@@ -55,7 +67,9 @@ export const load: PageLoad = async ({ url }) => {
 			/* malformed seed: leave the store as it is */
 		}
 	}
-	const profile = profileForMode(mode);
+	const role: TourHarnessRole = url.searchParams.get('role') === 'teacher' ? 'teacher' : 'student';
+	const isAdmin = role === 'teacher' && url.searchParams.get('admin') === '1';
+	const profile = profileForMode(mode, role);
 	// Shaped like a validated Supabase JWT so the mock satisfies the home
 	// page's PageData; only `sub` and `email` are actually read.
 	const claims: JwtPayload | null = profile
@@ -89,10 +103,12 @@ export const load: PageLoad = async ({ url }) => {
 		feedSubmissions: [] as FeedSubmission[],
 		feedManagerEmails: {} as Record<string, string[]>,
 		// The shared owed-work read's check-ins and its one clock read (ledger
-		// 0297). None and no clock: the page falls back to its own, exactly as a
-		// signed-out load does.
+		// 0297). A signed-in load carries the clock, as the real one does, which
+		// is what mounts the student's to-do door (the tour has a step on it);
+		// signed out there is none, and the page falls back to its own.
 		feedCheckIns: [] as ClassCheckIn[],
-		feedClock: null as { now: string; today: string } | null,
+		feedClock: (profile ? readClassroomClock() : null) as { now: string; today: string } | null,
+		isAdmin,
 		// The home page's data shape carries this now (the launcher's admin-only
 		// review badge). Null is the not-an-admin answer, so no badge renders.
 		foundryReviewPending: null as number | null
