@@ -36,19 +36,33 @@ suffix, and you say why.
 - Migration permitted: no. Claims: none. Highest on origin/main at issue: 0224
 - Status: issued
 - Branch: assigned by the harness; the final report names it.
-- Notes: Brief `docs/feedback/2026-09-25/ROUND1_BRIEF.md`, evidence `docs/feedback/2026-09-25/TRIAGE.md`, decisions 37-40. Sessions 2-6 are queued in `docs/feedback/2026-09-25/QUEUE.md` and are NOT this entry's work. Migration numbers 0228 and 0229 are reserved for sessions 2 and 3 and are not this entry's to use.
+- Notes: Brief `docs/feedback/2026-09-25/ROUND1_BRIEF.md`, evidence `docs/feedback/2026-09-25/TRIAGE.md`, decisions 37-40. Sessions 2-6 are queued in `docs/feedback/2026-09-25/QUEUE.md` and are NOT this entry's work. Migration numbers 0228 and 0229 are reserved for sessions 2 and 3 and are not this entry's to use. Merges its own branch into `main` tier by tier (P0, P1, then the rest) as each goes green, approved by Mr. Pina on 2026-09-25 ("merging committing and pushing directly to main ... so that changes are live as soon as they're done. But not at the cost of total development time").
 ```
 
 Then follow the brief. Commit and push coherent slices as you go.
 
+**Shipping: live as each tier lands, straight to `main`.** Mr. Pina approved on 2026-09-25 that
+this session merges, commits and pushes directly to `main`, so every change is live as soon as
+it is done, without waiting on the `integration` sweep or a person. Ship in TIERS rather than
+once at the end: when every P0 item is done, then when P1 is done, then when P2 and P3 are done,
+do this:
+1. `git fetch origin main` and merge `origin/main` into your branch; resolve on the branch.
+2. Run `npx svelte-kit sync && npx svelte-check`, the test files for the surfaces this tier
+   touched, and `npm run build`, reading summary lines and stderr, never exit codes alone. At
+   the FINAL tier, run the full suite once instead of the touched files.
+3. If they are clean against Phase 0's baseline, merge your branch into `main` with `--no-ff`
+   and push `main`. Never force-push `main`. If anything is red, do not merge that tier: fix it,
+   or leave it on the branch and say why in the report.
+4. Confirm the deploy against the version production serves, then keep working.
+A tier that fails its checks never blocks the next tier's work; it just does not ship until it
+is green. This round carries no migration, so there is nothing to apply and deploy ordering does
+not arise.
+
 **Ending.** When the work is done or the budget is nearly spent: write your history entry,
 correct `CLAUDE.md` in place where its truth changed, append the `classroom-updates.json`
-entries last, and run the full suite once, reading the summary line and stderr. Merge your
-branch into `main` only if all six gates of decision 16 hold (read
-`docs/decisions/entries/16-a-lane-may-merge-to-main.md`). Mr. Pina wants this live as soon as
-it is ready. If any gate fails, push the branch and stop. Then confirm the deploy against the
-version production serves. Your final commit sets the ledger entry's Status to `pushed`. The
-final report lists: every item done, with its measured evidence; every item not done, and
-why; every claim in the brief that was wrong; what was NOT verified; and the branch name.
+entries last, ship the final tier as above, and set the ledger entry's Status to `pushed` in that
+final commit. The final report lists every item done with its measured evidence, every item not
+done and why, every claim in the brief that was wrong, what was NOT verified, which tiers
+reached `main` and at which commits, and the branch name.
 
 ---
