@@ -90,18 +90,39 @@ export function trackQuickNoteFlush(p: Promise<unknown>): void {
 	p.then(done, done);
 }
 
+/** The longest a new quick note waits on the last one's flush before opening. */
+export const QUICK_NOTE_FLUSH_WAIT_MS = 4000;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 /**
  * Resolves once no unmounted quick note is still writing. It yields a task
  * first, so a teardown that runs in the same navigation as this mount -- in
  * either order -- has recorded its flush before the check.
+ *
+ * IT GIVES UP AFTER `QUICK_NOTE_FLUSH_WAIT_MS`. A flush that cannot land
+ * retries with backoff, and offline that is many seconds of a panel that will
+ * not open. Past the cap the new quick note restores the slot as it stands --
+ * which the teardown wrote, so it holds the newest words -- and the worst left
+ * is a second draft of them, never a lost one.
  */
-export async function quickNoteFlushSettled(): Promise<void> {
-	await new Promise((resolve) => setTimeout(resolve, 0));
+export async function quickNoteFlushSettled(maxWaitMs = QUICK_NOTE_FLUSH_WAIT_MS): Promise<void> {
+	const deadline = Date.now() + maxWaitMs;
+	await sleep(0);
 	while (flushing) {
 		const p = flushing;
-		await p.catch(() => undefined);
+		const left = deadline - Date.now();
+		if (left <= 0) return;
+		const landed = await Promise.race([
+			p.then(
+				() => true,
+				() => true
+			),
+			sleep(left).then(() => false)
+		]);
+		if (!landed) return;
 		if (flushing === p) flushing = null;
-		await new Promise((resolve) => setTimeout(resolve, 0));
+		await sleep(0);
 	}
 }
 
