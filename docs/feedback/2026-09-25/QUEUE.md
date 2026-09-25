@@ -1,5 +1,12 @@
 # What happens to the 2026-09-25 feedback, in order
 
+**Update, 2026-09-25 04:45 UTC:** sessions 1, 4 and 5, the no-migration halves of 2 and 3, a
+mockup-only session 6, and a new item A6 (the bulk file download) were folded into ONE overnight
+run, ledger 0298 (`OVERNIGHT_BRIEF.md`). Mr. Pina asked for everything at once, overnight. The
+automatic migration apply is blocked on a rejected database password, so 0228 and 0229 exist only
+as proposals tonight. They land in a later session once `IDEA_MIGRATION_URL` and
+`DEPLOY_PROBE_URL` authenticate. The table below is the plan as it stood before that update.
+
 Run one ultracode session at a time. Its agents share one container and working tree, so two
 at once write the same files (`IDEA_instructions.md`, "An `ultracode` bundle serializes").
 Write each later session's brief AFTER the one before it lands, from the tree as it is then.
