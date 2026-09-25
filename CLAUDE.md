@@ -1278,8 +1278,9 @@ it so the rubric is never shown twice.
   limit is about prose, not about videos**: the class page's closed Videos
   section (`ClassVideos.svelte` over `$lib/classroom/class-videos.ts`, ledger
   0298) cards EVERY such link in the loaded items, mid-sentence ones too, with
-  the same two predicates, and never reads `instructorLinks`, a draft or a
-  scheduled item.
+  the same two predicates, never reads `instructorLinks`, and never lists a
+  video from a draft or a scheduled item (a manager is told how many it holds
+  back).
 
 ### WHAT A STUDENT OWES -- one predicate, one read, one day
 

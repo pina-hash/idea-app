@@ -177,9 +177,14 @@ function studentVisible(item: ClassVideoItem, now: Date): boolean {
 /**
  * THE CLASS'S VIDEOS, one per video id, in the order `items` is handed.
  *
- * `now` is the caller's clock (the class page's loader clock), because a
- * scheduled item is one whose go-live is after it, and a helper reading its
- * own clock silently disagrees with the Scheduled chip on the row.
+ * `now` is the caller's clock (the class page's loader clock, the one the
+ * status filter and the student's chips read), never one read here, so the
+ * answer is a function of its inputs and assertable at a pinned instant. It
+ * only decides anything for a manager, whose read carries scheduled items.
+ * The manager's row chip (`isScheduled(item)` in ClassView) reads render
+ * time instead, so on a page left open across an item's go-live the chip may
+ * update on a re-render before this count does; a reload brings them back
+ * together. It is a teacher-only line and never a student-visible fact.
  */
 export function classVideos(items: readonly ClassVideoItem[], now: Date): ClassVideoIndex {
 	const byId = new Map<string, ClassVideo>();
