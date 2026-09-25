@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "tour-mode-anon.mjs",
+	"date": "2026-09-25T09:44:08.951Z",
+	"sha": "a553cb95a2c3bf11e3918a2b622d615a08876e98",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 32,
+	"outsideRows": [],
+	"ms": 43485
+}
