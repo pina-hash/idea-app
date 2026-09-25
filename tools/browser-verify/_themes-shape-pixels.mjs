@@ -29,9 +29,12 @@
  *      the tint composited over pure black -- is reported beside it.
  *
  * And one it can only estimate: the frame cost of the blur, as rAF intervals
- * while the stage scrolls, glass on against glass off (the same page with
- * `prefers-reduced-transparency: reduce` emulated). This Chromium has no GPU,
- * so the number is a software-raster reading and is reported as that.
+ * and traced compositor time while the stage scrolls -- the header and the
+ * menu frosted (what the mockup shows), the menu alone (what the proposal
+ * ships), and glass off (the same page with `prefers-reduced-transparency:
+ * reduce` emulated). This Chromium has no GPU, so the number is a
+ * software-raster reading and is reported as that. Before it, the glass gate
+ * is read back under each preference that must turn it off.
  *
  * Every figure is printed; nothing here passes or fails.
  */
@@ -261,6 +264,8 @@ async function glassText(page, width) {
 	);
 	let worst = null;
 	let measured = 0;
+	let onGlass = 0;
+	const solidOwners = new Set();
 	for (const l of labels) {
 		const sel = `[data-glass-i="${l.i}"]`;
 		/* Only a label wholly inside the stage's visible box: the panel is
@@ -271,10 +276,20 @@ async function glassText(page, width) {
 			const b = el.getBoundingClientRect();
 			const st = document.querySelector('[data-testid="glass-stage"]').getBoundingClientRect();
 			const inside = b.width > 0 && b.height > 0 && b.top >= st.top && b.bottom <= st.bottom && b.left >= st.left && b.right <= st.right;
-			return { x: b.left, y: b.top, w: b.width, h: b.height, inside };
+			/* WHAT THE LABEL IS ACTUALLY PAINTED ON: the nearest ancestor with a
+			   fill of its own. A label inside a solid box that happens to sit in a
+			   frosted panel is on the box, not on the glass, and reporting its
+			   ratio as a glass figure would be a number about the wrong ground. */
+			let owner = el;
+			while (owner && getComputedStyle(owner).backgroundColor.replace(/\s/g, '').match(/^(transparent|rgba\(0,0,0,0\))$/)) owner = owner.parentElement;
+			const ocs = owner ? getComputedStyle(owner) : null;
+			const onGlass = !!ocs && ocs.backdropFilter !== 'none';
+			return { x: b.left, y: b.top, w: b.width, h: b.height, inside, onGlass, owner: owner ? `${owner.tagName.toLowerCase()}.${[...owner.classList].filter((c) => !c.startsWith('svelte-')).join('.')} ${ocs.backgroundColor}` : 'none' };
 		}, sel);
 		if (!r.inside) continue;
 		measured++;
+		if (r.onGlass) onGlass++;
+		else solidOwners.add(r.owner);
 		await page.evaluate((sel) => document.querySelector(sel).style.setProperty('color', 'transparent', 'important'), sel);
 		const px = await pixelsOf(page, await page.screenshot({ clip: { x: r.x, y: r.y, width: r.w, height: r.h } }));
 		await page.evaluate((sel) => document.querySelector(sel).style.removeProperty('color'), sel);
@@ -287,12 +302,16 @@ async function glassText(page, width) {
 	}
 	out.push(
 		worst
-			? `menu labels on glass (${measured} of ${labels.length} labels inside the stage): worst "${worst.label}" ${rgb(worst.ink)} on darkest ground pixel ${rgb(worst.ground)} = ${f2(worst.w)}:1, washed ${f2(worst.wa)}`
+			? `menu labels (${measured} of ${labels.length} labels inside the stage; ${onGlass} painted on glass, ${measured - onGlass} on a solid fill${solidOwners.size ? ': ' + [...solidOwners].join(', ') : ''}): worst "${worst.label}" ${rgb(worst.ink)} on darkest ground pixel ${rgb(worst.ground)} = ${f2(worst.w)}:1, washed ${f2(worst.wa)}`
 			: 'menu labels: NONE MEASURED'
 	);
 	/* The analytic floor: the tint composited over pure black and over the
-	   island's own ground, scored against --text-1. */
-	const floor = await page.evaluate(() => {
+	   island's own ground, scored against --text-1 AND against every ink the
+	   menu's labels actually use. The class codes are `--text-2`, a lighter
+	   ink than body text, so a floor quoted for `--text-1` alone would be the
+	   floor of a label the menu does not have. */
+	const inks = [...new Set(labels.map((l) => l.color))];
+	const floor = await page.evaluate((inks) => {
 		const glass = getComputedStyle(document.querySelector('[data-col="glass"]')).getPropertyValue('--surface-glass').trim();
 		const island = getComputedStyle(document.querySelector('[data-ts="under-dark"]')).backgroundColor;
 		const text1 = getComputedStyle(document.documentElement).getPropertyValue('--text-1').trim();
@@ -307,17 +326,23 @@ async function glassText(page, width) {
 			x.fillRect(0, 0, 1, 1);
 			return Array.from(x.getImageData(0, 0, 1, 1).data.slice(0, 3));
 		};
-		x.fillStyle = text1;
-		x.fillRect(0, 0, 1, 1);
-		const t = Array.from(x.getImageData(0, 0, 1, 1).data.slice(0, 3));
-		return { glass, island, black: over('#000'), onIsland: over(island), text1: t };
-	});
-	const t1 = { r: floor.text1[0], g: floor.text1[1], b: floor.text1[2] };
-	const blk = { r: floor.black[0], g: floor.black[1], b: floor.black[2] };
-	const isl = { r: floor.onIsland[0], g: floor.onIsland[1], b: floor.onIsland[2] };
-	out.push(
-		`analytic floor: --surface-glass (${floor.glass}) over pure black = ${rgb(blk)}, --text-1 on it ${f2(wcag(t1, blk))}:1 (washed ${f2(washedRatio(t1, blk))}); over the island ground ${floor.island} = ${rgb(isl)}, ${f2(wcag(t1, isl))}:1 (washed ${f2(washedRatio(t1, isl))})`
-	);
+		const solid = (css) => {
+			x.fillStyle = '#000';
+			x.fillStyle = css;
+			x.fillRect(0, 0, 1, 1);
+			return Array.from(x.getImageData(0, 0, 1, 1).data.slice(0, 3));
+		};
+		return { glass, island, black: over('#000'), onIsland: over(island), text1: solid(text1), inks: inks.map((i) => ({ css: i, rgb: solid(i) })) };
+	}, inks);
+	const asRgb = (a) => ({ r: a[0], g: a[1], b: a[2] });
+	const blk = asRgb(floor.black);
+	const isl = asRgb(floor.onIsland);
+	const scored = [{ name: '--text-1', c: asRgb(floor.text1) }, ...floor.inks.map((i) => ({ name: `label ink ${i.css}`, c: asRgb(i.rgb) }))];
+	out.push(`analytic floor: --surface-glass (${floor.glass}) over pure black = ${rgb(blk)}; over the island ground ${floor.island} = ${rgb(isl)}`);
+	for (const s of scored)
+		out.push(
+			`  ${s.name} ${rgb(s.c)}: over black ${f2(wcag(s.c, blk))}:1 (washed ${f2(washedRatio(s.c, blk))}); over the island ${f2(wcag(s.c, isl))}:1 (washed ${f2(washedRatio(s.c, isl))})`
+		);
 	return out;
 }
 
@@ -327,8 +352,21 @@ async function glassText(page, width) {
    compositor's own draw events are summed. Both are reported; neither is a
    school desktop, and the note says so. */
 const TRACE_CATEGORIES = ['viz', 'cc', 'gpu', 'benchmark', 'disabled-by-default-devtools.timeline'];
-async function frameCost(browser, page, cdp, reduce) {
+/* `menuOnly` takes the frost off the HEADER and leaves it on the class menu,
+   which is the proposal as written: the mockup frosts a sticky header so the
+   effect can be seen, but the real classroom header never has content under
+   it, so a cost measured with both frosted is the cost of something the
+   proposal does not ship. Both are reported. */
+async function frameCost(browser, page, cdp, reduce, menuOnly = false) {
 	await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-transparency', value: reduce ? 'reduce' : 'no-preference' }] });
+	await page.evaluate((menuOnly) => {
+		document.getElementById('px-menu-only')?.remove();
+		if (!menuOnly) return;
+		const s = document.createElement('style');
+		s.id = 'px-menu-only';
+		s.textContent = '.ts-root .ts-glass .cr-header::before { backdrop-filter: none !important; background: var(--surface-1) !important; }';
+		document.head.append(s);
+	}, menuOnly);
 	await settle(page);
 	let traced = true;
 	try {
@@ -340,7 +378,8 @@ async function frameCost(browser, page, cdp, reduce) {
 		() =>
 			new Promise((resolve) => {
 				const stage = document.querySelector('[data-testid="glass-stage"]');
-				const filt = getComputedStyle(document.querySelector('[data-col="glass"] .cr-header'), '::before').backdropFilter;
+				const menu = document.querySelector('[data-col="glass"] [data-testid="section-switcher-menu"]');
+				const filt = `header ${getComputedStyle(document.querySelector('[data-col="glass"] .cr-header'), '::before').backdropFilter}, menu ${menu ? getComputedStyle(menu).backdropFilter : 'NOT OPEN'}`;
 				const max = stage.scrollHeight - stage.clientHeight;
 				const times = [];
 				let last = performance.now();
@@ -445,20 +484,44 @@ try {
 		for (const line of await glassText(page, width)) console.log('  ' + line);
 		if (width === 1440) {
 			const cdp = await context.newCDPSession(page);
+			/* THE GATE, BOTH DIRECTIONS. Each preference that must turn the
+			   glass off is emulated on its own, beside the no-preference state
+			   that must leave it on, and the computed filter is read back rather
+			   than trusted from the stylesheet. */
+			console.log('-- the glass gate (computed backdrop-filter, header::before / class menu) --');
+			for (const [tag, features] of [
+				['no preference', [{ name: 'prefers-reduced-transparency', value: 'no-preference' }, { name: 'prefers-contrast', value: 'no-preference' }]],
+				['reduced transparency', [{ name: 'prefers-reduced-transparency', value: 'reduce' }, { name: 'prefers-contrast', value: 'no-preference' }]],
+				['more contrast', [{ name: 'prefers-reduced-transparency', value: 'no-preference' }, { name: 'prefers-contrast', value: 'more' }]]
+			]) {
+				await cdp.send('Emulation.setEmulatedMedia', { features });
+				await settle(page);
+				const g = await page.evaluate(() => {
+					const menu = document.querySelector('[data-col="glass"] [data-testid="section-switcher-menu"]');
+					const h = document.querySelector('[data-col="glass"] .cr-header');
+					return `${getComputedStyle(h, '::before').backdropFilter} / ${menu ? getComputedStyle(menu).backdropFilter + ', menu fill ' + getComputedStyle(menu).backgroundColor : 'MENU NOT OPEN'}; matches more-contrast=${matchMedia('(prefers-contrast: more)').matches}, reduce=${matchMedia('(prefers-reduced-transparency: reduce)').matches}`;
+				});
+				console.log(`  ${tag}: ${g}`);
+			}
 			const on = await frameCost(browser, page, cdp, false);
+			const menuOnly = await frameCost(browser, page, cdp, false, true);
 			const off = await frameCost(browser, page, cdp, true);
+			await page.evaluate(() => document.getElementById('px-menu-only')?.remove());
 			await cdp.send('Emulation.setEmulatedMedia', { features: [] });
 			console.log('-- the blur while the glass stage scrolls under an open class menu (software compositing, no GPU) --');
-			for (const [tag, r] of [['glass on ', on], ['glass off', off]])
+			const runs = [['header and menu', on], ['menu only', menuOnly], ['glass off', off]];
+			for (const [tag, r] of runs)
 				console.log(`  ${tag} (${r.raf.filt}): rAF ${r.raf.frames} frames, mean ${f2(r.raf.mean)}ms, p95 ${f2(r.raf.p95)}ms, max ${f2(r.raf.max)}ms${r.traced === true ? '' : '; ' + r.traced}`);
-			/* The trace events whose total moved most between the two runs. */
+			/* The trace events whose total moved most between glass on and off,
+			   with the menu-only run beside them. */
+			const zero = { n: 0, us: 0 };
 			const names = new Set([...on.byName.keys(), ...off.byName.keys()]);
 			const rows = [...names]
-				.map((n) => ({ n, on: on.byName.get(n) ?? { n: 0, us: 0 }, off: off.byName.get(n) ?? { n: 0, us: 0 } }))
+				.map((n) => ({ n, on: on.byName.get(n) ?? zero, menu: menuOnly.byName.get(n) ?? zero, off: off.byName.get(n) ?? zero }))
 				.sort((a, b) => Math.abs(b.on.us - b.off.us) - Math.abs(a.on.us - a.off.us))
 				.slice(0, 10);
 			for (const r of rows)
-				console.log(`  trace ${r.n}: on ${f2(r.on.us / 1000)}ms over ${r.on.n}, off ${f2(r.off.us / 1000)}ms over ${r.off.n}`);
+				console.log(`  trace ${r.n}: header+menu ${f2(r.on.us / 1000)}ms over ${r.on.n}, menu only ${f2(r.menu.us / 1000)}ms over ${r.menu.n}, off ${f2(r.off.us / 1000)}ms over ${r.off.n}`);
 		}
 		await page.keyboard.press('Escape');
 		await context.close();

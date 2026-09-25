@@ -236,9 +236,11 @@
 			<h2 id="ts-h-glass">Glass</h2>
 			<p class="ts-note">
 				The after header held at the top of a scrolling region with work scrolled underneath it,
-				and the class menu open over that work. Open <em>Classes</em> to see the menu. The
-				classroom header does not stay at the top of the page today, so on a real page glass
-				would only show on menus and panels that open over content.
+				and the class menu open over that work. Open <em>Classes</em> (<em>Menu</em> on a phone) to
+				see the menu. The classroom header does not stay at the top of the page today, so on a
+				real page glass would only show on menus and panels that open over content. On a phone
+				the Menu panel's buttons and class list keep their own solid fill, so the frost shows
+				only in the gaps between them.
 			</p>
 			<div class="ts-col ts-wide ts-after ts-glass" data-col="glass" data-cut={cut}>
 				<div class="ts-stage" data-testid="glass-stage">

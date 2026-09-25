@@ -11,7 +11,9 @@ measured in the harness Chromium (141) at 375px and 1440px, on this branch's tre
   - `shapes-1440.png` and `shapes-375.png`: the whole mockup, two-corner cut (recommended).
   - `shapes-1440-four.png`: the same page with the four-corner cut.
   - `shapes-glass-1440.png` and `shapes-glass-375.png`: the frosted class menu (desktop) and
-    frosted Menu panel (phone), open over a dark slide.
+    frosted Menu panel (phone), open over a dark slide. On the phone the panel's buttons and
+    its class list each keep their own solid fill, so the frost shows only in the gaps between
+    them (see Glass below).
 - **The page itself**: `/dev/themes-shape?state=space-white` on a local `npm run dev`
   (`?cut=four` or the toggle for the other cut).
 - **How to read a pair.** Each "before" is today's Space White: the site's real `.btn`,
@@ -28,7 +30,10 @@ measured in the harness Chromium (141) at 375px and 1440px, on this branch's tre
    first and rejected: it turned the chip into a slant whose edge ran through the letters.
 3. **Glass only on things that float over the page**: the class menu on a desktop and the
    Menu panel on a phone. The classroom header does not stay at the top of the page today, so
-   nothing ever scrolls under it and glass there would look exactly like solid.
+   nothing ever scrolls under it and glass there would look exactly like solid. (The mockup
+   frosts a header held at the top of a scrolling box only so the effect can be seen.) On a
+   phone the frost barely shows: every button in the Menu panel and the class list inside it
+   has its own solid fill, so only the gaps between them are glass.
 4. **Only Space White, only where the browser can draw it.** The tokens are declared under
    Space White inside a check for real corner-shape support. IDEA and Matrix never see them;
    Safari and Firefox (no support yet) keep today's look rather than a half-applied one.
@@ -93,12 +98,25 @@ for pure black:
 
 | | Monitor | Wall |
 |---|---|---|
-| Body text on the tint over pure black (the floor) | 11.64:1 | 6.43 |
-| Menu labels on the rendered glass, darkest ground pixel, desktop | 7.51:1 | 5.27 |
-| Menu labels on the rendered glass, phone | 9.02:1 | 6.26 |
+| Body text (`--text-1`, the class names) on the tint over pure black (the floor) | 11.64:1 | 6.43 |
+| Class codes (`--text-2`, the lightest ink in the menu) on the tint over pure black (the floor) | 6.37:1 | 4.52 |
+| Menu labels on the rendered glass, darkest ground pixel, desktop (6 of 8 labels are on the glass; the current class sits on its own solid highlight) | 7.51:1 | 5.27 |
+| Menu labels at phone width: all 5 measured sit on a SOLID fill (the class list keeps its own `--surface-1`), so this is not a glass figure | 9.02:1 | 6.26 |
+
+**The class codes are the tight one.** On the worst ground a page can put under the menu they
+clear the wall's body-text floor (4.5) by 0.02, and the muted-text floor (3.0) comfortably. A
+lighter tint than 82%, or a lighter ink for the codes, would fail the body floor there. (An
+earlier version of this note quoted only the `--text-1` floor, 11.64:1, which is not the
+floor of the lightest label the menu actually has.)
 
 It is off, and solid, wherever `backdrop-filter` is unsupported, the person asked the system for
-reduced transparency, or asked for more contrast. One construction rule came out of building it:
+reduced transparency, or asked for more contrast. The last two were read back in the harness,
+both directions: with neither preference both the header and the menu compute
+`blur(12px) saturate(1.2)` and the menu's fill is the 82% tint; with reduced transparency
+emulated, or with more contrast emulated, both compute `none` and the menu's fill is the solid
+`--surface-1` (`rgb(247, 249, 249)`). An engine that does not recognise
+`prefers-reduced-transparency` evaluates that query as false and keeps the solid fill, which is
+the safe direction; that was reasoned, not rendered. One construction rule came out of building it:
 **the blur sits on a `::before`, never on the header itself.** A frosted element becomes the
 backdrop root of everything inside it, so a menu nested in a frosted header would blur only the
 header's own paint.
@@ -108,10 +126,14 @@ header's own paint.
 - **The blur costs real compositor time when nothing is accelerating it.** This Chromium has no
   GPU, which is also what Chrome does on an old desktop whose graphics driver it has blocklisted.
   Scrolling work under the frosted header with the class menu open, the compositor's own draw
-  (`DirectRenderer::DrawFrame`, traced over 180 frames, two runs) took **7.1 to 8.4 ms per
+  (`DirectRenderer::DrawFrame`, traced over 180 frames, four runs) took **7.1 to 8.4 ms per
   frame with glass against 1.9 to 2.8 ms without**, roughly three to four times as much. Both
   still fit a 16.7ms frame here, and the page's own frame rate did not move (175 frames at
   16.67ms either way), but that margin is what a slower CPU spends first.
+- **That figure is the mockup's, not the proposal's.** It frosts the header AND the menu; the
+  proposal frosts the menu only. Measured with the header's frost taken off and the menu's
+  left on (one run): **3.7 ms per frame, against 2.0 ms with no glass and 7.3 ms with both**
+  in the same run, so about twice the no-glass cost rather than three to four times.
 - **With a working GPU the same blur is a few shader passes over a strip about 1170 x 70 px
   plus a 240 x 250 menu**, which is small. Not measured: no container here has a GPU, and nobody
   ran it on a school desktop.
@@ -155,7 +177,7 @@ header's own paint.
   adopting it is a move rather than a rewrite)
 - `tools/browser-verify/routes/themes-shape-state-space-white.mjs` and its measured file
 - `tools/browser-verify/_themes-shape-pixels.mjs` (the focus ring, the cut, the chip letters,
-  the glass ground and the frame cost; `node tools/browser-verify/_themes-shape-pixels.mjs
+  the glass ground, the glass gate and the frame cost; `node tools/browser-verify/_themes-shape-pixels.mjs
   --shots <dir>` reproduces every pixel figure and the screenshots)
 
 ## The decision
