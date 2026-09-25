@@ -163,6 +163,17 @@
 	   control measured nothing (prompt 0098, item H). */
 	const loc = $derived(locateClassroom(classroomPathname(page.url.pathname, basePath)));
 	const showNavToggle = $derived(!minimal && canCollapseNav(loc));
+	/*
+	 * THE ASSIGNMENT'S TITLE FOR A QUICK NOTE: the trail's ITEM crumb, never the
+	 * last one. Under the item page (its grading console) the last crumb is the
+	 * page's name, "Grading", which would become the note's title everywhere.
+	 */
+	const quickNoteItemTitle = $derived.by(() => {
+		if (!loc.itemId) return null;
+		if (loc.place === 'item') return crumbs.at(-1)?.label ?? null;
+		const itemPath = `/item/${loc.itemId}`;
+		return crumbs.find((c) => c.href?.endsWith(itemPath))?.label ?? null;
+	});
 	const viewer = $derived((page.data?.claims?.sub as string | undefined) ?? null);
 	const navCollapseStorageKey = $derived(navCollapseKey(viewer));
 	const storedNavCollapsed = $derived(readNavCollapsed(navCollapseStorageKey));
@@ -590,7 +601,7 @@
 				bind:available={quickNoteHere}
 				sectionId={currentSectionId}
 				sectionLabel={current ? sectionTitle(current) : null}
-				itemTitle={loc.itemId ? (crumbs.at(-1)?.label ?? null) : null}
+				itemTitle={quickNoteItemTitle}
 				anchorFallback={() => switcherEl?.querySelector<HTMLElement>('.menu-trigger')}
 			/>
 		{/if}

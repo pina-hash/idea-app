@@ -2,6 +2,7 @@
 	import { onMount, tick, untrack } from 'svelte';
 	import NoteEditor from '$lib/notebook/NoteEditor.svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
+	import Pending from '$lib/Pending.svelte';
 	import { SaveState, type SaveOutcome } from '$lib/save-state.svelte';
 	import { EditBaseline, serializeForBaseline } from '$lib/edit-baseline.svelte';
 	import { anchored } from '$lib/shell/anchored';
@@ -20,7 +21,11 @@
 		writeMirror
 	} from '$lib/notebook/draft-mirror';
 	import { quickNotePayload, type QuickNoteFiling } from '$lib/notebook/quick-note';
-	import { setQuickNoteWritingEntry } from '$lib/notebook/quick-note-state.svelte';
+	import {
+		quickNoteFlushSettled,
+		setQuickNoteWritingEntry,
+		trackQuickNoteFlush
+	} from '$lib/notebook/quick-note-state.svelte';
 	import type { QuickNoteTransports } from '$lib/notebook/quick-note-transports';
 
 	/**
@@ -130,13 +135,58 @@
 	}
 
 	/**
+	 * A RESTORED MIRROR NAMING A DRAFT is adopted only once `draftOpen` answers
+	 * (see the restore below). A write that starts before that answer waits for
+	 * it, or it would make a second draft of the same words.
+	 */
+	let adopting: Promise<void> | null = null;
+
+	/** How many times this note has moved to a new draft, and the most it may. */
+	let reopened = 0;
+	const REOPEN_LIMIT = 3;
+	/** Bumped when a note is finished, so an answer about the last one cannot land on the next. */
+	let generation = 0;
+
+	/**
+	 * IS THE DRAFT THIS NOTE WRITES INTO STILL AN OPEN DRAFT? Asked before every
+	 * write into one that already exists (ledger 0298 review). The quick note
+	 * keeps its draft until Save, and that same draft sits in the notebook's own
+	 * list with a Turn in button. Once it is turned in it is visible to staff, and
+	 * an autosave into it appends a staff-visible revision on every burst -- the
+	 * one thing CLAUDE.md refuses an autosave -- with the quick note's newest
+	 * words becoming the turned-in entry's current content. Deleted, or filed
+	 * from the Inbox in another tab, it is in Recently deleted, where the writing
+	 * would go on landing unseen. So `false` moves the writing to a new draft;
+	 * `'unknown'` writes where it was, and that write reports its own failure.
+	 *
+	 * Not asked while the page is hidden: that is the pagehide flush, which must
+	 * start its request at once. And the limit is a circuit breaker for the one
+	 * way this could go wrong systematically (a check that always answered no
+	 * would otherwise mint a draft per autosave): past it the note writes where
+	 * it is.
+	 */
+	async function draftStillOpen(entryId: string): Promise<boolean> {
+		if (reopened >= REOPEN_LIMIT) return true;
+		if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return true;
+		return (await transports.draftOpen(entryId)) !== false;
+	}
+
+	/**
 	 * ONE WRITE OF WHATEVER IS IN THE BOX NOW. The first creates the draft,
 	 * every later one edits its note chain with `autosave` so the database may
 	 * replace the head revision instead of appending one (0129).
 	 */
 	async function persist(): Promise<SaveOutcome> {
+		if (adopting) await adopting;
 		const content = doc;
 		if (!content || !tiptapHasText(content) || !baseline.changed(content)) return { ok: true };
+		if (handle && !(await draftStillOpen(handle.entryId))) {
+			reopened += 1;
+			handle = null;
+			setQuickNoteWritingEntry(null);
+			notice =
+				'The draft this note was writing into has been turned in or moved, so the note carries on as a new draft.';
+		}
 		if (!handle) {
 			const target = filedTo ?? filing;
 			const res = await transports.createNote(quickNotePayload(target, content));
@@ -166,6 +216,11 @@
 			handle = { ...handle, unsealed: true };
 		}
 		baseline.advance(content);
+		// THE MIRROR FOLLOWS THE ACKNOWLEDGEMENT AT ONCE, never a debounce later:
+		// in that gap a remount would restore words the server already holds and
+		// write them into a second draft. This also runs for a write that lands
+		// after this instance was unmounted, which is when it matters most.
+		syncMirrorNow();
 		return { ok: true };
 	}
 
@@ -179,11 +234,23 @@
 	 * THIS HEADER BELONGS TO (the home page for a class, say) unmounts it: what
 	 * is owed is sent FIRST -- `saveNow` starts the request synchronously, before
 	 * the machine is destroyed -- and the mirror keeps anything it does not land.
+	 *
+	 * THE MIRROR IS WRITTEN HERE, SYNCHRONOUSLY, BEFORE THAT (ledger 0298 review).
+	 * Its own debounce is cancelled by the unmount, so without this line the slot
+	 * holds the box as it was up to 400ms ago; the next mount (the classroom
+	 * header after the home page's, say) restored those older words and its
+	 * autosave then wrote them over the newer ones the flush had just sent. And
+	 * the flush is recorded (`trackQuickNoteFlush`) so that next mount reads the
+	 * slot only once this write has landed and brought it up to date.
 	 */
 	$effect(() => {
 		const detach = save.attach();
 		return () => {
-			if (save.dirty) void save.saveNow();
+			if (unsaved) save.markDirty();
+			if (save.dirty) {
+				syncMirrorNow();
+				trackQuickNoteFlush(save.saveNow());
+			}
 			detach();
 			setQuickNoteWritingEntry(null);
 		};
@@ -222,8 +289,25 @@
 	 * naming a draft keeps writing into it only after `draftOpen` says it is
 	 * still this viewer's open draft; otherwise the writing goes into a new one.
 	 * The restored writing then saves itself, which is the point.
+	 *
+	 * IT WAITS FOR A QUICK NOTE THIS TAB JUST UNMOUNTED to finish writing
+	 * (`quickNoteFlushSettled`), because that write is what brings the slot up to
+	 * date; the editor is not drawn until this pass is done (`mirrorChecked`), so
+	 * nothing typed into a fresh box can be replaced by a restore arriving late.
 	 */
 	onMount(() => {
+		let live = true;
+		void quickNoteFlushSettled().then(() => {
+			if (!live) return;
+			restoreFromMirror();
+			mirrorChecked = true;
+		});
+		return () => {
+			live = false;
+		};
+	});
+
+	function restoreFromMirror() {
 		const key = mirrorKey;
 		const found = readMirror(key, Date.now());
 		if (found) {
@@ -250,17 +334,59 @@
 				notice = 'Your unsaved quick note was put back from this browser.';
 				const entryId = found.entryId;
 				if (entryId) {
-					void transports.draftOpen(entryId).then((open) => {
-						if (open === true && !handle) {
-							handle = { entryId, noteId: found.noteId, unsealed: true, adopted: true };
-							setQuickNoteWritingEntry(entryId);
-						}
-					});
+					const gen = generation;
+					adopting = transports
+						.draftOpen(entryId)
+						.then(
+							(open) => {
+								if (open === true && !handle && gen === generation) {
+									handle = { entryId, noteId: found.noteId, unsealed: true, adopted: true };
+									setQuickNoteWritingEntry(entryId);
+								}
+							},
+							() => undefined
+						)
+						.then(() => {
+							adopting = null;
+						});
 				}
 			}
 		}
-		mirrorChecked = true;
-	});
+	}
+
+	/**
+	 * THE SLOT, BROUGHT UP TO DATE NOW rather than a debounce later: cleared when
+	 * the server holds what is in the box, written (with the draft it names) when
+	 * it does not. Called beside every acknowledgement and on the way out. A held
+	 * slot is never touched, and nothing is written before the restore pass has
+	 * read the slot.
+	 */
+	function syncMirrorNow() {
+		if (!mirrorChecked) return;
+		const key = draftMirrorKey(viewerId, QUICK_NOTE_RECORD);
+		if (key === mirrorHeldKey) return;
+		if (mirrorTimer !== null) clearTimeout(mirrorTimer);
+		mirrorTimer = null;
+		const d = doc;
+		if (!d || !tiptapHasText(d) || !baseline.changed(d)) {
+			clearMirror(key);
+			return;
+		}
+		const target = filedTo ?? filing;
+		const result = writeMirror(key, {
+			v: mirrorVersionFor(d),
+			at: Date.now(),
+			entryId: handle?.entryId ?? null,
+			noteId: handle?.noteId ?? null,
+			doc: d,
+			baseline: baseline.serial ?? serializeForBaseline(null),
+			title: target.customLabel ?? '',
+			sessionId: null,
+			sectionId: target.sectionId,
+			folderId: null
+		});
+		mirrorUnavailable = result !== 'ok';
+	}
 
 	/**
 	 * MIRROR THE BOX, DEBOUNCED, WHILE THERE IS WRITING THE SERVER HAS NOT GOT,
@@ -362,6 +488,9 @@
 		baseline.clear();
 		save.reset();
 		editorKey += 1;
+		reopened = 0;
+		adopting = null;
+		generation += 1;
 		setQuickNoteWritingEntry(null);
 	}
 
@@ -457,7 +586,9 @@
 				<a class="qn-btn" href={notebookHref} data-testid="qn-open-notebook" onclick={closePanel}>Open notebook</a>
 			</div>
 		{:else}
-			{#if everOpened}
+			{#if everOpened && !mirrorChecked}
+				<Pending label="Opening your note" />
+			{:else if everOpened}
 				{#key editorKey}
 					<NoteEditor
 						{viewerId}

@@ -66,6 +66,45 @@ export function quickNoteProfileIo(
 	return supabase && viewerId ? supabaseProfileIo(supabase, viewerId) : null;
 }
 
+/**
+ * THE WRITE A QUICK NOTE STARTED AS IT WAS UNMOUNTED (ledger 0298 review).
+ *
+ * The control is mounted in two headers -- the home page's and the classroom
+ * shell's -- so moving between them unmounts one quick note and mounts
+ * another in the same tab. The one being unmounted sends what it owes on the
+ * way out and brings its mirror up to date when that write lands; the one
+ * being mounted must not read the mirror before then, or it restores writing
+ * the server is about to hold (a second draft of the same words) or older
+ * than what the server is about to hold (and its autosave then writes the
+ * older words over the newer ones). So the teardown's flush is recorded here
+ * and the next mount waits for it. A plain variable, never `$state`: nothing
+ * renders from it.
+ */
+let flushing: Promise<unknown> | null = null;
+
+export function trackQuickNoteFlush(p: Promise<unknown>): void {
+	flushing = p;
+	const done = () => {
+		if (flushing === p) flushing = null;
+	};
+	p.then(done, done);
+}
+
+/**
+ * Resolves once no unmounted quick note is still writing. It yields a task
+ * first, so a teardown that runs in the same navigation as this mount -- in
+ * either order -- has recorded its flush before the check.
+ */
+export async function quickNoteFlushSettled(): Promise<void> {
+	await new Promise((resolve) => setTimeout(resolve, 0));
+	while (flushing) {
+		const p = flushing;
+		await p.catch(() => undefined);
+		if (flushing === p) flushing = null;
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	}
+}
+
 let writingEntry = $state<string | null>(null);
 
 /** The draft the header's quick note is still writing into, or null. */

@@ -208,7 +208,7 @@
 						{:else if block && canFile}
 							<span class="ib-status" data-testid="nb-inbox-blocked">{inboxFileBlockReason(block)}</span>
 						{:else if targets.length > BUTTON_LIMIT}
-							{@const choice = picks.get(entry.id) ?? 0}
+							{@const choice = Math.min(picks.get(entry.id) ?? 0, targets.length - 1)}
 							<label class="ib-pick">
 								<span class="ib-pick-word">File to</span>
 								<select

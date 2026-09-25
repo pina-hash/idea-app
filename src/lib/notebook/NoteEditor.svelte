@@ -224,8 +224,19 @@
 		grid: false
 	});
 
+	/*
+	 * `untrack` AROUND THE WRITE, and it changes nothing in the ordinary case:
+	 * this runs from the editor's own transactions, outside any reaction. The
+	 * case it is for (ledger 0298 review) is an editor REMOVED WHILE FOCUSED --
+	 * the header's quick note unmounting as a person moves from the home page to
+	 * a class, say. Chromium fires blur as the node leaves the DOM, ProseMirror
+	 * dispatches a transaction for it, and that lands here inside Svelte's own
+	 * block update, where a plain write throws `state_unsafe_mutation`
+	 * (measured on /dev/quick-note with the Remount header control). The value
+	 * written then belongs to a component being destroyed.
+	 */
 	function syncActive(e: Editor) {
-		active = {
+		const next = {
 			bold: e.isActive('bold'),
 			italic: e.isActive('italic'),
 			bulletList: e.isActive('bulletList'),
@@ -237,6 +248,9 @@
 			// when inserting a second grid is not what the student meant.
 			grid: e.isActive(GRID_NODE_NAME)
 		};
+		untrack(() => {
+			active = next;
+		});
 	}
 
 	$effect(() => {
