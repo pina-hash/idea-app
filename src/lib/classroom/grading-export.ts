@@ -67,8 +67,20 @@ import {
 	type StudentWork,
 	type UnmetEntry
 } from './assignment-spec';
-import { itemTitle, sectionTitle, type ClassroomItem, type ClassroomSection } from './classroom';
+import {
+	completionIsLate,
+	itemTitle,
+	sectionTitle,
+	type ClassroomItem,
+	type ClassroomSection
+} from './classroom';
 import { sheetName, type XlsxSheet } from '$lib/xlsx';
+import { manifestBlocks, type HtmlAssignmentManifest, type HtmlBlock } from './html-assignment/manifest';
+import { hxBridgeValue, hxImagesFromFiles, hxValuesFromResponses } from './html-assignment/answers';
+import { hxBlockHasResponse, hxCompletion, hxProgress } from './html-assignment/progress';
+import { htmlAnswerSheet, type HtmlAnswerGroup } from './html-assignment/mount';
+import { ASSIGNMENT_LOCK_CHIP, assignmentLockState } from './html-assignment/lock';
+import { blockLabelsFromManifest, type BlockLabel } from './bulk-download';
 
 // ---------------------------------------------------------------------------
 // DID THE WORK CHANGE AFTER IT WAS GRADED
@@ -283,6 +295,20 @@ export interface ExportedResponse {
 	started: boolean;
 	/** Shaped by block type; the keys differ and that is the point. */
 	value: Record<string, unknown>;
+	/**
+	 * A PORTED WORKSHEET'S OWN NAME FOR THE INPUT (its `data-field`), present
+	 * only on an export walked from a manifest (ledger 0298, R24). A manifest
+	 * block carries no prompt text, so `prompt` there is `<module title>:
+	 * <field>` and this is the field on its own. Absent on a spec export, which
+	 * is what keeps that file byte-identical to before.
+	 */
+	field?: string;
+	/**
+	 * WHEN THIS ANSWER MOVED AFTER THE GRADE, from `postGradeBlockChanges` (the
+	 * same comparison the console lists under "Edited after grading"), or null
+	 * when it did not. Present only on a manifest export, for the reason above.
+	 */
+	changedAfterGrading?: { at: string; kind: PostGradeBlockChange['kind'] } | null;
 }
 
 export interface ExportedFile {
@@ -347,11 +373,24 @@ export interface ExportedStudent {
 		changedAfterGrading: PostGradeChange | null;
 	};
 	completeness: {
-		/** False when the assignment has no spec: there is nothing to check against. */
+		/** False when the assignment has neither a spec nor a manifest: there is nothing to check against. */
 		evaluated: boolean;
 		complete: boolean;
 		unmetCount: number;
 		unmet: ExportedUnmet[];
+		/**
+		 * `'manifest'` when a ported worksheet's manifest decided this (ledger
+		 * 0298), absent on a spec export. It changes what `complete` MEANS: a
+		 * worksheet has no turn-in, so complete is `hxCompletion`'s answer --
+		 * every counted block answered, the progress rail's own 100% -- whether
+		 * or not the row was ever handed in, and the unmet list is what is still
+		 * unanswered rather than what a hand-in fell short of.
+		 */
+		basis?: 'manifest';
+		/** When the worksheet became complete (`hxCompletion`'s instant), or null. Manifest only. */
+		completedAt?: string | null;
+		/** Completed after the due instant (`completionIsLate`). Manifest only. */
+		late?: boolean;
 	};
 	responses: ExportedResponse[];
 	files: ExportedFile[];
@@ -371,6 +410,12 @@ export interface ExportedAssignment {
 	authoredBy: string | null;
 	/** The stored spec, verbatim. Never a summary: it is what was asked. */
 	spec: AssignmentSpec | null;
+	/**
+	 * A PORTED WORKSHEET'S STORED MANIFEST, verbatim, in place of the spec it
+	 * does not have (ledger 0298, R24). Present only when the export was walked
+	 * from it, so a spec export carries no such key at all.
+	 */
+	manifest?: HtmlAssignmentManifest;
 	/** The stored rubric, verbatim, levels and all: it is how it was scored. */
 	rubric: RubricCriterion[] | null;
 	students: ExportedStudent[];
@@ -401,6 +446,14 @@ export interface GradingExportInput {
 	section: ClassroomSection;
 	item: ClassroomItem;
 	spec: AssignmentSpec | null;
+	/**
+	 * THE PORTED WORKSHEET'S MANIFEST (0195, schema 3), or null/absent for a
+	 * spec assignment. READ ONLY WHEN `spec` IS NULL: an item carrying both is
+	 * legal and the mounting surface decides which one it is (the grade route
+	 * withholds the other through `htmlAssignmentMount`), so this module never
+	 * picks between two it was handed.
+	 */
+	manifest?: HtmlAssignmentManifest | null;
 	rubric: RubricCriterion[] | null;
 	/** The console's own roster-ordered rows (`studentWorkRows(...).rows`). */
 	roster: StudentWork[];
@@ -470,6 +523,348 @@ function interactiveBlocks(mod: SpecModule): InteractiveBlock[] {
 	);
 }
 
+// ---------------------------------------------------------------------------
+// A PORTED HTML WORKSHEET (schema 3): THE SAME RECORD, WALKED FROM THE MANIFEST.
+//
+// R24 (ledger 0298): the export walked only `spec.modules`, and a ported
+// worksheet has no spec and never will, so every student came out with zero
+// answers, no table sheets, and "No spec" where completeness goes -- while the
+// console drew every answer on screen. Nothing here is a new rule. The walk is
+// `htmlAnswerSheet` (the grouping the grade page's unpublished-answers view
+// and "Download all files" already use), the answers are
+// `hxValuesFromResponses` (the projection the frame is seeded with), the names
+// are `blockLabelsFromManifest` (A6's, which coerces a stored title that is not
+// a string), completeness is `hxCompletion` plus `completionIsLate` (decision
+// 37's one predicate) and the per-block change is `postGradeBlockChanges`.
+//
+// THE LABEL IS `<module title>: <field>`, because a manifest block carries an
+// id, a field and a type and NO prompt text. Reading the question out of the
+// stored HTML would be a second parser of the document, which is exactly what
+// the manifest exists so nothing has to be.
+// ---------------------------------------------------------------------------
+
+/** Everything worked out once per export for a manifest walk. */
+interface ManifestContext {
+	manifest: HtmlAssignmentManifest;
+	/** A6's block names, text only. */
+	labels: Map<string, BlockLabel>;
+	/** Every manifest block by id, header included, for `minSentences`. */
+	blocks: Map<string, HtmlBlock>;
+	item: ClassroomItem;
+}
+
+/**
+ * THE MANIFEST THIS EXPORT WILL WALK, or null. `htmlAnswerSheet` answers `[]`
+ * for a manifest it cannot walk -- the same fail-closed answer
+ * `htmlFieldToBlockId` gives -- and a manifest with nothing in it has nothing
+ * to export, so both fall back to the no-spec shape rather than a guess.
+ */
+function manifestContext(
+	manifest: HtmlAssignmentManifest | null | undefined,
+	item: ClassroomItem
+): ManifestContext | null {
+	if (!manifest || typeof manifest !== 'object') return null;
+	if (!htmlAnswerSheet(manifest, {}, {}).length) return null;
+	return {
+		manifest,
+		labels: blockLabelsFromManifest(manifest),
+		blocks: new Map(manifestBlocks(manifest).map((b) => [b.id, b] as const)),
+		item
+	};
+}
+
+/** `<module title>: <field>`, the field alone when there is no title, the id when there is no field. */
+function manifestLabel(hx: ManifestContext, blockId: string): { module: string; field: string; prompt: string } {
+	const named = hx.labels.get(blockId);
+	const module = named?.module ?? '';
+	const field = named?.field || blockId;
+	return { module, field, prompt: module ? `${module}: ${field}` : field };
+}
+
+/** One cell of a stored worksheet table as text. */
+function tableCellText(cell: unknown): string {
+	if (cell === null || cell === undefined) return '';
+	if (typeof cell === 'string') return cell;
+	if (typeof cell === 'number' || typeof cell === 'boolean') return String(cell);
+	return JSON.stringify(cell);
+}
+
+/**
+ * A STORED WORKSHEET TABLE AS ROWS OF TEXT, WITH ITS COLUMNS NAMED FROM THE ROW
+ * KEYS. A `table` block's value is the JSON string the document serialised
+ * (IDEA_HTML_ASSIGNMENT_SPEC 4.5) and the manifest declares no column list,
+ * so the columns are the keys the rows actually carry, in first-seen order
+ * across every row. Two shapes are real: a list of objects (the smoke
+ * fixture's `{ limit, measured }`) keeps its keys as its column names, and a
+ * list of lists (`/dev/html-progress`'s `[['pass','mm']]`) is numbered
+ * "Column 1", "Column 2". An object with a `rows` list is read through it.
+ *
+ * A VALUE THAT IS NOT A TABLE IS HANDED BACK AS `raw`, never dropped: a
+ * student's answer is exported whatever shape it arrived in, and the Answer
+ * cell prints it as typed.
+ */
+export function worksheetTableRows(value: unknown): {
+	columns: { key: string; label: string }[];
+	rows: Record<string, string>[];
+	raw: string | null;
+} {
+	if (typeof value !== 'string' || value === '') return { columns: [], rows: [], raw: null };
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(value);
+	} catch {
+		return { columns: [], rows: [], raw: value };
+	}
+	const list = Array.isArray(parsed)
+		? parsed
+		: parsed && typeof parsed === 'object' && Array.isArray((parsed as { rows?: unknown }).rows)
+			? ((parsed as { rows: unknown[] }).rows)
+			: null;
+	if (!list) return { columns: [], rows: [], raw: value };
+	const columns: { key: string; label: string }[] = [];
+	const seen = new Set<string>();
+	const column = (key: string, label: string) => {
+		if (seen.has(key)) return;
+		seen.add(key);
+		columns.push({ key, label });
+	};
+	const rows = list.map((entry) => {
+		const out: Record<string, string> = {};
+		if (Array.isArray(entry)) {
+			entry.forEach((cell, i) => {
+				const key = `#${i + 1}`;
+				out[key] = tableCellText(cell);
+				column(key, `Column ${i + 1}`);
+			});
+		} else if (entry && typeof entry === 'object') {
+			for (const [key, cell] of Object.entries(entry as Record<string, unknown>)) {
+				out[key] = tableCellText(cell);
+				column(key, key);
+			}
+		} else {
+			out['#1'] = tableCellText(entry);
+			column('#1', 'Column 1');
+		}
+		return out;
+	});
+	return { columns, rows, raw: null };
+}
+
+/** One manifest block's stored answer, shaped by the manifest's own block type. */
+function worksheetValue(
+	type: string,
+	blockId: string,
+	value: string | boolean | null,
+	block: HtmlBlock | undefined,
+	files: ExportedFile[]
+): Record<string, unknown> {
+	if (type === 'text' || type === 'longText') {
+		const text = typeof value === 'string' ? value : '';
+		return { text, sentences: countSentences(text), minSentences: block?.minSentences ?? null };
+	}
+	if (type === 'radio') return { choice: typeof value === 'string' && value !== '' ? value : null };
+	// NULL IS "NEVER ANSWERED", which is not the same as an unticked box: the
+	// progress rail counts a stored `false` as an answer and an absent row as
+	// none, and the export has to be able to say which.
+	if (type === 'checkbox') return { checked: typeof value === 'boolean' ? value : null };
+	if (type === 'image') {
+		// EVERY FILE ON THE BLOCK, not only the newest the document shows: a
+		// replaced photograph that was never removed is still stored work.
+		const mine = files.filter((f) => f.blockId === blockId);
+		return { files: mine.map((f) => ({ filename: f.filename, caption: f.caption })), count: mine.length };
+	}
+	if (type === 'table') {
+		const table = worksheetTableRows(value);
+		return {
+			columns: table.columns,
+			rows: table.rows,
+			filledRows: table.rows.filter(tableRowFilled).length,
+			...(table.raw !== null ? { raw: table.raw } : {})
+		};
+	}
+	return { value };
+}
+
+/**
+ * EVERY BLOCK THE MANIFEST DECLARES, IN DOCUMENT ORDER, ANSWERED OR NOT, THEN
+ * EVERY STORED ANSWER WHOSE BLOCK THE MANIFEST NO LONGER DECLARES.
+ *
+ * The first half is the spec walk's rule: a model reading the file has to tell
+ * "was not asked" from "was asked and left blank". The second half is what a
+ * re-uploaded document whose author removed a question leaves behind; the rows
+ * are still in the table and still the student's, and "Download all files"
+ * exports a file under a block id it does not know for the same reason. They
+ * carry no module and say so in their type.
+ */
+function worksheetEntries(
+	row: StudentWork,
+	hx: ManifestContext,
+	files: ExportedFile[],
+	identity: ExportIdentity
+): ExportedResponse[] {
+	const values = hxValuesFromResponses(hx.manifest, row.responses);
+	const images = hxImagesFromFiles(hx.manifest, row.files);
+	const changed = new Map(postGradeBlockChanges(row).map((c) => [c.blockId, c] as const));
+	const changeOf = (blockId: string) => {
+		const c = changed.get(blockId);
+		return c ? { at: c.at, kind: c.kind } : null;
+	};
+	const out: ExportedResponse[] = [];
+	const groups: HtmlAnswerGroup[] = htmlAnswerSheet(hx.manifest, values, images);
+	for (const group of groups) {
+		for (const cell of group.cells) {
+			const block = hx.blocks.get(cell.blockId);
+			const name = manifestLabel(hx, cell.blockId);
+			out.push({
+				moduleId: group.moduleId,
+				moduleTitle: name.module || null,
+				blockId: cell.blockId,
+				field: name.field,
+				blockType: typeof cell.type === 'string' ? cell.type : 'unknown',
+				prompt: name.prompt,
+				started: hxBlockHasResponse(
+					block ?? { id: cell.blockId, field: cell.field, type: cell.type as HtmlBlock['type'] },
+					values,
+					images
+				),
+				// THE HEADER IS THE STUDENT'S IDENTITY (their name, their team, the
+				// date: `HtmlAssignmentManifest.header`), so a file promising "names
+				// are NOT in this file" withholds what they typed there. Whether it
+				// was filled in (`started`) is not an identity and stays.
+				value:
+					group.moduleId === null && identity === 'omitted'
+						? { withheld: true }
+						: worksheetValue(cell.type, cell.blockId, cell.value, block, files),
+				changedAfterGrading: changeOf(cell.blockId)
+			});
+		}
+	}
+	for (const r of row.responses) {
+		if (hx.blocks.has(r.block_id)) continue;
+		const value = hxBridgeValue(r.value);
+		out.push({
+			moduleId: null,
+			moduleTitle: null,
+			blockId: r.block_id,
+			field: r.block_id,
+			blockType: WORKSHEET_REMOVED_TYPE,
+			prompt: `${r.block_id} (no longer in the worksheet)`,
+			started: value !== null && value !== '',
+			// WITHHELD WHEN NAMES ARE LEFT OUT, because nothing says what a block
+			// that has left the manifest used to be, and it may have been the
+			// header's own name field.
+			value:
+				identity === 'omitted'
+					? { withheld: true }
+					: typeof value === 'boolean'
+						? { checked: value }
+						: { text: value ?? '' },
+			changedAfterGrading: changeOf(r.block_id)
+		});
+	}
+	return out;
+}
+
+/** What a withheld identity answer reads as in the workbook. */
+export const WORKSHEET_WITHHELD_CELL = 'Withheld: names are left out of this file';
+
+/** The type an answer carries when its block has left the manifest. */
+export const WORKSHEET_REMOVED_TYPE = 'not-in-worksheet';
+
+/**
+ * WHAT IS STILL UNANSWERED, IN THE WORDS THE PROGRESS RAIL USES, with the
+ * module and the field named so a grader can find it.
+ */
+function worksheetRequirement(
+	hx: ManifestContext,
+	block: { blockId: string; type: string; reason: 'empty' | 'short' | null; need: number; have: number }
+): string {
+	const name = manifestLabel(hx, block.blockId);
+	const where = name.module ? `${name.module}: ` : '';
+	const field = `"${name.field}"`;
+	if (block.reason === 'short') {
+		const left = Math.max(1, block.need - block.have);
+		return `${where}${field} needs ${left} more ${left === 1 ? 'sentence' : 'sentences'} (${block.have} of ${block.need}).`;
+	}
+	if (block.type === 'image') return `${where}${field} is waiting for a photo.`;
+	if (block.type === 'checkbox') return `${where}${field} has a box to check.`;
+	if (block.type === 'table') return `${where}${field} has an empty table.`;
+	return `${where}${field} has an empty answer.`;
+}
+
+/**
+ * COMPLETE IS `hxCompletion`, THE ONE PREDICATE (decision 37), and late is
+ * `completionIsLate` against the item's own due instant -- the same pair the
+ * roster chip and the student's own chip read, so the file cannot call a
+ * worksheet complete that the console calls in progress.
+ *
+ * THE UNMET LIST IS `hxProgress`'s UNMET COUNTED BLOCKS, which is what
+ * `hxCompletion` is computed from, and it is listed for EVERY student rather
+ * than only for handed-in work: a worksheet has no turn-in, so there is no
+ * moment at which "still working" ends and "handed in short" begins, and what
+ * is still unanswered is the list a grader wants.
+ *
+ * IT CANNOT TAKE THE EXPORT DOWN. The manifest was validated at import, but
+ * `labelText` in A6 exists because a stored manifest can still surprise, so a
+ * throw here costs this one student's completeness -- `evaluated: false` --
+ * rather than the whole file.
+ */
+function worksheetCompleteness(row: StudentWork, hx: ManifestContext): ExportedStudent['completeness'] {
+	try {
+		const values = hxValuesFromResponses(hx.manifest, row.responses);
+		const images = hxImagesFromFiles(hx.manifest, row.files);
+		const progress = hxProgress(hx.manifest, values, images);
+		const done = hxCompletion(hx.manifest, row.responses, row.files);
+		const unmet: ExportedUnmet[] = progress.blocks
+			.filter((b) => b.weight > 0 && !b.met)
+			.map((b) => ({
+				kind: b.type,
+				moduleId: b.moduleId,
+				blockId: b.blockId,
+				need: b.reason === 'short' ? b.need : 1,
+				have: b.reason === 'short' ? b.have : 0,
+				requirement: worksheetRequirement(hx, b)
+			}));
+		return {
+			evaluated: true,
+			complete: done.complete,
+			unmetCount: unmet.length,
+			unmet,
+			basis: 'manifest',
+			completedAt: done.complete ? done.at : null,
+			late: done.complete && completionIsLate(hx.item, done.at)
+		};
+	} catch {
+		return {
+			evaluated: false,
+			complete: false,
+			unmetCount: 0,
+			unmet: [],
+			basis: 'manifest',
+			completedAt: null,
+			late: false
+		};
+	}
+}
+
+/**
+ * THE STATE WORD FOR A WORKSHEET, in the roster chip's own words. Without it
+ * a finished worksheet read "Not submitted" in the file, because a student who
+ * typed every answer and attached nothing has no submission row at all --
+ * which is R13's "complete but Missing" arriving through the export.
+ */
+function worksheetStateLabel(row: StudentWork, completeness: ExportedStudent['completeness']): string {
+	const state = row.submission?.state ?? null;
+	if (state === 'returned') return submissionStateLabel(state);
+	if (state === 'submitted') {
+		const lock = assignmentLockState(row.submission);
+		return lock === 'open' ? submissionStateLabel(state) : ASSIGNMENT_LOCK_CHIP[lock];
+	}
+	if (completeness.complete) return completeness.late ? 'Complete, late' : 'Complete';
+	if (row.responses.length || row.files.length) return 'In progress';
+	return submissionStateLabel(state);
+}
+
 /**
  * ONE STUDENT'S RECORD, AND A STUDENT WHO DID NOTHING STILL GETS ONE.
  *
@@ -485,7 +880,9 @@ function exportStudent(
 	spec: AssignmentSpec | null,
 	rubric: RubricCriterion[] | null,
 	outOf: number,
-	identity: ExportIdentity
+	identity: ExportIdentity,
+	/** A ported worksheet's walk, or null. Only ever non-null when `spec` is null. */
+	hx: ManifestContext | null = null
 ): ExportedStudent {
 	const named = identity === 'included';
 	const files: ExportedFile[] = row.files.map((f) => ({
@@ -512,6 +909,9 @@ function exportStudent(
 			});
 		}
 	}
+	// A PORTED WORKSHEET: the same list, from the manifest (ledger 0298, R24).
+	// `hx` is null whenever there is a spec, so this never mixes the two walks.
+	if (hx) entries.push(...worksheetEntries(row, hx, files, identity));
 	if (spec?.declarations?.academicIntegrity) {
 		entries.push({
 			moduleId: null,
@@ -552,6 +952,8 @@ function exportStudent(
 		};
 	});
 
+	const worksheet = hx ? worksheetCompleteness(row, hx) : null;
+
 	return {
 		label,
 		name: named ? row.displayName : null,
@@ -559,7 +961,9 @@ function exportStudent(
 		enrollmentActive: row.active,
 		submission: {
 			state,
-			stateLabel: submissionStateLabel(row.submission?.state),
+			stateLabel: worksheet
+				? worksheetStateLabel(row, worksheet)
+				: submissionStateLabel(row.submission?.state),
 			handedIn,
 			returnedToStudent: state === 'returned',
 			submittedAt: row.submission?.submitted_at ?? null,
@@ -574,7 +978,7 @@ function exportStudent(
 			extraCredit: row.submission?.extra_credit ?? null,
 			changedAfterGrading: postGradeChange(row)
 		},
-		completeness: {
+		completeness: worksheet ?? {
 			evaluated: !!spec,
 			// Only work that was HANDED IN can be incomplete: everyone still
 			// working is unfinished by definition, which is what the console's
@@ -607,6 +1011,9 @@ export function studentLabels(roster: StudentWork[]): Map<string, string> {
 
 export function buildGradingExport(input: GradingExportInput): GradingExport {
 	const { section, item, spec, rubric, roster, scope, identity, now } = input;
+	// THE MANIFEST IS READ ONLY WHEN THERE IS NO SPEC. The mounting surface has
+	// already decided which engine this item is; this never picks between two.
+	const hx = spec ? null : manifestContext(input.manifest, item);
 	const labels = studentLabels(roster);
 	const chosen =
 		scope === 'student'
@@ -614,7 +1021,7 @@ export function buildGradingExport(input: GradingExportInput): GradingExport {
 			: roster;
 	const outOf = rubric?.length ? rubricTotal(rubric) : (item.points ?? 0);
 	const students = chosen.map((row) =>
-		exportStudent(row, labels.get(row.email) ?? 'Student', spec, rubric, outOf, identity)
+		exportStudent(row, labels.get(row.email) ?? 'Student', spec, rubric, outOf, identity, hx)
 	);
 
 	return {
@@ -645,6 +1052,9 @@ export function buildGradingExport(input: GradingExportInput): GradingExport {
 				category: item.category ?? null,
 				authoredBy: identity === 'included' ? (item.author_name ?? item.author_email ?? null) : null,
 				spec,
+				// Verbatim, where the spec would be, and only when it was walked:
+				// a spec export carries no such key, byte for byte as before.
+				...(hx ? { manifest: hx.manifest } : {}),
 				rubric,
 				students
 			}
@@ -704,6 +1114,32 @@ const RESERVED_SHEETS = [
 	'About this export',
 	'Table rows'
 ];
+
+/** A worksheet export's one-row-per-student sheet, and a tab no table may take. */
+export const WORKSHEET_ANSWERS_SHEET = 'Answers';
+
+/** What the About sheet adds for a worksheet, so the file explains its own columns. */
+const WORKSHEET_ABOUT_ROWS: (string | number)[][] = [
+	[
+		'Assignment type',
+		'A ported HTML worksheet. It has no turn-in: finishing it is turning it in, so the Complete column says whether every counted answer is in, and "Yes, late" when the last of them arrived after the due time. Handed in is Yes only for a worksheet you closed or returned.'
+	],
+	[
+		'Question names',
+		'A worksheet stores no question text, so every answer is named "<module title>: <field>", the worksheet\u2019s own name for the input. Identity is the header fields (name, team, date).'
+	],
+	[
+		'Worksheet tables',
+		'A worksheet table stores its rows without a column list, so each column is named from the keys the rows carry, and a row of plain values is numbered Column 1, Column 2.'
+	]
+];
+
+/** The Grades sheet's Complete cell for a worksheet: complete, late or not, or unanswered. */
+function worksheetCompleteCell(c: ExportedStudent['completeness']): string {
+	if (!c.evaluated) return 'Could not check';
+	if (!c.complete) return 'No';
+	return c.late ? 'Yes, late' : 'Yes';
+}
 
 /** One table block, gathered across every student in the export. */
 interface TableBlockSheet {
@@ -770,16 +1206,36 @@ function tableBlocksOf(students: ExportedStudent[]): {
 	for (const student of students) {
 		for (const entry of student.responses) {
 			if (entry.blockType !== 'table') continue;
+			const columns = (entry.value.columns ?? []) as { key: string; label: string }[];
 			let block = byId.get(entry.blockId);
 			if (!block) {
 				block = {
 					blockId: entry.blockId,
-					label: entry.moduleTitle?.trim() || entry.blockId,
-					columns: (entry.value.columns ?? []) as { key: string; label: string }[],
+					// A WORKSHEET TABLE IS NAMED FOR ITS MODULE AND ITS FIELD, because
+					// two tables in one module are ordinary there and the module title
+					// alone would give both the same tab. A space, not the colon the
+					// prompt carries: a tab name may not hold one, and `sheetName`'s
+					// substitution would leave two spaces in its place.
+					label:
+						entry.field !== undefined
+							? [entry.moduleTitle?.trim(), entry.field.trim()].filter(Boolean).join(' ') ||
+								entry.blockId
+							: entry.moduleTitle?.trim() || entry.blockId,
+					// A COPY, never the entry's own array: the merge below must not
+					// reach back into the payload the JSON is written from.
+					columns: [...columns],
 					sheet: '',
 					rows: []
 				};
 				byId.set(entry.blockId, block);
+			}
+			// THE COLUMNS ARE THE UNION ACROSS STUDENTS. A spec table's columns are
+			// the spec's own and identical for everyone, so this adds nothing
+			// there; a worksheet table's are the keys each student's rows carried,
+			// and one student's extra column must not vanish because somebody
+			// else's rows came first.
+			for (const c of columns) {
+				if (!block.columns.some((have) => have.key === c.key)) block.columns.push(c);
 			}
 			const rows = (entry.value.rows ?? []) as Record<string, string>[];
 			let kept = 0;
@@ -820,10 +1276,24 @@ function answerCell(entry: ExportedResponse, tableSheetFor: Map<string, string>)
 		const items = (v.items ?? []) as { label: string; checked: boolean }[];
 		return items.map((i) => `${i.checked ? '[x]' : '[ ]'} ${i.label}`).join('\n');
 	}
-	if (entry.blockType === 'imageZone') {
+	if (entry.blockType === 'imageZone' || (entry.field !== undefined && entry.blockType === 'image')) {
 		const files = (v.files ?? []) as { filename: string; caption: string | null }[];
 		return files.map((f) => (f.caption ? `${f.filename} (${f.caption})` : f.filename)).join('\n');
 	}
+	// A PORTED WORKSHEET'S OWN TYPES (ledger 0298, R24). `field` is present only
+	// on an entry walked from a manifest, so no spec block can reach these.
+	if (entry.field !== undefined && v.withheld === true) return WORKSHEET_WITHHELD_CELL;
+	if (entry.field !== undefined && entry.blockType !== 'table') {
+		if (entry.blockType === 'text' || entry.blockType === 'longText') return String(v.text ?? '');
+		if (entry.blockType === 'radio') return typeof v.choice === 'string' ? v.choice : '';
+		// Blank for NEVER ANSWERED, which is not the same claim as "No".
+		if (entry.blockType === 'checkbox') return typeof v.checked === 'boolean' ? yesNo(v.checked) : '';
+		if (typeof v.checked === 'boolean') return yesNo(v.checked);
+		if (typeof v.text === 'string') return v.text;
+		return v.value === null || v.value === undefined ? '' : String(v.value);
+	}
+	// A worksheet table whose stored value was not a table: printed as typed.
+	if (typeof v.raw === 'string') return v.raw;
 	// A TABLE. This used to flatten the whole thing into this one cell, column
 	// labels and values joined by pipes and rows joined by newlines -- which is
 	// unreadable, unsortable, unfilterable, and made the row tall enough to fill
@@ -871,9 +1341,18 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 	const whoHeader = named ? ['Student', 'Name'] : ['Student'];
 	const whoWidths = named ? [12, 20] : [12];
 
+	/**
+	 * A PORTED WORKSHEET (ledger 0298, R24), known from the payload itself --
+	 * the manifest is in it exactly when the export was walked from one -- so
+	 * the workbook and the JSON cannot disagree about which kind of assignment
+	 * this is. Everything below that branches on it is ADDED for a worksheet
+	 * and absent otherwise, which is what keeps a spec workbook byte-identical.
+	 */
+	const worksheet = !!assignment?.manifest;
+
 	const { blocks, dropped } = tableBlocksOf(students);
 	const perSheet = blocks.length > 0 && blocks.length <= MAX_TABLE_SHEETS;
-	const taken = new Set(RESERVED_SHEETS);
+	const taken = new Set(worksheet ? [...RESERVED_SHEETS, WORKSHEET_ANSWERS_SHEET] : RESERVED_SHEETS);
 	if (perSheet) for (const b of blocks) b.sheet = uniqueSheetName(b.label, taken);
 	const tableSheetFor = new Map(
 		blocks.map((b) => [b.blockId, perSheet ? b.sheet : 'Table rows'] as const)
@@ -914,7 +1393,13 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 				...(named ? [last, first, s.email] : []),
 				s.submission.stateLabel,
 				yesNo(s.submission.handedIn),
-				s.completeness.evaluated ? (s.submission.handedIn ? yesNo(s.completeness.complete) : '') : 'No spec',
+				s.completeness.basis === 'manifest'
+					? worksheetCompleteCell(s.completeness)
+					: s.completeness.evaluated
+						? s.submission.handedIn
+							? yesNo(s.completeness.complete)
+							: ''
+						: 'No spec',
 				s.completeness.unmetCount,
 				s.submission.score,
 				...(anyExtraCredit ? [s.submission.extraCredit] : []),
@@ -959,11 +1444,60 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 		)
 	};
 
+	/**
+	 * ONE ROW PER STUDENT, ONE COLUMN PER QUESTION, headed `<module title>:
+	 * <field>` -- the spreadsheet a grader reads a worksheet in (R24: "export the
+	 * answers as in a spreadsheet format"). Worksheet only: a spec export keeps
+	 * exactly the sheets it had. The columns are every block in manifest order
+	 * and then any answer whose block has since left the manifest, gathered
+	 * across students, so a column exists for a question nobody answered.
+	 */
+	const answerColumns: { blockId: string; label: string }[] = [];
+	if (worksheet) {
+		const seen = new Set<string>();
+		for (const s of students) {
+			for (const r of s.responses) {
+				if (seen.has(r.blockId)) continue;
+				seen.add(r.blockId);
+				answerColumns.push({ blockId: r.blockId, label: r.prompt ?? r.blockId });
+			}
+		}
+	}
+	const answers: XlsxSheet[] = worksheet
+		? [
+				{
+					name: WORKSHEET_ANSWERS_SHEET,
+					maxRowHeight: MAX_ROW_HEIGHT_PT,
+					header: [...whoHeader, 'State', ...answerColumns.map((c) => c.label)],
+					widths: [...whoWidths, 14, ...answerColumns.map(() => 28)],
+					rows: students.map((s) => {
+						const byBlock = new Map(s.responses.map((r) => [r.blockId, r] as const));
+						return [
+							...who(s),
+							s.submission.stateLabel,
+							...answerColumns.map((c) => {
+								const r = byBlock.get(c.blockId);
+								return r ? answerCell(r, tableSheetFor) : '';
+							})
+						];
+					})
+				}
+			]
+		: [];
+
+	/**
+	 * THE PER-ANSWER CHANGE PAIR IS A WORKSHEET'S, and it is always there on
+	 * one, for the Grades sheet's reason: a blank cell is a real answer to "did
+	 * this answer move after the grade". A spec export does not compute it, so
+	 * it has no such columns rather than columns that are always blank.
+	 */
+	const changeHeaders = worksheet ? ['Changed after grading', 'Changed at'] : [];
+	const changeWidths = worksheet ? [20, 24] : [];
 	const responses: XlsxSheet = {
 		name: 'Responses',
 		maxRowHeight: MAX_ROW_HEIGHT_PT,
-		header: [...whoHeader, 'Module', 'Block', 'Type', 'Prompt', 'Started', 'Answer'],
-		widths: [...whoWidths, 18, 10, 12, 40, 9, 70],
+		header: [...whoHeader, 'Module', 'Block', 'Type', 'Prompt', 'Started', 'Answer', ...changeHeaders],
+		widths: [...whoWidths, 18, 10, 12, 40, 9, 70, ...changeWidths],
 		rows: students.flatMap((s) =>
 			s.responses.map((r) => [
 				...who(s),
@@ -972,7 +1506,17 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 				r.blockType,
 				r.prompt,
 				yesNo(r.started),
-				answerCell(r, tableSheetFor)
+				answerCell(r, tableSheetFor),
+				...(worksheet
+					? [
+							r.changedAfterGrading
+								? r.changedAfterGrading.kind === 'file'
+									? 'Photo added after grading'
+									: 'Edited after grading'
+								: '',
+							r.changedAfterGrading?.at ?? ''
+						]
+					: [])
 			])
 		)
 	};
@@ -1068,16 +1612,19 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 				'Blank table rows dropped',
 				`${dropped} (a row where every cell was blank is a row the student left, not data; a row with any cell filled is kept whole)`
 			],
+			...(worksheet ? WORKSHEET_ABOUT_ROWS : []),
 			['Generated at', payload.export.generatedAt],
 			['Source', payload.export.source],
 			[
 				'Not in this workbook',
-				'The full assignment spec and rubric as stored. Those are in the JSON export beside this one, which is the file to hand a language model.'
+				worksheet
+					? 'The worksheet\u2019s manifest and rubric as stored. Those are in the JSON export beside this one, which is the file to hand a language model.'
+					: 'The full assignment spec and rubric as stored. Those are in the JSON export beside this one, which is the file to hand a language model.'
 			]
 		]
 	};
 
-	return [grades, unmet, responses, ...tableSheets, files, about];
+	return [grades, ...answers, unmet, responses, ...tableSheets, files, about];
 }
 
 /** `graded-<assignment>-<section>-<scope>[-anon].<ext>`, filesystem-safe. */

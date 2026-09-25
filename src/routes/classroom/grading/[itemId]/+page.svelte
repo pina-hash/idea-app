@@ -6,6 +6,9 @@
 	} from '$lib/classroom/transports';
 	import { createBulkFileSource } from '$lib/classroom/bulk-download-source';
 	import { blockLabelsFromManifest, blockLabelsFromSpec } from '$lib/classroom/bulk-download';
+	import { htmlAssignmentMount } from '$lib/classroom/html-assignment/mount';
+	import { htmlManifestShaped } from '$lib/classroom/transports';
+	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -28,12 +31,28 @@
 				: blockLabelsFromSpec(data.spec)
 		)
 	);
+
+	/**
+	 * WHICH ENGINE THIS ITEM IS, ASKED THE WAY THE PER-CLASS CONSOLE ASKS IT
+	 * (ledger 0298, R24), so the two consoles hand the console, and therefore
+	 * the graded-work export, the same one of the two: the manifest for a ported
+	 * document, the spec otherwise, never both. An item carrying a leftover spec
+	 * beside its document is legal and the MANIFEST decides; before this the
+	 * leftover spec went in here and the export read that instead of the answers.
+	 */
+	const htmlMount = $derived(htmlAssignmentMount(data.item, data.htmlAssignment));
+	const manifest = $derived(
+		htmlMount === 'html' && htmlManifestShaped(data.htmlAssignment?.manifest)
+			? (data.htmlAssignment?.manifest as HtmlAssignmentManifest)
+			: null
+	);
 </script>
 
 <GradingConsole
 	section={data.section}
 	item={data.item}
-	spec={data.spec}
+	spec={htmlMount === 'spec' ? data.spec : null}
+	{manifest}
 	rubric={data.rubric}
 	{transports}
 	{bulk}
