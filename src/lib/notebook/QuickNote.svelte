@@ -242,10 +242,24 @@
 	 * autosave then wrote them over the newer ones the flush had just sent. And
 	 * the flush is recorded (`trackQuickNoteFlush`) so that next mount reads the
 	 * slot only once this write has landed and brought it up to date.
+	 *
+	 * THE SAME HOLDS WHEN THE TAB GOES AWAY rather than the header: a tab closed
+	 * or hidden inside the 400ms leaves a slot older than the flush `attach()`
+	 * sends, and the next load's restore would write those older words back
+	 * over it. So a hidden tab and a pagehide write the slot at once too, after
+	 * that flush has started (its listeners were added first).
 	 */
 	$effect(() => {
 		const detach = save.attach();
+		const onVisibility = () => {
+			if (document.visibilityState === 'hidden') syncMirrorNow();
+		};
+		const onPageHide = () => syncMirrorNow();
+		document.addEventListener('visibilitychange', onVisibility);
+		window.addEventListener('pagehide', onPageHide);
 		return () => {
+			document.removeEventListener('visibilitychange', onVisibility);
+			window.removeEventListener('pagehide', onPageHide);
 			if (unsaved) save.markDirty();
 			if (save.dirty) {
 				syncMirrorNow();

@@ -1,6 +1,6 @@
 {
 	"schema": 1,
-	"spec": "quick-note-s-1-fail-create.mjs",
+	"spec": "quick-note-state-pagehide.mjs",
 	"date": "2026-09-25T10:19:56.767Z",
 	"sha": "f7171d538bd6f38665f3fceba2126a31fe049815",
 	"dirty": true,
@@ -9,7 +9,7 @@
 		1440
 	],
 	"runs": 2,
-	"measurements": 26,
+	"measurements": 16,
 	"outsideRows": [],
 	"ms": 9942
 }
