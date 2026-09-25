@@ -151,9 +151,10 @@
 	let now = $state(clock());
 	$effect(() => {
 		const read = clock;
-		// rAF-or-timeout, never rAF alone: a backgrounded window never ticks an
+		// A timeout, not an animation frame: a backgrounded window never ticks an
 		// animation frame, and a projector control left behind the wall must not
-		// stop keeping time.
+		// stop keeping time. The timer's digits take a faster reading of their
+		// own below (`tickEachFrame`, an animation frame OR a timeout).
 		const timer = setInterval(() => (now = read()), 250);
 		return () => clearInterval(timer);
 	});
