@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
+	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { UserProfile } from '$lib/profile';
@@ -21,8 +22,10 @@
 	 * as the row is on screen (`markHomeTourSeen`, through 0045's own column
 	 * and 0001's own-row policy, no migration), and the row is LATCHED: it is
 	 * read once from the profile the page loaded, the same answer on the server
-	 * and at hydration, and nothing re-derives it after. The write does not
-	 * reload the page for the same reason.
+	 * and at hydration, and nothing re-derives it after. So the page's data is
+	 * refreshed once the write lands (the profile then reads as having seen
+	 * this tour, and a second visit to the home page in the same session does
+	 * not offer it again) while the row on screen stays exactly where it is.
 	 *
 	 * IT WAITS FOR THE PATHWAY PICKER. A student with no pathway gets the
 	 * picker's sheet over the page, and an offer recorded under a sheet was
@@ -75,7 +78,11 @@
 		const id = claims?.sub;
 		if (!client || !id) return;
 		recorded = true;
-		untrack(() => queueMicrotask(() => void markHomeTourSeen(client, id)));
+		untrack(() =>
+			queueMicrotask(async () => {
+				if (await markHomeTourSeen(client, id)) await invalidateAll();
+			})
+		);
 	});
 
 	onMount(() => {
