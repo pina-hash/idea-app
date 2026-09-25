@@ -264,21 +264,23 @@ describe('the gallery mounts the card and owns the ranking', () => {
 	 * about the count rule under any default. Which order the gallery opens on
 	 * is `tests/dom/foundry-sort.test.ts`'s claim and is made in one place.
 	 */
-	it('a play ranking shows counts on the ranked cards; Recent shows none', () => {
+	it('a play ranking shows counts on the ranked cards; Recently updated shows none', () => {
 		const counts = {
-			[WITH_COVER.id]: { plays: 42, plays7d: 5 },
-			[NO_COVER.id]: { plays: 3, plays7d: 3 },
-			[BAD_KEY.id]: { plays: 0, plays7d: 0 }
+			[WITH_COVER.id]: { plays: 42, plays7d: 5, seconds: 5400 },
+			[NO_COVER.id]: { plays: 3, plays7d: 3, seconds: 0 },
+			[BAD_KEY.id]: { plays: 0, plays7d: 0, seconds: 0 }
 		};
 		const c = gallery({ playCounts: counts });
+		// THE CONTROL IS A NATIVE `<select>` SINCE DECISION 39, so choosing an
+		// order is a value plus the `change` event `bind:value` listens for.
 		const press = (id: string) => {
-			(
-				[...c.querySelectorAll('.fdy-gal-sort-btn')].find(
-					(b) => b.getAttribute('data-sort') === id
-				) as HTMLButtonElement
-			).click();
+			const sel = c.querySelector<HTMLSelectElement>('select[data-testid="foundry-gallery-sort"]')!;
+			sel.value = id;
+			sel.dispatchEvent(new Event('change', { bubbles: true }));
 			live!.flush();
 		};
+		const figures = () =>
+			[...c.querySelectorAll('[data-testid="fdy-card-plays"]')].map((e) => e.textContent?.trim());
 
 		// Under a play ranking: two of three. The third app has zero plays and
 		// `playCountLabel` renders nothing for zero, which is the assertion as
@@ -286,9 +288,16 @@ describe('the gallery mounts the card and owns the ranking', () => {
 		press('played');
 		expect(c.querySelectorAll('[data-testid="fdy-card-plays"]')).toHaveLength(2);
 
-		// Under Recent: none at all. A number on every card of a gallery nobody
-		// ordered by plays reads as a verdict on the work. The line above is the
-		// POSITIVE CONTROL for this one, on the same mount and the same fixture.
+		// Under Most hours the figure is the TIME, and only the one app with any
+		// time gets one. Before decision 39 the list printed its PLAY count here,
+		// a number that did not explain the order it sat in.
+		press('hours');
+		expect(figures()).toEqual(['1h 30m']);
+
+		// Under Recently updated: none at all. A number on every card of a
+		// gallery nobody ordered by a count reads as a verdict on the work. The
+		// lines above are the POSITIVE CONTROL for this one, on the same mount
+		// and the same fixture.
 		press('recent');
 		expect(c.querySelectorAll('[data-testid="fdy-card-plays"]')).toHaveLength(0);
 	});

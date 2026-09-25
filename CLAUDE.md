@@ -727,34 +727,57 @@ show.
       apply-time guard raises if the column ever appears, and
       `tests/db/foundry-play-boards.test.ts` asserts the absence with the
       per-app read as its positive control.
-  - **THE GALLERY'S RANKED SECTIONS ARE THE LEADERBOARDS, AND THERE IS NO
-    BOARD PAGE.** Reports 30 and 32b are one surface: `FOUNDRY_GALLERY_BOARDS`
-    names four orders (trending, played, hours, new), `foundryBoards` returns
-    the ones with something to say, and every one of them is `sortGallery`'s
-    OWN ranking -- so there is one comparator on the surface rather than a
-    second ranking implementation over the same counts. A new board is an arm
-    in `foundrySortScore` plus a label; it is never a new page.
+  - **THE GALLERY IS ONE LIST WITH ONE SORT CONTROL, AND THERE ARE NO RANKED
+    SECTIONS AND NO BOARD PAGE** (decision 39, `docs/decisions/entries/39-*`).
+    This rule used to read "THE GALLERY'S RANKED SECTIONS ARE THE
+    LEADERBOARDS": 0221 answered reports 30 and 32b with up to four
+    sideways-scrolling "boards" above the list, and Mr. Pina filed that on
+    2026-09-25 as dead space and a stack of scrollbars and asked for one
+    drop-down that sorts every app. The dead space had a cause worth keeping:
+    a card is its cover's own shape, so one portrait cover in a flex ROW made
+    the whole row tall; the multicol mosaic has no rows to lock.
+    `FOUNDRY_GALLERY_SORTS` is every order, in the order the native `<select>`
+    lists them (Most played first; the default is still its own constant,
+    `FOUNDRY_GALLERY_DEFAULT_SORT`, per decision 04), and every one is
+    `sortGallery`'s OWN ranking -- one comparator, never a second ranking
+    implementation over the same counts. A new order is an arm in
+    `foundrySortScore` plus an option; it is never a new page or a new section.
+    The order stays out of the URL (decision 04).
     - **"TRENDING" IS A FORMULA AND NOT A WORD:** plays in the last seven days
       MINUS plays in the seven before that (`foundryTrendScore`). A RISE, not a
       level -- "Most played" is already the all-time level and "Played this
-      week" is already the recent one, so a board ranking on either is a copy
-      of one of them under a different heading.
-    - **A BOARD IS SUPPRESSED WHEN ITS SIGNAL IS FLAT, and none render at or
-      below `FOUNDRY_BOARD_SIZE` apps.** On a gallery nobody has played, three
-      of the four boards rank every app at zero and a stable sort renders the
-      IDENTICAL row three times under three headings -- which looks completely
-      normal and tells the reader something false, because a leaderboard
-      implies the order was earned.
+      week" is already the recent one, so an order ranking on either is a copy
+      of one of them under a different label.
+    - **AN ORDER WITH NOTHING TO RANK SAYS SO, IN WORDS BESIDE THE CONTROL.**
+      On a gallery nobody has played, every play order ranks every app at zero
+      and a stable sort renders the list exactly as it arrived -- which looks
+      ranked and tells the reader something false, because a ranking implies
+      the order was earned. The boards hid themselves when flat; one list
+      cannot, so `foundrySortNote` swaps the option's rule for its flat
+      sentence whenever `foundrySortHasSignal` says so. A flat sentence that
+      names an order must be true of it, which is why only the all-tied cases
+      say "recently updated order".
+    - **THE FIGURE ON A CARD IS THE ORDER IN FORCE'S OWN METRIC**
+      (`foundrySortFigure`), and nothing under an order that ranks on a date.
+      Until decision 39 the list printed PLAYS under Most hours and Most
+      updated, a number that did not explain the order it sat in.
+    - **`FOUNDRY_PLAY_COVERAGE_NOTE` SITS BESIDE THE CONTROL WHENEVER THE ORDER
+      RANKS ON PLAYS (`ranksPlays`), zero included**, and still renders on a
+      one-app gallery that has no control, because its one card still carries
+      a figure. It lived inside the boards region, so deleting that region
+      without moving it would have stripped it from every figure silently.
     - **`recent` AND `new` ARE TWO DIFFERENT QUESTIONS.** `recent` is
       `foundry_list_apps`'s own `updated_at desc`, which a metadata edit moves;
-      `new` reads `created_at`, which nothing moves. Ranking "brand new" on
+      `new` reads `created_at`, which nothing moves. Ranking "Newest" on
       `updated_at` puts a four-term-old app first the day its author fixed a
       typo in its tagline.
-    - **`trending` AND `new` ARE BOARD ORDERS AND ARE NOT IN
-      `FOUNDRY_GALLERY_SORTS`**, so `isGallerySort` refuses them: seven buttons
-      in one group is a control nobody reads at 375px, and a stored or URL
-      value must not be able to put the control into a pressed state with no
-      button under it.
+    - **`trending` AND `new` ARE OPTIONS, AND `isGallerySort` ADMITS THEM.**
+      They were board-only orders, refused on the grounds that seven buttons in
+      one group is a control nobody reads at 375px; a `<select>` holds seven at
+      every width. The rule underneath did not move: a stored or URL value must
+      never put the control into a state with no option under it, so
+      `isGallerySort` admits exactly the offered ids, and the select's own
+      value goes through it before it becomes state.
   - **SEARCH IS CLIENT-SIDE, MATCHES ANY TOKEN RATHER THAN EVERY ONE, AND THAT
     IS FORCED BY THE REPORT THAT ASKED FOR IT.** `$lib/foundry/search.ts` runs
     over the list the route already loaded. Requiring every query token to

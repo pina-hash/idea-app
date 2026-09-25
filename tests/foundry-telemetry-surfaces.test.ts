@@ -92,9 +92,16 @@ describe('the review queue records nothing', () => {
 });
 
 describe('the coverage sentence travels with the figures', () => {
-	it('is written once and rendered by the one component that shows counts', () => {
+	it('is written once and rendered by every component that shows counts', () => {
 		const stats = read('src/lib/foundry/FoundryPlayStats.svelte');
 		expect(stats).toContain('FOUNDRY_PLAY_COVERAGE_NOTE');
+		// THE GALLERY'S CARDS CARRY A PLAY FIGURE UNDER EVERY PLAY ORDER, and the
+		// note used to live inside the ranked-sections region decision 39
+		// deleted. Dropping it from the gallery with that region would have been
+		// silent: every figure still renders and nothing throws.
+		// `tests/dom/foundry-sort.test.ts` asserts WHEN it renders.
+		const gallery = read('src/lib/foundry/FoundryGallery.svelte');
+		expect(gallery).toContain('{FOUNDRY_PLAY_COVERAGE_NOTE}');
 		// It says the thing it has to say: that the share-link route is not
 		// counted. Asserted by MEANING rather than by exact bytes, so rewording
 		// the sentence is allowed and dropping the fact is not.
