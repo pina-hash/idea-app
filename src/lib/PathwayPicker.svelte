@@ -76,6 +76,7 @@
 	import { page } from '$app/state';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { PATHWAYS, withAlpha, type PathwayId } from '$lib/pathways';
+	import { lockDocumentScroll } from '$lib/shell/scroll-lock';
 	import type { UserProfile } from '$lib/profile';
 
 	/**
@@ -137,9 +138,10 @@
 	 *
 	 * `body { overflow: hidden }` is what actually stops a real trusted wheel
 	 * here, measured both ways on the real page: locked 0 -> 0, cleared 0 ->
-	 * 300. The previous inline value is captured and restored rather than
-	 * blanked, so this composes with any other surface doing the same thing
-	 * (`ContentComposer` does) instead of clobbering it.
+	 * 300. It goes through the one counted lock in `$lib/shell/scroll-lock`,
+	 * so it composes with any other surface doing the same thing
+	 * (`ContentComposer` does) in whatever order the two close; capturing and
+	 * restoring by hand composed only when they closed in reverse order.
 	 *
 	 * The cleanup is the whole guarantee: an `$effect` teardown runs both when
 	 * `show` goes false AND when the component is destroyed, so there is no
@@ -149,11 +151,7 @@
 	 */
 	$effect(() => {
 		if (!show) return;
-		const previous = document.body.style.overflow;
-		document.body.style.overflow = 'hidden';
-		return () => {
-			document.body.style.overflow = previous;
-		};
+		return lockDocumentScroll();
 	});
 
 	/**

@@ -4,6 +4,7 @@
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
 	import { pendingLabel } from '$lib/pending';
 	import { EditBaseline } from '$lib/edit-baseline.svelte';
+	import { lockDocumentScroll } from '$lib/shell/scroll-lock';
 	import { SaveState } from '$lib/save-state.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
@@ -1226,12 +1227,11 @@
 
 	$effect(() => {
 		if (!screen) return;
-		// BODY SCROLL, LOCKED AND RESTORED TO WHATEVER IT WAS -- not to '', which
-		// would erase a value some other surface had set. The layer scrolls
-		// inside itself; the page underneath is exactly where it was when the
-		// dialog closes, which is the whole point of the item staying mounted.
-		const previousOverflow = document.body.style.overflow;
-		document.body.style.overflow = 'hidden';
+		// BODY SCROLL, LOCKED THROUGH THE ONE COUNTED LOCK and given back when
+		// the last holder lets go, whatever order the layers close in. The layer
+		// scrolls inside itself; the page underneath is exactly where it was when
+		// the dialog closes, which is the whole point of the item staying mounted.
+		const releaseScroll = lockDocumentScroll();
 		// FOCUS RETURNS TO THE CONTROL THAT OPENED THIS. Captured before the
 		// title takes it, and restored on destroy only if it is still in the
 		// document -- the Edit post button is, a row menu item may not be.
@@ -1278,7 +1278,7 @@
 		void tick().then(() => untrack(() => titleInput?.focus()));
 		return () => {
 			document.removeEventListener('keydown', onKey);
-			document.body.style.overflow = previousOverflow;
+			releaseScroll();
 			if (opener && opener.isConnected && typeof opener.focus === 'function') opener.focus();
 		};
 	});
