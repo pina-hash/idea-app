@@ -104,10 +104,16 @@ export type HostSection =
 	| 'invites'
 	| 'quals'
 	| 'rewards'
+	| 'settings'
 	| 'danger';
 
 /**
  * THE ORDER A HOST'S CONSOLE LAYS ITS CARDS OUT, BY PHASE.
+ *
+ * SETTINGS (ledger 0298, R02) sits right under the phase card while the
+ * format can still change, and drops to just above the danger zone once the
+ * bracket exists: by then only the name and description move, and it must
+ * not stand between a host and the match control.
  *
  * Before the bracket exists the console is a setup form and reads top to
  * bottom in the order the work happens: open registration, seed the field,
@@ -125,8 +131,10 @@ export type HostSection =
  */
 export function hostSectionOrder(status: TournamentStatus): HostSection[] {
 	const setup: HostSection[] = ['phase', 'entries', 'invites', 'quals', 'rewards'];
-	if (status === 'live' || status === 'complete') return ['matches', ...setup, 'danger'];
-	return [...setup, 'matches', 'danger'];
+	if (status === 'live' || status === 'complete') {
+		return ['matches', ...setup, 'settings', 'danger'];
+	}
+	return ['phase', 'settings', ...setup.slice(1), 'matches', 'danger'];
 }
 
 /**

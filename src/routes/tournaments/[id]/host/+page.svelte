@@ -9,6 +9,13 @@
 	import HostMatchControl from '$lib/tournaments/HostMatchControl.svelte';
 	import DeleteTournament from '$lib/tournaments/DeleteTournament.svelte';
 	import RewardRulesEditor from '$lib/tournaments/RewardRulesEditor.svelte';
+	import TournamentSettingsForm from '$lib/tournaments/TournamentSettingsForm.svelte';
+	import {
+		largestRoster,
+		settingsLocks,
+		tournamentUpdateArgs,
+		type SettingsDraft
+	} from '$lib/tournaments/settings';
 	import { styleMap, type EntryStyleDraft } from '$lib/tournaments/entry-styles';
 	import { hostSectionOrder } from '$lib/tournaments/live';
 	import { entryMap, memberMap, parseConfig, statusLabel } from '$lib/tournaments/tournaments';
@@ -238,6 +245,55 @@
 		await invalidateAll();
 	}
 
+	// --- settings (ledger 0298, R02) ---
+	// `tournament_update` has existed since 0062 with no caller, so a
+	// tournament's name, description and format could never change after
+	// creation. The card is `TournamentSettingsForm`, the form
+	// `/tournaments/new` creates with; `settings.ts` builds the WHOLE config
+	// from the stored one (the RPC replaces it wholesale) and holds the locks:
+	// the format once the bracket exists (the RPC's own rule), qualifying
+	// on/off once pools are drawn, and score entry once a qualifying result
+	// is recorded. Its refusals render in the card, not at the top of the page.
+	const settingsLock = $derived(
+		settingsLocks({
+			status: t.status,
+			pools: data.pools.length,
+			qualResults: data.qualMatches.filter((m) => m.winner_id !== null).length
+		})
+	);
+	const minTeamSize = $derived(
+		Math.max(1, largestRoster(data.entries.map((e) => (members[e.id] ?? []).length)))
+	);
+	let settingsBusy = $state(false);
+	let settingsError = $state('');
+	let settingsSaved = $state('');
+
+	async function saveSettings(draft: SettingsDraft) {
+		settingsError = '';
+		settingsSaved = '';
+		settingsBusy = true;
+		try {
+			const args = tournamentUpdateArgs(
+				t.id,
+				{ name: t.name, description: t.description, config: t.config },
+				draft,
+				settingsLock
+			);
+			const { error } = await data.supabase.rpc('tournament_update', args);
+			if (error) {
+				settingsError = error.message;
+				return;
+			}
+			settingsSaved = `Settings saved at ${new Date().toLocaleTimeString([], {
+				hour: 'numeric',
+				minute: '2-digit'
+			})}.`;
+			await invalidateAll();
+		} finally {
+			settingsBusy = false;
+		}
+	}
+
 	// --- invites / hosts ---
 	let inviteEmail = $state('');
 	let cohostEmail = $state('');
@@ -380,6 +436,7 @@
 	     first the moment there is a bracket, setup cards first before that. -->
 	{#each hostSectionOrder(t.status) as section (section)}
 		{#if section === 'phase'}{@render phaseCard()}
+		{:else if section === 'settings'}{@render settingsCard()}
 		{:else if section === 'matches'}{@render matchesCard()}
 		{:else if section === 'entries'}{@render entriesCard()}
 		{:else if section === 'invites'}{@render invitesCard()}
@@ -444,6 +501,24 @@
 				<span class="phase-note">Tournament complete.</span>
 			{/if}
 		</div>
+	</section>
+{/snippet}
+
+{#snippet settingsCard()}
+	<section class="card" data-testid="host-settings">
+		<h2>Settings</h2>
+		<TournamentSettingsForm
+			mode="edit"
+			name={t.name}
+			description={t.description}
+			config={t.config}
+			locks={settingsLock}
+			{minTeamSize}
+			busy={settingsBusy}
+			error={settingsError}
+			saved={settingsSaved}
+			onsubmit={saveSettings}
+		/>
 	</section>
 {/snippet}
 

@@ -2,44 +2,26 @@
 	import { goto } from '$app/navigation';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
-	import { TEAM_SIZE_MAX } from '$lib/tournaments/tournaments';
+	import TournamentSettingsForm from '$lib/tournaments/TournamentSettingsForm.svelte';
+	import { tournamentCreateArgs, type SettingsDraft } from '$lib/tournaments/settings';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
-	let name = $state('');
-	let description = $state('');
-	let qualsEnabled = $state(false);
-	let scoreEntry = $state(false);
-	let bestOfDefault = $state(1);
-	let bestOfGrandFinal = $state(0); // 0 = same as default
-	// Registrants per entry (0192, item 7): 1 is a solo event, up to
-	// TEAM_SIZE_MAX. The server's normaliser refuses anything outside 1..6.
-	let teamSize = $state(1);
-	const teamSizes = Array.from({ length: TEAM_SIZE_MAX }, (_, i) => i + 1);
+	// The fields are `TournamentSettingsForm`, the SAME form the host console's
+	// Settings card edits with (ledger 0298, R02), and the payload is built by
+	// `tournamentCreateArgs`: the same name, description and config literal
+	// this page always sent, keys and defaults unchanged.
 	let busy = $state(false);
 	let errorMsg = $state('');
 
-	async function create() {
+	async function create(draft: SettingsDraft) {
 		errorMsg = '';
-		if (!name.trim()) {
-			errorMsg = 'Give the tournament a name.';
-			return;
-		}
 		busy = true;
-		const best_of: Record<string, number> = {};
-		if (bestOfGrandFinal > 0) best_of.grand_final = bestOfGrandFinal;
-		const { data: id, error } = await data.supabase.rpc('tournament_create', {
-			p_name: name.trim(),
-			p_description: description.trim(),
-			p_config: {
-				quals_enabled: qualsEnabled,
-				score_entry: scoreEntry,
-				best_of_default: bestOfDefault,
-				best_of,
-				team_size: teamSize
-			}
-		});
+		const { data: id, error } = await data.supabase.rpc(
+			'tournament_create',
+			tournamentCreateArgs(draft)
+		);
 		busy = false;
 		if (error) {
 			errorMsg = error.message;
@@ -65,52 +47,14 @@
 	<section class="hero">
 		<div class="eyebrow">IDEA // Tournaments</div>
 		<h1>New tournament</h1>
-		<p class="lead">You become the first host and can add co-hosts later from the host console.</p>
+		<p class="lead">
+			You become the first host and can add co-hosts later from the host console. Every setting
+			here can be changed there until the bracket is generated.
+		</p>
 	</section>
 
 	<div class="card">
-		<label class="frow">
-			<span>Name</span>
-			<input type="text" maxlength="80" bind:value={name} placeholder="Tournament name" />
-		</label>
-		<label class="frow">
-			<span>Description</span>
-			<textarea rows="3" bind:value={description} placeholder="What is this tournament?"
-			></textarea>
-		</label>
-		<label class="frow toggle">
-			<input type="checkbox" bind:checked={qualsEnabled} />
-			<span>Qualifying pools before the bracket (head-to-head round robin, seeds the bracket)</span>
-		</label>
-		<label class="frow toggle">
-			<input type="checkbox" bind:checked={scoreEntry} />
-			<span>Record per-game scores (off = win/loss only)</span>
-		</label>
-		<label class="frow">
-			<span>Best of (default, per match)</span>
-			<select bind:value={bestOfDefault}>
-				{#each [1, 3, 5, 7] as n (n)}<option value={n}>Best of {n}</option>{/each}
-			</select>
-		</label>
-		<label class="frow">
-			<span>Registrants per entry</span>
-			<select bind:value={teamSize} data-field="team_size">
-				{#each teamSizes as n (n)}
-					<option value={n}>{n === 1 ? 'Solo' : `Teams of up to ${n}`}</option>
-				{/each}
-			</select>
-		</label>
-		<label class="frow">
-			<span>Grand final</span>
-			<select bind:value={bestOfGrandFinal}>
-				<option value={0}>Same as default</option>
-				{#each [1, 3, 5, 7] as n (n)}<option value={n}>Best of {n}</option>{/each}
-			</select>
-		</label>
-		{#if errorMsg}<p class="error">{errorMsg}</p>{/if}
-		<div class="btn-row">
-			<button class="btn" onclick={create} disabled={busy}>Create tournament</button>
-		</div>
+		<TournamentSettingsForm mode="create" {busy} error={errorMsg} onsubmit={create} />
 	</div>
 </main>
 
@@ -120,57 +64,5 @@
 	 * across a listing width. */
 	.new-page {
 		max-width: var(--measure-form, 48rem);
-	}
-	.frow {
-		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
-		margin-bottom: 0.9rem;
-	}
-	.frow > span {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		color: var(--dim);
-	}
-	/* 44px floor on every field (CLAUDE.md, the student-facing tap target):
-	 * any signed-in account can open this page and its root declares no
-	 * instructor-only class. `min-height`, never a height, so a textarea
-	 * still grows; border-box so the floor is the box a finger meets. Before
-	 * this rule the selects measured about 35px (1rem text + 2 x 0.45rem
-	 * padding + 2px border). */
-	.frow input[type='text'],
-	.frow textarea,
-	.frow select {
-		box-sizing: border-box;
-		min-height: 44px;
-		background: var(--bg0);
-		border: 1px solid var(--line, rgba(0, 255, 65, 0.25));
-		border-radius: 4px;
-		color: var(--white);
-		font-family: 'Rajdhani', sans-serif;
-		font-size: 1rem;
-		padding: 0.45rem 0.6rem;
-	}
-	/* A checkbox is measured at its label (the thing a finger hits), and a
-	 * one-line label is about 19px tall: the same 44px floor, on the label. */
-	.frow.toggle {
-		flex-direction: row;
-		align-items: center;
-		gap: 0.6rem;
-		min-height: 44px;
-	}
-	.frow.toggle > span {
-		text-transform: none;
-		letter-spacing: 0;
-		font-family: 'Rajdhani', sans-serif;
-		font-size: 0.95rem;
-		color: var(--white);
-	}
-	.error {
-		color: var(--amber);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.8rem;
 	}
 </style>

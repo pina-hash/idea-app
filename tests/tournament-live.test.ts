@@ -172,7 +172,16 @@ describe('bracketProgress counts contested matches only', () => {
 });
 
 describe('hostSectionOrder puts the match card first the moment there is a bracket', () => {
-	const ALL: HostSection[] = ['phase', 'matches', 'entries', 'invites', 'quals', 'rewards', 'danger'];
+	const ALL: HostSection[] = [
+		'phase',
+		'matches',
+		'entries',
+		'invites',
+		'quals',
+		'rewards',
+		'settings',
+		'danger'
+	];
 	const statuses: TournamentStatus[] = [
 		'draft',
 		'registration_open',
@@ -201,6 +210,17 @@ describe('hostSectionOrder puts the match card first the moment there is a brack
 			expect(order.indexOf('matches')).toBeGreaterThan(order.indexOf('rewards'));
 		}
 		for (const s of statuses) expect(hostSectionOrder(s).at(-1)).toBe('danger');
+	});
+
+	it('settings sits under the phase card before the bracket and never above the match card after it', () => {
+		for (const s of ['draft', 'registration_open', 'seeding'] as TournamentStatus[]) {
+			expect(hostSectionOrder(s).indexOf('settings')).toBe(1);
+		}
+		for (const s of ['live', 'complete'] as TournamentStatus[]) {
+			const order = hostSectionOrder(s);
+			expect(order.indexOf('settings')).toBeGreaterThan(order.indexOf('matches'));
+			expect(order.indexOf('settings')).toBe(order.length - 2);
+		}
 	});
 });
 
