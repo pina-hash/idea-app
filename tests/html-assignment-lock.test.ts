@@ -50,6 +50,8 @@ const CONSOLE = '../src/lib/classroom/GradingConsole.svelte';
 const ITEM_DETAIL = '../src/lib/classroom/ItemDetail.svelte';
 const ENGINE = '../src/lib/classroom/AssignmentEngine.svelte';
 const GRADE_PAGE = '../src/routes/classroom/[sectionId]/item/[itemId]/grade/+page.svelte';
+/** Where both grading consoles' frame mount lives since ledger 0298. */
+const GRADING_WORK = '../src/lib/classroom/html-assignment/HtmlGradingWork.svelte';
 
 /** A submission row with only the two columns the predicate reads. */
 function row(state: SubmissionRow['state'], submittedAt: string | null) {
@@ -186,7 +188,8 @@ describe('0198: the wiring, which is what fails silently', () => {
 		// into a closed worksheet, which throws nothing.
 		for (const [name, file] of [
 			['the student item page', ITEM_DETAIL],
-			['the grading console page', GRADE_PAGE]
+			// Both grade routes mount the frame through this one component.
+			['the grading consoles\' work column', GRADING_WORK]
 		] as const) {
 			const text = src(file);
 			expect(text, name).toContain('<HtmlAssignmentFrame');

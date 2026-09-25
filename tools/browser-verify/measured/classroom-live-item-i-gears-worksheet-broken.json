@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "classroom-live-item-i-gears-worksheet-broken.mjs",
+	"date": "2026-09-25T10:51:38.965Z",
+	"sha": "3d58c0fa48f4c803ca90cfd7b516a03ad426249f",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 18,
+	"outsideRows": [],
+	"ms": 8433
+}
