@@ -1299,14 +1299,26 @@ Undated work is never Missing and never counted; it is listed last.
   1000 rows without an error -- for the home page, My Classes, the to-do and the
   class page alike. Its answer rides on the submission rows as a derived
   completed_at (`withWorksheetCompletions`), so `assignmentStanding`, the chip
-  ("Complete", or "Complete, late" in a word and a tone), the filters and the
-  teacher's `isAwaitingGrade` all read it with no new parameter anywhere.
+  ("Complete", or "Complete, late" in a word and a tone), the filters and
+  `isAwaitingGrade` all read it with no new parameter anywhere.
   **Saving an answer creates no submission row** (only a file, a grade, a submit
   or a close does), so a finished worksheet with none gets a derived draft row.
-  **The state is never moved to `submitted`**: that locks saves (0197). The
-  teacher's tally reads only worksheets due within
-  `WORKSHEET_TALLY_WINDOW_DAYS`; the grading console judges its own item
-  whatever its date. A read that cannot answer changes nothing.
+  **The state is never moved to `submitted`**: that locks saves (0197). A read
+  that cannot answer changes nothing.
+  - **THE READ IS PINNED TO THE CALLER'S OWN ADDRESS, ALWAYS, AND THE TEACHER'S
+    HOME TALLY DOES NOT GET ONE.** `classroom_responses` is policed per row
+    (own address, or `classroom_can_review_submission`), so an answers read
+    with no `student_email` filter visits every classmate's answer to refuse
+    it: measured on the test cluster, one 60-block worksheet in four classes of
+    30 cost 8.1 to 8.8 seconds per count as a student unpinned and 2 to 3ms
+    pinned, and 3.6 to 3.9 seconds as an admin reading everybody's. So
+    `loadClassroomWork` reads only the classes the caller takes
+    (`worksheetCandidates`), with `onlyEmail`, and the
+    grading console's roster, which already holds its one item's answers, is
+    the teacher surface that says Complete. The home tally counting a finished
+    worksheet waits for a definer function answering per item (decision 37's
+    migration half); `isAwaitingGrade` already counts one the moment a row
+    carries `completed_at`.
 
 - **OWED WORK IS ONE READ.** `loadClassroomWork` in
   `$lib/classroom/student-work.ts` is the home page's, the classroom index's and

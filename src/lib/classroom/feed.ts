@@ -217,12 +217,17 @@ function isUnsubmitted(sub: FeedSubmission | undefined): boolean {
  * check would quietly drop every resubmission out of the grading queue.
  *
  * A FINISHED PORTED WORKSHEET NOBODY HAS GRADED IS WAITING TOO (decision 37,
- * ledger 0298): it has no turn-in, so without this term the tally never
- * counted one. It is the same `completed_at` the student's own chip reads,
- * from the same `hxCompletion`, so "Complete" on their row and "1 to grade" on
- * the teacher's are one answer. ONCE GRADED IT LEAVES the tally even if the
- * student edits afterwards: that is the grading console's "changed after
- * grading" mark, not a new hand-in, because nothing was handed in again.
+ * ledger 0298): it has no turn-in, so without this term a tally could never
+ * count one. It is the same `completed_at` the student's own chip reads, from
+ * the same `hxCompletion`. ONCE GRADED IT LEAVES the tally even if the student
+ * edits afterwards: that is the grading console's "changed after grading"
+ * mark, not a new hand-in, because nothing was handed in again.
+ *
+ * NO TEACHER'S LOAD SUPPLIES ONE YET, and that is deliberate: the home page
+ * would have to read every student's answers under a per-row policy, which is
+ * measured in `worksheetCandidates` (`student-work.ts`). So on a teacher's
+ * card this term is ready and idle, and the grading console's roster is where
+ * a finished worksheet reads Complete.
  */
 export function isAwaitingGrade(sub: FeedSubmission): boolean {
 	if (sub.state === 'draft') return typeof sub.completed_at === 'string' && !sub.graded_at;

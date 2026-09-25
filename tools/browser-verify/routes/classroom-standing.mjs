@@ -12,22 +12,26 @@
  *   - a worksheet finished before its deadline reads "Complete", one finished
  *     after it "Complete, late", a half-done one and an empty one (whose
  *     manifest asks for no sentences) "Missing";
- *   - the teacher's feed card counts the finished worksheets to grade: three on
- *     the gears worksheet (Ana, Bruno, Carla; not Dev, who did half), one on
- *     the bearings worksheet (Ana, late), none on the shafts worksheet, where
- *     Bruno's answer to the half Ana left empty must not finish hers.
+ *   - the completeness read is pinned to Ana, as every page's is, so exactly
+ *     her two finished worksheets come back, and Bruno's answer to the half of
+ *     the shafts worksheet she left empty never finishes hers;
+ *   - the teacher's feed card is what the home page gives a teacher: no
+ *     student's answers are read for it (the unpinned read is the cost measured
+ *     in student-work.ts), so the tally flags nothing and the material sits on
+ *     the reference shelf. A finished worksheet is counted in the grading
+ *     console's roster instead (the html-assignment-grading-state-* specs).
  */
 import { STANDING, STANDING_MISSING, STANDING_READY, STANDING_ROWS } from './_classroom-standing.mjs';
 
 export default {
 	path: STANDING,
-	label: 'What a student owes: class page, My Classes and the teacher tally agree',
+	label: 'What a student owes: class page and My Classes agree; the teacher card reads no answers',
 	prepare: [STANDING_READY],
 	orderResult: [
 		{
-			label: 'four finished worksheets across the class, from the real completeness read',
+			label: "Ana's two finished worksheets, from the real completeness read pinned to her",
 			evaluate: `() => [document.querySelector('[data-testid="standing-ready"]')?.getAttribute('data-completions')]`,
-			expected: ['4']
+			expected: ['2']
 		},
 		{
 			label: 'the class page Missing count is the to-do count',
@@ -51,13 +55,12 @@ export default {
 			expected: ['2']
 		},
 		{
-			// Every flag on the teacher's card: the two tallies, the header's
-			// "need attention" (those two rows and nothing else), and the material
-			// on the reference shelf. The half-done shafts and the empty reading
-			// log earn no row at all.
-			label: 'the teacher tally counts the finished worksheets and nothing else',
+			// Every flag on the teacher's card: only the material on the reference
+			// shelf. The home page reads no student's answers for a teacher, so no
+			// worksheet is flagged to grade from here and nothing needs attention.
+			label: 'the teacher card flags no worksheet (the home page reads no answers for a teacher)',
 			evaluate: `() => [...document.querySelectorAll('[data-testid="standing-teacher"] .feed-flag')].map((f) => f.textContent.trim()).sort()`,
-			expected: ['1 to grade', '2 need attention', '3 to grade', 'Reference']
+			expected: ['Reference']
 		}
 	],
 	presence: [

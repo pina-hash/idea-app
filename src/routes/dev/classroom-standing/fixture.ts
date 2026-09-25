@@ -18,9 +18,10 @@
  *
  * THE COMPLETIONS COME FROM THE REAL `readWorksheetCompletions`, over an
  * in-memory stand-in for the caller's client that answers the four reads it
- * makes. The stand-in returns EVERY student's rows, the way a teacher's read
- * does, so the same answer serves the student's page (her own rows) and the
- * teacher's tally (everybody's).
+ * makes. The table holds classmates' rows too, and the page's read is pinned
+ * to the student the way every page's is, so the `eq` on the address is what
+ * keeps Bruno's answer out of Ana's shafts worksheet. The teacher's feed card
+ * reads no answers at all, which is what the home page gives a teacher.
  */
 import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
@@ -174,8 +175,8 @@ export const TABLES: Record<string, Row[]> = {
 		// Ana: shafts half done. Bruno wrote the half she did not.
 		answer('ws-shafts', ME, 'm1-ratio', '4:1', '2026-09-22T18:30:00.000Z'),
 		answer('ws-shafts', 'bruno@boscotech.net', 'm2-why', TWO, '2026-09-22T18:40:00.000Z'),
-		// The teacher's view of the gears worksheet: Bruno and Carla finished it,
-		// Dev did half.
+		// Classmates on the gears worksheet: Bruno and Carla finished it, Dev did
+		// half. None of it is Ana's, and the pinned read never returns it.
 		answer('ws-gears', 'bruno@boscotech.net', 'm1-ratio', '3:1', '2026-09-22T17:00:00.000Z'),
 		answer('ws-gears', 'bruno@boscotech.net', 'm2-why', TWO, '2026-09-22T17:05:00.000Z'),
 		answer('ws-gears', 'carla@boscotech.net', 'm1-ratio', '3:1', '2026-09-23T16:00:00.000Z'),

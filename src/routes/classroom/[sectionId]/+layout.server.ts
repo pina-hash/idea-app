@@ -431,8 +431,11 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 				.from('classroom_submissions')
 				.select('item_id, student_email, state, score')
 				.in('item_id', assignmentIds);
+			// With no address to attribute by, every row is kept, which is what
+			// this page did before it read one: dropping them all would turn every
+			// finished assignment back to Missing.
 			const mine = ((rows ?? []) as (SubmissionSummary & { student_email?: string | null })[]).filter(
-				(r) => !r.student_email || r.student_email.toLowerCase() === me
+				(r) => !me || !r.student_email || r.student_email.toLowerCase() === me
 			);
 			/*
 			 * A FINISHED PORTED WORKSHEET IS DONE HERE TOO (decision 37), from the

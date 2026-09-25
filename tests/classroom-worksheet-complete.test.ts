@@ -487,15 +487,16 @@ describe('withWorksheetCompletions puts the answer on the rows every surface alr
 		expect(withWorksheetCompletions(rows, new Map(), blank)).toEqual(rows);
 	});
 
-	it("the teacher's candidates stop at the tally window; a student's own never do", () => {
+	it("the candidates are the assignments in classes the caller takes, whatever their date, and never a class they teach", () => {
 		const items = [
 			item('old', { due_at: '2026-08-01T06:59:00.000Z' }),
 			item('recent', { due_at: '2026-09-20T06:59:00.000Z' }),
 			item('undated', { due_at: null }),
 			item('mat', { kind: 'material' })
 		];
-		expect(worksheetCandidates(items, () => false, () => true, NOW)).toEqual(['recent', 'undated']);
-		expect(worksheetCandidates(items, () => true, () => false, NOW)).toEqual(['old', 'recent', 'undated']);
+		expect(worksheetCandidates(items, () => true)).toEqual(['old', 'recent', 'undated']);
+		expect(worksheetCandidates(items, (i) => i.id !== 'recent')).toEqual(['old', 'undated']);
+		expect(worksheetCandidates(items, () => false)).toEqual([]);
 	});
 });
 

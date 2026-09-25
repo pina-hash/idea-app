@@ -303,17 +303,6 @@ export const WORKSHEET_PAGE_ROWS = 1000;
 /** The most rows a completeness read will page through before it gives up and reports "cannot tell". */
 export const WORKSHEET_MAX_ROWS = 10 * WORKSHEET_PAGE_ROWS;
 
-/**
- * HOW FAR BACK THE TEACHER'S TO-GRADE TALLY LOOKS FOR A FINISHED WORKSHEET, in
- * days past the due instant. A student's OWN worksheets are judged whatever
- * their date; a teacher's tally reads every student's answers, which grows by
- * a class's worth of rows with every worksheet posted, so it is bounded to the
- * work that can still be arriving. An undated worksheet is always read. Past
- * the window a worksheet is still counted in its own grading console, which
- * reads that one item.
- */
-export const WORKSHEET_TALLY_WINDOW_DAYS = 21;
-
 type PagedAnswer = PromiseLike<{ data: unknown; error: unknown; count?: number | null }>;
 
 /**
@@ -390,10 +379,20 @@ export function worksheetKey(itemId: string, email: string): string {
  * `classroom_responses` is own-row-or-reviewer, so a student receives their
  * own answers and a teacher their students'. ATTRIBUTION IS THE ROW'S OWN
  * `student_email`, grouped before anything is judged, so a classmate's answer
- * can never finish somebody else's worksheet. `onlyEmail` pins both answer
- * reads to one person as well, for a surface computing "my" standing that a
- * manager of a co-posted class could otherwise read other people's rows on --
- * the class layout's attribution rule, not a privacy boundary.
+ * can never finish somebody else's worksheet.
+ *
+ * `onlyEmail` IS WHAT MAKES THIS AFFORDABLE, AND EVERY PAGE LOAD PASSES IT.
+ * The policy is `student_email = current_user_email() or
+ * classroom_can_review_submission(...)`, evaluated PER ROW, and without an
+ * email filter the answers read visits every classmate's answer on the
+ * worksheet to refuse it. Measured on the test cluster, one worksheet of 60
+ * blocks posted to four classes of 30 (7,200 answers), three runs: the count
+ * PostgREST runs beside a page took 8.1 to 8.8 seconds as a student with no
+ * email filter and 2 to 3ms with one, and 3.6 to 3.9 seconds as an admin
+ * reading everybody's. The filter is an index
+ * condition on `(item_id, student_email)`, so the policy only ever sees the
+ * caller's own rows. An unpinned read (the dev harness, the tests of
+ * attribution) is for a fixture, never for a page.
  */
 export async function readWorksheetCompletions(
 	supabase: SupabaseClient,
@@ -526,27 +525,24 @@ export function withWorksheetCompletions<T extends { item_id: string; student_em
 
 /**
  * The assignments a completeness read is worth making for, out of a list of
- * items: every assignment in a class the caller takes, and in a class they
- * teach only the ones inside `WORKSHEET_TALLY_WINDOW_DAYS` (the tally's bound).
- * Which of them are worksheets is the read's own first question.
+ * items: the assignments in a class the caller TAKES. Which of them are
+ * worksheets is the read's own first question.
+ *
+ * NEVER THE CLASSES THEY TEACH (ledger 0298, the review of this bundle). The
+ * teacher's to-grade tally would need every student's answers on every
+ * worksheet, and under the per-row policy that is the multi-second count above
+ * for ONE worksheet, paid again beside every page of the read, on the home page
+ * Mr. Pina opens at the start of every period. The tally counts a finished
+ * worksheet the day a loader can afford to hand it one (a definer function
+ * answering per item, decision 37's migration half); until then it counts what
+ * it always counted, and the grading console's roster, which already holds
+ * that one item's answers, says Complete.
  */
 export function worksheetCandidates(
 	items: readonly ClassroomItem[],
-	takes: (item: ClassroomItem) => boolean,
-	teaches: (item: ClassroomItem) => boolean,
-	now: string
+	takes: (item: ClassroomItem) => boolean
 ): string[] {
-	const from = Date.parse(now) - WORKSHEET_TALLY_WINDOW_DAYS * 86_400_000;
-	return items
-		.filter((item) => item.kind === 'assignment')
-		.filter((item) => {
-			if (takes(item)) return true;
-			if (!teaches(item)) return false;
-			if (!item.due_at) return true;
-			const due = Date.parse(item.due_at);
-			return !Number.isFinite(due) || !Number.isFinite(from) || due >= from;
-		})
-		.map((item) => item.id);
+	return items.filter((item) => item.kind === 'assignment' && takes(item)).map((item) => item.id);
 }
 
 // ---------------------------------------------------------------------------
@@ -677,11 +673,14 @@ export async function loadClassroomWork(
 	 * FINISHED PORTED WORKSHEETS (decision 37, ledger 0298). A worksheet has no
 	 * turn-in, so without this every one of them read "Missing" from its due
 	 * instant until a grade was returned, on this list and on every surface
-	 * built from it, and the teacher's to-grade tally never counted one. The
-	 * read is `readWorksheetCompletions` and the rows it adds or marks are
+	 * built from it. The read is `readWorksheetCompletions`, PINNED TO THE
+	 * CALLER (see its header for what an unpinned one costs), over the
+	 * worksheets in the classes they take; the rows it adds or marks are
 	 * `withWorksheetCompletions`'s; a read that cannot answer changes nothing.
+	 * It runs beside the check-in reads, which need nothing from it.
 	 */
-	if (items.length) {
+	const readCompletions = async (): Promise<Map<string, string> | null> => {
+		if (!items.length || !me) return null;
 		const managed = new Set(sections.filter((s) => sectionManagedBy(s, me, isAdmin)).map((s) => s.id));
 		// A worksheet of mine that is already turned in, closed or handed back
 		// says where it stands on its own row; only an open one is worth a read.
@@ -694,36 +693,35 @@ export async function loadClassroomWork(
 			items,
 			(item) =>
 				!settled.has(item.id) &&
-				item.postings.some((p) => sectionIds.includes(p.section_id) && !managed.has(p.section_id)),
-			(item) => item.postings.some((p) => managed.has(p.section_id)),
-			clock.now
+				item.postings.some((p) => sectionIds.includes(p.section_id) && !managed.has(p.section_id))
 		);
-		const completions = await readWorksheetCompletions(supabase, candidates);
-		submissions = withWorksheetCompletions(submissions, completions, (item_id, student_email) => ({
-			item_id,
-			student_email,
-			state: 'draft',
-			submitted_at: null,
-			returned_at: null,
-			graded_at: null
-		}));
-	}
+		if (!candidates.length) return null;
+		return readWorksheetCompletions(supabase, candidates, { onlyEmail: me });
+	};
 
-	let checkIns: ClassCheckIn[] = [];
-	let checkInsReady = false;
-	if (options.checkIns) {
+	const readCheckIns = async (): Promise<{ checkIns: ClassCheckIn[]; ready: boolean }> => {
+		if (!options.checkIns) return { checkIns: [], ready: false };
 		const studentSectionIds = sections.filter((s) => !sectionManagedBy(s, me, isAdmin)).map((s) => s.id);
-		if (studentSectionIds.length) {
-			const postings = await readCheckInPostings(supabase, studentSectionIds);
-			if (postings) {
-				checkInsReady = true;
-				// The guidance prompt is the class page's to render; an owed-work list
-				// prints a label and a date, so the rich document is not carried.
-				const rows = postings.rows.map(({ guidance_doc: _prompt, ...row }) => row);
-				checkIns = await readOwnCheckIns(supabase, options.userId, rows, clock.today);
-			}
-		}
-	}
+		if (!studentSectionIds.length) return { checkIns: [], ready: false };
+		const postings = await readCheckInPostings(supabase, studentSectionIds);
+		if (!postings) return { checkIns: [], ready: false };
+		// The guidance prompt is the class page's to render; an owed-work list
+		// prints a label and a date, so the rich document is not carried.
+		const rows = postings.rows.map(({ guidance_doc: _prompt, ...row }) => row);
+		return { checkIns: await readOwnCheckIns(supabase, options.userId, rows, clock.today), ready: true };
+	};
+
+	const [completions, own] = await Promise.all([readCompletions(), readCheckIns()]);
+	submissions = withWorksheetCompletions(submissions, completions, (item_id, student_email) => ({
+		item_id,
+		student_email,
+		state: 'draft',
+		submitted_at: null,
+		returned_at: null,
+		graded_at: null
+	}));
+	const checkIns = own.checkIns;
+	const checkInsReady = own.ready;
 
 	return { ready: true, sections, items, submissions, checkIns, checkInsReady, clock };
 }

@@ -25,8 +25,10 @@
 // answers say without one.
 //
 // BOTH DIRECTIONS, EVERY TIME: Ana answered every block (complete); Bruno
-// answered one (not complete). And the teacher, who can read both students'
-// answers, sees one finished worksheet to grade, not two.
+// answered one (not complete). And the owed-work load reads only the caller's
+// own answers: a student's reads are pinned to their address, and a teacher's
+// load reads none (an unpinned answers read is measured in `student-work.ts`,
+// and it is the home page's cost, not a detail).
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -146,10 +148,44 @@ const save = (who: SeededUser, blockId: string, text: string) =>
 
 const client = (user: SeededUser) => createPostgrestShim(db, fks, user.id) as unknown as SupabaseClient;
 
-async function classWork(user: SeededUser) {
+/**
+ * The shim, with every `.from(table)` and the `.eq` filters put on it recorded,
+ * so a test can say which reads a load made and how they were narrowed.
+ */
+function recorded(inner: SupabaseClient) {
+	const calls: { table: string; eq: [string, unknown][] }[] = [];
+	const wrap = (builder: object, call: { table: string; eq: [string, unknown][] }): object =>
+		new Proxy(builder, {
+			get(target, prop, receiver) {
+				const value = Reflect.get(target, prop, receiver);
+				if (typeof value !== 'function') return value;
+				return (...args: unknown[]) => {
+					if (prop === 'eq') call.eq.push([args[0] as string, args[1]]);
+					const out = (value as (...a: unknown[]) => unknown).apply(target, args);
+					// `select` hands back a NEW builder, so every builder is followed,
+					// never only `this`; a settled promise is returned as it is.
+					return out && typeof out === 'object' && !(out instanceof Promise) ? wrap(out, call) : out;
+				};
+			}
+		});
+	const client = new Proxy(inner as object, {
+		get(target, prop, receiver) {
+			const value = Reflect.get(target, prop, receiver);
+			if (prop !== 'from' || typeof value !== 'function') return typeof value === 'function' ? value.bind(target) : value;
+			return (table: string) => {
+				const call = { table, eq: [] as [string, unknown][] };
+				calls.push(call);
+				return wrap((value as (t: string) => object).call(target, table), call);
+			};
+		}
+	}) as unknown as SupabaseClient;
+	return { client, calls };
+}
+
+async function classWork(user: SeededUser, supabase: SupabaseClient = client(user)) {
 	const data = (await (classLayoutLoad as unknown as (e: unknown) => Promise<Record<string, unknown>>)({
 		params: { sectionId: section },
-		locals: { supabase: client(user), claims: { sub: user.id, email: user.email, role: 'authenticated' } }
+		locals: { supabase, claims: { sub: user.id, email: user.email, role: 'authenticated' } }
 	})) as { work: Record<string, { state: string; completedAt?: string }>; classClock: { now: string } };
 	return data;
 }
@@ -226,6 +262,18 @@ describe('the class page load, as each student', () => {
 		const data = await classWork(bruno);
 		expect(data.work[worksheet]).toBeUndefined();
 	});
+
+	it('the class page asks for the student\'s OWN answers and photos only', async () => {
+		const { client: c, calls } = recorded(client(ana));
+		const data = await classWork(ana, c);
+		const answers = calls.filter((x) => x.table === 'classroom_responses');
+		const photos = calls.filter((x) => x.table === 'classroom_submission_files');
+		expect(answers.length).toBeGreaterThan(0);
+		expect(photos.length).toBeGreaterThan(0);
+		for (const a of answers) expect(a.eq).toContainEqual(['student_email', ana.email]);
+		for (const p of photos) expect(p.eq).toContainEqual(['classroom_submissions.student_email', ana.email]);
+		expect(typeof data.work[worksheet]?.completedAt).toBe('string');
+	});
 });
 
 describe('the shared owed-work load (home page, My Classes, the to-do)', () => {
@@ -252,10 +300,27 @@ describe('the shared owed-work load (home page, My Classes, the to-do)', () => {
 		expect(work.submissions.filter((s) => s.completed_at !== undefined)).toEqual([]);
 	});
 
-	it("the teacher's tally reads ONE worksheet to grade: Ana's, not Bruno's", async () => {
-		const work = await loadClassroomWork(client(teacher), { userId: teacher.id, email: teacher.email, isAdmin: false });
-		const done = work.submissions.filter((s) => s.item_id === worksheet && typeof s.completed_at === 'string');
-		expect(done.map((s) => s.student_email)).toEqual([ana.email]);
+	it("a student's owed-work load asks for its OWN answers and photos only (the per-row policy is what an unpinned read would pay)", async () => {
+		const { client: c, calls } = recorded(client(ana));
+		const work = await loadClassroomWork(c, { userId: ana.id, email: ana.email, isAdmin: false });
+		const answers = calls.filter((x) => x.table === 'classroom_responses');
+		const photos = calls.filter((x) => x.table === 'classroom_submission_files');
+		// Positive control: the reads happened, so the pinning below is not vacuous.
+		expect(answers.length).toBeGreaterThan(0);
+		expect(photos.length).toBeGreaterThan(0);
+		for (const a of answers) expect(a.eq).toContainEqual(['student_email', ana.email]);
+		for (const p of photos) expect(p.eq).toContainEqual(['classroom_submissions.student_email', ana.email]);
+		expect(work.submissions.some((s) => s.item_id === worksheet && typeof s.completed_at === 'string')).toBe(true);
+	});
+
+	it("a teacher's load reads NO answers, so the home tally is what it always was (the grading console's roster says Complete)", async () => {
+		const { client: c, calls } = recorded(client(teacher));
+		const work = await loadClassroomWork(c, { userId: teacher.id, email: teacher.email, isAdmin: false });
+		// Positive control: the same load did read this class's items and rows.
+		expect(work.items.map((i) => i.id)).toContain(worksheet);
+		expect(calls.some((x) => x.table === 'classroom_submissions')).toBe(true);
+		expect(calls.filter((x) => x.table === 'classroom_responses')).toEqual([]);
+		expect(work.submissions.filter((s) => s.completed_at !== undefined)).toEqual([]);
 		const feeds = buildFeed({
 			sections: work.sections,
 			items: work.items,
@@ -263,7 +328,6 @@ describe('the shared owed-work load (home page, My Classes, the to-do)', () => {
 			myEmail: teacher.email,
 			now: new Date(work.clock.now)
 		});
-		const entry = feeds[0].urgent.find((e) => e.item.id === worksheet);
-		expect(entry).toMatchObject({ reason: 'ungraded', count: 1 });
+		expect(feeds[0].urgent.find((e) => e.item.id === worksheet)?.reason).not.toBe('ungraded');
 	});
 });

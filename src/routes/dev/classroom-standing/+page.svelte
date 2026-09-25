@@ -18,13 +18,21 @@
 	 * card as the class's teacher (the to-grade tally). Every number on screen
 	 * comes from the shipping functions -- the completeness read, the rows it
 	 * adds, the work map, `buildTodo`, `buildFeed` -- and none is typed here.
+	 *
+	 * THE READ IS THE ONE THE PAGES MAKE: pinned to the student (`onlyEmail`),
+	 * as `loadClassroomWork` and the class layout pin it. And the teacher's card
+	 * is handed the submission rows alone, because that is what the home page
+	 * hands a teacher: it reads no student's answers (an unpinned read is
+	 * measured in `student-work.ts`), so a finished worksheet is counted in the
+	 * grading console's roster and not in this tally.
 	 */
 	const measure = classroomMeasure(locateClassroom(`/classroom/${SECTION.id}`));
 
 	let completions = $state<Map<string, string> | null | undefined>(undefined);
 	readWorksheetCompletions(
 		memoryClient() as unknown as SupabaseClient,
-		ITEMS.map((i) => i.id)
+		ITEMS.map((i) => i.id),
+		{ onlyEmail: ME }
 	).then((map) => {
 		completions = map;
 	});
@@ -62,7 +70,7 @@
 		)
 	);
 	const teacherFeeds = $derived(
-		buildFeed({ sections: [SECTION], items: ITEMS, submissions, myEmail: TEACHER, now: new Date(CLOCK.now) })
+		buildFeed({ sections: [SECTION], items: ITEMS, submissions: SUBMISSIONS, myEmail: TEACHER, now: new Date(CLOCK.now) })
 	);
 </script>
 
