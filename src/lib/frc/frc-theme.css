@@ -170,3 +170,58 @@
 		transition: none !important;
 	}
 }
+
+/* ==========================================================================
+   THE REPORT BOX, IN THIS ROOM'S PAPER (report 35, 2026-09-25).
+
+   The report control and its box are mounted once in the ROOT layout, as a
+   sibling of `.frc-root`, so they can never inherit anything declared on the
+   room's wrapper -- which is why the box opened in the IDEA dark theme over a
+   light FRC page whatever site theme was stored. `SiteFeedback.svelte` reads a
+   set of `--fb-room-*` hooks with the site token as fallback; this block
+   declares them on `body`, the one ancestor the room and the box share, only
+   while an FRC page is on screen. HOOK DECLARATIONS ONLY: nothing here styles
+   an FRC element.
+
+   `body` CANNOT SEE THE `--frc-*` TOKENS ABOVE (they are declared on the
+   descendant `.frc-root`), so every value is a LITERAL, named for the token it
+   is or the token it moved from. Change them together.
+
+   IDEA GREEN IS ACHIEVEMENT-ONLY HERE, so nothing in the box wears it: the
+   accent is FIRST blue, and "saved" is the deep blue. Two inks are new and
+   both are LIGHTNESS-ONLY moves of a room colour (hue and saturation held),
+   because the room's own values fail as text on its own paper:
+     --frc-gray #9a989a   2.77 on surface, 2.53 on bg   -> 40% #676567
+     --frc-red  #ed1c24   4.23 on surface, 3.87 on bg   -> 45% #d51118
+     edge: --frc-gray at 52% #868386, a control's outer edge (3:1)
+
+   Measured, WCAG 2.x relative luminance, against the box's two grounds
+   (surface #fafbfd / bg #eef1f5):
+     ink        #231f20   15.74 / 14.39
+     muted      #676567    5.58 /  5.10
+     accent     #0066b3    5.71 /  5.22   (--frc-blue)
+     saved      #004f8a    8.16 /  7.46   (--frc-blue-deep)
+     danger     #d51118    5.17 /  4.73
+     edge       #868386    3.62 /  3.31   (bar 3.0)
+   The live dot and edge beside STOP take the brand red itself, #ed1c24, which
+   is decoration beside a word (3.87 on bg against the 3:1 non-text bar).
+   ========================================================================== */
+body:has(.frc-root) {
+	--fb-room-bg: #fafbfd; /* --frc-surface */
+	--fb-room-bg-deep: #eef1f5; /* --frc-bg */
+	--fb-room-field: #eef1f5; /* --frc-bg */
+	--fb-room-shade: rgba(35, 31, 32, 0.45); /* --frc-ink, as a veil */
+	--fb-room-ink: #231f20; /* --frc-ink */
+	--fb-room-ink-muted: #676567; /* --frc-gray, 60% -> 40% lightness */
+	--fb-room-edge: #868386; /* --frc-gray, 60% -> 52% lightness */
+	--fb-room-accent: #0066b3; /* --frc-blue */
+	--fb-room-danger: #d51118; /* --frc-red, 52% -> 45% lightness */
+	--fb-room-live: #ed1c24; /* --frc-red, decoration beside the word STOP */
+	--fb-room-ok: #004f8a; /* --frc-blue-deep: saved, never IDEA green */
+	--fb-room-info: #0066b3; /* --frc-blue */
+	--fb-room-warn: #676567; /* the muted ink: no amber in this room */
+	--fb-room-error: #d51118;
+	--fb-room-font: 'Roboto', sans-serif; /* --frc-font */
+	--fb-room-font-mono: 'Roboto', sans-serif;
+	--fb-room-lift: 0 2px 8px rgba(35, 31, 32, 0.18);
+}

@@ -343,7 +343,8 @@
 	the group is the class menu and the tools in a row; below it the tools fold
 	into ONE labeled Menu button with the class list inside it. Nothing is
 	dropped: every control is either in the row or one press away in the Menu,
-	and the command palette reaches Settings and the theme too.
+	and the command palette reaches Settings and the theme too. Report is the
+	exception to the fold and stays in the row at every width (report 30).
 -->
 <div class="app-header cr-header" class:cr-header-minimal={minimal}>
 	{#if minimal}
@@ -529,20 +530,37 @@
 			{#if loc.place !== 'item-deck'}
 				<span class="shell-docked" data-testid="shell-docked">
 					<VoiceNav {signedIn} isAdmin={!!page.data?.isAdmin} place="header" />
-					<SiteFeedback
-						place="relocated"
-						label={REPORT_LABEL_SHORT}
-						routeId={page.route.id}
-						pathname={page.url.pathname}
-						role={page.data.userProfile?.role ?? null}
-						sectionId={page.params.sectionId ?? null}
-						build={feedbackBuild}
-						submit={feedbackSubmit}
-						anonymous={feedbackAnonymous}
-					/>
 				</span>
 			{/if}
 		</div>
+		<!--
+			REPORT HAS ITS OWN SLOT AND NEVER FOLDS INTO THE MENU (report 30,
+			2026-09-25: "the report button has to be immediately accessible").
+			It used to sit in `.shell-docked` beside Voice, inside the tools the
+			fold hides below 1180px, so on a narrow window -- where most of that
+			evening's reports were filed -- it was one press inside Menu and read
+			as missing (report 20). It is outside `.shell-tools` now, so the fold
+			cannot reach it: in the row above the breakpoint exactly where it
+			was, and still in the row below it, before the profile menu. Below
+			480px it stacks its word under its glyph (as Menu does) so a phone
+			keeps a class icon beside it. Not on the deck, which has its own
+			bar and its own relocation.
+		-->
+		{#if loc.place !== 'item-deck' && feedbackSubmit}
+			<span class="shell-report" data-testid="shell-report">
+				<SiteFeedback
+					place="relocated"
+					label={REPORT_LABEL_SHORT}
+					routeId={page.route.id}
+					pathname={page.url.pathname}
+					role={page.data.userProfile?.role ?? null}
+					sectionId={page.params.sectionId ?? null}
+					build={feedbackBuild}
+					submit={feedbackSubmit}
+					anonymous={feedbackAnonymous}
+				/>
+			</span>
+		{/if}
 		<ProfileMenu />
 	</div>
 </div>
@@ -942,8 +960,14 @@
 		gap: var(--space-2);
 	}
 	/* Docked, the report control is one of the header's tools and takes their
-	   shape and their load-bearing edge rather than the floating pill's. */
-	.shell-docked :global(.sfb-trigger) {
+	   shape and their load-bearing edge rather than the floating pill's. Its
+	   slot sits OUTSIDE `.shell-tools`, so the fold below never hides it. */
+	.shell-report {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+	}
+	.shell-report :global(.sfb-trigger) {
 		border-radius: var(--radius-card);
 		border-color: var(--boundary);
 	}
@@ -1006,7 +1030,8 @@
 	   (logo, Classes, Search, Settings, Light, Voice, Report and the profile
 	   menu); a student's row carries To-do as well. It is the same DOM in both
 	   arrangements -- one copy of every control -- so no test id is doubled and
-	   no control has a second handler to keep in step. */
+	   no control has a second handler to keep in step. REPORT IS NOT IN WHAT
+	   FOLDS: its slot is outside `.shell-tools` (report 30). */
 	@media (max-width: 1179.98px) {
 		.menu-trigger {
 			display: inline-flex;
@@ -1064,10 +1089,8 @@
 			align-items: stretch;
 		}
 		.shell-docked :global(.vnav),
-		.shell-docked :global(.sfb),
 		.shell-docked :global(.vnav-row),
-		.shell-docked :global(.vnav-trigger),
-		.shell-docked :global(.sfb-trigger) {
+		.shell-docked :global(.vnav-trigger) {
 			width: 100%;
 			justify-content: flex-start;
 		}
@@ -1075,6 +1098,34 @@
 		.shell-docked :global(.vnav-header .vnav-panel) {
 			position: static;
 			width: 100%;
+		}
+	}
+
+	/* --- A phone: Menu and Report stack their word under their glyph --------
+	   REPORT STAYS IN THE ROW AT EVERY WIDTH (report 30), and in a row it costs
+	   width the class icons need. Measured on /dev/theme-switch at 375 with the
+	   profile menu present (avatar and pathway chip, 100.6px): the icons had
+	   about 36px to spare, and Report in its row form is 94.8px, so beside an
+	   unchanged 75.8px Menu the class row would have gone to nothing. Stacked,
+	   each keeps its glyph AND its word and needs the 44px floor, not a line's
+	   width. Above 480px the row form fits beside a class icon, so it stays. */
+	@media (max-width: 479.98px) {
+		.menu-trigger,
+		.shell-report :global(.sfb-trigger) {
+			flex-direction: column;
+			justify-content: center;
+			gap: 2px;
+			min-width: 44px;
+			padding: 0 0.3rem;
+		}
+		.menu-trigger .shell-tool-word {
+			font-size: 0.7rem;
+			line-height: 1;
+		}
+		.shell-report :global(.sfb-trigger) {
+			font-size: 0.6rem;
+			letter-spacing: 0.04em;
+			line-height: 1;
 		}
 	}
 

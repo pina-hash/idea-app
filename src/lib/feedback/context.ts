@@ -139,7 +139,7 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 	{
 		id: 'classroom',
 		label: 'IDEA Classroom and the notebook inside it',
-		relocatedTo: 'the classroom header, beside Search and Settings (the Menu on a narrow window)',
+		relocatedTo: 'the classroom header, in its own slot before the profile menu, at every width',
 		// LEDGER 0297, report 34's neighbour: the floating Report and Voice pills
 		// sat over live classroom content on every class and notebook page -- a
 		// row's checkbox and grip, a menu trigger, People's Deactivate and Remove,
@@ -148,6 +148,12 @@ export const FEEDBACK_EXCLUSIONS: FeedbackExclusionRule[] = [
 		// of its own on every one of those pages, so both controls dock into it
 		// (ClassroomShell mounts SiteFeedback at `place="relocated"` and VoiceNav
 		// at `place="header"`), and nothing floats over the class any more.
+		//
+		// REPORT NEVER FOLDS INTO THE MENU (report 30, 2026-09-25). Below 1180px
+		// the header's tools fold behind one Menu button; Report used to fold with
+		// them, so on a narrow window it was one press away and read as missing
+		// ("the report button does not show up in the classroom app", report 20).
+		// It has its own slot outside the fold now, visible at every width.
 		//
 		// AFTER THE DECK AND THE PROJECTOR, the two classroom routes with chrome
 		// of their own (the deck's bar, the wall strip) and which this rule must

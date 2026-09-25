@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "foundry-forge-report-room.mjs",
+	"date": "2026-09-25T05:47:34.218Z",
+	"sha": "fe8c491b700d165b689b990e67af00cd5f357ffc",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 38,
+	"outsideRows": [],
+	"ms": 7557
+}

@@ -24,7 +24,8 @@ import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
 import { createPostgrestShim, loadForeignKeys } from './db/postgrest-shim';
-import { loadPostedTeams, postedTeamSets } from '../src/lib/classroom/class-teams';
+import { loadPostedTeams, postedTeamSets, refreshPostedTeams } from '../src/lib/classroom/class-teams';
+import { teamWindowEnd } from '../src/lib/classroom/teams';
 
 const CHAIN = [
 	'0001_profiles.sql',
@@ -175,6 +176,78 @@ describe('the class page reads the posted draw, as names', () => {
 		expect(await loadPostedTeams(throwing as never, sectionId)).toEqual([]);
 		expect(postedTeamSets([])).toEqual([]);
 	});
+
+	it('a REFRESH that fails answers null, never the empty list, so the page keeps what it shows', async () => {
+		// The refresh re-reads an open class page (ledger 0298, R23). "The read
+		// failed" and "nothing is posted" must be two answers there, or one
+		// dropped request takes the posted teams off every open page.
+		const failing = { rpc: async () => ({ data: null, error: { code: 'XX000', message: 'boom' } }) };
+		expect(await refreshPostedTeams(failing as never, sectionId)).toBeNull();
+		const missing = { rpc: async () => ({ data: null, error: { code: 'PGRST202', message: 'missing' } }) };
+		expect(await refreshPostedTeams(missing as never, sectionId)).toBeNull();
+		const throwing = {
+			rpc: async () => {
+				throw new Error('network');
+			}
+		};
+		expect(await refreshPostedTeams(throwing as never, sectionId)).toBeNull();
+		// POSITIVE CONTROL: the real read answers the student the posted draw.
+		const live = await refreshPostedTeams(createPostgrestShim(db, fks, alice.id) as never, sectionId);
+		expect(live?.map((s) => s.id)).toEqual([postedId]);
+	});
+});
+
+// ===========================================================================
+// THE POSTING WINDOW, END TO END (ledger 0298, R23). Mr. Pina posted a draw
+// and no student saw it. The two windows a posted draw can be in are driven
+// here through the real RPC and the real read: open (posted with the People
+// tab's own "today" end) and already closed. The closed window is written as
+// the connection owner, because 0223's post RPC refuses an end in the past --
+// which is exactly how a real window closes: time passes over a stored end.
+// ===========================================================================
+describe('a posted draw, while its window is open and after it has closed', () => {
+	it('"today" is accepted by the real post RPC and the student sees the draw, with its end', async () => {
+		const end = teamWindowEnd(Date.now(), 1)!;
+		await rpc(teacher.id, 'public.classroom_post_team_set($1::uuid, $2::timestamptz)', [postedId, end]);
+		try {
+			const sets = await loadPostedTeams(createPostgrestShim(db, fks, alice.id) as never, sectionId);
+			expect(sets.map((s) => s.id)).toEqual([postedId]);
+			expect(Date.parse(sets[0].visible_until!)).toBe(Date.parse(end));
+			expect(sets[0].posted_at).not.toBeNull();
+			// The window's own two fields are all the projection adds: still no address.
+			expect(JSON.stringify(sets)).not.toContain('@');
+		} finally {
+			await rpc(teacher.id, 'public.classroom_post_team_set($1::uuid, $2::timestamptz)', [postedId, null]);
+		}
+	});
+
+	it('once the window has closed, neither the student nor the teacher gets it on the class page', async () => {
+		await db.sql(
+			`update public.classroom_team_sets
+			    set posted_at = now() - interval '3 days', visible_until = now() - interval '1 day'
+			  where id = $1`,
+			[postedId]
+		);
+		try {
+			expect(await loadPostedTeams(createPostgrestShim(db, fks, alice.id) as never, sectionId)).toEqual([]);
+			expect(await loadPostedTeams(createPostgrestShim(db, fks, teacher.id) as never, sectionId)).toEqual([]);
+			// POSITIVE CONTROL: the draw still exists and the teacher's raw board
+			// still carries it, marked not showing -- the class page's read is
+			// what leaves it off, not a missing row.
+			const raw = await rpc<{ sets: { id: string; showing: boolean }[] }>(
+				teacher.id,
+				'public.classroom_team_board($1::uuid)',
+				[sectionId]
+			);
+			const row = raw.sets.find((s) => s.id === postedId);
+			expect(row?.showing).toBe(false);
+		} finally {
+			await rpc(teacher.id, 'public.classroom_post_team_set($1::uuid, $2::timestamptz)', [postedId, null]);
+		}
+		// And posting it again puts it straight back.
+		const again = await loadPostedTeams(createPostgrestShim(db, fks, alice.id) as never, sectionId);
+		expect(again.map((s) => s.id)).toEqual([postedId]);
+	});
 });
 
 describe('the class page mounts it for everyone', () => {
@@ -183,7 +256,28 @@ describe('the class page mounts it for everyone', () => {
 		const page = readFileSync(new URL('../src/routes/classroom/[sectionId]/+layout.svelte', import.meta.url), 'utf8');
 		expect(server).toMatch(/loadPostedTeams\(supabase, params\.sectionId\)/);
 		expect(server).toMatch(/teams: await teamsRead/);
-		// Not behind canManage: the class sees it, and so does the teacher.
-		expect(page).toMatch(/\{#if data\.teams\?\.length\}\s*<ClassTeams sets=\{data\.teams\} \/>/);
+		// Not behind canManage: the class sees it, and so does the teacher. Only
+		// the teacher's strip (`manage`) is keyed on managing the class.
+		expect(page).toMatch(/<ClassTeams\s+sets=\{data\.teams\}/);
+		expect(page).toMatch(/manage=\{data\.canManage \? teamsManageLink\(data\.section\.id\) : null\}/);
+		// MOUNTED WHETHER OR NOT ANYTHING IS POSTED, AND HANDED ITS REFRESH
+		// (ledger 0298, R23). This layout's load never re-runs on a navigation
+		// inside the class, so a gate on the load's answer would hide a draw
+		// posted after the page opened from everybody who had it open.
+		expect(page).not.toMatch(/\{#if[^}]*data\.teams/);
+		expect(page).toMatch(/refresh=\{\(\) => refreshPostedTeams\(data\.supabase, data\.section\.id\)\}/);
+	});
+
+	it('posting, taking down and retiring from People refresh the page, so the Class tab is not stale', () => {
+		const panel = readFileSync(new URL('../src/lib/classroom/PeoplePanel.svelte', import.meta.url), 'utf8');
+		const people = readFileSync(new URL('../src/routes/classroom/[sectionId]/people/+page.svelte', import.meta.url), 'utf8');
+		const body = /async function runTeamAction\([\s\S]*?\n\t}\n/.exec(panel)?.[0] ?? '';
+		// POSITIVE CONTROL: the function was found, and it is the one the three
+		// team actions go through.
+		expect(body).toMatch(/await loadTeams\(\)/);
+		expect((panel.match(/runTeamAction\(/g) ?? []).length).toBeGreaterThanOrEqual(4);
+		expect(body).toMatch(/await onchanged\?\.\(\)/);
+		// ...and on the real People page `onchanged` re-runs every load.
+		expect(people).toMatch(/onchanged=\{\(\) => invalidateAll\(\)\}/);
 	});
 });

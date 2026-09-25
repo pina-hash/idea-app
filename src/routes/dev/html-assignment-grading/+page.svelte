@@ -47,6 +47,18 @@
 	 * puts the notice above the document, and shuts the frame.
 	 */
 	const closed = $derived(viewState === 'closed');
+	/**
+	 * THE THREE READINGS OF A FINISHED WORKSHEET (decision 37, ledger 0298).
+	 * Alice has answered every counted block, so the roster reads "Complete"
+	 * in the ordinary state; `late` puts the due instant between her earlier
+	 * answers and her photo, so it reads "Complete, late"; `graded` stamps a
+	 * grade between her checkbox and her last two changes, so the work pane
+	 * lists those two blocks as changed after grading; `partial` takes her
+	 * photo away, which is the one block still unmet, so it reads In progress.
+	 */
+	const late = $derived(viewState === 'late');
+	const graded = $derived(viewState === 'graded');
+	const partial = $derived(viewState === 'partial');
 	/** `live=stalled` makes the bus report the one status the memory twin never
 	    produces on its own, which is the one that earns a sentence. */
 	const liveStalled = $derived(page.url.searchParams.get('live') === 'stalled');
@@ -74,7 +86,7 @@
 	 * frame is mounted. The not-live sentence is the other branch and has its
 	 * own measurement; here it would hide the pane this route exists to measure.
 	 */
-	const ITEM: ClassroomItem = {
+	const ITEM_BASE = {
 		id: ITEM_ID,
 		kind: 'assignment',
 		title: 'HX Smoke Test',
@@ -93,7 +105,9 @@
 		updated_at: iso(4),
 		attachments: [],
 		publish_at: null
-	} as unknown as ClassroomItem;
+	};
+	/** `late` gives the item a due instant between Alice's answers and her photo. */
+	const ITEM = $derived({ ...ITEM_BASE, due_at: late ? iso(1.1) : null } as unknown as ClassroomItem);
 
 	/**
 	 * THE FIELDS ARE THE `/hx/worksheet` FIXTURE'S OWN (`teamName`,
@@ -213,7 +227,8 @@
 			item_id: ITEM_ID,
 			student_email: 'alice@boscotech.net',
 			block_id: 'hxw-team',
-			value: { text: 'Team Meridian' }
+			value: { text: 'Team Meridian' },
+			updated_at: iso(3)
 		},
 		{
 			item_id: ITEM_ID,
@@ -221,13 +236,15 @@
 			block_id: 'hxw-reflection',
 			value: {
 				text: 'I modelled the blade root and the hub today. The fillet at the root took three tries before it would rebuild.'
-			}
+			},
+			updated_at: iso(1.2)
 		},
 		{
 			item_id: ITEM_ID,
 			student_email: 'alice@boscotech.net',
 			block_id: 'hxw-done',
-			value: { checked: [true] }
+			value: { checked: [true] },
+			updated_at: iso(2)
 		}
 	];
 
@@ -239,7 +256,8 @@
 			filename: 'blade-root-fillet.png',
 			caption: 'The fillet after the third rebuild',
 			mime_type: 'application/octet-stream',
-			sort_order: 1
+			sort_order: 1,
+			created_at: iso(1)
 		}
 	];
 
@@ -289,11 +307,15 @@
 									? { ...r, state: 'submitted' as const, submitted_at: null }
 									: r
 							)
-						: SUBMISSIONS,
+						: graded
+							? SUBMISSIONS.map((r) =>
+									r.student_email === 'alice@boscotech.net' ? { ...r, graded_at: iso(1.5) } : r
+								)
+							: SUBMISSIONS,
 					// The empty state is the SAME fixture with the stored rows taken
 					// away, so the only difference on screen is the one being measured.
 					responses: wantEmpty ? [] : RESPONSES,
-					files: wantEmpty ? [] : FILES,
+					files: wantEmpty || partial ? [] : FILES,
 					filesStorageReady: true,
 					extraCreditReady: true,
 					approvals: []
@@ -383,6 +405,9 @@
 			<a class="hx-state" class:is-on={broken} href="/dev/html-assignment-grading?state=broken">photo will not decode</a>
 			<a class="hx-state" class:is-on={closed} href="/dev/html-assignment-grading?state=closed">closed by the teacher</a>
 			<a class="hx-state" class:is-on={liveStalled} href="/dev/html-assignment-grading?live=stalled">live stalled</a>
+			<a class="hx-state" class:is-on={late} href="/dev/html-assignment-grading?state=late">finished late</a>
+			<a class="hx-state" class:is-on={graded} href="/dev/html-assignment-grading?state=graded">changed after grading</a>
+			<a class="hx-state" class:is-on={partial} href="/dev/html-assignment-grading?state=partial">photo missing</a>
 		</nav>
 	</header>
 
@@ -396,6 +421,7 @@
 			{live}
 			close={closeAssignment}
 			{htmlWork}
+			manifest={MANIFEST}
 		/>
 	{/key}
 

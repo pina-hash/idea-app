@@ -36,11 +36,14 @@
 		studentWorkRows
 	}	from '$lib/classroom/assignment-spec';
 	import {
+		completionIsLate,
 		itemTitle,
 		sectionTitle,
 		type ClassroomItem,
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
+	import { hxCompletion } from '$lib/classroom/html-assignment/progress';
+	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import {
 		BULK_PRESETS,
 		BULK_PRESET_LABEL,
@@ -72,6 +75,7 @@
 		type ExportScope,
 		postGradeChange,
 		postGradeChangeLabel,
+		postGradeBlockChanges,
 		type PostGradeChange
 	} from '$lib/classroom/grading-export';
 	import { buildXlsx } from '$lib/xlsx';
@@ -88,6 +92,8 @@
 		type AssignmentLockState
 	} from '$lib/classroom/html-assignment/lock';
 	import Disclosure from '$lib/Disclosure.svelte';
+	import BulkFileDownload from '$lib/classroom/BulkFileDownload.svelte';
+	import type { BulkFileSource } from '$lib/classroom/bulk-download-source';
 	import PresenceLine from '$lib/classroom/presence/PresenceLine.svelte';
 	import {
 		PRESENCE_POLL_MS,
@@ -126,10 +132,12 @@
 		basePath = '/classroom',
 		bulk = null,
 		htmlWork = null,
+		manifest = null,
 		live = null,
 		close = null,
 		presence = null,
-		speech = undefined
+		speech = undefined,
+		fileDownload = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -195,6 +203,15 @@
 		 */
 		htmlWork?: Snippet<[StudentWork]> | null;
 		/**
+		 * THE PORTED WORKSHEET'S MANIFEST (0195, schema 3), or null for every
+		 * spec assignment. It is what lets the roster say "Complete" for a
+		 * worksheet with every answer in (decision 37, ledger 0298) through
+		 * `hxCompletion`, the same predicate the student's own chip and the home
+		 * tally read, and what names a block in "changed after grading". Absent,
+		 * the roster reads exactly as it did: no worksheet is judged complete.
+		 */
+		manifest?: HtmlAssignmentManifest | null;
+		/**
 		 * LIVE NOTICES, AND THE POLL UNDERNEATH THEM IS NOT OPTIONAL WITH IT.
 		 *
 		 * Before this the only way to see newer work was to reload the page.
@@ -254,6 +271,12 @@
 		 * deliver results: a flag could only ever prove the button renders.
 		 */
 		speech?: SpeechRecognitionCtor | null;
+		/**
+		 * EVERY STUDENT FILE AS ONE ZIP (ledger 0298), AND ABSENCE REMOVES THE
+		 * CONTROL. `BulkFileDownload` renders nothing without it, so a read-only
+		 * mount and a harness proving the absence have no button at all.
+		 */
+		fileDownload?: BulkFileSource | null;
 	} = $props();
 
 	/**
@@ -419,6 +442,8 @@
 		) as Map<string, PostGradeChange | null>
 	);
 	const selectedChange = $derived(selected ? (changedFor.get(selected.email) ?? null) : null);
+	/** Per block, from the same `graded_at` (ledger 0298). */
+	const selectedBlockChanges = $derived(selected ? postGradeBlockChanges(selected) : []);
 	const changedCount = $derived([...changedFor.values()].filter(Boolean).length);
 
 	/**
@@ -1066,8 +1091,55 @@
 				? { label: ASSIGNMENT_LOCK_CHIP.closed, cls: 'closed' }
 				: { label: ASSIGNMENT_LOCK_CHIP['turned-in'], cls: 'submitted' };
 		}
+		/*
+		 * A FINISHED PORTED WORKSHEET IS COMPLETE, NOT "In progress" (decision
+		 * 37, ledger 0298): it has no turn-in, so this is the only word for a
+		 * student who has done all of it. `hxCompletion` is the one predicate the
+		 * student's chip and the home tally read too; late says so in a word and
+		 * in amber, never silently.
+		 */
+		const done = completionOf(s);
+		if (done) {
+			return completionIsLate(item, done)
+				? { label: 'Complete, late', cls: 'late' }
+				: { label: 'Complete', cls: 'submitted' };
+		}
 		if (s.responses.length || s.files.length) return { label: 'In progress', cls: 'progress' };
 		return { label: 'Not submitted', cls: 'none' };
+	}
+
+	/**
+	 * WHEN THIS STUDENT'S WORKSHEET BECAME COMPLETE, or null: not a worksheet,
+	 * not complete, or already turned in some other way (a close, a return).
+	 * An empty string is "complete, instant unknown", which is never late.
+	 */
+	function completionOf(s: StudentWork): string | null {
+		if (!manifest) return null;
+		const state = s.submission?.state ?? null;
+		if (state === 'submitted' || state === 'returned') return null;
+		const done = hxCompletion(manifest, s.responses, s.files);
+		return done.complete ? (done.at ?? '') : null;
+	}
+
+	/**
+	 * A BLOCK'S NAME, for "changed after grading": the worksheet's own module
+	 * title and field when there is a manifest, the spec module's title when
+	 * there is a spec, and the block id when neither knows it -- an id is still
+	 * an answer an instructor can find.
+	 */
+	function blockName(blockId: string): string {
+		if (manifest) {
+			for (const b of manifest.header ?? []) if (b.id === blockId) return `Header: ${b.field}`;
+			for (const m of manifest.modules ?? []) {
+				for (const b of m.blocks ?? []) if (b.id === blockId) return `${m.title}: ${b.field}`;
+			}
+		}
+		if (spec) {
+			for (const m of spec.modules ?? []) {
+				for (const b of (m.blocks ?? []) as { id?: string }[]) if (b.id === blockId) return `${m.title}: ${blockId}`;
+			}
+		}
+		return blockId;
 	}
 
 	/**
@@ -2003,6 +2075,23 @@
 								<p class="export-note" data-testid="export-note">{exportNote}</p>
 							{/if}
 						</div>
+						<!-- EVERY STUDENT FILE AS ONE ZIP (ledger 0298). The class is the export
+						     picker's, the selection is the tick boxes', and the standing column
+						     is the roster chip's own words, so the file and the console agree. -->
+						<BulkFileDownload
+							source={fileDownload}
+							{item}
+							{data}
+							sections={activeSections}
+							scopeSection={exportSection}
+							selected={picked}
+							standingOf={(email) => {
+								const s = students.find((row) => row.email === email);
+								return s ? statusChip(s).label : '';
+							}}
+							{outOf}
+							save={download}
+						/>
 					</Disclosure>
 					{#if returnedCount < students.length}
 						<p class="csv-hint">
@@ -2017,7 +2106,8 @@
 						     (ledger 0297, LEARN). -->
 						<p class="off-roster" data-testid="off-roster-notice">
 							{offRosterCount} response {offRosterCount === 1 ? 'set' : 'sets'} from somebody not on
-							this class roster {offRosterCount === 1 ? 'is' : 'are'} not listed, counted or exported.
+							this class roster {offRosterCount === 1 ? 'is' : 'are'} not listed, counted or in the grade
+							exports.
 							Roster: <a href="{basePath}/{section.id}/people">People tab</a>.
 						</p>
 					{/if}
@@ -2381,6 +2471,23 @@
 									Graded {stamp(selectedChange.gradedAt)}, work last touched
 									{stamp(selectedChange.at)}. Grading again clears this.
 								</p>
+							{/if}
+							<!--
+								WHERE, NOT ONLY THAT (decision 37, ledger 0298): every answer, and
+								every photograph in a block, that moved after the grade, with its
+								own time, newest first. Rendered on its own rather than under the
+								line above, because a photograph added after grading is a block
+								change the line does not count.
+							-->
+							{#if selectedBlockChanges.length}
+								<ul class="changed-blocks" data-testid="changed-blocks">
+									{#each selectedBlockChanges as change (change.blockId)}
+										<li data-testid="changed-block">
+											<span class="changed-block-name">{blockName(change.blockId)}</span>
+											{change.kind === 'file' ? 'photo added' : 'changed'} after grading at {stamp(change.at)}
+										</li>
+									{/each}
+								</ul>
 							{/if}
 							</div>
 						</div>
@@ -3649,6 +3756,12 @@
 		color: var(--teal);
 		border-color: var(--teal);
 	}
+	/* COMPLETE, LATE (decision 37): --amber, this file's warning edge, because
+	   late work is a fact the grader acts on; the WORD says late either way. */
+	.roster-chip.late {
+		color: var(--amber);
+		border-color: var(--amber);
+	}
 	/* CLOSED IS NOT SUBMITTED AND MUST NOT LOOK LIKE IT. --cyan is this file's
 	   "the student handed it in"; a close is an act of the instructor's, so it
 	   takes --violet through --violet-ink, which is the corrected value the
@@ -3734,6 +3847,18 @@
 	.roster-chip.changed {
 		color: var(--amber);
 		border-color: var(--amber);
+	}
+	/* The blocks that moved after the grade: the changed line's own register,
+	   one per line so a long worksheet's list reads down rather than wrapping. */
+	.changed-blocks {
+		margin: 0.25rem 0 0;
+		padding-left: 1.1rem;
+		font-size: 0.8125rem;
+		line-height: 1.45;
+		color: var(--text-2);
+	}
+	.changed-block-name {
+		color: var(--text-1);
 	}
 	.roster-chip.incomplete {
 		color: var(--gold);
@@ -3935,6 +4060,20 @@
 			min-height: 0;
 			overflow-y: auto;
 			overscroll-behavior: contain;
+		}
+		/* THE CROSS-CLASS ROSTER IS GROUPS, AND EACH GROUP IS A FLEX ITEM OF
+		   `.roster` TOO (ledger 0298). With no `min-height: 0` a group's automatic
+		   minimum is its whole content, so two long classes won the flex fight and
+		   took `.roster-tools` below to nothing: measured on /dev/grading-files at
+		   1440x900, the tools region 0px tall with 199px of content in it, and the
+		   Export graded work trigger answered `elementFromPoint` with a class
+		   heading, so no click could open it. Made a column, the group shrinks
+		   and its own list scrolls under its heading, exactly as the one-class
+		   list does. */
+		.roster-group {
+			display: flex;
+			flex-direction: column;
+			min-height: 0;
 		}
 		/* THE NAMES GET A FLOOR, WRITTEN AS A CEILING ON THE THING THAT WAS
 		   STARVING THEM (0278), AND THE DIRECTION IS THE WHOLE LESSON.

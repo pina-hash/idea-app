@@ -39,6 +39,7 @@ import {
 	hasStyle,
 	type EntryStyleDraft
 } from '$lib/tournaments/entry-styles';
+import { laCalendarDay, schoolDayEnd } from './school-calendar';
 
 export { ACCENT_PRESETS, BADGES, FLOURISHES, NEUTRAL_ACCENT, accentOf, backgroundCss, bannerInk, hasStyle };
 
@@ -270,18 +271,23 @@ export const TEAM_WINDOW_WORDS: Record<ReturnType<typeof teamWindowState>, strin
 };
 
 /**
- * A POSTING END, FROM A NUMBER OF DAYS, and it lands at the END of that
- * school day rather than at the same clock time days later -- "post these for
- * the week" means through Friday, not until Friday morning.
+ * A POSTING END, FROM A NUMBER OF CALENDAR DAYS COUNTING TODAY (on the
+ * school's calendar; weekends count), and it lands at the END of the last one
+ * rather than at the same clock time days later: "post these for the week" on
+ * a Monday means through Friday, not until Friday morning. One day is today.
+ *
+ * THE DAY IS THE SCHOOL'S, IN AMERICA/LOS_ANGELES, and that is ledger 0298's
+ * repair. This used to add `days` to the date and set 23:59 on the BROWSER'S
+ * clock, so "today" ended at the end of TOMORROW, and on a device set to
+ * another zone at the end of that zone's tomorrow. The day comes from
+ * `laCalendarDay` and the instant from `schoolDayEnd`, which is the one
+ * conversion between the two; nothing here reads a clock.
  *
  * Takes `now` and returns an ISO string or null for "no end".
  */
 export function teamWindowEnd(nowMs: number, days: number | null): string | null {
-	if (days === null || !Number.isFinite(days) || days < 1) return null;
-	const d = new Date(nowMs);
-	d.setDate(d.getDate() + Math.floor(days));
-	d.setHours(23, 59, 59, 0);
-	return d.toISOString();
+	if (days === null || !Number.isFinite(days) || days < 1 || !Number.isFinite(nowMs)) return null;
+	return schoolDayEnd(laCalendarDay(new Date(nowMs)), Math.floor(days) - 1);
 }
 
 /**

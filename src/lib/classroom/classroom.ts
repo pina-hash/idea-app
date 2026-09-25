@@ -1263,6 +1263,27 @@ export interface StudentWork {
 	state: WorkState;
 	/** Released score, and only ever on a returned submission. */
 	score: number | null;
+	/**
+	 * FINISHING A PORTED HTML WORKSHEET IS TURNING IT IN (decision 37, ledger
+	 * 0298): the instant the caller's own stored answers made the worksheet
+	 * complete, or absent when it is not complete, is not a worksheet, or the
+	 * read could not tell. A DERIVED INPUT, never a column: a schema-3 document
+	 * has no turn-in, so without it a worksheet with every answer in read
+	 * "Missing" from its due instant until the teacher returned a grade.
+	 *
+	 * It is `hxCompletion` in `$lib/classroom/html-assignment/progress` (the
+	 * progress rail's own 100%, never `hxIncompleteBlocks` alone, which passes
+	 * an empty worksheet whose manifest asks for no sentences), computed by the
+	 * loader from the caller's own `classroom_responses` and submission files
+	 * and the item's manifest. The state is NOT moved to `submitted`: that
+	 * LOCKS saves (0197), and a finished worksheet stays editable until graded.
+	 *
+	 * THE TIME IS THE LAST CHANGE TO THE WORK THE WORKSHEET COUNTS, so an edit
+	 * made after the due instant makes the work late, the way unsubmitting and
+	 * turning in again after a deadline does. `updated_at` is all the table
+	 * keeps (0086), so an earlier finish cannot be told apart from it.
+	 */
+	completedAt?: string | null;
 }
 
 /** The submission columns this needs, and nothing more. */
@@ -1270,6 +1291,11 @@ export interface SubmissionSummary {
 	item_id: string;
 	state: string;
 	score: number | null;
+	/**
+	 * DERIVED BY THE LOADER, NEVER SELECTED: `classroom_submissions` has no such
+	 * column and a select naming it would be refused. See `StudentWork.completedAt`.
+	 */
+	completed_at?: string | null;
 }
 
 /**
@@ -1281,16 +1307,24 @@ export interface SubmissionSummary {
  * own policy would hand them the whole class, and a teacher has no personal
  * standing on their own assignment.
  *
- * NO ROW AT ALL IS "not started", which is the honest reading: 0086 creates the
- * submission row the moment a response is saved or a file uploaded, so its
- * absence means nothing has been done.
+ * NO ROW AT ALL IS "not started" for everything the ROW can say, and this
+ * comment used to claim more than that. It read "0086 creates the submission
+ * row the moment a response is saved", which is false: `classroom_save_response`
+ * never creates one (0086, and 0197 kept it that way), only a file attach, a
+ * grade, a submit or a close does. So a student who has typed every answer and
+ * attached nothing has NO row. For a spec assignment that is the ordinary
+ * "not started, nothing turned in" the row can report; for a ported worksheet
+ * the loader says what the answers say, as a row carrying `completed_at`
+ * (see `StudentWork.completedAt`), because the worksheet has no turn-in.
  */
 export function studentWorkMap(rows: SubmissionSummary[]): Record<string, StudentWork> {
 	const out: Record<string, StudentWork> = {};
 	for (const row of rows) {
 		const state: WorkState =
 			row.state === 'returned' ? 'returned' : row.state === 'submitted' ? 'submitted' : 'in-progress';
-		out[row.item_id] = { state, score: state === 'returned' ? (row.score ?? null) : null };
+		const work: StudentWork = { state, score: state === 'returned' ? (row.score ?? null) : null };
+		if (typeof row.completed_at === 'string') work.completedAt = row.completed_at;
+		out[row.item_id] = work;
 	}
 	return out;
 }
@@ -1404,8 +1438,55 @@ export function studentWorkChip(
 			missing: true
 		};
 	}
+	if (workIsComplete(mine)) {
+		/*
+		 * COMPLETE, AND LATE SAYS SO (decision 37's default). A word and a tone,
+		 * never a silent "Done": the checkmark says it is finished, and the word
+		 * and the amber say it was finished after the deadline. It reads the
+		 * work's own instant against the due instant, so it needs no clock and
+		 * says the same thing on every surface and on every day after.
+		 */
+		const late = completionIsLate(item, mine.completedAt);
+		return {
+			label: late ? 'Complete, late' : 'Complete',
+			tone: late ? 'attention' : 'info',
+			done: true,
+			missing: false
+		};
+	}
 	const done = mine.state === 'submitted' || mine.state === 'returned';
 	return { label: workStateLabel(mine, item.points), tone: workStateTone(mine.state), done, missing: false };
+}
+
+/**
+ * FINISHED BY FILLING IT IN, AND NOT TURNED IN OR HANDED BACK ANY OTHER WAY.
+ * A worksheet an instructor closed (`submitted`) or returned keeps the words
+ * the row itself has always printed; `completedAt` only speaks for work whose
+ * row cannot.
+ */
+export function workIsComplete(work: StudentWork | undefined): work is StudentWork & { completedAt: string } {
+	return (
+		!!work &&
+		work.state !== 'submitted' &&
+		work.state !== 'returned' &&
+		typeof work.completedAt === 'string'
+	);
+}
+
+/**
+ * WHETHER WORK FINISHED AT `completedAt` WAS FINISHED AFTER THE DUE INSTANT.
+ * An undated item is never late; an unparseable instant is never late either,
+ * because "late" is a claim about a student and a value this cannot read is
+ * no evidence for one.
+ */
+export function completionIsLate(
+	item: Pick<ClassroomItem, 'due_at'>,
+	completedAt: string | null | undefined
+): boolean {
+	if (!item.due_at || !completedAt) return false;
+	const due = Date.parse(item.due_at);
+	const at = Date.parse(completedAt);
+	return Number.isFinite(due) && Number.isFinite(at) && at > due;
 }
 
 /** Existing tones only -- crimson stays reserved for LIVE/REC/error. */
@@ -2143,7 +2224,9 @@ export type WorkStanding = 'todo' | 'missing' | 'done';
  * WHERE A STUDENT STANDS ON ONE ASSIGNMENT, for the status filter.
  *
  * Turned in (submitted or returned) is DONE, from `studentWorkMap`'s own
- * states. Anything else past its due instant is MISSING. Everything else is TO
+ * states, and so is a ported worksheet whose every answer is in
+ * (`StudentWork.completedAt`, decision 37): finishing it IS turning it in, on
+ * time or late. Anything else past its due instant is MISSING. Everything else is TO
  * DO, including an assignment with no due date: the home feed leaves undated
  * work out of its COUNT because a count that never stops counting is not
  * believed, but this is a list a student asked for, and hiding an undated
@@ -2157,6 +2240,7 @@ export function assignmentStanding(
 ): WorkStanding | null {
 	if (item.kind !== 'assignment') return null;
 	if (work && (work.state === 'submitted' || work.state === 'returned')) return 'done';
+	if (workIsComplete(work)) return 'done';
 	const due = item.due_at ? Date.parse(item.due_at) : Number.NaN;
 	const at = Date.parse(now);
 	if (Number.isFinite(due) && Number.isFinite(at) && due < at) return 'missing';
@@ -2214,16 +2298,36 @@ export interface StreamFilterContext {
 	 * disagree about what matches.
 	 */
 	matches: (query: string, fields: readonly (string | null | undefined)[]) => boolean;
+	/**
+	 * THE CHECK-INS HANGING OFF EACH ITEM (0120), keyed by item id
+	 * (`checkInsByItem`). An attached check-in has no row of its own on the
+	 * class page -- it renders as a chip on its item -- so the item row is
+	 * where the filter has to find it (ledger 0298, R14): the count said "1
+	 * missing" while the Missing filter showed nothing, because the only row
+	 * that could carry that check-in was filtered on the item's own standing.
+	 * Absent means no item carries one, which is every surface that does not
+	 * hand it in.
+	 */
+	attached?: ReadonlyMap<string, readonly FilterableCheckIn[]>;
 }
 
-/** Whether one item survives the filter. Status needs a standing; a kind of `check-in` is never an item. */
+/**
+ * Whether one item survives the filter. Status needs a standing; a kind of
+ * `check-in` keeps only an item that CARRIES one, because that row is the only
+ * place an attached check-in is drawn. On a status, an item stays when its own
+ * standing matches OR any check-in hanging off it does.
+ */
 export function itemPassesFilter(item: ClassroomItem, filter: StreamFilter, ctx: StreamFilterContext): boolean {
-	if (filter.kind === 'check-in') return false;
-	if (filter.kind !== 'all' && item.kind !== filter.kind) return false;
+	const attached = ctx.attached?.get(item.id) ?? [];
+	if (filter.kind === 'check-in') {
+		if (!attached.length) return false;
+	} else if (filter.kind !== 'all' && item.kind !== filter.kind) return false;
 	if (filter.status === 'drafts') {
 		if (item.published) return false;
 	} else if (filter.status !== 'all') {
-		if (assignmentStanding(item, ctx.work[item.id], ctx.now) !== filter.status) return false;
+		const own = filter.kind === 'check-in' ? null : assignmentStanding(item, ctx.work[item.id], ctx.now);
+		const viaCheckIn = attached.some((c) => checkInStanding(c, ctx.today) === filter.status);
+		if (own !== filter.status && !viaCheckIn) return false;
 	}
 	const unit = item.unit_id ? ctx.unitNames.get(item.unit_id) : undefined;
 	return ctx.matches(filter.query, [
@@ -2231,7 +2335,8 @@ export function itemPassesFilter(item: ClassroomItem, filter: StreamFilter, ctx:
 		unit,
 		itemKindLabel(item.kind),
 		item.category,
-		...item.attachments.map((a) => a.filename)
+		...item.attachments.map((a) => a.filename),
+		...attached.map((c) => c.session_label)
 	]);
 }
 
@@ -2247,7 +2352,16 @@ export function checkInPassesFilter(
 	return ctx.matches(filter.query, [checkIn.session_label, 'check-in', `unit ${checkIn.unit_number}`]);
 }
 
-/** How many of the viewer's own assignments and check-ins stand in each state, for the chips' counts. */
+/**
+ * How many of the viewer's own assignments and check-ins stand in each state, for the chips' counts.
+ *
+ * THE CLASS PAGE HANDS IN EVERY CHECK-IN, attached ones included (ledger 0298,
+ * R14). It used to hand in only the ones with a stream row of their own, so a
+ * past-day check-in hanging off the day's material counted "1 missing" on My
+ * Classes, the home page and the to-do and 0 here, with nothing on the page to
+ * show for it. The same set now feeds this count, the to-do's rows and the
+ * chip on the item it hangs off.
+ */
 export function standingCounts(
 	items: readonly ClassroomItem[],
 	checkIns: readonly FilterableCheckIn[],

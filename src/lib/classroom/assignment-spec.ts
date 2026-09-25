@@ -274,6 +274,8 @@ export interface SubmissionFileRow {
 	mime_type: string;
 	size_bytes?: number | null;
 	sort_order?: number;
+	/** When the file arrived (0086's own column; in `SUBMISSION_FILE_SELECT` since ledger 0298). */
+	created_at?: string | null;
 	/**
 	 * 0133's key, `<submission_id>/<uuid>.<ext>`, or null for a Drive-backed
 	 * hand-in. THE THREE STATES ARE DIFFERENT AND `isSubmissionFileImage`

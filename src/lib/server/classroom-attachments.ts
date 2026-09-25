@@ -129,45 +129,13 @@ export function storageObjectKey(ownerId: string, filename: string): string {
 }
 
 /**
- * The `download` value handed to `createSignedUrl`, which is what turns the
- * response into `Content-Disposition: attachment`.
- *
- * IT IS ASCII-ONLY, AND THAT IS A MEASUREMENT RATHER THAN A PREFERENCE.
- * The first version passed the name through almost untouched -- spaces,
- * parentheses and accents included -- on the reasoning that the name somebody
- * typed is the name they should get back. Measured against a real Supabase
- * project, `Estudio (final) café.SLDPRT` came back as
- *
- *   content-disposition: attachment; filename=Estudio%20%2528final%2529%20caf%25C3%25A9.SLDPRT
- *
- * `%2528` is a percent-encoded `%28`: the value is encoded on its way into the
- * signed URL's query string and encoded AGAIN on its way into the header, so a
- * browser saves the file with literal percent escapes in its name. Every
- * fixture whose name was `[A-Za-z0-9.-]` came back clean; every one that was
- * not came back mangled. The two encoding layers are not ours to fix, so what
- * is ours is to hand over a value that survives both.
- *
- * WHAT IS LOST IS ONLY THE SAVED FILENAME, and only its punctuation. The name
- * the person typed is stored verbatim in `filename` and is what every surface
- * in the app shows them -- which is the half that matters and the half the
- * opaque storage key exists to protect. Diacritics are folded to their base
- * letters rather than dropped (`café` -> `cafe`, not `caf_`), because a
- * transliteration is still readable and a hole is not.
+ * The `download` value handed to `createSignedUrl`. IT LIVES IN
+ * `$lib/download-name` NOW, unchanged, because the grading console's zip of
+ * every student file (ledger 0298) names files in the BROWSER and cannot import
+ * from `$lib/server`; a second fold there is the thing that stops matching. The
+ * measurement that makes it ASCII-only is written down beside it.
  */
-export function downloadFilename(filename: string | null | undefined): string {
-	const cleaned = (filename ?? '')
-		// Fold diacritics: decompose, then drop the combining marks.
-		.normalize('NFD')
-		.replace(/[̀-ͯ]/g, '')
-		// Everything a browser or a header would have to escape becomes one
-		// underscore. Spaces, parentheses, quotes, both path separators and every
-		// control character are all in here by construction rather than by name.
-		.replace(/[^A-Za-z0-9._-]+/g, '_')
-		.replace(/_{2,}/g, '_')
-		.replace(/^_+|_+$/g, '')
-		.slice(0, 200);
-	return cleaned || 'download';
-}
+export { downloadFilename } from '$lib/download-name';
 
 // ---------------------------------------------------------------------------
 // The Drive path, which is now LEGACY READS ONLY

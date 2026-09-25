@@ -111,9 +111,9 @@ import { sheetName, type XlsxSheet } from '$lib/xlsx';
  *
  * WHAT IT DOES NOT SEE, stated rather than left to be discovered:
  *   * A FILE ATTACHED AFTER GRADING. `classroom_submission_files.created_at`
- *     exists and would answer it, but the column is not in
- *     `SUBMISSION_FILE_SELECT` and `SubmissionFileRow` has no field for it, so
- *     no payload on either surface carries it today.
+ *     answers it and has been in `SUBMISSION_FILE_SELECT` since ledger 0298,
+ *     but this chip does not read it: `postGradeBlockChanges` below does, per
+ *     block, and a plain hand-in file with no block is seen by neither.
  *   * A FILE REMOVED after grading. Nothing records a deletion, so no read can
  *     derive it and no widening of this function would.
  *   * A RESPONSE that was edited and then edited BACK. `updated_at` is a
@@ -190,6 +190,57 @@ export function postGradeChange(work: {
 export function postGradeChangeLabel(change: PostGradeChange): string {
 	if (change.kinds.length === 2) return 'Resubmitted and edited after grading';
 	return change.kinds[0] === 'resubmitted' ? 'Resubmitted after grading' : 'Edited after grading';
+}
+
+/** One answer, or one photograph, that moved after the grade (ledger 0298). */
+export interface PostGradeBlockChange {
+	blockId: string;
+	/** The instant it last moved, ISO. */
+	at: string;
+	/** An answer edited, or a file added to the block. */
+	kind: 'edited' | 'file';
+}
+
+/**
+ * WHICH ANSWERS MOVED AFTER THE GRADE, ONE ENTRY PER BLOCK, newest first
+ * (decision 37's no-migration half, ledger 0298). `postGradeChange` says THAT
+ * the work moved and when it last did; this says WHERE, so an instructor
+ * reading "Edited after grading" is handed the three answers to look at rather
+ * than a whole worksheet to re-read. For ANSWERS it is the same comparison
+ * against the same `graded_at`, so it names a block exactly when
+ * `postGradeChange` counts an edit; a FILE is the one thing it sees that the
+ * chip does not (below), which is why the console renders the list on its own
+ * rather than only under the chip.
+ *
+ * A FILE ADDED AFTER THE GRADE COUNTS WHEN THE READ CARRIED ITS `created_at`,
+ * which closes the first gap `postGradeChange`'s header names for the block a
+ * file belongs to. A file with no block is a plain hand-in and is not a block
+ * change. A removed file is still invisible: nothing records a deletion.
+ *
+ * IT CLEARS ITSELF the way the chip does: a regrade stamps a later `graded_at`.
+ * What it cannot give is the EARLIER edits to one block -- `classroom_responses`
+ * keeps one row per block, overwritten in place (0086), so each block names its
+ * latest change only. A full edit history is decision 37's migration half.
+ */
+export function postGradeBlockChanges(work: {
+	submission: { graded_at?: string | null } | null;
+	responses: { block_id: string; updated_at?: string }[];
+	files?: { block_id: string | null; created_at?: string | null }[];
+}): PostGradeBlockChange[] {
+	const graded = instant(work.submission?.graded_at);
+	if (graded == null) return [];
+	const latest = new Map<string, { ms: number; kind: PostGradeBlockChange['kind'] }>();
+	const note = (blockId: string, value: string | null | undefined, kind: PostGradeBlockChange['kind']) => {
+		const ms = instant(value);
+		if (ms == null || ms <= graded) return;
+		const held = latest.get(blockId);
+		if (!held || ms > held.ms) latest.set(blockId, { ms, kind });
+	};
+	for (const r of work.responses ?? []) note(r.block_id, r.updated_at, 'edited');
+	for (const f of work.files ?? []) if (f.block_id) note(f.block_id, f.created_at, 'file');
+	return [...latest.entries()]
+		.map(([blockId, { ms, kind }]) => ({ blockId, at: new Date(ms).toISOString(), kind }))
+		.sort((a, b) => b.at.localeCompare(a.at) || a.blockId.localeCompare(b.blockId));
 }
 
 export const GRADING_EXPORT_SCHEMA = 1;

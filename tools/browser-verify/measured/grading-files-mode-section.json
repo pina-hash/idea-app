@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "grading-files-mode-section.mjs",
+	"date": "2026-09-25T05:57:45.406Z",
+	"sha": "db542c77d95811cc403029a37ea1a8bd2d02af5d",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 20,
+	"outsideRows": [],
+	"ms": 10102
+}

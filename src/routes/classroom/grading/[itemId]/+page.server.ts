@@ -3,6 +3,7 @@ import { normalizeItemRow } from '$lib/classroom/classroom';
 import { POSTING_SELECT, normalizePostings, selectItemsWithDoc } from '$lib/classroom/transports';
 import { managedPostedSections } from '$lib/classroom/grading-bulk';
 import type { AssignmentSpec, RubricCriterion } from '$lib/classroom/assignment-spec';
+import { loadHtmlAssignment } from '$lib/classroom/html-assignment/load';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -60,9 +61,14 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	// assignment not existing.
 	if (!ordered.length) error(404, 'Not found');
 
-	const [specRes, rubricRes] = await Promise.all([
+	const [specRes, rubricRes, html] = await Promise.all([
 		supabase.from('classroom_assignment_specs').select('spec').eq('item_id', item.id).maybeSingle(),
-		supabase.from('classroom_rubrics').select('criteria').eq('item_id', item.id).maybeSingle()
+		supabase.from('classroom_rubrics').select('criteria').eq('item_id', item.id).maybeSingle(),
+		// THE PORTED DOCUMENT, IF THIS IS ONE (ledger 0298), through the same
+		// ladder the per-class console runs. Read only so "Download all files" can
+		// name a block by its module and field instead of its id; this page's work
+		// column is unchanged.
+		loadHtmlAssignment(supabase, item, item.kind)
 	]);
 
 	return {
@@ -73,6 +79,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		section: ordered[0],
 		item,
 		spec: (specRes.data?.spec as AssignmentSpec | undefined) ?? null,
-		rubric: (rubricRes.data?.criteria as RubricCriterion[] | undefined) ?? null
+		rubric: (rubricRes.data?.criteria as RubricCriterion[] | undefined) ?? null,
+		htmlAssignment: html.htmlAssignment
 	};
 };

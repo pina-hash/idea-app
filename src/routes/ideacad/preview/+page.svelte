@@ -6,6 +6,7 @@
 <main><BladeEditor standalone /></main>
 
 <style>
-	:global(html), :global(body), main { width: 100%; height: 100%; overflow: hidden; }
-	:global(body) { margin: 0; }
+	/* Fixed to the window rather than locking html and body, which a
+	   client-side navigation would carry onto every later page (ledger 0298). */
+	main { position: fixed; inset: 0; overflow: hidden; }
 </style>

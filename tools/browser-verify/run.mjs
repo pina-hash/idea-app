@@ -163,7 +163,12 @@ export const BREAKAGE = {
 	   one of them and leaving one alone would leave the pair distinguishable. */
 	'same-style':
 		'.readouts .metric span, .readouts .metric strong, .readouts .metric b, .status-bar span, .status-bar strong, .eyebrow, .save' +
-		' { font-size: 12px !important; font-weight: 400 !important; color: rgb(231, 234, 232) !important; }'
+		' { font-size: 12px !important; font-weight: 400 !important; color: rgb(231, 234, 232) !important; }',
+	/* The live control for `ideacad-leaves-no-scroll-lock`: the rule IdeaCAD used
+	   to carry (ledger 0298). Injected into the START page, the `<style>` rides
+	   the client-side navigation exactly as the compiled one did, so the page
+	   reached afterwards is cut off at the window. */
+	'document-lock': 'html, body { width: 100% !important; height: 100% !important; overflow: hidden !important; }'
 };
 
 function parseArgs(argv) {
