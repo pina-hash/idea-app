@@ -14,6 +14,15 @@
 	"entries": [
 		{
 			"date": "2026-09-25",
+			"title": "Your notebook keeps saving while you type on a slow connection",
+			"body": "If you kept typing in your notebook while a save was still on its way, the words you added could be left unsaved even though the box said Saved, and pressing Turn in at that moment could leave them out. Now every word you type is saved a moment after you pause, and Saved only shows once your words really are saved.",
+			"tags": [
+				"Notebook",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-25",
 			"title": "Your profile menu fits on the screen",
 			"body": "The menu that opens from your picture in the top corner no longer runs off the bottom of the screen. If there is more than fits, it scrolls inside itself, and Sign out always stays where you can reach it. Your pathway is now a drop-down list, your picture choices open when you press Change picture, and Edit name sits right beside your name.",
 			"tags": [
