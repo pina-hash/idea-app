@@ -221,15 +221,18 @@
 --      row it may review, and still reverts only `submitted` rows with a null
 --      `submitted_at` to 'draft'.
 --   d. `classroom_unsubmit_assignment`'s 'closed' refusal widens to
---      `submitted_at is null or closed_at is not null`. That is a narrowing and
---      is inert over every stored row, because the column is new; the file
---      counts it anyway, under the deployed function, and raises if any row
---      would change answer.
+--      `submitted_at is null or closed_at is not null`. That is a narrowing.
+--      It is inert over every stored row EXCEPT the rows item h backfills:
+--      those are graded, so they answer 'graded' today and would answer
+--      'closed' after it -- still a refusal, but a different reason and a
+--      different sentence on screen. The file counts them under the deployed
+--      function and states the number; any OTHER row that would change answer
+--      makes it raise.
 --   e. It REFUSES TO APPLY unless this file's table exists: unlocking graded
 --      work without a history is exactly what decision 37 forbids.
 --   f. Census, reported and not refused (a widening strands nothing): rows in
---      'submitted' with a `submitted_at`, split graded and ungraded -- the rows
---      that become editable.
+--      'submitted' with a `submitted_at`, split graded and ungraded, less the
+--      rows item h keeps closed -- the rows that become editable.
 --   g. Deploy ordering: every signature is unchanged and the column is
 --      additive, so there is none. The client learns the new lock from a
 --      select-ladder rung that includes `closed_at`; until that rung comes
