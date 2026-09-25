@@ -1,15 +1,15 @@
 {
 	"schema": 1,
 	"spec": "foundry-boards.mjs",
-	"date": "2026-09-23T13:57:15.144Z",
-	"sha": "4cd231edaf3967d6260433c582271a3f0c3a1bde",
-	"dirty": false,
+	"date": "2026-09-25T05:41:37.730Z",
+	"sha": "20426fe5e2d5a6aa7db28fbf7bd6ede535d718d9",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
-	"measurements": 40,
+	"measurements": 64,
 	"outsideRows": [],
-	"ms": 5622
+	"ms": 6269
 }

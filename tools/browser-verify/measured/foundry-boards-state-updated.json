@@ -1,6 +1,6 @@
 {
 	"schema": 1,
-	"spec": "foundry-mosaic.mjs",
+	"spec": "foundry-boards-state-updated.mjs",
 	"date": "2026-09-25T05:41:37.730Z",
 	"sha": "20426fe5e2d5a6aa7db28fbf7bd6ede535d718d9",
 	"dirty": true,
@@ -9,7 +9,7 @@
 		1440
 	],
 	"runs": 2,
-	"measurements": 48,
+	"measurements": 16,
 	"outsideRows": [],
 	"ms": 6269
 }
