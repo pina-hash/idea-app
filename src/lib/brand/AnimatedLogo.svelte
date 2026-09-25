@@ -118,13 +118,18 @@
 				}).join(', ') + `, ${DEFAULT_LIGHT_GEAR} 1202w`
 			: undefined
 	);
+	/* The light pair exists only for the default sources, and the rule that
+	   hides the dark pair under Space White keys on THIS, not on the theme
+	   alone: a caller that hands in its own image has no light copy, and hiding
+	   its dark one anyway would leave nothing on screen at all. */
+	const hasLight = $derived(!!(lightGearSrcset && lightTextSrcset));
 	const textSizes = $derived(typeof width === 'number' ? `${width}px` : width);
 	const gearSizes = $derived(
 		typeof width === 'number' ? `${Math.round(width * GEAR_SHARE)}px` : `calc(${GEAR_SHARE.toFixed(4)} * ${width})`
 	);
 </script>
 
-<div class="idea-logo {className}" style="width: {cssWidth}; {style}">
+<div class="idea-logo {className}" class:has-light={hasLight} style="width: {cssWidth}; {style}">
 	<img
 		class="gear"
 		class:spin
@@ -142,7 +147,7 @@
 		sizes={textSrcset ? textSizes : undefined}
 		{alt}
 	/>
-	{#if lightGearSrcset && lightTextSrcset}
+	{#if hasLight}
 		<img
 			class="gear-light"
 			class:spin
@@ -199,12 +204,12 @@
 	:global(:root[data-theme='space-white']) .plate-light {
 		display: block;
 	}
-	:global(:root[data-theme='space-white']) .gear,
-	:global(:root[data-theme='space-white']) .plate {
+	:global(:root[data-theme='space-white']) .has-light .gear,
+	:global(:root[data-theme='space-white']) .has-light .plate {
 		display: none;
 	}
-	:global(:root[data-theme='space-white'] :is(.ic-root, .nb-island, .deck-stage)) .gear,
-	:global(:root[data-theme='space-white'] :is(.ic-root, .nb-island, .deck-stage)) .plate {
+	:global(:root[data-theme='space-white'] :is(.ic-root, .nb-island, .deck-stage)) .has-light .gear,
+	:global(:root[data-theme='space-white'] :is(.ic-root, .nb-island, .deck-stage)) .has-light .plate {
 		display: block;
 	}
 	:global(:root[data-theme='space-white'] :is(.ic-root, .nb-island, .deck-stage)) .gear-light,

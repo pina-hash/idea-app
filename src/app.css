@@ -3361,6 +3361,13 @@ a:hover {
 :root[data-theme='space-white'] .legacy-index .hero-stat .value.v-year {
 	color: var(--cyan);
 }
+/* The changelog's "visual" tag keeps its gold word (a category, painted the
+   way every theme paints it), so its edge keeps the gold too: with the brass
+   hook pointed at green above, the chip would otherwise be a brown word in a
+   green frame, the "feature" tag's frame. */
+:root[data-theme='space-white'] .legacy-index .cl-tag.cl-type-visual {
+	border-color: color-mix(in srgb, var(--gold) 35%, transparent);
+}
 /* A still stat: an animation of a transparent shadow is a style recalc every
    frame for nothing. */
 :root[data-theme='space-white'] .legacy-index .hero-stat .value {
