@@ -1305,9 +1305,11 @@
 		await noteLatency();
 		const doc = await normalize(content);
 		if ('error' in doc) return { ok: false, error: doc.error };
-		log = [...log, holds(doc)];
 		const owner = current().find((e) => e.id === entryId);
 		if (!owner) return { ok: false, error: 'That entry does not exist or is not yours.' };
+		// Logged only once nothing below can refuse: a `holds` line is a claim
+		// about what the store keeps, and a refused write keeps nothing.
+		log = [...log, holds(doc)];
 		const noteId = `n-new-${++seq}`;
 		if (autosave && owner.submitted_at === null) replaceable.add(noteId);
 		update((list) =>
@@ -1350,13 +1352,14 @@
 		if (!owner) return { ok: false, error: 'That note does not exist.' };
 		const doc = await normalize(content);
 		if ('error' in doc) return { ok: false, error: doc.error };
-		log = [...log, holds(doc)];
 		const revisions = owner.notes.filter((n) => n.note_id === noteId);
 		const latest = Math.max(...revisions.map((n) => n.revision));
 		const head = revisions.find((n) => n.revision === latest)!;
 		if (head.deleted_at) {
 			return { ok: false, error: 'That note has been deleted. Restore it before editing it.' };
 		}
+		// After the last refusal, as in `addNote`: a refused write holds nothing.
+		log = [...log, holds(doc)];
 		const now = new Date().toISOString();
 
 		if (autosave && replaceable.has(head.id) && owner.submitted_at === null) {
