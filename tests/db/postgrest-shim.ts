@@ -425,7 +425,14 @@ function selectError(error: unknown): ShimError {
  */
 class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 	private filters: Filter[] = [];
-	private orderBy: { column: string; ascending: boolean } | null = null;
+	/**
+	 * EVERY `.order()` CALL, IN ORDER, as supabase-js sends them: each call
+	 * APPENDS a key. This held only the last one until ledger 0298's review,
+	 * which made a three-key paged read (`item_id, student_email, block_id`)
+	 * sort on `block_id` alone here, so pages could repeat and skip rows -- a
+	 * shim less faithful than the server, in the one place order is the point.
+	 */
+	private orderBy: { column: string; ascending: boolean }[] = [];
 	private limitTo: number | null = null;
 	private offsetBy = 0;
 	private singleRow = false;
@@ -506,7 +513,7 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 		// resource; every caller here re-sorts in JS afterwards, so it is
 		// deliberately a no-op rather than a guess.
 		if (opts?.referencedTable) return this;
-		this.orderBy = { column, ascending: opts?.ascending !== false };
+		this.orderBy.push({ column, ascending: opts?.ascending !== false });
 		return this;
 	}
 
@@ -606,8 +613,10 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 				`select json_build_object(${jsonArgs.join(', ')}) as row` +
 				` from public.${quote(this.table)} t` +
 				(where.length ? ` where ${where.join(' and ')}` : '') +
-				(this.orderBy
-					? ` order by t.${quote(this.orderBy.column)} ${this.orderBy.ascending ? 'asc' : 'desc'}`
+				(this.orderBy.length
+					? ` order by ${this.orderBy
+							.map((o) => `t.${quote(o.column)} ${o.ascending ? 'asc' : 'desc'}`)
+							.join(', ')}`
 					: '') +
 				(this.limitTo !== null ? ` limit ${this.limitTo}` : '') +
 				(this.offsetBy > 0 ? ` offset ${this.offsetBy}` : '');
