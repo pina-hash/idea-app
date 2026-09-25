@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "tour-mode-done.mjs",
-	"date": "2026-09-25T09:40:57.662Z",
-	"sha": "83be5b9ed0b37b64c1edbc007a3187b5c5788dca",
+	"date": "2026-09-25T10:14:07.931Z",
+	"sha": "56e7903618b699cd355b6c3b29ee3d6564e9e4f2",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 16,
 	"outsideRows": [],
-	"ms": 15189
+	"ms": 19087
 }

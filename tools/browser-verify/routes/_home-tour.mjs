@@ -57,8 +57,11 @@ export const walkedBefore = (a, b) =>
 /**
  * THE STAMP THE OFFER WROTE, READ OFF THE STUB CLIENT'S OWN LOG: [a
  * `tour_completed_at` write landed, and it is not older than the tour's
- * version]. The version instant is 2026-09-25T00:00 Pacific; a stamp older
- * than it would offer the tour again on the next visit, for ever.
+ * version]. The version instant is 2026-09-26T00:00 Pacific
+ * (`HOME_TOUR_VERSION`, written out here because a spec cannot import the
+ * TypeScript); a stamp older than it would offer the tour again on the next
+ * visit, for ever. Run before that date, this is also the clamp measured in a
+ * real browser: the clock is behind the version and the stamp must not be.
  */
 export const STAMP_WRITTEN = `() => {
 	const h = window.__tourHarness;
@@ -66,7 +69,7 @@ export const STAMP_WRITTEN = `() => {
 	const line = h.log().find((l) => l.includes('tour_completed_at'));
 	if (!line) return ['false', 'no write'];
 	const m = /"tour_completed_at":"([^"]+)"/.exec(line);
-	return ['true', String(!!m && Date.parse(m[1]) >= Date.parse('2026-09-25T07:00:00.000Z'))];
+	return ['true', String(!!m && Date.parse(m[1]) >= Date.parse('2026-09-26T07:00:00.000Z'))];
 }`;
 
 /**

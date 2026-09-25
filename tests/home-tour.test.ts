@@ -308,10 +308,14 @@ describe('offered again once, to somebody who finished the old tour', () => {
 		expect(homeTourPlan('not a date')).toBeNull();
 		expect(homeTourPlan('2026-07-01T00:00:00.000Z')).toBe('offer');
 		// The version is the START of its day in the school's calendar (Pacific, UTC-7 that day).
-		expect(HOME_TOUR_VERSION).toBe('2026-09-25');
-		expect(homeTourPlan('2026-09-25T06:59:59.999Z')).toBe('offer');
-		expect(homeTourPlan('2026-09-25T07:00:00.000Z')).toBeNull();
+		expect(HOME_TOUR_VERSION).toBe('2026-09-26');
+		expect(homeTourPlan('2026-09-26T06:59:59.999Z')).toBe('offer');
+		expect(homeTourPlan('2026-09-26T07:00:00.000Z')).toBeNull();
 		expect(homeTourPlan('2026-10-01T15:00:00.000Z')).toBeNull();
+		// The OLD tour, finished in class on the day the rewrite was written and
+		// before it could deploy, still reads as the old tour: a version at the
+		// start of the 25th would have taken the offer from that student.
+		expect(homeTourPlan('2026-09-25T16:30:00.000Z')).toBe('offer');
 	});
 
 	it('the stamp the offer writes ends the offer, even from a computer whose clock is behind', () => {
@@ -321,6 +325,8 @@ describe('offered again once, to somebody who finished the old tour', () => {
 			const stamp = homeTourSeenStamp(new Date(clock));
 			expect(homeTourPlan(stamp), clock).toBeNull();
 		}
+		// Seen on the deploy's own day, BEFORE the version: recorded at the version.
+		expect(homeTourSeenStamp(new Date('2026-09-25T23:30:00.000Z'))).toBe('2026-09-26T07:00:00.000Z');
 		// A clock that is right is stamped as it reads, never moved.
 		expect(homeTourSeenStamp(new Date('2026-09-26T16:00:00.000Z'))).toBe('2026-09-26T16:00:00.000Z');
 	});

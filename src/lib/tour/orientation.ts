@@ -84,15 +84,27 @@ export const TOUR_SEEN_KEY = 'idea_tour_seen';
  * ---------------------------------------------------------------------- */
 
 /**
- * THE DAY THIS TOUR WAS LAST REWRITTEN, AND THE WHOLE OF HOW A REWRITE IS
- * OFFERED AGAIN WITH NO MIGRATION. `profiles.tour_completed_at` is a
- * timestamp (0045: "non-null means they have seen it"), so a stamp older than
- * this date means somebody saw an older tour. Move this date forward in the
- * same change that rewrites the steps, and everybody is offered the new one
- * once. It is the START of that day in the school's calendar (Pacific), so it
- * is never later than the deploy that ships it.
+ * THE WHOLE OF HOW A REWRITTEN TOUR IS OFFERED AGAIN WITH NO MIGRATION.
+ * `profiles.tour_completed_at` is a timestamp (0045: "non-null means they
+ * have seen it"), so a stamp older than this instant (the START of this day in
+ * the school's calendar, Pacific) means somebody saw an older tour. Move it
+ * forward in the same change that rewrites the steps, and everybody is offered
+ * the new one once.
+ *
+ * IT MUST NOT BE EARLIER THAN THE DEPLOY THAT SHIPS THE NEW STEPS, AND LATER
+ * IS SAFE. A student who first signs in on the deploy's own day, before it,
+ * finishes the OLD tour with a stamp from that day; a version at the start of
+ * that day reads it as this tour and never offers them the new one. A version
+ * AFTER the deploy costs nothing, because `homeTourSeenStamp` never writes a
+ * stamp earlier than the version, so everybody who sees the new tour before
+ * the date is recorded AT it. This one is the day after the rewrite was
+ * written (ledger 0298, 2026-09-25), so a deploy at any hour of the 25th,
+ * school day included, lands before it.
+ *
+ * The offset is Pacific DAYLIGHT time; a date from November to mid-March is
+ * UTC-8, so write that offset for such a date.
  */
-export const HOME_TOUR_VERSION = '2026-09-25';
+export const HOME_TOUR_VERSION = '2026-09-26';
 
 const VERSION_AT = Date.parse(`${HOME_TOUR_VERSION}T00:00:00-07:00`);
 
