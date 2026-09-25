@@ -5552,6 +5552,12 @@ has. `ultracode` is a Claude Code setting and is never written into a Codex prom
 - **Only one Claude Code session per working directory, ever.** Use a git
   worktree for a parallel lane -- two sessions in one directory share a working
   tree, and each will commit the other's half-finished edits.
+- **FEEDBACK BECOMES WORK THROUGH A ROUND, AND A ROUND BUILDS NOTHING.** An uploaded
+  feedback-console export is triaged by `.claude/skills/feedback-round/SKILL.md` into
+  a dated folder under `docs/feedback/`: a grounded triage, decisions in `docs/decisions/`, a queue, and
+  the next session's prompt. **The export is a student record and this repository is
+  public**, so the only committed report text is what `tools/feedback_triage_md.py` renders,
+  and it refuses while any reporter identity from `tools/feedback_digest.py` appears in it.
 - **Commit and push every session.** Do not leave work uncommitted -- merged to
   `main` where the work is single-item, or landed on its `lane/` branch with
   the branch's status reported.
