@@ -19,6 +19,10 @@
 	 */
 	const manage = page.url.searchParams.get('manage') === '1';
 	const none = page.url.searchParams.get('state') === 'none';
+	/* THE CLASS LIST AS THE NAVIGATION COLUMN BESIDE AN OPEN ITEM, the way the
+	   class layout mounts it (`asPane` plus the selected id): the same videos
+	   are loaded and the section must not be drawn there. */
+	const pane = page.url.searchParams.get('state') === 'pane';
 	const themeParam = page.url.searchParams.get('theme');
 	const items = none ? NO_VIDEO_ITEMS : manage ? [...STUDENT_ITEMS, ...MANAGER_EXTRA] : STUDENT_ITEMS;
 	const measure = classroomMeasure(locateClassroom(`/classroom/${SECTION.id}`));
@@ -42,7 +46,7 @@
 	<title>Class videos // dev harness</title>
 </svelte:head>
 
-<div class="harness videos-harness" data-testid="videos-harness" data-state={none ? 'none' : manage ? 'manage' : 'student'}>
+<div class="harness videos-harness" data-testid="videos-harness" data-state={none ? 'none' : pane ? 'pane' : manage ? 'manage' : 'student'}>
 	<section
 		class="cr-root"
 		aria-label="The class page"
@@ -56,6 +60,8 @@
 			canManage={manage}
 			clock={CLOCK}
 			basePath={BASE}
+			asPane={pane}
+			selectedItemId={pane ? 'mat-calipers' : null}
 		/>
 	</section>
 </div>

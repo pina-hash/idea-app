@@ -11,6 +11,8 @@ import type { PageLoad } from './$types';
  *   ?manage=1            the class's teacher: a draft's video is held back and
  *                        an instructor-only link is never listed
  *   ?state=none          a class with links but no video: no section at all
+ *   ?state=pane          the class list as the column beside an open item:
+ *                        the same videos, and no section drawn
  *   ?theme=space-white   force the Space White attribute (no session here)
  */
 export const load: PageLoad = () => {
