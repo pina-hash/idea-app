@@ -28,7 +28,28 @@ Run in a separate `git worktree` of the same commit (`/tmp/claude-0/baseline`, w
 dependencies linked), so build agents editing the main tree could not contaminate it.
 The summary line and stderr are recorded below.
 
-RESULT_PENDING
+```
+ Test Files  1 failed | 598 passed (599)
+      Tests  11319 passed (11319)
+     Errors  1 error
+   Duration  1614.57s   (wall 26m57s, while twelve build agents were starting up beside it)
+```
+
+The one failed file and the one error are both instrument artifacts, and both were settled by
+re-running rather than by argument:
+
+- `tests/identity-style-shared.test.ts` failed at COLLECTION: it runs
+  `git show f9d43b49^:src/lib/profile.ts`, and this container's clone was SHALLOW
+  (`git rev-parse --is-shallow-repository` answered `true`, 311 commits), so the object was not
+  there. After `git fetch --unshallow origin` the same file passes.
+- The unhandled `57P01 terminating connection due to administrator command`, attributed to
+  `tests/view-as-orphans-dropped.test.ts`, is a teardown race: a pooled client still open when
+  the per-file database was dropped. Re-run on its own it passes.
+
+Re-run of exactly those two files on the unshallowed clone: `Test Files 2 passed (2)`,
+`Tests 36 passed (36)`, no errors. So the baseline is **599 of 599 files green on a complete
+history**, and a shallow clone reddens one file that is not a regression. Every later run in
+this session is on the unshallowed clone.
 
 ## verify:browser --probe
 
