@@ -14,6 +14,59 @@
 	"entries": [
 		{
 			"date": "2026-09-25",
+			"title": "Your profile menu fits on the screen",
+			"body": "The menu that opens from your picture in the top corner no longer runs off the bottom of the screen. If there is more than fits, it scrolls inside itself, and Sign out always stays where you can reach it. Your pathway is now a drop-down list, your picture choices open when you press Change picture, and Edit name sits right beside your name.",
+			"tags": [
+				"profile",
+				"fix"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Your name is easier to read in the profile menu",
+			"body": "Your name in the profile menu is now plain text instead of your pathway color, which was hard to read on the white theme. Your colored pathway badge is still right beside it.",
+			"tags": [
+				"profile",
+				"Appearance"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "Space White: green instead of brown",
+			"body": "On the Space White theme, the Classroom, My Notebook, IdeaCAD and Coin Desk app cards and your class name at the top of the home page are now green instead of a brownish gold, and the school year is teal. Links, buttons and class cards in the classroom turn green when you point at them. The dark IDEA theme looks the same as before.",
+			"tags": [
+				"Appearance",
+				"theme"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "A light IDEA logo",
+			"body": "On Space White, the IDEA logo at the top of the home page and your classes is now a green badge with dark letters, instead of the dark logo sitting in a dark box.",
+			"tags": [
+				"Appearance",
+				"theme"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "New app icons that settle",
+			"body": "The IdeaCAD icon is now a block with a hole drilled through it, and the GREENLINE icon is a racer on the track. Every app icon on the home page plays its animation once when the page opens and then stays still.",
+			"tags": [
+				"Home",
+				"Appearance"
+			]
+		},
+		{
+			"date": "2026-09-25",
+			"title": "The Foundry gallery is one list you can sort",
+			"body": "The gallery no longer opens on separate ranked sections. Every app is in one list, and a drop-down above it sorts them: Most played, Trending, Played this week, Most hours, Most updated, Newest or Recently updated. The number on each app is whatever the list is sorted by.",
+			"tags": [
+				"foundry"
+			]
+		},
+		{
+			"date": "2026-09-25",
 			"title": "Pages scroll again after using IdeaCAD",
 			"body": "After you opened IdeaCAD, the pages you went to next could get stuck: no scrollbar, and the bottom of the page cut off until you refreshed. That is fixed. Pages scroll normally after you leave IdeaCAD, with no refresh needed.",
 			"tags": [
