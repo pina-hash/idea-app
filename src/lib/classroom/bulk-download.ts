@@ -80,7 +80,9 @@ export interface BlockLabel {
 export function blockLabelsFromManifest(manifest: unknown): Map<string, BlockLabel> {
 	const out = new Map<string, BlockLabel>();
 	for (const group of htmlAnswerSheet(manifest, {}, {})) {
-		for (const cell of group.cells) out.set(cell.blockId, { module: group.title, field: cell.field });
+		for (const cell of group.cells) {
+			out.set(cell.blockId, { module: labelText(group.title), field: labelText(cell.field) });
+		}
 	}
 	return out;
 }
@@ -88,13 +90,29 @@ export function blockLabelsFromManifest(manifest: unknown): Map<string, BlockLab
 /** A spec assignment's block names: the module title, and no field. */
 export function blockLabelsFromSpec(spec: AssignmentSpec | null | undefined): Map<string, BlockLabel> {
 	const out = new Map<string, BlockLabel>();
-	for (const mod of spec?.modules ?? []) {
-		for (const block of mod.blocks ?? []) {
-			const id = (block as { id?: unknown }).id;
-			if (typeof id === 'string' && id) out.set(id, { module: mod.title ?? '', field: '' });
+	const modules = spec && Array.isArray(spec.modules) ? spec.modules : [];
+	for (const mod of modules) {
+		const blocks = Array.isArray(mod?.blocks) ? mod.blocks : [];
+		for (const block of blocks) {
+			const id = (block as { id?: unknown } | null)?.id;
+			if (typeof id === 'string' && id) out.set(id, { module: labelText(mod.title), field: '' });
 		}
 	}
 	return out;
+}
+
+/**
+ * A NAME FROM A STORED DOCUMENT IS TEXT ONLY IF IT IS A STRING. 0195's manifest
+ * check asks `btrim(v_mod->>'title')`, and `->>` renders a NUMBER as text, so a
+ * module titled `5` is a legal stored manifest whose title is not a string.
+ * Folding one (`.normalize` on a number) throws, and this runs while the
+ * grading console RENDERS -- so an unguarded title would take the console down
+ * for that assignment, not only this control.
+ */
+function labelText(value: unknown): string {
+	if (typeof value === 'string') return value;
+	if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+	return '';
 }
 
 // ---------------------------------------------------------------------------
@@ -639,7 +657,10 @@ export function bulkIndexCsv(input: BulkIndexInput): string {
 	for (const e of input.entries) {
 		const outcome = input.outcomes.get(e.file.id);
 		const ok = outcome?.ok === true;
-		const up = input.uploadedAt.get(e.file.id) ?? null;
+		// The press-time read first, then the row's own `created_at`, which the
+		// console's file select carries since ledger 0298: either one is 0086's
+		// column, so a failed extra read never blanks the column.
+		const up = input.uploadedAt.get(e.file.id) ?? e.file.created_at ?? null;
 		const sub = e.submission;
 		const size = ok ? outcome.bytes : (e.file.size_bytes ?? null);
 		lines.push(
@@ -713,9 +734,14 @@ export async function buildBulkZip(args: BulkZipArgs): Promise<BulkZipResult> {
 	const { item, part, deps } = args;
 	const entries = part.entries;
 	const total = entries.length;
-	const timesPromise = deps.uploadTimes
-		? deps.uploadTimes(item.id).catch(() => new Map<string, string>())
-		: Promise.resolve(new Map<string, string>());
+	// Asked only when some row did not arrive with its own `created_at` (an
+	// older payload shape): the console's select carries it, so this is usually
+	// no query at all.
+	const needTimes = entries.some((e) => !e.file.created_at);
+	const timesPromise =
+		deps.uploadTimes && needTimes
+			? deps.uploadTimes(item.id).catch(() => new Map<string, string>())
+			: Promise.resolve(new Map<string, string>());
 	const bytesById = new Map<string, Uint8Array>();
 	const outcomes = new Map<string, BulkFileOutcome>();
 	let next = 0;

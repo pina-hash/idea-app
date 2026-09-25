@@ -2106,7 +2106,8 @@
 						     (ledger 0297, LEARN). -->
 						<p class="off-roster" data-testid="off-roster-notice">
 							{offRosterCount} response {offRosterCount === 1 ? 'set' : 'sets'} from somebody not on
-							this class roster {offRosterCount === 1 ? 'is' : 'are'} not listed, counted or exported.
+							this class roster {offRosterCount === 1 ? 'is' : 'are'} not listed, counted or in the grade
+							exports.
 							Roster: <a href="{basePath}/{section.id}/people">People tab</a>.
 						</p>
 					{/if}

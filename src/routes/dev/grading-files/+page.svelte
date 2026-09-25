@@ -250,7 +250,20 @@
 			return ROSTER;
 		}
 	};
-	const fileDownload = $derived(noSource ? null : source);
+	/**
+	 * `?source=broken`: a transport whose block names THROW when read, standing
+	 * in for any stored shape the plan did not anticipate. The plan runs while
+	 * the console renders, so what this proves is that the CONSOLE survives it --
+	 * the roster and the other exports stay -- and the control says it is
+	 * unavailable rather than printing a false "No files to download yet".
+	 */
+	class ThrowingLabels extends Map<string, never> {
+		override get(): never {
+			throw new Error('a block name nobody anticipated');
+		}
+	}
+	const broken: BulkFileSource = { ...source, blocks: new ThrowingLabels() };
+	const fileDownload = $derived(noSource ? null : viewSource === 'broken' ? broken : source);
 
 	// -----------------------------------------------------------------------
 	// THE CAPTURE: the console's own `download` helper runs; the Blob is kept
@@ -315,9 +328,12 @@
 			export panel. The file transport answers from memory; one fetch fails on purpose.
 		</p>
 		<nav class="gf-states">
-			<a class="gf-state" class:is-on={!noSource && !perSection} href="/dev/grading-files">all classes</a>
+			<a class="gf-state" class:is-on={!viewSource && !perSection} href="/dev/grading-files">all classes</a>
 			<a class="gf-state" class:is-on={perSection} href="/dev/grading-files?mode=section">one class</a>
 			<a class="gf-state" class:is-on={noSource} href="/dev/grading-files?source=none">no transport</a>
+			<a class="gf-state" class:is-on={viewSource === 'broken'} href="/dev/grading-files?source=broken"
+				>plan throws</a
+			>
 		</nav>
 	</header>
 

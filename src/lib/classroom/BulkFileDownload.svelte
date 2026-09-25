@@ -18,9 +18,23 @@
 		bulkDownloadPlan,
 		bulkNotes,
 		bulkZipName,
+		type BulkDownloadPlan,
 		type BulkPart
 	} from '$lib/classroom/bulk-download';
 	import type { BulkFileSource } from '$lib/classroom/bulk-download-source';
+
+	/** What the words read over when there is no plan: nothing to download. */
+	const EMPTY_PLAN: BulkDownloadPlan = {
+		scope: 'class',
+		entries: [],
+		students: 0,
+		notOnRoster: { files: 0, people: 0 },
+		otherClasses: { files: 0, students: 0 },
+		managers: { files: 0 },
+		knownBytes: 0,
+		unknownSizes: 0,
+		parts: []
+	};
 
 	/**
 	 * "Download all files" (ledger 0298, A6): every file the class handed in on
@@ -94,17 +108,32 @@
 		};
 	});
 
-	const plan = $derived(
-		bulkDownloadPlan({
-			item,
-			data: data ?? { roster: [], submissions: [], files: [] },
-			managedRoster: managed,
-			sections,
-			scopeSectionId: scopeSection.id,
-			selected,
-			blocks: source?.blocks ?? new Map()
-		})
-	);
+	/**
+	 * THE PLAN RUNS WHILE THE GRADING CONSOLE RENDERS, SO IT MAY NEVER THROW
+	 * INTO IT. This control is an export beside the work a teacher came to
+	 * grade; a shape nobody anticipated in one stored row must cost the export
+	 * and say so, never take the console down with it (CLAUDE.md: best-effort
+	 * work never affects what it sits beside). Only a mount handed a `source`
+	 * runs it at all.
+	 */
+	const planned = $derived.by((): BulkDownloadPlan | null => {
+		if (!source) return null;
+		try {
+			return bulkDownloadPlan({
+				item,
+				data: data ?? { roster: [], submissions: [], files: [] },
+				managedRoster: managed,
+				sections,
+				scopeSectionId: scopeSection.id,
+				selected,
+				blocks: source.blocks ?? new Map()
+			});
+		} catch (err) {
+			console.error('Download all files: the plan could not be built', err);
+			return null;
+		}
+	});
+	const plan = $derived(planned ?? EMPTY_PLAN);
 	const scopeLabel = $derived(
 		plan.scope === 'selection' ? 'selected students' : sectionTitle(scopeSection)
 	);
@@ -181,39 +210,49 @@
 {#if source}
 	<div class="bfd" data-testid="bulk-files">
 		<p class="bfd-label">Every student file</p>
-		<p class="bfd-count" data-testid="bulk-files-count">
-			{bulkCountLine(plan)}{empty ? '' : plan.scope === 'selection' ? '' : ` in ${scopeLabel}`}
-		</p>
-		{#each notes as note (note)}
-			<p class="bfd-note" data-testid="bulk-files-note">{note}</p>
-		{/each}
-		<div class="bfd-actions">
-			{#if plan.parts.length > 1}
-				{#each plan.parts as part (part.index)}
+		{#if planned}
+			<p class="bfd-count" data-testid="bulk-files-count">
+				{bulkCountLine(plan)}{empty ? '' : plan.scope === 'selection' ? '' : ` in ${scopeLabel}`}
+			</p>
+			{#each notes as note (note)}
+				<p class="bfd-note" data-testid="bulk-files-note">{note}</p>
+			{/each}
+			<div class="bfd-actions">
+				{#if plan.parts.length > 1}
+					{#each plan.parts as part (part.index)}
+						<button
+							type="button"
+							class="btn secondary tiny"
+							aria-disabled={busy}
+							data-testid="bulk-files-download"
+							onclick={() => build(part, plan.parts.length)}
+						>
+							{partLabel(part, plan.parts.length)}
+						</button>
+					{/each}
+				{:else}
+					<!-- `aria-disabled`, never `disabled`: with nothing handed in the
+					     control still explains itself, through the count line above. -->
 					<button
 						type="button"
 						class="btn secondary tiny"
-						aria-disabled={busy}
+						aria-disabled={busy || empty}
 						data-testid="bulk-files-download"
-						onclick={() => build(part, plan.parts.length)}
+						onclick={() => plan.parts[0] && build(plan.parts[0], 1)}
 					>
-						{partLabel(part, plan.parts.length)}
+						Download all files
 					</button>
-				{/each}
-			{:else}
-				<!-- `aria-disabled`, never `disabled`: with nothing handed in the
-				     control still explains itself, through the count line above. -->
-				<button
-					type="button"
-					class="btn secondary tiny"
-					aria-disabled={busy || empty}
-					data-testid="bulk-files-download"
-					onclick={() => plan.parts[0] && build(plan.parts[0], 1)}
-				>
-					Download all files
-				</button>
-			{/if}
-		</div>
+				{/if}
+			</div>
+		{:else}
+			<!-- A PLAN THAT COULD NOT BE BUILT SAYS SO, rather than reading as
+			     "No files to download yet", which would be a false count, and
+			     offers no control whose only outcome is nothing. -->
+			<p class="bfd-note" data-testid="bulk-files-unavailable">
+				The list of files for this assignment could not be prepared, so Download all files is not
+				available here. Grading and the other exports are unaffected.
+			</p>
+		{/if}
 		{#if busy}<Pending label={progressLabel} />{/if}
 		{#each doneHere as [key, line] (key)}
 			<p class="bfd-done" data-testid="bulk-files-done">{line}</p>

@@ -461,6 +461,36 @@ describe('the zip, read back with the repo reader', () => {
 		expect(names).toEqual(['index.csv']);
 		expect(new TextDecoder().decode(files.get('index.csv'))).toContain('No: The file could not be downloaded.');
 	});
+
+	it("takes the upload time off the row's own created_at, and asks for nothing more when every row has one", async () => {
+		const withTime = FILES.map((f) => (f.id === 'f8' ? { ...f, created_at: '2026-09-20T08:30:00Z' } : f));
+		const plan = bulkDownloadPlan(
+			input({
+				selected: ['dana@boscotech.net'],
+				data: { roster: ROSTER, submissions: SUBMISSIONS, files: withTime }
+			})
+		);
+		let asked = 0;
+		const result = await buildBulkZip({
+			item: ITEM,
+			part: plan.parts[0],
+			deps: {
+				async fetchFile() {
+					return { ok: true, bytes: new Uint8Array([1, 2, 3]) };
+				},
+				async uploadTimes() {
+					asked += 1;
+					return new Map();
+				}
+			},
+			outOf: 10
+		});
+		expect(asked).toBe(0);
+		const { files } = await readZip(result.zip);
+		const row = parseCsv(new TextDecoder().decode(files.get('index.csv'))).find((r) => r[7] === 'notes.txt');
+		// 01:30 Pacific on the 20th, after the 23:59 due time on the 19th.
+		expect(row?.slice(8, 11)).toEqual(['2026-09-20 01:30', '3', 'Yes']);
+	});
 });
 
 describe('block names, the one fold, and the bucket', () => {
@@ -478,6 +508,23 @@ describe('block names, the one fold, and the bucket', () => {
 			]
 		} as unknown as AssignmentSpec;
 		expect([...blockLabelsFromSpec(spec)]).toEqual([['z1', { module: 'Build', field: '' }]]);
+	});
+
+	it('a module 0195 stores with a NUMBER for a title names its block instead of throwing', () => {
+		// `btrim(v_mod->>'title')` accepts 5, because `->>` renders a number as
+		// text. The plan runs while the grading console renders, so a throw here
+		// would take the console down for the assignment.
+		const labels = blockLabelsFromManifest({
+			modules: [{ id: 'm9', title: 5, blocks: [{ id: 'b9', field: '', type: 'image' }] }]
+		});
+		expect([...labels]).toEqual([['b9', { module: '5', field: '' }]]);
+		const plan = bulkDownloadPlan(
+			input({
+				blocks: labels,
+				data: { roster: ROSTER, submissions: SUBMISSIONS, files: [file('f90', 'sub-eva', 'b9', 'x.png')] }
+			})
+		);
+		expect(plan.entries.map((e) => e.path)).toEqual([`Reyes, Eva/Reyes_Eva - ${TITLE} - 5 - 1.png`]);
 	});
 
 	it('the server and the browser use ONE fold, and name ONE bucket', () => {
