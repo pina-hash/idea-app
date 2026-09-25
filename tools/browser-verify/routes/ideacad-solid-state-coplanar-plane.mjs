@@ -7,9 +7,13 @@
  * with the planes preference set to Always. The plane's faint fill and the
  * face were drawn at the same depth, and the depth test chose between them
  * triangle by triangle, so the face showed as light and dark WEDGES following
- * its own triangulation. On a face bounded by a round, whose triangles fan
- * out from the round's arc, that is thin dark wedges running from the round
- * across the face, which is how report R06's screenshot was described.
+ * its own triangulation. A face bounded by a round is triangulated as a fan
+ * from the round's arc (29 triangles on the top of a plate with one vertical
+ * round, measured in node), so the same fight there would draw thin wedges
+ * running from the round across the face, which is how report R06's
+ * screenshot was described. That fan was REASONED from the triangulation and
+ * not rendered: one render of a plate pulled down from the Top plane with a
+ * round on it happened to fall uniform, before and after.
  * Measured on this state before the repair: 2 tones over 65 samples at 1440
  * (rgb 102,120,129, the fill's tint, and 84,105,119, the bare face), and 1 at
  * 375, where that run's triangles happened to fall one way; after it, 1 tone,

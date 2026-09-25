@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "ideacad-solid-state-coplanar-plane.mjs",
+	"date": "2026-09-25T07:25:15.378Z",
+	"sha": "18832c89387e38853c000c5b88d801f01e73df34",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 12,
+	"outsideRows": [],
+	"ms": 22837
+}
