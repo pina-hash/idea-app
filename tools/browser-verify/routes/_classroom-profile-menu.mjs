@@ -66,6 +66,19 @@ export const classroomProfileMenuSpec = (theme) => ({
 			expected: ['panel unscrolled', `${THEME_ROWS} of ${THEME_ROWS} theme rows hit`, 'Sign out hit']
 		},
 		{
+			/* THE ORDER IS WHAT KEEPS THE ROW ABOVE TRUE ON A SHORTER PANEL.
+			   This frame has room for everything, so the hit test passes in any
+			   order; on the home page at 375x667 the floating Report control
+			   lifts the floor and the panel is clamped 31px short (measured,
+			   0220 columns present), and it is then the LAST row that goes under
+			   the footer. Theme sits above Identity so that row is Identity, an
+			   optional visit, and never a theme radio. Change picture stays above
+			   the theme so its tiles open in view under their own row. */
+			label: 'Change picture, then Theme, then Identity',
+			evaluate: `() => { const pic = document.querySelector('[data-testid="pm-picture-toggle"]'); const theme = document.querySelector('.pm-themes'); const idt = document.querySelector('[data-testid="pm-identity-toggle"]'); if (!pic || !theme || !idt) return ['MISSING: picture=' + !!pic + ' theme=' + !!theme + ' identity=' + !!idt]; const before = (a, b) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING); return [before(pic, theme) ? 'picture before theme' : 'THEME BEFORE PICTURE', before(theme, idt) ? 'theme before identity' : 'IDENTITY BEFORE THEME']; }`,
+			expected: ['picture before theme', 'theme before identity']
+		},
+		{
 			/* THE NAME IS NOT TINTED BY PATHWAY (decision 40, report R19). The
 			   harness seeds IDEA, whose raw identity is the #00FF41 that
 			   measured 1.29:1 on Space White's panel before this fix.

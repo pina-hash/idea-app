@@ -152,12 +152,16 @@ export default {
 			   PAST THE WINDOW (report R18). With the picker open this panel is
 			   taller than the room under this harness's header, so it must end
 			   inside the viewport, scroll inside itself, and -- scrolled to its
-			   end -- bring its last theme row above the sticky footer. A
-			   screenshot cannot answer any of that: this Chromium paints no
-			   scrollbar into one. The panel's scroll position is put back
-			   afterwards, so the rows below measure the state the run reached. */
+			   end -- bring its LAST SECTION above the sticky footer. The
+			   section is read off the panel rather than named in advance:
+			   since the ledger 0298 review Identity comes AFTER the theme, and
+			   a row about the last theme radio would have gone on passing while
+			   the true last row sat under the footer. A screenshot cannot
+			   answer any of that: this Chromium paints no scrollbar into one.
+			   The panel's scroll position is put back afterwards, so the rows
+			   below measure the state the run reached. */
 			label: 'the panel ends inside the window and its own scroll reaches its last row',
-			evaluate: `() => { const el = document.querySelector('.pm-panel'); const p = el.getBoundingClientRect(); const was = el.scrollTop; el.scrollTop = el.scrollHeight; const foot = document.querySelector('.pm-actions').getBoundingClientRect(); const rows = document.querySelectorAll('.pm-theme'); const last = rows[rows.length - 1].getBoundingClientRect(); const out = [p.bottom <= innerHeight + 0.5 ? 'ends inside the window' : 'RUNS PAST: bottom ' + Math.round(p.bottom) + ' of ' + innerHeight, el.scrollHeight > el.clientHeight + 1 ? 'scrolls inside itself' : 'DOES NOT SCROLL (' + el.scrollHeight + ' in ' + el.clientHeight + ')', last.bottom <= foot.top + 0.5 ? 'last row clears the footer' : 'LAST ROW UNDER THE FOOTER: ' + Math.round(last.bottom) + ' > ' + Math.round(foot.top)]; el.scrollTop = was; return out; }`,
+			evaluate: `() => { const el = document.querySelector('.pm-panel'); const p = el.getBoundingClientRect(); const was = el.scrollTop; el.scrollTop = el.scrollHeight; const foot = document.querySelector('.pm-actions').getBoundingClientRect(); const secs = el.querySelectorAll(':scope > .pm-section'); const last = secs[secs.length - 1].getBoundingClientRect(); const out = [p.bottom <= innerHeight + 0.5 ? 'ends inside the window' : 'RUNS PAST: bottom ' + Math.round(p.bottom) + ' of ' + innerHeight, el.scrollHeight > el.clientHeight + 1 ? 'scrolls inside itself' : 'DOES NOT SCROLL (' + el.scrollHeight + ' in ' + el.clientHeight + ')', last.bottom <= foot.top + 0.5 ? 'last row clears the footer' : 'LAST ROW UNDER THE FOOTER: ' + Math.round(last.bottom) + ' > ' + Math.round(foot.top)]; el.scrollTop = was; return out; }`,
 			expected: ['ends inside the window', 'scrolls inside itself', 'last row clears the footer']
 		},
 		{

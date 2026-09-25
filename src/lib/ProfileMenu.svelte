@@ -496,6 +496,40 @@
 	const pathwaySelectId = `pm-pathway-${uid}`;
 	const pathwayNoteId = `pm-pathway-note-${uid}`;
 	const themeLabelId = `pm-theme-label-${uid}`;
+
+	/**
+	 * OPENING THE LAST SECTION BRINGS IT INTO VIEW (ledger 0298 review). Identity
+	 * sits below the theme, so on a panel the clamp cut short its row is at the
+	 * floor, and opening it grew the panel DOWNWARD, out of sight: measured on
+	 * the home page at 375x667, 8px of the section showed under its own row and
+	 * the only change on screen was the word Show becoming Hide. So a press that
+	 * leaves the disclosure open scrolls THE PANEL, and only the panel, until
+	 * the row sits at the panel's top. `scrollIntoView` is refused on purpose:
+	 * it scrolls every scrollable ancestor, which on the portal is the page the
+	 * header sits in, and would carry the panel's own anchor away.
+	 *
+	 * A native listener on the section rather than an `onclick` on the div (a
+	 * static element with a click handler is two a11y warnings over the
+	 * baseline), and read after a TIMEOUT rather than a frame: `Disclosure`
+	 * flips `aria-expanded` in its own flush, and a backgrounded tab never ticks
+	 * `requestAnimationFrame`. It reads the DOM and writes `scrollTop`, no
+	 * state, so it cannot feed an effect.
+	 */
+	const revealWhenOpened = (node: HTMLElement) => {
+		const onClick = (e: Event) => {
+			const trigger = e.target instanceof Element ? e.target.closest('.disc-trigger') : null;
+			if (!trigger || !node.contains(trigger)) return;
+			setTimeout(() => {
+				const box = panel;
+				if (!box || trigger.getAttribute('aria-expanded') !== 'true') return;
+				const offset =
+					trigger.getBoundingClientRect().top - box.getBoundingClientRect().top - GUTTER;
+				if (offset > 0) box.scrollTop += offset;
+			}, 0);
+		};
+		node.addEventListener('click', onClick);
+		return { destroy: () => node.removeEventListener('click', onClick) };
+	};
 </script>
 
 <svelte:document onpointerdown={onDocPointerDown} onkeydown={onKeydown} />
@@ -706,6 +740,42 @@
 					</Disclosure>
 				</div>
 
+				<!-- THE SITE THEME CONTROL. Here and nowhere else, which is what the
+				     session gate in ThemeRoot is paired with: the theme is on exactly
+				     where the thing that turns it off is reachable.
+
+				     RADIOS, NOT A SWITCH. Two states when this was written and a third
+				     arrived as a file (Space White, ledger 0297), which is exactly the
+				     case a boolean control would have had to be rebuilt for -- and a
+				     radio group already says "these are the choices, this is the
+				     current one" without a label anybody has to read twice. The
+				     classroom's one-tap `ThemeSwitch` is a shortcut to one of these
+				     rows, not a second picker.
+				     Each row carries its name AND what it is for: "Matrix" is a name
+				     nobody can infer a look from, exactly as "IDEA" is in the
+				     notebook's own picker. -->
+				<div class="pm-section">
+					<div class="pm-label" id={themeLabelId}>Theme</div>
+					<div class="pm-themes" role="radiogroup" aria-labelledby={themeLabelId}>
+						{#each SITE_THEMES as t (t)}
+							<button
+								class="pm-theme"
+								class:selected={siteTheme() === t}
+								type="button"
+								role="radio"
+								aria-checked={siteTheme() === t}
+								onclick={() => setSiteTheme(t)}
+							>
+								<span class="pm-theme-swatch" data-theme-swatch={t} aria-hidden="true"></span>
+								<span class="pm-theme-text">
+									<span class="pm-theme-name">{SITE_THEME_LABELS[t]}</span>
+									<span class="pm-theme-note">{SITE_THEME_NOTES[t]}</span>
+								</span>
+							</button>
+						{/each}
+					</div>
+				</div>
+
 				<!-- ====================================================================
 				     THE IDENTITY SECTION (ledger 0289, report 15).
 
@@ -741,9 +811,22 @@
 				     for good. Customizing is a visit, not a standing layout: the
 				     section arrives closed each time, and the latch still keeps it
 				     open while a student is working in it.
+
+				     AND IT COMES AFTER THE THEME, NOT BEFORE IT (ledger 0298 review).
+				     Theme and Sign out are the two controls this panel must show
+				     without a scroll; Identity is an optional visit. Above the theme,
+				     its closed row pushed the Space White radio under the sticky
+				     footer wherever the panel is clamped short: MEASURED on the real
+				     home page with the 0220 columns present (production's state) at
+				     375x667, where the floating Report control lifts the floor, the
+				     panel needed 31px of scroll and that radio sat at 496.6..559.2
+				     under a footer starting at 536.6. Below the theme, the row the
+				     clamp cuts is this one, and a student opening it is already
+				     choosing to scroll. Change picture stays ABOVE the theme on
+				     purpose: its tiles open directly under its own row, in view.
 				     ==================================================================== -->
 				{#if styleReady}
-					<div class="pm-section">
+					<div class="pm-section" use:revealWhenOpened>
 						<Disclosure label="Identity" collapseWhen={true} testId="pm-identity-toggle">
 							{#snippet children()}
 								<div class="pm-identity">
@@ -957,42 +1040,6 @@
 						</Disclosure>
 					</div>
 				{/if}
-
-				<!-- THE SITE THEME CONTROL. Here and nowhere else, which is what the
-				     session gate in ThemeRoot is paired with: the theme is on exactly
-				     where the thing that turns it off is reachable.
-
-				     RADIOS, NOT A SWITCH. Two states when this was written and a third
-				     arrived as a file (Space White, ledger 0297), which is exactly the
-				     case a boolean control would have had to be rebuilt for -- and a
-				     radio group already says "these are the choices, this is the
-				     current one" without a label anybody has to read twice. The
-				     classroom's one-tap `ThemeSwitch` is a shortcut to one of these
-				     rows, not a second picker.
-				     Each row carries its name AND what it is for: "Matrix" is a name
-				     nobody can infer a look from, exactly as "IDEA" is in the
-				     notebook's own picker. -->
-				<div class="pm-section">
-					<div class="pm-label" id={themeLabelId}>Theme</div>
-					<div class="pm-themes" role="radiogroup" aria-labelledby={themeLabelId}>
-						{#each SITE_THEMES as t (t)}
-							<button
-								class="pm-theme"
-								class:selected={siteTheme() === t}
-								type="button"
-								role="radio"
-								aria-checked={siteTheme() === t}
-								onclick={() => setSiteTheme(t)}
-							>
-								<span class="pm-theme-swatch" data-theme-swatch={t} aria-hidden="true"></span>
-								<span class="pm-theme-text">
-									<span class="pm-theme-name">{SITE_THEME_LABELS[t]}</span>
-									<span class="pm-theme-note">{SITE_THEME_NOTES[t]}</span>
-								</span>
-							</button>
-						{/each}
-					</div>
-				</div>
 
 				{#if errorMsg}
 					<!-- THE PANEL'S ONE PROBLEM LIST, for the name, the picture, the
@@ -1403,7 +1450,11 @@
 		color-scheme: dark;
 		font-family: var(--font-display);
 		font-weight: 600;
-		font-size: 0.95rem;
+		/* 1rem, not the 0.95rem of the buttons: iOS Safari zooms the page onto a
+		   focused select under 16px, and the viewport meta does not (and should
+		   not) forbid zoom, so a smaller face leaves a phone zoomed in after
+		   every pathway pick. */
+		font-size: 1rem;
 		line-height: 1.2;
 		cursor: pointer;
 	}
@@ -1439,8 +1490,10 @@
 	}
 
 	/* One short line of student-facing copy under a section label. `--text-2`
-	   and not `--dim`: `--dim` measures 4.46:1 on `--bg1`, which is the panel's
-	   own ground, and this is real copy rather than decoration. */
+	   and not `--dim`: `--dim` measures 4.52:1 on `--bg1`, the panel's own
+	   ground, a hair over the floor and under it on `--bg2` (CLAUDE.md's `--dim`
+	   paragraph; this line said 4.46 until that figure was re-measured), and
+	   this is real copy rather than decoration. */
 	.pm-note {
 		margin: 0;
 		font-family: var(--font-display);
