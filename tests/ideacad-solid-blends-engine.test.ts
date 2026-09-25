@@ -79,7 +79,9 @@ describe('fillets', () => {
 		const edges = top.edges.map((id) => refFromSelection({ bodyId: 'x1#0', kind: 'edge', id }, m0.bodies[0]) as EdgeRef);
 		const r = 0.2;
 		const m = await add(e, { id: 'f1', name: 'Fillet 1', type: 'fillet', edges, radius: r });
-		expect(row(m, 'f1').status).toBe('ok');
+		/* Built, and warned: each corner meets a sharp vertical edge, where the kernel leaves a flat step (R06, tests/ideacad-solid-fillet-corner.test.ts). */
+		expect(row(m, 'f1').status).toBe('warning');
+		expect(row(m, 'f1').message).toMatch(/^At 4 corners this round meets edges left sharp/);
 		/* Straight portions only (a lower bound on what is removed) up to straight portions plus the four whole corner cubes (an upper bound). */
 		const straight = 2 * rounded(r, BOX.w - 2 * r) + 2 * rounded(r, BOX.h - 2 * r);
 		expect(m.bodies[0].volume).toBeLessThan(12 - straight);

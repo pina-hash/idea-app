@@ -385,7 +385,37 @@ function runBlend(ctx: ExecutorContext, f: Blend) {
 	}
 	const between = f.type === 'fillet' ? 'blend' : 'bevel';
 	const journaled = f.type === 'fillet' ? !f.variable : f.angle === undefined;
+	const steps = f.type === 'fillet' ? flatSteps(k, sources, solid) : 0;
+	if (steps) ctx.warn(steps === 1
+		? 'At 1 corner this round meets an edge left sharp, and IdeaCAD cannot blend the two yet, so it leaves a small flat step there. Add that sharp edge to this round for a smooth corner.'
+		: `At ${steps} corners this round meets edges left sharp, and IdeaCAD cannot blend them yet, so it leaves a small flat step at each. Add those sharp edges to this round for smooth corners.`);
 	ctx.replaceBody(body, solid, journaled ? { between } : { carry: carryBySurface(ctx, sources), between });
+}
+/**
+ * THE KERNEL'S TWO-OF-THREE CORNER (report R06, measured in
+ * `tests/ideacad-solid-fillet-corner.test.ts`). Where a round ends at a convex
+ * corner whose third edge is left sharp, the vendored kernel builds the
+ * spherical corner that is right only when all three edges are rounded, and
+ * closes the gap it leaves with a FLAT face in the plane through the ball's
+ * centre, square to the sharp edge: a notch r³(2/3 - π/6) short of the true
+ * round, which reads on screen as an open, broken corner. Every kernel fillet
+ * entry point does it (or cannot close the shell at all), so it is disclosed
+ * rather than repaired here; repairing it changes the geometry and the face
+ * names of every document that already holds such a corner.
+ *
+ * A constant-radius round makes cylinders, tori, spheres and patches, never a
+ * plane, so a planar face in the result lying in no plane the body already
+ * had is that step, one per corner. A face the round only trimmed keeps its
+ * plane and is not counted.
+ */
+function flatSteps(k: BrepKernel, sources: readonly number[], solid: number): number {
+	const planeOf = (face: number) => { const p = json(k.getAnalyticSurfaceParams(face)); return { n: unit(vector(p.normal ?? [0, 0, 1])), d: Number(p.d ?? 0) }; };
+	const before = sources.filter((face) => k.getSurfaceType(face) === 'plane').map(planeOf);
+	return [...k.getSolidFaces(solid)].filter((face) => {
+		if (k.getSurfaceType(face) !== 'plane') return false;
+		const p = planeOf(face);
+		return !before.some((b) => dot(b.n, p.n) > 1 - 1e-9 && Math.abs(b.d - p.d) <= 1e-7 * Math.max(1, Math.abs(b.d)));
+	}).length;
 }
 export function fillet(ctx: ExecutorContext, f: FeatureOf<'fillet'>) { runBlend(ctx, f); }
 export function chamfer(ctx: ExecutorContext, f: FeatureOf<'chamfer'>) { runBlend(ctx, f); }
