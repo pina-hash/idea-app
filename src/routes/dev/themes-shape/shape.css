@@ -1,0 +1,159 @@
+/* ==========================================================================
+   THE PROPOSAL: a shape language for Space White (decision 40 item 4).
+
+   This file is the whole of it. It is imported by the /dev/themes-shape
+   mockup and by nothing else, and every selector starts at a wrapper only
+   that page renders (`.ts-after`, `.ts-glass`, `.ts-clip`,
+   `.ts-demo-focus`), so it cannot reach a real page.
+
+   IT IS A PLAIN STYLESHEET RATHER THAN THE PAGE'S SCOPED STYLE BLOCK so that
+   adopting it is a move, not a rewrite: the token block goes into
+   `:root[data-theme='space-white']` inside the same `@supports`, and
+   `corner-shape: var(--shape-corner)` joins each shaped rule. (It is also
+   out of `svelte-check`'s reach, whose CSS linter does not know
+   `corner-shape` yet and would add a warning to the baseline for a property
+   Chromium has shipped since 139.)
+
+   AN UNSET `--shape-corner` IS THE SAFETY. Outside Space White the variable
+   does not exist, `corner-shape: var(--shape-corner)` is invalid at
+   computed-value time, and the property falls back to its initial value,
+   `round`: the dark themes render exactly as they do today.
+   ========================================================================== */
+
+/* THE TOKENS. Declared on the after wrapper here; on `:root` under Space
+   White if adopted. A browser that cannot draw a real corner shape (Safari
+   and Firefox as of this writing) never sees them, so it keeps today's radii
+   instead of rendering the new radii as rounded corners. */
+@supports (corner-shape: bevel) {
+	/* TWO CORNERS IS A CORNER SHAPE, NOT A RADIUS. `bevel square` cuts the
+	   top-left and bottom-right corners and squares the other two, with
+	   every radius still ONE value. The obvious spelling, `--radius-control:
+	   8px 0`, is a trap: sites compose these tokens into longer shorthands
+	   (`border-radius: var(--radius-card) var(--radius-card) 0 0` in
+	   AppLauncher and ReferenceDoc), a two-value token turns that into six
+	   values, and the whole declaration is dropped with nothing reported. */
+	.ts-after[data-cut='two'] {
+		--shape-corner: bevel square;
+		--radius-control: 8px;
+		--radius-card: 12px;
+	}
+	.ts-after[data-cut='four'] {
+		--shape-corner: bevel;
+		--radius-control: 6px;
+		--radius-card: 10px;
+	}
+	/* A CHIP IS A HEXAGONAL TAG IN BOTH STYLES, AND THE TWO-CORNER CUT IS NOT
+	   OFFERED FOR IT. A chip's radius is a pill's (999px, clamped to half its
+	   height), so `bevel square` on it cuts from mid-height to mid-width and
+	   makes a parallelogram whose slanted border ran THROUGH the first and
+	   last letters -- measured on the first render of this page, "Draft" with
+	   its D and t crossed by its own edge. `bevel` on all four corners makes
+	   the ends points at mid-height, which the text clears; the extra side
+	   padding is what keeps it cleared at the cap height. */
+	.ts-after {
+		--shape-chip: bevel;
+	}
+	.ts-after :is(.draft-chip, .kind-chip) {
+		padding-inline: 0.65rem;
+	}
+	/* The classroom header's controls read `--radius-card` today, which is a
+	   pre-existing inconsistency: inside the header they take the control
+	   cut here, and adopting this would move those rules to
+	   `--radius-control`. */
+	.ts-after .cr-header {
+		--radius-card: var(--radius-control);
+	}
+}
+
+/* THE SHAPED RULES. Each element here already reads a radius token or a pill
+   radius. The logo link is left alone: its window is chamfered by its own
+   polygon. */
+.ts-after :is(.btn, .card),
+.ts-after .cr-header :is(button, a:not(.wordmark), .sw-menu) {
+	corner-shape: var(--shape-corner);
+}
+.ts-after :is(.draft-chip, .kind-chip) {
+	corner-shape: var(--shape-chip);
+}
+
+/* GLASS, for surfaces that float over content.
+
+   SOLID FIRST. The frosted surface applies only where the browser can blur,
+   the person has not asked for reduced transparency, and has not asked for
+   more contrast; everywhere else the header and the menu keep their solid
+   `--surface-1`.
+
+   THE TINT IS 82% OPAQUE BECAUSE OF THE WORST GROUND, NOT BECAUSE OF TASTE.
+   A projected deck and the IdeaCAD viewport stay dark on Space White, and a
+   blur over a dark block converges on that block's colour. Composited over
+   pure black, `--surface-1` at 82% still holds body text above 4.5:1 on a
+   monitor and on the projector model (the measured figures are in
+   docs/feedback/2026-09-25/overnight/shapes.md). A lighter tint looks glassier
+   and fails exactly there.
+
+   THE FILTER SITS ON A `::before`, NEVER ON THE HEADER ITSELF. An element
+   with a backdrop filter becomes the backdrop root of everything inside it,
+   so a menu nested in a frosted header would blur the header's own paint and
+   none of the page beneath it. The pseudo-element is a sibling of the menu,
+   not its ancestor, so the menu samples the real page. */
+.ts-glass {
+	--surface-glass: color-mix(in srgb, var(--surface-1) 82%, transparent);
+	--glass-filter: blur(12px) saturate(1.2);
+}
+@supports (backdrop-filter: blur(1px)) {
+	@media (prefers-reduced-transparency: no-preference) and (not (prefers-contrast: more)) {
+		.ts-root .ts-glass .cr-header {
+			background: transparent;
+		}
+		.ts-root .ts-glass .cr-header::before {
+			content: '';
+			position: absolute;
+			inset: 0;
+			z-index: -1;
+			background: var(--surface-glass);
+			backdrop-filter: var(--glass-filter);
+		}
+		/* WHICH PANEL FLOATS DEPENDS ON THE HEADER'S OWN FOLD. Above it the
+		   class menu drops from its button over the page; below it the class
+		   list sits in place inside the Menu panel, and the Menu panel is the
+		   thing floating. 1180px is ClassroomShell's own fold breakpoint,
+		   written twice here because this is a mockup; adopted, the glass
+		   would be one declaration inside each of the shell's two rules. */
+		@media (min-width: 1180px) {
+			.ts-root .ts-glass .cr-header .sw-menu {
+				background: var(--surface-glass);
+				backdrop-filter: var(--glass-filter);
+			}
+		}
+		@media (max-width: 1179.98px) {
+			.ts-root .ts-glass .cr-header .header-right.menu-open .shell-tools {
+				background: var(--surface-glass);
+				backdrop-filter: var(--glass-filter);
+			}
+		}
+	}
+}
+
+/* THE CLIP CONSTRUCTION, shown only to be measured against the proposal: the
+   logo window's own polygon, 8px on every corner. */
+.ts-clip {
+	clip-path: polygon(
+		8px 0%,
+		calc(100% - 8px) 0%,
+		100% 8px,
+		100% calc(100% - 8px),
+		calc(100% - 8px) 100%,
+		8px 100%,
+		0% calc(100% - 8px),
+		0% 8px
+	);
+}
+
+/* The focus ring the site draws for keyboard focus (app.css `:focus-visible`,
+   2px of `--cyan` at a 2px offset), held on so the two constructions can be
+   compared in one look. The measurement focuses each element for real and
+   does not rely on this class. */
+.ts-demo-focus {
+	outline: 2px solid var(--cyan);
+	outline-offset: 2px;
+}

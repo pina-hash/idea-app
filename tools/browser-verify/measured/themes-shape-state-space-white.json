@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "themes-shape-state-space-white.mjs",
+	"date": "2026-09-25T06:21:07.430Z",
+	"sha": "8cd42c89632ae20942eb1759c063f6817e48bafe",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 160,
+	"outsideRows": [],
+	"ms": 13436
+}
