@@ -10,6 +10,8 @@
   `?refused=1` refuses B's channel, so B runs on the database poll alone and
   says "Live unavailable". `?hold=1` starts with B's saves failing on the wire,
   which keeps B dirty on purpose. Both are also switchable from the page.
+  `?side=1` puts the two windows side by side above 1024px; by default they
+  stack, each as wide as the page, which is the real route's geometry.
 
   Each workspace's dev hook is captured as it mounts (`window.__icA`,
   `window.__icB`): the hook is one global name, so B is mounted only once A's
@@ -25,7 +27,7 @@
 	const params = typeof location === 'undefined' ? new URLSearchParams() : new URLSearchParams(location.search);
 	const server = createLiveServer();
 	let hold = $state(params.get('hold') === '1');
-	const refused = params.get('refused') === '1';
+	const refused = params.get('refused') === '1', side = params.get('side') === '1';
 	const transportA = server.transportFor(ANA, () => false), transportB = server.transportFor(BEN, () => hold);
 	const liveA = server.liveFor(ANA), liveB = server.liveFor(BEN, { refused });
 	let docA = $state.raw<SolidDocument | null>(null), docB = $state.raw<SolidDocument | null>(null);
@@ -53,7 +55,7 @@
 		<label class="lh-hold"><input type="checkbox" bind:checked={hold} data-testid="live-hold" /> Hold Ben's saves (keeps window B unsaved)</label>
 		{#if refused}<span class="lh-flag">Window B's live channel is refused</span>{/if}
 	</header>
-	<div class="lh-panes">
+	<div class="lh-panes" class:side>
 		<section class="lh-pane" aria-label="Window A, Ana Reyes" data-testid="live-pane-a">
 			<p class="lh-who">A · Ana Reyes</p>
 			<div class="lh-frame">{#if docA}<SolidWorkspace document={docA} transport={transportA} live={liveA} dev onback={() => {}} />{/if}</div>
@@ -76,10 +78,13 @@
 	.lh-panes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 8px; }
 	.lh-pane { min-width: 0; display: flex; flex-direction: column; }
 	.lh-who { margin: 0 0 4px; font: 14px 'Share Tech Mono', monospace; color: #b8c2ca; }
-	/* Each window gets a viewport of its own; at a phone width they stack and the page scrolls between them. */
+	/* EACH WINDOW TAKES THE PAGE'S WIDTH AND THE PAGE SCROLLS BETWEEN THEM, at every width, because that is the geometry of
+	   the real route (the workspace fills the window). Side by side at 1440 each window was 712px wide, so every desktop
+	   reading was a reading of a 712px window, where the top bar has no room for the save indicator at all. `?side=1`
+	   puts them side by side for a person watching the loop; the specs never use it. */
 	.lh-frame { position: relative; height: 88vh; min-height: 520px; border: 1px solid #3a444c; }
 	@media (min-width: 1024px) {
-		.lh-panes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-		.lh-frame { height: calc(100vh - 110px); }
+		.lh-panes.side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.lh-panes.side .lh-frame { height: calc(100vh - 110px); }
 	}
 </style>

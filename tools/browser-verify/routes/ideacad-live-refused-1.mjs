@@ -7,7 +7,7 @@
  * the database poll, inside one poll interval (12 s) plus the fixture's
  * latency. The step reports the measured delay.
  */
-import { COVERED_CONTROLS_B, hitsItself, liveSource } from './_ideacad-live.mjs';
+import { COVERED_CONTROLS_B, LIVE_WORD_CLEAR_B, hitsItself, liveSource } from './_ideacad-live.mjs';
 
 const NOTE_B = '[data-testid="live-pane-b"] [data-testid="ideacad-live-note"]';
 
@@ -51,6 +51,7 @@ export default {
 			expected: [true, 1, true]
 		},
 		{ label: 'the note\'s dismiss control is what a press at its centre lands on', evaluate: hitsItself(`${NOTE_B} button`), expected: [true] },
+		{ label: 'the longest status word, "Live unavailable", overlaps no top-bar control, footer word or save indicator, pushes no top-bar control outside the bar, and sits inside the window or gives way entirely (at least 8 things compared)', evaluate: LIVE_WORD_CLEAR_B, expected: [0, 0, true, true] },
 		{ label: 'the note covers none of window B\'s tool palette or top bar (count covered by it, and at least 5 controls a press does reach)', evaluate: COVERED_CONTROLS_B, expected: [0, true] }
 	],
 	contrast: [{ selector: '[data-testid="live-pane-b"] [data-testid="ideacad-live-state"]', label: 'the unavailable word', min: 4.5 }],

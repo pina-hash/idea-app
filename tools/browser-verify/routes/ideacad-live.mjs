@@ -15,7 +15,7 @@
  *   - no recovery panel in either window (the positive control for that row
  *     is `ideacad-live-state-offer`).
  */
-import { COVERED_CONTROLS_B, IN_FLOW_B, hitsItself, liveReady, liveSource } from './_ideacad-live.mjs';
+import { COVERED_CONTROLS_B, IN_FLOW_B, LIVE_WORD_CLEAR_B, hitsItself, liveReady, liveSource } from './_ideacad-live.mjs';
 
 const NOTE_B = '[data-testid="live-pane-b"] [data-testid="ideacad-live-note"]';
 
@@ -65,6 +65,7 @@ export default {
 		},
 		{ label: 'the note\'s dismiss control is what a press at its centre lands on', evaluate: hitsItself(`${NOTE_B} button`), expected: [true] },
 		{ label: 'the note covers none of window B\'s tool palette or top bar (count covered by it, and at least 5 controls a press does reach)', evaluate: COVERED_CONTROLS_B, expected: [0, true] },
+		{ label: 'the "Live" word overlaps no top-bar control, footer word or save indicator, pushes no top-bar control outside the bar, and sits inside the window or gives way entirely (at least 8 things compared)', evaluate: LIVE_WORD_CLEAR_B, expected: [0, 0, true, true] },
 		{ label: 'the note is a line in flow between the model and the footer, over neither (below the work area, above the footer, inside the window\'s width)', evaluate: IN_FLOW_B('[data-testid="ideacad-live-note"] > div'), expected: [true, true, true] }
 	],
 	contrast: [

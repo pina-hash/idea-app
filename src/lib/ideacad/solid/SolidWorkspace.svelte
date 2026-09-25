@@ -151,6 +151,8 @@
 	/* The dirty session's offer: which revision it is about, and who made it (labels from `changedBy`, empty when that could not be read). */
 	let liveOffer=$state.raw<{revision:number;who:string[]}|null>(null);
 	let liveConnection:SolidLiveConnection|null=null,liveChecking=false,liveRecheck=false,livePulling=false,livePullAfter=0;
+	/* Set when the workspace unmounts. A read already on the wire when the student leaves must not then drive the worker or reopen a document nobody is looking at. */
+	let liveClosed=false;
 	/** A save this session made was accepted: note it, then tell every other open copy to read the database. */
 	function liveAccepted(next:number){if(!liveTransport)return;liveState=liveSaved(liveState,next);liveConnection?.send({documentId:opened.id,conceptId:opened.conceptId,revision:next});}
 	/** What the session is doing, in the three facts `liveDecide` weighs. Busy is anything a model swap would pull out from under the student. */
@@ -158,7 +160,7 @@
 	const liveClock=()=>new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
 	/** THE POLL FLOOR: read the committed revision. A read already on the wire is followed by exactly one more, so a ping that lands mid-read is not lost. */
 	async function liveCheck(){
-		if(!liveTransport)return;
+		if(!liveTransport||liveClosed)return;
 		if(liveChecking){liveRecheck=true;return;}
 		liveChecking=true;
 		try{do{liveRecheck=false;try{liveState=liveHead(liveState,await liveTransport.head(opened.conceptId));}catch{/* Best effort: a failed read is retried by the next tick of the poll and never touches the model or the save. */}}while(liveRecheck);}
@@ -167,7 +169,7 @@
 	}
 	/** Ask the one decision and do what it says. Runs every tick with no network unless there is something to fetch. */
 	async function liveAct(){
-		if(!liveTransport)return;
+		if(!liveTransport||liveClosed)return;
 		const session=liveSession(),action=liveDecide(liveState,session);
 		/* "Waiting" is about the student being busy, never about this layer's own pull (which holds `busy` while it loads) or a save on the wire. */
 		liveWaiting=action==='wait'&&!session.writing&&!livePulling;
@@ -182,7 +184,7 @@
 		try{const pulled=await liveTransport.pull({documentId:opened.id,conceptId:opened.conceptId,afterSeq:committedSeq(history,revision),have:new Set(),artifacts:false});who=changedBy(pulled.rows,liveTransport.viewerEmail);}
 		catch{/* Naming is a courtesy: the offer stands without a name. */}
 		finally{livePulling=false;}
-		if(liveDecide(liveState,liveSession())==='offer')liveOffer={revision:target,who};
+		if(!liveClosed&&liveDecide(liveState,liveSession())==='offer')liveOffer={revision:target,who};
 	}
 	/** A clean, idle session replays the rows after its own last one through the worker, exactly as an open would load them. */
 	async function livePull(){
@@ -194,7 +196,7 @@
 			/* A read that failed on the wire waits for the next poll rather than retrying every tick; the model on screen is the one it was. */
 			try{pulled=await liveTransport.pull({documentId:opened.id,conceptId:opened.conceptId,afterSeq:from,have,artifacts:true});}catch{livePullAfter=Date.now()+SOLID_LIVE_POLL_MS;return;}
 			/* The session may have moved while the rows were on the wire. They apply only to the session they were read for, still clean and idle. */
-			if(liveDecide(liveState,liveSession())!=='pull'||history.length-1!==from)return;
+			if(liveClosed||liveDecide(liveState,liveSession())!=='pull'||history.length-1!==from)return;
 			const who=updatedSentence(changedBy(pulled.rows,liveTransport.viewerEmail));
 			let next:PulledModel<SolidManifest>|null=null;
 			try{next=appendPulled<SolidManifest>(history,pulled.rows);}catch{next=null;}
@@ -233,7 +235,7 @@
 		const onFocus=()=>void liveCheck(),onVisible=()=>{if(document.visibilityState==='visible')void liveCheck();};
 		window.addEventListener('focus',onFocus);document.addEventListener('visibilitychange',onVisible);
 		void liveCheck();
-		return()=>{clearInterval(poll);clearInterval(tick);window.removeEventListener('focus',onFocus);document.removeEventListener('visibilitychange',onVisible);liveConnection?.close();liveConnection=null;};
+		return()=>{liveClosed=true;clearInterval(poll);clearInterval(tick);window.removeEventListener('focus',onFocus);document.removeEventListener('visibilitychange',onVisible);liveConnection?.close();liveConnection=null;};
 	});
 	const selectedBody=$derived(model.bodies.find(b=>b.id===selections[0]?.bodyId));
 	const selectedSketch=$derived(model.sketches.find(s=>s.feature===selections[0]?.id&&selections[0]?.kind==='sketch'));
@@ -785,7 +787,7 @@
 	<header>
 		<button class="documents" onclick={()=>void back()} aria-label="Documents">‹ <span>Documents</span></button>
 		<input class="document-title" aria-label="Document name" bind:value={title} readonly={!opened.canWrite||loading||busy} maxlength="120" onchange={()=>void apply({type:'title',title},'Rename document')}/>
-		<div class="document-save"><SaveIndicator state={saveState} hideClean={false}/>{#if liveTransport}<span class="live-state" data-testid="ideacad-live-state" data-status={liveStatus??'connecting'} title={liveStatusDetail(liveStatus)}><span class="live-dot" aria-hidden="true"></span>{liveStatusWord(liveStatus)}</span>{/if}</div>
+		<div class="document-save" class:has-live={!!liveTransport}><SaveIndicator state={saveState} hideClean={false}/>{#if liveTransport}<span class="live-state" data-testid="ideacad-live-state" data-status={liveStatus??'connecting'} title={liveStatusDetail(liveStatus)}><span class="live-dot" aria-hidden="true"></span><span class="live-word">{liveStatusWord(liveStatus)}</span></span>{/if}</div>
 		<button aria-label="Undo" onclick={()=>void undo()} disabled={!historyState.undoTarget||!opened.canWrite||busy}>↶</button>
 		<button aria-label="Redo" onclick={()=>void undo(true)} disabled={!historyState.redoTarget||!opened.canWrite||busy}>↷</button>
 		<button class="search-open" class:active={!!search&&!search.group} aria-label="Search commands" title={keyFor('search')?`Search commands (${keyFor('search')})`:'Search commands'} onclick={()=>search&&!search.group?search=null:runById('search')}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 17a7 7 0 1 1 0-14 7 7 0 0 1 0 14zM15 15l6 6"/></svg><span>Search</span></button>
@@ -869,7 +871,11 @@
 	/* THE RECOVERY PANEL IS A BLOCK IN THE HISTORY ROW, IN FLOW. It used to sit in the work area after the canvas, which is 100% of an `overflow: hidden` box, so it rendered BELOW what anyone could see: present, "visible" to every presence check, and reachable only by a script that scrolls a hidden overflow (measured with the live layer's offer: both buttons failed a hit test at 1440 and 375). Placed over the model instead, it covered 7 of a 718px window's top-bar controls and 6 at 375. In flow it covers nothing and the model gives up the height while it is up. */
 	.recovery{flex:1 1 100%;order:-2;min-width:0;margin:6px 8px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}.recovery h2,.recovery p{flex:1 1 100%;margin:0}.recovery p{font-size:16px;color:var(--text-2)}.recovery.panel>button{width:auto;flex:0 0 auto;border-color:var(--boundary);background:var(--surface-2)}
 	/* THE LIVE LAYER: the channel's word beside the save indicator (a word and a dot, never the dot alone), and one line of news at the top of the model. The note's region is always mounted and only its text moves, so a screen reader that observes a status region from the start hears the change. */
-	.live-state{display:inline-flex;align-items:center;gap:6px;flex:none;margin-left:8px;padding:0 9px;min-height:26px;border:1px solid var(--boundary);border-radius:999px;font:13px 'Share Tech Mono',monospace;color:var(--text-2);white-space:nowrap}.live-dot{width:8px;height:8px;border-radius:50%;background:var(--text-2)}.live-state[data-status='live'] .live-dot{background:var(--green)}.live-state[data-status='refused'] .live-dot{background:var(--ic-warn,var(--amber))}
+	/* THE WORD GIVES WAY AND NEVER PAINTS OUTSIDE ITS BOX. The save line is `flex:1; min-width:0` in a top bar that is already full below about 1100px, so a word that would not shrink ran out of it to the left: measured over the document name by 142px in 702 and 800px windows and by 25px at 1024. It now shrinks first (the save indicator keeps its room), ellipsises, and is removed below 100px of save line rather than leaving a sliver of pill; a refused channel is still said in words by the note in the history row. On a phone the save line sits over the footer, and a 26px pill reached 3px into the footer's counts: it is 18px there. */
+	.document-save.has-live{container-type:inline-size}
+	.live-state{display:inline-flex;align-items:center;gap:6px;flex:0 50 auto;min-width:0;overflow:hidden;margin-left:8px;padding:0 9px;min-height:26px;border:1px solid var(--boundary);border-radius:999px;font:13px 'Share Tech Mono',monospace;color:var(--text-2);white-space:nowrap}.live-dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--text-2)}.live-word{min-width:0;overflow:hidden;text-overflow:ellipsis}
+	@container (max-width:100px){.live-state{display:none}}
+	@media(max-width:700px){.live-state{min-height:18px;padding:0 7px;margin-left:6px;font-size:11px;line-height:14px}}.live-state[data-status='live'] .live-dot{background:var(--green)}.live-state[data-status='refused'] .live-dot{background:var(--ic-warn,var(--amber))}
 	/* THE NOTE IS A LINE IN THE HISTORY ROW, IN FLOW, SO IT CANNOT COVER A CONTROL AT ANY WIDTH. It was first an overlay at the top of the model, and measured that way it sat over a tool at 718px and five controls at 375px. Empty, the region is a zero-height box; the tree's slide-over already stops above this row. */
 	.live-note{flex:1 1 100%;order:-1;min-width:0}.live-note>div{display:flex;align-items:center;gap:6px;padding:0 4px 0 14px;border-bottom:1px solid var(--hairline);font-size:16px;color:var(--text-1)}.live-note>div>span{flex:1 1 auto;padding:10px 0;min-width:0}.live-note>div:not(:has(button))>span{padding-right:10px}
 	.document-save{min-width:0;display:flex;justify-content:flex-end}.document-save :global(.save-ind){max-width:100%;flex-wrap:nowrap}.document-save :global(.save-ind-text){min-width:0;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

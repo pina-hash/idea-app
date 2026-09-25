@@ -25,7 +25,7 @@ export const HELPERS = `
 	];
 	const sketchInA = () => A.apply({ type: 'add-feature', feature: { id: 'sk1', name: 'Base sketch', type: 'sketch', plane: { kind: 'datum', datum: 'XY' }, entities, constraints: [] } }, 'Draw sketch');
 	const extrudeInA = () => A.apply({ type: 'add-feature', feature: { id: 'ex1', name: 'Plate', type: 'extrude', sketch: 'sk1', distance: 0.5, operation: 'new' } }, 'Extrude');
-	const showB = async () => { if (innerWidth < 1024) paneB.scrollIntoView({ block: 'start', behavior: 'instant' }); await wait(200); };
+	const showB = async () => { paneB.scrollIntoView({ block: 'start', behavior: 'instant' }); await wait(200); };
 	const note = () => (paneB.querySelector('[data-testid="ideacad-live-note"]')?.textContent ?? '').trim();
 `;
 export const liveSource = (body) => `async () => {${HELPERS}${body}}`;
@@ -56,12 +56,24 @@ export const OFFER_SHOWN = `() => !!window.__icB && /Ana Reyes saved a newer ver
 /**
  * How many of window B's own controls (the tool palette and the top bar) the LIVE LAYER covers: a press at the control's
  * centre that lands inside the live note or the recovery panel. Asked that way rather than "is every control reachable",
- * because at a 718px pane some of these controls already overlap each other with no live layer on screen at all
+ * because in a 718px window some of these controls already overlap each other with no live layer on screen at all
  * (measured: the view control's hidden measuring copies, the empty-part cue over two tools, and the view buttons over
  * the panel toggles), and a probe that counted those would blame this layer for them. The second value is how many
  * controls a press DOES reach, the positive control that the probe was looking at real buttons.
  */
 export const COVERED_CONTROLS_B = `() => { const pane = document.querySelector('[data-testid="live-pane-b"]'); const list = [...pane.querySelectorAll('.top-bar button, .tools button')].filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0; }); const hitOf = (b) => { const r = b.getBoundingClientRect(); return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); }; const byLive = list.filter((b) => { const h = hitOf(b); return !!h && !!h.closest('[data-testid="ideacad-live-note"], [data-testid="ideacad-recovery"]'); }); const reached = list.filter((b) => { const h = hitOf(b); return !!h && b.contains(h); }); return [byLive.length, reached.length >= 5]; }`;
+
+/**
+ * THE STATUS WORD CROWDS NOTHING. It sits beside the save indicator: in the top bar above 700px, and in the absolutely
+ * placed save line over the footer at or below it. Returns: what it overlaps among window B's visible top-bar controls,
+ * footer words and save indicator (0 when nothing, otherwise their labels); while it is IN the top bar, which top-bar
+ * controls sit outside the bar (the bar has no overflow handling, so a control past its edge is one nobody can press;
+ * below 700px the word is not in the bar and cannot push anything out of it, so this reads 0 there); whether the word is
+ * inside the window or was removed for want of room (a top bar too full to hold it, below about 950px); and the positive
+ * control, that at least 8 visible things were compared. Its first measurement, before the word could give way: over
+ * "Document name" by 142px in 702 and 800px windows and by 25px at 1024, and 3px into the footer's counts at 375.
+ */
+export const LIVE_WORD_CLEAR_B = `() => { const pane = document.querySelector('[data-testid="live-pane-b"]'); const ws = pane.querySelector('.solid-workspace'); const word = ws.querySelector('[data-testid="ideacad-live-state"]'); if (!word) return ['absent']; const w = word.getBoundingClientRect(); const shown = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).display !== 'none'; }; const hit = (a, b) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5; const label = (el) => (el.getAttribute('aria-label') || el.textContent || el.tagName).trim().slice(0, 18); const header = ws.querySelector(':scope > header'), hr = header.getBoundingClientRect(); const others = [...ws.querySelectorAll(':scope > header button, :scope > header input, :scope > footer > span, .save-ind')].filter((el) => shown(el) && !word.contains(el) && !el.contains(word)); const over = shown(word) ? others.filter((el) => hit(el.getBoundingClientRect(), w)).map(label) : []; const inBar = getComputedStyle(ws.querySelector('.document-save')).position !== 'absolute'; const outside = inBar ? [...header.querySelectorAll('button, input')].filter(shown).filter((el) => { const r = el.getBoundingClientRect(); return r.right > hr.right + 0.5 || r.left < hr.left - 0.5; }).map(label) : []; const s = ws.getBoundingClientRect(); return [over.length ? over.join('|') : 0, outside.length ? outside.join('|') : 0, !shown(word) || (w.left >= s.left - 0.5 && w.right <= s.right + 0.5), others.length >= 8]; }`;
 
 /** Is a box a line IN FLOW between window B's model and its footer: below the work area, above the footer, inside the window's width? */
 export const IN_FLOW_B = (selector) => `() => { const pane = document.querySelector('[data-testid="live-pane-b"]'); const el = pane.querySelector(${JSON.stringify(selector)}); if (!el) return ['absent']; const n = el.getBoundingClientRect(), w = pane.querySelector('.workarea').getBoundingClientRect(), f = pane.querySelector('.solid-workspace footer').getBoundingClientRect(), s = pane.querySelector('.solid-workspace').getBoundingClientRect(); return [n.top >= w.bottom - 0.5, n.bottom <= f.top + 0.5, n.left >= s.left - 0.5 && n.right <= s.right + 0.5]; }`;

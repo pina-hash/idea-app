@@ -71,6 +71,8 @@ would need a per-feature merge rule and is not built.
 
 ## Not built
 
-- Presence (who else has the model open). The pings could carry it; it is not shown.
+- Presence (who else has the model open). The pings cannot carry it: they fire only
+  after an accepted save, so a person who has the model open and changes nothing
+  never sends one. Presence needs a heartbeat of its own.
 - The legacy chooser's direct-open path does not pass the live transport.
 - A class-wide edit grant (decision 38's migration half, proposal 0229).

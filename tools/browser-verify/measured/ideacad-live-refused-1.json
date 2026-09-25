@@ -1,15 +1,15 @@
 {
 	"schema": 1,
 	"spec": "ideacad-live-refused-1.mjs",
-	"date": "2026-09-25T06:37:24.818Z",
-	"sha": "33338d6de24056e6824ff9f4e9fac851e3911a91",
+	"date": "2026-09-25T08:50:39.490Z",
+	"sha": "87303b073a5a5d9a2c678776bda2a4332ac1f9c6",
 	"dirty": true,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
-	"measurements": 26,
+	"measurements": 28,
 	"outsideRows": [],
-	"ms": 22348
+	"ms": 21012
 }
