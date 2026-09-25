@@ -1,7 +1,8 @@
 /**
  * THE CLASSROOM HOVER INK, one spec per theme (ledger 0298, decision 40 item 1).
- * The factory is the spec; `classroom-split-s-1-manage-1-state-hover-ink-*.mjs`
- * name the theme it measures. See ./_hover-ink.mjs for how a hover is forced.
+ * The factory is the spec; `classroom-palette-s-1-manage-1-state-hover-ink-*.mjs`
+ * and `classroom-todo-state-hover-ink-*.mjs` name the theme they measure.
+ * See ./_hover-ink.mjs for how a hover is forced.
  *
  * THE HARNESS IS /dev/classroom-palette, because it mounts the REAL
  * ClassroomShell -- with several classes, so the class strip has icons that are
@@ -21,6 +22,7 @@
  */
 import { FORCE_THEME, HOVER_FLOORS, HOVER_PROBE, HOVER_REACH, HOVER_VERDICTS, ISLAND_PROBE, floorVerdicts } from './_hover-ink.mjs';
 import { MANAGER, READY } from './_classroom-palette.mjs';
+import { MY_CLASSES } from './_classroom-todo.mjs';
 
 export const CLASSROOM_TARGETS = [
 	{ name: 'class icon', host: '[data-testid="class-icon"]:not(.current)', prop: 'border-top-color', state: 'hover' },
@@ -75,6 +77,57 @@ export const classroomHoverSpec = (theme) => {
 				label: 'inside a dark island the hover ink is the island brass',
 				evaluate: ISLAND_PROBE,
 				expected: ['ic-root', 'nb-island', 'deck-stage'].map((c) => `${c}: hover ink gold #c8a848`)
+			}
+		]
+	};
+};
+
+/**
+ * THE CLASS LIST AT /classroom (MyClasses), which /dev/classroom-palette does
+ * not mount. Its card edge read gold through an ALIAS -- `--acc: var(--gold)`
+ * on `.class-card`, painted by `.class-card:hover { border-color: var(--acc) }`
+ * -- so a sweep for the literal `var(--gold)` inside `:hover` rules walked
+ * straight past it, and on Space White the card turned the brown #715d22
+ * under the pointer. It reads --hover-ink now. The to-do door beside the
+ * cards is the swept `.todo-link:hover` edge, measured in the same pass.
+ *
+ * /dev/classroom-todo mounts the REAL MyClasses, as a student with work owed
+ * (so the to-do door draws), inside the REAL ClassroomShell.
+ */
+export const HOME_TARGETS = [
+	{ name: 'class card', host: 'a.class-card', prop: 'border-top-color', state: 'hover' },
+	{ name: 'to-do door', host: '[data-testid="my-classes-todo"]', prop: 'border-top-color', state: 'hover' }
+];
+
+export const classroomHomeHoverSpec = (theme) => {
+	const ink = theme === 'space-white' ? 'green' : 'gold';
+	const wall = theme === 'space-white';
+	return {
+		path: `${MY_CLASSES}?state=hover-ink-${theme}`,
+		aliasOf: MY_CLASSES,
+		label: `Classroom class list hover ink under ${theme}: a class card and the to-do door forced into :hover`,
+		prepare: [
+			{ waitFor: `() => !!document.querySelector('a.class-card') && !!document.querySelector('[data-testid="my-classes-todo"]')`, timeoutMs: 20000, label: 'the class cards and the to-do door are on the page' },
+			FORCE_THEME(theme),
+			{ evaluate: HOVER_PROBE(HOME_TARGETS), label: 'force each hover and read it back', waitMs: 100 }
+		],
+		orderResult: [
+			{
+				label: `every forced hover reads ${ink}`,
+				evaluate: HOVER_VERDICTS,
+				expected: HOME_TARGETS.map((t) => `${t.name}: hover edge ${ink}`)
+			},
+			{
+				label: 'each forced state reached exactly one node through a rule that names the ink',
+				evaluate: HOVER_REACH,
+				expected: HOME_TARGETS.map((t) => `${t.name}: one node forced`)
+			},
+			{
+				label: wall
+					? 'contrast on its real ground: edge 3, and on the wall 2.0 washed'
+					: 'contrast on its real ground: edge 3 (the wall is recorded in the probe line, not gated)',
+				evaluate: HOVER_FLOORS(HOME_TARGETS, { washed: wall }),
+				expected: floorVerdicts(HOME_TARGETS, { washed: wall })
 			}
 		]
 	};

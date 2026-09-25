@@ -1,9 +1,12 @@
 /**
  * THE HOVER INK, FORCED AND MEASURED (ledger 0298, decision 40 item 1).
  *
- * Thirty-three classroom and shell `:hover` declarations that painted
+ * Thirty-four classroom and shell `:hover` declarations that painted
  * `var(--gold)` now read `var(--hover-ink)`, which is the brass it always was
- * on the dark themes and the theme's green on Space White. These helpers are
+ * on the dark themes and the theme's green on Space White. Thirty-three named
+ * `var(--gold)` outright; the thirty-fourth (MyClasses' class card) painted it
+ * through an alias, `--acc`, which a literal sweep cannot see -- and which
+ * this probe reports as "ink rules 0" rather than passing. These helpers are
  * what the `*state-hover-ink*` specs share.
  *
  * A HOVER CANNOT BE HELD BY A SPEC, so it is FORCED, one node at a time. For

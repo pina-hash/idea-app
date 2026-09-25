@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "classroom-todo-state-hover-ink-space-white.mjs",
+	"date": "2026-09-25T09:47:58.038Z",
+	"sha": "1089b2bbe39cf3da5f242592180a96ef21db4d3d",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 16,
+	"outsideRows": [],
+	"ms": 7152
+}
