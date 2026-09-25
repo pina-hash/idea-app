@@ -32,6 +32,23 @@
 	const mineOff = params.get('mine') === '0';
 	const twoSets = params.get('sets') === '2';
 	const noTeams = params.get('teams') === 'none';
+	const themeParam = params.get('theme');
+
+	/* FORCED THEME ATTRIBUTE, the classroom-live harness's way. A harness holds
+	   no session, so ThemeRoot's own decision is always "none" here; the class
+	   page is in the Space White scope, so `?theme=space-white` writes the
+	   attribute and re-writes it once after ThemeRoot's first effect. */
+	$effect(() => {
+		if (themeParam !== 'space-white') return;
+		const el = document.documentElement;
+		const apply = () => el.setAttribute('data-theme', 'space-white');
+		apply();
+		const t = setTimeout(apply, 0);
+		return () => {
+			clearTimeout(t);
+			el.removeAttribute('data-theme');
+		};
+	});
 
 	const now = Date.now();
 	const today = laCalendarDay(new Date(now));

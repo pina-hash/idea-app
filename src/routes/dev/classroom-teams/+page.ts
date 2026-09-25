@@ -17,6 +17,7 @@ import type { PageLoad } from './$types';
  *   ?mine=0           the student is on no team in the draw (joined after it)
  *   ?sets=2           two draws posted at once
  *   ?teams=none       nothing saved at all
+ *   ?theme=space-white  the class page's light theme, forced (no session here)
  */
 export const load: PageLoad = () => {
 	if (!dev) error(404, 'Not found');
