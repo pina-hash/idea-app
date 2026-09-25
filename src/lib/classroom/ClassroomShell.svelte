@@ -24,6 +24,7 @@
 	import { formatSectionLabel } from '$lib/section-label';
 	import { classGlyph } from '$lib/classroom/class-glyph';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
+	import QuickNoteDock from '$lib/notebook/QuickNoteDock.svelte';
 	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
 	import { describeBuild, REPORT_LABEL_SHORT } from '$lib/feedback/context';
 	import { version as buildId } from '$app/environment';
@@ -132,6 +133,17 @@
 	 * Not on the deck: that route has its own bar and its own relocation.
 	 */
 	const feedbackBuild = describeBuild(deploy, buildId);
+
+	/*
+	 * THE QUICK NOTE (ledger 0298). Its control is in the row from 560px up; below
+	 * that it folds into the Menu as the first entry, because in the row it took
+	 * the last class icon off a phone (measured at 375: the class row went from
+	 * 65.4px to 11.6px, under one 46.7px icon). The dock says whether it is here
+	 * at all (`available`), so the Menu entry exists exactly when the control
+	 * does, and both open the ONE panel the dock owns.
+	 */
+	let quickNoteDock = $state<ReturnType<typeof QuickNoteDock> | null>(null);
+	let quickNoteHere = $state(false);
 	const feedbackSubmit = $derived(feedbackWriter(page.data.supabase, page.data.claims?.sub));
 	const feedbackAnonymous = $derived(feedbackIsAnonymous(page.data.supabase, page.data.claims?.sub));
 
@@ -166,6 +178,17 @@
 	   control measured nothing (prompt 0098, item H). */
 	const loc = $derived(locateClassroom(classroomPathname(page.url.pathname, basePath)));
 	const showNavToggle = $derived(!minimal && canCollapseNav(loc));
+	/*
+	 * THE ASSIGNMENT'S TITLE FOR A QUICK NOTE: the trail's ITEM crumb, never the
+	 * last one. Under the item page (its grading console) the last crumb is the
+	 * page's name, "Grading", which would become the note's title everywhere.
+	 */
+	const quickNoteItemTitle = $derived.by(() => {
+		if (!loc.itemId) return null;
+		if (loc.place === 'item') return crumbs.at(-1)?.label ?? null;
+		const itemPath = `/item/${loc.itemId}`;
+		return crumbs.find((c) => c.href?.endsWith(itemPath))?.label ?? null;
+	});
 	const viewer = $derived((page.data?.claims?.sub as string | undefined) ?? null);
 	const navCollapseStorageKey = $derived(navCollapseKey(viewer));
 	const storedNavChoice = $derived(readNavCollapseChoice(navCollapseStorageKey));
@@ -486,6 +509,22 @@
 					{/if}
 				</div>
 			{/if}
+			{#if quickNoteHere && !minimal && loc.place !== 'item-deck'}
+				<!-- The quick note's Menu entry, shown only below 560px, where the
+				     row's own Note control is folded away (see `quickNoteDock`). -->
+				<button
+					type="button"
+					class="shell-tool quicknote-menu-item"
+					data-testid="quicknote-menu-item"
+					onclick={(event) => {
+						closeMenu();
+						quickNoteDock?.open(switcherEl?.querySelector<HTMLElement>('.menu-trigger') ?? event.currentTarget);
+					}}
+				>
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.draft} /></svg>
+					<span class="shell-tool-word">Note</span>
+				</button>
+			{/if}
 			{#if todoHref && !minimal}
 				<!-- The to-do door (ledger 0297): one element, the header tools' own
 				     look, current when it is the page on screen. -->
@@ -558,6 +597,26 @@
 			keeps a class icon beside it. Not on the deck, which has its own
 			bar and its own relocation.
 		-->
+		<!--
+			THE QUICK NOTE (ledger 0298, R33) docks here, beside Report and outside
+			the fold, for the reason Report does: a control that is one press inside
+			Menu reads as missing. Below 560px there is no room for it in the row
+			without losing the last class icon, so there it is the Menu's first
+			entry instead (`quicknote-menu-item`, and the CSS at the fold). Never
+			floating (0297 took the floating pills off the classroom), never on the
+			deck, never in view-as. `QuickNoteDock` decides the rest -- signed in,
+			not hidden, not a projected route -- and renders nothing otherwise.
+		-->
+		{#if !minimal && loc.place !== 'item-deck'}
+			<QuickNoteDock
+				bind:this={quickNoteDock}
+				bind:available={quickNoteHere}
+				sectionId={currentSectionId}
+				sectionLabel={current ? sectionTitle(current) : null}
+				itemTitle={quickNoteItemTitle}
+				anchorFallback={() => switcherEl?.querySelector<HTMLElement>('.menu-trigger')}
+			/>
+		{/if}
 		{#if loc.place !== 'item-deck' && feedbackSubmit}
 			<span class="shell-report" data-testid="shell-report">
 				<SiteFeedback
@@ -1125,6 +1184,32 @@
 			font-size: 0.6rem;
 			letter-spacing: 0.04em;
 			line-height: 1;
+		}
+	}
+
+	/* --- The quick note folds into the Menu below 560px (ledger 0298) ---------
+	   Measured on /dev/quick-note with the profile menu present: in the row the
+	   Note control (45.8px stacked) left the class row 11.6px at 375, under the
+	   46.7px of one class icon. Folded, the row reads 65.4px at 375 (what it read
+	   before the quick note existed), 88.8 at 480 and 98.7 at 559; in its row
+	   form (75.1px) from 560 it reads 80.1 at 560 and 98.7 from 600 up. So below
+	   560 the row's control is not drawn and the Menu carries a Note entry that
+	   opens the same panel; above it the Menu entry is not drawn. One of the two
+	   is on screen at any width, never both. */
+	.shell-tool.quicknote-menu-item {
+		display: none;
+	}
+	@media (max-width: 559.98px) {
+		/* The dock's wrapper takes no flex slot either, or its empty box would
+		   still cost the row a gap; the panel inside it is positioned. */
+		.header-right :global(.qn) {
+			display: contents;
+		}
+		.header-right :global(.qn-trigger) {
+			display: none;
+		}
+		.shell-tool.quicknote-menu-item {
+			display: inline-flex;
 		}
 	}
 

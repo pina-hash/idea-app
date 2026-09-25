@@ -91,6 +91,7 @@ export const CLASSROOM_SHELL_HARNESSES = [
 	'/dev/notebook-review',
 	'/dev/notebook-review-student',
 	'/dev/notebook-timeline',
+	'/dev/quick-note',
 	'/dev/theme-switch',
 	'/dev/themes-shape'
 ] as const;

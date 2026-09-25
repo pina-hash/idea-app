@@ -19,7 +19,7 @@
 	// rule that can stop matching -- and a harness looser than the RPC it
 	// mirrors certifies a bug as fixed.
 	import { livePhotos, outstandingSessions } from '$lib/notebook';
-	import { noteThreads } from '$lib/notebook-notes';
+	import { docText, noteThreads } from '$lib/notebook-notes';
 	import type { NoteDoc, NotebookNoteRow, TiptapNode } from '$lib/notebook-notes';
 	import type { FolderResult, FolderTransports, NotebookFolder } from '$lib/notebook-folders';
 	import { setSiteTheme } from '$lib/theme.svelte';
@@ -96,7 +96,12 @@
 	 */
 
 	type Account = 'student' | 'instructor' | 'plain';
-	let account = $state<Account>('student');
+	/* `?account=instructor|plain` starts on that account, so a route spec can
+	   land on it without driving the select (ledger 0298). */
+	const accountParam = page.url.searchParams.get('account');
+	let account = $state<Account>(
+		accountParam === 'instructor' || accountParam === 'plain' ? accountParam : 'student'
+	);
 	let configured = $state(true);
 	/**
 	 * The two capabilities that are about a READ rather than a migration: the
@@ -117,7 +122,21 @@
 	 * indicator that must not read "Saved" for a request that did not land, and
 	 * neither is checkable against transports that always succeed.
 	 */
-	let writesFail = $state(false);
+	let writesFail = $state(page.url.searchParams.get('fail') === 'notes');
+	/**
+	 * `?latency=<ms>`: every note write (create, add, edit) waits this long
+	 * before it answers, so typing DURING an autosave's round trip -- which a
+	 * slow school connection makes ordinary -- is drivable here rather than
+	 * argued about (ledger 0298 review). The in-memory transports otherwise
+	 * answer within a microtask and the window never opens.
+	 */
+	const noteLatencyMs = Math.max(0, Number(page.url.searchParams.get('latency') ?? 0) || 0);
+	const noteLatency = () =>
+		noteLatencyMs ? new Promise<void>((r) => setTimeout(r, noteLatencyMs)) : Promise.resolve();
+	/** What a note write left the harness store HOLDING, as the tail of its
+	 *  text: the one reading that tells an autosave that SENT the last words
+	 *  typed from one that only said "Saved" (ledger 0298 review). */
+	const holds = (doc: NoteDoc) => `  -> holds ${JSON.stringify(docText(doc).slice(-60))}`;
 	let historyReady = $state(true);
 	let coalescingReady = $state(true);
 	/** The "self" side of every deleted-note fixture below (0119). */
@@ -128,7 +147,7 @@
 	 * guarantee (a match beyond the rendered window must still be findable)
 	 * are drivable rather than argued about.
 	 */
-	let bulk = $state(false);
+	let bulk = $state(page.url.searchParams.get('bulk') === '1');
 	/** The read-only preview an admin gets at /classroom/view-as/<email>/notebook. */
 	let viewAs = $state(page.url.searchParams.get('viewas') === '1');
 	const scopeClass = page.url.searchParams.get('scope') === 'class';
@@ -1205,8 +1224,10 @@
 				payload.autosave === true
 			)} content=<editor doc>`
 		];
+		await noteLatency();
 		const doc = await normalize(payload.content);
 		if ('error' in doc) return { ok: false, error: doc.error };
+		log = [...log, holds(doc)];
 		const id = `new-${++seq}`;
 		const noteId = `${id}-note`;
 		const noteSessionId = payload.session_id ?? null;
@@ -1286,8 +1307,10 @@
 			...log,
 			`POST /api/notebook/add-note  entry_id=${JSON.stringify(entryId)} autosave=${autosave}`
 		];
+		await noteLatency();
 		const doc = await normalize(content);
 		if ('error' in doc) return { ok: false, error: doc.error };
+		log = [...log, holds(doc)];
 		const owner = current().find((e) => e.id === entryId);
 		if (!owner) return { ok: false, error: 'That entry does not exist or is not yours.' };
 		const noteId = `n-new-${++seq}`;
@@ -1327,10 +1350,12 @@
 			...log,
 			`POST /api/notebook/edit-note  note_id=${JSON.stringify(noteId)} autosave=${autosave}`
 		];
+		await noteLatency();
 		const owner = current().find((e) => e.notes.some((n) => n.note_id === noteId));
 		if (!owner) return { ok: false, error: 'That note does not exist.' };
 		const doc = await normalize(content);
 		if ('error' in doc) return { ok: false, error: doc.error };
+		log = [...log, holds(doc)];
 		const revisions = owner.notes.filter((n) => n.note_id === noteId);
 		const latest = Math.max(...revisions.map((n) => n.revision));
 		const head = revisions.find((n) => n.revision === latest)!;

@@ -534,21 +534,44 @@ describe('the shell is shared, not copied', () => {
 	});
 
 	/*
-	 * THE PANE'S HEAD IS PINNED BY BEING A FLEX SIBLING OF A SCROLLING BODY,
-	 * never by `position: sticky` with a hand-written offset: the head wraps at
-	 * narrow widths and any offset a stylesheet writes down is a constant that
-	 * is wrong the first time it does. This is split.css's own documented
-	 * mechanism for a fill-height nav pane (`> .cr-nav > * { max-height: 100% }`
-	 * -- "what lets a surface keep a header on screen while its BODY scrolls").
+	 * THE LOG PANE IS ONE COLUMN IN DOCUMENT ORDER, AND ITS HEAD STICKS WITH NO
+	 * WRITTEN-DOWN OFFSET (ledger 0298, R32).
+	 *
+	 * This used to pin the head as a flex SIBLING of a scrolling body and forbid
+	 * `position: sticky` outright, on the argument that the head wraps at narrow
+	 * widths and any offset a stylesheet writes down is a constant that is wrong
+	 * the first time it does. The argument stands; the mechanism could not
+	 * survive the composer moving to the TOP of the log. A flex sibling above a
+	 * pinned head is pinned too, and the one-box composer is far too tall to pin
+	 * in a 26rem pane beside an open entry -- so the pane itself scrolls, the
+	 * composer scrolls away with the feed, and the head sticks at `top: 0`.
+	 *
+	 * WHAT KEEPS THE OLD RULE'S POINT: nothing here is a constant. `top` is 0,
+	 * and the `scroll-padding` a sticky head needs (CLAUDE.md, the sticky header
+	 * trap) is the head's own measured height, bound from the element.
 	 */
-	it('the list pane pins its head with a bounded column, not with viewport arithmetic', () => {
+	it('the log pane reads composer, head, feed, and its head sticks with no written offset', () => {
 		const src = read('src/lib/notebook/NotebookView.svelte');
-		expect(src).toContain('<div class="list-head">');
-		expect(src).toContain('<div class="list-body">');
-		expect(src).toMatch(/\.list-body\s*\{[^}]*overflow-y:\s*auto/);
+		// Document order: the composer renders before the head, the head before the body.
+		const composerAt = src.indexOf('{@render composer()}');
+		const headAt = src.indexOf('<div class="list-head"');
+		const bodyAt = src.indexOf('<div class="list-body">');
+		expect(composerAt).toBeGreaterThan(0);
+		expect(headAt).toBeGreaterThan(composerAt);
+		expect(bodyAt).toBeGreaterThan(headAt);
 		expect(src).toMatch(/\.nb-pane-card\s*\{[^}]*flex-direction:\s*column/);
-		// No sticky head, and no offset for one.
-		expect(src).not.toMatch(/\.list-head\s*\{[^}]*position:\s*sticky/);
+		// Above the breakpoint the PANE is the scroller, and the head sticks at 0.
+		expect(src).toMatch(/\.nb-root \.nb-pane-card\s*\{[^}]*overflow-y:\s*auto/);
+		expect(src).toMatch(/\.list-head\s*\{[^}]*position:\s*sticky;\s*top:\s*0;\s*z-index:\s*\d/);
+		// The positive control on the next two: the padding exists, and is a variable.
+		expect(src).toMatch(/scroll-padding-top:\s*var\(--nb-list-head-h,/);
+		expect(src).toMatch(/bind:offsetHeight=\{listHeadHeight\}/);
+		expect(src).toMatch(/style:--nb-list-head-h="\{listHeadHeight\}px"/);
+		// ...and no constant: no other `top` on the head, no literal scroll padding.
+		expect(src).not.toMatch(/\.list-head\s*\{[^}]*(?<![-\w])top:\s*(?!0;)\S/);
+		expect(src).not.toMatch(/scroll-padding-top:\s*[\d.]+(px|rem|em)/);
+		// The body no longer scrolls on its own: two scrollers would be a bar in a bar.
+		expect(src).not.toMatch(/\.list-body\s*\{[^}]*overflow-y:\s*auto/);
 	});
 
 	it('fill-height names no viewport height, which is the whole point of it', () => {

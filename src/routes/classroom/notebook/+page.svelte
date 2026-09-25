@@ -1,8 +1,14 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import NotebookView from '$lib/notebook/NotebookView.svelte';
 	import { createNotebookTransports } from '$lib/notebook/transports';
 	import { notebookReviewHref } from '$lib/classroom/nav';
+	import {
+		quickNoteHidden,
+		quickNoteProfileIo,
+		setQuickNoteHidden
+	} from '$lib/notebook/quick-note-state.svelte';
 	import type { PageData } from './$types';
 
 	/**
@@ -18,6 +24,18 @@
 	// The client is one stable instance for the session; built once.
 	// svelte-ignore state_referenced_locally
 	const writes = createNotebookTransports(data.supabase);
+
+	/**
+	 * THE INBOX (ledger 0298). `?view=inbox` is where the header's quick note
+	 * sends "Open notebook", and the Inbox carries the switch that brings the
+	 * Note button back for somebody who hid it -- the same shared state the
+	 * header reads, so the button reappears the moment it is ticked.
+	 */
+	const initialView = $derived(page.url.searchParams.get('view') === 'inbox' ? 'inbox' : 'feed');
+	const quickNoteShown = $derived(!quickNoteHidden(data.viewerId, page.data.userProfile?.preferences));
+	function setQuickNoteShown(shown: boolean) {
+		void setQuickNoteHidden(data.viewerId, !shown, quickNoteProfileIo(data.supabase, data.viewerId));
+	}
 </script>
 
 <svelte:head>
@@ -51,4 +69,7 @@
 	reviewHref={notebookReviewHref()}
 	{...writes}
 	onChanged={() => invalidateAll()}
+	{initialView}
+	{quickNoteShown}
+	onQuickNoteShown={setQuickNoteShown}
 />

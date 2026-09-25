@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "notebook-account-instructor.mjs",
+	"date": "2026-09-25T11:27:26.635Z",
+	"sha": "b8da2e5acf0a28c3daf4de1e1ce88522685df417",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 18,
+	"outsideRows": [],
+	"ms": 10845
+}

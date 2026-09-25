@@ -1,3 +1,5 @@
+import { COMPOSER_CONTRAST, OPEN_FILING } from './_notebook-log.mjs';
+
 /**
  * THE NOTEBOOK UNDER THE SITE'S MATRIX THEME (generalized in ledger 0297,
  * package F4a, from "the default plate following the site theme").
@@ -21,6 +23,9 @@ export default {
 			waitFor: '() => !!document.querySelector(\'.pick:not(.free)[aria-pressed="true"]\')',
 			timeoutMs: 15_000
 		},
+		/* The picks are behind "Filed to ..., Change" (ledger 0298); open it so
+		   the pick rows below measure something on screen. */
+		OPEN_FILING,
 		{
 			waitFor: '() => document.documentElement.getAttribute("data-theme") === "matrix"',
 			timeoutMs: 5_000
@@ -50,8 +55,8 @@ export default {
 		{ selector: '[data-testid="nb-filters-summary"]', label: 'folders-and-filters summary (what is set)', min: 4.5 },
 		{ selector: '.pick:not(.selected) .pick-meta', label: 'check-in pick meta on the recessed card (--text-3)', min: 4.5 },
 		{ selector: '.pick.selected .pick-meta', label: 'check-in pick meta on the selected wash (--text-2)', min: 4.5 },
-		{ selector: '.compose-card .hint', label: 'composer hint (--text-3)', min: 4.5 },
-		{ selector: '.compose-card .inline-link', label: 'prose link (brass)', min: 4.5 }
+		...COMPOSER_CONTRAST,
+		{ selector: '[data-testid="nb-filing-manage-folders"]', label: 'Manage folders (brass, a box where it was a prose link)', min: 4.5 }
 	],
 	tapTargets: [{ selector: '[data-testid="nb-filters-toggle"]', label: 'folders-and-filters trigger', min: 44 }],
 	ignoreConsole: ['\\[401 http://127\\.0\\.0\\.1:\\d+/api/notebook/photo/']

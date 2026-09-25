@@ -2386,7 +2386,8 @@ picture into an initials tile with nothing saying why.
   renderable as a 24x24 mark nor ours to ship.
 
 **`preferences` is a shared JSONB blob with several independent namespaces**
-(`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`, `ideacad`, `classroom`). Every
+(`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`, `ideacad`, `classroom`,
+`quickNote`). Every
 write goes through **`$lib/preferences/profile-io`**, which READS THE ROW FIRST and
 merges one namespace, in one queue per tab (ledger 0297): a writer spreading the
 page-load snapshot was measured erasing a sibling's write one click later (a folded
@@ -3370,7 +3371,8 @@ inside the function fails closed rather than falling through to a weaker path.
   - **ANYTHING A FULL LOAD WOULD DESTROY HOLDS THE RELOAD**, through
     `holdDeployReload` or `trackInFlight`: every classroom upload
     (`uploadClassroomFile`), the staged deck unpack, the notebook's photo posts,
-    an open composer with work in it, an open feedback box. **A new upload path
+    an open composer with work in it, an open feedback box, a header quick note
+    with writing the server has not got. **A new upload path
     or a new projected surface joins them in the same change**; forgetting one is
     silent until a deploy lands mid-upload.
   - **NEVER RELOAD FROM `vite:preloadError`.** It only asks for a version check.
@@ -3484,8 +3486,10 @@ inside the function fails closed rather than falling through to a weaker path.
   below it the document scrolls as it always did.
 - **NOTHING OPEN IS ONE PANE, at every width.** `hasDetail` false renders no detail
   pane and gives the navigation the whole measure; it is not a placeholder state.
-  A surface whose detail pane always holds something (the notebook's compose form,
-  the coin desk's logging form) passes `hasDetail` and simply never collapses.
+  A surface whose detail pane always holds something (the coin desk's logging
+  form) passes `hasDetail` and simply never collapses. The notebook's composer
+  is no longer one (ledger 0298): it heads the log in the navigation pane, and
+  the detail pane is only ever an entry somebody opened.
   **The list is then responsible for USING the width** -- a fixed-width column
   centred in the room it was just given is the same defect one level in. ClassView
   lays its unit groups out in COLUMNS for exactly this (see the column rule
@@ -3982,6 +3986,12 @@ inside the function fails closed rather than falling through to a weaker path.
       starts carrying a document acquires it that day, and the reason it is on
       this list rather than in the notebook's own file is that nothing warned
       the first time.
+    - **A SECOND SURFACE WITH THE SAME PAYLOAD IS A CALLER, NOT A MIRROR.** The
+      header's quick note (ledger 0298) writes a notebook note, so it is
+      mirrored through the notebook's own module under the reserved
+      `QUICK_NOTE_RECORD`, vocabulary check included; `latestMirror` skips that
+      record, so the notebook composer never adopts the quick note's writing
+      and two editors never write one note chain.
   - **Pending work is FLUSHED before a navigation, and only a flush that cannot
     land raises a question.** The correct answer to "you have unsaved work" is
     "then save it"; a confirm on every move is a confirm nobody reads.
@@ -5481,7 +5491,8 @@ properly. That is a bundle, not a line.
     `--nb-accent-wash` is a veil laid on a ground, and on a dark ground it lightens
     the ground out from under the tier below it: measured on the retired plates,
     `--text-3` failed six of nine plate-by-ground combinations (3.30 to 4.31) while
-    `--text-2` cleared all nine. `NotebookView`'s `.pick.selected .pick-meta`
+    `--text-2` cleared all nine. `ComposerFiling`'s `.pick.selected .pick-meta`
+    (the check-in picks behind the composer's "Filed to ..., Change", ledger 0298)
     implements this; a surface putting muted copy on a selected row joins it.
     **Lowering the wash is the rejected alternative**: at the 6% that would rescue
     `--text-3` the fill reads 1.09:1 against its card and the row stops being

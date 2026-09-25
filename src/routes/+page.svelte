@@ -6,6 +6,7 @@
 	import { groupEntriesByMonth, type VersionEntry } from '$lib/site-versions';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import QuickNoteDock from '$lib/notebook/QuickNoteDock.svelte';
 	import AppLauncher from '$lib/AppLauncher.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import Pending from '$lib/Pending.svelte';
@@ -511,6 +512,9 @@
 					{#if isAdmin}
 						<a class="auth-link" href="/dashboard">Admin</a>
 					{/if}
+					<!-- The quick note (ledger 0298): beside the profile menu, in this
+					     header's own control style; see QuickNoteDock. -->
+					<QuickNoteDock place="home" triggerClass="auth-link tap-reach-44" />
 					<ProfileMenu />
 				{:else}
 					<button

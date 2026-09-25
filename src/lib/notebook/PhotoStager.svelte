@@ -41,7 +41,8 @@
 		uploadReady = true,
 		captureContext = undefined,
 		testPrefix = 'nb',
-		correctFirst = true
+		correctFirst = true,
+		compact = false
 	}: {
 		staged: StagedPhoto[];
 		/**
@@ -65,6 +66,14 @@
 		 * is taken rather than one extra tap later.
 		 */
 		correctFirst?: boolean;
+		/**
+		 * THE ONE-BOX COMPOSER'S SHAPE (ledger 0298, R32): no "Photos" label over
+		 * two buttons that already say "Take a photo" and "Choose a photo", and no
+		 * sentence listing file formats. A file this cannot take is still refused
+		 * in words the moment it is picked (`rejectedNote`), which is when that
+		 * sentence is worth reading.
+		 */
+		compact?: boolean;
 	} = $props();
 
 	/** Picked but not yet through the correction step; corrected one at a time. */
@@ -289,8 +298,8 @@
 	<p class="feedback error" role="status">{correctionNote}</p>
 {/if}
 
-<div class="field photo-field">
-	<span class="photo-label">Photos</span>
+<div class="field photo-field" class:compact>
+	{#if !compact}<span class="photo-label">Photos</span>{/if}
 	<!--
 		Take vs choose are separate controls on purpose. `capture` turns an
 		input camera-only on Android, so one combined input carrying it leaves
@@ -386,13 +395,11 @@
 	{#if cameraMsg}
 		<p class="feedback error" role="status" data-testid="{testPrefix}-camera-msg">{cameraMsg}</p>
 	{/if}
-	<span class="hint">
-		{#if checking}
-			Checking the photo...
-		{:else}
-			JPEG, PNG, WebP or HEIC. Large photos are shrunk to fit before they upload.
-		{/if}
-	</span>
+	{#if checking}
+		<span class="hint" role="status">Checking the photo...</span>
+	{:else if !compact}
+		<span class="hint">JPEG, PNG, WebP or HEIC. Large photos are shrunk to fit before they upload.</span>
+	{/if}
 </div>
 
 {#if staged.length}
@@ -480,6 +487,13 @@
 		display: flex;
 		flex-direction: column;
 		align-items: stretch;
+	}
+	/* Inside the one-box composer the row is the buttons and nothing else: no
+	   rule under it and no step above it, the composer spaces its own rows. */
+	.photo-field.compact {
+		margin-top: 0;
+		padding: 0;
+		border-bottom: none;
 	}
 	.photo-label {
 		display: block;

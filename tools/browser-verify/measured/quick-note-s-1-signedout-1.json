@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "quick-note-s-1-signedout-1.mjs",
+	"date": "2026-09-25T10:19:56.767Z",
+	"sha": "f7171d538bd6f38665f3fceba2126a31fe049815",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 12,
+	"outsideRows": [],
+	"ms": 9942
+}
