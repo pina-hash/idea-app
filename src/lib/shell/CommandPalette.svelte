@@ -19,6 +19,19 @@
 	 * behind it. It is mounted only while open, and closing returns focus to
 	 * whatever had it (the trigger, when the trigger opened it).
 	 *
+	 * VOICE IS THIS DIALOG'S SECOND KEYBOARD (ledger 0298, report 31). A Speak
+	 * control beside the field starts the browser's own speech service through
+	 * `$lib/feedback/dictation.ts`; what is heard is written into the field, so
+	 * the ranked list below answers it as it would typing, and
+	 * `matchSpoken` in `$lib/voice/commands.ts` -- the ONE matcher -- acts only
+	 * on a row whose name was said EXACTLY: at once on a final result, and on an
+	 * interim one only after it has held still for `VOICE_INTERIM_STABLE_MS`.
+	 * The vocabulary is these rows, so every registered action this viewer may
+	 * run here is sayable with no table of its own. A browser with no speech
+	 * service gets no Speak control at all, and nothing is constructed (so no
+	 * microphone is asked for) until Speak is pressed. Closing the dialog, typing
+	 * in the field, a match, "stop" and twenty idle seconds each end it.
+	 *
 	 * NO KEY HERE FIRES INSIDE A TEXT FIELD, A TEXTAREA OR AN EDITOR
 	 * (`isTypingTarget`), which is also what leaves a rich-text editor its own
 	 * Ctrl+K, and none fires while another dialog is open, so the grading
@@ -47,6 +60,22 @@
 		type PaletteStudent
 	} from './palette';
 	import ShortcutLegend from './ShortcutLegend.svelte';
+	import {
+		Dictation,
+		dictationConstructor,
+		dictationLang,
+		type SpeechRecognitionCtor
+	} from '$lib/feedback/dictation';
+	import {
+		VOICE_IDLE_MS,
+		VOICE_IDLE_NOTE,
+		VOICE_INTERIM_STABLE_MS,
+		VOICE_PRIVACY_NOTE,
+		VOICE_SHORT_NOTE,
+		matchSpoken,
+		utteranceKey,
+		voiceMissNote
+	} from '$lib/voice/commands';
 	import { recordRecentPick, type ClassroomPreferences } from '$lib/preferences/classroom';
 	import type { PreferenceStore } from '$lib/preferences/store';
 	import { reactivePreferences } from '$lib/preferences/context';
@@ -55,7 +84,8 @@
 		sources,
 		env,
 		preferences = null,
-		loadStudents = null
+		loadStudents = null,
+		recognizer = undefined
 	}: {
 		sources: PaletteSources;
 		/** Where the palette is open, minus the live handler set, which it reads itself at open. */
@@ -64,6 +94,15 @@
 		preferences?: PreferenceStore<ClassroomPreferences> | null;
 		/** A manager's roster for `@`. Null offers no people, which is every student's case. */
 		loadStudents?: ((sectionId: string) => Promise<PaletteStudent[]>) | null;
+		/**
+		 * THE SPEECH SERVICE, for a harness or a test: a stub constructor, or an
+		 * EXPLICIT null meaning "this browser has none". `undefined` (the default,
+		 * and every real mount) asks the browser, at the moment the dialog opens.
+		 * The distinction is not style: `recognizer ?? dictationConstructor()`
+		 * would read an explicit null as "go and ask the browser" and hand a
+		 * no-support test a real microphone (the VoiceNav lesson).
+		 */
+		recognizer?: SpeechRecognitionCtor | null | undefined;
 	} = $props();
 
 	type Mode = 'closed' | 'search' | 'keys';
@@ -80,6 +119,18 @@
 	/** The roster, per class, once asked for. */
 	let students = $state<Record<string, PaletteStudent[]>>({});
 	let platform = $state('');
+
+	/* VOICE (ledger 0298). `voiceCtor` is decided when the dialog OPENS, so a
+	   browser without a speech service renders no Speak control and nothing is
+	   constructed before somebody presses it. */
+	let voiceCtor = $state<SpeechRecognitionCtor | null>(null);
+	let listening = $state(false);
+	let voiceNote = $state('');
+	let voiceSession: Dictation | null = null;
+	let stableTimer: ReturnType<typeof setTimeout> | null = null;
+	let idleTimer: ReturnType<typeof setTimeout> | null = null;
+	/* The interim text a stability timer was armed for; plain, never rendered. */
+	let pendingInterim = '';
 
 	/* SSR-safe: the platform is read once in the browser, for the key labels. */
 	$effect(() => {
@@ -118,6 +169,8 @@
 		handlerIds = liveCommandIds();
 		query = '';
 		active = 0;
+		voiceNote = '';
+		voiceCtor = recognizer !== undefined ? recognizer : dictationConstructor();
 		mode = next;
 		// A manager's roster, asked for once per class and only when the palette
 		// opens, never on page load: most opens are for an item.
@@ -133,6 +186,7 @@
 
 	export function close() {
 		if (mode === 'closed') return;
+		endVoice();
 		mode = 'closed';
 		// CLOSE THE NATIVE DIALOG BEFORE MOVING FOCUS: while it is open the page
 		// is inert and focus() on anything behind it is refused silently (the
@@ -211,6 +265,132 @@
 		}
 	}
 
+	/* ---------------------------------------------------------------------
+	 * VOICE. One session at a time; everything that ends it goes through
+	 * `endVoice`, which drops the recogniser outright rather than asking it to
+	 * finish a sentence nobody wants acted on any more.
+	 * ------------------------------------------------------------------- */
+	function clearStable() {
+		if (stableTimer !== null) clearTimeout(stableTimer);
+		stableTimer = null;
+		pendingInterim = '';
+	}
+
+	function endVoice() {
+		clearStable();
+		if (idleTimer !== null) clearTimeout(idleTimer);
+		idleTimer = null;
+		voiceSession?.destroy();
+		voiceSession = null;
+		listening = false;
+	}
+
+	/** "Open with nothing understood" is bounded; every utterance re-arms it. */
+	function armIdle() {
+		if (idleTimer !== null) clearTimeout(idleTimer);
+		idleTimer = setTimeout(() => {
+			idleTimer = null;
+			if (!voiceSession) return;
+			endVoice();
+			voiceNote = VOICE_IDLE_NOTE;
+		}, VOICE_IDLE_MS);
+	}
+
+	/**
+	 * ONE UTTERANCE, MATCHED AGAINST THE ROWS THIS PALETTE LISTS. A match ends
+	 * the session FIRST and acts second, so a transport that navigates cannot
+	 * leave a live recogniser behind. A miss or a tie acts on nothing: on a final
+	 * result it says what it heard, and the words stay in the field for the
+	 * ranked list to answer; an interim one simply waits for more.
+	 */
+	function voiceHeard(text: string, final: boolean) {
+		const match = matchSpoken(text, entries);
+		if (match.kind === 'stop') {
+			endVoice();
+			voiceNote = 'Stopped listening.';
+			return;
+		}
+		if (match.kind === 'one') {
+			endVoice();
+			voiceNote = '';
+			void activate(match.entry);
+			return;
+		}
+		if (final) {
+			voiceNote = voiceMissNote(match);
+			armIdle();
+		}
+	}
+
+	function startVoice() {
+		const ctor = voiceCtor;
+		if (!ctor || voiceSession) return;
+		voiceNote = '';
+		const session = new Dictation(
+			ctor,
+			{
+				onFinal: (text) => {
+					clearStable();
+					if (!text.trim()) return;
+					query = utteranceKey(text);
+					voiceHeard(text, true);
+				},
+				/* WRITTEN INTO THE FIELD, so the ranked list answers it as it would
+				   typing; ACTED ON only once it has held still. An empty interim is
+				   the service clearing its preview, which must not clear what the
+				   person can see was heard. */
+				onInterim: (text) => {
+					if (!text.trim()) return;
+					clearStable();
+					query = utteranceKey(text);
+					armIdle();
+					pendingInterim = text;
+					stableTimer = setTimeout(() => {
+						stableTimer = null;
+						if (voiceSession === session && pendingInterim === text) voiceHeard(text, false);
+					}, VOICE_INTERIM_STABLE_MS);
+				},
+				onListening: (on) => {
+					if (voiceSession !== session) return;
+					listening = on;
+					if (on) armIdle();
+					else {
+						clearStable();
+						if (idleTimer !== null) clearTimeout(idleTimer);
+						idleTimer = null;
+						voiceSession = null;
+					}
+				},
+				/* Already in the person's words (`dictationErrorMessage`), so shown verbatim. */
+				onError: (message) => {
+					voiceNote = message;
+				}
+			},
+			dictationLang()
+		);
+		voiceSession = session;
+		session.start();
+		inputEl?.focus();
+	}
+
+	function toggleVoice() {
+		if (voiceSession) {
+			endVoice();
+			voiceNote = '';
+		} else startVoice();
+	}
+
+	/* Typing means the person has taken over: the microphone stops. A value the
+	   service wrote is not an input event, so only real typing reaches this. */
+	function onInputTyped() {
+		if (!voiceSession) return;
+		endVoice();
+		voiceNote = '';
+	}
+
+	/* A dialog that unmounts with a live recogniser leaves nothing behind. */
+	$effect(() => () => endVoice());
+
 	function scrollActive() {
 		void tick().then(() =>
 			listEl
@@ -288,9 +468,34 @@
 						spellcheck="false"
 						data-testid="palette-input"
 						onkeydown={onInputKey}
+						oninput={onInputTyped}
 					/>
+					{#if voiceCtor}
+						<!-- THE MICROPHONE (ledger 0298, report 31): a glyph AND its word,
+						     never colour alone; the word says what a press does. -->
+						<button
+							type="button"
+							class="cp-btn cp-mic"
+							class:cp-mic-live={listening}
+							aria-describedby="cmd-palette-voice-privacy"
+							data-testid="palette-mic"
+							onclick={toggleVoice}
+						>
+							<svg class="cp-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.mic} /></svg>
+							<span>{listening ? 'Stop' : 'Speak'}</span>
+						</button>
+					{/if}
 					<button type="button" class="cp-btn" data-testid="palette-close" onclick={close}>Close</button>
 				</div>
+				{#if voiceCtor}
+					<p class="cp-sr-only" id="cmd-palette-voice-privacy">{VOICE_PRIVACY_NOTE}</p>
+					<!-- ALWAYS MOUNTED, ONLY ITS TEXT MOVES: a status region a screen
+					     reader was not already observing is often not announced. -->
+					<p class="cp-voice" class:cp-voice-on={listening || !!voiceNote} role="status" data-testid="palette-voice-note">
+						{#if listening}<strong>Listening.</strong> Say the name of anything in the list. {VOICE_SHORT_NOTE}{/if}
+						{#if voiceNote}{voiceNote}{/if}
+					</p>
+				{/if}
 				<div class="cp-scopes" role="group" aria-label="Search only">
 					{#each scopes as s (s.scope)}
 						<button
@@ -439,6 +644,41 @@
 	}
 	.cp-btn:hover {
 		border-color: var(--gold);
+	}
+	.cp-mic {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.cp-mic .cp-glyph {
+		color: currentColor;
+	}
+	/* Listening is an edge and an inset rule as well as a hue, never colour alone;
+	   the word beside the glyph already says Stop. */
+	.cp-mic-live {
+		border-color: var(--green);
+		box-shadow: inset 0 -2px 0 var(--green);
+	}
+	.cp-sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+		border: 0;
+	}
+	.cp-voice {
+		margin: 0;
+		padding: 0 var(--space-3);
+		font-size: 0.9rem;
+		color: var(--text-1);
+	}
+	.cp-voice-on {
+		padding: var(--space-2) var(--space-3);
+		border-bottom: 1px solid var(--hairline);
 	}
 	.cp-scopes {
 		display: flex;

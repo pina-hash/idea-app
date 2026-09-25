@@ -3743,9 +3743,10 @@ inside the function fails closed rather than falling through to a weaker path.
     bar, the GAUNTLET viewport footer, GREENLINE's own menus, the error page,
     the classroom header and the classroom projector's wall strip). **Every
     route under `/classroom` is the `classroom` category since ledger 0297**:
-    the floating Report and Voice pills won hit tests over row controls, People's
-    Remove and the grading dock, so `ClassroomShell` docks both (`VoiceNav` at
-    `place="header"`), and a `/dev` harness that mounts the real shell is listed
+    the floating Report pill won hit tests over row controls, People's Remove
+    and the grading dock, so `ClassroomShell` docks it (voice has no pill of its
+    own since ledger 0298: it is the command palette's Speak control), and a
+    `/dev` harness that mounts the real shell is listed
     in `CLASSROOM_SHELL_HARNESSES` so it measures the production arrangement.
     **Report has its own header slot and never folds into the Menu** (report 30:
     folded below 1180px, it read as missing); on a phone it stacks its word under
@@ -4105,7 +4106,15 @@ inside the function fails closed rather than falling through to a weaker path.
     rooms it ships in: portal 5.88:1, classroom card 7.27:1, and the notebook's
     default / light / IDEA plates at 7.27 / 7.75 / 9.18:1.
 - **EVERY ACTION IS REGISTERED ONCE, IN `$lib/shell/commands.ts`, AND THE
-  PALETTE, THE LEGEND AND VOICE READ IT (ledger 0297).** A console's keys are
+  PALETTE, THE LEGEND AND VOICE READ IT (ledger 0297).** **Voice reads it
+  THROUGH the palette since ledger 0298 (report 31)**, and until then it did
+  not read it at all (its vocabulary was the launcher's apps): it is the
+  palette's Speak control, its vocabulary is the palette's own rows, and
+  `matchSpoken` in `$lib/voice/commands.ts` is the one matcher -- EXACT, so a
+  near-miss or a tie acts on nothing and the words stay in the field for the
+  ranked list, and an interim result acts only after `VOICE_INTERIM_STABLE_MS`
+  of stillness. A second vocabulary or a floating Voice pill is the thing not
+  to rebuild. A console's keys are
   registered by IMPORTING its table (`GRADE_KEYS` from
   `$lib/classroom/grading-keys.ts`, `REVIEW_KEYS`), never by retyping them, so
   the legend cannot describe a key the console does not bind. A `run` command

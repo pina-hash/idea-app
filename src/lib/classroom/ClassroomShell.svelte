@@ -24,7 +24,6 @@
 	import { formatSectionLabel } from '$lib/section-label';
 	import { classGlyph } from '$lib/classroom/class-glyph';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
-	import VoiceNav from '$lib/voice/VoiceNav.svelte';
 	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
 	import { describeBuild, REPORT_LABEL_SHORT } from '$lib/feedback/context';
 	import { version as buildId } from '$app/environment';
@@ -122,18 +121,19 @@
 	let stripEl = $state<HTMLElement | null>(null);
 
 	/*
-	 * REPORT AND VOICE LIVE IN THIS HEADER (ledger 0297). `FEEDBACK_EXCLUSIONS`
-	 * takes both floating pills off every classroom route (its `classroom`
-	 * rule), and this is where they reappear, so nothing floats over a row, a
-	 * grip or a Return button. The same props the root mount hands SiteFeedback,
-	 * derived the same way the GAUNTLET layout derives them for its own
-	 * relocation: one predicate for the writer and the anonymous flag.
+	 * REPORT LIVES IN THIS HEADER (ledger 0297). `FEEDBACK_EXCLUSIONS` takes
+	 * the floating pill off every classroom route (its `classroom` rule), and
+	 * this is where it reappears, so nothing floats over a row, a grip or a
+	 * Return button. VOICE HAS NO CONTROL HERE ANY MORE (ledger 0298, report
+	 * 31): it is the Speak button inside the command palette, which is on
+	 * every classroom page already. The same props the root mount hands
+	 * SiteFeedback, derived the same way the GAUNTLET layout derives them for
+	 * its own relocation: one predicate for the writer and the anonymous flag.
 	 * Not on the deck: that route has its own bar and its own relocation.
 	 */
 	const feedbackBuild = describeBuild(deploy, buildId);
 	const feedbackSubmit = $derived(feedbackWriter(page.data.supabase, page.data.claims?.sub));
 	const feedbackAnonymous = $derived(feedbackIsAnonymous(page.data.supabase, page.data.claims?.sub));
-	const signedIn = $derived(!!page.data?.claims?.sub);
 
 	/**
 	 * THE NAV-COLLAPSE TOGGLE (see $lib/classroom/nav-collapse.ts for why this
@@ -544,16 +544,11 @@
 					<span class="shell-tool-word">Tour</span>
 				</button>
 			{/if}
-			{#if loc.place !== 'item-deck'}
-				<span class="shell-docked" data-testid="shell-docked">
-					<VoiceNav {signedIn} isAdmin={!!page.data?.isAdmin} place="header" />
-				</span>
-			{/if}
 		</div>
 		<!--
 			REPORT HAS ITS OWN SLOT AND NEVER FOLDS INTO THE MENU (report 30,
 			2026-09-25: "the report button has to be immediately accessible").
-			It used to sit in `.shell-docked` beside Voice, inside the tools the
+			It used to sit in a docked group beside Voice, inside the tools the
 			fold hides below 1180px, so on a narrow window -- where most of that
 			evening's reports were filed -- it was one press inside Menu and read
 			as missing (report 20). It is outside `.shell-tools` now, so the fold
@@ -979,11 +974,6 @@
 		align-items: center;
 		gap: var(--space-2);
 	}
-	.shell-docked {
-		display: inline-flex;
-		align-items: center;
-		gap: var(--space-2);
-	}
 	/* Docked, the report control is one of the header's tools and takes their
 	   shape and their load-bearing edge rather than the floating pill's. Its
 	   slot sits OUTSIDE `.shell-tools`, so the fold below never hides it. */
@@ -1052,9 +1042,9 @@
 	   BELOW 1180px the tools do not fit beside a class row worth having, so
 	   they fold behind the Menu button and the class list folds in with them.
 	   The breakpoint is where the full row stops fitting a teacher's masthead
-	   (logo, Classes, Search, Settings, Light, Voice, Report and the profile
-	   menu); a student's row carries To-do as well. It is the same DOM in both
-	   arrangements -- one copy of every control -- so no test id is doubled and
+	   (logo, Classes, Search, Settings, Light, Tour, Report and the profile
+	   menu; Voice left the row for the palette in ledger 0298); a student's
+	   row carries To-do as well. It is the same DOM in both arrangements -- one copy of every control -- so no test id is doubled and
 	   no control has a second handler to keep in step. REPORT IS NOT IN WHAT
 	   FOLDS: its slot is outside `.shell-tools` (report 30). */
 	@media (max-width: 1179.98px) {
@@ -1104,25 +1094,9 @@
 			padding-top: var(--space-1);
 		}
 		.shell-tool,
-		.shell-docked,
 		.shell-tools :global(.theme-switch) {
 			width: 100%;
 			justify-content: flex-start;
-		}
-		.shell-docked {
-			flex-direction: column;
-			align-items: stretch;
-		}
-		.shell-docked :global(.vnav),
-		.shell-docked :global(.vnav-row),
-		.shell-docked :global(.vnav-trigger) {
-			width: 100%;
-			justify-content: flex-start;
-		}
-		/* Inside the Menu the voice panel opens in the flow under its button. */
-		.shell-docked :global(.vnav-header .vnav-panel) {
-			position: static;
-			width: 100%;
 		}
 	}
 

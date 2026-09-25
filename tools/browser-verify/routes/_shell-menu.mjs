@@ -1,7 +1,7 @@
 /**
  * THE CLASSROOM MASTHEAD FOLDS ITS TOOLS BEHIND A MENU ON A NARROW WINDOW
  * (ledger 0297, package F2). Below the fold breakpoint To-do, Search,
- * Settings, the Light switch and Voice are one press away inside the Menu
+ * Settings, the Light switch and Tour are one press away inside the Menu
  * instead of wrapping the masthead onto a second row, so a spec that
  * measures one of them opens the Menu first. Above the breakpoint the Menu
  * button is not rendered (no box), the tools sit in the row, and this step
