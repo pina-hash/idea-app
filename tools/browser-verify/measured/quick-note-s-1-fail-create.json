@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "quick-note-s-1-fail-create.mjs",
+	"date": "2026-09-25T09:26:34.000Z",
+	"sha": "198417a06d41837a2f285ebc470db0175cbc5f78",
+	"dirty": false,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 26,
+	"outsideRows": [],
+	"ms": 25130
+}
