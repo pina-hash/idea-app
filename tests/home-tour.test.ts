@@ -81,7 +81,8 @@ if (CARD_HOOK_SPELLINGS >= 2) for (const a of PORTAL_APPS) TOUR_HOOKS.add(a.id);
  * remove it then, so the sweep holds the hook like every other.
  */
 const ARRIVING: Record<string, string> = {
-	'qn-trigger': 'the quick note trigger, from the notebook bundle (ledger 0298, Tier D)'
+	// Empty since the notebook bundle landed: `qn-trigger` is a real hook now,
+	// so the sweep above covers it like every other step (ledger 0298, Tier D).
 };
 
 const hookOf = (target: string): { kind: 'tour' | 'testid'; id: string } | null => {
