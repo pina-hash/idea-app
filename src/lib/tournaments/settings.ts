@@ -114,6 +114,39 @@ export function draftSignature(d: SettingsDraft): string {
 	]);
 }
 
+/**
+ * THE DRAFT, CARRIED OVER A CHANGE TO THE STORED ROW, FIELD BY FIELD. `base`
+ * is the stored draft the form last followed and `next` is the one that just
+ * arrived (the host console refetches on every co-host write). A field the
+ * host has NOT edited (it still equals `base`) takes the new stored value; a
+ * field they HAVE edited keeps their value.
+ *
+ * Keeping the whole draft instead is the defect this replaces: a host halfway
+ * through a description edit held the OLD name in their draft, so when a
+ * co-host renamed the event the name read as changed, and Save quietly put
+ * the old name back. Re-seeding the whole draft wipes the half-typed edit.
+ * Per field is the answer that loses neither. Name and description compare
+ * trimmed, as `draftSignature` does.
+ */
+export function rebaseDraft(
+	base: SettingsDraft,
+	draft: SettingsDraft,
+	next: SettingsDraft
+): SettingsDraft {
+	const text = (k: 'name' | 'description') =>
+		draft[k].trim() === base[k].trim() ? next[k] : draft[k];
+	const same = <K extends keyof SettingsDraft>(k: K) => (draft[k] === base[k] ? next[k] : draft[k]);
+	return {
+		name: text('name'),
+		description: text('description'),
+		qualsEnabled: same('qualsEnabled'),
+		scoreEntry: same('scoreEntry'),
+		bestOfDefault: same('bestOfDefault'),
+		bestOfGrandFinal: same('bestOfGrandFinal'),
+		teamSize: same('teamSize')
+	};
+}
+
 /** The draft with every LOCKED field put back to its stored value, so a lock
  * holds in the payload even if something moved the control underneath it. */
 export function effectiveDraft(

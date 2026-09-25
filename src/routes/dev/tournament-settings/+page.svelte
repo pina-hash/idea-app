@@ -18,6 +18,10 @@
 	 *   &team=N                            the largest roster registered (the team-size floor)
 	 *   &overrides=1                       the stored config carries per-round overrides
 	 *   &refuse=host|team|<text>           the stand-in refuses every call, verbatim
+	 *   &cohost=1                          a button that plays a co-host's rename arriving
+	 *                                      the way the host console's refetch delivers it
+	 *                                      (a whole new row object), so the draft's
+	 *                                      field-by-field carry-over can be driven
 	 */
 	import { page } from '$app/state';
 	import TournamentSettingsForm from '$lib/tournaments/TournamentSettingsForm.svelte';
@@ -44,6 +48,7 @@
 	const results = int(q.get('results'));
 	const team = int(q.get('team'));
 	const overrides = q.get('overrides') === '1';
+	const cohost = q.get('cohost') === '1';
 	/** Refusals the real RPCs raise, verbatim, by a short key so a browser
 	 * spec's path stays readable; any other value is used as the text. */
 	const REFUSALS: Record<string, string> = {
@@ -79,6 +84,16 @@
 	let calls = $state(0);
 
 	const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+	/** A co-host's rename landing: the real console's realtime refetch hands
+	 * the page a whole new row, config object included. */
+	function cohostRename() {
+		stored = {
+			...stored,
+			name: 'Spring Rocket League Cup (renamed by a co-host)',
+			config: { ...stored.config }
+		};
+	}
 
 	/** The stand-in for 0192's `tournament_update`: the format lock and the
 	 * whole-object write, and nothing else. */
@@ -160,6 +175,18 @@
 					{saved}
 					onsubmit={save}
 				/>
+			</section>
+		{/if}
+
+		{#if cohost && mode === 'edit'}
+			<section class="card harness-log">
+				<h2>Another host</h2>
+				<button
+					type="button"
+					class="btn secondary"
+					data-action="harness-cohost-rename"
+					onclick={cohostRename}>Co-host renames the event</button
+				>
 			</section>
 		{/if}
 

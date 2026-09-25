@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "tournament-settings-status-live.mjs",
-	"date": "2026-09-25T06:29:56.933Z",
-	"sha": "a29b4ebd9c27d50a1868dc1ce90da549a8c4555d",
+	"date": "2026-09-25T08:40:23.265Z",
+	"sha": "f1349783c5e0058f6b367bea3ce760d4be84b1dd",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 50,
 	"outsideRows": [],
-	"ms": 5819
+	"ms": 5636
 }

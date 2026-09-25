@@ -14,13 +14,15 @@
 	 * above it, and a single locked toggle keeps its label at full ink with
 	 * the reason under it.
 	 *
-	 * THE DRAFT FOLLOWS THE STORED VALUES ONLY WHILE IT HAS NOT BEEN EDITED.
+	 * THE DRAFT FOLLOWS THE STORED VALUES FIELD BY FIELD (`rebaseDraft`).
 	 * The host console refetches on every co-host write (its realtime
-	 * channel), so re-seeding on every new prop would wipe a half-typed
-	 * change the moment somebody else added an entry. It re-seeds when the
-	 * stored values actually moved AND the draft still matched them (or
-	 * already matches the new ones, which is what a save of its own looks
-	 * like when it comes back).
+	 * channel), so re-seeding the whole draft on every new prop would wipe a
+	 * half-typed change the moment somebody else added an entry, and keeping
+	 * the whole draft would put a co-host's rename back the next time this
+	 * host saved a description. When the stored values actually move, every
+	 * field this host has not edited takes the new value and every field they
+	 * have edited keeps theirs; a save of its own coming back is the case
+	 * where the two agree.
 	 */
 	import { untrack } from 'svelte';
 	import {
@@ -29,6 +31,7 @@
 		draftSignature,
 		hiddenRoundOverrides,
 		OPEN_LOCKS,
+		rebaseDraft,
 		settingsChanges,
 		TEAM_SIZES,
 		teamSizeLabel,
@@ -73,17 +76,16 @@
 	const storedSig = $derived(draftSignature(stored));
 
 	let draft = $state<SettingsDraft>(untrack(() => ({ ...draftFromStored(name, description, config) })));
-	// Plain, not $state: which stored signature the draft last followed.
-	let followed: string = untrack(() => draftSignature(draftFromStored(name, description, config)));
+	// Plain, not $state: the stored draft the form last followed.
+	let base: SettingsDraft = untrack(() => draftFromStored(name, description, config));
 
 	$effect(() => {
 		const next = stored;
 		const sig = storedSig;
 		untrack(() => {
-			if (sig === followed) return;
-			const mine = draftSignature(draft);
-			if (mine === followed || mine === sig) draft = { ...next };
-			followed = sig;
+			if (sig === draftSignature(base)) return;
+			draft = rebaseDraft(base, draft, next);
+			base = next;
 		});
 	});
 
@@ -95,9 +97,15 @@
 	const hidden = $derived(hiddenRoundOverrides(config));
 
 	let formError = $state('');
+	// The parent's refusal is about the draft that was sent. Discarding that
+	// draft puts the stored values back on screen, so the refusal beside them
+	// would describe something no longer there; it is set aside until the
+	// next press (the parent clears it then anyway).
+	let setAside = $state('');
 
 	function submit() {
 		formError = '';
+		setAside = '';
 		const problem = validateSettings(draft);
 		if (problem) {
 			formError = problem;
@@ -114,10 +122,11 @@
 
 	function discard() {
 		formError = '';
+		setAside = error;
 		draft = { ...stored };
 	}
 
-	const shownError = $derived(formError || error);
+	const shownError = $derived(formError || (error && error !== setAside ? error : ''));
 </script>
 
 <div

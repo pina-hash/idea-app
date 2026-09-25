@@ -1,6 +1,6 @@
 {
 	"schema": 1,
-	"spec": "tournament-settings-status-draft.mjs",
+	"spec": "tournament-settings-status-registration-open-cohost-1.mjs",
 	"date": "2026-09-25T08:40:23.265Z",
 	"sha": "f1349783c5e0058f6b367bea3ce760d4be84b1dd",
 	"dirty": true,
@@ -9,7 +9,7 @@
 		1440
 	],
 	"runs": 2,
-	"measurements": 50,
+	"measurements": 26,
 	"outsideRows": [],
 	"ms": 5636
 }

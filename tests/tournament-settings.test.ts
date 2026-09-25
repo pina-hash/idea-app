@@ -27,10 +27,12 @@ import { join } from 'node:path';
 import {
 	buildConfig,
 	draftFromStored,
+	draftSignature,
 	effectiveDraft,
 	hiddenRoundOverrides,
 	NEW_TOURNAMENT_DRAFT,
 	OPEN_LOCKS,
+	rebaseDraft,
 	settingsChanges,
 	settingsLocks,
 	tournamentCreateArgs,
@@ -248,6 +250,55 @@ describe('the locks hold in the payload, not only on the control', () => {
 	});
 });
 
+describe('a co-host write arriving mid-edit is carried field by field', () => {
+	// The host console refetches on every co-host write, so the stored row can
+	// move under a draft somebody is typing into. Every failure here is
+	// silent: the save succeeds and a co-host's change is simply gone.
+	const base = draftFromStored(STORED.name, STORED.description, STORED.config);
+
+	it("a co-host's rename survives this host saving a description", () => {
+		const mine = { ...base, description: 'Two on two, bring a controller.' };
+		const next = { ...base, name: 'Spring Cup Finals' };
+		const rebased = rebaseDraft(base, mine, next);
+		expect(rebased.name).toBe('Spring Cup Finals');
+		expect(rebased.description).toBe('Two on two, bring a controller.');
+		// What the save then sends, against the NEW stored row: the description
+		// and nothing else. Under the old whole-draft carry-over the name went
+		// too, as the old value.
+		const nextStored = { ...STORED, name: 'Spring Cup Finals' };
+		const args = tournamentUpdateArgs('t1', nextStored, rebased, OPEN_LOCKS);
+		expect(args).toEqual({
+			p_tournament_id: 't1',
+			p_name: null,
+			p_description: 'Two on two, bring a controller.',
+			p_config: null
+		});
+		// Positive control: the whole draft carried over unchanged DOES send the
+		// old name, which is the defect the rebase exists to stop.
+		expect(tournamentUpdateArgs('t1', nextStored, mine, OPEN_LOCKS).p_name).toBe('Spring Cup');
+	});
+
+	it("a co-host's format change survives an edit to another format field", () => {
+		const mine = { ...base, bestOfDefault: 5 };
+		const next = { ...base, teamSize: 4 };
+		expect(rebaseDraft(base, mine, next)).toEqual({ ...base, bestOfDefault: 5, teamSize: 4 });
+	});
+
+	it('an untouched draft follows the stored row entirely; an edited field keeps its value', () => {
+		const next = { ...base, name: 'Renamed', scoreEntry: false, bestOfGrandFinal: 0 };
+		expect(rebaseDraft(base, { ...base }, next)).toEqual(next);
+		// A save of this host's own coming back: every field agrees with next.
+		const mine = { ...base, name: 'Renamed ' };
+		expect(draftSignature(rebaseDraft(base, mine, { ...base, name: 'Renamed' }))).toBe(
+			draftSignature({ ...base, name: 'Renamed' })
+		);
+		// Both edited the same field: this host's value is what they see.
+		expect(rebaseDraft(base, { ...base, name: 'Mine' }, { ...base, name: 'Theirs' }).name).toBe(
+			'Mine'
+		);
+	});
+});
+
 describe('one form, mounted by both routes', () => {
 	it('the new page and the host console mount TournamentSettingsForm and build their calls through settings.ts', () => {
 		const created = read('src/routes/tournaments/new/+page.svelte');
@@ -264,6 +315,9 @@ describe('one form, mounted by both routes', () => {
 		// No second copy of the format fields on either page: the field hooks
 		// live in the component alone.
 		const form = read('src/lib/tournaments/TournamentSettingsForm.svelte');
+		// The draft follows a co-host's write through the pure rebase above,
+		// not a second rule written inline in the component.
+		expect(form).toMatch(/draft = rebaseDraft\(base, draft, next\)/);
 		for (const field of ['quals_enabled', 'score_entry', 'best_of_default', 'team_size', 'grand_final']) {
 			expect(form, field).toContain(`data-field="${field}"`);
 			expect(created, field).not.toContain(`data-field="${field}"`);
