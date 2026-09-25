@@ -1034,7 +1034,12 @@ rule Foundry states as "preflight passing is not submission".
   EDITOR IS STILL NOT.** `ClassTeams.svelte` (over `$lib/classroom/class-teams.ts`)
   is mounted from `src/routes/classroom/[sectionId]/+layout.svelte`: it renders
   only a set `_classroom_team_set_visible` answers for, names only (never an
-  address), the viewer's own team marked, closed by default. A student editing
+  address). Since ledger 0298 every own-team card comes FIRST and open
+  (`ownTeams`), the whole draw sits closed below it, and a teacher gets one
+  line saying until when, linking to People (`postedTeamsNotice`,
+  `teamsManageLink`). "Today" on the post control ends at the end of today in
+  Los Angeles (`teamWindowEnd` over `schoolDayEnd`), never the browser's
+  tomorrow. A student editing
   their team's banner has the membership-gated write waiting and no control
   yet, so no `classroom-updates.json` entry may claim students can style a
   team.

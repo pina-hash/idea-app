@@ -102,3 +102,44 @@ export function weekOffset(day: string, today: string): number | null {
 	const startOf = (n: number) => n - (((n + 4) % 7) + 7) % 7;
 	return Math.round((startOf(d) - startOf(t)) / 7);
 }
+
+/**
+ * THE LAST INSTANT OF A SCHOOL DAY, as an ISO string: 23:59:59.999 in
+ * America/Los_Angeles on the day `addDays` after `day` (YYYY-MM-DD). Null when
+ * the day does not parse.
+ *
+ * The other direction from `laCalendarDay`, and it lives here for the same
+ * reason: one module converts between the school's days and instants. It
+ * reads no clock. A caller that wants "the end of today" reads its clock once,
+ * turns it into a day with `laCalendarDay`, and hands the day here.
+ *
+ * THE OFFSET IS ASKED OF THE ZONE, NEVER ASSUMED. The school sits at UTC-7 for
+ * most of the year and UTC-8 from November to March, so the answer is found
+ * with the zone's own rules at a first guess and then asked again at the
+ * answer, which settles a day that crosses a clock change.
+ */
+export function schoolDayEnd(day: string, addDays = 0): string | null {
+	const index = dayIndex(day);
+	if (index === null || !Number.isFinite(addDays)) return null;
+	// The target day's 23:59:59.999 as though the wall clock were UTC.
+	const wall = (index + Math.trunc(addDays) + 1) * DAY_MS - 1;
+	const first = wall - schoolZoneOffsetMs(wall);
+	return new Date(wall - schoolZoneOffsetMs(first)).toISOString();
+}
+
+/** How far the school's wall clock sits from UTC at an instant, in ms (negative in California). */
+function schoolZoneOffsetMs(instant: number): number {
+	const parts = new Intl.DateTimeFormat('en-US', {
+		timeZone: SCHOOL_TIME_ZONE,
+		hourCycle: 'h23',
+		year: 'numeric',
+		month: 'numeric',
+		day: 'numeric',
+		hour: 'numeric',
+		minute: 'numeric',
+		second: 'numeric'
+	}).formatToParts(new Date(instant));
+	const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)?.value);
+	const asUtc = Date.UTC(part('year'), part('month') - 1, part('day'), part('hour'), part('minute'), part('second'));
+	return asUtc - Math.floor(instant / 1000) * 1000;
+}
