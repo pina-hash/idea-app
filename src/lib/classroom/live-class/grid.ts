@@ -335,6 +335,13 @@ function workSummary(s: StudentWork, facts: HandInFacts | null): WorkSummary {
  * closed or returned keeps its own word. Called with a one-entry map rather
  * than restating the rule, so the grid cannot attach an instant to a row the
  * class page would not.
+ *
+ * A JUDGMENT THAT THROWS IS "CANNOT TELL", NEVER A CRASH. This runs inside the
+ * control view's `$derived` grid, beside the timer and the hall pass, where the
+ * class page's read runs inside `readWorksheetCompletions`' own catch. A stored
+ * manifest the walk cannot read therefore leaves this student's row exactly as
+ * it was before a worksheet could read Complete here, and takes nothing else
+ * on the screen down with it.
  */
 function handInFacts(
 	s: StudentWork,
@@ -342,7 +349,12 @@ function handInFacts(
 	worksheet: HtmlAssignmentManifest | null | undefined
 ): HandInFacts | null {
 	if (!worksheet) return s.submission;
-	const at = worksheetCompletedAt(worksheet, s.responses, s.files);
+	let at: string | null;
+	try {
+		at = worksheetCompletedAt(worksheet, s.responses, s.files);
+	} catch {
+		return s.submission;
+	}
 	if (at === null) return s.submission;
 	const id = s.submission?.item_id ?? itemId;
 	const [row] = withWorksheetCompletions<HandInFacts>(

@@ -178,6 +178,15 @@ describe('without the manifest: exactly the grid it was', () => {
 	it('a manifest read that answered null', () => {
 		expect(grid({ ...GRADING, worksheet: null })).toEqual(before);
 	});
+	it('a manifest the judgment cannot walk (it passes the shape check and throws inside it), never a crash', () => {
+		// `htmlManifestShaped` asks only that `modules` is an array, so a null
+		// module reaches the judgment, which throws on it. The grid is the Live
+		// tab's `$derived`, beside the timer and the hall pass: a throw here
+		// would take the whole control view down in front of a class.
+		const unwalkable = { ...MANIFEST, modules: [null] } as unknown as HtmlAssignmentManifest;
+		expect(() => grid({ ...GRADING, worksheet: unwalkable })).not.toThrow();
+		expect(grid({ ...GRADING, worksheet: unwalkable })).toEqual(before);
+	});
 });
 
 describe('the grading read with the manifest beside it', () => {
