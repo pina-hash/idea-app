@@ -15,6 +15,8 @@ import { describe, expect, it } from 'vitest';
 import { Node as PMNode } from '@tiptap/pm/model';
 import {
 	NOTE_TEMPLATES,
+	noteHoldsOnlyTemplate,
+	noteIsBlank,
 	templateBlocks,
 	templateCursor,
 	withTemplate
@@ -92,5 +94,70 @@ describe('the note templates', () => {
 		// An EMPTY box (Tiptap seeds one empty paragraph) is replaced, not appended to.
 		const empty = withTemplate({ type: 'doc', content: [{ type: 'paragraph' }] }, t);
 		expect(empty.content).toEqual(templateBlocks(t));
+	});
+
+	/*
+	 * A BOX WITH NO TEXT IS NOT A BLANK BOX. A grid is an atom whose cells live
+	 * in its attributes, so a note holding a filled grid and nothing else has no
+	 * text node anywhere -- and a template that asked "is there text" replaced
+	 * it, taking the student's numbers on one press (ledger 0298 review). The
+	 * control beside it is the blank box, which IS replaced, so this cannot
+	 * pass by `withTemplate` simply always appending.
+	 */
+	it('keeps a grid that has no text beside it, and still replaces a truly blank box', () => {
+		const t = NOTE_TEMPLATES[1];
+		const grid = { type: 'notebookGrid', attrs: { rows: [['12', '3.5'], ['=A1*B1', '']] } };
+		const gridOnly = { type: 'doc', content: [{ type: 'paragraph' }, grid, { type: 'paragraph' }] };
+		const next = withTemplate(gridOnly, t);
+		expect(next.content?.filter((b) => b.type === 'notebookGrid')).toEqual([grid]);
+		expect(next.content?.slice(0, 3)).toEqual(gridOnly.content);
+		expect(next.content?.slice(3)).toEqual(templateBlocks(t));
+		expect(noteIsBlank(gridOnly)).toBe(false);
+		// The control: blank in every spelling the editor produces is replaced.
+		for (const blank of [null, { type: 'doc' }, { type: 'doc', content: [{ type: 'paragraph' }] }]) {
+			expect(noteIsBlank(blank)).toBe(true);
+			expect(withTemplate(blank, t).content).toEqual(templateBlocks(t));
+		}
+		// A paragraph holding only a line break is not blank either.
+		expect(
+			noteIsBlank({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'hardBreak' }] }] })
+		).toBe(false);
+	});
+
+	/*
+	 * BARE HEADINGS DO NOT CREATE A DRAFT, AND WRITING ALWAYS DOES. The composer
+	 * gates its autosave CREATE on this, so it fails silently in both
+	 * directions: answering yes to real writing means the first draft never
+	 * autosaves at all, and answering no to bare headings locks the filing
+	 * before a word is written (ledger 0298 review). Both are asserted.
+	 */
+	it('tells a template nobody wrote under from a note with writing in it', () => {
+		for (const t of NOTE_TEMPLATES) {
+			expect(noteHoldsOnlyTemplate(withTemplate(null, t)), t.id).toBe(true);
+			// Two templates pressed one after the other is still only headings.
+			expect(noteHoldsOnlyTemplate(withTemplate(withTemplate(null, t), NOTE_TEMPLATES[0])), t.id).toBe(true);
+			// One typed word under the first heading is writing.
+			const typed = withTemplate(null, t);
+			typed.content![1] = { type: 'paragraph', content: [{ type: 'text', text: 'Loaded it to 5 kg' }] };
+			expect(noteHoldsOnlyTemplate(typed), t.id).toBe(false);
+		}
+		const first = NOTE_TEMPLATES[0].headings[0];
+		// The heading's words, typed without bold, are the student's own writing.
+		expect(
+			noteHoldsOnlyTemplate({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: first }] }] })
+		).toBe(false);
+		// Bold text that is not a heading is writing too.
+		expect(
+			noteHoldsOnlyTemplate({
+				type: 'doc',
+				content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Gearbox', marks: [{ type: 'bold' }] }] }]
+			})
+		).toBe(false);
+		// A blank box is not a template, and a grid under the headings is work.
+		expect(noteHoldsOnlyTemplate(null)).toBe(false);
+		expect(noteHoldsOnlyTemplate({ type: 'doc', content: [{ type: 'paragraph' }] })).toBe(false);
+		const withGrid = withTemplate(null, NOTE_TEMPLATES[1]);
+		withGrid.content!.push({ type: 'notebookGrid', attrs: { rows: [['1']] } });
+		expect(noteHoldsOnlyTemplate(withGrid)).toBe(false);
 	});
 });

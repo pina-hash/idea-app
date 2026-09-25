@@ -44,7 +44,10 @@
 		/* A student-facing control at every width (IDEA_INTERFACE_STANDARDS 10). */
 		min-height: 44px;
 		padding: 0 var(--space-3);
-		border: 1px dashed var(--nb-hairline-strong);
+		/* --boundary, never a hairline: this edge is the outer edge of an
+		   interactive control (CLAUDE.md, the boundary token). Dashed, because
+		   what it adds is optional. */
+		border: 1px dashed var(--boundary);
 		border-radius: 999px;
 		background: transparent;
 		color: var(--text-2);

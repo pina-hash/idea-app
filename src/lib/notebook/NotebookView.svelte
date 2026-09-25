@@ -13,8 +13,21 @@
 	import ComposerFiling from '$lib/notebook/ComposerFiling.svelte';
 	import NoteTemplates from '$lib/notebook/NoteTemplates.svelte';
 	import { inboxDrafts } from '$lib/notebook/quick-note';
-	import { templateCursor, withTemplate, type NoteTemplate } from '$lib/notebook/note-templates';
-	import { checkInClassLabel, checkInState, filedToWords, logCheckIn } from '$lib/notebook/log';
+	import {
+		noteHoldsOnlyTemplate,
+		noteIsBlank,
+		templateCursor,
+		withTemplate,
+		type NoteTemplate
+	} from '$lib/notebook/note-templates';
+	import {
+		checkInClassLabel,
+		checkInState,
+		filedToWords,
+		logCheckIn,
+		withComposerDraft,
+		type DraftFiling
+	} from '$lib/notebook/log';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { tick, untrack } from 'svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
@@ -736,6 +749,21 @@
 	 */
 	let savedDraftSession = $state<string | null>(null);
 	/**
+	 * WHERE THAT DRAFT WAS ACTUALLY FILED: its check-in, its class and its
+	 * folder, as they were SENT on the create (or read off the entry a mirror
+	 * restore adopted). Every later write only ADDS to `savedDraftId` -- the
+	 * saveTarget guarantee -- so once the draft exists the composer's picks no
+	 * longer decide anything about it.
+	 *
+	 * THIS IS WHAT "Filed to ..." READS WHILE A DRAFT EXISTS, and it was missing
+	 * (ledger 0298 review). The line read the live picks, so writing first --
+	 * which autosaves a draft to the auto-picked check-in within a second --
+	 * and then pressing Change to file it elsewhere moved the words on screen
+	 * and nothing on the server: the line said B, Turn in turned in A. The
+	 * filing panel is locked while this is set; New entry is the way out.
+	 */
+	let savedDraftFiling = $state<DraftFiling | null>(null);
+	/**
 	 * A note the composer is holding that autosave must NOT write, and there is
 	 * exactly one way in: `resetForm(true)`, the case where the entry saved and
 	 * its note did not. That entry already exists and may already be turned in,
@@ -869,12 +897,6 @@
 	const draftCount = $derived(
 		draftsReady ? entries.filter((e) => e.submitted_at === null).length : 0
 	);
-	/**
-	 * THE CHECK-IN AS A CHIP (ledger 0298, R32): the same check-in `nextCheckIn`
-	 * names, with a word and a tone for where the student stands on it -- or
-	 * "All filed" once nothing is outstanding. The words are the classroom's.
-	 */
-	const headCheckIn = $derived(logCheckIn(sessions, entries, todayIso()));
 
 	/** How the feed is ordered under the pins. Not persisted: it is a way of
 	    looking at the notebook for a minute, not a setting. */
@@ -993,8 +1015,19 @@
 
 	/** Note text the server has not acknowledged. */
 	const noteUnsaved = $derived(hasNote && autosaveBaseline.changed(noteDraft));
-	/** ...that autosave is allowed to write. See `orphanNote`. */
-	const noteDue = $derived(noteUnsaved && !orphanNote && !noteChainUnknown);
+	/**
+	 * ...that autosave is allowed to write. See `orphanNote`. And never a CREATE
+	 * out of a template's bare headings (`noteHoldsOnlyTemplate`): a draft fixes
+	 * where the entry is filed, and a student who pressed a template and then
+	 * "Change" had not written anything yet (ledger 0298 review). Only the create
+	 * waits -- once a draft exists, every edit is written as before.
+	 */
+	const noteDue = $derived(
+		noteUnsaved &&
+			!orphanNote &&
+			!noteChainUnknown &&
+			!(savedDraftId === null && noteHoldsOnlyTemplate(noteDraft))
+	);
 	/**
 	 * A TITLE CHANGE IS ONLY WRITABLE ONCE THERE IS AN ENTRY TO PUT IT ON, and
 	 * that is a property of the schema rather than a choice made here: no RPC
@@ -1219,6 +1252,11 @@
 				savedDraftId = plan.entryId;
 				savedNoteId = plan.noteId;
 				savedDraftSession = entry?.session_id ?? null;
+				savedDraftFiling = {
+					session: entry?.session_id ?? null,
+					section: entry?.section_id ?? null,
+					folder: entry?.folder_id ?? null
+				};
 				savedLabel = entry?.custom_label ?? null;
 				headUnsealed = false;
 			}
@@ -1344,30 +1382,56 @@
 	 * `find(s => s.id === ...)` would resolve to whichever sorted first. The
 	 * prompt is the same on both -- it is authored once on the canonical check-in
 	 * -- but reading it the wrong way here is how the next field to be added
-	 * inherits the bug.
+	 * inherits the bug. The resolution is `shownSession` below, which is the
+	 * pick until a draft exists and the draft's own check-in after (ledger 0298
+	 * review): the instructions above the box are the ones the writing answers.
 	 */
-	const pickedSession = $derived(
-		selectedSession === null
-			? null
-			: (sessions.find(
-					(s) => s.id === selectedSession && s.section_id === selectedSectionId
-				) ??
-				sessions.find((s) => s.id === selectedSession) ??
-				null)
-	);
-	const pickedGuidance = $derived(pickedSession?.guidance_doc ?? null);
-	const showGuidance = $derived(hasGuidance(pickedGuidance));
 
 	/**
 	 * "FILED TO ..." (ledger 0298, R32): where the next save goes, in words, and
-	 * where the student stands on the check-in it answers. Both read the SAME
-	 * picks the save sequencing reads (`selectedSession`, `sectionForFree`,
-	 * `folderChoice`), so the line cannot say one place while the save goes to
-	 * another.
+	 * where the student stands on the check-in it answers.
+	 *
+	 * TWO SOURCES, AND WHICH ONE IS THE SAVE PATH'S OWN RULE. Before this
+	 * composer has made a draft, a create sends the picks (`composerFiling`,
+	 * the same function the three create paths record), so the line reads the
+	 * picks. Once it has, every save only ADDS to that draft and the picks
+	 * decide nothing, so the line reads where the draft WAS filed
+	 * (`savedDraftFiling`) and the filing panel is locked. Reading the picks in
+	 * both cases is what let the line say one place while the save went to
+	 * another (ledger 0298 review).
 	 */
-	const filedState = $derived(
-		pickedSession ? checkInState(pickedSession, entries, todayIso()) : null
+	const filingLocked = $derived(savedDraftId !== null && savedDraftFiling !== null);
+	const shownFiling = $derived.by<DraftFiling>(() =>
+		savedDraftId !== null && savedDraftFiling ? savedDraftFiling : composerFiling()
 	);
+	const shownSession = $derived.by(() => {
+		const id = shownFiling.session;
+		if (id === null) return null;
+		return (
+			sessions.find((s) => s.id === id && s.section_id === shownFiling.section) ??
+			sessions.find((s) => s.id === id) ??
+			null
+		);
+	});
+	/** The feed, plus the composer's own draft until the feed catches up with it. */
+	const chipEntries = $derived(
+		withComposerDraft(
+			entries,
+			savedDraftId !== null && savedDraftFiling ? { id: savedDraftId, filing: savedDraftFiling } : null,
+			(id) => entries.some((e) => e.id === id)
+		)
+	);
+	const filedState = $derived(
+		shownSession ? checkInState(shownSession, chipEntries, todayIso()) : null
+	);
+	/**
+	 * THE CHECK-IN AS A CHIP (ledger 0298, R32): the same check-in `nextCheckIn`
+	 * names, with a word and a tone for where the student stands on it -- or
+	 * "All filed" once nothing is outstanding. The words are the classroom's.
+	 */
+	const headCheckIn = $derived(logCheckIn(sessions, chipEntries, todayIso()));
+	const pickedGuidance = $derived(shownSession?.guidance_doc ?? null);
+	const showGuidance = $derived(hasGuidance(pickedGuidance));
 	const filedWhere = $derived.by(() => {
 		const classFor = (id: string | null) =>
 			id === null
@@ -1375,14 +1439,13 @@
 				: id === scopeSectionId
 					? (scopeLabel ?? classes.find((c) => c.id === id)?.label ?? null)
 					: (classes.find((c) => c.id === id)?.label ?? null);
+		const folder = shownFiling.folder;
 		return filedToWords({
-			sessionLabel: pickedSession?.session_label ?? null,
-			classLabel: pickedSession
-				? checkInClassLabel(pickedSession.section_id, { scopeSectionId, classes })
-				: classFor(sectionForFree()),
-			folderName: folderChoice
-				? (orderedFolders.find((f) => f.id === folderChoice)?.name ?? null)
-				: null
+			sessionLabel: shownSession?.session_label ?? (shownFiling.session ? 'Check-in' : null),
+			classLabel: shownSession
+				? checkInClassLabel(shownSession.section_id, { scopeSectionId, classes })
+				: classFor(shownFiling.section),
+			folderName: folder ? (orderedFolders.find((f) => f.id === folder)?.name ?? null) : null
 		});
 	});
 
@@ -1460,6 +1523,20 @@
 	 */
 	function sectionForFree(): string | null {
 		return scopeSectionId ?? freeSectionChoice;
+	}
+
+	/**
+	 * THE FILING A CREATE SENDS, read at the moment it is sent -- the same
+	 * three picks the three create paths put in their payloads -- so
+	 * `savedDraftFiling` records what the server was told rather than whatever
+	 * the picks say by the time the answer comes back.
+	 */
+	function composerFiling(): DraftFiling {
+		return {
+			session: selectedSession,
+			section: selectedSession ? sectionForPick() : sectionForFree(),
+			folder: folderChoice
+		};
 	}
 
 	/** Takes the PAIR, so pressing one of two postings of a shared check-in
@@ -1594,6 +1671,7 @@
 		noteChainUnknown = false;
 		savedLabel = null;
 		savedDraftSession = null;
+		savedDraftFiling = null;
 		headUnsealed = false;
 		// SEEDED AT NOTHING, in both cases, because that is what the server holds
 		// for the composer session starting here. With the note kept (its entry
@@ -1769,9 +1847,15 @@
 	 * note chain and the stored title are recorded with it, because they are
 	 * what the next write has to diff against.
 	 */
-	function rememberDraft(entryId: string, noteId: string | undefined, wroteNote: boolean) {
+	function rememberDraft(
+		entryId: string,
+		noteId: string | undefined,
+		wroteNote: boolean,
+		filing: DraftFiling
+	) {
 		savedDraftId = entryId;
 		savedDraftSession = selectedSession;
+		savedDraftFiling = filing;
 		savedLabel = title.trim() || null;
 		if (wroteNote) {
 			savedNoteId = noteId ?? null;
@@ -1862,6 +1946,7 @@
 			// A create needs real text: a title alone is not an entry any RPC can
 			// make. Nothing to do until there is something to write.
 			if (!noteDue) return { ok: true };
+			const filing = composerFiling();
 			const saved = await createNote!({
 				content: noteDraft as TiptapNode,
 				custom_label: title.trim() || null,
@@ -1878,7 +1963,7 @@
 			if (!saved.ok) {
 				return { ok: false, retryable: saved.retryable !== false, message: saved.error };
 			}
-			rememberDraft(saved.entryId, saved.noteId, true);
+			rememberDraft(saved.entryId, saved.noteId, true, filing);
 			// Revision 1 went in marked replaceable (`autosave` above), so it owes
 			// a boundary exactly as an autosaved edit does.
 			headUnsealed = coalescingReady;
@@ -1912,6 +1997,7 @@
 		// entry filed against that check-in, not a refusal. The section comes
 		// from the PICK for the reason the photo path takes it from there too: a
 		// shared check-in has one id and several postings.
+		const filing = composerFiling();
 		const saved = await createNote!({
 			content: noteDraft as TiptapNode,
 			custom_label: title.trim() || null,
@@ -1933,7 +2019,7 @@
 			// Remembered AT ONCE: the create succeeded, so nothing after this
 			// point may ever call createNote again in this composer session --
 			// only add to the entry this id names (the saveTarget guarantee).
-			rememberDraft(saved.entryId, saved.noteId, true);
+			rememberDraft(saved.entryId, saved.noteId, true, filing);
 			successMsg = 'Draft saved.';
 			// The words stay in the box and `rememberDraft` has already advanced
 			// the baseline to them, so nothing is owed. See `checkpoint` for why
@@ -1978,6 +2064,7 @@
 		// unconditionally would leave PostgREST unable to resolve it -- the
 		// same rule p_folder_id already follows.
 		if (!submitted) first.set('submitted', 'false');
+		const filing = composerFiling();
 
 		const created = await createEntry!(first);
 		if (!created.ok) {
@@ -1987,7 +2074,7 @@
 		// Remembered AT ONCE, whichever button was pressed: from this line on,
 		// nothing in this composer session may call createEntry again. The note,
 		// if there is one, is recorded a few lines down once it has landed.
-		rememberDraft(created.entryId, undefined, false);
+		rememberDraft(created.entryId, undefined, false, filing);
 
 		// The entry's optional note, written in the same action -- on ANY tier
 		// since the mode picker went, so a photographed page can carry a
@@ -2250,19 +2337,34 @@
 	 * It clears itself as soon as there is something to save.
 	 */
 	let composerRefusal = $state<string | null>(null);
+	/**
+	 * WHICH PRESS WAS REFUSED, because the two clear on different facts. A
+	 * refused Turn in is answered once there is anything to turn in; a refused
+	 * Save draft ("This draft is saved.") is answered once there is something
+	 * NEW -- and keyed on `canSubmit` alone it never cleared at all, since the
+	 * saved words keep `canSubmit` true, so "This draft is saved." sat on screen
+	 * over typing nothing had saved (ledger 0298 review).
+	 */
+	let refusedBy = $state<'turn-in' | 'save-draft' | null>(null);
 	function nothingToSave(): string {
+		// A PHOTO ON ITS WAY IS NOT "NO PHOTO": `hasPhotos` is false while the
+		// stager is still checking one, and telling that student the entry needs
+		// a photo is telling them something false about the one they just took.
+		if (stagerSettling && uploadReady) return 'Your photo is still being checked. Press again in a moment.';
 		if (!noteAllowed) return 'This entry needs a photo.';
 		if (!uploadReady) return 'Photo uploads are unavailable here, so this entry needs some writing.';
 		return 'This entry needs a photo or some writing; either one is enough.';
 	}
 	$effect(() => {
-		if (canSubmit) untrack(() => (composerRefusal = null));
+		const answered = refusedBy === 'save-draft' ? canSaveDraft : canTurnIn;
+		if (answered) untrack(() => (composerRefusal = null));
 	});
 
 	async function onTurnInSubmit(e: SubmitEvent) {
 		e.preventDefault();
 		if (busy) return;
 		if (!canTurnIn) {
+			refusedBy = 'turn-in';
 			composerRefusal = nothingToSave();
 			return;
 		}
@@ -2273,6 +2375,7 @@
 	async function onSaveDraftClick() {
 		if (busy) return;
 		if (!canSaveDraft) {
+			refusedBy = 'save-draft';
 			composerRefusal = savedDraftId ? 'This draft is saved.' : nothingToSave();
 			return;
 		}
@@ -2284,14 +2387,17 @@
 	 * A TEMPLATE'S HEADINGS, INTO THE BOX (ledger 0298, R32). The editor takes
 	 * its document once, at mount, so the note arrives as the seed of a fresh
 	 * instance -- the same remount a mirror restore and `resetForm` already use
-	 * -- and nothing typed is lost: `withTemplate` appends under any writing.
+	 * -- and nothing in the box is lost: `withTemplate` appends under anything
+	 * `noteIsBlank` does not call blank, a textless grid included.
 	 * An empty free entry takes the template's name as its title, which is the
 	 * name it would otherwise have had to be given by hand.
 	 */
 	let editorFocus = $state<boolean | number | 'end'>(false);
 	function insertTemplate(template: NoteTemplate) {
 		if (busy || !noteAllowed) return;
-		const empty = !tiptapHasText(noteDraft);
+		// The SAME predicate `withTemplate` decides by, so the cursor, the title
+		// and the replace-or-append choice can never disagree about "empty".
+		const empty = noteIsBlank(noteDraft);
 		const next = withTemplate(noteDraft, template);
 		restoredDoc = next;
 		noteDraft = next;
@@ -2351,6 +2457,23 @@
 	let search = $state('');
 	let filters = $state<EntryFilterId[]>([]);
 	let managerOpen = $state(false);
+	/**
+	 * FROM THE COMPOSER'S "Manage folders": open the manager AND bring it on
+	 * screen. It sits at the head of the feed, under the composer and the list
+	 * head, which at phone width with the filing panel open is a screen or more
+	 * below the button that was pressed -- a press that changes nothing visible
+	 * reads as a press that did nothing. `nearest` moves nothing when it is
+	 * already in view, and the pane's `scroll-padding-top` keeps it clear of the
+	 * sticky head above the breakpoint.
+	 */
+	function openFolderManager() {
+		managerOpen = true;
+		void tick().then(() =>
+			document
+				.querySelector<HTMLElement>('.nb-pane-card [data-testid="folder-manager"]')
+				?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+		);
+	}
 	let folderBusy = $state(false);
 
 	const counts = $derived(folderCounts(feed));
@@ -2846,11 +2969,11 @@
 				<div class="nb-guidance" data-testid="check-in-guidance-panel">
 					<Disclosure
 						label="What to do"
-						scope={`check-in:${selectedSession}:guidance`}
+						scope={`check-in:${shownFiling.session}:guidance`}
 						collapseWhen={composerStarted}
 						testId="check-in-guidance-disclosure"
 					>
-						{#snippet meta()}{pickedSession?.session_label ?? ''}{/snippet}
+						{#snippet meta()}{shownSession?.session_label ?? ''}{/snippet}
 						<ItemBody item={{ body: '', body_doc: pickedGuidance }} compact />
 					</Disclosure>
 				</div>
@@ -2911,8 +3034,9 @@
 					{open}
 					{entries}
 					{draftsReady}
-					{selectedSession}
-					{selectedSectionId}
+					selectedSession={shownFiling.session}
+					selectedSectionId={shownFiling.session ? shownFiling.section : null}
+					locked={filingLocked}
 					onChoose={chooseSession}
 					{classes}
 					{scopeSectionId}
@@ -2922,7 +3046,7 @@
 					{foldersReady}
 					folders={orderedFolders}
 					onFolderChange={() => (folderTouched = true)}
-					onManageFolders={folderTransports ? () => (managerOpen = true) : undefined}
+					onManageFolders={folderTransports ? openFolderManager : undefined}
 					{busy}
 				/>
 
@@ -3145,6 +3269,23 @@
 		     height, so this box has nothing to scroll inside and the whole
 		     column flows exactly as it did before it had a head. -->
 		<div class="list-body">
+			<!--
+				THE FOLDER MANAGER, AHEAD OF THE BRANCHES BELOW RATHER THAN INSIDE THE
+				NON-EMPTY ONE (ledger 0298 review). The composer's "Manage folders" is
+				a box now, and a student whose notebook is still empty -- the first
+				day, which is when folders get set up -- pressed it and got nothing,
+				because the manager only rendered once there was a feed to sit above.
+			-->
+			{#if !showingInbox && !showingDeleted && foldersReady && managerOpen && folderTransports}
+				<FolderManager
+					{folders}
+					counts={counts as Map<string, number>}
+					busy={folderBusy}
+					onSave={saveFolder}
+					onDelete={deleteFolder}
+					onClose={() => (managerOpen = false)}
+				/>
+			{/if}
 			{#if showingInbox}
 				<NotebookInbox
 					{entries}
@@ -3194,16 +3335,6 @@
 							? 'Everything in this notebook is still a draft -- nothing has been turned in yet.'
 							: "Everything below is a draft. Add to it, then turn it in when you're ready."}
 					</p>
-				{/if}
-				{#if !showingDeleted && foldersReady && managerOpen && folderTransports}
-					<FolderManager
-						{folders}
-						counts={counts as Map<string, number>}
-						busy={folderBusy}
-						onSave={saveFolder}
-						onDelete={deleteFolder}
-						onClose={() => (managerOpen = false)}
-					/>
 				{/if}
 
 				<!--

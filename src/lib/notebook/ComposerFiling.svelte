@@ -39,7 +39,8 @@
 		folders = [],
 		onFolderChange,
 		onManageFolders,
-		busy = false
+		busy = false,
+		locked = false
 	}: {
 		/** Where the next save goes, in words (`filedToWords`). */
 		where: string;
@@ -49,6 +50,8 @@
 		open: NotebookSession[];
 		entries: NotebookEntry[];
 		draftsReady?: boolean;
+		/** The check-in the entry is filed to -- the picks before a draft
+		 *  exists, the draft's own filing after -- and its class. */
 		selectedSession: string | null;
 		selectedSectionId: string | null;
 		onChoose: (id: string | null, sectionId?: string | null) => void;
@@ -62,6 +65,15 @@
 		onFolderChange?: () => void;
 		onManageFolders?: () => void;
 		busy?: boolean;
+		/**
+		 * THE COMPOSER ALREADY MADE A DRAFT, SO WHERE IT IS FILED IS SETTLED
+		 * (ledger 0298 review). Every later save only adds to that draft, so a
+		 * pick here would move the words on screen and nothing on the server;
+		 * the check-in, class and folder are shown and cannot be changed, and
+		 * the panel says so. The title stays editable: a free draft's title IS
+		 * written on the next save.
+		 */
+		locked?: boolean;
 	} = $props();
 
 	function pickClassLabel(sectionId: string | null | undefined): string | null {
@@ -80,6 +92,11 @@
 		{#snippet meta()}<span class="where" data-testid="nb-filed-to">{where}</span
 			>{#if state}{' '}<CheckInState value={state} testId="nb-filed-state" />{/if}{/snippet}
 		<div class="filing-panel">
+			{#if locked}
+				<p class="locked" role="status" data-testid="nb-filing-locked">
+					This draft is already filed here. New entry starts one you can file somewhere else.
+				</p>
+			{/if}
 			{#if open.length}
 				<fieldset class="picker">
 					<legend>Check-in</legend>
@@ -96,7 +113,7 @@
 								class="pick"
 								class:selected={picked}
 								aria-pressed={picked}
-								disabled={busy}
+								disabled={busy || locked}
 								onclick={() => onChoose(s.id, s.section_id)}
 							>
 								<span class="pick-label">{s.session_label}</span>
@@ -115,7 +132,7 @@
 							class="pick free"
 							class:selected={selectedSession === null}
 							aria-pressed={selectedSession === null}
-							disabled={busy}
+							disabled={busy || locked}
 							onclick={() => onChoose(null)}
 						>
 							<span class="pick-label">Something else</span>
@@ -142,7 +159,11 @@
 				{#if !scopeSectionId && classes.length > 0}
 					<label class="label-field class-field">
 						<span>Class</span>
-						<select bind:value={freeSectionChoice} disabled={busy} data-testid="new-entry-class">
+						<select
+							bind:value={freeSectionChoice}
+							disabled={busy || locked}
+							data-testid="new-entry-class"
+						>
 							{#each classes as c (c.id)}
 								<option value={c.id}>{c.label}</option>
 							{/each}
@@ -161,7 +182,7 @@
 						<span>Folder <span class="optional">(optional)</span></span>
 						<select
 							bind:value={folderChoice}
-							disabled={busy}
+							disabled={busy || locked}
 							data-testid="new-entry-folder"
 							onchange={() => onFolderChange?.()}
 						>
@@ -212,6 +233,12 @@
 		font-weight: 600;
 		letter-spacing: 0;
 		overflow-wrap: anywhere;
+	}
+	/* A state the student has to know, in the room's secondary ink. */
+	.locked {
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--text-2);
 	}
 	.filing-panel {
 		display: flex;
@@ -310,7 +337,8 @@
 	.manage {
 		min-height: 44px;
 		padding: 0 var(--space-3);
-		border: 1px solid var(--nb-hairline-strong);
+		/* The outer edge of a control carries --boundary (CLAUDE.md). */
+		border: 1px solid var(--boundary);
 		border-radius: var(--radius-control);
 		background: var(--surface-1);
 		color: var(--nb-accent-ink);

@@ -45,6 +45,43 @@ export interface LogCheckInState {
 type EntryFacts = Pick<NotebookEntry, 'session_id' | 'section_id' | 'submitted_at' | 'status'>;
 
 /**
+ * WHERE ONE ENTRY IS FILED: its check-in (or none), its class (or none) and its
+ * folder (or none). The composer records one for the draft it made, because
+ * once that draft exists every later save only adds to it and the picks on
+ * screen stop deciding anything (ledger 0298 review).
+ */
+export interface DraftFiling {
+	session: string | null;
+	section: string | null;
+	folder: string | null;
+}
+
+/**
+ * THE VIEWER'S ENTRIES AS THE CHECK-IN CHIPS SHOULD SEE THEM: the loaded feed,
+ * plus the draft the composer is holding when the feed has not caught up with
+ * it yet. An autosave deliberately does not reload the feed, so without this a
+ * check-in the student has been writing a draft against for ten minutes still
+ * read "Not filed yet" -- a word that a draft on the SAME screen contradicts.
+ * The draft is never turned in here, so it can never make a check-in read filed.
+ */
+export function withComposerDraft(
+	entries: readonly EntryFacts[],
+	draft: { id: string; filing: DraftFiling } | null,
+	has: (id: string) => boolean
+): EntryFacts[] {
+	if (!draft || !draft.filing.session || has(draft.id)) return [...entries];
+	return [
+		...entries,
+		{
+			session_id: draft.filing.session,
+			section_id: draft.filing.section,
+			submitted_at: null,
+			status: 'compliant'
+		}
+	];
+}
+
+/**
  * WHERE THE VIEWER STANDS ON ONE POSTING OF A CHECK-IN, from their own entries.
  *
  * Turned in is keyed on the check-in id alone, which is the rule
