@@ -58,6 +58,13 @@ per 0161's own header), and the portal shell
 `ideacad_predictions` and `ideacad_materials`. The feature tree is the document and every geometry and physics
 readout is derived from it. Realtime broadcast is only the speed layer: the database poll
 is the floor, frames are roster- and revision-filtered, and no frame can write state.
+**The direct modeler (solid-v1, what `/ideacad` opens) has had the same shape since ledger
+0298**: after each accepted save it sends a ping carrying only a document id, a concept id
+and a revision, every open copy also reads the committed revision every `SOLID_LIVE_POLL_MS`
+and on focus, and `liveDecide` in `$lib/ideacad/solid/live-sync.ts` is the one decision. A
+copy with unsaved work is never replayed over (it is told in words and offered the newer
+version); a copy whose own save is in flight waits, because the newer revision may be its
+own. A ping is a reason to read the database and nothing else.
 
 **A DOCUMENT IS ARCHIVED, NEVER DELETED, AND THAT IS MR. PINA'S DECISION OF
 2026-09-13** (`docs/decisions/entries/29-*`, built as `0214`). He brings up past
@@ -131,6 +138,21 @@ questions).
     tune; `EXPORT_TESSELLATION` feeds export and the advisory readouts, whose
     stated tolerance rests on it, and
     `tests/ideacad-solid-display-tessellation.test.ts` pins it.
+  - **THE KERNEL ROUNDS A CORNER WITH A SHARP THIRD EDGE AS A BALL AND A FLAT STEP.**
+    Where a round ends at a convex corner whose third edge is left sharp (rounding
+    only the four top edges of a block is the common case), the vendored kernel
+    builds the ball-shaped corner that is only right when all three edges are
+    rounded and closes the gap with a FLAT face, a notch r cubed times (2/3 minus
+    pi/6) short of a true round per corner. That, and not the display mesh TRIAGE
+    suspected, is R06 (ledger 0298, measured on the real kernel). The feature row
+    DISCLOSES it (`flatSteps` in `features/blends.ts`) and
+    `tests/ideacad-solid-fillet-corner.test.ts` reddens the day a kernel fixes it.
+    Repairing it changes stored geometry and face names, so it is Mr. Pina's call
+    or an upstream fix, never a quiet patch.
+  - **A TRANSLUCENT FILL COPLANAR WITH A MODEL FACE Z-FIGHTS, AND `depthWrite:
+    false` DOES NOT STOP IT** (the depth TEST still runs). The datum-plane fill in
+    `viewport/reference-layer.ts` carries a polygon offset for exactly this; any
+    new plane-like overlay drawn where a face can lie needs the same.
 
 **MATERIALS ARE DATA, NOT CONSTANTS, AND THAT IS MR. PINA'S DECISION OF
 2026-09-12.** He rejected a bundle that hardcoded six materials into
@@ -3236,6 +3258,23 @@ with its own answer for the rows already stored.
 
 ## Client data access
 
+### A READ THAT CAN RETURN MORE THAN 1000 ROWS IS PAGED
+
+**PostgREST caps one response at the project's `max_rows` (1000 by default on
+Supabase) and says nothing.** A read with one row per student per block --
+`classroom_responses`, module approvals, hand-in files -- crosses that on one
+large worksheet (a 63-block worksheet at 16 students), and every row past the cap
+was simply missing: until ledger 0298 a grading screen could show a student's
+answers blank on such an item. `readWorkPages` in `src/lib/classroom/transports.ts`
+is the grading pager: ordered on the table's own key so no row repeats or is
+skipped, a short page ends it, a later page's failure keeps what arrived, and rows
+are deduplicated on the key because a student saving mid-read shifts every offset.
+`readAllPages` in `src/lib/classroom/student-work.ts` is the completeness pager and
+answers null instead of a partial set, because a partial set would judge a student.
+Pick the one whose failure answer is right for the surface; a third pager is a
+third set of edge cases. `tests/classroom-grading-work-paging.test.ts` drives the
+real loads against a fake that enforces the cap.
+
 ### Select ladders (widen-then-degrade)
 
 Migrations are applied by hand and separately, so **a deployment sitting between
@@ -3426,6 +3465,14 @@ inside the function fails closed rather than falling through to a weaker path.
 
 ### Structure
 
+- **A PLAN OR JUDGMENT COMPUTED INSIDE A CLASS-CRITICAL SURFACE'S RENDER IS
+  GUARDED, SO A THROW COSTS THAT CONTROL AND SAYS SO, NEVER THE SURFACE.** A
+  stored document can be legal in the database and still surprise the client (a
+  module title that is a number passed 0195's check and threw in a filename
+  fold). The grading console's Download all files and the Live tab's finished-
+  worksheet judgment both compute under a catch for that reason (ledger 0298);
+  unguarded, one odd assignment took down the whole console or the whole live
+  control view.
 - **Presentation components take state via props and emit intent via callbacks.**
   No component fetches its own data. The route owns the load and the transports.
 - **Server calls are INJECTED as a transports object.** The real route points them
@@ -4481,6 +4528,18 @@ These have each cost a debugging session. They are not hypothetical.
 
 ### DOM
 
+- **A COMPONENT'S OR ROUTE'S STYLESHEET STAYS IN THE PAGE AFTER A CLIENT-SIDE
+  NAVIGATION, AND IT ARRIVES WHEN THE MODULE IS IMPORTED, MOUNTED OR NOT.** So a
+  rule styling `html`, `body` or `:root` carries a `body:has(.<room>)` condition,
+  a global rule names a class, and a full-window app is `position: fixed; inset:
+  0` rather than a locked document. IdeaCAD's unscoped
+  `:global(html),:global(body){overflow:hidden}` left every later page in the tab
+  unscrollable until a reload, on any route that merely imported it (ledger 0298,
+  reports R29 and R07). `tests/no-global-document-lock.test.ts` compiles every
+  non-dev component and fails on the unscoped form. Locking the page's scroll is
+  `lockDocumentScroll()` from `$lib/shell/scroll-lock` (counted, restores what was
+  there when the LAST holder releases), never a hand-written save and restore of
+  `body.style.overflow`.
 - **Attach interaction listeners with `addEventListener`, never a delegated
   framework binding**, on anything that might move into a Document
   Picture-in-Picture window -- a delegated handler registers on the main document's
