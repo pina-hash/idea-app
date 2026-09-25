@@ -14,6 +14,10 @@ import type { PageLoad } from './$types';
  *   ?theme=space-white   force the Space White attribute (no session here)
  *   ?presence=off        no presence transport: every row says Not known
  *   ?item=<id>           the item to watch first (the class page's door)
+ *   ?timer=<kind>        a timer already running when the view opens
+ *                        (running, ready, final, paused, done, stopwatch:
+ *                        the fixture's `demoTimer`)
+ *   ?clock=pinned        stop the control view's clock at load
  */
 export const load: PageLoad = () => {
 	if (!dev) error(404, 'Not found');

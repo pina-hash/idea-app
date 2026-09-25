@@ -13,6 +13,11 @@ import type { PageLoad } from './$types';
  *                        ten-minute timer, the hall pass taken, a shown pick),
  *                        for a spec that measures the wall on its own
  *   ?demo=timer          the same with no pick and no hall pass
+ *   ?demo=final          no pick, no hall pass, and a countdown in its last
+ *                        seconds (7.42 s left); also paused, done, stopwatch
+ *                        (the fixture's `demoTimer` names them)
+ *   ?clock=pinned        stop this page's clock at load, so a spec reads the
+ *                        last seconds and the finish exactly
  *   ?theme=space-white   force the Space White attribute (no session here)
  *
  * No auth, no Supabase; 404 in production.
