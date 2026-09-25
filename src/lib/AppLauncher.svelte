@@ -445,8 +445,9 @@
 
 	<!-- The home tour gives every CARD its own step (`data-tour={app.id}`), and
 	     its Apps step points at the strip above, where Customize and the sort
-	     menu it names are (ledger 0298). While customizing, every child is a static reorderable div rather than a
-	     link, so the grid is a real list and each card a listitem -- which is both
+	     menu it names are (ledger 0298). While customizing, every child is a
+	     static reorderable div rather than a link, so the grid is a real list
+	     and each card a listitem -- which is both
 	     honest for assistive tech and what gives the drop targets their role. -->
 	<div
 		class="app-grid"
