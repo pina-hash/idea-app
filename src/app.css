@@ -3361,6 +3361,18 @@ a:hover {
 :root[data-theme='space-white'] .legacy-index .hero-stat .value.v-year {
 	color: var(--cyan);
 }
+/* The class feed's "Open class" link painted gold at rest too (its sibling
+   "See all in To-do" is ClassroomFeed's own rule and moves there). Both take
+   the page's link pair -- cyan at rest, green on hover, as the banner's
+   Sign in and Tour links are -- rather than green at rest, because a green
+   link with a green hover changes nothing under the pointer. The hover is
+   restated because this rest rule outranks the plain one. */
+:root[data-theme='space-white'] .legacy-index .feed-more {
+	color: var(--cyan);
+}
+:root[data-theme='space-white'] .legacy-index .feed-more:hover {
+	color: var(--green);
+}
 /* The changelog's "visual" tag keeps its gold word (a category, painted the
    way every theme paints it), so its edge keeps the gold too: with the brass
    hook pointed at green above, the chip would otherwise be a brown word in a

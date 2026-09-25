@@ -44,7 +44,7 @@ const STUDENT_CARDS = LAUNCHER_CARDS - 2;
    and admin cards are measured by the unit test over their inks
    (tests/space-white-inks.test.ts) and by /dev/themes, which renders all
    thirteen. */
-const HOME = '/dev/home-order?role=student&classes=1&rows=3';
+export const HOME = '/dev/home-order?role=student&classes=1&rows=3';
 
 /* The student-visible cards that declare no accent of their own and so paint
    from the launcher's shared default (the Coin Desk is the fourth, and is
@@ -54,7 +54,7 @@ const DEFAULT_CARDS = ['classroom', 'notebook', 'ideacad'];
 const ROW = (id) => `.pm-theme:has([data-theme-swatch="${id}"])`;
 
 /** Reach `theme` through the profile menu, then close it again. IDEA is the state a fresh browser already has. */
-const reach = (theme) =>
+export const reach = (theme) =>
 	theme === 'idea'
 		? [
 				{
