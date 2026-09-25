@@ -38,8 +38,9 @@ export default {
 		{ selector: MIC, label: 'the control says what a press does', must: ['Stop'], mustNot: ['Speak'] },
 		{
 			selector: '[data-testid="palette-voice-note"]',
-			label: 'listening, what it heard, and that nothing is recorded or sent',
-			must: ['Listening.', 'Heard "gear ratios"', 'Nothing is named exactly that', 'nothing is recorded or sent']
+			label: 'listening, what it heard, whose service listens, and that the portal records nothing',
+			must: ['Listening.', 'Heard "gear ratios"', 'Nothing is named exactly that', 'speech service listens', 'the portal records nothing'],
+			mustNot: ['nothing is recorded or sent']
 		}
 	],
 	contrast: [

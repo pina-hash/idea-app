@@ -232,9 +232,24 @@ export function voiceMissNote(match: VoiceMatch): string {
  * constant rather than words in a template because it is the claim the whole
  * feature stands on and must be impossible for a second surface to state
  * differently.
+ *
+ * IT NAMES WHOSE SERVICE HEARS THE AUDIO, because "nothing is sent" is not
+ * true of the browser (ledger 0298 review). `SpeechRecognition` in Chrome and
+ * Edge hands the audio to Google's speech service and in Safari to Apple's
+ * (`$lib/feedback/dictation.ts`'s header); what is true is that the PORTAL
+ * receives no audio and keeps no transcript. The short line said "nothing is
+ * recorded or sent" for as long as voice existed, on screen while a
+ * student's audio was on its way to Google.
  */
 export const VOICE_PRIVACY_NOTE =
-	'The microphone is off until you press Speak, and closing search turns it off again. Your browser turns speech into text; the portal never records audio and never sends what you say anywhere. It stops on its own as soon as it understands one command.';
+	'The microphone is off until you press Speak, and closing search turns it off again. Your browser’s own speech service (Google’s in Chrome and Edge, Apple’s in Safari) turns speech into text; the portal never records audio and never sends what you say anywhere. It stops on its own as soon as it understands one command.';
+
+/**
+ * THE SERVICE'S "NOTHING WAS HEARD", IN THIS CONTROL'S WORDS. The shared
+ * dictation driver's sentence names the report box's DICTATE button, which is
+ * not on this screen; everything else it says is true here and is shown as is.
+ */
+export const VOICE_NO_SPEECH_NOTE = 'Nothing was heard. Press Speak and try again, closer to the microphone, or just type.';
 
 /** The one-line version, shown while listening. */
-export const VOICE_SHORT_NOTE = 'Your browser listens; nothing is recorded or sent.';
+export const VOICE_SHORT_NOTE = 'Your browser’s speech service listens; the portal records nothing.';

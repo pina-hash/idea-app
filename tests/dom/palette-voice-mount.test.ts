@@ -73,6 +73,11 @@ class Fake implements SpeechRecognitionLike {
 	hearing(text: string) {
 		this.onresult?.({ resultIndex: 0, results: [{ isFinal: false, length: 1, 0: { transcript: text } }] });
 	}
+	/** The service refusing, then ending, the order a real one reports it in. */
+	fail(code: string) {
+		this.onerror?.({ error: code } as SpeechRecognitionErrorLike);
+		this.onend?.({});
+	}
 }
 const FakeCtor = Fake as unknown as SpeechRecognitionCtor;
 
@@ -283,5 +288,18 @@ describe('typing, closing and "stop" each end the session', () => {
 		expect(rec.calls).toContain('abort');
 		expect(gotos()).toEqual([]);
 		expect(note(m)).toBe('Stopped listening.');
+	});
+	it('the service hearing nothing names THIS control, and the control returns to Speak', async () => {
+		const m = openPalette();
+		const rec = speak(m);
+		rec.fail('no-speech');
+		await m.settle();
+		expect(note(m)).toBe('Nothing was heard. Press Speak and try again, closer to the microphone, or just type.');
+		expect(note(m)).not.toMatch(/DICTATE/);
+		expect(mic(m)!.textContent).toMatch(/Speak/);
+		// POSITIVE CONTROL: any other refusal is the shared sentence, verbatim.
+		speak(m).fail('not-allowed');
+		await m.settle();
+		expect(note(m)).toBe('The browser did not allow the microphone. Allow it for this site in the address bar, or just type.');
 	});
 });

@@ -63,6 +63,7 @@
 	import {
 		Dictation,
 		dictationConstructor,
+		dictationErrorMessage,
 		dictationLang,
 		type SpeechRecognitionCtor
 	} from '$lib/feedback/dictation';
@@ -70,6 +71,7 @@
 		VOICE_IDLE_MS,
 		VOICE_IDLE_NOTE,
 		VOICE_INTERIM_STABLE_MS,
+		VOICE_NO_SPEECH_NOTE,
 		VOICE_PRIVACY_NOTE,
 		VOICE_SHORT_NOTE,
 		matchSpoken,
@@ -363,9 +365,11 @@
 						voiceSession = null;
 					}
 				},
-				/* Already in the person's words (`dictationErrorMessage`), so shown verbatim. */
+				/* Already in the person's words (`dictationErrorMessage`), so shown
+				   verbatim -- except "nothing was heard", whose shared sentence names
+				   the report box's DICTATE button, which is not on this screen. */
 				onError: (message) => {
-					voiceNote = message;
+					voiceNote = message === dictationErrorMessage('no-speech') ? VOICE_NO_SPEECH_NOTE : message;
 				}
 			},
 			dictationLang()

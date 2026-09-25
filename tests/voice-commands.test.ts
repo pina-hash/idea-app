@@ -32,6 +32,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	VOICE_INTERIM_STABLE_MS,
 	VOICE_PRIVACY_NOTE,
+	VOICE_SHORT_NOTE,
 	VOICE_STOP_PHRASES,
 	matchSpoken,
 	spokenForms,
@@ -233,5 +234,23 @@ describe('the sentence a person reads before the microphone is asked for', () =>
 		expect(note).toContain('closing search turns it off');
 		expect(note).toContain('never records audio');
 		expect(note).toContain('never sends what you say anywhere');
+	});
+	/**
+	 * AND IT DOES NOT CLAIM MORE THAN THE PORTAL CAN (ledger 0298 review). The
+	 * browser's speech service is remote in Chrome and Edge (Google's) and in
+	 * Safari (Apple's), so "nothing is sent" is false of the browser; both
+	 * sentences say whose service listens and keep the "never" claims on the
+	 * portal. A later edit restoring "nothing is recorded or sent" reads fine and
+	 * is untrue, which is why it is asserted rather than reviewed.
+	 */
+	it('names whose service hears the audio, and keeps every "never" on the portal', () => {
+		const note = VOICE_PRIVACY_NOTE.toLowerCase();
+		expect(note).toContain('google');
+		expect(note).toContain('apple');
+		expect(note).toContain('the portal never');
+		const short = VOICE_SHORT_NOTE.toLowerCase();
+		expect(short).toContain('speech service');
+		expect(short).toContain('the portal');
+		expect(short).not.toMatch(/nothing is (recorded or )?sent/);
 	});
 });
