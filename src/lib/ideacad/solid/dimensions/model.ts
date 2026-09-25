@@ -266,6 +266,8 @@ export function sketchDimensions(sketch: Pick<SketchProjection, 'feature' | 'con
 	const out: Dimension[] = [], counts = new Map<string, number>();
 	for (const c of sketch.constraints) {
 		if (!DIMENSIONED.includes(c.type) || !('value' in c)) continue;
+		/* A distance to a line of exactly zero is the Point on line RELATION a snap writes (`sketch/snap.ts`), not a size: listing it would put a "0.000 in" on the model beside every snapped point. */
+		if (c.type === 'pointLineDistance' && c.value === 0) continue;
 		const word = CONSTRAINT_WORDS[c.type] ?? c.type;
 		const n = (counts.get(word) ?? 0) + 1; counts.set(word, n);
 		/* With the entities to hand the detail says what the number measures in words a student reads ("horizontal", "circle"); without them, the entity ids, which is all there is. */

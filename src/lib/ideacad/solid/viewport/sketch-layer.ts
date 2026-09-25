@@ -20,7 +20,10 @@
  * viewport's own selection green AND named in the panel; a hovered one is
  * pale gold AND the panel says what the press will do; a snap is a marker
  * whose SHAPE says which snap it is (a square on a point, a cross at the
- * origin, a rule for level or plumb) as well as its colour.
+ * origin, a triangle on a midpoint, an X where two curves cross, a ring on a
+ * curve, a solid rule for level or plumb and a DASHED one back to a point it
+ * is lined up with) as well as its colour, and the cursor cue beside the
+ * pointer says it in a word (`SketchEditor.svelte`, `snapCue`).
  */
 import * as THREE from 'three';
 import { dot, sub } from '../math';
@@ -95,6 +98,8 @@ export function constraintGlyph(entities: readonly SketchEntity[], c: SketchCons
 		}
 		case 'pointLineDistance': {
 			const p = pt(c.point), l = line(c.line); if (!p || !l) return [];
+			/* At zero it is the POINT ON LINE relation, and the witness below would be two arrowheads of zero length at one spot: nothing to see. It takes the ring every other "point on" relation takes. */
+			if (c.value === 0) return [ring(p, 0.6 * s, 8)];
 			const { a, d } = midOf(entities, l), t = (p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1], f = at(a, d, t), n = unit2([p[0] - f[0], p[1] - f[1]]);
 			return [[p, f], ...arrow(f, [-n[0], -n[1]], s), ...arrow(p, n, s)];
 		}
@@ -137,12 +142,36 @@ export function constraintGlyph(entities: readonly SketchEntity[], c: SketchCons
 }
 /** Every constraint's glyph, keyed by the constraint that owns it. */
 export const constraintGlyphs = (entities: readonly SketchEntity[], constraints: readonly SketchConstraint[], size: number) => constraints.map((c) => ({ constraint: c.id, strokes: constraintGlyph(entities, c, size) }));
-/** The marker for a snap: a square on a point, a cross at the origin, a rule along the alignment. */
+/** A dashed guide from `a` to `b`: dashes about one marker long, never more than forty of them, since each is one polyline the panel redraws on every pointer move. */
+function dashed(a: Vec2, b: Vec2, s: number): Stroke[] {
+	const len = Math.hypot(b[0] - a[0], b[1] - a[1]); if (len < 1e-12) return [];
+	const dash = Math.max(0.8 * s, len / 40), step = dash * 1.6, d = unit2([b[0] - a[0], b[1] - a[1]]), out: Stroke[] = [];
+	for (let t = 0; t < len; t += step) out.push([at(a, d, t), at(a, d, Math.min(len, t + dash))]);
+	return out;
+}
+const triangle = (c: Vec2, s: number): Stroke => [[c[0], c[1] + s], [c[0] + 0.87 * s, c[1] - 0.5 * s], [c[0] - 0.87 * s, c[1] - 0.5 * s], [c[0], c[1] + s]];
+const xMark = (c: Vec2, h: number): Stroke[] => [[[c[0] - h, c[1] - h], [c[0] + h, c[1] + h]], [[c[0] - h, c[1] + h], [c[0] + h, c[1] - h]]];
+/**
+ * The marker for a snap. The FIRST stroke of a level or plumb snap is the
+ * solid rule from the previous point, then a dashed guide from each point it
+ * is lined up with, then the shape that says what it landed on: a square on a
+ * point, a cross at the origin, a triangle on a midpoint, an X where two
+ * curves cross, a ring on a curve, and a small cross at the end of a guide.
+ */
 export function snapStrokes(snap: Snap, s: number): Stroke[] {
-	if (snap.kind === 'point') return [square(snap.at, s)];
-	if (snap.kind === 'origin') return cross(snap.at, 1.4 * s);
-	if (snap.reference) return [[snap.reference, snap.at], ...cross(snap.at, 0.5 * s)];
-	return [];
+	if (snap.kind === 'none') return [];
+	const out: Stroke[] = [];
+	if (snap.reference && (snap.level || snap.kind === 'horizontal' || snap.kind === 'vertical')) out.push([snap.reference, snap.at]);
+	for (const g of snap.aligned ?? []) out.push(...dashed(g.from, snap.at, s));
+	switch (snap.kind) {
+		case 'point': out.push(square(snap.at, s)); break;
+		case 'origin': out.push(...cross(snap.at, 1.4 * s)); break;
+		case 'midpoint': out.push(triangle(snap.at, s)); break;
+		case 'intersection': out.push(...xMark(snap.at, 0.8 * s)); break;
+		case 'onCurve': out.push(ring(snap.at, 0.8 * s, 12)); break;
+		default: out.push(...cross(snap.at, 0.5 * s));
+	}
+	return out;
 }
 
 /* --------------------------------------------------------- editing look */
