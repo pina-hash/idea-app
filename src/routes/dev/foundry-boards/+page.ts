@@ -1,21 +1,28 @@
 /**
- * THE FIXTURE FOR THE RANKED SECTIONS AND THE SEARCH BOX.
+ * THE FIXTURE FOR THE GALLERY'S ONE SORT CONTROL AND ITS SEARCH BOX.
  *
- * NINE APPS, WHICH IS NOT AN ARBITRARY NUMBER: `FOUNDRY_BOARD_SIZE` is five and
- * `foundryBoards` renders nothing at or below it, so a fixture of five would
- * verify the suppression and nothing else. Nine is the smallest count that
- * shows a board is a TOP FIVE rather than the whole list -- four apps have to
- * be left off each row for that to be visible at all.
+ * THE ROUTE NAME IS HISTORICAL. Until decision 39 (2026-09-25) this harness
+ * measured up to four ranked sections ("boards") above the list; those are gone
+ * and every order they ranked on is an option in one native `<select>`. The
+ * path stays because the browser-verify specs and their measured files are
+ * named after it, and a rename would be churn with nothing to show for it.
  *
- * EVERY RANKING HAS A DIFFERENT WINNER, deliberately. If one app led every
- * board, a bug that ranked all four sections on the same field would render
- * four identical rows and look exactly like working code.
+ * NINE APPS, AND EVERY ORDER HAS A DIFFERENT WINNER, deliberately. If one app
+ * led every order, a bug that ranked all seven on the same field would render
+ * the same list under every option and look exactly like working code.
  *
  *   trending   Sprout Sim       +8  (9 this week against 1 the week before)
  *   played     Cookie Press     310 all time, and FALLING, so it is not trending
  *   hours      Orbit Lab        4h 10m, on only 40 plays
  *   new        Frog Frenzy      the most recent created_at
  *   versions   Maze Maker       11 versions
+ *
+ * `?fixture=unplayed` IS THE SAME NINE APPS WITH EVERY PLAY FIGURE AT ZERO,
+ * which is the state a new gallery is in. Every play order then has nothing to
+ * rank, and the control has to SAY so rather than show a list that looks
+ * ranked; the flat sentences are measured on it. It is a query parameter, not
+ * a second route, so the apps and the component are byte-identical between the
+ * two and only the counts differ.
  *
  * THE SEARCH CASES ARE IN THE DATA rather than in the drive:
  *
@@ -28,9 +35,15 @@
  *                     tolerance rung.
  *   "Reyes"           finds Ana Reyes's three apps by author name.
  *   "xylophone"       finds nothing, which is the empty state.
+ *
+ * DEV ONLY: 404 in production, like every harness here. It had no such guard
+ * until decision 39's bundle found it missing.
  */
+import { error } from '@sveltejs/kit';
+import { dev } from '$app/environment';
 import type { FoundryAppSummary } from '$lib/foundry/transports';
 import type { FoundryPlayCounts } from '$lib/foundry/telemetry';
+import type { PageLoad } from './$types';
 
 export const prerender = false;
 export const ssr = true;
@@ -192,7 +205,10 @@ const SEEDS: Seed[] = [
 	}
 ];
 
-export function load() {
+export const load: PageLoad = ({ url }) => {
+	if (!dev) error(404, 'Not found');
+	const unplayed = url.searchParams.get('fixture') === 'unplayed';
+
 	const apps: FoundryAppSummary[] = SEEDS.map((s, i) => ({
 		id: `app-${i}`,
 		slug: s.slug,
@@ -218,13 +234,15 @@ export function load() {
 	const playCounts: FoundryPlayCounts = {};
 	for (let i = 0; i < SEEDS.length; i++) {
 		const s = SEEDS[i];
-		playCounts[`app-${i}`] = {
-			plays: s.plays,
-			plays7d: s.plays7d,
-			playsPrev7d: s.playsPrev7d,
-			seconds: s.seconds
-		};
+		playCounts[`app-${i}`] = unplayed
+			? { plays: 0, plays7d: 0, playsPrev7d: 0, seconds: 0 }
+			: {
+					plays: s.plays,
+					plays7d: s.plays7d,
+					playsPrev7d: s.playsPrev7d,
+					seconds: s.seconds
+				};
 	}
 
-	return { apps, playCounts };
-}
+	return { apps, playCounts, unplayed };
+};

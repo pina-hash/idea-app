@@ -252,16 +252,49 @@ describe('a launcher card on a light ground (AppLauncher --acc-ink under Space W
 		}
 	});
 
-	it('re-inks the one launcher mark that paints a literal near-white', () => {
-		// GreenlineMark draws its start line and its lapping machine in
-		// #eafff3, 1.05:1 on the light card: the icon read as an empty ring.
-		// The launcher's theme rule hands those strokes the card's own ink.
-		const mark = readFileSync('src/lib/marks/GreenlineMark.svelte', 'utf8');
-		expect(mark).toContain('stroke="#eafff3"'); // positive control: the literal is still there to override
+	it('no launcher mark paints a literal colour, so the card ink reaches every stroke with no theme rule', () => {
+		// GREENLINE's old mark drew its start line and its lapping machine in a
+		// literal #eafff3, 1.05:1 on the light card, and the launcher carried a
+		// Space White rule to re-stroke them. The mark was redrawn on
+		// currentColor (ledger 0298), so the rule is gone -- and the property
+		// that replaces it is this one, over every mark the launcher imports: a
+		// hex outside a `var(--x, #fallback)` would paint the same on both
+		// themes and could not be re-inked by the card.
+		const imported = [...launcher.matchAll(/import ([A-Z][A-Za-z]*Mark) from '\$lib\/marks\//g)].map((m) => m[1]);
+		expect(imported.length).toBeGreaterThanOrEqual(12); // positive control on the reader
+		const offenders: string[] = [];
+		for (const name of imported) {
+			const src = readFileSync(`src/lib/marks/${name}.svelte`, 'utf8')
+				.replace(/<!--[\s\S]*?-->/g, '')
+				.replace(/\/\*[\s\S]*?\*\//g, '')
+				.replace(/var\(--[a-z0-9-]+,\s*#[0-9a-fA-F]{3,8}\)/g, '');
+			if (/#[0-9a-fA-F]{3,8}\b/.test(src)) offenders.push(name);
+		}
+		expect(offenders).toEqual([]);
+		// NEGATIVE CONTROL: the literal the old mark carried really was invisible here.
 		expect(ratio(parse('#eafff3').rgb, PANEL)).toBeLessThan(1.5);
-		expect(style).toMatch(
-			/:global\(:root\[data-theme='space-white'\]\) \.app-card\[data-app='greenline'\] \.app-icon :global\(:is\(\.gl-line, \.gl-trail, \.gl-marker\)\) \{\s*stroke: currentColor;/
-		);
+		// And the retired rule is not left behind, re-stroking classes nothing draws.
+		expect(style).not.toContain('.gl-marker');
+	});
+
+	it('gives the four cards that declare no accent the green ink, never the brown gold (decision 40)', () => {
+		/* The default pair is --gold / --green, and --gold under this theme is
+		   #715d22 -- the brown a lightness-only yellow lands on over white, which
+		   painted Classroom, My Notebook, Coin Desk and IdeaCAD olive. The
+		   default card's INK moves to the theme's green; the identity pair (and
+		   so the strip) is untouched. */
+		expect(style).toMatch(/:global\(:root\[data-theme='space-white'\]\) \.app-card \{[^}]*--acc-ink: var\(--green\);/);
+		const green = token('--green');
+		const gold = token('--gold');
+		expect(ratio(green, PANEL)).toBeGreaterThanOrEqual(4.5);
+		expect(ratio(green, over(green, 0.05, PANEL))).toBeGreaterThanOrEqual(4.5);
+		expect(ratio(green, INSET)).toBeGreaterThanOrEqual(4.5);
+		expect(ratio(over(green, 0.75, PAGE), PAGE)).toBeGreaterThanOrEqual(3);
+		expect(washed(green, PANEL)).toBeGreaterThanOrEqual(3);
+		// The hue it replaces, read out of the same theme file: a dark yellow.
+		const [h] = rgbToHsl(gold);
+		expect(h).toBeGreaterThan(35);
+		expect(h).toBeLessThan(60);
 	});
 
 	it('NEGATIVE CONTROL: every identity as authored fails as text on the light card', () => {

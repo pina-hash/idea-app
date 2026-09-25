@@ -8,7 +8,7 @@
 	import IdentityBanner from '$lib/IdentityBanner.svelte';
 	import BadgeIcon from '$lib/tournaments/BadgeIcon.svelte';
 	import PathwayChip from '$lib/PathwayChip.svelte';
-	import { PATHWAYS, pathwayColor, withAlpha } from '$lib/pathways';
+	import { PATHWAYS } from '$lib/pathways';
 	import {
 		SITE_THEMES,
 		SITE_THEME_LABELS,
@@ -19,6 +19,7 @@
 	import {
 		AVATAR_PRESETS,
 		AVATAR_TIERS,
+		avatarSource,
 		displayName,
 		markTransform,
 		presetMarks,
@@ -64,20 +65,105 @@
 	 * anchored UI is checked for off-edge positioning at both ends). A read of
 	 * the DOM, not a guess about the header, and `untrack`ed because the
 	 * effect's one input is `open`.
+	 *
+	 * AND IT STOPS AT THE FLOOR OF THE VIEWPORT, WHICH IT DID NOT (report R18,
+	 * ledger 0298). The panel had no max-height and did not scroll, so on the
+	 * portal it ran past the fold and in the classroom it ran past the bottom
+	 * of `.cr-app`, which above 1024px is `100dvh` with `overflow: hidden` --
+	 * so the lower half of the panel, Sign out included, could not be reached
+	 * by any scroll at all. The same read now also measures the room from the
+	 * panel's own top down to the viewport's floor and hands it to CSS as
+	 * `--pm-max-h`, and the panel scrolls inside that box with its scrollbar
+	 * showing (no region on this site may hide its scrollbar). Kept as an
+	 * absolutely positioned popover rather than moved to `$lib/shell/anchored`:
+	 * the horizontal answer above is already measured on sixty-nine mastheads,
+	 * and a fixed-position panel is re-anchored by any ancestor carrying a
+	 * `transform` or a `filter`, which nobody has audited those headers for.
+	 *
+	 * `MIN_PANEL_PX` is the floor of the clamp: a trigger sitting low on a
+	 * short window (a page scrolled halfway past its header) still opens a
+	 * panel tall enough to be a panel, and the page scrolls for the rest.
+	 * Re-measured on resize, because a phone rotating or a desktop window
+	 * being dragged shorter moves the floor under an open panel.
+	 *
+	 * THE FLOOR IS ALSO THE TOP OF ANYTHING FLOATING OVER IT. Outside the
+	 * classroom the Report and Voice controls float in the bottom corners at
+	 * `z-index: 90`, above every masthead's stacking context, and a panel
+	 * clamped to the bare viewport put Sign out exactly under Report: measured
+	 * on the real home page at 375x667, the hit test at Sign out's centre
+	 * answered the Report pill's own word. So the band the panel could reach
+	 * is sampled with `elementFromPoint`, and a FIXED box painting there that
+	 * is not a backdrop (it starts below the panel's top and is under half the
+	 * window tall) raises the floor to just above its top edge. Found by where
+	 * it paints rather than by its class name, so an install prompt, or a
+	 * control added next year, is honoured with no edit here. The band is
+	 * sampled every 16px across and down, closer than the 44px any control is
+	 * wide or tall, so a floating control cannot fall between two samples;
+	 * each element's fixed ancestor is looked up once per open.
 	 */
 	const GUTTER = 8;
+	const MIN_PANEL_PX = 220;
+	const floatingFloor = (el: HTMLElement, left: number, right: number, top: number) => {
+		const start = window.innerHeight - GUTTER;
+		let floor = start;
+		const fixedOf = new Map<Element, Element | null>();
+		const fixedAncestor = (hit: Element): Element | null => {
+			const seen: Element[] = [];
+			let n: Element | null = hit;
+			let found: Element | null = null;
+			while (n) {
+				if (fixedOf.has(n)) {
+					found = fixedOf.get(n) ?? null;
+					break;
+				}
+				seen.push(n);
+				if (getComputedStyle(n).position === 'fixed') {
+					found = n;
+					break;
+				}
+				n = n.parentElement;
+			}
+			for (const s of seen) fixedOf.set(s, found);
+			return found;
+		};
+		const across = Math.max(2, Math.ceil((right - left) / 16));
+		for (let i = 0; i <= across; i++) {
+			const x = left + 2 + ((right - left - 4) * i) / across;
+			for (let dy = 0; dy <= 96; dy += 16) {
+				const y = start - dy;
+				if (y <= top) break;
+				const hit = document.elementFromPoint(x, y);
+				if (!hit || el.contains(hit)) continue;
+				const fixed = fixedAncestor(hit);
+				if (!fixed) continue;
+				const fr = fixed.getBoundingClientRect();
+				if (fr.top > top && fr.height < window.innerHeight / 2) {
+					floor = Math.min(floor, fr.top - GUTTER);
+				}
+			}
+		}
+		return floor;
+	};
+	const fitPanel = (el: HTMLDivElement) => {
+		el.style.setProperty('--pm-shift', '0px');
+		const r = el.getBoundingClientRect();
+		const overLeft = GUTTER - r.left;
+		const overRight = r.right - (window.innerWidth - GUTTER);
+		const shift = overLeft > 0 ? overLeft : overRight > 0 ? -overRight : 0;
+		if (shift) el.style.setProperty('--pm-shift', `${Math.round(shift)}px`);
+		const floorY = floatingFloor(el, r.left + shift, r.right + shift, r.top);
+		const room = Math.floor(floorY - r.top);
+		const least = Math.min(MIN_PANEL_PX, window.innerHeight - 2 * GUTTER);
+		el.style.setProperty('--pm-max-h', `${Math.max(room, least)}px`);
+	};
 	$effect(() => {
 		if (!open) return;
 		const el = panel;
-		untrack(() => {
-			if (!el) return;
-			el.style.setProperty('--pm-shift', '0px');
-			const r = el.getBoundingClientRect();
-			const overLeft = GUTTER - r.left;
-			const overRight = r.right - (window.innerWidth - GUTTER);
-			const shift = overLeft > 0 ? overLeft : overRight > 0 ? -overRight : 0;
-			if (shift) el.style.setProperty('--pm-shift', `${Math.round(shift)}px`);
-		});
+		if (!el) return;
+		untrack(() => fitPanel(el));
+		const onResize = () => fitPanel(el);
+		window.addEventListener('resize', onResize);
+		return () => window.removeEventListener('resize', onResize);
 	});
 	let editingName = $state(false);
 	let nameDraft = $state('');
@@ -217,12 +303,30 @@
 	 * whole control exists to remove. The display name sitting two rows above
 	 * is the same trust level and is freely editable.
 	 *
-	 * Tapping the current pathway writes nothing: `aria-checked` already says
-	 * it is set, and a no-op round trip is a spinner with nothing behind it.
+	 * Choosing the current pathway writes nothing (a native select fires no
+	 * `change` for it anyway, and the guard stays for any other caller): a
+	 * no-op round trip is a spinner with nothing behind it.
 	 */
 	const choosePathway = (id: string) => {
 		if (profile?.pathway === id) return;
 		return saveProfile({ pathway: id });
+	};
+
+	/**
+	 * THE SELECT IS PUT BACK ON THE STORED VALUE AFTER EVERY WRITE (ledger 0298,
+	 * report R18: "a bunch of things and drop down lists"). A native select
+	 * moves the moment a student picks, before anything is written, and a
+	 * REFUSED write changes no reactive value -- the profile row is exactly what
+	 * it was -- so Svelte would never repaint it and the control would sit on a
+	 * pathway the database declined. That is the markup running ahead of the
+	 * write, which is the one thing `saveProfile` selects the row back to
+	 * prevent. Reading `profile` after the await is the stored row either way:
+	 * the new one after `invalidateAll()`, the old one after a refusal.
+	 */
+	const onPathwayChange = async (e: Event) => {
+		const el = e.currentTarget as HTMLSelectElement;
+		await choosePathway(el.value);
+		el.value = profile?.pathway ?? '';
 	};
 
 	/**
@@ -370,9 +474,62 @@
 		profile?.avatar?.startsWith('preset:') ? profile.avatar.slice('preset:'.length) : null
 	);
 
-	// Pathway identity (identity only, never an access gate): the chip sits
-	// beside the avatar, and the display name is tinted in the pathway color.
-	const nameTint = $derived(pathwayColor(profile?.pathway));
+	/**
+	 * THE CURRENT PICTURE, IN WORDS, on the row that opens the picker. The
+	 * picture itself is the avatar at the head of the panel; this names it, so
+	 * the collapsed row says what a student has without the seventeen tiles
+	 * having to be on screen to say it. Read off `avatarSource`, the ONE
+	 * resolution `Avatar.svelte` renders from, so the word cannot name a picture
+	 * the avatar is not showing.
+	 */
+	const pictureName = $derived.by(() => {
+		const src = avatarSource(profile);
+		if (src.kind === 'preset') return src.preset.label;
+		if (src.kind === 'image')
+			return profile?.avatar?.startsWith('upload:') ? 'Your upload' : 'Google photo';
+		return 'Initials';
+	});
+
+	/* Real ids for `for` / `aria-describedby` / `aria-labelledby`, per mount:
+	   the literals these replaced would collide on a page carrying two menus. */
+	const uid = $props.id();
+	const pathwaySelectId = `pm-pathway-${uid}`;
+	const pathwayNoteId = `pm-pathway-note-${uid}`;
+	const themeLabelId = `pm-theme-label-${uid}`;
+
+	/**
+	 * OPENING THE LAST SECTION BRINGS IT INTO VIEW (ledger 0298 review). Identity
+	 * sits below the theme, so on a panel the clamp cut short its row is at the
+	 * floor, and opening it grew the panel DOWNWARD, out of sight: measured on
+	 * the home page at 375x667, 8px of the section showed under its own row and
+	 * the only change on screen was the word Show becoming Hide. So a press that
+	 * leaves the disclosure open scrolls THE PANEL, and only the panel, until
+	 * the row sits at the panel's top. `scrollIntoView` is refused on purpose:
+	 * it scrolls every scrollable ancestor, which on the portal is the page the
+	 * header sits in, and would carry the panel's own anchor away.
+	 *
+	 * A native listener on the section rather than an `onclick` on the div (a
+	 * static element with a click handler is two a11y warnings over the
+	 * baseline), and read after a TIMEOUT rather than a frame: `Disclosure`
+	 * flips `aria-expanded` in its own flush, and a backgrounded tab never ticks
+	 * `requestAnimationFrame`. It reads the DOM and writes `scrollTop`, no
+	 * state, so it cannot feed an effect.
+	 */
+	const revealWhenOpened = (node: HTMLElement) => {
+		const onClick = (e: Event) => {
+			const trigger = e.target instanceof Element ? e.target.closest('.disc-trigger') : null;
+			if (!trigger || !node.contains(trigger)) return;
+			setTimeout(() => {
+				const box = panel;
+				if (!box || trigger.getAttribute('aria-expanded') !== 'true') return;
+				const offset =
+					trigger.getBoundingClientRect().top - box.getBoundingClientRect().top - GUTTER;
+				if (offset > 0) box.scrollTop += offset;
+			}, 0);
+		};
+		node.addEventListener('click', onClick);
+		return { destroy: () => node.removeEventListener('click', onClick) };
+	};
 </script>
 
 <svelte:document onpointerdown={onDocPointerDown} onkeydown={onKeydown} />
@@ -394,7 +551,13 @@
 
 		{#if open}
 			<div class="pm-panel" role="menu" bind:this={panel}>
-				<div class="pm-id">
+				<!-- THE HEAD OF THE PANEL IS ONE BLOCK: the current picture, the
+				     name, the pathway chip and role, the Edit name control beside
+				     them and the address under them (ledger 0298, report R18). Edit
+				     name used to take a row of its own, 56px of a panel that did not
+				     fit a phone; beside the name it costs nothing, and the address
+				     spans the full width so it is never squeezed by the button. -->
+				<div class="pm-id" class:editing={editingName}>
 					<Avatar {profile} size={44} />
 					<div class="pm-id-text">
 						{#if editingName}
@@ -423,162 +586,193 @@
 								</div>
 							</form>
 						{:else}
-							<div class="pm-name" style={nameTint ? `color:${nameTint}` : ''}>
-								{displayName(profile)}
-							</div>
+							<!-- THE NAME IS NOT TINTED BY PATHWAY (decision 40's side
+							     question, report R19). It painted the RAW identity as
+							     text -- IDEA's #00FF41 measured 1.29:1 on Space White's
+							     light panel -- and on the dark themes three of the six
+							     identities fail 4.5:1 as a word. It takes `--text-1`,
+							     and the `PathwayChip` beside it carries the colour with
+							     its own measured ink. -->
+							<div class="pm-name">{displayName(profile)}</div>
 						{/if}
 						<div class="pm-meta">
 							<PathwayChip pathway={profile?.pathway} size="sm" />
 							<span class="pm-role">{profile?.role ?? 'signed in'}</span>
-							{#if claims.email}<span class="pm-email">{claims.email}</span>{/if}
 						</div>
 					</div>
+					{#if !editingName}
+						<button class="pm-btn pm-edit" type="button" onclick={startNameEdit}>Edit name</button>
+					{/if}
+					{#if claims.email}<span class="pm-email">{claims.email}</span>{/if}
 				</div>
-				{#if !editingName}
-					<div class="pm-row">
-						<button class="pm-btn" type="button" onclick={startNameEdit}>Edit name</button>
-					</div>
-				{/if}
 
 				<!-- THE PATHWAY, SET FROM HERE AND NOT ONLY FROM THE FIRST-LOGIN
 				     SHEET. See `choosePathway` above for why this control exists and
 				     why any of the six is writable rather than only the unset case.
 
-				     IT SITS WITH THE IDENTITY CONTROLS, directly under the name it is
-				     the other half of: the chip beside the avatar and the tint on the
-				     display name are both this value, so the control belongs where
-				     what it changes is on screen. Picture and Theme follow.
+				     A LABELLED NATIVE SELECT (ledger 0298, report R18: "it should
+				     just be a bunch of things and drop down lists"). It was six
+				     tiles three across, about 110px of a panel that already ran past
+				     the fold; one row is 44px. A native select is the platform's own
+				     single choice from a fixed set, it announces its label and its
+				     value without any `aria-checked` bookkeeping, and a phone opens
+				     its own picker for it. UNSET IS A LEGAL STATE: a student who
+				     deferred the first-login sheet sees "Choose one", a disabled
+				     placeholder that disappears once a pathway is stored.
 
-				     A RADIOGROUP, THE WAY THE THEME PICKER IS, because the six are
-				     exactly one choice of a fixed set and `aria-checked` says which
-				     without anybody having to see the tint. UNSET IS A LEGAL STATE
-				     and renders as no tile checked, which is what a student who
-				     deferred the sheet arrives here with.
-
-				     ONE TAP IS THE WRITE, mirroring the presets in the section below
-				     rather than the sheet's pick-then-confirm: a confirm step buys
-				     nothing for a change that is undone by tapping a different tile,
-				     and the chip two rows up is the acknowledgement.
-
-				     COLOUR IS NOT THE ONLY SIGNAL. The checked tile carries a check
-				     glyph as well as the identity edge, the identity tint and
-				     `aria-checked`; every tile carries its code as a visible word and
-				     its pathway glyph beside it. The ink and the fill come from
-				     `pathways.ts`, where the ink is the identity at a lightness that
-				     clears 4.5:1 on exactly this tint. -->
+				     COLOUR IS NOT THE ONLY SIGNAL AND IS NOT HERE AT ALL. The select
+				     says the code in words; the `PathwayChip` in the row above is the
+				     identity colour, with its own measured ink. One pick is the write,
+				     and `onPathwayChange` puts the control back on the stored row
+				     afterwards, so a refused write does not leave it showing a
+				     pathway the database declined. -->
 				<div class="pm-section">
-					<div class="pm-label" id="pm-pathway-label">Pathway</div>
-					<p class="pm-note">
-						Shows on your profile and the boards. It never limits what you can open, and you can
-						change it here.
+					<div class="pm-inline">
+						<label class="pm-label" for={pathwaySelectId}>Pathway</label>
+						<select
+							id={pathwaySelectId}
+							class="pm-select"
+							value={profile?.pathway ?? ''}
+							disabled={busy}
+							aria-describedby={pathwayNoteId}
+							onchange={onPathwayChange}
+						>
+							{#if !profile?.pathway}
+								<option value="" disabled>Choose one</option>
+							{/if}
+							{#each PATHWAYS as p (p.id)}
+								<option value={p.id}>{p.label}</option>
+							{/each}
+						</select>
+					</div>
+					<p class="pm-note" id={pathwayNoteId}>
+						Shows on the boards, never limits what you open.
 					</p>
-					<div class="pm-pathways" role="radiogroup" aria-labelledby="pm-pathway-label">
-						{#each PATHWAYS as p (p.id)}
+				</div>
+
+				<!-- THE PICTURE: THE AVATAR AT THE HEAD OF THIS PANEL IS THE CURRENT
+				     ONE, AND THIS ROW IS THE CHANGE CONTROL (ledger 0298, report
+				     R18). Seventeen tiles in three tiers were rendered
+				     unconditionally, about 530px on their own; they are behind a
+				     `Disclosure` now, closed on every open of the panel (`scope` is
+				     null, so nothing is remembered, and `collapseWhen` constant-true
+				     is how "closed on arrival" is spelled; the signal is LATCHED
+				     inside Disclosure, so a student who opens it keeps it open while
+				     they choose). The collapsed row names the current picture in
+				     words from `avatarSource`, the one resolution Avatar renders.
+
+				     Each preset is still a 44px control WITH ITS WORD (ledger 0117,
+				     report 23): a glyph is not a control's name, and `aria-pressed`
+				     carries the selection for anyone not looking at the ring. -->
+				<div class="pm-section">
+					<Disclosure label="Change picture" collapseWhen={true} testId="pm-picture-toggle">
+						{#snippet meta()}<span class="pm-pic-now">{pictureName}</span>{/snippet}
+						{#snippet children()}
+							<div class="pm-picker" data-testid="pm-picker">
+								<!-- GROUPED BY TIER (ledger 0289, report 14: "there should be more
+								     options"). Eight marks were a grid; seventeen without a word
+								     over each group is a wall, and the tiers are what let a
+								     student find the mascots rather than scroll past them. The
+								     groups come from AVATAR_TIERS and the membership from
+								     `presetTier`, so adding a preset needs no edit here. -->
+								{#each AVATAR_TIERS as tier (tier.id)}
+									{@const inTier = AVATAR_PRESETS.filter((p) => presetTier(p) === tier.id)}
+									{#if inTier.length}
+										<div class="pm-tier">
+											<span class="pm-tier-name">{tier.label}</span>
+											<span class="pm-tier-note">{tier.note}</span>
+										</div>
+										<div class="pm-presets">
+											{#each inTier as p (p.id)}
+												<button
+													class="pm-preset"
+													class:selected={currentPreset === p.id}
+													type="button"
+													aria-pressed={currentPreset === p.id}
+													disabled={busy}
+													onclick={() => choosePreset(p.id)}
+												>
+													<span class="pm-preset-mark" aria-hidden="true">
+														<!-- EVERY MARK, through `presetMarks`, which is the ONE
+														     implementation `Avatar.svelte` also calls. This was a
+														     single `<path d={p.d} />` in both files; with richer
+														     presets two copies would be a cat with eyes in one
+														     place and a cat without them in the other. -->
+														<svg
+															viewBox="0 0 24 24"
+															fill="none"
+															stroke="currentColor"
+															stroke-width="1.5"
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															style="--pm-preset-fg:{p.fg};--pm-preset-fg-light:{p.fgOnLight ?? p.fg}"
+														>
+															{#each presetMarks(p) as mark, i (i)}
+																<path
+																	d={mark.d}
+																	fill={mark.fill ?? 'none'}
+																	stroke={mark.fill ? 'none' : (mark.stroke ?? 'currentColor')}
+																	stroke-width={mark.width ?? 1.5}
+																	transform={markTransform(mark)}
+																/>
+															{/each}
+														</svg>
+													</span>
+													<span class="pm-preset-word">{p.label}</span>
+												</button>
+											{/each}
+										</div>
+									{/if}
+								{/each}
+								<div class="pm-row">
+									<label class="pm-btn pm-upload" class:disabled={busy}>
+										Upload a picture
+										<input type="file" accept="image/*" onchange={onUpload} disabled={busy} />
+									</label>
+									{#if profile?.avatar}
+										<button class="pm-btn" type="button" disabled={busy} onclick={useGooglePhoto}>
+											Use Google photo
+										</button>
+									{/if}
+								</div>
+							</div>
+						{/snippet}
+					</Disclosure>
+				</div>
+
+				<!-- THE SITE THEME CONTROL. Here and nowhere else, which is what the
+				     session gate in ThemeRoot is paired with: the theme is on exactly
+				     where the thing that turns it off is reachable.
+
+				     RADIOS, NOT A SWITCH. Two states when this was written and a third
+				     arrived as a file (Space White, ledger 0297), which is exactly the
+				     case a boolean control would have had to be rebuilt for -- and a
+				     radio group already says "these are the choices, this is the
+				     current one" without a label anybody has to read twice. The
+				     classroom's one-tap `ThemeSwitch` is a shortcut to one of these
+				     rows, not a second picker.
+				     Each row carries its name AND what it is for: "Matrix" is a name
+				     nobody can infer a look from, exactly as "IDEA" is in the
+				     notebook's own picker. -->
+				<div class="pm-section">
+					<div class="pm-label" id={themeLabelId}>Theme</div>
+					<div class="pm-themes" role="radiogroup" aria-labelledby={themeLabelId}>
+						{#each SITE_THEMES as t (t)}
 							<button
-								class="pm-pathway"
-								class:selected={profile?.pathway === p.id}
+								class="pm-theme"
+								class:selected={siteTheme() === t}
 								type="button"
 								role="radio"
-								aria-checked={profile?.pathway === p.id}
-								disabled={busy}
-								style="--pw:{p.color}; --pw-ink:{p.ink}; --pw-ink-light:{p.inkOnLight}; --pw-bg:{withAlpha(p.color, 0.12)}"
-								onclick={() => choosePathway(p.id)}
+								aria-checked={siteTheme() === t}
+								onclick={() => setSiteTheme(t)}
 							>
-								<span class="pm-pathway-mark" aria-hidden="true">
-									<svg
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2"
-										stroke-linecap="round"
-										stroke-linejoin="round"
-									>
-										<!-- eslint-disable-next-line svelte/no-at-html-tags -- static markup from the pathways registry, never user input -->
-										{@html p.icon}
-									</svg>
-								</span>
-								<span class="pm-pathway-word">
-									{p.label}<span class="pm-pathway-tick" aria-hidden="true"
-										>{profile?.pathway === p.id ? ' \u2713' : ''}</span
-									>
+								<span class="pm-theme-swatch" data-theme-swatch={t} aria-hidden="true"></span>
+								<span class="pm-theme-text">
+									<span class="pm-theme-name">{SITE_THEME_LABELS[t]}</span>
+									<span class="pm-theme-note">{SITE_THEME_NOTES[t]}</span>
 								</span>
 							</button>
 						{/each}
-					</div>
-				</div>
-
-				<!-- THE PICTURE: eight preset marks, each a 44px control WITH ITS WORD
-				     (ledger 0117, report 23). They were 8-across at ~32px with a
-				     `title` nobody on a phone can hover; a glyph is not a control's
-				     name. `aria-pressed` carries the selection for anyone not
-				     looking at the ring. -->
-				<div class="pm-section">
-					<div class="pm-label">Picture</div>
-					<!-- GROUPED BY TIER (ledger 0289, report 14: "there should be more
-					     options"). Eight marks were a grid; seventeen without a word
-					     over each group is a wall, and the tiers are what let a
-					     student find the mascots rather than scroll past them. The
-					     groups come from AVATAR_TIERS and the membership from
-					     `presetTier`, so adding a preset needs no edit here. -->
-					{#each AVATAR_TIERS as tier (tier.id)}
-						{@const inTier = AVATAR_PRESETS.filter((p) => presetTier(p) === tier.id)}
-						{#if inTier.length}
-							<div class="pm-tier">
-								<span class="pm-tier-name">{tier.label}</span>
-								<span class="pm-tier-note">{tier.note}</span>
-							</div>
-							<div class="pm-presets">
-								{#each inTier as p (p.id)}
-									<button
-										class="pm-preset"
-										class:selected={currentPreset === p.id}
-										type="button"
-										aria-pressed={currentPreset === p.id}
-										disabled={busy}
-										onclick={() => choosePreset(p.id)}
-									>
-										<span class="pm-preset-mark" aria-hidden="true">
-											<!-- EVERY MARK, through `presetMarks`, which is the ONE
-											     implementation `Avatar.svelte` also calls. This was a
-											     single `<path d={p.d} />` in both files; with richer
-											     presets two copies would be a cat with eyes in one
-											     place and a cat without them in the other. -->
-											<svg
-												viewBox="0 0 24 24"
-												fill="none"
-												stroke="currentColor"
-												stroke-width="1.5"
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												style="--pm-preset-fg:{p.fg};--pm-preset-fg-light:{p.fgOnLight ?? p.fg}"
-											>
-												{#each presetMarks(p) as mark, i (i)}
-													<path
-														d={mark.d}
-														fill={mark.fill ?? 'none'}
-														stroke={mark.fill ? 'none' : (mark.stroke ?? 'currentColor')}
-														stroke-width={mark.width ?? 1.5}
-														transform={markTransform(mark)}
-													/>
-												{/each}
-											</svg>
-										</span>
-										<span class="pm-preset-word">{p.label}</span>
-									</button>
-								{/each}
-							</div>
-						{/if}
-					{/each}
-					<div class="pm-row">
-						<label class="pm-btn pm-upload" class:disabled={busy}>
-							Upload a picture
-							<input type="file" accept="image/*" onchange={onUpload} disabled={busy} />
-						</label>
-						{#if profile?.avatar}
-							<button class="pm-btn" type="button" disabled={busy} onclick={useGooglePhoto}>
-								Use Google photo
-							</button>
-						{/if}
 					</div>
 				</div>
 
@@ -609,10 +803,31 @@
 				     cannot honour. `profileStyleReady` is the one reading of that,
 				     and it keys on `undefined` rather than on a value, so "chose no
 				     accent" (null) cannot read as "cannot tell".
+
+				     AND IT NO LONGER REMEMBERS BEING OPENED (ledger 0298, report
+				     R18). It carried `scope="profile-identity"`, so one visit to
+				     customize left it open on every later open of the menu, on every
+				     page, which is the too-tall panel the report is about arriving
+				     for good. Customizing is a visit, not a standing layout: the
+				     section arrives closed each time, and the latch still keeps it
+				     open while a student is working in it.
+
+				     AND IT COMES AFTER THE THEME, NOT BEFORE IT (ledger 0298 review).
+				     Theme and Sign out are the two controls this panel must show
+				     without a scroll; Identity is an optional visit. Above the theme,
+				     its closed row pushed the Space White radio under the sticky
+				     footer wherever the panel is clamped short: MEASURED on the real
+				     home page with the 0220 columns present (production's state) at
+				     375x667, where the floating Report control lifts the floor, the
+				     panel needed 31px of scroll and that radio sat at 496.6..559.2
+				     under a footer starting at 536.6. Below the theme, the row the
+				     clamp cuts is this one, and a student opening it is already
+				     choosing to scroll. Change picture stays ABOVE the theme on
+				     purpose: its tiles open directly under its own row, in view.
 				     ==================================================================== -->
 				{#if styleReady}
-					<div class="pm-section">
-						<Disclosure label="Identity" collapseWhen={true} scope="profile-identity">
+					<div class="pm-section" use:revealWhenOpened>
+						<Disclosure label="Identity" collapseWhen={true} testId="pm-identity-toggle">
 							{#snippet children()}
 								<div class="pm-identity">
 									<p class="pm-hint">
@@ -826,42 +1041,6 @@
 					</div>
 				{/if}
 
-				<!-- THE SITE THEME CONTROL. Here and nowhere else, which is what the
-				     session gate in ThemeRoot is paired with: the theme is on exactly
-				     where the thing that turns it off is reachable.
-
-				     RADIOS, NOT A SWITCH. Two states when this was written and a third
-				     arrived as a file (Space White, ledger 0297), which is exactly the
-				     case a boolean control would have had to be rebuilt for -- and a
-				     radio group already says "these are the choices, this is the
-				     current one" without a label anybody has to read twice. The
-				     classroom's one-tap `ThemeSwitch` is a shortcut to one of these
-				     rows, not a second picker.
-				     Each row carries its name AND what it is for: "Matrix" is a name
-				     nobody can infer a look from, exactly as "IDEA" is in the
-				     notebook's own picker. -->
-				<div class="pm-section">
-					<div class="pm-label" id="pm-theme-label">Theme</div>
-					<div class="pm-themes" role="radiogroup" aria-labelledby="pm-theme-label">
-						{#each SITE_THEMES as t (t)}
-							<button
-								class="pm-theme"
-								class:selected={siteTheme() === t}
-								type="button"
-								role="radio"
-								aria-checked={siteTheme() === t}
-								onclick={() => setSiteTheme(t)}
-							>
-								<span class="pm-theme-swatch" data-theme-swatch={t} aria-hidden="true"></span>
-								<span class="pm-theme-text">
-									<span class="pm-theme-name">{SITE_THEME_LABELS[t]}</span>
-									<span class="pm-theme-note">{SITE_THEME_NOTES[t]}</span>
-								</span>
-							</button>
-						{/each}
-					</div>
-				</div>
-
 				{#if errorMsg}
 					<!-- THE PANEL'S ONE PROBLEM LIST, for the name, the picture, the
 					     upload and the pathway alike. See the effect above for why it
@@ -908,7 +1087,14 @@
 	   argument is that the theme is on exactly where the control that turns
 	   it off is reachable (ThemeRoot's session gate is paired with THIS
 	   menu), and a page would be a second surface writing the same four
-	   fields from 69 headers that already carry the first. A MODAL DIALOG: a
+	   fields from 69 headers that already carry the first. REPORT R18
+	   (ledger 0298) ASKED FOR ONE ANYWAY, for fuller customization, and it
+	   is recorded as later work rather than refused: a top-level `/profile`
+	   is shadowed by the `[shortlink]` catch-all until the slug is reserved,
+	   which is a migration (`_app_short_link_reserved` and `RESERVED_SLUGS`
+	   together), and the theme argument above is then answered by keeping
+	   the theme control HERE and putting only the picture and identity
+	   editors on the page -- mounted from shared components, never copied. A MODAL DIALOG: a
 	   name edit does not need to take the page, and the pointerdown
 	   outside-dismiss this component already gets right is the anchored
 	   popover's contract. A LIGHT PAPER PLATE: this is the portal shell's own
@@ -979,28 +1165,62 @@
 		box-shadow:
 			var(--bevel-raised),
 			0 16px 40px rgba(0, 0, 0, 0.55);
-		padding: var(--space-4);
+		/* No bottom padding: the Sign out row is a sticky footer that carries
+		   its own, so it can sit flush on the panel's floor while the rest
+		   scrolls under it. */
+		padding: var(--space-3) var(--space-4) 0;
 		text-align: left;
 		display: grid;
-		gap: var(--space-3);
+		/* --space-2 rather than --space-3 between sections and inside them
+		   (ledger 0298): with the pathway a select and the picture behind a
+		   disclosure, the rhythm was the last 40px between the panel and a
+		   375x667 window. */
+		gap: var(--space-2);
 		/* Set from the script on open when the box would cross a viewport
 		   edge; 0 everywhere the header already leaves room. */
 		transform: translateX(var(--pm-shift, 0px));
+		/* THE PANEL ENDS AT THE VIEWPORT'S FLOOR AND SCROLLS INSIDE ITSELF
+		   (report R18). `--pm-max-h` is measured from the panel's own top on
+		   open (see `fitPanel`); the fallback covers the one frame before that
+		   read lands. `overflow-y: auto` shows the platform scrollbar exactly
+		   when there is more, and nothing here hides it: no region on this site
+		   may hide its scrollbar. `overscroll-behavior: contain` so reaching the
+		   panel's end does not start scrolling the page under it. */
+		max-height: var(--pm-max-h, calc(100dvh - 6rem));
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		/* THE STICKY FOOTER'S HEIGHT, SO A SCROLL INTO VIEW CLEARS IT. The
+		   refusal sentence is brought into view by `scrollIntoView`, and
+		   keyboard focus scrolls a control into view the same way; without this
+		   both would stop with the target under the Sign out row. */
+		scroll-padding-bottom: 4.5rem;
 	}
+	/* The picture, the name block and Edit name on the first row; the address
+	   on the second, under the name and the button together. Auto-placement
+	   puts the avatar in the first column, so it needs no rule of its own. */
 	.pm-id {
-		display: flex;
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
 		align-items: center;
-		gap: var(--space-3);
+		column-gap: var(--space-3);
+		row-gap: 0.15rem;
 	}
 	.pm-id-text {
 		min-width: 0;
-		flex: 1;
+	}
+	.pm-id.editing .pm-id-text {
+		grid-column: 2 / -1;
+	}
+	.pm-edit {
+		align-self: start;
 	}
 	.pm-name {
 		font-family: var(--font-display);
 		font-weight: 700;
 		font-size: 1.15rem;
-		color: var(--white);
+		/* The name's own tier, never the pathway identity (decision 40, R19):
+		   the chip beside it carries the colour. */
+		color: var(--text-1);
 		line-height: 1.2;
 		overflow-wrap: anywhere;
 	}
@@ -1019,12 +1239,14 @@
 		color: var(--cyan);
 	}
 	.pm-email {
+		grid-column: 2 / -1;
+		min-width: 0;
 		font-family: var(--font-mono);
 		font-size: 0.74rem;
 		color: var(--text-2);
 		overflow: hidden;
 		text-overflow: ellipsis;
-		max-width: 100%;
+		white-space: nowrap;
 	}
 
 	/* --- One control class, 44px, a word on every one -------------------- */
@@ -1107,7 +1329,7 @@
 	.pm-section {
 		display: grid;
 		gap: var(--space-2);
-		padding-top: var(--space-3);
+		padding-top: var(--space-2);
 		border-top: 1px solid var(--hairline);
 	}
 	.pm-label {
@@ -1190,87 +1412,88 @@
 		cursor: default;
 	}
 
-	/* --- The pathway: six identity tiles, three across --------------------
-	   THREE ACROSS RATHER THAN THE PRESETS' FOUR, because a pathway code is a
-	   word of up to four letters plus a tick and the panel is 343px wide at
-	   375px. Four columns of six tiles would also leave two empty cells in the
-	   second row; three leaves none.
+	/* --- The pathway: a labelled native select, one row ------------------
+	   The label and the control share a row because the label is one word and
+	   the value is a four-letter code: stacked, they spent a second row saying
+	   nothing. The select is the 44px control; the label is text, not a target.
 
-	   EACH TILE PAINTS ITSELF FROM `pathways.ts` THROUGH THREE CUSTOM
-	   PROPERTIES SET INLINE (`--pw`, `--pw-ink`, `--pw-bg`), the same shape
-	   `PathwayChip` and the first-login sheet use. They are inline because the
-	   value is per pathway and comes from the registry -- the launcher's
-	   cascade argument does not apply, since there is no shared default here a
-	   later rule would need to reach past.
-
-	   THE INK DRAWS THE WORD AND THE GLYPH; THE IDENTITY DRAWS THE EDGE AND
-	   THE FILL. `pathways.ts` derives each ink so it clears 4.5:1 on exactly
-	   this 12% tint over the portal's three grounds; the raw identity does not
-	   for CSEE, MSET and BMET. */
-	.pm-pathways {
-		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: var(--space-2);
+	   `color-scheme` IS THE ONLY WAY TO REACH THE OPEN LIST. The browser draws
+	   the dropdown itself, and without it the dark panel opened a white list;
+	   under Space White it is `light`, which is the classroom's `.cr-select`
+	   rule one room over. The caret is two gradients rather than a glyph so it
+	   takes the ink token and needs no image. */
+	.pm-inline {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
 	}
-	.pm-pathway {
-		display: grid;
-		justify-items: center;
-		align-content: center;
-		gap: 0.25rem;
+	.pm-select {
+		appearance: none;
+		-webkit-appearance: none;
+		flex: 0 1 12rem;
+		min-width: 0;
 		min-height: 44px;
-		padding: 0.4rem 0.2rem;
-		background: var(--bg2);
+		padding: 0.45rem 2.2rem 0.45rem 0.8rem;
+		background-color: var(--bg2);
+		background-image:
+			linear-gradient(45deg, transparent 50%, var(--text-2) 50%),
+			linear-gradient(135deg, var(--text-2) 50%, transparent 50%);
+		background-position:
+			calc(100% - 1.15rem) 50%,
+			calc(100% - 0.75rem) 50%;
+		background-size: 0.4rem 0.4rem;
+		background-repeat: no-repeat;
 		border: 1px solid var(--boundary);
 		border-radius: var(--radius-control);
+		color: var(--text-1);
+		color-scheme: dark;
+		font-family: var(--font-display);
+		font-weight: 600;
+		/* 1rem, not the 0.95rem of the buttons: iOS Safari zooms the page onto a
+		   focused select under 16px, and the viewport meta does not (and should
+		   not) forbid zoom, so a smaller face leaves a phone zoomed in after
+		   every pathway pick. */
+		font-size: 1rem;
+		line-height: 1.2;
 		cursor: pointer;
-		color: var(--pw-ink, var(--text-2));
-		transition: border-color 0.2s ease;
 	}
-	/* Under Space White the tile is light and the word takes the pathway's
-	   light-ground ink (`inkOnLight` in $lib/pathways.ts, ledger 0297). */
-	:global(:root[data-theme='space-white']) .pm-pathway {
-		color: var(--pw-ink-light, var(--pw-ink, var(--text-2)));
+	.pm-select option {
+		background: var(--bg2);
+		color: var(--text-1);
 	}
-	.pm-pathway-mark {
-		width: 26px;
-		height: 26px;
-		display: grid;
-		place-items: center;
+	:global(:root[data-theme='space-white']) .pm-select {
+		color-scheme: light;
 	}
-	.pm-pathway-mark svg {
-		width: 100%;
-		height: 100%;
+	.pm-select:hover,
+	.pm-select:focus-visible {
+		border-color: var(--green);
 	}
-	.pm-pathway-word {
-		font-family: var(--font-mono);
-		font-size: 0.66rem;
-		letter-spacing: 0.06em;
-		line-height: 1.15;
-		text-align: center;
-	}
-	.pm-pathway:hover,
-	.pm-pathway:focus-visible {
-		border-color: var(--pw, var(--green));
-	}
-	.pm-pathway:focus-visible {
+	.pm-select:focus-visible {
 		outline: 2px solid var(--focus-ring);
 		outline-offset: 1px;
 	}
-	/* THE CHECKED TILE IS MARKED FOUR WAYS -- the identity edge, the identity
-	   tint, the tick glyph in its word and `aria-checked` -- so neither the hue
-	   nor any single one of them is carrying the state alone. */
-	.pm-pathway.selected {
-		border-color: var(--pw, var(--green));
-		background: var(--pw-bg, var(--bg2));
-	}
-	.pm-pathway:disabled {
+	.pm-select:disabled {
 		opacity: 0.6;
 		cursor: default;
 	}
 
+	/* The current picture, named, in the Change picture row. `--text-2` on the
+	   panel's own ground, the tier `Disclosure` gives its meta anyway; stated
+	   here so the word does not depend on that inheritance. */
+	.pm-pic-now {
+		color: var(--text-2);
+	}
+	.pm-picker {
+		display: grid;
+		gap: var(--space-2);
+	}
+
 	/* One short line of student-facing copy under a section label. `--text-2`
-	   and not `--dim`: `--dim` measures 4.46:1 on `--bg1`, which is the panel's
-	   own ground, and this is real copy rather than decoration. */
+	   and not `--dim`: `--dim` measures 4.52:1 on `--bg1`, the panel's own
+	   ground, a hair over the floor and under it on `--bg2` (CLAUDE.md's `--dim`
+	   paragraph; this line said 4.46 until that figure was re-measured), and
+	   this is real copy rather than decoration. */
 	.pm-note {
 		margin: 0;
 		font-family: var(--font-display);
@@ -1442,13 +1665,28 @@
 		   targets this element. */
 		scroll-margin-block: var(--space-3);
 	}
+	/* SIGN OUT IS A STICKY FOOTER, SO IT IS ON SCREEN HOWEVER MUCH IS OPEN
+	   ABOVE IT (ledger 0298, report R18). With the picker or the identity
+	   controls expanded the panel scrolls, and the one control a person on a
+	   shared school computer must always be able to find stays pinned to the
+	   panel's floor. It carries a `z-index` because sticky makes it POSITIONED
+	   and positioned siblings paint in tree order, and an opaque ground
+	   because a transparent footer over scrolling content is two lines of
+	   text on top of each other (CLAUDE.md's sticky trap, both halves). The
+	   negative inline margin takes the ground out to the panel's edges so
+	   nothing scrolling under it shows at the sides. */
 	.pm-actions {
+		position: sticky;
+		bottom: 0;
+		z-index: 1;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		flex-wrap: wrap;
 		gap: var(--space-2);
-		padding-top: var(--space-3);
+		margin-inline: calc(-1 * var(--space-4));
+		padding: var(--space-2) var(--space-4) var(--space-3);
+		background: var(--bg1);
 		border-top: 1px solid var(--hairline);
 	}
 	.pm-link {
@@ -1480,8 +1718,7 @@
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.pm-caret,
-		.pm-preset,
-		.pm-pathway {
+		.pm-preset {
 			transition: none;
 		}
 	}

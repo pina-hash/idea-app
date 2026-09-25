@@ -197,6 +197,16 @@
 	--status-danger-fill: color-mix(in srgb, var(--crimson) 12%, transparent);
 	--status-info-fill: color-mix(in srgb, var(--cyan) 12%, transparent);
 	--signal-hot: var(--amber);
+	/* THE HOVER INK (ledger 0298, decision 40 item 1): the colour a control's
+	   word, glyph or edge turns to under the pointer. On the dark themes it is
+	   the brass it has always been, so nothing there moves; Space White points
+	   it at its green ink, because "lightness only" applied to a yellow hue on
+	   a white ground lands on brown (--gold there is #715d22) and Mr. Pina
+	   asked for green hovers on that theme. A hover rule that painted
+	   `var(--gold)` reads this instead. A room that redeclares --gold (the
+	   GAUNTLET viewport, the FSP deck) keeps its own gold and does not read
+	   this token. */
+	--hover-ink: var(--gold);
 }
 
 /* --- The notebook's own tokens (--nb-*): THE ROOM FOLLOWS THE SITE THEME ------

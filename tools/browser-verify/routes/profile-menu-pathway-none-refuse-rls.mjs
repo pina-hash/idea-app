@@ -18,13 +18,15 @@
  * WHAT MUST BE TRUE AFTERWARDS, and all four are asserted below because the
  * defect this guards is a partial success:
  *   1. the stored row did NOT move;
- *   2. no tile is checked -- the markup did not run ahead of the write;
+ *   2. the select is back on its placeholder -- the markup did not run
+ *      ahead of the write (a native select moves the moment somebody picks,
+ *      so since ledger 0298 `onPathwayChange` puts it back on the stored row);
  *   3. no chip appeared anywhere, so nothing on screen claims the value took;
  *   4. the panel says why, in a visible sentence, in its one problem list.
  *
- * (3) IS THE ONE WORTH KEEPING. A control that optimistically paints itself
- * checked and then quietly reverts is the standard way this goes wrong, and it
- * is invisible in a screenshot taken a moment later.
+ * (2) AND (3) ARE THE ONES WORTH KEEPING. A control that shows the new value
+ * and never goes back is the standard way this goes wrong with a select, and
+ * a screenshot of it looks exactly like success.
  *
  * IT IS DRIVEN FROM THE SAME STRANDED START as the success spec -- a student
  * with no pathway, past the sheet -- so the two runs differ in exactly one
@@ -50,17 +52,19 @@ export default {
 			label: 'open the panel from the trigger'
 		},
 		{
-			evaluate: `() => { const r = document.querySelector('[data-testid="pathway"]'); return 'before: stored=' + (r ? r.textContent.trim() : 'NO READOUT') + ', chips=' + document.querySelectorAll('.pathway-chip').length + ', errors=' + document.querySelectorAll('.pm-error').length; }`,
-			label: 'the pathway before the refused tap'
+			evaluate: `() => { const r = document.querySelector('[data-testid="pathway"]'); const sel = document.querySelector('.pm-select'); return 'before: stored=' + (r ? r.textContent.trim() : 'NO READOUT') + ', select=' + (sel ? JSON.stringify(sel.value) : 'NO SELECT') + ', chips=' + document.querySelectorAll('.pathway-chip').length + ', errors=' + document.querySelectorAll('.pm-error').length; }`,
+			label: 'the pathway before the refused choice'
 		},
 		{
-			/* THE TAP, AND THE `until` IS THE REFUSAL RATHER THAN THE WRITE.
+			/* THE CHOICE, AND THE `until` IS THE REFUSAL RATHER THAN THE WRITE.
 			   Waiting on the stored row would time out by design here, and a
 			   prepare step that times out invalidates every number after it --
-			   so the predicate is the outcome this run is actually expecting. */
-			click: '.pm-pathway:nth-of-type(4)',
+			   so the predicate is the outcome this run is actually expecting.
+			   The select is set and a real `change` dispatched, which is what a
+			   pick does and what `onPathwayChange` listens for. */
+			evaluate: `() => { const s = document.querySelector('.pm-select'); s.value = 'CSEE'; s.dispatchEvent(new Event('change', { bubbles: true })); return 'picked ' + s.value; }`,
 			until: `() => !!document.querySelector('.pm-error')`,
-			label: 'tap CSEE and wait for the panel to report the refusal'
+			label: 'choose CSEE and wait for the panel to report the refusal'
 		},
 		{
 			/* THE SENTENCE ITSELF, PRINTED. What a student reads is the thing
@@ -71,14 +75,14 @@ export default {
 	],
 	presence: [
 		{ selector: '.pm-panel', label: 'the panel is still open (positive control)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '.pm-pathway', label: 'the six tiles are still there (positive control)', expectPresent: 6, maxPresent: 6, expectVisible: 6 },
+		{ selector: '.pm-select', label: 'the select is still there (positive control)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		/* THE REFUSAL IS ON SCREEN, in the panel's one problem list rather than
 		   a second place a student has to learn about. */
 		{ selector: '.pm-error', label: 'the refusal, visible in the panel', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		/* AND NOTHING CLAIMS THE WRITE LANDED. No tile checked, no chip on the
-		   trigger, no chip in the meta row -- the column is still null and every
-		   surface agrees with it. */
-		{ selector: '.pm-pathway[aria-checked="true"]', label: 'no tile checked after a refused write', expectPresent: 0, expectVisible: 0 },
+		/* AND NOTHING CLAIMS THE WRITE LANDED. The placeholder is still there to
+		   be selected, no chip on the trigger, no chip in the meta row -- the
+		   column is still null and every surface agrees with it. */
+		{ selector: '.pm-select option[value=""]', label: 'the placeholder survives a refused write (an option has no box of its own)', expectPresent: 1, maxPresent: 1, expectVisible: 0 },
 		{ selector: '.pathway-chip', label: 'no chip appeared after a refused write', expectPresent: 0, expectVisible: 0 }
 	],
 	orderResult: [
@@ -87,17 +91,21 @@ export default {
 			   OWN. Pinned by TEXT, because the words are the deliverable: a
 			   refusal that renders "Upload failed" or an empty string would
 			   satisfy every presence row above. */
-			label: 'the row did not move and the panel names the problem',
-			evaluate: `() => { const stored = document.querySelector('[data-testid="pathway"]').textContent.trim(); const e = document.querySelector('.pm-error'); return [stored, e ? e.textContent.trim() : 'NO SENTENCE']; }`,
-			expected: ['unset', 'Could not save your profile. Try signing out and back in.']
+			label: 'the row did not move, the select went back, and the panel names the problem',
+			evaluate: `() => { const stored = document.querySelector('[data-testid="pathway"]').textContent.trim(); const sel = document.querySelector('.pm-select'); const e = document.querySelector('.pm-error'); return [stored, sel ? 'select=' + JSON.stringify(sel.value) : 'NO SELECT', e ? e.textContent.trim() : 'NO SENTENCE']; }`,
+			expected: ['unset', 'select=""', 'Could not save your profile. Try signing out and back in.']
 		},
 		{
 			/* THE STUDENT CAN SEE IT WITHOUT SCROLLING PAST THE FOLD, which is
 			   the half a presence check cannot answer: `expectVisible` asks
-			   whether the element is painted, not whether it is on screen. */
-			label: 'the refusal is inside the viewport, not below the fold',
-			evaluate: `() => { const r = document.querySelector('.pm-error').getBoundingClientRect(); return [r.top >= 0 && r.bottom <= innerHeight ? 'inside the viewport' : 'off screen: ' + Math.round(r.top) + '..' + Math.round(r.bottom) + ' of ' + innerHeight]; }`,
-			expected: ['inside the viewport']
+			   whether the element is painted, not whether it is on screen. And
+			   since ledger 0298 Sign out is a sticky footer the sentence sits
+			   directly above, so it must also clear that footer: the panel's
+			   `scroll-padding-bottom` is what makes `scrollIntoView` stop short
+			   of it. */
+			label: 'the refusal is inside the viewport, not below the fold, and not under the Sign out footer',
+			evaluate: `() => { const r = document.querySelector('.pm-error').getBoundingClientRect(); const foot = document.querySelector('.pm-actions').getBoundingClientRect(); return [r.top >= 0 && r.bottom <= innerHeight ? 'inside the viewport' : 'off screen: ' + Math.round(r.top) + '..' + Math.round(r.bottom) + ' of ' + innerHeight, r.bottom <= foot.top + 0.5 ? 'clear of the footer' : 'UNDER THE STICKY FOOTER: ' + Math.round(r.bottom) + ' > ' + Math.round(foot.top)]; }`,
+			expected: ['inside the viewport', 'clear of the footer']
 		}
 	],
 	contrast: [{ selector: '.pm-error', label: 'the refusal sentence', min: 4.5 }]

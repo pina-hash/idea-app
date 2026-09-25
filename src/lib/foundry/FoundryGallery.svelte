@@ -11,8 +11,18 @@
 	 * and gives the list the whole measure; that is the arrangement at every
 	 * width, not a placeholder state. And the list is then RESPONSIBLE FOR USING
 	 * the room -- a fixed column centred in a measure it was just handed is the
-	 * same defect one level in -- so the cards lay out in `auto-fit` columns and
+	 * same defect one level in -- so the cards lay out in multicol columns and
 	 * collapse to one when the pane narrows, with no breakpoint of their own.
+	 *
+	 * ONE LIST AND ONE SORT CONTROL, AND THAT IS DECISION 39 (2026-09-25). This
+	 * page used to open on up to four ranked sections above the list (0221,
+	 * reports 30 and 32b), each a row of cards that scrolled sideways. Mr. Pina
+	 * filed it as dead space and a stack of scrollbars and asked for one
+	 * drop-down that sorts every app. The dead space had a specific cause: a
+	 * card's height is its own cover's shape, so one portrait cover in a flex
+	 * ROW made the whole row tall with nothing beside the landscape cards. The
+	 * mosaic below is multicol, which has no rows to lock, so the same covers
+	 * pack with no gap.
 	 *
 	 * SELECTION LIVES IN THE URL, so an app is linkable, the back button works,
 	 * and a reload lands where the viewer was. The route owns the read; this owns
@@ -41,14 +51,16 @@
 	import FoundryCard from './FoundryCard.svelte';
 	import FoundryDetail from './FoundryDetail.svelte';
 	import FoundryPlayStats from './FoundryPlayStats.svelte';
-	import { foundryMosaicColumns } from './mosaic.ts';
+	import { foundryMosaicColumns, foundryMosaicFill } from './mosaic.ts';
 	import { foundrySearch, foundrySearchEmptyNote } from './search.ts';
 	import {
 		FOUNDRY_GALLERY_DEFAULT_SORT,
 		FOUNDRY_GALLERY_SORTS,
 		FOUNDRY_PLAY_COVERAGE_NOTE,
-		foundryBoards,
-		playCountLabel,
+		foundrySortFigure,
+		foundrySortNote,
+		gallerySortOption,
+		isGallerySort,
 		sortGallery,
 		type FoundryGallerySort,
 		type FoundryPlayCounts
@@ -82,6 +94,15 @@
 		 * count over an app.
 		 */
 		playCounts = {},
+		/**
+		 * FALSE WHEN THE ROUTE'S COUNT READ FAILED, so `playCounts` is empty
+		 * because nothing answered rather than because nothing was played. The
+		 * sentence beside the control then says the counts could not be loaded
+		 * instead of "Nothing has been played here yet", which on that input
+		 * would be a false statement about every app on the page. Defaults to
+		 * true: a harness or a test hands in counts it made itself.
+		 */
+		playCountsKnown = true,
 		/**
 		 * THE STAFF ROUTE FOR THE APP THAT IS OPEN, OR NOTHING.
 		 *
@@ -146,6 +167,7 @@
 		onSelect: (slug: string | null) => void;
 		appsOrigin?: string | undefined;
 		playCounts?: FoundryPlayCounts;
+		playCountsKnown?: boolean;
 		staffHref?: string | null;
 		playStats?: FoundryPlayStatsTransport | undefined;
 		myPlayStats?: FoundryMyPlayStatsTransport | undefined;
@@ -192,9 +214,10 @@
 	let query = $state('');
 
 	/**
-	 * SEARCHING REPLACES THE BOARDS RATHER THAN SITTING UNDER THEM. A person
-	 * who has typed something is looking for one app; four ranked sections
-	 * above their results are four things in the way of it.
+	 * SEARCHING REPLACES THE ORDER RATHER THAN SITTING UNDER IT. A person who
+	 * has typed something is looking for one app, and the results are ranked by
+	 * relevance then, so the sort control and its sentence step out of the way
+	 * and the cards carry no figure.
 	 */
 	const searching = $derived(query.trim().length > 0);
 
@@ -204,16 +227,17 @@
 	);
 
 	/**
-	 * THE RANKED SECTIONS, REPORTS 30 AND 32b, LIVE ON OPEN.
+	 * THE ORDER IN FORCE, AND THE SENTENCE BESIDE ITS CONTROL.
 	 *
-	 * `foundryBoards` decides which of them have anything to say -- see its own
-	 * header for the flatness rule and the size floor -- so this is a render of
-	 * whatever it returns and never a list of headings with empty rows under
-	 * them. A gallery too small to rank, or one where nothing has been played,
-	 * gets no boards and the list below is the whole page, which is the honest
-	 * arrangement rather than a degraded one.
+	 * `foundrySortNote` is what the order counts, or -- when nothing on this
+	 * gallery scores on it, say Most played before anybody has played anything
+	 * -- that it has nothing to rank. A list that silently LOOKS ranked implies
+	 * an order that was earned, which was the flatness rule the ranked sections
+	 * enforced by hiding themselves; with one list there is nothing to hide, so
+	 * the words carry it instead.
 	 */
-	const boards = $derived(searching ? [] : foundryBoards(apps, playCounts));
+	const option = $derived(gallerySortOption(sort));
+	const sortNote = $derived(foundrySortNote(apps, playCounts, sort, playCountsKnown));
 
 	/**
 	 * THE COLUMN CEILING, CAPPED AT THE NUMBER OF CARDS.
@@ -231,6 +255,21 @@
 	 * is being overridden.
 	 */
 	const mosaicColumns = $derived(foundryMosaicColumns(ordered.length, 5));
+
+	/**
+	 * AND THE COLUMNS A BALANCED MOSAIC WILL ACTUALLY FILL AT EACH WIDTH, which
+	 * is fewer than the card count more often than it looks: nine cards of one
+	 * shape in a pane that holds four columns fill three and leave the fourth
+	 * EMPTY (`foundryMosaicFill` has the arithmetic). The width is CSS's to know
+	 * and the count is ours, so every width's answer is handed over as data and
+	 * a container query below picks the one for the pane it is in -- no script
+	 * measures anything, and the server render is already right.
+	 */
+	const mosaicStyle = $derived(
+		[`--fdy-cols: ${mosaicColumns}`]
+			.concat([2, 3, 4, 5].map((c) => `--fdy-fill-${c}: ${foundryMosaicFill(ordered.length, c)}`))
+			.join('; ')
+	);
 </script>
 
 <ClassSplit hasDetail={selected !== null} narrow="swap" scroll="fill" detailWidth="roomy">
@@ -287,91 +326,68 @@
 			{/if}
 
 			<!--
-				THE RANKED SECTIONS, VISIBLE AND LIVE ON OPEN (report 32b), which
-				is the whole of what makes them different from the sort control
-				below: three or four orders at once rather than one at a time.
+				ONE SORT CONTROL OVER ONE LIST (decision 39). A NATIVE `<select>`
+				with a visible `<label>`: seven orders fit one line at every width,
+				the platform supplies the keyboard and screen-reader behaviour, and
+				a phone opens its own picker. It replaced a row of five buttons
+				under four ranked sections, and the sections with it.
 
-				EVERY BOARD IS `sortGallery`'s OWN RANKING. There is no second
-				comparator here and no second idea of what "most played" means --
-				a board is an order, a heading, five rows and the figure that
-				order ranks on. `telemetry.ts` holds all of it.
+				IT RENDERS WHENEVER THERE IS MORE THAN ONE APP TO ORDER, including
+				before anything has been played. Every app ties at zero then and the
+				sentence beside the control says so, which is the honest answer --
+				hiding the control until somebody plays something would make it
+				appear one day with no explanation.
 
-				THE COVERAGE NOTE IS RENDERED ONCE FOR THE WHOLE REGION rather
-				than under each board. `CLAUDE.md` requires it beside every play
-				figure and decision 04 records that the ranked LIST carries none
-				today; four copies of one sentence in one screen is noise that
-				gets skipped, and one sentence introducing four ranked sections
-				is read. It qualifies every number in the region it heads.
+				THE SORT STAYS OUT OF THE URL (decision 04): selection is a thing you
+				send someone, an order is a thing you do while looking.
+
+				THE COVERAGE NOTE IS BESIDE THE CONTROL WHENEVER THE ORDER RANKS ON
+				PLAYS, zero included. `CLAUDE.md` requires it beside every play
+				figure, and a gallery of one app still shows a figure on its one
+				card with no control above it -- so the note's condition is the
+				order's, not the control's.
 			-->
-			{#if boards.length > 0}
-				<section class="fdy-gal-boards" data-testid="foundry-gallery-boards">
-					<p class="fdy-gal-boards-note">{FOUNDRY_PLAY_COVERAGE_NOTE}</p>
-					{#each boards as board (board.sort)}
-						<section class="fdy-gal-board" data-board={board.sort}>
-							<header class="fdy-gal-board-head">
-								<h3>{board.title}</h3>
-								<p class="fdy-gal-board-rule">{board.rule}</p>
-							</header>
-							<ul class="fdy-gal-board-row">
-								{#each board.apps as app, i (app.id)}
-									<li>
-										<FoundryCard
-											{app}
-											href="/foundry?app={app.slug}"
-											selected={selected?.slug === app.slug}
-											{coverUrl}
-											plays={board.figures[i]}
-											onselect={onSelect}
-										/>
-									</li>
+			{#if apps.length > 0 && !searching}
+				<div class="fdy-gal-order" data-testid="foundry-gallery-order">
+					{#if apps.length > 1}
+						<div class="fdy-gal-sort">
+							<label class="fdy-gal-sort-label" for="fdy-gal-sort">Sort apps by</label>
+							<!--
+								`value` PLUS A HANDLER, NOT `bind:value`, so the DOM's
+								answer goes through `isGallerySort` before it becomes
+								state: a value the control does not offer is refused
+								rather than trusted, which is that predicate's whole job.
+							-->
+							<select
+								id="fdy-gal-sort"
+								class="fdy-gal-sort-select tap-44"
+								data-testid="foundry-gallery-sort"
+								value={sort}
+								onchange={(event) => {
+									const next = event.currentTarget.value;
+									if (isGallerySort(next)) sort = next;
+								}}
+							>
+								{#each FOUNDRY_GALLERY_SORTS as choice (choice.id)}
+									<option value={choice.id}>{choice.label}</option>
 								{/each}
-							</ul>
-						</section>
-					{/each}
-				</section>
-			{/if}
-
-			{#if apps.length > 1 && !searching}
-				<!--
-					REAL BUTTONS WITH WORDS ON THEM, in a labelled group, with
-					`aria-pressed` saying which one is on. Not a <select>: a handful of
-					options that change what is already on screen is a segmented
-					control, and a select hides all but one of them behind a press.
-
-					FIVE OF THEM SINCE 0221, and the row WRAPS rather than gaining a
-					breakpoint -- at 375 the labels do not fit one line and wrap to
-					two, which is the correct arrangement and needs no rule of its
-					own. The two BOARD orders (`trending`, `new`) are deliberately
-					not here: seven buttons in one group is a control nobody reads at
-					that width, and both of those answer a question you look at
-					rather than browse in.
-
-					IT RENDERS WHENEVER THERE IS MORE THAN ONE APP TO ORDER, including
-					before anything has been played. Every app ties at zero then and the
-					order is unchanged, which is the honest answer -- hiding the control
-					until somebody plays something would make it appear one day with no
-					explanation.
-				-->
-				<!--
-					THE HEADING EXISTS SO THE LIST IS NOT MISTAKEN FOR A FIFTH
-					BOARD. With ranked sections above it, an unlabelled mosaic
-					reads as another one of them; this says it is everything.
-				-->
-				{#if boards.length > 0}
-					<h3 class="fdy-gal-all">All {apps.length} apps</h3>
-				{/if}
-				<div class="fdy-gal-sort" role="group" aria-label="Order the gallery">
-					{#each FOUNDRY_GALLERY_SORTS as option (option.id)}
-						<button
-							type="button"
-							class="btn fdy-gal-sort-btn tap-44"
-							aria-pressed={sort === option.id}
-							data-sort={option.id}
-							onclick={() => (sort = option.id)}
-						>
-							{option.label}
-						</button>
-					{/each}
+							</select>
+							<!--
+								A LIVE REGION, because what changed when somebody picked an
+								order is the whole list below, which is off screen on a
+								phone. `role="status"` is polite, so it waits for the
+								picker to close rather than interrupting it.
+							-->
+							<p class="fdy-gal-sort-note" role="status" data-testid="foundry-sort-note">
+								{sortNote}
+							</p>
+						</div>
+					{/if}
+					{#if option.ranksPlays}
+						<p class="fdy-gal-coverage" data-testid="foundry-play-coverage">
+							{FOUNDRY_PLAY_COVERAGE_NOTE}
+						</p>
+					{/if}
 				</div>
 			{/if}
 
@@ -401,38 +417,24 @@
 					</button>
 				</div>
 			{:else}
-				<ul
-					class="fdy-gal-mosaic"
-					data-testid="foundry-gallery-grid"
-					style="--fdy-cols: {mosaicColumns}"
-				>
+				<ul class="fdy-gal-mosaic" data-testid="foundry-gallery-grid" style={mosaicStyle}>
 					{#each ordered as app (app.id)}
 						<!--
-							THE COUNT IS THE CALLER'S DECISION, NOT THE CARD'S, and it is
-							made here because this is what knows which ranking is in force.
-							Nothing at all under `Recent`: a number on every card of a
-							gallery nobody ordered by plays is noise, and it reads as a
-							verdict on the work rather than as a measurement. Under a play
-							ranking it follows the window being sorted on -- a card ranked
-							by this week showing its all-time total would be a ranking the
-							reader cannot check, and a ranked gallery showing no numbers at
-							all would be one they cannot check either.
-						-->
-						{@const plays = playCountLabel(
-							sort === 'played7d'
-								? (playCounts[app.id]?.plays7d ?? 0)
-								: (playCounts[app.id]?.plays ?? 0)
-						)}
-						<!--
+							THE FIGURE IS THE CALLER'S DECISION, NOT THE CARD'S, and it is
+							made here because this is what knows which order is in force.
+							It is ALWAYS that order's own metric (`foundrySortFigure`): a
+							card ranked by hours showing its play count is a ranking the
+							reader cannot check, which is what the list did under Most
+							hours and Most updated before decision 39. Nothing under an
+							order that ranks on a date, and nothing for a zero.
+
 							NOTHING WHILE SEARCHING. The list is ranked by relevance
-							then, not by plays, so a play count beside each card
-							would be a number that does not explain the order it is
-							sitting in -- the same reason `recent` prints none.
+							then, so a figure beside each card would be a number that
+							does not explain the order it is sitting in.
 						-->
-						{@const playsLabel =
-							searching || sort === 'recent' || !plays
-								? ''
-								: `${plays}${sort === 'played7d' ? ' this week' : ''}`}
+						{@const playsLabel = searching
+							? ''
+							: foundrySortFigure(sort, app, playCounts[app.id])}
 						<li>
 							<FoundryCard
 								{app}
@@ -515,11 +517,15 @@
 </ClassSplit>
 
 <style>
+	/* A NAMED CONTAINER, so the mosaic's column rules below can ask how wide
+	   the list is -- not the viewport, which says nothing about a pane beside
+	   an open app. Named so no unnamed query inside a card resolves to it. */
 	.fdy-gal-pane {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4, 1rem);
 		min-width: 0;
+		container: fdy-gal / inline-size;
 	}
 
 	/* A row of its own above the student page, so nothing about the app's own
@@ -594,114 +600,6 @@
 		color: var(--text-2, var(--dim));
 	}
 
-	/* -------------------------------------------------------------------
-	   THE RANKED SECTIONS (reports 30 and 32b).
-	   ------------------------------------------------------------------- */
-
-	.fdy-gal-boards {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-5, 1.25rem);
-		min-width: 0;
-	}
-
-	/* One coverage note for the whole region. See the markup for why it is not
-	   repeated per board. */
-	.fdy-gal-boards-note {
-		margin: 0;
-		font-family: var(--font-mono);
-		font-size: 0.75rem;
-		line-height: 1.5;
-		color: var(--text-2, var(--dim));
-	}
-
-	.fdy-gal-board {
-		min-width: 0;
-	}
-
-	.fdy-gal-board-head {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		gap: var(--space-2, 0.5rem);
-		margin: 0 0 var(--space-2, 0.5rem);
-	}
-
-	.fdy-gal-board-head h3 {
-		margin: 0;
-		font-family: var(--font-display);
-		font-size: 1.05rem;
-		letter-spacing: 0.02em;
-	}
-
-	/* WHAT THE BOARD COUNTS, beside the heading rather than hidden in a title
-	   attribute: a tooltip is not discoverable and a phone cannot hover. */
-	.fdy-gal-board-rule {
-		margin: 0;
-		font-family: var(--font-mono);
-		font-size: 0.75rem;
-		color: var(--text-2, var(--dim));
-	}
-
-	/*
-	   A BOARD IS A ROW THAT SCROLLS SIDEWAYS, NOT A GRID AND NOT THE MOSAIC.
-	   Five cards stacked vertically at 375px is five screens of one section
-	   before the next heading, which is the opposite of "all of them visible
-	   upon opening"; a horizontal row keeps each section one glance tall at
-	   every width and lets the ranking be read left to right, which is the
-	   direction a ranking is read in.
-
-	   IT KEEPS ITS SCROLLBAR. No region on this site may hide one (CLAUDE.md),
-	   and here it is the only thing saying there is more of the ranking than
-	   fits.
-
-	   `scroll-snap` ON THE CHILDREN so a swipe lands on a card rather than
-	   halfway through one. `proximity` and not `mandatory`: mandatory fights a
-	   deliberate small scroll and traps a keyboard user mid-row.
-	*/
-	.fdy-gal-board-row {
-		display: flex;
-		gap: var(--space-3, 0.75rem);
-		margin: 0;
-		padding: 0 0 var(--space-2, 0.5rem);
-		list-style: none;
-		overflow-x: auto;
-		scroll-snap-type: x proximity;
-		overscroll-behavior-x: contain;
-	}
-
-	/*
-	   `flex: 0 1` AND A FLOOR, NEVER `0 0`, AND THE MEASUREMENT IS WHY.
-
-	   With `flex: 0 0 min(16rem, 78%)` five cards plus four gaps came to 1328px
-	   against 1294px of pane at 1440 -- so the board scrolled by THIRTY-FOUR
-	   PIXELS and the fifth-ranked app was clipped on a desktop with room to
-	   spare. That reads as a top four with something behind it, which is the
-	   one thing a ranked row must not do, and a screenshot shows it as a card
-	   that looks fine at the right edge.
-
-	   Allowing shrink with a FLOOR fixes the wide case without touching the
-	   narrow one: at 1440 the cards give up a few pixels each and all five fit
-	   with no scroll, and at 375 the floor is larger than a fifth of the pane
-	   so the row still overflows and still scrolls, with the next card peeking
-	   -- which is the affordance saying the ranking continues. `0 1` and not
-	   `1 1`: a board of two cards must not stretch them across the whole
-	   measure.
-	*/
-	.fdy-gal-board-row > li {
-		flex: 0 1 min(16rem, 78%);
-		min-width: min(14rem, 78%);
-		scroll-snap-align: start;
-	}
-
-	/* The full list's own heading, once there are sections above it. */
-	.fdy-gal-all {
-		margin: 0;
-		font-family: var(--font-display);
-		font-size: 1.05rem;
-		letter-spacing: 0.02em;
-	}
-
 	.fdy-gal-head {
 		display: flex;
 		flex-wrap: wrap;
@@ -722,51 +620,88 @@
 		color: var(--text-2, var(--dim));
 	}
 
-	/*
-	   The three controls sit on one wrapping row. `flex-wrap` rather than a
-	   breakpoint: at 375 the three labels do not fit one line and wrap to two,
-	   which is the correct arrangement and needs no rule of its own.
-	*/
-	.fdy-gal-sort {
+	/* -------------------------------------------------------------------
+	   THE SORT CONTROL (decision 39).
+	   ------------------------------------------------------------------- */
+
+	.fdy-gal-order {
 		display: flex;
-		flex-wrap: wrap;
+		flex-direction: column;
 		gap: var(--space-2, 0.5rem);
 		min-width: 0;
 	}
 
 	/*
-	   QUIET UNTIL CHOSEN, AND THAT IS NOT A PREFERENCE -- IT IS WHAT MAKES THE
-	   ACTIVE ONE VISIBLE AT ALL.
-
-	   `.btn` in the global sheet is ALREADY `color: var(--green)` on a green
-	   border, so an active rule that set those two was a no-op: measured on the
-	   harness at both widths, the pressed control and the two beside it came
-	   back at the same 8.28:1 and the same rgb(120, 184, 112). The state was
-	   carried by `aria-pressed` alone, which is invisible to somebody looking at
-	   the screen. So the inactive members give the accent up -- `--text-2` for
-	   the label (the token measured for secondary copy on all three portal
-	   grounds) and `--boundary` for the edge, which is the load-bearing token a
-	   control's own outline takes.
+	   LABEL, CONTROL AND SENTENCE ON ONE WRAPPING ROW. `flex-wrap` rather than
+	   a breakpoint: at 375 the sentence drops under the control, which is the
+	   correct arrangement and needs no rule of its own.
 	*/
-	.fdy-gal-sort-btn {
+	.fdy-gal-sort {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+		min-width: 0;
+	}
+
+	/* A VISIBLE WORD, the search box's own idiom one row up. */
+	.fdy-gal-sort-label {
 		font-family: var(--font-mono);
 		font-size: 0.8rem;
 		color: var(--text-2, var(--dim));
-		border-color: var(--boundary);
 	}
 
 	/*
-	   THE ACCENT AND A RAISED GROUND, which is the room's own selected idiom
-	   (`.fdy-card.selected`, two rules down). Colour is never the only signal:
-	   the ground moves with the hue, the label is a word rather than a glyph,
-	   and `aria-pressed` carries the same fact to a reader looking at none of
-	   them. `--green` is correct here rather than decorative -- the register
-	   gives it active navigation, and this is which view is in force.
+	   `--boundary` and not `--hairline`: this is the outer edge of an
+	   interactive control, the first of the three things CLAUDE.md says the
+	   load-bearing token is taken by. The 44px floor is `.tap-44`'s
+	   `min-height`, never a height -- this is a student-facing control on a
+	   surface that declares no instructor-only class.
 	*/
-	.fdy-gal-sort-btn[aria-pressed='true'] {
-		color: var(--green);
-		border-color: var(--green);
+	.fdy-gal-sort-select {
+		flex: 0 1 14rem;
+		min-width: 0;
+		max-width: 100%;
+		padding: 0 var(--space-3, 0.75rem);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-1, 4px);
 		background: var(--surface-2, var(--bg2));
+		color: var(--text-1, var(--white));
+		font-family: var(--font-display);
+		font-size: 1rem;
+		cursor: pointer;
+	}
+
+	/* The open list paints in the room's own ground on the platforms that let
+	   a page style it, rather than a white sheet under a dark control. */
+	.fdy-gal-sort-select option {
+		background: var(--surface-2, var(--bg2));
+		color: var(--text-1, var(--white));
+	}
+
+	.fdy-gal-sort-select:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: 2px;
+	}
+
+	.fdy-gal-sort-note {
+		flex: 1 1 16rem;
+		min-width: 0;
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.8rem;
+		line-height: 1.5;
+		color: var(--text-2, var(--dim));
+	}
+
+	/* What every play figure on the page misses. `--text-2`, the token measured
+	   for secondary copy on all three portal grounds. */
+	.fdy-gal-coverage {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		line-height: 1.5;
+		color: var(--text-2, var(--dim));
 	}
 
 	.fdy-gal-empty {
@@ -811,6 +746,15 @@
 	   spare ones empty. `--fdy-cols` is capped at the number of cards by
 	   `foundryMosaicColumns`.
 
+	   AND AT EACH WIDTH THE COUNT IS THE COLUMNS BALANCE WILL ACTUALLY FILL
+	   (`--fdy-fill-<c>`, `foundryMosaicFill`). Balance minimises height, not
+	   spread, so nine cards of one shape where four columns fit fill three and
+	   leave the fourth empty -- measured at 1152px on `/dev/foundry-boards`,
+	   the width decision 39 was filed at. The thresholds are where `c`
+	   columns of 15rem with 0.75rem gaps first fit, `c * 15 + (c - 1) *
+	   0.75` rem, which is the same arithmetic multicol does to cut columns;
+	   below 30.75rem one column is all that fits and `--fdy-cols` stands.
+
 	   15rem is measured rather than round: it is the narrowest column in
 	   which a 2:1 card -- the widest shape the clamp permits -- still holds
 	   its name plate on one line at this type size.
@@ -822,6 +766,30 @@
 		columns: 15rem var(--fdy-cols, 1);
 		column-gap: var(--space-3, 0.75rem);
 		column-fill: balance;
+	}
+
+	@container fdy-gal (min-width: 30.75rem) {
+		.fdy-gal-mosaic {
+			column-count: var(--fdy-fill-2, var(--fdy-cols, 1));
+		}
+	}
+
+	@container fdy-gal (min-width: 46.5rem) {
+		.fdy-gal-mosaic {
+			column-count: var(--fdy-fill-3, var(--fdy-cols, 1));
+		}
+	}
+
+	@container fdy-gal (min-width: 62.25rem) {
+		.fdy-gal-mosaic {
+			column-count: var(--fdy-fill-4, var(--fdy-cols, 1));
+		}
+	}
+
+	@container fdy-gal (min-width: 78rem) {
+		.fdy-gal-mosaic {
+			column-count: var(--fdy-fill-5, var(--fdy-cols, 1));
+		}
 	}
 
 	/* Multicol has no row gap, so the gap between two cards in one column is

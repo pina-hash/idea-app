@@ -1,9 +1,19 @@
+<script lang="ts">
+	/**
+	 * `once` PLAYS ONE CYCLE, THEN THE BASE STYLES -- THE DRAWN GLYPH -- TAKE
+	 * OVER (ledger 0298). The launcher passes it so no card loops forever;
+	 * /dev/marks leaves it off so the reduced-motion sweep has a running
+	 * animation to measure.
+	 */
+	let { once = false }: { once?: boolean } = $props();
+</script>
+
 <!--
 	VANGUARD homepage mark: the delta interceptor climbing through starfall,
 	with a flickering thruster. Strokes inherit currentColor; the thrust reads
 	the gold token. Animation only under prefers-reduced-motion: no-preference.
 -->
-<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<svg class:once viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 	<!-- Starfall: field lines streaming past the climbing ship -->
 	<g class="stars" stroke-width="1" opacity="0.45">
 		<path class="star s1" d="M7 6v4" />
@@ -49,6 +59,14 @@
 		}
 		.star.s4 {
 			animation-delay: 1.3s;
+		}
+		/* One cycle, then the base styles: the rest frame. Named class by class,
+		   not `.once *`: Svelte leaves a bare `*` unscoped, which is one class
+		   short of a compound rule like `.node.n1` and loses to it. */
+		.once .ship,
+		.once .thrust,
+		.once .star {
+			animation-iteration-count: 1;
 		}
 	}
 	@keyframes vm-bob {

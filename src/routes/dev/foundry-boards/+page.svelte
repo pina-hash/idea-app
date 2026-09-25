@@ -1,19 +1,18 @@
 <script lang="ts">
 	/**
-	 * THE RANKED SECTIONS AND THE SEARCH BOX, ON THE REAL COMPONENT.
+	 * THE ONE SORT CONTROL AND THE SEARCH BOX, ON THE REAL COMPONENT.
 	 *
 	 * It mounts `FoundryGallery` itself -- not a copy of its markup -- with no
 	 * transports at all, so there is no launch control, no play recording and no
 	 * detail pane to open. What is under test here is the arrangement of the
-	 * list pane: which boards render, in what order, with which figures, and
-	 * what the search box does to all of it.
+	 * list pane: the sort control and what it says beside itself, the order and
+	 * the figures of the one list under each option, and what the search box
+	 * does to all of it. (The ranked sections this harness was built for are
+	 * gone since decision 39; the route keeps its name.)
 	 *
 	 * `onSelect` IS REQUIRED BY THE COMPONENT, so it is supplied and RECORDED
-	 * rather than stubbed silently. A drive that clicks a board card can read
-	 * the slug back off the page and prove the card in the ranked row is the
-	 * same kind of control as the card in the list -- which is the one thing
-	 * about the boards that could have been got wrong invisibly, because a row
-	 * of cards that look right and select nothing renders identically.
+	 * rather than stubbed silently, and a drive that clicks a card can read the
+	 * slug back off the page.
 	 */
 	import '$lib/foundry/forge.css';
 	import FoundryGallery from '$lib/foundry/FoundryGallery.svelte';
@@ -23,14 +22,15 @@
 	let picked = $state('(nothing picked yet)');
 </script>
 
-<svelte:head><title>dev: Foundry boards and search</title></svelte:head>
+<svelte:head><title>dev: Foundry sort and search</title></svelte:head>
 
 <div class="fg-root harness">
 	<div class="wrap">
-		<h1>Foundry: ranked sections and search</h1>
+		<h1>Foundry: one sort control and search</h1>
 		<p class="note">
-			Nine published apps. Every board has a different winner, so a bug that ranked all four
-			sections on one field would be visible rather than plausible. Search cases live in the
+			Nine published apps{data.unplayed ? ', none of them played yet' : ''}. Every order has a
+			different winner, so a bug that ranked every option on one field would be visible rather
+			than plausible. Search cases live in the
 			fixture: "Cookie Clicker" finds Cookie Press on a shared word, "maze" finds Frog Frenzy
 			through its description, "cookei" finds Cookie Press at one edit, "Reyes" finds three apps
 			by author, and "xylophone" finds nothing.

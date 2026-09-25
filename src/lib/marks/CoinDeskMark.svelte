@@ -1,5 +1,13 @@
 <script lang="ts">
 	import { COIN_SYMBOL } from '$lib/coin-format';
+
+	/**
+	 * `once` PLAYS ONE CYCLE, THEN THE BASE STYLES -- THE DRAWN GLYPH -- TAKE
+	 * OVER (ledger 0298). The launcher passes it so no card loops forever;
+	 * /dev/marks leaves it off so the reduced-motion sweep has a running
+	 * animation to measure.
+	 */
+	let { once = false }: { once?: boolean } = $props();
 </script>
 
 <!--
@@ -21,7 +29,7 @@
 	Strokes inherit currentColor. Animation only runs under
 	prefers-reduced-motion: no-preference; nothing is hidden at rest.
 -->
-<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<svg class:once viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 	<g class="coin">
 		<circle cx="13" cy="17" r="9.5" />
 		<text x="13" y="17.5" text-anchor="middle" dominant-baseline="central" fill="currentColor" stroke="none" style="font:700 9px 'Share Tech Mono', monospace">{COIN_SYMBOL}</text>
@@ -47,6 +55,13 @@
 		}
 		.coin {
 			animation: cd-take 4s cubic-bezier(0.4, 0, 0.3, 1) infinite;
+		}
+		/* One cycle, then the base styles: the rest frame. Named class by class,
+		   not `.once *`: Svelte leaves a bare `*` unscoped, which is one class
+		   short of a compound rule like `.node.n1` and loses to it. */
+		.once .award,
+		.once .coin {
+			animation-iteration-count: 1;
 		}
 	}
 	@keyframes cd-strike {

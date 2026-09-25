@@ -47,6 +47,7 @@ import {
 	ROLE_CELLS,
 	STEP_CELLS,
 	THEME_ROWS,
+	launcherRows,
 	washoutRows
 } from './_theme-shared.mjs';
 
@@ -114,6 +115,7 @@ export default {
 		{ selector: '.sboard [data-srole][data-min="4.5"]', label: 'space-white: status, accent and signal inks as text (4.5:1)', min: 4.5 },
 		{ selector: '.sboard [data-srole][data-min="3"]', label: 'space-white: focus ring (3:1, non-text)', min: 3 },
 		...washoutRows('space-white', { gate: true }),
+		...launcherRows({ gateWall: true }),
 		{ selector: '.harness h1', label: 'page heading', min: 4.5 },
 		{ selector: '.harness .note', label: 'note copy', min: 4.5 },
 		{ selector: '.pm-theme-name', label: 'theme option name', min: 4.5 },

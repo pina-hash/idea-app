@@ -1,3 +1,13 @@
+<script lang="ts">
+	/**
+	 * `once` PLAYS ONE CYCLE, THEN THE BASE STYLES -- THE DRAWN GLYPH -- TAKE
+	 * OVER (ledger 0298). The launcher passes it so no card loops forever;
+	 * /dev/marks leaves it off so the reduced-motion sweep has a running
+	 * animation to measure.
+	 */
+	let { once = false }: { once?: boolean } = $props();
+</script>
+
 <!--
 	IDEA Maps homepage mark: a STORAGE UNIT SEEN FACE ON, standing on the floor
 	of a room, with one compartment marked.
@@ -45,7 +55,7 @@
 	resolves it to --acc-ink, which for this card defaults to the jade
 	--acc-primary AppLauncher declares for [data-app='maps'].
 -->
-<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<svg class:once viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 	<!-- The unit: a storage cabinet, face on. -->
 	<rect class="unit" x="6" y="4" width="20" height="21" rx="1.5" />
 	<!-- The shelves and the divider: six compartments, which is what an
@@ -80,6 +90,14 @@
 		}
 		.found {
 			animation: mm-mark 4.6s ease-in-out infinite 0.9s;
+		}
+		/* One cycle, then the base styles: the rest frame. Named class by class,
+		   not `.once *`: Svelte leaves a bare `*` unscoped, which is one class
+		   short of a compound rule like `.node.n1` and loses to it. */
+		.once .unit,
+		.once .shelves,
+		.once .found {
+			animation-iteration-count: 1;
 		}
 	}
 
