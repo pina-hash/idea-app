@@ -173,6 +173,67 @@ leaves to a person.
 13. **No training.** A student who has never used a vault is syncing, editing and saving
     correctly in their first session, untold. This is the acceptance test, in the same
     sense as IdeaCAD's.
+14. **Nobody is locked out by their SolidWorks release.** Every file in the vault opens
+    and edits in the oldest release the team uses. See "Two SolidWorks versions at once".
+
+## Two SolidWorks versions at once
+
+Stated by Mr. Pina 2026-09-27: FRC members' own computers run SolidWorks 2026 and the IDEA
+desktop PCs run SolidWorks 2025. Most work happens in class on the 2025 machines, and "no
+one is being left out": a 2025 user must be able to open and edit anything a 2026 user
+saved. Buying 2026 for the IDEA PCs only moves the same problem to next year, so the
+system has to handle mixed versions permanently.
+
+**What SolidWorks itself does.**
+
+- A file saved in a newer release does not open for editing in an older one. The last
+  service pack of a release (SP5) opens parts and assemblies from the next release
+  read-only, as a single "Future version file" with no feature tree: usable in an
+  assembly and for measuring, not editable. It does not open drawings from the next
+  release at all.
+- Since SOLIDWORKS 2024, **Save as Previous Version** writes a part, assembly or drawing
+  back up to two releases, with its feature tree, so it stays editable in the older
+  release. It is lossy. A feature that did not exist in the older release blocks the save
+  until it is removed, and the save silently drops annotations, appearances, decals,
+  scenes and lights, custom properties, explode steps, simulation studies and add-in
+  data. One reseller wrote in 2024 that it requires an active subscription license;
+  whether our Student Sponsorship and the IDEA PCs' license count is unknown until tried.
+
+**Armory's rule: no file in the vault is ever newer than the oldest SolidWorks the team
+uses.** The vault carries a pinned version (2025 now), and every path into it keeps that
+true:
+
+1. **On a 2026 computer, a save is written back to 2025 automatically.** The add-in runs
+   Save as Previous Version on every save of a vault file, so what reaches the vault
+   opens and edits in 2025. The student does nothing different.
+2. **Nothing it drops is lost, because Armory keeps it.** Custom properties (part number,
+   description, material, vendor) live in Armory's database, and the add-in writes them
+   back into the file on every open and save, in either version. Appearances and
+   annotations are what a 2025 save loses; that is a cost of mixed versions, stated once
+   in the add-in, not a hidden one.
+3. **A save that cannot go back is stopped before it happens**, never uploaded. If a
+   2026 student uses a 2026-only feature, the add-in names the feature when it is added
+   and again at save, and offers two ways out: rebuild it with a 2025 feature, or keep it
+   as that student's private draft until the team moves to 2026. The shared file stays
+   editable by everyone.
+4. **A 2026-format file can never slip in.** The agent checks the saved release of every
+   SolidWorks file it uploads and refuses one newer than the vault's, whether it came
+   from SolidWorks with the add-in off, a Save As outside the vault, or a download.
+5. **Viewing never depends on the version.** The website's viewer and thumbnails show
+   every file to everyone, on any device, whatever release saved it.
+6. **One add-in for every release, not two.** Built against the oldest SolidWorks API the
+   team runs and tested on both releases before every add-in release. Where a call exists only in the newer release (Save as Previous Version is
+   one), the add-in checks the running release and uses it only there.
+7. **The season rollover raises the vault's version in one move.** Each summer, once
+   every machine the team uses has the new release, a lead raises the pinned version and
+   files upgrade as they are next saved. Save as Previous Version reaches two releases
+   back, so the IDEA PCs can trail personal computers by up to two releases before
+   anything breaks; Armory shows that gap and warns a season ahead.
+
+**If back-saving turns out not to be available under our licenses**, the rule still holds
+by the other route: personal computers install the vault's release (2025 now) alongside
+or instead of 2026, and the add-in on a 2026 install opens vault files read-only with a
+banner saying so. That is decided by the phase 0 spike, not guessed.
 
 ## Beyond sync: what makes it the team's system
 
@@ -207,8 +268,13 @@ using it rather than by being taught it.
 0. **Spike, before any product code.** Measure on one real IDEA computer and last season's
    robot CAD: upload and download throughput from the school network to R2, SolidWorks
    add-in open, save and close events, reading references through the add-in, whether a
-   Document Manager key is granted, and the installed size of the agent. Each result
-   written down with its date and what measured it.
+   Document Manager key is granted, and the installed size of the agent. **Versions:**
+   whether Save as Previous Version works under the Student Sponsorship license and the
+   IDEA PCs' license, and through the API; whether the IDEA PCs' 2025 is on SP5; whether
+   the sponsorship license installs 2025; how the agent reads a file's saved release
+   without SolidWorks running; and a round trip of a real robot subassembly from 2026 to
+   2025 and back, listing exactly what changed. Each result written down with its date
+   and what measured it.
 1. **Vault and agent.** Server model, R2 storage, sync engine, locks, offline queue, the
    agent's tray window, and the website's project browser with live locks and history.
    Usable by the team for real work without the add-in.
@@ -236,6 +302,10 @@ Each has the default that will be taken if he does not choose otherwise.
    the team's account. It is his, because it is his account; the scope works without it.
 6. **Can the agent be installed on IDEA computers**, and are they reimaged? His to ask of
    school IT. The design treats the local copy as disposable either way.
+7. **Mixed SolidWorks versions.** Default: **back-save automatically** as described in "Two
+   SolidWorks versions at once", with personal computers installing the vault's release
+   as the fallback if the spike shows back-saving is not licensed. Either way the vault
+   stays at the oldest release in use, 2025 for this season.
 
 ## Sources
 
@@ -251,4 +321,7 @@ Each has the default that will be taken if he does not choose otherwise.
 - [Google Drive API, Protect file content](https://developers.google.com/workspace/drive/api/guides/content-restrictions)
 - [Cloudflare R2 pricing summary, 2026](https://egresscost.com/cloudflare/)
 - [Team 254, Part Numbering and Nomenclature](https://www.team254.com/documents/partnumbers/)
+- [Exporting files for use in older SOLIDWORKS releases, Javelin, 2025](https://www.javelin-tech.com/blog/2025/03/exporting-files-for-use-in-older-solidworks-releases/)
+- [Save As Previous Versions, incompatible items and errors, Javelin, 2024](https://www.javelin-tech.com/blog/2024/11/solidworks-save-as-previous-versions-incompatible-items-errors/)
+- [How to open future version files in SOLIDWORKS, GoEngineer, 2024](https://www.goengineer.com/blog/open-future-version-files-in-solidworks)
 - `EDU_SW_Desktop_ProductMatrix_2026_v3.pdf`, attached by Mr. Pina 2026-09-27

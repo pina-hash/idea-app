@@ -7,7 +7,7 @@
   computer.
 - Context: `docs/ARMORY.md` owns the scope and carries the reasoning for every default below.
 
-## The six choices, each with the default that will be taken
+## The seven choices, each with the default that will be taken
 
 1. **Name.** Default: IDEA Armory. Alternatives: IdeaVault, IDEA Hangar.
 2. **Where file contents live.** Default: Cloudflare R2 plus the existing Supabase, with a
@@ -20,3 +20,8 @@
    the account is his. The scope works without it.
 6. **Ask school IT whether the agent may be installed on IDEA computers**, and whether they
    are reimaged. His, because IT is his to ask.
+7. **Mixed SolidWorks versions (2026 personal computers, 2025 IDEA PCs).** Default: the
+   add-in back-saves every 2026 save to the vault's release (2025) automatically, Armory
+   keeps the custom properties the back-save drops, and a 2026-format file is refused at
+   upload. Fallback if the spike shows back-saving is not licensed: personal computers
+   install the vault's release. Raised by Mr. Pina 2026-09-27: "Can't be blocking anyone."
