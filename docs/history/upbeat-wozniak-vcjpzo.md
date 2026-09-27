@@ -1,5 +1,5 @@
 ---
-title: "Ledger 0338: the applied-state probe judged a function body a later migration replaced as the earlier migration missing, so Migrate refused on every push; a superseded body now reads applied when its own or any later definer's body is live (`claude/upbeat-wozniak-vcjpzo`, no migration)"
+title: "Ledger 0339 (issued as 0338): the applied-state probe judged a function body a later migration replaced as the earlier migration missing, so Migrate refused on every push; a superseded body now reads applied when its own or any later definer's body is live (`claude/upbeat-wozniak-vcjpzo`, no migration)"
 date: 2026-09-27
 branches: [claude/upbeat-wozniak-vcjpzo]
 migrations: []
