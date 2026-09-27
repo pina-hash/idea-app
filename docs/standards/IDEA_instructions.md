@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.31 - 2026-09-27**
+**Version 4.32 - 2026-09-27**
 
 ## These Instructions Evolve
 
@@ -2206,6 +2206,14 @@ Read the relevant file before starting any task that touches those domains.
   the check, or ask for the one piece of input that ends it. **A guess spends his time to
   save the assistant's**, and it spends more of his than it saves, because a wrong guess
   costs the round trip plus the trust in every later claim of the same kind.
+- **A fact only Mr. Pina holds is checked by asking him.** Records, competition history,
+  which rules are in force, what a class has already seen. An older document's version of
+  any of these is a claim about the day it was written, not a source. On 2026-09-27 an
+  IDEA100 Rotation 2 draft called the 436 lb hook the best of Rotation 1 when it is the
+  all-time record, carried a rule forward from the Rotation 1 guide that he had not
+  restated, and pointed day-two students at a project three weeks away. He said not to
+  assume anything not actually known, and to ask him. `IDEA_MATERIALS_PROCESS.md` "Student-
+  Facing Copy States Only What Is Known And Seen" owns the student-facing form.
 - **Assume he knows nothing about current state.** He has said "assume I know nothing" in
   three separate chats. He is not tracking branch names, ledger numbers, or which lane
   owns what, and he should not have to: that bookkeeping is this assistant's job and
@@ -3124,6 +3132,14 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-09-27 (4.32)** - A FACT ONLY MR. PINA HOLDS IS CHECKED BY ASKING HIM. New bullet
+  under Communication Style after "Never guess a fact that can be checked", from three
+  corrections he made to the IDEA100 Rotation 2 Hook 01 draft the same day: a record
+  misattributed, an unconfirmed rule carried from an older guide, and a reference to a
+  project the class had not reached. Points at the new student-facing section of
+  `IDEA_MATERIALS_PROCESS.md` 3.2. Base 4.31 at `origin/main` `1c5a1848`. Nothing else
+  changed.
 
 - **2026-09-27 (4.31)** - PROJECT KNOWLEDGE IS WRITTEN BY CLAUDE. Mr. Pina stated he
   never wants to replace or re-upload a project context document again. Measured the same

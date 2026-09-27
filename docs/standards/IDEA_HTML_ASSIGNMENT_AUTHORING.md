@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.2 - 2026-09-27**
+**Version 1.3 - 2026-09-27**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -219,6 +219,27 @@ The rules that came out of it:
   is posted rather than an accusation.
 - **Validate what costs them points by mistake, and nothing else.** A link that nobody can
   open is worth checking. How they feel about their own preparation is not.
+- **Ask for one photo, and allow more.** Students put two sketches on one page as often as
+  not. One required image block with one or two optional slots filled in order beats one
+  upload per item, which students find annoying and which fails the student whose page
+  does not match the boxes. Mr. Pina, 2026-09-27, on IDEA100 Hook 01.
+- **No single path to completion.** Every answer is free text or starts from an optional
+  starter; a card that starts an answer never overwrites one the student has written. The
+  progress bar counts what is there and blocks nothing. Mr. Pina asked for exactly this on
+  2026-09-27: the assignment must not refuse full completion unless it is done one way.
+- **Explanation text is the minimum that states the concept, and freshmen still will not
+  read it.** Put definitions in hover tips, a `data-tip` attribute drawn by a CSS `::after`
+  (pure CSS, so it works in the sandbox with no script), and plan for the class to read the
+  longer parts together. Mr. Pina, 2026-09-27.
+- **Dead space is a defect, and it is measured.** He asked for a space-efficiency pass twice
+  on one document. What worked on Hook 01: cards with the image beside the text rather than
+  above it, a lone short card folded into a one-line banner, the answer box placed in the
+  grid's empty cell, notes moved into the shorter of two sibling cards, and a photo upload
+  that sits beside its rows rather than above them. Measure the page height at 1000 px
+  before and after; Hook 01 went from 5,190 px to 4,175 px with no content removed.
+- **A pinned progress bar counts work and names the next item.** Its segments can be
+  buttons that scroll to their field: `scrollIntoView` called inside the frame scrolls the
+  parent page, measured 2026-09-27 in container Chromium with the frame cross-origin.
 
 Tone follows `Writing_Voice_Guide.md` and `RULE_no_scripted_lines.md`. Student-facing copy
 is scannable rather than readable, and names no weekday.
@@ -293,6 +314,17 @@ empty and then filled, so "seed once" is not a fix either. Three rules:
   field name; `applyState` skips any field in it, and skips a field whose value already
   matches. The same applies to a table block's JSON and to image captions.
 - **Trim only when reading a value to judge it**, never when storing it.
+- **Image slots belong in the dirty set too.** An echo posted before the parent registers a
+  new image would otherwise clear the photo the student just attached.
+- **An echo must not reset the document's own chrome.** A status pill that `applyState` sets
+  to "Autosave on" is reset by every echo, so "Saved 2:37" never survives to be read. Change
+  it only when `readOnly` flips or on the first seed. Found on IDEA100 Hook 01, 2026-09-27.
+- **A hidden store is caught by the generic restore loop.** A table's JSON store is itself a
+  `[data-field]` element. A loop restoring every `textarea[data-field]` writes the store
+  first, the table restore then compares against the store, finds nothing to do, and leaves
+  every cell blank. Exclude hidden stores from the generic loop (`:not([hidden])`). The
+  reload check found this on Hook 01; the echo check could not, because the table's cells
+  were already dirty there.
 
 ---
 
@@ -333,7 +365,9 @@ Then drive it in Chromium before delivery. The minimum run:
    `idea:change`, after a short delay (about 40 ms), and type multi-word phrases with
    spaces into every text box, table cell and caption.** A harness that seeds once and
    never echoes passes a document that eats every space a student types. Measured
-   2026-09-23.
+   2026-09-23. **Make one echo in three stale**, re-posting the values as they stood before
+   the change, because that is the echo that overwrites a field mid-word. Hook 01's run on
+   2026-09-27: 275 echoes, every multi-word value came back exactly as typed.
 
 **Do not judge the file from the Claude artifact preview.** It refuses to render these
 documents and shows "This content is blocked", which is the preview's policy and says
@@ -357,6 +391,22 @@ and `blob:`. Everything visual is inlined, so the cap is a media budget.
   used, not only in a list at the top. Measured 2026-09-25.
 - **Do not trust a glyph to render.** A `▶` rendered as a missing-glyph box in the frame's
   font stack; draw icons as inline SVG.
+- **Set the diameter sign in the sans face.** In the monospace stack `Ø` reads as a zero, so
+  a callout reading "Ø1.000" read as "01.000" (Mr. Pina's screenshot, 2026-09-27). A
+  dimensioned drawing is generated from geometry code with every rule value measured on the
+  generated shape (Hook 01 used shapely and measured its 0.500 in opening), never drawn by
+  hand.
+- **3D renders for a feature explainer can be made in the container.** three.js from npm
+  runs in the container Chromium with `--use-gl=angle --use-angle=swiftshader
+  --enable-unsafe-swiftshader`. Build each shape as extruded layers, screenshot with a
+  transparent background, crop, and inline as JPEG (Hook 01: seven renders, 71 KB in
+  all). Two traps, both paid for on 2026-09-27: layers that share a side wall z-fight into
+  stripes, so each thinner layer gives up the area a thicker one covers, less a 0.01 in
+  overlap; and a cut-open view earns its space only where the section shows something the
+  outside does not, which it did for an I-beam rim and did not for four other features.
+- **A Google Slides preview is slide one only.** The Drive connector's export as
+  `image/jpeg` returns the first slide, and export as PDF refused a 168 MB deck with "File
+  too large for export". Measured 2026-09-27. Label the thumbnail as the first slide.
 
 ---
 
@@ -376,13 +426,29 @@ has no spec (as of 2026-09-22). Anything whose answers Mr. Pina wants to read in
 survey above all, ships with a read-only, single-statement SQL query over
 `classroom_responses` for the item, returning the student and field, never a bare count.
 
-**A theme switch lasts for the visit.** Storage throws, so the choice lives in a variable,
-is never sent to Classroom, and the page opens on Standard.
+**Prefer one look to a theme switch.** Mr. Pina, 2026-09-27, for the IDEA100 hook series:
+no Standard/Space White switcher, one middle-ground look that sits in both frames. The
+pattern that worked: graphite bands for identity (hero, progress bar, card heads), a cool
+steel work surface with near-black ink for everything read or typed, and one accent
+reserved for the rules. Where an older document keeps a switch, the choice lasts for the
+visit: storage throws, so it lives in a variable, is never sent to Classroom, and the page
+opens on Standard.
 
 ---
 
 ## Changelog
 
+- **1.3 (2026-09-27).** From the IDEA100 Rotation 2 Hook 01 build (Research and Concepts),
+  base 1.2 at `origin/main` `1c5a1848`. Adds to section 8: one photo with optional extra
+  slots, no single path to completion, minimum text with hover tips and a class
+  read-through, dead space as a measured defect, and a progress bar whose segments scroll
+  the parent. Adds to section 10: image slots in the dirty set, an echo must not reset the
+  status pill, and a hidden table store caught by the generic restore loop. Adds to section
+  11 step 7 the stale echo. Adds to section 11b the diameter sign in the sans face and
+  drawings generated from geometry, container 3D renders with three.js and their two traps,
+  and the one-slide limit on a Slides preview. Replaces in section 12 the theme-switch
+  paragraph with "Prefer one look to a theme switch", keeping the old rule for documents
+  that still have one. Nothing else removed or reworded.
 - **1.2 (2026-09-27).** Merges a fork. Two chats each wrote a different 1.1 dated
   2026-09-25 from the same undelivered 1.0: this file's 1.1 (Rotation Survey and Dogtag,
   landed at `f5a4b033`) and a second 1.1 from the IDEA209H Unit 2 chat (Shop Trophy
