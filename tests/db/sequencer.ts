@@ -14,9 +14,20 @@
 // other, and the rest of the suite keeps the size-based ordering it was tuned
 // with.
 //
+// SHARDING IS THE SAME RULE ONE LEVEL UP (ledger 0335). CI splits the suite
+// with `--shard=i/N`, and each shard is its own vitest run with its OWN
+// cluster (tests/db/cluster.ts is a globalSetup, once per run). vitest's own
+// `shard()` sorts files by a hash of their path and cuts contiguous slices, so
+// whether the pair lands together is an accident of two hashes: with N=6 on
+// the tree this was written against, it did not, and db-isolation-b's positive
+// control read zero neighbouring databases and failed. So `shard()` below takes
+// B out, lets vitest cut the rest exactly as it would have, and puts B back in
+// whichever shard A landed in. Every shard computes the identical partition
+// from the identical file list, so the pair cannot be dropped or doubled.
+//
 // It is NOT a licence to write order-dependent tests. Every other file in this
-// suite must pass in any order, and the shared cluster does not change that:
-// each file gets its own database (see tests/db/harness.ts).
+// suite must pass in any order and in any shard, and the shared cluster does
+// not change that: each file gets its own database (see tests/db/harness.ts).
 
 import { BaseSequencer } from 'vitest/node';
 import type { TestSpecification } from 'vitest/node';
@@ -29,6 +40,18 @@ function isFile(spec: TestSpecification, name: string): boolean {
 }
 
 export default class IdeaSequencer extends BaseSequencer {
+	async shard(files: TestSpecification[]): Promise<TestSpecification[]> {
+		const second = files.find((f) => isFile(f, SECOND));
+		const first = files.find((f) => isFile(f, FIRST));
+		if (!second || !first) return super.shard(files);
+
+		// vitest's own cut, over everything but B. Which shard is THIS one is
+		// read from the same config vitest just used; A is in exactly one slice.
+		const rest = files.filter((f) => f !== second);
+		const mine = await super.shard(rest);
+		return mine.includes(first) ? [...mine, second] : mine;
+	}
+
 	async sort(files: TestSpecification[]): Promise<TestSpecification[]> {
 		const sorted = await super.sort(files);
 
