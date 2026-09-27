@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.29 - 2026-09-21**
+**Version 4.30 - 2026-09-27**
 
 ## These Instructions Evolve
 
@@ -218,6 +218,86 @@ Assignments, worksheets, and reference documents are authored per `IDEA_MATERIAL
 ---
 
 ## Claude Code Prompting
+
+### Solo is the default: a session commits and pushes straight to `main`
+
+**Stated by Mr. Pina on 2026-09-27: when one Claude Code session is working a repo, it
+commits, pushes and lands on `main` itself. The branch, `integration` and merge path is
+for parallel mode only**, meaning more than one Claude Code or Codex session writing the
+same repo at the same time. Measured the same day from the Actions API over the last
+100 runs: a push paid a CI run with a median of 19.4 minutes (the suite step alone was
+1,114 s of one of them), then an Integrate run with a median of 7.6 and a maximum of 36
+minutes, before anything reached `main`. Solo mode skips the second half entirely.
+
+**Every prompt's routing header carries `Mode: solo` or `Mode: parallel`, and the router
+chat decides it**, because only the router can see what else it has issued. Solo when no
+other writing session is running on that repo at issue time; parallel otherwise. Two
+prompts issued together are parallel even when their surfaces are disjoint. Read-only
+audits never count, since they write nothing.
+
+**A solo session does this, and nothing else about git:**
+
+1. Opens with `git fetch origin main` and the committer-identity check. It skips
+   `--unshallow` and `git fetch origin integration` unless it runs something that reads
+   history: `tools/apply-migration.mjs`, `tools/idea-status.py`,
+   `tools/migration-claims.mjs`, or a merge. On a 238 MB repository (measured
+   2026-09-27) the unshallow is the slowest command most sessions ever run, and most
+   sessions never read what it fetched.
+2. Works on whatever branch the harness assigned and lands it with
+   `git push origin HEAD:main`. No ledger-first push: the ledger entry, with its
+   `Status: pushed` already set, goes in the same push as the work, because in solo mode
+   there is nobody to claim a number against and every push costs a CI run and a Vercel
+   build. Numbers are still allocated by the prompt.
+3. Before that push: `git fetch origin main` and `git rebase origin/main`. A rejected
+   push (someone else landed first) is fetched, rebased, and pushed again, re-running only
+   the tests the rebase could have affected. A rebase conflict on anything other than the
+   mechanical files named under "Parallel lanes on one repo" is a stop: push the branch
+   instead, say so, and parallel mode takes over for that bundle.
+4. Runs the gate LOCALLY before pushing, because in solo mode the push is the deploy:
+   Vercel builds `main` on push whether or not CI has finished. For anything touching
+   `src/`, `supabase/` or `tests/`: `npm run check` plus the full `npm test`, with the
+   summary line read, since `npm test` can exit 0 with a failure. For a docs-only bundle,
+   only the checks that read docs: `npx vitest run tests/standards-version-header.test.ts`
+   when `docs/standards/` changed, `npm run history:verify` when `docs/history/` changed,
+   `node tools/claude-md-check.mjs` when `CLAUDE.md` changed. During the work itself it
+   runs only the test files it touched (`npm test -- <paths>`); the full suite runs once.
+5. Does not wait on CI after pushing. It reports the pushed sha and the CI run URL, and
+   reads `https://ideabosco.com/`'s version sha if production is reachable from its
+   container, because landed is not deployed.
+6. Never force-pushes `main`, with any flag. Never deletes a remote branch.
+
+**A migration in solo mode lands the same way.** `migrate.yml` applies the lowest
+unapplied migration on a push to `main`, gated by the ledger entry's
+`Migration permitted:` line exactly as before, so nothing about who may apply what has
+changed. What is new is timing: the code and the migration now go live within a minute
+or two of each other rather than hours apart. A bundle whose code must not run for even
+that minute without its migration says so in its prompt and stops for Mr. Pina instead
+of pushing.
+
+**Where anything else in this file or any other standard describes the branch,
+`integration` and `main` path, it describes parallel mode.** That text is unchanged and
+still governs whenever two sessions share a repo. `CLAUDE.md` in `idea-app` carries the
+same mode rule in one paragraph, and a prompt's `Mode:` line outranks both.
+
+### Time is a cost, and it is measured, not felt
+
+**Mr. Pina waits on sessions and on CI far longer than the work needs, and said so on
+2026-09-27.** Speed does not trade against quality here; waste does. So:
+
+- **A prompt never asks for the same check twice.** One full suite at the end, not one per
+  phase. A mutation proof runs each mutant against the targeted test file, never the
+  whole suite. `verify:readme` and the browser harness run only the route specs the
+  bundle touched, and the full pass only when the bundle's own surface is the harness.
+- **A prompt names the test files a bundle should run** where the router can know them,
+  so the session does not discover them by running everything.
+- **Docs-only bundles are Sonnet 5, run no suite, and push once.**
+- **CI time is itself a surface.** The suite runs serially with `--no-file-parallelism`
+  on one runner, so its wall time is the sum of 459 test files (counted 2026-09-27).
+  Sharding it across runners, skipping the suite on docs-only pushes, and cancelling a
+  superseded run are CI changes owned by a lane, not by this paragraph; read the ledger
+  for whether one has landed before assuming either way.
+- **The router chat reuses its clone.** One `git clone` per chat, then `git fetch`; the
+  status tool and the sweep run against it.
 
 ### Where Claude Code runs, and what that means for every control below
 
@@ -1100,6 +1180,9 @@ redirects to `code.claude.com/docs/en/hooks`.
 
 ### Parallel lanes on one repo
 
+**This section governs PARALLEL mode.** With one writing session on a repo, "Solo is the
+default" at the top of this part replaces the branch-and-`integration` path below.
+
 **The container boundary is a real boundary, and this is the single biggest thing the
 move to cloud changed.** Every cloud session gets its own machine and its own clone, so
 a session physically cannot `cd` into another lane's checkout: the other lane is not on
@@ -1829,8 +1912,9 @@ set of lanes.
 refs.** Five separate sessions between 2026-09-05 and 2026-09-06 each rediscovered this
 independently, and two of them mistook it for a defect in `tools/apply-migration.mjs`.
 
-Every Claude Code prompt therefore opens with these three, before the ledger commit,
-before anything:
+Every PARALLEL-mode Claude Code prompt therefore opens with these three, before the ledger
+commit, before anything. A solo-mode prompt opens with the shorter pair given under
+"Solo is the default" and adds these only when it runs a tool that reads history:
 
 ```
 git fetch --unshallow origin || git fetch origin
@@ -1949,7 +2033,8 @@ noticing.
   ending are the same for both. What differs: `ultracode` is a Claude Code setting and is
   never written into a Codex prompt (Codex has its own multi-agent mode, and the
   split-inside-a-lane rule applies to it unchanged); the Codex ending lands a pull
-  request against `integration` and never merges to `main`; the Codex environment is
+  request, against `main` in solo mode and against `integration` in parallel mode, and
+  never merges it itself; the Codex environment is
   `docs/CODEX_ENVIRONMENT.md`, and a prompt that needs the suite or the browser pass says
   the environment must be the one that document describes.
 - **Division of labor, decided per bundle by the router chat and written into the
@@ -3002,6 +3087,25 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-09-27 (4.30)** - SOLO MODE PUSHES STRAIGHT TO `main`, AND TIME IS A COST.
+  Mr. Pina stated that when one Claude Code session is running on a repo it should commit,
+  push and merge directly to `main`, keeping the branch-and-`integration` path for
+  parallel sessions only, and separately that he waits far too long on sessions and CI.
+  Measured the same day over the last 100 Actions runs: CI on push had a median of 19.4
+  minutes with one run's suite step at 1,114 s, and Integrate a median of 7.6 and a
+  maximum of 36 minutes. Added under Claude Code Prompting: "Solo is the default" (the
+  `Mode:` line in every routing header, the six-step solo git path, no ledger-first push,
+  the local gate that replaces waiting on CI because a push to `main` is the deploy,
+  migrations unchanged in authority and newly simultaneous in timing, and precedence over
+  every text describing the `integration` path) and "Time is a cost" (one full suite,
+  targeted tests during the work, docs-only bundles run no suite, CI speed as a lane
+  surface, and the router reusing its clone). "The container arrives crippled" now scopes
+  its three opening commands to parallel mode and to tools that read history. "Parallel
+  lanes on one repo" opens by saying it governs parallel mode. "Two agents, one
+  repository" lets a Codex pull request target `main` in solo mode. Nothing else removed
+  or reworded. `REGISTER.md`'s row and `CLAUDE.md`'s workflow paragraph move in the same
+  commit.
 
 - **2026-09-21 (4.29)** - ITEM 4 OF THE CANNED LANE ENDING NOW HAS A SECOND ROUTE, because
   a gate no session can execute is not a control -- this file already removed one control

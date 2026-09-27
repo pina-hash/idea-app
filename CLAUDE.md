@@ -5652,6 +5652,15 @@ shadows. Raise a field-size or fidelity cap only behind a measurement.
 - **State plainly what was NOT verified**, and why -- the live Supabase project, a
   real Drive round trip, a signed-in session, screenshots. "Not verified" is a
   result; silence is not.
+- **SOLO MODE PUSHES STRAIGHT TO `main`; PARALLEL MODE USES THE BRANCH PATH
+  BELOW.** Decided by Mr. Pina 2026-09-27. Your prompt's routing header says
+  `Mode: solo` or `Mode: parallel`. Solo (the only writing session on this repo):
+  fetch and rebase onto `origin/main`, run the local gate (`npm run check` and the
+  full `npm test` for code, only the doc checks for docs-only work), then
+  `git push origin HEAD:main`, with the ledger entry in that same push. A rejected
+  push is rebased and retried; a real content conflict is a stop. Parallel, or no
+  `Mode:` line at all: everything below about branches and `integration` applies.
+  `docs/standards/IDEA_instructions.md` ("Solo is the default") owns the detail.
 - **Single-item work commits straight to main.** A one-file fix, a copy change,
   or any bounded update that is correct on arrival needs no branch.
 - **Work that should not be live while it is being built goes on a short-lived
@@ -5670,7 +5679,7 @@ shadows. Raise a field-size or fidelity cap only behind a measurement.
   operator's view) merges any `claude/**` branch into a long-lived
   `integration` branch the moment CI goes green on its tip, and deletes the
   branch. **The commits are not lost** -- they are on `integration` -- and
-  **`main` still moves only when a person merges it**, because that push is
+  **in parallel mode `main` still moves only through the gated merge**, because that push is
   the deploy to `ideabosco.com` mid-class, and several bundles carry a
   migration CI cannot see and that has to be applied by hand first. **WHETHER
   A LANE MAY MERGE `integration` INTO `main` IS NOT THIS FILE'S TO SAY, AND
