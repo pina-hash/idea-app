@@ -1,0 +1,9 @@
+# 0341 Classroom shape language, round 2: one sci-fi geometry (Plate) for every theme, mocked up for approval
+
+- Issued: 2026-09-27
+- By: router chat (IDEA app cleanup)
+- Owns: `src/routes/dev/themes-shape/**`, a new spec under `tools/browser-verify/routes/` for that route, `docs/feedback/2026-09-25/overnight/shapes-v2.md` and its screenshots, `docs/reference/space-white/**`, this entry, its `docs/history/` entry
+- Does not touch: any non-/dev route, `src/lib/design-system/**` beyond what the /dev page scopes to itself, `supabase/**`, `.github/**`, `materials/**`
+- Migration permitted: no. Claims: none
+- Status: pushed
+- Notes: Plate is the default view of `/dev/themes-shape`, with a theme switcher and round 1's views kept. Every control box is identical across IDEA, Matrix and Space White: 174 controls and 1016 elements, 0 differing, at 1440 and 375. `verify:browser`: 242 measurements per theme, 0 outside. Tightest figure: IDEA's open list row title on the wall, 4.65:1 against 4.5. No after control under 44px. Today's logo link measures 56x26.3 at 375 in every theme; it is fixed in the mockup only. No existing colour token moved, and none needed to. Outside the literal Owns list, each a direct consequence of it: the new spec is a factory plus three thin specs (one per theme) plus a hand-run pixel script, all under `tools/browser-verify/routes/`. Round 1's spec is renamed to `-view-two` because Plate became the default, and its measured file moves with it. `tools/browser-verify/_themes-shape-pixels.mjs` exports its helpers so the new script imports rather than copies them, and its cut reader now picks the pixel furthest from the ground (it read 1.00:1 on dark themes). The README counts block was regenerated. `scifi-line-6-knob-light.png` is byte-identical to `-1-overview.png` in the delivered zip. History: `docs/history/new-session-1om559.md`.

@@ -3,8 +3,11 @@ import { error } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 
 /**
- * Dev-only MOCKUP of a proposed Space White shape language (decision 40 item
- * 4, ledger 0298). 404s in production; no auth, no Supabase, no network.
+ * Dev-only MOCKUP of the classroom shape language. Round 1 (decision 40 item
+ * 4, ledger 0298) proposed corner cuts for Space White alone; round 2, the
+ * default `Plate` view (ledger 0341, `./plate.css` and `./PlateView.svelte`),
+ * proposes one sci-fi geometry for every theme with only colour and material
+ * changing between them. 404s in production; no auth, no Supabase, no network.
  *
  * IT IS A PROPOSAL, NOT A HARNESS FOR SHIPPED CODE. Nothing on this page
  * changes a real surface: every proposed token is declared in this route's own
