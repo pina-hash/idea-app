@@ -3,9 +3,11 @@
 	import { untrack } from 'svelte';
 	import '$lib/classroom/classroom.css';
 	import './shape.css';
+	import './plate.css';
+	import PlateView from './PlateView.svelte';
 	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
 	import type { ClassroomSection } from '$lib/classroom/classroom';
-	import { SITE_THEMES, setSiteTheme, siteTheme, type SiteTheme } from '$lib/theme.svelte';
+	import { SITE_THEMES, SITE_THEME_LABELS, setSiteTheme, siteTheme, type SiteTheme } from '$lib/theme.svelte';
 
 	/**
 	 * A MOCKUP OF THE SPACE WHITE SHAPE LANGUAGE (decision 40 item 4). See
@@ -75,12 +77,32 @@
 	 * the recommendation; `?cut=four` or the toggle shows the other.
 	 */
 	type Cut = 'two' | 'four';
-	const CUTS: { id: Cut; label: string }[] = [
-		{ id: 'two', label: 'Two corners' },
-		{ id: 'four', label: 'Four corners' }
+
+	/**
+	 * THREE VIEWS (ledger 0341). `plate` is round 2 and the DEFAULT: one sci-fi
+	 * geometry for every theme, the proposal in ./plate.css. `two` and `four`
+	 * are round 1's two cut styles (ledger 0298, ./shape.css), kept whole for
+	 * comparison. `?view=` picks one; round 1's own `?cut=four` still lands on
+	 * its four-corner view, so a link written from shapes.md keeps working.
+	 */
+	type View = 'plate' | Cut;
+	const VIEWS: { id: View; label: string }[] = [
+		{ id: 'plate', label: 'Plate (round 2)' },
+		{ id: 'two', label: 'Two corners (round 1)' },
+		{ id: 'four', label: 'Four corners (round 1)' }
 	];
-	let cutChoice = $state<Cut | null>(null);
-	const cut = $derived<Cut>(cutChoice ?? (page.url.searchParams.get('cut') === 'four' ? 'four' : 'two'));
+	const isView = (v: string | null): v is View => v === 'plate' || v === 'two' || v === 'four';
+	let viewChoice = $state<View | null>(null);
+	const view = $derived<View>(
+		viewChoice ??
+			(() => {
+				const v = page.url.searchParams.get('view');
+				if (isView(v)) return v;
+				const c = page.url.searchParams.get('cut');
+				return c === 'four' ? 'four' : c === 'two' ? 'two' : 'plate';
+			})()
+	);
+	const cut = $derived<Cut>(view === 'four' ? 'four' : 'two');
 
 	const current = $derived(siteTheme());
 
@@ -156,35 +178,47 @@
 <div class="cr-root ts-root" data-testid="shape-root" data-theme-now={current}>
 	<main class="ts-page">
 		<header class="ts-hero">
-			<h1>Space White shape language: before and after</h1>
+			<h1>IDEA Classroom shape language: before and after</h1>
 			<p class="ts-lead">
-				A mockup for a decision, not a change: nothing on this page reaches a real page. The
-				left or top of each pair is today's Space White. The right or bottom is the same element
-				with the proposed shape tokens. The glass section is the proposed frosted surface for
-				menus and anything that floats over content.
+				A mockup for a decision, not a change: nothing on this page reaches a real page. The left
+				or top of each pair is today's classroom in the theme you pick. The right or bottom is the
+				same element with the proposal. <strong>Plate</strong> is round 2: one sci-fi geometry
+				shared by every theme, with only colour and material changing between them. The two corner
+				views are round 1, kept for comparison.
 			</p>
 			<div class="ts-bar">
 				<span class="ts-theme" data-testid="shape-theme">
 					Theme now: <strong>{current}</strong>
 				</span>
-				{#if current !== 'space-white'}
-					<button type="button" class="ts-seg" onclick={() => setSiteTheme('space-white')}
-						>Show Space White</button
-					>
-				{/if}
-				<div class="ts-cut" role="group" aria-label="Cut style">
-					{#each CUTS as c (c.id)}
+				<div class="ts-cut" role="group" aria-label="Theme">
+					{#each SITE_THEMES as t (t)}
 						<button
 							type="button"
 							class="ts-seg"
-							aria-pressed={cut === c.id}
-							data-cut-set={c.id}
-							onclick={() => (cutChoice = c.id)}>{c.label}</button
+							aria-pressed={current === t}
+							data-theme-set={t}
+							onclick={() => setSiteTheme(t)}>{SITE_THEME_LABELS[t]}</button
+						>
+					{/each}
+				</div>
+				<div class="ts-cut" role="group" aria-label="View">
+					{#each VIEWS as v (v.id)}
+						<button
+							type="button"
+							class="ts-seg"
+							aria-pressed={view === v.id}
+							data-view-set={v.id}
+							data-cut-set={v.id === 'plate' ? undefined : v.id}
+							onclick={() => (viewChoice = v.id)}>{v.label}</button
 						>
 					{/each}
 				</div>
 			</div>
 		</header>
+
+		{#if view === 'plate'}
+			<PlateView sections={SECTIONS} />
+		{:else}
 
 		<section class="ts-sec" aria-labelledby="ts-h-controls">
 			<h2 id="ts-h-controls">Buttons and chips</h2>
@@ -326,6 +360,7 @@
 				</table>
 			</div>
 		</section>
+		{/if}
 	</main>
 </div>
 

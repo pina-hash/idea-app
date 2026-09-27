@@ -1,0 +1,659 @@
+/* ==========================================================================
+   THE PROPOSAL, ROUND 2: PLATE (ledger 0341).
+
+   One sci-fi shape language for IDEA Classroom in EVERY theme, after the
+   Sci-Fi Line references (docs/reference/space-white/), with the orange of
+   those references replaced by the theme's own green. Mr. Pina, 2026-09-27:
+   "They should share the same sci-fi geometry with different color schemes
+   and maybe some other theme themed differences, but manageable
+   differences."
+
+   THE ONE RULE, AND HOW THIS FILE KEEPS IT BY CONSTRUCTION. Geometry, layout
+   and control positions are the same in every theme. So the file has exactly
+   three kinds of block, and only one of them may be repeated per theme:
+
+     1. SHAPE AND LAYOUT TOKENS (`--pl-cut-*`, `--pl-gap-*`, sizes, the label
+        floor). Declared ONCE, on `.pl-after`, with no theme selector anywhere
+        near them. A theme cannot move a control because no theme block names
+        a length.
+     2. MATERIAL AND COLOUR TOKENS (`--pl-plate`, `--pl-well`, the shadows, the
+        accent). Declared once for the default (IDEA, dark) and once more per
+        theme under `:root[data-theme=...]`. These are the ONLY per-theme
+        declarations in the file. A shadow is paint, not geometry: no shadow
+        here has a spread that could be mistaken for a box, and none is read
+        by layout.
+     3. RULES. Every rule reads tokens and is written once. There is no
+        `[data-theme]` in any rule's selector.
+
+   `_themes-shape-plate-pixels.mjs` reads every control's bounding box on this
+   page in each theme and diffs them, which is the rule measured rather than
+   argued.
+
+   SCOPE. Every selector starts at `.pl-after`, a wrapper only /dev/themes-shape
+   renders, so nothing here reaches a real page. Adopting it would be a MOVE:
+   block 1 onto `:root`, block 2 into each theme file, block 3 onto the real
+   component rules. It is a plain stylesheet rather than a component's scoped
+   style for the reason round 1's shape.css gives (a move, not a rewrite; and
+   svelte-check's CSS linter does not know `corner-shape` yet).
+
+   WHAT STAYS FROM ROUND 1 (docs/feedback/2026-09-25/overnight/shapes.md):
+     - `corner-shape`, never `clip-path`: a clip deletes the focus ring and the
+       border along the cut (measured there: 0 of ~729 ring pixels drawn).
+     - A two-corner cut is `corner-shape: bevel square` with a ONE-value
+       radius token, never a two-value radius (sites compose the radius tokens
+       into longer shorthands, and a two-value token voids them).
+     - A chip is a hexagonal tag, never a slant.
+     - Every cut is behind `@supports (corner-shape: bevel)`, and a browser
+       without it keeps today's radii rather than a half-applied look.
+   What does NOT stay is round 1's look: glass is off here in every theme.
+
+   DECORATION IS PAINT ONLY. Screws, hatches, brackets, engraving lines, the
+   grid and the notch marks are `background` layers or `::before`/`::after`
+   boxes with `content: ''` (an empty string: nothing enters the
+   accessibility tree), `pointer-events: none`, never animated, and placed in
+   padding bands no control occupies. No decoration is a `content` string,
+   because generated text IS read out.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. SHAPE AND LAYOUT: every theme, declared once.
+   -------------------------------------------------------------------------- */
+.ts-root .pl-after {
+	/* The cuts. A control is cut on all four corners, small, so it still reads
+	   as a pressable pillow (Sci-Fi Line's buttons are soft rectangles; the
+	   bevel is the machined version of that softness). A panel is cut on two
+	   opposite corners, larger: the console-tab silhouette of the HUD
+	   references. The plate itself takes the largest cut. */
+	--pl-cut-control: 6px;
+	--pl-cut-chip: 999px;
+	--pl-cut-panel: 14px;
+	--pl-cut-plate: 22px;
+	/* The mono label floor (11px on screen), and its tracking. Every mono
+	   label on a plate reads this; nothing under it. */
+	--pl-label-size: 0.6875rem;
+	--pl-label-track: 0.14em;
+	/* Selection marks. */
+	--pl-ring: 2px;
+	--pl-marker: 4px;
+	--pl-notch: 10px;
+	/* Decoration geometry. Each lives in a padding band at least this wide,
+	   so it never sits under a control. */
+	--pl-band: 22px;
+	--pl-screw: 7px;
+	--pl-hatch: 5px;
+	--pl-bracket: 10px;
+}
+/* THE ONE LENGTH THAT MOVES, AND IT MOVES WITH THE VIEWPORT, NEVER THE THEME:
+   on a phone the decoration band narrows so a plate does not spend 44px of a
+   375px screen on screws and hatches. */
+@media (max-width: 480px) {
+	.ts-root .pl-after {
+		--pl-band: 14px;
+	}
+}
+
+/* --------------------------------------------------------------------------
+   2. MATERIAL AND COLOUR: one block per theme, and nothing else per theme.
+
+   Every value below is either an existing token or a literal chosen for a
+   ground the token set has no counterpart for (a well, a display), with its
+   measured figure in docs/feedback/2026-09-25/overnight/shapes-v2.md. No
+   semantic or identity colour is repainted: the accent is each theme's own
+   `--green`, and the text inks are each theme's own tiers.
+   -------------------------------------------------------------------------- */
+
+/* IDEA, the dark default: machined dark metal. Depth is a darker well and a
+   faint top-edge highlight, never a soft drop shadow (a drop shadow on a
+   near-black ground is invisible). */
+.ts-root .pl-after {
+	--pl-plate: var(--surface-1);
+	--pl-plate-inset: var(--surface-0);
+	--pl-panel: var(--surface-2);
+	--pl-raised: #1c211e;
+	--pl-well: #050706;
+	--pl-edge: var(--boundary);
+	--pl-ink: var(--text-1);
+	--pl-ink-2: var(--text-2);
+	--pl-accent: var(--green);
+	--pl-on-accent: #0a0c0b;
+	--pl-display: #030504;
+	--pl-display-ink: var(--green);
+	--pl-display-ink-2: var(--text-2);
+	--pl-display-grid: rgba(120, 184, 112, 0.09);
+	--pl-hatch-ink: rgba(154, 164, 157, 0.42);
+	--pl-engrave: rgba(255, 255, 255, 0.09);
+	--pl-screw-face: #2b322e;
+	--pl-screw-slot: #050706;
+	--pl-bracket-ink: var(--text-3);
+	--pl-shadow-raise: inset 0 1px 0 rgba(255, 255, 255, 0.07), inset 0 -1px 0 rgba(0, 0, 0, 0.55);
+	--pl-shadow-press: inset 0 2px 4px rgba(0, 0, 0, 0.75);
+	--pl-shadow-well: inset 0 2px 3px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+	--pl-shadow-panel: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+	--pl-shadow-float: 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+
+/* MATRIX: the same machined metal, lights out, green on black. Its own
+   grounds and tiers from matrix.css; the rain is left exactly as it is and
+   shows in the page gutters around the plate, never under text. */
+:root[data-theme='matrix'] .ts-root .pl-after {
+	--pl-plate: var(--surface-1);
+	--pl-plate-inset: var(--surface-0);
+	--pl-panel: var(--surface-2);
+	--pl-raised: #111c12;
+	--pl-well: #010201;
+	--pl-on-accent: #020402;
+	--pl-display: #000000;
+	--pl-display-grid: rgba(120, 184, 112, 0.1);
+	--pl-hatch-ink: rgba(143, 174, 148, 0.4);
+	--pl-engrave: rgba(143, 174, 148, 0.12);
+	--pl-screw-face: #1a2a1c;
+	--pl-screw-slot: #010201;
+}
+
+/* SPACE WHITE: Sci-Fi Line itself. A matte light plate, a slightly darker
+   inset column, soft low even shadows (depth from light, not outlines), and
+   one dark inset display where the accent glows. The accent is Space White's
+   green ink (#3b6c36) where Sci-Fi Line has orange, and appears only on
+   selection, active state and readouts. */
+:root[data-theme='space-white'] .ts-root .pl-after {
+	--pl-plate: #eef2f1;
+	--pl-plate-inset: #e2e8e6;
+	--pl-panel: var(--surface-1);
+	--pl-raised: var(--surface-raised);
+	--pl-well: #e3e9e7;
+	--pl-on-accent: var(--surface-1);
+	--pl-display: #121a17;
+	/* The brand green at full brightness: `--accent-field` is "a large area
+	   only, never a word" on a LIGHT ground, and the display is a dark island
+	   where it is the readout colour. */
+	--pl-display-ink: var(--accent-field);
+	--pl-display-ink-2: #aab6b1;
+	--pl-display-grid: rgba(120, 184, 112, 0.1);
+	--pl-hatch-ink: rgba(86, 98, 94, 0.55);
+	--pl-engrave: rgba(13, 19, 17, 0.14);
+	--pl-screw-face: #c9d1ce;
+	--pl-screw-slot: #6f7c78;
+	--pl-shadow-raise: inset 0 1px 0 #ffffff, 0 1px 2px rgba(13, 19, 17, 0.16), 0 2px 5px rgba(13, 19, 17, 0.08);
+	--pl-shadow-press: inset 0 2px 4px rgba(13, 19, 17, 0.2);
+	--pl-shadow-well: inset 0 2px 3px rgba(13, 19, 17, 0.14), inset 0 -1px 0 rgba(255, 255, 255, 0.8);
+	--pl-shadow-panel: 0 1px 2px rgba(13, 19, 17, 0.08), 0 4px 12px rgba(13, 19, 17, 0.06);
+	--pl-shadow-float: 0 8px 22px rgba(13, 19, 17, 0.18), 0 2px 4px rgba(13, 19, 17, 0.1);
+}
+
+/* --------------------------------------------------------------------------
+   3. RULES. Written once; none names a theme.
+   -------------------------------------------------------------------------- */
+
+/* --- The plate: the column itself is one machined plate. -----------------
+   Screws in its four corners, a stack of hatch marks on each side edge and
+   a short engraved line, all background layers in the padding band. */
+.ts-root .pl-after.pl-col {
+	position: relative;
+	background-color: var(--pl-plate);
+	border: 1px solid var(--pl-edge);
+	box-shadow: var(--pl-shadow-panel);
+	padding-inline: var(--pl-band);
+	padding-bottom: var(--pl-band);
+	/* Layers, top first: four screws, two hatch stacks, the engraving. */
+	background-image:
+		radial-gradient(circle, var(--pl-screw-slot) 0 1px, var(--pl-screw-face) 1.5px 3px, var(--pl-screw-slot) 3.2px 3.5px, transparent 3.8px),
+		radial-gradient(circle, var(--pl-screw-slot) 0 1px, var(--pl-screw-face) 1.5px 3px, var(--pl-screw-slot) 3.2px 3.5px, transparent 3.8px),
+		radial-gradient(circle, var(--pl-screw-slot) 0 1px, var(--pl-screw-face) 1.5px 3px, var(--pl-screw-slot) 3.2px 3.5px, transparent 3.8px),
+		radial-gradient(circle, var(--pl-screw-slot) 0 1px, var(--pl-screw-face) 1.5px 3px, var(--pl-screw-slot) 3.2px 3.5px, transparent 3.8px),
+		repeating-linear-gradient(-45deg, var(--pl-hatch-ink) 0 1.5px, transparent 1.5px 4px),
+		repeating-linear-gradient(-45deg, var(--pl-hatch-ink) 0 1.5px, transparent 1.5px 4px),
+		linear-gradient(var(--pl-engrave), var(--pl-engrave));
+	background-size:
+		10px 10px,
+		10px 10px,
+		10px 10px,
+		10px 10px,
+		6px 34px,
+		6px 34px,
+		46px 1px;
+	/* The two cut corners (top-left, bottom-right) carry their screw further
+	   along the edge, inside the bevel; the two square corners carry it in
+	   the corner. */
+	background-position:
+		18px 6px,
+		calc(100% - 6px) 6px,
+		6px calc(100% - 6px),
+		calc(100% - 18px) calc(100% - 6px),
+		8px 48px,
+		calc(100% - 8px) 48px,
+		calc(100% - 30px) 11px;
+	background-repeat: no-repeat;
+}
+@supports (corner-shape: bevel) {
+	.ts-root .pl-after.pl-col {
+		corner-shape: bevel square;
+		border-radius: var(--pl-cut-plate);
+	}
+}
+.ts-root .pl-after.pl-col {
+	/* The heading clears the top screw band. */
+	padding-top: calc(var(--pl-band) + 4px);
+}
+.ts-root .pl-after.pl-wide {
+	padding-inline: 0;
+	padding-bottom: 0;
+}
+.ts-root .pl-after .pl-colh {
+	font-size: var(--pl-label-size);
+	letter-spacing: var(--pl-label-track);
+	color: var(--pl-ink-2);
+}
+
+/* --- Mono labels: the 11px floor, uppercase, tracked. -------------------- */
+/* The list is every label class the sweep found under 11px on this page's
+   real components (ClassView's pane and group heads and work chips, the
+   header's class sub-code, the Report word stacked under its glyph at 375, the profile chip, the version badge). A class
+   that is already 11px or more is not listed, because this sets the size
+   rather than raising it. */
+.ts-root .pl-after :is(.mini-label, .draft-chip, .sched-chip, .kind-chip, .comment-label, .row-meta, .cls-sub, .sw-item-code, .sw-item-flag, .pane-meta, .pane-code, .group-progress, .group-count, .chip, .version-badge, .sep, .pw-label, .sfb-word) {
+	font-size: var(--pl-label-size);
+	letter-spacing: var(--pl-label-track);
+}
+.ts-root .pl-after .mini-label {
+	color: var(--pl-ink-2);
+	text-transform: uppercase;
+}
+
+/* --- Grouping: corner brackets around a control group, its label centred
+   underneath. The brackets are one `::before` of the group, eight gradient
+   strokes, drawn in the gap AROUND the group rather than over it. */
+.ts-root .pl-after .pl-group {
+	position: relative;
+	padding: 12px 12px 4px;
+}
+.ts-root .pl-after .pl-group::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	--b: var(--pl-bracket);
+	background:
+		linear-gradient(var(--pl-bracket-ink), var(--pl-bracket-ink)) 0 0 / var(--b) 1px,
+		linear-gradient(var(--pl-bracket-ink), var(--pl-bracket-ink)) 0 0 / 1px var(--b),
+		linear-gradient(var(--pl-bracket-ink), var(--pl-bracket-ink)) 100% 0 / var(--b) 1px,
+		linear-gradient(var(--pl-bracket-ink), var(--pl-bracket-ink)) 100% 0 / 1px var(--b),
+		linear-gradient(var(--pl-bracket-ink), var(--pl-bracket-ink)) 0 100% / var(--b) 1px,
+		linear-gradient(var(--pl-bracket-ink), var(--pl-bracket-ink)) 0 100% / 1px var(--b),
+		linear-gradient(var(--pl-bracket-ink), var(--pl-bracket-ink)) 100% 100% / var(--b) 1px,
+		linear-gradient(var(--pl-bracket-ink), var(--pl-bracket-ink)) 100% 100% / 1px var(--b);
+	background-repeat: no-repeat;
+}
+.ts-root .pl-after .pl-group-label {
+	justify-self: center;
+	text-align: center;
+}
+
+/* --- Buttons: raised pillows. ---------------------------------------------
+   The face is the raised ground, the edge the load-bearing boundary (3:1 is
+   a floor, so the outline stays; the light only adds depth on top of it).
+   Primary keeps its green label and edge (green is this register's primary
+   action colour). Selected is an accent inner ring plus a notch mark, and
+   `aria-pressed`, so colour is never the only signal. Pressed sinks into a
+   well with no transform, so it moves no box. */
+.ts-root .pl-after .btn {
+	background: var(--pl-raised);
+	border-color: var(--pl-edge);
+	color: var(--pl-ink);
+	box-shadow: var(--pl-shadow-raise);
+}
+.ts-root .pl-after .btn:not(.secondary) {
+	color: var(--pl-accent);
+	border-color: var(--pl-accent);
+}
+.ts-root .pl-after .btn:hover {
+	background: var(--pl-raised);
+	color: var(--hover-ink);
+	border-color: var(--hover-ink);
+	box-shadow: var(--pl-shadow-raise);
+	text-shadow: none;
+}
+.ts-root .pl-after .btn:active,
+.ts-root .pl-after .btn.pl-hold-active {
+	transform: none;
+	background: var(--pl-well);
+	box-shadow: var(--pl-shadow-press);
+}
+.ts-root .pl-after .btn:disabled,
+.ts-root .pl-after .btn:disabled:hover {
+	background: var(--pl-plate);
+	box-shadow: none;
+	color: var(--ice);
+	border-color: var(--ice);
+	border-style: dashed;
+}
+.ts-root .pl-after .btn.pl-selected,
+.ts-root .pl-after .btn[aria-pressed='true'] {
+	position: relative;
+	box-shadow:
+		inset 0 0 0 var(--pl-ring) var(--pl-accent),
+		var(--pl-shadow-raise);
+}
+/* The notch mark: a short accent bar at the top-left, inside the ring. */
+.ts-root .pl-after .btn.pl-selected::after,
+.ts-root .pl-after .btn[aria-pressed='true']::after {
+	content: '';
+	position: absolute;
+	top: 5px;
+	left: 9px;
+	width: var(--pl-notch);
+	height: 2px;
+	background: var(--pl-accent);
+	pointer-events: none;
+}
+
+/* --- Chips: hexagonal tags at the 11px label floor. ---------------------- */
+.ts-root .pl-after :is(.draft-chip, .kind-chip) {
+	padding-inline: 0.7rem;
+	background: var(--pl-panel);
+}
+.ts-root .pl-after .kind-chip {
+	border-color: var(--pl-edge);
+	color: var(--pl-ink-2);
+}
+.ts-root .pl-after .kind-chip.pinned {
+	border-color: var(--gold);
+	color: var(--gold);
+}
+
+/* --- Cards and panels: the console-tab cut, a notch in the top edge, a
+   hatch block in the top-right padding band. ----------------------------- */
+.ts-root .pl-after .card {
+	position: relative;
+	background: var(--pl-panel);
+	border-color: var(--pl-edge);
+	box-shadow: var(--pl-shadow-panel);
+}
+.ts-root .pl-after .card::before {
+	/* The notch: a thickened run of the top edge, 36px in from the cut. */
+	content: '';
+	position: absolute;
+	top: -1px;
+	left: 36px;
+	width: 28px;
+	height: 3px;
+	background: var(--pl-edge);
+	pointer-events: none;
+}
+.ts-root .pl-after .card::after {
+	/* The hatch block, inside the card's 24px top padding. */
+	content: '';
+	position: absolute;
+	top: 8px;
+	right: 20px;
+	width: 34px;
+	height: 6px;
+	background: repeating-linear-gradient(-45deg, var(--pl-hatch-ink) 0 1.5px, transparent 1.5px 4px);
+	pointer-events: none;
+}
+
+/* --- Wells: an input and a select sit in a recessed trough. -------------- */
+.ts-root .pl-after :is(.pl-input, .cr-select, .find-field) {
+	background-color: var(--pl-well);
+	border-color: var(--pl-edge);
+	box-shadow: var(--pl-shadow-well);
+	color: var(--pl-ink);
+}
+
+/* --- The list: a well holding hairline-divided rows; the open row is a
+   solid accent fill with light text and a marker bar at the right edge.
+   Titles stay in the reading face and sentence case (a student's title is
+   content, not a label); the meta line is the mono uppercase label. ------ */
+.ts-root .pl-after .pl-list {
+	background: var(--pl-well);
+	border: 1px solid var(--pl-edge);
+	box-shadow: var(--pl-shadow-well);
+	padding: 4px calc(var(--pl-marker) + 6px) 4px 4px;
+}
+.ts-root .pl-after .pl-list .row-meta {
+	text-transform: uppercase;
+	/* The meta line is a run of short facts, and wide tracking on it wraps
+	   every fact onto its own line in a narrow pane (measured at 375). */
+	letter-spacing: 0.04em;
+}
+.ts-root .pl-after .pl-list .row-wrap.selected {
+	position: relative;
+	background: var(--pl-accent);
+	box-shadow: none;
+}
+.ts-root .pl-after .pl-list .row-wrap.selected::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	right: calc(-1 * var(--pl-marker) - 4px);
+	width: var(--pl-marker);
+	background: var(--pl-accent);
+	pointer-events: none;
+}
+.ts-root .pl-after .pl-list .row-wrap.selected :is(.row-main, .row-name, .row-title, .row-meta, .kind-glyph, .row-kind, .meta-bit, .row-expand, a) {
+	color: var(--pl-on-accent);
+}
+/* A chip inside the open row keeps a ground of its own rather than printing
+   its muted ink straight onto the accent fill (measured: --text-2 on the
+   IDEA green is the failure this line exists for). */
+.ts-root .pl-after .pl-list .row-wrap.selected .chip {
+	background: var(--pl-panel);
+	border-color: var(--pl-edge);
+}
+
+/* --- The classroom header: a plate strip with a hatch rail. ----------------
+   The shell's own tokens are re-pointed inside it, so every control the
+   shell draws (class icons, the class menu, the tools, the theme switch)
+   takes the pillow material with no rule of its own; three rules add the
+   raise, the cut and the selection language. The rail is the header's
+   `::after`, in its bottom padding band: a hatch block at each end and an
+   engraved line between. */
+.ts-root .pl-after .cr-header {
+	--surface-1: var(--pl-raised);
+	--surface-2: var(--pl-panel);
+	--boundary: var(--pl-edge);
+	position: relative;
+	background: var(--pl-plate);
+	border-bottom: 1px solid var(--pl-edge);
+}
+.ts-root .pl-after .cr-header::after {
+	content: '';
+	position: absolute;
+	left: var(--pl-band);
+	right: var(--pl-band);
+	bottom: 2px;
+	height: 5px;
+	pointer-events: none;
+	background:
+		repeating-linear-gradient(-45deg, var(--pl-hatch-ink) 0 1.5px, transparent 1.5px 4px) 0 0 / 72px 5px no-repeat,
+		repeating-linear-gradient(-45deg, var(--pl-hatch-ink) 0 1.5px, transparent 1.5px 4px) 100% 0 / 72px 5px no-repeat,
+		linear-gradient(var(--pl-engrave), var(--pl-engrave)) 50% 2px / calc(100% - 180px) 1px no-repeat;
+}
+.ts-root .pl-after .cr-header :is(.cls-icon, .shell-tool, .sw-trigger, .menu-trigger, .theme-switch, .sfb-trigger) {
+	box-shadow: var(--pl-shadow-raise);
+}
+/* THE LOGO LINK IS A CONTROL, and at 375 today it is 56x26 (measured in
+   every theme, before and after alike): the emblem shrinks with the viewport
+   and the link shrinks with it. The plate gives it the 44px floor as a
+   min-height, which centres the emblem in a taller hit area and moves
+   nothing else in the row. */
+.ts-root .pl-after .cr-header .wordmark {
+	min-height: 44px;
+}
+.ts-root .pl-after .cr-header .cls-icon.current {
+	position: relative;
+	background: var(--pl-panel);
+	border-color: var(--pl-accent);
+	box-shadow:
+		inset 0 0 0 1px var(--pl-accent),
+		inset 0 -3px 0 var(--pl-accent);
+}
+.ts-root .pl-after .cr-header .cls-icon.current::after {
+	content: '';
+	position: absolute;
+	top: 4px;
+	left: 5px;
+	width: 8px;
+	height: 2px;
+	background: var(--pl-accent);
+	pointer-events: none;
+}
+.ts-root .pl-after .cr-header .theme-switch.on {
+	box-shadow:
+		inset 0 0 0 var(--pl-ring) var(--pl-accent),
+		var(--pl-shadow-raise);
+}
+
+/* --- The class menu: a floating panel; the current class is the list's
+   selected row (solid accent, marker bar), not round 1's gold rule. ------ */
+.ts-root .pl-after .cr-header .sw-menu {
+	background: var(--pl-panel);
+	border-color: var(--pl-edge);
+	box-shadow: var(--pl-shadow-float);
+}
+.ts-root .pl-after .cr-header .sw-item.current {
+	position: relative;
+	background: var(--pl-accent);
+	box-shadow: none;
+	color: var(--pl-on-accent);
+}
+.ts-root .pl-after .cr-header .sw-item.current :is(.sw-item-code, .sw-item-name, .sw-item-flag) {
+	color: var(--pl-on-accent);
+}
+.ts-root .pl-after .cr-header .sw-item.current::after {
+	content: '';
+	position: absolute;
+	top: 6px;
+	bottom: 6px;
+	right: 3px;
+	width: var(--pl-marker);
+	background: var(--pl-on-accent);
+	pointer-events: none;
+}
+
+/* --- The display: the one dark inset surface. -----------------------------
+   The returned grade's own heading becomes the readout window: a dark
+   recessed screen with a faint grid, the score in the accent, and an
+   indicator light. On a dark theme it is a darker well of the same shape. */
+.ts-root .pl-after .pl-display-wrap .grade-card,
+.ts-root .pl-after .pl-side .grade-card {
+	border-color: var(--pl-edge);
+}
+.ts-root .pl-after .grade-head {
+	position: relative;
+	padding: 0.9rem 1rem 0.9rem 2.1rem;
+	background-color: var(--pl-display);
+	background-image:
+		linear-gradient(var(--pl-display-grid) 1px, transparent 1px),
+		linear-gradient(90deg, var(--pl-display-grid) 1px, transparent 1px);
+	background-size: 12px 12px;
+	border: 1px solid var(--pl-edge);
+	box-shadow: var(--pl-shadow-well);
+	color: var(--pl-display-ink);
+	font-family: var(--font-mono);
+	font-size: 1.25rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	font-variant-numeric: tabular-nums;
+}
+.ts-root .pl-after .grade-head::before {
+	/* The indicator light. */
+	content: '';
+	position: absolute;
+	left: 0.85rem;
+	top: 50%;
+	width: 8px;
+	height: 8px;
+	margin-top: -4px;
+	border-radius: 50%;
+	background: var(--pl-display-ink);
+	box-shadow: 0 0 0 2px var(--pl-display);
+	pointer-events: none;
+}
+.ts-root .pl-after .comment-label {
+	color: var(--pl-ink-2);
+	text-transform: uppercase;
+}
+
+/* --- The composed region: an inset centre column on the plate, joined to
+   the side panel across a recessed gutter, under a title bar held between
+   two hazard-hatch blocks. ----------------------------------------------- */
+.ts-root .pl-after .pl-region-body {
+	background: var(--pl-plate);
+}
+.ts-root .pl-after .pl-main {
+	background: var(--pl-plate-inset);
+	box-shadow: var(--pl-shadow-well);
+	padding: 12px;
+}
+.ts-root .pl-after .pl-side {
+	background: var(--pl-panel);
+	border: 1px solid var(--pl-edge);
+	box-shadow: var(--pl-shadow-panel);
+	padding: 12px;
+}
+.ts-root .pl-after .pl-titlebar {
+	position: relative;
+	display: flex;
+	justify-content: center;
+	padding: 0.6rem var(--pl-band) 0;
+	background: var(--pl-plate);
+}
+.ts-root .pl-after .pl-titlebar::before {
+	content: '';
+	position: absolute;
+	left: var(--pl-band);
+	right: var(--pl-band);
+	top: 50%;
+	margin-top: 2px;
+	height: 12px;
+	pointer-events: none;
+	background:
+		repeating-linear-gradient(-45deg, var(--pl-hatch-ink) 0 3px, transparent 3px 8px) 0 0 / min(28%, 180px) 12px no-repeat,
+		repeating-linear-gradient(-45deg, var(--pl-hatch-ink) 0 3px, transparent 3px 8px) 100% 0 / min(28%, 180px) 12px no-repeat;
+}
+.ts-root .pl-after .pl-title {
+	position: relative;
+	padding: 0.35rem 1.2rem;
+	background: var(--pl-panel);
+	border: 1px solid var(--pl-edge);
+	box-shadow: var(--pl-shadow-panel);
+	font-family: var(--font-mono);
+	font-size: 0.85rem;
+	letter-spacing: var(--pl-label-track);
+	text-transform: uppercase;
+	color: var(--pl-ink);
+	text-align: center;
+	max-width: calc(100% - 2 * min(28%, 180px) - 16px);
+}
+.ts-root .pl-after .pl-col-label {
+	justify-self: start;
+}
+
+/* --- The cuts, and only where the browser can draw a real corner shape. --- */
+@supports (corner-shape: bevel) {
+	.ts-root .pl-after :is(.btn, .pl-input, .cr-select, .find-field),
+	.ts-root .pl-after .cr-header :is(.cls-icon, .shell-tool, .sw-trigger, .menu-trigger, .theme-switch, .sfb-trigger, a.shell-back) {
+		corner-shape: bevel;
+		border-radius: var(--pl-cut-control);
+	}
+	.ts-root .pl-after :is(.draft-chip, .kind-chip) {
+		corner-shape: bevel;
+		border-radius: var(--pl-cut-chip);
+	}
+	.ts-root .pl-after :is(.card, .pl-list, .pl-side, .pl-main, .cr-header .sw-menu, .grade-head) {
+		corner-shape: bevel square;
+		border-radius: var(--pl-cut-panel);
+	}
+	.ts-root .pl-after .pl-title {
+		/* The angled-end tab. */
+		corner-shape: bevel;
+		border-radius: 10px;
+	}
+	/* The selected list row and the current menu item are fills inside a
+	   well, so they take the control's small cut rather than a panel's. */
+	.ts-root .pl-after :is(.pl-list .row-wrap.selected, .cr-header .sw-item) {
+		corner-shape: bevel;
+		border-radius: var(--pl-cut-control);
+	}
+}

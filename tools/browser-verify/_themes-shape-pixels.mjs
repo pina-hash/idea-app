@@ -39,6 +39,7 @@
  * Every figure is printed; nothing here passes or fails.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { launch, openPage, waitForApp, settle, waitUntil } from './browser.mjs';
 import { startDevServer } from './server.mjs';
 import { PROJECTOR_MODEL, washedRatio } from './checks.mjs';
@@ -47,26 +48,26 @@ const shotsIdx = process.argv.indexOf('--shots');
 const shotsDir = shotsIdx > 0 ? process.argv[shotsIdx + 1] : null;
 if (shotsDir) mkdirSync(shotsDir, { recursive: true });
 
-const ROUTE = '/dev/themes-shape?state=space-white';
+const ROUTE = '/dev/themes-shape?state=space-white&view=two';
 
-const lum = (c) => {
+export const lum = (c) => {
 	const f = (v) => {
 		const s = v / 255;
 		return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
 	};
 	return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
 };
-const wcag = (a, b) => {
+export const wcag = (a, b) => {
 	const x = lum(a);
 	const y = lum(b);
 	return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
 };
-const f2 = (n) => (Math.round(n * 100) / 100).toFixed(2);
-const rgb = (c) => `rgb(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)})`;
+export const f2 = (n) => (Math.round(n * 100) / 100).toFixed(2);
+export const rgb = (c) => `rgb(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)})`;
 
 /* A screenshot's pixels, decoded in the page (the page has a canvas; node has
    no PNG decoder in this tree beyond a transitive one). */
-async function pixelsOf(page, buf) {
+export async function pixelsOf(page, buf) {
 	return page.evaluate(async (b64) => {
 		const img = new Image();
 		img.src = 'data:image/png;base64,' + b64;
@@ -79,11 +80,11 @@ async function pixelsOf(page, buf) {
 		return { w: img.width, h: img.height, data: Array.from(x.getImageData(0, 0, img.width, img.height).data) };
 	}, buf.toString('base64'));
 }
-const at = (px, x, y) => {
+export const at = (px, x, y) => {
 	const i = (y * px.w + x) * 4;
 	return { r: px.data[i], g: px.data[i + 1], b: px.data[i + 2] };
 };
-const colourOf = (page, css) =>
+export const colourOf = (page, css) =>
 	page.evaluate((css) => {
 		const c = document.createElement('canvas');
 		c.width = c.height = 1;
@@ -98,7 +99,7 @@ const colourOf = (page, css) =>
 /* The FIRST VISIBLE match, marked so a later step can find the same node:
    below the header's fold breakpoint the tools are folded into the Menu and a
    bare first match would be a zero box. */
-const rectOf = (page, sel) =>
+export const rectOf = (page, sel) =>
 	page.evaluate((sel) => {
 		const el = [...document.querySelectorAll(sel)].find((n) => {
 			const b = n.getBoundingClientRect();
@@ -112,7 +113,7 @@ const rectOf = (page, sel) =>
 		return { x: r.left, y: r.top, w: r.width, h: r.height };
 	}, sel);
 
-async function focusRing(page, sel) {
+export async function focusRing(page, sel) {
 	const r = await rectOf(page, sel);
 	if (!r) return `${sel}: MISSING`;
 	const pad = 8;
@@ -149,7 +150,7 @@ async function focusRing(page, sel) {
 
 /* The line along the top-left cut, against the straight top edge. The ground
    OUTSIDE the shape is read from the pixel diagonally beyond the corner. */
-async function diagonal(page, sel, cut) {
+export async function diagonal(page, sel, cut) {
 	const r = await rectOf(page, sel);
 	if (!r) return `${sel}: MISSING`;
 	const pad = 6;
@@ -159,21 +160,28 @@ async function diagonal(page, sel, cut) {
 	const ground = at(px, 1, 1);
 	const x0 = Math.round(r.x - clip.x);
 	const y0 = Math.round(r.y - clip.y);
-	/* Straight edge: the darkest pixel within 2px of the top edge, mid-width. */
+	/* THE LINE IS THE PIXEL THAT STANDS FURTHEST FROM THE GROUND, which on a
+	   light theme is the darkest one (all this function did until ledger
+	   0341) and on a dark theme is the LIGHTEST: the plate's edge there is a
+	   light line on a dark ground, and "darkest" read the ground itself back
+	   at 1.00:1. On a light ground the two rules pick the same pixel, so
+	   round 1's figures are unchanged by this. */
+	const further = (p, q) => !q || wcag(p, ground) > wcag(q, ground);
+	/* Straight edge: that pixel within 2px of the top edge, mid-width. */
 	let edge = null;
 	const mx = x0 + Math.round(r.w / 2);
 	for (let dy = -1; dy <= 2; dy++) {
 		const p = at(px, mx, y0 + dy);
-		if (!edge || lum(p) < lum(edge)) edge = p;
+		if (further(p, edge)) edge = p;
 	}
-	/* Diagonal: for each row inside the cut, the darkest pixel in that row
-	   between the left edge and the cut's reach. */
+	/* Diagonal: for each row inside the cut, that pixel in the row between
+	   the left edge and the cut's reach. */
 	const rows = [];
 	for (let dy = 1; dy < cut - 1; dy++) {
 		let best = null;
 		for (let dx = 0; dx <= cut + 1; dx++) {
 			const p = at(px, x0 + dx, y0 + dy);
-			if (!best || lum(p) < lum(best)) best = p;
+			if (further(p, best)) best = p;
 		}
 		rows.push(best);
 	}
@@ -414,119 +422,126 @@ async function frameCost(browser, page, cdp, reduce, menuOnly = false) {
 	return { raf, traced, byName };
 }
 
-const server = await startDevServer({ cwd: process.cwd() });
-const { browser, executablePath } = await launch();
-console.log(`chromium: ${executablePath}`);
-console.log(`projector model: ${JSON.stringify(PROJECTOR_MODEL)}`);
-try {
-	for (const width of [1440, 375]) {
-		const { context, page } = await openPage(browser, { width, height: width < 500 ? 780 : 900 });
-		await page.goto(`${server.origin}${ROUTE}`, { waitUntil: 'domcontentloaded' });
-		await waitForApp(page);
-		const ok = await waitUntil(page, `() => document.documentElement.getAttribute('data-theme') === 'space-white' && document.querySelectorAll('.cr-header').length === 3`, { timeoutMs: 30_000 });
-		console.log(`\n=== ${width}px: theme ${ok.ok ? 'space-white, 3 headers' : 'DID NOT REACH SPACE WHITE'} ===`);
-		await settle(page);
-		/* THE ROOT LAYOUT'S FLOATING REPORT AND VOICE PILLS ARE HIDDEN FOR THE
-		   WHOLE RUN. They are not part of the proposal (the header's own docked
-		   pair is left alone), and a fixed pill over a measured control would
-		   hide ring pixels from the focus diff. */
-		await page.addStyleTag({ content: '.sfb:not(.sfb-relocated), .vnav:not(.vnav-header) { visibility: hidden !important; }' });
-		if (shotsDir) {
-			writeFileSync(`${shotsDir}/page-${width}.png`, await page.screenshot({ fullPage: true }));
+
+/* RUN ONLY WHEN INVOKED. Ledger 0341's `routes/_themes-shape-plate-pixels.mjs`
+   imports the pixel helpers above (exported for it) rather than keeping a
+   second copy of the focus-ring and cut-border arithmetic, so importing this
+   module must not launch a browser. */
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+	const server = await startDevServer({ cwd: process.cwd() });
+	const { browser, executablePath } = await launch();
+	console.log(`chromium: ${executablePath}`);
+	console.log(`projector model: ${JSON.stringify(PROJECTOR_MODEL)}`);
+	try {
+		for (const width of [1440, 375]) {
+			const { context, page } = await openPage(browser, { width, height: width < 500 ? 780 : 900 });
+			await page.goto(`${server.origin}${ROUTE}`, { waitUntil: 'domcontentloaded' });
+			await waitForApp(page);
+			const ok = await waitUntil(page, `() => document.documentElement.getAttribute('data-theme') === 'space-white' && document.querySelectorAll('.cr-header').length === 3`, { timeoutMs: 30_000 });
+			console.log(`\n=== ${width}px: theme ${ok.ok ? 'space-white, 3 headers' : 'DID NOT REACH SPACE WHITE'} ===`);
+			await settle(page);
+			/* THE ROOT LAYOUT'S FLOATING REPORT AND VOICE PILLS ARE HIDDEN FOR THE
+			   WHOLE RUN. They are not part of the proposal (the header's own docked
+			   pair is left alone), and a fixed pill over a measured control would
+			   hide ring pixels from the focus diff. */
+			await page.addStyleTag({ content: '.sfb:not(.sfb-relocated), .vnav:not(.vnav-header) { visibility: hidden !important; }' });
+			if (shotsDir) {
+				writeFileSync(`${shotsDir}/page-${width}.png`, await page.screenshot({ fullPage: true }));
+				if (width === 1440) {
+					await page.click('[data-cut-set="four"]');
+					await settle(page);
+					const h = await page.evaluate(() => Math.ceil(document.getElementById('ts-h-glass').getBoundingClientRect().top + window.scrollY - 8));
+					writeFileSync(`${shotsDir}/page-${width}-four.png`, await page.screenshot({ fullPage: true, clip: { x: 0, y: 0, width, height: h } }));
+					await page.click('[data-cut-set="two"]');
+					await settle(page);
+				}
+			}
+			/* Measure the real `:focus-visible` ring, so the held demo ring on the
+			   two construction specimens comes off first. */
+			await page.evaluate(() => document.querySelectorAll('.ts-demo-focus').forEach((el) => el.classList.remove('ts-demo-focus')));
+			console.log('-- focus ring (real :focus-visible, 2px --cyan at 2px offset) --');
+			for (const sel of [
+				'[data-col="before"] [data-ts="btn-primary"]',
+				'[data-col="after"] [data-ts="btn-primary"]',
+				'[data-col="after"] [data-ts="btn-secondary"]',
+				'[data-col="after"] .cr-header :is(.shell-tool, .menu-trigger)',
+				'[data-ts="build-bevel"]',
+				'[data-ts="build-clip"]'
+			])
+				console.log('  ' + (await focusRing(page, sel)));
+			console.log('-- boundary along the cut against the straight edge --');
+			for (const [sel, cut] of [
+				['[data-col="before"] [data-ts="card"]', 12],
+				['[data-col="after"] [data-ts="card"]', 12],
+				['[data-col="after"] [data-ts="btn-secondary"]', 8],
+				['[data-col="after"] [data-ts="btn-primary"]', 8],
+				['[data-col="after"] .cr-header :is(.shell-tool, .menu-trigger)', 8],
+				['[data-ts="build-clip"]', 8]
+			])
+				console.log('  ' + (await diagonal(page, sel, cut)));
+			console.log('-- chip letters against the chip edge --');
+			for (const sel of [
+				'[data-col="before"] [data-ts="chip-status"]',
+				'[data-col="after"] [data-ts="chip-status"]',
+				'[data-col="before"] [data-ts="chip-kind"]',
+				'[data-col="after"] [data-ts="chip-kind"]'
+			])
+				console.log('  ' + (await chipClearance(page, sel)));
+			/* THE POSITIVE CONTROL: the construction this page first shipped with
+			   and rejected -- the two-corner cut on a pill at today's padding --
+			   which must come back with a crossing, or a zero above says nothing. */
+			console.log(
+				'  control: ' +
+					(await chipClearance(page, '[data-col="after"] [data-ts="chip-status"]', 'corner-shape: bevel square !important; padding-inline: 0.45rem !important; '))
+			);
+			console.log('-- glass --');
+			for (const line of await glassText(page, width)) console.log('  ' + line);
 			if (width === 1440) {
-				await page.click('[data-cut-set="four"]');
-				await settle(page);
-				const h = await page.evaluate(() => Math.ceil(document.getElementById('ts-h-glass').getBoundingClientRect().top + window.scrollY - 8));
-				writeFileSync(`${shotsDir}/page-${width}-four.png`, await page.screenshot({ fullPage: true, clip: { x: 0, y: 0, width, height: h } }));
-				await page.click('[data-cut-set="two"]');
-				await settle(page);
+				const cdp = await context.newCDPSession(page);
+				/* THE GATE, BOTH DIRECTIONS. Each preference that must turn the
+				   glass off is emulated on its own, beside the no-preference state
+				   that must leave it on, and the computed filter is read back rather
+				   than trusted from the stylesheet. */
+				console.log('-- the glass gate (computed backdrop-filter, header::before / class menu) --');
+				for (const [tag, features] of [
+					['no preference', [{ name: 'prefers-reduced-transparency', value: 'no-preference' }, { name: 'prefers-contrast', value: 'no-preference' }]],
+					['reduced transparency', [{ name: 'prefers-reduced-transparency', value: 'reduce' }, { name: 'prefers-contrast', value: 'no-preference' }]],
+					['more contrast', [{ name: 'prefers-reduced-transparency', value: 'no-preference' }, { name: 'prefers-contrast', value: 'more' }]]
+				]) {
+					await cdp.send('Emulation.setEmulatedMedia', { features });
+					await settle(page);
+					const g = await page.evaluate(() => {
+						const menu = document.querySelector('[data-col="glass"] [data-testid="section-switcher-menu"]');
+						const h = document.querySelector('[data-col="glass"] .cr-header');
+						return `${getComputedStyle(h, '::before').backdropFilter} / ${menu ? getComputedStyle(menu).backdropFilter + ', menu fill ' + getComputedStyle(menu).backgroundColor : 'MENU NOT OPEN'}; matches more-contrast=${matchMedia('(prefers-contrast: more)').matches}, reduce=${matchMedia('(prefers-reduced-transparency: reduce)').matches}`;
+					});
+					console.log(`  ${tag}: ${g}`);
+				}
+				const on = await frameCost(browser, page, cdp, false);
+				const menuOnly = await frameCost(browser, page, cdp, false, true);
+				const off = await frameCost(browser, page, cdp, true);
+				await page.evaluate(() => document.getElementById('px-menu-only')?.remove());
+				await cdp.send('Emulation.setEmulatedMedia', { features: [] });
+				console.log('-- the blur while the glass stage scrolls under an open class menu (software compositing, no GPU) --');
+				const runs = [['header and menu', on], ['menu only', menuOnly], ['glass off', off]];
+				for (const [tag, r] of runs)
+					console.log(`  ${tag} (${r.raf.filt}): rAF ${r.raf.frames} frames, mean ${f2(r.raf.mean)}ms, p95 ${f2(r.raf.p95)}ms, max ${f2(r.raf.max)}ms${r.traced === true ? '' : '; ' + r.traced}`);
+				/* The trace events whose total moved most between glass on and off,
+				   with the menu-only run beside them. */
+				const zero = { n: 0, us: 0 };
+				const names = new Set([...on.byName.keys(), ...off.byName.keys()]);
+				const rows = [...names]
+					.map((n) => ({ n, on: on.byName.get(n) ?? zero, menu: menuOnly.byName.get(n) ?? zero, off: off.byName.get(n) ?? zero }))
+					.sort((a, b) => Math.abs(b.on.us - b.off.us) - Math.abs(a.on.us - a.off.us))
+					.slice(0, 10);
+				for (const r of rows)
+					console.log(`  trace ${r.n}: header+menu ${f2(r.on.us / 1000)}ms over ${r.on.n}, menu only ${f2(r.menu.us / 1000)}ms over ${r.menu.n}, off ${f2(r.off.us / 1000)}ms over ${r.off.n}`);
 			}
+			await page.keyboard.press('Escape');
+			await context.close();
 		}
-		/* Measure the real `:focus-visible` ring, so the held demo ring on the
-		   two construction specimens comes off first. */
-		await page.evaluate(() => document.querySelectorAll('.ts-demo-focus').forEach((el) => el.classList.remove('ts-demo-focus')));
-		console.log('-- focus ring (real :focus-visible, 2px --cyan at 2px offset) --');
-		for (const sel of [
-			'[data-col="before"] [data-ts="btn-primary"]',
-			'[data-col="after"] [data-ts="btn-primary"]',
-			'[data-col="after"] [data-ts="btn-secondary"]',
-			'[data-col="after"] .cr-header :is(.shell-tool, .menu-trigger)',
-			'[data-ts="build-bevel"]',
-			'[data-ts="build-clip"]'
-		])
-			console.log('  ' + (await focusRing(page, sel)));
-		console.log('-- boundary along the cut against the straight edge --');
-		for (const [sel, cut] of [
-			['[data-col="before"] [data-ts="card"]', 12],
-			['[data-col="after"] [data-ts="card"]', 12],
-			['[data-col="after"] [data-ts="btn-secondary"]', 8],
-			['[data-col="after"] [data-ts="btn-primary"]', 8],
-			['[data-col="after"] .cr-header :is(.shell-tool, .menu-trigger)', 8],
-			['[data-ts="build-clip"]', 8]
-		])
-			console.log('  ' + (await diagonal(page, sel, cut)));
-		console.log('-- chip letters against the chip edge --');
-		for (const sel of [
-			'[data-col="before"] [data-ts="chip-status"]',
-			'[data-col="after"] [data-ts="chip-status"]',
-			'[data-col="before"] [data-ts="chip-kind"]',
-			'[data-col="after"] [data-ts="chip-kind"]'
-		])
-			console.log('  ' + (await chipClearance(page, sel)));
-		/* THE POSITIVE CONTROL: the construction this page first shipped with
-		   and rejected -- the two-corner cut on a pill at today's padding --
-		   which must come back with a crossing, or a zero above says nothing. */
-		console.log(
-			'  control: ' +
-				(await chipClearance(page, '[data-col="after"] [data-ts="chip-status"]', 'corner-shape: bevel square !important; padding-inline: 0.45rem !important; '))
-		);
-		console.log('-- glass --');
-		for (const line of await glassText(page, width)) console.log('  ' + line);
-		if (width === 1440) {
-			const cdp = await context.newCDPSession(page);
-			/* THE GATE, BOTH DIRECTIONS. Each preference that must turn the
-			   glass off is emulated on its own, beside the no-preference state
-			   that must leave it on, and the computed filter is read back rather
-			   than trusted from the stylesheet. */
-			console.log('-- the glass gate (computed backdrop-filter, header::before / class menu) --');
-			for (const [tag, features] of [
-				['no preference', [{ name: 'prefers-reduced-transparency', value: 'no-preference' }, { name: 'prefers-contrast', value: 'no-preference' }]],
-				['reduced transparency', [{ name: 'prefers-reduced-transparency', value: 'reduce' }, { name: 'prefers-contrast', value: 'no-preference' }]],
-				['more contrast', [{ name: 'prefers-reduced-transparency', value: 'no-preference' }, { name: 'prefers-contrast', value: 'more' }]]
-			]) {
-				await cdp.send('Emulation.setEmulatedMedia', { features });
-				await settle(page);
-				const g = await page.evaluate(() => {
-					const menu = document.querySelector('[data-col="glass"] [data-testid="section-switcher-menu"]');
-					const h = document.querySelector('[data-col="glass"] .cr-header');
-					return `${getComputedStyle(h, '::before').backdropFilter} / ${menu ? getComputedStyle(menu).backdropFilter + ', menu fill ' + getComputedStyle(menu).backgroundColor : 'MENU NOT OPEN'}; matches more-contrast=${matchMedia('(prefers-contrast: more)').matches}, reduce=${matchMedia('(prefers-reduced-transparency: reduce)').matches}`;
-				});
-				console.log(`  ${tag}: ${g}`);
-			}
-			const on = await frameCost(browser, page, cdp, false);
-			const menuOnly = await frameCost(browser, page, cdp, false, true);
-			const off = await frameCost(browser, page, cdp, true);
-			await page.evaluate(() => document.getElementById('px-menu-only')?.remove());
-			await cdp.send('Emulation.setEmulatedMedia', { features: [] });
-			console.log('-- the blur while the glass stage scrolls under an open class menu (software compositing, no GPU) --');
-			const runs = [['header and menu', on], ['menu only', menuOnly], ['glass off', off]];
-			for (const [tag, r] of runs)
-				console.log(`  ${tag} (${r.raf.filt}): rAF ${r.raf.frames} frames, mean ${f2(r.raf.mean)}ms, p95 ${f2(r.raf.p95)}ms, max ${f2(r.raf.max)}ms${r.traced === true ? '' : '; ' + r.traced}`);
-			/* The trace events whose total moved most between glass on and off,
-			   with the menu-only run beside them. */
-			const zero = { n: 0, us: 0 };
-			const names = new Set([...on.byName.keys(), ...off.byName.keys()]);
-			const rows = [...names]
-				.map((n) => ({ n, on: on.byName.get(n) ?? zero, menu: menuOnly.byName.get(n) ?? zero, off: off.byName.get(n) ?? zero }))
-				.sort((a, b) => Math.abs(b.on.us - b.off.us) - Math.abs(a.on.us - a.off.us))
-				.slice(0, 10);
-			for (const r of rows)
-				console.log(`  trace ${r.n}: header+menu ${f2(r.on.us / 1000)}ms over ${r.on.n}, menu only ${f2(r.menu.us / 1000)}ms over ${r.menu.n}, off ${f2(r.off.us / 1000)}ms over ${r.off.n}`);
-		}
-		await page.keyboard.press('Escape');
-		await context.close();
+	} finally {
+		await browser.close();
+		await server.stop();
 	}
-} finally {
-	await browser.close();
-	await server.stop();
 }
