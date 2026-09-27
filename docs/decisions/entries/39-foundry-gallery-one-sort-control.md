@@ -8,7 +8,7 @@
   "THE GALLERY'S RANKED SECTIONS ARE THE LEADERBOARDS, AND THERE IS NO BOARD PAGE").
   Decision 35 is NOT reversed: every order still ranks apps, never students, and no new
   cross-app `players` column is added.
-- Build: OPEN, in round 1 (ledger 0298).
+- Build: CLOSED 2026-09-25 by ledger 0298 (20426fe5, a29b4ebd, f1349783).
 
 ## Default taken
 
