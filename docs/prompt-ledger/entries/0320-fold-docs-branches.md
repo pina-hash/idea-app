@@ -23,3 +23,15 @@
   number 0225 holds no file, and 0226 and 0227 (allocated to 0296 and 0297) hold none either.
   The integrate.yml fix remains decision 21; the classroom requests were overtaken by 0297
   and 0298.
+
+  Merged to `main` at `48cd788c` (fast-forward push of a local `--no-ff` merge). Confirmed
+  both branch tips and this entry's own ledger commit (`abb6af5b`) are ancestors of
+  `origin/main` after the push. Branch deletes for both `claude/new-session-avpli9` and
+  `claude/new-session-zsum4t` were REFUSED by the proxy exactly as this prompt warned
+  (`--negotiate-only needs one or more --negotiation-tip=*`, then HTTP 403, "Everything
+  up-to-date"); `git ls-remote --heads origin <name>` confirms both still exist on the
+  remote. Not retried another way, per instruction. Deploy confirmation was not completed:
+  the served page's version marker (`VersionBadge`) renders only for a signed-in session per
+  CLAUDE.md, and an unauthenticated fetch of `https://ideabosco.com/` returns the shell HTML
+  with no readable sha or version string in it, so "live" vs "not yet deployed" against
+  `main`'s `48cd788c` is NOT VERIFIED.
