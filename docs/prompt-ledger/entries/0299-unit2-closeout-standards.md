@@ -5,8 +5,10 @@
 - Owns: `docs/standards/IDEA_HTML_ASSIGNMENT_AUTHORING.md` (new), `docs/standards/IDEA_PRINT_STANDARDS.md`, `docs/standards/REGISTER.md` (the PRINT row and the new AUTHORING row only), `docs/prompt-ledger/entries/0299-*`, and its own `docs/history/` entry.
 - Does not touch: `src/**`, `supabase/**`, `materials/**`, `.github/**`, `CLAUDE.md`, any other standards file.
 - Migration permitted: no. Claims: none.
-- Status: pushed
+- Status: superseded by 0333
 - Notes: Three files attached to the session by Mr. Pina. Sweep on 2026-09-25 at main 0725e49 reported PRINT 1.1 AHEAD of mirrored 1.0 and AUTHORING UNMIRRORED.
+
+  Superseded by 0333, which merged the two 1.1 texts by content as 1.2.
 
   **BLOCKED at the audit step.** The prompt's step 4 claim ("IDEA_HTML_ASSIGNMENT_AUTHORING.md
   does not exist" on origin/main, REGISTER has no AUTHORING row) is false as of this session's
