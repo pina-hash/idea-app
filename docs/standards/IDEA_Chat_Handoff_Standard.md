@@ -1,5 +1,5 @@
 # Chat Handoff Standard
-**Version 1.3 - 2026-09-02**
+**Version 1.4 - 2026-09-27**
 
 Governs every prompt this assistant writes for Mr. Pina to paste into a **new claude.ai chat**. This is the chat-surface counterpart to the Claude Code routing section in `IDEA_instructions.md`. CC prompts follow that section; new-chat kickoff prompts follow this one. Do not mix the two rubrics.
 
@@ -62,7 +62,7 @@ The new chat starts with zero memory of the originating conversation beyond proj
 
 1. **Self-contained.** State the task, the scope, and the boundary (what is explicitly out of scope) without assuming the new chat can see this one.
 2. **Locked vs open.** List decisions already made as locked, so the new chat does not relitigate them. List open questions separately - those are the chat's actual work.
-3. **Name the files.** Point to the exact project knowledge files the new chat must read before starting. If the task depends on a file built in the current chat, that file must be uploaded to project knowledge **before** the handoff; the prompt does not ship until the upload is confirmed. Flag any pending uploads explicitly.
+3. **Name the files.** Point to the exact project knowledge files the new chat must read before starting. If the task depends on a file built in the current chat, the current chat writes that file to project knowledge itself **before** the handoff (and to `docs/standards/` first if it is a standards file), and reads it back; the prompt does not ship until that is confirmed. Only a binary (a PDF, a workbook, an image) is an upload for Mr. Pina, and it is flagged explicitly.
 4. **Past-chat pointers.** If the new chat needs history that lives only in conversation (logged data, prior grading records), instruct it by name to search past chats for the specific thread before proceeding, and state what it should find there.
 5. **Workflow carryover.** Restate only the behavioral rules the new chat needs that are not already in project instructions. Do not duplicate what `IDEA_instructions.md` already enforces.
 6. **Delivery format.** One directly-pasteable quoted block containing only what the new chat should read. Header above it, nothing extra inside it.
@@ -136,6 +136,9 @@ Run the closeout. Do not open any other chat first; they will inherit whatever i
    curl -sfL https://raw.githubusercontent.com/pina-hash/idea-app/main/tools/standards-sweep.py -o /tmp/sweep.py
    python3 /tmp/sweep.py --local /mnt/project --delivered <that directory>
 
+   Where /mnt/project does not exist, read each standards file's project copy with the
+   Projects tool (project_read) into one directory and pass that as --local.
+
    It reads only. It clones nothing into a working repo, commits nothing, and collides
    with no open session. Read `tools/standards-sweep.py` for what each verdict means.
    Then run the repo status the same way, because the kickoffs in step 6 need it:
@@ -151,9 +154,11 @@ Run the closeout. Do not open any other chat first; they will inherit whatever i
    The sweep does not cover that file: it is not in `docs/standards/` and has no version
    header, so the only check is a diff for content present in the live copy and absent
    from the delivered one.
-5. Deliver the merged files, a corrected `REGISTER.md`, and one Claude Code prompt that
-   pushes all of it to `docs/standards/` in `pina-hash/idea-app`. The push is confirmed
-   by fetching each file back and quoting what changed, never by the session's report.
+5. Land the merged files yourself: commit them, a corrected `REGISTER.md` and a ledger
+   entry, and push straight to `main` in `pina-hash/idea-app` (solo mode, docs only, doc
+   checks first). Then write each file's project knowledge copy from `main` as it now
+   stands. Confirm by reading both back and quoting what changed, never by a report.
+   Nothing is handed to Mr. Pina to upload unless it is a binary.
 6. Only then write the kickoff prompts for the next chats.
 ```
 
@@ -175,6 +180,14 @@ files themselves, which is possible for content and impossible for intent.
 ---
 
 ## Changelog
+
+- **1.4 (2026-09-27)** - The closing chat lands its own files. `IDEA_instructions.md` 4.31
+  established that a chat writes project knowledge itself with the Projects tool, so
+  kickoff rule 3 now has the current chat write any file the next chat depends on rather
+  than asking for an upload, closeout step 5 pushes to the mirror and writes the project
+  copies instead of delivering files and a Claude Code prompt, and step 2 says how to
+  build the sweep's `--local` directory where `/mnt/project` is absent. Only binaries
+  remain an upload for Mr. Pina.
 
 - **1.3 (2026-09-02)** - Withdraws 1.2's "router chats are always Fable 5.1", same day, on
   Mr. Pina's stated preference that Fable 5.1 be used appropriately rather than by

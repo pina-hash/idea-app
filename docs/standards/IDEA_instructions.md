@@ -1,5 +1,5 @@
 # IDEA Project - Claude Instructions
-**Version 4.30 - 2026-09-27**
+**Version 4.31 - 2026-09-27**
 
 ## These Instructions Evolve
 
@@ -22,11 +22,48 @@ These standards are working documents, not fixed rules. They improve by being co
 
 **Deliver the complete updated file. Never deliver instructions for Alejandro to apply.**
 
-- The output is the whole file, written out and presented for download, ready to re-upload to project knowledge. Not a patch list, not a diff, not "replace lines 74 to 77 with this," not a set of blocks to splice in by hand.
+- **As of 2026-09-27 the chat writes project knowledge itself, and Mr. Pina never uploads a standards file again.** See "Project knowledge is written by Claude, not uploaded" directly below. The output is still the whole file, never a patch list, a diff, "replace lines 74 to 77 with this," or blocks to splice in by hand; what changed is that the chat lands it in both homes rather than handing it over.
 - Alejandro does not necessarily have edit access to a given document, and hand-applying edits is precisely the busy work this entire workflow exists to eliminate. A patch list moves the work from Claude to him, which inverts the point.
 - **Verify the copy is current before editing it.** Check the file's version and changelog against what other documents claim about it. If the visible copy is behind what other docs reference, stop and say so. Rewriting from a stale base silently deletes everything the newer version added, and the deletion is invisible in the delivered file.
 - **A copy on disk from earlier in the same session is a stale base like any other.** Established 2026-08-23d, when a copy written at chat start was still sitting in the working directory and would have reverted the entire 2026-08-23 Supabase, branches, hooks, and lanes rewrite had it been used. Same-session provenance is not freshness. Check the changelog on any copy before editing it, including one Claude wrote itself.
 - **No known stale copy at present.** The `IDEA_Design_System.md` block that stood here is retired for a different reason than it was cleared for. On 2026-08-25 that file was found to be absent from project knowledge and from both Drive libraries, while this bullet vouched for it at version 2.0. A cleared warning about a file nobody can open is worse than a standing one, because it converts a visible gap into confident substitution from memory. The name is retired and its content lives in `IDEA_CLAUDE_DESIGN_STANDARDS.md` 2.0. Keep this bullet as the place a live stale-copy warning goes, and when clearing one, confirm the file is readable rather than confirming only that its version number agrees.
+
+### Project knowledge is written by Claude, not uploaded
+
+**Mr. Pina, 2026-09-27: replacing and re-uploading project context documents is exactly
+the manual work this project exists to remove, and he never wants to do it again.**
+Measured the same day: the Projects tool in a claude.ai chat can create, replace in
+place, and delete any TEXT doc in project knowledge (`.md`, `.json`, `.py`, `.css`,
+`.html`). A write to an existing path reported `replaced: true` rather than landing a
+second copy, and a scratch doc was created and deleted to prove both directions. It cannot
+touch uploaded binaries (the PDFs, `.xlsx`, `.png`), and it cannot edit the project
+instructions field. Those two stay Mr. Pina's, and they are the only project-knowledge
+chores he has.
+
+**So every standards change lands in both homes, in this order, in the same turn:**
+
+1. Edit from the mirror at HEAD (a fresh clone or `git fetch`), never from the project
+   copy.
+2. Commit the file, its `REGISTER.md` row and a ledger entry, and push straight to `main`
+   (solo mode, docs only, doc checks first). The chat attaches the repo with push access
+   itself.
+3. Fetch `main` again and write the project knowledge copy **from the file as it now
+   stands on `main`**, never from the chat's own working copy, so a parallel chat's newer
+   landing is not overwritten by an older write. `project_write` has no version check and
+   the last write wins, which is why the source is HEAD and not memory.
+4. Confirm by reading both back: the clone for the mirror, `project_read` for the copy.
+
+**The same applies to every other text doc in project knowledge**, standards or not: a
+runbook, a context file, an example spec. Nothing is handed to Mr. Pina to upload when the
+chat can write it. A text doc with no mirror (`RULE_no_scripted_lines.md` today) is written
+straight to project knowledge, and is a candidate for mirroring.
+
+**What did not change.** A chat still reads project knowledge as it stood when the chat
+opened, so a write reaches the next chat, not the open ones. The closeout sweep still runs,
+because two chats can still write one doc; it now reads the project copies with
+`project_read` where `/mnt/project` is absent. And a chat without the Projects tool says so
+and falls back to delivering the file, which is then the one upload he is asked for.
+
 ### A raw.githubusercontent.com fetch is not a freshness check
 
 **`raw.githubusercontent.com` is CDN-cached and will hand back a file that is days
@@ -140,12 +177,11 @@ delivery that did not.
 | Mount is ahead | An upload landed that was never mirrored | Report it, and mirror it as part of this pass |
 | Fetch is refused or the file is absent | The mirror is not established for this file | Say so plainly, ask for a paste of the current copy, and do not proceed on the mount alone for anything a second chat may also be editing |
 
-**Every standards delivery ships the file and the mirror commit in the same turn.** The
-download for re-upload, and a Claude Code prompt that commits the identical file to
-`docs/standards/`. The mirror commit is made before the re-upload, which is what shrinks
-the collision window from however long the file sits in Downloads to the minute it takes
-to paste. A delivery that ships only the download leaves the mirror behind and turns the
-authority into a second stale copy, which is worse than having none.
+**Every standards delivery lands the mirror commit and the project copy in the same
+turn**, mirror first, per "Project knowledge is written by Claude, not uploaded". Until
+2026-09-27 this paragraph shipped a download for Mr. Pina to re-upload plus a Claude Code
+prompt to mirror it; the chat now does both itself. A delivery that updates only one home
+turns the other into a second stale copy, which is worse than having none.
 
 **Authority order, stated once so it is not re-derived.** For deciding what a rule says,
 the copy in project knowledge governs, because that is what every chat reads by default.
@@ -2671,8 +2707,9 @@ Alejandro has declined to ask.
   component per slide is approved in chat. The FRC standard adds a fast path for
   its weekly cadence: a recipe is filled rather than scoped, and the inventory
   step applies to full-path decks only.
-- **Standards file updates:** the complete updated file, delivered for download and
-  re-upload. Never a patch list. See "Delivering a standards update" above.
+- **Standards file updates:** the complete updated file, pushed to `docs/standards/` and
+  written to project knowledge by the chat. Never a patch list, never an upload for Mr.
+  Pina. See "Project knowledge is written by Claude, not uploaded" above.
 
 ### Every delivered artifact is archived to Library C in the same turn
 
@@ -3060,7 +3097,7 @@ left running alongside the new one.
 Claude updates these files proactively per the standing directive at the top of this
 document, and delivers the complete updated file every time per "Delivering a standards
 update." Alejandro can also request one directly: say "update standards: [change]" and
-Claude edits the relevant file and returns the finished file for re-upload.
+Claude edits the relevant file, pushes it, and replaces the project knowledge copy itself.
 
 Current standards files, and this list is the registry rather than a sample:
 `IDEA_MATERIALS_PROCESS.md`, `IDEA_MATERIAL_SPEC_v2.md`, `IDEA_RUBRIC_STANDARDS.md`,
@@ -3087,6 +3124,18 @@ component or token exists, the digest governs and the standard is corrected.
 ---
 
 ## Changelog
+
+- **2026-09-27 (4.31)** - PROJECT KNOWLEDGE IS WRITTEN BY CLAUDE. Mr. Pina stated he
+  never wants to replace or re-upload a project context document again. Measured the same
+  day that the Projects tool creates, replaces in place and deletes text docs in project
+  knowledge, and cannot touch uploaded binaries or the instructions field. New section
+  "Project knowledge is written by Claude, not uploaded" under "Delivering a standards
+  update": the four-step order (edit from HEAD, push, write the project copy from HEAD
+  again, read both back), the last-write-wins reason for step 3, the rule that it covers
+  every text doc, and what did not change. Rewritten to match: the first bullet of
+  "Delivering a standards update", the "Every standards delivery ships" paragraph under
+  Freshness, the standards-file bullet under Output Defaults, and the last sentence of
+  the "Updating These Standards" intro. Nothing else removed.
 
 - **2026-09-27 (4.30)** - SOLO MODE PUSHES STRAIGHT TO `main`, AND TIME IS A COST.
   Mr. Pina stated that when one Claude Code session is running on a repo it should commit,
