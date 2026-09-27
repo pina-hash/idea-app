@@ -343,8 +343,10 @@ def two_authors(repo, rows):
 #     defines -- because for a replace, existence proves nothing: that is
 #     exactly how 0151 reverted 0148 with the object present and the
 #     server-stamped clock gone. The markers are lines present in the later
-#     body and absent from every other definition in the range, so a `true`
-#     means the LATER text is what the catalog holds.
+#     body and absent from every EARLIER definition in the range, so a `true`
+#     means the LATER text is what the catalog holds. A body that a still
+#     later migration replaced is asked whether the live body is its own OR
+#     any later one's (`superseded`, ledger 0338) -- see `probes`.
 #
 #     Every probe reads pg_catalog / information_schema and none reads a
 #     migrations table, because production has none.
@@ -515,35 +517,108 @@ def probes(repo, rows, collisions):
 
     # Body markers: for every function two files in the range both define,
     # the LATER file gets a marker probe.
+    #
+    # A BODY A LATER MIGRATION REPLACED IS NOT A BODY PRODUCTION STILL HOLDS,
+    # AND THAT IS THE CASE THIS USED TO GET WRONG (ledger 0338). 0166's marker
+    # was a line of 0166's own body; 0196 and 0215 rewrote the function, the
+    # line was gone from `prosrc`, and 0166 read NOT APPLIED -- with a CONFLICT,
+    # because the record says it was applied -- on every push. 0214 read the
+    # same through `_ideacad_part_owner`, which 0216 rewrote. Migrate refused
+    # on both, so it could never apply anything again.
+    #
+    # So a definer that is NOT the last one in range is asked "is the live body
+    # MINE OR ANY LATER DEFINER'S", never "is it mine": one marker per body from
+    # this one to the last, each a line absent from every body BEFORE this one,
+    # OR'd together. True means the live body is this migration's or a later
+    # one's, and a later one can only be there over this one.
+    #
+    # NOT "is it the LAST definer's" alone, which is the obvious reading and
+    # breaks the one case migrate.yml exists for: a NEW migration redefining a
+    # function is unapplied until it runs, so the last body is absent, and
+    # every earlier definer of that function would read NOT APPLIED with it --
+    # and migrate.yml applies the LOWEST unapplied migration, which would then
+    # be an old one, already applied. With the OR, the new migration reads NOT
+    # APPLIED and the old one reads applied, which is what production holds.
+    #
+    # FALSE STILL MEANS NOT APPLIED. The function absent, or carrying a body
+    # from BEFORE this migration, is this migration genuinely not being live,
+    # and a history row claiming otherwise is still a CONFLICT.
+    #
+    # WHERE ANY BODY IN THE RUN HAS NO DISTINGUISHING LINE, THERE IS NO PROBE.
+    # A live body the OR cannot recognise would read false, and false is NOT
+    # APPLIED; `sql: None` hands the verdict to the history record instead,
+    # and with no row it is CANNOT SAY -- never a pass, never a false refusal.
+    def file_of(num):
+        return next(r["file"] for r in rows if r["num"] == num)
+
+    def fn_probe(skey, lines):
+        pos = " or ".join(f"position({sql_lit(m)} in p.prosrc) > 0" for m in lines)
+        return (f"exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace "
+                f"where n.nspname = {sql_lit(skey[0])} and p.proname = {sql_lit(skey[1])} "
+                f"and ({pos}))" if len(lines) > 1 else
+                f"exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace "
+                f"where n.nspname = {sql_lit(skey[0])} and p.proname = {sql_lit(skey[1])} "
+                f"and {pos})")
+
     for key, nums in sorted(collisions.items()):
         if not key.startswith("function "):
             continue
         fq = key.split(" ", 1)[1]
         skey = split_name(fq)
         ordered = sorted(nums)
+        fname = f"function {skey[0]}.{skey[1]}"
         for i, num in enumerate(ordered[1:], start=1):
             later_bodies = bodies.get(num, {}).get(skey, [])
             others = []
             for o in ordered[:i]:
                 others += bodies.get(o, {}).get(skey, [])
             if not later_bodies:
-                out.append({"num": num, "file": next(r["file"] for r in rows if r["num"] == num),
-                            "kind": "marker-missing", "object": f"function {skey[0]}.{skey[1]} (body not parsed; out of reach)", "sql": None})
+                out.append({"num": num, "file": file_of(num),
+                            "kind": "marker-missing", "object": f"{fname} (body not parsed; out of reach)", "sql": None})
                 continue
             marker = body_marker(later_bodies[-1], others)
             if not marker:
-                out.append({"num": num, "file": next(r["file"] for r in rows if r["num"] == num),
-                            "kind": "marker-missing", "object": f"function {skey[0]}.{skey[1]} (no distinguishing line; out of reach)", "sql": None})
+                out.append({"num": num, "file": file_of(num),
+                            "kind": "marker-missing", "object": f"{fname} (no distinguishing line; out of reach)", "sql": None})
+                continue
+            superseded_by = ordered[i + 1:]
+            if not superseded_by:
+                out.append({
+                    "num": num,
+                    "file": file_of(num),
+                    "kind": "marker",
+                    "object": f"{fname} carries {num}'s body",
+                    "marker": marker,
+                    "sql": fn_probe(skey, [marker]),
+                })
+                continue
+            # This body was replaced later in range. One line per body from
+            # here on, each told apart from the bodies BEFORE this one only.
+            lines = [marker]
+            unreadable = None
+            for later in superseded_by:
+                lb = bodies.get(later, {}).get(skey, [])
+                m = body_marker(lb[-1], others) if lb else None
+                if not m:
+                    unreadable = later
+                    break
+                if m not in lines:
+                    lines.append(m)
+            label = f"{fname} carries {num}'s body or a later one (superseded by {', '.join(superseded_by)})"
+            if unreadable:
+                out.append({"num": num, "file": file_of(num), "kind": "marker-missing",
+                            "object": f"{label}; {unreadable}'s body has no line telling it from the bodies before {num}, out of reach",
+                            "superseded_by": superseded_by, "sql": None})
                 continue
             out.append({
                 "num": num,
-                "file": next(r["file"] for r in rows if r["num"] == num),
-                "kind": "marker",
-                "object": f"function {skey[0]}.{skey[1]} carries {num}'s body",
+                "file": file_of(num),
+                "kind": "superseded",
+                "object": label,
                 "marker": marker,
-                "sql": (f"exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace "
-                        f"where n.nspname = {sql_lit(skey[0])} and p.proname = {sql_lit(skey[1])} "
-                        f"and position({sql_lit(marker)} in p.prosrc) > 0)"),
+                "markers": lines,
+                "superseded_by": superseded_by,
+                "sql": fn_probe(skey, lines),
             })
     out.sort(key=lambda p: (p["num"], 0 if p["kind"] == "object" else 1))
     return out
@@ -704,8 +779,10 @@ def report(repo_name, since, data):
         print("    editor; it returns one row per APPLIED migration, by number and object.")
         print("    A `carries NNNN's body` row is a body marker: for a `create or replace`")
         print("    existence proves nothing, so it checks the later text is what is live.")
+        print("    `... or a later one (superseded by ...)` is a body a later migration replaced:")
+        print("    it reads applied when the live body is that one or any later definer's.")
         for p in plist:
-            tag = {"object": "probe ", "marker": "marker", "none": "NO PROBE", "marker-missing": "NO PROBE"}[p["kind"]]
+            tag = {"object": "probe ", "marker": "marker", "superseded": "marker", "none": "NO PROBE", "marker-missing": "NO PROBE"}[p["kind"]]
             print(f"      {p['num']}  {tag}  {p['object']}")
         print()
         for line in data["probe_sql"].splitlines():
