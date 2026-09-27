@@ -77,6 +77,25 @@ on:
         required: true
         type: string
 
+# ONE LIVE RUN PER BRANCH, FOR PUSHES TO ANY BRANCH BUT `main` (ledger 0335).
+# A session pushes a branch several times in a few minutes, and every run but
+# the newest is testing a tip nobody will merge: `integrate.yml` keys on the
+# newest completed run for the branch's exact tip, and a cancelled run is not
+# `success`, so cancelling one can only ever leave a branch waiting for the run
+# that replaced it -- never merge something untested.
+#
+# EVERYTHING ELSE GETS A GROUP OF ITS OWN, WHICH IS HOW "NEVER CANCELLED" IS
+# SPELLED: a push to `main` (every one is a deploy, and its CI is the record of
+# what shipped), `pull_request`, the nightly `schedule`, a hand-pressed
+# `workflow_dispatch`, and `workflow_call` from `deploy.yml`. The run id makes
+# each of those a group nothing else can join. It also keeps a CALLED run out
+# of its caller's group: in a `workflow_call`, `github.*` is the caller's
+# context, and a group string equal to `deploy.yml`'s own `deploy` would
+# deadlock the two -- `ci-` in front of every value here is what rules that out.
+concurrency:
+  group: ${{ (github.event_name == 'push' && github.ref != 'refs/heads/main') && format('ci-push-{0}', github.ref) || format('ci-{0}-{1}-{2}', github.event_name, github.run_id, github.run_attempt) }}
+  cancel-in-progress: true
+
 env:
   # PLACEHOLDER VALUES, COMMITTED HERE ON PURPOSE -- never a real credential.
   #
@@ -96,142 +115,187 @@ env:
   PUBLIC_SUPABASE_ANON_KEY: 'ci-placeholder-anon-key'
 
 jobs:
-  test:
+  # ------------------------------------------------------------------------
+  # THE SHAPE (ledger 0335): `scope` decides, then `check` and a sharded
+  # `test` run in parallel, then `ci` reads every result. Before this the
+  # whole of CI was one job running 625 test files one after another, and a
+  # push that changed nothing but a ledger entry waited nineteen minutes for
+  # the same answer as a push that changed the database layer.
+  #
+  #   scope  ALWAYS. Decides `full` or `docs`, runs the two document checks
+  #          that need no dependencies, and on a docs-only push runs the test
+  #          files that read documents (see `docs_only_paths` below and
+  #          `docsReaderTests` in tools/run-tests.mjs).
+  #   check  `npm run check`, on a full run.
+  #   test   the suite, split N ways by `--shard`, on a full run.
+  #   ci     reads the other three and fails unless every part that had to
+  #          run passed. A red shard is red CI with or without it; what it adds
+  #          is that a job SKIPPED when it should have run is red too.
+  #
+  # WHICH REF IS TESTED, and the empty string is the important case -- every
+  # checkout below uses the same expression:
+  #   workflow_call / workflow_dispatch -> `inputs.ref`, what the caller
+  #     or the person named.
+  #   schedule -> `integration`, per the comment on the trigger above;
+  #     `github.ref` on a scheduled run is the DEFAULT branch, so without
+  #     this a nightly run would test `main` and prove nothing about the
+  #     branch that never gets a run of its own.
+  #   push / pull_request -> '' , which actions/checkout treats as
+  #     unspecified and resolves to the ref that triggered the run. It is
+  #     not "check out nothing".
+  # ------------------------------------------------------------------------
+  scope:
+    name: Scope and document checks
     runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.scope.outputs.mode }}
     steps:
-      # WHICH REF IS TESTED, and the empty string is the important case:
-      #   workflow_call / workflow_dispatch -> `inputs.ref`, what the caller
-      #     or the person named.
-      #   schedule -> `integration`, per the comment on the trigger above;
-      #     `github.ref` on a scheduled run is the DEFAULT branch, so without
-      #     this a nightly run would test `main` and prove nothing about the
-      #     branch that never gets a run of its own.
-      #   push / pull_request -> '' , which actions/checkout treats as
-      #     unspecified and resolves to the ref that triggered the run. It is
-      #     not "check out nothing".
+      # SHALLOW, THEN THE HISTORY OF EXACTLY TWO BRANCHES -- AND NOT
+      # `fetch-depth: 0`, WHICH IS WHAT MADE CI TAKE NINETEEN MINUTES.
       #
-      # AND `fetch-depth: 0`, WHICH IS NOT A CONVENIENCE. The default is 1: one
-      # commit, and a refspec naming ONLY the ref that triggered the run, so the
-      # checkout carries `refs/remotes/origin/<that ref>` and no sibling branch
-      # ref at all. `tests/apply-migration-guard.test.ts` and
-      # `tests/apply-migration-trace.test.ts` drive the real
-      # `tools/apply-migration.mjs` with `--ref origin/integration`, which
-      # reaches `migrationsOnlyOn` in `tools/deploy-probe.mjs` and asks git to
-      # list `supabase/migrations` on BOTH `origin/main` and that ref. Under the
-      # default the second read has no ref to read, so the tool answers
+      # History IS read, by name: `tests/apply-migration-guard.test.ts`,
+      # `tests/apply-migration-trace.test.ts` and `tests/deploy-probe-cli.test.ts`
+      # drive the real `tools/apply-migration.mjs` / `tools/deploy-probe.mjs`
+      # with `--ref origin/integration`, which asks git to list
+      # `supabase/migrations` on BOTH `origin/main` and that ref; under a
+      # plain depth-1 checkout neither ref exists and the tool answers
       #   REFUSING: the applied set could not be read
-      #   (could not list supabase/migrations on origin/integration).
-      # -- its designed fail-closed path, exit 2, nothing applied, and the only
-      # control standing between a session and the production database. It is
-      # CORRECT, and it made `main` red on 2026-09-06 (run 34060552250, 2 failed
-      # of 6301) while every local run was green, because a local clone has the
-      # sibling refs and a CI checkout does not.
+      # -- its designed fail-closed path, which made `main` red on 2026-09-06
+      # (run 34060552250). `tools/idea-status.py` also dates each migration
+      # from `git log origin/main`, and `npm run history:verify` compares
+      # against a pre-split commit on `main`'s history. So both refs, with
+      # their whole history, are required.
       #
-      # WHAT IT COSTS ON THE RUNNER, WHICH IS THE READING THAT SETTLES IT:
-      # NOTHING MEASURABLE. Two `ubuntu-latest` runs of this job, three minutes
-      # apart, same repository, same branch -- the `actions/checkout@v4` step
-      # took SIX SECONDS under the old default (run 34061189403, 21:28:51 to
-      # 21:28:57) and SIX SECONDS with `fetch-depth: 0` (run 34062080600,
-      # 21:46:46 to 21:46:52). GitHub's own network to its own object store is
-      # not what this job spends its time on; `npm ci` alone is twice the
-      # checkout, and the suite is thirty times it.
+      # WHAT `fetch-depth: 0` ALSO FETCHED WAS EVERY OTHER BRANCH, AND THAT
+      # COST 596 SECONDS A RUN. `idea-status.py`'s ledger reader runs one
+      # `git show` per ledger entry PER REMOTE BRANCH (`ledger_refs`), and the
+      # origin carried 98 `claude/**` and `codex/**` branches on 2026-09-27,
+      # so every probe call did roughly 45,000 `git show`s instead of about
+      # 900. Measured from run 36343240552's own log timestamps: the three
+      # files above took 490 s, 72 s and 34 s of a 1,102 s suite. The same
+      # three against `main` + `integration` only: 40 s, 13 s and 4 s; and
+      # `deploy-probe-cli` alone, same machine, all 102 branches fetched
+      # again: 647 s (ledger 0335's history entry has the runs).
+      # No test reads an agent branch: `tests/idea-status.test.ts` and
+      # `tests/migration-claims.test.ts` build their own fixture repositories.
       #
-      # AND MEASURED AGAINST THIS REPOSITORY (1,702 commits) OFF-RUNNER, which
-      # is where the shape was chosen before the runner confirmed it -- three
-      # clones of each from github.com, wall clock, and the resulting `.git`:
-      #   depth 1 (the old default)   9.80 / 7.77 / 7.73s   161M
-      #   fetch-depth: 0              8.30 / 8.26 / 7.35s   172M
-      #   depth 1 + a targeted
-      #     fetch of integration      9.77 / 9.06 / 9.51s   163M
-      # THE FULL HISTORY IS FREE HERE, AND THE FIRST SINGLE-SHOT READING SAID
-      # OTHERWISE -- one clone each made the full one look 1.3s dearer, which
-      # three runs show is network noise: the two ranges overlap, the full
-      # clone's best is the fastest number in the table, and the runner
-      # measurement above puts both at the same six seconds. What is real is
-      # 11M more `.git`, and that the "cheaper" targeted fetch is the only shape
-      # that is consistently SLOWER, because a second round trip costs more
-      # than the objects it saves. It also fixes one named ref, where the full
-      # fetch makes every branch readable and cannot go stale the next time a
-      # test names a different one. `deploy.yml` and `integrate.yml` already
-      # both pin `fetch-depth: 0`; this was the last workflow that did not.
-      #
-      # The two tests now REFUSE TO PASS SILENTLY without those refs -- they
-      # assert the precondition first and fail naming the shallow clone -- so
-      # dropping this line does not quietly restore the string-comparison
-      # failure that sent five sessions to read the wrong file.
+      # `--unshallow` completes the history of what the checkout already has
+      # (HEAD) as well as fetching `main`'s, so a push's `before` commit is
+      # present whenever it is an ancestor of the tip. `integration` is
+      # fetched separately and allowed to be absent: a test that needs it
+      # says so itself (`tests/git-refs-precondition.ts`) rather than this
+      # step guessing.
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || (github.event_name == 'schedule' && 'integration') || '' }}
-          fetch-depth: 0
+
+      - name: Fetch main and integration, with history
+        run: |
+          git fetch --quiet --no-tags --unshallow origin '+refs/heads/main:refs/remotes/origin/main'
+          git fetch --quiet --no-tags origin '+refs/heads/integration:refs/remotes/origin/integration' \
+            || echo "integration is not on the remote; tests that need it will say so"
+          git for-each-ref --format='%(refname:short) %(objectname:short)' refs/remotes/origin
 
       # adapter-vercel (node_modules/@sveltejs/adapter-vercel/utils.js,
       # resolved via package-lock.json) hard-rejects any Node major outside
       # 20, 22 or 24 -- confirmed by running the build against Node 26
       # locally, which fails with "Unsupported Node.js version". 24 is the
-      # newest of the three the adapter accepts.
+      # newest of the three the adapter accepts. Every job pins the same one;
+      # here it is also what the decision below runs `tools/run-tests.mjs` on.
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
 
-      - name: Install dependencies
+      # FULL OR DOCS-ONLY. Docs-only is a PUSH whose every changed path is
+      # under `docs/` or ends `.md`, and nothing under `src/`, `tests/`,
+      # `supabase/`, `tools/` or `.github/`, and neither package file -- a
+      # README inside `src/` is still a push to `src/`. Anything this step
+      # cannot establish is FULL: a non-push trigger, a `workflow_call` (its
+      # `inputs.ref` is set), an empty or unreadable diff, and a document that
+      # code under `src/` names (`--names-in-src`, tools/run-tests.mjs).
+      #
+      # THE BASE of the diff is the merge base with `origin/main` -- a branch
+      # is judged on EVERYTHING it changes relative to `main`, on every push.
+      # NOT the push's own `before`, and that is load-bearing rather than
+      # conservative: a session pushes a code commit, then a ledger entry a
+      # minute later; the concurrency group below CANCELS the first run, and
+      # a `before`-based diff would call the second push docs-only -- a green
+      # tip over code no run ever tested, which `integrate.yml` then merges.
+      # A push to `main` is the one exception and diffs from its `before`
+      # (when that is an ancestor of the tip): `main`'s runs are never
+      # cancelled, so every range pushed to it has a run of its own.
+      #
+      # The two functions sit between markers because
+      # `tests/workflows.test.ts` cuts THIS text out of this file and runs it
+      # against fixture path lists and a fixture repository. Do not rename the
+      # markers or move the bodies out from between them.
+      - name: Decide full or docs-only
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          CALLED_REF: ${{ inputs.ref }}
+          REF: ${{ github.ref }}
         run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+          set -euo pipefail
+          # docs_only_marker:begin
+          docs_only_paths() {
+            # Reads changed paths on stdin, one per line. Returns 0 only when
+            # there is at least one and every one of them is documentation.
+            local any=0 p
+            while IFS= read -r p; do
+              [ -z "$p" ] && continue
+              any=1
+              case "$p" in
+                src/*|tests/*|supabase/*|tools/*|.github/*|package.json|package-lock.json) return 1 ;;
+                docs/*|*.md) ;;
+                *) return 1 ;;
+              esac
+            done
+            [ "$any" = 1 ]
+          }
+          scope_mode() {
+            # $1 the event, $2 the push's `before`, $3 a called/dispatched ref,
+            # $4 the pushed ref. Prints `docs` or `full`; runs git in the
+            # current directory.
+            local base='' changed=''
+            if [ "$1" != push ] || [ -n "$3" ]; then echo full; return; fi
+            if [ "$4" = refs/heads/main ] && [ -n "$2" ] \
+              && [ "$2" != 0000000000000000000000000000000000000000 ] \
+              && git merge-base --is-ancestor "$2" HEAD 2>/dev/null; then
+              base=$2
+            else
+              base=$(git merge-base origin/main HEAD 2>/dev/null) || base=''
+            fi
+            if [ -z "$base" ] || ! changed=$(git diff --name-only --no-renames "$base" HEAD); then
+              echo full; return
+            fi
+            # Documentation by PATH, and then not named by any code under
+            # `src/` -- `mdm-content-seed.md` is a root `*.md` file that
+            # `src/lib/frc/mdm-content.ts` imports as page content, and it is
+            # not documentation whatever its extension says.
+            if printf '%s\n' "$changed" | docs_only_paths \
+              && printf '%s\n' "$changed" | node "${RUN_TESTS:-tools/run-tests.mjs}" --names-in-src >&2; then
+              echo docs
+            else
+              echo full
+            fi
+          }
+          # docs_only_marker:end
+          mode=$(scope_mode "$EVENT" "$BEFORE" "$CALLED_REF" "$REF")
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "CI scope: $mode (event $EVENT)"
+          echo "### CI scope: \`$mode\`" >> "$GITHUB_STEP_SUMMARY"
 
-      # Both steps below run even if the first fails, so one push reports
-      # both failures rather than only the earlier one.
-      - name: Type and a11y check
-        id: check
-        continue-on-error: true
-        run: npm run check
-
-      # THE FULL SUITE RUNS HERE, DATABASE TESTS INCLUDED, and that is a
-      # deliberate reading of "no credential" rather than an oversight of the
-      # constraint. Every DB-backed test in tests/ (`tests/db/harness.ts`)
-      # runs against `embedded-postgres`, a real Postgres binary vitest boots
-      # itself in-process (tests/db/cluster.ts, globalSetup) and tears down at
-      # the end of the run. It is not Supabase, not a hosted database, and not
-      # a service reachable over the network: the binary is a public,
-      # unauthenticated npm optionalDependency
-      # (@embedded-postgres/linux-x64, already pinned in package-lock.json)
-      # fetched by the `npm ci` step above the same way any other dependency
-      # is, and every migration it applies is the repo's own file, verbatim,
-      # from supabase/migrations. Nothing here is a live key standing in for
-      # one; it is the same fixture `npm test` already uses locally.
+      # Every gate below runs even if an earlier one failed, so one push
+      # reports all of them rather than only the first.
       #
-      # THE COST: measured directly on a GitHub-hosted runner (not
-      # extrapolated from a local machine), on the run that first exercised
-      # this step end to end -- 94 files, 2258 tests, one shared embedded
-      # Postgres cluster booted once, took 45s (vitest's own reported
-      # duration; ~47s wall-clock including step overhead). That is
-      # comfortably inside a normal job budget and is not expected to become
-      # the slow part of this pipeline.
-      #
-      # THIS STEP RUNS `npm test`, NOT `vitest` DIRECTLY, and that is load
-      # bearing rather than a style choice: importing `embedded-postgres`
-      # (which `tests/db/cluster.ts`'s globalSetup does, in the main vitest
-      # process) registers an `async-exit-hook` `beforeExit` handler that
-      # unconditionally calls `process.exit(0)`, clobbering whatever exit
-      # code vitest itself wanted to report. Measured directly: a deliberately
-      # failing test suite still exits 0. `npm test` (`tools/run-tests.mjs`)
-      # reads vitest's own JSON report instead of trusting the process exit
-      # code, so this step's `outcome` below is meaningful. See the comment at
-      # the top of that file for the full story -- this was found, and fixed,
-      # in the same session that got this workflow green for the first time.
-      - name: Test suite
-        id: test
-        if: always()
-        continue-on-error: true
-        run: npm test
-
       # Asserts the VERSION constant baked into the served VANGUARD build has
       # a matching CHANGELOG entry (tools/check-vanguard-changelog.mjs). A
       # version bump with no changelog line used to ship silently -- there was
       # no CI, and no local hook, that ever caught it. This does not generate
-      # a missing entry; it fails so a human writes one.
+      # a missing entry; it fails so a human writes one. No dependencies, so
+      # it runs here on every run rather than waiting on `npm ci`.
       - name: VANGUARD changelog check
         id: vanguard-changelog
         if: always()
@@ -244,34 +308,195 @@ jobs:
       # fast (~1.3s wall including node startup, measured; no embedded
       # Postgres, no network) and deterministic (it reads only committed
       # files and hashes them). It also tries a byte-for-byte `git show`
-      # against the pre-split commit, and THAT LEG NOW RUNS: this step used to
-      # print `git byte compare : unavailable`, because the checkout was
-      # shallow and the pre-split tree was not reachable from it. With
-      # `fetch-depth: 0` above it reports `IDENTICAL against ea9f043b6c`
-      # instead -- measured on a full clone of this tree -- so the step got
-      # strictly stronger for free. It is still best-effort: the script
-      # catches a failed `git show` and falls back to the sha256 compare, so a
-      # checkout that cannot reach that commit is not a reason it can fail.
-      # The only
-      # way this step goes red is a genuinely malformed or drifted entry (a
-      # retyped `## ` heading, a title that stopped matching, a broken
-      # record_order, or the reassembled body itself changing), which is
-      # exactly what it exists to catch before a bad entry reaches `main` and
-      # a push to `main` deploys mid-class.
+      # against the pre-split commit, and THAT LEG RUNS because `main`'s
+      # history is fetched above: it reports `IDENTICAL against ea9f043b6c`.
+      # It is still best-effort: the script catches a failed `git show` and
+      # falls back to the sha256 compare, so a checkout that cannot reach that
+      # commit is not a reason it can fail. The only way this step goes red
+      # is a genuinely malformed or drifted entry (a retyped `## ` heading, a
+      # title that stopped matching, a broken record_order, or the reassembled
+      # body itself changing), which is exactly what it exists to catch before
+      # a bad entry reaches `main` and a push to `main` deploys mid-class.
       - name: History record check
         id: history-verify
         if: always()
         continue-on-error: true
         run: npm run history:verify
 
+      # THE DOCS-ONLY PATH'S TESTS: every test file whose own source names a
+      # document or a tool (`docsReaderTests`, tools/run-tests.mjs), which
+      # includes the standards version-header test and the CLAUDE.md name
+      # check. On a full run these same files run inside the shards instead,
+      # so this is skipped there and the final step below says which.
+      #
+      # THREE VITEST PROCESSES AT ONCE, each with its own embedded Postgres,
+      # because one process took 105 s for the 42 files and three took 81 s
+      # (measured locally, 2026-09-27). The floor is one file:
+      # `tests/deploy-probe-cli.test.ts` is ~42 s on its own and reads
+      # `docs/migrations-applied/`, so it belongs here. Every log is printed
+      # whatever happened, and any one process failing fails the step.
+      - name: Install dependencies (docs-only)
+        if: steps.scope.outputs.mode == 'docs'
+        run: npm ci
+
+      - name: Document-reading tests (docs-only)
+        id: docs-tests
+        if: always() && steps.scope.outputs.mode == 'docs'
+        continue-on-error: true
+        run: |
+          npx svelte-kit sync
+          pids=()
+          for i in 1 2 3; do
+            npm test -- --docs-only --shard="$i/3" > "$RUNNER_TEMP/docs-tests-$i.log" 2>&1 &
+            pids+=("$!")
+          done
+          rc=0
+          for i in 1 2 3; do
+            wait "${pids[$((i - 1))]}" || rc=1
+            echo "::group::document-reading tests, part $i of 3"
+            cat "$RUNNER_TEMP/docs-tests-$i.log"
+            echo "::endgroup::"
+          done
+          exit "$rc"
+
       - name: Fail the job if any step failed
         if: always()
+        env:
+          MODE: ${{ steps.scope.outputs.mode }}
         run: |
           echo "ref tested:         $(git rev-parse HEAD) ($(git rev-parse --abbrev-ref HEAD))"
-          echo "check:              ${{ steps.check.outcome }}"
-          echo "test:               ${{ steps.test.outcome }}"
+          echo "mode:               $MODE"
           echo "vanguard-changelog: ${{ steps.vanguard-changelog.outcome }}"
           echo "history-verify:     ${{ steps.history-verify.outcome }}"
-          if [ "${{ steps.check.outcome }}" != "success" ] || [ "${{ steps.test.outcome }}" != "success" ] || [ "${{ steps.vanguard-changelog.outcome }}" != "success" ] || [ "${{ steps.history-verify.outcome }}" != "success" ]; then
+          echo "docs-tests:         ${{ steps.docs-tests.outcome }}"
+          if [ "${{ steps.vanguard-changelog.outcome }}" != "success" ] || [ "${{ steps.history-verify.outcome }}" != "success" ]; then
             exit 1
           fi
+          if [ "$MODE" = docs ] && [ "${{ steps.docs-tests.outcome }}" != "success" ]; then
+            exit 1
+          fi
+
+  # `npm run check` reads no history -- svelte-kit sync and svelte-check read
+  # the working tree and nothing else, measured in a depth-1 clone -- so this
+  # checkout stays shallow.
+  check:
+    name: Type and a11y check
+    needs: scope
+    # `!= 'docs'`, never `== 'full'`: a `scope` job that died before it could
+    # answer leaves the output empty, and an empty answer runs everything.
+    # `!cancelled()` rather than `always()`, so a superseded run's cancel
+    # reaches this job too instead of leaving it running on a dead tip.
+    if: ${{ !cancelled() && needs.scope.outputs.mode != 'docs' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || (github.event_name == 'schedule' && 'integration') || '' }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type and a11y check
+        run: npm run check
+
+  # THE FULL SUITE, DATABASE TESTS INCLUDED, SPLIT ACROSS A MATRIX. Every
+  # DB-backed test (`tests/db/harness.ts`) runs against `embedded-postgres`,
+  # a real Postgres binary vitest boots itself (tests/db/cluster.ts,
+  # globalSetup) -- not Supabase, not a network service; the binary is a
+  # public npm optionalDependency fetched by `npm ci`. EACH SHARD IS ITS OWN
+  # VITEST RUN AND BOOTS ITS OWN CLUSTER, which is what `globalSetup` means.
+  #
+  # `--shard=i/N` is vitest's own split, with one change in
+  # `tests/db/sequencer.ts`: the isolation pair (`db-isolation-a` leaves a
+  # database behind on the cluster, `db-isolation-b` must see it) always
+  # lands in one shard. N comes from `strategy.job-total`, so the matrix list
+  # is the only place the count is written.
+  #
+  # `fail-fast: false`, so one red shard does not cancel the others and a
+  # push still reports every failure, as the single job used to.
+  #
+  # THIS RUNS `npm test`, NOT `vitest` DIRECTLY, and that is load bearing:
+  # importing `embedded-postgres` registers an `async-exit-hook` that calls
+  # `process.exit(0)` unconditionally, so vitest exits 0 on a failing suite.
+  # `tools/run-tests.mjs` reads vitest's own JSON report instead. And
+  # `svelte-kit sync` runs first because a fresh checkout has no
+  # `.svelte-kit/tsconfig.json`, without which vitest dies in dependency
+  # optimisation before any test body (decision 21).
+  test:
+    name: Test suite (shard ${{ matrix.shard }})
+    needs: scope
+    if: ${{ !cancelled() && needs.scope.outputs.mode != 'docs' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5]
+    steps:
+      # The same checkout and the same two-branch fetch as `scope`, for the
+      # reasons written there; `tests/workflows.test.ts` holds the two equal.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || (github.event_name == 'schedule' && 'integration') || '' }}
+
+      - name: Fetch main and integration, with history
+        run: |
+          git fetch --quiet --no-tags --unshallow origin '+refs/heads/main:refs/remotes/origin/main'
+          git fetch --quiet --no-tags origin '+refs/heads/integration:refs/remotes/origin/integration' \
+            || echo "integration is not on the remote; tests that need it will say so"
+          git for-each-ref --format='%(refname:short) %(objectname:short)' refs/remotes/origin
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate SvelteKit types
+        run: npx svelte-kit sync
+
+      - name: Test suite
+        env:
+          SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
+        run: npm test -- --shard="$SHARD"
+
+  # THE ONE RESULT. `integrate.yml` and `deploy.yml` read the WORKFLOW's
+  # conclusion, which a failing job already turns red; this job exists for
+  # the case that does not -- a `check` or `test` job SKIPPED on a run that
+  # was supposed to be full, which GitHub counts as a pass. Docs-only is the
+  # only mode in which a skip is the right answer.
+  ci:
+    name: CI result
+    needs: [scope, check, test]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless every part that had to run passed
+        env:
+          MODE: ${{ needs.scope.outputs.mode }}
+          SCOPE: ${{ needs.scope.result }}
+          CHECK: ${{ needs.check.result }}
+          TEST: ${{ needs.test.result }}
+        run: |
+          # ci_result_marker:begin
+          ci_result() {
+            # $1 mode, $2 scope result, $3 check result, $4 test result.
+            [ "$2" = success ] || return 1
+            if [ "$1" = docs ]; then
+              [ "$3" = skipped ] && [ "$4" = skipped ]
+            else
+              [ "$3" = success ] && [ "$4" = success ]
+            fi
+          }
+          # ci_result_marker:end
+          echo "mode:  ${MODE:-(none)}"
+          echo "scope: $SCOPE"
+          echo "check: $CHECK"
+          echo "test:  $TEST"
+          ci_result "$MODE" "$SCOPE" "$CHECK" "$TEST"

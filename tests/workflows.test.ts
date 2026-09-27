@@ -35,7 +35,9 @@
 // to hold. A file that passes here can still be rejected by GitHub for
 // something nobody has hit yet.
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -47,6 +49,7 @@ import {
 	toCatalogOnly,
 	verdicts
 } from '../tools/deploy-probe.mjs';
+import { docsReaderTests, readsDocuments } from '../tools/run-tests.mjs';
 
 const DIR = fileURLToPath(new URL('../.github/workflows/', import.meta.url));
 const FILES = readdirSync(DIR)
@@ -317,6 +320,17 @@ const triggersOf = (file: string): string[] =>
 		.split('\n')
 		.map((l) => /^[ ]{2}([A-Za-z_][A-Za-z0-9_]*):/.exec(l)?.[1])
 		.filter((k): k is string => Boolean(k));
+
+/**
+ * `ci.yml`'s gate step: the one that reads every `continue-on-error` step's
+ * outcome. Found by its NAME rather than as the file's last `run:` block, which
+ * it stopped being when ledger 0335 put the `ci` result job after it.
+ */
+const ciGateStep = (): RunBlock => {
+	const found = runBlocks('ci.yml').filter((b) => b.step === 'Fail the job if any step failed');
+	expect(found.length, 'ci.yml must carry exactly one gate step').toBe(1);
+	return found[0];
+};
 
 /** The workflow's own `name:`, which is what GitHub lists a run by when it parses. */
 const nameOf = (file: string): string | undefined =>
@@ -627,9 +641,9 @@ describe('the workflow files are shaped the way GitHub needs them to be', () => 
 		expect(counts['integrate.yml']).toBeGreaterThanOrEqual(2);
 		expect(counts['deploy.yml']).toBeGreaterThanOrEqual(4);
 
-		// And it reads the BODY, not just the header: ci.yml's final gate is a
+		// And it reads the BODY, not just the header: ci.yml's gate step is a
 		// multi-line block whose last line is an `exit 1` far below the key.
-		const gate = runBlocks('ci.yml').at(-1)!;
+		const gate = ciGateStep();
 		expect(gate.body).toMatch(/steps\.history-verify\.outcome/);
 		expect(gate.body.split('\n').length).toBeGreaterThan(5);
 	});
@@ -2253,10 +2267,14 @@ describe('the invariants these particular workflows have to hold', () => {
 		// final step reading each `outcome`. A gate added without being named
 		// there is green forever, and nothing on screen says so -- the step
 		// runs, it reports its failure, and the job passes.
+		//
+		// Since ledger 0335 the gates live in ONE job (`scope`) and the other
+		// jobs fail the ordinary way; `ci`'s own result step is what reads the
+		// jobs, and is pinned by the ledger 0335 block below.
 		const gates = listItems('ci.yml').filter((s) => s.keys['continue-on-error'] === 'true');
-		expect(gates.length, 'no continue-on-error gates found in ci.yml').toBeGreaterThanOrEqual(4);
+		expect(gates.length, 'no continue-on-error gates found in ci.yml').toBeGreaterThanOrEqual(3);
 
-		const final = runBlocks('ci.yml').at(-1)!.body;
+		const final = ciGateStep().body;
 		for (const gate of gates) {
 			// A gate with no id has no `outcome` to read AT ALL, which is the
 			// same silence one step earlier.
@@ -2475,5 +2493,345 @@ describe('the canonical agent branch-prefix registry', () => {
 			expect(mirror, `${file} does not mirror the canonical registry`).toContain('codex/');
 		}
 
+	});
+});
+
+// ---------------------------------------------------------------------------
+// LEDGER 0335: CI IS SHARDED, SKIPS THE SUITE ON A DOCS-ONLY PUSH, AND
+// CANCELS A SUPERSEDED BRANCH RUN.
+//
+// Every one of these is a way for CI to go GREEN WITHOUT TESTING, which is the
+// failure nobody investigates. So each rule is driven with the real shell cut
+// out of `ci.yml` wherever there is shell to drive, and every "does not"
+// assertion is paired with the case that does.
+// ---------------------------------------------------------------------------
+
+/** Run a cut `ci.yml` region in bash, then `call`, in `cwd`. */
+const RUN_TESTS = fileURLToPath(new URL('../tools/run-tests.mjs', import.meta.url));
+
+function runCiRegion(marker: string, call: string, opts: { cwd?: string; input?: string } = {}) {
+	const region = cutRegion(src('ci.yml'), marker);
+	expect(region.trim(), `ci.yml's ${marker} region cuts nothing`).not.toBe('');
+	// The region calls `tools/run-tests.mjs` relative to the checkout; a
+	// fixture repository has none, so the real file is named absolutely and
+	// scans the FIXTURE's `src/`, which is the cwd.
+	const r = spawnSync('bash', ['-c', `set -uo pipefail\n${region}\n${call}`], {
+		cwd: opts.cwd,
+		input: opts.input ?? '',
+		encoding: 'utf8',
+		env: { ...process.env, RUN_TESTS }
+	});
+	return { status: r.status, out: (r.stdout ?? '').trim(), err: r.stderr ?? '' };
+}
+
+/** A job's own text: from its `  <name>:` line to the next job or the end. */
+function jobText(file: string, job: string): string {
+	const text = src(file);
+	const jobsAt = text.search(/^jobs:$/m);
+	const lines = text.slice(jobsAt).split('\n');
+	const start = lines.findIndex((l) => l === `  ${job}:`);
+	if (start < 0) return '';
+	let end = lines.length;
+	for (let i = start + 1; i < lines.length; i++) {
+		if (/^  [A-Za-z_][A-Za-z0-9_-]*:\s*$/.test(lines[i])) {
+			end = i;
+			break;
+		}
+	}
+	// Trailing comment lines introduce the NEXT job, not this one.
+	while (end > start && /^\s*(#.*)?$/.test(lines[end - 1])) end--;
+	return lines.slice(start, end).join('\n');
+}
+
+describe('ledger 0335: docs_only_paths decides what a docs-only push is', () => {
+	const decide = (paths: string[]) =>
+		runCiRegion('docs_only_marker', 'docs_only_paths && echo docs || echo full', {
+			input: paths.join('\n') + (paths.length ? '\n' : '')
+		}).out;
+
+	it.each([
+		[['docs/prompt-ledger/entries/0335-ci-speed.md']],
+		[['docs/history/some-branch.md', 'CLAUDE.md']],
+		[['README.md', 'AGENTS.md', '.claude/skills/feedback-round/SKILL.md']],
+		[['docs/standards/REGISTER.md', 'docs/coin-economy/archive/2026-08-11-transactions.csv']]
+	])('documentation only: %j is docs', (paths) => {
+		expect(decide(paths)).toBe('docs');
+	});
+
+	it.each([
+		// THE NEGATIVE CONTROLS the prompt names: a src change must never take
+		// the fast path, alone or beside a ledger entry.
+		[['src/lib/profile.ts']],
+		[['docs/prompt-ledger/entries/0335-ci-speed.md', 'src/routes/+page.svelte']],
+		// A document UNDER a code directory is still a push to that directory.
+		[['src/lib/ideacad/kernel/vendor/remus/README.md']],
+		[['tests/dom/README.md']],
+		[['supabase/roles/README.md']],
+		[['tools/browser-verify/README.md']],
+		[['.github/workflows/README.md']],
+		[['package.json']],
+		[['package-lock.json']],
+		// Neither code nor documentation: full, because only documentation is docs.
+		[['classroom-updates.json']],
+		[['static/IDEA/favicon.svg']],
+		[['vitest.config.ts']],
+		// Nothing changed is not "only documentation changed".
+		[[]]
+	])('not documentation only: %j is full', (paths) => {
+		expect(decide(paths)).toBe('full');
+	});
+});
+
+describe('ledger 0335: scope_mode picks the diff base and fails toward full', () => {
+	let repo = '';
+	let base = '';
+	let docsTip = '';
+	let codeTip = '';
+	let seedTip = '';
+	let dataTip = '';
+	let laterDocsTip = '';
+	const git = (...args: string[]) => {
+		const r = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', ...args], {
+			cwd: repo,
+			encoding: 'utf8'
+		});
+		if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr}`);
+		return r.stdout.trim();
+	};
+	const commitFile = (path: string, text: string) => {
+		const full = join(repo, path);
+		spawnSync('mkdir', ['-p', join(full, '..')]);
+		writeFileSync(full, text);
+		git('add', path);
+		git('commit', '-q', '-m', `touch ${path}`);
+		return git('rev-parse', 'HEAD');
+	};
+	const BRANCH = 'refs/heads/claude/some-session';
+	const MAIN = 'refs/heads/main';
+	const mode = (event: string, before: string, called = '', tip = docsTip, ref = BRANCH) => {
+		git('checkout', '-q', tip);
+		return runCiRegion('docs_only_marker', `scope_mode "${event}" "${before}" "${called}" "${ref}"`, {
+			cwd: repo
+		}).out;
+	};
+
+	// One `main` and two branches off it: one touching only a ledger entry,
+	// one touching a ledger entry and then a source file.
+	it('builds its fixture repository', () => {
+		repo = mkdtempSync(join(tmpdir(), 'ci-scope-'));
+		git('init', '-q', '--initial-branch=main');
+		// Code that imports a root `*.md` file and names a file under `docs/`,
+		// as `src/lib/frc/mdm-content.ts` and
+		// `src/lib/coin-desk/transaction-types.ts` do; and a comment citing a
+		// document, which must NOT count.
+		commitFile('seed.md', '# page content\n');
+		commitFile('docs/data.csv', 'a,b\n');
+		base = commitFile(
+			'src/app.ts',
+			"import seed from '../seed.md?raw';\n// see `docs/prompt-ledger/entries/9999-x.md`\nexport const data = 'docs/data.csv';\n"
+		);
+		git('update-ref', 'refs/remotes/origin/main', base);
+		seedTip = commitFile('seed.md', '# page content, edited\n');
+		git('checkout', '-q', base);
+		dataTip = commitFile('docs/data.csv', 'a,b,c\n');
+		git('checkout', '-q', base);
+		docsTip = commitFile('docs/prompt-ledger/entries/9999-x.md', '# x\n');
+		codeTip = commitFile('src/app.ts', 'export const x = 1;\n');
+		// A ledger entry pushed a minute after a code commit: the session shape.
+		laterDocsTip = commitFile('docs/history/x.md', '# later\n');
+		expect(git('rev-list', '--count', 'HEAD')).toBe('6');
+	});
+
+	it('a push to main diffs from its own `before`', () => {
+		expect(mode('push', base, '', docsTip, MAIN)).toBe('docs');
+		// The ledger commit then the source commit: judged as one push, full.
+		expect(mode('push', base, '', codeTip, MAIN)).toBe('full');
+		// Only the source commit, pushed on its own: full.
+		expect(mode('push', docsTip, '', codeTip, MAIN)).toBe('full');
+		// Only a ledger entry on top of code main already ran CI on: docs.
+		expect(mode('push', codeTip, '', laterDocsTip, MAIN)).toBe('docs');
+	});
+
+	it('A BRANCH IS JUDGED ON ALL IT CHANGES, NEVER ON ITS LAST PUSH ALONE', () => {
+		// THE HOLE: code pushed, then a ledger entry a minute later. The
+		// concurrency group cancels the first run, so a `before`-based answer
+		// of docs here would be a green tip over untested code.
+		expect(mode('push', codeTip, '', laterDocsTip, BRANCH)).toBe('full');
+		// Positive control: a branch whose whole change is documentation.
+		expect(mode('push', base, '', docsTip, BRANCH)).toBe('docs');
+	});
+
+	it('a new branch (before all zeros) diffs from the merge base with origin/main', () => {
+		const zeros = '0'.repeat(40);
+		expect(mode('push', zeros, '', docsTip)).toBe('docs');
+		expect(mode('push', zeros, '', codeTip)).toBe('full');
+	});
+
+	it('a document that code under src/ names is not documentation', () => {
+		// A root `*.md` file imported `?raw` as page content.
+		expect(mode('push', base, '', seedTip)).toBe('full');
+		// A file under `docs/` that a src constant names and a test reads.
+		expect(mode('push', base, '', dataTip)).toBe('full');
+		// Positive control in the same fixture: a document only a COMMENT in
+		// src/ cites stays docs.
+		expect(mode('push', base, '', docsTip)).toBe('docs');
+	});
+
+	it('a force-push whose before is not an ancestor falls back to the merge base', () => {
+		// A sha the fixture does not contain, as a force-push's old tip would be.
+		expect(mode('push', 'f'.repeat(40), '', docsTip)).toBe('docs');
+		expect(mode('push', 'f'.repeat(40), '', codeTip)).toBe('full');
+	});
+
+	it('every trigger that is not a push is full, and so is a called or dispatched ref', () => {
+		for (const event of ['pull_request', 'schedule', 'workflow_dispatch', 'workflow_call']) {
+			expect(mode(event, base, '', docsTip), event).toBe('full');
+		}
+		// A `workflow_call` carries the CALLER's event name, so the ref is the tell.
+		expect(mode('push', base, 'integration', docsTip)).toBe('full');
+	});
+
+	it('a push it cannot diff at all is full', () => {
+		git('update-ref', '-d', 'refs/remotes/origin/main');
+		try {
+			expect(mode('push', '0'.repeat(40), '', docsTip)).toBe('full');
+		} finally {
+			git('update-ref', 'refs/remotes/origin/main', base);
+		}
+		rmSync(repo, { recursive: true, force: true });
+	});
+});
+
+describe('ledger 0335: ci_result is red unless every part that had to run passed', () => {
+	const result = (mode: string, scope: string, check: string, test: string) =>
+		runCiRegion('ci_result_marker', `ci_result "${mode}" "${scope}" "${check}" "${test}"`).status;
+
+	it('green: a full run with everything passing, and a docs run with both skipped', () => {
+		expect(result('full', 'success', 'success', 'success')).toBe(0);
+		expect(result('docs', 'success', 'skipped', 'skipped')).toBe(0);
+	});
+
+	it.each([
+		// A red shard makes the whole `test` job's result failure.
+		['full', 'success', 'success', 'failure'],
+		['full', 'success', 'failure', 'success'],
+		['full', 'failure', 'success', 'success'],
+		// THE HOLE THIS JOB EXISTS FOR: a full run whose suite never ran.
+		['full', 'success', 'skipped', 'skipped'],
+		['full', 'success', 'success', 'skipped'],
+		['full', 'success', 'success', 'cancelled'],
+		// `scope` died before answering: no mode is not docs.
+		['', 'failure', 'success', 'success'],
+		['', 'success', 'skipped', 'skipped'],
+		// A docs run whose document checks failed.
+		['docs', 'failure', 'skipped', 'skipped'],
+		// A docs run in which a job that should have been skipped ran and failed.
+		['docs', 'success', 'failure', 'skipped'],
+		['docs', 'success', 'skipped', 'failure']
+	])('red: mode %s, scope %s, check %s, test %s', (mode, scope, check, test) => {
+		expect(result(mode, scope, check, test)).not.toBe(0);
+	});
+});
+
+describe('ledger 0335: the shape of ci.yml', () => {
+	it('the result job needs every other job and reads each one', () => {
+		const ci = jobText('ci.yml', 'ci');
+		expect(ci).toMatch(/needs: \[scope, check, test\]/);
+		for (const job of ['scope', 'check', 'test']) {
+			expect(ci).toContain(`needs.${job}.result`);
+		}
+		// Every other job the file declares is in that list, so a fifth job
+		// cannot be added and forgotten.
+		const jobsSection = src('ci.yml').slice(src('ci.yml').search(/^jobs:$/m));
+		const jobs = [...jobsSection.matchAll(/^  ([A-Za-z_][A-Za-z0-9_-]*):\s*$/gm)].map((m) => m[1]);
+		expect(jobs).toEqual(['scope', 'check', 'test', 'ci']);
+	});
+
+	it('check and test run unless scope positively said docs, and a cancel reaches them', () => {
+		for (const job of ['check', 'test']) {
+			const text = jobText('ci.yml', job);
+			expect(text, job).toContain("if: ${{ !cancelled() && needs.scope.outputs.mode != 'docs' }}");
+			// `always()` would keep a superseded run's shards running.
+			expect(text, job).not.toMatch(/if:.*always\(\)/);
+		}
+	});
+
+	it('the suite is sharded by the matrix, with one count and no fail-fast', () => {
+		const test = jobText('ci.yml', 'test');
+		const shards = /shard: \[([^\]]+)\]/.exec(test)?.[1].split(',').map((x) => Number(x.trim()));
+		expect(shards && shards.length, 'no shard matrix').toBeGreaterThanOrEqual(2);
+		expect(shards).toEqual(shards!.map((_, i) => i + 1));
+		expect(test).toMatch(/^ +fail-fast: false$/m);
+		// The denominator is the matrix's own size, never a second literal.
+		expect(test).toMatch(/^ +SHARD: \$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\}$/m);
+		expect(test).toMatch(/^ +run: npm test -- --shard="\$SHARD"$/m);
+		expect(test).toContain('npx svelte-kit sync');
+	});
+
+	it('NO JOB FETCHES EVERY BRANCH: fetch-depth 0 cost 596 s a run through idea-status.py', () => {
+		expect(src('ci.yml')).not.toMatch(/^\s*fetch-depth:/m);
+		// Positive control: the two jobs that read history still get it, by the
+		// same step, and the two copies are identical.
+		const fetchStep = (job: string) =>
+			runBlocks('ci.yml').filter(
+				(b) => b.step === 'Fetch main and integration, with history' && jobText('ci.yml', job).includes(b.body)
+			);
+		const [scope] = fetchStep('scope');
+		const [test] = fetchStep('test');
+		expect(scope?.body).toContain('--unshallow');
+		expect(scope?.body).toContain("'+refs/heads/main:refs/remotes/origin/main'");
+		expect(scope?.body).toContain("'+refs/heads/integration:refs/remotes/origin/integration'");
+		expect(test?.body).toBe(scope?.body);
+	});
+
+	it('cancel-in-progress covers pushes to branches other than main, and nothing else', () => {
+		const group = /^concurrency:\n  group: (.+)\n  cancel-in-progress: true$/m.exec(src('ci.yml'))?.[1];
+		expect(group, 'no workflow-level concurrency').toBeTruthy();
+		expect(group).toContain("github.event_name == 'push' && github.ref != 'refs/heads/main'");
+		// Every other run's group carries its own run id, so nothing can cancel it.
+		expect(group).toContain('github.run_id');
+		// And never a value `deploy.yml`'s own group could equal.
+		expect(src('deploy.yml')).toMatch(/^concurrency:\n  group: deploy$/m);
+		expect(group).not.toMatch(/'deploy'/);
+	});
+
+	it('every job that installs dependencies on a full run uses the npm cache', () => {
+		for (const job of ['check', 'test']) {
+			expect(jobText('ci.yml', job), job).toMatch(/node-version: '24'\n\s+cache: npm/);
+		}
+		// One Node major everywhere in the file.
+		const majors = new Set([...src('ci.yml').matchAll(/node-version:\s*'(\d+)'/g)].map((m) => m[1]));
+		expect([...majors]).toEqual(['24']);
+	});
+});
+
+describe('ledger 0335: the docs-only path runs every test file that reads a document', () => {
+	it('selects the named document checks and not an ordinary test', () => {
+		const selected = docsReaderTests();
+		for (const f of [
+			'tests/standards-version-header.test.ts',
+			'tests/claude-md.test.ts',
+			'tests/workflows.test.ts'
+		]) {
+			expect(selected, f).toContain(f);
+		}
+		expect(selected).not.toContain('tests/classroom-picker.test.ts');
+		// Not vacuous in either direction: a rule matching nothing, or
+		// everything, would pass both lines above only by luck.
+		expect(selected.length).toBeGreaterThan(10);
+		expect(selected.length).toBeLessThan(200);
+	});
+
+	it('reads code, not comments', () => {
+		expect(readsDocuments("const x = readFileSync('docs/standards/REGISTER.md');")).toBe(true);
+		expect(readsDocuments("spawnSync('node', ['tools/claude-md-check.mjs']);")).toBe(true);
+		expect(readsDocuments('const p = `${root}/CLAUDE.md`;')).toBe(true);
+		expect(readsDocuments('// see docs/history/some-branch.md\nconst x = 1;')).toBe(false);
+		expect(readsDocuments('/* CLAUDE.md says so */ const x = 1;')).toBe(false);
+		// This repo's comments cite paths in backticks and quotes on every other
+		// page; a citation is not a read.
+		expect(readsDocuments("// readFileSync('docs/history/x.md') was the old read\nconst x = 1;")).toBe(false);
+		expect(readsDocuments('/* see `docs/standards/REGISTER.md` */ const x = 1;')).toBe(false);
+		expect(readsDocuments("const x = 'no document here';")).toBe(false);
 	});
 });

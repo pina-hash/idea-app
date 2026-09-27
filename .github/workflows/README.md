@@ -11,6 +11,14 @@ database every night and stores it off Supabase.
   not a mistake.** When CI goes green on one, `integrate.yml` merges it into
   `integration` and deletes it. The commits are on `integration`; nothing is
   lost.
+- **CI is four jobs now, and a docs-only push skips the suite (ledger 0335).**
+  `scope` decides; `check` and a five-way sharded `test` run in parallel; `ci`
+  is the one result. A push touching only `docs/**` and `*.md` (and nothing
+  under `src/`, `tests/`, `supabase/`, `tools/`, `.github/` or a package file)
+  runs the document checks and the test files that read documents, and shows
+  `check` and `test` as skipped -- that is the green answer, not a missing one.
+  A newer push to the same branch cancels the older run; a push to `main`
+  never is. See "CI's shape" below.
 - **The branch to look at is `integration`.** It is long-lived, it always has
   the latest `main` merged into it, and it carries every finished bundle that
   has not been deployed yet.
@@ -136,6 +144,56 @@ forever, with nothing on screen saying why. Measured on a throwaway Postgres 16
 with exactly the role above: `information_schema.columns` returned **0 rows**
 and answered `false` for three columns that were present, while the
 `pg_attribute` form answered `true` for all three.
+
+## CI's shape, and why a run is minutes rather than twenty (ledger 0335)
+
+Until 2026-09-27 CI was one job that ran all 625 test files one after another:
+a median of 19.4 minutes a push, 1,102 s of it the suite. Two things were
+wrong, and only one of them was that it was serial.
+
+**Three test files were 596 s of that 1,102 s, and the cause was the checkout.**
+`tests/deploy-probe-cli.test.ts` (490 s), `tests/apply-migration-trace.test.ts`
+(72 s) and `tests/apply-migration-guard.test.ts` (34 s) drive the real
+`tools/deploy-probe.mjs`, which runs `tools/idea-status.py`, whose ledger reader
+does one `git show` per ledger entry per remote branch. `fetch-depth: 0` fetched
+every branch -- 98 `claude/**` and `codex/**` on the day -- so each call did
+about 45,000 `git show`s. Every job now checks out shallow and then fetches the
+full history of exactly `main` and `integration`, which is everything any test
+reads; see the comment on `scope`'s fetch step for which tests and why.
+
+**The jobs:**
+
+- `scope` always runs. It decides `full` or `docs`, runs the VANGUARD changelog
+  check and `npm run history:verify`, and on a docs-only push runs
+  `npm test -- --docs-only`: every test file whose own source names a document
+  or a tool (`docsReaderTests` in `tools/run-tests.mjs`), which includes the
+  standards version-header test and the CLAUDE.md name check.
+- `check` runs `npm run check`, shallow, on a full run.
+- `test` runs `npm test -- --shard=i/N` across a matrix, `fail-fast: false`.
+  Each shard is its own vitest run with its own embedded Postgres.
+  `tests/db/sequencer.ts` keeps the isolation-proof pair in one shard, because
+  vitest's own hash split separates them at every N from 3 to 10.
+- `ci` needs the other three and fails unless every part that had to run
+  passed. Its one job beyond a red shard is catching a `check` or `test` that
+  was SKIPPED on a run that should have been full.
+
+**What "docs-only" means, exactly.** A `push` (never a schedule, a dispatch, a
+pull request or a `workflow_call`) whose every changed path is under `docs/` or
+ends `.md`, and none under a code directory -- a README inside `src/` is a push
+to `src/`, and a document that code under `src/` names (`mdm-content-seed.md`
+is FRC page content) is not documentation either. A branch is judged on
+EVERYTHING it changes relative to `origin/main`, on every push -- never on its
+last push alone, because the cancel below would otherwise let a ledger-only
+push stand green over a code push whose run was cancelled. Only a push to
+`main`, whose runs are never cancelled, diffs from its own `before`. Anything
+the step cannot establish is `full`.
+`tests/workflows.test.ts` cuts `docs_only_paths`, `scope_mode` and `ci_result`
+out of `ci.yml` and runs them against fixtures.
+
+**Superseded runs are cancelled** for pushes to any branch but `main`.
+`integrate.yml` reads the newest completed run for a branch's exact tip, and a
+cancelled run is not `success`, so a cancel can only make a branch wait for the
+run that replaced it.
 
 ## Is `integration` green?
 
@@ -283,8 +341,10 @@ and the first moment anything can HOLD one of them.
 
 **THAT SENTENCE USED TO REST ON THE CHECKOUT AND NO LONGER MAY.** It read
 "`ci.yml` checks out one ref, shallow, with no sibling branch refs", which was
-true until prompt 0094 gave that step `fetch-depth: 0` -- so a CI job can now
-read `origin/**` perfectly well. The reason the sweep lives here is unchanged
+true until prompt 0094 gave that step `fetch-depth: 0` -- so a CI job could read
+`origin/**` perfectly well. Since ledger 0335 it fetches `origin/main` and
+`origin/integration` and no other branch, which is a cost decision (see "CI's
+shape" above), not a visibility one. The reason the sweep lives here is unchanged
 and was never really about visibility: it runs on the MERGE RESULT, it decides
 what merges, and it fails toward merging (above), none of which a test in a
 branch's own run can do. **The checkout had to change** because
@@ -437,8 +497,10 @@ final merged tree**:
   died in dependency optimisation with `Tsconfig not found` BEFORE ANY TEST
   BODY, named nothing, and `merged_suite` answered `unrun` on every tree it was
   handed while `integration` was pushed regardless. `ci.yml` never hit it
-  because `npm run check` (which IS `svelte-kit sync && svelte-check`) runs
-  ahead of its own suite; this job had no equivalent step. Four lanes diagnosed
+  because `npm run check` (which IS `svelte-kit sync && svelte-check`) ran
+  ahead of its own suite in the same job; this job had no equivalent step.
+  (Since ledger 0335 `ci.yml`'s test shards run `npx svelte-kit sync` as a
+  step of their own, because `check` is a separate job now.) Four lanes diagnosed
   it independently on 2026-09-11 and it is fixed. **A gate that reports failure
   while passing work through is worse than no gate, because people stop reading
   it** -- which is exactly what happened: every lane that day took its CI
