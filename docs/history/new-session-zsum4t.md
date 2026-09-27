@@ -149,3 +149,28 @@ The block "PeoplePanel inherits an identity accent with no edit to it" was also 
 to "PeoplePanel paints a roster row's identity accent, and nothing on the pre-0220 shape",
 because 0293 did edit PeoplePanel. The file's header comment, and the one `CLAUDE.md`
 sentence that described the git-diff assertion, were corrected to match.
+
+## Deployed
+
+`main` was pushed at 2026-09-23 04:58 UTC (21:58 PDT), `1ec2f640..bf04a223`, merged
+`--no-ff` from `integration` `336b412c`.
+
+- **All six gates were met.** Gate 2 is Integrate run 35819277294: "the merged tree
+  passes the suite", 10491 tests across 548 files, started after that run pushed the
+  tip. Gate 4 took the substitute route, because the probe exited 1 with
+  `DEPLOY_PROBE_URL` unset. The set checked was 0218 0220 0221 0223 0224, and a record
+  was found for each one.
+- **Two more blocks were hit on the way.** First, `migration-claims --contested-branches`
+  held all seven branches, because the six source branches still held the same
+  numbers. Mr. Pina deleted them by hand, since the session's git proxy refuses branch
+  deletes. Second, the branch conflicted with `integration` in exactly the three files
+  the prompt predicted:
+  - `classroom-updates.json` was resolved as a three-way JSON union: 172 entries from
+    `integration` plus 4 from this branch, nothing dropped.
+  - The README counts were regenerated.
+  - `classroom-stream-manage-1` was re-measured: 14 measurements, 0 outside threshold.
+- **The Migrate run on the push (35820472126) applied nothing.** Its "Apply it" step
+  was skipped.
+- **Not verified: the deployed version string.** This container's egress proxy blocks
+  both `ideabosco.com` and `idea-app-sage.vercel.app`, so "landed" is confirmed and
+  "deployed" is not.
