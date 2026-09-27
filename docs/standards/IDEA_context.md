@@ -1,5 +1,5 @@
 # IDEA Program - Claude Context Document
-**Version 2.0 - 2026-08-20**
+**Version 2.1 - 2026-09-27**
 
 Program-level facts that rarely change: school, pathway, courses, platforms, and
 A-G status. Behavior rules live in `IDEA_instructions.md`. Pacing and calendar live
@@ -62,6 +62,30 @@ must be self-guided and self-contained. See the identical-pacing hard rule in
 - MSET sophomores historically crossed into IDEA for Q4 and vice versa. Whether that
   swap survives the IDEA209H launch is unconfirmed for 2026-27; confirm before planning
   around it.
+
+## FRC in class time, 2027 season
+
+Stated by Mr. Pina on 2026-09-27. FRC was approved on or about 2026-09-01 as honors
+work inside IDEA class time. It runs **during the FRC season, not before it**: nothing in
+the fall semester changes.
+
+- **Q3 (second semester begins Tuesday, January 5, 2027; Q3 ends Friday, March 12, 2027,
+  per the 2026-27 DBTI calendar) is FRC for every IDEA class**, possibly a little longer
+  depending on how the team does in the season.
+- **Freshman, sophomore and junior classes** do FRC assignments for honors credit (his
+  words: "IDEA Section D honors credit"). The assignments contribute directly to Team
+  5669's competition robot. They are not a separate classroom exercise.
+- **Seniors:** FRC is available but not required. A senior with an ambitious enough
+  senior project may work on it for the whole semester. Otherwise the senior does FRC in
+  Q3 and the senior project in Q4.
+- **One team.** In Q3 the IDEA classes, the official FRC team members who are in IDEA,
+  and the official members who are not all work as one FRC team, in class, at lunch,
+  after school and on weekends.
+- **Official team membership is separate from IDEA enrollment.** An IDEA student may join
+  the official team and get its benefits, and Mr. Pina wants them to attend competitions.
+- Not yet recorded here, and to be asked rather than assumed: which course each grade is
+  enrolled in during second semester for this credit, and what happens after Q3 for
+  non-seniors.
 
 ## Rosters
 
@@ -160,6 +184,13 @@ portal raises a number conflict.
 ---
 
 ## Changelog
+
+- **2.1 (2026-09-27)** - Added "FRC in class time, 2027 season" from Mr. Pina's
+  statement of 2026-09-27: Q3 is FRC for every IDEA class, freshman through junior
+  classes earn honors credit on work that goes into the competition robot, seniors choose
+  between FRC and an ambitious senior project, one combined team, and official team
+  membership separate from enrollment. Q3 dates read from the 2026-27 DBTI calendar. Two
+  open questions recorded rather than guessed. Nothing else changed.
 
 - **2.0 (2026-08-20)** - Rewritten for Fall 2026. Rosters removed entirely and replaced
   with a pointer to FACTS and IDEA Classroom, since the copies here went a year stale
