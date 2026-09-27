@@ -1,6 +1,11 @@
 # IDEA Materials Production Process
-**Version 3.1 - 2026-08-28**
+**Version 3.2 - 2026-09-27**
 Pathway-wide. Governs how all IDEA course materials are created, for IDEA100, IDEA209H, and every course after.
+
+**Changed in v3.2:** added "Student-Facing Copy States Only What Is Known And Seen": facts
+about the program are Mr. Pina's to state, a rule carried from an older document is a
+claim about then, and student copy never refers to a previous cohort or to a project the
+class has not reached.
 
 **Changed in v3.1:** merge release reconciling two parallel forks of this file. See the
 changelog. Added "One File, One Fork" below, because the version number did not and could
@@ -338,6 +343,32 @@ Established 2026-08-27, when the Day 8 sketch sheet told students to type their 
 into SolidWorks "on Monday". V1 had moved to Friday two days earlier when V0 was cut. The
 sentence survived the move intact because nothing about it looked broken.
 
+## Student-Facing Copy States Only What Is Known And Seen
+
+Four rules, all from the IDEA100 Rotation 2 Hook 01 build on 2026-09-27, where Mr. Pina
+corrected each one in the draft and said plainly not to assume anything not actually
+known, and to ask him instead.
+
+**A fact about the program is Mr. Pina's to state.** Records, competition history, which
+design holds what, and which rules are in force live with him and in no file. Ask; never
+infer one from an old document. The draft called the 436 lb hook "best in R1". It is the
+best hook on record across every hook competition he has run, it was a 60 g hook, and it
+was multi-part.
+
+**A rule carried from an earlier document is a claim about the day it was written.** The
+Rotation 1 guide's gate-and-clip allowance was carried into the Rotation 2 rules without
+being confirmed, and came out. Carry forward only what he has restated for the current
+cohort.
+
+**No reference to a previous cohort.** Students in one rotation never saw the last one.
+"R1", "last rotation" and "what most R1 hooks were" mean nothing to them. Say "past
+student hooks", or say nothing.
+
+**No reference to something the class has not reached.** A tooltip on the second day of
+the rotation said a theme works "like the Blades", a project the class would not meet for
+three weeks. Explain the idea in words the student already has, with an example: "a sea
+creature, a castle, a character".
+
 ## Verify The Artifact, Not A Picture Of It
 
 Rendering a file and looking at the result proves one renderer agrees with you. It does not
@@ -631,6 +662,12 @@ Handoff rule: chat decides and specifies, Design lays out, Code implements and m
 
 ## Changelog
 
+- **3.2 (2026-09-27)** - Adds "Student-Facing Copy States Only What Is Known And Seen", four
+  rules from the IDEA100 Rotation 2 Hook 01 build, each a correction Mr. Pina made to the
+  draft: program facts are his to state, an older document's rule is not carried forward
+  unconfirmed, no reference to a previous cohort, and no reference to a project the class
+  has not reached. Base 3.1 at
+  `origin/main` `1c5a1848`. Nothing else changed.
 - **3.1 (2026-08-28)** - Merge release. Reconciles two independent forks of this file that
   both branched from v2.5 and were developed in parallel across two chats, each blind to the
   other. Fork A added "Every Material Cites Its Sources" at 2.6 and the source-currency rule,
