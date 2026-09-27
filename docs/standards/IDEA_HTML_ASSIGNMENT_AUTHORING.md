@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.1 - 2026-09-25**
+**Version 1.2 - 2026-09-27**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -172,10 +172,19 @@ pinned header uses `IntersectionObserver` probes and positions in **document** c
 (`rect.top + window.scrollY`), which also keeps working if a frame ever does scroll
 internally.
 
+**Probes, not one observer.** A single `IntersectionObserver` on a tall element stops
+firing once its intersection ratio stops changing, so a pinned bar or a following drawing
+freezes mid-scroll. Use an array of 1px probes down the element and take the topmost
+visible probe as the visible top of the document; probes report against the top-level
+viewport even from inside the cross-origin frame. Measured 2026-09-22 on the IDEA209H
+Shop Trophy inspection.
+
 **Clip the probe strips to the document.** Strips are rebuilt only when the height moves
 by more than one strip, so after a small shrink the last strip hangs below the document
 and draws an inner scrollbar. Set the probe container's height to the document height on
-every resize, with `overflow: hidden`. Measured 2026-09-22 on the IDEA100 Rotation Survey.
+every resize, with `overflow: hidden`, and size the count as
+`floor((height - 2) / STEP) + 1` so the last probe never sits past the end. Measured
+2026-09-22 on the IDEA100 Rotation Survey and again on the IDEA209H inspection.
 
 **An element that follows the reader** (the Dogtag hand-in card) sits in a wrapper that
 stretches to its grid row, and is moved with `translateY`, clamped between 0 and the
@@ -269,6 +278,22 @@ values, and read-only for a closed assignment or a teacher looking at somebody's
 - Any derived readout must be recomputed inside `applyState`, or a restored page shows
   seeded values with blank verdicts beside them.
 
+**`idea:state` is not only the first seed. The parent re-posts it after every
+`idea:change`, and it can arrive late.** `HtmlAssignmentFrame.svelte` re-posts state from
+an effect on the saved values, so every save comes back to the document as an echo, and
+an echo can carry a value from before the student's last keystroke. Values can also arrive
+empty and then filled, so "seed once" is not a fix either. Three rules:
+
+- **Never trim or normalize a value you send.** A trimmed value echoes back and overwrites
+  the field mid-word. On 2026-09-23 students typing "Char on two slot edges" saved
+  "Charontwoslotedges" in a live IDEA209H inspection, and the same defect was found in two
+  more posted documents that day. Stored text that already lost its spaces cannot be
+  repaired.
+- **A field the document has written is owned by the document.** Keep a dirty set keyed on
+  field name; `applyState` skips any field in it, and skips a field whose value already
+  matches. The same applies to a table block's JSON and to image captions.
+- **Trim only when reading a value to judge it**, never when storing it.
+
 ---
 
 ## 11. Validate before delivering, with both validators
@@ -304,10 +329,34 @@ Then drive it in Chromium before delivery. The minimum run:
 5. Confirm no inner scrollbar at any width, with every collapsible section open.
 6. Confirm the console is clean. A page error in this document is a lost answer. Listen
    for window `error` events inside the frame as well as page errors.
+7. **Run the harness as a real parent does: echo `idea:state` back on every
+   `idea:change`, after a short delay (about 40 ms), and type multi-word phrases with
+   spaces into every text box, table cell and caption.** A harness that seeds once and
+   never echoes passes a document that eats every space a student types. Measured
+   2026-09-23.
 
 **Do not judge the file from the Claude artifact preview.** It refuses to render these
 documents and shows "This content is blocked", which is the preview's policy and says
 nothing about the file. Measured 2026-09-14.
+
+---
+
+## 11b. Media and the 2 MB cap
+
+The importer refuses a document over 2 MB (`HTML_DOCUMENT_MAX_BYTES` in
+`src/lib/classroom/html-assignment/store.ts`), and the CSP allows images only as `data:`
+and `blob:`. Everything visual is inlined, so the cap is a media budget.
+
+- **Crop a drawing to its frame and keep native resolution as PNG.** A mechanical drawing
+  exported at 5760x3240 has four or five colors and compresses to roughly 65 to 100 KB as
+  a cropped PNG. Converting to WebP or resizing it made it larger or unreadable, measured
+  2026-09-21. A zoom and pan viewer then shows real detail.
+- **A video cannot play in the frame.** No network, no external iframe, no player. Link it
+  as a card that opens a new tab (`target="_blank" rel="noreferrer"`, which opens from the
+  sandbox), with its thumbnail inlined as a `data:` URI. Put the link where the skill is
+  used, not only in a list at the top. Measured 2026-09-25.
+- **Do not trust a glyph to render.** A `▶` rendered as a missing-glyph box in the frame's
+  font stack; draw icons as inline SVG.
 
 ---
 
@@ -333,6 +382,17 @@ is never sent to Classroom, and the page opens on Standard.
 ---
 
 ## Changelog
+
+- **1.2 (2026-09-27).** Merges a fork. Two chats each wrote a different 1.1 dated
+  2026-09-25 from the same undelivered 1.0: this file's 1.1 (Rotation Survey and Dogtag,
+  landed at `f5a4b033`) and a second 1.1 from the IDEA209H Unit 2 chat (Shop Trophy
+  inspection and FRC5669 training documents), refused at ledger 0299's audit. The number
+  1.1 was used twice; only the landed one is the 1.1 of record. Merged by content on the
+  landed base: adds to section 7 probe arrays over a single observer and the probe count
+  formula; adds to section 10 the parent's echo of `idea:state` after every change and the
+  three rules from the 2026-09-23 lost-spaces defect; adds step 7 to section 11, an
+  echoing harness typing multi-word text; adds section 11b, media and the 2 MB cap.
+  Nothing in the landed 1.1 was removed or reworded.
 
 - **1.1 (2026-09-25).** Written from the IDEA100 Rotation Survey (2026-09-22) and the
   IDEA100 Dogtag (2026-09-24), both built in the same chat that wrote 1.0. Base: 1.0 as
