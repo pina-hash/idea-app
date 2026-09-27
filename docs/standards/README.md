@@ -8,7 +8,7 @@ directory holds **the copy with a history**, so that a chat can determine
 whether its own copy of a standard is current.
 
 The copy here is updated **in the same turn** a new version of a standard is
-delivered, before it is re-uploaded to project knowledge. A file here that is
+delivered, before the chat writes the project knowledge copy from it. A file here that is
 behind project knowledge is a **defect in the delivery that produced it**, not
 a signal to edit this copy by hand.
 
