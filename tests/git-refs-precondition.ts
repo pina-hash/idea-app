@@ -70,8 +70,12 @@ export function requireProbeRefs(ref: string = PROBE_REF): void {
 				`The tool's answer in this state is "REFUSING: the applied set could not be ` +
 				`read", exit 2, nothing applied -- which is correct and is the only control ` +
 				`between a session and the production database.\n` +
-				`  In GitHub Actions: give the job's actions/checkout@v4 step ` +
-				`\`fetch-depth: 0\` (.github/workflows/ci.yml already does).\n` +
+				`  In GitHub Actions: after actions/checkout@v4, fetch both refs with ` +
+				`their history, as .github/workflows/ci.yml's "Fetch main and integration, ` +
+				`with history" step does (git fetch --unshallow origin ` +
+				`'+refs/heads/main:refs/remotes/origin/main', then the same for integration). ` +
+				`Not \`fetch-depth: 0\`, which fetches every agent branch and cost CI ` +
+				`about ten minutes a run (ledger 0335).\n` +
 				`  In a local clone: git fetch origin ` +
 				`'+refs/heads/*:refs/remotes/origin/*'  (add --unshallow if it is shallow).`
 		);

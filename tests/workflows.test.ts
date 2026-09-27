@@ -2784,6 +2784,19 @@ describe('ledger 0335: the shape of ci.yml', () => {
 		expect(test?.body).toBe(scope?.body);
 	});
 
+	it('integrate.yml fetches main and integration with history, and every branch only in the sweep', () => {
+		const text = src('integrate.yml');
+		expect(text).not.toMatch(/^\s*fetch-depth:/m);
+		const [fetch] = runBlocks('integrate.yml').filter((b) => b.step === 'Fetch main and integration, with history');
+		expect(fetch?.body).toContain("--unshallow origin '+refs/heads/main:refs/remotes/origin/main'");
+		expect(fetch?.body).toContain("'+refs/heads/integration:refs/remotes/origin/integration'");
+		// Positive control: the sweep still fetches every branch it merges, and
+		// before its first merge, so no merge reads a ref this change removed.
+		const all = text.indexOf("git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'");
+		expect(all).toBeGreaterThan(-1);
+		expect(all).toBeLessThan(text.indexOf('git merge --no-edit origin/main'));
+	});
+
 	it('cancel-in-progress covers pushes to branches other than main, and nothing else', () => {
 		const group = /^concurrency:\n  group: (.+)\n  cancel-in-progress: true$/m.exec(src('ci.yml'))?.[1];
 		expect(group, 'no workflow-level concurrency').toBeTruthy();

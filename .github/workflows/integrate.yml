@@ -126,10 +126,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # SHALLOW, THEN THE WHOLE HISTORY OF `main` AND `integration` -- the
+      # shape `ci.yml` adopted in ledger 0335, and NOT `fetch-depth: 0`, which
+      # also fetched every `claude/**` and `codex/**` branch before this job
+      # had decided anything (ledger 0338).
+      #
+      # MERGES STILL GET REAL HISTORY AND EVERY BRANCH, and that is not given
+      # up here. `--unshallow` completes the repository, so nothing below works
+      # against a grafted cone, and the sweep's own
+      #   git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+      # ahead of its first merge brings in every agent branch, with history,
+      # before anything reads one. Every ref this job reads -- the merges, the
+      # containment deletes, the ledger and standards gates and the merged
+      # suite after them -- is read after that fetch. The merged suite
+      # therefore still sees every agent branch, which is correct: it tests
+      # the tree those branches were just merged into.
       - uses: actions/checkout@v4
-        with:
-          # Merges need real history and every branch, not a shallow cone.
-          fetch-depth: 0
+
+      - name: Fetch main and integration, with history
+        run: |
+          git fetch --quiet --no-tags --unshallow origin '+refs/heads/main:refs/remotes/origin/main'
+          git fetch --quiet --no-tags origin '+refs/heads/integration:refs/remotes/origin/integration' \
+            || echo "integration is not on the remote; the sweep creates it from main"
+          git for-each-ref --format='%(refname:short) %(objectname:short)' refs/remotes/origin
 
       # NODE, BECAUSE THIS JOB NOW RUNS THE REPOSITORY'S OWN SUITE ON THE TREE
       # IT PUSHES. `24` is not a preference: `ci.yml` pins it because

@@ -151,6 +151,26 @@
  * second derivation is the thing that quietly stops matching.
  *
  * ---------------------------------------------------------------------------
+ * A BODY A LATER MIGRATION REPLACED IS JUDGED BY WHAT REPLACED IT (ledger
+ * 0338). A body marker asks whether a line of ONE migration's function body is
+ * in `prosrc`. When a later migration in range rewrites the same function,
+ * the earlier line is legitimately gone, and asking for it alone reported
+ * 0166 NOT APPLIED -- a CONFLICT, since the record has its row -- and 0214 NOT
+ * APPLIED, on every push from 2026-09-25, which made migrate.yml refuse to
+ * apply anything at all. `idea-status.py` now derives such a probe as
+ * `kind: 'superseded'`: true when the live body is that migration's OR ANY
+ * LATER DEFINER'S, each told apart from the bodies before it. Not "the last
+ * definer's" alone: a new, unapplied migration redefining a function would
+ * then drag every earlier definer to NOT APPLIED with it, and migrate.yml
+ * applies the LOWEST unapplied one. The later definers named are every one on
+ * `origin/main`, a superset of the ref's own: a later body being live can
+ * only mean production is ahead, which never makes an earlier migration less
+ * applied. FALSE STILL MEANS NOT APPLIED -- the function absent, or carrying a
+ * body from before that migration -- and a row claiming otherwise is still a
+ * CONFLICT. Where no line tells a later body apart, there is no probe, and
+ * the record answers; with no row, that is CANNOT SAY.
+ *
+ * ---------------------------------------------------------------------------
  * IT FAILS CLOSED, and "closed" means an exit status the caller must not read
  * as a pass:
  *
@@ -765,7 +785,10 @@ export function verdicts(probes, rows, history = noHistory()) {
 						...base,
 						state: /** @type {const} */ ('not-applied'),
 						agreement: /** @type {const} */ ('conflict'),
-						why: `CONFLICT: ${HISTORY_TABLE} CLAIMS this was applied and the object it creates is NOT there. A row is a claim and the object is evidence, so this is NOT APPLIED. Either the apply did not happen, or a later migration moved the object this probe was derived from.`
+						why:
+							p.kind === 'superseded'
+								? `CONFLICT: ${HISTORY_TABLE} CLAIMS this was applied, and the function carries neither this migration's body nor any later definer's (or is not there at all). A row is a claim and the object is evidence, so this is NOT APPLIED.`
+								: `CONFLICT: ${HISTORY_TABLE} CLAIMS this was applied and the object it creates is NOT there. A row is a claim and the object is evidence, so this is NOT APPLIED. Either the apply did not happen, or a later migration moved the object this probe was derived from.`
 					}
 				: {
 						...base,
