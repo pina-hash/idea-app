@@ -1327,7 +1327,15 @@ step names keeps its hook**, and a step names a control by its printed word.
   them, because the updates page pointed at a "Feedback button" for weeks after
   the button said "Report a problem".
 - **`InfoTip` OPENS ON A TAP AND STAYS OPEN UNTIL A TAP ELSEWHERE, ESCAPE OR
-  BLUR.** A tip a phone cannot open is a `title` by another name.
+  BLUR.** A tip a phone cannot open is a `title` by another name. It has two
+  sizes and the caller says which: `tap="reach"` (the default) for a trigger
+  inside a line of text, whose 44px is a height-only reach, and `tap="box"` for
+  one that owns its row, which is itself a 44px box so its reach never hangs over
+  the controls below and takes their taps. **Every classroom setting carries a
+  `help` sentence** (`$lib/preferences/classroom.ts`, report R04), rendered as a
+  `box` InfoTip on the setting's TITLE and never inside a choice's label, where a
+  tap would also pick the choice. A help line that restates its title is noise,
+  and `tests/preferences-store.test.ts` refuses one.
 
 ### A CLASS'S OWN SETTINGS, AND ITS ARCHIVED CLASSES
 
@@ -1422,6 +1430,18 @@ it so the rubric is never shown twice.
   constant (`SPEC_ACCEPT`, `HTML_DOCUMENT_ACCEPT`, `DECK_ACCEPT`), the composer's
   root never takes a file a nested box should have, and the drop scrolls the
   receiving box into view. `FileUploadPanel` still accepts every type.
+  **On the EDIT form a spec or a ported document is never an ordinary file**
+  (reports R01, R11): a spec goes to the item page's own importer through
+  `specDrop` (the edit form still carries no importer of its own), a web page
+  goes to the replace box, and where the item cannot take one the root REFUSES
+  it in words (`composerDropRefusal`), naming the file and saying how to hand it
+  out on purpose. A refusal stays on screen until the next drop. The composer's
+  drop zone is off only while a save runs, never because of
+  `attachmentsEnabled`. **A drop on the class page is a manager's New post**:
+  ClassView hands the files up (`onDropFiles`), the section layout opens a fresh
+  composer with `initialFiles`, and `composerKindForDrop` picks the kind before
+  the SAME router runs, so the class page never gains a second idea of where a
+  file goes.
 - **THE DECK CAP IS THE TRANSPORT'S, AND 4 MiB IS IT.** A deck uploads as one
   multipart POST that our own function buffers; the 150 MiB figure is a guard on
   the zip already stored in Drive and no browser request reaches it. Raising the

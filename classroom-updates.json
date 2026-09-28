@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-09-28",
+			"title": "Settings explain themselves",
+			"body": "Every option in the classroom's Settings panel now has a small i beside its name. Tap it, or point at it, to read what the option does and when you might want to change it, and tap anywhere else to close it. Teachers: dropping a file on a class page now starts a new post with that file already in place, and dropping a spec or a web page on an assignment you are editing puts it in the right box instead of attaching it for the class.",
+			"tags": ["new"]
+		},
+		{
+			"date": "2026-09-28",
 			"title": "Vote on your class's look",
 			"body": "Your class can now choose its own look. Open Class theme under the class name on your class page and vote on a color palette, a banner pattern and a badge. The choice with the most votes wins, and the banner changes for everyone in the class. You can change or take back your vote while voting is open, and only the totals are shown, never who voted for what. Your teacher can give your block its own color, so two blocks of the same class look different, and can open or close the vote.",
 			"tags": ["classroom"]
