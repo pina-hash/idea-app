@@ -153,7 +153,8 @@
    green rim glow; a selection is a deep accent face with light type and a
    green edge; lit parts bloom into what is around them.
    -------------------------------------------------------------------------- */
-.cr-plate {
+.cr-plate,
+body:has(.cr-plate) {
 	/* The plate. THE DARK FACES SIT LOWER THAN ROUND 3's, AND THAT IS THE ONE
 	   MEASURED DEPARTURE FROM THE APPROVED MOCKUP. Round 3's charcoal card
 	   (#383e3a) was lighter than any ground the site's own inks were tuned
@@ -164,6 +165,9 @@
 	   tightest ink, the error red, clears 4.5 on a card: #1c1f1d is 4.55:1. */
 	--plate-plate-top: #161918;
 	--plate-plate-bot: #121413;
+	/* The page gradient's two stops: the plate's own, except in Matrix. */
+	--plate-page-top: var(--plate-plate-top);
+	--plate-page-bot: var(--plate-plate-bot);
 	--plate-plate-hi: rgba(255, 255, 255, 0.12);
 	--plate-plate-edge: #262b28;
 	--plate-plate-side: rgba(0, 0, 0, 0.4);
@@ -321,9 +325,14 @@
 /* MATRIX: the same machined layers in the theme's phosphor palette, and the
    one theme where the lights BLOOM. Every surface is green-tinted charcoal,
    never black. The rain is left exactly as it is. */
-:root[data-theme='matrix'] .cr-plate {
+:root[data-theme='matrix'] .cr-plate,
+:root[data-theme='matrix'] body:has(.cr-plate) {
 	--plate-plate-top: #121914;
 	--plate-plate-bot: #0e140f;
+	/* The page gradient is not painted: matrix.css makes `.cr-root`
+	   transparent so the rain shows behind the classroom, and it still does. */
+	--plate-page-top: transparent;
+	--plate-page-bot: transparent;
 	--plate-plate-hi: rgba(160, 220, 170, 0.12);
 	--plate-plate-edge: #1f2b22;
 	--plate-plate-side: rgba(0, 0, 0, 0.4);
@@ -432,7 +441,8 @@
    worst case is 3.12:1 on the recessed column's foot and 3.27:1 on the
    plate, and the column was lifted (#d3d7e1/#ccd0db in round 3) so it is no
    longer the one ground that pinned the line dark. */
-:root[data-theme='space-white'] .cr-plate {
+:root[data-theme='space-white'] .cr-plate,
+:root[data-theme='space-white'] body:has(.cr-plate) {
 	--plate-plate-top: #e4e8ee;
 	--plate-plate-bot: #dfe3ea;
 	--plate-plate-hi: #f6f8fb;
@@ -523,7 +533,7 @@
 	--plate-screen-bot: #25282e;
 	--plate-screen-rim: rgba(255, 255, 255, 0.3);
 	--plate-screen-shade: rgba(0, 0, 0, 0.55);
-	--plate-screen-ink: var(--accent-field);
+	--plate-screen-ink: #78b870;
 	--plate-screen-glow: rgba(120, 184, 112, 0.6);
 	--plate-screen-wall: rgba(255, 255, 255, 0.16);
 	--plate-glass: rgba(255, 255, 255, 0.06);
@@ -586,9 +596,13 @@
    -------------------------------------------------------------------------- */
 .cr-root.cr-plate {
 	background-color: var(--plate-plate-bot);
-	background-image: linear-gradient(to bottom, var(--plate-plate-top), var(--plate-plate-bot) 28rem);
+	background-image: linear-gradient(to bottom, var(--plate-page-top), var(--plate-page-bot) 28rem);
 	background-repeat: no-repeat;
 }
+/* The colour blocks are also declared on `body:has(.cr-plate)`, because a
+   body background reads its tokens on the BODY: declared on `.cr-plate`
+   alone, `--plate-plate-bot` is undefined there and the canvas under a short
+   page, the overscroll and the collapsed footer margin went transparent. */
 body:has(.cr-root.cr-plate) {
 	background: var(--plate-plate-bot);
 }
@@ -629,9 +643,13 @@ body:has(.cr-plate) .bg-fx::after {
 	   Top to bottom: the hairline (the border, load-bearing), a light ring
 	   inside it with a crisp top highlight, the face gradient, a soft darker
 	   foot; outside, a faint tray and a soft cool shadow falling downward.
-	   THE HAIRLINE IS A GRADIENT (a border-box layer under a transparent
-	   border): on a dark theme the top catches the light and the foot sits AT
-	   the 3:1 floor; on Space White its two stops are one colour.
+	   THE HAIRLINE IS THE BORDER ITSELF, a lighter top side over the rest: on a
+	   dark theme the top catches the light and the foot sits AT the 3:1 floor;
+	   on Space White the two are one colour. It is a real border colour rather
+	   than a gradient under a transparent border (round 3's construction), so
+	   anything that reads an edge -- a probe, a forced colour mode -- reads the
+	   load-bearing line; the border-box layer beneath it is what fills the
+	   corners' antialiasing.
 
 	   THE KEY LIST IS EVERY PRESSABLE CONTROL THE CLASSROOM DRAWS AS A BOX:
 	   the shared `.btn`, the header's tools, and each surface's own buttons
@@ -649,7 +667,8 @@ body:has(.cr-plate) .bg-fx::after {
 	   list did not know would draw as a plain key, which is why the list was
 	   built from each component's own selectors (docs/history). */
 	:root :scope.cr-plate :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link) {
-		border: 1px solid transparent;
+		border: 1px solid;
+		border-color: var(--plate-hair-top) var(--plate-hair) var(--plate-hair);
 		border-radius: var(--plate-r-control);
 		background:
 			linear-gradient(to bottom, var(--plate-face-top), var(--plate-face-bot)) padding-box,
@@ -804,7 +823,9 @@ body:has(.cr-plate) .bg-fx::after {
 	   A chip is a printed tag set into the surface: a face a shade darker than
 	   the ground, a soft shadow under its top lip, a light lip at its foot, a
 	   quiet lighter edge, and NO drop shadow, which is the one thing that made
-	   round 3's chips read as buttons. 22px tall, a plain rounded rectangle,
+	   round 3's chips read as buttons. 22px tall (at least: a chip that holds
+	   a sentence, the IdeaCAD shared summary, wraps rather than pushing the
+	   page sideways), a plain rounded rectangle,
 	   every band drawn INSIDE the box (so it costs no width), the label at the
 	   11px floor. A chip's tone class keeps colouring its word. */
 	:root :scope.cr-plate :is(.draft-chip, .sched-chip, .kind-chip, .chip):not(a, button, label) {
@@ -812,7 +833,7 @@ body:has(.cr-plate) .bg-fx::after {
 		align-items: center;
 		gap: 3px;
 		box-sizing: border-box;
-		height: var(--plate-chip-h);
+		min-height: var(--plate-chip-h);
 		padding: 0 5px;
 		border: 0;
 		border-radius: var(--plate-r-small);
@@ -827,7 +848,6 @@ body:has(.cr-plate) .bg-fx::after {
 			inset 0 2px 2px -1px var(--plate-chip-shade),
 			inset 0 -1px 0 0 var(--plate-chip-lip),
 			0 1px 0 0 var(--plate-chip-lip);
-		white-space: nowrap;
 	}
 	:root :scope.cr-plate :is(.draft-chip, .sched-chip, .kind-chip) {
 		color: var(--plate-ink);
@@ -843,7 +863,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   not one of them grows by a pixel; what changes is that it is set INTO
 	   the surface instead of drawn on it. A chip that is a LINK or a BUTTON
 	   is excluded here and is a raised key (below), because it is pressable. */
-	:root :scope.cr-plate :is(.state-chip, .roster-chip, .pin-chip, .lg-chip, .updated-chip, .todo-chip, .export-chip, .sq-chip, .ctool-chip, .points-chip, .override-chip, .hp-chip, .ib-chip, .lc-wall-chip, .lg-missing-chip, .pill):not(a, button, label) {
+	:root :scope.cr-plate :is(.state-chip, .roster-chip, .pin-chip, .lg-chip, .updated-chip, .todo-chip, .export-chip, .sq-chip, .ctool-chip, .points-chip, .override-chip, .hp-chip, .ib-chip, .lc-wall-chip, .lg-missing-chip, .pill, .owed):not(a, button, label) {
 		border-color: transparent;
 		border-radius: var(--plate-r-small);
 		background-color: var(--plate-chip-ground);
@@ -854,9 +874,17 @@ body:has(.cr-plate) .bg-fx::after {
 			inset 0 -1px 0 0 var(--plate-chip-lip),
 			0 1px 0 0 var(--plate-chip-lip);
 	}
+	/* A missing count keeps its warning wash, laid over the tag's own ground
+	   rather than over whatever is under the tag: on a key face or a panel
+	   the see-through wash left the warning ink at 3.4:1 and 4.42:1. */
+	:root :scope.cr-plate .owed.owed-missing {
+		background-color: color-mix(in srgb, var(--amber) 14%, var(--plate-chip-ground));
+		background-image: none;
+	}
 	/* A chip that goes somewhere is pressable, so it is a small raised key. */
 	:root :scope.cr-plate :is(a.chip, button.lg-chip, .chip-link) {
-		border: 1px solid transparent;
+		border: 1px solid;
+		border-color: var(--plate-hair-top) var(--plate-hair) var(--plate-hair);
 		border-radius: var(--plate-r-small);
 		height: auto;
 		background:
@@ -919,7 +947,8 @@ body:has(.cr-plate) .bg-fx::after {
 		line-height: 1;
 		cursor: pointer;
 		white-space: nowrap;
-		border: 1px solid transparent;
+		border: 1px solid;
+		border-color: var(--plate-hair-top) var(--plate-hair) var(--plate-hair);
 		border-radius: var(--plate-r-control);
 		background:
 			linear-gradient(to bottom, var(--plate-face-top), var(--plate-face-bot)) padding-box,
@@ -1004,7 +1033,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   live tab's panels, the item inspector, the worksheet progress readout,
 	   a notebook entry and its composer, the tour offer, a link preview. */
 	:root :scope.cr-plate :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp) {
-		border: 1px solid var(--plate-hair);
+		border-color: var(--plate-hair);
 		border-radius: var(--plate-r-panel);
 		background-color: var(--plate-panel-ground);
 		background-image: linear-gradient(to bottom, var(--plate-panel-top), var(--plate-panel-bot));
@@ -1013,6 +1042,10 @@ body:has(.cr-plate) .bg-fx::after {
 			0 1px 2px 0 var(--plate-drop),
 			0 8px 14px -6px var(--plate-drop),
 			-2px 18px 30px -14px var(--plate-drop-far);
+	}
+	/* A panel that is itself a link keeps the hover edge it always had. */
+	:root :scope.cr-plate :is(a.class-card, a.ld-door, a.lp):hover {
+		border-color: var(--hover-ink);
 	}
 	/* A card nested in a card is a panel INSIDE a housing: the same face, and
 	   a shorter shadow so the stack reads as one assembly. */
@@ -1110,11 +1143,13 @@ body:has(.cr-plate) .bg-fx::after {
 			0 1px 0 0 var(--plate-well-lip);
 	}
 
-	/* The notebook's room paints its own ground; on a plate the plate is the
-	   ground, so the room gives way to it rather than cutting a black (or
-	   white) hole under the notebook. */
+	/* The notebook's room paints its own ground; on a plate it paints the
+	   PLATE'S ground instead, rather than cutting a black (or white) hole
+	   under the notebook. It stays opaque, in Matrix too: the rain does not
+	   reach the notebook (matrix.css, "THE NOTEBOOK IS NOT REACHED"), and an
+	   opaque ground is what the contrast walk measures its copy against. */
 	:root :scope.cr-plate .nb-root {
-		background: transparent;
+		background: var(--plate-plate-bot);
 	}
 
 	/* --- The class list: the unit group is the well, rows are divided by
@@ -1123,7 +1158,6 @@ body:has(.cr-plate) .bg-fx::after {
 	   track inside the well's right edge. Titles stay sentence case in the
 	   reading face. The only colour in the list is the accent. */
 	:root :scope.cr-plate :is(.card.group-card, .todo-group) {
-		position: relative;
 		border: 1px solid var(--plate-hair);
 		border-radius: var(--plate-r-panel);
 		background-color: var(--plate-list-face);
@@ -1212,7 +1246,7 @@ body:has(.cr-plate) .bg-fx::after {
 	}
 	/* On Matrix the headings are phosphor: a greener ink and a soft bloom
 	   (colour tokens; plain on the other two themes). */
-	:root :scope.cr-plate :is(.group-card .group-label, .group-card .row-wrap:not(.selected, .is-selected) .row-name, .card > h2, .card > h3) {
+	:root :scope.cr-plate :is(.group-card .group-label, .group-card .row-wrap:not(.selected, .is-selected) .row-name, .card > h2, .card > h3:not(.grade-head)) {
 		color: var(--plate-head-ink);
 		text-shadow: 0 0 6px var(--plate-text-bloom);
 	}
@@ -1281,6 +1315,11 @@ body:has(.cr-plate) .bg-fx::after {
 	:root :scope.cr-plate .cr-header .cls-strip {
 		padding: 4px;
 	}
+	/* The logo link is a student-facing control, so it clears 44px at every
+	   width (26.3px tall at 375 before this, round 3 measured). */
+	:root :scope.cr-plate .cr-header .wordmark {
+		min-height: 44px;
+	}
 	/* The header's words are one voice: every tool word in the label face,
 	   caps, tracked. */
 	:root :scope.cr-plate .cr-header :is(.shell-tool-word, .qn-word, .sw-trigger, .menu-trigger) {
@@ -1292,20 +1331,10 @@ body:has(.cr-plate) .bg-fx::after {
 	:root :scope.cr-plate .cr-header .sw-caret {
 		font-size: var(--plate-label-size);
 	}
-	/* The account control is a machined key too, drawn with shadows only so
-	   its box does not move. The pathway chip inside keeps its identity. */
-	:root :scope.cr-plate .cr-header .pm-trigger {
-		background-color: var(--plate-face-ground);
-		background-image: linear-gradient(to bottom, var(--plate-face-top), var(--plate-face-bot));
-		border-radius: var(--plate-r-control);
-		box-shadow:
-			inset 0 0 0 1px var(--plate-hair),
-			inset 0 2px 0 0 var(--plate-bezel-hi),
-			inset 0 0 0 2px var(--plate-bezel-mid),
-			inset 0 -3px 2px -2px var(--plate-foot),
-			0 0 0 1px var(--plate-rim-out),
-			0 2px 3px 0 var(--plate-drop);
-	}
+	/* THE ACCOUNT CONTROL IS NOT FRAMED. Its box is the avatar plus 2px, so a
+	   key's edge drawn around it sat 2px from the picture (the control-fit
+	   sweep on /dev/theme-switch counts that as a cramped label), and the box
+	   may not grow. It stays the round avatar it is on every other page. */
 	:root :scope.cr-plate .cr-header :is(.sfb-word, .pw-label) {
 		letter-spacing: 0.02em;
 	}
@@ -1396,9 +1425,13 @@ body:has(.cr-plate) .bg-fx::after {
 	:root :scope.cr-plate .sec-tabs .sec-tab.active {
 		font-weight: 700;
 	}
+	/* A pad's hover turns its whole band to the hover ink, the edge a class
+	   icon and a tab have always turned (decision 40 item 1). */
+	:root :scope.cr-plate :is(.cr-header .cls-icon, .sec-tabs .sec-tab):hover {
+		border-color: var(--hover-ink);
+	}
 	:root :scope.cr-plate .sec-tabs .sec-tab:hover {
 		color: var(--plate-ink);
-		border-color: transparent;
 		box-shadow:
 			0 0 0 1px var(--hover-ink),
 			inset 0 0 0 1px var(--plate-pad-lip),

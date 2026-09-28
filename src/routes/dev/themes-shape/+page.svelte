@@ -189,7 +189,7 @@
 							class="ts-seg"
 							aria-pressed={view === v.id}
 							data-view-set={v.id}
-							data-cut-set={v.id === 'plate' ? undefined : v.id}
+							data-cut-set={v.id === 'two' || v.id === 'four' ? v.id : undefined}
 							onclick={() => (viewChoice = v.id)}>{v.label}</button
 						>
 					{/each}
