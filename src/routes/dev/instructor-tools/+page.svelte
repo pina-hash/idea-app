@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	// The room the real route renders in (ledger 0297, harness fidelity): the
 	// classroom stylesheet and the route's own measure, or every width read here
 	// is a width production never has (CLAUDE.md).
@@ -348,7 +349,7 @@
 	];
 </script>
 
-<div class="harness cr-root" style="--cr-measure-route: var(--measure-split)">
+<div class="harness cr-root {CLASSROOM_PLATE}" style="--cr-measure-route: var(--measure-split)">
 	<h1>Instructor tools</h1>
 	<p class="lede">
 		Dev harness for prompt 0016. The real <code>PeoplePanel</code> and the real

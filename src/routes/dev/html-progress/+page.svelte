@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	/**
 	 * THE PROGRESS RAIL HARNESS. See `+page.ts` for why it exists.
 	 *
@@ -381,7 +382,7 @@
 
 <svelte:head><title>HTML assignment progress rail harness</title></svelte:head>
 
-<div class="cr-root harness">
+<div class="cr-root {CLASSROOM_PLATE} harness">
 	<header class="intro">
 		<h1>HTML assignment progress rail</h1>
 		<p class="note">

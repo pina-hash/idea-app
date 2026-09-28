@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import '$lib/classroom/classroom.css';
 	import '$lib/notebook/notebook-theme.css';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
@@ -64,7 +65,7 @@
 		</a>
 	</nav>
 
-	<section class="ds-room cr-root" data-testid="classroom-editor">
+	<section class="ds-room cr-root {CLASSROOM_PLATE}" data-testid="classroom-editor">
 		<h2>A post body (classroom)</h2>
 		<RichTextEditor
 			value={BODY}

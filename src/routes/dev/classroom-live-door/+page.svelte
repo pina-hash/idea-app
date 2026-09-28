@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import '$lib/classroom/classroom.css';
 	import HallPass from '$lib/classroom/HallPass.svelte';
@@ -148,7 +149,7 @@
 
 <svelte:head><title>dev / classroom live door and teams</title></svelte:head>
 
-<main class="cr-root harness-page" data-testid="live-door-harness">
+<main class="cr-root {CLASSROOM_PLATE} harness-page" data-testid="live-door-harness">
 	<div class="classroom-page">
 		<div class="class-tools" data-testid="class-tools" style={paneRem ? `max-width: ${paneRem}rem` : undefined}>
 			<!-- A student is handed the student projection, exactly as the real layout

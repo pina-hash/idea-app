@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
 	import { postGradeChange, postGradeChangeLabel } from '$lib/classroom/grading-export';
 	import {
@@ -331,7 +333,7 @@
 
 <svelte:head><title>Grading: post-grade change + extra credit // dev</title></svelte:head>
 
-<main class="harness cr-root">
+<main class="harness cr-root {CLASSROOM_PLATE}">
 	<h1>Grading console: post-grade change and extra credit</h1>
 	<p class="lede">
 		The REAL <code>GradingConsole</code>, against an inert fixture. THREE of the five students

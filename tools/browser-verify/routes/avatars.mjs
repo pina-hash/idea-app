@@ -224,8 +224,11 @@ export default {
 				'examined 10 ink/stop pairs across 4 washed banners',
 				/* The number is the MEASURED worst case, written down so a
 				   regression moves it rather than merely staying above a floor.
-				   The gradient's lighter stop is what produces it. */
-				'worst 7.36:1 PASSES 4.5'
+				   The gradient's lighter stop is what produces it. It read 7.36
+				   until ledger 0345: the harness wears the classroom's plate now,
+				   so the wash composites over the plate's darker ground and the
+				   same ink measures higher. */
+				'worst 8.56:1 PASSES 4.5'
 			]
 		},
 		{

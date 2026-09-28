@@ -112,20 +112,26 @@ export const HOVER_PROBE = (targets) => `async () => {
 	const washed = (a, b) => { const x = wash(lum(a)), y = wash(lum(b)); return Math.max(x, y) / Math.min(x, y); };
 	const hex = (c) => '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
 	const visible = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden'; };
-	/* Every style rule, with the @media / @supports chain it sits in. */
+	/* Every style rule, with the @media / @supports / @scope chain it sits in.
+	   AN @scope RULE'S SELECTORS NAME \`:scope\`, which \`querySelectorAll\` reads
+	   as the document root, so the reach test below substitutes the scope's own
+	   root selector (ledger 0345: the classroom plate's rules live in one). */
 	const rules = [];
-	const walk = (list, wrap) => {
+	const walk = (list, wrap, scopeSel) => {
 		for (const r of list) {
-			if (r.style && r.selectorText) rules.push({ r, wrap });
+			if (r.style && r.selectorText) rules.push({ r, wrap, scopeSel });
 			if (r.cssRules?.length) {
-				const w = r.conditionText !== undefined && (r instanceof CSSMediaRule || r instanceof CSSSupportsRule)
-					? [...wrap, (r instanceof CSSMediaRule ? '@media ' : '@supports ') + r.conditionText]
-					: wrap;
-				walk(r.cssRules, w);
+				const isScope = typeof CSSScopeRule !== 'undefined' && r instanceof CSSScopeRule;
+				const w = isScope
+					? [...wrap, '@scope (' + r.start + ')' + (r.end ? ' to (' + r.end + ')' : '')]
+					: r.conditionText !== undefined && (r instanceof CSSMediaRule || r instanceof CSSSupportsRule)
+						? [...wrap, (r instanceof CSSMediaRule ? '@media ' : '@supports ') + r.conditionText]
+						: wrap;
+				walk(r.cssRules, w, isScope ? r.start : scopeSel);
 			}
 		}
 	};
-	for (const s of document.styleSheets) { try { walk(s.cssRules, []); } catch {} }
+	for (const s of document.styleSheets) { try { walk(s.cssRules, [], null); } catch {} }
 	const splitSel = (s) => { const out = []; let d = 0, cur = ''; for (const ch of s) { if (ch === '(') d++; if (ch === ')') d--; if (ch === ',' && d === 0) { out.push(cur.trim()); cur = ''; } else cur += ch; } if (cur.trim()) out.push(cur.trim()); return out; };
 	const names = (el) => {
 		const cs = getComputedStyle(el);
@@ -162,7 +168,7 @@ export const HOVER_PROBE = (targets) => `async () => {
 			/* EVERY :hover rule that reaches the host is copied, so the ground
 			   under the ink is the hovered ground too; the ones that name the
 			   ink are counted apart, and they are the reach verdict. */
-			for (const { r, wrap } of rules) {
+			for (const { r, wrap, scopeSel } of rules) {
 				if (!r.selectorText.includes(':hover')) continue;
 				const decl = r.style.cssText;
 				const ink = /--hover-ink|--gold/.test(decl);
@@ -170,7 +176,7 @@ export const HOVER_PROBE = (targets) => `async () => {
 					if (!part.includes(':hover')) continue;
 					const forced = part.split(':hover').join('[data-hv="' + tag + '"]');
 					let hit;
-					try { hit = [...document.querySelectorAll(forced)]; } catch { continue; }
+					try { hit = [...document.querySelectorAll(scopeSel ? forced.split(':scope').join(scopeSel) : forced)]; } catch { continue; }
 					if (!hit.includes(el) && !hit.includes(host)) continue;
 					all++;
 					if (ink) { hit.forEach((n) => nodes.add(n)); copied++; }

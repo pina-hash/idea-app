@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	/**
 	 * HOW FAR A DROPPED FILE AND A PASTED SCREENSHOT REACH, in a real browser.
 	 *
@@ -411,7 +413,7 @@
 
 <svelte:head><title>attach reach harness</title></svelte:head>
 
-<main class="cr-root harness">
+<main class="cr-root {CLASSROOM_PLATE} harness">
 	<h1>Attachment reach</h1>
 	<p class="lede">
 		The REAL roster import, and the REAL spec import mounted inside the REAL composer. Drop a file

@@ -1,563 +1,33 @@
 /* ==========================================================================
-   THE PROPOSAL, ROUND 3: PLATE v3 (ledger 0344).
+   /dev/themes-shape's OWN FURNITURE, and nothing else (ledgers 0344, 0345).
 
-   Round 2 (./plate.css, ledger 0341) got the rule right and the look wrong.
-   Mr. Pina, 2026-09-27: the chips were pointy and too wide; Sci-Fi Line's
-   corners are "bevels, but they're also rounded"; its borders are composited,
-   gray gradients shifting to white, "the white to glowing looks really cool";
-   no grid behind anything that is not a graph. This file answers each of
-   those from measured reference pixels (docs/feedback/2026-09-25/overnight/
-   shapes-v3.md carries the band tables and both independent reviews).
+   Round 3 of the shape language (ledger 0344) lived here whole, as a
+   proposal. Mr. Pina approved it on 2026-09-27 and ledger 0345 shipped it:
+   the look is now `$lib/classroom/plate.css`, the production stylesheet, and
+   this page's after column wears it by carrying `CLASSROOM_PLATE`, the same
+   constant the live classroom's layout reads. A copy of the rules here would
+   be a mockup that can drift from the site, so there is none.
 
-   THE ONE RULE, KEPT BY CONSTRUCTION, EXACTLY AS ROUND 2 KEPT IT. Geometry,
-   layout and control positions are the same in every theme. Three kinds of
-   block, and only one repeats per theme:
-
-     1. SHAPE AND LAYOUT (`--p3-r-*`, `--p3-cut-*`, `--p3-soft`, sizes, the
-        label floor). Declared ONCE on `.p3-after`, no theme selector near it.
-        The only lengths that move, move with the VIEWPORT (the 480px block).
-     2. COLOUR (`--p3-*` inks, faces, bezel bands, glows). Declared once for
-        IDEA and once more per theme. No length appears in a theme block at
-        all, shadows included: a shadow's geometry is written once, in its
-        rule, and only its colour is a token, so a dark theme's edge light,
-        Matrix's phosphor bloom and Space White's soft shadow are one shadow
-        list painted in three sets of colours (a bloom a theme does not want
-        is a transparent colour, never a missing shadow).
-     3. RULES. Written once; no `[data-theme]` in any selector.
-
-   `_themes-shape-plate-pixels.mjs` reads every element's box on the page in
-   each theme and diffs them: the rule measured, not argued.
-
-   THE COMPOSITE EDGE IS A MOULDED TUBE, NOT A STACK OF OUTLINES. The first
-   independent review read round 3's first edges as "drawn lines": a dark
-   outline, a flat band, a second dark line. The kit's edge is graded: a soft
-   light halo on the plate, the dark rim core, a light ring where the curve
-   catches the light, then the face, with the foot softening downward. So the
-   hairline is the border (the load-bearing boundary, 3:1 against whatever
-   the control sits on) and every other band is light: a light ring just
-   inside it, a crisp top highlight, a SOFT foot (blurred, never a hard band)
-   and a light halo just outside it. There is no second dark line anywhere.
-
-   CORNERS, THE "COMBINATION OF TWO" (C1 to C3). Every control, pad, well,
-   card, housing, menu and plate is a ROUNDED rectangle. The chamfer is a
-   DETAIL only, exactly where the prompt's C2 puts it: the breaks in the
-   selected button's ring, the display screen's angled lower corners, the
-   column tabs, the title bar's hazard ends and the engraved gutter joints.
-   Every chamfer on a large shape is `corner-shape: var(--p3-soft)`, a
-   superellipse near 0: a chamfer whose two ends are rounded rather than
-   knife-sharp (the corner study on the page shows the alternatives).
-
-   DECORATION IS PAINT ONLY: background layers, pseudo-elements with
-   `content: ''`, or inline SVG that is `aria-hidden`; `pointer-events: none`;
-   never animated; never under a control.
-
-   NO GRID. Nothing here paints a grid, scan lines or ruled lines (Mr. Pina's
-   standing rule: a grid only on a graph with axes). The two repeating
-   patterns are the hazard hatch and the perforation patch, which is under
-   64px across and fades out.
-
-   THE CONTRAST WALK READS `background-color`, SO EVERY GRADIENT FACE SETS
-   ONE. A face that is only a gradient has a transparent background colour,
-   and the contrast check would walk past it to whatever is behind. Each face
-   therefore also declares a `--p3-*-ground`: per theme, the stop its text
-   reads WORST against (the darker stop under dark text, the lighter under
-   light text), so the measured figure is the floor of the face, never its
-   best spot.
-
-   SCOPE. Every selector starts at `.p3-after`, a wrapper only
-   /dev/themes-shape renders. It is a plain stylesheet for the reason round 1
-   gave (a move, not a rewrite, and svelte-check's CSS linter does not know
-   `corner-shape`).
+   What is left is what only the mockup has: each after column drawn as one
+   machined plate (screws, hatch stacks, an engraved diagonal), the group
+   brackets and their labels, the `+` where the region's cards meet, the
+   composed region's recessed column, tabs, engraved rails and title bar
+   wrapper, the held Pressed button, the mockup's own text input, and the
+   corner study. Every colour here is a production `--plate-*` token.
    ========================================================================== */
 
-/* --------------------------------------------------------------------------
-   1. SHAPE AND LAYOUT: every theme, declared once.
-   -------------------------------------------------------------------------- */
+/* The mockup's own lengths: the band a plate column keeps for its screws and
+   hatch, and a group's side padding. Viewport-driven, never theme-driven. */
 .ts-root .p3-after {
-	/* The chamfer: a superellipse near 0 is a bevel whose ends are rounded.
-	   0.25 was picked by eye against the display screen's lower corners and
-	   the plate gutters' angled joints (the corner study, shapes-v3.md). */
-	--p3-soft: superellipse(0.25);
-	/* Radii. A control is a quarter of its height, as the kit's 22px buttons
-	   measure (5.5px); a pad, a panel and the plate step up from there. */
-	--p3-r-control: 11px;
-	--p3-r-small: 5px;
-	--p3-r-pad: 8px;
-	--p3-r-panel: 12px;
-	--p3-r-plate: 6px;
-	/* The chamfer size on the display screen, the one large chamfered shape. */
-	--p3-cut-screen: 26px;
-	/* The mono label floor (11px on screen) and its tracking. Chips track
-	   tighter: at 11px a chip must still be no wider than today's at 9.9px
-	   (shapes-v3.md carries the per-chip widths). */
-	--p3-label-size: 0.6875rem;
-	--p3-label-track: 0.14em;
-	--p3-chip-h: 22px;
-	--p3-chip-track: 0.02em;
-	--p3-chip-track-tight: 0.01em;
-	/* The selected ring: inset from the outer edge. */
-	--p3-ring-inset: 5px;
-	/* LEDs: a chip's. */
-	--p3-led-chip: 4px;
-	/* The band decoration lives in, so nothing sits under a control. */
-	--p3-band: 24px;
-	/* Group padding, the hazard blocks' width and tile, the region title and
-	   the display readout: the lengths the viewport moves (below), never a
-	   theme. */
-	--p3-group-pad: 14px;
-	--p3-hazard-w: min(26%, 176px);
-	--p3-hazard-h: 15px;
-	--p3-hazard-pitch: 10px;
-	--p3-hazard-tail: 3px;
-	--p3-title-size: 1.05rem;
-	--p3-title-track: 0.12em;
-	--p3-readout-size: 1rem;
+	--plate-band: 24px;
+	--plate-group-pad: 14px;
 }
-/* THE LENGTHS THAT MOVE, AND THEY MOVE WITH THE VIEWPORT, NEVER THE THEME. */
 @media (max-width: 480px) {
 	.ts-root .p3-after {
-		--p3-band: 16px;
-		--p3-group-pad: 6px;
-		--p3-hazard-w: 24px;
-		--p3-hazard-h: 10px;
-		--p3-hazard-pitch: 6.667px;
-		--p3-hazard-tail: 2px;
-		--p3-title-size: 0.72rem;
-		--p3-title-track: 0.04em;
-		--p3-readout-size: 0.8125rem;
+		--plate-band: 16px;
+		--plate-group-pad: 6px;
 	}
 }
-
-/* --------------------------------------------------------------------------
-   2. COLOUR: one block per theme, colours only.
-
-   IDEA, the dark default: the same layers in dark machined metal, read off
-   `hardware-dark.png`. Surfaces are GRADED CHARCOAL (the plate about 35 to
-   45, cards a step lighter, key faces lighter still at the top), and near-
-   black is kept for crevices and rims, never for a surface: a well is a
-   charcoal trough with a light lip at its foot, the display is tinted glass.
-   A bezel is a light top highlight over a darker foot; "lit" is a faint
-   green rim glow; a selection is a deep accent face with light type and a
-   green edge, never a pastel slab; lit parts bloom into what is around them.
-   -------------------------------------------------------------------------- */
-.ts-root .p3-after {
-	/* The plate. */
-	--p3-plate-top: #262b28;
-	--p3-plate-bot: #1f2321;
-	--p3-plate-hi: rgba(255, 255, 255, 0.12);
-	--p3-plate-edge: #343b37;
-	--p3-plate-side: rgba(0, 0, 0, 0.4);
-	--p3-inset-top: #1a1d1c;
-	--p3-inset-bot: #161918;
-	--p3-groove-dk: rgba(0, 0, 0, 0.8);
-	--p3-groove-lt: rgba(255, 255, 255, 0.09);
-	--p3-inset-shade: rgba(0, 0, 0, 0.55);
-	/* The composite edge. `--p3-hair` is the load-bearing boundary: the
-	   shared `--boundary` lightened (lightness only) until it clears 3:1 on
-	   the lightest ground a control sits on here, a card (shapes-v3.md). */
-	--p3-hair: #7f8b83;
-	--p3-bezel-mid: rgba(255, 255, 255, 0.06);
-	--p3-bezel-hi: rgba(255, 255, 255, 0.16);
-	--p3-tube-lo: rgba(0, 0, 0, 0.3);
-	--p3-foot: rgba(0, 0, 0, 0.5);
-	--p3-rim-out: rgba(0, 0, 0, 0.5);
-	--p3-drop: rgba(0, 0, 0, 0.55);
-	--p3-drop-far: rgba(0, 0, 0, 0.45);
-	/* A pad's bezel band and its inner lip. */
-	--p3-band-top: #4b534d;
-	--p3-band-bot: #2c312e;
-	--p3-pad-lip: rgba(255, 255, 255, 0.16);
-	/* A raised face, and the lit/selected face. */
-	--p3-face-top: #454c47;
-	--p3-face-bot: #353b37;
-	--p3-face-ground: #454c47;
-	--p3-lit-top: #4f5851;
-	--p3-lit-bot: #434b45;
-	--p3-lit-ground: #4f5851;
-	--p3-lit-glow: rgba(143, 224, 138, 0.38);
-	--p3-lit-core: rgba(143, 224, 138, 0.3);
-	--p3-bloom: rgba(120, 184, 112, 0.3);
-	/* Pressed and disabled. */
-	--p3-press-top: #1f2321;
-	--p3-press-bot: #2c312e;
-	--p3-disabled-face: #2a2f2c;
-	--p3-disabled-edge: #505852;
-	/* A panel (card, housing, menu) and a housing's moulded frame. */
-	--p3-panel-top: #383e3a;
-	--p3-panel-bot: #2e3330;
-	--p3-panel-ground: #383e3a;
-	--p3-panel-hi: rgba(255, 255, 255, 0.12);
-	--p3-frame: rgba(255, 255, 255, 0.04);
-	--p3-frame-in: rgba(0, 0, 0, 0.3);
-	--p3-frame-lo: rgba(0, 0, 0, 0.35);
-	/* A well: a crevice line at the top, a graded charcoal trough, a light lip
-	   at the foot (hardware-dark's mode switcher runs 33 to 38 to 114). */
-	--p3-well-shade: #0c0e0d;
-	--p3-well-top: #141716;
-	--p3-well-face: #1b1f1d;
-	--p3-well-ground: #1b1f1d;
-	--p3-well-lip: rgba(255, 255, 255, 0.2);
-	--p3-list-face: #191c1b;
-	--p3-divider: var(--boundary);
-	/* Inks. The label ink is the shared `--text-2` lightened (lightness only)
-	   until it clears the 3.0 projector floor on the lightest face it sits
-	   on, a lit pad. */
-	--p3-ink: var(--text-1);
-	--p3-ink-2: #b9c0bb;
-	--p3-caption: #b9c0bb;
-	--p3-disabled: var(--ice);
-	/* The accent: flat and solid wherever it appears. */
-	--p3-accent: var(--green);
-	--p3-accent-tint: rgba(120, 184, 112, 0.35);
-	--p3-accent-glow: rgba(143, 224, 138, 0.55);
-	/* The primary button and a selected row or menu item: a DEEP accent face
-	   with light type and a lit green edge, so the brightest thing on the
-	   plate is a line of light rather than a slab of pastel. */
-	--p3-primary-face: #2f4b2c;
-	--p3-primary-ink: var(--text-1);
-	--p3-primary-hi: rgba(143, 224, 138, 0.35);
-	--p3-primary-foot: rgba(0, 0, 0, 0.35);
-	--p3-primary-glow: rgba(120, 184, 112, 0.28);
-	--p3-sel-face: #2f4b2c;
-	--p3-sel-ink: var(--text-1);
-	--p3-sel-edge: rgba(143, 224, 138, 0.75);
-	--p3-sel-glow: rgba(120, 184, 112, 0.3);
-	--p3-sel-chip-edge: rgba(231, 234, 232, 0.5);
-	/* LEDs. */
-	--p3-led-off: #3a423d;
-	--p3-led-off-hi: #5a645d;
-	--p3-led-ring: #050706;
-	--p3-led-halo: rgba(143, 224, 138, 0.6);
-	--p3-led-amber: var(--amber);
-	--p3-led-gold: var(--gold);
-	--p3-cup: #121514;
-	--p3-cup-in: #000000;
-	/* The display: tinted glass, lighter at the top, a soft sheen across it,
-	   the readout glowing. The ink is the brand green lightened (lightness
-	   only) to clear the projector floor on the glass's lightest point. */
-	--p3-screen-top: #27352c;
-	--p3-screen-bot: #111814;
-	--p3-screen-rim: rgba(143, 224, 138, 0.16);
-	--p3-screen-shade: rgba(0, 0, 0, 0.75);
-	--p3-screen-ink: #81bd79;
-	--p3-screen-glow: rgba(120, 184, 112, 0.65);
-	--p3-glass: rgba(255, 255, 255, 0.06);
-	/* Decoration. */
-	--p3-hazard: #5b645e;
-	--p3-engrave-dk: rgba(0, 0, 0, 0.75);
-	--p3-engrave-lt: rgba(255, 255, 255, 0.1);
-	--p3-screw-face: #3a403c;
-	--p3-screw-hi: rgba(255, 255, 255, 0.16);
-	--p3-screw-dot: #070908;
-	--p3-screw-ring: rgba(0, 0, 0, 0.75);
-	--p3-screw-spec: rgba(255, 255, 255, 0.25);
-	--p3-bracket: #66706a;
-	--p3-perf: rgba(255, 255, 255, 0.2);
-	/* The switch. */
-	--p3-track: #121514;
-	--p3-knob-top: #5a625c;
-	--p3-knob-bot: #373d39;
-	--p3-knob-icon: var(--text-1);
-	--p3-knob-on-icon: #0a0c0b;
-	--p3-knob-shade: rgba(0, 0, 0, 0.6);
-	/* The progress ring. */
-	--p3-ring-outer: #4b534d;
-	--p3-ring-channel: #0c0e0d;
-	--p3-ring-rest-a: #5b645e;
-	--p3-ring-rest-b: #1d2120;
-	--p3-ring-value: var(--green);
-	--p3-ring-bloom: rgba(120, 184, 112, 0.6);
-	--p3-ring-drop: rgba(0, 0, 0, 0.75);
-	--p3-ring-disc-a: #58615a;
-	--p3-ring-disc-b: #2c312e;
-	--p3-ring-disc-edge: #626b64;
-	--p3-ring-band: #1a1d1c;
-	--p3-ring-face: #303632;
-	--p3-ring-face-hi: #3b423d;
-	--p3-ring-ticks: #7d8781;
-	--p3-ring-glow: #b7e8b1;
-	--p3-ring-sheen: rgba(255, 255, 255, 0.14);
-	--p3-ring-rim: rgba(255, 255, 255, 0.4);
-	--p3-ring-text: #9fd898;
-	/* Added answering the second review. The hairline's TOP stop (lighter:
-	   the top catches the light, the foot stays at the 3:1 floor), the pressed
-	   key's inner shadow, the button and heading inks, the heading bloom
-	   (Matrix only), the primary's inner glow, the display window's side
-	   walls, the list's scroll track, and the recessed chip on a lit row. */
-	--p3-hair-top: #a3aea6;
-	--p3-press-shade: rgba(0, 0, 0, 0.7);
-	--p3-btn-ink: var(--text-1);
-	--p3-head-ink: var(--text-1);
-	--p3-text-bloom: rgba(0, 0, 0, 0);
-	--p3-primary-inglow: rgba(120, 184, 112, 0.35);
-	--p3-screen-wall: rgba(143, 224, 138, 0.1);
-	--p3-track-faint: rgba(0, 0, 0, 0.35);
-	--p3-selchip-face: rgba(0, 0, 0, 0.28);
-}
-
-/* MATRIX: the same machined layers in the theme's phosphor palette, and the
-   one theme where the lights BLOOM: the display glows hard and carries a
-   green glass sheen, lit parts throw a stronger green halo. Every surface is
-   green-tinted charcoal, never black. Its own grounds and inks from
-   matrix.css; the rain is left exactly as it is and shows only in the page
-   gutters, never under text. */
-:root[data-theme='matrix'] .ts-root .p3-after {
-	--p3-plate-top: #1d271f;
-	--p3-plate-bot: #172019;
-	--p3-plate-hi: rgba(160, 220, 170, 0.12);
-	--p3-plate-edge: #2a3a2d;
-	--p3-plate-side: rgba(0, 0, 0, 0.4);
-	--p3-inset-top: #111812;
-	--p3-inset-bot: #0e140f;
-	--p3-groove-lt: rgba(143, 174, 148, 0.1);
-	--p3-hair: #6b8c73;
-	--p3-bezel-mid: rgba(160, 220, 170, 0.07);
-	--p3-bezel-hi: rgba(160, 220, 170, 0.2);
-	--p3-rim-out: rgba(0, 0, 0, 0.55);
-	--p3-band-top: #3a4e3e;
-	--p3-band-bot: #1f2b22;
-	--p3-pad-lip: rgba(160, 220, 170, 0.16);
-	--p3-face-top: #35463a;
-	--p3-face-bot: #28362c;
-	--p3-face-ground: #35463a;
-	--p3-lit-top: #3d5143;
-	--p3-lit-bot: #33463a;
-	--p3-lit-ground: #3d5143;
-	--p3-lit-glow: rgba(120, 230, 132, 0.45);
-	--p3-lit-core: rgba(120, 230, 132, 0.34);
-	--p3-bloom: rgba(120, 220, 130, 0.45);
-	--p3-press-top: #141c15;
-	--p3-press-bot: #212c23;
-	--p3-disabled-face: #1c251e;
-	--p3-disabled-edge: #3d5242;
-	--p3-panel-top: #2b3a2f;
-	--p3-panel-bot: #233027;
-	--p3-panel-ground: #2b3a2f;
-	--p3-panel-hi: rgba(160, 220, 170, 0.12);
-	--p3-frame: rgba(160, 220, 170, 0.04);
-	--p3-well-shade: #050905;
-	--p3-well-top: #0c120d;
-	--p3-well-face: #131b14;
-	--p3-well-ground: #131b14;
-	--p3-well-lip: rgba(160, 220, 170, 0.2);
-	--p3-list-face: #121913;
-	--p3-ink-2: #a4bda8;
-	--p3-caption: #a4bda8;
-	--p3-primary-face: #24421f;
-	--p3-primary-hi: rgba(140, 240, 150, 0.35);
-	--p3-primary-glow: rgba(120, 220, 130, 0.45);
-	--p3-sel-face: #24421f;
-	--p3-sel-edge: rgba(140, 240, 150, 0.8);
-	--p3-sel-glow: rgba(120, 220, 130, 0.45);
-	--p3-sel-chip-edge: rgba(220, 232, 220, 0.5);
-	--p3-led-off: #22342a;
-	--p3-led-off-hi: #3c5541;
-	--p3-led-ring: #010201;
-	--p3-led-halo: rgba(120, 230, 132, 0.8);
-	--p3-cup: #0a110b;
-	--p3-screen-top: #1c2e20;
-	--p3-screen-bot: #0a120b;
-	--p3-screen-rim: rgba(140, 240, 150, 0.22);
-	--p3-screen-ink: #7bba73;
-	--p3-screen-glow: rgba(120, 230, 132, 0.95);
-	--p3-glass: rgba(170, 255, 180, 0.08);
-	--p3-hazard: #3f5a44;
-	--p3-engrave-lt: rgba(143, 174, 148, 0.12);
-	--p3-screw-face: #2c3a2f;
-	--p3-screw-hi: rgba(160, 220, 170, 0.18);
-	--p3-screw-dot: #030503;
-	--p3-screw-spec: rgba(190, 255, 200, 0.25);
-	--p3-bracket: #52705a;
-	--p3-perf: rgba(143, 174, 148, 0.26);
-	--p3-track: #0a110b;
-	--p3-knob-top: #465c4a;
-	--p3-knob-bot: #2a382d;
-	--p3-knob-on-icon: #020402;
-	--p3-ring-outer: #3a4e3e;
-	--p3-ring-channel: #050905;
-	--p3-ring-rest-a: #3c5541;
-	--p3-ring-rest-b: #0e170f;
-	--p3-ring-bloom: rgba(120, 230, 132, 0.8);
-	--p3-ring-disc-a: #44584a;
-	--p3-ring-disc-b: #1f2b22;
-	--p3-ring-disc-edge: #4e6654;
-	--p3-ring-band: #0e140f;
-	--p3-ring-face: #243128;
-	--p3-ring-face-hi: #2d3b31;
-	--p3-ring-ticks: #6b8c73;
-	--p3-ring-glow: #b4f0bb;
-	--p3-ring-sheen: rgba(160, 220, 170, 0.14);
-	--p3-ring-rim: rgba(180, 240, 187, 0.4);
-	--p3-ring-text: #9fe0a0;
-	/* Added answering the second review (see the IDEA block). */
-	--p3-hair-top: #8fb096;
-	--p3-press-shade: rgba(0, 0, 0, 0.7);
-	--p3-head-ink: #c6ecc8;
-	--p3-text-bloom: rgba(120, 230, 132, 0.45);
-	--p3-primary-inglow: rgba(120, 230, 132, 0.45);
-	--p3-screen-wall: rgba(140, 240, 150, 0.12);
-	--p3-track-faint: rgba(0, 0, 0, 0.4);
-	--p3-selchip-face: rgba(0, 0, 0, 0.3);
-}
-
-/* SPACE WHITE: Sci-Fi Line itself, with IDEA green where the kit has orange.
-   Every grey below is the kit's own relationship, sampled from
-   `2-pads-list-buttons.webp` and the zoom crops (the band table in
-   shapes-v3.md), except the hairline, which is darker than the kit's 2.8:1
-   so it clears the 3:1 boundary floor on the plate AND on the recessed
-   column (3.00:1 there, the tightest ground). */
-:root[data-theme='space-white'] .ts-root .p3-after {
-	--p3-plate-top: #e4e8ee;
-	--p3-plate-bot: #dfe3ea;
-	--p3-plate-hi: #f6f8fb;
-	--p3-plate-edge: #c2c7ce;
-	--p3-plate-side: rgba(120, 128, 142, 0.5);
-	--p3-inset-top: #d3d7e1;
-	--p3-inset-bot: #ccd0db;
-	--p3-groove-dk: rgba(84, 92, 110, 0.42);
-	--p3-groove-lt: #f7f9fc;
-	--p3-inset-shade: rgba(84, 92, 110, 0.24);
-	--p3-hair: #6e757e;
-	--p3-bezel-mid: #a3a9b0;
-	--p3-bezel-hi: #cdd1d6;
-	--p3-tube-lo: rgba(120, 128, 138, 0.16);
-	--p3-foot: rgba(96, 104, 114, 0.45);
-	--p3-rim-out: rgba(80, 90, 104, 0.14);
-	--p3-drop: rgba(70, 80, 100, 0.24);
-	--p3-drop-far: rgba(70, 80, 100, 0.22);
-	/* Sampled across the kit's unlit pad: the band runs 172 to 155 under its
-	   core, the lip inside it is 212. */
-	--p3-band-top: #aeb3bb;
-	--p3-band-bot: #9ba1a9;
-	--p3-pad-lip: #d3d7dd;
-	--p3-face-top: #b8bdc5;
-	--p3-face-bot: #cdd2d9;
-	--p3-face-ground: #b8bdc5;
-	/* The lit face stays near 220 so the white rim reads against it, as the
-	   kit's does (220 against a 255 ring). */
-	--p3-lit-top: #d8dbde;
-	--p3-lit-bot: #dde0e3;
-	--p3-lit-ground: #d8dbde;
-	--p3-lit-glow: #ffffff;
-	--p3-lit-core: rgba(255, 255, 255, 0.75);
-	--p3-bloom: rgba(255, 255, 255, 0);
-	--p3-press-top: #adb2ba;
-	--p3-press-bot: #c3c8cf;
-	--p3-disabled-face: #dde1e7;
-	--p3-disabled-edge: #a0a6ad;
-	--p3-panel-top: #f5f7f9;
-	--p3-panel-bot: #e2e6ec;
-	--p3-panel-ground: #e2e6ec;
-	--p3-panel-hi: #ffffff;
-	/* The housing's frame is light, never pure white, lit top-left, shaded
-	   along its foot. */
-	--p3-frame: rgba(255, 255, 255, 0.55);
-	--p3-frame-in: rgba(128, 136, 148, 0.2);
-	--p3-frame-lo: rgba(110, 118, 130, 0.22);
-	--p3-well-shade: #a9aeb8;
-	--p3-well-top: #bfc4ce;
-	--p3-well-face: #c8ccd5;
-	--p3-well-ground: #bfc4ce;
-	--p3-well-lip: #eef1f6;
-	--p3-list-face: #e4e8ee;
-	--p3-divider: #7d848d;
-	--p3-ink-2: var(--text-2);
-	--p3-caption: #545a61;
-	--p3-accent-tint: rgba(59, 108, 54, 0.3);
-	--p3-accent-glow: #cfe5cb;
-	--p3-primary-face: var(--green);
-	--p3-primary-ink: var(--surface-1);
-	--p3-primary-hi: #9dc497;
-	--p3-primary-foot: rgba(20, 40, 18, 0.45);
-	--p3-primary-glow: rgba(255, 255, 255, 0);
-	--p3-sel-face: var(--green);
-	--p3-sel-ink: var(--surface-1);
-	--p3-sel-edge: #cfe5cb;
-	--p3-sel-glow: rgba(255, 255, 255, 0);
-	--p3-sel-chip-edge: rgba(247, 249, 249, 0.7);
-	--p3-led-off: #9aa0a8;
-	--p3-led-off-hi: #b9bec5;
-	--p3-led-ring: #7c828a;
-	--p3-led-halo: rgba(120, 184, 112, 0.35);
-	/* An LED is a light, not a word: the amber and gold here are the lamp
-	   colours (IDEA's own), because Space White's amber and gold are TEXT inks,
-	   deepened for a white ground, and read as brown on a lamp. The word beside
-	   the lamp carries the meaning; the lamp is never the only signal. */
-	--p3-led-amber: #e08a2e;
-	--p3-led-gold: #d9b84e;
-	--p3-cup: #aeb4bc;
-	--p3-cup-in: #8c929a;
-	/* The kit's screen top is about #4b4f52; the brand green on that is
-	   3.70:1, under the text floor, so the gradient keeps the kit's direction
-	   and starts darker (4.5:1 or better everywhere the readout sits). */
-	--p3-screen-top: #383c44;
-	--p3-screen-bot: #25282e;
-	--p3-screen-rim: rgba(255, 255, 255, 0.3);
-	--p3-screen-shade: rgba(0, 0, 0, 0.55);
-	/* The brand green, legitimate as glowing ink on a dark island. */
-	--p3-screen-ink: var(--accent-field);
-	--p3-screen-glow: rgba(120, 184, 112, 0.6);
-	--p3-glass: rgba(255, 255, 255, 0.06);
-	--p3-hazard: #585d63;
-	--p3-engrave-dk: rgba(96, 104, 118, 0.55);
-	--p3-engrave-lt: rgba(255, 255, 255, 0.9);
-	--p3-screw-face: #dfe3e8;
-	--p3-screw-hi: #ffffff;
-	--p3-screw-dot: #6a7078;
-	--p3-screw-ring: #8a9098;
-	--p3-screw-spec: rgba(255, 255, 255, 0);
-	--p3-bracket: #8a9098;
-	--p3-perf: rgba(96, 104, 118, 0.3);
-	--p3-track: #a9aeb6;
-	--p3-knob-top: #f6f7f9;
-	--p3-knob-bot: #d3d6db;
-	--p3-knob-icon: #3a3f45;
-	--p3-knob-on-icon: #f7f9f9;
-	--p3-knob-shade: rgba(60, 68, 84, 0.45);
-	--p3-ring-outer: #aab0b8;
-	--p3-ring-channel: #9aa0a8;
-	--p3-ring-rest-a: #bcc1c8;
-	--p3-ring-rest-b: #464b53;
-	--p3-ring-bloom: rgba(255, 255, 255, 0);
-	--p3-ring-drop: rgba(60, 68, 84, 0.55);
-	--p3-ring-disc-a: #fbfcfd;
-	--p3-ring-disc-b: #e4e7eb;
-	--p3-ring-disc-edge: #b9bec5;
-	--p3-ring-band: #c9cdd3;
-	--p3-ring-face: #bcc1c8;
-	--p3-ring-face-hi: #cbd0d6;
-	--p3-ring-ticks: #8f959c;
-	--p3-ring-glow: #ffffff;
-	--p3-ring-sheen: rgba(255, 255, 255, 0.8);
-	--p3-ring-rim: #ffffff;
-	--p3-ring-text: #2f5a2b;
-	/* Added answering the second review (see the IDEA block). On Space White
-	   the hairline's two stops are one colour, the button ink is a notch off
-	   black as the kit's labels are, and the blooms are transparent. */
-	--p3-hair-top: #6e757e;
-	--p3-press-shade: rgba(60, 68, 84, 0.5);
-	--p3-btn-ink: #2d3238;
-	--p3-head-ink: var(--text-1);
-	--p3-text-bloom: rgba(255, 255, 255, 0);
-	--p3-primary-inglow: rgba(255, 255, 255, 0);
-	--p3-screen-wall: rgba(255, 255, 255, 0.16);
-	--p3-track-faint: rgba(96, 104, 118, 0.18);
-	--p3-selchip-face: rgba(0, 0, 0, 0.2);
-}
-
-/* NOTHING BEHIND THE PAGE MAY BE A GRID EITHER. Matrix shows the shell's
-   `.bg-fx` under a transparent classroom (matrix.css, for the rain), and
-   `.bg-fx::after` is a full-window scan-line fill: ruled lines, which Mr.
-   Pina's rule counts as a grid. This page alone hides that one layer; the
-   rain, which is `.bg-fx`'s own content, is untouched. Scoped by `:has()` on
-   this route's root, so no other page can match it. */
-body:has(.ts-root) .bg-fx::after {
-	display: none;
-}
-
-/* --------------------------------------------------------------------------
-   3. RULES. Written once; none names a theme.
-   -------------------------------------------------------------------------- */
 
 /* --- The plate: each after column is one machined plate. ------------------
    A barely visible top-to-bottom gradient, a 1px lighter top edge, the outer
@@ -566,35 +36,35 @@ body:has(.ts-root) .bg-fx::after {
    Rounded at every corner: the plate's angles are its engraved joints. */
 .ts-root .pl-col.p3-after {
 	position: relative;
-	border: 1px solid var(--p3-plate-edge);
-	border-radius: var(--p3-r-plate);
-	padding-inline: var(--p3-band);
-	padding-top: calc(var(--p3-band) + 4px);
-	padding-bottom: var(--p3-band);
-	background-color: var(--p3-plate-bot);
+	border: 1px solid var(--plate-plate-edge);
+	border-radius: var(--plate-r-plate);
+	padding-inline: var(--plate-band);
+	padding-top: calc(var(--plate-band) + 4px);
+	padding-bottom: var(--plate-band);
+	background-color: var(--plate-plate-bot);
 	/* Four recessed screws (each four layers: a pin-point specular, the dot
 	   and face, the ring's shadow up-left, its lit lip down-right), one
 	   engraved diagonal crossing the left edge (D5: a dark line with a light
 	   line beside it), then the plate's own barely visible gradient. */
 	background-image:
-		radial-gradient(circle at 40% 38%, var(--p3-screw-spec) 0 0.9px, transparent 1.6px),
-		radial-gradient(circle, var(--p3-screw-dot) 0 1.9px, var(--p3-screw-face) 2.3px 4px, transparent 4.4px),
-		radial-gradient(circle at 47% 46%, var(--p3-screw-ring) 0 5.4px, transparent 5.8px),
-		radial-gradient(circle at 53% 54%, var(--p3-screw-hi) 0 5.7px, transparent 6.1px),
-		radial-gradient(circle at 40% 38%, var(--p3-screw-spec) 0 0.9px, transparent 1.6px),
-		radial-gradient(circle, var(--p3-screw-dot) 0 1.9px, var(--p3-screw-face) 2.3px 4px, transparent 4.4px),
-		radial-gradient(circle at 47% 46%, var(--p3-screw-ring) 0 5.4px, transparent 5.8px),
-		radial-gradient(circle at 53% 54%, var(--p3-screw-hi) 0 5.7px, transparent 6.1px),
-		radial-gradient(circle at 40% 38%, var(--p3-screw-spec) 0 0.9px, transparent 1.6px),
-		radial-gradient(circle, var(--p3-screw-dot) 0 1.9px, var(--p3-screw-face) 2.3px 4px, transparent 4.4px),
-		radial-gradient(circle at 47% 46%, var(--p3-screw-ring) 0 5.4px, transparent 5.8px),
-		radial-gradient(circle at 53% 54%, var(--p3-screw-hi) 0 5.7px, transparent 6.1px),
-		radial-gradient(circle at 40% 38%, var(--p3-screw-spec) 0 0.9px, transparent 1.6px),
-		radial-gradient(circle, var(--p3-screw-dot) 0 1.9px, var(--p3-screw-face) 2.3px 4px, transparent 4.4px),
-		radial-gradient(circle at 47% 46%, var(--p3-screw-ring) 0 5.4px, transparent 5.8px),
-		radial-gradient(circle at 53% 54%, var(--p3-screw-hi) 0 5.7px, transparent 6.1px),
-		linear-gradient(to top right, transparent calc(50% - 1px), var(--p3-engrave-dk) calc(50% - 1px) 50%, var(--p3-engrave-lt) 50% calc(50% + 1px), transparent calc(50% + 1px)),
-		linear-gradient(to bottom, var(--p3-plate-top), var(--p3-plate-bot));
+		radial-gradient(circle at 40% 38%, var(--plate-screw-spec) 0 0.9px, transparent 1.6px),
+		radial-gradient(circle, var(--plate-screw-dot) 0 1.9px, var(--plate-screw-face) 2.3px 4px, transparent 4.4px),
+		radial-gradient(circle at 47% 46%, var(--plate-screw-ring) 0 5.4px, transparent 5.8px),
+		radial-gradient(circle at 53% 54%, var(--plate-screw-hi) 0 5.7px, transparent 6.1px),
+		radial-gradient(circle at 40% 38%, var(--plate-screw-spec) 0 0.9px, transparent 1.6px),
+		radial-gradient(circle, var(--plate-screw-dot) 0 1.9px, var(--plate-screw-face) 2.3px 4px, transparent 4.4px),
+		radial-gradient(circle at 47% 46%, var(--plate-screw-ring) 0 5.4px, transparent 5.8px),
+		radial-gradient(circle at 53% 54%, var(--plate-screw-hi) 0 5.7px, transparent 6.1px),
+		radial-gradient(circle at 40% 38%, var(--plate-screw-spec) 0 0.9px, transparent 1.6px),
+		radial-gradient(circle, var(--plate-screw-dot) 0 1.9px, var(--plate-screw-face) 2.3px 4px, transparent 4.4px),
+		radial-gradient(circle at 47% 46%, var(--plate-screw-ring) 0 5.4px, transparent 5.8px),
+		radial-gradient(circle at 53% 54%, var(--plate-screw-hi) 0 5.7px, transparent 6.1px),
+		radial-gradient(circle at 40% 38%, var(--plate-screw-spec) 0 0.9px, transparent 1.6px),
+		radial-gradient(circle, var(--plate-screw-dot) 0 1.9px, var(--plate-screw-face) 2.3px 4px, transparent 4.4px),
+		radial-gradient(circle at 47% 46%, var(--plate-screw-ring) 0 5.4px, transparent 5.8px),
+		radial-gradient(circle at 53% 54%, var(--plate-screw-hi) 0 5.7px, transparent 6.1px),
+		linear-gradient(to top right, transparent calc(50% - 1px), var(--plate-engrave-dk) calc(50% - 1px) 50%, var(--plate-engrave-lt) 50% calc(50% + 1px), transparent calc(50% + 1px)),
+		linear-gradient(to bottom, var(--plate-plate-top), var(--plate-plate-bot));
 	background-size:
 		15px 15px, 15px 15px, 15px 15px, 15px 15px,
 		15px 15px, 15px 15px, 15px 15px, 15px 15px,
@@ -617,10 +87,10 @@ body:has(.ts-root) .bg-fx::after {
 	   flat band: the second review read a flat band as a fake extrusion),
 	   then the drop. */
 	box-shadow:
-		inset 1px 1px 0 0 var(--p3-plate-hi),
-		inset -14px -12px 18px -14px var(--p3-plate-side),
-		0 2px 4px 0 var(--p3-drop),
-		0 14px 28px -10px var(--p3-drop-far);
+		inset 1px 1px 0 0 var(--plate-plate-hi),
+		inset -14px -12px 18px -14px var(--plate-plate-side),
+		0 2px 4px 0 var(--plate-drop),
+		0 14px 28px -10px var(--plate-drop-far);
 }
 /* THE HATCH STACKS (D4): nine short diagonal strokes on each side edge, in
    the padding band, the kit's `////` stack. Each stroke is drawn, not cut
@@ -637,7 +107,7 @@ body:has(.ts-root) .bg-fx::after {
 	width: 8px;
 	height: 44px;
 	pointer-events: none;
-	background: var(--p3-hazard);
+	background: var(--plate-hazard);
 	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 44' width='8' height='44'%3E%3Cg stroke='black' stroke-width='1.3' stroke-linecap='round'%3E%3Cline x1='1' y1='5.0' x2='7' y2='1.0'/%3E%3Cline x1='1' y1='9.6' x2='7' y2='5.6'/%3E%3Cline x1='1' y1='14.2' x2='7' y2='10.2'/%3E%3Cline x1='1' y1='18.8' x2='7' y2='14.8'/%3E%3Cline x1='1' y1='23.4' x2='7' y2='19.4'/%3E%3Cline x1='1' y1='28.0' x2='7' y2='24.0'/%3E%3Cline x1='1' y1='32.6' x2='7' y2='28.6'/%3E%3Cline x1='1' y1='37.2' x2='7' y2='33.2'/%3E%3Cline x1='1' y1='41.8' x2='7' y2='37.8'/%3E%3C/g%3E%3C/svg%3E") center / 8px 44px no-repeat;
 }
 .ts-root .pl-col.p3-after::before {
@@ -654,35 +124,10 @@ body:has(.ts-root) .bg-fx::after {
 	padding-bottom: 22px;
 }
 .ts-root .p3-after .pl-colh {
-	font-size: var(--p3-label-size);
-	letter-spacing: var(--p3-label-track);
-	color: var(--p3-caption);
+	font-size: var(--plate-label-size);
+	letter-spacing: var(--plate-label-track);
+	color: var(--plate-caption);
 	font-weight: 400;
-}
-
-/* --- Mono labels: the 11px floor, uppercase, tracked. ---------------------
-   The same list round 2 found under 11px on this page's real components. A
-   label is always caps: wide tracking on lower case reads as spaced-out
-   letters (the first review read one as "P e r i o d"). */
-.ts-root .p3-after :is(.mini-label, .comment-label, .row-meta, .cls-sub, .sw-item-code, .sw-item-flag, .pane-meta, .pane-code, .group-progress, .group-count, .version-badge, .sep, .pw-label, .sfb-word) {
-	font-size: var(--p3-label-size);
-	letter-spacing: var(--p3-label-track);
-	text-transform: uppercase;
-}
-.ts-root .p3-after .mini-label {
-	color: var(--p3-caption);
-}
-
-/* --- Pixel face B (the A/B toggle): VT323 for labels and readouts only. ----
-   Declared at the same 11px floor and sized to Share Tech Mono's cap height
-   with `font-size-adjust`, so the label floor holds as a declared size and
-   the two faces are compared at one visual size. */
-.ts-root .p3-view[data-face='b'] .p3-after :is(.mini-label, .comment-label, .row-meta, .cls-code, .cls-sub, .sw-item-code, .sw-item-flag, .pane-meta, .pane-code, .group-progress, .group-count, .pl-colh, .draft-chip, .sched-chip, .kind-chip, .chip, .btn, .shell-tool-word, .ts-word, .grade-head, .p3-title, .version-badge) {
-	font-family: 'VT323', var(--font-mono);
-	font-size-adjust: cap-height 0.7;
-}
-.ts-root .p3-view[data-face='b'] .p3-after {
-	--p3-readout-face: 'VT323', var(--font-mono);
 }
 
 /* --- Grouping: corner brackets, mid-edge ticks, the label centred below. -- */
@@ -690,7 +135,7 @@ body:has(.ts-root) .bg-fx::after {
 	position: relative;
 	display: grid;
 	gap: 0.6rem;
-	padding: 14px var(--p3-group-pad) 6px;
+	padding: 14px var(--plate-group-pad) 6px;
 }
 .ts-root .p3-after .p3-group::before {
 	content: '';
@@ -698,16 +143,16 @@ body:has(.ts-root) .bg-fx::after {
 	inset: 0;
 	pointer-events: none;
 	background:
-		linear-gradient(var(--p3-bracket), var(--p3-bracket)) 0 0 / 9px 1px,
-		linear-gradient(var(--p3-bracket), var(--p3-bracket)) 0 0 / 1px 9px,
-		linear-gradient(var(--p3-bracket), var(--p3-bracket)) 100% 0 / 9px 1px,
-		linear-gradient(var(--p3-bracket), var(--p3-bracket)) 100% 0 / 1px 9px,
-		linear-gradient(var(--p3-bracket), var(--p3-bracket)) 0 100% / 9px 1px,
-		linear-gradient(var(--p3-bracket), var(--p3-bracket)) 0 100% / 1px 9px,
-		linear-gradient(var(--p3-bracket), var(--p3-bracket)) 100% 100% / 9px 1px,
-		linear-gradient(var(--p3-bracket), var(--p3-bracket)) 100% 100% / 1px 9px,
-		linear-gradient(var(--p3-bracket), var(--p3-bracket)) 0 50% / 4px 1px,
-		linear-gradient(var(--p3-bracket), var(--p3-bracket)) 100% 50% / 4px 1px;
+		linear-gradient(var(--plate-bracket), var(--plate-bracket)) 0 0 / 9px 1px,
+		linear-gradient(var(--plate-bracket), var(--plate-bracket)) 0 0 / 1px 9px,
+		linear-gradient(var(--plate-bracket), var(--plate-bracket)) 100% 0 / 9px 1px,
+		linear-gradient(var(--plate-bracket), var(--plate-bracket)) 100% 0 / 1px 9px,
+		linear-gradient(var(--plate-bracket), var(--plate-bracket)) 0 100% / 9px 1px,
+		linear-gradient(var(--plate-bracket), var(--plate-bracket)) 0 100% / 1px 9px,
+		linear-gradient(var(--plate-bracket), var(--plate-bracket)) 100% 100% / 9px 1px,
+		linear-gradient(var(--plate-bracket), var(--plate-bracket)) 100% 100% / 1px 9px,
+		linear-gradient(var(--plate-bracket), var(--plate-bracket)) 0 50% / 4px 1px,
+		linear-gradient(var(--plate-bracket), var(--plate-bracket)) 100% 50% / 4px 1px;
 	background-repeat: no-repeat;
 }
 .ts-root .p3-after .p3-group-label {
@@ -715,363 +160,6 @@ body:has(.ts-root) .bg-fx::after {
 	text-align: center;
 }
 
-/* --- Buttons: raised pillows with the composite edge. ---------------------
-   Top to bottom, as M2 samples it: the hairline (the border, load-bearing),
-   a light ring just inside it with a crisp top highlight on it, the face
-   gradient (darker at the top, lighter at the foot on Space White; lit from
-   above on the dark themes), a soft darker foot, and outside, a light halo
-   round the hairline and a soft cool shadow falling downward. No second dark
-   line: the first review measured the old stack as a double outline.
-   THE HAIRLINE IS A GRADIENT, lighter at the top than the foot, drawn as a
-   transparent border over a border-box layer, which follows the radius. On
-   Space White its two stops are the same colour; on a dark theme the top
-   catches the light and the foot sits AT the 3:1 floor, never under it, so
-   every side still clears the boundary floor. Outside it there is no white
-   halo: sampled on the kit, the pixel just outside a button is DARKER than
-   the plate (220 on 227), a soft tray, so `--p3-rim-out` is a faint dark
-   ring (near-black on a dark theme, where keys sit in black trays). */
-.ts-root .p3-after :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .menu-trigger, .sfb-trigger, .shell-back, .qn-trigger)) {
-	border: 1px solid transparent;
-	border-radius: var(--p3-r-control);
-	background:
-		linear-gradient(to bottom, var(--p3-face-top), var(--p3-face-bot)) padding-box,
-		linear-gradient(to bottom, var(--p3-hair-top), var(--p3-hair)) border-box;
-	background-color: var(--p3-face-ground);
-	box-shadow:
-		inset 0 0 0 1px var(--p3-bezel-mid),
-		inset 0 2px 0 0 var(--p3-bezel-hi),
-		inset 0 -2px 2px -1px var(--p3-foot),
-		0 0 0 1px var(--p3-rim-out),
-		0 2px 3px 0 var(--p3-drop),
-		0 6px 10px -5px var(--p3-drop-far);
-	color: var(--p3-btn-ink);
-	letter-spacing: 0.08em;
-	text-shadow: none;
-	transform: none;
-}
-/* PRIMARY is the one flat accent face (M8), and a LIT key keeps its grey
-   bezel, as the kit's selected keys and lit pads do: the same hairline and a
-   2px grey ring inside it, then the accent, with a light line under the ring
-   and a soft foot. On a dark theme the face is the deep accent with a green
-   glow inside it and a faint bloom outside. */
-.ts-root .p3-after .btn:not(.secondary):not(:disabled) {
-	background:
-		linear-gradient(var(--p3-primary-face), var(--p3-primary-face)) padding-box,
-		linear-gradient(to bottom, var(--p3-hair-top), var(--p3-hair)) border-box;
-	background-color: var(--p3-primary-face);
-	color: var(--p3-primary-ink);
-	box-shadow:
-		inset 0 0 0 2px var(--p3-bezel-mid),
-		inset 0 3px 0 0 var(--p3-primary-hi),
-		inset 0 0 8px 2px var(--p3-primary-inglow),
-		inset 0 -3px 3px -1px var(--p3-primary-foot),
-		0 0 0 1px var(--p3-rim-out),
-		0 0 8px 1px var(--p3-primary-glow),
-		0 2px 3px 0 var(--p3-drop),
-		0 6px 10px -5px var(--p3-drop-far);
-}
-.ts-root .p3-after :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .menu-trigger, .sfb-trigger)):hover {
-	border-color: var(--hover-ink);
-	color: var(--p3-btn-ink);
-	text-shadow: none;
-}
-.ts-root .p3-after .btn:not(.secondary):not(:disabled):hover {
-	border-color: var(--hover-ink);
-	color: var(--p3-primary-ink);
-}
-/* PRESSED sinks: a darker key face with the shadow inside at the top and the
-   light moved to its foot. It is still a KEY, not a well: its face is a
-   gradient of its own, not the input's trough. Nothing moves (no transform,
-   no border change). */
-.ts-root .p3-after .btn:active,
-.ts-root .p3-after .btn.pl-hold-active {
-	transform: none;
-	background:
-		linear-gradient(to bottom, var(--p3-press-top), var(--p3-press-bot)) padding-box,
-		linear-gradient(to bottom, var(--p3-hair-top), var(--p3-hair)) border-box;
-	background-color: var(--p3-press-top);
-	box-shadow:
-		inset 0 3px 4px 0 var(--p3-press-shade),
-		inset 0 1px 1px 0 var(--p3-press-shade),
-		inset 0 -1px 0 0 var(--p3-bezel-hi),
-		0 0 0 1px var(--p3-rim-out);
-}
-/* DISABLED is an UNLIT key: a flat face a shade off the plate, a quieter
-   edge, no highlight, no shadow, and the word itself. Never a dashed
-   wireframe. */
-.ts-root .p3-after .btn:disabled,
-.ts-root .p3-after .btn:disabled:hover {
-	opacity: 1;
-	background: linear-gradient(var(--p3-disabled-face), var(--p3-disabled-face)) padding-box;
-	background-color: var(--p3-disabled-face);
-	box-shadow:
-		inset 0 1px 0 0 var(--p3-plate-hi),
-		inset 0 -2px 2px -1px var(--p3-tube-lo);
-	color: var(--p3-disabled);
-	border: 1px solid var(--p3-disabled-edge);
-}
-/* SELECTED: the face shifts from gray to near-white, and inside the bezel
-   sits the accent ring, broken the way the kit breaks it (M3). The ring is
-   `::after`: a 2px accent line with a 1px light line on its inner side,
-   masked open at two places -- a gap near the top-right with angled ends,
-   and a gap near the bottom-left. `::before` draws what sits in those
-   breaks: three tiny ticks and a thicker block on the top line before its
-   gap, two ticks on the bottom line after the corner piece. `aria-pressed`
-   says it too, so colour is never the only signal. */
-.ts-root .p3-after .btn.pl-selected,
-.ts-root .p3-after .btn[aria-pressed='true'] {
-	position: relative;
-	background:
-		linear-gradient(to bottom, var(--p3-lit-top), var(--p3-lit-bot)) padding-box,
-		linear-gradient(to bottom, var(--p3-hair-top), var(--p3-hair)) border-box;
-	background-color: var(--p3-lit-ground);
-	/* The grey ring, then the accent-tinted band the kit carries between its
-	   rim and the trace (sampled 176,162,162 and 200,174,164 there), so the
-	   trace reads as a lit rim rather than a box inside a box. */
-	box-shadow:
-		inset 0 0 0 1px var(--p3-bezel-mid),
-		inset 0 0 0 2px var(--p3-accent-tint),
-		inset 0 3px 0 0 var(--p3-panel-hi),
-		0 0 0 1px var(--p3-rim-out),
-		0 2px 3px 0 var(--p3-drop),
-		0 6px 10px -5px var(--p3-drop-far);
-}
-.ts-root .p3-after .btn.pl-selected::after,
-.ts-root .p3-after .btn[aria-pressed='true']::after {
-	content: '';
-	position: absolute;
-	inset: calc(var(--p3-ring-inset) - 1px);
-	border: 2px solid var(--p3-accent);
-	border-radius: calc(var(--p3-r-control) - var(--p3-ring-inset) + 2px);
-	box-shadow: inset 0 0 0 1px var(--p3-accent-glow);
-	pointer-events: none;
-	mask:
-		linear-gradient(118deg, #000 calc(100% - 4px), transparent calc(100% - 3.5px)) right 10px top 0 / 36px 5px no-repeat,
-		linear-gradient(118deg, #000 calc(100% - 4px), transparent calc(100% - 3.5px)) left 10px bottom 0 / 17px 5px no-repeat,
-		linear-gradient(#000, #000);
-	mask-composite: exclude;
-}
-.ts-root .p3-after .btn.pl-selected::before,
-.ts-root .p3-after .btn[aria-pressed='true']::before {
-	content: '';
-	position: absolute;
-	inset: calc(var(--p3-ring-inset) - 1px);
-	pointer-events: none;
-	background:
-		linear-gradient(118deg, var(--p3-accent) calc(100% - 3px), transparent calc(100% - 2.5px)) right 15px top 0 / 13px 3.5px,
-		linear-gradient(var(--p3-accent), var(--p3-accent)) right 31px top 0 / 2px 2px,
-		linear-gradient(var(--p3-accent), var(--p3-accent)) right 35px top 0 / 2px 2px,
-		linear-gradient(var(--p3-accent), var(--p3-accent)) right 39px top 0 / 2px 2px,
-		linear-gradient(var(--p3-accent), var(--p3-accent)) left 11px bottom 0 / 2px 2px,
-		linear-gradient(var(--p3-accent), var(--p3-accent)) left 15px bottom 0 / 2px 2px;
-	background-repeat: no-repeat;
-}
-/* Colour and shadow may ease; nothing that moves a box does. */
-@media (prefers-reduced-motion: no-preference) {
-	.ts-root .p3-after :is(.btn, .cls-icon, .shell-tool, .sw-trigger, .theme-switch, .sfb-trigger) {
-		transition:
-			color 120ms ease-out,
-			border-color 120ms ease-out,
-			box-shadow 120ms ease-out,
-			background-color 120ms ease-out;
-	}
-}
-
-/* --- Chips: compact machined tags, no point anywhere. ---------------------
-   22px tall, a plain rounded rectangle, the kit's composite edge drawn INSIDE
-   the box (so it costs no width): the hairline, a light ring, a top
-   highlight, a gray gradient face, a soft foot. Status is a tiny recessed LED
-   in the chip's semantic colour on the chips whose words leave room for one
-   at today's width; the list's work chips keep today's tone ink (an LED costs
-   7px their budget does not have, shapes-v3.md). */
-.ts-root .p3-after :is(.draft-chip, .sched-chip, .kind-chip, .chip) {
-	display: inline-flex;
-	align-items: center;
-	gap: 3px;
-	box-sizing: border-box;
-	height: var(--p3-chip-h);
-	padding: 0 5px;
-	border: 0;
-	border-radius: var(--p3-r-small);
-	font-size: var(--p3-label-size);
-	line-height: 1;
-	letter-spacing: var(--p3-chip-track);
-	text-transform: uppercase;
-	color: var(--p3-ink);
-	background-color: var(--p3-face-ground);
-	background-image: linear-gradient(to bottom, var(--p3-face-top), var(--p3-face-bot));
-	box-shadow:
-		inset 0 0 0 1px var(--p3-hair),
-		inset 0 2px 0 0 var(--p3-bezel-hi),
-		inset 0 0 0 2px var(--p3-bezel-mid),
-		inset 0 -3px 2px -2px var(--p3-foot),
-		0 1px 1px 0 var(--p3-drop);
-	white-space: nowrap;
-}
-.ts-root .p3-after .chip {
-	padding: 0 4px;
-	letter-spacing: var(--p3-chip-track-tight);
-}
-/* The LED chips: the lamp takes the left padding, with a clear gap before
-   the word. */
-.ts-root .p3-after :is(.draft-chip, .sched-chip, .kind-chip.pinned) {
-	padding: 0 3px 0 4px;
-	letter-spacing: var(--p3-chip-track-tight);
-}
-.ts-root .p3-after :is(.draft-chip, .sched-chip, .kind-chip.pinned)::before {
-	content: '';
-	flex: none;
-	width: var(--p3-led-chip);
-	height: var(--p3-led-chip);
-	border-radius: 50%;
-	background: radial-gradient(circle at 42% 36%, rgba(255, 255, 255, 0.8) 0 0.6px, var(--p3-led-color) 1.3px);
-	box-shadow:
-		0 0 0 1px var(--p3-led-ring),
-		0 1px 0 1px var(--p3-bezel-hi),
-		0 0 4px 1px var(--p3-led-color);
-	pointer-events: none;
-}
-.ts-root .p3-after :is(.draft-chip, .sched-chip) {
-	--p3-led-color: var(--p3-led-amber);
-	color: var(--p3-ink);
-}
-.ts-root .p3-after .kind-chip.pinned {
-	--p3-led-color: var(--p3-led-gold);
-	color: var(--p3-ink);
-}
-/* The list's work chips keep their tone as ink (today's signal), on the
-   machined face. */
-.ts-root .p3-after .chip.tone-muted {
-	color: var(--p3-ink-2);
-}
-
-/* --- The switch (D9): the header's Light control as a recessed pill track
-   with a raised disc that carries its icon (a cross off, a tick on). The
-   track and disc are `::before`, the icon `::after`, both paint; the glyph
-   slot keeps the space the track is drawn in. The disc's side is the
-   control's STATE, and on this control the state IS the theme, so it is the
-   one per-theme difference inside a control; the control's box does not
-   move. It lists `.on` in its own selector so the component's on-state ring
-   (an accent outline the first review read as a second focus ring) never
-   wins: the knob says the state. */
-.ts-root .p3-after :is(.theme-switch, .theme-switch.on) {
-	position: relative;
-	display: inline-flex;
-	align-items: center;
-	gap: 0.5rem;
-	min-height: 44px;
-	min-width: 44px;
-	padding: 0 0.7rem;
-	box-sizing: border-box;
-	border: 1px solid transparent;
-	border-radius: var(--p3-r-control);
-	background:
-		linear-gradient(to bottom, var(--p3-face-top), var(--p3-face-bot)) padding-box,
-		linear-gradient(to bottom, var(--p3-hair-top), var(--p3-hair)) border-box;
-	background-color: var(--p3-face-ground);
-	box-shadow:
-		inset 0 0 0 1px var(--p3-bezel-mid),
-		inset 0 2px 0 0 var(--p3-bezel-hi),
-		inset 0 -2px 2px -1px var(--p3-foot),
-		0 0 0 1px var(--p3-rim-out),
-		0 2px 3px 0 var(--p3-drop),
-		0 6px 10px -5px var(--p3-drop-far);
-	color: var(--p3-btn-ink);
-	font-family: var(--font-mono);
-	font-size: 0.72rem;
-	letter-spacing: 0.12em;
-	text-transform: uppercase;
-	line-height: 1;
-	cursor: pointer;
-	white-space: nowrap;
-}
-.ts-root .p3-after .theme-switch .ts-glyph {
-	flex: none;
-	display: block;
-	width: 40px;
-	height: 20px;
-	visibility: hidden;
-}
-/* The track: a recessed pill, its depth an inner shadow and a light lip, no
-   outline (the tool's own edge is the control's boundary). The knob: a round,
-   centred, matte disc the full height of the track, domed (lighter in the
-   middle, a darker rim), with its own soft drop shadow. */
-.ts-root .p3-after .theme-switch::before {
-	content: '';
-	position: absolute;
-	left: calc(0.7rem + 1px);
-	top: 50%;
-	width: 40px;
-	height: 20px;
-	margin-top: -10px;
-	border-radius: 10px;
-	pointer-events: none;
-	background:
-		radial-gradient(circle, var(--p3-knob-top) 0 3px, var(--p3-knob-bot) 8.3px, var(--p3-hair) 8.9px 9.5px, transparent 10px) 0 50% / 20px 20px no-repeat,
-		radial-gradient(circle, var(--p3-knob-shade) 0 7px, transparent 10.5px) 1px calc(50% + 2px) / 20px 20px no-repeat,
-		linear-gradient(to bottom, var(--p3-well-shade), var(--p3-track) 6px);
-	box-shadow:
-		inset 0 1px 2px 0 var(--p3-drop),
-		0 1px 0 0 var(--p3-well-lip);
-}
-.ts-root .p3-after .theme-switch.on::before,
-.ts-root .p3-after .theme-switch[aria-pressed='true']::before {
-	background:
-		radial-gradient(circle, var(--p3-accent) 0 9.3px, transparent 10px) 100% 50% / 20px 20px no-repeat,
-		radial-gradient(circle, var(--p3-knob-shade) 0 7px, transparent 10.5px) calc(100% + 1px) calc(50% + 2px) / 20px 20px no-repeat,
-		linear-gradient(to bottom, var(--p3-well-shade), var(--p3-track) 6px);
-}
-.ts-root .p3-after .theme-switch::after {
-	content: '';
-	position: absolute;
-	left: calc(0.7rem + 1px + 5px);
-	top: 50%;
-	width: 10px;
-	height: 10px;
-	margin-top: -5px;
-	pointer-events: none;
-	background: var(--p3-knob-icon);
-	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 2l6 6M8 2l-6 6' stroke='%23000' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E") center / 10px 10px no-repeat;
-}
-.ts-root .p3-after .theme-switch.on::after,
-.ts-root .p3-after .theme-switch[aria-pressed='true']::after {
-	left: calc(0.7rem + 1px + 40px - 15px);
-	background: var(--p3-knob-on-icon);
-	mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1.8 5.2l2.2 2.2 4.2-4.6' stroke='%23000' stroke-width='1.3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-}
-.ts-root .p3-after .theme-switch .ts-word {
-	font-size: var(--p3-label-size);
-	letter-spacing: var(--p3-label-track);
-}
-.ts-root .p3-after .theme-switch:hover {
-	border-color: var(--hover-ink);
-}
-.ts-root .p3-after .theme-switch:focus-visible {
-	outline: 2px solid var(--focus-ring);
-	outline-offset: 2px;
-}
-
-/* --- Cards: raised panels. ------------------------------------------------
-   A face gradient, the composite edge (the hairline is load-bearing: a card
-   on the plate or the recessed column), a light top highlight and a light
-   ring, a soft cool shadow that falls downward. A plain rounded rectangle:
-   the kit's panels have no cut corner (C1, C2). */
-.ts-root .p3-after .card:not(.group-card, .grade-card) {
-	position: relative;
-	border: 1px solid var(--p3-hair);
-	border-radius: var(--p3-r-panel);
-	background-color: var(--p3-panel-ground);
-	background-image: linear-gradient(to bottom, var(--p3-panel-top), var(--p3-panel-bot));
-	/* One light line inside the top edge and a long, soft, cool shadow falling
-	   down and a little left, as the kit's housings cast: no ring outside and
-	   no second light line inside, which the second review counted as the
-	   triple line of a drawn box. */
-	box-shadow:
-		inset 0 1px 0 0 var(--p3-panel-hi),
-		0 1px 2px 0 var(--p3-drop),
-		0 8px 14px -6px var(--p3-drop),
-		-2px 18px 30px -14px var(--p3-drop-far);
-}
 /* THE `+` WHERE FOUR CARDS MEET (D6), in the region's three-by-two block at
    desktop width: the first two cards of the first row each carry one at the
    centre of the gutter corner below-right of them, which is exactly where
@@ -1086,198 +174,9 @@ body:has(.ts-root) .bg-fx::after {
 		height: 9px;
 		pointer-events: none;
 		background:
-			linear-gradient(var(--p3-bracket), var(--p3-bracket)) 50% 50% / 9px 1px no-repeat,
-			linear-gradient(var(--p3-bracket), var(--p3-bracket)) 50% 50% / 1px 9px no-repeat;
+			linear-gradient(var(--plate-bracket), var(--plate-bracket)) 50% 50% / 9px 1px no-repeat,
+			linear-gradient(var(--plate-bracket), var(--plate-bracket)) 50% 50% / 1px 9px no-repeat;
 	}
-}
-
-/* --- Wells: the input and the dropdown sit in recessed troughs (D7). ------
-   A dark crevice line at the top, a graded face (darker at the top, where the
-   lip shades it), and a light lip at the foot. The border stays the hairline
-   all round, because the outer edge of a control is load-bearing and the
-   kit's lip is not dark enough to be it. The dropdown's caret is a small
-   accent triangle. */
-.ts-root .p3-after :is(.pl-input, .cr-select, .find-field, .find-kind) {
-	border: 1px solid var(--p3-hair);
-	border-radius: var(--p3-r-control);
-	background-color: var(--p3-well-ground);
-	background-image: linear-gradient(to bottom, var(--p3-well-top), var(--p3-well-face) 30%);
-	/* A crisp top shadow two or three pixels deep, as the kit's dropdown has,
-	   and the light lip OUTSIDE the foot only: a well ends in a highlight, not
-	   in a light-dark-light stack. */
-	box-shadow:
-		inset 0 1px 0 0 var(--p3-well-shade),
-		inset 0 2px 3px -1px var(--p3-well-shade),
-		0 1px 0 0 var(--p3-well-lip);
-	color: var(--p3-ink);
-}
-.ts-root .p3-after :is(.cr-select, .find-kind) {
-	font-family: var(--font-mono);
-	font-size: var(--p3-label-size);
-	letter-spacing: 0.02em;
-	text-transform: uppercase;
-	/* The caret: a small accent triangle pointing down, two halves, over the
-	   well's own face. */
-	background-image:
-		linear-gradient(to top right, transparent 50%, var(--p3-accent) 50%),
-		linear-gradient(to top left, transparent 50%, var(--p3-accent) 50%),
-		linear-gradient(to bottom, var(--p3-well-top), var(--p3-well-face) 30%);
-	background-position:
-		calc(100% - 1.1rem - 4px) 52%,
-		calc(100% - 1.1rem) 52%,
-		0 0;
-	background-size:
-		4px 5px,
-		4px 5px,
-		100% 100%;
-	background-repeat: no-repeat;
-}
-
-/* --- The list (D8): the unit group is the well, rows are divided by
-   hairlines that stop short of its edges, the selected row is solid accent,
-   slightly proud, with a slim accent bar on the well's right edge. The well's
-   interior is set INTO the column, lit from the upper left: a wide soft
-   shadow under its top and left lips, a sharp light line along its right and
-   its foot. Titles stay sentence case in the reading face; the meta line is
-   the mono label. The only colour in the list is the accent: the unit title,
-   the class code and the kind glyphs take the grey inks. */
-.ts-root .p3-after .p3-list .card.group-card {
-	position: relative;
-	border: 1px solid var(--p3-hair);
-	border-radius: var(--p3-r-panel);
-	background-color: var(--p3-list-face);
-	background-image: none;
-	box-shadow:
-		inset 0 1px 0 0 var(--p3-groove-dk),
-		inset 0 6px 8px -4px var(--p3-inset-shade),
-		inset 8px 0 10px -8px var(--p3-inset-shade),
-		inset -1px 0 0 0 var(--p3-well-lip),
-		inset 0 -1px 0 0 var(--p3-well-lip),
-		0 1px 0 0 var(--p3-well-lip);
-}
-.ts-root .p3-after .p3-list :is(.group-label, .pane-code, .kind-glyph) {
-	color: var(--p3-ink-2);
-}
-.ts-root .p3-after .p3-list .group-label {
-	color: var(--p3-ink);
-}
-.ts-root .p3-after .p3-list .pane-meta {
-	letter-spacing: 0.06em;
-}
-/* A divider is ETCHED: the dark line (the only separator between two
-   interactive rows, so it holds the 3:1 boundary floor and cannot be the
-   kit's 7-level whisper) with a light line under it, so it reads as a cut in
-   the well rather than a rule drawn on it. */
-.ts-root .p3-after .p3-list .row-wrap {
-	border-top-color: transparent;
-	background-image:
-		linear-gradient(to right, transparent 0, var(--p3-divider) 12px, var(--p3-divider) calc(100% - 12px), transparent 100%),
-		linear-gradient(to right, transparent 0, var(--p3-well-lip) 12px, var(--p3-well-lip) calc(100% - 12px), transparent 100%);
-	background-size: calc(100% - 4px) 1px, calc(100% - 4px) 1px;
-	background-position: 2px 0, 2px 1px;
-	background-repeat: no-repeat;
-}
-.ts-root .p3-after .p3-list .row-wrap:first-child {
-	background-image: none;
-}
-.ts-root .p3-after .p3-list :is(.row-meta, .group-progress, .group-count) {
-	letter-spacing: 0.04em;
-}
-/* The row box itself carries the selected face as its background colour, so
-   the contrast walk reads the row's words against the face they sit on; the
-   plate below paints the same colour a little wider and rounds its ends. */
-.ts-root .p3-after .p3-list .row-wrap.selected {
-	position: relative;
-	z-index: 1;
-	background-color: var(--p3-sel-face);
-	background-image: none;
-	box-shadow: none;
-}
-/* THE SELECTED ROW'S PLATE is a pseudo-element under the row's content, so
-   it can reach just past the dividers' own span without moving a box. Solid
-   accent, a light rim that sets it slightly proud of the rows, a short
-   shadow, and on a dark theme a faint bloom. */
-.ts-root .p3-after .p3-list .row-wrap.selected::before {
-	content: '';
-	position: absolute;
-	z-index: -1;
-	top: 0;
-	bottom: 0;
-	left: -4px;
-	right: -4px;
-	border-radius: var(--p3-r-small);
-	background: var(--p3-sel-face);
-	box-shadow:
-		0 0 0 1px var(--p3-sel-edge),
-		0 0 10px 1px var(--p3-sel-glow),
-		0 2px 3px 0 var(--p3-drop);
-	pointer-events: none;
-}
-.ts-root .p3-after .p3-list .row-wrap.selected + .row-wrap {
-	background-image: none;
-}
-/* The position marker: a slim accent thumb in a faint recessed TRACK just
-   inside the well's right edge, running past the selected row as a scroll
-   indicator does. Inside, not on the edge: painted over the hairline it read
-   as a coloured length of the outline (the second review). The track is the
-   well's own `::after`; the thumb is the row's, 11px past the row's right
-   edge (the well's 16px padding, less the track's 5px inset), so the two
-   share a line. */
-.ts-root .p3-after .p3-list .card.group-card::after {
-	content: '';
-	position: absolute;
-	top: 12px;
-	bottom: 12px;
-	right: 5px;
-	width: 3px;
-	border-radius: 2px;
-	background: var(--p3-track-faint);
-	pointer-events: none;
-}
-.ts-root .p3-after .p3-list .row-wrap.selected::after {
-	content: '';
-	position: absolute;
-	top: 2px;
-	height: 170%;
-	right: -11px;
-	width: 3px;
-	border-radius: 2px;
-	background: var(--p3-accent);
-	pointer-events: none;
-}
-.ts-root .p3-after .p3-list .row-wrap.selected :is(.row-main, .row-name, .row-title, .row-meta, .kind-glyph, .row-kind, .meta-bit, .row-expand, a) {
-	color: var(--p3-sel-ink);
-}
-/* A chip on the selected row is a tag RECESSED into the lit row: a darker
-   well of the row's own colour, a shadow under its top lip and a light lip at
-   its foot, the word in the row's ink. The first review read the grey chip on
-   the row as a sticker; the second read an outlined one as a drawn box. */
-.ts-root .p3-after .p3-list .row-wrap.selected .chip {
-	background: var(--p3-selchip-face);
-	box-shadow:
-		inset 0 1px 1px 0 var(--p3-press-shade),
-		inset 0 -1px 0 0 var(--p3-sel-chip-edge);
-	color: var(--p3-sel-ink);
-}
-/* The unit header's two counts are two facts: a short etched divider between
-   them, so "0 OF 3 DONE" and "5 ITEMS" do not run together. */
-.ts-root .p3-after .p3-list .group-progress::after {
-	content: '';
-	width: 1px;
-	height: 0.8em;
-	margin-left: 0.5rem;
-	background: var(--p3-divider);
-	pointer-events: none;
-}
-/* The build stamp's separators get room on both sides. */
-.ts-root .p3-after .version-badge .sep {
-	margin-left: 0.35em;
-}
-/* On Matrix the headings are phosphor: a greener ink and a soft green bloom
-   (both colour tokens; transparent and plain on the other two themes). */
-.ts-root .p3-after :is(.pl-card-title, .p3-list .group-label, .p3-list .row-wrap:not(.selected) .row-name) {
-	color: var(--p3-head-ink);
-	text-shadow: 0 0 6px var(--p3-text-bloom);
 }
 
 /* The shell's own ground and the menu specimen's stage give way to the plate:
@@ -1285,288 +184,6 @@ body:has(.ts-root) .bg-fx::after {
    the room's flat surface colour under the header would be a hole in it. */
 .ts-root .p3-after :is(.cr-root, .pl-stage) {
 	background: transparent;
-}
-
-/* --- The classroom header: a plate strip with a groove under it. ---------- */
-.ts-root .p3-after .cr-header {
-	position: relative;
-	background: linear-gradient(to bottom, var(--p3-plate-top), var(--p3-plate-bot));
-	border-bottom: 0;
-	box-shadow:
-		inset 0 1px 0 0 var(--p3-plate-hi),
-		inset 0 -1px 0 0 var(--p3-groove-dk),
-		inset 0 -2px 0 0 var(--p3-groove-lt);
-}
-.ts-root .p3-after .cr-header .wordmark {
-	min-height: 44px;
-}
-/* The pads' strip is centred on the header's row (today's strip pads its
-   foot more than its top, which put the pads 2px above the keys), and it has
-   4px on every side, which is exactly the focus ring's reach (a 2px outline
-   2px out): the strip scrolls, so it clips, and anything less cuts the ring. */
-.ts-root .p3-after .cr-header .cls-strip {
-	padding: 4px;
-}
-/* The header's words are one voice: every tool word in the label face, caps,
-   tracked, the way the Light and Report words already were. */
-.ts-root .p3-after .cr-header :is(.shell-tool-word, .qn-word, .sw-trigger, .menu-trigger) {
-	font-family: var(--font-mono);
-	font-size: var(--p3-label-size);
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
-}
-/* The Classes caret takes the same size: in the label face it is mono text,
-   and the 11px floor does not bend for a glyph. */
-.ts-root .p3-after .cr-header .sw-caret {
-	font-size: var(--p3-label-size);
-}
-/* The account control is a machined key too: the same face and composite
-   edge as its neighbours, drawn with shadows only so its box does not move.
-   The pathway chip inside keeps its identity colour, which is never moved. */
-.ts-root .p3-after .cr-header .pm-trigger {
-	background-color: var(--p3-face-ground);
-	background-image: linear-gradient(to bottom, var(--p3-face-top), var(--p3-face-bot));
-	border-radius: var(--p3-r-control);
-	padding-right: 7px;
-	box-shadow:
-		inset 0 0 0 1px var(--p3-hair),
-		inset 0 2px 0 0 var(--p3-bezel-hi),
-		inset 0 0 0 2px var(--p3-bezel-mid),
-		inset 0 -3px 2px -2px var(--p3-foot),
-		0 0 0 1px var(--p3-rim-out),
-		0 2px 3px 0 var(--p3-drop);
-}
-/* THE PERIOD TILES ARE PADS (M4): a thick composite bezel -- the hairline
-   (outer ring), a band with its own vertical gradient (lighter at the top),
-   a bright inner lip, then the face -- and a recessed LED at the bottom right,
-   where the kit puts it, in a lane of its own (the pad's right padding is
-   7px wider than its left, so the LED never touches a line of type; placed
-   in the top corner instead it met the bold code's last letter). The CURRENT class is the LIT
-   pad: a near-white face and a bright white inner rim glow (a faint green
-   one on a dark theme), the LED in the accent, plus `aria-current` and the
-   bold code, so the glow is never the only signal. */
-.ts-root .p3-after .cr-header .cls-icon {
-	position: relative;
-	border: 3px solid transparent;
-	border-radius: var(--p3-r-pad);
-	padding-inline: 0.25rem calc(0.25rem + 7px);
-	background:
-		linear-gradient(to bottom, var(--p3-face-top), var(--p3-face-bot)) padding-box,
-		linear-gradient(to bottom, var(--p3-band-top), var(--p3-band-bot)) border-box;
-	background-color: var(--p3-face-ground);
-	box-shadow:
-		0 0 0 1px var(--p3-hair),
-		inset 0 0 0 1px var(--p3-pad-lip),
-		inset 0 0 3px 1px var(--p3-tube-lo),
-		0 0 1px 2px var(--p3-rim-out),
-		0 2px 3px 1px var(--p3-drop),
-		0 5px 8px -3px var(--p3-drop-far);
-	color: var(--p3-ink);
-}
-/* THE LED, IN A RECESSED CUP: a shaded well, and the lamp inside it. */
-.ts-root .p3-after .cr-header .cls-icon::after {
-	content: '';
-	position: absolute;
-	right: 2px;
-	bottom: 3px;
-	width: 7px;
-	height: 7px;
-	border-radius: 50%;
-	pointer-events: none;
-	background:
-		radial-gradient(circle, var(--p3-led-off-hi) 0 0.7px, var(--p3-led-off) 1.6px, var(--p3-led-ring) 2.1px 2.4px, transparent 2.8px),
-		radial-gradient(circle at 50% 30%, var(--p3-cup-in) 0 2.1px, var(--p3-cup) 3.5px);
-	box-shadow: 0 1px 0 0 var(--p3-bezel-hi);
-}
-.ts-root .p3-after .cr-header .cls-icon.current {
-	background:
-		linear-gradient(to bottom, var(--p3-lit-top), var(--p3-lit-bot)) padding-box,
-		linear-gradient(to bottom, var(--p3-band-top), var(--p3-band-bot)) border-box;
-	background-color: var(--p3-lit-ground);
-	box-shadow:
-		0 0 0 1px var(--p3-hair),
-		inset 0 0 0 1px var(--p3-lit-glow),
-		inset 0 0 0 3px var(--p3-lit-glow),
-		inset 0 0 6px 4px var(--p3-lit-core),
-		0 0 1px 2px var(--p3-rim-out),
-		0 0 10px 1px var(--p3-bloom),
-		0 2px 3px 1px var(--p3-drop),
-		0 5px 8px -3px var(--p3-drop-far);
-}
-.ts-root .p3-after .cr-header .cls-icon.current::after {
-	background:
-		radial-gradient(circle, var(--p3-accent-glow) 0 0.5px, var(--p3-accent) 1.5px, var(--p3-led-ring) 2.1px 2.4px, transparent 2.8px),
-		radial-gradient(circle at 50% 30%, var(--p3-cup-in) 0 2.1px, var(--p3-cup) 3.5px);
-	box-shadow:
-		0 1px 0 0 var(--p3-bezel-hi),
-		0 0 4px 1px var(--p3-led-halo);
-}
-.ts-root .p3-after .cr-header .cls-code {
-	font-size: 0.7rem;
-}
-.ts-root .p3-after .cr-header .cls-sub {
-	color: var(--p3-ink-2);
-	letter-spacing: 0.02em;
-}
-/* A lit key has brighter type, as hardware-dark's selected key does. */
-.ts-root .p3-after .cr-header .cls-icon.current .cls-sub {
-	color: var(--p3-ink);
-}
-/* The Report word and the pathway chip at the 11px floor, tracked tightly:
-   at 375 their widths are the header's, and wide tracking there takes the
-   class strip down to a sliver. */
-.ts-root .p3-after .cr-header :is(.sfb-word, .pw-label) {
-	letter-spacing: 0.02em;
-}
-
-/* --- The class menu: a floating housing with a moulded frame, its rows
-   sitting in the recess the frame makes; the current class is the list's
-   selected row. ----------------------------------------------------------- */
-.ts-root .p3-after .cr-header .sw-menu {
-	border: 1px solid var(--p3-hair);
-	border-radius: var(--p3-r-panel);
-	background-color: var(--p3-panel-ground);
-	background-image: linear-gradient(to bottom, var(--p3-panel-top), var(--p3-panel-bot));
-	box-shadow:
-		inset 0 1px 0 0 var(--p3-panel-hi),
-		inset 0 0 0 3px var(--p3-frame),
-		inset 0 0 3px 4px var(--p3-frame-in),
-		inset 0 -4px 4px -2px var(--p3-frame-lo),
-		0 0 0 1px var(--p3-rim-out),
-		0 10px 24px -4px var(--p3-drop),
-		0 22px 40px -18px var(--p3-drop-far);
-}
-/* The menu's own grey words read the theme's label ink, which is set for the
-   lighter charcoal panels this proposal uses on a dark theme. */
-.ts-root .p3-after .cr-header :is(.sw-item-code, .sw-item-flag) {
-	color: var(--p3-ink-2);
-}
-.ts-root .p3-after .cr-header .sw-item.current {
-	position: relative;
-	background: var(--p3-sel-face);
-	border-radius: var(--p3-r-small);
-	box-shadow:
-		0 0 0 1px var(--p3-sel-edge),
-		0 0 10px 1px var(--p3-sel-glow),
-		0 2px 3px 0 var(--p3-drop);
-	color: var(--p3-sel-ink);
-}
-.ts-root .p3-after .cr-header .sw-item.current :is(.sw-item-code, .sw-item-name, .sw-item-flag) {
-	color: var(--p3-sel-ink);
-}
-
-/* --- The display (D12): the returned grade's card is the housing, its
-   heading is the screen. ---------------------------------------------------
-   The housing: a panel face, a MOULDED rim (the hairline, then a light frame
-   lit from the top left and shaded along its foot, easing into the face
-   rather than stopping at a line), a real shadow cast on the plate, two
-   screws and the perforation patch in its foot. The screen: dark tinted
-   glass, lighter at its top, an inner top shadow, a lighter rim at its foot,
-   a soft sheen across it, its upper corners rounded and its lower corners
-   chamfered and softened (the kit's trapezoid), NO grid, and the readout
-   glowing in the accent. */
-.ts-root .p3-after .grade-card {
-	position: relative;
-	border: 1px solid var(--p3-hair);
-	border-radius: 14px;
-	padding-bottom: 44px;
-	background-color: var(--p3-panel-ground);
-	/* Two recessed screws in the foot (the plate's construction, larger), then
-	   the housing's face. */
-	background-image:
-		radial-gradient(circle at 40% 38%, var(--p3-screw-spec) 0 1.1px, transparent 2px),
-		radial-gradient(circle, var(--p3-screw-dot) 0 2.4px, var(--p3-screw-face) 2.9px 5.2px, transparent 5.6px),
-		radial-gradient(circle at 47% 46%, var(--p3-screw-ring) 0 7px, transparent 7.5px),
-		radial-gradient(circle at 53% 54%, var(--p3-screw-hi) 0 7.3px, transparent 7.8px),
-		radial-gradient(circle at 40% 38%, var(--p3-screw-spec) 0 1.1px, transparent 2px),
-		radial-gradient(circle, var(--p3-screw-dot) 0 2.4px, var(--p3-screw-face) 2.9px 5.2px, transparent 5.6px),
-		radial-gradient(circle at 47% 46%, var(--p3-screw-ring) 0 7px, transparent 7.5px),
-		radial-gradient(circle at 53% 54%, var(--p3-screw-hi) 0 7.3px, transparent 7.8px),
-		linear-gradient(to bottom, var(--p3-panel-top), var(--p3-panel-bot));
-	background-size: 19px 19px, 19px 19px, 19px 19px, 19px 19px, 19px 19px, 19px 19px, 19px 19px, 19px 19px, 100% 100%;
-	background-position:
-		left 12px bottom 12px, left 12px bottom 12px, left 12px bottom 12px, left 12px bottom 12px,
-		right 12px bottom 12px, right 12px bottom 12px, right 12px bottom 12px, right 12px bottom 12px,
-		0 0;
-	background-repeat: no-repeat;
-	box-shadow:
-		inset 0 1px 0 0 var(--p3-panel-hi),
-		inset 1px 0 0 0 var(--p3-panel-hi),
-		inset 0 0 0 3px var(--p3-frame),
-		inset 0 0 6px 4px var(--p3-frame-in),
-		inset 0 -5px 4px -2px var(--p3-frame-lo),
-		inset -2px 0 3px -1px var(--p3-frame-lo),
-		0 1px 2px 0 var(--p3-drop),
-		0 8px 14px -5px var(--p3-drop),
-		-3px 22px 34px -12px var(--p3-drop-far);
-}
-/* The perforation (D13): a dot patch that fades out radially, under the
-   screen, between the screws. The only repeating dot pattern; 60px across. */
-.ts-root .p3-after .grade-card::after {
-	content: '';
-	position: absolute;
-	left: 50%;
-	bottom: 8px;
-	width: 60px;
-	height: 30px;
-	margin-left: -30px;
-	pointer-events: none;
-	background: radial-gradient(circle, var(--p3-perf) 0 1.2px, transparent 1.6px) 1px 1px / 5px 5px;
-	mask: radial-gradient(closest-side, #000 15%, transparent 100%);
-}
-.ts-root .p3-after .grade-head {
-	position: relative;
-	margin: -0.95rem -0.7rem 0;
-	padding: 0.95rem 1rem 1.25rem 2.1rem;
-	border-radius: 7px 7px var(--p3-cut-screen) var(--p3-cut-screen);
-	/* The ground the contrast walk reads is the glass's LIGHTEST point, which
-	   is its top: the readout's floor, not its best spot. */
-	background-color: var(--p3-screen-top);
-	background-image:
-		linear-gradient(165deg, var(--p3-glass) 0 38%, transparent 62%),
-		linear-gradient(to bottom, var(--p3-screen-top), var(--p3-screen-bot));
-	/* Measured on the kit: the screen is LIGHTER at its top and darkens
-	   downward, with only a thin shadow under the housing's lip, and a
-	   clearly lighter rim just inside its foot. */
-	/* And the window's side WALLS: a light taper just inside each side, so the
-	   screen is a recess with depth rather than a flat dark shape. */
-	box-shadow:
-		inset 0 2px 2px -1px var(--p3-screen-shade),
-		inset 0 -3px 2px -1px var(--p3-screen-rim),
-		inset 5px 0 4px -3px var(--p3-screen-wall),
-		inset -5px 0 4px -3px var(--p3-screen-wall),
-		inset 1px 0 0 0 var(--p3-screen-rim),
-		inset -1px 0 0 0 var(--p3-screen-rim),
-		0 0 0 1px var(--p3-hair),
-		0 0 3px 1px var(--p3-drop),
-		0 1px 0 2px var(--p3-panel-hi);
-	color: var(--p3-screen-ink);
-	text-shadow: 0 0 6px var(--p3-screen-glow);
-	font-family: var(--font-mono);
-	font-size: var(--p3-readout-size);
-	letter-spacing: 0.04em;
-	text-transform: uppercase;
-	font-variant-numeric: tabular-nums;
-}
-.ts-root .p3-after .grade-head::before {
-	/* The indicator LED, lit. */
-	content: '';
-	position: absolute;
-	left: 0.85rem;
-	top: 50%;
-	width: 7px;
-	height: 7px;
-	margin-top: -4px;
-	border-radius: 50%;
-	background: radial-gradient(circle at 45% 40%, #ffffffaa 0 0.8px, var(--p3-screen-ink) 2.2px);
-	box-shadow: 0 0 6px 1px var(--p3-screen-glow);
-	pointer-events: none;
-}
-.ts-root .p3-after .comment-label {
-	color: var(--p3-caption);
-}
-.ts-root .p3-after .grade-comment {
-	color: var(--p3-ink);
 }
 
 /* --- The composed region: a title bar between two hazard blocks, butted
@@ -1579,59 +196,7 @@ body:has(.ts-root) .bg-fx::after {
 .ts-root .p3-after .p3-region-body {
 	background: transparent;
 }
-.ts-root .p3-after .p3-titlebar {
-	position: relative;
-	display: flex;
-	justify-content: center;
-	margin-top: 0;
-	padding: 0.55rem var(--p3-band);
-	background: linear-gradient(to bottom, var(--p3-plate-hi), transparent 3px), linear-gradient(to bottom, var(--p3-plate-top), var(--p3-plate-top));
-	box-shadow:
-		inset 0 -1px 0 0 var(--p3-groove-dk),
-		inset 0 -2px 0 0 var(--p3-groove-lt);
-}
-/* THE TWO HAZARD BLOCKS (D1), mirrored: `/` bars on the left, `\` bars on
-   the right, in mid-grey, at the kit's proportions (a bar half its pitch,
-   leaning about 62 degrees). The bars are an SVG MASK of twenty antialiased
-   parallelograms over the theme's hazard colour, and the block's width is
-   ROUNDED DOWN to a whole number of bars (`round()`, plus the last bar's
-   lean), so a block always ends in a complete slanted bar, never one cut
-   vertically. The right block is the left one mirrored. On a phone the bars
-   scale down with the block's height, pitch and lean together. */
-.ts-root .p3-after .p3-titlebar::before,
-.ts-root .p3-after .p3-titlebar::after {
-	content: '';
-	position: absolute;
-	top: 50%;
-	width: calc(round(down, var(--p3-hazard-w) - var(--p3-hazard-tail), var(--p3-hazard-pitch)) + var(--p3-hazard-tail));
-	height: var(--p3-hazard-h);
-	margin-top: calc(var(--p3-hazard-h) / -2);
-	pointer-events: none;
-	/* A vertical cut would always slice a bar (each bar leans past the start
-	   of the next), so the block's far end is cut on the bars' own slant,
-	   through the gap between the last bar and the one after it. */
-	clip-path: polygon(0 0, 100% 0, calc(100% - 2 * var(--p3-hazard-tail)) 100%, 0 100%);
-	background: var(--p3-hazard);
-	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 203 15' width='203' height='15'%3E%3Cpolygon points='0,15 5,15 13,0 8,0'/%3E%3Cpolygon points='10,15 15,15 23,0 18,0'/%3E%3Cpolygon points='20,15 25,15 33,0 28,0'/%3E%3Cpolygon points='30,15 35,15 43,0 38,0'/%3E%3Cpolygon points='40,15 45,15 53,0 48,0'/%3E%3Cpolygon points='50,15 55,15 63,0 58,0'/%3E%3Cpolygon points='60,15 65,15 73,0 68,0'/%3E%3Cpolygon points='70,15 75,15 83,0 78,0'/%3E%3Cpolygon points='80,15 85,15 93,0 88,0'/%3E%3Cpolygon points='90,15 95,15 103,0 98,0'/%3E%3Cpolygon points='100,15 105,15 113,0 108,0'/%3E%3Cpolygon points='110,15 115,15 123,0 118,0'/%3E%3Cpolygon points='120,15 125,15 133,0 128,0'/%3E%3Cpolygon points='130,15 135,15 143,0 138,0'/%3E%3Cpolygon points='140,15 145,15 153,0 148,0'/%3E%3Cpolygon points='150,15 155,15 163,0 158,0'/%3E%3Cpolygon points='160,15 165,15 173,0 168,0'/%3E%3Cpolygon points='170,15 175,15 183,0 178,0'/%3E%3Cpolygon points='180,15 185,15 193,0 188,0'/%3E%3Cpolygon points='190,15 195,15 203,0 198,0'/%3E%3C/svg%3E") left center / auto 100% no-repeat;
-}
-.ts-root .p3-after .p3-titlebar::before {
-	left: var(--p3-band);
-}
-.ts-root .p3-after .p3-titlebar::after {
-	right: var(--p3-band);
-	transform: scaleX(-1);
-}
-/* The title: regular weight, mid-grey, spaced mono caps, as the kit sets it. */
-.ts-root .p3-after .p3-title {
-	font-family: var(--font-mono);
-	font-size: var(--p3-title-size);
-	font-weight: 400;
-	letter-spacing: var(--p3-title-track);
-	text-transform: uppercase;
-	color: var(--p3-ink-2);
-	text-align: center;
-	max-width: calc(100% - 2 * var(--p3-hazard-w) - 24px);
-}
+
 /* THE RECESSED CENTRE COLUMN (M1): darker and a touch bluer than the plate,
    lit from the upper left -- a wide soft shadow under its top and left lips,
    a sharp light line along its right edge -- and an engraved groove where it
@@ -1639,13 +204,13 @@ body:has(.ts-root) .bg-fx::after {
 .ts-root .p3-after .p3-main {
 	padding: 22px 14px 26px;
 	border-radius: 4px;
-	background: linear-gradient(to bottom, var(--p3-inset-top), var(--p3-inset-bot));
+	background: linear-gradient(to bottom, var(--plate-inset-top), var(--plate-inset-bot));
 	box-shadow:
-		inset 0 0 0 1px var(--p3-groove-dk),
-		inset 18px 0 18px -16px var(--p3-inset-shade),
-		inset 0 8px 10px -8px var(--p3-inset-shade),
-		inset -2px 0 0 0 var(--p3-groove-lt),
-		0 0 0 1px var(--p3-groove-lt);
+		inset 0 0 0 1px var(--plate-groove-dk),
+		inset 18px 0 18px -16px var(--plate-inset-shade),
+		inset 0 8px 10px -8px var(--plate-inset-shade),
+		inset -2px 0 0 0 var(--plate-groove-lt),
+		0 0 0 1px var(--plate-groove-lt);
 }
 /* Its two tabs (D2): a small raised trapezoid at the top centre and one at
    the foot, their angled ends softened. */
@@ -1659,9 +224,9 @@ body:has(.ts-root) .bg-fx::after {
 	margin-left: -60px;
 	pointer-events: none;
 	border-radius: 0 0 6px 6px;
-	corner-shape: var(--p3-soft);
-	background: linear-gradient(to bottom, var(--p3-plate-top), var(--p3-plate-bot));
-	box-shadow: 0 1px 0 0 var(--p3-groove-dk);
+	corner-shape: var(--plate-soft);
+	background: linear-gradient(to bottom, var(--plate-plate-top), var(--plate-plate-bot));
+	box-shadow: 0 1px 0 0 var(--plate-groove-dk);
 }
 .ts-root .p3-after .p3-main::before {
 	top: 0;
@@ -1669,8 +234,8 @@ body:has(.ts-root) .bg-fx::after {
 .ts-root .p3-after .p3-main::after {
 	bottom: 0;
 	border-radius: 6px 6px 0 0;
-	background: linear-gradient(to bottom, var(--p3-face-top), var(--p3-face-bot));
-	box-shadow: 0 -1px 0 0 var(--p3-groove-dk);
+	background: linear-gradient(to bottom, var(--plate-face-top), var(--plate-face-bot));
+	box-shadow: 0 -1px 0 0 var(--plate-groove-dk);
 }
 .ts-root .p3-after .p3-side {
 	padding: 26px 14px 14px;
@@ -1709,33 +274,33 @@ body:has(.ts-root) .bg-fx::after {
 	vector-effect: non-scaling-stroke;
 }
 .ts-root .p3-after :is(.p3-engrave, .p3-rail) .e-dk {
-	stroke: var(--p3-engrave-dk);
+	stroke: var(--plate-engrave-dk);
 }
 .ts-root .p3-after :is(.p3-engrave, .p3-rail) .e-lt {
-	stroke: var(--p3-engrave-lt);
+	stroke: var(--plate-engrave-lt);
 }
 
 /* --- The corner study (C3). ----------------------------------------------- */
 .ts-root .p3-after .p3-study-tile {
-	border: 1px solid var(--p3-hair);
-	background-color: var(--p3-face-ground);
-	background-image: linear-gradient(to bottom, var(--p3-face-top), var(--p3-face-bot));
+	border: 1px solid var(--plate-hair);
+	background-color: var(--plate-face-ground);
+	background-image: linear-gradient(to bottom, var(--plate-face-top), var(--plate-face-bot));
 	box-shadow:
-		inset 0 1px 0 0 var(--p3-bezel-hi),
-		inset 0 0 0 1px var(--p3-bezel-mid),
-		inset 0 -2px 2px -1px var(--p3-foot),
-		0 0 0 1px var(--p3-rim-out),
-		0 2px 3px 0 var(--p3-drop);
+		inset 0 1px 0 0 var(--plate-bezel-hi),
+		inset 0 0 0 1px var(--plate-bezel-mid),
+		inset 0 -2px 2px -1px var(--plate-foot),
+		0 0 0 1px var(--plate-rim-out),
+		0 2px 3px 0 var(--plate-drop);
 }
 .ts-root .p3-after .p3-study-tile[data-scale='control'] {
 	width: 120px;
 	height: 44px;
-	border-radius: var(--p3-r-control);
+	border-radius: var(--plate-r-control);
 }
 .ts-root .p3-after .p3-study-tile[data-scale='card'] {
 	width: 180px;
 	height: 110px;
-	border-radius: var(--p3-cut-screen);
+	border-radius: var(--plate-cut-screen);
 }
 .ts-root .p3-after .p3-study-tile[data-scale='plate'] {
 	width: 240px;
@@ -1743,17 +308,50 @@ body:has(.ts-root) .bg-fx::after {
 	border-radius: 28px;
 }
 .ts-root .p3-after .p3-chosen {
-	color: var(--p3-ink);
+	color: var(--plate-ink);
 	font-weight: 400;
 }
 
-/* --- The corners, and only where the browser can draw a real corner shape.
-   Without `corner-shape` every radius above is simply a rounded corner, which
-   is now close to the design rather than a downgrade. -------------------- */
+/* THE HELD STATES, which a real page reaches by pressing: the mockup holds
+   them on so they can be compared in one look. */
+.ts-root .p3-after .btn.pl-hold-active {
+	background:
+		linear-gradient(to bottom, var(--plate-press-top), var(--plate-press-bot)) padding-box,
+		linear-gradient(to bottom, var(--plate-hair-top), var(--plate-hair)) border-box;
+	background-color: var(--plate-press-top);
+	box-shadow:
+		inset 0 3px 4px 0 var(--plate-press-shade),
+		inset 0 1px 1px 0 var(--plate-press-shade),
+		inset 0 -1px 0 0 var(--plate-bezel-hi),
+		0 0 0 1px var(--plate-rim-out);
+	transform: none;
+}
+
+/* A label naming a section sits ABOVE it and reads from the left, where
+   people scan (polish 3); the centred label below stays on a small group of
+   controls. */
+.ts-root .p3-after .p3-group-top {
+	padding-top: 8px;
+	padding-bottom: 14px;
+}
+.ts-root .p3-after .p3-group-top > .p3-group-label {
+	justify-self: start;
+	text-align: left;
+}
+
+/* The mockup's card title, the phosphor heading on Matrix. */
+.ts-root .p3-after .pl-card-title {
+	color: var(--plate-head-ink);
+	text-shadow: 0 0 6px var(--plate-text-bloom);
+}
+
+/* The region's title bar is the PRODUCTION title bar (`.plate-title`); its
+   wrapper here only gives it the row. */
+.ts-root .p3-after .p3-titlebar {
+	padding: 0;
+}
+
 @supports (corner-shape: bevel) {
-	.ts-root .p3-after .grade-head {
-		corner-shape: round round var(--p3-soft) var(--p3-soft);
-	}
 	.ts-root .p3-after .p3-study-tile[data-shape='bevel'] {
 		corner-shape: bevel;
 	}

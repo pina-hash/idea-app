@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	/**
 	 * Dev harness for TURNING THE BLADE EDITOR ON AND OFF (0223).
 	 *
@@ -258,7 +259,7 @@
 	}
 </script>
 
-<div class="cr-root" data-testid="ideacad-attach-room">
+<div class="cr-root {CLASSROOM_PLATE}" data-testid="ideacad-attach-room">
 	<main class="harness">
 		<h1>Turning the Blade editor on</h1>
 		<p class="ctx" data-testid="ideacad-attach-ctx">

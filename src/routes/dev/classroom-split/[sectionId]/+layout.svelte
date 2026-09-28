@@ -77,6 +77,7 @@
 </script>
 
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import { beforeNavigate } from '$app/navigation';
 	import '$lib/classroom/classroom.css';
@@ -542,7 +543,7 @@
 	{/key}
 {/snippet}
 
-<div class="cr-root" style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}>
+<div class="cr-root {CLASSROOM_PLATE}" style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}>
 	<ClassroomShell
 		basePath="/dev/classroom-split"
 		sections={[data.section]}

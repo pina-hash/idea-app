@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import '$lib/classroom/classroom.css';
 	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
@@ -188,7 +189,7 @@
 <svelte:head><title>dev / classroom live</title></svelte:head>
 
 <div
-	class="cr-root"
+	class="cr-root {CLASSROOM_PLATE}"
 	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
 	data-testid="live-harness"
 >

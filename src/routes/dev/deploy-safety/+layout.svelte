@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { onMount } from 'svelte';
 	import { updated } from '$app/state';
 	import { activeDeployHolds, onDeployHoldsChange } from '$lib/shell/deploy-safety';
@@ -71,7 +73,7 @@
 	}
 </script>
 
-<div class="ds-root cr-root">
+<div class="ds-root cr-root {CLASSROOM_PLATE}">
 	<header class="ds-bar" data-testid="ds-bar">
 		<span class="ds-chip" data-testid="ds-documents">documents {documents.length}</span>
 		<span class="ds-chip" data-testid="ds-updated">updated {updated.current ? 'yes' : 'no'}</span>

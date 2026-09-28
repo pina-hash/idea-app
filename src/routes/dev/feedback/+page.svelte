@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
@@ -560,7 +562,7 @@
 			</table>
 		</section>
 	{:else}
-		<div class="cr-root">
+		<div class="cr-root {CLASSROOM_PLATE}">
 			<div class="hx-row">
 				<label class="hx-check">
 					<input type="checkbox" bind:checked={statusRefusals} />

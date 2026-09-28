@@ -1,0 +1,9 @@
+# 0345 Classroom shape language, rollout: Plate v3 polished and live on every IDEA Classroom page, in every theme
+
+- Issued: 2026-09-27
+- By: router chat (IDEA app cleanup)
+- Owns: the classroom surfaces from the coverage map in the history entry (`src/lib/classroom/**`, `src/routes/classroom/**`), a new classroom Plate stylesheet, `src/lib/design-system/themes/**` only where the classroom scope needs a hook, `src/routes/dev/themes-shape/**`, the classroom `/dev` routes and their specs and measured files, `docs/reference/space-white/**` (deleted), `docs/decisions/entries/40-*.md` (Build line), `docs/standards/IDEA_INTERFACE_STANDARDS.md` and its `REGISTER.md` row, `package.json` and `package-lock.json` (VT323 removal only), this entry, its `docs/history/` entry
+- Does not touch: any non-classroom app's look, `supabase/**`, `.github/**`, `materials/**`, `vercel.json`
+- Migration permitted: no. Claims: none
+- Status: pushed
+- Notes: Plate v3 polished (recessed chips, Space White hairline #757c86 at 3.12 to 3.27:1, labels on top, VT323 removed with `package.json`/lockfile byte-identical to a4d3df8e) and live on every page inside the classroom shell in IDEA, Matrix and Space White, from `src/lib/classroom/plate.css` keyed on `CLASSROOM_PLATE` in `src/lib/classroom/plate.ts` (revert: set it to `''`). The projector and `/reference` are left out by design. Box diff 0 of 12,086 per theme (planted 721); scope proof on seven non-classroom routes, 9 of 8,476 differing, all animation noise. Final `verify:browser`: 534 runs, 8,668 measurements, 46 outside and all pre-existing, 2 new ones fixed and re-run clean. svelte-check 0/37 in 20; `npm test` 626 files, 11,799 tests passed; build keeps `@scope`. Reference images in `docs/reference/space-white/` deleted; decision 40 Build line and all-themes amendment recorded; `IDEA_INTERFACE_STANDARDS.md` 2.13 section 14. Morning report: `docs/history/new-session-7tll1j.md`.

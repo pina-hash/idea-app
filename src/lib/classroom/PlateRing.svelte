@@ -1,24 +1,22 @@
 <script lang="ts">
 	/**
-	 * THE PROGRESS RING (ledger 0344, D11): Sci-Fi Line's big knob redrawn as a
-	 * READOUT, the one knob the proposal allows. It turns nothing; it shows a
-	 * fraction (a returned grade here, a class timer in the Live tab). Built
-	 * from our own tokens in inline SVG -- nothing traced, sampled or embedded.
+	 * THE PLATE'S PROGRESS RING (ledgers 0344 and 0345): the reference kit's
+	 * big knob redrawn as a READOUT. It turns nothing; it shows a fraction the
+	 * page ALREADY states in words, and it is only ever mounted beside that
+	 * statement (the HTML worksheet's "N% filled in"), never to invent a number.
 	 *
-	 * THE VALUE IS REAL TEXT, NOT SVG TEXT. It sits in a `<span>` over the
-	 * drawing so the contrast walk reads its colour and its ground like any
-	 * other label; the drawing itself is `aria-hidden` paint. The container is
-	 * one `role="img"` with the value in words, because "90%" alone beside the
-	 * returned-grade readout would be read twice and mean less.
+	 * IT EXISTS ONLY UNDER THE PLATE. It is `display: none` unless an ancestor
+	 * carries `.cr-plate` (./plate.ts), so turning the shape language off
+	 * restores today's page exactly, ring and all.
 	 *
-	 * EVERY COLOUR IS A `--p3-ring-*` TOKEN, read where it is used (a stop's
-	 * `stop-color`, a stroke), so a theme changes the paint and nothing else.
-	 * Every length here is in the viewBox and shared by every theme.
+	 * THE VALUE, WHEN SHOWN, IS REAL TEXT, NOT SVG TEXT, so the contrast walk
+	 * reads it like any label. With `label` the ring is one `role="img"`; with
+	 * no label it is decoration (`aria-hidden`), which is how it sits beside a
+	 * figure that is already read out.
 	 *
-	 * THE FILTERS ARE LOCAL. Three blurs (the disc's drop shadow, the glow on
-	 * the white segments and the arc's bloom), each on an element about 160px
-	 * across, never on the page. Ids come from `$props.id()` so two rings on one page never share a
-	 * gradient.
+	 * EVERY COLOUR IS A `--plate-ring-*` TOKEN from ./plate.css, so a theme
+	 * changes the paint and nothing else. Every length is in the viewBox and
+	 * shared by every theme. The three blurs are local to the ring.
 	 */
 	let {
 		value,
@@ -28,15 +26,15 @@
 	}: {
 		/** 0 to 1. */
 		value: number;
-		/** The readout in the centre, e.g. `90%`. */
-		text: string;
-		/** The same fact in words, for a screen reader. */
-		label: string;
+		/** The readout in the centre, e.g. `90%`; none leaves the face bare. */
+		text?: string;
+		/** The same fact in words; none makes the ring decoration. */
+		label?: string;
 		size?: number;
 	} = $props();
 
 	const uid = $props.id();
-	const id = (n: string) => `p3r-${uid}-${n}`;
+	const id = (n: string) => `plr-${uid}-${n}`;
 
 	const R = 84;
 	const C = 2 * Math.PI * R;
@@ -50,24 +48,29 @@
 	const GLOW = '56 16 44 14 60 18 40 12 72 28';
 </script>
 
-<div class="p3-ring" role="img" aria-label={label} style:--p3-ring-size="{size}px" data-testid="p3-ring">
+<div
+	class="plate-ring"
+	role={label ? 'img' : undefined}
+	aria-label={label}
+	aria-hidden={label ? undefined : 'true'}
+	 style:--plate-ring-size="{size}px" data-testid="plate-ring">
 	<svg viewBox="0 0 200 200" aria-hidden="true" focusable="false">
 		<defs>
 			<linearGradient id={id('rest')} x1="0.25" y1="0" x2="0.85" y2="1">
-				<stop offset="0" style="stop-color: var(--p3-ring-rest-a)" />
-				<stop offset="1" style="stop-color: var(--p3-ring-rest-b)" />
+				<stop offset="0" style="stop-color: var(--plate-ring-rest-a)" />
+				<stop offset="1" style="stop-color: var(--plate-ring-rest-b)" />
 			</linearGradient>
 			<linearGradient id={id('disc')} x1="0.2" y1="0.05" x2="0.75" y2="1">
-				<stop offset="0" style="stop-color: var(--p3-ring-disc-a)" />
-				<stop offset="1" style="stop-color: var(--p3-ring-disc-b)" />
+				<stop offset="0" style="stop-color: var(--plate-ring-disc-a)" />
+				<stop offset="1" style="stop-color: var(--plate-ring-disc-b)" />
 			</linearGradient>
 			<linearGradient id={id('sheen')} x1="0" y1="0" x2="0" y2="1">
-				<stop offset="0" style="stop-color: var(--p3-ring-sheen); stop-opacity: 0.9" />
-				<stop offset="1" style="stop-color: var(--p3-ring-sheen); stop-opacity: 0" />
+				<stop offset="0" style="stop-color: var(--plate-ring-sheen); stop-opacity: 0.9" />
+				<stop offset="1" style="stop-color: var(--plate-ring-sheen); stop-opacity: 0" />
 			</linearGradient>
 			<radialGradient id={id('face')} cx="0.42" cy="0.38" r="0.7">
-				<stop offset="0" style="stop-color: var(--p3-ring-face-hi)" />
-				<stop offset="1" style="stop-color: var(--p3-ring-face)" />
+				<stop offset="0" style="stop-color: var(--plate-ring-face-hi)" />
+				<stop offset="1" style="stop-color: var(--plate-ring-face)" />
 			</radialGradient>
 			<filter id={id('drop')} x="-30%" y="-30%" width="170%" height="180%">
 				<feGaussianBlur stdDeviation="6" />
@@ -138,15 +141,19 @@
 		<path class="r-sheen" d="M 30 100 A 70 70 0 0 1 170 100 Q 100 82 30 100 Z" fill="url(#{id('sheen')})" />
 		<circle class="r-rim" cx="100" cy="100" r="74" pathLength="360" stroke-dasharray="0 196 110 54" />
 	</svg>
-	<span class="p3-ring-value" aria-hidden="true">{text}</span>
+	{#if text}<span class="plate-ring-value" aria-hidden="true">{text}</span>{/if}
 </div>
 
 <style>
-	.p3-ring {
+	.plate-ring {
+		display: none;
 		position: relative;
 		flex: none;
-		width: var(--p3-ring-size);
-		height: var(--p3-ring-size);
+		width: var(--plate-ring-size);
+		height: var(--plate-ring-size);
+	}
+	:global(.cr-plate) .plate-ring {
+		display: block;
 	}
 	svg {
 		display: block;
@@ -172,16 +179,16 @@
 		fill: none;
 	}
 	.r-outer {
-		stroke: var(--p3-ring-outer);
+		stroke: var(--plate-ring-outer);
 		stroke-width: 1.8;
 	}
 	.r-channel {
-		stroke: var(--p3-ring-channel);
+		stroke: var(--plate-ring-channel);
 		stroke-width: 14;
 		opacity: 0.35;
 	}
 	.r-channel-line {
-		stroke: var(--p3-ring-channel);
+		stroke: var(--plate-ring-channel);
 		stroke-width: 1.6;
 	}
 	/* The arc is about an eighth of the radius, as the kit's is. */
@@ -189,47 +196,47 @@
 		stroke-width: 9;
 	}
 	.r-value {
-		stroke: var(--p3-ring-value);
+		stroke: var(--plate-ring-value);
 		stroke-width: 9;
 	}
 	.r-value-bloom {
-		stroke: var(--p3-ring-bloom);
+		stroke: var(--plate-ring-bloom);
 		stroke-width: 12;
 	}
 	.r-drop {
-		fill: var(--p3-ring-drop);
+		fill: var(--plate-ring-drop);
 	}
 	.r-disc {
-		stroke: var(--p3-ring-disc-edge);
+		stroke: var(--plate-ring-disc-edge);
 		stroke-width: 1;
 	}
 	.r-band {
-		stroke: var(--p3-ring-band);
+		stroke: var(--plate-ring-band);
 		stroke-width: 1.2;
 	}
 	.r-ticks {
-		stroke: var(--p3-ring-ticks);
+		stroke: var(--plate-ring-ticks);
 		stroke-width: 3;
 		stroke-dasharray: 0.8 1.2;
 	}
 	.r-glow {
-		stroke: var(--p3-ring-glow);
+		stroke: var(--plate-ring-glow);
 		stroke-width: 4.6;
 	}
 	.r-rim {
-		stroke: var(--p3-ring-rim);
+		stroke: var(--plate-ring-rim);
 		stroke-width: 1.4;
 		stroke-linecap: round;
 	}
-	.p3-ring-value {
+	.plate-ring-value {
 		position: absolute;
 		inset: 0;
 		display: grid;
 		place-items: center;
-		font-family: var(--p3-readout-face, var(--font-mono));
-		font-size: calc(var(--p3-ring-size) * 0.19);
+		font-family: var(--font-mono);
+		font-size: max(11px, calc(var(--plate-ring-size) * 0.19));
 		letter-spacing: 0.04em;
-		color: var(--p3-ring-text);
+		color: var(--plate-ring-text);
 		font-variant-numeric: tabular-nums;
 		pointer-events: none;
 	}

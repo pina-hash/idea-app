@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	// The room the real route renders in (ledger 0297, harness fidelity): the
 	// classroom stylesheet and the route's own measure, or every width read here
 	// is a width production never has (CLAUDE.md).
@@ -511,7 +512,7 @@
 
 <svelte:head><title>Grading at scale // dev</title></svelte:head>
 
-<main class="harness cr-root" style="--cr-measure-route: var(--measure-console)">
+<main class="harness cr-root {CLASSROOM_PLATE}" style="--cr-measure-route: var(--measure-console)">
 	<h1>Grading console: many students, many classes</h1>
 	<p class="lede">
 		The REAL <code>GradingConsole</code> with the bulk transport handed in, against an inert

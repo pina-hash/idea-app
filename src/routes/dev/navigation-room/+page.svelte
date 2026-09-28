@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	/**
 	 * `Pending` INSIDE THE CLASSROOM ROOM (404 in production, no auth, no
 	 * Supabase). The companion to `/dev/navigation`, which is the portal plate.
@@ -31,7 +32,7 @@
 
 <svelte:head><title>dev · Pending in .cr-root</title></svelte:head>
 
-<div class="cr-root" data-testid="cr-room">
+<div class="cr-root {CLASSROOM_PLATE}" data-testid="cr-room">
 	<div class="stage">
 		<h1>Pending, on the classroom plate</h1>
 		<section class="card">

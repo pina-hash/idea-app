@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import '$lib/classroom/classroom.css';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import type { ClassroomComposerTransports, ClassroomSection } from '$lib/classroom/classroom';
@@ -136,7 +137,7 @@
 
 <svelte:head><title>Composer drop harness</title></svelte:head>
 
-<div class="cr-root">
+<div class="cr-root {CLASSROOM_PLATE}">
 	<div class="harness">
 		<h1>Composer drop: every file to its own box</h1>
 		<p class="lede">

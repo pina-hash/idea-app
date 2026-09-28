@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import '$lib/classroom/classroom.css';
 	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
 	import ImpersonationBanner from '$lib/classroom/ImpersonationBanner.svelte';
@@ -107,7 +108,7 @@
      bottom: /classroom/+layout.svelte, /classroom/view-as/[studentEmail]/+layout.svelte,
      /classroom/view-as/[studentEmail]/notebook/+page.svelte. -->
 
-<div class="cr-root">
+<div class="cr-root {CLASSROOM_PLATE}">
 	<ClassroomShell minimal backHref="/classroom/view-as" backLabel="Pick a student">
 		<ImpersonationBanner
 			email={student.email}

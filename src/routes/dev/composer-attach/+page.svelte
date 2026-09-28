@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	/**
 	 * WHERE A PASTED SCREENSHOT LANDS, in a real browser.
 	 *
@@ -274,7 +276,7 @@
 
 <svelte:head><title>Composer attach harness</title></svelte:head>
 
-<div class="cr-root">
+<div class="cr-root {CLASSROOM_PLATE}">
 	<div class="harness">
 		<h1>Composer attach: where a pasted screenshot lands</h1>
 		<p class="lede">

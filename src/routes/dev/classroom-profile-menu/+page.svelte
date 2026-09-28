@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import '$lib/classroom/classroom.css';
 	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
 	import { page } from '$app/state';
@@ -41,7 +42,7 @@
 
 <svelte:head><title>Profile menu in the classroom frame</title></svelte:head>
 
-<div class="cr-root cr-app" style="--cr-measure-route: var(--measure-console)">
+<div class="cr-root {CLASSROOM_PLATE} cr-app" style="--cr-measure-route: var(--measure-console)">
 	<ClassroomShell
 		basePath="/dev/classroom-profile-menu"
 		sections={[SECTION]}

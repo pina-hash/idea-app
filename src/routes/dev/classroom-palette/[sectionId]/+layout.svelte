@@ -36,6 +36,7 @@
 </script>
 
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import '$lib/classroom/classroom.css';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
@@ -212,7 +213,7 @@
 {/snippet}
 
 <div
-	class="cr-root"
+	class="cr-root {CLASSROOM_PLATE}"
 	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
 	data-density={prefs.current.display.density}
 >
