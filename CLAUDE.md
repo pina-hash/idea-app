@@ -4736,6 +4736,17 @@ These have each cost a debugging session. They are not hypothetical.
   scroll that must not animate passes `behavior: 'instant'`.
 - **Schedule on rAF-OR-TIMEOUT, never rAF alone.** A backgrounded or throttled
   window never ticks requestAnimationFrame, so an rAF-only path silently never runs.
+- **A FIGURE THAT COUNTS UP IS `countUp` IN `$lib/count-up`, AND THERE IS ONE OF
+  IT.** GAUNTLET's stat tiles and the home banner's lines-of-code chip both use
+  it; `gauntlet/viewport/motion.ts` re-exports it. It steps on a frame or a 50ms
+  timeout, whichever comes first, so a count finishes in a background tab, and
+  under reduced motion it writes the final figure and schedules nothing. The
+  node carries `data-counting` exactly while a count runs, and a browser-verify
+  spec that reads the figure waits on that attribute rather than on DOM
+  stability: the last part of an ease changes digits without changing the
+  string length. A caller whose number must be heard correctly mid-count puts
+  the final figure in a visually hidden sibling and marks the animated node
+  aria-hidden.
 - **A masthead dropdown needs the header to outrank `main`.** Both sit at
   `z-index: 1` in the same stacking context and `main` comes later, so it wins the
   tie and paints over anything the header drops below itself.
@@ -5297,6 +5308,15 @@ commit is the update.
   a shallow clone it slides BACKWARDS; the build detects that and emits no version
   at all rather than a number that can decrease. Set `VERCEL_DEEP_CLONE=true` in
   the Vercel env to get versions in production.
+- **PER-UPDATE LINE COUNTS ARE A SEPARATE `--numstat` WALK, ATTACHED ONLY OVER A
+  COMPLETE HISTORY (report R10).** `buildSiteVersions` takes the numstat text and
+  a line filter (`countsAsCode` from `$lib/code-census`, the census's own
+  language-and-exclusion test), and only the lazy `virtual:site-changelog`
+  module runs the walk (about 6s). On a shallow clone `added`/`removed` are
+  ABSENT, never zero, for the same reason the version numbers are withheld: the
+  oldest commit of a truncated history lists the whole tree as added. The
+  name-only walk is not switched over, because numstat spells renames
+  `src/{a => b}/x` and would move every per-app version count.
 - **NO IDENTIFIER AVAILABLE HERE IS A FUNCTION OF THE BUILT ARTIFACT, and anything
   recording one says which it took.** `deploy.sha` is the git commit the
   deployment was built FROM (exact about the input, silent about the output);
@@ -5627,6 +5647,17 @@ the source of truth; **do not invent colours or swap fonts.**
     transparent, or it disappears on white. A theme difference inside a
     component is a theme-keyed override there, never a new token in the theme
     file: theme files hold tokens only.
+  - **A PHONE AT 30 FPS IS NOT A SLOW DEVICE (report R09).** The Matrix rain
+    degrades only when the median of a 90-frame window is 45ms or longer
+    (`judgeFrame` in `$lib/design-system/themes/matrix-rain.ts`), after a 3s
+    start-up grace, and paints are paced by time (`paintDue`, about 30/s on any
+    panel), never by counting frames. At phone width the rain cannot get
+    brighter (`--dim` has 0.09 of headroom over the trail), so `rainForWidth`
+    changes only the fade and makes the streak longer; any change to gain or
+    head colour re-runs the worst-frame test. `data-motion` and
+    `data-frame-ms` on the canvas are what a harness reads, and
+    `tools/browser-verify/_rain-mobile.mjs` reads them in a mobile-emulated
+    browser.
   - **THE PROJECTOR IS A MEASURED CONDITION, NOT A MODE.** `PROJECTOR_MODEL` in
     `tools/browser-verify/checks.mjs` (300:1 native, 10% ambient wash) is
     recorded beside every contrast reading, with floors of 4.5 for body text,
