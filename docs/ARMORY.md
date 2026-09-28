@@ -284,6 +284,16 @@ using it rather than by being taught it.
    3D view on the website, COTS library.
 4. **Classes.** IDEA Classroom tie-in and per-student contribution views.
 
+## Where the code lives
+
+- `pina-hash/idea-armory` (private): the Windows agent, the add-in and the sync core,
+  in .NET. Lane C1, issued 2026-09-27 to GPT-6 Astra in Codex, builds `Armory.Core`, the
+  pure rules library, and a deterministic simulation that proves no saved work is lost.
+  It depends on no open decision and no spike result; its defaults (name, part number
+  pattern, lock authority) are all configurable.
+- `pina-hash/idea-app`: the website at `/armory`, the Supabase schema and the RPCs, in a
+  later lane.
+
 ## Decisions owed
 
 Each has the default that will be taken if he does not choose otherwise.
