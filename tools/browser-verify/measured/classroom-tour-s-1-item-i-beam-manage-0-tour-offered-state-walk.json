@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "classroom-tour-s-1-item-i-beam-manage-0-tour-offered-state-walk.mjs",
-	"date": "2026-09-25T08:06:40.138Z",
-	"sha": "5af17331b6e68f6f31278ed0a4d5e089fd90a9fa",
+	"date": "2026-09-28T06:43:03.634Z",
+	"sha": "bda4f92c49a7e659f9b4b17d19ab0e7b3618f83f",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 18,
 	"outsideRows": [],
-	"ms": 13471
+	"ms": 6318
 }

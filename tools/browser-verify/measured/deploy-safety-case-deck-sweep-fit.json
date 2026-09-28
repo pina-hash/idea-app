@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "deploy-safety-case-deck-sweep-fit.mjs",
-	"date": "2026-09-24T01:51:06.949Z",
-	"sha": "17b56904dd3aae05ad434b319d8bae655bb94299",
-	"dirty": false,
+	"date": "2026-09-28T06:43:03.634Z",
+	"sha": "bda4f92c49a7e659f9b4b17d19ab0e7b3618f83f",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 6,
 	"outsideRows": [],
-	"ms": 6069
+	"ms": 6318
 }

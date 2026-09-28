@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "classroom-live-item-i-gears.mjs",
-	"date": "2026-09-25T10:51:38.965Z",
-	"sha": "3d58c0fa48f4c803ca90cfd7b516a03ad426249f",
+	"date": "2026-09-28T06:43:03.634Z",
+	"sha": "bda4f92c49a7e659f9b4b17d19ab0e7b3618f83f",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 34,
 	"outsideRows": [],
-	"ms": 8433
+	"ms": 6318
 }

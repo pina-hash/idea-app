@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "notebook-latency-1200-state-turn-in-during-create.mjs",
-	"date": "2026-09-25T13:25:24.248Z",
-	"sha": "a3027001e602829f608238acef8dd7219508adba",
+	"date": "2026-09-28T06:43:04.094Z",
+	"sha": "bda4f92c49a7e659f9b4b17d19ab0e7b3618f83f",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 18,
 	"outsideRows": [],
-	"ms": 23768
+	"ms": 9041
 }
