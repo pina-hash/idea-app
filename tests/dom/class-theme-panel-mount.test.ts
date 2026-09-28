@@ -110,7 +110,7 @@ afterEach(async () => {
 	mounted = null;
 });
 
-async function mountPanel(f: Fake, onwinners: ((w: ClassThemeWinners) => void) | null = null) {
+async function mountPanel(f: Fake, onwinners: ((w: ClassThemeWinners, courseId: string) => void) | null = null) {
 	mounted = mountInto(ClassThemePanel as never, { courseId: 'c-1', transports: f.transports, onwinners });
 	await mounted.settle();
 	return mounted;
@@ -126,9 +126,15 @@ describe('a vote is one call, and the banner hears the winners at once', () => {
 	it('calls vote with the course, the feature and the option, and hands the returned winners up', async () => {
 		const f = fake();
 		const heard: ClassThemeWinners[] = [];
-		const m = await mountPanel(f, (w) => heard.push(w));
-		// The first read told the banner what is winning now.
+		const courses: string[] = [];
+		const m = await mountPanel(f, (w, c) => {
+			heard.push(w);
+			courses.push(c);
+		});
+		// The first read told the banner what is winning now, and for WHICH
+		// course: the instance's own, never whatever the caller shows by then.
 		expect(heard).toEqual([{ palette: 'ocean', badge: 'gear' }]);
+		expect(courses).toEqual(['c-1']);
 		expect(keys(m).length).toBe(18);
 		keyFor(m, 'palette', 'Violet').click();
 		await m.settle();
@@ -145,6 +151,11 @@ describe('a vote is one call, and the banner hears the winners at once', () => {
 		const ember = keyFor(m, 'palette', 'Ember');
 		expect(ember.getAttribute('aria-pressed')).toBe('true');
 		expect(ember.classList.contains('on')).toBe(true);
+		// Said in a word as well as by the lit key: exactly one "Your vote", on it.
+		const mine = m.all('[data-testid="class-theme-mine"]');
+		expect(mine.length).toBe(1);
+		expect(ember.contains(mine[0])).toBe(true);
+		expect(mine[0].textContent?.trim()).toBe('Your vote');
 		ember.click();
 		await m.settle();
 		expect(f.votes).toEqual([]);
@@ -199,27 +210,52 @@ describe('the tally is re-read only while the panel is open', () => {
 		toggle.click();
 		m.flush();
 		expect(toggle.getAttribute('aria-expanded')).toBe('true');
-		vi.advanceTimersByTime(CLASS_THEME_POLL_MS);
+		// Opening reads at once, rather than showing counts up to a poll old.
 		await m.settle();
 		expect(f.tallies).toBe(2);
+		vi.advanceTimersByTime(CLASS_THEME_POLL_MS);
+		await m.settle();
+		expect(f.tallies).toBe(3);
 		// Focus re-reads at once while open.
 		window.dispatchEvent(new Event('focus'));
 		await m.settle();
-		expect(f.tallies).toBe(3);
+		expect(f.tallies).toBe(4);
 		toggle.click();
 		m.flush();
 		vi.advanceTimersByTime(CLASS_THEME_POLL_MS * 3);
 		window.dispatchEvent(new Event('focus'));
 		await m.settle();
-		expect(f.tallies).toBe(3);
-		// Open again, then unmount: the interval goes with the component.
+		expect(f.tallies).toBe(4);
+		// Open again (one read), then unmount: the interval goes with the component.
 		toggle.click();
 		m.flush();
+		await m.settle();
+		expect(f.tallies).toBe(5);
 		await m.stop();
 		mounted = null;
 		vi.advanceTimersByTime(CLASS_THEME_POLL_MS * 3);
 		window.dispatchEvent(new Event('focus'));
-		expect(f.tallies).toBe(3);
+		expect(f.tallies).toBe(5);
+	});
+
+	it('a panel the database takes away mid-session stops asking', async () => {
+		vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+		const f = fake();
+		const m = await mountPanel(f);
+		m.one<HTMLButtonElement>('[data-testid="class-theme-toggle"]').click();
+		m.flush();
+		await m.settle();
+		expect(f.tallies).toBe(2);
+		// The vote comes back `unavailable` (0225 rolled back under the page):
+		// the panel goes, and so must its poll.
+		f.transports.vote = async () => ({ ok: false, reason: 'unavailable' });
+		keyFor(m, 'palette', 'Violet').click();
+		await m.settle();
+		expect(m.all('[data-testid="class-theme-panel"]').length).toBe(0);
+		vi.advanceTimersByTime(CLASS_THEME_POLL_MS * 3);
+		window.dispatchEvent(new Event('focus'));
+		await m.settle();
+		expect(f.tallies).toBe(2);
 	});
 });
 

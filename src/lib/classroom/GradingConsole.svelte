@@ -465,12 +465,10 @@
 	}
 	const toGradeCount = $derived(students.filter(toGrade).length);
 	/**
-	 * THE LIST ON SCREEN, and the one the pager, the keys and the presets walk.
-	 * The selected student stays open when a return takes them out of "To
-	 * grade"; they simply leave the list, and Next goes on to the first name
-	 * that is still waiting.
+	 * WHO THE FILTER KEEPS, in the payload's order. The list on screen is
+	 * `visibleStudents` below, which puts these in the order they are DRAWN.
 	 */
-	const visibleStudents = $derived(rosterFilter === 'to-grade' ? students.filter(toGrade) : students);
+	const filteredStudents = $derived(rosterFilter === 'to-grade' ? students.filter(toGrade) : students);
 	function setRosterFilter(next: RosterFilter) {
 		const shown = new Set(
 			(next === 'to-grade' ? students.filter(toGrade) : students).map((s) => s.email)
@@ -575,6 +573,27 @@
 	const crossClassRead = $derived(!!bulk?.loadAcross);
 	/** More than one class on screen: the state every section label exists for. */
 	const crossClass = $derived(crossClassRead && activeSections.length > 1);
+	/**
+	 * THE ROSTER AS IT IS DRAWN: one group per class, then anybody the roster
+	 * read could not place. Null when the console reads one class.
+	 */
+	const rosterGroups = $derived(
+		crossClassRead ? groupBySection(filteredStudents, activeSections, sectionOf) : null
+	);
+	/**
+	 * THE LIST ON SCREEN, IN THE ORDER IT IS ON SCREEN, and the one the pager,
+	 * the keys and the presets walk. Across classes that is the grouped order
+	 * (fresh-eyes review, ledger 0347): walking the payload's order instead sent
+	 * Next from the last name in Period 2 to a name in the middle of Period 4.
+	 * The selected student stays open when a return takes them out of "To
+	 * grade"; they simply leave the list, and Next goes on to the first name
+	 * that is still waiting.
+	 */
+	const visibleStudents = $derived(
+		rosterGroups
+			? [...rosterGroups.groups.flatMap((g) => g.students), ...rosterGroups.unplaced]
+			: filteredStudents
+	);
 
 	async function load() {
 		// ONE BRANCH, at the read, and it is the METHOD rather than the object:
@@ -1777,7 +1796,11 @@
 		}
 		const at = list.findIndex((s) => s.email === selectedEmail);
 		if (at < 0 && step < 0) {
-			pagerNote = 'Open a student first, or press Next to start at the top.';
+			// Two different states, and the words have to tell them apart: nobody
+			// open, or somebody open whom the "To grade" view has just hidden.
+			pagerNote = selectedEmail
+				? 'The open student is not in this list. Press Next to start at the top.'
+				: 'Open a student first, or press Next to start at the top.';
 			return;
 		}
 		const next = at < 0 ? list[0] : list[Math.min(list.length - 1, Math.max(0, at + step))];
@@ -2410,7 +2433,7 @@
 							{/each}
 						</div>
 						<p class="batch-count" data-testid="batch-count">{pickedSummary}</p>
-						{#if picked.length === 0}
+						{#if pickedStudents.length === 0}
 							<p class="batch-hint">
 								Tick names below, or use a quick selection above. Nothing is written
 								until you press a button here and confirm.
@@ -2448,7 +2471,7 @@
 										disabled={batchBusy}
 										onclick={() => armBatch(false)}
 									>
-										Save drafts for {picked.length}
+										Save drafts for {pickedStudents.length}
 									</button>
 									<button
 										type="button"
@@ -2458,7 +2481,7 @@
 										disabled={batchBusy}
 										onclick={() => armBatch(true)}
 									>
-										Return to {picked.length}
+										Return to {pickedStudents.length}
 									</button>
 									<button
 										type="button"
@@ -2738,7 +2761,7 @@
 						</div>
 					</div>
 				{:else if crossClassRead}
-					{@const grouped = groupBySection(visibleStudents, activeSections, sectionOf)}
+					{@const grouped = rosterGroups ?? groupBySection(visibleStudents, activeSections, sectionOf)}
 					{#each grouped.groups as group (group.section.id)}
 						<div class="roster-group" data-testid="roster-group">
 							<h3 class="roster-group-head">

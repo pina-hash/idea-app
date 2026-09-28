@@ -487,6 +487,15 @@
 	let teamEditNote = $state<{ setId: string; text: string } | null>(null);
 	/** The team whose Rename is open. Only ever one. */
 	let renamingTeam = $state<string | null>(null);
+	/**
+	 * THE MEMBER WHOSE MOVE TO IS OPEN, as `<draw id>:<email>`. Only ever one.
+	 * It is a button that opens a row of team buttons rather than a `<select>`
+	 * acting on `change` (fresh-eyes review, ledger 0347): a keyboard user
+	 * arrowing through a select's options fires `change` on every step in
+	 * Chrome, so the first arrow press moved the student to the next team and
+	 * re-rendered the row out from under the focus.
+	 */
+	let movingMember = $state<string | null>(null);
 	let renameDraft = $state('');
 
 	/**
@@ -534,6 +543,43 @@
 		} finally {
 			teamsBusy = false;
 		}
+	}
+
+	const moveKey = (set: TeamSet, email: string) => `${set.id}:${email.toLowerCase()}`;
+	const moveListId = (key: string) => `team-move-${key.replace(/[^A-Za-z0-9_-]/g, '-')}`;
+
+	function toggleMove(key: string) {
+		movingMember = movingMember === key ? null : key;
+	}
+
+	/** The worded control for one student, found again after the list re-renders. */
+	function moveTrigger(set: TeamSet, email: string): HTMLElement | null {
+		if (typeof document === 'undefined') return null;
+		return document.querySelector<HTMLElement>(
+			`[data-move-trigger="${moveKey(set, email).replace(/["\\]/g, '')}"]`
+		);
+	}
+
+	/**
+	 * A CHOICE CLOSES THE ROW, WRITES, AND PUTS THE FOCUS BACK ON THE STUDENT,
+	 * who is now in another card: the list re-renders, the element that was
+	 * pressed is gone, and a focus left on nothing sends a keyboard user back to
+	 * the top of the page. A student who landed on the only team has no Move to
+	 * of their own, and then the focus stays where the browser put it.
+	 */
+	async function chooseMove(set: TeamSet, email: string, name: string, toTeamId: string) {
+		movingMember = null;
+		await moveMember(set, email, name, toTeamId);
+		await tick();
+		moveTrigger(set, email)?.focus();
+	}
+
+	function closeMoveOnEscape(e: KeyboardEvent, set: TeamSet, email: string) {
+		if (e.key !== 'Escape' || movingMember !== moveKey(set, email)) return;
+		e.preventDefault();
+		e.stopPropagation();
+		movingMember = null;
+		moveTrigger(set, email)?.focus();
 	}
 
 	function toggleRename(team: Team) {
@@ -1593,24 +1639,14 @@
 														</span>
 													{/if}
 													{#if canMove && set.teams.length > 1}
-														<select
-															class="team-move"
-															data-testid="team-move"
-															aria-label="Move {member.display_name} to another team"
-															disabled={teamsBusy}
-															value=""
-															onchange={(e) => {
-																const el = e.currentTarget as HTMLSelectElement;
-																const to = el.value;
-																el.value = '';
-																if (to) void moveMember(set, member.student_email, member.display_name, to);
-															}}
-														>
-															<option value="">Move to</option>
-															{#each set.teams.filter((t) => t.id !== team.id) as other (other.id)}
-																<option value={other.id}>{teamLabel(other)}</option>
-															{/each}
-														</select>
+														{@render moveMenu(
+															set,
+															member.student_email,
+															member.display_name,
+															set.teams.filter((t) => t.id !== team.id),
+															'Move to',
+															'team-move'
+														)}
 													{/if}
 												</li>
 											{/each}
@@ -1657,24 +1693,7 @@
 													<span class="team-member-name person-name" title={person.name}
 														>{person.name}</span
 													>
-													<select
-														class="team-move"
-														data-testid="team-add"
-														aria-label="Add {person.name} to a team"
-														disabled={teamsBusy}
-														value=""
-														onchange={(e) => {
-															const el = e.currentTarget as HTMLSelectElement;
-															const to = el.value;
-															el.value = '';
-															if (to) void moveMember(set, person.email, person.name, to);
-														}}
-													>
-														<option value="">Add to</option>
-														{#each set.teams as other (other.id)}
-															<option value={other.id}>{teamLabel(other)}</option>
-														{/each}
-													</select>
+													{@render moveMenu(set, person.email, person.name, set.teams, 'Add to', 'team-add')}
 												</li>
 											{/each}
 										</ul>
@@ -1877,6 +1896,58 @@
 		<VersionBadge app="classroom" />
 	</footer>
 </main>
+
+
+{#snippet moveMenu(
+	set: TeamSet,
+	email: string,
+	name: string,
+	targets: Team[],
+	word: string,
+	testId: string
+)}
+	{@const key = moveKey(set, email)}
+	{@const open = movingMember === key}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<span class="team-move-wrap" onkeydown={(e) => closeMoveOnEscape(e, set, email)}>
+		<button
+			type="button"
+			class="btn tiny tap-44 team-move"
+			class:on={open}
+			aria-expanded={open}
+			aria-controls={moveListId(key)}
+			aria-label="{word} another team: {name}"
+			aria-disabled={teamsBusy}
+			data-testid={testId}
+			data-move-trigger={key}
+			onclick={() => toggleMove(key)}
+		>
+			{word}
+		</button>
+		{#if open}
+			<span
+				class="team-move-list"
+				id={moveListId(key)}
+				role="group"
+				aria-label="{word}: {name}"
+				data-testid="team-move-list"
+			>
+				{#each targets as other (other.id)}
+					<button
+						type="button"
+						class="btn tiny tap-44 team-move-to"
+						aria-disabled={teamsBusy}
+						data-testid="team-move-to"
+						data-team-target={other.id}
+						onclick={() => void chooseMove(set, email, name, other.id)}
+					>
+						{teamLabel(other)}
+					</button>
+				{/each}
+			</span>
+		{/if}
+	</span>
+{/snippet}
 
 <style>
 	.classroom-page {
@@ -2592,19 +2663,23 @@
 		cursor: grabbing;
 	}
 
-	.team-move {
-		flex: none;
-		min-height: 44px;
-		max-width: 100%;
-		font: inherit;
-		font-size: 0.85rem;
+	.team-move-wrap {
+		display: contents;
 	}
 
-	.team-card:not(.has-style) .team-move {
-		color: var(--text-1);
-		background: var(--surface-1, var(--bg1));
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-card, 6px);
+	.team-move {
+		flex: none;
+	}
+
+	/* THE CHOICES TAKE A LINE OF THEIR OWN under the name, so a phone shows
+	   every team without the row overflowing. */
+	.team-move-list {
+		flex: 1 0 100%;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+		min-width: 0;
+		padding: 0.2rem 0 0.35rem;
 	}
 
 	.team-unteamed {

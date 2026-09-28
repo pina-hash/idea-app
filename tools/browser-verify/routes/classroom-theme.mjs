@@ -62,6 +62,8 @@ export default {
 		{ selector: '[data-testid="class-theme-words"]', label: 'the theme in words, visible on the panel', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="class-theme-feature"]', label: 'the three features', expectPresent: 3, maxPresent: 3, expectVisible: 3 },
 		{ selector: '[data-testid="class-theme-vote"]', label: 'a vote key per option', expectPresent: 18, maxPresent: 18, expectVisible: 18 },
+		/* The vote for Ember is said in a word on its key, not by the lit key alone. */
+		{ selector: '[data-testid="class-theme-mine"]', label: 'Your vote, on the one key voted for', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		/* A student never sees a teacher's controls. */
 		{ selector: '[data-testid="settings-theme"]', label: 'the Settings card (a teacher surface)', expectPresent: 0 },
 		{ selector: '[data-testid="class-theme-manage"]', label: 'the teacher link to the vote controls', expectPresent: 0 },
@@ -77,7 +79,8 @@ export default {
 		{ selector: '[data-testid="class-theme-words"]', label: 'the theme in words', min: 4.5 },
 		{ selector: '.ctp-hint', label: 'what a feature changes', min: 4.5 },
 		{ selector: '[data-testid="class-theme-vote"] .ctp-word', label: 'an option word on its key', min: 4.5 },
-		{ selector: '[data-testid="class-theme-count"]', label: 'a count on its key', min: 4.5 }
+		{ selector: '[data-testid="class-theme-count"]', label: 'a count on its key', min: 4.5 },
+		{ selector: '[data-testid="class-theme-mine"]', label: 'Your vote, on a lit key', min: 4.5 }
 	],
 	tapTargets: [
 		{ selector: '[data-testid="class-theme-toggle"]', label: 'Class theme', min: 44 },

@@ -180,40 +180,88 @@ async function openTeams(f: Fake): Promise<Mounted> {
 	return mounted;
 }
 
-function choose(select: HTMLSelectElement, value: string) {
-	select.value = value;
-	select.dispatchEvent(new Event('change', { bubbles: true }));
+/**
+ * Open one student's Move to (or Add to) and press a team. The control is a
+ * worded button opening a row of team buttons, never a `<select>` acting on
+ * `change`, which a keyboard fires on every arrow press.
+ */
+async function choose(m: Mounted, trigger: HTMLButtonElement, teamId: string) {
+	trigger.click();
+	m.flush();
+	const list = document.getElementById(trigger.getAttribute('aria-controls') ?? '-');
+	expect(list, 'the trigger controls the list it opened').toBeTruthy();
+	list!.querySelector<HTMLButtonElement>(`[data-testid="team-move-to"][data-team-target="${teamId}"]`)!.click();
+	await m.settle();
 }
+const targetsOf = (m: Mounted, trigger: HTMLButtonElement) => {
+	trigger.click();
+	m.flush();
+	const list = document.getElementById(trigger.getAttribute('aria-controls') ?? '-');
+	return [...(list?.querySelectorAll('[data-testid="team-move-to"]') ?? [])].map((b) => b.textContent?.trim());
+};
 
 describe('Move to moves a student through the one move transport', () => {
 	it('calls move with the draw, the student and the target team, re-reads, and says so in words', async () => {
 		const f = fake();
 		const m = await openTeams(f);
 		const before = f.boards;
-		const selects = m.all<HTMLSelectElement>('[data-testid="team-move"]');
-		// One per member on a team: Ana, Ben, Dee.
-		expect(selects.length).toBe(3);
-		const ana = selects.find((s) => s.getAttribute('aria-label')?.includes('Ana Reyes'));
+		const triggers = m.all<HTMLButtonElement>('[data-testid="team-move"]');
+		// One per member on a team: Ana, Ben, Dee, each a worded button.
+		expect(triggers.length).toBe(3);
+		expect(triggers.every((t) => t.tagName === 'BUTTON' && t.textContent?.trim() === 'Move to')).toBe(true);
+		expect(m.all('.team-card select').length).toBe(0);
+		const ana = triggers.find((t) => t.getAttribute('aria-label')?.includes('Ana Reyes'));
 		expect(ana, 'the control names the student it moves').toBeTruthy();
-		// Its options are the OTHER teams, by their label.
-		expect([...ana!.options].map((o) => o.textContent?.trim())).toEqual(['Move to', 'Torque Squad']);
-		choose(ana!, 't-2');
-		await m.settle();
+		expect(ana!.getAttribute('aria-expanded')).toBe('false');
+		// Its choices are the OTHER teams, by their label, and opening them
+		// writes nothing.
+		expect(targetsOf(m, ana!)).toEqual(['Torque Squad']);
+		expect(ana!.getAttribute('aria-expanded')).toBe('true');
+		expect(ana!.classList.contains('on')).toBe(true);
+		expect(f.moves).toEqual([]);
+		ana!.click();
+		m.flush();
+		await choose(m, ana!, 't-2');
 		await m.settle();
 		expect(f.moves).toEqual([['set-1', 'ana@boscotech.net', 't-2']]);
 		expect(f.boards).toBe(before + 1);
 		expect(m.one('[data-testid="team-edit-note"]').textContent?.trim()).toBe(
 			'Moved Ana Reyes to Torque Squad.'
 		);
-		// The control resets, so the next choice is a change again.
-		expect(m.all<HTMLSelectElement>('[data-testid="team-move"]').every((s) => s.value === '')).toBe(true);
+		// The row closed, and the focus is back on the student's own control in
+		// the card they moved to, not stranded on a button that is gone.
+		expect(m.all('[data-testid="team-move-list"]').length).toBe(0);
+		expect((document.activeElement as HTMLElement | null)?.dataset.moveTrigger).toBe(
+			'set-1:ana@boscotech.net'
+		);
+	});
+
+	it('arrow keys inside the open row move nobody, and Escape closes it back onto its button', async () => {
+		const f = fake();
+		const m = await openTeams(f);
+		const ben = m
+			.all<HTMLButtonElement>('[data-testid="team-move"]')
+			.find((t) => t.getAttribute('aria-label')?.includes('Ben'))!;
+		ben.click();
+		m.flush();
+		const choice = m.one<HTMLButtonElement>('[data-testid="team-move-to"]');
+		choice.focus();
+		for (const key of ['ArrowDown', 'ArrowUp', 'ArrowDown']) {
+			choice.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+		}
+		await m.settle();
+		expect(f.moves).toEqual([]);
+		choice.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		m.flush();
+		expect(m.all('[data-testid="team-move-list"]').length).toBe(0);
+		expect(document.activeElement).toBe(ben);
+		expect(f.moves).toEqual([]);
 	});
 
 	it('a refusal renders beside the draw in the database’s own sentence', async () => {
 		const f = fake({ move: { ok: false, reason: 'error', message: 'That student is not enrolled in this class.' } });
 		const m = await openTeams(f);
-		choose(m.all<HTMLSelectElement>('[data-testid="team-move"]')[0], 't-2');
-		await m.settle();
+		await choose(m, m.all<HTMLButtonElement>('[data-testid="team-move"]')[0], 't-2');
 		expect(m.one('[data-testid="team-edit-refusal"]').textContent?.trim()).toBe(
 			'That student is not enrolled in this class.'
 		);
@@ -232,10 +280,12 @@ describe('students on no team of the draw are offered, and only them', () => {
 		// spelling differs only in case).
 		const text = m.one('[data-testid="team-unteamed"]').textContent ?? '';
 		for (const absent of ['Gus Pratt', 'Ms. Vargas', 'Ben Okafor']) expect(text).not.toContain(absent);
-		const add = m.one<HTMLSelectElement>('[data-testid="team-add"]');
-		expect([...add.options].map((o) => o.textContent?.trim())).toEqual(['Add to', 'Team 1', 'Torque Squad']);
-		choose(add, 't-1');
-		await m.settle();
+		const add = m.one<HTMLButtonElement>('[data-testid="team-add"]');
+		expect(add.textContent?.trim()).toBe('Add to');
+		expect(targetsOf(m, add)).toEqual(['Team 1', 'Torque Squad']);
+		add.click();
+		m.flush();
+		await choose(m, add, 't-1');
 		expect(f.moves).toEqual([['set-1', 'FAY@boscotech.net', 't-1']]);
 	});
 
@@ -275,8 +325,7 @@ describe('absence is the mechanism: no 0225, no move controls', () => {
 		const f = fake({ move: { ok: false, reason: 'unavailable' } });
 		const m = await openTeams(f);
 		expect(m.all('[data-testid="team-move"]').length).toBe(3);
-		choose(m.all<HTMLSelectElement>('[data-testid="team-move"]')[0], 't-2');
-		await m.settle();
+		await choose(m, m.all<HTMLButtonElement>('[data-testid="team-move"]')[0], 't-2');
 		expect(m.all('[data-testid="team-move"]').length).toBe(0);
 		expect(m.all('[data-testid="team-grip"]').length).toBe(0);
 		expect(m.all('[data-testid="team-move-unavailable"]').length).toBe(1);

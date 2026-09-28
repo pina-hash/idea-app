@@ -56,8 +56,8 @@ export default {
 	textContains: [
 		{
 			selector: '[data-testid="settings-reset-note"]',
-			label: 'the reset says, before the press, that nothing is deleted',
-			must: ['stop counting', 'Nothing is deleted']
+			label: 'the reset says, before the press, whose votes stop counting, that block colors stay, and that nothing is deleted',
+			must: ['people who have voted stop counting', "Each block's own color stays", 'Nothing is deleted']
 		}
 	],
 	contrast: [

@@ -29,7 +29,10 @@ import type { LayoutServerLoad } from './$types';
 /** `classroom_class_themes` refuses more than this many ids in one call (0225). */
 const CLASS_THEME_BATCH = 200;
 
-export const load: LayoutServerLoad = async ({ locals: { supabase, claims } }) => {
+export const load: LayoutServerLoad = async ({ locals: { supabase, claims }, depends }) => {
+	// A vote on the class page re-runs this read (and only this one) when the
+	// winner changes, so the strip and My Classes repaint with the banner.
+	depends('classroom:themes');
 	if (!claims) return { navSections: [], navThemes: {}, navIsStaff: false, navIsAdmin: false };
 
 	const [{ data: profile }, { data: sections }, admin] = await Promise.all([

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { beforeNavigate, invalidateAll } from '$app/navigation';
+	import { beforeNavigate, invalidate, invalidateAll } from '$app/navigation';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import ClassView from '$lib/classroom/ClassView.svelte';
 	import HallPass from '$lib/classroom/HallPass.svelte';
@@ -122,6 +122,22 @@
 			? resolveClassTheme({ winners: votedWinners.winners, accent: loadedTheme?.accent?.id ?? null })
 			: loadedTheme
 	);
+	/**
+	 * THE REST OF THE CLASSROOM CATCHES UP. The overlay repaints the banner at
+	 * once, but the header strip's key and My Classes' card paint from the
+	 * classroom layout's one read, which does not re-run on a navigation -- so a
+	 * winner that differs from what that read said re-runs it
+	 * (`classroom:themes`, and only that load). The panel tells only a CHANGE of
+	 * winner, and the re-read then agrees, so this cannot loop.
+	 */
+	function winnersHeard(winners: ClassThemeWinners, courseId: string) {
+		votedWinners = { courseId, winners };
+		if (courseId !== data.section.course_id) return;
+		const heard = resolveClassTheme({ winners, accent: loadedTheme?.accent?.id ?? null });
+		const key = (t: ClassTheme | null) =>
+			t ? [t.palette.id, t.pattern.id, t.badge.id, t.accent?.id ?? ''].join('|') : '';
+		if (key(heard) !== key(loadedTheme)) void invalidate('classroom:themes');
+	}
 	/**
 	 * THE LIVE NOTICE BUS FOR THE TWO TOOLS (prompt 0118), built ONCE: the pass
 	 * and the queue share one channel per section, reference-counted inside,
@@ -538,7 +554,7 @@
 			courseId={data.section.course_id}
 			transports={themeTransports}
 			manageHref={data.canManage ? `/classroom/${data.section.id}/settings` : null}
-			onwinners={(winners) => (votedWinners = { courseId: data.section.course_id, winners })}
+			onwinners={winnersHeard}
 		/>
 	{/key}
 {/snippet}

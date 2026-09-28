@@ -40,6 +40,15 @@
 	let accent = $state<string | null>(null);
 	let votingOpen = $state(true);
 	let voters = $state(0);
+	/**
+	 * WHETHER EACH READ ANSWERED. A read that failed is not "no color" and is
+	 * not "voting open, nobody voted": those are claims, and a control drawn
+	 * from a default would offer to close a vote that may already be closed
+	 * (fresh-eyes review, ledger 0347). An unknown half says so and offers
+	 * nothing.
+	 */
+	let tallyKnown = $state(false);
+	let accentKnown = $state(false);
 	let busy = $state(false);
 	let armedReset = $state(false);
 	let msg = $state<{ ok: boolean; text: string } | null>(null);
@@ -58,9 +67,11 @@
 		} else {
 			votingOpen = tally.tally.voting_open;
 			voters = tally.tally.voters;
+			tallyKnown = true;
 		}
 		if (themes.ok) {
 			accent = themes.themes.find((c) => c.section_id === sectionId)?.accent ?? null;
+			accentKnown = true;
 		} else if (themes.reason === 'unavailable') {
 			phase = 'hidden';
 			return;
@@ -168,6 +179,11 @@
 
 		<div class="cts-group" role="group" aria-labelledby="cts-accent-{sectionId}">
 			<h3 id="cts-accent-{sectionId}" class="cts-label">This block's color</h3>
+			{#if !accentKnown}
+				<p class="note" data-testid="settings-accent-unknown">
+					This block's color could not be read just now. Reload the page to try again.
+				</p>
+			{:else}
 			<div class="cts-keys">
 				<button
 					type="button"
@@ -198,10 +214,17 @@
 					</button>
 				{/each}
 			</div>
+			{/if}
 		</div>
 
 		<div class="cts-group">
 			<h3 class="cts-label">Voting</h3>
+			{#if !tallyKnown}
+				<p class="note" data-testid="settings-voting-unknown">
+					Whether voting is open could not be read just now, so nothing here can change it.
+					Reload the page to try again.
+				</p>
+			{:else}
 			<p class="note" data-testid="settings-voting-state">
 				{votingOpen ? 'Voting is open.' : 'Voting is closed.'}
 				{voters}
@@ -219,8 +242,10 @@
 				</button>
 				{#if armedReset}
 					<span class="note cts-reset-note" data-testid="settings-reset-note">
-						Reset the vote? Votes cast so far stop counting and the class goes back to the
-						default look until people vote again. Nothing is deleted.
+						Reset the vote? The votes of the {voters}
+						{voters === 1 ? 'person' : 'people'} who have voted stop counting, and every block of
+						this class goes back to the default look until people vote again. Each block's own
+						color stays. Nothing is deleted.
 					</span>
 					<button
 						type="button"
@@ -250,6 +275,7 @@
 					</button>
 				{/if}
 			</div>
+			{/if}
 		</div>
 
 		<p class="note cts-msg" class:bad={msg && !msg.ok} role="status" data-testid="settings-theme-msg">

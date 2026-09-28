@@ -251,7 +251,12 @@
 		courseId={COURSE}
 		{transports}
 		manageHref={teacher ? '/dev/classroom-theme?role=teacher' : null}
-		onwinners={(w) => (voted = w)}
+		onwinners={(w) => {
+			voted = w;
+			// What the section layout's `invalidate('classroom:themes')` does: the
+			// strip and My Classes read again and catch up with the banner.
+			navThemes = readThemes();
+		}}
 	/>
 {/snippet}
 

@@ -89,26 +89,50 @@ const DRAG_MEMBER = `async () => {
 const MOVE_TO = `async () => {
 	const set = document.querySelectorAll('[data-testid="team-set"]')[0];
 	const cards = [...set.querySelectorAll('[data-testid="team-card"]')];
-	const select = cards[2].querySelector('[data-testid="team-move"]');
-	const row = select.closest('[data-team-member]');
+	const trigger = cards[2].querySelector('[data-testid="team-move"]');
+	const key = trigger.dataset.moveTrigger;
+	const row = trigger.closest('[data-team-member]');
 	const who = row.querySelector('.team-member-name').textContent.trim();
-	const target = [...select.options].find((o) => o.value && o.textContent.trim() === cards[0].querySelector('h4').textContent.trim());
-	select.value = target.value;
-	select.dispatchEvent(new Event('change', { bubbles: true }));
+	const label = trigger.getAttribute('aria-label') || '';
+	/* A BUTTON OPENING A ROW OF TEAM BUTTONS, never a select acting on change:
+	   opening it writes nothing, and arrow keys inside it move nobody. */
+	trigger.click();
+	let list = null;
+	for (let i = 0; i < 40 && !list; i++) {
+		list = document.getElementById(trigger.getAttribute('aria-controls') || '-');
+		if (!list) await new Promise((r) => setTimeout(r, 25));
+	}
+	const expanded = trigger.getAttribute('aria-expanded');
+	const want = cards[0].querySelector('h4').textContent.trim();
+	const choice = [...list.querySelectorAll('[data-testid="team-move-to"]')].find((b) => b.textContent.trim() === want);
+	choice.click();
 	for (let i = 0; i < 40; i++) {
 		const now = [...document.querySelectorAll('[data-testid="team-set"]')[0].querySelectorAll('[data-testid="team-card"]')[0].querySelectorAll('.team-member-name')].map((n) => n.textContent.trim());
-		if (now.includes(who)) break;
+		if (now.includes(who) && document.activeElement && document.activeElement.dataset.moveTrigger === key) break;
 		await new Promise((r) => setTimeout(r, 50));
 	}
 	const set2 = document.querySelectorAll('[data-testid="team-set"]')[0];
 	const first = [...set2.querySelectorAll('[data-testid="team-card"]')[0].querySelectorAll('.team-member-name')].map((n) => n.textContent.trim());
 	window.__teamMoveTo = {
 		who,
+		expanded,
 		landed: first.includes(who),
 		note: (set2.querySelector('[data-testid="team-edit-note"]').textContent || '').trim(),
-		label: select.getAttribute('aria-label') || ''
+		label,
+		focusBack: !!document.activeElement && document.activeElement.dataset.moveTrigger === key,
+		listsAfter: document.querySelectorAll('[data-testid="team-move-list"]').length
 	};
-	return 'Move to: ' + who;
+	return 'Move to: ' + who + ' -> ' + want;
+}`;
+
+/* LEFT OPEN FOR THE MEASUREMENTS: the second draw's first Move to, so the
+   team buttons it offers are on screen to be measured (and nothing is written). */
+const OPEN_ONE = `async () => {
+	const set = document.querySelectorAll('[data-testid="team-set"]')[1];
+	const trigger = set.querySelector('[data-testid="team-move"]');
+	trigger.click();
+	for (let i = 0; i < 40 && !document.querySelector('[data-testid="team-move-list"]'); i++) await new Promise((r) => setTimeout(r, 25));
+	return 'opened Move to for ' + trigger.closest('[data-team-member]').querySelector('.team-member-name').textContent.trim();
 }`;
 
 export default {
@@ -138,7 +162,8 @@ export default {
 			}`
 		},
 		{ evaluate: DRAG_MEMBER },
-		{ evaluate: MOVE_TO }
+		{ evaluate: MOVE_TO },
+		{ evaluate: OPEN_ONE }
 	],
 	presence: [
 		/* Both draws, with their move controls. */
@@ -150,12 +175,17 @@ export default {
 		   unposted one was already, the posted one is now. */
 		{ selector: '[data-testid="team-edited"]', label: 'Edited by hand, on both draws after the moves', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 		{ selector: '[data-testid="team-unteamed"]', label: 'a Not on a team yet card on each draw', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
-		{ selector: '[data-testid="team-add"]', label: 'Add to, one per student on no team', expectPresent: 5, expectVisible: 5 }
+		{ selector: '[data-testid="team-add"]', label: 'Add to, one per student on no team', expectPresent: 5, expectVisible: 5 },
+		/* One row of team buttons open (left open by the last step), and no
+		   select anywhere on a team card. */
+		{ selector: '[data-testid="team-move-list"]', label: 'the one Move to left open', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '.team-card select', label: 'a select on a team card', expectPresent: 0 }
 	],
 	tapTargets: [
 		{ selector: '[data-testid="team-grip"]', label: 'the Drag grip', min: 44 },
 		{ selector: '[data-testid="team-move"]', label: 'Move to', min: 44 },
 		{ selector: '[data-testid="team-add"]', label: 'Add to', min: 44 },
+		{ selector: '[data-testid="team-move-to"]', label: 'a team to move to', min: 44 },
 		{ selector: '[data-testid="team-rename"]', label: 'Rename', min: 44 }
 	],
 	contrast: [
@@ -164,7 +194,8 @@ export default {
 		{ selector: '[data-testid="team-edit-note"]', label: 'the moved-in-words line', min: 4.5 },
 		{ selector: '.team-card:not(.has-style) .team-member-name', label: 'a name on an unstyled card', min: 4.5 },
 		{ selector: '.team-card:not(.has-style) .team-grip-word', label: 'the Drag word', min: 4.5 },
-		{ selector: '.team-card:not(.has-style) .team-move', label: 'Move to', min: 4.5 }
+		{ selector: '.team-card:not(.has-style) .team-move', label: 'Move to', min: 4.5 },
+		{ selector: '[data-testid="team-move-to"]', label: 'a team to move to', min: 4.5 }
 	],
 	orderResult: [
 		{
@@ -197,10 +228,13 @@ export default {
 				return [
 					'landed=' + m.landed,
 					'noteNamesThem=' + (!!m.who && (m.note || '').startsWith('Moved ' + m.who + ' to ')),
-					'labelNamesThem=' + (!!m.who && (m.label || '').includes(m.who))
+					'labelNamesThem=' + (!!m.who && (m.label || '').includes(m.who)),
+					'openedExpanded=' + m.expanded,
+					'focusBackOnThem=' + m.focusBack,
+					'closedAfter=' + (m.listsAfter === 0)
 				];
 			}`,
-			expected: ['landed=true', 'noteNamesThem=true', 'labelNamesThem=true']
+			expected: ['landed=true', 'noteNamesThem=true', 'labelNamesThem=true', 'openedExpanded=true', 'focusBackOnThem=true', 'closedAfter=true']
 		}
 	]
 };

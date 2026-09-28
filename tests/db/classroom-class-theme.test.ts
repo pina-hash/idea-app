@@ -715,15 +715,21 @@ describe('the shipped transports and layout load reach the real functions', () =
 
 	test('the classroom layout load hands every surface the student\'s class theme, and none for a class nobody voted on', async () => {
 		const fks = await loadForeignKeys(db);
+		// The load names the key a vote re-runs it by (`classroom:themes`), so the
+		// strip and My Classes can catch up with a banner a vote just repainted.
+		const deps: string[] = [];
 		const data = (await classroomLayoutLoad({
-			locals: { supabase: createPostgrestShim(db, fks, sam.id), claims: { sub: sam.id, email: sam.email } }
+			locals: { supabase: createPostgrestShim(db, fks, sam.id), claims: { sub: sam.id, email: sam.email } },
+			depends: (...keys: string[]) => deps.push(...keys)
 		} as never)) as { navSections: { id: string }[]; navThemes: Record<string, { palette: { id: string }; accent: { id: string } | null }> };
+		expect(deps).toEqual(['classroom:themes']);
 		expect(data.navSections.map((s) => s.id)).toContain(sectionA1);
 		expect(data.navThemes[sectionA1]?.palette.id).toBe('ember');
 		expect(data.navThemes[sectionA1]?.accent?.id).toBe('sky');
 
 		const other = (await classroomLayoutLoad({
-			locals: { supabase: createPostgrestShim(db, fks, bob.id), claims: { sub: bob.id, email: bob.email } }
+			locals: { supabase: createPostgrestShim(db, fks, bob.id), claims: { sub: bob.id, email: bob.email } },
+			depends: () => {}
 		} as never)) as { navSections: { id: string }[]; navThemes: Record<string, unknown> };
 		// Bob's class exists for him (the control) and has no theme.
 		expect(other.navSections.map((s) => s.id)).toEqual([sectionB1]);

@@ -432,7 +432,8 @@ describe('the HTML-assignment wiring, end to end', () => {
 				locals: {
 					supabase: clientFor(user),
 					claims: { sub: user.id, email: user.email }
-				}
+				},
+				depends: () => {}
 			} as never);
 			seen[user.email] = (data as { navIsAdmin?: unknown }).navIsAdmin;
 		}

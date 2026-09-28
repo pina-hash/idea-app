@@ -58,9 +58,12 @@
 		/**
 		 * Told the winners whenever they change -- after the caller's own vote,
 		 * at once, and after a re-read shows a classmate's -- so the banner above
-		 * repaints without waiting for a page load.
+		 * repaints without waiting for a page load. THE COURSE COMES WITH THEM,
+		 * from this instance's own prop: a caller that stamped the answer with
+		 * whatever course it is showing NOW would file a slow answer from the
+		 * class just left under the class just opened (fresh-eyes review).
 		 */
-		onwinners?: ((winners: ClassThemeWinners) => void) | null;
+		onwinners?: ((winners: ClassThemeWinners, courseId: string) => void) | null;
 	} = $props();
 
 	type Phase = 'loading' | 'ready' | 'hidden' | 'error';
@@ -82,20 +85,24 @@
 
 	let asked = 0;
 	let lastWinners = '';
+	/** False once unmounted: an answer that lands after that tells nobody. */
+	let alive = true;
 
 	function tell(winners: ClassThemeWinners) {
+		if (!alive) return;
 		const key = JSON.stringify(winners);
 		if (key === lastWinners) return;
 		lastWinners = key;
 		const notify = onwinners;
-		if (notify) untrack(() => notify(winners));
+		const course = courseId;
+		if (notify) untrack(() => notify(winners, course));
 	}
 
 	async function read() {
 		const mine = ++asked;
 		const t = transports;
 		const res = await untrack(() => t.tally(courseId));
-		if (mine !== asked) return;
+		if (mine !== asked || !alive) return;
 		if (res.ok) {
 			tally = res.tally;
 			phase = 'ready';
@@ -114,14 +121,28 @@
 
 	onMount(() => {
 		void read();
+		return () => {
+			alive = false;
+		};
 	});
 
-	/* THE POLL: only while open, only while visible. The effect depends on
-	   `open` and the interval; the reads run untracked inside `read`. */
+	/** Opening the panel reads at once; the poll below keeps it current. */
+	function openChanged(next: boolean) {
+		const was = open;
+		open = next;
+		if (next && !was) void read();
+	}
+
+	/* THE POLL: only while open, only while visible, and only while there is a
+	   panel to be open -- a read that answered `unavailable` takes the panel
+	   away, and a poll that outlived it would go on asking. The effect depends
+	   on `open`, the phase and the interval; the reads run untracked inside
+	   `read`. */
 	$effect(() => {
 		const isOpen = open;
 		const every = pollMs;
-		if (!isOpen || typeof document === 'undefined') return;
+		const shown = phase === 'ready' || phase === 'error';
+		if (!isOpen || !shown || typeof document === 'undefined') return;
 		const tick = () => {
 			if (document.hidden) return;
 			void read();
@@ -195,7 +216,7 @@
 			scope={`class-theme:${courseId}`}
 			collapseWhen={true}
 			testId="class-theme-toggle"
-			onopenchange={(o) => (open = o)}
+			onopenchange={openChanged}
 		>
 			{#snippet meta()}
 				<span class="ctp-meta" data-testid="class-theme-words">
@@ -260,6 +281,7 @@
 											{@render swatch(feature.feature, opt.id)}
 											<span class="ctp-word">{opt.label}</span>
 											<span class="ctp-count" data-testid="class-theme-count">{votesWord(opt.votes)}</span>
+											{#if opt.mine}<span class="ctp-mine" data-testid="class-theme-mine">Your vote</span>{/if}
 											{#if opt.winning}<span class="ctp-leading">Leading</span>{/if}
 										</button>
 									{:else}
@@ -385,6 +407,7 @@
 		font-family: var(--font-mono);
 		font-size: 0.75rem;
 	}
+	.ctp-mine,
 	.ctp-leading {
 		font-family: var(--font-mono);
 		font-size: 0.7rem;
