@@ -52,6 +52,8 @@
 		hasStyle,
 		teamDriftNote,
 		teamLabel,
+		teamSetEditedWords,
+		TEAM_EDITED_NOTE,
 		teamStyle,
 		teamStyleVars,
 		teamWindowEnd,
@@ -60,6 +62,7 @@
 		type TeamSet,
 		type TeamTransports
 	} from '$lib/classroom/teams';
+	import { sortDrag } from '$lib/classroom/sort-drag';
 
 	/**
 	 * ONE class's people: the roster (add, correct, deactivate, CSV import), the
@@ -316,10 +319,16 @@
 	 */
 	let nowMs = $state(Date.now());
 
-	async function loadTeams() {
+	/**
+	 * `quiet` re-reads the board WITHOUT the loading state, for the follow-up
+	 * to a move or a rename: flipping `teamsLoading` swaps the whole panel for
+	 * a pending line, which unmounts the very card somebody just dropped a
+	 * student on and reads as the page resetting.
+	 */
+	async function loadTeams({ quiet = false }: { quiet?: boolean } = {}) {
 		const t = teamTransports;
 		if (!t) return;
-		teamsLoading = true;
+		if (!quiet) teamsLoading = true;
 		teamsError = null;
 		try {
 			const res = await t.board(section.id);
@@ -328,6 +337,9 @@
 				savedSets = res.sets;
 				teamsManages = res.manages;
 				teamsReady = true;
+				// Only ever turned OFF by the board: a set without 0225's key says
+				// the move RPC is not there. No sets says nothing either way.
+				if (res.sets.length > 0 && res.editsReady === false) moveReady = false;
 			} else if (res.reason === 'unavailable') {
 				// A REAL STATE, NOT AN ERROR. 0223 is applied by hand, so a
 				// client can genuinely be ahead of its migration. The area says
@@ -447,6 +459,150 @@
 	 */
 	function teamCardStyle(team: Team): string {
 		return teamStyleVars(team);
+	}
+
+	// --- Changing a saved draw by hand (0225, decision 44) -----------------
+	//
+	// A MOVE AND A RENAME ARE BOTH EDITS IN PLACE: the draw keeps its seed and
+	// the database stamps it `edited_at`, which is what "Edited by hand" reads.
+	// Two paths reach one move -- a drag onto another team card and a Move to
+	// control on every member -- and both call `moveMember`, so there is one
+	// place a move is written.
+
+	/**
+	 * FALSE ONCE THE MOVE TRANSPORT ANSWERED `unavailable` (PGRST202: this
+	 * deployment has no 0225 yet). The controls go and one sentence says why,
+	 * rather than a drag whose only outcome is a refusal.
+	 */
+	let moveReady = $state(true);
+	/**
+	 * ONE PREDICATE FOR "can a student be moved here", read by every control
+	 * AND by the handler: a manager, a transport, and a database that has it.
+	 */
+	const canMove = $derived(teamsManages && moveReady && typeof teamTransports?.move === 'function');
+	const canRename = $derived(teamsManages && typeof teamTransports?.style === 'function');
+	/** A refusal, in the database's own sentence, held beside the draw it is about. */
+	let teamEditRefusal = $state<{ setId: string; text: string } | null>(null);
+	/** What the last move did, in words, for the live region beside the draw. */
+	let teamEditNote = $state<{ setId: string; text: string } | null>(null);
+	/** The team whose Rename is open. Only ever one. */
+	let renamingTeam = $state<string | null>(null);
+	let renameDraft = $state('');
+
+	/**
+	 * THE STUDENTS ON NO TEAM OF THIS DRAW: active, on the roster, not a
+	 * manager (`splitRoster`, the one implementation of that), and absent from
+	 * every team. Compared lowercased, because the roster and the board are two
+	 * reads of an email-keyed schema and `A@x` and `a@x` are one person.
+	 */
+	function unteamed(set: TeamSet): ClassroomEnrollment[] {
+		const onATeam = new Set(
+			set.teams.flatMap((t) => t.members.map((m) => m.student_email.toLowerCase()))
+		);
+		return activeSplit.students.filter((e) => !onATeam.has(e.student_email.toLowerCase()));
+	}
+
+	async function moveMember(set: TeamSet, email: string, name: string, toTeamId: string) {
+		const t = teamTransports;
+		if (!t?.move || !canMove || teamsBusy) return;
+		const to = set.teams.find((team) => team.id === toTeamId);
+		if (!to) return;
+		teamsBusy = true;
+		teamEditRefusal = null;
+		teamEditNote = null;
+		try {
+			const res = await t.move(set.id, email, toTeamId);
+			if (res.ok) {
+				const who = name.trim() || email;
+				teamEditNote = {
+					setId: set.id,
+					text: res.added
+						? `Added ${who} to ${teamLabel(to)}.`
+						: res.moved
+							? `Moved ${who} to ${teamLabel(to)}.`
+							: `${who} is already on ${teamLabel(to)}.`
+				};
+				await loadTeams({ quiet: true });
+				// A posted draw is on the class page, whose layout load does not
+				// re-run on the way there (the same reason `runTeamAction` calls it).
+				await onchanged?.();
+			} else if (res.reason === 'unavailable') {
+				moveReady = false;
+			} else {
+				teamEditRefusal = { setId: set.id, text: res.message };
+			}
+		} finally {
+			teamsBusy = false;
+		}
+	}
+
+	function toggleRename(team: Team) {
+		if (renamingTeam === team.id) {
+			renamingTeam = null;
+			return;
+		}
+		renamingTeam = team.id;
+		renameDraft = team.name ?? '';
+		teamEditRefusal = null;
+	}
+
+	/**
+	 * A RENAME GOES THROUGH THE EXISTING STYLE WRITE WITH EVERY OTHER FIELD
+	 * CARRIED OVER from `teamStyle(team)`. That write replaces all six style
+	 * columns at once, so a rename built from the name alone would wipe a
+	 * banner the students made. An empty name is null, which renders "Team n".
+	 */
+	async function saveRename(set: TeamSet, team: Team) {
+		const t = teamTransports;
+		if (!t?.style || !canRename || teamsBusy) return;
+		const style = teamStyle(team);
+		const name = renameDraft.trim() || null;
+		teamsBusy = true;
+		teamEditRefusal = null;
+		teamEditNote = null;
+		try {
+			const res = await t.style({
+				teamId: team.id,
+				name,
+				accentColor: style.accent_color,
+				backgroundType: style.background_type,
+				backgroundValue: style.background_value,
+				badge: style.badge,
+				flourish: style.flourish,
+				tagline: style.tagline
+			});
+			if (res.ok) {
+				renamingTeam = null;
+				teamEditNote = {
+					setId: set.id,
+					text: name ? `Renamed ${teamLabel(team)} to ${name}.` : `${teamLabel(team)} is Team ${team.team_number} again.`
+				};
+				await loadTeams({ quiet: true });
+				await onchanged?.();
+			} else {
+				teamEditRefusal = { setId: set.id, text: res.message ?? 'Could not rename this team.' };
+			}
+		} finally {
+			teamsBusy = false;
+		}
+	}
+
+	/** The drag options for one member list: every other team card of the same draw is a place to drop. */
+	function memberDrag(set: TeamSet, members: readonly { email: string; name: string }[]) {
+		return {
+			items: '[data-team-member]',
+			disabled: !canMove || teamsBusy,
+			// Reordering inside a team means nothing, so the keys belong to the
+			// Move to control and a release over the home card does nothing.
+			keyboard: false,
+			zones: `[data-team-zone="${set.id}"]`,
+			ondrop: () => {},
+			ondropzone: (from: number, zone: HTMLElement) => {
+				const who = members[from];
+				const toTeamId = zone.dataset.teamId;
+				if (who && toTeamId) void moveMember(set, who.email, who.name, toTeamId);
+			}
+		};
 	}
 
 	/** The row whose Remove is armed. Only ever one, and never across a reload. */
@@ -1297,26 +1453,135 @@
 								result.
 							</p>
 
+							{#if teamSetEditedWords(set)}
+								<!--
+									DECISION 44: A HAND EDIT IS MARKED, NOT HIDDEN. The seed line
+									above stays exactly as it was; this says the seed no longer
+									gives back these teams, with the reason one tap away.
+								-->
+								<p class="note team-edited" data-testid="team-edited">
+									<InfoTip tip={TEAM_EDITED_NOTE}>{teamSetEditedWords(set)}</InfoTip>
+								</p>
+							{/if}
+
 							{#if drift}
 								<p class="note team-drift" data-testid="team-drift">{drift}</p>
 							{/if}
 
+							{#if teamsManages && typeof teamTransports.move === 'function' && !moveReady}
+								<!--
+									ABSENCE IS THE MECHANISM: the database has no move yet, so
+									there is no grip and no Move to anywhere below, and this
+									sentence says why instead of a control that can only refuse.
+								-->
+								<p class="note" data-testid="team-move-unavailable">
+									Moving students between teams will work once this site's database
+									update is applied.
+								</p>
+							{:else if canMove}
+								<p class="note team-move-hint" data-testid="team-move-hint">
+									Drag a student onto another team, or use Move to.
+								</p>
+							{/if}
+
+							{#if teamEditRefusal?.setId === set.id}
+								<p class="note team-refusal" role="alert" data-testid="team-edit-refusal">
+									{teamEditRefusal.text}
+								</p>
+							{/if}
+							<!-- ALWAYS MOUNTED, ONLY ITS TEXT MOVES: a live region a screen
+							     reader was not already observing is often not announced. -->
+							<p class="note team-edit-note" role="status" data-testid="team-edit-note">
+								{teamEditNote?.setId === set.id ? teamEditNote.text : ''}
+							</p>
+
 							<div class="team-cards">
 								{#each set.teams as team (team.id)}
+									{@const members = team.members.map((m) => ({
+										email: m.student_email,
+										name: m.display_name
+									}))}
 									<div
 										class="team-card"
 										class:has-style={hasStyle(teamStyle(team))}
 										style={teamCardStyle(team)}
 										data-testid="team-card"
+										data-team-zone={set.id}
+										data-team-id={team.id}
 									>
-										<h4>{teamLabel(team)}</h4>
+										<div class="team-card-head">
+											<h4>{teamLabel(team)}</h4>
+											{#if canRename}
+												<button
+													type="button"
+													class="btn tiny tap-44 team-rename-toggle"
+													class:on={renamingTeam === team.id}
+													aria-expanded={renamingTeam === team.id}
+													aria-controls="team-rename-{team.id}"
+													data-testid="team-rename"
+													onclick={() => toggleRename(team)}
+												>
+													{renamingTeam === team.id ? 'Close' : 'Rename'}
+												</button>
+											{/if}
+										</div>
+										{#if canRename && renamingTeam === team.id}
+											<form
+												class="team-rename-form"
+												id="team-rename-{team.id}"
+												data-testid="team-rename-form"
+												onsubmit={(e) => {
+													e.preventDefault();
+													void saveRename(set, team);
+												}}
+											>
+												<label class="tool-field">
+													<span>Name for Team {team.team_number}</span>
+													<input
+														type="text"
+														maxlength="40"
+														placeholder="Team {team.team_number}"
+														bind:value={renameDraft}
+														data-testid="team-rename-input"
+													/>
+												</label>
+												<button
+													type="submit"
+													class="btn tiny tap-44"
+													disabled={teamsBusy}
+													data-testid="team-rename-save"
+												>
+													Save name
+												</button>
+											</form>
+										{/if}
 										{#if team.tagline}
 											<p class="team-tagline">{team.tagline}</p>
 										{/if}
-										<ul>
+										<ul class="team-members" use:sortDrag={memberDrag(set, members)}>
 											{#each team.members as member (member.student_email)}
-												<li class:left-class={!member.still_enrolled}>
-													{member.display_name}
+												<li
+													class="team-member"
+													class:left-class={!member.still_enrolled}
+													data-team-member
+													data-testid="team-member"
+												>
+													{#if canMove}
+														<button
+															type="button"
+															class="team-grip"
+															data-sort-handle
+															data-testid="team-grip"
+															aria-disabled={teamsBusy}
+															aria-label="Drag {member.display_name} to another team"
+														>
+															<span class="team-grip-glyph" aria-hidden="true">&#10495;</span>
+															<span class="team-grip-word">Drag</span>
+														</button>
+													{/if}
+													<span class="team-member-name person-name" title={member.display_name}
+														>{member.display_name}</span
+													>
 													{#if !member.still_enrolled}
 														<!--
 															A WORD, not a colour and not a strikethrough
@@ -1326,6 +1591,26 @@
 														<span class="team-left" data-testid="team-member-left">
 															no longer on the roster
 														</span>
+													{/if}
+													{#if canMove && set.teams.length > 1}
+														<select
+															class="team-move"
+															data-testid="team-move"
+															aria-label="Move {member.display_name} to another team"
+															disabled={teamsBusy}
+															value=""
+															onchange={(e) => {
+																const el = e.currentTarget as HTMLSelectElement;
+																const to = el.value;
+																el.value = '';
+																if (to) void moveMember(set, member.student_email, member.display_name, to);
+															}}
+														>
+															<option value="">Move to</option>
+															{#each set.teams.filter((t) => t.id !== team.id) as other (other.id)}
+																<option value={other.id}>{teamLabel(other)}</option>
+															{/each}
+														</select>
 													{/if}
 												</li>
 											{/each}
@@ -1342,6 +1627,59 @@
 										{/if}
 									</div>
 								{/each}
+								{#if canMove && unteamed(set).length > 0}
+									{@const waiting = unteamed(set).map((e) => ({
+										email: e.student_email,
+										name: e.display_name || e.student_email.split('@')[0]
+									}))}
+									<!--
+										NOT A DROP ZONE: the move RPC files a student onto a team and
+										has no "take off every team". Students land here by being on
+										the roster and on no team of this draw, and leave by the same
+										drag or Add to.
+									-->
+									<div class="team-card team-unteamed" data-testid="team-unteamed">
+										<h4>Not on a team yet</h4>
+										<ul class="team-members" use:sortDrag={memberDrag(set, waiting)}>
+											{#each waiting as person (person.email)}
+												<li class="team-member" data-team-member data-testid="team-unteamed-member">
+													<button
+														type="button"
+														class="team-grip"
+														data-sort-handle
+														data-testid="team-grip"
+														aria-disabled={teamsBusy}
+														aria-label="Drag {person.name} onto a team"
+													>
+														<span class="team-grip-glyph" aria-hidden="true">&#10495;</span>
+														<span class="team-grip-word">Drag</span>
+													</button>
+													<span class="team-member-name person-name" title={person.name}
+														>{person.name}</span
+													>
+													<select
+														class="team-move"
+														data-testid="team-add"
+														aria-label="Add {person.name} to a team"
+														disabled={teamsBusy}
+														value=""
+														onchange={(e) => {
+															const el = e.currentTarget as HTMLSelectElement;
+															const to = el.value;
+															el.value = '';
+															if (to) void moveMember(set, person.email, person.name, to);
+														}}
+													>
+														<option value="">Add to</option>
+														{#each set.teams as other (other.id)}
+															<option value={other.id}>{teamLabel(other)}</option>
+														{/each}
+													</select>
+												</li>
+											{/each}
+										</ul>
+									</div>
+								{/if}
 							</div>
 
 							<div class="tools-row team-actions">
@@ -2160,13 +2498,143 @@
 		font-size: 0.85rem;
 	}
 
-	.team-card ul {
-		margin: 0;
-		padding-left: 1.1rem;
+	.team-card-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-1, 0.25rem) var(--space-2, 0.5rem);
+		margin-bottom: 0.2rem;
 	}
 
-	.team-card li.left-class {
+	.team-card-head h4 {
+		margin: 0;
+		min-width: 0;
+		overflow-wrap: break-word;
+	}
+
+	.team-rename-form {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		gap: var(--space-2, 0.5rem);
+		margin: 0 0 var(--space-2, 0.5rem);
+	}
+
+	.team-rename-form .tool-field {
+		flex: 1 1 10rem;
+		min-width: 0;
+	}
+
+	/* One row per student: a worded grip, the name, and Move to. The name
+	   takes what is left and wraps between words (`.person-name`); the two
+	   controls never shrink below their 44px floor. */
+	.team-members {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.team-member {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.2rem 0.4rem;
+		min-height: 44px;
+		min-width: 0;
+	}
+
+	.team-member-name {
+		flex: 1 1 6rem;
+		min-width: 0;
+	}
+
+	.team-member.left-class .team-member-name {
 		opacity: 0.75;
+	}
+
+	/* The same worded grip the unit list uses (UnitManager's `.unit-grip`):
+	   a word beside the glyph, 44px, `min-height` never a height. */
+	.team-grip {
+		appearance: none;
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		min-height: 44px;
+		min-width: 44px;
+		padding: 0 0.45rem;
+		background: none;
+		border: 1px solid transparent;
+		border-radius: var(--radius-card, 6px);
+		color: inherit;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		cursor: grab;
+		user-select: none;
+	}
+
+	.team-grip:hover:not([aria-disabled='true']) {
+		border-color: var(--boundary);
+	}
+
+	.team-grip:focus-visible {
+		outline: 2px solid var(--green);
+		outline-offset: -2px;
+	}
+
+	.team-grip[aria-disabled='true'] {
+		opacity: 0.5;
+		cursor: default;
+	}
+
+	:global(.is-dragging) .team-grip {
+		cursor: grabbing;
+	}
+
+	.team-move {
+		flex: none;
+		min-height: 44px;
+		max-width: 100%;
+		font: inherit;
+		font-size: 0.85rem;
+	}
+
+	.team-card:not(.has-style) .team-move {
+		color: var(--text-1);
+		background: var(--surface-1, var(--bg1));
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card, 6px);
+	}
+
+	.team-unteamed {
+		border-style: dashed;
+		border-left-width: 1px;
+	}
+
+	.team-edited,
+	.team-move-hint {
+		margin: 0.2rem 0 0;
+		font-size: 0.85rem;
+		color: var(--text-2);
+	}
+
+	/* NOT --crimson, for the reason `.roster-refusal` gives: a refusal is the
+	   database declining, the safe outcome, and is not dressed as an error. */
+	.team-refusal {
+		margin: 0.3rem 0 0;
+		padding-left: 0.5rem;
+		border-left: 3px solid var(--amber);
+		color: var(--text-1);
+	}
+
+	.team-edit-note {
+		margin: 0.2rem 0 0;
+		color: var(--text-1);
+	}
+
+	.team-edit-note:empty {
+		margin: 0;
 	}
 
 	/*

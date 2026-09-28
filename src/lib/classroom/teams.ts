@@ -116,6 +116,15 @@ export interface TeamSet {
 export interface TeamBoard {
 	ok: true;
 	manages: boolean;
+	/**
+	 * DOES THIS DATABASE HAVE 0225'S MOVE, told by the board itself: its sets
+	 * carry an `edited_at` key. False with no sets (nothing to tell by, and
+	 * nothing to move). OPTIONAL, and absent reads as "not known to be
+	 * missing": a surface still treats a move answering `unavailable` as the
+	 * last word, so a transport that does not report this cannot strand a
+	 * control that works.
+	 */
+	editsReady?: boolean;
 	sets: TeamSet[];
 }
 
@@ -429,10 +438,15 @@ export function createTeamTransports(supabase: SupabaseClient): TeamTransports {
 				return { ok: false, reason: 'error', message: error.message };
 			}
 			const payload = data as { manages?: boolean; sets?: TeamSet[] } | null;
+			const raw = payload?.sets ?? [];
 			return {
 				ok: true,
 				manages: payload?.manages === true,
-				sets: (payload?.sets ?? []).map(normalizeTeamSet)
+				// 0225's board projects `edited_at` on every set, null or not, so
+				// the KEY is the rung that proves the move RPC exists -- read
+				// before `normalizeTeamSet` fills it in for an older payload.
+				editsReady: raw.length > 0 && raw.every((set) => 'edited_at' in (set as object)),
+				sets: raw.map(normalizeTeamSet)
 			};
 		},
 

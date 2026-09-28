@@ -161,3 +161,20 @@ describe('an open class page learns of a draw posted after it loaded', () => {
 		expect(region(still)).toBe(1);
 	});
 });
+
+describe('a posted draw a teacher changed by hand says so on the class page (decision 44)', () => {
+	it('says Edited by hand beside the board and the own-team label when `edited` is true', () => {
+		const m = mountTeams({ sets: [{ ...POSTED, edited: true }] });
+		const marks = m.all('[data-testid="class-teams-edited"]');
+		// Once on the student's own card label and once on the whole board.
+		expect(marks.length).toBe(2);
+		for (const mark of marks) expect(mark.textContent).toContain('Edited by hand');
+	});
+
+	it('says nothing for a draw exactly as its seed dealt it (the same board, the control)', () => {
+		const m = mountTeams({ sets: [POSTED] });
+		expect(m.all('[data-testid="class-teams-edited"]').length).toBe(0);
+		expect(region(m)).toBe(1);
+		expect(ownCards(m)).toBe(1);
+	});
+});

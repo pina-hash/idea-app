@@ -109,7 +109,18 @@
 	 * about a class size; it is the smallest fixture that crosses the ceiling.
 	 */
 	const BIG = page.url.searchParams.get('class') === 'big';
-	const ROSTER = BIG
+	/**
+	 * `?edits=1` CHANGES A SAVED DRAW BY HAND (0225, decision 44): the teams
+	 * transport gains `move` and `style`, the unposted draw is already marked
+	 * edited, and the roster is the first nine students plus the teacher, so
+	 * exactly ONE active student (the ninth) is on no team -- the "Not on a team
+	 * yet" card has one row, and the teacher's own enrollment and the
+	 * deactivated eighth student are the two it must leave out.
+	 */
+	const EDITS = page.url.searchParams.get('edits') === '1';
+	const ROSTER = EDITS
+		? [...CLASS_ROSTER.slice(0, 9), CLASS_ROSTER[CLASS_ROSTER.length - 1]]
+		: BIG
 		? [
 				...Array.from({ length: 68 }, (_, i) => ({
 					section_id: SECTION_ID,
@@ -230,9 +241,11 @@
 				posted_at: null,
 				visible_until: null,
 				showing: false,
-				edited_at: null,
-				edited_by: null,
-				teams: [mk(1, 0, 2), mk(2, 2, 4)]
+				edited_at: EDITS ? '2026-09-01T17:20:00.000Z' : null,
+				edited_by: EDITS ? 'teacher@boscotech.edu' : null,
+				// Its own team ids: a real board's are uuids, and two sets sharing
+				// `team-1` would let a rename in one reach the other.
+				teams: [mk(1, 0, 2), mk(2, 2, 4)].map((t) => ({ ...t, id: `draft-${t.id}` }))
 			}
 		];
 	}
@@ -266,10 +279,81 @@
 			note(`teams.archive ${setId}`);
 			teamSets = teamSets.filter((s) => s.id !== setId);
 			return { ok: true };
-		}
-		// `style` is OMITTED: no style editor is mounted yet, and absence is
-		// what removes the controls rather than a flag.
+		},
+		// `style` and `move` are OMITTED by default: absence is what removes
+		// their controls rather than a flag, and the default fixture pins that.
+		// `?edits=1` hands both in, over the same in-memory sets.
+		...(EDITS ? { move: moveMember, style: styleTeam } : {})
 	};
+
+	/** 0225's move, in memory: off whatever team of the draw, onto the target, stamped. */
+	async function moveMember(setId: string, email: string, toTeamId: string) {
+		note(`teams.move ${setId} ${email} -> ${toTeamId}`);
+		const set = teamSets.find((s) => s.id === setId);
+		const target = set?.teams.find((t) => t.id === toTeamId);
+		if (!set || !target) return { ok: false as const, reason: 'error' as const, message: 'That team is not part of this draw.' };
+		const key = email.toLowerCase();
+		const from = set.teams.find((t) => t.members.some((m) => m.student_email.toLowerCase() === key));
+		if (from?.id === toTeamId) return { ok: true as const, moved: false, added: false };
+		const enrolled = ROSTER.find((e) => e.student_email.toLowerCase() === key);
+		if (!from && !enrolled?.active) {
+			return { ok: false as const, reason: 'error' as const, message: 'That student is not enrolled in this class.' };
+		}
+		const member = from?.members.find((m) => m.student_email.toLowerCase() === key) ?? {
+			student_email: email,
+			display_name: enrolled?.display_name ?? email,
+			still_enrolled: true
+		};
+		teamSets = teamSets.map((s) =>
+			s.id !== setId
+				? s
+				: {
+						...s,
+						edited_at: new Date(NOW).toISOString(),
+						edited_by: 'teacher@boscotech.edu',
+						teams: s.teams.map((t) => ({
+							...t,
+							members:
+								t.id === toTeamId
+									? [...t.members, member]
+									: t.members.filter((m) => m.student_email.toLowerCase() !== key)
+						}))
+					}
+		);
+		return { ok: true as const, moved: !!from, added: !from };
+	}
+
+	/** 0223's style write, in memory: all six columns and the name at once. */
+	async function styleTeam(input: {
+		teamId: string;
+		name: string | null;
+		accentColor: string | null;
+		backgroundType: Team['background_type'];
+		backgroundValue: Team['background_value'];
+		badge: string | null;
+		flourish: string | null;
+		tagline: string | null;
+	}) {
+		note(`teams.style ${input.teamId} name=${input.name ?? '(none)'}`);
+		teamSets = teamSets.map((s) => ({
+			...s,
+			teams: s.teams.map((t) =>
+				t.id !== input.teamId
+					? t
+					: {
+							...t,
+							name: input.name,
+							accent_color: input.accentColor,
+							background_type: input.backgroundType,
+							background_value: input.backgroundValue,
+							badge: input.badge,
+							flourish: input.flourish,
+							tagline: input.tagline
+						}
+			)
+		}));
+		return { ok: true };
+	}
 
 	// -----------------------------------------------------------------------
 	// THE HALL PASS, IN THE TWO STATES 0174 ADDED.

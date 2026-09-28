@@ -17,6 +17,7 @@ import type { PageLoad } from './$types';
  *   ?mine=0           the student is on no team in the draw (joined after it)
  *   ?sets=2           two draws posted at once
  *   ?teams=none       nothing saved at all
+ *   ?edited=1         a teacher moved a student by hand after the draw (decision 44)
  *   ?later=posted     the page loaded before the draw was posted: it arrives only through refresh
  *   ?theme=space-white  the class page's light theme, forced (no session here)
  */

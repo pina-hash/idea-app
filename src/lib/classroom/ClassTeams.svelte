@@ -137,7 +137,11 @@
 <section class="ct-root" data-testid="class-teams" aria-label="Teams">
 	{#each own as o (`${o.set.id}:${o.team.id}`)}
 		<div class="ct-mine" data-testid="class-team-mine-wrap">
-			<p class="ct-mine-label">Your team · {o.set.label}</p>
+			<p class="ct-mine-label">
+				Your team · {o.set.label}{#if o.set.edited}<span class="ct-edited" data-testid="class-teams-edited"
+						>&nbsp;· Edited by hand</span
+					>{/if}
+			</p>
 			{@render card(o.team, true)}
 		</div>
 	{/each}
@@ -160,6 +164,10 @@
 		>
 			{#snippet meta()}
 				<span class="ct-count">{set.teams.length} team{set.teams.length === 1 ? '' : 's'}</span>
+				{#if set.edited}
+					<!-- Decision 44: a hand edit is marked, not hidden, in words. -->
+					<span class="ct-count ct-edited" data-testid="class-teams-edited">Edited by hand</span>
+				{/if}
 			{/snippet}
 			<div class="ct-cards">
 				{#each set.teams as team (team.id)}

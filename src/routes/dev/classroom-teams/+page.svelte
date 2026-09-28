@@ -33,6 +33,8 @@
 	const mineOff = params.get('mine') === '0';
 	const twoSets = params.get('sets') === '2';
 	const noTeams = params.get('teams') === 'none';
+	/* `?edited=1`: a teacher moved a student after the draw (0225, decision 44). */
+	const edited = params.get('edited') === '1';
 	const themeParam = params.get('theme');
 
 	/* FORCED THEME ATTRIBUTE, the classroom-live harness's way. A harness holds
@@ -112,8 +114,9 @@
 					created_at: iso(now - 4 * DAY),
 					...windowOf(windowMode),
 					showing: false,
-					edited_at: null,
-					edited_by: null,
+					edited_at: edited ? iso(now - 30 * 60_000) : null,
+					// The board withholds WHO from a student; a manager's read carries it.
+					edited_by: edited && teacher ? 'pina@boscotech.edu' : null,
 					teams: [
 						team('t-1', 1, ['Ana Reyes', 'Ben Okafor', 'Cruz Delgado'], {
 							name: 'Torque Squad',
