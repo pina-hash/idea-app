@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import '$lib/classroom/classroom.css';
 	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
@@ -266,7 +267,7 @@
 {/snippet}
 
 <div
-	class="cr-root"
+	class="cr-root {CLASSROOM_PLATE}"
 	class:cr-app={measure === 'console'}
 	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
 	data-role={manager ? 'manager' : 'student'}

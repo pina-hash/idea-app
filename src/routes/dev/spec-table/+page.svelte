@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import '$lib/classroom/classroom.css';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import type { AssignmentSpec, ResponseValue } from '$lib/classroom/assignment-spec';
@@ -162,7 +163,7 @@
 
 <svelte:head><title>dev / spec table</title></svelte:head>
 
-<div class="cr-root harness">
+<div class="cr-root {CLASSROOM_PLATE} harness">
 	<h1>Spec table + textarea harness</h1>
 	<p class="hint">
 		dirty={String(dirty)} — add <code>?dirty=1</code> for the leading-whitespace control.

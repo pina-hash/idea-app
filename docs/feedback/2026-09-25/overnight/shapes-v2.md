@@ -100,7 +100,8 @@ Engraving density is the same in all three.
 
 ## What came from Sci-Fi Line, and how green replaced orange
 
-Sci-Fi Line (`docs/reference/space-white/scifi-line-*.png`) is a paid kit (uimother.com). None
+Sci-Fi Line (formerly `docs/reference/space-white/scifi-line-*.png`, **removed from the tree by
+ledger 0345**: "Those are not our images", Mr. Pina, 2026-09-27) is a paid kit (uimother.com). None
 of its artwork is traced, sampled or embedded: every shape here is CSS (`corner-shape`,
 gradients, shadows) from our own tokens, and no control is a raster image.
 
@@ -374,7 +375,8 @@ row gains a fill. Round 1's GPU caveat (none here) applies.
 - `tools/browser-verify/routes/_themes-shape-plate-pixels.mjs`: the box diff, focus rings, cut
   borders, label sizes, press tests and screenshots (`--shots <dir>` reproduces every picture
   beside this note).
-- `docs/reference/space-white/`: the ten references. `scifi-line-6-knob-light.png` is
+- `docs/reference/space-white/`: the ten references, **removed from the tree by ledger 0345** (none
+  of them are ours; git history still holds them). `scifi-line-6-knob-light.png` was
   byte-identical to `scifi-line-1-overview.png` in the zip as delivered.
 - Round 1's spec now names its own view (`themes-shape-state-space-white-view-two.mjs`), since
   Plate became the page's default.

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	/**
 	 * HARNESS: the shared classroom file picker, both sides, every failure --
 	 * and, since 0193, the ORDERED, EDITABLE staged list and the attachment
@@ -314,7 +315,7 @@
 	}
 </script>
 
-<div class="cr-root wrap">
+<div class="cr-root {CLASSROOM_PLATE} wrap">
 	<h1>Classroom upload panel</h1>
 	<p class="note">
 		The real <code>FileUploadPanel</code>, with an in-memory transport. Pick several files at

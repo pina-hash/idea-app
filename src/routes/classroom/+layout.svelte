@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import '$lib/classroom/classroom.css';
 	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { itemTitle, sectionTitle, type ClassroomSection } from '$lib/classroom/classroom';
 	import {
 		activeTab,
@@ -209,7 +210,7 @@
 </script>
 
 <div
-	class="cr-root"
+	class="cr-root {CLASSROOM_PLATE}"
 	class:cr-app={isConsole}
 	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
 	data-density={prefs.current.display.density}

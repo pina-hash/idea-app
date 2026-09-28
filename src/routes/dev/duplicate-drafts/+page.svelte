@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	/**
 	 * WHAT AN INSTRUCTOR SEES ON `/classroom/<section>/duplicates`, in a real
 	 * browser, without a session.
@@ -208,7 +210,7 @@
 		removable {answer.totals.removable} &middot; blocked {answer.totals.blocked}
 	</p>
 
-	<div class="mount cr-root">
+	<div class="mount cr-root {CLASSROOM_PLATE}">
 		<DuplicateDrafts sectionName="Block 3" {answer} ready={mode !== 'unready'} {remove} />
 	</div>
 </div>

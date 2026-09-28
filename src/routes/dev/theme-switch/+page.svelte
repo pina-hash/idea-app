@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import '$lib/classroom/classroom.css';
 	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
 	import { page } from '$app/state';
@@ -43,7 +44,7 @@
 
 <svelte:head><title>Theme switch harness</title></svelte:head>
 
-<div class="cr-root" style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}>
+<div class="cr-root {CLASSROOM_PLATE}" style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}>
 	<ClassroomShell
 		basePath="/dev/theme-switch"
 		sections={[SECTION]}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import NotebookView from '$lib/notebook/NotebookView.svelte';
 	import NotebookDeletedZone from '$lib/notebook/NotebookDeletedZone.svelte';
@@ -375,7 +376,7 @@
      src/routes/classroom/notebook/review/student/[studentEmail]/+page.svelte
      mounts, inside the SAME room the classroom layout gives that place. -->
 <div
-	class="cr-root"
+	class="cr-root {CLASSROOM_PLATE}"
 	class:cr-app={measure === 'console'}
 	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
 >

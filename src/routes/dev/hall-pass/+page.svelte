@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import HallPass from '$lib/classroom/HallPass.svelte';
 	import type {
 		HallPassClosed,
@@ -174,7 +176,7 @@
 
 <svelte:head><title>Hall pass harness</title></svelte:head>
 
-<div class="cr-root wrap">
+<div class="cr-root {CLASSROOM_PLATE} wrap">
 	<h1>Hall pass harness</h1>
 	<p class="lede">
 		The real <code>HallPass</code> in all five projections, against in-memory transports. The log

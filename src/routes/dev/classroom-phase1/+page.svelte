@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import ItemBody from '$lib/classroom/ItemBody.svelte';
 	import ItemDetail from '$lib/classroom/ItemDetail.svelte';
@@ -1022,7 +1023,7 @@
 
 <svelte:head><title>Classroom Phase 1 // dev</title></svelte:head>
 
-<div class="cr-root">
+<div class="cr-root {CLASSROOM_PLATE}">
 	<main class="classroom-page">
 		<section class="hero">
 			<div class="eyebrow">dev harness</div>

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { onMount } from 'svelte';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
 	import {
@@ -649,7 +651,7 @@
 
 <svelte:head><title>Grading console: incomplete submissions // dev harness</title></svelte:head>
 
-<div class="cr-root">
+<div class="cr-root {CLASSROOM_PLATE}">
 	<section class="oracle" data-testid="oracle">
 		<h1>Grading console &middot; incomplete hand-ins (0160)</h1>
 		<p class="lede">

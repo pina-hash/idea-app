@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	// The room the real route renders in: the classroom stylesheet and the
 	// route's own measure, or every width read here is one production never has.
 	import '$lib/classroom/classroom.css';
@@ -317,7 +318,7 @@
 <svelte:head><title>dev: grading console, download all files</title></svelte:head>
 
 <div
-	class="cr-root cr-app harness"
+	class="cr-root {CLASSROOM_PLATE} cr-app harness"
 	style="--cr-measure-route: var(--measure-console)"
 	data-testid="grading-files-harness"
 >

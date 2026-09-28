@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import '$lib/classroom/classroom.css';
 	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
@@ -63,7 +64,7 @@
 	const tabs = shipped;
 </script>
 
-<div class="cr-root" style="--cr-measure-route: var(--measure-page)">
+<div class="cr-root {CLASSROOM_PLATE}" style="--cr-measure-route: var(--measure-page)">
 	<ClassroomShell
 		sections={SECTIONS}
 		currentSectionId="s-1"

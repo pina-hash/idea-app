@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	/**
 	 * WHAT A DISCARDED TAB TAKES WITH IT, in a real browser.
 	 *
@@ -204,7 +206,7 @@
 
 <svelte:head><title>Assignment draft mirror</title></svelte:head>
 
-<main class="harness cr-root">
+<main class="harness cr-root {CLASSROOM_PLATE}">
 	<h1>A discarded tab, and what it takes with it</h1>
 	<p class="lede">
 		The real <code>AssignmentEngine</code>. Type an answer, press

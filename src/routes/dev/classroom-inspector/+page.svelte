@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import ItemDetail from '$lib/classroom/ItemDetail.svelte';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
@@ -330,7 +331,7 @@
 
 <svelte:head><title>dev: classroom item inspector</title></svelte:head>
 
-<div class="cr-root" style="--cr-measure-route: var(--measure-wide)">
+<div class="cr-root {CLASSROOM_PLATE}" style="--cr-measure-route: var(--measure-wide)">
 	<div class="harness-bar">
 		<h1>Instructor inspector</h1>
 		<nav class="harness-cases">

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import '$lib/classroom/classroom.css';
 	import DeckPanel from '$lib/classroom/DeckPanel.svelte';
 	import DeckViewer from '$lib/classroom/DeckViewer.svelte';
@@ -314,7 +315,7 @@
      scanline overlay behind them -- the surfaces they were deliberately moved
      OFF -- and a harness that renders in the wrong room is a harness nobody
      can trust for a visual check. -->
-<div class="cr-root">
+<div class="cr-root {CLASSROOM_PLATE}">
 {#if view === 'viewer' && deck}
 	<!--
 		THE DECK EXCLUSION, RELOCATED, mirrored here. /dev/classroom-deck is in the

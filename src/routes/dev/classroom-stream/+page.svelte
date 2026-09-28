@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	/**
 	 * THE STREAM'S OWN GEOMETRY HARNESS -- the unit-group grid, at a class shape
 	 * the two-pane harness's three even units cannot produce.
@@ -107,7 +108,7 @@
 	const manage = $derived(page.url.searchParams.get('manage') === '1');
 </script>
 
-<div class="cr-root">
+<div class="cr-root {CLASSROOM_PLATE}">
 	<ClassroomShell
 		basePath="/dev/classroom-stream"
 		sections={[SECTION]}

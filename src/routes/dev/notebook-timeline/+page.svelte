@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import '$lib/classroom/classroom.css';
 	import '$lib/notebook/notebook-theme.css';
@@ -96,7 +97,7 @@
 <svelte:head><title>dev // notebook timeline</title></svelte:head>
 
 <div
-	class="cr-root"
+	class="cr-root {CLASSROOM_PLATE}"
 	class:cr-app={measure === 'console'}
 	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
 >

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import GradesPanel from '$lib/classroom/GradesPanel.svelte';
 	import type { AssignmentStanding, ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 	import {
@@ -96,7 +98,7 @@
 	const oracle = $derived(orderStandings(standings, oracleKey));
 </script>
 
-<div class="harness cr-root">
+<div class="harness cr-root {CLASSROOM_PLATE}">
 	<h1>Grades tab order</h1>
 	<p class="lede">
 		The real <code>GradesPanel</code>, on a fixture whose right answer differs per key and differs

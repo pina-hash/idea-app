@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import ItemDetail from '$lib/classroom/ItemDetail.svelte';
 	import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
@@ -186,7 +188,7 @@
 
 <svelte:head><title>Classroom interaction harness</title></svelte:head>
 
-<div class="cr-root harness">
+<div class="cr-root {CLASSROOM_PLATE} harness">
 	<!-- The readout is FIRST in the body but must never be the element
 	     `waitForApp` latches onto: it carries no `data-testid` for exactly the
 	     reason tools/browser-verify/README.md gives about a zero-box testid

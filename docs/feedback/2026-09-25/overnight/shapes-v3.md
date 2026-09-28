@@ -767,3 +767,5 @@ Colour (per theme; a blank cell inherits IDEA's):
    This bundle does not own `docs/reference/**` and did not touch it. Removing them from the tree
    does not remove them from history, and `main` is never force-pushed. **Default: yes, delete
    them from the tree in a small lane of their own**, and treat the history as already published.
+   **Answered 2026-09-27 ("Those are not our images") and done by ledger 0345**: all ten are gone
+   from the tree; history still holds them and was not rewritten.

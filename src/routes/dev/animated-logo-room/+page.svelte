@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	/**
 	 * `AnimatedLogo` INSIDE A SCOPED ROOM (404 in production, no auth, no
 	 * Supabase). The companion to `/dev/animated-logo`, which is the portal
@@ -46,7 +47,7 @@
      Not an approximation of it -- `classroom.css` keys rules on
      `.cr-root .app-header`, so a stage that skipped the header class would be a
      third plate belonging to no route. -->
-<div class="cr-root">
+<div class="cr-root {CLASSROOM_PLATE}">
 	<div class="app-header ref-header">
 		<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 	</div>

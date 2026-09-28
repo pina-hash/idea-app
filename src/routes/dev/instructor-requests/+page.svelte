@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	/**
 	 * PROMPT 0069's FOUR BUILT ITEMS, IN ONE PLACE, MOUNTING THE REAL COMPONENTS.
 	 *
@@ -213,7 +215,7 @@
 
 <svelte:head><title>Instructor requests harness</title></svelte:head>
 
-<div class="cr-root">
+<div class="cr-root {CLASSROOM_PLATE}">
 	<div class="harness">
 		<h1>Instructor requests (prompt 0069)</h1>
 		<p class="lede">

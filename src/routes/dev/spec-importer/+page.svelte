@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import '$lib/classroom/classroom.css';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import type { AssignmentSpec, AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
@@ -203,7 +204,7 @@
 
 <svelte:head><title>dev: spec importer</title></svelte:head>
 
-<div class="cr-root harness">
+<div class="cr-root {CLASSROOM_PLATE} harness">
 	<header class="head">
 		<h1>Spec importer</h1>
 		<p class="note">

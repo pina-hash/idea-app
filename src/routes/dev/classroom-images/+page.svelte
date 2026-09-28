@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { onMount } from 'svelte';
 	import '$lib/classroom/classroom.css';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
@@ -312,7 +313,7 @@
 
 <svelte:head><title>dev / classroom images</title></svelte:head>
 
-<div class="cr-root harness">
+<div class="cr-root {CLASSROOM_PLATE} harness">
 	<h1>Classroom image box geometry</h1>
 	<p class="hint">
 		Four intrinsic shapes through five real renderers. Call

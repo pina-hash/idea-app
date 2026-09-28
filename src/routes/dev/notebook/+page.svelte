@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import NotebookView from '$lib/notebook/NotebookView.svelte';
 	import ImpersonationBanner from '$lib/classroom/ImpersonationBanner.svelte';
@@ -1691,7 +1692,7 @@
 	controls follow it, so the frame is the top of the page as it is in class.
 -->
 <div
-	class="cr-root"
+	class="cr-root {CLASSROOM_PLATE}"
 	class:cr-app={measure === 'console'}
 	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
 >
