@@ -31,6 +31,12 @@ export default {
 			until: '() => !!document.querySelector(".work-name")'
 		},
 		{
+			/* SELECTION IS A MODE SINCE LEDGER 0347: the tick boxes, the presets
+			   and the bar that acts on them exist only once Select is lit. */
+			click: '[data-testid="select-mode"]',
+			until: '() => document.querySelector("[data-testid=\'select-mode\']")?.getAttribute("aria-pressed") === "true" && !!document.querySelector("[data-testid=\'batch-bar\']")'
+		},
+		{
 			click: '[data-preset="ungraded"]',
 			until: '() => (document.querySelector("[data-testid=\'batch-count\']")?.textContent ?? "").includes("6 students")'
 		},

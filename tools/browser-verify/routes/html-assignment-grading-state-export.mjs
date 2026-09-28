@@ -52,8 +52,8 @@ export default {
 		},
 		{
 			/* THE GRADEBOOK CSV, which is schema-agnostic and must still carry the
-			   returned score. */
-			click: '.roster-head button',
+			   returned score. In the same Export panel since ledger 0347. */
+			click: '[data-testid="export-csv"]',
 			until: `() => document.querySelectorAll('[data-testid="hx-capture"]').length === 3`
 		},
 		{

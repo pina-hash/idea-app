@@ -265,14 +265,25 @@ describe('with a presence transport', () => {
 		expect(worked).toEqual(['Just now', '6m ago', '1m ago', '10m ago']);
 	});
 
-	it('renders the coverage sentence, once, above the list', async () => {
+	it('renders the coverage sentence, once, above the list, behind the label it qualifies', async () => {
+		// LEDGER 0347 MOVED IT BEHIND AN INFOTIP (decision 43: "may move behind an
+		// InfoTip but not disappear"). So what is pinned is that it is still in
+		// the DOM whether or not the tip is showing, that it is the tip trigger's
+		// description, and that it sits above the names, not on a row.
 		mounted = mountConsole(true);
 		await mounted.settle();
 		const notes = mounted.all('[data-testid="presence-note"]');
 		expect(notes).toHaveLength(1);
-		expect(notes[0].textContent?.trim()).toBe(PRESENCE_COVERAGE_NOTE);
+		const tip = notes[0].querySelector('[role="tooltip"]');
+		expect(tip?.textContent?.trim()).toBe(PRESENCE_COVERAGE_NOTE);
+		const trigger = notes[0].querySelector('button');
+		expect(trigger?.getAttribute('aria-describedby')).toBe(tip?.id);
+		expect(trigger?.textContent).toMatch(/presence and working time/i);
+		// Above the list: in the roster's own head region, never inside a row.
+		expect(notes[0].closest('.roster-tools')).not.toBeNull();
+		expect(notes[0].closest('.roster-item')).toBeNull();
 		// IT SAYS WHAT THE NUMBER DOES NOT INCLUDE, in words, not by implication.
-		expect(notes[0].textContent).toMatch(/paper/i);
+		expect(tip?.textContent).toMatch(/paper/i);
 	});
 
 	it('adds no control -- presence is information, not an action', async () => {
@@ -501,7 +512,8 @@ describe('the coverage sentence', () => {
 	it('names the three things a blank line is not evidence of', async () => {
 		mounted = mountConsole(true);
 		await mounted.settle();
-		const note = mounted.one('[data-testid="presence-note"]').textContent ?? '';
+		const note =
+			mounted.one('[data-testid="presence-note"] [role="tooltip"]').textContent ?? '';
 		expect(note.trim()).toBe(PRESENCE_COVERAGE_NOTE);
 		expect(note).toMatch(/paper/i);
 		// Only the assignment page, only since it was switched on, only the
@@ -596,12 +608,20 @@ describe('the student pager', () => {
 		return m;
 	}
 
-	it('renders both controls once a student is open, and neither before', async () => {
+	it('lives in the page header, once, with or without a student open', async () => {
+		// LEDGER 0347 MOVED THE PAGER OUT OF THE DOCK INTO THE PAGE HEADER, so it
+		// is there before anybody is open -- where Next is the press that starts a
+		// pass -- and there is still exactly one of each control, never a second
+		// copy in the dock.
 		mounted = mountConsole(false);
 		await mounted.settle();
-		// NOTHING OPEN IS ONE PANE: there is no rubric column, so there is no dock.
-		expect(mounted.all('[data-testid="student-next"]')).toHaveLength(0);
-		expect(mounted.all('[data-testid="student-prev"]')).toHaveLength(0);
+		expect(mounted.all('[data-testid="student-next"]')).toHaveLength(1);
+		expect(mounted.all('[data-testid="student-prev"]')).toHaveLength(1);
+		expect(mounted.one('[data-testid="student-next"]').closest('.gc-head')).not.toBeNull();
+		// Nothing open: Previous has nowhere to go and says so; Next is live.
+		expect(mounted.one('[data-testid="student-prev"]').getAttribute('aria-disabled')).toBe('true');
+		expect(mounted.one('[data-testid="student-next"]').getAttribute('aria-disabled')).toBe('false');
+		expect(mounted.all('[data-testid="grade-return"]')).toHaveLength(0);
 
 		(mounted.one('.roster-list .roster-row') as HTMLElement).click();
 		await mounted.settle();
@@ -610,6 +630,17 @@ describe('the student pager', () => {
 		// ONE DOCK, NOT TWO. "It must not appear twice" is a property of there
 		// being a single sticky element rather than a second rendered copy.
 		expect(mounted.all('[data-testid="grade-return"]')).toHaveLength(1);
+		// And the dock no longer carries a pager of its own.
+		expect(mounted.one('.grade-actions').querySelectorAll('[data-testid^="student-"]')).toHaveLength(0);
+	});
+
+	it('Next with nobody open starts at the top of the list', async () => {
+		mounted = mountConsole(false);
+		await mounted.settle();
+		(mounted.one('[data-testid="student-next"]') as HTMLElement).click();
+		await mounted.settle();
+		expect(mounted.one('.roster-row.active').textContent).toContain('Ana Reyes');
+		expect(mounted.one('[data-testid="student-position"]').textContent).toMatch(/^1 of \d+/);
 	});
 
 	it('moves the selection forward and back', async () => {
@@ -701,5 +732,122 @@ describe('the panels above the roster', () => {
 		await mounted.settle();
 		expect(close.getAttribute('aria-expanded')).toBe('true');
 		expect(exports.getAttribute('aria-expanded')).toBe('false');
+	});
+});
+
+/**
+ * SELECTION IS A MODE, AND A BATCH NEVER WRITES A ROW NOBODY CAN SEE (ledger
+ * 0347, decision 43, R17).
+ *
+ * The visible half (boxes appear when Select is lit) fails loudly the first
+ * time anybody looks. The half that would fail SILENTLY is the plan: with "To
+ * grade" on, a student ticked earlier and now hidden by the view must not ride
+ * along into a batch the grader cannot see the names of. So the plan's own
+ * rows are read and counted against the rows on screen, with the unfiltered
+ * plan as the positive control.
+ */
+describe('selection as a mode', () => {
+	const WAITING = {
+		roster: ROSTER,
+		submissions: [
+			{ student_email: 'ana@boscotech.net', item_id: 'i1', state: 'submitted', submitted_at: ago(60) },
+			{ student_email: 'ben@boscotech.net', item_id: 'i1', state: 'submitted', submitted_at: ago(90) },
+			{ student_email: 'eli@boscotech.net', item_id: 'i1', state: 'returned', score: 18, graded_at: ago(30), submitted_at: ago(120) }
+		],
+		responses: [
+			{ student_email: 'ana@boscotech.net', item_id: 'i1', block_id: 'b1', value: 'A' },
+			{ student_email: 'ben@boscotech.net', item_id: 'i1', block_id: 'b1', value: 'B' },
+			{ student_email: 'eli@boscotech.net', item_id: 'i1', block_id: 'b1', value: 'E' }
+		],
+		files: [],
+		approvals: []
+	};
+	const RUBRIC = [
+		{
+			id: 'c1',
+			criterion: 'Sketch',
+			points: 20,
+			levels: [
+				{ label: 'Proficient', short: 'P', points: 20, descriptor: 'Clear.' },
+				{ label: 'Not yet', short: 'NY', points: 0, descriptor: 'Nothing.' }
+			]
+		}
+	];
+	function mountBatch(rubric: unknown[]): Mounted {
+		return mountInto(GradingConsole as unknown as Component<Record<string, unknown>>, {
+			section: SECTION,
+			item: ITEM,
+			spec: null,
+			rubric,
+			transports: { loadGrading: async () => ({ ok: true, data: WAITING }) },
+			presence: null,
+			bulk: { gradeMany: async () => ({ ok: true, data: { total: 0, succeeded: 0, refused: 0, results: [] } }) }
+		});
+	}
+	const click = async (m: Mounted, sel: string) => {
+		(m.one(sel) as HTMLElement).click();
+		await m.settle();
+	};
+
+	it('offers Select only with a rubric, and says why without one', async () => {
+		mounted = mountBatch([]);
+		await mounted.settle();
+		expect(mounted.all('[data-testid="select-mode"]')).toHaveLength(0);
+		expect(mounted.all('[data-testid="select-unavailable"]')).toHaveLength(1);
+		await mounted.stop();
+
+		// The positive control: the same console with a rubric.
+		mounted = mountBatch(RUBRIC);
+		await mounted.settle();
+		expect(mounted.all('[data-testid="select-mode"]')).toHaveLength(1);
+		expect(mounted.all('[data-testid="select-unavailable"]')).toHaveLength(0);
+	});
+
+	it('draws no tick boxes until Select is lit, and leaving clears the selection', async () => {
+		mounted = mountBatch(RUBRIC);
+		await mounted.settle();
+		expect(mounted.all('[data-testid="roster-pick"]')).toHaveLength(0);
+		expect(mounted.all('[data-testid="batch-bar"]')).toHaveLength(0);
+
+		await click(mounted, '[data-testid="select-mode"]');
+		expect(mounted.one('[data-testid="select-mode"]').getAttribute('aria-pressed')).toBe('true');
+		expect(mounted.all('[data-testid="roster-pick"]')).toHaveLength(ROSTER.length);
+		expect(mounted.all('[data-testid="batch-bar"]')).toHaveLength(1);
+
+		await click(mounted, '[data-preset="all"]');
+		expect(mounted.one('[data-testid="batch-count"]').textContent).toContain(`${ROSTER.length} students`);
+
+		await click(mounted, '[data-testid="select-mode"]');
+		expect(mounted.all('[data-testid="roster-pick"]')).toHaveLength(0);
+		await click(mounted, '[data-testid="select-mode"]');
+		const ticked = mounted
+			.all('[data-testid="roster-pick"] input')
+			.filter((i) => (i as HTMLInputElement).checked).length;
+		expect(ticked).toBe(0);
+	});
+
+	it('an armed plan never carries a student the "To grade" view hides', async () => {
+		mounted = mountBatch(RUBRIC);
+		await mounted.settle();
+		// Open Ana (waiting to be graded) and score her form: the form IS the batch.
+		(mounted.all('.roster-list .roster-row').find((r) => r.textContent?.includes('Ana Reyes')) as HTMLElement).click();
+		await mounted.settle();
+		await click(mounted, '[data-grade-level="0:0"]');
+		await click(mounted, '[data-testid="select-mode"]');
+		await click(mounted, '[data-preset="all"]');
+
+		// POSITIVE CONTROL: unfiltered, the plan names everybody ticked.
+		await click(mounted, '[data-testid="batch-arm-draft"]');
+		expect(mounted.all('[data-plan-row]')).toHaveLength(ROSTER.length);
+		await click(mounted, '[data-testid="batch-cancel"]');
+
+		// The view hides everybody not waiting (Cruz, Dee: nothing arrived; Eli:
+		// returned and unchanged). Two names stay.
+		await click(mounted, '[data-testid="roster-filter-to-grade"]');
+		const shown = mounted.all('.roster-list .roster-row').map((r) => r.textContent ?? '');
+		expect(shown).toHaveLength(2);
+		await click(mounted, '[data-testid="batch-arm-draft"]');
+		const planned = mounted.all('[data-plan-row]').map((r) => r.getAttribute('data-plan-row'));
+		expect(planned.sort()).toEqual(['ana@boscotech.net', 'ben@boscotech.net']);
 	});
 });

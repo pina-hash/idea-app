@@ -34,9 +34,9 @@
  *      (the notebook grid's sticky header shipped exactly that). So the Return
  *      control is HIT-TESTED at its own centre, which is the only read that can
  *      tell "on screen" from "on top".
- *   3. IT RELEASES AT THE END OF THE RUBRIC rather than hanging over the batch
- *      panel below it. That is what bounds it to `.grade-main`, and a dock
- *      bounded by the score card instead would look identical at rest.
+ *   3. IT RELEASES AT THE END OF THE RUBRIC AND THE COMMENT. That is what
+ *      bounds it to `.grade-main`; the batch panel it used to stop short of
+ *      moved to the roster's selection bar in ledger 0347.
  *   4. THE PANELS ARE COLLAPSED AND THE COUNT IS STILL PAINTED. `aria-expanded`
  *      is assertable without a browser; "the open/closed count still has a box"
  *      is not, and that count is the number he acts on.
@@ -186,9 +186,10 @@ export default {
 					/* AN OPAQUE GROUND, or the content scrolling beneath shows
 					   through the words. */
 					'opaqueGround=' + (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent'),
-					/* BOUNDED BY \.grade-main\: the batch panel is further down the
-					   same card, and a dock bounded by the card would sit over the
-					   batch's own controls once a grader scrolled to them. */
+					/* BOUNDED BY \.grade-main\: it ends where the rubric and the
+					   comment do. The batch panel that used to follow it in the same
+					   card moved to the roster's selection bar in ledger 0347, so this
+					   now also pins that nothing follows the dock in its card. */
 					'boundedByGradeMain=' + (dock.parentElement === main),
 					'docks=' + document.querySelectorAll('.grade-actions').length,
 					'returnControls=' + document.querySelectorAll('[data-testid="grade-return"]').length
@@ -242,6 +243,14 @@ export default {
 					box = box.parentElement;
 				}
 				const inPane = !!box && box !== document.documentElement && box !== document.body;
+				/* THE PANE ITSELF HAS TO BE ON SCREEN FIRST. The probe scrolls the pane
+				   and never the document, so on a harness page where the pane starts
+				   low (ledger 0347's header is a row taller) its fold -- correctly
+				   pinned to -- sat below the viewport and the hit test read
+				   "offscreen" about a working control. Bringing the pane to the top of
+				   the window is the real page's condition, where the frame starts it
+				   under the chrome. */
+				if (inPane) box.scrollIntoView({ block: 'start', behavior: 'instant' });
 				let forced = false;
 				if (inPane && box.scrollHeight <= box.clientHeight + 1) {
 					box.style.height = Math.round(window.innerHeight * 0.55) + 'px';
@@ -264,13 +273,10 @@ export default {
 					measure the gap rather than computing an absolute target.
 
 					"120px short of the pane's end" is not "120px short of the block's
-					end": the batch panel sits below .grade-main inside the same card,
-					151px of it on this fixture, so stopping short of the CONTAINER
-					still put the block's bottom 31px ABOVE the fold -- measured, and
-					it read as a sticky that never pins when the dock had simply and
-					correctly released. Scrolling by the difference puts the block's
-					bottom exactly NEAR_END below the fold whatever follows it, at
-					either width, with no arithmetic about what else is in the box.
+					end" whenever anything follows the block (a batch panel did, 151px
+					of it, until ledger 0347 moved the batch to the roster), so
+					scrolling by the difference puts the block's bottom exactly
+					NEAR_END below the fold whatever follows it, at either width.
 				*/
 				const NEAR_END = 120;
 				const nudge = async () => {

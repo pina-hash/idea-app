@@ -133,8 +133,9 @@ export default {
 					'tag=' + trigger.tagName,
 					'hasAriaExpanded=' + trigger.hasAttribute('aria-expanded'),
 					'ariaControlsResolves=' + !!body,
-					/* A WORD, NOT ONLY A CARET. */
-					'labelHasWords=' + /Closing this assignment/.test(trigger.textContent || ''),
+					/* A WORD, NOT ONLY A CARET. "Close assignment" since ledger 0347
+					   moved the panel into the page header. */
+					'labelHasWords=' + /Close assignment/.test(trigger.textContent || ''),
 					/* THE COUNT IS ON THE TRIGGER ROW, so shutting the panel does not
 					   hide whether there is anything left to close -- which is the
 					   number a teacher acts on. */

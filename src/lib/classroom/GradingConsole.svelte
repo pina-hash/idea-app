@@ -95,6 +95,7 @@
 	import BulkFileDownload from '$lib/classroom/BulkFileDownload.svelte';
 	import type { BulkFileSource } from '$lib/classroom/bulk-download-source';
 	import PresenceLine from '$lib/classroom/presence/PresenceLine.svelte';
+	import InfoTip from '$lib/classroom/InfoTip.svelte';
 	import {
 		PRESENCE_POLL_MS,
 		PRESENCE_STALE_NOTE,
@@ -448,6 +449,40 @@
 	/** Per block, from the same `graded_at` (ledger 0298). */
 	const selectedBlockChanges = $derived(selected ? postGradeBlockChanges(selected) : []);
 	const changedCount = $derived([...changedFor.values()].filter(Boolean).length);
+
+	/**
+	 * "TO GRADE" (ledger 0347). A view of the roster, never a state: the work has
+	 * arrived (`workArrived`, which is `statusChip`'s own last branch) and it is
+	 * either not returned yet or has moved since it was graded (`changedFor`,
+	 * the chip's own answer). Asked of the two things the row already prints, so
+	 * a row the filter keeps is always a row whose chips say why.
+	 */
+	type RosterFilter = 'all' | 'to-grade';
+	let rosterFilter = $state<RosterFilter>('all');
+	function toGrade(s: StudentWork): boolean {
+		if (!workArrived(s)) return false;
+		return s.submission?.state !== 'returned' || !!changedFor.get(s.email);
+	}
+	const toGradeCount = $derived(students.filter(toGrade).length);
+	/**
+	 * THE LIST ON SCREEN, and the one the pager, the keys and the presets walk.
+	 * The selected student stays open when a return takes them out of "To
+	 * grade"; they simply leave the list, and Next goes on to the first name
+	 * that is still waiting.
+	 */
+	const visibleStudents = $derived(rosterFilter === 'to-grade' ? students.filter(toGrade) : students);
+	function setRosterFilter(next: RosterFilter) {
+		const shown = new Set(
+			(next === 'to-grade' ? students.filter(toGrade) : students).map((s) => s.email)
+		);
+		picked = picked.filter((e) => shown.has(e));
+		rosterFilter = next;
+		pagerNote = null;
+		// A filter changes which names are on screen, and a batch describes names
+		// on screen: anything armed is un-armed rather than committed over rows
+		// the grader can no longer see.
+		armedRelease = null;
+	}
 
 	/**
 	 * IS EXTRA CREDIT AVAILABLE AT ALL. The payload's own answer (0171's column
@@ -1333,9 +1368,13 @@
 	 * RE-DERIVED FROM THE CURRENT LIST EVERY READ, never captured at tick time:
 	 * the roster reloads after every commit, so a snapshot would describe the
 	 * class as it was before the thing just saved to it. A name that has left
-	 * the roster simply stops being selected.
+	 * the roster simply stops being selected, and since ledger 0347 so does a
+	 * name the "To grade" view has hidden: a batch never writes a row that is
+	 * not on screen.
 	 */
-	const pickedStudents = $derived(students.filter((s) => pickedSet.has(s.email)));
+	const pickedStudents = $derived(visibleStudents.filter((s) => pickedSet.has(s.email)));
+	/** The same selection as addresses, for the file download beside it. */
+	const pickedEmails = $derived(pickedStudents.map((s) => s.email));
 	const pickedSummary = $derived(selectionSummary(pickedStudents, sectionOf, sectionTitles));
 
 	/**
@@ -1360,8 +1399,45 @@
 	/** ONE PREDICATE, read by the control and by the handler. */
 	const canSend = $derived(bulkCanSend(plan));
 
+	/**
+	 * SELECTION IS A MODE (ledger 0347, R17). Off by default, so thirty tick boxes
+	 * are not drawn on a list somebody is only reading. Leaving the mode clears
+	 * the selection and anything armed: nothing was written, so nothing is lost,
+	 * and a selection that stayed live behind hidden boxes would be a batch
+	 * nobody can see.
+	 */
+	let selecting = $state(false);
+	function toggleSelecting() {
+		selecting = !selecting;
+		if (!selecting) {
+			picked = [];
+			armedRelease = null;
+			outcome = null;
+		}
+	}
+
+	/**
+	 * WHERE THE BATCH'S SCORES COME FROM, SAID IN WORDS. The rubric form is the
+	 * batch, so the bar names the student whose form it is and what it adds up
+	 * to; with nobody open it says what to do first.
+	 */
+	/** How many criteria the form on screen has scored: what the batch would send. */
+	const scoredCount = $derived((rubric ?? []).filter((c) => scores[c.id] != null).length);
+	const batchSource = $derived.by(() => {
+		if (!selected) {
+			return "Open any student's work and score the rubric on the right. Those scores, notes and comment go to everyone ticked.";
+		}
+		if (scoredCount === 0) {
+			return `Score the rubric for ${selected.displayName} first. Those scores, notes and comment then go to everyone ticked.`;
+		}
+		return `Uses the rubric as scored for ${selected.displayName}: ${liveAwarded} / ${outOf} pts, with its notes and comment.`;
+	});
+
 	function setPreset(preset: BulkPreset) {
-		picked = applyPreset(preset, students);
+		// ON THE LIST ON SCREEN (ledger 0347): the preset is labelled "Everyone
+		// shown", so with "To grade" on it ticks the names the grader can see and
+		// never a hidden row they could not check before committing.
+		picked = applyPreset(preset, visibleStudents);
 		armedRelease = null;
 		outcome = null;
 	}
@@ -1672,18 +1748,44 @@
 	 * was clicked: the roster reloads after every save, so a captured index
 	 * describes the order before the thing just written to it.
 	 */
-	const rosterIndex = $derived(students.findIndex((s) => s.email === selectedEmail));
-	const hasNextStudent = $derived(rosterIndex >= 0 && rosterIndex < students.length - 1);
+	const rosterIndex = $derived(visibleStudents.findIndex((s) => s.email === selectedEmail));
+	/**
+	 * NEXT FROM NOWHERE OPENS THE FIRST NAME (ledger 0347), and next from a
+	 * student the filter has just hidden (a return under "To grade") opens the
+	 * first one still waiting. Previous from nowhere has no answer, so it is the
+	 * one that says so.
+	 */
+	const hasNextStudent = $derived(
+		visibleStudents.length > 0 && (rosterIndex < 0 || rosterIndex < visibleStudents.length - 1)
+	);
 	const hasPrevStudent = $derived(rosterIndex > 0);
+	/** Where the pager is, in words: "3 of 25", or how many are in the list. */
+	const pagerPosition = $derived.by(() => {
+		const n = visibleStudents.length;
+		const noun = rosterFilter === 'to-grade' ? 'to grade' : n === 1 ? 'student' : 'students';
+		if (rosterIndex >= 0) return `${rosterIndex + 1} of ${n}`;
+		return `${n} ${noun}`;
+	});
+	/** The pager's own live note: an end of the list, said where the press was. */
+	let pagerNote = $state<string | null>(null);
 
 	function moveStudent(step: -1 | 1) {
-		if (!students.length) return;
-		const at = students.findIndex((s) => s.email === selectedEmail);
-		const next = students[Math.min(students.length - 1, Math.max(0, at + step))];
-		if (!next || next.email === selectedEmail) {
-			keyNote = step > 0 ? 'Last student on the roster.' : 'First student on the roster.';
+		const list = visibleStudents;
+		if (!list.length) {
+			pagerNote = rosterFilter === 'to-grade' ? 'Nothing is waiting to be graded.' : 'Nobody is on this roster yet.';
 			return;
 		}
+		const at = list.findIndex((s) => s.email === selectedEmail);
+		if (at < 0 && step < 0) {
+			pagerNote = 'Open a student first, or press Next to start at the top.';
+			return;
+		}
+		const next = at < 0 ? list[0] : list[Math.min(list.length - 1, Math.max(0, at + step))];
+		if (!next || next.email === selectedEmail) {
+			pagerNote = step > 0 ? 'Last student on the roster.' : 'First student on the roster.';
+			return;
+		}
+		pagerNote = null;
 		keyNote = null;
 		requestSelect(next);
 		// The loop lands somewhere DEFINED and visible: the first criterion's
@@ -1813,18 +1915,314 @@
 	a compact density may style anything here below 44px.
 -->
 <main class="grading-page cr-console cr-app-body" class:cr-instructor-surface={true}>
-	<section class="hero console-hero">
-		<div class="eyebrow">Grading</div>
-		<h1>{itemTitle(item)}</h1>
-		<p class="meta-line">{sectionTitle(section)} · out of {outOf} pts</p>
-		<!-- THE CLASS'S NOTEBOOK FROM THE GRADING CONSOLE (ledger 0297, package
-		     F4b): one link, to the class's Notebook tab, where the review grid, the
-		     approve queue and the Documentation Check all live. A link and not a
-		     panel: the notebook keeps its one scoring path. -->
-		<a class="tap-44 gc-notebook-link" href={classNotebookHref(section.id, basePath)} data-testid="grading-notebook-link"
-			>Notebook review and Documentation Check</a
-		>
-	</section>
+	<!--
+		THE PAGE HEADER CARRIES THE PAGE'S TOOLS (ledger 0347, decision 43).
+
+		Mr. Pina, 2026-09-28 (R16): "there's this tiny little scroll bar to go
+		through the different export options ... it should be as convenient as
+		possible to access all export options". Every export used to sit in the
+		roster card's tools region, capped at 45% of the card and scrolled in a
+		sliver above the names. They act on the whole assignment, so they belong
+		with the assignment's title: one Export panel and one Close panel here,
+		and the pager, which walks the whole list, beside them.
+
+		THE PANELS ARE `Disclosure`, NOT A MENU THIS FILE HAND-ROLLS, and each
+		one's two parts are laid out separately: `.disc` is `display: contents` in
+		here, so its trigger sits in the tool row and its body drops to a
+		full-width band under the whole header (`order` and a 100% basis in a
+		wrapping flex row). The component still owns the open state,
+		`aria-expanded`/`aria-controls`, the per-person memory and the print rule;
+		this file only places the two boxes. An open body pushes the console down
+		rather than overlaying it, so nothing it covers is unreachable and nothing
+		inside it scrolls in a sliver.
+	-->
+	<header class="gc-head" data-testid="grading-head">
+		<!-- THE TITLE BAR EVERY CLASSROOM PAGE'S h1 WEARS (`.plate-title`, the
+		     plate's own opt-in), across the whole console, then ONE row: what is
+		     being graded on the left, the tools on the right. The old hero spent
+		     four lines on the same words. -->
+		<h1 class="plate-title gc-h1">{itemTitle(item)}</h1>
+		<p class="gc-kicker">
+			<span class="eyebrow">Grading</span>
+			<span class="meta-line">{sectionTitle(section)} · out of {outOf} pts</span>
+			<!-- THE CLASS'S NOTEBOOK FROM THE GRADING CONSOLE (ledger 0297, package
+			     F4b): one link, to the class's Notebook tab, where the review grid, the
+			     approve queue and the Documentation Check all live. A link and not a
+			     panel: the notebook keeps its one scoring path. -->
+			<a class="tap-44 gc-notebook-link" href={classNotebookHref(section.id, basePath)} data-testid="grading-notebook-link"
+				>Notebook review and Documentation Check</a
+			>
+		</p>
+		{#if data}
+			<!--
+				THE PAGER (ledger 0347). It walks the list on screen, so with "To
+				grade" on it steps only through work that is waiting, which is the
+				carousel FRICTION.md logged as missing. With nobody open, Next opens
+				the first name in the list: the one press that starts a pass.
+
+				`aria-disabled`, NEVER `disabled`, AT THE ENDS. A disabled control
+				swallows its own pointer events and can never say why it did nothing;
+				`moveStudent` answers in a live note instead.
+			-->
+			<div class="gc-pager" data-testid="student-pager">
+				<button
+					type="button"
+					class="btn secondary tiny"
+					aria-disabled={!hasPrevStudent}
+					aria-label="Previous student"
+					data-testid="student-prev"
+					onclick={() => moveStudent(-1)}
+				>
+					&lsaquo; Previous
+				</button>
+				<span class="gc-position" data-testid="student-position">{pagerPosition}</span>
+				<button
+					type="button"
+					class="btn secondary tiny"
+					aria-disabled={!hasNextStudent}
+					aria-label="Next student"
+					data-testid="student-next"
+					onclick={() => moveStudent(1)}
+				>
+					Next &rsaquo;
+				</button>
+				{#if pagerNote}<p class="pager-note" role="status" data-testid="pager-note">{pagerNote}</p>{/if}
+			</div>
+			{#if close}
+				<!--
+					CLOSING THE ASSIGNMENT (0198), IN THE PAGE HEADER.
+
+					It acts on the whole item, so it belongs where the whole item is
+					named. Beside one student's rubric it would read as something done
+					to the student who happens to be open.
+
+					IT SAYS THE ORDER, ALWAYS, NOT ONLY WHEN ARMED. Returning a grade
+					writes `returned`, which is editable again by 0086's own definition,
+					so releasing a grade re-opens that student and undoes the close for
+					them. Both halves are Mr. Pina's decisions of 2026-09-10.
+
+					COLLAPSED BY DEFAULT, AND THE OPEN/CLOSED COUNT IS ON THE TRIGGER.
+					`collapseWhen` constant-true is how "closed by default" is spelled,
+					and it is safe because the signal is LATCHED. The count is the number
+					a teacher acts on, so it is visible while the panel is shut.
+				-->
+				<Disclosure
+					label="Close assignment"
+					scope={`grading-close:${item.id}`}
+					collapseWhen
+					testId="close-disclosure"
+					bodyClass="gc-panel"
+				>
+					{#snippet meta()}
+						<span class="close-counts" data-testid="close-counts">
+							{openCount} open · {closedCount} closed
+						</span>
+					{/snippet}
+					<div class="close-tool" data-testid="close-tool">
+						<p class="close-order">{ASSIGNMENT_CLOSE_ORDER_NOTE}</p>
+						{#if armedClose}
+							<!-- THE CONFIRM NAMES THE REAL COUNT, off the roster on screen. -->
+							<p class="close-confirm" data-testid="close-confirm">
+								{armedClose.closed
+									? `Close this assignment for ${openCount} student${openCount === 1 ? '' : 's'}? They will not be able to save any more work on it.`
+									: `Reopen this assignment for ${closedCount} student${closedCount === 1 ? '' : 's'}? Anyone who turned their own work in stays as they are.`}
+							</p>
+							<span class="close-actions">
+								<button
+									type="button"
+									class="btn tiny"
+									disabled={closeBusy}
+									data-testid="close-confirm-go"
+									onclick={() => {
+										const closed = armedClose?.closed ?? true;
+										armedClose = null;
+										void runClose(closed);
+									}}
+								>
+									{armedClose.closed ? 'Close it' : 'Reopen it'}
+								</button>
+								<button
+									type="button"
+									class="btn secondary tiny"
+									disabled={closeBusy}
+									onclick={() => (armedClose = null)}
+								>
+									Cancel
+								</button>
+							</span>
+						{:else}
+							<span class="close-actions">
+								<button
+									type="button"
+									class="btn secondary tiny"
+									disabled={closeBusy || openCount === 0}
+									data-testid="close-arm"
+									onclick={() => (armedClose = { closed: true })}
+								>
+									Close for everyone still open
+								</button>
+								{#if closedCount > 0}
+									<!-- OFFERED ONLY WHEN THERE IS SOMETHING TO REOPEN, so the
+									     control is never one whose only outcome is nothing
+									     happening. -->
+									<button
+										type="button"
+										class="btn secondary tiny"
+										disabled={closeBusy}
+										data-testid="close-reopen"
+										onclick={() => (armedClose = { closed: false })}
+									>
+										Reopen
+									</button>
+								{/if}
+							</span>
+						{/if}
+						{#if closeBusy}<Pending label="Closing" />{/if}
+						{#if closeError}<p class="feedback error">{closeError}</p>{/if}
+						{#if closeNotice}
+							<p class="feedback ok" data-testid="close-notice">{closeNotice}</p>
+						{/if}
+					</div>
+				</Disclosure>
+			{/if}
+			<!--
+				EVERY EXPORT, IN ONE PLACE (ledger 0347, R16). Three groups, and every
+				word on a control says what it produces and for whom, because the
+				difference between "one student" and "the whole class" is the
+				difference between one person's writing leaving the building and
+				thirty. The CSV is a FACTS gradebook import and four columns wide on
+				purpose; the graded-work files carry the work itself; the zip carries
+				every file students handed in.
+
+				PANELS OF UNEQUAL HEIGHT SIDE BY SIDE ARE A MULTI-COLUMN CONTAINER
+				(CLAUDE.md), capped at three, so a short group never leaves a dead
+				column under it.
+			-->
+			<Disclosure
+				label="Export"
+				scope={`grading-export:${item.id}`}
+				collapseWhen
+				testId="work-export-disclosure"
+				bodyClass="gc-panel"
+			>
+				{#snippet meta()}
+					<span class="export-meta">CSV, work, files</span>
+				{/snippet}
+				<div class="gc-export" data-testid="work-export">
+					<section class="gc-export-group" aria-labelledby="gc-export-gradebook">
+						<h2 class="gc-group-head" id="gc-export-gradebook">Gradebook</h2>
+						<button
+							type="button"
+							class="btn secondary tiny"
+							data-testid="export-csv"
+							onclick={exportCsv}
+						>
+							Scores as CSV (for FACTS)
+						</button>
+						<p class="csv-hint" data-testid="csv-hint">
+							Last name, first name, score and points possible, one row per student.
+							{#if returnedCount < students.length}
+								Scores fill in as work is returned ({returnedCount}/{students.length} returned{crossClass
+									? ', across every class shown'
+									: ''}).
+							{/if}
+						</p>
+					</section>
+					<section class="gc-export-group" aria-labelledby="gc-export-work">
+						<h2 class="gc-group-head" id="gc-export-work">Graded work</h2>
+						{#if crossClass}
+							<!--
+								ONE CLASS PER FILE. A gradebook import that named Period 1 and
+								carried Period 2's students as well would be accepted by FACTS
+								without complaint, so the section is chosen here rather than
+								inferred, and the choice reaches the filename, the CSV rows, the
+								JSON and the workbook through one derived roster.
+							-->
+							<label class="export-section" data-testid="export-section">
+								<span class="export-section-label">Class to export</span>
+								<select
+									class="tap-44"
+									bind:value={exportSectionId}
+									onchange={() => (exportNote = null)}
+								>
+									{#each activeSections as s (s.id)}
+										<option value={s.id}>{sectionTitles.get(s.id) ?? sectionTitle(s)}</option>
+									{/each}
+								</select>
+							</label>
+						{/if}
+						<div class="work-export-row">
+							<button
+								type="button"
+								class="btn secondary tiny"
+								aria-disabled={!selected}
+								data-testid="export-json-student"
+								onclick={() => exportJson('student')}
+							>
+								JSON: this student
+							</button>
+							<button
+								type="button"
+								class="btn secondary tiny"
+								data-testid="export-json-class"
+								onclick={() => exportJson('section')}
+							>
+								JSON: whole class
+							</button>
+							<button
+								type="button"
+								class="btn secondary tiny"
+								data-testid="export-workbook"
+								onclick={exportWorkbook}
+							>
+								{exporting ? 'Building spreadsheet' : 'Spreadsheet: whole class'}
+							</button>
+						</div>
+						<label class="identity-toggle" data-testid="export-identity">
+							<input
+								type="checkbox"
+								checked={identity === 'included'}
+								onchange={(e) => {
+									identity = e.currentTarget.checked ? 'included' : 'omitted';
+									exportNote = null;
+								}}
+							/>
+							<span>Include student names and email addresses</span>
+						</label>
+						<p class="identity-note" data-testid="export-identity-note">
+							{IDENTITY_NOTE[identity]}
+						</p>
+						{#if exportNote}
+							<p class="export-note" data-testid="export-note">{exportNote}</p>
+						{/if}
+					</section>
+					{#if fileDownload}
+						<section class="gc-export-group" aria-labelledby="gc-export-files">
+							<h2 class="gc-group-head" id="gc-export-files">Files</h2>
+							<!-- EVERY STUDENT FILE AS ONE ZIP (ledger 0298). The class is the
+							     export picker's, the selection is the tick boxes' while
+							     selecting, and the standing column is the roster chip's own
+							     words, so the file and the console agree. -->
+							<BulkFileDownload
+								source={fileDownload}
+								{item}
+								{data}
+								sections={activeSections}
+								scopeSection={exportSection}
+								selected={pickedEmails}
+								standingOf={(email) => {
+									const s = students.find((row) => row.email === email);
+									return s ? statusChip(s).label : '';
+								}}
+								{outOf}
+								save={download}
+							/>
+						</section>
+					{/if}
+				</div>
+			</Disclosure>
+		{/if}
+	</header>
 
 	{#if loadError}
 		<p class="feedback error">{loadError}</p>
@@ -1841,156 +2239,85 @@
 		{/if}
 
 		<div class="console" class:split={!!selected}>
-			<section class="roster card">
+			<section class="roster card" class:selecting class:armed={selecting && armedRelease != null}>
 				<!--
-					EVERYTHING ABOVE THE NAMES, IN ONE REGION THAT SCROLLS (0278).
+					THE ROSTER IS A LIST OF PEOPLE (ledger 0347, decision 43). What sits
+					above the names is the list's own head and the notices that qualify
+					it; every export and the close tool moved to the page header, which
+					is what the 45% ceiling below was starving the names to hold.
 
-					`.roster` is a flex column with `overflow: hidden` above 1024px, so
-					once the list below holds a `min-height` floor something has to yield
-					when the pane is short -- and without a scroll container here that
-					something is CLIPPED rather than reachable, which is the failure mode
-					CLAUDE.md names: a pane that clips its overflow satisfies a no-scroll
-					measurement by hiding the content.
-
-					THE ORDER OF YIELDING IS DELIBERATE. The names are what a grader came
-					for, so the list keeps its floor and THIS gives way -- the head, the
-					two collapsed panels and the three notices. It keeps its own
-					scrollbar; no region on this site may hide one.
-
-					THE COVERAGE SENTENCE IS NOT IN HERE, and that is the one thing that
-					must not move: it qualifies every figure on the list and was
-					deliberately placed immediately above the rows it qualifies, measured
-					on /dev/presence. Inside a scrolling region it could be scrolled away
-					from the numbers it is about.
+					THE ORDER OF YIELDING IS STILL DELIBERATE. The names are what a grader
+					came for, so the list keeps its share and THIS region gives way on a
+					short pane, keeping its own scrollbar; no region on this site may hide
+					one.
 				-->
 				<div class="roster-tools">
 					<div class="roster-head">
-						<h2 class="section-label">Roster</h2>
-						<button type="button" class="btn secondary tiny" onclick={exportCsv}>
-							Export CSV
-						</button>
-					</div>
-					{#if close}
-						<!--
-							CLOSING THE ASSIGNMENT (0198), IN THE ROSTER RATHER THAN BESIDE
-							ONE STUDENT'S RUBRIC.
-
-							It acts on the whole item, so it belongs where the whole item is
-							on screen. Put next to the rubric it would read as something
-							done to the student who happens to be open.
-
-							IT SAYS THE ORDER, ALWAYS, NOT ONLY WHEN ARMED. Returning a
-							grade writes `returned`, which is editable again by 0086's own
-							definition -- so releasing a grade re-opens that student and
-							undoes the close for them. Both halves are Mr. Pina's decisions
-							of 2026-09-10 and they meet on exactly this cell; a teacher
-							cannot be expected to infer it from two features.
-						-->
-						<!--
-							COLLAPSED BY DEFAULT (0278), AND THE COUNT STAYS OUT WHERE IT IS READ.
-
-							Mr. Pina, grading on 2026-09-13: "the closing this assignment and
-							Export graded work sections above the names take up way too much
-							space to the point where the names are like microscopic on the
-							screen, I can only see like one student at a time". Both panels
-							rendered unconditionally and the second is three buttons deep, so at
-							1440 they and the four prose blocks under them took most of a
-							roster pane whose list gets only what they leave over.
-
-							`Disclosure` RATHER THAN A `<details>` OR A LOCAL FLAG. It is the
-							repo's one disclosure: a real button with `aria-expanded` and
-							`aria-controls`, a word and not only a caret, the region HIDDEN in
-							CSS rather than removed so it still prints, and the manual choice
-							remembered per person per item through `scope`. A twenty-first
-							hand-rolled one is what that component exists to stop.
-
-							`collapseWhen` CONSTANT-TRUE IS HOW "CLOSED BY DEFAULT" IS SPELLED,
-							and it is safe precisely because the signal is LATCHED there: it can
-							fall and never rise, so a value that never changes cannot fold a
-							panel somebody is inside.
-
-							AND THE OPEN/CLOSED COUNT IS IN `meta`, NOT IN THE BODY. It is the
-							number he acts on -- whether there is anything left to close -- so
-							it is on the trigger row and visible while the panel is shut. The
-							prose sentence and every control moved inside.
-						-->
-						<Disclosure
-							label="Closing this assignment"
-							scope={`grading-close:${item.id}`}
-							collapseWhen
-							testId="close-disclosure"
-						>
-							{#snippet meta()}
-								<span class="close-counts" data-testid="close-counts">
-									{openCount} open · {closedCount} closed
-								</span>
-							{/snippet}
-							<div class="close-tool" data-testid="close-tool">
-								<p class="close-order">{ASSIGNMENT_CLOSE_ORDER_NOTE}</p>
-								{#if armedClose}
-									<!-- THE CONFIRM NAMES THE REAL COUNT, off the roster on screen. -->
-									<p class="close-confirm" data-testid="close-confirm">
-										{armedClose.closed
-											? `Close this assignment for ${openCount} student${openCount === 1 ? '' : 's'}? They will not be able to save any more work on it.`
-											: `Reopen this assignment for ${closedCount} student${closedCount === 1 ? '' : 's'}? Anyone who turned their own work in stays as they are.`}
-									</p>
-									<span class="close-actions">
-										<button
-											type="button"
-											class="btn tiny"
-											disabled={closeBusy}
-											data-testid="close-confirm-go"
-											onclick={() => {
-												const closed = armedClose?.closed ?? true;
-												armedClose = null;
-												void runClose(closed);
-											}}
-										>
-											{armedClose.closed ? 'Close it' : 'Reopen it'}
-										</button>
-										<button
-											type="button"
-											class="btn secondary tiny"
-											disabled={closeBusy}
-											onclick={() => (armedClose = null)}
-										>
-											Cancel
-										</button>
-									</span>
-								{:else}
-									<span class="close-actions">
-										<button
-											type="button"
-											class="btn secondary tiny"
-											disabled={closeBusy || openCount === 0}
-											data-testid="close-arm"
-											onclick={() => (armedClose = { closed: true })}
-										>
-											Close assignment
-										</button>
-										{#if closedCount > 0}
-											<!-- OFFERED ONLY WHEN THERE IS SOMETHING TO REOPEN, so the
-											     control is never one whose only outcome is nothing
-											     happening. -->
-											<button
-												type="button"
-												class="btn secondary tiny"
-												disabled={closeBusy}
-												data-testid="close-reopen"
-												onclick={() => (armedClose = { closed: false })}
-											>
-												Reopen
-											</button>
-										{/if}
-									</span>
-								{/if}
-								{#if closeBusy}<Pending label="Closing" />{/if}
-								{#if closeError}<p class="feedback error">{closeError}</p>{/if}
-								{#if closeNotice}
-									<p class="feedback ok" data-testid="close-notice">{closeNotice}</p>
-								{/if}
+						<h2 class="section-label">
+							Roster <span class="roster-count" data-testid="roster-count"
+								>{rosterFilter === 'to-grade'
+									? `${visibleStudents.length} of ${students.length}`
+									: students.length}</span
+							>
+						</h2>
+						<div class="roster-keys">
+							<!--
+								"TO GRADE" IS A VIEW, NEVER A STATE (ledger 0347). FRICTION.md: N
+								walked the roster alphabetically into "Not submitted" rows and
+								there was no way to see only work that is waiting. `toGrade` is
+								asked of `statusChip` and `postGradeChange`, the two answers the
+								row already prints, so the filter and the chips cannot disagree.
+								Two keys with `aria-pressed`, one of the plate's lit spellings.
+							-->
+							<div class="roster-filter" role="group" aria-label="Show">
+								<button
+									type="button"
+									class="btn secondary tiny"
+									aria-pressed={rosterFilter === 'all'}
+									data-testid="roster-filter-all"
+									onclick={() => setRosterFilter('all')}
+								>
+									All
+								</button>
+								<button
+									type="button"
+									class="btn secondary tiny"
+									aria-pressed={rosterFilter === 'to-grade'}
+									data-testid="roster-filter-to-grade"
+									onclick={() => setRosterFilter('to-grade')}
+								>
+									To grade · {toGradeCount}
+								</button>
 							</div>
-						</Disclosure>
+							{#if batchReady && rubric?.length}
+								<!--
+									SELECTION IS A MODE YOU ENTER (ledger 0347, R17). Mr. Pina: "I
+									click check boxes and I don't really see any options to do
+									anything with those checks". The boxes rendered on every row
+									and the only controls that acted on them were under the whole
+									rubric in the scrolling work column, so with nobody open
+									nothing answered a tick at all. Now the boxes appear only when
+									this key is lit, and the bar that acts on them is directly
+									above the names they tick. Leaving the mode clears the
+									selection: nothing was written, so nothing is lost.
+								-->
+								<button
+									type="button"
+									class="btn secondary tiny"
+									aria-pressed={selecting}
+									data-testid="select-mode"
+									onclick={toggleSelecting}
+								>
+									{selecting ? 'Done' : 'Select'}
+								</button>
+							{/if}
+						</div>
+					</div>
+					{#if batchReady && !rubric?.length}
+						<p class="select-note" data-testid="select-unavailable">
+							Grading several students at once uses the rubric, and this assignment
+							has none yet.
+						</p>
 					{/if}
 					{#if liveStatus === 'stalled'}
 						<!-- THE ONE QUIET SENTENCE A STALLED CHANNEL EARNS, in the same
@@ -1999,112 +2326,6 @@
 						     `connecting` (every page starts there) or `live`. -->
 						<p class="live-note" data-testid="grading-live-note">
 							{classroomLivePausedLine(GRADING_POLL_MS)}
-						</p>
-					{/if}
-					<!--
-						THE GRADED-WORK EXPORTS, BESIDE THE CSV RATHER THAN INSTEAD OF IT.
-						The CSV is a gradebook import and is four columns wide on purpose;
-						these three carry the work itself. Every word on a control says
-						what it produces and for whom, because the difference between
-						"one student" and "the whole class" is the difference between one
-						person's writing leaving the building and thirty.
-					-->
-					<Disclosure
-						label="Export graded work"
-						scope={`grading-export:${item.id}`}
-						collapseWhen
-						testId="work-export-disclosure"
-					>
-						<div class="work-export" data-testid="work-export">
-							{#if crossClass}
-								<!--
-									ONE CLASS PER FILE. A gradebook import that named Period 1 and
-									carried Period 2's students as well would be accepted by FACTS
-									without complaint, so the section is chosen here rather than
-									inferred, and the choice reaches the filename, the CSV rows, the
-									JSON and the workbook through one derived roster.
-								-->
-								<label class="export-section" data-testid="export-section">
-									<span class="export-section-label">Class to export</span>
-									<select
-										class="tap-44"
-										bind:value={exportSectionId}
-										onchange={() => (exportNote = null)}
-									>
-										{#each activeSections as s (s.id)}
-											<option value={s.id}>{sectionTitles.get(s.id) ?? sectionTitle(s)}</option>
-										{/each}
-									</select>
-								</label>
-							{/if}
-							<div class="work-export-row">
-								<button
-									type="button"
-									class="btn secondary tiny"
-									aria-disabled={!selected}
-									data-testid="export-json-student"
-									onclick={() => exportJson('student')}
-								>
-									JSON: this student
-								</button>
-								<button
-									type="button"
-									class="btn secondary tiny"
-									data-testid="export-json-class"
-									onclick={() => exportJson('section')}
-								>
-									JSON: whole class
-								</button>
-								<button
-									type="button"
-									class="btn secondary tiny"
-									data-testid="export-workbook"
-									onclick={exportWorkbook}
-								>
-									{exporting ? 'Building spreadsheet' : 'Spreadsheet: whole class'}
-								</button>
-							</div>
-							<label class="identity-toggle" data-testid="export-identity">
-								<input
-									type="checkbox"
-									checked={identity === 'included'}
-									onchange={(e) => {
-										identity = e.currentTarget.checked ? 'included' : 'omitted';
-										exportNote = null;
-									}}
-								/>
-								<span>Include student names and email addresses</span>
-							</label>
-							<p class="identity-note" data-testid="export-identity-note">
-								{IDENTITY_NOTE[identity]}
-							</p>
-							{#if exportNote}
-								<p class="export-note" data-testid="export-note">{exportNote}</p>
-							{/if}
-						</div>
-						<!-- EVERY STUDENT FILE AS ONE ZIP (ledger 0298). The class is the export
-						     picker's, the selection is the tick boxes', and the standing column
-						     is the roster chip's own words, so the file and the console agree. -->
-						<BulkFileDownload
-							source={fileDownload}
-							{item}
-							{data}
-							sections={activeSections}
-							scopeSection={exportSection}
-							selected={picked}
-							standingOf={(email) => {
-								const s = students.find((row) => row.email === email);
-								return s ? statusChip(s).label : '';
-							}}
-							{outOf}
-							save={download}
-						/>
-					</Disclosure>
-					{#if returnedCount < students.length}
-						<p class="csv-hint">
-							CSV scores fill in as work is returned ({returnedCount}/{students.length} returned{crossClass
-								? ', across every class shown'
-								: ''}).
 						</p>
 					{/if}
 					{#if offRosterCount > 0}
@@ -2128,7 +2349,160 @@
 							>.
 						</p>
 					{/if}
+					{#if presenceShown}
+						<!--
+							THE SENTENCE THAT QUALIFIES EVERY PRESENCE FIGURE ON THE LIST, BEHIND
+							AN INFOTIP BESIDE THE WORD THAT NAMES THOSE FIGURES (ledger 0347,
+							decision 43). Mr. Pina, R17: "there's a paragraph above it which I
+							don't even know what that's for". It was a paragraph with no subject
+							on screen; now its subject is the label it hangs off.
+
+							IT HAS NOT BECOME OPTIONAL. The tip's text is in the DOM whether or
+							not it is showing (InfoTip hides it in CSS and prints it), it is the
+							trigger's `aria-describedby`, and it renders whenever the region does,
+							including when every figure reads zero, which is exactly when
+							somebody reads a count as "this student did nothing".
+						-->
+						<p class="presence-head" data-testid="presence-note">
+							<InfoTip tip={presenceCoverageNote(presenceLimits)}
+								><span class="presence-label">Presence and working time</span></InfoTip
+							>
+						</p>
+						{#if presenceStatus === 'stale'}
+							<!-- THE ONE QUIET SENTENCE A FAILED PRESENCE READ EARNS, in the
+							     shape the stalled-channel note beside it already uses. It is
+							     not an error card: nothing a grader is doing has failed, and
+							     the only thing that changed is how much this one column can
+							     be trusted. -->
+							<p class="presence-warn" data-testid="presence-stale">{PRESENCE_STALE_NOTE}</p>
+						{/if}
+					{/if}
 				</div>
+				{#if selecting}
+					<!--
+						THE SELECTION BAR (ledger 0347, R17), directly above the names it
+						acts on, and STICKY there when the document scrolls (below 1024px);
+						above it the roster's own column holds still and the list scrolls
+						under it.
+
+						THE RUBRIC FORM IS STILL THE BATCH. There is no second scoring
+						surface: the scores, the notes, the comment and the extra credit
+						sent to everyone ticked are the ones on screen for the student who
+						is open. So the bar SAYS where the scores come from, in words, and
+						with nobody open it says what to do first rather than offering a
+						button whose only answer is a refusal.
+					-->
+					<div class="batch" data-testid="batch-bar">
+						<div class="pick-presets" data-testid="pick-presets">
+							<span class="pick-presets-label">Tick</span>
+							<!-- `none` is the Clear key in the actions below, so it is not
+							     offered twice. -->
+							{#each BULK_PRESETS.filter((p) => p !== 'none') as preset (preset)}
+								<button
+									type="button"
+									class="btn secondary tiny"
+									data-preset={preset}
+									disabled={batchBusy}
+									onclick={() => setPreset(preset)}
+								>
+									{BULK_PRESET_LABEL[preset]}
+								</button>
+							{/each}
+						</div>
+						<p class="batch-count" data-testid="batch-count">{pickedSummary}</p>
+						{#if picked.length === 0}
+							<p class="batch-hint">
+								Tick names below, or use a quick selection above. Nothing is written
+								until you press a button here and confirm.
+							</p>
+						{:else}
+							<p class="batch-source" data-testid="batch-source">{batchSource}</p>
+							{#if plan.problems.length}
+								<!-- A REFUSAL RENDERS WHERE THE GRADER IS WORKING, in the
+								     same list as every other problem, and before a round
+								     trip rather than after thirty identical ones. -->
+								<ul class="batch-problems" data-testid="batch-problems">
+									{#each plan.problems as p, i (i)}
+										<li><strong>{p.label}.</strong> {p.message}</li>
+									{/each}
+								</ul>
+							{/if}
+							{#if plan.skipped.length && scoredCount > 0}
+								<!-- With nothing scored at all the source sentence above already
+								     says so; this names who is left out when the form IS scored. -->
+								<p class="batch-skipped" data-testid="batch-skipped">
+									{plan.skipped.length}
+									{plan.skipped.length === 1 ? 'student is' : 'students are'} in the
+									selection but will not be written: {plan.skipped
+										.map((x) => x.displayName)
+										.join(', ')}. Score at least one criterion in the rubric first.
+								</p>
+							{/if}
+							{#if armedRelease == null}
+								<div class="batch-actions">
+									<button
+										type="button"
+										class="btn secondary tiny"
+										data-testid="batch-arm-draft"
+										aria-disabled={plan.grades.length === 0}
+										disabled={batchBusy}
+										onclick={() => armBatch(false)}
+									>
+										Save drafts for {picked.length}
+									</button>
+									<button
+										type="button"
+										class="btn tiny"
+										data-testid="batch-arm-return"
+										aria-disabled={plan.grades.length === 0}
+										disabled={batchBusy}
+										onclick={() => armBatch(true)}
+									>
+										Return to {picked.length}
+									</button>
+									<button
+										type="button"
+										class="btn secondary tiny"
+										data-testid="batch-clear"
+										disabled={batchBusy}
+										onclick={() => setPreset('none')}
+									>
+										Clear
+									</button>
+								</div>
+							{/if}
+						{/if}
+						{#if outcome}
+							<!--
+								PER STUDENT, BY NAME, ALWAYS. "27 of 30 saved" sends an instructor
+								hunting; the names say what to do. The refused rows sort FIRST and
+								keep their class, because on a cross-class surface the likeliest
+								reason a row is refused is that it belongs to a class somebody
+								else teaches.
+							-->
+							<div class="batch-outcome" data-testid="batch-outcome">
+								<p
+									class="batch-headline"
+									class:bad={outcome.refused > 0}
+									data-testid="batch-headline"
+								>
+									{outcome.headline}
+								</p>
+								<ul class="outcome-list">
+									{#each outcome.rows as row (row.email)}
+										<li class:refused={!row.ok} data-outcome-row={row.email}>
+											<span class="outcome-name">{row.displayName}</span>
+											{#if crossClass && row.sectionTitle}
+												<span class="outcome-section">{row.sectionTitle}</span>
+											{/if}
+											<span class="outcome-sentence">{row.sentence}</span>
+										</li>
+									{/each}
+								</ul>
+							</div>
+						{/if}
+					</div>
+				{/if}
 				<!--
 					ONE ROW, ONE SNIPPET, whichever list it lands in. The flat roster and
 					the per-section groups render the identical markup, because a second
@@ -2142,8 +2516,8 @@
 				{#snippet rosterRow(s: StudentWork)}
 					{@const chip = statusChip(s)}
 					{@const short = incompleteCount(s)}
-					<li class="roster-item" class:pickable={batchReady}>
-						{#if batchReady}
+					<li class="roster-item" class:pickable={selecting}>
+						{#if selecting}
 							<!--
 								OUTSIDE THE BUTTON, and not only because a checkbox inside a
 								button is invalid: ticking a name and opening their work are
@@ -2284,73 +2658,87 @@
 					</li>
 				{/snippet}
 
-				{#if presenceShown}
+				{#if selecting && armedRelease != null}
 					<!--
-						THE SENTENCE THAT QUALIFIES EVERY FIGURE BELOW IT, rendered
-						unconditionally whenever the region is -- including when every
-						figure on the roster reads zero, which is exactly when somebody
-						reads a count as "this student did nothing". Same argument as
-						`FOUNDRY_PLAY_COVERAGE_NOTE`, and stronger here: a Foundry play
-						count that undercounts costs a student nothing, and a working-time
-						figure read as effort can cost them a conversation they did not
-						earn.
-
-						IMMEDIATELY ABOVE THE LIST, AND THAT POSITION IS A MEASUREMENT
-						RATHER THAN A PREFERENCE. Rendered under the roster heading it was
-						separated from the rows it qualifies by the close tool and the
-						whole export panel -- about 200px at 1440 and a screenful at 375,
-						measured on `/dev/presence` -- so a reader scanning rows never had
-						it in view at the same time as a figure. A caveat that is not on
-						screen beside the number it qualifies is a caveat nobody reads.
-
-						NOT A TOOLTIP ON EACH ROW, for the same reason from the other end:
-						a sentence a reader has to hover thirty times is one they read
-						zero times, and a phone cannot hover at all.
+						THE PLAN TAKES THE LIST'S PLACE WHILE IT IS ARMED (ledger 0347).
+						NOTHING IS WRITTEN UNTIL IT IS COMMITTED, AND WHAT WILL BE WRITTEN IS
+						ON SCREEN FIRST: `plan.rows` and `plan.grades` come out of ONE call,
+						so this table cannot describe a batch other than the one about to be
+						sent. It stands in for the names rather than squeezing in above them,
+						because a thirty-row confirm in a region capped above the list is the
+						sliver R16 was about; ticking or unticking un-arms, so nothing here
+						needs the names while it shows.
 					-->
-					<p class="presence-note" data-testid="presence-note">
-						{presenceCoverageNote(presenceLimits)}
-					</p>
-					{#if presenceStatus === 'stale'}
-						<!-- THE ONE QUIET SENTENCE A FAILED PRESENCE READ EARNS, in the
-						     shape the stalled-channel note beside it already uses. It is
-						     not an error card: nothing a grader is doing has failed, and
-						     the only thing that changed is how much this one column can
-						     be trusted. Said out loud because the alternative -- what
-						     shipped -- was a swallowed failure printing a confident
-						     "Not opened" about every student on the roster. -->
-						<p class="presence-warn" data-testid="presence-stale">{PRESENCE_STALE_NOTE}</p>
-					{/if}
-				{/if}
-				{#if batchReady}
-					<!--
-						THE PRESETS ARE THE POINT OF THE BATCH PATH. Ticking thirty boxes
-						is not faster than grading thirty students; "everyone who handed
-						in" and "everyone not graded yet" are the two selections an
-						instructor actually makes, and the second is the one they reach
-						for after a partial pass.
-
-						ON `batchReady` AND NOT ON THE GROUPING (0288): these are the same
-						two selections whether the roster below them is one class or
-						three, and keying them to the cross-class read is what kept them
-						off the route Mr. Pina grades from.
-					-->
-					<div class="pick-presets" data-testid="pick-presets">
-						<span class="pick-presets-label">Select</span>
-						{#each BULK_PRESETS as preset (preset)}
+					<div class="batch-plan" data-testid="batch-plan">
+						<p class="batch-plan-head">
+							About to {armedRelease ? 'return' : 'save as drafts'}
+							{plan.rows.length}
+							{plan.rows.length === 1 ? 'grade' : 'grades'}, out of {plan.outOf} pts.
+						</p>
+						{#if plan.rows.length}
+							<table class="plan-table">
+								<thead>
+									<tr>
+										<th scope="col">Student</th>
+										{#if crossClass}<th scope="col">Class</th>{/if}
+										<th scope="col">Was</th>
+										<th scope="col">Becomes</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each plan.rows as row (row.email)}
+										<tr data-plan-row={row.email}>
+											<td>{row.displayName}</td>
+											{#if crossClass}<td class="plan-section">{row.sectionTitle}</td>{/if}
+											<td class="plan-was">
+												{row.previous == null ? 'Not graded' : `${row.previous}`}
+											</td>
+											<td class="plan-becomes">
+												{row.awarded}{#if row.extraCredit}
+													<span class="plan-ec"
+														>({row.rubricPoints} + {row.extraCredit})</span
+													>{/if}
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						{/if}
+						{#if plan.rows.some((r) => r.regrade)}
+							<p class="batch-regrade" data-testid="batch-regrade">
+								{plan.rows.filter((r) => r.regrade).length} of these already have
+								a grade. Committing replaces it, and stamps the work as graded
+								again, which clears any "changed after grading" mark.
+							</p>
+						{/if}
+						<div class="batch-actions">
+							<button
+								type="button"
+								class="btn tiny"
+								data-testid="batch-commit"
+								aria-disabled={!canSend}
+								disabled={batchBusy}
+								onclick={() => void commitBatch()}
+							>
+								{batchBusy
+									? 'Writing'
+									: armedRelease
+										? `Yes, return ${plan.rows.length}`
+										: `Yes, save ${plan.rows.length} drafts`}
+							</button>
 							<button
 								type="button"
 								class="btn secondary tiny"
-								data-preset={preset}
+								data-testid="batch-cancel"
 								disabled={batchBusy}
-								onclick={() => setPreset(preset)}
+								onclick={() => (armedRelease = null)}
 							>
-								{BULK_PRESET_LABEL[preset]}
+								Cancel
 							</button>
-						{/each}
+						</div>
 					</div>
-				{/if}
-				{#if crossClassRead}
-					{@const grouped = groupBySection(students, activeSections, sectionOf)}
+				{:else if crossClassRead}
+					{@const grouped = groupBySection(visibleStudents, activeSections, sectionOf)}
 					{#each grouped.groups as group (group.section.id)}
 						<div class="roster-group" data-testid="roster-group">
 							<h3 class="roster-group-head">
@@ -2365,7 +2753,11 @@
 									{@render rosterRow(s)}
 								{/each}
 								{#if group.students.length === 0}
-									<li class="note">Nobody is enrolled in this class yet.</li>
+									<li class="note">
+										{rosterFilter === 'to-grade'
+											? 'Nothing to grade in this class.'
+											: 'Nobody is enrolled in this class yet.'}
+									</li>
 								{/if}
 							</ul>
 						</div>
@@ -2394,11 +2786,15 @@
 					{/if}
 				{:else}
 					<ul class="roster-list">
-						{#each students as s (s.email)}
+						{#each visibleStudents as s (s.email)}
 							{@render rosterRow(s)}
 						{/each}
 						{#if students.length === 0}
 							<li class="note">No students enrolled in this section.</li>
+						{:else if visibleStudents.length === 0}
+							<li class="note" data-testid="roster-nothing-to-grade">
+								Nothing is waiting to be graded. All shows the whole class.
+							</li>
 						{/if}
 					</ul>
 					<!--
@@ -2665,9 +3061,10 @@
 										THE DOCK'S CONTAINING BLOCK, and the only reason this element
 										exists. `position: sticky` is bounded by its PARENT's box, so
 										with the actions row a direct child of `.score-card` the dock
-										would pin all the way down past the batch panel and sit over
-										the batch's own controls. Bounded here it releases exactly
-										where the rubric it acts on ends.
+										would have pinned down past the batch panel that used to follow
+										it. The batch moved to the roster (ledger 0347), so this now
+										bounds the dock to exactly what the card holds: the rubric and
+										the comment it acts on.
 									-->
 									<div class="grade-main">
 										<h3 class="section-label">Rubric score</h3>
@@ -2949,46 +3346,22 @@
 											mid-scroll it passes over opaquely, with the pane's own boundary
 											drawn on top, so nothing reads as half-hidden.
 
-											AND IT IS BOUNDED BY `.grade-main` RATHER THAN BY THE CARD. The
-											batch panel is further down the same card, and a dock bounded by
-											the card would sit over the batch's own controls once a grader
-											scrolled to them. Bounded here it releases at the end of the
-											rubric, which is the end of what it acts on.
+											IT IS BOUNDED BY `.grade-main`, WHICH IS NOW THE WHOLE OF THE
+											SCORE CARD'S CONTENT. It was bounded there so it would release
+											before the batch panel further down the same card; ledger 0347
+											moved the batch to the roster's own selection bar, so nothing
+											follows the dock in the card any more and the wrapper simply
+											ends where the rubric and the comment do, which is still the
+											end of what the dock acts on.
 
-											THE PAGER IS IN THE SAME DOCK, AND IT IS WIRING RATHER THAN
-											LOGIC. `moveStudent` has existed since the console did -- it
-											clamps, routes through `requestSelect` so the unsaved-work guard
-											still fires, and lands focus on the first criterion -- and it
-											was reachable ONLY from `n` and `p`. A mouse user had to go back
-											to the roster and find the next name. Same function, same
-											guard, same focus landing; the keys and the legend are
-											untouched.
-
-											`aria-disabled`, NEVER `disabled`, AT THE ENDS OF THE ROSTER. A
-											genuinely disabled control swallows its own pointer events, so
-											it can never say why it did nothing -- and `moveStudent` already
-											answers, in the live `key-note` region, with "Last student on
-											the roster."
+											THE PAGER LEFT THE DOCK FOR THE PAGE HEADER (ledger 0347). Its
+											labels wrapped here ("Next student" dropped its chevron to a
+											second line in a 98px button, and at 375 "Previous student" took
+											three lines), and it walks the whole list, which is the page's
+											job rather than one student's. Same `moveStudent`, same guard,
+											same focus landing, and `n` and `p` are untouched.
 										-->
 										<span class="grade-actions">
-											<button
-												type="button"
-												class="btn secondary tiny"
-												aria-disabled={!hasPrevStudent}
-												data-testid="student-prev"
-												onclick={() => moveStudent(-1)}
-											>
-												&lsaquo; Previous student
-											</button>
-											<button
-												type="button"
-												class="btn secondary tiny"
-												aria-disabled={!hasNextStudent}
-												data-testid="student-next"
-												onclick={() => moveStudent(1)}
-											>
-												Next student &rsaquo;
-											</button>
 											<button
 												type="button"
 												class="btn secondary tiny"
@@ -3014,174 +3387,6 @@
 										</span>
 									</div>
 
-									{#if batchReady}
-										<!--
-											THE BATCH, UNDER THE RUBRIC THAT FEEDS IT.
-											It is here and not in a panel of its own because the scores
-											above ARE what it sends: an instructor reads this student's
-											work, scores it, and then says "and everyone else I ticked
-											earned that too". A separate batch form would be a
-											spreadsheet with the work hidden behind it, which produces
-											worse grades faster.
-										-->
-										<div class="batch" data-testid="batch-bar">
-											<p class="batch-count" data-testid="batch-count">{pickedSummary}</p>
-											{#if picked.length === 0}
-												<p class="batch-hint">
-													Tick names in the roster to score them all with the rubric
-													above. Nothing is written until you press a button here.
-												</p>
-											{:else}
-												{#if plan.problems.length}
-													<!-- A REFUSAL RENDERS WHERE THE GRADER IS WORKING, in the
-													     same list as every other problem, and before a round
-													     trip rather than after thirty identical ones. -->
-													<ul class="batch-problems" data-testid="batch-problems">
-														{#each plan.problems as p, i (i)}
-															<li><strong>{p.label}.</strong> {p.message}</li>
-														{/each}
-													</ul>
-												{/if}
-												{#if plan.skipped.length}
-													<p class="batch-skipped" data-testid="batch-skipped">
-														{plan.skipped.length}
-														{plan.skipped.length === 1 ? 'student is' : 'students are'} in the
-														selection but will not be written: {plan.skipped
-															.map((x) => x.displayName)
-															.join(', ')}. Score at least one criterion above first.
-													</p>
-												{/if}
-												{#if armedRelease == null}
-													<div class="batch-actions">
-														<button
-															type="button"
-															class="btn secondary tiny"
-															data-testid="batch-arm-draft"
-															aria-disabled={plan.grades.length === 0}
-															disabled={batchBusy}
-															onclick={() => armBatch(false)}
-														>
-															Save drafts for {picked.length}
-														</button>
-														<button
-															type="button"
-															class="btn tiny"
-															data-testid="batch-arm-return"
-															aria-disabled={plan.grades.length === 0}
-															disabled={batchBusy}
-															onclick={() => armBatch(true)}
-														>
-															Return to {picked.length}
-														</button>
-													</div>
-												{:else}
-													<!--
-														NOTHING IS WRITTEN UNTIL IT IS COMMITTED, AND WHAT WILL
-														BE WRITTEN IS ON SCREEN FIRST. `plan.rows` and
-														`plan.grades` come out of ONE call, so this table cannot
-														describe a batch other than the one about to be sent.
-													-->
-													<div class="batch-plan" data-testid="batch-plan">
-														<p class="batch-plan-head">
-															About to {armedRelease ? 'return' : 'save as drafts'}
-															{plan.rows.length}
-															{plan.rows.length === 1 ? 'grade' : 'grades'}, out of {plan.outOf} pts.
-														</p>
-														{#if plan.rows.length}
-															<table class="plan-table">
-																<thead>
-																	<tr>
-																		<th scope="col">Student</th>
-																		{#if crossClass}<th scope="col">Class</th>{/if}
-																		<th scope="col">Was</th>
-																		<th scope="col">Becomes</th>
-																	</tr>
-																</thead>
-																<tbody>
-																	{#each plan.rows as row (row.email)}
-																		<tr data-plan-row={row.email}>
-																			<td>{row.displayName}</td>
-																			{#if crossClass}<td class="plan-section">{row.sectionTitle}</td>{/if}
-																			<td class="plan-was">
-																				{row.previous == null ? 'Not graded' : `${row.previous}`}
-																			</td>
-																			<td class="plan-becomes">
-																				{row.awarded}{#if row.extraCredit}
-																					<span class="plan-ec"
-																						>({row.rubricPoints} + {row.extraCredit})</span
-																					>{/if}
-																			</td>
-																		</tr>
-																	{/each}
-																</tbody>
-															</table>
-														{/if}
-														{#if plan.rows.some((r) => r.regrade)}
-															<p class="batch-regrade" data-testid="batch-regrade">
-																{plan.rows.filter((r) => r.regrade).length} of these already have
-																a grade. Committing replaces it, and stamps the work as graded
-																again, which clears any "changed after grading" mark.
-															</p>
-														{/if}
-														<div class="batch-actions">
-															<button
-																type="button"
-																class="btn tiny"
-																data-testid="batch-commit"
-																aria-disabled={!canSend}
-																disabled={batchBusy}
-																onclick={() => void commitBatch()}
-															>
-																{batchBusy
-																	? 'Writing'
-																	: armedRelease
-																		? `Yes, return ${plan.rows.length}`
-																		: `Yes, save ${plan.rows.length} drafts`}
-															</button>
-															<button
-																type="button"
-																class="btn secondary tiny"
-																data-testid="batch-cancel"
-																disabled={batchBusy}
-																onclick={() => (armedRelease = null)}
-															>
-																Cancel
-															</button>
-														</div>
-													</div>
-												{/if}
-											{/if}
-											{#if outcome}
-												<!--
-													PER STUDENT, BY NAME, ALWAYS. "27 of 30 saved" sends an
-													instructor hunting; the three names say what to do. The
-													refused rows sort FIRST and keep their class, because on a
-													cross-class surface the likeliest reason a row is refused is
-													that it belongs to a class somebody else teaches.
-												-->
-												<div class="batch-outcome" data-testid="batch-outcome">
-													<p
-														class="batch-headline"
-														class:bad={outcome.refused > 0}
-														data-testid="batch-headline"
-													>
-														{outcome.headline}
-													</p>
-													<ul class="outcome-list">
-														{#each outcome.rows as row (row.email)}
-															<li class:refused={!row.ok} data-outcome-row={row.email}>
-																<span class="outcome-name">{row.displayName}</span>
-																{#if crossClass && row.sectionTitle}
-																	<span class="outcome-section">{row.sectionTitle}</span>
-																{/if}
-																<span class="outcome-sentence">{row.sentence}</span>
-															</li>
-														{/each}
-													</ul>
-												</div>
-											{/if}
-										</div>
-									{/if}
 								</div>
 							</div>
 						{/if}
@@ -3213,26 +3418,147 @@
 		   same note for the same reason.) */
 		width: 100%;
 	}
-	/* THE HERO IS CHROME HERE, not an opening. app.css gives `.hero` 4rem of
-	   top padding and centres it, which is right for a page somebody arrives at
-	   and reads down; on a console that never scrolls it is 104px of the
-	   working area spent on a title. Left-aligned so it sits on the same line as
-	   the roster and the breadcrumb above it. */
-	.console-hero {
-		text-align: left;
-		padding: var(--space-3) 0 var(--space-3);
+	/* THE PAGE HEADER IS CHROME, not an opening (ledger 0347). The title, the
+	   pager and the two panels share one wrapping row: at 1440 the tools sit to
+	   the right of the title, below about 60rem they wrap under it, and an open
+	   panel's body is a full-width band beneath all of it. The kicker line
+	   folds the eyebrow and the class into one row, which is most of the 100px
+	   title block FRICTION.md measured at 1366x768. */
+	.gc-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		column-gap: var(--space-3);
+		row-gap: var(--space-2);
+		padding: var(--space-3) 0;
 	}
-	/* Measured as a set with the rest of the console's rhythm: the eyebrow's
-	   24px trailing margin and a 38px title cost 132px of a 900px window before
-	   any grading happened. Neither number is decoration -- they are the page's
-	   own identity -- so they are tightened rather than dropped, and the title is
-	   still the largest thing on the screen. */
-	.console-hero .eyebrow {
-		margin-bottom: var(--space-1);
-	}
-	.console-hero h1 {
-		font-size: 1.75rem;
+	.gc-h1 {
+		flex: 1 0 100%;
+		min-width: 0;
+		margin: 0;
+		font-size: 1.5rem;
 		line-height: 1.15;
+		overflow-wrap: anywhere;
+	}
+	.gc-kicker {
+		flex: 1 1 20rem;
+		min-width: 0;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0 0.8rem;
+		margin: 0;
+	}
+	.gc-kicker .eyebrow {
+		margin: 0;
+	}
+	.gc-kicker .meta-line {
+		margin: 0;
+	}
+	.gc-pager {
+		flex: none;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-1);
+	}
+	/* NO WRAP INSIDE A PAGER BUTTON: "Next ›" dropping its chevron to a second
+	   line is the FRICTION.md item this move exists to end. */
+	.gc-pager .btn {
+		white-space: nowrap;
+	}
+	.gc-position {
+		min-width: 5.5rem;
+		text-align: center;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-2);
+		white-space: nowrap;
+	}
+	.pager-note {
+		flex-basis: 100%;
+		margin: 0;
+		font-size: 0.75rem;
+		color: var(--text-2);
+	}
+	/* THE PANELS' TWO PARTS, PLACED SEPARATELY (see the header's own comment).
+	   `div.disc` for specificity over the component's own `.disc` rule. The
+	   trigger is sized as a key here and painted as one by plate.css's key list,
+	   which names it; the fallback edge is for a deployment with the plate
+	   switched off. */
+	.gc-head :global(div.disc) {
+		display: contents;
+	}
+	.gc-head :global(.disc-trigger) {
+		flex: none;
+		width: auto;
+		max-width: 100%;
+		padding: 0 0.8rem;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card, 6px);
+		font-size: 0.72rem;
+	}
+	.gc-head :global(.disc-body) {
+		order: 1;
+		flex: 1 0 100%;
+		min-width: 0;
+	}
+	/* A SAFETY CEILING ABOVE 1024px ONLY, where the console is a bounded frame:
+	   an open panel may never take the whole window from the names on a short
+	   laptop. At every measured width its content is shorter than this, so it
+	   does not scroll; below 1024px the document scrolls and there is no cap. */
+	@media (min-width: 1024px) {
+		.gc-head :global(.disc-body[data-open='true']) {
+			max-height: 60dvh;
+			overflow-y: auto;
+			overscroll-behavior: contain;
+		}
+	}
+	.gc-head :global(.disc-body[data-open='true']) {
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card, 6px);
+		background: var(--surface-1, transparent);
+	}
+	/* The exports in up to three columns of their own content's height, and on a
+	   phone one. Multi-column, never a grid: the groups are unequal and a grid
+	   row is as tall as its tallest member (CLAUDE.md). */
+	.gc-export {
+		columns: 17rem 3;
+		column-gap: var(--space-4, 1.5rem);
+	}
+	.gc-export-group {
+		break-inside: avoid;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--space-2);
+		margin: 0 0 var(--space-3);
+	}
+	.gc-group-head {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	/* The classroom shell puts a green `// ` on every h2; these are group labels
+	   inside a panel, not page sections. */
+	.gc-group-head::before {
+		content: none;
+	}
+	.export-meta {
+		text-transform: none;
+		letter-spacing: 0.02em;
+	}
+	/* ON A KEY FACE THE WHOLE TRIGGER TAKES THE KEY'S OWN INK. Disclosure's
+	   caret, meta and Show word read `--text-2`, measured for a flat trigger on
+	   a card; on the plate's key face the count read 4.21:1. The key ink is
+	   what the plate measured every key label against. */
+	.gc-head :global(.disc-trigger :is(.disc-caret, .disc-meta, .disc-action)),
+	.gc-head .close-counts {
+		color: inherit;
 	}
 	.gc-notebook-link {
 		font-size: 0.85rem;
@@ -3271,28 +3597,51 @@
 	}
 	.roster-head {
 		display: flex;
+		flex-wrap: wrap;
 		justify-content: space-between;
-		align-items: baseline;
+		align-items: center;
 		gap: var(--space-2);
+		margin-bottom: var(--space-2);
+	}
+	.roster-head .section-label {
+		margin: 0;
 	}
 	.csv-hint {
-		margin: 0 0 var(--space-2);
-		font-family: var(--font-mono);
-		font-size: 0.62rem;
+		margin: 0;
+		font-size: 0.75rem;
+		line-height: 1.45;
 		color: var(--text-2);
 	}
-	/* Its own boxed group rather than three more chips on the roster heading:
-	   these three write a file carrying somebody's writing out of the building,
-	   and the identity switch has to read as belonging to them. */
-	/* NO BORDER AND NO OUTER MARGIN ANY MORE: this sits INSIDE a `Disclosure`
-	   body now, which already draws the region's edge, and a bordered card inside
-	   a bordered region is the second frame that made these two panels read as
-	   two cards stacked above the names. The fill stays -- it is what separates
-	   the controls from the card behind them. */
-	.work-export {
-		margin: 0;
-		padding: var(--space-2) 0 0;
-		background: transparent;
+	.roster-keys {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: flex-end;
+		gap: var(--space-1);
+	}
+	.roster-filter {
+		display: flex;
+		gap: var(--space-1);
+	}
+	/* The keys wrap under the title AS A GROUP, never one by one: three short
+	   words fit a 20rem roster column on one line. */
+	.roster-keys {
+		flex-wrap: nowrap;
+	}
+	/* "All" is one short word: the 44px floor is a width as well as a height. */
+	.roster-keys .btn {
+		min-width: 44px;
+	}
+	.roster-count {
+		margin-left: 0.3rem;
+		color: var(--text-2);
+		letter-spacing: 0.02em;
+	}
+	.select-note {
+		margin: 0 0 var(--space-2);
+		font-size: 0.75rem;
+		line-height: 1.45;
+		color: var(--text-2);
 	}
 	/* WRAPS RATHER THAN SCROLLS. The roster column is 260px at the narrow end
 	   and these are three real words each, so a nowrap row is what pushes the
@@ -3360,10 +3709,10 @@
 		line-height: 1.45;
 		color: var(--text-2);
 	}
-	.presence-note {
-		margin: 0 0 0.6rem;
+	.presence-head {
+		margin: 0 0 0.4rem;
+		font-family: var(--font-mono);
 		font-size: 0.72rem;
-		line-height: 1.45;
 		/* `--text-2`, the register's own secondary-copy tier, and not `--dim`,
 		   which clears only the darkest of the three portal grounds and this card
 		   is not on it. */
@@ -3593,7 +3942,6 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--space-1);
-		margin-bottom: var(--space-2);
 	}
 	.pick-presets-label {
 		font-family: var(--font-mono);
@@ -3630,13 +3978,28 @@
 		font-size: 0.85rem;
 		padding: 0 0.5rem;
 	}
+	/* THE SELECTION BAR, above the names it acts on. STICKY to the top of the
+	   roster card while the document scrolls (below 1024px), with an opaque
+	   ground and a z-index for the reason every sticky header here carries one:
+	   sticky makes it positioned, and positioned siblings paint in tree order. */
 	.batch {
-		margin-top: var(--space-3);
-		padding-top: var(--space-2);
-		border-top: 1px solid var(--boundary);
+		position: sticky;
+		top: 0;
+		z-index: 2;
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
+		margin: 0 0 var(--space-2);
+		padding: var(--space-2);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card, 6px);
+		background: var(--surface-1, var(--bg1));
+	}
+	.batch-source {
+		margin: 0;
+		font-size: 0.8rem;
+		line-height: 1.45;
+		color: var(--text-1);
 	}
 	.batch-count {
 		margin: 0;
@@ -4155,6 +4518,26 @@
 			flex: 0 1 auto;
 			min-height: 0;
 			max-height: 45%;
+			overflow-y: auto;
+			overscroll-behavior: contain;
+		}
+		/* THE SELECTION BAR HOLDS STILL IN THE ROSTER'S COLUMN (ledger 0347): the
+		   list below it is the scroller here, so the bar needs no sticky offset,
+		   and it takes a proportional ceiling of its own on the same argument as
+		   the tools above -- never an absolute floor on either side. */
+		.batch {
+			position: static;
+			flex: 0 1 auto;
+			min-height: 0;
+			max-height: 50%;
+			overflow-y: auto;
+			overscroll-behavior: contain;
+		}
+		/* AN ARMED PLAN TAKES THE LIST'S PLACE, and its scroll: a thirty-row
+		   confirm gets the column the names had rather than a sliver above them. */
+		.batch-plan {
+			flex: 1 1 auto;
+			min-height: 0;
 			overflow-y: auto;
 			overscroll-behavior: contain;
 		}

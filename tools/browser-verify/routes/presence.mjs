@@ -154,6 +154,30 @@ export default {
 	],
 	orderResult: [
 		{
+			/* BEHIND AN INFOTIP SINCE LEDGER 0347, AND STILL REACHABLE. The
+			   sentence moved off a free-standing paragraph onto the label it
+			   qualifies; this reads it back the way a keyboard user would, by
+			   focusing the label, and asserts the panel is then on screen with the
+			   sentence in it, and gone again on blur. */
+			label: 'focusing "Presence and working time" shows the coverage sentence',
+			evaluate: `async () => {
+				const note = document.querySelector('[data-testid="presence-note"]');
+				const btn = note?.querySelector('button');
+				const tip = note?.querySelector('[role="tooltip"]');
+				if (!btn || !tip) return ['setup=false'];
+				const shown = () => { const r = tip.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(tip).visibility !== 'hidden' && getComputedStyle(tip).opacity !== '0'; };
+				const before = shown();
+				btn.focus();
+				await new Promise((r) => setTimeout(r, 250));
+				const during = shown();
+				const says = /paper/.test(tip.textContent || '');
+				btn.blur();
+				await new Promise((r) => setTimeout(r, 250));
+				return ['hiddenAtRest=' + !before, 'shownOnFocus=' + during, 'saysPaper=' + says, 'hiddenAfterBlur=' + !shown()];
+			}`,
+			expected: ['hiddenAtRest=true', 'shownOnFocus=true', 'saysPaper=true', 'hiddenAfterBlur=true']
+		},
+		{
 			/* FOUR DISTINCT HUES. Read off the rendered elements rather than off the
 			   stylesheet: `--green`, `--teal`, `--amber` and `--text-2` are room
 			   tokens, and a room that aliased two of them to one value would leave

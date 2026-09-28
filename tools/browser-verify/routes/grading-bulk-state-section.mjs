@@ -69,6 +69,14 @@ export default {
 		{
 			click: '.roster-list .roster-row',
 			until: "() => document.querySelectorAll('.work-split').length === 1"
+		},
+		{
+			/* SELECTION IS A MODE SINCE LEDGER 0347 (R17): the tick boxes, the
+			   presets and the bar that acts on them exist only once Select is lit,
+			   so the list is not cluttered with thirty boxes for somebody reading. */
+			click: '[data-testid="select-mode"]',
+			until: `() => document.querySelector('[data-testid="select-mode"]')?.getAttribute('aria-pressed') === 'true' && !!document.querySelector('[data-testid="batch-bar"]')`,
+			label: 'Select is lit, so the tick boxes and the selection bar are on screen'
 		}
 	],
 
@@ -88,7 +96,8 @@ export default {
 			expectPresent: 4,
 			maxPresent: 4
 		},
-		{ selector: '[data-testid="batch-bar"]', label: 'the batch bar', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="select-mode"]', label: 'the Select key that shows the tick boxes', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="batch-bar"]', label: 'the selection bar, above the names', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{
 			selector: '[data-testid="score-bottom-levels"]',
 			label: 'the zero control',

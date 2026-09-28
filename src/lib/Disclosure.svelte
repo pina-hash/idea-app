@@ -168,9 +168,14 @@
 </script>
 
 {#snippet trigger()}
+	<!-- `class:on` beside `aria-expanded` (ledger 0347, R15): `.on` is one of the
+	     plate's seven lit spellings, so wherever a surface draws this trigger as
+	     a key (the grading console's header does), an open panel looks pressed.
+	     Everywhere else nothing styles `.on` on it and it changes nothing. -->
 	<button
 		type="button"
 		class="disc-trigger"
+		class:on={open}
 		aria-expanded={open}
 		aria-controls={bodyId}
 		data-testid={testId}

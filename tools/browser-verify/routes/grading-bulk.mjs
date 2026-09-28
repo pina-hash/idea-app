@@ -19,6 +19,14 @@ export default {
 	prepare: [
 		{ waitFor: '() => document.querySelectorAll(".roster-list .roster-row").length === 7' },
 		{
+			/* SELECTION IS A MODE SINCE LEDGER 0347 (R17): the tick boxes, the
+			   presets and the bar that acts on them exist only once Select is lit,
+			   so the list is not cluttered with thirty boxes for somebody reading. */
+			click: '[data-testid="select-mode"]',
+			until: `() => document.querySelector('[data-testid="select-mode"]')?.getAttribute('aria-pressed') === 'true' && !!document.querySelector('[data-testid="batch-bar"]')`,
+			label: 'Select is lit, so the tick boxes and the selection bar are on screen'
+		},
+		{
 			/*
 				LEDGER 0278 COLLAPSED THE EXPORT PANEL, AND THE CLASS PICKER IS INSIDE
 				IT. "Export graded work" is a `Disclosure` closed by default now,
@@ -49,11 +57,13 @@ export default {
 		{ selector: '[data-testid="roster-section"]', label: 'the class, on every roster row', expectPresent: 7, maxPresent: 7, expectVisible: 7 },
 		{ selector: '[data-testid="roster-pick"]', label: 'a tick box per student', expectPresent: 7, maxPresent: 7, expectVisible: 7 },
 		{ selector: '[data-testid="pick-presets"]', label: 'the named selections', expectPresent: 1, expectVisible: 1 },
-		/* FIVE SINCE 0288: `Nothing handed in` joined the list, because the
-		   selection a zero is for is the one nobody could make. Pinned exactly,
-		   in both directions, so a preset silently disappearing is as much a
-		   finding as one silently appearing. */
-		{ selector: '[data-testid="pick-presets"] button', label: 'all / handed in / nothing handed in / not graded / nobody', expectPresent: 5, maxPresent: 5, expectVisible: 5 },
+		/* FOUR SINCE LEDGER 0347, and the fifth is not lost: `Nobody` is the
+		   Clear key in the selection bar's actions, so it is not offered twice.
+		   (`Nothing handed in` joined in 0288, because the selection a zero is
+		   for is the one nobody could make.) Pinned exactly, in both
+		   directions, so a preset silently disappearing is as much a finding as
+		   one silently appearing. */
+		{ selector: '[data-testid="pick-presets"] button', label: 'everyone shown / handed in / nothing handed in / not graded yet', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
 		/* The export panel scopes to ONE class here, because a gradebook CSV
 		   naming Period 1 and carrying Period 2 as well is a wrong import that
 		   looks exactly like a right one. */
@@ -114,7 +124,8 @@ export default {
 				await press('all'); const all = count();
 				await press('submitted'); const sub = count();
 				await press('ungraded'); const un = count();
-				await press('none'); const none = count();
+				/* "Nobody" is the Clear key in the bar since ledger 0347. */
+				document.querySelector('[data-testid="batch-clear"]')?.click(); await tick(); const none = count();
 				return [all, sub, un, none];
 			}`,
 			expected: [7, 6, 6, 0],
@@ -125,7 +136,7 @@ export default {
 		{ selector: '[data-testid="roster-section"]', label: 'the class on a roster row', min: 4.5 },
 		{ selector: '.roster-group-name', label: 'a class heading', min: 4.5 },
 		{ selector: '.roster-group-count', label: 'the count beside it', min: 4.5 },
-		{ selector: '.pick-presets-label', label: 'the "Select" label', min: 4.5 },
+		{ selector: '.pick-presets-label', label: 'the "Tick" label beside the presets', min: 4.5 },
 		{ selector: '.export-section-label', label: 'the export class label', min: 4.5 }
 	],
 	tapTargets: [

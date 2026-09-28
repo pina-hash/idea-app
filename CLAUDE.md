@@ -1150,51 +1150,71 @@ from the other end on 2026-09-12: a roster row reading "Returned 18/20" with
   is a PROPERTY of what a heartbeat is, not a gap to close in SQL. The repair
   belongs where the two facts are rendered side by side.
 
-**AND THE TWO PANELS ABOVE THE NAMES ARE DISCLOSURES, CLOSED BY DEFAULT, WITH
-THE COUNT LEFT OUTSIDE.** "Closing this assignment" and "Export graded work"
-rendered unconditionally, and above 1024px `.roster` is a flex column with
-`overflow: hidden` whose list had `min-height: 0` and no shrink limit -- so the
-names got whatever the panels and four prose blocks left over. Measured with the
-roster card pinned to a 380px frame: the list was **0px tall on
-`/dev/html-assignment-grading` and 18.2px with 225px of content on
-`/dev/presence`, 0 names visible in both**. They are `Disclosure` callers now
-(`collapseWhen` constant-true is how "closed by default" is spelled, and it is
-safe because the signal is LATCHED there), and the open/closed count sits in the
-`meta` snippet so shutting the panel does not hide the number a teacher acts on.
-- **THE LIST'S FLOOR IS WRITTEN AS A CEILING ON THE PANELS (`.roster-tools`,
-  `max-height: 45%`), AND NO ABSOLUTE FLOOR ON EITHER SIDE.** That is the third
-  attempt and both earlier ones are the same defect in two directions: a
+**AND THE PAGE'S TOOLS LIVE IN THE PAGE HEADER, NEVER ABOVE THE NAMES (ledger
+0347, decision 43).** Every export (the FACTS CSV, the graded-work JSON pair and
+spreadsheet with the identity toggle, Download all files) is one `Export` panel
+and closing the assignment is one `Close assignment` panel, both `Disclosure`
+callers in `.gc-head` with the pager beside them. They used to sit in the
+roster card's tools region, where Mr. Pina found the exports scrolling in a
+sliver (R16) and the names starved of room. `.disc` is `display: contents` in
+the header, so each trigger sits in the tool row and each body drops to a
+full-width band under it: the component still owns the state, the ARIA, the
+per-person memory and the print rule, and nothing is hand-rolled. Closed by
+default (`collapseWhen` constant-true, safe because the signal is LATCHED), with
+the open/closed count in the Close trigger's `meta`. The triggers are painted as
+keys through plate.css's own key list (`:where(.gc-head) .disc-trigger`), and an
+open one is lit because `Disclosure` marks its trigger `.on`.
+- **THE ROSTER IS A LIST OF PEOPLE, AND SELECTION IS A MODE.** Tick boxes, the
+  presets and the selection bar exist only while `Select` is lit, and `Select`
+  is absent with no rubric, with a sentence saying why. The bar sits directly
+  above the names (sticky below 1024px) and says in words whose rubric form it
+  will send, because the rubric form IS the batch; an armed plan takes the
+  LIST's place rather than squeezing above it. `To grade` is a VIEW (`toGrade`,
+  asked of `workArrived` and `changedFor`, so a kept row's chips say why); the
+  pager, the keys and the presets walk the list on screen, and a pick the view
+  hides stops being selected, so a batch never writes a row nobody can see.
+- **THE COVERAGE SENTENCE IS AN `InfoTip` ON THE "Presence and working time"
+  LABEL ABOVE THE LIST**, which is decision 43's permitted move and nothing
+  weaker: the text stays in the DOM whether or not the tip shows, it is the
+  trigger's description, and it renders whenever the region does.
+- **THE LIST'S FLOOR IS WRITTEN AS A CEILING ON WHAT SITS ABOVE IT
+  (`.roster-tools` 45%, the selection bar 50%), AND NO ABSOLUTE FLOOR ON EITHER
+  SIDE.** Both earlier attempts are the same defect in two directions: a
   `min-height` on the LIST took the panels to 0px tall with 156px of content in
   them, clipped rather than scrolled; a 9rem floor on the PANELS took the list
   to 11.9px with 44px of content, where `elementFromPoint` at the first name's
-  centre answered the bulk checkbox's label and a click stopped selecting a
-  student at all. A proportional cap cannot do either, and the region keeps its
-  scrollbar because no region on this site may hide one.
+  centre answered the bulk checkbox's label. A proportional cap cannot do
+  either, and each region keeps its scrollbar because no region on this site
+  may hide one.
 
 **AND `Return to student` IS A STICKY DOCK BOUNDED BY `.grade-main`, NEVER A
 SECOND COPY AND NEVER `position: fixed`.** Above 1024px `.work-col` is its own
 scroll container, so the actions row scrolled out of view inside that pane --
 which is where a sticky anchors. One element made sticky cannot appear twice,
 which is what the "not twice when the column does not scroll" requirement is
-about; `.grade-main` exists only to bound it, because the batch panel is further
-down the same card and a dock bounded by the card would sit over the batch's own
-controls. It carries a `z-index` because sticky makes the row POSITIONED and
-positioned siblings paint in tree order -- the notebook grid's sticky header
-shipped exactly that -- and an opaque ground because a transparent dock over
-scrolling content is two lines of text on top of each other.
-- **NEXT AND PREVIOUS STUDENT ARE BUTTONS AS WELL AS `n` AND `p`, AND IT IS
-  WIRING RATHER THAN LOGIC.** `moveStudent` clamps, routes through
+about; `.grade-main` bounds it to the rubric and the comment it acts on (it was
+added to stop the dock short of a batch panel further down the same card, which
+ledger 0347 moved to the roster). It carries a `z-index` because sticky makes
+the row POSITIONED and positioned siblings paint in tree order -- the notebook
+grid's sticky header shipped exactly that -- and an opaque ground because a
+transparent dock over scrolling content is two lines of text on top of each
+other.
+- **NEXT AND PREVIOUS STUDENT ARE BUTTONS IN THE PAGE HEADER AS WELL AS `n` AND
+  `p`, AND IT IS WIRING RATHER THAN LOGIC.** `moveStudent` walks the list on
+  screen, opens the first name when nobody is open, routes through
   `requestSelect` so the unsaved-work guard still fires, and lands focus on the
-  first criterion; it was reachable only from the keyboard, so a mouse user went
-  back to the roster and found the next name. `aria-disabled` and never
-  `disabled` at the ends of the roster, because a disabled control swallows its
-  own pointer events and `moveStudent` already explains itself.
+  first criterion. It left the dock in ledger 0347 because its labels wrapped
+  there and it walks the whole list, which is the page's job. `aria-disabled` and
+  never `disabled` at the ends, because a disabled control swallows its own
+  pointer events and the pager's live note explains itself.
 - **A GEOMETRY CLAIM HERE IS `npm run verify:browser`'s AND NOWHERE ELSE'S.**
   `tools/browser-verify/routes/grading-bulk-state-dock.mjs` drives the dock's
   own scroll container -- the pane above 1024px, the document below it -- and
   HIT-TESTS the Return control at its own centre, which is the only read that
-  tells a covered control from a clickable one. `tests/dom/` has no layout
-  engine and reads every box as zero.
+  tells a covered control from a clickable one;
+  `tools/browser-verify/routes/grading-bulk-state-redesign.mjs` holds the
+  header, the no-sliver export claim and the selection mode. `tests/dom/` has no
+  layout engine and reads every box as zero.
 
 ### THE LIVE CLASS -- the projector reads nothing private
 

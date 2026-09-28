@@ -18,6 +18,17 @@ export default {
 	*/
 	prepare: [
 		{
+			/* THE TRIGGER EXISTS ONLY ONCE THE ROSTER HAS LOADED (it renders under
+			   `{#if data}`), and the roster arrives from a transport after the
+			   document does. Without this wait the click below matched nothing,
+			   made no attempt, and every row after it read zero -- 22 findings on
+			   the baseline of ledger 0347, all this one missing wait. */
+			waitFor: `() => !!document.querySelector('[data-testid="work-export-disclosure"]')`,
+			label: 'the console has loaded, so the Export trigger exists',
+			attempts: 40,
+			gapMs: 250
+		},
+		{
 			/*
 				LEDGER 0278 COLLAPSED THE EXPORT PANEL, SO THIS SPEC OPENS IT.
 
@@ -50,8 +61,10 @@ export default {
 		{ selector: '[data-testid="export-identity"]', label: 'the identity switch', expectPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="export-identity-note"]', label: 'what the switch is currently doing, in words', expectPresent: 1, expectVisible: 1 },
 		/* The FACTS CSV is beside these, not replaced by them: two different
-		   exports, and losing one to the other would be silent. */
-		{ selector: '.roster-head .btn', label: 'the existing Export CSV control', expectPresent: 1, expectVisible: 1 },
+		   exports, and losing one to the other would be silent. Since ledger 0347
+		   it is in the same Export panel rather than on the roster heading. */
+		{ selector: '[data-testid="export-csv"]', label: 'the Export CSV control, in the same panel', expectPresent: 1, expectVisible: 1 },
+		{ selector: '.roster-head [data-testid="export-csv"]', label: 'no export left on the roster heading', expectPresent: 0 },
 		/* Nothing has been pressed, so there is no confirmation yet and no
 		   captured file. Both are the positive controls for `?state=exports`. */
 		{ selector: '[data-testid="export-note"]', label: 'the post-export confirmation (nothing exported yet)', expectPresent: 0 },
@@ -65,7 +78,7 @@ export default {
 		/* MEASURED AT THE LABEL, which is what a finger hits: the checkbox
 		   inside it is 18px and no sizing on the box would change that. */
 		{ selector: '[data-testid="export-identity"]', label: 'the identity switch, measured at its label', min: 44 },
-		{ selector: '.roster-head .btn', label: 'Export CSV', min: 44 },
+		{ selector: '[data-testid="export-csv"]', label: 'Export CSV', min: 44 },
 		{ selector: '[data-testid="work-export-disclosure"]', label: 'the export panel trigger', min: 44 }
 	],
 	contrast: [
