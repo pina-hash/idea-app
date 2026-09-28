@@ -25,6 +25,7 @@
 		DICTATION_NOTE,
 		Dictation,
 		appendDictation,
+		coarsePointer,
 		dictationConstructor,
 		type SpeechRecognitionCtor
 	} from './dictation';
@@ -236,8 +237,10 @@
 				onListening: (on) => {
 					listening = on;
 					// Hand the caret back where the words landed, so a keyboard
-					// user can carry on from the end of what was just heard.
-					if (!on) areaEl?.focus();
+					// user can carry on from the end of what was just heard --
+					// except on a phone, where focusing the field raises the
+					// on-screen keyboard over the box (report R08).
+					if (!on && !coarsePointer()) areaEl?.focus();
 				},
 				onError: (text) => (dictError = text)
 			})
@@ -386,7 +389,14 @@
 
 	let boxEl = $state<HTMLDivElement | null>(null);
 	let areaEl = $state<HTMLTextAreaElement | null>(null);
-	onMount(() => (areaEl ?? boxEl)?.focus());
+	/*
+	 * FOCUS STARTS INSIDE THE BOX, and on the message field where a keyboard
+	 * is the way in. On a phone the BOX takes it instead (it is `tabindex="-1"`,
+	 * so Escape and the swallowed keys still work): focusing the field there
+	 * raises the on-screen keyboard over the box before anybody has read it
+	 * (report R08). A tap on the field brings the keyboard up when it is wanted.
+	 */
+	onMount(() => (coarsePointer() ? boxEl : (areaEl ?? boxEl))?.focus());
 </script>
 
 <svelte:window onkeydown={onKeydown} />

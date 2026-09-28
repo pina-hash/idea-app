@@ -134,8 +134,11 @@ function scenario(component: Box): { value: string; sent: string[]; rec: Fake } 
 describe('dictation appends to what is typed, never replaces it', () => {
 	it('the real component keeps every typed character across two dictated sentences', () => {
 		const { value, sent } = scenario(Fixed);
+		// Each dictated sentence now ends with a period (report R03). The typed
+		// text stops mid-sentence, so the first dictated chunk continues it
+		// rather than opening a capitalised sentence of its own.
 		expect(value).toBe(
-			'I typed this first the launch button did nothing and I kept typing then the page went blank'
+			'I typed this first the launch button did nothing. and I kept typing then the page went blank.'
 		);
 		expect(sent).toEqual(['start', 'stop']);
 	});
@@ -167,6 +170,43 @@ describe('dictation appends to what is typed, never replaces it', () => {
 		m.flush();
 		expect(control(m).textContent?.trim()).toBe('DICTATE');
 		expect(m.one('[role="status"]').textContent?.trim()).toBe('');
+		expect(document.activeElement).toBe(field(m));
+	});
+
+	/**
+	 * ON A PHONE THE FIELD IS NOT FOCUSED FOR THEM (report R08). Focusing a text
+	 * field on a coarse pointer raises the on-screen keyboard over the box, on
+	 * open and again every time dictation stops. Both directions on one mount
+	 * shape: a fine pointer gets the field (the test above), a coarse one gets
+	 * the box and keeps it through a whole dictation session.
+	 */
+	it('on a coarse pointer, neither opening the box nor ending dictation focuses the field', () => {
+		const original = window.matchMedia;
+		window.matchMedia = ((q: string) =>
+			({ matches: q === '(pointer: coarse)', media: q }) as unknown as MediaQueryList) as typeof window.matchMedia;
+		try {
+			const m = open(Fixed);
+			m.flush();
+			expect(document.activeElement).not.toBe(field(m));
+			// Focus stays inside the dialog, on the box itself.
+			expect(document.activeElement).toBe(m.one('.fb-box'));
+			click(control(m));
+			m.flush();
+			Fake.last!.say('the launch button did nothing', true);
+			m.flush();
+			click(control(m));
+			m.flush();
+			expect(control(m).textContent?.trim()).toBe('DICTATE');
+			expect(field(m).value).toBe('The launch button did nothing.');
+			expect(document.activeElement).not.toBe(field(m));
+		} finally {
+			window.matchMedia = original;
+		}
+	});
+
+	it('on a fine pointer, opening the box puts the caret in the field', () => {
+		const m = open(Fixed);
+		m.flush();
 		expect(document.activeElement).toBe(field(m));
 	});
 

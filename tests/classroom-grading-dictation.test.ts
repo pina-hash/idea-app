@@ -27,7 +27,7 @@
 // `Dictation.start` catches.
 
 import { describe, expect, test } from 'vitest';
-import { GradingDictation } from '$lib/classroom/grading-dictation.svelte';
+import { GradingDictation, appendDictation } from '$lib/classroom/grading-dictation.svelte';
 import type {
 	SpeechRecognitionErrorLike,
 	SpeechRecognitionEventLike,
@@ -41,6 +41,7 @@ type Fake = SpeechRecognitionLike & {
 		start(): void;
 		interim(text: string): void;
 		final(text: string): void;
+		guess(text: string): void;
 		error(code: string): void;
 		end(): void;
 	};
@@ -63,6 +64,12 @@ function fakeCtor(opts: { throwOnStart?: boolean } = {}) {
 				start: () => this.onstart?.({}),
 				interim: (text) => this.onresult?.(result(false, text)),
 				final: (text) => this.onresult?.(result(true, text)),
+				// A final at confidence 0: Chrome on Android's provisional guess.
+				guess: (text) =>
+					this.onresult?.({
+						resultIndex: 0,
+						results: [{ isFinal: true, length: 1, 0: { transcript: text, confidence: 0 } }]
+					}),
 				error: (code) => this.onerror?.({ error: code }),
 				end: () => this.onend?.({})
 			};
@@ -246,5 +253,57 @@ describe('teardown', () => {
 		expect(d.heard).toBe('');
 		expect(d.error).toBeNull();
 		expect(d.errorKey).toBeNull();
+	});
+});
+
+/**
+ * THE GRADING CONSOLE SHARES THE REPORT BOX'S TEXT RULES (reports R03, R08).
+ * `appendDictation` is re-exported from the feedback module, not copied, so a
+ * comment dictated here ends its sentences with a period and a phone's repeated
+ * finals land once. Driven through the real controller and the real append the
+ * console hands every field, the way `GradingConsole` wires it.
+ */
+describe('a dictated comment reads as sentences, once', () => {
+	test('two finals become two sentences in the comment', () => {
+		const { ctor, made } = fakeCtor();
+		const d = new GradingDictation(ctor);
+		let comment = '';
+		d.toggle('comment', (t) => (comment = appendDictation(comment, t)));
+		made[0]!.fire.interim('clean weld');
+		made[0]!.fire.final('clean weld');
+		made[0]!.fire.interim('the fillet');
+		made[0]!.fire.final('the fillet radius is undersized');
+		expect(comment).toBe('Clean weld. The fillet radius is undersized.');
+	});
+
+	test("a phone's provisional and repeated finals land in the field once", () => {
+		const { ctor, made } = fakeCtor();
+		const d = new GradingDictation(ctor);
+		let note = '';
+		d.toggle('crit:c1', (t) => (note = appendDictation(note, t)));
+		made[0]!.fire.guess(' clean');
+		made[0]!.fire.guess(' clean weld');
+		made[0]!.fire.final('clean weld');
+		made[0]!.fire.final('clean weld');
+		expect(note).toBe('Clean weld.');
+		// The guesses were the preview, never the field.
+		made[0]!.fire.guess(' but');
+		expect(d.heard).toBe(' but');
+		expect(note).toBe('Clean weld.');
+	});
+
+	test('a guess nothing confirmed lands in the field that was listening, not the next one', () => {
+		const { ctor, made } = fakeCtor();
+		const d = new GradingDictation(ctor);
+		let comment = '';
+		let note = '';
+		d.toggle('comment', (t) => (comment = appendDictation(comment, t)));
+		made[0]!.fire.guess('good work');
+		// Switch fields while the guess is still held: the session ends first.
+		d.toggle('crit:c1', (t) => (note = appendDictation(note, t)));
+		made[0]!.fire.end();
+		expect(comment).toBe('Good work.');
+		expect(note).toBe('');
+		expect(d.listeningKey).toBe('crit:c1');
 	});
 });
