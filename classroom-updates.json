@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-09-28",
+			"title": "Dictation writes sentences, and works better on phones",
+			"body": "When you use DICTATE in the Report a problem box, each thing you say now ends with a period and the next thing starts with a capital letter, so a spoken report reads as sentences instead of one long run-on. On Android phones, dictation no longer writes your words two or three times over, and the keyboard no longer pops up over the box when you open it or stop dictating. Tap the message box when you want to type.",
+			"tags": ["fix"]
+		},
+		{
+			"date": "2026-09-28",
 			"title": "Settings explain themselves",
 			"body": "Every option in the classroom's Settings panel now has a small i beside its name. Tap it, or point at it, to read what the option does and when you might want to change it, and tap anywhere else to close it. Teachers: dropping a file on a class page now starts a new post with that file already in place, and dropping a spec or a web page on an assignment you are editing puts it in the right box instead of attaching it for the class.",
 			"tags": ["new"]

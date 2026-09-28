@@ -2174,7 +2174,9 @@ it is not required to browse.
 - **Admin tier:** `/dashboard`, `/coin-desk`, `/admin`, `/greenline/moderation`,
   the notebook Drive connect flow, FRC completion overrides and gate reviews,
   the FSP FRC-interest roster, GREENLINE decal + community-track moderation,
-  tournament deletion, the all-users feedback read, VANGUARD's TUNE mode, the
+  tournament deletion, the all-users feedback read (`/admin/feedback`, whose
+  old `/classroom/feedback` address forwards only after the same gate),
+  VANGUARD's TUNE mode, the
   Foundry review queue (`/foundry/review`), the Foundry source reader
   (`POST /api/foundry/source`), the IDEA Maps editor (everything under
   `/maps/edit`, gated once in its own `+layout.server.ts` -- the `/maps` viewer
@@ -3989,8 +3991,25 @@ inside the function fails closed rather than falling through to a weaker path.
     so, and the export's identity toggle withholds it exactly as it withholds a
     name. A signed-in row cannot carry one.
   - **`app_feedback` is the ONE queue for every surface**, and the console at
-    `/classroom/feedback` (admin only) reads ALL apps. Filter before exporting;
-    an export of everything is a semester nobody reads.
+    `/admin/feedback` (admin only, decision 42) reads ALL apps. Filter before
+    exporting; an export of everything is a semester nobody reads.
+    - **IT IS A SITE PAGE, NOT A CLASSROOM ONE (report R03).** The portal's app
+      header, the root layout's report control and the site plate, and no
+      `.cr-root` around it, so `FeedbackConsole` may style nothing through
+      classroom.css. `/classroom/feedback` answers 307 there only after
+      `requireFeedbackConsole` (`$lib/server/feedback-console.ts`), the one gate
+      both loads call, so a non-admin gets the same 404 at both addresses and
+      no Location at either. `tests/feedback-console-route.test.ts` drives both
+      real loads.
+    - **THE LAST STATUS MOVE IS UNDOABLE FOR `FEEDBACK_UNDO_MS` AND NO LONGER
+      (report R02).** `feedbackUndoFor` keeps each LANDED report with the status
+      the console showed BEFORE the press -- read after the write, the
+      optimistic map already says the new status and the undo is a no-op that
+      looks like it worked. A new move replaces the offer, a thrown batch
+      withdraws it, and the timer is `setTimeout`. It goes back through the
+      same `app_feedback_set_status` call, which stamps `reviewed_at` and
+      `reviewed_by` afresh (0188), so an undone report records the undo as its
+      last review.
     - **AN AUTHORLESS ROW IS VISIBLY ANONYMOUS, from the payload rather than
       from an empty name** (`anonymous`, stated by 0127). **The reporter hash is
       not in that payload and must not be added**: it exists to be counted, and
@@ -4043,6 +4062,25 @@ inside the function fails closed rather than falling through to a weaker path.
         contradict them. `tests/feedback-archive.test.ts` sweeps for it.
       - **THE SUBMITTER TOGGLE STILL DECIDES AND THE ARCHIVE SAYS WHICH WAY.**
         It withholds a NAME, never a report: `tried` and the screenshot stay.
+- **DICTATION IS ONE DRIVER AND ONE APPEND, AND A FINAL RESULT IS NOT ALWAYS
+  NEW WORDS (reports R03, R08).** `Dictation` in `$lib/feedback/dictation.ts`
+  is the only Web Speech session on the site -- the report box, the grading
+  console's `GradingDictation` and the palette's Speak control all drive it --
+  and `appendDictation` is the only way a transcript reaches a field: it never
+  removes a character, and it closes each final result as a sentence (a period
+  when there is no end mark, a capital only where a sentence opens, never
+  mid-way through somebody's typing). `FinalResults` decides which finals are
+  new words, keyed on what the event says and never on a user-agent sniff: a
+  final at confidence exactly 0 is Chrome-on-Android's provisional guess, shown
+  as the preview and held until a confirmed final replaces it, a higher index
+  finishes it, or `end` flushes it (BEFORE `onListening(false)`, so it lands in
+  the field that was listening); an identical re-send, or an extension of the
+  last final, with no interim heard between, adds only its new words. Desktop
+  output is asserted byte-identical to the plain `resultIndex` walk. **The
+  Android shape is react-speech-recognition's model, not a measurement**: no
+  container here has a phone. The report box never focuses its field on a
+  coarse pointer (`coarsePointer`), because that raises the phone keyboard over
+  the box.
 - **EVERY SURFACE THAT PERSISTS WORK USES THE ONE SAVE STATE**
   (`$lib/save-state.svelte.ts`), never a sixth hand-rolled variant. It owns the five
   states (clean, dirty, writing, saved, failed), the 800ms debounce, backoff to
