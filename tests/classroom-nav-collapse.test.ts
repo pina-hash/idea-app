@@ -187,6 +187,7 @@ describe('canCollapseNav: only where a list pane actually sits beside something'
 		},
 		{ place: 'people', expected: false, because: 'never splits' },
 		{ place: 'grades', expected: false, because: 'never splits' },
+		{ place: 'settings', expected: false, because: 'never splits (report R06)' },
 		{ place: 'item', expected: true, because: 'the one place a list pane sits beside an open item' },
 		{ place: 'item-grade', expected: false, because: 'the grading console is full width, no split' },
 		{ place: 'item-deck', expected: false, because: 'the deck viewer is full-screen, no content column' },

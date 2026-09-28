@@ -19,7 +19,7 @@ export default {
 		{ selector: '[data-testid="section-tabs"]', label: 'the tab bar (a student has two tabs now)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: 'a[data-testid^="section-tab-"]', label: 'section tabs for a student: Class and Notebook', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 		{ selector: '[data-testid="section-tab-notebook"]', label: "the class's Notebook tab", expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="section-tab-people"], [data-testid="section-tab-grades"]', label: 'People and Grades (absent for a student)', expectPresent: 0 },
+		{ selector: '[data-testid="section-tab-people"], [data-testid="section-tab-grades"], [data-testid="section-tab-settings"]', label: 'People, Grades and Settings (absent for a student)', expectPresent: 0 },
 		{ selector: '[data-testid="section-tab-check-ins"]', label: 'the retired check-ins departure (absent for everyone)', expectPresent: 0 },
 		/* NAMED ABSENCES, not just a count: a tab renamed rather than withheld
 		   would keep the total at zero and lose the meaning. */

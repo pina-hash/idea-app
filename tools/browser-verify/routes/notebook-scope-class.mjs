@@ -34,7 +34,7 @@ export default {
 		{ selector: '[data-testid="section-tab-class"]', label: 'Class tab', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="section-tab-notebook"][aria-current="page"]', label: 'Notebook tab, current', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="section-tab-notebook-count"]', label: 'check-ins still owed, counted on the tab in words', expectPresent: 1, maxPresent: 1 },
-		{ selector: '[data-testid="section-tab-people"], [data-testid="section-tab-grades"], [data-testid="section-tab-duplicates"]', label: 'manage-only tabs (must be absent for a student)', expectPresent: 0 },
+		{ selector: '[data-testid="section-tab-people"], [data-testid="section-tab-grades"], [data-testid="section-tab-settings"], [data-testid="section-tab-duplicates"]', label: 'manage-only tabs (must be absent for a student)', expectPresent: 0 },
 		{ selector: '.cr-root.cr-app > .nb-root.cr-app-body', label: 'the notebook is the body of the classroom frame', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="nb-all-classes"]', label: 'the way to the whole notebook', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="new-entry-class"]', label: 'a class picker (must be absent: this tab IS the class)', expectPresent: 0 },

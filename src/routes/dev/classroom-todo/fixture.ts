@@ -47,6 +47,24 @@ export const SECTIONS: ClassroomSection[] = [
 	section('s-aide', 'IDEA100', 'Intro to Engineering Design', 'Period 1', 'A', ME)
 ];
 
+/**
+ * LAST YEAR'S CLASSES, ARCHIVED (report R12), added only on `?archived=1` so
+ * every other spec on this harness reads the fixture it always did. Three of
+ * them, so the Archived disclosure and the strip's Archived key hold a real
+ * list; none owes anything (this harness builds its to-do counts from the
+ * four in `SECTIONS` alone).
+ */
+export const ARCHIVED_SECTIONS: ClassroomSection[] = [
+	{ ...section('s-old-eng', 'ENG1H', 'Engineering 1 Honors', 'Period 3', 'C'), active: false },
+	{ ...section('s-old-idea', 'IDEA100', 'Intro to Engineering Design', 'Period 6', 'F'), active: false },
+	{ ...section('s-old-frc', 'FRC', 'FRC Robotics', 'Period 8', 'H'), active: false }
+];
+
+/** The harness's sections for a URL: `?archived=1` adds last year's classes. */
+export function harnessSections(url: URL): ClassroomSection[] {
+	return url.searchParams.get('archived') === '1' ? [...SECTIONS, ...ARCHIVED_SECTIONS] : SECTIONS;
+}
+
 /** An instant relative to the clock, in hours. */
 function at(hours: number): string {
 	return new Date(Date.parse(CLOCK.now) + hours * 3_600_000).toISOString();

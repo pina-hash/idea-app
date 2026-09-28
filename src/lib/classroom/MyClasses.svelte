@@ -1,6 +1,8 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import Disclosure from '$lib/Disclosure.svelte';
 	import { sectionTitle, sortSections, emailLocal, type ClassroomSection } from '$lib/classroom/classroom';
+	import { splitArchived } from '$lib/classroom/nav';
 	import { recentUpdates, updateDateLabel } from '$lib/classroom/updates';
 	import { formatSectionLabel } from '$lib/section-label';
 	import { summaryWords, type TodoSummaries } from '$lib/classroom/todo';
@@ -12,9 +14,18 @@
 	 * RLS already scoped the list, this only renders it). Presentation only,
 	 * the CoinBalanceView split, so /dev/classroom mounts the same component.
 	 *
-	 * Cards carry the ONE shared gold accent (the homepage launcher's uniform
-	 * --acc convention): differentiated by name and label, never by a
-	 * per-card color.
+	 * Cards carry the ONE shared accent (the homepage launcher's uniform --acc
+	 * convention), and that accent is the HOVER-INK ROLE, never `--gold` itself
+	 * (report R14, decision 40 item 1): brass on the dark themes, as before, and
+	 * the green ink under Space White, where a lightness-only gold is the brown
+	 * #715d22 Mr. Pina called ugly. Cards are differentiated by name and label,
+	 * never by a per-card color.
+	 *
+	 * ACTIVE CLASSES FIRST, ARCHIVED ONES UNDER ONE CLOSED DISCLOSURE (report
+	 * R12): "it is difficult to differentiate between archived classes and
+	 * active classes". The split is nav.ts's `splitArchived`, the same one the
+	 * header's class strip reads, and the count stays on the disclosure's own
+	 * line while it is closed.
 	 */
 	let {
 		ready = true,
@@ -37,9 +48,48 @@
 	} = $props();
 
 	const ordered = $derived(sortSections(sections));
+	const split = $derived(splitArchived(ordered));
 	const recent = recentUpdates(3);
 	const totalWords = $derived(todo ? summaryWords(todo.total) : null);
 </script>
+
+{#snippet classCard(s: ClassroomSection)}
+	<a class="class-card" class:archived={s.active === false} href={`/classroom/${s.id}`}>
+		<span class="class-icon" aria-hidden="true">
+			<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M16 6L3 12l13 6 13-6z" />
+				<path d="M9 15v7c0 1.7 3.1 3.5 7 3.5s7-1.8 7-3.5v-7" />
+				<path d="M29 12v8" />
+			</svg>
+		</span>
+		<span class="class-text">
+			<span class="class-code">{s.course?.code ?? 'CLASS'}</span>
+			<span class="class-title">{s.course?.title ?? sectionTitle(s)}</span>
+			<span class="class-meta">
+				{formatSectionLabel(s.label, s.block)}
+				&nbsp;&middot; {emailLocal(s.teacher_email)}
+			</span>
+		</span>
+		{#if todo?.bySection[s.id]}
+			{@const words = summaryWords(todo.bySection[s.id])}
+			{#if words.missing || words.dueThisWeek}
+				<!-- Zero is no news, so a class with nothing owed says nothing. -->
+				<span class="class-owed" data-testid="class-owed">
+					{#if words.missing}
+						<span class="owed owed-missing">
+							<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>
+							{words.missing}
+						</span>
+					{/if}
+					{#if words.dueThisWeek}
+						<span class="owed">{words.dueThisWeek}</span>
+					{/if}
+				</span>
+			{/if}
+		{/if}
+		<span class="class-cta">Open &#9656;</span>
+	</a>
+{/snippet}
 
 <svelte:head>
 	<title>Classroom // IDEA</title>
@@ -109,45 +159,40 @@
 			{/if}
 		</section>
 	{:else}
-		<div class="class-grid">
-			{#each ordered as s (s.id)}
-				<a class="class-card" href={`/classroom/${s.id}`}>
-					<span class="class-icon" aria-hidden="true">
-						<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M16 6L3 12l13 6 13-6z" />
-							<path d="M9 15v7c0 1.7 3.1 3.5 7 3.5s7-1.8 7-3.5v-7" />
-							<path d="M29 12v8" />
-						</svg>
-					</span>
-					<span class="class-text">
-						<span class="class-code">{s.course?.code ?? 'CLASS'}</span>
-						<span class="class-title">{s.course?.title ?? sectionTitle(s)}</span>
-						<span class="class-meta">
-							{formatSectionLabel(s.label, s.block)}
-							&nbsp;&middot; {emailLocal(s.teacher_email)}
-						</span>
-					</span>
-					{#if todo?.bySection[s.id]}
-						{@const words = summaryWords(todo.bySection[s.id])}
-						{#if words.missing || words.dueThisWeek}
-							<!-- Zero is no news, so a class with nothing owed says nothing. -->
-							<span class="class-owed" data-testid="class-owed">
-								{#if words.missing}
-									<span class="owed owed-missing">
-										<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.missing} /></svg>
-										{words.missing}
-									</span>
-								{/if}
-								{#if words.dueThisWeek}
-									<span class="owed">{words.dueThisWeek}</span>
-								{/if}
-							</span>
-						{/if}
-					{/if}
-					<span class="class-cta">Open &#9656;</span>
-				</a>
-			{/each}
-		</div>
+		{#if split.active.length}
+			<div class="class-grid" data-testid="my-classes-active">
+				{#each split.active as s (s.id)}{@render classCard(s)}{/each}
+			</div>
+		{:else}
+			<!-- Every class this person has is archived: say so, rather than an
+			     empty space above a closed Archived line. -->
+			<p class="note" data-testid="my-classes-none-active">
+				None of your classes is running right now. Past classes are under Archived below.
+			</p>
+		{/if}
+		{#if split.archived.length}
+			<section class="archived-classes" data-testid="my-classes-archived">
+				<Disclosure
+					label="Archived"
+					heading={2}
+					collapseWhen={true}
+					scope="classroom-home-archived"
+					testId="my-classes-archived-toggle"
+				>
+					{#snippet meta()}
+						<span data-testid="my-classes-archived-count"
+							>{split.archived.length} {split.archived.length === 1 ? 'class' : 'classes'}</span
+						>
+					{/snippet}
+					<p class="note archived-note">
+						Archived classes keep every post, grade and hand-in, and can be brought back.
+					</p>
+					<div class="class-grid">
+						{#each split.archived as s (s.id)}{@render classCard(s)}{/each}
+					</div>
+				</Disclosure>
+			</section>
+		{/if}
 	{/if}
 
 	<!-- What changed lately, in plain language. The full log is its own page;
@@ -194,7 +239,7 @@
 		min-height: 44px;
 		font-family: var(--font-mono);
 		font-size: 0.7rem;
-		color: var(--gold);
+		color: var(--hover-ink);
 		text-decoration: none;
 	}
 	.updates-list {
@@ -237,7 +282,7 @@
 		line-height: 1.5;
 	}
 	.note a {
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	/* `auto-fit`, NOT `auto-fill`: a student in two classes must not be handed
 	   two cards and an empty track beside them. Empty tracks collapse and the
@@ -253,10 +298,13 @@
 		grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
 		gap: 0.9rem;
 	}
-	/* Uniform gold accent (the launcher's shared --acc convention): every card
-	   identical chrome, never a per-card color. */
+	/* Uniform accent (the launcher's shared --acc convention): every card
+	   identical chrome, never a per-card color. The HOVER-INK ROLE rather than
+	   --gold (report R14): brass on the dark themes, the green ink on Space
+	   White, where gold is the brown #715d22. It paints the icon, the code and
+	   Open, all words and glyphs. */
 	.class-card {
-		--acc: var(--gold);
+		--acc: var(--hover-ink);
 		display: flex;
 		flex-direction: column;
 		gap: 0.55rem;
@@ -270,14 +318,25 @@
 			border-color 0.15s ease,
 			transform 0.1s ease;
 	}
-	/* The edge under the pointer reads the hover role token, not --acc: --acc
-	   is --gold under another name, which Space White turns brown (ledger
-	   0298, decision 40 item 1). Brass on the dark themes, as before. */
+	/* The edge under the pointer reads the hover role token directly (ledger
+	   0298, decision 40 item 1); --acc is the same role now (report R14), so
+	   the two cannot disagree. Brass on the dark themes, as before. */
 	.class-card:hover {
 		border-color: var(--hover-ink);
 	}
 	.class-card:active {
 		transform: translateY(1px);
+	}
+	/* An archived card keeps the strip's dashed edge (ClassroomShell's
+	   `.cls-icon.archived`), a shape as well as the section it sits in. */
+	.class-card.archived {
+		border-style: dashed;
+	}
+	.archived-classes {
+		margin-top: 1.4rem;
+	}
+	.archived-note {
+		margin: 0 0 0.8rem;
 	}
 	.class-icon {
 		width: 2.2rem;

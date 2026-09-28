@@ -7,6 +7,7 @@
 	import {
 		canCollapseNav,
 		locateClassroom,
+		splitArchived,
 		visibleSectionTabs,
 		type Crumb,
 		type SectionTab,
@@ -23,6 +24,7 @@
 	} from '$lib/classroom/nav-collapse';
 	import { formatSectionLabel } from '$lib/section-label';
 	import { classGlyph } from '$lib/classroom/class-glyph';
+	import { anchored } from '$lib/shell/anchored';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
 	import QuickNoteDock from '$lib/notebook/QuickNoteDock.svelte';
 	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
@@ -209,6 +211,27 @@
 
 	const ordered = $derived(sortSections(sections));
 	const current = $derived(ordered.find((s) => s.id === currentSectionId) ?? null);
+
+	/*
+	 * ARCHIVED CLASSES LEAVE THE STRIP FOR ONE KEY (report R12, 2026-09-28: "as I
+	 * archive more and more classes ... the top left quick class election buttons
+	 * will be clogged up pretty fast"). The strip draws the ACTIVE classes, in the
+	 * order it always did, plus the class on screen when THAT one is archived --
+	 * its own key stays, dashed and marked, so nobody is stranded on a page whose
+	 * key vanished. Every archived class, a manager's and a student's alike, is
+	 * one press away behind the Archived key at the end of the row.
+	 * `splitArchived` in nav.ts is the one definition, shared with My Classes.
+	 */
+	const stripSplit = $derived(splitArchived(ordered, currentSectionId));
+	const stripSections = $derived(stripSplit.active);
+	const archivedSections = $derived(stripSplit.archived);
+	let archivedOpen = $state(false);
+	/* The key and its list, for outside-dismiss (a press anywhere else closes it). */
+	let archivedEl = $state<HTMLElement | null>(null);
+	let archivedKey = $state<HTMLElement | null>(null);
+	function closeArchived() {
+		archivedOpen = false;
+	}
 	// The filter is `visibleSectionTabs` in nav.ts -- see its header for why it
 	// is not written out here.
 	const visibleTabs = $derived(visibleSectionTabs(tabs, canManage));
@@ -271,14 +294,19 @@
 	 * same event that closes it.
 	 */
 	function onPointerDown(event: PointerEvent) {
-		if (!switcherOpen) return;
+		if (!switcherOpen && !archivedOpen) return;
 		const target = event.target as Node | null;
 		if (!target || !target.isConnected) return;
-		if (switcherEl?.contains(target)) return;
-		switcherOpen = false;
+		if (archivedOpen && !archivedEl?.contains(target)) archivedOpen = false;
+		if (switcherOpen && !switcherEl?.contains(target)) switcherOpen = false;
 	}
 
 	function onKeyDown(event: KeyboardEvent) {
+		if (event.key === 'Escape' && archivedOpen) {
+			archivedOpen = false;
+			archivedKey?.focus();
+			return;
+		}
 		if (event.key === 'Escape' && switcherOpen) {
 			switcherOpen = false;
 			/* Back to whichever trigger this width shows: the Classes button
@@ -320,7 +348,12 @@
 
 	/** Wheel and mouse drag on the row, attached directly (non-passive for the wheel). */
 	function stripScroll(node: HTMLElement) {
+		/* The archived list is a panel of its own inside this row (fixed by
+		   `anchored`); a wheel or a drag over it is the list's, not the row's. */
+		const inList = (e: Event) =>
+			e.target instanceof Element && !!e.target.closest('.cls-archived-list');
 		const onWheel = (e: WheelEvent) => {
+			if (inList(e)) return;
 			if (node.scrollWidth <= node.clientWidth) return;
 			if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
 			e.preventDefault();
@@ -332,6 +365,7 @@
 		let moved = false;
 		const onDown = (e: PointerEvent) => {
 			if (e.pointerType !== 'mouse' || e.button !== 0) return;
+			if (inList(e)) return;
 			if (node.scrollWidth <= node.clientWidth) return;
 			dragging = true;
 			moved = false;
@@ -405,7 +439,7 @@
 		     underline bar, so colour is never the only signal. -->
 		<nav class="cls-strip-wrap" aria-label="Your classes">
 			<ul class="cls-strip" bind:this={stripEl} use:stripScroll data-testid="class-strip">
-				{#each ordered as s (s.id)}
+				{#each stripSections as s (s.id)}
 					{@const g = classGlyph(s)}
 					{@const name = `${s.course?.code ?? 'Class'} ${formatSectionLabel(s.label, s.block)}`}
 					<li>
@@ -425,6 +459,57 @@
 						</a>
 					</li>
 				{/each}
+				{#if archivedSections.length}
+					<!-- THE ARCHIVED KEY (report R12): one pad at the end of the row, a
+					     real button over a short list of archived classes in words. It
+					     is the lit pad while its list is open, the pad's own spelling
+					     of a pressed state. The list is `anchored` (fixed to the
+					     viewport) because this row scrolls and would clip it. -->
+					<li class="cls-archived" bind:this={archivedEl}>
+						<button
+							type="button"
+							class="cls-icon cls-archived-key"
+							class:current={archivedOpen}
+							bind:this={archivedKey}
+							aria-expanded={archivedOpen}
+							aria-controls="cls-archived-list"
+							data-testid="class-strip-archived"
+							onclick={() => (archivedOpen = !archivedOpen)}
+						>
+							<span class="cls-code">Archived</span>
+							<span class="cls-sub"
+								>{archivedSections.length}
+								{archivedSections.length === 1 ? 'class' : 'classes'}
+								<span aria-hidden="true">{archivedOpen ? '▴' : '▾'}</span></span
+							>
+						</button>
+						<ul
+							id="cls-archived-list"
+							class="cls-archived-list"
+							hidden={!archivedOpen}
+							aria-label="Archived classes"
+							data-testid="class-strip-archived-list"
+							use:anchored={{ anchor: archivedKey, open: archivedOpen, prefer: 'below', align: 'start', gap: 6 }}
+						>
+							{#each archivedSections as s (s.id)}
+								<li>
+									<a
+										class="sw-item"
+										class:current={s.id === currentSectionId}
+										href={`${basePath}/${s.id}`}
+										aria-current={s.id === currentSectionId ? 'page' : undefined}
+										data-testid="class-strip-archived-item"
+										onclick={closeArchived}
+									>
+										<span class="sw-item-code">{s.course?.code ?? 'CLASS'}</span>
+										<span class="sw-item-name">{formatSectionLabel(s.label, s.block)}</span>
+										{#if s.id === currentSectionId}<span class="sw-item-flag">You are here</span>{/if}
+									</a>
+								</li>
+							{/each}
+						</ul>
+					</li>
+				{/if}
 			</ul>
 		</nav>
 	{/if}
@@ -437,6 +522,7 @@
 			<button
 				type="button"
 				class="menu-trigger"
+				class:on={switcherOpen}
 				aria-expanded={switcherOpen}
 				aria-controls="shell-tools"
 				data-testid="shell-menu"
@@ -567,7 +653,7 @@
 					}}
 				>
 					<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS.settings} /></svg>
-					<span class="shell-tool-word">Settings</span>
+					<span class="shell-tool-word">Display settings</span>
 				</button>
 			{/if}
 			<ThemeSwitch />
@@ -910,6 +996,48 @@
 	}
 	.cls-icon.archived {
 		border-style: dashed;
+	}
+	/* THE ARCHIVED KEY: a pad like the class icons (the plate draws it as one),
+	   with its word on the first line and the count under it, and the lit pad
+	   while its list is open (`.current`, the pad's pressed spelling). */
+	.cls-archived-key {
+		appearance: none;
+		cursor: pointer;
+		font: inherit;
+		font-family: var(--font-mono);
+		line-height: 1.1;
+	}
+	.cls-archived-key .cls-sub {
+		display: inline-flex;
+		gap: 0.25rem;
+		align-items: baseline;
+	}
+	/* The list is fixed to the viewport by `anchored` while it is open, so the
+	   scrolling row cannot clip it; these rules are its look and the fallback
+	   before the first placement. `hidden` must win over any display rule. */
+	.cls-archived-list {
+		position: absolute;
+		top: calc(100% + 0.35rem);
+		left: 0;
+		z-index: 40;
+		list-style: none;
+		margin: 0;
+		min-width: 15rem;
+		max-width: min(22rem, calc(100vw - 16px));
+		max-height: min(60vh, 26rem);
+		overflow-y: auto;
+		padding: 0.3rem;
+		box-sizing: border-box;
+		background: var(--surface-1);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		box-shadow: var(--elevation-2);
+	}
+	.cls-archived-list[hidden] {
+		display: none;
+	}
+	.cls-strip .cls-archived-list li {
+		display: block;
 	}
 
 	/* --- The class menu ----------------------------------------------------- */

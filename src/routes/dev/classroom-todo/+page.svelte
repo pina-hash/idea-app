@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import MyClasses from '$lib/classroom/MyClasses.svelte';
 	import { buildTodo, todoSections, todoSummaries } from '$lib/classroom/todo';
-	import { BASE, CHECK_INS, CLOCK, ITEMS, ME, SECTIONS, SUBMISSIONS } from './fixture';
+	import { BASE, CHECK_INS, CLOCK, ITEMS, ME, SECTIONS, SUBMISSIONS, harnessSections } from './fixture';
 
 	/*
 	 * MY CLASSES WITH EACH CLASS'S COUNTS, computed exactly as
@@ -24,4 +24,12 @@
 	const todo = todoSummaries(rows, todoSections(SECTIONS, ME, false), CLOCK.today);
 </script>
 
-<MyClasses ready={true} isStaff={staff} sections={SECTIONS} todo={staff ? null : todo} todoHref={`${BASE}/todo`} />
+<!-- `?archived=1` hands My Classes last year's classes too (report R12), the
+     way the real load hands it every class RLS returns. -->
+<MyClasses
+	ready={true}
+	isStaff={staff}
+	sections={harnessSections(page.url)}
+	todo={staff ? null : todo}
+	todoHref={`${BASE}/todo`}
+/>

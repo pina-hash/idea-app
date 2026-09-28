@@ -1,6 +1,6 @@
 export default {
 	path: '/dev/classroom-nav',
-	label: "Section tab bar at five tabs, the class's Notebook tab inside the class, Duplicates out of the bar, and the GREENLINE card in three states",
+	label: "Section tab bar at six tabs, the class's Notebook tab inside the class, Settings last, Duplicates out of the bar, and the GREENLINE card in three states",
 	/* THE DOORS THIS LANE ADDED, at the two widths, mounted through the REAL
 	   ClassroomShell fed by the REAL `sectionTabs()` and the REAL
 	   GreenlineDashboardCard fed by real `GreenlinePending` values.
@@ -20,15 +20,17 @@ export default {
 		{ selector: '[data-testid="section-tabs"] .sec-tab', label: 'section tabs', min: 4.5 }
 	],
 	tapTargets: [
-		{ selector: '[data-testid="section-tabs"] a', label: 'section tabs (five)', min: 44 },
+		{ selector: '[data-testid="section-tabs"] a', label: 'section tabs (six)', min: 44 },
 		{ selector: '[data-testid="greenline-cards"] a.btn', label: 'GREENLINE card, Open panel', min: 44 }
 	],
 	presence: [
-		/* Five tabs for a manager: ledger 0297 replaced 0081's Check-ins
-		   departure with the class's own Notebook tab and added Live, and ledger
-		   0298 (report 28) took Duplicates out of the bar. A floor AND a
-		   ceiling, so a sixth tab appearing here is a finding. */
-		{ selector: 'a[data-testid^="section-tab-"]', label: 'section tabs (manager)', expectPresent: 5, maxPresent: 5, expectVisible: 5 },
+		/* Six tabs for a manager: ledger 0297 replaced 0081's Check-ins
+		   departure with the class's own Notebook tab and added Live, ledger
+		   0298 (report 28) took Duplicates out of the bar, and report R06
+		   (2026-09-28) added the class's own Settings tab after Grades. A floor
+		   AND a ceiling, so a seventh tab appearing here is a finding. */
+		{ selector: 'a[data-testid^="section-tab-"]', label: 'section tabs (manager)', expectPresent: 6, maxPresent: 6, expectVisible: 6 },
+		{ selector: '[data-testid="section-tab-settings"]', label: "the class's Settings tab", expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="section-tab-live"]', label: 'the Live tab', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="section-tab-notebook"]', label: "the class's Notebook tab", expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="section-tab-check-ins"]', label: 'the retired check-ins departure (must be absent)', expectPresent: 0 },
@@ -105,12 +107,12 @@ export default {
 				];
 			}`,
 			expected: [
-				'tabs:5',
+				'tabs:6',
 				'document-overflows-with-wrap:false',
 				'rows-match-what-the-width-needs:true',
 				'nowrap-overflows-exactly-when-the-bar-is-too-wide:true'
 			],
-			label: 'the five shipped tabs wrap rather than pushing the document wider, and nowrap does overflow exactly where it would'
+			label: 'the six shipped tabs wrap rather than pushing the document wider, and nowrap does overflow exactly where it would'
 		}
 	]
 };

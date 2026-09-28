@@ -177,13 +177,13 @@ describe('the teacher tour is never a student\'s', () => {
 
 	it('POSITIVE CONTROL: the registry has manager-only commands the student tour could have named', () => {
 		const managerOnly = COMMANDS.filter((c) => c.role === 'manager').map((c) => c.id);
-		expect(managerOnly).toEqual(expect.arrayContaining(['class.live', 'class.grades', 'class.new-post']));
+		expect(managerOnly).toEqual(expect.arrayContaining(['class.live', 'class.grades', 'class.settings', 'class.new-post']));
 		const studentCommands = STUDENT_TOUR.map((s) => s.command).filter(Boolean);
 		for (const id of managerOnly) expect(studentCommands).not.toContain(id);
 	});
 
 	it('the student tour points at none of the teacher-only controls, on any page', () => {
-		const teacherOnlyHooks = ['new-post', 'section-tab-live', 'live-open-projector', 'section-tab-grades', 'grade-key-legend', 'mode-approve'];
+		const teacherOnlyHooks = ['new-post', 'section-tab-live', 'live-open-projector', 'section-tab-grades', 'section-tab-settings', 'grade-key-legend', 'mode-approve'];
 		const studentTargets = STUDENT_TOUR.flatMap((s) => s.variants.map((v) => idOf(v.target)));
 		for (const hook of teacherOnlyHooks) expect(studentTargets).not.toContain(hook);
 		// And the teacher tour does point at them, so the list above is not empty by accident.

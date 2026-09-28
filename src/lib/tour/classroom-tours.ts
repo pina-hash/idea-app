@@ -67,8 +67,8 @@ const MENU_STEP = (who: 'teacher' | 'student'): ClassroomTourStep => ({
 			title: 'Menu',
 			body:
 				who === 'teacher'
-					? `Menu holds Search, Settings, the Light switch, Tour and your classes by name; ${REPORT_LABEL_SHORT} stays beside it. {mod} K opens Search from anywhere.`
-					: `Menu holds To-do, Search, Settings, the Light switch, Tour and your classes by name. ${REPORT_LABEL_SHORT} stays beside it.`
+					? `Menu holds Search, Display settings, the Light switch, Tour and your classes by name; ${REPORT_LABEL_SHORT} stays beside it. {mod} K opens Search from anywhere.`
+					: `Menu holds To-do, Search, Display settings, the Light switch, Tour and your classes by name. ${REPORT_LABEL_SHORT} stays beside it.`
 		}
 	]
 });
@@ -191,6 +191,20 @@ export const TEACHER_TOUR: readonly ClassroomTourStep[] = [
 		]
 	},
 	{
+		/* THE CLASS'S OWN SETTINGS TAB (report R06): class settings at the
+		   bottom of People was "not the place I would look". Named by the tab's
+		   printed word; the header's per-person control says Display settings. */
+		id: 'class-settings',
+		command: 'class.settings',
+		variants: [
+			{
+				target: tid('section-tab-settings'),
+				title: 'Settings',
+				body: "Settings holds this class's name, block and teacher, and Archive class and Delete class."
+			}
+		]
+	},
+	{
 		id: 'search',
 		command: 'palette.open',
 		variants: [
@@ -207,8 +221,8 @@ export const TEACHER_TOUR: readonly ClassroomTourStep[] = [
 		variants: [
 			{
 				target: tid('settings-trigger'),
-				title: 'Settings',
-				body: 'Settings holds density, list width and what a class opens on. Each group has its own Reset.'
+				title: 'Display settings',
+				body: 'Display settings holds density, list width and what a class opens on. Each group has its own Reset.'
 			}
 		]
 	},

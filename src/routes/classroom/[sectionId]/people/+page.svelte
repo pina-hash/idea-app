@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto, invalidateAll } from '$app/navigation';
+	import { invalidateAll } from '$app/navigation';
 	import PeoplePanel from '$lib/classroom/PeoplePanel.svelte';
 	import { createClassroomTransports } from '$lib/classroom/transports';
 	import { createTeamTransports } from '$lib/classroom/teams';
@@ -49,5 +49,4 @@
 	{teams}
 	{loadNotebookGrid}
 	onchanged={() => invalidateAll()}
-	ondeleted={() => goto('/classroom')}
 />

@@ -6,7 +6,7 @@
 	import { classroomCrumbs, classroomMeasure, classroomPathname, locateClassroom } from '$lib/classroom/nav';
 	import { createClassroomPreferences } from '$lib/preferences/classroom';
 	import type { PaletteSources } from '$lib/shell/palette';
-	import { BASE, SECTIONS } from './fixture';
+	import { BASE, harnessSections } from './fixture';
 
 	let { children }: { children: import('svelte').Snippet } = $props();
 
@@ -16,7 +16,12 @@
 	const measure = $derived(classroomMeasure(loc));
 	const crumbs = $derived(classroomCrumbs(loc, {}, BASE));
 	const preferences = createClassroomPreferences({ viewer: 'harness-todo', account: null });
-	const palette: PaletteSources = { section: null, items: [], units: [], sections: SECTIONS, checkIns: [] };
+	/* `?archived=1` adds last year's classes (report R12), and `?current=<id>`
+	   stands the strip on one class, so the Archived key and a current class
+	   that is itself archived can both be measured. */
+	const sections = $derived(harnessSections(page.url));
+	const currentId = $derived(page.url.searchParams.get('current'));
+	const palette = $derived<PaletteSources>({ section: null, items: [], units: [], sections, checkIns: [] });
 	/* `?staff=1` is the teacher's case, and the real layout hands a teacher no
 	   To-do door (`navIsStaff`), so neither does this one. */
 	const staff = $derived(page.url.searchParams.get('staff') === '1');
@@ -29,8 +34,8 @@
 >
 	<ClassroomShell
 		basePath={BASE}
-		sections={SECTIONS}
-		currentSectionId={null}
+		{sections}
+		currentSectionId={currentId}
 		{crumbs}
 		tabs={[]}
 		tab={null}

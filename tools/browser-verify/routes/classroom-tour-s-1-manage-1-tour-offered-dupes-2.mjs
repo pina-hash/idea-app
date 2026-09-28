@@ -25,7 +25,7 @@ export default {
 		{ selector: DOOR, label: 'the Duplicates door', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="stream-status-drafts"]', label: 'the Drafts filter it sits beside', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="section-tab-duplicates"]', label: 'no Duplicates tab', expectPresent: 0 },
-		{ selector: 'a[data-testid^="section-tab-"]', label: 'five tabs', expectPresent: 5, maxPresent: 5, expectVisible: 5 }
+		{ selector: 'a[data-testid^="section-tab-"]', label: 'six tabs (Settings joined after Grades, report R06)', expectPresent: 6, maxPresent: 6, expectVisible: 6 }
 	],
 	textContains: [{ selector: DOOR, label: 'the count and its noun', must: ['2 duplicate drafts'] }],
 	contrast: [{ selector: DOOR, label: 'the Duplicates door', min: 4.5 }],

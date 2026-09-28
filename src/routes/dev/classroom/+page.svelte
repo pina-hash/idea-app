@@ -9,6 +9,7 @@
 	import ItemDetail from '$lib/classroom/ItemDetail.svelte';
 	import AdminConsole from '$lib/classroom/AdminConsole.svelte';
 	import PeoplePanel from '$lib/classroom/PeoplePanel.svelte';
+	import ClassSettingsPanel from '$lib/classroom/ClassSettingsPanel.svelte';
 	import GradesPanel from '$lib/classroom/GradesPanel.svelte';
 	import UpdatesPage from '$lib/classroom/UpdatesPage.svelte';
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
@@ -2136,6 +2137,7 @@
 		['grade', 'Grading console'],
 		['people', 'People tab'],
 		['grades', 'Grades tab'],
+		['settings', 'Settings tab'],
 		['admin', 'Courses & setup'],
 		['admin-notready', 'Setup: migration unapplied'],
 		['shell', 'Shell + switcher'],
@@ -2164,6 +2166,7 @@
 		grade: 'item-grade',
 		people: 'people',
 		grades: 'grades',
+		settings: 'settings',
 		item: 'item',
 		'item-teacher': 'item',
 		assignment: 'item',
@@ -2476,6 +2479,7 @@
 		'/classroom/s-1',
 		'/classroom/s-1/people',
 		'/classroom/s-1/grades',
+		'/classroom/s-1/settings',
 		'/classroom/s-1/duplicates',
 		'/classroom/s-1/item/i-3',
 		'/classroom/s-1/item/i-3/grade',
@@ -2939,6 +2943,10 @@
 		{transports}
 		loadNotebookGrid={notebookApplied ? loadNotebookGrid : null}
 	/>
+{:else if view === 'settings'}
+	<!-- The class's own Settings tab (report R06), on the same in-memory
+	     transports People used to drive these controls with. -->
+	<ClassSettingsPanel section={section1} {transports} />
 {:else if view === 'grades'}
 	<GradesPanel
 		section={section1}

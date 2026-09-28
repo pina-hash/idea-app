@@ -4,7 +4,8 @@ import { SECTION_SELECT, loadSectionRoster } from '$lib/classroom/transports';
 import type { PageServerLoad } from './$types';
 
 /**
- * One class's roster and settings -- the People tab.
+ * One class's roster, class tools and teams -- the People tab. What the class
+ * itself is (details, archive, delete) is the Settings tab's since report R06.
  *
  * A STUDENT GETS A 404, NOT A REDIRECT, and that is the /admin rule: an enrolled
  * student can legitimately read this section, so bouncing them somewhere would

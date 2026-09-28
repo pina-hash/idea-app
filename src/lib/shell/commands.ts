@@ -161,13 +161,16 @@ const CORE: readonly ShellCommand[] = [
 		run: true
 	},
 	{
+		// THE HEADER'S "Display settings" (report R06): one person's own view,
+		// on every page. A class's own details are `class.settings`, and the two
+		// names differ so a teacher is never sent to the wrong one.
 		id: 'settings.open',
-		name: 'Classroom settings',
+		name: 'Display settings',
 		icon: ICONS.settings,
 		description: 'Density, list width, what a class opens on, and a reset for each.',
 		role: 'any',
 		context: 'global',
-		keywords: ['preferences', 'customize', 'density', 'compact', 'options'],
+		keywords: ['classroom settings', 'preferences', 'customize', 'density', 'compact', 'options'],
 		run: true
 	},
 	{
@@ -329,6 +332,18 @@ const CORE: readonly ShellCommand[] = [
 		context: 'class',
 		keywords: ['marks', 'scores', 'to grade', 'gradebook'],
 		href: tabHref('grades')
+	},
+	{
+		// THE CLASS'S SETTINGS TAB (report R06): its details, archive and delete,
+		// which used to sit at the bottom of People.
+		id: 'class.settings',
+		name: 'Class settings',
+		icon: ICONS.admin,
+		description: "This class's name, block and teacher, and Archive class or Delete class.",
+		role: 'manager',
+		context: 'class',
+		keywords: ['archive', 'delete class', 'rename', 'class details', 'teacher of record', 'block'],
+		href: tabHref('settings')
 	},
 	{
 		// NOT A TAB SINCE LEDGER 0298 (report 28): this command and the class

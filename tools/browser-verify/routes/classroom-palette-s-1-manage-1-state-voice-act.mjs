@@ -1,7 +1,7 @@
 /**
  * AN EXACT NAME ACTS, AND AN INTERIM ONE ONLY ONCE IT HAS HELD STILL (ledger
  * 0298, report 31: "the time it takes me to speak and navigate somewhere is
- * greater than just clicking"). The service hands over "Classroom settings" as
+ * greater than just clicking"). The service hands over "Display settings" as
  * an INTERIM result -- words it has not finished with -- and the palette acts
  * on it once it has held still for the stability window (about 300ms), without
  * waiting for the service to decide the sentence is over. The session ends
@@ -27,10 +27,10 @@ export default {
 		pressKey({ key: 'k', ctrlKey: true }, PALETTE_OPEN),
 		{ click: MIC, until: LISTENING },
 		{
-			label: 'the service hears "classroom settings" and has not finished with it',
+			label: 'the service hears "display settings" and has not finished with it',
 			evaluate: `async () => {
 				const t0 = performance.now();
-				window.__voiceRec.hearing('Classroom settings');
+				window.__voiceRec.hearing('Display settings');
 				const early = !!document.querySelector('dialog[data-testid="classroom-settings"][open]');
 				for (let i = 0; i < 100 && !document.querySelector('dialog[data-testid="classroom-settings"][open]'); i++) await new Promise((r) => setTimeout(r, 20));
 				window.__voiceActMs = Math.round(performance.now() - t0);

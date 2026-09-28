@@ -9,8 +9,9 @@
  * what is one click away.
  *
  * IT DECIDES NOTHING ABOUT ACCESS. `tabs` lists what a MANAGER of the section
- * would see; whether the caller is one is the server's answer, and the People
- * and Grades routes 404 for anybody else regardless of what this returns.
+ * would see; whether the caller is one is the server's answer, and the People,
+ * Grades and Settings routes 404 for anybody else regardless of what this
+ * returns.
  */
 
 export interface Crumb {
@@ -24,7 +25,7 @@ export interface Crumb {
  * report 28): the page is a place (`ClassroomPlace` below), not a tab, and its
  * doors are `classDuplicatesHref`'s callers.
  */
-export type SectionTabId = 'class' | 'live' | 'notebook' | 'people' | 'grades';
+export type SectionTabId = 'class' | 'live' | 'notebook' | 'people' | 'grades' | 'settings';
 
 export interface SectionTab {
 	id: SectionTabId;
@@ -65,6 +66,8 @@ export type ClassroomPlace =
 	| 'section'
 	| 'people'
 	| 'grades'
+	/** The class's own details, archive and delete (report R06, 2026-09-28). */
+	| 'settings'
 	| 'duplicates'
 	| 'live'
 	| 'live-projector'
@@ -139,6 +142,7 @@ export function locateClassroom(pathname: string): ClassroomLocation {
 	if (rest.length === 1) return { place: 'section', sectionId, itemId: null };
 	if (rest[1] === 'people') return { place: 'people', sectionId, itemId: null };
 	if (rest[1] === 'grades') return { place: 'grades', sectionId, itemId: null };
+	if (rest[1] === 'settings') return { place: 'settings', sectionId, itemId: null };
 	if (rest[1] === 'duplicates') return { place: 'duplicates', sectionId, itemId: null };
 	if (rest[1] === 'notebook') return { place: 'notebook', sectionId, itemId: null };
 	// THE LIVE CLASS (ledger 0297): the teacher's control view, and the
@@ -157,7 +161,7 @@ export function locateClassroom(pathname: string): ClassroomLocation {
 
 /**
  * A section's tabs, in reading order: the class, its notebook, then the
- * manager's views of people, marks and duplicate drafts.
+ * manager's views of people, marks and the class's own settings.
  *
  * THE NOTEBOOK IS A TAB OF THE CLASS, FOR EVERYBODY IN IT (ledger 0297, Mr.
  * Pina's words: "Integrate the notebook into IDEA Classroom with IDEA
@@ -202,7 +206,14 @@ export function sectionTabs(sectionId: string, basePath = '/classroom'): Section
 		{ id: 'live', label: 'Live', href: `${basePath}/${sectionId}/live`, manageOnly: true },
 		{ id: 'notebook', label: 'Notebook', href: classNotebookHref(sectionId, basePath), manageOnly: false },
 		{ id: 'people', label: 'People', href: `${basePath}/${sectionId}/people`, manageOnly: true },
-		{ id: 'grades', label: 'Grades', href: `${basePath}/${sectionId}/grades`, manageOnly: true }
+		{ id: 'grades', label: 'Grades', href: `${basePath}/${sectionId}/grades`, manageOnly: true },
+		// THE CLASS'S OWN SETTINGS (report R06, 2026-09-28: "it's odd how the
+		// class settings are in the people tab ... it's not the place I would
+		// look"). Edit details, Archive class and Delete class moved here from
+		// the bottom of People, which keeps the roster and the teams. Last,
+		// because it is the tab a teacher opens least; manager-only like People.
+		// Not the header's Display settings, which is per person and every page.
+		{ id: 'settings', label: 'Settings', href: classSettingsHref(sectionId, basePath), manageOnly: true }
 	];
 }
 
@@ -219,6 +230,39 @@ export function sectionTabs(sectionId: string, basePath = '/classroom'): Section
  */
 export function classDuplicatesHref(sectionId: string, basePath = '/classroom'): string {
 	return `${basePath}/${encodeURIComponent(sectionId)}/duplicates`;
+}
+
+/**
+ * ACTIVE CLASSES AND ARCHIVED ONES, as two lists in the order they came in
+ * (report R12, 2026-09-28). ONE definition of "archived" for the two surfaces
+ * that split on it: My Classes (active cards first, an Archived disclosure
+ * below) and the header's class strip (active keys, then one Archived key over
+ * the rest). `active` is 0083's flag and ABSENT READS AS ACTIVE, the way
+ * `ClassroomSection` documents it, so a pre-0083 read files nothing away.
+ *
+ * `keep` is the class on screen: it stays in `active` even when archived, so
+ * the strip never loses the key of the page somebody is standing on. It is
+ * STILL listed under `archived` too, because the Archived list is the whole
+ * set and marks where you are. My Classes passes nothing.
+ */
+export function splitArchived<T extends { id: string; active?: boolean }>(
+	sections: readonly T[],
+	keep: string | null = null
+): { active: T[]; archived: T[] } {
+	return {
+		active: sections.filter((s) => s.active !== false || (keep !== null && s.id === keep)),
+		archived: sections.filter((s) => s.active === false)
+	};
+}
+
+/**
+ * A CLASS'S SETTINGS TAB, as a URL (report R06). One spelling, read by the tab
+ * above and by the People tab's pointer to where the class's details, Archive
+ * and Delete moved, so the two cannot point two ways. Encoded as a path
+ * segment, as `classNotebookHref` is.
+ */
+export function classSettingsHref(sectionId: string, basePath = '/classroom'): string {
+	return `${basePath}/${encodeURIComponent(sectionId)}/settings`;
 }
 
 /**
@@ -304,9 +348,10 @@ export function checkInDuplicateRefusal(
  * shell calls this; nothing re-derives it.
  *
  * IT IS NOT A GATE AND MUST NEVER BE READ AS ONE. Every manage-only
- * destination refuses a non-manager itself: `/classroom/<id>/people` and
- * `/classroom/<id>/grades` 404, and a class's Notebook tab decides from the
- * server's own `canManage` whether it is the student's notebook or the review.
+ * destination refuses a non-manager itself: `/classroom/<id>/people`,
+ * `/classroom/<id>/grades` and `/classroom/<id>/settings` 404, and a class's
+ * Notebook tab decides from the server's own `canManage` whether it is the
+ * student's notebook or the review.
  * What this decides is what a caller is SHOWN, which is a different job from
  * what they may reach, and `tests/classroom-nav-doors.test.ts` opens this
  * predicate to prove the tests are watching it rather than the fixture.
@@ -358,6 +403,7 @@ export function activeTab(loc: ClassroomLocation): SectionTabId | null {
 	if (loc.place === 'live') return 'live';
 	if (loc.place === 'people') return 'people';
 	if (loc.place === 'grades') return 'grades';
+	if (loc.place === 'settings') return 'settings';
 	/* `duplicates` is NOT a tab (ledger 0298): it answers null, as an item
 	   does, so no tab bar claims it and the trail -- My Classes / Class /
 	   Duplicates -- is the way back to the class page it was opened from. */
@@ -421,6 +467,10 @@ export function classroomMeasure(loc: ClassroomLocation): ClassroomMeasure | nul
 		case 'people':
 		case 'grades':
 		case 'duplicates':
+		/* SETTINGS TAKES ITS SIBLINGS' WIDTH so the tab bar does not jump when a
+		   teacher moves between People, Grades and Settings; the page lays its
+		   two cards out side by side and caps its own sentences. */
+		case 'settings':
 			return 'split';
 		case 'feedback':
 			return 'form';
@@ -525,6 +575,8 @@ export function classroomCrumbs(
 			return [home, section(false), { label: 'People' }];
 		case 'grades':
 			return [home, section(false), { label: 'Grades' }];
+		case 'settings':
+			return [home, section(false), { label: 'Settings' }];
 		case 'duplicates':
 			return [home, section(false), { label: 'Duplicates' }];
 		case 'notebook':

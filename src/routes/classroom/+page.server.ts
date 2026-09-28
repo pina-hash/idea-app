@@ -40,7 +40,10 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 	const [{ data: sections, error }, work] = await Promise.all([
 		supabase
 			.from('classroom_sections')
-			.select('id, course_id, label, block, teacher_email, classroom_courses(id, code, title, active)')
+			// `active` is 0083's archive flag, which My Classes splits on (report
+			// R12). The layout's `navSections` has named it since 0083 with no
+			// ladder, and so does this: every supported schema has it.
+			.select('id, course_id, label, block, teacher_email, active, classroom_courses(id, code, title, active)')
 			.order('label'),
 		isStaff
 			? Promise.resolve(null)

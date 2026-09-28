@@ -24,7 +24,7 @@ export default {
 	prepare: [READY, OPEN_SHELL_MENU],
 	presence: [
 		{ selector: '[data-testid="palette-trigger"]', label: 'the Search control in the header', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="settings-trigger"]', label: 'the Settings control in the header', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="settings-trigger"]', label: 'the Display settings control in the header', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="stream-search"]', label: 'the class search field', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="stream-kind"]', label: 'the kind select', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="stream-status"] .find-chip', label: "the student's three status chips", expectPresent: 3, maxPresent: 3, expectVisible: 3 },
@@ -34,7 +34,9 @@ export default {
 	],
 	textContains: [
 		{ selector: '[data-testid="palette-trigger"]', label: 'Search says so in a word', must: ['Search'] },
-		{ selector: '[data-testid="settings-trigger"]', label: 'Settings says so in a word', must: ['Settings'] },
+		/* "Display settings" since report R06, so it cannot be mistaken for a
+		   class's own Settings tab. */
+		{ selector: '[data-testid="settings-trigger"]', label: 'Display settings says so in words', must: ['Display settings'] },
 		{ selector: '[data-testid="stream-status-todo"]', label: 'to do, by the one clock', must: ['To do', '4'] },
 		{ selector: '[data-testid="stream-status-missing"]', label: 'missing, by the one clock', must: ['Missing', '2'] },
 		{ selector: '[data-testid="stream-status-done"]', label: 'done', must: ['Done', '3'] }
@@ -63,13 +65,13 @@ export default {
 	],
 	contrast: [
 		{ selector: '[data-testid="palette-trigger"] .shell-tool-word', label: 'Search word', min: 4.5 },
-		{ selector: '[data-testid="settings-trigger"] .shell-tool-word', label: 'Settings word', min: 4.5 },
+		{ selector: '[data-testid="settings-trigger"] .shell-tool-word', label: 'Display settings words', min: 4.5 },
 		{ selector: '.find-chip', label: 'status chip label', min: 4.5 },
 		{ selector: '.find-count', label: 'status chip count', min: 4.5 }
 	],
 	tapTargets: [
 		{ selector: '[data-testid="palette-trigger"]', label: 'Search control' },
-		{ selector: '[data-testid="settings-trigger"]', label: 'Settings control' },
+		{ selector: '[data-testid="settings-trigger"]', label: 'Display settings control' },
 		{ selector: '[data-testid="stream-search"]', label: 'class search field' },
 		{ selector: '[data-testid="stream-kind"]', label: 'kind select' },
 		{ selector: '.find-chip', label: 'status chips' }

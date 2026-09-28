@@ -11,6 +11,18 @@
 export const TODO = '/dev/classroom-todo/todo';
 export const MY_CLASSES = '/dev/classroom-todo';
 
+/**
+ * MY CLASSES WITH LAST YEAR'S CLASSES ARCHIVED (report R12): `?archived=1`
+ * adds three archived sections to the fixture's four, in the shell's strip and
+ * on My Classes alike. Ready once all seven cards and the strip key are there.
+ */
+export const ARCHIVED = '/dev/classroom-todo?archived=1';
+export const ARCHIVED_READY = {
+	waitFor: `() => document.querySelectorAll('a.class-card').length === 7 && !!document.querySelector('[data-testid="class-strip-archived"]')`,
+	timeoutMs: 20000,
+	label: 'seven class cards and the strip Archived key are on the page'
+};
+
 /** The to-do page has hydrated once its view controls are on screen. */
 export const TODO_READY = { waitFor: '() => !!document.querySelector(\'[data-testid="todo-view-assigned"]\')', timeoutMs: 20000 };
 

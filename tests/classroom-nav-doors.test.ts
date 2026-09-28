@@ -74,17 +74,19 @@ describe('control 1: a caller who manages no section is offered no manage-only t
 		expect(visible.some((t) => t.id === 'live')).toBe(false);
 		expect(visible.some((t) => t.id === 'people')).toBe(false);
 		expect(visible.some((t) => t.id === 'grades')).toBe(false);
+		expect(visible.some((t) => t.id === 'settings')).toBe(false);
 	});
 
 	/*
 	 * GENERALIZED (ledger 0298, report 28): six became five. Duplicates is a
 	 * page with doors now, not a tab; the last block below holds the page and
-	 * its doors together.
+	 * its doors together. And five became six again (report R06, 2026-09-28):
+	 * the class's own Settings tab, after Grades, manager-only.
 	 */
-	it('POSITIVE CONTROL: a manager sees all five, so the absences above are the predicate', () => {
+	it('POSITIVE CONTROL: a manager sees all six, so the absences above are the predicate', () => {
 		const visible = visibleSectionTabs(tabs, true);
-		expect(visible.map((t) => t.id)).toEqual(['class', 'live', 'notebook', 'people', 'grades']);
-		expect(visible.length).toBe(5);
+		expect(visible.map((t) => t.id)).toEqual(['class', 'live', 'notebook', 'people', 'grades', 'settings']);
+		expect(visible.length).toBe(6);
 	});
 
 	it('the shell filters through that one function and does not spell it again', () => {
@@ -215,16 +217,16 @@ describe('control 3: every section tab still resolves', () => {
 	 * check names the file it looked for. Duplicates is not a tab since ledger
 	 * 0298 -- see the last block, which holds its page and its doors together.
 	 */
-	it('the shipped set is exactly these five, in reading order', () => {
-		expect(tabs.map((t) => t.id)).toEqual(['class', 'live', 'notebook', 'people', 'grades']);
+	it('the shipped set is exactly these six, in reading order', () => {
+		expect(tabs.map((t) => t.id)).toEqual(['class', 'live', 'notebook', 'people', 'grades', 'settings']);
 	});
 
 	it('every in-classroom tab points at a page that exists on disk', () => {
 		const internal = tabs.filter((t) => !t.external);
-		// Five: the notebook came inside the class and the Live tab joined it
-		// (ledger 0297), and Duplicates left the bar (ledger 0298); no tab is a
-		// departure.
-		expect(internal.length).toBe(5);
+		// Six: the notebook came inside the class and the Live tab joined it
+		// (ledger 0297), Duplicates left the bar (ledger 0298), and Settings
+		// joined it (report R06); no tab is a departure.
+		expect(internal.length).toBe(6);
 		for (const t of internal) {
 			const file = routeFileFor(t.href);
 			expect(existsSync(new URL(`../${file}`, import.meta.url)), `${t.id} -> ${file}`).toBe(true);
@@ -312,8 +314,8 @@ describe('the duplicates page and its doors stand or fall together', () => {
 				: 'the duplicates page is not on this base, so a door to it would 404'
 		).toBe(pageExists);
 		// POSITIVE CONTROL for the door being a DOOR and not a tab: the bar has
-		// five tabs and none of them names the page.
-		expect(sectionTabs('s-1').length).toBe(5);
+		// six tabs and none of them names the page.
+		expect(sectionTabs('s-1').length).toBe(6);
 		expect(sectionTabs('s-1').some((t) => t.href.endsWith('/duplicates'))).toBe(false);
 		expect(classDuplicatesHref('s-1')).toBe('/classroom/s-1/duplicates');
 		expect(classDuplicatesHref('a b/c')).toBe('/classroom/a%20b%2Fc/duplicates');

@@ -9,7 +9,6 @@
 		enrollmentWorkSummary,
 		importReasonLabel,
 		parseSectionRosterCsv,
-		sectionDeleteBlockedLabel,
 		sectionTitle,
 		splitRoster,
 		type ClassroomEnrollment,
@@ -25,7 +24,7 @@
 		type ReviewTransports
 	} from '$lib/notebook-review';
 	import { formatSectionLabel } from '$lib/section-label';
-	import { classNotebookHref } from '$lib/classroom/nav';
+	import { classNotebookHref, classSettingsHref } from '$lib/classroom/nav';
 	import Pending from '$lib/Pending.svelte';
 	import {
 		classEmailList,
@@ -63,14 +62,18 @@
 	} from '$lib/classroom/teams';
 
 	/**
-	 * ONE class's people and settings: the roster (add, correct, deactivate, CSV
-	 * import) and what the class itself IS (label, block, teacher of record,
-	 * archive, delete).
+	 * ONE class's people: the roster (add, correct, deactivate, CSV import), the
+	 * class tools and the saved teams.
 	 *
-	 * THIS IS WHERE THE MANAGE CONSOLE WENT. Both of these used to live on a
+	 * THIS IS WHERE THE MANAGE CONSOLE WENT. The roster used to live on a
 	 * separate page listing every class a teacher runs, behind an accordion --
 	 * so changing one class's roster meant leaving that class, finding it in a
 	 * list, and opening a panel. Managing a class is now done standing in it.
+	 *
+	 * WHAT THE CLASS ITSELF IS (label, block, teacher of record, archive,
+	 * delete) LEFT THIS PANEL for the class's own Settings tab
+	 * (`ClassSettingsPanel`, report R06, 2026-09-28): it sat at the bottom of
+	 * People, which is not where anybody looked for it.
 	 *
 	 * Presentation + injected transports (the ReviewConsole convention). Nothing
 	 * here is a boundary: the route 404s a non-manager, and every RPC behind these
@@ -83,8 +86,7 @@
 		transports,
 		loadNotebookGrid = null,
 		teams: teamTransports = null,
-		onchanged = null,
-		ondeleted = null
+		onchanged = null
 	}: {
 		section: ClassroomSection;
 		roster?: ClassroomEnrollment[];
@@ -128,95 +130,12 @@
 		 */
 		loadNotebookGrid?: ReviewTransports['loadGrid'] | null;
 		onchanged?: (() => void | Promise<void>) | null;
-		/**
-		 * Deleting the class removes the page under your feet, so the caller
-		 * navigates instead of reloading a load that would now 404. A REFUSED
-		 * delete (the designed `not_empty` path) never calls this.
-		 */
-		ondeleted?: (() => void | Promise<void>) | null;
 	} = $props();
 
 	type Msg = { ok: boolean; text: string } | null;
 
 	let busy = $state(false);
 	let msg = $state<Msg>(null);
-
-	// --- Class settings ---------------------------------------------------
-	let editingSection = $state(false);
-	// Seeded by startEditSection, which is the only thing that opens the form --
-	// so these never hold a stale copy of a section that reloaded underneath.
-	let editLabel = $state('');
-	let editBlock = $state('');
-	let editTeacher = $state('');
-	let armSectionDelete = $state(false);
-	let deleteConfirmText = $state('');
-	let deleteBlocked = $state<string | null>(null);
-
-	function startEditSection() {
-		editingSection = !editingSection;
-		editLabel = section.label;
-		editBlock = section.block ?? '';
-		editTeacher = section.teacher_email;
-		msg = null;
-	}
-
-	async function saveSection() {
-		if (busy) return;
-		busy = true;
-		const res = await transports.upsertSection(
-			section.course_id,
-			editLabel,
-			editBlock.trim() || null,
-			section.id,
-			editTeacher.trim().toLowerCase() || null
-		);
-		busy = false;
-		if (!res.ok) {
-			msg = { ok: false, text: res.message };
-			return;
-		}
-		editingSection = false;
-		msg = { ok: true, text: 'Class saved.' };
-		await onchanged?.();
-	}
-
-	async function toggleActive() {
-		if (busy) return;
-		busy = true;
-		const res = await transports.setSectionActive(section.id, section.active === false);
-		busy = false;
-		if (!res.ok) {
-			msg = { ok: false, text: res.message };
-			return;
-		}
-		msg = { ok: true, text: section.active === false ? 'Class reactivated.' : 'Class archived.' };
-		await onchanged?.();
-	}
-
-	/**
-	 * Two-step, and the second step is a TYPED label -- mirrored from the RPC,
-	 * which enforces it server-side, so the button can never be enabled on input
-	 * the database would reject.
-	 */
-	async function confirmDelete() {
-		if (busy) return;
-		busy = true;
-		deleteBlocked = null;
-		const res = await transports.deleteSection(section.id, deleteConfirmText);
-		busy = false;
-		if (!res.ok) {
-			msg = { ok: false, text: res.message };
-			return;
-		}
-		if (res.data.ok === false) {
-			// The designed path, not an error: a class holding real work is never
-			// deleted. Say what would have been lost and point at archiving.
-			deleteBlocked = sectionDeleteBlockedLabel(res.data);
-			return;
-		}
-		msg = { ok: true, text: 'Class deleted.' };
-		await ondeleted?.();
-	}
 
 	// --- Roster -----------------------------------------------------------
 	let addEmail = $state('');
@@ -820,7 +739,16 @@
 			{status.label}
 		</span>
 		<span class="roster-actions">
-			<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => startEdit(e)}>
+			<!-- `.on` while this row's correction form is open (report R15), so
+			     the Close that puts it away reads as the way back. -->
+			<button
+				type="button"
+				class="btn secondary tiny"
+				class:on={editEmail === e.student_email}
+				aria-expanded={editEmail === e.student_email}
+				disabled={busy}
+				onclick={() => startEdit(e)}
+			>
 				{editEmail === e.student_email ? 'Close' : 'Edit'}
 			</button>
 			<button
@@ -1057,6 +985,7 @@
 				type="button"
 				class="btn secondary tiny tap-44"
 				data-testid="tool-email"
+				class:on={tool === 'email'}
 				aria-expanded={tool === 'email'}
 				aria-controls="tool-panel-email"
 				onclick={() => toggleTool('email')}
@@ -1067,6 +996,7 @@
 				type="button"
 				class="btn secondary tiny tap-44"
 				data-testid="tool-picker"
+				class:on={tool === 'picker'}
 				aria-expanded={tool === 'picker'}
 				aria-controls="tool-panel-picker"
 				onclick={() => toggleTool('picker')}
@@ -1078,6 +1008,7 @@
 					type="button"
 					class="btn tiny tap-44"
 					data-testid="tool-teams"
+					class:on={tool === 'teams'}
 					aria-expanded={tool === 'teams'}
 					aria-controls="tool-panel-teams"
 					onclick={() => toggleTool('teams')}
@@ -1593,86 +1524,14 @@
 		</section>
 	{/if}
 
-	<section class="card">
-		<h2>Class settings</h2>
-		<div class="section-actions">
-			<button type="button" class="btn secondary tiny" onclick={startEditSection}>
-				{editingSection ? 'Close' : 'Edit details'}
-			</button>
-			<button type="button" class="btn secondary tiny" disabled={busy} onclick={toggleActive}>
-				{section.active === false ? 'Reactivate class' : 'Archive class'}
-			</button>
-			<button
-				type="button"
-				class="btn secondary tiny danger"
-				disabled={busy}
-				onclick={() => {
-					armSectionDelete = !armSectionDelete;
-					deleteConfirmText = '';
-					deleteBlocked = null;
-				}}
-			>
-				{armSectionDelete ? 'Cancel delete' : 'Delete class'}
-			</button>
-		</div>
-
-		{#if editingSection}
-			<form
-				class="inline-form"
-				onsubmit={(e) => {
-					e.preventDefault();
-					saveSection();
-				}}
-			>
-				<label>
-					<span>Class label</span>
-					<input type="text" bind:value={editLabel} required />
-				</label>
-				<label>
-					<span>Block / period</span>
-					<input type="text" bind:value={editBlock} />
-				</label>
-				<label>
-					<span>Teacher of record</span>
-					<input type="email" bind:value={editTeacher} required />
-				</label>
-				<p class="note">
-					Handing this class to another @boscotech.edu teacher removes it from your own list &mdash;
-					only they (or an admin) can hand it back.
-				</p>
-				<button class="btn tiny" type="submit" disabled={busy}>Save class</button>
-			</form>
-		{/if}
-
-		{#if armSectionDelete}
-			<div class="danger-zone">
-				<p class="note">
-					Deleting is only possible when the class is completely empty. If it holds posted items or
-					students, archive it instead &mdash; that keeps every record and takes it out of the
-					publish targets.
-				</p>
-				<label>
-					<span>Type the class label ("{section.label}") to confirm</span>
-					<input type="text" bind:value={deleteConfirmText} placeholder={section.label} />
-				</label>
-				<button
-					class="btn tiny danger"
-					type="button"
-					disabled={busy ||
-						deleteConfirmText.trim().toLowerCase() !== section.label.trim().toLowerCase()}
-					onclick={confirmDelete}
-				>
-					Delete this class
-				</button>
-				{#if deleteBlocked}
-					<p class="feedback error">
-						Not deleted -- this class still holds {deleteBlocked}. Archive it instead, or remove
-						that content first.
-					</p>
-				{/if}
-			</div>
-		{/if}
-	</section>
+	<!-- THE CLASS'S OWN SETTINGS MOVED TO ITS SETTINGS TAB (report R06,
+	     2026-09-28), and this line says so where the card used to be, because
+	     a teacher who learned to scroll here for Archive should find the way
+	     rather than a missing card. -->
+	<p class="note settings-moved" data-testid="people-settings-moved">
+		Class details, Archive class and Delete class are on this class's
+		<a href={classSettingsHref(section.id)}>Settings tab</a>.
+	</p>
 	</div>
 	</div>
 
@@ -1719,11 +1578,8 @@
 	.empty-state {
 		padding: 0.4rem 0;
 	}
-	.section-actions {
-		display: flex;
-		gap: 0.35rem;
-		flex-wrap: wrap;
-		margin-bottom: 0.4rem;
+	.settings-moved {
+		margin: 0 0 1.1rem;
 	}
 	.page-footer {
 		margin-top: 1.4rem;
@@ -1865,12 +1721,6 @@
 	.inline-form .btn {
 		align-self: flex-start;
 	}
-	.danger-zone {
-		border: 1px solid var(--crimson);
-		border-radius: var(--radius-card);
-		padding: 0.6rem 0.7rem;
-		margin-bottom: 0.6rem;
-	}
 	.roster-rows {
 		display: flex;
 		flex-direction: column;
@@ -2006,7 +1856,7 @@
 		cursor: pointer;
 		font-family: var(--font-mono);
 		font-size: 0.75rem;
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	.csv-import textarea {
 		margin: 0.4rem 0;
