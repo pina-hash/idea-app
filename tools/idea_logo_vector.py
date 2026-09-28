@@ -46,19 +46,27 @@ DARK = dict(
     letter_hi=IVORY_HI, letter_lo=IVORY_LO, letter_outline=IVORY_OUTLINE,
     letter_shadow=LETTER_SHADOW, letter_shadow_opacity=0.8,
     bevel_deep="#5F5D55", bevel_mid="#B9B2A3", bevel_lit=IVORY_HI,
+    # Stroke weights, in source px. These are PAINT, not geometry -- the
+    # octagon, the gear and the traced letters never move -- but a flat
+    # single-ink variant needs a plate edge a 56px masthead can still see, and
+    # the sampled 4 px edge is 0.2 px there. The defaults are the values this
+    # file always drew with, spelled so the dark SVG stays byte-identical. A
+    # palette may also carry `glow_w` (the inset line's width); without it the
+    # line is GLOW_W, as it always was.
+    plate_edge=4, plate_edge_chamfer=2, plate_outline_w=10,
 )
 
-# THE LIGHT LOCKUP (ledger 0298, decision 40 item 2): the emblem for a light
-# console, where the dark plate read as a dark tile on a white masthead. The
-# GEOMETRY does not move -- it is the same gear, plate and traced letters as
-# DARK -- only the paint does, and the green identity is kept: the plate is the
-# brand green (#78b870, the value Space White calls --accent-field and keeps
-# at full brightness for a large field only) worked into the same top-lit
-# gradient the dark plate has, its edge and groove in the theme's green ink,
-# the inset line a pale highlight on the field rather than a glow, and the
-# ivory lettering re-inked to a near-black green so it reads on that field.
-# The steel gear keeps its steel; only its outline deepens to the theme's ink.
-LIGHT = dict(DARK,
+# THE FIRST LIGHT LOCKUP (ledger 0298, decision 40 item 2), RETIRED 2026-09-28
+# (report R13: "the colors are off and it looks weird"). The dark plate had
+# read as a dark tile on a white masthead, so this repainted the plate in the
+# brand field green and re-inked the ivory lettering near-black. Two things
+# were wrong with it, both measured on the candidate board below: the pastel
+# plate (#9DD294) stands 1.35:1 off the Space White header strip, so only its
+# outline separates it from the masthead, and dark lettering turns the
+# figure inside out -- IDEA's letters are broad light strokes with narrow dark
+# gaps, so inked dark it is the GAPS that read as the letters. Kept, under its
+# own name, so the board can show what was replaced; nothing ships it.
+LIGHT_0298 = dict(DARK,
     steel_outline="#1B2A1F",
     plate_top="#9DD294", plate_mid="#80BF77", plate_lo="#69A862", plate_outline="#1F3A22",
     groove="#2F5C2D", groove_opacity=0.35,
@@ -66,6 +74,105 @@ LIGHT = dict(DARK,
     letter_hi="#223A28", letter_lo="#0F1A12", letter_outline="#0B140E",
     letter_shadow="#2F5C2D", letter_shadow_opacity=0.45,
     bevel_deep="#08100A", bevel_mid="#1A2B1F", bevel_lit="#4F7556",
+)
+
+# ---- the light-console candidates (report R13, 2026-09-28) ------------------
+# Every one is the SAME geometry as DARK -- gear, plate and traced letters --
+# painted differently, so the board compares colour and nothing else. The
+# board is `node tools/idea_emblem_raster.mjs --board ...` and its images are
+# docs/feedback/2026-09-28/round1/logo-candidates-*.png. Ratios are WCAG,
+# against the header strip (#e4e8ee to #dfe3ea) unless another ground is named.
+
+# A. CHIP: the original emblem untouched; its own dark octagon is the chip.
+# What Space White showed before ledger 0298 (then inside a dark window), and
+# what report R16 of 2026-09-25 said did not follow the light theme.
+CHIP = DARK
+
+# B. DEEP: the dark emblem's recipe -- top-lit plate, pale glow line, ivory
+# lettering with its bevel, steel gear -- with the plate lifted from near-black
+# into a true deep green. The lettering drops to 3.92:1 against the plate's
+# lit top (#4A8345), and the bevel, the glow halo and the gradients are
+# exactly the mid-tones Space White removes everywhere else (no glow, no bevel).
+DEEP = dict(DARK,
+    plate_top="#4A8345", plate_mid="#3B6C37", plate_lo="#2C5429", plate_outline="#10210F",
+    groove="#0E1C0D", groove_opacity=0.45,
+)
+
+# C. INK: one colour. The theme's green ink (#3b6c36) for the gear, the
+# plate's edge, its inset line and the letters; the plate's face is the raised
+# white the theme's panels use, because the plate has to hide the gear that
+# turns behind it. Clean, but dark lettering inverts the figure exactly as the
+# retired lockup did: the white gaps read as the word.
+INK_GREEN = "#3B6C36"
+INK = dict(DARK,
+    steel_hi=INK_GREEN, steel_mid=INK_GREEN, steel_lo=INK_GREEN, steel_outline=INK_GREEN,
+    rim_hi=INK_GREEN, rim_lo=INK_GREEN,
+    plate_top="#FBFCFC", plate_mid="#FBFCFC", plate_lo="#FBFCFC", plate_outline=INK_GREEN,
+    groove=INK_GREEN, groove_opacity=0,
+    glow_hi=INK_GREEN, glow_mid=INK_GREEN, glow_lo=INK_GREEN, halo=INK_GREEN, halo_opacity=0,
+    letter_hi=INK_GREEN, letter_lo=INK_GREEN, letter_outline=INK_GREEN,
+    letter_shadow=INK_GREEN, letter_shadow_opacity=0,
+    bevel_deep=INK_GREEN, bevel_mid=INK_GREEN, bevel_lit=INK_GREEN,
+    plate_edge=34, plate_edge_chamfer=14, glow_w=22,
+)
+
+# D. STEEL: Space White's own material. The plate is the console's machined
+# light steel, edged in a near-black green; the inset line is the lit green the
+# theme uses for a selection; the letters are the green ink with the emblem's
+# bevel kept; the steel gear is unchanged. The plate is 1.11:1 to 1.18:1 off
+# the strip it sits on, so at 56px the emblem is an outline, and the dark
+# lettering carries INK's inversion.
+STEEL = dict(DARK,
+    plate_top="#F8FAFC", plate_mid="#E7EBF0", plate_lo="#D2D8E0", plate_outline="#1C2620",
+    groove="#545C6E", groove_opacity=0.30,
+    glow_hi="#4F8A48", glow_mid="#3B6C36", glow_lo="#2F5A2B", halo="#78B870", halo_opacity=0,
+    letter_hi="#3F7439", letter_lo="#23461F", letter_outline="#10200F",
+    letter_shadow="#545C6E", letter_shadow_opacity=0.35,
+    bevel_deep="#0E1C0D", bevel_mid="#2A5226", bevel_lit="#6FA868",
+    plate_outline_w=14,
+)
+
+# E. FLAT: two flat colours -- the plate a solid deep green, the letters and
+# the inset line the panel white, the gear the same green with a white rim. A
+# sign-painter's version of the emblem: crisp at every size, but a solid green
+# gear outweighs the plate it is meant to sit behind.
+FLAT_GREEN = "#2F5A2B"
+FLAT_WHITE = "#F7F9F9"
+FLAT = dict(INK,
+    steel_hi=FLAT_GREEN, steel_mid=FLAT_GREEN, steel_lo=FLAT_GREEN, steel_outline=FLAT_GREEN,
+    rim_hi=FLAT_WHITE, rim_lo=FLAT_WHITE,
+    plate_top=FLAT_GREEN, plate_mid=FLAT_GREEN, plate_lo=FLAT_GREEN, plate_outline=FLAT_GREEN,
+    glow_hi=FLAT_WHITE, glow_mid=FLAT_WHITE, glow_lo=FLAT_WHITE,
+    letter_hi=FLAT_WHITE, letter_lo=FLAT_WHITE, letter_outline=FLAT_WHITE,
+    bevel_deep=FLAT_WHITE, bevel_mid=FLAT_WHITE, bevel_lit=FLAT_WHITE,
+    plate_edge=4, plate_edge_chamfer=2, glow_w=18,
+)
+
+# F. SLATE, THE ONE SPACE WHITE SHIPS: FLAT with the gear handed back to steel,
+# as it is on the dark emblem, so each part keeps its job -- a steel gear
+# behind, a green plate in front, light lettering on it, a lit green rim and a
+# pale green inset line -- drawn flat, which is Space White's own character (no
+# glow, no bevel, no texture). The gear is the theme's own --gear token and the
+# rim its brand field green (#78b870, the dark rim's lit green); the inset line
+# is the dark emblem's glow green. Measured: lettering 7.59:1 on the plate, the
+# plate 6.23:1 off the strip, the gear 4.65:1 off the strip and 5.66:1 off a
+# panel, the inset line 5.23:1 on the plate.
+SLATE_GEAR = "#5A6662"
+SLATE = dict(FLAT,
+    steel_hi=SLATE_GEAR, steel_mid=SLATE_GEAR, steel_lo=SLATE_GEAR, steel_outline=SLATE_GEAR,
+    rim_hi="#78B870", rim_lo="#78B870",
+    glow_hi=GLOW_MID, glow_mid=GLOW_MID, glow_lo=GLOW_MID,
+)
+
+# THE LIGHT LOCKUP Space White ships. `--emblem light` writes it, and
+# `tools/idea_emblem_raster.mjs` turns it into the `idea-*-light-*.png` copies
+# `AnimatedLogo.svelte` names, so the component needed no change of path.
+LIGHT = SLATE
+
+# Every palette `--emblem <name>` accepts, by name.
+EMBLEM_PALETTES = dict(
+    dark=DARK, light=LIGHT, light0298=LIGHT_0298,
+    chip=CHIP, deep=DEEP, ink=INK, steel=STEEL, flat=FLAT, slate=SLATE,
 )
 
 # ---- gear (source px) ------------------------------------------------------
@@ -215,9 +322,11 @@ def plate_svg(x0=PX0, y0=PY0, x1=PX1, y1=PY1, c=CHAMFER, inset=GLOW_INSET, gw=GL
     ci = c - inset * (math.sqrt(2) - 1)  # keep the inset line's chamfer parallel
     ci = c - inset * 0.414
     inner = octagon(x0 + inset, y0 + inset, x1 - inset, y1 - inset, ci)
+    gw = pal.get("glow_w", gw)
+    e, ec = pal["plate_edge"], pal["plate_edge_chamfer"]
     g = f"""<g>
-<path d="{outer}" fill="{pal["plate_outline"]}" stroke="{pal["plate_outline"]}" stroke-width="10" stroke-linejoin="round"/>
-<path d="{octagon(x0+4, y0+4, x1-4, y1-4, c-2)}" fill="url(#{prefix}plate)"/>
+<path d="{outer}" fill="{pal["plate_outline"]}" stroke="{pal["plate_outline"]}" stroke-width="{pal["plate_outline_w"]}" stroke-linejoin="round"/>
+<path d="{octagon(x0+e, y0+e, x1-e, y1-e, c-ec)}" fill="url(#{prefix}plate)"/>
 <path d="{inner}" fill="none" stroke="{pal["groove"]}" stroke-opacity="{pal["groove_opacity"]}" stroke-width="{gw*1.9:.1f}"/>
 """
     if accent:
@@ -360,14 +469,16 @@ def icon_svg(size=512, mode="stack", maskable=False, k=None):
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == "--emblem":
-        # python3 tools/idea_logo_vector.py --emblem light <outdir>
-        # Writes the two emblem layers as SVG. No rasteriser is imported: the
-        # PNG copies the site serves are rendered from these by
-        # `node tools/idea_emblem_raster.mjs <outdir>`, through the Chromium the
-        # browser pass already uses, because this container has no cairosvg.
+        # python3 tools/idea_logo_vector.py --emblem <palette> <outdir>
+        # Writes the two emblem layers as SVG, for any name in EMBLEM_PALETTES
+        # (`light` is what ships). No rasteriser is imported: the PNG copies
+        # the site serves are rendered from these by
+        # `node tools/idea_emblem_raster.mjs <outdir> <palette>`, through the
+        # Chromium the browser pass already uses, because this container has no
+        # cairosvg.
         name = sys.argv[2] if len(sys.argv) > 2 else "light"
         out = sys.argv[3] if len(sys.argv) > 3 else "emblem"
-        pal = {"light": LIGHT, "dark": DARK}[name]
+        pal = EMBLEM_PALETTES[name]
         os.makedirs(out, exist_ok=True)
         open(f"{out}/idea-logo-text-{name}.svg", "w").write(emblem_text_svg(pal))
         open(f"{out}/idea-gear-{name}.svg", "w").write(emblem_gear_svg(pal))

@@ -79,13 +79,18 @@
 			: undefined
 	);
 	/**
-	 * THE LIGHT LOCKUP (ledger 0298, decision 40 item 2). Space White's
-	 * masthead is a light panel, and the emblem is a dark green plate with
-	 * ivory letters drawn for a dark ground, so on that theme it read as a dark
-	 * tile. The light copies are the same geometry repainted in
-	 * `tools/idea_logo_vector.py` (the one place logo geometry lives) -- the
-	 * plate in the brand green, the lettering re-inked dark, the steel gear kept
-	 * -- and rasterised at these same widths by `tools/idea_emblem_raster.mjs`.
+	 * THE LIGHT LOCKUP (decision 40 item 2, amended 2026-09-28 by report R13).
+	 * Space White's masthead is a light panel, and the emblem is a dark green
+	 * plate with ivory letters drawn for a dark ground, so on that theme it read
+	 * as a dark tile. The light copies are the same geometry repainted in
+	 * `tools/idea_logo_vector.py` (the one place logo geometry lives) as its
+	 * `SLATE` palette -- flat, as Space White is: a slate gear with a lit green
+	 * rim behind a deep green plate, white lettering on it -- and rasterised at
+	 * these same widths by `tools/idea_emblem_raster.mjs`. The first light
+	 * lockup (a pastel plate, the lettering re-inked dark) was retired because
+	 * dark lettering turns IDEA's letters inside out; the candidate board is
+	 * `docs/feedback/2026-09-28/round1/logo-candidates-*.png`. The file names
+	 * did not change, so nothing below did.
 	 *
 	 * CHOSEN BY THE STYLESHEET, NOT BY SCRIPT, which is what makes it
 	 * flash-free: the theme attribute is on `<html>` before the body is parsed

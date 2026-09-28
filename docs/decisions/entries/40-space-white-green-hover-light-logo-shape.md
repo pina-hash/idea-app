@@ -11,6 +11,7 @@
   colour and material changing between them. That SUPERSEDES item 4's closing clause below
   ("the dark themes are unaffected unless he later asks"): he asked. Scope is IDEA Classroom
   only; every other app keeps its look.
+- Amended 2026-09-28 (report R13, Mr. Pina: "the colors are off and it looks weird"): item 2's pastel-plate, dark-lettered lockup is retired, because dark lettering turns IDEA's letters inside out and the pastel plate stands 1.35:1 off the header; Space White now ships the `SLATE` variant from `tools/idea_logo_vector.py` (flat, a slate gear with a lit green rim behind a deep green plate, white lettering at 7.59:1), chosen from six candidates on `docs/feedback/2026-09-28/round1/logo-candidates-*.png`.
 
 ## What was decided
 
