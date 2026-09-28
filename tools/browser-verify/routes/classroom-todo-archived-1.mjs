@@ -29,7 +29,7 @@ export default {
 		{ selector: '[data-testid="my-classes-archived-toggle"]', label: 'the Archived disclosure', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="my-classes-archived-toggle"][aria-expanded="false"]', label: 'closed by default', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="my-classes-archived-count"]', label: 'its count, visible while closed', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-testid="my-classes-archived"] a.class-card', label: 'the three archived cards, in the DOM and hidden', expectPresent: 3, maxPresent: 3, maxVisible: 0 },
+		{ selector: '[data-testid="my-classes-archived"] a.class-card', label: 'the three archived cards, in the DOM and hidden', expectPresent: 3, maxPresent: 3, expectVisible: 0, maxVisible: 0 },
 		{ selector: '[data-testid="my-classes-none-active"]', label: 'the "none running" sentence (absent: four classes are active)', expectPresent: 0 },
 		/* The strip scrolls at 375, so its keys are counted, not required on
 		   screen: the positive control is the four active keys. */
@@ -37,7 +37,7 @@ export default {
 		{ selector: '[data-testid="class-strip"] [data-testid="class-icon"].archived', label: 'no archived class keeps a key of its own here', expectPresent: 0 },
 		{ selector: '[data-testid="class-strip-archived"]', label: 'the strip Archived key', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="class-strip-archived"][aria-expanded="false"]', label: 'its list closed', expectPresent: 1, maxPresent: 1 },
-		{ selector: '[data-testid="class-strip-archived-list"]', label: 'its list, in the DOM and hidden', expectPresent: 1, maxPresent: 1, maxVisible: 0 }
+		{ selector: '[data-testid="class-strip-archived-list"]', label: 'its list, in the DOM and hidden', expectPresent: 1, maxPresent: 1, expectVisible: 0, maxVisible: 0 }
 	],
 	textContains: [
 		{ selector: '[data-testid="my-classes-archived-count"]', label: 'the count says how many, in words', must: ['3 classes'] },
