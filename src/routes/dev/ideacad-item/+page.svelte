@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	/**
 	 * Dev harness for the MOUNT, which is the thing ledger 0201 could not build
 	 * and the thing no panel harness can see.
@@ -680,7 +681,7 @@
 	const seed = $derived(ideacadEditorSeed(snapshot));
 </script>
 
-<div class="cr-root" data-testid="ideacad-item-room">
+<div class="cr-root {CLASSROOM_PLATE}" data-testid="ideacad-item-room">
 <main class="harness">
 	<h1>IdeaCAD on the real item page</h1>
 	<p class="ctx" data-testid="ideacad-item-ctx">

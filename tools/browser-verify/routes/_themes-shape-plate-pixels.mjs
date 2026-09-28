@@ -4,7 +4,7 @@
  * page's default view. `_`-prefixed, so `../routes.mjs` does not load it as a
  * route spec; run by hand, against /dev/themes-shape:
  *
- *   node tools/browser-verify/routes/_themes-shape-plate-pixels.mjs [--shots <dir>] [--face b]
+ *   node tools/browser-verify/routes/_themes-shape-plate-pixels.mjs [--shots <dir>]
  *
  * What it answers that a route spec cannot, because a spec visits one theme
  * and reads the DOM:
@@ -15,7 +15,7 @@
  *      other element's box is diffed too, minus the logo's spinning gear (a
  *      rotation animates its box) and the emblem's dark/light twin (the theme
  *      swaps which one is displayed; the slot they share is a control and is
- *      in the first count). `--face b` repeats it with the pixel face on.
+ *      in the first count). (Face B, VT323, was removed by ledger 0345.)
  *   2. THE FOCUS RING, counted in pixels as round 1 counted it (`focusRing`
  *      from ../_themes-shape-pixels.mjs): each control focused for real,
  *      pixels that change, against the ~2px ring a full outline draws.
@@ -52,7 +52,7 @@ import { washedRatio } from '../checks.mjs';
 const shotsIdx = process.argv.indexOf('--shots');
 const shotsDir = shotsIdx > 0 ? process.argv[shotsIdx + 1] : null;
 if (shotsDir) mkdirSync(shotsDir, { recursive: true });
-const faceB = process.argv.includes('--face') && process.argv[process.argv.indexOf('--face') + 1] === 'b';
+const faceB = false; // face B (VT323) was removed by ledger 0345
 
 const THEMES = ['idea', 'matrix', 'space-white'];
 const WIDTHS = [1440, 375];
@@ -71,7 +71,7 @@ async function openPlate(browser, origin, theme, width, { dsf = 1 } = {}) {
 }
 
 async function finishOpen(context, page, origin, theme) {
-	await page.goto(`${origin}/dev/themes-shape?state=${theme}${faceB ? '&face=b' : ''}`, { waitUntil: 'domcontentloaded' });
+	await page.goto(`${origin}/dev/themes-shape?state=${theme}`, { waitUntil: 'domcontentloaded' });
 	await waitForApp(page);
 	const attr = theme === 'idea' ? null : theme;
 	const ok = await waitUntil(
@@ -153,7 +153,7 @@ const MONO = `(col) => {
 	for (const el of document.querySelectorAll('${VIEW} [data-col="' + col + '"] *')) {
 		if (![...el.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim())) continue;
 		const cs = getComputedStyle(el);
-		if (!/Share Tech Mono|VT323/i.test(cs.fontFamily)) continue;
+		if (!/Share Tech Mono/i.test(cs.fontFamily)) continue;
 		const r = el.getBoundingClientRect();
 		if (!r.width || !r.height || cs.visibility === 'hidden') continue;
 		const px = parseFloat(cs.fontSize);
@@ -250,7 +250,7 @@ async function ringReadout(page, sel) {
 	const el = await page.$(sel);
 	await el.scrollIntoViewIfNeeded();
 	await new Promise((r) => setTimeout(r, 150));
-	const value = await el.$('.p3-ring-value');
+	const value = await el.$('.plate-ring-value');
 	const fgCss = await value.evaluate((n) => getComputedStyle(n).color);
 	/* The glyphs' own box, not the full-size span that centres them. */
 	const box = await value.evaluate((n) => {
@@ -377,7 +377,7 @@ try {
 					for (const col of ['before', 'after']) console.log(`  ring ${col} ${label}: ` + (await focusRing(page, sel.replace('COL', col))).replace(/^[^:]*: /, ''));
 				}
 				for (const [label, sel, cut] of CUTS) console.log(`  edge ${label}: ` + (await diagonal(page, sel, cut)).replace(/^[^:]*: /, ''));
-				for (const sec of ['display', 'region']) console.log(`  ring readout (${sec}): ` + (await ringReadout(page, `[data-pl-sec="${sec}"] [data-col="after"] [data-testid="p3-ring"]`)));
+				for (const sec of ['display', 'region']) console.log(`  ring readout (${sec}): ` + (await ringReadout(page, `[data-pl-sec="${sec}"] [data-col="after"] [data-testid="plate-ring"]`)));
 				console.log('  paint cost: ' + (await paintCost(browser, page)));
 			}
 			await context.close();
@@ -412,7 +412,7 @@ try {
 				['Switch, off and on', await crop(page, '[data-pl-sec="buttons"] [data-col="after"] [data-pl="group-switches"] .pl-row')],
 				['List well, the selected row and the position bar', await crop(page, '[data-pl-sec="list"] [data-col="after"] .group-card', 16)],
 				['Display: housing, screen, screws, perforation', await crop(page, '[data-pl-sec="display"] [data-col="after"] .grade-card', 20)],
-				['Progress ring', await crop(page, '[data-pl-sec="display"] [data-col="after"] [data-testid="p3-ring"]', 16)],
+				['Progress ring', await crop(page, '[data-pl-sec="display"] [data-col="after"] [data-testid="plate-ring"]', 16)],
 				['Dropdown well', await crop(page, '[data-pl-sec="fields"] [data-col="after"] [data-ts="select"]')]
 			],
 			`${shotsDir}/shapes-v3-detail-space-white-2x.png`

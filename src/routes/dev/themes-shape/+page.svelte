@@ -5,7 +5,6 @@
 	import './shape.css';
 	import './plate.css';
 	import './plate-v3.css';
-	import '@fontsource/vt323/400.css';
 	import PlateView from './PlateView.svelte';
 	import PlateV3View from './PlateV3View.svelte';
 	import { SECTIONS } from './plate-fixtures';
@@ -51,9 +50,10 @@
 	type Cut = 'two' | 'four';
 
 	/**
-	 * FOUR VIEWS. `v3` is round 3 (ledger 0344) and the DEFAULT: the same one
-	 * geometry for every theme as round 2, with Sci-Fi Line's finish
-	 * (./plate-v3.css). `plate` is round 2 (ledger 0341, ./plate.css), kept
+	 * FOUR VIEWS. `v3` is round 3 (ledger 0344) and the DEFAULT, and since
+	 * ledger 0345 it is the SHIPPED look: its after column wears the live
+	 * classroom's own `$lib/classroom/plate.css` through `CLASSROOM_PLATE`,
+	 * and ./plate-v3.css keeps only the mockup's own furniture. `plate` is round 2 (ledger 0341, ./plate.css), kept
 	 * whole for comparison; `two` and `four` are round 1's cut styles (ledger
 	 * 0298, ./shape.css). `?view=` picks one; round 1's own `?cut=four` still
 	 * lands on its four-corner view, so a link written from shapes.md keeps
@@ -78,15 +78,9 @@
 			})()
 	);
 
-	/**
-	 * THE LABEL FACE, A OR B (ledger 0344): a question for Mr. Pina, not a
-	 * decision. A is Share Tech Mono, the house mono. B is VT323, one OFL pixel
-	 * face self-hosted from `@fontsource/vt323`, used for the v3 view's labels
-	 * and readouts only (plate-v3.css). `?face=b` starts on B.
-	 */
-	type Face = 'a' | 'b';
-	let faceChoice = $state<Face | null>(null);
-	const face = $derived<Face>(faceChoice ?? (page.url.searchParams.get('face') === 'b' ? 'b' : 'a'));
+	/* THE LABEL FACE IS SHARE TECH MONO (Mr. Pina, 2026-09-27, answering
+	   ledger 0344's question 1): face B, VT323, is gone with its toggle and
+	   its `@fontsource/vt323` dependency (ledger 0345). */
 	const cut = $derived<Cut>(view === 'four' ? 'four' : 'two');
 
 	const current = $derived(siteTheme());
@@ -165,12 +159,13 @@
 		<header class="ts-hero">
 			<h1>IDEA Classroom shape language: before and after</h1>
 			<p class="ts-lead">
-				A mockup for a decision, not a change: nothing on this page reaches a real page. The left
-				or top of each pair is today's classroom in the theme you pick. The right or bottom is the
-				same element with the proposal. <strong>Plate v3</strong> is round 3: round 2's one sci-fi
-				geometry for every theme, finished the way Sci-Fi Line is finished, with only colour and
-				material changing between themes. Round 2's Plate and round 1's two corner views are kept
-				for comparison.
+				The classroom's shape language, before and after. The left or top of each pair is the
+				classroom WITHOUT it, in the theme you pick. The right or bottom is the same element with
+				<strong>Plate v3</strong>, which Mr. Pina approved on 2026-09-27 and which is now live on every
+				classroom page: its after column wears the production stylesheet, so this page and the site
+				cannot drift apart. One sci-fi geometry for every theme, with only colour and material
+				changing between them. Round 2's Plate and round 1's two corner views are kept for
+				comparison.
 			</p>
 			<div class="ts-bar">
 				<span class="ts-theme" data-testid="shape-theme">
@@ -187,16 +182,6 @@
 						>
 					{/each}
 				</div>
-				{#if view === 'v3'}
-					<div class="ts-cut" role="group" aria-label="Label face">
-						<button type="button" class="ts-seg" aria-pressed={face === 'a'} data-face-set="a" onclick={() => (faceChoice = 'a')}
-							>A: Share Tech Mono</button
-						>
-						<button type="button" class="ts-seg" aria-pressed={face === 'b'} data-face-set="b" onclick={() => (faceChoice = 'b')}
-							>B: VT323 pixel</button
-						>
-					</div>
-				{/if}
 				<div class="ts-cut" role="group" aria-label="View">
 					{#each VIEWS as v (v.id)}
 						<button
@@ -213,7 +198,7 @@
 		</header>
 
 		{#if view === 'v3'}
-			<PlateV3View sections={SECTIONS} {face} />
+			<PlateV3View sections={SECTIONS} />
 		{:else if view === 'plate'}
 			<PlateView sections={SECTIONS} />
 		{:else}

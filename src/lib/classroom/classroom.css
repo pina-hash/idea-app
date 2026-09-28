@@ -36,6 +36,8 @@
    ========================================================================== */
 
 @import '../shell/split.css';
+/* The Plate (ledger 0345): inert until a page carries `.cr-plate`. */
+@import './plate.css';
 
 /* --- The room -------------------------------------------------------------
    The classroom sits on the calm surfaces rather than the portal's green

@@ -1,5 +1,5 @@
 # IDEA Interface Standards
-**Version 2.12 - 2026-09-05**
+**Version 2.13 - 2026-09-28**
 
 Governs layout, viewport behavior, role parity, and interaction structure for every IDEA app surface: IDEA Classroom, the digital notebook, the reference reader, the grading console, the portal, and any surface built after this document.
 
@@ -259,8 +259,25 @@ These rules are not retroactive demolition orders. When work touches a surface t
 
 ---
 
+## 14. Classroom Shape Language
+
+**IDEA Classroom has one shape language, the Plate, and every theme wears it.** Mr. Pina approved it on 2026-09-27 ("They should share the same sci-fi geometry with different color schemes"); it is `src/lib/classroom/plate.css`, switched on by one class on the classroom's root. Other apps keep their own look.
+
+- **(a) One geometry for every theme.** A theme changes colour and material, never a length: radii, borders, padding, sizes and positions are declared once, and a theme block carries colours only, shadows included (a shadow's geometry is written once and only its colour is a token, so a glow a theme does not want is a transparent colour, never a missing shadow). This is proven, not asserted: a bounding-box diff reads every element on the classroom surfaces in each theme and must report zero differing boxes, and a length planted in one theme must make it report hundreds.
+- **(b) Raised means pressable; inset means not.** A button, a key, a tab and a toggle are raised pillows: a composite edge, a lit top, a soft foot and a drop shadow. A chip, a status tag, a field, a list well and a recessed column are set into the surface: an inner shadow under the top lip, a light lip at the foot, and no drop shadow. A chip that reads as a button promises a click that does nothing, which is the defect this rule exists to prevent. A key that is on keeps its state visible whatever spelling the component uses for it; the word and `aria-pressed` say it too, so colour is never the only signal.
+- **(c) The load-bearing boundary is the outer hairline of a composite border.** Every other band of the edge (the light ring inside it, the top highlight, the soft foot, the tray outside) is decoration. Measure the hairline against every ground the control sits on and hold it at 3:1 or more, and 2.0 on the projector model; do not draw a second outline on top to get there. A softer page comes from lightening the hairline toward the floor, never from dropping below it.
+- **(d) No decorative grids.** A grid appears only on an actual graph with axes. Scan lines and ruled fills count as grids (Mr. Pina, 2026-09-27: "Any time there's a grid in the background, just remove or replace it"). A sweep that claims a page has none must first detect a planted one.
+
+**Rationale.** The classroom is read on a projector across a room and on a phone at a bench, in three themes. A look that changed geometry per theme would move every control between themes and make the dark themes a second design to maintain. And a look that made status tags look like buttons, or relied on an extra outline to be visible, would trade the shape language's clarity for its decoration.
+
+---
+
 ## Changelog
 
+- **2.13 (2026-09-28)** - Section 14, the classroom shape language, added when the Plate
+  went live on every IDEA Classroom page (ledger 0345): one geometry for every theme with
+  a box diff as its proof, raised for pressable and inset for not, the outer hairline of
+  a composite edge as the load-bearing boundary at 3:1, and no decorative grids.
 - **2.12 (2026-09-05)** - Section 10 gains the answer to a decision that had been
   answered on 2026-09-02 and never written down, plus the sentence that answer turned
   out to need. The 24px floor is now a property a surface declares in a named CSS class

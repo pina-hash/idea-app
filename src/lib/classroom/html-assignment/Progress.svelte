@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PlateRing from '$lib/classroom/PlateRing.svelte';
 	/**
 	 * THE PROGRESS RAIL ABOVE A PORTED HTML ASSIGNMENT.
 	 *
@@ -110,6 +111,10 @@
 	style="--hxp-from: var({paint.from}); --hxp-to: var({paint.to}); --hxp-t: {Math.round(paint.t * 100)}%;"
 >
 	<div class="hxp-head">
+		<!-- THE PLATE'S RING (ledger 0345): the same percentage as the figure
+		     beside it, drawn. Decoration only (no label, so `aria-hidden`), and
+		     `display: none` unless the classroom's plate is on. -->
+		<PlateRing value={progress.percent / 100} size={56} />
 		<p class="hxp-pct" data-testid="hxp-percent">
 			<span class="hxp-num">{progress.percent}</span><span class="hxp-sign">%</span>
 			<span class="hxp-pct-word">filled in</span>

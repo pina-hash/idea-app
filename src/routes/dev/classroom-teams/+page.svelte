@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import '$lib/classroom/classroom.css';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
@@ -215,7 +216,7 @@
 <svelte:head><title>dev / classroom posted teams</title></svelte:head>
 
 <div
-	class="cr-root harness-page"
+	class="cr-root {CLASSROOM_PLATE} harness-page"
 	data-testid="class-teams-harness"
 	data-teams={teams.length}
 	data-refreshes={refreshes}

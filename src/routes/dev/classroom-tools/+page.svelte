@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import '$lib/classroom/classroom.css';
 	import { onMount, tick } from 'svelte';
 	import HallPass from '$lib/classroom/HallPass.svelte';
@@ -433,7 +434,7 @@
 
 <svelte:head><title>Class tools harness</title></svelte:head>
 
-<div class="cr-root wrap">
+<div class="cr-root {CLASSROOM_PLATE} wrap">
 	<h1>Class tools harness</h1>
 	<p class="lede">
 		The real <code>HallPass</code> and <code>SongQueue</code> in <code>tool</code> mode: a trigger

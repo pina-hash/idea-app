@@ -2,9 +2,15 @@
 
 - Raised: 2026-09-25  By: feedback reports R16, R17, R19, R26 of the 2026-09-25 archive.
 - Status: DECIDED 2026-09-25 by Mr. Pina (all four options chosen).
-- Build: OPEN. The color, emblem and mark items are in round 1 (ledger 0298). The shape
-  language is a separate design session (`docs/feedback/2026-09-25/QUEUE.md`), because it
-  wants before/after mockups he approves, not a sweep.
+- Build: BUILT. Items 1 to 3 (color, emblem, marks) are in round 1 (ledger 0298). Item 4, the shape
+  language, is BUILT by ledgers 0341 and 0344 (the approved mockups on `/dev/themes-shape`) and
+  0345 (live on every IDEA Classroom page, in all three themes, 2026-09-28:
+  `src/lib/classroom/plate.css`, switched on by `CLASSROOM_PLATE` in `src/lib/classroom/plate.ts`).
+- Amended 2026-09-27 by Mr. Pina: "They should share the same sci-fi geometry with different
+  color schemes." The shape language is one geometry for IDEA, Matrix and Space White, with only
+  colour and material changing between them. That SUPERSEDES item 4's closing clause below
+  ("the dark themes are unaffected unless he later asks"): he asked. Scope is IDEA Classroom
+  only; every other app keeps its look.
 
 ## What was decided
 

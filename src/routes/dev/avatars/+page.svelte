@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	/**
 	 * /dev/avatars -- the four cases `Avatar.svelte` has to survive, mounted
 	 * against the REAL component with no auth, no network and no Supabase.
@@ -726,7 +728,7 @@
 	GradingConsole is a CLASSROOM component and reads `.cr-root`'s tokens, so it
 	gets its own room rather than being hung under `.nb-root` above.
 -->
-<div class="cr-root">
+<div class="cr-root {CLASSROOM_PLATE}">
 	<main class="harness surfaces">
 		<h2>GradingConsole roster list, real component</h2>
 		<p class="note">

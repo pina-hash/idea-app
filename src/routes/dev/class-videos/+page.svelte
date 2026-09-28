@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import '$lib/classroom/classroom.css';
 	import { page } from '$app/state';
 	import ClassView from '$lib/classroom/ClassView.svelte';
@@ -48,7 +49,7 @@
 
 <div class="harness videos-harness" data-testid="videos-harness" data-state={none ? 'none' : pane ? 'pane' : manage ? 'manage' : 'student'}>
 	<section
-		class="cr-root"
+		class="cr-root {CLASSROOM_PLATE}"
 		aria-label="The class page"
 		data-testid="videos-class"
 		style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
 	import RubricView from '$lib/classroom/RubricView.svelte';
@@ -210,7 +211,7 @@
 
 <svelte:head><title>Dev: manifest rubric</title></svelte:head>
 
-<div class="cr-root harness hx-rubric">
+<div class="cr-root {CLASSROOM_PLATE} harness hx-rubric">
 	<header class="hx-head">
 		<h1>HTML assignment: the manifest becomes the rubric</h1>
 		<p class="hx-lede">

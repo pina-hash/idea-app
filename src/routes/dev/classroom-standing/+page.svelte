@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import '$lib/classroom/classroom.css';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import ClassView from '$lib/classroom/ClassView.svelte';
@@ -82,7 +83,7 @@
 	<p>Reading the worksheets…</p>
 {:else}
 	<div class="harness standing-harness" data-testid="standing-ready" data-completions={completions?.size ?? 'none'}>
-		<section class="cr-root" aria-label="The class page, as the student" data-testid="standing-student"
+		<section class="cr-root {CLASSROOM_PLATE}" aria-label="The class page, as the student" data-testid="standing-student"
 			style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}>
 			<ClassView
 				section={SECTION}
@@ -94,7 +95,7 @@
 				basePath={BASE}
 			/>
 		</section>
-		<section class="cr-root" aria-label="My Classes, with the to-do's counts" data-testid="standing-my-classes">
+		<section class="cr-root {CLASSROOM_PLATE}" aria-label="My Classes, with the to-do's counts" data-testid="standing-my-classes">
 			<MyClasses ready={true} isStaff={false} sections={[SECTION]} {todo} todoHref={`${BASE}/todo`} />
 		</section>
 		<section aria-label="The home feed, as the teacher" data-testid="standing-teacher">

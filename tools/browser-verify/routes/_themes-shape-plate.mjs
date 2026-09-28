@@ -64,7 +64,7 @@ const TEXT = [
 	{ sec: 'menu', sel: '.sw-item.current .sw-item-name, .sw-item.current .sw-item-code', label: 'the CURRENT class menu row', wash: 3 },
 	{ sec: 'display', sel: '.grade-head', label: 'the returned-grade readout (the display)', wash: 3 },
 	{ sec: 'display', sel: '.comment-label, .comment-text', label: 'the teacher comment under the display', wash: 3 },
-	{ sec: 'display', sel: '.p3-ring-value', label: 'the progress ring readout', wash: 3, cols: ['after'] },
+	{ sec: 'display', sel: '.plate-ring-value', label: 'the progress ring readout', wash: 3, cols: ['after'] },
 	{ sec: 'region', sel: '.pl-title, .pl-col-label', label: 'region title and column labels', wash: 3 },
 	{ sec: 'region', sel: '.grade-head', label: 'region side-panel readout', wash: 3 }
 ];
@@ -111,8 +111,7 @@ const COMPUTED_SHAPE = `() => {
 
 /*
  * THE MONO LABEL FLOOR, both directions. Every element under the column with
- * its own text, painted in a mono face (Share Tech Mono, or VT323 with face B
- * on), visible: how many are under 11px. The before column is reported, not
+ * its own text, painted in the mono face (Share Tech Mono), visible: how many are under 11px. The before column is reported, not
  * asserted (it is today's page); the after column must be zero, and the count
  * of labels examined is part of the answer so an empty sweep cannot pass.
  */
@@ -123,7 +122,7 @@ const MONO_FLOOR = `() => {
 			const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
 			if (!own) continue;
 			const cs = getComputedStyle(el);
-			if (!/Share Tech Mono|VT323/i.test(cs.fontFamily)) continue;
+			if (!/Share Tech Mono/i.test(cs.fontFamily)) continue;
 			const r = el.getBoundingClientRect();
 			if (!r.width || !r.height || cs.visibility === 'hidden') continue;
 			seen++;
@@ -144,7 +143,7 @@ const MONO_FLOOR = `() => {
  * `pointer-events: none` in their own markup and styles.
  */
 const DECORATION = `() => {
-	const MINE = '.p3-after.pl-col, .p3-after .p3-group, .p3-after .card, .p3-after .btn, .p3-after .cr-header, .p3-after .cls-icon, .p3-after .sw-item.current, .p3-after .row-wrap.selected, .p3-after .p3-titlebar, .p3-after .grade-head, .p3-after .grade-card, .p3-after .theme-switch, .p3-after .draft-chip, .p3-after .kind-chip, .p3-after .p3-main';
+	const MINE = '.p3-after.pl-col, .p3-after .p3-group, .p3-after .card, .p3-after .btn, .p3-after .cr-header, .p3-after .cls-icon, .p3-after .sw-item.current, .p3-after .row-wrap.selected, .p3-after .plate-title, .p3-after .grade-head, .p3-after .grade-card, .p3-after .theme-switch, .p3-after .draft-chip, .p3-after .kind-chip, .p3-after .p3-main';
 	let boxes = 0, text = 0, pointer = 0;
 	for (const el of document.querySelectorAll('.p3-view :is(' + MINE + ')')) {
 		for (const which of ['::before', '::after']) {
@@ -156,7 +155,7 @@ const DECORATION = `() => {
 		}
 	}
 	let svg = 0, svgExposed = 0;
-	for (const el of document.querySelectorAll('.p3-view [data-col="after"] svg:is(.p3-engrave, .p3-rail), .p3-view [data-testid="p3-ring"] svg')) {
+	for (const el of document.querySelectorAll('.p3-view [data-col="after"] svg:is(.p3-engrave, .p3-rail), .p3-view [data-testid="plate-ring"] svg')) {
 		svg++;
 		if (el.getAttribute('aria-hidden') !== 'true' || getComputedStyle(el).pointerEvents !== 'none') svgExposed++;
 	}
@@ -274,7 +273,7 @@ export function plateSpec(theme) {
 				label: 'open both class menus over their content'
 			},
 			{
-				evaluate: `() => 'data-theme=' + document.documentElement.getAttribute('data-theme') + ' corner-shape superellipse supported=' + CSS.supports('corner-shape', 'superellipse(0.25)') + ' --p3-plate-top=' + getComputedStyle(document.querySelector('.p3-after')).getPropertyValue('--p3-plate-top').trim() + ' --p3-accent=' + getComputedStyle(document.querySelector('.p3-after')).getPropertyValue('--p3-accent').trim()`,
+				evaluate: `() => 'data-theme=' + document.documentElement.getAttribute('data-theme') + ' corner-shape superellipse supported=' + CSS.supports('corner-shape', 'superellipse(0.25)') + ' --plate-plate-top=' + getComputedStyle(document.querySelector('.p3-after')).getPropertyValue('--plate-plate-top').trim() + ' --plate-accent=' + getComputedStyle(document.querySelector('.p3-after')).getPropertyValue('--plate-accent').trim()`,
 				label: 'what the browser supports and what the plate computes'
 			}
 		],
@@ -284,15 +283,20 @@ export function plateSpec(theme) {
 			{ selector: '.p3-view [data-pl-sec] [data-col]', label: 'eight sections, two columns each', expectPresent: 16, maxPresent: 16, expectVisible: 16 },
 			{ selector: '.p3-view .p3-after', label: 'eight after columns, plus the corner study collapsed (present, zero-box)', expectPresent: 9, maxPresent: 9, expectVisible: 8 },
 			{ selector: '[data-testid="corner-study"]', label: 'the corner study, present (collapsed by default)', expectPresent: 1, maxPresent: 1 },
-			{ selector: '[data-face-set]', label: 'the label-face A/B toggle', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
-			{ selector: '[data-face-set="a"][aria-pressed="true"]', label: 'face A (Share Tech Mono) is the default', expectPresent: 1, maxPresent: 1 },
+			/* FACE B IS GONE (ledger 0345): Mr. Pina chose Share Tech Mono, so the
+			   A/B toggle and VT323 were removed. Asserted absent. */
+			{ selector: '[data-face-set]', label: 'no label-face toggle any more', expectPresent: 0, maxPresent: 0 },
+			/* THE AFTER COLUMN WEARS THE PRODUCTION PLATE (ledger 0345): every
+			   after column carries the class the live classroom's root carries. */
+			{ selector: '.p3-view .p3-after.cr-plate', label: 'the after columns wear the production plate class', expectPresent: 9, maxPresent: 9, expectVisible: 8 },
+			{ selector: '.p3-view [data-col="before"].cr-plate, .p3-view [data-col="before"] .cr-plate', label: 'no before column wears it', expectPresent: 0, maxPresent: 0 },
 			{ selector: '[data-theme-set]', label: 'the theme switcher, one per theme', expectPresent: 3, maxPresent: 3, expectVisible: 3 },
 			{ selector: `[data-theme-set="${theme}"][aria-pressed="true"]`, label: `the ${theme} theme button pressed`, expectPresent: 1, maxPresent: 1 },
 			{ selector: '[data-theme-set][aria-pressed="true"]', label: 'exactly one theme pressed', expectPresent: 1, maxPresent: 1 },
 			{ selector: '[data-view-set="v3"][aria-pressed="true"]', label: 'the Plate v3 view pressed', expectPresent: 1, maxPresent: 1 },
 			{ selector: '[data-view-set]', label: 'round 1 and round 2 still one button away', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
-			{ selector: '.p3-view [data-col="after"] [data-testid="p3-ring"]', label: 'the progress ring, after columns only (display and region)', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
-			{ selector: '.p3-view [data-col="before"] [data-testid="p3-ring"]', label: 'no progress ring in a before column', expectPresent: 0, maxPresent: 0 },
+			{ selector: '.p3-view [data-col="after"] [data-testid="plate-ring"]', label: 'the progress ring, after columns only (display and region)', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
+			{ selector: '.p3-view [data-col="before"] [data-testid="plate-ring"]', label: 'no progress ring in a before column', expectPresent: 0, maxPresent: 0 },
 			{ selector: '.p3-view [data-col="after"] .p3-switch-held', label: 'the switch held off and on, after column only', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 			{ selector: '.p3-view .pl-list .row-wrap.selected', label: 'one selected list row per column', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
 			{ selector: '[data-testid="menu-stage"] .sw-item.current', label: 'the current class in each open menu', expectPresent: 2, maxPresent: 2, expectVisible: 2 },
@@ -319,7 +323,7 @@ export function plateSpec(theme) {
 			   and says why in its own stylesheet (a 44px-wide box would hand
 			   the drag grip's taps to it). Unchanged by the proposal. */
 			{ selector: '.p3-view .pl-list .row-expand', label: 'list expand controls (documented 30x44 exception)', min: 24 },
-			{ selector: '[data-theme-set], [data-view-set], [data-face-set]', label: 'the page switchers', min: 44 }
+			{ selector: '[data-theme-set], [data-view-set]', label: 'the page switchers', min: 44 }
 		],
 		orderResult: [
 			{

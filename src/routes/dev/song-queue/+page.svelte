@@ -1,4 +1,6 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import SongQueue from '$lib/classroom/SongQueue.svelte';
 	import type {
 		SongDecided,
@@ -279,7 +281,7 @@
 
 <svelte:head><title>dev / song queue</title></svelte:head>
 
-<div class="harness cr-root">
+<div class="harness cr-root {CLASSROOM_PLATE}">
 	<h1>Song queue (0145)</h1>
 	<p class="lead">
 		The REAL <code>SongQueue</code> in each projection, against in-memory transports. Nothing here

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { createClassroomPreferences } from '$lib/preferences/classroom';
 	import { provideClassroomPreferences } from '$lib/preferences/context';
 	import { page } from '$app/state';
@@ -1578,7 +1579,7 @@
 	the harness's below it to scroll to.
 -->
 <div
-	class="cr-root"
+	class="cr-root {CLASSROOM_PLATE}"
 	class:cr-app={measure === 'console'}
 	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
 >

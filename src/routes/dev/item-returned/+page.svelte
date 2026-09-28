@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import '$lib/classroom/classroom.css';
@@ -248,7 +249,7 @@
 {/snippet}
 
 <div
-	class="cr-root"
+	class="cr-root {CLASSROOM_PLATE}"
 	class:cr-app={measure === 'console'}
 	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
 	data-engine={engineKind}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import '$lib/classroom/classroom.css';
 	import { page } from '$app/state';
 	import MyClasses from '$lib/classroom/MyClasses.svelte';
@@ -2615,7 +2616,7 @@
      own; a harness missing that half would render a page that scrolls and prove
      nothing about the one that does not. -->
 <div
-	class="cr-root"
+	class="cr-root {CLASSROOM_PLATE}"
 	class:cr-app={harnessMeasure === 'console'}
 	style={harnessMeasure ? `--cr-measure-route: var(--measure-${harnessMeasure})` : undefined}
 >

@@ -5562,6 +5562,41 @@ properly. That is a bundle, not a line.
     refused, because it cannot reach the target and destroys the signal on the way.
 - **`.cr-root` -- classroom calm surfaces.** `--cr-gutter` and `--measure-*` are the
   ONE page-width decision (`classroomMeasure` in `nav.ts`).
+  - **THE CLASSROOM WEARS THE PLATE, AND ONE CONSTANT TURNS IT ON (ledger 0345,
+    decision 40 item 4).** `src/lib/classroom/plate.css` is the shape language Mr.
+    Pina approved on `/dev/themes-shape`; every rule keys on the class
+    `CLASSROOM_PLATE` in `src/lib/classroom/plate.ts` names, which the classroom
+    layout puts on `.cr-root`. **Setting that constant to `''` is the whole revert.**
+    The `/dev/themes-shape` after column and every classroom `/dev` harness read the
+    same constant, so a harness never measures a look the site does not have; a new
+    classroom harness puts `{CLASSROOM_PLATE}` on its `.cr-root` and imports
+    `classroom.css`, which is what loads the plate. `/reference` loads it and never
+    sets the class.
+  - **ONE GEOMETRY, THREE COLOUR BLOCKS.** A length is declared once on `.cr-plate`;
+    a theme block holds colours only, shadows included.
+    `tools/browser-verify/_classroom-plate-boxes.mjs boxes` diffs every box across
+    the three themes and must read 0 (its planted-length control must not); its
+    `fingerprint`/`compare` pair is the scope proof that no other app moved.
+  - **CONTENT IS BELOW THE SCOPE.** The rules sit in `@scope (.cr-plate) to (...)`,
+    and the lower bound lists every island of somebody's work or somebody else's
+    design (an item body, rendered markdown, the rich-text document, a deck stage,
+    an IdeaCAD embed, the photo overlays, a worksheet frame) plus the notebook
+    review grid's whole card, whose locked cell inks were measured on that card.
+    A new content surface joins that list, never gets a plate rule of its own.
+  - **A KEY'S STATE IS ONE OF SEVEN SPELLINGS, AND A NEW TOGGLE USES ONE OF THEM.**
+    The key list in `plate.css` lights `[aria-pressed="true"]`,
+    `[aria-selected="true"]`, `[aria-checked="true"]`, `.on`, `.is-on`, `.active`
+    and `.picked`. A button with a new custom class is drawn as a key only once it
+    joins that list with its state spelling; a state the list does not know
+    renders as a plain key, which hides it.
+  - **RAISED IS PRESSABLE AND INSET IS NOT** (`IDEA_INTERFACE_STANDARDS` 14): a
+    chip or status tag is a recessed tag and never gains a drop shadow; a chip
+    that is a link or a button is a small key.
+  - **THE DARK FACES ARE AS DARK AS THE SITE'S INKS NEED**, and that is measured:
+    round 3's lighter charcoal cards dropped the error red, the warning ink and
+    `--text-2` under 4.5:1 on real pages, so the card face is the lightest
+    ground the error red still clears on. Lighten a dark face only with every
+    ink re-measured.
 - **`.cd-root` -- the coin desk.** It is NOT a repaint: the desk sits on the
   portal's own dark plate and borrows nothing but geometry. `.cd-root` is
   registered in `$lib/shell/split.css` (gutter, scrollbars, the split) and

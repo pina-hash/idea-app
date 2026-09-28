@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import '$lib/classroom/classroom.css';
 	import ReferenceDoc from '$lib/classroom/ReferenceDoc.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
@@ -173,7 +174,7 @@
      scanline overlay behind them -- the surfaces they were deliberately moved
      OFF -- and a harness that renders in the wrong room is a harness nobody
      can trust for a visual check. -->
-<div class="cr-root">
+<div class="cr-root {CLASSROOM_PLATE}">
 <div class="app-header">
 	<span class="wordmark">IDEA</span>
 	<span class="dev-tag">dev harness // reference documents</span>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	/**
 	 * `Pending` INSIDE THE NOTEBOOK ROOM (404 in production, no auth, no
 	 * Supabase), on the site theme `?site=` names -- idea, matrix or
@@ -53,7 +54,7 @@
 
 <svelte:head><title>dev · Pending in .nb-root</title></svelte:head>
 
-<div class="cr-root">
+<div class="cr-root {CLASSROOM_PLATE}">
 	<div class="nb-root" data-testid="nb-room" data-site={site}>
 		<div class="stage">
 			<h2>{site}</h2>

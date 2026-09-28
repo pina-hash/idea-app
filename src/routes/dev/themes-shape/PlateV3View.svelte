@@ -4,16 +4,22 @@
 	import ReturnedGrade from '$lib/classroom/ReturnedGrade.svelte';
 	import Disclosure from '$lib/Disclosure.svelte';
 	import type { ClassroomSection } from '$lib/classroom/classroom';
-	import P3Ring from './P3Ring.svelte';
+	import PlateRing from '$lib/classroom/PlateRing.svelte';
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { CARDS, ITEMS, REGION_CARDS, RETURNED, UNITS, type PlateCard } from './plate-fixtures';
 
 	/**
-	 * THE PLATE VIEW, ROUND 3 (ledger 0344): Sci-Fi Line's finish, in every
-	 * theme. The proposal is `./plate-v3.css`; this file is the specimens.
+	 * THE PLATE VIEW, ROUND 3 (ledger 0344), SHIPPED BY LEDGER 0345. The look is
+	 * no longer a proposal: it is `$lib/classroom/plate.css`, the production
+	 * stylesheet, switched on by the after column carrying `CLASSROOM_PLATE`,
+	 * the same constant the live classroom's layout reads. So this page and
+	 * the site cannot drift apart. `./plate-v3.css` keeps only what belongs to
+	 * the mockup itself (the plate columns, the composed region's title bar,
+	 * rails and recessed column, the group brackets and the corner study).
 	 *
 	 * THE SAME PAIRS AS ROUND 2, AND THE SAME DISCIPLINE. Every specimen is a
-	 * snippet rendered in both columns, and the after column (`.p3-after`) is
-	 * the only thing the stylesheet keys on, so the before column is today's
+	 * snippet rendered in both columns, and the after column (`.p3-after` plus
+	 * the plate class) is the only thing the stylesheets key on, so the before column is today's
 	 * shipping CSS by construction. Round 3 adds one thing to that: a snippet
 	 * takes `after`, and a few pieces that have NO equivalent today (the
 	 * progress ring, the held switch states, the region's engraved rails)
@@ -21,12 +27,17 @@
 	 * section's note, so nothing in the after column pretends to be a
 	 * restyle of something that is not there.
 	 *
-	 * THE ONE RULE: nothing here branches on the theme. `plate-v3.css` declares
+	 * SECTION LABELS SIT ABOVE WHAT THEY NAME (ledger 0345, polish 3): the
+	 * chips, the class list, the grade and the region's THIS WEEK and RETURNED
+	 * read top down. The kit's centred label BELOW stays only on a small group
+	 * of controls: the buttons, the switch and the two fields.
+	 *
+	 * THE ONE RULE: nothing here branches on the theme. `plate.css` declares
 	 * every length once and every colour per theme; the ring's lengths are in
 	 * its viewBox. `_themes-shape-plate-pixels.mjs` diffs every element's box
 	 * across the three themes.
 	 */
-	let { sections, face = 'a' }: { sections: ClassroomSection[]; face?: 'a' | 'b' } = $props();
+	let { sections }: { sections: ClassroomSection[] } = $props();
 
 	const SECTION = $derived(sections[0]);
 	const GRADE = RETURNED.score ?? 0;
@@ -93,13 +104,13 @@
 {/snippet}
 
 {#snippet chips()}
-	<div class="pl-group p3-group" data-pl="group-chips">
+	<div class="pl-group p3-group p3-group-top" data-pl="group-chips">
+		<span class="mini-label pl-group-label p3-group-label" data-ts="label-chips">CHIPS</span>
 		<div class="pl-row">
 			<span class="draft-chip" data-ts="chip-status">Draft</span>
 			<span class="kind-chip" data-ts="chip-kind">Assignment</span>
 			<span class="kind-chip pinned" data-ts="chip-pinned">Pinned</span>
 		</div>
-		<span class="mini-label pl-group-label p3-group-label" data-ts="label-chips">CHIPS</span>
 	</div>
 {/snippet}
 
@@ -135,7 +146,8 @@
 {/snippet}
 
 {#snippet list()}
-	<div class="pl-group p3-group" data-pl="group-list">
+	<div class="pl-group p3-group p3-group-top" data-pl="group-list">
+		<span class="mini-label pl-group-label p3-group-label" data-ts="label-list">THE CLASS LIST, ONE ROW SELECTED</span>
 		<div class="pl-list p3-list" data-ts="list">
 			<ClassView
 				section={SECTION}
@@ -146,7 +158,6 @@
 				basePath="/dev/themes-shape"
 			/>
 		</div>
-		<span class="mini-label pl-group-label p3-group-label" data-ts="label-list">THE CLASS LIST, ONE ROW SELECTED</span>
 	</div>
 {/snippet}
 
@@ -187,7 +198,7 @@
 {/snippet}
 
 {#snippet ring(size = 168)}
-	<P3Ring value={GRADE / OUT_OF} text="{PCT}%" label="{GRADE} of {OUT_OF} points, {PCT} percent" {size} />
+	<PlateRing value={GRADE / OUT_OF} text="{PCT}%" label="{GRADE} of {OUT_OF} points, {PCT} percent" {size} />
 {/snippet}
 
 {#snippet display(after: boolean)}
@@ -196,9 +207,9 @@
 			<ReturnedGrade submission={RETURNED} points={OUT_OF} />
 		</div>
 		{#if after}
-			<div class="p3-group p3-ring-group" data-ts="ring">
-				{@render ring()}
+			<div class="p3-group p3-group-top p3-ring-group" data-ts="ring">
 				<span class="mini-label p3-group-label" data-ts="label-ring">GRADE</span>
+				{@render ring()}
 			</div>
 		{/if}
 	</div>
@@ -210,17 +221,17 @@
 		<div class="pl-titlebar p3-titlebar">
 			<!-- The dot is held to both neighbours, so a narrow title never leaves it
 			     hanging at the end of a line. -->
-			<h3 class="pl-title p3-title" data-ts="region-title">Period 1&nbsp;·&nbsp;Engineering I Honors</h3>
+			<h3 class="pl-title p3-title {after ? 'plate-title' : ''}" data-ts="region-title">Period 1&nbsp;·&nbsp;Engineering I Honors</h3>
 		</div>
 		<div class="pl-region-body p3-region-body">
 			<section class="pl-main p3-main" aria-label="This week">
-				<div class="p3-group p3-cards-group">
+				<div class="p3-group p3-group-top p3-cards-group">
+					<span class="mini-label pl-col-label p3-group-label" data-ts="region-label">THIS WEEK</span>
 					<div class="pl-cards p3-cards">
 						{#each REGION_CARDS as c, i (c.title)}
 							{@render card(c, `region-card-${i}`)}
 						{/each}
 					</div>
-					<span class="mini-label pl-col-label p3-group-label" data-ts="region-label">THIS WEEK</span>
 				</div>
 			</section>
 			<aside class="pl-side p3-side" aria-label="Returned work">
@@ -232,14 +243,14 @@
 						<path class="e-lt" d="M0 18.5 H62.4 L76.4 4.5 H120" />
 					</svg>
 				{/if}
-				<div class="p3-group">
-					<ReturnedGrade submission={RETURNED} points={OUT_OF} />
+				<div class="p3-group p3-group-top">
 					<span class="mini-label pl-col-label p3-group-label" data-ts="region-label">RETURNED</span>
+					<ReturnedGrade submission={RETURNED} points={OUT_OF} />
 				</div>
 				{#if after}
-					<div class="p3-group p3-side-ring" data-ts="region-ring">
-						{@render ring(152)}
+					<div class="p3-group p3-group-top p3-side-ring" data-ts="region-ring">
 						<span class="mini-label pl-col-label p3-group-label" data-ts="region-label">GRADE</span>
+						{@render ring(152)}
 					</div>
 				{/if}
 				<a class="btn secondary pl-side-link" href="#todo" data-ts="region-link">Open to-do</a>
@@ -271,7 +282,7 @@
 				<h3 class="pl-colh">Before</h3>
 				{@render body(false)}
 			</div>
-			<div class="pl-col p3-after" class:pl-wide={wide} data-col="after">
+			<div class="pl-col p3-after {CLASSROOM_PLATE}" class:pl-wide={wide} data-col="after">
 				<h3 class="pl-colh">After</h3>
 				{@render body(true)}
 			</div>
@@ -279,7 +290,7 @@
 	</section>
 {/snippet}
 
-<div class="pl-view p3-view" data-testid="plate-v3-view" data-face={face}>
+<div class="pl-view p3-view" data-testid="plate-v3-view">
 	<div class="p3-study-wrap">
 		<Disclosure label="Corner study" collapseWhen={true} heading={2} testId="corner-study">
 			<p class="pl-note">
@@ -291,7 +302,7 @@
 				screen's lower corners, the column tabs) it is <strong>superellipse(0.25)</strong>, marked
 				<em>chamfer detail</em>.
 			</p>
-			<div class="pl-col p3-after p3-study" data-col="study">
+			<div class="pl-col p3-after {CLASSROOM_PLATE} p3-study" data-col="study">
 				{#each SCALES as sc (sc.id)}
 					<div class="p3-study-row" data-scale={sc.id}>
 						<span class="mini-label p3-study-scale">{sc.label}</span>

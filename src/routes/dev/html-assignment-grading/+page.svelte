@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
 	import HtmlGradingWork from '$lib/classroom/html-assignment/HtmlGradingWork.svelte';
@@ -692,7 +693,7 @@
 	scrolling regions. Setting the width without it would be half the mirror.
 -->
 <div
-	class="cr-root cr-app harness"
+	class="cr-root {CLASSROOM_PLATE} cr-app harness"
 	style="--cr-measure-route: var(--measure-console)"
 	data-testid="hx-grading-harness"
 >
