@@ -47,8 +47,8 @@
        without it keeps today's radii rather than a half-applied look.
    What does NOT stay is round 1's look: glass is off here in every theme.
 
-   DECORATION IS PAINT ONLY. Screws, hatches, brackets, engraving lines, the
-   grid and the notch marks are `background` layers or `::before`/`::after`
+   DECORATION IS PAINT ONLY. Screws, hatches, brackets, engraving lines and
+   the notch marks are `background` layers or `::before`/`::after`
    boxes with `content: ''` (an empty string: nothing enters the
    accessibility tree), `pointer-events: none`, never animated, and placed in
    padding bands no control occupies. No decoration is a `content` string,
@@ -119,7 +119,6 @@
 	--pl-display: #030504;
 	--pl-display-ink: var(--green);
 	--pl-display-ink-2: var(--text-2);
-	--pl-display-grid: rgba(120, 184, 112, 0.09);
 	--pl-hatch-ink: rgba(154, 164, 157, 0.42);
 	--pl-engrave: rgba(255, 255, 255, 0.09);
 	--pl-screw-face: #2b322e;
@@ -143,7 +142,6 @@
 	--pl-well: #010201;
 	--pl-on-accent: #020402;
 	--pl-display: #000000;
-	--pl-display-grid: rgba(120, 184, 112, 0.1);
 	--pl-hatch-ink: rgba(143, 174, 148, 0.4);
 	--pl-engrave: rgba(143, 174, 148, 0.12);
 	--pl-screw-face: #1a2a1c;
@@ -168,7 +166,6 @@
 	   where it is the readout colour. */
 	--pl-display-ink: var(--accent-field);
 	--pl-display-ink-2: #aab6b1;
-	--pl-display-grid: rgba(120, 184, 112, 0.1);
 	--pl-hatch-ink: rgba(86, 98, 94, 0.55);
 	--pl-engrave: rgba(13, 19, 17, 0.14);
 	--pl-screw-face: #c9d1ce;
@@ -533,7 +530,7 @@
 
 /* --- The display: the one dark inset surface. -----------------------------
    The returned grade's own heading becomes the readout window: a dark
-   recessed screen with a faint grid, the score in the accent, and an
+   recessed screen (no grid, since ledger 0344), the score in the accent, and an
    indicator light. On a dark theme it is a darker well of the same shape. */
 .ts-root .pl-after .pl-display-wrap .grade-card,
 .ts-root .pl-after .pl-side .grade-card {
@@ -542,11 +539,10 @@
 .ts-root .pl-after .grade-head {
 	position: relative;
 	padding: 0.9rem 1rem 0.9rem 2.1rem;
+	/* NO GRID (ledger 0344). Round 2 drew a faint grid in this window; Mr.
+	   Pina's standing rule (2026-09-27) is that a grid belongs only on a graph
+	   with axes, so it is gone from this view too. */
 	background-color: var(--pl-display);
-	background-image:
-		linear-gradient(var(--pl-display-grid) 1px, transparent 1px),
-		linear-gradient(90deg, var(--pl-display-grid) 1px, transparent 1px);
-	background-size: 12px 12px;
 	border: 1px solid var(--pl-edge);
 	box-shadow: var(--pl-shadow-well);
 	color: var(--pl-display-ink);
