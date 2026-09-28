@@ -1,30 +1,42 @@
-# Round 1 (2026-09-28), ledger 0347: the grading console redesign and every no-migration fix
+# Ledger 0347: every fix from the 2026-09-28 feedback export, in one session, one push to main
 
 - Issued: 2026-09-28 by the router chat, for ONE Claude Code session (Opus 5.5, ultracode),
   Mode: solo.
 - Evidence: `docs/feedback/2026-09-28/TRIAGE.md`. Decisions: 42 (feedback console address), 43 (the
-  grading redesign, no approval step), plus 44 and 45 for context only (they are later sessions).
+  grading redesign, no approval step), 44 (team edits marked edited), 45 (class themes by class vote).
+- **Mr. Pina asked on 2026-09-28 for all eighteen reports to ship in one go, directly to `main`.**
+  This brief used to split them into four sessions; it is now one.
 - Every file:line below is a CLAIM an investigator made against `1183d8f5`. Verify it before
   relying on it; the tree may have moved.
 
 ## 1. Rules that outrank everything below
 
-1. **No migration.** Nothing goes under `supabase/**`, and no shipped code calls an RPC, column or
-   table production does not already have. Decisions 44 and 45 need migrations and are sessions 3
-   and 4 of `QUEUE.md`, not this one.
-2. **Solo mode, straight to `main`, tier by tier** (`CLAUDE.md` "SOLO MODE"; decision 43 says
-   "straight to main"). For each tier: `git fetch origin main` and rebase onto it; run
-   `npm run check`, the touched test files (the full `npm test` once, at the final tier), and
-   `verify:browser` for the touched routes; if the summary lines are clean against Phase 0's
-   baseline, `git push origin HEAD:main`. A rejected push is rebased and retried. A red tier stays
-   local and never blocks the next tier's work.
-3. **If something you shipped breaks what a class uses, revert it on `main` first** (`git revert`,
-   never a force-push), then investigate.
+1. **ONE migration, `supabase/migrations/0230_classroom_team_edits_and_class_themes.sql`, and only
+   one.** `migrate.yml` applies the LOWEST unapplied migration and one file per push, so two new
+   files in a single push would leave the second unapplied while the deployed client calls it. Both
+   database halves (section 5, teams; section 6, class themes) go in this one file. It is ADDITIVE in
+   CLAUDE.md's sense (new tables, new columns with defaults, new functions; no drop the running client
+   calls), because the apply and the deploy race on the same push. It follows `0166`'s grant shape
+   for every function AND table, carries apply-time self-checks, is tested over seeded pre-migration
+   data per the verification standard, and states what undoes it. The shipped client degrades on
+   `PGRST202` for the new RPCs, so a push that deploys before the apply finishes does not break a page.
+   0228 and 0229 (the 2026-09-25 proposals) are NOT this session's.
+2. **One push to `main`, at the end** (Mode: solo; Mr. Pina, 2026-09-28: "all of these fixes pushed
+   in one go, directly to main"). Work locally in slices, commit as you go, and push once:
+   `git fetch origin main`, rebase, `npm run check`, the full `npm test` once, `verify:browser` for
+   every touched route, and `npm run build`, reading summary lines and stderr, never exit codes alone.
+   Push with `git push origin HEAD:main` only when all of it is clean against Phase 0's baseline. A
+   rejected push is rebased and retried. If one item cannot be made green, take it out of the push
+   and say so in the report rather than holding the rest.
+3. **If the push breaks something a class uses, revert it on `main`** (`git revert`, never a
+   force-push), then investigate. A migration is not reverted by a code revert; its header's undo
+   is pasted by hand, which the report says.
 4. **Decide, record, move on.** Where this brief leaves a choice open, take the default written
-   here, record it in your history entry, and keep going. Do not stop to ask.
-5. **The verification standard is not waived by "no approval step".** Decision 43 removes the
+   here or in the decision entries, record it in your history entry, and keep going. Do not stop
+   to ask.
+5. **The verification standard is not waived by "no approval step".** Decisions 43 and 45 remove
    mockup approval, not the measuring: 375 and 1440 measured, before and after screenshots, a
-   fresh-eyes subagent review of the redesigned console, and every rule named in section 4.
+   fresh-eyes subagent review of the grading console and the theme vote, and every rule named below.
 
 ## 2. Phase 0
 
@@ -33,9 +45,9 @@ summary and warning breakdown, the `npm test` summary, and a `verify:browser` pa
 grading routes (`--route grading`), with the numbers. Take the before screenshots of every surface
 this round changes into `docs/feedback/2026-09-28/round1/` as `<surface>-<theme>-<width>-before.png`.
 
-## 3. Tiers
+## 3. The work, grouped (one push; the grouping is only an order to build in)
 
-### Tier A: small, class-visible, ships first
+### Group A: small, class-visible
 
 - **R14. No brown ink on My classes under Space White.** `MyClasses.svelte` sets `--acc: var(--gold)`
   on `.class-card` (claimed :259) and reads `--gold` in `.updates-all` and `.note a` (:197, :240).
@@ -68,12 +80,15 @@ this round changes into `docs/feedback/2026-09-28/round1/` as `<surface>-<theme>
   `MapsPlan.svelte:438-444`). Make the frame a link to the building (a `frameHref` from
   `MapsViewer`) when the frame is not the level already open, keeping rooms clickable on top.
 
-### Tier B: the grading console redesign (decision 43)
+### Group B: the grading console redesign (decision 43)
 
-Section 4 is the specification. It ships as its own tier because it is the largest change and the
-surface a teacher uses most.
+Section 4 is the specification.
 
-### Tier C: the rest
+### Group D: teams after posting (decision 44, R18) and class themes by class vote (decision 45, R07)
+
+Sections 5 and 6 are the specification; their SQL is the one migration.
+
+### Group C: the rest
 
 - **R03, the address. The feedback console moves to `/admin/feedback`** (decision 42). The old
   `/classroom/feedback` answers 307 to it after the SAME admin gate, so a non-admin still gets 404
@@ -121,7 +136,7 @@ surface a teacher uses most.
   ship it. Put all candidates in the history entry with screenshots, and add a line to decision 40
   saying item 2 was amended and why.
 
-## 4. The grading console redesign (Tier B)
+## 4. The grading console redesign (Group B)
 
 **What is wrong today, from the reports and the tree.** Every export sits in a region capped at 45%
 of the roster card and scrolls in a sliver (R16). The tick boxes have no visible effect: the only
@@ -158,16 +173,61 @@ geometry proven only by `verify:browser`. Update the browser-verify routes that 
 Both grading routes mount this console (the per-section `grade` route and the cross-class
 `grading/[itemId]` route); verify both.
 
-## 5. Done means
+## 5. Teams after posting (decision 44, R18)
 
-- Every tier pushed or, if red, left local with the reason in the report.
+- **SQL (in 0230):** `classroom_move_team_member(p_team_set_id, p_student_email, p_to_team_id)`,
+  gated on `classroom_manages_section` for the set's section, moving the member within the SAME set
+  (the composite keys in `0223` already make a cross-set move unrepresentable), and stamping the set
+  `edited_at` / `edited_by`. A nullable `edited_at` column on the set is the "edited by hand" mark; the
+  seed stays. `classroom_team_board` projects `edited_at` (widen it additively, per the SIGNATURE TRAP
+  rules if its return shape changes: a new function name or an additive column, never breaking the
+  deployed caller).
+- **Client:** on People, drag a member between team cards with `sort-drag.ts`, and a **Move to**
+  control on every member as the non-drag path (keyboard and phone). Wire the team rename the manager
+  branch of `classroom_set_team_style` already allows. The class page's `ClassTeams` and the CSV say
+  "Edited by hand" when `edited_at` is set. A student cannot move anyone.
+- **CLAUDE.md:** the CLASSROOM TEAMS seed rule gains one clause saying a hand edit is marked, not hidden.
+
+## 6. Class themes by class vote (decision 45, R07)
+
+Read decision 45 in full; its defaults are the spec. In short:
+
+- **Features and options are a fixed catalogue in one client-safe module** (for example
+  `$lib/classroom/class-theme.ts`): a handful of features (base palette, accent, banner pattern,
+  badge), each with a short list of options, one of them seeded from FRC team 5669's branding page he
+  linked (fetch it if the network allows; otherwise take FIRST's published navy and red and say so).
+  Every option is measured on IDEA, Matrix and Space White and under `PROJECTOR_MODEL`, carries a
+  Space White twin where it paints a word, and is never colour alone. A banner pattern is decoration
+  on a banner, never a grid behind content (the no-grid rule). Option ids are append-only, like avatar
+  presets.
+- **SQL (in 0230):** a vote table keyed `(course_id, feature, student_email)` with RLS on, no policy
+  and no client grant; `classroom_theme_vote(p_course_id, p_feature, p_option)` (caller is the voter,
+  must be actively enrolled in a live section of the course, managers refused, option id
+  length-bounded and validated by the client against the catalogue, since no preset list lives in SQL);
+  `classroom_theme_tally(p_course_id)` returning per-feature option COUNTS and the caller's own votes,
+  never another voter; voting open or closed and a reset, manager-gated; a nullable section accent the
+  teacher sets. The winner per feature is the most votes, ties to the option that reached the tie
+  first (keep the time each count last changed, or equivalent).
+- **Client:** a class banner at the top of the class page, the My classes card and the header strip
+  key all paint from the winning options (reversing MyClasses.svelte's "never by a per-card color"
+  comment, which you edit in place). A **Theme** panel lets a student vote and see the live tally;
+  it re-reads on a short poll and on focus, the way `ClassTeams` does. A course with no votes renders
+  exactly as today.
+- **Space White scope:** Space White still applies only where `THEME_SCOPE_PREFIXES` says, so a
+  class theme on the classroom renders in all three themes; measure all three.
+
+## 7. Done means
+
+- One push to `main` with every item in it, or the item that could not go green named and left out.
 - `classroom-updates.json` has a student-readable entry for what a class will notice (the archived
-  classes, the brighter toggles, the new Settings tab is teacher-only and needs none).
+  classes, the brighter toggles, team changes after posting, voting on the class theme; the Settings
+  tab is teacher-only and needs none).
 - CLAUDE.md edited in place wherever a rule's truth changed (the console address, the grading panels
-  and dock, the MyClasses per-card colour comment is NOT reversed here, that is session 4).
-- `docs/history/<branch slug>.md` written: what shipped per tier with its sha, the defaults taken,
+  and dock, the teams seed rule, the classroom files that name the class theme).
+- `docs/history/<branch slug>.md` written: what shipped with its sha, the defaults taken,
   measurements, before and after screenshots, what was NOT verified (phones for R08 and R09).
-- The ledger entry's Status set to `pushed` with the shas.
-- A six-line final report: shas per tier; the deployed sha or "unconfirmed"; grading before/after in
+- The ledger entry's Status set to `pushed` with the sha.
+- The migration's full repo path at the end of the response, per CLAUDE.md.
+- A six-line final report: the pushed sha; the deployed sha or "unconfirmed"; grading before/after in
   one line; worst contrast figure and where; what waits on Mr. Pina (his phone check for R08 and R09);
   one-line reverts.
