@@ -58,6 +58,22 @@ export const GIT_LOG_FORMAT = `${REC}%h${FIELD}%cd${FIELD}%cI${FIELD}%s`;
  */
 export const GIT_HEAD_FORMAT = `%h${FIELD}%cd`;
 
+/**
+ * The `--pretty=format:` string for the LINE-COUNT walk (`git log --numstat`),
+ * whose output `parseNumstat` reads: one record per commit, the short sha on
+ * its own line and then git's own `added<TAB>removed<TAB>path` lines.
+ *
+ * A SEPARATE WALK RATHER THAN A CHANGE TO THE CHANGELOG ONE, and the reason
+ * is the version numbers. The changelog walk reads `--name-only`, and the paths it
+ * hands `appsForCommit` ARE the per-app commit counts; `--numstat` spells a
+ * rename as `src/{old => new}/x.ts` where `--name-only` gives the new path, so
+ * switching the one walk over would move the app attribution of every rename
+ * in the history. The line counts ride beside it and change nothing it says.
+ * It runs `--no-merges` exactly as the changelog does, so every entry has a
+ * count and no merge is counted twice (report R10).
+ */
+export const GIT_NUMSTAT_FORMAT = `${REC}%h`;
+
 export interface VersionEntry {
 	/** Short commit SHA. */
 	sha: string;
@@ -71,7 +87,26 @@ export interface VersionEntry {
 	type: string;
 	/** App ids this commit touched (see APPS in site-manifest.ts). */
 	apps: string[];
+	/**
+	 * Lines of counted code this commit added and removed -- counted the way
+	 * the home page's lines-of-code figure is, so a row moves that headline and
+	 * nothing else does. BOTH PRESENT OR BOTH ABSENT, and absent is the answer
+	 * on a shallow clone (a truncated history's oldest commit lists the whole
+	 * tree as added) and in the eager module, which never runs the walk. Absent
+	 * is never zero: zero is a commit that touched only prose or data.
+	 */
+	added?: number;
+	removed?: number;
 }
+
+/** One commit's counted lines, as `parseNumstat` totals them. */
+export interface LineDelta {
+	added: number;
+	removed: number;
+}
+
+/** A `VersionEntry` that carries its line counts. */
+export type CountedEntry = VersionEntry & LineDelta;
 
 export interface AppVersion {
 	/**
@@ -254,17 +289,113 @@ export function deriveDeploy(
 }
 
 /**
+ * The path a `--numstat` line names, AFTER a rename -- the one `--name-only`
+ * reports. Git writes a rename as `old => new`, or with the shared parts
+ * factored out as `src/{routes/a.svelte => lib/b.ts}` (either side of the
+ * arrow may be empty: `src/{ => classroom}/x.ts`), and quotes a path it cannot
+ * print plainly. The extension and the directory are all the census reads, so
+ * this resolves to the new side and strips the quotes; it does not need to be
+ * an exact unescaper.
+ */
+export function numstatPath(raw: string): string {
+	let p = raw.trim();
+	const brace = /\{([^{}]*) => ([^{}]*)\}/;
+	if (brace.test(p)) {
+		p = p.replace(brace, (_whole, _from: string, to: string) => to).replace(/\/{2,}/g, '/').replace(/^\//, '');
+	} else if (p.includes(' => ')) {
+		p = p.slice(p.lastIndexOf(' => ') + 4);
+	}
+	if (p.length >= 2 && p.startsWith('"') && p.endsWith('"')) p = p.slice(1, -1).replace(/\\(["\\])/g, '$1');
+	return p;
+}
+
+/**
+ * Total each commit's `--numstat` lines over the paths `counts` admits, keyed
+ * by short sha. A BINARY file (`-` in both columns) has no line count and is
+ * skipped rather than read as zero, and a commit whose every path was skipped
+ * is still in the map, at zero: it is a commit git listed, which is what makes
+ * "absent" mean "not counted" rather than "touched nothing that counts".
+ */
+export function parseNumstat(raw: string, counts: (path: string) => boolean): Map<string, LineDelta> {
+	const out = new Map<string, LineDelta>();
+	for (const record of (raw ?? '').split(REC)) {
+		const lines = record.split('\n');
+		const sha = (lines[0] ?? '').trim();
+		if (!sha) continue;
+		let added = 0;
+		let removed = 0;
+		for (const line of lines.slice(1)) {
+			const m = /^(\d+)\t(\d+)\t(.+)$/.exec(line.replace(/\r$/, ''));
+			if (!m) continue;
+			if (!counts(numstatPath(m[3]))) continue;
+			added += Number(m[1]);
+			removed += Number(m[2]);
+		}
+		out.set(sha, { added, removed });
+	}
+	return out;
+}
+
+/** Hang each entry's counts on it; an entry the walk did not list stays absent. */
+export function withLineCounts(entries: VersionEntry[], deltas: Map<string, LineDelta>): VersionEntry[] {
+	return entries.map((e) => {
+		const d = deltas.get(e.sha);
+		return d ? { ...e, added: d.added, removed: d.removed } : e;
+	});
+}
+
+/** Whether an entry carries its line counts. */
+export function hasLineCounts(e: VersionEntry): e is CountedEntry {
+	return typeof e.added === 'number' && typeof e.removed === 'number';
+}
+
+/**
+ * The newest `limit` updates that changed counted code, newest first, and
+ * whether this log carries counts at all. `known: false` is a build that did
+ * not count -- a shallow clone -- and a surface says so rather than showing a
+ * list of zeros; an update that touched only prose or data is left out of the
+ * list, because "+0 -0" beside a changelog line is noise, not a figure.
+ */
+export function recentCodeChanges(
+	entries: VersionEntry[],
+	limit: number
+): { known: boolean; rows: CountedEntry[] } {
+	const counted = entries.filter(hasLineCounts);
+	return {
+		known: counted.length > 0,
+		rows: counted.filter((e) => e.added + e.removed > 0).slice(0, Math.max(0, limit))
+	};
+}
+
+/**
  * The whole substrate, from one raw log plus what the platform said.
  *
  * `headRaw` is the unfiltered one-line head read (`GIT_HEAD_FORMAT`), and is
  * what lets the stamp recognise a build made from a merge commit. Omitted, the
  * derivation is exactly what it was before that read existed.
+ *
+ * `numstatRaw` is the line-count walk (`GIT_NUMSTAT_FORMAT`) and `countsLine`
+ * the census's own test of which paths count (`countsAsCode` in
+ * `$lib/code-census`, handed in rather than imported so this module stays the
+ * dependency-free one every route loads). The counts are attached ONLY over a
+ * complete history -- the same `complete` the version numbers are withheld on,
+ * and for the same reason -- and are otherwise ABSENT, never a smaller number.
  */
 export function buildSiteVersions(
 	raw: string,
-	opts: { complete: boolean; envSha?: string | null; headRaw?: string | null }
+	opts: {
+		complete: boolean;
+		envSha?: string | null;
+		headRaw?: string | null;
+		numstatRaw?: string | null;
+		countsLine?: (path: string) => boolean;
+	}
 ): SiteVersions {
-	const entries = parseGitLog(raw, opts);
+	const parsed = parseGitLog(raw, opts);
+	const entries =
+		opts.complete && opts.numstatRaw && opts.countsLine
+			? withLineCounts(parsed, parseNumstat(opts.numstatRaw, opts.countsLine))
+			: parsed;
 	return {
 		entries,
 		apps: deriveApps(entries, opts),

@@ -1097,8 +1097,9 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   shared `.card` and every surface's own box that plays the same part: a
 	   class card, the hall pass and song queue cards, the live door and the
 	   live tab's panels, the item inspector, the worksheet progress readout,
-	   a notebook entry and its composer, the tour offer, a link preview. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp, .course-card, .td-door, .coin-summary, .preview-banner, .fdy-block, .fdy-gal-plays, .fdy-flag, .fdy-insp-section:where(.fdy-shelf), .fdy-before, .fdy-mode, .tnm-panel, .tnm-root:where(.room-box, .entry-detail, .match-detail), :where(.tnm-root) :is(.room-box, .pool, .match), .frq-item, .gdq-item, .ar-row, :where(.admin-console) .panel, :where(.legacy-index) .hero-meta) {
+	   a notebook entry and its composer, the tour offer, a link preview, and
+	   the home banner's lines-of-code pop-up (report R10). */
+	:root :scope:is(.cr-plate, .site-plate) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp, .course-card, .td-door, .coin-summary, .preview-banner, .fdy-block, .fdy-gal-plays, .fdy-flag, .fdy-insp-section:where(.fdy-shelf), .fdy-before, .fdy-mode, .tnm-panel, .tnm-root:where(.room-box, .entry-detail, .match-detail), :where(.tnm-root) :is(.room-box, .pool, .match), .frq-item, .gdq-item, .ar-row, :where(.admin-console) .panel, :where(.legacy-index) .hero-meta, .loc-panel) {
 		border-color: var(--plate-hair);
 		border-radius: var(--plate-r-panel);
 		background-color: var(--plate-panel-ground);
@@ -1115,7 +1116,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	}
 	/* A card nested in a card is a panel INSIDE a housing: the same face, and
 	   a shorter shadow so the stack reads as one assembly. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.card, .console-panel, .lc-panel, .entry-panel) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp, .course-card, .td-door, .coin-summary, .preview-banner, .fdy-block, .fdy-gal-plays, .fdy-flag, .fdy-insp-section:where(.fdy-shelf), .fdy-before, .fdy-mode, .tnm-panel, .tnm-root:where(.room-box, .entry-detail, .match-detail), :where(.tnm-root) :is(.room-box, .pool, .match), .frq-item, .gdq-item, .ar-row, :where(.admin-console) .panel, :where(.legacy-index) .hero-meta) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.card, .console-panel, .lc-panel, .entry-panel) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp, .course-card, .td-door, .coin-summary, .preview-banner, .fdy-block, .fdy-gal-plays, .fdy-flag, .fdy-insp-section:where(.fdy-shelf), .fdy-before, .fdy-mode, .tnm-panel, .tnm-root:where(.room-box, .entry-detail, .match-detail), :where(.tnm-root) :is(.room-box, .pool, .match), .frq-item, .gdq-item, .ar-row, :where(.admin-console) .panel, :where(.legacy-index) .hero-meta, .loc-panel) {
 		box-shadow:
 			inset 0 1px 0 0 var(--plate-panel-hi),
 			0 1px 2px 0 var(--plate-drop),

@@ -1,7 +1,8 @@
 <script lang="ts">
 	import CodeCounter from '$lib/CodeCounter.svelte';
 	import { census as realCensus } from 'virtual:site-code';
-	import type { CodeCensus } from '$lib/code-census';
+	import { countsAsCode, type CodeCensus } from '$lib/code-census';
+	import { buildSiteVersions, FIELD, REC, type VersionEntry } from '$lib/site-versions';
 
 	/**
 	 * THE REAL COMPONENT AND THE REAL CENSUS. `CodeCounter` here is the module
@@ -37,6 +38,39 @@
 	};
 
 	const census = $derived(data.harness.empty ? EMPTY : realCensus);
+
+	/**
+	 * THE RECENT-UPDATES TRANSPORT, one per `?updates=` state. `real` is the
+	 * same lazy import the home page makes, so the rows a spec reads are the
+	 * build's own; `shallow` runs a two-commit log through the REAL builder
+	 * with `complete: false`, so the absence of counts is the builder's answer
+	 * and not a shape typed out here; `fail` rejects; `none` hands nothing.
+	 */
+	const SHALLOW_LOG = [
+		`${REC}a1b2c3d${FIELD}Sep 28, 2026${FIELD}2026-09-28T10:00:00-07:00${FIELD}Tidy the home banner`,
+		'src/routes/+page.svelte',
+		`${REC}d4e5f6a${FIELD}Sep 27, 2026${FIELD}2026-09-27T10:00:00-07:00${FIELD}Count the code by layer`,
+		'src/lib/code-census.ts'
+	].join('\n');
+	const SHALLOW_NUMSTAT = `${REC}a1b2c3d\n12\t3\tsrc/routes/+page.svelte\n\n${REC}d4e5f6a\n40\t0\tsrc/lib/code-census.ts\n`;
+
+	const loadUpdates = $derived.by((): (() => Promise<VersionEntry[]>) | undefined => {
+		switch (data.harness.updates) {
+			case 'none':
+				return undefined;
+			case 'fail':
+				return () => Promise.reject(new Error('harness: the update list is refused on purpose'));
+			case 'shallow':
+				return async () =>
+					buildSiteVersions(SHALLOW_LOG, {
+						complete: false,
+						numstatRaw: SHALLOW_NUMSTAT,
+						countsLine: countsAsCode
+					}).entries;
+			default:
+				return async () => (await import('virtual:site-changelog')).entries;
+		}
+	});
 </script>
 
 <svelte:head><title>dev // code census</title></svelte:head>
@@ -45,8 +79,12 @@
 	census=<strong>{data.harness.empty ? 'EMPTY (nothing should render)' : 'real'}</strong>
 	&middot; total=<strong>{census.total}</strong>
 	&middot; files=<strong>{census.files}</strong>
+	&middot; updates=<strong>{data.harness.updates}</strong>
 	&middot; <a href="?">the real census</a>
 	&middot; <a href="?census=empty">an incomplete one</a>
+	&middot; <a href="?updates=shallow">a shallow build</a>
+	&middot; <a href="?updates=fail">a failed load</a>
+	&middot; <a href="?updates=none">no updates transport</a>
 </div>
 
 <main class="census-harness">
@@ -58,7 +96,7 @@
 	</p>
 
 	<div class="stage" data-testid="counter-stage">
-		<CodeCounter {census} startOpen={true} />
+		<CodeCounter {census} startOpen={true} {loadUpdates} />
 	</div>
 </main>
 

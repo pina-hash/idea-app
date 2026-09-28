@@ -4,13 +4,17 @@
  * Every helper here self-disables under `prefers-reduced-motion: reduce`, so
  * callers never need their own guard. The CSS side of the same gate lives in
  * `viewport.css`.
+ *
+ * `countUp` AND `prefersReducedMotion` LIVE IN `$lib/count-up` NOW and are
+ * re-exported here, so every GAUNTLET caller keeps its import. The home page's
+ * lines-of-code chip counts up with the same action (report R10), and one
+ * implementation of it is the point: the count is scheduled on a frame OR a
+ * timeout there, where this file's copy rode requestAnimationFrame alone and
+ * never finished in a tab that opened in the background.
  */
+import { prefersReducedMotion } from '$lib/count-up';
 
-/** True when the user asks for reduced motion (SSR-safe: false on the server). */
-export function prefersReducedMotion(): boolean {
-	if (typeof window === 'undefined' || !window.matchMedia) return false;
-	return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
+export { countUp, prefersReducedMotion } from '$lib/count-up';
 
 /** True on touch-primary devices (SSR-safe: false on the server). */
 export function isCoarsePointer(): boolean {
@@ -79,38 +83,4 @@ export function entranceSweep(container: HTMLElement, stepMs = 55) {
 		el.style.transitionDelay = `${Math.min(i * stepMs, 440)}ms`;
 		io.observe(el);
 	});
-}
-
-/**
- * Svelte action: count a numeric stat up from 0 to its value (ease-out).
- * Re-runs when the bound value changes; renders the final value immediately
- * under reduced motion.
- */
-export function countUp(node: HTMLElement, value: number) {
-	let raf = 0;
-	const run = (target: number) => {
-		cancelAnimationFrame(raf);
-		if (prefersReducedMotion() || !Number.isFinite(target)) {
-			node.textContent = String(target);
-			return;
-		}
-		const dur = 900;
-		const t0 = performance.now();
-		const tick = (now: number) => {
-			const t = Math.min(1, (now - t0) / dur);
-			const eased = 1 - Math.pow(1 - t, 3);
-			node.textContent = String(Math.round(target * eased));
-			if (t < 1) raf = requestAnimationFrame(tick);
-		};
-		raf = requestAnimationFrame(tick);
-	};
-	run(value);
-	return {
-		update(next: number) {
-			run(next);
-		},
-		destroy() {
-			cancelAnimationFrame(raf);
-		}
-	};
 }

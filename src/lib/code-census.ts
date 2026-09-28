@@ -165,6 +165,21 @@ export function exclusionFor(path: string): CensusExclusion | null {
 }
 
 /**
+ * WHETHER A PATH'S LINES ARE IN THE HEADLINE AT ALL: code, and claimed by no
+ * exclusion. The changelog's per-update line counts (report R10) are filtered
+ * through this and nothing else, so an update's "+40 -12" is 52 lines the
+ * lines-of-code figure itself would have counted -- a README, a JSON export
+ * or the vendored kernel moving is not code this repository wrote, in the
+ * total or in a row. The build hands it to `buildSiteVersions`; the census's
+ * own loop below asks the same two questions separately because it has to
+ * report WHICH exclusion caught a file.
+ */
+export function countsAsCode(path: string): boolean {
+	const p = path.replace(/\\/g, '/');
+	return languageFor(p) !== null && exclusionFor(p) === null;
+}
+
+/**
  * THE SECOND AXIS: WHICH LAYER OF THE STACK A FILE BELONGS TO. Four prefixes
  * and a catch-all, matched in order. This is "where is it" in the sense a
  * person asks it about a codebase -- pages, components, tests, database -- and

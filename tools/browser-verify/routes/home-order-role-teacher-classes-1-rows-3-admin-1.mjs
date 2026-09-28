@@ -46,6 +46,15 @@ export default {
 	prepare: [
 		{ evaluate: SETTLE_ENTRANCE, waitMs: 150 },
 		{
+			/* THE CHIP COUNTS UP TO ITS FIGURE ONCE ON LOAD (report R10), and the
+			   derived-figure row below reads the painted digits. `countUp` marks
+			   the node `data-counting` while it runs; at 375 the chip is hidden
+			   and settles at once, so this holds immediately there. */
+			waitFor: '() => !document.querySelector(".loc-value[data-counting]")',
+			label: 'the lines-of-code chip has finished counting up',
+			timeoutMs: 15_000
+		},
+		{
 			/* THE HEADER'S HEIGHT WITH AND WITHOUT THE READOUT, printed. An
 			   `evaluate` step's return value is the only raw number this report
 			   format carries, and this is the number report 12's constraint is

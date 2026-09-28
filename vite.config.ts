@@ -2,8 +2,8 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
-import { buildSiteVersions, GIT_HEAD_FORMAT, GIT_LOG_FORMAT } from './src/lib/site-versions';
-import { buildCodeCensus, languageFor, type CensusFile } from './src/lib/code-census';
+import { buildSiteVersions, GIT_HEAD_FORMAT, GIT_LOG_FORMAT, GIT_NUMSTAT_FORMAT } from './src/lib/site-versions';
+import { buildCodeCensus, countsAsCode, languageFor, type CensusFile } from './src/lib/code-census';
 import { devRouteStub } from './src/lib/dev-routes';
 
 /**
@@ -103,10 +103,38 @@ function siteVersionsPlugin(): Plugin {
 				complete = false;
 			}
 
+			/* THE FOURTH QUESTION, AND ONLY THE LAZY MODULE ASKS IT: how many
+			   lines of counted code each update added and removed (report R10).
+			   It is a separate walk for the reason GIT_NUMSTAT_FORMAT gives, it
+			   runs only over a COMPLETE history (a shallow clone's oldest commit
+			   lists the whole tree as added, so the counts are withheld exactly
+			   as the version numbers are), and it is the slow one -- git diffs
+			   every file of every commit, measured at about 6s on this tree --
+			   so the eager module, which is on every route, never pays for it.
+			   `core.quotePath=false` so a path with a non-ASCII character
+			   arrives readable rather than escaped. */
+			let numstatRaw: string | null = null;
+			if (virtualIds[wanted] === 'log' && complete) {
+				try {
+					numstatRaw = execSync(
+						`git -c core.quotePath=false log --no-merges --pretty=format:"${GIT_NUMSTAT_FORMAT}" --numstat`,
+						{ encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 }
+					);
+				} catch {
+					numstatRaw = null;
+					this.warn(
+						'[site-versions] git log --numstat failed: the changelog carries no per-update line ' +
+							'counts on this build. None are shown rather than a partial set.'
+					);
+				}
+			}
+
 			const site = buildSiteVersions(raw, {
 				complete,
 				headRaw,
-				envSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null
+				envSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+				numstatRaw,
+				countsLine: countsAsCode
 			});
 
 			if (!complete) {

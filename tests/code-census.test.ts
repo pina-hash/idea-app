@@ -33,6 +33,7 @@ import {
 	CENSUS_LANGUAGES,
 	buildCodeCensus,
 	censusSummary,
+	countsAsCode,
 	exclusionFor,
 	groupDigits,
 	languageFor,
@@ -375,5 +376,44 @@ describe('the census of this repository reconciles with an independent count', (
 	it('recognises this repository as heavily commented', () => {
 		expect(census.comment).toBeGreaterThan(census.total * 0.15);
 		expect(census.code).toBeGreaterThan(census.comment);
+	});
+});
+
+/**
+ * REPORT R10: THE CHANGELOG'S PER-UPDATE LINE COUNTS ARE FILTERED THROUGH
+ * `countsAsCode`, AND IT MUST ANSWER EXACTLY WHAT THE CENSUS DOES. A row that
+ * counted a path the headline does not -- a README, the vendored kernel, the
+ * app's own export -- would make an update's "+40" a number the lines-of-code
+ * figure never moved by. So the oracle is the census itself: each path is
+ * handed to `buildCodeCensus` alone and asked whether it was counted.
+ */
+describe('countsAsCode agrees with the census, path by path', () => {
+	const PATHS = [
+		'src/lib/a.ts',
+		'src/routes/+page.svelte',
+		'supabase/migrations/0001_x.sql',
+		'tools/idea_logo_vector.py',
+		'.github/workflows/ci.yml',
+		'src\\lib\\windows-path.ts',
+		'README.md',
+		'src/lib/data.json',
+		'.gitattributes',
+		'static/IDEA/idea-gear.png',
+		'docs/coin-economy/archive/legacy-system/Code.js',
+		'src/lib/ideacad/kernel/vendor/remus/remus_wasm.js',
+		'static/fsp/day2/_ds/idea-design-system-x/_ds_bundle.js',
+		'materials/idea-100/syllabus/spec.html'
+	];
+
+	it('counts a path if and only if the census counts it', () => {
+		let counted = 0;
+		for (const path of PATHS) {
+			const census = buildCodeCensus([{ path, text: 'x\n' }], { complete: true });
+			expect(countsAsCode(path), path).toBe(census.files === 1);
+			if (census.files === 1) counted++;
+		}
+		// Both answers occur, so the agreement is not a list of one kind.
+		expect(counted).toBe(6);
+		expect(PATHS.length - counted).toBe(8);
 	});
 });

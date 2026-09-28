@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { anchored } from '$lib/shell/anchored';
+	import { countUp } from '$lib/count-up';
+	import Pending from '$lib/Pending.svelte';
+	import { recentCodeChanges, type VersionEntry } from '$lib/site-versions';
 	import {
 		censusSummary,
 		groupDigits,
@@ -42,13 +45,37 @@
 	 * cannot hover and a keyboard does not; the summary line the hover reveals
 	 * is the first thing inside the panel too, so the pointer path is a
 	 * shortcut to something every other input already reaches.
+	 *
+	 * THE FIGURE COUNTS UP ONCE, AND THE FINAL NUMBER IS NEVER NOT IN THE DOM
+	 * (report R10). The server renders it and so does the visually hidden name
+	 * of the chip, which is what a screen reader reads; the painted digits are
+	 * `aria-hidden` and animated by `$lib/count-up`, the same action GAUNTLET's
+	 * stat tiles use, on frame-or-timeout, behind reduced motion, held at the
+	 * final figure's width so the banner does not shift while it runs.
+	 *
+	 * EACH UPDATE CARRIES ITS OWN COUNT (report R10). The panel's recent-updates
+	 * list is the changelog's own entries, whose `added` and `removed` the build
+	 * took from `git log --numstat` through the census's own filter
+	 * (`countsAsCode`), so a row's figures are lines THIS total counts. It
+	 * arrives through `loadUpdates` when the panel first opens -- the same lazy
+	 * chunk the changelog panel reads, never the page's -- and an omitted
+	 * transport removes the section, the repository's absence rule.
 	 */
+
+	/** How many updates the panel lists. The changelog below the page is the full list. */
+	const RECENT_LIMIT = 6;
 
 	let {
 		census,
 		/** Harness hook: open the panel without a press. */
-		startOpen = false
-	}: { census: CodeCensus; startOpen?: boolean } = $props();
+		startOpen = false,
+		/** The changelog's entries, fetched when the panel first opens. Absent: no updates section. */
+		loadUpdates
+	}: {
+		census: CodeCensus;
+		startOpen?: boolean;
+		loadUpdates?: () => Promise<VersionEntry[]>;
+	} = $props();
 
 	/* Seeded once, deliberately: `startOpen` is a harness hook rather than a
 	   controlled prop, and `untrack` is how that is spelled. */
@@ -78,6 +105,41 @@
 	 * region below, so announcing it on hover would say it twice.
 	 */
 	const showPeek = $derived(hovered && !open);
+
+	/* THE UPDATES, LOADED ONCE, THE FIRST TIME THE PANEL IS OPEN. A failed load
+	   says so and is tried again on the next open; it never renders as "no
+	   updates", which would be a sentence about the repository rather than
+	   about a request. The latch is plain, not `$state`, because it is written
+	   on the path that reads it. */
+	let updatesState = $state<'idle' | 'loading' | 'ready' | 'failed'>('idle');
+	let updates = $state<VersionEntry[]>([]);
+	let updatesStarted = false;
+
+	async function fetchUpdates(load: () => Promise<VersionEntry[]>) {
+		if (updatesStarted) return;
+		updatesStarted = true;
+		updatesState = 'loading';
+		try {
+			updates = await load();
+			updatesState = 'ready';
+		} catch {
+			updatesState = 'failed';
+			updatesStarted = false;
+		}
+	}
+
+	$effect(() => {
+		/* TRACK THE INPUTS, UNTRACK THE CALL (CLAUDE.md): `open` and the
+		   transport are what this effect is for; the transport itself is the
+		   caller's code and runs outside this effect's tracking, deferred so
+		   its state writes never land while the render is settling. */
+		const isOpen = open;
+		const load = loadUpdates;
+		if (!isOpen || !load) return;
+		untrack(() => queueMicrotask(() => fetchUpdates(load)));
+	});
+
+	const recent = $derived(recentCodeChanges(updates, RECENT_LIMIT));
 </script>
 
 {#if census.complete && census.total > 0}
@@ -95,11 +157,19 @@
 			onblur={() => (hovered = false)}
 		>
 			<span class="loc-key" aria-hidden="true">LOC</span>
-			<span class="loc-value">{groupDigits(census.total)}</span>
+			<!-- THE PAINTED DIGITS COUNT; THE NAME DOES NOT. Both carry the
+			     server's final figure, and a screen reader reads the hidden one,
+			     so nobody is ever told an intermediate number. -->
+			<span
+				class="loc-value"
+				aria-hidden="true"
+				use:countUp={{ value: census.total, format: groupDigits, once: true, holdWidth: true }}
+				>{groupDigits(census.total)}</span
+			>
 			<!-- The caret says this opens something. It is decoration beside the
 			     two words above, never the only signal that the chip is a control. -->
 			<span class="loc-caret" aria-hidden="true" class:loc-caret-open={open}>&#9662;</span>
-			<span class="loc-sr">lines of code. Open the breakdown.</span>
+			<span class="loc-sr">{groupDigits(census.total)} lines of code. Open the breakdown.</span>
 		</button>
 
 		{#if showPeek}
@@ -116,15 +186,24 @@
 			<div
 				class="loc-panel"
 				id="loc-panel"
+				role="region"
+				aria-labelledby="loc-title"
 				use:anchored={{ anchor: trigger, open, prefer: 'below', align: 'start', gap: 10 }}
 			>
 				<div class="loc-head">
-					<strong class="loc-title">Lines of code</strong>
+					<strong class="loc-title" id="loc-title">Lines of code</strong>
 					<button type="button" class="loc-close tap-44" onclick={() => (open = false)}>
 						Close
 					</button>
 				</div>
 
+				<!-- THE HEADLINE, THEN WHAT IT IS MADE OF. The big figure is the
+				     one on the chip; the sentence under it says exactly what was
+				     counted, and is the same sentence the hover peek shows. -->
+				<p class="loc-hero" aria-hidden="true">
+					<span class="loc-hero-n">{groupDigits(census.total)}</span>
+					<span class="loc-hero-l">lines</span>
+				</p>
 				<p class="loc-summary">{summary}</p>
 
 				<div class="loc-totals">
@@ -146,60 +225,121 @@
 					</div>
 				</div>
 
-				<div class="loc-axes" role="group" aria-label="Break the count down by">
-					{#each AXES as a (a.id)}
-						<button
-							type="button"
-							class="loc-axis tap-44"
-							class:loc-axis-on={axis === a.id}
-							aria-pressed={axis === a.id}
-							onclick={() => (axis = a.id)}
-						>
-							{a.label}
-						</button>
-					{/each}
-				</div>
+				{#if loadUpdates}
+					<!-- EACH UPDATE WITH THE LINES IT MOVED (report R10). The two
+					     figures are right-aligned in fixed columns so they line up
+					     down the list, and each carries its sign as a glyph and its
+					     meaning in words for a screen reader: colour is never the
+					     only thing that says which is which. -->
+					<section class="loc-sec" aria-labelledby="loc-upd-head">
+						<h3 class="loc-sec-label" id="loc-upd-head">Recent updates</h3>
+						{#if updatesState === 'loading' || updatesState === 'idle'}
+							<Pending label="Loading the recent updates" variant="inline" />
+						{:else if updatesState === 'failed'}
+							<p class="loc-note" data-testid="loc-upd-failed">
+								The update list could not be loaded. Close this and open it again to retry.
+							</p>
+						{:else if !recent.known}
+							<p class="loc-note" data-testid="loc-upd-uncounted">
+								This build did not count lines per update. The counts come from the full git
+								history, and a build made from a shortened copy of it shows none rather than wrong
+								ones.
+							</p>
+						{:else if recent.rows.length === 0}
+							<p class="loc-note" data-testid="loc-upd-none">
+								None of the recent updates changed the counted code.
+							</p>
+						{:else}
+							<p class="loc-note">
+								The last {recent.rows.length}
+								{recent.rows.length === 1 ? 'update' : 'updates'} that changed the code, newest first,
+								counted the way the total is.
+							</p>
+							<div class="loc-upd-cols" aria-hidden="true">
+								<span>Update</span>
+								<span>Added</span>
+								<span>Removed</span>
+							</div>
+							<ol class="loc-upds">
+								{#each recent.rows as u (u.sha)}
+									<li class="loc-upd">
+										<span class="loc-upd-main">
+											<span class="loc-upd-note">{u.note}</span>
+											<span class="loc-upd-date">{u.date}</span>
+										</span>
+										<span class="loc-upd-add" aria-hidden="true"
+											><span class="loc-sign">+</span>{groupDigits(u.added)}</span
+										>
+										<span class="loc-upd-del" aria-hidden="true"
+											><span class="loc-sign">&minus;</span>{groupDigits(u.removed)}</span
+										>
+										<span class="loc-sr"
+											>{groupDigits(u.added)} lines added, {groupDigits(u.removed)} removed.</span
+										>
+									</li>
+								{/each}
+							</ol>
+						{/if}
+					</section>
+				{/if}
 
-				<span class="loc-axis-head">{axisHead}</span>
-				<ul class="loc-rows">
-					{#each rows as row (row.id)}
-						<li class="loc-row">
-							<span class="loc-row-top">
-								<span class="loc-row-label">{row.label}</span>
-								<span class="loc-row-n">{groupDigits(row.total)}</span>
-								<span class="loc-row-pct">{sharePercent(row.total, census.total)}%</span>
-							</span>
-							<!-- THE BAR IS A PICTURE OF THE NUMBER BESIDE IT, never the
-							     number itself: the figure and the percentage are both
-							     written out, so the bar can be decorative and is
-							     `aria-hidden`. Its two segments are code then comment, in
-							     that order, against the widest row in the table. -->
-							<span class="loc-bar" aria-hidden="true">
-								<span
-									class="loc-bar-code"
-									style:width="{widest > 0 ? (row.code / widest) * 100 : 0}%"
-								></span>
-								<span
-									class="loc-bar-comment"
-									style:width="{widest > 0 ? (row.comment / widest) * 100 : 0}%"
-								></span>
-							</span>
-							<span class="loc-row-sub">
-								{groupDigits(row.code)} code &middot; {groupDigits(row.comment)} comment &middot;
-								{groupDigits(row.files)}
-								{row.files === 1 ? 'file' : 'files'}
-							</span>
-						</li>
-					{/each}
-				</ul>
+				<section class="loc-sec" aria-labelledby="loc-axes-head">
+					<h3 class="loc-sec-label" id="loc-axes-head">Breakdown</h3>
+					<div class="loc-axes" role="group" aria-label="Break the count down by">
+						{#each AXES as a (a.id)}
+							<button
+								type="button"
+								class="loc-axis tap-44"
+								class:loc-axis-on={axis === a.id}
+								aria-pressed={axis === a.id}
+								onclick={() => (axis = a.id)}
+							>
+								{a.label}
+							</button>
+						{/each}
+					</div>
+
+					<span class="loc-axis-head">{axisHead}</span>
+					<ul class="loc-rows">
+						{#each rows as row (row.id)}
+							<li class="loc-row">
+								<span class="loc-row-top">
+									<span class="loc-row-label">{row.label}</span>
+									<span class="loc-row-n">{groupDigits(row.total)}</span>
+									<span class="loc-row-pct">{sharePercent(row.total, census.total)}%</span>
+								</span>
+								<!-- THE BAR IS A PICTURE OF THE NUMBER BESIDE IT, never the
+								     number itself: the figure and the percentage are both
+								     written out, so the bar can be decorative and is
+								     `aria-hidden`. Its two segments are code then comment, in
+								     that order, against the widest row in the table. -->
+								<span class="loc-bar" aria-hidden="true">
+									<span
+										class="loc-bar-code"
+										style:width="{widest > 0 ? (row.code / widest) * 100 : 0}%"
+									></span>
+									<span
+										class="loc-bar-comment"
+										style:width="{widest > 0 ? (row.comment / widest) * 100 : 0}%"
+									></span>
+								</span>
+								<span class="loc-row-sub">
+									{groupDigits(row.code)} code &middot; {groupDigits(row.comment)} comment &middot;
+									{groupDigits(row.files)}
+									{row.files === 1 ? 'file' : 'files'}
+								</span>
+							</li>
+						{/each}
+					</ul>
+				</section>
 
 				{#if census.excluded.length}
 					<!-- WHAT IS NOT IN THE NUMBER, WITH THE REASON. A total with no
 					     stated boundary is a total nobody can check, and the first
 					     question anybody asks a lines-of-code figure is whether it
 					     counted the dependencies. -->
-					<div class="loc-excluded">
-						<span class="loc-axis-head">Not counted</span>
+					<section class="loc-sec loc-excluded" aria-labelledby="loc-ex-head">
+						<h3 class="loc-sec-label" id="loc-ex-head">Not counted</h3>
 						<p class="loc-excluded-note">
 							Only files tracked in git are counted at all, so installed dependencies and
 							build output are outside this by construction. Prose and configuration
@@ -215,7 +355,7 @@
 								</li>
 							{/each}
 						</ul>
-					</div>
+					</section>
 				{/if}
 
 				<p class="loc-foot">
@@ -287,8 +427,11 @@
 		color: var(--text-2);
 		font-size: 0.85em;
 	}
+	/* Right-aligned so a count that is still growing into the width `countUp`
+	   held for it fills from the right, the way an odometer does. */
 	.loc-value {
 		font-variant-numeric: tabular-nums;
+		text-align: right;
 	}
 	.loc-caret {
 		font-size: 0.7em;
@@ -340,10 +483,13 @@
 		width: min(30rem, calc(100vw - 1.5rem));
 		max-height: min(72vh, 36rem);
 		overflow: auto;
+		/* THE FACE AND THE EDGE ARE THE PLATE'S where the site plate is on (the
+		   panel is in plate.css's panel list, report R10); these are what a
+		   mount with the plate off renders. */
 		background: var(--bg1, #121a12);
 		border: 1px solid color-mix(in srgb, var(--li-mint, #8fe08a) 30%, transparent);
 		border-radius: 3px;
-		padding: 0.9rem;
+		padding: 1rem;
 		color: var(--white);
 		font-family: var(--font-display, 'Rajdhani', sans-serif);
 		font-size: 0.85rem;
@@ -403,12 +549,140 @@
 		background: color-mix(in srgb, var(--li-mint, #8fe08a) 10%, transparent);
 	}
 
-	.loc-summary {
-		margin: 0.45rem 0 0.6rem;
+	/* THE HEADLINE. One big figure, then the sentence that says what it is:
+	   the hierarchy the panel lacked was that everything in it was the same
+	   size. `aria-hidden` because the sentence under it carries the same number
+	   in words, and hearing it twice is noise. */
+	.loc-hero {
+		display: flex;
+		align-items: baseline;
+		gap: 0.45rem;
+		margin: 0.55rem 0 0.1rem;
+	}
+	.loc-hero-n {
+		font-family: var(--font-title, 'Orbitron', sans-serif);
+		font-size: 1.7rem;
+		font-weight: 700;
+		line-height: 1.1;
 		color: var(--white);
+		font-variant-numeric: tabular-nums;
+	}
+	.loc-hero-l {
+		font-family: var(--font-mono, 'Share Tech Mono', monospace);
+		font-size: 0.7rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	.loc-summary {
+		margin: 0 0 0.75rem;
+		color: var(--text-2);
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
 		font-size: 0.7rem;
 		line-height: 1.5;
+	}
+
+	/* A SECTION IS A RULE, A LABEL AND ITS CONTENT, and every section in the
+	   panel is spelled the same way, so the eye can find the next one. */
+	.loc-sec {
+		margin-top: 0.9rem;
+		padding-top: 0.75rem;
+		border-top: 1px solid var(--hairline, #2a332a);
+	}
+	.loc-sec-label {
+		margin: 0 0 0.5rem;
+		font-family: var(--font-mono, 'Share Tech Mono', monospace);
+		font-size: 0.65rem;
+		font-weight: 400;
+		line-height: 1.3;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--cyan);
+	}
+	.loc-note {
+		margin: 0 0 0.55rem;
+		font-size: 0.75rem;
+		line-height: 1.4;
+		color: var(--text-2);
+	}
+
+	/* THE UPDATE ROWS. One grid per row with the two figure columns a FIXED
+	   width in `ch` of the same mono face on every row and on the column
+	   header, so the figures line up down the list without a table, and the
+	   note column takes whatever is left (`minmax(0, 1fr)`, so a long subject
+	   wraps instead of pushing the panel wider than a phone). */
+	.loc-upd-cols,
+	.loc-upd {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 8ch 8ch;
+		column-gap: 0.6rem;
+		font-family: var(--font-mono, 'Share Tech Mono', monospace);
+		font-size: 0.7rem;
+	}
+	.loc-upd-cols {
+		padding-bottom: 0.25rem;
+		border-bottom: 1px solid var(--hairline, #2a332a);
+	}
+	.loc-upd-cols span {
+		font-size: 0.58rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	.loc-upd-cols span + span {
+		text-align: right;
+	}
+	.loc-upds {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.loc-upd {
+		align-items: start;
+		padding: 0.4rem 0;
+	}
+	.loc-upd + .loc-upd {
+		border-top: 1px solid var(--hairline, #2a332a);
+	}
+	.loc-upd-main {
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+		min-width: 0;
+	}
+	.loc-upd-note {
+		font-family: var(--font-display, 'Rajdhani', sans-serif);
+		font-size: 0.82rem;
+		line-height: 1.3;
+		color: var(--white);
+		overflow-wrap: anywhere;
+	}
+	.loc-upd-date {
+		font-size: 0.6rem;
+		color: var(--text-2);
+	}
+	.loc-upd-add,
+	.loc-upd-del {
+		text-align: right;
+		white-space: nowrap;
+		font-variant-numeric: tabular-nums;
+		line-height: 1.5;
+	}
+	/* ADDED IS GREEN AND REMOVED IS THE COPPER WARNING INK, NEVER CRIMSON,
+	   which is reserved for live and error status; the coin desk paints a fine
+	   the same way for the same reason. The +/- glyph beside each figure and
+	   the column header's words are what carry the meaning; the ink repeats it. */
+	.loc-upd-add {
+		color: var(--green);
+	}
+	.loc-upd-del {
+		color: var(--amber);
+	}
+	.loc-sign {
+		display: inline-block;
+		min-width: 1ch;
+		margin-right: 0.1ch;
+		text-align: center;
 	}
 
 	.loc-totals {
@@ -440,8 +714,11 @@
 	.loc-blank {
 		color: var(--ice);
 	}
+	/* `--hover-ink`, NOT `--gold` (report R10): the role that is brass on the
+	   dark themes and Space White's green there, where a lightness-only gold
+	   is brown (decision 40 item 1). */
 	.loc-files {
-		color: var(--gold);
+		color: var(--hover-ink, var(--gold));
 	}
 	.loc-total-l {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
@@ -526,11 +803,6 @@
 		color: var(--text-2);
 	}
 
-	.loc-excluded {
-		margin-top: 0.8rem;
-		padding-top: 0.6rem;
-		border-top: 1px solid var(--hairline, #2a332a);
-	}
 	.loc-excluded-note {
 		margin: 0 0 0.45rem;
 		font-size: 0.75rem;
@@ -553,7 +825,7 @@
 		display: block;
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
 		font-size: 0.62rem;
-		color: var(--gold);
+		color: var(--hover-ink, var(--gold));
 	}
 	.loc-ex-why {
 		display: block;

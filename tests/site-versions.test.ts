@@ -41,6 +41,8 @@
 //      ever compared against the last group it opened.
 
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { render } from 'svelte/server';
 import VersionBadge from '../src/lib/VersionBadge.svelte';
 import { versionLine } from '../src/lib/version-badge';
@@ -56,8 +58,14 @@ import {
 	stampParts,
 	stampText,
 	stampTitle,
+	GIT_NUMSTAT_FORMAT,
+	parseNumstat,
+	numstatPath,
+	recentCodeChanges,
+	hasLineCounts,
 	type VersionEntry
 } from '../src/lib/site-versions';
+import { countsAsCode } from '../src/lib/code-census';
 
 /** One `git log --name-only` record, in the format the build actually asks for. */
 function commit(sha: string, date: string, note: string, files: string[]): string {
@@ -613,5 +621,158 @@ describe('the changelog cut into month headings', () => {
 			expect(months.map((m) => m.label)).toEqual(['September 2026', 'August 2026', 'Undated']);
 			expect(months.reduce((n, m) => n + m.entries.length, 0)).toBe(3);
 		});
+	});
+});
+
+/* ------------------------------------------------------------------------- *
+ * REPORT R10: EACH UPDATE CARRIES THE LINES IT ADDED AND REMOVED.
+ *
+ * The fixture is REAL `git log --numstat` output, committed byte for byte:
+ * `tests/fixtures/site-versions-numstat.txt` was written by
+ *
+ *   git -c core.quotePath=false log --no-walk=unsorted --no-merges \
+ *     --pretty=format:%x1e%h --numstat 3ec51676 b6f31503 abf070c7 9fe74c00
+ *
+ * -- the build's own command and format (`%x1e` is `REC`), over four commits
+ * chosen for their shapes: brace renames of code, binary images beside code,
+ * an app-written export under materials/, and a docs-only commit. THE EXPECTED
+ * TOTALS DID NOT COME FROM `parseNumstat`: they were summed from the fixture by
+ * a separate script that resolved renames, dropped binaries and applied the
+ * census's extension list and exclusions itself, and are written here as
+ * numbers. The all-lines totals below are a plain sum of every numeric line.
+ *
+ * SILENT IF WRONG, which is why it is a test: a filter that counted Markdown
+ * or JSON would put the changelog's own history files into every row, and a
+ * shallow build that counted would credit its oldest commit with the whole
+ * tree, and both would render as perfectly ordinary numbers.
+ * ------------------------------------------------------------------------- */
+describe('R10: per-update line counts from git log --numstat', () => {
+	const RAW = readFileSync(
+		fileURLToPath(new URL('./fixtures/site-versions-numstat.txt', import.meta.url)),
+		'utf8'
+	);
+
+	it('the fixture is the shape the build emits: four records, each opened by REC and a short sha', () => {
+		expect(GIT_NUMSTAT_FORMAT).toBe(`${REC}%h`);
+		const shas = RAW.split(REC)
+			.filter((r) => r.trim())
+			.map((r) => r.split('\n')[0]);
+		expect(shas).toEqual(['3ec51676', 'b6f31503', 'abf070c7', '9fe74c00']);
+		// It carries every case it was chosen for.
+		expect(RAW).toMatch(/\{[^{}]* => [^{}]*\}/);
+		expect(RAW).toMatch(/^-\t-\t/m);
+		expect(RAW).toMatch(/\tmaterials\//);
+		expect(RAW).toMatch(/\tdocs\/.*\.md$/m);
+	});
+
+	it('counts only what the lines-of-code figure counts: code, and no exclusion', () => {
+		const got = parseNumstat(RAW, countsAsCode);
+		expect(Object.fromEntries(got)).toEqual({
+			'3ec51676': { added: 3979, removed: 3977 },
+			'b6f31503': { added: 332, removed: 81 },
+			abf070c7: { added: 0, removed: 0 },
+			'9fe74c00': { added: 0, removed: 0 }
+		});
+	});
+
+	it('POSITIVE CONTROL: with no filter the same fixture counts the prose and the data too', () => {
+		const got = parseNumstat(RAW, () => true);
+		expect(got.get('b6f31503')).toEqual({ added: 373, removed: 110 });
+		expect(got.get('abf070c7')).toEqual({ added: 2, removed: 1 });
+		expect(got.get('9fe74c00')).toEqual({ added: 140, removed: 75 });
+		// Binary lines are skipped either way: they have no line count to add.
+		expect(got.get('3ec51676')).toEqual({ added: 3979, removed: 3977 });
+	});
+
+	it('resolves a rename to the path --name-only reports, in each form git writes', () => {
+		// Lines copied from this repository's own history.
+		expect(numstatPath('src/{routes/notebook/review/+page.svelte => lib/notebook/review-transports.ts}')).toBe(
+			'src/lib/notebook/review-transports.ts'
+		);
+		expect(numstatPath('src/routes/{ => classroom}/notebook/review/student/[studentEmail]/+page.svelte')).toBe(
+			'src/routes/classroom/notebook/review/student/[studentEmail]/+page.svelte'
+		);
+		expect(numstatPath('docs/audit/{bracket2-final-375.png => bracket-attempt2-final-375.png}')).toBe(
+			'docs/audit/bracket-attempt2-final-375.png'
+		);
+		// The other forms git writes: an emptied directory, a whole-path rename, a quoted name.
+		expect(numstatPath('src/{lib => }/x.ts')).toBe('src/x.ts');
+		expect(numstatPath('notes.md => notes.ts')).toBe('notes.ts');
+		expect(numstatPath('"src/a \\"b\\".ts"')).toBe('src/a "b".ts');
+		expect(numstatPath('src/plain.ts')).toBe('src/plain.ts');
+	});
+
+	it('a rename INTO code counts and a rename out of it does not: the new side decides', () => {
+		const raw = [
+			`${REC}1111111`,
+			'10\t2\tsrc/lib/{notes.md => notes.ts}',
+			'',
+			`${REC}2222222`,
+			'7\t7\tsrc/lib/{a.ts => a.md}'
+		].join('\n');
+		const got = parseNumstat(raw, countsAsCode);
+		expect(got.get('1111111')).toEqual({ added: 10, removed: 2 });
+		expect(got.get('2222222')).toEqual({ added: 0, removed: 0 });
+	});
+
+	const LOG = [
+		commit('3ec51676', '2026-09-24', 'The notebook lives inside the classroom', ['src/lib/notebook/review-transports.ts']),
+		commit('b6f31503', '2026-09-23', 'The IDEA logo has a light version', ['src/app.css', 'static/IDEA/idea-gear-light.png']),
+		commit('abf070c7', '2026-09-22', 'classroom: IDEA 100 Syllabus (reference) r1', ['materials/idea-100/idea-100-syllabus/material.json']),
+		commit('9fe74c00', '2026-09-21', 'Feedback round decisions', ['docs/feedback/2026-09-28/QUEUE.md'])
+	].join('\n');
+
+	it('buildSiteVersions hangs the counts on each entry over a complete history', () => {
+		const site = buildSiteVersions(LOG, { complete: true, numstatRaw: RAW, countsLine: countsAsCode });
+		expect(site.entries.map((e) => [e.sha, e.added, e.removed])).toEqual([
+			['3ec51676', 3979, 3977],
+			['b6f31503', 332, 81],
+			['abf070c7', 0, 0],
+			['9fe74c00', 0, 0]
+		]);
+		expect(site.entries.every(hasLineCounts)).toBe(true);
+	});
+
+	it('ABSENT, NOT WRONG, on a shallow clone: the same inputs with complete false carry no counts at all', () => {
+		const site = buildSiteVersions(LOG, { complete: false, numstatRaw: RAW, countsLine: countsAsCode });
+		expect(site.entries).toHaveLength(4);
+		for (const e of site.entries) {
+			expect('added' in e, e.sha).toBe(false);
+			expect('removed' in e, e.sha).toBe(false);
+		}
+		expect(recentCodeChanges(site.entries, 6)).toEqual({ known: false, rows: [] });
+	});
+
+	it('and absent when no walk was handed in, which is the eager module: the entries are the old shape exactly', () => {
+		const withWalk = buildSiteVersions(LOG, { complete: true, numstatRaw: null, countsLine: countsAsCode });
+		const without = buildSiteVersions(LOG, { complete: true });
+		expect(withWalk.entries).toEqual(without.entries);
+		expect(without.entries.some(hasLineCounts)).toBe(false);
+		// The counts never touch the version numbers: same apps, same deploy.
+		const counted = buildSiteVersions(LOG, { complete: true, numstatRaw: RAW, countsLine: countsAsCode });
+		expect(counted.apps).toEqual(without.apps);
+		expect(counted.deploy).toEqual(without.deploy);
+	});
+
+	it('an entry the walk did not list stays absent rather than reading zero', () => {
+		const partial = `${REC}3ec51676\n5\t1\tsrc/lib/x.ts\n`;
+		const site = buildSiteVersions(LOG, { complete: true, numstatRaw: partial, countsLine: countsAsCode });
+		expect(site.entries.map((e) => (hasLineCounts(e) ? `${e.added}/${e.removed}` : 'absent'))).toEqual([
+			'5/1',
+			'absent',
+			'absent',
+			'absent'
+		]);
+	});
+
+	it('the pop-up lists the newest updates that moved counted code, and leaves out the ones that did not', () => {
+		const site = buildSiteVersions(LOG, { complete: true, numstatRaw: RAW, countsLine: countsAsCode });
+		const recent = recentCodeChanges(site.entries, 6);
+		expect(recent.known).toBe(true);
+		expect(recent.rows.map((e) => e.sha)).toEqual(['3ec51676', 'b6f31503']);
+		expect(recentCodeChanges(site.entries, 1).rows.map((e) => e.sha)).toEqual(['3ec51676']);
+		expect(recentCodeChanges(site.entries, 0).rows).toEqual([]);
+		/* Counted, and every one of them a docs or data commit: known, and empty. */
+		expect(recentCodeChanges(site.entries.slice(2), 6)).toEqual({ known: true, rows: [] });
 	});
 });

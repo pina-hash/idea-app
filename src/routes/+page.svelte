@@ -224,6 +224,10 @@
 	   this handler depend on a value it sets. */
 	let changelogStarted = false;
 
+	/* The lines-of-code pop-up's recent updates (report R10): the same lazy log,
+	   fetched when that pop-up first opens and never with the page. */
+	const loadCodeUpdates = async () => (await import('virtual:site-changelog')).entries;
+
 	async function loadChangelog() {
 		if (changelogStarted) return;
 		changelogStarted = true;
@@ -498,7 +502,7 @@
 		-->
 		<div class="header-left">
 			<a class="logo logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width="clamp(72px, 19vw, 104px)" /></a>
-			<CodeCounter census={codeCensus} />
+			<CodeCounter census={codeCensus} loadUpdates={loadCodeUpdates} />
 		</div>
 		<div class="header-right">
 			{#if classChip}

@@ -24,6 +24,28 @@
 export default {
 	path: '/dev/code-census',
 	label: 'The lines-of-code breakdown panel, open',
+	/* TWO THINGS ARRIVE AFTER THE PAGE PAINTS (report R10), and every row
+	   below reads one of them. The chip COUNTS UP to its figure, and a read
+	   taken mid-count is a different number from the summary's; `countUp`
+	   marks the node `data-counting` exactly while it runs, which a
+	   DOM-stability wait cannot see (the last 60% of the count changes digits
+	   without changing the string's length). And the recent updates are the
+	   REAL lazy changelog, whose line counts the dev server takes from
+	   `git log --numstat` the first time the module is asked for -- about six
+	   seconds on this tree -- so the wait is long and the row says why. */
+	prepare: [
+		{
+			waitFor: '() => !!document.querySelector(".loc-value") && !document.querySelector("[data-counting]")',
+			label: 'the chip has finished counting up to its figure',
+			timeoutMs: 15_000
+		},
+		{
+			waitFor:
+				'() => document.querySelectorAll(".loc-panel .loc-upd").length > 0 || !!document.querySelector(\'.loc-panel [data-testid^="loc-upd-"]\')',
+			label: 'the recent updates arrived (the build walks git log --numstat the first time, a few seconds)',
+			timeoutMs: 90_000
+		}
+	],
 	presence: [
 		/* THE POSITIVE CONTROL for every row below, and for the whole of the
 		   `census=empty` sibling: the harness page itself rendered. */
@@ -34,7 +56,22 @@ export default {
 		{ selector: '.loc-panel .loc-axis', label: 'three breakdowns to choose from', expectPresent: 3, maxPresent: 3, expectVisible: 3 },
 		{ selector: '.loc-panel .loc-row', label: 'one row per language', expectPresent: 8, expectVisible: 8 },
 		{ selector: '.loc-panel .loc-bar', label: 'a bar beside every row', expectPresent: 8 },
-		{ selector: '.loc-panel .loc-excluded li', label: 'one row per exclusion, each with its reason', expectPresent: 4, maxPresent: 4, expectVisible: 4 }
+		{ selector: '.loc-panel .loc-excluded li', label: 'one row per exclusion, each with its reason', expectPresent: 4, maxPresent: 4, expectVisible: 4 },
+		/* THE REDESIGN (report R10): one headline figure, then sections that are
+		   all spelled the same way. */
+		{ selector: '.loc-panel .loc-hero-n', label: 'one headline figure', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '.loc-panel .loc-sec-label', label: 'three section labels: updates, breakdown, not counted', expectPresent: 3, maxPresent: 3, expectVisible: 3 },
+		/* EACH UPDATE WITH ITS OWN COUNT. Six is the panel's own limit; the tree
+		   this runs on has far more than six code changes, so fewer would mean
+		   the line counts went missing from the build. Every row carries two
+		   signed figures, and the "could not count" and "failed" sentences are
+		   ABSENT -- the positive half of the harness's `?updates=shallow` and
+		   `?updates=fail` states. */
+		{ selector: '.loc-panel .loc-upd', label: 'the six newest updates that changed the code', expectPresent: 6, maxPresent: 6, expectVisible: 6 },
+		{ selector: '.loc-panel .loc-upd .loc-sign', label: 'a + and a minus glyph on every row', expectPresent: 12, maxPresent: 12, expectVisible: 12 },
+		{ selector: '.loc-panel .loc-upd-cols', label: 'the column header over the figures', expectPresent: 1, maxPresent: 1 },
+		{ selector: '.loc-panel [data-testid="loc-upd-uncounted"]', label: 'no "this build did not count" sentence on a full clone', expectPresent: 0 },
+		{ selector: '.loc-panel [data-testid="loc-upd-failed"]', label: 'no failed-load sentence', expectPresent: 0 }
 	],
 	contrast: [
 		{ selector: '.loc-panel .loc-summary', label: 'the summary sentence', min: 4.5 },
@@ -48,6 +85,19 @@ export default {
 		{ selector: '.loc-panel .loc-ex-label', label: 'an excluded set', min: 4.5 },
 		{ selector: '.loc-panel .loc-ex-why', label: 'why it is excluded', min: 4.5 },
 		{ selector: '.loc-panel .loc-foot', label: 'the footnote', min: 4.5 },
+		{ selector: '.loc-panel .loc-hero-n', label: 'the headline figure', min: 4.5 },
+		{ selector: '.loc-panel .loc-hero-l', label: 'its "lines" label', min: 4.5 },
+		{ selector: '.loc-panel .loc-sec-label', label: 'a section label', min: 4.5 },
+		{ selector: '.loc-panel .loc-note', label: 'the line under a section label', min: 4.5 },
+		{ selector: '.loc-panel .loc-upd-cols span', label: 'the Added / Removed column header', min: 4.5 },
+		{ selector: '.loc-panel .loc-upd-note', label: 'an update\'s subject', min: 4.5 },
+		{ selector: '.loc-panel .loc-upd-date', label: 'its date', min: 4.5 },
+		{ selector: '.loc-panel .loc-upd-add', label: 'lines added (green)', min: 4.5 },
+		{ selector: '.loc-panel .loc-upd-del', label: 'lines removed (the warning ink, never crimson)', min: 4.5 },
+		/* THE TWO FIGURES THAT WERE --gold AND TAKE --hover-ink NOW: brass on
+		   the dark themes, green on Space White, never brown. */
+		{ selector: '.loc-panel .loc-files', label: 'the Files figure (--hover-ink)', min: 4.5 },
+		{ selector: '.loc-panel .loc-ex-n', label: 'an exclusion\'s line count (--hover-ink)', min: 4.5 },
 		/* THE TWO BAR SEGMENTS ARE DELIBERATELY NOT MEASURED HERE, AND THE
 		   ATTEMPT IS WORTH RECORDING. `contrast` measures a TEXT colour against
 		   its ground; a bar has no text, so the check read the inherited
@@ -76,7 +126,7 @@ export default {
 		{
 			selector: '.loc-panel',
 			label: 'the panel states what is counted and what is not',
-			must: ['lines across', 'Code', 'Comment', 'Blank', 'Files', 'Not counted', 'tracked in git'],
+			must: ['lines across', 'Code', 'Comment', 'Blank', 'Files', 'Not counted', 'tracked in git', 'Recent updates', 'Added', 'Removed'],
 			/* A HAND-WRITTEN FIGURE IS THE THING THIS REPLACES. `35,000+` is the
 			   deck's hardcoded one, which must never appear on a surface
 			   claiming to count this repository. */
@@ -131,6 +181,37 @@ export default {
 			evaluate:
 				'() => { const d = document.documentElement; const underFixed = (e) => { for (let p = e; p; p = p.parentElement) { if (getComputedStyle(p).position === "fixed") return true; } return false; }; const stray = [...document.querySelectorAll("*")].filter((e) => e.getBoundingClientRect().right > d.clientWidth + 0.5).filter((e) => !underFixed(e)); return [stray.length === 0 ? "fixed furniture only" : "PAST THE EDGE: " + stray.length + " node(s), first " + (stray[0].id ? "#" + stray[0].id : stray[0].tagName.toLowerCase() + "." + (stray[0].className || "").toString().split(" ")[0])]; }',
 			expected: ['fixed furniture only']
+		},
+		{
+			label: 'the panel fits the viewport and nothing inside it scrolls sideways',
+			/* THE ROW ABOVE SKIPS THE PANEL, because `anchored` makes it fixed
+			   furniture -- so its own fit is asserted here: inside the viewport
+			   at both edges, and no horizontal overflow within it, which is
+			   where a long update subject or a wide figure column would show up
+			   first at 375 (report R10). */
+			evaluate:
+				'() => { const p = document.querySelector(".loc-panel"); if (!p) return ["NO PANEL"]; const r = p.getBoundingClientRect(); const vw = document.documentElement.clientWidth; const inside = r.left >= -0.5 && r.right <= vw + 0.5; const sideways = p.scrollWidth > p.clientWidth + 0.5; return [inside ? "inside the viewport" : "OUTSIDE: " + r.left.toFixed(1) + " to " + r.right.toFixed(1) + " in " + vw, sideways ? "SCROLLS SIDEWAYS: " + p.scrollWidth + " in " + p.clientWidth : "no sideways scroll"]; }',
+			expected: ['inside the viewport', 'no sideways scroll']
+		},
+		{
+			label: 'the added and removed figures line up down the list, each with its sign',
+			/* PER-UPDATE COUNTS ALIGNED is the redesign's claim, and a column
+			   that drifts by a row's own content is invisible in a screenshot at
+			   a glance: every figure's RIGHT edge is read and must agree within
+			   half a pixel, per column. The sign is read off the text, so a row
+			   that lost its + or minus fails by name. */
+			evaluate:
+				'() => { const adds = [...document.querySelectorAll(".loc-panel .loc-upd-add")]; const dels = [...document.querySelectorAll(".loc-panel .loc-upd-del")]; if (adds.length < 2 || adds.length !== dels.length) return ["ROWS: " + adds.length + " added, " + dels.length + " removed"]; const spread = (els) => { const xs = els.map((e) => e.getBoundingClientRect().right); return Math.max(...xs) - Math.min(...xs); }; const signed = adds.every((e) => e.textContent.trim().startsWith("+")) && dels.every((e) => e.textContent.trim().startsWith("\\u2212")); return [spread(adds) <= 0.5 ? "added column aligned" : "ADDED DRIFTS " + spread(adds).toFixed(1) + "px", spread(dels) <= 0.5 ? "removed column aligned" : "REMOVED DRIFTS " + spread(dels).toFixed(1) + "px", signed ? "every figure signed" : "A FIGURE LOST ITS SIGN"]; }',
+			expected: ['added column aligned', 'removed column aligned', 'every figure signed']
+		},
+		{
+			label: 'the pop-up wears the plate: its face is the plate panel, not the page',
+			/* THE PANEL LIST IN plate.css NAMES `.loc-panel` (report R10), and the
+			   plate's panel radius is the one geometry a theme cannot move, so it
+			   is the reading that says the rule reached the element. */
+			evaluate:
+				'() => { const p = document.querySelector(".loc-panel"); if (!p) return ["NO PANEL"]; const cs = getComputedStyle(p); return [cs.borderTopLeftRadius === "12px" ? "plate panel radius" : "RADIUS " + cs.borderTopLeftRadius, cs.backgroundImage.includes("gradient") ? "plate panel face" : "NO PLATE FACE: " + cs.backgroundImage.slice(0, 40)]; }',
+			expected: ['plate panel radius', 'plate panel face']
 		}
 	]
 };

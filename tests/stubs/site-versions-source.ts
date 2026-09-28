@@ -7,6 +7,7 @@
  * and drifting into describing two different histories.
  */
 import { buildSiteVersions, FIELD, REC } from '../../src/lib/site-versions';
+import { countsAsCode } from '../../src/lib/code-census';
 
 const LOG = [
 	`${REC}9f3c1aa${FIELD}Aug 18, 2026${FIELD}2026-08-18T16:52:25-07:00${FIELD}Give the class page a gutter`,
@@ -18,5 +19,27 @@ const LOG = [
 	'README.md'
 ].join('\n');
 
+/* THE SAME THREE COMMITS AS `git log --numstat` WRITES THEM, for the lazy
+   module only: the plugin runs that walk for `virtual:site-changelog` and never
+   for the eager one, so only `logSite` carries line counts -- the README line
+   is prose and counts for nothing, exactly as the build filters it. */
+const NUMSTAT = [
+	`${REC}9f3c1aa`,
+	'14\t3\tsrc/lib/classroom/ClassView.svelte',
+	'',
+	`${REC}1b2c3d4`,
+	'2\t9\tsrc/lib/notebook/NotebookView.svelte',
+	'',
+	`${REC}5e6f7a8`,
+	'120\t0\tsrc/routes/reference/[itemId]/+page.svelte',
+	'8\t1\tREADME.md'
+].join('\n');
+
 export const site = buildSiteVersions(LOG, { complete: true, envSha: null });
-export const entries = site.entries;
+export const logSite = buildSiteVersions(LOG, {
+	complete: true,
+	envSha: null,
+	numstatRaw: NUMSTAT,
+	countsLine: countsAsCode
+});
+export const entries = logSite.entries;

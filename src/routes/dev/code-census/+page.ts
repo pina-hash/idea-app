@@ -25,10 +25,24 @@ import type { PageLoad } from './$types';
  * NOTHING -- a code count that can silently come out low is worse than no
  * count -- and a spec that only ever saw the chip present could not tell that
  * from a chip that is always drawn.
+ *
+ * `?updates=` picks what the recent-updates section is handed (report R10):
+ * `real` (the default) is the REAL `virtual:site-changelog`, line counts and
+ * all, exactly as the home page lazy-loads it; `shallow` is a small log run
+ * through the real `buildSiteVersions` as a shallow clone, so it carries no
+ * counts; `fail` is a transport that rejects; `none` hands no transport, which
+ * removes the section.
  */
 export const prerender = false;
 
+const UPDATES = ['real', 'shallow', 'fail', 'none'] as const;
+export type HarnessUpdates = (typeof UPDATES)[number];
+
 export const load: PageLoad = async ({ url }) => {
 	if (!dev) error(404, 'Not found');
-	return { harness: { empty: url.searchParams.get('census') === 'empty' } };
+	const asked = url.searchParams.get('updates');
+	const updates: HarnessUpdates = (UPDATES as readonly string[]).includes(asked ?? '')
+		? (asked as HarnessUpdates)
+		: 'real';
+	return { harness: { empty: url.searchParams.get('census') === 'empty', updates } };
 };
