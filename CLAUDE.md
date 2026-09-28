@@ -1080,7 +1080,11 @@ rule Foundry states as "preflight passing is not submission".
   because it changes no membership. On People a drag onto another team card
   and Move to are two spellings of ONE handler (`moveMember`); a board whose
   sets lack the `edited_at` key (`TeamBoard.editsReady`), or a move answering
-  `unavailable`, removes both and says why.
+  `unavailable`, removes both and says why. **Move to is a worded button that
+  opens a row of team buttons, never a `<select>` acting on `change`**: a
+  keyboard arrowing through a select fires `change` on every step in Chrome,
+  so the first arrow press moved the student. A choice puts the focus back on
+  the moved student's own Move to, in the card they landed in.
 - **THE RENDERERS ARE THE TOURNAMENT MODULE'S, CONSUMED READ-ONLY.** `accentOf`,
   `hasStyle`, `backgroundCss` and `bannerInk` all take `EntryStyleDraft`, a
   `Pick` that EXCLUDES `entry_id` and `tournament_id`, so they accept a team
@@ -1158,7 +1162,10 @@ the only way a course's look changes: a teacher opens, closes and resets it
   class's theme once (`navThemes`, in batches of 200); the strip, My Classes and
   the banner paint from it, and a vote overlays the winners for its own course
   only. `unavailable`, an error or "Not found." is NO theme and no panel, never a
-  broken page.
+  broken page. **The panel hands `onwinners` its OWN course id**, and a winner
+  that differs from that read re-runs it through `depends('classroom:themes')`
+  (that load alone), because the classroom layout's load does not re-run on a
+  navigation and the strip and My Classes would otherwise keep the old look.
 
 ### WHO IS WORKING -- an instrument's silence is never a fact about a student
 
