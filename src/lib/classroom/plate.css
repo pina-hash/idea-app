@@ -900,6 +900,12 @@ body:has(.cr-plate) .bg-fx::after {
 			0 1px 2px 0 var(--plate-drop);
 		color: var(--plate-btn-ink);
 	}
+	/* A chip-shaped key's own lead word (the notebook head's NEXT CHECK-IN)
+	   takes the key's ink: its brass was tuned for a card, and on Space
+	   White's grey key it fell to 3.38:1. The word still says what it is. */
+	:root :scope.cr-plate button.chip .chip-key {
+		color: var(--plate-btn-ink);
+	}
 	/* THE LAMP GETS REAL ROOM: its own padding outside it and the same clear
 	   space before the word, bought from the word's tracking (none on a lamp
 	   chip) and never from the 11px floor, so the chip is still no wider than

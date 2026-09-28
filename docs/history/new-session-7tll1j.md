@@ -56,7 +56,40 @@ The morning report for ledger 0345. Round 3 of the classroom shape language (led
 
 ## Coverage map
 
-{{COVERAGE}}
+**Production routes inside the classroom shell (22 pages)**, all wearing the plate through the one layout except the projector (a reset to the root layout, left out on purpose):
+
+- `/classroom`
+- `/classroom/[sectionId]`
+- `/classroom/[sectionId]/duplicates`
+- `/classroom/[sectionId]/grades`
+- `/classroom/[sectionId]/item/[itemId]`
+- `/classroom/[sectionId]/item/[itemId]/deck`
+- `/classroom/[sectionId]/item/[itemId]/grade`
+- `/classroom/[sectionId]/live`
+- `/classroom/[sectionId]/live/projector (projector, left out)`
+- `/classroom/[sectionId]/notebook`
+- `/classroom/[sectionId]/notebook/timeline`
+- `/classroom/[sectionId]/people`
+- `/classroom/admin`
+- `/classroom/feedback`
+- `/classroom/grading/[itemId]`
+- `/classroom/notebook`
+- `/classroom/notebook/review`
+- `/classroom/notebook/review/student/[studentEmail]`
+- `/classroom/todo`
+- `/classroom/updates`
+- `/classroom/view-as`
+- `/classroom/view-as/[studentEmail]/notebook`
+
+**Components rendered inside the shell (106)**, every `.svelte` under `src/lib/classroom/`, `src/lib/notebook/` and `src/lib/shell/`; each is painted by `plate.css`'s class lists where it draws a key, chip, panel, well, list, pad, display or title, and content components sit below the scope:
+
+`AdminConsole`, `AiLevelBadge`, `AiLevelLookup`, `AssignmentEngine`, `AttachmentList`, `BulkFileDownload`, `CheckInStager`, `ClassTeams`, `ClassVideos`, `ClassView`, `ClassroomFeed`, `ClassroomSettings`, `ClassroomShell`, `ContentComposer`, `DeckPanel`, `DeckViewer`, `DictateButton`, `DuplicateDrafts`, `FeedbackConsole`, `FileUploadPanel`, `GradeCalculator`, `GradesPanel`, `GradingConsole`, `HallPass`, `ImpersonationBanner`, `InfoTip`, `InstructorCopy`, `ItemBody`, `ItemDetail`, `LinkPreviewCard`, `MarkdownText`, `MyClasses`, `PeoplePanel`, `PlateRing`, `ReferenceBlock`, `ReferenceDoc`, `ReturnedGrade`, `RevisionHistory`, `RichTextEditor`, `RubricBuilder`, `RubricView`, `SongQueue`, `SpecImporter`, `SpecProseField`, `SpecRenderer`, `SpecTextEditor`, `SubmissionFileList`, `TodoDoor`, `TodoPage`, `UnitManager`, `UpdatesPage`, `ZipChoice`, `HtmlAssignmentFrame`, `HtmlGradingWork`, `HtmlInstructorCopy`, `Progress`, `LiveControl`, `LiveDoor`, `LiveGrid`, `ProjectorView`, `PresenceChip`, `PresenceHeartbeat`, `PresenceLine`, `AdminLogPanel`, `CameraCapture`, `CellExcusal`, `CheckInState`, `ComposerFiling`, `DocumentationCheck`, `EntryMove`, `EntryNotes`, `EntryReview`, `EntryThumb`, `EntryVerdict`, `FolderManager`, `FolderRail`, `NoteContent`, `NoteEditor`, `NoteTemplates`, `NotebookCapture`, `NotebookDeletedZone`, `NotebookEntryCard`, `NotebookHead`, `NotebookInbox`, `NotebookNoAccountNotice`, `NotebookPhotos`, `NotebookTimeline`, `NotebookView`, `PhotoCorrector`, `PhotoStager`, `PhotoViewer`, `QuickNote`, `QuickNoteDock`, `ReviewConsole`, `ReviewQueue`, `SectionGrid`, `SessionManager`, `StudentReviewBackStrip`, `ToleranceCallout`, `GridIssues`, `GridView`, `ClassSplit`, `CommandPalette`, `DeployWatch`, `ShortcutLegend`, `ThemeSwitch`
+
+**`/dev` harnesses wearing the plate (64 files)**:
+
+`/dev/animated-logo-room`, `/dev/assignment-mirror`, `/dev/attach-reach`, `/dev/avatars`, `/dev/class-videos`, `/dev/classroom-deck`, `/dev/classroom-images`, `/dev/classroom-inspector`, `/dev/classroom-interaction`, `/dev/classroom-live-door`, `/dev/classroom-live`, `/dev/classroom-nav`, `/dev/classroom-palette/[sectionId]`, `/dev/classroom-phase1`, `/dev/classroom-profile-menu`, `/dev/classroom-reference`, `/dev/classroom-split/[sectionId]`, `/dev/classroom-standing`, `/dev/classroom-stream`, `/dev/classroom-teams`, `/dev/classroom-todo`, `/dev/classroom-tools`, `/dev/classroom-tour/[sectionId]`, `/dev/classroom-upload`, `/dev/classroom-view-as-notebook`, `/dev/classroom`, `/dev/composer-attach`, `/dev/composer-drop`, `/dev/deploy-safety`, `/dev/deploy-safety/editors`, `/dev/duplicate-drafts`, `/dev/feedback`, `/dev/grading-bulk`, `/dev/grading-change`, `/dev/grading-files`, `/dev/grading-incomplete`, `/dev/grading-rubric`, `/dev/grading`, `/dev/hall-pass`, `/dev/html-assignment-grading`, `/dev/html-progress`, `/dev/html-rubric`, `/dev/ideacad-attach`, `/dev/ideacad-item`, `/dev/instructor-requests`, `/dev/instructor-tools`, `/dev/item-gallery`, `/dev/item-returned`, `/dev/navigation-room-nb`, `/dev/navigation-room`, `/dev/notebook-capture`, `/dev/notebook-review-student`, `/dev/notebook-review`, `/dev/notebook-timeline`, `/dev/notebook`, `/dev/presence`, `/dev/quick-note/[...rest]`, `/dev/song-queue`, `/dev/spec-importer`, `/dev/spec-table`, `/dev/theme-switch`, `/dev/themes-shape`, `/dev/themes-shape`, `/dev/themes-shape`
+
+**Specs measured in the final pass**: 267 routes and states, 534 route-width runs (the classroom specs plus the Plate specs and every spec whose route mounts a classroom surface).
 
 ## What each surface got
 
@@ -148,6 +181,7 @@ The morning report for ledger 0345. Round 3 of the classroom shape language (led
     - `_themes-shape-plate-pixels.mjs`: face B is removed.
     - `_hover-ink.mjs`: the stylesheet walk now descends into a `CSSScopeRule` and tests a rule's reach with the scope's start in place of `:scope`. Without that, the probe could not see any plate hover at all.
     - `/dev/themes-shape`: only round 1's two cut styles carry `data-cut-set`. Round 3's view had made it three, which the round-1 spec counts.
+16. **A chip-shaped key's lead word takes the key's ink.** The notebook head's NEXT CHECK-IN word kept its card brass once its chip became a key, and fell to 3.38:1 on Space White's grey key face; the word still names the chip.
 
 ## The fresh reviewer's list, and what was done with each
 
@@ -176,7 +210,13 @@ No grid or scan-line pattern was found on any screenshot, at 1440 or 375.
 
 ## Measurements
 
-{{MEASUREMENTS}}
+- **`verify:browser`, final pass** (every classroom spec, the Plate specs, both widths, projector model recorded beside each contrast reading): 534 route/width runs, 8,668 measurements, 48 outside threshold. Of those 48, **46 are pre-existing**: every one is already an outside row in the committed measured file from before this bundle (the IdeaCAD console's `layout-sanity` and `distinguishable` rows, `foundry-gallery-state-full-screen`, `spec-table-empty-1`, one tournaments spec) or fails identically with the plate switched off (`grading-incomplete` at 375, whose 1440 rows were already committed). The **2 new** ones were the notebook head's NEXT CHECK-IN word on Space White's grey key (3.38:1); fixed (the word takes the key's ink), and the notebook specs re-run: 66 runs, 1,206 measurements, **0 outside**.
+- **The first full pass found 80 new findings; all 80 are fixed**, as listed under "Calls made" (hover edges, the owed counts at 3.4 and 4.42:1, the IdeaCAD chip's 37px overflow, the page canvas and the Matrix rain, the notebook ground, the Space White display at 1.7:1, the Report key's edge at 1.00, the account control's cramped edge, the logo link at 26.3px, the 375 drag, and the round-3 view's third cut-style button).
+- **Worst text contrast on a passing check:** 4.55:1, the quick note's empty-box sentence (`/dev/quick-note?state=emptied`, both widths). The card face was chosen so the tightest site ink, the error red, clears 4.5 at 4.55:1. **Worst on the 3:1 floor:** 3.35:1 under the projector wash, the Space White display readout on `/dev/themes-shape`.
+- **Measured files** rewritten through the harness's own writer (`npm run verify:readme -- --from`), which also rewrote both counts regions of `tools/browser-verify/README.md`.
+- **Bounding-box diff:** 12,086 elements per theme across 17 classroom routes at 1440 and 375, **0 differing** (planted control: 721). One earlier run while `svelte-check` was running beside it read 813 from content that had not finished loading; re-run alone, 0, which is why the numbers here are from a run with nothing else on the machine.
+- **svelte-check:** 0 errors, 37 warnings in 20 files, 31 `state_referenced_locally` / 5 `css_unused_selector` / 1 `perf_avoid_nested_class`, the baseline exactly (placeholder env exported before the sync).
+- **`npm ci --dry-run`** clean; `package.json` and `package-lock.json` byte-identical to `a4d3df8e`.
 
 ## Scope proof
 
