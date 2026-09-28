@@ -9,6 +9,7 @@
 	} from '$lib/ideacad/mount';
 	import type { IdeacadStoreState } from '$lib/ideacad/store';
 	import type { Snippet } from 'svelte';
+	import { tick } from 'svelte';
 	import {
 		ideacadAttachRefusal,
 		ideacadAttachState,
@@ -704,6 +705,38 @@
 	function closeEditor() {
 		if (editDirty && !window.confirm(`${COMPOSER_DISCARD_WARNING}\n\nDiscard it?`)) return;
 		editing = false;
+		revealDroppedSpec();
+	}
+
+	/**
+	 * A SPEC DROPPED ON THE EDIT FORM GOES TO THIS PAGE'S OWN IMPORTER (R11),
+	 * the one that owns the item's spec, rather than onto the class's Files
+	 * list. The tools open so the importer is mounted, the file is read into it
+	 * through `importFile` (the same path a drop on the importer takes), and
+	 * nothing is published: the composer's note says to close the editor and
+	 * publish it here, and closing the editor brings the importer into view.
+	 */
+	let assignmentImporter = $state<SpecImporter | null>(null);
+	let referenceImporter = $state<SpecImporter | null>(null);
+	let specDropWaiting = false;
+	async function sendDroppedSpec(files: File[]) {
+		itemInspector.open = true;
+		await tick();
+		const importer = canEditAssignment ? assignmentImporter : canEditReference ? referenceImporter : null;
+		if (!importer) return;
+		importer.importFile(files);
+		specDropWaiting = true;
+	}
+	function revealDroppedSpec() {
+		if (!specDropWaiting) return;
+		specDropWaiting = false;
+		// A timer, not an animation frame: the layer has to unmount first, and a
+		// throttled tab never runs a frame.
+		setTimeout(() => {
+			document
+				.querySelector<HTMLElement>('[data-testid="spec-paste"]')
+				?.scrollIntoView({ block: 'center', behavior: 'instant' });
+		}, 80);
 	}
 	let armDelete = $state(false);
 	/**
@@ -1266,6 +1299,7 @@
 
 	async function saved() {
 		editing = false;
+		revealDroppedSpec();
 		await onchanged?.();
 	}
 </script>
@@ -1542,6 +1576,7 @@
 								{htmlAssignment}
 								htmlCurrentRubric={rubric}
 								figureSources={[spec, referenceSpec]}
+								specDrop={canEditAssignment || canEditReference ? sendDroppedSpec : null}
 								onsaved={saved}
 								ondirtychange={(d) => (editDirty = d)}
 								oncancel={closeEditor}
@@ -1603,6 +1638,7 @@
 								<div class="insp-block engine-tools">
 									<h3 class="section-label">Reference document</h3>
 									<SpecImporter
+										bind:this={referenceImporter}
 										kind="reference"
 										itemId={item.id}
 										spec={referenceSpec}
@@ -1618,6 +1654,7 @@
 								<div class="insp-block engine-tools">
 									<h3 class="section-label">Assignment engine</h3>
 									<SpecImporter
+										bind:this={assignmentImporter}
 										kind="assignment"
 										itemId={item.id}
 										{spec}

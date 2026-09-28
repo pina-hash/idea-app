@@ -297,6 +297,19 @@
 	/** Said out loud when a drop was refused, so nothing appears to do nothing. */
 	let dropNote = $state<string | null>(null);
 	let dropActive = $state(false);
+	/**
+	 * THE WHOLE PANEL TAKES A DROP ON AN ITEM'S PAGE, open or shut (R11). The
+	 * box's own target is the import body, which exists only while the import
+	 * is open, so a spec dropped on the shut panel reached no handler at all
+	 * and the browser opened the file in place of the page. On the item page
+	 * nothing encloses this panel, so the root takes it, opens the import and
+	 * reads the file through `importFile`, the same path the edit form's drop
+	 * is handed to. IN STAGING MODE THE ROOT STANDS DOWN: the panel sits inside
+	 * the composer there, whose form-wide drop already routes a spec here, and
+	 * a root that took every file would refuse a photograph the composer would
+	 * have attached.
+	 */
+	let rootDropActive = $state(false);
 
 	/**
 	 * ONE FILE, READ AS TEXT INTO THE BOX, whichever way it arrived, so a
@@ -626,7 +639,22 @@
 	});
 </script>
 
-<div class="importer">
+<div
+	class="importer"
+	class:importer-dragging={rootDropActive}
+	data-testid="spec-importer"
+	use:dropTarget={{
+		onfiles: importFile,
+		onrejected: importFile,
+		onactive: (active) => (rootDropActive = active),
+		accept: (f) => matchesAccept(f, SPEC_ACCEPT),
+		disabled: stagingMode
+	}}
+>
+	{#if rootDropActive}
+		<!-- In words as well as the outline: where the file will go. -->
+		<p class="importer-drop-label" aria-hidden="true">Drop the {words.noun} JSON to import it</p>
+	{/if}
 	{#if shown}
 		<p class="spec-line">
 			<span class="ok-dot"></span>
@@ -739,7 +767,10 @@
 				onfiles: droppedSpec,
 				onrejected: refusedSpec,
 				onactive: (active) => (dropActive = active),
-				accept: (f) => matchesAccept(f, SPEC_ACCEPT)
+				accept: (f) => matchesAccept(f, SPEC_ACCEPT),
+				// Off where the panel's own root takes the drop: two targets on
+				// one drop would read the file twice.
+				disabled: !stagingMode
 			}}
 		>
 			<p class="note import-hint">
@@ -931,9 +962,27 @@
 	 * The dragover feedback is an OUTLINE, never a border: neither occupies
 	 * layout space, so nothing in the panel moves when a file crosses it.
 	 */
-	.import-body.import-dragging {
+	.import-body.import-dragging,
+	.importer.importer-dragging {
 		outline: 2px solid var(--green);
 		outline-offset: 2px;
+	}
+	/* The label rides the panel's top edge, absolutely, so nothing in the
+	   panel moves while a file is over it. */
+	.importer.importer-dragging {
+		position: relative;
+	}
+	.importer-drop-label {
+		position: absolute;
+		inset: 0 0 auto 0;
+		z-index: 2;
+		margin: 0;
+		padding: 0.5rem 0.75rem;
+		background: var(--surface-2);
+		color: var(--text-1);
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		pointer-events: none;
 	}
 	.import-hint {
 		margin: 0;

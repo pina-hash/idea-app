@@ -18,8 +18,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+	composerDropRefusal,
 	composerDropRoute,
 	composerDropSummary,
+	composerKindForDrop,
 	splitComposerDrop,
 	type ComposerDropTargets
 } from '../src/lib/classroom/composer-drop';
@@ -93,6 +95,117 @@ describe('a whole drop splits in order, and the summary names every destination'
 	});
 	it('nothing dropped says nothing', () => {
 		expect(composerDropSummary({ spec: [], html: [], zip: [], files: [] })).toBeNull();
+		expect(composerDropSummary({ spec: [], html: [], zip: [], files: [], refused: [] })).toBeNull();
+	});
+});
+
+// THE EDIT FORM (R01, R11). A spec or a ported document dropped on an EDIT is
+// never an ordinary file: it goes to the item page's importer or the replace
+// box, or it is refused in words. The regression this guards is the silent one
+// the reports describe -- a worksheet attached for the whole class while the
+// box meant for it never heard about it. The DOM half, a real drop on the
+// mounted edit form, is tests/dom/composer-drop-edit-mount.test.ts.
+describe('on the edit form a spec or a document is routed or refused, never filed', () => {
+	/** An edit of an assignment by an admin: the item page's importer is there,
+	 *  the item is not a ported one. */
+	const EDIT_SPEC_PAGE: ComposerDropTargets = {
+		spec: true,
+		specWhere: 'item-page',
+		html: false,
+		htmlRefusal: 'html-not-ported',
+		zip: true
+	};
+	/** The class list's row editor: no importer, and nothing known about
+	 *  whether the viewer could upload a ported document. */
+	const ROW_EDITOR: ComposerDropTargets = {
+		spec: false,
+		specRefusal: 'spec-elsewhere',
+		html: false,
+		htmlRefusal: 'html-not-here',
+		zip: true
+	};
+
+	const cases: [string, File, ComposerDropTargets, string, string | null][] = [
+		['a spec, the item page importer there', file('lab-03.json'), EDIT_SPEC_PAGE, 'spec', null],
+		['a spec, no importer', file('lab-03.json'), ROW_EDITOR, 'refused', 'spec-elsewhere'],
+		['a spec by type, no importer', file('spec', 'application/json'), ROW_EDITOR, 'refused', 'spec-elsewhere'],
+		['a document, not a ported assignment', file('worksheet.html'), EDIT_SPEC_PAGE, 'refused', 'html-not-ported'],
+		['a document, .htm, from the row editor', file('worksheet.htm'), ROW_EDITOR, 'refused', 'html-not-here'],
+		['a photograph, either form (positive control)', file('bench.png', 'image/png'), ROW_EDITOR, 'files', null],
+		['a PDF, either form (positive control)', file('handout.pdf', 'application/pdf'), EDIT_SPEC_PAGE, 'files', null],
+		['a zip still asks', file('photos.zip'), ROW_EDITOR, 'zip', null]
+	];
+	it.each(cases)('%s', (_label, f, targets, route, reason) => {
+		expect(composerDropRoute(f, targets)).toBe(route);
+		expect(composerDropRefusal(f, targets)).toBe(reason);
+	});
+	it('the sweep covered routed, refused and filed', () => {
+		expect(new Set(cases.map((c) => c[3]))).toEqual(new Set(['spec', 'refused', 'files', 'zip']));
+		expect(cases.filter((c) => c[3] === 'refused')).toHaveLength(4);
+	});
+
+	it('a ported document box on the edit form still takes its document (the replace box)', () => {
+		expect(composerDropRoute(file('worksheet.html'), { ...EDIT_SPEC_PAGE, html: true })).toBe('html');
+	});
+
+	it('a refusal names each file, says it was NOT attached, and says how to hand it out anyway', () => {
+		const split = splitComposerDrop([file('lab-03.json'), file('worksheet.html'), file('bench.png')], ROW_EDITOR);
+		expect(split.files.map((f) => f.name)).toEqual(['bench.png']);
+		expect(split.refused.map((f) => f.name)).toEqual(['lab-03.json', 'worksheet.html']);
+		const line = composerDropSummary(split, ROW_EDITOR) ?? '';
+		expect(line).toContain('One file added to Files.');
+		expect(line).toContain('lab-03.json was not attached. A spec is imported on the item');
+		expect(line).toContain('worksheet.html was not attached. A ported HTML assignment is uploaded by a site admin');
+		expect(line.match(/drop it on the Files box/g)).toHaveLength(2);
+		// Neither refused file is counted on the Files line.
+		expect(line).not.toMatch(/\d files added/);
+	});
+
+	it('a spec sent to the item page says it is not published and where to publish it', () => {
+		const split = splitComposerDrop([file('lab-03.json')], EDIT_SPEC_PAGE);
+		expect(split.spec).toHaveLength(1);
+		const line = composerDropSummary(split, EDIT_SPEC_PAGE) ?? '';
+		expect(line).toContain("this item's spec importer, under Instructor tools");
+		expect(line).toContain('Nothing is published yet');
+		// The create wording is untouched (positive control for the branch).
+		expect(composerDropSummary(split, { ...EDIT_SPEC_PAGE, specWhere: 'form' })).toBe(
+			'The spec sent to the spec importer.'
+		);
+	});
+
+	it('a form with no Files list refuses an ordinary file out loud rather than swallowing it', () => {
+		const NO_FILES: ComposerDropTargets = { spec: true, html: true, zip: false, files: false };
+		expect(composerDropRoute(file('bench.png', 'image/png'), NO_FILES)).toBe('refused');
+		expect(composerDropRefusal(file('bench.png', 'image/png'), NO_FILES)).toBe('no-files');
+		// ...while its spec and document routes still work: the zone no longer
+		// depends on attachments for them (R11).
+		expect(composerDropRoute(file('lab-03.json'), NO_FILES)).toBe('spec');
+		expect(composerDropRoute(file('worksheet.html'), NO_FILES)).toBe('html');
+		const split = splitComposerDrop([file('a.png'), file('b.pdf')], NO_FILES);
+		expect(composerDropSummary(split, NO_FILES)).toBe('a.png and b.pdf were not attached. This form takes no files.');
+	});
+
+	it('the create form is unchanged: no refusal is named, so a typed file with no box is a file', () => {
+		for (const [, f] of cases) {
+			const route = composerDropRoute(f, { spec: false, html: false, zip: true });
+			expect(route === 'files' || route === 'zip').toBe(true);
+		}
+	});
+});
+
+describe('a drop on the class page chooses the kind its files need (R01)', () => {
+	const ASSIGNMENT_SPEC = JSON.stringify({ schemaVersion: 1, meta: { assignmentId: 'lab-03', title: 'Lab 3' }, modules: [] });
+	const REFERENCE_SPEC = JSON.stringify({ schemaVersion: 2, meta: { referenceId: 'syl', title: 'Syllabus' }, sections: [] });
+	const text = (name: string, body: string, type = '') => new File([body], name, { type });
+
+	it('an assignment spec, a reference spec, a broken spec, a document and a photo', async () => {
+		expect(await composerKindForDrop([text('lab.json', ASSIGNMENT_SPEC)], { html: true })).toBe('assignment');
+		expect(await composerKindForDrop([text('syl.json', REFERENCE_SPEC)], { html: true })).toBe('material');
+		expect(await composerKindForDrop([text('bad.json', '{ not json')], { html: false })).toBe('assignment');
+		expect(await composerKindForDrop([text('w.html', '<!doctype html>', 'text/html')], { html: true })).toBe('assignment');
+		// A document where the form offers no ported box leaves the kind alone.
+		expect(await composerKindForDrop([text('w.html', '<!doctype html>', 'text/html')], { html: false })).toBeNull();
+		expect(await composerKindForDrop([file('bench.png', 'image/png')], { html: true })).toBeNull();
 	});
 });
 

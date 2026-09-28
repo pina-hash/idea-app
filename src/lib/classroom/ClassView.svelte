@@ -14,6 +14,7 @@
 	import { classVideos } from '$lib/classroom/class-videos';
 	import { sortDrag } from '$lib/classroom/sort-drag';
 	import { anchored } from '$lib/shell/anchored';
+	import { createDropController, type DragLikeEvent } from '$lib/file-drop';
 	import { itemLayoutOf, type ClassroomLayoutTransports } from '$lib/classroom/attachments';
 	import { COMPOSER_DISCARD_WARNING } from '$lib/classroom/composer-staging';
 	import type { AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
@@ -123,6 +124,7 @@
 		asPane = false,
 		composing = false,
 		onCompose = null,
+		onDropFiles = null,
 		notice = null,
 		onToggleGroup = null,
 		fetchPreview = null,
@@ -202,6 +204,15 @@
 		composing?: boolean;
 		/** Null on every read-only surface: no transports, no trigger. */
 		onCompose?: (() => void) | null;
+		/**
+		 * FILES DROPPED ON THE CLASS PAGE OPEN NEW POST WITH THEM (R01). The
+		 * layout owns the composer, so this hands the files up and the layout
+		 * opens it with them; the composer routes them exactly as a drop on its
+		 * own form (`composerDropRoute`). Null for a student and on every
+		 * read-only surface, and its ABSENCE is what leaves a drop on the page
+		 * doing nothing special.
+		 */
+		onDropFiles?: ((files: File[]) => void) | null;
 		/**
 		 * A message from an action the LIST did not run -- a post the composer
 		 * made in the pane beside it. Shown in the same place as this component's
@@ -393,6 +404,67 @@
 	const shownNotice = $derived(localNotice ?? notice);
 
 	const editable = $derived(canManage && !!transports);
+
+	/**
+	 * THE CLASS PAGE IS A DROP TARGET FOR A MANAGER (R01): let a file go on it
+	 * and New post opens with that file handed in, routed by the composer the
+	 * way a drop on its own form is. Off for a student (no `onDropFiles`),
+	 * while the composer is open (it is a full-screen layer over this page and
+	 * takes its own drops) and while a row's editor is open (the same layer,
+	 * mounted inside this list). A drop some closer target already took
+	 * (`defaultPrevented`) is left alone, the composer root's rule. While a
+	 * file is over the page it says so in words, not only an outline.
+	 */
+	const pageDropOn = $derived(editable && !!onDropFiles && !composing && editing === null);
+	let pageDropActive = $state(false);
+	function classPageDrop(node: HTMLElement, initial: { enabled: boolean }) {
+		let enabled = initial.enabled;
+		const makeController = () =>
+			createDropController({
+				onfiles: (files) => onDropFiles?.(files),
+				onactive: (active) => (pageDropActive = active)
+			});
+		let controller = makeController();
+		const asDrag = (e: Event) => e as unknown as DragLikeEvent;
+		const onEnter = (e: Event) => {
+			if (enabled && !e.defaultPrevented) controller.dragEnter(asDrag(e));
+		};
+		const onOver = (e: Event) => {
+			if (enabled && !e.defaultPrevented) controller.dragOver(asDrag(e));
+		};
+		const onLeave = () => {
+			if (enabled) controller.dragLeave();
+		};
+		const onDrop = (e: Event) => {
+			if (!enabled) return;
+			if (e.defaultPrevented) {
+				controller.dragLeave();
+				pageDropActive = false;
+				return;
+			}
+			void controller.drop(asDrag(e));
+		};
+		node.addEventListener('dragenter', onEnter);
+		node.addEventListener('dragover', onOver);
+		node.addEventListener('dragleave', onLeave);
+		node.addEventListener('drop', onDrop);
+		return {
+			update(next: { enabled: boolean }) {
+				if (next.enabled === enabled) return;
+				enabled = next.enabled;
+				// A fresh count either way: a drag half-counted before the switch
+				// must not leave the words up, or down, on the next one.
+				controller = makeController();
+				pageDropActive = false;
+			},
+			destroy() {
+				node.removeEventListener('dragenter', onEnter);
+				node.removeEventListener('dragover', onOver);
+				node.removeEventListener('dragleave', onLeave);
+				node.removeEventListener('drop', onDrop);
+			}
+		};
+	}
 	const editingItem = $derived(items.find((i) => i.id === editing) ?? null);
 	const orderedUnits = $derived(sortUnits(units));
 
@@ -1854,8 +1926,16 @@
 <svelte:element
 	this={asPane ? 'section' : 'main'}
 	class="classroom-page"
+	class:page-dropping={pageDropActive}
 	aria-label={asPane ? 'Class content' : undefined}
+	use:classPageDrop={{ enabled: pageDropOn }}
 >
+	{#if pageDropActive}
+		<!-- `pointer-events: none`, so the drop reaches the page under it. -->
+		<div class="page-drop-overlay" data-testid="class-page-drop-overlay" aria-hidden="true">
+			<span class="page-drop-label">Drop to start a new post with these files</span>
+		</div>
+	{/if}
 	<!--
 		A COMPACT, LEFT-ALIGNED HEADER, NOT A PAGE HERO.
 
@@ -2406,6 +2486,41 @@
 		   looks like, which is most of why the change does not read as a
 		   navigation. */
 		--cr-stream-col: 22.25rem;
+	}
+
+	/* THE CLASS-PAGE DROP (R01). The page is positioned only while a file is
+	   over it, so no descendant's containing block moves the rest of the time.
+	   The veil is an outline and a wash that take no layout space; the words
+	   ride a sticky label near the top of what is on screen, so a long class
+	   page still says where the file is going wherever it is scrolled to. */
+	.classroom-page.page-dropping {
+		position: relative;
+	}
+	.page-drop-overlay {
+		position: absolute;
+		inset: 0;
+		z-index: 5;
+		outline: 2px dashed var(--green);
+		outline-offset: -2px;
+		border-radius: var(--radius-card);
+		background: color-mix(in srgb, var(--green) 10%, transparent);
+		pointer-events: none;
+	}
+	.page-drop-label {
+		position: sticky;
+		top: var(--space-6);
+		display: block;
+		width: fit-content;
+		max-width: calc(100% - 2 * var(--space-4));
+		margin: var(--space-4) auto;
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
+		color: var(--text-1);
+		font-family: var(--font-mono);
+		font-size: 0.9rem;
+		text-align: center;
 	}
 
 	/* --- The stream --------------------------------------------------------

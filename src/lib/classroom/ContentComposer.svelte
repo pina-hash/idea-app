@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, tick, untrack } from 'svelte';
+	import { onDestroy, onMount, tick, untrack } from 'svelte';
 	import Pending from '$lib/Pending.svelte';
 	import SaveIndicator from '$lib/SaveIndicator.svelte';
 	import { pendingLabel } from '$lib/pending';
@@ -30,9 +30,11 @@
 	import ZipChoice from '$lib/classroom/ZipChoice.svelte';
 	import {
 		composerDropSummary,
+		composerKindForDrop,
 		HTML_DROP_BUSY,
 		splitComposerDrop,
-		type ComposerDropSplit
+		type ComposerDropSplit,
+		type ComposerDropTargets
 	} from '$lib/classroom/composer-drop';
 	import {
 		extractGalleryPictures,
@@ -161,7 +163,10 @@
 	 * put two deck panels and two spec panels in front of a teacher with
 	 * near-identical text and no way to tell which was meant. That is the bug
 	 * this form's previous staging caused, and the fix is not to stage on edit;
-	 * it is to stage only where there is no page yet to own them.
+	 * it is to stage only where there is no page yet to own them. A spec
+	 * DROPPED on the edit form is therefore handed to the page's own card
+	 * (`specDrop`, R11) rather than to a second importer here, and the note
+	 * says so, because the editor is a full-screen layer over that card now.
 	 */
 	let {
 		mode = 'create',
@@ -185,6 +190,8 @@
 		screen = false,
 		layoutTransports = null,
 		figureSources = [],
+		specDrop = null,
+		initialFiles = [],
 		onsaved,
 		ondirtychange = null,
 		oncancel = null
@@ -321,6 +328,24 @@
 		 * spec text on its own and answers `referenced` in the same words.
 		 */
 		figureSources?: unknown[];
+		/**
+		 * THE ITEM PAGE'S OWN SPEC IMPORTER, for a spec dropped on the EDIT form
+		 * (R11). The edit form carries no importer of its own (the header says
+		 * why), so a `.json` dropped on it is handed to the one that owns the
+		 * item's spec, under Instructor tools. Null where there is none (the
+		 * class list's row editor), and then the drop is refused in words rather
+		 * than attached for the class. Ignored on create, which stages its own.
+		 */
+		specDrop?: ((files: File[]) => void) | null;
+		/**
+		 * FILES DROPPED ON THE CLASS PAGE BEFORE THIS FORM EXISTED (R01). Read
+		 * once, at mount, and routed through the SAME `routeComposerDrop` a drop
+		 * on the form takes, after they have chosen the kind they need
+		 * (`composerKindForDrop`): a spec or a ported document dropped on the
+		 * class page opens an assignment, not an announcement that could take
+		 * neither. Create only.
+		 */
+		initialFiles?: File[];
 		onsaved: (info: {
 			kind: ClassroomItemKind;
 			published: boolean;
@@ -922,6 +947,27 @@
 	let filePanel = $state<FileUploadPanel | null>(null);
 	let removingId = $state<string | null>(null);
 	let pasteHint = $state<string | null>(null);
+	/**
+	 * WHETHER THE NOTE HOLDS A REFUSAL (R11). It then reads as an error, and it
+	 * STAYS until the next drop or paste replaces it: a refusal that fades on a
+	 * timer is one a teacher who looked away never reads, and the file it names
+	 * was not attached anywhere. So does a note whose instruction still has to
+	 * be followed (a spec sent to the item page's importer, unpublished); a
+	 * plain acknowledgement fades (`fadeMs`).
+	 */
+	let pasteHintRefused = $state(false);
+	/** Which note a fade timer belongs to, so an older timer never clears a newer note. */
+	let pasteHintSeq = 0;
+	function showDropNote(text: string | null, refused: boolean, fadeMs: number | null) {
+		const seq = ++pasteHintSeq;
+		pasteHint = text;
+		pasteHintRefused = refused;
+		if (text && !refused && fadeMs !== null) {
+			setTimeout(() => {
+				if (seq === pasteHintSeq) pasteHint = null;
+			}, fadeMs);
+		}
+	}
 
 	// --- Where the files and links sit, and in what order (0193) ------------
 	//
@@ -1096,14 +1142,42 @@
 	 * out. A target not on this form leaves its files as ordinary files.
 	 */
 	let specImporter = $state<SpecImporter | null>(null);
-	function routeComposerDrop(files: File[]) {
-		const split = splitComposerDrop(files, {
-			spec: canStageSpec && !!specKind && !!specImporter,
+	/**
+	 * WHAT THIS FORM CAN TAKE RIGHT NOW, as the router asks it. On CREATE a spec
+	 * goes to the staged importer and a file for a target that is not here is
+	 * an ordinary file, exactly as before. On EDIT (R11) a spec goes to the item
+	 * page's importer (`specDrop`) or is refused, and a web page dropped on an
+	 * assignment that cannot take one is refused, because either one attached
+	 * would be a file the whole class can read. A form with no Files list
+	 * refuses an ordinary file rather than swallowing the drop.
+	 */
+	function composerDropTargets(): ComposerDropTargets {
+		const editing = mode === 'edit';
+		return {
+			spec: editing ? !!specKind && !!specDrop : canStageSpec && !!specKind && !!specImporter,
+			specWhere: editing ? 'item-page' : 'form',
+			specRefusal: editing && !!specKind && !specDrop ? 'spec-elsewhere' : null,
 			html: canStageHtml,
-			zip: attachmentsEnabled || canStageDeck
-		});
+			htmlRefusal:
+				editing && editingKind === 'assignment' && !canStageHtml
+					? htmlAssignmentAdmin && !!htmlAssignmentTransports?.setHtmlAssignment
+						? 'html-not-ported'
+						: 'html-not-here'
+					: null,
+			zip: attachmentsEnabled || canStageDeck,
+			files: attachmentsEnabled
+		};
+	}
+	function routeComposerDrop(files: File[]) {
+		const targets = composerDropTargets();
+		const split = splitComposerDrop(files, targets);
 		if (split.files.length) filePanel?.add(split.files);
-		if (split.spec.length) specImporter?.importFile(split.spec);
+		if (split.spec.length) {
+			// The item page's importer on an edit, this form's staged one on a
+			// create; `composerDropTargets` has already said which exists.
+			if (mode === 'edit') specDrop?.(split.spec);
+			else specImporter?.importFile(split.spec);
+		}
 		let htmlBusy = false;
 		if (split.html.length) {
 			// The box takes one document and is shut while it holds one; the
@@ -1112,9 +1186,13 @@
 			else void stageHtmlFile(split.html[0]);
 		}
 		if (split.zip.length) offerZips(split.zip, 'root');
-		const summary = composerDropSummary(htmlBusy ? { ...split, html: [] } : split);
-		pasteHint = [summary, htmlBusy ? HTML_DROP_BUSY : null].filter(Boolean).join(' ') || null;
-		setTimeout(() => (pasteHint = null), 6000);
+		const summary = composerDropSummary(htmlBusy ? { ...split, html: [] } : split, targets);
+		const refused = split.refused.length > 0 || htmlBusy;
+		showDropNote(
+			[summary, htmlBusy ? HTML_DROP_BUSY : null].filter(Boolean).join(' ') || null,
+			refused,
+			split.spec.length && mode === 'edit' ? null : 6000
+		);
 		revealDropDestination(split);
 	}
 
@@ -1136,15 +1214,20 @@
 	function revealDropDestination(split: ComposerDropSplit) {
 		const root = dropRoot;
 		if (!root) return;
+		// A refusal, and a spec sent to the item page's importer outside this
+		// form, have no box here to show: the note that says so is the
+		// destination (R11).
 		const selector = split.zip.length
 			? '[data-testid="zip-choice"]'
-			: split.spec.length
-				? '[data-testid="spec-paste"]'
-				: split.html.length
-					? '[data-testid="staged-html"]'
-					: split.files.length
-						? '.fup[data-role="attachment"]'
-						: null;
+			: split.refused.length || (split.spec.length && mode === 'edit')
+				? '[data-testid="composer-drop-note"]'
+				: split.spec.length
+					? '[data-testid="spec-paste"]'
+					: split.html.length
+						? '[data-testid="staged-html"]'
+						: split.files.length
+							? '.fup[data-role="attachment"]'
+							: null;
 		if (!selector) return;
 		setTimeout(() => {
 			const all = root.querySelectorAll<HTMLElement>(selector);
@@ -1155,6 +1238,29 @@
 			target.scrollIntoView({ block: 'nearest', behavior: still ? 'instant' : 'smooth' });
 		}, 80);
 	}
+	/**
+	 * FILES DROPPED ON THE CLASS PAGE (R01), taken once at mount. They choose
+	 * the kind first (`composerKindForDrop`: a spec or a worksheet needs an
+	 * assignment, and New post opens as an announcement, which takes neither),
+	 * then go through the SAME router a drop on the form takes, so the class
+	 * page never gains a second idea of where a file belongs. Two ticks: the
+	 * kind change mounts the spec importer and the ported box, and the router
+	 * asks whether they are there.
+	 */
+	onMount(() => {
+		const files = initialFiles;
+		if (mode !== 'create' || !files.length) return;
+		void (async () => {
+			const next = await composerKindForDrop(files, {
+				html: htmlAssignmentAdmin && !!htmlAssignmentTransports?.setHtmlAssignment
+			});
+			if (next) kind = next;
+			await tick();
+			await tick();
+			routeComposerDrop(files);
+		})();
+	});
+
 	function composerDropZone(node: HTMLElement, initial: { disabled: boolean }) {
 		let disabled = initial.disabled;
 		dropRoot = node;
@@ -1576,8 +1682,7 @@
 		if (!claimPaste(event)) return;
 		event.preventDefault();
 		filePanel?.add(images);
-		pasteHint = `${images.length} pasted image${images.length === 1 ? '' : 's'} attached.`;
-		setTimeout(() => (pasteHint = null), 4000);
+		showDropNote(`${images.length} pasted image${images.length === 1 ? '' : 's'} attached.`, false, 4000);
 	}
 
 	async function removeExisting(a: { id: string }) {
@@ -2442,6 +2547,24 @@
 	</svg>
 {/snippet}
 
+<!--
+	THE DROP NOTE: what a drop or a paste did, one line per destination and one
+	sentence per refusal. A refusal is an error and a live region, so a file
+	that was NOT attached is said out loud where the teacher is looking (the
+	drop reveal scrolls it into view); an acknowledgement is the quiet ok line
+	it always was.
+-->
+{#snippet dropNote()}
+	<p
+		class="feedback"
+		class:ok={!pasteHintRefused}
+		class:error={pasteHintRefused}
+		role={pasteHintRefused ? 'alert' : undefined}
+		data-testid="composer-drop-note"
+		data-refused={pasteHintRefused ? 'true' : undefined}
+	>{pasteHint}</p>
+{/snippet}
+
 {#snippet zipChoices()}
 	<!-- EACH ZIP WAITING FOR THE TEACHER TO SAY WHAT IT IS (ledger 0297, report
 	     23). One place on the form: the presentation box when this form has
@@ -2560,8 +2683,10 @@
 	looking at is the one that drifts.
 
 	THE DROP ZONE IS THE WHOLE FORM (`composerDropZone`, script above): a file
-	let go anywhere on it lands on the student-facing list, and the overlay at
-	the end of the snippet says so while a file drag is over it.
+	let go anywhere on it goes to the box whose type it is (`routeComposerDrop`),
+	and the overlay at the end of the snippet says so while a file drag is over
+	it. It is switched off only while a save is running: the spec and document
+	routes never depended on attachments (R11).
 -->
 {#snippet form()}
 <div
@@ -2569,7 +2694,7 @@
 	class:compact={compact && !screen}
 	class:is-screen={screen}
 	onpaste={onPaste}
-	use:composerDropZone={{ disabled: !attachmentsEnabled || busy }}
+	use:composerDropZone={{ disabled: busy }}
 >
 	<div class="composer-actions top" data-testid="composer-actions-top">
 		{@render actions('top')}
@@ -2764,7 +2889,7 @@
 				}}
 			/>
 			{#if pasteHint}
-				<p class="feedback ok" data-testid="composer-drop-note">{pasteHint}</p>
+				{@render dropNote()}
 			{/if}
 			{#if !canStageDeck}{@render zipChoices()}{/if}
 			{#if zipNotice}
@@ -2794,6 +2919,12 @@
 				/>
 			{/if}
 		</div>
+	{:else if pasteHint}
+		<!-- NO FILES LIST ON THIS FORM, and the drop zone stays on anyway (R11):
+		     a spec or a document still has its own box, and anything else is
+		     refused out loud here rather than swallowed by a zone that said
+		     nothing. -->
+		{@render dropNote()}
 	{/if}
 
 	<!--

@@ -410,6 +410,17 @@
 			return;
 		}
 		composeNotice = null;
+		composeFiles = [];
+		composing = true;
+	}
+
+	/** The real layout's class-page drop (R01), mirrored: files dropped on the
+	 *  class page open New post with them handed in. */
+	let composeFiles = $state<File[]>([]);
+	function composeWithFiles(files: File[]) {
+		if (composing || !files.length) return;
+		composeNotice = null;
+		composeFiles = files;
 		composing = true;
 	}
 
@@ -514,6 +525,7 @@
 		layoutTransports={manage ? layoutTransports : null}
 		{composing}
 		onCompose={manage ? toggleComposer : null}
+		onDropFiles={manage ? composeWithFiles : null}
 		notice={composeNotice}
 		onToggleGroup={toggleGroup}
 		asPane={!!selectedItemId || composing}
@@ -535,6 +547,7 @@
 				teacherTransports={harnessTeacherTransports}
 				referenceTransports={harnessReferenceTransports}
 				checkInTransports={harnessCheckInTransports}
+				initialFiles={composeFiles}
 				onsaved={composerSaved}
 				ondirtychange={(d) => (composerDirty = d)}
 				oncancel={closeComposer}

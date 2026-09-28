@@ -259,6 +259,23 @@
 			return;
 		}
 		composeNotice = null;
+		composeFiles = [];
+		composing = true;
+	}
+
+	/**
+	 * FILES DROPPED ON THE CLASS PAGE OPEN NEW POST WITH THEM (R01). They are
+	 * handed to a FRESH composer, read once at its mount and routed there by the
+	 * same rule a drop on its form takes, so a spec or a ported worksheet lands
+	 * in its own box and never on the class's Files list. The composer is a
+	 * full-screen layer that takes its own drops, so this is only reachable
+	 * while it is shut; the guard is for a stray second drop in the same tick.
+	 */
+	let composeFiles = $state<File[]>([]);
+	function composeWithFiles(files: File[]) {
+		if (composing || !files.length) return;
+		composeNotice = null;
+		composeFiles = files;
 		composing = true;
 	}
 
@@ -491,6 +508,7 @@
 		asPane={!!selectedItemId}
 		{composing}
 		onCompose={data.canManage ? toggleComposer : null}
+		onDropFiles={data.canManage ? composeWithFiles : null}
 		notice={composeNotice}
 		onToggleGroup={toggleGroup}
 		{opensOn}
@@ -582,6 +600,7 @@
 			layoutTransports={liveLayoutTransports}
 			htmlAssignmentTransports={liveHtmlAssignmentTransports}
 			htmlAssignmentAdmin={isAdmin}
+			initialFiles={composeFiles}
 			screen
 			onsaved={composerSaved}
 			ondirtychange={(d) => (composerDirty = d)}
