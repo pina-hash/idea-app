@@ -108,7 +108,7 @@ function row(over: Partial<FeedbackRow>): FeedbackRow {
 	} as FeedbackRow;
 }
 
-/** Render the REAL console exactly as /classroom/feedback mounts it. */
+/** Render the REAL console exactly as /admin/feedback mounts it. */
 function renderConsole(rows: FeedbackRow[]): string {
 	return render(FeedbackConsole, {
 		props: {
@@ -233,7 +233,7 @@ describe('no surface in this path renders raw markup', () => {
 			'src/lib/classroom/FeedbackConsole.svelte',
 			'src/lib/feedback/FeedbackBox.svelte',
 			'src/lib/feedback/SiteFeedback.svelte',
-			'src/routes/classroom/feedback/+page.svelte'
+			'src/routes/admin/feedback/+page.svelte'
 		]) {
 			expect([file, read(file).includes('{@html')]).toEqual([file, false]);
 		}

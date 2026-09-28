@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
+	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
 	import type { FeedbackScreenshotBytes } from '$lib/feedback/archive';
 	import type { FeedbackStatus } from '$lib/feedback/feedback';
@@ -62,6 +64,21 @@
 		}
 	}
 </script>
+
+<!--
+	THE PORTAL'S OWN CHROME (report R03). The console reads reports from every
+	surface on the site, so it sits in the admin area with the header every
+	other /admin page carries, the site plate the root layout puts on /admin,
+	and the report control the root layout mounts. The way back is the admin
+	console's Feedback panel, where the queue's new-report count is.
+-->
+<div class="app-header">
+	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
+	<div class="header-right">
+		<a class="btn secondary" href="/dashboard#panel-feedback">&lsaquo; Admin console</a>
+		<ProfileMenu />
+	</div>
+</div>
 
 <FeedbackConsole
 	ready={data.ready}

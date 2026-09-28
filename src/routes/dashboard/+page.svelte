@@ -428,7 +428,7 @@
 				{:else if panel.id === 'feedback'}
 					<div class="panel-meta">
 						<span class="meta-count">{data.feedbackNewCount} new</span>
-						<a class="btn secondary" href="/classroom/feedback">Open queue</a>
+						<a class="btn secondary" href="/admin/feedback">Open queue</a>
 					</div>
 				{:else if panel.id === 'roster'}
 					<div class="panel-meta roster-meta">

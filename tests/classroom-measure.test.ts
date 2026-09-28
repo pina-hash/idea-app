@@ -58,11 +58,9 @@ const SURFACES: { place: ClassroomPlace; path: string; file: string }[] = [
 	},
 	{ place: 'admin', path: '/classroom/admin', file: 'src/lib/classroom/AdminConsole.svelte' },
 	{ place: 'updates', path: '/classroom/updates', file: 'src/lib/classroom/UpdatesPage.svelte' },
-	{
-		place: 'feedback',
-		path: '/classroom/feedback',
-		file: 'src/lib/classroom/FeedbackConsole.svelte'
-	},
+	// The feedback console is NOT here any more (report R03, decision 42): it
+	// left the classroom shell for /admin/feedback, and /classroom/feedback only
+	// answers a 307 there, so no classroom chrome is ever drawn above it.
 	// The cross-class to-do (ledger 0297): groups in columns, the split's width.
 	{ place: 'todo', path: '/classroom/todo', file: 'src/lib/classroom/TodoPage.svelte' },
 	// The teacher's live control view (ledger 0297, LIVE): a grid of names beside

@@ -4,6 +4,7 @@
 	// LOG it is compared against is `virtual:site-changelog`, which is imported
 	// lazily inside the export handler for the reason stated there.
 	import { deploy } from 'virtual:site-versions';
+	import { onDestroy } from 'svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import { runBulk } from '$lib/classroom/classroom';
 	import type { FeedbackRow, FeedbackStatus } from '$lib/feedback/feedback';
@@ -13,13 +14,18 @@
 	} from '$lib/feedback/archive';
 	import {
 		EMPTY_FEEDBACK_FILTER,
+		FEEDBACK_UNDO_MS,
 		facetValues,
 		feedbackBulkSummary,
 		feedbackExportName,
 		feedbackJson,
 		feedbackMarkdown,
+		feedbackUndoFor,
+		feedbackUndoLabel,
+		feedbackUndoSummary,
 		filterFeedback,
 		type FeedbackBulkOutcome,
+		type FeedbackUndo,
 		rowBuild,
 		rowContact,
 		rowDistinctPath,
@@ -77,7 +83,8 @@
 		screenshotUrls = {},
 		fetchScreenshot,
 		setStatus,
-		now = () => Date.now()
+		now = () => Date.now(),
+		undoMs = FEEDBACK_UNDO_MS
 	}: {
 		ready?: boolean;
 		rows: FeedbackRow[];
@@ -127,6 +134,12 @@
 		setStatus: (id: string, status: FeedbackStatus) => Promise<{ ok: boolean; message?: string }>;
 		/** Injectable clock, so a harness can pin the export stamp. */
 		now?: () => number;
+		/**
+		 * How long the last move stays undoable. The route never passes it, so
+		 * production is always `FEEDBACK_UNDO_MS`; a harness holds it open so a
+		 * browser pass can measure the control without racing ten seconds.
+		 */
+		undoMs?: number;
 	} = $props();
 
 	const sectionMap = $derived(new Map(classroomSections.map((s) => [s.id, s])));
@@ -275,17 +288,101 @@
 	}
 
 	async function move(row: FeedbackRow, status: FeedbackStatus) {
-		if (busyId) return;
+		if (busyId || undoBusy) return;
+		// READ BEFORE THE WRITE. `moved` takes the new status the moment the
+		// write lands, so asked afterwards the "previous" status would be the one
+		// just pressed and the Undo would put the report back where it now is.
+		const prev = statusOf(row);
 		busyId = row.id;
 		error = null;
 		const res = await setStatus(row.id, status);
 		busyId = null;
 		if (!res.ok) {
+			// A move that did not land changed nothing, so the Undo on offer (if
+			// any) is still about the last move that did.
 			error = res.message ?? 'Could not update that.';
 			return;
 		}
 		moved = { ...moved, [row.id]: status };
+		// A single move says what moved, the way a bulk one does: the report has
+		// usually just left the tab it was on, and the Undo beside this sentence
+		// is the way back to it (report R02).
+		const landed: FeedbackBulkOutcome[] = [{ row, ok: true }];
+		bulkNote = feedbackBulkSummary(status, landed);
+		offerUndo(feedbackUndoFor(status, landed, () => prev));
 	}
+
+	// --- Undo (report R02) --------------------------------------------------
+	//
+	// THE LAST MOVE ONLY, FOR `FEEDBACK_UNDO_MS`. Each report goes back through
+	// the SAME `setStatus` transport the move used -- `app_feedback_set_status`,
+	// whose own header says a status change is reversed by the same call -- so
+	// there is no second write path and no restore RPC. What that costs, said
+	// here so nobody reads it as a bug: the database stamps `reviewed_at` and
+	// `reviewed_by` on EVERY call (0188), so an undone report records this undo
+	// as its last review rather than the review before the mistake.
+	//
+	// THE TIMER IS `setTimeout`, never an animation frame: a backgrounded tab
+	// never ticks one, and an Undo that outlived its window because the tab was
+	// hidden would reach back past moves made since.
+	let undo = $state<FeedbackUndo | null>(null);
+	let undoBusy = $state(false);
+	let undoTimer: ReturnType<typeof setTimeout> | null = null;
+
+	/** Offer this undo (or none), replacing whatever was on offer. */
+	function offerUndo(next: FeedbackUndo | null) {
+		if (undoTimer !== null) clearTimeout(undoTimer);
+		undoTimer = null;
+		undo = next;
+		if (next) {
+			undoTimer = setTimeout(() => {
+				undoTimer = null;
+				undo = null;
+			}, undoMs);
+		}
+	}
+
+	async function runUndo() {
+		const current = undo;
+		if (!current || undoBusy || bulkBusy || busyId) return;
+		// Taken off the screen before the writes start: pressing it twice must
+		// not send the batch twice, and nothing here is undoable in turn.
+		offerUndo(null);
+		undoBusy = true;
+		error = null;
+		const prevById = new Map(current.entries.map((e) => [e.row.id, e.prev]));
+		try {
+			const outcome = await runBulk(
+				current.entries.map((e) => e.row.id),
+				(id) => setStatus(id, prevById.get(id) ?? current.status)
+			);
+			const back = new Set(outcome.succeededIds);
+			const next = { ...moved };
+			for (const id of outcome.succeededIds) {
+				const prev = prevById.get(id);
+				if (prev) next[id] = prev;
+			}
+			moved = next;
+			bulkNote = feedbackUndoSummary(
+				current,
+				current.entries.map((e) => ({
+					row: e.row,
+					ok: back.has(e.row.id),
+					message: back.has(e.row.id) ? null : outcome.firstFailureMessage
+				}))
+			);
+		} catch (e) {
+			// A THROW SAYS NOTHING ABOUT WHICH WRITES LANDED, the bulk bar's rule.
+			error = `${(e as Error).message || 'That undo failed.'} Some of the reports may already be back -- reload before moving them again.`;
+		} finally {
+			undoBusy = false;
+		}
+	}
+
+	onDestroy(() => {
+		if (undoTimer !== null) clearTimeout(undoTimer);
+		undoTimer = null;
+	});
 
 	// --- Bulk status ------------------------------------------------------
 	//
@@ -338,7 +435,9 @@
 
 	async function bulkMove(status: FeedbackStatus) {
 		const batch = selectedRows;
-		if (bulkBusy || batch.length === 0) return;
+		if (bulkBusy || undoBusy || batch.length === 0) return;
+		// READ BEFORE THE WRITES, for the reason `move` states.
+		const prevById = new Map(batch.map((r) => [r.id, statusOf(r)]));
 		bulkBusy = true;
 		error = null;
 		bulkNote = null;
@@ -364,13 +463,18 @@
 				message: landed.has(row.id) ? null : outcome.firstFailureMessage
 			}));
 			bulkNote = feedbackBulkSummary(status, outcomes);
+			// Only what LANDED can be taken back; a refused row never moved.
+			offerUndo(feedbackUndoFor(status, outcomes, (r) => prevById.get(r.id) ?? r.status));
 			// Only what did NOT move stays checked, so pressing again retries the
 			// rest rather than re-sending the ones already through.
 			selected = new Set(outcome.failedIds);
 		} catch (e) {
 			// A THROW SAYS NOTHING ABOUT WHICH WRITES LANDED, so the selection is
 			// left exactly as it was and the sentence says so rather than
-			// implying none of them did.
+			// implying none of them did. No Undo is offered for a batch nobody can
+			// account for, and the one before it is withdrawn: it would reach back
+			// past a move that may have half landed.
+			offerUndo(null);
 			error = `${(e as Error).message || 'That batch failed.'} Some of the selected reports may already have moved -- reload before pressing again.`;
 		} finally {
 			bulkBusy = false;
@@ -530,9 +634,12 @@
 </svelte:head>
 
 <!--
-	NO MASTHEAD HERE. Every /classroom page renders inside the persistent shell
-	(src/routes/classroom/+layout.svelte), which owns the logo, the section
-	switcher and the breadcrumb trail back up.
+	NO MASTHEAD HERE: the page that mounts the console owns its chrome. Since
+	report R03 that is /admin/feedback, which puts the portal's own app header
+	above it; the console is site-wide, so it no longer lives inside the
+	classroom shell. It also no longer sits inside the classroom's `.cr-root`
+	room, so nothing below may lean on classroom.css: every class it styles is
+	its own, the site's (`.card`, `.btn`, `.hero`), or the site plate's.
 -->
 <main class="fb-page cr-instructor-surface">
 	<section class="hero">
@@ -720,7 +827,7 @@
 					<button
 						type="button"
 						class="fbc-control btn secondary"
-						disabled={bulkBusy}
+						disabled={bulkBusy || undoBusy}
 						data-testid="fbc-bulk-{s.id}"
 						onclick={() => bulkMove(s.id)}
 					>
@@ -730,7 +837,7 @@
 				<button
 					type="button"
 					class="fbc-control btn secondary"
-					disabled={bulkBusy}
+					disabled={bulkBusy || undoBusy}
 					data-testid="fbc-bulk-clear"
 					onclick={clearSelection}
 				>
@@ -738,10 +845,31 @@
 				</button>
 			</div>
 		{/if}
-		{#if bulkNote}
+		{#if bulkNote || undo}
 			<!-- NAMED, NOT COUNTED. A partial batch has to say which reports
-			     moved, or the next press repeats the half that already did. -->
-			<p class="note bulk-note" aria-live="polite" data-testid="fbc-bulk-note">{bulkNote}</p>
+			     moved, or the next press repeats the half that already did.
+			     THE UNDO SITS BESIDE WHAT IT UNDOES (report R02) and says where it
+			     puts the reports in its own words, so it still reads right if the
+			     sentence beside it has been cleared by a selection change. -->
+			<div class="bulk-note-row">
+				{#if bulkNote}
+					<p class="note bulk-note" id="fbc-bulk-note" aria-live="polite" data-testid="fbc-bulk-note">
+						{bulkNote}
+					</p>
+				{/if}
+				{#if undo}
+					<button
+						type="button"
+						class="fbc-control btn secondary bulk-undo"
+						data-testid="fbc-undo"
+						aria-describedby={bulkNote ? 'fbc-bulk-note' : undefined}
+						disabled={undoBusy || bulkBusy || busyId !== null}
+						onclick={runUndo}
+					>
+						{feedbackUndoLabel(undo)}
+					</button>
+				{/if}
+			</div>
 		{/if}
 
 		{#if visible.length === 0}
@@ -761,7 +889,7 @@
 							onchange={() => toggleSelected(row.id)}
 						/>
 						<span class="fb-kind">{row.kind}</span>
-						<span class="fb-page">{rowRoute(row)}</span>
+						<span class="fb-route">{rowRoute(row)}</span>
 						<span class="fb-when">{whenLabel(row.created_at)}</span>
 						<span class="fb-status status-{statusOf(row)}">{statusOf(row)}</span>
 					</div>
@@ -870,7 +998,7 @@
 								<button
 									type="button"
 									class="fbc-control btn secondary"
-									disabled={busyId === row.id || statusOf(row) === s.id}
+									disabled={busyId === row.id || undoBusy || statusOf(row) === s.id}
 									onclick={() => move(row, s.id)}
 								>
 									{s.label}
@@ -894,9 +1022,28 @@
 </main>
 
 <style>
-	/* Spacing only: the look lives in classroom.css. */
+	/*
+		THE ERROR LINE IS STATED HERE because the console left the classroom room
+		(report R03): classroom.css styles `.feedback.error` only under
+		`.cr-root`, and /admin/feedback is not inside one, so without this a
+		refusal rendered as an unmarked paragraph. The same look, read from the
+		same site tokens: amber is the register's warning ink, never crimson,
+		and the word carries the meaning, not the colour. Computed from the token
+		values (not a browser reading): amber is 5.74:1 on the site plate's page
+		ground (#161918) and 4.90:1 on an unplated --bg1.
+	*/
 	.feedback {
 		margin: 0 0 0.8rem;
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		line-height: 1.5;
+		padding: var(--space-2) 0.65rem;
+		border-radius: var(--radius-card);
+		border: 1px solid var(--hairline);
+	}
+	.feedback.error {
+		color: var(--amber);
+		border-color: var(--amber);
 	}
 
 	.fb-page {
@@ -1022,8 +1169,23 @@
 		color: var(--text-2);
 		margin-right: var(--space-1);
 	}
-	.bulk-note {
+	/* The note and its Undo share one row; the row carries the spacing the note
+	   used to, and the note takes the width so a long sentence wraps beside the
+	   control rather than pushing it off a phone's edge. */
+	.bulk-note-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
 		margin: 0 0 var(--space-3);
+	}
+	.bulk-note {
+		flex: 1 1 16rem;
+		min-width: 0;
+		margin: 0;
+	}
+	.bulk-undo {
+		flex: none;
 	}
 	/* The checkbox leads the row's head line; `flex: none` keeps it from being
 	   stretched by the wrapping row around it. */
@@ -1085,7 +1247,13 @@
 		color: var(--amber);
 		border-color: var(--amber);
 	}
-	.fb-page {
+	/* THE ROUTE A REPORT CAME FROM. This was `.fb-page`, the same class as the
+	   page's own `<main>`, and a scoped rule matches every element carrying its
+	   class: the main took this mono gold 0.68rem (so any text that sets no
+	   colour or size of its own inherited it), and this label took the main's
+	   page measure, auto margins and a 3rem bottom padding. Renamed so each
+	   rule reaches the one element it was written for. */
+	.fb-route {
 		font-family: var(--font-mono);
 		font-size: 0.68rem;
 		color: var(--gold);
@@ -1215,10 +1383,15 @@
 		/* A reporter's own words, so they get the reading face the message has. */
 		color: var(--text-1);
 	}
+	/* A WARNING SOMEBODY HAS TO READ, so it takes the secondary text tier and
+	   not `--text-3`, which is decorative. Computed from the token values (not
+	   a browser reading): `--text-3` is 2.79:1 on the site plate's card face
+	   (#1c1f1d) and 2.53:1 on an unplated --bg1; `--text-2` is 6.47:1 and
+	   5.88:1 on the same two. */
 	.fb-contact-warn {
 		font-family: var(--font-mono);
 		font-size: 0.6rem;
-		color: var(--text-3);
+		color: var(--text-2);
 	}
 	.fb-actions {
 		margin-left: auto;

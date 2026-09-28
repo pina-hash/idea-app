@@ -1,7 +1,6 @@
 <script lang="ts">
-	import '$lib/classroom/classroom.css';
-	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
 	import { page } from '$app/state';
+	import { SITE_PLATE } from '$lib/shell/site-plate';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
 	import { describeBuild, FEEDBACK_EXCLUSIONS } from '$lib/feedback/context';
@@ -15,7 +14,7 @@
 	/**
 	 * THE HARNESS MOUNTS THE REAL THING, never a copy: SiteFeedback, the
 	 * FeedbackBox behind it and the FeedbackConsole are the same components the
-	 * shell, the deck bar and /classroom/feedback mount. Only the transport
+	 * shell, the deck bar and /admin/feedback mount. Only the transport
 	 * differs, which is the whole point of injecting it.
 	 *
 	 * What it exists to make drivable with no backend:
@@ -328,7 +327,17 @@
 	}
 	const dictation = $derived(speechMode === 'none' ? null : fakeSpeech(speechMode));
 
-	let view = $state<'capture' | 'exclusions' | 'console'>('capture');
+	/* `?view=console` lands on the console directly, so a browser-verify spec
+	   can measure it without a click that is not the thing under test. */
+	const VIEWS = ['capture', 'exclusions', 'console'] as const;
+	const initialView = page.url.searchParams.get('view');
+	let view = $state<(typeof VIEWS)[number]>(
+		VIEWS.find((v) => v === initialView) ?? 'capture'
+	);
+	/* `?undo=hold` keeps the console's Undo on offer for ten minutes rather than
+	   ten seconds, so a browser pass measuring it is not racing the timer. The
+	   production route never passes the prop. */
+	const undoMs = page.url.searchParams.get('undo') === 'hold' ? 600_000 : undefined;
 </script>
 
 <svelte:head><title>Feedback harness // dev</title></svelte:head>
@@ -562,14 +571,22 @@
 			</table>
 		</section>
 	{:else}
-		<div class="cr-root {CLASSROOM_PLATE}">
-			<div class="hx-row">
-				<label class="hx-check">
-					<input type="checkbox" bind:checked={statusRefusals} />
-					<span>refuse every second status write (drives a PARTIAL bulk result)</span>
-				</label>
-			</div>
-			<FeedbackConsole rows={sink} {fetchScreenshot} {setStatus} />
+		<!--
+			THE CONSOLE AS /admin/feedback RENDERS IT (report R03): outside the
+			classroom's `.cr-root` room, under the site plate. The root layout puts
+			`SITE_PLATE` on a `display: contents` wrapper for /admin, and this
+			harness is not on that route, so it wraps the console the same way,
+			reading the same constant: set it to '' and both go unplated together.
+			Undo is drivable here: move a report, then press Undo within ten seconds.
+		-->
+		<div class="hx-row">
+			<label class="hx-check">
+				<input type="checkbox" bind:checked={statusRefusals} />
+				<span>refuse every second status write (drives a PARTIAL bulk result, and a partial undo)</span>
+			</label>
+		</div>
+		<div class={SITE_PLATE} style="display: contents">
+			<FeedbackConsole rows={sink} {fetchScreenshot} {setStatus} {undoMs} />
 		</div>
 	{/if}
 

@@ -14,7 +14,7 @@
  *    already satisfies when it mints the signed URL a thumbnail follows. The
  *    feedback console's archive is the production precedent for this shape (a
  *    browser-client `download` from a private bucket, cross-origin, under the
- *    caller's own policy): `src/routes/classroom/feedback/+page.svelte`.
+ *    caller's own policy): `src/routes/admin/feedback/+page.svelte`.
  *  - A LEGACY DRIVE ROW (no `storage_key`) is a same-origin `fetch` of the SAME
  *    proxy URL the thumbnail uses (`submissionFileSrc`), which streams the bytes
  *    from Drive itself -- no redirect, no second origin, cookies included.

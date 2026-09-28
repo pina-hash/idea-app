@@ -972,3 +972,113 @@ export function feedbackBulkSummary(
 	}
 	return parts.join(' ');
 }
+
+// ---------------------------------------------------------------------------
+// Undo (report R02)
+// ---------------------------------------------------------------------------
+
+/**
+ * HOW LONG THE LAST STATUS MOVE CAN BE TAKEN BACK. Long enough to notice the
+ * report you meant to keep has left the tab, short enough that an Undo still on
+ * screen is about the thing just pressed. The console clears it on a
+ * `setTimeout`, never an animation frame: a backgrounded tab never ticks one.
+ */
+export const FEEDBACK_UNDO_MS = 10_000;
+
+/** One report the last move changed, and the status it showed before the press. */
+export interface FeedbackUndoEntry {
+	row: FeedbackRow;
+	prev: FeedbackStatus;
+}
+
+/**
+ * THE LAST MOVE, AND ONLY THE LAST ONE. A new move replaces it, so an Undo on
+ * screen can never reach back past the press somebody just made.
+ */
+export interface FeedbackUndo {
+	/** The status the move sent the reports to. */
+	status: FeedbackStatus;
+	entries: FeedbackUndoEntry[];
+}
+
+/**
+ * WHAT AN UNDO OF THIS MOVE WOULD PUT BACK: every report that LANDED, with the
+ * status it showed before the press.
+ *
+ * `prevOf` is read by the caller BEFORE the write, because the console marks a
+ * moved row with its new status the moment the write lands; asked afterwards,
+ * every report's "previous" status is the one it was just moved to, and the
+ * undo is a no-op that looks like it worked.
+ *
+ * A report that did not move is left out (there is nothing to take back), and
+ * so is one that was already in the target status (a bulk move over the All tab
+ * can include those): putting it "back" would be a second write of the same
+ * value. Null when nothing is left, so no control is offered whose only
+ * outcome is nothing.
+ */
+export function feedbackUndoFor(
+	status: FeedbackStatus,
+	outcomes: FeedbackBulkOutcome[],
+	prevOf: (row: FeedbackRow) => FeedbackStatus
+): FeedbackUndo | null {
+	const entries: FeedbackUndoEntry[] = [];
+	for (const o of outcomes) {
+		if (!o.ok) continue;
+		const prev = prevOf(o.row);
+		if (prev === status) continue;
+		entries.push({ row: o.row, prev });
+	}
+	return entries.length ? { status, entries } : null;
+}
+
+/** The distinct statuses an undo returns to, in the order they first appear. */
+function undoTargets(undo: FeedbackUndo): FeedbackStatus[] {
+	return [...new Set(undo.entries.map((e) => e.prev))];
+}
+
+/**
+ * THE CONTROL'S OWN WORDS, so it says what it does wherever it sits and
+ * whether or not the note beside it is still there: "Undo: back to new", or,
+ * when a bulk move took reports from more than one tab, "Undo: back to where
+ * they were".
+ */
+export function feedbackUndoLabel(undo: FeedbackUndo): string {
+	const targets = undoTargets(undo);
+	return targets.length === 1 ? `Undo: back to ${targets[0]}` : 'Undo: back to where they were';
+}
+
+/**
+ * WHAT AN UNDO SAYS AFTERWARDS, naming what it undid: the move it reversed,
+ * the reports that went back and where to, and every report that did NOT go
+ * back with the server's reason. An undo is N independent writes exactly as the
+ * move was, so a partial undo is an ordinary outcome and has to say which half.
+ */
+export function feedbackUndoSummary(undo: FeedbackUndo, outcomes: FeedbackBulkOutcome[]): string {
+	const prevById = new Map(undo.entries.map((e) => [e.row.id, e.prev]));
+	const back = outcomes.filter((o) => o.ok).map((o) => o.row);
+	const failed = outcomes.filter((o) => !o.ok);
+	const parts: string[] = [];
+	if (back.length) {
+		const counts = new Map<FeedbackStatus, number>();
+		for (const row of back) {
+			const prev = prevById.get(row.id);
+			if (prev) counts.set(prev, (counts.get(prev) ?? 0) + 1);
+		}
+		const where =
+			counts.size === 1
+				? `back to ${[...counts.keys()][0]}`
+				: `back where they were (${[...counts.entries()].map(([s, n]) => `${n} ${s}`).join(', ')})`;
+		parts.push(
+			`Undid the move to ${undo.status}: ${back.length} report${back.length === 1 ? '' : 's'} ${where}: ${nameList(back)}.`
+		);
+	} else {
+		parts.push(`Nothing was undone; the move to ${undo.status} stands.`);
+	}
+	if (failed.length) {
+		const why = failed.find((f) => f.message)?.message;
+		parts.push(
+			`${failed.length} did not go back${why ? ` (${why})` : ''} and ${failed.length === 1 ? 'is' : 'are'} still ${undo.status}: ${nameList(failed.map((f) => f.row))}. Each report's own buttons move it back by hand.`
+		);
+	}
+	return parts.join(' ');
+}
