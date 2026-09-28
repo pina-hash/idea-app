@@ -102,6 +102,8 @@
 		hotId = null,
 		onhot = null,
 		hrefFor,
+		frameHref = null,
+		frameId = null,
 		fill = false,
 		synthetic = false
 	}: {
@@ -116,6 +118,13 @@
 		hotId?: string | null;
 		onhot?: ((id: string | null) => void) | null;
 		hrefFor: (node: MapsNode) => string;
+		/**
+		 * Where the FRAME opens, when the frame is a container that is not the
+		 * level already open (`mapsFrameTarget`); null draws a bare frame.
+		 */
+		frameHref?: string | null;
+		/** The frame's node id, so pointing at it lights its row in the list. */
+		frameId?: string | null;
 		/** True in the application layout's map pane: the drawing takes the pane. */
 		fill?: boolean;
 		/** True when the shapes were laid out by the viewer, not by an author. */
@@ -435,13 +444,44 @@
 					data-thickness-in={view.frameThickness}
 				/>
 			{/if}
-			<rect
-				class="mv-frame"
-				x={view.frame.minX}
-				y={view.frame.minY}
-				width={view.frame.maxX - view.frame.minX}
-				height={view.frame.maxY - view.frame.minY}
-			/>
+			{#if frameHref}
+				<!-- THE FRAME IS A LINK WHEN IT IS NOT THE LEVEL ALREADY OPEN
+				     (report R05): the one building drawn at the top of the map,
+				     or a room drawn behind a unit that has no drawing of its own.
+				     It is painted BEFORE the shapes, so every room sits on top of
+				     it and keeps its own click; the frame answers only where no
+				     room is. Its rect takes the pointer over its whole interior
+				     (`pointer-events: visible`, since the frame has no fill), and
+				     the walls stay `pointer-events: none`, as they are everywhere. -->
+				<a
+					href={frameHref}
+					class="mv-frame-link"
+					class:is-hot={frameId !== null && frameId === hotId}
+					data-testid="maps-viewer-frame-link"
+					data-frame-node={frameId ?? undefined}
+					onpointerenter={() => frameId && onhot?.(frameId)}
+					onpointerleave={() => onhot?.(null)}
+					onfocus={() => frameId && onhot?.(frameId)}
+					onblur={() => onhot?.(null)}
+				>
+					<title>Open {frameLabel}</title>
+					<rect
+						class="mv-frame"
+						x={view.frame.minX}
+						y={view.frame.minY}
+						width={view.frame.maxX - view.frame.minX}
+						height={view.frame.maxY - view.frame.minY}
+					/>
+				</a>
+			{:else}
+				<rect
+					class="mv-frame"
+					x={view.frame.minX}
+					y={view.frame.minY}
+					width={view.frame.maxX - view.frame.minX}
+					height={view.frame.maxY - view.frame.minY}
+				/>
+			{/if}
 			{#each view.shapes as shape (shape.node.id)}
 				{@const marked = shape.node.id === markId}
 				{@const here = shape.node.id === hereId}
@@ -610,6 +650,33 @@
 		stroke: var(--mv-line);
 		stroke-width: 2;
 		vector-effect: non-scaling-stroke;
+	}
+	/* THE FRAME AS A LINK. `visible` is what makes an unfilled rect answer the
+	   pointer over its whole interior, which is the half of the building a
+	   person clicks; with the default `visiblePainted` only the 2px stroke
+	   would. The rooms are later siblings, so they are hit first where they
+	   are. Pointing at it, focusing it or lighting its row draws the same
+	   heavier accent stroke a room gets, and the focus ring is that stroke:
+	   the UA's own outline is a box around the whole drawing, clipped by the
+	   pane on the one surface where it matters. */
+	.mv-frame-link {
+		cursor: pointer;
+	}
+	.mv-frame-link .mv-frame {
+		pointer-events: visible;
+	}
+	.mv-frame-link:focus-visible {
+		outline: none;
+	}
+	.mv-frame-link:hover .mv-frame,
+	.mv-frame-link:focus-visible .mv-frame,
+	.mv-frame-link.is-hot .mv-frame {
+		stroke: var(--mv-accent-strong);
+		stroke-width: 4;
+	}
+	/* A drag that starts on a link is a pan, and says so while it lasts. */
+	.mv-plan-canvas.is-dragging :is(.mv-shape, .mv-frame-link) {
+		cursor: grabbing;
 	}
 	/* THE WALL BAND. It is FILL ONLY and carries no stroke of its own: the
 	   hairline that reads at small scales is the inner path's, drawn over it,

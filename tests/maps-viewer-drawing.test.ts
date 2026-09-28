@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	MAPS_ZOOM_MAX,
 	mapsDrawing,
+	mapsFrameTarget,
 	mapsScaleBar,
 	mapsSitePlanView,
 	mapsZoomAbout,
@@ -88,6 +89,32 @@ describe('what the map pane draws', () => {
 		expect(b.box.maxX - b.box.minX).toBe(1200);
 		// And the site view is exactly what the drawing used.
 		expect(mapsSitePlanView(two).frame).toEqual(top.view.frame);
+	});
+
+	it('links the frame to its container exactly when that container is not the level open', () => {
+		// Report R05. Three cases a frame can be in, each asserted by name.
+		const at = (id: string | null) => mapsFrameTarget(mapsDrawing(data, id), id)?.id ?? null;
+		// The directory draws the one building as itself, and nothing is open.
+		expect(at(null)).toBe(VFIX.building);
+		// A unit with no drawing of its own sits on its room's plan.
+		expect(at(VFIX.benchCabinet)).toBe(VFIX.machineShop);
+		// The open level is its own frame: no link to the page already open.
+		expect(at(VFIX.building)).toBeNull();
+		expect(at(VFIX.machineShop)).toBeNull();
+		// An elevation has no frame, and neither does the site row.
+		expect(at(VFIX.toolChest)).toBeNull();
+		const two = mapsViewerFixture();
+		two.nodes.push({
+			...two.nodes.find((n) => n.id === VFIX.building)!,
+			id: 'b0000000-0000-4000-8000-000000000999',
+			name: 'Annex',
+			outline: { kind: 'rect', w: 300, h: 300 }
+		});
+		expect(mapsFrameTarget(mapsDrawing(two, null), null)).toBeNull();
+		// An address the map cannot find draws the directory, where the
+		// building is not open, so it links.
+		const lost = 'b0000000-0000-4000-8000-00000000dead';
+		expect(mapsFrameTarget(mapsDrawing(data, lost), lost)?.id).toBe(VFIX.building);
 	});
 
 	it('answers none for an empty map, and the directory for an address it cannot find', () => {

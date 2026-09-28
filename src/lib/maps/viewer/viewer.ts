@@ -624,6 +624,27 @@ export function mapsDrawing(data: MapsViewerData, at: string | null): MapsDrawin
 }
 
 /**
+ * THE NODE A PLAN'S FRAME OPENS, OR NULL WHEN THE FRAME IS NOT A LINK (report
+ * R05). A plan's frame is the container whose plan it is, drawn as the outer
+ * rectangle; its children are the shapes, and every shape is a link. The
+ * frame used to be a bare rectangle, which was right while the frame was
+ * always the level already open -- and wrong in the two cases `mapsDrawing`
+ * draws a frame that is NOT open: the directory's one building drawn as
+ * itself (clicking the building did nothing, where its row in the list opened
+ * it), and a unit with no drawing of its own shown on its room's plan.
+ *
+ * So the frame is a link exactly when it names a node and that node is not
+ * `at`. The site row (frame null) is not a container at all, and the open
+ * level would be a link to the page already on screen. `at` is compared as
+ * given rather than resolved: an address the map cannot find draws the
+ * directory, whose building is then not open, and a link to it is correct.
+ */
+export function mapsFrameTarget(drawing: MapsDrawing, at: string | null): MapsNode | null {
+	if (drawing.kind !== 'plan' || !drawing.frame) return null;
+	return drawing.frame.id === at ? null : drawing.frame;
+}
+
+/**
  * Every root with an outline, in a row, at its true size. Used only when the
  * roots carry no positions of their own; the gap between them is a tenth of
  * the widest, which is enough to read them as separate and little enough that

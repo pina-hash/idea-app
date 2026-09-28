@@ -145,6 +145,58 @@ describe('the descent', () => {
 		expect(count(top, 'data-testid="maps-viewer-map-empty"')).toBe(0);
 	});
 
+	it('makes the frame a link when it is not the level open, and never takes a room\'s link away', () => {
+		// REPORT R05: clicking the building on the map did nothing, where its
+		// row in the list opened it. The frame is now a link wherever it names a
+		// container that is not already open -- and ONLY there, because a link
+		// from the building's own page to itself is a control that goes nowhere.
+		const frameLinks = (html: string) =>
+			[...html.matchAll(/<a\b[^>]*data-testid="maps-viewer-frame-link"[^>]*>/g)].map((m) => m[0]);
+		const hrefOf = (tag: string) => (tag.match(/\bhref="([^"]*)"/)?.[1] ?? '').replace(/&amp;/g, '&');
+		const atOf = (tag: string) => new URLSearchParams(hrefOf(tag).split('?')[1] ?? '').get('at');
+		const shapeLinks = (html: string) => [...html.matchAll(/<a\b[^>]*class="mv-shape[^"]*"[^>]*>/g)].map((m) => m[0]);
+		const rowFor = (html: string, id: string) =>
+			[...html.matchAll(/<a\b[^>]*class="mv-row[^"]*"[^>]*>/g)].map((m) => m[0]).find((t) => t.includes(`data-node="${id}"`));
+
+		// PRESENT: the directory draws the one building as itself, and it opens
+		// the building -- through the SAME href its row in the list carries.
+		const top = view('');
+		const [frame] = frameLinks(top);
+		expect(frameLinks(top).length).toBe(1);
+		expect(atOf(frame)).toBe(VFIX.building);
+		expect(hrefOf(frame)).toBe(hrefOf(rowFor(top, VFIX.building) ?? ''));
+		expect(text(top)).toContain('Open IDEA Building');
+		// The rooms are still links, each to itself, and none of them is the frame.
+		const topRooms = shapeLinks(top);
+		expect(topRooms.length).toBeGreaterThan(0);
+		for (const tag of topRooms) expect(atOf(tag)).not.toBe(VFIX.building);
+		expect(topRooms.map(atOf)).toContain(VFIX.machineShop);
+		// And the frame is painted UNDER them: it comes first in the drawing.
+		expect(top.indexOf('data-testid="maps-viewer-frame-link"')).toBeLessThan(top.indexOf('class="mv-shape'));
+
+		// PRESENT one level down: a unit with no drawing of its own is shown on
+		// its room's plan, and that room's frame opens the room.
+		const cabinet = view(`at=${VFIX.benchCabinet}`);
+		expect(frameLinks(cabinet).map(atOf)).toEqual([VFIX.machineShop]);
+
+		// ABSENT: the building's own page and the room's own page draw their
+		// frame bare -- same drawing, same rooms, no link to where you are.
+		for (const [name, query, id] of [
+			['the building open', `at=${VFIX.building}`, VFIX.building],
+			['the room open', `at=${VFIX.machineShop}`, VFIX.machineShop]
+		] as const) {
+			const html = view(query);
+			expect(frameLinks(html).length, name).toBe(0);
+			expect(count(html, 'class="mv-frame '), name).toBe(1);
+			const rooms = shapeLinks(html);
+			expect(rooms.length, name).toBeGreaterThan(0);
+			for (const tag of rooms) expect(atOf(tag), name).not.toBe(id);
+		}
+		// POSITIVE CONTROL for the absence: the building's own page draws the
+		// same rooms the directory did, so "no frame link" is not "no drawing".
+		expect(shapeLinks(view(`at=${VFIX.building}`)).map(atOf).sort()).toEqual(topRooms.map(atOf).sort());
+	});
+
 	it('gives every drawn shape a row in the list beside it', () => {
 		// THE DRAWING IS THE SECOND WAY, NEVER THE ONLY ONE. A plan shape is a
 		// scale drawing and cannot carry a 44px target without lying about its

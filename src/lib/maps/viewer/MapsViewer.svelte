@@ -59,6 +59,7 @@
 		mapsChain,
 		mapsContents,
 		mapsDrawing,
+		mapsFrameTarget,
 		mapsHref,
 		mapsKindWord,
 		mapsPhotosFor,
@@ -171,6 +172,12 @@
 	const nodeHref = (node: MapsNode) => mapsHref({ at: node.id, to: position.to, q });
 	const itemHref = (id: string) => mapsHref({ at: position.at, item: id, to: position.to, q });
 	const slotHref = (slot: MapsElevationSlot) => nodeHref(slot.node);
+	/* THE PLAN'S FRAME IS A WAY IN TOO (report R05): the one building drawn at
+	   the top of the map opens the building, through the SAME `nodeHref` its
+	   row in the list uses, so the two cannot disagree about where it goes.
+	   Null when the frame is the level already open, or the site row. */
+	const frameTarget = $derived(mapsFrameTarget(drawing, position.at));
+	const frameHref = $derived(frameTarget ? nodeHref(frameTarget) : null);
 
 	/** A search result's staged route: its first stage, and its last. */
 	const targetOf = (row: MapsSearchRow): MapsTarget => ({ kind: row.result_kind, id: row.result_id });
@@ -423,6 +430,8 @@
 						hotId={hot}
 						onhot={(id) => (hot = id)}
 						hrefFor={nodeHref}
+						{frameHref}
+						frameId={frameTarget?.id ?? null}
 						synthetic={drawing.synthetic}
 						fill
 					/>
