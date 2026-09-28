@@ -2107,10 +2107,10 @@ a:hover {
    (ledger 0298, decision 40 item 2, which amends 0297's choice). The dark
    window this block used to paint behind `.logo-mark .idea-logo` under Space
    White is gone: `AnimatedLogo` carries a light copy of the emblem generated
-   from `tools/idea_logo_vector.py` -- the brand-green plate, the lettering
-   re-inked dark, the steel gear kept -- and its own stylesheet shows that pair
-   under the theme attribute, so every masthead that seats the emblem follows
-   the theme with nothing here. */
+   from `tools/idea_logo_vector.py` -- since report R13 (2026-09-28) the flat
+   SLATE lockup, a slate gear behind a deep green plate with white lettering --
+   and its own stylesheet shows that pair under the theme attribute, so every
+   masthead that seats the emblem follows the theme with nothing here. */
 /* THE LEFT GROUP: the emblem and the lines-of-code readout, together, so the
    readout rides the logo's row rather than the actions row. In `.header-right`
    it pushed the sign-in block onto a third row and grew the banner by 33.2px at

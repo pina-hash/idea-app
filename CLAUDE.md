@@ -4702,6 +4702,16 @@ These have each cost a debugging session. They are not hypothetical.
 
 ### DOM
 
+- **AN UNFILLED SVG SHAPE TAKES THE POINTER ONLY ON ITS STROKE.** The default
+  `pointer-events: visiblePainted` hit-tests painted regions, so a `fill: none`
+  rect wrapped in a link answers a click on its 2px outline and nowhere inside
+  it. The IDEA Maps plan frame (`MapsPlan`, report R05) gives the rect
+  `pointer-events: visible` so the whole building answers, and paints it BEFORE
+  the room shapes so every room is hit first; walls stay `pointer-events: none`.
+  `mapsFrameTarget` in `$lib/maps/viewer/viewer.ts` is the one decision of when
+  the frame is a link (it names a container that is not the open level). Verify
+  by hit-testing (`elementFromPoint`) a point inside the shape and off every
+  child, never by reading the markup.
 - **A COMPONENT'S OR ROUTE'S STYLESHEET STAYS IN THE PAGE AFTER A CLIENT-SIDE
   NAVIGATION, AND IT ARRIVES WHEN THE MODULE IS IMPORTED, MOUNTED OR NOT.** So a
   rule styling `html`, `body` or `:root` carries a `body:has(.<room>)` condition,
@@ -5625,10 +5635,16 @@ the source of truth; **do not invent colours or swap fonts.**
     untouched by design.
   - **THE HOME EMBLEM IS SERVED AS A `srcset` OVER RIGHT-SIZED COPIES** under
     `static/IDEA/`, never as the 2.6 MB source, and on Space White it is a LIGHT
-    LOCKUP, not the dark one in a display window (decision 40 item 2, which
-    retired 0297's window): the same geometry repainted in
-    `tools/idea_logo_vector.py` (brand-green plate, lettering re-inked dark,
-    steel gear kept) and rasterised by `tools/idea_emblem_raster.mjs`.
+    LOCKUP, not the dark one in a display window (decision 40 item 2, amended
+    2026-09-28 by report R13): the same geometry drawn FLAT as
+    `tools/idea_logo_vector.py`'s `SLATE` palette (a slate gear with a lit green
+    rim behind a deep green plate, white lettering at 7.59:1) and rasterised by
+    `tools/idea_emblem_raster.mjs`, whose board mode lays every candidate
+    palette out on the real Space White grounds. **THE LETTERING STAYS LIGHT ON
+    EVERY THEME.** IDEA's letters are broad light strokes with narrow gaps, so
+    inked dark it is the GAPS that read as the word, which is half of why 0298's
+    pastel-plate, dark-lettered lockup was retired; a light-theme variant
+    changes the plate and the gear, never the lettering's lightness.
     `AnimatedLogo`'s own stylesheet picks the pair off the pre-paint theme
     attribute, so there is no flash, and the light pair is `loading="lazy"`, so
     a dark theme never fetches it. `.legacy-index` reads its neon tints through

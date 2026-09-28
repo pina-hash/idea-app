@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-09-28",
+			"title": "A cleaner logo on the light theme",
+			"body": "On the Space White theme, the IDEA logo at the top of the page is now drawn flat: a grey gear behind a deep green plate with white letters. It reads clearly on the light header and on the projector. The dark themes are unchanged.",
+			"tags": ["fix"]
+		},
+		{
+			"date": "2026-09-28",
 			"title": "Dictation writes sentences, and works better on phones",
 			"body": "When you use DICTATE in the Report a problem box, each thing you say now ends with a period and the next thing starts with a capital letter, so a spoken report reads as sentences instead of one long run-on. On Android phones, dictation no longer writes your words two or three times over, and the keyboard no longer pops up over the box when you open it or stop dictating. Tap the message box when you want to type.",
 			"tags": ["fix"]
