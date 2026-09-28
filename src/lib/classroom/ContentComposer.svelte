@@ -9,6 +9,7 @@
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
 	import FileUploadPanel, { type PanelUpload } from '$lib/classroom/FileUploadPanel.svelte';
+	import InfoTip from '$lib/classroom/InfoTip.svelte';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
 	import {
 		DEFAULT_ITEM_LAYOUT,
@@ -365,6 +366,8 @@
 	type Msg = { ok: boolean; text: string } | null;
 
 	const editingKind = $derived<ClassroomItemKind>(mode === 'edit' ? (item?.kind ?? 'post') : kind);
+	/** The kind toggle's one tip (R04), built from ITEM_KINDS' own blurbs. */
+	const KIND_HELP = ITEM_KINDS.map((k) => `${k.label}: ${k.blurb}`).join(' ');
 	const isAssignment = $derived(editingKind === 'assignment');
 	const needsTitle = $derived(editingKind !== 'post');
 	const bodyLabel = $derived(
@@ -2645,7 +2648,6 @@
 				class="btn secondary order-btn order-grip"
 				data-sort-handle
 				aria-label="Reorder {what} {index + 1}: drag, or use the arrow keys"
-				title="Drag to reorder"
 			>
 				<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
 					<circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" />
@@ -2705,18 +2707,26 @@
 		<span class="save-line inline"><SaveIndicator state={save} /></span>
 	</div>
 	{#if mode === 'create'}
-		<div class="kind-toggle" role="tablist" aria-label="Content type">
-			{#each ITEM_KINDS as k (k.id)}
-				<button
-					type="button"
-					class="kind"
-					class:active={kind === k.id}
-					title={k.blurb}
-					onclick={() => (kind = k.id)}
-				>
-					{k.label}
-				</button>
-			{/each}
+		<!-- WHAT EACH TYPE IS, where the choice is made (R04). Each button used to
+		     carry its blurb as a `title`, which a phone cannot open and a mouse
+		     finds only by accident; the three blurbs are one tip beside the
+		     group now, read from ITEM_KINDS so there is one copy of them. -->
+		<div class="kind-row">
+			<div class="kind-toggle" role="tablist" aria-label="Content type">
+				{#each ITEM_KINDS as k (k.id)}
+					<button
+						type="button"
+						class="kind"
+						class:active={kind === k.id}
+						onclick={() => (kind = k.id)}
+					>
+						{k.label}
+					</button>
+				{/each}
+			</div>
+			<span class="kind-help" data-testid="composer-kind-help"
+				><InfoTip tip={KIND_HELP} tap="box">Which type?</InfoTip></span
+			>
 		</div>
 	{/if}
 
@@ -3901,11 +3911,22 @@
 		font-size: 0.62rem;
 		color: var(--text-2);
 	}
+	.kind-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem 0.8rem;
+		margin-bottom: 0.8rem;
+	}
 	.kind-toggle {
 		display: flex;
 		gap: 0.4rem;
-		margin-bottom: 0.8rem;
 		flex-wrap: wrap;
+	}
+	.kind-help {
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--text-2);
 	}
 	.kind {
 		appearance: none;

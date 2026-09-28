@@ -651,7 +651,6 @@
 				<button
 					type="button"
 					class="shell-tool"
-					title="Search and commands ({paletteKeys})"
 					data-testid="palette-trigger"
 					onclick={() => {
 						closeMenu();
@@ -667,7 +666,6 @@
 				<button
 					type="button"
 					class="shell-tool"
-					title="Classroom settings"
 					data-testid="settings-trigger"
 					onclick={() => {
 						closeMenu();

@@ -30,8 +30,20 @@
 	 *
 	 * NO `{@html}`, no sanitizer to get wrong: `tip` is plain text, rendered as
 	 * one text node.
+	 *
+	 * TWO SIZES, AND THE CALLER SAYS WHICH (report R04). `reach` is the
+	 * original: the trigger wraps a label inside a line of text or a table
+	 * header, so it cannot grow and its 44px is a height-only hit area
+	 * (`.tap-reach-44`). `box` is for a trigger that owns its row -- a
+	 * setting's title, a label beside a toggle -- where the reach would hang
+	 * over the controls below it and steal their taps; there the trigger
+	 * itself is a 44px box, so what a finger hits is what is drawn.
 	 */
-	let { tip = null, children }: { tip?: string | null; children?: Snippet } = $props();
+	let {
+		tip = null,
+		tap = 'reach',
+		children
+	}: { tip?: string | null; tap?: 'reach' | 'box'; children?: Snippet } = $props();
 
 	const tipId = $props.id();
 	const hasTip = $derived(!!tip?.trim());
@@ -90,6 +102,7 @@
 		<button
 			type="button"
 			class="info-tip-trigger tap-reach-44"
+			class:info-tip-box={tap === 'box'}
 			aria-describedby={tipId}
 			bind:this={triggerEl}
 			onpointerenter={() => (hovered = true)}
@@ -156,6 +169,11 @@
 		text-align: inherit;
 		text-transform: inherit;
 		letter-spacing: inherit;
+	}
+	/* A trigger that owns its row: the box IS the target (see `tap`). */
+	.info-tip-trigger.info-tip-box {
+		min-height: 44px;
+		min-width: 44px;
 	}
 	.info-tip-icon {
 		display: inline-flex;

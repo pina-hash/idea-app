@@ -337,6 +337,23 @@ describe('the classroom schema validates on read', () => {
 			expect.arrayContaining(['display.density', 'display.navWidth', 'classView.opensOn', 'classView.todoOpensOn', 'grading.gradesOrder'])
 		);
 	});
+
+	it('every setting says what it does in its own sentence, never its title again (R04)', () => {
+		// The count is the sweep's own positive control: a list that emptied
+		// would pass every line below.
+		expect(CLASSROOM_SETTINGS.length).toBeGreaterThanOrEqual(8);
+		for (const s of CLASSROOM_SETTINGS) {
+			const help = s.help.trim();
+			expect(help.length, s.title).toBeGreaterThan(s.title.length + 20);
+			// A sentence, not a label: it ends like one and is short enough for a tip.
+			expect(help, s.title).toMatch(/[.!?]$/);
+			expect(help.split(/\s+/).length, s.title).toBeLessThanOrEqual(45);
+			// It does not open by restating the title, and carries no em dash.
+			expect(help.toLowerCase().startsWith(s.title.toLowerCase()), s.title).toBe(false);
+			expect(help, s.title).not.toMatch(/—/);
+		}
+		expect(new Set(CLASSROOM_SETTINGS.map((s) => s.help)).size).toBe(CLASSROOM_SETTINGS.length);
+	});
 });
 
 describe('MemoryPreferenceStore', () => {

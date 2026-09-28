@@ -55,6 +55,10 @@ export default {
 			expected: ['in view']
 		}
 	],
-	tapTargets: [{ selector: '[data-testid="zip-choice"] button', label: 'the zip choice buttons', min: 44 }],
+	tapTargets: [
+		{ selector: '[data-testid="zip-choice"] button', label: 'the zip choice buttons', min: 44 },
+		// R04: what each type is, a tip beside the type toggle (not a title).
+		{ selector: '[data-testid="composer-kind-help"] button.info-tip-trigger', label: 'the "Which type?" tip', min: 44 }
+	],
 	contrast: [{ selector: '[data-testid="zip-choice-why"]', label: 'why a choice is absent', min: 4.5 }]
 };

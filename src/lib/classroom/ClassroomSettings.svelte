@@ -12,7 +12,13 @@
 	 *
 	 * A native <dialog> with showModal, mounted only while open, focus returned
 	 * to what had it -- the palette's shape, for the palette's reasons.
+	 *
+	 * EVERY SETTING SAYS WHAT IT DOES (report R04). Its `help` sentence is an
+	 * InfoTip on the setting's TITLE -- the title is the tip's trigger, so the
+	 * word and the "i" are one 44px control a tap opens -- and never inside a
+	 * choice's label, where a tap would also pick the choice.
 	 */
+	import InfoTip from '$lib/classroom/InfoTip.svelte';
 	import {
 		groupIsDefault,
 		homeLabel,
@@ -167,7 +173,13 @@
 					</div>
 					{#each g.settings as s (s.title)}
 						<div class="cs-setting">
-							<span class="cs-setting-title" id="cs-{g.group}-{s.title.replaceAll(' ', '-')}">{s.title}</span>
+							<span class="cs-setting-head" data-testid="settings-help" data-setting={s.title}>
+								<InfoTip tip={s.help} tap="box"
+									><span class="cs-setting-title" id="cs-{g.group}-{s.title.replaceAll(' ', '-')}"
+										>{s.title}</span
+									></InfoTip
+								>
+							</span>
 							{#if s.kind === 'width'}
 								<div
 									class="cs-options"
@@ -286,6 +298,13 @@
 	.cs-setting {
 		display: grid;
 		gap: var(--space-1);
+	}
+	/* The title row is the tip's 44px trigger, so it starts at the left edge
+	   and takes no more width than its words. */
+	.cs-setting-head {
+		display: flex;
+		align-items: center;
+		min-width: 0;
 	}
 	.cs-setting-title {
 		font-family: var(--font-mono);

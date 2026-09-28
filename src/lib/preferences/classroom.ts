@@ -345,6 +345,15 @@ interface SettingBase {
 	group: ClassroomPreferenceGroup;
 	/** The setting's own label, under its group's heading. */
 	title: string;
+	/**
+	 * WHAT IT DOES AND WHEN YOU WOULD CHANGE IT, one or two plain sentences
+	 * (report R04, 2026-09-28: "keep these pop-ups practical and genuinely
+	 * useful"). Rendered as an InfoTip on the setting's title, never inside a
+	 * choice's label. It must say something the title and the choices do not:
+	 * a help line that restates the label is noise, and
+	 * `tests/preferences-store.test.ts` refuses one that repeats its title.
+	 */
+	help: string;
 	/** Who is offered it. A student has no instructor surfaces to make compact. */
 	roles: readonly SettingRole[];
 }
@@ -401,6 +410,8 @@ export const CLASSROOM_SETTINGS: readonly ClassroomSetting[] = [
 	{
 		group: 'display',
 		title: 'Density',
+		help:
+			'Compact shrinks the small buttons on your teacher screens, such as Grades, People and grading, so more fits without scrolling. Student pages keep full-size buttons either way.',
 		roles: ['manager'],
 		field: 'density',
 		options: () => [
@@ -412,12 +423,16 @@ export const CLASSROOM_SETTINGS: readonly ClassroomSetting[] = [
 		kind: 'width',
 		group: 'display',
 		title: 'List width',
+		help:
+			'How wide the list of posts stays beside an open item on a wide screen. Go wider to read long titles, narrower to give the open item more room. You can also drag the line between the two.',
 		roles: ['student', 'manager'],
 		field: 'navWidth'
 	},
 	{
 		group: 'classView',
 		title: 'A class opens on',
+		help:
+			'The filter a class page starts on each time you open it. Pick a narrower one to land straight on what needs you; you can still change the filter on the page.',
 		roles: ['student', 'manager'],
 		field: 'opensOn',
 		options: (role) =>
@@ -435,6 +450,7 @@ export const CLASSROOM_SETTINGS: readonly ClassroomSetting[] = [
 	{
 		group: 'classView',
 		title: 'To-do opens on',
+		help: 'Which list your to-do page shows first: everything assigned to you, or only work past its due date that is not turned in.',
 		// A teacher has no to-do page (the door is handed to a viewer who is not staff).
 		roles: ['student'],
 		field: 'todoOpensOn',
@@ -443,6 +459,8 @@ export const CLASSROOM_SETTINGS: readonly ClassroomSetting[] = [
 	{
 		group: 'grading',
 		title: 'Grades lists by',
+		help:
+			"The order of assignments on a class's Grades tab. Needs marking first puts work waiting for your grade at the top, which helps when you are catching up.",
 		roles: ['manager'],
 		field: 'gradesOrder',
 		options: () => GRADING_ORDER_OPTIONS.map((o) => ({ value: o.key, label: o.label }))
@@ -451,6 +469,7 @@ export const CLASSROOM_SETTINGS: readonly ClassroomSetting[] = [
 		kind: 'summary',
 		group: 'guidance',
 		title: 'Classroom tour',
+		help: 'A short guided walk through the classroom. Reset offers it to you again, and Tour in the header starts it any time.',
 		roles: ['student', 'manager'],
 		summary: (p, role) => TOUR_STATE_WORDS[p.guidance.tours[role === 'manager' ? 'teacher' : 'student']]
 	},
@@ -458,6 +477,8 @@ export const CLASSROOM_SETTINGS: readonly ClassroomSetting[] = [
 		kind: 'summary',
 		group: 'notebookReview',
 		title: 'Next steps and last looked',
+		help:
+			'Your saved next-step comments, offered as one-press chips when you review notebook entries, and when you last opened each class for review, which is what "new since you last looked" counts from. Reset brings back the starter comments.',
 		roles: ['manager'],
 		summary: (p) => {
 			const c = p.notebookReview.comments.length;
@@ -469,6 +490,7 @@ export const CLASSROOM_SETTINGS: readonly ClassroomSetting[] = [
 		kind: 'summary',
 		group: 'search',
 		title: 'Remembered picks',
+		help: 'The classes, posts and commands you picked in Search most recently, listed first the next time you search. Reset clears the list on this device.',
 		roles: ['student', 'manager'],
 		summary: (p) => {
 			const n = p.search.recent.length;
