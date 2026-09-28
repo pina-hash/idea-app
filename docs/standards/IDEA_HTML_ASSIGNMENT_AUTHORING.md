@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.3 - 2026-09-27**
+**Version 1.4 - 2026-09-27**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -270,10 +270,17 @@ extension intact. That is how the Dogtag takes a `.SLDPRT` and an `.xs`.
 
 - **The document checks the extension**, because nothing else will. Refuse the wrong file
   with a sentence that names the right one, including the likely mix-up (the DXF).
-- **The acknowledgement names no field.** `idea:saved` carries only `ok`, `at` and a
-  reason, so with two file blocks, queue every write and match acknowledgements in the
-  order sent. Allow one upload at a time, and give up on a write unanswered after 45
-  seconds so a dropped connection cannot lock every box.
+- **Success is read off `idea:state`, never off an acknowledgement.** `idea:saved` carries
+  only `ok`, `at` and a reason, and text saves are debounced and coalesced (800 ms in
+  `answers.ts`), so acknowledgements cannot be paired with writes in order: matching them
+  in order, which 1.3 prescribed, credits a file with a text save's ack. The parent adds a
+  field to `images` only once its upload has landed and re-posts state, so a file is
+  handed in when its field appears there. A failure arriving while a file is pending is
+  shown on that file. Allow one upload at a time, and give up on a write unanswered after
+  45 seconds so a dropped connection cannot lock every box.
+- **Replace means remove first.** A second `idea:image` on a field that already holds a
+  file is not specified to replace it. Offer Remove, which sends `idea:image-remove`, and
+  only then a new pick.
 - **The teacher needs a Download button in the document.** A file handed in through an
   HTML block has a block id, so it does not appear under the grading console's files
   handed in, and the frame's photo list has no download link (as read 2026-09-22). The
@@ -438,6 +445,12 @@ opens on Standard.
 
 ## Changelog
 
+- **1.4 (2026-09-27).** From the IDEA100 Rotation 2 Hook 02 build (V1 Checkpoint, two
+  `.SLDPRT` hand-ins), base 1.3 at `origin/main` `03f2c691`. Section 9b: replaces the rule
+  to match acknowledgements in the order sent, which cannot work because text saves are
+  debounced, with reading success off `idea:state` (read from `answers.ts` `image()`,
+  which adds the field to `images` only after the upload lands); adds that replacing a
+  file means removing it first. Nothing else changed.
 - **1.3 (2026-09-27).** From the IDEA100 Rotation 2 Hook 01 build (Research and Concepts),
   base 1.2 at `origin/main` `1c5a1848`. Adds to section 8: one photo with optional extra
   slots, no single path to completion, minimum text with hover tips and a class
