@@ -36,6 +36,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './harness';
+import { createPostgrestShim, loadForeignKeys } from './postgrest-shim';
+import { createClassThemeTransports } from '../../src/lib/classroom/class-theme';
+import { load as classroomLayoutLoad } from '../../src/routes/classroom/+layout.server';
 
 const CHAIN = [
 	'0001_profiles.sql',
@@ -661,5 +664,69 @@ describe('a second paste changes nothing', () => {
 			`select count(*)::text as n from pg_constraint where conname = 'classroom_sections_theme_accent_shape'`
 		);
 		expect(c.rows[0].n).toBe('1');
+	});
+});
+
+// ===========================================================================
+// THE CLIENT HALF AGAINST THE REAL FUNCTIONS (ledger 0347). The client module
+// was built beside this migration and tested against a fake; a parameter
+// named differently from the SQL answers PGRST202, which the client reads as
+// "no themes on this deployment" -- a silent no-op on the one path that
+// paints anything. So the SHIPPED transports and the SHIPPED classroom layout
+// load are driven here through the PostgREST shim, which calls in NAMED
+// notation exactly as PostgREST does.
+describe('the shipped transports and layout load reach the real functions', () => {
+	const shimFor = async (u: SeededUser) =>
+		createClassThemeTransports(createPostgrestShim(db, await loadForeignKeys(db), u.id) as never);
+
+	test('a student votes and reads the tally; a teacher opens, closes, resets and sets the accent', async () => {
+		const t = await shimFor(teacher);
+		const reset = await t.reset(courseA);
+		expect(reset.ok).toBe(true);
+		const opened = await t.setVoting(courseA, true);
+		expect(opened).toEqual({ ok: true, voting_open: true, reset_at: expect.any(String) });
+
+		const student = await shimFor(sam);
+		const voted = await student.vote(courseA, 'palette', 'ember');
+		expect(voted).toEqual({ ok: true, withdrawn: false, option: 'ember', winners: { palette: 'ember' } });
+		const read = await student.tally(courseA);
+		expect(read.ok && read.tally.mine).toEqual({ palette: 'ember' });
+		expect(read.ok && read.tally.can_vote).toBe(true);
+
+		const accent = await t.setAccent(sectionA1, 'sky');
+		expect(accent).toEqual({ ok: true, accent: 'sky' });
+		const themes = await t.themes([sectionA1]);
+		expect(themes).toEqual({
+			ok: true,
+			themes: [{ section_id: sectionA1, course_id: courseA, accent: 'sky', winners: { palette: 'ember' } }]
+		});
+
+		// A teacher's vote is the database's refusal, in its own words -- never
+		// `unavailable`, which would hide the panel.
+		const refused = await t.vote(courseA, 'palette', 'ocean');
+		expect(refused.ok).toBe(false);
+		expect(!refused.ok && refused.reason).toBe('error');
+
+		const closed = await t.setVoting(courseA, false);
+		expect(closed.ok && closed.voting_open).toBe(false);
+		expect(await student.vote(courseA, 'palette', 'ocean')).toEqual({ ok: false, reason: 'closed' });
+		await t.setVoting(courseA, true);
+	});
+
+	test('the classroom layout load hands every surface the student\'s class theme, and none for a class nobody voted on', async () => {
+		const fks = await loadForeignKeys(db);
+		const data = (await classroomLayoutLoad({
+			locals: { supabase: createPostgrestShim(db, fks, sam.id), claims: { sub: sam.id, email: sam.email } }
+		} as never)) as { navSections: { id: string }[]; navThemes: Record<string, { palette: { id: string }; accent: { id: string } | null }> };
+		expect(data.navSections.map((s) => s.id)).toContain(sectionA1);
+		expect(data.navThemes[sectionA1]?.palette.id).toBe('ember');
+		expect(data.navThemes[sectionA1]?.accent?.id).toBe('sky');
+
+		const other = (await classroomLayoutLoad({
+			locals: { supabase: createPostgrestShim(db, fks, bob.id), claims: { sub: bob.id, email: bob.email } }
+		} as never)) as { navSections: { id: string }[]; navThemes: Record<string, unknown> };
+		// Bob's class exists for him (the control) and has no theme.
+		expect(other.navSections.map((s) => s.id)).toEqual([sectionB1]);
+		expect(other.navThemes).toEqual({});
 	});
 });
