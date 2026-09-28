@@ -1,5 +1,5 @@
 # IDEA Interface Standards
-**Version 2.13 - 2026-09-28**
+**Version 2.14 - 2026-09-28**
 
 Governs layout, viewport behavior, role parity, and interaction structure for every IDEA app surface: IDEA Classroom, the digital notebook, the reference reader, the grading console, the portal, and any surface built after this document.
 
@@ -259,21 +259,33 @@ These rules are not retroactive demolition orders. When work touches a surface t
 
 ---
 
-## 14. Classroom Shape Language
+## 14. Site Shape Language
 
-**IDEA Classroom has one shape language, the Plate, and every theme wears it.** Mr. Pina approved it on 2026-09-27 ("They should share the same sci-fi geometry with different color schemes"); it is `src/lib/classroom/plate.css`, switched on by one class on the classroom's root. Other apps keep their own look.
+**Every page built from the site's shared shell has one shape language, the Plate, and every theme wears it.** Mr. Pina approved it for IDEA Classroom on 2026-09-27 ("They should share the same sci-fi geometry with different color schemes") and extended it to the rest of the site on 2026-09-28 ("applying the theme to the rest of the website is in order"). It is one stylesheet, `src/lib/classroom/plate.css`, whose rules key on either of two classes: `CLASSROOM_PLATE` on the classroom's root, and `SITE_PLATE` (`src/lib/shell/site-plate.ts`) on the rest of the site. Each is a one-line switch, and the site's scope is a list of what is in, so a page nobody listed keeps its own look.
+
+**What is in:** the home page and its launcher, the dashboard and admin pages, the archive, the sign-in error page, the coin desk (including its student-facing balance and contracts preview), Foundry's gallery, author, submission and review pages, tournaments, and IDEA Maps' viewer and editor chrome. IDEA Classroom and the notebook wear it through their own switch.
+
+**What is left out, and why:** a product with its own named design system keeps it (GAUNTLET, VANGUARD, GREENLINE, IdeaCAD's modeling workspace, FRC, and FSP's decks and pages); content keeps its authors' design (a student's published Foundry app, a legacy HTML assignment, the frozen IDEA Coin Ledger, the public reference viewer, a deck or slide); and a projected, full-screen surface keeps its own (the tournament TV stage, the classroom projector). When in doubt, a page with its own named design system or a full-screen experience is left out.
 
 - **(a) One geometry for every theme.** A theme changes colour and material, never a length: radii, borders, padding, sizes and positions are declared once, and a theme block carries colours only, shadows included (a shadow's geometry is written once and only its colour is a token, so a glow a theme does not want is a transparent colour, never a missing shadow). This is proven, not asserted: a bounding-box diff reads every element on the classroom surfaces in each theme and must report zero differing boxes, and a length planted in one theme must make it report hundreds.
 - **(b) Raised means pressable; inset means not.** A button, a key, a tab and a toggle are raised pillows: a composite edge, a lit top, a soft foot and a drop shadow. A chip, a status tag, a field, a list well and a recessed column are set into the surface: an inner shadow under the top lip, a light lip at the foot, and no drop shadow. A chip that reads as a button promises a click that does nothing, which is the defect this rule exists to prevent. A key that is on keeps its state visible whatever spelling the component uses for it; the word and `aria-pressed` say it too, so colour is never the only signal.
 - **(c) The load-bearing boundary is the outer hairline of a composite border.** Every other band of the edge (the light ring inside it, the top highlight, the soft foot, the tray outside) is decoration. Measure the hairline against every ground the control sits on and hold it at 3:1 or more, and 2.0 on the projector model; do not draw a second outline on top to get there. A softer page comes from lightening the hairline toward the floor, never from dropping below it.
-- **(d) No decorative grids.** A grid appears only on an actual graph with axes. Scan lines and ruled fills count as grids (Mr. Pina, 2026-09-27: "Any time there's a grid in the background, just remove or replace it"). A sweep that claims a page has none must first detect a planted one.
+- **(d) No decorative grids.** A grid appears only on an actual graph with axes, or where it marks real scale. Scan lines and ruled fills count as grids (Mr. Pina, 2026-09-27: "Any time there's a grid in the background, just remove or replace it"). A drawing's grid stays only when its spacing is a stated length in the thing drawn (the maps editor's labelled "grid 4″" does; a fixed 24px screen grid behind a plan does not). A sweep that claims a page has none must first detect a planted one.
+- **(e) Content stays content, and decoration stays sparing.** The Plate frames somebody's work and never reaches inside it: rich text, rendered markdown, images, a map's drawing, an IdeaCAD embed, a deck, a student's app. Screws, hatch stacks and rails go on page-level plates and major panels only, never on every card of a long list or inside a dense table, and a title bar goes only where a page already has a single page title.
+- **(f) Identity survives the material.** Where a surface carries an identity colour (a launcher card's brand edge, a pathway chip, a student's own banner), the Plate supplies depth and leaves the colour and the ground its words were measured on.
 
-**Rationale.** The classroom is read on a projector across a room and on a phone at a bench, in three themes. A look that changed geometry per theme would move every control between themes and make the dark themes a second design to maintain. And a look that made status tags look like buttons, or relied on an extra outline to be visible, would trade the shape language's clarity for its decoration.
+**Rationale.** The classroom is read on a projector across a room and on a phone at a bench, in three themes, and a student moves between it and the rest of the site many times a day; a site in two shape languages reads as two products. A look that changed geometry per theme would move every control between themes and make the dark themes a second design to maintain. And a look that made status tags look like buttons, or relied on an extra outline to be visible, would trade the shape language's clarity for its decoration.
 
 ---
 
 ## Changelog
 
+- **2.14 (2026-09-28)** - Section 14 widened from the classroom to the site when the Plate
+  went live on every page built from the shared shell (ledger 0346): the one stylesheet
+  now answers to two one-line switches, the section names what is in and what is left
+  out and why, (d) states when a drawing's grid marks real scale and so stays, and two
+  rules are added, (e) content stays content and decoration stays sparing, and (f) an
+  identity colour survives the material.
 - **2.13 (2026-09-28)** - Section 14, the classroom shape language, added when the Plate
   went live on every IDEA Classroom page (ledger 0345): one geometry for every theme with
   a box diff as its proof, raised for pressable and inset for not, the outer hairline of

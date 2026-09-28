@@ -804,7 +804,7 @@
 				</div>
 				{#if drawn}
 					<div class="lc-drawn" data-testid="live-drawn">
-						<span class="lc-drawn-name">{drawn.name}</span>
+						<span class="lc-drawn-name person-name" title={drawn.name}>{drawn.name}</span>
 						<span class="lc-seed">seed {drawn.seed}</span>
 						{#if shownPick && shownPick.name === drawn.name && shownPick.seed === drawn.seed}
 							<button type="button" class="btn secondary" data-testid="live-pick-hide" onclick={clearPick}>
@@ -818,7 +818,7 @@
 					</div>
 				{:else if shownPick}
 					<div class="lc-drawn">
-						<span class="lc-drawn-name">{shownPick.name}</span>
+						<span class="lc-drawn-name person-name" title={shownPick.name}>{shownPick.name}</span>
 						<button type="button" class="btn secondary" data-testid="live-pick-hide" onclick={clearPick}>
 							Take off the wall
 						</button>

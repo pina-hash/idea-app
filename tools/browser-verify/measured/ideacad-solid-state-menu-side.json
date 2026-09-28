@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "ideacad-solid-state-menu-side.mjs",
-	"date": "2026-09-25T07:36:04.080Z",
-	"sha": "4b0e11aaf0b2364a66151d9cace589daad8af1d8",
+	"date": "2026-09-28T18:50:46.620Z",
+	"sha": "a4f769c14960f5bac52e7a517884f0ca18e7896d",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 16,
 	"outsideRows": [],
-	"ms": 25880
+	"ms": 6727
 }

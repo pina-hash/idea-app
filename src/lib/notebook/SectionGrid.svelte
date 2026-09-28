@@ -333,13 +333,13 @@
 								/>
 								{#if href}
 									<a
-										class="student-name student-link"
+										class="student-name student-link person-name"
 										{href}
 										title="Open {summary.student.name}'s whole notebook, including entries with no check-in"
 										>{summary.student.name}</a
 									>
 								{:else}
-									<span class="student-name">{summary.student.name}</span>
+									<span class="student-name person-name" title={summary.student.name}>{summary.student.name}</span>
 								{/if}
 								<!-- THE `left` CHIP IS INSIDE THE NAME LINE, and that is a
 								     MEASUREMENT rather than a preference. It was an

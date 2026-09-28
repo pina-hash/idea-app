@@ -151,7 +151,7 @@
 						<ul class="lg-list">
 							{#each g.cells as c (c.email)}
 								<li class="lg-row" data-testid="live-cell" data-state={c.state}>
-									<span class="lg-name">{c.name}</span>
+									<span class="lg-name person-name" title={c.name}>{c.name}</span>
 									{#if c.detail}<span class="lg-detail">{c.detail}</span>{/if}
 									{#if c.missing}
 										<span class="lg-missing" data-testid="live-cell-missing">
@@ -334,7 +334,6 @@
 	.lg-name {
 		color: var(--text-1);
 		font-weight: 600;
-		overflow-wrap: anywhere;
 	}
 	.lg-detail {
 		color: var(--text-2);

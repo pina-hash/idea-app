@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "tournament-settings-mode-create.mjs",
-	"date": "2026-09-25T09:01:38.264Z",
-	"sha": "fccb8f48598533325279ed247b834ca1f34a70df",
+	"date": "2026-09-28T19:14:16.778Z",
+	"sha": "a4f769c14960f5bac52e7a517884f0ca18e7896d",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 54,
 	"outsideRows": [],
-	"ms": 5670
+	"ms": 6973
 }

@@ -3604,6 +3604,12 @@ inside the function fails closed rather than falling through to a weaker path.
 - **Viewport arithmetic in a stylesheet is wrong wherever the surface is not the
   top of the page** -- the notebook mounts under the classroom shell and its
   banner in view-as. Prefer document flow over `100vh - <constant>`.
+- **A PERSON'S NAME IN A LIST IS `.person-name` (`src/app.css`, ledger 0346), with
+  the full name in `title`.** It wraps only between words and cuts a single word
+  too long for its box with an ellipsis; `overflow-wrap: anywhere` on a name is
+  what printed "Alice Alvare z" at 375. It needs a flex or grid parent (an inline
+  box ignores `text-overflow`), and a component rule still saying `anywhere`
+  beats it, so a list adopting it drops that declaration.
 - **`min-width: 0` on grid/flex children.** An item's automatic minimum is its
   min-content, so a `nowrap` row forces the whole page wider than the viewport.
   `overflow: hidden` and an ellipsis do NOT reduce min-content.
@@ -5325,6 +5331,12 @@ the source of truth; **do not invent colours or swap fonts.**
   `--tnm-accent`/`--tnm-gold`, and the Coin Ledger the neon-terminal palette its
   own page is built from. An app that declares nothing takes the shared pair, so
   a NEW card looks right with no entry anywhere.
+  - **UNDER THE SITE PLATE THE TEXTURE IS NOT DRAWN AND THE ACCENT IS (ledger
+    0346).** Six of the textures are ruled fills or grids, which the no-grid rule
+    removes, so `site-plate.css` replaces every texture rather than sorting them;
+    the card keeps its `--acc-edge`, its ink and its `--bg1` face (the ground its
+    Space White twin was measured on) and takes only the plate's depth. A texture
+    is still worth declaring for `SITE_PLATE = ''`, and costs nothing otherwise.
   - **A CARD QUOTES ITS OWN ROOM OR IT DECLARES NOTHING.** Those are the only two
     honest answers. A pair invented for a card whose app has no colours of its own
     is inventing an identity for the app -- classroom, coin-desk, dashboard and
@@ -5500,7 +5512,9 @@ did not cover, to fix one it did, is the exact mistake this whole section
 exists to name. So the two failing CALL SITES took `--text-2` (the register's
 own token for secondary labels and meta, 6.91 / 5.88 / 5.51 on the same three
 grounds) and the token did not move. **`--dim` on `--bg2` is still a
-failure waiting for a use**, and FRC's own `--frc-gray` measures 2.77 on its own
+failure waiting for a use**, and ledger 0346 found three uses (the home stats
+plate's separator, a home class card's section line, the dashboard's FRC unit
+titles, all 4.24:1) and gave each `--text-2` the same way; FRC's own `--frc-gray` measures 2.77 on its own
 surface, so the room needs a hook of its own before either can be fixed
 properly. That is a bundle, not a line.
 
@@ -5597,6 +5611,25 @@ properly. That is a bundle, not a line.
     `--text-2` under 4.5:1 on real pages, so the card face is the lightest
     ground the error red still clears on. Lighten a dark face only with every
     ink re-measured.
+- **THE REST OF THE SITE WEARS THE SAME PLATE THROUGH A SECOND SWITCH (ledger
+  0346, `IDEA_INTERFACE_STANDARDS` 14).** Every rule in `plate.css` keys on
+  `:is(.cr-plate, .site-plate)`, which has the specificity `.cr-plate` alone
+  had, so the classroom is unchanged (measured, 0 differing elements). `SITE_PLATE`
+  in `src/lib/shell/site-plate.ts` is the site's one-line revert; the root layout
+  wraps a page and its root-mounted siblings in a `display: contents` element
+  carrying it only where `sitePlateInScope` says so, so a LEFT-OUT product's DOM
+  is byte-identical (GAUNTLET, VANGUARD, GREENLINE, IdeaCAD, FRC, FSP, legacy
+  and student content, the tournament TV stage, the projector). The scope is a
+  list of what is IN and fails closed; a new in-scope page joins
+  `SITE_PLATE_PREFIXES` (and its harness `SITE_PLATE_DEV_PREFIXES`), and a
+  harness mounting a left-out product must never be listed.
+  `src/lib/shell/site-plate.css` holds only what is the site's (room grounds,
+  the maps blueprint grid removed, the launcher cards); a site surface's own
+  keys, tags and panels join the SAME lists in `plate.css`, room-qualified
+  (`.tnm-root :is(...)`), never a second copy of a recipe. Space White is still
+  scoped to the classroom, the notebook, the reference viewer and `/`, so the
+  site plate in the other rooms renders in IDEA or Matrix only; a harness that
+  pins Space White on them measures a state production never has.
 - **`.cd-root` -- the coin desk.** It is NOT a repaint: the desk sits on the
   portal's own dark plate and borrows nothing but geometry. `.cd-root` is
   registered in `$lib/shell/split.css` (gutter, scrollbars, the split) and

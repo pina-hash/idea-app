@@ -2201,7 +2201,7 @@
 								tintKey={s.email}
 								size={24}
 							/>
-							<span class="roster-name">{s.displayName}</span>
+							<span class="roster-name person-name" title={s.displayName}>{s.displayName}</span>
 							<span class="roster-chips">
 								<!--
 									THE SECTION, ON THE ROW, whenever more than one is on screen.
@@ -3450,7 +3450,6 @@
 	}
 	.roster-name {
 		min-width: 0;
-		overflow-wrap: anywhere;
 		/* THE NAME TAKES THE SLACK, which is what keeps the face beside it.
 		   `.roster-row` is `space-between`, so with three children the middle
 		   one would otherwise float free and leave a gap between the picture
@@ -3461,6 +3460,22 @@
 		   a grown box is the first place a centred ancestor would show. */
 		flex: 1 1 auto;
 		text-align: left;
+	}
+	/* A NAME IS NEVER SQUEEZED TO NOTHING BY ITS CHIPS (ledger 0346). The
+	   chips never shrink below their widest chip, so on a narrow row -- a phone,
+	   or a row sharing its line with the batch checkbox -- the name was what
+	   gave, down to 0px wide at 375 on /dev/grading-bulk. The row wraps now:
+	   the name claims a 7rem basis and the chips drop to a line of their own,
+	   still hard right, only when both do not fit. */
+	.roster-row {
+		flex-wrap: wrap;
+		row-gap: 0.3rem;
+	}
+	.roster-row .roster-name {
+		flex: 1 1 7rem;
+	}
+	.roster-row .roster-chips {
+		margin-left: auto;
 	}
 	/* -------------------------------------------------------------------
 	   GRADING AT SCALE. Everything below renders only when a BATCH transport is
@@ -3508,8 +3523,15 @@
 		align-items: stretch;
 		gap: var(--space-1);
 	}
+	/* THE ROW TAKES THE REST OF THE CHECKBOX'S LINE, whatever its content
+	   (ledger 0346). With `flex: 1 1 auto` its basis was its own max-content
+	   width -- a name and three chips -- and in a wrapping item any row wider
+	   than the space beside the checkbox dropped to a line of its own, so the
+	   checkbox sat alone in a box above the name it ticks. A zero basis makes
+	   the row share the line and shrink; only the presence line, which asks
+	   for `flex-basis: 100%`, still wraps under them. */
 	.roster-item.pickable .roster-row {
-		flex: 1 1 auto;
+		flex: 1 1 0;
 		min-width: 0;
 	}
 	/* `.tap-44` in the markup carries the height; this carries the width, so the

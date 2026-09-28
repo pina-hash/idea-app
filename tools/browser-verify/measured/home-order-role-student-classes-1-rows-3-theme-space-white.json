@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "home-order-role-student-classes-1-rows-3-theme-space-white.mjs",
-	"date": "2026-09-25T07:44:31.598Z",
-	"sha": "20aa8ed1a9fc784444bee6d197a77cb869883990",
+	"date": "2026-09-28T19:14:16.778Z",
+	"sha": "a4f769c14960f5bac52e7a517884f0ca18e7896d",
 	"dirty": true,
 	"widths": [
 		375,
@@ -10,6 +10,19 @@
 	],
 	"runs": 2,
 	"measurements": 80,
-	"outsideRows": [],
-	"ms": 8540
+	"outsideRows": [
+		{
+			"path": "/dev/home-order?role=student&classes=1&rows=3&theme=space-white",
+			"width": 375,
+			"check": "order-result",
+			"label": "the light pair was fetched (the dark pair is eager, so it was too)"
+		},
+		{
+			"path": "/dev/home-order?role=student&classes=1&rows=3&theme=space-white",
+			"width": 1440,
+			"check": "order-result",
+			"label": "the light pair was fetched (the dark pair is eager, so it was too)"
+		}
+	],
+	"ms": 6973
 }

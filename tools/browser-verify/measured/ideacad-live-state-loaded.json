@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "ideacad-live-state-loaded.mjs",
-	"date": "2026-09-25T08:50:39.490Z",
-	"sha": "87303b073a5a5d9a2c678776bda2a4332ac1f9c6",
+	"date": "2026-09-28T18:50:46.620Z",
+	"sha": "a4f769c14960f5bac52e7a517884f0ca18e7896d",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 20,
 	"outsideRows": [],
-	"ms": 21012
+	"ms": 6727
 }

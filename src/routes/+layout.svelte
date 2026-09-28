@@ -26,6 +26,9 @@
 	import ThemeRoot from '$lib/design-system/themes/ThemeRoot.svelte';
 	import { feedbackIsAnonymous, feedbackWriter } from '$lib/feedback/feedback';
 	import { describeBuild } from '$lib/feedback/context';
+	import { sitePlateClass } from '$lib/shell/site-plate';
+	import '$lib/classroom/plate.css';
+	import '$lib/shell/site-plate.css';
 
 	let { data, children } = $props();
 	let { claims, supabase } = $derived(data);
@@ -60,6 +63,17 @@
 	 */
 	const submitFeedback = $derived(feedbackWriter(supabase, claims?.sub));
 	const anonymousReport = $derived(feedbackIsAnonymous(supabase, claims?.sub));
+	/**
+	 * THE SITE PLATE (ledger 0346), decided from the path alone so the server
+	 * renders the same answer the client does and nothing flashes. On an
+	 * in-scope route the page and its root-mounted siblings sit inside one
+	 * `display: contents` element carrying the class, which is the `@scope`
+	 * root `$lib/classroom/plate.css` paints from; on every other route there
+	 * is no wrapper at all, so a left-out product's DOM is unchanged. The
+	 * stylesheet is imported here because the site's pages do not load the
+	 * classroom's room; nothing in it matches without one of its two classes.
+	 */
+	const plate = $derived(sitePlateClass(page.url.pathname));
 
 	onMount(() => {
 		const { data: authData } = supabase.auth.onAuthStateChange((_, newSession) => {
@@ -88,22 +102,29 @@
      reason the two above it are: there are no layout resets in src/routes, so
      every page route inherits it. It renders nothing; see the component. -->
 <ThemeRoot />
-{@render children()}
-<!-- First-login pathway picker: renders only for a signed-in student with no
-     pathway set (self-contained, reads page data like ProfileMenu). -->
-<PathwayPicker />
-<InstallPrompt />
-<!-- VOICE HAS NO FLOATING CONTROL (ledger 0298, report 31). It is the Speak
-     button inside the classroom's command palette (Ctrl K), whose vocabulary is
-     the palette's own rows; see $lib/voice/commands.ts. -->
-<SiteFeedback
-	routeId={page.route.id}
-	pathname={page.url.pathname}
-	role={data.userProfile?.role ?? null}
-	sectionId={page.params.sectionId ?? null}
-	{build}
-	submit={submitFeedback}
-	anonymous={anonymousReport}
-	status={page.error ? page.status : null}
-	errorMessage={page.error?.message ?? null}
-/>
+{#snippet site()}
+	{@render children()}
+	<!-- First-login pathway picker: renders only for a signed-in student with no
+	     pathway set (self-contained, reads page data like ProfileMenu). -->
+	<PathwayPicker />
+	<InstallPrompt />
+	<!-- VOICE HAS NO FLOATING CONTROL (ledger 0298, report 31). It is the Speak
+	     button inside the classroom's command palette (Ctrl K), whose vocabulary is
+	     the palette's own rows; see $lib/voice/commands.ts. -->
+	<SiteFeedback
+		routeId={page.route.id}
+		pathname={page.url.pathname}
+		role={data.userProfile?.role ?? null}
+		sectionId={page.params.sectionId ?? null}
+		{build}
+		submit={submitFeedback}
+		anonymous={anonymousReport}
+		status={page.error ? page.status : null}
+		errorMessage={page.error?.message ?? null}
+	/>
+{/snippet}
+{#if plate}
+	<div class={plate} style="display: contents">{@render site()}</div>
+{:else}
+	{@render site()}
+{/if}

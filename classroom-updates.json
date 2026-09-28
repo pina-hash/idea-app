@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-09-28",
+			"title": "The same look on the rest of the site, and four fixes",
+			"body": "The machined look IDEA Classroom got this morning now reaches the rest of ideabosco.com that is built the same way: the home page and its app cards, IDEA Maps, the Foundry gallery, tournaments and the coin pages. GAUNTLET, GREENLINE, VANGUARD, IdeaCAD, FRC and the FSP pages keep their own look, and so does anything a student made. Four things in the classroom are fixed too. On a returned assignment, the Returned tag and the rubric breakdown now match the rest of the page. Student names in lists no longer break in the middle of a word on a phone; a name too long for its space ends in dots, and holding or hovering shows the whole name. Small status tags with a light, like Draft and Pinned, give the light more room. If anything looks wrong on your screen, press Report.",
+			"tags": ["Appearance", "fix"]
+		},
+		{
+			"date": "2026-09-28",
 			"title": "A new look for IDEA Classroom",
 			"body": "Every classroom page has a new machined look, in all three themes (IDEA, Matrix and Space White). Nothing moved and nothing works differently: every button, link and list is where it was and does what it did. What changed is how things read. Anything you can press is a raised key. Labels and status tags, like Not started or Pinned, are set into the page, so a tag never looks like a button. The class you are in and the tab you are on are the lit ones, and the item you have open is the solid green row in the class list. Page titles sit in a title bar, and a returned grade shows on a small dark display. If something looks wrong or hard to read on your screen or on the projector, press Report at the top of the page.",
 			"tags": ["new"]

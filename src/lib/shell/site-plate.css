@@ -1,0 +1,148 @@
+/* ==========================================================================
+   THE SITE PLATE: what the rest of ideabosco.com needs beyond the classroom's
+   rules (ledger 0346).
+
+   Every shared rule -- keys, chips, panels, wells, lists, labels, the title
+   bar, the menus -- lives in `$lib/classroom/plate.css`, keyed on
+   `:is(.cr-plate, .site-plate)`, so the classroom and the site cannot drift
+   apart. This file carries only what is the SITE's: each room's ground, the
+   decorative grids and ruled fills the no-grid rule removes, and the few
+   surfaces the classroom never draws. Nothing here matches without
+   `.site-plate`, which `src/routes/+layout.svelte` puts on a `display:
+   contents` wrapper on the routes `$lib/shell/site-plate.ts` lists. Set
+   `SITE_PLATE` to '' there and none of this applies.
+
+   GEOMETRY IS THE SAME IN EVERY THEME (IDEA_INTERFACE_STANDARDS 14a). No rule
+   here names a theme, and nothing here is a length: only paint moves.
+
+   MATRIX KEEPS ITS RAIN. Each room's ground below is (0,2,0), the same
+   weight as the classroom's `.cr-root.cr-plate`, so matrix.css's room rules
+   (`:root[data-theme='matrix'] .fg-root` and the landing page's pair) still
+   make those grounds transparent and the rain still falls where it fell.
+   ========================================================================== */
+
+/* --- The page is the plate. ---------------------------------------------
+   The canvas behind a short page, and each room's own opaque wrapper. The
+   tournaments TV stage is its own island and keeps its own ground. */
+body:has(.site-plate) {
+	background: var(--plate-plate-bot);
+}
+/* TWO WEIGHTS, AND THE SPLIT IS THE MATRIX RULE. The landing page and the
+   Foundry are rooms matrix.css makes transparent for its rain, at (0,3,0) and
+   above, so their ground here is (0,2,0): heavier than the room's own base
+   rule, lighter than Matrix's. The rooms Matrix never reaches (the coin desk,
+   tournaments, the maps viewer and shelf) are opaque in every theme and paint
+   their own ground from scoped component styles, so theirs is (0,3,0)+. One
+   list at one weight was the first version, and `.tnm-root:not(.tv)` inside
+   its `:is()` lifted the whole rule to (0,3,0), tying Matrix's `.fg-root` rule
+   and winning on order: the Foundry lost its rain (the matrix-room spec). */
+.site-plate :is(.legacy-index, .fg-root),
+:root .site-plate :is(.cd-root, .mv-shell, .shelf-page),
+:root .site-plate .tnm-root:not(.tv) {
+	background-color: var(--plate-plate-bot);
+	background-image: linear-gradient(to bottom, var(--plate-page-top), var(--plate-page-bot) 28rem);
+	background-repeat: no-repeat;
+}
+
+/* --- The home page's compact hero keeps its one row. --------------------
+   The title is the plate's title bar, whose hazard blocks give it a wide
+   intrinsic width, so as an ordinary flex item it took the row and pushed the
+   stats plate underneath -- undoing the compact hero ledger 0297 built to
+   bring "Your classes" above the fold. A zero-ish basis lets the bar share the
+   row with the stats and still wrap under them on a phone. */
+.site-plate .legacy-index .hero.compact h1 {
+	flex: 1 1 22rem;
+}
+
+/* --- The launcher's cards are link panels, and keep their identity. ------
+   Each card is a panel that is itself a link, which is what a classroom
+   class card is, so it takes the panel face and the long soft shadow. Its
+   EDGE is untouched: `--acc-edge` is the card's own load-bearing boundary
+   with the app's brand in it (AppLauncher.svelte), and so are its ink, its
+   strip and its mark.
+
+   ITS INTERIOR TEXTURE GOES, BY THE NO-GRID RULE. Six of the per-app
+   textures are ruled fills or grids (GREENLINE's is a literal 24px grid, the
+   default is a 1px line every 3px) and one is a dot field; under the plate no
+   image is drawn at all rather than sorting them one by one, so a texture
+   added later cannot bring a grid back. (0,3,0), to beat the
+   component's own `.app-card` rule whatever order the sheets land in. */
+:root .site-plate .app-card {
+	/* THE FACE STAYS THE CARD'S OWN `--bg1`. Every card's ink, and its Space
+	   White twin, was measured on that ground (tests/space-white-inks.test.ts);
+	   on the plate's panel face four Space White titles fell to 4.14 to 4.49:1.
+	   So the card takes the plate's depth -- the lit top line and the long
+	   shadow -- and keeps the ground its words were tuned for. */
+	background-color: var(--bg1);
+	background-image: none;
+	/* RAISED, BECAUSE IT IS PRESSED: the card is a link, so it takes a key's
+	   depth -- a lit top line, a soft foot inside, a dark rim outside its brand
+	   edge and a drop shadow -- all of it shadow, so the face its words were
+	   measured on is untouched (the fresh reviewer read panel-only depth as
+	   still flat). */
+	box-shadow:
+		inset 0 2px 0 0 var(--plate-bezel-hi),
+		inset 0 -3px 3px -1px var(--plate-foot),
+		0 0 0 1px var(--plate-rim-out),
+		0 2px 3px 0 var(--plate-drop),
+		0 8px 14px -6px var(--plate-drop-far);
+}
+
+/* --- The home stats plate is a plate panel. ------------------------------
+   It was a chamfered clip over a bevel (`app.css`), and on Space White's light
+   ground the clip cut the bevel's frame into broken corners (the fresh
+   reviewer's item 19). It joins plate.css's panel list, which paints it, and
+   loses the clip here so the rounded panel shows whole. */
+:root .site-plate .legacy-index .hero-meta {
+	clip-path: none;
+}
+
+/* --- The coin desk's title bar spans its row. -------------------------------
+   The desk's hero is a row of the breadcrumb and the title; as a flex item the
+   title bar took only what the breadcrumb left and wrapped "COIN DESK" over
+   two lines at 375. A 24rem basis puts it on a row of its own whenever the
+   two do not both fit, which is every width but the widest. */
+:root .site-plate .cd-root .hero h1 {
+	flex: 1 1 24rem;
+}
+
+/* --- An empty block draws nothing. ------------------------------------------
+   Foundry's play-stats block is a panel whose component renders nothing until
+   it has figures; as a plate panel the empty box read as a stray bar. */
+:root .site-plate .fdy-block:not(:has(*)) {
+	border-color: transparent;
+	background: none;
+	box-shadow: none;
+}
+
+/* --- A check and a radio take the plate's accent, not the browser's blue. -- */
+.site-plate :is(input[type='checkbox'], input[type='radio']) {
+	accent-color: var(--plate-accent);
+}
+
+/* --- Muted words that sat on `--bg2`. -----------------------------------
+   `--dim` on `--bg2` is 4.24:1, the failure CLAUDE.md names as waiting for a
+   use, and three call sites on these pages were that use: the separator in
+   the home stats plate, a class card's section line, and the dashboard's FRC
+   unit titles. Each takes `--text-2`, the register's own token for secondary
+   copy, which is the fix CLAUDE.md gives for this exact pair. */
+:root .site-plate :is(.legacy-index .v-staff-sep, .course-card .section-meta, .fuo-title) {
+	color: var(--text-2);
+}
+
+/* --- No decorative grid (IDEA_INTERFACE_STANDARDS 14d). -----------------
+   The landing page's `.surface-machined` texture is a 1px line every 3px,
+   which is a ruled fill; the plate's ground replaces it (the rule above sets
+   the image). The shell's scan-line layer is hidden by plate.css's own
+   `body:has(...) .bg-fx::after` rule.
+
+   THE MAPS BLUEPRINT GRID GOES TOO, AND THAT IS A MEASURED CALL, NOT A TASTE:
+   `--blueprint-grid-size` is a fixed 24px in CSS pixels, drawn behind the
+   plan's SVG and behind the map pane. It does not move or scale when the plan
+   zooms, and nothing in the maps spec ties 24px to a length in the building,
+   so it marks no real scale and is decoration. The drawing itself -- the
+   walls, the rooms, the scale bar the plan draws -- is content and is not
+   touched: only the backdrop behind it loses its lines. */
+.site-plate :is(.mv-map, .mv-plan svg, .mv-elev-sheet svg) {
+	background-image: none;
+}

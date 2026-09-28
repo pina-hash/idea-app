@@ -55,18 +55,38 @@
    ROUNDED rectangle. The chamfer is a detail only: the selected button's ring
    breaks, the display screen's lower corners and the title bar's hazard ends.
 
-   CONTENT STAYS CONTENT. The rules live in `@scope (.cr-plate) to (...)`, and
+   CONTENT STAYS CONTENT. The rules live in `@scope (.cr-plate, .site-plate) to (...)`, and
    the lower bound is every island of somebody's work or somebody else's
    design: an item's rich-text body, rendered markdown, the rich-text editor's
    document, a deck's stage, an IdeaCAD embed, the photo corrector and camera,
    a ported HTML worksheet's frame. The plate frames them and never reaches
-   inside. The notebook review grid is in the list too (`.grid-card`, the card and
+   inside. Ledger 0346 added the site's islands when the same rules started
+   painting the rest of the site under `.site-plate`: the tournament TV stage,
+   the maps viewer's plan and elevation drawings, and the frame a student's
+   Foundry app runs in.
+
+   TWO SWITCHES, ONE STYLESHEET (ledger 0346). Every rule keys on
+   `:is(.cr-plate, .site-plate)`, which has the specificity `.cr-plate` alone
+   had, so the classroom renders exactly as it did (measured: 0 differing of
+   5,728 elements against this file before the change). `.site-plate` is put
+   on a `display: contents` wrapper by src/routes/+layout.svelte on the routes
+   `$lib/shell/site-plate.ts` lists, and `$lib/shell/site-plate.css` carries
+   the few rules that belong to the site alone (its rooms' grounds). The notebook review grid is in the list too (`.grid-card`, the card and
    everything in it): its cells, glyphs, legend and density are a LOCKED
    CONTRACT (CLAUDE.md), and its per-plate cell inks were measured against
    that card's own ground, so the plate does not repaint even the card. A browser with no `@scope` drops that whole block and renders the
    classroom as it was, which is the right way for this to fail.
 
-   SPECIFICITY IS STATED, NOT HOPED FOR. Every rule opens `:root :scope.cr-plate`,
+   A QUALIFIER ADDED TO A LIST GOES INSIDE `:where()`, AND THAT IS NOT STYLE.
+   `:is()` takes the specificity of its MOST specific argument, so one compound
+   entry (`.chips-field .chips-box`, `.tnm-root .del .trigger`) raises the whole
+   rule for every control in the list. Ledger 0346 did exactly that while
+   adding the site's surfaces and the wells rule began beating `.cr-select`'s
+   own caret, which vanished; the fresh reviewer saw it from a screenshot. A
+   room qualifier is written `:where(.tnm-root) .ctl`, which keeps each list at
+   the weight it had.
+
+   SPECIFICITY IS STATED, NOT HOPED FOR. Every rule opens `:root :scope:is(.cr-plate, .site-plate)`,
    (0,3,0) before its own selector, which beats `.cr-root X` in classroom.css
    and a component's scoped `.a .b` (Svelte scopes the first compound only, so
    that is (0,3,0) before this file's own), whatever order the stylesheets
@@ -96,7 +116,7 @@
 /* --------------------------------------------------------------------------
    1. SHAPE: every theme, declared once.
    -------------------------------------------------------------------------- */
-.cr-plate {
+:is(.cr-plate, .site-plate) {
 	/* The chamfer: a superellipse near 0 is a bevel whose ends are rounded
 	   (the corner study on /dev/themes-shape; shapes-v3.md). */
 	--plate-soft: superellipse(0.25);
@@ -118,9 +138,16 @@
 	/* The selected ring: inset from the outer edge. */
 	--plate-ring-inset: 5px;
 	/* A chip's status lamp, and its clear space on BOTH sides (polish 1: at
-	   least 4px between the lamp and the first letter, the same outside it). */
+	   least 4px between the lamp and the first letter, the same outside it;
+	   ledger 0346 raised it to 5px, which the 2x sheet still read as tight at
+	   4, and bought the two pixels back from the word, below). */
 	--plate-led-chip: 4px;
-	--plate-led-gap: 4px;
+	--plate-led-gap: 5px;
+	/* The lamp chip's word tracking and its padding after the word: what pays
+	   for the lamp's clear space, so the chip is still no wider than today's
+	   chip holding the same word. */
+	--plate-led-word-track: -0.02em;
+	--plate-led-pad-end: 2px;
 	/* The hazard blocks either side of a page title, and the title's size. */
 	--plate-hazard-w: min(18%, 132px);
 	--plate-hazard-h: 15px;
@@ -132,7 +159,7 @@
 }
 /* THE LENGTHS THAT MOVE, AND THEY MOVE WITH THE VIEWPORT, NEVER THE THEME. */
 @media (max-width: 480px) {
-	.cr-plate {
+	:is(.cr-plate, .site-plate) {
 		--plate-hazard-w: 24px;
 		--plate-hazard-h: 10px;
 		--plate-hazard-pitch: 6.667px;
@@ -153,8 +180,8 @@
    green rim glow; a selection is a deep accent face with light type and a
    green edge; lit parts bloom into what is around them.
    -------------------------------------------------------------------------- */
-.cr-plate,
-body:has(.cr-plate) {
+:is(.cr-plate, .site-plate),
+body:has(:is(.cr-plate, .site-plate)) {
 	/* The plate. THE DARK FACES SIT LOWER THAN ROUND 3's, AND THAT IS THE ONE
 	   MEASURED DEPARTURE FROM THE APPROVED MOCKUP. Round 3's charcoal card
 	   (#383e3a) was lighter than any ground the site's own inks were tuned
@@ -261,8 +288,13 @@ body:has(.cr-plate) {
 	--plate-sel-glow: rgba(120, 184, 112, 0.3);
 	--plate-sel-chip-edge: rgba(231, 234, 232, 0.5);
 	--plate-selchip-face: rgba(0, 0, 0, 0.28);
-	/* A danger key keeps the room's own danger ink on the machined face. */
-	--plate-danger-ink: var(--crimson);
+	/* A danger key keeps the room's danger HUE on the machined face, at a
+	   lightness the face can carry. It was `var(--crimson)`, #d95f5f, which
+	   measured 3.47:1 on this key face (ledger 0346, on /dev/short-links' Delete;
+	   every classroom danger key had the same figure). Lightness only, hue and
+	   saturation held: #e28383 is 4.71:1 on the IDEA face and 4.85 on Matrix's.
+	   Space White declares its own below. */
+	--plate-danger-ink: #e28383;
 	/* LEDs. */
 	--plate-led-off: #2c332f;
 	--plate-led-off-hi: #48514b;
@@ -325,8 +357,8 @@ body:has(.cr-plate) {
 /* MATRIX: the same machined layers in the theme's phosphor palette, and the
    one theme where the lights BLOOM. Every surface is green-tinted charcoal,
    never black. The rain is left exactly as it is. */
-:root[data-theme='matrix'] .cr-plate,
-:root[data-theme='matrix'] body:has(.cr-plate) {
+:root[data-theme='matrix'] :is(.cr-plate, .site-plate),
+:root[data-theme='matrix'] body:has(:is(.cr-plate, .site-plate)) {
 	--plate-plate-top: #121914;
 	--plate-plate-bot: #0e140f;
 	/* The page gradient is not painted: matrix.css makes `.cr-root`
@@ -441,8 +473,8 @@ body:has(.cr-plate) {
    worst case is 3.12:1 on the recessed column's foot and 3.27:1 on the
    plate, and the column was lifted (#d3d7e1/#ccd0db in round 3) so it is no
    longer the one ground that pinned the line dark. */
-:root[data-theme='space-white'] .cr-plate,
-:root[data-theme='space-white'] body:has(.cr-plate) {
+:root[data-theme='space-white'] :is(.cr-plate, .site-plate),
+:root[data-theme='space-white'] body:has(:is(.cr-plate, .site-plate)) {
 	--plate-plate-top: #e4e8ee;
 	--plate-plate-bot: #dfe3ea;
 	--plate-plate-hi: #f6f8fb;
@@ -502,6 +534,10 @@ body:has(.cr-plate) {
 	--plate-ink-2: var(--text-2);
 	--plate-caption: #545a61;
 	--plate-btn-ink: #2d3238;
+	/* The danger ink on Space White's grey key: the theme's own crimson
+	   (#b42b2b) measured 3.35:1 on the key's top stop, so it is the same hue
+	   and saturation at 33% lightness, 4.89:1 there (ledger 0346). */
+	--plate-danger-ink: #882020;
 	--plate-head-ink: var(--text-1);
 	--plate-text-bloom: rgba(255, 255, 255, 0);
 	--plate-accent-tint: rgba(59, 108, 54, 0.3);
@@ -580,10 +616,10 @@ body:has(.cr-plate) {
    plate card (IDEA) and 4.10 (Matrix). These clear 4.64 and 4.67. Space
    White's own value already clears its lighter cards (4.81 worst) and its own
    rule outranks this one. */
-.cr-plate .nb-root {
+:is(.cr-plate, .site-plate) .nb-root {
 	--nb-ink-faint: #959f98;
 }
-:root[data-theme='matrix'] .cr-plate .nb-root {
+:root[data-theme='matrix'] :is(.cr-plate, .site-plate) .nb-root {
 	--nb-ink-faint: #84a288;
 }
 
@@ -599,7 +635,7 @@ body:has(.cr-plate) {
 	background-image: linear-gradient(to bottom, var(--plate-page-top), var(--plate-page-bot) 28rem);
 	background-repeat: no-repeat;
 }
-/* The colour blocks are also declared on `body:has(.cr-plate)`, because a
+/* The colour blocks are also declared on `body:has(:is(.cr-plate, .site-plate))`, because a
    body background reads its tokens on the BODY: declared on `.cr-plate`
    alone, `--plate-plate-bot` is undefined there and the canvas under a short
    page, the overscroll and the collapsed footer margin went transparent. */
@@ -611,7 +647,7 @@ body:has(.cr-root.cr-plate) {
    `.bg-fx` under the classroom (matrix.css, for the rain), and `.bg-fx::after`
    is a full-window scan-line fill, which Mr. Pina's rule counts as a grid.
    Behind a plate that one layer is hidden; the rain is untouched. */
-body:has(.cr-plate) .bg-fx::after {
+body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	display: none;
 }
 
@@ -619,23 +655,23 @@ body:has(.cr-plate) .bg-fx::after {
    4. RULES. Written once; none names a theme. The lower bound is every
    island of content (see the header).
    -------------------------------------------------------------------------- */
-@scope (.cr-plate) to (.ic-root, .deck-stage, .nb-island, .item-body, .md, .ProseMirror, .hx-frame-box, .note-content, .lb-stage, .grid-card) {
+@scope (.cr-plate, .site-plate) to (.ic-root, .deck-stage, .nb-island, .item-body, .md, .ProseMirror, .hx-frame-box, .note-content, .lb-stage, .grid-card, .tnm-root.tv, .mv-plan, .mv-elev-sheet, .fdy-frame-wrap) {
 	/* --- Mono labels: the 11px floor, uppercase, tracked. -------------------
 	   A label is always caps: wide tracking on lower case reads as spaced-out
 	   letters. `.section-label` and `.eyebrow` name a section of content and
 	   sit ABOVE it, which every classroom surface already does (polish 3). */
-	:root :scope.cr-plate :is(.mini-label, .section-label, .eyebrow, .comment-label, .row-meta, .cls-sub, .sw-item-code, .sw-item-flag, .pane-meta, .pane-code, .group-progress, .group-count, .version-badge, .pw-label, .sfb-word) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.mini-label, .section-label, .eyebrow, .comment-label, .row-meta, .cls-sub, .sw-item-code, .sw-item-flag, .pane-meta, .pane-code, .group-progress, .group-count, .version-badge, .pw-label, .sfb-word) {
 		font-size: var(--plate-label-size);
 		letter-spacing: var(--plate-label-track);
 		text-transform: uppercase;
 	}
-	:root :scope.cr-plate :is(.mini-label, .section-label) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.mini-label, .section-label) {
 		color: var(--plate-caption);
 	}
-	:root :scope.cr-plate :is(.row-meta, .group-progress, .group-count, .pane-meta) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.row-meta, .group-progress, .group-count, .pane-meta) {
 		letter-spacing: 0.04em;
 	}
-	:root :scope.cr-plate .version-badge .sep {
+	:root :scope:is(.cr-plate, .site-plate) .version-badge .sep {
 		margin-left: 0.35em;
 	}
 
@@ -666,7 +702,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   `[aria-disabled="true"]` and `.disabled` are the unlit key. A state this
 	   list did not know would draw as a plain key, which is why the list was
 	   built from each component's own selectors (docs/history). */
-	:root :scope.cr-plate :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn) {
 		border: 1px solid;
 		border-color: var(--plate-hair-top) var(--plate-hair) var(--plate-hair);
 		border-radius: var(--plate-r-control);
@@ -685,10 +721,10 @@ body:has(.cr-plate) .bg-fx::after {
 		text-shadow: none;
 		transform: none;
 	}
-	:root :scope.cr-plate .btn {
+	:root :scope:is(.cr-plate, .site-plate) .btn {
 		letter-spacing: 0.08em;
 	}
-	:root :scope.cr-plate :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link):hover {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn):hover {
 		border-color: var(--hover-ink);
 		color: var(--plate-btn-ink);
 		text-shadow: none;
@@ -696,8 +732,8 @@ body:has(.cr-plate) .bg-fx::after {
 	/* PRIMARY is the one flat accent face, and a lit key keeps its grey bezel:
 	   the hairline and a 2px grey ring inside it, then the accent. On a dark
 	   theme the face is the deep accent with a green glow inside it. */
-	:root :scope.cr-plate :is(.btn:not(.secondary, .danger, .ghost, :disabled, [aria-disabled='true'], .disabled), :is(.tour-btn, .tour-offer-btn, .pm-btn, .fb-btn, .qn-btn).primary:not(:disabled, [aria-disabled='true'], .disabled)),
-	:root :scope.cr-plate :is(.btn:not(.secondary, .danger, .ghost, :disabled, [aria-disabled='true'], .disabled), :is(.tour-btn, .tour-offer-btn, .pm-btn, .fb-btn, .qn-btn).primary:not(:disabled, [aria-disabled='true'], .disabled)):hover {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn:not(.secondary, .danger, .ghost, :disabled, [aria-disabled='true'], .disabled), :is(.tour-btn, .tour-offer-btn, .pm-btn, .fb-btn, .qn-btn).primary:not(:disabled, [aria-disabled='true'], .disabled)),
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn:not(.secondary, .danger, .ghost, :disabled, [aria-disabled='true'], .disabled), :is(.tour-btn, .tour-offer-btn, .pm-btn, .fb-btn, .qn-btn).primary:not(:disabled, [aria-disabled='true'], .disabled)):hover {
 		background:
 			linear-gradient(var(--plate-primary-face), var(--plate-primary-face)) padding-box,
 			linear-gradient(to bottom, var(--plate-hair-top), var(--plate-hair)) border-box;
@@ -713,18 +749,18 @@ body:has(.cr-plate) .bg-fx::after {
 			0 2px 3px 0 var(--plate-drop),
 			0 6px 10px -5px var(--plate-drop-far);
 	}
-	:root :scope.cr-plate :is(.btn:not(.secondary, .danger, .ghost, :disabled, [aria-disabled='true'], .disabled), :is(.tour-btn, .tour-offer-btn, .pm-btn, .fb-btn, .qn-btn).primary:not(:disabled, [aria-disabled='true'], .disabled)):hover {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn:not(.secondary, .danger, .ghost, :disabled, [aria-disabled='true'], .disabled), :is(.tour-btn, .tour-offer-btn, .pm-btn, .fb-btn, .qn-btn).primary:not(:disabled, [aria-disabled='true'], .disabled)):hover {
 		border-color: var(--hover-ink);
 	}
 	/* DANGER keeps the room's danger ink on a grey key: the word and its
 	   colour say what it costs, the material says it is pressable. */
-	:root :scope.cr-plate :is(.btn.danger, .danger:is(.attach-btn, .fup-btn, .cs-btn)):not(:disabled, [aria-disabled='true'], .disabled),
-	:root :scope.cr-plate :is(.btn.danger, .danger:is(.attach-btn, .fup-btn, .cs-btn)):not(:disabled, [aria-disabled='true'], .disabled):hover {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn.danger, .danger:is(.attach-btn, .fup-btn, .cs-btn)):not(:disabled, [aria-disabled='true'], .disabled),
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn.danger, .danger:is(.attach-btn, .fup-btn, .cs-btn)):not(:disabled, [aria-disabled='true'], .disabled):hover {
 		color: var(--plate-danger-ink);
 	}
 	/* PRESSED sinks: a darker key face with the shadow inside at the top and
 	   the light moved to its foot. Nothing moves. */
-	:root :scope.cr-plate :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link):active:not(:disabled, [aria-disabled='true'], .disabled) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn):active:not(:disabled, [aria-disabled='true'], .disabled) {
 		transform: none;
 		background:
 			linear-gradient(to bottom, var(--plate-press-top), var(--plate-press-bot)) padding-box,
@@ -739,8 +775,8 @@ body:has(.cr-plate) .bg-fx::after {
 	/* DISABLED is an UNLIT key: a flat face a shade off the plate, a quieter
 	   edge, no highlight, no shadow, and the word itself. An `aria-disabled`
 	   control keeps explaining itself, so it is drawn the same way. */
-	:root :scope.cr-plate :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link):is(:disabled, [aria-disabled='true'], .disabled),
-	:root :scope.cr-plate :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link):is(:disabled, [aria-disabled='true'], .disabled):hover {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn):is(:disabled, [aria-disabled='true'], .disabled),
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn):is(:disabled, [aria-disabled='true'], .disabled):hover {
 		opacity: 1;
 		background: linear-gradient(var(--plate-disabled-face), var(--plate-disabled-face)) padding-box;
 		background-color: var(--plate-disabled-face);
@@ -756,7 +792,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   breaks keeps the solid one. The word, and `aria-pressed` where the
 	   component sets it, say the state too, so colour is never the only
 	   signal. */
-	:root :scope.cr-plate :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link):is([aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], .is-on, .on, .active, .picked):not(:disabled, [aria-disabled='true'], .disabled) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn):is([aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], .is-on, .on, .active, .picked):not(:disabled, [aria-disabled='true'], .disabled) {
 		position: relative;
 		background:
 			linear-gradient(to bottom, var(--plate-lit-top), var(--plate-lit-bot)) padding-box,
@@ -771,7 +807,7 @@ body:has(.cr-plate) .bg-fx::after {
 			0 0 8px 1px var(--plate-bloom),
 			0 2px 3px 0 var(--plate-drop);
 	}
-	:root :scope.cr-plate :is(.btn, .nav-toggle, .todo-view):is([aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], .is-on, .on, .active, .picked):not(:disabled, [aria-disabled='true'], .disabled) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .nav-toggle, .todo-view):is([aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], .is-on, .on, .active, .picked):not(:disabled, [aria-disabled='true'], .disabled) {
 		box-shadow:
 			inset 0 0 0 1px var(--plate-bezel-mid),
 			inset 0 0 0 2px var(--plate-accent-tint),
@@ -780,7 +816,7 @@ body:has(.cr-plate) .bg-fx::after {
 			0 2px 3px 0 var(--plate-drop),
 			0 6px 10px -5px var(--plate-drop-far);
 	}
-	:root :scope.cr-plate :is(.btn, .nav-toggle, .todo-view):is([aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], .is-on, .on, .active, .picked):not(:disabled, [aria-disabled='true'], .disabled)::after {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .nav-toggle, .todo-view):is([aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], .is-on, .on, .active, .picked):not(:disabled, [aria-disabled='true'], .disabled)::after {
 		content: '';
 		position: absolute;
 		inset: calc(var(--plate-ring-inset) - 1px);
@@ -794,7 +830,7 @@ body:has(.cr-plate) .bg-fx::after {
 			linear-gradient(#000, #000);
 		mask-composite: exclude;
 	}
-	:root :scope.cr-plate :is(.btn, .nav-toggle, .todo-view):is([aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], .is-on, .on, .active, .picked):not(:disabled, [aria-disabled='true'], .disabled)::before {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .nav-toggle, .todo-view):is([aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], .is-on, .on, .active, .picked):not(:disabled, [aria-disabled='true'], .disabled)::before {
 		content: '';
 		position: absolute;
 		inset: calc(var(--plate-ring-inset) - 1px);
@@ -810,7 +846,7 @@ body:has(.cr-plate) .bg-fx::after {
 	}
 	/* Colour and shadow may ease; nothing that moves a box does. */
 	@media (prefers-reduced-motion: no-preference) {
-		:root :scope.cr-plate :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, .cls-icon, .theme-switch, .sec-tab) {
+		:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, .cls-icon, .theme-switch, .sec-tab) {
 			transition:
 				color 120ms ease-out,
 				border-color 120ms ease-out,
@@ -828,7 +864,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   page sideways), a plain rounded rectangle,
 	   every band drawn INSIDE the box (so it costs no width), the label at the
 	   11px floor. A chip's tone class keeps colouring its word. */
-	:root :scope.cr-plate :is(.draft-chip, .sched-chip, .kind-chip, .chip):not(a, button, label) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.draft-chip, .sched-chip, .kind-chip, .chip):not(a, button, label) {
 		display: inline-flex;
 		align-items: center;
 		gap: 3px;
@@ -849,10 +885,13 @@ body:has(.cr-plate) .bg-fx::after {
 			inset 0 -1px 0 0 var(--plate-chip-lip),
 			0 1px 0 0 var(--plate-chip-lip);
 	}
-	:root :scope.cr-plate :is(.draft-chip, .sched-chip, .kind-chip) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.draft-chip, .sched-chip, .kind-chip) {
 		color: var(--plate-ink);
 	}
-	:root :scope.cr-plate .chip {
+	/* A chip that is a link or a button is a small key and keeps its own
+	   padding: this tighter padding reached the dashboard's section keys and
+	   put their words against their edges (ledger 0346). */
+	:root :scope:is(.cr-plate, .site-plate) .chip:not(a, button, label) {
 		padding: 0 4px;
 		letter-spacing: var(--plate-chip-track-tight);
 	}
@@ -863,7 +902,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   not one of them grows by a pixel; what changes is that it is set INTO
 	   the surface instead of drawn on it. A chip that is a LINK or a BUTTON
 	   is excluded here and is a raised key (below), because it is pressable. */
-	:root :scope.cr-plate :is(.state-chip, .roster-chip, .pin-chip, .lg-chip, .updated-chip, .todo-chip, .export-chip, .sq-chip, .ctool-chip, .points-chip, .override-chip, .hp-chip, .ib-chip, .lc-wall-chip, .lg-missing-chip, .pill, .owed):not(a, button, label) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.state-chip, .roster-chip, .pin-chip, .lg-chip, .updated-chip, .todo-chip, .export-chip, .sq-chip, .ctool-chip, .points-chip, .override-chip, .hp-chip, .ib-chip, .lc-wall-chip, .lg-missing-chip, .pill, .owed, .feed-flag, .course-badge, .td-owed, .medium-chip, .strike-chip, .type-chip, .status-tag, .fg-chip, .mp-chip, .ar-tag, .chip-count, :where(.tnm-root) :is(.tag, .state)):not(a, button, label) {
 		border-color: transparent;
 		border-radius: var(--plate-r-small);
 		background-color: var(--plate-chip-ground);
@@ -874,10 +913,27 @@ body:has(.cr-plate) .bg-fx::after {
 			inset 0 -1px 0 0 var(--plate-chip-lip),
 			0 1px 0 0 var(--plate-chip-lip);
 	}
+	/* THE STATUS TAG UNDER "YOUR WORK" IS A WHOLE CHIP, SHAPE AND ALL (ledger
+	   0346). The rule above gives every surface's own tag the material only and
+	   leaves its size alone, because those tags sit in rows whose width is
+	   budgeted; this one sits alone in its row, so it can take the shared
+	   chip's 22px height, 11px label and caps, and at 18px in mixed case it read
+	   as the old flat outline beside everything else on the page. */
+	:root :scope:is(.cr-plate, .site-plate) .status-row > .state-chip {
+		display: inline-flex;
+		align-items: center;
+		box-sizing: border-box;
+		min-height: var(--plate-chip-h);
+		padding: 0 6px;
+		font-size: var(--plate-label-size);
+		line-height: 1;
+		letter-spacing: var(--plate-chip-track);
+		text-transform: uppercase;
+	}
 	/* A missing count keeps its warning wash, laid over the tag's own ground
 	   rather than over whatever is under the tag: on a key face or a panel
 	   the see-through wash left the warning ink at 3.4:1 and 4.42:1. */
-	:root :scope.cr-plate .owed.owed-missing {
+	:root :scope:is(.cr-plate, .site-plate) .owed.owed-missing {
 		background-color: color-mix(in srgb, var(--amber) 14%, var(--plate-chip-ground));
 		background-image: none;
 	}
@@ -885,7 +941,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   is a small raised key: a link chip, a chip-shaped button (the notebook's
 	   next check-in and drafts counts) and the composer's insert-a-template
 	   buttons, which were dashed capsules. */
-	:root :scope.cr-plate :is(a.chip, button.chip, button.lg-chip, .chip-link, button.template) {
+	:root :scope:is(.cr-plate, .site-plate) :is(a.chip, button.chip, button.lg-chip, .chip-link, button.template) {
 		border: 1px solid;
 		border-color: var(--plate-hair-top) var(--plate-hair) var(--plate-hair);
 		border-radius: var(--plate-r-small);
@@ -903,19 +959,20 @@ body:has(.cr-plate) .bg-fx::after {
 	/* A chip-shaped key's own lead word (the notebook head's NEXT CHECK-IN)
 	   takes the key's ink: its brass was tuned for a card, and on Space
 	   White's grey key it fell to 3.38:1. The word still says what it is. */
-	:root :scope.cr-plate button.chip .chip-key {
+	:root :scope:is(.cr-plate, .site-plate) button.chip .chip-key {
 		color: var(--plate-btn-ink);
 	}
 	/* THE LAMP GETS REAL ROOM: its own padding outside it and the same clear
-	   space before the word, bought from the word's tracking (none on a lamp
-	   chip) and never from the 11px floor, so the chip is still no wider than
+	   space before the word, bought from the word's tracking (slightly
+	   negative on a lamp chip) and the padding after it, never from the 11px
+	   floor, so the chip is still no wider than
 	   today's holding the same word. */
-	:root :scope.cr-plate :is(.draft-chip, .sched-chip, .kind-chip.pinned) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.draft-chip, .sched-chip, .kind-chip.pinned) {
 		gap: var(--plate-led-gap);
-		padding: 0 3px 0 var(--plate-led-gap);
-		letter-spacing: 0;
+		padding: 0 var(--plate-led-pad-end) 0 var(--plate-led-gap);
+		letter-spacing: var(--plate-led-word-track);
 	}
-	:root :scope.cr-plate :is(.draft-chip, .sched-chip, .kind-chip.pinned)::before {
+	:root :scope:is(.cr-plate, .site-plate) :is(.draft-chip, .sched-chip, .kind-chip.pinned)::before {
 		content: '';
 		flex: none;
 		width: var(--plate-led-chip);
@@ -927,10 +984,10 @@ body:has(.cr-plate) .bg-fx::after {
 			0 0 4px 1px var(--plate-led-color);
 		pointer-events: none;
 	}
-	:root :scope.cr-plate :is(.draft-chip, .sched-chip) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.draft-chip, .sched-chip) {
 		--plate-led-color: var(--plate-led-amber);
 	}
-	:root :scope.cr-plate .kind-chip.pinned {
+	:root :scope:is(.cr-plate, .site-plate) .kind-chip.pinned {
 		--plate-led-color: var(--plate-led-gold);
 	}
 
@@ -940,7 +997,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   the track is drawn in. The disc's side is the control's STATE, and on
 	   this control the state IS the theme, so it is the one per-theme
 	   difference inside a control; the control's box does not move. */
-	:root :scope.cr-plate :is(.theme-switch, .theme-switch.on) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.theme-switch, .theme-switch.on) {
 		position: relative;
 		display: inline-flex;
 		align-items: center;
@@ -973,14 +1030,14 @@ body:has(.cr-plate) .bg-fx::after {
 		color: var(--plate-btn-ink);
 		outline: none;
 	}
-	:root :scope.cr-plate .theme-switch .ts-glyph {
+	:root :scope:is(.cr-plate, .site-plate) .theme-switch .ts-glyph {
 		flex: none;
 		display: block;
 		width: 40px;
 		height: 20px;
 		visibility: hidden;
 	}
-	:root :scope.cr-plate .theme-switch::before {
+	:root :scope:is(.cr-plate, .site-plate) .theme-switch::before {
 		content: '';
 		position: absolute;
 		left: calc(0.7rem + 1px);
@@ -998,13 +1055,13 @@ body:has(.cr-plate) .bg-fx::after {
 			inset 0 1px 2px 0 var(--plate-drop),
 			0 1px 0 0 var(--plate-well-lip);
 	}
-	:root :scope.cr-plate .theme-switch[aria-pressed='true']::before {
+	:root :scope:is(.cr-plate, .site-plate) .theme-switch[aria-pressed='true']::before {
 		background:
 			radial-gradient(circle, var(--plate-accent) 0 9.3px, transparent 10px) 100% 50% / 20px 20px no-repeat,
 			radial-gradient(circle, var(--plate-knob-shade) 0 7px, transparent 10.5px) calc(100% + 1px) calc(50% + 2px) / 20px 20px no-repeat,
 			linear-gradient(to bottom, var(--plate-well-shade), var(--plate-track) 6px);
 	}
-	:root :scope.cr-plate .theme-switch::after {
+	:root :scope:is(.cr-plate, .site-plate) .theme-switch::after {
 		content: '';
 		position: absolute;
 		left: calc(0.7rem + 1px + 5px);
@@ -1016,19 +1073,19 @@ body:has(.cr-plate) .bg-fx::after {
 		background: var(--plate-knob-icon);
 		mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 2l6 6M8 2l-6 6' stroke='%23000' stroke-width='1.2' stroke-linecap='round'/%3E%3C/svg%3E") center / 10px 10px no-repeat;
 	}
-	:root :scope.cr-plate .theme-switch[aria-pressed='true']::after {
+	:root :scope:is(.cr-plate, .site-plate) .theme-switch[aria-pressed='true']::after {
 		left: calc(0.7rem + 1px + 40px - 15px);
 		background: var(--plate-knob-on-icon);
 		mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1.8 5.2l2.2 2.2 4.2-4.6' stroke='%23000' stroke-width='1.3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 	}
-	:root :scope.cr-plate .theme-switch .ts-word {
+	:root :scope:is(.cr-plate, .site-plate) .theme-switch .ts-word {
 		font-size: var(--plate-label-size);
 		letter-spacing: var(--plate-label-track);
 	}
-	:root :scope.cr-plate .theme-switch:hover {
+	:root :scope:is(.cr-plate, .site-plate) .theme-switch:hover {
 		border-color: var(--hover-ink);
 	}
-	:root :scope.cr-plate .theme-switch:focus-visible {
+	:root :scope:is(.cr-plate, .site-plate) .theme-switch:focus-visible {
 		outline: 2px solid var(--focus-ring);
 		outline-offset: 2px;
 	}
@@ -1041,7 +1098,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   class card, the hall pass and song queue cards, the live door and the
 	   live tab's panels, the item inspector, the worksheet progress readout,
 	   a notebook entry and its composer, the tour offer, a link preview. */
-	:root :scope.cr-plate :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp, .course-card, .td-door, .coin-summary, .preview-banner, .fdy-block, .fdy-gal-plays, .fdy-flag, .fdy-insp-section:where(.fdy-shelf), .fdy-before, .fdy-mode, .tnm-panel, .tnm-root:where(.room-box, .entry-detail, .match-detail), :where(.tnm-root) :is(.room-box, .pool, .match), .frq-item, .gdq-item, .ar-row, :where(.admin-console) .panel, :where(.legacy-index) .hero-meta) {
 		border-color: var(--plate-hair);
 		border-radius: var(--plate-r-panel);
 		background-color: var(--plate-panel-ground);
@@ -1053,12 +1110,12 @@ body:has(.cr-plate) .bg-fx::after {
 			-2px 18px 30px -14px var(--plate-drop-far);
 	}
 	/* A panel that is itself a link keeps the hover edge it always had. */
-	:root :scope.cr-plate :is(a.class-card, a.ld-door, a.lp):hover {
+	:root :scope:is(.cr-plate, .site-plate) :is(a.class-card, a.ld-door, a.lp):hover {
 		border-color: var(--hover-ink);
 	}
 	/* A card nested in a card is a panel INSIDE a housing: the same face, and
 	   a shorter shadow so the stack reads as one assembly. */
-	:root :scope.cr-plate :is(.card, .console-panel, .lc-panel, .entry-panel) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.card, .console-panel, .lc-panel, .entry-panel) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp, .course-card, .td-door, .coin-summary, .preview-banner, .fdy-block, .fdy-gal-plays, .fdy-flag, .fdy-insp-section:where(.fdy-shelf), .fdy-before, .fdy-mode, .tnm-panel, .tnm-root:where(.room-box, .entry-detail, .match-detail), :where(.tnm-root) :is(.room-box, .pool, .match), .frq-item, .gdq-item, .ar-row, :where(.admin-console) .panel, :where(.legacy-index) .hero-meta) {
 		box-shadow:
 			inset 0 1px 0 0 var(--plate-panel-hi),
 			0 1px 2px 0 var(--plate-drop),
@@ -1070,7 +1127,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   lip OUTSIDE the foot. The border stays the hairline all round, because
 	   the outer edge of a control is load-bearing. The dropdown's caret is a
 	   small accent triangle. */
-	:root :scope.cr-plate :is(.cr-select, .find-field, .find-kind, .plate-well, .fup-zone, .search) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-select, .find-field, .find-kind, .plate-well, .fup-zone, .search, .fdy-drop, .fdy-stage-idle, .fdy-plays-grid, .fdy-share-url, :where(.chips-field) .chips-box) {
 		border: 1px solid var(--plate-hair);
 		border-radius: var(--plate-r-control);
 		background-color: var(--plate-well-ground);
@@ -1081,7 +1138,7 @@ body:has(.cr-plate) .bg-fx::after {
 			0 1px 0 0 var(--plate-well-lip);
 		color: var(--plate-ink);
 	}
-	:root :scope.cr-plate :is(.cr-select, .find-kind) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-select, .find-kind) {
 		font-family: var(--font-mono);
 		font-size: var(--plate-label-size);
 		letter-spacing: 0.02em;
@@ -1106,7 +1163,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   because a paragraph in a dark trough is a paragraph nobody wants to
 	   write. The rich-text editor's document is content and is left alone
 	   (it is below the scope). A field keeps its own size and padding. */
-	:root :scope.cr-plate :is(input:is([type='text'], [type='search'], [type='email'], [type='url'], [type='number'], [type='date'], [type='time'], [type='datetime-local'], [type='password'], :not([type])), select:not(.cr-select)):not(:is(.find-field, .find-kind, .search) *) {
+	:root :scope:is(.cr-plate, .site-plate) :is(input:is([type='text'], [type='search'], [type='email'], [type='url'], [type='number'], [type='date'], [type='time'], [type='datetime-local'], [type='password'], :not([type])), select:not(.cr-select)):not(:is(.find-field, .find-kind, .search) *) {
 		border-color: var(--plate-hair);
 		border-radius: var(--plate-r-small);
 		background-color: var(--plate-well-ground);
@@ -1117,7 +1174,7 @@ body:has(.cr-plate) .bg-fx::after {
 			0 1px 0 0 var(--plate-well-lip);
 		color: var(--plate-ink);
 	}
-	:root :scope.cr-plate textarea {
+	:root :scope:is(.cr-plate, .site-plate) textarea {
 		border-color: var(--plate-hair);
 		border-radius: var(--plate-r-small);
 		background-color: var(--plate-panel-bot);
@@ -1130,11 +1187,18 @@ body:has(.cr-plate) .bg-fx::after {
 	}
 	/* The search field's own input and the kind picker's select sit inside
 	   the well, so they carry no ground of their own. */
-	:root :scope.cr-plate :is(.find-field, .find-kind, .search) :is(input, select) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.find-field, .find-kind, .search, :where(.chips-field) .chips-box) :is(input, select) {
 		background: transparent;
 		color: var(--plate-ink);
 	}
-	:root :scope.cr-plate .find-kind select {
+	/* The maps shelf's tag box is the well and its text input sits inside it
+	   among the chips, so the input carries no edge or depth of its own: one
+	   trough, not a field drawn inside a field (ledger 0346). */
+	:root :scope:is(.cr-plate, .site-plate) .chips-field .chips-box input {
+		border-color: transparent;
+		box-shadow: none;
+	}
+	:root :scope:is(.cr-plate, .site-plate) .find-kind select {
 		font: inherit;
 		letter-spacing: inherit;
 		text-transform: inherit;
@@ -1143,7 +1207,7 @@ body:has(.cr-plate) .bg-fx::after {
 	/* THE CHECKBOX IS A SMALL WELL while it is empty: the trough's face and
 	   the hairline, its 2px border width and its size unchanged. Checked and
 	   indeterminate keep the room's own accent fill and mark untouched. */
-	:root :scope.cr-plate .cr-check:not(:checked, :indeterminate) {
+	:root :scope:is(.cr-plate, .site-plate) .cr-check:not(:checked, :indeterminate) {
 		border-color: var(--plate-hair);
 		background-color: var(--plate-well-ground);
 		background-image: linear-gradient(to bottom, var(--plate-well-top), var(--plate-well-face) 45%);
@@ -1157,7 +1221,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   under the notebook. It stays opaque, in Matrix too: the rain does not
 	   reach the notebook (matrix.css, "THE NOTEBOOK IS NOT REACHED"), and an
 	   opaque ground is what the contrast walk measures its copy against. */
-	:root :scope.cr-plate .nb-root {
+	:root :scope:is(.cr-plate, .site-plate) .nb-root {
 		background: var(--plate-plate-bot);
 	}
 
@@ -1166,7 +1230,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   accent, slightly proud, with a slim accent thumb in a faint recessed
 	   track inside the well's right edge. Titles stay sentence case in the
 	   reading face. The only colour in the list is the accent. */
-	:root :scope.cr-plate :is(.card.group-card, .todo-group) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.card.group-card, .todo-group) {
 		border: 1px solid var(--plate-hair);
 		border-radius: var(--plate-r-panel);
 		background-color: var(--plate-list-face);
@@ -1179,16 +1243,16 @@ body:has(.cr-plate) .bg-fx::after {
 			inset 0 -1px 0 0 var(--plate-well-lip),
 			0 1px 0 0 var(--plate-well-lip);
 	}
-	:root :scope.cr-plate .group-card :is(.group-label, .pane-code, .kind-glyph) {
+	:root :scope:is(.cr-plate, .site-plate) .group-card :is(.group-label, .pane-code, .kind-glyph) {
 		color: var(--plate-ink-2);
 	}
-	:root :scope.cr-plate .group-card .group-label {
+	:root :scope:is(.cr-plate, .site-plate) .group-card .group-label {
 		color: var(--plate-ink);
 	}
 	/* A divider is ETCHED: the dark line (the only separator between two
 	   interactive rows, so it holds the 3:1 boundary floor) with a light line
 	   under it, so it reads as a cut in the well rather than a rule on it. */
-	:root :scope.cr-plate .group-card .row-wrap {
+	:root :scope:is(.cr-plate, .site-plate) .group-card .row-wrap {
 		border-top-color: transparent;
 		background-image:
 			linear-gradient(to right, transparent 0, var(--plate-divider) 12px, var(--plate-divider) calc(100% - 12px), transparent 100%),
@@ -1197,13 +1261,13 @@ body:has(.cr-plate) .bg-fx::after {
 		background-position: 2px 0, 2px 1px;
 		background-repeat: no-repeat;
 	}
-	:root :scope.cr-plate .group-card .row-wrap:first-child {
+	:root :scope:is(.cr-plate, .site-plate) .group-card .row-wrap:first-child {
 		background-image: none;
 	}
 	/* The row box carries the selected face as its background colour, so the
 	   contrast walk reads its words against the face they sit on; the plate
 	   under it paints the same colour a little wider and rounds its ends. */
-	:root :scope.cr-plate .group-card .row-wrap:is(.selected, .is-selected) {
+	:root :scope:is(.cr-plate, .site-plate) .group-card .row-wrap:is(.selected, .is-selected) {
 		position: relative;
 		z-index: 1;
 		background-color: var(--plate-sel-face);
@@ -1211,7 +1275,7 @@ body:has(.cr-plate) .bg-fx::after {
 		border-left-color: transparent;
 		box-shadow: none;
 	}
-	:root :scope.cr-plate .group-card .row-wrap:is(.selected, .is-selected)::before {
+	:root :scope:is(.cr-plate, .site-plate) .group-card .row-wrap:is(.selected, .is-selected)::before {
 		content: '';
 		position: absolute;
 		z-index: -1;
@@ -1227,14 +1291,14 @@ body:has(.cr-plate) .bg-fx::after {
 			0 2px 3px 0 var(--plate-drop);
 		pointer-events: none;
 	}
-	:root :scope.cr-plate .group-card .row-wrap:is(.selected, .is-selected) + .row-wrap {
+	:root :scope:is(.cr-plate, .site-plate) .group-card .row-wrap:is(.selected, .is-selected) + .row-wrap {
 		background-image: none;
 	}
-	:root :scope.cr-plate .group-card .row-wrap:is(.selected, .is-selected) :is(.row-main, .row-name, .row-title, .row-meta, .kind-glyph, .row-kind, .meta-bit, .row-expand, .row-open, a, button:not(.chip)) {
+	:root :scope:is(.cr-plate, .site-plate) .group-card .row-wrap:is(.selected, .is-selected) :is(.row-main, .row-name, .row-title, .row-meta, .kind-glyph, .row-kind, .meta-bit, .row-expand, .row-open, a, button:not(.chip)) {
 		color: var(--plate-sel-ink);
 	}
 	/* A chip on the selected row is a tag RECESSED into the lit row. */
-	:root :scope.cr-plate .group-card .row-wrap:is(.selected, .is-selected) :is(.chip, .draft-chip, .sched-chip, .kind-chip) {
+	:root :scope:is(.cr-plate, .site-plate) .group-card .row-wrap:is(.selected, .is-selected) :is(.chip, .draft-chip, .sched-chip, .kind-chip) {
 		background: var(--plate-selchip-face);
 		box-shadow:
 			inset 0 1px 1px 0 var(--plate-press-shade),
@@ -1243,7 +1307,7 @@ body:has(.cr-plate) .bg-fx::after {
 	}
 	/* The unit header's two counts are two facts: a short etched divider
 	   between them. */
-	:root :scope.cr-plate .group-card .group-progress::after {
+	:root :scope:is(.cr-plate, .site-plate) .group-card .group-progress::after {
 		content: '';
 		display: inline-block;
 		vertical-align: middle;
@@ -1255,7 +1319,7 @@ body:has(.cr-plate) .bg-fx::after {
 	}
 	/* On Matrix the headings are phosphor: a greener ink and a soft bloom
 	   (colour tokens; plain on the other two themes). */
-	:root :scope.cr-plate :is(.group-card .group-label, .group-card .row-wrap:not(.selected, .is-selected) .row-name, .card > h2, .card > h3:not(.grade-head)) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.group-card .group-label, .group-card .row-wrap:not(.selected, .is-selected) .row-name, .card > h2, .card > h3:not(.grade-head)) {
 		color: var(--plate-head-ink);
 		text-shadow: 0 0 6px var(--plate-text-bloom);
 	}
@@ -1266,7 +1330,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   engraved groove where it meets the plate. Its two raised tabs mark the
 	   top and the foot. It is a region, not a control, so its groove is
 	   decoration: the controls inside it carry their own boundaries. */
-	:root :scope.cr-plate .cr-split > .cr-nav {
+	:root :scope:is(.cr-plate, .site-plate) .cr-split > .cr-nav {
 		position: relative;
 		border-color: transparent;
 		border-radius: 4px;
@@ -1278,7 +1342,7 @@ body:has(.cr-plate) .bg-fx::after {
 			inset -2px 0 0 0 var(--plate-groove-lt),
 			0 0 0 1px var(--plate-groove-lt);
 	}
-	:root :scope.cr-plate .cr-split:not(.nav-wide) > .cr-nav::before {
+	:root :scope:is(.cr-plate, .site-plate) .cr-split:not(.nav-wide) > .cr-nav::before {
 		content: '';
 		position: absolute;
 		top: 0;
@@ -1293,7 +1357,7 @@ body:has(.cr-plate) .bg-fx::after {
 		box-shadow: 0 1px 0 0 var(--plate-groove-dk);
 	}
 	/* A table brings its own card, so a wide pane is not recessed. */
-	:root :scope.cr-plate .cr-split.nav-wide > .cr-nav {
+	:root :scope:is(.cr-plate, .site-plate) .cr-split.nav-wide > .cr-nav {
 		background: none;
 		box-shadow: none;
 	}
@@ -1301,7 +1365,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   column's own ground (classroom.css's no-box-in-a-box rule); the well's
 	   face and depth come off with the box. */
 	@media (min-width: 1024px) {
-		:root :scope.cr-plate .cr-split.has-detail > .cr-nav .card.group-card {
+		:root :scope:is(.cr-plate, .site-plate) .cr-split.has-detail > .cr-nav .card.group-card {
 			border-color: transparent;
 			background-color: transparent;
 			box-shadow: none;
@@ -1309,7 +1373,7 @@ body:has(.cr-plate) .bg-fx::after {
 	}
 
 	/* --- The classroom header: a plate strip with a groove under it. -------- */
-	:root :scope.cr-plate .cr-header {
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header, :where(.legacy-index) > header, .app-header, .fg-header, .mp-bar) {
 		position: relative;
 		background: linear-gradient(to bottom, var(--plate-plate-top), var(--plate-plate-bot));
 		border-bottom-color: transparent;
@@ -1321,30 +1385,30 @@ body:has(.cr-plate) .bg-fx::after {
 	/* The pads' strip is centred on the header's row, with 4px on every side,
 	   which is exactly the focus ring's reach: the strip scrolls, so it
 	   clips, and anything less cuts the ring (61% of it drawn today). */
-	:root :scope.cr-plate .cr-header .cls-strip {
+	:root :scope:is(.cr-plate, .site-plate) .cr-header .cls-strip {
 		padding: 4px;
 	}
 	/* The logo link is a student-facing control, so it clears 44px at every
 	   width (26.3px tall at 375 before this, round 3 measured). */
-	:root :scope.cr-plate .cr-header .wordmark {
+	:root :scope:is(.cr-plate, .site-plate) .cr-header .wordmark {
 		min-height: 44px;
 	}
 	/* The header's words are one voice: every tool word in the label face,
 	   caps, tracked. */
-	:root :scope.cr-plate .cr-header :is(.shell-tool-word, .qn-word, .sw-trigger, .menu-trigger) {
+	:root :scope:is(.cr-plate, .site-plate) .cr-header :is(.shell-tool-word, .qn-word, .sw-trigger, .menu-trigger) {
 		font-family: var(--font-mono);
 		font-size: var(--plate-label-size);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 	}
-	:root :scope.cr-plate .cr-header .sw-caret {
+	:root :scope:is(.cr-plate, .site-plate) .cr-header .sw-caret {
 		font-size: var(--plate-label-size);
 	}
 	/* THE ACCOUNT CONTROL IS NOT FRAMED. Its box is the avatar plus 2px, so a
 	   key's edge drawn around it sat 2px from the picture (the control-fit
 	   sweep on /dev/theme-switch counts that as a cramped label), and the box
 	   may not grow. It stays the round avatar it is on every other page. */
-	:root :scope.cr-plate .cr-header :is(.sfb-word, .pw-label) {
+	:root :scope:is(.cr-plate, .site-plate) .cr-header :is(.sfb-word, .pw-label) {
 		letter-spacing: 0.02em;
 	}
 
@@ -1355,7 +1419,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   a near-white face and a bright white inner rim glow (a faint green one
 	   on a dark theme), the LED in the accent, plus `aria-current` and the
 	   heavier word, so the glow is never the only signal. */
-	:root :scope.cr-plate :is(.cr-header .cls-icon, .sec-tabs .sec-tab) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon, .sec-tabs .sec-tab, :where(.fg-tabs) .fg-tab, :where(.desk-nav) :is(a, button), :where(.section-tabs) .tab) {
 		position: relative;
 		border: 3px solid transparent;
 		border-radius: var(--plate-r-pad);
@@ -1372,10 +1436,10 @@ body:has(.cr-plate) .bg-fx::after {
 			0 5px 8px -3px var(--plate-drop-far);
 		color: var(--plate-ink);
 	}
-	:root :scope.cr-plate .cr-header .cls-icon {
+	:root :scope:is(.cr-plate, .site-plate) .cr-header .cls-icon {
 		padding-inline: 0.25rem calc(0.25rem + 7px);
 	}
-	:root :scope.cr-plate :is(.cr-header .cls-icon, .sec-tabs .sec-tab)::after {
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon, .sec-tabs .sec-tab, :where(.fg-tabs) .fg-tab, :where(.desk-nav) :is(a, button), :where(.section-tabs) .tab)::after {
 		content: '';
 		position: absolute;
 		right: 2px;
@@ -1389,7 +1453,7 @@ body:has(.cr-plate) .bg-fx::after {
 			radial-gradient(circle at 50% 30%, var(--plate-cup-in) 0 2.1px, var(--plate-cup) 3.5px);
 		box-shadow: 0 1px 0 0 var(--plate-bezel-hi);
 	}
-	:root :scope.cr-plate :is(.cr-header .cls-icon.current, .sec-tabs .sec-tab.active) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon.current, .sec-tabs .sec-tab.active, :where(.fg-tabs) .fg-tab[aria-current='page'], :where(.desk-nav) .active, :where(.section-tabs) .tab:is(.active, [aria-selected='true'])) {
 		background:
 			linear-gradient(to bottom, var(--plate-lit-top), var(--plate-lit-bot)) padding-box,
 			linear-gradient(to bottom, var(--plate-band-top), var(--plate-band-bot)) border-box;
@@ -1405,7 +1469,7 @@ body:has(.cr-plate) .bg-fx::after {
 			0 5px 8px -3px var(--plate-drop-far);
 		color: var(--plate-ink);
 	}
-	:root :scope.cr-plate :is(.cr-header .cls-icon.current, .sec-tabs .sec-tab.active)::after {
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon.current, .sec-tabs .sec-tab.active, :where(.fg-tabs) .fg-tab[aria-current='page'], :where(.desk-nav) .active, :where(.section-tabs) .tab:is(.active, [aria-selected='true']))::after {
 		background:
 			radial-gradient(circle, var(--plate-accent-glow) 0 0.5px, var(--plate-accent) 1.5px, var(--plate-led-ring) 2.1px 2.4px, transparent 2.8px),
 			radial-gradient(circle at 50% 30%, var(--plate-cup-in) 0 2.1px, var(--plate-cup) 3.5px);
@@ -1413,17 +1477,17 @@ body:has(.cr-plate) .bg-fx::after {
 			0 1px 0 0 var(--plate-bezel-hi),
 			0 0 4px 1px var(--plate-led-halo);
 	}
-	:root :scope.cr-plate .cr-header .cls-sub {
+	:root :scope:is(.cr-plate, .site-plate) .cr-header .cls-sub {
 		color: var(--plate-ink-2);
 		letter-spacing: 0.02em;
 	}
-	:root :scope.cr-plate .cr-header .cls-icon.current .cls-sub {
+	:root :scope:is(.cr-plate, .site-plate) .cr-header .cls-icon.current .cls-sub {
 		color: var(--plate-ink);
 	}
 	/* A tab is a pad in a strip: the strip keeps its spacing, the pad takes
 	   the LED lane on its right and loses the old underline (the lit face,
 	   `aria-current` and the word are the three signals). */
-	:root :scope.cr-plate .sec-tabs .sec-tab {
+	:root :scope:is(.cr-plate, .site-plate) .sec-tabs .sec-tab {
 		padding-right: calc(0.75rem + 7px);
 		font-family: var(--font-mono);
 		font-size: var(--plate-label-size);
@@ -1431,15 +1495,15 @@ body:has(.cr-plate) .bg-fx::after {
 		text-transform: uppercase;
 		text-decoration: none;
 	}
-	:root :scope.cr-plate .sec-tabs .sec-tab.active {
+	:root :scope:is(.cr-plate, .site-plate) .sec-tabs .sec-tab.active {
 		font-weight: 700;
 	}
 	/* A pad's hover turns its whole band to the hover ink, the edge a class
 	   icon and a tab have always turned (decision 40 item 1). */
-	:root :scope.cr-plate :is(.cr-header .cls-icon, .sec-tabs .sec-tab):hover {
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .cls-icon, .sec-tabs .sec-tab, :where(.fg-tabs) .fg-tab, :where(.desk-nav) :is(a, button), :where(.section-tabs) .tab):hover {
 		border-color: var(--hover-ink);
 	}
-	:root :scope.cr-plate .sec-tabs .sec-tab:hover {
+	:root :scope:is(.cr-plate, .site-plate) .sec-tabs .sec-tab:hover {
 		color: var(--plate-ink);
 		box-shadow:
 			0 0 0 1px var(--hover-ink),
@@ -1448,7 +1512,7 @@ body:has(.cr-plate) .bg-fx::after {
 			0 0 1px 2px var(--plate-rim-out),
 			0 2px 3px 1px var(--plate-drop);
 	}
-	:root :scope.cr-plate .sec-tabs .sec-tab.active:hover {
+	:root :scope:is(.cr-plate, .site-plate) .sec-tabs .sec-tab.active:hover {
 		box-shadow:
 			0 0 0 1px var(--hover-ink),
 			inset 0 0 0 1px var(--plate-lit-glow),
@@ -1456,7 +1520,7 @@ body:has(.cr-plate) .bg-fx::after {
 			inset 0 0 6px 4px var(--plate-lit-core),
 			0 0 10px 1px var(--plate-bloom);
 	}
-	:root :scope.cr-plate .sec-tabs .sec-tab-count {
+	:root :scope:is(.cr-plate, .site-plate) .sec-tabs .sec-tab-count {
 		color: var(--plate-ink-2);
 	}
 
@@ -1466,7 +1530,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   settings, the hall pass and song queue, the tour's callout, the report
 	   box, the quick note, the profile menu and an info tip are all this one
 	   housing, so a panel that floats reads the same wherever it opens. */
-	:root :scope.cr-plate :is(.cr-header .sw-menu, .pm-panel, .cp-dialog, .cs-dialog, .ctool-dialog, .tour-callout, .fb-box, .qn-panel, .info-tip-panel) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.cr-header .sw-menu, .pm-panel, .cp-dialog, .cs-dialog, .ctool-dialog, .tour-callout, .fb-box, .qn-panel, .info-tip-panel) {
 		border: 1px solid var(--plate-hair);
 		border-radius: var(--plate-r-panel);
 		background-color: var(--plate-panel-ground);
@@ -1480,10 +1544,10 @@ body:has(.cr-plate) .bg-fx::after {
 			0 10px 24px -4px var(--plate-drop),
 			0 22px 40px -18px var(--plate-drop-far);
 	}
-	:root :scope.cr-plate .cr-header :is(.sw-item-code, .sw-item-flag) {
+	:root :scope:is(.cr-plate, .site-plate) .cr-header :is(.sw-item-code, .sw-item-flag) {
 		color: var(--plate-ink-2);
 	}
-	:root :scope.cr-plate .cr-header .sw-item.current {
+	:root :scope:is(.cr-plate, .site-plate) .cr-header .sw-item.current {
 		position: relative;
 		background: var(--plate-sel-face);
 		border-radius: var(--plate-r-small);
@@ -1493,7 +1557,7 @@ body:has(.cr-plate) .bg-fx::after {
 			0 2px 3px 0 var(--plate-drop);
 		color: var(--plate-sel-ink);
 	}
-	:root :scope.cr-plate .cr-header .sw-item.current :is(.sw-item-code, .sw-item-name, .sw-item-flag) {
+	:root :scope:is(.cr-plate, .site-plate) .cr-header .sw-item.current :is(.sw-item-code, .sw-item-name, .sw-item-flag) {
 		color: var(--plate-sel-ink);
 	}
 
@@ -1504,7 +1568,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   lighter at its top, its upper corners rounded and its lower corners
 	   chamfered and softened, NO grid, and the readout glowing in the accent.
 	   It is the one dark island on a Space White page, as the reference's is. */
-	:root :scope.cr-plate .grade-card {
+	:root :scope:is(.cr-plate, .site-plate) .grade-card {
 		position: relative;
 		border: 1px solid var(--plate-hair);
 		border-radius: 14px;
@@ -1539,7 +1603,7 @@ body:has(.cr-plate) .bg-fx::after {
 	}
 	/* The perforation: a dot patch that fades out, under the screen, between
 	   the screws. 60px across. */
-	:root :scope.cr-plate .grade-card::after {
+	:root :scope:is(.cr-plate, .site-plate) .grade-card::after {
 		content: '';
 		position: absolute;
 		left: 50%;
@@ -1551,7 +1615,7 @@ body:has(.cr-plate) .bg-fx::after {
 		background: radial-gradient(circle, var(--plate-perf) 0 1.2px, transparent 1.6px) 1px 1px / 5px 5px;
 		mask: radial-gradient(closest-side, #000 15%, transparent 100%);
 	}
-	:root :scope.cr-plate .grade-head {
+	:root :scope:is(.cr-plate, .site-plate) .grade-head {
 		position: relative;
 		max-width: none;
 		margin: -0.95rem -0.7rem 0;
@@ -1579,7 +1643,7 @@ body:has(.cr-plate) .bg-fx::after {
 		text-transform: uppercase;
 		font-variant-numeric: tabular-nums;
 	}
-	:root :scope.cr-plate .grade-head::before {
+	:root :scope:is(.cr-plate, .site-plate) .grade-head::before {
 		content: '';
 		position: absolute;
 		left: 0.85rem;
@@ -1592,10 +1656,10 @@ body:has(.cr-plate) .bg-fx::after {
 		box-shadow: 0 0 6px 1px var(--plate-screen-glow);
 		pointer-events: none;
 	}
-	:root :scope.cr-plate .comment-label {
+	:root :scope:is(.cr-plate, .site-plate) .comment-label {
 		color: var(--plate-caption);
 	}
-	:root :scope.cr-plate .grade-comment {
+	:root :scope:is(.cr-plate, .site-plate) .grade-comment {
 		color: var(--plate-ink);
 	}
 
@@ -1603,26 +1667,39 @@ body:has(.cr-plate) .bg-fx::after {
 	   a list, so it is the list well: recessed, its head etched off the rows
 	   and its criteria divided by the well's own cut. The chosen level keeps
 	   its accent bar and its own ground. */
-	:root :scope.cr-plate .rubric {
+	/* LEDGER 0346: IT IS THE FIELD WELL'S FULL RECIPE NOW. As 0345 shipped it
+	   the breakdown was one flat face a step darker than its panel with a soft
+	   shade at the top, which read as no material at all (Mr. Pina's review of
+	   the live page). It now takes what a field takes -- the graded trough, the
+	   crisp shade line under the top lip, the lit lip at its foot -- plus a
+	   deeper shade band, because it is a tall well rather than a 44px one. The
+	   head is etched off the rows by a groove, and nothing here is a length.
+	   ITS FACE IS THE LIST WELL'S, NOT THE FIELD'S: the field face is a mid grey
+	   in Space White and put the breakdown's muted level text at 3.61:1, so the
+	   shade lives in the top 12px and the rows sit on the list face (identical
+	   to the field face in the two dark themes). */
+	:root :scope:is(.cr-plate, .site-plate) .rubric {
 		border-color: var(--plate-hair);
 		border-radius: var(--plate-r-control);
 		background-color: var(--plate-list-face);
+		background-image: linear-gradient(to bottom, var(--plate-well-top), var(--plate-list-face) 12px);
 		box-shadow:
-			inset 0 1px 0 0 var(--plate-groove-dk),
-			inset 0 6px 8px -4px var(--plate-inset-shade),
+			inset 0 1px 0 0 var(--plate-well-shade),
+			inset 0 2px 3px -1px var(--plate-well-shade),
+			inset 0 10px 12px -8px var(--plate-inset-shade),
 			0 1px 0 0 var(--plate-well-lip);
 	}
-	:root :scope.cr-plate .rubric .rubric-head {
+	:root :scope:is(.cr-plate, .site-plate) .rubric .rubric-head {
 		background: transparent;
 		border-bottom-color: var(--plate-groove-dk);
 		box-shadow: 0 1px 0 0 var(--plate-groove-lt);
 	}
-	:root :scope.cr-plate .rubric .rubric-title {
+	:root :scope:is(.cr-plate, .site-plate) .rubric .rubric-title {
 		color: var(--plate-caption);
 		font-size: var(--plate-label-size);
 		letter-spacing: var(--plate-label-track);
 	}
-	:root :scope.cr-plate .rubric .criterion {
+	:root :scope:is(.cr-plate, .site-plate) .rubric .criterion {
 		border-bottom-color: var(--plate-divider);
 	}
 
@@ -1635,7 +1712,7 @@ body:has(.cr-plate) .bg-fx::after {
 	   over the theme's hazard colour, the block's width rounded DOWN to a
 	   whole number of bars, so a block always ends in a complete slanted bar;
 	   its far end is cut on the bars' own slant. */
-	:root :scope.cr-plate :is(.hero h1, .todo-head > h1, .lc-title, .head-title > h1, .nbt-title, h1.pane-title, .plate-title) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.hero h1, .todo-head > h1, .lc-title, .head-title > h1, .nbt-title, h1.pane-title, .plate-title) {
 		position: relative;
 		box-sizing: border-box;
 		/* The bar runs the width of the region it names, so its rails line up
@@ -1659,8 +1736,8 @@ body:has(.cr-plate) .bg-fx::after {
 			inset 0 -1px 0 0 var(--plate-groove-dk),
 			inset 0 -2px 0 0 var(--plate-groove-lt);
 	}
-	:root :scope.cr-plate :is(.hero h1, .todo-head > h1, .lc-title, .head-title > h1, .nbt-title, h1.pane-title, .plate-title)::before,
-	:root :scope.cr-plate :is(.hero h1, .todo-head > h1, .lc-title, .head-title > h1, .nbt-title, h1.pane-title, .plate-title)::after {
+	:root :scope:is(.cr-plate, .site-plate) :is(.hero h1, .todo-head > h1, .lc-title, .head-title > h1, .nbt-title, h1.pane-title, .plate-title)::before,
+	:root :scope:is(.cr-plate, .site-plate) :is(.hero h1, .todo-head > h1, .lc-title, .head-title > h1, .nbt-title, h1.pane-title, .plate-title)::after {
 		content: '';
 		position: absolute;
 		top: 50%;
@@ -1672,20 +1749,20 @@ body:has(.cr-plate) .bg-fx::after {
 		background: var(--plate-hazard);
 		mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 203 15' width='203' height='15'%3E%3Cpolygon points='0,15 5,15 13,0 8,0'/%3E%3Cpolygon points='10,15 15,15 23,0 18,0'/%3E%3Cpolygon points='20,15 25,15 33,0 28,0'/%3E%3Cpolygon points='30,15 35,15 43,0 38,0'/%3E%3Cpolygon points='40,15 45,15 53,0 48,0'/%3E%3Cpolygon points='50,15 55,15 63,0 58,0'/%3E%3Cpolygon points='60,15 65,15 73,0 68,0'/%3E%3Cpolygon points='70,15 75,15 83,0 78,0'/%3E%3Cpolygon points='80,15 85,15 93,0 88,0'/%3E%3Cpolygon points='90,15 95,15 103,0 98,0'/%3E%3Cpolygon points='100,15 105,15 113,0 108,0'/%3E%3Cpolygon points='110,15 115,15 123,0 118,0'/%3E%3Cpolygon points='120,15 125,15 133,0 128,0'/%3E%3Cpolygon points='130,15 135,15 143,0 138,0'/%3E%3C/svg%3E") left center / auto 100% no-repeat;
 	}
-	:root :scope.cr-plate :is(.hero h1, .todo-head > h1, .lc-title, .head-title > h1, .nbt-title, h1.pane-title, .plate-title)::before {
+	:root :scope:is(.cr-plate, .site-plate) :is(.hero h1, .todo-head > h1, .lc-title, .head-title > h1, .nbt-title, h1.pane-title, .plate-title)::before {
 		left: 0;
 	}
-	:root :scope.cr-plate :is(.hero h1, .todo-head > h1, .lc-title, .head-title > h1, .nbt-title, h1.pane-title, .plate-title)::after {
+	:root :scope:is(.cr-plate, .site-plate) :is(.hero h1, .todo-head > h1, .lc-title, .head-title > h1, .nbt-title, h1.pane-title, .plate-title)::after {
 		right: 0;
 		transform: scaleX(-1);
 	}
 	/* The hero around a title bar centres what names the page with it. */
-	:root :scope.cr-plate .hero {
+	:root :scope:is(.cr-plate, .site-plate) .hero {
 		text-align: center;
 	}
 
 	/* --- Feedback lines and notices sit on the plate as printed lines. ----- */
-	:root :scope.cr-plate .cr-chrome {
+	:root :scope:is(.cr-plate, .site-plate) .cr-chrome {
 		box-shadow: inset 0 -1px 0 0 var(--plate-groove-dk), inset 0 -2px 0 0 var(--plate-groove-lt);
 	}
 }
@@ -1693,8 +1770,8 @@ body:has(.cr-plate) .bg-fx::after {
 /* --- The corners, and only where the browser can draw a real corner shape.
    Without `corner-shape` every radius above is simply a rounded corner. --- */
 @supports (corner-shape: bevel) {
-	@scope (.cr-plate) to (.ic-root, .deck-stage, .nb-island, .item-body, .md, .ProseMirror, .hx-frame-box, .note-content, .lb-stage, .grid-card) {
-		:root :scope.cr-plate .grade-head {
+	@scope (.cr-plate, .site-plate) to (.ic-root, .deck-stage, .nb-island, .item-body, .md, .ProseMirror, .hx-frame-box, .note-content, .lb-stage, .grid-card, .tnm-root.tv, .mv-plan, .mv-elev-sheet, .fdy-frame-wrap) {
+		:root :scope:is(.cr-plate, .site-plate) .grade-head {
 			corner-shape: round round var(--plate-soft) var(--plate-soft);
 		}
 	}

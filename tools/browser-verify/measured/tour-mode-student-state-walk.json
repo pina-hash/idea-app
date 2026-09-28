@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "tour-mode-student-state-walk.mjs",
-	"date": "2026-09-25T10:16:26.689Z",
-	"sha": "8f46a78aae554f1ac764116c719460655607ef93",
+	"date": "2026-09-28T19:14:16.778Z",
+	"sha": "a4f769c14960f5bac52e7a517884f0ca18e7896d",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 56,
 	"outsideRows": [],
-	"ms": 43653
+	"ms": 6973
 }

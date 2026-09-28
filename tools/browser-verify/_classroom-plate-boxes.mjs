@@ -30,6 +30,14 @@
  *
  * `--route <substring>` measures only the matching routes.
  *
+ * `--list <file.json>` replaces OUTSIDE_ROUTES (fingerprint) or
+ * CLASSROOM_ROUTES (boxes) with the array of paths in that file, `--root
+ * <selector>` reads `boxes` from that root instead of `.cr-root` (0346 read
+ * the site's harnesses from `.site-plate`), and `--themes a,b` replaces the two themes
+ * fingerprinted. Ledger 0346 used both: once over every LEFT-OUT product's
+ * harnesses (the site plate's scope proof) and once over the classroom routes
+ * (proof that generalising plate.css changed nothing the classroom draws).
+ *
  * `--planted` plants one length in Matrix's colour block, the positive control
  * that says `boxes` can see a difference.
  *
@@ -105,7 +113,7 @@ async function capture(browser, origin, path, theme, width, { root = 'body', wit
 	try {
 		await context.addInitScript(pin(theme));
 		if (planted && theme === 'matrix') {
-			await context.addInitScript(`document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = ":root[data-theme='matrix'] .cr-plate { --plate-r-control: 3px; --plate-chip-h: 26px; }"; document.head.append(s); });`);
+			await context.addInitScript(`document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = ":root[data-theme='matrix'] :is(.cr-plate, .site-plate) { --plate-r-control: 3px; --plate-chip-h: 26px; --plate-label-size: 0.9rem; }"; document.head.append(s); });`);
 		}
 		await page.goto(`${origin}${path}`, { waitUntil: 'domcontentloaded' });
 		await waitForApp(page);
@@ -123,6 +131,8 @@ async function capture(browser, origin, path, theme, width, { root = 'body', wit
 const [, , mode, a1, a2] = process.argv;
 const planted = process.argv.includes('--planted');
 const only = process.argv.includes('--route') ? process.argv[process.argv.indexOf('--route') + 1] : null;
+const listFile = process.argv.includes('--list') ? process.argv[process.argv.indexOf('--list') + 1] : null;
+const fpThemes = process.argv.includes('--themes') ? process.argv[process.argv.indexOf('--themes') + 1].split(',') : ['idea', 'matrix'];
 
 if (mode === 'compare') {
 	const A = JSON.parse(readFileSync(a1, 'utf8'));
@@ -160,8 +170,8 @@ const { browser } = await launch();
 try {
 	if (mode === 'fingerprint') {
 		const out = {};
-		for (const path of OUTSIDE_ROUTES) {
-			for (const theme of ['idea', 'matrix']) {
+		for (const path of listFile ? JSON.parse(readFileSync(listFile, 'utf8')) : OUTSIDE_ROUTES) {
+			for (const theme of fpThemes) {
 				for (const width of WIDTHS) {
 					const key = `${path} ${theme} ${width}`;
 					out[key] = await capture(browser, server.origin, path, theme, width, { withStyle: true });
@@ -174,10 +184,12 @@ try {
 	} else {
 		let controls = 0;
 		let differing = 0;
-		for (const path of CLASSROOM_ROUTES.filter((r) => !only || r.includes(only))) {
+		const boxRoutes = listFile ? JSON.parse(readFileSync(listFile, 'utf8')) : CLASSROOM_ROUTES;
+		const boxRoot = process.argv.includes('--root') ? process.argv[process.argv.indexOf('--root') + 1] : '.cr-root';
+		for (const path of boxRoutes.filter((r) => !only || r.includes(only))) {
 			for (const width of WIDTHS) {
 				const byTheme = {};
-				for (const theme of THEMES) byTheme[theme] = await capture(browser, server.origin, path, theme, width, { root: '.cr-root', planted });
+				for (const theme of THEMES) byTheme[theme] = await capture(browser, server.origin, path, theme, width, { root: boxRoot, planted });
 				const base = new Map(byTheme.idea.els.map((e) => [e.p, e.b]));
 				const parts = [];
 				for (const theme of ['matrix', 'space-white']) {
@@ -203,7 +215,7 @@ try {
 				console.log(`${path} @${width}: ${byTheme.idea.els.length} elements; ${parts.join('; ')}; page ${pages}`);
 			}
 		}
-		console.log(`TOTAL: ${controls} elements per theme across ${CLASSROOM_ROUTES.length} routes x ${WIDTHS.length} widths, ${differing} differing boxes`);
+		console.log(`TOTAL: ${controls} elements per theme across ${boxRoutes.length} routes x ${WIDTHS.length} widths, ${differing} differing boxes`);
 	}
 } finally {
 	await browser.close();

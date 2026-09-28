@@ -628,7 +628,7 @@
 					<ul class="hp-history">
 						{#each manager.history as entry (entry.pass_id)}
 							<li class="hp-entry">
-								<span class="hp-who">{entry.student_name}</span>
+								<span class="hp-who person-name" title={entry.student_name}>{entry.student_name}</span>
 								<span class="hp-when">
 									{hallPassClockLabel(entry.opened_at)}
 									{#if entry.closed_at}

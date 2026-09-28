@@ -241,6 +241,23 @@ a:hover {
    take a 43px control to 41px and report success. `min-height`/`max()` can
    only ever grow the box. ---------------------------------------------- */
 
+/* A PERSON'S NAME WRAPS BETWEEN WORDS AND NEVER INSIDE ONE (ledger 0346).
+   Rosters and people lists used `overflow-wrap: anywhere`, which lets a
+   flex item shrink to one character and printed "Alice Alvare z" at 375px.
+   Here the name wraps only at a space, and a single word longer than its box
+   is cut with an ellipsis instead of broken; the element carries the whole
+   name in `title`, so nothing is lost. Measured in Chromium: the ellipsis
+   applies per line, so "Bartholomewson Smith" in 70px reads "Barthol..." over
+   "Smith". A component rule that still says `overflow-wrap: anywhere` beats
+   this one, so a name list adopting it drops that declaration. */
+.person-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	overflow-wrap: normal;
+	word-break: normal;
+}
+
 /* GROW: for a control that owns its row -- a button, a picker, a checkbox
    row, a tab. The block padding is what carries the height, so type size and
    horizontal rhythm are untouched. */

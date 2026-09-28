@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "home-order-role-student-classes-1-rows-3-state-feed-links-space-white.mjs",
-	"date": "2026-09-25T09:30:57.496Z",
-	"sha": "83be5b9ed0b37b64c1edbc007a3187b5c5788dca",
+	"date": "2026-09-28T19:14:16.778Z",
+	"sha": "a4f769c14960f5bac52e7a517884f0ca18e7896d",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 26,
 	"outsideRows": [],
-	"ms": 9082
+	"ms": 6973
 }

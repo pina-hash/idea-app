@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "grading.mjs",
-	"date": "2026-09-28T06:43:03.634Z",
-	"sha": "bda4f92c49a7e659f9b4b17d19ab0e7b3618f83f",
+	"date": "2026-09-28T18:50:46.620Z",
+	"sha": "a4f769c14960f5bac52e7a517884f0ca18e7896d",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 36,
 	"outsideRows": [],
-	"ms": 6318
+	"ms": 6727
 }

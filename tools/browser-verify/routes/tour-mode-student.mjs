@@ -192,6 +192,13 @@ const EDGES_CLEAR_3 = `() => {
 		const cs = getComputedStyle(el);
 		const inside = paint([plateCss, cs.backgroundColor]);
 		const edge = paint([plateCss, cs.backgroundColor, cs.borderTopColor]);
+		/* UNDER THE PLATE THE CONTRACT IS THE PLATE'S (ledger 0346,
+		   IDEA_INTERFACE_STANDARDS 14c): the load-bearing boundary is a key's
+		   OUTER hairline against the ground it sits on, and the lit primary's
+		   hairline is deliberately the grey bezel over an accent face (2.53:1
+		   against that face, 4.34 against the callout, measured). Unplated, the
+		   button keeps this spec's original two-sided rule. */
+		if (el.closest('.cr-plate, .site-plate')) return ratio(edge, plate) >= 3;
 		return ratio(edge, inside) >= 3 && ratio(edge, plate) >= 3;
 	});
 }`;

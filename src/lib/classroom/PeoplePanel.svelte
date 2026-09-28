@@ -814,7 +814,7 @@
 		     Before 0179 is applied the columns are absent and every row is an
 		     initials tile, which is also what most rows are afterwards. -->
 		<Avatar subject={rosterSubject(e)} tintKey={e.student_email} size={28} />
-		<span class="roster-name">{e.display_name || e.student_email.split('@')[0]}</span>
+		<span class="roster-name person-name" title={e.display_name || e.student_email.split('@')[0]}>{e.display_name || e.student_email.split('@')[0]}</span>
 		<span class="roster-email">{e.student_email}</span>
 		<span class="roster-status" data-tone={status.tone} data-testid="roster-status">
 			{status.label}
@@ -1240,7 +1240,7 @@
 										data-testid="picker-present"
 										onchange={() => toggleAbsent(person.email)}
 									/>
-									<span>{person.name}</span>
+									<span class="person-name" title={person.name}>{person.name}</span>
 								</label>
 							{/each}
 						</div>
@@ -1572,7 +1572,7 @@
 							</summary>
 							{#each notebook.attention as row (row.student.student_key)}
 								<p class="nb-student" data-testid="nb-attention-row">
-									<span class="nb-student-name">{row.student.name}</span>
+									<span class="nb-student-name person-name" title={row.student.name}>{row.student.name}</span>
 									<span class="nb-student-meta">
 										{completionLabel(row)}
 										{#if row.flagged}&nbsp;&middot; {row.flagged} flagged{/if}
@@ -1908,7 +1908,6 @@
 		   The avatar carries `flex-shrink: 0` and an inline min-width, so it
 		   is the NAME that gives, which is the right way round. */
 		min-width: 0;
-		overflow-wrap: anywhere;
 	}
 	.roster-email {
 		font-family: var(--font-mono);

@@ -115,7 +115,11 @@ export const HOVER_PROBE = (targets) => `async () => {
 	/* Every style rule, with the @media / @supports / @scope chain it sits in.
 	   AN @scope RULE'S SELECTORS NAME \`:scope\`, which \`querySelectorAll\` reads
 	   as the document root, so the reach test below substitutes the scope's own
-	   root selector (ledger 0345: the classroom plate's rules live in one). */
+	   root selector (ledger 0345: the classroom plate's rules live in one),
+	   WRAPPED IN \`:is()\`, because a scope's start can be a LIST: ledger 0346
+	   made it \`.cr-plate, .site-plate\`, and pasted bare that split every
+	   forced selector into two, the first half matching the room root rather
+	   than the control, so every plate hover read as unreached. */
 	const rules = [];
 	const walk = (list, wrap, scopeSel) => {
 		for (const r of list) {
@@ -176,7 +180,7 @@ export const HOVER_PROBE = (targets) => `async () => {
 					if (!part.includes(':hover')) continue;
 					const forced = part.split(':hover').join('[data-hv="' + tag + '"]');
 					let hit;
-					try { hit = [...document.querySelectorAll(scopeSel ? forced.split(':scope').join(scopeSel) : forced)]; } catch { continue; }
+					try { hit = [...document.querySelectorAll(scopeSel ? forced.split(':scope').join(':is(' + scopeSel + ')') : forced)]; } catch { continue; }
 					if (!hit.includes(el) && !hit.includes(host)) continue;
 					all++;
 					if (ink) { hit.forEach((n) => nodes.add(n)); copied++; }

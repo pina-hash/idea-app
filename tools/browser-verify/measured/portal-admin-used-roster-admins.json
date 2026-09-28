@@ -1,15 +1,40 @@
 {
 	"schema": 1,
 	"spec": "portal-admin-used-roster-admins.mjs",
-	"date": "2026-09-23T13:57:15.144Z",
-	"sha": "4cd231edaf3967d6260433c582271a3f0c3a1bde",
-	"dirty": false,
+	"date": "2026-09-28T19:14:16.778Z",
+	"sha": "a4f769c14960f5bac52e7a517884f0ca18e7896d",
+	"dirty": true,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
 	"measurements": 26,
-	"outsideRows": [],
-	"ms": 5622
+	"outsideRows": [
+		{
+			"path": "/dev/portal-admin?used=roster,admins",
+			"width": 375,
+			"check": "prepare-click",
+			"label": ".panel[data-panel=\"feedback\"] .panel-title"
+		},
+		{
+			"path": "/dev/portal-admin?used=roster,admins",
+			"width": 375,
+			"check": "order-result",
+			"label": "one write, spread-merged under dashboard beside the launcher homepage namespace, and the grid did not move"
+		},
+		{
+			"path": "/dev/portal-admin?used=roster,admins",
+			"width": 1440,
+			"check": "prepare-click",
+			"label": ".panel[data-panel=\"feedback\"] .panel-title"
+		},
+		{
+			"path": "/dev/portal-admin?used=roster,admins",
+			"width": 1440,
+			"check": "order-result",
+			"label": "one write, spread-merged under dashboard beside the launcher homepage namespace, and the grid did not move"
+		}
+	],
+	"ms": 6973
 }
