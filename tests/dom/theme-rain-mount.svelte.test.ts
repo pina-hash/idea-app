@@ -32,6 +32,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { flushSync, mount, unmount } from 'svelte';
 import MatrixRain from '../../src/lib/MatrixRain.svelte';
+import { RAIN } from '../../src/lib/design-system/themes/matrix-rain';
 
 type Listener = (e: { matches: boolean }) => void;
 
@@ -262,20 +263,52 @@ describe('prefers-reduced-motion', () => {
 });
 
 describe('a device that cannot keep up', () => {
-	it('slow frames in a row halve the rate, and a second run of them parks the field', () => {
+	it('a window of slow frames after the grace halves the rate, and a second window parks the field', () => {
 		const app = mount(MatrixRain, { target, props: { active: true } });
 		flushSync();
 		const c = canvas()!;
-		// 90 frames at 50ms each: every one is past the 34ms slow floor.
-		pump(91, 50);
+		/* 20 fps, 50ms a frame: past the slow line. The first frame of a loop
+		   is timed at 1000/60 (there is no previous stamp), then the grace
+		   swallows the start-up frames, then one full window decides. */
+		const graceFrames = Math.ceil((RAIN.slowGraceMs - 1000 / 60) / 50) + 1;
+		pump(graceFrames + RAIN.slowWindow - 1, 50);
+		expect(c.dataset.motion).toBe('running');
+		pump(1, 50);
 		expect(c.dataset.motion).toBe('half');
 		expect(pending()).toBe(1);
-		pump(91, 50);
+		pump(RAIN.slowWindow, 50);
 		expect(c.dataset.motion).toBe('still-slow');
 		expect(pending()).toBe(0);
 		const parked = draw.drawImage;
 		pump(30, 50);
 		expect(draw.drawImage).toBe(parked);
+		unmount(app);
+	});
+
+	it('REPORT R09: a phone at 30 fps keeps running, paints every frame, and says what frame it measured', () => {
+		const app = mount(MatrixRain, { target, props: { active: true } });
+		flushSync();
+		const c = canvas()!;
+		// A minute at 30 fps, every sixth frame dropped to 15 fps.
+		for (let i = 0; i < 1800; i++) pump(1, i % 6 === 5 ? 2000 / 30 : 1000 / 30);
+		expect(c.dataset.motion).toBe('running');
+		expect(pending()).toBe(1);
+		/* The first frame is timed at 1000/60 and paints nothing; every one
+		   after it is a paint at 30Hz, where counting frames painted at 15. */
+		expect(draw.fillRect).toBe(1799);
+		expect(Number(c.dataset.frameMs)).toBeGreaterThan(33);
+		expect(Number(c.dataset.frameMs)).toBeLessThan(45);
+		unmount(app);
+	});
+
+	it('a 120Hz panel paints about 30 times a second, not 60', () => {
+		const app = mount(MatrixRain, { target, props: { active: true } });
+		flushSync();
+		pump(1200, 1000 / 120);
+		// Ten seconds of frames, a paint every fourth: 300 paints, give or take the first.
+		expect(draw.fillRect).toBeGreaterThanOrEqual(299);
+		expect(draw.fillRect).toBeLessThanOrEqual(300);
+		expect(canvas()!.dataset.motion).toBe('running');
 		unmount(app);
 	});
 

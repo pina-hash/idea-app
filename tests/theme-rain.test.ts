@@ -38,7 +38,13 @@ import {
 	overSrgb,
 	worstFrame,
 	headColour,
-	type CellEvent
+	rainForWidth,
+	paintDue,
+	createSlowJudge,
+	judgeFrame,
+	judgeMeanMs,
+	type CellEvent,
+	type RainConfig
 } from '../src/lib/design-system/themes/matrix-rain';
 
 describe('the glyph set', () => {
@@ -327,5 +333,210 @@ describe('THE WORST FRAME: every text tier the theme paints on the bare page gro
 		expect(contrastRatio(head, ground)).toBeGreaterThan(1.5);
 		expect(contrastRatio(trail, ground)).toBeGreaterThan(1.25);
 		expect(relativeLuminance(head)).toBeGreaterThan(relativeLuminance(trail));
+	});
+});
+
+/* ------------------------------------------------------------------------- *
+ * REPORT R09, "Matrix theme not animated on mobile". Three rules in the pure
+ * module answer it, and each regresses silently: a judge that trips on a
+ * phone parks the field as a still that looks deliberate, a cadence counted
+ * in frames paints a 30Hz phone at half the rate with nothing to say so, and
+ * a narrow-screen change that lit a brighter pixel under the copy fails a
+ * word on the landing page for one frame in twenty. So all three are here.
+ * ------------------------------------------------------------------------- */
+
+/** Feed `intervals` to a fresh judge and return the 1-based frames it tripped on. */
+function trips(intervals: number[], r: RainConfig = RAIN): number[] {
+	const j = createSlowJudge(r);
+	const out: number[] = [];
+	intervals.forEach((dt, i) => {
+		if (judgeFrame(j, dt, r)) out.push(i + 1);
+	});
+	return out;
+}
+const repeat = (n: number, pattern: number[]): number[] => Array.from({ length: n }, (_, i) => pattern[i % pattern.length]);
+/** Whole-vsync frame lengths a panel at `hz` can deliver, up to `maxMs`. */
+const vsyncs = (hz: number, maxMs: number): number[] => {
+	const out: number[] = [];
+	for (let k = 1; (k * 1000) / hz <= maxMs + 1e-9; k++) out.push((k * 1000) / hz);
+	return out;
+};
+
+describe('R09: a phone at 30 fps is not a slow device', () => {
+	it('the threshold sits between a 30 fps frame and a 20 fps one, above every 24 fps-or-better vsync interval', () => {
+		expect(RAIN.slowFrameMs).toBeGreaterThan((1000 / 30) * 1.25);
+		expect(RAIN.slowFrameMs).toBeLessThanOrEqual(1000 / 20);
+		let checked = 0;
+		for (const hz of [60, 90, 120, 144]) {
+			for (const ms of vsyncs(hz, 1000 / 24)) {
+				expect(ms, `${hz}Hz ${ms.toFixed(1)}ms`).toBeLessThan(RAIN.slowFrameMs);
+				checked++;
+			}
+		}
+		// Sixteen intervals examined: 2 at 60Hz, 3 at 90Hz, 5 at 120Hz, 6 at 144Hz.
+		expect(checked).toBe(16);
+		// Three 60Hz vsyncs -- a desktop that cannot hold 30 -- is slow.
+		expect((3 * 1000) / 60).toBeGreaterThanOrEqual(RAIN.slowFrameMs);
+	});
+
+	it('a steady 30 fps display never degrades, with timestamp jitter and a dropped frame in seven', () => {
+		const rng = mulberry32(30);
+		const frames = Array.from({ length: 3000 }, (_, i) => (i % 7 === 6 ? 2000 / 30 : 1000 / 30 + (rng() - 0.5) * 8));
+		expect(trips(frames)).toEqual([]);
+	});
+
+	it('nor does a 90Hz panel held at four vsyncs (44.4ms) or a 120Hz one at five (41.7ms), which 34ms called slow', () => {
+		expect(trips(repeat(3000, [4000 / 90]))).toEqual([]);
+		expect(trips(repeat(3000, [5000 / 120]))).toEqual([]);
+		/* POSITIVE CONTROL: the same streams under the old 34ms line trip, so
+		   it is the threshold that keeps them running and not a judge that
+		   never answers true. */
+		const old = { ...RAIN, slowFrameMs: 34 };
+		expect(trips(repeat(3000, [4000 / 90]), old).length).toBeGreaterThan(0);
+		expect(trips(repeat(3000, [5000 / 120]), old).length).toBeGreaterThan(0);
+	});
+
+	it('a genuinely slow machine still degrades: 20 fps trips once the grace is over and a window is full, then trips again', () => {
+		const graceFrames = Math.ceil(RAIN.slowGraceMs / 50);
+		expect(trips(repeat(graceFrames + 3 * RAIN.slowWindow + 10, [50]))).toEqual([
+			graceFrames + RAIN.slowWindow,
+			graceFrames + 2 * RAIN.slowWindow,
+			graceFrames + 3 * RAIN.slowWindow
+		]);
+	});
+
+	it('it judges the median, not a run: slow three frames in four degrades, where one fast frame used to reset the count', () => {
+		expect(trips(repeat(600, [60, 60, 60, 30])).length).toBeGreaterThan(0);
+		// Exactly half slow is not a slow median.
+		expect(trips(repeat(600, [60, 30]))).toEqual([]);
+	});
+
+	it('a start-up burst of long frames is forgiven, and without the grace the same burst would trip', () => {
+		const burst = [...repeat(58, [50]), ...repeat(600, [1000 / 30])];
+		expect(trips(burst)).toEqual([]);
+		expect(trips(burst, { ...RAIN, slowGraceMs: 0 }).length).toBeGreaterThan(0);
+	});
+
+	it("a hidden tab's gap is neither judged nor spends the grace, and the mean reads the window", () => {
+		const j = createSlowJudge();
+		expect(Number.isNaN(judgeMeanMs(j))).toBe(true);
+		for (let i = 0; i < 50; i++) expect(judgeFrame(j, 5000)).toBe(false);
+		expect(j.graceLeftMs).toBe(RAIN.slowGraceMs);
+		expect(j.filled).toBe(0);
+		for (let i = 0; i < 400; i++) judgeFrame(j, 1000 / 30);
+		expect(j.filled).toBe(RAIN.slowWindow);
+		expect(judgeMeanMs(j)).toBeCloseTo(1000 / 30, 6);
+	});
+});
+
+describe('R09: the paint cadence is time, not frames', () => {
+	/** Paints per second the painter makes on a panel at `hz`, each frame jittered by up to +-`jitter` ms. */
+	const paintsPerSecond = (hz: number, level: number, jitter = 0, r: RainConfig = RAIN) => {
+		const rng = mulberry32(hz * 10 + level);
+		let pending = 0;
+		let paints = 0;
+		const seconds = 20;
+		for (let i = 0; i < hz * seconds; i++) {
+			pending += 1000 / hz + (rng() - 0.5) * 2 * jitter;
+			if (paintDue(pending, level, r)) {
+				paints++;
+				pending = 0;
+			}
+		}
+		return paints / seconds;
+	};
+
+	it('about 30 paints a second on a 30, 60, 90 or 120Hz panel, and 15 at the half rate', () => {
+		for (const hz of [30, 60, 90, 120]) {
+			expect(paintsPerSecond(hz, 0), `${hz}Hz`).toBe(30);
+			expect(paintsPerSecond(hz, 1), `${hz}Hz half`).toBe(15);
+		}
+		// The panels that do not divide evenly land either side of it, never at double.
+		for (const hz of [75, 144]) {
+			expect(paintsPerSecond(hz, 0)).toBeGreaterThanOrEqual(24);
+			expect(paintsPerSecond(hz, 0)).toBeLessThanOrEqual(31);
+		}
+	});
+
+	it('a 60Hz frame pair a hair under 33.3ms still paints on the second frame, not the third', () => {
+		expect(paintsPerSecond(60, 0, 1.5)).toBeGreaterThanOrEqual(29);
+		/* POSITIVE CONTROL: with no slack the same jittered panel loses paints
+		   to the third frame, which is what the slack is for. */
+		expect(paintsPerSecond(60, 0, 1.5, { ...RAIN, paintSlackMs: 0 })).toBeLessThan(28);
+	});
+});
+
+describe('R09: at phone width the rain drags a longer streak, and no pixel behind the copy gets brighter', () => {
+	const ground = themeToken('--bg0');
+	const narrow = rainForWidth(375);
+
+	it('a canvas no wider than the band takes the band fade; a wider one keeps the film and is the same object', () => {
+		expect(narrow.fadePerFrame).toBe(RAIN.bandFadePerFrame);
+		expect(RAIN.bandFadePerFrame).toBeLessThan(RAIN.fadePerFrame);
+		expect(rainForWidth(RAIN.contentBandPx).fadePerFrame).toBe(RAIN.bandFadePerFrame);
+		expect(rainForWidth(RAIN.contentBandPx + 1)).toBe(RAIN);
+		expect(rainForWidth(1440)).toBe(RAIN);
+		/* ONLY the fade moves: every other constant, the brightness rules
+		   among them, is the film's. */
+		const moved = (Object.keys(RAIN) as (keyof RainConfig)[]).filter((k) => narrow[k] !== RAIN[k]);
+		expect(moved).toEqual(['fadePerFrame']);
+	});
+
+	it('each column shows a visibly longer streak at phone width, at every speed', () => {
+		/* Visible = the composite still reads 1.1:1 against the bare ground at
+		   the band's gain. Counted in rows behind the head. */
+		const visibleRows = (speed: number, r: RainConfig) => {
+			let k = 0;
+			while (contrastRatio(overSrgb(r.trail, r.contentGain * Math.pow(1 - r.fadePerFrame, k), ground), ground) >= 1.1) k++;
+			return speed * k;
+		};
+		for (const speed of [RAIN.minSpeed, (RAIN.minSpeed + RAIN.maxSpeed) / 2, RAIN.maxSpeed]) {
+			expect(visibleRows(speed, RAIN), `speed ${speed}`).toBeGreaterThan(1);
+			expect(visibleRows(speed, narrow), `speed ${speed}`).toBeGreaterThanOrEqual(1.8 * visibleRows(speed, RAIN));
+		}
+	});
+
+	it('THE WORST FRAME, RE-DERIVED AT 375: every column is the band, and every pinned tier still clears 4.5:1', () => {
+		const tiers: (readonly [string, string])[] = ['--white', '--text-1', '--ice', '--text-2', '--dim'].map(
+			(t) => [t, themeToken(t)] as const
+		);
+		tiers.push(['--teal (hero eyebrow)', '#3ea368']);
+		let cells = 0;
+		for (let x = 0; x <= 375; x += RAIN.cell / 2) {
+			const g = bandGain(x, 375, narrow);
+			expect(g).toBe(narrow.contentGain);
+			for (const [name, hex] of tiers) {
+				const w = worstFrame(hex, ground, g, narrow);
+				expect(w.head, `${name} under a head at x=${x}`).toBeGreaterThanOrEqual(4.5);
+				expect(w.trail, `${name} under a trail at x=${x}`).toBeGreaterThanOrEqual(4.5);
+				cells++;
+			}
+		}
+		// 47 sample points across the width, six tiers each.
+		expect(cells).toBe(47 * 6);
+	});
+
+	it('the slower fade never draws a cell brighter than a fresh one', () => {
+		const cols = createColumns(24, 42, mulberry32(375), narrow);
+		const out: CellEvent[] = [];
+		let seen = 0;
+		for (let frame = 0; frame < 900; frame++) {
+			out.length = 0;
+			stepColumns(cols, 42, 2, mulberry32(frame), out, narrow);
+			for (const e of out) {
+				expect(e.alpha).toBeLessThanOrEqual(1);
+				expect(e.alpha).toBeGreaterThan(0);
+				seen++;
+			}
+		}
+		expect(seen).toBeGreaterThan(1000);
+	});
+
+	it('POSITIVE CONTROL: the two brighter answers the report invites both fail --dim at phone width', () => {
+		const dim = themeToken('--dim');
+		// A bright head at the band gain: the 3.7 the module's header records.
+		expect(contrastRatio(dim, overSrgb(RAIN.head, narrow.contentGain, ground))).toBeLessThan(4.5);
+		// A quarter more gain on the trail.
+		expect(worstFrame(dim, ground, narrow.contentGain * 1.25, narrow).trail).toBeLessThan(4.5);
 	});
 });

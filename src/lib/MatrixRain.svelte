@@ -12,8 +12,14 @@
 		tailRows,
 		mulberry32,
 		headColour,
+		rainForWidth,
+		paintDue,
+		createSlowJudge,
+		judgeFrame,
+		judgeMeanMs,
 		type CellEvent,
-		type Column
+		type Column,
+		type RainConfig
 	} from '$lib/design-system/themes/matrix-rain';
 
 	/**
@@ -51,11 +57,21 @@
 	 * own script is 10 and 5; the page's frame loop stays at 60 fps. Painting
 	 * on every frame cost 292 ms/s at 1440, which is why it does not.
 	 *
-	 * A DEVICE THAT CANNOT KEEP UP IS DEGRADED, NOT LEFT STUTTERING. Frame
-	 * intervals are watched; `RAIN.slowFramesToDegrade` slow frames in a row
-	 * halve the update rate, and the same again parks the field as a still
-	 * frame and stops the loop. `data-motion` on the canvas says which state
-	 * it is in, so a harness can read it rather than guess.
+	 * A DEVICE THAT CANNOT KEEP UP IS DEGRADED, NOT LEFT STUTTERING, AND A
+	 * PHONE AT 30 FPS IS NOT ONE (report R09). Frame intervals go to
+	 * `judgeFrame`: once the start-up grace is over, a window of
+	 * `RAIN.slowWindow` frames whose median is `RAIN.slowFrameMs` or longer
+	 * halves the paint rate, and a second such window parks the field as a
+	 * still frame and stops the loop. `data-motion` on the canvas says which
+	 * state it is in and `data-frame-ms` the mean frame the judge is holding,
+	 * so a harness (and `tools/browser-verify/_rain-mobile.mjs` on an emulated
+	 * phone) can read both rather than guess.
+	 *
+	 * PAINTS ARE PACED BY TIME (`paintDue`), about 30 a second on any panel:
+	 * the frame count used to decide it, which painted a 30Hz phone at 15 and
+	 * a 120Hz one at 60. A canvas no wider than the content band takes the
+	 * band's slower fade from `rainForWidth`, for the reason the pure module's
+	 * header gives.
 	 *
 	 * REDUCED MOTION: NOTHING ANIMATES, NOTHING IS HIDDEN. With the preference
 	 * set, no frame is ever scheduled and the canvas holds a deliberate STILL
@@ -106,9 +122,11 @@
 		let raf = 0;
 		let last = 0;
 		let level = 0; // 0 full rate, 1 half rate, 2 parked
-		let slow = 0;
-		let parity = 0;
+		let judge = createSlowJudge();
 		let pendingMs = 0;
+		/* The constants for this canvas's width: the film's, or the band's
+		   slower fade when no column is outside the content band. */
+		let rain: RainConfig = RAIN;
 		let frames = 0;
 		let cssW = 0;
 		let cssH = 0;
@@ -173,16 +191,16 @@
 			ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
 			ctx!.clearRect(0, 0, cssW, cssH);
 			const seeded = mulberry32(cssW * 7919 + cssH);
-			const field = createColumns(cols, rows, seeded);
+			const field = createColumns(cols, rows, seeded, rain);
 			for (let i = 0; i < field.length; i++) {
 				const c = field[i];
 				const head = ((c.head % rows) + rows) % rows;
-				const tail = tailRows(c.speed);
+				const tail = tailRows(c.speed, rain);
 				drawCell(i, head, 'head', Math.floor(seeded() * GLYPH_COUNT), gains[i]);
 				for (let d = 1; d <= tail; d++) {
 					const row = head - d;
 					if (row < 0) break;
-					const a = trailAlpha(d, c.speed) * gains[i];
+					const a = trailAlpha(d, c.speed, rain) * gains[i];
 					if (a < 0.03) break;
 					drawCell(i, row, 'trail', Math.floor(seeded() * GLYPH_COUNT), a);
 				}
@@ -195,46 +213,43 @@
 			raf = requestAnimationFrame(frame);
 			const dt = last ? now - last : 1000 / 60;
 			last = now;
-			/* A gap over 250ms is a tab that was hidden, not a slow device. */
-			if (dt < 250) {
-				if (dt > RAIN.slowFrameMs) {
-					if (++slow >= RAIN.slowFramesToDegrade) {
-						slow = 0;
-						level += 1;
-						if (level >= 2) {
-							cancelAnimationFrame(raf);
-							raf = 0;
-							canvas.dataset.motion = 'still-slow';
-							drawStill();
-							return;
-						}
-						canvas.dataset.motion = 'half';
-					}
-				} else {
-					slow = 0;
+			/* The judge ignores a hidden tab's gap and the start-up grace itself;
+			   a true answer is a device whose median frame is too slow. */
+			if (judgeFrame(judge, dt)) {
+				level += 1;
+				if (level >= 2) {
+					cancelAnimationFrame(raf);
+					raf = 0;
+					canvas.dataset.motion = 'still-slow';
+					drawStill();
+					return;
 				}
+				canvas.dataset.motion = 'half';
 			}
-			pendingMs += Math.min(dt, 250);
-			/* PAINT AT 30 FPS, NOT 60. The film is 24; a glyph advance is a
-			   discrete step at 10-36 rows/s; the only continuous thing is the
-			   fade, and its per-paint step is invisible at either rate. What
-			   halving buys is the full-canvas alpha strip and the upload behind
-			   it, which were the whole cost when measured (see the header).
-			   Under degradation it is every fourth frame, 15 fps. */
-			parity = (parity + 1) % (level === 0 ? 2 : 4);
-			if (parity) return;
+			pendingMs += Math.min(dt, RAIN.gapMs);
+			/* ABOUT 30 PAINTS A SECOND, NOT ONE PER FRAME. The film is 24; a
+			   glyph advance is a discrete step at 10-36 rows/s; the only
+			   continuous thing is the fade, and its per-paint step is invisible
+			   at either rate. What pacing buys is the full-canvas alpha strip and
+			   the upload behind it, which were the whole cost when measured (see
+			   the header). Under degradation it is 15. */
+			if (!paintDue(pendingMs, level)) return;
 			const step = pendingMs;
 			pendingMs = 0;
 			ctx!.globalCompositeOperation = 'destination-out';
-			ctx!.globalAlpha = fadeAlpha(step);
+			ctx!.globalAlpha = fadeAlpha(step, rain);
 			ctx!.fillStyle = '#000';
 			ctx!.fillRect(0, 0, cssW, cssH);
 			ctx!.globalCompositeOperation = 'source-over';
 			events.length = 0;
-			stepColumns(columns, rows, step / (1000 / 60), rng, events);
+			stepColumns(columns, rows, step / (1000 / 60), rng, events, rain);
 			for (const e of events) drawCell(e.col, e.row, e.kind, e.glyph, e.alpha * gains[e.col]);
 			ctx!.globalAlpha = 1;
-			if (++frames % 30 === 0) canvas.dataset.frames = String(frames);
+			if (++frames % 30 === 0) {
+				canvas.dataset.frames = String(frames);
+				const mean = judgeMeanMs(judge);
+				if (Number.isFinite(mean)) canvas.dataset.frameMs = mean.toFixed(1);
+			}
 		}
 
 		function stop() {
@@ -245,6 +260,11 @@
 		function start() {
 			stop();
 			if (!alive || cssW === 0 || cssH === 0 || level >= 2) return;
+			/* A fresh judgment, grace included, every time the loop (re)starts:
+			   a tab coming back or a resize is a page settling again, not
+			   evidence about the device. The level already reached is kept. */
+			judge = createSlowJudge();
+			pendingMs = 0;
 			raf = requestAnimationFrame(frame);
 		}
 		function apply() {
@@ -277,7 +297,8 @@
 			ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
 			cols = Math.ceil(cssW / RAIN.cell);
 			rows = Math.ceil(cssH / RAIN.cell);
-			columns = createColumns(cols, rows, rng);
+			rain = rainForWidth(cssW);
+			columns = createColumns(cols, rows, rng, rain);
 			gains = Array.from({ length: cols }, (_, i) => bandGain((i + 0.5) * RAIN.cell, cssW));
 			apply();
 		}

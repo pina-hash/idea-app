@@ -74,11 +74,46 @@
  * (`glyphAt` marks the upper half of the index space as mirrored, and the
  * painter's atlas draws those with a flipped transform) gives the
  * unfamiliar, reversed look without a font this platform cannot promise.
+ *
+ * ------------------------------------------------------------------------
+ * A PHONE IS NOT A SLOW DEVICE (report R09, "Matrix theme not animated on
+ * mobile"). Three things stood between a phone and a moving field, and each
+ * is a rule below rather than a tweak in the painter:
+ *
+ *   - THE DEGRADE TRIPPED ON A 30 FPS DISPLAY. It counted frames over 34ms,
+ *     ninety in a row, and a phone in power saving runs 33.3ms frames -- 0.7ms
+ *     inside the line, where any lateness or one missed vsync on a 90 or 120Hz
+ *     panel (44.4 or 41.7ms) counts as slow, and a phone's first seconds of
+ *     page load count too. A degrade is permanent for the page, so a phone
+ *     that tripped it once showed a still field until a reload. Now a device
+ *     is judged on the MEDIAN of its last `slowWindow` frames against
+ *     `slowFrameMs` (45ms, see the constant), and nothing is judged for the
+ *     first `slowGraceMs` after the loop starts (`judgeFrame`).
+ *   - THE PAINT CADENCE WAS COUNTED IN FRAMES, so "every other frame" was
+ *     30 fps on a 60Hz desktop, 15 on a 30Hz phone and 60 on a 120Hz one --
+ *     the slowest device painting least often and the fastest paying double.
+ *     It is counted in milliseconds now (`paintDue`): about 30 paints a
+ *     second whatever the panel's rate, which is what it always was at 60Hz.
+ *   - AT PHONE WIDTH THE WHOLE SCREEN IS THE CONTENT BAND, so every glyph is
+ *     the band's whisper and none is the film. The whisper CANNOT get brighter:
+ *     `worstFrame` puts --dim, the hero subtitle, at 4.59:1 over a fresh trail
+ *     cell at `contentGain`, 0.09 above the floor, and a whiter head at that
+ *     gain measured 3.7. What CAN change without lighting a single pixel past
+ *     that is how many glyphs are lit at once: a canvas with no margin
+ *     (`rainForWidth`) fades at `bandFadePerFrame`, half the film's rate, so
+ *     each column drags twice the visible streak. The fade never brightens a
+ *     cell (every draw is at or below a fresh cell's alpha, and a cell is
+ *     cleared before it is redrawn), so the worst frame is unchanged by
+ *     construction, and the test says so for every tier rather than assuming.
  */
 
 export type Rng = () => number;
 
-export const RAIN = Object.freeze({
+/* A plain object literal first, so its fields type as `number` and `string`
+   rather than as the literals `Object.freeze` would infer: `rainForWidth`
+   hands out a variant with a different fade, and a test builds variants with
+   a different threshold, both of which a literal type would refuse. */
+const RAIN_VALUES = {
 	/** CSS px per glyph cell. The canvas is scaled by DPR underneath. */
 	cell: 16,
 	/** The face for the atlas: the platform's mono first, then whatever
@@ -104,10 +139,55 @@ export const RAIN = Object.freeze({
 	/** Device pixel ratio cap: a 3x phone would otherwise fade a 2.2 Mpx
 	 *  canvas every frame for glyphs nobody can see the difference in. */
 	maxDpr: 2,
-	/** A frame slower than this counts as slow; this many in a row degrade. */
-	slowFrameMs: 34,
-	slowFramesToDegrade: 90
-});
+	/** The fade on a canvas with no margin (see `rainForWidth`): half the
+	 *  film's, so a column drags twice the visible streak behind its head. */
+	bandFadePerFrame: 0.045,
+	/**
+	 * A FRAME OF THIS LENGTH OR LONGER IS SLOW. 45ms sits between the two
+	 * frame lengths that matter: a steady 30 fps display's 33.3ms (two 60Hz
+	 * vsyncs, three at 90Hz, four at 120Hz), which is 11.7ms clear of it, and
+	 * a 60Hz machine that cannot hold 30 and drops to three vsyncs, 50ms, 20
+	 * fps, which is past it. Every interval a panel delivering 24 fps or
+	 * better can produce is under it (41.7ms is the longest, five 120Hz
+	 * vsyncs), so the rain is degraded only on a device that cannot hold
+	 * the film's own frame rate.
+	 */
+	slowFrameMs: 45,
+	/** How many frames the judge looks back over; slow means MORE THAN HALF
+	 *  of them were slow, which is "the median frame is slow". */
+	slowWindow: 90,
+	/** Nothing is judged for this long after the loop starts or resumes: a
+	 *  phone's page load (hydration, fonts, image decode) produces long
+	 *  frames that say nothing about whether it can keep up with the rain,
+	 *  and a degrade lasts as long as the page. */
+	slowGraceMs: 3000,
+	/** A gap this long between frames is a hidden tab coming back, not a slow
+	 *  device: it is neither judged nor allowed to wipe the field. */
+	gapMs: 250,
+	/** Paints per second, whatever the panel's refresh rate (see `paintDue`). */
+	paintFps: 30,
+	/** How early a paint may land, so a 60Hz pair of frames summing to a hair
+	 *  under 33.3ms is not pushed to a third frame (half a 120Hz frame). */
+	paintSlackMs: 4
+};
+
+/** The rain's constants, or any variant of them `rainForWidth` hands out. */
+export type RainConfig = Readonly<typeof RAIN_VALUES>;
+
+export const RAIN: RainConfig = Object.freeze(RAIN_VALUES);
+
+/**
+ * THE CONSTANTS FOR A CANVAS `width` CSS px WIDE. A canvas no wider than the
+ * content band has no margin: every column is under the page's copy, drawn at
+ * `contentGain` with no bright head, so it gets the band's slower fade and a
+ * longer streak for the one reason the header gives. A wider canvas keeps the
+ * film's fade, which its margins are drawn in. Nothing but the fade differs,
+ * so every brightness rule -- the gain, the head colour, the worst frame --
+ * is the same function of the same numbers at every width.
+ */
+export function rainForWidth(width: number, r: RainConfig = RAIN): RainConfig {
+	return width <= r.contentBandPx ? { ...r, fadePerFrame: r.bandFadePerFrame } : r;
+}
 
 export const GLYPHS: readonly string[] = Object.freeze([...'0123456789ABCDEFGHJKLMNPQRSTUVWXYZ+-*/=<>|:;']);
 /** Plain glyphs first, the same set mirrored after them. */
@@ -152,8 +232,88 @@ export function trailAlpha(rowsBehind: number, speed: number, r = RAIN): number 
 /** The alpha the painter strips this frame, for a frame of `dtMs`. Clamped so
  *  a tab coming back from the background does not wipe the field. */
 export function fadeAlpha(dtMs: number, r = RAIN): number {
-	const frames = Math.max(0, Math.min(dtMs, 250)) / (1000 / 60);
+	const frames = Math.max(0, Math.min(dtMs, r.gapMs)) / (1000 / 60);
 	return Math.min(0.5, 1 - Math.pow(1 - r.fadePerFrame, frames));
+}
+
+/**
+ * IS A PAINT DUE, once `pendingMs` of frame time has built up since the last
+ * one, at degrade `level` (0 full rate, 1 half). Time, not a frame count: a
+ * 60Hz desktop paints every other frame exactly as it always did, a 30Hz phone
+ * every frame rather than every other, a 120Hz phone every fourth rather than
+ * every other. The half rate is half of that, 15 paints a second.
+ */
+export function paintDue(pendingMs: number, level: number, r = RAIN): boolean {
+	const interval = (1000 / r.paintFps) * (level > 0 ? 2 : 1);
+	return pendingMs >= interval - r.paintSlackMs;
+}
+
+/**
+ * THE SLOW-DEVICE JUDGE: the last `slowWindow` frame intervals in a ring, how
+ * many of them were slow, and how much of the start-up grace is left.
+ * `judgeFrame` is the whole rule; the painter only acts on its answer.
+ */
+export type SlowJudge = {
+	intervals: Float64Array;
+	slow: Uint8Array;
+	at: number;
+	filled: number;
+	slowCount: number;
+	graceLeftMs: number;
+};
+
+export function createSlowJudge(r = RAIN): SlowJudge {
+	return {
+		intervals: new Float64Array(r.slowWindow),
+		slow: new Uint8Array(r.slowWindow),
+		at: 0,
+		filled: 0,
+		slowCount: 0,
+		graceLeftMs: r.slowGraceMs
+	};
+}
+
+/**
+ * Record one frame interval and answer TRUE when the device should be
+ * degraded one step: the window is full and MORE THAN HALF of it was slow,
+ * which is the median frame being `slowFrameMs` or longer. A median rather
+ * than "N in a row" because a real display is not metronomic -- one early
+ * frame used to reset a slow machine's count, and one late frame on a 30 fps
+ * phone was a vote against it -- and the median is the one reading neither
+ * kind of outlier moves. A true answer EMPTIES the window, so a second step
+ * needs a second full window of evidence taken at the new rate. Frames inside
+ * the start-up grace, and a gap of `gapMs` or more (a hidden tab), are not
+ * recorded at all.
+ */
+export function judgeFrame(j: SlowJudge, dtMs: number, r = RAIN): boolean {
+	if (!(dtMs > 0) || dtMs >= r.gapMs) return false;
+	if (j.graceLeftMs > 0) {
+		j.graceLeftMs -= dtMs;
+		return false;
+	}
+	const isSlow = dtMs >= r.slowFrameMs ? 1 : 0;
+	if (j.filled === r.slowWindow) j.slowCount -= j.slow[j.at];
+	else j.filled += 1;
+	j.intervals[j.at] = dtMs;
+	j.slow[j.at] = isSlow;
+	j.slowCount += isSlow;
+	j.at = (j.at + 1) % r.slowWindow;
+	if (j.filled === r.slowWindow && j.slowCount * 2 > r.slowWindow) {
+		j.at = 0;
+		j.filled = 0;
+		j.slowCount = 0;
+		return true;
+	}
+	return false;
+}
+
+/** The mean of the intervals the judge holds, in ms, or NaN before it holds
+ *  any -- the frame length a harness reads off the canvas. */
+export function judgeMeanMs(j: SlowJudge): number {
+	if (j.filled === 0) return NaN;
+	let sum = 0;
+	for (let i = 0; i < j.filled; i++) sum += j.intervals[i];
+	return sum / j.filled;
 }
 
 /** Heads scattered over the whole height and above it, so the first frames
