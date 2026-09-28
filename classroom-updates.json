@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-09-28",
+			"title": "Teachers: a roomier grading page",
+			"body": "On the grading page, the export buttons and Close assignment now sit in two panels at the top beside Previous and Next student, so the list of students gets the room. Tick boxes appear only after you press Select, and To grade shows just the students whose work is waiting. Nothing changes for students.",
+			"tags": ["new"]
+		},
+		{
+			"date": "2026-09-28",
 			"title": "The Matrix theme moves on phones, and the code counter counts up",
 			"body": "If you use the Matrix theme on a phone, the falling code now keeps moving, including in battery saver mode. Before, many phones froze it after a few seconds. On the home page, the lines-of-code number now counts up when the page loads, and its pop-up has a Recent updates list showing how many lines each update added and removed. If you turn animation off in your device settings, you see the final number straight away.",
 			"tags": ["fix"]
