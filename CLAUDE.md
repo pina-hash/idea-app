@@ -1114,6 +1114,52 @@ rule Foundry states as "preflight passing is not submission".
   yet, so no `classroom-updates.json` entry may claim students can style a
   team.
 
+### CLASS THEMES -- the class votes, a tally is all that leaves, and the banner is a wash
+
+**`$lib/classroom/class-theme.ts` IS THE ONE CATALOGUE, AND THE DATABASE STORES
+ONLY IDS (decision 45, 0225).** A course's look is voted feature by feature
+(palette, pattern, badge) and every section of the course shares it; what tells
+Block 2 from Block 4 is the one accent a teacher sets per section
+(`SECTION_ACCENTS`, written only by `classroom_set_section_accent`). The vote is
+the only way a course's look changes: a teacher opens, closes and resets it
+(`classroom_theme_set_voting`, `classroom_theme_reset`) and is refused a vote.
+
+- **THE WINNER RULE IS THE DATABASE'S AND THERE IS ONE OF IT**:
+  `_classroom_theme_winners` over one definition of a counted vote,
+  `_classroom_theme_counted_votes`. Most votes wins; a tie goes to the option
+  whose LATEST counted vote is EARLIEST, so an option that only drew level never
+  takes over and the banner cannot flicker. `classThemeBallot` reads the winners
+  and never recomputes a tie. A reset stamps a time and deletes nothing.
+- **ONLY TALLIES LEAVE THE DATABASE.** `classroom_theme_tally` answers counts, a
+  voter count, the winners and the CALLER'S OWN choices, never another voter's
+  address or a per-vote time; both tables are RLS-on, no-policy, no-grant, and
+  `ClassThemePanel` renders counts only. `classroom_class_themes(uuid[])` is the
+  one paint read and OMITS a section the caller cannot read rather than raising.
+- **EVERY READ VALIDATES AGAINST THE CATALOGUE AND DROPS WHAT IT DOES NOT KNOW,
+  AND OPTION IDS ARE APPEND-ONLY** (the avatar-preset reason: a shipped id sits in
+  vote rows and on sections). `tests/classroom-class-theme.test.ts` pins every
+  list as a prefix and sweeps every palette and accent against grounds parsed
+  from the theme CSS, straight and under `PROJECTOR_MODEL`; an option or a new
+  ground joins only with that sweep green.
+- **A CLASS NOBODY HAS VOTED ON RENDERS EXACTLY AS BEFORE.** `resolveClassTheme`
+  answers null with no known winner and no accent, `ClassThemeBanner` then
+  renders its children and nothing else, and a card or strip key carries no
+  style; `tests/classroom-class-theme-render.test.ts` compares the markup byte
+  for byte.
+- **THE BANNER IS A WASH, THE WORDS TAKE `--text-1`, AND EVERY OTHER MARK IS ITS
+  OWN ELEMENT.** The palette's wash is a translucent `background-color` over the
+  room's own ground (a colour, not an image layer, so the browser pass's ground
+  walk composites it), the pattern a `background-image` on the banner alone, and
+  nothing on it takes `--text-2` (3.13:1 there on IDEA). The plate repaints a
+  card's and a key's BORDER, so a card's accent is `.class-theme-edge` and a strip
+  key's is `.cls-theme-bar`: a border colour there came out the plate's grey and
+  the contrast check passed on the grey.
+- **ONE READ PAINTS EVERY SURFACE.** The classroom layout reads every listed
+  class's theme once (`navThemes`, in batches of 200); the strip, My Classes and
+  the banner paint from it, and a vote overlays the winners for its own course
+  only. `unavailable`, an error or "Not found." is NO theme and no panel, never a
+  broken page.
+
 ### WHO IS WORKING -- an instrument's silence is never a fact about a student
 
 **A DERIVED INSTRUMENT MAY NOT CONTRADICT THE RECORD IT IS RENDERED BESIDE, AND
@@ -5003,6 +5049,14 @@ This is the **only** automated suite, and it is deliberately narrow.
   carry the argument. **Prefer `node` when either would do**: a mount costs
   roughly an order of magnitude more per test than a server render, and the
   client compile is paid per file on top.
+- **A TEST THAT NEEDS A `tools/browser-verify` MODULE IMPORTS IT THROUGH A
+  COMPUTED URL, NEVER A LITERAL SPECIFIER.** A literal import pulls the harness
+  JS into svelte-check's program: measured on 2026-09-28, the baseline went from
+  0 errors to 126, every one in `tools/browser-verify/checks.mjs`.
+  `await import(new URL('../tools/browser-verify/<file>.mjs', import.meta.url).href)`
+  in a `beforeAll` is the shape (`tests/browser-verify-prepare-until.test.ts`,
+  `tests/classroom-class-theme.test.ts`), and it keeps one implementation of the
+  projector model rather than a mirrored copy.
 - **happy-dom HAS NO LAYOUT ENGINE, SO NO GEOMETRY, CONTRAST OR TAP-TARGET
   CLAIM MAY BE ASSERTED IN `tests/dom/`.** Measured there:
   `getBoundingClientRect()` answers `{x:0, y:0, width:0, height:0}`,

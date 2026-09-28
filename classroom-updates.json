@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-09-28",
+			"title": "Vote on your class's look",
+			"body": "Your class can now choose its own look. Open Class theme under the class name on your class page and vote on a color palette, a banner pattern and a badge. The choice with the most votes wins, and the banner changes for everyone in the class. You can change or take back your vote while voting is open, and only the totals are shown, never who voted for what. Your teacher can give your block its own color, so two blocks of the same class look different, and can open or close the vote.",
+			"tags": ["classroom"]
+		},
+		{
+			"date": "2026-09-28",
 			"title": "Past classes tucked away, and buttons that show what is open",
 			"body": "On My Classes, your current classes come first and past classes sit under a closed Archived section you can open any time. The class bar at the top of classroom pages shows only current classes, with one Archived button that lists the rest. Buttons that open a panel, like Units or Edit, now look pressed while the panel is open, so the way back is easy to spot. On the light theme, class links and small labels are green instead of brown. Teachers: a class's details, Archive class and Delete class moved from People to the class's new Settings tab, and the header button for your own view is now called Display settings.",
 			"tags": ["classroom"]
