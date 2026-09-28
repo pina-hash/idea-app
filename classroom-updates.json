@@ -14,6 +14,18 @@
 	"entries": [
 		{
 			"date": "2026-09-28",
+			"title": "Past classes tucked away, and buttons that show what is open",
+			"body": "On My Classes, your current classes come first and past classes sit under a closed Archived section you can open any time. The class bar at the top of classroom pages shows only current classes, with one Archived button that lists the rest. Buttons that open a panel, like Units or Edit, now look pressed while the panel is open, so the way back is easy to spot. On the light theme, class links and small labels are green instead of brown. Teachers: a class's details, Archive class and Delete class moved from People to the class's new Settings tab, and the header button for your own view is now called Display settings.",
+			"tags": ["classroom"]
+		},
+		{
+			"date": "2026-09-28",
+			"title": "Teams can change after they are posted",
+			"body": "Your teacher can now move you to a different team after the teams are posted, add a classmate who joined late, or rename a team. When a teacher moves someone, the teams say \"Edited by hand\", so everyone can tell they are no longer exactly what the random draw picked.",
+			"tags": ["teams"]
+		},
+		{
+			"date": "2026-09-28",
 			"title": "The same look on the rest of the site, and four fixes",
 			"body": "The machined look IDEA Classroom got this morning now reaches the rest of ideabosco.com that is built the same way: the home page and its app cards, IDEA Maps, the Foundry gallery, tournaments and the coin pages. GAUNTLET, GREENLINE, VANGUARD, IdeaCAD, FRC and the FSP pages keep their own look, and so does anything a student made. Four things in the classroom are fixed too. On a returned assignment, the Returned tag and the rubric breakdown now match the rest of the page. Student names in lists no longer break in the middle of a word on a phone; a name too long for its space ends in dots, and holding or hovering shows the whole name. Small status tags with a light, like Draft and Pinned, give the light more room. If anything looks wrong on your screen, press Report.",
 			"tags": ["Appearance", "fix"]

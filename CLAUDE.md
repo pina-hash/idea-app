@@ -1062,10 +1062,25 @@ rule Foundry states as "preflight passing is not submission".
   sweep. Post and unpost are TWO verbs, because "post until Friday" and "take it
   down" are different intentions and a single toggle taking a timestamp makes
   the second one an argument value.
-- **THE SEED IS STORED AND IS IN THE EXPORT.** It is what makes a draw checkable
-  rather than merely plausible, and an export is the artifact that outlives the
+- **THE SEED IS STORED AND IS IN THE EXPORT, AND A HAND EDIT IS MARKED, NOT
+  HIDDEN (0225, decision 44).** The seed is what makes a draw checkable rather
+  than merely plausible, and an export is the artifact that outlives the
   screen. A persisted draw that lost its seed is a list of names with no way to
-  tell a draw from an arrangement.
+  tell a draw from an arrangement. A manager may still move a student between
+  teams of one draw, or add a latecomer with a LIVE enrollment, through
+  `classroom_move_team_member`: it locks the set, never touches the seed, and
+  stamps `edited_at`/`edited_by`; a student who has left may be moved but not
+  added, and a move that changes nothing stamps nothing. `classroom_team_board`
+  projects `edited_at` to everyone and `edited_by` to a manager only.
+  `teamSetEditedWords` in `$lib/classroom/teams.ts` is the one spelling
+  ("Edited by hand") the People tab, the class page (`ClassTeamSet.edited`, a
+  boolean, never the address) and the CSV's Edited column read. A rename goes
+  through the style write with the other five fields carried over (that write
+  replaces all six, so a name-only call wipes a banner), and stamps nothing,
+  because it changes no membership. On People a drag onto another team card
+  and Move to are two spellings of ONE handler (`moveMember`); a board whose
+  sets lack the `edited_at` key (`TeamBoard.editsReady`), or a move answering
+  `unavailable`, removes both and says why.
 - **THE RENDERERS ARE THE TOURNAMENT MODULE'S, CONSUMED READ-ONLY.** `accentOf`,
   `hasStyle`, `backgroundCss` and `bannerInk` all take `EntryStyleDraft`, a
   `Pick` that EXCLUDES `entry_id` and `tournament_id`, so they accept a team
@@ -1267,6 +1282,28 @@ step names keeps its hook**, and a step names a control by its printed word.
   the button said "Report a problem".
 - **`InfoTip` OPENS ON A TAP AND STAYS OPEN UNTIL A TAP ELSEWHERE, ESCAPE OR
   BLUR.** A tip a phone cannot open is a `title` by another name.
+
+### A CLASS'S OWN SETTINGS, AND ITS ARCHIVED CLASSES
+
+**A CLASS'S OWN SETTINGS ARE ITS SIXTH TAB, NOT PEOPLE'S LAST CARD (report R06,
+2026-09-28).** `sectionTabs` ends with a manager-only `settings` tab
+(`classSettingsHref`), whose route 404s a non-manager exactly as People and
+Grades do, and `ClassSettingsPanel` holds Edit details, Archive class and Delete
+class, MOVED rather than copied out of `PeoplePanel`, which keeps one line
+pointing at the tab. The header's per-person control says `Display settings`
+(command `settings.open`), so it is never mistaken for `class.settings`.
+`tests/classroom-settings-tab.test.ts` drives the real load in both directions.
+
+**ARCHIVED IS ONE PREDICATE, `splitArchived` IN `nav.ts` (report R12).** My
+Classes puts archived classes under a closed `Disclosure` with the count
+outside; the header's class strip draws active classes plus one Archived key
+over an `anchored` list. `keep` is the class on screen: it keeps its own key
+when archived, so nobody is stranded on a page whose key vanished. `active`
+absent reads as active.
+
+**A CONTROL THAT OPENS A PANEL IS LIT WHILE IT IS OPEN (report R15)**:
+`class:on` beside `aria-expanded`, which the plate's key list already draws, so
+the way back is the pressed key. `Disclosure` does it for every caller.
 
 ### NOTEBOOK CAPTURE -- where the work is, and never only in memory
 
@@ -5484,6 +5521,10 @@ the source of truth; **do not invent colours or swap fonts.**
     gold over white is brown (#715d22). A `:hover` rule that wants the brass
     reads the role. The launcher's four accent-less cards take the green ink on
     Space White for the same reason; gold stays for true special callouts.
+    Classroom words and glyphs that painted `--gold` (the assignment glyph,
+    file badges, rubric points, course codes, small links, My Classes' card
+    ink) read `--hover-ink` since report R14; `--gold` stays only on pins,
+    instructor-only banners and labels, and the to-do's feedback flag.
 
 ### Scoped themes are deliberately off-brand, and stay in their room
 
