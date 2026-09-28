@@ -4,9 +4,12 @@
 	import '$lib/classroom/classroom.css';
 	import './shape.css';
 	import './plate.css';
+	import './plate-v3.css';
+	import '@fontsource/vt323/400.css';
 	import PlateView from './PlateView.svelte';
+	import PlateV3View from './PlateV3View.svelte';
+	import { SECTIONS } from './plate-fixtures';
 	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
-	import type { ClassroomSection } from '$lib/classroom/classroom';
 	import { SITE_THEMES, SITE_THEME_LABELS, setSiteTheme, siteTheme, type SiteTheme } from '$lib/theme.svelte';
 
 	/**
@@ -38,37 +41,6 @@
 	 * card's. Adopting this would move those rules to `--radius-control`.
 	 */
 
-	/* Three classes, so the header's class strip has something to shape. */
-	const SECTIONS: ClassroomSection[] = [
-		{
-			id: 's-1',
-			course_id: 'c-1',
-			label: 'Period 1',
-			block: 'P1',
-			teacher_email: 'teacher@boscotech.edu',
-			active: true,
-			course: { id: 'c-1', code: 'IDEA209H', title: 'Engineering I Honors', active: true }
-		},
-		{
-			id: 's-2',
-			course_id: 'c-2',
-			label: 'Period 3',
-			block: 'P3',
-			teacher_email: 'teacher@boscotech.edu',
-			active: true,
-			course: { id: 'c-2', code: 'IDEA100', title: 'Introduction to Design', active: true }
-		},
-		{
-			id: 's-3',
-			course_id: 'c-3',
-			label: 'Period 5',
-			block: 'P5',
-			teacher_email: 'teacher@boscotech.edu',
-			active: true,
-			course: { id: 'c-3', code: 'IDEA310', title: 'Engineering Design Studio', active: true }
-		}
-	];
-
 	/**
 	 * TWO CUT STYLES, ONE TOKEN SET EACH, so the decision is between two real
 	 * renderings rather than a description. `two` cuts the top-left and
@@ -79,19 +51,22 @@
 	type Cut = 'two' | 'four';
 
 	/**
-	 * THREE VIEWS (ledger 0341). `plate` is round 2 and the DEFAULT: one sci-fi
-	 * geometry for every theme, the proposal in ./plate.css. `two` and `four`
-	 * are round 1's two cut styles (ledger 0298, ./shape.css), kept whole for
-	 * comparison. `?view=` picks one; round 1's own `?cut=four` still lands on
-	 * its four-corner view, so a link written from shapes.md keeps working.
+	 * FOUR VIEWS. `v3` is round 3 (ledger 0344) and the DEFAULT: the same one
+	 * geometry for every theme as round 2, with Sci-Fi Line's finish
+	 * (./plate-v3.css). `plate` is round 2 (ledger 0341, ./plate.css), kept
+	 * whole for comparison; `two` and `four` are round 1's cut styles (ledger
+	 * 0298, ./shape.css). `?view=` picks one; round 1's own `?cut=four` still
+	 * lands on its four-corner view, so a link written from shapes.md keeps
+	 * working.
 	 */
-	type View = 'plate' | Cut;
+	type View = 'v3' | 'plate' | Cut;
 	const VIEWS: { id: View; label: string }[] = [
+		{ id: 'v3', label: 'Plate v3 (round 3)' },
 		{ id: 'plate', label: 'Plate (round 2)' },
 		{ id: 'two', label: 'Two corners (round 1)' },
 		{ id: 'four', label: 'Four corners (round 1)' }
 	];
-	const isView = (v: string | null): v is View => v === 'plate' || v === 'two' || v === 'four';
+	const isView = (v: string | null): v is View => v === 'v3' || v === 'plate' || v === 'two' || v === 'four';
 	let viewChoice = $state<View | null>(null);
 	const view = $derived<View>(
 		viewChoice ??
@@ -99,9 +74,19 @@
 				const v = page.url.searchParams.get('view');
 				if (isView(v)) return v;
 				const c = page.url.searchParams.get('cut');
-				return c === 'four' ? 'four' : c === 'two' ? 'two' : 'plate';
+				return c === 'four' ? 'four' : c === 'two' ? 'two' : 'v3';
 			})()
 	);
+
+	/**
+	 * THE LABEL FACE, A OR B (ledger 0344): a question for Mr. Pina, not a
+	 * decision. A is Share Tech Mono, the house mono. B is VT323, one OFL pixel
+	 * face self-hosted from `@fontsource/vt323`, used for the v3 view's labels
+	 * and readouts only (plate-v3.css). `?face=b` starts on B.
+	 */
+	type Face = 'a' | 'b';
+	let faceChoice = $state<Face | null>(null);
+	const face = $derived<Face>(faceChoice ?? (page.url.searchParams.get('face') === 'b' ? 'b' : 'a'));
 	const cut = $derived<Cut>(view === 'four' ? 'four' : 'two');
 
 	const current = $derived(siteTheme());
@@ -182,9 +167,10 @@
 			<p class="ts-lead">
 				A mockup for a decision, not a change: nothing on this page reaches a real page. The left
 				or top of each pair is today's classroom in the theme you pick. The right or bottom is the
-				same element with the proposal. <strong>Plate</strong> is round 2: one sci-fi geometry
-				shared by every theme, with only colour and material changing between them. The two corner
-				views are round 1, kept for comparison.
+				same element with the proposal. <strong>Plate v3</strong> is round 3: round 2's one sci-fi
+				geometry for every theme, finished the way Sci-Fi Line is finished, with only colour and
+				material changing between themes. Round 2's Plate and round 1's two corner views are kept
+				for comparison.
 			</p>
 			<div class="ts-bar">
 				<span class="ts-theme" data-testid="shape-theme">
@@ -201,6 +187,16 @@
 						>
 					{/each}
 				</div>
+				{#if view === 'v3'}
+					<div class="ts-cut" role="group" aria-label="Label face">
+						<button type="button" class="ts-seg" aria-pressed={face === 'a'} data-face-set="a" onclick={() => (faceChoice = 'a')}
+							>A: Share Tech Mono</button
+						>
+						<button type="button" class="ts-seg" aria-pressed={face === 'b'} data-face-set="b" onclick={() => (faceChoice = 'b')}
+							>B: VT323 pixel</button
+						>
+					</div>
+				{/if}
 				<div class="ts-cut" role="group" aria-label="View">
 					{#each VIEWS as v (v.id)}
 						<button
@@ -216,7 +212,9 @@
 			</div>
 		</header>
 
-		{#if view === 'plate'}
+		{#if view === 'v3'}
+			<PlateV3View sections={SECTIONS} {face} />
+		{:else if view === 'plate'}
 			<PlateView sections={SECTIONS} />
 		{:else}
 

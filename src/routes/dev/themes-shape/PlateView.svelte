@@ -2,8 +2,8 @@
 	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
 	import ClassView from '$lib/classroom/ClassView.svelte';
 	import ReturnedGrade from '$lib/classroom/ReturnedGrade.svelte';
-	import type { ClassroomItem, ClassroomSection, ClassroomUnit } from '$lib/classroom/classroom';
-	import type { SubmissionRow } from '$lib/classroom/assignment-spec';
+	import type { ClassroomSection } from '$lib/classroom/classroom';
+	import { CARDS, ITEMS, RETURNED, UNITS } from './plate-fixtures';
 
 	/**
 	 * THE PLATE VIEW (ledger 0341): one sci-fi shape language for every theme,
@@ -25,69 +25,6 @@
 	let { sections }: { sections: ClassroomSection[] } = $props();
 
 	const SECTION = $derived(sections[0]);
-
-	/** A fixed epoch, as the stream harness uses: a row whose date drifts is a
-	 *  measurement that cannot be compared across runs. */
-	const at = (n: number) => new Date(Date.UTC(2026, 8, 21) + n * 86400000).toISOString();
-
-	const UNITS: ClassroomUnit[] = [{ id: 'u-3', course_id: 'c-1', name: 'Unit 3 · Materials and testing', sort_order: 3 }];
-
-	const TITLES: [ClassroomItem['kind'], string][] = [
-		['material', 'Reading: how brackets fail'],
-		['assignment', 'Bracket redesign, test report'],
-		['assignment', 'Load test data sheet'],
-		['post', 'Bring safety glasses on Thursday'],
-		['assignment', 'Sketch two alternative supports']
-	];
-	const ITEMS: ClassroomItem[] = TITLES.map(([kind, title], i) => ({
-		id: `i-${i + 1}`,
-		kind,
-		title,
-		body: '',
-		body_doc: null,
-		points: kind === 'assignment' ? 20 : null,
-		due_at: kind === 'assignment' ? at(i + 2) : null,
-		category: null,
-		author_email: 'teacher@boscotech.edu',
-		author_name: 'T. Vargas',
-		published: true,
-		pinned: false,
-		unit_id: 'u-3',
-		sort_order: i,
-		first_published_at: at(-3),
-		edited_at: null,
-		created_at: at(-3),
-		updated_at: at(-3),
-		links: [],
-		attachments: [],
-		postings: [{ section_id: 's-1' }],
-		viewed_at: null,
-		instructorAttachments: [],
-		instructorLinks: []
-	}));
-
-	const RETURNED: SubmissionRow = {
-		id: 'sub-1',
-		item_id: 'i-2',
-		student_email: 'alice@boscotech.net',
-		state: 'returned',
-		submitted_at: at(-1),
-		returned_at: at(0),
-		rubric_scores: null,
-		criterion_comments: null,
-		score: 18,
-		teacher_comment: 'Good photographs of the break. Say why the crack started at the bolt hole.',
-		graded_by: 'teacher@boscotech.edu',
-		graded_at: at(0)
-	};
-
-	/** The three cards of the composed region: the same card markup as the card
-	 *  specimen, three times, so the page is judged on real repetition. */
-	const CARDS = [
-		{ label: 'UNIT 3 · DUE FRI 3:00 PM', title: 'Bracket redesign, test report', body: 'Load the printed bracket until it fails and explain why it broke where it did.', chip: 'Assignment' },
-		{ label: 'UNIT 3 · DUE MON 8:00 AM', title: 'Load test data sheet', body: 'Record each load step and the deflection you measured at the tip.', chip: 'Assignment' },
-		{ label: 'UNIT 3 · MATERIAL', title: 'Reading: how brackets fail', body: 'Three short case studies. Read before Thursday.', chip: 'Material' }
-	];
 </script>
 
 <!-- ------------------------------------------------------------------ -->
