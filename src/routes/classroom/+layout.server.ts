@@ -1,4 +1,5 @@
 import { normalizeSectionRow } from '$lib/classroom/classroom';
+import { classThemesBySection, createClassThemeTransports, type ClassTheme } from '$lib/classroom/class-theme';
 import { isAdmin } from '$lib/server/admin';
 import type { LayoutServerLoad } from './$types';
 
@@ -25,8 +26,11 @@ import type { LayoutServerLoad } from './$types';
  * hooks.server.ts authedPrefixes, so an anonymous visitor never reaches this,
  * and each page keeps its own belt-and-braces guard.
  */
+/** `classroom_class_themes` refuses more than this many ids in one call (0225). */
+const CLASS_THEME_BATCH = 200;
+
 export const load: LayoutServerLoad = async ({ locals: { supabase, claims } }) => {
-	if (!claims) return { navSections: [], navIsStaff: false, navIsAdmin: false };
+	if (!claims) return { navSections: [], navThemes: {}, navIsStaff: false, navIsAdmin: false };
 
 	const [{ data: profile }, { data: sections }, admin] = await Promise.all([
 		supabase.from('profiles').select('role').eq('id', claims.sub).maybeSingle(),
@@ -37,8 +41,32 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, claims } }) =
 		isAdmin(supabase, claims.sub)
 	]);
 
+	const navSections = ((sections ?? []) as Record<string, unknown>[]).map(normalizeSectionRow);
+
+	/*
+	 * EVERY LISTED CLASS'S VOTED LOOK, READ ONCE (decision 45): the header
+	 * strip's keys, My Classes' cards and the class banner all paint from this
+	 * one read, so they cannot disagree. A deployment without 0225, or a read
+	 * that failed, is NO themes -- every class renders exactly as it did before
+	 * themes existed -- and never a broken page. A class nobody has voted on is
+	 * absent from the map, which is the same answer.
+	 */
+	let navThemes: Record<string, ClassTheme> = {};
+	const themeTransports = createClassThemeTransports(supabase);
+	const ids = navSections.map((s) => s.id);
+	// 0225 answers at most 200 classes a call, and an admin lists every class.
+	for (let i = 0; i < ids.length; i += CLASS_THEME_BATCH) {
+		const res = await themeTransports.themes(ids.slice(i, i + CLASS_THEME_BATCH));
+		if (!res.ok) {
+			navThemes = {};
+			break;
+		}
+		Object.assign(navThemes, classThemesBySection(res.themes));
+	}
+
 	return {
-		navSections: ((sections ?? []) as Record<string, unknown>[]).map(normalizeSectionRow),
+		navSections,
+		navThemes,
 		// The domain-derived STAFF marker, which is all this decides: whether the
 		// switcher offers the courses-and-setup door. Every write behind it is
 		// re-checked by its own RPC.

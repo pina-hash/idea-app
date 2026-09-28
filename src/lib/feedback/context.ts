@@ -81,6 +81,7 @@ export const CLASSROOM_SHELL_HARNESSES = [
 	'/dev/classroom-profile-menu',
 	'/dev/classroom-split',
 	'/dev/classroom-stream',
+	'/dev/classroom-theme',
 	'/dev/classroom-todo',
 	'/dev/classroom-tour',
 	'/dev/classroom-view-as-notebook',

@@ -64,7 +64,8 @@
 		testId = null,
 		bodyClass = '',
 		showWord = 'Show',
-		hideWord = 'Hide'
+		hideWord = 'Hide',
+		onopenchange = null
 	}: {
 		/** The visible word on the trigger. A glyph alone is not a control. */
 		label: string;
@@ -98,6 +99,13 @@
 		 */
 		showWord?: string;
 		hideWord?: string;
+		/**
+		 * Told whether the panel is open, on the first frame and on every change,
+		 * for a caller that does work only while its panel is read (the class
+		 * theme panel polls its tally only while open, ledger 0347). The open
+		 * state stays this component's: the caller is told, never asked.
+		 */
+		onopenchange?: ((open: boolean) => void) | null;
 	} = $props();
 
 	/** `aria-controls` needs a real id, and two panels on one page need two. */
@@ -159,6 +167,16 @@
 	);
 
 	const open = $derived(disclosureOpen(chosen, collapsed));
+
+	/* The caller's handler is somebody else's code, so it runs UNTRACKED: the
+	   effect depends on `open` and the handler alone, never on whatever the
+	   handler happens to read (CLAUDE.md's injected-callback rule). */
+	$effect(() => {
+		const now = open;
+		const notify = onopenchange;
+		if (!notify) return;
+		untrack(() => notify(now));
+	});
 
 	function toggle() {
 		const next = !open;

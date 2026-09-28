@@ -6,6 +6,13 @@
 	import HallPass from '$lib/classroom/HallPass.svelte';
 	import SongQueue from '$lib/classroom/SongQueue.svelte';
 	import ClassTeams from '$lib/classroom/ClassTeams.svelte';
+	import ClassThemePanel from '$lib/classroom/ClassThemePanel.svelte';
+	import {
+		createClassThemeTransports,
+		resolveClassTheme,
+		type ClassTheme,
+		type ClassThemeWinners
+	} from '$lib/classroom/class-theme';
 	import { refreshPostedTeams, teamsManageLink } from '$lib/classroom/class-teams';
 	import LiveDoor from '$lib/classroom/live-class/LiveDoor.svelte';
 	import { liveItemChoices } from '$lib/classroom/live-class/grid';
@@ -96,6 +103,25 @@
 	const hallPassTransports = createHallPassTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const songQueueTransports = createSongQueueTransports(data.supabase);
+	// svelte-ignore state_referenced_locally
+	const themeTransports = createClassThemeTransports(data.supabase);
+
+	/**
+	 * THE CLASS'S VOTED LOOK (decision 45). The classroom layout read every
+	 * listed class's theme once (`navThemes`); a vote cast here, or a re-read
+	 * showing a classmate's, overlays the winners for THIS course so the banner
+	 * repaints at once, and the section's own accent is kept from the read. The
+	 * overlay is keyed on the course, so moving to another class drops it.
+	 */
+	let votedWinners = $state<{ courseId: string; winners: ClassThemeWinners } | null>(null);
+	const loadedTheme = $derived(
+		((data as { navThemes?: Record<string, ClassTheme> }).navThemes ?? {})[data.section.id] ?? null
+	);
+	const classTheme = $derived(
+		votedWinners && votedWinners.courseId === data.section.course_id
+			? resolveClassTheme({ winners: votedWinners.winners, accent: loadedTheme?.accent?.id ?? null })
+			: loadedTheme
+	);
 	/**
 	 * THE LIVE NOTICE BUS FOR THE TWO TOOLS (prompt 0118), built ONCE: the pass
 	 * and the queue share one channel per section, reference-counted inside,
@@ -480,7 +506,23 @@
 		retryExport={runClassroomExport}
 		onchanged={() => invalidateAll()}
 		loadDuplicateCount={data.canManage ? () => loadDuplicateDraftCount(data.supabase, data.section.id) : null}
+		theme={classTheme}
+		themePanel={data.section.course_id ? classThemePanel : null}
 	/>
+{/snippet}
+
+{#snippet classThemePanel()}
+	<!-- Keyed on the course: another class is another vote, never this one's
+	     tally carried across. It renders nothing where the database has no
+	     vote yet, or for somebody who is neither in the class nor teaching it. -->
+	{#key data.section.course_id}
+		<ClassThemePanel
+			courseId={data.section.course_id}
+			transports={themeTransports}
+			manageHref={data.canManage ? `/classroom/${data.section.id}/settings` : null}
+			onwinners={(winners) => (votedWinners = { courseId: data.section.course_id, winners })}
+		/>
+	{/key}
 {/snippet}
 
 {#if split}

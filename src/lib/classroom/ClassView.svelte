@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { tick, untrack } from 'svelte';
+	import { tick, untrack, type Snippet } from 'svelte';
+	import ClassThemeBanner from '$lib/classroom/ClassThemeBanner.svelte';
+	import type { ClassTheme } from '$lib/classroom/class-theme';
 	import { goto } from '$app/navigation';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
@@ -132,7 +134,9 @@
 		layoutTransports = null,
 		opensOn = 'all',
 		clock = null,
-		loadDuplicateCount = null
+		loadDuplicateCount = null,
+		theme = null,
+		themePanel = null
 	}: {
 		section: ClassroomSection;
 		items: ClassroomItem[];
@@ -251,6 +255,13 @@
 		 * door -- which is every student's case and every read-only surface's.
 		 */
 		loadDuplicateCount?: (() => Promise<number | null>) | null;
+		/**
+		 * THE CLASS'S VOTED LOOK (decision 45). Null is every class until
+		 * somebody votes, and renders the header exactly as it was.
+		 */
+		theme?: ClassTheme | null;
+		/** The theme vote, drawn right under the header it changes. Null draws nothing. */
+		themePanel?: Snippet | null;
 	} = $props();
 
 	let unitsOpen = $state(false);
@@ -1858,22 +1869,25 @@
 		The heading is an h2 while a detail pane is open: the item beside it owns
 		the page's h1 then, and two of them is one too many.
 	-->
-	<header class="pane-head">
-		<svelte:element this={asPane ? 'h2' : 'h1'} class="pane-title">
-			{section.course?.title ?? section.label}
-		</svelte:element>
-		<p class="pane-meta-row">
-			<!-- TRUNCATES RATHER THAN WRAPS: a second and third line of course code,
-			     period, block and teacher is a header taking the top of the pane
-			     away from the content it is a header for. -->
-			<span class="pane-meta" title={`${section.course?.code ?? ''} ${formatSectionLabel(section.label, section.block)} · ${emailLocal(section.teacher_email)}`.trim()}>
-				{#if section.course?.code}<span class="pane-code">{section.course.code}</span>{/if}
-				{formatSectionLabel(section.label, section.block)}
-				&middot; {emailLocal(section.teacher_email)}
-				{#if section.active === false}&nbsp;&middot; <span class="draft-chip">Archived</span>{/if}
-			</span>
-		</p>
-	</header>
+	<ClassThemeBanner {theme}>
+		<header class="pane-head">
+			<svelte:element this={asPane ? 'h2' : 'h1'} class="pane-title">
+				{section.course?.title ?? section.label}
+			</svelte:element>
+			<p class="pane-meta-row">
+				<!-- TRUNCATES RATHER THAN WRAPS: a second and third line of course code,
+				     period, block and teacher is a header taking the top of the pane
+				     away from the content it is a header for. -->
+				<span class="pane-meta" title={`${section.course?.code ?? ''} ${formatSectionLabel(section.label, section.block)} · ${emailLocal(section.teacher_email)}`.trim()}>
+					{#if section.course?.code}<span class="pane-code">{section.course.code}</span>{/if}
+					{formatSectionLabel(section.label, section.block)}
+					&middot; {emailLocal(section.teacher_email)}
+					{#if section.active === false}&nbsp;&middot; <span class="draft-chip">Archived</span>{/if}
+				</span>
+			</p>
+		</header>
+	</ClassThemeBanner>
+	{#if themePanel}{@render themePanel()}{/if}
 
 	<!--
 		ONE ACTIONS ROW: what a manager can DO from this pane, in one place.
@@ -2545,6 +2559,13 @@
 	}
 	.pane-code {
 		color: var(--cyan);
+	}
+	/* ON THE CLASS BANNER EVERY WORD TAKES THE ROOM'S --text-1: the wash
+	   lightens the ground under it, and --text-2 measured 3.13:1 there on IDEA
+	   (class-theme.ts's header). The code keeps its own face, not its hue. */
+	:global(.ct-banner) .pane-meta,
+	:global(.ct-banner) .pane-code {
+		color: var(--text-1);
 	}
 	/* --- The actions row ---------------------------------------------------
 	   What used to be two full cards holding one button each. A whole step out

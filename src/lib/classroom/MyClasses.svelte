@@ -7,6 +7,8 @@
 	import { formatSectionLabel } from '$lib/section-label';
 	import { summaryWords, type TodoSummaries } from '$lib/classroom/todo';
 	import { ICONS } from '$lib/shell/commands';
+	import BadgeIcon from '$lib/tournaments/BadgeIcon.svelte';
+	import { classThemeVars, classThemeWords, type ClassTheme } from '$lib/classroom/class-theme';
 
 	/**
 	 * The classroom home: one card per section the caller can see (their
@@ -18,8 +20,15 @@
 	 * convention), and that accent is the HOVER-INK ROLE, never `--gold` itself
 	 * (report R14, decision 40 item 1): brass on the dark themes, as before, and
 	 * the green ink under Space White, where a lightness-only gold is the brown
-	 * #715d22 Mr. Pina called ugly. Cards are differentiated by name and label,
-	 * never by a per-card color.
+	 * #715d22 Mr. Pina called ugly. Cards are differentiated by name and label
+	 * first. A card now ALSO carries its class's own colour, and that reverses
+	 * what this comment used to say ("never by a per-card color"): decision 45
+	 * (report R07) gave each class a theme its students VOTE on, from a
+	 * catalogue whose every colour is measured on every ground it lands on
+	 * (`class-theme.ts`), so the colour is the class's own identity rather than
+	 * one this page invented. It paints the card's edge and a badge beside the
+	 * code, never the words, and a class nobody has voted on draws exactly the
+	 * uniform card this comment described.
 	 *
 	 * ACTIVE CLASSES FIRST, ARCHIVED ONES UNDER ONE CLOSED DISCLOSURE (report
 	 * R12): "it is difficult to differentiate between archived classes and
@@ -32,7 +41,8 @@
 		isStaff = false,
 		sections,
 		todo = null,
-		todoHref = '/classroom/todo'
+		todoHref = '/classroom/todo',
+		themes = {}
 	}: {
 		ready?: boolean;
 		isStaff?: boolean;
@@ -45,6 +55,8 @@
 		 */
 		todo?: TodoSummaries | null;
 		todoHref?: string;
+		/** Each class's voted look (decision 45), keyed by section id; absent draws the plain card. */
+		themes?: Record<string, ClassTheme>;
 	} = $props();
 
 	const ordered = $derived(sortSections(sections));
@@ -54,7 +66,20 @@
 </script>
 
 {#snippet classCard(s: ClassroomSection)}
-	<a class="class-card" class:archived={s.active === false} href={`/classroom/${s.id}`}>
+	{@const theme = themes[s.id] ?? null}
+	<a
+		class="class-card"
+		class:archived={s.active === false}
+		class:themed={!!theme}
+		style={classThemeVars(theme) || undefined}
+		href={`/classroom/${s.id}`}
+	>
+		{#if theme}
+			<!-- Its own element, not the card's border: the plate draws every
+			     card's edge and would repaint a border colour (measured: the
+			     edge came out the plate's grey, not the class's accent). -->
+			<span class="class-theme-edge" aria-hidden="true" data-testid="class-card-edge"></span>
+		{/if}
 		<span class="class-icon" aria-hidden="true">
 			<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 				<path d="M16 6L3 12l13 6 13-6z" />
@@ -63,7 +88,14 @@
 			</svg>
 		</span>
 		<span class="class-text">
-			<span class="class-code">{s.course?.code ?? 'CLASS'}</span>
+			<span class="class-code"
+				>{#if theme && theme.badge.paths.length > 0}<span
+						class="class-theme-badge"
+						data-testid="class-card-badge"
+						aria-hidden="true"><BadgeIcon id={theme.badge.id} size="0.95em" /></span
+					>{/if}{s.course?.code ?? 'CLASS'}</span
+			>
+			{#if theme}<span class="sr-only">Class theme: {classThemeWords(theme)}.</span>{/if}
 			<span class="class-title">{s.course?.title ?? sectionTitle(s)}</span>
 			<span class="class-meta">
 				{formatSectionLabel(s.label, s.block)}
@@ -331,6 +363,44 @@
 	   `.cls-icon.archived`), a shape as well as the section it sits in. */
 	.class-card.archived {
 		border-style: dashed;
+	}
+	/* A THEMED CARD (decision 45): the section's accent, or its palette's edge
+	   when the teacher set none, as a thick left edge -- a graphical object,
+	   measured at 3:1 on the card faces in class-theme.ts -- and the badge in
+	   front of the code in the card's own ink. The words are untouched. */
+	.class-card.themed {
+		--ct-a: var(--ct-accent, var(--ct-edge));
+		position: relative;
+	}
+	.class-theme-edge {
+		position: absolute;
+		left: 0;
+		top: 0.7rem;
+		bottom: 0.7rem;
+		width: 5px;
+		border-radius: 0 3px 3px 0;
+		background: var(--ct-a);
+		pointer-events: none;
+	}
+	:global(:root[data-theme='space-white']) .class-card.themed {
+		--ct-a: var(--ct-accent-light, var(--ct-edge-light));
+	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+		border: 0;
+	}
+	.class-theme-badge {
+		display: inline-flex;
+		vertical-align: -0.12em;
+		margin-right: 0.3em;
+		color: var(--text-1);
 	}
 	.archived-classes {
 		margin-top: 1.4rem;

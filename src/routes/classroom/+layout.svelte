@@ -217,6 +217,7 @@
 >
 	<ClassroomShell
 		sections={data.navSections ?? []}
+		themes={data.navThemes ?? {}}
 		currentSectionId={loc.sectionId}
 		{crumbs}
 		{tabs}

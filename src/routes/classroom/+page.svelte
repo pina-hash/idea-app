@@ -10,4 +10,5 @@
 	isStaff={data.isStaff}
 	sections={data.sections}
 	todo={data.todo}
+	themes={data.navThemes ?? {}}
 />

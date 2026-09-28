@@ -1,4 +1,6 @@
 <script lang="ts">
+	import BadgeIcon from '$lib/tournaments/BadgeIcon.svelte';
+	import { classThemeVars, type ClassTheme } from '$lib/classroom/class-theme';
 	import { page } from '$app/state';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import ThemeSwitch from '$lib/shell/ThemeSwitch.svelte';
@@ -59,6 +61,7 @@
 	 */
 	let {
 		sections = [],
+		themes = {},
 		currentSectionId = null,
 		crumbs = [],
 		tabs = [],
@@ -77,6 +80,11 @@
 		children
 	}: {
 		sections?: ClassroomSection[];
+		/**
+		 * Each class's voted look (decision 45), keyed by section id; a class
+		 * nobody has voted on is absent and its key draws exactly as before.
+		 */
+		themes?: Record<string, ClassTheme>;
 		currentSectionId?: string | null;
 		crumbs?: Crumb[];
 		/** Every tab this section has; manager-only ones are filtered here. */
@@ -442,11 +450,14 @@
 				{#each stripSections as s (s.id)}
 					{@const g = classGlyph(s)}
 					{@const name = `${s.course?.code ?? 'Class'} ${formatSectionLabel(s.label, s.block)}`}
+					{@const theme = themes[s.id] ?? null}
 					<li>
 						<a
 							class="cls-icon"
 							class:current={s.id === currentSectionId}
 							class:archived={s.active === false}
+							class:themed={!!theme}
+							style={classThemeVars(theme) || undefined}
 							href={`${basePath}/${s.id}`}
 							aria-current={s.id === currentSectionId ? 'page' : undefined}
 							aria-label={s.active === false ? `${name}, archived` : name}
@@ -454,7 +465,18 @@
 							data-section-id={s.id}
 							data-testid="class-icon"
 						>
-							<span class="cls-code" aria-hidden="true">{g.code}</span>
+							{#if theme}
+								<!-- The class's own look on its key (decision 45): its accent (or
+								     palette edge) as a bar along the top, and its badge. Decoration
+								     beside the code, which still names the class in words. -->
+								<span class="cls-theme-bar" aria-hidden="true" data-testid="class-icon-theme"></span>
+							{/if}
+							<span class="cls-code" aria-hidden="true"
+								>{#if theme && theme.badge.paths.length > 0}<span
+										class="cls-theme-badge"
+										data-testid="class-icon-badge"><BadgeIcon id={theme.badge.id} size="0.7rem" /></span
+									>{/if}{g.code}</span
+							>
 							{#if g.sub}<span class="cls-sub" aria-hidden="true">{g.sub}</span>{/if}
 						</a>
 					</li>
@@ -971,6 +993,36 @@
 	.cls-icon:hover {
 		border-color: var(--hover-ink);
 		text-decoration: none;
+	}
+	/* A THEMED KEY (decision 45): a bar along the top in the section's accent,
+	   or the palette's edge when the teacher set none, and the badge in the
+	   top corner in the key's own ink. The bar is a graphical object measured
+	   at 3:1 on the key faces (class-theme.ts). The current key keeps its green
+	   bar along the BOTTOM, so the two never share an edge. */
+	.cls-icon.themed {
+		--ct-a: var(--ct-accent, var(--ct-edge));
+		position: relative;
+	}
+	:global(:root[data-theme='space-white']) .cls-icon.themed {
+		--ct-a: var(--ct-accent-light, var(--ct-edge-light));
+	}
+	.cls-theme-bar {
+		position: absolute;
+		top: 2px;
+		left: 5px;
+		right: 5px;
+		height: 3px;
+		border-radius: 2px;
+		background: var(--ct-a);
+		pointer-events: none;
+	}
+	/* In front of the code, in the line: a 44px key has no corner to spare,
+	   and a badge laid over the code hid a letter of it. */
+	.cls-theme-badge {
+		display: inline-flex;
+		vertical-align: -0.1em;
+		margin-right: 2px;
+		color: var(--text-1);
 	}
 	.cls-code {
 		font-size: 0.7rem;

@@ -1,5 +1,7 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import ClassThemeSettings from '$lib/classroom/ClassThemeSettings.svelte';
+	import type { ClassThemeTransports } from '$lib/classroom/class-theme';
 	import {
 		sectionDeleteBlockedLabel,
 		sectionTitle,
@@ -29,9 +31,15 @@
 		section,
 		transports,
 		onchanged = null,
-		ondeleted = null
+		ondeleted = null,
+		themeTransports = null
 	}: {
 		section: ClassroomSection;
+		/**
+		 * The class theme's manager controls (decision 45). Null removes the
+		 * card; a deployment without 0225 removes it too, inside the card.
+		 */
+		themeTransports?: ClassThemeTransports | null;
 		transports: Pick<ClassroomPeopleTransports, 'upsertSection' | 'setSectionActive' | 'deleteSection'>;
 		onchanged?: (() => void | Promise<void>) | null;
 		/**
@@ -287,6 +295,15 @@
 				</div>
 			{/if}
 		</section>
+
+		{#if themeTransports && section.course_id}
+			<ClassThemeSettings
+				sectionId={section.id}
+				courseId={section.course_id}
+				transports={themeTransports}
+				{onchanged}
+			/>
+		{/if}
 	</div>
 
 	<footer class="page-footer">
