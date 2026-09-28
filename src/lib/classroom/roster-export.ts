@@ -29,7 +29,7 @@
 
 import { csvCell, splitLastFirst } from '$lib/classroom/assignment-spec';
 import type { ClassroomEnrollment, ClassroomSection } from '$lib/classroom/classroom';
-import { teamLabel, type TeamSet } from '$lib/classroom/teams';
+import { teamLabel, teamSetEditedWords, type TeamSet } from '$lib/classroom/teams';
 
 /**
  * The one status vocabulary, and it is the SAME SENTENCE the row shows.
@@ -297,6 +297,12 @@ export function classEmailList(recipients: readonly string[]): string {
 // that outlives the screen it was taken from. Repeating both on every row is
 // what makes one file self-describing when two draws sit in the same folder.
 //
+// AND THE EDIT MARK RIDES BESIDE THE SEED, ON EVERY ROW, FOR THE SAME REASON
+// (0225, decision 44). A teacher may move students after the draw, and the
+// seed is kept; so a file carrying the seed without saying the teams were
+// changed by hand would invite exactly the check that now fails. The words come
+// from `teamSetEditedWords`, the same ones the People tab and the class page print.
+//
 // A STUDENT WHO HAS LEFT THE CLASS IS IN THE FILE, with a column saying so.
 // Dropping them would be the inner-join defect one artifact further downstream,
 // and this is the copy somebody keeps.
@@ -306,6 +312,7 @@ export function classEmailList(recipients: readonly string[]): string {
 export const TEAM_CSV_HEADERS = [
 	'Draw',
 	'Seed',
+	'Edited',
 	'Team',
 	'Team name',
 	'Last',
@@ -332,6 +339,7 @@ export function teamMemberRosterLabel(stillEnrolled: boolean): string {
  */
 export function teamsCsv(section: ClassroomSection, set: TeamSet): string {
 	const lines = [TEAM_CSV_HEADERS.join(',')];
+	const edited = teamSetEditedWords(set) ?? '';
 	const className = section.course?.code
 		? `${section.course.code} ${section.label}`
 		: section.label;
@@ -356,6 +364,7 @@ export function teamsCsv(section: ClassroomSection, set: TeamSet): string {
 				[
 					csvCell(set.label),
 					csvCell(set.seed),
+					csvCell(edited),
 					csvCell(String(team.team_number)),
 					csvCell(teamLabel(team)),
 					csvCell(''),
@@ -375,6 +384,7 @@ export function teamsCsv(section: ClassroomSection, set: TeamSet): string {
 				[
 					csvCell(set.label),
 					csvCell(set.seed),
+					csvCell(edited),
 					csvCell(String(team.team_number)),
 					csvCell(teamLabel(team)),
 					csvCell(last),

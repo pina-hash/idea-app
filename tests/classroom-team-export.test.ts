@@ -30,8 +30,11 @@ import {
 	teamsCsvFilename
 } from '../src/lib/classroom/roster-export';
 import {
+	TEAM_EDITED_NOTE,
 	TEAM_WINDOW_WORDS,
 	canStyleTeam,
+	normalizeTeamSet,
+	teamSetEditedWords,
 	teamDriftNote,
 	teamLabel,
 	teamRosterCounts,
@@ -123,6 +126,8 @@ const SET: TeamSet = {
 	posted_at: null,
 	visible_until: null,
 	showing: false,
+	edited_at: null,
+	edited_by: null,
 	teams: [
 		team(1, 'The Gearboxes', [
 			['alice@boscotech.net', 'Alice Alvarez', true],
@@ -239,6 +244,55 @@ describe('a student-authored team name cannot execute in a spreadsheet', () => {
 			'Quote " and',
 			'comma'
 		]);
+	});
+});
+
+// ===========================================================================
+describe('a draw a teacher changed by hand says so on every row (decision 44)', () => {
+	const EDITED: TeamSet = { ...SET, edited_at: '2026-09-28T16:00:00.000Z', edited_by: 'teacher@boscotech.edu' };
+
+	test('every row of an edited draw carries the mark beside the seed, which is kept', () => {
+		const rows = parseCsv(teamsCsv(SECTION, EDITED));
+		const headers = rows[0];
+		const body = rows.slice(1);
+		expect(body).toHaveLength(4);
+		for (const r of body) {
+			expect(col(headers, r, 'Edited')).toBe('Edited by hand');
+			expect(col(headers, r, 'Seed')).toBe('305441741');
+		}
+	});
+
+	test('an unedited draw carries an empty cell there, so the mark is not on every file', () => {
+		const rows = parseCsv(teamsCsv(SECTION, SET));
+		const headers = rows[0];
+		expect(rows.slice(1).map((r) => col(headers, r, 'Edited'))).toEqual(['', '', '', '']);
+	});
+
+	test('the emptied-team row carries the mark too, and still fills every column', () => {
+		const rows = parseCsv(teamsCsv(SECTION, { ...EDITED, teams: [team(1, 'Empty', [])] }));
+		const headers = rows[0];
+		expect(rows[1]).toHaveLength(TEAM_CSV_HEADERS.length);
+		expect(col(headers, rows[1], 'Edited')).toBe('Edited by hand');
+	});
+
+	test('the editor\'s address is never in the file: the mark says that, not who', () => {
+		expect(teamsCsv(SECTION, EDITED)).not.toContain('teacher@boscotech.edu');
+	});
+
+	test('teamSetEditedWords is the one spelling, keyed on when and never on who', () => {
+		expect(teamSetEditedWords({ edited_at: '2026-09-28T16:00:00.000Z' })).toBe('Edited by hand');
+		expect(teamSetEditedWords({ edited_at: null })).toBeNull();
+		expect(teamSetEditedWords({ edited_at: '' })).toBeNull();
+		expect(teamSetEditedWords({})).toBeNull();
+		expect(TEAM_EDITED_NOTE).toMatch(/seed/);
+		expect(TEAM_EDITED_NOTE).not.toMatch(/\u2014/);
+	});
+
+	test('a pre-0225 board set reads as unedited once normalized, and a real mark survives it', () => {
+		const { edited_at: _a, edited_by: _b, ...legacy } = EDITED;
+		const normal = normalizeTeamSet(legacy as TeamSet);
+		expect({ at: normal.edited_at, by: normal.edited_by }).toEqual({ at: null, by: null });
+		expect(normalizeTeamSet(EDITED)).toEqual(EDITED);
 	});
 });
 

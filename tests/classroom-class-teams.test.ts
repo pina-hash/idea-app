@@ -58,7 +58,10 @@ const CHAIN = [
 	'0121_notebook_review_acknowledged.sql',
 	'0138_classroom_manager_exclusion_and_enrollment_removal.sql',
 	'0137_anon_execute_sweep.sql',
-	'0223_classroom_teams.sql'
+	'0223_classroom_teams.sql',
+	// The edit mark (decision 44): a teacher moves a student after posting, and
+	// the class page says so without naming who did it.
+	'0225_classroom_team_edits_and_class_themes.sql'
 ] as const;
 
 let db: TestDb;
@@ -247,6 +250,65 @@ describe('a posted draw, while its window is open and after it has closed', () =
 		// And posting it again puts it straight back.
 		const again = await loadPostedTeams(createPostgrestShim(db, fks, alice.id) as never, sectionId);
 		expect(again.map((s) => s.id)).toEqual([postedId]);
+	});
+});
+
+// ===========================================================================
+// A DRAW A TEACHER CHANGED BY HAND (0225, decision 44). The class page learns
+// THAT it was edited, as a boolean, and never WHO: the board hands a manager
+// the editor's address, and the projection must drop it on the way to a page
+// whose whole payload carries no address at all.
+// ===========================================================================
+describe('a posted draw a teacher edited by hand', () => {
+	it('reads as not edited until somebody moves a student', async () => {
+		const [set] = await loadPostedTeams(createPostgrestShim(db, fks, alice.id) as never, sectionId);
+		expect(set.edited).toBe(false);
+	});
+
+	it('reads as edited to the class and to the teacher, and neither payload carries the address', async () => {
+		const board = await rpc<{ sets: { id: string; teams: { id: string; team_number: number }[] }[] }>(
+			teacher.id,
+			'public.classroom_team_board($1::uuid)',
+			[sectionId]
+		);
+		const teamTwo = board.sets.find((s) => s.id === postedId)!.teams.find((t) => t.team_number === 2)!.id;
+		await rpc(teacher.id, 'public.classroom_move_team_member($1::uuid, $2, $3::uuid)', [
+			postedId,
+			alice.email,
+			teamTwo
+		]);
+
+		for (const who of [alice, teacher]) {
+			const sets = await loadPostedTeams(createPostgrestShim(db, fks, who.id) as never, sectionId);
+			expect(sets.map((s) => ({ id: s.id, edited: s.edited }))).toEqual([{ id: postedId, edited: true }]);
+			const json = JSON.stringify(sets);
+			expect(json, who.email).not.toContain('@');
+			expect(json, who.email).not.toContain('edited_by');
+		}
+		// POSITIVE CONTROL: the teacher's raw board DOES name the editor, so the
+		// absence above is the projection's doing and not an empty read.
+		const raw = await rpc<{ sets: { id: string; edited_by: string | null }[] }>(
+			teacher.id,
+			'public.classroom_team_board($1::uuid)',
+			[sectionId]
+		);
+		expect(raw.sets.find((s) => s.id === postedId)!.edited_by).toBe(teacher.email);
+	});
+
+	it('a board from before 0225, with no mark at all, projects as not edited', () => {
+		const legacy = {
+			id: 'set-legacy',
+			label: 'Old draw',
+			seed: '1',
+			mode: 'count',
+			mode_value: 1,
+			created_at: '2026-09-01T00:00:00.000Z',
+			posted_at: '2026-09-01T00:00:00.000Z',
+			visible_until: null,
+			showing: true,
+			teams: []
+		};
+		expect(postedTeamSets([legacy as never])[0].edited).toBe(false);
 	});
 });
 

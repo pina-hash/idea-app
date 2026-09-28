@@ -30,6 +30,7 @@ const POSTED: ClassTeamSet = {
 	label: 'Lab pairs',
 	posted_at: '2026-09-25T15:00:00.000Z',
 	visible_until: '2026-09-26T06:59:59.999Z',
+	edited: false,
 	teams: [
 		{
 			id: 't-1',

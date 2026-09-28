@@ -112,6 +112,8 @@
 					created_at: iso(now - 4 * DAY),
 					...windowOf(windowMode),
 					showing: false,
+					edited_at: null,
+					edited_by: null,
 					teams: [
 						team('t-1', 1, ['Ana Reyes', 'Ben Okafor', 'Cruz Delgado'], {
 							name: 'Torque Squad',
@@ -138,6 +140,8 @@
 								posted_at: iso(now - 2 * HOUR),
 								visible_until: teamWindowEnd(now, 5),
 								showing: false,
+								edited_at: null,
+								edited_by: null,
 								teams: [
 									team('t-5', 1, ['Ana Reyes', 'Dee Marsh', 'Gus Varga', 'Jo Lindqvist', 'Ben Okafor', 'Eli Nakamura'], {
 										mine: iAmOnTeamOne

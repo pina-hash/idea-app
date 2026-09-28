@@ -24,7 +24,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { formatDue } from './classroom';
 import { sectionTabs } from './nav';
-import { createTeamTransports, type Team, type TeamSet } from './teams';
+import { createTeamTransports, teamSetEditedWords, type Team, type TeamSet } from './teams';
 
 /** One team as the class page shows it: its name, its style, whether it is mine, and names. */
 export interface ClassTeam
@@ -50,6 +50,13 @@ export interface ClassTeamSet {
 	/** When the teacher posted it, and when it comes down (null: until they take it down). */
 	posted_at: string | null;
 	visible_until: string | null;
+	/**
+	 * A TEACHER CHANGED THESE TEAMS BY HAND AFTER THE DRAW (0225, decision
+	 * 44). A boolean and nothing more: the board tells a manager WHO, and the
+	 * class page carries no address, so the projection keeps the fact and
+	 * drops the person.
+	 */
+	edited: boolean;
 	teams: ClassTeam[];
 }
 
@@ -62,6 +69,7 @@ export function postedTeamSets(sets: readonly TeamSet[]): ClassTeamSet[] {
 			label: s.label,
 			posted_at: s.posted_at ?? null,
 			visible_until: s.visible_until ?? null,
+			edited: teamSetEditedWords(s) !== null,
 			teams: s.teams.map((t) => ({
 				id: t.id,
 				team_number: t.team_number,

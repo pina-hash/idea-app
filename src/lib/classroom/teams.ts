@@ -2,7 +2,7 @@
  * CLASSROOM TEAMS: the persisted draw, its posting window, and its style.
  *
  * The one new module this lane adds. It holds the SHAPE of what 0223's
- * `classroom_team_board` returns, the transports that reach the five RPCs, and
+ * `classroom_team_board` returns, the transports that reach its RPCs, and
  * the pure helpers a surface needs -- no Svelte, no DOM and no clock, so every
  * one of them is assertable at a pinned instant.
  *
@@ -95,6 +95,21 @@ export interface TeamSet {
 	visible_until: string | null;
 	/** Computed by the database at call time. There is no stored flag to go stale. */
 	showing: boolean;
+	/**
+	 * WHEN A TEACHER LAST MOVED A STUDENT BY HAND AFTER THE DRAW (0225,
+	 * decision 44), or null when the teams are exactly what the seed dealt.
+	 * The seed is never rewritten: this is the mark that says it no longer
+	 * reproduces these teams. NULL, NOT ABSENT, EVEN BEFORE 0225 IS APPLIED:
+	 * the board transport fills it in, so a pre-0225 payload reads as a draw
+	 * nobody has edited rather than as a shape no branch renders.
+	 */
+	edited_at: string | null;
+	/**
+	 * WHO made that edit, an address, and the board projects it ONLY to a
+	 * manager of the section: a student is told the teams were changed, never
+	 * by whom. Null for every student, and for a draw nobody edited.
+	 */
+	edited_by: string | null;
 	teams: Team[];
 }
 
@@ -117,6 +132,25 @@ export type TeamBoardResult =
 	| { ok: false; reason: 'unavailable' }
 	| { ok: false; reason: 'error'; message: string };
 
+/**
+ * WHAT A MOVE ANSWERED (0225's `classroom_move_team_member`).
+ *
+ * `moved` and `added` are two different outcomes and never both true: `moved`
+ * is a student already on the draw changing team, `added` is a student who was
+ * on no team of this draw joining one (a latecomer, which needs a live
+ * enrollment). Both false is the no-op: they were already on that team, and
+ * nothing was stamped.
+ *
+ * `unavailable` is PGRST202 AND NOTHING ELSE: this client can ship before 0225
+ * is applied, and a surface handed that answer removes its move controls and
+ * says so. Every other failure is `error`, carrying the database's own sentence
+ * verbatim ("That student is not enrolled in this class.").
+ */
+export type TeamMoveResult =
+	| { ok: true; moved: boolean; added: boolean }
+	| { ok: false; reason: 'unavailable' }
+	| { ok: false; reason: 'error'; message: string };
+
 /** Everything a surface needs the server for. Injected, never imported by a component. */
 export interface TeamTransports {
 	board(sectionId: string): Promise<TeamBoardResult>;
@@ -132,6 +166,13 @@ export interface TeamTransports {
 	 * works and it is the same rule here.
 	 */
 	style?(input: SaveTeamStyleInput): Promise<{ ok: boolean; message?: string }>;
+	/**
+	 * MOVE ONE STUDENT TO ANOTHER TEAM OF THE SAME DRAW, or add a latecomer to
+	 * one (0225). A manager's write; the database re-checks that, and that the
+	 * target team belongs to this draw. Optional for the same reason `style`
+	 * is: a surface handed none renders no move control and no drag.
+	 */
+	move?(setId: string, studentEmail: string, toTeamId: string): Promise<TeamMoveResult>;
 }
 
 export interface SaveTeamSetInput {
@@ -240,6 +281,46 @@ export function teamDriftNote(set: Pick<TeamSet, 'teams'>): string | null {
 }
 
 /**
+ * THE WORDS FOR A DRAW A TEACHER CHANGED BY HAND (decision 44), and the one
+ * spelling of them: the People tab, the class page and the CSV all read this,
+ * so the three cannot say it three ways. Null for a draw that is exactly what
+ * its seed dealt, which renders nothing.
+ *
+ * It reads `edited_at` and nothing else. `edited_by` is withheld from a
+ * student, so a surface keyed on it would say "not edited" to every student
+ * looking at a draw their teacher changed.
+ */
+export function teamSetEditedWords(set: { edited_at?: string | null }): 'Edited by hand' | null {
+	return typeof set.edited_at === 'string' && set.edited_at !== '' ? 'Edited by hand' : null;
+}
+
+/**
+ * WHAT "Edited by hand" MEANS, for wherever there is room to say it. The seed
+ * is what makes a draw checkable, so a reader holding the seed needs to know
+ * it will no longer give back these exact teams.
+ */
+export const TEAM_EDITED_NOTE =
+	'A teacher moved students by hand after the draw, so the seed no longer reproduces these teams exactly.';
+
+/**
+ * ONE SET FROM THE BOARD PAYLOAD, WITH THE FIELDS 0225 ADDED FILLED IN.
+ *
+ * A database before 0225 answers sets with no `edited_at` or `edited_by` key
+ * at all. An absent key would reach every surface as `undefined`, which is
+ * neither "edited" nor "not edited" to a strict comparison, so the transport
+ * turns it into the null a pre-0225 draw genuinely means: nobody has moved
+ * anybody, because nobody could.
+ */
+export function normalizeTeamSet(raw: TeamSet): TeamSet {
+	const loose = raw as TeamSet & { edited_at?: string | null; edited_by?: string | null };
+	return {
+		...raw,
+		edited_at: loose.edited_at ?? null,
+		edited_by: loose.edited_by ?? null
+	};
+}
+
+/**
  * IS THIS DRAW SHOWING TO THE CLASS, asked in the browser.
  *
  * `showing` off the payload is the AUTHORITY -- the database computed it at
@@ -308,7 +389,8 @@ export function canStyleTeam(team: Pick<Team, 'mine'>, manages: boolean): boolea
 // ---------------------------------------------------------------------------
 
 /**
- * The five RPCs 0223 grants to `authenticated`, and nothing else.
+ * The six RPCs 0223 grants to `authenticated`, and 0225's move, and nothing
+ * else.
  *
  * NONE OF THIS IS A BOUNDARY. Every function re-checks the caller in its own
  * body -- `classroom_manages_section` for the four manager writes,
@@ -350,7 +432,7 @@ export function createTeamTransports(supabase: SupabaseClient): TeamTransports {
 			return {
 				ok: true,
 				manages: payload?.manages === true,
-				sets: payload?.sets ?? []
+				sets: (payload?.sets ?? []).map(normalizeTeamSet)
 			};
 		},
 
@@ -401,6 +483,22 @@ export function createTeamTransports(supabase: SupabaseClient): TeamTransports {
 				p_tagline: input.tagline
 			});
 			return error ? failed(error) : { ok: true };
+		},
+
+		async move(setId, studentEmail, toTeamId) {
+			const { data, error } = await supabase.rpc('classroom_move_team_member', {
+				p_team_set_id: setId,
+				p_student_email: studentEmail,
+				p_to_team_id: toTeamId
+			});
+			if (error) {
+				if ((error as { code?: string }).code === 'PGRST202') {
+					return { ok: false, reason: 'unavailable' };
+				}
+				return { ok: false, reason: 'error', message: error.message ?? 'That did not work.' };
+			}
+			const payload = data as { moved?: boolean; added?: boolean } | null;
+			return { ok: true, moved: payload?.moved === true, added: payload?.added === true };
 		}
 	};
 }

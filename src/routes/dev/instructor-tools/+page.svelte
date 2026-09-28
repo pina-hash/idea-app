@@ -204,6 +204,8 @@
 				posted_at: '2026-09-02T17:05:00.000Z',
 				visible_until: null,
 				showing: true,
+				edited_at: null,
+				edited_by: null,
 				teams: [
 					mk(1, 0, 3, {
 						name: 'The Gearboxes',
@@ -228,6 +230,8 @@
 				posted_at: null,
 				visible_until: null,
 				showing: false,
+				edited_at: null,
+				edited_by: null,
 				teams: [mk(1, 0, 2), mk(2, 2, 4)]
 			}
 		];
