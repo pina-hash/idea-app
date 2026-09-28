@@ -595,7 +595,7 @@
 	.deck-thumb.placeholder {
 		display: grid;
 		place-items: center;
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	.deck-thumb.placeholder svg {
 		width: 1.7rem;

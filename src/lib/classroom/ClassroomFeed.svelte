@@ -463,7 +463,7 @@
 		font-size: 0.72rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: var(--gold);
+		color: var(--hover-ink);
 		text-decoration: none;
 	}
 	.feed-todo-all:hover {

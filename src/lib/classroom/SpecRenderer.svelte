@@ -887,8 +887,8 @@
 		white-space: nowrap;
 	}
 	.points-chip {
-		color: var(--gold);
-		border-color: var(--gold);
+		color: var(--hover-ink);
+		border-color: var(--hover-ink);
 	}
 	/* Dev-only diagnostic (see the markup). */
 	.unknown-block {

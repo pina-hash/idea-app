@@ -1630,6 +1630,7 @@
 					<button
 						type="button"
 						class="menu-trigger"
+						class:on={openMenu === item.id}
 						aria-expanded={openMenu === item.id}
 						aria-haspopup="menu"
 						aria-label="Actions for {itemTitle(item)}"
@@ -1891,6 +1892,7 @@
 				<button
 					type="button"
 					class="btn secondary tiny"
+					class:on={composing}
 					aria-expanded={composing}
 					data-testid="new-post"
 					onclick={() => onCompose?.()}
@@ -1902,6 +1904,7 @@
 				<button
 					type="button"
 					class="btn secondary tiny"
+					class:on={unitsOpen}
 					aria-expanded={unitsOpen}
 					data-testid="units-toggle"
 					onclick={() => (unitsOpen = !unitsOpen)}
@@ -2905,8 +2908,10 @@
 	}
 	/* Kind reads by GLYPH and by the word in the meta line, never by colour
 	   alone; the tint is a second signal, not the only one. */
+	/* The hover-ink role, not --gold (report R14): brass on the dark themes,
+	   the green ink under Space White, where gold is brown. */
 	.kind-assignment {
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	.kind-post {
 		color: var(--text-2);
@@ -3326,7 +3331,7 @@
 		font-size: 0.7rem;
 	}
 	.detail-open a {
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	/* Left, with everything else in the pane. */
 	.page-footer {

@@ -1473,6 +1473,7 @@
 								type="button"
 								class="btn secondary tiny insp-quick-btn"
 								data-testid="item-edit-toggle"
+								class:on={editing}
 								aria-expanded={editing}
 								aria-controls="item-edit-direct"
 								disabled={busy}
@@ -3069,7 +3070,7 @@
 		margin-left: auto;
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
-		color: var(--gold);
+		color: var(--hover-ink);
 		white-space: nowrap;
 		/* A phone touches this. */
 		min-height: 44px;

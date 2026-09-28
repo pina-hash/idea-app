@@ -623,6 +623,8 @@
 									<button
 										type="button"
 										class="btn tap-44 sq-action"
+										class:on={rejecting === row.request_id}
+										aria-expanded={rejecting === row.request_id}
 										data-testid="song-queue-reject"
 										disabled={busy}
 										onclick={() => armReject(row.request_id)}

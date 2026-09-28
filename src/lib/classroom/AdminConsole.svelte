@@ -259,7 +259,13 @@
 								<span class="course-title">{c.title}</span>
 								{#if !c.active}<span class="draft-chip">Inactive</span>{/if}
 							</span>
-							<button type="button" class="btn secondary tiny" onclick={() => startEditCourse(c)}>
+							<button
+								type="button"
+								class="btn secondary tiny"
+								class:on={courseEditId === c.id}
+								aria-expanded={courseEditId === c.id}
+								onclick={() => startEditCourse(c)}
+							>
 								{courseEditId === c.id ? 'Close' : 'Edit'}
 							</button>
 						</div>
@@ -417,7 +423,7 @@
 	.course-code {
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	.course-title {
 		font-size: 0.92rem;

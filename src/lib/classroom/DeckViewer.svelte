@@ -273,6 +273,7 @@
 			<button
 				type="button"
 				class="deck-btn"
+				class:on={showIndex}
 				aria-expanded={showIndex}
 				aria-controls="deck-index"
 				data-testid="deck-index-toggle"
@@ -412,6 +413,15 @@
 	.deck-btn:hover {
 		color: var(--hover-ink);
 		border-color: var(--hover-ink);
+	}
+	/* THE OPEN INDEX'S TOGGLE LOOKS PRESSED (report R15): the deck is a dark
+	   island below the plate's scope, so it carries its own lit state, the
+	   active-navigation green on the deck's own dark bar, edge and word both. */
+	.deck-btn.on {
+		color: var(--green);
+		border-color: var(--green);
+		background: rgba(10, 10, 10, 0.95);
+		box-shadow: inset 0 -2px 0 var(--green);
 	}
 	.deck-index {
 		position: absolute;

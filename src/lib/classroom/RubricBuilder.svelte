@@ -578,7 +578,7 @@
 	.crit-max {
 		font-family: var(--font-mono);
 		font-size: 0.68rem;
-		color: var(--gold);
+		color: var(--hover-ink);
 		white-space: nowrap;
 	}
 	.crit-ops {
@@ -612,7 +612,7 @@
 	}
 	.level-points {
 		width: 4rem;
-		color: var(--gold) !important;
+		color: var(--hover-ink) !important;
 		font-family: var(--font-mono) !important;
 	}
 	.level-label {
@@ -681,7 +681,7 @@
 	.total {
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
-		color: var(--gold);
+		color: var(--hover-ink);
 	}
 	@media (max-width: 640px) {
 		.level-label,

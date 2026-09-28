@@ -146,7 +146,7 @@
 	.lp-fallback {
 		font-family: var(--font-mono);
 		font-size: 0.7rem;
-		color: var(--gold);
+		color: var(--hover-ink);
 		overflow-wrap: anywhere;
 	}
 	.lp-note {

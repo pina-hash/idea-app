@@ -188,6 +188,7 @@
 			<button
 				type="button"
 				class="btn secondary tiny"
+				class:on={open}
 				aria-expanded={open}
 				data-testid="units-toggle"
 				onclick={() => (open = !open)}
@@ -284,6 +285,7 @@
 							<button
 								type="button"
 								class="btn secondary tiny"
+								class:on={renaming === unit.id}
 								aria-expanded={renaming === unit.id}
 								disabled={busy}
 								data-testid="unit-rename"

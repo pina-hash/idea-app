@@ -117,7 +117,7 @@
 	.rubric-total {
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
-		color: var(--gold);
+		color: var(--hover-ink);
 		white-space: nowrap;
 	}
 	.criterion {
@@ -180,7 +180,7 @@
 	.level-points {
 		font-family: var(--font-mono);
 		font-size: 0.7rem;
-		color: var(--gold);
+		color: var(--hover-ink);
 		min-width: 1.6rem;
 	}
 	.level-label {

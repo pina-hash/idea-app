@@ -303,7 +303,7 @@
 	.md :global(code) {
 		font-family: var(--font-mono);
 		font-size: 0.86em;
-		color: var(--gold);
+		color: var(--hover-ink);
 		background: var(--surface-2);
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-chip);

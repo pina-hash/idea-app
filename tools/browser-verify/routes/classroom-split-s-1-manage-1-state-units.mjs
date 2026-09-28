@@ -70,6 +70,10 @@ export default {
 	],
 	presence: [
 		{ selector: '[data-testid="unit-row"]', label: 'unit rows', expectPresent: 3, maxPresent: 3, expectVisible: 3 },
+		/* REPORT R15: the key that closes the units panel reads as PRESSED while
+		   it is open, and so does Rename on the row being renamed. */
+		{ selector: '[data-testid="units-toggle"][aria-expanded="true"].on', label: 'Close units, lit while the panel is open', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="unit-rename"][aria-expanded="true"].on', label: 'Rename, lit on the row being renamed', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="unit-grip"][data-sort-handle]', label: 'one worded grip per row', expectPresent: 3, maxPresent: 3, expectVisible: 3 },
 		{ selector: '[data-testid="unit-up"], [data-testid="unit-down"]', label: 'the retired glyph-only arrow buttons', expectPresent: 0 },
 		{ selector: '[data-testid="unit-rename-input"]', label: 'inline rename input (row 2, after Rename)', expectPresent: 1, maxPresent: 1, expectVisible: 1 },

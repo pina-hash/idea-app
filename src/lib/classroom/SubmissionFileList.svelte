@@ -205,7 +205,7 @@
 		font-size: 0.6rem;
 		font-weight: 600;
 		letter-spacing: 0.03em;
-		color: var(--gold);
+		color: var(--hover-ink);
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 	}

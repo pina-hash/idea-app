@@ -131,7 +131,7 @@
 		margin-left: auto;
 		font-family: var(--font-mono);
 		font-size: 0.74rem;
-		color: var(--gold);
+		color: var(--hover-ink);
 		white-space: nowrap;
 	}
 </style>
