@@ -13,6 +13,14 @@
 	],
 	"entries": [
 		{
+			"date": "2026-09-29",
+			"title": "Videos play right inside an assignment",
+			"body": "Some assignments now have short how-to videos with a picture of each one. Press the picture and the video plays right there on the page, in the spot where the drawing was. Press Close video to get the drawing back. If a video cannot play inside the page on your computer, you get a button that opens it on YouTube instead.",
+			"tags": [
+				"new"
+			]
+		},
+		{
 			"date": "2026-09-28",
 			"title": "Teachers: a roomier grading page",
 			"body": "On the grading page, the export buttons and Close assignment now sit in two panels at the top beside Previous and Next student, so the list of students gets the room. Tick boxes appear only after you press Select, and To grade shows just the students whose work is waiting. Nothing changes for students.",

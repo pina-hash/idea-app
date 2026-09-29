@@ -50,6 +50,9 @@ import {
 	hxReceive,
 	hxSavedMessage,
 	hxStateMessage,
+	hxVideoEmbedUrl,
+	hxVideoStateMessage,
+	HX_VIDEO_TYPE,
 	type HxGate
 } from '../src/lib/classroom/html-assignment/bridge.ts';
 import {
@@ -453,6 +456,62 @@ describe('what the parent sends down', () => {
 	// target silently drops every message the parent sends.
 	it('posts to "*" because an opaque origin matches no concrete target', () => {
 		expect(hxPostTarget).toBe('*');
+	});
+});
+
+describe('idea:video: the parent plays a video over a box the document holds open', () => {
+	const RECT = { x: 12, y: 480, w: 560, h: 315 };
+	const ask = (data: Record<string, unknown>) => hxReceive(fromFrame({ type: HX_VIDEO_TYPE, ...data }), gate());
+
+	it('accepts a YouTube id with a rectangle, and closes on a null id', () => {
+		const open = ask({ videoId: 'Ctw7eI7A1IE', rect: RECT, clipTop: 40 });
+		expect(open).toEqual({ ok: true, message: { kind: 'video', videoId: 'Ctw7eI7A1IE', rect: RECT, clipTop: 40 } });
+		expect(ask({ videoId: null })).toEqual({ ok: true, message: { kind: 'video-close' } });
+	});
+
+	// THE DOCUMENT NAMES AN ID AND NEVER A URL. Every one of these would put a
+	// string the document chose into the src of a frame the PARENT draws.
+	it('refuses anything that is not an eleven-character video id', () => {
+		for (const videoId of ['https://evil.example/x', 'javascript:alert(1)', 'Ctw7eI7A1I', 'Ctw7eI7A1IEx', 'Ctw7eI7A1I/', 'Ctw7eI7A1I?', '', 42, undefined]) {
+			const verdict = ask({ videoId, rect: RECT });
+			expect(verdict.ok, String(videoId)).toBe(false);
+			if (!verdict.ok) expect(verdict.reason).toBe('video');
+		}
+	});
+
+	it('refuses a rectangle outside the document, or not four finite numbers', () => {
+		const bad = [
+			undefined,
+			{ x: 0, y: 0, w: 0, h: 10 },
+			{ x: -1, y: 0, w: 10, h: 10 },
+			{ x: 0, y: 0, w: 99_999, h: 10 },
+			{ x: 0, y: HX_MAX_HEIGHT_PX, w: 10, h: 10 },
+			{ x: 0, y: 0, w: Number.NaN, h: 10 },
+			{ x: '0', y: 0, w: 10, h: 10 }
+		];
+		for (const rect of bad) expect(ask({ videoId: 'Ctw7eI7A1IE', rect }).ok, JSON.stringify(rect)).toBe(false);
+		expect(ask({ videoId: 'Ctw7eI7A1IE', rect: RECT, clipTop: -3 }).ok).toBe(false);
+	});
+
+	it('caps clipTop at the height of the box', () => {
+		const v = ask({ videoId: 'Ctw7eI7A1IE', rect: RECT, clipTop: 5000 });
+		expect(v.ok && v.message.kind === 'video' && v.message.clipTop).toBe(RECT.h);
+	});
+
+	it('still demands provenance first', () => {
+		expect(hxReceive(fromFrame({ type: HX_VIDEO_TYPE, videoId: 'Ctw7eI7A1IE', rect: RECT }, { source: OTHER_WINDOW }), gate()).ok).toBe(false);
+	});
+
+	it('builds the player on youtube-nocookie from the id alone, and refuses to build one from anything else', () => {
+		expect(hxVideoEmbedUrl('Ctw7eI7A1IE')).toBe('https://www.youtube-nocookie.com/embed/Ctw7eI7A1IE?autoplay=1&rel=0&playsinline=1&modestbranding=1');
+		expect(() => hxVideoEmbedUrl('../../x/y/z')).toThrow();
+		expect(hxVideoStateMessage('Ctw7eI7A1IE', true)).toEqual({ type: 'idea:video-state', videoId: 'Ctw7eI7A1IE', open: true });
+	});
+
+	// THE PLAYER IS THE PARENT'S, SO THE DOCUMENT'S OWN POLICY DOES NOT MOVE:
+	// a document still cannot frame anything itself.
+	it('leaves the served document without any frame-src', () => {
+		expect(hxDocumentCsp(HX_PORTAL_ORIGIN)).not.toMatch(/frame-src|child-src/);
 	});
 });
 

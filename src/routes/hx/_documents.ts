@@ -1,5 +1,5 @@
 /**
- * THE TWO DEV FIXTURES `/hx/<docId>` SERVES, WHICH ARE NOT AND NEVER WERE ROWS.
+ * THE DEV FIXTURES `/hx/<docId>` SERVES, WHICH ARE NOT AND NEVER WERE ROWS.
  *
  * A REAL DOCUMENT NOW COMES FROM THE DATABASE. `$lib/server/html-assignment-document`
  * reads the row a teacher's import wrote, with the service role, and re-checks
@@ -217,6 +217,64 @@ ${bridgeClient()}
 </html>
 `;
 
+/**
+ * THE VIDEO FIXTURE: the worksheet's manifest and fields, plus a 16:9 box
+ * placed well below the top, a Play control that asks the parent for a player
+ * over it (`idea:video`) and a Close that asks for none. The box's own
+ * coordinates are written into `#video-note`, so the harness can compare the
+ * rectangle the document meant with where the parent actually drew the player.
+ */
+const VIDEO_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video fixture</title>
+<script type="application/json" id="idea-manifest">
+${manifestJson(WORKSHEET_MANIFEST)}
+</script>
+<style>
+	body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 1rem; background: #fff; color: #111; }
+	.spacer { height: 420px; background: #eef1f4; margin: 0 0 1rem; }
+	#box { width: min(100%, 560px); aspect-ratio: 16 / 9; background: #333; margin: 0 0 1rem 37px; }
+	button { font: inherit; min-height: 44px; margin: 0 0.5rem 0.5rem 0; }
+	.note { font: 13px/1.5 ui-monospace, monospace; color: #444; margin: 0.25rem 0; }
+	.tall { height: 900px; }
+</style>
+</head>
+<body>
+<h1>Video fixture</h1>
+<div class="spacer"></div>
+<button type="button" id="play">Play</button><button type="button" id="close">Close</button>
+<div id="box"></div>
+<p class="note" id="video-note">no video</p>
+<p class="note" id="video-state">no answer</p>
+<input type="text" data-field="teamName" id="teamName">
+<div class="tall"></div>
+<script>
+${bridgeClient()}
+	var box = document.getElementById('box');
+	function rect() { var r = box.getBoundingClientRect(); return { x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) }; }
+	document.getElementById('play').addEventListener('click', function () {
+		var r = rect();
+		document.getElementById('video-note').textContent = 'asked ' + JSON.stringify(r);
+		send({ type: 'idea:video', videoId: 'Ctw7eI7A1IE', rect: r, clipTop: 0 });
+	});
+	document.getElementById('close').addEventListener('click', function () {
+		document.getElementById('video-note').textContent = 'closed';
+		send({ type: 'idea:video', videoId: null });
+	});
+	addEventListener('message', function (e) {
+		var d = e.data;
+		if (d && d.type === 'idea:video-state') document.getElementById('video-state').textContent = 'answer ' + d.videoId + ' open=' + d.open;
+	});
+	announce();
+	reportHeight();
+</script>
+</body>
+</html>
+`;
+
 const PROBE_MANIFEST = {
 	schemaVersion: SCHEMA_VERSION,
 	kind: 'html-assignment',
@@ -405,7 +463,8 @@ ${bridgeClient()}
 
 const DOCUMENTS: Record<string, HxDocument> = {
 	worksheet: { html: WORKSHEET_HTML, devOnly: false, fieldToBlockId: WORKSHEET_FIELDS },
-	probe: { html: PROBE_HTML, devOnly: true, fieldToBlockId: PROBE_FIELDS }
+	probe: { html: PROBE_HTML, devOnly: true, fieldToBlockId: PROBE_FIELDS },
+	video: { html: VIDEO_HTML, devOnly: true, fieldToBlockId: WORKSHEET_FIELDS }
 };
 
 /** Every document id this module can answer for, in a stable order. */

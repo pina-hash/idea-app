@@ -48,7 +48,10 @@
 		hxReceive,
 		hxSavedMessage,
 		hxStateMessage,
+		hxVideoEmbedUrl,
+		hxVideoStateMessage,
 		type HxAccepted,
+		type HxVideoRect,
 		type HxImageState,
 		type HxDropReason,
 		type HxVerdict
@@ -232,6 +235,16 @@
 				reportedPx = Math.ceil(message.px);
 				onheight?.(message.px);
 				break;
+			case 'video': {
+				const opening = video?.videoId !== message.videoId;
+				video = { videoId: message.videoId, rect: message.rect, clipTop: message.clipTop };
+				if (opening) post(hxVideoStateMessage(message.videoId, true));
+				break;
+			}
+			case 'video-close':
+				if (video) post(hxVideoStateMessage(video.videoId, false));
+				video = null;
+				break;
 		}
 	}
 
@@ -376,6 +389,14 @@
 	 * and the honest answer then is the name and a marker.
 	 */
 	let undecodable = $state<Record<string, true>>({});
+
+	/**
+	 * THE ONE VIDEO THE DOCUMENT HAS ASKED FOR, DRAWN OVER THE FRAME AT THE BOX
+	 * IT HOLDS OPEN. See `HX_VIDEO_TYPE` in `bridge.ts` for why it is the
+	 * parent's: a player framed inside the sandbox renders nothing. Keyed on the
+	 * id so a rect update moves the player and never reloads it.
+	 */
+	let video = $state<{ videoId: string; rect: HxVideoRect; clipTop: number } | null>(null);
 </script>
 
 <div class="hx-frame-wrap" data-hx-ready={ready ? 'yes' : 'no'} data-hx-listening={listening ? 'yes' : 'no'}>
@@ -442,6 +463,27 @@
 				loading="eager"
 				data-hx-frame
 			></iframe>
+			{#if video}
+				{#key video.videoId}
+					<div
+						class="hx-video"
+						data-hx-video={video.videoId}
+						style="left: {video.rect.x}px; top: {video.rect.y}px; width: {video.rect.w}px; height: {video.rect.h}px; clip-path: inset({video.clipTop}px 0 0 0);"
+					>
+						<!-- `strict-origin-when-cross-origin` because the player refuses to
+						     start without a referrer (YouTube error 153); the origin is all
+						     it gets. -->
+						<iframe
+							class="hx-video-player"
+							src={hxVideoEmbedUrl(video.videoId)}
+							title="Video"
+							allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+							allowfullscreen
+							referrerpolicy="strict-origin-when-cross-origin"
+						></iframe>
+					</div>
+				{/key}
+			{/if}
 		{:else}
 			<!-- Not a pending state to dress up: it lasts one frame after hydration
 			     and a spinner here would be a flash on every load. The box holds its
@@ -498,6 +540,17 @@
 </div>
 
 <style>
+	.hx-video {
+		position: absolute;
+		z-index: 1;
+		background: #000;
+	}
+	.hx-video-player {
+		display: block;
+		width: 100%;
+		height: 100%;
+		border: 0;
+	}
 	/*
 		A NOTICE, NOT A WARNING. Nothing has gone wrong -- an instructor closed an
 		assignment at the end of a unit, which is the feature working -- so it
@@ -617,6 +670,9 @@
 	/* The edge, the corners and the clip. See the comment on the element for
 	   why they are not on the frame itself. */
 	.hx-frame-box {
+		/* The anchor for `.hx-video`, whose rect is in the document's own pixels
+		   and so starts at this box's padding edge, where the frame starts. */
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		min-width: 0;

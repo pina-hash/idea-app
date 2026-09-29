@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.1 - 2026-09-11**
+**Version 1.2 - 2026-09-29**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -567,6 +567,7 @@ Frame to parent (`HxFrameMessage`):
 | `idea:image-remove` | `field: string` |
 | `idea:image-caption` | `field: string`, `caption: string` |
 | `idea:height` | `px: number` |
+| `idea:video` | `videoId: string \| null`, `rect: { x, y, w, h }` (document pixels), `clipTop?: number` |
 
 Parent to frame (`HxParentMessage`):
 
@@ -574,9 +575,32 @@ Parent to frame (`HxParentMessage`):
 |---|---|
 | `idea:state` | `values: Record<field, string \| boolean>`, `images: Record<field, HxImageState>`, `readOnly: boolean` |
 | `idea:saved` | `at: string`, `ok: boolean`, `schemaVersion: 3`, `reason?: string` (only when `ok` is false) |
+| `idea:video-state` | `videoId: string`, `open: boolean` |
 
-Both outbound messages are built by `hxStateMessage` and `hxSavedMessage` so the component
-cannot invent a third.
+The outbound messages are built by `hxStateMessage`, `hxSavedMessage` and
+`hxVideoStateMessage` so the component cannot invent another.
+
+**A VIDEO IS PLAYED BY THE PARENT, OVER A BOX THE DOCUMENT HOLDS OPEN (1.2).** A YouTube
+player framed inside the document inherits the sandbox, runs in an opaque origin and draws
+nothing: measured 2026-09-29 in the container's Chromium, the same
+`youtube-nocookie.com/embed/<id>` frame drew its player from an ordinary page and an empty
+black box one level down under `HX_SANDBOX_FLAGS`, with `frame-src` opened for the test. The
+only document-side repair is `allow-same-origin`, which section 5 forbids. So the document
+keeps a 16:9 box open, sends `idea:video` with a YouTube id and the box's rectangle in its
+own coordinates, and `HtmlAssignmentFrame` draws the player over the frame at that
+rectangle; the box scrolls with the frame because both sit in `.hx-frame-box`. `clipTop` is
+how much of the box the document's own floating header covers, applied as a `clip-path`. A
+null id closes it, and the parent answers each open and close with `idea:video-state`.
+- **The document names an id, never a URL.** `hxReceive` admits `^[A-Za-z0-9_-]{11}$` only
+  and `hxVideoEmbedUrl` builds the `youtube-nocookie.com` URL from it, so no document can
+  point the parent's frame anywhere else. What it still admits is any public YouTube video,
+  over the document's own area, which is less than the popup flags already grant.
+- **The document's CSP does not move.** It still has no `frame-src`; the player is the
+  parent's.
+- **A document must keep a fallback.** A portal that predates 1.2, or a document opened on
+  its own, never answers; the SolidWorks Day post waits 1.5 s for `idea:video-state` and
+  then offers the video as a link. The `video` dev fixture (`/dev/html-assignment?doc=video`)
+  is the instrument.
 
 `images` on `idea:state` is REQUIRED rather than optional. An optional field is one a
 caller forgets, and forgetting it means a student reloads a worksheet and their
@@ -1240,6 +1264,9 @@ Both variables are documented in `.env.example`.
 
 ## Changelog
 
+- **1.2 (2026-09-29).** Adds `idea:video` and `idea:video-state` (section 6.1): the parent
+  plays a YouTube video over a box the document holds open, because a player framed inside
+  the sandbox renders nothing. Ledger 0349.
 - **1.1 (2026-09-11).** Records ledger 0153's widening of the security boundary and the
   measurements behind it. The sandbox set gained `allow-popups
   allow-popups-to-escape-sandbox` (Mr. Pina's decision of 2026-09-11), so a ported document

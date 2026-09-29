@@ -1619,6 +1619,16 @@ admits no host for, and the request would arrive credential-free -- so restored
 images belong in PARENT CHROME beside the frame, where Submit already is. Do
 not weaken the CSP to move them inside.
 
+**A VIDEO IS PLAYED BY THE PARENT, OVER A BOX THE DOCUMENT HOLDS OPEN, AND THAT IS FORCED
+(ledger 0349).** A YouTube player framed inside the document inherits the sandbox and draws
+nothing (measured: the same embed drew its player from an ordinary page and an empty box
+under `HX_SANDBOX_FLAGS`), and the only document-side repair is `allow-same-origin`. So the
+document sends `idea:video` with a YouTube id and its box's rectangle, and
+`HtmlAssignmentFrame` draws the player over the frame there. **The document names an id and
+never a URL** (`HX_VIDEO_ID`, `hxVideoEmbedUrl` on youtube-nocookie), and the served CSP
+still has no `frame-src`. Do not widen `frame-src` in `hxDocumentCsp` to move the player
+inside: it would not play there anyway.
+
 **SUBMIT IS A PARENT CONTROL IN PARENT CHROME**, and the completeness check is
 the parent's, from the manifest's `minSentences`. A Submit inside the document
 would be a button whose handler the document itself wrote.

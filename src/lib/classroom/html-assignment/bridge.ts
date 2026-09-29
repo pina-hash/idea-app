@@ -125,7 +125,53 @@ export type HxFrameMessage =
 	| { type: 'idea:image'; field: string; name: string; bytes: string }
 	| { type: 'idea:image-remove'; field: string }
 	| { type: 'idea:image-caption'; field: string; caption: string }
-	| { type: 'idea:height'; px: number };
+	| { type: 'idea:height'; px: number }
+	| { type: typeof HX_VIDEO_TYPE; videoId: string | null; rect?: HxVideoRect; clipTop?: number };
+
+/**
+ * A VIDEO IS PLAYED BY THE PARENT, OVER A BOX THE DOCUMENT HOLDS OPEN, AND
+ * THAT IS FORCED BY THE SANDBOX RATHER THAN CHOSEN.
+ *
+ * A YouTube player framed INSIDE the document inherits this sandbox, runs in an
+ * opaque origin and renders nothing: measured in this container's Chromium on
+ * 2026-09-29, the same `youtube-nocookie.com/embed/<id>` frame drew its player
+ * served from an ordinary page and drew an empty black box one level down under
+ * `HX_SANDBOX_FLAGS` (with `frame-src` opened for the test). The only repair on
+ * the document side is `allow-same-origin`, which must never join the set. So
+ * the document asks, in `idea:video`, for a video by ID over a rectangle in its
+ * own coordinates; the parent draws the player over the frame at that
+ * rectangle, and the box scrolls with the frame because both sit in one
+ * container. A null `videoId` closes it.
+ *
+ * THE DOCUMENT NAMES AN ID AND NEVER A URL. The parent builds the embed URL on
+ * `youtube-nocookie.com` from an id that must match YouTube's eleven-character
+ * alphabet, so a document cannot point the parent's frame anywhere else. What
+ * that still admits, stated: any public YouTube video, over the document's own
+ * area. That is less than `allow-popups-to-escape-sandbox` already gives a
+ * document (a real tab at any URL), and import is admin-only.
+ *
+ * `clipTop` is how many pixels at the top of the box the document's own chrome
+ * is covering (a header that follows the reader), so the parent can hide that
+ * strip of the player rather than paint over the header.
+ */
+export const HX_VIDEO_TYPE = 'idea:video';
+
+/** A rectangle in the document's own CSS pixels, from its top-left corner. */
+export interface HxVideoRect {
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+}
+
+/** YouTube's video id alphabet and length. Anything else is refused. */
+export const HX_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+
+/** The player a parent draws for an accepted id, and nothing else. */
+export function hxVideoEmbedUrl(videoId: string): string {
+	if (!HX_VIDEO_ID.test(videoId)) throw new Error('not a video id');
+	return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&playsinline=1&modestbranding=1`;
+}
 
 /**
  * WHAT AN IMAGE LOOKS LIKE ON THE WAY BACK DOWN, AND IT IS NOT WHAT CAME UP.
@@ -192,6 +238,14 @@ export type HxParentMessage =
 			 * document cannot ask a follow-up question.
 			 */
 			reason?: string;
+	  }
+	| {
+			/** The parent is showing (or has stopped showing) this video. The
+			    document keeps its fallback until it hears this, so a portal that
+			    does not know `idea:video` still leaves the student a way to watch. */
+			type: 'idea:video-state';
+			videoId: string;
+			open: boolean;
 	  };
 
 /**
@@ -205,7 +259,9 @@ export type HxAccepted =
 	| { kind: 'image'; blockId: string; field: string; name: string; bytes: string }
 	| { kind: 'image-remove'; blockId: string; field: string }
 	| { kind: 'image-caption'; blockId: string; field: string; caption: string }
-	| { kind: 'height'; px: number };
+	| { kind: 'height'; px: number }
+	| { kind: 'video'; videoId: string; rect: HxVideoRect; clipTop: number }
+	| { kind: 'video-close' };
 
 /**
  * Why a message was dropped. These are DISTINCT on purpose: "a message from
@@ -221,7 +277,8 @@ export type HxDropReason =
 	| 'field'
 	| 'value'
 	| 'caption'
-	| 'height';
+	| 'height'
+	| 'video';
 
 export type HxVerdict =
 	| { ok: true; message: HxAccepted }
@@ -280,6 +337,9 @@ export const HX_MAX_HEIGHT_PX = 40_000;
  * worse outcome of the two.
  */
 export const HX_MAX_CAPTION_CHARS = 500;
+
+/** A player wider than any screen a school owns is a broken or hostile rect. */
+export const HX_MAX_VIDEO_WIDTH_PX = 8_000;
 
 /**
  * WHAT `event.origin` MUST BE, AND THE ANSWER IS `"null"` -- MEASURED, NOT
@@ -493,6 +553,33 @@ export function hxReceive(incoming: HxIncoming, gate: HxGate): HxVerdict {
 			return { ok: true, message: { kind: 'height', px } };
 		}
 
+		case HX_VIDEO_TYPE: {
+			if (data.videoId === null) return { ok: true, message: { kind: 'video-close' } };
+			if (typeof data.videoId !== 'string' || !HX_VIDEO_ID.test(data.videoId)) {
+				return { ok: false, reason: 'video', detail: 'idea:video videoId is not a YouTube video id' };
+			}
+			const rect = data.rect;
+			const max = gate.maxHeightPx ?? HX_MAX_HEIGHT_PX;
+			if (!isRecord(rect)) return { ok: false, reason: 'video', detail: 'idea:video without a rect' };
+			const { x, y, w, h } = rect;
+			const nums = [x, y, w, h];
+			if (!nums.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+				return { ok: false, reason: 'video', detail: 'idea:video rect is not four finite numbers' };
+			}
+			const [nx, ny, nw, nh] = nums as number[];
+			if (nx < 0 || ny < 0 || nw <= 0 || nh <= 0 || nx + nw > HX_MAX_VIDEO_WIDTH_PX || ny + nh > max) {
+				return { ok: false, reason: 'video', detail: `idea:video rect ${nw}x${nh} at ${nx},${ny} is outside the document` };
+			}
+			const clip = data.clipTop === undefined ? 0 : data.clipTop;
+			if (typeof clip !== 'number' || !Number.isFinite(clip) || clip < 0) {
+				return { ok: false, reason: 'video', detail: 'idea:video clipTop is not a non-negative number' };
+			}
+			return {
+				ok: true,
+				message: { kind: 'video', videoId: data.videoId, rect: { x: nx, y: ny, w: nw, h: nh }, clipTop: Math.min(clip, nh) }
+			};
+		}
+
 		default:
 			return { ok: false, reason: 'type', detail: `unknown message type ${JSON.stringify(data.type)}` };
 	}
@@ -514,8 +601,13 @@ function resolveField(field: string, gate: HxGate): string | null {
 	return typeof blockId === 'string' && blockId !== '' ? blockId : null;
 }
 
+/** The parent's answer to `idea:video`. */
+export function hxVideoStateMessage(videoId: string, open: boolean): HxParentMessage {
+	return { type: 'idea:video-state', videoId, open };
+}
+
 /**
- * THE TWO OUTBOUND MESSAGES, BUILT HERE SO THE COMPONENT CANNOT INVENT A THIRD.
+ * THE OUTBOUND MESSAGES, BUILT HERE SO THE COMPONENT CANNOT INVENT ANOTHER.
  *
  * `hxPostTarget` is the origin to post them TO, and it is `'*'`, which looks
  * wrong and is not. `postMessage`'s `targetOrigin` is a REFUSAL: the browser
