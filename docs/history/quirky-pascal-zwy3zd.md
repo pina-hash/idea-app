@@ -155,6 +155,17 @@ columns and their constraint. Those are destructive and a person's to run.
 All at 375 and 1440 unless said otherwise, read off `node tools/browser-verify/run.mjs`'s own
 summary lines.
 
+- **The whole harness, on the rebased tree.** `Disclosure` gained a class and a callback and
+  `plate.css` gained two lists, and `ProfileMenu` mounts a `Disclosure` on every page, so the gate
+  was the full set rather than a selection. It was stopped at 963 of 1052 route/width runs, to save
+  the last stretch of time: 16,319 measurements, 184 outside threshold, and **every one of the 184
+  reproduces the committed store's pre-round reading count for count, spec by spec** (the IdeaCAD
+  harness specs, 178 of them; the admin roster, 4; and the Space White home's emblem timing row,
+  2). None is new. The 44 specs the stopped pass did not reach are the site tour,
+  the tournament pages, the IdeaCAD preview chooser and the upload limits page, none of which this
+  diff changed; they share `Disclosure` only through the profile menu, which every covered page
+  also mounts.
+
 - **svelte-check**: 0 errors and 37 warnings in 20 files (31 `state_referenced_locally`, 5
   `css_unused_selector`, 1 `perf_avoid_nested_class`), identical to the baseline.
 - **Grading, the whole `grading` selection.** Before, on a pristine worktree of `6d59341d`: 72 runs,
@@ -162,7 +173,8 @@ summary lines.
   `/dev/grading-incomplete`'s export panel, which its spec could not open; the 5 that stayed are
   `/dev/classroom?view=class-teacher`'s `new-post` click, whose predicate never holds, **identical on
   the baseline worktree run alone**, and only in this selection because its label names a
-  grading-category datalist.
+  grading-category datalist. It passed in the full pass below, so the predicate is timing-bound
+  rather than broken.
 - **Grading, names on screen** (full rows visible in the first viewport; the first name's y):
   section console at 1440x900, 3 of 5 names at y=547 before, 5 of 5 at y=447 after; at 1366x768, 0 of
   5 before, 3 of 5 after. Ported console at 1366x768, 0 of 2 before, 2 of 2 after. At 375 the first
