@@ -5,4 +5,4 @@
 - Owns: `tests/**`, `server/PROOF.md`, `AGENTS.md`.
 - Does not touch: `server/sql/**` (tests only), anything in `pina-hash/idea-app`.
 - Migration permitted: no. Claims: none.
-- Status: issued
+- Status: merged as `ec3a2bf` (PR #5). Chat verified 2026-09-28: all eight tests present; Core 166, Server 18, Storage 8 pass against PostgreSQL 16 (Windows 22 skipped on Linux); renaming a guarded test turns the new guard red.
