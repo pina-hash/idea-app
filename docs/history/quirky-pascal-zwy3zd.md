@@ -8,7 +8,7 @@ subsystems: [Classroom, Grading, Teams, Theme, Feedback, Maps, Portal, browser-v
 
 Ledger 0347 took all eighteen reports in the 2026-09-28 feedback export (R01 to R18) in one session,
 under decisions 42 to 45, with one migration and one push to `main`. The pushed commit is
-`@@PUSHED_SHA@@`. The work was split across a workflow of worktree-isolated implementers, the
+`5e30ccfb` plus the one commit after it that fills in this line and the ledger's status (a commit cannot name its own hash). The work was split across a workflow of worktree-isolated implementers, the
 migration first, and every branch was cherry-picked onto this one, re-tested on the merged tree, and
 then read by a fresh-eyes reviewer whose findings are fixed below.
 
@@ -166,8 +166,20 @@ summary lines.
   diff changed; they share `Disclosure` only through the profile menu, which every covered page
   also mounts.
 
-- **svelte-check**: 0 errors and 37 warnings in 20 files (31 `state_referenced_locally`, 5
-  `css_unused_selector`, 1 `perf_avoid_nested_class`), identical to the baseline.
+- **svelte-check** (`npm run check`, on the final tree): 0 errors and 37 warnings in 20 files (31
+  `state_referenced_locally`, 5 `css_unused_selector`, 1 `perf_avoid_nested_class`), identical to
+  the baseline.
+- **The full suite, once** (`npm test`, 1518.7s): 639 files, **638 passed and 1 failed**; 12,059
+  of 12,060 tests. The one failure is `tests/db/migrations-applied-record.test.ts`, "has a record
+  for every migration from 0193 onward, and no gaps", missing exactly `0225`. That is the state
+  every new migration is in until it is applied: a record under `docs/migrations-applied/` may only
+  be written after a real apply, never by hand, and 0221, 0223 and 0224 sat in the same red for four
+  hours on 2026-09-22 before theirs landed. `migrate.yml` applies 0225 on this push and commits the
+  record when its secret is set (the workflow's own ledger matcher, run locally, finds exactly one
+  entry permitting 0225: this one); otherwise Mr. Pina's paste and `tools/record-applied.mjs`
+  close it. The baseline suite was green apart from a shallow-clone failure `BASELINE.md` explains.
+- **The build** (`npm run build`): exit 0, built in 1m 1s. Its output directories were deleted
+  afterwards, per the toolchain trap.
 - **Grading, the whole `grading` selection.** Before, on a pristine worktree of `6d59341d`: 72 runs,
   1024 measurements, 27 outside. After: 74 runs, 1088 measurements, 5 outside. The 22 that went were
   `/dev/grading-incomplete`'s export panel, which its spec could not open; the 5 that stayed are
@@ -271,7 +283,7 @@ in-progress draft as waiting, which is a design question for Mr. Pina rather tha
   can do anything; until then every one of them is absent and says why, which is the designed state.
 - **Web fonts**: the harness blocks `fonts.googleapis.com`, so text was measured in the fallback
   stack. `prefers-reduced-motion` was `no-preference` in every run.
-- **The deployed sha**: @@DEPLOYED@@
+- **The deployed sha**: not confirmable from this container. The Vercel deployment is read off the pushed commit's statuses after the push, and the session's final report says what they said.
 
 ## Deferred
 
