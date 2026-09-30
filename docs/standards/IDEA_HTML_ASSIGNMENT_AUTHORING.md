@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.5 - 2026-09-29**
+**Version 1.6 - 2026-09-30**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -18,6 +18,14 @@ Mr. Pina receives must meet, what each kind of HTML (worksheet, walkthrough, ref
 tool, dashboard, deck, print, game) should look and behave like, and the persona audit run
 before delivery. This file owns the mechanics of a ported assignment; that one owns how it
 should read and feel. An assignment meets both.
+
+**THIS FILE UPDATES ITSELF, AND THAT IS MR. PINA'S STANDING INSTRUCTION OF 2026-09-30.**
+Any chat or session that builds or revises an HTML assignment adds every optimization, fix
+or correction it makes to an HTML file to this document in the same turn, unprompted:
+a rule in the section it belongs to, or a dated section like 13 and 14, plus a changelog
+line and a `REGISTER.md` row. It lands in the mirror and in project knowledge together.
+Nobody asks for it. A lesson that lives only in one assignment's build script is lost to
+the next assignment, which is how the same critique came back across several chats.
 
 ---
 
@@ -499,9 +507,44 @@ a rule for any assignment of that shape.
   It found four blockers and thirteen wrong instructions in a document that passed both
   validators and the harness drive.
 
+## 14. Rules paid for by Hook 02's first morning (2026-09-30)
+
+Mr. Pina read Hook 02 an hour before class and gave these. Each is now a rule.
+
+- **Writing in a rotation class is short, and the page says how short.** Students do not
+  want to write, and IDEA100 is meant to be fun. Every required answer is one sentence, its
+  box shows a sentence starter as the placeholder ("It broke at the ..."), and any either/or
+  judgment is a pick rather than a sentence (snapped or pulled open; right, half right or
+  wrong). State the whole budget near the top: "five sentences in the whole thing, one at a
+  time. Everything else is a click, a number, or a photo." Hook 02 went from eight required
+  sentences to five with no point moved.
+- **Equipment facts come from Mr. Pina, not from the vendor's defaults.** Hook 02 shipped
+  telling every student to slice for a 0.4 mm nozzle, Bambu's default, when every X1 Carbon
+  in the lab has a 0.6 and an H2D side may be 0.6, 0.6 High Flow or 0.4. The same draft
+  said the SD cards and drives are handed out, when they live in the printers. Before
+  delivering a walkthrough of lab equipment, list every lab-specific fact it asserts
+  (nozzle, profile, where media and tools live, which setting is manual) and confirm each
+  with him.
+- **A lookup that depends on what someone tells the student is a table, not a paragraph.**
+  "Print Tech says 0.6 High Flow" maps to a printer profile and a flow setting in one row.
+- **Table cells at phone width wrap with `overflow-wrap: break-word`, never `anywhere`.**
+  `anywhere` lowers a column's minimum width, so at 375 px "Standard" rendered as
+  "Standar" over "d". `break-word` breaks only a word that cannot fit on its own line.
+- **Long is acceptable when every item is needed.** Mr. Pina found Hook 02 text heavy and
+  kept it, because a student needs every fact in it. Make a long walkthrough lighter by
+  folding stages, showing only the chosen machine's steps, and putting the video beside
+  the step it shows. Never by cutting a fact a student needs.
+- **The first week of use is part of the build.** Expect small adjustments as students use
+  a new assignment, make them the day they are reported, and add each one here.
+
 ---
 
 ## Changelog
+
+- **1.6 (2026-09-30).** Header: the standing instruction that this file updates itself
+  whenever an HTML assignment is built or revised. New section 14: six rules from Mr.
+  Pina's pre-class read of Hook 02 (writing budget, lab facts confirmed with him, lookup
+  tables, `break-word` in narrow table cells, long when needed, the first week of use).
 
 - **1.5 (2026-09-29).** Three stale rules corrected against the tree and Mr. Pina's rulings:
   section 4, a font the document embeds as `data:` now renders (ledger 0351), and the site's
