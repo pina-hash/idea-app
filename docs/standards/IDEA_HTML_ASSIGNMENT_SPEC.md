@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.2 - 2026-09-29**
+**Version 1.3 - 2026-09-29**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -576,9 +576,19 @@ Parent to frame (`HxParentMessage`):
 | `idea:state` | `values: Record<field, string \| boolean>`, `images: Record<field, HxImageState>`, `readOnly: boolean` |
 | `idea:saved` | `at: string`, `ok: boolean`, `schemaVersion: 3`, `reason?: string` (only when `ok` is false) |
 | `idea:video-state` | `videoId: string`, `open: boolean` |
+| `idea:theme` | `theme: 'light' \| 'dark'` |
 
-The outbound messages are built by `hxStateMessage`, `hxSavedMessage` and
-`hxVideoStateMessage` so the component cannot invent another.
+The outbound messages are built by `hxStateMessage`, `hxSavedMessage`,
+`hxVideoStateMessage` and `hxThemeMessage` so the component cannot invent another.
+
+**THE PORTAL SAYS WHICH THEME IT IS IN (1.3).** A sandboxed document cannot read the
+portal's `<html data-theme>` and has no storage to remember a choice, so without help it can
+only follow the device setting, which on a school machine is usually light while the site is
+dark. After the first `idea:state`, and whenever the site's `data-theme` changes (a
+`MutationObserver` in `HtmlAssignmentFrame`), the parent sends `idea:theme` with
+`hxThemeOf(attr)`: `light` for Space White and `dark` for everything else. Two words rather
+than theme names, so a new site theme needs no document to learn it. It is advisory: a
+document may ignore it, and one with its own theme control lets the student's choice win.
 
 **A VIDEO IS PLAYED BY THE PARENT, OVER A BOX THE DOCUMENT HOLDS OPEN (1.2).** A YouTube
 player framed inside the document inherits the sandbox, runs in an opaque origin and draws
@@ -1264,6 +1274,8 @@ Both variables are documented in `.env.example`.
 
 ## Changelog
 
+- **1.3 (2026-09-29).** Adds `idea:theme` (section 6.1): the parent tells the document
+  whether the site is light or dark, so a document can follow the site. Ledger 0350.
 - **1.2 (2026-09-29).** Adds `idea:video` and `idea:video-state` (section 6.1): the parent
   plays a YouTube video over a box the document holds open, because a player framed inside
   the sandbox renders nothing. Ledger 0349.

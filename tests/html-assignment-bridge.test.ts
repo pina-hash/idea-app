@@ -52,6 +52,8 @@ import {
 	hxStateMessage,
 	hxVideoEmbedUrl,
 	hxVideoStateMessage,
+	hxThemeMessage,
+	hxThemeOf,
 	HX_VIDEO_TYPE,
 	type HxGate
 } from '../src/lib/classroom/html-assignment/bridge.ts';
@@ -512,6 +514,17 @@ describe('idea:video: the parent plays a video over a box the document holds ope
 	// a document still cannot frame anything itself.
 	it('leaves the served document without any frame-src', () => {
 		expect(hxDocumentCsp(HX_PORTAL_ORIGIN)).not.toMatch(/frame-src|child-src/);
+	});
+});
+
+describe('the portal theme goes down as two words', () => {
+	it('reads Space White as light and every other site theme, or none, as dark', () => {
+		expect(hxThemeOf('space-white')).toBe('light');
+		for (const t of ['idea', 'matrix', '', null, undefined, 'SPACE-WHITE']) expect(hxThemeOf(t as string | null)).toBe('dark');
+	});
+	it('builds the message the document listens for', () => {
+		expect(hxThemeMessage('light')).toEqual({ type: 'idea:theme', theme: 'light' });
+		expect(hxThemeMessage(hxThemeOf('matrix'))).toEqual({ type: 'idea:theme', theme: 'dark' });
 	});
 });
 

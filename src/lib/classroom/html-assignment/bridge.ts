@@ -219,6 +219,11 @@ export type HxParentMessage =
 			readOnly: boolean;
 	  }
 	| {
+			/** The portal's theme, sent after every state message and whenever it changes. See `hxThemeOf`. */
+			type: 'idea:theme';
+			theme: HxTheme;
+	  }
+	| {
 			type: 'idea:saved';
 			at: string;
 			ok: boolean;
@@ -599,6 +604,26 @@ function resolveField(field: string, gate: HxGate): string | null {
 	if (!Object.hasOwn(gate.fieldToBlockId, field)) return null;
 	const blockId = gate.fieldToBlockId[field];
 	return typeof blockId === 'string' && blockId !== '' ? blockId : null;
+}
+
+/**
+ * THE PORTAL'S THEME, AS TWO WORDS A DOCUMENT CAN ACT ON (Mr. Pina, 2026-09-29: a
+ * worksheet should follow the site's dark and light themes the way the site does).
+ *
+ * A sandboxed document cannot read the portal's `<html data-theme>` and has no storage,
+ * so without this it can only guess from the device setting, which on a school machine
+ * is usually light while the site is dark. Space White is the one light theme, so it is
+ * `light` and everything else (IDEA, Matrix, no attribute) is `dark`. Two words rather
+ * than the theme names, so a new site theme needs no document to learn its name.
+ * A document that ignores the message is unaffected; it is advisory, never a gate.
+ */
+export type HxTheme = 'light' | 'dark';
+export const HX_THEME_TYPE = 'idea:theme';
+export function hxThemeOf(attr: string | null | undefined): HxTheme {
+	return attr === 'space-white' ? 'light' : 'dark';
+}
+export function hxThemeMessage(theme: HxTheme): HxParentMessage {
+	return { type: 'idea:theme', theme };
 }
 
 /** The parent's answer to `idea:video`. */

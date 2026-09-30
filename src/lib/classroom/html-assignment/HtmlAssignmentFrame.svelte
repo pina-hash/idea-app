@@ -50,6 +50,8 @@
 		hxStateMessage,
 		hxVideoEmbedUrl,
 		hxVideoStateMessage,
+		hxThemeMessage,
+		hxThemeOf,
 		type HxAccepted,
 		type HxVideoRect,
 		type HxImageState,
@@ -209,6 +211,7 @@
 				// down immediately. Sent BEFORE the callback could change anything, so
 				// a document always receives a state message and never has to ask.
 				postState(values, images, shut);
+				postTheme();
 				break;
 			case 'change':
 				onchange?.({ blockId: message.blockId, field: message.field, value: message.value });
@@ -335,6 +338,18 @@
 	) {
 		post(hxStateMessage($state.snapshot(nextValues), $state.snapshot(nextImages), nextReadOnly));
 	}
+
+	/** The portal's theme, after the first state and whenever the site's own
+	    `data-theme` changes (the theme picker writes it without a reload). */
+	function postTheme() {
+		post(hxThemeMessage(hxThemeOf(document.documentElement.getAttribute('data-theme'))));
+	}
+	$effect(() => {
+		if (!ready) return;
+		const watch = new MutationObserver(() => postTheme());
+		watch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+		return () => watch.disconnect();
+	});
 
 	/** State down, whenever it moves and the document is listening. A document
 	    that has not said `idea:ready` has no listener yet, so a send would go

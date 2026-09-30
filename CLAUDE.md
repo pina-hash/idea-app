@@ -1629,6 +1629,11 @@ never a URL** (`HX_VIDEO_ID`, `hxVideoEmbedUrl` on youtube-nocookie), and the se
 still has no `frame-src`. Do not widen `frame-src` in `hxDocumentCsp` to move the player
 inside: it would not play there anyway.
 
+**THE PARENT TELLS THE DOCUMENT WHETHER THE SITE IS LIGHT OR DARK (ledger 0350).** A sandboxed
+document cannot read `data-theme` or keep a setting, so `HtmlAssignmentFrame` sends
+`idea:theme` (`hxThemeOf`: Space White is `light`, anything else `dark`) after the first state
+and on every `data-theme` change. It is advisory; a document that ignores it is unaffected.
+
 **SUBMIT IS A PARENT CONTROL IN PARENT CHROME**, and the completeness check is
 the parent's, from the manifest's `minSentences`. A Submit inside the document
 would be a button whose handler the document itself wrote.
