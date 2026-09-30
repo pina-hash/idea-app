@@ -574,7 +574,7 @@ describe('the served document: frame-ancestors', () => {
 			'sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox; ' +
 				"default-src 'none'; script-src 'unsafe-inline'; " +
 				"style-src 'unsafe-inline'; " +
-				"img-src data: blob:; connect-src 'none'; form-action 'none'; " +
+				"img-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; " +
 				'frame-ancestors https://ideabosco.com'
 		);
 	});
@@ -606,6 +606,15 @@ describe('the served document: frame-ancestors', () => {
 		expect(csp).toContain("default-src 'none'");
 		expect(csp).toContain("form-action 'none'");
 		expect(csp).toContain('img-src data: blob:');
+	});
+
+	// FONTS COME FROM THE DOCUMENT ITSELF OR NOT AT ALL (ledger 0351). A host on
+	// font-src would be a fetch a document could aim anywhere.
+	it('admits embedded fonts and no font host', () => {
+		const csp = hxDocumentCsp(HX_PORTAL_ORIGIN);
+		const font = csp.split('; ').find((d) => d.startsWith('font-src'));
+		expect(font).toBe('font-src data:');
+		expect(csp).not.toMatch(/fonts\.(googleapis|gstatic)\.com/);
 	});
 
 	it('carries the rest of the header set', () => {

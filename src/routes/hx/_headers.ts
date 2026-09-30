@@ -101,6 +101,8 @@ export function hxPortalOriginIsRequestHost(
  *                           there is no CDN reach here, deliberately, and that
  *                           is the difference between this and a Foundry
  *                           bundle, whose build contract promises one.
+ *   font-src data:          a typeface the document embeds in itself (ledger
+ *                           0351). No host: a data: font fetches nothing.
  *   img-src data: blob:     a pasted photograph, as bytes the document already
  *                           holds. No remote image, so no document can phone
  *                           home by setting an `<img src>` -- which is the
@@ -182,6 +184,10 @@ export function hxDocumentCsp(portalOrigin: string): string {
 		"script-src 'unsafe-inline'",
 		"style-src 'unsafe-inline'",
 		'img-src data: blob:',
+		// A font the document carries in itself, as a data: URI (ledger 0351). It
+		// reaches no host, so containment is unchanged; what it buys is the site's
+		// own typefaces, which a ported document otherwise cannot have at all.
+		'font-src data:',
 		"connect-src 'none'",
 		"form-action 'none'",
 		`frame-ancestors ${portalOrigin}`

@@ -14,6 +14,14 @@
 	"entries": [
 		{
 			"date": "2026-09-29",
+			"title": "Assignments can use the site's own lettering",
+			"body": "Assignment pages built for it now show the same letters as the rest of IDEA Classroom instead of your computer's default font.",
+			"tags": [
+				"new"
+			]
+		},
+		{
+			"date": "2026-09-29",
 			"title": "Assignments match your light or dark theme",
 			"body": "Assignment pages that support it now open in the same light or dark look as the rest of the site, and switch when you change the site's theme. Some also have their own Light or Dark button at the top if you want the other one for that page.",
 			"tags": [

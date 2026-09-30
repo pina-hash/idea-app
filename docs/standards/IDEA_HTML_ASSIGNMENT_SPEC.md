@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.3 - 2026-09-29**
+**Version 1.4 - 2026-09-29**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -685,8 +685,13 @@ the document: with the stylesheet refused there is no rule to be pending, so `ch
 answers true for a font that does not exist. **Never assert a font claim with
 `document.fonts.check()` on this surface.**
 
-**THIS IS UNFIXED ON THE TREE AS OF 2026-09-10.** The CSP still carries no `font-src` and
-no host on `style-src`.
+**FIXED FOR AN EMBEDDED FONT BY LEDGER 0351 (2026-09-29): the CSP carries `font-src data:`.**
+A document that inlines its typefaces as `@font-face` rules with `data:` URIs now renders
+them; a document that `@import`s a font host still loses them, and must, because
+`style-src` still names no host and `font-src` still names none. A `data:` font fetches
+nothing, so containment is unchanged. Rajdhani 500/600/700 and Share Tech Mono 400 as
+woff2 cost about 80 KB of the 2 MB cap. Measure a font claim by rendered width against a
+fallback, per the paragraph above; `document.fonts.check()` is still vacuous here.
 
 **THE SHAPE OF THE FIX IS FOUNDRY'S `/_platform/fonts.css`, WHICH IS ALREADY SOLVED ONE
 SUBSYSTEM OVER.** Serve the faces from an origin the policy names, with
@@ -831,7 +836,8 @@ Stated together so nobody discovers one of these during a port.
 - **THE DOCUMENT CANNOT UPLOAD A FILE ITSELF.** Image bytes come up as `idea:image` and
   the PARENT uploads them.
 - **NO NETWORK OF ANY KIND.** `connect-src 'none'`, no host on any fetching directive.
-- **NO FONTS.** Section 6.3.
+- **NO FONT HOST.** A font the document carries as a `data:` URI renders (0351); a font
+  from anywhere else does not. Section 6.3.
 - **NO TOP-LEVEL NAVIGATION**, and no popups escaping the sandbox.
 - **SUBMIT IS NOT THE DOCUMENT'S.** A Submit inside the document would be a button whose
   handler the document itself wrote. It is a parent control in parent chrome, and so is
@@ -1134,7 +1140,7 @@ because the contract requires a `short` and the validator refuses an empty one.
 | # | The contract said | Measured | By | Status on the tree |
 |---|---|---|---|---|
 | 1 | Validate `event.origin` against the document origin | It is the literal string `"null"`. A literal comparison drops every message and the feature is silently inert. | 0126 | **FIXED** -- `hxExpectedOrigin` derives the expectation from the sandbox flags |
-| 2 | The CSP as written | Refuses all three IDEA typefaces: `style-src 'unsafe-inline'` blocks the `@import` and there is no `font-src` at all | 0128 | **OPEN** -- no `font-src` on the tree |
+| 2 | The CSP as written | Refuses all three IDEA typefaces: `style-src 'unsafe-inline'` blocks the `@import` and there is no `font-src` at all | 0128 | **FIXED for embedded fonts by 0351** -- `font-src data:`; a font host is still refused |
 | 3 | The CSP carried no `sandbox` directive | A DIRECT navigation to `/hx/` is not placed in an opaque origin the way a framed one is | found by 0126, closed by 0134 | **FIXED** -- `sandbox allow-scripts` in `hxDocumentCsp`, from `HX_SANDBOX_FLAGS` |
 
 ### 12.2 THE OPEN CONFLICT: a 1-point leveled criterion is unrepresentable
@@ -1262,9 +1268,9 @@ Both variables are documented in `.env.example`.
 
 - **Which resolution closes the 1-point criterion conflict** (decision 22).
 - **Whether the `is_admin()` season gate on upload is lifted**, and when.
-- **How the fonts are served** (section 6.3): a `/_platform`-shaped route on an origin the
-  policy names is the shape, but the origin, the face set and the cache policy are not
-  decided.
+- **Whether a served font route is still wanted** (section 6.3). 0351 admits embedded
+  `data:` fonts, which costs each document about 80 KB and needs no origin; a
+  `/_platform`-shaped route would save the bytes and is not built.
 - **Where a restored photograph renders.** Parent chrome is the answer that needs no CSP
   change; the surface is not designed.
 - **Whether a teacher can preview an unpublished document**, and by what second read
@@ -1274,6 +1280,9 @@ Both variables are documented in `.env.example`.
 
 ## Changelog
 
+- **1.4 (2026-09-29).** Section 6.3 is fixed for an embedded font: the CSP carries
+  `font-src data:` (ledger 0351), so a document can show the site's own typefaces by
+  inlining them. A font host is still refused. Sections 5 and 15 updated to match.
 - **1.3 (2026-09-29).** Adds `idea:theme` (section 6.1): the parent tells the document
   whether the site is light or dark, so a document can follow the site. Ledger 0350.
 - **1.2 (2026-09-29).** Adds `idea:video` and `idea:video-state` (section 6.1): the parent

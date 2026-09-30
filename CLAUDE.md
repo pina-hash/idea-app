@@ -1634,6 +1634,11 @@ document cannot read `data-theme` or keep a setting, so `HtmlAssignmentFrame` se
 `idea:theme` (`hxThemeOf`: Space White is `light`, anything else `dark`) after the first state
 and on every `data-theme` change. It is advisory; a document that ignores it is unaffected.
 
+**A DOCUMENT MAY CARRY ITS OWN TYPEFACES, AND ONLY AS `data:` (ledger 0351).** `hxDocumentCsp`
+admits `font-src data:` and no host, so an `@font-face` whose `src` is a data URI renders and an
+`@import` of a font host is still refused. Measure a font claim by rendered width; the spec's
+section 6.3 says why `document.fonts.check()` answers true for a font that is not there.
+
 **SUBMIT IS A PARENT CONTROL IN PARENT CHROME**, and the completeness check is
 the parent's, from the manifest's `minSentences`. A Submit inside the document
 would be a button whose handler the document itself wrote.
