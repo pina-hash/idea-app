@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.4 - 2026-09-27**
+**Version 1.5 - 2026-09-29**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -12,6 +12,12 @@ This file has exactly one home and it does not move:
 `docs/standards/IDEA_HTML_ASSIGNMENT_AUTHORING.md` in `pina-hash/idea-app`, which is its
 freshness authority, with the working copy in project knowledge and a row in `REGISTER.md`.
 Fetch the mirror before editing it and again immediately before delivering it.
+
+**Design direction lives in `IDEA_HTML_DESIGN_DIRECTIONS.md`**: the rules every HTML file
+Mr. Pina receives must meet, what each kind of HTML (worksheet, walkthrough, reference,
+tool, dashboard, deck, print, game) should look and behave like, and the persona audit run
+before delivery. This file owns the mechanics of a ported assignment; that one owns how it
+should read and feel. An assignment meets both.
 
 ---
 
@@ -87,7 +93,7 @@ The full list is SPEC section 7. The ones that bite an author:
 |---|---|
 | `localStorage` | **Throws**, it does not return null. A copied autosave takes the page down before anything renders. |
 | Network of any kind | Refused. No fetch, no image URL, no analytics. |
-| Web fonts | Refused by CSP, including all three IDEA typefaces. Use system and monospace stacks. |
+| Web fonts | A font HOST is refused. A font the document carries as a `data:` URI renders since ledger 0351 (`font-src data:`). Use the site's faces: Rajdhani 500/600/700 for text and Share Tech Mono 400 for labels, from `@fontsource`, about 80 KB as woff2. Measure a font claim by rendered width against a fallback, never `document.fonts.check()`. |
 | `window.print()` | Returns silently and does nothing. A Print button is inert. |
 | Downloads | Do not fire. A "download with data" control is inert. |
 | File upload by the document | Impossible. Image bytes go up as `idea:image` and the parent uploads them. |
@@ -392,10 +398,14 @@ and `blob:`. Everything visual is inlined, so the cap is a media budget.
   exported at 5760x3240 has four or five colors and compresses to roughly 65 to 100 KB as
   a cropped PNG. Converting to WebP or resizing it made it larger or unreadable, measured
   2026-09-21. A zoom and pan viewer then shows real detail.
-- **A video cannot play in the frame.** No network, no external iframe, no player. Link it
-  as a card that opens a new tab (`target="_blank" rel="noreferrer"`, which opens from the
-  sandbox), with its thumbnail inlined as a `data:` URI. Put the link where the skill is
-  used, not only in a list at the top. Measured 2026-09-25.
+- **A video plays in the post, drawn by the parent (ledger 0349).** A player framed inside
+  the document draws nothing, so the document holds a 16:9 box open and sends `idea:video`
+  with the YouTube id and the box's rectangle; the portal draws the player over it. Keep a
+  fallback: if no `idea:video-state` answers within 1.5 s, offer the video on YouTube in a
+  new tab. The card carries its thumbnail as a `data:` URI (about 3 KB at 176x99), its
+  length, and sits beside the step it teaches, not only in a list at the top. Prefer the
+  maker's official video; say so when none exists for a step rather than filling the gap
+  with a stranger's.
 - **Do not trust a glyph to render.** A `▶` rendered as a missing-glyph box in the frame's
   font stack; draw icons as inline SVG.
 - **Set the diameter sign in the sans face.** In the monospace stack `Ø` reads as a zero, so
@@ -433,17 +443,74 @@ has no spec (as of 2026-09-22). Anything whose answers Mr. Pina wants to read in
 survey above all, ships with a read-only, single-statement SQL query over
 `classroom_responses` for the item, returning the student and field, never a bare count.
 
-**Prefer one look to a theme switch.** Mr. Pina, 2026-09-27, for the IDEA100 hook series:
-no Standard/Space White switcher, one middle-ground look that sits in both frames. The
-pattern that worked: graphite bands for identity (hero, progress bar, card heads), a cool
-steel work surface with near-black ink for everything read or typed, and one accent
-reserved for the rules. Where an older document keeps a switch, the choice lasts for the
-visit: storage throws, so it lives in a variable, is never sent to Classroom, and the page
-opens on Standard.
+**The look follows the site, and a student may flip it for the visit.** Mr. Pina's ruling
+of 2026-09-29 supersedes 1.4's "one look": the plate look from the site (raised means
+pressable, inset means not, rounded corners, no grid), IDEA green as the one accent, no
+orange, and light or dark to match the site. The parent sends `idea:theme` (`light` for
+Space White, `dark` otherwise, ledger 0350) after the first state and on every change; the
+document follows it, and a Light/Dark key overrides it for the visit only (storage throws,
+so it lives in a variable and is never sent to Classroom). Define every color twice, in a
+dark block and a light block, with no length in either, and measure contrast in both.
+
+---
+
+## 13. Rules paid for by Hook 02 (2026-09-29)
+
+A multi-stage post, audited by five student personas before class, found these. Each is now
+a rule for any assignment of that shape.
+
+- **Optional record blocks go in the manifest `header`, never in a scored module.** Every
+  block in a scored module counts toward completion, so an optional second photo in a
+  module left a one-photo student at 83 percent forever (Hook 01). Header blocks carry no
+  points and are outside the progress bar and the completion check.
+- **A post with stages gives each stage its own hue and its own Collapse.** A long page of
+  identical cards reads as mundane and a student loses their place. Tint the stage band,
+  its step numbers and its section rules (blue, teal, violet; never orange), keep green for
+  done and progress, and measure every hue in both themes. The Collapse control is a real
+  button with `aria-expanded`, and any jump into a collapsed stage (progress bar, stage
+  card, link) opens it first.
+- **Read aloud reads the whole stage a student can see**, in order: headings, steps,
+  questions and notes, skipping video cards, links and the student's own typing. A button
+  that read only the intro spoke 46 of 1,833 words of the printing stage.
+- **A failed save is said in words, next to the work.** The status pill alone clipped off
+  screen at half-screen widths and shrank to a dot on a phone. Show "Not saved" as a banner
+  under the bar until the next save lands, and let the bar's track shrink (`minmax(0, 1fr)`)
+  so its right end never leaves the viewport.
+- **A pasted picture goes to the box the student means.** Honor the last box they touched
+  only while it is on screen; clear it when they focus any other field; otherwise take the
+  first empty box on screen. A paste once landed three screens away, in the wrong stage.
+- **The document's sentence counter is the portal's.** Port `countSentences` from
+  `src/lib/classroom/assignment-spec.ts` exactly (abbreviations, decimals, ellipses, split
+  on `.!?`). A second counter disagreed on "Se rompe allí." and on any answer without a
+  final period, so the page said done where the portal said not, or the reverse.
+- **Progress refuses the obvious junk it can check without judging.** A number must be a
+  positive number, a file must carry the right name, a weight above the cap or a half-scale
+  weight heavier than the full size says so in words. The bar still never gates the rubric;
+  it just stops certifying nonsense.
+- **When the steps differ by machine, ask which one once, then show only that one's
+  steps.** Before a choice, show both, with swapped words ("card or drive") where a sentence
+  names one. A step that does not apply to the chosen machine stays numbered and says
+  "nothing to do here", so the numbers never skip.
+- **A walkthrough names who to ask and what every term means the first time it appears**
+  (Print Tech, print board, score sheet). A literal first-timer stops at the first noun
+  nobody defined. Where the answer is a place only Mr. Pina knows (where the drives live),
+  ask him before delivery; do not invent one.
+- **Run the persona audit before delivery** (`IDEA_HTML_DESIGN_DIRECTIONS.md` section 4).
+  It found four blockers and thirteen wrong instructions in a document that passed both
+  validators and the harness drive.
 
 ---
 
 ## Changelog
+
+- **1.5 (2026-09-29).** Three stale rules corrected against the tree and Mr. Pina's rulings:
+  section 4, a font the document embeds as `data:` now renders (ledger 0351), and the site's
+  own faces are the ones to embed; section 11b, a video plays in the post through
+  `idea:video` (ledger 0349) instead of only linking out; section 12, the look follows the
+  site's light or dark through `idea:theme` (ledger 0350) with a per-visit override,
+  replacing 1.4's one-look rule. New section 13 carries ten rules from Hook 02's
+  pre-delivery persona audit. Design direction for every HTML type moves to the new
+  companion `IDEA_HTML_DESIGN_DIRECTIONS.md`, pointed at from the header.
 
 - **1.4 (2026-09-27).** From the IDEA100 Rotation 2 Hook 02 build (V1 Checkpoint, two
   `.SLDPRT` hand-ins), base 1.3 at `origin/main` `03f2c691`. Section 9b: replaces the rule
