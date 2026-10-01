@@ -6,7 +6,6 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import { PATHWAYS, pathwayInk } from '$lib/pathways';
 	import { displayName, type UserProfile } from '$lib/profile';
-	import { readPathwayNotYet } from '$lib/pathway-choice';
 	import { store } from './store';
 	/**
 	 * THE GAUNTLET ROOM'S OWN STYLESHEET, imported for the `.gt-root` stage
@@ -53,7 +52,6 @@
 
 	const resetPathway = async () => {
 		store.profile.pathway = null;
-		store.profile.preferences = {};
 		await invalidateAll();
 	};
 	const clearDismissal = () => {
@@ -79,12 +77,7 @@
 
 	<div class="controls">
 		<span class="readout">
-			Mock student pathway: <strong data-testid="pathway">{profile?.pathway ?? 'unset'}</strong>
-		</span>
-		<span class="readout">
-			No pathway yet answer: <strong data-testid="pathway-not-yet"
-				>{readPathwayNotYet(profile?.preferences)?.day ?? 'none'}</strong
-			>
+			Mock student pathway: <strong>{profile?.pathway ?? 'not set'}</strong>
 		</span>
 		<button type="button" onclick={resetPathway}>Reset pathway (re-arm picker)</button>
 		<button type="button" onclick={clearDismissal}>Clear "Choose later" + reload</button>

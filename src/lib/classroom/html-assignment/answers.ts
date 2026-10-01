@@ -82,18 +82,15 @@
  * the one that happens -- is a decision about the payload and is never sent
  * again.
  *
- * **A SECOND MEASURED GAP, AND IT COST STUDENTS THEIR ANSWERS (ledger 0360,
- * reports d983e776 and 2d83c063).** `createEngineTransports.saveResponse`
- * funnels every error through the file's shared `fail()` helper, which keeps
- * `message` and nothing else, so a statement timeout (57014, on `pg-errors`'
- * own transient list) and a dropped connection (postgrest-js's status 0) both
- * arrived here as an unclassified failure and went straight to `failed` after
- * ONE attempt. Through the 2026-09-29 database stall that was every save on
- * every worksheet. The HTML answer transport (`createHtmlAnswerTransports`) now
- * builds its failures with `hxRpcFailure` below, which reads the SQLSTATE AND
- * the HTTP status, so a transient or a delivery failure is `retryable` and a
- * considered refusal is still answered once. `fail()` and its ~50 other
- * callers are untouched.
+ * **A SECOND MEASURED GAP, REPORTED RATHER THAN PAPERED OVER:
+ * `createEngineTransports.saveResponse` DROPS THE SQLSTATE.** It funnels every
+ * error through the file's shared `fail()` helper, which keeps `message` and
+ * nothing else, so a deadlock and a considered refusal arrive here identical
+ * and this module has to classify a code it was never handed. It follows
+ * `pg-errors`' own rule for that case -- an ABSENT code is not a transient, so
+ * an unclassified failure is reported once rather than retried five times --
+ * and the one-line repair belongs in `fail()`, which is shared by ~50 call
+ * sites in a file this lane may not restructure.
  *
  * ---------------------------------------------------------------------------
  * PICTURES
@@ -144,7 +141,6 @@ import {
 } from '$lib/classroom/assignment-spec';
 import type { TxResult } from '$lib/classroom/classroom';
 import { isTransientSqlstate } from '$lib/pg-errors';
-import { isSignedOutFailure } from '$lib/classroom/poll';
 import { SaveState, type SaveOutcome, type SaveStateOptions } from '$lib/save-state.svelte';
 import {
 	hxSavedMessage,
@@ -154,7 +150,6 @@ import {
 } from './bridge';
 import {
 	fieldBlockMap,
-	hxBlockIsOptional,
 	manifestBlocks,
 	type HtmlAssignmentManifest,
 	type HtmlBlock
@@ -262,81 +257,8 @@ export const HX_REFUSALS = {
 	noInstructorFiles:
 		'Photographs are not captured in an instructor copy, so that picture was not attached. Everything you type is still saved.',
 	tooLarge: `That answer is longer than the ${HX_MAX_ANSWER_BYTES.toLocaleString('en-US')} character limit for one field, so it was not saved.`,
-	/**
-	 * THE WRITE DID NOT GET THROUGH AND ANOTHER ATTEMPT CAN CHANGE THAT (ledger
-	 * 0360): a statement timeout, a busy database, a dropped connection. Shown
-	 * once the retries are spent, in place of the raw database sentence
-	 * ("canceling statement due to statement timeout"), which names our storage
-	 * rather than the student's problem.
-	 */
-	busy: 'This answer is not saved yet, because the connection or the server is busy. It is still on screen. Press Retry in a minute, or keep working and it will be sent again.',
-	/**
-	 * THE SESSION IS GONE (401, 403, `42501`, a PostgREST JWT code): answered
-	 * once and NEVER retried, because every retry would be the same refusal
-	 * sent as `anon`, which is the storm 0357 stopped.
-	 */
-	signedOut:
-		'You are signed out, so this answer was not saved. It is still on screen. Sign in again, then press Retry.',
 	fallback: 'That change was not saved. It is still on screen; try again.'
 } as const;
-
-/**
- * A FAILED `classroom_save_response` CALL AS A `TxResult`, CARRYING WHETHER IT
- * IS WORTH SENDING AGAIN (ledger 0360). The one place the HTML answer path
- * reads a PostgREST error, so the transport and the controller cannot disagree
- * about what a 57014 means.
- *
- *   signed out (`isSignedOutFailure`, the poller's own predicate)
- *                         -> not retryable, `signedOut` sentence
- *   a transient SQLSTATE  -> retryable (`$lib/pg-errors`, the one list)
- *   status 0              -> retryable: postgrest-js's shape for a fetch that
- *                            never reached the server
- *   status 5xx            -> retryable: the server did not decide anything
- *   anything else (4xx)   -> a considered refusal, its own words, once
- *
- * An ABSENT status with no transient code is NOT retryable, which is
- * `pg-errors`' own rule for an unclassified failure: only a stub omits the
- * status, and guessing "transient" for it is how a refusal gets asked five
- * times.
- */
-export function hxRpcFailure(
-	error: { message?: string | null; code?: string | null } | null | undefined,
-	status?: number | null
-): { ok: false; message: string; retryable: boolean; gate?: 'denied' | 'network' | 'server' } {
-	// THE GATE SAYS WHICH KIND, so the controller can tell a lost session (worth
-	// re-sending once ANOTHER write proves the session is back) from a refusal
-	// (never re-sent). `TxResult` already carries `gate`; these are three of
-	// `UploadGate`'s own words, used for what they mean there.
-	if (isSignedOutFailure(error ?? null, status ?? null)) {
-		return { ok: false, message: HX_REFUSALS.signedOut, retryable: false, gate: 'denied' };
-	}
-	if (status === 0) return { ok: false, message: HX_REFUSALS.busy, retryable: true, gate: 'network' };
-	if (isTransientSqlstate(error?.code) || (typeof status === 'number' && status >= 500)) {
-		return { ok: false, message: HX_REFUSALS.busy, retryable: true, gate: 'server' };
-	}
-	const said = (error?.message ?? '').trim();
-	return { ok: false, message: said || HX_REFUSALS.fallback, retryable: false };
-}
-
-/**
- * WHAT KIND OF FAILURE ONE BLOCK LAST HAD, which decides what may re-send it:
- *
- *   transient   typing anywhere re-arms it, and so does another write landing
- *   signed-out  only another write LANDING re-arms it (that write is the proof
- *               the session is back); typing would only be refused again
- *   refusal     nothing re-arms it but the student changing that answer
- */
-export type HxFailureKind = 'transient' | 'signed-out' | 'refusal';
-
-/** The kind of one failed attempt, from what the transport and the RPC said. */
-export function hxFailureKind(
-	res: { ok: boolean; gate?: string | null },
-	outcome: SaveOutcome
-): HxFailureKind | null {
-	if (outcome.ok) return null;
-	if (!res.ok && res.gate === 'denied') return 'signed-out';
-	return outcome.retryable ? 'transient' : 'refusal';
-}
 
 /**
  * WHAT A NAVIGATION COSTS WHEN THE FLUSH COULD NOT LAND, in the student's own
@@ -558,10 +480,6 @@ export interface HxIncompleteBlock {
  * deciding what a document requires. A block with no `minSentences`, or with
  * zero, carries no requirement: absence is the mechanism.
  *
- * AN `optional: true` BLOCK IS SKIPPED (ledger 0360), the manifest's one way
- * of saying a block may be left empty. The progress rail calls this function
- * for its sentence count, so the bar and this list skip the same blocks.
- *
  * A BOOLEAN VALUE COUNTS AS ZERO SENTENCES rather than throwing: a checkbox
  * cannot carry `minSentences` sensibly, and a manifest that puts one there is
  * asking a question the value cannot answer. It reads as unfinished, which is
@@ -573,7 +491,6 @@ export function hxIncompleteBlocks(
 ): HxIncompleteBlock[] {
 	const out: HxIncompleteBlock[] = [];
 	const consider = (block: HtmlBlock, moduleId: string | null, moduleTitle: string | null) => {
-		if (hxBlockIsOptional(block)) return;
 		const need = block.minSentences ?? 0;
 		if (need <= 0) return;
 		const value = values[block.field];
@@ -700,47 +617,6 @@ export interface HxAnswersOptions {
 }
 
 /**
- * WHAT THE RAIL ABOVE A WORKSHEET NEEDS TO KNOW ABOUT SAVING (ledger 0360),
- * as one object so a mount hands down one prop. `HxAnswersStore.status` is the
- * reactive producer; `Progress.svelte` is the reader.
- */
-export interface HxSaveStatus {
-	/** FIELDS whose latest value the server has not acknowledged yet. */
-	unsaved: readonly string[];
-	/**
-	 * The one machine a save indicator should speak for: a failed one first,
-	 * then one writing, then one dirty, then the most recently saved. Null
-	 * before anything has been written this visit.
-	 */
-	save: SaveState | null;
-	/** The last acknowledgement, success or failure. */
-	ack: HxSavedAck | null;
-	/** The item, so the class list beside the worksheet can be told. */
-	itemId: string;
-	/** What a backup copy in this browser put back on load, or null. */
-	restore: HxRestoreNotice | null;
-	/** Takes the restore notice down once it has been read; null removes the control. */
-	dismissRestore: (() => void) | null;
-	/** Whether this browser is keeping the backup copy: `off` when none was asked for. */
-	mirror: 'ok' | 'off' | 'full' | 'blocked';
-}
-
-/** One answer a backup copy could NOT put back, with the copy kept verbatim. */
-export interface HxRestoreConflict {
-	blockId: string;
-	/** Where it is, in the student's terms. */
-	label: string;
-	/** The copy this browser kept, as lines a person can read. */
-	lines: string[];
-}
-
-export interface HxRestoreNotice {
-	/** Where each put-back answer is, in the student's terms. */
-	restored: string[];
-	conflicts: HxRestoreConflict[];
-}
-
-/**
  * THE ANSWER CONTROLLER. One per mounted assignment.
  *
  * It owns: the current value of every field, the picture standing for every
@@ -760,21 +636,6 @@ export class HxAnswers {
 	 */
 	readonly #detach = new Map<string, () => void>();
 	#attached = false;
-	/** Block id to field, filled as machines are made: what `unsavedFields` names. */
-	readonly #fieldOf = new Map<string, string>();
-	/**
-	 * What kind of failure each block LAST had (`HxFailureKind`). What `change()`
-	 * and a landed write read before they re-arm a failed machine: a refusal is
-	 * never re-sent because somebody typed somewhere else.
-	 */
-	readonly #failure = new Map<string, HxFailureKind>();
-	/**
-	 * What the server last ACKNOWLEDGED for each block, as stored: seeded from
-	 * the load, moved only when a write comes back ok, and stamped with the
-	 * value that was SENT rather than whatever is on screen by then. The
-	 * baseline a browser backup copy is written against.
-	 */
-	readonly #acked = new Map<string, ResponseValue>();
 	#values: Record<string, string | boolean>;
 	#images: Record<string, HxImageState>;
 	#fileIds: Map<string, string>;
@@ -786,80 +647,6 @@ export class HxAnswers {
 		this.#values = { ...(options.values ?? {}) };
 		this.#images = { ...(options.images ?? {}) };
 		this.#fileIds = new Map(options.fileIds ?? []);
-		for (const [field, value] of Object.entries(this.#values)) {
-			const blockId = this.#fieldToBlock.get(field);
-			if (blockId) this.#acked.set(blockId, hxStoredValue(value));
-		}
-	}
-
-	/** The item these answers belong to. */
-	get itemId(): string {
-		return this.#opts.itemId;
-	}
-
-	/** The manifest the parent stored at import. */
-	get manifest(): HtmlAssignmentManifest {
-		return this.#opts.manifest;
-	}
-
-	/**
-	 * THE FIELDS THE SERVER HAS NOT ACKNOWLEDGED, in no particular order: every
-	 * block whose machine is dirty, writing or failed (the save state's own
-	 * definition of dirty). A question asked at a moment; the reactive surface
-	 * re-asks it whenever a machine's phase moves.
-	 */
-	unsavedFields(): string[] {
-		const out: string[] = [];
-		for (const [blockId, machine] of this.#machines) {
-			if (!machine.dirty) continue;
-			const field = this.#fieldOf.get(blockId);
-			if (field !== undefined) out.push(field);
-		}
-		return out;
-	}
-
-	/**
-	 * THE ONE MACHINE A SAVE INDICATOR SHOULD SPEAK FOR: failed outranks writing
-	 * outranks dirty outranks the most recently saved, so the indicator never
-	 * reads "Saved" while another block has stopped retrying. Null before any
-	 * machine exists.
-	 */
-	worstMachine(): SaveState | null {
-		const rank = (m: SaveState) =>
-			m.phase === 'failed' ? 4 : m.phase === 'writing' ? 3 : m.phase === 'dirty' ? 2 : m.phase === 'saved' ? 1 : 0;
-		let best: SaveState | null = null;
-		for (const machine of this.#machines.values()) {
-			if (!best) {
-				best = machine;
-				continue;
-			}
-			const a = rank(machine);
-			const b = rank(best);
-			if (a > b || (a === b && a === 1 && (machine.savedAt ?? 0) > (best.savedAt ?? 0))) best = machine;
-		}
-		return best;
-	}
-
-	/** What the server last acknowledged per block id, as stored. A copy. */
-	acknowledged(): Record<string, ResponseValue> {
-		return Object.fromEntries(this.#acked);
-	}
-
-	/**
-	 * VALUES PUT BACK FROM A BROWSER BACKUP COPY, owed to the server (ledger
-	 * 0360). Each lands in the field and marks its block dirty, so the ordinary
-	 * debounced write sends it; nothing here writes on its own. A block id the
-	 * stored manifest does not declare is ignored.
-	 */
-	restore(values: Record<string, string | boolean>): void {
-		const fields = Object.keys(values).filter((field) => this.#fieldToBlock.has(field));
-		if (!fields.length) return;
-		const next = { ...this.#values };
-		for (const field of fields) next[field] = values[field];
-		this.#values = next;
-		this.#opts.onvalues?.(this.#values);
-		for (const field of fields) this.#machine(this.#fieldToBlock.get(field)!, field).markDirty();
-		this.#opts.ondirty?.();
 	}
 
 	/** The map `HtmlAssignmentFrame` is handed. Built from the stored manifest,
@@ -934,27 +721,7 @@ export class HxAnswers {
 		this.#values = { ...this.#values, [message.field]: message.value };
 		this.#opts.onvalues?.(this.#values);
 		this.#machine(message.blockId, message.field).markDirty();
-		// TYPING ANYWHERE RE-SENDS WHAT IS OWED (ledger 0360). A block that
-		// spent its retries on a busy server is re-armed onto the ordinary
-		// debounce, so it goes out with this one once the typing pauses: no
-		// timer, no poll, and no burst per keystroke. ONLY a transient failure:
-		// a refusal or a lost session re-sent on every pause is the same refusal
-		// as many times as somebody types.
-		this.#rearm(message.blockId, (kind) => kind === 'transient');
 		this.#opts.ondirty?.();
-	}
-
-	/**
-	 * Put every OTHER failed machine whose last failure `which` accepts back on
-	 * the ordinary debounce. It never writes by itself: `markDirty` schedules
-	 * the same 800ms timer a keystroke does.
-	 */
-	#rearm(except: string, which: (kind: HxFailureKind) => boolean): void {
-		for (const [blockId, machine] of this.#machines) {
-			if (blockId === except || !machine.failed) continue;
-			const kind = this.#failure.get(blockId);
-			if (kind && which(kind)) machine.markDirty();
-		}
 	}
 
 	/**
@@ -1144,7 +911,6 @@ export class HxAnswers {
 	#machine(blockId: string, field: string): SaveState {
 		const held = this.#machines.get(blockId);
 		if (held) return held;
-		this.#fieldOf.set(blockId, field);
 		// THE INJECTABLES ARE ADDED ONLY WHEN THEY WERE SUPPLIED, AND THAT IS NOT
 		// tidiness. `SaveState`'s constructor spreads the caller's options OVER
 		// its own defaults, so a key present with the value `undefined` REPLACES
@@ -1153,11 +919,6 @@ export class HxAnswers {
 		// acknowledgement. A key that is absent is the only thing that inherits.
 		const options: SaveStateOptions = {
 			debounceMs: this.#opts.debounceMs ?? 800,
-			// FOUR ATTEMPTS, NOT THE DEFAULT FIVE (ledger 0360). A retry is a
-			// call made exactly when the database is starved; four per block per
-			// run (0, 0.8, 2.4 and 5.6 seconds plus each call's own time) is the
-			// bound, and typing re-arms a spent machine rather than a timer.
-			maxAttempts: 4,
 			fallbackMessage: HX_REFUSALS.fallback,
 			save: async () => {
 				const transports = this.#opts.transports;
@@ -1166,21 +927,12 @@ export class HxAnswers {
 				}
 				const value = this.#values[field];
 				if (value === undefined) return { ok: true };
-				const sent = hxStoredValue(value);
-				const res = await transports.saveResponse(this.#opts.itemId, blockId, sent);
+				const res = await transports.saveResponse(
+					this.#opts.itemId,
+					blockId,
+					hxStoredValue(value)
+				);
 				const outcome = hxSaveOutcome(res as TxResult<HxOpResult> & { code?: string | null });
-				const kind = hxFailureKind(res, outcome);
-				if (kind === null) {
-					this.#acked.set(blockId, sent);
-					this.#failure.delete(blockId);
-					// A WRITE LANDED, SO THE SERVER AND THE SESSION ARE BOTH BACK:
-					// every block that stopped on a busy server or a lost session
-					// goes out again on the debounce. One Retry press therefore
-					// sends everything owed, not only the block it spoke for.
-					this.#rearm(blockId, (k) => k !== 'refusal');
-				} else {
-					this.#failure.set(blockId, kind);
-				}
 				// STATED ON EVERY SETTLED ATTEMPT, not only on the last one: a
 				// document showing "saving" forever because a retry is in flight
 				// is a student watching nothing happen. A retryable failure

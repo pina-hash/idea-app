@@ -1,7 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { loadSectionRoster } from '$lib/classroom/transports';
-import { sectionManagedBy, type FeedSubmission } from '$lib/classroom/feed';
-import { slimOwedWorkItem } from '$lib/classroom/owed-work-slim';
+import type { FeedSubmission } from '$lib/classroom/feed';
 import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
 import { loadClassroomWork, type ClassroomClock } from '$lib/classroom/student-work';
 import { queueOrder } from '$lib/foundry/review';
@@ -116,41 +115,19 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 	// all, because this is a management read. It keeps an instructor's own
 	// hand-in out of their own to-grade count; without 0138 it answers empty
 	// and the tally is the one it has always been.
-	//
-	// ASKED ONLY OF SOMEBODY WHO MANAGES ONE OF THESE CLASSES (ledger 0360,
-	// report R08). `classroom_section_roster(null)` evaluates a definer manage
-	// check against every enrollment row in the school, and for a student it
-	// always answers nothing -- so every student's home load paid a full
-	// enrollments scan for an empty map, during exactly the 8:00 rush that took
-	// the database down. `sectionManagedBy` is 0138's
-	// `_classroom_manages_section_email` (teacher of record, or an admin; no
-	// later migration redefines it) without the round trip, `work.sections` is
-	// the only set `buildFeed` reads `feedManagerEmails` for, so skipping the
-	// call where it answers false produces the identical feed. If manage ever
-	// widens (co-teachers), this check has to widen with it, and
-	// tests/home-classroom-load-budget.test.ts's teacher control is what says so.
-	const admin = await layout.then((d) => d.isAdmin === true);
-	const me = ((claims.email as string | undefined) ?? '').trim().toLowerCase();
+	const managed = await loadSectionRoster(supabase, null);
 	const feedManagerEmails: Record<string, string[]> = {};
-	if (work.sections.some((s) => sectionManagedBy(s, me, admin))) {
-		const managed = await loadSectionRoster(supabase, null);
-		if (managed.ok) {
-			for (const row of managed.data.rows) {
-				if (row.manages !== true) continue;
-				(feedManagerEmails[row.section_id] ??= []).push(row.student_email);
-			}
+	if (managed.ok) {
+		for (const row of managed.data.rows) {
+			if (row.manages !== true) continue;
+			(feedManagerEmails[row.section_id] ??= []).push(row.student_email);
 		}
 	}
 
 	return {
 		classroomReady: true,
 		feedSections: work.sections,
-		/**
-		 * SLIM (ledger 0360, report R08): every item keeps its first image, which
-		 * is all `feedCover` reads, and loses its body, which nothing on this page
-		 * prints. See `$lib/classroom/owed-work-slim`.
-		 */
-		feedItems: work.items.map(slimOwedWorkItem),
+		feedItems: work.items,
 		feedSubmissions: work.submissions,
 		feedCheckIns: work.checkIns,
 		feedManagerEmails,

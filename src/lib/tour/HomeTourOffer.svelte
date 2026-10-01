@@ -5,7 +5,6 @@
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { UserProfile } from '$lib/profile';
 	import { PATHWAY_PICKER_DONE_EVENT, pathwayPickerDeferred } from '$lib/PathwayPicker.svelte';
-	import { pathwayPromptWanted, todaySchoolDay } from '$lib/pathway-choice';
 	import { HOME_TOUR_START_EVENT, markHomeTourSeen } from './HomeTour.svelte';
 	import { homeTourPlan } from './orientation';
 
@@ -44,10 +43,8 @@
 	const claims = $derived(page.data.claims);
 	const profile = $derived((page.data.userProfile ?? null) as UserProfile | null);
 
-	/** The half of the picker's show rule that needs no storage read, so it answers on the server too.
-	 *  It is the picker's own rule (`pathwayPromptWanted`), never a copy: a freshman who answered
-	 *  "No pathway yet" is not held back waiting for a sheet that will not come. */
-	const pickerMayShow = (p: UserProfile | null) => pathwayPromptWanted(p, todaySchoolDay());
+	/** The half of the picker's show rule that needs no storage read, so it answers on the server too. */
+	const pickerMayShow = (p: UserProfile | null) => p?.role === 'student' && !p?.pathway;
 
 	function offerable(): boolean {
 		return !!claims && !!profile && homeTourPlan(profile.tour_completed_at) === 'offer';

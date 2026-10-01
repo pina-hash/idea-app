@@ -200,97 +200,39 @@ function mountConsole(
 	});
 }
 
-/**
- * LEDGER 0360 MOVED PRESENCE OFF THE ROW AND INTO THE CARD (report 7933566a:
- * "the information ... can show up when I hover my mouse over their name").
- * A roster row is one line now, and each student's presence line is in the ONE
- * `RosterCard` the console draws for the name that is pointed at or focused.
- * So every assertion below that used to read the rows reads the CARDS instead:
- * `sweepCards` focuses each row in turn, keeps a copy of the card it opened,
- * and blurs it -- the same four paths, the same words, the same counts, asked
- * of the place the words now are. Nothing about WHICH sentence a student earns
- * moved; `presenceLineKind` and `PresenceLine` are unchanged.
- */
-interface CardRead {
-	name: string;
-	chip: string | null;
-	card: Element | null;
-}
-
-async function sweepCards(m: Mounted): Promise<CardRead[]> {
-	const out: CardRead[] = [];
-	for (const row of m.all<HTMLButtonElement>('.roster-row')) {
-		row.focus();
-		await m.settle();
-		const card = m.target.querySelector('[data-testid="roster-card"]');
-		out.push({
-			name: row.querySelector('.roster-name')?.textContent?.trim() ?? '',
-			chip: row.querySelector('.roster-chip')?.textContent?.replace(/\s+/g, ' ').trim() ?? null,
-			card: card ? (card.cloneNode(true) as Element) : null
-		});
-		row.blur();
-		await m.settle();
-	}
-	return out;
-}
-
-/** Every element matching `selector` across the swept cards, in roster order. */
-function inCards(sweep: CardRead[], selector: string): Element[] {
-	return sweep.flatMap((r) => (r.card ? [...r.card.querySelectorAll(selector)] : []));
-}
-
-/** One row's name, work chip and presence line (read from its card), as three strings. */
-async function rosterLines(m: Mounted) {
-	return (await sweepCards(m)).map((r) => ({
-		name: r.name,
-		chip: r.chip,
+/** One row's name, work chip and presence line, as three strings. */
+function rosterLines(m: Mounted) {
+	return [...m.target.querySelectorAll('.roster-item')].map((r) => ({
+		name: r.querySelector('.roster-name')?.textContent?.trim() ?? null,
+		chip: r.querySelector('.roster-chip')?.textContent?.replace(/\s+/g, ' ').trim() ?? null,
 		presence:
-			r.card?.querySelector('[data-testid="presence-line"]')?.textContent?.replace(/\s+/g, ' ').trim() ??
+			r.querySelector('[data-testid="presence-line"]')?.textContent?.replace(/\s+/g, ' ').trim() ??
 			null
 	}));
 }
 
 describe('with a presence transport', () => {
-	it('each student’s card carries their presence line, including the student with no row', async () => {
+	it('draws one presence line per roster row, including the student with no row', async () => {
 		mounted = mountConsole(true);
 		await mounted.settle();
 
-		// AT REST THE ROWS CARRY NO PRESENCE LINE AND THERE IS NO CARD: 0 and 0,
-		// against the 5 lines the sweep below finds, one per card.
-		expect(mounted.all('.roster-row')).toHaveLength(5);
-		expect(mounted.all('[data-testid="presence-line"]')).toHaveLength(0);
-		expect(mounted.all('[data-testid="roster-card"]')).toHaveLength(0);
-
-		const sweep = await sweepCards(mounted);
-		expect(sweep.filter((r) => r.card)).toHaveLength(5);
-		const lines = inCards(sweep, '[data-testid="presence-line"]');
-		// FIVE CARDS, FOUR WITH A CHIP AND ONE WITHOUT. The fifth is not a missing
+		const lines = mounted.all('[data-testid="presence-line"]');
+		// FIVE ROWS, FOUR WITH A CHIP AND ONE WITHOUT. The fifth is not a missing
 		// line -- it is the answer "never opened", which the payload cannot carry
 		// because there is no row to carry it.
 		expect(lines).toHaveLength(5);
-		expect(inCards(sweep, '[data-testid="presence-chip"]')).toHaveLength(4);
-		const never = inCards(sweep, '[data-testid="presence-never"]');
-		expect(never).toHaveLength(1);
-		expect(never[0].textContent?.trim()).toBe(PRESENCE_NEVER_OPENED);
-		// And a blur takes the card away again.
-		expect(mounted.all('[data-testid="roster-card"]')).toHaveLength(0);
-	});
-
-	it('the row still says who is working, as the state’s own glyph, never a hue alone', async () => {
-		mounted = mountConsole(true);
-		await mounted.settle();
-		const marks = mounted.all('[data-testid="roster-presence"]');
-		// Four students with a row; the fifth has none and gets no mark.
-		expect(marks.map((m) => m.textContent?.trim())).toEqual(['●', '○', '»', '—']);
-		expect(marks.map((m) => m.getAttribute('title'))).toEqual(['Working', 'Viewing', 'Open elsewhere', 'Away']);
-		for (const mark of marks) expect(mark.getAttribute('aria-hidden')).toBe('true');
+		expect(mounted.all('[data-testid="presence-chip"]')).toHaveLength(4);
+		expect(mounted.all('[data-testid="presence-never"]')).toHaveLength(1);
+		expect(mounted.one('[data-testid="presence-never"]').textContent?.trim()).toBe(
+			PRESENCE_NEVER_OPENED
+		);
 	});
 
 	it('each of the four states is drawn once, with its own word and glyph', async () => {
 		mounted = mountConsole(true);
 		await mounted.settle();
 
-		const chips = inCards(await sweepCards(mounted), '[data-testid="presence-chip"]');
+		const chips = mounted.all('[data-testid="presence-chip"]');
 		const states = chips.map((c) => c.getAttribute('data-presence-state'));
 		expect(states).toEqual(['working', 'viewing', 'open-elsewhere', 'away']);
 
@@ -312,27 +254,15 @@ describe('with a presence transport', () => {
 	it('prints when each student last worked and how long they have worked', async () => {
 		mounted = mountConsole(true);
 		await mounted.settle();
-		const sweep = await sweepCards(mounted);
 
-		const active = inCards(sweep, '[data-testid="presence-active"]').map((e) => e.textContent?.trim());
+		const active = mounted.all('[data-testid="presence-active"]').map((e) => e.textContent?.trim());
 		// 1500s is 25m, 240s is 4m, 45s stays in seconds, 0 is not blank.
 		expect(active).toEqual(['25m active', '4m active', '45s active', '0s active']);
 
-		const worked = inCards(sweep, '[data-testid="presence-worked"]').map((e) => e.textContent?.trim());
+		const worked = mounted.all('[data-testid="presence-worked"]').map((e) => e.textContent?.trim());
 		// `Just now` under a minute, whole minutes above it. Every offset is well
 		// clear of a boundary, so these are exact rather than approximate.
 		expect(worked).toEqual(['Just now', '6m ago', '1m ago', '10m ago']);
-	});
-
-	it('the open student’s work head carries the same line, in full', async () => {
-		mounted = mountConsole(true);
-		await mounted.settle();
-		expect(mounted.all('[data-testid="work-presence"]')).toHaveLength(0);
-		(mounted.one('.roster-row') as HTMLElement).click();
-		await mounted.settle();
-		const head = mounted.one('[data-testid="work-presence"]');
-		expect(head.querySelector('[data-presence-state]')?.getAttribute('data-presence-state')).toBe('working');
-		expect(head.querySelector('[data-testid="presence-active"]')?.textContent?.trim()).toBe('25m active');
 	});
 
 	it('renders the coverage sentence, once, above the list, behind the label it qualifies', async () => {
@@ -359,17 +289,8 @@ describe('with a presence transport', () => {
 	it('adds no control -- presence is information, not an action', async () => {
 		mounted = mountConsole(true);
 		await mounted.settle();
-		const sweep = await sweepCards(mounted);
-		const lines = inCards(sweep, '[data-testid="presence-line"]');
-		// The positive control: the loop below would pass over nothing otherwise.
-		expect(lines).toHaveLength(5);
-		for (const line of lines) {
+		for (const line of mounted.all('[data-testid="presence-line"]')) {
 			expect(line.querySelectorAll('button, a, input, select, textarea')).toHaveLength(0);
-		}
-		// AND THE CARD ITSELF IS A TOOLTIP, never a control: nothing focusable in it.
-		for (const r of sweep) {
-			expect(r.card?.getAttribute('role')).toBe('tooltip');
-			expect(r.card?.querySelectorAll('button, a, input, select, textarea')).toHaveLength(0);
 		}
 	});
 });
@@ -451,15 +372,14 @@ describe('a missing presence row is three answers, and only one of them is a ver
 		// THE POSITIVE CONTROL FIRST: the roster IS rendered, so the counts below
 		// are about what the rows say rather than about a console that never drew.
 		expect(mounted.all('.roster-row')).toHaveLength(5);
-		const sweep = await sweepCards(mounted);
-		const unknown = inCards(sweep, '[data-testid="presence-unknown"]');
-		expect(unknown).toHaveLength(5);
-		expect(inCards(sweep, '[data-testid="presence-never"]')).toHaveLength(0);
-		expect(unknown[0].textContent?.trim()).toBe(PRESENCE_UNKNOWN);
-		// AND NO STATE IS CLAIMED. Nothing about presence touches the work
+		expect(mounted.all('[data-testid="presence-unknown"]')).toHaveLength(5);
+		expect(mounted.all('[data-testid="presence-never"]')).toHaveLength(0);
+		expect(mounted.one('[data-testid="presence-unknown"]').textContent?.trim()).toBe(
+			PRESENCE_UNKNOWN
+		);
+		// AND THE CHIPS ARE STILL THERE. Nothing about presence touches the work
 		// column, which is the whole reason it is best-effort instrumentation.
-		expect(inCards(sweep, '[data-testid="presence-chip"]')).toHaveLength(0);
-		expect(mounted.all('[data-testid="roster-presence"]')).toHaveLength(0);
+		expect(mounted.all('[data-testid="presence-chip"]')).toHaveLength(0);
 	});
 
 	it('removes the whole region when the transport says this deployment has no presence', async () => {
@@ -471,14 +391,10 @@ describe('a missing presence row is three answers, and only one of them is a ver
 		await mounted.settle();
 
 		expect(mounted.all('.roster-row')).toHaveLength(5); // the positive control
-		const sweep = await sweepCards(mounted);
-		// The cards still open (a card is not presence), and carry none of it.
-		expect(sweep.filter((r) => r.card)).toHaveLength(5);
-		expect(inCards(sweep, '[data-testid="presence-line"]')).toHaveLength(0);
+		expect(mounted.all('[data-testid="presence-line"]')).toHaveLength(0);
 		expect(mounted.all('[data-testid="presence-note"]')).toHaveLength(0);
-		expect(inCards(sweep, '[data-testid="presence-never"]')).toHaveLength(0);
-		expect(inCards(sweep, '[data-testid="presence-unknown"]')).toHaveLength(0);
-		expect(mounted.all('[data-testid="roster-presence"]')).toHaveLength(0);
+		expect(mounted.all('[data-testid="presence-never"]')).toHaveLength(0);
+		expect(mounted.all('[data-testid="presence-unknown"]')).toHaveLength(0);
 		// NOTHING ON SCREEN CLAIMS ANYTHING ABOUT A STUDENT'S WHEREABOUTS.
 		expect(mounted.target.textContent ?? '').not.toContain(PRESENCE_NEVER_OPENED);
 	});
@@ -496,9 +412,8 @@ describe('a missing presence row is three answers, and only one of them is a ver
 		expect(mounted.one('[data-testid="presence-stale"]').textContent?.trim()).toBe(
 			PRESENCE_STALE_NOTE
 		);
-		const sweep = await sweepCards(mounted);
-		expect(inCards(sweep, '[data-testid="presence-never"]')).toHaveLength(0);
-		expect(inCards(sweep, '[data-testid="presence-unknown"]')).toHaveLength(5);
+		expect(mounted.all('[data-testid="presence-never"]')).toHaveLength(0);
+		expect(mounted.all('[data-testid="presence-unknown"]')).toHaveLength(5);
 	});
 
 	it('the stale notice is ABSENT on a healthy read -- the positive control for it', async () => {
@@ -514,9 +429,8 @@ describe('a missing presence row is three answers, and only one of them is a ver
 
 		// Five students, presence answered for none of them, none of them has any
 		// work: this is the one reading where the verdict is true of all five.
-		const sweep = await sweepCards(mounted);
-		expect(inCards(sweep, '[data-testid="presence-never"]')).toHaveLength(5);
-		expect(inCards(sweep, '[data-testid="presence-unknown"]')).toHaveLength(0);
+		expect(mounted.all('[data-testid="presence-never"]')).toHaveLength(5);
+		expect(mounted.all('[data-testid="presence-unknown"]')).toHaveLength(0);
 	});
 
 	it('never prints a verdict under a chip that says the work arrived', async () => {
@@ -525,18 +439,17 @@ describe('a missing presence row is three answers, and only one of them is a ver
 		mounted = mountConsole(true, { grading: GRADING_WITH_WORK });
 		await mounted.settle();
 
-		const sweep = await sweepCards(mounted);
-		const eli = sweep.find((r) => r.name === 'Eli Nakamura');
+		const rows = rosterLines(mounted);
+		const eli = rows.find((r) => r.name === 'Eli Nakamura');
 		expect(eli?.chip).toMatch(/^Returned/);
-		// PRESENCE SAYS NOTHING AT ALL in his card -- not "Not opened", not
+		// PRESENCE SAYS NOTHING AT ALL on that row -- not "Not opened", not
 		// "Not known", no line. Absence is the mechanism.
-		expect(eli?.card).not.toBeNull();
-		expect(eli?.card?.querySelector('[data-testid="presence-line"]')).toBeNull();
+		expect(eli?.presence).toBeNull();
 
 		// AND THE OTHER FOUR ARE UNCHANGED, which is what makes this a narrowing
 		// of one case rather than the line being switched off.
-		expect(inCards(sweep, '[data-testid="presence-chip"]')).toHaveLength(4);
-		expect(inCards(sweep, '[data-testid="presence-never"]')).toHaveLength(0);
+		expect(mounted.all('[data-testid="presence-chip"]')).toHaveLength(4);
+		expect(mounted.all('[data-testid="presence-never"]')).toHaveLength(0);
 	});
 
 	it('work outranks presence on EVERY path a row can go missing', async () => {
@@ -551,7 +464,7 @@ describe('a missing presence row is three answers, and only one of them is a ver
 		]) {
 			mounted = mountConsole(true, { grading: GRADING_WITH_WORK, loadPresence });
 			await mounted.settle();
-			const eli = (await rosterLines(mounted)).find((r) => r.name === 'Eli Nakamura');
+			const eli = rosterLines(mounted).find((r) => r.name === 'Eli Nakamura');
 			expect(eli?.chip).toMatch(/^Returned/);
 			expect(eli?.presence).toBeNull();
 			await mounted.stop();
@@ -652,7 +565,7 @@ describe('the chip and the presence line cannot contradict each other', () => {
 		});
 		await mounted.settle();
 
-		const rows = await rosterLines(mounted);
+		const rows = rosterLines(mounted);
 		expect(rows).toHaveLength(5);
 		for (const row of rows) {
 			if (row.chip === 'Not submitted') {

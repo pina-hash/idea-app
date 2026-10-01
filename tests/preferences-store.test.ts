@@ -279,36 +279,8 @@ describe('the classroom schema validates on read', () => {
 					'State the next test you will run.',
 					'Label the parts of your sketch.'
 				]
-			},
-			// Absent too, so both pages read as they ship (ledger 0360, R23).
-			panels: { classPage: null, itemPage: null }
-		});
-	});
-
-	it('the page layouts round-trip, and a forged or stale id is dropped rather than coerced (R23)', () => {
-		const p = readClassroomPreferences({
-			panels: {
-				classPage: { order: ['stream', 'tools', 'no-such-panel', 'tools'], hidden: ['videos', 'stream', 'banner'] },
-				itemPage: { order: [], hidden: ['rubric', 'work', 'notebook'] },
-				thirdPage: { order: ['x'], hidden: [] }
 			}
 		});
-		// The anchor and the unhideable panels are never hidden by a stored value.
-		expect(p.panels).toEqual({
-			classPage: { order: ['stream', 'tools'], hidden: ['videos'] },
-			itemPage: { order: [], hidden: ['rubric'] }
-		});
-		// Junk in either slot is that page's default, and only that page's.
-		expect(readClassroomPreferences({ panels: { classPage: 'all', itemPage: { order: [], hidden: ['deck'] } } }).panels).toEqual({
-			classPage: null,
-			itemPage: { order: [], hidden: ['deck'] }
-		});
-		// Stored sparse: one page arranged is that page only, and the default is nothing.
-		const d = defaultClassroomPreferences();
-		expect(compactPreferences(CLASSROOM_PREFERENCE_SCHEMA, d)).toEqual({});
-		d.panels.itemPage = { order: [], hidden: ['rubric'] };
-		expect(compactPreferences(CLASSROOM_PREFERENCE_SCHEMA, d)).toEqual({ panels: { itemPage: { order: [], hidden: ['rubric'] } } });
-		expect(CLASSROOM_PREFERENCE_HOMES.panels).toBe('account');
 	});
 
 	it('a student is never remembered as a recent pick, and the list is capped', () => {
@@ -356,17 +328,9 @@ describe('the classroom schema validates on read', () => {
 		// list width, the to-do default, the Grades order, the tours and the
 		// notebook review's defaults in), and the ONE field nothing reads --
 		// `grading.advanceAfterReturn` -- is offered by no setting at all.
-		// THE RULE, not a list (generalized for ledger 0360's `panels`): every
-		// group in the schema has a home AND at least one setting offering it,
-		// and no setting names a group the schema does not have.
-		const offered = [...new Set(CLASSROOM_SETTINGS.map((s) => s.group))].sort();
-		expect(offered).toEqual([...CLASSROOM_PREFERENCE_SCHEMA.groups].sort());
-		// Positive control: the sweep sees the groups that exist, the newest included.
-		expect(offered).toEqual(expect.arrayContaining(['classView', 'display', 'grading', 'guidance', 'notebookReview', 'panels', 'search']));
-		// Each page's arrangement is offered once, to both roles.
-		const panels = CLASSROOM_SETTINGS.filter((s) => s.kind === 'panels');
-		expect(panels.map((s) => ('page' in s ? s.page : null))).toEqual(['class', 'item']);
-		for (const s of panels) expect([...s.roles].sort()).toEqual(['manager', 'student']);
+		expect([...new Set(CLASSROOM_SETTINGS.map((s) => s.group))].sort()).toEqual(
+			['classView', 'display', 'grading', 'guidance', 'notebookReview', 'search']
+		);
 		const fields = CLASSROOM_SETTINGS.flatMap((s) => ('field' in s ? [`${s.group}.${s.field}`] : []));
 		expect(fields).not.toContain('grading.advanceAfterReturn');
 		expect(fields).toEqual(

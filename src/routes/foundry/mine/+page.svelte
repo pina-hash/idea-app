@@ -184,18 +184,6 @@
 	-->
 	<FoundryOwnerStats apps={data.apps} playCounts={data.playCounts ?? {}} />
 
-	<!--
-		THE DOOR TO THE TRUSTED-PUBLISHER APPLICATION (report 6d076258, ledger
-		0360). A static link rather than a status read: this page already makes
-		its reads, and the application page says where the student stands the
-		moment they open it, so a second read here would be a number on a page
-		that does not act on it.
-	-->
-	<p class="fdy-block fdy-mine-apply" data-testid="foundry-mine-apply">
-		<span>Want your apps to go live as soon as you submit them, without waiting for review?</span>
-		<a class="tap-44" href="/foundry/apply">Apply to be a trusted publisher</a>
-	</p>
-
 	<FoundryMine
 		apps={data.apps}
 		selected={data.selected}
@@ -214,18 +202,5 @@
 	 */
 	.fdy-page {
 		padding: var(--space-4, 1rem) var(--cr-gutter, 1rem);
-	}
-
-	.fdy-mine-apply {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 0.25rem 1rem;
-		margin: 0 0 var(--space-4, 1rem);
-		padding: 0.5rem 1rem;
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-md, 8px);
-		background: var(--surface-1);
-		color: var(--text-2);
 	}
 </style>

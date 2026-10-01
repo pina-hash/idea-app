@@ -437,12 +437,6 @@
 		font-size: 0.75rem;
 		color: #e5484d;
 	}
-	/* SPACE WHITE (ledger 0360): the refusal takes the theme's own error ink,
-	   which is what this tone is for (4.86:1 on its worst ground, the theme's
-	   own measurement); #e5484d is tuned for the dark plate. */
-	:global(:root[data-theme='space-white']) .ed-error {
-		color: var(--crimson);
-	}
 	.actions {
 		display: flex;
 		gap: 0.5rem;
@@ -455,7 +449,7 @@
 		background: var(--tnm-accent);
 		border: 1px solid var(--tnm-accent);
 		border-radius: 6px;
-		color: var(--tnm-on-accent, #062018);
+		color: #062018;
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.74rem;
 		letter-spacing: 0.08em;

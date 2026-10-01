@@ -76,24 +76,17 @@ export default {
 			expected: ['focus inside', 'body locked', 'heading "Edit assignment"']
 		},
 		{
-			/* THE LAYER'S OWN z-index, AND NOTHING MORE (report R06, ledger 0360).
-			   This row used to be labelled "the layer sits above the masthead",
-			   and it read 60 the whole time the layer was trapped UNDER the
-			   masthead and the split separator in ItemDetail's `main` stacking
-			   context: a computed z-index cannot see an ancestor's context, and
-			   this harness mounts no positioned masthead. Effective stacking is
-			   hit-tested by classroom-split-s-1-item-i-draft-manage-1-state-edit-layer. */
-			label: "the layer's own z-index sits between 1 and 100, and it covers the viewport",
+			label: 'the layer sits above the masthead and covers the viewport',
 			evaluate: `() => {
 				const dialog = document.querySelector('[role="dialog"].composer-screen');
 				const r = dialog.getBoundingClientRect();
 				const z = Number(getComputedStyle(dialog).zIndex);
 				return [
-					z > 1 && z < 100 ? 'own z between 1 and 100' : 'z ' + z,
+					z > 1 && z < 100 ? 'z between masthead and lightbox' : 'z ' + z,
 					Math.round(r.width) === window.innerWidth && Math.round(r.height) === window.innerHeight ? 'covers viewport' : 'covers ' + Math.round(r.width) + 'x' + Math.round(r.height)
 				];
 			}`,
-			expected: ['own z between 1 and 100', 'covers viewport']
+			expected: ['z between masthead and lightbox', 'covers viewport']
 		}
 	],
 	contrast: [

@@ -3,7 +3,6 @@
 	import { page } from '$app/state';
 	import { displayName, profileStyleReady } from '$lib/profile';
 	import type { UserProfile } from '$lib/profile';
-	import { readPathwayNotYet } from '$lib/pathway-choice';
 
 	/**
 	 * Manual verification harness for ProfileMenu (dev-only). Mounts the REAL
@@ -63,13 +62,6 @@
 	<p class="readout">Current display name: <strong data-testid="name">{displayName(profile)}</strong></p>
 	<p class="readout">
 		Stored pathway: <strong data-testid="pathway">{profile?.pathway ?? 'unset'}</strong>
-	</p>
-	<!-- THE "NO PATHWAY YET" ANSWER (ledger 0360): the school day stored in
-	     `preferences.pathway`, or "none". Read from the load, like the row above. -->
-	<p class="readout">
-		Stored not-yet answer: <strong data-testid="pathway-not-yet"
-			>{readPathwayNotYet(profile?.preferences)?.day ?? 'none'}</strong
-		>
 	</p>
 	<!-- THE STORED ROW, NOT THE BANNER. `IdentityBanner` renders nothing at all
 	     for an uncustomized identity, so a banner-only check cannot tell "chose

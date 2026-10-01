@@ -486,11 +486,8 @@ const MONTH_NAMES = [
  * non-monotonic log rather than the log being cleaned up.
  *
  * IT GROUPS, IT NEVER CAPS. Every entry handed in comes back out exactly once:
- * there is no slice and no cap here. The home page's panel WINDOWS the filtered
- * log before it groups (ledger 0360, `changelogWindow` below), and regrouping
- * the whole visible prefix every time a page is added -- rather than appending
- * a page's own groups -- is what keeps each month key unique as pages grow: a
- * page boundary can fall inside a month, and inside a non-monotonic run of one.
+ * there is no slice, no cap and no pagination here, because the panel has never
+ * had any and `filteredLog.length` still counts the whole array.
  */
 export function groupEntriesByMonth(entries: VersionEntry[]): VersionMonth[] {
 	const byKey = new Map<string, VersionMonth>();
@@ -514,51 +511,4 @@ export function groupEntriesByMonth(entries: VersionEntry[]): VersionMonth[] {
 		month.entries.sort((a, b) => (a.iso < b.iso ? 1 : a.iso > b.iso ? -1 : 0));
 	}
 	return months;
-}
-
-/**
- * HOW MUCH OF THE CHANGELOG IS ON SCREEN AT ONCE (ledger 0360, report R24).
- *
- * The Portal Updates panel used to render every commit the moment it opened --
- * 2,507 on the day it was reported, about seven DOM nodes each -- and opening
- * it lagged; a log that grows by about fifty entries a school day only gets
- * worse. 150 is about three days at September 2026's pace: a real run of
- * reading, and about a thousand nodes. The filters and the count still run
- * over the WHOLE log; only the rendering is windowed.
- */
-export const CHANGELOG_PAGE_SIZE = 150;
-
-export interface ChangelogWindow {
-	/** The entries to render: a prefix of the input, in its order. */
-	visible: VersionEntry[];
-	/** `visible.length`. */
-	shown: number;
-	/** Every entry the window was cut from. */
-	total: number;
-	/** `total - shown`: what a "Show more" control has left to offer. */
-	remaining: number;
-	/** The `requested` value that shows one more page, never past `total`. */
-	next: number;
-}
-
-/**
- * The first `requested` entries, clamped to at least one page and at most the
- * whole list. A request that is not a number reads as one page, so a bad value
- * can never render nothing or everything.
- */
-export function changelogWindow(
-	entries: readonly VersionEntry[],
-	requested: number,
-	page: number = CHANGELOG_PAGE_SIZE
-): ChangelogWindow {
-	const total = entries.length;
-	const want = Math.floor(requested) || page;
-	const shown = Math.min(total, Math.max(page, want));
-	return {
-		visible: entries.slice(0, shown),
-		shown,
-		total,
-		remaining: total - shown,
-		next: Math.min(total, shown + page)
-	};
 }

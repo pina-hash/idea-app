@@ -107,8 +107,6 @@
 	} from '$lib/classroom/classroom';
 	import type { ClassroomLayoutTransports } from '$lib/classroom/attachments';
 	import type { LayoutData } from './$types';
-	import { createClassroomPreferences } from '$lib/preferences/classroom';
-	import { provideClassroomPreferences } from '$lib/preferences/context';
 
 	let { data, children }: { data: LayoutData; children: import('svelte').Snippet } = $props();
 
@@ -121,17 +119,6 @@
 	 * exists to avoid.
 	 */
 	const manage = $derived(harnessManage(page.url));
-
-	/**
-	 * THE CLASSROOM PREFERENCE STORE, PROVIDED BY CONTEXT EXACTLY AS
-	 * src/routes/classroom/+layout.svelte PROVIDES IT (ledger 0360, report R06).
-	 * Without it ClassSplit has no store, so it never draws its resize separator
-	 * -- and the separator painting over the item's edit layer is exactly the
-	 * defect this harness failed to show. With no account backend the account
-	 * groups (the item page's panel layout among them) live in memory for the
-	 * session, which is the store's own harness answer.
-	 */
-	provideClassroomPreferences(createClassroomPreferences({ viewer: 'split-harness', account: null, storage: null }));
 	const seededState = $derived(harnessState(page.url));
 
 	const ok = <T,>(value: T): Promise<TxResult<T>> => Promise.resolve({ ok: true, data: value });

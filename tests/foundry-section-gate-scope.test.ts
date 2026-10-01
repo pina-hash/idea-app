@@ -237,10 +237,6 @@ describe('what a closure reaches', () => {
 	 */
 	const EVERY_PLACE: readonly FoundryPlace[] = [
 		'gallery',
-		// LEDGER 0360: the game request board. It runs no student's bundle,
-		// so a class closure leaves it open; the whole-Foundry switch is what
-		// reaches it.
-		'requests',
 		'mine',
 		'contract',
 		'submit',
@@ -265,7 +261,6 @@ describe('what a closure reaches', () => {
 		// so a predicate that started answering true for everything cannot
 		// pass the line above by returning an empty second list.
 		expect(open).toEqual([
-			'requests',
 			'mine',
 			'contract',
 			'submit',
@@ -279,7 +274,7 @@ describe('what a closure reaches', () => {
 		// to the list above would slip past both filters silently; the count is
 		// what makes the totality claim a measurement.
 		expect(blocked.length + open.length).toBe(EVERY_GUARDED.length);
-		expect(EVERY_GUARDED.length).toBe(10);
+		expect(EVERY_GUARDED.length).toBe(9);
 	});
 
 	it('fails closed for a place nobody has classified', () => {

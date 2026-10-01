@@ -1,11 +1,8 @@
 // tests/classroom-returned-grade.test.ts
 //
 // A RETURNED GRADE REACHES THE STUDENT ON EVERY ENGINE, WITH THE TEACHER'S
-// COMMENT BEFORE THE BREAKDOWN (ledger 0297, package ITEM; Phase 0's blocking
-// finding), AND THE RUBRIC SITS AT THE BOTTOM, CLOSED (report R20, a2fe2f8f,
-// ledger 0360: "the rubric should be at the bottom", and not "always opened up
-// initially"). The returned card's breakdown starts closed by the same rule,
-// and its region stays in the DOM.
+// COMMENT BEFORE THE BREAKDOWN, AND THE RUBRIC IS FINDABLE BEFORE THE WORK
+// (ledger 0297, package ITEM; Phase 0's blocking finding).
 //
 // WHY A TEST AND NOT ONLY A HARNESS. Both regressions are SILENT:
 //   * the v3 (ported HTML) and v4 (IdeaCAD) item pages carried the returned
@@ -21,7 +18,7 @@
 // EXPECTED VALUES COME FROM THE FIXTURES, never from the component: the comment
 // and criterion strings are sentinels no component can produce on its own.
 //
-// NO GEOMETRY. `svelte/server`'s render has no layout; "at the bottom" is
+// NO GEOMETRY. `svelte/server`'s render has no layout; "near the top" is
 // asserted as DOCUMENT ORDER here and measured in pixels by
 // tools/browser-verify/routes/item-returned-*.mjs.
 
@@ -182,14 +179,6 @@ function count(haystack: string, needle: string): number {
 	return haystack.split(needle).length - 1;
 }
 
-/** The `aria-expanded` of the one button carrying `testId`, or null when there is none. */
-function expanded(html: string, testId: string): string | null {
-	const buttons = [...html.matchAll(/<button\b[^>]*>/g)].map((m) => m[0]);
-	const mine = buttons.filter((b) => b.includes(`data-testid="${testId}"`));
-	if (mine.length !== 1) return null;
-	return /aria-expanded="(true|false)"/.exec(mine[0])?.[1] ?? null;
-}
-
 const ENGINES: Engine[] = ['v1', 'v2', 'v3', 'v4-link'];
 
 describe('the returned card itself: the comment comes before the breakdown', () => {
@@ -209,31 +198,6 @@ describe('the returned card itself: the comment comes before the breakdown', () 
 		);
 		// The headline carries the stored score over the rubric's own total.
 		expect(html).toContain('Returned: 16 / 20 pts');
-	});
-
-	test('the breakdown starts CLOSED, behind its own word, and is still in the DOM', () => {
-		const html = render(ReturnedGrade as never, {
-			props: { submission: submission('returned'), rubric: RUBRIC, points: 20 } as never
-		}).body;
-		// Closed: the trigger reads false, and it says what it opens.
-		expect(expanded(html, 'returned-grade-breakdown-disclosure')).toBe('false');
-		expect(html).toContain('Rubric breakdown');
-		// Still there (it prints, and one press shows it): the region and every
-		// criterion are rendered, once.
-		expect(count(html, 'data-testid="returned-grade-breakdown"')).toBe(1);
-		expect(count(html, CRITERION)).toBe(1);
-		// The score and the comment are NOT behind it: both come before the trigger.
-		const trigger = html.indexOf('data-testid="returned-grade-breakdown-disclosure"');
-		expect(html.indexOf('data-testid="returned-grade-head"')).toBeLessThan(trigger);
-		expect(html.indexOf(COMMENT)).toBeLessThan(trigger);
-	});
-
-	test('no stored rubric renders no breakdown trigger at all', () => {
-		const html = render(ReturnedGrade as never, {
-			props: { submission: submission('returned'), rubric: null, points: 20 } as never
-		}).body;
-		expect(count(html, 'data-testid="returned-grade-breakdown-disclosure"')).toBe(0);
-		expect(count(html, 'data-testid="returned-grade"')).toBe(1);
 	});
 
 	test('no comment written renders no comment block, and the breakdown still does', () => {
@@ -258,9 +222,6 @@ describe('a student sees the returned grade and the comment on EVERY engine', ()
 		// The unscored "How this is graded" copy stands down on a return: the
 		// card IS the scored copy of the same rubric.
 		expect(count(html, 'data-testid="item-rubric"'), `${kind}: no second rubric`).toBe(0);
-		// And its breakdown is closed on every engine, with the region present.
-		expect(expanded(html, 'returned-grade-breakdown-disclosure'), `${kind}: breakdown closed`).toBe('false');
-		expect(count(html, 'data-testid="returned-grade-breakdown"'), `${kind}: breakdown in the DOM`).toBe(1);
 	});
 
 	test.each(ENGINES)('%s, not returned: no card, no comment (negative control)', (kind) => {
@@ -272,41 +233,29 @@ describe('a student sees the returned grade and the comment on EVERY engine', ()
 	});
 });
 
-describe('the rubric sits AFTER the work, closed, on every engine (report R20)', () => {
-	test.each(ENGINES)('%s: one "How this is graded" disclosure, after the work, before the footer, closed', (kind) => {
+describe('the rubric is findable BEFORE the work, on every engine', () => {
+	test.each(ENGINES)('%s: one "How this is graded" disclosure, after the instructions, before the work', (kind) => {
 		const html = studentPage(kind, null);
 		expect(count(html, 'data-testid="item-rubric"'), `${kind}: the rubric`).toBe(1);
-		// One copy of the criteria, still in the DOM while the panel is closed.
 		expect(count(html, CRITERION), `${kind}: one copy of the criteria`).toBe(1);
 		expect(html).toContain('How this is graded');
-		// BETWEEN TWO LANDMARKS EVERY ENGINE RENDERS: the work surface, which is
-		// `engine-host` for a spec or a ported assignment and `engine-slot` for
-		// the IdeaCAD door, and the page footer. The instructions come first as
-		// the positive control that the page rendered its reading at all.
+		// BETWEEN TWO LANDMARKS EVERY ENGINE RENDERS: the instructions (the item
+		// has a body) and the work surface, which is `engine-host` for a spec or
+		// a ported assignment and `engine-slot` for the IdeaCAD door. Above the
+		// instructions was measured and refused: four leveled criteria open are
+		// 1054px at 375, which pushed the instructions to y 1350 on a phone.
 		const rubricAt = html.indexOf('data-testid="item-rubric"');
 		const bodyAt = html.indexOf('data-testid="item-body-disclosure"');
-		const footerAt = html.indexOf('class="page-footer');
 		const work = ['class="engine-host', 'class="card engine-slot']
 			.map((needle) => html.indexOf(needle))
 			.filter((at) => at >= 0);
 		expect(bodyAt, `${kind}: the instructions landmark`).toBeGreaterThanOrEqual(0);
 		expect(work.length, `${kind}: the work landmark`).toBeGreaterThan(0);
-		expect(footerAt, `${kind}: the footer landmark`).toBeGreaterThan(0);
-		expect(bodyAt).toBeLessThan(Math.min(...work));
-		expect(rubricAt).toBeGreaterThan(Math.max(...work));
-		expect(rubricAt).toBeLessThan(footerAt);
-		// Closed on arrival, for a student who has started nothing.
-		expect(expanded(html, 'item-rubric-disclosure'), `${kind}: closed`).toBe('false');
+		expect(rubricAt).toBeGreaterThan(bodyAt);
+		expect(rubricAt).toBeLessThan(Math.min(...work));
 	});
 
-	test('a student whose work is in still gets it closed (the constant, not the old started signal)', () => {
-		const html = studentPage('v1', 'submitted');
-		expect(expanded(html, 'item-rubric-disclosure')).toBe('false');
-		// The positive control for "closed is a state, not an absence".
-		expect(count(html, 'data-testid="item-rubric"')).toBe(1);
-	});
-
-	test('a manager reads the same stored rubric, CLOSED, after the work, with no returned card', () => {
+	test('a manager reads the same stored rubric, open, with no returned card', () => {
 		const html = render(ItemDetail as never, {
 			props: {
 				section: SECTION,
@@ -319,11 +268,6 @@ describe('the rubric sits AFTER the work, closed, on every engine (report R20)',
 		expect(count(html, 'data-testid="item-rubric"')).toBe(1);
 		expect(count(html, CRITERION)).toBe(1);
 		expect(count(html, 'data-testid="returned-grade"')).toBe(0);
-		// It used to stay OPEN for a manager, who has no work of their own.
-		expect(expanded(html, 'item-rubric-disclosure')).toBe('false');
-		const hostAt = html.indexOf('class="engine-host');
-		expect(hostAt).toBeGreaterThan(0);
-		expect(html.indexOf('data-testid="item-rubric"')).toBeGreaterThan(hostAt);
 	});
 
 	test('an item with no stored rubric renders no empty disclosure', () => {

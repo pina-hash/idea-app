@@ -31,31 +31,6 @@ export const FEEDBACK_KINDS: { id: FeedbackKind; label: string; hint: string }[]
 	{ id: 'other', label: 'Other', hint: 'anything else' }
 ];
 
-/**
- * WHEN A REPORT IS FOR: something to fold in within a week or so, or a big
- * idea for later (Mr. Pina, 2026-09-30; the presentation engine is his
- * example of the second). Its OWN FIELD, never a fifth kind: a long-term
- * idea is still a bug, an idea or an "other", and folding the two questions
- * into one picker would make every existing `kind` filter lie about it.
- *
- * STORED AS `app_feedback.horizon` (0230), default `now`. `now` IS NEVER SENT
- * BY THIS CLIENT, on either write path: it is the column's default, so an
- * ordinary report stays byte-identical to the row it always was, and a
- * deployment sitting before 0230 is never asked for a column it does not
- * have unless somebody actually chose "long-term".
- */
-export type FeedbackHorizon = 'now' | 'long_term';
-
-/** The two choices, in the order the box lists them, with the words a person reads. */
-export const FEEDBACK_HORIZONS: { id: FeedbackHorizon; label: string; hint: string }[] = [
-	{ id: 'now', label: 'Fix soon', hint: 'something to change in the next week or so' },
-	{ id: 'long_term', label: 'Long-term idea', hint: 'a big idea for later, not a fix for this week' }
-];
-
-export function isFeedbackHorizon(value: unknown): value is FeedbackHorizon {
-	return value === 'now' || value === 'long_term';
-}
-
 /** Hard cap on a message, mirrored by the CHECK constraint in 0053. */
 export const FEEDBACK_MAX_LEN = 2000;
 
@@ -122,14 +97,6 @@ export interface FeedbackEntry {
 	 * that caused it rather than as a failure of the report.
 	 */
 	screenshotPath?: string | null;
-	/**
-	 * WHEN THIS IS FOR. Absent means `now`, and only `long_term` is ever
-	 * written anywhere (see {@link FeedbackHorizon}). On the signed-in path it
-	 * goes in 0230's column when the backend has it and in `meta.horizon` when
-	 * it does not; on the anonymous path it always rides in `meta`, which
-	 * 0230's function lifts into the column, exactly as 0170 lifts `tried`.
-	 */
-	horizon?: FeedbackHorizon;
 }
 
 /**
@@ -231,58 +198,31 @@ export async function submitFeedback(
 	// row this function has always written, in one round trip. Climbing a ladder
 	// to send two nulls would cost every report on the site a wasted attempt for
 	// the whole window between a push and a hand-applied migration, to no end.
-	//
-	// THE SAME HOLDS FOR 0230's `horizon`: only `long_term` is ever named, so a
-	// report somebody left on "fix soon" is the same base insert it always was.
-	const longTerm = entry.horizon === 'long_term';
-	const needs0170 = !!tried || !!entry.screenshotPath;
-	if (!needs0170 && !longTerm) {
+	if (!tried && !entry.screenshotPath) {
 		const { error } = await supabase.from(APP_FEEDBACK_TABLE).insert(base);
 		if (!error) return { error: null, retryable: false };
 		return { error: error.message, retryable: feedbackRetryable(error.code) };
 	}
 
-	// 0170's two columns, on every rung that has them. The KEY of an object that
-	// already landed, never bytes: it can only be set where the attach control
-	// was offered, which is where the probe below said the column exists -- so
-	// the narrow rung never has one to drop.
-	const with0170 = (row: Record<string, unknown>): Record<string, unknown> => {
-		if (!needs0170) return row;
-		const out: Record<string, unknown> = { ...row, tried: tried || null };
-		if (entry.screenshotPath) out.screenshot_path = entry.screenshotPath;
-		return out;
-	};
-	/** `base` with a meta blob of its own, so no rung edits another's. */
-	const withMeta = (extra: Record<string, unknown>): Record<string, unknown> => ({
-		...base,
-		meta: { ...meta, ...extra }
-	});
+	const wide: Record<string, unknown> = { ...base, tried: tried || null };
+	// The KEY of an object that already landed, never bytes. It can only be set
+	// where the attach control was offered, which is where the probe below said
+	// the column exists -- so the narrow rung never has one to drop.
+	if (entry.screenshotPath) wide.screenshot_path = entry.screenshotPath;
 
-	// ONE CAPABILITY PER RUNG, widest first (0230, then 0170, then 0053). Each
-	// degrades on a missing column ALONE (`feedbackColumnMissing`); any other
-	// refusal is reported as it is, because re-sending a narrower row cannot
-	// change a CHECK or an RLS answer. A rung that would be byte-identical to
-	// the one below it is not tried twice.
-	const rungs: Record<string, unknown>[] = [];
-	if (longTerm) rungs.push(with0170({ ...base, horizon: 'long_term' }));
-	// Without 0230: the choice rides in the blob, where 0230's apply-time
-	// backfill lifts it into the column and the console reads it meanwhile.
-	if (needs0170) rungs.push(with0170(longTerm ? withMeta({ horizon: 'long_term' }) : base));
-	// The narrow rung: no 0170 columns at all, and the answers ride in the
-	// free-form blob the console already reads generically. The FIELDS are
-	// never removed from the form -- what changes is only where they land.
-	rungs.push(
-		withMeta({ ...(tried ? { tried } : {}), ...(longTerm ? { horizon: 'long_term' } : {}) })
-	);
-
-	let last: { message: string; code?: string | null } | null = null;
-	for (const row of rungs) {
-		const { error } = await supabase.from(APP_FEEDBACK_TABLE).insert(row);
-		if (!error) return { error: null, retryable: false };
-		last = error;
-		if (!feedbackColumnMissing(error.code)) break;
+	const first = await supabase.from(APP_FEEDBACK_TABLE).insert(wide);
+	if (!first.error) return { error: null, retryable: false };
+	if (!feedbackColumnMissing(first.error.code)) {
+		return { error: first.error.message, retryable: feedbackRetryable(first.error.code) };
 	}
-	return { error: last!.message, retryable: feedbackRetryable(last!.code) };
+
+	// The narrow rung: no 0170 columns at all, and the answer rides in the
+	// free-form blob the console already reads generically. The FIELD is never
+	// removed from the form -- what changes is only where the sentence lands.
+	if (tried) meta.tried = tried;
+	const { error } = await supabase.from(APP_FEEDBACK_TABLE).insert(base);
+	if (!error) return { error: null, retryable: false };
+	return { error: error.message, retryable: feedbackRetryable(error.code) };
 }
 
 /**
@@ -504,11 +444,6 @@ export async function submitAnonymousFeedback(
 	const tried = (entry.tried ?? '').trim();
 	const meta = { ...(entry.meta ?? {}) };
 	if (tried) meta.tried = tried;
-	// THE SAME SHAPE FOR THE HORIZON, AND FOR THE SAME REASON: the route forwards
-	// `meta` and names no `p_horizon`, and 0230's function lifts the key into the
-	// column and strips it from the blob. Only `long_term` is ever sent; an
-	// ordinary report's body is byte-identical to what it always was.
-	if (entry.horizon === 'long_term') meta.horizon = 'long_term';
 
 	let res: Response;
 	try {
@@ -650,12 +585,4 @@ export interface FeedbackRow {
 	 * it server-side, as the admin, so the storage policy stays the boundary.
 	 */
 	screenshot_path?: string | null;
-	/**
-	 * `now` or `long_term`, from 0230's column. Absent on a payload from a
-	 * backend before 0230 and typed as a plain string because the payload is
-	 * not trusted to hold one of the two: `rowHorizon` in console.ts is the one
-	 * reader, and it falls back to `meta.horizon` the way `rowTried` falls back
-	 * to `meta.tried`.
-	 */
-	horizon?: string | null;
 }

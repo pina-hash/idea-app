@@ -120,23 +120,6 @@ export default {
 			selector: '.fb-dictate-heard, .fb-dictate-error',
 			label: 'no interim text and no refusal before anything is said',
 			expectPresent: 0
-		},
-		{
-			/* REPORT R15, THE STUDENT HALF. This box is the no-session
-			   arrangement, so it carries no Feedback page link; the admin half
-			   is `feedback-state-admin-link.mjs`, the same page, where the
-			   count is 1. The horizon keys below are the positive control for
-			   the same box. */
-			selector: '[data-testid="fb-console-link"]',
-			label: 'no Feedback page link for anybody who is not an admin',
-			expectPresent: 0
-		},
-		{
-			selector: '[aria-label="When to act on this"] [role="radio"]',
-			label: 'the two horizon keys (0230), Fix soon and Long-term idea',
-			expectPresent: 2,
-			maxPresent: 2,
-			expectVisible: 2
 		}
 	],
 	textContains: [
@@ -180,7 +163,7 @@ export default {
 		*/
 		{ selector: '#fb-tried', label: 'the tried textarea', min: 44 },
 		{ selector: '.fb-box .fb-btn', label: 'the box buttons (dictate, cancel, send)', min: 44 },
-		{ selector: '.fb-box .fb-kind', label: 'the four kind chips and the two horizon keys', min: 44 },
+		{ selector: '.fb-box .fb-kind', label: 'the four kind chips', min: 44 },
 		{ selector: '.fb-dictate', label: 'the dictate control on its own', min: 44 }
 	]
 };

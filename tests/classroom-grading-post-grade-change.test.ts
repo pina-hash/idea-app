@@ -361,14 +361,10 @@ function walk(dir: string, out: string[] = []): string[] {
  *   - `grading-export.ts` is the derivation itself plus the export, and the
  *     export takes no read of its own;
  *   - the grades page load 404s a non-manager before it reads anything;
- *   - `RosterCard` (ledger 0360, report R25) is the roster's hover card, and
- *     its ONLY importer is `GradingConsole` -- asserted below, so it cannot
- *     acquire a student-facing mount without this list noticing;
  *   - `/dev/*` is dev-guarded and 404s in production.
  */
 const ALLOWED = [
 	'src/lib/classroom/GradingConsole.svelte',
-	'src/lib/classroom/RosterCard.svelte',
 	'src/lib/classroom/grading-export.ts',
 	'src/routes/classroom/[sectionId]/grades/+page.server.ts'
 ];
@@ -390,14 +386,7 @@ describe('the post-grade signal reaches no student surface', () => {
 		expect([...naming].sort()).toEqual([...ALLOWED].sort());
 		// The control: the list is not empty, so "nothing else names it" is a
 		// statement about a rule that is actually in force somewhere.
-		expect(naming.length).toBe(ALLOWED.length);
-	});
-
-	test('RosterCard is mounted by the grading console and by nothing else', () => {
-		const importers = files.filter(
-			(p) => !p.startsWith('src/routes/dev/') && /RosterCard\.svelte/.test(readFileSync(p, 'utf8'))
-		);
-		expect(importers).toEqual(['src/lib/classroom/GradingConsole.svelte']);
+		expect(naming.length).toBe(3);
 	});
 
 	test('no student-facing classroom component names it or the chip', () => {

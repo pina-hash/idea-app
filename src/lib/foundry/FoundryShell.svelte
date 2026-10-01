@@ -57,14 +57,8 @@
 		children: import('svelte').Snippet;
 	} = $props();
 
-	/**
-	 * REQUESTS SITS BESIDE THE GALLERY (report b2ba6d74, ledger 0360): the
-	 * board is where somebody who wants a game asks for one, so it is next to
-	 * the place they went looking for it. Every signed-in student gets it.
-	 */
 	const tabs: { place: FoundryPlace; href: string; word: string }[] = [
 		{ place: 'gallery', href: '/foundry', word: 'Gallery' },
-		{ place: 'requests', href: '/foundry/requests', word: 'Requests' },
 		{ place: 'mine', href: '/foundry/mine', word: 'My apps' },
 		{ place: 'contract', href: '/foundry/contract', word: 'Build contract' },
 		{ place: 'submit', href: '/foundry/submit', word: 'Publish' }
@@ -85,10 +79,7 @@
 					{t.word}
 				</a>
 			{/each}
-			<!-- A SITE ADMINISTRATOR GETS THE TAB TOO (ledger 0360): the
-			     whole-Foundry switch lives on that page, and an admin who teaches
-			     no section would otherwise have no door to it. -->
-			{#if managesSection || isAdmin}
+			{#if managesSection}
 				<a
 					class="fg-tab tap-44"
 					href="/foundry/classes"

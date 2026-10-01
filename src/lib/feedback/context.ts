@@ -72,33 +72,6 @@ const under = (prefix: string) => (routeId: string) =>
 export const REPORT_LABEL = 'Report a problem';
 export const REPORT_LABEL_SHORT = 'Report';
 
-/**
- * WHERE THE REPORTS GO, for an admin (report R15, 2026-09-30): the report box
- * links straight to the console from its own header. Spelled once, so the
- * link, the "already here" test in `SiteFeedback` and the harness cannot name
- * three different addresses for one page.
- */
-export const FEEDBACK_CONSOLE_PATH = '/admin/feedback';
-/** The link's word. It names a page, not an action, so it reads as one. */
-export const FEEDBACK_CONSOLE_LABEL = 'Feedback page';
-
-/**
- * WHETHER THE BOX OFFERS THE CONSOLE LINK, and to whom: an admin, anywhere but
- * the console itself, where the link would open the page already on screen.
- *
- * `isAdmin` IS THE ROOT LAYOUT'S OWN ANSWER (`page.data.isAdmin`), so nothing
- * here asks the database a second time -- and nothing here is a gate either:
- * the console's load answers a non-admin 404 whatever any link says, so a link
- * shown by mistake costs a 404, never a disclosure. TRUE ONLY ON `=== true`,
- * because "cannot tell" must never read as "yes".
- */
-export function feedbackConsoleHref(isAdmin: unknown, pathname: string): string | null {
-	if (isAdmin !== true) return null;
-	const p = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
-	if (p === FEEDBACK_CONSOLE_PATH || p.startsWith(FEEDBACK_CONSOLE_PATH + '/')) return null;
-	return FEEDBACK_CONSOLE_PATH;
-}
-
 export const CLASSROOM_SHELL_HARNESSES = [
 	'/dev/animated-logo-room',
 	'/dev/classroom',

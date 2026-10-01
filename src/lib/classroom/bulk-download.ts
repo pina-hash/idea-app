@@ -69,13 +69,6 @@ export interface BlockLabel {
 	module: string;
 	/** A ported document's `field` for the input. Empty for a spec block. */
 	field: string;
-	/**
-	 * A PORTED DOCUMENT'S `prompt` DISPLAY KEY (ledger 0360), the question as a
-	 * grader reads it, when the block declares one. Absent otherwise, and absent
-	 * on a spec block, so every existing label (and every file name built from
-	 * `module` and `field`) is exactly what it was.
-	 */
-	prompt?: string;
 }
 
 /**
@@ -88,11 +81,7 @@ export function blockLabelsFromManifest(manifest: unknown): Map<string, BlockLab
 	const out = new Map<string, BlockLabel>();
 	for (const group of htmlAnswerSheet(manifest, {}, {})) {
 		for (const cell of group.cells) {
-			out.set(cell.blockId, {
-				module: labelText(group.title),
-				field: labelText(cell.field),
-				...(cell.prompt ? { prompt: cell.prompt } : {})
-			});
+			out.set(cell.blockId, { module: labelText(group.title), field: labelText(cell.field) });
 		}
 	}
 	return out;

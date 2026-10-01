@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { foundryClosureBlocks, foundrySiteOff } from '$lib/foundry/access';
+import { foundryClosureBlocks } from '$lib/foundry/access';
 import { foundryPlayCountMap, type FoundryPlayCountRow } from '$lib/foundry/telemetry';
 import type { FoundryAppSummary, FoundryAuthorCard } from '$lib/foundry/transports';
 import type { PageServerLoad } from './$types';
@@ -45,19 +45,6 @@ export const load: PageServerLoad = async ({ locals, params, parent }) => {
 	if (foundryAccess && foundryAccess.open === false && foundryClosureBlocks('gallery')) {
 		error(404, 'Not found');
 	}
-	/*
-	 * THE WHOLE-FOUNDRY SWITCH (ledger 0360) RETURNS AN EMPTY PAGE RATHER THAN
-	 * A 404. The layout renders the "turned off" panel in place of this page,
-	 * which only happens if the load succeeds; a 404 would land on the root
-	 * error page and lose the explanation. Nothing about the author is read.
-	 */
-	if (foundrySiteOff(foundryAccess)) {
-		return {
-			card: null,
-			apps: [] as FoundryAppSummary[],
-			playCounts: {} as ReturnType<typeof foundryPlayCountMap>
-		};
-	}
 
 	const { data: card, error: cardErr } = await locals.supabase.rpc('foundry_author_profile', {
 		p_owner: params.ownerId
@@ -90,7 +77,7 @@ export const load: PageServerLoad = async ({ locals, params, parent }) => {
 	const { data: countRows } = await locals.supabase.rpc('foundry_play_counts');
 
 	return {
-		card: card as FoundryAuthorCard | null,
+		card: card as FoundryAuthorCard,
 		apps: (apps ?? []) as FoundryAppSummary[],
 		playCounts: foundryPlayCountMap((countRows ?? null) as FoundryPlayCountRow[] | null)
 	};

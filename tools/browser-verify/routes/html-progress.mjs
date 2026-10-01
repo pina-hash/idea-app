@@ -78,10 +78,9 @@ export default {
 		   every surface `.cr-root`; without the stylesheet the class paints the
 		   portal plate and every contrast row below reads the wrong ground. */
 		{ selector: '.cr-root', label: 'the classroom room', expectPresent: 1, expectVisible: 1 },
-		/* Thirteen rails: ten fixed cards (ledger 0360 added the optional slot
-		   and the checkbox string), the interactive one, the one the real
-		   ItemDetail mounted, and the stalled-database card at rest. */
-		{ selector: '[data-hx-progress]', label: 'a progress rail', expectPresent: 13, maxPresent: 13, expectVisible: 13 },
+		/* Ten rails: eight fixed cards, the interactive one, and the one the real
+		   ItemDetail mounted. */
+		{ selector: '[data-hx-progress]', label: 'a progress rail', expectPresent: 10, maxPresent: 10, expectVisible: 10 },
 		{ selector: '[data-sc="real"] .engine-host [data-hx-progress]', label: "the rail inside ItemDetail's own work section", expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-sc="real"] iframe[data-hx-frame]', label: 'the real sandboxed frame below the rail', expectPresent: 1, maxPresent: 1 },
 		/* Three modules, three segments, three chips; one module, one of each. */
@@ -97,9 +96,9 @@ export default {
 		/* The header never becomes a segment or a chip. */
 		{ selector: '[data-hx-seg="hb-name"], [data-hx-mod="hb-name"]', label: 'a header field drawn as a segment or chip', expectPresent: 0 },
 		/* The note is on every rail, zero and one hundred included. */
-		{ selector: '[data-hx-progress] [data-testid="hxp-note"]', label: 'the not-a-grade note', expectPresent: 13, maxPresent: 13, expectVisible: 13 },
+		{ selector: '[data-hx-progress] [data-testid="hxp-note"]', label: 'the not-a-grade note', expectPresent: 10, maxPresent: 10, expectVisible: 10 },
 		/* The bar is a real progressbar with a value, on every rail. */
-		{ selector: '[data-hx-progress] [role="progressbar"][aria-valuenow]', label: 'a progressbar role with a value', expectPresent: 13, maxPresent: 13 },
+		{ selector: '[data-hx-progress] [role="progressbar"][aria-valuenow]', label: 'a progressbar role with a value', expectPresent: 10, maxPresent: 10 },
 		/* The interactive card ended at 100%, so its control is disabled -- the
 		   contract, not a synthetic click, per CLAUDE.md's `disabled` rule. */
 		{ selector: '[data-drive="fill"][disabled]', label: 'the fill control, disabled once complete', expectPresent: 1, maxPresent: 1 }
@@ -109,7 +108,7 @@ export default {
 		{
 			selector: '[data-sc="zero"] [data-hx-progress]',
 			label: 'zero: the number, the stage, the next line, the note',
-			must: ['0% filled in', 'Not started', 'Next up: "Bench setup", answer 1 of 2, is empty.', 'Bench setup: 2 answers left', 'First cut: 1 answer left', 'Reflection: 3 answers left', 'This measures how much you have filled in, not how well. Grades come from your teacher.'],
+			must: ['0% filled in', 'Not started', 'Next up: "Bench setup" has an empty answer.', 'Bench setup: 2 answers left', 'First cut: 1 answer left', 'Reflection: 3 answers left', 'This measures how much you have filled in, not how well. Grades come from your teacher.'],
 			mustNot: ['All filled in', 'done', 'point']
 		},
 		{
@@ -127,7 +126,7 @@ export default {
 		{
 			selector: '[data-sc="short"] [data-hx-progress]',
 			label: 'an answer short of its floor is not met, and the next line says how many sentences',
-			must: ['25% filled in', 'Building up', 'Next up: "Bench setup", answer 2 of 2, needs 1 more sentence.', 'Bench setup: 1 answer left'],
+			must: ['25% filled in', 'Building up', 'Next up: "Bench setup" needs 1 more sentence.', 'Bench setup: 1 answer left'],
 			mustNot: ['Bench setup: done']
 		},
 		{
@@ -152,20 +151,6 @@ export default {
 			selector: '[data-sc="single-full"] [data-hx-progress]',
 			label: 'a one-module document, complete',
 			must: ['100% filled in', 'All filled in', 'Reflection: done']
-		},
-		{
-			/* LEDGER 0360, report 8f78d5bd: an optional slot left empty holds
-			   nothing back, and a checkbox stored as a string counts. */
-			selector: '[data-sc="optional-empty"] [data-hx-progress]',
-			label: 'an optional photo slot left empty: 100, All filled in',
-			must: ['100% filled in', 'All filled in', 'Assembly: done'],
-			mustNot: ['Next up', 'answers left', 'answer left']
-		},
-		{
-			selector: '[data-sc="checkbox-string"] [data-hx-progress]',
-			label: 'a checkbox the document stored as a string counts',
-			must: ['100% filled in', 'All filled in', 'Reflection: done'],
-			mustNot: ['Next up']
 		},
 		{
 			selector: '[data-sc="interactive"] [data-hx-progress]',
@@ -211,10 +196,7 @@ export default {
 				'full=100/100:complete:points',
 				'single=50/50:halfway:points',
 				'single-full=100/100:complete:points',
-				'optional-empty=100/100:complete:points',
-				'checkbox-string=100/100:complete:points',
 				'interactive=100/100:complete:points',
-				'stalled=0/0:blank:points',
 				'real=100/100:complete:points'
 			],
 			label: 'every rail renders the number, stage and basis the pure module computed, on every card'
@@ -294,7 +276,7 @@ export default {
 				const clipped = words.filter((w) => w.scrollWidth > w.clientWidth + 1).length;
 				return ['chips=' + words.length, 'clipped=' + clipped];
 			}`,
-			expected: ['chips=27', 'clipped=0'],
+			expected: ['chips=24', 'clipped=0'],
 			label: 'no module chip clips its own text at this width'
 		}
 	],

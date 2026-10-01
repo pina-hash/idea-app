@@ -39,9 +39,8 @@
  * LEDGER 0298 (report R18) MADE THE CONTROL A LABELLED NATIVE SELECT, so the
  * "tap" is now a CHOICE: the step sets the select's value and dispatches the
  * `change` event a real pick dispatches, which is what `onPathwayChange`
- * listens for. The select arrives on "No pathway yet", which since ledger 0360
- * (report R18) is a real, always-pickable option rather than a disabled
- * placeholder, because unset is a legal state AND an answer. And the
+ * listens for. The select arrives on a disabled "Choose one" placeholder,
+ * because an unset pathway is a legal state with no option to show. And the
  * display name is NO LONGER TINTED by the pathway (decision 40, report R19):
  * the row that used to assert CSEE's identity blue on the name now asserts
  * that the name reads `--text-1` after the write, which is the half that could
@@ -78,7 +77,7 @@ export default {
 			   from the seed: a spec that asserts an "after" without printing the
 			   "before" cannot tell a working write from a value that was already
 			   there. The select's own value is printed beside the row, because
-			   an unset pathway must show "No pathway yet" rather than a pathway. */
+			   an unset pathway must show the placeholder rather than a pathway. */
 			evaluate: `() => { const r = document.querySelector('[data-testid="pathway"]'); const chips = document.querySelectorAll('.pathway-chip'); const sel = document.querySelector('.pm-select'); return 'before: stored=' + (r ? r.textContent.trim() : 'NO READOUT') + ', chips=' + chips.length + ', select=' + (sel ? JSON.stringify(sel.value) + ' showing ' + JSON.stringify(sel.selectedOptions[0] ? sel.selectedOptions[0].textContent.trim() : '') : 'NO SELECT'); }`,
 			label: 'the pathway before the choice'
 		},
@@ -110,12 +109,9 @@ export default {
 		/* THE WRITE DID NOT CLOSE THE MENU. One pick is the write, so the student
 		   stays where they are and can correct a mis-pick with a second one. */
 		{ selector: '.pm-select', label: 'the select is still there to pick again', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		/* "No pathway yet" STAYS ONCE A PATHWAY IS STORED (ledger 0360): six
-		   options, one per pathway, plus the enabled `value=""` one to pick back
-		   into. It used to be a disabled placeholder that vanished here, which
-		   left a student who mis-picked no way back to unset. */
-		{ selector: '.pm-select option', label: 'six pathways plus No pathway yet after the write (an option has no box of its own)', expectPresent: 7, maxPresent: 7, expectVisible: 0 },
-		{ selector: '.pm-select option[value=""]:not([disabled])', label: 'No pathway yet, still pickable after the write', expectPresent: 1, maxPresent: 1, expectVisible: 0 },
+		/* THE PLACEHOLDER IS GONE ONCE A PATHWAY IS STORED: six options, one per
+		   pathway, and no "Choose one" left to pick back into. */
+		{ selector: '.pm-select option', label: 'six options after the write, no placeholder (an option has no box of its own)', expectPresent: 6, maxPresent: 6, expectVisible: 0 },
 		/* BOTH CHIPS CAME BACK. They were absent at the start (unset renders
 		   nothing), so this is not a row that could have passed before the
 		   choice: one on the trigger, one in the menu's meta row. */

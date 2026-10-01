@@ -33,9 +33,9 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, claims }, dep
 	// A vote on the class page re-runs this read (and only this one) when the
 	// winner changes, so the strip and My Classes repaint with the banner.
 	depends('classroom:themes');
-	if (!claims) return { navSections: [], navSectionsReady: false, navThemes: {}, navIsStaff: false, navIsAdmin: false };
+	if (!claims) return { navSections: [], navThemes: {}, navIsStaff: false, navIsAdmin: false };
 
-	const [{ data: profile }, { data: sections, error: sectionsError }, admin] = await Promise.all([
+	const [{ data: profile }, { data: sections }, admin] = await Promise.all([
 		supabase.from('profiles').select('role').eq('id', claims.sub).maybeSingle(),
 		supabase
 			.from('classroom_sections')
@@ -69,14 +69,6 @@ export const load: LayoutServerLoad = async ({ locals: { supabase, claims }, dep
 
 	return {
 		navSections,
-		/*
-		 * WHETHER THAT READ ANSWERED AT ALL, for the one page that renders the
-		 * list as its content: My Classes (`/classroom`) used to run this exact
-		 * select a second time, byte for byte, to learn the same thing (ledger
-		 * 0360, report R08). It reads this list and this flag instead, which is
-		 * one query fewer on every visit to /classroom and no extra hop.
-		 */
-		navSectionsReady: !sectionsError,
 		navThemes,
 		// The domain-derived STAFF marker, which is all this decides: whether the
 		// switcher offers the courses-and-setup door. Every write behind it is

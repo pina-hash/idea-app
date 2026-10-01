@@ -58,45 +58,6 @@
  *                           "check if applicable" box a required tick
  *   image                   a picture is standing for the field
  *
- * AND THE VALUE'S OWN SHAPE IS BELIEVED OVER THE BLOCK'S TYPE (ledger 0360,
- * report 8f78d5bd), in one direction only: ANY stored boolean is an answer on
- * any non-image block, and a non-empty string is an answer on a checkbox too.
- * Nothing between a document and the column checks a value against its block's
- * type -- the bridge accepts `string | boolean` for any field and 0197's gate
- * checks only that the block exists -- so a checkbox that posts its `value`
- * attribute, or a radio group that posts booleans, is STORED and then never
- * counted, and the worksheet can never reach 100% with nothing empty on screen.
- * This only ever WIDENS what counts: an empty string, whitespace and a missing
- * key are still not answers on any type.
- *
- * ---------------------------------------------------------------------------
- * AN OPTIONAL BLOCK IS JUDGED AND NEVER COUNTED (ledger 0360, report 8f78d5bd)
- * ---------------------------------------------------------------------------
- *
- * A block whose manifest entry carries `optional: true` (`hxBlockIsOptional`,
- * the one reader) is judged exactly like the header -- it appears in `blocks`
- * with its `met` -- and it carries ZERO weight, so it is never in the
- * denominator, never `next`, and never the reason a worksheet is not complete.
- * A module's points are spread over its REQUIRED blocks only. The authoring
- * standard told authors to add "one or two optional slots" for extra photos
- * before the manifest had any way to say so, and every such slot held a
- * one-photo student below 100% forever. `hxIncompleteBlocks` skips the same
- * blocks, so the sentence count agrees.
- *
- * ---------------------------------------------------------------------------
- * WORK THE SERVER HAS NOT ACKNOWLEDGED IS NOT FINISHED (ledger 0360, report
- * d983e776)
- * ---------------------------------------------------------------------------
- *
- * The rail reads the answer controller's IN-MEMORY values, which move on every
- * keystroke, while every Missing/Complete surface judges STORED rows. Through
- * the 2026-09-29 database stall that let a rail read 100% over answers the
- * server never received. So the rail may be told which FIELDS are unsaved
- * (`options.unsaved`), and `complete` then also requires that no COUNTED block
- * is among them: `filled` says every counted block holds an answer, `complete`
- * says those answers are stored. While filled and unsaved the number is 99,
- * never 100. `hxCompletion` passes no options, so the server's judgment is
- * byte-identical to what it was.
  * ---------------------------------------------------------------------------
  * THE NUMBER
  * ---------------------------------------------------------------------------
@@ -109,12 +70,7 @@
  * everything is.
  */
 
-import {
-	hxBlockIsOptional,
-	type HtmlAssignmentManifest,
-	type HtmlBlock,
-	type HtmlBlockType
-} from './manifest';
+import type { HtmlAssignmentManifest, HtmlBlock, HtmlBlockType } from './manifest';
 import type { HxImageState } from './bridge';
 import type { SubmissionFileRow } from '$lib/classroom/assignment-spec';
 import {
@@ -167,21 +123,6 @@ export type HxProgressStageKey = (typeof HX_PROGRESS_STAGES)[number]['key'];
 export const HX_PROGRESS_COMPLETE_NOTE =
 	'Every answer is in. That is completeness, not a grade: your teacher still scores the work.';
 
-/**
- * EVERY ANSWER IS FILLED IN AND THE LAST ONES ARE STILL ON THEIR WAY (ledger
- * 0360). Shown in the "next" slot while `filled` and not `complete`, so a
- * student never reads "finished" over an answer the class list cannot see yet.
- */
-export const HX_PROGRESS_SAVING_LINE =
-	'Saving your last answers. This counts as finished once they are saved.';
-
-/**
- * A WRITE HAS FAILED AND STOPPED RETRYING, and the work would otherwise read as
- * done. Says what is true, what it costs, and the two ways out.
- */
-export const HX_PROGRESS_NOT_SAVED_LINE =
-	'Some answers are not saved yet, so this does not count as finished. Press Retry, or keep working and they will be sent again.';
-
 // ---------------------------------------------------------------------------
 // The shapes.
 // ---------------------------------------------------------------------------
@@ -197,20 +138,6 @@ export interface HxProgressBlock {
 	moduleTitle: string | null;
 	/** Its share of the bar. Zero for a block the bar does not count. */
 	weight: number;
-	/** The manifest marks it `optional: true`: judged, never counted. */
-	optional: boolean;
-	/**
-	 * Where it sits among its module's REQUIRED blocks, 1-based, and how many
-	 * there are; and the same among the module's required IMAGE blocks. Zero
-	 * for a header or optional block. What lets the next line name the answer
-	 * rather than only the module ("answer 2 of 2").
-	 */
-	position: number;
-	of: number;
-	photoPosition: number;
-	photosOf: number;
-	/** Its field is among the ones the caller said the server has not acknowledged. */
-	unsaved: boolean;
 	met: boolean;
 	/** Why it is not met, or null when it is. */
 	reason: 'empty' | 'short' | null;
@@ -253,14 +180,6 @@ export interface HxProgress {
 	/** The first unmet counted block in manifest order, or null. */
 	next: HxProgressBlock | null;
 	/** Every counted block is met. False when there is nothing to count. */
-	filled: boolean;
-	/** How many counted blocks are met but not yet acknowledged by the server. */
-	unsavedBlocks: number;
-	/**
-	 * Every counted block is met AND none of them is unsaved. With no
-	 * `options.unsaved` this is exactly `filled`, which is the server's own
-	 * judgment (`hxCompletion` passes none).
-	 */
 	complete: boolean;
 	/** At least one counted block is met. */
 	started: boolean;
@@ -307,22 +226,10 @@ export function hxBlockHasResponse(
 		return !!image && typeof image.url === 'string' && image.url.length > 0;
 	}
 	const value = values[block.field];
-	// THE VALUE'S OWN SHAPE FIRST (see the header): any stored boolean is an
-	// answer, whichever non-image type the manifest declared.
-	if (typeof value === 'boolean') return true;
+	if (block.type === 'checkbox') return typeof value === 'boolean';
 	if (typeof value !== 'string') return false;
 	if (block.type === 'table') return hxTableHasContent(value);
-	// Text, long text, a radio AND a checkbox that posted a string.
 	return value.trim().length > 0;
-}
-
-/** The options `hxProgress` takes beyond the two records. */
-export interface HxProgressOptions {
-	/**
-	 * FIELDS whose latest value the server has not acknowledged yet: dirty,
-	 * in flight, or failed. A counted block among them is not `complete`.
-	 */
-	unsaved?: ReadonlySet<string> | readonly string[];
 }
 
 /** The stage a percent earns. Walked from the top so 100 is `complete` and
@@ -368,11 +275,8 @@ export function hxProgressPaint(percent: number): {
 export function hxProgress(
 	manifest: HtmlAssignmentManifest,
 	values: Readonly<Record<string, string | boolean>>,
-	images: Readonly<Record<string, HxImageState>> = {},
-	options: HxProgressOptions = {}
+	images: Readonly<Record<string, HxImageState>> = {}
 ): HxProgress {
-	const unsaved: ReadonlySet<string> =
-		options.unsaved instanceof Set ? options.unsaved : new Set(options.unsaved ?? []);
 	// The Submit gate's own sentence count, keyed by block id. Called, not
 	// copied: see the header.
 	const short = new Map<string, { need: number; have: number }>();
@@ -381,13 +285,10 @@ export function hxProgress(
 	}
 
 	const modules = manifest.modules ?? [];
-	/** A module's REQUIRED blocks: everything an `optional: true` does not excuse. */
-	const required = (blocks: readonly HtmlBlock[] | undefined) =>
-		(blocks ?? []).filter((b) => !hxBlockIsOptional(b));
 
-	// Points spread evenly over a module's REQUIRED blocks. A module with none
-	// has no per-block weight and contributes nothing.
-	const weighted = modules.some((m) => required(m.blocks).length > 0 && Number(m.points) > 0);
+	// Points spread evenly over a module's blocks. A module with no blocks has
+	// no per-block weight and contributes nothing.
+	const weighted = modules.some((m) => (m.blocks?.length ?? 0) > 0 && Number(m.points) > 0);
 	const basis: HxProgressBasis = weighted ? 'points' : 'count';
 
 	const perBlock = (points: number, count: number): number => {
@@ -401,8 +302,7 @@ export function hxProgress(
 		block: HtmlBlock,
 		moduleId: string | null,
 		moduleTitle: string | null,
-		weight: number,
-		place: { position: number; of: number; photoPosition: number; photosOf: number }
+		weight: number
 	): HxProgressBlock => {
 		const has = hxBlockHasResponse(block, values, images);
 		const gap = short.get(block.id) ?? null;
@@ -415,9 +315,6 @@ export function hxProgress(
 			moduleId,
 			moduleTitle,
 			weight,
-			optional: hxBlockIsOptional(block),
-			...place,
-			unsaved: unsaved.has(block.field),
 			met,
 			reason,
 			need: gap?.need ?? block.minSentences ?? 0,
@@ -425,50 +322,36 @@ export function hxProgress(
 		};
 	};
 
-	const NOWHERE = { position: 0, of: 0, photoPosition: 0, photosOf: 0 };
 	const blocks: HxProgressBlock[] = [];
 	// THE HEADER IS JUDGED AND NOT COUNTED. Under the count basis it still
 	// carries no weight: identity is not work under either rule.
-	for (const block of manifest.header ?? []) blocks.push(judge(block, null, null, 0, NOWHERE));
+	for (const block of manifest.header ?? []) blocks.push(judge(block, null, null, 0));
 
 	const moduleRows: HxProgressModule[] = [];
 	for (const mod of modules) {
 		const list = mod.blocks ?? [];
-		const need = required(list);
-		const photos = need.filter((b) => b.type === 'image');
-		const w = perBlock(mod.points, need.length);
+		const w = perBlock(mod.points, list.length);
 		let earned = 0;
 		let met = 0;
 		for (const block of list) {
-			// AN OPTIONAL BLOCK IS JUDGED WITH ZERO WEIGHT, exactly as the header
-			// is: it shows whether it holds something and never holds the bar back.
-			if (hxBlockIsOptional(block)) {
-				blocks.push(judge(block, mod.id, mod.title, 0, NOWHERE));
-				continue;
-			}
-			const row = judge(block, mod.id, mod.title, w, {
-				position: need.indexOf(block) + 1,
-				of: need.length,
-				photoPosition: block.type === 'image' ? photos.indexOf(block) + 1 : 0,
-				photosOf: block.type === 'image' ? photos.length : 0
-			});
+			const row = judge(block, mod.id, mod.title, w);
 			blocks.push(row);
 			if (row.met) {
 				earned += w;
 				met += 1;
 			}
 		}
-		const weight = w * need.length;
+		const weight = w * list.length;
 		moduleRows.push({
 			id: mod.id,
 			title: mod.title,
 			points: Number(mod.points) || 0,
 			weight,
 			earned,
-			blocks: need.length,
+			blocks: list.length,
 			met,
 			fraction: weight > 0 ? earned / weight : 0,
-			done: weight > 0 && met === need.length
+			done: weight > 0 && met === list.length
 		});
 	}
 
@@ -477,14 +360,10 @@ export function hxProgress(
 	const earned = counted.reduce((sum, b) => sum + (b.met ? b.weight : 0), 0);
 	const metBlocks = counted.filter((b) => b.met).length;
 	const totalBlocks = counted.length;
-	const filled = totalBlocks > 0 && metBlocks === totalBlocks;
-	const unsavedBlocks = counted.filter((b) => b.met && b.unsaved).length;
-	const complete = filled && unsavedBlocks === 0;
+	const complete = totalBlocks > 0 && metBlocks === totalBlocks;
 	const started = metBlocks > 0;
 	const fraction = total > 0 ? earned / total : 0;
 
-	// 100 ONLY WHEN COMPLETE. A filled worksheet still waiting on the server
-	// rounds to 100 and is held at 99 by the same clamp a partial one is.
 	let percent: number;
 	if (!started || total <= 0) percent = 0;
 	else if (complete) percent = 100;
@@ -502,8 +381,6 @@ export function hxProgress(
 		metBlocks,
 		totalBlocks,
 		next: counted.find((b) => !b.met) ?? null,
-		filled,
-		unsavedBlocks,
 		complete,
 		started
 	};
@@ -514,44 +391,21 @@ export function hxProgress(
 // ---------------------------------------------------------------------------
 
 /**
- * "NEXT UP", NAMING THE MODULE, WHICH ANSWER IN IT, AND WHAT IT WANTS. One
- * line, because the blocks themselves are on screen in the worksheet below.
- * Null when nothing is left.
- *
- * THE POSITION IS NAMED WHEN THE MODULE HAS MORE THAN ONE REQUIRED ANSWER
- * (ledger 0360, report 8f78d5bd). A line naming only the module sent a student
- * looking for an empty box in a section whose every visible box was full; the
- * position among the module's REQUIRED answers ("answer 2 of 3", "photo 2 of
- * 2") is what tells them which one the bar is waiting on. A one-answer module
- * says nothing more, because "answer 1 of 1" is noise.
+ * "NEXT UP", NAMING THE MODULE AND WHAT IT WANTS. One line, because the blocks
+ * themselves are on screen in the worksheet below. Null when nothing is left.
  */
 export function hxProgressNextLine(progress: HxProgress): string | null {
 	const next = progress.next;
 	if (!next) return null;
 	const where = next.moduleTitle ? `"${next.moduleTitle}"` : 'the top of the page';
-	if (next.type === 'image') {
-		return next.photosOf > 1
-			? `Next up: ${where} is waiting for photo ${next.photoPosition} of ${next.photosOf}.`
-			: `Next up: ${where} is waiting for a photo.`;
-	}
-	const which = next.of > 1 ? `${where}, answer ${next.position} of ${next.of},` : where;
+	if (next.type === 'image') return `Next up: ${where} is waiting for a photo.`;
 	if (next.reason === 'short') {
 		const left = Math.max(1, next.need - next.have);
-		return `Next up: ${which} needs ${left} more ${left === 1 ? 'sentence' : 'sentences'}.`;
+		return `Next up: ${where} needs ${left} more ${left === 1 ? 'sentence' : 'sentences'}.`;
 	}
-	if (next.type === 'checkbox') return `Next up: ${which} has a box to check.`;
-	if (next.type === 'table') return `Next up: ${which} has an empty table.`;
-	return next.of > 1 ? `Next up: ${which} is empty.` : `Next up: ${where} has an empty answer.`;
-}
-
-/**
- * THE LINE IN THE "NEXT" SLOT WHEN EVERY ANSWER IS IN BUT NOT ALL OF THEM ARE
- * SAVED, or null when that is not the state. `failed` is whether a write has
- * stopped retrying, which only the save machines know.
- */
-export function hxProgressSaveLine(progress: HxProgress, failed: boolean): string | null {
-	if (!progress.filled || progress.complete) return null;
-	return failed ? HX_PROGRESS_NOT_SAVED_LINE : HX_PROGRESS_SAVING_LINE;
+	if (next.type === 'checkbox') return `Next up: ${where} has a box to check.`;
+	if (next.type === 'table') return `Next up: ${where} has an empty table.`;
+	return `Next up: ${where} has an empty answer.`;
 }
 
 /**

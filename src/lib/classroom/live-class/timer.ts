@@ -388,36 +388,6 @@ export function tickEachFrame(
 	};
 }
 
-/**
- * HOW FULL THE WALL'S RING IS, 0 TO 1 (reports R12, R13): the Plate's progress
- * ring drawn as the class timer, with the digits in its middle.
- *
- *   - A COUNTDOWN shows what is LEFT of its length: full when set, draining as
- *     it runs, empty when time is up. A ready countdown is 1; a paused one is
- *     frozen where it stopped, because nothing moves it.
- *   - A STOPWATCH has no end, so its ring sweeps once a minute: the seconds of
- *     the current minute, the way a second hand reads.
- *
- * WHOLE SECONDS, NEVER TENTHS. The digits beside it read tenths (and hundredths
- * at the end), but the ring is an SVG with three blur filters, and redrawing it
- * ten times a second on a six-to-eight-year-old school desktop buys nothing a
- * class can see from the back of the room. Quantised to the second the arc
- * moves once a second, and the value returned between two whole seconds is the
- * same number, so a derived value that only propagates when it CHANGES repaints
- * the ring once a second while the digits keep their own pace. A countdown
- * rounds its remaining time UP to the second, exactly as its digits do, so the
- * arc and the face agree on which second it is.
- */
-export function wallRingValue(t: LiveTimer, now: number): number {
-	if (t.mode === 'stopwatch') {
-		const seconds = Math.floor(timerElapsed(t, now) / 1000);
-		return (seconds % 60) / 60;
-	}
-	if (!(t.durationMs > 0)) return 0;
-	const left = Math.ceil(Math.max(0, timerRemaining(t, now)) / 1000) * 1000;
-	return Math.max(0, Math.min(1, left / t.durationMs));
-}
-
 /** How far past the end a countdown is, as "0:32", or null while it has time left. */
 export function timerOvertime(t: LiveTimer, now: number): string | null {
 	if (t.mode !== 'countdown') return null;

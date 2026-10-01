@@ -196,19 +196,6 @@
 	 * where the choice is stored did not, and decision 04 says so in as many
 	 * words -- reversing that rule would be its own decision.
 	 */
-	/**
-	 * THE COLUMN CEILING, RAISED FROM FIVE TO EIGHT (ledger 0360, report
-	 * 162057f0). Five 15rem columns is 78rem, which was enough while the page
-	 * was capped at 92rem; with the room's measure at the window, a 2560px
-	 * monitor's list pane is about 156rem and five columns would be five
-	 * 30rem cards. Eight keeps a card near 19rem there. Each step from two up
-	 * has its own fill value and its own container query below, at
-	 * `c * 15 + (c - 1) * 0.75` rem, which is the arithmetic multicol itself
-	 * cuts columns with.
-	 */
-	const FOUNDRY_MOSAIC_MAX_COLUMNS = 8;
-	const FOUNDRY_MOSAIC_FILL_STEPS = [2, 3, 4, 5, 6, 7, 8] as const;
-
 	let sort = $state<FoundryGallerySort>(FOUNDRY_GALLERY_DEFAULT_SORT);
 
 	/**
@@ -267,7 +254,7 @@
 	 * nothing in a stylesheet could ever have set it, so nothing in a stylesheet
 	 * is being overridden.
 	 */
-	const mosaicColumns = $derived(foundryMosaicColumns(ordered.length, FOUNDRY_MOSAIC_MAX_COLUMNS));
+	const mosaicColumns = $derived(foundryMosaicColumns(ordered.length, 5));
 
 	/**
 	 * AND THE COLUMNS A BALANCED MOSAIC WILL ACTUALLY FILL AT EACH WIDTH, which
@@ -280,11 +267,7 @@
 	 */
 	const mosaicStyle = $derived(
 		[`--fdy-cols: ${mosaicColumns}`]
-			.concat(
-				FOUNDRY_MOSAIC_FILL_STEPS.map(
-					(c) => `--fdy-fill-${c}: ${foundryMosaicFill(ordered.length, c)}`
-				)
-			)
+			.concat([2, 3, 4, 5].map((c) => `--fdy-fill-${c}: ${foundryMosaicFill(ordered.length, c)}`))
 			.join('; ')
 	);
 </script>
@@ -303,13 +286,7 @@
 					of apps, which the old link (inside the empty-state branch only)
 					was not.
 				-->
-				<span class="fdy-gal-links">
-					<!-- THE REQUEST BOARD'S SECOND DOOR (report b2ba6d74), beside the
-					     list, for somebody who looked here and did not find the game
-					     they wanted. The shell's Requests tab is the first. -->
-					<a class="fdy-gal-contract tap-44" href="/foundry/requests">Request a game</a>
-					<a class="fdy-gal-contract tap-44" href="/foundry/contract">Build contract</a>
-				</span>
+				<a class="fdy-gal-contract tap-44" href="/foundry/contract">Build contract</a>
 			</header>
 
 			<!--
@@ -637,15 +614,7 @@
 		font-size: 1.25rem;
 	}
 
-	.fdy-gal-links {
-		display: inline-flex;
-		flex-wrap: wrap;
-		gap: 0 var(--space-4, 1rem);
-	}
-
 	.fdy-gal-contract {
-		display: inline-flex;
-		align-items: center;
 		font-family: var(--font-mono);
 		font-size: 0.8rem;
 		color: var(--text-2, var(--dim));
@@ -820,24 +789,6 @@
 	@container fdy-gal (min-width: 78rem) {
 		.fdy-gal-mosaic {
 			column-count: var(--fdy-fill-5, var(--fdy-cols, 1));
-		}
-	}
-
-	@container fdy-gal (min-width: 93.75rem) {
-		.fdy-gal-mosaic {
-			column-count: var(--fdy-fill-6, var(--fdy-cols, 1));
-		}
-	}
-
-	@container fdy-gal (min-width: 109.5rem) {
-		.fdy-gal-mosaic {
-			column-count: var(--fdy-fill-7, var(--fdy-cols, 1));
-		}
-	}
-
-	@container fdy-gal (min-width: 125.25rem) {
-		.fdy-gal-mosaic {
-			column-count: var(--fdy-fill-8, var(--fdy-cols, 1));
 		}
 	}
 

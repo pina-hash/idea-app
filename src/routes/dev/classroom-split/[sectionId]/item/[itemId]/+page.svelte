@@ -10,7 +10,6 @@
 	import { harnessManage } from '../../+layout.svelte';
 	import { ALT_REFERENCE_ID, CHECK_INS, DECK, REFERENCE, REFERENCE_ALT } from '../../../fixture';
 	import type { PageData } from './$types';
-	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
 
 	/**
 	 * The REAL ItemDetail in the detail pane, reading `section` from the layout's
@@ -93,10 +92,6 @@
 	};
 
 	const isMaterial = $derived(data.item.kind === 'material');
-
-	/** The item page's panel layout, from the store the layout provides, as the real route reads it. */
-	const prefStore = classroomPreferences();
-	const prefs = prefStore ? reactivePreferences(prefStore) : null;
 </script>
 
 <ItemDetail
@@ -113,5 +108,4 @@
 	checkIns={manage ? checkInsForItem(CHECK_INS['s-1'] ?? [], data.item.id) : []}
 	checkInTransports={manage ? checkInTransports : null}
 	gradeHref={manage ? `/dev/classroom-split/s-1/item/${data.item.id}/grade` : null}
-	panelLayout={prefs?.current.panels.itemPage ?? null}
 />

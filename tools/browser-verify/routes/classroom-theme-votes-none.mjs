@@ -23,11 +23,7 @@ export default {
 		{ selector: '.class-card.themed', label: 'a themed card (none)', expectPresent: 0 },
 		{ selector: '.class-card', label: 'the three plain cards (positive control)', expectPresent: 3, maxPresent: 3, expectVisible: 3 },
 		{ selector: '.class-card[style]', label: 'a card with a style attribute (none)', expectPresent: 0 },
-		/* The panel's root is boxless inside the class header's key row (ledger
-		   0360), so its presence is counted here and the visible key is its
-		   trigger. */
-		{ selector: '[data-testid="class-theme-panel"]', label: 'the vote is still offered (a boxless root)', expectPresent: 1, maxPresent: 1, expectVisible: 0 },
-		{ selector: '[data-testid="class-theme-toggle"]', label: 'the vote’s trigger, a visible key', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
+		{ selector: '[data-testid="class-theme-panel"]', label: 'the vote is still offered', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	textContains: [{ selector: '[data-testid="class-theme-words"]', label: 'the panel says nothing is chosen', must: ['Not chosen yet'] }]
 };

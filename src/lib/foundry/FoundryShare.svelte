@@ -150,13 +150,6 @@
 {/if}
 
 <style>
-	/* /foundry/mine hands this its `fdy-block`, which the site plate draws as a
-	   panel; a panel's content sits off its edges (ledger 0360). The gallery's
-	   section is not boxed and keeps its own rhythm. */
-	section.fdy-block {
-		padding: 1.25rem;
-	}
-
 	.fdy-share-note {
 		margin: 0;
 		font-family: var(--font-mono);

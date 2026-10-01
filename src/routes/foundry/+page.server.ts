@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { foundryClosureBlocks, foundrySiteOff } from '$lib/foundry/access';
+import { foundryClosureBlocks } from '$lib/foundry/access';
 import { foundryPlayCountMap, type FoundryPlayCountRow } from '$lib/foundry/telemetry';
 import type { FoundryApp, FoundryAppSummary } from '$lib/foundry/transports';
 import type { PageServerLoad } from './$types';
@@ -45,13 +45,7 @@ import type { PageServerLoad } from './$types';
  */
 export const load: PageServerLoad = async ({ locals, url, parent }) => {
 	const { foundryAccess } = await parent();
-	// THE WHOLE-FOUNDRY SWITCH (ledger 0360) withholds the payload the same way
-	// the class gate does: the layout renders its panel in place of this page,
-	// and the page is not sent everybody's apps to be asked not to show them.
-	if (
-		foundrySiteOff(foundryAccess) ||
-		(foundryAccess && foundryAccess.open === false && foundryClosureBlocks('gallery'))
-	) {
+	if (foundryAccess && foundryAccess.open === false && foundryClosureBlocks('gallery')) {
 		return { apps: [] as FoundryAppSummary[], selected: null, playCounts: {}, playCountsKnown: true };
 	}
 

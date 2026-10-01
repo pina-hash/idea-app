@@ -12,7 +12,6 @@
 		appForRouteId,
 		captureMeta,
 		contextOf,
-		feedbackConsoleHref,
 		feedbackExclusion,
 		REPORT_LABEL,
 		type BuildStamp
@@ -73,7 +72,6 @@
 		errorId = null,
 		label = REPORT_LABEL,
 		dictation = undefined,
-		consoleHref = undefined,
 		now = () => Date.now()
 	}: {
 		routeId: string | null;
@@ -137,16 +135,6 @@
 		/** Handed straight to the box: a stand-in speech constructor for a
 		 * harness, `null` to refuse dictation, `undefined` to ask the browser. */
 		dictation?: import('./dictation').SpeechRecognitionCtor | null;
-		/**
-		 * THE CONSOLE LINK IN THE BOX'S HEADER (report R15). `undefined`, what
-		 * every real mount passes, DERIVES it: an admin gets
-		 * `FEEDBACK_CONSOLE_PATH` anywhere but the console itself, from the
-		 * `isAdmin` the root layout already puts in `page.data`, so no mount
-		 * site threads anything and the classroom header's docked control gets
-		 * it with no edit. `null` refuses it; a string is used as given, which
-		 * is how a harness shows the admin arrangement with no session.
-		 */
-		consoleHref?: string | null;
 		/** Injectable clock, so a harness can pin the captured timestamp. */
 		now?: () => number;
 	} = $props();
@@ -167,12 +155,6 @@
 	);
 	const viewer = $derived(
 		userId ?? ((page.data as { claims?: { sub?: string } })?.claims?.sub ?? null)
-	);
-
-	const consoleLink = $derived(
-		consoleHref !== undefined
-			? consoleHref
-			: feedbackConsoleHref((page.data as { isAdmin?: unknown })?.isAdmin, pathname)
 	);
 
 	let open = $state(false);
@@ -422,8 +404,6 @@
 			uploadScreenshot={attach}
 			screenshotNote={attachNote}
 			{dictation}
-			offerHorizon
-			consoleHref={consoleLink}
 			onClose={() => (open = false)}
 			title={status === null ? REPORT_LABEL : `Report this ${status}`}
 			note={noteFor}

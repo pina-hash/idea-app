@@ -92,16 +92,6 @@
  * page costs one socket channel rather than two. Reference-counted, so the
  * channel is left the moment the last listener goes.
  *
- * `quick-posts` IS THE FIFTH, AND IT IS THE SHUT-TABLE CASE ONCE MORE (ledger
- * 0360, 0230). Both quick-post tables are RLS-on with no policy and no client
- * grant, so no row event could reach anybody, and the notice is the same
- * payload-free "re-ask the server". The teacher's page announces to every
- * class the notice went to (or came down from); each page that hears it
- * re-reads after a RANDOM wait of up to eight seconds, so a class of
- * twenty-one does not ask in the same second. The poll under it is ten
- * minutes, and an expiry needs no notice at all: each page hides a notice at
- * its end from the end it already holds.
- *
  * `createMemoryClassroomLive` is the in-memory twin for harnesses and tests:
  * an announce reaches every OTHER subscriber synchronously, and nothing here
  * touches the network. It is a real implementation of the interface, not a
@@ -109,14 +99,13 @@
  */
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 
-export type ClassroomLiveTopic = 'hall-pass' | 'song-queue' | 'responses' | 'presence' | 'quick-posts';
+export type ClassroomLiveTopic = 'hall-pass' | 'song-queue' | 'responses' | 'presence';
 
 export const CLASSROOM_LIVE_TOPICS: readonly ClassroomLiveTopic[] = [
 	'hall-pass',
 	'song-queue',
 	'responses',
-	'presence',
-	'quick-posts'
+	'presence'
 ];
 
 /**

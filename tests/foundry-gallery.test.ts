@@ -547,49 +547,6 @@ describe('the frame cancels nothing', () => {
 	});
 });
 
-/* --------------------------- ledger 0360, report 94e312c4: fewer steps */
-
-describe('the play view puts the stage first and the cover on it', () => {
-	const COVERED = app({
-		id: 'a',
-		slug: 'tide-clock',
-		title: 'Tide Clock',
-		cover_path: '00000000-0000-4000-8000-000000000001/cover.png'
-	});
-
-	it('renders the stage before the share link and the build notes', () => {
-		const html = galleryHtml({ selected: COVERED });
-		const stage = html.indexOf('class="fdy-stage');
-		const notes = html.indexOf('How this was built');
-		expect(stage).toBeGreaterThan(-1);
-		expect(notes).toBeGreaterThan(stage);
-		expect(html).toContain('Launch full screen');
-	});
-
-	it('draws the cover ON the stage and no standalone cover above it', () => {
-		const html = galleryHtml({ selected: COVERED });
-		expect(html.match(/class="fdy-stage-poster[\s"]/g) ?? []).toHaveLength(1);
-		expect(html).toContain(`src="${COVERED.cover_path}"`);
-		// The block that used to push Launch below the fold is gone.
-		expect(html.match(/class="fdy-cover[\s"]/g) ?? []).toHaveLength(0);
-	});
-
-	it('POSITIVE CONTROL: with nothing published, the cover is the standalone block again', () => {
-		const html = galleryHtml({ selected: { ...COVERED, published_version_id: null } });
-		expect(html.match(/class="fdy-cover[\s"]/g) ?? []).toHaveLength(1);
-		expect(html.match(/class="fdy-stage-poster[\s"]/g) ?? []).toHaveLength(0);
-		expect(html).toContain('Nothing is published for this app yet.');
-	});
-
-	it('gives the review queue the same arrangement, because it is the same file', () => {
-		const html = render(FoundryDetail, {
-			props: { app: { ...COVERED, versions: [version({ id: 'v-2', status: 'submitted' })] }, versionId: 'v-2' }
-		}).body;
-		expect(html.match(/class="fdy-stage-poster[\s"]/g) ?? []).toHaveLength(1);
-		expect(html.match(/class="fdy-cover[\s"]/g) ?? []).toHaveLength(0);
-	});
-});
-
 /* ------------------------------------------------------- the cover thumbnail */
 
 describe('a coverless tile renders its own deliberate state', () => {

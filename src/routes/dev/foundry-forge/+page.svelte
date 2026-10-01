@@ -10,8 +10,6 @@
 	 * a hidden app to its owner -- the payload SHAPE allows it, and the surface
 	 * has to render it honestly if it ever arrives.
 	 */
-	import { onMount } from 'svelte';
-	import { page } from '$app/state';
 	import '$lib/foundry/forge.css';
 	import ForgeStatus from '$lib/foundry/ForgeStatus.svelte';
 	import FoundryMine from '$lib/foundry/FoundryMine.svelte';
@@ -20,29 +18,6 @@
 	import type { FoundryApp, FoundryAppSummary, FoundryVersion } from '$lib/foundry/transports';
 
 	const now = new Date('2026-08-24T12:00:00Z');
-
-	/* `?theme=space-white`: THE FORGE'S LIGHT TWIN (ledger 0360), forced the
-	   classroom-teams harness's way. No session here, so ThemeRoot decides
-	   "none", and `/foundry` is not in Space White's route scope on this tree;
-	   writing the attribute is how the twin in `forge.css` is measured before
-	   anything turns it on. Re-written once after ThemeRoot's first effect,
-	   removed on teardown. `data-forge-hydrated` is what a spec waits on. */
-	const themeParam = page.url.searchParams.get('theme');
-	$effect(() => {
-		if (themeParam !== 'space-white') return;
-		const el = document.documentElement;
-		const apply = () => el.setAttribute('data-theme', 'space-white');
-		apply();
-		const t = setTimeout(apply, 0);
-		return () => {
-			clearTimeout(t);
-			el.removeAttribute('data-theme');
-		};
-	});
-	let hydrated = $state(false);
-	onMount(() => {
-		hydrated = true;
-	});
 
 	function version(
 		id: string,
@@ -175,7 +150,7 @@
 
 <svelte:head><title>Forge identity harness</title></svelte:head>
 
-<div class="fg-root harness" data-forge-hydrated={hydrated ? 'true' : undefined}>
+<div class="fg-root harness">
 	<!-- The shell as an ADMIN sees it: Review tab present, count hot. -->
 	<FoundryShell active="mine" isAdmin={true} reviewPending={3}>
 		<div class="h-body">

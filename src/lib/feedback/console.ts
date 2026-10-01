@@ -12,12 +12,7 @@
  */
 import { sectionById } from '$lib/curriculum';
 import { summarizeUserAgent } from './context';
-import {
-	isFeedbackHorizon,
-	type FeedbackHorizon,
-	type FeedbackRow,
-	type FeedbackStatus
-} from './feedback';
+import type { FeedbackRow, FeedbackStatus } from './feedback';
 
 /** Read a string off the free-form meta blob without trusting its shape. */
 function metaString(row: FeedbackRow, key: string): string | null {
@@ -164,46 +159,6 @@ export function rowTried(row: FeedbackRow): string | null {
 }
 
 /**
- * WHEN THIS REPORT IS FOR, from wherever this row carries it (0230).
- *
- * THE COLUMN WINS WHENEVER IT HOLDS ONE OF THE TWO VALUES, because it is the
- * only place an admin's switch (`app_feedback_set_horizon`) can write: reading
- * `meta` first would mean a report moved back to "fix soon" kept reading as
- * long-term for ever. THE BLOB IS THE FALLBACK, for the same reason
- * `rowTried`'s is: a row the signed-in client wrote against a backend before
- * 0230 carries the choice in `meta.horizon`, which the console must show
- * until the apply-time backfill lifts it. Anything else is `now`, the
- * column's own default.
- */
-export function rowHorizon(row: FeedbackRow): FeedbackHorizon {
-	const column = typeof row.horizon === 'string' ? row.horizon.trim() : '';
-	if (isFeedbackHorizon(column)) return column;
-	return metaString(row, 'horizon') === 'long_term' ? 'long_term' : 'now';
-}
-
-/** The one spelling of a horizon in an export line: `now` or `long-term`. */
-export function feedbackHorizonWord(horizon: FeedbackHorizon): string {
-	return horizon === 'long_term' ? 'long-term' : 'now';
-}
-
-/**
- * THE QUEUE, SPLIT IN TWO, in the order it came. The console's "Both" view and
- * the archive's README read it, so "which reports are long-term ideas" has one
- * answer, and `horizonOf` is handed in for the same reason `filterFeedback`'s
- * `statusOf` is: an optimistic switch must move a row between the lists before
- * the page reloads.
- */
-export function splitByHorizon(
-	rows: FeedbackRow[],
-	horizonOf: (row: FeedbackRow) => FeedbackHorizon = rowHorizon
-): { now: FeedbackRow[]; longTerm: FeedbackRow[] } {
-	const now: FeedbackRow[] = [];
-	const longTerm: FeedbackRow[] = [];
-	for (const row of rows) (horizonOf(row) === 'long_term' ? longTerm : now).push(row);
-	return { now, longTerm };
-}
-
-/**
  * The KEY of this row's screenshot, or null. NEVER A URL: the object lives in a
  * private bucket and a key resolves to nothing on its own. The console renders
  * it through a short-lived signed URL minted server-side as the admin, so the
@@ -252,10 +207,7 @@ const KNOWN_META_KEYS = new Set([
 	// `tried` IS READ BY A NAMED ACCESSOR (`rowTried`) whenever it is in the
 	// blob rather than the column, so leaving it out of this set would print the
 	// same sentence twice -- once as the field and once as an anonymous extra.
-	'tried',
-	// `horizon` IS READ BY `rowHorizon` for the same reason, whenever a client
-	// wrote it into the blob against a backend before 0230.
-	'horizon'
+	'tried'
 ]);
 
 /** A meta value worth a line in the generic pass: a non-empty primitive. */
@@ -345,13 +297,6 @@ export interface FeedbackFilter {
 	kind: string;
 	/** Whether the row carries a screenshot key, or '' for any. */
 	shot: FeedbackShotFacet;
-	/**
-	 * `now`, `long_term`, or '' for both (0230). The console OPENS on `now`, so
-	 * a round's triage works from what is due soon and a long-term idea is one
-	 * press away rather than in the way; the empty filter keeps '' so an
-	 * export with no horizon chosen says nothing about one.
-	 */
-	horizon: '' | FeedbackHorizon;
 	/** Inclusive YYYY-MM-DD bounds, or '' for open. */
 	from: string;
 	to: string;
@@ -364,7 +309,6 @@ export const EMPTY_FEEDBACK_FILTER: FeedbackFilter = {
 	section: '',
 	kind: '',
 	shot: '',
-	horizon: '',
 	from: '',
 	to: ''
 };
@@ -378,8 +322,7 @@ export const EMPTY_FEEDBACK_FILTER: FeedbackFilter = {
 export function filterFeedback(
 	rows: FeedbackRow[],
 	filter: FeedbackFilter,
-	statusOf: (row: FeedbackRow) => FeedbackStatus = (row) => row.status,
-	horizonOf: (row: FeedbackRow) => FeedbackHorizon = rowHorizon
+	statusOf: (row: FeedbackRow) => FeedbackStatus = (row) => row.status
 ): FeedbackRow[] {
 	const route = filter.route.trim().toLowerCase();
 	const role = filter.role.trim();
@@ -387,9 +330,6 @@ export function filterFeedback(
 	const kind = filter.kind.trim();
 	return rows.filter((row) => {
 		if (filter.status !== 'all' && statusOf(row) !== filter.status) return false;
-		// A filter built before 0230 has no `horizon` key at all, so a missing
-		// key reads as both, exactly as '' does.
-		if (filter.horizon && horizonOf(row) !== filter.horizon) return false;
 		if (route) {
 			const haystack = `${rowRoute(row)} ${rowPath(row) ?? ''}`.toLowerCase();
 			if (!haystack.includes(route)) return false;
@@ -685,17 +625,7 @@ function oneRow(
 	}
 	lines.push('');
 
-	// THE HORIZON IS PRINTED ON EVERY REPORT, `now` included. A round reads a
-	// bundle or an archive to decide what to build this week, and a line that
-	// appeared only on long-term reports would leave every other report silent
-	// about whether it was one -- an absence a reader cannot tell from a field
-	// this build never captured.
-	const facts: string[] = [
-		`app: ${row.app}`,
-		`status: ${row.status}`,
-		`horizon: ${feedbackHorizonWord(rowHorizon(row))}`,
-		`filed: ${row.created_at}`
-	];
+	const facts: string[] = [`app: ${row.app}`, `status: ${row.status}`, `filed: ${row.created_at}`];
 	const path = rowDistinctPath(row);
 	if (path) facts.push(`path: ${path}`);
 	const role = rowRole(row);
@@ -802,7 +732,6 @@ export function feedbackMarkdown(
 	if (filter.shot) {
 		facets.push(filter.shot === 'with' ? 'with a screenshot' : 'without a screenshot');
 	}
-	if (filter.horizon) facets.push(`horizon: ${feedbackHorizonWord(filter.horizon)}`);
 	if (filter.from) facets.push(`from ${filter.from}`);
 	if (filter.to) facets.push(`to ${filter.to}`);
 

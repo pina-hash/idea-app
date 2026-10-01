@@ -33,25 +33,12 @@ const exists = (p: string) => existsSync(new URL(p, ROOT));
 
 type Who = 'admin' | 'student' | 'broken' | null;
 
-/**
- * What the two admin_list arities answer. `wide` is 0230's three-argument form:
- * an array of rows, or `'missing'` for a backend before 0230 (PGRST202), or
- * `'broken'` for any other failure.
- */
-interface Queue {
-	narrow?: unknown[];
-	wide?: unknown[] | 'missing' | 'broken';
-}
-
-function stubSupabase(who: Who, queue: Queue = {}) {
+function stubSupabase(who: Who) {
 	const reads: string[] = [];
-	const args: unknown[] = [];
 	return {
 		reads,
-		args,
-		rpc(fn: string, params?: unknown) {
+		rpc(fn: string) {
 			reads.push(`rpc:${fn}`);
-			args.push(params);
 			if (fn === 'is_admin') {
 				if (who === 'broken') {
 					return Promise.resolve({ data: null, error: { code: '57014', message: 'timeout' } });
@@ -60,18 +47,7 @@ function stubSupabase(who: Who, queue: Queue = {}) {
 			}
 			if (fn === 'app_feedback_admin_list') {
 				if (who !== 'admin') throw new Error('the queue was read for a non-admin');
-				const p = params as { p_horizon?: unknown } | undefined;
-				if (p && 'p_horizon' in p) {
-					const wide = queue.wide ?? [];
-					if (wide === 'missing') {
-						return Promise.resolve({ data: null, error: { code: 'PGRST202', message: 'no function' } });
-					}
-					if (wide === 'broken') {
-						return Promise.resolve({ data: null, error: { code: '57014', message: 'timeout' } });
-					}
-					return Promise.resolve({ data: wide, error: null });
-				}
-				return Promise.resolve({ data: queue.narrow ?? [], error: null });
+				return Promise.resolve({ data: [], error: null });
 			}
 			throw new Error(`unexpected rpc: ${fn}`);
 		},
@@ -86,13 +62,8 @@ type Outcome =
 	| { kind: 'error'; status: number }
 	| { kind: 'returned'; data: unknown };
 
-async function drive(
-	load: unknown,
-	path: string,
-	who: Who,
-	queue: Queue = {}
-): Promise<{ outcome: Outcome; reads: string[]; args: unknown[] }> {
-	const supabase = stubSupabase(who, queue);
+async function drive(load: unknown, path: string, who: Who): Promise<{ outcome: Outcome; reads: string[] }> {
+	const supabase = stubSupabase(who);
 	const event = {
 		url: new URL(`http://localhost${path}`),
 		params: {},
@@ -103,70 +74,23 @@ async function drive(
 	};
 	try {
 		const data = await (load as (e: unknown) => Promise<unknown>)(event);
-		return { outcome: { kind: 'returned', data }, reads: supabase.reads, args: supabase.args };
+		return { outcome: { kind: 'returned', data }, reads: supabase.reads };
 	} catch (e) {
-		const done = { reads: supabase.reads, args: supabase.args };
-		if (isRedirect(e)) return { outcome: { kind: 'redirect', status: e.status, location: e.location }, ...done };
-		if (isHttpError(e)) return { outcome: { kind: 'error', status: e.status }, ...done };
+		if (isRedirect(e)) return { outcome: { kind: 'redirect', status: e.status, location: e.location }, reads: supabase.reads };
+		if (isHttpError(e)) return { outcome: { kind: 'error', status: e.status }, reads: supabase.reads };
 		throw e;
 	}
 }
 
 describe('the console at /admin/feedback', () => {
-	it('an admin reaches it, and the queue is read: the newest reports, then the long-term ideas', async () => {
-		const { outcome, reads, args } = await drive(consoleLoad, '/admin/feedback', 'admin');
+	it('an admin reaches it, and the queue is read', async () => {
+		const { outcome, reads } = await drive(consoleLoad, '/admin/feedback', 'admin');
 		expect(outcome.kind).toBe('returned');
 		expect((outcome as { data: { ready: boolean; rows: unknown[] } }).data).toMatchObject({
 			ready: true,
-			rows: [],
-			horizonReady: true
+			rows: []
 		});
-		// TWO READS OF THE QUEUE SINCE 0230: the narrow form with no arguments,
-		// exactly as before, then the wide form asking for long-term ideas only,
-		// so an old idea cannot fall off the newest-200 window.
-		expect(reads).toEqual([
-			'rpc:is_admin',
-			'rpc:app_feedback_admin_list',
-			'rpc:app_feedback_admin_list'
-		]);
-		expect(args[1]).toBeUndefined();
-		expect(args[2]).toEqual({ p_app: null, p_limit: 500, p_horizon: 'long_term' });
-	});
-
-	const r = (id: string, created_at: string, horizon?: string) => ({
-		id,
-		created_at,
-		status: 'new',
-		meta: {},
-		...(horizon ? { horizon } : {})
-	});
-
-	it('merges an old long-term idea the newest-200 read never reached, by id, newest first', async () => {
-		const narrow = [r('b', '2026-09-30T10:00:00Z'), r('a', '2026-09-29T10:00:00Z', 'long_term')];
-		// `a` comes back from BOTH reads and must appear once; `old` only from the wide one.
-		const wide = [r('a', '2026-09-29T10:00:00Z', 'long_term'), r('old', '2026-03-01T10:00:00Z', 'long_term')];
-		const { outcome } = await drive(consoleLoad, '/admin/feedback', 'admin', { narrow, wide });
-		const data = (outcome as { data: { rows: { id: string }[]; horizonReady: boolean } }).data;
-		expect(data.rows.map((x) => x.id)).toEqual(['b', 'a', 'old']);
-		expect(data.horizonReady).toBe(true);
-	});
-
-	it('a backend before 0230 (PGRST202) keeps the first list and offers no move control', async () => {
-		const narrow = [r('b', '2026-09-30T10:00:00Z')];
-		const { outcome } = await drive(consoleLoad, '/admin/feedback', 'admin', { narrow, wide: 'missing' });
-		const data = (outcome as { data: { ready: boolean; rows: { id: string }[]; horizonReady: boolean } }).data;
-		expect(data.ready).toBe(true);
-		expect(data.rows.map((x) => x.id)).toEqual(['b']);
-		expect(data.horizonReady).toBe(false);
-	});
-
-	it('any other failure of the wide read keeps the first list too, and never fails the page', async () => {
-		const narrow = [r('b', '2026-09-30T10:00:00Z')];
-		const { outcome } = await drive(consoleLoad, '/admin/feedback', 'admin', { narrow, wide: 'broken' });
-		const data = (outcome as { data: { ready: boolean; rows: { id: string }[]; horizonReady: boolean } }).data;
-		expect(data.ready).toBe(true);
-		expect(data.rows.map((x) => x.id)).toEqual(['b']);
-		expect(data.horizonReady).toBe(false);
+		expect(reads).toEqual(['rpc:is_admin', 'rpc:app_feedback_admin_list']);
 	});
 
 	it('a signed-in non-admin gets a 404, and the queue is never read', async () => {
@@ -226,12 +150,6 @@ describe('the console is a site page now, not a classroom one', () => {
 		// excluded (the classroom docks the control in its header), this is not.
 		expect(feedbackExclusion('/classroom/[sectionId]')?.id).toBe('classroom');
 		expect(feedbackExclusion('/admin/feedback')).toBeNull();
-	});
-
-	it('hands the console the horizon switch only when the load proved 0230 is there', () => {
-		const page = read('src/routes/admin/feedback/+page.svelte');
-		expect(page).toContain("rpc('app_feedback_set_horizon'");
-		expect(page).toContain('setHorizon={data.horizonReady ? setHorizon : undefined}');
 	});
 
 	it('mounts the portal header, not the classroom shell', () => {

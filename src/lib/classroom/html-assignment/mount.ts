@@ -26,18 +26,11 @@
  * of them may throw, and none of them may answer outside its union.
  */
 
-import {
-	fieldBlockMap,
-	hxBlockLinkKind,
-	hxBlockPrompt,
-	type HtmlAssignmentManifest,
-	type HtmlLinkKind
-} from '$lib/classroom/html-assignment/manifest';
+import { fieldBlockMap, type HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 // The go-live condition is the classroom's, not this module's. A second
 // spelling of it here would be a sentence that disagrees with the gate.
 import { isScheduled } from '$lib/classroom/classroom';
 import type { HxImageState } from '$lib/classroom/html-assignment/bridge';
-import type { HxSaveStatus } from '$lib/classroom/html-assignment/answers';
 
 /**
  * The value `classroom_items.assignment_schema_version` carries for a ported
@@ -280,13 +273,6 @@ export interface HtmlAssignmentAnswers {
 	readonly images: Record<string, HxImageState>;
 	/** The last acknowledgement to hand down, or null for none yet. */
 	readonly saved: { at: string; ok: boolean; reason?: string | null } | null;
-	/**
-	 * THE SAVE STATUS THE RAIL SHOWS (ledger 0360): which fields the server has
-	 * not acknowledged, the worst machine and its Retry, and the restore notice.
-	 * Optional so a controller that never had one (the instructor's working copy,
-	 * a harness) renders the rail exactly as before.
-	 */
-	readonly status?: HxSaveStatus | null;
 	/*
 		NAMED AFTER THE CONTROLLER, NOT AFTER THE FRAME'S CALLBACKS, and the two
 		were briefly spelled differently.
@@ -362,24 +348,11 @@ export interface HtmlAssignmentAnswers {
 export interface HtmlAnswerCell {
 	/** The permanent join key, for a grader who needs to say which block. */
 	blockId: string;
-	/** The document author's own name for the input. Printed as the question
-	    whenever the block declares no `prompt`, rather than a prettified guess. */
+	/** The document author's own name for the input. The only label a manifest
+	    carries -- `HtmlBlock` has `id`, `field`, `type` and `minSentences` and no
+	    human title -- so it is what is printed, rather than a prettified guess. */
 	field: string;
 	type: string;
-	/**
-	 * THE QUESTION AS A GRADER READS IT, from the block's optional `prompt`
-	 * display key (ledger 0360), or null when none is declared. Read through
-	 * `hxBlockPrompt`, so a malformed value is null here exactly as it is
-	 * everywhere else; a caller prints `prompt ?? field`.
-	 */
-	prompt: string | null;
-	/**
-	 * THE LINK KIND THE BLOCK DECLARES (`link: "presentation"` on a text block),
-	 * or null. Through `hxBlockLinkKind`, which answers null on any block that is
-	 * not `text`, so the grading surfaces cannot disagree about which answers are
-	 * share links.
-	 */
-	link: HtmlLinkKind | null;
 	/**
 	 * WHAT THE STUDENT PUT THERE, or null for a block they left alone. A checkbox
 	 * or radio arrives as a boolean and is rendered as a word by the caller; a
@@ -422,12 +395,6 @@ export function htmlAnswerSheet(
 		blockId: b.id,
 		field: b.field,
 		type: b.type,
-		// THE TWO DISPLAY KEYS ARE READ HERE AND NOWHERE ELSE on the grading
-		// path: every surface that names a question or recognises a link hand-in
-		// (the answers list, the Q&A view, the CSV, presentation mode) reads them
-		// off this cell.
-		prompt: hxBlockPrompt(b),
-		link: hxBlockLinkKind(b),
 		value: Object.prototype.hasOwnProperty.call(values, b.field) ? values[b.field] : null,
 		image: images[b.field] ?? null
 	});

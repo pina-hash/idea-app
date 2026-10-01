@@ -34,7 +34,7 @@
 		versionId = null,
 		transports = {},
 		coverUrl = (path: string) => path,
-		frameHeight = '75dvh',
+		frameHeight = '70vh',
 		runningLabel = '',
 		/**
 		 * THE APPS ORIGIN, READ ONCE HERE AND HANDED DOWN.
@@ -119,18 +119,28 @@
 		{/if}
 	</header>
 
-	<!--
-		THE STAGE COMES STRAIGHT AFTER THE HEADING, AND IT CARRIES THE COVER
-		(ledger 0360, report 94e312c4). The cover used to be its own block up to
-		18rem tall above the stage, which put Launch below the fold on a laptop;
-		now the cover is the stage's idle face with the keys on it, so a student
-		goes from the gallery to a full-screen game in two presses: the card,
-		then "Launch full screen". The review queue mounts this same file, so it
-		gets the same arrangement, which is the point of one render path.
+	{#if cover}
+		<!--
+			`scale-down`, never `cover`: a cropped-to-fill preview hides the
+			cut-off edge, and the whole reason a cover exists is to show what the
+			app looks like. It is not plain `contain` either -- that enlarges a
+			cover smaller than this box, which is the upscaled-and-blurry failure
+			mode; `scale-down` renders it at its own native sharpness with
+			letterboxing around it instead. The alt text is the title because the
+			image IS the app's own screenshot; a second description would be
+			invented here.
+		-->
+		<img
+			class="fdy-cover"
+			src={cover}
+			alt={app.title}
+			loading="lazy"
+			onerror={foundryCoverFailed}
+		/>
+	{:else if coverBad}
+		<span class="fdy-cover fg-cover-bad" aria-hidden="true"></span>
+	{/if}
 
-		THE STANDALONE COVER SURVIVES ONLY WHERE THERE IS NOTHING TO RUN, where
-		it is the only picture of the app on the page.
-	-->
 	{#if runs}
 		<AppStage
 			appId={app.id}
@@ -140,28 +150,8 @@
 			{transports}
 			height={frameHeight}
 			{runningLabel}
-			poster={cover}
 		/>
 	{:else}
-		{#if cover}
-			<!--
-				`scale-down`, never `cover`: a cropped-to-fill preview hides the
-				cut-off edge, and the whole reason a cover exists is to show what
-				the app looks like. It is not plain `contain` either -- that
-				enlarges a cover smaller than this box, which is the
-				upscaled-and-blurry failure mode. The alt text is the title because
-				the image IS the app's own screenshot.
-			-->
-			<img
-				class="fdy-cover"
-				src={cover}
-				alt={app.title}
-				loading="lazy"
-				onerror={foundryCoverFailed}
-			/>
-		{:else if coverBad}
-			<span class="fdy-cover fg-cover-bad" aria-hidden="true"></span>
-		{/if}
 		<p class="fdy-detail-note">Nothing is published for this app yet.</p>
 	{/if}
 

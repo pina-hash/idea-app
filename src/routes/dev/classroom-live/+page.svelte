@@ -52,9 +52,6 @@
 	const palette: PaletteSources = { section: SECTION, items: items(), units: [], sections: [SECTION], checkIns: [] };
 
 	const presenceOff = page.url.searchParams.get('presence') === 'off';
-	/* `?idle=overnight` (report R11): two students on the page whose last
-	   keystroke was yesterday, the rows that printed "No typing for 1463 min". */
-	const overnight = page.url.searchParams.get('idle') === 'overnight';
 	const themeParam = page.url.searchParams.get('theme');
 
 	/* A TIMER ALREADY ON THE WALL (ledger 0298). `?timer=<kind>` writes a frame
@@ -156,7 +153,7 @@
 	};
 	const presenceTransports = presenceOff
 		? null
-		: { loadPresence: async (itemId: string) => presence(itemId, Date.now(), { overnight }) };
+		: { loadPresence: async (itemId: string) => presence(itemId) };
 	/*
 	 * A PORTED WORKSHEET (ledger 0298): `?item=i-gears` adds it to the chooser
 	 * and opens on it, and the grading read goes through the SAME

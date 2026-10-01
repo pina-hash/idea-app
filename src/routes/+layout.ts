@@ -1,15 +1,7 @@
 import { createBrowserClient, createServerClient, isBrowser } from '@supabase/ssr';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchUserProfile } from '$lib/profile';
 import type { LayoutLoad } from './$types';
-
-/** What `getClaims()` answers on this client, or null for no session or a failed read. */
-async function clientClaims(supabase: SupabaseClient) {
-	const { data: claimsData, error } = await supabase.auth.getClaims();
-	return error ? null : (claimsData?.claims ?? null);
-}
-type ResolvedClaims = Awaited<ReturnType<typeof clientClaims>>;
 
 /**
  * Creates a Supabase client available to every page and component, on both
@@ -31,24 +23,15 @@ export const load: LayoutLoad = async ({ fetch, data, depends }) => {
 				}
 			});
 
-	// IN THE BROWSER, resolve claims from THIS client. This matters for the
-	// sign-in flow: after the OAuth callback redirects back, the browser client
-	// reads the freshly set session cookies here (during hydration) and reports
-	// "signed in" even if the very first server render of this request happened
-	// a beat before the session was fully readable server-side. Without this,
-	// the UI stays on the "Sign in" button until a manual refresh.
-	//
-	// ON THE SERVER, the claims are the ones hooks.server.ts already validated
-	// and handed down as `data.claims` (ledger 0360, report R08). This used to
-	// call `getClaims()` again on the server, which re-read the same session --
-	// and on this project that is not local: the JWTs are signed HS256, so
-	// auth-js falls back to `getUser()`, a live round trip to the Auth server
-	// (which reads Postgres), on every server-rendered page in the site, for an
-	// answer the hook had already got, and got with retries.
-	// tests/root-layout-claims.test.ts holds both branches.
-	const claims: ResolvedClaims = isBrowser()
-		? await clientClaims(supabase)
-		: ((data?.claims ?? null) as ResolvedClaims);
+	// Resolve claims from THIS client. This matters for the sign-in flow: after
+	// the OAuth callback redirects back, the browser client reads the freshly
+	// set session cookies here (during hydration) and reports "signed in" even
+	// if the very first server render of this request happened a beat before
+	// the session was fully readable server-side. Without this, the UI stays on
+	// the "Sign in" button until a manual refresh. On the server this just
+	// re-reads the same session hooks.server.ts already validated.
+	const { data: claimsData, error } = await supabase.auth.getClaims();
+	const claims = error ? null : (claimsData?.claims ?? null);
 
 	// Self-heal the profile on the browser. Right after the OAuth callback
 	// redirect, the first server render can resolve `claims` (used above and in

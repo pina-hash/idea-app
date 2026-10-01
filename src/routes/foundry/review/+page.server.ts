@@ -1,7 +1,10 @@
 import { error } from '@sveltejs/kit';
 import { isAdmin } from '$lib/server/admin';
-import { publisherPendingCount } from '$lib/foundry/publisher';
-import type { FoundryApp, FoundryAppSummary } from '$lib/foundry/transports';
+import type {
+	FoundryApp,
+	FoundryAppSummary,
+	FoundryTrustedRow
+} from '$lib/foundry/transports';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -67,19 +70,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}
 
 	/**
-	 * THE TRUSTED-PUBLISHER ROSTER MOVED TO /foundry/review/publishers
-	 * (ledger 0360, report 647d1201), with the publisher applications beside
-	 * it, so this page reads only what the queue renders plus one count for
-	 * the sub-navigation: how many applications are waiting. Null on a
-	 * database without 0230, which renders as no number rather than a zero.
+	 * THE TRUSTED PUBLISHER ROSTER (0173, decision 06), read as the CALLER.
+	 * `foundry_trusted_roster()` answers nothing at all to anybody who is not
+	 * an admin, so this needs no gate of its own and gains none: the function
+	 * is the boundary and this route already 404s a non-admin regardless.
+	 *
+	 * A MISSING RPC IS AN EMPTY ROSTER, NOT A BROKEN QUEUE. A deployment
+	 * between 0172 and 0173 is a real state; on it the panel says nobody is
+	 * trusted, which is true of that world.
 	 */
-	const { data: pendingRaw, error: pendingErr } = await locals.supabase.rpc(
-		'foundry_publisher_pending_count'
-	);
+	const { data: trusted } = await locals.supabase.rpc('foundry_trusted_roster');
 
 	return {
 		apps: (apps ?? []) as FoundryAppSummary[],
 		selected,
-		pendingApplications: publisherPendingCount(pendingRaw, pendingErr)
+		trusted: (trusted ?? []) as FoundryTrustedRow[]
 	};
 };

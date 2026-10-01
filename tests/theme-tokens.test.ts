@@ -33,7 +33,7 @@
  * unchanged, and IDENTITY stays forbidden for every theme, scoped or not.
  */
 import { describe, expect, it } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
 	SCOPED_SITE_THEMES,
@@ -416,12 +416,10 @@ describe('a theme is a token layer, not a stylesheet', () => {
 		   theme moves, at zero specificity (`:where` on both halves) so every
 		   room's own declarations still win. It may declare CUSTOM PROPERTIES
 		   ONLY -- no property at all -- and the block below derives exactly
-		   which ones from the stylesheets. THE FOURTH ISLAND, the tournament
-		   TV stage (`.tnm-root.tv`, ledger 0360): its own route is out of
-		   scope, but `/dev/tournaments` mounts it inside a page that is in. */
+		   which ones from the stylesheets. */
 		{
 			selector:
-				/^:where\(:root\[data-theme='space-white'\]\) :where\(\.ic-root, \.nb-island, \.deck-stage, \.tnm-root\.tv\)$/,
+				/^:where\(:root\[data-theme='space-white'\]\) :where\(\.ic-root, \.nb-island, \.deck-stage\)$/,
 			why: "Space White's dark islands keep the default look inside a light page",
 			onlyDeclares: []
 		}
@@ -618,26 +616,32 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 		'/fsp/ask',
 		'/fsp-pulse',
 		'/fsp-tech-selection',
+		'/foundry',
+		'/foundry/review',
 		'/gauntlet',
 		'/gauntlet/author',
 		'/greenline',
 		'/vanguard',
-		// The TV stage is a projected screen under a prefix that is now IN
-		// (ledger 0360), so it is the case that proves the exclusion holds.
+		'/maps',
+		'/maps/edit',
+		'/tournaments',
 		'/tournaments/abc/tv',
-		'/tournaments/abc/tv/',
 		'/coins',
 		'/coins/index.html',
+		'/coin-desk',
 		'/ideacad',
-		'/assignments/blade-rulebook',
 		'/a/app-id/',
 		'/b/app-id/version-id/',
 		'/hx/doc-id',
 		'/dev/frc',
 		'/dev/fsp-day1',
+		'/dev/foundry-gallery',
 		'/dev/gauntlet-shell',
 		'/dev/greenline-portal',
-		'/dev/ideacad'
+		'/dev/ideacad',
+		'/dev/maps-viewer',
+		'/dev/tournaments',
+		'/dev/coin-desk'
 	];
 
 	it('FRC and FSP are OUT of scope, and so is every identity room, for every scoped theme', () => {
@@ -670,29 +674,7 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 			'/notebook/review',
 			'/dev/notebook',
 			'/dev/notebook-review',
-			'/dev/navigation-room-nb',
-			// Every site-plate page (ledger 0360), and the harnesses that stand
-			// in for them: these were OUT until this ledger.
-			'/dashboard',
-			'/admin/feedback',
-			'/archive',
-			'/auth/error',
-			'/coin-desk',
-			'/coin-desk/economy',
-			'/foundry',
-			'/foundry/review',
-			'/foundry/author/u-1',
-			'/maps',
-			'/maps/edit',
-			'/maps/edit/shelf',
-			'/tournaments',
-			'/tournaments/abc',
-			'/tournaments/abc/host',
-			'/dev/foundry-gallery',
-			'/dev/maps-viewer',
-			'/dev/tournaments',
-			'/dev/coin-desk',
-			'/dev/portal-admin'
+			'/dev/navigation-room-nb'
 		]) {
 			expect(themeInScope(p), p).toBe(true);
 			expect(themeAttrFor('space-white', p, true), p).toBe('space-white');
@@ -719,11 +701,7 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 		// Signed out is still the default, on the home page as everywhere.
 		for (const t of SCOPED_SITE_THEMES) expect(themeAttrFor(t, '/', false), `${t} on / signed out`).toBeUndefined();
 		// OUT: every path under `/` that is not itself in scope, the rooms first.
-		// `/archive` and `/foundry` left this list in ledger 0360 (they are site-plate
-		// pages now and IN by the plate's prefixes); `//` stays, and is the case
-		// that would come in if the scope called `sitePlateInScope`, which strips
-		// a trailing slash and so reads `//` as `/`.
-		const underRoot = ['/frc', '/fsp', '/fsp/live', '/gauntlet', '/index.html', '//', '/209h', '/coins/'];
+		const underRoot = ['/frc', '/fsp', '/fsp/live', '/archive', '/foundry', '/gauntlet', '/index.html', '//', '/209h', '/coins/'];
 		for (const p of underRoot) {
 			expect(themeInScope(p), p).toBe(false);
 			for (const t of SCOPED_SITE_THEMES) expect(themeAttrFor(t, p, true), `${t} on ${p}`).toBeUndefined();
@@ -743,75 +721,6 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 		expect(mutant('/frc')).toBe(true);
 		expect(mutant('/fsp/live')).toBe(true);
 		expect(themeInScope('/frc')).toBe(false);
-	});
-
-	/* EVERY PAGE ROUTE IN THE TREE, ONE WAY OR THE OTHER (ledger 0360). The
-	   lists above name rooms; this walks `src/routes` for every page outside
-	   `/dev` and holds `themeInScope` to the POLICY, written out here as
-	   literals rather than read from the module under test: the classroom, the
-	   reference viewer, the notebook and the home page, plus the site plate's
-	   eight prefixes less the TV stage. A page a lane adds under `/foundry`
-	   is in by prefix with no edit here; a page added under a new top-level
-	   address is OUT until somebody decides otherwise, which is the fail-closed
-	   direction. Both sets are COUNTED, so a walk that found nothing cannot
-	   pass. */
-	const ROUTES = fileURLToPath(new URL('../src/routes/', import.meta.url));
-	function pageRoutes(dir: string, rel = ''): string[] {
-		const out: string[] = [];
-		for (const name of readdirSync(dir)) {
-			const full = `${dir}/${name}`;
-			if (statSync(full).isDirectory()) {
-				if (rel === '' && name === 'dev') continue;
-				out.push(...pageRoutes(full, `${rel}/${name}`));
-			} else if (/^\+page(@[^.]*)?\.svelte$/.test(name)) {
-				out.push(rel || '/');
-			}
-		}
-		return out;
-	}
-	/** A route id as a path a browser could ask for: groups dropped, params filled. */
-	const pathOf = (id: string) =>
-		id
-			.split('/')
-			.filter((seg) => !/^\(.*\)$/.test(seg))
-			.map((seg) => (/^\[.*\]$/.test(seg) ? 'x' : seg))
-			.join('/') || '/';
-	const PLATE_POLICY = ['/dashboard', '/admin', '/archive', '/auth', '/coin-desk', '/foundry', '/maps', '/tournaments'];
-	const CLASSROOM_POLICY = ['/classroom', '/reference', '/notebook'];
-	const under = (p: string, x: string) => p === x || p.startsWith(x + '/');
-	const expectedIn = (p: string) =>
-		p === '/' ||
-		CLASSROOM_POLICY.some((x) => under(p, x)) ||
-		(PLATE_POLICY.some((x) => under(p, x)) && !/^\/tournaments\/[^/]+\/tv(\/|$)/.test(p));
-
-	it('every page route answers the policy: the plate pages and the classroom IN, every other room OUT', () => {
-		const paths = pageRoutes(ROUTES).map(pathOf);
-		const ins = paths.filter(expectedIn);
-		const outs = paths.filter((p) => !expectedIn(p));
-		const wrong = paths.filter((p) => themeInScope(p) !== expectedIn(p));
-		expect(wrong).toEqual([]);
-		for (const p of outs) {
-			for (const t of SCOPED_SITE_THEMES) expect(themeAttrFor(t, p, true), `${t} on ${p}`).toBeUndefined();
-		}
-		// COUNTED. The plate's own pages are 30 today and only grow; the
-		// left-out families must each still be there to be left out.
-		const plateIns = ins.filter((p) => PLATE_POLICY.some((x) => under(p, x)));
-		expect(plateIns.length).toBeGreaterThanOrEqual(29);
-		expect(ins.filter((p) => under(p, '/classroom')).length).toBeGreaterThan(10);
-		for (const family of ['/frc', '/fsp', '/gauntlet', '/greenline', '/ideacad']) {
-			expect(outs.filter((p) => under(p, family)).length, family).toBeGreaterThan(0);
-		}
-		expect(outs).toContain('/tournaments/x/tv');
-	});
-
-	it('POSITIVE CONTROL: a scope that dropped the plate exclusion would put the TV stage in', () => {
-		/* The mutant is the policy above without its exclusion, run by hand, not
-		   a file edit. It must disagree with the shipped function on exactly the
-		   TV stage, or the sweep above is not what keeps the stage dark. */
-		const mutant = (p: string) => p === '/' || [...CLASSROOM_POLICY, ...PLATE_POLICY].some((x) => under(p, x));
-		const paths = pageRoutes(ROUTES).map(pathOf);
-		const flipped = paths.filter((p) => mutant(p) !== themeInScope(p));
-		expect(flipped).toEqual(['/tournaments/x/tv']);
 	});
 
 	it('an UNSCOPED theme is not route-limited: Matrix paints every room it always did', () => {

@@ -43,14 +43,7 @@
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
 	import { hxCompletion } from '$lib/classroom/html-assignment/progress';
-	import { hxBlockPrompt, type HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
-	import HtmlAnswerList from '$lib/classroom/html-assignment/HtmlAnswerList.svelte';
-	import HtmlQaPanel from '$lib/classroom/html-assignment/HtmlQaPanel.svelte';
-	import RosterCard from '$lib/classroom/RosterCard.svelte';
-	import AnswerLinks from '$lib/classroom/AnswerLinks.svelte';
-	import PresentationLinks from '$lib/classroom/PresentationLinks.svelte';
-	import { presentationQueue, studentLinks, type StudentLinksOptions } from '$lib/classroom/answer-links';
-	import { blockLabelsFromSpec } from '$lib/classroom/bulk-download';
+	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import {
 		BULK_PRESETS,
 		BULK_PRESET_LABEL,
@@ -75,8 +68,6 @@
 	import {
 		IDENTITY_NOTE,
 		buildGradingExport,
-		gradingAnswersCsv,
-		gradingAnswersCsvFilename,
 		gradingExportFilename,
 		gradingExportJson,
 		gradingExportSheets,
@@ -106,11 +97,9 @@
 	import PresenceLine from '$lib/classroom/presence/PresenceLine.svelte';
 	import InfoTip from '$lib/classroom/InfoTip.svelte';
 	import {
-		PRESENCE_DISPLAY,
 		PRESENCE_POLL_MS,
 		PRESENCE_STALE_NOTE,
 		presenceByEmail,
-		presenceState,
 		presenceCoverageNote,
 		type PresenceLimits,
 		type PresencePayload,
@@ -1197,11 +1186,9 @@
 	 */
 	function blockName(blockId: string): string {
 		if (manifest) {
-			// A block's own `prompt` names it when the author declared one (ledger
-			// 0360), read through the one reader; otherwise as before.
-			for (const b of manifest.header ?? []) if (b.id === blockId) return hxBlockPrompt(b) ?? `Header: ${b.field}`;
+			for (const b of manifest.header ?? []) if (b.id === blockId) return `Header: ${b.field}`;
 			for (const m of manifest.modules ?? []) {
-				for (const b of m.blocks ?? []) if (b.id === blockId) return hxBlockPrompt(b) ?? `${m.title}: ${b.field}`;
+				for (const b of m.blocks ?? []) if (b.id === blockId) return `${m.title}: ${b.field}`;
 			}
 		}
 		if (spec) {
@@ -1229,152 +1216,6 @@
 	 */
 	function workArrived(s: StudentWork): boolean {
 		return statusChip(s).cls !== 'none';
-	}
-
-	// -----------------------------------------------------------------------
-	// THE COMPACT ROSTER AND ITS CARD (ledger 0360, report 7933566a).
-	//
-	// Mr. Pina: each name "takes up way too much space"; the detail "can show up
-	// when I hover my mouse over their name", and clicking through students
-	// should be quick. So a row is ONE line -- the face, the name, the state
-	// chip, a presence glyph and two compact marks -- and the rest of what the
-	// row used to print is in ONE `RosterCard`, drawn for whichever name is
-	// pointed at (after a short pause, so running the pointer down the list does
-	// not flash a card per name) or focused from the keyboard. Opening a student
-	// puts the same detail in the work head.
-	//
-	// The card is state here rather than per row so there is exactly one in the
-	// DOM, and it is cleared on a click, a blur, a scroll of the list and Escape.
-	// -----------------------------------------------------------------------
-	const CARD_DELAY_MS = 150;
-	const consoleUid = $props.id();
-	const cardId = `roster-card-${consoleUid}`;
-	let cardEmail = $state<string | null>(null);
-	let cardAnchor = $state<HTMLElement | null>(null);
-	let cardKeyboard = $state(false);
-	let cardTimer: ReturnType<typeof setTimeout> | null = null;
-	/** Set by a pointer press so the focus it causes does not also open the card. */
-	let pointerPressed = false;
-
-	function showCard(email: string, el: HTMLElement, keyboard: boolean) {
-		if (cardTimer) clearTimeout(cardTimer);
-		cardTimer = null;
-		cardEmail = email;
-		cardAnchor = el;
-		cardKeyboard = keyboard;
-	}
-	function hideCard(email?: string) {
-		if (cardTimer) clearTimeout(cardTimer);
-		cardTimer = null;
-		if (email && cardEmail !== email) return;
-		cardEmail = null;
-		cardAnchor = null;
-	}
-	function rowPointerEnter(event: PointerEvent, email: string) {
-		// A touch has no hover: a tap opens the student, and the work head says it all.
-		if (event.pointerType && event.pointerType !== 'mouse') return;
-		const el = event.currentTarget as HTMLElement;
-		if (cardTimer) clearTimeout(cardTimer);
-		cardTimer = setTimeout(() => showCard(email, el, false), CARD_DELAY_MS);
-	}
-	function rowFocus(event: FocusEvent, email: string) {
-		if (pointerPressed) {
-			pointerPressed = false;
-			return;
-		}
-		showCard(email, event.currentTarget as HTMLElement, true);
-	}
-	$effect(() => () => {
-		if (cardTimer) clearTimeout(cardTimer);
-	});
-
-	const cardStudent = $derived(cardEmail ? (students.find((s) => s.email === cardEmail) ?? null) : null);
-
-	/**
-	 * THE ROSTER'S OWN KEYS. Up and Down (and Home and End) move between names
-	 * while a name has focus; Enter is the row's own press and opens the student;
-	 * Escape closes the card first. Handled on the list and marked handled, so the
-	 * console's window keys -- where Up and Down move between CRITERIA -- stand
-	 * down for exactly the presses that were meant for the list.
-	 */
-	function onRosterKey(event: KeyboardEvent) {
-		if (event.ctrlKey || event.metaKey || event.altKey) return;
-		const row = (event.target as HTMLElement | null)?.closest?.('.roster-row');
-		if (!row) return;
-		if (event.key === 'Escape') {
-			if (cardEmail) {
-				event.preventDefault();
-				hideCard();
-			}
-			return;
-		}
-		if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
-		const rows = [...(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('.roster-row')];
-		const at = rows.indexOf(row as HTMLElement);
-		if (at < 0 || !rows.length) return;
-		const next =
-			event.key === 'Home'
-				? 0
-				: event.key === 'End'
-					? rows.length - 1
-					: Math.max(0, Math.min(rows.length - 1, at + (event.key === 'ArrowDown' ? 1 : -1)));
-		event.preventDefault();
-		rows[next].focus();
-		rows[next].scrollIntoView?.({ block: 'nearest', behavior: 'instant' });
-	}
-
-	/** The one-glyph presence mark on a row, or null (no row, or no region). */
-	function presenceMark(s: StudentWork): { glyph: string; label: string; tone: string } | null {
-		if (!presenceShown) return null;
-		const row = presenceRows.get(s.email);
-		if (!row) return null;
-		const display = PRESENCE_DISPLAY[presenceState(row, presenceNow, presenceLimits)];
-		return { glyph: display.glyph, label: display.label, tone: display.tone };
-	}
-
-	// -----------------------------------------------------------------------
-	// LINKS IN ANSWERS, AND PRESENTATION MODE (ledger 0360, Mr. Pina 2026-09-30).
-	// -----------------------------------------------------------------------
-	const linkOptions = $derived<StudentLinksOptions>(
-		manifest ? { manifest } : { labels: blockLabelsFromSpec(spec) }
-	);
-	const selectedLinks = $derived(selected ? studentLinks(selected, linkOptions) : []);
-	/**
-	 * WHO PRESENTS, IN THE ORDER THE ROSTER DRAWS THEM, WHOLE CLASS: "To grade"
-	 * is a grading view and says nothing about who presents today, so the queue
-	 * reads every student, grouped by class where the console groups them.
-	 */
-	const presentOrder = $derived.by(() => {
-		if (!crossClassRead) return students;
-		const g = groupBySection(students, activeSections, sectionOf);
-		return [...g.groups.flatMap((x) => x.students), ...g.unplaced];
-	});
-	const presentation = $derived(presentationQueue(presentOrder, linkOptions));
-	/** The key exists when the assignment asks for a link or somebody handed one in. */
-	const presentOffered = $derived(presentation.declared || presentation.queue.length > 0);
-	let presenting = $state(false);
-
-	// -----------------------------------------------------------------------
-	// ANSWERS WITHOUT THE DOCUMENT, FOR A LIVE WORKSHEET (ledger 0360, 41c7fcd5).
-	//
-	// `workView` picks whether the open student's work is the read-only document
-	// or their answers as a list (no document request at all, so moving between
-	// students is instant). It is console state, kept across students and not
-	// stored: a grader switching to Answers for one student wants it for the
-	// next. `qaOpen` puts "Answers by question" in the work slot whenever nobody
-	// is open, so closing a student returns to it.
-	// -----------------------------------------------------------------------
-	let workView = $state<'worksheet' | 'answers'>('worksheet');
-	let qaOpen = $state(false);
-	const qaShown = $derived(qaOpen && !selected && !!manifest);
-	function toggleQa() {
-		if (qaShown) {
-			qaOpen = false;
-			return;
-		}
-		qaOpen = true;
-		// Through the guard, so unsaved grading is asked about rather than lost.
-		if (selected) requestSelect(null);
 	}
 
 	async function grade(release: boolean): Promise<SaveOutcome> {
@@ -1823,21 +1664,6 @@
 		}
 	}
 
-	/**
-	 * EVERY ANSWER AS A CSV (ledger 0360, report 41c7fcd5): one row per student,
-	 * one column per question, headed with the question. The SAME payload as the
-	 * JSON and the workbook -- the class picker, the identity switch and the
-	 * roster order are theirs -- and no read of anything new.
-	 */
-	function exportAnswersCsv() {
-		const payload = payloadFor('section');
-		download(
-			new Blob([gradingAnswersCsv(payload)], { type: 'text/csv;charset=utf-8' }),
-			gradingAnswersCsvFilename(payload)
-		);
-		exportNote = exportNoteFor(payload.export.counts.students);
-	}
-
 	function exportNoteFor(count: number): string {
 		const who = count === 1 ? '1 student' : `${count} students`;
 		return identity === 'included'
@@ -2062,10 +1888,6 @@
 
 	function onWindowKey(event: KeyboardEvent) {
 		if (!data) return;
-		// A KEY A REGION HAS ALREADY HANDLED IS ITS OWN (ledger 0360): Up and Down
-		// in the roster move between names and in the Q&A list between questions,
-		// and neither may also move a criterion.
-		if (event.defaultPrevented) return;
 		if (pending) {
 			// Only the bar's own two answers, and never while typing.
 			if (event.key === 'Escape') {
@@ -2189,47 +2011,6 @@
 				</button>
 				{#if pagerNote}<p class="pager-note" role="status" data-testid="pager-note">{pagerNote}</p>{/if}
 			</div>
-			{#if manifest || presentOffered}
-				<!--
-					TWO WAYS TO READ A WHOLE CLASS AT ONCE (ledger 0360), in the page
-					header because both act on the whole assignment. "Answers by
-					question" is a ported worksheet's alone (it reads the manifest);
-					"Present links" exists when the assignment asks for a link or
-					somebody handed one in, and says how many have none.
-				-->
-				<div class="gc-views" data-testid="grading-views">
-					{#if manifest}
-						<button
-							type="button"
-							class="btn secondary tiny"
-							aria-pressed={qaShown}
-							data-testid="qa-toggle"
-							onclick={toggleQa}
-						>
-							Answers by question
-						</button>
-					{/if}
-					{#if presentOffered}
-						<button
-							type="button"
-							class="btn secondary tiny"
-							aria-disabled={presentation.queue.length === 0}
-							aria-describedby={presentation.missing > 0 ? `present-missing-${consoleUid}` : undefined}
-							data-testid="present-open-key"
-							onclick={() => {
-								if (presentation.queue.length) presenting = true;
-							}}
-						>
-							Present links &middot; {presentation.queue.length}
-						</button>
-						{#if presentation.missing > 0}
-							<span class="gc-views-note" id={`present-missing-${consoleUid}`} data-testid="present-missing-count">
-								{presentation.missing} without a link
-							</span>
-						{/if}
-					{/if}
-				</div>
-			{/if}
 			{#if close}
 				<!--
 					CLOSING THE ASSIGNMENT (0198), IN THE PAGE HEADER.
@@ -2419,18 +2200,6 @@
 							>
 								{exporting ? 'Building spreadsheet' : 'Spreadsheet: whole class'}
 							</button>
-							{#if manifest}
-								<!-- EVERY ANSWER, ONE ROW PER STUDENT AND ONE COLUMN PER QUESTION
-								     (ledger 0360, report 41c7fcd5), from the same payload. -->
-								<button
-									type="button"
-									class="btn secondary tiny"
-									data-testid="export-answers-csv"
-									onclick={exportAnswersCsv}
-								>
-									Answers as CSV: whole class
-								</button>
-							{/if}
 						</div>
 						<label class="identity-toggle" data-testid="export-identity">
 							<input
@@ -2464,7 +2233,6 @@
 								sections={activeSections}
 								scopeSection={exportSection}
 								selected={pickedEmails}
-								student={selected ? { email: selected.email, displayName: selected.displayName } : null}
 								standingOf={(email) => {
 									const s = students.find((row) => row.email === email);
 									return s ? statusChip(s).label : '';
@@ -2493,7 +2261,7 @@
 			</section>
 		{/if}
 
-		<div class="console" class:split={!!selected || qaShown}>
+		<div class="console" class:split={!!selected}>
 			<section class="roster card" class:selecting class:armed={selecting && armedRelease != null}>
 				<!--
 					THE ROSTER IS A LIST OF PEOPLE (ledger 0347, decision 43). What sits
@@ -2507,15 +2275,14 @@
 					one.
 				-->
 				<div class="roster-tools">
-					<!--
-						THE HEAD IS ONE LINE (ledger 0360, report 7933566a). The word
-						"Roster" is the region's heading for a screen reader and costs no
-						line on screen; the class size rides on the All key, so the three
-						keys fit the roster column beside nothing else and never wrap
-						into a sliver.
-					-->
 					<div class="roster-head">
-						<h2 class="visually-hidden">Roster</h2>
+						<h2 class="section-label">
+							Roster <span class="roster-count" data-testid="roster-count"
+								>{rosterFilter === 'to-grade'
+									? `${visibleStudents.length} of ${students.length}`
+									: students.length}</span
+							>
+						</h2>
 						<div class="roster-keys">
 							<!--
 								"TO GRADE" IS A VIEW, NEVER A STATE (ledger 0347). FRICTION.md: N
@@ -2533,7 +2300,7 @@
 									data-testid="roster-filter-all"
 									onclick={() => setRosterFilter('all')}
 								>
-									All &middot; <span class="roster-count" data-testid="roster-count">{students.length}</span>
+									All
 								</button>
 								<button
 									type="button"
@@ -2620,11 +2387,7 @@
 							somebody reads a count as "this student did nothing".
 						-->
 						<p class="presence-head" data-testid="presence-note">
-							<!-- `tap="box"`: the label owns its row, so the trigger IS the 44px
-							     target. With the default reach the hit area hung 13px under the
-							     line, which made the region above the names scroll by exactly
-							     that much (ledger 0360, measured: content 83px in a 77px box). -->
-							<InfoTip tip={presenceCoverageNote(presenceLimits)} tap="box"
+							<InfoTip tip={presenceCoverageNote(presenceLimits)}
 								><span class="presence-label">Presence and working time</span></InfoTip
 							>
 						</p>
@@ -2776,8 +2539,6 @@
 				{#snippet rosterRow(s: StudentWork)}
 					{@const chip = statusChip(s)}
 					{@const short = incompleteCount(s)}
-					{@const mark = presenceMark(s)}
-					{@const changedLabel = changedFor.get(s.email) ? postGradeChangeLabel(changedFor.get(s.email)!) : null}
 					<li class="roster-item" class:pickable={selecting}>
 						{#if selecting}
 							<!--
@@ -2797,41 +2558,41 @@
 								<span class="visually-hidden">Grade {s.displayName} in this batch</span>
 							</label>
 						{/if}
-						<!--
-							ONE LINE PER STUDENT (ledger 0360, report 7933566a): the face, the
-							name, the state, and three marks that each carry their words for a
-							screen reader and in the card, where the row used to print a whole
-							second line. The detail is the card's (`RosterCard`, pointed at or
-							focused) and the work head's.
-						-->
 						<button
 							type="button"
 							class="roster-row"
 							class:active={selectedEmail === s.email}
 							class:inactive={!s.active}
-							aria-describedby={cardEmail === s.email ? cardId : undefined}
 							onclick={() => requestSelect(s)}
-							onpointerdown={() => {
-								pointerPressed = true;
-								hideCard();
-							}}
-							onpointerenter={(e) => rowPointerEnter(e, s.email)}
-							onpointerleave={() => hideCard(s.email)}
-							onfocus={(e) => rowFocus(e, s.email)}
-							onblur={() => hideCard(s.email)}
 						>
 							<!-- THE FACE ON THE ROSTER ROW, and the audience for it is the
 							     audience for the name it sits beside -- which is this same
 							     row, already printing `s.displayName`, plus the chips. Both
 							     grading routes refuse a caller who does not manage the
-							     section before any of this renders, and underneath them
+							     section before any of this renders (the per-section load
+							     redirects on `classroom_manages_section`, the cross-section
+							     one 404s on an empty managed set), and underneath them
 							     `classroom_can_review_submission` gates every row RLS
 							     returns. Looked up on the ROSTER by the key the work row
 							     already shares with it; see `avatarByEmail`.
 
-							     24px, UNDER WHATEVER SETS THE ROW: a scanning list of thirty,
-							     where the picture is a way of finding the name faster. It
-							     sits INSIDE the button, so the whole row stays one target. -->
+							     SMALLER THAN THE IDENTITY ROW'S 40px, deliberately: this is
+							     a scanning list of thirty, and the picture is a way of
+							     finding the name faster rather than a portrait. It sits
+							     INSIDE the button, so the whole row stays one target and
+							     nothing new is tabbable.
+
+							     24 AND NOT 28, AND THAT IS A MEASUREMENT. This row's
+							     height is decided by `min-height: 44px` -- the tap floor,
+							     which the padding was tuned to carry after the row
+							     measured 35px. With 18px of padding and border, a 28px
+							     face makes the AVATAR the tallest thing in the box and the
+							     row grew to 46px at both widths, measured on
+							     `/dev/grading-bulk` against the pre-change file. 24 leaves
+							     `min-height` deciding, exactly as it did, so the console's
+							     row rhythm is byte-identical to what it was. Same argument
+							     as `SectionGrid`'s 24 against its 1.9rem cell: a face goes
+							     UNDER whatever already sets the row, never over it. -->
 							<Avatar
 								subject={avatarByEmail.get(s.email) ?? null}
 								tintKey={s.email}
@@ -2841,9 +2602,10 @@
 							<span class="roster-chips">
 								<!--
 									THE SECTION, ON THE ROW, whenever more than one is on screen.
-									The group heading above is not enough on its own: grading the
-									wrong class's student is a silent failure -- nothing refuses
-									it, because the instructor teaches both.
+									The group heading above is not enough on its own: it scrolls
+									away, and grading the wrong class's student is a silent
+									failure -- nothing refuses it, because the instructor teaches
+									both. It is FIRST in the chip list for the same reason.
 								-->
 								{#if crossClass}
 									<span class="roster-chip section" data-testid="roster-section">
@@ -2852,39 +2614,70 @@
 								{/if}
 								<span class="roster-chip {chip.cls}">{chip.label}</span>
 								<!--
-									"Was it finished when it arrived" and "has it moved since I
-									graded it" are their own questions, so each keeps its own mark,
-									now a compact one: a glyph drawn by the stylesheet with the
-									whole sentence in the mark for a screen reader, the hover title
-									and the card. The test hooks and the classes are unchanged.
+									A SECOND CHIP, NOT A SECOND WORD IN THE FIRST ONE.
+									"Did this arrive" and "was it finished when it arrived"
+									are two questions, and a row can answer them
+									independently: a returned 9/20 may have come in
+									incomplete and a submitted one may not have. Folding the
+									count into the state chip would make one mark stand for
+									both and there would be no way to read either.
 								-->
 								{#if short > 0}
-									<span
-										class="roster-chip incomplete roster-mark"
-										data-testid="roster-incomplete"
-										title={`Incomplete: ${short} unfinished`}
-									><span class="visually-hidden">Incomplete &middot; </span>{short}</span>
+									<span class="roster-chip incomplete" data-testid="roster-incomplete">
+										Incomplete &middot; {short}
+									</span>
 								{/if}
-								{#if changedLabel}
-									<span
-										class="roster-chip changed roster-mark"
-										data-testid="roster-changed"
-										title={changedLabel}
-									><span class="visually-hidden">{changedLabel}</span></span>
-								{/if}
-								{#if mark}
-									<!-- WHO IS WORKING, AT A GLANCE: the presence state's own glyph
-									     and hue, never the hue alone (four distinct shapes), with
-									     the word in the card. -->
-									<span
-										class="roster-presence tone-{mark.tone}"
-										data-testid="roster-presence"
-										title={mark.label}
-										aria-hidden="true">{mark.glyph}</span
-									>
+								<!--
+									A THIRD CHIP, for the same reason there is a second one.
+									"Did this arrive", "was it finished when it arrived" and
+									"has it moved since I graded it" are three independent
+									questions, and a row can answer them in any combination.
+									This one NAMES THE ACT rather than saying "changed":
+									resubmitting is a student asking to be looked at again and
+									an edit is the graded artefact quietly ceasing to be the
+									graded artefact, and an instructor answers those
+									differently.
+								-->
+								{#if changedFor.get(s.email)}
+									<span class="roster-chip changed" data-testid="roster-changed">
+										{postGradeChangeLabel(changedFor.get(s.email)!)}
+									</span>
 								{/if}
 							</span>
 						</button>
+						<!--
+							PRESENCE, OUTSIDE THE BUTTON AND BENEATH THE NAME.
+
+							OUTSIDE, because the button is "open this student's work" and
+							this line is not part of that act -- the same reason the bulk
+							checkbox sits outside it. It is a `<span>` of text either way:
+							there is nothing here to press, so no tap target is created
+							inside a row that is already one 44px target, and no density
+							class is declared because none is needed.
+
+							BENEATH, not beside. The chip row above already carries up to
+							four chips (section, state, incomplete, changed) and a fifth
+							and sixth on the same line would push the name to an ellipsis
+							in the pane widths this console actually runs at. This is a
+							different question from all four of those -- they are about the
+							WORK and this is about the STUDENT -- so it reads as its own
+							line rather than as more chips.
+
+							THE ROW IS STILL DRAWN FOR A STUDENT WITH NO PRESENCE ROW,
+							reading "Not opened". Leaving it blank would make "never
+							started" and "this console cannot tell" look the same, and only
+							the transport's ABSENCE means the second -- which removes the
+							line entirely.
+						-->
+						{#if presenceShown}
+							<PresenceLine
+								row={presenceRows.get(s.email) ?? null}
+								now={presenceNow}
+								limits={presenceLimits}
+								loaded={presenceLoaded}
+								workArrived={workArrived(s)}
+							/>
+						{/if}
 					</li>
 				{/snippet}
 
@@ -2969,15 +2762,6 @@
 					</div>
 				{:else if crossClassRead}
 					{@const grouped = rosterGroups ?? groupBySection(visibleStudents, activeSections, sectionOf)}
-					<!--
-						ONE SCROLLER FOR EVERY CLASS (ledger 0360). Each group used to be a
-						flex item with its own scrolling list, so a small class got a small
-						window; the names now scroll as one list, with each class's heading
-						held at the top of it while its names pass, and Up and Down walk the
-						whole list in the order it is drawn.
-					-->
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<div class="roster-scroll" data-roster-nav onkeydown={onRosterKey} onscroll={() => hideCard()}>
 					{#each grouped.groups as group (group.section.id)}
 						<div class="roster-group" data-testid="roster-group">
 							<h3 class="roster-group-head">
@@ -3023,10 +2807,8 @@
 					{#if students.length === 0}
 						<p class="note">Nobody is enrolled in any class this assignment is posted to.</p>
 					{/if}
-					</div>
 				{:else}
-					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-					<ul class="roster-list" data-roster-nav onkeydown={onRosterKey} onscroll={() => hideCard()}>
+					<ul class="roster-list">
 						{#each visibleStudents as s (s.email)}
 							{@render rosterRow(s)}
 						{/each}
@@ -3069,48 +2851,7 @@
 						</a>
 					</p>
 				{/if}
-				{#if cardStudent}
-					{@const cardChange = changedFor.get(cardStudent.email)}
-					<RosterCard
-						id={cardId}
-						open
-						anchor={cardAnchor}
-						name={cardStudent.displayName}
-						chip={statusChip(cardStudent)}
-						sectionLabel={crossClass ? (sectionTitles.get(sectionOf.get(cardStudent.email) ?? '') ?? null) : null}
-						incomplete={incompleteCount(cardStudent)}
-						changedLabel={cardChange ? postGradeChangeLabel(cardChange) : null}
-						presence={presenceShown
-							? {
-									row: presenceRows.get(cardStudent.email) ?? null,
-									now: presenceNow,
-									limits: presenceLimits,
-									loaded: presenceLoaded,
-									workArrived: workArrived(cardStudent)
-								}
-							: null}
-						linkCount={studentLinks(cardStudent, linkOptions).filter((l) => l.url).length}
-						keyboard={cardKeyboard}
-					/>
-				{/if}
 			</section>
-
-			{#if qaShown && manifest}
-				<!-- ANSWERS BY QUESTION (ledger 0360, report 41c7fcd5) in the work slot
-				     while nobody is open. A name opens that student; closing them comes
-				     back here. -->
-				<section class="work qa-work">
-					<HtmlQaPanel
-						{manifest}
-						students={visibleStudents}
-						onopen={(email) => {
-							const next = students.find((s) => s.email === email);
-							if (next) requestSelect(next);
-						}}
-						onexportcsv={exportAnswersCsv}
-					/>
-				</section>
-			{/if}
 
 			{#if selected}
 				<section class="work">
@@ -3174,26 +2915,6 @@
 									{/each}
 								</ul>
 							{/if}
-							<!--
-								PRESENCE, IN FULL, FOR THE STUDENT WHO IS OPEN (ledger 0360). It
-								left the roster rows for the card; here it is the same line
-								(`PresenceLine`, the one renderer), with the same rule about
-								when it speaks.
-							-->
-							{#if presenceShown}
-								<div class="work-presence" data-testid="work-presence">
-									<PresenceLine
-										row={presenceRows.get(selected.email) ?? null}
-										now={presenceNow}
-										limits={presenceLimits}
-										loaded={presenceLoaded}
-										workArrived={workArrived(selected)}
-									/>
-								</div>
-							{/if}
-							<!-- EVERY LINK IN THIS STUDENT'S ANSWERS, EACH WITH AN OPEN KEY
-							     (ledger 0360). Absent when there are none. -->
-							<AnswerLinks links={selectedLinks} heading="Links in their answers" testId="work-links" />
 							</div>
 						</div>
 						<button type="button" class="btn secondary tiny" onclick={() => requestSelect(null)}>
@@ -3347,49 +3068,9 @@
 									the same reason the spec render is: moving between two
 									students must not hand the second one the first one's view.
 								-->
-								<div class="responses-head">
-									<h3 class="section-label responses-label">Responses</h3>
-									{#if manifest}
-										<!--
-											THE DOCUMENT, OR JUST THE ANSWERS (ledger 0360, report
-											41c7fcd5). The answers are read straight from the saved rows
-											through the same renderer the unpublished case uses, so they
-											need no document request and moving between students is
-											instant. Console state, so it holds as N and P walk the list.
-										-->
-										<div class="work-view" role="group" aria-label="Show the work as">
-											<button
-												type="button"
-												class="btn secondary tiny"
-												aria-pressed={workView === 'worksheet'}
-												data-testid="work-view-worksheet"
-												onclick={() => (workView = 'worksheet')}
-											>
-												Worksheet
-											</button>
-											<button
-												type="button"
-												class="btn secondary tiny"
-												aria-pressed={workView === 'answers'}
-												data-testid="work-view-answers"
-												onclick={() => (workView = 'answers')}
-											>
-												Answers
-											</button>
-										</div>
-									{/if}
-								</div>
+								<h3 class="section-label responses-label">Responses</h3>
 								{#key selected.email}
-									{#if manifest && workView === 'answers'}
-										<HtmlAnswerList
-											{manifest}
-											student={selected}
-											label={`${selected.displayName}'s answers, read straight from their saved work`}
-											testId="work-answers"
-										/>
-									{:else}
-										{@render htmlWork(selected)}
-									{/if}
+									{@render htmlWork(selected)}
 								{/key}
 							{:else if !selected.files.length}
 								<p class="note card">Nothing handed in yet.</p>
@@ -3738,19 +3419,6 @@
 		</div>
 	{/if}
 
-	{#if presentOffered}
-		<!-- PRESENTATION MODE (ledger 0360): the projector list of every student's
-		     link, mounted once, opened from the header key. -->
-		<PresentationLinks
-			open={presenting}
-			queue={presentation.queue}
-			missing={presentation.missing}
-			notWorking={presentation.notWorking}
-			scope={`grading-present:${item.id}`}
-			onclose={() => (presenting = false)}
-		/>
-	{/if}
-
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />
 	</footer>
@@ -3915,37 +3583,6 @@
 	.gc-head .close-counts {
 		color: inherit;
 	}
-	/* THE WHOLE-CLASS READS (ledger 0360): Answers by question and Present
-	   links, keys in the header's tool row. */
-	.gc-views {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--space-1) var(--space-2);
-	}
-	.gc-views-note {
-		font-family: var(--font-mono);
-		font-size: 0.7rem;
-		color: var(--text-2);
-	}
-	.responses-head {
-		margin: 0.2rem 0 0.5rem;
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-1) var(--space-2);
-	}
-	.responses-head .responses-label {
-		margin: 0;
-	}
-	.work-view {
-		display: flex;
-		gap: var(--space-1);
-	}
-	.work-presence {
-		margin-top: 0.35rem;
-	}
 	.gc-notebook-link {
 		font-size: 0.85rem;
 		color: var(--body-link, var(--cyan));
@@ -3984,10 +3621,13 @@
 	.roster-head {
 		display: flex;
 		flex-wrap: wrap;
-		justify-content: flex-start;
+		justify-content: space-between;
 		align-items: center;
 		gap: var(--space-2);
 		margin-bottom: var(--space-2);
+	}
+	.roster-head .section-label {
+		margin: 0;
 	}
 	.csv-hint {
 		margin: 0;
@@ -4006,23 +3646,18 @@
 		display: flex;
 		gap: var(--space-1);
 	}
-	/* ONE LINE IN A 20rem COLUMN, AND A SECOND LINE RATHER THAN A SCROLLBAR IN A
-	   NARROWER ONE (ledger 0360). The heading word is visually hidden, so the
-	   keys have the whole head; when even they do not fit, they wrap, because a
-	   `nowrap` row here is a horizontal overflow inside a scrolling region,
-	   which is a sliver with a scrollbar. */
+	/* The keys wrap under the title AS A GROUP, never one by one: three short
+	   words fit a 20rem roster column on one line. */
 	.roster-keys {
-		flex-wrap: wrap;
-		justify-content: flex-start;
+		flex-wrap: nowrap;
 	}
 	/* "All" is one short word: the 44px floor is a width as well as a height. */
 	.roster-keys .btn {
 		min-width: 44px;
 	}
-	/* The class size rides on the All key (ledger 0360), so it takes the key's
-	   own ink rather than a second tier inside it. */
 	.roster-count {
-		color: inherit;
+		margin-left: 0.3rem;
+		color: var(--text-2);
 		letter-spacing: 0.02em;
 	}
 	.select-note {
@@ -4098,7 +3733,7 @@
 		color: var(--text-2);
 	}
 	.presence-head {
-		margin: 0;
+		margin: 0 0 0.4rem;
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		/* `--text-2`, the register's own secondary-copy tier, and not `--dim`,
@@ -4185,20 +3820,6 @@
 	.roster-row.inactive {
 		opacity: 0.8;
 	}
-	/* COMPACT DENSITY, WHERE A TEACHER CHOSE IT, ON A POINTER THAT IS NOT A
-	   FINGER (ledger 0360, report 7933566a). The row is 44px by default -- the
-	   classroom's rule, which keeps a worked control at the tap floor -- and
-	   drops to 32px only when both halves of the standard's condition hold: the
-	   room is in compact density (the teacher's device setting) and this console
-	   declares itself an instructor surface (`.cr-instructor-surface` on its
-	   root, IDEA_INTERFACE_STANDARDS 10), plus a fine pointer at desktop width.
-	   32px is above the 24px instructor floor and fits a 24px face. */
-	@media (min-width: 1024px) and (pointer: fine) {
-		:global(.cr-root[data-density='compact']) .cr-instructor-surface .roster-row {
-			min-height: 32px;
-			padding-block: 0.2rem;
-		}
-	}
 	.roster-name {
 		min-width: 0;
 		/* THE NAME TAKES THE SLACK, which is what keeps the face beside it.
@@ -4222,19 +3843,8 @@
 		flex-wrap: wrap;
 		row-gap: 0.3rem;
 	}
-	/* ONE LINE PER STUDENT (ledger 0360, report 7933566a). The 7rem basis
-	   above wrapped every row whose chips were wider than what was left beside
-	   it -- measured on thirty students, 25 of 30 rows two lines at 375 and 8 of
-	   30 at 1440, because the name box claimed 7rem however short the name. So
-	   the name takes a ZERO basis and a 3.5rem floor, stays on one line and
-	   ellipsises, with the whole name in its title, in the card and in the work
-	   head; the row still wraps the chips under it only when even that floor
-	   does not fit, which keeps 0346's guarantee that a name is never squeezed
-	   to nothing. */
 	.roster-row .roster-name {
-		flex: 1 1 0;
-		min-width: 3.5rem;
-		white-space: nowrap;
+		flex: 1 1 7rem;
 	}
 	.roster-row .roster-chips {
 		margin-left: auto;
@@ -4257,10 +3867,20 @@
 	/* The tick box and the row are two controls on one line, and the row keeps
 	   the rest of the measure: a name that shrank to make room for a checkbox
 	   would ellipsise the one thing the row is for. */
-	/* PRESENCE LEFT THE ROW (ledger 0360). It was a third child under the
-	   button, which made every student two lines; it is a glyph inside the row
-	   now and the full line is in the card and the work head, so an item is the
-	   button and, while selecting, the tick box beside it. */
+	/* THE ROW BECAME A COLUMN WHEN PRESENCE ARRIVED, and only when it is drawn.
+	   `.roster-item` was a row holding an optional checkbox and the button; the
+	   presence line is a THIRD child that belongs under the button rather than
+	   beside it, so the item wraps and the line is given the full measure with
+	   `flex-basis: 100%`. Nothing moves on a console with no presence transport:
+	   with two children and no wrap there is nothing to wrap. */
+	.roster-item :global([data-testid='presence-line']) {
+		flex-basis: 100%;
+		padding: 0 0.1rem 0.35rem 0.45rem;
+	}
+	.roster-item.pickable :global([data-testid='presence-line']) {
+		/* Clear of the checkbox column, so the line starts under the NAME. */
+		padding-left: 2.9rem;
+	}
 	.roster-item {
 		display: block;
 	}
@@ -4659,44 +4279,6 @@
 		color: var(--gold);
 		border-color: var(--gold);
 	}
-	/* THE COMPACT MARKS (ledger 0360): "unfinished" and "changed after grading"
-	   as a glyph and, for unfinished, its count, so a row stays one line. The
-	   glyph is the stylesheet's (`::before`, so it is not part of the mark's
-	   text); the whole sentence is inside the mark for a screen reader, in its
-	   `title` for a pointer, and in the card. Each keeps its own hue and its own
-	   SHAPE, so neither is told apart by colour alone. */
-	.roster-chip.roster-mark {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.15rem;
-		padding: 0.06rem 0.35rem;
-	}
-	.roster-chip.incomplete.roster-mark::before {
-		content: '!';
-		font-weight: 700;
-	}
-	.roster-chip.changed.roster-mark::before {
-		content: '\270E';
-	}
-	/* WHO IS WORKING: the presence state's own glyph, in its own tone (the
-	   chip's tokens, `PresenceChip`'s measured set). */
-	.roster-presence {
-		font-family: var(--font-mono);
-		font-size: 0.8rem;
-		line-height: 1;
-		min-width: 1em;
-		text-align: center;
-		color: var(--text-2);
-	}
-	.roster-presence.tone-working {
-		color: var(--green);
-	}
-	.roster-presence.tone-viewing {
-		color: var(--teal);
-	}
-	.roster-presence.tone-elsewhere {
-		color: var(--amber);
-	}
 	/* The two chips are their own group so a long name shrinks against the pair
 	   rather than shoving the second one out of the row, and so they wrap
 	   together at 375px instead of one at a time. */
@@ -4908,73 +4490,59 @@
 			flex-direction: column;
 			min-height: 0;
 		}
-		/* THE REGION ABOVE THE NAMES TAKES ITS OWN HEIGHT AND NEVER SHRINKS, AND
-		   THE NAMES TAKE WHAT IS LEFT (ledger 0360, report 7933566a). This is the
-		   fourth statement of this rule and the first that holds, so the three
-		   before it stay written down.
+		/* THE NAMES GET A FLOOR, WRITTEN AS A CEILING ON THE THING THAT WAS
+		   STARVING THEM (0278), AND THE DIRECTION IS THE WHOLE LESSON.
 
-		   WHAT WAS WRONG WITH THE LAST ONE IS ARITHMETIC. It read "the tools take
+		   `.roster` is a flex column with `overflow: hidden`, and the list had
+		   `min-height: 0` with no `flex-shrink` limit -- so it took whatever the
+		   head, the two panels and the four prose blocks left over, which at 1440
+		   was one name at a time. Collapsing the panels is most of the repair and
+		   this is what stops the next thing added above the names doing it again.
+
+		   A `min-height` ON THE LIST IS THE OBVIOUS FORM AND IT IS WRONG. Measured
+		   on `/dev/html-assignment-grading` at 1440x900: `min-height: min(18rem,
+		   100%)` on the list won the flex fight outright and shrank THIS region to
+		   **0px tall with 156px of content in it** -- both panels and every notice
+		   invisible, clipped rather than scrolled, which is precisely the failure
+		   the scroll container was added to prevent. It also stretched the grid
+		   rows to 252px each, because a constrained list makes its own row taller.
+
+		   A PERCENTAGE CEILING CANNOT DO THAT IN EITHER DIRECTION. The tools take
 		   at most 45% of the pane, so the list always has at least 55% and this
-		   always has 45%". But the region was `flex: 0 1 auto`, and FLEX-SHRINK IS
-		   WEIGHTED BY FLEX-BASIS: with a 21-student list at about 1500px and this
-		   region at about 110px in a 700px pane, the 910px of overflow is shared
-		   1500:110, so this region gave up 62px and ended near 48px -- a sliver
-		   with its own scrollbar, the keys clipped inside it. That is the screenshot
-		   Mr. Pina filed ("the little selection buttons at the top with that tiny
-		   little annoying scroll bar"). Nothing gave this region its content
-		   height; the 45% was only ever a ceiling.
+		   region can never be squeezed below its own content without getting a
+		   scrollbar for the remainder. 45 rather than 50 because the names are
+		   what a grader came for and a tie should not be split evenly; the
+		   percentage resolves because `.roster` is a stretched flex item of
+		   `.console` and so has a definite height.
 
-		   SO: `flex: 0 0 auto` here (its content height, never shrunk) with the 45%
-		   ceiling kept, and the LIST is the one thing that shrinks. The two
-		   failures the earlier attempts recorded cannot come back through this:
+		   AND THERE IS NO `min-height` HERE, WHICH IS THE THIRD ATTEMPT AND THE
+		   REASON THE OTHER TWO ARE WRITTEN DOWN. Any ABSOLUTE floor on either
+		   region starves the other one on a short pane -- it is the same defect
+		   twice, in two directions:
 
-		     - a `min-height` on the LIST took this region to 0px with 156px of
-		       panels in it -- there is no floor on the list, and this region is
-		       not shrinkable at all, so nothing can take it to 0;
-		     - a 9rem floor HERE took the list to 11.9px on `/dev/html-rubric
-		       ?state=single`, where the roster card is 257.9px -- there is no
-		       floor here either, and the 45% ceiling is what bounds it, so on that
-		       card this region is at most 116px and the list keeps 141px.
+		     - a floor on the LIST took this region to 0px tall with 156px of
+		       panels in it, clipped rather than scrolled;
+		     - a floor of 9rem HERE took the list to **11.9px with 44px of content**
+		       on `/dev/html-rubric?state=single` at 1440, where the roster card is
+		       257.9px. The first name was clipped out of its own list, and
+		       `elementFromPoint` at the row's centre answered the bulk checkbox's
+		       label instead of the row -- so a click did not select a student, and
+		       the browser harness caught it as a prepare step that never reached
+		       its state rather than as anything visible.
 
-		   ON A PANE TOO SHORT FOR WHAT IS ABOVE THE NAMES this region stops at 45%
-		   and scrolls the rest, keeping its scrollbar; no region on this site may
-		   hide one. The head itself is one line now, so that case needs several
-		   notices at once. */
+		   A PROPORTIONAL CAP AND NOTHING ELSE cannot do either: the list always
+		   has 55% and this always has 45%, whatever the pane. What it costs is that
+		   on a pane too short for the collapsed panels this region scrolls -- 45%
+		   of 208px against 144px of content -- and that is the right trade, because
+		   it keeps its scrollbar and nothing is hidden. No region on this site may
+		   hide one, and a capped region that clipped instead would satisfy a
+		   no-overflow measurement by hiding the panels. */
 		.roster-tools {
-			flex: 0 0 auto;
+			flex: 0 1 auto;
 			min-height: 0;
 			max-height: 45%;
 			overflow-y: auto;
 			overscroll-behavior: contain;
-		}
-		/* THE LINK ACROSS sits under the names and is never squeezed by them. */
-		.cross-class-link {
-			flex: none;
-		}
-		/* THE CROSS-CLASS ROSTER SCROLLS AS ONE LIST (ledger 0360), so every
-		   class's names are reachable by one wheel and by Up and Down; each class's
-		   heading holds at the top of the list while its names pass, which keeps
-		   the class in view the way the row's own class chip does. */
-		.roster-scroll {
-			flex: 0 1 auto;
-			min-height: 0;
-			overflow-y: auto;
-			overscroll-behavior: contain;
-		}
-		.roster-scroll .roster-group {
-			display: block;
-		}
-		.roster-scroll .roster-list {
-			overflow: visible;
-		}
-		.roster-scroll .roster-group-head {
-			position: sticky;
-			top: 0;
-			/* POSITIONED, SO IT NEEDS A Z-INDEX AND AN OPAQUE GROUND, or the rows
-			   (later in the tree) paint over the heading that should slide over
-			   them (CLAUDE.md's sticky trap). */
-			z-index: 1;
-			background: var(--plate-panel-ground, var(--surface-1, var(--bg1)));
 		}
 		/* THE SELECTION BAR HOLDS STILL IN THE ROSTER'S COLUMN (ledger 0347): the
 		   list below it is the scroller here, so the bar needs no sticky offset,
@@ -4982,9 +4550,7 @@
 		   the tools above -- never an absolute floor on either side. */
 		.batch {
 			position: static;
-			/* Its own height, never shrunk by the list's (flex-shrink is weighted by
-			   basis, the 0360 arithmetic above), within its ceiling. */
-			flex: 0 0 auto;
+			flex: 0 1 auto;
 			min-height: 0;
 			max-height: 50%;
 			overflow-y: auto;
@@ -4999,12 +4565,6 @@
 			overscroll-behavior: contain;
 		}
 		.work {
-			min-height: 0;
-		}
-		/* ANSWERS BY QUESTION FILLS THE WORK SLOT, and its two regions scroll on
-		   their own inside it (the panel's own rule). */
-		.qa-work > :global(.qa) {
-			flex: 1 1 auto;
 			min-height: 0;
 		}
 		.work-split {

@@ -18,7 +18,6 @@
 	 * (or the right number over a wrong one) reddens either way.
 	 */
 	import { onDestroy } from 'svelte';
-	import { page } from '$app/state';
 	import ItemDetail from '$lib/classroom/ItemDetail.svelte';
 	import Progress from '$lib/classroom/html-assignment/Progress.svelte';
 	import { HxAnswersStore } from '$lib/classroom/html-assignment/answers-store.svelte';
@@ -26,8 +25,7 @@
 	import { HX_SANDBOX_FLAGS, hxExpectedOrigin } from '$lib/classroom/html-assignment/bridge';
 	import type { HxImageState } from '$lib/classroom/html-assignment/bridge';
 	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
-	import { hxCompletion, hxProgress, hxProgressSummary } from '$lib/classroom/html-assignment/progress';
-	import { createHtmlAnswerTransports } from '$lib/classroom/transports';
+	import { hxProgress, hxProgressSummary } from '$lib/classroom/html-assignment/progress';
 	import type { SubmissionFileRow } from '$lib/classroom/assignment-spec';
 	import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 	// THE ROOM'S OWN STYLESHEET, not just its class. `.cr-root` with no rules
@@ -131,32 +129,6 @@
 		images: Images;
 	}
 
-	/**
-	 * LEDGER 0360 (report 8f78d5bd): Assembly with one required photo, one
-	 * OPTIONAL photo slot, and a required answer. 4 points over the two
-	 * required blocks.
-	 */
-	const ASSEMBLY: HtmlAssignmentManifest = {
-		schemaVersion: 3,
-		kind: 'html-assignment',
-		title: 'Portfolio capture',
-		course: 'IDEA209H',
-		points: 4,
-		modules: [
-			{
-				id: 'assembly',
-				title: 'Assembly',
-				points: 4,
-				blocks: [
-					{ id: 'as-photo-1', field: 'assemblyPhoto1', type: 'image' },
-					{ id: 'as-photo-2', field: 'assemblyPhoto2', type: 'image', optional: true },
-					{ id: 'as-why', field: 'assemblyWhy', type: 'longText', minSentences: 2 }
-				],
-				criteria: []
-			}
-		]
-	};
-
 	const CARDS: Card[] = [
 		{
 			id: 'zero',
@@ -220,22 +192,6 @@
 			why: 'One segment, full.',
 			manifest: SINGLE,
 			values: { why: 'The blank was not square.', safetyChecked: true },
-			images: {}
-		},
-		{
-			id: 'optional-empty',
-			title: 'An optional photo slot left empty (ledger 0360)',
-			why: 'One required photo, one optional slot, one answer. The slot is empty and the bar is 100: an optional block is judged and never counted.',
-			manifest: ASSEMBLY,
-			values: { assemblyWhy: 'I glued the base first. Then I clamped the arm.' },
-			images: { assemblyPhoto1: PHOTO }
-		},
-		{
-			id: 'checkbox-string',
-			title: 'A checkbox the document stored as a string (ledger 0360)',
-			why: 'The box posted its value ("on") instead of a boolean. It is stored, so it counts: 100.',
-			manifest: SINGLE,
-			values: { why: 'The blank was not square.', safetyChecked: 'on' },
 			images: {}
 		}
 	];
@@ -409,117 +365,6 @@
 		typed += 1;
 	}
 
-	// ---------------------------------------------------------------------------
-	// THE STALLED DATABASE (ledger 0360, reports d983e776 and 2d83c063).
-	//
-	// The REAL `createHtmlAnswerTransports` over a tiny client whose `rpc`
-	// either stores the answer in a Map or answers the way production did on
-	// 2026-09-29: a statement timeout (57014, status 500) or, after the
-	// restart, a lost session (42501, status 403). So the transport, the
-	// controller, the store and the rail are all the shipping ones, and only the
-	// database is fake. `window.__hxp.stalled` carries the server's own
-	// judgment (`hxCompletion` over the Map's rows) beside the attempt counts,
-	// so the spec can put the rail and the server side by side.
-	// ---------------------------------------------------------------------------
-
-	/** Two required answers, 2 points each. */
-	const STALL: HtmlAssignmentManifest = {
-		schemaVersion: 3,
-		kind: 'html-assignment',
-		title: 'Concept sketches',
-		course: 'IDEA100',
-		points: 4,
-		modules: [
-			{
-				id: 'concepts',
-				title: 'Sketches',
-				points: 4,
-				blocks: [
-					{ id: 'st-one', field: 'conceptOne', type: 'longText' },
-					{ id: 'st-two', field: 'conceptTwo', type: 'longText' }
-				],
-				criteria: []
-			}
-		]
-	};
-	type StallMode = 'none' | 'timeout' | 'signed-out';
-	let stallMode = $state<StallMode>('none');
-	const stallRows = new Map<string, unknown>();
-	const stallAttempts = new Map<string, number>();
-	let stallCalls = $state(0);
-	const stallClient = {
-		rpc(_fn: string, args: { p_block_id: string; p_value: unknown }) {
-			stallCalls += 1;
-			stallAttempts.set(args.p_block_id, (stallAttempts.get(args.p_block_id) ?? 0) + 1);
-			if (stallMode === 'timeout') {
-				return Promise.resolve({
-					data: null,
-					error: { code: '57014', message: 'canceling statement due to statement timeout' },
-					status: 500
-				});
-			}
-			if (stallMode === 'signed-out') {
-				return Promise.resolve({
-					data: null,
-					error: { code: '42501', message: 'permission denied for function classroom_save_response' },
-					status: 403
-				});
-			}
-			stallRows.set(args.p_block_id, args.p_value);
-			return Promise.resolve({ data: { ok: true }, error: null, status: 200 });
-		}
-	};
-	function makeStallStore() {
-		return new HxAnswersStore({
-			itemId: 'i-stall',
-			manifest: STALL,
-			transports: createHtmlAnswerTransports(stallClient as never),
-			values: {},
-			images: {},
-			// A short debounce so the backoff (which scales from it) settles in
-			// well under a second; the attempt COUNT is the shipping one.
-			debounceMs: 40
-		});
-	}
-	let stallStore = $state(makeStallStore());
-	onDestroy(() => stallStore.destroy());
-	function stallFill() {
-		stallStore.change({ blockId: 'st-one', field: 'conceptOne', value: 'A cam follower that lifts the arm.' });
-		stallStore.change({ blockId: 'st-two', field: 'conceptTwo', value: 'A rack and pinion under the base.' });
-	}
-	function stallReset() {
-		stallStore.destroy();
-		stallRows.clear();
-		stallAttempts.clear();
-		stallCalls = 0;
-		stallMode = 'none';
-		stallStore = makeStallStore();
-	}
-
-	/* FORCED THEME ATTRIBUTE (ledger 0360), `/dev/classroom-live`'s shape: a
-	   harness holds no session, so ThemeRoot decides "none" here; `?theme=`
-	   writes the attribute and re-writes it once after ThemeRoot's first effect,
-	   so the stalled card's not-saved line and Retry are measured on every
-	   ground the classroom has. */
-	const themeParam = page.url.searchParams.get('theme');
-	$effect(() => {
-		if (themeParam !== 'space-white' && themeParam !== 'matrix') return;
-		const el = document.documentElement;
-		const apply = () => {
-			if (el.getAttribute('data-theme') !== themeParam) el.setAttribute('data-theme', themeParam);
-		};
-		apply();
-		// ThemeRoot re-decides after hydration (measured: a one-shot re-write
-		// after a zero timeout was taken off again here), so the harness holds
-		// the attribute while it is mounted. Harness-only; nothing ships this.
-		const watch = new MutationObserver(apply);
-		watch.observe(el, { attributes: true, attributeFilter: ['data-theme'] });
-		return () => {
-			watch.disconnect();
-			el.removeAttribute('data-theme');
-		};
-	});
-
 	// The oracle: the pure module's answer for every card, keyed by card id.
 	$effect(() => {
 		const oracle: Record<string, { percent: number; stage: string; basis: string; summary: string }> = {};
@@ -531,29 +376,7 @@
 		oracle.interactive = { percent: live.percent, stage: live.stage, basis: live.basis, summary: hxProgressSummary(live) };
 		const real = hxProgress(WORKSHEET, store.values, store.images);
 		oracle.real = { percent: real.percent, stage: real.stage, basis: real.basis, summary: hxProgressSummary(real) };
-		const status = stallStore.status;
-		const stall = hxProgress(STALL, stallStore.values, stallStore.images, { unsaved: status.unsaved });
-		oracle.stalled = { percent: stall.percent, stage: stall.stage, basis: stall.basis, summary: hxProgressSummary(stall) };
-		// THE SERVER'S OWN JUDGMENT, from the rows the fake database holds.
-		void stallCalls;
-		const server = hxCompletion(
-			STALL,
-			[...stallRows].map(([block_id, value]) => ({ block_id, value: value as never, updated_at: null }))
-		);
-		(window as unknown as { __hxp: unknown }).__hxp = {
-			oracle,
-			savedRows: [...saved.keys()],
-			savedCount,
-			typed,
-			stalled: {
-				mode: stallMode,
-				calls: stallCalls,
-				attempts: Object.fromEntries(stallAttempts),
-				serverComplete: server.complete,
-				unsaved: [...status.unsaved].sort(),
-				phase: status.save?.phase ?? 'none'
-			}
-		};
+		(window as unknown as { __hxp: unknown }).__hxp = { oracle, savedRows: [...saved.keys()], savedCount, typed };
 	});
 </script>
 
@@ -592,31 +415,6 @@
 			<button type="button" class="btn" data-drive="reset" onclick={reset}>Reset</button>
 		</div>
 		<Progress manifest={BENCH} values={liveValues} images={liveImages} />
-	</section>
-
-	<section class="card sc" data-testid="sc-stalled" data-sc="stalled">
-		<h2 class="sc-title">The database stalled (ledger 0360)</h2>
-		<p class="sc-why">
-			The REAL answer transport over a fake database that stores the answer, times out the way it
-			did on 2026-09-29, or refuses a lost session. With the stall on, the rail stops at 99, says the
-			answers are not saved, and offers Retry; it reaches 100 only once the server holds them.
-		</p>
-		<div class="h-buttons" role="group" aria-label="What the database does">
-			<button type="button" class="btn" data-drive="stall-none" aria-pressed={stallMode === 'none'} onclick={() => (stallMode = 'none')}>
-				Database working
-			</button>
-			<button type="button" class="btn" data-drive="stall-timeout" aria-pressed={stallMode === 'timeout'} onclick={() => (stallMode = 'timeout')}>
-				Database stalled
-			</button>
-			<button type="button" class="btn" data-drive="stall-signed-out" aria-pressed={stallMode === 'signed-out'} onclick={() => (stallMode = 'signed-out')}>
-				Session lost
-			</button>
-		</div>
-		<div class="h-buttons">
-			<button type="button" class="btn" data-drive="stall-fill" onclick={stallFill}>Fill every answer</button>
-			<button type="button" class="btn" data-drive="stall-reset" onclick={stallReset}>Start over</button>
-		</div>
-		<Progress manifest={STALL} values={stallStore.values} images={stallStore.images} status={stallStore.status} />
 	</section>
 
 	<section class="card sc" data-testid="sc-real" data-sc="real">

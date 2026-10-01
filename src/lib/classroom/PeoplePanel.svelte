@@ -46,10 +46,8 @@
 		type PickerCandidate,
 		type PickerTeamMode
 	} from '$lib/classroom/picker';
-	import BadgeIcon from '$lib/tournaments/BadgeIcon.svelte';
 	import {
 		TEAM_WINDOW_WORDS,
-		backgroundCss,
 		canStyleTeam,
 		hasStyle,
 		teamDriftNote,
@@ -1552,18 +1550,13 @@
 									<div
 										class="team-card"
 										class:has-style={hasStyle(teamStyle(team))}
-										class:has-bg={!!backgroundCss(teamStyle(team))}
 										style={teamCardStyle(team)}
 										data-testid="team-card"
 										data-team-zone={set.id}
 										data-team-id={team.id}
 									>
 										<div class="team-card-head">
-											<h4>
-												{teamLabel(team)}{#if team.badge}<span class="team-badge" data-testid="team-card-badge"
-														><BadgeIcon id={team.badge} size="1.05em" /></span
-													>{/if}
-											</h4>
+											<h4>{teamLabel(team)}</h4>
 											{#if canRename}
 												<button
 													type="button"
@@ -1664,12 +1657,8 @@
 											</p>
 										{/if}
 										{#if canStyleTeam(team, teamsManages) && teamTransports.style}
-											<!-- TRUE NOW (ledger 0360, R17). This said "You can change
-											     this team's name and colours" beside a Rename and no
-											     colour control at all. The colours are the students'
-											     own, set from the class page while the draw is posted. -->
-											<p class="note team-style-hint" data-testid="team-style-hint">
-												Students on this team can change its name, colours and badge from the class page while the teams are posted.
+											<p class="note team-style-hint">
+												You can change this team's name and colours.
 											</p>
 										{/if}
 									</div>
@@ -2564,32 +2553,9 @@
 		border-radius: var(--radius-2, 6px);
 	}
 
-	/* THE STUDENTS' COLOURS ARE A WASH, NOT A FILL (ledger 0360, R17): the same
-	   construction as the class page's team card and IdentityBanner, so the two
-	   boards give one answer. At full strength a freely chosen background puts
-	   the name at 1.90:1 at worst; at 0.22 over the card the ink is the room's
-	   own and clears whatever was picked. */
 	.team-card.has-style {
-		position: relative;
-		overflow: hidden;
-	}
-	.team-card.has-bg::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background: var(--team-bg);
-		opacity: 0.22;
-		pointer-events: none;
-	}
-	.team-card.has-style > * {
-		position: relative;
-		z-index: 1;
-	}
-	.team-badge {
-		display: inline-flex;
-		vertical-align: -0.12em;
-		margin-left: 0.35rem;
-		color: var(--text-1);
+		background: var(--team-bg, transparent);
+		color: var(--team-ink, inherit);
 	}
 
 	.team-card h4 {

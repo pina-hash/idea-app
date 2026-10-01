@@ -17,17 +17,8 @@
 	 * InfoTip on the setting's TITLE -- the title is the tip's trigger, so the
 	 * word and the "i" are one 44px control a tap opens -- and never inside a
 	 * choice's label, where a tap would also pick the choice.
-	 *
-	 * PAGE LAYOUT (ledger 0360, report R23) is one more group: per page, a
-	 * summary of this person's arrangement behind a `Disclosure` whose body is
-	 * `PanelLayoutEditor`. Closed on arrival, so six groups stay a short panel,
-	 * EXCEPT when the panel is opened FOR that page (`open('panels:class')`,
-	 * which is what a page's "Hidden on this page ... Arrange" runs): then it
-	 * arrives open, scrolled to, with its group heading focused.
 	 */
-	import Disclosure from '$lib/Disclosure.svelte';
 	import InfoTip from '$lib/classroom/InfoTip.svelte';
-	import PanelLayoutEditor from '$lib/classroom/PanelLayoutEditor.svelte';
 	import {
 		groupIsDefault,
 		homeLabel,
@@ -38,13 +29,11 @@
 		NAV_WIDTH_MAX_REM,
 		NAV_WIDTH_MIN_REM,
 		NAV_WIDTH_STEP_REM,
-		panelsField,
 		type ClassroomPreferences,
 		type SettingRole
 	} from '$lib/preferences/classroom';
 	import type { PreferenceStore } from '$lib/preferences/store';
 	import { reactivePreferences } from '$lib/preferences/context';
-	import { untrack } from 'svelte';
 
 	let {
 		preferences,
@@ -64,20 +53,10 @@
 	/* One section per group, because Reset is per group (see `settingsForRole`). */
 	const offered = $derived(settingsForRole(role));
 
-	/**
-	 * WHAT THE PANEL WAS OPENED FOR: a group id (`'display'`, `'panels'`), or a
-	 * page's arrangement (`'panels:class'`, `'panels:item'`). The palette's
-	 * `settings.open` passes its argument straight through; no argument is the
-	 * panel from the top, exactly as before.
-	 */
-	let target = $state<string | null>(null);
-	const targetGroup = $derived(target ? target.split(':')[0] : null);
-
-	export function open(next?: string) {
+	export function open() {
 		if (isOpen) return;
 		const focused = document.activeElement;
 		returnFocus = focused instanceof HTMLElement && focused !== document.body ? focused : null;
-		target = typeof next === 'string' && /^[a-zA-Z]+(?::[a-z]+)?$/.test(next) ? next : null;
 		isOpen = true;
 	}
 
@@ -95,15 +74,6 @@
 		const el = dialogEl;
 		if (!el) return;
 		if (!el.open) el.showModal();
-		// Opened FOR a group: bring it into view and put focus on its heading,
-		// after showModal's own first focus. Instant, never smooth (app.css sets
-		// a global smooth scroll), and a group this role is not offered is no-op.
-		const group = untrack(() => targetGroup);
-		if (group) {
-			const heading = el.querySelector<HTMLElement>(`[data-group="${group}"] .cs-group-title`);
-			heading?.scrollIntoView({ block: 'start', behavior: 'instant' });
-			heading?.focus();
-		}
 		const onClose = () => close();
 		const onCancel = (e: Event) => {
 			e.preventDefault();
@@ -197,7 +167,7 @@
 			{#each offered as g (g.group)}
 				<section class="cs-group" data-group={g.group} data-testid="settings-group">
 					<div class="cs-group-head">
-						<h3 class="cs-group-title" id="cs-{g.group}" tabindex="-1">{g.title}</h3>
+						<h3 class="cs-group-title" id="cs-{g.group}">{g.title}</h3>
 						{@render home(g.group)}
 						{@render reset(g.group, g.title)}
 					</div>
@@ -237,31 +207,6 @@
 								</div>
 							{:else if s.kind === 'summary'}
 								<p class="cs-value" data-testid="settings-summary-{g.group}">{s.summary(current, role)}</p>
-							{:else if s.kind === 'panels'}
-								<!-- Closed unless the panel was opened for THIS page; `scope`
-								     null, so nothing about it is remembered: it is a choice
-								     region, not reading. -->
-								<div class="cs-panels" data-testid="settings-panels-{s.page}">
-									<Disclosure
-										label="Sections"
-										scope={null}
-										collapseWhen={target !== `panels:${s.page}`}
-										showWord="Arrange"
-										hideWord="Done"
-										testId="settings-arrange-{s.page}"
-									>
-										{#snippet meta()}<span data-testid="settings-summary-panels-{s.page}"
-												>{s.summary(current, role)}</span
-											>{/snippet}
-										<PanelLayoutEditor
-											page={s.page}
-											{role}
-											layout={current.panels[panelsField(s.page)]}
-											onchange={(next) =>
-												preferences.set('panels', { ...current.panels, [panelsField(s.page)]: next })}
-										/>
-									</Disclosure>
-								</div>
 							{:else}
 								<div
 									class="cs-options"
@@ -349,13 +294,6 @@
 	.cs-group-title {
 		margin: 0;
 		font-size: 0.98rem;
-	}
-	.cs-group-title:focus-visible {
-		outline: 2px solid var(--focus-ring);
-		outline-offset: 2px;
-	}
-	.cs-panels {
-		min-width: 0;
 	}
 	.cs-setting {
 		display: grid;

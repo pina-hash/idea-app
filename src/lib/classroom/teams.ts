@@ -41,7 +41,6 @@ import {
 } from '$lib/tournaments/entry-styles';
 import { laCalendarDay, schoolDayEnd } from './school-calendar';
 import { isSignedOutFailure } from './poll';
-import { isTransientSqlstate } from '$lib/pg-errors';
 
 export { ACCENT_PRESETS, BADGES, FLOURISHES, NEUTRAL_ACCENT, accentOf, backgroundCss, bannerInk, hasStyle };
 
@@ -182,7 +181,7 @@ export interface TeamTransports {
 	 * pass. That is how the grading console's read-only view of a worksheet
 	 * works and it is the same rule here.
 	 */
-	style?(input: SaveTeamStyleInput): Promise<TeamStyleResult>;
+	style?(input: SaveTeamStyleInput): Promise<{ ok: boolean; message?: string }>;
 	/**
 	 * MOVE ONE STUDENT TO ANOTHER TEAM OF THE SAME DRAW, or add a latecomer to
 	 * one (0225). A manager's write; the database re-checks that, and that the
@@ -200,20 +199,6 @@ export interface SaveTeamSetInput {
 	modeValue: number;
 	/** Team n is `teams[n - 1]`, each an array of student emails. */
 	teams: readonly (readonly string[])[];
-}
-
-/**
- * WHAT A STYLE WRITE ANSWERED. `message` is the database's own sentence on a
- * refusal ("Only a student on this team, or a teacher of the class, can
- * customize it."), shown verbatim. `retryable` says the failure was a named
- * transient (`$lib/pg-errors`), so a save state may try again; absent or false
- * is a considered refusal, answered once. ADDITIVE: the People tab's Rename
- * reads `ok` and `message` and ignores it.
- */
-export interface TeamStyleResult {
-	ok: boolean;
-	message?: string;
-	retryable?: boolean;
 }
 
 export interface SaveTeamStyleInput {
@@ -416,213 +401,6 @@ export function canStyleTeam(team: Pick<Team, 'mine'>, manages: boolean): boolea
 }
 
 // ---------------------------------------------------------------------------
-// The team style editor's draft (ledger 0360, report R17)
-// ---------------------------------------------------------------------------
-//
-// THE WRITE HAD NO CALLER BUT A RENAME. 0223 shipped `classroom_set_team_style`
-// gated on membership, and the class page mounted the team card read-only, so
-// the only thing that ever reached the RPC was the People tab's manager-only
-// Rename. These are the pure halves of the editor that closes that gap: what a
-// draft is, how a draft becomes the RPC's input, and what is wrong with one
-// before it is sent. No Svelte, no DOM, no clock.
-
-/** 0223's CHECKs on `classroom_teams`: `char_length(btrim(name)) between 1 and 40`. */
-export const TEAM_NAME_MAX = 40;
-/** And `char_length(btrim(tagline)) between 1 and 48`. */
-export const TEAM_TAGLINE_MAX = 48;
-
-/**
- * WHAT THE EDITOR HOLDS WHILE SOMEBODY IS CHOOSING. Text fields are strings
- * (an empty one is "not set"), and the background keeps all three colour wells
- * whatever mode is chosen, so switching Solid to Gradient and back does not
- * throw away the colour somebody picked a moment ago.
- *
- * THERE IS NO FLOURISH HERE, ON PURPOSE. No team card renders one -- the class
- * page and the People tab draw a name, a badge, a motto and members -- so a
- * flourish control would be a control whose only outcome is nothing. The
- * stored value is CARRIED OVER by `teamStyleInputOf`, never offered.
- */
-export interface TeamStyleDraft {
-	name: string;
-	tagline: string;
-	/** A `#rrggbb` accent, or null for none. */
-	accent: string | null;
-	bg: 'none' | 'solid' | 'gradient';
-	solid: string;
-	gradA: string;
-	gradB: string;
-	badge: string | null;
-}
-
-/** The colour wells' starting values for a team that has never chosen a background. */
-export const TEAM_DRAFT_SOLID = '#3e7bfa';
-export const TEAM_DRAFT_GRADIENT: readonly [string, string] = ['#1d5a4f', '#3e7bfa'];
-
-const isHexColour = (v: unknown): v is string => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
-
-/** A team's stored look, as the editor starts from it. */
-export function teamStyleDraftOf(
-	team: Pick<Team, 'name' | 'tagline' | 'accent_color' | 'background_type' | 'background_value' | 'badge'>
-): TeamStyleDraft {
-	const value = team.background_value;
-	const pair = Array.isArray(value) && value.length === 2 && value.every(isHexColour) ? value : null;
-	const solid = typeof value === 'string' && isHexColour(value) ? value : null;
-	// 0223 refuses 'image' outright, so a team can only hold solid or gradient;
-	// anything else (a shape a later build stored) starts the editor at None.
-	const bg: TeamStyleDraft['bg'] =
-		team.background_type === 'solid' && solid
-			? 'solid'
-			: team.background_type === 'gradient' && pair
-				? 'gradient'
-				: 'none';
-	return {
-		name: team.name ?? '',
-		tagline: team.tagline ?? '',
-		accent: isHexColour(team.accent_color) ? team.accent_color.toLowerCase() : null,
-		bg,
-		solid: (solid ?? TEAM_DRAFT_SOLID).toLowerCase(),
-		gradA: (pair?.[0] ?? TEAM_DRAFT_GRADIENT[0]).toLowerCase(),
-		gradB: (pair?.[1] ?? TEAM_DRAFT_GRADIENT[1]).toLowerCase(),
-		badge: team.badge ?? null
-	};
-}
-
-/**
- * A DRAFT AS THE RPC TAKES IT, AND IT CARRIES ALL SEVEN FIELDS.
- *
- * `classroom_set_team_style` REPLACES every column it writes -- the name and
- * the six style fields -- and a null clears, so an input built from the
- * fields somebody touched would wipe the rest: the People tab's Rename already
- * learned that and carries the style over (`saveRename`). Here the flourish is
- * the one field the editor does not offer, so it comes from the STORED row.
- *
- * Every hex is LOWERCASED. 0223 lowercases the accent itself but checks the
- * background against `^#[0-9a-f]{6}` WITHOUT `lower()`, so an uppercase
- * background colour would be refused with a sentence about hex values that the
- * person never typed. `<input type=color>` already answers lowercase; this is
- * for every other path a value can arrive by.
- *
- * Text is trimmed and a blank becomes null, which is what 0223 stores for
- * "not set" ("Team <n>" is then the name). An invalid colour is DROPPED to
- * null rather than sent: `teamStyleDraftProblems` is what tells the person.
- */
-export function teamStyleInputOf(
-	teamId: string,
-	draft: TeamStyleDraft,
-	stored: Pick<TeamStyleFields, 'flourish'>
-): SaveTeamStyleInput {
-	const hex = (v: string | null | undefined) => (isHexColour(v) ? v.toLowerCase() : null);
-	const text = (v: string) => {
-		const t = v.trim();
-		return t === '' ? null : t;
-	};
-	let backgroundType: SaveTeamStyleInput['backgroundType'] = null;
-	let backgroundValue: SaveTeamStyleInput['backgroundValue'] = null;
-	if (draft.bg === 'solid' && hex(draft.solid)) {
-		backgroundType = 'solid';
-		backgroundValue = hex(draft.solid);
-	} else if (draft.bg === 'gradient' && hex(draft.gradA) && hex(draft.gradB)) {
-		backgroundType = 'gradient';
-		backgroundValue = [hex(draft.gradA)!, hex(draft.gradB)!];
-	}
-	const badge = typeof draft.badge === 'string' ? draft.badge.trim() : '';
-	return {
-		teamId,
-		name: text(draft.name),
-		accentColor: hex(draft.accent),
-		backgroundType,
-		backgroundValue,
-		badge: badge === '' ? null : badge,
-		flourish: stored.flourish ?? null,
-		tagline: text(draft.tagline)
-	};
-}
-
-/**
- * WHAT IS WRONG WITH A DRAFT, BEFORE IT IS SENT, in the RPC's own sentences
- * where 0223 has one. The lengths are table CHECKs, which the RPC does not
- * pre-check: sent anyway, they would come back as a constraint name rather
- * than a sentence. Empty when the draft can be saved.
- */
-export function teamStyleDraftProblems(draft: TeamStyleDraft): string[] {
-	const out: string[] = [];
-	if ([...draft.name.trim()].length > TEAM_NAME_MAX) {
-		out.push(`A team name can be at most ${TEAM_NAME_MAX} characters.`);
-	}
-	if ([...draft.tagline.trim()].length > TEAM_TAGLINE_MAX) {
-		out.push(`A motto can be at most ${TEAM_TAGLINE_MAX} characters.`);
-	}
-	if (draft.accent !== null && !isHexColour(draft.accent)) {
-		out.push('An accent colour must be a hex value like #3f8f5f.');
-	}
-	if (draft.bg === 'solid' && !isHexColour(draft.solid)) {
-		out.push('A solid background must be one hex colour.');
-	}
-	if (draft.bg === 'gradient' && !(isHexColour(draft.gradA) && isHexColour(draft.gradB))) {
-		out.push('A gradient background must be two hex colours.');
-	}
-	return out;
-}
-
-/**
- * A SAVE INPUT LAID OVER A TEAM ROW: the seven fields the RPC writes, nothing
- * else. One spelling for the editor's live preview (the draft, before it is
- * sent) and the class page's overlay (the save, before the board re-read
- * confirms it), so the card a student is looking at while choosing is the card
- * the class gets.
- */
-export function withTeamStyle<T extends Pick<Team, 'name' | 'accent_color' | 'background_type' | 'background_value' | 'badge' | 'flourish' | 'tagline'>>(
-	team: T,
-	input: SaveTeamStyleInput
-): T {
-	return {
-		...team,
-		name: input.name,
-		accent_color: input.accentColor,
-		background_type: input.backgroundType,
-		background_value: input.backgroundValue,
-		badge: input.badge,
-		flourish: input.flourish,
-		tagline: input.tagline
-	};
-}
-
-/** The draft as a team row, for the live preview: the input's own normalization, so the preview never shows what a save would not send. */
-export function draftTeam<T extends Pick<Team, 'id' | 'name' | 'accent_color' | 'background_type' | 'background_value' | 'badge' | 'flourish' | 'tagline'>>(
-	team: T,
-	draft: TeamStyleDraft
-): T {
-	return withTeamStyle(team, teamStyleInputOf(team.id, draft, team));
-}
-
-/**
- * HAS THE DRAFT MOVED OFF THE STORED LOOK, asked of what a save would SEND
- * rather than of the draft's own fields: a blank motto and an absent one are
- * the same team, and so are `#3E7BFA` and `#3e7bfa`. The editor's Save control
- * and its handler both read this, so the two cannot disagree about whether
- * there is anything to save.
- */
-export function teamStyleChanged(
-	team: Pick<Team, 'id' | 'name' | 'tagline' | 'accent_color' | 'background_type' | 'background_value' | 'badge' | 'flourish'>,
-	draft: TeamStyleDraft
-): boolean {
-	const now = teamStyleInputOf(team.id, draft, team);
-	const was = teamStyleInputOf(team.id, teamStyleDraftOf(team), team);
-	return JSON.stringify(now) !== JSON.stringify(was);
-}
-
-/**
- * WHAT "Clear look" DOES: the colour, the background, the badge and the motto
- * go, and the NAME STAYS. It is the teacher's quick way to take something down
- * from the class page without retiring the whole draw (0223's reason a manager
- * may write at all), and the name is kept because "Team 3" coming back is a
- * separate, deliberate edit of the name field.
- */
-export function clearedTeamLook(draft: TeamStyleDraft): TeamStyleDraft {
-	return { ...draft, accent: null, bg: 'none', badge: null, tagline: '' };
-}
-
-// ---------------------------------------------------------------------------
 // Transports
 // ---------------------------------------------------------------------------
 
@@ -729,8 +507,7 @@ export function createTeamTransports(supabase: SupabaseClient): TeamTransports {
 				p_flourish: input.flourish,
 				p_tagline: input.tagline
 			});
-			if (!error) return { ok: true };
-			return { ...failed(error), retryable: isTransientSqlstate((error as { code?: string }).code) };
+			return error ? failed(error) : { ok: true };
 		},
 
 		async move(setId, studentEmail, toTeamId) {

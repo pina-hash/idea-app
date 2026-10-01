@@ -15,12 +15,13 @@
  * module reads it. A second copy of the scope is how a route ends up dark on
  * one surface and lit on the next.
  *
- * THE PURE CHECK USED TO RUN FIRST, so a route the set does not name --
- * `/foundry/download` and `/foundry/starter` -- never opened a connection.
- * Ledger 0360's whole-Foundry switch reaches all three routes, so the read is
- * unconditional now and the class half still asks `foundryClosureBlocks(place)`
- * after it. Adding `'download'` to the set is still the whole of what it takes
- * to put download behind a class closure, and the test still does exactly
+ * THE PURE CHECK RUNS FIRST AND IS WHAT KEEPS THIS FREE WHERE IT SHOULD BE.
+ * `foundryClosureBlocks(place)` is an `includes` over a two-element array with
+ * no network in it, so a route the set does not name -- `/foundry/download`
+ * and `/foundry/starter` today -- costs nothing at all and never opens a
+ * database connection. Only a route the set DOES name pays for the read. That
+ * ordering is also what makes the wiring provable: adding `'download'` to the
+ * set is the whole of what it takes to gate it, and the test does exactly
  * that.
  *
  * AND IT RUNS BEFORE ANYTHING IS RESOLVED ABOUT THE REQUEST, WHICH IS A
@@ -39,12 +40,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
 	FOUNDRY_CLOSURE_LIMIT,
-	FOUNDRY_SITE_OFF_LEAD,
-	FOUNDRY_SITE_OFF_SCOPE,
 	foundryAccessFromRpc,
 	foundryClosedSentence,
 	foundryClosureBlocks,
-	foundrySiteOff,
 	type FoundryClosedSection,
 	type FoundryGuarded
 } from './access.ts';
@@ -62,77 +60,13 @@ export async function foundryServeRefusal(
 	supabase: Pick<SupabaseClient, 'rpc'>,
 	place: FoundryGuarded
 ): Promise<Response | null> {
-	/*
-	 * THE READ IS NOW UNCONDITIONAL, AND THAT REVERSES THE ORDERING ARGUED FOR
-	 * ABOVE ON PURPOSE (ledger 0360, report c26026b0). The pure check used to
-	 * run first so `/foundry/download` and `/foundry/starter` never opened a
-	 * connection; the WHOLE-FOUNDRY switch reaches every one of these routes
-	 * for a non-admin, so each now pays for one `foundry_section_access` read.
-	 * Those two routes are pressed a handful of times a day, which is the
-	 * whole of the cost. The class half below is unchanged: it still asks
-	 * `foundryClosureBlocks(place)` and still refuses only the places in the
-	 * set.
-	 */
+	if (!foundryClosureBlocks(place)) return null;
+
 	const { data, error } = await supabase.rpc('foundry_section_access');
 	const access = foundryAccessFromRpc(data, error);
-	if (foundrySiteOff(access)) return foundrySiteOffResponse(access.site?.note ?? null);
-
-	if (!foundryClosureBlocks(place)) return null;
 	if (access.open) return null;
 
 	return foundryClosedResponse(access.closed);
-}
-
-/**
- * THE WHOLE FOUNDRY IS OFF, ON THE PORTAL ORIGIN. 503 rather than the class
- * gate's 403: nothing about this viewer was considered and refused, the
- * service is down for everyone and comes back when somebody turns it on.
- *
- * THE SAME TWO SENTENCES `FoundrySiteOff.svelte` RENDERS, plus the admin's
- * note when one was left, escaped. It names nobody: 0230 never projects who
- * turned it off. Same policy and same no-store as the class refusal below.
- */
-export function foundrySiteOffResponse(note: string | null): Response {
-	const body = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Foundry is turned off</title>
-<style>
-	:root { color-scheme: dark; }
-	body {
-		margin: 0;
-		padding: 2rem 1.25rem;
-		background: #0e120f;
-		color: #e8ece6;
-		font: 400 1rem/1.55 "Rajdhani", "Segoe UI", sans-serif;
-	}
-	main { max-width: 38rem; margin: 0 auto; }
-	h1 { font-size: 1.25rem; margin: 0 0 0.75rem; color: #e8ece6; }
-	p { margin: 0 0 0.75rem; }
-	.next { color: #b9c2b4; }
-</style>
-</head>
-<body>
-<main>
-<h1>${escapeHtml(FOUNDRY_SITE_OFF_LEAD)}</h1>
-${note ? `<p>${escapeHtml(note)}</p>\n` : ''}<p class="next">${escapeHtml(FOUNDRY_SITE_OFF_SCOPE)}</p>
-</main>
-</body>
-</html>
-`;
-	return new Response(body, {
-		status: 503,
-		headers: {
-			'content-type': 'text/html; charset=utf-8',
-			'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'",
-			'x-content-type-options': 'nosniff',
-			'cache-control': 'no-store',
-			'referrer-policy': 'no-referrer',
-			'x-robots-tag': 'noindex, nofollow'
-		}
-	});
 }
 
 /**

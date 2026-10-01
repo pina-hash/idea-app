@@ -7,14 +7,7 @@
 	import HallPass from '$lib/classroom/HallPass.svelte';
 	import ClassTeams from '$lib/classroom/ClassTeams.svelte';
 	import { postedTeamSets, teamsManageLink } from '$lib/classroom/class-teams';
-	import {
-		teamWindowEnd,
-		teamWindowState,
-		type SaveTeamStyleInput,
-		type Team,
-		type TeamSet,
-		type TeamStyleResult
-	} from '$lib/classroom/teams';
+	import { teamWindowEnd, teamWindowState, type Team, type TeamSet } from '$lib/classroom/teams';
 	import { laCalendarDay } from '$lib/classroom/school-calendar';
 	import { classroomMeasure, locateClassroom } from '$lib/classroom/nav';
 	import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
@@ -42,14 +35,6 @@
 	const noTeams = params.get('teams') === 'none';
 	/* `?edited=1`: a teacher moved a student after the draw (0225, decision 44). */
 	const edited = params.get('edited') === '1';
-	/* `?style=1`: the class page's team style write (ledger 0360, R17), in
-	   memory: it changes the saved board, so the refresh that follows a save
-	   answers the new look, exactly as the database would. `?refuse=1` answers
-	   0223's own membership refusal instead. `?styled=extremes`: the three
-	   backgrounds the wash has to survive (a mid olive, black to white, white). */
-	const styleOn = params.get('style') === '1' || params.get('refuse') === '1';
-	const refuse = params.get('refuse') === '1';
-	const extremes = params.get('styled') === 'extremes';
 	const themeParam = params.get('theme');
 
 	/* FORCED THEME ATTRIBUTE, the classroom-live harness's way. A harness holds
@@ -137,27 +122,12 @@
 							name: 'Torque Squad',
 							accent_color: '#3fb0a0',
 							background_type: 'gradient',
-							background_value: extremes ? ['#000000', '#ffffff'] : ['#12352f', '#1d5a4f'],
+							background_value: ['#12352f', '#1d5a4f'],
 							tagline: 'Measure twice',
-							badge: extremes ? 'gear' : null,
 							mine: iAmOnTeamOne
 						}),
-						team(
-							't-2',
-							2,
-							['Dee Marsh', 'Eli Nakamura', 'Fay Obi'],
-							extremes
-								? { background_type: 'solid', background_value: '#a5b478', badge: 'crown', tagline: 'Olive is a colour' }
-								: {}
-						),
-						team(
-							't-3',
-							3,
-							['Gus Varga', 'Hana Ito', 'Ivan Petrov'],
-							extremes
-								? { accent_color: '#d08030', background_type: 'solid', background_value: '#ffffff', badge: 'bolt' }
-								: { accent_color: '#d08030' }
-						),
+						team('t-2', 2, ['Dee Marsh', 'Eli Nakamura', 'Fay Obi']),
+						team('t-3', 3, ['Gus Varga', 'Hana Ito', 'Ivan Petrov'], { accent_color: '#d08030' }),
 						team('t-4', 4, ['Jo Lindqvist', 'Kim Soto', 'Lee Amari'])
 					]
 				},
@@ -187,45 +157,11 @@
 			];
 
 	// What `classroom_team_board` answers: a manager every saved draw, a student
-	// only the showing ones; `showing` stamped on each at call time. A FUNCTION,
-	// so a refresh after a style save reads the saved board as it now stands.
-	const boardNow = () =>
-		postedTeamSets(
-			SAVED.map((s) => ({ ...s, showing: teamWindowState(s, now) === 'showing' })).filter(
-				(s) => teacher || s.showing
-			)
-		);
-	const posted = boardNow();
-
-	/* THE STYLE WRITE, IN MEMORY: 0223's update, field for field (all seven
-	   columns replaced, a null clears), on the saved board. `styleCalls` is what
-	   a spec reads to prove one Save is one write. */
-	let styleCalls = $state(0);
-	async function saveStyle(input: SaveTeamStyleInput): Promise<TeamStyleResult> {
-		styleCalls += 1;
-		if (refuse) {
-			return {
-				ok: false,
-				retryable: false,
-				message: 'Only a student on this team, or a teacher of the class, can customize it.'
-			};
-		}
-		for (const set of SAVED) {
-			for (const t of set.teams) {
-				if (t.id !== input.teamId) continue;
-				t.name = input.name;
-				t.accent_color = input.accentColor;
-				t.background_type = input.backgroundType;
-				t.background_value = input.backgroundValue;
-				t.badge = input.badge;
-				t.flourish = input.flourish;
-				t.tagline = input.tagline;
-				t.style_updated_by = teacher ? 'pina@boscotech.edu' : 'ana@boscotech.net';
-				t.style_updated_at = new Date().toISOString();
-			}
-		}
-		return { ok: true };
-	}
+	// only the showing ones; `showing` stamped on each at call time.
+	const board = SAVED.map((s) => ({ ...s, showing: teamWindowState(s, now) === 'showing' })).filter(
+		(s) => teacher || s.showing
+	);
+	const posted = postedTeamSets(board);
 
 	/* `?later=posted`: THE PAGE LOADED BEFORE THE TEACHER POSTED (ledger 0298,
 	   R23). The section layout's load answered nothing and never re-runs inside
@@ -242,7 +178,7 @@
 	async function refresh() {
 		refreshes += 1;
 		const postedNow = (globalThis as { __teamsPostedNow?: boolean }).__teamsPostedNow === true;
-		return later && !postedNow ? [] : boardNow();
+		return later && !postedNow ? [] : posted;
 	}
 
 	const hallPass: HallPassState = teacher
@@ -291,7 +227,6 @@
 	data-testid="class-teams-harness"
 	data-teams={teams.length}
 	data-refreshes={refreshes}
-	data-style-calls={styleCalls}
 	style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}
 >
 	<ClassSplit hasDetail={false} nav={classList}>{@render nothing()}</ClassSplit>
@@ -312,7 +247,6 @@
 		{today}
 		{refresh}
 		pollMs={later ? 2_000 : undefined}
-		style={styleOn ? saveStyle : null}
 	/>
 	<ClassView section={SECTION} items={ITEMS} canManage={teacher} basePath={BASE} />
 {/snippet}

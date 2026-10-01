@@ -50,20 +50,15 @@ import { load as liveLoad } from '../src/routes/classroom/[sectionId]/live/+page
 import { PROJECTOR_SECTION_SELECT } from '../src/lib/classroom/live-class/projector-load';
 import {
 	PROJECTOR_FRAME_KEYS,
-	WALL_ACTIVITY_GROUPS,
 	buildProjectorFrame,
 	hallPassWall,
 	newerFrame,
 	openProjectorChannel,
 	parseProjectorFrame,
 	parseProjectorMessage,
-	wallActivityCells,
-	wallName,
 	type ProjectorChannelHost,
-	type ProjectorMessage,
-	type WallActivityInput
+	type ProjectorMessage
 } from '../src/lib/classroom/live-class/projector';
-import type { LiveCellState } from '../src/lib/classroom/live-class/grid';
 import { countdown } from '../src/lib/classroom/live-class/timer';
 import { hallPassToolChip, type HallPassManagerState } from '../src/lib/classroom/hall-pass';
 
@@ -281,8 +276,8 @@ describe('2. the frame carries what the class may see, and a manager state canno
 		expect(hallPassWall({ ...managerOut, taken: false, open: null })).toEqual({ tone: 'free', word: 'Free' });
 	});
 
-	it('its keys are exactly the nine the type names', () => {
-		const expected = ['activity', 'agenda', 'at', 'day', 'hallPass', 'next', 'pick', 'timer', 'v'];
+	it('its keys are exactly the seven the type names', () => {
+		const expected = ['agenda', 'at', 'day', 'hallPass', 'pick', 'timer', 'v'];
 		expect(Object.keys(buildProjectorFrame(frameInput)).sort()).toEqual(expected);
 		expect([...PROJECTOR_FRAME_KEYS].sort()).toEqual(expected);
 	});
@@ -493,188 +488,5 @@ describe("5. the projector's page and view import none of the control view's pri
 		const control = read('src/routes/classroom/[sectionId]/live/+page.svelte') + read('src/routes/classroom/[sectionId]/live/+page.server.ts');
 		const found = PRIVATE_READS.filter((name) => control.includes(name));
 		expect(found.length).toBeGreaterThanOrEqual(5);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// 6. Student activity (reports R12, R13): counts behind one toggle, names
-//    behind a second, never for the students who are working
-// ---------------------------------------------------------------------------
-
-/**
- * A class as the live grid hands it over: a state and a name per student, and
- * nothing else. The names are written here, in both of the roster's
- * spellings, so the expected wall names come from this file rather than from
- * the module under test.
- */
-const CLASS: { state: LiveCellState; name: string }[] = [
-	{ state: 'working', name: 'Reyes, Ana' },
-	{ state: 'working', name: 'Ben Okafor' },
-	{ state: 'idle', name: 'Delgado, Cruz' },
-	{ state: 'idle', name: 'Dee Marsh' },
-	{ state: 'away', name: 'Nakamura, Eli' },
-	{ state: 'not-opened', name: 'Fay Obi' },
-	{ state: 'needs-grading', name: 'Varga, Gus' },
-	{ state: 'submitted', name: 'Hana Ito' }
-];
-const WORKING_NAMES = ['Reyes', 'Ana', 'Ben', 'Okafor'];
-const NON_WORKING_WALL = ['Cruz D.', 'Dee M.', 'Eli N.', 'Fay O.', 'Gus V.', 'Hana I.'];
-
-const activityIn = (over: Partial<WallActivityInput> = {}): WallActivityInput => ({
-	item: 'Truss sketch',
-	at: AT - 5000,
-	cells: CLASS,
-	names: false,
-	...over
-});
-
-describe('6. student activity reaches the wall as counts, and names only on the second toggle', () => {
-	it('with no activity input the frame carries none, as it always did', () => {
-		expect(buildProjectorFrame(frameInput).activity).toBeNull();
-		expect(buildProjectorFrame({ ...frameInput, activity: null }).activity).toBeNull();
-	});
-
-	it('counts, in the five groups, summing to the class', () => {
-		const a = buildProjectorFrame({ ...frameInput, activity: activityIn() }).activity!;
-		expect(a.counts).toEqual({ working: 2, idle: 2, away: 1, 'not-opened': 1, done: 2 });
-		expect(a.total).toBe(8);
-		expect(a.item).toBe('Truss sketch');
-		expect(WALL_ACTIVITY_GROUPS.map((g) => g.word)).toEqual(['Working', 'Not typing', 'Away', 'Not opened yet', 'Done']);
-	});
-
-	it('names off: the frame names nobody at all, and the sweep can see a name', () => {
-		const json = JSON.stringify(buildProjectorFrame({ ...frameInput, activity: activityIn() }));
-		for (const c of CLASS) {
-			for (const part of c.name.split(/[ ,]+/)) expect(json, part).not.toContain(part);
-		}
-		for (const n of NON_WORKING_WALL) expect(json, n).not.toContain(n);
-		expect(json).not.toContain('@');
-		// POSITIVE CONTROL: the SAME cells with the second toggle on do carry
-		// the non-working names, so the absence above is a result.
-		const named = JSON.stringify(buildProjectorFrame({ ...frameInput, activity: activityIn({ names: true }) }));
-		for (const n of NON_WORKING_WALL) expect(named, n).toContain(n);
-	});
-
-	it('only `true` turns names on: a truthy non-boolean is counts only', () => {
-		const sneaky = { ...activityIn(), names: 'yes' as unknown as boolean };
-		expect(buildProjectorFrame({ ...frameInput, activity: sneaky }).activity!.names).toBeNull();
-	});
-
-	it('names on: shortened to "First L.", grouped, and NEVER for the students who are working', () => {
-		const a = buildProjectorFrame({ ...frameInput, activity: activityIn({ names: true }) }).activity!;
-		expect(a.names).toEqual({
-			idle: ['Cruz D.', 'Dee M.'],
-			away: ['Eli N.'],
-			'not-opened': ['Fay O.'],
-			done: ['Gus V.', 'Hana I.']
-		});
-		expect(a.names!.working).toBeUndefined();
-		const json = JSON.stringify(a);
-		for (const part of WORKING_NAMES) expect(json, part).not.toContain(part);
-	});
-
-	it('two students who would shorten alike keep their full names; a lone word and an address never leak', () => {
-		expect(wallName('Reyes, Ana')).toBe('Ana R.');
-		expect(wallName('Ana Reyes')).toBe('Ana R.');
-		expect(wallName('Cher')).toBe('Cher');
-		expect(wallName('de la Loza, Joseph')).toBe('Joseph D.');
-		const twins = buildProjectorFrame({
-			...frameInput,
-			activity: activityIn({
-				names: true,
-				cells: [
-					{ state: 'idle', name: 'Ana Reyes' },
-					{ state: 'away', name: 'Reyna, Ana' },
-					{ state: 'idle', name: 'kim.soto@boscotech.net' }
-				]
-			})
-		}).activity!;
-		expect(twins.names).toEqual({ idle: ['Ana Reyes'], away: ['Reyna, Ana'] });
-		expect(twins.counts.idle).toBe(2);
-		expect(JSON.stringify(twins)).not.toContain('@');
-	});
-
-	it('the student out on the hall pass is counted and never named: the wall says Taken, never who', () => {
-		const grid = [
-			{ email: 'ana@boscotech.net', state: 'away' as LiveCellState, name: 'Ana Reyes' },
-			{ email: 'eli@boscotech.net', state: 'away' as LiveCellState, name: 'Eli Nakamura' },
-			{ email: 'ben@boscotech.net', state: 'working' as LiveCellState, name: 'Ben Okafor' }
-		];
-		const cells = wallActivityCells(grid, 'ANA@boscotech.net ');
-		// Nothing but a state and a name crosses: no address.
-		expect(JSON.stringify(cells)).not.toContain('@');
-		const a = buildProjectorFrame({ ...frameInput, activity: { ...activityIn(), cells, names: true } }).activity!;
-		expect(a.counts.away).toBe(2);
-		expect(a.names).toEqual({ away: ['Eli N.'] });
-		expect(JSON.stringify(a)).not.toContain('Ana');
-		// POSITIVE CONTROL: with nobody out, the same student is named.
-		const nobodyOut = buildProjectorFrame({
-			...frameInput,
-			activity: { ...activityIn(), cells: wallActivityCells(grid, null), names: true }
-		}).activity!;
-		expect(nobodyOut.names).toEqual({ away: ['Ana R.', 'Eli N.'] });
-	});
-
-	it('an instrument that has not answered is no activity at all, never a partial count', () => {
-		for (const state of ['unknown', 'no-signal'] as LiveCellState[]) {
-			const a = buildProjectorFrame({
-				...frameInput,
-				activity: activityIn({ cells: [...CLASS, { state, name: 'Kim Soto' }] })
-			}).activity;
-			expect(a, state).toBeNull();
-		}
-	});
-
-	it('the parse keeps a valid activity, and the names it was built with', () => {
-		const built = buildProjectorFrame({ ...frameInput, activity: activityIn({ names: true }) });
-		expect(parseProjectorFrame(JSON.parse(JSON.stringify(built)))!.activity).toEqual(built.activity);
-		const counts = buildProjectorFrame({ ...frameInput, activity: activityIn() });
-		expect(parseProjectorFrame(JSON.parse(JSON.stringify(counts)))!.activity).toEqual(counts.activity);
-	});
-
-	it('the parse refuses hostile activity whole: names under Working, an address, extra keys, bad counts', () => {
-		const built = buildProjectorFrame({ ...frameInput, activity: activityIn({ names: true }) });
-		const a = built.activity!;
-		const hostile: [string, unknown][] = [
-			['names under working', { ...a, names: { ...a.names, working: ['Ana R.'] } }],
-			['an address', { ...a, names: { ...a.names, idle: ['Cruz D.', 'dee@boscotech.net'] } }],
-			['a group the frame does not have', { ...a, names: { ...a.names, missing: ['Fay O.'] } }],
-			['more names than the count', { ...a, names: { ...a.names, away: ['Eli N.', 'Fay O.'] } }],
-			['a name that is not a string', { ...a, names: { ...a.names, away: [{ email: 'eli@boscotech.net' }] } }],
-			['a names array instead of an object', { ...a, names: ['Ana R.'] }],
-			['a negative count', { ...a, counts: { ...a.counts, away: -1 }, total: a.total - 2 }],
-			['a fractional count', { ...a, counts: { ...a.counts, away: 1.5 }, total: a.total + 0.5 }],
-			['a count past any class', { ...a, counts: { ...a.counts, working: 9999 }, total: a.total + 9997 }],
-			['a total that is not the sum', { ...a, total: a.total + 1 }],
-			['an extra count key', { ...a, counts: { ...a.counts, missing: 3 }, total: a.total + 3 }],
-			['a missing count key', { ...a, counts: { working: 2, idle: 2, away: 1, done: 2 }, total: 7 }],
-			['a non-finite instant', { ...a, at: 'now' }]
-		];
-		for (const [why, activity] of hostile) {
-			const parsed = parseProjectorFrame(JSON.parse(JSON.stringify({ ...built, activity })));
-			expect(parsed, why).not.toBeNull();
-			expect(parsed!.activity, why).toBeNull();
-		}
-		// And an extra key on the activity object itself does not survive.
-		const extra = parseProjectorFrame(JSON.parse(JSON.stringify({ ...built, activity: { ...a, email: 'x@y', presence: { a: 1 } } })));
-		expect(Object.keys(extra!.activity!).sort()).toEqual(['at', 'counts', 'item', 'names', 'total']);
-		expect(JSON.stringify(extra)).not.toContain('@');
-	});
-
-	it('a frame from a control view built before activity and Coming up still paints', () => {
-		const old = { v: 1, day: DAY, at: AT, agenda: ['Warm up'], timer: null, hallPass: null, pick: null };
-		const parsed = parseProjectorFrame(old);
-		expect(parsed).not.toBeNull();
-		expect(parsed!.activity).toBeNull();
-		expect(parsed!.next).toEqual([]);
-		expect(parsed!.agenda).toEqual(['Warm up']);
-	});
-
-	it('Coming up crosses as at most three trimmed lines, and the parse holds it to that', () => {
-		const lines = ['A · Due Oct 2', 'B · Due Oct 3', 'C · Due Oct 4', 'D · Due Oct 5', '   '];
-		const f = buildProjectorFrame({ ...frameInput, next: lines });
-		expect(f.next).toEqual(['A · Due Oct 2', 'B · Due Oct 3', 'C · Due Oct 4']);
-		expect(parseProjectorFrame({ ...f, next: [...lines, 7, { x: 1 }] })!.next).toEqual(f.next);
-		expect(parseProjectorFrame({ ...f, next: 'A' })!.next).toEqual([]);
 	});
 });

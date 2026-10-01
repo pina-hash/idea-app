@@ -66,7 +66,6 @@
 		sections,
 		scopeSection,
 		selected = [],
-		student = null,
 		standingOf,
 		outOf,
 		save
@@ -80,12 +79,6 @@
 		scopeSection: ClassroomSection;
 		/** The console's tick-box selection; empty means the whole class. */
 		selected?: string[];
-		/**
-		 * THE STUDENT WHO IS OPEN, for "Files: <name>" (ledger 0360, report
-		 * f09ccabd: "download files from one student, in addition to the
-		 * existing option"). Null with nobody open, which says how to get one.
-		 */
-		student?: { email: string; displayName: string } | null;
 		/** The roster chip's own words for a student. */
 		standingOf?: (email: string) => string;
 		outOf: number;
@@ -141,40 +134,6 @@
 		}
 	});
 	const plan = $derived(planned ?? EMPTY_PLAN);
-
-	/**
-	 * ONE STUDENT'S FILES ARE THE SAME PLAN WITH ONE NAME SELECTED. Nothing about
-	 * which files, which folder, what each is called or what `index.csv` says is
-	 * restated: `bulkDownloadPlan` already scopes to a selection, and this asks it
-	 * for a selection of one, inside the same guard, so a shape that would throw
-	 * costs this key and never the console.
-	 */
-	const studentPlanned = $derived.by((): BulkDownloadPlan | null => {
-		if (!source || !student) return null;
-		try {
-			return bulkDownloadPlan({
-				item,
-				data: data ?? { roster: [], submissions: [], files: [] },
-				managedRoster: managed,
-				sections,
-				scopeSectionId: scopeSection.id,
-				selected: [student.email],
-				blocks: source.blocks ?? new Map()
-			});
-		} catch (err) {
-			console.error('Files for one student: the plan could not be built', err);
-			return null;
-		}
-	});
-	const studentCount = $derived(studentPlanned?.entries.length ?? 0);
-
-	/** Every part of one student's files, in turn (one part, short of 500 MB). */
-	async function buildStudent() {
-		const planNow = studentPlanned;
-		const name = student?.displayName ?? '';
-		if (!planNow || !name) return;
-		for (const part of planNow.parts) await build(part, planNow.parts.length, name);
-	}
 	const scopeLabel = $derived(
 		plan.scope === 'selection' ? 'selected students' : sectionTitle(scopeSection)
 	);
@@ -191,9 +150,7 @@
 	 */
 	let doneLines = $state<Record<string, string>>({});
 	const doneHere = $derived(
-		Object.entries(doneLines).filter(
-			([key]) => key.startsWith(`${scopeLabel}#`) || (!!student && key.startsWith(`${student.displayName}#`))
-		)
+		Object.entries(doneLines).filter(([key]) => key.startsWith(`${scopeLabel}#`))
 	);
 	let failure = $state<string | null>(null);
 
@@ -207,14 +164,13 @@
 	 * class's. `buildBulkZip` does the fetching, the index and the zip; this
 	 * only holds the deploy reload, reports progress and saves the result.
 	 */
-	async function build(part: BulkPart, of: number, labelAtPress: string = scopeLabel) {
+	async function build(part: BulkPart, of: number) {
 		const src = source;
 		// THE HANDLER ASKS THE SAME PREDICATE THE CONTROL SHOWS (`aria-disabled`).
 		if (!src || busy || part.entries.length === 0) return;
 		// The class AT THE PRESS: the part was planned for it, so the zip's name
 		// and its sentence are too, whatever the picker says by the time it lands.
-		// For one student's files it is their name, so the zip says whose it is.
-		const label = labelAtPress;
+		const label = scopeLabel;
 		busy = true;
 		failure = null;
 		const release = holdDeployReload('Building a zip of student files', { warnOnUnload: true });
@@ -287,27 +243,7 @@
 						Download all files
 					</button>
 				{/if}
-				{#if student}
-					<!-- ONE STUDENT'S FILES, BESIDE EVERYONE'S (report f09ccabd). The open
-					     student is the selection; the zip is named for them. `aria-disabled`
-					     with the count in the words, so a student with nothing handed in
-					     reads "(0)" rather than a key that silently does nothing. -->
-					<button
-						type="button"
-						class="btn secondary tiny"
-						aria-disabled={busy || studentCount === 0}
-						data-testid="bulk-files-student"
-						onclick={() => void buildStudent()}
-					>
-						Files: {student.displayName} ({studentCount})
-					</button>
-				{/if}
 			</div>
-			{#if !student}
-				<p class="bfd-note" data-testid="bulk-files-student-hint">
-					Open a student to download only their files.
-				</p>
-			{/if}
 		{:else}
 			<!-- A PLAN THAT COULD NOT BE BUILT SAYS SO, rather than reading as
 			     "No files to download yet", which would be a false count, and

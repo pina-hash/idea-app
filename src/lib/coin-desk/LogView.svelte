@@ -1795,11 +1795,6 @@
 		max-height: 15rem;
 		overflow-y: auto;
 	}
-	/* SPACE WHITE DRAWS NO BLUR (ledger 0360): the list lifts on the theme's
-	   hard ledge instead of a heavy dark drop meant for a black page. */
-	:global(:root[data-theme='space-white']) .combo-list {
-		box-shadow: var(--elevation-2);
-	}
 	.combo-option {
 		display: flex;
 		align-items: baseline;

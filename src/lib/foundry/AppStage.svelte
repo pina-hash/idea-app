@@ -169,20 +169,7 @@
 		 */
 		runningLabel = '',
 		/** `eager` for a single-app surface; see AppFrame for why it is a prop. */
-		loading = 'eager',
-		/**
-		 * THE APP'S COVER, SHOWN IN THE STAGE BEFORE ANYTHING RUNS (ledger 0360,
-		 * report 94e312c4). The detail pane used to draw the cover as its own
-		 * block, up to 18rem tall, ABOVE a dashed box holding the Launch key, so
-		 * on a laptop the key was below the fold and playing took four actions:
-		 * pick the card, scroll, launch, then Full screen. The cover is now the
-		 * stage's own idle face with the keys over it, at the stage's height,
-		 * so the thing you press is where the app will appear.
-		 *
-		 * DECORATIVE HERE (`alt=""`): the title is the heading right above it,
-		 * and the image is a picture of what pressing Launch will show.
-		 */
-		poster = null
+		loading = 'eager'
 	}: {
 		appId: string;
 		versionId: string;
@@ -192,16 +179,7 @@
 		height?: string;
 		runningLabel?: string;
 		loading?: 'lazy' | 'eager';
-		poster?: string | null;
 	} = $props();
-
-	/**
-	 * A COVER THAT DID NOT DECODE STEPS ASIDE, and the keys render on their
-	 * own exactly as they do for an app with no cover. The engine's broken
-	 * image glyph over a launch control is the failure this avoids.
-	 */
-	let posterBroken = $state(false);
-	const showPoster = $derived(!!poster && !posterBroken);
 
 	/** The frame src, or null when this app cannot be pointed at anything. */
 	const src = $derived(foundryBundleUrl(appsOrigin, appId, versionId));
@@ -406,21 +384,6 @@
 		void beginPlay();
 	}
 
-	/**
-	 * LAUNCH STRAIGHT INTO FULL SCREEN, IN ONE PRESS (report 94e312c4). Both
-	 * halves run inside the SAME click handler, synchronously, so the request
-	 * still carries the press's transient activation: `stage` already exists
-	 * in the idle state (it is the element this markup binds whatever is
-	 * showing), and `requestFullscreen` on it is legal before the frame inside
-	 * it has mounted. If the browser refuses, the overlay class is already on,
-	 * which is the same floor `enterFull` always had.
-	 */
-	function startFull() {
-		if (!src) return;
-		start();
-		enterFull();
-	}
-
 	function stop() {
 		running = false;
 		// Full screen is a state of the STAGE, and the stage is about to be empty.
@@ -559,48 +522,9 @@
 		{/if}
 		<AppFrame {src} {title} {height} {loading} fill={full} />
 	{:else}
-		<div class="fdy-stage-idle" class:has-poster={showPoster && !!src}>
+		<div class="fdy-stage-idle">
 			{#if src}
-				<!--
-					TWO KEYS, AND THE FIRST ONE KEEPS ITS WORD AND ITS CLASS. "Launch
-					app" runs it in the pane, as it always has; "Launch full screen"
-					runs it with the whole screen in one press, which is what a
-					student opening a game usually wants. Full screen on a running
-					app is still on the bar above the frame, unchanged.
-				-->
-				{#snippet keys()}
-					<div class="fdy-stage-keys">
-						<button type="button" class="btn fdy-launch tap-44" onclick={start}>Launch app</button>
-						<button
-							type="button"
-							class="btn fdy-launch-full tap-44"
-							data-testid="foundry-launch-full"
-							onclick={startFull}
-						>
-							Launch full screen
-						</button>
-					</div>
-				{/snippet}
-				{#if showPoster && poster}
-					<!--
-						THE COVER IS THE STAGE'S IDLE FACE, at the running app's own
-						shape, with the keys over its centre the way a video's play
-						control sits over its first frame. The keys sit on a plate of
-						the room's own surface, so they are measured on a known ground
-						whatever colour a student's cover is.
-					-->
-					<div class="fdy-stage-poster-box" style="--fdy-stage-h: {height}">
-						<img
-							class="fdy-stage-poster"
-							src={poster}
-							alt=""
-							onerror={() => (posterBroken = true)}
-						/>
-						<div class="fdy-stage-keys-plate">{@render keys()}</div>
-					</div>
-				{:else}
-					{@render keys()}
-				{/if}
+				<button type="button" class="btn fdy-launch tap-44" onclick={start}>Launch app</button>
 				<p class="fdy-stage-note">
 					It opens in a sandbox on a separate address, so it cannot reach anything of yours.
 				</p>
@@ -790,59 +714,5 @@
 	.fdy-launch {
 		border-color: var(--green);
 		color: var(--green);
-	}
-
-	.fdy-stage-keys {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-2, 0.5rem);
-	}
-
-	/*
-		THE POSTER STATE. The box takes the shape of a wide screen, so a phone
-		gets a short poster with the keys in view and a monitor gets a large
-		one, capped at the running app's own height so nothing jumps when it
-		starts. `contain`, never `cover`: an idle face is a preview, and a
-		preview shows the whole picture rather than cropping the edge somebody
-		wanted to see.
-	*/
-	.fdy-stage-idle.has-poster {
-		align-items: stretch;
-		padding: var(--space-2, 0.5rem);
-		border-style: solid;
-	}
-
-	.fdy-stage-poster-box {
-		position: relative;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 100%;
-		aspect-ratio: 16 / 9;
-		max-height: var(--fdy-stage-h, 70vh);
-		min-height: 11rem;
-		overflow: hidden;
-		border-radius: var(--radius-sm, 4px);
-		background: var(--surface-0, var(--bg0));
-	}
-
-	.fdy-stage-poster {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		object-fit: contain;
-	}
-
-	.fdy-stage-keys-plate {
-		position: relative;
-		padding: var(--space-3, 0.75rem);
-		background: var(--surface-1, var(--bg1));
-		border: 1px solid var(--boundary);
-		border-radius: var(--radius-md, 8px);
-	}
-
-	.fdy-stage-idle.has-poster .fdy-stage-note {
-		padding: 0 var(--space-2, 0.5rem);
 	}
 </style>

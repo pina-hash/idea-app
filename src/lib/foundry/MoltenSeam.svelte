@@ -119,15 +119,6 @@
 			0 0 30px rgba(246, 149, 47, 0.16);
 	}
 
-	/* SPACE WHITE DRAWS NO GLOW (ledger 0360). The halo token already goes
-	   transparent under the forge's light twin; the second, literal layer of
-	   the halo is removed here, so the seam is the molten metal and nothing
-	   bleeding off it onto white paper. The pour itself is unchanged: it is
-	   the room's signature and decoration (`aria-hidden`), not a reading. */
-	:global(:root[data-theme='space-white']) .fg-pour {
-		box-shadow: none;
-	}
-
 	.fg-pour[data-variant='seam'] {
 		height: 0.55rem;
 	}

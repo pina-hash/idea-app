@@ -45,9 +45,7 @@
 	 *                         page is a door, and the returned card sits above it.
 	 *   ?state=returned|new   returned with a score, breakdown and comment
 	 *                         (default), or not started, which is where the
-	 *                         "How this is graded" rubric is read: after the
-	 *                         work, closed (report R20, ledger 0360). The
-	 *                         returned card's breakdown starts closed too.
+	 *                         "How this is graded" rubric is read BEFORE the work.
 	 *
 	 * The rubric is four leveled criteria on purpose: the breakdown is what used
 	 * to sit ABOVE the teacher's comment, and a short one would hide the defect
@@ -175,8 +173,7 @@
 		rubric: RUBRIC,
 		submission: SUBMISSION,
 		/* Only a returned hand-in carries an answer: `new` is work nobody has
-		   started, the state a student first reads the rubric in (closed, at
-		   the bottom, since report R20). */
+		   started, which is the state the rubric is read in, open. */
 		responses:
 			returned && (engineKind === 'v1' || engineKind === 'v2')
 				? [{ block_id: 'b1', value: { text: 'Face A, the mounting face' } }]

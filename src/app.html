@@ -63,25 +63,7 @@
 		<title>IDEA</title>
 		%sveltekit.head%
 	</head>
-	<!--
-		A LINK HOVER NEVER RUNS A SERVER LOAD (ledger 0360, report R08). This
-		attribute was the SvelteKit template's default, never a decision: a
-		pointer resting 20ms on any link preloaded that route's DATA, which runs
-		the hooks (an Auth round trip) and every server load of the route --
-		about 18 database calls for /classroom and 33 to 36 for an item page --
-		through a one-slot cache that discards the previous preload and never
-		aborts its fetch. Every row of the home feed, every launcher card and
-		every class-stream row is a link, so a pointer crossing the page during
-		class cost the database a page load per link, invisible in every
-		per-minute polling figure. Measured on /dev/home-order at 1440: resting
-		on six launcher links issued six route-data loads.
-
-		So DATA preloads on TAP (mousedown or touchstart, about 100ms before the
-		click lands) and CODE on hover, which fetches the route's JS and costs the
-		database nothing. No element overrides this, and
-		tests/link-preload-policy.test.ts sweeps for one.
-	-->
-	<body data-sveltekit-preload-data="tap" data-sveltekit-preload-code="hover">
+	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>
 </html>

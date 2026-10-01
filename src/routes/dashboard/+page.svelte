@@ -10,7 +10,7 @@
 	import DecalReviewQueue from '$lib/greenline/DecalReviewQueue.svelte';
 	import GreenlineDashboardCard from '$lib/greenline/GreenlineDashboardCard.svelte';
 	import { reviewDecal } from '$lib/greenline/decals';
-	import { PATHWAY_IDS, pathwayById, pathwayInk } from '$lib/pathways';
+	import { PATHWAY_IDS, pathwayInk } from '$lib/pathways';
 	import { displayName, type UserProfile } from '$lib/profile';
 	import { domainById, rankForCount } from '$lib/frc/track';
 	import { mdmUnitByNumber, mdmUnitById } from '$lib/frc/mdm-content';
@@ -470,17 +470,9 @@
 												     the card. `pathwayInk` is the same hue at a lightness that
 												     carries text (CLAUDE.md, "an identity colour is never moved
 												     to pass a contrast check; the derived value moves"). -->
-												<!-- BOTH INKS, AS HOOKS, never an inline `color`: under Space
-												     White the dark-ground ink is a bright hue on white (IDEA's
-												     #00ff41 measured 1.09:1), and an inline colour is the one
-												     declaration no theme rule can reach. The stylesheet picks
-												     `inkOnLight` there, the pathway's own light-ground twin. -->
 												<span
 													class="roster-name"
-													class:tinted={!!pathwayInk(s.pathway)}
-													style={pathwayInk(s.pathway)
-														? `--pw-ink:${pathwayInk(s.pathway)}; --pw-ink-light:${pathwayById(s.pathway)?.inkOnLight ?? pathwayInk(s.pathway)}`
-														: ''}
+													style={pathwayInk(s.pathway) ? `color:${pathwayInk(s.pathway)}` : ''}
 												>
 													{displayName(toProfile(s))}
 												</span>
@@ -847,12 +839,6 @@
 		font-size: 1rem;
 		color: var(--white);
 		line-height: 1.2;
-	}
-	.roster-name.tinted {
-		color: var(--pw-ink);
-	}
-	:global(:root[data-theme='space-white']) .roster-name.tinted {
-		color: var(--pw-ink-light);
 	}
 	.roster-email {
 		font-family: var(--font-mono);

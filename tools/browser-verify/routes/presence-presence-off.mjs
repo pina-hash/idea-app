@@ -61,9 +61,6 @@ export default {
 		{ selector: '[data-testid="presence-chip"]', label: 'presence chips (none)', expectPresent: 0 },
 		{ selector: '[data-testid="presence-note"]', label: 'the coverage sentence (none)', expectPresent: 0 },
 		{ selector: '[data-testid="presence-never"]', label: 'the never-opened line (none)', expectPresent: 0 },
-		/* LEDGER 0360: a row carries the state's GLYPH now, against the at-rest
-		   spec's 4 on the identical fixture. */
-		{ selector: '[data-testid="roster-presence"]', label: 'presence glyphs on the rows (none)', expectPresent: 0 },
 		{
 			/* THE POSITIVE CONTROL. Five roster rows, exactly as the at-rest spec
 			   measures, so the zeros above are a removed REGION and not a console

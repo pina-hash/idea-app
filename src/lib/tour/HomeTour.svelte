@@ -39,7 +39,6 @@
 	import { page } from '$app/state';
 	import type { UserProfile } from '$lib/profile';
 	import { PATHWAY_PICKER_DONE_EVENT, pathwayPickerDeferred } from '$lib/PathwayPicker.svelte';
-	import { pathwayPromptWanted, todaySchoolDay } from '$lib/pathway-choice';
 	import SpotlightTour from './SpotlightTour.svelte';
 	import { tourModKey } from './classroom-tours';
 	import {
@@ -134,14 +133,9 @@
 	 * picker was showing when it was not, and waited for a done event that was
 	 * never coming. Calling `pathwayPickerDeferred` is what makes that
 	 * impossible rather than merely fixed.
-	 *
-	 * AND THE WHO-IS-ASKED HALF IS `pathwayPromptWanted`, FOR THE SAME REASON
-	 * (ledger 0360). A freshman who answered "No pathway yet" has a null
-	 * pathway and no sheet; a copy of the old "student with no pathway" rule
-	 * here would go on believing the sheet was up and never start their tour.
 	 */
 	const pickerShowing = () => {
-		if (!claims || !pathwayPromptWanted(profile, todaySchoolDay())) return false;
+		if (!claims || profile?.role !== 'student' || profile?.pathway) return false;
 		return !pathwayPickerDeferred();
 	};
 

@@ -16,7 +16,7 @@
  *   - the ring clears 3:1 against the timer's ground (it is a boundary);
  *   - the 8H rule and the wall fitting its window with the ring drawn.
  */
-import { EIGHT_H, PROJECTOR_READY, READOUT_PARTS, RING_FACE_WCAG, WALL_FITS_ANY } from './_classroom-live.mjs';
+import { EIGHT_H, PROJECTOR_READY, READOUT_PARTS, WALL_FITS } from './_classroom-live.mjs';
 
 export default {
 	path: '/dev/classroom-projector?demo=final&clock=pinned',
@@ -25,13 +25,12 @@ export default {
 	orderResult: [
 		{ label: 'the wall reads hundredths in the last ten seconds, the fraction drawn apart', evaluate: READOUT_PARTS('[data-testid="projector-timer-digits"]'), expected: ['0:07', '.42'] },
 		{
-			label: 'the timer is running, in its last seconds, with the ring\'s arc in the warning ink',
-			evaluate: `() => { const t = document.querySelector('[data-testid="projector-timer"]'); const arc = getComputedStyle(t.querySelector('[data-testid="plate-ring"] .r-value')).stroke; return [t.dataset.phase, t.dataset.final, arc === getComputedStyle(t.querySelector('.lp-ring')).outlineColor ? 'arc in the ring ink' : 'arc ' + arc]; }`,
-			expected: ['running', 'true', 'arc in the ring ink']
+			label: 'the timer is running, in its last seconds, with the warning edge',
+			evaluate: `() => { const t = document.querySelector('[data-testid="projector-timer"]'); return [t.dataset.phase, t.dataset.final, getComputedStyle(t).borderTopColor === getComputedStyle(t.querySelector('.lp-ring')).outlineColor ? 'edge in the ring ink' : 'edge ' + getComputedStyle(t).borderTopColor]; }`,
+			expected: ['running', 'true', 'edge in the ring ink']
 		},
 		{ label: '8H: the smallest text against 1/50 of the height (a portrait window is not a wall and is not held to it)', evaluate: `() => [(${EIGHT_H})()].map((v) => v.startsWith('portrait') ? 'smallest text clears 1/50 of the height' : v)`, expected: ['smallest text clears 1/50 of the height'] },
-		{ label: 'the wall fits the window (a portrait window may scroll)', evaluate: WALL_FITS_ANY, expected: ['no horizontal scroll', 'no vertical scroll'] },
-		{ label: 'the digits on the ring face, and the warning arc on its track', evaluate: RING_FACE_WCAG(), expected: ['digits clear 4.5 WCAG on the ring face', 'the arc clears 2 WCAG on its track'] }
+		{ label: 'the wall fits the window', evaluate: WALL_FITS, expected: ['no horizontal scroll', 'no vertical scroll'] }
 	],
 	presence: [
 		{ selector: '[data-testid="projector-timer"][data-final="true"]', label: 'the timer, in its last seconds', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
@@ -39,8 +38,10 @@ export default {
 		{ selector: '[data-testid="projector-timer-burst"]', label: 'no finish burst before time is up', expectPresent: 0 }
 	],
 	contrast: [
+		{ selector: '.lp-digits', label: 'timer digits', min: 4.5 },
+		{ selector: '.lp-frac', label: 'hundredths', min: 4.5 },
 		{ selector: '.lp-word', label: 'timer word', min: 4.5 },
-		{ selector: '.lp-ring', label: 'the last-seconds ring, a boundary, on the wall', min: 3 }
+		{ selector: '.lp-ring', label: 'the last-seconds ring, a boundary, on the timer ground', min: 3 }
 	],
 	motion: [{ selector: '[data-testid="projector-timer"]', label: 'the beat, gated behind no-preference', expect: 'gated' }],
 	ignoreConsole: ['Failed to load resource: net::ERR_FAILED']

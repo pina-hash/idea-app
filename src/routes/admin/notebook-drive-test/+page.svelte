@@ -154,12 +154,6 @@
 		opacity: 0.45;
 		cursor: default;
 	}
-	/* SPACE WHITE (ledger 0360): the button's fill is the theme's dark green
-	   ink, so its word takes the theme's on-fill ink rather than the
-	   near-black written for the bright default green (5.21:1). */
-	:global(:root[data-theme='space-white']) button {
-		color: var(--accent-on-fill);
-	}
 	.ok,
 	.err {
 		border: 1px solid;

@@ -290,12 +290,10 @@
 		return menu && menu.getClientRects().length ? menu : null;
 	}
 
-	/* Settings is a registry command as well as a header control. The argument
-	   opens it AT a group: a page's Arrange runs it with `panels:class` or
-	   `panels:item` (ledger 0360, R23), so the editor for that page arrives open. */
+	/* Settings is a registry command as well as a header control. */
 	$effect(() => {
 		if (!preferences) return;
-		return registerCommandHandler('settings.open', (arg) => settingsEl?.open(arg));
+		return registerCommandHandler('settings.open', () => settingsEl?.open());
 	});
 
 	/**

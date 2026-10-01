@@ -105,63 +105,6 @@ export interface HtmlBlock {
 	field: string;
 	type: HtmlBlockType;
 	minSentences?: number;
-	/**
-	 * THREE OPTIONAL DISPLAY KEYS (ledger 0360), and none of them is a new block
-	 * TYPE, deliberately: a type would widen the six-type vocabulary that 0195's
-	 * validator and both live save gates (0197, 0199) enforce, which is a change
-	 * to the functions every student answer is written through. Every validator
-	 * in the repo (0195's SQL, `checkBlock` below, the python tool) DECIDES on
-	 * id, field, type and minSentences and keeps the rest verbatim; the two
-	 * client-side ones WARN about a malformed `prompt` or `link`
-	 * (`displayKeyWarnings`) and REFUSE an `optional` that is not a boolean,
-	 * because `optional` decides what counts toward completion and "yes" read
-	 * as required is a worksheet nobody can finish. So an author adds these on a
-	 * re-upload with block ids unchanged and no stored answer moves. A reader
-	 * treats a malformed value as absent; see the accessors.
-	 *
-	 *   optional  the block may be left empty: progress judges it but never
-	 *             counts it against completion (report 8f78d5bd).
-	 *   prompt    the question as a grader reads it, for the Q&A view and the
-	 *             CSV headers (report 41c7fcd5).
-	 *   link      a `text` block that hands in a share link; `'presentation'` is
-	 *             the one kind today (`HTML_LINK_KINDS`, append-only).
-	 */
-	optional?: boolean;
-	prompt?: string;
-	link?: HtmlLinkKind;
-}
-
-/** The kinds of link a `text` block may declare. Append-only: ids may be stored. */
-export type HtmlLinkKind = 'presentation';
-export const HTML_LINK_KINDS: readonly HtmlLinkKind[] = ['presentation'];
-
-/**
- * THE LONGEST `prompt` A READER KEEPS. `hxBlockPrompt` cuts at this many
- * characters, and `checkBlock` WARNS past it rather than refusing: a prompt is a
- * display key, and a display key may never decide whether a document imports.
- */
-export const HTML_PROMPT_MAX = 500;
-
-/** May this block be left empty without holding back completion. */
-export function hxBlockIsOptional(block: unknown): boolean {
-	return !!block && typeof block === 'object' && (block as { optional?: unknown }).optional === true;
-}
-
-/** The block's grader-facing question, trimmed, or null when none is declared. */
-export function hxBlockPrompt(block: unknown): string | null {
-	if (!block || typeof block !== 'object') return null;
-	const raw = (block as { prompt?: unknown }).prompt;
-	if (typeof raw !== 'string') return null;
-	const t = raw.replace(/^\s+|\s+$/g, '');
-	return t === '' ? null : t.slice(0, HTML_PROMPT_MAX);
-}
-
-/** The link kind a `text` block declares, or null (absent, unknown, or not a text block). */
-export function hxBlockLinkKind(block: unknown): HtmlLinkKind | null {
-	if (!block || typeof block !== 'object') return null;
-	const b = block as { type?: unknown; link?: unknown };
-	if (b.type !== 'text') return null;
-	return (HTML_LINK_KINDS as readonly unknown[]).includes(b.link) ? (b.link as HtmlLinkKind) : null;
 }
 
 export interface HtmlModule {
@@ -492,50 +435,6 @@ function copyIssues(where: string, text: string): string[] {
 }
 
 /**
- * TWO OF THE THREE DISPLAY KEYS (ledger 0360), CHECKED AND NEVER REFUSED.
- * `optional` is checked in `checkBlock` itself, where a non-boolean is an
- * ERROR: it decides what counts toward completion, so it is not only display.
- *
- * `prompt` and `link` change what a grader READS; neither changes what a
- * student may write, and 0195's SQL check,
- * which is the gate that actually stores a manifest, does not look at them at
- * all. So a malformed value here is a WARNING naming what the readers will do
- * with it (treat it as absent), never an error: an error on a key the database
- * accepts would make this validator refuse a document the import stores, and a
- * re-upload that adds a prompt must never be the thing that stops a worksheet
- * importing.
- *
- * The readers above (`hxBlockPrompt`, `hxBlockLinkKind`) are what decide the
- * meaning; every sentence here describes what they do.
- */
-function displayKeyWarnings(b: Record<string, unknown>, where: string): string[] {
-	const out: string[] = [];
-	if (b.prompt !== undefined) {
-		if (typeof b.prompt !== 'string') {
-			out.push(`${where} prompt must be text; it is ignored and the field name is shown instead.`);
-		} else if (!b.prompt.trim()) {
-			out.push(`${where} prompt is empty; it is ignored and the field name is shown instead.`);
-		} else if (b.prompt.trim().length > HTML_PROMPT_MAX) {
-			out.push(
-				`${where} prompt is ${b.prompt.trim().length} characters; only the first ${HTML_PROMPT_MAX} are shown. Keep a prompt to the question as a grader reads it.`
-			);
-		}
-	}
-	if (b.link !== undefined) {
-		if (!(HTML_LINK_KINDS as readonly unknown[]).includes(b.link)) {
-			out.push(
-				`${where} link is ${JSON.stringify(b.link)}; the known kinds are ${HTML_LINK_KINDS.join(', ')}, so it is ignored.`
-			);
-		} else if (b.type !== 'text') {
-			out.push(
-				`${where} declares a ${String(b.link)} link on a ${String(b.type)} block; only a text block can hand in a link, so it is ignored.`
-			);
-		}
-	}
-	return out;
-}
-
-/**
  * VALIDATE A DOCUMENT AND THE MANIFEST INSIDE IT.
  *
  * `html` is the whole uploaded document. The manifest is read from it; the
@@ -665,16 +564,6 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 				`${where} sets minSentences on a ${String(b.type)} block, where nothing counts sentences.`
 			);
 		}
-		// `optional` DECIDES WHAT COUNTS TOWARD COMPLETION (progress.ts), so a
-		// value that is not a boolean is REFUSED rather than read as required:
-		// an author who wrote "yes" meant optional, and a worksheet that quietly
-		// held every student below 100% over it is the failure the key exists to
-		// end. No stored manifest carries the key yet, so refusing it changes no
-		// stored answer.
-		if (b.optional !== undefined && typeof b.optional !== 'boolean') {
-			errors.push(`${where} sets optional to ${JSON.stringify(b.optional)}; it must be true or false.`);
-		}
-		displayKeyWarnings(b, where).forEach((w) => warnings.push(w));
 	};
 
 	// THE HEADER FIRST, so its ids and fields are claimed before any module's --
@@ -687,15 +576,6 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 			errors.push('The manifest header must be an array of blocks when present.');
 		} else {
 			header.forEach((b, i) => checkBlock(b, `Header block ${i + 1}`));
-			// A header block never counts toward completion, so `optional` there
-			// is redundant: said, not refused.
-			header.forEach((b, i) => {
-				if (hxBlockIsOptional(b)) {
-					warnings.push(
-						`Header block ${i + 1} is marked optional, which changes nothing: header blocks never count toward completion.`
-					);
-				}
-			});
 			// Points are a MODULE's business. An identity field that declared
 			// points would be scored by nothing and would not appear in any sum,
 			// which is the 0-point module problem in a smaller costume.
@@ -742,21 +622,6 @@ export function validateHtmlManifest(html: string, parsed?: unknown): ManifestVa
 			errors.push(`Module "${name}" needs a blocks array.`);
 		} else {
 			blocks.forEach((b, bi) => checkBlock(b, `Module "${name}" block ${bi + 1}`));
-			// WHAT THE PROGRESS BAR WILL DO WITH THIS MODULE, said before import
-			// (ledger 0360). Two or more photo slots with none optional is the
-			// Hook 01 trap: a one-photo student sits below 100% forever. A module
-			// whose every block is optional carries no weight at all.
-			const photos = blocks.filter((b) => (b as Record<string, unknown>)?.type === 'image');
-			if (photos.length >= 2 && !photos.some((b) => hxBlockIsOptional(b))) {
-				warnings.push(
-					`Module "${name}" has ${photos.length} photo blocks and none is optional: every one must hold a photo before the bar reaches 100%.`
-				);
-			}
-			if (blocks.length > 0 && blocks.every((b) => hxBlockIsOptional(b))) {
-				warnings.push(
-					`Module "${name}" marks every block optional, so it can never move the progress bar.`
-				);
-			}
 		}
 
 		// --- criteria -------------------------------------------------------

@@ -5,13 +5,7 @@
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
 	import { describeBuild, FEEDBACK_EXCLUSIONS } from '$lib/feedback/context';
 	import { submitAnonymousFeedback } from '$lib/feedback/feedback';
-	import type {
-		FeedbackEntry,
-		FeedbackHorizon,
-		FeedbackRow,
-		FeedbackStatus
-	} from '$lib/feedback/feedback';
-	import { FEEDBACK_CONSOLE_PATH } from '$lib/feedback/context';
+	import type { FeedbackEntry, FeedbackRow, FeedbackStatus } from '$lib/feedback/feedback';
 	import type {
 		SpeechRecognitionErrorLike,
 		SpeechRecognitionEventLike
@@ -188,38 +182,6 @@
 				contact: null,
 				submitter_name: 'Harness User',
 				submitter_email: 'harness@boscotech.net'
-			},
-			/*
-				TWO LONG-TERM IDEAS (0230), one in the column and one only in
-				`meta.horizon`, which is what a signed-in report written against a
-				backend before 0230 looks like. The second is also the OLDEST row
-				in the sink: the console's "Long-term ideas" tab must hold it, and
-				the "Fix soon" tab must not.
-			*/
-			{
-				...base,
-				id: 'seed-long-term',
-				kind: 'idea' as const,
-				horizon: 'long_term',
-				meta: { route: '/classroom/[sectionId]', path: '/classroom/s-1', viewport: '1440x900' },
-				message: 'A presentation engine for running student slides from the class page.',
-				created_at: '2026-08-20T15:30:00.000Z',
-				anonymous: false,
-				contact: null,
-				submitter_name: 'Harness User',
-				submitter_email: 'harness@boscotech.net'
-			},
-			{
-				...base,
-				id: 'seed-long-term-meta',
-				kind: 'idea' as const,
-				meta: { route: '/foundry', path: '/foundry', viewport: '1440x900', horizon: 'long_term' },
-				message: 'Let a class vote on which game goes on the projector at the end of term.',
-				created_at: '2026-06-02T10:00:00.000Z',
-				anonymous: false,
-				contact: null,
-				submitter_name: 'Harness User',
-				submitter_email: 'harness@boscotech.net'
 			}
 		];
 	}
@@ -272,9 +234,7 @@
 				reviewed_at: null,
 				reviewed_by: null,
 				submitter_name: 'Harness User',
-				submitter_email: 'harness@boscotech.net',
-				// The column as 0230 stores it: the reporter's choice, else its default.
-				horizon: entry.horizon ?? 'now'
+				submitter_email: 'harness@boscotech.net'
 			},
 			...sink
 		];
@@ -301,21 +261,6 @@
 		);
 		return { ok: true };
 	};
-
-	/**
-	 * THE HORIZON SWITCH, IN MEMORY, the `setStatus` shape: filing, so status and
-	 * the review stamp are untouched, exactly as 0230's function leaves them.
-	 * `?horizon=unavailable` hands the console NO transport and the sentence the
-	 * real page passes on a backend before 0230, so the absent control and its
-	 * reason are drivable too.
-	 */
-	let horizonCalls = $state(0);
-	const setHorizon = async (id: string, horizon: FeedbackHorizon) => {
-		horizonCalls += 1;
-		sink = sink.map((r) => (r.id === id ? { ...r, horizon } : r));
-		return { ok: true };
-	};
-	const horizonUnavailable = page.url.searchParams.get('horizon') === 'unavailable';
 
 	/**
 	 * Every excluded category, driven at `place="shell"` (nothing renders) and
@@ -529,30 +474,6 @@
 		</section>
 
 		<section class="hx-card">
-			<h2>As an admin sees it</h2>
-			<p class="hx-note">
-				The box with the Feedback page link in its header (report R15), the way the root
-				layout derives it for an admin. Every other mount on this page passes nothing, and
-				this harness has no session, so theirs carry no link: the student arrangement, on the
-				same page. This section sits after every mount the existing specs open, because they
-				click the FIRST relocated trigger, which stays the dictation one.
-			</p>
-			<div class="hx-row" data-testid="hx-admin-report">
-				<SiteFeedback
-					place="relocated"
-					routeId="/dev/feedback"
-					pathname="/dev/feedback"
-					role="teacher"
-					{build}
-					{submit}
-					consoleHref={FEEDBACK_CONSOLE_PATH}
-					dictation={null}
-					label="Report (as an admin)"
-				/>
-			</div>
-		</section>
-
-		<section class="hx-card">
 			<h2>Build identifier, both sources</h2>
 			<dl class="hx-facts">
 				<div><dt>git commit present</dt><dd>{build.source} &middot; {build.value}</dd></div>
@@ -665,17 +586,7 @@
 			</label>
 		</div>
 		<div class={SITE_PLATE} style="display: contents">
-			<FeedbackConsole
-				rows={sink}
-				{fetchScreenshot}
-				{setStatus}
-				setHorizon={horizonUnavailable ? undefined : setHorizon}
-				horizonUnavailable={horizonUnavailable
-					? 'Moving a report between Fix soon and Long-term ideas needs a database update that has not been applied yet. Reports marked long-term when they were sent still show under their own tab.'
-					: null}
-				{undoMs}
-			/>
-			<p class="hx-note">horizon writes: <span data-testid="horizon-calls">{horizonCalls}</span></p>
+			<FeedbackConsole rows={sink} {fetchScreenshot} {setStatus} {undoMs} />
 		</div>
 	{/if}
 

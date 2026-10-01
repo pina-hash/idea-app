@@ -7,9 +7,7 @@ Writes, into <out dir> (a SCRATCHPAD, never the repository):
 
   reports.txt     every report, oldest first, numbered R01.., with the reporter
                   named by ROLE only (the site owner is named, nobody else),
-                  plus the path of its screenshot inside <out dir>/archive/.
-                  A report marked as a long-term idea (0230) carries a
-                  [long-term] tag, so a round can set it aside without opening it
+                  plus the path of its screenshot inside <out dir>/archive/
   mark-seen.sql   one paste for the Supabase SQL editor that moves exactly
                   these reports from `new` to `seen`, so the next export filtered
                   to `status: new` does not hand the same reports back
@@ -65,16 +63,8 @@ def main(argv):
     reports = sorted(data.get('reports', []), key=lambda r: r.get('created_at') or '')
     files = data.get('files', {})
     sections = data.get('sections', {}) or {}
-    # THE HORIZON, from the archive's own lookup first (it answers for every
-    # report, a pre-0230 row included), then the row's column, then the blob a
-    # client wrote before the column existed. Anything else is `now`.
-    horizons = data.get('horizons') or {}
 
-    def horizon_of(r):
-        h = horizons.get(r.get('id')) or r.get('horizon') or (r.get('meta') or {}).get('horizon')
-        return 'long_term' if h == 'long_term' else 'now'
-
-    lines, ids, shots, statuses, long_term = [], [], 0, {}, 0
+    lines, ids, shots, statuses = [], [], 0, {}
     for i, r in enumerate(reports, 1):
         meta = r.get('meta') or {}
         email = (r.get('submitter_email') or '').strip().lower()
@@ -85,12 +75,8 @@ def main(argv):
         else:
             who = 'a ' + (meta.get('role') or 'user')
         build = (meta.get('build') or {}).get('value') or 'unknown'
-        tag = ''
-        if horizon_of(r) == 'long_term':
-            tag = ' [long-term]'
-            long_term += 1
         head = (
-            f"R{i:02d} [{r.get('kind')}]{tag} app={r.get('app')} path={meta.get('path')} "
+            f"R{i:02d} [{r.get('kind')}] app={r.get('app')} path={meta.get('path')} "
             f"by={who} filed={(r.get('created_at') or '')[:16]} build={build} "
             f"viewport={meta.get('viewport')} id={r.get('id')}"
         )
@@ -149,7 +135,6 @@ where status = 'new'
         f.write(sql)
 
     print(f'{len(reports)} reports, {shots} screenshots, statuses {statuses}')
-    print(f'{long_term} marked as a long-term idea (tagged [long-term] in reports.txt), {len(reports) - long_term} to fix soon')
     src = ((data.get('archive') or {}).get('exportedFrom') or {})
     print(f"exported {data.get('generatedAt')} from commit {src.get('sha', 'unknown')} ({src.get('date', '?')})")
     print(f'wrote {os.path.join(out_dir, "reports.txt")} and mark-seen.sql')

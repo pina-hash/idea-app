@@ -1,5 +1,5 @@
 # IDEA Interface Standards
-**Version 2.15 - 2026-10-01**
+**Version 2.14 - 2026-09-28**
 
 Governs layout, viewport behavior, role parity, and interaction structure for every IDEA app surface: IDEA Classroom, the digital notebook, the reference reader, the grading console, the portal, and any surface built after this document.
 
@@ -34,7 +34,6 @@ The IDEA program is run from a desktop computer with a wide screen. Students use
 - **A layout token set inline from a route out-specifies every stylesheet rule.** An inline `style="--x: …"` on a wrapper cannot be widened, narrowed, or overridden by any selector, including a `:has()` rule written specifically to do so. Where two writers need to set the same layout token, both must be stylesheet rules so specificity can decide between them; route-level values pass through a differently-named token that the stylesheet resolves. This shipped once as 960px of chrome sitting over a 1440px split, which is the exact defect the `:has()` rule had been added to fix.
 - **A horizontal strip whose item count is not fixed by design must scroll, and must give the person a way to scroll it.** Tab strips, section switchers, filter rails, chip rows: anything whose length depends on content will eventually exceed its container, and the container will usually be narrower than the one it was designed in. The strip scrolls, not the page or the pane. It carries a real control: a visible scrollbar, edge buttons, or both. Wheel and pointer drag both work. The active item is scrolled into view on mount and on change, and the whole strip is reachable by keyboard. An edge fade is a hint that more exists, never the control itself, and selecting an item is never the only way to move.
 - **In a persistent pane, state seeded at construction outlives the thing it described.** A component that used to remount on every navigation now does not, so any value initialized once from props keeps naming whatever was open before. Re-derive from the current data rather than seeding, or clamp on change. This shipped as a reference document whose active-section slug came from the previously opened document, hiding every section at once, and it only became reachable when the detail pane became persistent. Expect this shape wherever a pane stops remounting.
-- **A page's header puts the controls a person reaches for first into one wrapping row of keys under the title.** It never stacks a full-width strip per control above the content: a class page whose banner, theme vote, tools and New post each took a strip of their own started its first post 395px down a 1440 window, and one wrapping row moved it to 244px with nothing removed. On a phone the keys become tiles two to a line rather than one a line, and each tile may shrink (`min-width: 0`), because one key a line costs more height than the strips it replaced.
 - **The `main` landmark follows the content, not the container.** In a responsive split, whichever pane is the content at that viewport carries the landmark. A pane hidden at the current breakpoint must never be the document's only `main`. Verify this at every viewport and route combination, not once.
 
 **Rationale.** Both IDEA Classroom and the notebook were built mobile-first. A 2026-08-16 audit found no media query above 1024px anywhere in the classroom, reference, or notebook surfaces, five distinct hardcoded page widths in the classroom alone (46, 48, 52, 60, and 62rem) with no shared value in the design system or the shared stylesheet, and shell chrome pinned at 60rem above content that is often 46. Nobody noticed because every viewport check had been run at 375px.
@@ -138,7 +137,6 @@ The IDEA program is run from a desktop computer with a wide screen. Students use
   acknowledgement.
 
 - **The state is per surface, not global.** A banner in the shell reading "all changes saved" while one pane holds a failed write is a false negative with a wide blast radius.
-- **A completion meter over unsaved work never reads complete.** A progress bar that counts what is typed rather than what the server acknowledged reaches 100% over a write that failed, and the person stops there believing they are done. "Filled" and "complete" are two facts: complete means filled AND acknowledged, and a filled surface still waiting on its last write says so, with its Retry, in the surface's own chrome rather than in a status nobody looks at. Established 2026-10-01 (ledger 0360), when a worksheet's rail read 100% through a database stall and the class list called the same work Missing.
 
 **Rationale.** This is student work, produced once, under a deadline, on a school network. The cost of a silent failure is not a bad experience, it is a student who did the assignment and has nothing to show for it, discovered at grading time when there is no way to reconstruct it.
 
@@ -269,8 +267,6 @@ These rules are not retroactive demolition orders. When work touches a surface t
 
 **What is left out, and why:** a product with its own named design system keeps it (GAUNTLET, VANGUARD, GREENLINE, IdeaCAD's modeling workspace, FRC, and FSP's decks and pages); content keeps its authors' design (a student's published Foundry app, a legacy HTML assignment, the frozen IDEA Coin Ledger, the public reference viewer, a deck or slide); and a projected, full-screen surface keeps its own (the tournament TV stage, the classroom projector). When in doubt, a page with its own named design system or a full-screen experience is left out.
 
-**Space White applies on every page the site plate covers (from 2.15).** A room that redeclares the portal tier on its own wrapper (the tournaments room, the Maps viewer, the Foundry forge) carries a light twin of its own tokens in its own stylesheet, moving identity hues in lightness only, and a projected screen (the tournament TV stage) stays a dark island. Mr. Pina, 2026-09-29: "space white on the rest of the site, yes."
-
 - **(a) One geometry for every theme.** A theme changes colour and material, never a length: radii, borders, padding, sizes and positions are declared once, and a theme block carries colours only, shadows included (a shadow's geometry is written once and only its colour is a token, so a glow a theme does not want is a transparent colour, never a missing shadow). This is proven, not asserted: a bounding-box diff reads every element on the classroom surfaces in each theme and must report zero differing boxes, and a length planted in one theme must make it report hundreds.
 - **(b) Raised means pressable; inset means not.** A button, a key, a tab and a toggle are raised pillows: a composite edge, a lit top, a soft foot and a drop shadow. A chip, a status tag, a field, a list well and a recessed column are set into the surface: an inner shadow under the top lip, a light lip at the foot, and no drop shadow. A chip that reads as a button promises a click that does nothing, which is the defect this rule exists to prevent. A key that is on keeps its state visible whatever spelling the component uses for it; the word and `aria-pressed` say it too, so colour is never the only signal.
 - **(c) The load-bearing boundary is the outer hairline of a composite border.** Every other band of the edge (the light ring inside it, the top highlight, the soft foot, the tray outside) is decoration. Measure the hairline against every ground the control sits on and hold it at 3:1 or more, and 2.0 on the projector model; do not draw a second outline on top to get there. A softer page comes from lightening the hairline toward the floor, never from dropping below it.
@@ -282,59 +278,8 @@ These rules are not retroactive demolition orders. When work touches a surface t
 
 ---
 
-## 15. A Person Arranges Their Own Page
-
-**Where a surface lets each person show, hide and reorder its sections, the arrangement changes what is on screen for that person and never what the page is.** Mr. Pina asked for this on the class page and the item page on 2026-09-30 (phase 1: hide, show, reorder, saved to the account, with Reset; adding new buttons is phase 2).
-
-- **The page's own content is an anchor that never moves and never hides**: the posts on a class page, the work on an item page. Sections are placed around it in document order, never with CSS `order`, and its node is never moved, because a moved iframe reloads and a reload in the middle of a worksheet is lost typing.
-- **A section a person cannot do without is movable but not hideable**: the page heading, an obligation such as a notebook check-in, a material's own reference document. The editor says "Always shown" beside it rather than offering a switch that does nothing.
-- **A hidden section is named on the page**, with a control that opens the arrangement, so a person who hid something and forgot is never left looking for it. A filter still in force while its controls are hidden still shows its count and its Clear.
-- **The arrangement is saved to the account, with a Reset per page.** What is stored is ids only, and it is validated on read: an unknown id is dropped, never coerced, and nothing that may not hide can be hidden by a stored value, so the read fails toward showing.
-- **Every arrangement control has a keyboard path and a word**: a grip that takes the arrow keys, Move up and Move down, and Show. Each is a 44px target and is `aria-disabled` (never `disabled`) at the ends of the list, so it can still say why.
-- **A section that lives inside another, such as a key in a header row, shows and hides in place and moves with its host.** Hiding it removes it from the page, so whatever it refreshes stops; it is never pulled out of its host to be moved on its own.
-- **A teacher's notice is never placed below anything a person arranged**, except the page's own header.
-
-**Rationale.** A class page carries tools, teams, a banner, a vote, a search and a video list around the posts, and different people need different ones. Letting each person choose costs nothing as long as the one thing every page exists for cannot be moved or hidden, and as long as a section somebody hid can always be found again.
-
----
-
-## 16. A Temporary Post Ends on Its Own
-
-**A post that is meant to be temporary carries its own end, and disappears at that end without anybody taking it down.** Established for classroom quick posts on 2026-10-01 (ledger 0360, report c994ce32).
-
-- **The end is chosen when the post is written**: a preset (end of the school day, end of the week, and a few more), a specific date and time, or "until I take it down". The presets resolve against the school's own calendar day in Los Angeles; where the repository holds no bell schedule, "end of the school day" is 3:00 PM local, and the control says so.
-- **An expired post leaves every surface at its end, with no network call.** The end is a stored instant, so a page already open hides the post the moment it passes; waiting for the next refresh is a post that says "due today" the morning after.
-- **Taking a post down is a stamp, never a delete**, and belongs to its author or to a manager of every class it went to. A post sent to several classes is one record, so taking it down takes it down everywhere at once.
-- **A post is unmistakable where it is shown**: at the top of the class, above the posts, in words that say until when.
-
-**Rationale.** A teacher posting "the lab is closed today" should not have to remember to take it down tomorrow, and a student reading it tomorrow should not be told something false.
-
----
-
-## 17. A Projected Screen Faces the Room
-
-**Anything shown on a projected screen is read by the whole room, so anything that names a student is off by default.** Established 2026-10-01 (ledger 0360, reports f7b3070d and ab750cbc).
-
-- **Counts first, names as a second, separate choice.** Student activity on the wall is off until the teacher turns it on, and is then counts; names are a separate control that is off by default, is never turned back on by a reload, and never names the student who is out on the hall pass.
-- **A projected list that does not fit is cut in a stated order and says how much it cut** ("+3 more"); it is never clipped and never shrunk below the size that reads from the back of the room.
-- **Projected text is measured under the projector model** (`PROJECTOR_MODEL`, 300:1 native with a 10% ambient wash), with floors of 4.5 for body text, 3.0 for muted and status text, and 2.0 for a boundary.
-- **The wall uses the whole screen**: its hero (a timer, a clock) is sized from the window, never from a shrink-to-fit box that collapses when a sibling is empty.
-
-**Rationale.** The control view is a teacher's; the wall is everybody's. A screen that shows who is not working, by default, is a disclosure made in front of a class.
-
----
-
 ## Changelog
 
-- **2.15 (2026-10-01)** - Three sections added from the 2026-10-01 feedback round (ledger
-  0360): 15, a person arranges their own page (an anchor that never moves, a section that
-  must stay movable but not hideable, a hidden section named on the page, ids validated on
-  read, a keyboard path for every control); 16, a temporary post ends on its own; and 17,
-  a projected screen faces the room (counts before names, names a separate opt-in that a
-  reload never restores, stated cuts, the projector model). Section 1 gains the rule that
-  a header's first-reach controls are one wrapping row of keys, section 6 the rule that
-  a completion meter over unsaved work never reads complete, and section 14 states that
-  Space White now applies on every page the site plate covers.
 - **2.14 (2026-09-28)** - Section 14 widened from the classroom to the site when the Plate
   went live on every page built from the shared shell (ledger 0346): the one stylesheet
   now answers to two one-line switches, the section names what is in and what is left

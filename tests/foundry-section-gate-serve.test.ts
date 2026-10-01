@@ -479,21 +479,9 @@ describe('the degradation ladder has one implementation', () => {
 		expect(foundryAccessFromRpc(null, {}).open).toBe(false);
 	});
 
-	/**
-	 * GENERALISED IN LEDGER 0360, NOT DELETED. This asserted the row came back
-	 * by IDENTITY, which a legitimate change broke: the whole-Foundry switch
-	 * arrives as four flat `site_*` keys on the same payload and the ladder now
-	 * folds them into `site`, so the answer is a new object. The rule the
-	 * assertion protected is that the class half passes through UNCHANGED, and
-	 * that is what it says now, plus the site half's own default.
-	 */
 	it('passes a real answer through unchanged', () => {
 		const row = { open: false, closed: [{ section_id: 'x' }] };
-		const out = foundryAccessFromRpc(row, null);
-		expect(out.open).toBe(false);
-		expect(out.closed).toBe(row.closed);
-		// A pre-0230 payload carries no site keys, and that world has no switch.
-		expect(out.site?.open).toBe(true);
+		expect(foundryAccessFromRpc(row, null)).toBe(row);
 		expect(foundryAccessFromRpc(null, null).open).toBe(true);
 	});
 

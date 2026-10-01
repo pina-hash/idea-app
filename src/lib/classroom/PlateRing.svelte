@@ -30,13 +30,8 @@
 		text?: string;
 		/** The same fact in words; none makes the ring decoration. */
 		label?: string;
-		/**
-		 * The ring's width and height: a number of px, or any CSS length (the
-		 * projector hands it `var(--lp-ring)`, a size its own container sets).
-		 */
-		size?: number | string;
+		size?: number;
 	} = $props();
-	const sizeCss = $derived(typeof size === 'number' ? `${size}px` : size);
 
 	const uid = $props.id();
 	const id = (n: string) => `plr-${uid}-${n}`;
@@ -58,9 +53,7 @@
 	role={label ? 'img' : undefined}
 	aria-label={label}
 	aria-hidden={label ? undefined : 'true'}
-	style:--plate-ring-size={sizeCss}
-	data-testid="plate-ring"
->
+	 style:--plate-ring-size="{size}px" data-testid="plate-ring">
 	<svg viewBox="0 0 200 200" aria-hidden="true" focusable="false">
 		<defs>
 			<linearGradient id={id('rest')} x1="0.25" y1="0" x2="0.85" y2="1">

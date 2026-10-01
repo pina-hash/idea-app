@@ -2,8 +2,6 @@
 	import { onMount, type Snippet } from 'svelte';
 	import { laCalendarDay } from '$lib/classroom/school-calendar';
 	import { isTypingTarget } from '$lib/shell/keys';
-	import { CLASSROOM_PLATE } from '$lib/classroom/plate';
-	import PlateRing from '$lib/classroom/PlateRing.svelte';
 	import {
 		clockParts,
 		formatReadout,
@@ -18,7 +16,6 @@
 		timerToggle,
 		timerWord,
 		wallDateLabel,
-		wallRingValue,
 		TIMER_FINAL_MS,
 		type LiveTimer,
 		type TimerReadout
@@ -27,14 +24,12 @@
 		newerFrame,
 		openProjectorChannel,
 		PROJECTOR_HERE_MS,
-		WALL_ACTIVITY_GROUPS,
 		WALL_HALL_GLYPH,
 		type ProjectorChannel,
 		type ProjectorChannelHost,
 		type ProjectorFrame,
 		type ProjectorMessage
 	} from './projector';
-	import { wallFit, WALL_SCALE } from './wall-layout';
 
 	/**
 	 * THE PROJECTOR VIEW: what the class sees on the wall, and nothing else.
@@ -43,19 +38,9 @@
 	 * else arrives as a `ProjectorFrame` over the same-browser channel from the
 	 * teacher's control view, and is re-validated on arrival (`projector.ts`).
 	 * So the agenda, the clock, the running timer, the hall pass in student-scope
-	 * words, a picked name the teacher chose to show, what is coming up, and
-	 * student activity as COUNTS when the teacher turned it on (names only on a
-	 * second, separate press) are the WHOLE of what this page can paint -- there
-	 * is no roster, presence, grade or email in reach of it to leak.
-	 *
-	 * IT USES THE WHOLE SCREEN (reports R12, R13). The hero is the timer, drawn
-	 * as the Plate's progress ring with the digits in its middle, or a large
-	 * clock when no timer is set; the side is a column of Plate cards fitted to
-	 * the box it has (`wallFit`), at the largest size that fits and never below
-	 * the 8H floor. The hero's size comes from a container whose size the window
-	 * sets, never its contents: the old time column was a shrink-to-fit grid item
-	 * that was also its own size container, collapsed to zero width with no
-	 * agenda, and drew a 48px timer on a 1440px wall.
+	 * words and a picked name the teacher chose to show are the WHOLE of what
+	 * this page can paint -- there is no roster, presence, grade or email in
+	 * reach of it to leak.
 	 *
 	 * NO CHROME AND NO FLOATING CONTROLS. The page is reset to the root layout
 	 * (no classroom masthead), it is in the feedback exclusion registry (so the
@@ -67,16 +52,14 @@
 	 *
 	 * SIZED BY THE 8H RULE. Text a class reads from the back of a room is at
 	 * least 1/50 of the screen's height; every size below is a fraction of the
-	 * viewport or of the wall's own container, so a 1280x800 projector and a
-	 * 1920x1080 one show the same layout at the same proportions.
+	 * viewport, so a 1280x800 projector and a 1920x1080 one show the same layout
+	 * at the same proportions, and nothing drops below 2vh.
 	 *
 	 * THE KEYS ARE FOR A MIRRORED DISPLAY, where the teacher cannot reach the
 	 * control view without the class watching: Space starts or pauses the timer,
 	 * R resets it, F toggles full screen. A change made here is written back as a
 	 * newer frame, which the control view adopts, so neither window is the only
-	 * one that can run the clock. NO KEY HERE TURNS STUDENT ACTIVITY OR NAMES ON:
-	 * that is a decision made on the teacher's own screen, never in front of the
-	 * class.
+	 * one that can run the clock.
 	 */
 	let {
 		classLabel,
@@ -141,19 +124,13 @@
 	});
 	const phase = $derived(timer ? timerPhase(timer, timerNow) : null);
 	const readout = $derived(timer ? timerReadout(timer, timerNow, 'wall') : null);
-	/** The last ten seconds of a countdown that has started: the warn arc, and the beat while it runs. */
+	/** The last ten seconds of a countdown that has started: the warn edge, and the beat while it runs. */
 	const final = $derived(!!timer && (phase === 'running' || phase === 'paused') && timerFinal(timer, timerNow));
 	const word = $derived(timer ? timerWord(timer, timerNow) : '');
 	const overtime = $derived(timer ? timerOvertime(timer, timerNow) : null);
-	/**
-	 * THE RING'S VALUE MOVES ONCE A SECOND (`wallRingValue` is quantised), and a
-	 * derived number only propagates when it changes, so the SVG and its three
-	 * blurs repaint once a second while the digits keep their own pace.
-	 */
-	const ringValue = $derived(timer ? wallRingValue(timer, timerNow) : 0);
 
 	/*
-	 * THE DIGITS ARE SIZED ONCE PER TIMER, NOT PER READING. The ring's face fits
+	 * THE DIGITS ARE SIZED ONCE PER TIMER, NOT PER READING. The time column fits
 	 * `--chars` monospace cells, the fraction drawn at FRACTION_SCALE of the
 	 * whole's size (one number, handed to the stylesheet as `--frac`). Sized off
 	 * the current reading, the digits would grow at 9:59 and shrink again at the
@@ -171,54 +148,6 @@
 		return Math.max(4, ...widths);
 	}
 	const faceCells = $derived(timer && readout ? wallCells(timer, readout) : 4);
-
-	// ---------------------------------------------------------------------
-	// THE SIDE: which cards, at what size, and anything cut
-	// ---------------------------------------------------------------------
-	let viewW = $state(0);
-	let viewH = $state(0);
-	let sideW = $state(0);
-	let sideH = $state(0);
-	/** The four-times-a-second clock, slowed to whole seconds: what the plan's staleness check needs. */
-	const planNow = $derived(Math.floor(now / 1000) * 1000);
-	const portrait = $derived(viewW > 0 && viewH > 0 && viewW <= viewH);
-	const plan = $derived(
-		wallFit(
-			frame ?? {
-				v: 1,
-				day: today,
-				at: 0,
-				agenda: [],
-				timer: null,
-				hallPass: null,
-				pick: null,
-				next: [],
-				activity: null
-			},
-			planNow,
-			{
-				// Before the first measurement (and in a server render) the box is
-				// estimated from the window; the measured box replaces it at once.
-				width: sideW > 0 ? sideW : viewW * 0.42,
-				height: sideH > 0 ? sideH : viewH * 0.7,
-				viewHeight: viewH,
-				portrait
-			}
-		)
-	);
-	const activity = $derived(plan.activityLive ? (frame?.activity ?? null) : null);
-	const asOf = $derived(activity ? clockParts(activity.at) : null);
-	const namedGroups = $derived(
-		activity?.names
-			? WALL_ACTIVITY_GROUPS.filter(
-					(g) => (activity.names?.[g.key]?.length ?? 0) > 0 && !plan.namesDropped.includes(g.key)
-				).map((g) => ({
-					...g,
-					names: (activity.names?.[g.key] ?? []).slice(0, plan.namesShown[g.key] ?? 0),
-					more: plan.namesMore[g.key] ?? 0
-				}))
-			: []
-	);
 
 	let channel: ProjectorChannel | null = null;
 	function onMessage(message: ProjectorMessage) {
@@ -306,206 +235,87 @@
 	<title>{classLabel} // Projector</title>
 </svelte:head>
 
-<svelte:window bind:innerWidth={viewW} bind:innerHeight={viewH} />
-
-<main
-	class="lp-root {CLASSROOM_PLATE}"
-	data-testid="projector"
-	data-has-agenda={agenda.length > 0}
-	data-has-timer={!!timer}
-	data-hero={plan.hero}
-	data-side-empty={plan.sideEmpty}
->
+<main class="lp-root" data-testid="projector" data-has-agenda={agenda.length > 0} data-has-timer={!!timer}>
 	<div class="lp-stage" bind:this={stage}>
 		<header class="lp-head">
 			<span class="lp-class" data-testid="projector-class">{classLabel}</span>
 			<span class="lp-date">{dateLabel}</span>
 		</header>
 
-		<div class="lp-main">
-			<div class="lp-body" data-hero={plan.hero} data-side-empty={plan.sideEmpty}>
-				<section class="lp-hero" aria-label="Time">
-					{#if timer && readout}
-						<div
-							class="lp-timer"
-							data-phase={phase}
-							data-final={final}
-							data-mode={timer.mode}
-							data-testid="projector-timer"
-						>
-							<div class="lp-ring-box" data-testid="projector-ring">
-								<!-- THE PLATE'S PROGRESS RING IS THE TIMER (R12): how much of
-								     the countdown is left, or a stopwatch's sweep of the
-								     minute. Decoration (aria-hidden): the digits in its middle
-								     are the reading. -->
-								<PlateRing value={ringValue} size="var(--lp-ring)" />
-								<!-- THE BEAT AND THE FINISH. One ring on the timer's outer
-								     edge, drawn as an outline so it never widens the page. In
-								     the last ten seconds it is re-made each time the whole
-								     second changes, so its pulse lands with the digit; when
-								     time is up it bursts once. Both move only under
-								     `no-preference`; under reduced motion the ring rests on the
-								     edge, still. -->
-								{#if final && phase === 'running'}
-									{#key readout.whole}
-										<span class="lp-ring lp-pulse" aria-hidden="true" data-testid="projector-timer-pulse"></span>
-									{/key}
-								{:else if phase === 'done'}
-									<span class="lp-ring lp-burst" aria-hidden="true" data-testid="projector-timer-burst"></span>
-								{/if}
-								<!-- The digits are the ring's SIBLINGS, never its children, so
-								     with the Plate switched off they still read. -->
-								<div class="lp-face">
-									<span
-										class="lp-digits"
-										style="--chars: {faceCells}; --frac: {FRACTION_SCALE}"
-										data-testid="projector-timer-digits"
-										><span class="lp-whole">{readout.whole}</span><span class="lp-frac">{readout.fraction}</span></span
-									>
-								</div>
-							</div>
-							<p class="lp-timer-line">
-								<span class="lp-word">{word}</span>
-								{#if overtime}
-									<span class="lp-over">Over by {overtime}</span>
-								{/if}
-							</p>
-						</div>
-					{:else}
-						<p class="lp-clock lp-bigclock" data-testid="projector-clock">
-							{wallClock.time}<span class="lp-period">{wallClock.period}</span>
-						</p>
-					{/if}
+		<div class="lp-body">
+			{#if agenda.length > 0}
+				<section class="lp-agenda" aria-labelledby="lp-agenda-title" data-testid="projector-agenda">
+					<h2 id="lp-agenda-title" class="lp-label">Today</h2>
+					<ol class="lp-lines" style="--lines: {Math.max(agenda.length, 4)}">
+						{#each agenda as line, i (i)}
+							<li class="lp-line" data-testid="projector-agenda-line">{line}</li>
+						{/each}
+					</ol>
 				</section>
+			{/if}
 
-				{#if !plan.sideEmpty}
-					<div
-						class="lp-side"
-						bind:clientWidth={sideW}
-						bind:clientHeight={sideH}
-						style="--f: {plan.fontPx}px; --lp-floor: {plan.floorPx}px"
-						data-testid="projector-side"
-					>
-						{#if plan.clock || frame?.hallPass}
-							<!-- The clock and the hall pass share one card, side by side:
-							     two short facts, one row. -->
-							<section class="lc-panel lp-card lp-status" aria-label={plan.clock ? 'Clock and hall pass' : 'Hall pass'}>
-								{#if plan.clock}
-									<p class="lp-clock" data-testid="projector-clock" style="font-size: {plan.clockPx}px">
-										{wallClock.time}<span class="lp-period">{wallClock.period}</span>
-									</p>
-								{/if}
-								{#if frame?.hallPass}
-									<p class="lp-hall" data-tone={frame.hallPass.tone} data-testid="projector-hall">
-										<span class="lp-label">Hall pass</span>
-										<span class="lp-hall-word">
-											<span aria-hidden="true">{WALL_HALL_GLYPH[frame.hallPass.tone]}</span>
-											{frame.hallPass.word}
-										</span>
-									</p>
-								{/if}
-							</section>
+			<section class="lp-time" aria-label="Time">
+				<p class="lp-clock" data-testid="projector-clock">
+					{wallClock.time}<span class="lp-period">{wallClock.period}</span>
+				</p>
+				{#if timer && readout}
+					<div class="lp-timer" data-phase={phase} data-final={final} data-testid="projector-timer">
+						<!-- THE BEAT AND THE FINISH. One ring on the timer's edge, drawn
+						     as an outline so it never widens the page. In the last ten
+						     seconds it is re-made each time the whole second changes, so
+						     its pulse lands with the digit; when time is up it bursts
+						     once. Both move only under `no-preference`; under reduced
+						     motion the ring rests on the edge, still. -->
+						{#if final && phase === 'running'}
+							{#key readout.whole}
+								<span class="lp-ring lp-pulse" aria-hidden="true" data-testid="projector-timer-pulse"></span>
+							{/key}
+						{:else if phase === 'done'}
+							<span class="lp-ring lp-burst" aria-hidden="true" data-testid="projector-timer-burst"></span>
 						{/if}
-						{#if frame?.pick}
-							<section class="lc-panel lp-card lp-pick" aria-label="Random pick" data-testid="projector-pick">
-								<p class="lp-pick-head">
-									<span class="lp-label">Random pick</span>
-									<span class="lp-seed">seed {frame.pick.seed}</span>
-								</p>
-								<p class="lp-pick-name" style="font-size: {WALL_SCALE.pick}em">{frame.pick.name}</p>
-							</section>
-						{/if}
-						{#if agenda.length > 0}
-							<section class="lc-panel lp-card lp-agenda" aria-labelledby="lp-agenda-title" data-testid="projector-agenda">
-								<h2 id="lp-agenda-title" class="lp-label">Today</h2>
-								<ol class="lp-lines">
-									{#each agenda.slice(0, plan.agendaShown) as line, i (i)}
-										<li class="lp-line" data-testid="projector-agenda-line">{line}</li>
-									{/each}
-								</ol>
-								{#if plan.agendaMore > 0}
-									<p class="lp-more" data-testid="projector-agenda-more">+{plan.agendaMore} more</p>
-								{/if}
-							</section>
-						{/if}
-						{#if frame && frame.next.length > 0}
-							<section class="lc-panel lp-card lp-next" aria-labelledby="lp-next-title" data-testid="projector-next">
-								<h2 id="lp-next-title" class="lp-label">Coming up</h2>
-								<ul class="lp-lines">
-									{#each frame.next.slice(0, plan.nextShown) as line, i (i)}
-										<li class="lp-line" data-testid="projector-next-line">{line}</li>
-									{/each}
-								</ul>
-								{#if plan.nextMore > 0}
-									<p class="lp-more" data-testid="projector-next-more">+{plan.nextMore} more</p>
-								{/if}
-							</section>
-						{/if}
-						{#if activity}
-							<section
-								class="lc-panel lp-card lp-activity"
-								aria-labelledby="lp-activity-title"
-								data-testid="projector-activity"
-							>
-								<h2 id="lp-activity-title" class="lp-label">Student activity</h2>
-								<p class="lp-act-item">
-									{activity.item}
-									{#if asOf}
-										<span class="lp-asof" data-testid="projector-activity-asof">as of {asOf.time} {asOf.period}</span>
-									{/if}
-								</p>
-								<!-- COUNTS, ALWAYS FIVE, IN A FIXED ORDER: a zero is a number the
-								     room can read, and the tiles never move under the class's
-								     eyes. Each is a recessed tag (inset is not pressable). -->
-								<ul class="lp-tiles">
-									{#each WALL_ACTIVITY_GROUPS as g (g.key)}
-										<li class="lp-tile" data-key={g.key} data-testid="projector-count">
-											<span class="lp-count" style="font-size: {WALL_SCALE.count}em">{activity.counts[g.key]}</span>
-											<span class="lp-tile-word">{g.word}</span>
-										</li>
-									{/each}
-								</ul>
-								<!-- NAMES, ONLY ON THE SECOND TOGGLE: each group's word, then
-								     its names on the same flowing line. A group folded away to
-								     fit is counted in one "+N more names" line. -->
-								{#each namedGroups as g (g.key)}
-									<ul
-										class="lp-names"
-										data-key={g.key}
-										data-testid="projector-names"
-										aria-label={g.word}
-										style="font-size: max(var(--lp-floor), {WALL_SCALE.name}em)"
-									>
-										<li class="lp-namegroup-word" aria-hidden="true">{g.word}</li>
-										{#each g.names as n (n)}
-											<li class="lp-name person-name" title={n}>{n}</li>
-										{/each}
-										{#if g.more > 0}
-											<li class="lp-name lp-name-more">+{g.more} more</li>
-										{/if}
-									</ul>
-								{/each}
-								{#if plan.namesDroppedCount > 0}
-									<p class="lp-more" data-testid="projector-names-folded">+{plan.namesDroppedCount} more names</p>
-								{/if}
-							</section>
+						<span
+							class="lp-digits"
+							style="--chars: {faceCells}; --frac: {FRACTION_SCALE}"
+							data-testid="projector-timer-digits"
+							><span class="lp-whole">{readout.whole}</span><span class="lp-frac">{readout.fraction}</span></span
+						>
+						<span class="lp-word">{word}</span>
+						{#if overtime}
+							<span class="lp-over">Over by {overtime}</span>
 						{/if}
 					</div>
 				{/if}
-			</div>
+				{#if frame?.hallPass}
+					<p class="lp-hall" data-tone={frame.hallPass.tone} data-testid="projector-hall">
+						<span class="lp-label">Hall pass</span>
+						<span class="lp-hall-word">
+							<span aria-hidden="true">{WALL_HALL_GLYPH[frame.hallPass.tone]}</span>
+							{frame.hallPass.word}
+						</span>
+					</p>
+				{/if}
+			</section>
+
+			{#if frame?.pick}
+				<section class="lp-pick" aria-label="Random pick" data-testid="projector-pick">
+					<p class="lp-label">Random pick</p>
+					<p class="lp-pick-name">{frame.pick.name}</p>
+					<p class="lp-seed">seed {frame.pick.seed}</p>
+				</section>
+			{/if}
 		</div>
 	</div>
 
 	{#if !fullscreen}
 		<div class="lp-strip" class:quiet data-testid="projector-strip">
-			<button type="button" class="btn secondary lp-btn" data-testid="projector-fullscreen" onclick={toggleFullscreen}>
+			<button type="button" class="lp-btn" data-testid="projector-fullscreen" onclick={toggleFullscreen}>
 				Full screen <kbd>F</kbd>
 			</button>
 			{#if timer}
-				<button type="button" class="btn secondary lp-btn" onclick={() => changeTimer('toggle')}>
+				<button type="button" class="lp-btn" onclick={() => changeTimer('toggle')}>
 					{phase === 'running' ? 'Pause' : 'Start'} <kbd>Space</kbd>
 				</button>
-				<button type="button" class="btn secondary lp-btn" onclick={() => changeTimer('reset')}>
+				<button type="button" class="lp-btn" onclick={() => changeTimer('reset')}>
 					Reset <kbd>R</kbd>
 				</button>
 			{/if}
@@ -515,12 +325,10 @@
 </main>
 
 <style>
-	/* THE ROOM. Opaque, above the root layout's scanline overlay, on the Plate's
-	   own ground (`CLASSROOM_PLATE` on the root, so the classroom's shape
-	   language and its theme blocks reach the wall exactly as they reach a
-	   class page): under Space White a light machined plate, under IDEA the dark
-	   one. The canvas mirror below keeps an overscroll or a window resize from
-	   flashing the portal's green plate at the edges. */
+	/* THE ROOM. Opaque, above the root layout's scanline overlay, on the site
+	   theme's own ground: under Space White this is the white console, under
+	   IDEA the dark plate. The canvas mirror below keeps an overscroll or a
+	   window resize from flashing the portal's green plate at the edges. */
 	.lp-root {
 		position: relative;
 		z-index: 1;
@@ -532,29 +340,12 @@
 		max-width: none;
 		margin: 0;
 		padding: 0;
-		background-color: var(--plate-plate-bot, var(--surface-0));
-		background-image: linear-gradient(
-			to bottom,
-			var(--plate-page-top, var(--surface-0)),
-			var(--plate-page-bot, var(--surface-0))
-		);
+		background: var(--surface-0);
 		color: var(--text-1);
 		font-family: var(--font-display);
-		/* The 8H floor, before the side's own plan sets it: 1/50 of the height. */
-		--lp-floor: 2.05vh;
-		/* The timer's word under the ring, and what the hero keeps for it. */
-		--lp-word: clamp(1rem, 3.4vh, 3.6rem);
-	}
-	/* A LANDSCAPE WINDOW IS A WALL, AND A WALL IS EXACTLY ONE SCREEN: the stage
-	   takes the window's height, so the hero's container has a definite size.
-	   A portrait window stacks and may scroll (a phone is not a wall). */
-	@media (min-aspect-ratio: 1/1) {
-		.lp-root {
-			height: 100dvh;
-		}
 	}
 	:global(body:has(.lp-root)) {
-		background: var(--plate-plate-bot, var(--surface-0));
+		background: var(--surface-0);
 	}
 	:global(body:has(.lp-root) .bg-fx) {
 		display: none;
@@ -563,18 +354,18 @@
 		flex: 1 1 auto;
 		display: flex;
 		flex-direction: column;
-		gap: 2vh;
-		padding: 2.5vh 3vw;
+		gap: 2.5vh;
+		padding: 3vh 3.5vw;
+		background: var(--surface-0);
 		min-height: 0;
 		box-sizing: border-box;
 	}
 	.lp-head {
-		flex: none;
 		display: flex;
 		justify-content: space-between;
 		align-items: baseline;
 		gap: 2vw;
-		padding-bottom: 1.2vh;
+		padding-bottom: 1.5vh;
 		border-bottom: 2px solid var(--boundary);
 		font-family: var(--font-mono);
 		font-size: clamp(1rem, min(3vh, 2vw), 3.5rem);
@@ -587,134 +378,143 @@
 	.lp-date {
 		flex: none;
 	}
-	/* THE WALL'S CONTAINER. Its size is the window's, after the header: a
-	   flex item that grows into a definite height, so `container-type: size`
-	   has a size to report and nothing inside can collapse it. Every hero size
-	   below is a fraction of THIS box (cqw, cqh), never of a shrink-to-fit
-	   parent. */
-	.lp-main {
-		flex: 1 1 0;
-		min-height: 0;
-		min-width: 0;
-		container-type: size;
-	}
+	/* THE BODY: the agenda on the left, time on the right; with no agenda the
+	   time takes the whole width. A portrait window stacks them. */
 	.lp-body {
-		height: 100%;
+		flex: 1 1 auto;
 		display: grid;
-		gap: 0 3cqw;
-		grid-template-rows: minmax(0, 1fr);
-		/* The ring is as large as the box allows, leaving the one line under it
-		   (the word, and the overtime beside it) its room. */
-		--lp-ring: min(56cqw, calc(100cqh - var(--lp-word) * 1.9));
-		grid-template-columns: calc(var(--lp-ring) + 1cqw) minmax(0, 1fr);
+		grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+		grid-template-areas:
+			'agenda time'
+			'pick time';
+		grid-template-rows: auto 1fr;
+		gap: 3vh 3vw;
+		align-content: start;
+		min-height: 0;
 	}
-	.lp-body[data-hero='clock'] {
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-	}
-	.lp-body[data-side-empty='true'] {
+	.lp-root[data-has-agenda='false'] .lp-body {
 		grid-template-columns: minmax(0, 1fr);
+		grid-template-areas: 'time' 'pick';
+		justify-items: center;
 	}
 	@media (max-aspect-ratio: 1/1) {
-		.lp-main {
-			flex: 1 1 auto;
-			container-type: inline-size;
-		}
 		.lp-body,
-		.lp-body[data-hero='clock'],
-		.lp-body[data-side-empty='true'] {
-			height: auto;
+		.lp-root[data-has-agenda='false'] .lp-body {
 			grid-template-columns: minmax(0, 1fr);
-			grid-template-rows: auto auto;
-			gap: 3vh 0;
-			--lp-ring: min(86cqw, 60vh);
+			grid-template-areas: 'time' 'agenda' 'pick';
 		}
 	}
-	.lp-hero {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
+	.lp-agenda {
+		grid-area: agenda;
 		min-width: 0;
-		min-height: 0;
 	}
-
-	/* --- The timer: the ring, the digits in its middle, the word under it. --- */
-	.lp-timer {
+	.lp-time {
+		grid-area: time;
 		display: flex;
 		flex-direction: column;
+		align-items: flex-end;
+		gap: 2vh;
+		min-width: 0;
+		/* The digits size against this column as well as the screen, so an
+		   hour-long stopwatch ("1:02:05") fits beside the agenda. */
+		container-type: inline-size;
+	}
+	.lp-root[data-has-agenda='false'] .lp-time {
 		align-items: center;
-		gap: 0.6vh;
-		/* THE TRACK ON THE WALL IS ONE FLAT TONE, the darker on a dark theme and
-		   the lighter on Space White, so the arc that says how much time is left
-		   stands off it as a projector boundary (2:1 washed, measured): the
-		   Plate's two-tone track puts the green arc against its own lighter stop
-		   on a dark plate and its darker one on a light plate. `--lp-rest` is
-		   computed HERE, where the theme's value resolves, and handed to the ring
-		   below as a plain colour. */
-		--lp-rest: var(--plate-ring-rest-b);
 	}
-	:global(:root[data-theme='space-white']) .lp-timer {
-		--lp-rest: var(--plate-ring-rest-a);
+	.lp-pick {
+		grid-area: pick;
+		align-self: start;
+		min-width: 0;
+		padding: 2vh 2vw;
+		background: var(--surface-1);
+		border: 2px solid var(--boundary);
+		border-radius: var(--radius-card);
 	}
-	/* THE LAST TEN SECONDS, STILL: the arc takes the warning ink. With the
+	/* The shell prefixes every h2 with a green "// "; the wall reads a word. */
+	.lp-label::before {
+		content: none;
+	}
+	.lp-label {
+		margin: 0 0 1vh;
+		font-family: var(--font-mono);
+		font-size: clamp(1rem, min(2.6vh, 1.8vw), 3rem);
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	/* THE AGENDA SHRINKS WITH ITS LENGTH SO TWELVE LINES STILL FIT THE WALL:
+	   about 60% of the height shared between the lines, never above 4vh, and
+	   never below the 8H floor (1/50 of the screen height, 2vh) at twelve. */
+	.lp-lines {
+		margin: 0;
+		padding: 0 0 0 1.4em;
+		display: flex;
+		flex-direction: column;
+		gap: 1.2vh;
+		font-size: clamp(1.1rem, min(4vh, 2.8vw, calc(58vh / (var(--lines, 4) * 1.5))), 5rem);
+		line-height: 1.2;
+	}
+	.lp-line {
+		overflow-wrap: anywhere;
+	}
+	.lp-line::marker {
+		color: var(--text-2);
+	}
+	.lp-clock {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: clamp(2rem, min(11vh, 8vw, 20cqi), 14rem);
+		line-height: 1;
+		font-variant-numeric: tabular-nums;
+		color: var(--text-1);
+	}
+	.lp-period {
+		font-size: 0.35em;
+		margin-left: 0.2em;
+		color: var(--text-2);
+	}
+	.lp-timer {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		align-items: inherit;
+		padding: 1.5vh 2vw;
+		border: 3px solid var(--boundary);
+		border-radius: var(--radius-card);
+		background: var(--surface-1);
+	}
+	/* THE LAST TEN SECONDS, STILL: the edge takes the warning ink. With the
 	   hundredths appearing beside the seconds it is never colour alone, and it
 	   is what reduced motion keeps of the beat below. */
 	.lp-timer[data-final='true'] {
-		--plate-ring-value: var(--status-warn);
-		--plate-ring-bloom: transparent;
-	}
-	/* TIME IS UP: the arc is empty, so the whole track takes the warning ink,
-	   beside the words "Time is up". */
-	.lp-timer[data-phase='done'] {
-		--lp-rest: var(--status-warn);
-	}
-	.lp-ring-box {
-		position: relative;
-		flex: none;
-		width: var(--lp-ring);
-		height: var(--lp-ring);
-		--plate-ring-rest-a: var(--lp-rest);
-		--plate-ring-rest-b: var(--lp-rest);
-	}
-	/* The digits sit INSIDE the ring's glowing segments (radius 47 of 100),
-	   centred, so a light digit never crosses a light segment. */
-	.lp-face {
-		position: absolute;
-		inset: 0;
-		display: grid;
-		place-items: center;
-		pointer-events: none;
-		/* The digits change ten times a second and the ring under them is an
-		   SVG with three blurs that changes once. Its own layer means a new
-		   digit repaints the digits, never the blurred ring beneath them, which
-		   is the cost an old school desktop would feel. */
-		will-change: transform;
+		border-color: var(--status-warn);
 	}
 	.lp-digits {
 		font-family: var(--font-mono);
-		/* As large as the ring's face allows: a mono cell is 0.54em (measured),
-		   and the digits span at most 42% of the ring, which keeps them inside
-		   the glowing segments at every reading. A fraction digit counts as
+		/* As large as the screen allows (20vh), and never wider than the time
+		   column: a mono digit is about 0.55em, so the column holds
+		   --chars cells at 90cqi / (chars * 0.55). A fraction digit counts as
 		   --frac of a cell, the size it is drawn at. */
-		font-size: min(calc(var(--lp-ring) * 0.42 / (var(--chars, 4) * 0.54)), calc(var(--lp-ring) * 0.2));
+		font-size: clamp(3rem, min(20vh, 14vw, calc(90cqi / (var(--chars, 4) * 0.55))), 26rem);
 		line-height: 1;
 		font-variant-numeric: tabular-nums;
-		white-space: nowrap;
 		color: var(--text-1);
-		/* A bump scales from the middle. */
+		/* A bump scales from the middle, so it grows into the timer's own padding. */
 		transform-origin: center;
 	}
 	.lp-frac {
 		font-size: calc(var(--frac, 0.6) * 1em);
 	}
-	/* THE RING sits on the Plate ring's outer edge (radius 96 of 100), so at
-	   rest it IS that edge. It is an OUTLINE and not a transform or a box: an
-	   outline is ink overflow, which never adds to a page's scrollable area, so
-	   a pulse at the window's edge cannot make the wall scroll. */
+	/* THE RING sits exactly on the timer's 3px edge (an outline at offset 0 of
+	   the padding box), so at rest it IS the edge. It is an OUTLINE and not a
+	   transform or a box: an outline is ink overflow, which never adds to a
+	   page's scrollable area, so a pulse at the window's edge cannot make the
+	   wall scroll. */
 	.lp-ring {
 		position: absolute;
-		inset: 2%;
-		border-radius: 50%;
+		inset: 0;
+		border-radius: inherit;
 		color: var(--status-warn);
 		outline: 3px solid currentColor;
 		outline-offset: 0;
@@ -769,149 +569,30 @@
 			transform: scale(1);
 		}
 	}
-	.lp-timer-line {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: center;
-		align-items: baseline;
-		gap: 0 1.2em;
-		margin: 0;
-		font-size: var(--lp-word);
-	}
 	.lp-word {
 		font-family: var(--font-mono);
-		font-size: var(--lp-word);
-		line-height: 1.2;
+		font-size: clamp(1rem, min(3vh, 2vw), 3.5rem);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--text-2);
 	}
-	.lp-timer[data-phase='done'] .lp-word,
-	.lp-timer[data-final='true'] .lp-word {
+	.lp-timer[data-phase='done'] {
+		border-color: var(--status-warn);
+		background: var(--status-warn-fill);
+	}
+	.lp-timer[data-phase='done'] .lp-digits,
+	.lp-timer[data-phase='done'] .lp-word {
 		color: var(--status-warn);
 	}
 	.lp-over {
-		font-family: var(--font-mono);
-		font-size: var(--lp-word);
-		line-height: 1.2;
+		font-size: clamp(1rem, min(2.6vh, 1.8vw), 3rem);
 		color: var(--status-warn);
-	}
-
-	/* --- The clock: the hero when no timer is set, a card beside one. --- */
-	.lp-clock {
-		margin: 0;
-		font-family: var(--font-mono);
-		line-height: 1;
-		font-variant-numeric: tabular-nums;
-		white-space: nowrap;
-		color: var(--text-1);
-	}
-	.lp-bigclock {
-		font-size: min(36cqh, 15cqw);
-	}
-	.lp-body[data-side-empty='true'] .lp-bigclock {
-		font-size: min(44cqh, 28cqw);
-	}
-	@media (max-aspect-ratio: 1/1) {
-		.lp-bigclock,
-		.lp-body[data-side-empty='true'] .lp-bigclock {
-			font-size: min(30cqw, 24vh);
-		}
-	}
-	.lp-period {
-		font-size: max(var(--lp-floor), 0.35em);
-		margin-left: 0.2em;
-		color: var(--text-2);
-	}
-
-	/* --- The side: Plate cards, sized by the plan (`--f`). --- */
-	/* The cards sit in the middle of the side, level with the ring, so a short
-	   column reads as one group rather than a list hanging from the header. */
-	.lp-side {
-		display: flex;
-		flex-direction: column;
-		/* `safe`: a column that does not fit starts at its top rather than
-		   spilling over the header, which plain centring would do. */
-		justify-content: safe center;
-		gap: calc(var(--f, 2.4vh) * 0.5);
-		min-width: 0;
-		min-height: 0;
-		font-size: var(--f, 2.4vh);
-		line-height: 1.25;
-	}
-	@media (max-aspect-ratio: 1/1) {
-		.lp-side {
-			min-height: auto;
-		}
-	}
-	.lp-card {
-		flex: none;
-		min-width: 0;
-		margin: 0;
-		padding: calc(var(--f, 2.4vh) * 0.45) calc(var(--f, 2.4vh) * 0.8);
-		background: var(--surface-1);
-		border: 2px solid var(--boundary);
-		border-radius: var(--radius-card);
-		box-sizing: border-box;
-	}
-	/* The shell prefixes every h2 with a green "// "; the wall reads a word. */
-	.lp-label::before {
-		content: none;
-	}
-	.lp-label {
-		margin: 0 0 calc(var(--f, 2.4vh) * 0.25);
-		font-family: var(--font-mono);
-		font-size: max(var(--lp-floor), 0.72em);
-		font-weight: 400;
-		line-height: 1.2;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--text-2);
-	}
-	.lp-lines {
-		margin: 0;
-		padding: 0 0 0 1.4em;
-		display: flex;
-		flex-direction: column;
-		gap: calc(var(--f, 2.4vh) * 0.25);
-		line-height: 1.25;
-	}
-	.lp-next .lp-lines {
-		list-style: square;
-	}
-	.lp-line {
-		overflow-wrap: anywhere;
-	}
-	.lp-line::marker {
-		color: var(--text-2);
-	}
-	.lp-more {
-		margin: calc(var(--f, 2.4vh) * 0.25) 0 0;
-		font-family: var(--font-mono);
-		font-size: max(var(--lp-floor), 0.8em);
-		color: var(--text-2);
-	}
-	.lp-status {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: space-between;
-		gap: calc(var(--f, 2.4vh) * 0.3) calc(var(--f, 2.4vh) * 1.2);
-	}
-	.lp-status .lp-clock {
-		line-height: 1.1;
 	}
 	.lp-hall {
 		display: flex;
-		flex-wrap: wrap;
 		align-items: center;
-		justify-content: space-between;
-		gap: 0.3em 1em;
+		gap: 1vw;
 		margin: 0;
-		flex: 1 1 auto;
-	}
-	.lp-status .lp-clock + .lp-hall {
-		flex: 0 1 auto;
 	}
 	.lp-hall .lp-label {
 		margin: 0;
@@ -920,9 +601,10 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.4em;
-		padding: 0.1em 0.6em;
+		padding: 0.5vh 1vw;
 		border: 2px solid var(--boundary);
 		border-radius: var(--radius-control);
+		font-size: clamp(1.1rem, min(4vh, 2.8vw), 5rem);
 		font-weight: 700;
 		color: var(--text-1);
 	}
@@ -932,125 +614,30 @@
 	}
 	.lp-pick-name {
 		margin: 0;
+		font-size: clamp(1.8rem, min(9vh, 6vw), 11rem);
 		font-weight: 700;
-		line-height: 1.1;
-		overflow-wrap: break-word;
-		color: var(--text-1);
-	}
-	.lp-pick-head {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: 0 1em;
-		margin: 0 0 calc(var(--f, 2.4vh) * 0.15);
-	}
-	.lp-pick-head .lp-label {
-		margin: 0;
-	}
-	.lp-seed {
-		margin: 0;
-		font-family: var(--font-mono);
-		font-size: max(var(--lp-floor), 0.72em);
-		line-height: 1.2;
-		color: var(--text-2);
-	}
-
-	/* --- Student activity: five recessed counts, and names when asked. --- */
-	.lp-act-item {
-		margin: 0 0 calc(var(--f, 2.4vh) * 0.25);
+		line-height: 1.05;
 		overflow-wrap: anywhere;
 		color: var(--text-1);
 	}
-	.lp-asof {
-		margin-left: 0.5em;
+	.lp-seed {
+		margin: 1vh 0 0;
 		font-family: var(--font-mono);
-		font-size: max(var(--lp-floor), 0.72em);
-		line-height: 1.2;
-		white-space: nowrap;
+		font-size: clamp(1rem, min(2.2vh, 1.6vw), 2.5rem);
 		color: var(--text-2);
 	}
-	.lp-tiles {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: flex;
-		flex-wrap: wrap;
-		gap: calc(var(--f, 2.4vh) * 0.4);
-	}
-	/* A COUNT IS A RECESSED TAG, set into the card: a face a shade darker than
-	   the card, a shadow under its top lip, a light lip at its foot, and no
-	   drop shadow (raised means pressable, inset means not). The background
-	   colour is the face the numeral reads worst against. */
-	.lp-tile {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		min-width: 3.2em;
-		padding: calc(var(--f, 2.4vh) * 0.2) calc(var(--f, 2.4vh) * 0.5);
-		background-color: var(--plate-chip-ground, var(--surface-2));
-		background-image: linear-gradient(
-			to bottom,
-			var(--plate-chip-top, var(--surface-2)),
-			var(--plate-chip-bot, var(--surface-2))
-		);
-		border: 1px solid var(--plate-chip-edge, var(--boundary));
-		border-radius: var(--plate-r-pad, var(--radius-control));
-		box-shadow:
-			inset 0 2px 2px -1px var(--plate-chip-shade, transparent),
-			0 1px 0 0 var(--plate-chip-lip, transparent);
-	}
-	.lp-count {
-		font-family: var(--font-mono);
-		line-height: 1.1;
-		font-variant-numeric: tabular-nums;
-		color: var(--text-1);
-	}
-	.lp-tile-word {
-		font-size: max(var(--lp-floor), 0.72em);
-		line-height: 1.2;
-		color: var(--text-2);
-	}
-	.lp-names {
-		list-style: none;
-		margin: calc(var(--f, 2.4vh) * 0.25) 0 0;
-		padding: 0;
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		gap: 0 0.9em;
-		line-height: 1.25;
-	}
-	.lp-namegroup-word {
-		font-family: var(--font-mono);
-		font-size: max(var(--lp-floor), 0.8em);
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		white-space: nowrap;
-		color: var(--text-2);
-	}
-	.lp-name {
-		max-width: 100%;
-		white-space: nowrap;
-		color: var(--text-1);
-	}
-	.lp-name-more {
-		color: var(--text-2);
-	}
-
 	/* THE STRIP: in the flow, never floating, and absent in full screen. It fades
 	   while the pointer is still (the class sees a clean wall) and returns on any
 	   movement or when it holds focus; the fade is the only motion and it is
-	   gated, so under reduced motion it simply appears and disappears. Its
-	   buttons are the Plate's keys (`.btn`). */
+	   gated, so under reduced motion it simply appears and disappears. */
 	.lp-strip {
-		flex: none;
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.5rem 3vw;
+		padding: 0.5rem 3.5vw;
 		border-top: 1px solid var(--hairline);
+		background: var(--surface-0);
 	}
 	.lp-strip.quiet:not(:focus-within) {
 		opacity: 0;
@@ -1061,18 +648,26 @@
 		}
 	}
 	.lp-btn {
+		appearance: none;
+		display: inline-flex;
+		align-items: center;
 		gap: 0.5rem;
+		min-height: 44px;
 		padding: 0 0.9rem;
-		font-size: 0.8rem;
+		background: var(--surface-1);
+		color: var(--text-1);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-control);
+		font: inherit;
+		font-size: 0.95rem;
+		cursor: pointer;
 	}
 	.lp-btn kbd {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: 0.75rem;
 		padding: 0.05rem 0.35rem;
 		border: 1px solid var(--hairline);
 		border-radius: 4px;
 		color: var(--text-2);
-		text-transform: none;
-		letter-spacing: 0;
 	}
 </style>

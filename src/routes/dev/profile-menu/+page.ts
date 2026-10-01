@@ -72,26 +72,6 @@ function makeStubSupabase(refuse: RefuseMode) {
 	return {
 		from() {
 			return {
-				/* THE READ `$lib/preferences/profile-io` MAKES BEFORE IT MERGES ONE
-				   NAMESPACE (ledger 0360: "No pathway yet" is stored there):
-				   select('preferences').eq('id', ...).maybeSingle(). The refusal
-				   modes apply to it as well, so a refused answer is drivable. */
-				select() {
-					return {
-						eq() {
-							return this;
-						},
-						maybeSingle() {
-							if (refuse === 'rls') return Promise.resolve({ data: null, error: null });
-							if (refuse === 'error')
-								return Promise.resolve({
-									data: null,
-									error: { message: 'permission denied for table profiles' }
-								});
-							return Promise.resolve({ data: { preferences: store.profile.preferences }, error: null });
-						}
-					};
-				},
 				update(patch: Record<string, unknown>) {
 					// A refused write changes nothing in the store, exactly as a
 					// declined UPDATE changes nothing in the table -- which is what

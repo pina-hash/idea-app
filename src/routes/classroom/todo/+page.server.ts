@@ -1,6 +1,5 @@
 import { redirect } from '@sveltejs/kit';
 import { loadClassroomWork } from '$lib/classroom/student-work';
-import { slimOwedWorkItem } from '$lib/classroom/owed-work-slim';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -35,10 +34,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, paren
 	});
 
 	return {
-		// SLIM (ledger 0360, report R08): a to-do row is a title, a date and a
-		// chip, so an item ships its first image and not its body. See
-		// `$lib/classroom/owed-work-slim`.
-		todo: { ...work, items: work.items.map(slimOwedWorkItem) },
+		todo: work,
 		todoEmail: (claims.email as string | undefined) ?? '',
 		todoIsAdmin: (await layout).isAdmin === true
 	};

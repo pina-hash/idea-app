@@ -48,7 +48,6 @@ import {
 	blockStarted,
 	countSentences,
 	criterionMax,
-	csvCell,
 	filesByBlockCount,
 	isOverrideScore,
 	levelIndexForScore,
@@ -298,11 +297,10 @@ export interface ExportedResponse {
 	value: Record<string, unknown>;
 	/**
 	 * A PORTED WORKSHEET'S OWN NAME FOR THE INPUT (its `data-field`), present
-	 * only on an export walked from a manifest (ledger 0298, R24). `prompt`
-	 * there is the block's own `prompt` display key when it declares one (ledger
-	 * 0360) and `<module title>: <field>` otherwise, and this is the field on its
-	 * own. Absent on a spec export, which is what keeps that file byte-identical
-	 * to before.
+	 * only on an export walked from a manifest (ledger 0298, R24). A manifest
+	 * block carries no prompt text, so `prompt` there is `<module title>:
+	 * <field>` and this is the field on its own. Absent on a spec export, which
+	 * is what keeps that file byte-identical to before.
 	 */
 	field?: string;
 	/**
@@ -539,12 +537,10 @@ function interactiveBlocks(mod: SpecModule): InteractiveBlock[] {
 // a string), completeness is `hxCompletion` plus `completionIsLate` (decision
 // 37's one predicate) and the per-block change is `postGradeBlockChanges`.
 //
-// THE LABEL IS THE BLOCK'S `prompt` WHEN IT DECLARES ONE (ledger 0360) AND
-// `<module title>: <field>` OTHERWISE. A prompt is an optional display key an
-// author adds to the manifest; reading the question out of the stored HTML
-// instead would be a second parser of the document, which is exactly what the
-// manifest exists so nothing has to be, and it is a per-view read of the
-// document column that ledger 0357's crash forbids.
+// THE LABEL IS `<module title>: <field>`, because a manifest block carries an
+// id, a field and a type and NO prompt text. Reading the question out of the
+// stored HTML would be a second parser of the document, which is exactly what
+// the manifest exists so nothing has to be.
 // ---------------------------------------------------------------------------
 
 /** Everything worked out once per export for a manifest walk. */
@@ -588,17 +584,12 @@ function manifestContext(
 	};
 }
 
-/**
- * THE QUESTION'S NAME: the block's own `prompt` display key when it declares one
- * (ledger 0360, report 41c7fcd5), otherwise `<module title>: <field>`, the field
- * alone when there is no title, the id when there is no field. A manifest with no
- * `prompt` anywhere therefore names every answer exactly as it always did.
- */
+/** `<module title>: <field>`, the field alone when there is no title, the id when there is no field. */
 function manifestLabel(hx: ManifestContext, blockId: string): { module: string; field: string; prompt: string } {
 	const named = hx.labels.get(blockId);
 	const module = named?.module ?? '';
 	const field = named?.field || blockId;
-	return { module, field, prompt: named?.prompt ?? (module ? `${module}: ${field}` : field) };
+	return { module, field, prompt: module ? `${module}: ${field}` : field };
 }
 
 /** One cell of a stored worksheet table as text. */
@@ -1187,7 +1178,7 @@ const WORKSHEET_ABOUT_ROWS: (string | number)[][] = [
 	],
 	[
 		'Question names',
-		'An answer is named by the question its worksheet declares for it (the block\u2019s prompt). Where the worksheet declares none, it is named "<module title>: <field>", the worksheet\u2019s own name for the input. Identity is the header fields (name, team, date).'
+		'A worksheet stores no question text, so every answer is named "<module title>: <field>", the worksheet\u2019s own name for the input. Identity is the header fields (name, team, date).'
 	],
 	[
 		'Worksheet tables',
@@ -1373,138 +1364,6 @@ function answerCell(entry: ExportedResponse, tableSheetFor: Map<string, string>)
 	return where ? `${count}, in the "${where}" sheet.` : count;
 }
 
-/**
- * ONE COLUMN PER QUESTION, IN MANIFEST ORDER, THEN ANY ANSWER WHOSE BLOCK HAS
- * LEFT THE MANIFEST: the columns of the workbook's Answers sheet and of the
- * answers CSV, from ONE walk, so the two files cannot disagree about which
- * questions exist or what each is called. Gathered across every student, so a
- * column exists for a question nobody answered.
- */
-export function worksheetAnswerColumns(students: ExportedStudent[]): { blockId: string; label: string }[] {
-	const columns: { blockId: string; label: string }[] = [];
-	const seen = new Set<string>();
-	for (const s of students) {
-		for (const r of s.responses) {
-			if (seen.has(r.blockId)) continue;
-			seen.add(r.blockId);
-			columns.push({ blockId: r.blockId, label: r.prompt ?? r.blockId });
-		}
-	}
-	return columns;
-}
-
-/**
- * ONE ANSWER AS ONE CSV CELL. The workbook's `answerCell` points a table at its
- * own sheet; a CSV has no other sheet, so a table is written out in the cell as
- * `Row 1: limit=Diameter (in), measured=2.5; Row 2: ...` with blank rows dropped
- * by the same `tableRowFilled` the progress rail counts with, and a photograph
- * is `Photo: <file name>`. Everything else is `answerCell`'s own answer, so a
- * text, a radio or a checkbox reads the same in both files.
- */
-function csvAnswerCell(entry: ExportedResponse): string {
-	const v = entry.value;
-	if (v.withheld === true) return WORKSHEET_WITHHELD_CELL;
-	if (entry.blockType === 'image' || entry.blockType === 'imageZone') {
-		const files = (v.files ?? []) as { filename: string; caption: string | null }[];
-		return files
-			.map((f) => `Photo: ${f.filename}${f.caption ? ` (${f.caption})` : ''}`)
-			.join('; ');
-	}
-	if (entry.blockType === 'table') {
-		if (typeof v.raw === 'string') return v.raw;
-		return tableRowsText(
-			(v.columns ?? []) as { key: string; label: string }[],
-			(v.rows ?? []) as Record<string, string>[]
-		);
-	}
-	return answerCell(entry, new Map());
-}
-
-/**
- * A TABLE ANSWER AS ONE LINE OF TEXT: `Row 1: limit=Diameter (in), measured=2.5;
- * Row 2: ...`, blank rows dropped by `tableRowFilled` and blank cells left out.
- * The answers CSV and the Q&A view both read a table this way, so a table
- * says the same thing in the file and on the screen.
- */
-export function tableRowsText(
-	columns: readonly { key: string; label: string }[],
-	rows: readonly Record<string, string>[]
-): string {
-	return rows
-		.filter(tableRowFilled)
-		.map(
-			(row, i) =>
-				`Row ${i + 1}: ${columns
-					.filter((c) => String(row[c.key] ?? '').trim() !== '')
-					.map((c) => `${c.label}=${String(row[c.key])}`)
-					.join(', ')}`
-		)
-		.join('; ');
-}
-
-/**
- * THE ANSWERS AS A CSV: ONE ROW PER STUDENT, ONE COLUMN PER QUESTION (ledger
- * 0360, report 41c7fcd5), headed with the question's own prompt when the
- * worksheet declares one.
- *
- * IT IS THE SAME PAYLOAD THE JSON AND THE WORKBOOK ARE WRITTEN FROM. The rows
- * are `buildGradingExport`'s students, so the identity switch, the class
- * picker and the roster order are the console's, and a name is in this file
- * exactly when it is in the other two. It adds no read: the answers are the
- * stored rows the console already holds, never the document.
- *
- * A spec payload gets the same shape with its own blocks as the columns, which
- * costs nothing and keeps the function total; the console offers it only on a
- * ported worksheet, where it is the file somebody asked for.
- */
-export function gradingAnswersCsv(payload: GradingExport): string {
-	const named = payload.export.identity === 'included';
-	const students = payload.assignments[0]?.students ?? [];
-	const columns = worksheetAnswerColumns(students);
-	const header = [
-		'Student',
-		...(named ? ['Name', 'Email'] : []),
-		'State',
-		'Complete',
-		...columns.map((c) => c.label)
-	];
-	const lines = [header.map((h) => csvCell(h)).join(',')];
-	for (const s of students) {
-		const byBlock = new Map(s.responses.map((r) => [r.blockId, r] as const));
-		const complete =
-			s.completeness.basis === 'manifest'
-				? worksheetCompleteCell(s.completeness)
-				: s.completeness.evaluated
-					? s.submission.handedIn
-						? yesNo(s.completeness.complete)
-						: ''
-					: '';
-		const cells = [
-			s.label,
-			...(named ? [s.name ?? '', s.email ?? ''] : []),
-			s.submission.stateLabel,
-			complete,
-			...columns.map((c) => {
-				const r = byBlock.get(c.blockId);
-				return r ? csvAnswerCell(r) : '';
-			})
-		];
-		lines.push(cells.map((cell) => csvCell(cell)).join(','));
-	}
-	// The BOM is built at runtime, `gradesCsv`'s own rule: Excel needs it to open
-	// accented names and answers correctly, and a source literal did not survive
-	// the toolchain.
-	return String.fromCharCode(0xfeff) + lines.join('\r\n') + '\r\n';
-}
-
-/** `answers-<assignment>-<section>[-anon].csv`, filesystem-safe. */
-export function gradingAnswersCsvFilename(payload: GradingExport): string {
-	const slug = (raw: string) =>
-		raw.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'export';
-	const anon = payload.export.identity === 'omitted' ? '-anon' : '';
-	return `answers-${slug(payload.assignments[0]?.title ?? 'assignment')}-${slug(payload.section.title)}${anon}.csv`;
-}
-
 export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 	const named = payload.export.identity === 'included';
 	const assignment = payload.assignments[0];
@@ -1651,7 +1510,17 @@ export function gradingExportSheets(payload: GradingExport): XlsxSheet[] {
 	 * and then any answer whose block has since left the manifest, gathered
 	 * across students, so a column exists for a question nobody answered.
 	 */
-	const answerColumns = worksheet ? worksheetAnswerColumns(students) : [];
+	const answerColumns: { blockId: string; label: string }[] = [];
+	if (worksheet) {
+		const seen = new Set<string>();
+		for (const s of students) {
+			for (const r of s.responses) {
+				if (seen.has(r.blockId)) continue;
+				seen.add(r.blockId);
+				answerColumns.push({ blockId: r.blockId, label: r.prompt ?? r.blockId });
+			}
+		}
+	}
 	const answers: XlsxSheet[] = worksheet
 		? [
 				{

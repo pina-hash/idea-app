@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { tick, untrack, type Snippet } from 'svelte';
-	import ClassHeader from '$lib/classroom/ClassHeader.svelte';
-	import { nextDueFor, type ClassHeaderTeams } from '$lib/classroom/class-header';
+	import ClassThemeBanner from '$lib/classroom/ClassThemeBanner.svelte';
 	import type { ClassTheme } from '$lib/classroom/class-theme';
 	import { goto } from '$app/navigation';
 	import VersionBadge from '$lib/VersionBadge.svelte';
@@ -13,15 +12,6 @@
 	import UnitManager from '$lib/classroom/UnitManager.svelte';
 	import ClassVideos from '$lib/classroom/ClassVideos.svelte';
 	import { classVideos } from '$lib/classroom/class-videos';
-	import PanelStack from '$lib/classroom/PanelStack.svelte';
-	import PanelsHiddenNote from '$lib/classroom/PanelsHiddenNote.svelte';
-	import {
-		classNoticesFirst,
-		classPanelDefaults,
-		panelLabels,
-		resolvePanels,
-		type PanelLayout
-	} from '$lib/classroom/panel-layout';
 	import { sortDrag } from '$lib/classroom/sort-drag';
 	import { anchored } from '$lib/shell/anchored';
 	import { createDropController, type DragLikeEvent } from '$lib/file-drop';
@@ -43,6 +33,7 @@
 		classGroups,
 		dragReorder,
 		editedWhen,
+		emailLocal,
 		formatDue,
 		instructorAttachmentSrc,
 		isScheduled,
@@ -90,6 +81,7 @@
 		type ClassCheckIn
 	} from '$lib/classroom/class-check-ins';
 	import { flagReasonLabel } from '$lib/notebook';
+	import { formatSectionLabel } from '$lib/section-label';
 	import { matchesQuery } from '$lib/shell/search';
 	import { ICONS } from '$lib/shell/commands';
 	import { registerCommandHandler } from '$lib/shell/command-handlers';
@@ -146,14 +138,7 @@
 		clock = null,
 		loadDuplicateCount = null,
 		theme = null,
-		themePanel = null,
-		tools = null,
-		bulletin = null,
-		belowHeader = null,
-		teamsNotice = null,
-		quickPost = null,
-		panelLayout = null,
-		onArrange = null
+		themePanel = null
 	}: {
 		section: ClassroomSection;
 		items: ClassroomItem[];
@@ -286,47 +271,11 @@
 		 * somebody votes, and renders the header exactly as it was.
 		 */
 		theme?: ClassTheme | null;
-		/** The theme vote; its trigger is a key in the class header's row. Null draws nothing. */
+		/** The theme vote, drawn right under the header it changes. Null draws nothing. */
 		themePanel?: Snippet | null;
-		/**
-		 * THE CLASS HEADER'S SLOTS (ledger 0360, report R19). The section layout
-		 * owns the hall pass, the music and the live door (`tools`), the quick
-		 * posts (`bulletin`, directly under the header), the posted teams
-		 * (`belowHeader`, the `teams` panel, which moves on its own since R23),
-		 * the teacher's teams key and the Quick post key; this view hands them
-		 * to `ClassHeader` with its own New post and Units keys. Every one is
-		 * null on a surface that has none, and draws nothing.
-		 */
-		tools?: Snippet | null;
-		bulletin?: Snippet | null;
-		belowHeader?: Snippet | null;
-		teamsNotice?: ClassHeaderTeams | null;
-		quickPost?: { open: boolean; toggle: () => void } | null;
-		/**
-		 * THIS PERSON'S ARRANGEMENT OF THE PAGE (ledger 0360, report R23): the
-		 * preference store's `panels.classPage`, through `readPanelLayout`. Null
-		 * is the page exactly as it ships (tests/classroom-panel-layout-render
-		 * holds that to the markup).
-		 */
-		panelLayout?: PanelLayout | null;
-		/** Opens Display settings at this page's arrangement. Null removes the hidden-panels line's Arrange. */
-		onArrange?: (() => void) | null;
 	} = $props();
 
 	let unitsOpen = $state(false);
-	/** The class header's Next due key (`nextDueFor`), from the loader's one clock read. */
-	const nextDue = $derived(
-		clock
-			? nextDueFor({
-					items,
-					work,
-					now: clock.now,
-					today: clock.today,
-					canManage,
-					href: (id) => `${basePath}/${section.id}/item/${id}`
-				})
-			: null
-	);
 	let editing = $state<string | null>(null);
 	let expanded = $state<Record<string, boolean>>({});
 	let openMenu = $state<string | null>(null);
@@ -627,34 +576,6 @@
 		)
 	);
 
-	/*
-	 * THE PAGE IN THIS PERSON'S ORDER (ledger 0360, report R23, on the R19
-	 * header). `present` is every panel's own condition, unchanged, so a panel
-	 * that would not have rendered is never reported hidden. The header moves
-	 * and never hides; its tools, theme vote and posting keys are pieces of it
-	 * that hide in place (`within`); the teams, the search row and the videos
-	 * move; the posts are the anchor. A hidden panel or piece is not rendered,
-	 * so whatever it polls (the hall pass, the music, the vote) stops.
-	 */
-	const postingKeys = $derived(editable && (!!quickPost || !!onCompose || !!(unitTransports && section.course)));
-	const panelsPresent = $derived(
-		new Set([
-			'banner',
-			...(tools ? ['tools'] : []),
-			...(themePanel ? ['theme'] : []),
-			...(postingKeys ? ['actions'] : []),
-			...(belowHeader || (canManage && teamsNotice) ? ['teams'] : []),
-			...(totalCount > 0 ? ['find'] : []),
-			...(!asPane && videoIndex.videos.length ? ['videos'] : []),
-			'stream'
-		])
-	);
-	const panels = $derived(resolvePanels('class', classPanelDefaults(), panelLayout, panelsPresent));
-	const hiddenPanels = $derived(new Set(panels.hidden));
-	const findShown = $derived(!hiddenPanels.has('find'));
-	/** The notices lead the page once anything is moved above the header (`classNoticesFirst`). */
-	const noticesFirst = $derived(classNoticesFirst(panels));
-
 	/** The kinds this class actually holds; a select with one real choice is not offered. */
 	const kindOptions = $derived.by((): StreamKindFilter[] => {
 		const present = new Set<StreamKindFilter>(items.map((i) => i.kind));
@@ -811,14 +732,11 @@
 	 * post and a manager is never offered their own "Missing".
 	 */
 	$effect(() => {
-		// The search row is a panel a person may hide (R23); a palette entry that
-		// focuses a field that is not on the page is the one that does nothing.
-		const canSearch = findShown;
 		const offs = [
+			registerCommandHandler('class.search', () => focusSearch()),
 			registerCommandHandler('class.show-assignments', () => filterFromPalette({ kind: 'assignment' })),
 			registerCommandHandler('class.reveal-unit', (id) => revealUnit(id))
 		];
-		if (canSearch) offs.push(registerCommandHandler('class.search', () => focusSearch()));
 		if (canManage) {
 			offs.push(registerCommandHandler('class.show-drafts', () => filterFromPalette({ status: 'drafts' })));
 		} else if (clock) {
@@ -828,13 +746,6 @@
 		}
 		if (canManage && transports && onCompose) {
 			offs.push(registerCommandHandler('class.new-post', () => onCompose?.()));
-		}
-		if (canManage && quickPost) {
-			offs.push(
-				registerCommandHandler('class.quick-post', () => {
-					if (!quickPost?.open) quickPost?.toggle();
-				})
-			);
 		}
 		return () => offs.forEach((off) => off());
 	});
@@ -2016,7 +1927,6 @@
 	this={asPane ? 'section' : 'main'}
 	class="classroom-page"
 	class:page-dropping={pageDropActive}
-	class:edit-layer-open={editable && editing !== null}
 	aria-label={asPane ? 'Class content' : undefined}
 	use:classPageDrop={{ enabled: pageDropOn }}
 >
@@ -2027,86 +1937,77 @@
 		</div>
 	{/if}
 	<!--
-		THE CLASS PAGE IN THIS PERSON'S ORDER (ledger 0360, report R23): the
-		panels around the posts, which never move (`PanelStack`), and one line
-		naming what this person hid. With nothing stored this is the page as it
-		was (tests/classroom-panel-layout-render). The notices lead the page once
-		anything is moved above the header, so no arrangement buries a teacher's
-		notice under a student's search, videos or posts.
-	-->
-	{#if noticesFirst && bulletin}{@render bulletin()}{/if}
-	<PanelStack above={panels.above} below={panels.below} panel={panelFor} anchor={streamPanel} />
-	<PanelsHiddenNote labels={panelLabels('class', panels.hidden)} {onArrange} />
+		A COMPACT, LEFT-ALIGNED HEADER, NOT A PAGE HERO.
 
-	{#snippet panelFor(id: string)}
-		{#if id === 'banner'}
-			{@render headerPanel()}
-		{:else if id === 'teams'}
-			<!-- The posted teams, the section layout's own `ClassTeams`. -->
-			{#if belowHeader}{@render belowHeader()}{/if}
-		{:else if id === 'find'}
-			{@render findPanel()}
-		{:else if id === 'videos'}
-			{@render videosPanel()}
-		{/if}
-	{/snippet}
+		This list is the navigation pane of a two-pane shell -- roughly 26rem --
+		and the app-shell `.hero` it used to wear is the LANDING hero: centred,
+		with 4rem of air above it. Centred text in a narrow column is the loudest
+		possible signal that a component was designed for a wider page, and the
+		class identity is already in the shell's breadcrumb trail and its section
+		switcher, so this says it once, quietly, at heading scale.
 
-	{#snippet headerPanel()}
-	<!--
-		THE CLASS HEADER (ledger 0360, report R19): the title, the tools, the
-		next thing due, the class theme and a manager's keys in one compact
-		block inside the voted banner, then the class's notices (unless they
-		lead the page, above). The heading is an h2 while a detail pane is
-		open: the item beside it owns the page's h1 then, and two of them is
-		one too many. A piece this person hid is handed down as null, so the
-		header draws it exactly as for a surface that never had one.
+		The heading is an h2 while a detail pane is open: the item beside it owns
+		the page's h1 then, and two of them is one too many.
 	-->
-	<ClassHeader
-		{section}
-		{theme}
-		{asPane}
-		nextDue={nextDue}
-		teams={canManage && !hiddenPanels.has('teams') ? teamsNotice : null}
-		quickPost={editable && !hiddenPanels.has('actions') ? quickPost : null}
-		tools={hiddenPanels.has('tools') ? null : tools}
-		themePanel={hiddenPanels.has('theme') ? null : themePanel}
-		actions={editable && !hiddenPanels.has('actions') && (onCompose || (unitTransports && section.course)) ? headerActions : null}
-		bulletin={noticesFirst ? null : bulletin}
-	/>
-	{/snippet}
+	<ClassThemeBanner {theme}>
+		<header class="pane-head">
+			<svelte:element this={asPane ? 'h2' : 'h1'} class="pane-title">
+				{section.course?.title ?? section.label}
+			</svelte:element>
+			<p class="pane-meta-row">
+				<!-- TRUNCATES RATHER THAN WRAPS: a second and third line of course code,
+				     period, block and teacher is a header taking the top of the pane
+				     away from the content it is a header for. -->
+				<span class="pane-meta" title={`${section.course?.code ?? ''} ${formatSectionLabel(section.label, section.block)} · ${emailLocal(section.teacher_email)}`.trim()}>
+					{#if section.course?.code}<span class="pane-code">{section.course.code}</span>{/if}
+					{formatSectionLabel(section.label, section.block)}
+					&middot; {emailLocal(section.teacher_email)}
+					{#if section.active === false}&nbsp;&middot; <span class="draft-chip">Archived</span>{/if}
+				</span>
+			</p>
+		</header>
+	</ClassThemeBanner>
+	{#if themePanel}{@render themePanel()}{/if}
 
 	<!--
-		THE MANAGER'S TWO KEYS, at the end of the header's row. The notebook link
-		left this row in ledger 0297 (it is the class's own Notebook tab now), so
-		this is a manager's tools and nothing else, and a student's header has
-		none.
+		ONE ACTIONS ROW: what a manager can DO from this pane, in one place.
+
+		THE NOTEBOOK LINK LEFT THIS ROW (ledger 0297). It was "My notebook" (or
+		"Notebook" for a manager) with a bare count beside it, and it left the
+		classroom for a separate app. The notebook is the class's own Notebook tab
+		now, in the tab bar above this pane for students and managers alike, and
+		the count sits on the tab with its word -- so this row is a manager's
+		tools and nothing else, and a student's class page gives the row back.
+		`notebookHref` still drives each check-in row's link below.
 	-->
-	{#snippet headerActions()}
-		{#if onCompose}
-			<button
-				type="button"
-				class="btn secondary tiny"
-				class:on={composing}
-				aria-expanded={composing}
-				data-testid="new-post"
-				onclick={() => onCompose?.()}
-			>
-				{composing ? 'Close' : 'New post'}
-			</button>
-		{/if}
-		{#if unitTransports && section.course}
-			<button
-				type="button"
-				class="btn secondary tiny"
-				class:on={unitsOpen}
-				aria-expanded={unitsOpen}
-				data-testid="units-toggle"
-				onclick={() => (unitsOpen = !unitsOpen)}
-			>
-				{unitsOpen ? 'Close units' : orderedUnits.length ? `Units (${orderedUnits.length})` : 'Add units'}
-			</button>
-		{/if}
-	{/snippet}
+	{#if editable}
+		<div class="pane-tools" data-testid="pane-tools">
+			{#if editable && onCompose}
+				<button
+					type="button"
+					class="btn secondary tiny"
+					class:on={composing}
+					aria-expanded={composing}
+					data-testid="new-post"
+					onclick={() => onCompose?.()}
+				>
+					{composing ? 'Close' : 'New post'}
+				</button>
+			{/if}
+			{#if editable && unitTransports && section.course}
+				<button
+					type="button"
+					class="btn secondary tiny"
+					class:on={unitsOpen}
+					aria-expanded={unitsOpen}
+					data-testid="units-toggle"
+					onclick={() => (unitsOpen = !unitsOpen)}
+				>
+					{unitsOpen ? 'Close units' : orderedUnits.length ? `Units (${orderedUnits.length})` : 'Add units'}
+				</button>
+			{/if}
+		</div>
+	{/if}
 
 	<!--
 		SEARCH AND FILTER (ledger 0297, report 19). One wrapping row: the search
@@ -2117,7 +2018,6 @@
 		class that lost its items. Everything here is 44px: this pane is the
 		student's class page.
 	-->
-	{#snippet findPanel()}
 	{#if totalCount > 0}
 		<div class="find" data-testid="stream-find">
 			<label class="find-field">
@@ -2194,12 +2094,10 @@
 			<p class="sr-only" aria-live="polite">{filtering ? `${shownCount} of ${totalCount} shown` : ''}</p>
 		</div>
 	{/if}
-	{/snippet}
 
 	<!-- VIDEOS (ledger 0298, R08): a closed section under the search row, only
 	     when the class has one, and not beside an open item, where this list
 	     is the navigation column. See ClassVideos for why it is not a kind. -->
-	{#snippet videosPanel()}
 	{#if !asPane && videoIndex.videos.length}
 		<ClassVideos
 			index={videoIndex}
@@ -2208,19 +2106,7 @@
 			showHeld={canManage}
 		/>
 	{/if}
-	{/snippet}
 
-	{#snippet streamPanel()}
-	{#if !findShown && filtering}
-		<!-- THE SEARCH ROW IS HIDDEN AND SOMETHING STILL NARROWS THE LIST (a
-		     palette filter, or the view this class opens on): its count and its
-		     Clear, so a filtered class never passes for one that lost its items. -->
-		<div class="find-result" data-testid="stream-find-result">
-			<span>{shownCount} of {totalCount} shown</span>
-			<button type="button" class="find-clear" data-testid="stream-clear" onclick={clearFilter}>Clear</button>
-		</div>
-		<p class="sr-only" aria-live="polite">{`${shownCount} of ${totalCount} shown`}</p>
-	{/if}
 	<!--
 		BULK ACTIONS. A row's own checkbox is the selection; this bar is what
 		acts on the whole set at once -- "bundle multiple posts together" is a
@@ -2564,8 +2450,6 @@
 		</section>
 	{/if}
 
-	{/snippet}
-
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />
 	</footer>
@@ -2581,17 +2465,6 @@
 	   of actions, two steps out to the content those actions act on. */
 	.feedback {
 		margin: 0 0 var(--space-4);
-	}
-	/* THE EDIT LAYER MUST NOT BE RANKED INSIDE THIS PAGE (report R06, the item
-	   page's fix, ledger 0360). `src/app.css` gives every `main` `z-index: 1`,
-	   which makes it a stacking context, and a row's editor is a fixed,
-	   full-viewport layer (`ContentComposer screen`, its own z-index 60)
-	   rendered INSIDE this `main` -- so it was ranked at 1 and the classroom
-	   masthead (`.app-header`, also 1, later in the page) painted over its title
-	   row and its Close: measured by hit test at 375 and 1440. While a row is
-	   being edited the page gives up its stacking context, and only then. */
-	.classroom-page.edit-layer-open {
-		z-index: auto;
 	}
 	.classroom-page {
 		max-width: var(--cr-measure, var(--measure-page));
@@ -2757,12 +2630,84 @@
 		columns: 1;
 		max-width: var(--measure-reading);
 	}
+	/* --- The pane header ---------------------------------------------------
+	   Left-aligned and compact: this is a sidebar, and the class is already
+	   named in the breadcrumb trail and the section switcher above it.
+	   NO padding above it: the pane's own inset is the air over the header, and
+	   a second one here is what made the top of the page simultaneously the
+	   loosest gap and the most cramped-looking part of it. */
+	.pane-head {
+		padding: 0 0 var(--space-3);
+	}
+	.pane-title {
+		margin: 0;
+		font-family: var(--font-display);
+		font-weight: 600;
+		font-size: 1.15rem;
+		line-height: 1.25;
+		letter-spacing: 0;
+		color: var(--text-1);
+		/* Two lines at most, then it stops -- a long course title must not push
+		   the list itself off the first screen. */
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+	.pane-meta-row {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-2);
+		margin: var(--space-1) 0 0;
+		min-width: 0;
+	}
+	.pane-meta {
+		flex: 1 1 auto;
+		min-width: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		color: var(--text-2);
+	}
+	.pane-code {
+		color: var(--cyan);
+	}
+	/* ON THE CLASS BANNER EVERY WORD TAKES THE ROOM'S --text-1: the wash
+	   lightens the ground under it, and --text-2 measured 3.13:1 there on IDEA
+	   (class-theme.ts's header). The code keeps its own face, not its hue. */
+	:global(.ct-banner) .pane-meta,
+	:global(.ct-banner) .pane-code {
+		color: var(--text-1);
+	}
+	/* --- The actions row ---------------------------------------------------
+	   What used to be two full cards holding one button each. A whole step out
+	   from the header above it and from the content below it, so it reads as
+	   its own band rather than as another line of the header. */
+	.pane-tools {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
+		margin-bottom: var(--space-4);
+	}
+	/* Both classes, per the `.cr-root .btn.tiny` note on `.group-bar` below.
+	   These measured 24px beside a notebook link that had already taken the
+	   floor, so one row carried two different answers to the same question.
+	   New post and Units are this pane's primary actions. */
+	.pane-tools .btn,
+	.pane-tools .btn.tiny {
+		min-height: 44px;
+		padding-block: var(--space-2);
+	}
 	.tool-panel {
 		margin-bottom: var(--space-4);
 	}
-	/* THE BULK BAR: a peer of the class header's keys above it. It sits BELOW
-	   the header (ledger 0360) and ABOVE the status line, matching the
-	   toolbar-then-status ordering the rest of the pane already follows.
+	/* THE BULK BAR: a peer of the actions row above it. It sits BELOW
+	   pane-tools and ABOVE the status line, matching the toolbar-then-status
+	   ordering the rest of the pane already follows.
 	   
 	   IT IS PRESENT BEFORE THE FIRST SELECTION, in a RESTING state that is one
 	   sentence and one control -- see the markup for why that is not the same

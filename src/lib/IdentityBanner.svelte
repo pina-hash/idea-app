@@ -115,14 +115,13 @@
 			{/if}
 			{#if identity?.badge}
 				<!-- `BadgeIcon` lives under `tournaments/` and has no tournament
-				     content in it at all, and since ledger 0289 its one import
-				     resolves into `$lib/identity-style`. The path says where it was
-				     born, not what it does -- the `_notebook_email_for_user`
-				     situation -- and it is NOT moved here, because moving it edits
-				     three tournament callers this bundle does not own to fix a name.
-				     `once` (ledger 0360): this banner shows ONE person, so the
-				     emblem draws itself on arrival, one time, and then rests. -->
-				<span class="idb-badge"><BadgeIcon id={identity.badge} size="1.05em" motion="once" /></span>
+				     content in it at all: forty lines, no theme import, and since
+				     ledger 0289 its one import resolves into `$lib/identity-style`.
+				     The path says where it was born, not what it does -- the
+				     `_notebook_email_for_user` situation -- and it is NOT moved here,
+				     because moving it edits three tournament callers this bundle does
+				     not own to fix a name. -->
+				<span class="idb-badge"><BadgeIcon id={identity.badge} size="1.05em" /></span>
 			{/if}
 		</div>
 		{#if identity?.tagline}

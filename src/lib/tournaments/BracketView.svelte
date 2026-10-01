@@ -195,11 +195,6 @@
 		border-color: var(--crimson, #ff3355);
 		box-shadow: 0 0 10px rgba(255, 51, 85, 0.18);
 	}
-	/* SPACE WHITE DRAWS NO GLOW (ledger 0360): the crimson edge and the word
-	   LIVE carry the state on a light ground. */
-	:global(:root[data-theme='space-white']) .match.live {
-		box-shadow: none;
-	}
 	.match.bye {
 		opacity: 0.55;
 	}

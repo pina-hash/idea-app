@@ -38,7 +38,6 @@
 	import { goto } from '$app/navigation';
 
 	import FoundryGallery from '$lib/foundry/FoundryGallery.svelte';
-	import FoundryPage from '$lib/foundry/FoundryPage.svelte';
 	import type {
 		FoundryGalleryTransports,
 		FoundryMyPlayStatsTransport,
@@ -185,16 +184,18 @@
 	/>
 </svelte:head>
 
-<!-- The room wrapper (.fg-root) and the masthead live in +layout.svelte, so
-     this page is only its own content. `FoundryPage` is the one page wrapper
-     every Foundry application page shares, and it is what makes the gallery
-     span the window (ledger 0360, reports 162057f0 and 94e312c4). -->
-<FoundryPage
-	heading="Gallery"
-	lead="Web apps built and published by students. Everything here runs in a sandbox on a separate address, so nothing it does can reach your account."
-	testid="foundry-gallery-page"
-	split
->
+<!-- The room wrapper (.fg-root) and the masthead live in +layout.svelte now,
+     so this page is only its own content. The h1 stopped saying "IDEA
+     Foundry" because the shell's wordmark already does, one line above. -->
+<div class="fdy-page">
+	<header class="fdy-page-head">
+		<h1>Gallery</h1>
+		<p>
+			Web apps built and published by students. Everything here runs in a sandbox on a separate
+			address, so nothing it does can reach your account.
+		</p>
+	</header>
+
 	<FoundryGallery
 		apps={data.apps}
 		selected={data.selected}
@@ -207,4 +208,49 @@
 		{myPlayStats}
 		onSelect={select}
 	/>
-</FoundryPage>
+</div>
+
+<style>
+	/* THE SPLIT IS WHAT GROWS, in app mode. `scroll="fill"` needs a bounded
+	   parent with `min-height: 0` on this item, and without it `height: 100%`
+	   resolves against an auto height, the panes grow to their content, and
+	   the surface degrades to exactly `page-flow` -- the state it had before,
+	   which is why getting this wrong is invisible rather than broken. */
+	@media (min-width: 1024px) {
+		:global(.cr-app) .fdy-page {
+			min-height: 0;
+			flex: 1 1 auto;
+		}
+		:global(.cr-app) .fdy-page > :global(.cr-split) {
+			min-height: 0;
+			flex: 1 1 auto;
+		}
+	}
+
+	.fdy-page {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-5, 1.25rem);
+		/* `--measure-split` (92rem), NOT `--measure-wide` (62rem): the wide
+		   measure is the widest SINGLE column, and this page is a two-pane
+		   master-detail shell. Measured at 1440px on the harness with the wrong
+		   one, the split's detail pane came out 873px and the review surface's
+		   side-by-side never engaged at all. `--measure-split` is the token that
+		   exists for exactly this shape. */
+		max-width: var(--measure-split);
+		margin: 0 auto;
+		padding: var(--space-5, 1.25rem) var(--cr-gutter, 1rem);
+		min-width: 0;
+	}
+
+	.fdy-page-head h1 {
+		margin: 0 0 0.25rem;
+		font-family: var(--font-title, var(--font-display));
+	}
+
+	.fdy-page-head p {
+		margin: 0;
+		max-width: var(--measure-prose, 42rem);
+		color: var(--text-2, var(--dim));
+	}
+</style>

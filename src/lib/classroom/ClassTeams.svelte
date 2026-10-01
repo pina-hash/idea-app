@@ -1,26 +1,11 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import Disclosure from '$lib/Disclosure.svelte';
-	import BadgeIcon from '$lib/tournaments/BadgeIcon.svelte';
-	import TeamStyleEditor from '$lib/classroom/TeamStyleEditor.svelte';
-	import {
-		backgroundCss,
-		canStyleTeam,
-		draftTeam,
-		teamLabel,
-		teamStyleDraftOf,
-		teamStyleVars,
-		hasStyle,
-		teamStyle,
-		type SaveTeamStyleInput,
-		type TeamStyleDraft,
-		type TeamStyleResult
-	} from '$lib/classroom/teams';
+	import { teamLabel, teamStyleVars, hasStyle, teamStyle } from '$lib/classroom/teams';
 	import {
 		CLASS_TEAMS_POLL_MS,
 		ownTeams,
 		postedTeamsNotice,
-		withSavedStyle,
 		type ClassTeam,
 		type ClassTeamSet
 	} from '$lib/classroom/class-teams';
@@ -69,8 +54,7 @@
 		manage = null,
 		today = null,
 		refresh = null,
-		pollMs = CLASS_TEAMS_POLL_MS,
-		style = null
+		pollMs = CLASS_TEAMS_POLL_MS
 	}: {
 		sets: ClassTeamSet[];
 		/** Where a teacher manages the draw (the People tab). Null for a student: no strip. */
@@ -85,13 +69,6 @@
 		 * draw arrive in seconds rather than wait out a five-minute floor.
 		 */
 		pollMs?: number;
-		/**
-		 * THE TEAM STYLE WRITE (ledger 0360, report R17): 0223's membership-gated
-		 * `classroom_set_team_style`, through `saveTeamStyle`. ABSENT REMOVES
-		 * EVERY CONTROL -- Customize team on a student's own card and Edit look on
-		 * a teacher's board -- so a read-only mount is structural, not a flag.
-		 */
-		style?: ((input: SaveTeamStyleInput) => Promise<TeamStyleResult>) | null;
 	} = $props();
 
 	/**
@@ -160,115 +137,24 @@
 		const key = pollSessionKey(page.data.claims);
 		untrack(() => poller?.authChanged(key));
 	});
-
-	/* -------------------------------------------------------------------------
-	 * CUSTOMIZING A TEAM (ledger 0360, report R17). The write existed since 0223
-	 * and nothing on this page offered it, which is the whole of the report.
-	 *
-	 * ONE EDITOR AT A TIME, keyed on where it was opened: a student's own card
-	 * at the top, or a teacher's board card. The DRAFT LIVES HERE, not in the
-	 * editor, because every render of that team -- the own card and its card on
-	 * the board -- previews it, so what a student sees while choosing is what
-	 * the class will see. It is seeded in the press that opens the editor, never
-	 * in an effect, so no prop is read into state at mount.
-	 *
-	 * NOTHING HERE TOUCHES THE POLL. A save lays the saved fields over what is on
-	 * screen (`withSavedStyle`, the same overlay a refresh writes) and then asks
-	 * the existing poller for ONE re-read (`runNow`), which confirms the save and
-	 * picks up a classmate's change made at the same moment. That is one RPC and
-	 * one board read per Save, and nothing per minute; the cadence, the run and
-	 * `CLASS_TEAMS_POLL_MS` are 0357's and are unchanged.
-	 * ---------------------------------------------------------------------- */
-	const manager = $derived(manage !== null);
-	let editing = $state<{ key: string; teamId: string; draft: TeamStyleDraft } | null>(null);
-	/** The live region's words after a save. Always mounted; only its text moves. */
-	let savedNote = $state('');
-
-	const editorKey = (setId: string, teamId: string, where: 'own' | 'board') => `${where}-${setId}-${teamId}`;
-
-	function toggleEditor(setId: string, team: ClassTeam, where: 'own' | 'board') {
-		const key = editorKey(setId, team.id, where);
-		savedNote = '';
-		editing = editing?.key === key ? null : { key, teamId: team.id, draft: teamStyleDraftOf(team) };
-	}
-
-	function saved(input: SaveTeamStyleInput) {
-		local = { over: sets, sets: withSavedStyle(shown, input) };
-		editing = null;
-		savedNote = 'Saved. Your class sees the new look.';
-		poller?.runNow();
-	}
-
-	/** What a card draws: the team, or the draft laid over it while that team is being customized. */
-	const look = (team: ClassTeam): ClassTeam =>
-		editing && editing.teamId === team.id ? draftTeam(team, editing.draft) : team;
 </script>
 
-{#snippet card(stored: ClassTeam, isOwn: boolean, setId: string)}
-	{@const team = look(stored)}
-	{@const where = isOwn ? 'own' : 'board'}
-	{@const key = editorKey(setId, stored.id, where)}
-	{@const control = style ? (isOwn ? canStyleTeam(stored, false) : manager) : false}
+{#snippet card(team: ClassTeam, isOwn: boolean)}
 	<div
 		class="ct-card"
 		class:has-style={hasStyle(teamStyle(team))}
-		class:has-bg={!!backgroundCss(teamStyle(team))}
 		class:own={isOwn}
 		style={teamStyleVars(team)}
 		data-testid={isOwn ? 'class-team-mine' : 'class-team'}
 	>
-		<h3 class="ct-name">
-			<span class="ct-name-text">{teamLabel(team)}</span>
-			{#if team.badge}
-				<!-- The badge takes the ink, never the accent: it is a glyph somebody
-				     chose to display, so it is READ (IdentityBanner's measured rule). -->
-				<span class="ct-badge" data-testid="class-team-badge"><BadgeIcon id={team.badge} size="1.05em" /></span>
-			{/if}
-		</h3>
+		<h3 class="ct-name">{teamLabel(team)}</h3>
 		{#if team.tagline}<p class="ct-tagline">{team.tagline}</p>{/if}
 		<ul class="ct-members">
 			{#each team.members as name, i (i)}
 				<li>{name}</li>
 			{/each}
 		</ul>
-		{#if control}
-			<div class="ct-card-tools">
-				<button
-					type="button"
-					class="btn secondary tiny"
-					class:on={editing?.key === key}
-					aria-expanded={editing?.key === key}
-					aria-controls="team-style-{key}"
-					data-testid={isOwn ? 'class-team-customize' : 'class-team-edit-look'}
-					onclick={() => toggleEditor(setId, stored, where)}
-				>
-					{#if editing?.key === key}Close{:else if isOwn}Customize team{:else}Edit look{/if}
-				</button>
-			</div>
-		{/if}
 	</div>
-{/snippet}
-
-{#snippet editor(stored: ClassTeam, setId: string, where: 'own' | 'board')}
-	{@const key = editorKey(setId, stored.id, where)}
-	{#if style && editing && editing.key === key}
-		<TeamStyleEditor
-			id="team-style-{key}"
-			team={stored}
-			bind:draft={
-				// A FUNCTION BINDING, so the editor's own bindings never read a
-				// draft through a `null` while the block holding them tears down.
-				() => editing?.draft ?? teamStyleDraftOf(stored),
-				(next) => {
-					if (editing) editing.draft = next;
-				}
-			}
-			who={where === 'own' ? 'member' : 'teacher'}
-			onsave={style}
-			onsaved={saved}
-			oncancel={() => (editing = null)}
-		/>
-	{/if}
 {/snippet}
 
 {#if shown.length}
@@ -280,16 +166,9 @@
 						>&nbsp;· Edited by hand</span
 					>{/if}
 			</p>
-			{@render card(o.team, true, o.set.id)}
-			{@render editor(o.team, o.set.id, 'own')}
+			{@render card(o.team, true)}
 		</div>
 	{/each}
-
-	<!-- ALWAYS MOUNTED WHILE THE REGION IS, ONLY ITS TEXT MOVES: a live region a
-	     screen reader was not already observing is often not announced. -->
-	{#if style}
-		<p class="ct-saved" role="status" data-testid="class-team-saved">{savedNote}</p>
-	{/if}
 
 	{#if manage && notice}
 		<p class="ct-posted" data-testid="class-teams-posted">
@@ -316,14 +195,9 @@
 			{/snippet}
 			<div class="ct-cards">
 				{#each set.teams as team (team.id)}
-					{@render card(team, false, set.id)}
+					{@render card(team, false)}
 				{/each}
 			</div>
-			<!-- A teacher's editor opens UNDER the columns, at the board's full
-			     width: inside a 13rem column it would wrap every swatch row. -->
-			{#each set.teams as team (team.id)}
-				{@render editor(team, set.id, 'board')}
-			{/each}
 		</Disclosure>
 	{/each}
 </section>
@@ -336,18 +210,6 @@
 		gap: var(--space-2);
 		margin: 0 0 var(--space-3);
 		min-width: 0;
-	}
-	/* NEVER BOUNDED TO THE PANE'S HEIGHT. Above 1024px split.css gives every
-	   DIRECT child of the class pane `max-height: 100%` (so a bounded surface
-	   can keep its header while its body scrolls), and this region is a direct
-	   child there. Measured at 1440 with the team style editor open (ledger
-	   0360): the region overflowed its capped box and the class page's own
-	   header, the next sibling, painted over the editor's Save, which a hit
-	   test at Save's centre answered as the h1. This region is content in the
-	   pane's flow, so the pane scrolls instead. The selector outranks
-	   split.css's (0,4,0) on purpose, and names the split only to do that. */
-	:global(.cr-root .cr-split .cr-nav) > .ct-root {
-		max-height: none;
 	}
 	/* One card, not a banner across the class pane: the width of a team card
 	   on the board below, a little more. */
@@ -413,31 +275,9 @@
 		border-radius: var(--radius-card);
 		color: var(--text-1);
 	}
-	/* THE STUDENTS' COLOURS ARE A WASH OVER THE CARD, NEVER A FILL UNDER THE
-	   TEXT (ledger 0360, R17), and that is IdentityBanner's measured rule rather
-	   than a taste one. A student may pick ANY background, and with the colour
-	   painted at full strength `bannerInk`'s light-or-dark choice bottoms out at
-	   1.90:1 (a mid olive, #a5b478) against the 4.5:1 a name needs. Laid over
-	   the card's own ground at 0.22, the ink is the room's `--text-1`, which
-	   every theme has measured against its own card, so legibility is a
-	   property of the construction for a colour nobody has picked yet.
-	   `--team-ink` is no longer read here. As a layer rather than a
-	   `background`, so the opacity is the colour's and never the text's. */
 	.ct-card.has-style {
-		position: relative;
-		overflow: hidden;
-	}
-	.ct-card.has-bg::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background: var(--team-bg);
-		opacity: 0.22;
-		pointer-events: none;
-	}
-	.ct-card.has-style > * {
-		position: relative;
-		z-index: 1;
+		background: var(--team-bg, var(--surface-1));
+		color: var(--team-ink, inherit);
 	}
 	/* The student's own card sits alone in the pane, so it drops the gap the
 	   board's columns need under each card. */
@@ -445,54 +285,18 @@
 		margin-bottom: 0;
 	}
 	.ct-name {
-		display: flex;
-		align-items: center;
-		gap: 0.35rem;
 		margin: 0 0 0.2rem;
 		font-size: 1rem;
 		line-height: 1.3;
-		color: var(--text-1);
-	}
-	.ct-name-text {
-		min-width: 0;
-		overflow-wrap: break-word;
-	}
-	/* The badge is read like the name, so it takes the name's ink. */
-	.ct-badge {
-		display: inline-flex;
-		flex: none;
-		color: var(--text-1);
+		color: inherit;
 	}
 	.ct-tagline {
 		margin: 0 0 0.3rem;
 		font-style: italic;
 		font-size: 0.85rem;
-		color: var(--text-1);
 	}
-	.ct-card-tools {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-1);
-		margin-top: var(--space-2);
-	}
-	.ct-saved {
-		margin: 0;
-		color: var(--text-1);
-	}
-	/* Empty, it takes no place in the column (an absolutely placed child is
-	   out of the flex flow, so it adds no gap) and stays in the tree, so a
-	   screen reader that was observing it hears the sentence when it lands. */
-	.ct-saved:empty {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-	}
-	/* One name a line, no bullet: the plate draws the card, and a disc beside
-	   every name was the browser's look, not the room's (ledger 0360). */
 	.ct-members {
 		margin: 0;
-		padding: 0;
-		list-style: none;
+		padding-left: 1.1rem;
 	}
 </style>

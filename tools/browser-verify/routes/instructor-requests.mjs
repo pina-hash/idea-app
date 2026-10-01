@@ -73,7 +73,7 @@ export default {
 		},
 		/* 3. THE FOURTH STATUS, as a tab and as a row button. */
 		{
-			selector: '[role="tablist"][aria-label="Status filter"] [role="tab"]',
+			selector: '[role="tablist"] [role="tab"]',
 			label: 'the status tabs: four statuses plus All',
 			expectPresent: 5,
 			maxPresent: 5,
@@ -211,7 +211,7 @@ export default {
 				a gap.
 			*/
 			evaluate: `() => {
-				const tabs = [...document.querySelectorAll('[role="tablist"][aria-label="Status filter"] [role="tab"]')]
+				const tabs = [...document.querySelectorAll('[role="tablist"] [role="tab"]')]
 					.map((t) => t.textContent.trim());
 				return [
 					tabs.find((t) => t.startsWith('New')) || 'no new tab',
@@ -245,14 +245,8 @@ export default {
 			*/
 			click: '.fb-actions button:nth-of-type(4)',
 			until: '() => (document.querySelector(\'[data-testid="probe-set-status"]\')?.textContent || "").includes(":spam")',
-			/* FORTY AT 500ms, not twelve at 250 (ledger 0360). Run on its own the
-			   spec starts a cold dev server, and the first width's console was not
-			   hydrated after three seconds: every press landed on server markup
-			   with no handler, the run read New (2) / Spam (1), and the same click
-			   held at the second width. Retrying against the click's own effect
-			   is the rule (CLAUDE.md, "paint is not interactivity"). */
-			attempts: 40,
-			waitMs: 500
+			attempts: 12,
+			waitMs: 250
 		}
 	],
 	contrast: [
@@ -295,7 +289,7 @@ export default {
 		{ selector: '[data-testid="composer-due-date"]', label: 'the due date box', min: 44 },
 		{ selector: '[data-testid="composer-due-time"]', label: 'the due time box', min: 44 },
 		{ selector: '.fb-actions button', label: 'the four status buttons, Spam among them', min: 44 },
-		{ selector: '[role="tablist"][aria-label="Status filter"] [role="tab"]', label: 'the five status tabs', min: 44 },
+		{ selector: '[role="tablist"] [role="tab"]', label: 'the five status tabs', min: 44 },
 		{ selector: '[data-testid="item-edit-toggle"]', label: 'the Edit post control', min: 44 },
 		{ selector: '[data-testid="inspector-toggle"]', label: 'the Instructor tools toggle', min: 44 }
 	]

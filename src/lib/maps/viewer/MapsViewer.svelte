@@ -502,30 +502,6 @@
 		font-family: var(--font-display);
 	}
 
-	/* ---- SPACE WHITE (ledger 0360) -----------------------------------------
-	   `/maps` is a site-plate page, so it carries the theme when somebody chose
-	   it. Jade on white is 1.6:1, so the IDENTITY moves in LIGHTNESS ONLY,
-	   hue and saturation held (161.6deg, 74%, 57% to 24%): #106b4f, 6.14:1 on
-	   the drawing's own ground and 4.90 on the darkest the plate draws (a chip,
-	   #dde0e6). The drawing ground itself is the theme's `--blueprint-bg`
-	   (#f7f9f9), declared in the theme file, so the plan reads dark on light.
-
-	   THE DERIVED STRENGTHS MOVE WITH IT, never the hue. A veil of a dark ink
-	   over white reads far lighter than the same veil of a bright one over
-	   black, so each is re-weighted to carry at least what the dark ground
-	   draws (computed, composited over the ground, not a browser reading):
-	     frame line   45% on dark 3.12:1   72% here 3.41:1
-	     wall band    34% on dark 2.35:1   58% here 2.59:1
-	     frame band   26% on dark 1.89:1   44% here 2.00:1
-	   A room's own outline is the full accent, 6.14:1. Gold stays a STATE,
-	   the theme's own gold ink. */
-	:global(:root[data-theme='space-white']) .mv-root {
-		--mv-accent: #106b4f;
-		--mv-line: color-mix(in srgb, var(--mv-accent) 72%, transparent);
-		--mv-wall-fill: color-mix(in srgb, var(--mv-accent) 58%, transparent);
-		--mv-wall-frame-fill: color-mix(in srgb, var(--mv-accent) 44%, transparent);
-	}
-
 	/* ---- THE PHONE: one document, in a phone's order ---------------------
 	   The panel and its scroller dissolve (`display: contents`) so the search,
 	   the results, the drawing and the level are siblings in one column and

@@ -1,8 +1,8 @@
 {
 	"schema": 1,
 	"spec": "classroom-teams-window-closed.mjs",
-	"date": "2026-10-01T17:46:17.655Z",
-	"sha": "b1882503546b58c90dc8f9a0250a6ea4973fd7c0",
+	"date": "2026-09-28T18:50:46.620Z",
+	"sha": "a4f769c14960f5bac52e7a517884f0ca18e7896d",
 	"dirty": true,
 	"widths": [
 		375,
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 12,
 	"outsideRows": [],
-	"ms": 6704
+	"ms": 6727
 }

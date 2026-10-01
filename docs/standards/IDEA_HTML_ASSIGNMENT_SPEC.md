@@ -1,5 +1,5 @@
 # IDEA HTML Assignments - Specification
-**Version 1.5 - 2026-10-01**
+**Version 1.4 - 2026-09-29**
 
 Written from the tree on 2026-09-10, after five merged lanes (ledgers 0126, 0127, 0128,
 0129, 0134) and two applied migrations (0195, 0196) had already built the subsystem
@@ -148,10 +148,6 @@ interface HtmlBlock {
   field: string;            // the document's own data-field. Renameable.
   type: 'text' | 'longText' | 'checkbox' | 'radio' | 'image' | 'table';
   minSentences?: number;    // whole, 0..100
-  // DISPLAY KEYS (section 4.8): they change what a reader sees, never who may write.
-  optional?: boolean;       // judged, never counted; never holds back completion (4.9)
-  prompt?: string;          // the question as a grader reads it; first 500 characters shown
-  link?: 'presentation';    // on a `text` block only: the field holds a link a student hands in
 }
 
 interface HtmlCriterion {
@@ -270,93 +266,6 @@ written in plpgsql is a parser that drifts from the one the importer actually ru
 which is worse than the gap, because a document would then pass one and fail the other
 with nothing able to say which was right. What 0195 refuses is everything that would
 corrupt a ROW: ids, uniqueness, the level rules and the arithmetic.
-
-### 4.8 Display keys, and what every layer does with a key it does not know
-
-Ledger 0360 added three optional block keys. **They are display keys: each changes what a
-reader sees, and none of them changes what may be stored or who may store it.** That is
-why they are keys rather than a seventh block `type` -- a new type would have widened the
-two live student write functions (0197) and the instructor one (0199), and a key needs no
-migration at all.
-
-- **`optional: true`** says the block may be left empty: it is judged and never counted
-  toward completion. `hxBlockIsOptional` is its one reader and only the literal `true`
-  counts. It is the one display key that DECIDES something, so it has its own section,
-  4.9, and its own validator rules.
-- **`prompt`** is the question as a grader reads it. `hxBlockPrompt` trims it and keeps
-  the first `HTML_PROMPT_MAX` (500) characters; a prompt that is not text, or is empty
-  after trimming, is no prompt. Where a block carries one, it heads that block in the
-  grading console's Answers view and the not-published answers list, it is the question in
-  Answers by question, it heads the block's column in the Answers CSV, and it is the
-  question name in the graded-work export (`manifestLabel`) and the per-file names of the
-  bulk file download (`blockLabelsFromManifest`). **Where a block carries none, every one
-  of those surfaces prints exactly what it printed before**: the field name, or
-  `<module title>: <field>` in a column header.
-- **`link: "presentation"`**, on a `type: "text"` block only, says the field holds a link
-  a student hands in. `HTML_LINK_KINDS` is the list of kinds and is APPEND-ONLY, for the
-  reason `curriculum.ts`'s sections are: a kind may already sit in a stored manifest.
-  `hxBlockLinkKind` answers null for an unknown kind and for any block that is not
-  `text`. **The document does nothing different and no bridge message changes**: the
-  parent reads the stored answer. The student sees their own check under the progress
-  rail (`HtmlLinkCheck`: where it goes, as `linkHostLabel` names it -- "Google Slides",
-  "Canva", or the bare host -- and a Test it key, or a sentence saying it is not a link
-  yet); a grader sees an Open key beside it (`AnswerLinks`); and when any block declares a
-  link, presentation mode lists only those fields' links, one student at a time.
-
-**The one gate on a link is `openableUrl` in `$lib/classroom/answer-links.ts`**: it must
-pass `safeHref`, parse as a URL, be `http:` or `https:`, carry a hostname and carry no
-credentials. A declared field holding words gets no key and a worded "Not a working link"
-with what the student typed; a key whose only outcome is a dead tab is not offered. A
-declared field pasted without its scheme is read as `https://` plus what was typed. Links
-written anywhere else in an answer get the same gate and the same key.
-
-**What each layer does with the keys, and with a value it does not understand:**
-
-| Layer | Reads | A malformed value |
-| --- | --- | --- |
-| `validateHtmlManifest` (`checkBlock`) | `id`, `field`, `type`, `minSentences`, `optional`, then `displayKeyWarnings` | `prompt`, `link`: a WARNING naming the block; `optional`: an ERROR (4.9) |
-| 0195 `_classroom_check_html_manifest` | the same four keys; the manifest is stored verbatim | ignored, stored as sent |
-| `tools/validate-assignment-spec.py` (`check_block`) | the same, with `HTML_LINK_KINDS` and `HTML_PROMPT_MAX` | `prompt`, `link`: a `W` line; `optional`: an `E` line |
-| 0197 / 0199 write gates | the block by id, then its type | never read: a display key cannot decide a write |
-| the readers above | their own key | read as absent |
-
-**`prompt` AND `link` WARN AND NEVER REFUSE, BECAUSE A REFUSAL WOULD MAKE A DISPLAY KEY
-DECIDE WHETHER A DOCUMENT IMPORTS.** A manifest an author re-uploads with a typo in a
-prompt must import exactly as it would have without the prompt. `tests/db/html-assignment-display-keys.test.ts` proves the SQL half on
-the real chain: a manifest carrying all three keys is stored byte for byte by
-`classroom_set_html_assignment`, a declared link field accepts any text through the
-student write gate, and an undeclared block id is still refused as the positive control.
-`tests/html-assignment-manifest-parity.test.ts` holds the python tool to the same link
-kinds and the same cap.
-
-### 4.9 Optional blocks: judged, never counted
-
-A block marked `optional: true` appears in the progress rail with whether it is met, and
-carries ZERO weight: it is never in the denominator, never the next thing the rail points
-at, and never the reason a worksheet is not complete. A module's points are spread over
-its required blocks only, and the completeness check (`hxIncompleteBlocks`) skips the same
-blocks, so the bar and the sentence count agree. `progress.ts` is the authority.
-
-**Why it exists:** the authoring standard told authors to add "one or two optional slots"
-for extra photos before a manifest had any way to say so, and every such slot held a
-one-photo student below 100% forever.
-
-Four rules, in `checkBlock` and the module loop of `validateHtmlManifest`, and in the
-python tool, in the same words:
-
-- **`optional` present and not a boolean is an ERROR.** It decides what counts, so
-  `"yes"` read as required would be a worksheet nobody can finish. No manifest stored
-  before 0360 carries the key, so refusing a malformed one changes no stored answer.
-- **`optional` on a header block is a WARNING.** Header blocks never count toward
-  completion, so the key changes nothing there.
-- **A module with two or more photo blocks and none optional is a WARNING**: "Module X has
-  N photo blocks and none is optional: every one must hold a photo before the bar reaches
-  100%". One photo block is required work, not the trap, and draws nothing.
-- **A module whose every block is optional is a WARNING**: it carries no weight, so it can
-  never move the progress bar.
-
-0195 stores `optional` verbatim and the write gates never read it: an optional block
-saves exactly like any other.
 
 ---
 
@@ -934,8 +843,6 @@ Stated together so nobody discovers one of these during a port.
   handler the document itself wrote. It is a parent control in parent chrome, and so is
   the completeness check (`hxIncompleteBlocks`, counting sentences in the STORED values
   against each block's `minSentences` from the manifest the parent stored at import).
-  A block marked `optional: true` is excluded from it, as it is from the progress rail
-  (section 4.9).
 
 ---
 
@@ -1373,17 +1280,6 @@ Both variables are documented in `.env.example`.
 
 ## Changelog
 
-- **1.5 (2026-10-01).** Ledger 0360. Section 4.1's block gains three optional keys,
-  `optional`, `prompt` and `link: "presentation"`. The new section 4.8 says what each one
-  changes (`prompt` and `link` what a reader sees, never what may be written), what every
-  layer does with a key or a value it does not understand (the TS and python validators
-  warn on a bad `prompt` or `link` and never refuse, 0195 stores the manifest verbatim,
-  the 0197/0199 write gates never read any of them), and which single function gates a
-  link before it gets an Open key. The new section 4.9 says what `optional` does (judged,
-  never counted; never holds back completion) and its four validator rules, the first of
-  which refuses a non-boolean. Section 7's completeness bullet excludes optional blocks.
-  No migration, no bridge message and no block type changed; a block without the new keys
-  renders exactly as it did.
 - **1.4 (2026-09-29).** Section 6.3 is fixed for an embedded font: the CSP carries
   `font-src data:` (ledger 0351), so a document can show the site's own typefaces by
   inlining them. A font host is still refused. Sections 5 and 15 updated to match.
