@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.8 - 2026-09-30**
+**Version 1.9 - 2026-09-30**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -546,10 +546,61 @@ Mr. Pina read Hook 02 an hour before class and gave these. Each is now a rule.
 - **The first week of use is part of the build.** Expect small adjustments as students use
   a new assignment, make them the day they are reported, and add each one here.
 
+## 15. Rules paid for by Hook 02's visual overhaul (2026-09-30)
+
+Mr. Pina found Hook 02 word heavy and "a mess" beside Hook 01, which students liked for
+its pictures and diagrams. The overhaul kept every fact and every block id and changed how
+the page reads. Each change is now a rule.
+
+- **One picture per step.** Every step of a procedure carries an illustration of what the
+  student will see or do: the window, the menu, the printer, the part. Draw it as inline
+  SVG that reads the theme's tokens, so it follows light and dark, and draw the real part
+  from the course's own geometry (Hook 02 defines the hook once as a `<symbol>` and places
+  it with `<use>` in fourteen figures). A screenshot of software goes stale at the next
+  update; a drawing of the idea does not.
+- **A long procedure is a stepper, not a scroll.** One step on screen at a time, a
+  numbered track grouped by phase (A Into Bambu Studio, B Weigh it, ...), Previous and a
+  Next that names the next step. This is the SolidWorks Day pattern, and it is the one that
+  worked in class. Every step stays in the DOM so print shows all of them, a progress-bar
+  jump opens the step holding its target, and a playing video stops when the step changes.
+  Hook 02 went from 9,176 px tall at 1440 to about 6,100 with nothing removed.
+- **One accent color.** Per-stage hues (blue, cyan, purple) read as noise and fight the
+  room's identity. Stages differ by number and a small mark, never by hue.
+- **Graded inputs sit in one labeled panel, inside the step that produces them.** The
+  label is "Counts toward your grade". A student then knows which boxes matter without
+  reading the rubric, and every other line on the step is plainly help.
+- **Number the moves inside a stage**, as headers ("1 Pick your hook type"), and say how
+  many there are in the stage's first line.
+- **Make progress visible, because it is the reward.** A step button gets a tick the
+  moment its evidence is in, a finished stage shows a banner, a number with a cap gets a
+  gauge (grams against the 50 g limit), and Next glows once the step is done. Keep every
+  motion behind `prefers-reduced-motion: no-preference`; with it off, the state still
+  shows by color and glyph.
+- **An either/or pick is a picture card.** Two cards with a drawing each (snapped or
+  pulled open; standard or multi-part), the radio inside as the control, the chosen card
+  marked with `:has(input:checked)`.
+- **Number a measurement diagram to match its table**, and light the number up while its
+  row is focused or clicked. "Which dimension is this" stops being a question.
+- **`position: sticky` does nothing inside a ported document.** The frame grows to the
+  document's height, so the frame's own viewport is the whole document and nothing ever
+  sticks. Do not build a sticky nav; put navigation where it is used.
+- **A grid or flex `li` splits its inline children into separate grid items.** A step
+  line with a bold word and a key cap rendered as three columns. Wrap the line's content in
+  one `<span>`.
+- **SVG markers on a `<symbol>` need the theme class on the symbol's own `<svg>`**, or
+  they paint in the browser default black; set `markerUnits="userSpaceOnUse"` so a scaled
+  figure does not scale its arrowheads too.
+- **A selector that reads text from a row is child-scoped** (`.dn > span`), so adding a
+  decoration span to the row later does not change what the script reads.
+- **In Chromium, an element screenshot taller than the viewport can paint the document's
+  top bar into the middle of the image.** Confirm with a full-page screenshot at a viewport
+  as tall as the document before calling it a layout defect.
+
 ---
 
 ## Changelog
 
+- **1.9 (2026-09-30).** New section 15: thirteen rules from the Hook 02 visual overhaul (one picture per step, a stepper for a long procedure, one accent, the graded-input panel, numbered moves, visible progress, picture cards, a numbered measurement diagram, no sticky inside the frame, and four traps) (Mr. Pina).
 - **1.8 (2026-09-30).** Section 14: no "I did it" checkboxes; ask for checkable evidence (Mr. Pina).
 - **1.7 (2026-09-30).** Section 14: the lab exports STEP, never STL (Mr. Pina).
 - **1.6 (2026-09-30).** Header: the standing instruction that this file updates itself
