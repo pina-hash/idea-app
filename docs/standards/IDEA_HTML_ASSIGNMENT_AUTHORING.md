@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.7 - 2026-09-30**
+**Version 1.8 - 2026-09-30**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -534,6 +534,15 @@ Mr. Pina read Hook 02 an hour before class and gave these. Each is now a rule.
   kept it, because a student needs every fact in it. Make a long walkthrough lighter by
   folding stages, showing only the chosen machine's steps, and putting the video beside
   the step it shows. Never by cutting a fact a student needs.
+- **No "I did it" checkboxes. Ask for evidence the page can check instead.** Mr. Pina has
+  never seen a student read a checkbox before clicking it, and students hunt them down only
+  at hand-in. A checkbox is a promise, not a demonstration. Replace each with something the
+  student must produce: a pick of what they actually set, with the page flagging a wrong
+  pick (Generic ABS, the 0.6 nozzle on an X1 Carbon); a value only the real act gives (the
+  printer name off the print board, the load off the score sheet); or nothing at all, where
+  a screenshot or a number already proves it, or where the item is a rule rather than a
+  step. Keep a checkbox only for an act with nothing to show (pieces kept in the bin). This
+  adds no grading. Hook 02 went from seven checkboxes to one.
 - **The first week of use is part of the build.** Expect small adjustments as students use
   a new assignment, make them the day they are reported, and add each one here.
 
@@ -541,6 +550,7 @@ Mr. Pina read Hook 02 an hour before class and gave these. Each is now a rule.
 
 ## Changelog
 
+- **1.8 (2026-09-30).** Section 14: no "I did it" checkboxes; ask for checkable evidence (Mr. Pina).
 - **1.7 (2026-09-30).** Section 14: the lab exports STEP, never STL (Mr. Pina).
 - **1.6 (2026-09-30).** Header: the standing instruction that this file updates itself
   whenever an HTML assignment is built or revised. New section 14: six rules from Mr.
