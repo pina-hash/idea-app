@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.10 - 2026-10-01**
+**Version 1.11 - 2026-10-01**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -597,6 +597,15 @@ the page reads. Each change is now a rule.
   and contradicts Hook 01, which says cutting a standard hook into pieces gains nothing.
   Draw it from the earlier assignment's own geometry (Hook 01's two-piece link,
   `link()` in its generator), never a new stand-in (Mr. Pina, 2026-10-01).
+- **A measurement figure puts each dimension where the calipers go**, drawn from the
+  part's own geometry: edge to edge across a hole, the gap at its narrowest, a thickness
+  across its thickest section in a side view, arrowheads on every dimension line. Hook 02's
+  first draft marked the opening with a dashed circle and the thickness with an underline,
+  and Mr. Pina caught both. A test rig is drawn the way the load actually goes through
+  the part.
+- **A "how did it fail" pick lists the real failure modes plus "Something else" with a
+  short field**, never a two-way choice. Hook 02 had snapped and pulled open only; FDM parts
+  also delaminate and multi-part joints let go (Mr. Pina, 2026-10-01).
 - **In Chromium, an element screenshot taller than the viewport can paint the document's
   top bar into the middle of the image.** Confirm with a full-page screenshot at a viewport
   as tall as the document before calling it a layout defect.
@@ -605,6 +614,7 @@ the page reads. Each change is now a rule.
 
 ## Changelog
 
+- **1.11 (2026-10-01).** Section 15: measurement figures dimension where the calipers go; failure-mode picks list every real mode plus Something else (Mr. Pina).
 - **1.10 (2026-10-01).** Section 15: a design option is drawn from the earlier assignment's own geometry (Mr. Pina).
 - **1.9 (2026-09-30).** New section 15: thirteen rules from the Hook 02 visual overhaul (one picture per step, a stepper for a long procedure, one accent, the graded-input panel, numbered moves, visible progress, picture cards, a numbered measurement diagram, no sticky inside the frame, and four traps) (Mr. Pina).
 - **1.8 (2026-09-30).** Section 14: no "I did it" checkboxes; ask for checkable evidence (Mr. Pina).
