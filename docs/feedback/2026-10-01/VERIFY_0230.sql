@@ -1,5 +1,6 @@
--- 0230 post-apply check. READ-ONLY: one select, writes nothing, and never errors
--- (an object 0230 did not create reads MISSING instead). Every row should read ok = true.
+/* 0230 post-apply check. READ-ONLY: one select, writes nothing, and never errors
+   (an object 0230 did not create reads MISSING instead). Every row should read ok = true.
+   This file carries no line comment, so it still runs if a paste loses its line breaks. */
 with fns(sig, signed_in) as (values
 	('classroom_quick_posts(uuid)', true),
 	('classroom_quick_post_create(uuid[],text,timestamptz)', true),
