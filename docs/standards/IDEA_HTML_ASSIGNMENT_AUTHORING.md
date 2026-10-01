@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.9 - 2026-09-30**
+**Version 1.10 - 2026-10-01**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -592,6 +592,11 @@ the page reads. Each change is now a rule.
   figure does not scale its arrowheads too.
 - **A selector that reads text from a row is child-scoped** (`.dn > span`), so adding a
   decoration span to the row later does not change what the script reads.
+- **A design option is drawn exactly as the earlier assignment drew it.** Hook 02's
+  multi-part card first showed a standard hook cut in two, which is not a multi-part hook
+  and contradicts Hook 01, which says cutting a standard hook into pieces gains nothing.
+  Draw it from the earlier assignment's own geometry (Hook 01's two-piece link,
+  `link()` in its generator), never a new stand-in (Mr. Pina, 2026-10-01).
 - **In Chromium, an element screenshot taller than the viewport can paint the document's
   top bar into the middle of the image.** Confirm with a full-page screenshot at a viewport
   as tall as the document before calling it a layout defect.
@@ -600,6 +605,7 @@ the page reads. Each change is now a rule.
 
 ## Changelog
 
+- **1.10 (2026-10-01).** Section 15: a design option is drawn from the earlier assignment's own geometry (Mr. Pina).
 - **1.9 (2026-09-30).** New section 15: thirteen rules from the Hook 02 visual overhaul (one picture per step, a stepper for a long procedure, one accent, the graded-input panel, numbered moves, visible progress, picture cards, a numbered measurement diagram, no sticky inside the frame, and four traps) (Mr. Pina).
 - **1.8 (2026-09-30).** Section 14: no "I did it" checkboxes; ask for checkable evidence (Mr. Pina).
 - **1.7 (2026-09-30).** Section 14: the lab exports STEP, never STL (Mr. Pina).
