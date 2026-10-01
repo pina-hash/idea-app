@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.6 - 2026-09-30**
+**Version 1.7 - 2026-09-30**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -521,7 +521,7 @@ Mr. Pina read Hook 02 an hour before class and gave these. Each is now a rule.
 - **Equipment facts come from Mr. Pina, not from the vendor's defaults.** Hook 02 shipped
   telling every student to slice for a 0.4 mm nozzle, Bambu's default, when every X1 Carbon
   in the lab has a 0.6 and an H2D side may be 0.6, 0.6 High Flow or 0.4. The same draft
-  said the SD cards and drives are handed out, when they live in the printers. Before
+  said the SD cards and drives are handed out, when they live in the printers. It also told students to export an STL; IDEA exports **STEP, never STL** (`STEP AP214 (*.step;*.stp)` in SolidWorks Save As), and Bambu Studio imports it with its units intact. Before
   delivering a walkthrough of lab equipment, list every lab-specific fact it asserts
   (nozzle, profile, where media and tools live, which setting is manual) and confirm each
   with him.
@@ -541,6 +541,7 @@ Mr. Pina read Hook 02 an hour before class and gave these. Each is now a rule.
 
 ## Changelog
 
+- **1.7 (2026-09-30).** Section 14: the lab exports STEP, never STL (Mr. Pina).
 - **1.6 (2026-09-30).** Header: the standing instruction that this file updates itself
   whenever an HTML assignment is built or revised. New section 14: six rules from Mr.
   Pina's pre-class read of Hook 02 (writing budget, lab facts confirmed with him, lookup
