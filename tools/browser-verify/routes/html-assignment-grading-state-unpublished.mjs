@@ -33,7 +33,7 @@ export default {
 				'teamName: Team Meridian',
 				'reflection: I modelled the blade root and the hub today. The fillet at the root took three tries before it would rebuild.',
 				'checkedOff: Ticked',
-				'photo: No answer saved Photo: blade-root-fillet.png -- The fillet after the third rebuild'
+				'photo: No answer saved Photo: blade-root-fillet.png, The fillet after the third rebuild'
 			]
 		}
 	],

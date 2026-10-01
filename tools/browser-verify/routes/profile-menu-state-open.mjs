@@ -113,7 +113,12 @@ export default {
 		   0298 it is ONE labelled native select rather than six tiles, and the
 		   tiles are gone rather than hidden. */
 		{ selector: '.pm-select', label: 'the pathway select', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '.pm-select option', label: 'one option per pathway, no placeholder (an option has no box of its own)', expectPresent: 6, maxPresent: 6, expectVisible: 0 },
+		/* SIX PATHWAYS PLUS "No pathway yet" (ledger 0360, report R18), which
+		   is always there and always pickable now, so a student who mis-picked
+		   can go back to unset. Counted as the rule, not a number: one per
+		   pathway, plus the one `value=""` option. */
+		{ selector: '.pm-select option', label: 'one option per pathway plus No pathway yet (an option has no box of its own)', expectPresent: 7, maxPresent: 7, expectVisible: 0 },
+		{ selector: '.pm-select option[value=""]:not([disabled])', label: 'No pathway yet, enabled, even with a pathway stored', expectPresent: 1, maxPresent: 1, expectVisible: 0 },
 		{ selector: 'label.pm-label[for]', label: 'the select carries a visible label', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '.pm-pathway', label: 'no pathway tiles any more', expectPresent: 0, maxPresent: 0 },
 		/* THE SENTENCE. A student choosing a pathway from a menu has none of

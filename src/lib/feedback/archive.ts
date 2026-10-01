@@ -46,8 +46,11 @@ import {
 	EMPTY_FEEDBACK_FILTER,
 	feedbackJson,
 	feedbackMarkdown,
+	feedbackRowLabel,
 	rowBuild,
+	rowHorizon,
 	rowScreenshotPath,
+	splitByHorizon,
 	type FeedbackExportOptions
 } from './console';
 import type { FeedbackRow } from './feedback';
@@ -335,6 +338,13 @@ export function feedbackArchiveReadme(archive: {
 	generatedAt: string | null;
 	head: ArchiveHead | null;
 	imageBudget: number;
+	/**
+	 * THE REPORTS MARKED AS A LONG-TERM IDEA (0230), each as its own report's
+	 * path and the label the console's bulk notes use. Optional so a caller
+	 * from before the horizon existed renders exactly as it did; the archive
+	 * builder always passes it, and an empty list is said in words.
+	 */
+	longTerm?: { path: string; label: string }[];
 }): string {
 	const lines: string[] = [
 		'# IDEA feedback archive',
@@ -350,10 +360,11 @@ export function feedbackArchiveReadme(archive: {
 	lines.push('');
 	lines.push('## What is in here');
 	lines.push('');
-	lines.push('- `index.json` -- every report as it is stored, plus two lookups beside them:');
+	lines.push('- `index.json` -- every report as it is stored, plus lookups beside them:');
 	lines.push('  `files`, which gives each report id the archive-relative path of its own');
-	lines.push('  markdown and of its screenshot, and `sections`, which resolves every section');
-	lines.push('  id the set mentions to a course and a period.');
+	lines.push('  markdown and of its screenshot, `sections`, which resolves every section');
+	lines.push('  id the set mentions to a course and a period, and `horizons`, which gives');
+	lines.push('  each report id `now` or `long_term`.');
 	lines.push('- `reports/<report id>/report.md` -- one report, written out.');
 	lines.push('- `reports/<report id>/screenshot.<png|jpg|webp>` -- the image that report was');
 	lines.push('  filed with, where there is one. It is named from `index.json`, so no image');
@@ -384,6 +395,33 @@ export function feedbackArchiveReadme(archive: {
 	lines.push(
 		'- **error id** -- joins a report to the server log line written for the same failure.'
 	);
+	lines.push(
+		'- **horizon** -- `now` for something to fold in within a week or so, `long-term` for a'
+	);
+	lines.push(
+		'  big idea for later. The reporter picks it, and a site admin can change it afterwards.'
+	);
+	lines.push('  `index.json` carries it per report in `horizons` as well as on the row itself.');
+	if (archive.longTerm) {
+		// ITS OWN SECTION, BY PATH, so a reader working through this archive can
+		// set the long-term ideas aside without opening each report to find out.
+		// The section is always there once the field is: an archive with none
+		// SAYS it has none, rather than leaving a reader to wonder whether the
+		// section was ever written.
+		lines.push('');
+		lines.push('## Long-term ideas');
+		lines.push('');
+		if (archive.longTerm.length === 0) {
+			lines.push('None of these reports is marked as a long-term idea.');
+		} else {
+			const n = archive.longTerm.length;
+			lines.push(
+				`${n} of the ${archive.reports} report${archive.reports === 1 ? '' : 's'} here ${n === 1 ? 'is' : 'are'} marked as a long-term idea rather than something to fold in soon:`
+			);
+			lines.push('');
+			for (const item of archive.longTerm) lines.push(`- \`${item.path}\` -- ${item.label}`);
+		}
+	}
 	lines.push('');
 	lines.push('## Who filed these');
 	lines.push('');
@@ -548,6 +586,11 @@ export async function buildFeedbackArchive(
 		imageBytes
 	};
 	base.files = Object.fromEntries([...files.entries()].map(([id, f]) => [id, f]));
+	// THE HORIZON OF EVERY REPORT, BESIDE THE ROWS, read through `rowHorizon`
+	// so a payload from before 0230 (no column, maybe a `meta.horizon`) still
+	// answers for every row. The rows themselves carry the column verbatim;
+	// this is the one lookup a reader can trust to be complete.
+	base.horizons = Object.fromEntries(rows.map((row) => [row.id, rowHorizon(row)]));
 	text('index.json', JSON.stringify(base, null, 2) + '\n');
 
 	text(
@@ -559,7 +602,11 @@ export async function buildFeedbackArchive(
 			includeSubmitter,
 			generatedAt: options.generatedAt ?? null,
 			head,
-			imageBudget: budget
+			imageBudget: budget,
+			longTerm: splitByHorizon(rows).longTerm.map((row) => ({
+				path: files.get(row.id)!.report,
+				label: feedbackRowLabel(row)
+			}))
 		})
 	);
 

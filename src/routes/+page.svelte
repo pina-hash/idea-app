@@ -3,7 +3,12 @@
 	import { total as changelogTotal } from 'virtual:site-versions';
 	import { census as codeCensus } from 'virtual:site-code';
 	import { APPS, CHANGE_TYPES, appLabel, changeTypeLabel } from '$lib/site-manifest';
-	import { groupEntriesByMonth, type VersionEntry } from '$lib/site-versions';
+	import {
+		CHANGELOG_PAGE_SIZE,
+		changelogWindow,
+		groupEntriesByMonth,
+		type VersionEntry
+	} from '$lib/site-versions';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import QuickNoteDock from '$lib/notebook/QuickNoteDock.svelte';
@@ -216,8 +221,13 @@
 	 * <total>" readout and the has-any-history branch below are correct before
 	 * a single entry has been fetched. Without it an unopened panel would say
 	 * "No updates recorded yet." on a site with 1,433 of them.
+	 *
+	 * `$state.raw`, NOT `$state` (ledger 0360, report R24): the log is replaced
+	 * whole and never edited in place, and a deep proxy over 2,500 entries and
+	 * every `apps` array put the filter and the month grouping behind a proxy
+	 * trap per property read.
 	 */
-	let changelog = $state<VersionEntry[]>([]);
+	let changelog = $state.raw<VersionEntry[]>([]);
 	let changelogLoading = $state(false);
 	/* Plain, NOT `$state`: the "already started" latch is written on the same
 	   path that writes `changelog`, and reading it reactively there would make
@@ -265,15 +275,80 @@
 	};
 
 	/**
-	 * The filtered log cut into months for the headings. The grouping itself is
+	 * ONE PAGE OF THE FILTERED LOG IS RENDERED, AND MORE ON REQUEST (ledger
+	 * 0360, report R24). Opening the panel used to render every entry, 2,508
+	 * rows and 16,178 nodes on the day it was measured, with a main-thread task
+	 * of about a second on a warm harness and two on a cold one. The filters
+	 * and the "<filtered> / <total>" count above still run over the WHOLE log;
+	 * `changelogWindow` in $lib/site-versions decides how much of the result is
+	 * on screen, and a "Show more" key (or the panel's own scroll reaching its
+	 * end) asks for the next page.
+	 *
+	 * THE REQUEST IS KEYED ON THE FILTERS, so changing one returns to the first
+	 * page with no `$effect` to reset anything: a request made under other
+	 * filters simply does not apply.
+	 */
+	const filterKey = $derived([filterApp, filterType, filterFrom, filterTo].join('\u0000'));
+	let moreRequest = $state({ key: '', shown: CHANGELOG_PAGE_SIZE });
+	const logWindow = $derived(
+		changelogWindow(filteredLog, moreRequest.key === filterKey ? moreRequest.shown : CHANGELOG_PAGE_SIZE)
+	);
+	const showMore = () => {
+		if (logWindow.remaining > 0) moreRequest = { key: filterKey, shown: logWindow.next };
+	};
+
+	/**
+	 * The visible window cut into months for the headings. The grouping itself is
 	 * `groupEntriesByMonth` in $lib/site-versions -- pure list arithmetic, moved
 	 * there so a test can reach it, after a single-pass version of it opened a
 	 * second group for an already-seen month and Svelte's duplicate-key error
-	 * took this page blank. It groups, it never CAPS: the filters above still run
-	 * over the whole array and `filteredLog.length` still counts all of it, so
-	 * there is no slice and no pagination anywhere in this panel.
+	 * took this page blank. It groups and never caps; the WINDOW above is what
+	 * bounds the render, and regrouping the whole visible prefix each time a page
+	 * is added is what keeps every month key unique as the pages grow.
 	 */
-	const logMonths = $derived(groupEntriesByMonth(filteredLog));
+	const logMonths = $derived(groupEntriesByMonth(logWindow.visible));
+
+	/**
+	 * LOAD THE NEXT PAGE WHEN THE PANEL'S OWN SCROLL NEARS ITS END. An
+	 * IntersectionObserver rooted on the scroll box, 300px early. It
+	 * re-observes whenever the window grows, because an observer does not fire
+	 * again for a target that stays intersecting, and a fresh `observe` always
+	 * delivers one first answer. Where there is no IntersectionObserver the
+	 * "Show more" key is the whole mechanism, which is why it is always there.
+	 */
+	function nearEnd(node: HTMLElement, params: { onNear: () => void; key: number }) {
+		if (typeof IntersectionObserver === 'undefined') return {};
+		let current = params;
+		const io = new IntersectionObserver(
+			(entries) => {
+				if (entries.some((e) => e.isIntersecting)) current.onNear();
+			},
+			{ root: node.closest('.changelog-body'), rootMargin: '0px 0px 300px 0px' }
+		);
+		io.observe(node);
+		return {
+			update(next: { onNear: () => void; key: number }) {
+				current = next;
+				io.disconnect();
+				io.observe(node);
+			},
+			destroy() {
+				io.disconnect();
+			}
+		};
+	}
+
+	/* The panel's open state, on the button itself (aria-expanded) and on the
+	   panel, rather than toggled into the DOM by a listener: a disclosure is a
+	   real button with aria-expanded and aria-controls. */
+	let changelogOpen = $state(false);
+	const toggleChangelog = () => {
+		changelogOpen = !changelogOpen;
+		/* Fetch on the first open only; `loadChangelog` latches. Opening is the
+		   one signal that the log is about to be read, and the panel starts
+		   closed on every load. */
+		void loadChangelog();
+	};
 
 	const signInWithGoogle = async (next = '/') => {
 		loading = true;
@@ -290,8 +365,7 @@
 		}
 	};
 
-	// Browser-only chrome: scroll bar, card fade-in, the changelog toggle, and
-	// the particle canvas.
+	// Browser-only chrome: scroll bar, card fade-in and the particle canvas.
 	onMount(() => {
 		const cleanups: Array<() => void> = [];
 
@@ -340,19 +414,6 @@
 			cleanups.push(() => cardWatcher.disconnect());
 		}
 
-		const changelogBtn = document.getElementById('changelog-btn');
-		const changelogBody = document.getElementById('changelog-body');
-		const toggleChangelog = () => {
-			changelogBtn?.classList.toggle('open');
-			changelogBody?.classList.toggle('open');
-			/* Fetch on the first open only; `loadChangelog` latches. Opening is
-			   the one signal that the log is about to be read, and the panel
-			   starts closed on every load. */
-			void loadChangelog();
-		};
-		changelogBtn?.addEventListener('click', toggleChangelog);
-		cleanups.push(() => changelogBtn?.removeEventListener('click', toggleChangelog));
-
 		// NOTE: the old delegated collapse listener is gone with the legacy class
 		// cards. The feed's cards own their own collapse through a real <button>
 		// with aria-expanded; a document-level listener would double-toggle
@@ -362,11 +423,30 @@
 		const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
 		if (canvas && !mq.matches) {
 			const ctx = canvas.getContext('2d')!;
-			// Pull the particle color from the design-system --green token so the
-			// field tracks the theme instead of hardcoding a palette value.
-			const readGreen = () =>
-				getComputedStyle(document.documentElement).getPropertyValue('--green').trim() || '#8fe08a';
-			let particleColor = readGreen();
+			/* THE FIELD'S INK AND GLOW ARE ROOM HOOKS ON THE CANVAS (ledger 0360),
+			   `--li-particle` and `--li-particle-blur` in src/app.css, so a theme
+			   says how its particles look in the stylesheet beside the rest of
+			   this page rather than here. IDEA's hooks are the brand --green and
+			   a glow of 4, exactly what this read before; Space White's are the
+			   same brand green with no glow (Mr. Pina: "Do not remove the homepage
+			   particles"). The fallbacks are those IDEA values, so a stylesheet
+			   that has not loaded draws what the page always drew. */
+			const readParticle = () => {
+				const cs = getComputedStyle(canvas);
+				const blur = Number.parseFloat(cs.getPropertyValue('--li-particle-blur'));
+				const style = {
+					color:
+						cs.getPropertyValue('--li-particle').trim() ||
+						getComputedStyle(document.documentElement).getPropertyValue('--green').trim() ||
+						'#8fe08a',
+					blur: Number.isFinite(blur) ? blur : 4
+				};
+				// Read by the harness (the particle spec), never by the page.
+				canvas.dataset.particleBlur = String(style.blur);
+				return style;
+			};
+			let particle = readParticle();
+			canvas.dataset.particles = 'running';
 			/* AND RE-READ IT WHEN THE THEME CHANGES (ledger 0297, package F1b). It
 			   was read once at mount, so a theme picked from the profile menu left
 			   the field in the old theme's green until a reload -- a page loaded
@@ -374,7 +454,7 @@
 			   on the dark page. The theme is an attribute on <html>, and that
 			   attribute is the one thing to watch. */
 			const themeWatch = new MutationObserver(() => {
-				particleColor = readGreen();
+				particle = readParticle();
 			});
 			themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 			cleanups.push(() => themeWatch.disconnect());
@@ -421,9 +501,9 @@
 				draw() {
 					ctx.save();
 					ctx.globalAlpha = Math.max(0, this.opacity);
-					ctx.fillStyle = particleColor;
-					ctx.shadowBlur = 4;
-					ctx.shadowColor = particleColor;
+					ctx.fillStyle = particle.color;
+					ctx.shadowBlur = particle.blur;
+					ctx.shadowColor = particle.color;
 					ctx.beginPath();
 					ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
 					ctx.fill();
@@ -433,9 +513,10 @@
 			const particles = Array.from({ length: 120 }, () => new Particle());
 			let raf = 0;
 			const animate = () => {
-				/* A theme that switches the field off (Space White, Matrix) takes the
-				   canvas's box away in CSS; drawing into a canvas with no box is
-				   work nobody sees, so the frame is skipped until it has one again. */
+				/* A theme that switches the field off (Matrix, whose rain is its
+				   field) takes the canvas's box away in CSS; drawing into a canvas
+				   with no box is work nobody sees, so the frame is skipped until it
+				   has one again. */
 				if (canvas.offsetWidth > 0) {
 					ctx.clearRect(0, 0, W, H);
 					particles.forEach((p) => {
@@ -449,6 +530,7 @@
 			cleanups.push(() => cancelAnimationFrame(raf));
 		} else if (canvas) {
 			canvas.style.display = 'none';
+			canvas.dataset.particles = 'off';
 			document.querySelectorAll('.course-card').forEach((el) => el.classList.add('visible'));
 		}
 
@@ -682,11 +764,20 @@
 			<div class="divider-label">Portal Updates</div>
 			<div class="divider-line"></div>
 		</div>
-		<button class="changelog-toggle" id="changelog-btn" type="button">
+		<button
+			class="changelog-toggle"
+			class:open={changelogOpen}
+			class:on={changelogOpen}
+			id="changelog-btn"
+			type="button"
+			aria-expanded={changelogOpen}
+			aria-controls="changelog-body"
+			onclick={toggleChangelog}
+		>
 			<span>Changelog</span>
-			<span class="changelog-arrow">&#9660;</span>
+			<span class="changelog-arrow" aria-hidden="true">&#9660;</span>
 		</button>
-		<div class="changelog-body" id="changelog-body">
+		<div class="changelog-body" class:open={changelogOpen} id="changelog-body">
 			{#if changelogLoading}
 				<Pending label="Loading the changelog" />
 			{:else if changelogTotal}
@@ -745,6 +836,18 @@
 							<span class="changelog-note">No updates match these filters.</span>
 						</div>
 					{/each}
+					{#if logWindow.remaining > 0}
+						<!-- No data-testid on the sentinel: it is a zero-height box, and a
+						     zero-box testid early in a page is the harness trap. -->
+						<div class="cl-sentinel" aria-hidden="true" use:nearEnd={{ onNear: showMore, key: logWindow.shown }}></div>
+						<button type="button" class="changelog-toggle cl-more tap-44" onclick={showMore}>
+							<span>Show {Math.min(CHANGELOG_PAGE_SIZE, logWindow.remaining)} more</span>
+							<span class="cl-more-left">{logWindow.remaining} not shown</span>
+						</button>
+					{/if}
+					{#if filteredLog.length}
+						<p class="cl-shown">Showing {logWindow.shown} of {filteredLog.length}</p>
+					{/if}
 				{/if}
 			{:else}
 				<div class="changelog-entry">

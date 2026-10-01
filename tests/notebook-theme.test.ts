@@ -424,7 +424,7 @@ describe('contrast on every site theme, computed', () => {
 		// Space White re-declares none of it: the island is IDEA's there.
 		expect(Object.keys(block(COLORS, SEL.nbSw)).filter((n) => n.startsWith('--nb-shot-'))).toEqual([]);
 		// And the overlays that paint it are a dark island of their own.
-		expect(stripComments(SPACE_WHITE)).toMatch(/:where\(\.ic-root, \.nb-island, \.deck-stage\)/);
+		expect(stripComments(SPACE_WHITE)).toMatch(/:where\(\.ic-root, \.nb-island, \.deck-stage, \.tnm-root\.tv\)/);
 		for (const f of ['../src/lib/notebook/PhotoCorrector.svelte', '../src/lib/notebook/CameraCapture.svelte']) {
 			expect(src(f), f).toMatch(/class="pc-overlay nb-island"|class="[^"]*\bnb-island\b[^"]*"/);
 		}

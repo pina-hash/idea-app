@@ -46,10 +46,12 @@ export const GET: RequestHandler = async ({ locals }) => {
 	 * open because publishing is handing work IN. The file you START from
 	 * cannot be the distraction the control exists to stop.
 	 *
-	 * IT COSTS NOTHING TO ASK. `foundryServeRefusal` runs the pure `includes`
-	 * first and returns for a place the set does not name, so no connection is
-	 * opened; what the call buys is that the decision lives in one array
-	 * rather than in this file's silence.
+	 * IT COSTS ONE READ NOW, AND USED TO COST NOTHING (ledger 0360). The
+	 * whole-Foundry switch reaches this route too, so `foundryServeRefusal`
+	 * reads `foundry_section_access` on every request before it asks the
+	 * class set; while the switch is off a non-admin gets the shared 503
+	 * notice here. The class decision still lives in one array rather than in
+	 * this file's silence, and `starter` is still not in it.
 	 */
 	const closedRefusal = await foundryServeRefusal(locals.supabase, 'starter');
 	if (closedRefusal) return closedRefusal;

@@ -66,7 +66,8 @@ import {
 	type StudentWork as WorkSummary,
 	type TxResult
 } from '$lib/classroom/classroom';
-import { schoolDayOf } from '$lib/classroom/school-calendar';
+import { laCalendarDay, schoolDayOf } from '$lib/classroom/school-calendar';
+import { hallPassElapsedLabel } from '$lib/classroom/hall-pass';
 import { withWorksheetCompletions, worksheetCompletedAt, worksheetKey } from '$lib/classroom/student-work';
 
 /**
@@ -155,7 +156,11 @@ export interface LiveCell {
 	email: string;
 	name: string;
 	state: LiveCellState;
-	/** A few words of evidence ("Typed 3m ago", "No typing for 7 min"), or null. */
+	/**
+	 * A few words of evidence, or null: "Typing", "Typed 3m ago", "Just opened",
+	 * "No typing for 7 min", "No typing for 1 hr 12 min", "No typing today",
+	 * "No typing yet", each with " · other tab" when the page is not in front.
+	 */
 	detail: string | null;
 	/** Past due with nothing handed in, by `assignmentStanding`. */
 	missing: boolean;
@@ -224,9 +229,32 @@ function stamp(iso: string | null | undefined): number | null {
 	return Number.isFinite(t) ? t : null;
 }
 
-function minutesLabel(ms: number): string {
-	const m = Math.max(1, Math.floor(ms / 60_000));
-	return `${m} min`;
+/**
+ * HOW LONG AN IDLE STUDENT HAS GONE WITHOUT TYPING, IN WORDS A TEACHER CAN READ
+ * AT A GLANCE (report R11). This used to print minutes and only minutes, and
+ * the minutes were counted from `last_input_at`, which 0200 keeps ONE row of
+ * per student per item for life: a student back on yesterday's assignment
+ * read "No typing for 1463 min". So:
+ *
+ *   - THE ACTIVITY INSTANT ON AN EARLIER SCHOOL DAY reads "No typing today",
+ *     which is the true statement (`last_input_at` is the most recent input
+ *     there has ever been, so nothing was typed today) and the useful one;
+ *     the count of hours since yesterday's keystroke is neither;
+ *   - THE SAME DAY steps from minutes to hours through
+ *     `hallPassElapsedLabel`, the ONE "6 min" / "1 hr 12 min" spelling the
+ *     same page already prints for a hall pass, floored so it never claims
+ *     more time than has passed;
+ *   - NEVER TYPED is "No typing yet", as it always was.
+ *
+ * The day is the school's (`laCalendarDay`, America/Los_Angeles), never the
+ * browser's or UTC's: at 8pm Pacific the UTC day has already turned, and a
+ * keystroke from that morning would read "today" in one and not the other.
+ * Both instants are handed in; no clock is read.
+ */
+export function idleDetail(activityMs: number, lastInputMs: number | null, now: number, elsewhere = ''): string {
+	if (lastInputMs === null || !Number.isFinite(activityMs)) return `No typing yet${elsewhere}`;
+	if (laCalendarDay(new Date(activityMs)) !== laCalendarDay(new Date(now))) return `No typing today${elsewhere}`;
+	return `No typing for ${hallPassElapsedLabel(new Date(activityMs).toISOString(), now)}${elsewhere}`;
 }
 
 /**
@@ -274,22 +302,22 @@ export function liveCellState(facts: {
 			const activity = Math.max(lastInput ?? -Infinity, facts.arrivedAt ?? -Infinity);
 			const elsewhere = row.page_visible !== true ? ' · other tab' : '';
 			if (Number.isFinite(activity) && facts.now - activity <= LIVE_IDLE_MS) {
+				/*
+				 * THE ARRIVAL, NOT THE KEYSTROKE, IS WHAT MADE THEM WORKING when the
+				 * keystroke alone is past the threshold (or there is none): a student
+				 * who sat down a minute ago in front of yesterday's work read "Typed
+				 * yesterday", which is true and answers nothing (R11). They have just
+				 * opened it; that is the evidence the row stands on.
+				 */
 				const typing =
 					p === 'working'
 						? 'Typing'
-						: lastInput !== null
-							? `Typed ${presenceLastWorkedLabel(row.last_input_at, facts.now).toLowerCase()}`
-							: 'Just opened';
+						: lastInput === null || facts.now - lastInput > LIVE_IDLE_MS
+							? 'Just opened'
+							: `Typed ${presenceLastWorkedLabel(row.last_input_at, facts.now).toLowerCase()}`;
 				return { state: 'working', detail: `${typing}${elsewhere}` };
 			}
-			const since = Number.isFinite(activity) ? facts.now - activity : null;
-			return {
-				state: 'idle',
-				detail:
-					since !== null && lastInput !== null
-						? `No typing for ${minutesLabel(since)}${elsewhere}`
-						: `No typing yet${elsewhere}`
-			};
+			return { state: 'idle', detail: idleDetail(activity, lastInput, facts.now, elsewhere) };
 		}
 		return {
 			state: 'away',

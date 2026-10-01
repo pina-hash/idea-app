@@ -10,6 +10,14 @@
 	import PathwayChip from '$lib/PathwayChip.svelte';
 	import { PATHWAYS } from '$lib/pathways';
 	import {
+		NO_PATHWAY_HINT,
+		NO_PATHWAY_LABEL,
+		PATHWAY_PREFERENCES_NAMESPACE,
+		notYetPreference,
+		todaySchoolDay
+	} from '$lib/pathway-choice';
+	import { supabaseProfileIo, writeProfileNamespace } from '$lib/preferences/profile-io';
+	import {
 		SITE_THEMES,
 		SITE_THEME_LABELS,
 		SITE_THEME_NOTES,
@@ -306,10 +314,41 @@
 	 * Choosing the current pathway writes nothing (a native select fires no
 	 * `change` for it anyway, and the guard stays for any other caller): a
 	 * no-op round trip is a spinner with nothing behind it.
+	 *
+	 * AND "NO PATHWAY YET" IS A CHOICE HERE TOO (ledger 0360, report R18). It
+	 * used to be a disabled "Choose one" that vanished once a pathway was
+	 * stored, so a student who mis-picked could never go back to unset. Going
+	 * back clears the column AND records the answer, through the same
+	 * `$lib/pathway-choice` rule the first-sign-in sheet reads, so the sheet
+	 * does not pop up next visit to ask the question they just answered.
 	 */
 	const choosePathway = (id: string) => {
-		if (profile?.pathway === id) return;
+		if ((profile?.pathway ?? '') === id) return;
+		if (id === '') return clearPathway();
 		return saveProfile({ pathway: id });
+	};
+
+	/**
+	 * THE ANSWER FIRST, THEN THE COLUMN. If the answer cannot be stored nothing
+	 * else is written and the refusal says why, so the student is never left
+	 * unset with the sheet about to ask again; if the column then refuses, the
+	 * stored answer is harmless (it only speaks for a null pathway).
+	 */
+	const clearPathway = async () => {
+		if (!claims) return;
+		busy = true;
+		errorMsg = '';
+		const result = await writeProfileNamespace(
+			supabaseProfileIo(supabase, claims.sub),
+			PATHWAY_PREFERENCES_NAMESPACE,
+			notYetPreference(todaySchoolDay())
+		);
+		if (!result.ok) {
+			errorMsg = result.message;
+			busy = false;
+			return;
+		}
+		await saveProfile({ pathway: null });
 	};
 
 	/**
@@ -617,9 +656,9 @@
 				     the fold; one row is 44px. A native select is the platform's own
 				     single choice from a fixed set, it announces its label and its
 				     value without any `aria-checked` bookkeeping, and a phone opens
-				     its own picker for it. UNSET IS A LEGAL STATE: a student who
-				     deferred the first-login sheet sees "Choose one", a disabled
-				     placeholder that disappears once a pathway is stored.
+				     its own picker for it. UNSET IS A LEGAL STATE AND A CHOICE
+				     (ledger 0360): "No pathway yet" is always the first option and
+				     always pickable, so a student can go back to it.
 
 				     COLOUR IS NOT THE ONLY SIGNAL AND IS NOT HERE AT ALL. The select
 				     says the code in words; the `PathwayChip` in the row above is the
@@ -638,16 +677,14 @@
 							aria-describedby={pathwayNoteId}
 							onchange={onPathwayChange}
 						>
-							{#if !profile?.pathway}
-								<option value="" disabled>Choose one</option>
-							{/if}
+							<option value="">{NO_PATHWAY_LABEL}</option>
 							{#each PATHWAYS as p (p.id)}
 								<option value={p.id}>{p.label}</option>
 							{/each}
 						</select>
 					</div>
 					<p class="pm-note" id={pathwayNoteId}>
-						Shows on the boards, never limits what you open.
+						{profile?.pathway ? 'Shows on the boards, never limits what you open.' : NO_PATHWAY_HINT}
 					</p>
 				</div>
 

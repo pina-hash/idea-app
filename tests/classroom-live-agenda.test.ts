@@ -25,8 +25,13 @@ import {
 	readAgendaStore,
 	removeAgendaLine,
 	toggleAgendaLine,
+	toggleWallNext,
 	wallAgenda,
-	writeAgendaStore
+	wallComingUp,
+	wallNextShown,
+	writeAgendaStore,
+	WALL_NEXT_KEY,
+	WALL_NEXT_MAX
 } from '$lib/classroom/live-class/agenda';
 import type { ClassroomItem } from '$lib/classroom/classroom';
 import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
@@ -189,5 +194,58 @@ describe("this device's copy, per viewer, per class, per day", () => {
 		};
 		expect(writeAgendaStore(refusing, 'k:1', EMPTY_AGENDA)).toBe(false);
 		expect(writeAgendaStore(null, 'k:1', EMPTY_AGENDA)).toBe(false);
+	});
+});
+
+describe('Coming up on the wall (R12, R13): what is due after today, and only what the class can see', () => {
+	const NEXT = [
+		...ITEMS,
+		// Due in four days and in two: the soonest comes first.
+		item({ id: 'bridge', title: 'Cantilever bridge', due_at: '2026-08-31T22:00:00Z' }),
+		item({ id: 'gears-2', title: 'Gear train', due_at: '2026-08-29T22:00:00Z' }),
+		// A fourth and a fifth, beyond the cap.
+		item({ id: 'late-1', title: 'Report draft', due_at: '2026-09-04T22:00:00Z' }),
+		item({ id: 'late-2', title: 'Final report', due_at: '2026-09-11T22:00:00Z' }),
+		// A draft due next week, a scheduled one that has not opened, and a
+		// material with a due date: none of them is the class's to see as work.
+		item({ id: 'draft-next', title: 'Secret draft', published: false, due_at: '2026-09-01T22:00:00Z' }),
+		item({ id: 'scheduled-next', title: 'Not open yet', publish_at: '2026-08-29T16:00:00Z', first_published_at: null, due_at: '2026-09-01T22:00:00Z' }),
+		item({ id: 'material-next', kind: 'material', title: 'Reading', due_at: '2026-09-01T22:00:00Z' })
+	];
+	const lines = wallComingUp(NEXT, TODAY, NOW);
+
+	it('starts tomorrow on the school day: today\'s 11:59pm work is the agenda\'s, tomorrow\'s 9am work is first', () => {
+		expect(lines[0]).toBe('Gear ratios · Due Aug 28, 9:00 AM');
+		expect(lines.some((l) => l.startsWith('Truss sketch'))).toBe(false);
+	});
+
+	it('sorts by due instant and stops at the cap', () => {
+		expect(WALL_NEXT_MAX).toBe(3);
+		expect(lines).toEqual([
+			'Gear ratios · Due Aug 28, 9:00 AM',
+			'Gear train · Due Aug 29, 3:00 PM',
+			'Cantilever bridge · Due Aug 31, 3:00 PM'
+		]);
+		// POSITIVE CONTROL for the cap: a wider cap reaches the fourth.
+		expect(wallComingUp(NEXT, TODAY, NOW, 5)).toContain('Report draft · Due Sep 4, 3:00 PM');
+	});
+
+	it('never shows a draft, a scheduled item or a material, and names no weekday', () => {
+		const all = wallComingUp(NEXT, TODAY, NOW, 50).join('\n');
+		for (const hidden of ['Secret draft', 'Not open yet', 'Reading']) expect(all, hidden).not.toContain(hidden);
+		expect(all).not.toMatch(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/);
+		// Positive control: once the scheduled one has opened, it is there.
+		const later = Date.parse('2026-08-29T17:00:00Z');
+		expect(wallComingUp(NEXT, '2026-08-29', later, 50).join('\n')).toContain('Not open yet');
+	});
+
+	it('is kept on the wall until the teacher takes it off, in the day\'s agenda slot', () => {
+		expect(wallNextShown(EMPTY_AGENDA)).toBe(true);
+		const off = toggleWallNext(EMPTY_AGENDA);
+		expect(off.hidden).toEqual([WALL_NEXT_KEY]);
+		expect(wallNextShown(off)).toBe(false);
+		expect(wallNextShown(toggleWallNext(off))).toBe(true);
+		// It survives the store's own round trip, which is what a reload reads.
+		expect(wallNextShown(parseAgendaStore(JSON.parse(JSON.stringify(off))))).toBe(false);
 	});
 });

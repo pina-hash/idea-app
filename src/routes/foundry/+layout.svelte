@@ -22,8 +22,14 @@
 	import '$lib/foundry/forge.css';
 	import FoundryClosed from '$lib/foundry/FoundryClosed.svelte';
 	import FoundryShell from '$lib/foundry/FoundryShell.svelte';
-	import { foundryClosureBlocks } from '$lib/foundry/access';
-	import { locateFoundry } from '$lib/foundry/nav';
+	import FoundrySiteOff from '$lib/foundry/FoundrySiteOff.svelte';
+	import {
+		FOUNDRY_SITE_OPEN,
+		foundryClosureBlocks,
+		foundrySiteClosedForEveryoneElse,
+		foundrySiteOff
+	} from '$lib/foundry/access';
+	import { foundryIsApplication, locateFoundry } from '$lib/foundry/nav';
 
 	let { data, children } = $props();
 
@@ -79,10 +85,29 @@
 	 * scrollbar. Above 1024px only; a phone keeps the document's single
 	 * scroll.
 	 *
-	 * Read off `active`, the same answer the tabs read, rather than from a
-	 * second list of routes.
+	 * NOT READ OFF `active` ANY MORE (ledger 0360). `locateFoundry` maps a
+	 * publisher's page to `gallery` so the right tab is lit, which put that
+	 * ordinary document in a 100dvh box with its lower cards clipped.
+	 * `foundryIsApplication` answers the other question, by exact path.
 	 */
-	const isAppShell = $derived(active === 'gallery' || active === 'review');
+	const isAppShell = $derived(foundryIsApplication(page.url.pathname));
+
+	/**
+	 * THE WHOLE-FOUNDRY SWITCH (report c26026b0). Off, and not a site
+	 * administrator: the panel replaces EVERY page under /foundry, whatever
+	 * the class gate says, because this is the wider of the two. The loads
+	 * that hold other students' data (the gallery, a publisher's page, the
+	 * request board) also return nothing while it is off, so the panel is not
+	 * the only thing standing between a student and the payload; the rest
+	 * hold only the caller's own data, so rendering the panel is enough there.
+	 *
+	 * An administrator is exempt (the database says so, `site_exempt`) and is
+	 * shown a banner instead, so a Foundry nobody else can see does not get
+	 * mistaken for an open one.
+	 */
+	const siteOff = $derived(foundrySiteOff(data.foundryAccess));
+	const siteAdminBanner = $derived(foundrySiteClosedForEveryoneElse(data.foundryAccess));
+	const site = $derived(data.foundryAccess?.site ?? FOUNDRY_SITE_OPEN);
 
 	const closedSections = $derived(data.foundryAccess?.closed ?? []);
 	const isClosed = $derived(data.foundryAccess ? data.foundryAccess.open === false : false);
@@ -92,16 +117,21 @@
 	const isNoticed = $derived(isClosed && !isBlocked);
 </script>
 
-<div class="fg-root" class:cr-app={isAppShell && !isBlocked}>
+<div class="fg-root" class:cr-app={isAppShell && !isBlocked && !siteOff}>
 	<FoundryShell
 		{active}
 		isAdmin={page.data.isAdmin === true}
 		managesSection={data.managesSection === true}
 		reviewPending={data.reviewPending ?? null}
 	>
-		{#if isBlocked}
+		{#if siteOff}
+			<FoundrySiteOff {site} />
+		{:else if isBlocked}
 			<FoundryClosed closed={closedSections} />
 		{:else}
+			{#if siteAdminBanner}
+				<FoundrySiteOff {site} variant="admin" />
+			{/if}
 			{#if isNoticed}
 				<FoundryClosed closed={closedSections} variant="notice" />
 			{/if}

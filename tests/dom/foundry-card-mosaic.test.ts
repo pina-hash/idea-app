@@ -258,6 +258,28 @@ describe('the gallery mounts the card and owns the ranking', () => {
 		expect(style).toContain('--fdy-fill-2: 2');
 		expect(style).toContain('--fdy-fill-3: 3');
 		expect(style).toContain('--fdy-fill-5: 3');
+		// LEDGER 0360 (report 162057f0): the ceiling went from five columns to
+		// eight, for a gallery spanning a 2560px monitor, and every step up to
+		// it is handed over. Three cards still fill three, never eight.
+		expect(style).toContain('--fdy-fill-8: 3');
+		expect(style).not.toContain('--fdy-fill-9');
+	});
+
+	it('lets a full gallery reach eight columns, and never a ninth', () => {
+		const many = Array.from({ length: 12 }, (_, i) => ({
+			...NO_COVER,
+			id: `00000000-0000-4000-8000-0000000001${String(i).padStart(2, '0')}`,
+			slug: `app-${i}`,
+			title: `App ${i}`
+		}));
+		const c = gallery({ apps: many });
+		const style = (c.querySelector('[data-testid="foundry-gallery-grid"]') as HTMLElement).getAttribute('style') ?? '';
+		expect(style).toContain('--fdy-cols: 8');
+		expect(style).toContain('--fdy-fill-6: 6');
+		// Twelve cards in seven columns balance into six (two rows of six), the
+		// arithmetic `foundryMosaicFill` documents.
+		expect(style).toContain('--fdy-fill-7: 6');
+		expect(style).toContain('--fdy-fill-8: 6');
 	});
 
 	/**

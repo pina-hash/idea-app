@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.11 - 2026-10-01**
+**Version 1.12 - 2026-10-01**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -70,6 +70,16 @@ never leaves the file.
 **The points arithmetic is checked three ways.** Every criterion's `points` equals its top
 level's points, every module's `points` equals its criteria summed, and the document's
 `points` equals its modules summed. A mismatch anywhere is a refusal, not a warning.
+
+**Give each block a `prompt`: the question as a grader reads it.** A grader reading
+answers outside the document (the Answers view, Answers by question, the Answers CSV) sees
+the block's `prompt` where it has one and its `field` where it does not, so a manifest
+without prompts heads a column `Work: reflection` when the student was asked "What did you
+model today, and what took the longest?". Write the question as the student saw it, short
+enough to head a column; only the first 500 characters are shown. `prompt` changes nothing
+inside the document and nothing about saving, so adding one to a live worksheet is a
+re-upload with every block id unchanged. `IDEA_HTML_ASSIGNMENT_SPEC.md` section 4.8 owns
+the three display keys.
 
 ---
 
@@ -236,7 +246,8 @@ The rules that came out of it:
 - **Ask for one photo, and allow more.** Students put two sketches on one page as often as
   not. One required image block with one or two optional slots filled in order beats one
   upload per item, which students find annoying and which fails the student whose page
-  does not match the boxes. Mr. Pina, 2026-09-27, on IDEA100 Hook 01.
+  does not match the boxes. Mark each extra photo slot `"optional": true`, or it counts
+  toward completion like the first. Mr. Pina, 2026-09-27, on IDEA100 Hook 01.
 - **No single path to completion.** Every answer is free text or starts from an optional
   starter; a card that starts an answer never overwrites one the student has written. The
   progress bar counts what is there and blocks nothing. Mr. Pina asked for exactly this on
@@ -302,6 +313,43 @@ extension intact. That is how the Dogtag takes a `.SLDPRT` and an `.xs`.
   `https://ideabosco.com` and opens it in a new tab, where the teacher's session fetches
   it. **Untested in production as of 2026-09-25.**
 - The document caps a file at 50 MB; the server's own cap is higher.
+
+---
+
+## 9c. A presentation link hand-in
+
+When students hand in a link to something they will present (Slides, Canva, a video),
+declare it, so the parent can check it for the student and open it for the class. One
+`text` block per link, with `link: "presentation"` and a `prompt`:
+
+```json
+{ "id": "pres-link", "field": "pres-link", "type": "text", "link": "presentation", "prompt": "Link to your deck" }
+```
+
+What the parent then does, with nothing in the document to write:
+
+- **The student is told whether it is a link**, under the progress rail: where it goes
+  ("Google Slides", "Canva", or the site's own name) and a Test it key, or "This does not
+  look like a link yet. Paste the share link; it starts with https://." The check never
+  blocks saving and changes nothing about progress.
+- **A grader gets an Open key beside it**, in the work head and in every answer list. A
+  field holding words gets "Not a working link" with what the student typed, and no key.
+- **Present links** in the grading console's header opens a full-screen list, one student
+  at a time with Open, Previous and Next, for the class to present from the room's screen.
+  When any block declares a link, only declared links are listed; otherwise every link
+  found in the answers is. It says how many have no link that opens and never shows an
+  address.
+
+Rules that follow from it:
+
+- **`link` only works on a `text` block.** On any other type both validators warn and the
+  key is ignored. A field pasted without `https://` still opens; a field of words does not.
+- **Keep the box a plain text input.** Do not add `type="url"` validation, a pattern, or a
+  Test button of your own inside the document: the parent's check is the one the grader
+  sees, and a second one that disagrees with it is a student told two different things.
+- **Ask for a share link that anyone at the school can open**, in the prompt or the
+  instruction beside it. The Open key opens whatever was pasted, in the grader's own
+  browser; a link only its owner can open is the most common way presenting stalls.
 
 ---
 
@@ -446,10 +494,15 @@ reliably lives for a student who cannot open one from inside the frame.
 
 Finished documents go to Library C, never to `docs/standards/`.
 
-**Responses to an HTML item are not in the whole-class grading export**, because the item
-has no spec (as of 2026-09-22). Anything whose answers Mr. Pina wants to read in bulk, a
-survey above all, ships with a read-only, single-statement SQL query over
-`classroom_responses` for the item, returning the student and field, never a bare count.
+**Answers are read in bulk in the grading console, and no SQL query ships with a
+document any more.** That rule was written when an HTML item's answers were in no export
+(2026-09-22); the graded-work export has carried them since ledger 0298, and ledger 0360
+added three ways to read them without opening each student's worksheet: the work column's
+**Answers** view (one student's answers as a list, with no document to load), **Answers by
+question** in the header (one question, every student's answer under it), and the
+**Answers CSV** beside it (one row per student, one column per question, headed with the
+block's `prompt`, which is why section 2 asks for one). **Present links** reads a declared
+link field (section 9c). A survey therefore needs a `prompt` on every block, not a query.
 
 **The look follows the site, and a student may flip it for the visit.** Mr. Pina's ruling
 of 2026-09-29 supersedes 1.4's "one look": the plate look from the site (raised means
@@ -467,10 +520,14 @@ dark block and a light block, with no length in either, and measure contrast in 
 A multi-stage post, audited by five student personas before class, found these. Each is now
 a rule for any assignment of that shape.
 
-- **Optional record blocks go in the manifest `header`, never in a scored module.** Every
-  block in a scored module counts toward completion, so an optional second photo in a
-  module left a one-photo student at 83 percent forever (Hook 01). Header blocks carry no
-  points and are outside the progress bar and the completion check.
+- **Mark an optional record block `"optional": true` in its module; the header is for
+  identity.** Without the key every block in a scored module counts toward completion, so
+  an optional second photo left a one-photo student at 83 percent forever (Hook 01). An
+  optional block is judged and never counted: it shows whether it is met and never holds
+  back the bar or the completion check (`IDEA_HTML_ASSIGNMENT_SPEC.md` section 4.9). Both
+  validators warn on a module with two or more photo blocks and none optional, on a module
+  whose every block is optional (it can never move the bar), and on `optional` in the
+  header (it changes nothing there); a value that is not `true` or `false` is refused.
 - **A post with stages gives each stage its own hue and its own Collapse.** A long page of
   identical cards reads as mundane and a student loses their place. Tint the stage band,
   its step numbers and its section rules (blue, teal, violet; never orange), keep green for
@@ -614,6 +671,13 @@ the page reads. Each change is now a rule.
 
 ## Changelog
 
+- **1.12 (2026-10-01).** Ledger 0360. Section 2: give each block a `prompt`, the question
+  as a grader reads it. New section 9c, a presentation link hand-in (`link:
+  "presentation"` on a `text` block, what the parent does with it, and three rules).
+  Section 12: the SQL query for reading answers in bulk is retired, replaced by the grading
+  console's Answers view, Answers by question and the Answers CSV. Section 8: mark each
+  extra photo slot `"optional": true`. Section 13: optional record blocks are marked
+  `optional: true` in their module instead of moving to the header, which is for identity.
 - **1.11 (2026-10-01).** Section 15: measurement figures dimension where the calipers go; failure-mode picks list every real mode plus Something else (Mr. Pina).
 - **1.10 (2026-10-01).** Section 15: a design option is drawn from the earlier assignment's own geometry (Mr. Pina).
 - **1.9 (2026-09-30).** New section 15: thirteen rules from the Hook 02 visual overhaul (one picture per step, a stepper for a long procedure, one accent, the graded-input panel, numbered moves, visible progress, picture cards, a numbered measurement diagram, no sticky inside the frame, and four traps) (Mr. Pina).

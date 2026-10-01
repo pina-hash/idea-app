@@ -1,7 +1,9 @@
 import { env } from '$env/dynamic/public';
 import { foundryBundleHeaders, foundryPortalOrigin } from '$lib/foundry/bundle-headers';
 import { injectStorageShim } from '$lib/foundry/storage-shim';
+import { foundrySiteOffResponse } from '$lib/foundry/serve-gate';
 import {
+	foundrySiteClosed,
 	previewBundleFile,
 	serveBundleFile,
 	type FoundryPreviewViewer,
@@ -157,6 +159,16 @@ export function foundryRootRedirect(lastSegment: string, search: string): Respon
  * origin from the environment so the CSP `sandbox` directive and
  * `AppFrame.svelte`'s iframe `sandbox` attribute cannot disagree.
  */
+/**
+ * WHICH REQUESTS THE SWITCH IS ASKED ABOUT: an HTML document, by its path.
+ * The derived root arrives here as the entry file's own name, so it is
+ * covered. An asset without its document is inert, which is what keeps the
+ * cost to the document request alone.
+ */
+export function foundryIsDocumentPath(path: string): boolean {
+	return /\.html?$/i.test(path);
+}
+
 export async function foundryFileResponse(
 	appId: string,
 	versionId: string | null,
@@ -164,6 +176,23 @@ export async function foundryFileResponse(
 	requestOrigin: string,
 	method: string,
 ): Promise<Response> {
+	/*
+	 * THE WHOLE-FOUNDRY SWITCH, BEFORE ANYTHING ABOUT THE APP IS RESOLVED, so
+	 * the answer is identical for a real app, an invented one and one with
+	 * nothing published. A read that cannot tell is the bodyless 404: a gate
+	 * that does not know whether it is closed does not serve.
+	 */
+	if (foundryIsDocumentPath(path)) {
+		const closed = await foundrySiteClosed(appId);
+		if (closed === null) return foundryNotFound();
+		// THE SAME REFUSAL THE PORTAL ROUTES SEND, from the same function, with
+		// no note: this read is one boolean, and a staff-typed sentence on a
+		// public, signed-out page is a disclosure decision nobody has made. It
+		// is a 503 and not the bodyless 404 because it is a fact about the
+		// SITE, identical for every app id, so it says nothing about any app.
+		if (closed) return foundrySiteOffResponse(null);
+	}
+
 	if (!versionId) return foundryNotFound();
 
 	const found = await serveBundleFile(appId, versionId, path);

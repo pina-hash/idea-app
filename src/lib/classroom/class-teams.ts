@@ -24,7 +24,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { formatDue } from './classroom';
 import { sectionTabs } from './nav';
-import { createTeamTransports, teamSetEditedWords, type Team, type TeamSet } from './teams';
+import {
+	createTeamTransports,
+	teamSetEditedWords,
+	withTeamStyle,
+	type SaveTeamStyleInput,
+	type Team,
+	type TeamSet,
+	type TeamStyleResult
+} from './teams';
 import { PollSignedOut } from './poll';
 
 /** One team as the class page shows it: its name, its style, whether it is mine, and names. */
@@ -200,4 +208,30 @@ export async function loadPostedTeams(
 	} catch {
 		return [];
 	}
+}
+
+/**
+ * A STUDENT'S OWN TEAM LOOK, SAVED FROM THE CLASS PAGE (ledger 0360, report
+ * R17). The same membership-gated RPC the People tab's Rename calls, through
+ * the same transport; the database re-checks that the caller is on the team or
+ * teaches the class. The section layout hands this to `ClassTeams` as its
+ * `style` prop, and without it the class page offers no control at all.
+ */
+export function saveTeamStyle(supabase: SupabaseClient, input: SaveTeamStyleInput): Promise<TeamStyleResult> {
+	return createTeamTransports(supabase).style!(input);
+}
+
+/**
+ * THE CLASS PAGE'S OVERLAY AFTER A SAVE: the saved fields laid onto the team
+ * with that id in every posted set (a team belongs to one draw, but a student's
+ * own card and the board card are two renders of it, and both read this). Pure,
+ * so the card shows the new look the moment the write is acknowledged and the
+ * board re-read that follows only confirms it.
+ */
+export function withSavedStyle(sets: readonly ClassTeamSet[], input: SaveTeamStyleInput): ClassTeamSet[] {
+	return sets.map((set) =>
+		set.teams.some((t) => t.id === input.teamId)
+			? { ...set, teams: set.teams.map((t) => (t.id === input.teamId ? withTeamStyle(t, input) : t)) }
+			: set
+	);
 }

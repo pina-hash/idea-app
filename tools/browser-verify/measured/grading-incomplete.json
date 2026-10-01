@@ -1,148 +1,15 @@
 {
 	"schema": 1,
 	"spec": "grading-incomplete.mjs",
-	"date": "2026-09-28T19:14:16.778Z",
-	"sha": "a4f769c14960f5bac52e7a517884f0ca18e7896d",
-	"dirty": true,
+	"date": "2026-10-01T17:03:53.166Z",
+	"sha": "9e6407b18cfd662d948e2f38c7216c137a83720b",
+	"dirty": false,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
-	"measurements": 48,
-	"outsideRows": [
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 375,
-			"check": "prepare-click",
-			"label": "[data-testid=\"work-export-disclosure\"]"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 375,
-			"check": "tap-target",
-			"label": "JSON: this student"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 375,
-			"check": "tap-target",
-			"label": "JSON: whole class"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 375,
-			"check": "tap-target",
-			"label": "Spreadsheet: whole class"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 375,
-			"check": "tap-target",
-			"label": "the identity switch, measured at its label"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 375,
-			"check": "presence",
-			"label": "the graded-work export group"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 375,
-			"check": "presence",
-			"label": "JSON: this student"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 375,
-			"check": "presence",
-			"label": "JSON: whole class"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 375,
-			"check": "presence",
-			"label": "Spreadsheet: whole class"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 375,
-			"check": "presence",
-			"label": "the identity switch"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 375,
-			"check": "presence",
-			"label": "what the switch is currently doing, in words"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 1440,
-			"check": "prepare-click",
-			"label": "[data-testid=\"work-export-disclosure\"]"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 1440,
-			"check": "tap-target",
-			"label": "JSON: this student"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 1440,
-			"check": "tap-target",
-			"label": "JSON: whole class"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 1440,
-			"check": "tap-target",
-			"label": "Spreadsheet: whole class"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 1440,
-			"check": "tap-target",
-			"label": "the identity switch, measured at its label"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 1440,
-			"check": "presence",
-			"label": "the graded-work export group"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 1440,
-			"check": "presence",
-			"label": "JSON: this student"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 1440,
-			"check": "presence",
-			"label": "JSON: whole class"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 1440,
-			"check": "presence",
-			"label": "Spreadsheet: whole class"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 1440,
-			"check": "presence",
-			"label": "the identity switch"
-		},
-		{
-			"path": "/dev/grading-incomplete",
-			"width": 1440,
-			"check": "presence",
-			"label": "what the switch is currently doing, in words"
-		}
-	],
-	"ms": 6973
+	"measurements": 52,
+	"outsideRows": [],
+	"ms": 6747
 }

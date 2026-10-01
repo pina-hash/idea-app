@@ -4,8 +4,28 @@
 	import ProjectorView from '$lib/classroom/live-class/ProjectorView.svelte';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
 	import { describeBuild } from '$lib/feedback/context';
-	import { buildProjectorFrame, projectorStorageKey } from '$lib/classroom/live-class/projector';
-	import { CLASS_LABEL, SECTION_ID, VIEWER, demoTimer, hallPass, today } from '../classroom-live/fixture';
+	import {
+		buildProjectorFrame,
+		projectorStorageKey,
+		wallActivityCells,
+		type WallActivityInput
+	} from '$lib/classroom/live-class/projector';
+	import { liveCells, type LiveCellState } from '$lib/classroom/live-class/grid';
+	import { wallComingUp } from '$lib/classroom/live-class/agenda';
+	import type { ClassroomItem } from '$lib/classroom/classroom';
+	import {
+		ASSIGNMENT_ID,
+		CLASS_LABEL,
+		ROSTER,
+		SECTION_ID,
+		VIEWER,
+		demoTimer,
+		grading,
+		hallPass,
+		items,
+		presence,
+		today
+	} from '../classroom-live/fixture';
 
 	/*
 	 * THE REAL PROJECTOR VIEW. With no `?demo`, it starts empty and waits for the
@@ -15,10 +35,24 @@
 	 * (`buildProjectorFrame`), handed the MANAGER hall-pass state that names who
 	 * is out, so the wall painting "Taken" here is the reduction working.
 	 *
-	 * `?demo=final|paused|done|stopwatch` seeds that timer instead of the
-	 * running ten minutes (the kinds are `demoTimer`'s, in the fixture), with no
-	 * hall pass and no pick; `?clock=pinned` stops this page's clock at load,
-	 * which is what lets a spec read the last seconds and the finish exactly.
+	 * THE DEMOS (reports R12, R13 added every kind after `1`):
+	 *
+	 *   1        agenda, a running ten-minute timer, the hall pass, a shown
+	 *            pick, and Coming up (built by the real `wallComingUp`)
+	 *   timer    a running timer and NOTHING else: no agenda, which is the
+	 *            screenshot R12 filed (a 48px timer on a 1440 wall)
+	 *   counts   demo 1 plus student activity as COUNTS, the cells built by the
+	 *            real `liveCells` over the live harness's own fixture
+	 *   names    the same with the second toggle on: names on the wall
+	 *   full     the fit stress: twelve agenda lines, three Coming up, the hall
+	 *            pass, a pick, and a class of thirty with names on
+	 *   clock    no timer: the clock is the hero, with side cards
+	 *   stale    demo counts whose activity is older than the wall keeps
+	 *   final|paused|done|stopwatch   that timer alone (the fixture's `demoTimer`)
+	 *
+	 * `?clock=pinned` stops this page's clock at load, which is what lets a spec
+	 * read the last seconds and the finish exactly; `?theme=space-white` or
+	 * `?theme=matrix` forces the theme attribute (no session here).
 	 */
 	const demo = page.url.searchParams.get('demo');
 	const themeParam = page.url.searchParams.get('theme');
@@ -28,23 +62,96 @@
 	const TIMER_KINDS = ['final', 'paused', 'done', 'stopwatch'];
 	const timerOnly = demo === 'timer' || TIMER_KINDS.includes(demo ?? '');
 
+	const AGENDA = [
+		'Notebook check-in: Gearbox teardown',
+		'Slides: levers and linkages',
+		'Truss sketch · Due 11:58 PM',
+		'Clean your bench before the bell'
+	];
+	const AGENDA_FULL = [
+		...AGENDA,
+		'Warm up: sketch the truss from memory, then compare it with your partner',
+		'Gear ratios worksheet, problems 1 to 6',
+		'Lab safety reminder: goggles on before the drill press',
+		'Group check: who is presenting on Friday',
+		'Exit ticket on the board',
+		'Return the calipers to the drawer they came from',
+		'Read pages 40 to 44 for tomorrow',
+		'Photos of your notebook pages go in the check-in'
+	];
+
+	/** A class of thirty, every name made up, for the fit stress. */
+	function fullClass(): { state: LiveCellState; name: string }[] {
+		const first = ['Ari', 'Bea', 'Cal', 'Dana', 'Emil', 'Faye', 'Gabe', 'Hugo', 'Iris', 'Jace', 'Kira', 'Liam', 'Mila', 'Nico', 'Omar', 'Pia', 'Quin', 'Rosa', 'Sami', 'Tess', 'Uma', 'Vic', 'Wes', 'Xena', 'Yuri', 'Zoe', 'Abel', 'Bram', 'Cleo', 'Dax'];
+		const last = ['Alder', 'Brook', 'Cedar', 'Dale', 'Ember', 'Frost', 'Grove', 'Heath', 'Isle', 'Jade', 'Knoll', 'Lark', 'Marsh', 'North', 'Oak', 'Pine', 'Quarry', 'Reed', 'Stone', 'Thorn', 'Vale', 'Wren', 'Yarrow', 'Zephyr', 'Ash', 'Birch', 'Clay', 'Dune', 'Elm', 'Fern'];
+		const states: LiveCellState[] = [
+			...Array(9).fill('working'),
+			...Array(7).fill('idle'),
+			...Array(5).fill('away'),
+			...Array(6).fill('not-opened'),
+			...Array(2).fill('needs-grading'),
+			'submitted'
+		];
+		return states.map((state, i) => ({ state, name: `${last[i]}, ${first[i]}` }));
+	}
+
+	function activityFor(kind: string, now: number): WallActivityInput | null {
+		if (kind === 'full') return { item: 'Truss sketch', at: now - 12_000, cells: fullClass(), names: true };
+		if (kind !== 'counts' && kind !== 'names' && kind !== 'stale') return null;
+		const cells = liveCells({
+			item: items(now).find((i) => i.id === ASSIGNMENT_ID) ?? null,
+			signal: true,
+			grading: grading(ASSIGNMENT_ID, now),
+			roster: ROSTER,
+			presence: presence(ASSIGNMENT_ID, now),
+			presenceStatus: 'ready',
+			now
+		});
+		return {
+			item: 'Truss sketch',
+			at: kind === 'stale' ? now - 10 * 60_000 : now - 12_000,
+			// The control view's own reduction: Ana is out on the hall pass, so she
+			// is counted and never named.
+			cells: wallActivityCells(cells, hallPass(now).open?.student_email ?? null),
+			names: kind === 'names'
+		};
+	}
+
 	if (browser) {
 		const key = projectorStorageKey(VIEWER, SECTION_ID);
 		try {
 			if (demo) {
 				const now = PIN;
+				const full = demo === 'full';
+				const withSide = !timerOnly;
 				const frame = buildProjectorFrame({
 					day: today(now),
 					at: now,
-					agenda: [
-						'Notebook check-in: Gearbox teardown',
-						'Slides: levers and linkages',
-						'Truss sketch · Due 11:58 PM',
-						'Clean your bench before the bell'
-					],
-					timer: demoTimer(timerOnly && demo !== 'timer' ? demo : 'running', now),
-					hallPass: timerOnly ? null : hallPass(now),
-					pick: timerOnly ? null : { name: 'Cruz Delgado', seed: 'K7Q2' }
+					agenda: timerOnly ? [] : full ? AGENDA_FULL : AGENDA,
+					timer: demo === 'clock' ? null : demoTimer(timerOnly && demo !== 'timer' ? demo : 'running', now),
+					hallPass: withSide ? hallPass(now) : null,
+					pick: withSide && demo !== 'clock' ? { name: 'Cruz Delgado', seed: 'K7Q2' } : null,
+					next: withSide
+						? full
+							? wallComingUp(
+									[
+										...items(now),
+										...['Gear train', 'Bridge report'].map(
+											(title, i) =>
+												({
+													...items(now)[3],
+													id: `i-extra-${i}`,
+													title,
+													due_at: new Date(now + (6 + i) * 86_400_000).toISOString()
+												}) as ClassroomItem
+										)
+									],
+									today(now),
+									now
+								)
+							: wallComingUp(items(now), today(now), now)
+						: [],
+					activity: activityFor(demo, now)
 				});
 				localStorage.setItem(key, JSON.stringify(frame));
 			}
@@ -54,9 +161,9 @@
 	}
 
 	$effect(() => {
-		if (themeParam !== 'space-white') return;
+		if (themeParam !== 'space-white' && themeParam !== 'matrix') return;
 		const el = document.documentElement;
-		const apply = () => el.setAttribute('data-theme', 'space-white');
+		const apply = () => el.setAttribute('data-theme', themeParam);
 		apply();
 		const t = setTimeout(apply, 0);
 		return () => {

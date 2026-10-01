@@ -318,10 +318,15 @@ describe('the class page mounts it for everyone', () => {
 		const page = readFileSync(new URL('../src/routes/classroom/[sectionId]/+layout.svelte', import.meta.url), 'utf8');
 		expect(server).toMatch(/loadPostedTeams\(supabase, params\.sectionId\)/);
 		expect(server).toMatch(/teams: await teamsRead/);
-		// Not behind canManage: the class sees it, and so does the teacher. Only
-		// the teacher's strip (`manage`) is keyed on managing the class.
+		// Not behind canManage: the class sees it, and so does the teacher. The
+		// teacher's one-line strip is the class header's teams key now (ledger
+		// 0360, R19): built from the same board and the same People link, and
+		// keyed on managing the class, so ClassTeams draws no strip of its own.
 		expect(page).toMatch(/<ClassTeams\s+sets=\{data\.teams\}/);
-		expect(page).toMatch(/manage=\{data\.canManage \? teamsManageLink\(data\.section\.id\) : null\}/);
+		expect(page).toMatch(/<ClassTeams\s+sets=\{data\.teams\}\s+manage=\{null\}/);
+		expect(page).toMatch(
+			/data\.canManage\s*\?\s*classHeaderTeams\(postedTeamsNotice\(data\.teams, data\.classClock\?\.today \?\? null\), teamsManageLink\(data\.section\.id\)\)/
+		);
 		// MOUNTED WHETHER OR NOT ANYTHING IS POSTED, AND HANDED ITS REFRESH
 		// (ledger 0298, R23). This layout's load never re-runs on a navigation
 		// inside the class, so a gate on the load's answer would hide a draw

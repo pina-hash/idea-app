@@ -109,11 +109,19 @@ const EMBLEM_PROBE = `() => {
 	return [windowed ? 'emblem sits in a window' : 'no window behind the emblem', 'layers on screen ' + shown.length + ', light ' + light];
 }`;
 
-/* Which emblem files the page fetched, off the resource timeline. */
+/* Which emblem files the page fetched, read off the emblem's own images. NOT
+   off the resource timeline: a dev page loads several hundred unbundled
+   modules before the lazy light pair is asked for, the browser stops writing
+   timeline entries at 250, and the count then read "not fetched" for an image
+   that was on screen (ledger 0360). A decoded image has a natural width
+   whether or not it is displayed, and a lazy one that was never fetched has
+   none. */
 const FETCH_PROBE = `() => {
-	const names = performance.getEntriesByType('resource').map((e) => e.name).filter((n) => /\\/IDEA\\/idea-(logo-text|gear)/.test(n));
-	const light = names.filter((n) => /-light/.test(n)).length;
-	return ['dark emblem fetched ' + (names.length - light > 0 ? 'yes' : 'no'), 'light emblem fetched ' + (light > 0 ? 'yes' : 'no')];
+	const imgs = [...document.querySelectorAll('.legacy-index .logo-mark .idea-logo img')];
+	const got = (i) => i.complete && i.naturalWidth > 0;
+	const light = imgs.filter((i) => /-light/.test(i.getAttribute('src') || ''));
+	const dark = imgs.filter((i) => !light.includes(i));
+	return ['dark emblem fetched ' + (dark.some(got) ? 'yes' : 'no'), 'light emblem fetched ' + (light.some(got) ? 'yes' : 'no')];
 }`;
 
 /* Every ground a card title can sit on, read off the page: the ink of each

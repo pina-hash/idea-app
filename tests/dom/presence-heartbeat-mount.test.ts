@@ -666,12 +666,13 @@ describe("a student never sees another student's presence -- the client half", (
 			chips: mounted.all('[data-testid="presence-chip"]').length,
 			never: mounted.all('[data-testid="presence-never"]').length,
 			notes: mounted.all('[data-testid="presence-note"]').length,
+			marks: mounted.all('[data-testid="roster-presence"]').length,
 			elements: mounted.target.querySelectorAll('*').length
 		};
 
 		// NOT ONE OF ANYTHING, and no text either -- the component's whole render
 		// is empty, so there is no surface for a peer to appear on.
-		expect(studentCounts).toEqual({ lines: 0, chips: 0, never: 0, notes: 0, elements: 0 });
+		expect(studentCounts).toEqual({ lines: 0, chips: 0, never: 0, notes: 0, marks: 0, elements: 0 });
 		expect(studentHtml.trim()).toBe('');
 
 		// AND NO CLASSMATE'S ADDRESS OR NAME IS ANYWHERE IN IT. Asserted against
@@ -708,11 +709,15 @@ describe("a student never sees another student's presence -- the client half", (
 		await mounted.settle();
 
 		const teacherHtml = mounted.target.innerHTML;
+		// Since ledger 0360 (report R25) a roster row carries presence as ONE
+		// glyph (`roster-presence`, its word in the row's hover card and in the
+		// open student's work head), not as a line and a chip on every row, so
+		// the control counts the glyphs. Two peers with presence, two marks.
 		const teacherCounts = {
-			lines: mounted.all('[data-testid="presence-line"]').length,
-			chips: mounted.all('[data-testid="presence-chip"]').length
+			marks: mounted.all('[data-testid="roster-presence"]').length,
+			titled: mounted.all('[data-testid="roster-presence"][title]').length
 		};
-		expect(teacherCounts).toEqual({ lines: 2, chips: 2 });
+		expect(teacherCounts).toEqual({ marks: 2, titled: 2 });
 		// The same names the student's mount could not show.
 		expect(teacherHtml).toContain('Ben Okafor');
 		expect(teacherHtml).toContain('Cruz Delgado');

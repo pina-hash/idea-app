@@ -540,3 +540,93 @@ export interface FoundryReviewTransports extends FoundryGalleryTransports {
 	/** Cover replacement. Same bucket as the owner's, written under the CALLER's prefix. */
 	uploadCover?: (file: File) => Promise<FoundryOutcome<{ path: string }>>;
 }
+
+/* -------------------------------------------------------------------------
+ * LEDGER 0360. Three features, three transport sets, each answering a value
+ * and never throwing, exactly like every set above. ABSENCE IS STILL THE
+ * MECHANISM: a surface handed no `decide` has no Approve key, a board handed
+ * no `post` has no form.
+ * ---------------------------------------------------------------------- */
+
+/** A refusal the database considered and gave a reason for, plus its extras. */
+export interface FoundryRefusal {
+	ok: false;
+	/** The structured reason, or absent when the RPC raised and `message` is all there is. */
+	reason?: string;
+	message?: string;
+	until?: string | null;
+	limit?: number | null;
+	field?: string | null;
+	questionId?: string | null;
+	retryAfterSeconds?: number | null;
+	/** The editor's failing question, zero-based; null for the list itself. */
+	index?: number | null;
+}
+
+/** The whole-Foundry switch (report c26026b0). Admin only; the RPC re-checks. */
+export interface FoundrySiteTransports {
+	setSiteOpen?: (open: boolean, note: string | null) => Promise<{ ok: boolean; message?: string }>;
+}
+
+/** The trusted-publisher application, both halves (report 6d076258). */
+export interface FoundryPublisherTransports {
+	/** The student's own send. No identity parameter, on the client or in the RPC. */
+	apply?: (
+		answers: Record<string, string>
+	) => Promise<{ ok: true; submittedAt: string | null } | FoundryRefusal>;
+	/** Approve or decline, one press each. */
+	decide?: (
+		applicationId: string,
+		decision: 'approve' | 'decline',
+		note: string | null
+	) => Promise<{ ok: true; status: string } | FoundryRefusal>;
+	/** Save the whole question set in one call, which the RPC runs as one unit. */
+	saveQuestions?: (
+		questions: Record<string, unknown>[]
+	) => Promise<{ ok: true; active: number; retired: number } | FoundryRefusal>;
+}
+
+/** The game request board (report b2ba6d74). No coin moves through any of these. */
+export interface FoundryRequestTransports {
+	post?: (
+		title: string,
+		body: string,
+		offer: string | null
+	) => Promise<{ ok: true; id: string } | FoundryRefusal>;
+	close?: (
+		requestId: string,
+		fulfilledSlug: string | null
+	) => Promise<{ ok: true } | FoundryRefusal>;
+	setHidden?: (requestId: string, hidden: boolean) => Promise<{ ok: true } | FoundryRefusal>;
+}
+
+/**
+ * ONE RPC ANSWER AS A TRANSPORT VALUE, written once for every 0360 transport
+ * so a refusal's extras arrive under the same names whichever route built it.
+ * A raised error is a refusal with the database's own sentence; `PGRST202` is
+ * the function not being on this deployment yet.
+ */
+export function foundryRpcOutcome(
+	data: unknown,
+	error: { code?: string | null; message?: string | null } | null
+): { ok: true; row: Record<string, unknown> } | FoundryRefusal {
+	if (error) {
+		if (error.code === 'PGRST202') return { ok: false, reason: 'unavailable' };
+		return { ok: false, message: error.message ?? 'That did not go through. Try again.' };
+	}
+	const row = (data ?? {}) as Record<string, unknown>;
+	if (row.ok === true) return { ok: true, row };
+	const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+	const str = (v: unknown) => (typeof v === 'string' ? v : null);
+	return {
+		ok: false,
+		reason: str(row.reason) ?? undefined,
+		message: str(row.message) ?? undefined,
+		until: str(row.until),
+		limit: num(row.limit),
+		field: str(row.field),
+		questionId: str(row.question_id),
+		retryAfterSeconds: num(row.retry_after_seconds),
+		index: num(row.index)
+	};
+}

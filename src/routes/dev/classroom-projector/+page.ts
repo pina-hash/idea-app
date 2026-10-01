@@ -10,15 +10,22 @@ import type { PageLoad } from './$types';
  * class), so opening it from that page's Open projector drives it for real.
  *
  *   ?demo=1              seed a frame on this device first (agenda, a running
- *                        ten-minute timer, the hall pass taken, a shown pick),
- *                        for a spec that measures the wall on its own
- *   ?demo=timer          the same with no pick and no hall pass
+ *                        ten-minute timer, the hall pass taken, a shown pick,
+ *                        Coming up), for a spec that measures the wall on its own
+ *   ?demo=timer          a running timer and nothing else, no agenda: the wall
+ *                        R12 filed
+ *   ?demo=counts         demo 1 plus student activity as counts; `names` with
+ *                        the second toggle on; `stale` with activity too old to
+ *                        show; `full` the fit stress (twelve agenda lines, three
+ *                        Coming up, a class of thirty with names); `clock` no
+ *                        timer, the clock as the hero
  *   ?demo=final          no pick, no hall pass, and a countdown in its last
  *                        seconds (7.42 s left); also paused, done, stopwatch
  *                        (the fixture's `demoTimer` names them)
  *   ?clock=pinned        stop this page's clock at load, so a spec reads the
  *                        last seconds and the finish exactly
- *   ?theme=space-white   force the Space White attribute (no session here)
+ *   ?theme=space-white   force the Space White attribute (no session here);
+ *                        `matrix` forces Matrix
  *
  * No auth, no Supabase; 404 in production.
  */

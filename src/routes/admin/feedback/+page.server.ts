@@ -22,7 +22,39 @@ export const load: PageServerLoad = async ({ locals }) => {
 	// null (all apps), so this is an omission rather than a new parameter -- no
 	// deploy-ordering problem, and it works against the schema already applied.
 	const { data, error: rpcError } = await supabase.rpc('app_feedback_admin_list');
-	const rows = (data ?? []) as unknown as FeedbackRow[];
+	const newest = (data ?? []) as unknown as FeedbackRow[];
+
+	// THE LONG-TERM IDEAS, READ ON THEIR OWN (0230). The read above is the
+	// newest 200 reports of any kind, and a long-term idea is by definition one
+	// that sits there for months: without this second read the oldest ideas
+	// would fall off the console the week enough bugs arrived, with nothing on
+	// screen saying so. 0230's WIDE form takes the horizon and declares no
+	// defaults, so this call can only ever bind to it.
+	//
+	// A `PGRST202` here means the function is not there yet, which is a
+	// deployment before 0230 and a supported state: the console shows what the
+	// first read holds and offers no move control. Any OTHER error is treated
+	// the same way and for the same reason -- the first list is still right,
+	// and a move control offered beside a read that just failed is a control
+	// nobody can say will work. Neither case fails the page.
+	let horizonReady = false;
+	let rows = newest;
+	if (!rpcError) {
+		const wide = await supabase.rpc('app_feedback_admin_list', {
+			p_app: null,
+			p_limit: 500,
+			p_horizon: 'long_term'
+		});
+		if (!wide.error) {
+			horizonReady = true;
+			const byId = new Map(newest.map((r) => [r.id, r]));
+			for (const r of (wide.data ?? []) as unknown as FeedbackRow[]) byId.set(r.id, r);
+			// Newest first, the order both reads already return.
+			rows = [...byId.values()].sort((a, b) =>
+				a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0
+			);
+		}
+	}
 
 	// `meta.section` on a row captured from /classroom/[sectionId] is a
 	// classroom_sections uuid (the route param), a DIFFERENT namespace from the
@@ -88,6 +120,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		// Fails soft: 0085 unapplied reads as a clearly-flagged card, not a crash.
 		ready: !rpcError,
 		rows,
+		// Whether this backend can move a report between the two lists: true
+		// only when 0230's wide read answered, which is the same migration that
+		// adds `app_feedback_set_horizon`. "Cannot tell" is false.
+		horizonReady,
 		classroomSections,
 		screenshotUrls
 	};

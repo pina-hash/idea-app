@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { render } from 'svelte/server';
 import { createRawSnippet } from 'svelte';
 import MyClasses from '../src/lib/classroom/MyClasses.svelte';
@@ -73,5 +74,44 @@ describe('the banner with no theme is only the header it wraps', () => {
 		expect(html).toContain('data-palette="ocean"');
 		expect(html).toContain('data-accent="gold"');
 		expect(html).toContain('Class theme: Ocean palette, rings pattern, gear badge, gold section color.');
+	});
+});
+
+/**
+ * THE PATTERN IS ITS OWN LAYER, SO IT CAN MOVE (ledger 0360, report R21). It
+ * must be decoration and nothing else: hidden from assistive technology, one
+ * per banner, absent for the plain pattern (there is nothing to move), and
+ * absent altogether for a class with no theme, which the block above already
+ * holds to the byte. The motion itself, and its absence under reduced motion,
+ * is `tools/browser-verify/routes/classroom-theme.mjs`'s `motion` row.
+ */
+describe('the pattern layer', () => {
+	const layers = (html: string) => html.split('data-testid="class-banner-pattern"').length - 1;
+	it('one aria-hidden layer for a patterned theme, none for the plain one', () => {
+		const patterned = banner(THEME);
+		expect(layers(patterned)).toBe(1);
+		expect(patterned).toMatch(/<span class="ct-pattern-clip[^"]*" aria-hidden="true"><span class="ct-pattern[^"]*" data-testid="class-banner-pattern"><\/span><\/span>/);
+		const plain = banner(resolveClassTheme({ winners: { palette: 'ocean', pattern: 'plain' }, accent: 'gold' }));
+		expect(plain).toContain('class="ct-banner');
+		expect(layers(plain)).toBe(0);
+		expect(layers(banner(null))).toBe(0);
+	});
+
+	it('the pattern no longer rides on the banner itself, so nothing paints it twice', () => {
+		// The inline style still carries both twins of the pattern for the layer to read.
+		expect(banner(THEME)).toContain('--ct-pattern:');
+		const src = readFileSync('src/lib/classroom/ClassThemeBanner.svelte', 'utf8');
+		const rule = (selector: string) => {
+			const start = src.indexOf(`\n\t${selector} {`);
+			expect(start, selector).toBeGreaterThan(-1);
+			return src.slice(start, src.indexOf('\n\t}', start));
+		};
+		expect(rule('.ct-banner')).not.toContain('background-image');
+		expect(rule('.ct-pattern')).toContain('background-image: var(--ct-p)');
+		// And every animation is inside the no-preference gate: none before it.
+		const gate = src.indexOf('@media (prefers-reduced-motion: no-preference)');
+		expect(gate).toBeGreaterThan(-1);
+		expect(src.slice(0, gate).match(/\banimation:/g) ?? []).toEqual([]);
+		expect((src.slice(gate).match(/\banimation:/g) ?? []).length).toBe(6);
 	});
 });

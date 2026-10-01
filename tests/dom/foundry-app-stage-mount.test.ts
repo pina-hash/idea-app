@@ -511,3 +511,100 @@ describe('the running label is its own element, so the row can truncate it', () 
 		}
 	});
 });
+
+/* ---------------- ledger 0360, report 94e312c4: fewer steps to a game */
+
+describe('one press from the idle stage to a full-screen game', () => {
+	it('mounts the frame AND goes full screen on a single press of Launch full screen', async () => {
+		const { m } = mountStage();
+		try {
+			expect(frames(m)).toHaveLength(0);
+			expect(stageOf(m).getAttribute('data-full')).toBe('no');
+
+			click(button(m, 'Launch full screen'));
+			await m.settle();
+
+			// One frame, the built URL, and the full-screen class already on.
+			// happy-dom has no element fullscreen, so this is the overlay path,
+			// which is the floor every engine gets first.
+			expect(frame(m).getAttribute('src')).toBe(SRC);
+			expect(stageOf(m).classList.contains('is-full')).toBe(true);
+			expect(stageOf(m).getAttribute('data-full')).toBe('overlay');
+			// The way out is on screen after the same press.
+			expect(button(m, 'Exit full screen')).toBeTruthy();
+			expect(button(m, 'Stop app')).toBeTruthy();
+		} finally {
+			await m.stop();
+		}
+	});
+
+	it('asks the browser for native full screen inside the same press', async () => {
+		const { m } = mountStage();
+		try {
+			let asked = 0;
+			(stageOf(m) as unknown as { requestFullscreen: () => Promise<void> }).requestFullscreen =
+				() => {
+					asked += 1;
+					return Promise.resolve();
+				};
+			click(button(m, 'Launch full screen'));
+			await m.settle();
+			// Synchronously inside the click handler, which is what keeps the
+			// gesture's transient activation for the request.
+			expect(asked).toBe(1);
+			expect(stageOf(m).getAttribute('data-full')).toBe('native');
+			expect(frames(m)).toHaveLength(1);
+		} finally {
+			await m.stop();
+		}
+	});
+
+	it('POSITIVE CONTROL: Launch app still runs it in the pane, not full screen', async () => {
+		const { m } = mountStage();
+		try {
+			click(button(m, 'Launch app'));
+			m.flush();
+			expect(frames(m)).toHaveLength(1);
+			expect(stageOf(m).getAttribute('data-full')).toBe('no');
+		} finally {
+			await m.stop();
+		}
+	});
+
+	it('puts the cover on the idle stage with both keys over it, and drops it once running', async () => {
+		const { m } = mountStage({ poster: '/api/foundry-cover/u/c.png' });
+		try {
+			const posters = m.all<HTMLImageElement>('img.fdy-stage-poster');
+			expect(posters).toHaveLength(1);
+			expect(posters[0].getAttribute('src')).toBe('/api/foundry-cover/u/c.png');
+			// Decorative here: the heading above names the app.
+			expect(posters[0].getAttribute('alt')).toBe('');
+			const plate = m.one('.fdy-stage-keys-plate');
+			expect(plate.textContent).toContain('Launch app');
+			expect(plate.textContent).toContain('Launch full screen');
+
+			click(button(m, 'Launch app'));
+			m.flush();
+			expect(m.all('img.fdy-stage-poster')).toHaveLength(0);
+		} finally {
+			await m.stop();
+		}
+	});
+
+	it('renders neither key and no poster plate when there is nothing to point at', async () => {
+		const { m } = mountStage({ appsOrigin: '', poster: '/api/foundry-cover/u/c.png' });
+		try {
+			expect(m.all('button')).toHaveLength(0);
+			expect(m.all('.fdy-stage-keys-plate')).toHaveLength(0);
+		} finally {
+			await m.stop();
+		}
+		// POSITIVE CONTROL on the same props with an origin: both keys.
+		const ok = mountStage({ poster: '/api/foundry-cover/u/c.png' });
+		try {
+			expect(ok.m.all('button')).toHaveLength(2);
+		} finally {
+			await ok.m.stop();
+		}
+	});
+});

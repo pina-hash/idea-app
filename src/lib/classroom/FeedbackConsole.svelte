@@ -7,7 +7,7 @@
 	import { onDestroy } from 'svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import { runBulk } from '$lib/classroom/classroom';
-	import type { FeedbackRow, FeedbackStatus } from '$lib/feedback/feedback';
+	import type { FeedbackHorizon, FeedbackRow, FeedbackStatus } from '$lib/feedback/feedback';
 	import {
 		buildFeedbackArchive,
 		type FeedbackScreenshotSource
@@ -20,6 +20,7 @@
 		feedbackExportName,
 		feedbackJson,
 		feedbackMarkdown,
+		feedbackRowLabel,
 		feedbackUndoFor,
 		feedbackUndoLabel,
 		feedbackUndoSummary,
@@ -30,7 +31,9 @@
 		rowContact,
 		rowDistinctPath,
 		rowErrorId,
+		rowHorizon,
 		rowIsAnonymous,
+		rowMetaExtras,
 		rowRole,
 		rowRoute,
 		rowSection,
@@ -40,6 +43,7 @@
 		rowUserAgentSummary,
 		rowViewport,
 		resolveSectionId,
+		splitByHorizon,
 		type ClassroomSectionInfo,
 		type FeedbackFilter
 	} from '$lib/feedback/console';
@@ -83,6 +87,8 @@
 		screenshotUrls = {},
 		fetchScreenshot,
 		setStatus,
+		setHorizon,
+		horizonUnavailable = null,
 		now = () => Date.now(),
 		undoMs = FEEDBACK_UNDO_MS
 	}: {
@@ -132,6 +138,20 @@
 		 */
 		fetchScreenshot?: FeedbackScreenshotSource;
 		setStatus: (id: string, status: FeedbackStatus) => Promise<{ ok: boolean; message?: string }>;
+		/**
+		 * MOVE A REPORT BETWEEN "FIX SOON" AND "LONG-TERM IDEAS" (0230's
+		 * `app_feedback_set_horizon`), or undefined. ABSENCE REMOVES THE CONTROL
+		 * on every row, which is this console's mechanism for every write it
+		 * makes: a backend before 0230 has no such function, and a button whose
+		 * only outcome is a refusal must not be offered.
+		 */
+		setHorizon?: (id: string, horizon: FeedbackHorizon) => Promise<{ ok: boolean; message?: string }>;
+		/**
+		 * WHY THERE IS NO MOVE CONTROL, when there is none for a reason the page
+		 * knows (the database update has not been applied). A control absent for
+		 * a reason says the reason, once, above the list.
+		 */
+		horizonUnavailable?: string | null;
 		/** Injectable clock, so a harness can pin the export stamp. */
 		now?: () => number;
 		/**
@@ -145,70 +165,15 @@
 	const sectionMap = $derived(new Map(classroomSections.map((s) => [s.id, s])));
 
 	/**
-	 * EVERY META KEY THIS FILE ALREADY RENDERS BY NAME, so the generic reader
-	 * below shows what nobody enumerated rather than repeating a field.
-	 *
-	 * `meta` IS FREE-FORM (feedback.ts says so): `captureMeta` in context.ts is
-	 * the shell's one producer, but it is not the only one -- VANGUARD's in-game
-	 * composer writes `surface` and `initials` straight into the same column,
-	 * and there will be another surface after it. A FIXED LIST OF NAMES IS THE
-	 * WRONG SHAPE for a free-form blob: the day this file was written to check,
-	 * two keys (`surface`, `initials`) were already being stored and silently
-	 * dropped on the floor, and `meta.error` -- which `captureMeta` itself has
-	 * emitted for every error-boundary report since it existed -- was too. A
-	 * queue that reads its OWN row rather than a list somebody once typed out
-	 * cannot fall behind its own producers again.
-	 *
-	 * `at` is excluded on purpose rather than left to fall through: it is the
-	 * same instant as `row.created_at`, already shown as "filed", and showing
-	 * it a second time under its meta key would read as a second timestamp.
+	 * WHATEVER ELSE IS IN A ROW'S `meta`, read through `rowMetaExtras` in
+	 * `$lib/feedback/console` -- the export's own reader. This file used to
+	 * carry a second, identical copy of that reader and of its list of keys the
+	 * named fields already print, which is two lists a new named field (0230's
+	 * `horizon` is the latest) has to be added to. One reader, one list.
+	 * STUDENT-SUPPLIED TEXT goes through the same escaping every other field on
+	 * this card uses: plain Svelte text interpolation, nothing raw-rendered.
 	 */
-	const KNOWN_META_KEYS = new Set([
-		'route',
-		'path',
-		'role',
-		'section',
-		'viewport',
-		'userAgent',
-		'at',
-		'build',
-		'status',
-		'errorId',
-		// Read by `rowTried` when it is in the blob rather than in 0170's column,
-		// so leaving it out here would print the same sentence twice.
-		'tried'
-	]);
-
-	/** A meta value worth a line: a non-empty primitive. */
-	function metaExtraText(value: unknown): string | null {
-		if (typeof value === 'string') return value.trim() || null;
-		if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-		// Objects and arrays get no generic rendering -- `build` is the one
-		// object shape this file understands, and a stray "[object Object]"
-		// for anything else is worse than omitting it.
-		return null;
-	}
-
-	/**
-	 * Whatever else is in the row's `meta`, key and value, sorted so the list is
-	 * stable across renders. STUDENT-SUPPLIED TEXT (VANGUARD's `initials` among
-	 * them) goes through the SAME escaping every other field on this card uses:
-	 * plain Svelte text interpolation -- this component raw-renders nothing --
-	 * so there is no second answer to add.
-	 */
-	function metaExtras(row: FeedbackRow): { key: string; value: string }[] {
-		const meta = row.meta ?? {};
-		const extras: { key: string; value: string }[] = [];
-		for (const key of Object.keys(meta)) {
-			if (KNOWN_META_KEYS.has(key)) continue;
-			const text = metaExtraText(meta[key]);
-			if (!text) continue;
-			// A layout safety cap, not a content rule: nothing here promises a
-			// future producer keeps its values short the way `initials` does.
-			extras.push({ key, value: text.length > 200 ? `${text.slice(0, 200)}…` : text });
-		}
-		return extras.sort((a, b) => a.key.localeCompare(b.key));
-	}
+	const metaExtras = rowMetaExtras;
 
 	/**
 	 * THE ONE LIST, AND EVERY STATUS CONTROL IS DERIVED FROM IT -- the per-row
@@ -229,7 +194,9 @@
 		{ id: 'spam', label: 'Spam' }
 	];
 
-	let filter = $state<FeedbackFilter>({ ...EMPTY_FEEDBACK_FILTER, status: 'new' });
+	// OPENS ON NEW REPORTS THAT ARE DUE SOON (0230): a long-term idea is one
+	// press away under its own tab, never in the way of this week's triage.
+	let filter = $state<FeedbackFilter>({ ...EMPTY_FEEDBACK_FILTER, status: 'new', horizon: 'now' });
 	let busyId = $state<string | null>(null);
 	let error = $state<string | null>(null);
 	/** Optimistic status, so a click lands before the parent reloads. */
@@ -245,9 +212,35 @@
 		return moved[row.id] ?? row.status;
 	}
 
+	/** Optimistic horizon, the `moved` shape: a switch lands before the reload. */
+	let horizonMoved = $state<Record<string, FeedbackHorizon>>({});
+	function horizonOf(row: FeedbackRow): FeedbackHorizon {
+		return horizonMoved[row.id] ?? rowHorizon(row);
+	}
+
 	// New first is the working order: the queue exists to be worked through,
 	// and a resolved note is history.
-	const visible = $derived(filterFeedback(rows, filter, statusOf));
+	const visible = $derived(filterFeedback(rows, filter, statusOf, horizonOf));
+	/** The two lists the "Both" view renders, from the same filtered set. */
+	const split = $derived(splitByHorizon(visible, horizonOf));
+
+	/**
+	 * THE ROWS IN THE CHOSEN HORIZON, before any status. The status tabs count
+	 * these, so "New (4)" under Long-term ideas means four new long-term ideas
+	 * and not four new reports somewhere else on the site.
+	 */
+	const inHorizon = $derived(
+		filter.horizon ? rows.filter((r) => horizonOf(r) === filter.horizon) : rows
+	);
+	const horizonCounts = $derived({
+		now: rows.filter((r) => horizonOf(r) === 'now').length,
+		long_term: rows.filter((r) => horizonOf(r) === 'long_term').length
+	});
+	const HORIZON_TABS: { id: '' | FeedbackHorizon; label: string }[] = [
+		{ id: 'now', label: 'Fix soon' },
+		{ id: 'long_term', label: 'Long-term ideas' },
+		{ id: '', label: 'Both' }
+	];
 	/**
 	 * A COUNT PER STATUS, DERIVED FROM `STATUSES` RATHER THAN SPELLED OUT. The
 	 * three keys used to be written here by hand, which is one of the two places
@@ -255,7 +248,7 @@
 	 */
 	const counts = $derived(
 		Object.fromEntries(
-			STATUSES.map((s) => [s.id, rows.filter((r) => statusOf(r) === s.id).length])
+			STATUSES.map((s) => [s.id, inHorizon.filter((r) => statusOf(r) === s.id).length])
 		) as Record<FeedbackStatus, number>
 	);
 	const roles = $derived(facetValues(rows, rowRole));
@@ -310,6 +303,37 @@
 		const landed: FeedbackBulkOutcome[] = [{ row, ok: true }];
 		bulkNote = feedbackBulkSummary(status, landed);
 		offerUndo(feedbackUndoFor(status, landed, () => prev));
+	}
+
+	// --- Horizon (0230) ------------------------------------------------------
+	//
+	// FILING, NOT REVIEWING: the function leaves status, `reviewed_at` and
+	// `reviewed_by` alone, so moving a report between the two lists says nothing
+	// about whether anybody has read it. One row at a time, through the one
+	// transport; the busy flag clears in `finally` so a throw cannot strand it.
+	let horizonBusyId = $state<string | null>(null);
+	let horizonNote = $state<string | null>(null);
+
+	async function moveHorizon(row: FeedbackRow, next: FeedbackHorizon) {
+		if (!setHorizon || horizonBusyId) return;
+		horizonBusyId = row.id;
+		error = null;
+		try {
+			const res = await setHorizon(row.id, next);
+			if (!res.ok) {
+				error = res.message ?? 'Could not move that report.';
+				return;
+			}
+			horizonMoved = { ...horizonMoved, [row.id]: next };
+			// SAID ABOVE THE LIST, NOT ON THE ROW: under "Fix soon" the report has
+			// just left the list it was on, and a note on its own card would leave
+			// with it.
+			horizonNote = `Moved ${feedbackRowLabel(row)} to ${next === 'long_term' ? 'Long-term ideas' : 'Fix soon'}.`;
+		} catch (e) {
+			error = (e as Error).message || 'Could not move that report.';
+		} finally {
+			horizonBusyId = null;
+		}
 	}
 
 	// --- Undo (report R02) --------------------------------------------------
@@ -662,6 +686,31 @@
 			<p class="feedback error">{error}</p>
 		{/if}
 
+		<!--
+			WHEN EACH REPORT IS FOR (0230), above the status tabs because it is the
+			coarser cut: "Fix soon" is what a round works from, "Long-term ideas"
+			is the list of big ideas for later, and "Both" shows the two as two
+			lists. The same keys as the status tabs below.
+		-->
+		<div class="filters fbc-horizons" role="tablist" aria-label="When each report is for">
+			{#each HORIZON_TABS as h (h.id)}
+				<button
+					type="button"
+					role="tab"
+					class="fbc-control filter"
+					class:active={filter.horizon === h.id}
+					aria-selected={filter.horizon === h.id}
+					data-testid="fbc-horizon-{h.id || 'both'}"
+					onclick={() => (filter = { ...filter, horizon: h.id })}
+				>
+					{h.label} ({h.id ? horizonCounts[h.id] : rows.length})
+				</button>
+			{/each}
+		</div>
+		{#if horizonUnavailable && !setHorizon}
+			<p class="note fbc-horizon-unavailable">{horizonUnavailable}</p>
+		{/if}
+
 		<div class="filters" role="tablist" aria-label="Status filter">
 			<!--
 				THE TABS ARE `STATUSES` PLUS `all`, in that order, so a status added
@@ -670,7 +719,7 @@
 				and the export header prints `status: all` for it -- so nothing this
 				console can be pointed at silently omits a row.
 			-->
-			{#each [...STATUSES.map((s) => ({ id: s.id, label: `${s.label} (${counts[s.id]})` })), { id: 'all' as const, label: `All (${rows.length})` }] as f (f.id)}
+			{#each [...STATUSES.map((s) => ({ id: s.id, label: `${s.label} (${counts[s.id]})` })), { id: 'all' as const, label: `All (${inHorizon.length})` }] as f (f.id)}
 				<button
 					type="button"
 					role="tab"
@@ -872,146 +921,196 @@
 			</div>
 		{/if}
 
-		{#if visible.length === 0}
+		{#if horizonNote}
+			<p class="note fbc-horizon-note" aria-live="polite" data-testid="fbc-horizon-note">
+				{horizonNote}
+			</p>
+		{/if}
+
+		{#snippet reportRow(row: FeedbackRow)}
+			<article class="card fb-row" class:resolved={statusOf(row) === 'resolved'}>
+				<div class="fb-head">
+					<input
+						type="checkbox"
+						class="fbc-control fb-select"
+						checked={selected.has(row.id)}
+						aria-label="Select the report from {rowRoute(row)}"
+						data-testid="fbc-select-{row.id}"
+						onchange={() => toggleSelected(row.id)}
+					/>
+					<span class="fb-kind">{row.kind}</span>
+					<span class="fb-route">{rowRoute(row)}</span>
+					<span class="fb-when">{whenLabel(row.created_at)}</span>
+					<span class="fb-status status-{statusOf(row)}">{statusOf(row)}</span>
+					{#if horizonOf(row) === 'long_term'}
+						<!-- A RECESSED TAG with the word in it, on every long-term row in
+						     every view: the list heading is not on screen once a long
+						     list has scrolled. -->
+						<span class="chip fb-horizon-chip" data-testid="fbc-long-term-chip">Long-term</span>
+					{/if}
+				</div>
+				<p class="fb-message">{row.message}</p>
+				{#if rowTried(row)}
+					<!-- WHAT THEY TRIED, LABELLED AND SET APART FROM THE MESSAGE.
+					     Two pieces of prose run together read as one, and the whole
+					     point of this field is that it answers a different question
+					     from the one above it. Plain text interpolation, like every
+					     other field on this card: this component raw-renders
+					     nothing, so there is no second escaping decision here. -->
+					<div class="fb-tried">
+						<span class="fb-tried-label">Tried first</span>
+						<p class="fb-tried-text">{rowTried(row)}</p>
+					</div>
+				{/if}
+				{#if rowScreenshotPath(row)}
+					<div class="fb-shot">
+						{#if screenshotUrls[rowScreenshotPath(row) ?? '']}
+							<!--
+								A THUMBNAIL, AND THE LINK BESIDE IT IS THE SAME URL. An
+								`<img>` is not a navigation: the element decodes an image
+								or fails, script does not run in it, and the bucket admits
+								no SVG in the first place. The URL carries `download=`, so
+								a person who follows the link saves the file rather than
+								having the reporter's bytes rendered as a document on a
+								host of ours -- which is the property the classroom file
+								rule is actually about.
+
+								IF IT WILL NOT DECODE, THE ROW FALLS BACK TO THE LINK,
+								through the img's own `onerror`. A broken image icon on a
+								triage queue is a defect nobody can act on.
+							-->
+							<a
+								class="fb-shot-link"
+								href={screenshotUrls[rowScreenshotPath(row) ?? '']}
+								target="_blank"
+								rel="noopener"
+							>
+								{#if !brokenShots[row.id]}
+									<img
+										class="fb-shot-thumb"
+										src={screenshotUrls[rowScreenshotPath(row) ?? '']}
+										alt="Screenshot attached to this report"
+										loading="lazy"
+										onerror={() => (brokenShots = { ...brokenShots, [row.id]: true })}
+									/>
+								{/if}
+								<span class="fb-shot-word">
+									{brokenShots[row.id]
+										? 'Screenshot (this browser could not display it, open it here)'
+										: 'Open the screenshot'}
+								</span>
+							</a>
+						{:else}
+							<!-- A key with no URL. Said plainly rather than rendered as a
+							     broken picture: the object may be gone, or this backend
+							     may not have the bucket at all. -->
+							<p class="fb-shot-missing">
+								A screenshot is attached, but no link could be made for it.
+							</p>
+						{/if}
+					</div>
+				{/if}
+				<ul class="fb-context">
+					{#if rowDistinctPath(row)}<li>path {rowDistinctPath(row)}</li>{/if}
+					{#if rowRole(row)}<li>role {rowRole(row)}</li>{/if}
+					{#if rowSection(row)}<li>section {resolveSectionId(rowSection(row), sectionMap)?.label}</li>{/if}
+					{#if rowViewport(row)}<li>viewport {rowViewport(row)}</li>{/if}
+					{#if rowUserAgentSummary(row)}<li>{rowUserAgentSummary(row)}</li>{/if}
+					{#if rowStatusCode(row) !== null}<li>http {rowStatusCode(row)}</li>{/if}
+					{#if rowErrorId(row)}<li>error id {rowErrorId(row)}</li>{/if}
+					{#each metaExtras(row) as extra (extra.key)}<li>{extra.key} {extra.value}</li>{/each}
+				</ul>
+				{#if rowBuild(row)}
+					<!-- THE VALUE NEVER TRAVELS WITHOUT WHAT IT MEANS. Neither
+					     available identifier is a hash of the built artifact, and a
+					     bare hex string in this position gets read as one. -->
+					<p class="fb-build">
+						<span class="fb-build-value">{rowBuild(row)?.value}</span>
+						<span class="fb-build-means">{rowBuild(row)?.means}</span>
+					</p>
+				{/if}
+				<div class="fb-foot">
+					<span class="fb-who">
+						{#if rowIsAnonymous(row)}
+							<!-- THE WORD, not a colour and not a blank. -->
+							<span class="fb-anon">Anonymous</span>
+							{#if rowContact(row)}
+								<span class="fb-contact">
+									asked to be reached at "{rowContact(row)}"
+								</span>
+								<span class="fb-contact-warn">
+									typed by the reporter, nothing verified it
+								</span>
+							{:else}
+								<span class="fb-contact-warn">left no way to be reached</span>
+							{/if}
+						{:else}
+							{row.submitter_name || row.submitter_email || 'unknown'}
+							{#if row.submitter_email}<span class="fb-email">{row.submitter_email}</span>{/if}
+						{/if}
+					</span>
+					<span class="fb-actions">
+						{#each STATUSES as s (s.id)}
+							<button
+								type="button"
+								class="fbc-control btn secondary"
+								disabled={busyId === row.id || undoBusy || statusOf(row) === s.id}
+								onclick={() => move(row, s.id)}
+							>
+								{s.label}
+							</button>
+						{/each}
+						{#if setHorizon}
+							<button
+								type="button"
+								class="fbc-control btn secondary fb-horizon-move"
+								data-testid="fbc-horizon-move-{row.id}"
+								disabled={horizonBusyId === row.id}
+								onclick={() =>
+									moveHorizon(row, horizonOf(row) === 'long_term' ? 'now' : 'long_term')}
+							>
+								{horizonOf(row) === 'long_term' ? 'Move to fix soon' : 'Move to long-term'}
+							</button>
+						{/if}
+					</span>
+				</div>
+				{#if row.reviewed_by && statusOf(row) === row.status}
+					<p class="fb-review">
+						Last moved by {row.reviewed_by}{#if row.reviewed_at} on {whenLabel(row.reviewed_at)}{/if}
+					</p>
+				{/if}
+			</article>
+		{/snippet}
+
+		{#if filter.horizon === ''}
+			<!--
+				BOTH, AS TWO LISTS (0230): the long-term ideas in their own list
+				under their own heading, so a reader sees which is which without
+				reading a chip on every card. Each list says when it is empty.
+			-->
+			{#each [{ id: 'now', title: 'Fix soon', list: split.now }, { id: 'long_term', title: 'Long-term ideas', list: split.longTerm }] as group (group.id)}
+				<section class="fbc-group" aria-labelledby="fbc-group-{group.id}" data-testid="fbc-group-{group.id}">
+					<h2 class="fbc-group-title" id="fbc-group-{group.id}">
+						{group.title} ({group.list.length})
+					</h2>
+					{#if group.list.length === 0}
+						<section class="card">
+							<p class="note">Nothing here matches those filters.</p>
+						</section>
+					{:else}
+						{#each group.list as row (row.id)}
+							{@render reportRow(row)}
+						{/each}
+					{/if}
+				</section>
+			{/each}
+		{:else if visible.length === 0}
 			<section class="card">
 				<p class="note">Nothing matches those filters.</p>
 			</section>
 		{:else}
 			{#each visible as row (row.id)}
-				<article class="card fb-row" class:resolved={statusOf(row) === 'resolved'}>
-					<div class="fb-head">
-						<input
-							type="checkbox"
-							class="fbc-control fb-select"
-							checked={selected.has(row.id)}
-							aria-label="Select the report from {rowRoute(row)}"
-							data-testid="fbc-select-{row.id}"
-							onchange={() => toggleSelected(row.id)}
-						/>
-						<span class="fb-kind">{row.kind}</span>
-						<span class="fb-route">{rowRoute(row)}</span>
-						<span class="fb-when">{whenLabel(row.created_at)}</span>
-						<span class="fb-status status-{statusOf(row)}">{statusOf(row)}</span>
-					</div>
-					<p class="fb-message">{row.message}</p>
-					{#if rowTried(row)}
-						<!-- WHAT THEY TRIED, LABELLED AND SET APART FROM THE MESSAGE.
-						     Two pieces of prose run together read as one, and the whole
-						     point of this field is that it answers a different question
-						     from the one above it. Plain text interpolation, like every
-						     other field on this card: this component raw-renders
-						     nothing, so there is no second escaping decision here. -->
-						<div class="fb-tried">
-							<span class="fb-tried-label">Tried first</span>
-							<p class="fb-tried-text">{rowTried(row)}</p>
-						</div>
-					{/if}
-					{#if rowScreenshotPath(row)}
-						<div class="fb-shot">
-							{#if screenshotUrls[rowScreenshotPath(row) ?? '']}
-								<!--
-									A THUMBNAIL, AND THE LINK BESIDE IT IS THE SAME URL. An
-									`<img>` is not a navigation: the element decodes an image
-									or fails, script does not run in it, and the bucket admits
-									no SVG in the first place. The URL carries `download=`, so
-									a person who follows the link saves the file rather than
-									having the reporter's bytes rendered as a document on a
-									host of ours -- which is the property the classroom file
-									rule is actually about.
-
-									IF IT WILL NOT DECODE, THE ROW FALLS BACK TO THE LINK,
-									through the img's own `onerror`. A broken image icon on a
-									triage queue is a defect nobody can act on.
-								-->
-								<a
-									class="fb-shot-link"
-									href={screenshotUrls[rowScreenshotPath(row) ?? '']}
-									target="_blank"
-									rel="noopener"
-								>
-									{#if !brokenShots[row.id]}
-										<img
-											class="fb-shot-thumb"
-											src={screenshotUrls[rowScreenshotPath(row) ?? '']}
-											alt="Screenshot attached to this report"
-											loading="lazy"
-											onerror={() => (brokenShots = { ...brokenShots, [row.id]: true })}
-										/>
-									{/if}
-									<span class="fb-shot-word">
-										{brokenShots[row.id]
-											? 'Screenshot (this browser could not display it, open it here)'
-											: 'Open the screenshot'}
-									</span>
-								</a>
-							{:else}
-								<!-- A key with no URL. Said plainly rather than rendered as a
-								     broken picture: the object may be gone, or this backend
-								     may not have the bucket at all. -->
-								<p class="fb-shot-missing">
-									A screenshot is attached, but no link could be made for it.
-								</p>
-							{/if}
-						</div>
-					{/if}
-					<ul class="fb-context">
-						{#if rowDistinctPath(row)}<li>path {rowDistinctPath(row)}</li>{/if}
-						{#if rowRole(row)}<li>role {rowRole(row)}</li>{/if}
-						{#if rowSection(row)}<li>section {resolveSectionId(rowSection(row), sectionMap)?.label}</li>{/if}
-						{#if rowViewport(row)}<li>viewport {rowViewport(row)}</li>{/if}
-						{#if rowUserAgentSummary(row)}<li>{rowUserAgentSummary(row)}</li>{/if}
-						{#if rowStatusCode(row) !== null}<li>http {rowStatusCode(row)}</li>{/if}
-						{#if rowErrorId(row)}<li>error id {rowErrorId(row)}</li>{/if}
-						{#each metaExtras(row) as extra (extra.key)}<li>{extra.key} {extra.value}</li>{/each}
-					</ul>
-					{#if rowBuild(row)}
-						<!-- THE VALUE NEVER TRAVELS WITHOUT WHAT IT MEANS. Neither
-						     available identifier is a hash of the built artifact, and a
-						     bare hex string in this position gets read as one. -->
-						<p class="fb-build">
-							<span class="fb-build-value">{rowBuild(row)?.value}</span>
-							<span class="fb-build-means">{rowBuild(row)?.means}</span>
-						</p>
-					{/if}
-					<div class="fb-foot">
-						<span class="fb-who">
-							{#if rowIsAnonymous(row)}
-								<!-- THE WORD, not a colour and not a blank. -->
-								<span class="fb-anon">Anonymous</span>
-								{#if rowContact(row)}
-									<span class="fb-contact">
-										asked to be reached at "{rowContact(row)}"
-									</span>
-									<span class="fb-contact-warn">
-										typed by the reporter, nothing verified it
-									</span>
-								{:else}
-									<span class="fb-contact-warn">left no way to be reached</span>
-								{/if}
-							{:else}
-								{row.submitter_name || row.submitter_email || 'unknown'}
-								{#if row.submitter_email}<span class="fb-email">{row.submitter_email}</span>{/if}
-							{/if}
-						</span>
-						<span class="fb-actions">
-							{#each STATUSES as s (s.id)}
-								<button
-									type="button"
-									class="fbc-control btn secondary"
-									disabled={busyId === row.id || undoBusy || statusOf(row) === s.id}
-									onclick={() => move(row, s.id)}
-								>
-									{s.label}
-								</button>
-							{/each}
-						</span>
-					</div>
-					{#if row.reviewed_by && statusOf(row) === row.status}
-						<p class="fb-review">
-							Last moved by {row.reviewed_by}{#if row.reviewed_at} on {whenLabel(row.reviewed_at)}{/if}
-						</p>
-					{/if}
-				</article>
+				{@render reportRow(row)}
 			{/each}
 		{/if}
 	{/if}
@@ -1087,6 +1186,46 @@
 	.filter.active {
 		color: var(--green);
 		border-color: var(--line-strong);
+	}
+
+	/* The horizon tabs sit tighter to the status tabs than the status tabs sit
+	   to the facets: the two rows are one filter, read top down. */
+	.fbc-horizons {
+		margin-bottom: var(--space-2);
+	}
+	.fbc-horizon-unavailable,
+	.fbc-horizon-note {
+		margin: 0 0 var(--space-3);
+	}
+	.fbc-group {
+		margin-bottom: var(--space-3);
+	}
+	/* A list heading, in the page's own label voice: the mono tier at the
+	   11px floor and up, never a status hue. */
+	.fbc-group-title {
+		margin: var(--space-3) 0 var(--space-2);
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		font-weight: 400;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--text-1);
+	}
+	.fbc-group-title::before {
+		content: none;
+	}
+	/* THE LONG-TERM TAG. Under the plate it is the shared recessed `.chip`;
+	   unplated it is an outlined tag. Its word is the signal, in the body ink,
+	   so it reads on every ground the card can be (`--text-1`, not a hue). */
+	.fb-horizon-chip {
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-1);
+		border: 1px solid var(--boundary);
+		border-radius: 999px;
+		padding: 0.05rem 0.5rem;
 	}
 
 	.facets {

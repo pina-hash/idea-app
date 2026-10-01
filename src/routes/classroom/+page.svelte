@@ -8,7 +8,7 @@
 <MyClasses
 	ready={data.ready}
 	isStaff={data.isStaff}
-	sections={data.sections}
+	sections={data.navSections ?? []}
 	todo={data.todo}
 	themes={data.navThemes ?? {}}
 />

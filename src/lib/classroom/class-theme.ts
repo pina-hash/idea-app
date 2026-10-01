@@ -12,7 +12,7 @@
  * the one colour a teacher sets per section, `SECTION_ACCENTS`, because a
  * student in one block cannot usefully vote on another block's colour.
  *
- * THIS MODULE IS THE CATALOGUE AND THE DATABASE IS NOT. `0230` stores an
+ * THIS MODULE IS THE CATALOGUE AND THE DATABASE IS NOT. `0225` stores an
  * option id as bounded free text (1 to 40 of `[a-z0-9-]`) and keeps no preset
  * list, for the reason `0223` gives about team badges: a CHECK constraint
  * would be a second copy of a list that has to change without a migration. So
@@ -144,7 +144,7 @@ export const CLASS_THEME_FEATURE_HINTS: Record<ClassThemeFeature, string> = {
 };
 
 /**
- * The shape the database accepts for a feature or option id (0230), so a
+ * The shape the database accepts for a feature or option id (0225), so a
  * value this module would never send is refused here before a round trip.
  */
 export const CLASS_THEME_ID = /^[a-z0-9-]{1,40}$/;
@@ -664,7 +664,7 @@ export function classThemeBallot(tally: ClassThemeTally | null | undefined): Bal
 /* ========================================================================== */
 
 /**
- * `unavailable` is PGRST202 ALONE: the deployment has no 0230 yet, and a
+ * `unavailable` is PGRST202 ALONE: the deployment has no 0225 yet, and a
  * surface removes its theme controls rather than showing a failure. Every
  * other error is `error` with the database's own sentence, verbatim -- these
  * functions raise sentences a student and a teacher are meant to read.
@@ -713,7 +713,7 @@ export const CLASS_THEME_UNREACHABLE =
 	'The class theme could not be reached. Try again in a moment.';
 /** The refusal for a choice this build would never offer, given before any round trip. */
 export const CLASS_THEME_NOT_A_CHOICE = 'That is not one of the choices.';
-/** A structured vote refusal this build has no word for (0230's contract names only `closed`). */
+/** A structured vote refusal this build has no word for (0225's contract names only `closed`). */
 export const CLASS_THEME_VOTE_NOT_COUNTED = 'That vote was not counted. Try again.';
 
 type RpcError = { code?: string; message?: string } | null;
@@ -754,7 +754,7 @@ function parseVoting(data: unknown): ClassThemeVotingResult {
 }
 
 /**
- * The six RPCs 0230 adds, each answering one of the result unions above. A
+ * The six RPCs 0225 adds, each answering one of the result unions above. A
  * throw (the network, not the database) is caught and answered as `error`, so
  * a poll loop never has to wrap a call to keep running.
  */

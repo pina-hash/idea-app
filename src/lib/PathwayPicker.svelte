@@ -78,6 +78,15 @@
 	import { PATHWAYS, withAlpha, type PathwayId } from '$lib/pathways';
 	import { lockDocumentScroll } from '$lib/shell/scroll-lock';
 	import type { UserProfile } from '$lib/profile';
+	import {
+		NO_PATHWAY_HINT,
+		NO_PATHWAY_LABEL,
+		PATHWAY_PREFERENCES_NAMESPACE,
+		notYetPreference,
+		pathwayPromptWanted,
+		todaySchoolDay
+	} from '$lib/pathway-choice';
+	import { supabaseProfileIo, writeProfileNamespace } from '$lib/preferences/profile-io';
 
 	/**
 	 * First-login pathway picker, mounted once in the root layout. Self-contained
@@ -125,12 +134,24 @@
 	   its own SSR failure, so no try/catch belongs here. */
 	let deferred = $state(pathwayPickerDeferred());
 
-	let selected: PathwayId | null = $state(null);
+	/**
+	 * "NO PATHWAY YET" IS THE SEVENTH CHOICE (ledger 0360, report R18), and it
+	 * is an ANSWER rather than a deferral: the column stays null and the answer
+	 * is stored in `profiles.preferences`, so the sheet stops asking for the
+	 * rest of the school year on every device. `pathwayPromptWanted` is the one
+	 * rule for who is asked, shared with the home tour and its offer.
+	 */
+	let selected: PathwayId | 'none' | null = $state(null);
 	let saving = $state(false);
 	let errorMsg = $state('');
+	/* The school day, read once, the same way every caller of the rule reads it. */
+	const today = todaySchoolDay();
+	/* Set the moment the "not yet" answer lands, so the sheet goes in that tick
+	   rather than waiting for the reloaded profile to say so. */
+	let answeredNotYet = $state(false);
 
 	const show = $derived(
-		!suppressed && !deferred && !!claims && profile?.role === 'student' && !profile.pathway
+		!suppressed && !deferred && !answeredNotYet && !!claims && pathwayPromptWanted(profile, today)
 	);
 
 	/**
@@ -175,8 +196,34 @@
 		window.dispatchEvent(new CustomEvent(PATHWAY_PICKER_DONE_EVENT));
 	};
 
+	/**
+	 * "No pathway yet": store the answer, leave the column null. Through the one
+	 * preferences write path, which reads the row first and merges this one
+	 * namespace, so no sibling setting is touched. A refusal stays on the sheet
+	 * in the same problem line as a refused pathway.
+	 */
+	const confirmNotYet = async () => {
+		if (!claims) return;
+		saving = true;
+		errorMsg = '';
+		const result = await writeProfileNamespace(
+			supabaseProfileIo(supabase, claims.sub),
+			PATHWAY_PREFERENCES_NAMESPACE,
+			notYetPreference(today)
+		);
+		if (!result.ok) {
+			errorMsg = result.message;
+		} else {
+			answeredNotYet = true;
+			await invalidateAll();
+			window.dispatchEvent(new CustomEvent(PATHWAY_PICKER_DONE_EVENT));
+		}
+		saving = false;
+	};
+
 	const confirm = async () => {
 		if (!claims || !selected) return;
+		if (selected === 'none') return confirmNotYet();
 		saving = true;
 		errorMsg = '';
 		// Select the row back to confirm the write actually landed (a zero-row
@@ -212,7 +259,7 @@
 			<p class="pwp-sub">
 				Every Bosco Tech student is identified by their pathway. Pick yours once and it becomes part
 				of your profile across the portal. It never limits what you can access, and a teacher can
-				correct it later if needed.
+				correct it later if needed. Freshman or not sure yet? Choose "{NO_PATHWAY_LABEL}".
 			</p>
 
 			<div class="pwp-grid">
@@ -240,6 +287,37 @@
 						<span class="pwp-code">{p.label}</span>
 					</button>
 				{/each}
+				<!-- THE SEVENTH CHOICE, AND THE OBVIOUS ONE FOR A FRESHMAN. It spans
+				     the grid so it can carry its sentence, takes the same key shape
+				     as the six, and wears no pathway colour: the neutral boundary
+				     and the body ink, with a dashed ring for a glyph, because "not
+				     yet" is the absence of an identity and must not look like a
+				     seventh one. -->
+				<button
+					class="pwp-option pwp-none"
+					class:selected={selected === 'none'}
+					type="button"
+					disabled={saving}
+					data-testid="pathway-none"
+					onclick={() => (selected = 'none')}
+				>
+					<svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+					>
+						<circle cx="12" cy="12" r="8.5" stroke-dasharray="3.2 2.6" />
+						<path d="M9 12h6" />
+					</svg>
+					<span class="pwp-none-words">
+						<span class="pwp-code">{NO_PATHWAY_LABEL}</span>
+						<span class="pwp-none-hint">{NO_PATHWAY_HINT}</span>
+					</span>
+				</button>
 			</div>
 
 			{#if errorMsg}
@@ -248,7 +326,13 @@
 
 			<div class="pwp-actions">
 				<button class="pwp-confirm" type="button" disabled={!selected || saving} onclick={confirm}>
-					{saving ? 'Saving...' : selected ? `Confirm ${selected}` : 'Pick a pathway'}
+					{saving
+						? 'Saving...'
+						: selected === 'none'
+							? `Confirm: ${NO_PATHWAY_LABEL.toLowerCase()}`
+							: selected
+								? `Confirm ${selected}`
+								: 'Pick a pathway'}
 				</button>
 				<button class="pwp-later" type="button" disabled={saving} onclick={later}>
 					Choose later
@@ -432,6 +516,43 @@
 	.pwp-option svg {
 		width: 30px;
 		height: 30px;
+	}
+	/* "No pathway yet": the whole row, the glyph beside the words, and neutral
+	   paint. `--pw` is what the selected edge and tint read, so pointing it at
+	   the load-bearing boundary keeps every shared rule above (hover, selected,
+	   Space White) and spends no pathway colour. */
+	.pwp-none {
+		grid-column: 1 / -1;
+		flex-direction: row;
+		justify-content: flex-start;
+		gap: 0.85rem;
+		padding: 0.75rem 1rem;
+		text-align: left;
+		--pw: var(--boundary);
+		--pw-ink: var(--text-1);
+		--pw-ink-light: var(--text-1);
+		--pw-bg: color-mix(in srgb, var(--text-1) 6%, transparent);
+		--pw-line: var(--boundary);
+	}
+	.pwp-none svg {
+		flex: none;
+	}
+	.pwp-none-words {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		min-width: 0;
+	}
+	.pwp-none-hint {
+		font-family: var(--font-display, 'Rajdhani', sans-serif);
+		font-size: 0.85rem;
+		line-height: 1.35;
+		color: var(--text-2);
+	}
+	.pwp-none.selected {
+		box-shadow: none;
+		outline: 2px solid var(--boundary);
+		outline-offset: -3px;
 	}
 	.pwp-code {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);

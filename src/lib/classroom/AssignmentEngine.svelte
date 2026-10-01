@@ -839,12 +839,14 @@
 		</div>
 	{/if}
 
-	<!-- THE RUBRIC AS A PROMISE MOVED UP (ledger 0297, package ITEM). It was the
+	<!-- THE RUBRIC IS NOT RENDERED HERE (ledger 0297, package ITEM). It was the
 	     last card here, below Submit -- measured at y~4884 of 5994px at 1366,
 	     six screens down, with nothing near the top saying it existed. It is
-	     ItemDetail's "How this is graded" disclosure now, near the top of the
-	     item for EVERY engine, reading the same stored rubric. One copy, not
-	     two: the returned card above is the scored copy. -->
+	     ItemDetail's "How this is graded" disclosure now, for EVERY engine,
+	     reading the same stored rubric: at the bottom of the item, after this
+	     engine, closed by default (report R20, ledger 0360). One copy, not
+	     two: the returned card above is the scored copy, and its breakdown is
+	     closed too. -->
 </div>
 
 <style>

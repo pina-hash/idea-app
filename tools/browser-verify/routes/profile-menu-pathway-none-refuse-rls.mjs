@@ -18,7 +18,7 @@
  * WHAT MUST BE TRUE AFTERWARDS, and all four are asserted below because the
  * defect this guards is a partial success:
  *   1. the stored row did NOT move;
- *   2. the select is back on its placeholder -- the markup did not run
+ *   2. the select is back on "No pathway yet" -- the markup did not run
  *      ahead of the write (a native select moves the moment somebody picks,
  *      so since ledger 0298 `onPathwayChange` puts it back on the stored row);
  *   3. no chip appeared anywhere, so nothing on screen claims the value took;
@@ -79,10 +79,11 @@ export default {
 		/* THE REFUSAL IS ON SCREEN, in the panel's one problem list rather than
 		   a second place a student has to learn about. */
 		{ selector: '.pm-error', label: 'the refusal, visible in the panel', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		/* AND NOTHING CLAIMS THE WRITE LANDED. The placeholder is still there to
-		   be selected, no chip on the trigger, no chip in the meta row -- the
-		   column is still null and every surface agrees with it. */
-		{ selector: '.pm-select option[value=""]', label: 'the placeholder survives a refused write (an option has no box of its own)', expectPresent: 1, maxPresent: 1, expectVisible: 0 },
+		/* AND NOTHING CLAIMS THE WRITE LANDED. "No pathway yet" is still there
+		   (since ledger 0360 it always is, and it is the unset row's own value),
+		   no chip on the trigger, no chip in the meta row -- the column is still
+		   null and every surface agrees with it. */
+		{ selector: '.pm-select option[value=""]', label: 'No pathway yet survives a refused write (an option has no box of its own)', expectPresent: 1, maxPresent: 1, expectVisible: 0 },
 		{ selector: '.pathway-chip', label: 'no chip appeared after a refused write', expectPresent: 0, expectVisible: 0 }
 	],
 	orderResult: [

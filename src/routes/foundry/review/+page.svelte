@@ -19,7 +19,8 @@
 	 */
 	import { goto, invalidateAll } from '$app/navigation';
 
-	import FoundryTrustRoster from '$lib/foundry/FoundryTrustRoster.svelte';
+	import FoundryPage from '$lib/foundry/FoundryPage.svelte';
+	import FoundryReviewNav from '$lib/foundry/FoundryReviewNav.svelte';
 	import ReviewQueue from '$lib/foundry/ReviewQueue.svelte';
 	import { rejectReasonLabel } from '$lib/foundry/review';
 	import type { FoundryReviewTransports } from '$lib/foundry/transports';
@@ -246,15 +247,31 @@
 	<title>Foundry review</title>
 </svelte:head>
 
-<!-- The room wrapper (.fg-root) and the masthead live in the /foundry layout. -->
-<div class="fdy-rev-page">
-	<header class="fdy-rev-head">
-		<h1>Review queue</h1>
-		<p>
-			Read the source beside the running build. Approving publishes it immediately; sending it
-			back needs a reason and a note the student can act on.
-		</p>
-	</header>
+<!--
+	The room wrapper (.fg-root) and the masthead live in the /foundry layout.
+	`FoundryPage` is the shared page wrapper whose explicit width is what lets
+	the queue span the window (ledger 0360, report 647d1201).
+
+	THE QUEUE IS THE ONLY THING IN THIS FULL-HEIGHT PAGE NOW. The trusted
+	roster used to sit under it, in the same 100dvh column, and kept its own
+	height while the split got what was left: about 145px at 1440x953, with
+	the rest of the roster clipped and no way to scroll it. The roster and the
+	new publisher applications are on their own page, behind the Publishers
+	key, which is an ordinary document that scrolls.
+-->
+<FoundryPage
+	heading="Review queue"
+	lead="Read the source beside the running build. Approving publishes it immediately; sending it back needs a reason and a note the student can act on."
+	testid="foundry-review-page"
+	split
+>
+	{#snippet nav()}
+		<FoundryReviewNav
+			active="apps"
+			pendingApps={data.reviewPending ?? null}
+			pendingApplications={data.pendingApplications ?? null}
+		/>
+	{/snippet}
 
 	<ReviewQueue
 		apps={data.apps}
@@ -266,81 +283,4 @@
 		onDeleted={() => select(null)}
 		{now}
 	/>
-
-	<!--
-		THE ROSTER SITS UNDER THE QUEUE, WHICH IS WHERE THE DECISION IS MADE.
-		An admin decides somebody is trustworthy while reading their work, so
-		the control belongs on the same page rather than behind a settings tab
-		somebody has to remember exists. It is outside the split deliberately:
-		it is about people, not about the app that happens to be open.
-	-->
-	<FoundryTrustRoster
-		rows={data.trusted ?? []}
-		transports={{
-			async grantTrust(email, note) {
-				const { error } = await data.supabase.rpc('foundry_trusted_grant', {
-					p_email: email,
-					p_note: note
-				});
-				// The database's own sentence, verbatim: it is the one that says
-				// whether the address was refused for its domain or the caller
-				// for not being an admin.
-				if (error) return { ok: false, message: error.message };
-				return { ok: true };
-			},
-			async revokeTrust(email) {
-				const { error } = await data.supabase.rpc('foundry_trusted_revoke', {
-					p_email: email
-				});
-				if (error) return { ok: false, message: error.message };
-				return { ok: true };
-			}
-		}}
-		onChanged={() => invalidateAll()}
-	/>
-</div>
-
-<style>
-	/* THE SPLIT IS WHAT GROWS, in app mode. `scroll="fill"` needs a bounded
-	   parent with `min-height: 0` on this item, and without it `height: 100%`
-	   resolves against an auto height, the panes grow to their content, and
-	   the surface degrades to exactly `page-flow` -- the state it had before,
-	   which is why getting this wrong is invisible rather than broken. */
-	@media (min-width: 1024px) {
-		:global(.cr-app) .fdy-rev-page {
-			min-height: 0;
-			flex: 1 1 auto;
-		}
-		:global(.cr-app) .fdy-rev-page > :global(.cr-split) {
-			min-height: 0;
-			flex: 1 1 auto;
-		}
-	}
-
-	.fdy-rev-page {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-5, 1.25rem);
-		/* `--measure-split` (92rem), NOT `--measure-wide` (62rem): the wide
-		   measure is the widest SINGLE column, and this page is a two-pane
-		   master-detail shell. Measured at 1440px on the harness with the wrong
-		   one, the split's detail pane came out 873px and the review surface's
-		   side-by-side never engaged at all. `--measure-split` is the token that
-		   exists for exactly this shape. */
-		max-width: var(--measure-split);
-		margin: 0 auto;
-		padding: var(--space-5, 1.25rem) var(--cr-gutter, 1rem);
-		min-width: 0;
-	}
-
-	.fdy-rev-head h1 {
-		margin: 0 0 0.25rem;
-		font-family: var(--font-title, var(--font-display));
-	}
-
-	.fdy-rev-head p {
-		margin: 0;
-		max-width: var(--measure-prose, 42rem);
-		color: var(--text-2, var(--dim));
-	}
-</style>
+</FoundryPage>

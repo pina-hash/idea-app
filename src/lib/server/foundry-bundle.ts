@@ -784,6 +784,85 @@ export async function publishedVersionOf(appId: string): Promise<string | null> 
 
 
 /* -------------------------------------------------------------------------
+ * IS THE WHOLE FOUNDRY OFF, for the two routes that hold no session.
+ *
+ * Report c26026b0 (ledger 0360) asked for one switch that shuts the Foundry
+ * down for everybody. On the portal that is a per-viewer answer from
+ * `foundry_section_access`; on the APPS ORIGIN there is no viewer to ask
+ * about (the origin split's whole point), so the only question `/a/` and `/b/`
+ * can put is a fact about the site. That is why this switch reaches the share
+ * links and the class gate never could.
+ *
+ * IT IS READ HERE BECAUSE THIS MODULE IS THE ONE FOUNDRY READER OF THE SERVICE
+ * KEY. `foundry_site_settings` has RLS on, no policy and a SELECT grant to
+ * `service_role` alone (0230), so no client can read it and nothing here
+ * widens that.
+ *
+ * MEMOISED PER INSTANCE FOR `FOUNDRY_SITE_CACHE_MS`, and that number is the
+ * cost: at most one read per serverless instance every 30 seconds, and only
+ * for an HTML document (the caller asks only then), so a game loading forty
+ * assets costs nothing extra and a gallery full of frames costs one read. The
+ * price is that a switch flipped off takes up to 30 seconds to reach a warm
+ * instance, which is stated to the admin beside the switch.
+ *
+ *   false   on: the row says open, there is no row, the table does not exist
+ *           yet (a deployment ahead of 0230), there is no service key (a
+ *           harness), or this is a dev fixture app.
+ *   true    off.
+ *   null    the read failed for another reason. NOT cached, and the caller
+ *           answers it with the bodyless 404 -- a gate that cannot tell fails
+ *           closed rather than serving a document that might be meant to be
+ *           off.
+ * ---------------------------------------------------------------------- */
+
+export const FOUNDRY_SITE_CACHE_MS = 30_000;
+
+let siteMemo: { at: number; closed: boolean } | null = null;
+
+/** Forget the memo. For tests, and for nothing else. */
+export function resetFoundrySiteMemo(): void {
+	siteMemo = null;
+}
+
+/**
+ * A MISSING RELATION, in either spelling a client can see: PostgREST's own
+ * schema-cache code, or Postgres's. Both mean 0230 has not been applied, which
+ * is a real deployment state, and in that world there is no switch to be off.
+ */
+function missingRelation(err: { code?: string | null } | null): boolean {
+	return !!err && (err.code === 'PGRST205' || err.code === '42P01');
+}
+
+export async function foundrySiteClosed(
+	appId: string | null = null,
+	now: number = Date.now()
+): Promise<boolean | null> {
+	if (dev && appId !== null && isFixtureApp(appId)) return false;
+
+	if (siteMemo && now - siteMemo.at < FOUNDRY_SITE_CACHE_MS) return siteMemo.closed;
+
+	const client = admin();
+	if (!client) return false;
+
+	const { data, error } = await client
+		.from('foundry_site_settings')
+		.select('closed_at')
+		.eq('id', true)
+		.maybeSingle<{ closed_at: string | null }>();
+	if (error) {
+		if (missingRelation(error)) {
+			siteMemo = { at: now, closed: false };
+			return false;
+		}
+		return null;
+	}
+	const closed = !!data && data.closed_at !== null;
+	siteMemo = { at: now, closed };
+	return closed;
+}
+
+
+/* -------------------------------------------------------------------------
  * THE DELETE SWEEP: removing the objects a delete RPC just orphaned.
  *
  * WHY THIS IS HERE AND NOT ANYWHERE ELSE. `foundry-bundles` carries NO storage

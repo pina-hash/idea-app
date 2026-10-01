@@ -11,7 +11,10 @@
 		readAgendaStore,
 		removeAgendaLine,
 		toggleAgendaLine,
+		toggleWallNext,
 		wallAgenda,
+		wallComingUp,
+		wallNextShown,
 		writeAgendaStore,
 		AGENDA_MAX_CHARS,
 		AGENDA_MAX_TYPED,
@@ -50,10 +53,13 @@
 		hallPassWall,
 		openProjectorChannel,
 		PROJECTOR_GONE_MS,
+		WALL_ACTIVITY_GROUPS,
 		WALL_HALL_GLYPH,
 		type ProjectorChannel,
 		type ProjectorChannelHost,
 		type ProjectorMessage,
+		wallActivityCells,
+		type WallActivityInput,
 		type WallPick
 	} from './projector';
 	import { pickerOne, pickerPool, pickerSeedFrom, pickerSeedLabel } from '$lib/classroom/picker';
@@ -318,6 +324,8 @@
 
 	let presenceData = $state<PresencePayload | null>(null);
 	let presenceStatus = $state<LivePresenceStatus>('pending');
+	/** When the last presence read that answered landed (ms), which the wall's activity carries as its age. */
+	let presenceAt = $state(0);
 	let arrivals = $state<Map<string, number>>(new Map());
 	let previousPresent: Set<string> | null = null;
 	let grading = $state<GradingData | null>(null);
@@ -346,6 +354,7 @@
 			previousPresent = present;
 			presenceData = payload;
 			presenceStatus = 'ready';
+			presenceAt = at;
 			gridNow = at;
 		} catch {
 			// Best effort by contract: keep what is on screen, and SAY it may be old.
@@ -378,6 +387,7 @@
 		queueMicrotask(() => {
 			presenceData = null;
 			presenceStatus = 'pending';
+			presenceAt = 0;
 			arrivals = new Map();
 			previousPresent = null;
 			grading = null;
@@ -486,12 +496,73 @@
 	let lastSentAt = 0;
 	let lastHere = $state(0);
 	const onWall = $derived(lastHere > 0 && now - lastHere < PROJECTOR_GONE_MS);
+
+	/*
+	 * COMING UP AND STUDENT ACTIVITY ON THE WALL (reports R12, R13). Coming up
+	 * is on until the teacher takes it off, like a derived agenda line, and is
+	 * kept in the day's agenda slot; it is what a student already reads on
+	 * their own class page. Student activity is OFF until pressed, and is
+	 * COUNTS; names are a second press, never remembered across a reload (a
+	 * stored frame with activity on comes back as counts) and never for the
+	 * students who are working. All of it is built from reads this view already
+	 * makes: the wall costs the database nothing.
+	 */
+	const comingUp = $derived(wallComingUp(items, today, slowNow));
+	const wallNext = $derived(wallNextShown(agenda));
+	let wallActivity = $state<'off' | 'counts' | 'names'>('off');
+	/** Why activity is not on the wall although it was asked for, or null when it is. */
+	const activityBlocked = $derived(
+		!chosen
+			? 'There is no assignment to count yet.'
+			: !chosenSignal
+				? 'This item sends no activity, so there is nothing to count.'
+				: presenceStatus === 'pending'
+					? 'Waiting for the first reading.'
+					: presenceStatus === 'unavailable'
+						? 'Activity is not available right now, so the wall shows none.'
+						: loadGrading !== null && grading === null
+							? 'Waiting for the hand-ins.'
+							: presenceAt === 0
+								? 'Waiting for the first reading.'
+								: null
+	);
+	const activityInput = $derived<WallActivityInput | null>(
+		wallActivity !== 'off' && activityBlocked === null && chosen
+			? {
+					item: chosen.title,
+					at: presenceAt,
+					// The student out on the hall pass is counted and never named.
+					cells: wallActivityCells(cells, outEmail),
+					names: wallActivity === 'names'
+				}
+			: null
+	);
 	const wallInput = $derived({
 		agenda: wallAgenda(lines),
 		timer,
 		hallPass: hallState,
-		pick: shownPick
+		pick: shownPick,
+		next: wallNext ? comingUp : [],
+		activity: activityInput
 	});
+	/** The counts exactly as the wall will paint them: the same projection, read back. */
+	const wallActivityShown = $derived(
+		activityInput ? buildProjectorFrame({ day: today, at: 0, agenda: [], timer: null, hallPass: null, pick: null, activity: activityInput }).activity : null
+	);
+	const activityState = $derived(
+		wallActivity === 'off'
+			? 'Off. The wall shows no student activity.'
+			: wallActivityShown
+				? `On the wall: ${WALL_ACTIVITY_GROUPS.map((g) => `${wallActivityShown.counts[g.key]} ${g.word.toLowerCase()}`).join(', ')}.`
+				: (activityBlocked ?? 'Some students cannot be counted yet, so the wall shows none.')
+	);
+	function toggleActivity() {
+		wallActivity = wallActivity === 'off' ? 'counts' : 'off';
+	}
+	function toggleNames() {
+		if (wallActivity === 'off') return;
+		wallActivity = wallActivity === 'names' ? 'counts' : 'names';
+	}
 
 	function sendFrame(force = false) {
 		if (!channel) return;
@@ -536,6 +607,9 @@
 			timer = stored.timer;
 			shownPick = stored.pick;
 			lastSentAt = stored.at;
+			// Activity that was on the wall stays on, as COUNTS: names always
+			// need a fresh press, so a reload never puts them back by itself.
+			if (stored.activity) wallActivity = 'counts';
 		}
 		sendFrame(true);
 		return () => {
@@ -749,6 +823,49 @@
 						</button>
 					</form>
 				{/if}
+			</section>
+
+			<section class="lc-panel" aria-labelledby="lc-wall-title" data-testid="live-wall">
+				<h2 id="lc-wall-title" class="lc-panel-title">On the wall</h2>
+				<div class="lc-row" role="group" aria-label="What the projector shows">
+					<button
+						type="button"
+						class="lc-seg"
+						aria-pressed={wallNext}
+						data-testid="live-wall-next"
+						onclick={() => saveAgenda(toggleWallNext(agenda))}
+					>
+						<span aria-hidden="true">{wallNext ? '●' : '○'}</span>
+						Coming up <span class="lc-count">{comingUp.length}</span>
+					</button>
+					<button
+						type="button"
+						class="lc-seg"
+						aria-pressed={wallActivity !== 'off'}
+						data-testid="live-wall-activity"
+						onclick={toggleActivity}
+					>
+						<span aria-hidden="true">{wallActivity !== 'off' ? '●' : '○'}</span>
+						Student activity
+					</button>
+					<button
+						type="button"
+						class="lc-seg"
+						aria-pressed={wallActivity === 'names'}
+						aria-disabled={wallActivity === 'off'}
+						aria-describedby="lc-wall-names-help"
+						data-testid="live-wall-names"
+						onclick={toggleNames}
+					>
+						<span aria-hidden="true">{wallActivity === 'names' ? '●' : '○'}</span>
+						Names too
+					</button>
+				</div>
+				<p class="lc-wall-note" data-testid="live-wall-activity-state">{activityState}</p>
+				<p id="lc-wall-names-help" class="lc-wall-help" data-testid="live-wall-names-help">
+					Activity is counts first. Names are a second step, and the whole class can read them. Students who are
+					working, and whoever is out on the hall pass, are counted and never named.
+				</p>
 			</section>
 		</div>
 
@@ -1073,6 +1190,16 @@
 	.lc-wall-chip[data-tone='taken'] {
 		color: var(--status-warn);
 		border-color: currentColor;
+	}
+	.lc-wall-note {
+		margin: var(--space-3) 0 0;
+		color: var(--text-1);
+		overflow-wrap: anywhere;
+	}
+	.lc-wall-help {
+		margin: var(--space-2) 0 0;
+		font-size: 0.9rem;
+		color: var(--text-2);
 	}
 	.lc-chip-quiet {
 		font-family: var(--font-mono);

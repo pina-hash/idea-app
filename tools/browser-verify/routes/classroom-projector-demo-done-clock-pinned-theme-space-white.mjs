@@ -5,7 +5,8 @@
  * STATUS ink on the warning fill, which keeps 3.0 washed; the finish ring is a
  * boundary and keeps 2.0.
  */
-import { EIGHT_H, PROJECTOR_READY, READOUT_PARTS, WALL_FITS } from './_classroom-live.mjs';
+import { PROJECTOR_MODEL } from '../checks.mjs';
+import { EIGHT_H, PROJECTOR_READY, READOUT_PARTS, RING_FACE_CONTRAST, WALL_FITS_ANY } from './_classroom-live.mjs';
 
 export default {
 	path: '/dev/classroom-projector?demo=done&clock=pinned&theme=space-white',
@@ -18,15 +19,14 @@ export default {
 	orderResult: [
 		{ label: 'the face holds 0:00.00 once time is up', evaluate: READOUT_PARTS('[data-testid="projector-timer-digits"]'), expected: ['0:00', '.00'] },
 		{ label: '8H: the smallest text against 1/50 of the height (a portrait window is not a wall and is not held to it)', evaluate: `() => [(${EIGHT_H})()].map((v) => v.startsWith('portrait') ? 'smallest text clears 1/50 of the height' : v)`, expected: ['smallest text clears 1/50 of the height'] },
-		{ label: 'the wall fits the window', evaluate: WALL_FITS, expected: ['no horizontal scroll', 'no vertical scroll'] }
+		{ label: 'the wall fits the window (a portrait window may scroll)', evaluate: WALL_FITS_ANY, expected: ['no horizontal scroll', 'no vertical scroll'] },
+		{ label: 'the digits on the ring face, 4.5 washed (the arc is empty once time is up)', evaluate: RING_FACE_CONTRAST(PROJECTOR_MODEL.contrast, PROJECTOR_MODEL.ambient, { arc: false }), expected: ['digits clear 4.5 washed on the ring face'] }
 	],
 	presence: [
 		{ selector: 'html[data-theme="space-white"]', label: 'Space White is on', expectPresent: 1, maxPresent: 1 },
 		{ selector: '[data-testid="projector-timer"][data-phase="done"]', label: 'the finished timer', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
 	],
 	contrast: [
-		{ selector: '.lp-digits', label: 'digits, status ink on the warning fill (washed)', min: 3, projector: true },
-		{ selector: '.lp-frac', label: 'hundredths, status ink on the warning fill (washed)', min: 3, projector: true },
 		{ selector: '.lp-word', label: 'timer word, status ink (washed)', min: 3, projector: true },
 		{ selector: '.lp-over', label: 'overtime line, status ink (washed)', min: 3, projector: true },
 		{ selector: '.lp-ring', label: 'the finish ring, a boundary (washed)', min: 2, projector: true }

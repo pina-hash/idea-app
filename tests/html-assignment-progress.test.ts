@@ -29,17 +29,22 @@ import {
 	HX_PROGRESS_BAR_LABEL,
 	HX_PROGRESS_COMPLETE_NOTE,
 	HX_PROGRESS_NOT_A_GRADE,
+	HX_PROGRESS_NOT_SAVED_LINE,
+	HX_PROGRESS_SAVING_LINE,
 	HX_PROGRESS_STAGES,
 	hxBlockHasResponse,
+	hxCompletion,
 	hxProgress,
 	hxProgressModuleLine,
 	hxProgressNextLine,
 	hxProgressPaint,
+	hxProgressSaveLine,
 	hxProgressStage,
 	hxProgressSummary,
 	hxTableHasContent
 } from '$lib/classroom/html-assignment/progress';
 import { hxIncompleteBlocks } from '$lib/classroom/html-assignment/answers';
+import { HX_MIRROR_UNAVAILABLE } from '$lib/classroom/html-assignment/draft-mirror';
 import {
 	BRITISH_SPELLING_RE,
 	WEEKDAYS,
@@ -201,7 +206,7 @@ describe('the named states', () => {
 		expect(p.started).toBe(false);
 		expect(p.complete).toBe(false);
 		expect(p.next?.blockId).toBe('s-staged');
-		expect(hxProgressNextLine(p)).toBe('Next up: "Bench setup" has an empty answer.');
+		expect(hxProgressNextLine(p)).toBe('Next up: "Bench setup", answer 1 of 2, is empty.');
 	});
 
 	it('100%: everything met, All filled in, nothing next', () => {
@@ -286,12 +291,12 @@ describe('when a block is met', () => {
 		expect(notes?.need).toBe(2);
 		expect(notes?.have).toBe(1);
 		expect(p.percent).toBe(25);
-		expect(hxProgressNextLine(p)).toBe('Next up: "Bench setup" needs 1 more sentence.');
+		expect(hxProgressNextLine(p)).toBe('Next up: "Bench setup", answer 2 of 2, needs 1 more sentence.');
 
 		// Three asked, one given: the plural.
 		const w = { ...values, why: 'It drifted.' };
 		const q = hxProgress(bench(), w, images);
-		expect(hxProgressNextLine(q)).toBe('Next up: "Reflection" needs 2 more sentences.');
+		expect(hxProgressNextLine(q)).toBe('Next up: "Reflection", answer 1 of 3, needs 2 more sentences.');
 	});
 
 	it('an empty string, whitespace, or a missing key is not a response', () => {
@@ -305,8 +310,26 @@ describe('when a block is met', () => {
 		expect(hxBlockHasResponse(blockOf('r-safe'), { safetyChecked: false }, {})).toBe(true);
 		expect(hxBlockHasResponse(blockOf('r-safe'), { safetyChecked: true }, {})).toBe(true);
 		expect(hxBlockHasResponse(blockOf('r-safe'), {}, {})).toBe(false);
-		// A string in a checkbox slot is not a boolean.
-		expect(hxBlockHasResponse(blockOf('r-safe'), { safetyChecked: 'true' }, {})).toBe(false);
+	});
+
+	it("the value's own shape is believed over the block's type, and only ever widens (ledger 0360)", () => {
+		// A checkbox that posted its `value` attribute: stored, so it counts.
+		// This line asserted the OPPOSITE until report 8f78d5bd: a string in a
+		// checkbox slot was "not a boolean" and the worksheet could never fill.
+		expect(hxBlockHasResponse(blockOf('r-safe'), { safetyChecked: 'on' }, {})).toBe(true);
+		// A boolean on a text, long-text or table block: stored, so it counts.
+		expect(hxBlockHasResponse(blockOf('s-staged'), { staged: true }, {})).toBe(true);
+		expect(hxBlockHasResponse(blockOf('s-staged'), { staged: false }, {})).toBe(true);
+		expect(hxBlockHasResponse(blockOf('r-table'), { measurements: false }, {})).toBe(true);
+		// THE NEGATIVE CONTROLS: an empty or blank string still counts for
+		// nothing on a checkbox, and an image still needs a picture.
+		expect(hxBlockHasResponse(blockOf('r-safe'), { safetyChecked: '' }, {})).toBe(false);
+		expect(hxBlockHasResponse(blockOf('r-safe'), { safetyChecked: '  ' }, {})).toBe(false);
+		expect(hxBlockHasResponse(blockOf('c-photo'), { cutPhoto: true }, {})).toBe(false);
+		// And the whole worksheet fills with the checkbox holding a string.
+		const p = hxProgress(bench(), { ...ALL, safetyChecked: 'on' }, { cutPhoto: PHOTO });
+		expect(p.complete).toBe(true);
+		expect(p.percent).toBe(100);
 	});
 
 	it('a table counts only when a cell holds something', () => {
@@ -467,7 +490,7 @@ describe('Progress.svelte renders the number, the words and the segments', () =>
 		expect(html).toContain(`aria-label="${HX_PROGRESS_BAR_LABEL}"`);
 		expect(html).toContain(HX_PROGRESS_NOT_A_GRADE);
 		expect(html).not.toContain(HX_PROGRESS_COMPLETE_NOTE);
-		expect(html).toContain('Next up: "Bench setup" has an empty answer.');
+		expect(html).toContain('Next up: "Bench setup", answer 1 of 2, is empty.');
 		const weights = [...html.matchAll(/data-hx-seg-weight="([^"]+)"/g)].map((m) => m[1]);
 		expect(weights).toEqual(['5', '1', '4']);
 		expect((html.match(/data-hx-mod=/g) ?? []).length).toBe(3);
@@ -536,5 +559,246 @@ describe('ItemDetail mounts the rail above the frame', () => {
 		const svelte = readFileSync('src/lib/classroom/html-assignment/Progress.svelte', 'utf8');
 		expect(svelte).not.toContain(HX_PROGRESS_NOT_A_GRADE);
 		expect(svelte).toContain('{HX_PROGRESS_NOT_A_GRADE}');
+	});
+});
+
+// ---------------------------------------------------------------------------
+// LEDGER 0360. An optional block is judged and never counted; work the server
+// has not acknowledged is not complete; the next line names the answer.
+// Expected values are worked by hand from the fixture's points, never
+// recomputed through `hxProgress`.
+// ---------------------------------------------------------------------------
+
+/** Portfolio-shaped: a 4-point Assembly module with one required photo, one
+    OPTIONAL photo slot and a required three-sentence answer. */
+/** Passed instead of a flag value, the slot carries no `optional` key at all. */
+const NO_KEY = Symbol('no optional key');
+
+function assembly(optionalFlag: unknown = true): HtmlAssignmentManifest {
+	const slot: Record<string, unknown> = { id: 'a-photo-2', field: 'assemblyPhoto2', type: 'image' };
+	if (optionalFlag !== NO_KEY) slot.optional = optionalFlag;
+	return {
+		schemaVersion: 3,
+		kind: 'html-assignment',
+		title: 'Portfolio capture',
+		course: 'IDEA209H',
+		points: 6,
+		header: [{ id: 'hb-name', field: 'studentName', type: 'text' }],
+		modules: [
+			{
+				id: 'design',
+				title: 'Design',
+				points: 2,
+				blocks: [{ id: 'd-notes', field: 'designNotes', type: 'longText' }],
+				criteria: []
+			},
+			{
+				id: 'assembly',
+				title: 'Assembly',
+				points: 4,
+				blocks: [
+					{ id: 'a-photo-1', field: 'assemblyPhoto1', type: 'image' },
+					slot as never,
+					{ id: 'a-why', field: 'assemblyWhy', type: 'longText', minSentences: 3 }
+				],
+				criteria: []
+			}
+		]
+	};
+}
+
+const THREE = 'I glued the base first. Then I clamped the arm. The clamp held overnight.';
+const FILLED = { studentName: 'Ana Reyes', designNotes: 'A tall trophy.', assemblyWhy: THREE };
+
+describe('an optional block is judged and never counted (report 8f78d5bd)', () => {
+	it('every required block filled with the optional slot EMPTY is 100% and complete', () => {
+		const p = hxProgress(assembly(), FILLED, { assemblyPhoto1: PHOTO });
+		expect(p.complete).toBe(true);
+		expect(p.filled).toBe(true);
+		expect(p.percent).toBe(100);
+		expect(p.next).toBeNull();
+		const slot = p.blocks.find((b) => b.blockId === 'a-photo-2');
+		expect(slot?.optional).toBe(true);
+		expect(slot?.weight).toBe(0);
+		expect(slot?.met).toBe(false);
+		expect(hxProgressModuleLine(p.modules.find((m) => m.id === 'assembly')!)).toBe('Assembly: done');
+	});
+
+	it("the module's points are spread over its REQUIRED blocks only: 4 over 2 is 2 each", () => {
+		const p = hxProgress(assembly(), FILLED, { assemblyPhoto1: PHOTO });
+		const weights = Object.fromEntries(p.blocks.map((b) => [b.blockId, b.weight]));
+		// By hand: Design 2 points over 1 block; Assembly 4 points over 2
+		// required blocks (photo 1, the answer); the optional slot and the
+		// header 0. A count over all three Assembly blocks would give 4/3.
+		expect(weights).toEqual({ 'hb-name': 0, 'd-notes': 2, 'a-photo-1': 2, 'a-photo-2': 0, 'a-why': 2 });
+		expect(p.total).toBe(6);
+		expect(p.totalBlocks).toBe(3);
+	});
+
+	it('THE POSITIVE CONTROL: the same slot NOT marked optional holds the bar at 78 forever', () => {
+		// By hand: 6 points. Design is 2 over one block; Assembly is 4 over
+		// THREE required blocks, 4/3 each, two of them met. Earned 2 + 8/3 =
+		// 4.667 of 6 = 77.8%, which rounds to 78. Not complete, and the next
+		// line names the photo slot by its position, the student's only clue.
+		const p = hxProgress(assembly(NO_KEY), FILLED, { assemblyPhoto1: PHOTO });
+		expect(p.complete).toBe(false);
+		expect(p.percent).toBe(78);
+		expect(p.next?.blockId).toBe('a-photo-2');
+		expect(hxProgressNextLine(p)).toBe('Next up: "Assembly" is waiting for photo 2 of 2.');
+	});
+
+	it('a malformed optional value is ABSENT, never a guess: "yes" and 1 still count the block', () => {
+		for (const bad of ['yes', 1, 'true', null]) {
+			const p = hxProgress(assembly(bad), FILLED, { assemblyPhoto1: PHOTO });
+			expect(p.complete, String(bad)).toBe(false);
+		}
+	});
+
+	it('hxIncompleteBlocks skips an optional block, so the sentence count agrees with the bar', () => {
+		const m = assembly();
+		m.modules[1].blocks[1] = { id: 'a-extra', field: 'extra', type: 'longText', minSentences: 3, optional: true } as never;
+		const gate = hxIncompleteBlocks(m, { ...FILLED, extra: 'Only one.' });
+		expect(gate.map((g) => g.blockId)).toEqual([]);
+		// Control: unmarked, the same short answer is reported.
+		m.modules[1].blocks[1] = { id: 'a-extra', field: 'extra', type: 'longText', minSentences: 3 };
+		expect(hxIncompleteBlocks(m, { ...FILLED, extra: 'Only one.' }).map((g) => g.blockId)).toEqual(['a-extra']);
+	});
+
+	it('a module whose every block is optional moves nothing and is never a chip', () => {
+		const m = assembly();
+		m.modules.push({
+			id: 'extras',
+			title: 'Extras',
+			points: 3,
+			blocks: [{ id: 'x-1', field: 'x1', type: 'text', optional: true } as never],
+			criteria: []
+		});
+		const p = hxProgress(m, FILLED, { assemblyPhoto1: PHOTO });
+		expect(p.complete).toBe(true);
+		expect(p.modules.find((mod) => mod.id === 'extras')?.weight).toBe(0);
+	});
+});
+
+describe('work the server has not acknowledged is not complete (report d983e776)', () => {
+	it('filled with one counted field unsaved: filled, not complete, 99, and the saving line', () => {
+		const p = hxProgress(bench(), { ...ALL }, { cutPhoto: PHOTO }, { unsaved: ['why'] });
+		expect(p.filled).toBe(true);
+		expect(p.complete).toBe(false);
+		expect(p.unsavedBlocks).toBe(1);
+		expect(p.percent).toBe(99);
+		expect(p.next).toBeNull();
+		expect(hxProgressSaveLine(p, false)).toBe(HX_PROGRESS_SAVING_LINE);
+		expect(hxProgressSaveLine(p, true)).toBe(HX_PROGRESS_NOT_SAVED_LINE);
+	});
+
+	it('THE CONTROL: the same values with nothing unsaved are 100 and complete, with no save line', () => {
+		const p = hxProgress(bench(), { ...ALL }, { cutPhoto: PHOTO }, { unsaved: [] });
+		expect(p.complete).toBe(true);
+		expect(p.percent).toBe(100);
+		expect(hxProgressSaveLine(p, false)).toBeNull();
+	});
+
+	it('an unsaved HEADER field does not hold completion: identity is not counted work', () => {
+		const p = hxProgress(bench(), { ...ALL }, { cutPhoto: PHOTO }, { unsaved: new Set(['studentName']) });
+		expect(p.complete).toBe(true);
+	});
+
+	it('hxCompletion is unchanged: it passes no options, so stored rows alone decide', () => {
+		const rows = Object.entries(ALL).map(([field, value]) => {
+			const id = [...(bench().header ?? []), ...bench().modules.flatMap((m) => m.blocks)].find(
+				(b) => b.field === field
+			)!.id;
+			return {
+				block_id: id,
+				value: typeof value === 'boolean' ? { checked: [value] } : { text: value },
+				updated_at: '2026-09-29T15:00:00Z'
+			};
+		});
+		const files = [{ id: 'f1', block_id: 'c-photo', filename: 'cut.jpg', created_at: '2026-09-29T15:01:00Z' }];
+		const done = hxCompletion(bench(), rows, files as never);
+		expect(done).toEqual({ complete: true, at: '2026-09-29T15:01:00.000Z' });
+	});
+});
+
+describe('the next line names the answer (report 8f78d5bd)', () => {
+	it('position among REQUIRED answers, plural modules only', () => {
+		const v = pick('studentName', 'staged', 'setupNotes', 'why', 'safetyChecked');
+		const p = hxProgress(bench(), v, { cutPhoto: PHOTO });
+		expect(p.next?.blockId).toBe('r-table');
+		expect(hxProgressNextLine(p)).toBe('Next up: "Reflection", answer 2 of 3, has an empty table.');
+	});
+
+	it('a one-answer module says nothing more than it did', () => {
+		const p = hxProgress(bench(), pick('staged', 'setupNotes'));
+		expect(p.next?.blockId).toBe('c-photo');
+		expect(hxProgressNextLine(p)).toBe('Next up: "First cut" is waiting for a photo.');
+	});
+});
+
+describe('Progress.svelte with a save status (ledger 0360)', () => {
+	const strip = (html: string) => html.replace(/<!--.*?-->/gs, '');
+	function status(overrides: Record<string, unknown> = {}) {
+		return {
+			unsaved: [],
+			save: null,
+			ack: null,
+			itemId: 'item-1',
+			restore: null,
+			dismissRestore: null,
+			mirror: 'off',
+			...overrides
+		} as never;
+	}
+
+	it('filled but unsaved renders 99 and the saving line, never All filled in', () => {
+		const html = strip(
+			render(Progress, {
+				props: { manifest: bench(), values: { ...ALL }, images: { cutPhoto: PHOTO }, status: status({ unsaved: ['why'] }) }
+			}).body
+		);
+		expect(html).toContain('data-percent="99"');
+		expect(html).toContain(HX_PROGRESS_SAVING_LINE);
+		expect(html).not.toContain(HX_PROGRESS_COMPLETE_NOTE);
+		expect(html).not.toContain('is-complete');
+	});
+
+	it('THE CONTROL: the same rail with nothing unsaved is 100 and complete', () => {
+		const html = strip(
+			render(Progress, {
+				props: { manifest: bench(), values: { ...ALL }, images: { cutPhoto: PHOTO }, status: status() }
+			}).body
+		);
+		expect(html).toContain('data-percent="100"');
+		expect(html).toContain(HX_PROGRESS_COMPLETE_NOTE);
+		expect(html).not.toContain(HX_PROGRESS_SAVING_LINE);
+	});
+
+	it('a refused backup copy says so, and an ok one says nothing', () => {
+		const off = strip(render(Progress, { props: { manifest: bench(), values: {}, status: status({ mirror: 'full' }) } }).body);
+		expect(off).toContain(HX_MIRROR_UNAVAILABLE);
+		const ok = strip(render(Progress, { props: { manifest: bench(), values: {}, status: status({ mirror: 'ok' }) } }).body);
+		expect(ok).not.toContain(HX_MIRROR_UNAVAILABLE);
+	});
+
+	it('a restore notice renders the conflict copy verbatim and the photo limit', () => {
+		const html = strip(
+			render(Progress, {
+				props: {
+					manifest: bench(),
+					values: {},
+					status: status({
+						restore: {
+							restored: ['Bench setup: staged'],
+							conflicts: [{ blockId: 'r-why', label: 'Reflection: why', lines: ['My own words, kept.'] }]
+						},
+						dismissRestore: () => {}
+					})
+				}
+			}).body
+		);
+		expect(html).toContain('data-testid="hxp-restore"');
+		expect(html).toContain('My own words, kept.');
+		expect(html).toContain('Photos are not kept this way');
+		expect(html).toContain('data-testid="hxp-restore-dismiss"');
 	});
 });

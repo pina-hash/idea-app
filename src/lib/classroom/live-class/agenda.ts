@@ -29,7 +29,7 @@
  * The storage helpers take the Storage object, so a test hands them a map.
  */
 
-import { itemTitle, type ClassroomItem } from '$lib/classroom/classroom';
+import { formatDue, isScheduled, itemTitle, type ClassroomItem } from '$lib/classroom/classroom';
 import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
 import { SCHOOL_LOCALE, SCHOOL_TIME_ZONE, schoolDayOf } from '$lib/classroom/school-calendar';
 
@@ -202,6 +202,61 @@ export function moveAgendaLine(store: AgendaStore, key: string, by: -1 | 1): Age
 	const typed = store.typed.slice();
 	[typed[i], typed[j]] = [typed[j], typed[i]];
 	return { ...store, typed };
+}
+
+// ---------------------------------------------------------------------------
+// Coming up: what the class has due next (reports R12, R13)
+// ---------------------------------------------------------------------------
+
+/** The most "Coming up" lines the wall shows: the next few, not a syllabus. */
+export const WALL_NEXT_MAX = 3;
+
+/**
+ * WHAT IS DUE NEXT, AFTER TODAY, in the words the class page already prints.
+ * Today's due work is the agenda's (`derivedAgenda`), so this starts tomorrow
+ * and never repeats a line the agenda shows.
+ *
+ * ONLY WHAT A STUDENT CAN ALREADY SEE: an assignment that is published and
+ * past its go-live time, the class page's own rule (`isScheduled`). The
+ * control view's `items` are the section layout's, which carries drafts and
+ * scheduled work for a manager, so the filter is here rather than trusted to
+ * the caller: a projected title is a published title.
+ *
+ * The due words are `formatDue`'s (no weekday, by the copy rule), so the wall
+ * and a student's own class page say the same date the same way. Sorted by
+ * due instant, then title, so two windows built from one list agree.
+ */
+export function wallComingUp(
+	items: readonly ClassroomItem[],
+	today: string,
+	now: number,
+	max: number = WALL_NEXT_MAX
+): string[] {
+	const at = new Date(now);
+	return items
+		.filter((i) => i.kind === 'assignment' && i.published && !isScheduled(i, at) && !!i.due_at)
+		.filter((i) => {
+			const day = schoolDayOf(i.due_at);
+			return day !== null && day > today;
+		})
+		.map((i) => ({ i, due: stamp(i.due_at) ?? 0, title: itemTitle(i) }))
+		.sort((a, b) => a.due - b.due || a.title.localeCompare(b.title))
+		.slice(0, Math.max(0, max))
+		.map(({ i, title }) => `${title} · Due ${formatDue(i.due_at, today)}`);
+}
+
+/**
+ * WHETHER "COMING UP" IS ON THE WALL, kept in this device's agenda slot for the
+ * day. It is ON until the teacher takes it off, the derived lines' own rule:
+ * the key sits in `hidden` exactly as a derived line the teacher took off the
+ * wall does, so it needs no new storage and is forgotten with the day.
+ */
+export const WALL_NEXT_KEY = 'wall:next';
+export function wallNextShown(store: AgendaStore): boolean {
+	return !store.hidden.includes(WALL_NEXT_KEY);
+}
+export function toggleWallNext(store: AgendaStore): AgendaStore {
+	return toggleAgendaLine(store, { key: WALL_NEXT_KEY, shownByDefault: true });
 }
 
 // ---------------------------------------------------------------------------

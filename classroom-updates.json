@@ -14,6 +14,66 @@
 	"entries": [
 		{
 			"date": "2026-10-01",
+			"title": "Arrange your class page, and style your team",
+			"body": "You can now choose what your class page shows and in what order. Open Display settings, then Page layout, then Class page: move the search, the videos or your team up or down, or hide the class tools or the theme vote. The posts always stay, and Reset puts the page back the way it was. If you hide something, a line at the bottom of the page says what is hidden and offers Arrange to bring it back. Notices from your teacher always stay at the top. If you are on a posted team, Customize team on your team's card lets you pick its name, motto, colour, background and badge.",
+			"tags": ["classroom", "new"]
+		},
+		{
+			"date": "2026-10-01",
+			"title": "The rubric is at the bottom of every assignment now, folded closed",
+			"body": "On every assignment page, How this is graded now sits after your work instead of above it, and it starts closed so you are not scrolling past it to get to the assignment. Press How this is graded to open it; it stays open for you on that assignment if you leave it open. When work comes back, your score and your teacher's comment are still at the top, and Rubric breakdown opens the scored rubric.",
+			"tags": ["fix"]
+		},
+		{
+			"date": "2026-10-01",
+			"title": "Check your presentation link before you hand it in",
+			"body": "If a worksheet asks for a link to your slides or presentation, a line under the progress bar now tells you as you paste it whether it is a link that will open, with a Test it button, so you can fix it before your teacher tries it in class. It never stops you saving. Your teacher can open every student's link from one place, by name.",
+			"tags": ["new", "worksheets"]
+		},
+		{
+			"date": "2026-10-01",
+			"title": "Class notices, and a smaller top of the class page",
+			"body": "Your teacher can now post a short notice at the top of your class page, like a special schedule for the day or a link you need. Each notice says when it ends, and it disappears on its own at that time, so what you see is always current. The top of the class page is also smaller: the hall pass, the music, the class theme and what is due next now sit together under the class name, so the class itself starts higher up the screen. Class theme patterns move gently when the page opens, and stay still if your device is set to reduce motion.",
+			"tags": ["classroom", "new"]
+		},
+		{
+			"date": "2026-10-01",
+			"title": "A faster start page",
+			"body": "Your home page and your to-do list now load less at once, so they open faster, especially on a busy morning. Resting your pointer on a link no longer starts loading that page; it loads when you click. The list of site updates now shows a page at a time, with a Show more button and a line saying how many you are looking at.",
+			"tags": ["fix", "Home"]
+		},
+		{
+			"date": "2026-10-01",
+			"title": "Space White everywhere, and long-term ideas in a report",
+			"body": "If you use the Space White theme, it now covers the rest of the site too, including Foundry, Tournaments and the IDEA Maps viewer, not just the classroom. When you report a problem you can now mark it as a long-term idea instead of something to fix soon, so bigger suggestions are kept in their own list and not lost.",
+			"tags": ["new", "Appearance", "Reporting a problem"]
+		},
+		{
+			"date": "2026-10-01",
+			"title": "New class badges, and a No pathway yet choice",
+			"body": "The badges you can pick for your profile and vote on for your class have been redrawn so they are easier to tell apart, and they give a small bounce when you point at them (unless your device is set to reduce motion). If you have not chosen a pathway yet, you can now answer No pathway yet, and you will not be asked again until next school year.",
+			"tags": ["new", "profile"]
+		},
+		{
+			"date": "2026-10-01",
+			"title": "The screen at the front of the room is easier to read",
+			"body": "The projected class screen now fits its text to the screen instead of cutting it off, and says how many more items there are when something does not fit. Student activity is off on the projector until your teacher turns it on, it shows counts rather than names, and names only appear if your teacher turns that on separately, shortened to a first name and last initial. A student who has not typed for a while now reads \"No typing today\" instead of a very large number of minutes.",
+			"tags": ["fix", "Live class"]
+		},
+		{
+			"date": "2026-10-01",
+			"title": "Worksheets count finished work, even when the internet is slow",
+			"body": "When a worksheet saves your answer and the connection drops for a moment, it now tries again on its own and tells you if it still could not save, with a Retry button beside the progress bar. The progress bar only reaches 100 once every answer has actually been saved. Questions marked optional no longer count against you. Your class list updates as you finish a worksheet, without reloading the page.",
+			"tags": ["fix", "worksheets"]
+		},
+		{
+			"date": "2026-10-01",
+			"title": "The Foundry uses your whole screen, and you can ask for a game",
+			"body": "The Foundry gallery now fills a wide screen instead of a narrow column. An app shows its cover first, with Launch app and Launch full screen. There is a new request board where you can ask for a game somebody could build, with an optional offer written in words (nothing is paid through the site). You can also apply to become a trusted publisher by answering a few questions, and your teacher decides.",
+			"tags": ["new", "Foundry"]
+		},
+		{
+			"date": "2026-10-01",
 			"title": "The class page keeps up without slowing the site down",
 			"body": "The hall pass, the music queue, posted teams and the class theme vote now check for changes less often and at different moments for each person, so a whole class opening the page at once no longer overloads the site. A change made through the site still shows up right away. If you switch away from the tab and come back, it checks once. If you are ever signed out, these stop checking until you sign back in.",
 			"tags": [

@@ -104,6 +104,8 @@ export interface HtmlBlock {
 	field: string;
 	type: 'text' | 'longText' | 'checkbox' | 'radio' | 'image' | 'table';
 	minSentences?: number;
+	/** Ledger 0360: may be left empty; judged, never counted. The rubric ignores it. */
+	optional?: boolean;
 }
 
 // CONTRACT COPY, ledger 0127 owns the canonical file

@@ -24,14 +24,18 @@
 	 * falls back to the same word. A document title reading "null" is the kind
 	 * of thing nobody sees in review and everybody sees in a browser history.
 	 */
-	const title = $derived(foundryAuthorName(data.card) ?? 'Publisher');
+	const title = $derived((data.card && foundryAuthorName(data.card)) || 'Publisher');
 </script>
 
 <svelte:head><title>{title} | IDEA Foundry</title></svelte:head>
 
-<FoundryAuthorPage
-	card={data.card}
-	apps={data.apps}
-	playCounts={data.playCounts}
-	coverUrl={foundryCoverUrl}
-/>
+<!-- NO CARD ONLY WHILE THE WHOLE FOUNDRY IS OFF (ledger 0360), when the layout
+     renders its panel in place of this page and the load read nobody. -->
+{#if data.card}
+	<FoundryAuthorPage
+		card={data.card}
+		apps={data.apps}
+		playCounts={data.playCounts}
+		coverUrl={foundryCoverUrl}
+	/>
+{/if}

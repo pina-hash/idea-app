@@ -49,6 +49,12 @@ BRITISH = (r"\b(centre[sd]?|colour[s]?|behaviour[s]?|organis\w+|"
 
 HTML_ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 HTML_BLOCK_TYPES = ("text", "longText", "checkbox", "radio", "image", "table")
+# THE DISPLAY KEYS (ledger 0360). Kept term for term with HTML_LINK_KINDS and
+# HTML_PROMPT_MAX in src/lib/classroom/html-assignment/manifest.ts, which
+# tests/html-assignment-manifest-parity.test.ts asserts. They WARN and never
+# refuse: 0195's SQL check stores a manifest without looking at them.
+HTML_LINK_KINDS = ("presentation",)
+HTML_PROMPT_MAX = 500
 MANIFEST_SCRIPT_ID = "idea-manifest"
 
 # THE HANDSHAKE A WORKSHEET CANNOT OMIT. Mirrors HX_READY_TYPE in
@@ -390,6 +396,30 @@ def check_manifest(manifest, name, html=None):
         if b.get("type") not in HTML_BLOCK_TYPES:
             E(f'{where} type is {b.get("type")!r}, '
               f"expected one of {', '.join(HTML_BLOCK_TYPES)}")
+        # `optional` decides what counts toward completion, so a value that is
+        # not a boolean is REFUSED, as manifest.ts refuses it.
+        if "optional" in b and not isinstance(b["optional"], bool):
+            E(f"{where} sets optional to {b['optional']!r}; it must be true or "
+              f"false")
+        # `prompt` and `link` change what a grader reads, never who may write,
+        # so a malformed one is a WARNING naming what the readers do with it.
+        if "prompt" in b:
+            p = b["prompt"]
+            if not isinstance(p, str):
+                W(f"{where} prompt must be text; it is ignored")
+            elif not p.strip():
+                W(f"{where} prompt is empty; it is ignored")
+            elif len(p.strip()) > HTML_PROMPT_MAX:
+                W(f"{where} prompt is {len(p.strip())} characters; only the "
+                  f"first {HTML_PROMPT_MAX} are shown")
+        if "link" in b:
+            if b["link"] not in HTML_LINK_KINDS:
+                W(f"{where} link is {b['link']!r}; the known kinds are "
+                  f"{', '.join(HTML_LINK_KINDS)}, so it is ignored")
+            elif b.get("type") != "text":
+                W(f"{where} declares a {b['link']} link on a "
+                  f"{b.get('type')} block; only a text block can hand in a "
+                  f"link, so it is ignored")
 
     # THE HEADER: identity fields (name, team, date) that carry no points and
     # never reach the rubric. Ledger 0128's real port had to invent a 0-POINT
@@ -402,6 +432,9 @@ def check_manifest(manifest, name, html=None):
         header = []
     for i, b in enumerate(header):
         check_block(b, f"header block {i + 1}")
+        if b.get("optional") is True:
+            W(f"header block {i + 1} is marked optional, which changes nothing: "
+              f"header blocks never count toward completion")
         if b.get("points") is not None:
             E(f"header block {i + 1} declares points. Identity fields carry "
               f"none and never reach the rubric; move it into a module if it "
@@ -429,8 +462,19 @@ def check_manifest(manifest, name, html=None):
         if aud is not None and aud not in ("team", "individual"):
             E(f'module "{mid}" audience is {aud!r}, expected team or individual')
 
-        for b in m.get("blocks") or []:
+        blocks = m.get("blocks") or []
+        for b in blocks:
             check_block(b, f'module "{mid}" block "{b.get("id", "?")}"')
+        # What the progress bar will do with this module (ledger 0360), as
+        # manifest.ts says it: two or more photo slots with none optional hold a
+        # one-photo student below 100%, and an all-optional module weighs nothing.
+        photos = [b for b in blocks if b.get("type") == "image"]
+        if len(photos) >= 2 and not any(b.get("optional") is True for b in photos):
+            W(f'module "{mid}" has {len(photos)} photo blocks and none is '
+              f"optional: every one must hold a photo before the bar reaches 100%")
+        if blocks and all(b.get("optional") is True for b in blocks):
+            W(f'module "{mid}" marks every block optional, so it can never move '
+              f"the progress bar")
 
         criteria = m.get("criteria") or []
         if not criteria:
