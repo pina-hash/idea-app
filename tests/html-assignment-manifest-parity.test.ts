@@ -38,6 +38,8 @@ import {
 	HTML_ID_RE,
 	HTML_MANIFEST_SCRIPT_ID,
 	HX_SANDBOX_TRAPS,
+	HTML_LINK_KINDS,
+	HTML_PROMPT_MAX,
 	HTML_SHORT_MAX_WORDS,
 	WEEKDAYS
 } from '../src/lib/classroom/html-assignment/manifest';
@@ -114,6 +116,39 @@ describe('the manifest rules that exist in two languages', () => {
 		const found = [...src.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]);
 		expect(found.length).toBe(6); // positive control
 		expect(found).toEqual([...HTML_BLOCK_TYPES]);
+	});
+
+	it('knows the same link kinds and the same prompt cap (ledger 0360 display keys)', () => {
+		const src = pySource('HTML_LINK_KINDS');
+		const found = [...src.matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]);
+		expect(found.length).toBeGreaterThan(0); // positive control
+		expect(found).toEqual([...HTML_LINK_KINDS]);
+		expect(PY).toContain(`HTML_PROMPT_MAX = ${HTML_PROMPT_MAX}`);
+		// AND BOTH SIDES WARN RATHER THAN REFUSE ON `prompt` AND `link`: the
+		// python tool reports a bad one through `W(`, never `E(`, exactly as
+		// `displayKeyWarnings` pushes onto `warnings`. A refusal on one side
+		// alone is a document an author is told two different things about.
+		const block = PY.slice(PY.indexOf('if "prompt" in b'), PY.indexOf('# THE HEADER: identity fields'));
+		expect(block.length).toBeGreaterThan(100);
+		expect(block).not.toMatch(/\bE\(/);
+		expect((block.match(/\bW\(/g) ?? []).length).toBe(5);
+	});
+
+	it('refuses a non-boolean optional and warns about the same three progress traps (ledger 0360)', () => {
+		// `optional` decides what counts toward completion, so BOTH sides refuse
+		// a malformed one: an E( here, an `errors.push` in manifest.ts.
+		const optionalCheck = PY.slice(PY.indexOf('if "optional" in b'), PY.indexOf('if "prompt" in b'));
+		expect(optionalCheck).toMatch(/\bE\(f"\{where\} sets optional to/);
+		expect(optionalCheck).not.toMatch(/\bW\(/);
+		// The three warnings, by the words both sides print.
+		for (const words of [
+			'photo blocks and none is',
+			'every one must hold a photo before the bar reaches 100%',
+			'marks every block optional, so it can never move',
+			'is marked optional, which changes nothing'
+		]) {
+			expect(PY, words).toContain(words);
+		}
 	});
 
 	it('looks for the manifest under the same element id', () => {

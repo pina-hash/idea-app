@@ -1,15 +1,15 @@
 {
 	"schema": 1,
 	"spec": "classroom-theme-votes-none.mjs",
-	"date": "2026-09-28T23:41:22.108Z",
-	"sha": "31a00b0716a4a4afe65773eac21aa8fbb172e16b",
+	"date": "2026-10-01T18:04:28.877Z",
+	"sha": "b1882503546b58c90dc8f9a0250a6ea4973fd7c0",
 	"dirty": true,
 	"widths": [
 		375,
 		1440
 	],
 	"runs": 2,
-	"measurements": 26,
+	"measurements": 28,
 	"outsideRows": [],
-	"ms": 7198
+	"ms": 9788
 }

@@ -47,9 +47,12 @@
 
    WHAT PAYS FOR IT IS THE ROUTE SCOPE. `themeAttrFor` in `src/lib/theme.ts`
    writes `data-theme='space-white'` only on an allowlist of routes (the
-   classroom and the reference viewer today), so FRC, FSP and every room with
-   its own identity never carry the attribute and render in the default look
-   by construction. `tests/theme-tokens.test.ts` holds both halves: a theme
+   classroom, the reference viewer, the home page, and since ledger 0360 every
+   page the site plate covers), so FRC, FSP and every room with its own
+   identity never carry the attribute and render in the default look by
+   construction. A site-plate room that redeclares the portal tier on its own
+   wrapper (the tournaments room, the maps viewer's jade, the forge) carries a
+   light-ground twin in ITS OWN stylesheet, never here: this file is tokens. `tests/theme-tokens.test.ts` holds both halves: a theme
    that repaints a semantic or luminance-held token must be one of the scoped
    themes, and the scope must answer "out" for FRC and FSP.
 
@@ -160,6 +163,13 @@
 	--elevation-2: 0 3px 0 rgba(13, 19, 17, 0.14);
 	--texture-brushed: none;
 	--texture-vignette: none;
+
+	/* --- The drawing sheet (ledger 0360). The Maps viewer's plan, the editor's
+	   plan canvas and its elevation sketch all paint on `--blueprint-bg`, a
+	   dark CAD ground; on a light page every line on it is the theme's dark
+	   ink on near-black. The panel ground here, so the drawing is dark on
+	   light like the rest of the page. Nothing outside Maps reads it. ---- */
+	--blueprint-bg: #f7f9f9;
 }
 
 /* ==========================================================================
@@ -182,6 +192,12 @@
      .deck-stage  the black projection stage around a slide deck
                   (DeckViewer.svelte), whose bar and controls are drawn for a
                   black ground by design.
+     .tnm-root.tv the tournament TV stage (TvStage.svelte), a projected screen
+                  drawn for a dark room. Its own route is outside the scope
+                  (the site plate excludes it), but `/dev/tournaments` mounts
+                  it inside a page that is in scope, and the room's light twin
+                  is keyed `:not(.tv)` so the stage keeps its own plate; this
+                  hands it back the dark semantic inks to go with it.
 
    Each reads the semantic inks and the portal tiers off `<html>`, so under
    this theme each would inherit ink tuned for WHITE on a plate that is still
@@ -207,7 +223,7 @@
    set from the stylesheets and holds this block to it in both directions --
    so a token added to either file cannot silently skip the islands.
    ========================================================================== */
-:where(:root[data-theme='space-white']) :where(.ic-root, .nb-island, .deck-stage) {
+:where(:root[data-theme='space-white']) :where(.ic-root, .nb-island, .deck-stage, .tnm-root.tv) {
 	--bg0: #121a12;
 	--bg1: #1a2a1a;
 	--bg2: #222e22;
@@ -279,4 +295,5 @@
 	--texture-vignette:
 		radial-gradient(ellipse at 50% -20%, rgba(143, 224, 138, 0.05), transparent 55%),
 		radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.4) 100%);
+	--blueprint-bg: #171f15;
 }

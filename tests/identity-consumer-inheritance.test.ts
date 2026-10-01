@@ -39,6 +39,7 @@ import PeoplePanel from '$lib/classroom/PeoplePanel.svelte';
 import Avatar from '$lib/Avatar.svelte';
 import IdentityBanner from '$lib/IdentityBanner.svelte';
 import { rosterSubject, gridStudentSubject, subjectStyle } from '$lib/avatars';
+import { BADGE_BY_ID } from '$lib/identity-style';
 import type { SectionGrid as SectionGridData } from '$lib/notebook-review';
 
 /** The accent a styled row carries, and a colour nothing else on the page uses. */
@@ -260,8 +261,9 @@ describe('the restraint: an avatar takes the accent and nothing else', () => {
 		expect(banner).toContain(ACCENT);
 		expect(banner).toContain('linear-gradient');
 		expect(banner).toContain('Builds things that roll');
-		/* The badge glyph: `rocket`'s own path, from the shared registry. */
-		expect(banner).toContain('M12 2.6c3.3 2.3 5.2 5.8 5.2 9.6');
+		/* The badge glyph: `rocket`'s own outline, read from the shared registry
+		   rather than pasted, so redrawing the art (ledger 0360) moves both. */
+		expect(banner).toContain(BADGE_BY_ID.rocket.paths[0]);
 	});
 
 	it('and a person with NO style gets a banner with no card at all', () => {

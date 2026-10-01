@@ -23,7 +23,7 @@ import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 
 import FoundryShell from '$lib/foundry/FoundryShell.svelte';
-import { locateFoundry } from '$lib/foundry/nav';
+import { foundryIsApplication, locateFoundry } from '$lib/foundry/nav';
 import { createRawSnippet } from 'svelte';
 
 const empty = createRawSnippet(() => ({ render: () => '<span></span>' }));
@@ -131,5 +131,85 @@ describe('the map behind the active tab', () => {
 	it('marks nothing for a path it does not know', () => {
 		expect(locateFoundry('/foundry/nope')).toBeNull();
 		expect(locateFoundry('/classroom')).toBeNull();
+	});
+
+	it('places the three ledger 0360 paths on places that already have decisions', () => {
+		expect(locateFoundry('/foundry/requests')).toBe('requests');
+		// The application is about the student's own standing: the `mine` tab,
+		// which a class closure does not reach.
+		expect(locateFoundry('/foundry/apply')).toBe('mine');
+		expect(locateFoundry('/foundry/review/publishers')).toBe('review');
+		expect(locateFoundry('/foundry/review/publishers/')).toBe('review');
+	});
+});
+
+/*
+ * WHICH PAGES ARE FULL-HEIGHT APPLICATIONS (ledger 0360).
+ *
+ * The layout used to read `active === 'gallery' || active === 'review'`, and
+ * `locateFoundry` answers `gallery` for a publisher's page so the right tab is
+ * lit -- which put that ordinary document in a 100dvh box with its lower cards
+ * clipped. The truth table is the regression: the author page answers FALSE
+ * while its tab answers `gallery`.
+ */
+describe('which Foundry pages are full-height applications', () => {
+	it('is exactly the gallery and the review queue', () => {
+		expect(foundryIsApplication('/foundry')).toBe(true);
+		expect(foundryIsApplication('/foundry/')).toBe(true);
+		expect(foundryIsApplication('/foundry/review')).toBe(true);
+	});
+
+	it('is NOT a publisher page, though its tab is the gallery', () => {
+		expect(locateFoundry('/foundry/author/abc')).toBe('gallery');
+		expect(foundryIsApplication('/foundry/author/abc')).toBe(false);
+	});
+
+	it('is not any ordinary document under either prefix', () => {
+		for (const p of [
+			'/foundry/review/publishers',
+			'/foundry/requests',
+			'/foundry/apply',
+			'/foundry/mine',
+			'/foundry/submit',
+			'/foundry/contract',
+			'/foundry/classes'
+		]) {
+			expect(foundryIsApplication(p), p).toBe(false);
+		}
+	});
+});
+
+describe('the ledger 0360 tabs', () => {
+	it('gives every signed-in student the Requests tab, beside the gallery', () => {
+		const html = shell({ active: 'gallery', isAdmin: false, reviewPending: null });
+		expect(html).toContain('href="/foundry/requests"');
+		expect(html).toContain('Requests');
+		// The review lane still is not disclosed to a student.
+		expect(html).not.toContain('/foundry/review');
+		// And the tab order: Gallery, then Requests, then My apps.
+		const g = html.indexOf('href="/foundry"');
+		const r = html.indexOf('href="/foundry/requests"');
+		const mine = html.indexOf('href="/foundry/mine"');
+		expect(g).toBeGreaterThanOrEqual(0);
+		expect(r).toBeGreaterThan(g);
+		expect(mine).toBeGreaterThan(r);
+	});
+
+	it('marks Requests current on its own page', () => {
+		const html = shell({ active: 'requests', isAdmin: false, reviewPending: null });
+		const tab = /<a[^>]*href="\/foundry\/requests"[^>]*>/.exec(html);
+		expect(tab![0]).toContain('aria-current="page"');
+	});
+
+	it('gives a site administrator the Classes tab, where the whole-Foundry switch is', () => {
+		// An admin who teaches no section.
+		const admin = shell({ active: 'gallery', isAdmin: true, managesSection: false, reviewPending: 0 });
+		expect(admin).toContain('href="/foundry/classes"');
+		// POSITIVE CONTROL and the other direction: a student who manages
+		// nothing gets no Classes tab, and a teacher of record does.
+		const student = shell({ active: 'gallery', isAdmin: false, managesSection: false, reviewPending: null });
+		expect(student).not.toContain('href="/foundry/classes"');
+		const teacher = shell({ active: 'gallery', isAdmin: false, managesSection: true, reviewPending: null });
+		expect(teacher).toContain('href="/foundry/classes"');
 	});
 });

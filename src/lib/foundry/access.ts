@@ -31,7 +31,43 @@ export interface FoundryClosedSection {
 export interface FoundryAccess {
 	open: boolean;
 	closed: FoundryClosedSection[];
+	/**
+	 * THE WHOLE-FOUNDRY SWITCH (report c26026b0, ledger 0360), which is a
+	 * different control from the class gate above and is answered beside it
+	 * by the same RPC. OPTIONAL ON THE TYPE because a database without 0230
+	 * returns no site keys at all, and `foundryAccessFromRpc` fills it in;
+	 * every reader goes through `foundrySiteOff` rather than reading it.
+	 */
+	site?: FoundrySiteState;
 }
+
+/**
+ * WHETHER THE WHOLE FOUNDRY IS ON, AS `foundry_section_access` PROJECTS IT
+ * (0230: `site_open`, `site_closed_at`, `site_note`, `site_exempt`).
+ *
+ * `exempt` IS THE DATABASE'S `is_admin()`, NEVER A CLIENT GUESS. An admin keeps
+ * the whole portal while it is off, because the person who turned it off has
+ * to be able to reach the switch that turns it back on -- the one-way door the
+ * class gate already learned about with `classes`.
+ *
+ * NOTHING HERE SAYS WHO TURNED IT OFF. 0230 stores `closed_by` and never
+ * projects it, so a student reads that the Foundry is off and why, and not
+ * whose address pressed the switch.
+ */
+export interface FoundrySiteState {
+	open: boolean;
+	note: string | null;
+	closedAt: string | null;
+	exempt: boolean;
+}
+
+/** On, and nobody exempt: the answer for a database that has never heard of the switch. */
+export const FOUNDRY_SITE_OPEN: FoundrySiteState = {
+	open: true,
+	note: null,
+	closedAt: null,
+	exempt: false
+};
 
 /**
  * WHAT A CLOSURE ACTUALLY TAKES AWAY, AND IT IS ONE SURFACE.
@@ -211,7 +247,11 @@ export const FOUNDRY_CLOSURE_REACH =
  * error as closed, which is the repository's standing rule for a missing RPC
  * and the reason it is spelled as a code check rather than a `catch`.
  */
-export const FOUNDRY_ACCESS_OPEN: FoundryAccess = { open: true, closed: [] };
+export const FOUNDRY_ACCESS_OPEN: FoundryAccess = {
+	open: true,
+	closed: [],
+	site: FOUNDRY_SITE_OPEN
+};
 
 /**
  * THE DEGRADATION LADDER, WRITTEN DOWN ONCE.
@@ -240,10 +280,119 @@ export function foundryAccessFromRpc(
 	err: { code?: string | null } | null
 ): FoundryAccess {
 	if (err) {
-		return err.code === 'PGRST202' ? FOUNDRY_ACCESS_OPEN : { open: false, closed: [] };
+		/*
+		 * THE SITE HALF STAYS ON IN BOTH BRANCHES, and that is not the class
+		 * half's fail-closed rule being forgotten. A runtime error inside the
+		 * gate still CLOSES -- the class half below answers `open: false`, so
+		 * the gallery and the preview stand down exactly as before -- and
+		 * saying the whole Foundry is off on top of that would put a sentence
+		 * in front of every student that is not true ("a site administrator
+		 * turned it off") about a database hiccup. The closure that matters is
+		 * already applied; the words stay honest.
+		 */
+		return err.code === 'PGRST202'
+			? FOUNDRY_ACCESS_OPEN
+			: { open: false, closed: [], site: FOUNDRY_SITE_OPEN };
 	}
 	if (!row) return FOUNDRY_ACCESS_OPEN;
-	return row as FoundryAccess;
+	const r = row as Partial<FoundryAccess> & {
+		site_open?: unknown;
+		site_note?: unknown;
+		site_closed_at?: unknown;
+		site_exempt?: unknown;
+	};
+	return {
+		open: r.open !== false,
+		closed: Array.isArray(r.closed) ? r.closed : [],
+		site: foundrySiteFromRow(r)
+	};
+}
+
+/**
+ * THE FOUR SITE KEYS, READ DEFENSIVELY.
+ *
+ * ABSENT MEANS ON. A database without 0230 answers the 0173 object with no
+ * site keys at all, and the switch did not exist in that world, so "as it
+ * was" is on. Only an explicit `site_open: false` turns it off -- a value that
+ * is present but not a boolean is not an instruction to close the room to the
+ * whole school.
+ *
+ * `site_exempt` IS TRUE ONLY WHEN THE DATABASE SAYS SO, and anything else is
+ * not exempt: an admin who loses the key keeps the notice rather than gaining
+ * a portal nobody else has.
+ */
+export function foundrySiteFromRow(row: {
+	site_open?: unknown;
+	site_note?: unknown;
+	site_closed_at?: unknown;
+	site_exempt?: unknown;
+}): FoundrySiteState {
+	const open = row.site_open !== false;
+	return {
+		open,
+		note:
+			!open && typeof row.site_note === 'string' && row.site_note.trim()
+				? row.site_note.trim()
+				: null,
+		closedAt: !open && typeof row.site_closed_at === 'string' ? row.site_closed_at : null,
+		exempt: row.site_exempt === true
+	};
+}
+
+/**
+ * IS THE FOUNDRY OFF FOR THIS VIEWER. Off, and not an admin. The ONE reading
+ * of the site state every surface asks -- the layout, each load that withholds
+ * a payload, the serve gate -- so a page cannot be dark in one place and lit
+ * in another.
+ */
+export function foundrySiteOff(access: FoundryAccess | null | undefined): boolean {
+	const site = access?.site;
+	if (!site) return false;
+	return site.open === false && !site.exempt;
+}
+
+/**
+ * IS IT OFF AT ALL, for the admin's banner. An admin is exempt and still has
+ * to be told, or they browse a Foundry nobody else can see and forget it is
+ * off.
+ */
+export function foundrySiteClosedForEveryoneElse(
+	access: FoundryAccess | null | undefined
+): boolean {
+	const site = access?.site;
+	return !!site && site.open === false && site.exempt;
+}
+
+/**
+ * THE SENTENCES THE SWITCH SPEAKS IN, ONCE (report c26026b0).
+ *
+ * The panel a visitor reads and the copy the admin presses come from here, so
+ * the two cannot describe different switches. NO EM DASHES.
+ *
+ * WHAT IT COVERS IS STATED BEFORE THE PRESS, AND SO IS WHAT IT DOES NOT. The
+ * class gate's lesson: a control whose blast radius nobody can predict is the
+ * defect. This one is wider than the class gate -- it reaches the share links
+ * on the apps address, which the class gate cannot, because "is it off" is a
+ * fact about the site and needs no viewer -- and it still cannot stop a game
+ * already open on somebody's screen.
+ */
+export const FOUNDRY_SITE_OFF_LEAD = 'The Foundry is turned off right now.';
+
+export const FOUNDRY_SITE_OFF_SCOPE =
+	'It is off for the whole school, not only your class, and comes back when a site administrator turns it on.';
+
+export const FOUNDRY_SITE_OFF_EFFECT =
+	'Turning it off closes every Foundry page for everyone except site administrators: the gallery, publisher pages, the request board, publishing, My apps and the build contract. Apps stop opening from their share links too, for everyone, administrators included, and new plays, requests and applications are refused. Two things it cannot stop: an app already open on somebody\'s screen keeps running until they reload, and the Foundry card on the home page still shows. To run a build while it is off, use Run a preview on the review page.';
+
+/** 0230's own check on `foundry_site_settings.note`, written once for the field. */
+export const FOUNDRY_SITE_NOTE_MAX = 300;
+
+export const FOUNDRY_SITE_OFF_ADMIN_NOTICE =
+	'The Foundry is turned off for everyone else. You can still see it because you are a site administrator.';
+
+/** The state as a word, beside any colour. `IDEA_INTERFACE_STANDARDS` 10. */
+export function foundrySiteStateLabel(site: FoundrySiteState): 'On' | 'Off' {
+	return site.open ? 'On' : 'Off';
 }
 
 /**

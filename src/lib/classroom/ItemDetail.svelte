@@ -153,6 +153,7 @@
 	import HtmlAssignmentFrame from '$lib/classroom/html-assignment/HtmlAssignmentFrame.svelte';
 	import HtmlInstructorCopy from '$lib/classroom/html-assignment/HtmlInstructorCopy.svelte';
 	import Progress from '$lib/classroom/html-assignment/Progress.svelte';
+	import HtmlLinkCheck from '$lib/classroom/html-assignment/HtmlLinkCheck.svelte';
 	import { htmlManifestShaped } from '$lib/classroom/transports';
 	import type { HtmlAssignmentTransports } from '$lib/classroom/html-assignment/store';
 	import { assignmentLockState } from '$lib/classroom/html-assignment/lock';
@@ -218,6 +219,14 @@
 	} from '$lib/classroom/classroom';
 	import { itemInspector, toggleItemInspector } from '$lib/classroom/inspector.svelte';
 	import { itemLayoutOf, type ClassroomLayoutTransports } from '$lib/classroom/attachments';
+	import PanelStack from '$lib/classroom/PanelStack.svelte';
+	import PanelsHiddenNote from '$lib/classroom/PanelsHiddenNote.svelte';
+	import {
+		itemPanelDefaults,
+		panelLabels,
+		resolvePanels,
+		type PanelLayout
+	} from '$lib/classroom/panel-layout';
 
 	/**
 	 * One classroom item in full: an assignment, a material, or an announcement
@@ -233,7 +242,8 @@
 	 *
 	 * So the reading order below is exactly the student's -- title and the chips
 	 * a student can see, the deck, the body, the reference document, links,
-	 * files, then the engine -- and every instructor-only affordance lives in ONE
+	 * files, the engine, then how it is graded (each person may reorder those
+	 * panels around the engine, ledger 0360) -- and every instructor-only affordance lives in ONE
 	 * inspector region above it. Before this, an instructor opening an item was
 	 * met with an actions card, a deck uploader, two spec importers, a rubric
 	 * builder and a revision history interleaved with the content, and could not
@@ -296,7 +306,9 @@
 		ideacadOpenRefusal = null,
 		ideacadTeam = null,
 		ideacadShared = null,
-		ideacadAttach = null
+		ideacadAttach = null,
+		panelLayout = null,
+		onArrange = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -491,6 +503,15 @@
 		 * `{#if canManage}` and a second, narrower guard costs nothing.
 		 */
 		ideacadAttach?: IdeacadAttachControl | null;
+		/**
+		 * THIS PERSON'S ARRANGEMENT OF THE ITEM PAGE (ledger 0360, report R23),
+		 * read from the classroom preference store's `panels.itemPage`. Null is
+		 * the default order (`itemPanelDefaults`), which is every mount that has
+		 * no store -- a harness, a test, a deployment before the setting.
+		 */
+		panelLayout?: PanelLayout | null;
+		/** Opens the page-layout settings; null removes the hidden note's Arrange control. */
+		onArrange?: (() => void) | null;
 	} = $props();
 
 	/**
@@ -830,11 +851,12 @@
 	);
 
 	/**
-	 * THE RUBRIC A STUDENT IS GRADED AGAINST, BEFORE THEY START, ON EVERY ENGINE
-	 * (ledger 0297, package ITEM). It used to be the last card of the v1 engine,
-	 * below Submit (y~4884 of 5994px at 1366), and a ported HTML worksheet showed
-	 * none at all in parent chrome. It is a "How this is graded" disclosure near
-	 * the top of the item now.
+	 * THE RUBRIC A STUDENT IS GRADED AGAINST, ON EVERY ENGINE (ledger 0297,
+	 * package ITEM). It used to be the last card of the v1 engine, below Submit,
+	 * and a ported HTML worksheet showed none at all in parent chrome. Ledger
+	 * 0297 put it near the top, open; report R20 (a2fe2f8f, ledger 0360) moved
+	 * it to the bottom of the page, after the work, closed for every role (the
+	 * `rubric` panel, see the `itemPanel` snippet).
 	 *
 	 * THE STORED RUBRIC, NEVER A SPEC-DERIVED COPY. `classroom_rubrics` is what
 	 * grading reads (CLAUDE.md: a spec's rubric and an item's rubric are two
@@ -854,19 +876,26 @@
 		!canManage && engine?.submission?.state === 'returned' ? engine.submission : null
 	);
 	/**
-	 * "HAS THE WORK STARTED", widened past the v1 spec to the other engines'
-	 * own evidence, still read off the slice this page already holds: a saved
-	 * answer on a ported worksheet (its answers are ordinary response rows), a
-	 * file handed in, or a submission that is in. The rubric folds away on a
-	 * return visit once any of those is true, which is the reading-collapses
-	 * rule (IDEA_INTERFACE_STANDARDS 1); the Disclosure latches it.
+	 * WHICH PANELS HAVE SOMETHING TO SHOW HERE, AND WHERE THEY GO (ledger 0360,
+	 * report R23). Each term is the `{#if}` its panel already carried, unchanged,
+	 * so a panel that would not have rendered is never reported as hidden.
+	 * `layout` decides the default places of the links and the files (0193);
+	 * `panelLayout` is this person's own order and hidden set on top of it.
 	 */
-	const workStarted = $derived(
-		started ||
-			(!!engine &&
-				(engine.submission?.state === 'submitted' ||
-					(htmlMount === 'html' && engine.responses.length > 0) ||
-					engine.files.length > 0))
+	const itemPanelsPresent = $derived(
+		new Set([
+			...(deck ? ['deck'] : []),
+			...(checkIns.length || (!canManage && notebookCapture) ? ['notebook'] : []),
+			...(item.links.length ? ['links'] : []),
+			...(listedAttachments.length ? ['files'] : []),
+			...(item.body.trim() ? ['body'] : []),
+			...(referenceSpec ? ['reference'] : []),
+			...(gradingRubric?.length && !returnedSubmission ? ['rubric'] : []),
+			...(item.kind === 'assignment' ? ['work'] : [])
+		])
+	);
+	const itemPanels = $derived(
+		resolvePanels('item', itemPanelDefaults(layout), panelLayout, itemPanelsPresent)
 	);
 
 	// --- The inspector ----------------------------------------------------
@@ -1373,7 +1402,11 @@
 		</footer>
 	</main>
 {:else}
-<main class="classroom-page item-page" class:page-wide={htmlMount === 'html'}>
+<main
+	class="classroom-page item-page"
+	class:page-wide={htmlMount === 'html'}
+	class:edit-layer-open={editing}
+>
 	<!--
 		THE INSPECTOR: every instructor-only affordance on this page, in one
 		region, above the content and visually apart from it.
@@ -2076,212 +2109,227 @@
 		{/if}
 	</section>
 
-	<!-- The deck sits ABOVE the written content on purpose: when an item has one
-	     it is the thing the class is looking at, and the instructions are what
-	     goes with it. `view` mode is the OPEN LINK ONLY -- the upload and
-	     removal controls are management and live in the inspector -- so this
-	     renders identically for a teacher and a student, and nothing at all on
-	     an item with no deck. -->
-	<!-- NO `canManage` AND NO TRANSPORTS. `view` mode could not render a control
-	     with them anyway (`showManage` is false by construction there), but not
-	     handing them over at all is what makes "nothing instructor-only renders
-	     in the content flow" true by inspection rather than by reading
-	     DeckPanel to check. -->
-	<DeckPanel {deck} itemId={item.id} sectionId={section.id} {basePath} mode="view" />
-
 	<!--
-		THE NOTEBOOK CHECK-IN THAT BELONGS TO THIS ITEM (0120), high in the
-		reading order because it is an OBLIGATION rather than a detail: what a
-		student has to do about this item, where the due date and points already
-		sit in the hero above.
-
-		THE CONTROLS ARE NOT HERE. This renders identically for a teacher and a
-		student -- attaching and detaching are management and live in the
-		inspector, exactly as the deck's upload does.
-
-		A MANAGER'S CHECK-IN CARRIES NO STATUS (`status: null`), so the chip
-		simply does not render for them rather than reporting a state assembled
-		from somebody else's work.
+		EVERY PANEL BELOW THE HERO IS ONE OF TWO SNIPPETS, DECLARED HERE, WHERE
+		THE MARKUP ALWAYS SAT (ledger 0360, report R23). A snippet declaration
+		renders nothing where it is written; `PanelStack` renders them in this
+		person's order. `workPanel`'s body keeps the indentation it had in place.
 	-->
-	{#if checkIns.length || (!canManage && notebookCapture)}
-		<section class="card ci-card" data-testid="item-check-ins">
-			<h2 class="section-label">
-				{checkIns.length === 0
-					? 'Notebook'
-					: checkIns.length === 1
-						? 'Notebook check-in'
-						: 'Notebook check-ins'}
-			</h2>
-			{#each checkIns as checkIn (checkIn.session_id)}
-				<div class="ci-row" data-testid="item-check-in">
-					<span class="ci-head">
-						<span class="ci-name">{checkIn.session_label}</span>
-						{#if checkIn.status}
-							<span
-								class="chip tone-{checkInTone(checkIn.status)}"
-								data-testid="item-check-in-status"
-							>
-								{checkIn.status === 'flagged'
-									? (flagReasonLabel(checkIn.flag_reason) ?? checkInStatusLabel(checkIn.status))
-									: checkInStatusLabel(checkIn.status)}
+	{#snippet itemPanel(id: string)}
+		{#if id === 'deck'}
+			<!-- The deck sits ABOVE the written content on purpose: when an item has one
+			     it is the thing the class is looking at, and the instructions are what
+			     goes with it. `view` mode is the OPEN LINK ONLY -- the upload and
+			     removal controls are management and live in the inspector -- so this
+			     renders identically for a teacher and a student, and nothing at all on
+			     an item with no deck. -->
+			<!-- NO `canManage` AND NO TRANSPORTS. `view` mode could not render a control
+			     with them anyway (`showManage` is false by construction there), but not
+			     handing them over at all is what makes "nothing instructor-only renders
+			     in the content flow" true by inspection rather than by reading
+			     DeckPanel to check. -->
+			<DeckPanel {deck} itemId={item.id} sectionId={section.id} {basePath} mode="view" />
+		{:else if id === 'notebook'}
+			<!--
+				THE NOTEBOOK CHECK-IN THAT BELONGS TO THIS ITEM (0120), high in the
+				reading order because it is an OBLIGATION rather than a detail: what a
+				student has to do about this item, where the due date and points already
+				sit in the hero above.
+
+				THE CONTROLS ARE NOT HERE. This renders identically for a teacher and a
+				student -- attaching and detaching are management and live in the
+				inspector, exactly as the deck's upload does.
+
+				A MANAGER'S CHECK-IN CARRIES NO STATUS (`status: null`), so the chip
+				simply does not render for them rather than reporting a state assembled
+				from somebody else's work.
+			-->
+			{#if checkIns.length || (!canManage && notebookCapture)}
+				<section class="card ci-card" data-testid="item-check-ins">
+					<h2 class="section-label">
+						{checkIns.length === 0
+							? 'Notebook'
+							: checkIns.length === 1
+								? 'Notebook check-in'
+								: 'Notebook check-ins'}
+					</h2>
+					{#each checkIns as checkIn (checkIn.session_id)}
+						<div class="ci-row" data-testid="item-check-in">
+							<span class="ci-head">
+								<span class="ci-name">{checkIn.session_label}</span>
+								{#if checkIn.status}
+									<span
+										class="chip tone-{checkInTone(checkIn.status)}"
+										data-testid="item-check-in-status"
+									>
+										{checkIn.status === 'flagged'
+											? (flagReasonLabel(checkIn.flag_reason) ?? checkInStatusLabel(checkIn.status))
+											: checkInStatusLabel(checkIn.status)}
+									</span>
+								{/if}
 							</span>
-						{/if}
-					</span>
-					<span class="ci-meta">{checkInMeta(checkIn)}</span>
-					<!--
-						WHAT THE INSTRUCTOR ASKED FOR (0123), read by EVERYONE who can see
-						the check-in. It is student-facing content, so it renders in the
-						content flow rather than in the manage inspector; the affordance to
-						EDIT it is what sits in the inspector, which is this page's standing
-						shape (IDEA_INTERFACE_STANDARDS: an instructor's view of
-						student-facing content is the student view plus edit affordances,
-						through the SAME render path).
+							<span class="ci-meta">{checkInMeta(checkIn)}</span>
+							<!--
+								WHAT THE INSTRUCTOR ASKED FOR (0123), read by EVERYONE who can see
+								the check-in. It is student-facing content, so it renders in the
+								content flow rather than in the manage inspector; the affordance to
+								EDIT it is what sits in the inspector, which is this page's standing
+								shape (IDEA_INTERFACE_STANDARDS: an instructor's view of
+								student-facing content is the student view plus edit affordances,
+								through the SAME render path).
 
-						ITS OWN SCOPE, not the notebook composer's. They are two panels over
-						one paragraph with different collapse signals -- here nothing has
-						been started, so it opens; in the composer it folds away once the
-						student is working. Sharing one memory would let a collapse made
-						mid-upload hide the prompt on the page they came to read it on.
-					-->
-					{#if checkIn.guidance_doc && hasGuidance(checkIn.guidance_doc)}
-						<div class="ci-guidance" data-testid="item-check-in-guidance">
-							<Disclosure
-								label="What to do"
-								scope={`item-check-in:${checkIn.session_id}:guidance`}
-								testId="item-check-in-guidance-disclosure"
-							>
-								<ItemBody item={{ body: '', body_doc: checkIn.guidance_doc }} compact />
-							</Disclosure>
+								ITS OWN SCOPE, not the notebook composer's. They are two panels over
+								one paragraph with different collapse signals -- here nothing has
+								been started, so it opens; in the composer it folds away once the
+								student is working. Sharing one memory would let a collapse made
+								mid-upload hide the prompt on the page they came to read it on.
+							-->
+							{#if checkIn.guidance_doc && hasGuidance(checkIn.guidance_doc)}
+								<div class="ci-guidance" data-testid="item-check-in-guidance">
+									<Disclosure
+										label="What to do"
+										scope={`item-check-in:${checkIn.session_id}:guidance`}
+										testId="item-check-in-guidance-disclosure"
+									>
+										<ItemBody item={{ body: '', body_doc: checkIn.guidance_doc }} compact />
+									</Disclosure>
+								</div>
+							{/if}
+							<!-- The same door the stream row offers, carrying both ids: the
+							     upload flow files against a (check-in, class) PAIR, and a
+							     student in two classes that share one has two to choose
+							     between. This page knows which; the notebook cannot guess.
+							     It opens the class's own Notebook tab (ledger 0297), so the
+							     student stays inside the class they were reading. -->
+							{#if canManage || !notebookCapture}
+								<a class="ci-link" href={checkInHref(checkIn)} data-testid="item-check-in-link">
+									{canManage ? 'Open the notebook' : 'Open your notebook'}
+								</a>
+							{/if}
 						</div>
+					{/each}
+					<!-- CAPTURE WHERE THE WORK IS (ledger 0297, package F4b). A student adds a
+					     page or a note to their notebook from here, filed to this check-in
+					     (or to the class with this item's title when there is none), and sees
+					     what they already filed. The route builds it and hands it down, so
+					     this page carries no notebook transports of its own; absent, the
+					     link above is the door, exactly as before. -->
+					{#if !canManage && notebookCapture}
+						<div class="ci-capture">{@render notebookCapture()}</div>
 					{/if}
-					<!-- The same door the stream row offers, carrying both ids: the
-					     upload flow files against a (check-in, class) PAIR, and a
-					     student in two classes that share one has two to choose
-					     between. This page knows which; the notebook cannot guess.
-					     It opens the class's own Notebook tab (ledger 0297), so the
-					     student stays inside the class they were reading. -->
-					{#if canManage || !notebookCapture}
-						<a class="ci-link" href={checkInHref(checkIn)} data-testid="item-check-in-link">
-							{canManage ? 'Open the notebook' : 'Open your notebook'}
-						</a>
-					{/if}
-				</div>
-			{/each}
-			<!-- CAPTURE WHERE THE WORK IS (ledger 0297, package F4b). A student adds a
-			     page or a note to their notebook from here, filed to this check-in
-			     (or to the class with this item's title when there is none), and sees
-			     what they already filed. The route builds it and hands it down, so
-			     this page carries no notebook transports of its own; absent, the
-			     link above is the door, exactly as before. -->
-			{#if !canManage && notebookCapture}
-				<div class="ci-capture">{@render notebookCapture()}</div>
+				</section>
 			{/if}
-		</section>
-	{/if}
+		{:else if id === 'links'}
+			<!-- WHERE THE LINKS AND THE FILES SIT IS THE PANEL ORDER NOW (ledger 0360,
+			     report R23). `itemPanelDefaults(layout)` puts each card ABOVE the body
+			     when the author placed it there (0193) and BELOW it otherwise, which is
+			     exactly where the two `{#if layout.links === ...}` renders used to put
+			     them; a person's own order then moves them anywhere. Same snippets,
+			     same rows, same `data-testid`s, so a reader and a spec can tell the
+			     positions apart only by where the card sits. -->
+			{@render linksCard()}
+		{:else if id === 'files'}
+			{@render filesCard()}
+		{:else if id === 'body'}
+			<!-- A MATERIAL WITH A REFERENCE DOCUMENT RENDERS THE DOCUMENT. Without one it
+			     renders its written details exactly as every material always has, which
+			     is what keeps every pre-0092 material untouched.
 
-	<!-- A MATERIAL WITH A REFERENCE DOCUMENT RENDERS THE DOCUMENT. Without one it
-	     renders its written details exactly as every material always has, which
-	     is what keeps every pre-0092 material untouched.
+			     THE WRITTEN BODY IS NOT SWALLOWED BY THE DOCUMENT. It used to be: the
+			     two were an if/else, so attaching a reference document silently hid
+			     whatever the teacher had already written on the item -- with no warning,
+			     and no way to see it again short of detaching the document. They answer
+			     different questions ("what is this and why am I being given it" vs. the
+			     reference itself), so the body goes ABOVE, where it reads as the
+			     introduction it is. -->
+			<!--
+				THE WRITTEN BODY IS A DISCLOSURE, not because it is optional but because
+				it is READING (IDEA_INTERFACE_STANDARDS 1): expanded the first time, and
+				out of the way once this student has started the work, with the state
+				remembered per person and per item and a manual toggle overriding it for
+				good. It is hidden, never removed -- the material stays one press away
+				and it still prints.
 
-	     THE WRITTEN BODY IS NOT SWALLOWED BY THE DOCUMENT. It used to be: the
-	     two were an if/else, so attaching a reference document silently hid
-	     whatever the teacher had already written on the item -- with no warning,
-	     and no way to see it again short of detaching the document. They answer
-	     different questions ("what is this and why am I being given it" vs. the
-	     reference itself), so the body goes ABOVE, where it reads as the
-	     introduction it is. -->
-	<!--
-		THE WRITTEN BODY IS A DISCLOSURE, not because it is optional but because
-		it is READING (IDEA_INTERFACE_STANDARDS 1): expanded the first time, and
-		out of the way once this student has started the work, with the state
-		remembered per person and per item and a manual toggle overriding it for
-		good. It is hidden, never removed -- the material stays one press away
-		and it still prints.
+				`started` IS AN ARRIVAL CONDITION AND `Disclosure` LATCHES IT. The
+				standard is about what a person is HANDED on a return visit, so this
+				panel is closed by their own press and by nothing else; the keystroke
+				that flips `started` mid-session used to fold it over them (prompt 0018,
+				and `$lib/disclosure` for the mechanism).
 
-		`started` IS AN ARRIVAL CONDITION AND `Disclosure` LATCHES IT. The
-		standard is about what a person is HANDED on a return visit, so this
-		panel is closed by their own press and by nothing else; the keystroke
-		that flips `started` mid-session used to fold it over them (prompt 0018,
-		and `$lib/disclosure` for the mechanism).
+				THE DISCLOSURE IS HERE AND NOT INSIDE ItemBody. ItemBody is also what the
+				class stream mounts for its expanded rows, where a collapse would mean
+				something else entirely; wrapping the component would have given that
+				surface a behaviour nobody asked it for. Same component, same rule, one
+				decision per surface.
 
-		THE DISCLOSURE IS HERE AND NOT INSIDE ItemBody. ItemBody is also what the
-		class stream mounts for its expanded rows, where a collapse would mean
-		something else entirely; wrapping the component would have given that
-		surface a behaviour nobody asked it for. Same component, same rule, one
-		decision per surface.
+				THE INSTRUCTOR GETS THE IDENTICAL PANEL WITH THE IDENTICAL DEFAULT. There
+				is no `canManage` in `started` on purpose: a manager has no responses of
+				their own, so the panel simply stays open for them -- which is the rule
+				playing out, not a second rule written for them.
+			-->
+			{#if item.body.trim()}
+				<section class="card">
+					<Disclosure
+						label={item.kind === 'assignment' ? 'Instructions' : 'Details'}
+						heading={2}
+						scope={`item:${item.id}:body`}
+						collapseWhen={started}
+						testId="item-body-disclosure"
+					>
+						<ItemBody {item} />
+					</Disclosure>
+				</section>
+			{/if}
+		{:else if id === 'reference'}
+			{#if referenceSpec}
+				<section class="card ref-card">
+					<ReferenceDoc
+						spec={referenceSpec}
+						{fetchPreview}
+						showHeader={false}
+						attachments={item.attachments}
+					/>
+				</section>
+			{/if}
+		{:else if id === 'rubric'}
+			<!--
+				HOW THIS IS GRADED, AT THE BOTTOM, CLOSED (ledger 0360, report R20,
+				a2fe2f8f). Every engine, from the stored rubric. It sat after the
+				instructions and BEFORE the work from ledger 0297, open for every manager
+				and for every student who had not started -- four leveled criteria are
+				1054px open at 375, which is a long way to scroll past to reach the work,
+				and it had to be closed by hand on every visit. Mr. Pina asked for it at
+				the bottom and not open by default.
 
-		THE INSTRUCTOR GETS THE IDENTICAL PANEL WITH THE IDENTICAL DEFAULT. There
-		is no `canManage` in `started` on purpose: a manager has no responses of
-		their own, so the panel simply stays open for them -- which is the rule
-		playing out, not a second rule written for them.
-	-->
-	<!-- ABOVE THE BODY when the author placed them there (0193): after the deck
-	     and the check-ins, before the writing. Same snippets, same rows, same
-	     `data-testid`s as the default position, so a reader and a spec can tell
-	     the two apart only by where the card sits. -->
-	{#if layout.links === 'top'}{@render linksCard()}{/if}
-	{#if layout.files === 'top'}{@render filesCard()}{/if}
+				SO IT IS THE LAST DEFAULT PANEL (`itemPanelDefaults` puts `rubric` after
+				`work`) AND `collapseWhen` IS CONSTANT-TRUE: closed for every role on a
+				first visit, and the person's own press is remembered per item under the
+				unchanged scope, so somebody who opened it keeps it open. The trigger
+				stays on the page and the region stays in the DOM, so it is one press
+				away and it still prints (IDEA_RUBRIC_STANDARDS: a rubric is visible
+				before submission). A person's own panel order may still move it.
 
-	{#if item.body.trim()}
-		<section class="card">
-			<Disclosure
-				label={item.kind === 'assignment' ? 'Instructions' : 'Details'}
-				heading={2}
-				scope={`item:${item.id}:body`}
-				collapseWhen={started}
-				testId="item-body-disclosure"
-			>
-				<ItemBody {item} />
-			</Disclosure>
-		</section>
-	{/if}
+				A returned grade replaces it: the returned card is the SCORED copy of
+				the same rubric, and two copies of one table on one page is the
+				duplicate CLAUDE.md refuses.
+			-->
+			{#if gradingRubric?.length && !returnedSubmission}
+				<section class="card rubric-card" data-testid="item-rubric">
+					<Disclosure
+						label="How this is graded"
+						heading={2}
+						scope={`item:${item.id}:rubric`}
+						collapseWhen={true}
+						testId="item-rubric-disclosure"
+					>
+						<RubricView criteria={gradingRubric} title="Criteria" />
+					</Disclosure>
+				</section>
+			{/if}
+		{/if}
+	{/snippet}
 
-	{#if referenceSpec}
-		<section class="card ref-card">
-			<ReferenceDoc
-				spec={referenceSpec}
-				{fetchPreview}
-				showHeader={false}
-				attachments={item.attachments}
-			/>
-		</section>
-	{/if}
-
-	<!-- BELOW THE BODY is the default and what every item before 0193 renders;
-	     the two cards are snippets so the same markup can sit ABOVE it when the
-	     author said so (see `layout`, and the two renders before the body). -->
-	{#if layout.links === 'bottom'}{@render linksCard()}{/if}
-	{#if layout.files === 'bottom'}{@render filesCard()}{/if}
-
-	<!--
-		HOW THIS IS GRADED, BEFORE THE WORK (ledger 0297, package ITEM). Every
-		engine, from the stored rubric, AFTER the instructions and BEFORE the work
-		surface: it used to be the last card below Submit on a spec assignment
-		and absent from parent chrome on a ported one. Not above the
-		instructions, and that was measured: four leveled criteria are 1054px
-		open at 375, which put the instructions at y 1350 on a phone.
-
-		Reading, so it collapses once this student has started (`workStarted`,
-		latched by Disclosure) and stays open for a manager, who has no work of
-		their own -- the rule playing out rather than a second rule. A returned
-		grade replaces it: the returned card is the SCORED copy of the same
-		rubric, and two copies of one table on one page is the duplicate
-		CLAUDE.md refuses.
-	-->
-	{#if gradingRubric?.length && !returnedSubmission}
-		<section class="card rubric-card" data-testid="item-rubric">
-			<Disclosure
-				label="How this is graded"
-				heading={2}
-				scope={`item:${item.id}:rubric`}
-				collapseWhen={workStarted}
-				testId="item-rubric-disclosure"
-			>
-				<RubricView criteria={gradingRubric} title="Criteria" />
-			</Disclosure>
-		</section>
-	{/if}
-
+	{#snippet workPanel()}
 	<!--
 		THE ENGINE SLOT: a student's own hand-in, or -- same slot, same position
 		in the reading order -- a manager's read-only view of what that hand-in
@@ -2679,7 +2727,13 @@
 						manifest={htmlProgressManifest}
 						values={htmlAnswers.values}
 						images={htmlAnswers.images}
+						status={htmlAnswers.status ?? null}
 					/>
+					<!-- A PRESENTATION LINK THE STUDENT PASTED, CHECKED WHERE THEY CAN SEE
+					     IT (ledger 0360): the service it opens on and a Test key, in
+					     parent chrome beside the rail. It renders nothing on a worksheet
+					     with no link block. -->
+					<HtmlLinkCheck manifest={htmlProgressManifest} values={htmlAnswers.values} />
 				{/if}
 				<!--
 					WHY THE WORKSHEET IS SHUT, WHEN IT IS (0198). `readOnly` above
@@ -2813,6 +2867,25 @@
 			</section>
 		{/if}
 	{/if}
+	{/snippet}
+
+	<!--
+		THE ITEM'S PANELS, IN THIS PERSON'S ORDER, AROUND THE WORK (ledger 0360,
+		report R23). Each panel is a branch of `itemPanel` above, rendering exactly
+		the markup it rendered in place before; `workPanel` is the anchor and is
+		never moved, so a reorder cannot reload a ported worksheet's frame (see
+		`PanelStack`). With no stored layout the order is `itemPanelDefaults`:
+		the page as it was, except that the rubric is last (report R20).
+
+		THE INSPECTOR, THE HERO AND THE FOOTER ARE THE PAGE'S FRAME AND STAY PUT.
+	-->
+	<PanelStack
+		above={itemPanels.above}
+		below={itemPanels.below}
+		panel={itemPanel}
+		anchor={itemPanels.anchor ? workPanel : null}
+	/>
+	<PanelsHiddenNote labels={panelLabels('item', itemPanels.hidden)} {onArrange} />
 
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />
@@ -2860,6 +2933,29 @@
 	*/
 	.classroom-page.page-wide {
 		max-width: none;
+	}
+	/*
+		THE EDIT LAYER MUST NOT BE TRAPPED IN THIS PAGE'S STACKING CONTEXT
+		(report R06, 9f94f730, ledger 0360). `src/app.css` gives every `main`
+		`position: relative; z-index: 1`, which makes this page a stacking
+		context, and the full-viewport editor (`ContentComposer`'s
+		`.composer-screen`, z-index 60, `position: fixed`) is rendered INSIDE it,
+		in `#item-edit-direct`. So its 60 was ranked at 1 inside `.cr-root`,
+		under ClassSplit's resize separator (`split.css`, z-index 2: the "slider
+		bar" drawn over the form, whose grip still dragged the hidden list) and
+		under the classroom masthead (`classroom.css`, z-index 2), which covered
+		the layer's own heading and its Close.
+
+		`z-index: auto` WHILE THE EDITOR IS OPEN, AND ONLY THEN. The box stays
+		positioned but stops forming a context, so the layer is ranked in
+		`.cr-root`'s context, above both. At every other time the page keeps its
+		z-index 1, which is the arrangement the masthead-outranks-main rule in
+		`classroom.css` is written against. Verify by hit test
+		(`classroom-split-s-1-item-i-draft-manage-1-state-edit-layer`), never by
+		reading the layer's own z-index, which was 60 the whole time.
+	*/
+	.classroom-page.edit-layer-open {
+		z-index: auto;
 	}
 	/* The app-shell `.hero` is the LANDING hero: centred, with 4rem of air above
 	   it. This is a document opening inside a pane, so it reads from the left

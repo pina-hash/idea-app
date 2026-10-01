@@ -4,7 +4,7 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
 	import type { FeedbackScreenshotBytes } from '$lib/feedback/archive';
-	import type { FeedbackStatus } from '$lib/feedback/feedback';
+	import type { FeedbackHorizon, FeedbackStatus } from '$lib/feedback/feedback';
 	import { FEEDBACK_MEDIA_BUCKET } from '$lib/feedback/screenshot';
 	import type { PageData } from './$types';
 
@@ -17,6 +17,23 @@
 		const { error } = await supabase.rpc('app_feedback_set_status', {
 			p_id: id,
 			p_status: status
+		});
+		if (error) return { ok: false, message: error.message };
+		void invalidateAll();
+		return { ok: true };
+	}
+
+	/**
+	 * MOVE A REPORT BETWEEN "FIX SOON" AND "LONG-TERM IDEAS" (0230), the
+	 * `setStatus` shape: one RPC on the admin's own client, which re-checks
+	 * `is_admin()` inside itself, then a reload. Handed to the console ONLY
+	 * when the load proved 0230 is applied, so absence removes the control on a
+	 * deployment that could only refuse it.
+	 */
+	async function setHorizon(id: string, horizon: FeedbackHorizon) {
+		const { error } = await supabase.rpc('app_feedback_set_horizon', {
+			p_id: id,
+			p_horizon: horizon
 		});
 		if (error) return { ok: false, message: error.message };
 		void invalidateAll();
@@ -87,4 +104,8 @@
 	screenshotUrls={data.screenshotUrls}
 	{fetchScreenshot}
 	{setStatus}
+	setHorizon={data.horizonReady ? setHorizon : undefined}
+	horizonUnavailable={data.horizonReady
+		? null
+		: 'Moving a report between Fix soon and Long-term ideas needs a database update that has not been applied yet. Reports marked long-term when they were sent still show under their own tab.'}
 />

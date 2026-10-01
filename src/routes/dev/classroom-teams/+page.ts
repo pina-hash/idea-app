@@ -20,6 +20,12 @@ import type { PageLoad } from './$types';
  *   ?edited=1         a teacher moved a student by hand after the draw (decision 44)
  *   ?later=posted     the page loaded before the draw was posted: it arrives only through refresh
  *   ?theme=space-white  the class page's light theme, forced (no session here)
+ *   ?style=1          the team style write (ledger 0360, R17), in memory: Customize team on
+ *                     the student's own card, Edit look on a teacher's board; a save changes
+ *                     the saved board, so the refresh after it answers the new look
+ *   ?refuse=1         the same controls, and the write answers 0223's membership refusal
+ *   ?styled=extremes  the backgrounds the wash must survive: a mid olive (#a5b478, the
+ *                     1.90:1 case at full strength), black to white, and white, with badges
  */
 export const load: PageLoad = () => {
 	if (!dev) error(404, 'Not found');

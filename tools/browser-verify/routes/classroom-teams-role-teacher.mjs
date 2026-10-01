@@ -30,6 +30,10 @@ export default {
 		{ selector: '[data-testid="class-teams-manage"]', label: 'its People link', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="class-teams-board"][aria-expanded="false"]', label: 'the board, closed by default', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '[data-testid="class-team-mine"]', label: 'no own team for a teacher', expectPresent: 0 },
+		/* R17 (ledger 0360): this route hands in NO style transport, so no team
+		   control of any kind -- absence is the mechanism.
+		   classroom-teams-role-teacher-style-1.mjs is the same page with one. */
+		{ selector: '[data-testid="class-team-customize"], [data-testid="class-team-edit-look"]', label: 'no team style control without a style transport', expectPresent: 0 },
 		CLASS_LIST
 	],
 	textContains: [

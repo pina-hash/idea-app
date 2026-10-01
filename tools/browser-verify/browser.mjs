@@ -267,7 +267,7 @@ export async function clickUntil(page, selector, until, { attempts = 12, gapMs =
 		try {
 			const loc = page.locator(selector).first();
 			await loc.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => {});
-			const box = await loc.boundingBox();
+			const box = await loc.boundingBox({ timeout: 2000 });
 			if (box) {
 				await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 			} else {

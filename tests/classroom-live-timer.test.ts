@@ -30,6 +30,7 @@ import {
 	timerToggle,
 	timerWord,
 	wallDateLabel,
+	wallRingValue,
 	type FrameHost
 } from '$lib/classroom/live-class/timer';
 
@@ -442,5 +443,49 @@ describe('the tick is scheduled on an animation frame OR a timeout, never a fram
 		g.fireFrame();
 		expect(inner).toBe(1);
 		expect(g.frames.size + g.timeouts.size).toBe(0);
+	});
+});
+
+describe('the wall ring (R12, R13): how full the Plate ring around the digits is', () => {
+	const t = countdown(10, T0);
+
+	it('a set countdown is full, a finished one is empty', () => {
+		expect(wallRingValue(countdown(10, T0, false), T0 + 5000)).toBe(1);
+		expect(wallRingValue(t, T0)).toBe(1);
+		expect(wallRingValue(t, sec(600))).toBe(0);
+		expect(wallRingValue(t, sec(700))).toBe(0);
+	});
+
+	it('drains with the time left: half way through a ten-minute countdown is half full', () => {
+		expect(wallRingValue(t, sec(300))).toBe(0.5);
+		expect(wallRingValue(t, sec(450))).toBe(0.25);
+	});
+
+	it('steps once a second, never between: a tenth before the whole second reads the same as the second', () => {
+		// 299.1 s in, 300.9 s left: the face reads 5:00.9 and rounds the
+		// second up to 5:01, and so does the ring.
+		expect(wallRingValue(t, T0 + 299_100)).toBe(301 / 600);
+		expect(wallRingValue(t, T0 + 299_900)).toBe(301 / 600);
+		expect(wallRingValue(t, T0 + 299_100)).toBe(wallRingValue(t, T0 + 299_001));
+		// And moves on at the whole second.
+		expect(wallRingValue(t, sec(300))).toBe(300 / 600);
+	});
+
+	it('a paused countdown is frozen where it stopped', () => {
+		const paused = timerToggle(t, sec(120));
+		expect(wallRingValue(paused, sec(120))).toBe(480 / 600);
+		expect(wallRingValue(paused, sec(400))).toBe(480 / 600);
+	});
+
+	it('a stopwatch sweeps once a minute, by the second', () => {
+		const w = stopwatch(T0);
+		expect(wallRingValue(w, T0)).toBe(0);
+		expect(wallRingValue(w, T0 + 61_500)).toBe(1 / 60);
+		expect(wallRingValue(w, T0 + 90_000)).toBe(30 / 60);
+		expect(wallRingValue(w, T0 + 3_725_340)).toBe(5 / 60);
+	});
+
+	it('a countdown of no length reads empty rather than dividing by zero', () => {
+		expect(wallRingValue({ mode: 'countdown', durationMs: 0, startedAt: null, bankedMs: 0 }, T0)).toBe(0);
 	});
 });

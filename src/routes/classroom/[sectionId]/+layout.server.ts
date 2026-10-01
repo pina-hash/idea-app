@@ -24,6 +24,7 @@ import {
 	type CheckInPostings
 } from '$lib/classroom/student-work';
 import { loadPostedTeams } from '$lib/classroom/class-teams';
+import { loadQuickPosts } from '$lib/classroom/quick-posts';
 import { gridSummary, type SectionGrid } from '$lib/notebook-review';
 import type { LayoutServerLoad } from './$types';
 
@@ -255,7 +256,7 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 	 */
 	const teamsRead = loadPostedTeams(supabase, params.sectionId);
 
-	const [{ data: manages }, content, checkInRows, hallPass, songQueue, layoutReady] = await Promise.all([
+	const [{ data: manages }, content, checkInRows, hallPass, songQueue, layoutReady, quickPosts] = await Promise.all([
 		supabase.rpc('classroom_manages_section', { p_section_id: params.sectionId }),
 		itemsForSection(supabase, params.sectionId),
 		sectionCheckIns(supabase, params.sectionId),
@@ -268,7 +269,11 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		sectionSongQueue(supabase, params.sectionId),
 		// 0193's capability probe, beside the others so it costs no extra round
 		// trip of its own.
-		sectionLayoutReady(supabase)
+		sectionLayoutReady(supabase),
+		// 0230's class notices (ledger 0360, R22), in the same round. Null for
+		// any failure, the function missing included, removes the notices and
+		// the Quick post key rather than the class page.
+		loadQuickPosts(supabase, params.sectionId)
 	]);
 
 	const section = normalizeSectionRow(sectionRow as Record<string, unknown>);
@@ -531,6 +536,12 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		 * shape of the value.
 		 */
 		hallPass,
+		/**
+		 * 0230 (ledger 0360, R22): the class's live notices, or NULL on a
+		 * database without them (or any failed read), which removes the notices
+		 * and the Quick post key rather than rendering a broken control.
+		 */
+		quickPosts,
 		/**
 		 * 0145. NULL ON A DATABASE WITHOUT THE MIGRATION, which removes the whole
 		 * card rather than rendering a broken one -- see sectionSongQueue. It is

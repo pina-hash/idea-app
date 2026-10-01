@@ -702,7 +702,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   `[aria-disabled="true"]` and `.disabled` are the unlit key. A state this
 	   list did not know would draw as a plain key, which is why the list was
 	   built from each component's own selectors (docs/history). */
-	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn, :where(.gc-head) .disc-trigger) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn, .qa-q, .qa-who, :where(.gc-head) .disc-trigger, :where(.ch-row) .disc-trigger, :where(.ch-row) .ld-door) {
 		border: 1px solid;
 		border-color: var(--plate-hair-top) var(--plate-hair) var(--plate-hair);
 		border-radius: var(--plate-r-control);
@@ -724,7 +724,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	:root :scope:is(.cr-plate, .site-plate) .btn {
 		letter-spacing: 0.08em;
 	}
-	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn, :where(.gc-head) .disc-trigger):hover {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn, .qa-q, .qa-who, :where(.gc-head) .disc-trigger, :where(.ch-row) .disc-trigger, :where(.ch-row) .ld-door):hover {
 		border-color: var(--hover-ink);
 		color: var(--plate-btn-ink);
 		text-shadow: none;
@@ -760,7 +760,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	}
 	/* PRESSED sinks: a darker key face with the shadow inside at the top and
 	   the light moved to its foot. Nothing moves. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn, :where(.gc-head) .disc-trigger):active:not(:disabled, [aria-disabled='true'], .disabled) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn, .qa-q, .qa-who, :where(.gc-head) .disc-trigger, :where(.ch-row) .disc-trigger, :where(.ch-row) .ld-door):active:not(:disabled, [aria-disabled='true'], .disabled) {
 		transform: none;
 		background:
 			linear-gradient(to bottom, var(--plate-press-top), var(--plate-press-bot)) padding-box,
@@ -775,8 +775,8 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	/* DISABLED is an UNLIT key: a flat face a shade off the plate, a quieter
 	   edge, no highlight, no shadow, and the word itself. An `aria-disabled`
 	   control keeps explaining itself, so it is drawn the same way. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn, :where(.gc-head) .disc-trigger):is(:disabled, [aria-disabled='true'], .disabled),
-	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn, :where(.gc-head) .disc-trigger):is(:disabled, [aria-disabled='true'], .disabled):hover {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn, .qa-q, .qa-who, :where(.gc-head) .disc-trigger, :where(.ch-row) .disc-trigger, :where(.ch-row) .ld-door):is(:disabled, [aria-disabled='true'], .disabled),
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn, .qa-q, .qa-who, :where(.gc-head) .disc-trigger, :where(.ch-row) .disc-trigger, :where(.ch-row) .ld-door):is(:disabled, [aria-disabled='true'], .disabled):hover {
 		opacity: 1;
 		background: linear-gradient(var(--plate-disabled-face), var(--plate-disabled-face)) padding-box;
 		background-color: var(--plate-disabled-face);
@@ -792,7 +792,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   breaks keeps the solid one. The word, and `aria-pressed` where the
 	   component sets it, say the state too, so colour is never the only
 	   signal. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn, :where(.gc-head) .disc-trigger):is([aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], .is-on, .on, .active, .picked):not(:disabled, [aria-disabled='true'], .disabled) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.btn, .cr-header :is(.shell-tool, .sw-trigger, .sfb-trigger, .shell-back, .qn-trigger), .menu-trigger, .nav-toggle, .find-chip, .find-clear, .todo-view, .bar-modes .mode, .filters .filter, .kind-toggle .kind, .place-opt, .attach-ref, .order-btn, .cs-btn, .ctool-trigger, .save-ind-btn, .attach-btn, .gallery-open, .fup-pick, .fup-btn, .deck-open, .deck-cancel, .lc-mini, .lc-seg, .fb-btn, .fb-kind, .add-btn, .ib-btn, .variant-toggle, .photo-btn, .tool-btn, .chip-toggle, .qn-btn, .cp-btn, .tour-btn, .tour-offer-btn, .pm-btn, .level-btn, .todo-link, :where(.legacy-index) :is(.auth-link, .class-chip, .bar-btn, .changelog-toggle, .loc-chip), :where(.sfb-shell) .sfb-trigger, :where(.cd-root .mode-toggle) button, :where(.preview-banner) .exit, :where(.tnm-root) :is(.ctl, .mini, .pick, .save, .go, :where(.del) .trigger), :where(.mv-search-row) button, .frq-btn, .gdq-btn, .qa-q, .qa-who, :where(.gc-head) .disc-trigger, :where(.ch-row) .disc-trigger, :where(.ch-row) .ld-door):is([aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], .is-on, .on, .active, .picked):not(:disabled, [aria-disabled='true'], .disabled) {
 		position: relative;
 		background:
 			linear-gradient(to bottom, var(--plate-lit-top), var(--plate-lit-bot)) padding-box,
@@ -855,6 +855,15 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 		}
 	}
 
+	/* THE CLASS THEME'S WORDS TAKE THE KEY'S INK ONCE ITS TRIGGER IS A KEY
+	   (ledger 0360). The class header's theme trigger joined the key list
+	   above, and the panel paints what was voted (`.ctp-meta`) in `--text-2`,
+	   which measured 4.21:1 on the IDEA key face at 375 and 1440
+	   (classroom-theme). On a key, every word is the key's. */
+	:root :scope:is(.cr-plate, .site-plate) :where(.ch-row) .disc-trigger :is(.disc-meta, .ctp-meta) {
+		color: var(--plate-btn-ink);
+	}
+
 	/* --- Chips: RECESSED TAGS, never keys (polish 1). -----------------------
 	   A chip is a printed tag set into the surface: a face a shade darker than
 	   the ground, a soft shadow under its top lip, a light lip at its foot, a
@@ -902,7 +911,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   not one of them grows by a pixel; what changes is that it is set INTO
 	   the surface instead of drawn on it. A chip that is a LINK or a BUTTON
 	   is excluded here and is a raised key (below), because it is pressable. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.state-chip, .roster-chip, .pin-chip, .lg-chip, .updated-chip, .todo-chip, .export-chip, .sq-chip, .ctool-chip, .points-chip, .override-chip, .hp-chip, .ib-chip, .lc-wall-chip, .lg-missing-chip, .pill, .owed, .feed-flag, .course-badge, .td-owed, .medium-chip, .strike-chip, .type-chip, .status-tag, .fg-chip, .mp-chip, .ar-tag, .chip-count, :where(.tnm-root) :is(.tag, .state)):not(a, button, label) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.state-chip, .roster-chip, .pin-chip, .lg-chip, .updated-chip, .todo-chip, .export-chip, .sq-chip, .ctool-chip, .points-chip, .override-chip, .hp-chip, .ib-chip, .lc-wall-chip, .lg-missing-chip, .pill, .owed, .feed-flag, .course-badge, .td-owed, .medium-chip, .strike-chip, .type-chip, .status-tag, .fg-chip, .mp-chip, .ar-tag, .chip-count, .pl-chip, :where(.tnm-root) :is(.tag, .state)):not(a, button, label) {
 		border-color: transparent;
 		border-radius: var(--plate-r-small);
 		background-color: var(--plate-chip-ground);
@@ -1099,7 +1108,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   live tab's panels, the item inspector, the worksheet progress readout,
 	   a notebook entry and its composer, the tour offer, a link preview, and
 	   the home banner's lines-of-code pop-up (report R10). */
-	:root :scope:is(.cr-plate, .site-plate) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp, .course-card, .td-door, .coin-summary, .preview-banner, .fdy-block, .fdy-gal-plays, .fdy-flag, .fdy-insp-section:where(.fdy-shelf), .fdy-before, .fdy-mode, .tnm-panel, .tnm-root:where(.room-box, .entry-detail, .match-detail), :where(.tnm-root) :is(.room-box, .pool, .match), .frq-item, .gdq-item, .ar-row, :where(.admin-console) .panel, :where(.legacy-index) .hero-meta, .loc-panel) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door:not(:where(.ch-row) *), .ct-card, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp, .course-card, .td-door, .coin-summary, .preview-banner, .fdy-block, .fdy-gal-plays, .fdy-flag, .fdy-insp-section:where(.fdy-shelf), .fdy-before, .fdy-mode, .tnm-panel, .tnm-root:where(.room-box, .entry-detail, .match-detail), :where(.tnm-root) :is(.room-box, .pool, .match), .frq-item, .gdq-item, .ar-row, :where(.admin-console) .panel, :where(.legacy-index) .hero-meta, .loc-panel) {
 		border-color: var(--plate-hair);
 		border-radius: var(--plate-r-panel);
 		background-color: var(--plate-panel-ground);
@@ -1110,13 +1119,19 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 			0 8px 14px -6px var(--plate-drop),
 			-2px 18px 30px -14px var(--plate-drop-far);
 	}
+	/* A team card keeps its team's accent as its left edge (ledger 0360): the
+	   panel recipe repaints every edge, and that stripe is the team's own
+	   colour, so it is restored rather than lost. */
+	:root :scope:is(.cr-plate, .site-plate) .ct-root .ct-card {
+		border-left-color: var(--team-accent, var(--plate-hair));
+	}
 	/* A panel that is itself a link keeps the hover edge it always had. */
 	:root :scope:is(.cr-plate, .site-plate) :is(a.class-card, a.ld-door, a.lp):hover {
 		border-color: var(--hover-ink);
 	}
 	/* A card nested in a card is a panel INSIDE a housing: the same face, and
 	   a shorter shadow so the stack reads as one assembly. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.card, .console-panel, .lc-panel, .entry-panel) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp, .course-card, .td-door, .coin-summary, .preview-banner, .fdy-block, .fdy-gal-plays, .fdy-flag, .fdy-insp-section:where(.fdy-shelf), .fdy-before, .fdy-mode, .tnm-panel, .tnm-root:where(.room-box, .entry-detail, .match-detail), :where(.tnm-root) :is(.room-box, .pool, .match), .frq-item, .gdq-item, .ar-row, :where(.admin-console) .panel, :where(.legacy-index) .hero-meta, .loc-panel) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.card, .console-panel, .lc-panel, .entry-panel) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door:not(:where(.ch-row) *), .ct-card, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp, .course-card, .td-door, .coin-summary, .preview-banner, .fdy-block, .fdy-gal-plays, .fdy-flag, .fdy-insp-section:where(.fdy-shelf), .fdy-before, .fdy-mode, .tnm-panel, .tnm-root:where(.room-box, .entry-detail, .match-detail), :where(.tnm-root) :is(.room-box, .pool, .match), .frq-item, .gdq-item, .ar-row, :where(.admin-console) .panel, :where(.legacy-index) .hero-meta, .loc-panel) {
 		box-shadow:
 			inset 0 1px 0 0 var(--plate-panel-hi),
 			0 1px 2px 0 var(--plate-drop),
@@ -1275,6 +1290,17 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 		background-image: none;
 		border-left-color: transparent;
 		box-shadow: none;
+	}
+	/* A SELECTED ROW HOLDING AN OPEN EDITOR GIVES UP ITS STACKING CONTEXT
+	   (report R06 on the class list, ledger 0360). The z-index above ranks the
+	   row's plate under its words; it also ranked the row's full-viewport
+	   editor (`ContentComposer screen`, z-index 60, rendered inside the row) at
+	   1, so with that item open beside the list the classroom masthead and
+	   the item painted over the editor's title, its Close and its form,
+	   measured by hit test at 1440. ClassView drops its own `main`'s context
+	   for the same layer (`.classroom-page.edit-layer-open`). */
+	:root :scope:is(.cr-plate, .site-plate) .group-card .row-wrap:is(.selected, .is-selected):has(.row-editor) {
+		z-index: auto;
 	}
 	:root :scope:is(.cr-plate, .site-plate) .group-card .row-wrap:is(.selected, .is-selected)::before {
 		content: '';

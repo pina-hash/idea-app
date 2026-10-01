@@ -190,8 +190,17 @@ export function grading(itemId = ASSIGNMENT_ID, now = Date.now()): GradingData {
 	};
 }
 
-/** Presence as the RPC answers it: one row per student who has opened the page. */
-export function presence(itemId: string, now = Date.now()): PresencePayload {
+/**
+ * Presence as the RPC answers it: one row per student who has opened the page.
+ *
+ * `overnight` (report R11) adds two students who are on the page right now and
+ * whose last keystroke on the assignment was on an earlier school day: 24 h 23
+ * min and 25 h 9 min ago, the second with the page in another tab. 0200 keeps
+ * one row per student per item for life, so this is what a class back on
+ * yesterday's assignment looks like, and the grid read "No typing for 1463
+ * min" for it.
+ */
+export function presence(itemId: string, now = Date.now(), opts: { overnight?: boolean } = {}): PresencePayload {
 	const row = (email: string, seen: number, input: number | null, visible = true, first = 1800): PresenceRow => ({
 		student_email: email,
 		state: null,
@@ -217,7 +226,13 @@ export function presence(itemId: string, now = Date.now()): PresencePayload {
 						row('jo@boscotech.net', 10, 25),
 						row('kim@boscotech.net', 9, 11 * 60),
 						row('lee@boscotech.net', 15, 90),
-						row('pina@boscotech.edu', 5, 5) // the teacher testing their own page: never a row
+						row('pina@boscotech.edu', 5, 5), // the teacher testing their own page: never a row
+						...(opts.overnight
+							? [
+									row('gus@boscotech.net', 10, (24 * 60 + 23) * 60, true, 600),
+									row('hana@boscotech.net', 10, (25 * 60 + 9) * 60, false, 600)
+								]
+							: [])
 					]
 				: []
 	};

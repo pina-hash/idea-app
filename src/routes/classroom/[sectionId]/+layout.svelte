@@ -3,6 +3,9 @@
 	import { beforeNavigate, invalidate, invalidateAll } from '$app/navigation';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import ClassView from '$lib/classroom/ClassView.svelte';
+	import { setLiveWork } from '$lib/classroom/live-work.svelte';
+	import { overlayWork } from '$lib/classroom/live-work';
+	import { runCommand } from '$lib/shell/command-handlers';
 	import HallPass from '$lib/classroom/HallPass.svelte';
 	import SongQueue from '$lib/classroom/SongQueue.svelte';
 	import ClassTeams from '$lib/classroom/ClassTeams.svelte';
@@ -13,7 +16,10 @@
 		type ClassTheme,
 		type ClassThemeWinners
 	} from '$lib/classroom/class-theme';
-	import { refreshPostedTeams, teamsManageLink } from '$lib/classroom/class-teams';
+	import { postedTeamsNotice, refreshPostedTeams, saveTeamStyle, teamsManageLink } from '$lib/classroom/class-teams';
+	import { classHeaderTeams } from '$lib/classroom/class-header';
+	import QuickPosts from '$lib/classroom/QuickPosts.svelte';
+	import { createQuickPostTransports } from '$lib/classroom/quick-posts';
 	import LiveDoor from '$lib/classroom/live-class/LiveDoor.svelte';
 	import { liveItemChoices } from '$lib/classroom/live-class/grid';
 	import { createPresenceTransports } from '$lib/classroom/presence/transports';
@@ -77,6 +83,19 @@
 	 */
 	let { data, children }: { data: LayoutData; children: import('svelte').Snippet } = $props();
 
+	/*
+		THE CLASS LIST BESIDE AN OPEN WORKSHEET HEARS WHAT IT KNOWS (ledger 0360,
+		reports R07 and R09). `data.work` is read once per visit -- this layout's
+		load reads no `url` -- so a student who finished a ported worksheet kept
+		reading Missing in the list beside a rail at 100 until a full reload. The
+		rail publishes its own row's completion here once its last write is
+		ACKNOWLEDGED, and the list overlays it with no network call
+		(`overlayWork`, `$lib/classroom/live-work`). Never cleared on a re-read:
+		an `invalidateAll` whose read began just before the last acknowledgement
+		would otherwise put finished work back to Missing.
+	*/
+	const liveWork = setLiveWork();
+
 	const loc = $derived(locateClassroom(page.url.pathname));
 	const split = $derived(loc.place === 'section' || loc.place === 'item');
 	const selectedItemId = $derived(loc.place === 'item' ? loc.itemId : null);
@@ -105,6 +124,37 @@
 	const songQueueTransports = createSongQueueTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const themeTransports = createClassThemeTransports(data.supabase);
+	// svelte-ignore state_referenced_locally
+	const quickPostTransports = createQuickPostTransports(data.supabase);
+
+	/**
+	 * QUICK POSTS (ledger 0360, report R22): the composer's open state is the
+	 * layout's, because the key that opens it is in the class header and the
+	 * composer is in the notices under it. Moving to another class closes it.
+	 * `data.quickPosts` null (no 0230 yet, or the read failed) removes both the
+	 * notices and the key.
+	 */
+	let quickComposing = $state(false);
+	$effect(() => {
+		void data.section.id;
+		quickComposing = false;
+	});
+	const quickPost = $derived(
+		data.canManage && data.quickPosts
+			? { open: quickComposing, toggle: () => (quickComposing = !quickComposing) }
+			: null
+	);
+	const viewerEmail = $derived(
+		typeof (data.claims as { email?: unknown } | null)?.email === 'string'
+			? ((data.claims as { email: string }).email)
+			: null
+	);
+	/** The teacher's one-line teams key, from the same board ClassTeams reads. */
+	const teamsNotice = $derived(
+		data.canManage
+			? classHeaderTeams(postedTeamsNotice(data.teams, data.classClock?.today ?? null), teamsManageLink(data.section.id))
+			: null
+	);
 
 	/**
 	 * THE CLASS'S VOTED LOOK (decision 45). The classroom layout read every
@@ -441,10 +491,59 @@
 </script>
 
 {#snippet classList()}
+	<ClassView
+		section={data.section}
+		{items}
+		units={data.units}
+		sections={data.sections}
+		canManage={data.canManage}
+		attachmentsEnabled={data.attachmentsEnabled}
+				instructorAttachmentsEnabled={data.instructorAttachmentsEnabled}
+		checkIns={data.checkIns}
+		sectionOutstanding={data.sectionOutstanding}
+		work={overlayWork(data.work, liveWork.overrides)}
+		{collapsed}
+		{selectedItemId}
+		asPane={!!selectedItemId}
+		{composing}
+		onCompose={data.canManage ? toggleComposer : null}
+		onDropFiles={data.canManage ? composeWithFiles : null}
+		notice={composeNotice}
+		onToggleGroup={toggleGroup}
+		{opensOn}
+		clock={data.classClock}
+		{transports}
+		{unitTransports}
+		{deckTransports}
+		{teacherTransports}
+		layoutTransports={liveLayoutTransports}
+		{notebookHref}
+		fetchPreview={fetchLinkPreviewClient}
+		loadExportStatuses={(ids) => loadExportStatuses(data.supabase, ids)}
+		retryExport={runClassroomExport}
+		onchanged={() => invalidateAll()}
+		loadDuplicateCount={data.canManage ? () => loadDuplicateDraftCount(data.supabase, data.section.id) : null}
+		theme={classTheme}
+		themePanel={data.section.course_id ? classThemePanel : null}
+		tools={data.hallPass || data.songQueue || data.canManage ? classTools : null}
+		bulletin={data.quickPosts ? classNotices : null}
+		belowHeader={classTeams}
+		{teamsNotice}
+		{quickPost}
+		panelLayout={classPrefs?.current.panels.classPage ?? null}
+		onArrange={classPrefStore ? () => runCommand('settings.open', 'panels:class') : null}
+	/>
+{/snippet}
+
+{#snippet classTools()}
 	<!--
-		THE TWO TOOLS SIT ABOVE THE CLASS CONTENT, IN ONE ROW, AND THAT IS THE
-		FEATURE (prompt 0118, items SIX and TEN). Below 1024px this pane IS the
-		class page, full width, so first-in-the-pane is zero scrolling and one
+		THE TOOLS ARE THE FIRST CONTROLS IN THE PANE, AND THAT IS THE FEATURE
+		(prompt 0118, items SIX and TEN). They open the class header's key row
+		now, under the class name (ledger 0360, R19): `ClassHeader` makes this
+		row boxless, so on a desktop they share a line with the class's identity
+		and its theme, and on a phone each still takes a line. Below 1024px this
+		pane IS the class page, full width, so first-in-the-pane is zero
+		scrolling and one
 		tap from opening the class. A student who needs the pass needs it in
 		about a second; anywhere further down and it is a scroll on the one
 		surface where scrolling is the whole cost.
@@ -463,7 +562,6 @@
 		The ROW renders only when at least one of them does, so a class with
 		neither carries no empty strip.
 	-->
-	{#if data.hallPass || data.songQueue || data.canManage}
 		<div class="class-tools" data-testid="class-tools">
 			{#if data.hallPass}
 				<HallPass
@@ -495,53 +593,38 @@
 				/>
 			{/if}
 		</div>
-	{/if}
-	<!-- Everyone's: the student's own team first, the board closed below it.
-	     `manage` is the teacher's one-line "Teams posted until" strip and its
-	     People link; null for a student removes it. Mounted whether or not
-	     anything is posted (it renders nothing then) so `refresh` can find a
-	     draw posted after this load, which never re-runs inside the class
-	     (ledger 0298, R23). -->
+{/snippet}
+
+{#snippet classTeams()}
+	<!-- Everyone's: the student's own team first, the board closed below it,
+	     directly under the notices. The teacher's "Teams posted until" line is
+	     the header's teams key now (ledger 0360, R19), so `manage` is null.
+	     Mounted whether or not anything is posted (it renders nothing then) so
+	     `refresh` can find a draw posted after this load, which never re-runs
+	     inside the class (ledger 0298, R23). `style` is 0223's membership-gated
+	     write (ledger 0360, R17): Customize team on a student's own card, Edit
+	     look on a teacher's board; the database decides who may. -->
 	<ClassTeams
 		sets={data.teams}
-		manage={data.canManage ? teamsManageLink(data.section.id) : null}
+		manage={null}
 		today={data.classClock?.today ?? null}
 		refresh={() => refreshPostedTeams(data.supabase, data.section.id)}
+		style={(input) => saveTeamStyle(data.supabase, input)}
 	/>
-	<ClassView
-		section={data.section}
-		{items}
-		units={data.units}
-		sections={data.sections}
-		canManage={data.canManage}
-		attachmentsEnabled={data.attachmentsEnabled}
-				instructorAttachmentsEnabled={data.instructorAttachmentsEnabled}
-		checkIns={data.checkIns}
-		sectionOutstanding={data.sectionOutstanding}
-		work={data.work}
-		{collapsed}
-		{selectedItemId}
-		asPane={!!selectedItemId}
-		{composing}
-		onCompose={data.canManage ? toggleComposer : null}
-		onDropFiles={data.canManage ? composeWithFiles : null}
-		notice={composeNotice}
-		onToggleGroup={toggleGroup}
-		{opensOn}
-		clock={data.classClock}
-		{transports}
-		{unitTransports}
-		{deckTransports}
-		{teacherTransports}
-		layoutTransports={liveLayoutTransports}
-		{notebookHref}
-		fetchPreview={fetchLinkPreviewClient}
-		loadExportStatuses={(ids) => loadExportStatuses(data.supabase, ids)}
-		retryExport={runClassroomExport}
-		onchanged={() => invalidateAll()}
-		loadDuplicateCount={data.canManage ? () => loadDuplicateDraftCount(data.supabase, data.section.id) : null}
-		theme={classTheme}
-		themePanel={data.section.course_id ? classThemePanel : null}
+{/snippet}
+
+{#snippet classNotices()}
+	<!-- A teacher's quick posts, directly under the class header, where a
+	     student cannot miss them (ledger 0360, R22). -->
+	<QuickPosts
+		board={data.quickPosts}
+		sectionId={data.section.id}
+		transports={quickPostTransports}
+		{live}
+		composing={quickComposing}
+		oncomposerclose={() => (quickComposing = false)}
+		sections={data.canManage ? data.sections : []}
+		{viewerEmail}
 	/>
 {/snippet}
 

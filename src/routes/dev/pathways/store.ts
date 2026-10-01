@@ -23,6 +23,18 @@ export function makeStubSupabase() {
 	return {
 		from() {
 			return {
+				/* The read `$lib/preferences/profile-io` makes before it merges the
+				   "No pathway yet" answer into `preferences` (ledger 0360). */
+				select() {
+					return {
+						eq() {
+							return this;
+						},
+						maybeSingle() {
+							return Promise.resolve({ data: { preferences: store.profile.preferences }, error: null });
+						}
+					};
+				},
 				update(patch: Record<string, unknown>) {
 					Object.assign(store.profile, patch);
 					return {

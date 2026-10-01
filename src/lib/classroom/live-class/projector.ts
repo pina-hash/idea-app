@@ -24,6 +24,17 @@
  *   3. THE PROJECTOR RE-VALIDATES EVERY FRAME (`parseProjectorFrame`), keeping
  *      exactly the keys below and dropping anything else, so a frame that was
  *      somehow wider than this type still paints only these fields.
+ *   4. WHO IS WORKING REACHES THE WALL ONLY AS COUNTS, AND ONLY WHEN THE
+ *      TEACHER TURNS IT ON (reports R12, R13): the wall faces the room, so
+ *      student activity is OFF until the control view's "Student activity" is
+ *      pressed, and then it is five counts in the class's own words. NAMES are
+ *      a SECOND, separate press ("Names too"), never adopted from a stored
+ *      frame after a reload, never given for the students who are working (the
+ *      bulk of a class, and nothing the room needs to read), and shortened to
+ *      "First L.". Presence's detail -- times, "other tab", Missing -- never
+ *      crosses at all: `buildProjectorFrame` is handed a state and a name per
+ *      student and nothing else, and the parse refuses any name it should not
+ *      hold.
  *
  * NO SERVER IS INVOLVED, AND THAT IS A DECISION. The two windows talk over a
  * `BroadcastChannel` named for the viewer and the class, with `localStorage` as
@@ -40,6 +51,7 @@
  */
 
 import { parseLiveTimer, type LiveTimer } from './timer';
+import type { LiveCellState } from './grid';
 import { hallPassToolChip, type HallPassState, type HallPassStudentState } from '$lib/classroom/hall-pass';
 
 export const PROJECTOR_FRAME_VERSION = 1;
@@ -61,6 +73,51 @@ export interface WallPick {
 	seed: string;
 }
 
+/**
+ * STUDENT ACTIVITY, AS THE WALL MAY SAY IT (reports R12, R13). Five groups in
+ * the class's own words, built from the live grid's states. `unknown` and
+ * `no-signal` are not here on purpose: they are about the instrument, and a
+ * frame holding either one carries no activity at all (an instrument's silence
+ * is never a count). `names` says whether a group may EVER carry names on the
+ * wall: never for the students who are working.
+ */
+export type WallActivityKey = 'working' | 'idle' | 'away' | 'not-opened' | 'done';
+export const WALL_ACTIVITY_GROUPS: readonly {
+	key: WallActivityKey;
+	word: string;
+	from: readonly LiveCellState[];
+	names: boolean;
+}[] = [
+	{ key: 'working', word: 'Working', from: ['working'], names: false },
+	{ key: 'idle', word: 'Not typing', from: ['idle'], names: true },
+	{ key: 'away', word: 'Away', from: ['away'], names: true },
+	{ key: 'not-opened', word: 'Not opened yet', from: ['not-opened'], names: true },
+	{ key: 'done', word: 'Done', from: ['needs-grading', 'submitted'], names: true }
+];
+const ACTIVITY_KEYS = WALL_ACTIVITY_GROUPS.map((g) => g.key);
+const NAMED_KEYS = new Set(WALL_ACTIVITY_GROUPS.filter((g) => g.names).map((g) => g.key));
+
+/** Activity on the wall: counts always, names only when the second toggle is on. */
+export interface WallActivity {
+	/** The item the counts are about, as its title. */
+	item: string;
+	/** When the control view last read presence (ms): the wall hides counts older than `WALL_ACTIVITY_STALE_MS`. */
+	at: number;
+	total: number;
+	counts: Record<WallActivityKey, number>;
+	/** Null unless the teacher pressed "Names too"; never a `working` entry. */
+	names: Partial<Record<WallActivityKey, string[]>> | null;
+}
+
+/** What the control view hands over: a state and a name per student, and the two choices. */
+export interface WallActivityInput {
+	item: string;
+	at: number;
+	cells: readonly { state: LiveCellState; name: string }[];
+	/** The second toggle. Anything but `true` is counts only. */
+	names: boolean;
+}
+
 /** EVERYTHING THE WALL CAN PAINT. A field added here is a disclosure decision. */
 export interface ProjectorFrame {
 	v: typeof PROJECTOR_FRAME_VERSION;
@@ -72,15 +129,136 @@ export interface ProjectorFrame {
 	timer: LiveTimer | null;
 	hallPass: WallHallPass | null;
 	pick: WallPick | null;
+	/** "Coming up": the next assignments due after today, as the class page words them. */
+	next: string[];
+	/** Student activity, or null: off, not answered, or not an item that sends any. */
+	activity: WallActivity | null;
 }
 
 /** The frame's keys, exactly. The privacy test holds the type to this list. */
-export const PROJECTOR_FRAME_KEYS = ['v', 'day', 'at', 'agenda', 'timer', 'hallPass', 'pick'] as const;
+export const PROJECTOR_FRAME_KEYS = ['v', 'day', 'at', 'agenda', 'timer', 'hallPass', 'pick', 'next', 'activity'] as const;
 
 /** The most agenda lines, and the longest, a frame may carry: what a wall can hold. */
 export const WALL_AGENDA_MAX = 12;
 export const WALL_LINE_MAX = 160;
 export const WALL_NAME_MAX = 80;
+/** The most "Coming up" lines a frame may carry. */
+export const WALL_NEXT_LINES_MAX = 3;
+/** The most names one activity group may carry: a whole class, and no more. */
+export const WALL_NAMES_PER_GROUP = 40;
+/** The largest count a frame may say: far past any class, so a hostile number is refused. */
+export const WALL_COUNT_MAX = 500;
+/**
+ * HOW OLD ACTIVITY MAY BE AND STILL BE ON THE WALL. The control view reads
+ * presence every 30 s while it is open and in front; a control view that is
+ * hidden or covered stops reading (it pauses its polls), and the wall must not
+ * go on showing counts nobody is refreshing. Three minutes is six missed reads.
+ */
+export const WALL_ACTIVITY_STALE_MS = 3 * 60_000;
+
+/**
+ * A NAME AS THE WALL PRINTS IT: "First L.". The roster's own spellings are
+ * "Last, First" and "First Last"; a single word stays as it is. Shortened
+ * because the wall is read by the whole room, and a family name is more than
+ * the room needs to see who is stuck. Pure; `wallNames` decides when a
+ * shortened name would be ambiguous.
+ */
+export function wallName(name: string): string {
+	const clean = String(name ?? '').replace(/\s+/g, ' ').trim();
+	if (!clean) return '';
+	const comma = clean.indexOf(',');
+	let first: string;
+	let last: string;
+	if (comma > 0) {
+		last = clean.slice(0, comma).trim();
+		first = clean.slice(comma + 1).trim().split(' ')[0] ?? '';
+	} else {
+		const parts = clean.split(' ');
+		if (parts.length < 2) return clean;
+		first = parts[0];
+		last = parts[parts.length - 1];
+	}
+	if (!first) return last;
+	const initial = last.replace(/^[^A-Za-z\u00C0-\u024F]+/, '').charAt(0).toUpperCase();
+	return initial ? `${first} ${initial}.` : first;
+}
+
+/**
+ * EVERY CELL'S WALL NAME, with two students who would shorten to the same
+ * "First L." given their full names instead, so the wall never shows one
+ * string meaning two people. Judged over the WHOLE class, not one group, so a
+ * name does not change spelling when a student moves from Away to Done.
+ */
+function wallNames(cells: readonly { name: string }[]): string[] {
+	const short = cells.map((c) => wallName(c.name));
+	const seen = new Map<string, number>();
+	for (const s of short) seen.set(s, (seen.get(s) ?? 0) + 1);
+	return cells.map((c, i) => {
+		const full = String(c.name ?? '').replace(/\s+/g, ' ').trim();
+		return (seen.get(short[i]) ?? 0) > 1 ? full : short[i];
+	});
+}
+
+/**
+ * THE CELLS THE WALL MAY COUNT, FROM THE LIVE GRID'S: a state and a name each,
+ * nothing else (no address, no time, no "other tab", no Missing), and the
+ * student who is OUT ON THE HALL PASS counted but never named. The wall says
+ * the pass is "Taken" and never who took it (`hallPassWall`); an "Away" list
+ * naming that student would say it for it. A blank name is counted and never
+ * printed (`buildActivity` drops it).
+ */
+export function wallActivityCells(
+	cells: readonly { email: string; state: LiveCellState; name: string }[],
+	outEmail: string | null
+): { state: LiveCellState; name: string }[] {
+	const out = outEmail ? outEmail.trim().toLowerCase() : null;
+	return cells.map((c) => ({ state: c.state, name: out && c.email.trim().toLowerCase() === out ? '' : c.name }));
+}
+
+const zeroCounts = (): Record<WallActivityKey, number> =>
+	Object.fromEntries(ACTIVITY_KEYS.map((k) => [k, 0])) as Record<WallActivityKey, number>;
+
+/**
+ * THE ACTIVITY PROJECTION, inside the one function that builds the frame.
+ * Null when there is no input, and null when ANY student's state is about the
+ * instrument (`unknown`, `no-signal`): counts that leave somebody out are a
+ * count of nothing in particular. Names only on `input.names === true`, only
+ * for the groups that may ever carry them, never one with an address in it.
+ */
+function buildActivity(input: WallActivityInput | null | undefined): WallActivity | null {
+	if (!input) return null;
+	const counts = zeroCounts();
+	const groupOf = new Map<LiveCellState, WallActivityKey>();
+	for (const g of WALL_ACTIVITY_GROUPS) for (const s of g.from) groupOf.set(s, g.key);
+	const keys: WallActivityKey[] = [];
+	for (const c of input.cells) {
+		const key = groupOf.get(c.state);
+		if (!key) return null;
+		keys.push(key);
+		counts[key] += 1;
+	}
+	let names: WallActivity['names'] = null;
+	if (input.names === true) {
+		const spelled = wallNames(input.cells);
+		names = {};
+		for (const g of WALL_ACTIVITY_GROUPS) {
+			if (!g.names) continue;
+			const list = spelled
+				.filter((n, i) => keys[i] === g.key && n !== '' && !n.includes('@'))
+				.map((n) => n.slice(0, WALL_NAME_MAX))
+				.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+				.slice(0, WALL_NAMES_PER_GROUP);
+			if (list.length > 0) names[g.key] = list;
+		}
+	}
+	return {
+		item: String(input.item ?? '').slice(0, WALL_LINE_MAX),
+		at: input.at,
+		total: input.cells.length,
+		counts,
+		names
+	};
+}
 
 /**
  * THE HALL PASS ON THE WALL, IN STUDENT-SCOPE WORDS, FROM ANY STATE.
@@ -123,7 +301,17 @@ export interface ProjectorFrameInput {
 	timer: LiveTimer | null;
 	hallPass: HallPassState | null;
 	pick: WallPick | null;
+	/** "Coming up" lines (`wallComingUp`), when the teacher has them on the wall. */
+	next?: readonly string[];
+	/** Student activity, only when the teacher turned it on and presence has answered. */
+	activity?: WallActivityInput | null;
 }
+
+const cleanLines = (lines: readonly unknown[], max: number) =>
+	lines
+		.map((l) => String(l).slice(0, WALL_LINE_MAX))
+		.filter((l) => l.trim() !== '')
+		.slice(0, max);
 
 /** THE ONE PROJECTION onto the wall. */
 export function buildProjectorFrame(input: ProjectorFrameInput): ProjectorFrame {
@@ -131,16 +319,58 @@ export function buildProjectorFrame(input: ProjectorFrameInput): ProjectorFrame 
 		v: PROJECTOR_FRAME_VERSION,
 		day: input.day,
 		at: input.at,
-		agenda: input.agenda
-			.map((l) => String(l).slice(0, WALL_LINE_MAX))
-			.filter((l) => l.trim() !== '')
-			.slice(0, WALL_AGENDA_MAX),
+		agenda: cleanLines(input.agenda, WALL_AGENDA_MAX),
 		timer: input.timer ? { ...input.timer } : null,
 		hallPass: hallPassWall(input.hallPass),
 		pick: input.pick
 			? { name: String(input.pick.name).slice(0, WALL_NAME_MAX), seed: String(input.pick.seed).slice(0, 16) }
-			: null
+			: null,
+		next: cleanLines(input.next ?? [], WALL_NEXT_LINES_MAX),
+		activity: buildActivity(input.activity)
 	};
+}
+
+/**
+ * THE PROJECTOR'S READ OF ACTIVITY: rebuilt from the five keys only, or null.
+ * Every count an integer in range, the total exactly their sum, names kept
+ * only for the groups that may carry them, never more names than the group's
+ * count, never one with an address in it. Anything else is no activity rather
+ * than a partly trusted one.
+ */
+function parseActivity(value: unknown): WallActivity | null {
+	if (!value || typeof value !== 'object') return null;
+	const v = value as Record<string, unknown>;
+	if (typeof v.item !== 'string') return null;
+	if (typeof v.at !== 'number' || !Number.isFinite(v.at)) return null;
+	const c = v.counts as Record<string, unknown> | null | undefined;
+	if (!c || typeof c !== 'object') return null;
+	const counts = zeroCounts();
+	let sum = 0;
+	for (const key of ACTIVITY_KEYS) {
+		const n = c[key];
+		if (typeof n !== 'number' || !Number.isInteger(n) || n < 0 || n > WALL_COUNT_MAX) return null;
+		counts[key] = n;
+		sum += n;
+	}
+	if (Object.keys(c).some((k) => !(ACTIVITY_KEYS as string[]).includes(k))) return null;
+	if (typeof v.total !== 'number' || v.total !== sum) return null;
+	let names: WallActivity['names'] = null;
+	if (v.names !== null && v.names !== undefined) {
+		if (typeof v.names !== 'object' || Array.isArray(v.names)) return null;
+		const raw = v.names as Record<string, unknown>;
+		names = {};
+		for (const [key, list] of Object.entries(raw)) {
+			if (!NAMED_KEYS.has(key as WallActivityKey)) return null;
+			if (!Array.isArray(list)) return null;
+			const k = key as WallActivityKey;
+			const kept = list.filter(
+				(n): n is string => typeof n === 'string' && n.trim() !== '' && !n.includes('@') && n.length <= WALL_NAME_MAX
+			);
+			if (kept.length !== list.length || kept.length > WALL_NAMES_PER_GROUP || kept.length > counts[k]) return null;
+			if (kept.length > 0) names[k] = kept;
+		}
+	}
+	return { item: v.item.slice(0, WALL_LINE_MAX), at: v.at, total: sum, counts, names };
 }
 
 /**
@@ -172,7 +402,18 @@ export function parseProjectorFrame(value: unknown): ProjectorFrame | null {
 	if (p && typeof p.name === 'string' && p.name.trim() && typeof p.seed === 'string') {
 		pick = { name: p.name.slice(0, WALL_NAME_MAX), seed: p.seed.slice(0, 16) };
 	}
-	return { v: PROJECTOR_FRAME_VERSION, day: v.day, at: v.at, agenda, timer, hallPass, pick };
+	/*
+	 * A FRAME FROM A CONTROL VIEW BUILT BEFORE THESE TWO KEYS still paints:
+	 * no `next` is no lines and no `activity` is none. The version stays 1 on
+	 * purpose: a projector window is never reloaded by a deploy
+	 * (PROJECTOR_ROUTES), so a bumped version would freeze an open wall, where
+	 * an old projector simply rebuilds the frame from the keys it knows.
+	 */
+	const next = Array.isArray(v.next)
+		? v.next.filter((l): l is string => typeof l === 'string' && l.trim() !== '').map((l) => l.slice(0, WALL_LINE_MAX)).slice(0, WALL_NEXT_LINES_MAX)
+		: [];
+	const activity = parseActivity(v.activity);
+	return { v: PROJECTOR_FRAME_VERSION, day: v.day, at: v.at, agenda, timer, hallPass, pick, next, activity };
 }
 
 /** Of two frames, the one to paint: the newer, and never one from another day. */

@@ -86,51 +86,174 @@ export const ACCENT_PRESETS: { id: string; label: string; hex: string }[] = [
 /** What an identity with no accent set renders as: neutral, never emerald. */
 export const NEUTRAL_ACCENT = '#8a938c';
 
+/**
+ * THE BADGE SET: EIGHT EMBLEMS, AND THE ART IS REDRAWN IN PLACE, NEVER THE IDS
+ * (ledger 0360, report R16). The ids are stored -- 0064's tournament CHECK,
+ * 0220's `profiles_style_badge_ck` and every class-theme vote row name them --
+ * so the LIST IS APPEND-ONLY and the order below is the order every picker
+ * shows. What an id LOOKS like is not stored anywhere, so redrawing one is a
+ * code change with no migration, and every surface that draws a badge picks
+ * the new art up at once because they all go through `BadgeIcon`.
+ *
+ * WHY THEY WERE REDRAWN. The first set was one stroked outline each, which on
+ * a raised key reads as an emoji someone typed rather than a mark that belongs
+ * to the plate, and the gear was a twelve-point zigzag with no flat tooth on
+ * it: a sun, not a gear. Each emblem is now built the way the Plate look builds
+ * a control, in three layers of ONE ink (`currentColor`, so a key, a banner and
+ * a chip each paint it in their own measured colour and nothing here names a
+ * colour):
+ *
+ *   faces    a recessed face, filled with the ink at a low mix. Two faces that
+ *            overlap compound, which is how a bevel gets a lit half and a
+ *            shaded half without a second colour.
+ *   paths    the OUTLINE, stroked at the house 1.6. Never empty for a real
+ *            badge: `paths.length > 0` is the has-a-badge predicate three
+ *            classroom surfaces read, and `class-theme.ts` copies this array BY
+ *            REFERENCE.
+ *   details  thin lines at reduced strength: a facet, a bevel, a rim, a
+ *            highlight. They add the machining at 20px and up and fall away
+ *            harmlessly at 11px, where the outline and the faces carry it.
+ *   solids   small marks in the full ink -- a jewel, an eye socket, a window --
+ *            the parts that have to survive the smallest size.
+ *
+ * THE GEAR IS A REAL GEAR: eight flat-topped trapezoid teeth (tip radius 10.3,
+ * root radius 7.5) around a bored hub, so the silhouette is a spur gear at any
+ * size. `tests/badge-art.test.ts` counts its teeth from this path.
+ *
+ * `motion` NAMES THE ONE SHORT BEAT `BadgeIcon` PLAYS -- a quarter-second-scale
+ * gesture that ends exactly on the rest frame, never a loop, and only under
+ * `prefers-reduced-motion: no-preference`. It is required, so an emblem added
+ * without one is a type error rather than a still badge among moving ones.
+ */
+export type BadgeMotion = 'flash' | 'flicker' | 'twinkle' | 'sheen' | 'turn' | 'nod' | 'glint' | 'lift';
+
+export const BADGE_MOTIONS: readonly BadgeMotion[] = [
+	'flash',
+	'flicker',
+	'twinkle',
+	'sheen',
+	'turn',
+	'nod',
+	'glint',
+	'lift'
+];
+
 export interface BadgeDef {
 	id: string;
 	label: string;
-	/** Stroked paths on a 24x24 grid (the pathways.ts inline-icon convention). */
+	/** The outline, stroked on a 24x24 grid (the pathways.ts inline-icon convention). Never empty. */
 	paths: string[];
+	/** Recessed faces, filled with a low mix of the ink and drawn first (evenodd). */
+	faces?: string[];
+	/** Facets, bevels and highlights: thin strokes at reduced strength, drawn over the outline. */
+	details?: string[];
+	/** Small marks in the full ink, drawn last. */
+	solids?: string[];
+	/** The one-shot beat `BadgeIcon` plays; never a loop. */
+	motion: BadgeMotion;
 }
 
+const GEAR_OUTLINE =
+	'M10.5 4.65L10.74 1.78A10.3 10.3 0 0 1 13.26 1.78L13.5 4.65A7.5 7.5 0 0 1 16.14 5.75L18.34 3.88A10.3 10.3 0 0 1 20.12 5.66L18.25 7.86A7.5 7.5 0 0 1 19.35 10.5L22.22 10.74A10.3 10.3 0 0 1 22.22 13.26L19.35 13.5A7.5 7.5 0 0 1 18.25 16.14L20.12 18.34A10.3 10.3 0 0 1 18.34 20.12L16.14 18.25A7.5 7.5 0 0 1 13.5 19.35L13.26 22.22A10.3 10.3 0 0 1 10.74 22.22L10.5 19.35A7.5 7.5 0 0 1 7.86 18.25L5.66 20.12A10.3 10.3 0 0 1 3.88 18.34L5.75 16.14A7.5 7.5 0 0 1 4.65 13.5L1.78 13.26A10.3 10.3 0 0 1 1.78 10.74L4.65 10.5A7.5 7.5 0 0 1 5.75 7.86L3.88 5.66A10.3 10.3 0 0 1 5.66 3.88L7.86 5.75A7.5 7.5 0 0 1 10.5 4.65Z';
+const GEAR_HUB = 'M12 8.8A3.2 3.2 0 1 1 12 15.2A3.2 3.2 0 1 1 12 8.8Z';
+
 export const BADGES: BadgeDef[] = [
-	{ id: 'bolt', label: 'Bolt', paths: ['M13 2.5 4.5 14H10l-1 7.5L19.5 10H14z'] },
+	{
+		id: 'bolt',
+		label: 'Bolt',
+		paths: ['M13.4 2 4.6 13.4h6.6L10.4 22l9-11.6h-6.6z'],
+		faces: ['M13.4 2 4.6 13.4h6.6L10.4 22l9-11.6h-6.6z', 'M11.2 13.4 10.4 22l9-11.6h-6.6z'],
+		details: ['M12.2 5.7 7.9 11.4'],
+		motion: 'flash'
+	},
 	{
 		id: 'flame',
 		label: 'Flame',
-		paths: ['M12 2.8c3 4 5.2 6.3 5.2 9.4a5.2 5.2 0 0 1-10.4 0c0-1.7.8-3 1.9-4.1C10.2 9.4 12 6.1 12 2.8z']
+		paths: [
+			'M12 2.4c3.6 3.7 6.4 6.9 6.4 11.2a6.4 6.4 0 0 1-12.8 0c0-2.4 1.1-4.2 2.4-5.4.3 1.8 1.2 2.9 2.4 3.5C10 8.8 10.6 5.6 12 2.4z'
+		],
+		faces: [
+			'M12 2.4c3.6 3.7 6.4 6.9 6.4 11.2a6.4 6.4 0 0 1-12.8 0c0-2.4 1.1-4.2 2.4-5.4.3 1.8 1.2 2.9 2.4 3.5C10 8.8 10.6 5.6 12 2.4z'
+		],
+		details: ['M15.2 9.6c.9 1.2 1.4 2.5 1.4 4'],
+		solids: ['M12 12.2c1.7 1.7 2.8 3.1 2.8 4.7a2.8 2.8 0 0 1-5.6 0c0-1.5 1-2.9 2.8-4.7z'],
+		motion: 'flicker'
 	},
 	{
 		id: 'star',
 		label: 'Star',
-		paths: ['m12 3.2 2.7 5.6 6 .9-4.4 4.2 1.1 6-5.4-2.9-5.4 2.9 1.1-6L3.3 9.7l6-.9z']
+		paths: ['M12 2.9L14.35 9.46L21.32 9.67L15.8 13.94L17.76 20.63L12 16.7L6.24 20.63L8.2 13.94L2.68 9.67L9.65 9.46Z'],
+		faces: [
+			'M12 2.9L14.35 9.46L21.32 9.67L15.8 13.94L17.76 20.63L12 16.7L6.24 20.63L8.2 13.94L2.68 9.67L9.65 9.46Z',
+			'M12 12.7L12 2.9L14.35 9.46ZM12 12.7L21.32 9.67L15.8 13.94ZM12 12.7L17.76 20.63L12 16.7ZM12 12.7L6.24 20.63L8.2 13.94ZM12 12.7L2.68 9.67L9.65 9.46Z'
+		],
+		details: ['M12 12.7 12 2.9M12 12.7 21.32 9.67M12 12.7 17.76 20.63M12 12.7 6.24 20.63M12 12.7 2.68 9.67'],
+		motion: 'twinkle'
 	},
-	{ id: 'shield', label: 'Shield', paths: ['M12 2.8 19 6v5.1c0 4.5-3 8.1-7 10.1-4-2-7-5.6-7-10.1V6z'] },
+	{
+		id: 'shield',
+		label: 'Shield',
+		paths: ['M12 2.4 19.8 5.4v5.8c0 4.9-3.3 8.7-7.8 10.6C7.5 19.9 4.2 16.1 4.2 11.2V5.4z'],
+		faces: [
+			'M12 2.4 19.8 5.4v5.8c0 4.9-3.3 8.7-7.8 10.6C7.5 19.9 4.2 16.1 4.2 11.2V5.4z',
+			'M12 2.4 19.8 5.4v5.8c0 4.9-3.3 8.7-7.8 10.6z'
+		],
+		details: ['M12 2.4v19.4', 'M10.6 5.3 6.2 7v4.2c0 3.5 1.8 6.3 4.4 8'],
+		motion: 'sheen'
+	},
 	{
 		id: 'gear',
 		label: 'Gear',
-		paths: [
-			'M12 8.6A3.4 3.4 0 1 0 12 15.4 3.4 3.4 0 0 0 12 8.6z',
-			'm12 2.4 1.4 2.4 2.7-.6.7 2.7 2.4 1.2-1.2 2.5 1.2 2.5-2.4 1.2-.7 2.7-2.7-.6L12 21.6l-1.4-2.4-2.7.6-.7-2.7-2.4-1.2L6 12 4.8 9.5l2.4-1.2.7-2.7 2.7.6z'
-		]
+		paths: [GEAR_OUTLINE, GEAR_HUB],
+		faces: [GEAR_OUTLINE + GEAR_HUB],
+		details: ['M12 6.6A5.4 5.4 0 1 1 12 17.4A5.4 5.4 0 1 1 12 6.6Z'],
+		motion: 'turn'
 	},
 	{
 		id: 'skull',
 		label: 'Skull',
 		paths: [
-			'M12 2.8a7.2 7.2 0 0 0-7.2 7.2c0 2.4 1.1 4 2.6 5v3a2 2 0 0 0 2 2h5.2a2 2 0 0 0 2-2v-3c1.5-1 2.6-2.6 2.6-5A7.2 7.2 0 0 0 12 2.8z',
-			'M9.4 9.2a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2z',
-			'M14.6 9.2a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2z'
-		]
+			'M12 2.6a7.4 7.4 0 0 0-7.4 7.4c0 2.5 1.1 4.2 2.7 5.2v2.9a2 2 0 0 0 2 2h5.4a2 2 0 0 0 2-2v-2.9c1.6-1 2.7-2.7 2.7-5.2A7.4 7.4 0 0 0 12 2.6z'
+		],
+		faces: [
+			'M12 2.6a7.4 7.4 0 0 0-7.4 7.4c0 2.5 1.1 4.2 2.7 5.2v2.9a2 2 0 0 0 2 2h5.4a2 2 0 0 0 2-2v-2.9c1.6-1 2.7-2.7 2.7-5.2A7.4 7.4 0 0 0 12 2.6z'
+		],
+		details: ['M10.3 17.4v2.6M12 17.4v2.7M13.7 17.4v2.6'],
+		solids: [
+			'M9.3 8.4a1.9 1.9 0 1 1 0 3.8a1.9 1.9 0 1 1 0-3.8z',
+			'M14.7 8.4a1.9 1.9 0 1 1 0 3.8a1.9 1.9 0 1 1 0-3.8z',
+			'M12 12.9l1 1.9h-2z'
+		],
+		motion: 'nod'
 	},
-	{ id: 'crown', label: 'Crown', paths: ['M3.8 7.6 8 11.2 12 4.4l4 6.8 4.2-3.6L18.6 19H5.4z'] },
+	{
+		id: 'crown',
+		label: 'Crown',
+		paths: ['M3.6 8.6 7.8 12 12 5.4l4.2 6.6 4.2-3.4-1.8 10.4H5.4z'],
+		faces: ['M3.6 8.6 7.8 12 12 5.4l4.2 6.6 4.2-3.4-1.8 10.4H5.4z', 'M5.85 16.4h12.3l-.35 2.2H5.4z'],
+		details: ['M5.9 16.4h12.2'],
+		solids: [
+			'M3.6 5.8a1.2 1.2 0 1 1 0 2.4a1.2 1.2 0 1 1 0-2.4z',
+			'M12 2.4a1.2 1.2 0 1 1 0 2.4a1.2 1.2 0 1 1 0-2.4z',
+			'M20.4 5.8a1.2 1.2 0 1 1 0 2.4a1.2 1.2 0 1 1 0-2.4z'
+		],
+		motion: 'glint'
+	},
 	{
 		id: 'rocket',
 		label: 'Rocket',
 		paths: [
-			'M12 2.6c3.3 2.3 5.2 5.8 5.2 9.6l-2.3 2.3H9.1l-2.3-2.3c0-3.8 1.9-7.3 5.2-9.6z',
-			'm9.3 14.5-2.8 2.8 1.4 3.4 2.2-2.2m5.6-4 2.8 2.8-1.4 3.4-2.2-2.2'
-		]
+			'M12 2.2c2.6 1.9 4 5 4 8.6v5.6H8v-5.6c0-3.6 1.4-6.7 4-8.6z',
+			'M8 11.6 5 14.4v3.8l3-1.8M16 11.6l3 2.8v3.8l-3-1.8'
+		],
+		faces: [
+			'M12 2.2c2.6 1.9 4 5 4 8.6v5.6H8v-5.6c0-3.6 1.4-6.7 4-8.6z',
+			'M12 2.2c2.6 1.9 4 5 4 8.6v5.6h-4z',
+			'M8 11.6 5 14.4v3.8l3-1.8zM16 11.6l3 2.8v3.8l-3-1.8z'
+		],
+		details: ['M12 17.8c.9.9 1.4 1.8 1.4 2.7a1.4 1.4 0 0 1-2.8 0c0-.9.5-1.8 1.4-2.7z'],
+		solids: ['M12 7.4a1.7 1.7 0 1 1 0 3.4a1.7 1.7 0 1 1 0-3.4z'],
+		motion: 'lift'
 	}
 ];
 

@@ -1,5 +1,9 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import PlateRing from '$lib/classroom/PlateRing.svelte';
+	import SaveIndicator from '$lib/SaveIndicator.svelte';
+	import { getLiveWork } from '$lib/classroom/live-work.svelte';
+	import { liveWorksheetCompletion } from '$lib/classroom/live-work';
 	/**
 	 * THE PROGRESS RAIL ABOVE A PORTED HTML ASSIGNMENT.
 	 *
@@ -59,11 +63,32 @@
 	 * layer on the fill itself rather than a separate element, which is what
 	 * keeps "nothing is hidden in a base state" true of it.
 	 *
-	 * NO CONTROL. Nothing here is tappable, so the 44px floor has nothing to
-	 * measure on this surface; the harness's own controls are measured instead.
+	 * ONE CONTROL SINCE LEDGER 0360, AND IT IS THE SAVE STATE'S OWN. This header
+	 * used to read "NO CONTROL". The rail now mounts the real
+	 * `$lib/SaveIndicator.svelte` for the one machine `status.save` names, so a
+	 * save that stopped retrying says so ABOVE the worksheet, in parent chrome,
+	 * with its Retry -- the failure used to be reported only inside the
+	 * sandboxed document (reports d983e776, 2d83c063). That Retry is the
+	 * indicator's own 44px key; a Dismiss on the restore notice is the other.
+	 *
+	 * AND THE NUMBER STOPS CLAIMING WORK THE SERVER HAS NOT GOT. With `status`
+	 * handed in, `hxProgress` is told which fields are unsaved, so a filled
+	 * worksheet reads 99 and says it is saving (or that it is not saved) until
+	 * the last write lands, and only then 100 and "All filled in".
+	 *
+	 * IT ALSO TELLS THE CLASS LIST BESIDE IT (`$lib/classroom/live-work`), with
+	 * no network call: the section layout's `work` is read once per visit, so a
+	 * student who finished here kept reading Missing in the list until a full
+	 * reload. The rail is the publisher because "Complete" on that row and "All
+	 * filled in" here must be one answer.
 	 */
 	import type { HtmlAssignmentManifest } from '$lib/classroom/html-assignment/manifest';
 	import type { HxImageState } from '$lib/classroom/html-assignment/bridge';
+	import type { HxSaveStatus } from '$lib/classroom/html-assignment/answers';
+	import {
+		HX_MIRROR_UNAVAILABLE,
+		hxRestoreMessage
+	} from '$lib/classroom/html-assignment/draft-mirror';
 	import {
 		HX_PROGRESS_BAR_LABEL,
 		HX_PROGRESS_COMPLETE_NOTE,
@@ -72,6 +97,7 @@
 		hxProgressModuleLine,
 		hxProgressNextLine,
 		hxProgressPaint,
+		hxProgressSaveLine,
 		hxProgressStageRow,
 		hxProgressSummary
 	} from '$lib/classroom/html-assignment/progress';
@@ -79,16 +105,46 @@
 	let {
 		manifest,
 		values,
-		images = {}
+		images = {},
+		status = null
 	}: {
 		/** The manifest STORED AT IMPORT, never one a frame sent. */
 		manifest: HtmlAssignmentManifest;
 		/** Keyed by FIELD, as the answer controller holds them. */
 		values: Readonly<Record<string, string | boolean>>;
 		images?: Readonly<Record<string, HxImageState>>;
+		/**
+		 * The answer store's save status (`HxAnswersStore.status`). Absent is
+		 * the rail as it was before ledger 0360: every in-memory answer counts,
+		 * no indicator, nothing published.
+		 */
+		status?: HxSaveStatus | null;
 	} = $props();
 
-	const progress = $derived(hxProgress(manifest, values, images));
+	const progress = $derived(hxProgress(manifest, values, images, { unsaved: status?.unsaved ?? [] }));
+	const saveFailed = $derived(status?.save?.failed ?? false);
+	const saveLine = $derived(hxProgressSaveLine(progress, saveFailed));
+	const restoreLine = $derived(status?.restore ? hxRestoreMessage(status.restore) : null);
+	const mirrorRefused = $derived(status?.mirror === 'full' || status?.mirror === 'blocked');
+	/** What the class list beside this worksheet should say (`liveWorksheetCompletion`). */
+	const liveOpinion = $derived(
+		status ? liveWorksheetCompletion({ progress, ack: status.ack }) : undefined
+	);
+	const liveItem = $derived(status?.itemId ?? null);
+
+	/**
+	 * PUBLISHED TO THE CLASS LAYOUT, deferred and untracked: the opinion and the
+	 * item are read tracked (they are what this effect exists for), and the
+	 * write into the layout's state is somebody else's code, so it runs in a
+	 * microtask outside this effect's tracking context.
+	 */
+	const live = getLiveWork();
+	$effect(() => {
+		const opinion = liveOpinion;
+		const itemId = liveItem;
+		if (!live || !itemId || opinion === undefined) return;
+		queueMicrotask(() => untrack(() => live.set(itemId, opinion)));
+	});
 	const stage = $derived(hxProgressStageRow(progress.stage));
 	const paint = $derived(hxProgressPaint(progress.percent));
 	const nextLine = $derived(hxProgressNextLine(progress));
@@ -126,11 +182,44 @@
 			</p>
 			{#if progress.complete}
 				<p class="hxp-next" data-testid="hxp-next">{HX_PROGRESS_COMPLETE_NOTE}</p>
+			{:else if saveLine}
+				<p class="hxp-next hxp-saving" data-testid="hxp-next" data-hxp-save-line={saveFailed ? 'failed' : 'saving'}>
+					{#if saveFailed}<span class="hxp-saving-mark" aria-hidden="true">!</span>{/if}{saveLine}
+				</p>
 			{:else if nextLine}
 				<p class="hxp-next" data-testid="hxp-next">{nextLine}</p>
 			{/if}
 		</div>
+		{#if status?.save}
+			<!-- THE ONE SAVE STATE'S OWN WORDS AND ITS RETRY, for the machine that
+			     speaks worst. Hidden while clean, like every other mount of it. -->
+			<div class="hxp-save" data-testid="hxp-save">
+				<SaveIndicator state={status.save} hideClean />
+			</div>
+		{/if}
 	</div>
+
+	{#if restoreLine && status?.restore}
+		<div class="hxp-restore" role="status" data-testid="hxp-restore">
+			<p class="hxp-restore-line">{restoreLine}</p>
+			{#each status.restore.conflicts as conflict (conflict.blockId)}
+				<div class="hxp-conflict" data-hxp-conflict={conflict.blockId}>
+					<p class="hxp-conflict-label">{conflict.label}</p>
+					{#each conflict.lines as line, i (i)}
+						<p class="hxp-conflict-text">{line}</p>
+					{/each}
+				</div>
+			{/each}
+			{#if status.dismissRestore}
+				{@const dismiss = status.dismissRestore}
+				<button type="button" class="hxp-dismiss" data-testid="hxp-restore-dismiss" onclick={() => dismiss()}>Dismiss</button>
+			{/if}
+		</div>
+	{/if}
+
+	{#if mirrorRefused}
+		<p class="hxp-mirror-off" data-testid="hxp-mirror-off">{HX_MIRROR_UNAVAILABLE}</p>
+	{/if}
 
 	<div
 		class="hxp-bar"
@@ -257,6 +346,78 @@
 		margin: 0;
 		font-size: 0.9rem;
 		color: var(--text-2);
+	}
+	/* THE SAVING AND NOT-SAVED LINES take the text tier, never a status hue on
+	   the words: colour is never the only signal, and the failed one carries a
+	   marked glyph beside it. */
+	.hxp-saving {
+		color: var(--text-1);
+	}
+	.hxp-saving-mark {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.05rem;
+		height: 1.05rem;
+		margin-right: 0.35rem;
+		border: 1px solid currentColor;
+		border-radius: 50%;
+		font-family: var(--font-mono);
+		font-weight: 700;
+		font-size: 0.66rem;
+		line-height: 1;
+		vertical-align: 0.1em;
+	}
+	.hxp-save {
+		flex: 0 1 auto;
+		min-width: 0;
+		align-self: center;
+	}
+
+	.hxp-restore {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-sm, 4px);
+		background: var(--surface-2);
+	}
+	.hxp-restore-line,
+	.hxp-conflict-label,
+	.hxp-conflict-text {
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--text-1);
+	}
+	.hxp-conflict-label {
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		letter-spacing: 0.03em;
+		color: var(--text-2);
+	}
+	.hxp-conflict-text {
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
+	.hxp-dismiss {
+		align-self: flex-start;
+		min-height: 44px;
+		min-width: 44px;
+		padding: 0 0.8rem;
+		background: transparent;
+		border: 1px solid var(--boundary);
+		border-radius: var(--radius-sm, 4px);
+		color: var(--text-1);
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.05em;
+		cursor: pointer;
+	}
+	.hxp-mirror-off {
+		margin: 0;
+		font-size: 0.8rem;
+		color: var(--text-1);
 	}
 
 	/* THE TRACK. A row of segments, each a rounded slot, divided by a hairline

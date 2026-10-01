@@ -167,10 +167,10 @@ const CORE: readonly ShellCommand[] = [
 		id: 'settings.open',
 		name: 'Display settings',
 		icon: ICONS.settings,
-		description: 'Density, list width, what a class opens on, and a reset for each.',
+		description: 'Density, list width, what a class opens on, the page layout, and a reset for each.',
 		role: 'any',
 		context: 'global',
-		keywords: ['classroom settings', 'preferences', 'customize', 'density', 'compact', 'options'],
+		keywords: ['classroom settings', 'preferences', 'customize', 'density', 'compact', 'options', 'layout', 'arrange', 'reorder', 'hide sections'],
 		run: true
 	},
 	{
@@ -379,6 +379,16 @@ const CORE: readonly ShellCommand[] = [
 		role: 'manager',
 		context: 'class',
 		keywords: ['create', 'announcement', 'assignment', 'material', 'compose'],
+		run: true
+	},
+	{
+		id: 'class.quick-post',
+		name: 'Quick post',
+		icon: ICONS.post,
+		description: 'A short notice at the top of this class, or of several, until a time you pick.',
+		role: 'manager',
+		context: 'class',
+		keywords: ['notice', 'schedule', 'link', 'temporary', 'all my classes'],
 		run: true
 	},
 	{

@@ -41,7 +41,7 @@
 	 * would have been, because a panel that is simply missing reads as a bug.
 	 */
 	import { untrack } from 'svelte';
-	import { foundryDownloadUrl } from './bundle-url.ts';
+	import { foundryDownloadUrl, foundryPreviewUrl } from './bundle-url.ts';
 	import ForgeStatus from './ForgeStatus.svelte';
 	import FoundryPlayStats from './FoundryPlayStats.svelte';
 	import { formatBytes } from './preflight.ts';
@@ -465,11 +465,33 @@
 		-->
 		{#if version.file_count > 0}
 			{@const downloadHref = foundryDownloadUrl(app.id, version.id)}
-			{#if downloadHref}
+			{@const previewHref = foundryPreviewUrl(app.id, version.id)}
+			{#if downloadHref || previewHref}
 				<p class="fdy-insp-get">
-					<a class="btn tap-44" href={downloadHref} download>
-						Download this build
-					</a>
+					{#if downloadHref}
+						<a class="btn tap-44" href={downloadHref} download>
+							Download this build
+						</a>
+					{/if}
+					<!--
+						RUN IT ON THE PORTAL, IN A NEW TAB (ledger 0360). The same
+						`/foundry/preview` route an author's own shelf links to, which
+						admits an admin to any build and serves it in an opaque origin.
+						It is the way to run a build while the whole Foundry is turned
+						off: the frame beside this reads the apps address, which the
+						switch closes for everyone, and an administrator is exempt here.
+					-->
+					{#if previewHref}
+						<a
+							class="btn tap-44"
+							href={previewHref}
+							target="_blank"
+							rel="noopener"
+							data-testid="foundry-insp-preview"
+						>
+							Run a preview
+						</a>
+					{/if}
 				</p>
 			{/if}
 		{/if}
@@ -890,6 +912,9 @@
 	/* The staff copy sits under the build's own meta line, on its own row, so
 	   it is not competing with the decision controls further down. */
 	.fdy-insp-get {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2, 0.5rem);
 		margin: var(--space-2, 0.5rem) 0 0;
 	}
 

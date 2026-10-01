@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "classroom-layout-page-item-settings-open.mjs",
+	"date": "2026-10-01T17:40:24.749Z",
+	"sha": "b1882503546b58c90dc8f9a0250a6ea4973fd7c0",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 44,
+	"outsideRows": [],
+	"ms": 7071
+}

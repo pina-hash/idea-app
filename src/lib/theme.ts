@@ -18,6 +18,12 @@
  * disagree about which theme is showing.
  */
 
+import {
+	SITE_PLATE_DEV_PREFIXES,
+	SITE_PLATE_EXCLUDE,
+	SITE_PLATE_PREFIXES
+} from './shell/site-plate';
+
 export type SiteTheme = 'idea' | 'matrix' | 'space-white';
 
 /** What `<html data-theme>` can carry. The default is the absence, so it is not here. */
@@ -73,14 +79,17 @@ export const SITE_THEME_LABELS: Record<SiteTheme, string> = {
  * plate picker.
  *
  * SPACE WHITE'S NOTE NAMES WHERE IT PAINTS, because it is the one theme with a
- * route scope (below): picked on a Foundry or GAUNTLET page it changes nothing
- * on that page, and a row that says only "white" would read as a control that
- * did not work. When the scope widens, this sentence widens with it.
+ * route scope (below): picked on a GAUNTLET or FRC page it changes nothing on
+ * that page, and a row that says only "white" would read as a control that did
+ * not work. When the scope widens, this sentence widens with it, and it did in
+ * ledger 0360: the portal's own pages, with the games, FRC and FSP named as the
+ * rooms that keep their own look.
  */
 export const SITE_THEME_NOTES: Record<SiteTheme, string> = {
 	idea: 'The standard green-metal palette',
 	matrix: 'Black ground, phosphor green, falling code',
-	'space-white': 'A white console for the projector and bright rooms, on the home and classroom pages'
+	'space-white':
+		"A white console for the projector and bright rooms, on the portal's own pages; games, FRC and FSP keep their own look"
 };
 
 /**
@@ -133,13 +142,33 @@ export function themeColorFor(attr: SiteThemeAttr | undefined): string {
  * feed were swept off their literal dark values. Adding a route is one entry
  * here plus its line in the test.
  *
+ * AND, SINCE LEDGER 0360, EVERY PAGE THE SITE PLATE COVERS (Mr. Pina,
+ * 2026-09-29: "space white on the rest of the site, yes"). The site plate
+ * (ledger 0346, `$lib/shell/site-plate.ts`) is already the list of the portal's
+ * own pages -- the dashboard and admin, the archive, the auth error page, the
+ * coin desk, the Foundry, the Maps viewer and editor, the tournaments less the
+ * TV stage -- and each of those rooms was given a light-ground twin in its own
+ * stylesheet in the same change. So the scope READS THE PLATE'S LISTS rather
+ * than restating them, and a page added to the plate is in Space White's scope
+ * the moment it is in the plate's. It reads the LISTS, never
+ * `sitePlateInScope`: that function strips a trailing slash before it
+ * matches, which turns `//` into `/` and puts it in (`//` is OUT here, and the
+ * test says so). And it reads them whatever `SITE_PLATE` is set to: switching
+ * the plate's look off is not a decision about which pages a theme may paint.
+ * The TV stage stays out through the plate's own exclusion, and the rooms with
+ * an identity of their own -- GAUNTLET, VANGUARD, GREENLINE, IdeaCAD, FRC,
+ * FSP, the frozen Coin Ledger, and every document a student or the legacy
+ * archive wrote (`/a/`, `/b/`, `/hx/`, `/assignments/`) -- are on neither list
+ * and never carry the attribute.
+ *
  * THE HOME PAGE IS AN EXACT PATH, NEVER A PREFIX, AND THAT IS WHY IT HAS A
  * LIST OF ITS OWN. Every route in the site starts with `/`, so `/` in the
  * prefix list is one careless edit away from putting a light theme on FRC's
  * paper and FSP's navy -- the rooms this whole scope exists to keep it off.
- * `THEME_SCOPE_EXACT` matches the one string and nothing under it, and
- * `/archive`, which shares the home page's `.legacy-index` stylesheet, stays
- * out until somebody measures it.
+ * `THEME_SCOPE_EXACT` matches the one string and nothing under it. (`/archive`,
+ * which shares the home page's `.legacy-index` stylesheet, used to be named
+ * here as staying out until somebody measured it; it is a site-plate page and
+ * came in with the rest in ledger 0360.)
  * ======================================================================== */
 
 /** The themes whose attribute is written only on in-scope routes. */
@@ -157,8 +186,11 @@ export const THEME_SCOPE_EXACT: readonly string[] = ['/'];
  * `/dev/grading-rubric`) is one entry. They 404 in production, so this list
  * can change nothing a student sees; what it does is let a harness measure the
  * theme on the same component its real route mounts, and let a harness for an
- * out-of-scope room (`/dev/frc`, `/dev/foundry-*`) show the default look
- * exactly as its real route would.
+ * out-of-scope room (`/dev/frc`, `/dev/gauntlet-shell`) show the default look
+ * exactly as its real route would. The site plate's own harnesses
+ * (`SITE_PLATE_DEV_PREFIXES`, `/dev/foundry-*` and `/dev/maps-*` among them)
+ * are in scope through that list since ledger 0360, so they are not repeated
+ * here.
  */
 export const THEME_SCOPE_DEV_PREFIXES: readonly string[] = [
 	'/dev/themes',
@@ -195,9 +227,19 @@ export const THEME_SCOPE_DEV_PREFIXES: readonly string[] = [
 /** Is this path one a scoped theme may paint? */
 export function themeInScope(pathname: string): boolean {
 	const p = pathname || '/';
-	if (p.startsWith('/dev/')) return THEME_SCOPE_DEV_PREFIXES.some((d) => p.startsWith(d));
+	if (p.startsWith('/dev/')) {
+		// The plate's harnesses are its pages' stand-ins, so they measure the
+		// theme their real route now paints (ledger 0360).
+		return (
+			THEME_SCOPE_DEV_PREFIXES.some((d) => p.startsWith(d)) ||
+			SITE_PLATE_DEV_PREFIXES.some((d) => p.startsWith(d))
+		);
+	}
 	if (THEME_SCOPE_EXACT.includes(p)) return true;
-	return THEME_SCOPE_PREFIXES.some((x) => p === x || p.startsWith(x + '/'));
+	if (THEME_SCOPE_PREFIXES.some((x) => p === x || p.startsWith(x + '/'))) return true;
+	// The site plate's pages, less its exclusions (the tournament TV stage).
+	if (SITE_PLATE_EXCLUDE.some((re) => re.test(p))) return false;
+	return SITE_PLATE_PREFIXES.some((x) => p === x || p.startsWith(x + '/'));
 }
 
 /**

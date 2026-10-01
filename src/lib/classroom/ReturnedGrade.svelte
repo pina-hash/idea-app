@@ -1,5 +1,6 @@
 <script lang="ts">
 	import RubricView from '$lib/classroom/RubricView.svelte';
+	import Disclosure from '$lib/Disclosure.svelte';
 	import {
 		rubricTotal,
 		type RubricCriterion,
@@ -26,6 +27,16 @@
 	 * 1065px below the grade it explains. The comment is the one sentence written
 	 * for this student, so it sits directly under the score and the table
 	 * follows it. `tests/classroom-returned-grade.test.ts` pins the order.
+	 *
+	 * AND THE BREAKDOWN STARTS CLOSED (report R20, a2fe2f8f, ledger 0360). The
+	 * unscored rubric moved to the bottom of the item page and starts closed for
+	 * every role; this is the scored copy of the same rubric, so it follows the
+	 * same rule in place: the score and the comment stay at the top, above the
+	 * work, and the breakdown is a closed "Rubric breakdown" disclosure under
+	 * them. It shares the unscored card's scope (`item:<id>:rubric`) because it
+	 * is one choice per person per item about seeing this rubric, so a student
+	 * who opened it before keeps it open. The region stays in the DOM and
+	 * prints.
 	 *
 	 * THE SCORE IS THE STORED ONE, never re-added: `score` already includes any
 	 * extra credit (0171), and the breakdown's own total is RubricView's.
@@ -67,14 +78,21 @@
 		</p>
 	{/if}
 	{#if rubric?.length}
-		<div data-testid="returned-grade-breakdown">
-			<RubricView
-				criteria={rubric}
-				scores={submission.rubric_scores ?? {}}
-				comments={submission.criterion_comments ?? null}
-				title="Rubric breakdown"
-			/>
-		</div>
+		<Disclosure
+			label="Rubric breakdown"
+			scope={`item:${submission.item_id}:rubric`}
+			collapseWhen={true}
+			testId="returned-grade-breakdown-disclosure"
+		>
+			<div data-testid="returned-grade-breakdown">
+				<RubricView
+					criteria={rubric}
+					scores={submission.rubric_scores ?? {}}
+					comments={submission.criterion_comments ?? null}
+					title="Criteria"
+				/>
+			</div>
+		</Disclosure>
 	{/if}
 	{#if note}<p class="grade-note">{note}</p>{/if}
 </section>

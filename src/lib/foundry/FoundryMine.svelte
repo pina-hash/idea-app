@@ -382,9 +382,13 @@
 				per-player read for anybody, so "who played it" has no answer here for
 				the author either. Absent transport, absent block.
 			-->
-			<div class="fdy-block">
-				<FoundryPlayStats appId={app.id} load={transports.playStats} />
-			</div>
+			{#if transports.playStats}
+				<!-- No transport, no block: an empty block under the plate is a
+				     panel with nothing in it, which read as a stray bar (ledger 0360). -->
+				<div class="fdy-block">
+					<FoundryPlayStats appId={app.id} load={transports.playStats} />
+				</div>
+			{/if}
 
 			<!-- ------------------------------------------------------ details -->
 			<section class="fdy-block" aria-label="App details">
@@ -980,9 +984,12 @@
 		color: var(--cyan);
 	}
 
+	/* A PANEL UNDER THE SITE PLATE, so it is padded on every side (ledger 0360):
+	   it was a top-ruled divider with no side padding, and the plate drew a box
+	   round it with every heading and field touching the edge. */
 	.fdy-block {
 		border-top: 1px solid var(--hairline);
-		padding-top: var(--space-4, 1rem);
+		padding: 1.25rem;
 		margin-top: var(--space-4, 1rem);
 	}
 

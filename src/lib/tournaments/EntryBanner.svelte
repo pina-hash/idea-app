@@ -438,6 +438,22 @@
 		border-style: dashed;
 		border-color: var(--ice, #a8b6ad);
 	}
+	/* SPACE WHITE (ledger 0360). The dark plate's marks are a light ink over a
+	   translucent wash, and on a light ground that is light on light. So the
+	   twin is OPAQUE -- a pinned pale fill with the ink the same hue and
+	   saturation as #dea66e at 30% lightness (#7d4d1c) -- which keeps it legible
+	   whatever it sits on, a student's own banner included: 5.83:1 on its fill.
+	   The failed mark keeps the theme's own --ice (#43504b) on a pinned light
+	   fill, 7.41:1. Ink, fill AND border style still differ between the two,
+	   and each keeps its glyph. */
+	:global(:root[data-theme='space-white']) .thumb.mark.refused {
+		color: #7d4d1c;
+		background: #f1e7dc;
+		border-color: #7d4d1c;
+	}
+	:global(:root[data-theme='space-white']) .thumb.mark.failed {
+		background: #edf1f0;
+	}
 	.entry-banner.has-acc .thumb.mark {
 		border-color: currentColor;
 	}
@@ -484,6 +500,10 @@
 	}
 	.entry-banner.winner .name {
 		text-shadow: 0 0 0.8rem rgba(255, 255, 255, 0.25);
+	}
+	/* Space White draws no glow (ledger 0360). */
+	:global(:root[data-theme='space-white']) .entry-banner.winner .name {
+		text-shadow: none;
 	}
 	/* The people behind the name, in the banner's own ink at FULL opacity and
 	   the tagline's size: a roster is information where a tagline is

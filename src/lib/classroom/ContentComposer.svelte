@@ -3522,7 +3522,10 @@
 	<!--
 		THE LAYER. `role="dialog"` + `aria-modal` on a FIXED element above the
 		masthead (z-index 60: the masthead is 1, the lightbox and the legacy
-		header are 100, the navigation bar 1000 -- see app.css), a header row
+		header are 100, the navigation bar 1000 -- see app.css). Its 60 counts
+		only once the page's `main` stops being a stacking context, which
+		ItemDetail does while this layer is open (`.edit-layer-open`, ledger
+		0360, report R06); inside a `main` at z-index 1 it painted at 1. A header row
 		that names what is being edited and carries the one control that has
 		to be reachable without scrolling, then the form scrolling inside. The
 		form's own sticky actions row sticks to the top of THIS scroller, under

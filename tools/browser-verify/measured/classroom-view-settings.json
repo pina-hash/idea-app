@@ -1,9 +1,9 @@
 {
 	"schema": 1,
 	"spec": "classroom-view-settings.mjs",
-	"date": "2026-09-28T23:41:22.108Z",
-	"sha": "31a00b0716a4a4afe65773eac21aa8fbb172e16b",
-	"dirty": true,
+	"date": "2026-10-01T17:03:53.166Z",
+	"sha": "9e6407b18cfd662d948e2f38c7216c137a83720b",
+	"dirty": false,
 	"widths": [
 		375,
 		1440
@@ -11,5 +11,5 @@
 	"runs": 2,
 	"measurements": 44,
 	"outsideRows": [],
-	"ms": 7198
+	"ms": 6747
 }

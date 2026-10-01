@@ -1285,15 +1285,11 @@ function opResult(res: unknown): { ok: true; data: EngineOpResult } {
  */
 export function createEngineTransports(supabase: SupabaseClient): AssignmentEngineTransports {
 	return {
-		async saveResponse(itemId, blockId, value) {
-			const { data: res, error } = await supabase.rpc('classroom_save_response', {
-				p_item_id: itemId,
-				p_block_id: blockId,
-				p_value: value
-			});
-			if (error) return fail(error);
-			return opResult(res);
-		},
+		// ONE IMPLEMENTATION of the answer write (ledger 0360): `hxSaveResponse`
+		// keeps the SQLSTATE and status a failure carried, which `fail()` drops.
+		// AssignmentEngine treats every transport failure as retryable already,
+		// so the spec path's behaviour does not move.
+		saveResponse: (itemId, blockId, value) => hxSaveResponse(supabase, itemId, blockId, value),
 		async submitAssignment(itemId) {
 			const { data: res, error } = await supabase.rpc('classroom_submit_assignment', {
 				p_item_id: itemId
@@ -1493,12 +1489,14 @@ export function createInstructorCopyTransports(
 ): InstructorCopyTransports {
 	return {
 		async saveResponse(itemId, blockId, value) {
-			const { data: res, error } = await supabase.rpc('classroom_save_instructor_response', {
+			const { data: res, error, status } = await supabase.rpc('classroom_save_instructor_response', {
 				p_item_id: itemId,
 				p_block_id: blockId,
 				p_value: value
 			});
-			if (error) return fail(error);
+			// The instructor's ported working copy runs on HxAnswers too (0199), so
+			// a timeout there is retried the same way (ledger 0360).
+			if (error) return hxRpcFailure(error, status);
 			return opResult(res);
 		},
 		async designateKey(itemId) {
@@ -2522,9 +2520,10 @@ export function createBulkGradingTransports(supabase: SupabaseClient): BulkGradi
 // a ported document is an ordinary `classroom_responses` row and a photograph
 // attached inside one is an ordinary `classroom_submission_files` row, so the
 // engine transports above ARE the write path and this region only names them
-// for the surface that mounts a frame. See
-// `$lib/classroom/html-assignment/answers.ts` for what does the naming, and for
-// the measured reason a save through them currently raises.
+// for the surface that mounts a frame -- with ONE exception since ledger 0360,
+// `hxSaveResponse` below, which calls the SAME RPC with the same arguments and
+// differs only in keeping the SQLSTATE and the status a failure carried. See
+// `$lib/classroom/html-assignment/answers.ts` for what does the naming.
 // ---------------------------------------------------------------------------
 
 // AT THE HEAD OF THIS REGION RATHER THAN AT THE TOP OF THE FILE, which is the
@@ -2532,7 +2531,8 @@ export function createBulkGradingTransports(supabase: SupabaseClient): BulkGradi
 // wherever it is written, so keeping a region's dependencies beside the region
 // means a reader knows what belongs to what, and an edit here touches nothing
 // above it.
-import type { HxAnswerTransports } from '$lib/classroom/html-assignment/answers';
+import { hxRpcFailure, type HxAnswerTransports } from '$lib/classroom/html-assignment/answers';
+import type { ResponseValue } from './assignment-spec';
 import {
 	HTML_MANIFEST_KIND,
 	HTML_MANIFEST_SCHEMA_VERSION,
@@ -2626,6 +2626,32 @@ export async function loadHtmlAssignmentDocument(
 }
 
 /**
+ * ONE ANSWER WRITE THAT KEEPS WHY IT FAILED (ledger 0360).
+ *
+ * `classroom_save_response`, exactly as `createEngineTransports().saveResponse`
+ * calls it; the only difference is the failure branch. `hxRpcFailure` reads
+ * the SQLSTATE AND the HTTP status postgrest-js reports (0 for a fetch that
+ * never reached the server, 5xx for a server that decided nothing), so a
+ * transient is `retryable`, a lost session is said in words and never
+ * retried, and a considered refusal keeps its own sentence and is answered
+ * once. The engine's own `saveResponse` above is a caller of it.
+ */
+export async function hxSaveResponse(
+	supabase: SupabaseClient,
+	itemId: string,
+	blockId: string,
+	value: ResponseValue
+): Promise<TxResult<EngineOpResult>> {
+	const { data: res, error, status } = await supabase.rpc('classroom_save_response', {
+		p_item_id: itemId,
+		p_block_id: blockId,
+		p_value: value
+	});
+	if (error) return hxRpcFailure(error, status);
+	return opResult(res);
+}
+
+/**
  * THE TRANSPORTS `HxAnswers` TAKES, WHICH ARE THE ENGINE'S OWN.
  *
  * A PROJECTION, NOT AN IMPLEMENTATION. Every function here is the identical
@@ -2638,11 +2664,20 @@ export async function loadHtmlAssignmentDocument(
  *
  * The surface hands NULL instead of calling this when the assignment is not
  * open to the caller, and every write then structurally does not exist.
+ *
+ * `saveResponse` IS THE ONE EXCEPTION, AND IT IS STILL NOT A SECOND WRITE PATH
+ * (ledger 0360, reports d983e776 and 2d83c063). It is `hxSaveResponse`, the
+ * same `classroom_save_response` call with the same three arguments, because
+ * the engine's own copy builds its failures through `fail()`, which drops the
+ * SQLSTATE and the status -- so a statement timeout and a dropped connection
+ * reached `HxAnswers` as an unclassified failure and were never retried, which
+ * through the 2026-09-29 stall was every save on every worksheet. The engine's
+ * copy calls `hxSaveResponse` too, so this is one implementation again.
  */
 export function createHtmlAnswerTransports(supabase: SupabaseClient): HxAnswerTransports {
 	const engine = createEngineTransports(supabase);
 	return {
-		saveResponse: engine.saveResponse,
+		saveResponse: (itemId, blockId, value) => hxSaveResponse(supabase, itemId, blockId, value),
 		uploadSubmissionFile: engine.uploadSubmissionFile,
 		deleteSubmissionFile: engine.deleteSubmissionFile,
 		setFileCaption: engine.setFileCaption

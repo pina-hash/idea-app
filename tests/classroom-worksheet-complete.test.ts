@@ -527,3 +527,110 @@ describe('postGradeBlockChanges names each block that moved after the grade', ()
 		).toEqual([]);
 	});
 });
+
+// ---------------------------------------------------------------------------
+// LEDGER 0360 (reports d983e776, 2d83c063, 8f78d5bd). The cases that read
+// Missing over finished work: an optional photo slot left empty, and a value
+// whose shape is not the one its block's type names. Each is a PAIR beside a
+// worksheet with a REQUIRED block left empty, which must still read Missing.
+// ---------------------------------------------------------------------------
+
+const PORTFOLIO = {
+	schemaVersion: 3,
+	kind: 'html-assignment',
+	title: 'Portfolio capture',
+	course: 'IDEA209H',
+	points: 4,
+	header: [],
+	modules: [
+		{
+			id: 'assembly',
+			title: 'Assembly',
+			points: 4,
+			blocks: [
+				{ id: 'a-photo-1', field: 'photo1', type: 'image' },
+				{ id: 'a-photo-2', field: 'photo2', type: 'image', optional: true },
+				{ id: 'a-done', field: 'assembled', type: 'checkbox' },
+				{ id: 'a-why', field: 'why', type: 'longText', minSentences: 2 }
+			],
+			criteria: []
+		}
+	]
+} as unknown as HtmlAssignmentManifest;
+
+const PORTFOLIO_TABLES = (responses: Rows, files: Rows) => ({
+	classroom_items: [{ id: 'w', assignment_schema_version: 3 }],
+	classroom_html_assignments: [{ item_id: 'w', manifest: PORTFOLIO }],
+	classroom_responses: responses,
+	classroom_submission_files: files
+});
+
+const LATE = '2026-09-22T10:00:00.000Z';
+const storedPhoto = (id: string, block_id: string) => ({
+	id,
+	block_id,
+	filename: 'trophy.jpg',
+	sort_order: 1,
+	created_at: LATE,
+	classroom_submissions: { item_id: 'w', student_email: ME }
+});
+const checked = (block_id: string, value: unknown) => ({
+	item_id: 'w',
+	student_email: ME,
+	block_id,
+	value,
+	updated_at: LATE
+});
+
+async function standingOf(responses: Rows, files: Rows) {
+	const { client } = stubClient(PORTFOLIO_TABLES(responses, files));
+	const completions = await readWorksheetCompletions(client, ['w'], { onlyEmail: ME });
+	const rows = withWorksheetCompletions([], completions, (item_id, student_email) => ({
+		item_id,
+		student_email,
+		state: 'draft',
+		score: null
+	}));
+	const work = studentWorkMap(rows).w;
+	return { standing: assignmentStanding(ITEM, work, NOW), chip: studentWorkChip(ITEM, work, NOW) };
+}
+
+describe('finished work never reads Missing (ledger 0360)', () => {
+	const why = answer(ME, 'a-why', 'I glued the base. Then I clamped the arm.', LATE);
+
+	it('every REQUIRED block stored and the optional photo slot EMPTY: done, "Complete, late"', async () => {
+		const out = await standingOf([why, checked('a-done', { checked: [true] })], [storedPhoto('p1', 'a-photo-1')]);
+		expect(out.standing).toBe('done');
+		expect(out.chip).toEqual({ label: 'Complete, late', tone: 'attention', done: true, missing: false });
+	});
+
+	it('THE CONTROL: a REQUIRED block empty (no photo at all) still reads Missing', async () => {
+		const out = await standingOf([why, checked('a-done', { checked: [true] })], []);
+		expect(out.standing).toBe('missing');
+		expect(out.chip.missing).toBe(true);
+	});
+
+	it('a checkbox stored as TEXT (the document posted its value string): done', async () => {
+		const out = await standingOf([why, checked('a-done', { text: 'on' })], [storedPhoto('p1', 'a-photo-1')]);
+		expect(out.standing).toBe('done');
+		expect(out.chip.label).toBe('Complete, late');
+	});
+
+	it('THE CONTROL: the same checkbox stored as an EMPTY string is not an answer, so Missing', async () => {
+		const out = await standingOf([why, checked('a-done', { text: '' })], [storedPhoto('p1', 'a-photo-1')]);
+		expect(out.standing).toBe('missing');
+	});
+
+	it('a text block stored as a BOOLEAN counts too (a radio group that posted booleans)', () => {
+		const m = { ...PORTFOLIO, modules: [{ ...PORTFOLIO.modules[0], blocks: [{ id: 'r', field: 'pick', type: 'radio' }] }] } as unknown as HtmlAssignmentManifest;
+		expect(hxCompletion(m, [{ block_id: 'r', value: { checked: [false] }, updated_at: LATE }]).complete).toBe(true);
+		expect(hxCompletion(m, []).complete).toBe(false);
+	});
+
+	it('withWorksheetCompletions is unchanged by any of it', () => {
+		const rows = [row('w', ME)];
+		expect(withWorksheetCompletions(rows, new Map([[worksheetKey('w', ME), LATE]]), (i, e) => row(i, e))).toEqual([
+			{ ...row('w', ME), completed_at: LATE }
+		]);
+	});
+});

@@ -77,6 +77,16 @@ export function dayIndex(day: string): number | null {
 	return Number.isNaN(t) ? null : Math.round(t / DAY_MS);
 }
 
+/**
+ * The YYYY-MM-DD day `n` whole days after `day` (before, when `n` is negative),
+ * or null when it does not parse. Day arithmetic only: no zone moves it.
+ */
+export function schoolDayPlus(day: string, n: number): string | null {
+	const index = dayIndex(day);
+	if (index === null || !Number.isFinite(n)) return null;
+	return new Date((index + Math.trunc(n)) * DAY_MS).toISOString().slice(0, 10);
+}
+
 /** Whole calendar days from `from` to `to` (both YYYY-MM-DD), negative when `to` is earlier. */
 export function daysBetween(from: string, to: string): number | null {
 	const a = dayIndex(from);
@@ -122,7 +132,65 @@ export function schoolDayEnd(day: string, addDays = 0): string | null {
 	const index = dayIndex(day);
 	if (index === null || !Number.isFinite(addDays)) return null;
 	// The target day's 23:59:59.999 as though the wall clock were UTC.
-	const wall = (index + Math.trunc(addDays) + 1) * DAY_MS - 1;
+	return schoolWallToInstant((index + Math.trunc(addDays) + 1) * DAY_MS - 1);
+}
+
+/**
+ * WHEN THE SCHOOL DAY ENDS, AS A WALL-CLOCK TIME: 3:00 PM, in minutes after
+ * midnight in America/Los_Angeles (ledger 0360, report R22).
+ *
+ * THERE IS NO BELL SCHEDULE IN THIS TREE, and this constant is what stands in
+ * for one. `src/lib/foundry/access.ts` says the same thing about Foundry's
+ * access windows, and `docs/standards/IDEA_MORNING_ANNOUNCEMENTS.md` cites an
+ * `IDEA_bell_schedules.md` that lives in project knowledge only and was never
+ * committed here. Mr. Pina's instruction for a class notice that lasts "until
+ * the end of the school day" was to take the time from bell data in the repo
+ * if there is any, and otherwise to use 3:00 PM local and say so: this is the
+ * otherwise. A real bell schedule replaces this number and nothing else.
+ *
+ * NOT `schoolDayEnd`, which is the last instant of the CALENDAR day (11:59 PM)
+ * and is the right answer for "until the end of today" on a team window. A
+ * notice about today's schedule that stayed up until midnight would still be
+ * on the page after school, which is what a teacher asking for the end of the
+ * school day is asking to avoid.
+ */
+export const SCHOOL_DAY_END_MINUTES = 15 * 60;
+
+/**
+ * A WALL-CLOCK TIME ON A SCHOOL DAY, AS AN INSTANT: `minutes` after midnight
+ * in America/Los_Angeles on the day `addDays` after `day` (YYYY-MM-DD), as an
+ * ISO string. Null when the day does not parse or a number is not finite.
+ *
+ * `schoolDayEnd`'s twin, and the two share ONE conversion
+ * (`schoolWallToInstant`), so a clock change is settled the same way for both
+ * and `schoolDayEnd`'s own tests guard this one too. It reads no clock.
+ */
+export function schoolWallInstant(day: string, minutes: number, addDays = 0): string | null {
+	const index = dayIndex(day);
+	if (index === null || !Number.isFinite(addDays) || !Number.isFinite(minutes)) return null;
+	return schoolWallToInstant((index + Math.trunc(addDays)) * DAY_MS + Math.round(minutes * 60_000));
+}
+
+/**
+ * THE DAY OF THE WEEK A YYYY-MM-DD DAY FALLS ON: 0 for Sunday through 6 for
+ * Saturday, the week `weekOffset` counts in. Null when it does not parse. A
+ * number, never a name: classroom copy names no weekday.
+ */
+export function schoolWeekday(day: string): number | null {
+	const index = dayIndex(day);
+	if (index === null) return null;
+	// 1970-01-01 was a Thursday, so (index + 4) mod 7 is 0 on a Sunday.
+	return (((index + 4) % 7) + 7) % 7;
+}
+
+/**
+ * THE ONE CONVERSION FROM THE SCHOOL'S WALL CLOCK TO AN INSTANT. `wall` is the
+ * wall-clock moment written as though it were UTC (whole days since 1970 in ms
+ * plus the time of day). The offset is asked of the zone at a first guess and
+ * then again at the answer, which settles a moment on either side of a clock
+ * change.
+ */
+function schoolWallToInstant(wall: number): string {
 	const first = wall - schoolZoneOffsetMs(wall);
 	return new Date(wall - schoolZoneOffsetMs(first)).toISOString();
 }

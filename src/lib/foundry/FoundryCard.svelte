@@ -227,6 +227,17 @@
 		background: var(--surface-2, var(--bg2));
 		text-decoration: none;
 		color: inherit;
+		/*
+		   THE COVER IS A DARK ISLAND IN EVERY THEME (ledger 0360, Space White).
+		   The generated cover's gradient and the name plate's scrim are pinned
+		   dark, so the words on them are pinned light, here, rather than read
+		   from the room's ink -- which under a light theme is near-black and
+		   would put dark text on a dark scrim. The two values are the forge's
+		   own measured inks (16.00 and 7.26 on its iron plate, and the scrim
+		   is darker than that plate at its opaque bottom).
+		*/
+		--fdy-cover-ink: #ece8e0;
+		--fdy-cover-ink-2: #a39d92;
 		/* The generated cover's name is sized in `cqw`, so the card is what
 		   that is a fraction of. It also makes the card the containing block
 		   for the name plate, which it already was by `position: relative`. */
@@ -306,7 +317,7 @@
 		/* The room's own ink, measured on the generated plate rather than
 		   assumed: the gradient is fixed in lightness and only its hue moves,
 		   so one measurement stands for every app. */
-		color: var(--fg-ink, var(--text-1, var(--white)));
+		color: var(--fdy-cover-ink);
 		overflow-wrap: anywhere;
 	}
 
@@ -358,14 +369,14 @@
 	}
 
 	.fdy-card-name.count-only .fdy-card-plays {
-		color: var(--white, #ece8e0);
+		color: var(--fdy-cover-ink);
 	}
 
 	.fdy-card-name-title {
 		font-family: var(--font-display);
 		font-size: 0.95rem;
 		line-height: 1.2;
-		color: var(--white, #ece8e0);
+		color: var(--fdy-cover-ink);
 		overflow-wrap: anywhere;
 	}
 
@@ -377,7 +388,7 @@
 	.fdy-card-plays {
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
-		color: var(--fg-ink-2, var(--text-2, var(--dim)));
+		color: var(--fdy-cover-ink-2);
 	}
 
 	@media (hover: hover) and (min-width: 48rem) {

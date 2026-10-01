@@ -27,6 +27,10 @@
 	import { createMemoryClassroomLive, type ClassroomLive } from '$lib/classroom/live';
 	import { onMount } from 'svelte';
 	import { readXlsxWorkbook } from '$lib/xlsx-read';
+	import type { PresenceTransports } from '$lib/classroom/presence/transports';
+	import { PRESENCE_LIMITS_FALLBACK } from '$lib/classroom/presence/state';
+	import type { BulkFileSource } from '$lib/classroom/bulk-download-source';
+	import { blockLabelsFromManifest } from '$lib/classroom/bulk-download';
 
 	/** `empty` selects the student with nothing stored; `broken` points the one
 	    photo at a URL that cannot decode, so the fallback row is measurable. */
@@ -91,6 +95,21 @@
 	/** `live=stalled` makes the bus report the one status the memory twin never
 	    produces on its own, which is the one that earns a sentence. */
 	const liveStalled = $derived(page.url.searchParams.get('live') === 'stalled');
+	/**
+	 * LEDGER 0360. `answers`, `qa` and `present` are the LINKS fixture: the same
+	 * worksheet plus a declared `link: "presentation"` block and `prompt` on some
+	 * blocks (and not on others), with Alice's link valid, a second link written
+	 * mid-sentence in her reflection, Bruno's link field holding words, and Cara's
+	 * link pasted without its scheme. The states name what a spec then opens --
+	 * the Answers view, Answers by question, presentation mode -- and the spec
+	 * presses the control a teacher presses to get there.
+	 *
+	 * `roster=30` is THIRTY fictional students, with presence for every one and
+	 * the in-memory file source, so a pass can measure how many names fit, that
+	 * the head is never a sliver (report 7933566a), and the card beside a name.
+	 */
+	const linksState = $derived(viewState === 'answers' || viewState === 'qa' || viewState === 'present');
+	const roster30 = $derived(page.url.searchParams.get('roster') === '30');
 
 	const ITEM_ID = 'i-hx-smoke';
 	const SECTION_ID = 's-hx';
@@ -215,7 +234,42 @@
 			}
 		]
 	} as unknown as HtmlAssignmentManifest;
-	const manifest = $derived(exporting ? EXPORT_MANIFEST : MANIFEST);
+	/**
+	 * THE LINKS FIXTURE'S MANIFEST: the smoke worksheet with a prompt on the
+	 * reflection (and none on the checkbox or the photo, so both readings are on
+	 * screen) and a declared presentation link field. `deckLink` is not a field
+	 * the `/hx/worksheet` document has, which costs nothing: the frame is read
+	 * only and these states read the stored rows.
+	 */
+	const LINKS_MANIFEST = {
+		...MANIFEST,
+		modules: [
+			{
+				...MANIFEST.modules[0],
+				blocks: [
+					{
+						id: 'hxw-reflection',
+						field: 'reflection',
+						type: 'longText',
+						minSentences: 2,
+						prompt: 'What did you model today, and what took the longest?'
+					},
+					{ id: 'hxw-done', field: 'checkedOff', type: 'checkbox' },
+					{ id: 'hxw-photo', field: 'photo', type: 'image' },
+					{
+						id: 'hxw-deck',
+						field: 'deckLink',
+						type: 'text',
+						link: 'presentation',
+						prompt: 'Link to your presentation'
+					}
+				]
+			}
+		]
+	} as unknown as HtmlAssignmentManifest;
+	const manifest = $derived(
+		exporting ? EXPORT_MANIFEST : linksState || roster30 ? LINKS_MANIFEST : MANIFEST
+	);
 
 	/** Cara, who is on the roster only in the export state. */
 	const CARA: ClassroomEnrollment = {
@@ -424,6 +478,100 @@
 	// svelte-ignore state_referenced_locally
 	registerLocalSubmissionFileUrl('f-photo-cara', PNG);
 
+	/** THE LINKS FIXTURE'S ROWS (ledger 0360): the smoke rows plus the link field. */
+	const LINKS_RESPONSES: ResponseRow[] = [
+		...RESPONSES.filter((r) => r.block_id !== 'hxw-reflection'),
+		answer(
+			ALICE_E,
+			'hxw-reflection',
+			{
+				text: 'I modelled the blade root and the hub today. The fillet took three tries; my notes are at https://www.canva.com/design/DAF-notes/view.'
+			},
+			1.2
+		),
+		answer(ALICE_E, 'hxw-deck', { text: 'https://docs.google.com/presentation/d/alice-deck/edit?usp=sharing' }, 1),
+		answer(BRUNO_E, 'hxw-reflection', { text: 'It bent at the root.' }, 2),
+		answer(BRUNO_E, 'hxw-deck', { text: 'my slides are not done yet' }, 2),
+		answer(CARA_E, 'hxw-team', { text: 'Team Vega' }, 3),
+		answer(CARA_E, 'hxw-reflection', { text: 'The hub cracked first. I thickened the web.' }, 3),
+		answer(CARA_E, 'hxw-deck', { text: 'canva.com/design/cara-deck/view' }, 3)
+	];
+
+	// -----------------------------------------------------------------------
+	// THIRTY STUDENTS (`?roster=30`, ledger 0360, report 7933566a). Fictional
+	// names, every state the roster can draw spread across them, presence for
+	// each one cycling through the four states, and the in-memory file source,
+	// so "how many names fit" is measured on a real class's size.
+	// -----------------------------------------------------------------------
+	const FIRST = ['Avery', 'Blake', 'Casey', 'Devon', 'Emery', 'Finley', 'Gray', 'Harper', 'Indy', 'Jordan', 'Kai', 'Logan', 'Morgan', 'Noel', 'Oakley'];
+	const LAST = ['Alder', 'Birch', 'Cedar', 'Dune', 'Ember'];
+	const THIRTY: ClassroomEnrollment[] = Array.from({ length: 30 }, (_, i) => ({
+		section_id: SECTION_ID,
+		student_email: `student${String(i + 1).padStart(2, '0')}@boscotech.net`,
+		display_name: `${FIRST[i % FIRST.length]} ${LAST[Math.floor(i / 6) % LAST.length]}`,
+		active: i !== 29,
+		manages: false
+	}));
+	const THIRTY_RESPONSES: ResponseRow[] = THIRTY.flatMap((e, i) => {
+		const rows: ResponseRow[] = [];
+		if (i % 3 !== 2) rows.push(answer(e.student_email, 'hxw-reflection', { text: 'I modelled the hub. It took two tries.' }, 1 + (i % 4)));
+		if (i % 3 === 0) rows.push(answer(e.student_email, 'hxw-done', { checked: [true] }, 1));
+		if (i % 5 === 0) rows.push(answer(e.student_email, 'hxw-deck', { text: `https://docs.google.com/presentation/d/deck-${i}/edit` }, 1));
+		return rows;
+	});
+	const THIRTY_SUBMISSIONS: SubmissionRow[] = THIRTY.filter((_, i) => i % 7 === 0).map(
+		(e, n) =>
+			({
+				id: `sub-30-${n}`,
+				item_id: ITEM_ID,
+				student_email: e.student_email,
+				state: 'returned',
+				submitted_at: null,
+				returned_at: iso(2),
+				rubric_scores: { work: 10 },
+				criterion_comments: null,
+				score: 10,
+				teacher_comment: null,
+				graded_by: TEACHER,
+				graded_at: iso(2),
+				updated_at: iso(2)
+			}) as unknown as SubmissionRow
+	);
+	const presenceStamp = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
+	const presence30: PresenceTransports = {
+		loadPresence: async () => ({
+			item_id: ITEM_ID,
+			section_id: SECTION_ID,
+			at: new Date().toISOString(),
+			limits: PRESENCE_LIMITS_FALLBACK,
+			students: THIRTY.filter((_, i) => i % 6 !== 5).map((e, i) => {
+				const shape = [
+					{ seen: 5, input: 5, visible: true },
+					{ seen: 5, input: 400, visible: true },
+					{ seen: 20, input: 90, visible: false },
+					{ seen: 600, input: 650, visible: true }
+				][i % 4];
+				return {
+					student_email: e.student_email,
+					state: 'working',
+					last_seen_at: presenceStamp(shape.seen),
+					last_input_at: presenceStamp(shape.input),
+					page_visible: shape.visible,
+					active_seconds: 60 * (i + 1),
+					first_seen_at: presenceStamp(3600)
+				};
+			})
+		})
+	} as unknown as PresenceTransports;
+
+	/** The in-memory file source, so the Export panel's two file keys are on screen. */
+	const fileSource: BulkFileSource = {
+		blocks: blockLabelsFromManifest(LINKS_MANIFEST),
+		async fetchFile(f) {
+			return { ok: true, bytes: new TextEncoder().encode(`bytes of ${f.filename}`) };
+		}
+	};
+
 	let log = $state<string[]>([]);
 	function note(what: string) {
 		log = [...log, what];
@@ -450,7 +598,7 @@
 			return {
 				ok: true,
 				data: {
-					roster: exporting ? [...ROSTER, CARA] : ROSTER,
+					roster: roster30 ? THIRTY : exporting || linksState ? [...ROSTER, CARA] : ROSTER,
 					/*
 						THE CLOSED STATE IS APPLIED HERE AND NOT IN THE FIXTURE CONST,
 						for the same reason the empty state is: `loadGrading` runs per
@@ -464,7 +612,9 @@
 						a close and a student's own hand-in, and stamping it here would
 						make this fixture measure the wrong one of the two.
 					*/
-					submissions: exporting
+					submissions: roster30
+						? THIRTY_SUBMISSIONS
+						: exporting
 						? EXPORT_SUBMISSIONS
 						: closed
 						? SUBMISSIONS.map((r) =>
@@ -479,8 +629,16 @@
 							: SUBMISSIONS,
 					// The empty state is the SAME fixture with the stored rows taken
 					// away, so the only difference on screen is the one being measured.
-					responses: wantEmpty ? [] : exporting ? EXPORT_RESPONSES : RESPONSES,
-					files: wantEmpty || partial ? [] : exporting ? EXPORT_FILES : FILES,
+					responses: roster30
+						? THIRTY_RESPONSES
+						: wantEmpty
+							? []
+							: exporting
+								? EXPORT_RESPONSES
+								: linksState
+									? LINKS_RESPONSES
+									: RESPONSES,
+					files: roster30 ? [] : wantEmpty || partial ? [] : exporting ? EXPORT_FILES : FILES,
 					filesStorageReady: true,
 					extraCreditReady: true,
 					approvals: []
@@ -697,8 +855,19 @@
 	style="--cr-measure-route: var(--measure-console)"
 	data-testid="hx-grading-harness"
 >
+	<!--
+		THIRTY STUDENTS GET ONE LINE OF HARNESS CHROME. This header is the
+		harness's own and the real grade page has none of it, so at 1440x900 the
+		explanation and fifteen state links put the console 428px down the window
+		and left the roster card 294px tall -- a measurement of the harness, not of
+		the page. With `?roster=30` it is the title and one link, about the height
+		of the classroom header the real route draws.
+	-->
 	<header class="hx-head">
 		<h1>Grading console, ported HTML assignment</h1>
+		{#if roster30}
+			<a class="hx-state" href="/dev/html-assignment-grading">every state</a>
+		{:else}
 		<p class="hx-note">
 			The REAL <code>GradingConsole</code> with <code>spec = null</code> -- the real
 			schema-3 configuration -- and the grade routes' REAL <code>HtmlGradingWork</code> in its
@@ -717,10 +886,15 @@
 			<a class="hx-state" class:is-on={exporting} href="/dev/html-assignment-grading?state=export">graded-work export</a>
 			<a class="hx-state" class:is-on={unpublished} href="/dev/html-assignment-grading?state=unpublished">not published</a>
 			<a class="hx-state" class:is-on={across} href="/dev/html-assignment-grading?console=across">all classes console</a>
+			<a class="hx-state" class:is-on={viewState === 'answers'} href="/dev/html-assignment-grading?state=answers">answers view</a>
+			<a class="hx-state" class:is-on={viewState === 'qa'} href="/dev/html-assignment-grading?state=qa">answers by question</a>
+			<a class="hx-state" class:is-on={viewState === 'present'} href="/dev/html-assignment-grading?state=present">present links</a>
+			<a class="hx-state" class:is-on={roster30} href="/dev/html-assignment-grading?roster=30">thirty students</a>
 		</nav>
+		{/if}
 	</header>
 
-	{#key `${viewState}|${liveStalled}|${across}`}
+	{#key `${viewState}|${liveStalled}|${across}|${roster30}`}
 		<GradingConsole
 			section={SECTION}
 			item={ITEM}
@@ -730,6 +904,8 @@
 			live={across ? null : live}
 			close={across ? null : closeAssignment}
 			bulk={across ? acrossBulk : null}
+			presence={roster30 ? presence30 : null}
+			fileDownload={roster30 || linksState ? fileSource : null}
 			{htmlWork}
 			{manifest}
 		/>

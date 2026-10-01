@@ -6,6 +6,8 @@ import { loadGreenlinePending } from '$lib/greenline/moderation';
 import { isAdmin, isOwner } from '$lib/server/admin';
 import { driveConfigured, driveConnectReady } from '$lib/server/notebook-drive';
 import type { AdminRow } from '$lib/admin';
+import { rowHorizon } from '$lib/feedback/console';
+import type { FeedbackRow } from '$lib/feedback/feedback';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
@@ -100,9 +102,14 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	// New-report count for the Feedback entry point card. Same RPC the console
 	// itself reads (app_feedback_admin_list); fails soft to 0 pending a
 	// migration rather than blocking the rest of the dashboard.
+	//
+	// A LONG-TERM IDEA IS NOT COUNTED (0230). The console opens on "Fix soon",
+	// so a badge counting long-term ideas would promise reports the page it
+	// links to does not show on arrival; `rowHorizon` is the console's own
+	// reader, so the badge and the tab cannot disagree about which is which.
 	const { data: feedbackRows } = await supabase.rpc('app_feedback_admin_list');
-	const feedbackNewCount = ((feedbackRows ?? []) as { status: string }[]).filter(
-		(r) => r.status === 'new'
+	const feedbackNewCount = ((feedbackRows ?? []) as FeedbackRow[]).filter(
+		(r) => r.status === 'new' && rowHorizon(r) !== 'long_term'
 	).length;
 
 	// The admin roster panel (was /admin). Fails soft to an empty roster if

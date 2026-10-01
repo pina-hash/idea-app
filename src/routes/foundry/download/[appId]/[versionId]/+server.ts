@@ -78,10 +78,11 @@ const handle: RequestHandler = async ({ params, url, request, locals }) => {
 	 * SO WHY CALL IT AT ALL. Because the DECISION then lives in one array
 	 * rather than in this file's silence: adding `'download'` to the set is
 	 * the whole of what it would take to gate this route, and
-	 * `tests/foundry-section-gate-serve.test.ts` proves that by doing it. And
-	 * it costs nothing today: `foundryServeRefusal` runs the pure `includes`
-	 * FIRST and returns without opening a connection for a place the set does
-	 * not name.
+	 * `tests/foundry-section-gate-serve.test.ts` proves that by doing it.
+	 * It costs ONE READ per request since ledger 0360, where it used to cost
+	 * none: the whole-Foundry switch reaches this route too, so
+	 * `foundryServeRefusal` reads `foundry_section_access` before it asks the
+	 * class set, and a non-admin gets the shared 503 notice while it is off.
 	 */
 	const closedRefusal = await foundryServeRefusal(locals.supabase, 'download');
 	if (closedRefusal) return closedRefusal;

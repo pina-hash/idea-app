@@ -35,6 +35,11 @@
  *                      measured clobber -- and what was picked on the projector is
  *                      not what should rank first on a phone. It holds command,
  *                      class, unit and item keys only, never a student.
+ *   panels    ACCOUNT. Which sections of the class page and the item page a
+ *                      person shows, and in what order (ledger 0360, report R23,
+ *                      "saved to their account" is Mr. Pina's own word for it). An
+ *                      arrangement is a way of working, so it follows the person to
+ *                      the lab computer. It holds panel ids only (`panel-layout.ts`).
  *
  * A COMMENT BANK HAS ROOM HERE WITHOUT A MIGRATION: it would be one more
  * ACCOUNT group. Every store writes only the groups that changed, merged into
@@ -45,6 +50,7 @@
  */
 import { GRADING_ORDER_DEFAULT, GRADING_ORDER_OPTIONS, type GradingOrderKey } from '$lib/classroom/grading-order';
 import { TODO_VIEW_LABELS, type TodoView } from '$lib/classroom/todo';
+import { panelSummary, readPanelLayout, type PanelLayout, type PanelPage } from '$lib/classroom/panel-layout';
 import {
 	LocalPreferenceStore,
 	MemoryPreferenceStore,
@@ -184,6 +190,13 @@ export interface ClassroomPreferences {
 	 * edited in place.
 	 */
 	notebookReview: { lastLooked: Record<string, string>; comments: string[] };
+	/**
+	 * EACH PAGE'S ARRANGEMENT (ledger 0360, R23): null is the page as it ships,
+	 * a layout is this person's order and hidden panels. Read through
+	 * `readPanelLayout`, which drops every id it does not know and refuses to
+	 * hide a panel that may not be hidden, whatever the row says.
+	 */
+	panels: { classPage: PanelLayout | null; itemPage: PanelLayout | null };
 }
 export type ClassroomPreferenceGroup = keyof ClassroomPreferences;
 
@@ -193,7 +206,8 @@ export const CLASSROOM_PREFERENCE_HOMES: Readonly<Record<ClassroomPreferenceGrou
 	grading: 'account',
 	guidance: 'account',
 	search: 'device',
-	notebookReview: 'account'
+	notebookReview: 'account',
+	panels: 'account'
 };
 
 export function defaultClassroomPreferences(): ClassroomPreferences {
@@ -203,7 +217,8 @@ export function defaultClassroomPreferences(): ClassroomPreferences {
 		grading: { advanceAfterReturn: false, gradesOrder: GRADING_ORDER_DEFAULT },
 		guidance: { retiredHints: [], tours: { teacher: 'unseen', student: 'unseen' } },
 		search: { recent: [] },
-		notebookReview: { lastLooked: {}, comments: [...NOTEBOOK_COMMENT_SEEDS] }
+		notebookReview: { lastLooked: {}, comments: [...NOTEBOOK_COMMENT_SEEDS] },
+		panels: { classPage: null, itemPage: null }
 	};
 }
 
@@ -229,6 +244,7 @@ export function readClassroomPreferences(raw: unknown): ClassroomPreferences {
 	const guidance = isObject(r.guidance) ? r.guidance : {};
 	const search = isObject(r.search) ? r.search : {};
 	const review = isObject(r.notebookReview) ? r.notebookReview : {};
+	const panels = isObject(r.panels) ? r.panels : {};
 	return {
 		display: {
 			density: oneOf(display.density, DENSITIES, d.display.density),
@@ -260,6 +276,10 @@ export function readClassroomPreferences(raw: unknown): ClassroomPreferences {
 					(s) => s.trim().length > 0 && s.length <= NOTEBOOK_COMMENT_LENGTH,
 					NOTEBOOK_COMMENT_MAX
 				) ?? d.notebookReview.comments
+		},
+		panels: {
+			classPage: readPanelLayout(panels.classPage, 'class'),
+			itemPage: readPanelLayout(panels.itemPage, 'item')
 		}
 	};
 }
@@ -288,7 +308,7 @@ function readLastLooked(v: unknown): Record<string, string> {
 }
 
 export const CLASSROOM_PREFERENCE_SCHEMA: PreferenceSchema<ClassroomPreferences> = {
-	groups: ['display', 'classView', 'grading', 'guidance', 'search', 'notebookReview'],
+	groups: ['display', 'classView', 'panels', 'grading', 'guidance', 'search', 'notebookReview'],
 	defaults: defaultClassroomPreferences,
 	read: readClassroomPreferences
 };
@@ -378,7 +398,23 @@ export interface SummarySetting extends SettingBase {
 	summary: (p: ClassroomPreferences, role: SettingRole) => string;
 }
 
-export type ClassroomSetting = ChoiceSetting | WidthSetting | SummarySetting;
+/**
+ * ONE PAGE'S ARRANGEMENT (ledger 0360, R23): a summary of it and the editor
+ * that changes it, `PanelLayoutEditor`, behind an Arrange control.
+ */
+export interface PanelsSetting extends SettingBase {
+	kind: 'panels';
+	group: 'panels';
+	page: PanelPage;
+	summary: (p: ClassroomPreferences, role: SettingRole) => string;
+}
+
+export type ClassroomSetting = ChoiceSetting | WidthSetting | SummarySetting | PanelsSetting;
+
+/** Where a page's arrangement sits in the `panels` group. */
+export function panelsField(page: PanelPage): 'classPage' | 'itemPage' {
+	return page === 'class' ? 'classPage' : 'itemPage';
+}
 
 /** Each group's heading on the panel. */
 export const CLASSROOM_GROUP_TITLES: Readonly<Record<ClassroomPreferenceGroup, string>> = {
@@ -387,7 +423,8 @@ export const CLASSROOM_GROUP_TITLES: Readonly<Record<ClassroomPreferenceGroup, s
 	grading: 'Grading',
 	guidance: 'Tours',
 	search: 'Recent searches',
-	notebookReview: 'Notebook review'
+	notebookReview: 'Notebook review',
+	panels: 'Page layout'
 };
 
 /** A tour's state, in words, for the panel. */
@@ -455,6 +492,26 @@ export const CLASSROOM_SETTINGS: readonly ClassroomSetting[] = [
 		roles: ['student'],
 		field: 'todoOpensOn',
 		options: () => TODO_OPENS_ON.map((v) => ({ value: v, label: TODO_VIEW_LABELS[v] }))
+	},
+	{
+		kind: 'panels',
+		group: 'panels',
+		page: 'class',
+		title: 'Class page',
+		help:
+			'Choose which sections show when you open a class, and in what order. The posts always stay; Reset puts the page back the way it ships.',
+		roles: ['student', 'manager'],
+		summary: (p, role) => panelSummary('class', role, p.panels.classPage)
+	},
+	{
+		kind: 'panels',
+		group: 'panels',
+		page: 'item',
+		title: 'Assignment and material pages',
+		help:
+			'Choose which sections show when you open a post, and in what order, for every post at once. The work itself always stays where it is.',
+		roles: ['student', 'manager'],
+		summary: (p, role) => panelSummary('item', role, p.panels.itemPage)
 	},
 	{
 		group: 'grading',

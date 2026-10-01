@@ -254,8 +254,60 @@ list anybody edits.
 `foundry-ingest` function, the SERVING ROUTE that puts a bundle's bytes in
 front of a browser, the submit surface (`/foundry/submit`,
 `/foundry/mine`, `/foundry/contract`), the GALLERY (`/foundry`) and the REVIEW
-QUEUE (`/foundry/review`, admin only). Several things about it are rules rather
-than history.
+QUEUE (`/foundry/review`, admin only), and since ledger 0360 the request board
+(`/foundry/requests`), the trusted-publisher application (`/foundry/apply`) and
+its review (`/foundry/review/publishers`, admin only). Several things about it
+are rules rather than history.
+
+**EVERY FOUNDRY PAGE IS `FoundryPage`, AND ITS `width: 100%` IS THE FIX FOR A
+TRAP, NOT DECORATION (ledger 0360, reports R01/R05/R10).** Above 1024px the
+gallery and the queue are full-height applications, so the page is an item in
+`.fg-body`'s flex COLUMN, and `margin: 0 auto` with no width cancels the stretch:
+the gallery shrink-wrapped to its 42rem lead paragraph (about 608px) at every
+desktop size. `forge.css` points `--measure-split` at `--measure-console` on
+`.fg-root`, so the page, the split and the masthead take the window in one
+declaration, and the mosaic tops out at eight columns. `foundryIsApplication` in
+`$lib/foundry/nav.ts` names exactly `/foundry` and `/foundry/review`; keyed more
+loosely it put the author page in app mode and clipped its lower cards. Nothing
+sits under the queue in that column (the trust roster lives on
+`/foundry/review/publishers`), and the review area's admin gate is its own
+`+layout.server.ts`.
+  - **TWO PRESSES TO A GAME.** The idle `AppStage` is the app's cover with
+    Launch app and Launch full screen on it; the second key calls `start()` then
+    `enterFull()` in ONE click handler, so the request keeps its transient
+    activation, and the overlay floor still applies when the API refuses.
+
+**THE WHOLE FOUNDRY HAS ONE OFF SWITCH, AND IT REACHES THE APPS ORIGIN WITHOUT A
+SESSION (ledger 0360, report R02, 0230).** `foundry_set_site_open` is admin-only,
+on `/foundry/classes`, and separate from the per-class control; Off takes two
+presses and On one. `foundry_section_access` projects `site_open`, `site_note`,
+`site_closed_at` and `site_exempt`, and an ABSENT key reads as on. While it is
+off a non-admin reads `FoundrySiteOff` in place of every portal page, an admin
+keeps the room under a banner, the preview, download and starter routes answer
+one shared 503, the gallery, request and author loads return empty payloads,
+and `/a/` and `/b/` refuse EVERYONE an HTML document, because the apps host has
+no session to exempt anybody with. That read is `foundrySiteClosed` in
+`$lib/server/foundry-bundle.ts`, so the service-role census stays five: once per
+instance per `FOUNDRY_SITE_CACHE_MS` (30s), for document paths only, a missing
+relation read as open and any other failure answered with the bodyless 404 and
+not cached. A running game's assets keep serving. `closed_by` is never projected.
+
+**A TRUSTED-PUBLISHER APPLICATION IS ANSWERS TO STORED QUESTIONS, AND APPROVAL IS
+THE EXISTING GRANT (ledger 0360, report R03, 0230).** `foundry_publisher_decide`
+approves through `foundry_trusted_grant`, so `foundry_trusted_publishers` keeps
+one writer and no new flag exists. The student's question type carries no trick
+field: `is_trick`, `flag_choices` and the reviewer note are admin projections
+only. Questions are retired, never deleted, and every application stores a
+snapshot of what it answered. `publisherCanSend` mirrors 0230's refusal order.
+
+**THE GAME REQUEST BOARD MOVES NO COINS AND RENDERS TEXT ONLY (ledger 0360,
+report R04).** A title, a message and an optional free-text offer, with
+`FOUNDRY_REQUEST_OFFER_NOTE` beside every offer; no `{@html}`, no markdown, no
+link. It never projects an address, its `hidden` key reaches only an admin and
+the request's author, and Hide is handed to the board only for an admin.
+`foundry_publisher_applications` and `foundry_game_requests` are each both a
+table and an RPC; the tables carry no client grant, so PostgREST only reaches
+the function.
 
 **THE GALLERY, THE DETAIL VIEW AND THE REVIEW QUEUE ARE ONE RENDER PATH, AND
 `FoundryDetail` HAS NO STAFF BRANCH IN IT.** `/foundry/review` mounts the
@@ -1099,24 +1151,30 @@ rule Foundry states as "preflight passing is not submission".
   text, validated by the client against `BADGES` and `FLOURISHES`. A CHECK
   constraint would be a second copy of a list D2 is moving, and the copy that
   cannot change without a migration.
-- **A POSTED ROSTER IS ON THE CLASS PAGE NOW (ledger 0297), AND THE STYLE
-  EDITOR IS STILL NOT.** `ClassTeams.svelte` (over `$lib/classroom/class-teams.ts`)
+- **A POSTED ROSTER IS ON THE CLASS PAGE (ledger 0297), AND SO IS THE STYLE
+  EDITOR (ledger 0360, report R17).** `ClassTeams.svelte` (over `$lib/classroom/class-teams.ts`)
   is mounted from `src/routes/classroom/[sectionId]/+layout.svelte`: it renders
   only a set `_classroom_team_set_visible` answers for, names only (never an
   address). Since ledger 0298 every own-team card comes FIRST and open
   (`ownTeams`), the whole draw sits closed below it, and a teacher gets one
-  line saying until when, linking to People (`postedTeamsNotice`,
-  `teamsManageLink`). "Today" on the post control ends at the end of today in
+  key in the class header saying until when, linking to People
+  (`postedTeamsNotice`, `teamsManageLink`, through `classHeaderTeams` since
+  ledger 0360). "Today" on the post control ends at the end of today in
   Los Angeles (`teamWindowEnd` over `schoolDayEnd`), never the browser's
   tomorrow. **The section layout's load never re-runs on a navigation inside
   the class**, so a draw posted after a page opened reached nobody who had it
   open, the teacher pressing Class straight after People included; so
   `ClassTeams` is mounted whether or not anything is posted and re-reads
   through `refreshPostedTeams` every `CLASS_TEAMS_POLL_MS` and on focus, and
-  People's post, take-down and retire call `onchanged`. A student editing
-  their team's banner has the membership-gated write waiting and no control
-  yet, so no `classroom-updates.json` entry may claim students can style a
-  team.
+  People's post, take-down and retire call `onchanged`. **A member styles
+  their own team there**: `TeamStyleEditor` (name, motto, colour, background,
+  badge; autosave off, a refusal shown verbatim) opens from "Customize team" on
+  an own-team card and from "Edit look" for a manager, through `ClassTeams`'
+  `style` prop, and an absent prop removes both. The write is the
+  membership-gated one above, the preview is the banner's own 0.22 wash under
+  `--text-1`, and a landed save asks the poller for one read (`runNow`) and
+  changes no interval. `teamStyleInputOf` carries all seven fields and
+  lowercases a hex, because 0223 checks a background hex without `lower()`.
 
 ### CLASS THEMES -- the class votes, a tally is all that leaves, and the banner is a wash
 
@@ -1166,6 +1224,92 @@ the only way a course's look changes: a teacher opens, closes and resets it
   that differs from that read re-runs it through `depends('classroom:themes')`
   (that load alone), because the classroom layout's load does not re-run on a
   navigation and the strip and My Classes would otherwise keep the old look.
+
+### THE TOP OF A CLASS -- one header, its notices, and a pattern that moves only when asked
+
+**THE TOP OF A CLASS IS ONE BLOCK, `ClassHeader.svelte`, AND IT REPLACED FIVE
+ROWS (ledger 0360, report R19).** ClassView mounts it where the banner, the
+theme row and the New post row were, and the section layout hands it the tools
+row, the quick posts and the posted teams as snippets. Inside the header the
+order is fixed: the title line (the class badge beside the plate title bar),
+then ONE wrapping key row (the identity chip; the layout's own `.class-tools`
+made boxless, so the hall pass, the music and the live door are items of the
+row; the class theme's trigger, whose vote drops to an opaque full-width band;
+Next due; a teacher's teams key; Quick post, New post and Units). The notices
+follow it and the posted teams are a panel of their own (see "EACH PERSON'S
+PAGE LAYOUT").
+- **`nextDueFor` in `$lib/classroom/class-header.ts` IS THE ONE DECISION OF
+  THE NEXT DUE KEY**, and it asks `assignmentStanding`, never a second walk of
+  the work: a student is offered the earliest assignment still TO DO and not
+  yet past due, a manager the earliest published live one. Drafts and
+  scheduled items are never next for anybody.
+- **THE TEACHER'S "TEAMS POSTED UNTIL" STRIP IS THE HEADER'S TEAMS KEY NOW**
+  (`classHeaderTeams` over `postedTeamsNotice` and `teamsManageLink`), so the
+  class page hands `ClassTeams` `manage={null}`.
+- **THE BADGE SITS BESIDE THE TITLE** (`ClassThemeBanner`'s `badgeInline`),
+  never in a column down the banner, which took 37px from every key row on a
+  phone.
+- **THE KEY WIDTHS ARE MEASURED CAPS, NOT ROUND NUMBERS**: at 1278 and 1440 a
+  teacher's row is two lines and a student's one or two. A key that holds a
+  title gives up its middle to an ellipsis, with the whole of it in its
+  `title`.
+- **ON A PHONE THE KEYS ARE TILES, TWO TO A LINE, AND ONE KEY A LINE IS THE
+  REJECTED SHAPE.** A `class-header` container query at 30rem (a phone, and the
+  26rem list pane beside an open item) makes the tools, the class theme and
+  Next due tiles that say their word on one line and their status on the next;
+  one key a line put a student 52px LOWER than the strips it replaced, because
+  Next due is a line they never had. Each tile carries `min-width: 0`: a line
+  is broken on each item's size clamped by its minimum, and the theme
+  trigger's minimum is its `nowrap` voted words (299px), which took it a line
+  of its own. The block is the stylesheet's LAST, because the trigger's own
+  cap has the same specificity and won while the block sat above it.
+  `class-header*.mjs` hold every tool word, status and due date WHOLE inside
+  its key at both widths, and a teacher's three posting keys on one line.
+- **A CLASS WITH NO THEME RENDERS THE HEADER WITH NO BANNER**, which is
+  `ClassThemeBanner`'s null path, byte for byte.
+
+**QUICK POSTS ARE THEIR OWN RECORD, NEVER AN ITEM WITH AN END DATE (0230,
+report R22).** One `classroom_quick_posts` row and a
+`classroom_quick_post_sections` join, RLS on, no policy and no client grant,
+written and read only through `classroom_quick_posts`,
+`classroom_quick_post_create` and `classroom_quick_post_take_down`. Taking one
+down is a stamp; nothing deletes one. An announcement with an end date would
+have put every notice into every items reader and into `materials/`.
+- **THE DATABASE STORES ONLY `expires_at`.** Every preset (the end of the
+  school day, the next school day, the end of the week, next week, an hour, a
+  picked time, until taken down) resolves in `quickPostExpiry` in
+  `$lib/classroom/quick-posts.ts` against an injected clock. **THE SCHOOL DAY
+  ENDS AT `SCHOOL_DAY_END_MINUTES` (3:00 PM) BECAUSE THERE IS NO BELL SCHEDULE
+  IN THIS TREE**; a real one replaces that number and nothing else. A picked
+  `datetime-local` value is school time, never the device's.
+- **AN END NEEDS NO NETWORK.** `QuickPosts` hides a notice at its end from the
+  end the read already carried (`quickPostNextChange`), corrected by the read's
+  server `now` within `QUICK_POST_MAX_SKEW_MS`. The poll is the floor at
+  `QUICK_POSTS_POLL_MS` (600s: 0.1 a minute, which is exactly the headroom 0357
+  left on the item page), and the speed is the `quick-posts` live notice,
+  re-read after a random wait of up to `QUICK_POST_NOTICE_JITTER_MS`.
+- **"ALL MY CLASSES" IS THE VIEWER'S OWN CLASSES BY `teacher_email`, NEVER
+  EVERYTHING THEY MANAGE** (`quickPostTargets`): an admin manages every
+  section, so the managed list is the whole school.
+- **A NOTICE IS NEVER COLOUR ALONE AND NEVER `{@html}`.** A gold stripe, a
+  megaphone, the word Notice and its end in words ("Until 3:00 PM today");
+  links are `quickPostRuns` through `safeHref`, rendered as elements, with a
+  44px Open key each when a notice carries three or fewer.
+- **POST IS ONE PREDICATE** (`quickPostSendCheck`, the `reviewCanSend` rule),
+  and the composer holds a deploy reload while it has writing in it.
+
+**THE CLASS PATTERN MOVES ON ITS OWN LAYER, BOUNDED, AND NEVER UNDER `reduce`
+(ledger 0360, report R21).** The pattern is a real `aria-hidden` element in
+`ClassThemeBanner` (a scoped `::after` is pruned), drawn with the catalogue's
+own stroke at its own alpha and painted over the wash and under the words by
+TREE ORDER among positioned boxes, with no z-index, so the banner is still no
+stacking context. The arrival drift is 4.2s and ends on the still frame
+(WCAG 2.2.2's five seconds), and it loops only under `:hover` with
+`(hover: hover)`. Transform only. Stripes and rays carry a 24px overscan their
+motion never uncovers; rings and ripples only grow about their own centre.
+`class-header-pattern-*.mjs` pause the drift at every tenth and hold the moving
+layer over the whole banner; `classroom-theme.mjs`'s `motion` row measures
+both media states.
 
 ### WHO IS WORKING -- an instrument's silence is never a fact about a student
 
@@ -1253,7 +1397,12 @@ open one is lit because `Disclosure` marks its trigger `.on`.
   to 11.9px with 44px of content, where `elementFromPoint` at the first name's
   centre answered the bulk checkbox's label. A proportional cap cannot do
   either, and each region keeps its scrollbar because no region on this site
-  may hide one.
+  may hide one. **Both regions above the names are `flex: 0 0 auto` under those
+  ceilings (ledger 0360, report R25)**, because flex-shrink is weighted by
+  flex-basis: with a shrinkable head, a long list squeezed it to a sliver with a
+  scrollbar of its own. A roster row is ONE line (the name `nowrap` with an
+  ellipsis, the whole name in `title`, the card and the work head), and the
+  row's detail is ONE `RosterCard` for the hovered or focused name.
 
 **AND `Return to student` IS A STICKY DOCK BOUNDED BY `.grade-main`, NEVER A
 SECOND COPY AND NEVER `position: fixed`.** Above 1024px `.work-col` is its own
@@ -1300,8 +1449,26 @@ It loads the class label and nothing that names a person.
   `PROJECTOR_FRAME_KEYS` and the two hall-pass words, so a control view that
   grew a field cannot put it on a wall by accident. There is no server channel,
   which is why a phone cannot drive it; adding one is a disclosure decision.
-- **A PICKED NAME REACHES THE WALL ONLY ON AN EXPLICIT Show**, with its seed;
-  who is working, presence and a student's hall-pass NAME never do.
+- **A PICKED NAME REACHES THE WALL ONLY ON AN EXPLICIT Show, WITH ITS SEED, AND
+  WHO IS WORKING REACHES IT ONLY AS COUNTS (ledger 0360, reports R12/R13).**
+  Student activity is OFF until the control view's Student activity is pressed,
+  and is then five counts (`WALL_ACTIVITY_GROUPS`). Names are a SECOND, separate
+  press (Names too): never adopted from a stored frame after a reload, never for
+  Working, never for whoever is out on the hall pass (`wallActivityCells`), and
+  shortened to "First L." (`wallName`). Presence detail and a hall-pass name
+  never reach the wall, and activity older than `WALL_ACTIVITY_STALE_MS` leaves
+  it. `PROJECTOR_FRAME_VERSION` stays 1, so a wall open across a deploy keeps
+  painting. **The wall's side is fitted by `wallFit` against its measured box and
+  is never clipped**: the largest type that fits, never below 8H, cuts in a fixed
+  order, each said as "+N more". The hero's sizes are fractions of `.lp-main`, a
+  size container the window sets, never a shrink-to-fit parent (the 48px timer of
+  report R12). The ring face is an SVG gradient the contrast walk cannot see, so
+  `tests/classroom-projector-ring-contrast.test.ts` reads its tokens instead.
+- **AN IDLE DETAIL IS A SCHOOL-DAY QUESTION (ledger 0360, report R11).**
+  `idleDetail` in `$lib/classroom/live-class/grid.ts` reads "No typing today" when
+  the last keystroke was on an earlier Los Angeles school day, and hours and
+  minutes inside one; 0200 keeps `last_input_at` for life, so a bare minute count
+  printed "No typing for 1463 min".
 - **A PROJECTED ROUTE JOINS `PROJECTOR_ROUTES` AND `FEEDBACK_EXCLUSIONS` IN THE
   SAME CHANGE**, the first so a deploy never reloads it mid-lesson and the
   second so the report control relocates into the wall strip rather than
@@ -1336,7 +1503,8 @@ while hidden, a backoff doubling to 5 minutes, and a full stop on a 401, 403 or
   (`loadPostedTeams`) still catches everything, because a load must never fail
   over a widget.
 - **THE FLOORS ARE THE LIVE CHANNEL'S FLOOR, NOT THE MECHANISM, AND THEY ARE
-  SLOW ON PURPOSE**: hall pass 120s, songs 300s, posted teams 300s, the theme
+  SLOW ON PURPOSE**: hall pass 120s, songs 300s, posted teams 300s, quick posts
+  600s (`QUICK_POSTS_POLL_MS`, ledger 0360), the theme
   tally 30s while a vote is open and 120s while it is closed (and only while its
   panel is open), and the presence beat at `PRESENCE_BEAT_STRETCH` (4/3) of the
   database's 30s heartbeat, which the test holds inside 0200's credit cap, input
@@ -1403,6 +1571,51 @@ absent reads as active.
 `class:on` beside `aria-expanded`, which the plate's key list already draws, so
 the way back is the pressed key. `Disclosure` does it for every caller.
 
+### EACH PERSON'S PAGE LAYOUT -- hide, show and reorder, and the work never moves
+
+**A PERSON ARRANGES THE CLASS PAGE AND THE ITEM PAGE FOR THEMSELVES, AND IT IS
+SAVED TO THEIR ACCOUNT (ledger 0360, report R23, phase 1 as Mr. Pina decided it
+on 2026-09-30).** `$lib/classroom/panel-layout.ts` is the vocabulary and the
+arithmetic, the preference store's `panels` group (account) holds it through
+`readPanelLayout`, `PanelLayoutEditor` (Settings) edits it with a drag grip,
+arrow keys, Move up and Move down, Show and Reset, `PanelStack` renders a page
+through `resolvePanels`, and `PanelsHiddenNote` says on the page what is
+hidden and links back. Adding buttons is phase 2 and is not built.
+
+- **THE PANEL IDS ARE STORED AND APPEND-ONLY** (`CLASS_PANELS`,
+  `ITEM_PANELS`), for the avatar-preset reason: renaming one turns somebody's
+  arrangement back into the default with nothing saying why. A stored id this
+  build does not know is dropped on read, never coerced.
+- **EACH PAGE HAS ONE ANCHOR THAT NEVER MOVES AND IS NEVER HIDDEN**, the posts
+  on the class page and the work on the item page, and `PanelStack` renders it
+  BETWEEN two keyed lists and outside both. Moving an `<iframe>` in the DOM
+  reloads it, and a ported worksheet is an iframe, so one keyed list over every
+  panel would reload a student's open worksheet on every reorder. The class
+  header moves but never hides, because it holds the page's h1.
+- **ORDER IS DOM ORDER, NEVER CSS `order`**, so reading order and tab order are
+  what is on screen. A hidden panel is NOT RENDERED, so whatever it polls stops.
+- **ON THE CLASS PAGE THE HEADER IS ONE PANEL WITH THREE PIECES (R19 on
+  R23).** `tools`, `theme` and `actions` (Quick post, New post, Units) are
+  `within: 'banner'`: they show and hide in place (a hidden piece is handed to
+  `ClassHeader` as null, so whatever it polls stops) and never move, and the
+  editor lists them inside the header's row with Show and no grip. Their ids
+  stay because they are stored, and an order naming one is placed without it.
+  `teams`, `find` and `videos` move; hiding `teams` also takes a teacher's
+  teams key out of the header. A hidden search row with a filter still
+  narrowing keeps its count and Clear in the posts, and `class.search` leaves
+  the palette with it.
+- **WHAT IS NOT A PANEL STAYS PUT**: the item's hero and inspector, the page
+  footer, the drop overlay, and the class page's notices, which sit directly
+  under the header while it leads the page and lead the page otherwise
+  (`classNoticesFirst`), so no arrangement puts a teacher's notice under a
+  student's search, videos or posts.
+- **AN UNSET LAYOUT RENDERS EXACTLY AS BEFORE.** The default order is the page's
+  own (`classPanelDefaults`, `itemPanelDefaults`, which puts the rubric last
+  per report R20), and an empty stored order means "the default", so a new
+  panel added later lands where the default puts it for everybody who never
+  touched the editor. `tests/classroom-panel-layout-render.test.ts` holds the
+  class page to a golden taken before the page went through `PanelStack`.
+
 ### NOTEBOOK CAPTURE -- where the work is, and never only in memory
 
 **A STUDENT ADDS TO THEIR NOTEBOOK FROM THE ASSIGNMENT PAGE, AND IT FILES ITSELF
@@ -1451,10 +1664,18 @@ THE BREAKDOWN (ledger 0297).** `ReturnedGrade.svelte` renders the score, the
 teacher's comment, then `RubricView`; `AssignmentEngine` mounts it for a spec
 assignment and `ItemDetail` mounts it in PARENT CHROME for a ported HTML
 document and an IdeaCAD link, never inside the sandboxed frame. At 375 the
-comment used to sit 1065px under the grade. Before work starts, "How this is
-graded" is a `Disclosure` over the stored rubric (never a spec-derived copy),
-placed after the instructions and before the work, and a returned card replaces
-it so the rubric is never shown twice.
+comment used to sit 1065px under the grade. "How this is graded" is a
+`Disclosure` over the stored rubric (never a spec-derived copy) at the BOTTOM
+of the item page, after the work and before the footer, closed for every role
+(`collapseWhen` constant-true, latched; a person's own press is remembered per
+item under `item:<id>:rubric`), and a returned card replaces it so the rubric
+is never shown twice; that card keeps its score and comment above the work and
+folds its breakdown behind the same choice (ledger 0360, report R20: the work
+starts 927px higher at 1440 on a new assignment). **The item page's panels are
+`PanelStack` around the work** (see "EACH PERSON'S PAGE LAYOUT"): `ItemDetail`'s
+`itemPanel` and `workPanel` snippets sit inside its `main`, where the markup
+always did, and with no stored layout the order is `itemPanelDefaults(layout)`,
+the rubric last.
 
 - **EVERY PICTURE IN THE CLASSROOM OPENS IN `$lib/media/Lightbox.svelte`**, a
   native `<dialog>` on `$lib/panzoom` (no second pan/zoom), with Download as an
@@ -1558,6 +1779,13 @@ Undated work is never Missing and never counted; it is listed last.
     17 to 44ms load. `isAwaitingGrade` already counts one the moment a row
     carries `completed_at`.
 
+- **AN OWED-WORK PAYLOAD SHIPS SLIM ITEMS (ledger 0360, report R08).** The home
+  and to-do loads pass items through `slimOwedWorkItem`
+  (`$lib/classroom/owed-work-slim.ts`): no text body, and the document reduced to
+  its first image, which is all `feedCover` reads. A future owed-work surface that
+  wants an item's text reads the item itself. The home load asks
+  `classroom_section_roster` only when `sectionManagedBy` says the caller manages a
+  listed class.
 - **OWED WORK IS ONE READ.** `loadClassroomWork` in
   `$lib/classroom/student-work.ts` is the home page's, the classroom index's and
   the to-do page's load: classes, items, the caller's own submissions and
@@ -1689,6 +1917,52 @@ browser holds a tag, and `tests/hx-document-cache.test.ts` mutates each guard.
 **A HAND EDIT OF `document` IN THE SQL EDITOR MUST SET `updated_at = now()` IN
 THE SAME STATEMENT**, or warm instances and browsers keep the old bytes (the
 server half is bounded by `HX_CACHE_MAX_AGE_MS`).
+
+**A MANIFEST BLOCK MAY CARRY THREE KEYS THAT ARE NOT TYPES, AND NONE OF THEM
+DECIDES A WRITE (ledger 0360).** `optional`, `prompt` and `link: "presentation"`
+have one reader each in `manifest.ts` (`hxBlockIsOptional`, `hxBlockPrompt`,
+`hxBlockLinkKind`); 0195 stores them verbatim and the 0197/0199 gates never read
+them, so a new key of this kind is a key, never a seventh block type. Both
+validators WARN on a bad `prompt` or `link` and REFUSE a non-boolean `optional`,
+because `optional` decides what counts. `HTML_LINK_KINDS` is append-only.
+**`openableUrl` in `$lib/classroom/answer-links.ts` is the one gate on a link
+before it gets an Open key**, `AnswerLinks.svelte` the one Open key, and
+`HtmlAnswerList.svelte` the one renderer of a student's answers without the
+document. The Answers CSV (`gradingAnswersCsv`) is built from the export
+payload, and nothing on that path reads `classroom_html_assignments.document`.
+Presentation mode (`PresentationLinks.svelte`) is a dialog on the grading route,
+not a projected route, and shows names, never an address.
+  - **AN OPTIONAL BLOCK IS JUDGED, NEVER COUNTED.** It sits in `hxProgress`'s
+    blocks at weight 0, like the header: never in the denominator, never the
+    next answer named, never the reason a worksheet is incomplete, and
+    `hxIncompleteBlocks` skips it, so the rail, `hxCompletion` and every
+    Missing/Complete surface agree. A live manifest is marked by a re-upload
+    with ids unchanged, or by `supabase/data/0360-hx-optional-blocks.sql`,
+    which writes nothing when pasted unedited and never touches `updated_at`
+    (0357's cache key). `hxBlockHasResponse` believes the value's shape over the
+    block's type in the widening direction only: any stored boolean counts, and
+    so does a non-empty string on a checkbox.
+  - **THE RAIL'S 100 MEANS STORED, NOT TYPED.** `hxProgress` takes the
+    store's unsaved fields, so `filled` and `complete` are two facts; a filled
+    worksheet still owed reads 99, and `Progress` mounts the real
+    `SaveIndicator` with its Retry in parent chrome. `hxCompletion` passes no
+    such option, so the server's judgment is unchanged.
+  - **AN ANSWER WRITE CARRIES WHY IT FAILED: `hxSaveResponse` IS THE CALL AND
+    `hxRpcFailure` THE ONE READER OF ITS ERROR.** `fail()` dropped the SQLSTATE
+    and the status, so a statement timeout during the 2026-09-29 stall reached
+    `HxAnswers` unclassified and was never retried. Now a lost session is never
+    retried, a transient SQLSTATE, status 0 or a 5xx gets four attempts, and a
+    considered refusal is answered once; typing re-arms busy blocks only. The
+    spec engine and the instructor copy save through the same call.
+  - **THE CLASS LIST BESIDE AN OPEN WORKSHEET IS TOLD, NEVER RE-READ.** The rail
+    publishes into the section layout's `LiveWork` only after an acknowledged
+    write, and `overlayWork` lays it over `data.work` with no network call. It
+    never touches a submitted or returned row, never replaces the server's own
+    instant, and is not cleared by a re-read.
+  - **A WORKSHEET'S BACKUP COPY IS A CALLER OF
+    `$lib/classroom/assignment-draft-mirror`, NOT A FOURTH MIRROR.** It is read
+    on `attach()`, never in the constructor, written before the machines go
+    down, and holds no photographs, which its restore notice says.
 
 **SUBMIT IS A PARENT CONTROL IN PARENT CHROME**, and the completeness check is
 the parent's, from the manifest's `minSentences`. A Submit inside the document
@@ -2255,7 +2529,7 @@ it is not required to browse.
   tournament deletion, the all-users feedback read (`/admin/feedback`, whose
   old `/classroom/feedback` address forwards only after the same gate),
   VANGUARD's TUNE mode, the
-  Foundry review queue (`/foundry/review`), the Foundry source reader
+  Foundry review queue (`/foundry/review`, and its `/foundry/review/publishers`), the Foundry source reader
   (`POST /api/foundry/source`), the IDEA Maps editor (everything under
   `/maps/edit`, gated once in its own `+layout.server.ts` -- the `/maps` viewer
   is PUBLIC per the maps spec, has shipped, and must never be prefix-guarded) and GAUNTLET's ranked-run review
@@ -2610,9 +2884,26 @@ picture into an initials tile with nothing saying why.
   line drawings in the house format -- a photograph or a meme image is neither
   renderable as a 24x24 mark nor ours to ship.
 
+**THE BADGE SET IS REDRAWN IN PLACE, NEVER RE-IDED (ledger 0360, report R16).**
+`BADGES` ids are stored (0064, 0220, class votes), so the list is append-only;
+the art (`faces`, `paths`, `details` and `solids`, in one `currentColor` ink) is
+code and may change with no migration, and `paths` stays the non-empty OUTLINE.
+`BadgeIcon`'s `motion` is `hover` (one beat when the nearest a, button, label or
+`[role=button]` is hovered, keyboard-focused or pressed), `once` (draw then beat,
+for a one-identity banner) or `none`; every beat runs one iteration, ends on no
+transform and lives only inside `prefers-reduced-motion: no-preference`.
+`tests/badge-art.test.ts` counts the gear's teeth and sweeps the stylesheet.
+
+**"NO PATHWAY YET" IS AN ANSWER, NOT A VALUE (ledger 0360, report R18).**
+`profiles.pathway` stays NULL; the answer is stored in `preferences.pathway`
+through profile-io and holds until the next 1 August in Los Angeles.
+`pathwayPromptWanted` in `$lib/pathway-choice` is the one rule of who is asked,
+called by `PathwayPicker`, `HomeTour` and `HomeTourOffer`. A freshman is never
+inferred from an email.
+
 **`preferences` is a shared JSONB blob with several independent namespaces**
 (`homepage`, `classroomFeed`, `classroomUnits`, `coinDesk`, `ideacad`, `classroom`,
-`quickNote`). Every
+`quickNote`, `pathway`). Every
 write goes through **`$lib/preferences/profile-io`**, which READS THE ROW FIRST and
 merges one namespace, in one queue per tab (ledger 0297): a writer spreading the
 page-load snapshot was measured erasing a sibling's write one click later (a folded
@@ -2933,6 +3224,15 @@ something this environment cannot do.**
 - **A backfill runs exactly once**, inside a catalog guard on the column's own
   existence. An unguarded `update ... where <newcol> is null` on the second run
   rewrites every genuine row, silently.
+- **A SEED OR BACKFILL ROW GOES INSIDE A `do` BLOCK, NEVER AT THE TOP LEVEL.**
+  `tools/apply-migration.mjs` refuses top-level `insert into` and `update`
+  unless it is told to allow DML, and `migrate.yml` never tells it, so a bare
+  seed insert fails the production apply on the day it ships while every db
+  suite passes (the harness runs no scanner). `tests/db/migration-0230-apply.test.ts`
+  runs the real `scanFile` over the real file with a planted insert as the
+  control, and is the shape to copy. A migration whose self-check spans
+  subsystems is tested on the whole tree short of it, read off disk
+  (`tests/db/chain-0230.ts`), because it applies whole or not at all.
 - **Report counts with `raise notice`** so the operator can check them against
   what the deployed app actually holds.
 
@@ -3546,6 +3846,13 @@ inside the function fails closed rather than falling through to a weaker path.
   `profiles.section_id`, and deleting one orphans those rows and breaks the lookup.
   Mark an entry concluded with a FLAG instead -- an annual programme comes back, and
   flipping a flag re-opens it with nothing to restore.
+- **A LINK HOVER NEVER RUNS A SERVER LOAD (ledger 0360, report R08).**
+  `src/app.html`'s body carries `data-sveltekit-preload-data="tap"` and
+  `data-sveltekit-preload-code="hover"`. The template's hover data preload ran a
+  route's hooks, Auth and every server load for every link a pointer rested on
+  (measured: six route-data loads for six launcher links); tap still preloads
+  about 100ms before the click. No element overrides it, and
+  `tests/link-preload-policy.test.ts` sweeps for one.
 - **An API route exists when the work needs the server** (a credential, a
   multipart parse, real validation, a Drive round trip). A single RPC call with
   two strings is made directly from the browser client instead.
@@ -4068,6 +4375,22 @@ inside the function fails closed rather than falling through to a weaker path.
     **NEVER AN IDENTITY**: nothing verified it, so every surface showing it says
     so, and the export's identity toggle withholds it exactly as it withholds a
     name. A signed-in row cannot carry one.
+  - **A REPORT HAS A HORIZON (0230): `now` OR `long_term`, ITS OWN COLUMN, NEVER
+    A KIND.** Only `long_term` is ever sent: the signed-in path names it on a
+    ladder rung of its own, so an ordinary report stays the same base insert,
+    and the anonymous path sends `meta.horizon`, which `app_feedback_submit`
+    lifts. `rowHorizon` is the one reader (the column wins over `meta`). The
+    console opens on Fix soon, long-term ideas get their own wide read so old
+    ones cannot fall off the newest-200 window, and `app_feedback_set_horizon`
+    (admin only) is filing, not reviewing, so it leaves the status and the review
+    stamp alone. The archive marks each report's horizon in its index and in
+    its own report file, and its README lists long-term items in their own
+    section.
+  - **FOR AN ADMIN, THE REPORT BOX LINKS TO THE CONSOLE (report R15).**
+    `feedbackConsoleHref` answers `FEEDBACK_CONSOLE_PATH` only for
+    `isAdmin === true` and never on the console itself; `SiteFeedback` derives it
+    from `page.data.isAdmin`, so no mount threads it, and it opens a new tab so a
+    half-typed report is never lost.
   - **`app_feedback` is the ONE queue for every surface**, and the console at
     `/admin/feedback` (admin only, decision 42) reads ALL apps. Filter before
     exporting; an export of everything is a semester nobody reads.
@@ -4773,6 +5096,17 @@ These have each cost a debugging session. They are not hypothetical.
 
 ### DOM
 
+- **A KEYFRAME NEVER ANIMATES TO A `color-mix()` THAT NAMES `currentColor`.
+  CHROME 154 CRASHES THE WHOLE RENDERER ON IT.** An animation moving an SVG
+  `fill` or `stroke` to `color-mix(in srgb, currentColor 72%, transparent)`
+  is a renderer CHECK failure (Windows says STATUS_BREAKPOINT, "Can't open
+  this page"). The Bolt badge's charge beat did exactly that, and on
+  2026-10-01 every classroom page showing a class that had voted the Bolt
+  died about a second after it painted. Chromium 141, the harness browser,
+  survives it, so no browser pass here can catch it. Tint with `currentColor`
+  plus `fill-opacity` and animate the opacity, which paints the same pixel.
+  `tests/keyframe-paint-currentcolor.test.ts` sweeps every keyframe in `src/`.
+  A static mix of `currentColor` is fine.
 - **AN UNFILLED SVG SHAPE TAKES THE POINTER ONLY ON ITS STROKE.** The default
   `pointer-events: visiblePainted` hit-tests painted regions, so a `fill: none`
   rect wrapped in a link answers a click on its 2px outline and nowhere inside
@@ -4818,6 +5152,15 @@ These have each cost a debugging session. They are not hypothetical.
   string length. A caller whose number must be heard correctly mid-count puts
   the final figure in a visually hidden sibling and marks the animated node
   aria-hidden.
+- **ANY `main` IS A STACKING CONTEXT** (`src/app.css` gives it `z-index: 1`),
+  so a `position: fixed` layer rendered inside a page's `main` is painted at 1
+  in `.cr-root`, under the classroom masthead and `ClassSplit`'s separator,
+  whatever its own z-index. `ItemDetail` drops the context (`.edit-layer-open`,
+  `z-index: auto`) only while its edit layer is open (ledger 0360, report R06:
+  at 1440 the list's resize bar was drawn over the editor and the masthead
+  covered Close), ClassView does the same for a row's editor, and the plate's
+  selected row drops its own context while it holds a `.row-editor`. Verify by
+  hit test, never by reading the layer's z-index: it reads 60 while covered.
 - **A masthead dropdown needs the header to outrank `main`.** Both sit at
   `z-index: 1` in the same stacking context and `main` comes later, so it wins the
   tie and paints over anything the header drops below itself.
@@ -4871,6 +5214,12 @@ These have each cost a debugging session. They are not hypothetical.
     instrument is a HIT TEST across the covered element's own text box, in
     `npm run verify:browser`; `tests/dom/` has no layout engine and would read
     zero.
+- **ABOVE 1024px EVERY DIRECT CHILD OF THE CLASS PANE IS CAPPED AT THE PANE'S
+  HEIGHT** (`split.css`, `.cr-root > .cr-split:not(.page-flow) > .cr-nav > *`). A
+  region that is not the pane's last child and grows past that cap overflows its
+  own box, and the next sibling paints over it: with the team editor open at
+  1440, a hit test at Save's centre answered the class page's h1 (ledger 0360).
+  A content region there opts out (`ClassTeams`' `max-height: none`).
 - **A `DOMRect`'s SIDES ARE PROTOTYPE GETTERS, SO `{ ...rect }` COPIES NOTHING.**
   The spread is an empty object with no error: IdeaCAD's tool card, handed one
   to `anchorPosition`, opened at left 0. Copy the fields by name.
@@ -5067,7 +5416,12 @@ belong wherever the app's own behaviour is documented.
 
 - **`npm test` runs `tools/run-tests.mjs`, which passes `--no-file-parallelism` to
   vitest** (`vitest run --no-file-parallelism`), so plain `npm test` is always the
-  safe invocation -- there is no bare, parallel form to reach for by mistake. DB files
+  safe invocation. **`npx vitest run a.test.ts b.test.ts` IS the bare, parallel
+  form, and it is easy to reach for**: measured on 2026-10-01, six full-chain db
+  files under it once had two suites' `beforeAll` fail with every test skipped
+  and then passed on a re-run, while `npm test -- <the same six>` passed 130 of
+  130. Pass several files through `npm test --`, never through bare `npx vitest
+  run`. DB files
   used to starve each other's `beforeAll` because each booted its own embedded
   Postgres; they now share ONE cluster (see Testing), which is the fix for that,
   not more concurrency. Serial files are what keep each file's own database the
@@ -5682,7 +6036,8 @@ the source of truth; **do not invent colours or swap fonts.**
   motion. Legibility first.
 - **A SITE THEME MAY BE ROUTE-SCOPED, AND SPACE WHITE IS (ledger 0297).**
   `SCOPED_SITE_THEMES` names the themes that apply only inside
-  `THEME_SCOPE_PREFIXES` (the classroom, the reference viewer, the notebook) and
+  `THEME_SCOPE_PREFIXES` (the classroom, the reference viewer, the notebook),
+  the site plate's own scope (since ledger 0360; see the site-plate rule) and
   `THEME_SCOPE_EXACT` (the home page, as the exact path `/` and never as a
   prefix, because every route starts with a slash). `themeInScope` matches on a
   path boundary and FAILS CLOSED, so `/classroomx` is out and a room nobody
@@ -5700,9 +6055,9 @@ the source of truth; **do not invent colours or swap fonts.**
     where the server assumes a dev session.
   - **A SCOPED THEME MAY REPAINT A SEMANTIC HUE FOR ITS GROUND, AN UNSCOPED ONE
     MAY NOT**, and it moves lightness only. `tests/theme-tokens.test.ts` asserts
-    it, and sweeps the route scope in both directions (the FRC, FSP, Foundry,
-    GAUNTLET, GREENLINE, VANGUARD, Maps, Tournaments, coin and IdeaCAD rooms and
-    the `/a/`, `/b/` and `/hx/` document routes stay OUT).
+    it, and sweeps the route scope in both directions (the FRC, FSP, GAUNTLET,
+    GREENLINE, VANGUARD and IdeaCAD rooms, the tournament TV stage and the
+    `/a/`, `/b/` and `/hx/` document routes stay OUT).
   - **DARK ISLANDS STAY DARK THROUGH ONE ZERO-SPECIFICITY BLOCK** in
     `src/lib/design-system/themes/space-white.css`,
     `:where(.ic-root, .nb-island, .deck-stage)`, which restores every token the
@@ -5753,6 +6108,11 @@ the source of truth; **do not invent colours or swap fonts.**
     `--li-*` room hooks so a light theme can point them at its inks. App marks
     follow the once-only standard `IdeaCadMark` set: one pass, rest frame held,
     nothing hidden in a base state, and the launcher mounts every mark `once`.
+  - **THE HOME PARTICLES STAY ON SPACE WHITE (Mr. Pina, 2026-09-29; ledger
+    0360).** Their ink and glow are room hooks on `#bg-canvas` (`--li-particle`,
+    `--li-particle-blur`) that the home page re-reads on a theme change. Space
+    White draws the brand green with no blur at full opacity, matched to IDEA's
+    field by composited contrast; Matrix still hides the canvas.
   - **HOVER IS A ROLE, `--hover-ink`, NOT A HUE** (decision 40 item 1): brass on
     the dark themes, Space White's green ink there, because a lightness-only
     gold over white is brown (#715d22). A `:hover` rule that wants the brass
@@ -5924,10 +6284,19 @@ properly. That is a bundle, not a line.
   `src/lib/shell/site-plate.css` holds only what is the site's (room grounds,
   the maps blueprint grid removed, the launcher cards); a site surface's own
   keys, tags and panels join the SAME lists in `plate.css`, room-qualified
-  (`.tnm-root :is(...)`), never a second copy of a recipe. Space White is still
-  scoped to the classroom, the notebook, the reference viewer and `/`, so the
-  site plate in the other rooms renders in IDEA or Matrix only; a harness that
-  pins Space White on them measures a state production never has.
+  (`.tnm-root :is(...)`), never a second copy of a recipe. **SPACE WHITE COVERS
+  EVERY SITE-PLATE PAGE (ledger 0360).** `themeInScope` reads
+  `SITE_PLATE_PREFIXES`, `SITE_PLATE_EXCLUDE` and `SITE_PLATE_DEV_PREFIXES`
+  themselves, never `sitePlateInScope` (whose trailing-slash strip reads `//` as
+  `/`), whatever `SITE_PLATE` is set to. A room that redeclares the portal tier
+  on its own wrapper (`.tnm-root`, the Maps viewer's jade, `.fg-root`) carries
+  its light twin in ITS OWN stylesheet keyed on `:root[data-theme='space-white']`,
+  moving identity hues in lightness only; `--blueprint-bg` is a Space White
+  token, so the Maps drawing is dark on light; the tournament TV stage stays out
+  by the plate's exclusion and is a dark island (`.tnm-root.tv`) where a harness
+  mounts it in scope; and a Foundry card's cover stays dark in every theme.
+  `tests/theme-tokens.test.ts` walks every page route and holds the policy both
+  ways.
 - **`.cd-root` -- the coin desk.** It is NOT a repaint: the desk sits on the
   portal's own dark plate and borrows nothing but geometry. `.cd-root` is
   registered in `$lib/shell/split.css` (gutter, scrollbars, the split) and
@@ -6206,6 +6575,15 @@ has. `ultracode` is a Claude Code setting and is never written into a Codex prom
   `mcp__Claude_Browser__*`, and carrying its workarounds over here is how a
   session settles an `IntersectionObserver` by hand that would have fired on
   its own. Re-run `--probe` rather than trusting this paragraph.
+- **A SPEC THAT CLICKS A REAL LINK WAITS FOR A HYDRATION MARKER THE HARNESS SETS
+  IN `onMount`, TWICE (ledger 0360).** On a cold dev server Vite reloads the page
+  once while it optimizes a route's dependencies, and a click that lands before
+  hydration follows the link off the page (a Foundry card is a real
+  `/foundry?app=<slug>` link, which sends a signed-out harness to `/`). The room
+  and forge harnesses set `data-room-hydrated` / `data-forge-hydrated`, and their
+  specs wait for it, wait 2s, and wait again. `clickUntil` reads its target's box
+  with a 2s timeout, so a selector that vanished fails an attempt rather than
+  hanging the pass.
 - **PAINT IS NOT INTERACTIVITY, AND NO WINDOW MARKER SEPARATES THEM.** The
   server-rendered markup is on screen before hydration attaches a handler, and
   the `__SVELTEKIT_*` globals are set by the client entry module before that

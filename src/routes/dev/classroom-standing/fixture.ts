@@ -196,9 +196,12 @@ export const SUBMISSIONS: FeedSubmission[] = [];
  * `range`, awaited) from `TABLES`, with `count` for an exact select. Anything
  * else it was never asked is not modelled.
  */
-export function memoryClient(tables: Record<string, Row[]> = TABLES) {
+export function memoryClient(tables: Record<string, Row[]> = TABLES, log?: { reads: number }) {
 	return {
 		from(table: string) {
+			// Every read counted, so a spec can assert that something moved with
+			// none (ledger 0360's class-list overlay).
+			if (log) log.reads += 1;
 			const within: [string, unknown[]][] = [];
 			const equal: [string, unknown][] = [];
 			let range: [number, number] | null = null;
@@ -241,3 +244,101 @@ export function memoryClient(tables: Record<string, Row[]> = TABLES) {
 		}
 	};
 }
+
+// ---------------------------------------------------------------------------
+// LEDGER 0360 (reports d983e776, 2d83c063, 8f78d5bd): `?state=optional`.
+//
+// Four worksheets, each with the reading it must produce, read through the
+// SAME real `readWorksheetCompletions` over the same in-memory client:
+//   - an OPTIONAL photo slot left empty, everything required in, finished
+//     after the due instant: "Complete, late";
+//   - a CHECKBOX the document stored as a string ("on"): "Complete";
+//   - THE CONTROL: the same Portfolio manifest with its REQUIRED photo
+//     missing, which must still read "Missing";
+//   - a worksheet left partly answered on the server, which the page's
+//     "Finished in this tab" toggle overlays with `overlayWork`, exactly as the
+//     class layout does when the open worksheet's rail publishes, with no read.
+// The default page (no `state=optional...`) is unchanged, so every existing spec reads the
+// fixture above.
+// ---------------------------------------------------------------------------
+
+/** Assembly: one required photo, one OPTIONAL slot, one required answer. */
+const PORTFOLIO = {
+	schemaVersion: 3,
+	kind: 'html-assignment',
+	title: 'Portfolio capture',
+	course: 'IDEA209H',
+	points: 10,
+	header: [{ id: 'h-name', field: 'studentName', type: 'text' }],
+	modules: [
+		{
+			id: 'assembly',
+			title: 'Assembly',
+			points: 10,
+			blocks: [
+				{ id: 'a-photo-1', field: 'assemblyPhoto1', type: 'image' },
+				{ id: 'a-photo-2', field: 'assemblyPhoto2', type: 'image', optional: true },
+				{ id: 'a-why', field: 'assemblyWhy', type: 'longText', minSentences: 2 }
+			],
+			criteria: [criterion('c1')]
+		}
+	]
+};
+
+/** A checkbox and an answer. */
+const CHECKED = {
+	...GEARS,
+	title: 'Safety check',
+	modules: [
+		{
+			id: 'm1',
+			title: 'Safety',
+			points: 10,
+			blocks: [
+				{ id: 'k-done', field: 'gogglesOn', type: 'checkbox' },
+				{ id: 'k-ratio', field: 'ratio', type: 'text' }
+			],
+			criteria: [criterion('c1')]
+		}
+	]
+};
+
+function photo(id: string, item_id: string, block_id: string, created_at: string) {
+	return {
+		id,
+		block_id,
+		filename: 'assembly.jpg',
+		caption: null,
+		sort_order: 1,
+		created_at,
+		classroom_submissions: { item_id, student_email: ME }
+	};
+}
+
+export const ITEMS_0360: ClassroomItem[] = [
+	item('ws-optional', 'Portfolio capture'),
+	item('ws-shape', 'Safety check'),
+	item('ws-required', 'Portfolio capture, photo missing'),
+	item('ws-live', 'Concept sketches')
+];
+
+export const TABLES_0360: Record<string, Row[]> = {
+	classroom_items: ITEMS_0360.map((i) => ({ id: i.id, assignment_schema_version: 3 })),
+	classroom_html_assignments: [
+		{ item_id: 'ws-optional', manifest: PORTFOLIO },
+		{ item_id: 'ws-shape', manifest: CHECKED },
+		{ item_id: 'ws-required', manifest: PORTFOLIO },
+		{ item_id: 'ws-live', manifest: GEARS }
+	],
+	classroom_responses: [
+		answer('ws-optional', ME, 'a-why', TWO, '2026-09-24T18:00:00.000Z'),
+		{ item_id: 'ws-shape', student_email: ME, block_id: 'k-done', value: { text: 'on' }, updated_at: '2026-09-22T18:00:00.000Z' },
+		answer('ws-shape', ME, 'k-ratio', '3:1', '2026-09-22T18:05:00.000Z'),
+		answer('ws-required', ME, 'a-why', TWO, '2026-09-24T18:00:00.000Z'),
+		answer('ws-live', ME, 'm1-ratio', '3:1', '2026-09-24T18:00:00.000Z')
+	],
+	classroom_submission_files: [photo('p-opt', 'ws-optional', 'a-photo-1', '2026-09-24T18:10:00.000Z')]
+};
+
+/** The instant the "finished in this tab" toggle stands for: after the due date. */
+export const LIVE_FINISHED_AT = '2026-09-25T02:30:00.000Z';

@@ -2067,6 +2067,12 @@ a:hover {
 	z-index: 0;
 	pointer-events: none;
 	opacity: 0.35;
+	/* THE FIELD'S ROOM HOOKS (ledger 0360). The page's script reads these two
+	   off the canvas and draws with them, so a theme decides how its particles
+	   look here rather than in the script. IDEA: the brand green with a glow of
+	   4, exactly what the field always drew. */
+	--li-particle: var(--green);
+	--li-particle-blur: 4;
 }
 
 /* Header */
@@ -3080,6 +3086,37 @@ a:hover {
 	flex: 1;
 	min-width: 200px;
 }
+/* The changelog's page controls (ledger 0360, report R24): one page of the log
+   is rendered, and this key asks for the next. It wears `.changelog-toggle`, so
+   it is the same raised key as the toggle above it (and joins the plate's key
+   list through that class); its words are --text-2, not --dim, because --dim
+   on --bg1 is 4.52:1 and a control's label is not the place to spend the last
+   0.02 of the floor. 11px at least, unlike the toggle's own 0.58rem caption. */
+.legacy-index .changelog-toggle.cl-more {
+	margin-top: 0.75rem;
+	color: var(--text-2);
+	font-size: 0.72rem;
+	gap: 1rem;
+	flex-wrap: wrap;
+}
+.legacy-index .cl-more-left {
+	font-family: var(--font-mono);
+	letter-spacing: 0.06em;
+	text-transform: none;
+}
+.legacy-index .cl-shown {
+	margin: 0.5rem 0 0;
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.06em;
+	color: var(--text-2);
+}
+/* The sentinel the panel's own scroll reaches before its end; a box with no
+   height, never a target. */
+.legacy-index .cl-sentinel {
+	height: 0;
+	pointer-events: none;
+}
 
 /* Changelog filters: page/app, change type, date range. */
 .legacy-index .changelog-filters {
@@ -3314,9 +3351,9 @@ a:hover {
    THE LANDING PAGE UNDER SPACE WHITE (ledger 0297, package F1b).
 
    `/` is in Space White's route scope as an EXACT path (`THEME_SCOPE_EXACT`
-   in src/lib/theme.ts), so `:root[data-theme='space-white']` can only ever be
-   true here on the home page -- `/archive` shares this stylesheet and is not
-   in scope. These rules live beside the page they style, never in the theme
+   in src/lib/theme.ts). `/archive` shares this stylesheet, so these rules
+   reach it too wherever the theme's scope admits it; the particle canvas is
+   the home page's alone. These rules live beside the page they style, never in the theme
    file: a theme is a token layer (tests/theme-tokens.test.ts) and a component
    decides how it looks under one, the way AppLauncher re-inks its own cards.
 
@@ -3411,12 +3448,27 @@ a:hover {
 :root[data-theme='space-white'] .legacy-index .cl-date input::-webkit-calendar-picker-indicator {
 	filter: none;
 }
-/* THE STARFIELD IS A FIELD OF BLURRED, GLOWING DOTS, WHICH IS WHAT THIS THEME
-   DOES NOT DRAW. The canvas keeps running its own theme check (it re-reads
-   --green whenever the theme changes, so switching back paints the right
-   green), and here it simply takes no box. */
+/* THE PARTICLES STAY, DRAWN THIS THEME'S WAY (ledger 0360; Mr. Pina: "Do not
+   remove the homepage particles. I do actually quite like how they look").
+   This rule used to switch the field off, on the grounds that it is a field of
+   blurred, glowing dots and this theme draws no glow. The glow is the half
+   that goes (`--li-particle-blur: 0`); the dots stay, in the SAME brand green
+   the IDEA field is drawn in (`--accent-field`, #78b870 here, which is for
+   large areas and carries no word -- a dot carries none), at full canvas
+   opacity. That pair is the one that matches the field he likes on both
+   measures at once, composited per dot: against --bg0 the faintest, median
+   and brightest dot read 1.14 / 1.44 / 1.84:1 here and 1.12 / 1.42 / 1.87:1
+   under IDEA, at a saturation of 0.21 to 0.33 here against 0.20 to 0.23
+   there. The theme's own green ink (#3b6c36) at 45% matched the contrast and
+   not the colour: saturation 0.12 to 0.14, which a screenshot showed as grey
+   specks on the white, closer to dust than to the field. Decoration, so no
+   floor applies. The canvas re-reads both hooks whenever the theme changes.
+   Measured by
+   tools/browser-verify/routes/home-order-role-student-classes-1-rows-3-state-particles-space-white.mjs. */
 :root[data-theme='space-white'] .legacy-index #bg-canvas {
-	display: none;
+	opacity: 1;
+	--li-particle: var(--accent-field);
+	--li-particle-blur: 0;
 }
 
 /* ==========================================================================

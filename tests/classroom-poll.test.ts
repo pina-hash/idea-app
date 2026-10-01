@@ -504,24 +504,37 @@ describe('the cadences, against the database rules and the 2026-09-30 load', () 
 	});
 
 	it('cuts a student\'s steady-state calls a minute by at least half, on the class page and the item page', async () => {
-		const [{ HALL_PASS_POLL_MS }, { SONG_QUEUE_POLL_MS }, { CLASS_TEAMS_POLL_MS }, { PRESENCE_BEAT_STRETCH, PRESENCE_LIMITS_FALLBACK }] =
-			await Promise.all([
-				import('../src/lib/classroom/hall-pass'),
-				import('../src/lib/classroom/song-queue'),
-				import('../src/lib/classroom/class-teams'),
-				import('../src/lib/classroom/presence/state')
-			]);
+		const [
+			{ HALL_PASS_POLL_MS },
+			{ SONG_QUEUE_POLL_MS },
+			{ CLASS_TEAMS_POLL_MS },
+			{ PRESENCE_BEAT_STRETCH, PRESENCE_LIMITS_FALLBACK },
+			{ QUICK_POSTS_POLL_MS }
+		] = await Promise.all([
+			import('../src/lib/classroom/hall-pass'),
+			import('../src/lib/classroom/song-queue'),
+			import('../src/lib/classroom/class-teams'),
+			import('../src/lib/classroom/presence/state'),
+			import('../src/lib/classroom/quick-posts')
+		]);
 		const perMinute = (ms: number) => 60_000 / ms;
 		// THE BASELINE, measured from main at 8d703f5 (ledger 0357's audit): hall
 		// pass 45s, songs 90s, posted teams 60s, presence beat 30s.
 		const classBefore = perMinute(45_000) + perMinute(90_000) + perMinute(60_000);
 		const itemBefore = classBefore + perMinute(30_000);
+		// The class's notices (ledger 0360, R22) poll too, on the section layout,
+		// so they count on both pages: ten minutes is the headroom 0357 left.
 		const classAfter =
-			perMinute(HALL_PASS_POLL_MS) + perMinute(SONG_QUEUE_POLL_MS) + perMinute(CLASS_TEAMS_POLL_MS);
+			perMinute(HALL_PASS_POLL_MS) +
+			perMinute(SONG_QUEUE_POLL_MS) +
+			perMinute(CLASS_TEAMS_POLL_MS) +
+			perMinute(QUICK_POSTS_POLL_MS);
 		const itemAfter =
 			classAfter + perMinute(PRESENCE_LIMITS_FALLBACK.heartbeatSeconds * 1000 * PRESENCE_BEAT_STRETCH);
 		expect(classBefore).toBeCloseTo(3.0, 5);
 		expect(itemBefore).toBeCloseTo(5.0, 5);
+		expect(classAfter).toBeCloseTo(1.0, 5);
+		expect(itemAfter).toBeCloseTo(2.5, 5);
 		expect(classAfter).toBeLessThanOrEqual(classBefore / 2);
 		expect(itemAfter).toBeLessThanOrEqual(itemBefore / 2);
 	});

@@ -4,6 +4,7 @@
 	import { SaveState } from '$lib/save-state.svelte';
 	import {
 		FEEDBACK_CONTACT_MAX,
+		FEEDBACK_HORIZONS,
 		FEEDBACK_KINDS,
 		FEEDBACK_MAX_LEN,
 		FEEDBACK_TRIED_MAX,
@@ -12,8 +13,10 @@
 		feedbackTriedIssue,
 		type FeedbackEntry,
 		type FeedbackResult,
+		type FeedbackHorizon,
 		type FeedbackKind
 	} from './feedback';
+	import { FEEDBACK_CONSOLE_LABEL } from './context';
 	import { dropTarget } from '$lib/file-drop';
 	import {
 		FEEDBACK_SCREENSHOT_MAX_BYTES,
@@ -71,6 +74,8 @@
 		uploadScreenshot = null,
 		screenshotNote = null,
 		dictation = undefined,
+		offerHorizon = false,
+		consoleHref = null,
 		title = 'Send feedback',
 		note = 'Tell us what you noticed. It goes straight to the team.'
 	}: {
@@ -125,11 +130,31 @@
 		 * and the one rule about text (append, never replace).
 		 */
 		dictation?: SpeechRecognitionCtor | null;
+		/**
+		 * OFFER "FIX SOON" OR "LONG-TERM IDEA" (0230). False, the default, renders
+		 * no control and puts no `horizon` on the entry at all, which is how
+		 * GREENLINE's own direct mount stays exactly as it was. `SiteFeedback`
+		 * passes true, so every surface the site's report control reaches offers
+		 * it.
+		 */
+		offerHorizon?: boolean;
+		/**
+		 * WHERE THE REPORTS ARE READ, for an admin (report R15), or null. Null
+		 * renders no link: absence is the mechanism, so a student's box carries
+		 * nothing that could point them at a page that would answer them 404.
+		 *
+		 * IT OPENS IN A NEW TAB, ON PURPOSE. Following it in this tab would throw
+		 * away whatever is half typed in this box, on the one surface that exists
+		 * so nothing is lost.
+		 */
+		consoleHref?: string | null;
 		title?: string;
 		note?: string;
 	} = $props();
 
 	let kind = $state<FeedbackKind>('bug');
+	/** 'now' unless somebody picks otherwise, and 'now' is never sent. */
+	let horizon = $state<FeedbackHorizon>('now');
 	let message = $state('');
 	let contact = $state('');
 	let tried = $state('');
@@ -284,6 +309,9 @@
 				// staged screenshot that failed to upload left `shotPath` null, so a
 				// refused picture cannot reach the row.
 				...(shotPath ? { screenshotPath: shotPath } : {}),
+				// ONLY A CHOSEN LONG-TERM, and only where the choice was offered: an
+				// entry from a box that never asked carries no `horizon` key at all.
+				...(offerHorizon && horizon === 'long_term' ? { horizon: 'long_term' as const } : {}),
 				...(askContact ? { contact } : {})
 			});
 			if (!res.error) return { ok: true as const };
@@ -364,6 +392,7 @@
 		message = '';
 		contact = '';
 		tried = '';
+		horizon = 'now';
 		removeScreenshot();
 	}
 
@@ -432,6 +461,20 @@
 	>
 		<div class="fb-head">
 			<span class="fb-title">{title}</span>
+			{#if consoleHref}
+				<!-- IN THE HEADER, so it is on screen before a send and after one:
+				     straight after a send is when an admin most wants it, because the
+				     report just filed is the newest row on that page. -->
+				<a
+					class="fb-btn fb-console-link"
+					href={consoleHref}
+					target="_blank"
+					rel="noopener"
+					data-testid="fb-console-link"
+				>
+					{FEEDBACK_CONSOLE_LABEL}<span class="fb-sr"> (opens in a new tab)</span>
+				</a>
+			{/if}
 			<button class="fb-x" onclick={onClose} aria-label="Close">✕</button>
 		</div>
 
@@ -462,6 +505,39 @@
 					</button>
 				{/each}
 			</div>
+
+			{#if offerHorizon}
+				<!--
+					WHEN IS THIS FOR. Its own group, after the kind, because it answers
+					a different question: a long-term idea can be a bug, an idea or
+					anything else. The same raised keys as the kind group above, lit by
+					`aria-checked`, with the meaning in a sentence under them rather
+					than in a `title` a phone cannot hover.
+				-->
+				<div
+					class="fb-kinds fb-horizons"
+					role="radiogroup"
+					aria-label="When to act on this"
+					aria-describedby="fb-horizon-hint"
+				>
+					{#each FEEDBACK_HORIZONS as h (h.id)}
+						<button
+							class="fb-kind fb-horizon"
+							class:on={horizon === h.id}
+							role="radio"
+							aria-checked={horizon === h.id}
+							data-testid="fb-horizon-{h.id}"
+							disabled={sending}
+							onclick={() => (horizon = h.id)}
+						>
+							{h.label}
+						</button>
+					{/each}
+				</div>
+				<p class="fb-horizon-hint" id="fb-horizon-hint">
+					{FEEDBACK_HORIZONS.find((h) => h.id === horizon)?.hint}
+				</p>
+			{/if}
 
 			<div class="fb-label-row">
 				<label class="fb-label" for="fb-msg">
@@ -829,6 +905,45 @@
 		color: var(--fb-accent);
 		border-color: var(--fb-accent-edge-on);
 		box-shadow: 0 0 10px color-mix(in srgb, var(--fb-accent) 18%, transparent);
+	}
+	/* The horizon group sits directly under the kind group, so the hint takes
+	   the gap the kinds would have left before the message label. */
+	.fb-horizons {
+		margin-bottom: 0.3rem;
+	}
+	.fb-horizon-hint {
+		margin: 0 0 0.7rem;
+		color: var(--fb-ink-faint);
+		/* 11.2px, the label floor. */
+		font-size: 0.7rem;
+		line-height: 1.45;
+	}
+	/* THE CONSOLE LINK IS A KEY that owns its row slot, so it takes the 44px
+	   floor from `.fb-btn`, and it never wraps its own two words: the title
+	   beside it is what gives way on a phone. */
+	.fb-console-link {
+		display: inline-flex;
+		align-items: center;
+		flex: none;
+		text-decoration: none;
+		text-transform: uppercase;
+		white-space: nowrap;
+		/* The site's `a:hover` glow is a link's, and this is a key. */
+		text-shadow: none;
+	}
+	.fb-head .fb-title {
+		min-width: 0;
+	}
+	/* Visually hidden, read aloud: where the link opens is said, not implied. */
+	.fb-sr {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 	.fb-label {
 		display: block;

@@ -14,6 +14,7 @@ import {
 	LIVE_CELL_DISPLAY,
 	LIVE_GROUP_ORDER,
 	LIVE_IDLE_MS,
+	idleDetail,
 	liveCellState,
 	liveCells,
 	liveCountOf,
@@ -90,9 +91,52 @@ describe('the idle threshold, and why it is five minutes', () => {
 		const yesterday = row('a@x', { last_input_at: ago(86_400), last_seen_at: ago(5) });
 		expect(liveCellState({ ...base, row: yesterday }).state).toBe('idle');
 		expect(liveCellState({ ...base, row: yesterday, arrivedAt: NOW - 60_000 }).state).toBe('working');
-		expect(liveCellState({ ...base, row: yesterday, arrivedAt: NOW - 60_000 }).detail).toBe('Typed yesterday');
+		// R11: the ARRIVAL is what makes them working, so that is what the row
+		// says. "Typed yesterday" was true and answered nothing.
+		expect(liveCellState({ ...base, row: yesterday, arrivedAt: NOW - 60_000 }).detail).toBe('Just opened');
+		// Positive control: a keystroke inside the threshold still names itself,
+		// arrival or no arrival.
+		const recent = row('a@x', { last_input_at: ago(180), last_seen_at: ago(5) });
+		expect(liveCellState({ ...base, row: recent, arrivedAt: NOW - 60_000 }).detail).toBe('Typed 3m ago');
 		// And the arrival grace runs out on the same threshold.
 		expect(liveCellState({ ...base, row: yesterday, arrivedAt: NOW - LIVE_IDLE_MS - 1000 }).state).toBe('idle');
+	});
+
+	it('R11: an idle student whose last keystroke was on an earlier school day reads "No typing today", never a four-digit minute count', () => {
+		// The two rows Mr. Pina filed: 1463 min (24 h 23 min) and 1509 min with
+		// the page in another tab. The student's tab is beating today; their
+		// last input on the item was yesterday.
+		const a = liveCellState({ ...base, row: row('a@x', { last_input_at: ago(1463 * 60), last_seen_at: ago(10) }) });
+		expect(a).toEqual({ state: 'idle', detail: 'No typing today' });
+		const b = liveCellState({
+			...base,
+			row: row('b@x', { last_input_at: ago(1509 * 60), last_seen_at: ago(10), page_visible: false })
+		});
+		expect(b).toEqual({ state: 'idle', detail: 'No typing today · other tab' });
+		for (const c of [a, b]) expect(c.detail).not.toMatch(/\d{3,} min/);
+	});
+
+	it('R11: the same day steps from minutes to hours in the hall pass\'s own spelling', () => {
+		const idle = (s: number) => liveCellState({ ...base, row: row('a@x', { last_input_at: ago(s), last_seen_at: ago(10) }) });
+		expect(idle(51 * 60).detail).toBe('No typing for 51 min');
+		expect(idle(60 * 60).detail).toBe('No typing for 1 hr');
+		expect(idle(72 * 60 + 30).detail).toBe('No typing for 1 hr 12 min');
+		// Floored, never rounded up: 59 min 59 s is still 59 min.
+		expect(idle(60 * 60 - 1).detail).toBe('No typing for 59 min');
+	});
+
+	it('R11: "today" is the school\'s day, at the instant where Los Angeles and UTC disagree', () => {
+		// 8pm Pacific on the 23rd is already the 24th in UTC. A keystroke at
+		// 8am Pacific that morning is the same school day: 12 hours, not
+		// "today". A UTC-day comparison would print "No typing today".
+		const at8pm = Date.parse('2026-09-24T03:00:00Z');
+		const morning = Date.parse('2026-09-23T15:00:00Z');
+		expect(idleDetail(morning, morning, at8pm)).toBe('No typing for 12 hr');
+		// And the night before, which IS another school day.
+		const lastNight = Date.parse('2026-09-23T05:00:00Z'); // 10pm Pacific on the 22nd
+		expect(idleDetail(lastNight, lastNight, at8pm)).toBe('No typing today');
+		// Never typed at all is still its own answer.
+		expect(idleDetail(morning, null, at8pm)).toBe('No typing yet');
 	});
 
 	it('opened and never typed, past the threshold, is idle with no typing yet', () => {

@@ -17,7 +17,7 @@
  *   - the warning ink on the warning fill for the digits, the word and the
  *     overtime line, and the burst ring as a boundary on that fill.
  */
-import { EIGHT_H, PROJECTOR_READY, READOUT_PARTS, WALL_FITS } from './_classroom-live.mjs';
+import { EIGHT_H, PROJECTOR_READY, READOUT_PARTS, RING_FACE_WCAG, WALL_FITS_ANY } from './_classroom-live.mjs';
 
 export default {
 	path: '/dev/classroom-projector?demo=done&clock=pinned',
@@ -31,7 +31,13 @@ export default {
 			expected: ['Time is up', 'Over by 0:32']
 		},
 		{ label: '8H: the smallest text against 1/50 of the height (a portrait window is not a wall and is not held to it)', evaluate: `() => [(${EIGHT_H})()].map((v) => v.startsWith('portrait') ? 'smallest text clears 1/50 of the height' : v)`, expected: ['smallest text clears 1/50 of the height'] },
-		{ label: 'the wall fits the window', evaluate: WALL_FITS, expected: ['no horizontal scroll', 'no vertical scroll'] }
+		{ label: 'the wall fits the window (a portrait window may scroll)', evaluate: WALL_FITS_ANY, expected: ['no horizontal scroll', 'no vertical scroll'] },
+		{ label: 'the digits on the ring face (the arc is empty once time is up)', evaluate: RING_FACE_WCAG({ arc: false }), expected: ['digits clear 4.5 WCAG on the ring face'] },
+		{
+			label: 'time is up: the ring\'s track takes the warning ink, and the arc is empty',
+			evaluate: `() => { const r = document.querySelector('[data-testid="projector-timer"] [data-testid="plate-ring"]'); const stop = getComputedStyle(r.querySelector('linearGradient stop')).stopColor; const warn = getComputedStyle(document.querySelector('[data-testid="projector-timer"] .lp-word')).color; return [stop === warn ? 'track in the warning ink' : 'track ' + stop + ' vs ' + warn, r.querySelector('.r-value').getAttribute('stroke-dasharray').startsWith('0 ') ? 'arc empty' : 'arc ' + r.querySelector('.r-value').getAttribute('stroke-dasharray')]; }`,
+			expected: ['track in the warning ink', 'arc empty']
+		}
 	],
 	presence: [
 		{ selector: '[data-testid="projector-timer"][data-phase="done"]', label: 'the finished timer', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
@@ -39,11 +45,9 @@ export default {
 		{ selector: '[data-testid="projector-timer-pulse"]', label: 'no beat once time is up', expectPresent: 0 }
 	],
 	contrast: [
-		{ selector: '.lp-digits', label: 'digits, warning ink on the warning fill', min: 4.5 },
-		{ selector: '.lp-frac', label: 'hundredths, warning ink on the warning fill', min: 4.5 },
-		{ selector: '.lp-word', label: 'timer word, warning ink on the warning fill', min: 4.5 },
+		{ selector: '.lp-word', label: 'timer word, warning ink on the wall', min: 4.5 },
 		{ selector: '.lp-over', label: 'overtime line', min: 4.5 },
-		{ selector: '.lp-ring', label: 'the finish ring, a boundary, on the warning fill', min: 3 }
+		{ selector: '.lp-ring', label: 'the finish ring, a boundary, on the wall', min: 3 }
 	],
 	motion: [{ selector: '[data-testid="projector-timer"]', label: 'the finish, gated behind no-preference', expect: 'gated' }],
 	ignoreConsole: ['Failed to load resource: net::ERR_FAILED']

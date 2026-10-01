@@ -54,6 +54,8 @@
 	import { createFindUpload, createNotebookTransports } from '$lib/notebook/transports';
 	import type { NotebookCaptureTransports } from '$lib/notebook/capture-queue';
 	import { classNotebookHref } from '$lib/classroom/nav';
+	import { classroomPreferences, reactivePreferences } from '$lib/preferences/context';
+	import { runCommand } from '$lib/shell/command-handlers';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -360,7 +362,12 @@
 				// ARMS THE GUARD'S HANDLE the moment a block owes a write. See
 				// `htmlGuardState` above for why a handle nothing marks dirty makes
 				// the guard ask a question instead of flushing.
-				ondirty: () => htmlGuardState.markDirty()
+				ondirty: () => htmlGuardState.markDirty(),
+				// THE BROWSER BACKUP COPY (ledger 0360), keyed per viewer and per
+				// item. Read on `attach()`, never here, so the server render and
+				// the client's first render agree. The instructor's controller
+				// above takes none: a working copy is never a hand-in.
+				mirrorViewer: data.claims?.sub ?? null
 			})
 		};
 		return heldHtmlAnswers.store;
@@ -1051,6 +1058,15 @@
 	);
 	const captureStore = browserCaptureStore();
 
+	/**
+	 * THIS PERSON'S ARRANGEMENT OF THE ITEM PAGE (ledger 0360, report R23),
+	 * from the classroom preference store the classroom layout provides. Null
+	 * outside one, which is the default order. Arrange opens the settings on
+	 * this page's own layout group.
+	 */
+	const classPrefStore = classroomPreferences();
+	const classPrefs = classPrefStore ? reactivePreferences(classPrefStore) : null;
+
 	const presenceBeat = $derived(
 		data.engine ? createPresenceBeatTransport(data.supabase, data.item.id) : null
 	);
@@ -1098,6 +1114,8 @@
 		: null}
 	htmlAssignmentAdmin={data.navIsAdmin === true}
 	gradeHref={data.canManage ? `/classroom/${data.section.id}/item/${data.item.id}/grade` : null}
+	panelLayout={classPrefs?.current.panels.itemPage ?? null}
+	onArrange={classPrefStore ? () => runCommand('settings.open', 'panels:item') : null}
 	onchanged={() => invalidateAll()}
 	ondeleted={() => goto(`/classroom/${data.section.id}`)}
 />
