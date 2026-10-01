@@ -28,6 +28,7 @@ import {
 	HALL_PASS_POLL_MS,
 	type HallPassManagerState,
 	type HallPassStudentState,
+	type HallPassState,
 	type HallPassTransports
 } from '../../src/lib/classroom/hall-pass';
 import {
@@ -36,6 +37,8 @@ import {
 	type SongQueueStudentState,
 	type SongQueueTransports
 } from '../../src/lib/classroom/song-queue';
+import { defaultPokeGapMs } from '../../src/lib/classroom/poll';
+import { mountWithLiveProps } from './presence-heartbeat-mount-props.svelte';
 import { mountInto, type Mounted } from './mount';
 
 const NOW = Date.parse('2026-08-28T17:42:00Z');
@@ -122,12 +125,17 @@ interface HallRec {
 	loads: number;
 	calls: string[];
 }
-function hallTransports(rec: HallRec, opts: { openOk?: boolean } = {}): HallPassTransports {
+function hallTransports(
+	rec: HallRec,
+	opts: { openOk?: boolean; answer?: HallPassState | null } = {}
+): HallPassTransports {
 	return {
 		async load() {
 			rec.loads += 1;
 			rec.calls.push('load');
-			return null;
+			// Null is a FAILED read to the shared poller (ledger 0357), which backs
+			// off; a case about the poll's cadence hands back a real state.
+			return opts.answer ?? null;
 		},
 		async open() {
 			rec.calls.push('open');
@@ -405,24 +413,75 @@ describe('the live notice re-asks the transport, for its own topic only', () => 
 		 * short of the interval is 0, the interval is 1, and after unmount a
 		 * further interval adds nothing (the effect's cleanup cleared it).
 		 */
-		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+		// THE SHARED POLLER (ledger 0357): `Date` is faked with the timers and the
+		// random source held at 0.5, so the first read is at exactly HALF the
+		// interval (the random offset that keeps a class out of step) and every
+		// later wait is exactly the interval.
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+		const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
 		try {
 			const r = rec();
 			const m = track(
-				mountInto(HallPass as never, { sectionId: SECTION, state: studentHall, transports: hallTransports(r), now: NOW, tool: true })
+				mountInto(HallPass as never, { sectionId: SECTION, state: studentHall, transports: hallTransports(r, { answer: studentHall }), now: NOW, tool: true })
 			);
 			expect(m.one('[data-testid="hall-pass-tool-root"]').hasAttribute('data-live')).toBe(false);
 			expect(r.loads).toBe(0);
-			vi.advanceTimersByTime(HALL_PASS_POLL_MS - 1);
+			await vi.advanceTimersByTimeAsync(HALL_PASS_POLL_MS / 2 - 1);
 			expect(r.loads).toBe(0);
-			vi.advanceTimersByTime(1);
+			await vi.advanceTimersByTimeAsync(1);
 			expect(r.loads).toBe(1);
-			vi.advanceTimersByTime(HALL_PASS_POLL_MS);
+			await vi.advanceTimersByTimeAsync(HALL_PASS_POLL_MS);
+			expect(r.loads).toBe(2);
+			// A return to the tab right after a read asks nothing; one past the gap
+			// is ONE read for visibilitychange and focus together.
+			document.dispatchEvent(new Event('visibilitychange'));
+			window.dispatchEvent(new Event('focus'));
+			await vi.advanceTimersByTimeAsync(0);
+			expect(r.loads).toBe(2);
+			await vi.advanceTimersByTimeAsync(defaultPokeGapMs(HALL_PASS_POLL_MS));
+			document.dispatchEvent(new Event('visibilitychange'));
+			window.dispatchEvent(new Event('focus'));
+			await vi.advanceTimersByTimeAsync(0);
+			expect(r.loads).toBe(3);
+			await m.stop();
+			await vi.advanceTimersByTimeAsync(HALL_PASS_POLL_MS * 2);
+			expect(r.loads).toBe(3);
+		} finally {
+			random.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
+	it('a page-load answer that replaces a newer one is re-asked at once, and only then (ledger 0357)', async () => {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+		const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+		try {
+			const r = rec();
+			const m = mountWithLiveProps(HallPass as never, {
+				sectionId: SECTION,
+				state: studentHall,
+				transports: hallTransports(r, { answer: { ...studentHall } }),
+				now: NOW,
+				tool: true
+			});
+			// The page load's own answer replacing itself: nothing newer was on
+			// screen, so nothing is asked.
+			m.set('state', { ...studentHall });
+			m.flush();
+			await vi.advanceTimersByTimeAsync(0);
+			expect(r.loads).toBe(0);
+			// The poll learns something newer than the page load...
+			await vi.advanceTimersByTimeAsync(HALL_PASS_POLL_MS / 2);
+			expect(r.loads).toBe(1);
+			// ...and then a re-run load hands back the older page-load shape: asked
+			// again at once, rather than standing for a two-minute floor.
+			m.set('state', { ...studentHall });
+			m.flush();
+			await vi.advanceTimersByTimeAsync(0);
 			expect(r.loads).toBe(2);
 			await m.stop();
-			vi.advanceTimersByTime(HALL_PASS_POLL_MS * 2);
-			expect(r.loads).toBe(2);
 		} finally {
+			random.mockRestore();
 			vi.useRealTimers();
 		}
 	});
@@ -443,7 +502,7 @@ describe('the live notice re-asks the transport, for its own topic only', () => 
 		expect(m.one('[data-testid="hall-pass-live"]').textContent?.trim()).toBe(
 			classroomLivePausedLine(HALL_PASS_POLL_MS)
 		);
-		expect(m.one('[data-testid="hall-pass-live"]').textContent).toContain('every 45 seconds');
+		expect(m.one('[data-testid="hall-pass-live"]').textContent).toContain('every 120 seconds');
 
 		// POSITIVE CONTROL in the other direction: the memory bus is `live`.
 		const live = track(

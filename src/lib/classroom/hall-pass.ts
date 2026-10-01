@@ -257,14 +257,22 @@ export interface HallPassTransports {
  * ask. A student looking at "available" needs that to be true a moment later;
  * an instructor needs to see somebody leave without reloading.
  *
- * PAUSED WHILE THE TAB IS HIDDEN, and re-asked immediately on becoming visible
- * -- which is the case that actually matters, since a phone in a pocket is the
- * normal state of this surface between uses. A class of 25 with the page open
- * is ~33 reads a minute against one cheap RPC; polling every few seconds to
- * make the button "never" wrong would be paying continuously for a case the
- * refusal already handles correctly and instantly.
+ * PAUSED WHILE THE TAB IS HIDDEN, and re-asked on becoming visible -- which is
+ * the case that actually matters, since a phone in a pocket is the normal state
+ * of this surface between uses. Polling every few seconds to make the button
+ * "never" wrong would be paying continuously for a case the refusal already
+ * handles correctly and instantly.
+ *
+ * 120 SECONDS, RAISED FROM 45 IN LEDGER 0357, BECAUSE THE POLL IS THE FLOOR AND
+ * NOT THE MECHANISM. A pass opened or closed through this app announces itself
+ * on the class's live channel (`$lib/classroom/live`) and every open page
+ * re-asks at once; the poll exists for a write made outside the app and a
+ * notice that went missing, and a stale "Free" in that case is answered by the
+ * open RPC's own refusal. At 45 seconds a class of 21 was 28 reads a minute of
+ * the database that stalled at 8:00 on 2026-09-29 and 2026-09-30; at 120 it is
+ * about 10, jittered so they do not land together (`$lib/classroom/poll`).
  */
-export const HALL_PASS_POLL_MS = 45_000;
+export const HALL_PASS_POLL_MS = 120_000;
 
 /** The clock this school's calendar is adjudicated in (the `0140` rule). */
 const SCHOOL_TIME_ZONE = 'America/Los_Angeles';
@@ -579,7 +587,7 @@ export const CLASSROOM_LIVE_DEBOUNCE_MS = 250;
  */
 export function classroomLivePausedLine(pollMs: number): string {
 	const seconds = Math.max(1, Math.round(pollMs / 1000));
-	// Unreachable with the two real polls (45s, 90s), but it is a sentence a
+	// Unreachable with the two real polls (120s, 300s), but it is a sentence a
 	// person reads, so it agrees with itself at one second too.
 	return `Live updates paused, still checking every ${seconds} second${seconds === 1 ? '' : 's'}.`;
 }

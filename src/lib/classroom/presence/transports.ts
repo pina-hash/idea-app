@@ -23,6 +23,7 @@ import {
 	type PresenceRow
 } from './state';
 import type { PresenceBeat } from './heartbeat';
+import { isSignedOutFailure, type PollOutcome } from '../poll';
 
 export interface PresenceTransports {
 	/**
@@ -33,8 +34,13 @@ export interface PresenceTransports {
 }
 
 export interface PresenceBeatTransport {
-	/** The student's beat. Fire and forget: nothing awaits it and nothing reports it. */
-	ping(beat: PresenceBeat): void;
+	/**
+	 * The student's beat. Nothing waits on it to carry on, and a missed one costs
+	 * one interval; what it may hand back is HOW it went (ledger 0357), so the
+	 * heartbeat backs off a failing database and stops for good when the session
+	 * is gone instead of beating as anon. A twin that answers nothing is `ok`.
+	 */
+	ping(beat: PresenceBeat): void | Promise<PollOutcome>;
 }
 
 /**
@@ -69,18 +75,20 @@ export function createPresenceBeatTransport(
 ): PresenceBeatTransport {
 	return {
 		ping(beat) {
-			void supabase
-				.rpc('classroom_presence_ping', {
+			return Promise.resolve(
+				supabase.rpc('classroom_presence_ping', {
 					p_item_id: itemId,
 					p_typed: beat.typed,
 					p_page_visible: beat.visible
 				})
-				.then(
-					() => undefined,
-					() => {
-						/* Best effort by contract. A missed beat costs one poll interval. */
-					}
-				);
+			).then(
+				({ error, status }): PollOutcome => {
+					if (!error) return 'ok';
+					return isSignedOutFailure(error, status) ? 'signed-out' : 'failed';
+				},
+				/* Best effort by contract. A missed beat costs one poll interval. */
+				(): PollOutcome => 'failed'
+			);
 		}
 	};
 }

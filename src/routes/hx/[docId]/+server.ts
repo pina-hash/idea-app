@@ -1,6 +1,10 @@
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/public';
-import { hxStoredDocument } from '$lib/server/html-assignment-document';
+import {
+	hxDocumentEtag,
+	hxIfNoneMatchHits,
+	hxStoredDocumentHead
+} from '$lib/server/html-assignment-document';
 import { hxDocument } from '../_documents';
 import { hxDocumentHeaders, hxOnServingHost, hxPortalOrigin } from '../_headers';
 import type { RequestHandler } from './$types';
@@ -81,8 +85,22 @@ function notFound(): Response {
 	return new Response(null, { status: 404, headers: { 'cache-control': 'no-store' } });
 }
 
+/**
+ * A REVALIDATION IS ANSWERED WITHOUT THE BYTES (ledger 0357). The access
+ * decision runs first, on every request, exactly as before: an unpublished or
+ * scheduled item is a 404 whether or not the browser sends a tag, so a 304 is
+ * only ever "the version the database just called live is the one you hold".
+ * Then a matching `If-None-Match` is a 304 and a HEAD is headers, and neither
+ * reads the `document` column. Only a GET that needs the body asks for bytes,
+ * and those come from the instance's cache when it holds this version.
+ */
 const handle: RequestHandler = async ({ params, url, request }) => {
 	if (!hxOnServingHost(url.origin, env.PUBLIC_HX_SANDBOX_ORIGIN)) return notFound();
+
+	const headers = hxDocumentHeaders(
+		hxPortalOrigin(env.PUBLIC_HX_PORTAL_ORIGIN, env.PUBLIC_HX_SANDBOX_ORIGIN, url.origin)
+	);
+	const csp = headers.get('content-security-policy') ?? '';
 
 	const docId = params.docId ?? '';
 	const fixture = dev ? hxDocument(docId, dev) : null;
@@ -90,14 +108,27 @@ const handle: RequestHandler = async ({ params, url, request }) => {
 	if (fixture) {
 		html = fixture.html;
 	} else {
-		const stored = await hxStoredDocument(docId);
-		if (!stored.ok) return notFound();
-		html = stored.html;
+		const ifNoneMatch = request.headers.get('if-none-match');
+		const head = await hxStoredDocumentHead(docId, {
+			prefetch: request.method === 'GET' && !ifNoneMatch
+		});
+		if (!head.ok) return notFound();
+		const etag = hxDocumentEtag(docId, head.version, csp);
+		if (hxIfNoneMatchHits(ifNoneMatch, etag)) {
+			headers.set('etag', etag);
+			return new Response(null, { status: 304, headers });
+		}
+		if (request.method === 'HEAD') {
+			headers.set('etag', etag);
+			return new Response(null, { headers });
+		}
+		const got = await head.bytes();
+		if (!got) return notFound();
+		html = got.html;
+		// The tag of the bytes actually sent, which is newer than the head's only
+		// when a re-import landed between the two reads.
+		headers.set('etag', hxDocumentEtag(docId, got.version, csp));
 	}
-
-	const headers = hxDocumentHeaders(
-		hxPortalOrigin(env.PUBLIC_HX_PORTAL_ORIGIN, env.PUBLIC_HX_SANDBOX_ORIGIN, url.origin)
-	);
 
 	if (request.method === 'HEAD') return new Response(null, { headers });
 

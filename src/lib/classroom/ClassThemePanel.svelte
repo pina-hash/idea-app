@@ -16,6 +16,8 @@
 		type ClassThemeTransports,
 		type ClassThemeWinners
 	} from '$lib/classroom/class-theme';
+	import { startPoller, type Poller, type PollOutcome } from '$lib/classroom/poll';
+	import { pollSignedOut } from '$lib/classroom/poll-session';
 
 	/**
 	 * THE CLASS THEME VOTE (decision 45, report R07), on the class page, under
@@ -98,25 +100,32 @@
 		if (notify) untrack(() => notify(winners, course));
 	}
 
-	async function read() {
+	/** One read of the tally; what it reports is the poller's outcome. */
+	async function read(): Promise<PollOutcome> {
 		const mine = ++asked;
 		const t = transports;
-		const res = await untrack(() => t.tally(courseId));
-		if (mine !== asked || !alive) return;
+		const course = courseId;
+		const res = await untrack(() => t.tally(course));
+		if (mine !== asked || !alive) return 'ok';
 		if (res.ok) {
 			tally = res.tally;
 			phase = 'ready';
 			readError = null;
 			tell(res.tally.winners);
-		} else if (res.reason === 'unavailable' || res.message === 'Not found.') {
+			return 'ok';
+		}
+		if (res.reason === 'unavailable' || res.message === 'Not found.') {
 			phase = 'hidden';
-		} else if (phase === 'loading' || phase === 'error') {
+			return 'ok';
+		}
+		if (phase === 'loading' || phase === 'error') {
 			phase = 'error';
 			readError = res.message;
 		} else {
 			// A failed re-read keeps what is on screen and says so once.
 			readError = res.message;
 		}
+		return res.signedOut ? 'signed-out' : 'failed';
 	}
 
 	onMount(() => {
@@ -126,35 +135,42 @@
 		};
 	});
 
-	/** Opening the panel reads at once; the poll below keeps it current. */
+	/** Opening the panel starts the poll below, whose first read is at once. */
 	function openChanged(next: boolean) {
-		const was = open;
 		open = next;
-		if (next && !was) void read();
 	}
 
-	/* THE POLL: only while open, only while visible, and only while there is a
-	   panel to be open -- a read that answered `unavailable` takes the panel
-	   away, and a poll that outlived it would go on asking. The effect depends
-	   on `open`, the phase and the interval; the reads run untracked inside
-	   `read`. */
+	/* THE POLL, ON THE SHARED POLLER (ledger 0357): only while open, only while
+	   visible, and only while there is a panel to be open -- a read that answered
+	   `unavailable` takes the panel away, and a poll that outlived it would go on
+	   asking. IMMEDIATE, because opening the panel is the moment somebody wants
+	   the count; every later read is jittered, waits while the tab is hidden,
+	   backs off a failing database, and a signed-out answer stops it. The effect
+	   depends on `open` and on whether there is a panel; the poller is started
+	   untracked and every read runs untracked inside `read`. A signed-out panel
+	   that is closed and opened again starts a fresh poll, whose first read is
+	   refused the same way and stops it again: one call per opening, never a
+	   loop. */
+	const pollShown = $derived(phase === 'ready' || phase === 'error');
+	let poller: Poller | null = null;
 	$effect(() => {
 		const isOpen = open;
-		const every = pollMs;
-		const shown = phase === 'ready' || phase === 'error';
+		const shown = pollShown;
 		if (!isOpen || !shown || typeof document === 'undefined') return;
-		const tick = () => {
-			if (document.hidden) return;
-			void read();
-		};
-		const timer = setInterval(tick, every);
-		document.addEventListener('visibilitychange', tick);
-		window.addEventListener('focus', tick);
+		const p = untrack(() =>
+			startPoller({ intervalMs: pollMs, immediate: true, run: () => read(), onSignedOut: pollSignedOut })
+		);
+		poller = p;
 		return () => {
-			clearInterval(timer);
-			document.removeEventListener('visibilitychange', tick);
-			window.removeEventListener('focus', tick);
+			p.stop();
+			if (poller === p) poller = null;
 		};
+	});
+	/* A vote opening or closing changes the cadence from the next wait on,
+	   without restarting the poll (a restart would read again at once). */
+	$effect(() => {
+		const every = pollMs;
+		untrack(() => poller?.setIntervalMs(every));
 	});
 
 	function optionLabel(feature: ClassThemeFeature, id: string): string {

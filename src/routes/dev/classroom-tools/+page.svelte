@@ -254,6 +254,12 @@
 	 * "re-asked once, on the notice, not on the poll".
 	 * ---------------------------------------------------------------- */
 	let log = $state<string[]>([]);
+	/* THE POLL IS PUT OUT OF REACH HERE, deliberately. The load counters below
+	   count the reads a NOTICE causes, and the shared poller (ledger 0357) starts
+	   each tool at a random offset into its floor, which could land inside the
+	   seconds a spec spends reading them. An hour is longer than any run. The
+	   poll itself is pinned in tests/dom/classroom-tools-mount.test.ts. */
+	const HARNESS_POLL_MS = 60 * 60_000;
 	let loads = $state<Record<string, number>>({
 		'student-hall': 0,
 		'manager-hall': 0,
@@ -452,6 +458,7 @@
 				now={NOW}
 				{live}
 				tool
+				pollMs={HARNESS_POLL_MS}
 			/>
 			<SongQueue
 				sectionId={SECTION}
@@ -460,6 +467,7 @@
 				now={NOW}
 				{live}
 				tool
+				pollMs={HARNESS_POLL_MS}
 			/>
 		</div>
 	</section>
@@ -474,6 +482,7 @@
 				now={NOW}
 				{live}
 				tool
+				pollMs={HARNESS_POLL_MS}
 			/>
 			<SongQueue
 				sectionId={SECTION}
@@ -482,6 +491,7 @@
 				now={NOW}
 				{live}
 				tool
+				pollMs={HARNESS_POLL_MS}
 			/>
 		</div>
 	</section>

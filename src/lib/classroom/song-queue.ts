@@ -216,8 +216,12 @@ export interface SongQueueTransports {
  * poll is for the OTHER person's changes only, and it is paused while the tab is
  * hidden and re-asked the moment it is visible again -- which is the transition
  * that actually matters for a surface that spends its life in a pocket.
+ *
+ * 300 SECONDS, RAISED FROM 90 IN LEDGER 0357. The live channel already makes an
+ * approval or a new request immediate on every open page; the poll is only the
+ * floor under a write made outside the app, and a song is never urgent.
  */
-export const SONG_QUEUE_POLL_MS = 90_000;
+export const SONG_QUEUE_POLL_MS = 300_000;
 
 /** The clock this school's calendar is adjudicated in (the `0140` rule). */
 const SCHOOL_TIME_ZONE = 'America/Los_Angeles';

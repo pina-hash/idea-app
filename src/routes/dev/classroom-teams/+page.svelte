@@ -238,7 +238,16 @@
 	<div class="class-tools" data-testid="class-tools">
 		<HallPass sectionId={SECTION.id} state={hallPass} transports={null} {now} tool />
 	</div>
-	<ClassTeams sets={teams} manage={teacher ? teamsManageLink(SECTION.id) : null} {today} {refresh} />
+	<!-- `later` mode refreshes on a two-second cadence: the shipped five-minute
+	     floor (ledger 0357) would leave a spec waiting on the clock, and a focus
+	     inside the poller's gap after the load is, correctly, ignored. -->
+	<ClassTeams
+		sets={teams}
+		manage={teacher ? teamsManageLink(SECTION.id) : null}
+		{today}
+		{refresh}
+		pollMs={later ? 2_000 : undefined}
+	/>
 	<ClassView section={SECTION} items={ITEMS} canManage={teacher} basePath={BASE} />
 {/snippet}
 

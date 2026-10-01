@@ -63,12 +63,15 @@
 // ratio or a 44px target read in this directory is a zero that passes
 // vacuously. See `tests/dom/mount.ts`.
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Component } from 'svelte';
 import PresenceHeartbeatComponent from '$lib/classroom/presence/PresenceHeartbeat.svelte';
 import { PresenceHeartbeat, type PresenceBeat } from '$lib/classroom/presence/heartbeat';
 import { PRESENCE_LIMITS_FALLBACK } from '$lib/classroom/presence/state';
 import { mountInto, type Mounted } from './mount';
+import { PRESENCE_BEAT_STRETCH } from '$lib/classroom/presence/state';
+import { _resetPollSession } from '$lib/classroom/poll-session';
+import { calls as navigationCalls, reset as resetNavigation } from '../stubs/app-navigation';
 import { mountWithLiveProps } from './presence-heartbeat-mount-props.svelte';
 import GradingConsole from '$lib/classroom/GradingConsole.svelte';
 import { createMemoryPresence } from '$lib/classroom/presence/transports';
@@ -288,6 +291,140 @@ describe('the component, mounted for real', () => {
 		input.remove();
 
 		expect(sent.length).toBe(after);
+	});
+});
+
+describe('the beat on the shared poller (ledger 0357)', () => {
+	const BEAT_MS = PRESENCE_LIMITS_FALLBACK.heartbeatSeconds * 1000 * PRESENCE_BEAT_STRETCH;
+	let visible = true;
+	function pinClock() {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+		vi.spyOn(Math, 'random').mockReturnValue(0.5);
+		visible = true;
+		vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => (visible ? 'visible' : 'hidden'));
+		vi.spyOn(document, 'hidden', 'get').mockImplementation(() => !visible);
+		_resetPollSession();
+		resetNavigation();
+	}
+	function unpin() {
+		vi.restoreAllMocks();
+		vi.useRealTimers();
+	}
+	const mountBeat = (send: (b: PresenceBeat) => unknown) => {
+		mounted = mountInto(PresenceHeartbeatComponent as unknown as Component<Record<string, unknown>>, { send });
+		mounted.flush();
+		return mounted;
+	};
+
+	it('beats every 40 seconds, and a return to the tab is ONE beat for both events', async () => {
+		pinClock();
+		try {
+			const sent: PresenceBeat[] = [];
+			mountBeat((b) => sent.push(b));
+			expect(sent).toHaveLength(1);
+			await vi.advanceTimersByTimeAsync(BEAT_MS - 1);
+			expect(sent).toHaveLength(1);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(sent).toHaveLength(2);
+			// Hidden: the one hide report, then silence however long it stays hidden.
+			visible = false;
+			document.dispatchEvent(new Event('visibilitychange'));
+			expect(sent).toHaveLength(3);
+			expect(sent[2]).toEqual({ typed: false, visible: false });
+			await vi.advanceTimersByTimeAsync(BEAT_MS * 5);
+			expect(sent).toHaveLength(3);
+			// Back: visibilitychange AND focus, one beat.
+			visible = true;
+			document.dispatchEvent(new Event('visibilitychange'));
+			window.dispatchEvent(new Event('focus'));
+			await vi.advanceTimersByTimeAsync(0);
+			expect(sent).toHaveLength(4);
+			expect(sent[3]).toEqual({ typed: false, visible: true });
+		} finally {
+			unpin();
+		}
+	});
+
+	it('a short tab switch never opens a gap over the 60-second credit cap between written beats', async () => {
+		// The reviewer's case: beat at 0, hide at 5s, back at 10s. Before the
+		// return beat went through the poller, the old timer fired at 40s inside
+		// the class's throttle, sent nothing, and the next beat was at 80s.
+		// The twin applies the database's own 20s floor, so `written` is what 0200
+		// would have stored.
+		pinClock();
+		try {
+			let now = Date.now();
+			const twin = createMemoryPresence({ now: () => Date.now(), studentEmail: 'a@boscotech.net' });
+			mountBeat((b) => twin.ping(b));
+			for (const [at, hide] of [
+				[5_000, true],
+				[10_000, false],
+				[61_000, true],
+				[75_000, false],
+				[200_000, true],
+				[230_000, false]
+			] as const) {
+				await vi.advanceTimersByTimeAsync(at - (Date.now() - now));
+				visible = !hide;
+				document.dispatchEvent(new Event('visibilitychange'));
+				await vi.advanceTimersByTimeAsync(0);
+			}
+			await vi.advanceTimersByTimeAsync(5 * 60_000);
+			const written = twin.beats.filter((b) => b.written);
+			let worst = 0;
+			for (let i = 1; i < written.length; i++) worst = Math.max(worst, written[i].at - written[i - 1].at);
+			expect(written.length).toBeGreaterThan(8);
+			expect(worst).toBeLessThanOrEqual(60_000);
+			now = 0;
+		} finally {
+			unpin();
+		}
+	});
+
+	it('backs off a failing database rather than beating at full rate', async () => {
+		pinClock();
+		try {
+			const sent: PresenceBeat[] = [];
+			mountBeat((b) => {
+				sent.push(b);
+				return Promise.resolve('failed' as const);
+			});
+			await vi.advanceTimersByTimeAsync(0);
+			expect(sent).toHaveLength(1);
+			await vi.advanceTimersByTimeAsync(BEAT_MS);
+			expect(sent).toHaveLength(1); // the first failure doubled the wait
+			await vi.advanceTimersByTimeAsync(BEAT_MS);
+			expect(sent).toHaveLength(2);
+		} finally {
+			unpin();
+		}
+	});
+
+	it('a beat refused for want of a session stops the heart for good, and hands over once', async () => {
+		pinClock();
+		try {
+			const sent: PresenceBeat[] = [];
+			mountBeat((b) => {
+				sent.push(b);
+				return Promise.resolve('signed-out' as const);
+			});
+			await vi.advanceTimersByTimeAsync(0);
+			expect(sent).toHaveLength(1);
+			expect(navigationCalls.filter((c) => c.fn === 'invalidate')).toEqual([
+				{ fn: 'invalidate', args: ['supabase:auth'] }
+			]);
+			// Never as anon: an hour of ticks, a hide and a return send nothing.
+			await vi.advanceTimersByTimeAsync(60 * 60_000);
+			visible = false;
+			document.dispatchEvent(new Event('visibilitychange'));
+			visible = true;
+			document.dispatchEvent(new Event('visibilitychange'));
+			window.dispatchEvent(new Event('focus'));
+			await vi.advanceTimersByTimeAsync(BEAT_MS * 3);
+			expect(sent).toHaveLength(1);
+		} finally {
+			unpin();
+		}
 	});
 });
 

@@ -81,6 +81,26 @@ export const PRESENCE_LIMITS_FALLBACK: PresenceLimits = {
 };
 
 /**
+ * HOW MUCH SLOWER THAN THE DATABASE'S STATED HEARTBEAT A STUDENT'S PAGE BEATS
+ * (ledger 0357). 30 seconds becomes 40, jittered +/- 20% by the shared poller
+ * (`$lib/classroom/poll`), so a beat lands every 32 to 48 seconds.
+ *
+ * WHY IT MOVED. The beat is a WRITE, and on the item page it was two of the
+ * five calls a minute every student made, on the database that stalled at 8:00
+ * on 2026-09-29 and 2026-09-30. WHY 4/3 AND NO MORE, which is a property of
+ * 0200's own rules and is asserted in `tests/classroom-poll.test.ts`:
+ *   - the longest wait, 4/3 x 1.2 = 1.6 heartbeats, stays under the credit cap
+ *     of TWO heartbeats (`_classroom_presence_credit_cap`), so a typed interval
+ *     is still credited in full;
+ *   - 48 seconds stays inside the 60-second input window, so typing anywhere in
+ *     an interval is still reported as typed, and far inside the 2-minute AWAY
+ *     window;
+ *   - the shortest wait, 32 seconds, clears the database's 20-second floor
+ *     (`_classroom_presence_min_gap`), so no honest beat is throttled.
+ */
+export const PRESENCE_BEAT_STRETCH = 4 / 3;
+
+/**
  * HOW OFTEN AN OPEN CONSOLE RE-ASKS. Not in `live.ts`: `GRADING_POLL_MS` is the
  * floor under a student's WORK arriving, which is minutes of effort, and this
  * is the floor under a student SITTING DOWN, which is seconds. One number

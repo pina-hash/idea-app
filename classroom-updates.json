@@ -13,6 +13,14 @@
 	],
 	"entries": [
 		{
+			"date": "2026-10-01",
+			"title": "The class page keeps up without slowing the site down",
+			"body": "The hall pass, the music queue, posted teams and the class theme vote now check for changes less often and at different moments for each person, so a whole class opening the page at once no longer overloads the site. A change made through the site still shows up right away. If you switch away from the tab and come back, it checks once. If you are ever signed out, these stop checking until you sign back in.",
+			"tags": [
+				"fix"
+			]
+		},
+		{
 			"date": "2026-09-29",
 			"title": "Assignments can use the site's own lettering",
 			"body": "Assignment pages built for it now show the same letters as the rest of IDEA Classroom instead of your computer's default font.",

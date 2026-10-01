@@ -9,6 +9,9 @@
 		type ClassTeam,
 		type ClassTeamSet
 	} from '$lib/classroom/class-teams';
+	import { page } from '$app/state';
+	import { PollSignedOut, startPoller, type Poller, type PollOutcome } from '$lib/classroom/poll';
+	import { pollSessionKey, pollSignedOut } from '$lib/classroom/poll-session';
 
 	/**
 	 * THE TEAMS A TEACHER POSTED, ON THE CLASS PAGE (ledger 0297, reordered in
@@ -42,14 +45,16 @@
 	 * reached nobody who had it open -- the teacher included, pressing the Class
 	 * tab straight after posting from People. `refresh` re-asks the same
 	 * audience-gated read on `CLASS_TEAMS_POLL_MS` while the tab is visible and
-	 * at once when it comes back into view; omitted, the component is what the
-	 * page load handed it and nothing else (absence is the mechanism).
+	 * when it comes back into view (the shared poller's rules, ledger 0357);
+	 * omitted, the component is what the page load handed it and nothing else
+	 * (absence is the mechanism).
 	 */
 	let {
 		sets,
 		manage = null,
 		today = null,
-		refresh = null
+		refresh = null,
+		pollMs = CLASS_TEAMS_POLL_MS
 	}: {
 		sets: ClassTeamSet[];
 		/** Where a teacher manages the draw (the People tab). Null for a student: no strip. */
@@ -58,6 +63,12 @@
 		today?: string | null;
 		/** Re-reads the posted draws: the projection, or null when the read failed. */
 		refresh?: (() => Promise<ClassTeamSet[] | null>) | null;
+		/**
+		 * The refresh cadence. The class page never passes it (the shipped cadence
+		 * is `CLASS_TEAMS_POLL_MS`); the dev harness does, so a spec can watch a
+		 * draw arrive in seconds rather than wait out a five-minute floor.
+		 */
+		pollMs?: number;
 	} = $props();
 
 	/**
@@ -76,42 +87,55 @@
 	const notice = $derived(manage ? postedTeamsNotice(shown, today) : null);
 
 	/**
-	 * THE POLL. The effect reads `refresh` and nothing else; the timer and the
-	 * listener run outside the tracking scope, and the call itself is
-	 * untracked, so the work takes no dependency on the state it writes. A
-	 * sequence number drops an answer that arrives after a newer one, and an
-	 * answer identical to what is on screen writes nothing.
+	 * THE POLL, ON THE SHARED POLLER (ledger 0357). `$lib/classroom/poll` owns the
+	 * cadence: out of step with the rest of the class, one call in flight, ONE
+	 * call per return to the tab (this widget used to tick on both
+	 * `visibilitychange` and `focus`, which is why the board was asked two or three
+	 * times a tick), a backoff when the database is failing, and a stop handed to
+	 * the app's signed-out handling when the session is gone. The effect reads
+	 * `refresh` and nothing else, the poller is started untracked, and the call
+	 * itself is untracked. A sequence number drops an answer that arrives after a
+	 * newer one, and an answer identical to what is on screen writes nothing.
 	 */
+	let poller: Poller | null = null;
 	$effect(() => {
 		const read = refresh;
 		if (!read || typeof document === 'undefined') return;
 		let alive = true;
 		let asked = 0;
-		const tick = () => {
-			if (document.hidden) return;
+		const run = async (): Promise<PollOutcome> => {
 			const mine = ++asked;
 			// The page-load answer this ask is about. If the page's own data moves
 			// while the ask is in flight (another class, `invalidateAll`), the
 			// answer is about a page that is gone and is dropped.
 			const over = sets;
-			void untrack(() => read())
-				.then((next) => {
-					if (!alive || mine !== asked || !next || over !== sets) return;
-					const onScreen = local && local.over === over ? local.sets : over;
-					if (JSON.stringify(next) === JSON.stringify(onScreen)) return;
-					local = { over, sets: next };
-				})
-				.catch(() => {});
+			let next: ClassTeamSet[] | null;
+			try {
+				next = await untrack(() => read());
+			} catch (e) {
+				return e instanceof PollSignedOut ? 'signed-out' : 'failed';
+			}
+			// A failed refresh keeps what is on screen.
+			if (!next) return 'failed';
+			if (!alive || mine !== asked || over !== sets) return 'ok';
+			const onScreen = local && local.over === over ? local.sets : over;
+			if (JSON.stringify(next) === JSON.stringify(onScreen)) return 'ok';
+			local = { over, sets: next };
+			return 'ok';
 		};
-		const timer = setInterval(tick, CLASS_TEAMS_POLL_MS);
-		document.addEventListener('visibilitychange', tick);
-		window.addEventListener('focus', tick);
+		const p = untrack(() =>
+			startPoller({ intervalMs: pollMs, run, onSignedOut: pollSignedOut })
+		);
+		poller = p;
 		return () => {
 			alive = false;
-			clearInterval(timer);
-			document.removeEventListener('visibilitychange', tick);
-			window.removeEventListener('focus', tick);
+			p.stop();
+			if (poller === p) poller = null;
 		};
+	});
+	$effect(() => {
+		const key = pollSessionKey(page.data.claims);
+		untrack(() => poller?.authChanged(key));
 	});
 </script>
 

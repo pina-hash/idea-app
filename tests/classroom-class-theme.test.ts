@@ -653,11 +653,13 @@ describe('the live tally', () => {
 		expect(empty.some((o) => o.votes || o.winning || o.mine)).toBe(false);
 	});
 
-	it('re-reads on a short poll while voting is open and on the posted-teams cadence after', () => {
-		expect(CLASS_THEME_POLL_MS).toBe(15_000);
+	it('re-reads on the fast poll only while voting is open, never faster than 30s (ledger 0357)', () => {
+		expect(CLASS_THEME_POLL_MS).toBe(30_000);
+		expect(CLASS_THEME_POLL_MS).toBeGreaterThanOrEqual(30_000);
 		expect(classThemePollMs(true)).toBe(CLASS_THEME_POLL_MS);
 		expect(classThemePollMs(false)).toBe(CLASS_THEME_IDLE_POLL_MS);
-		expect(CLASS_THEME_IDLE_POLL_MS).toBe(60_000);
+		expect(CLASS_THEME_IDLE_POLL_MS).toBe(120_000);
+		expect(CLASS_THEME_IDLE_POLL_MS).toBeGreaterThan(CLASS_THEME_POLL_MS);
 	});
 });
 

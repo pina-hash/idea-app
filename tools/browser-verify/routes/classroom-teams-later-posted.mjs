@@ -4,10 +4,13 @@
  * section layout's load never re-runs on a navigation inside the class, so a
  * page opened before the post held "nothing posted" for as long as it stayed
  * open. The page here loads with nothing posted and the region absent (the
- * first step waits for exactly that), then the harness's database "posts" and
- * the window regains focus, and the student's own team must arrive, first and
- * open, with no reload. The same arrival happens on a timer while the tab is
- * visible; tests/dom/class-teams-refresh-mount.test.ts pins the interval.
+ * first step waits for exactly that), then the harness's database "posts", and
+ * the student's own team must arrive, first and open, with no reload. It
+ * arrives on the refresh's own timer: the harness runs `later` mode on a
+ * two-second cadence, because the shared poller (ledger 0357) ignores a tab
+ * return inside its gap after the page load and the shipped floor is five
+ * minutes. tests/dom/class-teams-refresh-mount.test.ts pins the shipped
+ * interval, the gap and the one-read-per-return rule.
  */
 import { CLASS_LIST, IGNORE, PARTS, READY } from './_classroom-teams.mjs';
 
@@ -20,8 +23,10 @@ export default {
 			timeoutMs: 20000
 		},
 		{
-			evaluate: `() => { window.__teamsPostedNow = true; window.dispatchEvent(new Event('focus')); return true; }`,
-			until: `() => !!document.querySelector('[data-testid="class-team-mine"]')`
+			evaluate: `() => { window.__teamsPostedNow = true; return true; }`,
+			until: `() => !!document.querySelector('[data-testid="class-team-mine"]')`,
+			// The refresh's own timer brings it, within one two-second cadence.
+			attempts: 30
 		}
 	],
 	orderResult: [

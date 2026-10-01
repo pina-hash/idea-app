@@ -41,8 +41,8 @@ export default {
 		{ selector: '[data-testid="hall-pass-tool"], [data-testid="song-queue-tool"]', label: 'the four triggers still 44px with a sentence beneath', min: 44 }
 	],
 	textContains: [
-		{ selector: '[data-projection="student"] [data-testid="hall-pass-tool-live"]', label: 'the hall pass names its own poll', must: ['Live updates paused', 'every 45 seconds'], mustNot: ['90'] },
-		{ selector: '[data-projection="student"] [data-testid="song-queue-tool-live"]', label: 'the music tool names its own poll', must: ['Live updates paused', 'every 90 seconds'], mustNot: ['45'] }
+		{ selector: '[data-projection="student"] [data-testid="hall-pass-tool-live"]', label: 'the hall pass names its own poll', must: ['Live updates paused', 'every 120 seconds'], mustNot: ['300'] },
+		{ selector: '[data-projection="student"] [data-testid="song-queue-tool-live"]', label: 'the music tool names its own poll', must: ['Live updates paused', 'every 300 seconds'], mustNot: ['120'] }
 	],
 	orderResult: [
 		{

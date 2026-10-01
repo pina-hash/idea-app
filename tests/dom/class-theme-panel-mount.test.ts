@@ -33,6 +33,7 @@ import {
 	type ClassThemeVoteResult,
 	type ClassThemeWinners
 } from '../../src/lib/classroom/class-theme';
+import { defaultPokeGapMs } from '../../src/lib/classroom/poll';
 import { mountInto, type Mounted } from './mount';
 
 function tallyOf(over: Partial<ClassThemeTally> = {}): ClassThemeTally {
@@ -198,64 +199,93 @@ describe('a teacher sees the counts and no vote keys', () => {
 
 describe('the tally is re-read only while the panel is open', () => {
 	it('starts the poll on open, and a close and an unmount both stop it', async () => {
-		vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
 		const f = fake();
 		const m = await mountPanel(f);
 		expect(f.tallies).toBe(1);
+		// The shared poller's clock, pinned (ledger 0357): fake timers with Date,
+		// random held at 0.5 so every wait is exactly the interval. Installed after
+		// the mount so the mount's own settle runs on real time.
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+		vi.spyOn(Math, 'random').mockReturnValue(0.5);
+		const drain = async () => {
+			m.flush();
+			await vi.advanceTimersByTimeAsync(0);
+			m.flush();
+		};
+		const gap = defaultPokeGapMs(CLASS_THEME_POLL_MS);
 		// Closed by default: time passes and nothing is read.
-		vi.advanceTimersByTime(CLASS_THEME_POLL_MS * 3);
-		await m.settle();
+		await vi.advanceTimersByTimeAsync(CLASS_THEME_POLL_MS * 3);
+		window.dispatchEvent(new Event('focus'));
+		await drain();
 		expect(f.tallies).toBe(1);
 		const toggle = m.one<HTMLButtonElement>('[data-testid="class-theme-toggle"]');
 		toggle.click();
 		m.flush();
 		expect(toggle.getAttribute('aria-expanded')).toBe('true');
 		// Opening reads at once, rather than showing counts up to a poll old.
-		await m.settle();
+		await drain();
 		expect(f.tallies).toBe(2);
-		vi.advanceTimersByTime(CLASS_THEME_POLL_MS);
-		await m.settle();
+		await vi.advanceTimersByTimeAsync(CLASS_THEME_POLL_MS);
+		await drain();
 		expect(f.tallies).toBe(3);
-		// Focus re-reads at once while open.
+		// A return inside the gap of the last read asks nothing; past it, one read
+		// for visibilitychange AND focus together.
 		window.dispatchEvent(new Event('focus'));
-		await m.settle();
+		await drain();
+		expect(f.tallies).toBe(3);
+		await vi.advanceTimersByTimeAsync(gap);
+		document.dispatchEvent(new Event('visibilitychange'));
+		window.dispatchEvent(new Event('focus'));
+		await drain();
 		expect(f.tallies).toBe(4);
 		toggle.click();
 		m.flush();
-		vi.advanceTimersByTime(CLASS_THEME_POLL_MS * 3);
+		await vi.advanceTimersByTimeAsync(CLASS_THEME_POLL_MS * 3);
 		window.dispatchEvent(new Event('focus'));
-		await m.settle();
+		await drain();
 		expect(f.tallies).toBe(4);
-		// Open again (one read), then unmount: the interval goes with the component.
+		// Open again (one read), then unmount: the poll goes with the component.
 		toggle.click();
 		m.flush();
-		await m.settle();
+		await drain();
 		expect(f.tallies).toBe(5);
 		await m.stop();
 		mounted = null;
-		vi.advanceTimersByTime(CLASS_THEME_POLL_MS * 3);
+		await vi.advanceTimersByTimeAsync(CLASS_THEME_POLL_MS * 3);
 		window.dispatchEvent(new Event('focus'));
 		expect(f.tallies).toBe(5);
+		vi.restoreAllMocks();
 	});
 
 	it('a panel the database takes away mid-session stops asking', async () => {
-		vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
 		const f = fake();
 		const m = await mountPanel(f);
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+		vi.spyOn(Math, 'random').mockReturnValue(0.5);
+		const drain = async () => {
+			m.flush();
+			await vi.advanceTimersByTimeAsync(0);
+			m.flush();
+		};
 		m.one<HTMLButtonElement>('[data-testid="class-theme-toggle"]').click();
 		m.flush();
-		await m.settle();
+		await drain();
 		expect(f.tallies).toBe(2);
+		// Positive control: one interval later the poll does ask.
+		await vi.advanceTimersByTimeAsync(CLASS_THEME_POLL_MS);
+		await drain();
+		expect(f.tallies).toBe(3);
 		// The vote comes back `unavailable` (0225 rolled back under the page):
 		// the panel goes, and so must its poll.
 		f.transports.vote = async () => ({ ok: false, reason: 'unavailable' });
 		keyFor(m, 'palette', 'Violet').click();
-		await m.settle();
+		await drain();
 		expect(m.all('[data-testid="class-theme-panel"]').length).toBe(0);
-		vi.advanceTimersByTime(CLASS_THEME_POLL_MS * 3);
+		await vi.advanceTimersByTimeAsync(CLASS_THEME_POLL_MS * 3);
 		window.dispatchEvent(new Event('focus'));
-		await m.settle();
-		expect(f.tallies).toBe(2);
+		await drain();
+		expect(f.tallies).toBe(3);
+		vi.restoreAllMocks();
 	});
 });
 

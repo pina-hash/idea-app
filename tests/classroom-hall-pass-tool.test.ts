@@ -116,8 +116,8 @@ describe('the live notice constants and the stalled sentence', () => {
 	});
 
 	test('the paused sentence names the poll in seconds, for each tool', () => {
-		expect(classroomLivePausedLine(HALL_PASS_POLL_MS)).toBe('Live updates paused, still checking every 45 seconds.');
-		expect(classroomLivePausedLine(SONG_QUEUE_POLL_MS)).toBe('Live updates paused, still checking every 90 seconds.');
+		expect(classroomLivePausedLine(HALL_PASS_POLL_MS)).toBe('Live updates paused, still checking every 120 seconds.');
+		expect(classroomLivePausedLine(SONG_QUEUE_POLL_MS)).toBe('Live updates paused, still checking every 300 seconds.');
 		// Sub-1.5s is unreachable with either real poll; the sentence still agrees
 		// with itself there (a person reads it, and "1 seconds" is a defect).
 		expect(classroomLivePausedLine(1_400)).toBe('Live updates paused, still checking every 1 second.');

@@ -116,6 +116,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BADGE_BY_ID } from '$lib/identity-style';
+import { isSignedOutFailure } from './poll';
 
 /* ========================================================================== */
 /* The catalogue                                                              */
@@ -540,17 +541,19 @@ export function classThemeWords(theme: ClassTheme | null | undefined): string {
 /* ========================================================================== */
 
 /**
- * HOW OFTEN AN OPEN THEME PANEL RE-READS THE TALLY, and on focus besides (the
- * posted-teams shape). A vote is something a class does together in a few
- * minutes, and 15 seconds is the longest a student waits to see their vote
- * move the banner; posted teams take a minute because a draw does not change
- * while you watch it. The read is one course's counts, so thirty students with
- * the panel open cost two small reads a second for the class. While voting is
- * CLOSED the tally only moves when a teacher opens or resets it, which is the
- * posted-teams cadence again: `classThemePollMs` answers that.
+ * HOW OFTEN AN OPEN THEME PANEL RE-READS THE TALLY, and on a return to the tab
+ * besides (the shared poller, `$lib/classroom/poll`). A vote is something a
+ * class does together in a few minutes; a student's OWN vote moves the banner
+ * at once from the vote's answer, so the poll is only how a classmate's vote
+ * arrives. 30 SECONDS, RAISED FROM 15 IN LEDGER 0357: at 15, thirty students
+ * with the panel open were two reads a second for the class, on the database
+ * that stalled at 8:00 on 2026-09-29 and 2026-09-30. The fast rate is used only
+ * while `voting_open` is true; while voting is CLOSED the tally only moves when
+ * a teacher opens or resets it, so it is re-read every two minutes, and only
+ * while the panel is open at all. `classThemePollMs` answers which.
  */
-export const CLASS_THEME_POLL_MS = 15_000;
-export const CLASS_THEME_IDLE_POLL_MS = 60_000;
+export const CLASS_THEME_POLL_MS = 30_000;
+export const CLASS_THEME_IDLE_POLL_MS = 120_000;
 
 export function classThemePollMs(votingOpen: boolean): number {
 	return votingOpen ? CLASS_THEME_POLL_MS : CLASS_THEME_IDLE_POLL_MS;
@@ -668,7 +671,13 @@ export function classThemeBallot(tally: ClassThemeTally | null | undefined): Bal
  */
 export type ClassThemeFailure =
 	| { ok: false; reason: 'unavailable' }
-	| { ok: false; reason: 'error'; message: string };
+	| {
+			ok: false;
+			reason: 'error';
+			message: string;
+			/** The caller has no valid session (ledger 0357): a poll stops on this. */
+			signedOut?: true;
+	  };
 
 export type ClassThemesResult = { ok: true; themes: ClassThemeChoice[] } | ClassThemeFailure;
 export type ClassThemeTallyResult = { ok: true; tally: ClassThemeTally } | ClassThemeFailure;
@@ -715,10 +724,13 @@ const unreachable: ClassThemeFailure = {
 	message: CLASS_THEME_UNREACHABLE
 };
 
-function failure(error: RpcError): ClassThemeFailure {
+function failure(error: RpcError, status?: number): ClassThemeFailure {
 	if (error?.code === 'PGRST202') return { ok: false, reason: 'unavailable' };
 	const said = typeof error?.message === 'string' && error.message ? error.message : null;
-	return said ? { ok: false, reason: 'error', message: said } : unreachable;
+	const message = said ?? CLASS_THEME_UNREACHABLE;
+	return isSignedOutFailure(error, status)
+		? { ok: false, reason: 'error', message, signedOut: true }
+		: { ok: false, reason: 'error', message };
 }
 
 function parseChoice(raw: unknown): ClassThemeChoice | null {
@@ -749,10 +761,10 @@ function parseVoting(data: unknown): ClassThemeVotingResult {
 export function createClassThemeTransports(supabase: SupabaseClient): ClassThemeTransports {
 	async function call(fn: string, args: Record<string, unknown>) {
 		try {
-			const { data, error } = await supabase.rpc(fn, args);
-			return { data: data as unknown, error: error as RpcError, thrown: false };
+			const { data, error, status } = await supabase.rpc(fn, args);
+			return { data: data as unknown, error: error as RpcError, status, thrown: false };
 		} catch {
-			return { data: null, error: null, thrown: true };
+			return { data: null, error: null, status: 0, thrown: true };
 		}
 	}
 
@@ -762,7 +774,7 @@ export function createClassThemeTransports(supabase: SupabaseClient): ClassTheme
 			if (ids.length === 0) return { ok: true, themes: [] };
 			const res = await call('classroom_class_themes', { p_section_ids: ids });
 			if (res.thrown) return unreachable;
-			if (res.error) return failure(res.error);
+			if (res.error) return failure(res.error, res.status);
 			const rows = Array.isArray(res.data) ? res.data : [];
 			return {
 				ok: true,
@@ -773,7 +785,7 @@ export function createClassThemeTransports(supabase: SupabaseClient): ClassTheme
 		async tally(courseId) {
 			const res = await call('classroom_theme_tally', { p_course_id: courseId });
 			if (res.thrown) return unreachable;
-			if (res.error) return failure(res.error);
+			if (res.error) return failure(res.error, res.status);
 			const tally = parseClassThemeTally(res.data);
 			return tally ? { ok: true, tally } : unreachable;
 		},
@@ -789,7 +801,7 @@ export function createClassThemeTransports(supabase: SupabaseClient): ClassTheme
 				p_option: option
 			});
 			if (res.thrown) return unreachable;
-			if (res.error) return failure(res.error);
+			if (res.error) return failure(res.error, res.status);
 			const r = (res.data ?? {}) as Record<string, unknown>;
 			if (r.ok === false) {
 				if (r.reason === 'closed') return { ok: false, reason: 'closed' };
@@ -830,7 +842,7 @@ export function createClassThemeTransports(supabase: SupabaseClient): ClassTheme
 				p_accent: accent
 			});
 			if (res.thrown) return unreachable;
-			if (res.error) return failure(res.error);
+			if (res.error) return failure(res.error, res.status);
 			const r = (res.data ?? {}) as Record<string, unknown>;
 			if (r.ok !== true) return unreachable;
 			return { ok: true, accent: isSectionAccent(r.accent) ? r.accent : null };

@@ -22,6 +22,9 @@
 	// `hall-pass.ts` explains why they sit there rather than in `live.ts`.
 	import { CLASSROOM_LIVE_DEBOUNCE_MS, classroomLivePausedLine } from '$lib/classroom/hall-pass';
 	import type { ClassroomLive, ClassroomLiveStatus } from '$lib/classroom/live';
+	import { page } from '$app/state';
+	import { PollSignedOut, startPoller, type Poller, type PollOutcome } from '$lib/classroom/poll';
+	import { pollSessionKey, pollSignedOut } from '$lib/classroom/poll-session';
 
 	/**
 	 * THE CLASSROOM SONG QUEUE, in the class pane beneath the hall pass.
@@ -65,7 +68,8 @@
 		transports,
 		now,
 		live = null,
-		tool = false
+		tool = false,
+		pollMs = SONG_QUEUE_POLL_MS
 	}: {
 		sectionId: string;
 		/** The layout load's answer. Null is not a state this component renders --
@@ -94,6 +98,13 @@
 		live?: ClassroomLive | null;
 		/** `true` renders the trigger-and-dialog shape; `false` the card as today. */
 		tool?: boolean;
+		/**
+		 * The poll's floor. The class page never passes it (the shipped floor is
+		 * `SONG_QUEUE_POLL_MS`, ledger 0357); a harness that counts the reads a NOTICE
+		 * causes passes a long one, so a randomly placed first poll cannot land
+		 * inside the few seconds the spec is reading its counters.
+		 */
+		pollMs?: number;
 	} = $props();
 
 	/**
@@ -108,6 +119,11 @@
 	let busy = $state(false);
 	$effect(() => {
 		void serverState;
+		// THE PAGE-LOAD ANSWER JUST REPLACED A NEWER ONE (ledger 0357): a re-run
+		// load hands back what was true when it ran, and with the poll's floor now
+		// minutes long that could stand for minutes. So when an overlay is being
+		// dropped, the poller asks once, at once.
+		if (untrack(() => local) !== null) untrack(() => poller?.runNow());
 		local = null;
 	});
 	const view = $derived(local ?? serverState);
@@ -152,44 +168,54 @@
 	let reason = $state('');
 	const reasonOk = $derived(songCanReject(reason));
 
-	async function refresh(): Promise<void> {
-		if (!transports) return;
-		const next = await transports.load(sectionId);
+	async function refresh(): Promise<PollOutcome> {
+		if (!transports) return 'ok';
+		let next;
+		try {
+			next = await transports.load(sectionId);
+		} catch (e) {
+			return e instanceof PollSignedOut ? 'signed-out' : 'failed';
+		}
 		// A failed refresh keeps what is on screen. Blanking it would read as
 		// "nothing has been approved", which is a wrong answer rather than a
 		// missing one.
-		if (next) local = next;
+		if (!next) return 'failed';
+		local = next;
+		return 'ok';
 	}
 
 	/**
-	 * POLLED, BECAUSE THE OTHER PERSON'S CHANGES ARE THE POINT: a student wants
-	 * to see their request decided, an instructor wants to see one arrive. Paused
-	 * while the tab is hidden and re-asked the moment it is visible again, which
-	 * is the transition that actually matters for a surface that spends its life
-	 * in a pocket.
+	 * POLLED, ON THE SHARED POLLER (ledger 0357). `$lib/classroom/poll` owns every
+	 * rule: out of step with the rest of the class, one call in flight, one call
+	 * per return to the tab however many events it raises, nothing while the tab
+	 * is hidden, a backoff when the database is failing, and a full stop -- handed
+	 * to the app's own signed-out handling -- when the session is gone, so this
+	 * never asks again as anon. It starts again only on a NEW session.
 	 *
-	 * The effect reads `transports` and `sectionId` and nothing else. The timer
-	 * and listener callbacks run outside the tracking scope, so the work they do
-	 * takes no dependency on the state it writes -- which is what would otherwise
-	 * re-arm the interval on every tick.
+	 * The effect reads `transports` and nothing else; the poller's runs happen on
+	 * its own timers and listeners, outside the tracking scope, so the work they
+	 * do takes no dependency on the state it writes.
 	 *
-	 * IT STAYS AT COMPONENT LEVEL IN BOTH SHAPES: in tool mode the card is only
-	 * mounted while the dialog is open, but the chip on the trigger is read all
-	 * period long, so the thing that keeps the chip honest cannot live inside
-	 * the dialog.
+	 * IT STAYS AT COMPONENT LEVEL IN BOTH SHAPES, deliberately: in tool mode the
+	 * card is only mounted while the dialog is open, but the chip on the trigger
+	 * is read all period long, so the thing that keeps the chip honest cannot
+	 * live inside the dialog.
 	 */
+	let poller: Poller | null = null;
 	$effect(() => {
 		if (!transports) return;
-		const tick = () => {
-			if (typeof document !== 'undefined' && document.hidden) return;
-			void refresh();
-		};
-		const timer = setInterval(tick, SONG_QUEUE_POLL_MS);
-		document.addEventListener('visibilitychange', tick);
+		const p = untrack(() =>
+			startPoller({ intervalMs: pollMs, run: () => refresh(), onSignedOut: pollSignedOut })
+		);
+		poller = p;
 		return () => {
-			clearInterval(timer);
-			document.removeEventListener('visibilitychange', tick);
+			p.stop();
+			if (poller === p) poller = null;
 		};
+	});
+	$effect(() => {
+		const key = pollSessionKey(page.data.claims);
+		untrack(() => poller?.authChanged(key));
 	});
 
 	/**

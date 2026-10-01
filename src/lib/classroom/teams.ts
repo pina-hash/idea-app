@@ -40,6 +40,7 @@ import {
 	type EntryStyleDraft
 } from '$lib/tournaments/entry-styles';
 import { laCalendarDay, schoolDayEnd } from './school-calendar';
+import { isSignedOutFailure } from './poll';
 
 export { ACCENT_PRESETS, BADGES, FLOURISHES, NEUTRAL_ACCENT, accentOf, backgroundCss, bannerInk, hasStyle };
 
@@ -139,7 +140,13 @@ export interface TeamBoard {
 export type TeamBoardResult =
 	| TeamBoard
 	| { ok: false; reason: 'unavailable' }
-	| { ok: false; reason: 'error'; message: string };
+	| {
+			ok: false;
+			reason: 'error';
+			message: string;
+			/** The caller has no valid session (ledger 0357): a poll stops on this. */
+			signedOut?: true;
+	  };
 
 /**
  * WHAT A MOVE ANSWERED (0225's `classroom_move_team_member`).
@@ -428,14 +435,18 @@ export function createTeamTransports(supabase: SupabaseClient): TeamTransports {
 
 	return {
 		async board(sectionId) {
-			const { data, error } = await supabase.rpc('classroom_team_board', {
+			const { data, error, status } = await supabase.rpc('classroom_team_board', {
 				p_section_id: sectionId
 			});
 			if (error) {
 				if ((error as { code?: string }).code === 'PGRST202') {
 					return { ok: false, reason: 'unavailable' };
 				}
-				return { ok: false, reason: 'error', message: error.message };
+				// No session is not "the board failed": a poll stops on it rather
+				// than asking again as anon (ledger 0357, `$lib/classroom/poll`).
+				return isSignedOutFailure(error, status)
+					? { ok: false, reason: 'error', message: error.message, signedOut: true }
+					: { ok: false, reason: 'error', message: error.message };
 			}
 			const payload = data as { manages?: boolean; sets?: TeamSet[] } | null;
 			const raw = payload?.sets ?? [];

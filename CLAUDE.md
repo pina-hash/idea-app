@@ -1310,6 +1310,43 @@ It loads the class label and nothing that names a person.
 
 
 
+### LIVE POLLS -- one poller, out of step, and never as anon
+
+**EVERY CLASSROOM WIDGET THAT RE-ASKS THE DATABASE ON ITS OWN RUNS ON
+`startPoller` IN `$lib/classroom/poll`, AND A NEW ONE IS A CALLER OF IT (ledger
+0357).** The production database stalled at 8:00 on 2026-09-29 and 2026-09-30
+under 21 students' polling, and the five widgets of the day (`HallPass`,
+`SongQueue`, `ClassTeams`, `ClassThemePanel`, `PresenceHeartbeat`) each had a
+hand-rolled `setInterval` that ticked in step with the class, twice on a tab
+return (`visibilitychange` AND `focus`, which also fires on every alt-tab), and
+on through every error, as `anon` once the session was gone. The poller owns the
+rules and `tests/classroom-poll.test.ts` pins each as a count: one call in
+flight, one call per tab return (a poke must clear `defaultPokeGapMs`, never
+under 10s), a random first offset in [0, interval), +/-20% jitter, nothing
+while hidden, a backoff doubling to 5 minutes, and a full stop on a 401, 403 or
+`42501` (`isSignedOutFailure`), handed to `pollSignedOut` in
+`$lib/classroom/poll-session`, which is the root layout's own
+`invalidate('supabase:auth')` and nothing invented. It starts again only when
+`authChanged` sees a NEW session.
+
+- **A TRANSPORT SAYS "SIGNED OUT" BY THROWING `PollSignedOut`, OR BY A
+  `signedOut` FLAG ON ITS FAILURE, NEVER BY ANSWERING NULL.** Null is a failed
+  read, which backs off; folding a lost session into it is exactly how the
+  anon storm happened. A page LOAD that reaches the same read
+  (`loadPostedTeams`) still catches everything, because a load must never fail
+  over a widget.
+- **THE FLOORS ARE THE LIVE CHANNEL'S FLOOR, NOT THE MECHANISM, AND THEY ARE
+  SLOW ON PURPOSE**: hall pass 120s, songs 300s, posted teams 300s, the theme
+  tally 30s while a vote is open and 120s while it is closed (and only while its
+  panel is open), and the presence beat at `PRESENCE_BEAT_STRETCH` (4/3) of the
+  database's 30s heartbeat, which the test holds inside 0200's credit cap, input
+  window and 20s floor at both ends of the jitter. The same test holds a
+  student's steady-state calls a minute at no more than half the 2026-09-30
+  figure on the class page and the item page; a faster interval is a decision
+  with a measurement, never a tweak.
+- **A HARNESS THAT COUNTS READS PASSES `pollMs`**, which the class page never
+  does, so a randomly placed first poll cannot land inside a spec's few seconds.
+
 ### THE CLASSROOM TOUR -- offered once, recorded when shown
 
 **`classroomTourFor` in `$lib/tour/classroom-tours.ts` IS THE ONE DECISION OF
@@ -1638,6 +1675,20 @@ and on every `data-theme` change. It is advisory; a document that ignores it is 
 admits `font-src data:` and no host, so an `@font-face` whose `src` is a data URI renders and an
 `@import` of a font host is still refused. Measure a font claim by rendered width; the spec's
 section 6.3 says why `document.fonts.check()` answers true for a font that is not there.
+
+**THE DOCUMENT'S BYTES ARE CACHED BY VERSION AND THE ACCESS DECISION IS NOT
+(ledger 0357).** `(document_id, updated_at)` names one set of bytes, because
+every write is `classroom_set_html_assignment`, which stamps `updated_at = now()`
+in the statement that writes them and keeps `document_id` across a re-import.
+So `hxStoredDocumentHead` reads the row's version and the item's
+`kind`/`published`/`publish_at` on EVERY request, and only then are bytes served
+from the instance's memory, a strong ETag sent, and a matching `If-None-Match`
+answered 304 without reading `document` at all, cold instance included. An
+unpublished or scheduled item is a 404 whether or not the cache is warm or the
+browser holds a tag, and `tests/hx-document-cache.test.ts` mutates each guard.
+**A HAND EDIT OF `document` IN THE SQL EDITOR MUST SET `updated_at = now()` IN
+THE SAME STATEMENT**, or warm instances and browsers keep the old bytes (the
+server half is bounded by `HX_CACHE_MAX_AGE_MS`).
 
 **SUBMIT IS A PARENT CONTROL IN PARENT CHROME**, and the completeness check is
 the parent's, from the manifest's `minSentences`. A Submit inside the document

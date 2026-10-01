@@ -16,6 +16,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isSignedOutFailure, PollSignedOut } from './poll';
 import { saveSessionGuidance } from '$lib/check-in-guidance';
 import {
 	normalizeSubmissionRow,
@@ -2149,11 +2150,16 @@ export function createHallPassTransports(supabase: SupabaseClient): HallPassTran
 
 	return {
 		async load(sectionId) {
-			const { data, error } = await call('classroom_hall_pass_state', sectionId);
+			const { data, error, status } = await call('classroom_hall_pass_state', sectionId);
 			// A failed refresh keeps whatever is already on screen rather than
 			// blanking it: the poll runs unattended and a transient failure must
-			// not read as "the pass is free".
-			if (error) return null;
+			// not read as "the pass is free". A refusal for want of a SESSION is
+			// not transient and is thrown, so the poll stops rather than asking
+			// again as anon (ledger 0357, `$lib/classroom/poll`).
+			if (error) {
+				if (isSignedOutFailure(error, status)) throw new PollSignedOut();
+				return null;
+			}
 			return (data as HallPassState | null) ?? null;
 		},
 		async open(sectionId) {
@@ -2312,13 +2318,17 @@ const songDecidedShape = (row: Record<string, unknown>): SongDecided => ({
 export function createSongQueueTransports(supabase: SupabaseClient): SongQueueTransports {
 	return {
 		async load(sectionId) {
-			const { data, error } = await supabase.rpc('classroom_song_queue', {
+			const { data, error, status } = await supabase.rpc('classroom_song_queue', {
 				p_section_id: sectionId
 			});
 			// A failed refresh keeps whatever is already on screen rather than
 			// blanking it: the poll runs unattended and a transient failure must not
-			// read as "nothing has been approved".
-			if (error) return null;
+			// read as "nothing has been approved". A refusal for want of a session
+			// is thrown instead, so the poll stops (ledger 0357).
+			if (error) {
+				if (isSignedOutFailure(error, status)) throw new PollSignedOut();
+				return null;
+			}
 			return (data as SongQueueState | null) ?? null;
 		},
 		/**

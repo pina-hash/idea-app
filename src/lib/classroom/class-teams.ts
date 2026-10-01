@@ -25,6 +25,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { formatDue } from './classroom';
 import { sectionTabs } from './nav';
 import { createTeamTransports, teamSetEditedWords, type Team, type TeamSet } from './teams';
+import { PollSignedOut } from './poll';
 
 /** One team as the class page shows it: its name, its style, whether it is mine, and names. */
 export interface ClassTeam
@@ -153,10 +154,16 @@ export function postedTeamsNotice(sets: readonly ClassTeamSet[], today?: string 
  * open never reached them, and a teacher who posted from People and pressed
  * the Class tab read the page as it was BEFORE the post. The class page
  * therefore re-reads the same audience-gated board on this interval while the
- * tab is visible, and at once when the tab comes back into view -- the hall
- * pass's own polling shape.
+ * tab is visible, and when the tab comes back into view -- the hall pass's own
+ * polling shape, on the shared poller (`$lib/classroom/poll`).
+ *
+ * 300 SECONDS, RAISED FROM 60 IN LEDGER 0357. A teacher posts a draw a few
+ * times a term; the teacher's own page re-reads the moment they post (People's
+ * `onchanged`), and a student who switches back to the tab re-reads then. At 60
+ * seconds this was a third of every class page's steady-state calls, for a
+ * board that almost never changes.
  */
-export const CLASS_TEAMS_POLL_MS = 60_000;
+export const CLASS_TEAMS_POLL_MS = 300_000;
 
 /**
  * THE SAME READ, FOR A REFRESH: the projection when the board answered, and
@@ -169,18 +176,28 @@ export async function refreshPostedTeams(
 	supabase: SupabaseClient,
 	sectionId: string
 ): Promise<ClassTeamSet[] | null> {
+	let res;
 	try {
-		const res = await createTeamTransports(supabase).board(sectionId);
-		return res.ok ? postedTeamSets(res.sets) : null;
+		res = await createTeamTransports(supabase).board(sectionId);
 	} catch {
 		return null;
 	}
+	// A refusal for want of a session is thrown, not folded into null, so the
+	// class page's poll stops instead of asking again as anon (ledger 0357).
+	if (!res.ok && res.reason === 'error' && res.signedOut) throw new PollSignedOut();
+	return res.ok ? postedTeamSets(res.sets) : null;
 }
 
-/** The class page's read: the same audience-gated board the People tab uses. */
+/** The class page's read: the same audience-gated board the People tab uses.
+    Any failure, a lost session included, is "nothing posted" here: a page load
+    has nothing on screen to keep, and must never fail over a team board. */
 export async function loadPostedTeams(
 	supabase: SupabaseClient,
 	sectionId: string
 ): Promise<ClassTeamSet[]> {
-	return (await refreshPostedTeams(supabase, sectionId)) ?? [];
+	try {
+		return (await refreshPostedTeams(supabase, sectionId)) ?? [];
+	} catch {
+		return [];
+	}
 }
