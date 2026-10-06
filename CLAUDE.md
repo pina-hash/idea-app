@@ -3168,8 +3168,12 @@ something this environment cannot do.**
     `origin/integration` carried through 0180, so eleven files were in exactly that state,
     and by the evening main had caught up and none were. And a migration whose first
     object `tools/idea-status.py` cannot derive a probe from gets none either -- 0153,
-    0177 and 0181 on that date. Either way the answer is the same: land it on `main`
-    first, or paste it by hand. Do not widen the probe to guess.
+    0177 and 0181 on that date. **Such a file now speaks through its history row**:
+    since ledger 0365 the ordering rule decides with deploy-probe's own `verdicts`
+    and the record `readHistory` reads, so a row with no probe is APPLIED, no row and
+    no probe is still CANNOT SAY, and a row whose object is absent is still NOT
+    APPLIED. Otherwise the answer is the same: land it on `main` first, or paste it by
+    hand. Do not widen the probe to guess.
   - **NEVER RUN `supabase db push` AGAINST THIS PROJECT.** It is not a way to
     record one file. **THE REASON HAS CHANGED AND THE RULE HAS NOT, AND THAT IS
     THE THING TO READ CAREFULLY.** This bullet used to say the remote has **no

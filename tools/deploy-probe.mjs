@@ -724,11 +724,12 @@ export function redact(text, url) {
  *   --    false        NOT APPLIED       tool did before the table existed,
  *   --    (none)       CANNOT SAY        probe by probe, 3 included
  *
- * `history` is OPTIONAL and defaults to "the record cannot speak", so
- * `tools/apply-migration.mjs` -- which calls this with two arguments and reads
- * the history table itself, for its own different purpose -- keeps exactly the
- * behaviour it had. Widening this signature additively rather than changing it
- * is what makes that true without editing that file.
+ * `history` is OPTIONAL and defaults to "the record cannot speak". Every
+ * caller that has a record passes it: this file's own run, and since ledger
+ * 0365 `tools/apply-migration.mjs` (`appliedFindings`), which reads the record
+ * through `readHistory` above so its ordering rule decides on this same table.
+ * Until then it called this with two arguments, and every migration with no
+ * derivable probe stayed CANNOT SAY there however the table answered.
  *
  * @param {Probe[]} probes
  * @param {Map<number, boolean>} rows

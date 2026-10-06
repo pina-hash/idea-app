@@ -132,7 +132,16 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join, basename } from 'node:path';
 import net from 'node:net';
 import pg from 'pg';
-import { readProbes, prepare, buildSql, verdicts, redact } from './deploy-probe.mjs';
+import {
+	readProbes,
+	prepare,
+	buildSql,
+	verdicts,
+	redact,
+	readHistory,
+	buildHistorySql,
+	buildHistoryVersionsSql
+} from './deploy-probe.mjs';
 // THE ONE PARSER OF THE `Migration permitted:` LINE. See `ledgerPermission`
 // below for what this replaced and what it measurably got wrong.
 import { parsePermitted } from './migration-claims.mjs';
@@ -1294,6 +1303,84 @@ export function orderVerdict(findings, targetNum) {
 	return { ok: true };
 }
 
+/**
+ * One read-only statement over this tool's own client, answered in the shape
+ * `runSqlRaw` in `tools/deploy-probe.mjs` answers: `{ ok, rows }` with every
+ * field a string, a boolean as `t`/`f` exactly as `psql` prints it. It never
+ * throws; a failure is `{ ok: false, why }`, which `readHistory` turns into
+ * "the record cannot speak".
+ *
+ * @param {Pick<pg.Client, 'query'>} client
+ * @param {string} sql
+ * @param {string} url
+ * @returns {Promise<{ ok: true, rows: string[][] } | { ok: false, why: string }>}
+ */
+async function readOnlyRaw(client, sql, url) {
+	try {
+		await client.query('begin read only');
+		const res = await client.query(sql.replace(/^set transaction read only;\n/, ''));
+		await client.query('rollback');
+		const names = (res.fields ?? []).map((f) => f.name);
+		const rows = res.rows.map((r) =>
+			(names.length ? names.map((n) => r[n]) : Object.values(r)).map((v) =>
+				v === true ? 't' : v === false ? 'f' : v == null ? '' : String(v)
+			)
+		);
+		return { ok: true, rows };
+	} catch (err) {
+		try {
+			await client.query('rollback');
+		} catch {
+			/* the connection is gone; the reason below is the one worth keeping */
+		}
+		return { ok: false, why: redact(/** @type {Error} */ (err).message ?? String(err), url) };
+	}
+}
+
+/**
+ * The applied set, decided by `verdicts` in `tools/deploy-probe.mjs` WITH the
+ * history record, so this tool's ordering rule and the deploy probe read one
+ * decision table. Before ledger 0365 this called `verdicts` with two arguments,
+ * so a migration no object probe can be derived from (0153, 0177, 0181, ...)
+ * could only ever be CANNOT SAY here even with its history row present, and
+ * `orderVerdict` refused every migration above them for good.
+ *
+ * THE RECORD IS READ BY `readHistory`, deploy-probe's own reader, and not by a
+ * second one written here. That reader is synchronous and takes a `run`
+ * function; this tool's client is async, so both of its statements are asked
+ * first and handed over as answers. The versions statement is therefore also
+ * asked when the table is absent or unreadable -- it fails, harmlessly, and
+ * `readHistory` never looks at that answer because its preflight already said
+ * the record cannot speak. Every refusal the table keeps is kept: a row with
+ * the object absent is still a CONFLICT (not applied), and no row with no
+ * probe is still CANNOT SAY.
+ *
+ * @param {Pick<pg.Client, 'query'>} client
+ * @param {import('./deploy-probe.mjs').Probe[]} probes
+ * @param {string} [url] only ever used to redact an error message
+ */
+export async function appliedFindings(client, probes, url = '') {
+	const probeSql = buildSql(probes);
+	/** @type {Map<number, boolean>} */
+	const rows = new Map();
+	if (probeSql) {
+		await client.query('begin read only');
+		const res = await client.query(probeSql.replace(/^set transaction read only;\n/, ''));
+		await client.query('rollback');
+		for (const r of res.rows) rows.set(Number(r.i), r.applied === true);
+	}
+	/** @type {Map<string, { ok: true, rows: string[][] } | { ok: false, why: string }>} */
+	const answers = new Map();
+	for (const sql of [buildHistorySql(), buildHistoryVersionsSql()]) {
+		answers.set(sql, await readOnlyRaw(client, sql, url));
+	}
+	const history = readHistory(
+		url,
+		(sql) => answers.get(sql) ?? { ok: false, why: 'a statement this tool did not ask' }
+	);
+	return { findings: verdicts(probes, rows, history), history };
+}
+
 /* ------------------------------------------------------------------------ */
 /* Running it.                                                               */
 /* ------------------------------------------------------------------------ */
@@ -1630,16 +1717,9 @@ async function main() {
 		let findings;
 		try {
 			const probes = prepare(readProbes({ since: opts.since, ref: opts.ref }));
-			const probeSql = buildSql(probes);
-			/** @type {Map<number, boolean>} */
-			const rows = new Map();
-			if (probeSql) {
-				await client.query('begin read only');
-				const res = await client.query(probeSql.replace(/^set transaction read only;\n/, ''));
-				await client.query('rollback');
-				for (const r of res.rows) rows.set(Number(r.i), r.applied === true);
-			}
-			findings = verdicts(probes, rows);
+			const read = await appliedFindings(client, probes, url);
+			say(`  record: ${read.history.why}`);
+			findings = read.findings;
 		} catch (err) {
 			const why = redact(/** @type {Error} */ (err).message, url);
 			say(`  REFUSING: the applied set could not be read (${why}). Cannot say is never a pass.`);

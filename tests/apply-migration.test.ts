@@ -42,6 +42,7 @@ import {
 	scanFile,
 	claims,
 	orderVerdict,
+	appliedFindings,
 	bypassesProxy,
 	resolveMigration,
 	parseArgs,
@@ -458,5 +459,100 @@ describe('bypassesProxy', () => {
 		expect(bypassesProxy('aws-0-us-east-1.pooler.supabase.com', NO_PROXY)).toBe(false);
 		expect(bypassesProxy('db.abcdefgh.supabase.co', NO_PROXY)).toBe(false);
 		expect(bypassesProxy('anything', '')).toBe(false);
+	});
+});
+
+/**
+ * Ledger 0365. The ordering rule reads the migration history table through
+ * deploy-probe's own `readHistory` and decides through deploy-probe's own
+ * `verdicts`, so a migration no object probe can be derived from is APPLIED
+ * here exactly when it is APPLIED in the deploy probe: when its history row is
+ * there. Driven through `appliedFindings` over a fake client, because that is
+ * the function the real run calls; the decision table itself is pinned in
+ * `tests/deploy-probe-history.test.ts`.
+ */
+describe('the ordering rule reads the history record (appliedFindings)', () => {
+	/** A probe as `prepare()` hands one over; `sql: null` is "no probe could be derived". */
+	const probe = (num: string, sql: string | null) => ({
+		num,
+		file: `${num}_x.sql`,
+		kind: 'table',
+		object: sql ? `public.t_${num}` : '(none)',
+		sql,
+		translated: false,
+		refused: null
+	});
+
+	/**
+	 * A client answering the three statements the tool sends: the object
+	 * probes (from `objects`, by index), the history preflight, and the
+	 * versions read. `versions: null` is "no history table on this database".
+	 */
+	function fakeClient(objects: Record<number, boolean>, versions: string[] | null) {
+		return {
+			async query(sql: string) {
+				if (/^(begin|rollback)/.test(sql)) return { rows: [], fields: [] };
+				if (sql.includes('as applied')) {
+					return {
+						rows: Object.entries(objects).map(([i, applied]) => ({ i: Number(i), applied })),
+						fields: [{ name: 'i' }, { name: 'applied' }]
+					};
+				}
+				if (sql.includes(`'history-table'`)) {
+					const present = versions !== null;
+					return {
+						rows: [{ k: 'history-table', present, readable: present }],
+						fields: [{ name: 'k' }, { name: 'present' }, { name: 'readable' }]
+					};
+				}
+				if (sql.includes(`'history-version'`)) {
+					if (versions === null) throw new Error('relation "supabase_migrations.schema_migrations" does not exist');
+					return {
+						rows: versions.map((version) => ({ k: 'history-version', version })),
+						fields: [{ name: 'k' }, { name: 'version' }]
+					};
+				}
+				throw new Error(`unexpected statement: ${sql.slice(0, 60)}`);
+			}
+		};
+	}
+
+	it('a no-probe migration below the target WITH a history row passes the order check', async () => {
+		const probes = [probe('0153', null), probe('0231', 'exists (select 1)')];
+		const { findings, history } = await appliedFindings(fakeClient({ 1: false }, ['0153']) as never, probes);
+		expect(history.versions?.has('153')).toBe(true);
+		expect(findings[0].state).toBe('applied');
+		expect(findings[0].agreement).toBe('record-only');
+		expect(orderVerdict(findings, '0231')).toEqual({ ok: true });
+	});
+
+	it('the same no-probe migration with NO history row still refuses (cannot say)', async () => {
+		const probes = [probe('0153', null), probe('0231', 'exists (select 1)')];
+		const { findings } = await appliedFindings(fakeClient({ 1: false }, ['0001']) as never, probes);
+		expect(findings[0].state).toBe('unknown');
+		const v = orderVerdict(findings, '0231');
+		expect(v.ok).toBe(false);
+		expect(v.ok === false && v.why).toMatch(/cannot be confirmed applied \(0153\)/);
+	});
+
+	it('a history row with its object ABSENT still refuses (conflict is not applied)', async () => {
+		const probes = [probe('0230', 'exists (select 1)'), probe('0231', 'exists (select 1)')];
+		const { findings } = await appliedFindings(
+			fakeClient({ 0: false, 1: false }, ['0230']) as never,
+			probes
+		);
+		expect(findings[0].state).toBe('not-applied');
+		expect(findings[0].agreement).toBe('conflict');
+		const v = orderVerdict(findings, '0231');
+		expect(v.ok).toBe(false);
+		expect(v.ok === false && v.why).toMatch(/NOT applied \(0230\)/);
+	});
+
+	it('with no history table at all, a no-probe migration below the target still refuses', async () => {
+		const probes = [probe('0153', null), probe('0231', 'exists (select 1)')];
+		const { findings, history } = await appliedFindings(fakeClient({ 1: false }, null) as never, probes);
+		expect(history.versions).toBeNull();
+		expect(findings[0].state).toBe('unknown');
+		expect(orderVerdict(findings, '0231').ok).toBe(false);
 	});
 });
