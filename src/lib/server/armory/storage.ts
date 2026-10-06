@@ -76,14 +76,25 @@ export function signBlob(
 	hash: string,
 	method: 'GET' | 'PUT',
 	bytes: number,
-	now: Date
+	now: Date,
+	/**
+	 * A GET for a person's browser (ledger 0366, a past version from the file's
+	 * history) names the file it saves as. ASCII only: the value travels in a
+	 * signed query parameter and comes back as a header.
+	 */
+	downloadName?: string
 ): SignedBlob {
 	const issued = new Date(Math.floor(now.getTime() / 1000) * 1000);
+	const base = objectUrl(config, contentObjectKey(hash));
+	const named =
+		method === 'GET' && downloadName
+			? `${base}?response-content-disposition=${encodeURIComponent(`attachment; filename="${asciiFilename(downloadName)}"`)}`
+			: base;
 	const url = presignUrl({
 		accessKey: config.accessKeyId,
 		secretKey: config.secretAccessKey,
 		region: 'auto',
-		url: objectUrl(config, contentObjectKey(hash)),
+		url: named,
 		method,
 		now: issued,
 		lifetimeSeconds: BLOB_URL_LIFETIME_SECONDS,
@@ -94,6 +105,13 @@ export function signBlob(
 		headers: {},
 		expiresAt: new Date(issued.getTime() + BLOB_URL_LIFETIME_SECONDS * 1000).toISOString()
 	};
+}
+
+/** A filename safe in a quoted header: ASCII letters, digits and . _ - ( ) and spaces. */
+export function asciiFilename(name: string): string {
+	const folded = name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+	const safe = folded.replace(/[^A-Za-z0-9._() -]/g, '_').replace(/^[. ]+/, '').slice(0, 150);
+	return safe || 'armory-file';
 }
 
 /**

@@ -98,3 +98,84 @@ describe('streaming one file', () => {
 		expect((await streamArmoryReleaseFile('IDEA-Armory-USB-v0.1.0.zip', fakeFetch, 0, null)).status).toBe(503);
 	});
 });
+
+// ---- Ledger 0366: the public release first, the token second, the flash drive last ----
+
+import { armoryRelease, installerDownload, PUBLIC_DOWNLOAD_PREFIX, publicArmoryRelease } from '../src/lib/server/armory/releases';
+
+const PUBLIC_RELEASE = {
+	...RELEASE,
+	assets: RELEASE.assets.map((a) => ({
+		...a,
+		browser_download_url: `https://github.com/pina-hash/idea-armory/releases/download/v0.1.0/${a.name}`
+	}))
+};
+
+function fetchWith(publicStatus: number, body: unknown = PUBLIC_RELEASE) {
+	return (async (input: RequestInfo | URL, init?: RequestInit) => {
+		const url = String(input);
+		const headers = new Headers(init?.headers);
+		calls.push({ url, auth: headers.get('authorization'), redirect: init?.redirect });
+		if (url.endsWith('/releases/latest')) {
+			if (headers.get('authorization')) return Response.json(RELEASE);
+			return publicStatus === 200 ? Response.json(body) : new Response('{"message":"Not Found"}', { status: publicStatus });
+		}
+		return new Response(null, { status: 404 });
+	}) as typeof fetch;
+}
+
+describe('the one-click download', () => {
+	test('a public release: the browser goes straight to GitHub, and no token is sent anywhere', async () => {
+		const choice = await installerDownload(fetchWith(200), 0, TOKEN);
+		expect(choice).toEqual({
+			branch: 'public',
+			name: 'IDEA-Armory-Setup-v0.1.0.exe',
+			url: 'https://github.com/pina-hash/idea-armory/releases/download/v0.1.0/IDEA-Armory-Setup-v0.1.0.exe',
+			tag: 'v0.1.0'
+		});
+		expect(calls.every((c) => c.auth === null)).toBe(true);
+		expect(calls).toHaveLength(1);
+	});
+	test('a private release (404 unauthenticated): the token path, which the site streams', async () => {
+		const choice = await installerDownload(fetchWith(404), 0, TOKEN);
+		expect(choice).toEqual({ branch: 'token', name: 'IDEA-Armory-Setup-v0.1.0.exe', tag: 'v0.1.0' });
+		// Positive control: the second call is the authenticated one.
+		expect(calls.map((c) => c.auth)).toEqual([null, `Bearer ${TOKEN}`]);
+	});
+	test('neither: the flash drive, and only the public call was made', async () => {
+		expect(await installerDownload(fetchWith(404), 0, null)).toEqual({ branch: 'none' });
+		expect(calls).toHaveLength(1);
+	});
+	test('a download URL that is not this repository release is never followed', async () => {
+		const hostile = {
+			...RELEASE,
+			assets: RELEASE.assets.map((a) => ({ ...a, browser_download_url: `https://evil.example/${a.name}` }))
+		};
+		expect(await installerDownload(fetchWith(200, hostile), 0, null)).toEqual({ branch: 'none' });
+		_resetReleaseCache();
+		const climbing = {
+			...RELEASE,
+			assets: RELEASE.assets.map((a) => ({ ...a, browser_download_url: `${PUBLIC_DOWNLOAD_PREFIX}../../evil/${a.name}` }))
+		};
+		expect(await installerDownload(fetchWith(200, climbing), 0, null)).toEqual({ branch: 'none' });
+	});
+	test('the download page lists the public files with their GitHub URLs', async () => {
+		const found = await armoryRelease(fetchWith(200), 0, null);
+		expect(found?.source).toBe('public');
+		expect(Object.keys(found!.urls).sort()).toEqual([
+			'IDEA-Armory-Setup-v0.1.0.exe',
+			'IDEA-Armory-Setup-v0.1.0.exe.sha256',
+			'IDEA-Armory-USB-v0.1.0.zip',
+			'IDEA-Armory-USB-v0.1.0.zip.sha256'
+		]);
+		expect(found!.release.files.map((f) => f.name)).toEqual(['IDEA-Armory-Setup-v0.1.0.exe', 'IDEA-Armory-USB-v0.1.0.zip']);
+	});
+	test('a private answer is cached for a minute, not five', async () => {
+		const f = fetchWith(404);
+		await publicArmoryRelease(f, 0);
+		await publicArmoryRelease(f, 59_000);
+		expect(calls).toHaveLength(1);
+		await publicArmoryRelease(f, 61_000);
+		expect(calls).toHaveLength(2);
+	});
+});

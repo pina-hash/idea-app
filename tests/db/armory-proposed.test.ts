@@ -29,6 +29,7 @@ import { createUser, startTestDb, type SeededUser, type TestDb } from './harness
 import { catalogFingerprint, pasteTrap } from './chain-0230';
 import {
 	ALL_MIGRATIONS,
+	ARMORY_MIGRATIONS,
 	MIGRATIONS_DIR,
 	PRE_ARMORY,
 	PROPOSED_ENTRY,
@@ -98,8 +99,9 @@ describe('the Armory schema is migration 0231 and nothing else names it', () => 
 		expect(PROPOSED_ENTRY).toBe('0231_armory.sql');
 		expect(ALL_MIGRATIONS).toContain('0231_armory.sql');
 	});
-	test('no OTHER migration names armory_ in its filename or body', () => {
-		const others = ALL_MIGRATIONS.filter((f) => f !== PROPOSED_NAME);
+	test('no migration but the Armory series names armory_ in its filename or body', () => {
+		expect(ARMORY_MIGRATIONS).toEqual(['0231_armory.sql', '0232_armory_v2.sql']);
+		const others = ALL_MIGRATIONS.filter((f) => !ARMORY_MIGRATIONS.includes(f));
 		const named = others.filter((f) => /armory/i.test(f));
 		const mentioning = others.filter((f) => /armory_/i.test(readFileSync(join(MIGRATIONS_DIR, f), 'utf8')));
 		expect(named).toEqual([]);

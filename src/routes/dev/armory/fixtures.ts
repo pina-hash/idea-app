@@ -1,18 +1,22 @@
-import type { ArmoryFile, ArmoryHistoryEntry, ArmoryMember, ArmoryProject } from '$lib/armory/view';
+import type { ArmoryChange, ArmoryCheckout, ArmoryDevice, ArmoryFile, ArmoryHistoryEntry, ArmoryMember, ArmoryProject } from '$lib/armory/view';
+import { checkoutsFromFiles } from '$lib/armory/view';
 
 /** 10:30 AM in Los Angeles on 2026-10-06; every time below is relative to it. */
 export const NOW = Date.parse('2026-10-06T17:30:00Z');
 const at = (minutesAgo: number) => new Date(NOW - minutesAgo * 60_000).toISOString();
 const hash = (c: string) => c.repeat(64).slice(0, 64);
 
-export const PROJECT: ArmoryProject = { id: '6b1f6c1e-0000-4000-8000-000000000001', name: 'Robot 2026', season: 2026, role: 'mentor' };
+export const PROJECT: ArmoryProject = { id: '6b1f6c1e-0000-4000-8000-000000000001', name: 'Robot 2026', season: null, role: 'mentor', archived: false };
 export const STUDENT_PROJECT: ArmoryProject = { ...PROJECT, role: 'student' };
 
 export const PROJECTS: ArmoryProject[] = [
 	PROJECT,
-	{ id: '6b1f6c1e-0000-4000-8000-000000000002', name: 'IDEA209H Blade Team 4', season: 2026, role: 'student' },
-	{ id: '6b1f6c1e-0000-4000-8000-000000000003', name: 'Offseason Swerve', season: 2025, role: 'cad_lead' }
+	{ id: '6b1f6c1e-0000-4000-8000-000000000002', name: 'IDEA209H Blade Team 4', season: null, role: 'student' },
+	{ id: '6b1f6c1e-0000-4000-8000-000000000003', name: 'Offseason Swerve', season: 2025, role: 'cad_lead' },
+	{ id: '6b1f6c1e-0000-4000-8000-000000000004', name: 'Robot 2025', season: 2025, role: 'mentor', archived: true, archived_at: '2026-06-01T17:00:00Z' }
 ];
+
+export const ARCHIVED_PROJECT: ArmoryProject = { ...PROJECTS[3] };
 
 export const MEMBERS: ArmoryMember[] = [
 	{ email: 'apina@boscotech.edu', role: 'mentor' },
@@ -76,8 +80,20 @@ export const SIDE_HISTORY: ArmoryHistoryEntry[] = [
 export const RELEASE = {
 	tag: 'v0.1.0',
 	files: [
-		{ name: 'IDEA-Armory-Setup-v0.1.0.exe', size: 36909480, sha256: '65f65ac9ccb90667ec42fd298cb95fffa3e1556de68b50ff52d10201d51cbcdd', kind: 'laptop' as const },
-		{ name: 'IDEA-Armory-USB-v0.1.0.zip', size: 49819497, sha256: 'c1f7c9e3c02cfcd06a28d0ae6c0b6da28e896271a2477ed623a16e9b7dba4163', kind: 'flash-drive' as const }
+		{
+			name: 'IDEA-Armory-Setup-v0.1.0.exe',
+			size: 36909480,
+			sha256: '65f65ac9ccb90667ec42fd298cb95fffa3e1556de68b50ff52d10201d51cbcdd',
+			kind: 'laptop' as const,
+			href: 'https://github.com/pina-hash/idea-armory/releases/download/v0.1.0/IDEA-Armory-Setup-v0.1.0.exe'
+		},
+		{
+			name: 'IDEA-Armory-USB-v0.1.0.zip',
+			size: 49819497,
+			sha256: 'c1f7c9e3c02cfcd06a28d0ae6c0b6da28e896271a2477ed623a16e9b7dba4163',
+			kind: 'flash-drive' as const,
+			href: 'https://github.com/pina-hash/idea-armory/releases/download/v0.1.0/IDEA-Armory-USB-v0.1.0.zip'
+		}
 	]
 };
 
@@ -87,3 +103,41 @@ export const CONNECT = {
 	challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
 	device: 'Lab PC 3'
 };
+
+/** The checkout list as 0232's armory_project_checkouts answers it, with chosen names. */
+const CHOSEN: Record<string, string> = { 'ana.reyes@boscotech.net': 'Ana Reyes', 'ben.okafor@boscotech.net': 'Ben Okafor' };
+export const checkoutsOf = (files: ArmoryFile[]): ArmoryCheckout[] =>
+	checkoutsFromFiles(files).map((c) => ({ ...c, holder_name: CHOSEN[c.holder_email] ?? null }));
+
+export const DEVICES: ArmoryDevice[] = [
+	{ id: 'd-lab3', name: 'Lab PC 3', registered_at: at(60 * 24 * 9), last_seen: NOW - 2 * 60_000 },
+	{ id: 'd-home', name: 'Ana laptop', registered_at: at(60 * 24 * 20), last_seen: NOW - 60 * 60_000 * 26 }
+];
+
+export const STORAGE = { bytes: 41_225_884, files: 14 };
+
+let cursor = 900;
+const change = (kind: string, minutesAgo: number, entity: string, payload: Record<string, unknown>): ArmoryChange => ({
+	cursor: cursor--,
+	kind,
+	entity_id: entity,
+	payload,
+	created_at: at(minutesAgo)
+});
+/** Newest first, the order the load hands it down. */
+export const ACTIVITY: ArmoryChange[] = [
+	change('lock_acquired', 6, 'f-4', { holder: 'ben.okafor@boscotech.net', device_id: 'd-ben' }),
+	change('lock_acquired', 18, 'f-2', { holder: 'ana.reyes@boscotech.net', device_id: 'd-lab3' }),
+	change('lock_released', 25, 'f-4', { device_id: 'd-lab3' }),
+	change('version', 26, 'v-4', { file_id: 'f-4', device_id: 'd-lab3' }),
+	change('lock_acquired', 40, 'f-4', { holder: 'ana.reyes@boscotech.net', device_id: 'd-lab3' }),
+	change('folder_renamed', 120, PROJECT.id, { from: 'Drive', to: 'Drivetrain', files: 3, by: 'maria.lopez@boscotech.net' }),
+	change('file_revived', 200, 'f-4', { folder: 'Intake', name: 'Roller Bracket.SLDPRT', by: 'ana.reyes@boscotech.net' }),
+	change('lock_broken', 300, 'f-5', { by: 'maria.lopez@boscotech.net', former_holder: 'ben.okafor@boscotech.net' }),
+	change('folder_deleted', 1500, PROJECT.id, { folder: 'Old Intake', files: 2, by: 'maria.lopez@boscotech.net' }),
+	change('member_added', 1600, PROJECT.id, { email: 'ben.okafor@boscotech.net', role: 'student', by: 'apina@boscotech.edu' }),
+	change('project_renamed', 2000, PROJECT.id, { from: 'Robot', to: 'Robot 2026', by: 'apina@boscotech.edu' }),
+	change('project_created', 5000, PROJECT.id, { name: 'Robot', season: null, by: 'apina@boscotech.edu' })
+];
+
+export const START_RELEASE = { tag: 'v0.1.0', size: 36909480, name: 'IDEA-Armory-Setup-v0.1.0.exe' };

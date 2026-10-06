@@ -188,6 +188,8 @@ export const APP_TOUR_WORDS: Readonly<Record<string, HomeTourWords>> = {
 	ideacad:
 		'Model parts in 3D right in the browser, with the feature tree, properties and design rules beside the model.',
 	maps: 'Find any room, storage unit or tool, down to the drawer it lives in. Anyone can open it, even signed out.',
+	armory:
+		'Your team CAD files on every Windows computer. See who has each part checked out, and every version ever saved.',
 	coins: {
 		student:
 			'Your coin balance, the leaderboard, every transaction, open contracts and role applications. Nothing here changes a balance.',

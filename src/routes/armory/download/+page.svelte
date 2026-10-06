@@ -12,10 +12,10 @@
 
 <ArmoryFrame
 	title="Get the Armory app"
-	crumbs={[{ href: '/armory', label: 'Armory' }]}
-	lead="Armory runs on Windows, beside SolidWorks. Install it once on each computer you use."
+	crumbs={[{ href: '/armory', label: 'Armory' }, { href: '/armory/start', label: 'Set up' }]}
+	lead="Armory runs on Windows, beside SolidWorks. Install it once on each computer you use. The setup page walks you through the rest."
 >
-	{#if !data.email}
+	{#if !data.email && !data.release}
 		<ArmorySignIn reason="Sign in to download the Armory app." onSignIn={() => armorySignIn(data.supabase)} />
 	{:else}
 		<ArmoryDownload release={data.release} />

@@ -2518,9 +2518,12 @@ it is not required to browse.
     report, rate limited per address inside the database. It answers its own
     responses, so it is not in `authedPrefixes`, and it reads no session.
 - **Signed-in tier (any role):** `/gauntlet`, `/frc`, `/greenline`, `/notebook`,
-  `/armory` (IDEA Armory, unlisted until its pilot; NOT in `authedPrefixes`,
-  because the prefix guard's redirect to `/` would drop a connect link's query,
-  so each page renders its own sign-in panel and returns to the same address),
+  `/armory` (IDEA Armory, an app on the home launcher since ledger 0366, with
+  its guided setup at `/armory/start`; NOT in `authedPrefixes`, because the
+  prefix guard's redirect to `/` would drop a connect link's query, so each
+  page renders its own sign-in panel and returns to the same address; the
+  one-click installer `/armory/get` sends a public release straight to
+  GitHub and needs no session),
   `/classroom`, `/foundry` (the SURFACES; the bundle BYTES are a separate
   question -- they are served from the apps origin, which holds no session at
   all, so the publication gate there is the version's own status and the two
@@ -3011,12 +3014,17 @@ build break):
   `ARMORY_R2_SECRET_ACCESS_KEY` + `ARMORY_R2_BUCKET`** -- IDEA Armory's file
   storage (Cloudflare R2). Read ONLY by `src/lib/server/armory/storage.ts`, which
   signs fifteen-minute URLs and never touches bytes. Any one unset is 503
-  `armory_storage_not_configured` from `/api/armory/blob-url` and nothing else.
-- **`ARMORY_RELEASES_TOKEN`** -- a read-only GitHub token for the PRIVATE
-  pina-hash/idea-armory releases. Read ONLY by
-  `src/lib/server/armory/releases.ts`; it goes to api.github.com and never to
-  the signed asset host or the browser. Unset, `/armory/download` says to ask
-  for the flash drive and shows no link.
+  `armory_storage_not_configured` from `/api/armory/blob-url`, a 503 from the
+  past-version download (`/armory/<project>/file/<file>/version/<version>`,
+  ledger 0366), and nothing else.
+- **`ARMORY_RELEASES_TOKEN`** -- a read-only GitHub token for the
+  pina-hash/idea-armory releases WHILE THAT REPOSITORY IS PRIVATE. It was
+  public on 2026-10-06, so `installerDownload` sends the browser straight to
+  GitHub's own download and the token is the second way, not the first
+  (ledger 0366). Read ONLY by `src/lib/server/armory/releases.ts`; it goes to
+  api.github.com and never to the signed asset host or the browser. With
+  neither a public release nor the token, `/armory/start` and
+  `/armory/download` say to ask for the flash drive and show no link.
 
 **RETIRED, and to be removed from the Vercel env: `COIN_API_KEY`,
 `COIN_LEDGER_URL`, `PUBLIC_FOUNDRY_APPS_HOST`, `PUBLIC_FOUNDRY_APP_ORIGIN` and

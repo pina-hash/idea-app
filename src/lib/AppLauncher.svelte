@@ -15,6 +15,7 @@
 	import DashboardMark from '$lib/marks/DashboardMark.svelte';
 	import FoundryMark from '$lib/marks/FoundryMark.svelte';
 	import MapsMark from '$lib/marks/MapsMark.svelte';
+	import ArmoryMark from '$lib/marks/ArmoryMark.svelte';
 	import IdeaCadMark from '$lib/marks/IdeaCadMark.svelte';
 	// Official FRC icon (triangle/circle/diamond emblem only, no wordmark), the
 	// compact mark that fits the launcher's square icon slot.
@@ -305,6 +306,8 @@
 		<FoundryMark once />
 	{:else if id === 'maps'}
 		<MapsMark once />
+	{:else if id === 'armory'}
+		<ArmoryMark once />
 	{:else if id === 'ideacad'}
 		<IdeaCadMark once />
 	{:else if id === 'frc'}

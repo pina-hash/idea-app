@@ -39,8 +39,8 @@
 			<input type="hidden" name="challenge" value={request.challenge} />
 			<input type="hidden" name="device" value={request.device} />
 			<div class="ar-row-actions">
-				<button class="ar-btn" type="submit">Connect this computer</button>
-				<a class="ar-btn quiet" href="/armory">Not now</a>
+				<button class="btn ar-btn" type="submit">Connect this computer</button>
+				<a class="btn secondary ar-btn" href="/armory">Not now</a>
 			</div>
 			<p class="ar-message">Only press Connect if you just pressed Connect in the Armory app yourself.</p>
 		</form>

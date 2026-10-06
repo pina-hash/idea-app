@@ -28,6 +28,15 @@
 			{ href: `/armory/${view.project.id}`, label: view.project.name }
 		]}
 	>
-		<ArmoryFileView file={view.file} history={view.history} now={view.now} deviceSeen={view.deviceSeen} />
+		<ArmoryFileView
+			file={view.file}
+			history={view.history}
+			now={view.now}
+			deviceSeen={view.deviceSeen}
+			checkouts={view.checkouts}
+			downloadHref={view.storageReady
+				? (versionId: string) => `/armory/${view.project.id}/file/${view.file.id}/version/${versionId}`
+				: null}
+		/>
 	</ArmoryFrame>
 {/if}

@@ -6,9 +6,11 @@
 // supabase/migrations/0231_armory.sql and migrate.yml applies it to production.
 // The export names are kept because the short-link suites import them.
 //
-// THE CHAIN IS THE WHOLE TREE, read off disk, behind the fixture completion,
-// minus 0231 itself: exactly the database production holds before the apply
-// (the chain-0230 shape). 0231 then goes on top.
+// THE CHAIN IS THE WHOLE TREE SHORT OF 0231, read off disk, behind the fixture
+// completion: exactly the database production held before the apply (the
+// chain-0230 shape). 0231 then goes on top. It used to be "every file but
+// 0231", which put 0232 (built on 0231) in front of the file it builds on.
+// 0232, Armory v2 (ledger 0366), goes on top of that.
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -34,11 +36,18 @@ export const ALL_MIGRATIONS = readdirSync(MIGRATIONS_DIR)
 	.filter((f) => /^\d{4}_.*\.sql$/.test(f))
 	.sort();
 
-/** The production-shaped chain BEFORE 0231: every other migration. */
+/** The production-shaped chain BEFORE 0231: every earlier migration. */
 export const PRE_ARMORY: readonly string[] = [
 	FIXTURE_COMPLETION,
-	...ALL_MIGRATIONS.filter((f) => f !== PROPOSED_NAME)
+	...ALL_MIGRATIONS.filter((f) => f < PROPOSED_NAME)
 ];
 
 /** The chain WITH 0231 applied on top. */
 export const WITH_ARMORY: readonly string[] = [...PRE_ARMORY, PROPOSED_ENTRY];
+
+/** Armory v2 (ledger 0366). */
+export const V2_NAME = '0232_armory_v2.sql';
+export const V2_SQL = readFileSync(join(MIGRATIONS_DIR, V2_NAME), 'utf8');
+
+/** The Armory migrations, in order: the only files that may name armory_. */
+export const ARMORY_MIGRATIONS: readonly string[] = [PROPOSED_NAME, V2_NAME];

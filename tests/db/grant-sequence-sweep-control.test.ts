@@ -88,8 +88,9 @@ describe('the sequence sweep bites: a granted privilege is named', () => {
 		expect(
 			n,
 			'The denominator. If this is 0 the sweep is looking at an empty set and every absence ' +
-				'assertion in section D, and the BEFORE assertion below, is green for the wrong reason.'
-		).toBe(3);
+				'assertion in section D, and the BEFORE assertion below, is green for the wrong reason. ' +
+				'Four since 0231: the Armory change feed cursor, revoked by 0232 (ledger 0366).'
+		).toBe(4);
 	});
 
 	it('BEFORE: reads clean, which is what 0203 leaves behind', async () => {

@@ -11,6 +11,6 @@
 <div class="ar-panel" data-testid="armory-signin">
 	<p class="ar-lead">{reason}</p>
 	{#if onSignIn}
-		<button class="ar-btn" type="button" onclick={() => onSignIn?.()}>Sign in with your school Google account</button>
+		<button class="btn ar-btn" type="button" onclick={() => onSignIn?.()}>Sign in with your school Google account</button>
 	{/if}
 </div>

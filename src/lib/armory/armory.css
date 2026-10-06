@@ -1,14 +1,27 @@
 /*
  * IDEA Armory on the website. One stylesheet for the room, every class
  * prefixed `ar-` so nothing collides with app.css's global names (`.card`,
- * `.callout`, `.field` all carry layout of their own). Colours are the site's
- * tokens only, so the site theme (and Space White, through the site plate)
- * repaints the room with no rule here. No grid or ruled backgrounds anywhere.
- * A student surface: every control clears 44px.
+ * `.callout`, `.field` all carry layout of their own).
+ *
+ * THE ROOM WEARS THE SITE PLATE (ledger 0366, IDEA_INTERFACE_STANDARDS 14).
+ * Every button is the shared `.btn` (`secondary`, `danger`) with `.ar-btn` for
+ * its 44px floor only, so the plate draws it as a raised key in every theme;
+ * every input is a `.plate-well`; the room's panels, project cards and chips
+ * join the plate's own lists in `$lib/classroom/plate.css`, room-qualified as
+ * `:where(.ar-root)`. So this file sets LAYOUT and lengths, and the colours it
+ * names are the site's tokens, which Space White and the dark themes move.
+ * No grid or ruled backgrounds anywhere. A student surface: every control
+ * clears 44px.
  */
+
+/* The header outranks `main`: see ArmoryFrame. */
+.app-header.ar-header {
+	z-index: 2;
+}
+
 .ar-root {
 	--ar-gutter: clamp(1rem, 3vw, 2rem);
-	max-width: 76rem;
+	max-width: 80rem;
 	margin: 0 auto;
 	padding: 1.25rem var(--ar-gutter) 3rem;
 	color: var(--text-1);
@@ -20,13 +33,12 @@
 .ar-crumbs {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 0.25rem 0.6rem;
+	gap: 0 0.6rem;
 	align-items: center;
 	font-family: var(--font-mono);
 	font-size: 0.8rem;
 	letter-spacing: 0.06em;
 	color: var(--text-2);
-	margin-bottom: 0.4rem;
 }
 .ar-crumbs a {
 	color: var(--text-2);
@@ -36,6 +48,13 @@
 }
 .ar-crumbs a:hover {
 	color: var(--hover-ink, var(--gold));
+}
+.ar-titlebar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem 1rem;
 }
 .ar-title {
 	font-family: var(--font-display);
@@ -47,6 +66,11 @@
 }
 .ar-title::before {
 	content: none;
+}
+.ar-title-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
 }
 .ar-lead {
 	color: var(--text-2);
@@ -61,7 +85,8 @@
 	padding: 1rem 1.15rem;
 	margin: 0 0 1.25rem;
 }
-.ar-panel h2 {
+.ar-panel h2,
+.ar-section-h {
 	font-family: var(--font-mono);
 	font-size: 0.82rem;
 	letter-spacing: 0.12em;
@@ -69,7 +94,8 @@
 	color: var(--text-2);
 	margin: 0 0 0.75rem;
 }
-.ar-panel h2::before {
+.ar-panel h2::before,
+.ar-section-h::before {
 	content: none;
 }
 .ar-notice {
@@ -93,48 +119,16 @@
 	display: block;
 	margin-bottom: 0.15rem;
 }
+
+/* A button is the shared `.btn`; this class adds the 44px floor and keeps a
+   wrapped label centred. The plate paints it. */
 .ar-btn {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: 0.5rem;
 	min-height: 44px;
-	padding: 0.55rem 1.1rem;
-	font-family: var(--font-mono);
-	font-size: 0.82rem;
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
-	color: var(--green);
-	background: transparent;
-	border: 1px solid var(--green);
-	border-radius: var(--radius-control, 4px);
-	cursor: pointer;
+	justify-content: center;
+	text-align: center;
 	text-decoration: none;
-}
-.ar-btn:hover {
-	background: var(--green);
-	color: var(--bg0);
-}
-.ar-btn.quiet {
-	color: var(--text-1);
-	border-color: var(--boundary);
-}
-.ar-btn.quiet:hover {
-	color: var(--hover-ink, var(--gold));
-	border-color: var(--hover-ink, var(--gold));
-	background: transparent;
-}
-.ar-btn.danger {
-	color: var(--amber);
-	border-color: var(--amber);
-}
-.ar-btn.danger:hover {
-	background: var(--amber);
-	color: var(--bg0);
-}
-.ar-btn[aria-disabled='true'] {
-	opacity: 0.6;
-	cursor: not-allowed;
+	padding: 0.55rem 1.1rem;
+	white-space: normal;
 }
 .ar-row-actions {
 	display: flex;
@@ -149,15 +143,16 @@
 	font-size: 0.95rem;
 	flex: 1 1 14rem;
 }
-.ar-field span {
+.ar-field > span {
 	color: var(--text-2);
 	font-family: var(--font-mono);
 	font-size: 0.75rem;
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
 }
-.ar-field input,
-.ar-field select {
+.ar-root input,
+.ar-root select,
+.ar-root textarea {
 	min-height: 44px;
 	padding: 0.45rem 0.65rem;
 	font: inherit;
@@ -165,6 +160,10 @@
 	background: var(--bg0);
 	border: 1px solid var(--boundary);
 	border-radius: var(--radius-control, 4px);
+}
+.ar-root textarea {
+	resize: vertical;
+	line-height: 1.4;
 }
 .ar-form {
 	display: flex;
@@ -175,16 +174,57 @@
 .ar-message {
 	margin: 0.6rem 0 0;
 	color: var(--text-2);
+	line-height: 1.45;
 }
 .ar-message.bad {
 	color: var(--amber);
 }
+.ar-message a:not(.btn),
+.ar-lead a:not(.btn),
+.ar-step a:not(.btn),
+.ar-checklist a:not(.btn) {
+	color: var(--text-1);
+	text-decoration: underline;
+	text-underline-offset: 0.15em;
+}
+.ar-inline {
+	margin: 0;
+}
+.ar-visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+
+/* Two panels side by side above 1024px, stacked below. */
+.ar-two {
+	display: grid;
+	gap: 0 1.25rem;
+	grid-template-columns: 1fr;
+	align-items: start;
+}
+@media (min-width: 1024px) {
+	.ar-two {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	}
+}
 
 /* Projects */
+.ar-setup-line {
+	margin: 0 0 1rem;
+}
+.ar-setup-line a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+}
 .ar-projects {
 	list-style: none;
 	padding: 0;
-	margin: 0;
+	margin: 0 0 1.25rem;
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(min(17rem, 100%), 1fr));
 	gap: 0.85rem;
@@ -215,16 +255,166 @@
 	font-size: 0.78rem;
 	letter-spacing: 0.06em;
 }
+.ar-archived {
+	margin: 0 0 1.25rem;
+}
 
-/* Project page: tree beside members above 1024px */
+/* Setup */
+.ar-steps {
+	list-style: none;
+	padding: 0;
+	margin: 0 0 1.25rem;
+}
+.ar-step {
+	display: grid;
+	grid-template-columns: 2.6rem minmax(0, 1fr);
+	gap: 0 0.9rem;
+	align-items: start;
+}
+.ar-step h2 {
+	font-family: var(--font-display);
+	font-size: 1.2rem;
+	letter-spacing: 0;
+	text-transform: none;
+	color: var(--text-1);
+	margin: 0.3rem 0 0.25rem;
+}
+.ar-step-mark {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.6rem;
+	height: 2.6rem;
+	border-radius: 50%;
+	border: 2px solid var(--boundary);
+	font-family: var(--font-mono);
+	font-weight: 700;
+	color: var(--text-2);
+}
+.ar-step-mark.done {
+	border-color: var(--green);
+	color: var(--green);
+}
+.ar-step-mark.small {
+	width: 1.9rem;
+	height: 1.9rem;
+	flex: none;
+	font-size: 0.9rem;
+}
+.ar-step-status {
+	color: var(--text-2);
+	margin: 0 0 0.75rem;
+	line-height: 1.45;
+}
+.ar-step[data-done='true'] .ar-step-status {
+	color: var(--green);
+	font-weight: 600;
+}
+.ar-howto {
+	margin: 0;
+	padding-left: 1.3rem;
+	line-height: 1.5;
+}
+.ar-howto li + li {
+	margin-top: 0.35rem;
+}
+.ar-checklist {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+.ar-checklist li {
+	display: flex;
+	gap: 0.75rem;
+	align-items: flex-start;
+	padding: 0.6rem 0;
+	line-height: 1.45;
+	border-bottom: 1px solid var(--hairline, var(--line));
+}
+.ar-checklist li:last-child {
+	border-bottom: none;
+}
+.ar-share {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: center;
+	margin-top: 0.4rem;
+}
+.ar-share code,
+.ar-root code {
+	font-family: var(--font-mono);
+	font-size: 0.85rem;
+	overflow-wrap: anywhere;
+}
+
+/* How it works */
+.ar-how-list {
+	margin: 0;
+	display: grid;
+	gap: 0.6rem;
+}
+.ar-how-list dt {
+	font-weight: 700;
+}
+.ar-how-list dd {
+	margin: 0.1rem 0 0;
+	color: var(--text-2);
+	line-height: 1.45;
+}
+
+/* Lists of rows: computers, checkouts */
+.ar-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+.ar-list-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem 0.75rem;
+	min-height: 44px;
+	padding: 0.5rem 0;
+	border-bottom: 1px solid var(--hairline, var(--line));
+}
+.ar-list-main {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 12rem;
+}
+.ar-list-title {
+	font-weight: 600;
+	color: var(--text-1);
+	overflow-wrap: anywhere;
+}
+a.ar-list-title {
+	display: inline-flex;
+	min-height: 44px;
+	align-items: center;
+	text-decoration: none;
+}
+a.ar-list-title:hover {
+	color: var(--hover-ink, var(--gold));
+}
+.ar-list-sub {
+	color: var(--text-2);
+	font-size: 0.92rem;
+	line-height: 1.35;
+}
+.ar-out-row .ar-warn {
+	flex: 1 1 100%;
+}
+
+/* Project page: files beside people above 1024px */
 .ar-split {
 	display: grid;
-	gap: 1.25rem;
+	gap: 0 1.25rem;
 	grid-template-columns: 1fr;
 }
 @media (min-width: 1024px) {
 	.ar-split {
-		grid-template-columns: minmax(0, 1fr) 22rem;
+		grid-template-columns: minmax(0, 1fr) 24rem;
 		align-items: start;
 	}
 }
@@ -246,6 +436,26 @@
 }
 .ar-live[data-live='live'] .ar-live-dot {
 	background: var(--green);
+}
+.ar-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	align-items: flex-end;
+}
+.ar-search {
+	flex: 1 1 16rem;
+}
+.ar-filters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+}
+.ar-filter {
+	padding-inline: 0.8rem;
+}
+.ar-count {
+	margin-bottom: 0.4rem;
 }
 .ar-tree,
 .ar-tree ul {
@@ -269,19 +479,31 @@
 	color: var(--text-2);
 	padding-top: 0.35rem;
 }
+.ar-file-item {
+	border-bottom: 1px solid var(--hairline, var(--line));
+}
+.ar-file-wrap {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.25rem 0.5rem;
+}
 .ar-file {
+	flex: 1 1 18rem;
 	display: grid;
 	grid-template-columns: 2rem minmax(0, 1fr);
 	gap: 0.15rem 0.6rem;
 	align-items: start;
 	min-height: 44px;
 	padding: 0.55rem 0.5rem;
-	border-bottom: 1px solid var(--hairline, var(--line));
 	color: var(--text-1);
 	text-decoration: none;
 }
 .ar-file:hover {
 	background: color-mix(in srgb, var(--text-1) 5%, transparent);
+}
+.ar-file-item .ar-warn {
+	margin: 0 0.5rem 0.6rem;
 }
 .ar-file-glyph {
 	grid-row: span 2;
@@ -290,6 +512,7 @@
 	justify-content: center;
 	width: 2rem;
 	height: 2rem;
+	flex: none;
 	border-radius: 50%;
 	border: 1px solid currentColor;
 	font-size: 1rem;
@@ -304,6 +527,11 @@
 	font-size: 0.92rem;
 	line-height: 1.35;
 }
+.ar-folder-inline {
+	font-family: var(--font-mono);
+	font-size: 0.82rem;
+	margin-right: 0.3rem;
+}
 .ar-state {
 	font-weight: 700;
 }
@@ -316,9 +544,7 @@
 .ar-tone-synced {
 	color: var(--green);
 }
-.ar-tone-waiting {
-	color: var(--text-2);
-}
+.ar-tone-waiting,
 .ar-tone-removed {
 	color: var(--text-2);
 }
@@ -336,6 +562,35 @@
 	color: var(--text-2);
 	white-space: nowrap;
 }
+
+/* Activity */
+.ar-activity {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+.ar-activity li {
+	display: grid;
+	grid-template-columns: 7.5rem minmax(0, 1fr);
+	gap: 0.6rem;
+	padding: 0.45rem 0;
+	border-bottom: 1px solid var(--hairline, var(--line));
+	line-height: 1.4;
+}
+.ar-activity-when {
+	color: var(--text-2);
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+	padding-top: 0.15rem;
+}
+@media (max-width: 30rem) {
+	.ar-activity li {
+		grid-template-columns: 1fr;
+		gap: 0.1rem;
+	}
+}
+
+/* People */
 .ar-members {
 	list-style: none;
 	padding: 0;
@@ -348,18 +603,43 @@
 	justify-content: space-between;
 	gap: 0.4rem 0.75rem;
 	min-height: 44px;
-	padding: 0.4rem 0;
+	padding: 0.45rem 0;
 	border-bottom: 1px solid var(--hairline, var(--line));
 }
 .ar-member-who {
 	display: flex;
 	flex-direction: column;
-	min-width: 0;
+	flex: 1 1 11rem;
 }
 .ar-member-email {
 	color: var(--text-2);
 	font-size: 0.85rem;
 	overflow-wrap: anywhere;
+}
+.ar-member-note {
+	color: var(--text-2);
+	font-size: 0.85rem;
+	line-height: 1.35;
+	margin-top: 0.2rem;
+}
+.ar-member-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	align-items: center;
+}
+.ar-role select {
+	min-width: 8rem;
+}
+.ar-bulk {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+}
+.ar-big {
+	font-size: 1.6rem;
+	font-weight: 700;
+	margin: 0;
 }
 
 /* File history */
@@ -383,6 +663,13 @@
 }
 .ar-entry.side {
 	padding-left: 1.5rem;
+}
+.ar-entry-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.4rem 0.75rem;
 }
 .ar-entry-kind {
 	font-weight: 700;
@@ -426,4 +713,8 @@
 	line-height: 1.3;
 	margin: 0 0 0.75rem;
 	overflow-wrap: anywhere;
+}
+.ar-holder-line {
+	margin: 0;
+	font-size: 1rem;
 }

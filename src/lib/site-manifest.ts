@@ -101,6 +101,18 @@ export const APPS: SiteApp[] = [
 		contains: ['foundry']
 	},
 	{
+		id: 'armory',
+		label: 'IDEA Armory',
+		prefixes: [
+			'src/routes/armory/',
+			'src/routes/api/armory/',
+			'src/lib/armory/',
+			'src/lib/server/armory/',
+			'src/lib/marks/ArmoryMark.svelte',
+			'src/routes/dev/armory/'
+		]
+	},
+	{
 		id: 'maps',
 		label: 'IDEA Maps',
 		prefixes: ['src/routes/maps/', 'src/lib/maps/', 'src/routes/dev/maps-edit/']

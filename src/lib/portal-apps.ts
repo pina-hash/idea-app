@@ -100,6 +100,17 @@ export const PORTAL_APPS: PortalApp[] = [
 		requiresAuth: true
 	},
 	{
+		id: 'armory',
+		title: 'IDEA Armory',
+		sub: 'Your team CAD files on every computer: check out, check in, and every version kept.',
+		icon: 'armory',
+		href: '/armory',
+		cta: 'Open',
+		// A signed-in surface: every /armory page renders its own sign-in, and
+		// the Windows app's connect link needs the account it connects.
+		requiresAuth: true
+	},
+	{
 		id: 'maps',
 		title: 'IDEA Maps',
 		sub: 'Find any room, any storage unit, and any tool, down to the drawer it lives in.',
