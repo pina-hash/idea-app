@@ -1,8 +1,8 @@
 # 46 IDEA Armory: number and approve the proposed schema migration
 
 - Raised: 2026-10-06  By: lane B of the IDEA & FRC chat (`docs/prompt-ledger/entries/armory-b-website.md`)
-- Status: open
-- Decision:
+- Status: answered
+- Decision: 0231, approved by Mr. Pina 2026-10-06, applied by migrate.yml
 - Default this assistant would pick: give `docs/armory/proposed/NNNN_armory.sql` the next free migration number on `origin/main` at the time (0231 was free at idea-app `75cd5979`), move it into `supabase/migrations/` in a push of its own, and let `migrate.yml` apply it.
 - Why it is blocked on him: `migrate.yml` applies the lowest unapplied file in `supabase/migrations/` to production within minutes of a push to `main`, so moving the file IS the go-live, and lane B was told it must not.
 - What it unblocks: every `/armory` page and the three `/api/armory/*` endpoints (today they say "Armory is not switched on yet" or answer 503); the Windows agent connecting to ideabosco.com.

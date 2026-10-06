@@ -74,8 +74,8 @@ const CHAIN = [
 	'0166_short_link_reserve_maps.sql',
 	'0196_short_link_reserve_hx.sql',
 	'0215_short_link_reserve_ideacad.sql',
-	// PROPOSED, not yet a migration: it reserves `armory` for the /armory route
-	// (docs/armory/proposed/NNNN_armory.sql, read in place by the loader).
+	// Migration 0231 (supabase/migrations/0231_armory.sql) reserves `armory`
+	// for the /armory route.
 	PROPOSED_ENTRY
 ] as const;
 

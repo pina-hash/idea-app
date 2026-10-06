@@ -1,5 +1,5 @@
 -- ---------------------------------------------------------------------------
--- NNNN  IDEA ARMORY: THE FILE VAULT'S SCHEMA, RPCS, AND CONNECT CODES.
+-- 0231  IDEA ARMORY: THE FILE VAULT'S SCHEMA, RPCS, AND CONNECT CODES.
 --
 -- PROPOSED, NOT A MIGRATION YET. This file lives in docs/armory/proposed/ on
 -- purpose: .github/workflows/migrate.yml applies the lowest unapplied file in

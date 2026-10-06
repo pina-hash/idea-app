@@ -332,12 +332,10 @@ its `hashed_token` is used, and `verifyOtp` exchanges that hash directly, so no 
 sent and no redirect URL is ever followed. The loopback `http://127.0.0.1:<port>/callback`
 is a redirect THIS site issues after its own POST; Supabase never sees it.
 
-**The schema is proposed, not live:** `docs/armory/proposed/NNNN_armory.sql`. It must not
-be moved into `supabase/migrations/` until the router chat numbers it and Mr. Pina
-approves it (`docs/decisions/entries/46-armory-migration-number-and-approval.md`),
-because `migrate.yml` applies that directory to production on every push to `main`.
-Until it is applied, every Armory page says "Armory is not switched on yet" and the API
-answers 503.
+**The schema is migration 0231:** `supabase/migrations/0231_armory.sql`, approved by
+Mr. Pina on 2026-10-06 (`docs/decisions/entries/46-armory-migration-number-and-approval.md`)
+and applied to production by `migrate.yml` on the push that landed it. Until that apply
+has run, every Armory page says "Armory is not switched on yet" and the API answers 503.
 
 ## Decisions owed
 

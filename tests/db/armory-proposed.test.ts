@@ -1,13 +1,12 @@
 // tests/db/armory-proposed.test.ts
 //
-// THE PROPOSED ARMORY SCHEMA, PROVEN ON THE WHOLE CHAIN WITHOUT BEING A MIGRATION.
+// THE ARMORY SCHEMA (MIGRATION 0231), PROVEN ON THE WHOLE CHAIN.
 //
-// docs/armory/proposed/NNNN_armory.sql is applied through the test-only loader
-// (tests/db/armory-proposed.ts) on top of every committed migration. What is
+// supabase/migrations/0231_armory.sql is applied through the loader
+// (tests/db/armory-proposed.ts) on top of every other committed migration. What is
 // held here, and why each is a silent regression rather than a visible one:
 //
-//   - THE LOADER NEVER COPIES. A proposed file that reached supabase/migrations
-//     would be applied to production by migrate.yml within minutes.
+//   - NO OTHER MIGRATION NAMES armory_, so 0231 is the one place the schema lives.
 //   - NO NAME COLLIDES. The file uses `create ... if not exists`, so a
 //     collision with an existing object would apply cleanly and leave the OLD
 //     object in place; only a catalog read before the apply can see that.
@@ -21,7 +20,7 @@
 //     server tests say (LockTests / SameParentCommitRace).
 //   - THE CONNECT CODES belong to service_role alone.
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
@@ -93,17 +92,19 @@ afterAll(async () => {
 	await db?.stop();
 });
 
-describe('the loader reads the proposed file in place and never copies it', () => {
-	test('the file is outside supabase/migrations and keeps its literal NNNN prefix', () => {
-		expect(PROPOSED_NAME).toMatch(/^NNNN_/);
-		expect(PROPOSED_ENTRY.startsWith('../../docs/armory/proposed/')).toBe(true);
+describe('the Armory schema is migration 0231 and nothing else names it', () => {
+	test('0231_armory.sql exists in supabase/migrations', () => {
+		expect(PROPOSED_NAME).toBe('0231_armory.sql');
+		expect(PROPOSED_ENTRY).toBe('0231_armory.sql');
+		expect(ALL_MIGRATIONS).toContain('0231_armory.sql');
 	});
-	test('no committed migration names armory, so nothing was copied or renamed there', () => {
-		const named = readdirSync(MIGRATIONS_DIR).filter((f) => /armory/i.test(f));
-		const mentioning = ALL_MIGRATIONS.filter((f) => /armory_/i.test(readFileSync(join(MIGRATIONS_DIR, f), 'utf8')));
+	test('no OTHER migration names armory_ in its filename or body', () => {
+		const others = ALL_MIGRATIONS.filter((f) => f !== PROPOSED_NAME);
+		const named = others.filter((f) => /armory/i.test(f));
+		const mentioning = others.filter((f) => /armory_/i.test(readFileSync(join(MIGRATIONS_DIR, f), 'utf8')));
 		expect(named).toEqual([]);
 		expect(mentioning).toEqual([]);
-		// Positive control: the same scan does see the proposed file's names.
+		// Positive control: the same scan does see 0231's names.
 		expect(/armory_/.test(PROPOSED_SQL)).toBe(true);
 	});
 });
