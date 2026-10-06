@@ -78,6 +78,17 @@ the shipped agent disagreed, the agent's code won, and every disagreement is in
    `armory_members`' RLS, so this discloses nothing new; other profiles are not readable.
 10. **The last mentor is offered no Remove**, because 004 refuses it and a control whose
     only answer is a refusal is not offered.
+11. **`armory` is reserved as a short-link slug, and the reservation rides in the
+    PROPOSED file.** A new top-level route has to be in `RESERVED_SLUGS` and in
+    `_app_short_link_reserved`, and the second is a migration, which this lane may not
+    write. So section 9b of the proposed file re-creates the predicate (0215's body,
+    verbatim, plus `armory`) after moving any existing `armory` short link the way 0215
+    moved `ideacad`, and the two short-link suites apply the proposed file through the
+    loader. Until it is approved, an `armory` short link could still be created in
+    production; it would be shadowed by the route, which is the harm the guard prevents
+    and a small one. The full suite caught this on the first run (3 failures in
+    `short-link-*`), along with the browser-verify README counts, regenerated with
+    `npm run verify:readme -- --route armory`.
 
 ## What was measured
 
@@ -86,7 +97,9 @@ the shipped agent disagreed, the agent's code won, and every disagreement is in
   restored byte-identically (md5 `d9e76f6f...` before and after): `armory_projects_read`
   `using (true)` reddened 1; the helpers granted back to `authenticated` and a select
   grant on `armory_connect_codes` to `authenticated` were both REFUSED AT APPLY by the
-  file's own self-check; the stale-parent branch removed reddened 1.
+  file's own self-check; the stale-parent branch removed reddened 1. Those mutations ran
+  before section 9b (the slug reservation) was added; 9b is held by its own assertions in
+  `tests/db/armory-proposed.test.ts` and `tests/short-link-reserved-names.test.ts`.
 - Endpoint mutations (`tests/armory-endpoints.test.ts`, `-connect-redirect`, `-releases`):
   the text half of the loopback check removed reddened 4 of 56 (the parse half still
   caught the rest, which is the point of two layers); membership off 1; the GET hash
@@ -102,6 +115,15 @@ the shipped agent disagreed, the agent's code won, and every disagreement is in
 - `svelte-check`: 0 errors, 37 warnings in 20 files (31/5/1), the baseline.
 - 26 screenshots in `docs/armory/screens/` (13 states at 1440 and 375), each looked at;
   0px of horizontal scroll on every one.
+
+## Failures that are not this bundle's
+
+Four test files fail identically on a clean worktree of `origin/main` at `d9cfaa2`, with
+no Armory file present: `tests/apply-migration-guard.test.ts` and
+`tests/apply-migration-trace.test.ts` ("this checkout cannot see the refs the
+applied-set probe needs", a single-ref cloud checkout), `tests/identity-style-shared.test.ts`
+(`git show f9d43b49^` on a shallow clone), and `tests/db/migrations-applied-record.test.ts`
+(`docs/migrations-applied/` has no record for `0230`).
 
 ## Not verified
 

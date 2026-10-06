@@ -37,7 +37,12 @@
 --      writes it.
 --   5. armory_change_feed joins the supabase_realtime publication when that
 --      publication exists (contract section 4), with the 0062 guard shape.
---   6. Idempotent. Types, tables, constraints and publication membership are
+--   6. /armory is reserved in the short-link guard (section 9b), 0215's shape:
+--      `_app_short_link_reserved` re-created with 'armory' added, after moving
+--      any existing short link of that name. This is the one existing object
+--      the file changes, and tests/db/armory-proposed.test.ts asserts it is
+--      the only one.
+--   7. Idempotent. Types, tables, constraints and publication membership are
 --      guarded, functions are create or replace, policies and triggers are
 --      dropped and recreated. Re-pasting the file is a no-op.
 --
@@ -46,8 +51,9 @@
 -- stub (armory.test_email) is not carried over, and the suite proves a
 -- caller-set setting changes nothing.
 --
--- ADDITIVE ONLY. Every object is new and named armory_*; nothing existing is
--- altered. To undo it before any client depends on it: drop the armory_*
+-- ADDITIVE except 9b. Every other object is new and named armory_*. 9b's
+-- reversal is 0215's predicate re-created without 'armory'. To undo the rest
+-- before any client depends on it: drop the armory_*
 -- functions, tables and the armory_member_role type by hand in the SQL editor
 -- (a person's paste, never a migration).
 -- ---------------------------------------------------------------------------
@@ -987,6 +993,60 @@ end
 $$;
 
 -- ---------------------------------------------------------------------------
+-- 9b. Reserve the /armory route in the short-link guard (the 0215 shape).
+-- /armory is a real top-level route on ideabosco.com, so a short link of that
+-- name would never be reached; CLAUDE.md requires `_app_short_link_reserved`
+-- and `RESERVED_SLUGS` in src/lib/short-links.ts to name every slug-shaped
+-- route directory. The predicate below is 0215's, verbatim, with 'armory'
+-- added in order. An existing short link named armory is moved, intact, to the
+-- first free armory-link spelling and recorded in 0215's audit table first,
+-- exactly as 0215 did for ideacad. Re-applying finds nothing to move.
+-- ---------------------------------------------------------------------------
+
+do $$
+declare
+	r public.app_short_links%rowtype;
+	v_candidate text := 'armory-link';
+	v_suffix integer := 2;
+begin
+	select * into r from public.app_short_links where slug = 'armory' for update;
+	if found then
+		while exists (select 1 from public.app_short_links where slug = v_candidate) loop
+			v_candidate := 'armory-link-' || v_suffix::text;
+			v_suffix := v_suffix + 1;
+		end loop;
+		update public.app_short_links set slug = v_candidate where slug = r.slug;
+		insert into public.app_short_link_reserved_moves (
+			original_slug, moved_slug, target, label, active, created_by, created_at, updated_at, migration
+		) values (
+			r.slug, v_candidate, r.target, r.label, r.active, r.created_by, r.created_at, r.updated_at, 'armory'
+		) on conflict (original_slug) do nothing;
+		raise notice 'armory: moved existing short link from "%" to "%"; target=% active=%.', r.slug, v_candidate, r.target, r.active;
+	end if;
+end
+$$;
+
+create or replace function public._app_short_link_reserved(p_slug text)
+returns boolean
+language sql
+immutable
+security definer
+set search_path = ''
+as $$
+	select p_slug in (
+		'a', 'admin', 'api', 'archive', 'armory', 'assignments', 'auth', 'b', 'classroom',
+		'coin-balance', 'coin-desk', 'coin-entry', 'coins', 'contracts',
+		'dashboard', 'dev', 'downloads', 'foundry', 'frc', 'fsp', 'fsp-pulse',
+		'fsp-tech-selection', 'gauntlet', 'greenline', 'hx', 'ideacad',
+		'manifest.webmanifest', 'maps', 'notebook', 'push-sw.js', 'reference',
+		'robots.txt', 'sitemap.xml', 'tools', 'tournaments', 'vanguard'
+	);
+$$;
+
+revoke all on function public._app_short_link_reserved(text) from public, anon, authenticated;
+grant execute on function public._app_short_link_reserved(text) to service_role;
+
+-- ---------------------------------------------------------------------------
 -- 10. Self-check, by NAME over the objects this file writes and nothing else.
 -- ---------------------------------------------------------------------------
 
@@ -1052,6 +1112,17 @@ begin
 		raise exception 'armory self-check: % internal helper(s) are executable by authenticated', v_auth_helpers;
 	end if;
 
-	raise notice 'armory: 13 tables with RLS on, 35 functions, 0 executable by anon, connect codes service-role only';
+	if not public._app_short_link_reserved('armory') or public._app_short_link_reserved('open-lab') then
+		raise exception 'armory self-check: the short-link guard does not reserve armory, or reserves the open-lab control';
+	end if;
+	if exists (select 1 from public.app_short_links where slug = 'armory') then
+		raise exception 'armory self-check: an app_short_links row still occupies armory';
+	end if;
+	if has_function_privilege('anon', 'public._app_short_link_reserved(text)', 'execute')
+		or has_function_privilege('authenticated', 'public._app_short_link_reserved(text)', 'execute') then
+		raise exception 'armory self-check: a client role can execute the private short-link predicate';
+	end if;
+
+	raise notice 'armory: 13 tables with RLS on, 35 functions, 0 executable by anon, connect codes service-role only, armory reserved as a short-link slug';
 end
 $$;

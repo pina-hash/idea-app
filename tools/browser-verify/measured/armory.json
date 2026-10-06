@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"spec": "armory.mjs",
+	"date": "2026-10-06T06:00:22.517Z",
+	"sha": "fb4b7f04faf67e572a3ee5280e02895f0b781b8f",
+	"dirty": true,
+	"widths": [
+		375,
+		1440
+	],
+	"runs": 2,
+	"measurements": 74,
+	"outsideRows": [],
+	"ms": 10181
+}

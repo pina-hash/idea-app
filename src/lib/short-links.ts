@@ -39,7 +39,8 @@ export const SLUG_RE = /^[a-z0-9][a-z0-9._-]{0,60}$/;
  * it would only mislead whoever created it.
  *
  * Mirrors _app_short_link_reserved, most recently redefined in 0215
- * (`ideacad`) -- earlier copies are immutable applied records and are never
+ * (`ideacad`) and, PROPOSED, in docs/armory/proposed/NNNN_armory.sql
+ * (`armory`; the suites apply it through tests/db/armory-proposed.ts) -- earlier copies are immutable applied records and are never
  * edited to match this one; change both together.
  * tests/short-link-reserved-names.test.ts asserts they agree, and separately
  * walks the real route tree so a route added later reddens the suite instead
@@ -54,6 +55,7 @@ export const RESERVED_SLUGS = [
 	'admin',
 	'api',
 	'archive',
+	'armory',
 	'assignments',
 	'auth',
 	'b',

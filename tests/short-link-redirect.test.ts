@@ -49,6 +49,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isHttpError, isRedirect } from '@sveltejs/kit';
+import { PROPOSED_ENTRY } from './db/armory-proposed';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
 import { createPostgrestShim, loadForeignKeys } from './db/postgrest-shim';
 import { load as SHORTLINK_LOAD } from '../src/routes/[shortlink]/+page.server';
@@ -72,7 +73,10 @@ const CHAIN = [
 	'0156_short_link_reserved_names.sql',
 	'0166_short_link_reserve_maps.sql',
 	'0196_short_link_reserve_hx.sql',
-	'0215_short_link_reserve_ideacad.sql'
+	'0215_short_link_reserve_ideacad.sql',
+	// PROPOSED, not yet a migration: it reserves `armory` for the /armory route
+	// (docs/armory/proposed/NNNN_armory.sql, read in place by the loader).
+	PROPOSED_ENTRY
 ] as const;
 
 /**

@@ -33,6 +33,7 @@ import { readdirSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { PROPOSED_ENTRY } from './db/armory-proposed';
 import { startTestDb, type TestDb } from './db/harness';
 import { RESERVED_SLUGS, SLUG_RE } from '../src/lib/short-links';
 
@@ -128,7 +129,10 @@ const CHAIN = [
 	// belongs here, in apply order.
 	'0166_short_link_reserve_maps.sql',
 	'0196_short_link_reserve_hx.sql',
-	'0215_short_link_reserve_ideacad.sql'
+	'0215_short_link_reserve_ideacad.sql',
+	// PROPOSED, not yet a migration: it reserves `armory` for the /armory route
+	// (docs/armory/proposed/NNNN_armory.sql, read in place by the loader).
+	PROPOSED_ENTRY
 ] as const;
 
 let db: TestDb;
@@ -185,7 +189,7 @@ describe('the deployed function names the identical set RESERVED_SLUGS does', ()
 	describe('0215 preserves and records an existing ideacad short link', () => {
 	test('moves a collision once and is idempotent', async () => {
 		const pre = await startTestDb(
-			CHAIN.filter((name) => name !== '0215_short_link_reserve_ideacad.sql')
+			CHAIN.filter((name) => name !== '0215_short_link_reserve_ideacad.sql' && name !== PROPOSED_ENTRY)
 		);
 		try {
 			await pre.sql(`insert into public.app_short_links
@@ -215,6 +219,39 @@ describe('the deployed function names the identical set RESERVED_SLUGS does', ()
 					(select count(*)::int from public.app_short_link_reserved_moves) as moves`
 			);
 			expect(afterReplay.rows[0]).toEqual({ links: 1, moves: 1 });
+		} finally {
+			await pre.stop();
+		}
+	});
+});
+
+describe('the proposed Armory file preserves and records an existing armory short link', () => {
+	test('moves a collision once, refuses nothing else, and is idempotent', async () => {
+		const pre = await startTestDb(CHAIN.filter((name) => name !== PROPOSED_ENTRY));
+		try {
+			await pre.sql(`insert into public.app_short_links
+				(slug, target, label, active, created_by)
+				values ('armory', '/frc', 'Old armory link', true, 'teacher@boscotech.edu'),
+				       ('armory-link', '/maps', 'Taken spelling', true, 'teacher@boscotech.edu')`);
+			const sql = readFileSync(join(REPO_ROOT, PROPOSED_ENTRY.replace(/^\.\.\/\.\.\//, '')), 'utf8');
+			await pre.sql(sql);
+			const links = await pre.sql<{ slug: string; target: string }>(
+				`select slug, target from public.app_short_links order by slug`
+			);
+			expect(links.rows).toEqual([
+				{ slug: 'armory-link', target: '/maps' },
+				{ slug: 'armory-link-2', target: '/frc' }
+			]);
+			const audit = await pre.sql<{ original_slug: string; moved_slug: string; migration: string }>(
+				`select original_slug, moved_slug, migration from public.app_short_link_reserved_moves`
+			);
+			expect(audit.rows).toEqual([{ original_slug: 'armory', moved_slug: 'armory-link-2', migration: 'armory' }]);
+			await pre.sql(sql);
+			const again = await pre.sql<{ links: number; moves: number }>(
+				`select (select count(*)::int from public.app_short_links) as links,
+					(select count(*)::int from public.app_short_link_reserved_moves) as moves`
+			);
+			expect(again.rows[0]).toEqual({ links: 2, moves: 1 });
 		} finally {
 			await pre.stop();
 		}

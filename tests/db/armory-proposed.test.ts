@@ -133,8 +133,15 @@ describe('the file applies the way the apply tool and the SQL editor need', () =
 describe('the grants reach only armory_ objects', () => {
 	test('every non-armory object fingerprints identically before and after', async () => {
 		const after = await catalogFingerprint(db);
-		const strip = (s: string) => s.split('\n').filter((l) => !/armory_/.test(l)).join('\n');
+		// 9b re-creates ONE existing object, the short-link guard, to reserve
+		// `armory`; it is set aside here and asserted on its own below.
+		const strip = (s: string) =>
+			s.split('\n').filter((l) => !/armory_/.test(l) && !/_app_short_link_reserved\(text\)/.test(l)).join('\n');
 		expect(strip(after)).toBe(strip(before));
+		const guard = (s: string) => s.split('\n').filter((l) => /_app_short_link_reserved\(text\)/.test(l));
+		expect(guard(before)).toHaveLength(1);
+		expect(guard(after)).toHaveLength(1);
+		expect(guard(after)[0].replace(/src=\w+/, '')).toBe(guard(before)[0].replace(/src=\w+/, '')); // same ACL, only the body moved
 		// Positive control: the armory lines really are new.
 		expect(after.split('\n').filter((l) => /armory_/.test(l)).length).toBeGreaterThan(50);
 	});
@@ -283,6 +290,15 @@ describe('the connect codes are the server role alone', () => {
 				)
 			)
 		).rejects.toThrow(/check constraint/);
+	});
+});
+
+describe('the /armory route is reserved as a short-link slug', () => {
+	test('armory is reserved and the open-lab control is not', async () => {
+		const { rows } = await db.sql<{ a: boolean; o: boolean }>(
+			`select public._app_short_link_reserved('armory') as a, public._app_short_link_reserved('open-lab') as o`
+		);
+		expect(rows[0]).toEqual({ a: true, o: false });
 	});
 });
 
