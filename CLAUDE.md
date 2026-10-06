@@ -2518,6 +2518,9 @@ it is not required to browse.
     report, rate limited per address inside the database. It answers its own
     responses, so it is not in `authedPrefixes`, and it reads no session.
 - **Signed-in tier (any role):** `/gauntlet`, `/frc`, `/greenline`, `/notebook`,
+  `/armory` (IDEA Armory, unlisted until its pilot; NOT in `authedPrefixes`,
+  because the prefix guard's redirect to `/` would drop a connect link's query,
+  so each page renders its own sign-in panel and returns to the same address),
   `/classroom`, `/foundry` (the SURFACES; the bundle BYTES are a separate
   question -- they are served from the apps origin, which holds no session at
   all, so the publication gate there is the version's own status and the two
@@ -2955,7 +2958,7 @@ build and the page degrades gracefully): `PUBLIC_FSP_APPS_SCRIPT_URL`,
 bundle; a missing value degrades to a clear "not configured" response, never a
 build break):
 
-- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly FIVE places: the GREENLINE
+- **`SUPABASE_SERVICE_ROLE_KEY`** -- read by exactly SIX places: the GREENLINE
   community-track publish endpoint (which must run the game's real track
   validation in Node before any row is written), the tournament push sender,
   the anonymous feedback route (`src/routes/api/feedback/+server.ts`, the only
@@ -2975,10 +2978,14 @@ build break):
   assignment for `/hx/<docId>` -- the same shape and the same reason as
   Foundry's: the document host holds no session, so no policy can be satisfied
   there, and the route re-checks on every request what RLS would have enforced
-  (the handle is a uuid, the row exists, the item is a live assignment). This
-  line said FOUR until 2026-09-10 and the count is the kind of figure that goes
-  stale the moment a sixth surface needs a credential, so **move it in the same
-  edit that adds one**. Nothing else may read it, and
+  (the handle is a uuid, the row exists, the item is a live assignment). **The
+  SIXTH is `src/lib/server/armory/backend.ts`** (IDEA Armory, contract section
+  3), for exactly two things: `armory_connect_codes`, which no client role can
+  touch, and minting the Windows agent's own session (`generateLink` then
+  `verifyOtp`); membership and device registration run on the caller's own
+  token. This line said FOUR until 2026-09-10 and FIVE until 2026-10-06, and the
+  count is the kind of figure that goes stale the moment another surface needs a
+  credential, so **move it in the same edit that adds one**. Nothing else may read it, and
   **it must never gain a `PUBLIC_` prefix**. Unset, the feedback
   route answers a structured `not_configured` refusal rather than a retryable
   failure: a missing environment variable does not fix itself in eight seconds
@@ -3000,6 +3007,16 @@ build break):
 - **`GITHUB_EXPORT_TOKEN`** -- the classroom GitHub export. Read ONLY by
   `src/lib/server/classroom-export.ts`; never reaches a caller, a message, or a
   log line. Unset is SILENT: no attempt, no recorded failure, no chip.
+- **`ARMORY_R2_ACCOUNT_ID` + `ARMORY_R2_ACCESS_KEY_ID` +
+  `ARMORY_R2_SECRET_ACCESS_KEY` + `ARMORY_R2_BUCKET`** -- IDEA Armory's file
+  storage (Cloudflare R2). Read ONLY by `src/lib/server/armory/storage.ts`, which
+  signs fifteen-minute URLs and never touches bytes. Any one unset is 503
+  `armory_storage_not_configured` from `/api/armory/blob-url` and nothing else.
+- **`ARMORY_RELEASES_TOKEN`** -- a read-only GitHub token for the PRIVATE
+  pina-hash/idea-armory releases. Read ONLY by
+  `src/lib/server/armory/releases.ts`; it goes to api.github.com and never to
+  the signed asset host or the browser. Unset, `/armory/download` says to ask
+  for the flash drive and shows no link.
 
 **RETIRED, and to be removed from the Vercel env: `COIN_API_KEY`,
 `COIN_LEDGER_URL`, `PUBLIC_FOUNDRY_APPS_HOST`, `PUBLIC_FOUNDRY_APP_ORIGIN` and

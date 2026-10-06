@@ -750,7 +750,7 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 	   `/dev` and holds `themeInScope` to the POLICY, written out here as
 	   literals rather than read from the module under test: the classroom, the
 	   reference viewer, the notebook and the home page, plus the site plate's
-	   eight prefixes less the TV stage. A page a lane adds under `/foundry`
+	   nine prefixes (Armory joined, ledger armory-b-website) less the TV stage. A page a lane adds under `/foundry`
 	   is in by prefix with no edit here; a page added under a new top-level
 	   address is OUT until somebody decides otherwise, which is the fail-closed
 	   direction. Both sets are COUNTED, so a walk that found nothing cannot
@@ -776,7 +776,7 @@ describe('a theme that repaints what the rooms read never reaches them: the rout
 			.filter((seg) => !/^\(.*\)$/.test(seg))
 			.map((seg) => (/^\[.*\]$/.test(seg) ? 'x' : seg))
 			.join('/') || '/';
-	const PLATE_POLICY = ['/dashboard', '/admin', '/archive', '/auth', '/coin-desk', '/foundry', '/maps', '/tournaments'];
+	const PLATE_POLICY = ['/dashboard', '/admin', '/archive', '/armory', '/auth', '/coin-desk', '/foundry', '/maps', '/tournaments'];
 	const CLASSROOM_POLICY = ['/classroom', '/reference', '/notebook'];
 	const under = (p: string, x: string) => p === x || p.startsWith(x + '/');
 	const expectedIn = (p: string) =>

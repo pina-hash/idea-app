@@ -1,0 +1,429 @@
+/*
+ * IDEA Armory on the website. One stylesheet for the room, every class
+ * prefixed `ar-` so nothing collides with app.css's global names (`.card`,
+ * `.callout`, `.field` all carry layout of their own). Colours are the site's
+ * tokens only, so the site theme (and Space White, through the site plate)
+ * repaints the room with no rule here. No grid or ruled backgrounds anywhere.
+ * A student surface: every control clears 44px.
+ */
+.ar-root {
+	--ar-gutter: clamp(1rem, 3vw, 2rem);
+	max-width: 76rem;
+	margin: 0 auto;
+	padding: 1.25rem var(--ar-gutter) 3rem;
+	color: var(--text-1);
+	font-family: var(--font-display);
+}
+.ar-root * {
+	min-width: 0;
+}
+.ar-crumbs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem 0.6rem;
+	align-items: center;
+	font-family: var(--font-mono);
+	font-size: 0.8rem;
+	letter-spacing: 0.06em;
+	color: var(--text-2);
+	margin-bottom: 0.4rem;
+}
+.ar-crumbs a {
+	color: var(--text-2);
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+}
+.ar-crumbs a:hover {
+	color: var(--hover-ink, var(--gold));
+}
+.ar-title {
+	font-family: var(--font-display);
+	font-size: clamp(1.6rem, 4vw, 2.3rem);
+	font-weight: 700;
+	line-height: 1.15;
+	margin: 0 0 0.35rem;
+	overflow-wrap: anywhere;
+}
+.ar-title::before {
+	content: none;
+}
+.ar-lead {
+	color: var(--text-2);
+	max-width: 46rem;
+	margin: 0 0 1.25rem;
+	line-height: 1.5;
+}
+.ar-panel {
+	background: var(--surface-1, var(--bg1));
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card);
+	padding: 1rem 1.15rem;
+	margin: 0 0 1.25rem;
+}
+.ar-panel h2 {
+	font-family: var(--font-mono);
+	font-size: 0.82rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--text-2);
+	margin: 0 0 0.75rem;
+}
+.ar-panel h2::before {
+	content: none;
+}
+.ar-notice {
+	display: flex;
+	gap: 0.75rem;
+	align-items: flex-start;
+	border: 1px solid var(--boundary);
+	border-left: 4px solid var(--amber);
+	border-radius: var(--radius-card);
+	background: var(--surface-1, var(--bg1));
+	padding: 0.85rem 1rem;
+	margin: 0 0 1.25rem;
+	line-height: 1.45;
+}
+.ar-notice-glyph {
+	font-size: 1.2rem;
+	line-height: 1.2;
+	color: var(--amber);
+}
+.ar-notice strong {
+	display: block;
+	margin-bottom: 0.15rem;
+}
+.ar-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	min-height: 44px;
+	padding: 0.55rem 1.1rem;
+	font-family: var(--font-mono);
+	font-size: 0.82rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--green);
+	background: transparent;
+	border: 1px solid var(--green);
+	border-radius: var(--radius-control, 4px);
+	cursor: pointer;
+	text-decoration: none;
+}
+.ar-btn:hover {
+	background: var(--green);
+	color: var(--bg0);
+}
+.ar-btn.quiet {
+	color: var(--text-1);
+	border-color: var(--boundary);
+}
+.ar-btn.quiet:hover {
+	color: var(--hover-ink, var(--gold));
+	border-color: var(--hover-ink, var(--gold));
+	background: transparent;
+}
+.ar-btn.danger {
+	color: var(--amber);
+	border-color: var(--amber);
+}
+.ar-btn.danger:hover {
+	background: var(--amber);
+	color: var(--bg0);
+}
+.ar-btn[aria-disabled='true'] {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+.ar-row-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+	align-items: center;
+}
+.ar-field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+	font-size: 0.95rem;
+	flex: 1 1 14rem;
+}
+.ar-field span {
+	color: var(--text-2);
+	font-family: var(--font-mono);
+	font-size: 0.75rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+.ar-field input,
+.ar-field select {
+	min-height: 44px;
+	padding: 0.45rem 0.65rem;
+	font: inherit;
+	color: var(--text-1);
+	background: var(--bg0);
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-control, 4px);
+}
+.ar-form {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	align-items: flex-end;
+}
+.ar-message {
+	margin: 0.6rem 0 0;
+	color: var(--text-2);
+}
+.ar-message.bad {
+	color: var(--amber);
+}
+
+/* Projects */
+.ar-projects {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(17rem, 100%), 1fr));
+	gap: 0.85rem;
+}
+.ar-project {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	min-height: 44px;
+	padding: 1rem 1.1rem;
+	border: 1px solid var(--boundary);
+	border-radius: var(--radius-card);
+	background: var(--surface-1, var(--bg1));
+	color: var(--text-1);
+	text-decoration: none;
+}
+.ar-project:hover {
+	border-color: var(--hover-ink, var(--gold));
+}
+.ar-project-name {
+	font-size: 1.25rem;
+	font-weight: 700;
+	overflow-wrap: anywhere;
+}
+.ar-project-meta {
+	color: var(--text-2);
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+	letter-spacing: 0.06em;
+}
+
+/* Project page: tree beside members above 1024px */
+.ar-split {
+	display: grid;
+	gap: 1.25rem;
+	grid-template-columns: 1fr;
+}
+@media (min-width: 1024px) {
+	.ar-split {
+		grid-template-columns: minmax(0, 1fr) 22rem;
+		align-items: start;
+	}
+}
+.ar-live {
+	display: inline-flex;
+	gap: 0.4rem;
+	align-items: center;
+	font-family: var(--font-mono);
+	font-size: 0.75rem;
+	letter-spacing: 0.06em;
+	color: var(--text-2);
+	margin: 0 0 0.75rem;
+}
+.ar-live-dot {
+	width: 0.6rem;
+	height: 0.6rem;
+	border-radius: 50%;
+	background: var(--text-2);
+}
+.ar-live[data-live='live'] .ar-live-dot {
+	background: var(--green);
+}
+.ar-tree,
+.ar-tree ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.ar-tree ul {
+	padding-left: 1rem;
+	border-left: 1px solid var(--hairline, var(--line));
+	margin-left: 0.35rem;
+}
+.ar-folder-name {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	min-height: 36px;
+	font-family: var(--font-mono);
+	font-size: 0.82rem;
+	letter-spacing: 0.04em;
+	color: var(--text-2);
+	padding-top: 0.35rem;
+}
+.ar-file {
+	display: grid;
+	grid-template-columns: 2rem minmax(0, 1fr);
+	gap: 0.15rem 0.6rem;
+	align-items: start;
+	min-height: 44px;
+	padding: 0.55rem 0.5rem;
+	border-bottom: 1px solid var(--hairline, var(--line));
+	color: var(--text-1);
+	text-decoration: none;
+}
+.ar-file:hover {
+	background: color-mix(in srgb, var(--text-1) 5%, transparent);
+}
+.ar-file-glyph {
+	grid-row: span 2;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2rem;
+	height: 2rem;
+	border-radius: 50%;
+	border: 1px solid currentColor;
+	font-size: 1rem;
+}
+.ar-file-name {
+	font-weight: 600;
+	font-size: 1.05rem;
+	overflow-wrap: anywhere;
+}
+.ar-file-line {
+	color: var(--text-2);
+	font-size: 0.92rem;
+	line-height: 1.35;
+}
+.ar-state {
+	font-weight: 700;
+}
+.ar-tone-editing {
+	color: var(--amber);
+}
+.ar-tone-quiet {
+	color: var(--violet-ink, var(--amber));
+}
+.ar-tone-synced {
+	color: var(--green);
+}
+.ar-tone-waiting {
+	color: var(--text-2);
+}
+.ar-tone-removed {
+	color: var(--text-2);
+}
+.ar-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	padding: 0.05rem 0.5rem;
+	margin-left: 0.4rem;
+	border: 1px solid var(--boundary);
+	border-radius: 999px;
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.04em;
+	color: var(--text-2);
+	white-space: nowrap;
+}
+.ar-members {
+	list-style: none;
+	padding: 0;
+	margin: 0 0 1rem;
+}
+.ar-member {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.4rem 0.75rem;
+	min-height: 44px;
+	padding: 0.4rem 0;
+	border-bottom: 1px solid var(--hairline, var(--line));
+}
+.ar-member-who {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+.ar-member-email {
+	color: var(--text-2);
+	font-size: 0.85rem;
+	overflow-wrap: anywhere;
+}
+
+/* File history */
+.ar-holder {
+	display: flex;
+	gap: 0.75rem;
+	align-items: center;
+	margin: 0 0 1.25rem;
+}
+.ar-history {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+.ar-entry {
+	display: grid;
+	grid-template-columns: 2rem minmax(0, 1fr);
+	gap: 0.2rem 0.7rem;
+	padding: 0.75rem 0;
+	border-bottom: 1px solid var(--hairline, var(--line));
+}
+.ar-entry.side {
+	padding-left: 1.5rem;
+}
+.ar-entry-kind {
+	font-weight: 700;
+}
+.ar-entry-meta,
+.ar-entry-why {
+	color: var(--text-2);
+	font-size: 0.92rem;
+	line-height: 1.4;
+}
+.ar-hash {
+	font-family: var(--font-mono);
+	font-size: 0.75rem;
+	color: var(--text-2);
+	overflow-wrap: anywhere;
+}
+
+/* Download */
+.ar-downloads {
+	display: grid;
+	gap: 1rem;
+	grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+}
+.ar-download h3 {
+	margin: 0 0 0.35rem;
+	font-size: 1.2rem;
+}
+.ar-download p {
+	color: var(--text-2);
+	margin: 0 0 0.75rem;
+	line-height: 1.45;
+}
+
+/* Connect */
+.ar-connect {
+	max-width: 40rem;
+}
+.ar-connect-q {
+	font-size: clamp(1.25rem, 3vw, 1.6rem);
+	font-weight: 700;
+	line-height: 1.3;
+	margin: 0 0 0.75rem;
+	overflow-wrap: anywhere;
+}

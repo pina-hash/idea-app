@@ -294,6 +294,51 @@ using it rather than by being taught it.
 - `pina-hash/idea-app`: the website at `/armory`, the Supabase schema and the RPCs, in a
   later lane.
 
+## Where it runs now
+
+Added 2026-10-06 by lane B (`docs/prompt-ledger/entries/armory-b-website.md`), built to
+`docs/agent/CONTRACT.md` in pina-hash/idea-armory at `b18791d`. Armory is **unlisted**:
+nothing on the home page or in the site's shared navigation points here until the pilot.
+
+**Routes** (signed-in pages render a sign-in panel rather than redirecting, so a connect
+link survives a sign-in):
+
+| Route | What it is |
+|---|---|
+| `/armory` | My projects; a site admin also gets Create project |
+| `/armory/<project>` | The folder tree with a live mark on every file, and the people (mentors and CAD leads add and remove) |
+| `/armory/<project>/file/<file>` | Every version and side version, with who saved it and when, and who holds it now |
+| `/armory/connect` | Contract 3b: "Connect <device> to Armory as <email>?" |
+| `/armory/download`, `/armory/download/<file>` | The Windows app, streamed from the private release |
+| `POST /api/armory/blob-url` | Contract section 2 (the agent's Bearer token) |
+| `POST /api/armory/connect/start`, `POST /api/armory/connect/exchange` | Contract section 3 |
+| `/dev/armory` | The dev harness (404 in production) |
+
+**What Mr. Pina sets in Vercel** (Production and Preview, server-only, never `PUBLIC_`):
+
+- `ARMORY_R2_ACCOUNT_ID`, `ARMORY_R2_ACCESS_KEY_ID`, `ARMORY_R2_SECRET_ACCESS_KEY`,
+  `ARMORY_R2_BUCKET`. Until all four are set, `blob-url` answers 503
+  `armory_storage_not_configured` and the project page says file storage is not switched
+  on. The R2 token needs Object Read and Write on that one bucket only.
+- `ARMORY_RELEASES_TOKEN`: a fine-grained GitHub token with **Contents: read** on
+  pina-hash/idea-armory only. Unset, `/armory/download` says "Ask Mr. Pina for the Armory
+  flash drive" and shows no link.
+- `SUPABASE_SERVICE_ROLE_KEY` is already set; Armory uses it for the connect codes and to
+  mint the agent's own session.
+
+**Supabase auth redirect allowlist: nothing to add.** The agent's session is minted
+server-side (contract 3e): `auth.admin.generateLink` is called without `redirectTo`, only
+its `hashed_token` is used, and `verifyOtp` exchanges that hash directly, so no email is
+sent and no redirect URL is ever followed. The loopback `http://127.0.0.1:<port>/callback`
+is a redirect THIS site issues after its own POST; Supabase never sees it.
+
+**The schema is proposed, not live:** `docs/armory/proposed/NNNN_armory.sql`. It must not
+be moved into `supabase/migrations/` until the router chat numbers it and Mr. Pina
+approves it (`docs/decisions/entries/46-armory-migration-number-and-approval.md`),
+because `migrate.yml` applies that directory to production on every push to `main`.
+Until it is applied, every Armory page says "Armory is not switched on yet" and the API
+answers 503.
+
 ## Decisions owed
 
 Each has the default that will be taken if he does not choose otherwise.

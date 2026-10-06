@@ -1,0 +1,10 @@
+# 46 IDEA Armory: number and approve the proposed schema migration
+
+- Raised: 2026-10-06  By: lane B of the IDEA & FRC chat (`docs/prompt-ledger/entries/armory-b-website.md`)
+- Status: open
+- Decision:
+- Default this assistant would pick: give `docs/armory/proposed/NNNN_armory.sql` the next free migration number on `origin/main` at the time (0231 was free at idea-app `75cd5979`), move it into `supabase/migrations/` in a push of its own, and let `migrate.yml` apply it.
+- Why it is blocked on him: `migrate.yml` applies the lowest unapplied file in `supabase/migrations/` to production within minutes of a push to `main`, so moving the file IS the go-live, and lane B was told it must not.
+- What it unblocks: every `/armory` page and the three `/api/armory/*` endpoints (today they say "Armory is not switched on yet" or answer 503); the Windows agent connecting to ideabosco.com.
+- Context: `docs/ARMORY.md` ("Where it runs now"); `docs/armory/2026-10-06-B.md`; `docs/history/trusting-bardeen-buv6f8.md`. The file is pina-hash/idea-armory `server/sql/001` to `004` at `b18791d` merged into one, plus `armory_connect_codes`. It is additive only (every object new and named `armory_*`), passes `tools/apply-migration.mjs`'s scanner with no refusal and no top-level DML, carries its own apply-time self-check, re-applies as a no-op, and is proven on the whole chain in `tests/db/armory-proposed.test.ts`. Undo before any client depends on it: drop the `armory_*` objects by hand.
+- Two things to know before approving: (1) the merged file closes a grant hole in idea-armory's 003 (internal helpers were left executable by every signed-in user, so a student could have written change-feed rows into any project); (2) it omits 001's `create extension pgcrypto`, which the apply tool refuses and nothing needs.
