@@ -6,4 +6,4 @@
 - Does not touch: `supabase/**`, `materials/**`, `.github/**`, the home-page launcher, any shared navigation file.
 - Migration permitted: NO. The schema is `docs/armory/proposed/NNNN_armory.sql`; `git diff --name-only origin/main...HEAD -- supabase/` printed nothing before the push.
 - Status: pushed
-- Notes: Read-only on pina-hash/idea-armory at `b18791d`. The slug, not a number, so it cannot collide with a number a parallel chat holds. Decision 46 was free on `origin/main` at `d9cfaa2`.
+- Notes: Read-only on pina-hash/idea-armory at `b18791d`. The slug, not a number, so it cannot collide with a number a parallel chat holds. Decision 46 was free on `origin/main` at `d9cfaa2` and still at `63899f2`. Report: `docs/armory/2026-10-06-B.md`. Full suite: 4 files red, all red identically on clean `origin/main` (single-ref checkout, no 0230 record).
