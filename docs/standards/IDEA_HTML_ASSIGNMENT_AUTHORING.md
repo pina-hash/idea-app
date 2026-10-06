@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.12 - 2026-10-01**
+**Version 1.13 - 2026-10-05**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -669,8 +669,44 @@ the page reads. Each change is now a rule.
 
 ---
 
+## 16. Rules paid for by Hook 03 (2026-10-05)
+
+Hook 03 carries a hook from its first pull to the tournament across four classes. Built
+the night before its first stage was taught.
+
+- **A post whose stages span classes ships with today's stage only.** Later stages show
+  as locked cards ("Opens next class") with no inputs, and their blocks arrive at a later
+  re-upload under new permanent ids. Adding blocks never orphans an answer (section 2);
+  building a stage before its lesson is settled writes ids and a rubric for work nobody has
+  agreed to. The rubric regenerates from the manifest on that re-upload only while nobody
+  has hand-edited it (section 3), so hold rubric edits until the last stage is in.
+- **A "where did it break" pick filters the fix playbook below it.** Show only the fixes
+  for the picked place, always show the one that applies everywhere (here, paying for added
+  material with grams taken from somewhere the test showed was fine), and keep a "See every
+  fix" button so nothing is hidden from a student who wants to read them all. Each pick is a
+  picture card drawn on the student's own part with the place highlighted, plus
+  "Somewhere else" with a short field.
+- **A fix is drawn before and after on the earlier part's geometry**: the old outline
+  dashed, the new one solid, the added material in the success color. Parameterize the
+  earlier outline's sizes rather than drawing a new hook (section 15). A fix whose earlier
+  state already has it, like a fillet, is drawn against a version without it, or the figure
+  shows no change.
+- **A version-named hand-in checks the version.** A V2 slot handed a file named `V1_`
+  says so and gives the exact Save As step. A renamed V1 is the commonest wrong V2.
+- **`[hidden]` loses to any class that sets `display`.** A field styled `display: grid`
+  stays on screen with `hidden` set. Every document carries
+  `[hidden]{display:none !important}`.
+- **A locked stage card keeps its two columns.** Dimming it is enough; collapsing the mark
+  and the words into one column squeezes the text into a narrow strip at desktop width.
+
+---
+
 ## Changelog
 
+- **1.13 (2026-10-05).** Ledger 0361. New section 16: six rules from the Hook 03 build
+  (ship today's stage only with later stages locked, a break pick that filters the fix
+  playbook, before-and-after fix figures, a version-named hand-in check, the `[hidden]`
+  trap, locked stage cards).
 - **1.12 (2026-10-01).** Ledger 0360. Section 2: give each block a `prompt`, the question
   as a grader reads it. New section 9c, a presentation link hand-in (`link:
   "presentation"` on a `text` block, what the parent does with it, and three rules).
