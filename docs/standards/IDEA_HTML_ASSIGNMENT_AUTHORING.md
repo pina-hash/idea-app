@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.13 - 2026-10-05**
+**Version 1.14 - 2026-10-05**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -699,10 +699,70 @@ the night before its first stage was taught.
 - **A locked stage card keeps its two columns.** Dimming it is enough; collapsing the mark
   and the words into one column squeezes the text into a narrow strip at desktop width.
 
+## 17. Folding sections cleanly, and the classroom look (2026-10-05)
+
+Hook 03 was rebuilt the night before class so a stage reads as a short list of numbered
+moves that fold, in IDEA Classroom's plate look. Mr. Pina's bar: collapsing that is clean,
+never annoying. Measured in Chromium against a host page that resizes the frame the way the
+portal does: at 1440px the stage went from 4834px tall to 2581px with every move folded.
+
+- **A move folds only when the student presses something.** Picking an answer, finishing a
+  field or reaching 100% never folds anything; a section closing under the cursor is the
+  annoying kind. A move offers a "Next: <title>" key once it is done, and pressing it folds
+  this move and opens the next. Progress-bar jumps and links only ever OPEN.
+- **Arrival is derived from the saved answers.** A fresh student sees every move open. A
+  returning student sees done moves closed and the rest open. Read-only (the grading view)
+  opens everything. An optional move opens only when it has something in it.
+- **A closed header still says what is inside it**: the number, the title, a one-line
+  summary of the answer ("Neck", "46.8 g, under the cap", "0 of 4 answered"), a Done or To
+  do chip, and the word Show or Hide beside the chevron. A collapsed section that hides
+  whether it is finished makes the student open it to find out.
+- **Fold with `display: none`, never by animating height.** The frame's height comes from
+  the document through `idea:height`, so a height animation resizes the frame every frame
+  and moves the parent page under the reader. A short fade on the opened body is enough.
+- **Next is an instant cut, with focus moved.** Fold the current move, open the next, put
+  its header at the top of the screen with no smooth scroll (the content above the reader is
+  what shrinks, so a slide drags the page), and focus the next header so the keyboard and a
+  screen reader land on it.
+- **A header click opens in place, unless the opened body would run off the screen.** Then
+  bring the header to the top, but wait about 120ms first: the scroll has to happen after
+  the portal grows the frame, or the page is still the old height and stops short. Measured:
+  scrolled at once the header moved 92px instead of to the top.
+- **Open all and Close all sit beside the stage title**, Open all leaving optional moves
+  as they are. A textarea inside a closed move measured 0px when it was filled, so regrow
+  every textarea in a move when it opens.
+- **A pick-dependent panel stays shut until the pick.** The fix playbook shows nothing
+  before a break is picked, only a "See every fix" key.
+- **The stage chip counts the moves it sits above.** A chip counting progress segments
+  read "1 of 6 done" over two Done moves.
+- **The classroom look, from `src/lib/classroom/plate.css`**: the stage title is centered
+  spaced mono caps between hazard-hatch masks over a groove; status chips are recessed with
+  a small lamp; keys are raised with mono caps words; Space White keys are grey
+  (`#b8bdc5` to `#cdd2d9`, ink `#2d3238`), never white on white. Raised means pressable and
+  recessed means not, so a status chip never gets a drop shadow.
+- **Every control is 44px tall at every width**, the classroom's rule for student
+  surfaces. A slim progress segment reaches 44px through an invisible `::after` hit area,
+  checked by hit-testing points across its full height.
+- **A class name shared across stylesheets can paint a state class.** Hook 02's `.next`
+  panel rule matched the progress bar's `.pseg.next` state and drew the current segment as
+  a box. Before reusing an earlier document's CSS, search it for every bare class the new
+  markup uses as a state.
+- **A picture shows inside the document only until the page reloads.** On upload the
+  document draws it from the bytes it already holds. After a reload the portal hands back a
+  link the sandbox is not allowed to load, so the document can only say "Saved: <name>",
+  and the grading view lists the picture under the hand-in's files rather than in the
+  document. That is the platform (`CLAUDE.md`, "bytes go frame-to-parent only"), not
+  something a document can fix. Never tell students the picture stays in the worksheet.
+
 ---
 
 ## Changelog
 
+- **1.14 (2026-10-05).** Ledger 0362. New section 17: folding moves cleanly (fold only on a
+  press, arrival from saved answers, closed headers that say what is inside, `display:none`
+  over height animation, Next as an instant cut with focus, a delayed bring-up for a low
+  header, the stage chip counting moves), the classroom plate look, 44px taps at every
+  width, a shared class name painting a state class, and pictures shown only until reload.
 - **1.13 (2026-10-05).** Ledger 0361. New section 16: six rules from the Hook 03 build
   (ship today's stage only with later stages locked, a break pick that filters the fix
   playbook, before-and-after fix figures, a version-named hand-in check, the `[hidden]`
