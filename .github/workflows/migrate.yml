@@ -142,6 +142,12 @@ jobs:
           HAS_MIGRATION_URL: ${{ secrets.IDEA_MIGRATION_URL != '' }}
         run: |
           set -uo pipefail
+          # NO `shell:` IS SET, SO GITHUB RUNS THIS AS `bash -e {0}`, and `set -u`
+          # does not undo the `-e`. The probe exits 2 for "not applied", which
+          # under `-e` killed this step before `PROBE=$?` and the `case` below
+          # ever ran (runs on 75cd5979 and 4fc641b7). Every exit is handled
+          # explicitly below, so errexit is off for the step.
+          set +e
           echo "target=" >> "$GITHUB_OUTPUT"
 
           # UNSET IS A SUPPORTED STATE AND IS GREEN. It is the state of this
@@ -340,6 +346,10 @@ jobs:
           LEDGER: ${{ steps.ledger.outputs.id }}
         run: |
           set -uo pipefail
+          # The same `bash -e` trap as the probe step: with pipefail, exit 4
+          # (applied, not verified) would end the step before CODE is recorded,
+          # and the record step keys on that output. Every exit is handled below.
+          set +e
           node tools/apply-migration.mjs "$TARGET" --ledger "$LEDGER" | tee apply.log
           CODE="${PIPESTATUS[0]}"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
