@@ -7,7 +7,19 @@
 	import { onDestroy } from 'svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import { runBulk } from '$lib/classroom/classroom';
-	import type { FeedbackHorizon, FeedbackRow, FeedbackStatus } from '$lib/feedback/feedback';
+	import Disclosure from '$lib/Disclosure.svelte';
+	import FeedbackEditForm from '$lib/feedback/FeedbackEditForm.svelte';
+	import { saveBytes, saveText } from '$lib/feedback/download';
+	import { REPORT_LABEL } from '$lib/feedback/context';
+	import {
+		FEEDBACK_KINDS,
+		FEEDBACK_STATUSES,
+		type FeedbackEdit,
+		type FeedbackEditTransport,
+		type FeedbackHorizon,
+		type FeedbackRow,
+		type FeedbackStatus
+	} from '$lib/feedback/feedback';
 	import {
 		buildFeedbackArchive,
 		type FeedbackScreenshotSource
@@ -30,10 +42,14 @@
 		rowBuild,
 		rowContact,
 		rowDistinctPath,
+		rowEdit,
 		rowErrorId,
 		rowHorizon,
 		rowIsAnonymous,
+		rowKind,
+		rowMessage,
 		rowMetaExtras,
+		rowOriginal,
 		rowRole,
 		rowRoute,
 		rowSection,
@@ -89,6 +105,7 @@
 		setStatus,
 		setHorizon,
 		horizonUnavailable = null,
+		editFeedback,
 		now = () => Date.now(),
 		undoMs = FEEDBACK_UNDO_MS
 	}: {
@@ -152,6 +169,14 @@
 		 * a reason says the reason, once, above the list.
 		 */
 		horizonUnavailable?: string | null;
+		/**
+		 * CORRECT A FILED REPORT'S KIND, MESSAGE AND "TRIED" (0233's
+		 * `app_feedback_edit`, report d362bfb3), or undefined. ABSENCE REMOVES
+		 * THE EDIT CONTROL ON EVERY ROW: the page hands it in only when its load
+		 * saw the `edit` key the 0233 read adds, so a deployment that could only
+		 * refuse an edit is never offered one.
+		 */
+		editFeedback?: FeedbackEditTransport;
 		/** Injectable clock, so a harness can pin the export stamp. */
 		now?: () => number;
 		/**
@@ -187,12 +212,73 @@
 	 * reason this is a status rather than a removal: there is nothing to undo
 	 * FROM, because nothing was destroyed.
 	 */
-	const STATUSES: { id: FeedbackStatus; label: string }[] = [
-		{ id: 'new', label: 'New' },
-		{ id: 'seen', label: 'Seen' },
-		{ id: 'resolved', label: 'Resolved' },
-		{ id: 'spam', label: 'Spam' }
-	];
+	const STATUSES = FEEDBACK_STATUSES;
+
+	// --- Edits (0233, report d362bfb3) ---------------------------------------
+	//
+	// OPTIMISTIC, THE `moved` SHAPE: a correction that landed shows before the
+	// page reloads, and wins only while its revision is newer than the row's
+	// own, so the reload's answer (which carries who edited it) takes over the
+	// moment it arrives.
+	let edited = $state<Record<string, FeedbackEdit>>({});
+	let editingId = $state<string | null>(null);
+	let editDirty = $state(false);
+	let editNote = $state<string | null>(null);
+
+	function withEdit(row: FeedbackRow): FeedbackRow {
+		const mine = edited[row.id];
+		if (!mine) return row;
+		return mine.revision > (rowEdit(row)?.revision ?? 0) ? { ...row, edit: mine } : row;
+	}
+
+	/**
+	 * THE ROWS AS THEY READ NOW, corrections included. Everything below reads
+	 * this rather than `rows`, so a correction reaches the card, the facets, the
+	 * filter and every export in the same frame.
+	 */
+	const liveRows = $derived(rows.map(withEdit));
+
+	function openEdit(row: FeedbackRow) {
+		if (editingId === row.id) return;
+		if (editingId && editDirty) {
+			error = 'Save or discard the edit you have open first.';
+			return;
+		}
+		error = null;
+		editDirty = false;
+		editingId = row.id;
+	}
+
+	function closeEdit() {
+		editingId = null;
+		editDirty = false;
+	}
+
+	function editSaved(row: FeedbackRow, edit: FeedbackEdit | null) {
+		if (edit) {
+			edited = { ...edited, [row.id]: edit };
+			editNote = `Saved your edit to ${feedbackRowLabel({ ...row, edit })}. The reporter's own words are kept under As sent.`;
+		} else {
+			editNote = `Nothing changed on ${feedbackRowLabel(row)}, so no revision was added.`;
+		}
+		closeEdit();
+	}
+
+	/**
+	 * WHO CORRECTED IT AND WHEN, as one string so no template whitespace rule
+	 * can run the words together ("Editedby ...on").
+	 */
+	function editedLine(edit: FeedbackEdit | null): string {
+		if (!edit) return '';
+		const who = edit.edited_by ? ` by ${edit.edited_by}` : '';
+		const when = whenLabel(edit.edited_at);
+		return `Edited${who}${when ? ` on ${when}` : ''} (revision ${edit.revision})`;
+	}
+
+	/** A kind's word, the box's own ("Liked it" for praise), or the stored value. */
+	function kindWord(kind: string): string {
+		return FEEDBACK_KINDS.find((k) => k.id === kind)?.label ?? kind;
+	}
 
 	// OPENS ON NEW REPORTS THAT ARE DUE SOON (0230): a long-term idea is one
 	// press away under its own tab, never in the way of this week's triage.
@@ -220,7 +306,7 @@
 
 	// New first is the working order: the queue exists to be worked through,
 	// and a resolved note is history.
-	const visible = $derived(filterFeedback(rows, filter, statusOf, horizonOf));
+	const visible = $derived(filterFeedback(liveRows, filter, statusOf, horizonOf));
 	/** The two lists the "Both" view renders, from the same filtered set. */
 	const split = $derived(splitByHorizon(visible, horizonOf));
 
@@ -230,11 +316,11 @@
 	 * and not four new reports somewhere else on the site.
 	 */
 	const inHorizon = $derived(
-		filter.horizon ? rows.filter((r) => horizonOf(r) === filter.horizon) : rows
+		filter.horizon ? liveRows.filter((r) => horizonOf(r) === filter.horizon) : liveRows
 	);
 	const horizonCounts = $derived({
-		now: rows.filter((r) => horizonOf(r) === 'now').length,
-		long_term: rows.filter((r) => horizonOf(r) === 'long_term').length
+		now: liveRows.filter((r) => horizonOf(r) === 'now').length,
+		long_term: liveRows.filter((r) => horizonOf(r) === 'long_term').length
 	});
 	const HORIZON_TABS: { id: '' | FeedbackHorizon; label: string }[] = [
 		{ id: 'now', label: 'Fix soon' },
@@ -251,8 +337,8 @@
 			STATUSES.map((s) => [s.id, inHorizon.filter((r) => statusOf(r) === s.id).length])
 		) as Record<FeedbackStatus, number>
 	);
-	const roles = $derived(facetValues(rows, rowRole));
-	const sections = $derived(facetValues(rows, rowSection));
+	const roles = $derived(facetValues(liveRows, rowRole));
+	const sections = $derived(facetValues(liveRows, rowSection));
 	/**
 	 * THE KINDS PRESENT, READ OFF THE ROWS rather than from `FEEDBACK_KINDS`.
 	 *
@@ -264,9 +350,9 @@
 	 * producers -- and it is why the picker never offers a kind that would
 	 * filter to nothing.
 	 */
-	const kinds = $derived(facetValues(rows, (r) => (r.kind ?? '').trim() || null));
+	const kinds = $derived(facetValues(liveRows, (r) => (rowKind(r) ?? '').trim() || null));
 	/** How many of the loaded rows carry a screenshot, so the facet says what it would find. */
-	const withShots = $derived(rows.filter((r) => rowScreenshotPath(r) !== null).length);
+	const withShots = $derived(liveRows.filter((r) => rowScreenshotPath(r) !== null).length);
 
 	function whenLabel(iso: string): string {
 		const d = new Date(iso);
@@ -523,33 +609,11 @@
 	);
 
 	/**
-	 * The download. `<a download>` on a blob URL, revoked after the click: a
-	 * server round trip would only re-derive rows the console already holds.
+	 * The download, through the ONE implementation of the click
+	 * (`$lib/feedback/download`), which the Armory consoles share.
 	 */
-	function download(name: string, text: string, mime: string) {
-		saveBlob(name, new Blob([text], { type: `${mime};charset=utf-8` }));
-	}
-
-	/** The same click, for bytes rather than text. */
-	function downloadBytes(name: string, bytes: Uint8Array) {
-		saveBlob(name, new Blob([bytes as BlobPart], { type: 'application/zip' }));
-	}
-
-	/**
-	 * ONE IMPLEMENTATION OF THE CLICK. Two of these is two places a revoke can
-	 * be forgotten, and the second one is always the one that is.
-	 */
-	function saveBlob(name: string, blob: Blob) {
-		if (typeof document === 'undefined') return;
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = name;
-		document.body.appendChild(a);
-		a.click();
-		a.remove();
-		URL.revokeObjectURL(url);
-	}
+	const download = saveText;
+	const downloadBytes = saveBytes;
 
 	function exportMarkdown() {
 		const stamp = new Date(now()).toISOString();
@@ -670,7 +734,7 @@
 		<div class="eyebrow">IDEA // Admin</div>
 		<h1>Feedback</h1>
 		<p class="lead">
-			Everything sent from the Report a problem control, anywhere in the portal, with the route,
+			Everything sent from the {REPORT_LABEL} control, anywhere in the portal, with the route,
 			role, section and build it was captured with.
 		</p>
 	</section>
@@ -703,7 +767,7 @@
 					data-testid="fbc-horizon-{h.id || 'both'}"
 					onclick={() => (filter = { ...filter, horizon: h.id })}
 				>
-					{h.label} ({h.id ? horizonCounts[h.id] : rows.length})
+					{h.label} ({h.id ? horizonCounts[h.id] : liveRows.length})
 				</button>
 			{/each}
 		</div>
@@ -778,7 +842,7 @@
 					<!-- THE COUNT IS IN THE LABEL because a facet that would find
 					     nothing should say so before it is chosen, not after. -->
 					<option value="with">With one ({withShots})</option>
-					<option value="without">Without one ({rows.length - withShots})</option>
+					<option value="without">Without one ({liveRows.length - withShots})</option>
 				</select>
 			</div>
 			<div class="facet">
@@ -798,7 +862,7 @@
 
 		<div class="export-row">
 			<span class="export-count">
-				{visible.length} of {rows.length} shown
+				{visible.length} of {liveRows.length} shown
 			</span>
 			<!-- FILTER FIRST, THEN SELECT. It sits beside the count it acts on
 			     rather than in the bulk bar below, because the bulk bar appears
@@ -926,6 +990,11 @@
 				{horizonNote}
 			</p>
 		{/if}
+		{#if editNote}
+			<!-- SAID ABOVE THE LIST, like the horizon note: an edit that changed
+			     the kind can take the report off the list it was on. -->
+			<p class="note fbc-edit-note" aria-live="polite" data-testid="fbc-edit-note">{editNote}</p>
+		{/if}
 
 		{#snippet reportRow(row: FeedbackRow)}
 			<article class="card fb-row" class:resolved={statusOf(row) === 'resolved'}>
@@ -938,7 +1007,7 @@
 						data-testid="fbc-select-{row.id}"
 						onchange={() => toggleSelected(row.id)}
 					/>
-					<span class="fb-kind">{row.kind}</span>
+					<span class="fb-kind">{rowKind(row)}</span>
 					<span class="fb-route">{rowRoute(row)}</span>
 					<span class="fb-when">{whenLabel(row.created_at)}</span>
 					<span class="fb-status status-{statusOf(row)}">{statusOf(row)}</span>
@@ -948,18 +1017,54 @@
 						     list has scrolled. -->
 						<span class="chip fb-horizon-chip" data-testid="fbc-long-term-chip">Long-term</span>
 					{/if}
+					{#if rowEdit(row)}
+						<!-- THE WORD, NOT A COLOUR: a corrected report says it is one on
+						     its own card, in every view, whatever list it sits in. -->
+						<span class="chip fb-horizon-chip fb-edited-chip" data-testid="fbc-edited-chip">Edited</span>
+					{/if}
 				</div>
-				<p class="fb-message">{row.message}</p>
-				{#if rowTried(row)}
-					<!-- WHAT THEY TRIED, LABELLED AND SET APART FROM THE MESSAGE.
-					     Two pieces of prose run together read as one, and the whole
-					     point of this field is that it answers a different question
-					     from the one above it. Plain text interpolation, like every
-					     other field on this card: this component raw-renders
-					     nothing, so there is no second escaping decision here. -->
-					<div class="fb-tried">
-						<span class="fb-tried-label">Tried first</span>
-						<p class="fb-tried-text">{rowTried(row)}</p>
+				{#if editFeedback && editingId === row.id}
+					<FeedbackEditForm
+						{row}
+						{editFeedback}
+						{now}
+						ondirty={(d) => (editDirty = d)}
+						onsaved={(edit) => editSaved(row, edit)}
+						oncancel={closeEdit}
+					/>
+				{:else}
+					<p class="fb-message">{rowMessage(row)}</p>
+					{#if rowTried(row)}
+						<!-- WHAT THEY TRIED, LABELLED AND SET APART FROM THE MESSAGE.
+						     Two pieces of prose run together read as one, and the whole
+						     point of this field is that it answers a different question
+						     from the one above it. Plain text interpolation, like every
+						     other field on this card: this component raw-renders
+						     nothing, so there is no second escaping decision here. -->
+						<div class="fb-tried">
+							<span class="fb-tried-label">Tried first</span>
+							<p class="fb-tried-text">{rowTried(row)}</p>
+						</div>
+					{/if}
+				{/if}
+				{#if rowEdit(row)}
+					{@const edit = rowEdit(row)}
+					{@const original = rowOriginal(row)}
+					<p class="fb-edited" data-testid="fbc-edited-line">{editedLine(edit)}</p>
+					<!-- THE REPORTER'S OWN WORDS, ONE PRESS AWAY: closed by default
+					     and remembering nothing, as plain text like every other
+					     field on this card. -->
+					<div class="fb-as-sent" data-testid="fbc-as-sent">
+						<Disclosure label="As sent" collapseWhen={true} testId="fbc-as-sent-toggle">
+							<dl class="fb-as-sent-list">
+								<dt>Kind</dt>
+								<dd>{kindWord(original.kind)}</dd>
+								<dt>Message</dt>
+								<dd class="fb-as-sent-text">{original.message}</dd>
+								<dt>Tried first</dt>
+								<dd class="fb-as-sent-text">{original.tried ?? 'Nothing given'}</dd>
+							</dl>
+						</Disclosure>
 					</div>
 				{/if}
 				{#if rowScreenshotPath(row)}
@@ -1070,6 +1175,19 @@
 									moveHorizon(row, horizonOf(row) === 'long_term' ? 'now' : 'long_term')}
 							>
 								{horizonOf(row) === 'long_term' ? 'Move to fix soon' : 'Move to long-term'}
+							</button>
+						{/if}
+						<!-- LAST IN THE ROW, so the status keys keep their places. Absent
+						     with no transport (a deployment before 0233), and absent on
+						     the row whose form is open, which carries its own Cancel. -->
+						{#if editFeedback && editingId !== row.id}
+							<button
+								type="button"
+								class="fbc-control btn secondary fb-edit"
+								data-testid="fbc-edit-{row.id}"
+								onclick={() => openEdit(row)}
+							>
+								Edit
 							</button>
 						{/if}
 					</span>
@@ -1431,6 +1549,44 @@
 		white-space: pre-wrap;
 		line-height: 1.5;
 		font-size: 0.88rem;
+	}
+	/* AN ADMIN'S CORRECTION: who and when, in the meta voice, and the
+	   reporter's own words one press away. --text-2, never --text-3, because
+	   this is read. */
+	.fb-edited {
+		margin: 0 0 var(--space-1, 0.25rem);
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		color: var(--text-2);
+	}
+	.fb-as-sent {
+		margin: 0 0 var(--space-2);
+		min-width: 0;
+	}
+	.fb-as-sent-list {
+		display: grid;
+		grid-template-columns: max-content minmax(0, 1fr);
+		gap: 0.25rem 0.75rem;
+		margin: var(--space-1, 0.25rem) 0 0;
+	}
+	.fb-as-sent-list dt {
+		font-family: var(--font-mono);
+		font-size: 0.6rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	.fb-as-sent-list dd {
+		margin: 0;
+		min-width: 0;
+		font-size: 0.88rem;
+	}
+	.fb-as-sent-text {
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
+	.fbc-edit-note {
+		margin: 0 0 var(--space-3);
 	}
 	.fb-shot {
 		margin: 0 0 var(--space-2);

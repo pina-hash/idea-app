@@ -12,6 +12,9 @@ import type { PageServerLoad } from './$types';
  * who may open it.
  */
 export const load: PageServerLoad = async ({ locals }) => {
+	// FIRST, AND NOT REDUNDANT WITH THE LAYOUT'S: SvelteKit runs a layout's
+	// server load and this one concurrently unless this one awaits `parent()`,
+	// so a 404 there does not stop the reads below from starting.
 	await requireFeedbackConsole(locals);
 	const { supabase } = locals;
 
@@ -124,6 +127,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 		// only when 0230's wide read answered, which is the same migration that
 		// adds `app_feedback_set_horizon`. "Cannot tell" is false.
 		horizonReady,
+		// Whether this backend can take an admin's correction (0233): true only
+		// when a row the read returned carries the `edit` key, which the same
+		// apply adds to every row (null when never edited). Read over the MERGED
+		// rows, so an empty newest-200 list beside long-term rows still proves
+		// it. "Cannot tell" is false, and false removes the Edit control.
+		editReady: !rpcError && rows.some((r) => Object.hasOwn(r, 'edit')),
 		classroomSections,
 		screenshotUrls
 	};

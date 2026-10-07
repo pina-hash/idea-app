@@ -14,6 +14,7 @@ import { sectionById } from '$lib/curriculum';
 import { summarizeUserAgent } from './context';
 import {
 	isFeedbackHorizon,
+	type FeedbackEdit,
 	type FeedbackHorizon,
 	type FeedbackRow,
 	type FeedbackStatus
@@ -144,7 +145,9 @@ export function rowContact(row: FeedbackRow): string | null {
 }
 
 /**
- * WHAT THE REPORTER TRIED, from wherever this row happens to carry it.
+ * WHAT THE REPORTER TRIED, IN THEIR OWN WORDS, from wherever this row happens
+ * to carry it. (What the report says NOW, after any correction, is `rowTried`
+ * below, which reads this when nobody has edited the report.)
  *
  * TWO PLACES, ONE ANSWER. 0170 gives it a column, and both write paths put it
  * there once that migration is applied -- but a row filed before it, and a row
@@ -157,10 +160,91 @@ export function rowContact(row: FeedbackRow): string | null {
  * applied: it is what a deployment sitting between two migrations produces, and
  * that is a real state in this repo rather than a hypothetical one.
  */
-export function rowTried(row: FeedbackRow): string | null {
+export function rowOriginalTried(row: FeedbackRow): string | null {
 	const column = (row.tried ?? '').trim();
 	if (column) return column;
 	return metaString(row, 'tried');
+}
+
+// ---------------------------------------------------------------------------
+// An admin's correction (0233, report d362bfb3)
+// ---------------------------------------------------------------------------
+
+/**
+ * THE LATEST CORRECTION AN ADMIN MADE TO THIS REPORT, or null.
+ *
+ * VALIDATED, NOT TRUSTED: the payload is the console read's jsonb, and a shape
+ * this build does not understand reads as "never edited" rather than putting a
+ * half-read correction in front of the reporter's own words. The reporter's
+ * row (`row.kind`, `row.message`, `row.tried`) is never changed by an edit, so
+ * reading null here costs nothing but the correction.
+ */
+export function rowEdit(row: FeedbackRow): FeedbackEdit | null {
+	const raw = row.edit as unknown;
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+	const e = raw as Record<string, unknown>;
+	const revision = e.revision;
+	if (typeof revision !== 'number' || !Number.isInteger(revision) || revision < 1) return null;
+	if (typeof e.kind !== 'string' || !e.kind.trim()) return null;
+	if (typeof e.message !== 'string' || !e.message.trim()) return null;
+	if (typeof e.edited_at !== 'string') return null;
+	const tried = typeof e.tried === 'string' && e.tried.trim() ? e.tried : null;
+	const editedBy = typeof e.edited_by === 'string' && e.edited_by.trim() ? e.edited_by : null;
+	return {
+		revision,
+		kind: e.kind,
+		message: e.message,
+		tried,
+		edited_by: editedBy,
+		edited_at: e.edited_at
+	};
+}
+
+/** Whether an admin has corrected this report. */
+export function rowIsEdited(row: FeedbackRow): boolean {
+	return rowEdit(row) !== null;
+}
+
+/**
+ * WHAT THE REPORT SAYS NOW: the latest correction's words where there is one,
+ * the reporter's own otherwise. THE ONE READER of a report's kind and message
+ * for every surface that SHOWS one -- the card, the kind facet, the filter,
+ * the bulk notes, the markdown export and the archive's report.md -- so the
+ * correction an admin made cannot reach one of them and miss another.
+ *
+ * THE JSON EXPORT DOES NOT GO THROUGH THESE, deliberately: it carries each row
+ * verbatim, so the reporter's own words stay on the row and the correction
+ * rides beside them under `edit`.
+ */
+export function rowKind(row: FeedbackRow): string {
+	return rowEdit(row)?.kind ?? row.kind;
+}
+
+export function rowMessage(row: FeedbackRow): string {
+	return rowEdit(row)?.message ?? row.message;
+}
+
+/**
+ * WHAT THE REPORTER TRIED, as the report says it now. An edit carries its own
+ * "tried", null included -- an admin may clear the field, and a correction
+ * that cleared it must not fall back to the words it removed.
+ */
+export function rowTried(row: FeedbackRow): string | null {
+	const edit = rowEdit(row);
+	if (edit) return edit.tried?.trim() || null;
+	return rowOriginalTried(row);
+}
+
+/**
+ * THE REPORTER'S OWN WORDS, whatever an admin has done since: what the console
+ * shows under "As sent" and what the edit form compares against at revision 0.
+ */
+export function rowOriginal(row: FeedbackRow): {
+	kind: string;
+	message: string;
+	tried: string | null;
+} {
+	return { kind: row.kind, message: row.message, tried: rowOriginalTried(row) };
 }
 
 /**
@@ -396,7 +480,9 @@ export function filterFeedback(
 		}
 		if (role && (rowRole(row) ?? '') !== role) return false;
 		if (section && (rowSection(row) ?? '') !== section) return false;
-		if (kind && (row.kind ?? '').trim() !== kind) return false;
+		// THE KIND THE REPORT SAYS NOW: an admin who recategorised a report
+		// filed as a bug finds it under the kind they gave it.
+		if (kind && (rowKind(row) ?? '').trim() !== kind) return false;
 		// BOTH DIRECTIONS FROM ONE PREDICATE. `rowScreenshotPath` is the only
 		// reader of that column anywhere in this file, so "has a screenshot"
 		// cannot come to mean one thing here and another in the export.
@@ -672,7 +758,7 @@ function oneRow(
 	screenshotNote?: (row: FeedbackRow) => string | null
 ): string {
 	const route = rowRoute(row);
-	const lines: string[] = [`### ${index}. ${row.kind} at ${route}`];
+	const lines: string[] = [`### ${index}. ${rowKind(row)} at ${route}`];
 
 	// THE CORRELATION ID GETS ITS OWN LINE, AT THE TOP. It is the only field
 	// here that leads anywhere else: it is what joins this report to the server
@@ -696,6 +782,18 @@ function oneRow(
 		`horizon: ${feedbackHorizonWord(rowHorizon(row))}`,
 		`filed: ${row.created_at}`
 	];
+	// AN ADMIN'S CORRECTION SAYS SO, ON ITS OWN LINE, and only on a report that
+	// has one, so an unedited report's text is byte-identical to what it always
+	// was. The words below are the corrected ones; the reporter's own are not
+	// printed here (a paste bundle with two versions of one report hands its
+	// reader a choice nobody asked them to make), and stay on the row in the
+	// JSON export and under "As sent" in the console.
+	const edit = rowEdit(row);
+	if (edit) {
+		facts.push(
+			`edited: ${edit.edited_at}${edit.edited_by ? ` by ${edit.edited_by}` : ''} (revision ${edit.revision}); the reporter's own words are kept in the console and in the JSON export`
+		);
+	}
 	const path = rowDistinctPath(row);
 	if (path) facts.push(`path: ${path}`);
 	const role = rowRole(row);
@@ -743,7 +841,7 @@ function oneRow(
 
 	lines.push(facts.map((f) => `- ${f}`).join('\n'));
 	lines.push('');
-	lines.push(quoteMessage(row.message));
+	lines.push(quoteMessage(rowMessage(row)));
 
 	// WHAT THEY TRIED, AS ITS OWN LABELLED QUOTE. It is prose somebody typed, so
 	// it goes through the SAME `quoteMessage` the message does -- a report that
@@ -989,7 +1087,7 @@ export const FEEDBACK_BULK_NAME_LIMIT = 6;
  * decision here beyond keeping it to one line.
  */
 export function feedbackRowLabel(row: FeedbackRow): string {
-	const flat = row.message.replace(/\s+/g, ' ').trim();
+	const flat = rowMessage(row).replace(/\s+/g, ' ').trim();
 	const excerpt = flat.length > 48 ? `${flat.slice(0, 45)}...` : flat;
 	return excerpt ? `${rowRoute(row)} "${excerpt}"` : rowRoute(row);
 }

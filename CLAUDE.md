@@ -1537,7 +1537,13 @@ step names keeps its hook**, and a step names a control by its printed word.
 - **THE REPORT CONTROL'S WORDS ARE `REPORT_LABEL` AND `REPORT_LABEL_SHORT`** in
   `$lib/feedback/context.ts`; any copy that tells somebody to press it reads
   them, because the updates page pointed at a "Feedback button" for weeks after
-  the button said "Report a problem".
+  the button said "Report a problem". **They are "Send feedback" and "Feedback"
+  since 2026-10-07** (report e36c5437: the box takes ideas and praise too), with
+  `FEEDBACK_PROMPT` and the speech-bubble `FEEDBACK_GLYPH` beside them (the error
+  page keeps `PROBLEM_GLYPH`); the legacy panel and VANGUARD get all of them
+  through their config JSON, never as literals. The identifiers and every hook
+  (`data-tour="report"`, `shell-report`, `.sfb-*`, the legacy panels' ids) keep
+  their names, because tours and specs address them.
 - **`InfoTip` OPENS ON A TAP AND STAYS OPEN UNTIL A TAP ELSEWHERE, ESCAPE OR
   BLUR.** A tip a phone cannot open is a `title` by another name. It has two
   sizes and the caller says which: `tap="reach"` (the default) for a trigger
@@ -2533,7 +2539,8 @@ it is not required to browse.
   the notebook Drive connect flow, FRC completion overrides and gate reviews,
   the FSP FRC-interest roster, GREENLINE decal + community-track moderation,
   tournament deletion, the all-users feedback read (`/admin/feedback`, whose
-  old `/classroom/feedback` address forwards only after the same gate),
+  old `/classroom/feedback` address forwards only after the same gate, and its
+  Armory tabs `/admin/feedback/armory` and `/admin/feedback/incidents`),
   VANGUARD's TUNE mode, the
   Foundry review queue (`/foundry/review`, and its `/foundry/review/publishers`), the Foundry source reader
   (`POST /api/foundry/source`), the IDEA Maps editor (everything under
@@ -3617,10 +3624,25 @@ with its own answer for the rows already stored.
   firing leaves a subtly wrong value forever with nothing to catch it.
 - **Append-only where the record matters.** `coin_transactions`,
   `notebook_entry_notes`, `classroom_content_revisions`,
-  `tournament_match_events` and `app_feedback` have no UPDATE or DELETE grant at
-  all. Editing INSERTS a superseding row; the chain is `supersedes_id` + a unique
-  `(logical_id, revision)`, so "current" is a plain `max()` and two concurrent
-  edits collide on the constraint instead of silently losing one.
+  `tournament_match_events`, `app_feedback` and `app_feedback_edits` have no
+  UPDATE or DELETE grant at all. Editing INSERTS a superseding row; the chain is
+  `supersedes_id` + a unique `(logical_id, revision)`, so "current" is a plain
+  `max()` and two concurrent edits collide on the constraint instead of silently
+  losing one.
+  - **AN ADMIN MAY CORRECT A FILED REPORT, AND THE REPORTER'S ROW STILL NEVER
+    CHANGES (0233, report d362bfb3).** `app_feedback_edit` (admin only) inserts
+    revision n+1 of the kind, message and "tried" into `app_feedback_edits`,
+    keyed `(feedback_id, revision)`, refuses a form opened on an older revision
+    as `stale`, and stamps nothing for a save that changes nothing (asked before
+    staleness, so a retried save finds its own words). The wide
+    `app_feedback_admin_list` projects the latest as `edit` on EVERY row, null
+    when unedited, and that key's presence is what licenses the Edit control.
+    `rowKind`, `rowMessage` and `rowTried` in `$lib/feedback/console.ts` are the
+    one reader of what a report says now; the JSON export and the archive's
+    index.json keep the reporter's words on the row with `edit` beside them, and
+    `tools/feedback_digest.py` prints the corrected words, tagged `[edited]`.
+    (Status and horizon were always admin-updated columns; the reporter's own
+    columns are what no write path touches.)
   - **THE ONE NARROWING, AND IT IS ABOUT WHAT NOBODY HAS READ YET (0129).** A
     revision an AUTOSAVE wrote may be replaced in place by the next autosave,
     because otherwise a debounce mints a revision per keystroke burst and a
@@ -3651,7 +3673,11 @@ with its own answer for the rows already stored.
 - **Archive, never delete.** `active = false` / `revoked_at` / `removed` keep
   history, roster and board rows intact. A real delete is offered only where the
   row holds no record worth keeping (a notebook FOLDER is organization, so
-  deleting one unfiles its entries and loses only the filing).
+  deleting one unfiles its entries and loses only the filing). **The one named
+  exception is an Armory incident** (0233, website requests v0.3 item 4b,
+  decision D4 of the 2026-10-07 round): a diagnostic log the app wrote about
+  itself, deleted 90 days after it arrives by the next incident's submit, and
+  hidden from the list past 90 days by the read itself.
 - **A soft-delete stamp is not a boundary.** The stamp is only as good as the
   filters behind it: enumerate every function, view and select that lists the
   table and exclude there, and pair each exclusion assertion with a positive
@@ -3912,7 +3938,11 @@ inside the function fails closed rather than falling through to a weaker path.
     `_stripForNonAdmin` for exactly this reason. Prefix it, or move it to a
     module beside the route and import it from both.
 - **A group-wide gate is hoisted to `+layout.server.ts`** and stated once, so a
-  new area cannot ship ungated by forgetting to copy the check.
+  new area cannot ship ungated by forgetting to copy the check. **A page under
+  it that READS still calls the gate as its own first statement**: SvelteKit
+  runs a layout's server load and a page's concurrently unless the page awaits
+  `parent()`, so the layout's 404 does not stop the page's reads from starting
+  (`/admin/feedback`'s three pages, `tests/feedback-console-route.test.ts`).
 - **A FAILED LOAD RENDERS IN THE APP'S CHROME.** `src/routes/+error.svelte` is the
   ONE error boundary -- root only, because a root boundary already catches a
   failure from any page or layout load beneath it and a per-section one is one
@@ -4382,7 +4412,8 @@ inside the function fails closed rather than falling through to a weaker path.
     own since ledger 0298: it is the command palette's Speak control), and a
     `/dev` harness that mounts the real shell is listed
     in `CLASSROOM_SHELL_HARNESSES` so it measures the production arrangement.
-    **Report has its own header slot and never folds into the Menu** (report 30:
+    **The feedback control (`REPORT_LABEL_SHORT`) has its own header slot and
+    never folds into the Menu** (report 30:
     folded below 1180px, it read as missing); on a phone it stacks its word under
     its glyph so a class icon still fits. A
     category with nowhere to relocate to is an exclusion that deleted the control.
@@ -4420,9 +4451,22 @@ inside the function fails closed rather than falling through to a weaker path.
     `isAdmin === true` and never on the console itself; `SiteFeedback` derives it
     from `page.data.isAdmin`, so no mount threads it, and it opens a new tab so a
     half-typed report is never lost.
-  - **`app_feedback` is the ONE queue for every surface**, and the console at
-    `/admin/feedback` (admin only, decision 42) reads ALL apps. Filter before
-    exporting; an export of everything is a semester nobody reads.
+  - **`app_feedback` is the ONE queue for every website surface**, and the
+    console at `/admin/feedback` (admin only, decision 42) reads ALL apps.
+    Filter before exporting; an export of everything is a semester nobody reads.
+    **The IDEA Armory Windows app's notes and incidents are their own tables**
+    (`armory_app_feedback`, `armory_app_incidents`, 0233, v0.3 items 4 and 4b:
+    8000-character notes, a required app version, 1 MiB incident reports),
+    read on `/admin/feedback/armory` and `/admin/feedback/incidents` by
+    `ArmoryFeedbackConsole` and `ArmoryIncidentConsole` over
+    `$lib/feedback/armory-reports.ts`, behind one gate in
+    `src/routes/admin/feedback/+layout.server.ts` with the area's header and its
+    `FeedbackSourcesNav` strip in `+layout.svelte`. The incident list never
+    carries `report` (it projects `report_bytes`); a report is read by the
+    admin's own client at the download, one file per card and one zip for a
+    selection (`buildIncidentZip`, over `buildZip`), never N downloads from one
+    press. The three consoles share one status list (`FEEDBACK_STATUSES`) and
+    one download click (`saveBlob` in `$lib/feedback/download.ts`).
     - **IT IS A SITE PAGE, NOT A CLASSROOM ONE (report R03).** The portal's app
       header, the root layout's report control and the site plate, and no
       `.cr-root` around it, so `FeedbackConsole` may style nothing through

@@ -9,7 +9,12 @@ Writes, into <out dir> (a SCRATCHPAD, never the repository):
                   named by ROLE only (the site owner is named, nobody else),
                   plus the path of its screenshot inside <out dir>/archive/.
                   A report marked as a long-term idea (0230) carries a
-                  [long-term] tag, so a round can set it aside without opening it
+                  [long-term] tag, so a round can set it aside without opening it.
+                  A report a site admin corrected (0233) prints the CORRECTED
+                  kind, message and tried, tagged [edited]; the reporter's own
+                  words stay in the archive's index.json and are not printed,
+                  because a correction may exist precisely to remove a dictated
+                  name or a garble, and this file is pasted into a committed triage
   mark-seen.sql   one paste for the Supabase SQL editor that moves exactly
                   these reports from `new` to `seen`, so the next export filtered
                   to `status: new` does not hand the same reports back
@@ -74,7 +79,27 @@ def main(argv):
         h = horizons.get(r.get('id')) or r.get('horizon') or (r.get('meta') or {}).get('horizon')
         return 'long_term' if h == 'long_term' else 'now'
 
-    lines, ids, shots, statuses, long_term = [], [], 0, {}, 0
+    def edit_of(r):
+        # The latest correction, read the way the console's rowEdit reads it:
+        # a dict with a positive integer revision, a kind and a non-blank
+        # message, or nothing. A shape this tool does not recognise is no edit.
+        e = r.get('edit')
+        if not isinstance(e, dict):
+            return None
+        rev = e.get('revision')
+        if not isinstance(rev, int) or isinstance(rev, bool) or rev < 1:
+            return None
+        if not (isinstance(e.get('kind'), str) and e['kind'].strip()):
+            return None
+        if not (isinstance(e.get('message'), str) and e['message'].strip()):
+            return None
+        return e
+
+    def tried_of(r):
+        t = r.get('tried') or (r.get('meta') or {}).get('tried')
+        return t.strip() if isinstance(t, str) and t.strip() else None
+
+    lines, ids, shots, statuses, long_term, edited = [], [], 0, {}, 0, 0
     for i, r in enumerate(reports, 1):
         meta = r.get('meta') or {}
         email = (r.get('submitter_email') or '').strip().lower()
@@ -89,8 +114,19 @@ def main(argv):
         if horizon_of(r) == 'long_term':
             tag = ' [long-term]'
             long_term += 1
+        edit = edit_of(r)
+        if edit:
+            tag += ' [edited]'
+            edited += 1
+            kind = edit['kind']
+            message = edit['message']
+            tried = edit['tried'].strip() if isinstance(edit.get('tried'), str) and edit['tried'].strip() else None
+        else:
+            kind = r.get('kind')
+            message = r.get('message') or ''
+            tried = tried_of(r)
         head = (
-            f"R{i:02d} [{r.get('kind')}]{tag} app={r.get('app')} path={meta.get('path')} "
+            f"R{i:02d} [{kind}]{tag} app={r.get('app')} path={meta.get('path')} "
             f"by={who} filed={(r.get('created_at') or '')[:16]} build={build} "
             f"viewport={meta.get('viewport')} id={r.get('id')}"
         )
@@ -103,9 +139,9 @@ def main(argv):
         if shot:
             shots += 1
             entry.append('  screenshot: ' + os.path.join(base, shot))
-        entry.append('  > ' + (r.get('message') or '').replace('\n', '\n  > '))
-        if r.get('tried'):
-            entry.append('  tried: ' + r['tried'].replace('\n', ' '))
+        entry.append('  > ' + message.replace('\n', '\n  > '))
+        if tried:
+            entry.append('  tried: ' + tried.replace('\n', ' '))
         lines.append('\n'.join(entry))
         ids.append(r.get('id'))
         statuses[r.get('status')] = statuses.get(r.get('status'), 0) + 1
@@ -150,6 +186,7 @@ where status = 'new'
 
     print(f'{len(reports)} reports, {shots} screenshots, statuses {statuses}')
     print(f'{long_term} marked as a long-term idea (tagged [long-term] in reports.txt), {len(reports) - long_term} to fix soon')
+    print(f'{edited} corrected by an admin (tagged [edited]; the corrected words are printed, the original stays in index.json)')
     src = ((data.get('archive') or {}).get('exportedFrom') or {})
     print(f"exported {data.get('generatedAt')} from commit {src.get('sha', 'unknown')} ({src.get('date', '?')})")
     print(f'wrote {os.path.join(out_dir, "reports.txt")} and mark-seen.sql')

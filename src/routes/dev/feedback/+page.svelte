@@ -3,9 +3,15 @@
 	import { SITE_PLATE } from '$lib/shell/site-plate';
 	import SiteFeedback from '$lib/feedback/SiteFeedback.svelte';
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
+	import FeedbackSourcesNav from '$lib/feedback/FeedbackSourcesNav.svelte';
+	import ArmoryFeedbackConsole from '$lib/feedback/ArmoryFeedbackConsole.svelte';
+	import ArmoryIncidentConsole from '$lib/feedback/ArmoryIncidentConsole.svelte';
+	import { ARMORY_REPORTS_NOT_READY } from '$lib/feedback/armory-reports';
+	import { armorySampleIncidents, armorySampleNotes, armorySampleReports } from './armory-samples';
 	import { describeBuild, FEEDBACK_EXCLUSIONS } from '$lib/feedback/context';
 	import { submitAnonymousFeedback } from '$lib/feedback/feedback';
 	import type {
+		FeedbackEditTransport,
 		FeedbackEntry,
 		FeedbackHorizon,
 		FeedbackRow,
@@ -209,6 +215,32 @@
 				submitter_name: 'Harness User',
 				submitter_email: 'harness@boscotech.net'
 			},
+			/*
+				A REPORT AN ADMIN ALREADY CORRECTED (0233), so the Edited tag, the
+				"Edited by" line and the As sent panel are on screen with nothing
+				driven. The reporter's own words are the garble; the edit is
+				what the round should read.
+			*/
+			{
+				...base,
+				id: 'seed-edited',
+				kind: 'bug' as const,
+				message: 'um the grading thing Jane said it like freezes when you press the next uh button',
+				tried: 'reloaded i think',
+				meta: { route: '/classroom/[sectionId]/grades', path: '/classroom/s-1/grades', viewport: '1440x900' },
+				anonymous: false,
+				contact: null,
+				submitter_name: 'Harness User',
+				submitter_email: 'harness@boscotech.net',
+				edit: {
+					revision: 1,
+					kind: 'bug',
+					message: 'The grading console freezes when Next student is pressed.',
+					tried: 'Reloaded the page.',
+					edited_by: 'harness-admin@boscotech.edu',
+					edited_at: '2026-08-21T10:15:00.000Z'
+				}
+			},
 			{
 				...base,
 				id: 'seed-long-term-meta',
@@ -318,6 +350,79 @@
 	const horizonUnavailable = page.url.searchParams.get('horizon') === 'unavailable';
 
 	/**
+	 * AN ADMIN'S CORRECTION, IN MEMORY (0233's `app_feedback_edit`): a numbered
+	 * revision beside the reporter's words, the reporter's row untouched, a save
+	 * that changes nothing answered as no change, and a save opened on an older
+	 * revision refused as stale -- the database's own order. `?edit=unavailable`
+	 * hands the console NO transport, which is what a deployment before 0233
+	 * gets, so the absent control is drivable; `?edit=stale` answers every save
+	 * as if another admin got there first, so the refusal is drivable too.
+	 */
+	const editMode = page.url.searchParams.get('edit');
+	let editCalls = $state(0);
+	const editFeedback: FeedbackEditTransport = async (id, input) => {
+		editCalls += 1;
+		await new Promise((r) => setTimeout(r, 150));
+		const row = sink.find((r) => r.id === id);
+		if (!row) return { ok: false, message: 'That report is not in the harness sink.' };
+		const current = row.edit?.revision ?? 0;
+		if (editMode === 'stale') return { ok: false, reason: 'stale' };
+		if (!input.message.trim()) return { ok: false, reason: 'empty' };
+		const was = row.edit ?? { kind: row.kind, message: row.message.trim(), tried: row.tried ?? null };
+		if (was.kind === input.kind && was.message === input.message && (was.tried ?? null) === input.tried) {
+			return { ok: true, changed: false, revision: current };
+		}
+		if (input.baseRevision !== current) return { ok: false, reason: 'stale' };
+		const revision = current + 1;
+		sink = sink.map((r) =>
+			r.id === id
+				? {
+						...r,
+						edit: {
+							revision,
+							kind: input.kind,
+							message: input.message,
+							tried: input.tried,
+							edited_by: 'harness-admin@boscotech.edu',
+							edited_at: new Date().toISOString()
+						}
+					}
+				: r
+		);
+		return { ok: true, changed: true, revision };
+	};
+
+	/**
+	 * THE ARMORY TABS (0233, v0.3 items 4 and 4b), the real consoles against
+	 * in-memory rows. `?armory=unavailable` renders what a deployment before
+	 * the apply shows on both tabs.
+	 */
+	const armoryUnavailable = page.url.searchParams.get('armory') === 'unavailable';
+	const loadedAt = Date.now();
+	let armoryNotes = $state(armorySampleNotes(loadedAt));
+	let armoryIncidents = $state(armorySampleIncidents(loadedAt));
+	const armoryReports = armorySampleReports(armorySampleIncidents(loadedAt));
+	let armoryReportReads = $state(0);
+	const setNoteStatus = async (id: string, status: FeedbackStatus) => {
+		armoryNotes = armoryNotes.map((r) =>
+			r.id === id ? { ...r, status, reviewed_at: new Date().toISOString(), reviewed_by: 'harness-admin@boscotech.edu' } : r
+		);
+		return { ok: true };
+	};
+	const setIncidentStatus = async (id: string, status: FeedbackStatus) => {
+		armoryIncidents = armoryIncidents.map((r) =>
+			r.id === id ? { ...r, status, reviewed_at: new Date().toISOString(), reviewed_by: 'harness-admin@boscotech.edu' } : r
+		);
+		return { ok: true };
+	};
+	const fetchReports = async (ids: string[]) => {
+		armoryReportReads += 1;
+		const out = new Map<string, unknown>();
+		for (const id of ids) if (armoryReports.has(id)) out.set(id, armoryReports.get(id));
+		return out;
+	};
+
+	/**
 	 * Every excluded category, driven at `place="shell"` (nothing renders) and
 	 * again at `place="relocated"` (the same component does render).
 	 *
@@ -384,7 +489,7 @@
 
 	/* `?view=console` lands on the console directly, so a browser-verify spec
 	   can measure it without a click that is not the thing under test. */
-	const VIEWS = ['capture', 'exclusions', 'console'] as const;
+	const VIEWS = ['capture', 'exclusions', 'console', 'armory', 'incidents'] as const;
 	const initialView = page.url.searchParams.get('view');
 	let view = $state<(typeof VIEWS)[number]>(
 		VIEWS.find((v) => v === initialView) ?? 'capture'
@@ -406,7 +511,7 @@
 	</p>
 
 	<div class="hx-row">
-		{#each ['capture', 'exclusions', 'console'] as v (v)}
+		{#each VIEWS as v (v)}
 			<button class="hx-btn" class:on={view === v} onclick={() => (view = v as typeof view)}>
 				{v}
 			</button>
@@ -649,7 +754,7 @@
 				</tbody>
 			</table>
 		</section>
-	{:else}
+	{:else if view === 'console'}
 		<!--
 			THE CONSOLE AS /admin/feedback RENDERS IT (report R03): outside the
 			classroom's `.cr-root` room, under the site plate. The root layout puts
@@ -665,6 +770,7 @@
 			</label>
 		</div>
 		<div class={SITE_PLATE} style="display: contents">
+			<FeedbackSourcesNav pathname="/admin/feedback" />
 			<FeedbackConsole
 				rows={sink}
 				{fetchScreenshot}
@@ -673,9 +779,33 @@
 				horizonUnavailable={horizonUnavailable
 					? 'Moving a report between Fix soon and Long-term ideas needs a database update that has not been applied yet. Reports marked long-term when they were sent still show under their own tab.'
 					: null}
+				editFeedback={editMode === 'unavailable' ? undefined : editFeedback}
 				{undoMs}
 			/>
 			<p class="hx-note">horizon writes: <span data-testid="horizon-calls">{horizonCalls}</span></p>
+			<p class="hx-note">edit writes: <span data-testid="edit-calls">{editCalls}</span></p>
+		</div>
+	{:else if view === 'armory'}
+		<!-- The Armory app's notes as /admin/feedback/armory renders them: the
+		     area's source strip, then the real console, under the site plate. -->
+		<div class={SITE_PLATE} style="display: contents">
+			<FeedbackSourcesNav pathname="/admin/feedback/armory" />
+			<ArmoryFeedbackConsole
+				rows={armoryUnavailable ? [] : armoryNotes}
+				unavailable={armoryUnavailable ? ARMORY_REPORTS_NOT_READY : null}
+				setStatus={armoryUnavailable ? undefined : setNoteStatus}
+			/>
+		</div>
+	{:else if view === 'incidents'}
+		<div class={SITE_PLATE} style="display: contents">
+			<FeedbackSourcesNav pathname="/admin/feedback/incidents" />
+			<ArmoryIncidentConsole
+				rows={armoryUnavailable ? [] : armoryIncidents}
+				unavailable={armoryUnavailable ? ARMORY_REPORTS_NOT_READY : null}
+				setStatus={armoryUnavailable ? undefined : setIncidentStatus}
+				fetchReports={armoryUnavailable ? undefined : fetchReports}
+			/>
+			<p class="hx-note">report reads: <span data-testid="report-reads">{armoryReportReads}</span></p>
 		</div>
 	{/if}
 
