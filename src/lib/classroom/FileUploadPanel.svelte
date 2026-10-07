@@ -88,7 +88,7 @@
 	interface Props {
 		/** Wording only. The transport decides what actually happens, and the
 		 *  database decides whether it may. */
-		role: 'attachment' | 'submission' | 'instructor';
+		role: 'attachment' | 'submission' | 'instructor' | 'quick-post';
 		/** Known up front on the student side; null in a composer creating an
 		 *  item, where it does not exist until the save call returns. */
 		itemId?: string | null;

@@ -53,8 +53,12 @@ export interface UploadRefusal {
  * student-facing handout is refused when the caller does not manage every class
  * the item is posted to, and an instructor-only file is refused by a bucket no
  * student role can reach at all.
+ *
+ * `quick-post` is a file on a class notice (0233's `quick-post-files` bucket):
+ * the fourth role, refused when the caller is not the teacher who posted the
+ * notice or the notice has ended.
  */
-export type UploadRole = 'attachment' | 'submission' | 'instructor';
+export type UploadRole = 'attachment' | 'submission' | 'instructor' | 'quick-post';
 
 export function formatBytesShort(size: number): string {
 	if (size < 1024) return `${size} B`;
@@ -89,7 +93,10 @@ const DENIED_REASON: Record<UploadRole, string> = {
 	instructor:
 		'Storage refused this instructor-only file because of who is asking. It can only go ' +
 		'on an item you are the teacher of record for, in every class it is posted to. If ' +
-		'somebody unposted it, or added a class you do not teach, that is what changed.'
+		'somebody unposted it, or added a class you do not teach, that is what changed.',
+	'quick-post':
+		'Storage refused this file because of who is asking. A file can only go on a notice ' +
+		'you posted yourself, while it is still up.'
 };
 
 /**

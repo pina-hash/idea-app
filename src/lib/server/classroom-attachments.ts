@@ -65,6 +65,15 @@ export const SUBMISSION_FILES_BUCKET = 'submission-files';
 export const INSTRUCTOR_ATTACHMENTS_BUCKET = 'instructor-attachments';
 
 /**
+ * The class-notice bucket (0233): files on a quick post. A FOURTH bucket, for
+ * the same reason as the third -- its policies ask a different question (the
+ * notice's author may write, while it is up; the notice's own audience may
+ * read), and a prefix in an existing bucket would inherit that bucket's rule.
+ * Private, 45 MiB a file, no mime list, no anon policy, no delete policy.
+ */
+export const QUICK_POST_FILES_BUCKET = 'quick-post-files';
+
+/**
  * 200 MiB, matching `file_size_limit` on all three buckets (0133, 0135).
  *
  * Duplicated in the sense that Storage enforces it too -- deliberately. The

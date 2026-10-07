@@ -207,6 +207,24 @@ const CEILINGS = [
 		advice: 'Split it, zip it, or link to it instead.'
 	},
 	{
+		/**
+		 * A FILE ON A CLASS NOTICE (0233, ledger 0368). Its own private bucket,
+		 * created at the portal ceiling, and its browser guard is the quick-post
+		 * transport's own (`QUICK_POST_FILE_MAX_BYTES` in
+		 * $lib/classroom/quick-posts), NOT the shared classroom uploader's 200 MB,
+		 * so this row has no gap between browser and bucket.
+		 */
+		id: 'classroom-quick-post',
+		label: 'a file on a class notice',
+		bucket: 'quick-post-files',
+		maxBytes: PORTAL_UPLOAD_MAX_BYTES,
+		guards: ['browser', 'route', 'bucket'],
+		statedBy:
+			'0233 file_size_limit 47185920; QUICK_POST_FILE_MAX_BYTES in $lib/classroom/quick-posts ' +
+			'and the quick-post sign route refuse above it before the transfer',
+		advice: 'Split it, zip it, or link to it instead.'
+	},
+	{
 		id: 'classroom-deck',
 		label: 'a slide deck zip',
 		/**

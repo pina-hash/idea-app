@@ -26,9 +26,16 @@
 import { describe, expect, it } from 'vitest';
 import {
 	QUICK_POSTS_POLL_MS,
+	QUICK_POST_FILE_MAX_BYTES,
+	QUICK_POST_LEGACY_MAX_CHARS,
 	QUICK_POST_MAX_CHARS,
+	QUICK_POST_MAX_FILES,
 	QUICK_POST_PRESETS,
 	parseQuickPostBoard,
+	quickPostFileSrc,
+	quickPostLimits,
+	quickPostRefusalWords,
+	quickPostSplit,
 	quickPostCustomInstant,
 	quickPostExpiry,
 	quickPostLinks,
@@ -300,5 +307,138 @@ describe('the poll is a budget', () => {
 		expect(QUICK_POSTS_POLL_MS).toBe(600_000);
 		expect(60_000 / QUICK_POSTS_POLL_MS).toBeCloseTo(0.1, 10);
 		expect(defaultPokeGapMs(QUICK_POSTS_POLL_MS)).toBe(150_000);
+	});
+});
+
+/*
+ * 0233 (ledger 0368, report R04): longer notices and files. The numbers are
+ * written out here rather than read from the module, so a constant that moves
+ * reddens instead of agreeing with itself.
+ */
+describe('the ceilings a notice is counted against', () => {
+	it('4000 characters and ten 45 MB files on a database with 0233, 1000 and none without it', () => {
+		expect(QUICK_POST_MAX_CHARS).toBe(4000);
+		expect(QUICK_POST_LEGACY_MAX_CHARS).toBe(1000);
+		expect(QUICK_POST_MAX_FILES).toBe(10);
+		expect(QUICK_POST_FILE_MAX_BYTES).toBe(47185920);
+	});
+
+	it('a board with no limits reads as the 0230 database: 1000 characters, no files', () => {
+		const old = parseQuickPostBoard({ ok: true, manages: true, now: '2026-09-24T17:00:00.000Z', posts: [] });
+		expect(old?.limits).toBeUndefined();
+		expect(old?.filesReady).toBeUndefined();
+		expect(quickPostLimits(old)).toEqual({ maxChars: 1000, maxFiles: 0, maxBytes: 47185920, filesReady: false });
+		expect(quickPostLimits(null)).toEqual({ maxChars: 1000, maxFiles: 0, maxBytes: 47185920, filesReady: false });
+	});
+
+	it('a board with limits and files_ready reads them, and files_ready false keeps the picker off', () => {
+		const raw = {
+			ok: true,
+			manages: true,
+			now: '2026-09-24T17:00:00.000Z',
+			posts: [],
+			files_ready: true,
+			limits: { max_chars: 4000, max_files: 10, max_bytes: 47185920 }
+		};
+		expect(quickPostLimits(parseQuickPostBoard(raw))).toEqual({ maxChars: 4000, maxFiles: 10, maxBytes: 47185920, filesReady: true });
+		expect(quickPostLimits(parseQuickPostBoard({ ...raw, files_ready: false })).filesReady).toBe(false);
+		// Nonsense limits are no limits at all, never a half-read set.
+		expect(parseQuickPostBoard({ ...raw, limits: { max_chars: '4000', max_files: 10, max_bytes: 1 } })?.limits).toBeUndefined();
+		expect(parseQuickPostBoard({ ...raw, limits: { max_chars: 0, max_files: 10, max_bytes: 1 } })?.limits).toBeUndefined();
+	});
+
+	it('the send check counts against the ceiling it is handed, 4000 when none is', () => {
+		const now = at('2026-09-24T17:00:00.000Z');
+		const draft = { body: 'x'.repeat(1001), preset: 'school-day' as const, custom: '', sectionIds: ['a'] };
+		expect(quickPostSendCheck(draft, now).ok).toBe(true);
+		expect(quickPostSendCheck(draft, now, 1000)).toEqual({
+			ok: false,
+			reason: 'A quick post holds up to 1,000 characters. Shorten it and post again.'
+		});
+		expect(quickPostSendCheck({ ...draft, body: 'x'.repeat(4001) }, now)).toEqual({
+			ok: false,
+			reason: 'A quick post holds up to 4,000 characters. Shorten it and post again.'
+		});
+	});
+
+	it("a refusal states the server's own number, and the two new reasons have words", () => {
+		expect(quickPostRefusalWords('too_long', 1000)).toBe('A quick post holds up to 1,000 characters. Shorten it and post again.');
+		expect(quickPostRefusalWords('too_many_files', 10)).toBe('A notice holds up to 10 files. Post the rest in another notice.');
+		expect(quickPostRefusalWords('ended')).toBe('This notice has ended or was taken down, so no more files can go on it.');
+	});
+});
+
+describe('a notice carries its files, and a malformed file row is dropped', () => {
+	it('keeps id, filename and size; drops a row with no id or a blank name; a bad size is null', () => {
+		const board = parseQuickPostBoard({
+			ok: true,
+			manages: false,
+			now: '2026-09-24T17:00:00.000Z',
+			posts: [
+				{
+					id: 'p1',
+					body: 'Photos from the test',
+					created_at: '2026-09-24T16:00:00Z',
+					expires_at: null,
+					section_ids: null,
+					can_take_down: false,
+					files: [
+						{ id: 'f1', filename: 'rig.jpg', size_bytes: 2048 },
+						{ id: 'f2', filename: 'sheet.pdf', size_bytes: -5 },
+						{ id: '', filename: 'no-id.png', size_bytes: 1 },
+						{ id: 'f4', filename: '  ', size_bytes: 1 },
+						'not a row'
+					]
+				},
+				{ id: 'p2', body: 'No files key', created_at: '2026-09-24T16:00:00Z', expires_at: null }
+			]
+		});
+		expect(board?.posts[0].files).toEqual([
+			{ id: 'f1', filename: 'rig.jpg', size_bytes: 2048 },
+			{ id: 'f2', filename: 'sheet.pdf', size_bytes: null }
+		]);
+		expect(board?.posts[1].files).toBeUndefined();
+	});
+
+	it('a file is asked for through the one notice-file route', () => {
+		expect(quickPostFileSrc('0f0e-1')).toBe('/api/classroom/quick-post-file/0f0e-1');
+	});
+});
+
+describe('a long notice shows a lead and folds the rest', () => {
+	const budget = { chars: 280, lines: 4 };
+	it('a short notice is whole, with no rest', () => {
+		expect(quickPostSplit('Fire drill during third block.', budget)).toEqual({ lead: 'Fire drill during third block.', rest: null });
+		expect(quickPostSplit('a\nb\nc\nd', budget).rest).toBeNull();
+	});
+
+	it('nothing is dropped but the whitespace at the cut', () => {
+		const body = ('Bring safety glasses. '.repeat(20) + 'Then the test.').trim();
+		const { lead, rest } = quickPostSplit(body, budget);
+		expect(rest).not.toBeNull();
+		expect(lead.length).toBeLessThanOrEqual(281);
+		expect((lead + ' ' + rest).replace(/\s+/g, ' ')).toBe(body.replace(/\s+/g, ' '));
+	});
+
+	it('prefers a line break, then a sentence end, then a space, and never a break in the first third', () => {
+		const lines = 'First line of the notice.\nSecond line.\nThird line.\nFourth line.\nFifth line that goes past the line budget.';
+		expect(quickPostSplit(lines, budget)).toEqual({
+			lead: 'First line of the notice.\nSecond line.\nThird line.\nFourth line.',
+			rest: 'Fifth line that goes past the line budget.'
+		});
+		const sentences = 'A'.repeat(150) + '. ' + 'B'.repeat(200);
+		expect(quickPostSplit(sentences, budget).lead).toBe('A'.repeat(150) + '.');
+		// "Hi all," is too early a break to fold after.
+		const early = 'Hi all,\n' + 'word '.repeat(80);
+		expect(quickPostSplit(early, budget).lead.startsWith('Hi all,\nword')).toBe(true);
+	});
+
+	it('never cuts a URL in two, and an unbroken token longer than the budget stays whole', () => {
+		const url = 'https://docs.google.com/presentation/d/' + 'x'.repeat(300);
+		const body = 'Slides for today ' + url + ' and more words after it.';
+		const { lead, rest } = quickPostSplit(body, budget);
+		expect(lead).toBe('Slides for today');
+		expect(rest?.startsWith(url)).toBe(true);
+		expect(quickPostSplit(url, budget)).toEqual({ lead: url, rest: null });
 	});
 });

@@ -29,6 +29,18 @@
  * soft-delete-is-not-a-boundary trap, and every notice about a fire drill
  * would be pushed into the materials archive. A notice is not course content.
  *
+ * FILES AND LONGER NOTICES (0233, ledger 0368, report R04: "quick post should
+ * support images and files and longer text limits ... if its a longer one it
+ * should be collapsible"). A notice holds up to 4000 characters and up to ten
+ * files, 45 MB each, in their own private bucket, attached only by the teacher
+ * who posted it while it is up. Pictures show as small tiles that open the one
+ * Lightbox on the notice's whole picture set; every other file is a download
+ * row. A long notice shows a LEAD (`quickPostSplit`) and folds the rest. The
+ * read says whether files are possible on this database (`files_ready`) and
+ * what the ceilings are (`limits`), and a board without those keys (a client
+ * deployed before 0233 applied) reads as 1000 characters and no files, so the
+ * composer never offers what the database would refuse.
+ *
  * PURE: no Svelte, no `$app`. The Supabase client is only a type here, and the
  * transports and the page load at the bottom take it as an argument.
  */
@@ -47,13 +59,25 @@ import {
 	schoolWeekday
 } from '$lib/classroom/school-calendar';
 import { PollSignedOut, isSignedOutFailure } from '$lib/classroom/poll';
+import { uploadClassroomFile, type UploadOutcome } from '$lib/classroom/file-upload';
+import { tooLarge } from '$lib/classroom/upload-errors';
+import { PORTAL_UPLOAD_MAX_BYTES } from '$lib/upload-limits';
 
 /* ========================================================================== */
 /* Limits and cadence                                                         */
 /* ========================================================================== */
 
-/** The longest notice the database will take (0230's body check). */
-export const QUICK_POST_MAX_CHARS = 1000;
+/** The longest notice the database will take (0233's body check; 0230 said 1000). */
+export const QUICK_POST_MAX_CHARS = 4000;
+/**
+ * The ceiling a database WITHOUT 0233 still enforces. A board whose read
+ * carries no `limits` is that database, so the composer counts against this.
+ */
+export const QUICK_POST_LEGACY_MAX_CHARS = 1000;
+/** The most files one notice may carry (0233 refuses the eleventh). */
+export const QUICK_POST_MAX_FILES = 10;
+/** One file's ceiling: the bucket's, which is the portal's (0185, 0233). */
+export const QUICK_POST_FILE_MAX_BYTES = PORTAL_UPLOAD_MAX_BYTES;
 /** The most classes one notice may go to in one call (0230 raises past it). */
 export const QUICK_POST_MAX_CLASSES = 50;
 /** How far ahead a notice may end (0230 refuses past it). */
@@ -110,6 +134,25 @@ export interface QuickPost {
 	section_ids: string[] | null;
 	/** May this caller take it down (the author, or a teacher of every target). */
 	can_take_down: boolean;
+	/**
+	 * The notice's files, in the order they were attached (0233). Absent on a
+	 * database without 0233, which is the same as none.
+	 */
+	files?: QuickPostFile[];
+}
+
+/** One file on a notice. Never a storage key and never an address (0233). */
+export interface QuickPostFile {
+	id: string;
+	filename: string;
+	size_bytes: number | null;
+}
+
+/** What the database will take, from the read (0233). */
+export interface QuickPostLimits {
+	maxChars: number;
+	maxFiles: number;
+	maxBytes: number;
 }
 
 export interface QuickPostBoard {
@@ -119,6 +162,28 @@ export interface QuickPostBoard {
 	now: string;
 	/** Live notices, newest first, at most 20 (0230). */
 	posts: QuickPost[];
+	/**
+	 * Files can be attached here: 0233's storage half landed (the read asks
+	 * the catalog for the bucket's insert policy). Absent or false: none.
+	 */
+	filesReady?: boolean;
+	/** The ceilings the database states. Absent: a database without 0233. */
+	limits?: QuickPostLimits;
+}
+
+/**
+ * THE CEILINGS THIS BOARD'S DATABASE ACTUALLY ENFORCES, and whether files are
+ * possible at all. A board with no `limits` is a database without 0233, so
+ * the answer is the 0230 ceiling and no files, never the newer numbers a
+ * client deployed ahead of the migration happens to know (the capability
+ * reports itself, CLAUDE.md's select-ladder rule).
+ */
+export function quickPostLimits(board: QuickPostBoard | null | undefined): QuickPostLimits & { filesReady: boolean } {
+	const l = board?.limits;
+	if (!l) {
+		return { maxChars: QUICK_POST_LEGACY_MAX_CHARS, maxFiles: 0, maxBytes: QUICK_POST_FILE_MAX_BYTES, filesReady: false };
+	}
+	return { ...l, filesReady: board?.filesReady === true && l.maxFiles > 0 };
 }
 
 const isIso = (v: unknown): v is string => typeof v === 'string' && !Number.isNaN(Date.parse(v));
@@ -143,20 +208,118 @@ export function parseQuickPostBoard(raw: unknown): QuickPostBoard | null {
 		const ids = Array.isArray(row.section_ids)
 			? row.section_ids.filter((x): x is string => typeof x === 'string' && x !== '')
 			: null;
-		posts.push({
+		const post: QuickPost = {
 			id: row.id,
 			body: row.body,
 			created_at: row.created_at,
 			expires_at: (row.expires_at as string | null | undefined) ?? null,
 			section_ids: ids,
 			can_take_down: row.can_take_down === true
-		});
+		};
+		if (Array.isArray(row.files)) post.files = parseQuickPostFiles(row.files);
+		posts.push(post);
 	}
-	return {
+	const board: QuickPostBoard = {
 		manages: r.manages === true,
 		now: isIso(r.now) ? r.now : new Date(0).toISOString(),
 		posts
 	};
+	const limits = parseQuickPostLimits(r.limits);
+	if (limits) {
+		board.limits = limits;
+		board.filesReady = r.files_ready === true;
+	}
+	return board;
+}
+
+/** A file row the page can render, or nothing: a malformed row is DROPPED. */
+function parseQuickPostFiles(raw: unknown[]): QuickPostFile[] {
+	const out: QuickPostFile[] = [];
+	for (const f of raw) {
+		if (!f || typeof f !== 'object') continue;
+		const row = f as Record<string, unknown>;
+		if (typeof row.id !== 'string' || row.id === '') continue;
+		if (typeof row.filename !== 'string' || row.filename.trim() === '') continue;
+		const size = typeof row.size_bytes === 'number' && Number.isFinite(row.size_bytes) && row.size_bytes >= 0 ? row.size_bytes : null;
+		out.push({ id: row.id, filename: row.filename, size_bytes: size });
+	}
+	return out;
+}
+
+/** The read's `limits`, or null when any number is missing or nonsense. */
+function parseQuickPostLimits(raw: unknown): QuickPostLimits | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const r = raw as Record<string, unknown>;
+	const whole = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null);
+	const maxChars = whole(r.max_chars);
+	const maxFiles = whole(r.max_files);
+	const maxBytes = whole(r.max_bytes);
+	if (maxChars === null || maxChars === 0 || maxFiles === null || maxBytes === null) return null;
+	return { maxChars, maxFiles, maxBytes };
+}
+
+/* ========================================================================== */
+/* A long notice: a lead, and the rest folded                                 */
+/* ========================================================================== */
+
+/** About how much of a long notice shows before "Rest of the notice". */
+export const QUICK_POST_LEAD = { chars: 280, lines: 4 } as const;
+
+/**
+ * SPLIT A LONG NOTICE INTO A LEAD AND THE REST, or answer `rest: null` when it
+ * is short enough to show whole. The lead ends at the latest good break inside
+ * the budget, in this order of preference: a line break, then a sentence end,
+ * then any space (a break in the first third of the budget is too early to
+ * count, so a notice that opens "Hi all," does not fold after two words). It
+ * never cuts inside a word, so a URL is never cut in two (a URL holds no
+ * space); a notice whose first word is longer than the budget keeps that whole
+ * word in the lead.
+ *
+ * Only the whitespace at the cut is dropped: the lead and the rest together
+ * are the whole notice. A rest of only whitespace is no rest, so the fold never
+ * opens onto nothing.
+ */
+export function quickPostSplit(
+	body: string,
+	budget: { chars: number; lines: number } = QUICK_POST_LEAD
+): { lead: string; rest: string | null } {
+	const lines = body.split('\n');
+	if (body.length <= budget.chars && lines.length <= budget.lines) return { lead: body, rest: null };
+	// The window the lead must fit: the character budget, cut further at the
+	// end of the allowed number of lines.
+	let limit = budget.chars;
+	if (lines.length > budget.lines) limit = Math.min(limit, lines.slice(0, budget.lines).join('\n').length);
+	// One character past the limit, so a break sitting exactly AT it counts.
+	const head = body.slice(0, limit + 1);
+	const lastAt = (re: RegExp): number => {
+		let at = -1;
+		for (const m of head.matchAll(re)) if ((m.index ?? 0) > 0) at = m.index ?? -1;
+		return at;
+	};
+	// A break this early would leave a lead too short to carry the point.
+	const floor = Math.floor(limit / 3);
+	const lineBreak = lastAt(/\n/g);
+	const sentence = lastAt(/[.!?](?=\s)/g);
+	const space = lastAt(/\s/g);
+	let cut: number;
+	if (lineBreak >= floor) cut = lineBreak;
+	else if (sentence >= floor) cut = sentence + 1;
+	else if (space > 0) cut = space;
+	else {
+		// One unbroken token longer than the budget (a pasted URL): keep it whole.
+		const next = body.search(/\s/);
+		if (next < 0) return { lead: body, rest: null };
+		cut = next;
+	}
+	const lead = body.slice(0, cut).replace(/\s+$/, '');
+	const rest = body.slice(cut).replace(/^\s+/, '');
+	if (lead.trim() === '' || rest.trim() === '') return { lead: body, rest: null };
+	return { lead, rest };
+}
+
+/** The one place a notice file's bytes are asked for: the GET route (0233). */
+export function quickPostFileSrc(fileId: string): string {
+	return `/api/classroom/quick-post-file/${encodeURIComponent(fileId)}`;
 }
 
 /* ========================================================================== */
@@ -539,10 +702,14 @@ export type QuickPostSendCheck =
  * so the control and the press cannot disagree (the `reviewCanSend` rule).
  * The body is trimmed the way 0230 trims it (`\s` at both ends, never btrim).
  */
-export function quickPostSendCheck(draft: QuickPostDraft, nowMs: number): QuickPostSendCheck {
+export function quickPostSendCheck(
+	draft: QuickPostDraft,
+	nowMs: number,
+	maxChars: number = QUICK_POST_MAX_CHARS
+): QuickPostSendCheck {
 	const body = draft.body.replace(/^\s+|\s+$/g, '');
 	if (body === '') return { ok: false, reason: quickPostRefusalWords('empty') };
-	if (body.length > QUICK_POST_MAX_CHARS) return { ok: false, reason: quickPostRefusalWords('too_long') };
+	if (body.length > maxChars) return { ok: false, reason: quickPostRefusalWords('too_long', maxChars) };
 	const ids = [...new Set(draft.sectionIds.filter((x) => typeof x === 'string' && x !== ''))].sort();
 	if (ids.length === 0) return { ok: false, reason: quickPostRefusalWords('no_classes') };
 	if (ids.length > QUICK_POST_MAX_CLASSES) return { ok: false, reason: quickPostRefusalWords('too_many') };
@@ -575,21 +742,25 @@ export type QuickPostRefusal =
 	| 'too_many'
 	| 'expiry_passed'
 	| 'expiry_too_far'
-	| 'unavailable';
+	| 'unavailable'
+	| 'ended'
+	| 'too_many_files';
 
 /**
  * ONE SENTENCE PER REFUSAL, in a teacher's terms (no table, no function, no
  * em dash). 0230's structured reasons and this module's own pre-checks share
- * it, so a refusal reads the same before Post is pressed and after.
+ * it, so a refusal reads the same before Post is pressed and after. `limit` is
+ * the number the DATABASE said, when it said one (a too-long refusal carries
+ * it), so the sentence never states a ceiling the server does not have.
  */
-export function quickPostRefusalWords(reason: QuickPostRefusal | string): string {
+export function quickPostRefusalWords(reason: QuickPostRefusal | string, limit?: number | null): string {
 	switch (reason) {
 		case 'no_classes':
 			return 'Choose at least one class to post to.';
 		case 'empty':
 			return 'Write something to post first.';
 		case 'too_long':
-			return `A quick post holds up to ${QUICK_POST_MAX_CHARS.toLocaleString(SCHOOL_LOCALE)} characters. Shorten it and post again.`;
+			return `A quick post holds up to ${(limit ?? QUICK_POST_MAX_CHARS).toLocaleString(SCHOOL_LOCALE)} characters. Shorten it and post again.`;
 		case 'too_many':
 			return `A quick post can go to at most ${QUICK_POST_MAX_CLASSES} classes at a time.`;
 		case 'expiry_passed':
@@ -598,6 +769,10 @@ export function quickPostRefusalWords(reason: QuickPostRefusal | string): string
 			return 'A quick post can stay up for at most a year. Pick an earlier end, or Until I take it down.';
 		case 'unavailable':
 			return 'Quick posts are not switched on for this site yet.';
+		case 'ended':
+			return 'This notice has ended or was taken down, so no more files can go on it.';
+		case 'too_many_files':
+			return `A notice holds up to ${limit ?? QUICK_POST_MAX_FILES} files. Post the rest in another notice.`;
 		default:
 			return 'The notice could not be posted. Try again.';
 	}
@@ -626,6 +801,26 @@ export interface QuickPostTransports {
 	create(sectionIds: string[], body: string, expiresAt: string | null): Promise<QuickPostCreateResult>;
 	/** Take a notice down. A stamp, never a delete. */
 	takeDown(postId: string): Promise<QuickPostTakeDownResult>;
+	/**
+	 * Attach one file to a notice this caller just posted (0233): sign, PUT,
+	 * record, through the classroom's ONE upload path (`uploadClassroomFile`,
+	 * role `quick-post`). ABSENT REMOVES THE PICKER: a surface with no way to
+	 * upload offers no file control at all.
+	 */
+	uploadFile?(postId: string, file: File, onProgress: (fraction: number) => void): Promise<UploadOutcome>;
+}
+
+/**
+ * THE QUICK-POST UPLOAD, over the classroom's one upload path. A file over the
+ * bucket's ceiling is refused here, from `File.size`, before a byte moves:
+ * the shared uploader's own browser guard is the classroom's 200 MB, which is
+ * the other buckets' number and not this one's.
+ */
+export function uploadQuickPostFile(postId: string, file: File, onProgress: (fraction: number) => void): Promise<UploadOutcome> {
+	if (file.size > QUICK_POST_FILE_MAX_BYTES) {
+		return Promise.resolve({ ok: false, ...tooLarge(file.size, QUICK_POST_FILE_MAX_BYTES) });
+	}
+	return uploadClassroomFile({ role: 'quick-post', itemId: postId, file, onProgress });
 }
 
 type RpcError = { code?: string | null; message?: string | null; status?: number | null } | null;
@@ -654,6 +849,7 @@ function raised(e: RpcError, fallback: string): string {
  */
 export function createQuickPostTransports(supabase: SupabaseClient): QuickPostTransports {
 	return {
+		uploadFile: uploadQuickPostFile,
 		async read(sectionId) {
 			const { data, error, status } = await supabase.rpc('classroom_quick_posts', { p_section_id: sectionId });
 			if (error) {
@@ -691,8 +887,9 @@ export function createQuickPostTransports(supabase: SupabaseClient): QuickPostTr
 			}
 			const reason = typeof r.reason === 'string' ? r.reason : 'error';
 			const known: QuickPostRefusal[] = ['no_classes', 'empty', 'too_long', 'expiry_passed', 'expiry_too_far'];
+			const limit = typeof r.limit === 'number' ? r.limit : null;
 			return (known as string[]).includes(reason)
-				? { ok: false, reason: reason as QuickPostRefusal, message: quickPostRefusalWords(reason) }
+				? { ok: false, reason: reason as QuickPostRefusal, message: quickPostRefusalWords(reason, limit) }
 				: { ok: false, reason: 'error', message: quickPostRefusalWords('error') };
 		},
 		async takeDown(postId) {

@@ -99,6 +99,18 @@ const ENDPOINTS: Record<UploadRole, { sign: string; record: string }> = {
 	instructor: {
 		sign: '/api/classroom/instructor-attachment/sign',
 		record: '/api/classroom/instructor-attachment'
+	},
+	/**
+	 * A file on a class notice (0233). A FOURTH pair for the same reason as the
+	 * third: a different table, a different private bucket and a different rule
+	 * (the notice's author, while it is up). The notice's id rides in `item_id`,
+	 * which is what the owning row is called on every role. Its ceiling is the
+	 * bucket's 45 MB, refused before this is called (`uploadQuickPostFile`) and
+	 * again by the sign route.
+	 */
+	'quick-post': {
+		sign: '/api/classroom/quick-post-file/sign',
+		record: '/api/classroom/quick-post-file'
 	}
 };
 
