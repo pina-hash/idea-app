@@ -427,10 +427,12 @@
 			   `--li-particle` and `--li-particle-blur` in src/app.css, so a theme
 			   says how its particles look in the stylesheet beside the rest of
 			   this page rather than here. IDEA's hooks are the brand --green and
-			   a glow of 4, exactly what this read before; Space White's are the
-			   same brand green with no glow (Mr. Pina: "Do not remove the homepage
-			   particles"). The fallbacks are those IDEA values, so a stylesheet
-			   that has not loaded draws what the page always drew. */
+			   a glow of 4, exactly what this read before. Matrix and Space White
+			   draw no field at all: each takes the canvas's box away in CSS
+			   (Space White since Mr. Pina's 2026-10-07 report, reversing his
+			   2026-09-29 answer), and the loop below stops while there is no box.
+			   The fallbacks are the IDEA values, so a stylesheet that has not
+			   loaded draws what the page always drew. */
 			const readParticle = () => {
 				const cs = getComputedStyle(canvas);
 				const blur = Number.parseFloat(cs.getPropertyValue('--li-particle-blur'));
@@ -446,15 +448,16 @@
 				return style;
 			};
 			let particle = readParticle();
-			canvas.dataset.particles = 'running';
 			/* AND RE-READ IT WHEN THE THEME CHANGES (ledger 0297, package F1b). It
 			   was read once at mount, so a theme picked from the profile menu left
 			   the field in the old theme's green until a reload -- a page loaded
 			   in Space White and switched back to IDEA drew Space White's dark ink
 			   on the dark page. The theme is an attribute on <html>, and that
-			   attribute is the one thing to watch. */
+			   attribute is the one thing to watch. It is also what gives a
+			   stopped field its box back, so the same watch restarts the loop. */
 			const themeWatch = new MutationObserver(() => {
 				particle = readParticle();
+				start();
 			});
 			themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 			cleanups.push(() => themeWatch.disconnect());
@@ -512,22 +515,37 @@
 			}
 			const particles = Array.from({ length: 120 }, () => new Particle());
 			let raf = 0;
+			/* A THEME THAT SWITCHES THE FIELD OFF (Matrix, whose rain is its
+			   field, and Space White) takes the canvas's box away in CSS. Drawing
+			   into a canvas with no box is work nobody sees, and so is a frame
+			   loop that only asks whether it has one, sixty times a second on a
+			   school desktop: so the loop STOPS (`paused`) and the theme watch
+			   above restarts it when a theme gives the canvas its box back. The
+			   attribute is read by the particle spec, never by the page. */
 			const animate = () => {
-				/* A theme that switches the field off (Matrix, whose rain is its
-				   field) takes the canvas's box away in CSS; drawing into a canvas
-				   with no box is work nobody sees, so the frame is skipped until it
-				   has one again. */
-				if (canvas.offsetWidth > 0) {
+				if (canvas.offsetWidth === 0) {
+					raf = 0;
 					ctx.clearRect(0, 0, W, H);
-					particles.forEach((p) => {
-						p.update();
-						p.draw();
-					});
+					canvas.dataset.particles = 'paused';
+					return;
 				}
+				ctx.clearRect(0, 0, W, H);
+				particles.forEach((p) => {
+					p.update();
+					p.draw();
+				});
 				raf = requestAnimationFrame(animate);
 			};
-			animate();
-			cleanups.push(() => cancelAnimationFrame(raf));
+			const start = () => {
+				if (raf) return;
+				canvas.dataset.particles = 'running';
+				animate();
+			};
+			start();
+			cleanups.push(() => {
+				cancelAnimationFrame(raf);
+				raf = 0;
+			});
 		} else if (canvas) {
 			canvas.style.display = 'none';
 			canvas.dataset.particles = 'off';
@@ -758,14 +776,17 @@
 		{@render portalApps()}
 	{/if}
 
-	<div class="changelog-wrap">
-		<div class="divider" style="padding:0;margin-bottom:1.5rem">
-			<div class="divider-line"></div>
-			<div class="divider-label">Portal Updates</div>
-			<div class="divider-line"></div>
-		</div>
+	<!--
+		PORTAL UPDATES IN THE PLATE'S LANGUAGE (round 2026-10-07). The heading is
+		the same label as "Apps" and "Your classes" above it, not the old `// `
+		rule: a div, never an h2, because every h2 in this app takes a green `// `
+		prefix. The panel's look is src/app.css's changelog block and plate.css's
+		lists; the hooks every changelog spec reads are unchanged.
+	-->
+	<div class="changelog-wrap" role="region" aria-labelledby="cl-head">
+		<div class="year-label cl-head" id="cl-head">Portal updates</div>
 		<button
-			class="changelog-toggle"
+			class="changelog-toggle tap-44"
 			class:open={changelogOpen}
 			class:on={changelogOpen}
 			id="changelog-btn"
@@ -803,7 +824,9 @@
 						<input type="date" bind:value={filterTo} />
 					</label>
 					{#if filtersActive}
-						<button class="text-btn" type="button" onclick={clearFilters}>Clear</button>
+						<!-- A key like the toggle above, as Show more is: it wears
+						     `.changelog-toggle`, so the plate's key list draws it. -->
+						<button class="changelog-toggle cl-clear tap-44" type="button" onclick={clearFilters}>Clear</button>
 					{/if}
 					<span class="cl-count">{filteredLog.length} / {changelogTotal}</span>
 				</div>
@@ -832,9 +855,7 @@
 							</div>
 						{/each}
 					{:else}
-						<div class="changelog-entry">
-							<span class="changelog-note">No updates match these filters.</span>
-						</div>
+						<p class="cl-empty">No updates match these filters.</p>
 					{/each}
 					{#if logWindow.remaining > 0}
 						<!-- No data-testid on the sentinel: it is a zero-height box, and a
@@ -850,9 +871,7 @@
 					{/if}
 				{/if}
 			{:else}
-				<div class="changelog-entry">
-					<span class="changelog-note">No updates recorded yet.</span>
-				</div>
+				<p class="cl-empty">No updates recorded yet.</p>
 			{/if}
 		</div>
 	</div>

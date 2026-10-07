@@ -206,7 +206,18 @@ describe('an avatar tile on a light ground', () => {
 	});
 });
 
-describe('a launcher card on a light ground (AppLauncher --acc-ink under Space White)', () => {
+describe('a launcher card on a light ground (AppLauncher under Space White)', () => {
+	/* ONE GREEN INK, AND THE TWINS PAINT THE STRIP (round 2026-10-07). Each card
+	   used to paint its word, glyph and edge in its own lightness-only twin, and
+	   on the white console that was nine inks -- two of them the olive and
+	   brown a lightness-only yellow or amber lands on over white, one an FRC
+	   red this site reserves for errors. Mr. Pina's report ("a lot of the
+	   colors look off") moved every card's word, glyph and call to action to
+	   the theme's green and its edge to the plate's hairline, on this theme
+	   only. The twins stay, still lightness-only and still measured, because
+	   they paint the 2px strip -- and because a twin that drifts off its hue
+	   renders perfectly and reads as a slightly different colour, which nobody
+	   reports. */
 	const launcher = readFileSync('src/lib/AppLauncher.svelte', 'utf8');
 	const style = launcher.slice(launcher.indexOf('<style>'));
 	// The identity each card is BRANDED with: its base rule's --acc-primary.
@@ -215,20 +226,35 @@ describe('a launcher card on a light ground (AppLauncher --acc-ink under Space W
 		const primary = m[2].match(/--acc-primary:\s*(#[0-9a-fA-F]{6})/)?.[1];
 		if (primary) identity.set(m[1], primary);
 	}
-	// The light ink each card re-pins when the theme attribute is present.
+	// The light ink each card re-pins when the theme attribute is present, and
+	// every declaration a per-card Space White rule makes.
 	const light = new Map<string, string>();
+	const perCardDecls: string[] = [];
 	for (const m of style.matchAll(/((?::global\(:root\[data-theme='space-white'\]\) \.app-card\[data-app='[a-z-]+'\],?\s*)+)\{([^}]*)\}/g)) {
+		perCardDecls.push(m[2]);
 		const ink = m[2].match(/--acc-ink:\s*([^;]+);/)?.[1];
 		if (!ink) continue;
 		for (const id of m[1].matchAll(/data-app='([a-z-]+)'/g)) light.set(id[1], ink.trim());
 	}
+	// The one Space White rule every card takes, and the dark default it overrides.
+	const ruleBody = (selector: string) => {
+		const at = style.indexOf(selector);
+		if (at < 0) return '';
+		const open = style.indexOf('{', at);
+		return style.slice(open + 1, style.indexOf('}', open));
+	};
+	const swCard = ruleBody(":global(:root[data-theme='space-white']) .app-card {");
+	const darkCard = ruleBody('\t.app-card {');
+	const swStrip = ruleBody(":global(:root[data-theme='space-white']) .app-strip {");
 
-	it('reads both sets (positive control on the reader)', () => {
+	it('reads both sets and both card rules (positive control on the reader)', () => {
 		expect(identity.size).toBeGreaterThanOrEqual(9);
 		expect(light.size).toBeGreaterThanOrEqual(9);
+		expect(swCard).toContain('--acc-ink:');
+		expect(darkCard).toContain('--acc-primary: var(--gold);');
 	});
 
-	it('gives EVERY branded card a light ink, so a new accent cannot arrive without one', () => {
+	it('gives EVERY branded card a light ink for its strip, so a new accent cannot arrive without one', () => {
 		const missing = [...identity.keys()].filter((id) => !light.has(id));
 		expect(missing).toEqual([]);
 	});
@@ -237,19 +263,63 @@ describe('a launcher card on a light ground (AppLauncher --acc-ink under Space W
 		for (const [id, ink] of light) expectLightnessOnly(identity.get(id)!, ink, id);
 	});
 
-	it('clears 4.5 on the card, on its hover wash and on the CTA hover fill; 3:1 for the 75% edge on the page; 3.0 washed', () => {
+	it('the strip twins still clear what they cleared as words: 4.5 on the card and the CTA hover fill; 3:1 at 75% on the page; 3.0 washed', () => {
 		for (const [id, value] of light) {
 			const ink = parse(value).rgb;
-			// The wash is laid over the card's own ground under this theme (see
-			// the rule's own comment); the dark default leaves it see-through.
-			expect(style).toContain('--acc-wash: color-mix(in srgb, var(--acc-ink) 5%, var(--bg1));');
-			const wash = over(ink, 0.05, PANEL);
 			expect(ratio(ink, PANEL), `${id} on the card`).toBeGreaterThanOrEqual(4.5);
-			expect(ratio(ink, wash), `${id} on its hover wash`).toBeGreaterThanOrEqual(4.5);
 			expect(ratio(ink, INSET), `${id} on the CTA hover fill`).toBeGreaterThanOrEqual(4.5);
 			expect(ratio(over(ink, 0.75, PAGE), PAGE), `${id} edge on the page`).toBeGreaterThanOrEqual(3);
 			expect(washed(ink, PANEL), `${id} washed on the card`).toBeGreaterThanOrEqual(3);
 		}
+	});
+
+	it('on Space White every card writes, draws and calls to action in ONE ink, the theme green, and its strip is its own twin', () => {
+		// PRESENT: the one rule moves the ink every word, glyph and CTA reads
+		// (`--acc`, which `--acc-title`, `.app-icon` and `.app-cta` all read),
+		// the edge, the lines and the wash, and the strip paints the twin solid.
+		expect(swCard).toContain('--acc: var(--green);');
+		expect(swCard).toContain('--acc-ink: var(--green);');
+		expect(swCard).toContain('--acc-edge: var(--plate-hair, var(--boundary));');
+		expect(swCard).toContain('--acc-wash: color-mix(in srgb, var(--acc) 5%, var(--bg1));');
+		expect(swStrip).toContain('background: var(--acc-ink);');
+		expect(style).toMatch(/\.app-title \{[^}]*color: var\(--acc-title\);/);
+		expect(style).toMatch(/\.app-icon \{[^}]*color: var\(--acc\);/);
+		expect(style).toMatch(/\.app-cta \{[^}]*color: var\(--acc\);/);
+		// ABSENT: no per-card Space White rule puts a second ink back on a word,
+		// a glyph or an edge.
+		expect(perCardDecls.length).toBeGreaterThanOrEqual(8); // positive control on the reader (GAUNTLET and VANGUARD share one rule)
+		const offenders = perCardDecls.filter((d) => /--acc(-title|-edge)?\s*:/.test(d));
+		expect(offenders).toEqual([]);
+		// AND THE DARK THEMES ARE UNTOUCHED: the default rule still derives the
+		// word from the card's own ink and the edge from its brand at 75%.
+		expect(darkCard).toContain('--acc: var(--acc-ink);');
+		expect(darkCard).toContain('--acc-edge: color-mix(in srgb, var(--acc-ink) 75%, transparent);');
+		expect(style).toMatch(/\t\.app-strip \{[^}]*background: linear-gradient\(to right, var\(--acc-primary\), var\(--acc-secondary\)\);/);
+	});
+
+	it('the green clears 4.5 on the card, its own hover wash and the CTA hover fill, and 3.0 washed; the edge clears 3:1 against the page', () => {
+		const green = token('--green');
+		expect(ratio(green, PANEL)).toBeGreaterThanOrEqual(4.5);
+		expect(ratio(green, over(green, 0.05, PANEL))).toBeGreaterThanOrEqual(4.5);
+		expect(ratio(green, INSET)).toBeGreaterThanOrEqual(4.5);
+		expect(washed(green, PANEL)).toBeGreaterThanOrEqual(3);
+		// The edge under the site plate: the plate's own hairline, read out of
+		// plate.css's Space White block, against the page grounds it separates
+		// a card from (the plate's page gradient runs from its top to its foot).
+		const plate = readFileSync('src/lib/classroom/plate.css', 'utf8');
+		const swAt = plate.indexOf(":root[data-theme='space-white'] :is(.cr-plate, .site-plate)");
+		const swBlock = plate.slice(plate.indexOf('{', swAt) + 1, plate.indexOf('}', swAt));
+		const plateToken = (name: string) => {
+			const m = swBlock.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})\\s*;`));
+			if (!m) throw new Error(`plate.css's Space White block does not declare ${name} as a hex`);
+			return parse(m[1]).rgb;
+		};
+		const hair = plateToken('--plate-hair');
+		for (const ground of ['--plate-plate-top', '--plate-plate-bot']) {
+			expect(ratio(hair, plateToken(ground)), `the hairline on ${ground}`).toBeGreaterThanOrEqual(3);
+		}
+		// And on the `SITE_PLATE = ''` revert the fallback is the theme's own boundary.
+		expect(ratio(token('--boundary'), PAGE)).toBeGreaterThanOrEqual(3);
 	});
 
 	it('no launcher mark paints a literal colour, so the card ink reaches every stroke with no theme rule', () => {
@@ -277,24 +347,21 @@ describe('a launcher card on a light ground (AppLauncher --acc-ink under Space W
 		expect(style).not.toContain('.gl-marker');
 	});
 
-	it('gives the four cards that declare no accent the green ink, never the brown gold (decision 40)', () => {
-		/* The default pair is --gold / --green, and --gold under this theme is
-		   #715d22 -- the brown a lightness-only yellow lands on over white, which
-		   painted Classroom, My Notebook, Coin Desk and IdeaCAD olive. The
-		   default card's INK moves to the theme's green; the identity pair (and
-		   so the strip) is untouched. */
-		expect(style).toMatch(/:global\(:root\[data-theme='space-white'\]\) \.app-card \{[^}]*--acc-ink: var\(--green\);/);
-		const green = token('--green');
-		const gold = token('--gold');
-		expect(ratio(green, PANEL)).toBeGreaterThanOrEqual(4.5);
-		expect(ratio(green, over(green, 0.05, PANEL))).toBeGreaterThanOrEqual(4.5);
-		expect(ratio(green, INSET)).toBeGreaterThanOrEqual(4.5);
-		expect(ratio(over(green, 0.75, PAGE), PAGE)).toBeGreaterThanOrEqual(3);
-		expect(washed(green, PANEL)).toBeGreaterThanOrEqual(3);
-		// The hue it replaces, read out of the same theme file: a dark yellow.
-		const [h] = rgbToHsl(gold);
-		expect(h).toBeGreaterThan(35);
-		expect(h).toBeLessThan(60);
+	it('NEGATIVE CONTROL: the twins the words moved off include the olive and brown decision 40 refused for gold', () => {
+		/* The reason a lightness-only twin stopped being the word's ink here:
+		   a yellow or an amber taken dark enough to carry text on white lands
+		   in the same brown family as --gold (#715d22), which decision 40 item 1
+		   took off this theme's words. If these two were not in that family the
+		   argument for one ink would rest on taste alone. */
+		const [goldHue] = rgbToHsl(token('--gold'));
+		expect(goldHue).toBeGreaterThan(35);
+		expect(goldHue).toBeLessThan(60);
+		for (const id of ['coins', 'foundry']) {
+			const [h, , l] = parse(light.get(id)!).hsl;
+			expect(h, `${id} twin hue`).toBeGreaterThanOrEqual(25);
+			expect(h, `${id} twin hue`).toBeLessThanOrEqual(75);
+			expect(l, `${id} twin lightness`).toBeLessThan(35);
+		}
 	});
 
 	it('NEGATIVE CONTROL: every identity as authored fails as text on the light card', () => {

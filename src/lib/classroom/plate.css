@@ -660,12 +660,12 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   A label is always caps: wide tracking on lower case reads as spaced-out
 	   letters. `.section-label` and `.eyebrow` name a section of content and
 	   sit ABOVE it, which every classroom surface already does (polish 3). */
-	:root :scope:is(.cr-plate, .site-plate) :is(.mini-label, .section-label, .eyebrow, .comment-label, .row-meta, .cls-sub, .sw-item-code, .sw-item-flag, .pane-meta, .pane-code, .group-progress, .group-count, .version-badge, .pw-label, .sfb-word) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.mini-label, .section-label, .eyebrow, .comment-label, .row-meta, .cls-sub, .sw-item-code, .sw-item-flag, .pane-meta, .pane-code, .group-progress, .group-count, .version-badge, .pw-label, .sfb-word, :where(.legacy-index) .year-label, :where(.launcher) .launcher-title) {
 		font-size: var(--plate-label-size);
 		letter-spacing: var(--plate-label-track);
 		text-transform: uppercase;
 	}
-	:root :scope:is(.cr-plate, .site-plate) :is(.mini-label, .section-label) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.mini-label, .section-label, :where(.legacy-index) .year-label, :where(.launcher) .launcher-title) {
 		color: var(--plate-caption);
 	}
 	:root :scope:is(.cr-plate, .site-plate) :is(.row-meta, .group-progress, .group-count, .pane-meta) {
@@ -911,7 +911,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   not one of them grows by a pixel; what changes is that it is set INTO
 	   the surface instead of drawn on it. A chip that is a LINK or a BUTTON
 	   is excluded here and is a raised key (below), because it is pressable. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.state-chip, .roster-chip, .pin-chip, .lg-chip, .updated-chip, .todo-chip, .export-chip, .sq-chip, .ctool-chip, .points-chip, .override-chip, .hp-chip, .ib-chip, .lc-wall-chip, .lg-missing-chip, .pill, .owed, .feed-flag, .course-badge, .td-owed, .medium-chip, .strike-chip, .type-chip, .status-tag, .fg-chip, .mp-chip, .ar-tag, .chip-count, .pl-chip, :where(.ar-root) .ar-chip, :where(.tnm-root) :is(.tag, .state)):not(a, button, label) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.state-chip, .roster-chip, .pin-chip, .lg-chip, .updated-chip, .todo-chip, .export-chip, .sq-chip, .ctool-chip, .points-chip, .override-chip, .hp-chip, .ib-chip, .lc-wall-chip, .lg-missing-chip, .pill, .owed, .feed-flag, :where(.legacy-index) .cl-tag, .course-badge, .td-owed, .medium-chip, .strike-chip, .type-chip, .status-tag, .fg-chip, .mp-chip, .ar-tag, .chip-count, .pl-chip, :where(.ar-root) .ar-chip, :where(.tnm-root) :is(.tag, .state)):not(a, button, label) {
 		border-color: transparent;
 		border-radius: var(--plate-r-small);
 		background-color: var(--plate-chip-ground);
@@ -976,12 +976,12 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   negative on a lamp chip) and the padding after it, never from the 11px
 	   floor, so the chip is still no wider than
 	   today's holding the same word. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.draft-chip, .sched-chip, .kind-chip.pinned) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.draft-chip, .sched-chip, .kind-chip.pinned, :where(.legacy-index) .cl-type:is(.cl-type-feature, .cl-type-fix, .cl-type-visual)) {
 		gap: var(--plate-led-gap);
 		padding: 0 var(--plate-led-pad-end) 0 var(--plate-led-gap);
 		letter-spacing: var(--plate-led-word-track);
 	}
-	:root :scope:is(.cr-plate, .site-plate) :is(.draft-chip, .sched-chip, .kind-chip.pinned)::before {
+	:root :scope:is(.cr-plate, .site-plate) :is(.draft-chip, .sched-chip, .kind-chip.pinned, :where(.legacy-index) .cl-type:is(.cl-type-feature, .cl-type-fix, .cl-type-visual))::before {
 		content: '';
 		flex: none;
 		width: var(--plate-led-chip);
@@ -997,6 +997,19 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 		--plate-led-color: var(--plate-led-amber);
 	}
 	:root :scope:is(.cr-plate, .site-plate) .kind-chip.pinned {
+		--plate-led-color: var(--plate-led-gold);
+	}
+	/* The home changelog's change type is a lamp beside its word (round
+	   2026-10-07): a feature is the plate's own lit green, a fix amber and a
+	   visual change gold. Content, docs and update carry no lamp; the word is
+	   the signal there, and in every case it is never colour alone. */
+	:root :scope:is(.cr-plate, .site-plate) :where(.legacy-index) .cl-type-feature {
+		--plate-led-color: var(--plate-accent);
+	}
+	:root :scope:is(.cr-plate, .site-plate) :where(.legacy-index) .cl-type-fix {
+		--plate-led-color: var(--plate-led-amber);
+	}
+	:root :scope:is(.cr-plate, .site-plate) :where(.legacy-index) .cl-type-visual {
 		--plate-led-color: var(--plate-led-gold);
 	}
 
@@ -1108,7 +1121,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	   live tab's panels, the item inspector, the worksheet progress readout,
 	   a notebook entry and its composer, the tour offer, a link preview, and
 	   the home banner's lines-of-code pop-up (report R10). */
-	:root :scope:is(.cr-plate, .site-plate) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door:not(:where(.ch-row) *), .ct-card, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp, .course-card, .td-door, .coin-summary, .preview-banner, .fdy-block, .fdy-gal-plays, .fdy-flag, .fdy-insp-section:where(.fdy-shelf), .fdy-before, .fdy-mode, .tnm-panel, .tnm-root:where(.room-box, .entry-detail, .match-detail), :where(.tnm-root) :is(.room-box, .pool, .match), .frq-item, .gdq-item, .ar-row, :where(.ar-root) :is(.ar-panel, .ar-project), :where(.admin-console) .panel, :where(.legacy-index) .hero-meta, .loc-panel) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door:not(:where(.ch-row) *), .ct-card, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp, .course-card, .td-door, .coin-summary, .preview-banner, .fdy-block, .fdy-gal-plays, .fdy-flag, .fdy-insp-section:where(.fdy-shelf), .fdy-before, .fdy-mode, .tnm-panel, .tnm-root:where(.room-box, .entry-detail, .match-detail), :where(.tnm-root) :is(.room-box, .pool, .match), .frq-item, .gdq-item, .ar-row, :where(.ar-root) :is(.ar-panel, .ar-project), :where(.admin-console) .panel, :where(.legacy-index) .hero-meta, :where(.legacy-index) .changelog-body, .loc-panel) {
 		border-color: var(--plate-hair);
 		border-radius: var(--plate-r-panel);
 		background-color: var(--plate-panel-ground);
@@ -1131,7 +1144,7 @@ body:has(:is(.cr-plate, .site-plate)) .bg-fx::after {
 	}
 	/* A card nested in a card is a panel INSIDE a housing: the same face, and
 	   a shorter shadow so the stack reads as one assembly. */
-	:root :scope:is(.cr-plate, .site-plate) :is(.card, .console-panel, .lc-panel, .entry-panel) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door:not(:where(.ch-row) *), .ct-card, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp, .course-card, .td-door, .coin-summary, .preview-banner, .fdy-block, .fdy-gal-plays, .fdy-flag, .fdy-insp-section:where(.fdy-shelf), .fdy-before, .fdy-mode, .tnm-panel, .tnm-root:where(.room-box, .entry-detail, .match-detail), :where(.tnm-root) :is(.room-box, .pool, .match), .frq-item, .gdq-item, .ar-row, :where(.ar-root) :is(.ar-panel, .ar-project), :where(.admin-console) .panel, :where(.legacy-index) .hero-meta, .loc-panel) {
+	:root :scope:is(.cr-plate, .site-plate) :is(.card, .console-panel, .lc-panel, .entry-panel) :is(.card:not(.group-card, .grade-card), .console-panel, .class-card, .hp-card, .sq-card, .ld-door:not(:where(.ch-row) *), .ct-card, .lc-panel, .dd-group, .inspector, .zip-choice, .tour-offer, .hxp, .entry-panel, .nb-guidance, .compose-card, .review-form, .session-form, .excusal, .conflict-copy, .lp, .course-card, .td-door, .coin-summary, .preview-banner, .fdy-block, .fdy-gal-plays, .fdy-flag, .fdy-insp-section:where(.fdy-shelf), .fdy-before, .fdy-mode, .tnm-panel, .tnm-root:where(.room-box, .entry-detail, .match-detail), :where(.tnm-root) :is(.room-box, .pool, .match), .frq-item, .gdq-item, .ar-row, :where(.ar-root) :is(.ar-panel, .ar-project), :where(.admin-console) .panel, :where(.legacy-index) .hero-meta, :where(.legacy-index) .changelog-body, .loc-panel) {
 		box-shadow:
 			inset 0 1px 0 0 var(--plate-panel-hi),
 			0 1px 2px 0 var(--plate-drop),
