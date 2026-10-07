@@ -23,14 +23,16 @@ const FLOW = `async () => {
 	await wait(100);
 	const staged = document.querySelectorAll('[data-testid="quick-post-composer"] [data-testid="fup-row"]').length;
 	document.querySelector('[data-testid="quick-post-send"]').click();
-	for (let i = 0; i < 80 && !document.querySelector('[data-testid="quick-post-attach-rest"]'); i++) await wait(50);
+	/* Done when the composer says how the pass went (not while it attaches). */
+	const said = () => document.querySelector('[data-testid="quick-post-posted"]')?.textContent || '';
+	for (let i = 0; i < 120 && !/did not attach|every file attached/.test(said()); i++) await wait(50);
 	const log = () => (document.querySelector('[data-testid="class-header-harness"]').dataset.log || '').split('|').filter(Boolean);
 	const afterPost = log();
 	const posted = document.querySelector('[data-testid="quick-post-posted"]')?.textContent.replace(/\\s+/g, ' ').trim() || '';
 	const left = document.querySelectorAll('[data-testid="quick-post-composer"] [data-testid="fup-row"]').length;
 	const tiles = document.querySelectorAll('[data-post^="qp-new"] [data-testid="attach-gallery-tile"]').length;
-	document.querySelector('[data-testid="quick-post-attach-rest"]').click();
-	await wait(400);
+	document.querySelector('[data-testid="quick-post-attach-rest"]')?.click();
+	for (let i = 0; i < 60 && !/every file attached/.test(said()) && document.querySelector('[data-testid="quick-post-composer"]'); i++) await wait(50);
 	const afterRetry = log();
 	return [
 		'staged=' + staged,
@@ -53,7 +55,7 @@ export default {
 		{ waitFor: `() => !!document.querySelector('[data-testid="quick-post-composer"] input[type="file"]')`, label: 'the composer offers the file picker', timeoutMs: 20000 }
 	],
 	presence: [
-		{ selector: '[data-testid="quick-post-composer"] input[type="file"]:not([accept])', label: 'the plain picker, no accept', expectPresent: 1, maxPresent: 1 },
+		{ selector: '[data-testid="quick-post-composer"] input[type="file"]:not([accept])', label: 'the plain picker, no accept (visually inside its Choose files key)', expectPresent: 1, maxPresent: 1, expectVisible: 0 },
 		{ selector: '[data-testid="quick-post-composer"] input[type="file"][accept]', label: 'no filtered picker', expectPresent: 0, maxPresent: 0 }
 	],
 	tapTargets: [{ selector: '[data-testid="quick-post-composer"] .fup-pick', label: 'Choose files', min: 44 }],

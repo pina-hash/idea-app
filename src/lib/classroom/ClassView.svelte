@@ -1843,7 +1843,10 @@
 							so a menu with space below opens where it always did; `gap: 3`
 							is that 0.2rem. No ancestor carries a `transform`, `filter` or
 							`contain` (measured on the whole chain up to `<body>`), which is
-							the one precondition the action cannot check for itself.
+							the one precondition the action cannot check for itself. The
+							stream's `container-type: inline-size` (ledger 0368) was measured
+							NOT to capture a fixed descendant or to stack it (Chromium 141),
+							and the narrow-list spec opens this menu and hit-tests it.
 						-->
 						<div
 							class="menu"
@@ -2715,6 +2718,8 @@
 	.stream {
 		column-width: var(--cr-stream-col);
 		column-gap: var(--space-5);
+		/* The compact rows below ask THIS box how wide it is (ledger 0368). */
+		container: class-stream / inline-size;
 	}
 	.stream > :global(*) {
 		/* A card must never be split down a column boundary: half a unit at the
@@ -3547,6 +3552,67 @@
 		margin-top: var(--space-4);
 		display: flex;
 		justify-content: flex-start;
+	}
+	/* The version stamp is one `nowrap` line, 52px wider than the list at its
+	   18rem floor (measured, ledger 0368): beside an open item it may wrap at
+	   its own spaces rather than push the pane sideways. */
+	.classroom-page.as-pane .page-footer :global(.version-badge) {
+		min-width: 0;
+		white-space: normal;
+	}
+
+	/* THE LIST BESIDE AN OPEN ITEM, NARROWED (ledger 0368, report R09: "This
+	   kind of squishing ... is unacceptable"). Measured on /dev/classroom-split
+	   with a long unit name and a long title, before this: at the 18rem pane a
+	   manager's row spent ~155px on controls (checkbox 30, grip 44, expand 30,
+	   menu 32, gaps) of 208px, so the title had 71px and "HOOK COMPETITION" broke
+	   mid-word beside its Select all key; at 24rem nothing broke. So the rows
+	   shed what they can do without, keyed on the STREAM's own width (a
+	   breakpoint inside a nested pane is dead code until measured there), and
+	   only beside an open item (`.as-pane`): a phone keeps its 44px grip, which
+	   was made visible there on purpose.
+
+	   FROM THE DEFAULT 26rem PANE DOWN (the stream at 25rem or less; the
+	   stream is the pane less 26px, measured: 390px at 26rem, 422px at 28rem), the drag
+	   grip and a collapsed expand arrow step aside. Reordering stays in the row
+	   menu's Move up / Move down and in the full-width list; an expanded row
+	   keeps its arrow, because that is how it closes. The unit header wraps its
+	   Select all / File here keys under the name before the name is squeezed. */
+	@container class-stream (max-width: 25rem) {
+		.classroom-page.as-pane .row-grip,
+		.classroom-page.as-pane .row-expand:not([aria-expanded='true']) {
+			display: none;
+		}
+		.classroom-page.as-pane .group-bar {
+			flex-wrap: wrap;
+		}
+		.classroom-page.as-pane .group-head {
+			flex: 1 1 11rem;
+		}
+	}
+	/* BELOW A 22rem PANE (the stream at 20rem or less: 294px at 20rem, 326px
+	   at 22rem) the card gives the rows
+	   half its side padding back (8px, still over the selected row's 4px plate
+	   overhang) and the kind WORD leaves the meta line visually: the kind glyph
+	   beside the title still says it, and the word stays in the accessible
+	   tree. Every other meta field stays, whole where it fits (ledger 0281:
+	   nothing Mr. Pina acts on is cut or hidden). */
+	@container class-stream (max-width: 20rem) {
+		.classroom-page.as-pane .group-card {
+			padding-inline: var(--space-2);
+		}
+		.classroom-page.as-pane .row-kind {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			margin: -1px;
+			overflow: hidden;
+			clip: rect(0 0 0 0);
+			white-space: nowrap;
+		}
+		.classroom-page.as-pane .row-kind + .meta-bit > .meta-sep {
+			display: none;
+		}
 	}
 
 	/* THE UNITS PROMPT. A card, because it is teaching a capability rather than

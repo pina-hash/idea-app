@@ -13,14 +13,21 @@
 import { IGNORE, READY } from './_class-header.mjs';
 
 const HEIGHTS = `async () => {
+	const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 	const region = document.querySelector('[data-testid="quick-posts"]');
 	const key = document.querySelector('[data-testid="quick-post-more"]');
+	/* PAINT IS NOT INTERACTIVITY: a press before hydration does nothing, so
+	   each press is repeated until the key says it moved. */
+	const press = async (want) => {
+		for (let i = 0; i < 40 && key.getAttribute('aria-expanded') !== want; i++) {
+			key.click();
+			await wait(250);
+		}
+	};
 	const closed = region.getBoundingClientRect().height;
-	key.click();
-	await new Promise((r) => setTimeout(r, 300));
+	await press('true');
 	const open = region.getBoundingClientRect().height;
-	key.click();
-	await new Promise((r) => setTimeout(r, 300));
+	await press('false');
 	const tile = document.querySelector('[data-testid="attach-gallery-tile"] .gallery-open').getBoundingClientRect();
 	return 'notices region ' + closed.toFixed(1) + 'px folded, ' + open.toFixed(1) + 'px open; a tile ' + tile.width.toFixed(1) + 'x' + tile.height.toFixed(1) + 'px';
 }`;
@@ -53,7 +60,7 @@ export default {
 	prepare: [{ waitFor: READY, label: 'the header has painted' }, { evaluate: HEIGHTS }],
 	presence: [
 		{ selector: '[data-post="qp-1"] [data-testid="quick-post-more"][aria-expanded="false"]', label: 'the long notice folds, closed on arrival', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
-		{ selector: '[data-post="qp-1"] [data-testid="quick-post-rest"]', label: 'the rest is in the page, folded away', expectPresent: 1, maxPresent: 1, maxVisible: 0 },
+		{ selector: '[data-post="qp-1"] [data-testid="quick-post-rest"]', label: 'the rest is in the page, folded away', expectPresent: 1, maxPresent: 1, expectVisible: 0, maxVisible: 0 },
 		{ selector: '[data-post="qp-1"] [data-testid="attach-gallery-tile"]', label: 'three picture tiles', expectPresent: 3, maxPresent: 3, expectVisible: 3 },
 		{ selector: '[data-post="qp-1"] [data-testid="attach-row"]', label: 'two download rows (a PDF and a CAD part)', expectPresent: 2, maxPresent: 2, expectVisible: 2 }
 	],
