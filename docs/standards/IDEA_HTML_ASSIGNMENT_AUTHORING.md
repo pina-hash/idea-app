@@ -1,5 +1,5 @@
 # IDEA HTML Assignment Authoring Standard
-**Version 1.14 - 2026-10-05**
+**Version 1.15 - 2026-10-07**
 
 For a chat that is WRITING an assignment, not building the subsystem that serves it.
 
@@ -754,10 +754,53 @@ portal does: at 1440px the stage went from 4834px tall to 2581px with every move
   document. That is the platform (`CLAUDE.md`, "bytes go frame-to-parent only"), not
   something a document can fix. Never tell students the picture stays in the worksheet.
 
+## 18. A video tutorial stage, and adding a stage to a live post (2026-10-07)
+
+Paid for by Hook 03 Stage 2, Simulate: a SolidWorks static study taught entirely by six
+short videos Mr. Pina recorded, built into the live post so no live demo is needed.
+
+- **The teacher's own videos are the source, and they outrank every older document.** Read
+  every transcript before writing a step, and where an older handout or shot list says
+  something different, the video wins (Simulate: Normal direction, not Selected; Split Line
+  from Features > Curves before the study, not from the load window; No on the
+  notification). Each move's steps are the video's steps, in its order, in its button
+  names, so a student watching and a student reading do the same thing.
+- **One move per video, the video card first.** Card, then the numbered steps, then a
+  "You should see" line describing the end frame, then any hand-in. A student who will not
+  read can play the card and match the end frame.
+- **Every move carries "That's not what I see".** A closed disclosure under the steps, each
+  row a symptom in the student's words beside the fix. Write the symptoms from what goes
+  wrong in that exact procedure (no add-in tab, a circle that does not cross the face, the
+  wrong face picked, units in N, arrows the wrong way, a frozen solve), and end the last
+  move with "raise your hand" for whatever none of the rows fit.
+- **Evidence at the checkpoints, not a checkbox per move.** A screenshot where the setup
+  can be checked (both split faces; the fixture and load before Run with the study tree
+  showing; the result with its scale), and a move with no evidence of its own is done when
+  the next evidence lands. A screenshot before Run is what lets a grader see a load on the
+  wrong face or in the wrong units, which the result alone hides.
+- **A video card names its maker and its place in the set** ("Mr. Pina video, 3 of 6"),
+  never a length nobody measured. Its thumbnail is the real one, inlined as a `data:` JPEG,
+  because the sandbox loads no image host.
+- **A pick that reads an earlier stage's answer shows it.** The Read move prints "Test 1
+  broke at: Bowl" beside the question it is compared with, from the saved Stage 1 answer,
+  so the student compares rather than remembers.
+- **Adding a stage to a live post keeps every earlier id.** The new module gets new,
+  permanent block ids; the earlier module, its rubric and its moves are untouched; the
+  manifest's points grow by the new module's points; the stage list moves "Today" to the
+  new stage. Open all, Close all, the stage chip and the stage-done banner act per stage,
+  never on the whole document, and the interaction test pins that one stage's Close all
+  leaves the other alone. Re-upload over the same post: the rubric regenerates for the new
+  module and every stored answer still renders.
+
 ---
 
 ## Changelog
 
+- **1.15 (2026-10-07).** Ledger 0367. New section 18: a video tutorial stage built from the
+  teacher's own videos (they outrank older handouts), one move per video with a "You
+  should see" end frame and a "That's not what I see" fix list, screenshot evidence at the
+  checkpoints, honest video card labels, an earlier answer shown beside its comparison, and
+  adding a stage to a live post with every earlier id kept and per-stage controls.
 - **1.14 (2026-10-05).** Ledger 0362. New section 17: folding moves cleanly (fold only on a
   press, arrival from saved answers, closed headers that say what is inside, `display:none`
   over height animation, Next as an instant cut with focus, a delayed bring-up for a low
