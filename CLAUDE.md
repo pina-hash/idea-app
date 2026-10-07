@@ -1862,8 +1862,22 @@ token back.
     `docs/standards/IDEA_HTML_ASSIGNMENT_SPEC.md` section 5.6 carries the
     measured table -- a popup cannot read the opener, the opener's parent or the
     opener's top, and cannot navigate either of them, so the widening did NOT
-    buy `allow-top-navigation` by proxy. **`allow-top-navigation` and
-    `allow-forms` stay refused in every configuration.**
+    buy `allow-top-navigation` by proxy.
+  - **THE SET ALSO CARRIES `allow-downloads`, ON MR. PINA'S REPORT OF
+    2026-10-06 ("download button to download a file from an html is not
+    working"), AND THAT IS THE SECOND WIDENING (ledger 0368).** Chromium refuses
+    every download a document sandboxed without it initiates, including the
+    FIRST navigation of a popup it opens, so AUTHORING 9b's Download button (the
+    stored proxy URL in a new tab, which 302s to an attachment) did nothing.
+    **What it costs: a document can now put a file on a viewer's disk WITHOUT A
+    CLICK** -- measured, 0 of 4 no-gesture downloads under the old set and 4 of
+    4 with the flag, where before the only route was a self-navigating popup a
+    real Chrome blocks without a gesture. The mitigation on record is still
+    admin-only import, and the fallback if it is ever withdrawn is an
+    `idea:download { field }` message (SPEC 5.7, which carries both tables;
+    `tools/browser-verify/_hx-downloads.mjs` re-counts them from the constant).
+    **`allow-top-navigation`, `allow-forms` and `allow-modals` stay refused in
+    every configuration.**
   - **`connect-src 'none'` IS AN INDEPENDENT LEVER AND NEITHER IS EVIDENCE
     ABOUT THE OTHER.** A fetch from inside the document is refused with either
     one in force. The discriminator, measured: open `connect-src` with the
@@ -1881,8 +1895,9 @@ left to fail loudly: it would work, and it would quietly make the document the
 system of record for a student's photograph. **A restored picture therefore
 cannot render inside the document at all** -- the URL is a portal proxy the CSP
 admits no host for, and the request would arrive credential-free -- so restored
-images belong in PARENT CHROME beside the frame, where Submit already is. Do
-not weaken the CSP to move them inside.
+images are drawn in PARENT CHROME: over a box the document holds open
+(`idea:image-box`, below), or in the list under the frame when it reports none.
+Do not weaken the CSP to move them inside, and do not send the bytes down.
 
 **A VIDEO IS PLAYED BY THE PARENT, OVER A BOX THE DOCUMENT HOLDS OPEN, AND THAT IS FORCED
 (ledger 0349).** A YouTube player framed inside the document inherits the sandbox and draws
@@ -1893,6 +1908,18 @@ document sends `idea:video` with a YouTube id and its box's rectangle, and
 never a URL** (`HX_VIDEO_ID`, `hxVideoEmbedUrl` on youtube-nocookie), and the served CSP
 still has no `frame-src`. Do not widen `frame-src` in `hxDocumentCsp` to move the player
 inside: it would not play there anyway.
+
+**A STORED PICTURE IS DRAWN BY THE PARENT, OVER A BOX THE DOCUMENT HOLDS OPEN (ledger 0368,
+Mr. Pina: "show within html assignments not under them").** The document sends
+`idea:image-box` with a FIELD (never a URL or a block id, resolved through the parent's own
+map) and its box's rectangle, judged by `hxBoxOf`, the video box's rule; `null` withdraws
+it. **`hxImagePlacement` is the one rule of where a stored picture is drawn: over its box,
+or in the list under the frame, never both and never neither**, and a document that predates
+the message keeps every picture in the list. Picture or file is `isImageFilename`, so a
+`.SLDPRT` is a tile with a Download and never an `<img>` request, and `undecodable` is keyed
+on the URL. Every picture opens in `$lib/media/Lightbox.svelte` and every stored file has a
+worded 44px Download, in the frame and in `HtmlAnswerList`. **A picture appears inside a live
+document only after that document is re-uploaded with the AUTHORING 10b reporter.**
 
 **THE PARENT TELLS THE DOCUMENT WHETHER THE SITE IS LIGHT OR DARK (ledger 0350).** A sandboxed
 document cannot read `data-theme` or keep a setting, so `HtmlAssignmentFrame` sends

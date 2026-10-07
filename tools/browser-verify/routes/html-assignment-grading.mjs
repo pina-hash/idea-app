@@ -181,7 +181,7 @@ export default {
 			]
 		},
 		{
-			label: 'the photograph is beside the frame, decoded, with its caption',
+			label: 'the photograph is in the list under the frame, decoded, with its caption',
 			/*
 				PARENT CHROME, NOT THE DOCUMENT. `idea:state` carries an image URL
 				down and the document CANNOT render it -- the URL is a portal proxy
@@ -197,7 +197,14 @@ export default {
 					'thumbs=' + document.querySelectorAll('.hx-image-thumb').length,
 					'decoded=' + (img ? img.naturalWidth > 0 : false),
 					'fallbacks=' + document.querySelectorAll('.hx-image-missing').length,
-					'caption=' + (document.querySelector('.hx-image-caption')?.textContent ?? 'absent')
+					'caption=' + (document.querySelector('.hx-image-caption')?.textContent ?? 'absent'),
+					/* LEDGER 0368. The thumb is a button into the Lightbox and every
+					   row has a worded Download. This document reports no box, so
+					   NOTHING is drawn over the frame: the absent half of the pair
+					   the boxed spec measures the other way round. */
+					'open=' + document.querySelectorAll('[data-testid="hx-image-open"]').length,
+					'downloads=' + document.querySelectorAll('[data-testid="hx-image-download"]').length,
+					'over=' + document.querySelectorAll('[data-testid="hx-image-over"], .hx-image-over').length
 				];
 			}`,
 			expected: [
@@ -205,9 +212,60 @@ export default {
 				'thumbs=1',
 				'decoded=true',
 				'fallbacks=0',
-				'caption=The fillet after the third rebuild'
+				'caption=The fillet after the third rebuild',
+				'open=1',
+				'downloads=1',
+				'over=0'
+			]
+		},
+		{
+			label: 'pressing the thumbnail opens the Lightbox, whose Download is the same file',
+			/*
+				EVERY PICTURE IN THE CLASSROOM OPENS IN THE ONE LIGHTBOX (CLAUDE.md),
+				and before ledger 0368 this strip's thumbnail opened nothing. The
+				Download inside it and the row's own Download must name the same
+				proxy URL the thumbnail loaded, which here is the harness's
+				registered data URI. The dialog is closed again before the rows
+				below are measured.
+			*/
+			evaluate: `async () => {
+				const thumb = document.querySelector('.hx-image-thumb');
+				document.querySelector('[data-testid="hx-image-open"]')?.click();
+				let dlg = null;
+				for (let i = 0; i < 30 && !(dlg = document.querySelector('dialog[data-testid="hx-lightbox"][open]')); i++) {
+					await new Promise((r) => setTimeout(r, 100));
+				}
+				const lbHref = document.querySelector('[data-testid="hx-lightbox-download"]')?.getAttribute('href') ?? 'absent';
+				const rowHref = document.querySelector('[data-testid="hx-image-download"]')?.getAttribute('href') ?? 'absent';
+				const src = thumb?.getAttribute('src') ?? 'none';
+				const out = [
+					'dialogOpen=' + !!dlg,
+					'lightboxDownloadIsTheFile=' + (lbHref === src),
+					'rowDownloadIsTheFile=' + (rowHref === src),
+					'rowDownloadName=' + (document.querySelector('[data-testid="hx-image-download"]')?.getAttribute('download') ?? 'absent'),
+					'zoom=' + document.querySelectorAll('[data-testid="hx-lightbox-zoom-in"]').length
+				];
+				document.querySelector('[data-testid="hx-lightbox-close"]')?.click();
+				for (let i = 0; i < 20 && document.querySelector('dialog[data-testid="hx-lightbox"][open]'); i++) {
+					await new Promise((r) => setTimeout(r, 100));
+				}
+				out.push('closedAgain=' + !document.querySelector('dialog[data-testid="hx-lightbox"][open]'));
+				return out;
+			}`,
+			expected: [
+				'dialogOpen=true',
+				'lightboxDownloadIsTheFile=true',
+				'rowDownloadIsTheFile=true',
+				'rowDownloadName=blade-root-fillet.png',
+				'zoom=1',
+				'closedAgain=true'
 			]
 		}
+	],
+
+	tapTargets: [
+		{ selector: '[data-testid="hx-image-open"]', label: 'the thumbnail that opens the Lightbox', min: 44 },
+		{ selector: '[data-testid="hx-image-download"]', label: 'the worded Download on the row', min: 44 }
 	],
 
 	presence: [
@@ -239,6 +297,7 @@ export default {
 		{ selector: '.hx-image-name', label: 'the attached filename', min: 4.5 },
 		{ selector: '.hx-image-caption', label: "the student's caption", min: 4.5 },
 		{ selector: '.hx-image-field', label: "the document's own field name", min: 4.5 },
-		{ selector: '.hx-images-head', label: 'the Photos heading', min: 4.5 }
+		{ selector: '.hx-images-head', label: 'the Photos heading', min: 4.5 },
+		{ selector: '[data-testid="hx-image-download"]', label: 'the Download word', min: 4.5 }
 	]
 };

@@ -40,6 +40,23 @@
 	let synthetic = $state<{ label: string; verdict: string }[]>([]);
 
 	const src = $derived(`${data.sandboxOrigin}/hx/${data.docId}`);
+
+	/**
+	 * `?doc=photo` (ledger 0368) seeds one stored picture for the fixture's
+	 * `photo` field, so the student side shows it drawn OVER the box the
+	 * document reports, and the fixture's Hide control (a null rect) moves it
+	 * back to the list under the frame. A data URI here is the PARENT's own
+	 * image, drawn in parent chrome; nothing goes down to the document but the
+	 * URL, which it cannot load. Every other document is seeded with none.
+	 */
+	const PHOTO_SEED = {
+		photo: {
+			url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAFCAIAAAD38zoCAAAAEUlEQVR4nGOIWpCHFTHQQQIAucA4QbqkH88AAAAASUVORK5CYII=',
+			name: 'bench-cleared.png',
+			caption: 'The bench after cleanup'
+		}
+	};
+	const seededImages = $derived(data.docId === 'photo' ? PHOTO_SEED : {});
 	const expectedOrigin = $derived(hxExpectedOrigin(data.sandboxOrigin, HX_SANDBOX_FLAGS));
 
 	/** A probe REACHED means the boundary leaked. This is the number the whole
@@ -185,7 +202,8 @@
 		<h1>HTML assignment boundary</h1>
 		<p class="note">
 			The REAL frame, pointed at the REAL <code>/hx/</code> route. Add
-			<code>?doc=worksheet</code> for the ordinary document.
+			<code>?doc=worksheet</code> for the ordinary document, <code>?doc=photo</code> for a
+			stored picture drawn over the box the document reports.
 		</p>
 		<dl>
 			<dt>document</dt>
@@ -282,6 +300,7 @@
 		title="Ported HTML assignment"
 		fieldToBlockId={data.fieldToBlockId}
 		values={{ teamName: 'Seeded from the parent' }}
+		images={seededImages}
 		readOnly={false}
 		minHeight={240}
 		onready={(v) => {

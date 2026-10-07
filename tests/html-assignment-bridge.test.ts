@@ -55,7 +55,14 @@ import {
 	hxThemeMessage,
 	hxThemeOf,
 	HX_VIDEO_TYPE,
-	type HxGate
+	HX_IMAGE_BOX_TYPE,
+	HX_IMAGE_BOX_STATE_TYPE,
+	hxBoxOf,
+	hxImageBoxStateMessage,
+	hxImagePlacement,
+	type HxGate,
+	type HxImageBox,
+	type HxImageState
 } from '../src/lib/classroom/html-assignment/bridge.ts';
 import {
 	HX_PORTAL_ORIGIN,
@@ -112,8 +119,17 @@ describe('the sandbox flags are one string and allow-same-origin is not in it', 
 		security property; `toEqual` on a sorted array says it without also
 		pinning an order no browser reads.
 	*/
-	it('grants exactly scripts and the two popup flags', () => {
+	/*
+		`allow-downloads` JOINED THE SET ON MR. PINA'S REPORT OF 2026-10-06
+		(ledger 0368): his document's Download button did nothing, because
+		Chromium refuses a download a sandboxed document initiates without it.
+		It is a widening with a stated cost (a document can now save a file to
+		a viewer's disk with no click), recorded in bridge.ts and SPEC 5.7, and
+		pinned here so that neither its arrival nor its removal is silent.
+	*/
+	it('grants exactly scripts, the two popup flags and downloads', () => {
 		expect(HX_SANDBOX_FLAGS.split(/\s+/).filter(Boolean).sort()).toEqual([
+			'allow-downloads',
 			'allow-popups',
 			'allow-popups-to-escape-sandbox',
 			'allow-scripts'
@@ -135,9 +151,12 @@ describe('the sandbox flags are one string and allow-same-origin is not in it', 
 		SecurityError, and neither actually moved when read from outside), so the
 		popup widening did not buy top navigation by proxy.
 	*/
-	it('still refuses top navigation and forms', () => {
+	it('still refuses top navigation, forms and modals', () => {
 		expect(HX_SANDBOX_FLAGS).not.toContain('allow-top-navigation');
 		expect(HX_SANDBOX_FLAGS).not.toContain('allow-forms');
+		// `print()` and `alert()` stay dead: nothing has asked for them, and the
+		// downloads widening was granted alone rather than as a bundle.
+		expect(HX_SANDBOX_FLAGS).not.toContain('allow-modals');
 	});
 
 	/*
@@ -517,6 +536,167 @@ describe('idea:video: the parent plays a video over a box the document holds ope
 	});
 });
 
+describe('idea:image-box: the parent draws a stored picture over a box the document holds open', () => {
+	/*
+		LEDGER 0368, Mr. Pina's report of 2026-10-06: "I need for images to show
+		within html assignments not under them." The document cannot draw a
+		stored picture (its CSP admits no host for the proxy URL, and bytes go
+		frame-to-parent only), so it says where its box is and the parent draws
+		there. EVERY REFUSAL BELOW IS PAIRED WITH THE ACCEPTED CASE, so a gate
+		that refused everything could not pass this block.
+	*/
+	const RECT = { x: 45, y: 380, w: 320, h: 240 };
+	const ask = (data: Record<string, unknown>) =>
+		hxReceive(fromFrame({ type: HX_IMAGE_BOX_TYPE, ...data }), gate());
+
+	it('accepts a declared field with a rectangle, resolving the block through the parent map', () => {
+		expect(ask({ field: 'reflection', rect: RECT, clipTop: 12 })).toEqual({
+			ok: true,
+			message: { kind: 'image-box', blockId: FIELDS.reflection, field: 'reflection', rect: RECT, clipTop: 12 }
+		});
+		// clipTop absent reads as 0, exactly as it does for a video box.
+		const bare = ask({ field: 'teamName', rect: RECT });
+		expect(bare.ok && bare.message.kind === 'image-box' && bare.message.clipTop).toBe(0);
+	});
+
+	it('accepts a null rect as the document withdrawing its box', () => {
+		expect(ask({ field: 'reflection', rect: null })).toEqual({
+			ok: true,
+			message: { kind: 'image-box', blockId: FIELDS.reflection, field: 'reflection', rect: null, clipTop: 0 }
+		});
+	});
+
+	// A BOX CAN ONLY EVER BE DRAWN FOR A BLOCK THE STORED MANIFEST DECLARES. A
+	// block id in the field slot is the "a frame naming a block_id gets
+	// nowhere" rule, here as everywhere.
+	it('refuses an undeclared field, a block id used as a field and a prototype name, as field', () => {
+		for (const field of ['undeclaredField', FIELDS.reflection, 'constructor', 'toString']) {
+			const v = ask({ field, rect: RECT });
+			expect(v.ok, field).toBe(false);
+			if (!v.ok) expect(v.reason, field).toBe('field');
+		}
+	});
+
+	it('refuses a message with no field as shape, before it reads a rectangle', () => {
+		for (const field of [undefined, '', 7, null]) {
+			const v = ask({ field, rect: RECT });
+			expect(v.ok).toBe(false);
+			if (!v.ok) expect(v.reason).toBe('shape');
+		}
+	});
+
+	// THE SAME RECTANGLES THE VIDEO BOX REFUSES, refused here for the same
+	// reasons, because both go through one rule (`hxBoxOf`).
+	it('refuses every rectangle the video box refuses, and a negative clipTop, as image-box', () => {
+		const bad = [
+			undefined,
+			{ x: 0, y: 0, w: 0, h: 10 },
+			{ x: -1, y: 0, w: 10, h: 10 },
+			{ x: 0, y: 0, w: 99_999, h: 10 },
+			{ x: 0, y: HX_MAX_HEIGHT_PX, w: 10, h: 10 },
+			{ x: 0, y: 0, w: Number.NaN, h: 10 },
+			{ x: '0', y: 0, w: 10, h: 10 }
+		];
+		for (const rect of bad) {
+			const v = ask({ field: 'reflection', rect });
+			expect(v.ok, JSON.stringify(rect)).toBe(false);
+			if (!v.ok) expect(v.reason, JSON.stringify(rect)).toBe('image-box');
+			// And the video box refuses the identical rectangle: one rule.
+			expect(hxReceive(fromFrame({ type: HX_VIDEO_TYPE, videoId: 'Ctw7eI7A1IE', rect }), gate()).ok).toBe(false);
+		}
+		const neg = ask({ field: 'reflection', rect: RECT, clipTop: -3 });
+		expect(neg.ok).toBe(false);
+		if (!neg.ok) expect(neg.reason).toBe('image-box');
+	});
+
+	it('caps clipTop at the height of the box', () => {
+		const v = ask({ field: 'reflection', rect: RECT, clipTop: 5000 });
+		expect(v.ok && v.message.kind === 'image-box' && v.message.clipTop).toBe(RECT.h);
+	});
+
+	it('still demands provenance first', () => {
+		const forged = hxReceive(
+			fromFrame({ type: HX_IMAGE_BOX_TYPE, field: 'reflection', rect: RECT }, { source: OTHER_WINDOW }),
+			gate()
+		);
+		expect(forged.ok).toBe(false);
+		if (!forged.ok) expect(forged.reason).toBe('source');
+	});
+
+	it('builds the advisory answer the document may listen for', () => {
+		expect(hxImageBoxStateMessage('photo', true)).toEqual({ type: HX_IMAGE_BOX_STATE_TYPE, field: 'photo', shown: true });
+		expect(HX_IMAGE_BOX_STATE_TYPE).toBe('idea:image-box-state');
+	});
+
+	// THE PICTURE IS THE PARENT'S, SO THE DOCUMENT'S OWN POLICY DOES NOT MOVE:
+	// still no host on img-src, still no frame-src.
+	it('leaves the served document with no image host and no frame-src', () => {
+		const csp = hxDocumentCsp(HX_PORTAL_ORIGIN);
+		expect(csp).toContain('img-src data: blob:;');
+		expect(csp).not.toMatch(/img-src[^;]*(https?:|'self'|\*)/);
+		expect(csp).not.toMatch(/frame-src|child-src/);
+	});
+
+	it('shares one rectangle rule with the video box', () => {
+		expect(hxBoxOf(RECT, undefined, HX_MAX_HEIGHT_PX)).toEqual({ rect: RECT, clipTop: 0 });
+		expect(typeof hxBoxOf({ x: 0, y: 0, w: 0, h: 1 }, 0, HX_MAX_HEIGHT_PX)).toBe('string');
+	});
+});
+
+describe('hxImagePlacement: a stored picture is always in exactly one place', () => {
+	/*
+		THE PROPERTY THAT OUTRANKS THE FEATURE. A picture a grader is looking for
+		must never be absent from BOTH the box and the list under the frame, and
+		must never be drawn twice. A wrong answer here is silent: the page simply
+		shows one picture fewer, which reads as a student who never handed it in.
+	*/
+	const img = (name: string): HxImageState => ({ url: `/api/classroom/submission-file/${name}`, name, caption: '' });
+	const BOX: HxImageBox = { rect: { x: 10, y: 20, w: 300, h: 200 }, clipTop: 0 };
+	const images: Record<string, HxImageState> = {
+		zBoxed: img('z.png'),
+		aUnboxed: img('a.png'),
+		mBoxedFile: img('m.SLDPRT')
+	};
+	const boxes: Record<string, HxImageBox> = {
+		zBoxed: BOX,
+		mBoxedFile: { rect: { x: 0, y: 0, w: 160, h: 120 }, clipTop: 8 },
+		// A box the document holds open for a field with nothing stored yet.
+		noImageYet: BOX
+	};
+
+	it('puts every stored picture in exactly one of the two lists', () => {
+		const { over, under } = hxImagePlacement(images, boxes);
+		const placed = [...over.map((o) => o.field), ...under.map((u) => u.field)].sort();
+		console.log(`    [placement] over=${over.length} under=${under.length} images=${Object.keys(images).length}`);
+		expect(placed).toEqual(Object.keys(images).sort());
+		expect(new Set(placed).size).toBe(placed.length);
+	});
+
+	it('draws a boxed picture over its box (positive control) and lists an unboxed one under the frame', () => {
+		const { over, under } = hxImagePlacement(images, boxes);
+		expect(over.map((o) => o.field)).toEqual(['mBoxedFile', 'zBoxed']);
+		expect(over.find((o) => o.field === 'mBoxedFile')).toMatchObject({ clipTop: 8, rect: { w: 160 } });
+		expect(under.map((u) => u.field)).toEqual(['aUnboxed']);
+		expect(over.some((o) => o.field === 'aUnboxed')).toBe(false);
+	});
+
+	it('draws nothing for a box with no stored picture', () => {
+		const { over, under } = hxImagePlacement(images, boxes);
+		expect([...over, ...under].some((p) => p.field === 'noImageYet')).toBe(false);
+	});
+
+	it('lists every picture under the frame when the document reports no box, as an older document does', () => {
+		const { over, under } = hxImagePlacement(images, {});
+		expect(over).toEqual([]);
+		expect(under.map((u) => u.field)).toEqual(['aUnboxed', 'mBoxedFile', 'zBoxed']);
+	});
+
+	it('does not resolve a box through the prototype chain', () => {
+		const { over } = hxImagePlacement({ constructor: img('c.png') }, {});
+		expect(over).toEqual([]);
+	});
+});
+
 describe('the portal theme goes down as two words', () => {
 	it('reads Space White as light and every other site theme, or none, as dark', () => {
 		expect(hxThemeOf('space-white')).toBe('light');
@@ -571,7 +751,7 @@ describe('the served document: frame-ancestors', () => {
 	// identically.
 	it('produces exactly the contract policy in production', () => {
 		expect(hxDocumentCsp(HX_PORTAL_ORIGIN)).toBe(
-			'sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox; ' +
+			'sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox allow-downloads; ' +
 				"default-src 'none'; script-src 'unsafe-inline'; " +
 				"style-src 'unsafe-inline'; " +
 				"img-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; " +

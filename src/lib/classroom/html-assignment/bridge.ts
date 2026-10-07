@@ -88,10 +88,42 @@ export const HX_SCHEMA_VERSION = 3;
  * this document, the parent, or the session -- measured, and written down in the
  * standard. The mitigation on record is that import is admin-only.
  *
- * TWO FLAGS STAY REFUSED, because neither is about what a document may do to
- * ITSELF: `allow-top-navigation` (a redirect out of a student's worksheet onto
- * anywhere, in the tab they are working in) and `allow-forms` (a form inside the
- * document submitting somewhere, which `form-action 'none'` refuses a second way).
+ * `allow-downloads` IS THE SECOND DELIBERATE WIDENING, granted on Mr. Pina's
+ * report of 2026-10-06 ("download button to download a file from an html is not
+ * working"), which is the authorisation, recorded in the decision log, in
+ * `docs/standards/IDEA_HTML_ASSIGNMENT_SPEC.md` section 5.7 and in CLAUDE.md.
+ * Chromium refuses every download whose INITIATOR is a document sandboxed
+ * without it, and that includes the FIRST navigation of a popup the document
+ * opens, so AUTHORING 9b's teacher Download button (the stored proxy URL opened
+ * in a new tab, which 302s to an attachment) did nothing at all. Measured in
+ * this container's Chromium 141 with the flags on the iframe AND as the CSP
+ * directive, a trusted click inside the frame, downloads fired under the old
+ * set and then with this flag added:
+ *
+ *   popup link to a URL that 302s to an attachment       0 then 1
+ *   window.open(url) and window.open(url, '_blank', 'noopener')  0 then 1
+ *   same-frame <a href download>                         0 then 1
+ *   <a href="data:..." download>, scripted or pressed     0 then 1
+ *   a pre-built blob: anchor pressed                      0 then 1
+ *
+ * WHAT IT COSTS, STATED PLAINLY. A document can now put a file on the disk of
+ * every viewer, and it does NOT need a click to do it: with no gesture at all,
+ * 0 of 4 downloads fired under the old set (an anchor clicked from script on
+ * load, a same-frame download link, `location.href` to an attachment, a timer)
+ * and 4 of 4 with this flag. Before it the only route was a popup that
+ * navigated itself, which a real Chrome's popup blocker refuses without user
+ * activation. So every student opening a worksheet, and a teacher on every
+ * student switch, can be handed a file unasked. Chrome's own prompt before a
+ * SECOND automatic download was not measured. The mitigation on record is the
+ * same as the popups': import is admin-only.
+ *
+ * FOUR FLAGS STAY REFUSED, because none of them is about what a document may
+ * do to ITSELF, or because nothing asks for it: `allow-same-origin` (above),
+ * `allow-top-navigation` (a redirect out of a student's worksheet onto
+ * anywhere, in the tab they are working in), `allow-forms` (a form inside the
+ * document submitting somewhere, which `form-action 'none'` refuses a second
+ * way) and `allow-modals` (so `window.print()` and `alert()` stay dead; no
+ * report has asked for them).
  *
  * It is a constant rather than a prop for the same reason the Foundry frame's
  * flags are a function rather than a literal in the component: one string, read
@@ -102,7 +134,7 @@ export const HX_SCHEMA_VERSION = 3;
  * drift apart. Changing this string changes both.
  */
 export const HX_SANDBOX_FLAGS =
-	'allow-scripts allow-popups allow-popups-to-escape-sandbox';
+	'allow-scripts allow-popups allow-popups-to-escape-sandbox allow-downloads';
 
 /**
  * THE HANDSHAKE'S OWN NAME, WRITTEN DOWN ONCE.
@@ -126,7 +158,8 @@ export type HxFrameMessage =
 	| { type: 'idea:image-remove'; field: string }
 	| { type: 'idea:image-caption'; field: string; caption: string }
 	| { type: 'idea:height'; px: number }
-	| { type: typeof HX_VIDEO_TYPE; videoId: string | null; rect?: HxVideoRect; clipTop?: number };
+	| { type: typeof HX_VIDEO_TYPE; videoId: string | null; rect?: HxVideoRect; clipTop?: number }
+	| { type: typeof HX_IMAGE_BOX_TYPE; field: string; rect: HxVideoRect | null; clipTop?: number };
 
 /**
  * A VIDEO IS PLAYED BY THE PARENT, OVER A BOX THE DOCUMENT HOLDS OPEN, AND
@@ -156,12 +189,26 @@ export type HxFrameMessage =
  */
 export const HX_VIDEO_TYPE = 'idea:video';
 
-/** A rectangle in the document's own CSS pixels, from its top-left corner. */
+/**
+ * A rectangle in the document's own CSS pixels, from its top-left corner.
+ *
+ * THE NAME SAYS VIDEO AND THE TYPE IS ANY BOX THE DOCUMENT HOLDS OPEN: since
+ * ledger 0368 a picture box (`idea:image-box`) is the same shape, judged by the
+ * same rule (`hxBoxOf`). It was not renamed, because nothing about a rectangle
+ * is video-shaped and a rename is churn in every reader for no gain.
+ */
 export interface HxVideoRect {
 	x: number;
 	y: number;
 	w: number;
 	h: number;
+}
+
+/** A box the document holds open, as the parent draws over it: where, and how
+    much of its top the document's own floating chrome is covering. */
+export interface HxImageBox {
+	rect: HxVideoRect;
+	clipTop: number;
 }
 
 /** YouTube's video id alphabet and length. Anything else is refused. */
@@ -172,6 +219,46 @@ export function hxVideoEmbedUrl(videoId: string): string {
 	if (!HX_VIDEO_ID.test(videoId)) throw new Error('not a video id');
 	return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&playsinline=1&modestbranding=1`;
 }
+
+/**
+ * A STORED PICTURE IS DRAWN BY THE PARENT, OVER A BOX THE DOCUMENT HOLDS OPEN
+ * (ledger 0368, Mr. Pina's report of 2026-10-06: "I need for images to show
+ * within html assignments not under them"). The video precedent, one message
+ * over.
+ *
+ * The document cannot draw a stored picture itself, and that has not moved:
+ * `HxImageState.url` is a portal proxy the served CSP admits no host for, and
+ * bytes go frame-to-parent only (see `HxImageState`). So the document keeps a
+ * box open where the picture belongs and says where it is, in its own
+ * coordinates, with `idea:image-box`; the parent draws the stored copy (or, for
+ * a file that is not a picture, a tile with a Download) over the frame at that
+ * rectangle, in parent chrome, and a click opens the classroom Lightbox. NO
+ * BYTES GO DOWN AND THE CSP DOES NOT MOVE.
+ *
+ * THE DOCUMENT NAMES A FIELD AND NEVER A URL OR A BLOCK ID. The field goes
+ * through the parent's own map exactly as `idea:change` does, so a box can only
+ * ever be drawn for a block the stored manifest declares, holding the picture
+ * the parent itself minted for it. A `rect` of `null` withdraws the box (a
+ * hidden stage, the document's own modal over it), and the picture goes back to
+ * the list under the frame -- `hxImagePlacement` is the rule that a stored
+ * picture is always in exactly one of the two places.
+ *
+ * ONLY THE DOCUMENT CAN SEE A REFLOW, SO ONLY THE DOCUMENT RE-SENDS. The frame
+ * is as tall as its document, so a page scroll moves the frame and the overlay
+ * together and needs nothing; a fold opening above the box, a stage change or a
+ * resize moves the box inside the document, and the document must send again.
+ * The authoring standard carries the reporter and its rules.
+ */
+export const HX_IMAGE_BOX_TYPE = 'idea:image-box';
+
+/**
+ * The parent's answer: it has started (or stopped) drawing over this field's
+ * box. ADVISORY. The parent's overlay has an opaque ground, so a document's own
+ * fallback inside the box ("Saved: <name>") is simply covered; a document may
+ * use this to stop drawing its own copy, and a portal that predates the message
+ * never sends it, so a document must never wait on it.
+ */
+export const HX_IMAGE_BOX_STATE_TYPE = 'idea:image-box-state';
 
 /**
  * WHAT AN IMAGE LOOKS LIKE ON THE WAY BACK DOWN, AND IT IS NOT WHAT CAME UP.
@@ -251,6 +338,14 @@ export type HxParentMessage =
 			type: 'idea:video-state';
 			videoId: string;
 			open: boolean;
+	  }
+	| {
+			/** The parent is drawing (or has stopped drawing) this field's
+			    stored picture over the box the document reported. See
+			    `HX_IMAGE_BOX_STATE_TYPE`; advisory, never waited on. */
+			type: typeof HX_IMAGE_BOX_STATE_TYPE;
+			field: string;
+			shown: boolean;
 	  };
 
 /**
@@ -266,7 +361,9 @@ export type HxAccepted =
 	| { kind: 'image-caption'; blockId: string; field: string; caption: string }
 	| { kind: 'height'; px: number }
 	| { kind: 'video'; videoId: string; rect: HxVideoRect; clipTop: number }
-	| { kind: 'video-close' };
+	| { kind: 'video-close' }
+	/** `rect` null is the document withdrawing the box; `clipTop` is then 0. */
+	| { kind: 'image-box'; blockId: string; field: string; rect: HxVideoRect | null; clipTop: number };
 
 /**
  * Why a message was dropped. These are DISTINCT on purpose: "a message from
@@ -283,7 +380,8 @@ export type HxDropReason =
 	| 'value'
 	| 'caption'
 	| 'height'
-	| 'video';
+	| 'video'
+	| 'image-box';
 
 export type HxVerdict =
 	| { ok: true; message: HxAccepted }
@@ -343,7 +441,8 @@ export const HX_MAX_HEIGHT_PX = 40_000;
  */
 export const HX_MAX_CAPTION_CHARS = 500;
 
-/** A player wider than any screen a school owns is a broken or hostile rect. */
+/** A player wider than any screen a school owns is a broken or hostile rect.
+    It bounds a picture box too: both go through `hxBoxOf`. */
 export const HX_MAX_VIDEO_WIDTH_PX = 8_000;
 
 /**
@@ -563,31 +662,122 @@ export function hxReceive(incoming: HxIncoming, gate: HxGate): HxVerdict {
 			if (typeof data.videoId !== 'string' || !HX_VIDEO_ID.test(data.videoId)) {
 				return { ok: false, reason: 'video', detail: 'idea:video videoId is not a YouTube video id' };
 			}
-			const rect = data.rect;
-			const max = gate.maxHeightPx ?? HX_MAX_HEIGHT_PX;
-			if (!isRecord(rect)) return { ok: false, reason: 'video', detail: 'idea:video without a rect' };
-			const { x, y, w, h } = rect;
-			const nums = [x, y, w, h];
-			if (!nums.every((n) => typeof n === 'number' && Number.isFinite(n))) {
-				return { ok: false, reason: 'video', detail: 'idea:video rect is not four finite numbers' };
-			}
-			const [nx, ny, nw, nh] = nums as number[];
-			if (nx < 0 || ny < 0 || nw <= 0 || nh <= 0 || nx + nw > HX_MAX_VIDEO_WIDTH_PX || ny + nh > max) {
-				return { ok: false, reason: 'video', detail: `idea:video rect ${nw}x${nh} at ${nx},${ny} is outside the document` };
-			}
-			const clip = data.clipTop === undefined ? 0 : data.clipTop;
-			if (typeof clip !== 'number' || !Number.isFinite(clip) || clip < 0) {
-				return { ok: false, reason: 'video', detail: 'idea:video clipTop is not a non-negative number' };
-			}
+			const box = hxBoxOf(data.rect, data.clipTop, gate.maxHeightPx ?? HX_MAX_HEIGHT_PX);
+			if (typeof box === 'string') return { ok: false, reason: 'video', detail: `idea:video ${box}` };
 			return {
 				ok: true,
-				message: { kind: 'video', videoId: data.videoId, rect: { x: nx, y: ny, w: nw, h: nh }, clipTop: Math.min(clip, nh) }
+				message: { kind: 'video', videoId: data.videoId, rect: box.rect, clipTop: box.clipTop }
 			};
+		}
+
+		/**
+		 * A PICTURE BOX, JUDGED IN THE ORDER EVERY FIELD MESSAGE IS: the shape,
+		 * then the field through the parent's own map, and only then the
+		 * rectangle, through the SAME rule the video box goes through. A `rect`
+		 * of null is a withdrawal and needs no rectangle.
+		 */
+		case HX_IMAGE_BOX_TYPE: {
+			const field = data.field;
+			if (typeof field !== 'string' || field === '') {
+				return { ok: false, reason: 'shape', detail: 'idea:image-box without a non-empty field' };
+			}
+			const blockId = resolveField(field, gate);
+			if (blockId === null) {
+				return { ok: false, reason: 'field', detail: `no block declares the field ${JSON.stringify(field)}` };
+			}
+			if (data.rect === null) {
+				return { ok: true, message: { kind: 'image-box', blockId, field, rect: null, clipTop: 0 } };
+			}
+			const box = hxBoxOf(data.rect, data.clipTop, gate.maxHeightPx ?? HX_MAX_HEIGHT_PX);
+			if (typeof box === 'string') return { ok: false, reason: 'image-box', detail: `idea:image-box ${box}` };
+			return { ok: true, message: { kind: 'image-box', blockId, field, rect: box.rect, clipTop: box.clipTop } };
 		}
 
 		default:
 			return { ok: false, reason: 'type', detail: `unknown message type ${JSON.stringify(data.type)}` };
 	}
+}
+
+/**
+ * ONE RULE FOR A BOX THE DOCUMENT HOLDS OPEN, the video player's and a stored
+ * picture's alike, so the two cannot come to disagree about what a rectangle
+ * inside the document is. Four finite numbers, inside the document (no
+ * negative corner, a positive size, no wider than `HX_MAX_VIDEO_WIDTH_PX`, no
+ * lower than the height ceiling), and a `clipTop` that is absent (0) or a
+ * non-negative number, capped at the box's own height.
+ *
+ * A REFUSAL IS A SENTENCE, NOT A NULL, so the caller can say which part was
+ * wrong; the caller prefixes its own message type.
+ */
+export function hxBoxOf(rawRect: unknown, rawClip: unknown, maxHeight: number): HxImageBox | string {
+	if (!isRecord(rawRect)) return 'without a rect';
+	const { x, y, w, h } = rawRect;
+	const nums = [x, y, w, h];
+	if (!nums.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+		return 'rect is not four finite numbers';
+	}
+	const [nx, ny, nw, nh] = nums as number[];
+	if (nx < 0 || ny < 0 || nw <= 0 || nh <= 0 || nx + nw > HX_MAX_VIDEO_WIDTH_PX || ny + nh > maxHeight) {
+		return `rect ${nw}x${nh} at ${nx},${ny} is outside the document`;
+	}
+	const clip = rawClip === undefined ? 0 : rawClip;
+	if (typeof clip !== 'number' || !Number.isFinite(clip) || clip < 0) {
+		return 'clipTop is not a non-negative number';
+	}
+	return { rect: { x: nx, y: ny, w: nw, h: nh }, clipTop: Math.min(clip, nh) };
+}
+
+/** One stored picture the parent draws over its box. */
+export interface HxPlacedOver extends HxImageBox {
+	field: string;
+	image: HxImageState;
+}
+
+/** One stored picture with no box, listed under the frame. */
+export interface HxPlacedUnder {
+	field: string;
+	image: HxImageState;
+}
+
+/**
+ * WHERE EACH STORED PICTURE IS DRAWN, AND THE PROPERTY IS THAT IT IS NEVER IN
+ * NEITHER PLACE AND NEVER IN BOTH.
+ *
+ * A picture whose field the document has reported a box for goes `over` (drawn
+ * over the frame at that box); every other picture goes `under` (the list
+ * beneath the frame, which is where every picture was drawn before ledger 0368
+ * and where it still is for a document that has never heard of
+ * `idea:image-box`). A box with no stored picture draws nothing: the document's
+ * own "No photo yet" stays visible through it. Evidence a grader is looking for
+ * must never be absent from both, which is why this is one pure function with a
+ * test of that property rather than two filters in a template.
+ *
+ * SORTED BY FIELD, both lists, so two graders reading one hand-in read it in
+ * one order. `Object.hasOwn` on the boxes for the reason `resolveField` uses
+ * it: field names are a document's strings.
+ */
+export function hxImagePlacement(
+	images: Readonly<Record<string, HxImageState>>,
+	boxes: Readonly<Record<string, HxImageBox>>
+): { over: HxPlacedOver[]; under: HxPlacedUnder[] } {
+	const over: HxPlacedOver[] = [];
+	const under: HxPlacedUnder[] = [];
+	const fields = Object.keys(images).sort((a, b) => a.localeCompare(b));
+	for (const field of fields) {
+		const image = images[field];
+		if (Object.hasOwn(boxes, field)) {
+			const box = boxes[field];
+			over.push({ field, image, rect: box.rect, clipTop: box.clipTop });
+		} else {
+			under.push({ field, image });
+		}
+	}
+	return { over, under };
+}
+
+/** The parent's answer to `idea:image-box`. */
+export function hxImageBoxStateMessage(field: string, shown: boolean): HxParentMessage {
+	return { type: HX_IMAGE_BOX_STATE_TYPE, field, shown };
 }
 
 /**

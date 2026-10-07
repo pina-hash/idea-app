@@ -28,7 +28,10 @@ export default {
 	orderResult: [
 		{
 			label: 'every answer, by field, as the grader reads it',
-			evaluate: `() => [...document.querySelectorAll('[data-testid="answers-without-document"] .answers-field')].map((dt) => dt.textContent.trim() + ': ' + dt.nextElementSibling.textContent.replace(/\\s+/g, ' ').trim())`,
+			/* The answer's own words, with the picture's Enlarge and Download keys
+			   (ledger 0368) taken out of the reading: they are controls, not what
+			   the student wrote, and they are counted on their own below. */
+			evaluate: `() => [...document.querySelectorAll('[data-testid="answers-without-document"] .answers-field')].map((dt) => { const dd = dt.nextElementSibling.cloneNode(true); dd.querySelectorAll('.answers-image-actions').forEach((n) => n.remove()); return dt.textContent.trim() + ': ' + dd.textContent.replace(/\\s+/g, ' ').trim(); })`,
 			expected: [
 				'teamName: Team Meridian',
 				'reflection: I modelled the blade root and the hub today. The fillet at the root took three tries before it would rebuild.',
@@ -42,6 +45,9 @@ export default {
 		{ selector: '[data-testid="answers-without-document"]', label: 'the answers read from the rows', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		{ selector: '.hx-frame-wrap', label: 'no frame (it would be an empty box)', expectPresent: 0 },
 		{ selector: '[data-testid="answers-image"]', label: 'the photograph named', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		/* LEDGER 0368: the answers carry the file, not only its name. */
+		{ selector: '[data-testid="answers-image-open"]', label: 'the photograph opens larger', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
+		{ selector: '[data-testid="answers-image-download"]', label: 'the photograph downloads', expectPresent: 1, maxPresent: 1, expectVisible: 1 },
 		/* The per-class console carries the link across; `html-assignment-grading-console-across`
 		   asserts its absence there, and this is that absence's positive control. */
 		{ selector: '[data-testid="cross-class-link"]', label: 'the link across (per-class console)', expectPresent: 1, maxPresent: 1, expectVisible: 1 }
@@ -49,8 +55,13 @@ export default {
 	textContains: [
 		{ selector: '[data-testid="answers-without-document"]', label: 'whose answers these are', must: ['What Alice Alvarez has written'] }
 	],
+	tapTargets: [
+		{ selector: '[data-testid="answers-image-download"]', label: 'the Download beside the photograph', min: 44 },
+		{ selector: '[data-testid="answers-image-open"]', label: 'the thumbnail that opens it larger', min: 44 }
+	],
 	contrast: [
 		{ selector: '.answers-value', label: 'an answer', min: 4.5 },
+		{ selector: '[data-testid="answers-image-download"]', label: 'the Download word', min: 4.5 },
 		{ selector: '.answers-field', label: 'a field name', min: 4.5 },
 		{ selector: '.note', label: 'the not-live notice', min: 4.5 }
 	]

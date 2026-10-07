@@ -160,13 +160,16 @@ export function hxPortalOriginIsRequestHost(
  * such guarantee -- with the sandbox origin unset it answers on the portal
  * host itself -- so the condition Foundry can assert is one this route cannot.
  *
- * THE SET DOES CARRY `allow-popups allow-popups-to-escape-sandbox`, and this
- * directive is where that reaches a DIRECTLY NAVIGATED document -- the same
- * widening, on the same string, by construction. `bridge.ts` carries the
- * decision and what it costs. It does not touch anything below: a popup is a
- * new browsing context with its own policy, so `connect-src 'none'`,
- * `form-action 'none'` and `frame-ancestors` still govern THIS document exactly
- * as they did.
+ * THE SET DOES CARRY `allow-popups allow-popups-to-escape-sandbox`, and since
+ * ledger 0368 `allow-downloads`, and this directive is where both widenings
+ * reach a DIRECTLY NAVIGATED document -- the same string, by construction.
+ * `bridge.ts` carries each decision and what it costs. Neither touches anything
+ * below: a popup is a new browsing context with its own policy, and a download
+ * is bytes saved to disk, not a request this document can read, so
+ * `connect-src 'none'`, `form-action 'none'` and `frame-ancestors` still govern
+ * THIS document exactly as they did. Changing the flags changes this header,
+ * and the document ETag folds the header, so every cached document is
+ * revalidated once.
  *
  * WHAT IT DOES NOT REPLACE. `PUBLIC_HX_SANDBOX_ORIGIN` stays supported and
  * remains the stronger deployment: a second host carries no session cookie at

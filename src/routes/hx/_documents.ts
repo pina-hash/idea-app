@@ -70,6 +70,12 @@ const WORKSHEET_FIELDS: Record<string, string> = {
 	checkedOff: 'mod-1.c.done'
 };
 
+/** The photo fixture's map: the worksheet's three, plus the picture block. */
+const PHOTO_FIELDS: Record<string, string> = {
+	...WORKSHEET_FIELDS,
+	photo: 'mod-1.d.photo'
+};
+
 const PROBE_FIELDS: Record<string, string> = {
 	probeParent: 'hx-probe.parent',
 	probeCookie: 'hx-probe.cookie',
@@ -275,6 +281,111 @@ ${bridgeClient()}
 </html>
 `;
 
+const PHOTO_MANIFEST = {
+	...WORKSHEET_MANIFEST,
+	title: 'Photo box fixture',
+	modules: [
+		{
+			...WORKSHEET_MANIFEST.modules[0],
+			title: 'One module, with a picture block',
+			blocks: [
+				...WORKSHEET_MANIFEST.modules[0].blocks,
+				{ id: 'mod-1.d.photo', field: 'photo', type: 'image' }
+			]
+		}
+	]
+};
+
+/**
+ * THE PHOTO FIXTURE (ledger 0368): the worksheet's manifest plus a picture
+ * block, and a 4:3 box held open well below the top and off the left edge, so
+ * a parent that drew at 0,0 or at the frame's own corner is visibly wrong. It
+ * reports the box with `idea:image-box` after every `idea:state` and on a resize
+ * (a timeout, never a ResizeObserver, which would post from inside a layout
+ * callback), and withdraws it with a null rect while the Hide control has the
+ * box hidden. It keeps its own fallback inside the box ("Saved: <name>"), which
+ * the parent's opaque overlay covers, and it writes the parent's
+ * `idea:image-box-state` answer into a note so a pass can read it.
+ *
+ * It also carries a Download button of the kind AUTHORING 9b prescribes, a
+ * same-frame data: download, which fires only under `allow-downloads`.
+ */
+const PHOTO_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo box fixture</title>
+<script type="application/json" id="idea-manifest">
+${manifestJson(PHOTO_MANIFEST)}
+</script>
+<style>
+	body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 1rem; background: #fff; color: #111; }
+	h1 { font-size: 1.2rem; margin: 0 0 0.75rem; }
+	label { display: block; margin: 0 0 0.75rem; }
+	input[type="text"] { width: 100%; box-sizing: border-box; font: inherit; padding: 0.4rem; min-height: 44px; }
+	.spacer { height: 240px; background: #eef1f4; margin: 0 0 1rem; }
+	#box { width: min(calc(100% - 29px), 320px); aspect-ratio: 4 / 3; margin: 0 0 1rem 29px; border: 2px dashed #888; box-sizing: border-box; display: flex; align-items: center; justify-content: center; color: #444; }
+	#box.is-hidden { display: none; }
+	button, .dl { font: inherit; min-height: 44px; margin: 0 0.5rem 0.5rem 0; display: inline-flex; align-items: center; padding: 0 0.8rem; }
+	.note { font: 13px/1.5 ui-monospace, monospace; color: #444; margin: 0.25rem 0; }
+</style>
+</head>
+<body>
+<h1>Photo box fixture</h1>
+<label>Team name
+	<input type="text" data-field="teamName" id="teamName">
+</label>
+<div class="spacer"></div>
+<p>A photo of your part</p>
+<div id="box" data-image-box="photo"><span id="box-fallback">No photo yet</span></div>
+<button type="button" id="hide">Hide the box</button>
+<a class="dl" id="download" href="data:text/plain;charset=utf-8,bridge%20fixture%20answers" download="answers.txt">Download my answers</a>
+<p class="note" id="box-note">no box sent</p>
+<p class="note" id="box-state">no answer</p>
+<p class="note" id="state-note">no state yet</p>
+<script>
+${bridgeClient()}
+	var box = document.getElementById('box');
+	var fallback = document.getElementById('box-fallback');
+	function sendBox() {
+		var r = box.getBoundingClientRect();
+		var rect = (r.width > 0 && r.height > 0)
+			? { x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) }
+			: null;
+		document.getElementById('box-note').textContent = 'sent ' + JSON.stringify(rect);
+		send({ type: 'idea:image-box', field: 'photo', rect: rect, clipTop: 0 });
+	}
+	addEventListener('message', function (e) {
+		var d = e.data;
+		if (!d || typeof d !== 'object') return;
+		if (d.type === 'idea:state') {
+			var im = d.images && d.images.photo;
+			fallback.textContent = im ? 'Saved: ' + im.name : 'No photo yet';
+			sendBox();
+		}
+		if (d.type === 'idea:image-box-state') {
+			document.getElementById('box-state').textContent = 'answer ' + d.field + ' shown=' + d.shown;
+		}
+	});
+	var resizeTimer = 0;
+	addEventListener('resize', function () {
+		clearTimeout(resizeTimer);
+		resizeTimer = setTimeout(function () { sendBox(); reportHeight(); }, 100);
+	});
+	document.getElementById('hide').addEventListener('click', function () {
+		var hidden = box.classList.toggle('is-hidden');
+		this.textContent = hidden ? 'Show the box' : 'Hide the box';
+		sendBox();
+		reportHeight();
+	});
+	announce();
+	reportHeight();
+</script>
+</body>
+</html>
+`;
+
 const PROBE_MANIFEST = {
 	schemaVersion: SCHEMA_VERSION,
 	kind: 'html-assignment',
@@ -464,7 +575,8 @@ ${bridgeClient()}
 const DOCUMENTS: Record<string, HxDocument> = {
 	worksheet: { html: WORKSHEET_HTML, devOnly: false, fieldToBlockId: WORKSHEET_FIELDS },
 	probe: { html: PROBE_HTML, devOnly: true, fieldToBlockId: PROBE_FIELDS },
-	video: { html: VIDEO_HTML, devOnly: true, fieldToBlockId: WORKSHEET_FIELDS }
+	video: { html: VIDEO_HTML, devOnly: true, fieldToBlockId: WORKSHEET_FIELDS },
+	photo: { html: PHOTO_HTML, devOnly: true, fieldToBlockId: PHOTO_FIELDS }
 };
 
 /** Every document id this module can answer for, in a stable order. */
