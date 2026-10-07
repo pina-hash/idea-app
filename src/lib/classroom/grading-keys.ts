@@ -31,7 +31,8 @@ export type GradeAction =
 	| 'student-next'
 	| 'save'
 	| 'return'
-	| 'close';
+	| 'close'
+	| 'dictate';
 
 /**
  * THE LEGEND AND THE HANDLER ARE ONE LIST, so a key that stops working stops
@@ -57,7 +58,12 @@ export type GradeAction =
  *     irreversible control on the site uses. Escape or any other key
  *     disarms.
  *   * Escape closes the student and goes back to the roster (and is caught
- *     by the dirty guard like every other way out).
+ *     by the dirty guard like every other way out). While dictation is
+ *     listening, Escape stops it instead and does nothing else.
+ *   * D dictates the comment to the student (report 5ab3adb6): he grades by
+ *     dictating forty comments a period, and the key starts and stops the
+ *     same session the comment's DICTATE control does. A letter, not a
+ *     chord, because it only fires outside a text field like every key here.
  */
 export const GRADE_KEYS: KeyBinding<GradeAction>[] = [
 	{
@@ -87,5 +93,6 @@ export const GRADE_KEYS: KeyBinding<GradeAction>[] = [
 	},
 	{ keys: 'S', label: 'Save draft', action: 'save', dispatch: { s: 'save' } },
 	{ keys: 'R R', label: 'Return to student', action: 'return', dispatch: { r: 'return' } },
+	{ keys: 'D', label: 'Dictate the comment', action: 'dictate', dispatch: { d: 'dictate' } },
 	{ keys: 'Esc', label: 'Back to roster', action: 'close', dispatch: { Escape: 'close' } }
 ];

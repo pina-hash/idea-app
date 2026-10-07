@@ -19,17 +19,28 @@
 	 * rubric of four criteria needs to see WHICH field is listening from the
 	 * word. `aria-pressed` makes it a toggle to assistive tech.
 	 *
-	 * THE INTERIM SENTENCE IS RENDERED BESIDE THE FIELD AND NEVER INTO IT. Only
-	 * text the service has committed reaches the textarea, through
-	 * `appendDictation`, which never removes a character.
+	 * THE INTERIM SENTENCE IS NEVER WRITTEN INTO THE FIELD. The console draws it
+	 * grey over the field (`DictationGhost`, fed by `dictation.preview`); only
+	 * text the service has committed reaches the textarea, through the
+	 * controller's `DictationJoin`, which never removes a character.
+	 *
+	 * A CONTROL WHOSE FIELD GOES AWAY STOPS ITS OWN SESSION. A criterion's note
+	 * sits inside its override box, and picking a level closes that box: the
+	 * field and this button unmount while the session may still be writing to
+	 * it, which (kept alive on a computer) was an open microphone with no STOP
+	 * anywhere on screen. `onDestroy`, not an effect: it is teardown, and the
+	 * controller's call is not a dependency of anything.
 	 */
+	import { onDestroy } from 'svelte';
 	import type { GradingDictation } from '$lib/classroom/grading-dictation.svelte';
+	import DictationLevel from '$lib/feedback/DictationLevel.svelte';
 
 	let {
 		dictation,
 		field,
 		label,
-		append,
+		read,
+		write,
 		disabled = false
 	}: {
 		dictation: GradingDictation;
@@ -37,12 +48,16 @@
 		field: string;
 		/** Names the field in the accessible name: "Dictate the comment to the student". */
 		label: string;
-		/** Reads the field FRESH and appends. See the controller's `Target`. */
-		append: (transcript: string) => void;
+		/** Reads the field FRESH. See the controller's `DictationTarget`. */
+		read: () => string;
+		/** Writes the field. Only ever a value `read()` is the prefix of. */
+		write: (value: string) => void;
 		disabled?: boolean;
 	} = $props();
 
 	const listening = $derived(dictation.listeningKey === field);
+
+	onDestroy(() => dictation.stopField(field));
 </script>
 
 {#if dictation.available}
@@ -56,10 +71,11 @@
 			data-testid="dictate-{field}"
 			data-dictate-field={field}
 			{disabled}
-			onclick={() => dictation.toggle(field, append)}
+			onclick={() => dictation.toggle({ key: field, read, write })}
 		>
 			{#if listening}
 				<span class="dictate-dot" aria-hidden="true"></span>
+				{#if dictation.level > 0}<DictationLevel level={dictation.level} />{/if}
 				STOP
 			{:else}
 				<svg
@@ -83,10 +99,12 @@
 			ONE LIVE REGION PER FIELD, ALWAYS MOUNTED AND ONLY ITS TEXT MOVING.
 			Several screen readers announce only a `role="status"` they were
 			already observing, so the element exists from the first frame and the
-			`{#if}` is INSIDE it. An empty region correctly holds no box.
+			`{#if}` is INSIDE it. An empty region correctly holds no box. It says
+			that the field is listening, never the words: those change several
+			times a second and are drawn over the field itself.
 		-->
-		<span class="dictate-heard" role="status" aria-live="polite">
-			{#if listening && dictation.heard}<em>{dictation.heard}</em>{/if}
+		<span class="dictate-status" role="status" aria-live="polite">
+			{#if listening}Listening{/if}
 		</span>
 	</span>
 	<!--
@@ -129,6 +147,7 @@
 	.dictate.listening {
 		border-color: var(--crimson);
 		color: var(--crimson);
+		--dl-ink: var(--crimson);
 	}
 	.dictate-dot {
 		width: 0.5rem;
@@ -153,13 +172,15 @@
 			opacity: 0.45;
 		}
 	}
-	.dictate-heard {
-		font-family: var(--font-mono);
-		font-size: 0.7rem;
-		color: var(--text-2);
-		min-width: 0;
+	/* Read aloud, not drawn: STOP and the live dot already say it on screen. */
+	.dictate-status {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
 		overflow: hidden;
-		text-overflow: ellipsis;
+		clip-path: inset(50%);
 		white-space: nowrap;
 	}
 	.dictate-error {

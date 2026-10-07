@@ -56,6 +56,12 @@
 	 * emits, and a fixture its producer cannot emit is how a dead branch gets
 	 * certified -- measured here: written that way, `refused` left the button
 	 * reading STOP forever and the mode was modelling nothing real.
+	 *
+	 * `?speech=hold` hears "clean weld, but the fillet" and never finishes on
+	 * its own, so the grey preview over the field is on screen to measure; in
+	 * EVERY mode `stop()` finishes the words still being heard and then ends,
+	 * which is what a real service does and what the console's wait for the
+	 * sentence in flight is about (report 5ab3adb6).
 	 */
 	const speechMode = $derived(page.url.searchParams.get('speech') ?? 'transcribe');
 	const HEARD_INTERIM = 'clean weld';
@@ -70,6 +76,8 @@
 			onerror: ((ev: SpeechRecognitionErrorLike) => void) | null = null;
 			onend: ((ev: unknown) => void) | null = null;
 			#timers: ReturnType<typeof setTimeout>[] = [];
+			/** Words heard and not yet final: finished on stop(). */
+			#heard: string | null = null;
 			start() {
 				if (mode === 'broken') {
 					// BEFORE `onstart`, and it THROWS rather than reporting:
@@ -86,17 +94,30 @@
 					this.#timers.push(setTimeout(() => this.onend?.({}), 0));
 					return;
 				}
-				const result = (isFinal: boolean, transcript: string): SpeechRecognitionEventLike => ({
-					resultIndex: 0,
-					results: [{ isFinal, length: 1, 0: { transcript } }]
-				});
-				this.#timers.push(setTimeout(() => this.onresult?.(result(false, HEARD_INTERIM)), 300));
-				this.#timers.push(setTimeout(() => this.onresult?.(result(true, HEARD_FINAL)), 800));
+				const say = (isFinal: boolean, transcript: string) => {
+					this.#heard = isFinal ? null : transcript;
+					this.onresult?.({ resultIndex: 0, results: [{ isFinal, length: 1, 0: { transcript } }] });
+				};
+				if (mode === 'hold') {
+					this.#timers.push(setTimeout(() => say(false, 'clean weld, but the fillet'), 300));
+					return;
+				}
+				this.#timers.push(setTimeout(() => say(false, HEARD_INTERIM), 300));
+				this.#timers.push(setTimeout(() => say(true, HEARD_FINAL), 800));
 			}
 			stop() {
 				this.#timers.forEach(clearTimeout);
 				this.#timers = [];
-				setTimeout(() => this.onend?.({}), 0);
+				const heard = this.#heard;
+				this.#heard = null;
+				setTimeout(() => {
+					if (heard)
+						this.onresult?.({
+							resultIndex: 0,
+							results: [{ isFinal: true, length: 1, 0: { transcript: heard } }]
+						});
+					this.onend?.({});
+				}, 80);
 			}
 			abort() {
 				this.stop();

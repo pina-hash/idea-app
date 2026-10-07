@@ -6,10 +6,16 @@
 //
 // THE RULE, READ OFF THE CODE AND THEN MEASURED HERE. `FeedbackBox` resolves
 // a speech constructor once at mount and, on every FINAL result, does
-// `message = appendDictation(message, text)` -- reading the field FRESH at
-// that moment, so text typed after DICTATE was pressed is still the prefix of
-// what lands. The interim text goes to a preview element beside the field
-// and never into it.
+// `message = join.append(message, text, pauseMs)` -- reading the field FRESH
+// at that moment, so text typed after DICTATE was pressed is still the prefix
+// of what lands. The interim text is drawn grey OVER the field by
+// `DictationGhost` and never written into it.
+//
+// REPORT 5ab3adb6 ADDED THREE BEHAVIOURS THAT LOSE WORK WHEN WRONG, and each
+// is driven here: Escape while dictating stops listening and KEEPS the box
+// (it used to close it and discard the report); SEND while dictating waits
+// for the sentence in flight (it used to send without it); and the meter a
+// box opened is closed when the box goes away.
 //
 // THE MUTANT IS BUILT FROM THE SHIPPING SOURCE, not retyped: the one append
 // line is replaced with the obvious wrong shape (`message = text`), the copy
@@ -22,18 +28,21 @@
 // does after mount. Structure, events and values only; happy-dom has no
 // layout engine, so nothing here measures a box.
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Component } from 'svelte';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import FeedbackBox from '$lib/feedback/FeedbackBox.svelte';
+import { DICTATION_STOP_GRACE_MS } from '$lib/feedback/dictation';
 import type {
+	MicMeter,
 	SpeechRecognitionCtor,
 	SpeechRecognitionErrorLike,
 	SpeechRecognitionEventLike,
 	SpeechRecognitionLike
 } from '$lib/feedback/dictation';
+import type { FeedbackEntry } from '$lib/feedback/feedback';
 import { mountInto, type Mounted } from './mount';
 
 type Box = Component<Record<string, unknown>>;
@@ -43,8 +52,8 @@ const ROOT = process.cwd();
 const BOX_PATH = join(ROOT, 'src/lib/feedback/FeedbackBox.svelte');
 
 /** The append, as the shipping file spells it; the mutant replaces it. */
-const APPEND_LINE = '\t\t\t\t\tmessage = appendDictation(message, text);\n';
-const MUTANT_LINE = '\t\t\t\t\tmessage = text;\n';
+const APPEND_LINE = '\t\t\t\t\t\tmessage = join.append(message, text, pauseMs);\n';
+const MUTANT_LINE = '\t\t\t\t\t\tmessage = text;\n';
 
 class Fake implements SpeechRecognitionLike {
 	static last: Fake | null = null;
@@ -56,6 +65,12 @@ class Fake implements SpeechRecognitionLike {
 	onerror: ((ev: SpeechRecognitionErrorLike) => void) | null = null;
 	onend: ((ev: unknown) => void) | null = null;
 	calls: string[] = [];
+	/** Words the service is still finishing: delivered as a final on stop(), as Chrome does. */
+	pending: string | null = null;
+	/** When true, stop() does not end the session (a service that never answers). */
+	static hang = false;
+	/** When true, stop() finishes the sentence and ends on a later task, as Chrome does. */
+	static later = false;
 	constructor() {
 		Fake.last = this;
 	}
@@ -65,7 +80,17 @@ class Fake implements SpeechRecognitionLike {
 	}
 	stop() {
 		this.calls.push('stop');
-		this.onend?.({});
+		if (Fake.hang) return;
+		const finish = () => {
+			if (this.pending !== null) {
+				const text = this.pending;
+				this.pending = null;
+				this.say(text, true);
+			}
+			this.onend?.({});
+		};
+		if (Fake.later) setTimeout(finish, 5);
+		else finish();
 	}
 	abort() {
 		this.calls.push('abort');
@@ -116,9 +141,10 @@ function scenario(component: Box): { value: string; sent: string[]; rec: Fake } 
 	expect(control(m).getAttribute('aria-pressed')).toBe('true');
 	rec.say('the launch', false);
 	m.flush();
-	// Interim text is beside the field, not in it.
+	// Interim text is drawn over the field, never written into it: the grey
+	// is exactly what the final will add, and the value is untouched.
 	expect(field(m).value).toBe('I typed this first');
-	expect(m.one('.fb-dictate-heard').textContent).toBe('the launch');
+	expect(m.one('.dg-ghost').textContent).toBe(' the launch');
 	rec.say('the launch button did nothing', true);
 	m.flush();
 	// Keep typing WHILE listening, then a second sentence lands.
@@ -134,11 +160,12 @@ function scenario(component: Box): { value: string; sent: string[]; rec: Fake } 
 describe('dictation appends to what is typed, never replaces it', () => {
 	it('the real component keeps every typed character across two dictated sentences', () => {
 		const { value, sent } = scenario(Fixed);
-		// Each dictated sentence now ends with a period (report R03). The typed
-		// text stops mid-sentence, so the first dictated chunk continues it
-		// rather than opening a capitalised sentence of its own.
+		// The typed text stops mid-sentence, so the first dictated chunk
+		// continues it rather than opening a capitalised sentence of its own;
+		// and no period lands mid-way any more (report 5ab3adb6): the value is
+		// read before STOP, which is what would close the last sentence.
 		expect(value).toBe(
-			'I typed this first the launch button did nothing. and I kept typing then the page went blank.'
+			'I typed this first the launch button did nothing and I kept typing then the page went blank'
 		);
 		expect(sent).toEqual(['start', 'stop']);
 	});
@@ -240,5 +267,190 @@ describe('dictation appends to what is typed, never replaces it', () => {
 		const rec = Fake.last!;
 		await m.stop();
 		expect(rec.calls).toEqual(['start', 'abort']);
+	});
+});
+
+/**
+ * REPORT 5ab3adb6: THE BOX KEEPS WHAT IS BEING SAID. Escape and SEND both used
+ * to lose work while dictating -- Escape closed the box (and the report with
+ * it), SEND left before the sentence in flight arrived. Both directions are
+ * asserted on one mount shape: the same key at rest still closes the box.
+ */
+describe('the box keeps what is being said', () => {
+	function key(init: KeyboardEventInit) {
+		window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }));
+	}
+
+	it('Escape while dictating stops listening and keeps the box; Escape at rest closes it', () => {
+		let closes = 0;
+		const m = open(Fixed, { onClose: () => (closes += 1), micLevel: null });
+		click(control(m));
+		m.flush();
+		expect(control(m).getAttribute('aria-pressed')).toBe('true');
+		key({ key: 'Escape' });
+		m.flush();
+		expect(control(m).getAttribute('aria-pressed')).toBe('false');
+		expect(closes).toBe(0);
+		expect(m.all('#fb-msg')).toHaveLength(1);
+		// At rest the same key closes, once.
+		key({ key: 'Escape' });
+		m.flush();
+		expect(closes).toBe(1);
+	});
+
+	it('a click on the shade while dictating only stops listening', () => {
+		let closes = 0;
+		const m = open(Fixed, { onClose: () => (closes += 1), micLevel: null });
+		click(control(m));
+		m.flush();
+		click(m.one('.fb-scrim'));
+		m.flush();
+		expect(control(m).getAttribute('aria-pressed')).toBe('false');
+		expect(closes).toBe(0);
+		click(m.one('.fb-scrim'));
+		m.flush();
+		expect(closes).toBe(1);
+	});
+
+	it('Ctrl+Shift+Space starts and stops dictation, and says so beside the control', () => {
+		const m = open(Fixed, { micLevel: null });
+		expect(control(m).getAttribute('aria-keyshortcuts')).toMatch(/Shift\+Space/);
+		expect(m.one('.fb-dictate-keys').textContent).toMatch(/Shift\+Space starts and stops dictation/);
+		key({ key: ' ', code: 'Space', ctrlKey: true, shiftKey: true });
+		m.flush();
+		expect(control(m).getAttribute('aria-pressed')).toBe('true');
+		key({ key: ' ', code: 'Space', ctrlKey: true, shiftKey: true });
+		m.flush();
+		expect(control(m).getAttribute('aria-pressed')).toBe('false');
+		// Without Shift it is not the key.
+		key({ key: ' ', code: 'Space', ctrlKey: true });
+		m.flush();
+		expect(control(m).getAttribute('aria-pressed')).toBe('false');
+	});
+
+	/**
+	 * SEND MID-SENTENCE. The fake finishes the sentence in flight on stop(), as
+	 * Chrome does, so the entry is what the box would have sent with and without
+	 * the wait. The positive control is the same press with the wait removed:
+	 * built from the shipping source, it sends without the last sentence.
+	 */
+	async function sendMidSentence(component: Box): Promise<FeedbackEntry[]> {
+		const sent: FeedbackEntry[] = [];
+		const m = open(component, {
+			micLevel: null,
+			submit: async (entry: FeedbackEntry) => {
+				sent.push(entry);
+				return { error: null, retryable: false };
+			}
+		});
+		typeInto(m, field(m), 'The save button');
+		click(control(m));
+		m.flush();
+		Fake.last!.say('does nothing', false);
+		Fake.last!.pending = 'does nothing on the second try';
+		m.flush();
+		// The service finishes the sentence on a later task, as a real one does.
+		Fake.later = true;
+		try {
+			click(m.one('.fb-btn-primary'));
+			await m.settle();
+		} finally {
+			Fake.later = false;
+		}
+		return sent;
+	}
+
+	it('SEND while dictating waits for the sentence in flight, and sends it closed', async () => {
+		const sent = await sendMidSentence(Fixed);
+		expect(sent).toHaveLength(1);
+		expect(sent[0]!.message).toBe('The save button does nothing on the second try.');
+	});
+
+	it('the old order (stop, then send at once) loses that sentence, so the assertion above bites', async () => {
+		const src = readFileSync(BOX_PATH, 'utf8').replace(/\r\n/g, '\n');
+		const WAIT = '\t\tif (dict?.listening) {\n\t\t\tfinishing = true;';
+		expect(src.split(WAIT)).toHaveLength(2);
+		// The mutant: stop and send in the same tick, the shipping order before this.
+		const mutant = src.replace(WAIT, '\t\tif (dict?.listening && false) {\n\t\t\tfinishing = true;').replace(
+			'\t\tsendNow();\n\t}\n\n\tfunction sendNow() {',
+			'\t\tdict?.stop();\n\t\tsendNow();\n\t}\n\n\tfunction sendNow() {'
+		);
+		expect(mutant).not.toBe(src);
+		const mutantPath = join(ROOT, 'src/lib/feedback', `FeedbackBox.mutant-${randomUUID()}.svelte`);
+		writeFileSync(mutantPath, mutant);
+		try {
+			const mod = (await import(/* @vite-ignore */ mutantPath)) as { default: Box };
+			const sent = await sendMidSentence(mod.default);
+			expect(sent).toHaveLength(1);
+			expect(sent[0]!.message).not.toContain('second try');
+		} finally {
+			rmSync(mutantPath, { force: true });
+		}
+	});
+
+	it('a service that never finishes is given up on after the grace, and the report still goes', async () => {
+		vi.useFakeTimers();
+		Fake.hang = true;
+		try {
+			const sent: FeedbackEntry[] = [];
+			const m = open(Fixed, {
+				micLevel: null,
+				submit: async (entry: FeedbackEntry) => {
+					sent.push(entry);
+					return { error: null, retryable: false };
+				}
+			});
+			typeInto(m, field(m), 'It froze');
+			click(control(m));
+			m.flush();
+			click(m.one('.fb-btn-primary'));
+			m.flush();
+			expect(m.one('.fb-btn-primary').textContent?.trim()).toBe('FINISHING');
+			expect(sent).toHaveLength(0);
+			await vi.advanceTimersByTimeAsync(DICTATION_STOP_GRACE_MS + 10);
+			m.flush();
+			expect(sent).toHaveLength(1);
+			expect(sent[0]!.message).toBe('It froze');
+			expect(Fake.last!.calls).toEqual(['start', 'stop', 'abort']);
+		} finally {
+			Fake.hang = false;
+			vi.useRealTimers();
+		}
+	});
+
+	it('the meter a box opened is closed when the box goes away', async () => {
+		const log: string[] = [];
+		const meter: MicMeter = {
+			open: () => log.push('open'),
+			close: () => log.push('close')
+		};
+		const m = open(Fixed, { micLevel: meter });
+		click(control(m));
+		m.flush();
+		expect(log).toEqual(['open']);
+		await m.stop();
+		expect(log).toEqual(['open', 'close']);
+	});
+
+	it('the level bars appear inside STOP once a level arrives, and not before', () => {
+		let emit: (l: number) => void = () => {};
+		const meter: MicMeter = {
+			open: (cb) => (emit = cb),
+			close: () => {}
+		};
+		const m = open(Fixed, { micLevel: meter });
+		click(control(m));
+		m.flush();
+		expect(m.all('.fb-dictate [data-dictation-level]')).toHaveLength(0);
+		emit(0.5);
+		m.flush();
+		expect(m.all('.fb-dictate [data-dictation-level]')).toHaveLength(1);
+		expect(control(m).textContent?.trim()).toBe('STOP');
+		// No meter at all: the dot alone, as before.
+		const plain = open(Fixed, { micLevel: null });
+		click(control(plain));
+		plain.flush();
+		expect(plain.all('.fb-dictate-dot')).toHaveLength(1);
+		expect(plain.all('[data-dictation-level]')).toHaveLength(0);
 	});
 });

@@ -218,8 +218,8 @@ describe('the console owns its keys, and prints the ones it owns', () => {
 			}
 		}
 		// The four digits, both directions of both axes, both students, save,
-		// return, close.
-		expect(resolved.size).toBe(13);
+		// return, close, and dictating the comment (report 5ab3adb6).
+		expect(resolved.size).toBe(14);
 		// TAB IS NOT SWALLOWED. It moves between criteria by native focus order
 		// over the roving tabindex; taking it here would trap focus in the
 		// rubric with no way out.
@@ -251,7 +251,7 @@ describe('the console owns its keys, and prints the ones it owns', () => {
 	 */
 	it('is SILENT on every typing target, and LOUD everywhere else', () => {
 		const keys = gradeKeys();
-		const typed = ['1', '2', '3', '4', 'n', 'p', 's', 'r', 'ArrowDown', 'ArrowUp', 'Escape'];
+		const typed = ['1', '2', '3', '4', 'n', 'p', 's', 'r', 'd', 'ArrowDown', 'ArrowUp', 'Escape'];
 		const typingTargets = [
 			{ tagName: 'INPUT' },
 			{ tagName: 'TEXTAREA' },
