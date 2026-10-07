@@ -250,6 +250,41 @@ list anybody edits.
     which is what a paragraph describing an unwritten migration turns into the
     moment somebody writes it.
 
+**IDEA ARMORY'S HISTORY IS IMMUTABLE, AND THE ONE WAY THROUGH IS A PURGE RUN AS
+THE TABLES' OWNER (0233, v0.3).** Versions, side versions and their release rows
+refuse every UPDATE and DELETE (`armory_refuse_version_mutation`). Delete forever
+(`armory_purge_project`, archived first and the name typed exactly, site admin;
+`armory_purge_folder`, removed files only, site admin or mentor) gets through
+only because the trigger passes a DELETE when the row's file carries
+`purging_at` AND the deleting role is a member of the table's owner.
+  - **THE OWNER TEST IS THE HALF THAT MATTERS.** `service_role` holds DELETE on
+    those tables and UPDATE on `armory_files` by the hosted default privileges,
+    so a marker alone is a door any server with the key could open, and a custom
+    setting was refused because any role can set one. 0233's self-check refuses
+    to apply where the purge function's owner is not a member of their owner.
+  - **EVERY ARMORY WRITER TAKES ITS PROJECT ROW FIRST.** Folder operations and
+    purges hold `armory_projects` FOR UPDATE; every per-file writer takes it FOR
+    KEY SHARE before any other row lock. The other way round (the file first,
+    the project later through the change feed's foreign key) a folder rename
+    crossing a check out measured 40P01. A new Armory write that touches a file
+    keeps this order or brings the deadlock back.
+  - **STORED CONTENT IS SHARED, SO A PURGE QUEUES BYTES AND NEVER DELETES
+    THEM.** A file's bytes are keyed by their hash, so one object can back files
+    in several projects. A purge queues, in `armory_orphaned_blobs`, only hashes
+    no surviving version names; the website removes them with a DELETE and then
+    a HEAD and marks a hash swept only on a 404, and `armory_orphans_pending`
+    re-checks first, keeping any hash a version names again.
+  - **A PURGED PROJECT LEAVES A RECEIPT, NOT A FEED ROW**: the feed's project key
+    and member policy die with the project. `armory_project_purged` answers from
+    `armory_purged_projects`, which keeps no member address.
+  - **ARMORY REFUSES BY RAISING A SQLSTATE WITH A JSON DETAIL**, never an
+    `{ok:false}` return, because the Windows app reads it that way; never
+    `54000`, which PostgREST answers with HTTP 500. Too large is 22023, a rate
+    limit `PT429`.
+  - **`armory_my_projects` IS MEMBERSHIP-ONLY**: it is what a computer syncs. A
+    site admin's wider READ is `armory_can_view`, behind the ten member-read
+    policies and the website's read functions, each keeping its own refusal.
+
 **FOUNDRY IS COMPLETE END TO END**: the data layer (0130/0131/0132), the
 `foundry-ingest` function, the SERVING ROUTE that puts a bundle's bytes in
 front of a browser, the submit surface (`/foundry/submit`,
@@ -3651,7 +3686,9 @@ with its own answer for the rows already stored.
 - **Archive, never delete.** `active = false` / `revoked_at` / `removed` keep
   history, roster and board rows intact. A real delete is offered only where the
   row holds no record worth keeping (a notebook FOLDER is organization, so
-  deleting one unfiles its entries and loses only the filing).
+  deleting one unfiles its entries and loses only the filing). IDEA Armory's
+  Delete forever (0233) is the one deliberate exception, Mr. Pina's, behind an
+  archived project, a typed name and a site admin; see the Armory paragraph.
 - **A soft-delete stamp is not a boundary.** The stamp is only as good as the
   filters behind it: enumerate every function, view and select that lists the
   table and exclude there, and pair each exclusion assertion with a positive
@@ -4420,9 +4457,17 @@ inside the function fails closed rather than falling through to a weaker path.
     `isAdmin === true` and never on the console itself; `SiteFeedback` derives it
     from `page.data.isAdmin`, so no mount threads it, and it opens a new tab so a
     half-typed report is never lost.
-  - **`app_feedback` is the ONE queue for every surface**, and the console at
-    `/admin/feedback` (admin only, decision 42) reads ALL apps. Filter before
-    exporting; an export of everything is a semester nobody reads.
+  - **`app_feedback` is the ONE queue for every WEBSITE surface**, and the
+    console at `/admin/feedback` (admin only, decision 42) reads ALL apps. Filter
+    before exporting; an export of everything is a semester nobody reads. **The
+    IDEA Armory Windows app is the one sender that is not a website surface
+    (0233, v0.3 items 4 and 4b):** its notes and incidents are
+    `armory_app_feedback` and `armory_app_incidents`, tables of their own because
+    the payload is (a required app version, the computer's name, 8000
+    characters, an incident report of up to 1 MiB), shown as two tabs of the same
+    console. Only an admin reads a row (RLS on `is_admin()`), the list functions
+    never carry `report`, and an incident is DELETED by the next submit 90 days
+    after it arrived, Mr. Pina's retention and the one report that is not kept.
     - **IT IS A SITE PAGE, NOT A CLASSROOM ONE (report R03).** The portal's app
       header, the root layout's report control and the site plate, and no
       `.cr-root` around it, so `FeedbackConsole` may style nothing through
