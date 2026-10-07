@@ -10,6 +10,13 @@
 //   GOLDEN_WRITE=1 npm test -- tests/classroom-panel-layout-render.test.ts
 //
 // run on that commit with this file and the test beside it, and never retyped.
+// Since ledger 0368 the ROOT TAG is the one thing rewritten in it, and that was
+// done mechanically rather than by re-running the writer against the new code:
+// in each case `<main class="classroom-page svelte-1w65r8g">` and the closing
+// `</main>` became `<section ... role="main">` and `</section>`, and the pane
+// case's `<section>` gained `as-pane` (four roots, four closers, one pane; the
+// stable root that stops an item open rebuilding the class page). Nothing else
+// in the file moved, so any other difference is still a regression.
 //
 // What each case is for: a teacher with every header slot filled (tools, the
 // theme vote, notices, the posted teams, the teams key, Quick post) under a

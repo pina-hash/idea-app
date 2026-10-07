@@ -198,7 +198,9 @@
 		 * There is an open DETAIL PANE beside this list, so the list is no longer
 		 * the main content of the page.
 		 *
-		 * Purely a landmark switch, and it tracks the detail rather than the split
+		 * A landmark switch on ONE element (a `role`, never a changed tag: a
+		 * changed tag rebuilt every child, ledger 0368), plus the `as-pane`
+		 * class the compact list rows key on. It tracks the detail rather than the split
 		 * for a reason found at 375px: below the breakpoint the detail pane is the
 		 * only pane on screen when something is open, and the list is the only one
 		 * when nothing is. Keying on "is this a split" instead left the class page
@@ -2012,11 +2014,20 @@
 	<title>{sectionTitle(section)} // IDEA Classroom</title>
 </svelte:head>
 
-<svelte:element
-	this={asPane ? 'section' : 'main'}
+<!--
+	ONE ELEMENT, WHATEVER THE PANE IS DOING (ledger 0368, report R02). This was a
+	`<svelte:element this={asPane ? 'section' : 'main'}>`, and a changed tag
+	builds a NEW element and re-runs every child: opening or closing an item
+	rebuilt the whole class page (the banner's arrival replayed, the pollers
+	restarted, a half-typed quick post was lost). The landmark is a `role` on one
+	stable element instead, so nothing under it is touched.
+-->
+<section
 	class="classroom-page"
+	class:as-pane={asPane}
 	class:page-dropping={pageDropActive}
 	class:edit-layer-open={editable && editing !== null}
+	role={asPane ? undefined : 'main'}
 	aria-label={asPane ? 'Class content' : undefined}
 	use:classPageDrop={{ enabled: pageDropOn }}
 >
@@ -2569,7 +2580,7 @@
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />
 	</footer>
-</svelte:element>
+</section>
 
 <style>
 	/* SPACING COMES FROM THE SCALE, NOT FROM LITERALS.
@@ -2590,6 +2601,13 @@
 	   masthead (`.app-header`, also 1, later in the page) painted over its title
 	   row and its Close: measured by hit test at 375 and 1440. While a row is
 	   being edited the page gives up its stacking context, and only then. */
+	/* What `src/app.css` gives every `main`, for the one stable element that is
+	   the page's main only while no item is open (ledger 0368). `:where` keeps
+	   it below the edit-layer rule after it, whatever the order. */
+	.classroom-page:where([role='main']) {
+		position: relative;
+		z-index: 1;
+	}
 	.classroom-page.edit-layer-open {
 		z-index: auto;
 	}

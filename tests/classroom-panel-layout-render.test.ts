@@ -15,7 +15,8 @@ import { dropRootWhitespace, renderCase, renderCases } from './classroom-panel-l
  *
  * `tests/fixtures/class-view-null-layout-golden.json` was written by running
  * these cases through ClassView AS IT STOOD AT bbc2fae5, before it rendered
- * through `PanelStack` (see the cases file for the command). This replays the
+ * through `PanelStack` (see the cases file for the command), with only its
+ * root tag rewritten mechanically in ledger 0368 (the cases file says how). This replays the
  * same props through ClassView as it stands now, with no `panelLayout`, and
  * requires the markup to match character for character once Svelte's
  * hydration comments are stripped (they mark block boundaries, which a
